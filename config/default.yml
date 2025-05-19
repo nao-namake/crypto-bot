@@ -1,0 +1,84 @@
+# ───────────────────────────────
+# データ取得設定
+# ───────────────────────────────
+data:
+  # CCXT の exchange 名（bybit, binance, okx…）
+  exchange: bybit
+
+  # 環境変数または here に直接書いてもOK
+  api_key: ${BYBIT_TESTNET_API_KEY}
+  api_secret: ${BYBIT_TESTNET_API_SECRET}
+
+  # 対象シンボル・時間足
+  symbol: BTC/USDT
+  timeframe: 1h
+
+  # 取得開始日(ISO8601)／総レコード数／ページング設定
+  since: '2022-01-01T00:00:00Z'
+  limit: 3000
+  paginate: true
+  per_page: 500
+
+# ───────────────────────────────
+# 戦略設定（Bollinger Band）
+# ───────────────────────────────
+strategy:
+  name: Bollinger
+  params:
+    period: 20
+    nbdev: 2.0
+
+# ───────────────────────────────
+# リスク管理設定
+# ───────────────────────────────
+risk:
+  risk_per_trade: 0.01
+  stop_atr_mult: 1.5
+
+# ───────────────────────────────
+# バックテスト設定
+# ───────────────────────────────
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+
+# ───────────────────────────────
+# 最適化設定
+# ───────────────────────────────
+optimizer:
+  periods: [10, 20, 30]
+  nbdevs:  [1.5, 2.0, 2.5]
+  parallel: true
+  max_workers: 4
+
+# ───────────────────────────────
+# ウォークフォワード設定
+# ───────────────────────────────
+walk_forward:
+  train_window: 500
+  test_window: 100
+  step: 100
+
+# ───────────────────────────────
+# 機械学習
+# ───────────────────────────────
+ml:
+  feat_period: 14
+  lags: [1, 2, 3, 5, 10]
+  rolling_window: 20
+  horizon: 5
+  threshold: 0.0
+  target_type: classification
+  model_type: lgbm   # ← 追加 (選択肢：lgbm / rf / xgb)
+    # ↓ ここから Optuna 設定
+  optuna:
+    n_trials: 20
+    timeout: 600             # 秒
+    direction: maximize
+    sampler:
+      name: TPESampler
+    pruner:
+      name: MedianPruner
+      n_startup_trials: 5
+      n_warmup_steps: 10
+      interval_steps: 1

@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 class RiskManager:
     """
     ポジションサイジング & ストップロス水準の計算。
@@ -9,25 +10,16 @@ class RiskManager:
 
     def __init__(self, risk_per_trade: float = 0.01, stop_atr_mult: float = 1.5):
         self.risk_per_trade = risk_per_trade
-        self.stop_atr_mult  = stop_atr_mult
+        self.stop_atr_mult = stop_atr_mult
 
-    def calc_stop_price(
-        self,
-        entry_price: float,
-        atr: pd.Series
-    ) -> float:
+    def calc_stop_price(self, entry_price: float, atr: pd.Series) -> float:
         """
         ATR の最新値を取り、stop_atr_mult 倍した幅を下にずらした価格を返す。
         """
         latest_atr = atr.iloc[-1]
         return entry_price - latest_atr * self.stop_atr_mult
 
-    def calc_lot(
-        self,
-        balance: float,
-        entry_price: float,
-        stop_price: float
-    ) -> float:
+    def calc_lot(self, balance: float, entry_price: float, stop_price: float) -> float:
         """
         許容損失 = balance * risk_per_trade
         損失幅 = entry_price - stop_price

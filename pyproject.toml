@@ -1,0 +1,26 @@
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.pytest.ini_options]
+# テスト対象のディレクトリ（再帰的に探索される）
+testpaths = ["tests"]
+
+# テストファイル名のパターン
+# - 通常のユニットテスト: test_*.py
+# - E2E テスト: *_e2e.py
+python_files = ["test_*.py", "*_e2e.py"]
+
+# （必要に応じてテストクラス／関数のパターンを指定可能）
+# python_classes = ["Test*"]
+# python_functions = ["test_*"]
+
+# asyncio 用のデフォルト fixture loop scope を function に固定
+asyncio_default_fixture_loop_scope = "function"
+
+# pandas の 'H' deprecated 警告を抑制
+filterwarnings = [
+  "ignore:'H' is deprecated and will be removed in a future version.*:FutureWarning"
+]

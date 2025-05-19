@@ -12,8 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8, 3.9, 3.10]
-
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v3
 
@@ -25,7 +24,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -36,16 +35,13 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
 
-      - name: Lint with flake8
-        run: flake8 crypto_bot tests
+      - name: Lint & Format Checks
+        run: |
+          flake8 crypto_bot tests
+          black --check crypto_bot tests
+          isort --check-only crypto_bot tests
 
-      - name: Check formatting with black
-        run: black --check crypto_bot tests
-
-      - name: Check import sorting with isort
-        run: isort --check-only crypto_bot tests
-
-      - name: Run pytest with coverage
+      - name: Run unit tests & collect coverage
         run: pytest --maxfail=1 --disable-warnings -q --cov=crypto_bot
 
       - name: Upload coverage to Codecov
@@ -54,14 +50,13 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
   integration-tests:
-    name: Integration Tests (Bybit Testnet)
+    name: Bybit Testnet E2E
     needs: test
-    if: ${{ success() }}
+    if: ${{ secrets.BYBIT_TESTNET_API_KEY && secrets.BYBIT_TESTNET_API_SECRET }}
     runs-on: ubuntu-latest
     env:
       BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
       BYBIT_TESTNET_API_SECRET: ${{ secrets.BYBIT_TESTNET_API_SECRET }}
-
     steps:
       - uses: actions/checkout@v3
 
@@ -73,10 +68,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: 3.11
 
       - name: Install dependencies
         run: |
@@ -87,5 +82,5 @@ jobs:
       - name: Make run_e2e.sh executable
         run: chmod +x run_e2e.sh
 
-      - name: Run end-to-end tests
+      - name: Run Bybit E2E
         run: ./run_e2e.sh

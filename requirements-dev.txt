@@ -1,0 +1,57 @@
+# requirements-dev.txt
+
+# テストフレームワーク
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 非同期テスト
+pytest-asyncio>=0.20.0
+
+# 静的解析・型チェック
+flake8>=6.0.0
+flake8-bugbear>=23.0.0
+flake8-docstrings>=1.7.0
+mypy>=1.4.0
+
+# フォーマッタ & インポートソート
+black>=24.3.0
+isort>=5.12.0
+
+# ドキュメントスタイル(docstringチェック)
+pydocstyle>=6.2.0
+
+# Git Hooks 等の自動化
+pre-commit>=3.4.0
+
+# CI/カバレッジ
+coverage>=7.0.0
+codecov>=2.0.0
+
+# リアルタイムストリーミング
+websockets>=11.0.0
+
+# リトライ機構（ExecutionEngine 等の再接続用）
+tenacity>=8.2.0
+
+# 取引所接続用ライブラリ
+ccxt>=2.10.0
+pybit>=1.5.6
+
+# dotenv (.env の自動読み込み用)
+python-dotenv>=1.0.0
+
+# 機械学習／前処理パイプライン用
+scikit-learn>=1.0.0
+
+# コンテナ／仮想環境検証（任意）
+tox>=4.8.0
+
+# 開発補助（任意）
+ipython>=8.0.0
+ipdb>=0.13.0
+
+# 機械学習
+optuna>=3.0.0
+scikit-learn>=1.2.0
+lightgbm>=4.0.0    # LightGBM を使うなら
+xgboost>=1.7.0     # XGBoost を使うなら
