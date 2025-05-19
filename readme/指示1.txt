@@ -1,0 +1,115 @@
+私は前回、あなたの手助けを得て暗号資産botの作成をしていました。
+トークン上限に達したため、一度リセットしたため、再度状況を説明します。
+
+1.目的：汎用性と拡張性がある暗号資産botを作成すること
+2.現在のタスク：まずはbotの環境構築をすること。それが終わってから戦略の見直し。
+3.現在の構成：ボリンジャーバンド戦略という仮の戦略を採用。環境構築が終わり次第、戦略は機械学習に切り替える予定。
+4.作成環境：MacBookを使用。cursorでコーディング。
+5.私の紹介：文系でpython勉強3ヶ月目の初学者。
+6.GitHub：https://github.com/nao-namake/crypto-bot
+7.フォルダ構造：下記の通り
+.
+├── config
+│   └── default.yml
+├── crypto_bot
+│   ├── __init__.py
+│   ├── backtest
+│   │   ├── __init__.py
+│   │   ├── engine.py
+│   │   ├── metrics.py
+│   │   └── optimizer.py
+│   ├── data
+│   │   ├── __init__.py
+│   │   ├── fetcher.py
+│   │   └── streamer.py
+│   ├── execution
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── bitbank_client.py
+│   │   ├── bitflyer_client.py
+│   │   ├── bybit_client.py
+│   │   ├── engine.py
+│   │   ├── factory.py
+│   │   └── okcoinjp_client.py
+│   ├── indicator
+│   │   ├── __init__.py
+│   │   └── calculator.py
+│   ├── main.py
+│   ├── ml
+│   │   ├── __init__.py
+│   │   ├── model.py
+│   │   ├── optimizer.py
+│   │   ├── preprocessor.py
+│   │   └── target.py
+│   ├── risk
+│   │   ├── __init__.py
+│   │   └── manager.py
+│   ├── scripts
+│   │   └── walk_forward.py
+│   └── strategy
+│       ├── __init__.py
+│       ├── base.py
+│       └── bollinger.py
+├── pyproject.toml
+├── README.md
+├── .env
+├── .env.example
+├── .flake8
+├── .gitignore
+├── readme
+│   ├── 指示1.txt
+│   ├── 指示2.txt
+│   └── 指示3.txt
+├── requirements-dev.txt
+├── scripts
+│   ├── checks.sh
+│   ├── gitcp.sh
+│   ├── reorganize_tests.sh
+│   └── run_e2e.sh
+├── setup.py
+└── tests
+    ├── integration
+    │   ├── bybit
+    │   │   └── test_bybit_e2e.py
+    │   └── main
+    │       └── test_main_e2e.py
+    └── unit
+        ├── backtest
+        │   ├── test_backtest_engine.py
+        │   ├── test_entry_exit.py
+        │   ├── test_metrics.py
+        │   ├── test_optimizer_scan.py
+        │   └── test_optimizer.py
+        ├── conftest.py
+        ├── data
+        │   ├── test_data_fetcher.py
+        │   ├── test_fetcher_additional.py
+        │   ├── test_fetcher.py
+        │   └── test_streamer.py
+        ├── execution
+        │   ├── test_execution_clients_interface.py
+        │   ├── test_execution_engine_basic.py
+        │   ├── test_execution_engine_retry.py
+        │   ├── test_execution_engine.py
+        │   └── test_execution_factory.py
+        ├── indicator
+        │   └── test_indicator.py
+        ├── main
+        │   ├── test_main_cli.py
+        │   └── test_main_train.py
+        ├── ml
+        │   ├── test_ml_model_selection.py
+        │   ├── test_ml_optimizer.py
+        │   ├── test_model.py
+        │   ├── test_preprocessor.py
+        │   └── test_target.py
+        ├── risk
+        │   └── test_manager.py
+        ├── scripts
+        │   └── test_walkforward.py
+        └── strategy
+            └── test_strategy.py
+
+27 directories, 72 files
+
+8.前回の指示：次のコメントで示します。まずは前回の指示を読み込んでいただき、その後に作業の続きをお願いします。

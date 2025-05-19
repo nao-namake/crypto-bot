@@ -1,0 +1,198 @@
+Crypto-Bot プロジェクト 引き継ぎ書 2025-05-末 改訂版
+
+A. プロジェクト概要  
+ ・目的：汎用性・拡張性を備えた暗号資産自動売買ボット  
+ ・主機能：  
+   – バックテスト／最適化／ウォークフォワードテスト  
+   – リアル取引 & ペーパー取引（Testnet）対応  
+ ・将来展望：  
+   – 複数取引所対応
+   – Docker 化／本番デプロイ
+   – 強化学習やオンライントレーニング
+
+B. これまでの進捗（STEP1～11-4）
+ 1. パッケージ化（pyproject.toml, setup.py）  
+ 2. DIによるコンポーネント分離  
+ 3. YAML＋click CLI 化  
+ 4. バックテスト／最適化エンジン実装  
+ 5. ウォークフォワード自動化  
+ 6. 結果可視化＆安定度判定  
+ 7. テスト＆CI整備 (pytest, flake8, black, isort + GitHub Actions)  
+ 8. バックテスト本体機能＋ユニットテスト拡充  
+ 9. ライブ＆ペーパー取引用プラットフォーム構築  
+   9-1. MarketDataFetcher の WebSocket 対応 → 完了  
+   9-2. ExecutionEngine の再接続・リトライ (tenacity) → 完了 + pytest 動作検証  
+   9-3. Testnet(Bybit)連携 & 統合テスト → 完了  
+       ・CCXT ベースの BybitTestnetClient (`crypto_bot/execution/bybit_client.py`)  
+       ・`.env` 自動読み込み対応 (python-dotenv)  
+       ・`.env.example` 更新  
+       ・E2E テスト (`tests/integration/test_bybit_e2e.py`)  
+       ・`run_e2e.sh` スクリプト追加  
+   9-4. CIワークフローに統合テストジョブ追加 → 完了  
+       ・実行ジョブ名: integration-tests  
+       ・Secrets: BYBIT_TESTNET_API_KEY, BYBIT_TESTNET_API_SECRET  
+10.テストカバレッジ強化（新規ユニットテスト追加）
+   10-1. backtest/metrics.py テスト強化 → 完了
+   10-2. data/fetcher.py（ISO文字列・datetime対応／ページネーション） → 完了
+   10-3. scripts/walk_forward.py（単体テスト） → 完了
+   10-4. backtest/engine.EntryExit（generate_entry/exit/fill） → 完了
+   10-5. execution/engine.ExecutionEngine（基本動作） → 完了
+   10-6. execution/engine.ExecutionEngine（リトライ機構） → 完了
+11.機械学習ベース戦略への拡張
+   11-1. 特徴量パイプライン構築 (crypto_bot/ml/preprocessor.py + テスト) → 完了
+   11-2. scikit-learn モデルラッパー作成 (crypto_bot/ml/model.py) + CLI “train” コマンド実装 & 単体テスト(test_model.py, test_main_train.py) → 完了
+   11-3. Optuna 等によるハイパーパラ最適化 → 完了
+   11-4. モデルタイプ切替対応 (lgbm/rf/xgb) & CLI/テスト修正 → 完了
+
+C. 現在の主要モジュール  
+ 1. data/  
+    - fetcher.py, streamer.py  
+ 2. backtest/  
+    - engine.py, optimizer.py, metrics.py  
+ 3. strategy/  
+    - base.py, bollinger.py  
+ 4. risk/  
+    - manager.py  
+ 5. execution/  
+    - base.py ← 共通インターフェイス(Protocol)
+    - factory.py ← 文字列からクライアントを生成
+    - bybit_client.py, bitbank_client.py, bitflyer_client.py, okcoinjp_client.py
+    - engine.py ← ExecutionEngine (retry付き注文処理)
+ 6.ml/
+    - preprocessor.py (FeatureEngineer, prepare_ml_dataset)
+    - target.py (make_regression_target／classification_target)
+    -  model.py (MLModel ラッパー)
+    - optimizer.py (Optuna 最適化ロジック)
+ 7.scripts/
+    - walk_forward.py (split_walk_forward, walk_forward_test)
+ 8.main.py
+    - CLI コマンド: backtest, optimize-backtest, train, optimize_ml, optimize-and-train, train-best
+
+D. テストカバレッジ  
+・Overall Coverage：78％（fail-under=75%）
+・主な未カバー領域：
+   backtest/metrics.py の一部エッジ
+   backtest/optimizer.py の高度最適化ループ
+   一部 data/fetcher のエラー処理
+   scripts/walk_forward の main()
+   main.py の細部分岐
+
+E. CI/CD／Lint／Format／テスト環境  
+ 1. checks.sh  
+    - flake8, isort, black, pytest+coverage（term-missing/html, fail-under=75%）  
+ 2. .github/workflows/ci.yml  
+    - jobs: test (matrix Python3.8–3.12)  
+    - jobs: integration-tests (needs: test, Bybit Testnet E2E)  
+ 3. requirements-dev.txt  
+    - pytest, pytest-cov, pytest-asyncio
+    - flake8系, black, isort, pydocstyle, pre-commit
+    - coverage, codecov, websockets, tenacity, ccxt, pybit, python-dotenv
+    - optuna, scikit-learn, lightgbm, xgboost
+    - tox, ipython, ipdb
+
+F. 今後のロードマップ  
+ STEP12：マルチ取引所対応フレームワーク整備  
+ 12-1. 共通インターフェイス定義 (Protocol／抽象クラス)
+ 12-2. 各取引所アダプタ実装
+    – CCXT 対応：Bybit  / Bitbank / Bitflyer / OKCoinJP / …
+ 12-3. Factory/DI 化
+    – create_exchange_client(exchange_id) で選択的インスタンス生成
+ 12-4. 既存コードの切り替え
+    – MarketDataFetcher, ExecutionEngine, main.py の生 CCXT 呼び出し→factory経由へ
+ 12-5. 新規モジュールのユニットテスト追加
+    – create_exchange_client のマッピングテスト
+   – MarketDataFetcher.get_price_df の fetcherテスト
+   – 各 ExchangeClient 実装のインターフェイス検証
+ 12-6. 統合テストのパラメータ化
+   – pytest.fixture(params=[“bybit”,”bitbank”,”bitflyer”,”okcoinjp”…])
+   – E2E backtest/trade をマルチ取引所で通す
+ 12-7. CI マトリクス／ジョブ拡張
+   – matrix: exchange: [bybit, bitbank, bitflyer, okcoinjp,…]
+   – secrets: 各 TESTNET API_KEY/SECRET
+
+ STEP13：Docker化＆CI/CD拡充  
+  13-1. Dockerfile 作成 & イメージビルド  
+  13-2. GitHub リポジトリ運用 + GitHub Actions 導入  
+  13-3. 自動ビルド→レジストリ（Docker Hub/ECR）→ステージング/本番デプロイ  
+
+ STEP14：本番環境構築  
+  14-1. AWS EC2/ECS/Fargate 等の選定と起動  
+  14-2. 仮想環境 or Docker 上でのデプロイスクリプト整備  
+  14-3. IaC（Terraform/CloudFormation）による構成管理  
+  14-4. ログ・モニタリング (CloudWatch, Prometheus + Grafana など)  
+
+ STEP15：拡張・改善項目  
+  15-1. マルチ戦略サポート（プラグイン化）
+  15-2. マルチリージョン冗長化 / HA 化
+  15-3. GitHub でのコードレビュー＆Issue 管理
+  15-4. Kubernetes（EKS/ECS）への移行
+  15-5. 強化学習やオンライントレーニング導入
+
+G. 開発環境セットアップ  
+```bash
+git clone https://github.com/nao-namake/crypto-bot.git
+cd crypto-bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .            # パッケージ本体 install_requires
+pip install -r requirements-dev.txt
+cp .env.example .env        # keys を埋める
+```  
+
+H. コーディング規約  
+ ・Python 3.13 / black＋isort  
+ ・flake8 (E203,W503 無視 + D1xx/D2xx/D4xx 無視)  
+ ・type hint + minimal docstring  
+ ・`.env` の自動読み込みを python-dotenv で  
+
+I. リポジトリ構成  
+```
+.
+├── .github/
+│   └── workflows/ci.yml
+├── checks.sh
+├── config/default.yml
+├── crypto_bot/
+│   ├── data/
+│   ├── backtest/
+│   ├── strategy/
+│   ├── risk/
+│   ├── execution/
+│   ├── ml/
+│   ├── scripts/
+│   └── main.py
+├── pyproject.toml / setup.py
+├── requirements-dev.txt
+├── tests/
+│   ├── unit/
+        ├── conftest.py
+        ├── test_backtest_engine.py
+        ├── test_entry_exit.py
+        ├── test_execution_engine_basic.py
+        ├── test_execution_engine_retry.py
+        ├── test_execution_engine.py
+        ├── test_fetcher_additional.py
+        ├── test_fetcher.py
+        ├── test_indicator.py
+        ├── test_main_cli.py
+        ├── test_main_train.py
+        ├── test_manager.py
+        ├── test_metrics.py
+        ├── test_ml_model_selection.py
+        ├── test_ml_optimizer.py
+        ├── test_model.py
+        ├── test_optimizer_scan.py
+        ├── test_optimizer.py
+        ├── test_preprocessor.py
+        ├── test_strategy.py
+        ├── test_streamer.py
+        ├── test_target.py
+        └── test_walkforward.py
+│   └── integration/
+│       ├── test_bybit_e2e.py
+│       └── test_main_e2e.py
+├── run_e2e.sh
+└── .env.example
+```  
+以上が現時点の全体像です。
