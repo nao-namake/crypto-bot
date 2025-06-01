@@ -63,7 +63,7 @@ jobs:
   integration-tests:
     name: Bybit Testnet E2E
     needs: unit-tests
-    if: ${{ secrets.BYBIT_TESTNET_API_KEY && secrets.BYBIT_TESTNET_API_SECRET }}
+    if: ${{ secrets.BYBIT_TESTNET_API_KEY != '' && secrets.BYBIT_TESTNET_API_SECRET != '' }}
     runs-on: ubuntu-latest
     env:
       BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
