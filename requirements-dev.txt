@@ -55,3 +55,4 @@ optuna>=3.0.0
 scikit-learn>=1.2.0
 lightgbm>=4.0.0    # LightGBM を使うなら
 xgboost>=1.7.0     # XGBoost を使うなら
+pandas-ta>=0.3.14b0  # テクニカル指標ライブラリ（TA-Lib 代替）

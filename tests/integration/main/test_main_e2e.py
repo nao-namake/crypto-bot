@@ -1,4 +1,4 @@
-# tests/test_main_e2e.py
+# tests/integration/main/test_main_e2e.py
 
 import pandas as pd
 import pytest
@@ -14,7 +14,6 @@ def tmp_config(tmp_path):
     main.py が参照する全てのキーを含む最小構成の YAML。
     """
     cfg = {
-        # ── ここを修正 ──
         "data": {
             "symbol": "BTCUSDT",
             "timeframe": "1d",
@@ -22,18 +21,17 @@ def tmp_config(tmp_path):
             "limit": 100,
             "per_page": 10,
         },
+        # ── ML 戦略を指定 ──
         "strategy": {
-            "params": {
-                "period": 2,
-                "nbdev": 1.0,
-            }
+            "name": "ml",
+            "params": {},
         },
-        # ── ここまで ──
+        # ──────────────────
         "backtest": {"starting_balance": 10000, "slippage_rate": 0.0},
         "walk_forward": {"train_window": 2, "test_window": 1, "step": 1},
+        # Optimizer は ML 戦略では使わないが、ダミー値を入れておく
         "optimizer": {
-            "periods": [2],
-            "nbdevs": [1.0],
+            "param_space": {},
             "parallel": False,
             "max_workers": 1,
         },
@@ -55,7 +53,7 @@ def test_backtest_e2e(monkeypatch, tmp_config):
         index=pd.date_range("2020-01-01", periods=3),
     )
 
-    # --- main.py の名前空間をパッチ ---
+    # --- main.py の各依存をパッチ ---
     class DummyFetcher:
         def __init__(self, *args, **kwargs):
             pass
@@ -75,16 +73,16 @@ def test_backtest_e2e(monkeypatch, tmp_config):
         lambda df, train_window, test_window, step: [(df.iloc[:2], df.iloc[2:3])],
     )
 
-    # （ParameterOptimizer は main.py では使われていませんが安全のためパッチ）
+    # ParameterOptimizer は main.py では使われないが安全のためパッチ
     import pandas as _pd  # noqa: E402
 
-    dummy_scan = _pd.DataFrame([{"period": 2, "nbdev": 1.0, "total_profit": 5.0}])
+    dummy_scan = _pd.DataFrame([{"dummy": 0}])
 
     class DummyOptimizer:
         def __init__(self, price_df, starting_balance, slippage_rate):
             pass
 
-        def scan(self, periods, nbdevs, parallel, max_workers):
+        def scan(self, param_space, parallel, max_workers):
             return dummy_scan
 
     monkeypatch.setattr("crypto_bot.main.ParameterOptimizer", DummyOptimizer)

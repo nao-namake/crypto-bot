@@ -1,17 +1,29 @@
+# crypto_bot/backtest/optimizer.py
+# 説明:
+# パラメータグリッドで全探索し、各組み合わせでバックテスト→結果をまとめて返します。
+# テスト用ダミークラス・関数や、設定ファイルベースの一括最適化関数も含まれます。
+
 import itertools
 from typing import Optional
-
 import pandas as pd
 
 from crypto_bot.backtest.engine import BacktestEngine
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
-from crypto_bot.strategy.bollinger import BollingerStrategy
 
 
 class ParameterOptimizer:
     """
-    パラメータグリッドを受け取り、各組み合わせについて
-    BacktestEngine を実行し、結果をまとめて返す。
+    各種パラメータ（例: ボリンジャーバンドの期間やσ幅）で全組み合わせを生成し、
+    それぞれでバックテストを実行、集計します。
+
+    Parameters
+    ----------
+    price_df : pd.DataFrame
+        銘柄の価格データ
+    starting_balance : float
+        初期残高
+    slippage_rate : float
+        スリッページ率
     """
 
     def __init__(
@@ -28,10 +40,12 @@ class ParameterOptimizer:
         self, periods: list, nbdevs: list, timeframes: list = None
     ) -> pd.DataFrame:
         """
-        periods   : list of BB period 値
-        nbdevs    : list of σ幅値
-        timeframes: ["1h","30m",…] のように足を指定（現状は未対応）
-        戻り値    : 各組み合わせの結果統計をまとめた DataFrame
+        パラメータグリッドを走査し、各組み合わせでバックテストを実行します。
+
+        Returns
+        -------
+        pd.DataFrame
+            各パラメータの検証結果
         """
         results = []
         combos = itertools.product(periods, nbdevs)
@@ -120,8 +134,20 @@ class ParameterOptimizer:
 
 def optimize_backtest(config: dict, output_csv: Optional[str] = None) -> pd.DataFrame:
     """
-    設定ファイルの内容をもとにバックテスト最適化を実行し、
-    結果を DataFrame で返却。output_csv を指定すると CSV 出力も行う。
+    設定ファイル（config）をもとにデータ取得→最適化バックテストを実行します。
+    指定時はCSVとしても保存。
+
+    Parameters
+    ----------
+    config : dict
+        設定辞書（通常はYAMLなどから読み込む）
+    output_csv : str or None
+        出力ファイルパス
+
+    Returns
+    -------
+    pd.DataFrame
+        検証結果
     """
     # ── データ取得 ──
     dd = config["data"]
@@ -140,7 +166,7 @@ def optimize_backtest(config: dict, output_csv: Optional[str] = None) -> pd.Data
         df.index = pd.to_datetime(df.index)
 
     # ── 前処理 ──
-    period = config["strategy"]["params"]["period"]
+    period = config["strategy"]["params"].get("period", 2)
     df = DataPreprocessor.clean(
         df,
         timeframe=dd["timeframe"],

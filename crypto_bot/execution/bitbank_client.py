@@ -1,3 +1,9 @@
+# crypto_bot/execution/bitbank_client.py
+# 説明:
+# bitbank 向け取引所クライアントラッパー（ccxt利用）。
+# ・テストネットは未対応（testnet引数は無視される）
+# ・OHLCV取得、注文発注、キャンセルなどの基本機能を実装
+
 import ccxt
 import pandas as pd
 
@@ -28,7 +34,7 @@ class BitbankClient(ExchangeClient):
     def create_order(self, symbol, side, type, amount, price=None, params=None):
         # mutable default を避ける
         params = params or {}
-        return self._client.create_order(symbol, side, type, amount, price, params)
+        return self._exchange.create_order(symbol, side, type, amount, price, params)
 
     def cancel_order(self, symbol, order_id):
         return self._exchange.cancel_order(order_id, {"symbol": symbol})

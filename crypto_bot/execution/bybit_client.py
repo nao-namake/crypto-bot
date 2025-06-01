@@ -1,7 +1,18 @@
-# crypto_bot/execution/bybit_client.py
+# =============================================================================
+# ファイル名: crypto_bot/execution/bybit_client.py
+# 説明:
+# Bybit Testnet専用の取引所クライアントラッパー。
+# - .env自動読込対応
+# - CCXTライブラリのBybit実装に型ヒントとPythonicなラップを提供
+# - 未定義メソッド/属性は内部のccxt.bybitへ自動フォールバック
+# - バックテスト・リアル取引・データ取得に共通利用
+# - 必要に応じて認証・テストネット対応、注文・残高・OHLCV取得可
+# =============================================================================
+
+from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import ccxt
 import pandas as pd
@@ -10,10 +21,12 @@ from dotenv import load_dotenv
 
 from .base import ExchangeClient
 
-
 class BybitTestnetClient(ExchangeClient):
     """
-    Bybit Testnet 用クライアントラッパー (CCXT 使用)。
+    Bybit Testnet 用の軽量ラッパー。
+
+    * キー未設定でも公開エンドポイントのみで動作可能
+    * attributes が見つからない場合は内部 ccxt Exchange へ自動委譲
     """
 
     def __init__(
@@ -21,57 +34,61 @@ class BybitTestnetClient(ExchangeClient):
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
         testnet: bool = True,
-        default_type: str = "spot",
+        default_type: str = "linear",
+        ccxt_options: Optional[Dict[str, Any]] = None,
         dotenv_path: Optional[str] = ".env",
+        **_: Any,
     ):
-        # .env 読み込み
+        # ── .env 読み込み ────────────────────────────────────────────
         if dotenv_path:
             load_dotenv(dotenv_path=dotenv_path)
 
-        # APIキー取得
         self.api_key = api_key or os.getenv("BYBIT_TESTNET_API_KEY")
         self.api_secret = api_secret or os.getenv("BYBIT_TESTNET_API_SECRET")
-        if not self.api_key or not self.api_secret:
-            raise RuntimeError(
-                "Set BYBIT_TESTNET_API_KEY and BYBIT_TESTNET_API_SECRET in environment"
-            )
 
-        # CCXT インスタンス生成
-        params = {
-            "apiKey": self.api_key,
-            "secret": self.api_secret,
+        # ── ccxt Exchange インスタンス生成 ──────────────────────────
+        opts: Dict[str, Any] = {
             "enableRateLimit": True,
+            "urls": {"api": "https://api-testnet.bybit.com"},
             "options": {"defaultType": default_type},
         }
-        self.client = ccxt.bybit(params)
+        if ccxt_options:
+            opts.update(ccxt_options)
 
-        # テストネットモード（存在する場合のみ呼び出し）
-        if testnet and hasattr(self.client, "set_sandbox_mode"):
+        self._exchange = ccxt.bybit(opts)
+
+        # 認証キー設定（存在する場合のみ）
+        if self.api_key:
+            self._exchange.apiKey = self.api_key
+            self._exchange.secret = self.api_secret
+
+        # テストネット sandbox モード（互換性のため try/except）
+        if testnet and hasattr(self._exchange, "set_sandbox_mode"):
             try:
-                self.client.set_sandbox_mode(True)
+                self._exchange.set_sandbox_mode(True)
             except Exception:
                 pass
 
+    # ------------------------------------------------------------------
+    # ❶ 未定義属性は _exchange へ自動フォールバック
+    # ------------------------------------------------------------------
+    def __getattr__(self, item: str):  # noqa: D401
+        return getattr(self._exchange, item)
+
+    # ------------------------------------------------------------------
+    # ❷ 型ヒント付きラッパー（必要最低限）
+    # ------------------------------------------------------------------
     def fetch_balance(self) -> dict:
-        """残高取得"""
-        return self.client.fetch_balance()
+        return self._exchange.fetch_balance()
 
     def fetch_ohlcv(
         self,
         symbol: str,
         timeframe: str,
-        since: Any = None,
-        limit: int = None,
-    ) -> pd.DataFrame:
-        """OHLCV データを pandas.DataFrame で返す"""
-        data = self.client.fetch_ohlcv(symbol, timeframe, since, limit)
-        df = pd.DataFrame(
-            data,
-            columns=["timestamp", "open", "high", "low", "close", "volume"],
-        )
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df.set_index("timestamp", inplace=True)
-        return df
+        since: Optional[Union[int, float]] = None,
+        limit: int | None = None,
+    ):
+        return self._exchange.fetch_ohlcv(symbol, timeframe, since, limit)
 
     def create_order(
         self,
@@ -79,17 +96,11 @@ class BybitTestnetClient(ExchangeClient):
         side: str,
         type: str,
         amount: float,
-        price: float = None,
+        price: float | None = None,
         params: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        """注文作成"""
-        return self.client.create_order(
-            symbol,
-            type.lower(),
-            side.lower(),
-            amount,
-            price,
-            params or {},
+    ):
+        return self._exchange.create_order(
+            symbol, type.lower(), side.lower(), amount, price, params or {}
         )
 
     def cancel_order(
@@ -97,15 +108,12 @@ class BybitTestnetClient(ExchangeClient):
         symbol: str,
         order_id: str,
         params: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        """単一注文キャンセル"""
-        return self.client.cancel_order(order_id, symbol, params or {})
+    ):
+        return self._exchange.cancel_order(order_id, symbol, params or {})
 
     def cancel_all_orders(self, symbol: str) -> List[dict]:
-        """指定シンボルの全オープン注文をキャンセル"""
-        open_orders = self.client.fetch_open_orders(symbol)
         results: List[dict] = []
-        for o in open_orders:
+        for o in self._exchange.fetch_open_orders(symbol):
             oid = o.get("id") or o.get("orderId")
             if oid:
                 results.append(self.cancel_order(symbol, oid))
@@ -116,9 +124,8 @@ class BybitTestnetClient(ExchangeClient):
         symbol: str,
         leverage: int,
         params: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        """契約取引でレバレッジを設定"""
+    ):
         try:
-            return self.client.set_leverage(leverage, symbol, params or {})
+            return self._exchange.set_leverage(leverage, symbol, params or {})
         except NotSupported:
             return {}

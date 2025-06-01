@@ -1,7 +1,11 @@
-"""crypto_bot.data.streamer module.
-
-Provides RealTimeFetcher to receive real-time market data via WebSocket.
-"""
+# =============================================================================
+# ファイル名: crypto_bot/data/streamer.py
+# 説明:
+# ・RealTimeFetcher: 仮想通貨取引所等のWebSocketからリアルタイムで価格データを取得するクラス
+# ・バックグラウンドでWebSocket接続し、Tickデータをコールバック関数や非同期Queueで受信
+# ・Bybitなどの"trade.シンボル名"チャンネル購読に対応（用途によって書き換え可）
+# ・バックテストだけでなく、将来のリアルタイムBotや板監視、検証用途にも使える
+# =============================================================================
 
 import asyncio
 import json
@@ -39,7 +43,7 @@ class RealTimeFetcher:
         self._ws = await websockets.connect(self.url)
         subscribe_msg = {
             "op": "subscribe",
-            "args": [f"trade.{self.symbol}"],
+            "args": [f"trade.{self.symbol}"],  # Bybitの場合。取引所ごとにチャンネル名調整
         }
         await self._ws.send(json.dumps(subscribe_msg))
 

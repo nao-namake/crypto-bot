@@ -1,3 +1,8 @@
+# crypto_bot/execution/bitflyer_client.py
+# 説明:
+# bitFlyer向けの取引所クライアントラッパー（ccxt利用）。
+# OHLCV取得、注文発注、キャンセル等の基本機能を提供。
+
 import ccxt
 import pandas as pd
 
@@ -26,7 +31,7 @@ class BitflyerClient(ExchangeClient):
 
     def create_order(self, symbol, side, type, amount, price=None, params=None):
         params = params or {}
-        return self._client.create_order(symbol, side, type, amount, price, params)
+        return self._exchange.create_order(symbol, side, type, amount, price, params)
 
     def cancel_order(self, symbol, order_id):
         return self._exchange.cancel_order(order_id, {"symbol": symbol})
@@ -39,5 +44,5 @@ class BitflyerClient(ExchangeClient):
         return results
 
     def set_leverage(self, symbol, leverage):
-        # bitFlyer はレバ未対応 or 品目限定なので必要なら実装
+        # bitFlyer はレバレッジ操作未対応（現状は未実装）
         raise NotImplementedError("Leverage not supported")

@@ -1,6 +1,8 @@
 import pytest
+
 from crypto_bot.data.fetcher import MarketDataFetcher
 from crypto_bot.execution.factory import create_exchange_client
+
 
 @pytest.mark.parametrize(
     "exchange_id, symbol",
@@ -21,21 +23,21 @@ def test_fetch_backtest_and_execute(exchange_id, symbol, monkeypatch):
         MarketDataFetcher,
         "get_price_df",
         lambda self, *args, **kwargs: __import__("pandas").DataFrame(
-            dummy_data, columns=["timestamp","open","high","low","close","volume"]
+            dummy_data, columns=["timestamp", "open", "high", "low", "close", "volume"]
         ),
     )
 
     # 2) Bot のバックテストロジック（例えば backtest.engine の run メソッド）をモック
     import crypto_bot.backtest.engine as engine_module
-    monkeypatch.setattr(engine_module, "run_backtest", lambda df: {"profit": 123},raising=False)
+
+    monkeypatch.setattr(
+        engine_module, "run_backtest", lambda df: {"profit": 123}, raising=False
+    )
 
     # 3) 注文発注メソッドをモック（例: client.send_order）
     client = create_exchange_client(exchange_id, api_key=None, api_secret=None)
     monkeypatch.setattr(
-        client,
-        "send_order",
-        lambda *args, **kwargs: {"status": "ok"},
-        raising=False
+        client, "send_order", lambda *args, **kwargs: {"status": "ok"}, raising=False
     )
 
     # 実際のフロー呼び出し
