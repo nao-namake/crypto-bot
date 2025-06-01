@@ -1,3 +1,18 @@
+# ========================================================================
+# ファイル名: crypto_bot/ml/optimizer.py
+# 説明:
+# 機械学習モデル（ML）のハイパーパラメータ自動最適化・モデル訓練・
+# Optunaによるベイズ最適化・学習済みモデル保存/ロード用モジュール。
+# - ルールベース（テクニカル指標系）の最適化とは別モジュール。
+# - MLStrategy等、機械学習戦略に特化。
+# 主な機能:
+# - objective: Optuna用評価関数（データ取得～スコア評価）
+# - optimize_ml: Optunaで自動パラメータ探索
+# - train_best_model: ベストモデル訓練・保存
+# - save_trials: 試行履歴CSV出力
+# ※ バックテストエンジンとは独立運用
+# ========================================================================
+
 import math
 import os
 
@@ -11,10 +26,9 @@ from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.ml.model import MLModel, create_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
 
-# xgboost が入っていれば回帰・分類器を利用可（分類器は create_model で扱う）
+# xgboost が入っていれば回帰・分類器を利用可
 try:
-    from xgboost import XGBClassifier, XGBRegressor  # noqa: F401
-
+    from xgboost import XGBClassifier, XGBRegressor
     _HAS_XGB = True
 except ImportError:
     _HAS_XGB = False
@@ -22,23 +36,47 @@ except ImportError:
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 
+import logging
+from ccxt.base.errors import ExchangeError
+
+logger = logging.getLogger(__name__)
+
+def _remove_lgbm_unused_params(params):
+    """
+    LightGBMで値が1.0やNoneの時に警告となるパラメータを除去します。
+    """
+    for key in ["bagging_fraction", "feature_fraction"]:
+        if key in params and (params[key] is None or params[key] == 1.0):
+            params.pop(key)
+    for key in ["lambda_l1", "lambda_l2"]:
+        if key in params and (params[key] is None or params[key] == 0.0):
+            params.pop(key)
+    return params
 
 def _load_and_preprocess_data(config: dict) -> pd.DataFrame:
     """
-    設定から OHLCV データを取得し、DataPreprocessor.clean() まで通して返す。
+    設定からOHLCVデータを取得→DataPreprocessor.clean()まで実施して返す。
     """
     dd = config["data"]
     fetcher = MarketDataFetcher(
         exchange_id=dd.get("exchange", "bybit"),
         symbol=dd["symbol"],
     )
-    df = fetcher.get_price_df(
-        timeframe=dd["timeframe"],
-        since=dd.get("since"),
-        limit=dd.get("limit"),
-        paginate=dd.get("paginate", False),
-        per_page=dd.get("per_page", 0),
-    )
+    try:
+        df = fetcher.get_price_df(
+            timeframe=dd["timeframe"],
+            since=dd.get("since"),
+            limit=dd.get("limit"),
+            paginate=dd.get("paginate", False),
+            per_page=dd.get("per_page", 0),
+        )
+    except ExchangeError as ex:
+        logger.warning("ExchangeError while fetching OHLCV: %s", ex)
+        return pd.DataFrame()
+    except Exception as ex:
+        logger.error("Unexpected error while fetching OHLCV: %s", ex)
+        return pd.DataFrame()
+
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
 
@@ -51,22 +89,30 @@ def _load_and_preprocess_data(config: dict) -> pd.DataFrame:
     )
     return df
 
-
 def objective(trial: optuna.Trial, config: dict) -> float:
     """
-    1 trial 分の学習→検証を行い、スコア (accuracy) を返す。
-    データが空／nan の場合は 0.0 を返す。
-    model_type: lgbm/rf/xgb に対応。
+    Optunaによる1 trial分の学習→検証を実施、スコア (accuracy) を返す。
+    データが空やnanの場合は0.0を返す。model_type: lgbm/rf/xgb対応。
     """
     # --- データ準備 ---
-    if "data" not in config:
-        # 既に前処理済み DF を渡した場合
-        ret = prepare_ml_dataset(config)
-    else:
-        df = _load_and_preprocess_data(config)
-        ret = prepare_ml_dataset(df, config)
+    try:
+        if "data" not in config:
+            # 既に前処理済みDFを渡した場合
+            ret = prepare_ml_dataset(config)
+        else:
+            df = _load_and_preprocess_data(config)
+            if df.empty:
+                logger.warning("Empty dataframe returned; skipping trial.")
+                return 0.0
+            ret = prepare_ml_dataset(df, config)
+    except ExchangeError as ex:
+        logger.warning("ExchangeError in objective(): %s", ex)
+        return 0.0
+    except Exception as ex:
+        logger.error("Unexpected error in objective(): %s", ex)
+        return 0.0
 
-    # 4要素 or 3要素返り値に対応
+    # データ構造により4要素または3要素返却に対応
     if isinstance(ret, tuple) and len(ret) == 4:
         X_train, y_train, X_val, y_val = ret
     else:
@@ -85,25 +131,31 @@ def objective(trial: optuna.Trial, config: dict) -> float:
     except Exception:
         return 0.0
 
-    # --- ハイパーパラサジェスト ---
-    params = {
-        "n_estimators": trial.suggest_int("n_estimators", 50, 200),
-        "max_depth": trial.suggest_int("max_depth", 3, 12),
-        "learning_rate": trial.suggest_loguniform("learning_rate", 1e-3, 1e-1),
-    }
+    # --- ハイパーパラメータのサジェスト ---
+    search_space = config["ml"].get("model_params_search_space", {})
+    params = {}
+    for name, choices in search_space.items():
+        params[name] = trial.suggest_categorical(name, choices)
+
+    if not params:
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 50, 200),
+            "max_depth": trial.suggest_int("max_depth", 3, 12),
+            "learning_rate": trial.suggest_loguniform("learning_rate", 1e-3, 1e-1),
+        }
 
     mode = config["ml"].get("target_type", "classification")
     mtype = config["ml"].get("model_type", "lgbm").lower()
 
-    # --- モデル生成（分類は create_model、回帰は手動マッピング） ---
+    # --- モデル生成（分類はcreate_model、回帰は手動マッピング） ---
     if mode == "classification":
-        # RandomForest は learning_rate を受け取らないので絞り込む
         if mtype == "rf":
             model_kwargs = {k: params[k] for k in ("n_estimators", "max_depth")}
         else:
             model_kwargs = dict(params)
             if mtype == "lgbm":
                 model_kwargs["verbose"] = -1
+                model_kwargs = _remove_lgbm_unused_params(model_kwargs)
 
         try:
             estimator = create_model(mtype, **model_kwargs)
@@ -111,10 +163,10 @@ def objective(trial: optuna.Trial, config: dict) -> float:
             raise ValueError(f"Failed to create classification model: {e}")
 
     else:
-        # 回帰モデルは手動マッピング
         if mtype == "lgbm":
             model_kwargs = dict(params)
             model_kwargs["verbose"] = -1
+            model_kwargs = _remove_lgbm_unused_params(model_kwargs)
             estimator = LGBMRegressor(**model_kwargs)
         elif mtype == "rf":
             rf_kwargs = {k: params[k] for k in ("n_estimators", "max_depth")}
@@ -124,23 +176,22 @@ def objective(trial: optuna.Trial, config: dict) -> float:
         else:
             raise ValueError(f"Unknown regression model_type={mtype}")
 
-    # --- 学習 & 予測 & 評価 ---
+    # --- 学習・予測・評価 ---
     model = MLModel(estimator)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_val)
     score = accuracy_score(y_val, y_pred)
 
-    # nan／非数値チェック
+    # nanや非数値は0.0を返す
     if not isinstance(score, (int, float)) or math.isnan(score):
         return 0.0
 
     return float(score)
 
-
 def optimize_ml(config: dict) -> optuna.Study:
     """
-    config['ml']['optuna'] を読み込み、Optuna 最適化を実行。
-    Study オブジェクトを返却。
+    config['ml']['optuna']を読み込み、Optuna最適化を実行。
+    Studyオブジェクトを返却。
     """
     opt_cfg = config["ml"]["optuna"]
     sampler = getattr(optuna.samplers, opt_cfg["sampler"]["name"])()
@@ -161,40 +212,36 @@ def optimize_ml(config: dict) -> optuna.Study:
     )
     return study
 
-
 def save_trials(study: optuna.Study, path: str = "trials.csv"):
     """
-    Optuna の全トライアル結果を CSV 保存。
+    Optuna の全トライアル結果をCSV保存。
     """
     df = study.trials_dataframe()
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     df.to_csv(path, index=False)
     print(f"Trials saved to {path!r}")
 
-
-# ----------------------------------------------------------------
-# train_best_model: 2つの呼び出しスタイルに対応
-#   * train_best_model(cfg, X_tr, y_tr, X_te, y_te) → Estimator を返す
-#   * train_best_model(cfg, output_path)         → study 最適化＋モデル保存
-# ----------------------------------------------------------------
 def train_best_model(config: dict, *args):
-    # (cfg, X_tr, y_tr, X_te, y_te) の場合
+    """
+    train_best_model:
+    (cfg, X_tr, y_tr, X_te, y_te) または (cfg, output_path)の2形式に対応。
+    """
+    # (cfg, X_tr, y_tr, X_te, y_te)
     if len(args) == 4:
         X_train, y_train, X_val, y_val = args
         mtype = config["ml"].get("model_type", "lgbm").lower()
-        # シンプルに分類用モデルを作り、学習して返す
         estimator = create_model(mtype)
         estimator.fit(X_train, y_train)
         return estimator
 
-    # (cfg, output_path) の場合
+    # (cfg, output_path)
     if len(args) == 1 and isinstance(args[0], (str, os.PathLike)):
         output_path = args[0]
 
-        # 1) 最適化
+        # 1) Optunaによる最適化
         study = optimize_ml(config)
 
-        # 2) 全データ取得＆前処理
+        # 2) 全データ取得・前処理
         df = _load_and_preprocess_data(config)
         ret = prepare_ml_dataset(df, config)
         if isinstance(ret, tuple) and len(ret) == 4:
@@ -204,7 +251,7 @@ def train_best_model(config: dict, *args):
             mode = config["ml"].get("target_type", "classification")
             y_train = y_clf if mode == "classification" else y_clf
 
-        # 3) 推定器生成
+        # 3) 最良推定器生成
         mode = config["ml"].get("target_type", "classification")
         mtype = config["ml"].get("model_type", "lgbm").lower()
         best_params = study.best_params.copy()
@@ -214,13 +261,14 @@ def train_best_model(config: dict, *args):
                 best_params.pop("learning_rate", None)
             if mtype == "lgbm":
                 best_params["verbose"] = -1
+                best_params = _remove_lgbm_unused_params(best_params)
             estimator = create_model(mtype, **best_params)
         else:
             if mtype == "lgbm":
                 best_params["verbose"] = -1
+                best_params = _remove_lgbm_unused_params(best_params)
                 estimator = LGBMRegressor(**best_params)
             elif mtype == "rf":
-                # 必要パラメタだけ抜き出し
                 tmp = {k: best_params[k] for k in ("n_estimators", "max_depth")}
                 estimator = RandomForestRegressor(**tmp)
             elif mtype == "xgb" and _HAS_XGB:
@@ -228,7 +276,7 @@ def train_best_model(config: dict, *args):
             else:
                 raise ValueError(f"Unknown regression model_type={mtype}")
 
-        # 4) 学習＋保存
+        # 4) 学習・保存
         model = MLModel(estimator).fit(X_train, y_train)
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         joblib.dump(model, output_path)
@@ -236,11 +284,8 @@ def train_best_model(config: dict, *args):
         return
 
     raise TypeError(
-        "train_best_model: 引数は "
-        "(config, X_tr, y_tr, X_te, y_te) か "
-        "(config, output_path) のいずれかで呼び出してください"
+        "train_best_model: 引数は (config, X_tr, y_tr, X_te, y_te) か (config, output_path) で呼び出してください"
     )
 
-
-# エイリアス: main.py から run_optuna として利用できるように
+# エイリアス: main.py から run_optunaとして利用可
 run_optuna = optimize_ml

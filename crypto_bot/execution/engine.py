@@ -1,5 +1,11 @@
-# crypto_bot/execution/engine.py
-
+# =============================================================================
+# ファイル名: crypto_bot/execution/engine.py
+# 説明:
+# ・トレード実行に関するエンジン・データ構造（Signal, Order, Positionなど）と
+#   戦略とリスク管理を組み合わせて注文・約定管理を行うエンジンクラスを提供。
+# ・主にバックテスト/リアル取引の両方で利用される。
+# ・実際の発注は exchange_client（CCXT等ラッパー）に委譲、リトライ制御も対応。
+# =============================================================================
 import logging
 import time
 from dataclasses import dataclass

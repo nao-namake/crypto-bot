@@ -1,16 +1,4 @@
-Crypto-Bot プロジェクト 引き継ぎ書 2025-05-末 改訂版
-
-A. プロジェクト概要  
- ・目的：汎用性・拡張性を備えた暗号資産自動売買ボット  
- ・主機能：  
-   – バックテスト／最適化／ウォークフォワードテスト  
-   – リアル取引 & ペーパー取引（Testnet）対応  
- ・将来展望：  
-   – 複数取引所対応
-   – Docker 化／本番デプロイ
-   – 強化学習やオンライントレーニング
-
-B. これまでの進捗（STEP1～11-4）
+ A. これまでの進捗（STEP1～11-8）
  1. パッケージ化（pyproject.toml, setup.py）  
  2. DIによるコンポーネント分離  
  3. YAML＋click CLI 化  
@@ -43,41 +31,87 @@ B. これまでの進捗（STEP1～11-4）
    11-2. scikit-learn モデルラッパー作成 (crypto_bot/ml/model.py) + CLI “train” コマンド実装 & 単体テスト(test_model.py, test_main_train.py) → 完了
    11-3. Optuna 等によるハイパーパラ最適化 → 完了
    11-4. モデルタイプ切替対応 (lgbm/rf/xgb) & CLI/テスト修正 → 完了
+   11-5. Note記事(n8abec619923f)のバックテスト結果表示コード移植
+	      •	詳細レポート（各トレード指標）出力機能を実装・動作確認 → 完了
+   11-6. pyproject.toml に Black/Isort/Pytest設定を追加 → 完了
+   11‑7‑1. トレード履歴のエクスポート＆集計 → 完了
+   11-7-2. パフォーマンス指標の可視化 → 完了
+   11−7−3. 閾値（threshold）のチューニング(閾値スイープ実行 (threshold_sweep.csv 出力)) → 完了
+   11-7-4. モデル最適化＆再学習 (optimize-and-train → ml.model_params 反映) → 完了
+   11-7-5. 再ROC/PR 曲線評価 & バックテスト比較レポート生成 → 完了
+   11-8. モデルキャリブレーション → 完了
+   11-9. 過学習チェック＆ウォークフォワードテスト → 完了
+   11-10.自動パイプラインのエラー修正中　→ 完了
 
-C. 現在の主要モジュール  
- 1. data/  
-    - fetcher.py, streamer.py  
- 2. backtest/  
-    - engine.py, optimizer.py, metrics.py  
- 3. strategy/  
-    - base.py, bollinger.py  
- 4. risk/  
-    - manager.py  
- 5. execution/  
-    - base.py ← 共通インターフェイス(Protocol)
-    - factory.py ← 文字列からクライアントを生成
-    - bybit_client.py, bitbank_client.py, bitflyer_client.py, okcoinjp_client.py
-    - engine.py ← ExecutionEngine (retry付き注文処理)
- 6.ml/
-    - preprocessor.py (FeatureEngineer, prepare_ml_dataset)
-    - target.py (make_regression_target／classification_target)
-    -  model.py (MLModel ラッパー)
-    - optimizer.py (Optuna 最適化ロジック)
- 7.scripts/
-    - walk_forward.py (split_walk_forward, walk_forward_test)
- 8.main.py
-    - CLI コマンド: backtest, optimize-backtest, train, optimize_ml, optimize-and-train, train-best
+12.マルチ取引所対応フレームワーク整備  
+   12-1. 共通インターフェイス定義 (Protocol／抽象クラス) → 完了
+   12-2. 各取引所アダプタ実装 → 完了
+      – CCXT 対応：Bybit  / Bitbank / Bitflyer / OKCoinJP / …
+   12-3. Factory/DI 化 → 完了
+      – create_exchange_client(exchange_id) で選択的インスタンス生成
+   12-4. 既存コードの切り替え → 完了
+      – MarketDataFetcher, ExecutionEngine, main.py の生 CCXT 呼び出し→factory経由へ
+   12-5. 新規モジュールのユニットテスト追加 → 完了
+      – create_exchange_client のマッピングテスト
+      – MarketDataFetcher.get_price_df の fetcherテスト
+      – 各 ExchangeClient 実装のインターフェイス検証
+   12-6. テスト雛形/.env.example整理 → 完了
 
-D. テストカバレッジ  
-・Overall Coverage：78％（fail-under=75%）
-・主な未カバー領域：
-   backtest/metrics.py の一部エッジ
-   backtest/optimizer.py の高度最適化ループ
-   一部 data/fetcher のエラー処理
-   scripts/walk_forward の main()
-   main.py の細部分岐
+B. 今後のロードマップ  
 
-E. CI/CD／Lint／Format／テスト環境  
+ STEP13：Docker化＆CI/CD拡充  
+  13-1. Dockerfile 作成 & イメージビルド → 完了
+  13-2. Dockerでの実行・テスト確認　　　→ 完了
+  13-3. GitHub リポジトリ運用 + GitHub Actions 導入 → 未了
+  13-4. 自動ビルド→レジストリ（Docker Hub/ECR）→ステージング/本番デプロイ → 未了
+
+ STEP14：本番環境構築  
+  14-1. AWS EC2/ECS/Fargate 等の選定と起動 → 未了
+  14-2. 仮想環境 or Docker 上でのデプロイスクリプト整備 → 未了
+  14-3. IaC（Terraform/CloudFormation）による構成管理 → 未了
+  14-4. ログ・モニタリング (CloudWatch, Prometheus + Grafana など) → 未了
+
+ STEP15：拡張・改善項目  
+  15-1. マルチ戦略サポート（プラグイン化） → 未了
+  15-2. マルチリージョン冗長化 / HA 化 → 未了
+  15-3. GitHub でのコードレビュー＆Issue 管理 → 未了
+  15-4. Kubernetes（EKS/ECS）への移行 → 未了
+  15-5. オンライントレーニング導入 → 未了
+  15-6.[勝率向上タスク]
+	•	(a) 新テクニカル指標追加 (RSI, MACD, ストキャスティクスなど)
+	•	(b) モデルアンサンブル/スタッキング
+	•	(c) 動的閾値調整 (ATR連動)
+	•	(d) ポジションサイズ戦略 (Kelly, 連勝連敗調整)
+	•	(e) ターゲット定義見直し (多次元/閾値固定から条件付き)
+	•	(f) コスト・スリッページモデル学習
+	•	(g) 自動ワークフォローによる閾値/パラメータ最適化
+	•	(h) リアルタイム適応学習 & ドリフト検知
+	•	(i) ストレステスト & 信頼区間評価
+	•	(j) リアルタイムアラート＆自動停止
+	•	(k) 過学習抑制・高度化（旧11-10）
+         •	データ分割/クロスバリデーション（TimeSeriesSplit/K-Fold/Walk Forwardなど）
+         •	特徴量エンジニアリング（高相関/未来情報の除去・重要度可視化・不要特徴量削減）
+         •	モデル正則化・アンサンブル最適化
+         •	ハイパーパラメータ広域チューニング・早期停止（Optuna, GridSearchCV）
+         •	モデルキャリブレーション（Platt Scaling, Isotonic Regression）
+         •	本番想定テストセット評価・過学習監視指標の拡充（CAGR, Sharpe, DD等）
+         •	モデル/学習パラメータ/再現性のバージョン管理強化（MLflow, DVC等）
+	•	(l) リアルタイムシミュレーション（旧11-11）
+         •	ペーパー取引/少額実弾の24h自動運用・ログ＆パフォーマンス自動記録
+         •	異常検知・自動アラート（損失超過時のBot停止等）
+         •	モデルの自動再トレーニング/再デプロイ・パフォーマンス乖離自動監視
+
+STEP16：マルチ取引所の本格運用対応・API仕様/テスト更新
+   16-1. 本当に運用したい取引所のAPI仕様アップデート対応
+   　- 取引所APIの仕様変更、バージョン更新時の追従
+   　- 実際に注文・出金・銘柄追加などの「実運用上の課題」に合わせて柔軟にコード・テスト・ドキュメントを随時アップデート
+   16-2. 各取引所integrationテストの本実装
+   　- 雛形に実処理を埋め込み、実際の残高・取引・注文キャンセルなどを安全に検証
+   　- 必要なタイミングでのみAPIキー設定＆実行
+   16-3. 「使うときだけ最小単位でテスト→本番利用」フロー確立
+   　- APIキー/注文量/テスト内容の記録とドキュメント管理
+
+C. CI/CD／Lint／Format／テスト環境  
  1. checks.sh  
     - flake8, isort, black, pytest+coverage（term-missing/html, fail-under=75%）  
  2. .github/workflows/ci.yml  
@@ -89,110 +123,3 @@ E. CI/CD／Lint／Format／テスト環境
     - coverage, codecov, websockets, tenacity, ccxt, pybit, python-dotenv
     - optuna, scikit-learn, lightgbm, xgboost
     - tox, ipython, ipdb
-
-F. 今後のロードマップ  
- STEP12：マルチ取引所対応フレームワーク整備  
- 12-1. 共通インターフェイス定義 (Protocol／抽象クラス)
- 12-2. 各取引所アダプタ実装
-    – CCXT 対応：Bybit  / Bitbank / Bitflyer / OKCoinJP / …
- 12-3. Factory/DI 化
-    – create_exchange_client(exchange_id) で選択的インスタンス生成
- 12-4. 既存コードの切り替え
-    – MarketDataFetcher, ExecutionEngine, main.py の生 CCXT 呼び出し→factory経由へ
- 12-5. 新規モジュールのユニットテスト追加
-    – create_exchange_client のマッピングテスト
-   – MarketDataFetcher.get_price_df の fetcherテスト
-   – 各 ExchangeClient 実装のインターフェイス検証
- 12-6. 統合テストのパラメータ化
-   – pytest.fixture(params=[“bybit”,”bitbank”,”bitflyer”,”okcoinjp”…])
-   – E2E backtest/trade をマルチ取引所で通す
- 12-7. CI マトリクス／ジョブ拡張
-   – matrix: exchange: [bybit, bitbank, bitflyer, okcoinjp,…]
-   – secrets: 各 TESTNET API_KEY/SECRET
-
- STEP13：Docker化＆CI/CD拡充  
-  13-1. Dockerfile 作成 & イメージビルド  
-  13-2. GitHub リポジトリ運用 + GitHub Actions 導入  
-  13-3. 自動ビルド→レジストリ（Docker Hub/ECR）→ステージング/本番デプロイ  
-
- STEP14：本番環境構築  
-  14-1. AWS EC2/ECS/Fargate 等の選定と起動  
-  14-2. 仮想環境 or Docker 上でのデプロイスクリプト整備  
-  14-3. IaC（Terraform/CloudFormation）による構成管理  
-  14-4. ログ・モニタリング (CloudWatch, Prometheus + Grafana など)  
-
- STEP15：拡張・改善項目  
-  15-1. マルチ戦略サポート（プラグイン化）
-  15-2. マルチリージョン冗長化 / HA 化
-  15-3. GitHub でのコードレビュー＆Issue 管理
-  15-4. Kubernetes（EKS/ECS）への移行
-  15-5. 強化学習やオンライントレーニング導入
-
-G. 開発環境セットアップ  
-```bash
-git clone https://github.com/nao-namake/crypto-bot.git
-cd crypto-bot
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e .            # パッケージ本体 install_requires
-pip install -r requirements-dev.txt
-cp .env.example .env        # keys を埋める
-```  
-
-H. コーディング規約  
- ・Python 3.13 / black＋isort  
- ・flake8 (E203,W503 無視 + D1xx/D2xx/D4xx 無視)  
- ・type hint + minimal docstring  
- ・`.env` の自動読み込みを python-dotenv で  
-
-I. リポジトリ構成  
-```
-.
-├── .github/
-│   └── workflows/ci.yml
-├── checks.sh
-├── config/default.yml
-├── crypto_bot/
-│   ├── data/
-│   ├── backtest/
-│   ├── strategy/
-│   ├── risk/
-│   ├── execution/
-│   ├── ml/
-│   ├── scripts/
-│   └── main.py
-├── pyproject.toml / setup.py
-├── requirements-dev.txt
-├── tests/
-│   ├── unit/
-        ├── conftest.py
-        ├── test_backtest_engine.py
-        ├── test_entry_exit.py
-        ├── test_execution_engine_basic.py
-        ├── test_execution_engine_retry.py
-        ├── test_execution_engine.py
-        ├── test_fetcher_additional.py
-        ├── test_fetcher.py
-        ├── test_indicator.py
-        ├── test_main_cli.py
-        ├── test_main_train.py
-        ├── test_manager.py
-        ├── test_metrics.py
-        ├── test_ml_model_selection.py
-        ├── test_ml_optimizer.py
-        ├── test_model.py
-        ├── test_optimizer_scan.py
-        ├── test_optimizer.py
-        ├── test_preprocessor.py
-        ├── test_strategy.py
-        ├── test_streamer.py
-        ├── test_target.py
-        └── test_walkforward.py
-│   └── integration/
-│       ├── test_bybit_e2e.py
-│       └── test_main_e2e.py
-├── run_e2e.sh
-└── .env.example
-```  
-以上が現時点の全体像です。

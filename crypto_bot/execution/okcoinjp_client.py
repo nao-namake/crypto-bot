@@ -1,8 +1,18 @@
+# =============================================================================
+# ファイル名: crypto_bot/execution/okcoinjp_client.py
+# 説明:
+# OKCoin Japan 専用の取引所クライアントラッパー。
+# - CCXTの okcoinjp クラスをラップ
+# - APIキーとシークレットを受け取り、DataFrame形式でデータ返却
+# - fetch_balance, fetch_ohlcv, create_order, cancel_order, set_leverage など基本操作に対応
+# - テストネット用URLもオプションで対応（※本番とURL切り替え）
+# - 取引所API呼び出しを統一インターフェイスで抽象化
+# =============================================================================
+
 import ccxt
 import pandas as pd
 
 from .base import ExchangeClient
-
 
 class OkcoinJpClient(ExchangeClient):
     def __init__(self, api_key: str, api_secret: str, testnet: bool = False):
@@ -39,5 +49,5 @@ class OkcoinJpClient(ExchangeClient):
         return results
 
     def set_leverage(self, symbol, leverage):
-        # bitFlyer はレバ未対応 or 品目限定なので必要なら実装
+        #  OKCoin Japanではレバレッジ操作は未サポート
         raise NotImplementedError("Leverage not supported")

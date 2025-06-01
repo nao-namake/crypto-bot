@@ -1,3 +1,12 @@
+# ============================================================
+# ファイル名: crypto_bot/ml/model.py
+# 説明:
+# 機械学習モデルのラッピングクラスとモデル生成用ファクトリ関数。
+# sklearn/LightGBM/XGBoost/RandomForestに対応し、
+# - fit, predict, predict_proba, save, load
+# などの共通インターフェースを提供。
+# ============================================================
+
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -7,7 +16,6 @@ from lightgbm import LGBMClassifier
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-
 
 class MLModel:
     """
@@ -70,27 +78,42 @@ _MODEL_REGISTRY = {
     "xgb": XGBClassifier,
 }
 
+def _lgbm_param_cleanup(kwargs):
+    """
+    LightGBM固有のパラメータ警告対策用クリーナー。
+    - reg_alpha → lambda_l1 に統一
+    - reg_lambda → lambda_l2 に統一
+    - subsample → bagging_fraction に統一
+    - 競合する場合は新しいもの（lambda_l1/lambda_l2/bagging_fraction）優先
+    - デフォルト値（1.0, 0.0）なら削除
+    """
+    # reg_alpha → lambda_l1
+    if "reg_alpha" in kwargs:
+        if "lambda_l1" not in kwargs:
+            kwargs["lambda_l1"] = kwargs["reg_alpha"]
+        del kwargs["reg_alpha"]
+    # reg_lambda → lambda_l2
+    if "reg_lambda" in kwargs:
+        if "lambda_l2" not in kwargs:
+            kwargs["lambda_l2"] = kwargs["reg_lambda"]
+        del kwargs["reg_lambda"]
+    # subsample → bagging_fraction
+    if "subsample" in kwargs:
+        if "bagging_fraction" not in kwargs:
+            kwargs["bagging_fraction"] = kwargs["subsample"]
+        del kwargs["subsample"]
+    # デフォルト値の場合は削除
+    for param in ["bagging_fraction", "feature_fraction"]:
+        if param in kwargs and kwargs[param] == 1.0:
+            del kwargs[param]
+    for param in ["lambda_l1", "lambda_l2"]:
+        if param in kwargs and kwargs[param] == 0.0:
+            del kwargs[param]
+    return kwargs
 
 def create_model(model_type: str, **kwargs) -> BaseEstimator:
     """
     model_type に応じた sklearn Estimator を返します。
-
-    Parameters
-    ----------
-    model_type : str
-        'lgbm' / 'rf' / 'xgb' のいずれか
-    **kwargs :
-        各クラスのコンストラクタ引数
-
-    Returns
-    -------
-    BaseEstimator
-        指定されたモデルインスタンス
-
-    Raises
-    ------
-    ValueError
-        未知の model_type が指定された場合
     """
     key = model_type.lower()
     if key not in _MODEL_REGISTRY:
@@ -98,4 +121,6 @@ def create_model(model_type: str, **kwargs) -> BaseEstimator:
             f"Unknown model_type '{model_type}'. valid types: {list(_MODEL_REGISTRY)}"
         )
     cls = _MODEL_REGISTRY[key]
+    if key == "lgbm":
+        kwargs = _lgbm_param_cleanup(kwargs)
     return cls(**kwargs)

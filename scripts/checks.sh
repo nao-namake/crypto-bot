@@ -1,29 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =============================================================================
+# ファイル名: scripts/checks.sh
+# 説明:
+# プロジェクトの品質チェックを一括実行するシェルスクリプトです。
+# - flake8: コードスタイルチェック（PEP8違反検出）
+# - isort: import順チェック（自動修正せず、--check-only）
+# - black: コード整形チェック（自動修正せず、--checkのみ）
+# - pytest: テスト実行とカバレッジ計測
+#   （--cov-fail-under=75 でカバレッジ75%未満ならエラー終了）
+#
+# 主にローカルやCI/CDで静的解析とテストを一発で確認したい時に使います。
+#
+# 使い方（ターミナルでプロジェクトルートから実行）:
+#   bash scripts/checks.sh
+#   ./scripts/checks.sh
+#
+#   ※どちらも同じ意味です
+# =============================================================================
+
 # Coverage の最低ライン
 COV_FAIL_UNDER=75
-
-# --fix オプションで isort/black を自動適用
-FIX_MODE=false
-if [[ "${1:-}" == "--fix" ]]; then
-  FIX_MODE=true
-fi
 
 echo ">>> flake8"
 flake8 .
 
-if $FIX_MODE; then
-  echo ">>> isort (applying fixes)"
-  isort .
-  echo ">>> black (applying fixes)"
-  black .
-else
-  echo ">>> isort (check only)"
-  isort --check-only .
-  echo ">>> black (check only)"
-  black --check .
-fi
+echo ">>> isort (check only)"
+isort --check-only .
+
+echo ">>> black (check only)"
+black --check .
 
 echo ">>> pytest (with coverage)"
 pytest \

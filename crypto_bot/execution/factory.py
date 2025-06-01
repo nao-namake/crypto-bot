@@ -1,4 +1,14 @@
-# crypto_bot/execution/factory.py
+# =============================================================================
+# ファイル名: crypto_bot/execution/factory.py
+# 説明:
+# 取引所ごとのAPIクライアント（ccxtまたは独自ラッパー）を生成するFactory関数群。
+# - Bybitは専用ラッパー（テストネット対応）
+# - Bitbank, Bitflyer, OkcoinJP等はccxtラッパー
+# - APIキー・シークレットやオプションも柔軟に受け取れる
+# - 他のどの層からも「取引所を抽象化」して呼び出せる設計
+# =============================================================================
+
+from typing import Any, Dict, Optional
 
 from .bitbank_client import BitbankClient
 from .bitflyer_client import BitflyerClient
@@ -8,18 +18,45 @@ from .okcoinjp_client import OkcoinJpClient
 
 def create_exchange_client(
     exchange_id: str,
-    api_key: str,
-    api_secret: str,
+    api_key: Optional[str] = None,
+    api_secret: Optional[str] = None,
     testnet: bool = True,
-    **kwargs,
+    ccxt_options: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
 ):
+    """
+    Parameters
+    ----------
+    exchange_id : str
+        "bybit", "bitbank", "bitflyer", "okcoinjp", …
+    api_key / api_secret : str | None
+        環境変数に入れている場合は None で OK
+    testnet : bool
+        テストネットを使うかどうか（Bybit は True 推奨）
+    ccxt_options : dict | None
+        CCXT に直接渡す追加オプション
+    """
     eid = exchange_id.lower()
+
+    # ── Bybit Testnet ───────────────────────────────────────────
+    # 独自ラッパーなので ccxt_options は渡さない
     if eid in ("bybit", "bybit-testnet", "bybit_testnet"):
         return BybitTestnetClient(api_key, api_secret, testnet=testnet)
+
+    # ── 以降は CCXT ラッパー系 ──────────────────────────────
     if eid == "bitbank":
-        return BitbankClient(api_key, api_secret, testnet=testnet)
+        return BitbankClient(
+            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
+        )
+
     if eid == "bitflyer":
-        return BitflyerClient(api_key, api_secret, testnet=testnet)
+        return BitflyerClient(
+            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
+        )
+
     if eid in ("okcoinjp", "okj"):
-        return OkcoinJpClient(api_key, api_secret, testnet=testnet)
+        return OkcoinJpClient(
+            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
+        )
+
     raise ValueError(f"Unknown exchange_id: {exchange_id}")

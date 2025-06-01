@@ -1,7 +1,16 @@
+# =============================================================================
+# ファイル名: crypto_bot/execution/base.py
+# 説明:
+# 取引所クライアントの「共通インターフェイス（型）」をProtocolで定義。
+# すべての取引所クライアント（Bybit, Bitbank, CCXTラッパー等）はこれを満たす必要がある。
+# - fetch_balance, fetch_ohlcv, create_order, cancel_order など
+# - 型チェックや自動補完のための土台（直接インスタンス化はしない）
+# - 実装は各クライアントファイル（bitbank_client.py等）側で
+# =============================================================================
+
 from typing import Any, List, Protocol
 
 import pandas as pd
-
 
 class ExchangeClient(Protocol):
     """すべての取引所クライアントが実装すべき共通インターフェイス"""

@@ -1,40 +1,38 @@
-# ベースイメージ
-FROM python:3.11-slim-bullseye
+###############################################################################
+# builder stage – wheel-house を作る
+###############################################################################
+FROM python:3.11-slim-bullseye AS builder
+WORKDIR /build
 
-# 作業ディレクトリ
+# ネイティブ拡張ビルド用ツール（numpy/scipy など）
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# pyproject.toml だけで wheel を作る
+COPY pyproject.toml ./
+
+RUN pip install --upgrade pip \
+ # プロジェクト & 依存すべてを wheel 化して /wheels へ
+ && pip wheel --no-cache-dir --prefer-binary -w /wheels .
+
+###############################################################################
+# runtime stage – wheel-house からオフライン install
+###############################################################################
+FROM python:3.11-slim-bullseye
 WORKDIR /app
 
-# システムビルドツールをインストール
+# ランタイムに必要な共有ライブラリだけ
 RUN apt-get update \
-    && apt-get install -y build-essential wget ca-certificates autoconf automake libtool pkg-config git \
-    && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends libstdc++6 libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
 
-# --- build latest TA‑Lib from GitHub ---
-RUN git clone --depth 1 https://github.com/ta-lib/ta-lib.git \
-    && cd ta-lib \
-    && chmod +x autogen.sh \
-    && ./autogen.sh \
-    && ./configure --prefix=/usr \
-    && make -j$(nproc) \
-    && make install \
-    && ldconfig \
-    # TA‑Lib installs libta_lib.so, while the Python wheel looks for libta-lib.so.
-    && LIBFILE="$(ldconfig -p | awk '/libta_lib\.so/{print $NF; exit}')" \
-    && LIBDIR="$(dirname "${LIBFILE}")" \
-    && [ -e "${LIBDIR}/libta-lib.so" ] || ln -s "${LIBFILE}" "${LIBDIR}/libta-lib.so" \
-    && cd .. \
-    && rm -rf ta-lib
+# wheel-house をコピーしてオフラインインストール
+COPY --from=builder /wheels /tmp/wheels
+RUN python -m pip install --no-index --find-links=/tmp/wheels crypto-bot \
+ && rm -rf /tmp/wheels
 
-# ソースコードをコピー
+# アプリケーションソース
 COPY . .
 
-# TA-Lib の Python ラッパーをインストール
-RUN pip install --no-cache-dir TA-Lib
-
-# プロジェクト本体と開発用依存をインストール
-RUN pip install --no-cache-dir -U pip \
-    && pip install --no-cache-dir -e . \
-    && pip install --no-cache-dir -r requirements-dev.txt
-
-# コンテナ起動時に実行するコマンド
 ENTRYPOINT ["python", "-m", "crypto_bot.main"]
