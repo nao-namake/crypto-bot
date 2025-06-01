@@ -1,41 +1,38 @@
 # =============================================================================
 # ファイル名: .github/workflows/ci.yml
 # 説明:
-#   - GitHub ActionsによるCIパイプライン
-#   - Lint, フォーマット, ユニットテスト（カバレッジ付）、Codecov連携
-#   - Python 3.9～3.13のマトリクス
-#   - Bybit Testnet E2E（APIキーがあれば自動で実行／run_e2e.sh対応）
-#   - Dockerfileでの動作検証はrun_docker.shによりローカル運用・開発者検証推奨
+#   - プッシュ/プルリク時にCIを実行（Lint/Format/Unitテスト）
+#   - Bybit Testnetの統合テスト（APIキー＆シークレット必須、なければスキップ）
 # =============================================================================
 
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  unit-tests:
-    name: Unit & Lint (Python ${{ matrix.python-version }})
+  test:
+    name: Unit Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -52,27 +49,25 @@ jobs:
           isort --check-only crypto_bot tests
 
       - name: Run unit tests & collect coverage
-        run: pytest --maxfail=1 --disable-warnings --cov=crypto_bot --cov-report=xml
+        run: pytest --maxfail=1 --disable-warnings -q --cov=crypto_bot
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
 
   integration-tests:
     name: Bybit Testnet E2E
-    needs: unit-tests
-    if: ${{ secrets.BYBIT_TESTNET_API_KEY != '' && secrets.BYBIT_TESTNET_API_SECRET != '' }}
+    needs: test
     runs-on: ubuntu-latest
     env:
       BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
       BYBIT_TESTNET_API_SECRET: ${{ secrets.BYBIT_TESTNET_API_SECRET }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-integration-${{ hashFiles('**/requirements*.txt') }}
@@ -80,9 +75,9 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: 3.11
 
       - name: Install dependencies
         run: |
@@ -91,7 +86,14 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Make run_e2e.sh executable
-        run: chmod +x scripts/run_e2e.sh
+        run: chmod +x run_e2e.sh
 
-      - name: Run Bybit E2E Integration Test
-        run: bash scripts/run_e2e.sh
+      - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
+        run: |
+          if [ -z "${BYBIT_TESTNET_API_KEY}" ] || [ -z "${BYBIT_TESTNET_API_SECRET}" ]; then
+            echo "Bybit Testnet API Key or Secret not set. Skipping integration tests."
+            exit 0
+          fi
+
+      - name: Run Bybit E2E
+        run: ./run_e2e.sh
