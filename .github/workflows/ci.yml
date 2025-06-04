@@ -1,8 +1,8 @@
 # =============================================================================
 # ファイル名: .github/workflows/ci.yml
 # 説明:
-#   - プッシュ/プルリク時にCIを実行（Lint/Format/Unitテスト）
-#   - Bybit Testnetの統合テスト（APIキー＆シークレット必須、なければスキップ）
+#   - プッシュ/プルリク時に CI を実行（Lint/Format/Unit テスト）
+#   - Bybit Testnet の統合テスト（API キー＆シークレット必須、なければスキップ）
 # =============================================================================
 
 name: CI
@@ -21,10 +21,11 @@ jobs:
       matrix:
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v3
+      #──────────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
 
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -32,26 +33,24 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
+      #──────────────────────────────────────────────────────────────
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
           pip install -r requirements-dev.txt
 
-      - name: Lint & Format Checks
-        run: |
-          flake8 crypto_bot tests
-          black --check crypto_bot tests
-          isort --check-only crypto_bot tests
+      # すべてのチェックをローカル同様 scripts/checks.sh に委譲
+      - name: Run lint + unit tests + coverage
+        run: ./scripts/checks.sh
 
-      - name: Run unit tests & collect coverage
-        run: pytest --maxfail=1 --disable-warnings -q --cov=crypto_bot
-
+      # Codecov はトークンが設定されている場合のみアップロード
       - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -64,10 +63,11 @@ jobs:
       BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
       BYBIT_TESTNET_API_SECRET: ${{ secrets.BYBIT_TESTNET_API_SECRET }}
     steps:
-      - uses: actions/checkout@v3
+      #──────────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
 
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-integration-${{ hashFiles('**/requirements*.txt') }}
@@ -75,10 +75,11 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
 
+      #──────────────────────────────────────────────────────────────
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -88,6 +89,7 @@ jobs:
       - name: Make run_e2e.sh executable
         run: chmod +x run_e2e.sh
 
+      # API キーが無ければ graceful skip
       - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
         run: |
           if [ -z "${BYBIT_TESTNET_API_KEY}" ] || [ -z "${BYBIT_TESTNET_API_SECRET}" ]; then
