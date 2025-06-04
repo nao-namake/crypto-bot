@@ -8,9 +8,10 @@ bitFlyer 上で
 の統合テスト（雛形のみ／必要時に実装）
 """
 
-import os
 import pytest
+
 # from crypto_bot.execution.bitflyer_client import BitflyerClient
+
 
 @pytest.fixture(scope="module")
 def bitflyer_client():
@@ -26,11 +27,14 @@ def bitflyer_client():
     #     pass
     pass
 
+
 def test_fetch_balance(bitflyer_client):
     pass
 
+
 def test_fetch_ohlcv(bitflyer_client):
     pass
+
 
 def test_place_and_cancel_order(bitflyer_client):
     pass

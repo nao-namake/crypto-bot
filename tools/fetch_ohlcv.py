@@ -19,11 +19,8 @@
 # =============================================================================
 
 import os
-import sys
-import yaml
-from pathlib import Path
 
-import pandas as pd
+import yaml
 
 from crypto_bot.data.fetcher import MarketDataFetcher
 
@@ -32,6 +29,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, os.pardir))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config", "default.yml")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data")
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "ohlcv.csv")
+
 
 def main():
     # 1) 設定ファイル読み込み
@@ -42,16 +40,16 @@ def main():
     fetcher = MarketDataFetcher(
         exchange_id=cfg["data"]["exchange"],
         symbol=cfg["data"]["symbol"],
-        ccxt_options=cfg["data"].get("ccxt_options", {})
+        ccxt_options=cfg["data"].get("ccxt_options", {}),
     )
-    
+
     print(f"▶ {cfg['data']['symbol']} のデータを取得中...")
     df = fetcher.get_price_df(
         timeframe=cfg["data"]["timeframe"],
         since=cfg["data"]["since"],
         limit=cfg["data"]["limit"],
         paginate=cfg["data"]["paginate"],
-        per_page=cfg["data"]["per_page"]
+        per_page=cfg["data"]["per_page"],
     )
 
     # 3) 出力ディレクトリ作成
@@ -62,6 +60,7 @@ def main():
     print(f"▶ データを {OUTPUT_FILE} に保存しました")
     print(f"▶ 取得期間: {df.index[0]} ～ {df.index[-1]}")
     print(f"▶ データ件数: {len(df):,} 件")
+
 
 if __name__ == "__main__":
     main()

@@ -12,6 +12,7 @@ from typing import Any, List, Protocol
 
 import pandas as pd
 
+
 class ExchangeClient(Protocol):
     """すべての取引所クライアントが実装すべき共通インターフェイス"""
 

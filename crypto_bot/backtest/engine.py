@@ -8,19 +8,21 @@
 import os
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
+
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from crypto_bot.execution.engine import EntryExit, Position
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.strategy.base import StrategyBase
 
+
 @dataclass
 class TradeRecord:
     """
     1回のトレードの結果（記録用データクラス）
     """
+
     entry_time: pd.Timestamp
     exit_time: pd.Timestamp
     side: str
@@ -32,6 +34,7 @@ class TradeRecord:
     slippage: float
     commission: float
     size: float
+
 
 class BacktestEngine:
     """
@@ -87,7 +90,9 @@ class BacktestEngine:
         self.entry_time: Optional[pd.Timestamp] = None
         self.records: List[TradeRecord] = []
 
-    def run(self, price_df: Optional[pd.DataFrame] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def run(
+        self, price_df: Optional[pd.DataFrame] = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         バックテストを実行し、(metrics, trade_log)のDataFrameを返す
         """
@@ -114,22 +119,30 @@ class BacktestEngine:
             # エントリー判定
             if not self.position.exist:
                 self.ee.current_balance = self.balance
-                entry_order = self.ee.generate_entry_order(self.df.loc[:ts], self.position)
+                entry_order = self.ee.generate_entry_order(
+                    self.df.loc[:ts], self.position
+                )
                 if entry_order.exist:
-                    self.balance = self.ee.fill_order(entry_order, self.position, self.balance)
+                    self.balance = self.ee.fill_order(
+                        entry_order, self.position, self.balance
+                    )
                     self.entry_time = ts
 
             # イグジット判定
             if self.position.exist:
                 self.position.hold_bars += 1
                 self.ee.current_balance = self.balance
-                exit_order = self.ee.generate_exit_order(self.df.loc[:ts], self.position)
+                exit_order = self.ee.generate_exit_order(
+                    self.df.loc[:ts], self.position
+                )
                 if exit_order.exist:
                     old_side = self.position.side
                     old_price = self.position.entry_price
                     lot = self.position.lot
 
-                    self.balance = self.ee.fill_order(exit_order, self.position, self.balance)
+                    self.balance = self.ee.fill_order(
+                        exit_order, self.position, self.balance
+                    )
 
                     # 利益
                     if old_side == "BUY":
@@ -160,19 +173,24 @@ class BacktestEngine:
         metrics_dict = self.statistics()
         metrics_df = pd.DataFrame([metrics_dict])
 
-        trade_log = pd.DataFrame([{
-            "entry_time": r.entry_time,
-            "exit_time": r.exit_time,
-            "side": r.side,
-            "entry_price": r.entry_price,
-            "exit_price": r.exit_price,
-            "profit": r.profit,
-            "return_rate": r.return_rate,
-            "duration_bars": r.duration_bars,
-            "slippage": r.slippage,
-            "commission": r.commission,
-            "size": r.size,
-        } for r in self.records])
+        trade_log = pd.DataFrame(
+            [
+                {
+                    "entry_time": r.entry_time,
+                    "exit_time": r.exit_time,
+                    "side": r.side,
+                    "entry_price": r.entry_price,
+                    "exit_price": r.exit_price,
+                    "profit": r.profit,
+                    "return_rate": r.return_rate,
+                    "duration_bars": r.duration_bars,
+                    "slippage": r.slippage,
+                    "commission": r.commission,
+                    "size": r.size,
+                }
+                for r in self.records
+            ]
+        )
 
         if self.enable_report:
             self._detailed_report()
@@ -242,22 +260,29 @@ class BacktestEngine:
             print("No trades to report.")
             return
 
-        records = pd.DataFrame([{  
-            "Date": r.exit_time,
-            "Profit": r.profit,
-            "Side": r.side,
-            "Rate": r.return_rate,
-            "Periods": r.duration_bars,
-            "Slippage": r.slippage,
-            "Commission": r.commission,
-            "Size": r.size,
-        } for r in self.records])
+        records = pd.DataFrame(
+            [
+                {
+                    "Date": r.exit_time,
+                    "Profit": r.profit,
+                    "Side": r.side,
+                    "Rate": r.return_rate,
+                    "Periods": r.duration_bars,
+                    "Slippage": r.slippage,
+                    "Commission": r.commission,
+                    "Size": r.size,
+                }
+                for r in self.records
+            ]
+        )
 
         records["Gross"] = records["Profit"].cumsum()
         records["Funds"] = records["Gross"] + self.starting_balance
         records["Drawdown"] = records["Funds"].cummax() - records["Funds"]
         records["DrawdownRate"] = (
-            (records["Funds"] - records["Funds"].cummax()) / records["Funds"].cummax() * 100
+            (records["Funds"] - records["Funds"].cummax())
+            / records["Funds"].cummax()
+            * 100
         )
 
         print("\n===== Backtest Detailed Report =====")
@@ -265,7 +290,10 @@ class BacktestEngine:
         if not buy_rec.empty:
             print("\n--- BUY Entries ---")
             print(f"Trades       : {len(buy_rec)}")
-            print(f"Win rate     : {len(buy_rec[buy_rec.Profit>0])/len(buy_rec)*100:.1f}%")
+            print(
+                f"Win rate     : "
+                f"{len(buy_rec[buy_rec.Profit > 0])/len(buy_rec)*100:.1f}%"
+            )
             print(f"Avg return   : {buy_rec.Rate.mean():.2f}%")
             print(f"Total P/L    : {buy_rec.Profit.sum():.2f}")
             print(f"Avg holding  : {buy_rec.Periods.mean():.1f} bars")
@@ -275,22 +303,17 @@ class BacktestEngine:
 
         print("\n--- Overall Performance ---")
         print(f"Total trades : {len(records)}")
-        print(f"Win rate     : {len(records[records.Profit>0])/len(records)*100:.1f}%")
+        print(
+            f"Win rate     : {len(records[records.Profit > 0])/len(records)*100:.1f}%"
+        )
         print(f"Avg return   : {records.Rate.mean():.2f}%")
         print(f"Max win      : {records.Profit.max():.2f}")
         print(f"Max loss     : {records.Profit.min():.2f}")
-        print(f"Max DD       : {-records.Drawdown.max():.2f} / {-records.DrawdownRate.max():.1f}%")
+        print(
+            f"Max DD       : {-records.Drawdown.max():.2f} / "
+            f"{-records.DrawdownRate.max():.1f}%"
+        )
         print(f"Final funds  : {records.Funds.iloc[-1]:.2f}")
-        stats = self.statistics()
-        print(f"CAGR         : {stats['cagr']*100:.2f}%")
-        print(f"Sharpe ratio : {stats['sharpe']:.2f}")
+        print(f"CAGR         : {self.statistics()['cagr']*100:.2f}%")
+        print(f"Sharpe ratio : {self.statistics()['sharpe']:.2f}")
         print("====================================\n")
-
-        # グラフ（表示はしない）
-        plt.figure(figsize=(8, 4))
-        plt.plot(records["Date"], records["Funds"])
-        plt.xlabel("Date")
-        plt.ylabel("Equity")
-        plt.xticks(rotation=50)
-        plt.tight_layout()
-        plt.close()

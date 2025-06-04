@@ -6,13 +6,17 @@
 
 import pandas as pd
 
+
 def preprocess_trade_log(df: pd.DataFrame) -> pd.DataFrame:
     """entry_timeをdatetime化し、exit_timeを計算して返す"""
     df = df.copy()
     df["entry_time"] = pd.to_datetime(df["entry_time"])
     # duration_barsが分単位で記録されている前提
-    df["exit_time"] = df["entry_time"] + pd.to_timedelta(df["duration_bars"], unit="min")
+    df["exit_time"] = df["entry_time"] + pd.to_timedelta(
+        df["duration_bars"], unit="min"
+    )
     return df
+
 
 def aggregate_by_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
     """
@@ -20,16 +24,19 @@ def aggregate_by_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
     出力: トレード数・勝率・平均リターン・合計損益
     """
     # 'M'（月末）→ 'ME'（MonthEnd）に統一
-    if period == 'M':
-        period = 'ME'
+    if period == "M":
+        period = "ME"
     df = preprocess_trade_log(df).set_index("exit_time")
-    agg = df.groupby(pd.Grouper(freq=period)).apply(lambda g: {
-        "trades": len(g),
-        "win_rate": (g["profit"] > 0).mean() if len(g) > 0 else 0.0,
-        "avg_return": g["profit"].mean() if len(g) > 0 else 0.0,
-        "total_pl": g["profit"].sum()
-    })
+    agg = df.groupby(pd.Grouper(freq=period)).apply(
+        lambda g: {
+            "trades": len(g),
+            "win_rate": (g["profit"] > 0).mean() if len(g) > 0 else 0.0,
+            "avg_return": g["profit"].mean() if len(g) > 0 else 0.0,
+            "total_pl": g["profit"].sum(),
+        }
+    )
     return pd.DataFrame(list(agg.values), index=agg.index)
+
 
 def export_aggregates(df: pd.DataFrame, out_prefix: str):
     """

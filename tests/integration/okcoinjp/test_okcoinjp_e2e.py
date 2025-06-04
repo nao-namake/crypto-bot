@@ -9,8 +9,11 @@ OKCoin Japan 上で
 """
 
 import os
+
 import pytest
+
 # from crypto_bot.execution.okcoinjp_client import OkcoinJpClient
+
 
 @pytest.fixture(scope="module")
 def okcoinjp_client():
@@ -26,11 +29,14 @@ def okcoinjp_client():
     #     pass
     pass
 
+
 def test_fetch_balance(okcoinjp_client):
     pass
 
+
 def test_fetch_ohlcv(okcoinjp_client):
     pass
+
 
 def test_place_and_cancel_order(okcoinjp_client):
     pass

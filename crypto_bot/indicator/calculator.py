@@ -7,9 +7,10 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pandas_ta as ta  # TA-Lib は一切使いません
-import numpy as np
+
 
 class IndicatorCalculator:
     """
@@ -69,11 +70,7 @@ class IndicatorCalculator:
     # MACD（移動平均収束拡散法）
     # ------------------------------------------------------------------
     def macd(
-        self, 
-        series: pd.Series, 
-        fast: int = 12, 
-        slow: int = 26, 
-        signal: int = 9
+        self, series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
     ) -> pd.DataFrame:
         """
         MACD
@@ -91,11 +88,13 @@ class IndicatorCalculator:
             macd_line = self.ema(series, fast) - self.ema(series, slow)
             signal_line = macd_line.ewm(span=signal, adjust=False).mean()
             macd_hist = macd_line - signal_line
-            return pd.DataFrame({
-                "MACD_12_26_9": macd_line,
-                "MACDh_12_26_9": macd_hist,
-                "MACDs_12_26_9": signal_line
-            })
+            return pd.DataFrame(
+                {
+                    "MACD_12_26_9": macd_line,
+                    "MACDh_12_26_9": macd_hist,
+                    "MACDs_12_26_9": signal_line,
+                }
+            )
 
     # ------------------------------------------------------------------
     # RCI（順位相関指数） ※pandas_taにない場合は自作
@@ -113,11 +112,13 @@ class IndicatorCalculator:
                 pass
         # --- フォールバック：RCI自作 ---
         n = window
+
         def _rci(x):
             price_ranks = pd.Series(x).rank(ascending=False)
-            date_ranks = np.arange(1, n+1)
+            date_ranks = np.arange(1, n + 1)
             d = price_ranks.values - date_ranks
             return (1 - 6 * (d**2).sum() / (n * (n**2 - 1))) * 100
+
         return series.rolling(window=n).apply(_rci, raw=False).rename(f"RCI_{window}")
 
     # ------------------------------------------------------------------
@@ -132,8 +133,14 @@ class IndicatorCalculator:
     # ------------------------------------------------------------------
     # もちぽよアラート: RCI×MACDの逆張りシグナル（買い・売り対応）
     # ------------------------------------------------------------------
-    def mochipoyo_signals(self, df: pd.DataFrame, rci_window: int = 9,
-                          macd_fast: int = 12, macd_slow: int = 26, macd_signal: int = 9) -> pd.DataFrame:
+    def mochipoyo_signals(
+        self,
+        df: pd.DataFrame,
+        rci_window: int = 9,
+        macd_fast: int = 12,
+        macd_slow: int = 26,
+        macd_signal: int = 9,
+    ) -> pd.DataFrame:
         """
         もちぽよアラート風シグナル（ロング・ショート両対応）
         - ロング（買い）条件: RCIが-80以下＆MACDゴールデンクロス
@@ -144,8 +151,16 @@ class IndicatorCalculator:
         rci = self.rci(close, window=rci_window)
         # MACD計算
         macd_df = self.macd(close, fast=macd_fast, slow=macd_slow, signal=macd_signal)
-        macd = macd_df.iloc[:, 0] if "MACD_12_26_9" in macd_df.columns else macd_df.iloc[:, 0]
-        signal = macd_df.iloc[:, 2] if "MACDs_12_26_9" in macd_df.columns else macd_df.iloc[:, 2]
+        macd = (
+            macd_df.iloc[:, 0]
+            if "MACD_12_26_9" in macd_df.columns
+            else macd_df.iloc[:, 0]
+        )
+        signal = (
+            macd_df.iloc[:, 2]
+            if "MACDs_12_26_9" in macd_df.columns
+            else macd_df.iloc[:, 2]
+        )
 
         # ゴールデンクロス・デッドクロス検出
         golden_cross = (macd.shift(1) < signal.shift(1)) & (macd > signal)
@@ -156,7 +171,9 @@ class IndicatorCalculator:
         # ショートシグナル: RCI高位＆デッドクロス
         short_signal = ((rci > 80) & dead_cross).astype(int)
 
-        return pd.DataFrame({
-            "mochipoyo_long_signal": long_signal,
-            "mochipoyo_short_signal": short_signal,
-        })
+        return pd.DataFrame(
+            {
+                "mochipoyo_long_signal": long_signal,
+                "mochipoyo_short_signal": short_signal,
+            }
+        )

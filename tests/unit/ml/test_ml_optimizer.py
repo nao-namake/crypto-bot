@@ -1,92 +1,145 @@
-# tests/unit/test_ml_optimizer.py
+# tests/unit/ml/test_optimizer.py
+# テスト対象: crypto_bot/ml/optimizer.py
+# 説明:
+#   - objective関数: ML訓練・検証・ハイパーパラメータ提案の動作
+#   - optimize_ml: Optunaサーチが正常終了するか
+#   - train_best_model: モデル学習・保存の流れ
+#   - save_trials: 結果CSV出力
+
+import os
 
 import numpy as np
 import optuna
+import pandas as pd
 import pytest
 
-from crypto_bot.ml.optimizer import objective, optimize_ml
+from crypto_bot.ml.optimizer import (
+    objective,
+    optimize_ml,
+    save_trials,
+    train_best_model,
+)
 
 
 @pytest.fixture
-def small_ohlcv():
-    """
-    10 行だけのダミー OHLCV DataFrame を返す。
-    prepare_ml_dataset のモックで使います。
-    """
-    # 本来は pandas.DataFrame ですが、objective 内では配列しか使わないので numpy だけでも OK
-    close = np.arange(100, 110)
-    # ダミーデータとして numpy 配列そのまま返すように準備
-    return close
-
-
-def test_objective_monkeypatch(monkeypatch, small_ohlcv):
-    # prepare_ml_dataset をモックして X_train, y_train, X_val, y_val を返す
-    def fake_prepare_ml_dataset(cfg):
-        # X: (n_samples, n_features), y: (n_samples,)
-        X = small_ohlcv.reshape(-1, 1)
-        y = np.zeros(len(X), dtype=int)
-        return X, y, X, y
-
-    monkeypatch.setattr(
-        "crypto_bot.ml.optimizer.prepare_ml_dataset",
-        fake_prepare_ml_dataset,
+def dummy_config():
+    # テスト用のダミーML設定・最小限のデータ
+    df = pd.DataFrame(
+        {
+            "open": np.random.rand(40),
+            "high": np.random.rand(40),
+            "low": np.random.rand(40),
+            "close": np.random.rand(40),
+            "volume": np.random.rand(40),
+        },
+        index=pd.date_range("2023-01-01", periods=40, freq="D"),
     )
-
-    # DummyTrial で suggest_* 系は最低値を返す
-    class DummyTrial:
-        def suggest_int(self, name, a, b):
-            return a
-
-        def suggest_loguniform(self, name, low, high):
-            return low
-
-    # コンフィグは objective に渡る最低限だけ指定しておく
-    dummy_config = {"ml": {}}
-    score = objective(DummyTrial(), dummy_config)
-
-    # 全て 0 ラベルなので accuracy は必ず 1.0
-    assert score == 1.0
-
-
-def test_optimize_ml_runs_one_trial(monkeypatch):
-    # prepare_ml_dataset をモック
-    monkeypatch.setattr(
-        "crypto_bot.ml.optimizer.prepare_ml_dataset",
-        lambda cfg: ([], [], [], []),
-    )
-
-    # MLModel をモックして学習時間をゼロに
-    class DummyModel:
-        def __init__(self, params):
-            pass
-
-        def fit(self, X, y):
-            return self
-
-        def predict(self, X):
-            return []
-
-    monkeypatch.setattr("crypto_bot.ml.optimizer.MLModel", DummyModel)
-
-    # 1トライアルだけ回るようにコンフィグを設定
-    cfg = {
+    config = {
         "ml": {
+            "model_type": "lgbm",
+            "target_type": "classification",
+            "feat_period": 5,
             "optuna": {
-                "n_trials": 1,
-                "timeout": 1,
                 "direction": "maximize",
-                "sampler": {"name": "RandomSampler"},
+                "sampler": {"name": "TPESampler"},
                 "pruner": {
                     "name": "MedianPruner",
                     "n_startup_trials": 1,
                     "n_warmup_steps": 1,
                     "interval_steps": 1,
                 },
-            }
-        }
+                "n_trials": 2,
+                "timeout": 10,
+            },
+        },
+        "data": {
+            "exchange": "bybit",
+            "symbol": "BTC/USDT",
+            "timeframe": "1d",
+            "since": None,
+            "limit": 40,
+        },
     }
+    # データ直指定でprepare_ml_dataset互換
+    config["test_df"] = df
+    return config, df
 
-    study = optimize_ml(cfg)
-    # ちゃんと最良トライアルが返ってきていること
-    assert isinstance(study, optuna.Study)
-    assert study.best_trial is not None
+
+def test_objective_runs_with_dummy_data(dummy_config, monkeypatch):
+    config, df = dummy_config
+
+    def dummy_prepare_ml_dataset(*args, **kwargs):
+        X = df[["open", "close", "volume"]]
+        y = (df["close"] > df["open"]).astype(int)
+        return X, y, X, y
+
+    monkeypatch.setattr(
+        "crypto_bot.ml.optimizer.prepare_ml_dataset", dummy_prepare_ml_dataset
+    )
+
+    trial = optuna.trial.create_trial(
+        params={"n_estimators": 10, "max_depth": 2, "learning_rate": 0.05},
+        distributions={
+            "n_estimators": optuna.distributions.IntDistribution(10, 20),
+            "max_depth": optuna.distributions.IntDistribution(2, 5),
+            "learning_rate": optuna.distributions.FloatDistribution(
+                0.01, 0.1, log=True
+            ),
+        },
+        value=1.0,
+        state=optuna.trial.TrialState.COMPLETE,
+    )
+    # objectiveは float を返すことを確認
+    result = objective(trial, config)
+    assert isinstance(result, float)
+
+
+def test_optimize_ml_runs(dummy_config, monkeypatch):
+    config, df = dummy_config
+
+    def dummy_prepare_ml_dataset(*args, **kwargs):
+        X = df[["open", "close", "volume"]]
+        y = (df["close"] > df["open"]).astype(int)
+        return X, y, X, y
+
+    monkeypatch.setattr(
+        "crypto_bot.ml.optimizer.prepare_ml_dataset", dummy_prepare_ml_dataset
+    )
+
+    study = optimize_ml(config)
+    assert hasattr(study, "trials")
+    assert len(study.trials) > 0
+
+
+def test_train_best_model_and_save(tmp_path, dummy_config, monkeypatch):
+    config, df = dummy_config
+
+    # OptunaもダミーでOK
+    class DummyStudy:
+        best_params = {"n_estimators": 10, "max_depth": 2, "learning_rate": 0.05}
+
+    monkeypatch.setattr("crypto_bot.ml.optimizer.optimize_ml", lambda cfg: DummyStudy())
+
+    def dummy_prepare_ml_dataset(*args, **kwargs):
+        X = df[["open", "close", "volume"]]
+        y = (df["close"] > df["open"]).astype(int)
+        return X, y, X, y
+
+    monkeypatch.setattr(
+        "crypto_bot.ml.optimizer.prepare_ml_dataset", dummy_prepare_ml_dataset
+    )
+
+    output_path = tmp_path / "model.joblib"
+    train_best_model(config, output_path)
+    assert os.path.exists(output_path)
+
+
+def test_save_trials(tmp_path):
+    # ダミーStudyでtrials_dataframe()を模倣
+    class DummyStudy:
+        def trials_dataframe(self):
+            return pd.DataFrame({"param": [1, 2], "score": [0.7, 0.9]})
+
+    csv_path = tmp_path / "trials.csv"
+    save_trials(DummyStudy(), str(csv_path))
+    assert os.path.isfile(csv_path)

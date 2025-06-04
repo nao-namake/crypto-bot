@@ -1,7 +1,7 @@
 # ========================================================================
 # ファイル名: crypto_bot/ml/optimizer.py
 # 説明:
-# 機械学習モデル（ML）のハイパーパラメータ自動最適化・モデル訓練・
+# 機械学習モデル（ML）のハイパパラメータ自動最適化・モデル訓練・
 # Optunaによるベイズ最適化・学習済みモデル保存/ロード用モジュール。
 # - ルールベース（テクニカル指標系）の最適化とは別モジュール。
 # - MLStrategy等、機械学習戦略に特化。
@@ -13,12 +13,16 @@
 # ※ バックテストエンジンとは独立運用
 # ========================================================================
 
+import logging
 import math
 import os
 
 import joblib
 import optuna
 import pandas as pd
+from ccxt.base.errors import ExchangeError
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
@@ -26,20 +30,16 @@ from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.ml.model import MLModel, create_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
 
+logger = logging.getLogger(__name__)
+
 # xgboost が入っていれば回帰・分類器を利用可
 try:
-    from xgboost import XGBClassifier, XGBRegressor
+    from xgboost import XGBRegressor
+
     _HAS_XGB = True
 except ImportError:
     _HAS_XGB = False
 
-from lightgbm import LGBMRegressor
-from sklearn.ensemble import RandomForestRegressor
-
-import logging
-from ccxt.base.errors import ExchangeError
-
-logger = logging.getLogger(__name__)
 
 def _remove_lgbm_unused_params(params):
     """
@@ -52,6 +52,7 @@ def _remove_lgbm_unused_params(params):
         if key in params and (params[key] is None or params[key] == 0.0):
             params.pop(key)
     return params
+
 
 def _load_and_preprocess_data(config: dict) -> pd.DataFrame:
     """
@@ -84,10 +85,11 @@ def _load_and_preprocess_data(config: dict) -> pd.DataFrame:
     df = DataPreprocessor.clean(
         df,
         timeframe=dd["timeframe"],
-        z_thresh=5.0,
+        thresh=5.0,
         window=window,
     )
     return df
+
 
 def objective(trial: optuna.Trial, config: dict) -> float:
     """
@@ -188,6 +190,7 @@ def objective(trial: optuna.Trial, config: dict) -> float:
 
     return float(score)
 
+
 def optimize_ml(config: dict) -> optuna.Study:
     """
     config['ml']['optuna']を読み込み、Optuna最適化を実行。
@@ -212,6 +215,7 @@ def optimize_ml(config: dict) -> optuna.Study:
     )
     return study
 
+
 def save_trials(study: optuna.Study, path: str = "trials.csv"):
     """
     Optuna の全トライアル結果をCSV保存。
@@ -220,6 +224,7 @@ def save_trials(study: optuna.Study, path: str = "trials.csv"):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     df.to_csv(path, index=False)
     print(f"Trials saved to {path!r}")
+
 
 def train_best_model(config: dict, *args):
     """
@@ -284,8 +289,10 @@ def train_best_model(config: dict, *args):
         return
 
     raise TypeError(
-        "train_best_model: 引数は (config, X_tr, y_tr, X_te, y_te) か (config, output_path) で呼び出してください"
+        "train_best_model: 引数は (config, X_tr, y_tr, X_te, y_te) か "
+        "(config, output_path) で呼び出してください"
     )
+
 
 # エイリアス: main.py から run_optunaとして利用可
 run_optuna = optimize_ml

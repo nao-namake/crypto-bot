@@ -1,89 +1,122 @@
-# tests/unit/test_execution_engine.py
+# tests/unit/execution/test_execution_engine.py
+# テスト対象: crypto_bot/execution/engine.py
+# 説明:
+#   - ExecutionEngine: 注文実行エンジン
+#   - シグナル→注文→約定→ポジション管理の一連の流れ
 
-from unittest.mock import Mock
-
+import pandas as pd
 import pytest
 
-from crypto_bot.execution.engine import ExecutionEngine
+from crypto_bot.execution.engine import (
+    EntryExit,
+    ExecutionEngine,
+    Order,
+    Position,
+    Signal,
+)
+
+
+class DummyStrategy:
+    """常にBUY→SELLを返すシンプル戦略"""
+
+    def __init__(self):
+        self.count = 0
+
+    def logic_signal(self, price_df, position):
+        if not position.exist:
+            return Signal(side="BUY", price=100)
+        else:
+            # 2回目はSELL
+            return Signal(side="SELL", price=105)
+
+
+class DummyRiskManager:
+    def calc_stop_price(self, entry_price, atr_series):
+        return entry_price - 10
+
+    def calc_lot(self, balance, entry_price, stop_price):
+        return 1.0
 
 
 @pytest.fixture
-def fake_client():
-    """
-    create_order, cancel_order メソッドを持つモッククライアントを返す。
-    デフォルトの戻り値をセットしておく。
-    """
-    client = Mock()
-    client.create_order.return_value = {
-        "order_id": "12345",
-        "status": "NEW",
-        "symbol": "BTCUSDT",
-        "side": "BUY",
-        "qty": 0.1,
-    }
-    client.cancel_order.return_value = {
-        "order_id": "12345",
-        "status": "CANCELED",
-        "symbol": "BTCUSDT",
-    }
-    return client
+def entry_exit():
+    strat = DummyStrategy()
+    risk = DummyRiskManager()
+    atr = None
+    ee = EntryExit(strat, risk, atr)
+    ee.current_balance = 1000
+    return ee
 
 
-def test_place_limit_order(fake_client):
-    engine = ExecutionEngine(exchange_client=fake_client)
-
-    # LIMIT 注文を発注
-    result = engine.place_order(
-        symbol="BTCUSDT", side="BUY", qty=0.1, price=30000.0, order_type="LIMIT"
-    )
-
-    # fake_client.create_order が正しい引数で呼ばれたか
-    fake_client.create_order.assert_called_once_with(
-        symbol="BTCUSDT", side="BUY", qty=0.1, order_type="LIMIT", price=30000.0
-    )
-
-    # 戻り値がそのまま返っているか
-    assert result["order_id"] == "12345"
-    assert result["status"] == "NEW"
+def test_generate_entry_order(entry_exit):
+    pos = Position()
+    price_df = None  # ダミー
+    order = entry_exit.generate_entry_order(price_df, pos)
+    assert order.exist is True
+    assert order.side == "BUY"
+    assert order.price == 100
+    assert order.lot == 1.0
 
 
-def test_place_market_order(fake_client):
-    engine = ExecutionEngine(exchange_client=fake_client)
-
-    # MARKET 注文（price を指定しない）
-    result = engine.place_order(
-        symbol="ETHUSDT", side="SELL", qty=2.0, order_type="MARKET"
-    )
-
-    # price キーを含めずに呼び出される
-    fake_client.create_order.assert_called_with(
-        symbol="ETHUSDT", side="SELL", qty=2.0, order_type="MARKET"
-    )
-
-    # モックの戻り値を受け取れること
-    assert result["symbol"] == "BTCUSDT"
+def test_generate_exit_order(entry_exit):
+    pos = Position(exist=True, side="BUY", entry_price=100, lot=1.0, stop_price=90)
+    # stop-lossトリガー：low <= stop_price
+    price_df = pd.DataFrame({"low": [90]})
+    order = entry_exit.generate_exit_order(price_df, pos)
+    assert order.exist is True
+    assert order.side == "SELL"
+    assert order.price == 90
 
 
-def test_cancel_order(fake_client):
-    engine = ExecutionEngine(exchange_client=fake_client)
+def test_fill_order_entry_and_exit(entry_exit):
+    pos = Position()
+    # エントリー
+    entry_order = Order(exist=True, side="BUY", price=100, lot=1.0, stop_price=90)
+    bal = entry_exit.fill_order(entry_order, pos, 1000)
+    assert pos.exist is True
+    assert pos.entry_price == 100
+    # イグジット
+    exit_order = Order(exist=True, side="SELL", price=110, lot=1.0)
+    bal2 = entry_exit.fill_order(exit_order, pos, bal)
+    assert pos.exist is False
+    assert bal2 == bal + 10
 
-    result = engine.cancel_order(symbol="BTCUSDT", order_id="ABC123")
 
-    # cancel_order が正しく呼び出されたか
-    fake_client.cancel_order.assert_called_once_with(
-        symbol="BTCUSDT", order_id="ABC123"
-    )
-    assert result["status"] == "CANCELED"
+class DummyClient:
+    def __init__(self):
+        self.orders = []
+        self.leverage_set = []
+
+    def create_order(self, **kwargs):
+        self.orders.append(kwargs)
+        return {"order_id": "123"}
+
+    def cancel_order(self, order_id, symbol=None, **kwargs):
+        return {"order_id": order_id, "status": "cancelled"}
+
+    def set_leverage(self, *a, **kw):
+        self.leverage_set.append((a, kw))
+        return {"ok": True}
 
 
-def test_place_order_error(fake_client):
-    """
-    API レイヤーで例外が起きた場合、そのまま伝播することを期待する。
-    """
-    fake_client.create_order.side_effect = Exception("API Error")
-    engine = ExecutionEngine(exchange_client=fake_client)
+def test_execution_engine_place_order(monkeypatch):
+    cli = DummyClient()
+    engine = ExecutionEngine(client=cli)
+    res = engine.place_order("BTC/USDT", "BUY", 0.1, price=100, order_type="LIMIT")
+    assert res["order_id"] == "123"
+    assert cli.orders[0]["symbol"] == "BTC/USDT"
 
-    with pytest.raises(Exception) as excinfo:
-        engine.place_order("XRPUSDT", "BUY", 100)
 
-    assert "API Error" in str(excinfo.value)
+def test_execution_engine_cancel_order():
+    cli = DummyClient()
+    engine = ExecutionEngine(client=cli)
+    res = engine.cancel_order("BTC/USDT", "12345")
+    assert res["status"] == "cancelled"
+
+
+def test_execution_engine_set_leverage():
+    cli = DummyClient()
+    engine = ExecutionEngine(client=cli)
+    res = engine.set_leverage("BTC/USDT", 5)
+    assert res["ok"] is True
+    assert cli.leverage_set

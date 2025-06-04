@@ -13,23 +13,26 @@
 
 import argparse
 import os
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="バックテスト結果CSVからグラフを作成します"
     )
     parser.add_argument(
-        "-c", "--csv",
+        "-c",
+        "--csv",
         dest="csv_path",
         default="backtest_results.csv",
-        help="バックテスト結果CSVのパス（デフォルト: backtest_results.csv）"
+        help="バックテスト結果CSVのパス（デフォルト: backtest_results.csv）",
     )
     parser.add_argument(
         "--equity",
         action="store_true",
-        help="equity カラムがあればエクイティカーブを折れ線でプロット"
+        help="equity カラムがあればエクイティカーブを折れ線でプロット",
     )
     args = parser.parse_args()
 
@@ -70,6 +73,7 @@ def main():
     plt.legend()
     plt.tight_layout()
     plt.show()
+
 
 if __name__ == "__main__":
     main()

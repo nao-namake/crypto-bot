@@ -22,32 +22,34 @@
 #   - ヒストグラムや箱ひげ図のグラフ表示
 # =============================================================================
 
+import argparse
 import os
 import sys
-import pandas as pd
-import matplotlib.pyplot as plt
 from io import StringIO
-import argparse
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
 
 def read_table(path):
     # CSV or レポートファイル自動判定
-    if path.endswith('.csv'):
+    if path.endswith(".csv"):
         df = pd.read_csv(path)
         # もし 'start_date' カラムが日付っぽい場合
-        if 'start_date' in df.columns:
+        if "start_date" in df.columns:
             try:
-                df['start_date'] = pd.to_datetime(df['start_date'])
+                df["start_date"] = pd.to_datetime(df["start_date"])
             except Exception:
                 pass
-        if 'end_date' in df.columns:
+        if "end_date" in df.columns:
             try:
-                df['end_date'] = pd.to_datetime(df['end_date'])
+                df["end_date"] = pd.to_datetime(df["end_date"])
             except Exception:
                 pass
         return df
     else:
         # テーブル抽出式（backtest_results.txtなど用）
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         table_start = None
         for i, line in enumerate(lines):
@@ -62,12 +64,25 @@ def read_table(path):
                 break
             table_lines.append(line)
         table_str = "".join(table_lines)
-        df = pd.read_csv(StringIO(table_str), sep=r"\s+", engine='python', parse_dates=['start_date', 'end_date'])
+        df = pd.read_csv(
+            StringIO(table_str),
+            sep=r"\s+",
+            engine="python",
+            parse_dates=["start_date", "end_date"],
+        )
         return df
 
+
 def main():
-    parser = argparse.ArgumentParser(description="バックテストまたはウォークフォワードcsvの統計分析")
-    parser.add_argument('--input', '-i', default="backtest_results.csv", help="分析対象ファイル（csvまたはレポート）")
+    parser = argparse.ArgumentParser(
+        description="バックテストまたはウォークフォワードcsvの統計分析"
+    )
+    parser.add_argument(
+        "--input",
+        "-i",
+        default="backtest_results.csv",
+        help="分析対象ファイル（csvまたはレポート）",
+    )
     args = parser.parse_args()
 
     file_path = args.input
@@ -132,6 +147,7 @@ def main():
     plt.title(f"Boxplot of {main_col}")
     plt.tight_layout()
     plt.show()
+
 
 if __name__ == "__main__":
     main()

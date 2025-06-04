@@ -1,21 +1,24 @@
-# crypto_bot/scripts/walk_forward.py
+# =============================================================================
+# ファイル名: crypto_bot/scripts/walk_forward.py
 # 説明:
 # このスクリプトは、時系列データの「ウォークフォワードテスト」を自動で行うものです。
-# ・機械学習戦略(MLStrategy)などを用いて、指定した「学習期間→テスト期間」を繰り返しスライドさせて検証します。
+# ・機械学習戦略(MLStrategy)などを用いて、指定した「学習期間→テスト期間」を
+#   繰り返しスライドさせて検証します。
 # ・結果をCSVで保存し、パフォーマンス評価ができます。
-# 
+#
 # 例: 2か月分学習→10日テスト、を1歩ずつずらして全期間テスト
-# 
+#
 # 利用方法:
-#   python scripts/walk_forward.py -c ./config/yourconfig.yml -o ./results/walk_forward_metrics.csv
+#   python scripts/walk_forward.py -c ./config/yourconfig.yml
+#   -o ./results/walk_forward_metrics.csv
+# =============================================================================
 
 import argparse
-import sys
-from typing import List, Tuple, Callable, Dict, Any
-
-import yaml
 from pathlib import Path
+from typing import Callable, List, Tuple
+
 import pandas as pd
+import yaml
 
 from crypto_bot.backtest.engine import BacktestEngine
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
@@ -83,6 +86,15 @@ def walk_forward_test(
     return pd.DataFrame(results)
 
 
+def make_strategy_factory(model_path, threshold, cfg):
+    """MLStrategyインスタンスを返すファクトリ関数（lambda回避）"""
+
+    def factory():
+        return MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
+
+    return factory
+
+
 def main(config_path=None, output_path=None):
     """
     設定ファイルから各種パラメータを読み込んでウォークフォワードテストを実行し、
@@ -91,7 +103,11 @@ def main(config_path=None, output_path=None):
     # Load config
     if config_path is not None:
         cfg_path = Path(config_path)
-        project_root = cfg_path.parent.parent if cfg_path.parent.name == 'config' else Path(__file__).resolve().parents[2]
+        project_root = (
+            cfg_path.parent.parent
+            if cfg_path.parent.name == "config"
+            else Path(__file__).resolve().parents[2]
+        )
         cfg = yaml.safe_load(open(cfg_path))
     else:
         project_root = Path(__file__).resolve().parents[2]
@@ -102,28 +118,26 @@ def main(config_path=None, output_path=None):
     fetcher = MarketDataFetcher(
         exchange_id=fetch_cfg["exchange"],
         symbol=fetch_cfg["symbol"],
-        ccxt_options=fetch_cfg.get("ccxt_options", {})
+        ccxt_options=fetch_cfg.get("ccxt_options", {}),
     )
     df = fetcher.get_price_df(
         timeframe=fetch_cfg["timeframe"],
         since=fetch_cfg["since"],
         limit=fetch_cfg["limit"],
         paginate=fetch_cfg["paginate"],
-        per_page=fetch_cfg["per_page"]
+        per_page=fetch_cfg["per_page"],
     )
 
     # 2) 前処理
-    df = DataPreprocessor.clean(df, timeframe=fetch_cfg["timeframe"], z_thresh=5.0, window=20)
+    df = DataPreprocessor.clean(
+        df, timeframe=fetch_cfg["timeframe"], thresh=5.0, window=20
+    )
 
     # 3) 戦略インスタンス生成関数
     strat_cfg = cfg["strategy"]["params"]
     model_path = strat_cfg["model_path"]
     threshold = strat_cfg.get("threshold", 0.0)
-    strategy_factory = lambda: MLStrategy(
-        model_path=model_path,
-        threshold=threshold,
-        config=cfg
-    )
+    strategy_factory = make_strategy_factory(model_path, threshold, cfg)
 
     # 4) テスト実行
     wf_df = walk_forward_test(
@@ -146,8 +160,8 @@ def main(config_path=None, output_path=None):
         wf_df.to_csv(output_file, index=False)
         print(f"Walk-forward metrics saved to {output_file}")
     else:
-        output_dir = project_root / 'results'
-        output_file = output_dir / 'walk_forward_metrics.csv'
+        output_dir = project_root / "results"
+        output_file = output_dir / "walk_forward_metrics.csv"
         output_dir.mkdir(parents=True, exist_ok=True)
         wf_df.to_csv(output_file, index=False)
         print(f"Walk-forward metrics saved to {output_file}")
@@ -155,8 +169,12 @@ def main(config_path=None, output_path=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Walk-forward テスト (MLStrategy)")
-    parser.add_argument("-c", "--config", dest="config", default=None, help="Path to config YAML")
-    parser.add_argument("-o", "--output", dest="output", default=None, help="CSV file to save metrics")
+    parser.add_argument(
+        "-c", "--config", dest="config", default=None, help="Path to config YAML"
+    )
+    parser.add_argument(
+        "-o", "--output", dest="output", default=None, help="CSV file to save metrics"
+    )
     args = parser.parse_args()
     main_args = {}
     if args.config is not None:

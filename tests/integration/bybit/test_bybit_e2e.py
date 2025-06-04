@@ -21,7 +21,10 @@ def spot_client():
     api_secret = os.getenv("BYBIT_TESTNET_API_SECRET")
     if not api_key or not api_secret:
         pytest.skip("Bybit Testnet keys not set in ENV or .env")
-    client = BybitTestnetClient(default_type="spot")
+    # 必ずAPIキー明示的に渡す
+    client = BybitTestnetClient(
+        api_key=api_key, api_secret=api_secret, default_type="spot"
+    )
     try:
         client.fetch_balance()
     except AuthenticationError:
@@ -45,12 +48,13 @@ def test_spot_fetch_balance(spot_client):
 def test_spot_place_and_cancel_order(spot_client):
     symbol = "BTC/USDT"
     # 板情報取得 → 買い最良値の99% で指値
-    ticker = spot_client.client.fetch_ticker(symbol)
+    ticker = spot_client._exchange.fetch_ticker(symbol)
     bid_price = ticker.get("bid") or ticker.get("last")
+    assert bid_price, "Failed to get bid price from ticker"
     price = bid_price * 0.99
 
     # 最小数量取得 → 1.1倍
-    market = spot_client.client.markets[symbol]
+    market = spot_client._exchange.markets[symbol]
     min_amount = market["limits"]["amount"]["min"]
     amount = float(min_amount) * 1.1
 
@@ -75,7 +79,9 @@ def swap_client():
     api_secret = os.getenv("BYBIT_TESTNET_API_SECRET")
     if not api_key or not api_secret:
         pytest.skip("Bybit Testnet keys not set in ENV or .env")
-    client = BybitTestnetClient(default_type="future")
+    client = BybitTestnetClient(
+        api_key=api_key, api_secret=api_secret, default_type="future"
+    )
     try:
         client.fetch_balance()
     except AuthenticationError:
@@ -95,12 +101,13 @@ def test_swap_set_leverage_and_place_order(swap_client):
     assert isinstance(resp, dict), f"set_leverage must return dict, got {resp}"
 
     # 板情報取得 → 買い最良値の99% で指値
-    ticker = swap_client.client.fetch_ticker(symbol)
+    ticker = swap_client._exchange.fetch_ticker(symbol)
     bid_price = ticker.get("bid") or ticker.get("last")
+    assert bid_price, "Failed to get bid price from ticker"
     price = bid_price * 0.99
 
     # 最小数量取得 → 1.1倍
-    market = swap_client.client.markets[symbol]
+    market = swap_client._exchange.markets[symbol]
     min_amount = market["limits"]["amount"]["min"]
     amount = float(min_amount) * 1.1
 

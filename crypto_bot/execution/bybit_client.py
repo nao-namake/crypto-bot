@@ -15,11 +15,11 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 import ccxt
-import pandas as pd
 from ccxt.base.errors import NotSupported
 from dotenv import load_dotenv
 
 from .base import ExchangeClient
+
 
 class BybitTestnetClient(ExchangeClient):
     """
@@ -39,14 +39,14 @@ class BybitTestnetClient(ExchangeClient):
         dotenv_path: Optional[str] = ".env",
         **_: Any,
     ):
-        # ── .env 読み込み ────────────────────────────────────────────
+        # ── .env 読み込み ─────────────────────────────
         if dotenv_path:
             load_dotenv(dotenv_path=dotenv_path)
 
         self.api_key = api_key or os.getenv("BYBIT_TESTNET_API_KEY")
         self.api_secret = api_secret or os.getenv("BYBIT_TESTNET_API_SECRET")
 
-        # ── ccxt Exchange インスタンス生成 ──────────────────────────
+        # ── ccxt Exchange インスタンス生成 ──────────────
         opts: Dict[str, Any] = {
             "enableRateLimit": True,
             "urls": {"api": "https://api-testnet.bybit.com"},
@@ -62,7 +62,7 @@ class BybitTestnetClient(ExchangeClient):
             self._exchange.apiKey = self.api_key
             self._exchange.secret = self.api_secret
 
-        # テストネット sandbox モード（互換性のため try/except）
+        # テストネット sandbox モード（try/exceptで互換性担保）
         if testnet and hasattr(self._exchange, "set_sandbox_mode"):
             try:
                 self._exchange.set_sandbox_mode(True)
@@ -100,7 +100,12 @@ class BybitTestnetClient(ExchangeClient):
         params: Optional[Dict[str, Any]] = None,
     ):
         return self._exchange.create_order(
-            symbol, type.lower(), side.lower(), amount, price, params or {}
+            symbol,
+            type.lower(),
+            side.lower(),
+            amount,
+            price,
+            params or {},
         )
 
     def cancel_order(

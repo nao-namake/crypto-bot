@@ -2,7 +2,7 @@
 # ファイル名: crypto_bot/execution/okcoinjp_client.py
 # 説明:
 # OKCoin Japan 専用の取引所クライアントラッパー。
-# - CCXTの okcoinjp クラスをラップ
+# - CCXTの okcoin クラスをラップ
 # - APIキーとシークレットを受け取り、DataFrame形式でデータ返却
 # - fetch_balance, fetch_ohlcv, create_order, cancel_order, set_leverage など基本操作に対応
 # - テストネット用URLもオプションで対応（※本番とURL切り替え）
@@ -14,14 +14,15 @@ import pandas as pd
 
 from .base import ExchangeClient
 
+
 class OkcoinJpClient(ExchangeClient):
     def __init__(self, api_key: str, api_secret: str, testnet: bool = False):
-        # CCXT の exchange id は "okcoinjp"
+        # CCXT の exchange id は "okcoin"
         params = {"apiKey": api_key, "secret": api_secret}
         if testnet:
             # OKCoin Japan テストネットのURLは ccxt/docs に従って設定
             params["urls"] = {"api": {"public": "https://www.okcoin.com/api"}}
-        self._exchange = ccxt.okcoinjp(params)
+        self._exchange = ccxt.okcoin(params)
 
     def fetch_balance(self) -> dict:
         return self._exchange.fetch_balance()

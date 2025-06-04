@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # =============================================================================
 # ファイル名: tools/sweep_thresholds.py
 # 説明:
@@ -19,19 +20,20 @@
 #   - バックテスト実行毎に "trade_log.csv" が一時的に再生成されます
 # =============================================================================
 
-#!/usr/bin/env python3
 import os
-import sys
-import subprocess
-import tempfile
-import pandas as pd
 import re
+import subprocess
+import sys
+import tempfile
 from io import StringIO
+
+import pandas as pd
 import yaml
 
-SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, os.pardir))
-BASE_CONFIG  = os.path.join(PROJECT_ROOT, "config", "default.yml")
+BASE_CONFIG = os.path.join(PROJECT_ROOT, "config", "default.yml")
+
 
 def run_backtest_and_capture(cfg_path: str) -> str:
     """
@@ -39,18 +41,22 @@ def run_backtest_and_capture(cfg_path: str) -> str:
     stdout 全文を文字列で返す。
     """
     cmd = [
-        sys.executable, "-m", "crypto_bot.main",
-        "backtest", "-c", cfg_path
+        sys.executable,
+        "-m",
+        "crypto_bot.main",
+        "backtest",
+        "-c",
+        cfg_path,
     ]
     proc = subprocess.run(
         cmd,
         cwd=PROJECT_ROOT,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
+        stderr=subprocess.STDOUT,
     )
     out = proc.stdout.decode("utf-8", errors="ignore")
 
-    # subprocess実行ログを表示（追加）
+    # subprocess実行ログを表示
     print("=== subprocess stdout ===")
     print(out)
     print("=========================")
@@ -58,6 +64,7 @@ def run_backtest_and_capture(cfg_path: str) -> str:
     if proc.returncode != 0:
         raise SystemExit(f"Error: backtest failed (exit code {proc.returncode})")
     return out
+
 
 def extract_table(report: str) -> pd.DataFrame:
     """
@@ -81,12 +88,9 @@ def extract_table(report: str) -> pd.DataFrame:
         table_lines.append(line.lstrip())
 
     buf = StringIO("\n".join(table_lines))
-    df = pd.read_csv(
-        buf,
-        sep=r'\s+',
-        parse_dates=["start_date", "end_date"]
-    )
+    df = pd.read_csv(buf, sep=r"\s+", parse_dates=["start_date", "end_date"])
     return df
+
 
 def main():
     old_log = os.path.join(PROJECT_ROOT, "results", "trade_log.csv")
@@ -99,7 +103,9 @@ def main():
     try:
         thresholds = orig_cfg["strategy"]["params"]["thresholds_to_test"]
     except KeyError:
-        sys.exit("Error: config/default.yml に thresholds_to_test が定義されていません。")
+        sys.exit(
+            "Error: config/default.yml に thresholds_to_test が定義されていません。"
+        )
 
     results = []
 
@@ -112,7 +118,7 @@ def main():
         with os.fdopen(fd, "w") as f:
             yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
 
-        # 生成した一時設定ファイルのパスを表示（追加）
+        # 生成した一時設定ファイルのパスを表示
         print(f"🟡 Generated temp config file: {tmp_cfg}")
 
         print(f"▶ Running backtest with threshold={thr} …")
@@ -120,9 +126,7 @@ def main():
             report = run_backtest_and_capture(tmp_cfg)
         except SystemExit:
             print(f"⚠️ Threshold {thr}: no trades or error, skipping.")
-            # os.remove(tmp_cfg)  # 一時的に削除をコメントアウト
             continue
-        # os.remove(tmp_cfg)  # 一時的に削除をコメントアウト
 
         try:
             df = extract_table(report)
@@ -130,10 +134,9 @@ def main():
             print(f"⚠️ Threshold {thr}: レポートテーブル抽出失敗、スキップ")
             continue
 
-        results.append({
-            "threshold": thr,
-            "mean_total_profit": df["total_profit"].mean()
-        })
+        results.append(
+            {"threshold": thr, "mean_total_profit": df["total_profit"].mean()}
+        )
 
     out_df = pd.DataFrame(results).set_index("threshold")
     out_path = os.path.join(PROJECT_ROOT, "results", "threshold_sweep.csv")
@@ -142,6 +145,7 @@ def main():
     print("\n=== Sweep Results ===")
     print(out_df.to_string())
     print(f"\nResults saved to {out_path}")
+
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,9 @@
 # ウォークフォワード分割用のsplit関数が定義されています。
 
 from typing import List, Optional, Tuple
+
 import pandas as pd
+
 
 def split_walk_forward(
     df: pd.DataFrame, train_window: int, test_window: int, step: int
@@ -31,6 +33,7 @@ def split_walk_forward(
         start += step
     return splits
 
+
 def max_drawdown(equity: pd.Series) -> float:
     """
     時系列 equity（累積損益＋初期残高）から
@@ -51,6 +54,7 @@ def max_drawdown(equity: pd.Series) -> float:
     running_max = equity.cummax()
     drawdowns = equity / running_max - 1.0
     return float(drawdowns.min() if not drawdowns.empty else 0.0)
+
 
 def cagr(equity: pd.Series, periods: Optional[int] = None) -> float:
     """
@@ -84,6 +88,7 @@ def cagr(equity: pd.Series, periods: Optional[int] = None) -> float:
         return (end / start) ** (1.0 / periods) - 1.0
     except Exception:
         return 0.0
+
 
 def sharpe_ratio(returns: pd.Series, periods_per_year: int = 252) -> float:
     """

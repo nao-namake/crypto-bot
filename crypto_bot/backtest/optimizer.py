@@ -5,25 +5,19 @@
 
 import itertools
 from typing import Optional
+
 import pandas as pd
 
 from crypto_bot.backtest.engine import BacktestEngine
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 
+# from crypto_bot.strategy.bollinger import BollingerStrategy  # 完全削除
+
 
 class ParameterOptimizer:
     """
-    各種パラメータ（例: ボリンジャーバンドの期間やσ幅）で全組み合わせを生成し、
-    それぞれでバックテストを実行、集計します。
-
-    Parameters
-    ----------
-    price_df : pd.DataFrame
-        銘柄の価格データ
-    starting_balance : float
-        初期残高
-    slippage_rate : float
-        スリッページ率
+    各種パラメータで全組み合わせを生成し、それぞれでバックテストを実行、集計します。
+    ※ 現状は戦略クラス不使用のダミー仕様（実際の戦略は都度組み込んでください）
     """
 
     def __init__(
@@ -41,60 +35,37 @@ class ParameterOptimizer:
     ) -> pd.DataFrame:
         """
         パラメータグリッドを走査し、各組み合わせでバックテストを実行します。
-
-        Returns
-        -------
-        pd.DataFrame
-            各パラメータの検証結果
+        現在は戦略ロジック不在（要カスタマイズ）。
         """
         results = []
         combos = itertools.product(periods, nbdevs)
 
         for period, nbdev in combos:
-            strat = BollingerStrategy(period=period, nbdevup=nbdev, nbdevdn=nbdev)
-            # 複数 timeframes を試す場合
-            if timeframes:
-                for tf in timeframes:
-                    df_tf = self.df  # リサンプリング等が必要ならここで加工
-                    engine = BacktestEngine(
-                        price_df=df_tf,
-                        strategy=strat,
-                        starting_balance=self.starting_balance,
-                        slippage_rate=self.slippage_rate,
-                    )
-                    recs = engine.run()
-                    stats = self._compute_stats(
-                        recs,
-                        start_dt=df_tf.index[0],
-                        end_dt=df_tf.index[-1],
-                        n_bars=len(df_tf),
-                    )
-                    stats.update({"period": period, "nbdev": nbdev, "timeframe": tf})
-                    results.append(stats)
-            # 単一 timeframe の場合
-            else:
-                engine = BacktestEngine(
-                    price_df=self.df,
-                    strategy=strat,
-                    starting_balance=self.starting_balance,
-                    slippage_rate=self.slippage_rate,
-                )
-                recs = engine.run()
-                stats = self._compute_stats(
-                    recs,
-                    start_dt=self.df.index[0],
-                    end_dt=self.df.index[-1],
-                    n_bars=len(self.df),
-                )
-                stats.update({"period": period, "nbdev": nbdev, "timeframe": None})
-                results.append(stats)
+            # ここに本来は戦略クラスを作成する箇所がありますが完全に削除
+            # strat = BollingerStrategy(...) など不要
+
+            # 単一 timeframe の場合のみダミーエンジンを走らせる（戦略はNone）
+            engine = BacktestEngine(
+                price_df=self.df,
+                strategy=None,  # 実際に使う場合はここに戦略インスタンスを渡す
+                starting_balance=self.starting_balance,
+                slippage_rate=self.slippage_rate,
+            )
+            recs = engine.run()
+            stats = self._compute_stats(
+                recs,
+                start_dt=self.df.index[0],
+                end_dt=self.df.index[-1],
+                n_bars=len(self.df),
+            )
+            stats.update({"period": period, "nbdev": nbdev, "timeframe": None})
+            results.append(stats)
 
         return pd.DataFrame(results)
 
     def _compute_stats(self, recs, start_dt, end_dt, n_bars):
         """
-        BacktestEngine.run() の戻り TradeRecord リストから
-        主要指標をピックアップして dict 化。
+        BacktestEngine.run() の戻り TradeRecord リストから主要指標をピックアップして dict 化。
         """
         if not recs:
             return {
@@ -113,11 +84,9 @@ class ParameterOptimizer:
         avg_ret = df.return_rate.mean()
         total_pf = df.profit.sum()
 
-        # Equity 推移とドローダウン
         equity = df.profit.cumsum() + self.starting_balance
         max_dd = (equity.cummax() - equity).max()
 
-        # CAGR
         days = max((end_dt - start_dt).days, 1)
         final_eq = equity.iloc[-1]
         cagr = (final_eq / self.starting_balance) ** (365 / days) * 100 - 100
@@ -136,20 +105,7 @@ def optimize_backtest(config: dict, output_csv: Optional[str] = None) -> pd.Data
     """
     設定ファイル（config）をもとにデータ取得→最適化バックテストを実行します。
     指定時はCSVとしても保存。
-
-    Parameters
-    ----------
-    config : dict
-        設定辞書（通常はYAMLなどから読み込む）
-    output_csv : str or None
-        出力ファイルパス
-
-    Returns
-    -------
-    pd.DataFrame
-        検証結果
     """
-    # ── データ取得 ──
     dd = config["data"]
     fetcher = MarketDataFetcher(
         exchange_id=dd.get("exchange", "bybit"),
@@ -165,21 +121,18 @@ def optimize_backtest(config: dict, output_csv: Optional[str] = None) -> pd.Data
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
 
-    # ── 前処理 ──
     period = config["strategy"]["params"].get("period", 2)
     df = DataPreprocessor.clean(
         df,
         timeframe=dd["timeframe"],
-        z_thresh=5.0,
+        thresh=5.0,
         window=period,
     )
 
-    # ── パラメータグリッド取得 ──
     opt_cfg = config.get("optimizer", {})
     periods = opt_cfg.get("periods", [])
     nbdevs = opt_cfg.get("nbdevs", [])
 
-    # ── 最適化実行 ──
     po = ParameterOptimizer(
         price_df=df,
         starting_balance=config["backtest"]["starting_balance"],

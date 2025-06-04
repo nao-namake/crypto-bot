@@ -9,9 +9,12 @@ Bitbank 上で
 """
 
 import os
+
 import pytest
+
 # 必要な時点で import する
 # from crypto_bot.execution.bitbank_client import BitbankClient
+
 
 @pytest.fixture(scope="module")
 def bitbank_client():
@@ -27,11 +30,14 @@ def bitbank_client():
     #     pass
     pass  # 雛形なので空でOK
 
+
 def test_fetch_balance(bitbank_client):
     pass
 
+
 def test_fetch_ohlcv(bitbank_client):
     pass
+
 
 def test_place_and_cancel_order(bitbank_client):
     pass

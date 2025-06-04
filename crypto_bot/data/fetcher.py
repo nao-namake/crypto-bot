@@ -12,31 +12,17 @@ import os
 from datetime import datetime
 from typing import List, Optional, Union
 
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from pandas.tseries.frequencies import to_offset
 
 from crypto_bot.execution.factory import create_exchange_client
 
-# .env から自動読み込み（APIキーなど）
 load_dotenv()
 
 
 class MarketDataFetcher:
-    """
-    ExchangeClient を使って OHLCV を取得し、pandas.DataFrame にして返す。
-
-    引数:
-        - exchange_id: 取引所名（例: "bybit"）
-        - api_key, api_secret: 各種APIキー（.envがあれば省略可）
-        - symbol: 取引ペア
-        - testnet: テストネット利用可否
-        - ccxt_options: CCXT拡張オプション（APIエンドポイント指定など）
-
-    主要メソッド:
-        - get_price_df(): OHLCVをDataFrameで返す（自動ページング等あり）
-    """
-
     def __init__(
         self,
         exchange_id: str = "bybit",
@@ -59,14 +45,10 @@ class MarketDataFetcher:
             testnet=testnet,
             ccxt_options=ccxt_options or {},
         )
-        # Bybitの場合、APIキー未設定だとfetchCurrenciesエラーを避ける
         if exchange_id == "bybit" and not api_key:
             self.client.has["fetchCurrencies"] = False
         self.exchange = getattr(self.client, "_exchange", self.client)
 
-    # --------------------------------------------------------------------- #
-    # データ取得
-    # --------------------------------------------------------------------- #
     def get_price_df(
         self,
         timeframe: str = "1m",
@@ -76,17 +58,8 @@ class MarketDataFetcher:
         sleep: bool = True,
         per_page: int = 500,
     ) -> pd.DataFrame:
-        """
-        OHLCV を取得して DataFrame 化する。
-        :param timeframe: CCXT フォーマットの time frame（例: "1h"）
-        :param since: 取得開始時刻（ミリ秒 or ISO8601 文字列 or datetime or 数値）
-        :param limit: 取得上限レコード数
-        :param paginate: True の場合、ページング取得ロジックを使用
-        :param per_page: 1回の API 呼び出しあたりの最大レコード数
-        :return: pandas.DataFrame（index が datetime）
-        """
         import time
-        # since をミリ秒に変換
+
         since_ms: Optional[int] = None
         if since is not None:
             if isinstance(since, str):
@@ -103,7 +76,6 @@ class MarketDataFetcher:
         max_records = limit if limit is not None else float("inf")
 
         if paginate and limit:
-            # ------------------- ページング取得 ------------------------- #
             records: List = []
             seen_ts = set()
             last_since = since_ms
@@ -128,20 +100,24 @@ class MarketDataFetcher:
                         added = True
                 if not added:
                     retries += 1
-                if sleep and hasattr(self.exchange, "rateLimit") and self.exchange.rateLimit:
+                if (
+                    sleep and hasattr(self.exchange, "rateLimit")
+                    and self.exchange.rateLimit
+                ):
                     time.sleep(self.exchange.rateLimit / 1000.0)
             data = records if limit is None else records[:limit]
 
         else:
-            # ------------------- 単発取得 ------------------------------- #
             raw = self.client.fetch_ohlcv(self.symbol, timeframe, since_ms, limit)
-            if sleep and hasattr(self.exchange, "rateLimit") and self.exchange.rateLimit:
+            if (
+                sleep and hasattr(self.exchange, "rateLimit")
+                and self.exchange.rateLimit
+            ):
                 time.sleep(self.exchange.rateLimit / 1000.0)
             if isinstance(raw, pd.DataFrame):
                 return raw
             data = raw or []
 
-            # Bybit linear契約で":USDT" サフィックスが必要な場合の自動リトライ
             if (
                 not data
                 and self.exchange_id == "bybit"
@@ -168,7 +144,6 @@ class MarketDataFetcher:
         df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df = df.set_index("datetime")
 
-        # sinceがdatetime/ISOなら先頭行を除外（重複分）
         if isinstance(since, datetime) or (isinstance(since, str) and since):
             df = df.iloc[1:]
 
@@ -178,26 +153,22 @@ class MarketDataFetcher:
         return df[["open", "high", "low", "close", "volume"]]
 
 
-# ===================================================================== #
-# 前処理ユーティリティ
-# ===================================================================== #
 class DataPreprocessor:
-    """OHLCV DataFrame の前処理ユーティリティ
-
-    1. 重複除去
-    2. 欠損バー補完（全期間を生成）
-    3. 外れ値（z-score）除去
-    4. 欠損のffill/bfill
-    """
-
     @staticmethod
     def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
         return df[~df.index.duplicated(keep="first")]
 
     @staticmethod
-    def fill_missing_bars(df: pd.DataFrame, timeframe: str = "1h") -> pd.DataFrame:
+    def fill_missing_bars(
+        df: pd.DataFrame, timeframe: str = "1h"
+    ) -> pd.DataFrame:
         freq_offset = to_offset(timeframe)
-        idx = pd.date_range(start=df.index[0], end=df.index[-1], freq=freq_offset, tz=df.index.tz)
+        idx = pd.date_range(
+            start=df.index[0],
+            end=df.index[-1],
+            freq=freq_offset,
+            tz=df.index.tz,
+        )
         df2 = df.reindex(idx)
         for col in ["open", "high", "low", "close", "volume"]:
             df2[col] = df2[col].ffill()
@@ -205,23 +176,46 @@ class DataPreprocessor:
 
     @staticmethod
     def remove_outliers(
-        df: pd.DataFrame, z_thresh: float = 5.0, window: int = 20
+        df: pd.DataFrame, thresh: float = 3.5, window: int = 20
     ) -> pd.DataFrame:
-        ma = df["close"].rolling(window).mean()
-        sd = df["close"].rolling(window).std()
-        z = (df["close"] - ma) / sd
-        mask = z.abs() < z_thresh
         df = df.copy()
-        df.loc[~mask, "close"] = ma[~mask]
+        price_cols = ["open", "high", "low", "close"]
+        for col in [c for c in price_cols if c in df.columns]:
+            median = df[col].rolling(
+                window=window,
+                center=True,
+                min_periods=1,
+            ).median()
+            deviation = (df[col] - median).abs()
+            mad = deviation.rolling(
+                window=window,
+                center=True,
+                min_periods=1,
+            ).median()
+            mad = mad + 1e-8
+            modified_zscore = 0.6745 * deviation / mad
+            is_outlier = modified_zscore > thresh
+            temp = df[col].copy()
+            temp[is_outlier] = np.nan
+            filled = temp.rolling(
+                window=window,
+                center=True,
+                min_periods=1,
+            ).mean()
+            filled = filled.fillna(method="ffill").fillna(method="bfill")
+            df[col] = np.where(is_outlier, filled, df[col])
         return df
 
     @staticmethod
     def clean(
-        df: pd.DataFrame, timeframe: str = "1h", z_thresh: float = 5.0, window: int = 20
+        df: pd.DataFrame,
+        timeframe: str = "1h",
+        thresh: float = 3.5,
+        window: int = 20,
     ) -> pd.DataFrame:
         df = DataPreprocessor.remove_duplicates(df)
         df = DataPreprocessor.fill_missing_bars(df, timeframe)
-        df = DataPreprocessor.remove_outliers(df, z_thresh, window)
+        df = DataPreprocessor.remove_outliers(df, thresh, window)
         for col in ["open", "high", "low", "close", "volume"]:
             df[col] = df[col].ffill().bfill()
         return df
