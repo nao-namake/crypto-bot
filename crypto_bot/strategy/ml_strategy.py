@@ -12,15 +12,18 @@
 from __future__ import annotations
 
 import logging
+
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.ml.model import MLModel
 from crypto_bot.ml.preprocessor import FeatureEngineer
+
 from .base import StrategyBase
 
 logger = logging.getLogger(__name__)
+
 
 class MLStrategy(StrategyBase):
     """
@@ -63,33 +66,35 @@ class MLStrategy(StrategyBase):
         # --- もちぽよシグナルの判定 ---
         has_mochipoyo_long = "mochipoyo_long_signal" in last_X.columns
         has_mochipoyo_short = "mochipoyo_short_signal" in last_X.columns
-        mp_long = int(last_X["mochipoyo_long_signal"].iloc[0]) if has_mochipoyo_long else 0
-        mp_short = int(last_X["mochipoyo_short_signal"].iloc[0]) if has_mochipoyo_short else 0
+        mp_long = (
+            int(last_X["mochipoyo_long_signal"].iloc[0]) if has_mochipoyo_long else 0
+        )
+        mp_short = (
+            int(last_X["mochipoyo_short_signal"].iloc[0]) if has_mochipoyo_short else 0
+        )
 
         # --- MLモデルの確率予測 ---
         prob = self.model.predict_proba(last_X)[0, 1]
         logger.info("Predicted ↑ prob = %.4f", prob)
 
         # ポジション有無で判定
-        if position.exist:
-            # Exit
-            if prob < 0.5 - dynamic_th:
-                logger.info("Exit signal: SELL (prob=%.4f < %.4f)", prob, 0.5 - dynamic_th)
+        position_exists = position is not None and position.exist
+        if position_exists:
+            # ポジション有りの場合はexit条件のみ判定
+            if prob < 0.5 - dynamic_th:  # 確率が0.5-閾値より低い場合はexit
                 return Signal(side="SELL", price=price)
-            return Signal()
-        else:
-            # Entry: どちらか1つでもシグナルが出れば即返却（もちぽよ優先）
-            if mp_long == 1:
-                logger.info("Entry signal: BUY by mochipoyo_long_signal")
-                return Signal(side="BUY", price=price)
-            if mp_short == 1:
-                logger.info("Entry signal: SELL by mochipoyo_short_signal")
-                return Signal(side="SELL", price=price)
-            # MLシグナル
-            if prob > 0.5 + dynamic_th:
-                logger.info("Entry signal: BUY (prob=%.4f > %.4f)", prob, 0.5 + dynamic_th)
-                return Signal(side="BUY", price=price)
-            if prob < 0.5 - dynamic_th:
-                logger.info("Entry signal: SELL (prob=%.4f < %.4f)", prob, 0.5 - dynamic_th)
-                return Signal(side="SELL", price=price)
-            return Signal()
+            return None
+
+        # もちぽよシグナル優先
+        if mp_long:
+            return Signal(side="BUY", price=price)
+        if mp_short:
+            return Signal(side="SELL", price=price)
+
+        # MLシグナル
+        if prob > 0.5 + dynamic_th:  # 確率が0.5+閾値より高い場合はBUY
+            return Signal(side="BUY", price=price)
+        if prob < 0.5 - dynamic_th:  # 確率が0.5-閾値より低い場合はSELL
+            return Signal(side="SELL", price=price)
+
+        return None

@@ -12,14 +12,15 @@ from crypto_bot.main import cli
 def test_cli_train_with_model_option(tmp_path, monkeypatch):
     runner = CliRunner()
 
-    # ダミー prepare_data / save_model を差し替え
+    # main.py の prepare_data, train_best_model, save_model をモック
     def dummy_prepare_data(cfg):
         import numpy as np
 
         return np.zeros((10, 3)), np.zeros(10), np.zeros((5, 3)), np.zeros(5)
 
+    # train_best_modelはcfg, X_tr, y_tr, X_val, y_val もしくは cfg, path を受ける
     monkeypatch.setattr("crypto_bot.main.prepare_data", dummy_prepare_data)
-    monkeypatch.setattr("crypto_bot.main.train_best_model", lambda cfg, *_: "OK")
+    monkeypatch.setattr("crypto_bot.main.train_best_model", lambda cfg, *a, **kw: "OK")
     monkeypatch.setattr("crypto_bot.main.save_model", lambda m, p: None)
 
     result = runner.invoke(
@@ -27,6 +28,8 @@ def test_cli_train_with_model_option(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0
     assert "Using model_type: xgb" in result.output
+    assert "Training classification model on 10 samples" in result.output
+    assert "Model saved to" in result.output
 
 
 @pytest.fixture
@@ -47,6 +50,24 @@ def minimal_cfg(tmp_path):
             "rolling_window": 1,
             "horizon": 1,
             "threshold": 0.0,
+            "target_type": "classification",  # 現行main.pyで必要
+        },
+        "backtest": {
+            "starting_balance": 10000,
+            "slippage_rate": 0,
+            "trade_log_csv": "results/trades.csv",
+            "aggregate_out_prefix": "results/agg",
+        },
+        "walk_forward": {
+            "train_window": 1,
+            "test_window": 1,
+            "step": 1,
+        },
+        "strategy": {
+            "params": {
+                "model_path": "model.pkl",
+                "threshold": 0.0,
+            }
         },
     }
     p = tmp_path / "cfg.yml"
@@ -85,5 +106,4 @@ def test_train_best_cli(monkeypatch, minimal_cfg, tmp_path):
     result = runner.invoke(cli, ["train-best", "-c", minimal_cfg, "-o", str(out)])
     assert result.exit_code == 0
     assert "Running optimization and training best model" in result.output
-    # モック関数が正しい引数で呼ばれているか
     assert called["out"] == str(out)

@@ -1,5 +1,9 @@
-import asyncio
-import contextlib
+# tests/unit/data/test_streamer.py
+# テスト対象: crypto_bot/data/streamer.py
+# 説明:
+#   - RealTimeFetcherの主な機能（初期化、受信キュー、コールバック連携）のユニットテスト
+#   - WebSocket通信部分はすべてモック化し、非同期IOもpytest-asyncioを利用
+
 import json
 
 import pytest
@@ -7,66 +11,81 @@ import pytest
 from crypto_bot.data.streamer import RealTimeFetcher
 
 
-class DummyWS:
-    """モック WebSocketClientProtocol."""
+@pytest.mark.asyncio
+async def test_realtimefetcher_enqueue_and_callback(monkeypatch):
+    # モックWebSocket
+    class DummyWS:
+        def __init__(self):
+            self.sent = []
+            self._closed = False
+            # サンプルTickデータをjson文字列で2件だけ返す
+            self._messages = iter([
+                json.dumps({"type": "trade", "price": 100}),
+                json.dumps({"type": "trade", "price": 101}),
+            ])
 
-    def __init__(self, messages):
-        # 受信する JSON 文字列リスト
-        self.messages = messages
+        async def send(self, msg):
+            self.sent.append(msg)
 
-    def __aiter__(self):
-        async def gen():
-            for m in self.messages:
-                yield m
+        def __aiter__(self):
+            return self
 
-        return gen()
+        async def __anext__(self):
+            try:
+                return next(self._messages)
+            except StopIteration:
+                raise StopAsyncIteration()
 
-    async def send(self, msg):
-        # subscribe リクエストが送られていることを確認
-        payload = json.loads(msg)
-        assert payload.get("op") == "subscribe"
-        assert isinstance(payload.get("args"), list)
+        async def close(self):
+            self._closed = True
 
-    async def close(self):
-        # クローズは何もしない
-        pass
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            await self.close()
+
+    # websockets.connectを差し替え
+    async def mock_connect(url):
+        return DummyWS()
+    monkeypatch.setattr("websockets.connect", mock_connect)
+
+    # コールバックのテスト用
+    received_msgs = []
+
+    def on_msg(data):
+        received_msgs.append(data)
+
+    fetcher = RealTimeFetcher(
+        url="wss://dummy",
+        symbol="BTCUSDT",
+        on_message=on_msg
+    )
+
+    # connect, _recv_loopまで呼び出し
+    await fetcher.connect()
+    # WebSocketに正しいsubscribe送信
+    assert fetcher._ws.sent
+    assert "trade.BTCUSDT" in fetcher._ws.sent[0]
+
+    # 受信ループ（2件だけ受信）
+    await fetcher._recv_loop()
+
+    # キューにも格納されている
+    msg1 = await fetcher._queue.get()
+    msg2 = await fetcher._queue.get()
+    assert msg1["price"] == 100
+    assert msg2["price"] == 101
+    # コールバックも2回呼ばれている
+    assert len(received_msgs) == 2
+    assert received_msgs[0]["price"] == 100
 
 
 @pytest.mark.asyncio
-async def test_realtime_fetcher(monkeypatch):
-    # ダミーの JSON 文字列リスト
-    dummy_msgs = ['{"price":100}', '{"price":101}', '{"price":102}']
-
-    # websockets.connect をモック化して DummyWS を返す
-    async def fake_connect(url):
-        return DummyWS(dummy_msgs)
-
-    monkeypatch.setattr(
-        "crypto_bot.data.streamer.websockets.connect",
-        fake_connect,
-    )
-
-    # on_message コールバック用リスト
-    seen = []
-
-    def on_msg(data):
-        seen.append(data)
-
-    # RealTimeFetcher を作成し、_run() をバックグラウンドで開始
-    rt = RealTimeFetcher(url="wss://test", symbol="BTCUSDT", on_message=on_msg)
-    task = asyncio.create_task(rt._run())
-
-    # キューから3件取り出す
-    got = []
-    for _ in range(3):
-        msg = await rt.get_message()
-        got.append(msg)
-
-    # タスクをキャンセル（または自然終了）させて待機
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
-
-    # コールバックとキューの内容が一致すること
-    assert seen == [{"price": 100}, {"price": 101}, {"price": 102}]
-    assert got == seen
+async def test_get_message():
+    fetcher = RealTimeFetcher(url="wss://dummy", symbol="BTCUSDT")
+    test_data = {"type": "trade", "price": 123}
+    # 内部キューに直接put
+    await fetcher._queue.put(test_data)
+    msg = await fetcher.get_message()
+    assert msg == test_data

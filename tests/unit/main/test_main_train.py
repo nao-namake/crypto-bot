@@ -1,8 +1,11 @@
+# tests/unit/main/test_main_train.py
+
 import joblib
 import pandas as pd
 import yaml
 from click.testing import CliRunner
 from sklearn.base import BaseEstimator
+from sklearn.model_selection import train_test_split
 
 from crypto_bot.main import cli
 
@@ -16,55 +19,78 @@ class DummyEstimator(BaseEstimator):
 
 
 def test_train_command_monkeypatched(tmp_path, monkeypatch):
-    # 1) モックデータを返す fetcher
     dummy_df = pd.DataFrame(
         {
-            "open": [1, 2, 3, 4],
-            "high": [1, 2, 3, 4],
-            "low": [1, 2, 3, 4],
-            "close": [1, 2, 3, 4],
-        }
+            "open": list(range(1, 11)),
+            "high": list(range(1, 11)),
+            "low": list(range(1, 11)),
+            "close": list(range(1, 11)),
+            "volume": [1] * 10,
+        },
+        index=pd.date_range(start="2024-01-01", periods=10, freq="H"),
     )
     monkeypatch.setattr(
         "crypto_bot.main.MarketDataFetcher.get_price_df", lambda self, **kw: dummy_df
     )
 
-    # 2) prepare_ml_dataset を簡易化
-    X = pd.DataFrame({"f": [0, 1, 0, 1]})
-    y = pd.Series([0, 1, 0, 1])
-    monkeypatch.setattr("crypto_bot.main.prepare_ml_dataset", lambda df, cfg: (X, y, y))
+    X_full = pd.DataFrame({"f": [0, 1] * 5})
+    y_full = pd.Series([0, 1] * 5)
 
-    # 3) LogisticRegression を DummyEstimator に置換
+    # 明示的にtrainとvalidationを分割（訓練8, 検証2）
+    X_tr, X_val, y_tr, y_val = train_test_split(
+        X_full, y_full, test_size=0.2, random_state=42
+    )
+
+    # 4要素タプルを返す
+    monkeypatch.setattr(
+        "crypto_bot.ml.preprocessor.prepare_ml_dataset",
+        lambda df, cfg: (X_tr, y_tr, X_val, y_val),
+    )
+
     monkeypatch.setattr(
         "crypto_bot.main.LogisticRegression", lambda **kw: DummyEstimator()
     )
 
-    # 4) テスト用の config.yml を作成
     cfg = {
-        "data": {"symbol": "BTC/USDT", "timeframe": "1h", "since": None, "limit": 4},
+        "data": {"symbol": "BTC/USDT", "timeframe": "1h", "since": None, "limit": 10},
         "ml": {
             "feat_period": 2,
             "lags": [1],
             "rolling_window": 2,
             "horizon": 1,
             "threshold": 0.0,
+            "target_type": "classification",
+            "test_size": 0.2,
+        },
+        "backtest": {
+            "starting_balance": 10000,
+            "slippage_rate": 0,
+            "trade_log_csv": str(tmp_path / "trades.csv"),
+            "aggregate_out_prefix": str(tmp_path / "agg"),
+        },
+        "walk_forward": {
+            "train_window": 1,
+            "test_window": 1,
+            "step": 1,
+        },
+        "strategy": {
+            "params": {
+                "model_path": "model.pkl",
+                "threshold": 0.0,
+            }
         },
     }
     cfg_path = tmp_path / "config.yml"
     cfg_path.write_text(yaml.safe_dump(cfg))
     model_path = tmp_path / "model.pkl"
 
-    # CLI 実行
     runner = CliRunner()
     result = runner.invoke(cli, ["train", "-c", str(cfg_path), "-o", str(model_path)])
     assert result.exit_code == 0
 
-    # サンプル数は X の行数 (4) になっていること
-    assert "Training classification model on 4 samples" in result.output
+    # サンプル数は明示的に8個で指定している
+    assert "Training classification model on 8 samples" in result.output
 
-    # モデルファイルが作成されている
     assert model_path.exists()
-
-    # 保存されたオブジェクトが DummyEstimator であること
     loaded = joblib.load(model_path)
     assert isinstance(loaded, DummyEstimator)

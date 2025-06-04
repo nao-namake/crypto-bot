@@ -45,18 +45,12 @@ def create_exchange_client(
 
     # ── 以降は CCXT ラッパー系 ──────────────────────────────
     if eid == "bitbank":
-        return BitbankClient(
-            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
-        )
+        return BitbankClient(api_key, api_secret, testnet=testnet)
 
     if eid == "bitflyer":
-        return BitflyerClient(
-            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
-        )
+        return BitflyerClient(api_key, api_secret, testnet=testnet)
 
     if eid in ("okcoinjp", "okj"):
-        return OkcoinJpClient(
-            api_key, api_secret, testnet=testnet, ccxt_options=ccxt_options, **kwargs
-        )
+        return OkcoinJpClient(api_key, api_secret, testnet=testnet)
 
     raise ValueError(f"Unknown exchange_id: {exchange_id}")
