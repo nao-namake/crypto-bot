@@ -7,10 +7,7 @@
 import numpy as np
 import pandas as pd
 
-from crypto_bot.scripts.walk_forward import (
-    split_walk_forward,
-    walk_forward_test,
-)
+from crypto_bot.scripts.walk_forward import split_walk_forward, walk_forward_test
 
 
 def dummy_strategy_factory():

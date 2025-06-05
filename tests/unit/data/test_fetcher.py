@@ -9,10 +9,7 @@
 import numpy as np
 import pandas as pd
 
-from crypto_bot.data.fetcher import (
-    DataPreprocessor,
-    MarketDataFetcher,
-)
+from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 
 
 class DummyClient:
