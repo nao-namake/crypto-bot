@@ -17,7 +17,7 @@ A 主な機能
 	•	マルチ取引所対応（Bybit, Bitbank, Bitflyer, OKCoinJP：各クライアント雛形実装済／本格対応はSTEP16以降で順次）
 
 B 動作要件
-	•	Python 3.9 〜 3.13
+	•	Python 3.11 〜 3.12
 	•	Bybit Testnet API Key と Secret
 	•	動作確認環境 Linux / macOS / WSL2
 
@@ -58,8 +58,7 @@ E 基本コマンド例
 	•	Testnet 統合テスト
 		bash scripts/run_e2e.sh
 	•	コード整形とテスト
-		bash scripts/checks.sh        # チェックのみ
-		bash scripts/checks.sh --fix  # 自動整形
+		bash scripts/checks.sh
 
 F パイプライン自動実行（学習 → 閾値スイープ → キャリブ → BT/WF → 可視化）
 	1.	最適モデルを作成
@@ -174,7 +173,30 @@ K.よくある質問（FAQ）
 	- Q: 複数取引所の併用・拡張方法は？**  
 		→ configや.envの編集＋factory.pyのクラス追加／修正
 
-L. Dockerでの実行・セットアップ・コマンド例
+L. GitHub Actions & 自動プッシュスクリプト
+	1. CI (運用中)
+		.github/workflows/ci.yml を用いて、以下を自動実行します：
+		•Lint & Format
+			•flake8
+			•isort --check-only
+			•black --check
+		•Unit Tests & Coverage
+			•pytest --cov=crypto_bot --maxfail=1 -q --disable-warnings
+			•カバレッジが 75% 未満の場合は失敗
+		•Integration Tests (Bybit Testnet)
+			•API キー／シークレットが設定されていれば bash run_e2e.sh を実行
+		ワークフローの詳細は .github/workflows/ci.yml を参照してください。
+	2. 自動プッシュスクリプト (scripts/auto_push.sh)
+		以下のようなスクリプトを用意し、コミット → プッシュを自動化しています：
+		scripts/auto_push.sh
+		•実行例
+		bash scripts/auto_push.sh "feat: add new algo"
+		bash scripts/auto_push.sh --install "chore: clean & format"
+		•内容
+		1.isort と black でリポジトリ全体のコード整形
+		2.scripts/checks.sh を実行して Lint, Unit Tests, Coverage をチェック
+		3.すべてクリアしたら、コミットメッセージを指定して git add → git commit → git push
+M. Dockerでの実行・セットアップ・コマンド例
 	1. Docker環境の前提
 		•Docker Desktop（またはDocker CLI）がインストールされていること（Mac, Windows, Linux対応）
 	2. Dockerイメージのビルド
@@ -207,5 +229,5 @@ L. Dockerでの実行・セットアップ・コマンド例
 		•	必要なDockerコマンド・手順はREADMEにまとめているので、
 			今後はここを見れば運用や拡張もスムーズに行えます。
 
-M.ライセンス
+N.ライセンス
 本プロジェクトは MIT License で公開されています。

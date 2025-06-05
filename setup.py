@@ -4,8 +4,19 @@ setup(
     name="crypto_bot",
     version="0.1.0",
     description="汎用暗号資産トレーディングボット",
+    author="あなたの名前",
+    author_email="you@example.com",
+    url="https://github.com/あなたのID/crypto-bot",
+    license="MIT",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
     packages=find_packages(include=["crypto_bot", "crypto_bot.*"]),
-    python_requires=">=3.8",
+    python_requires=">=3.11, <3.13",
     install_requires=[
         # データ操作
         "pandas>=2.0.0",
@@ -26,6 +37,10 @@ setup(
         "python-dotenv>=1.0.0",
         # CLI
         "click>=8.0.0",
-        # 必要なら setuptools-scm など
     ],
+    entry_points={
+        "console_scripts": [
+            "crypto-bot=crypto_bot.main:cli",
+        ],
+    },
 )
