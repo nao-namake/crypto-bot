@@ -1,21 +1,18 @@
 [tool.black]
 line-length = 88
+# target-version = ["py38", "py39", "py310", "py311", "py312"]  # ←好みで
 
 [tool.isort]
 profile = "black"
+line_length = 88   # ★ 明示的にそろえておく
+skip_gitignore = true  # .gitignore に乗るファイル/フォルダを自動除外
 
 [tool.pytest.ini_options]
 # テスト対象のディレクトリ（再帰的に探索される）
 testpaths = ["tests"]
 
 # テストファイル名のパターン
-# - 通常のユニットテスト: test_*.py
-# - E2E テスト: *_e2e.py
 python_files = ["test_*.py", "*_e2e.py"]
-
-# （必要に応じてテストクラス／関数のパターンを指定可能）
-# python_classes = ["Test*"]
-# python_functions = ["test_*"]
 
 # asyncio 用のデフォルト fixture loop scope を function に固定
 asyncio_default_fixture_loop_scope = "function"
@@ -57,3 +54,5 @@ dependencies = [
     # --- ストリーミング (必要なら) ---
     "websockets>=11.0.0",
 ]
+
+# build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling etc. を追加してください。
