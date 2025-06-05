@@ -34,6 +34,14 @@ def split_walk_forward(
     (train_df, test_df) のペアをリストで返します。
     例: 2000本学習+250本テストを250本ずつスライド
     """
+    # --- parameter validation ---
+    if train_window <= 0 or test_window <= 0:
+        raise ValueError("train_window and test_window must be positive.")
+    if step <= 0:
+        raise ValueError("step must be positive.")
+    # 十分なデータ長が無い場合は空リストを返す
+    if len(df) < train_window + test_window:
+        return []
     splits: List[Tuple[pd.DataFrame, pd.DataFrame]] = []
     n = len(df)
     start = 0
