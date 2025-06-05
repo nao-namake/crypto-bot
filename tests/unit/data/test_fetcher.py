@@ -17,6 +17,7 @@ from crypto_bot.data.fetcher import (
 
 class DummyClient:
     """fetch_ohlcv等を模倣するダミー"""
+
     def __init__(self):
         self.has = {}
         self._exchange = self
@@ -36,8 +37,7 @@ class DummyClient:
 def test_marketdatafetcher_get_price_df(monkeypatch):
     # create_exchange_clientをダミー化
     monkeypatch.setattr(
-        "crypto_bot.data.fetcher.create_exchange_client",
-        lambda **kwargs: DummyClient()
+        "crypto_bot.data.fetcher.create_exchange_client", lambda **kwargs: DummyClient()
     )
     fetcher = MarketDataFetcher(exchange_id="bybit", symbol="BTC/USDT")
     df = fetcher.get_price_df(limit=3)
@@ -56,8 +56,7 @@ def test_marketdatafetcher_get_price_df_empty(monkeypatch):
             return []
 
     monkeypatch.setattr(
-        "crypto_bot.data.fetcher.create_exchange_client",
-        lambda **kwargs: EmptyClient()
+        "crypto_bot.data.fetcher.create_exchange_client", lambda **kwargs: EmptyClient()
     )
     fetcher = MarketDataFetcher(exchange_id="dummy", symbol="XXX/YYY")
     df = fetcher.get_price_df(limit=2)
@@ -74,18 +73,17 @@ def test_datapreprocessor_remove_duplicates():
 
 
 def test_datapreprocessor_fill_missing_bars():
-    idx = pd.to_datetime([
-        "2024-01-01 00:00",
-        "2024-01-01 01:00",
-        "2024-01-01 03:00"
-    ])
-    df = pd.DataFrame({
-        "open": [1, 2, 4],
-        "high": [2, 3, 5],
-        "low": [0, 1, 3],
-        "close": [1.5, 2.5, 4.5],
-        "volume": [10, 12, 14]
-    }, index=idx)
+    idx = pd.to_datetime(["2024-01-01 00:00", "2024-01-01 01:00", "2024-01-01 03:00"])
+    df = pd.DataFrame(
+        {
+            "open": [1, 2, 4],
+            "high": [2, 3, 5],
+            "low": [0, 1, 3],
+            "close": [1.5, 2.5, 4.5],
+            "volume": [10, 12, 14],
+        },
+        index=idx,
+    )
     filled = DataPreprocessor.fill_missing_bars(df, "1h")
     assert "2024-01-01 02:00:00" in filled.index.strftime("%Y-%m-%d %H:%M:%S")
     # 値は前値で埋まる
@@ -106,19 +104,17 @@ def test_datapreprocessor_remove_outliers():
 def test_datapreprocessor_clean_all():
     idx = pd.date_range("2024-01-01", periods=5, freq="h")
     close = [100, 101, 102, np.nan, 105]
-    df = pd.DataFrame({
-        "open": close,
-        "high": close,
-        "low": close,
-        "close": close,
-        "volume": [1, 2, 3, 4, 5]
-    }, index=idx)
-    df.iloc[2, 0] = np.nan  # openに欠損
-    cleaned = DataPreprocessor.clean(
-        df,
-        timeframe="1h",
-        thresh=3,
-        window=2
+    df = pd.DataFrame(
+        {
+            "open": close,
+            "high": close,
+            "low": close,
+            "close": close,
+            "volume": [1, 2, 3, 4, 5],
+        },
+        index=idx,
     )
+    df.iloc[2, 0] = np.nan  # openに欠損
+    cleaned = DataPreprocessor.clean(df, timeframe="1h", thresh=3, window=2)
     assert not cleaned.isnull().any().any()
     assert len(cleaned) == 5
