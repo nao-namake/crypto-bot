@@ -1,11 +1,10 @@
 [tool.black]
 line-length = 88
-# target-version = ["py38", "py39", "py310", "py311", "py312"]  # ←好みで
 
 [tool.isort]
 profile = "black"
-line_length = 88   # ★ 明示的にそろえておく
-skip_gitignore = true  # .gitignore に乗るファイル/フォルダを自動除外
+line_length = 88   # ★ isort の行長も black に合わせる
+skip_gitignore = true  # .gitignore に載るファイル/フォルダは自動スキップ
 
 [tool.pytest.ini_options]
 # テスト対象のディレクトリ（再帰的に探索される）
@@ -26,7 +25,8 @@ filterwarnings = [
 name = "crypto-bot"
 version = "0.1.0"
 description = "汎用暗号資産トレーディングボット"
-requires-python = ">=3.8"
+# Python 3.11 と 3.12 だけをサポートするので、ここも狭めておく
+requires-python = ">=3.11,<3.13"
 
 dependencies = [
     # --- ベース ---
@@ -55,4 +55,4 @@ dependencies = [
     "websockets>=11.0.0",
 ]
 
-# build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling etc. を追加してください。
+# build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。
