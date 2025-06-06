@@ -94,7 +94,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Make run_e2e.sh executable
-        run: chmod +x run_e2e.sh
+        run: chmod +x scripts/run_e2e.sh
 
       # API キーが無い場合はスキップ
       - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
@@ -106,4 +106,4 @@ jobs:
 
       #---------------------------------------------------
       - name: Run Bybit E2E
-        run: ./run_e2e.sh
+        run: ./scripts/run_e2e.sh
