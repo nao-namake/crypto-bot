@@ -96,14 +96,13 @@ jobs:
       - name: Make run_e2e.sh executable
         run: chmod +x scripts/run_e2e.sh
 
-      # API キーが無い場合はスキップ
+      # API キーが無い場合はこのジョブをスキップ（成功扱い）
       - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
+        if: ${{ secrets.BYBIT_TESTNET_API_KEY == '' || secrets.BYBIT_TESTNET_API_SECRET == '' }}
         run: |
-          if [ -z "${BYBIT_TESTNET_API_KEY}" ] || [ -z "${BYBIT_TESTNET_API_SECRET}" ]; then
-            echo "Bybit Testnet API Key or Secret not set. Skipping integration tests."
-            exit 0
-          fi
-
+          echo "Bybit Testnet API Key or Secret not set. Skipping integration tests."
+      
       #---------------------------------------------------
       - name: Run Bybit E2E
+        if: ${{ secrets.BYBIT_TESTNET_API_KEY && secrets.BYBIT_TESTNET_API_SECRET }}
         run: ./scripts/run_e2e.sh
