@@ -110,12 +110,12 @@ jobs:
         # スクリプトに実行権限を付与
 
       - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
-        if: ${{ secrets.BYBIT_TESTNET_API_KEY == '' || secrets.BYBIT_TESTNET_API_SECRET == '' }}
+        if: ${{ env.BYBIT_TESTNET_API_KEY == '' || env.BYBIT_TESTNET_API_SECRET == '' }}
         run: |
           echo "Bybit Testnet API Key or Secret not set. Skipping integration tests."
         # シークレットが空文字列の場合は「正常終了（Skip）」で止める
 
       - name: Run Bybit E2E
-        if: ${{ secrets.BYBIT_TESTNET_API_KEY != '' && secrets.BYBIT_TESTNET_API_SECRET != '' }}
+        if: ${{ env.BYBIT_TESTNET_API_KEY != '' && env.BYBIT_TESTNET_API_SECRET != '' }}
         run: ./scripts/run_e2e.sh
         # 両方のシークレットが設定されている場合のみ E2E スクリプトを実行
