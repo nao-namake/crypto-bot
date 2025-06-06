@@ -116,6 +116,6 @@ jobs:
         # シークレットが空文字列の場合は「正常終了（Skip）」で止める
 
       - name: Run Bybit E2E
-        if: ${{ secrets.BYBIT_TESTNET_API_KEY && secrets.BYBIT_TESTNET_API_SECRET }}
+        if: ${{ secrets.BYBIT_TESTNET_API_KEY != '' && secrets.BYBIT_TESTNET_API_SECRET != '' }}
         run: ./scripts/run_e2e.sh
         # 両方のシークレットが設定されている場合のみ E2E スクリプトを実行
