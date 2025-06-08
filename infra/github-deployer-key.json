@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "my-crypto-bot-project",
+  "private_key_id": "9f6aa292fa0e8fc1bc1ee3a688d1f8f9e808723d",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCdkjAT7qKWMyes\n58vu4CajLqQYJJOX6HnKr3G7JXFfFWBGajC7nD/TwikeEXdWMdhQWZ6hftZx80Us\nErEPJ8ABT04LLOmiESR3e0y4Oq/Qvrgu2N5yw/kuiGwVq1S9l33ZEGA1Gc/OHj08\nhiBCeg/KlfLMT4y7akS/ZmGyaOnidf3cr8DHiRbPl109pbh6cFNlcCBiFNdhHS9x\nCcog7Hr5L+6wE7cL5jv8IgKjHEP6fMM9wDFRcjXx3ibkP/PvVKQq3L5jS/E9WGXM\nrawiBFLV+Pd7yxxICpHDx8W9K2cKlRtCHJUu8qqSHtVgJZ+DcA/bBGS62rGd69Qf\nxTEEgcoNAgMBAAECggEAG/zBxmCOB2CprOf1DIZKxpQ7uEAS6Rn1O/+Ck2uYofth\ngNBOvJwJqDql4/3VNP2gftEUQHoPa+j6QdRGF7uHOpRT998v1kX2NLS1UUm3PbwK\naePCSx8s7Mt1aznl0NEOHNZwSC4//0vWs5/dLgGROXn9yLVeeVFsSZTNSIui80Kb\ni6pJletG095Rmp5ywY2IzrSY9QINmB9Po9OWLl9JBwvMwHIzwuwtXag2RMQvZIgU\ng5Kx4FDdKPAnloZwiFUecIAUMSf5tiDrUxlDU/29ZVt0AF6dRlLd2SOj/B5MfkXn\nVAqjw6/PiP1T6G6t1Gb3FlVW8C6CWSuxk+vFq/OCAQKBgQDMMsC6yDIO31k599bI\n2VPcN3hVWeGAHuuSXf/eGNLX5uu+RpIF6amSmOyHOCMW9cx3A3vr6sZSN2E8ZZv0\nyuChTDm6OMPd0WpPyCrVepabPaCbQH1yo3jfuWCmi9EYUr09uc7TK9RXcGMu8H+3\n8Vd+dBWv5oD6oBXS3dJwEItbAQKBgQDFi1MBX+CvhtS62Bw1VWK+oHu7S1ercNdf\ntpFRE1xirpRgho8t+DjlCLLIwPxceQGDjnss+n9jj/hbh9Jdq3iJHkrxwOY/0k/P\nLi8xXb4GK8i4sNDoqa3f6owhyDwhu0a5yQynflEnn+e5h9Zp32GJzBZMHP3lk/nF\nDS5qniUrDQKBgHHqamyJHKwBW9Sj99XKsCbtZxsubke8eC0KdaCgdpdtwtw+oF3e\nEfSvjVyOK702WN+YOPzO196r+HnqMYvp1lEFpjrGSjaoCkgB4iuAHR7zzXJvEszu\nd5NP5qRi4b5RAjO6QbC7BdXV4+8eyhGC+Q2ZkzOzQwcOYb5mc2yDPksBAoGAV1EG\nF41xmyRV02DC1zAuvWPiTR84WSc/i6b/BH8yTswr+Z6AmykkvNfjbqke4yD5clUA\nTRlMRY3VkV+vtIeed71UExfYrk0fycv4QDHXVJL13e0J6k1V9auO1T/UlHRbBrO/\nTCmhZYpgurk4JQP/8RCsqmgGMfv+YwM4iRfuBeECgYBc2pV1AI3dpcBLq/MEyC5f\nuiN8lMHpKpJ3fO0OqNYNKPp2S/qRwHKYssWk2bxDRfhR0du++UgaUnvbRPSaUZhv\n2Ss+2wEvsxK45+jQ7sb+HValIIhFP8P8BSj/Tlf8eepmFN4tEuqR//rHI9gFaSXi\nWyCjQdGfJnF+1PnBuQJ8mw==\n-----END PRIVATE KEY-----\n",
+  "client_email": "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com",
+  "client_id": "117745097224898025879",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/github-deployer%40my-crypto-bot-project.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

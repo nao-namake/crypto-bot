@@ -3,6 +3,7 @@
 #   - Push / PR 時に Lint・Format・UnitTest（coverage）を実行
 #   - Bybit Testnet 用 E2E テスト（API キーが無ければスキップ）
 #   - Docker イメージのビルド & GitHub Container Registry (GHCR) へのプッシュ
+#   - GCP Cloud Run への自動デプロイ
 # =============================================================================
 name: CI
 
@@ -162,3 +163,40 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
         # Docker イメージをビルドし、latest とコミット SHA のタグで GHCR にプッシュ
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 新規ジョブ: GCP Cloud Run への自動デプロイ
+  # docker-build ジョブ完了後にイメージを Cloud Run サービスへデプロイします
+  deploy:
+    name: Deploy to GCP Cloud Run
+    needs: docker-build
+    runs-on: ubuntu-latest
+    env:
+      # Docker イメージ名 (GHCR 上のリポジトリ)
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
+      # GCP プロジェクト ID は GitHub Secrets に登録済みのものを使用
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        # コードをチェックアウト（デプロイ設定やテンプレート読み込み用）
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+        # サービスアカウント JSON キーで gcloud 認証を行う
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+        # gcloud CLI を指定プロジェクトでセットアップ
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+          service: crypto-bot-service
+          image: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: asia-northeast1
+        # Cloud Run サービスに最新イメージをリリース

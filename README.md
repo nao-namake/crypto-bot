@@ -60,7 +60,52 @@ E 基本コマンド例
 	•	コード整形とテスト
 		bash scripts/checks.sh
 
-F パイプライン自動実行（学習 → 閾値スイープ → キャリブ → BT/WF → 可視化）
+F. GitHub Actions & Docker セットアップ
+	1. GitHub Actions (CI/CD)
+		①`Secrets` に以下を登録
+		- `BYBIT_TESTNET_API_KEY`
+		- `BYBIT_TESTNET_API_SECRET`
+		- `CODECOV_TOKEN` (Codecov 用)
+		- `CR_PAT` (GitHub Container Registry 用)
+
+		②`.github/workflows/ci.yml` が以下のジョブを自動実行
+		- **test**: lint (flake8/isort/black) + unit tests + coverage
+		- **integration-tests**: Bybit E2E (API キーがあれば実行)
+		- **docker-build**: 成功後に Docker イメージをビルド＆GHCR へプッシュ
+
+	2. Docker イメージビルド
+		①ビルドスクリプトを実行
+		bash scripts/build_docker.sh
+
+		②自動プッシュ
+		タグ付け → Actions がトリガーされます
+		```bash
+		git tag vX.Y.Z
+		git push origin vX.Y.Z
+		```
+
+	3. ローカルで動作確認
+		```bash
+		docker pull ghcr.io/<ユーザー名>/crypto-bot:vX.Y.Z
+		docker run --rm ghcr.io/<ユーザー名>/crypto-bot:vX.Y.Z --help
+		```
+	4. Infrastructure Deployment (Terraform)
+		1. Terraform を使ったインフラ構築
+			• Terraform をインストールしてください（https://www.terraform.io/downloads.html）
+		2. プロジェクトルートに移動
+			cd crypto-bot
+		3. Terraform 初期化
+			terraform init
+		4. インフラプランの確認
+			terraform plan
+		5. インフラの適用
+			terraform apply
+		6. インフラの破棄（不要になった場合）
+			terraform destroy
+		7. Terraform 設定ファイルは infra/ ディレクトリにあります
+			• AWS, GCP, Azure などのクラウドリソースを管理可能です
+
+G. パイプライン自動実行（学習 → 閾値スイープ → キャリブ → BT/WF → 可視化）
 	1.	最適モデルを作成
 		python -m crypto_bot.main optimize-and-train --config config/default.yml
 
@@ -68,11 +113,11 @@ F パイプライン自動実行（学習 → 閾値スイープ → キャリ�
 		caffeinate ./scripts/run_pipeline.sh 2>&1 | tee results/pipeline_log/pipeline_$(date +%Y%m%d_%H%M%S).log
 		# 生成物は results/ と model/ フォルダに出力されます。
 
-G 可視化ツール
+H. 可視化ツール
 	•	tools/plot_performance.py エクイティカーブ・ドローダウン
 	•	tools/plot_walk_forward.py CAGR と Sharpe の推移グラフ
 
-H 主要フォルダ構成（抜粋）
+I. 主要フォルダ構成（抜粋）
 	config/           設定ファイル (YAML)
 	crypto_bot/
 	├ data/          データ取得・ストリーム
@@ -85,13 +130,13 @@ H 主要フォルダ構成（抜粋）
 	tests/            unit / integration テスト
 	README.md         ← 本書
 
-I コントリビューション規約
+J. コントリビューション規約
 	1.	main ブランチを pull して最新化
 	2.	feature/トピック名 で開発
 	3.	bash scripts/checks.sh --fix で整形
 	4.	Pull Request 作成 → CI が通ればマージ
 
-J Botの運用・拡張手順まとめ
+K. Botの運用・拡張手順まとめ
 	① 機械学習の特徴量（テクニカル指標など）の追加・削除手順
 		1.テクニカル指標の追加／削除（例: RSI, MACD, RCI等）
 			•crypto_bot/indicator/calculator.py に指標関数を追加または修正
@@ -165,7 +210,7 @@ J Botの運用・拡張手順まとめ
 		　→ .env修正
 		　→ execution/factory.py確認
 
-K.よくある質問（FAQ）
+L. よくある質問（FAQ）
 	- Q: マルチ取引所の実運用はどうすれば？**  
 		→ 雛形テスト・.env.exampleでAPI管理、実運用は本当に使うときのみ（STEP16で本格対応）
 	- Q: テストは全取引所で必須？**  
@@ -173,7 +218,7 @@ K.よくある質問（FAQ）
 	- Q: 複数取引所の併用・拡張方法は？**  
 		→ configや.envの編集＋factory.pyのクラス追加／修正
 
-L. GitHub Actions & 自動プッシュスクリプト
+M. GitHub Actions & 自動プッシュスクリプト
 	1. CI (運用中)
 		.github/workflows/ci.yml を用いて、以下を自動実行します：
 		•Lint & Format
@@ -196,7 +241,8 @@ L. GitHub Actions & 自動プッシュスクリプト
 		1.isort と black でリポジトリ全体のコード整形
 		2.scripts/checks.sh を実行して Lint, Unit Tests, Coverage をチェック
 		3.すべてクリアしたら、コミットメッセージを指定して git add → git commit → git push
-M. Dockerでの実行・セットアップ・コマンド例
+
+N. Dockerでの実行・セットアップ・コマンド例
 	1. Docker環境の前提
 		•Docker Desktop（またはDocker CLI）がインストールされていること（Mac, Windows, Linux対応）
 	2. Dockerイメージのビルド
@@ -229,5 +275,5 @@ M. Dockerでの実行・セットアップ・コマンド例
 		•	必要なDockerコマンド・手順はREADMEにまとめているので、
 			今後はここを見れば運用や拡張もスムーズに行えます。
 
-N.ライセンス
+O. ライセンス
 本プロジェクトは MIT License で公開されています。

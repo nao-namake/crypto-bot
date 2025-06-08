@@ -7,9 +7,11 @@
 # =============================================================================
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -51,6 +53,30 @@ def setup_logging():
         format="[%(asctime)s] %(levelname)-5s %(name)s: %(message)s",
         level=numeric_level,
     )
+
+
+def update_status(total_profit: float, trade_count: int, position):
+    """
+    現在の Bot 状態を JSON へ書き出して、外部モニター（Streamlit 等）から
+    参照できるようにするユーティリティ。
+
+    Parameters
+    ----------
+    total_profit : float
+        現在までの累積損益
+    trade_count : int
+        約定数（取引回数）
+    position : Any
+        現在ポジション（無い場合は None）
+    """
+    status = {
+        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_profit": total_profit,
+        "trade_count": trade_count,
+        "position": position or "",
+    }
+    with open("status.json", "w", encoding="utf-8") as f:
+        json.dump(status, f, ensure_ascii=False, indent=2)
 
 
 def deep_merge(default: dict, override: dict) -> dict:
@@ -221,6 +247,12 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
     export_aggregates(full_trade_df, agg_prefix)
     if show_trades:
         click.echo(f"Aggregates saved to {agg_prefix}_{{daily,weekly,monthly}}.csv")
+
+    # --- Streamlit など外部監視用にステータスを書き出し ---
+    total_profit = (
+        float(stats_df["net_profit"].sum()) if "net_profit" in stats_df.columns else 0.0
+    )
+    update_status(total_profit, len(full_trade_df), position=None)
 
     click.echo(stats_df.to_string(index=False))
 
