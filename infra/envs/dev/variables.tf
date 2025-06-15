@@ -9,3 +9,14 @@ variable "github_repo" {
   description = "owner/repository 形式の GitHub リポジトリ識別子"
   type        = string
 }
+
+variable "project_number" {
+  description = "GCP project number (used for Workload Identity Federation)"
+  type        = string
+}
+
+variable "deployer_sa" {
+  description = "Service account email for GitHub Actions deployment"
+  type        = string
+  default     = null
+}

@@ -34,7 +34,9 @@ module "monitoring" {
 }
 
 module "wif" {
-  source     = "../../modules/workload_identity"
-  project_id = var.project_id
-  github_repo = var.github_repo
+  source         = "../../modules/workload_identity"
+  project_id     = var.project_id
+  project_number = var.project_number
+  github_repo    = var.github_repo
+  deployer_sa    = var.deployer_sa
 }

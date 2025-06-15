@@ -5,4 +5,6 @@ service_name           = "crypto-bot-service"
 image_name             = "crypto-bot"
 image_tag              = "latest"
 alert_email            = "s00198532@gmail.com"
-github_repo            = "nao/crypto-bot"
+github_repo            = "nao-namake/crypto-bot"
+project_number         = "11445303925"            # gcloud projects describe で確認
+deployer_sa            = "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
