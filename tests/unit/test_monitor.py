@@ -9,12 +9,12 @@ Unit tests for crypto_bot.monitor
 import importlib
 import json
 import sys
-from types import SimpleNamespace
 
 # ---------------------------------------------------------------------
 # Inject a very small dummy "streamlit" module so that `crypto_bot.monitor`
 # can be imported on CI runners that do not have the real Streamlit package.
 import types as _types  # noqa: E402
+from types import SimpleNamespace
 
 if "streamlit" not in sys.modules:
     _st = _types.ModuleType("streamlit")
