@@ -33,6 +33,12 @@ from crypto_bot.ml.optimizer import train_best_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.ml_strategy import MLStrategy
+import time
+
+from crypto_bot.execution.engine import EntryExit, Position
+from crypto_bot.risk.manager import RiskManager
+
+from crypto_bot.execution.factory import create_exchange_client
 
 
 # --------------------------------------------------------------------------- #
@@ -369,6 +375,102 @@ def optimize_ml(config_path: str, model_type: str):
     study = run_optuna(cfg)
     click.echo(f"Best trial value: {study.best_value}")
     click.echo(f"Best params: {study.best_params}")
+
+
+# --------------------------------------------------------------------------- #
+# 3-D. live-paper  ← Testnet ペーパートレード用
+# --------------------------------------------------------------------------- #
+@cli.command("live-paper")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option(
+    "--max-trades",
+    type=int,
+    default=0,
+    help="0=無限。成立した約定数がこの値に達したらループ終了",
+)
+def live_paper(config_path: str, max_trades: int):
+    """
+    Bybit Testnet でのペーパートレードを 30 秒間隔で回す簡易ループ。
+    ExecutionEngine の generate_entry_order / generate_exit_order を用い、
+    update_status でダッシュボード用 JSON と Monitoring 指標を更新する。
+    """
+    cfg = load_config(config_path)
+    # 取引所クライアントは Factory で生成（Bybit Testnet がデフォルト）
+    client = create_exchange_client(
+        exchange_id=cfg["data"].get("exchange", "bybit"),
+        api_key=cfg["data"].get("api_key", ""),
+        api_secret=cfg["data"].get("api_secret", ""),
+        testnet=True,
+    )
+
+    # --- helpers for paper trading (Entry/Exit + Risk) ---------------------
+    dd = cfg.get("data", {})
+    fetcher = MarketDataFetcher(
+        exchange_id=dd.get("exchange"),
+        symbol=dd.get("symbol"),
+        ccxt_options=dd.get("ccxt_options"),
+    )
+
+    # Strategy & risk manager
+    sp = cfg["strategy"]["params"]
+    model_path = sp.get("model_path", "model.pkl")
+    threshold = sp.get("threshold", 0.0)
+    strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
+    risk_manager = RiskManager(cfg.get("risk", {}))
+
+    position = Position()
+    balance = cfg["backtest"]["starting_balance"]
+    entry_exit = EntryExit(strategy=strategy, risk_manager=risk_manager, atr_series=None)
+    entry_exit.current_balance = balance
+
+    trade_done = 0
+    click.echo("=== live‑paper mode start ===  Ctrl+C で停止")
+    try:
+        while True:
+            # 最新 200 本だけ取得し、Entry/Exit 判定に利用
+            price_df = fetcher.get_price_df(
+                timeframe=dd.get("timeframe"),
+                limit=200,
+                paginate=False,
+            )
+            if price_df.empty:
+                time.sleep(30)
+                continue
+
+            # エントリー判定
+            entry_order = entry_exit.generate_entry_order(price_df, position)
+            prev_trades = trade_done
+            if entry_order.exist:
+                balance = entry_exit.fill_order(entry_order, position, balance)
+                trade_done += 1
+
+            # エグジット判定
+            exit_order = entry_exit.generate_exit_order(price_df, position)
+            if exit_order.exist:
+                balance = entry_exit.fill_order(exit_order, position, balance)
+                trade_done += 1
+
+            # 残高を EntryExit へ反映
+            entry_exit.current_balance = balance
+
+            # ダッシュボード用ステータス更新
+            update_status(
+                total_profit=balance - cfg["backtest"]["starting_balance"],
+                trade_count=trade_done,
+                position=position.side if position.exist else None,
+            )
+
+            if max_trades and trade_done >= max_trades:
+                click.echo("Reached max‑trades. Exit.")
+                break
+
+            # 取引が無い場合も一定間隔でループ
+            if trade_done == prev_trades:
+                time.sleep(30)
+    except KeyboardInterrupt:
+        click.echo("Interrupted. Bye.")
 
 
 # --------------------------------------------------------------------------- #

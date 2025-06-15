@@ -1,4 +1,4 @@
-Crypto-Bot 説明書（2025-05-28 更新版）
+Crypto-Bot 説明書（2025‑06‑13 更新版）
 
 概要
 
@@ -15,11 +15,14 @@ A 主な機能
 	•	パイプライン run_pipeline.sh で一連処理を自動化
 	•	CI GitHub Actions（lint / unit / integration、カバレッジ 75% 以上）
 	•	マルチ取引所対応（Bybit, Bitbank, Bitflyer, OKCoinJP：各クライアント雛形実装済／本格対応はSTEP16以降で順次）
+	•	監視 / 可観測性 GCP Cloud Monitoring ダッシュボード＋カスタム指標（PnL, trade_count, position_flag）＋アラートポリシー（メール / SMS / LINE など）
+	•	ライト級監視 UI Streamlit ダッシュボード（crypto_bot/monitor.py）― 自動メトリクス Push 付き
 
 B 動作要件
 	•	Python 3.11 〜 3.12
 	•	Bybit Testnet API Key と Secret
 	•	動作確認環境 Linux / macOS / WSL2
+	•	GCP プロジェクト（Cloud Monitoring 有効化）と Metric Writer 権限付きサービスアカウント
 
 C セットアップ手順
 	1.	リポジトリを取得
@@ -34,7 +37,13 @@ C セットアップ手順
 		pip install -e .
 		pip install -r requirements-dev.txt
 
-	4.	API キーを設定
+	4.	GCP 認証キーを設定  
+		GOOGLE_APPLICATION_CREDENTIALS 環境変数に Metric Writer SA の JSON キーを指定  
+		```bash
+		export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
+		```
+
+	5.	API キーを設定
 		cp .env.example .env
 		# .env を開いて BYBIT_TESTNET_API_KEY と SECRET を記入
 		# 他取引所を使う場合は .env.example 参照
@@ -59,6 +68,8 @@ E 基本コマンド例
 		bash scripts/run_e2e.sh
 	•	コード整形とテスト
 		bash scripts/checks.sh
+	•	ローカル監視 UI  
+		streamlit run crypto_bot/monitor.py
 
 F. GitHub Actions & Docker セットアップ
 	1. GitHub Actions (CI/CD)
@@ -104,6 +115,18 @@ F. GitHub Actions & Docker セットアップ
 			terraform destroy
 		7. Terraform 設定ファイルは infra/ ディレクトリにあります
 			• AWS, GCP, Azure などのクラウドリソースを管理可能です
+
+	5. テスト環境へのデプロイ
+		1. staging ブランチにマージ
+		2. Terraform Workspace を切り替え（例: terraform workspace select staging）
+		3. Terraform Apply でリソースを作成/更新（terraform apply）
+		4. テスト環境の URL で動作確認
+
+	6. 本番環境へのデプロイ
+		1. main ブランチにマージ
+		2. Terraform Workspace を切り替え（例: terraform workspace select production）
+		3. Terraform Apply でリソースを作成/更新（terraform apply）
+		4. 本番環境の URL で最終動作確認
 
 G. パイプライン自動実行（学習 → 閾値スイープ → キャリブ → BT/WF → 可視化）
 	1.	最適モデルを作成
@@ -274,6 +297,18 @@ N. Dockerでの実行・セットアップ・コマンド例
 			すべて run_docker.sh で完結できます。
 		•	必要なDockerコマンド・手順はREADMEにまとめているので、
 			今後はここを見れば運用や拡張もスムーズに行えます。
+
+P. 監視 & アラート運用メモ
+	1.	カスタム指標 Push  
+		•	monitor.py が status.json を読み取り、PnL 等を Cloud Monitoring へ送信  
+		•	サービスアカウントに roles/monitoring.metricWriter を付与
+	2.	Cloud Monitoring ダッシュボード  
+		•	custom.googleapis.com/crypto_bot/* シリーズをウィジェットへ追加  
+		•	PnL＝折れ線、取引回数＝スコアカード、position_flag＝ゲージが推奨
+	3.	アラート ポリシー  
+		•	PnL が –5,000 円 未満で 1 時間持続 → Bot 停止検討  
+		•	取引レイテンシ > 3 s が 15 分継続 → 高レイテンシ通知  
+		•	通知先：現在はメール、LINE Webhook はチャネルシークレット取得済み・後日追加予定
 
 O. ライセンス
 本プロジェクトは MIT License で公開されています。

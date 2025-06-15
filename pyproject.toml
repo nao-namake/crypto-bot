@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.black]
 line-length = 88
 
@@ -56,3 +60,5 @@ dependencies = [
 ]
 
 # build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。
+
+google-cloud-monitoring>=2.18.0

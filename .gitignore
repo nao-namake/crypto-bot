@@ -78,5 +78,13 @@ docker-compose.override.yml
 # プロジェクト内の “readme/” フォルダと、その中のファイルをすべて無視する
 readme/
 
-# Terraform 関連は再取得するのでコミット不要
-infra/.terraform/
+# ──────────────────────────────────────────────────────────────────────────────
+# Terraform (state & lock files are re‑generated, so ignore everywhere)
+# ──────────────────────────────────────────────────────────────────────────────
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.backup
+**/.terraform.lock.hcl
+
+# 旧インフラを退避したアーカイブ
+archive/

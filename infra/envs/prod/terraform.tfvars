@@ -1,0 +1,7 @@
+project_id             = "my-crypto-bot-project"
+region                 = "asia-northeast1"
+artifact_registry_repo = "crypto-bot-repo"
+service_name           = "crypto-bot-service-prod"
+image_name             = "crypto-bot"
+image_tag              = "stable"
+alert_email            = "s00198532@gmail.com"

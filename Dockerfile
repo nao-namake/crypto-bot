@@ -39,5 +39,6 @@ RUN python -m pip install --no-index --find-links=/tmp/wheels crypto-bot \
 # アプリケーションソースコードをコピー
 COPY . .
 
-# 起動時のエントリーポイントを指定
-ENTRYPOINT ["python", "-m", "crypto_bot.main"]
+ENV PORT=8080
+EXPOSE 8080
+CMD ["sh", "-c", "python -m http.server $PORT"]

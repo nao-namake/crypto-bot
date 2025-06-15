@@ -68,6 +68,12 @@ class EntryExit:
     def generate_entry_order(self, price_df, position: Position) -> Order:
         sig = self.strategy.logic_signal(price_df, position)
         order = Order()
+
+        # シグナルが無い場合はエントリー注文を出さない
+        if sig is None or sig.side is None:
+            logging.getLogger(__name__).debug("generate_entry_order: No entry signal.")
+            return order
+
         if sig.side == "BUY":
             entry_price = sig.price
             stop_price = self.risk_manager.calc_stop_price(entry_price, self.atr_series)
@@ -102,6 +108,10 @@ class EntryExit:
 
         # 2) 戦略シグナルによるクローズ判定
         sig = self.strategy.logic_signal(price_df, position)
+                # シグナルが無い / side が未定義の場合は何もせずスキップ
+        if sig is None or sig.side is None:
+            logging.getLogger(__name__).debug("generate_exit_order: No exit signal.")
+            return order
         if sig.side == "SELL":
             order.exist = True
             order.side = "SELL"
