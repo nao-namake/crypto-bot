@@ -44,6 +44,7 @@ if "streamlit" not in sys.modules:
     sys.modules["streamlit"] = _st
 # ---------------------------------------------------------------------
 
+
 class _DummyMetricServiceClient:  # pylint: disable=too-few-public-methods
     """Stub of google.cloud.monitoring_v3.MetricServiceClient"""
 
