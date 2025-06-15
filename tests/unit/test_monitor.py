@@ -11,6 +11,38 @@ import json
 import sys
 from types import SimpleNamespace
 
+# ---------------------------------------------------------------------
+# Inject a very small dummy "streamlit" module so that `crypto_bot.monitor`
+# can be imported on CI runners that do not have the real Streamlit package.
+import types as _types  # noqa: E402
+
+if "streamlit" not in sys.modules:
+    _st = _types.ModuleType("streamlit")
+
+    # No‑ops or simple stubs for the APIs used in monitor.py
+    _st.cache_data = lambda ttl=0: (lambda f: f)  # decorator passthrough
+    _st.set_page_config = lambda *a, **k: None
+    _st.title = lambda *a, **k: None
+    _st.warning = lambda *a, **k: None
+    _st.write = lambda *a, **k: None
+    _st.stop = lambda: None
+
+    class _DummyCol:  # stub for st.columns() return value
+        def metric(self, *a, **k):  # noqa: D401, N802
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    _st.columns = lambda n=1: tuple(_DummyCol() for _ in range(n))
+    _st.metric = lambda *a, **k: None
+
+    # Register the dummy module
+    sys.modules["streamlit"] = _st
+# ---------------------------------------------------------------------
 
 class _DummyMetricServiceClient:  # pylint: disable=too-few-public-methods
     """Stub of google.cloud.monitoring_v3.MetricServiceClient"""
