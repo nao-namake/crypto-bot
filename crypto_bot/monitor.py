@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
-import os
 
 import streamlit as st
 from google.cloud import monitoring_v3
@@ -19,10 +19,12 @@ from google.cloud import monitoring_v3
 st.set_page_config(page_title="Crypto‑Bot Monitor", page_icon="📈", layout="wide")
 st.title("📈  Crypto‑Bot Monitor")
 
+
 # Auto‑refresh by caching a dummy function to expire every 60 seconds
 @st.cache_data(ttl=60)
 def _refresh_dummy():
     return None
+
 
 # Calling this ensures the dashboard re-executes every ttl interval
 _ = _refresh_dummy()
@@ -65,16 +67,18 @@ def send_custom_metric(metric_suffix: str, value: float | int) -> None:
     series.metric.type = f"custom.googleapis.com/crypto_bot/{metric_suffix}"
     series.resource.type = "global"
     series.resource.labels["project_id"] = project_id
-    import time
+
     from google.protobuf.timestamp_pb2 import Timestamp
 
     now_ts = Timestamp()
     now_ts.GetCurrentTime()
 
-    point = monitoring_v3.Point({
-        "interval": {"end_time": now_ts},
-        "value": {"double_value": float(value)},
-    })
+    point = monitoring_v3.Point(
+        {
+            "interval": {"end_time": now_ts},
+            "value": {"double_value": float(value)},
+        }
+    )
     series.points.append(point)
 
     # Best‑effort push; ignore API errors so the dashboard keeps rendering

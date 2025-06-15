@@ -108,7 +108,7 @@ class EntryExit:
 
         # 2) 戦略シグナルによるクローズ判定
         sig = self.strategy.logic_signal(price_df, position)
-                # シグナルが無い / side が未定義の場合は何もせずスキップ
+        # シグナルが無い / side が未定義の場合は何もせずスキップ
         if sig is None or sig.side is None:
             logging.getLogger(__name__).debug("generate_exit_order: No exit signal.")
             return order

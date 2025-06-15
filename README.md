@@ -1,4 +1,4 @@
-Crypto-Bot 説明書（2025‑06‑13 更新版）
+Crypto‑Bot 説明書（2025‑06‑15 更新版）
 
 概要
 
@@ -80,9 +80,13 @@ F. GitHub Actions & Docker セットアップ
 		- `CR_PAT` (GitHub Container Registry 用)
 
 		②`.github/workflows/ci.yml` が以下のジョブを自動実行
-		- **test**: lint (flake8/isort/black) + unit tests + coverage
-		- **integration-tests**: Bybit E2E (API キーがあれば実行)
-		- **docker-build**: 成功後に Docker イメージをビルド＆GHCR へプッシュ
+		- **test**: lint + unit tests + coverage  
+		- **integration-tests**: Bybit E2E  
+		- **docker-build**: GHCR へイメージ push  
+		- **terraform-deploy-dev**: Cloud Run(dev) へ自動デプロイ  
+		- **terraform-deploy-paper / prod**: 必要に応じて paper / prod 環境へデプロイ
+
+		加えて `workflow_dispatch` トリガも有効化したので、`gh workflow run CI` コマンドで手動実行できます。
 
 	2. Docker イメージビルド
 		①ビルドスクリプトを実行
@@ -152,6 +156,24 @@ I. 主要フォルダ構成（抜粋）
 	scripts/          run_pipeline.sh, checks.sh など
 	tests/            unit / integration テスト
 	README.md         ← 本書
+
+R. 最近の変更点（2025‑06‑15）
+
+	•	**インフラ再編** `infra/` を  
+	  ├─ **modules/**（再利用モジュール）  
+	  └─ **envs/**（dev / paper / prod の 3 環境）  
+	  に分割。各環境は GCS バケット上の個別 backend でステートを完全分離。  
+	•	**Workload Identity Federation** GitHub OIDC → GCP への権限委譲を Terraform で管理。  
+	•	**CI/CD 拡張** `terraform-deploy‑paper`, `terraform-deploy‑prod` ジョブを追加し、main ブランチ push → dev、タグ push → prod まで全自動化。  
+	•	**ペーパートレード環境** Cloud Run サービス名 `crypto-bot-paper`、`MODE=paper` 変数で本番と完全分離。  
+	•	**大型ファイル削除** `infra/.terraform/**` に含まれるバイナリを履歴から除去。手順：  
+	  ```bash
+	  pip install git-filter-repo
+	  git filter-repo --path infra/.terraform --invert-paths --force
+	  git remote add origin https://github.com/<user>/crypto-bot.git
+	  git push --force origin main
+	  ```  
+	•	**README 整理** このセクションを含め最新フローを反映。
 
 J. コントリビューション規約
 	1.	main ブランチを pull して最新化

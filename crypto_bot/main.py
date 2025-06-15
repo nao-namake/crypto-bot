@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -27,18 +28,14 @@ from crypto_bot.backtest.optimizer import (  # noqa: F401  他コマンドで使
     optimize_backtest,
 )
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
+from crypto_bot.execution.engine import EntryExit, Position
 from crypto_bot.ml.optimizer import _load_and_preprocess_data
 from crypto_bot.ml.optimizer import optimize_ml as run_optuna
 from crypto_bot.ml.optimizer import train_best_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
+from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.ml_strategy import MLStrategy
-import time
-
-from crypto_bot.execution.engine import EntryExit, Position
-from crypto_bot.risk.manager import RiskManager
-
-from crypto_bot.execution.factory import create_exchange_client
 
 
 # --------------------------------------------------------------------------- #
@@ -398,12 +395,12 @@ def live_paper(config_path: str, max_trades: int):
     """
     cfg = load_config(config_path)
     # 取引所クライアントは Factory で生成（Bybit Testnet がデフォルト）
-    client = create_exchange_client(
-        exchange_id=cfg["data"].get("exchange", "bybit"),
-        api_key=cfg["data"].get("api_key", ""),
-        api_secret=cfg["data"].get("api_secret", ""),
-        testnet=True,
-    )
+    # client = create_exchange_client(
+    #     exchange_id=cfg["data"].get("exchange", "bybit"),
+    #     api_key=cfg["data"].get("api_key", ""),
+    #     api_secret=cfg["data"].get("api_secret", ""),
+    #     testnet=True,
+    # )
 
     # --- helpers for paper trading (Entry/Exit + Risk) ---------------------
     dd = cfg.get("data", {})
@@ -422,7 +419,9 @@ def live_paper(config_path: str, max_trades: int):
 
     position = Position()
     balance = cfg["backtest"]["starting_balance"]
-    entry_exit = EntryExit(strategy=strategy, risk_manager=risk_manager, atr_series=None)
+    entry_exit = EntryExit(
+        strategy=strategy, risk_manager=risk_manager, atr_series=None
+    )
     entry_exit.current_balance = balance
 
     trade_done = 0
