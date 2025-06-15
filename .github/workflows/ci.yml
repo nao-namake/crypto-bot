@@ -15,6 +15,7 @@ on:
       - 'v*.*.*'
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────────────────────
 jobs:
@@ -165,38 +166,53 @@ jobs:
         # Docker イメージをビルドし、latest とコミット SHA のタグで GHCR にプッシュ
 
   # ────────────────────────────────────────────────────────────────────────────
-  # 新規ジョブ: GCP Cloud Run への自動デプロイ
-  # docker-build ジョブ完了後にイメージを Cloud Run サービスへデプロイします
-  deploy:
-    name: Deploy to GCP Cloud Run
+
+  terraform-deploy:
+    name: Terraform Apply (dev)
     needs: docker-build
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write          # Workload Identity Federation
+      contents: read
     env:
-      # Docker イメージ名 (GHCR 上のリポジトリ)
+      # Docker image pushed in the previous job
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
-      # GCP プロジェクト ID は GitHub Secrets に登録済みのものを使用
+      # GCP project (secret)
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        # コードをチェックアウト（デプロイ設定やテンプレート読み込み用）
 
-      - name: Authenticate to GCP
+      # ----- Terraform variables -----
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_region: "asia-northeast1"
+      TF_VAR_image_tag: "${{ github.sha }}"
+      TF_ENV_DIR: "infra/envs/dev"   # ← dev 環境を対象に apply
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- Authenticate to GCP via Workload Identity Federation ----------
+      - name: Auth to GCP (WIF)
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-        # サービスアカウント JSON キーで gcloud 認証を行う
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}   # projects/*/locations/global/workloadIdentityPools/*/providers/*
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}              # deployer SA (email)
 
-      - name: Set up gcloud CLI
+      - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
-        # gcloud CLI を指定プロジェクトでセットアップ
 
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v1
+      # ---------- Terraform ----------
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          service: crypto-bot-service
-          image: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          region: asia-northeast1
-        # Cloud Run サービスに最新イメージをリリース
+          terraform_version: 1.8.5
+
+      - name: Terraform Init
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
+
+      - name: Terraform Plan
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
+
+      - name: Terraform Apply (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
