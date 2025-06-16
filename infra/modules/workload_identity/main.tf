@@ -42,3 +42,12 @@ resource "google_service_account_iam_member" "wif_binding" {
   # principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/${OWNER_REPO}
   member = "principalSet://iam.googleapis.com/projects/${var.project_number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.repository/${var.github_repo}"
 }
+
+#--------------------------------------------------
+# SA 自身に ServiceAccountAdmin を付与
+#--------------------------------------------------
+resource "google_project_iam_member" "deployer_sa_admin" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountAdmin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
