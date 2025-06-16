@@ -44,6 +44,16 @@ resource "google_service_account_iam_member" "wif_binding" {
 }
 
 #--------------------------------------------------
+# SA に Workload‑Identity Pool Admin を付与
+#   ※ Pool / Provider を Terraform で管理するために必要
+#--------------------------------------------------
+resource "google_project_iam_member" "deployer_sa_wip_admin" {
+  project = var.project_id
+  role    = "roles/iam.workloadIdentityPoolAdmin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+#--------------------------------------------------
 # SA 自身に ServiceAccountAdmin を付与
 #--------------------------------------------------
 resource "google_project_iam_member" "deployer_sa_admin" {
