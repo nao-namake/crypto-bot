@@ -30,13 +30,15 @@ resource "google_iam_workload_identity_pool_provider" "provider" {
 }
 
 
-#######################################
-# SA に ServiceAccountViewer を付与（getIamPolicy を許可）
-#######################################
-resource "google_service_account_iam_member" "deployer_sa_viewer" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.deployer_sa}"
-  role               = "roles/iam.serviceAccountViewer"
-  member             = "serviceAccount:${var.deployer_sa}"
+#########################################
+# SA に ServiceAccountViewer を付与
+#   - プロジェクト IAM 経由で付与することで
+#     getIamPolicy ブートストラップ問題を回避
+#########################################
+resource "google_project_iam_member" "deployer_sa_sa_viewer" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountViewer"
+  member  = "serviceAccount:${var.deployer_sa}"
 }
 
 resource "google_service_account_iam_member" "wif_binding" {
