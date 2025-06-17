@@ -22,6 +22,7 @@ variable "deployer_sa" {
 }
 
 variable "mode" {
+  description = "Running mode for Cloud Run container (live | paper | backtest)"
   type    = string
   default = "paper" # dev 環境の既定値
 }

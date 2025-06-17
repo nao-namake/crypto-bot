@@ -16,9 +16,14 @@ resource "google_cloud_run_service" "service" {
         resources {
           limits = { cpu = "1000m", memory = "512Mi" }
         }
+        env {
+          name  = "MODE"
+          value = var.mode
+        }
       }
     }
   }
+  # secret_environment_variables blocks removed (unsupported)
   traffic {
     percent         = 100
     latest_revision = true
@@ -31,4 +36,3 @@ resource "google_cloud_run_service_iam_member" "all_users" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
-

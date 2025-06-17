@@ -9,3 +9,22 @@ variable "github_repo" {
   description = "owner/repository 形式の GitHub リポジトリ識別子"
   type        = string
 }
+# ────────────────────────────────────────────
+# Workload-Identity / デプロイ共通
+# ────────────────────────────────────────────
+variable "project_number" {
+  description = "GCP プロジェクトの数値 ID"
+  type        = string
+}
+
+variable "deployer_sa" {
+  description = "GitHub Actions が Impersonate するデプロイ用 Service Account"
+  type        = string
+}
+
+# Cloud Run へ渡す実行モード（paper / live など）
+variable "mode" {
+  description = "Bot の実行モード: paper | live"
+  type        = string
+  default     = "paper"  # ← prod でもまずは paper で安全に稼働
+}

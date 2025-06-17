@@ -9,3 +9,21 @@ variable "github_repo" {
   description = "owner/repository 形式の GitHub リポジトリ識別子"
   type        = string
 }
+
+# Workload Identity Federation 用
+variable "project_number" {
+  description = "GCP プロジェクトの数値 ID (principalSet 生成に使用)"
+  type        = string
+}
+
+variable "deployer_sa" {
+  description = "GitHub Actions が偽装するサービスアカウント (email)"
+  type        = string
+}
+
+# Cloud Run へ渡す Bot 実行モード (paper / live など)
+variable "mode" {
+  description = "Bot running mode (paper | live)"
+  type        = string
+  default     = "paper"
+}

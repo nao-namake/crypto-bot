@@ -25,6 +25,7 @@ module "app" {
   service_name           = var.service_name
   image_name             = var.image_name
   image_tag              = var.image_tag
+  mode                  = var.mode
 }
 
 module "monitoring" {

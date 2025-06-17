@@ -1,4 +1,4 @@
-Crypto‑Bot 説明書（2025‑06‑15 更新版）
+Crypto‑Bot 説明書（2025‑06‑17 更新版）
 
 概要
 
@@ -80,13 +80,19 @@ F. GitHub Actions & Docker セットアップ
 		- `CR_PAT` (GitHub Container Registry 用)
 
 		②`.github/workflows/ci.yml` が以下のジョブを自動実行
-		- **test**: lint + unit tests + coverage  
-		- **integration-tests**: Bybit E2E  
-		- **docker-build**: GHCR へイメージ push  
-		- **terraform-deploy-dev**: Cloud Run(dev) へ自動デプロイ  
-		- **terraform-deploy-paper / prod**: 必要に応じて paper / prod 環境へデプロイ
+		- **test**            : lint + unit‑tests + coverage  
+		- **integration‑tests**: Bybit E2E (Testnet)  
+		- **docker-build**     : GHCR へイメージ push  
+		- **terraform-deploy-dev**   : Cloud Run(dev) へ自動デプロイ  
+		- **terraform-deploy-paper** : Cloud Run(paper) へ自動デプロイ  
+		- **terraform-deploy-prod**  : Cloud Run(prod) へ自動デプロイ  
 
 		加えて `workflow_dispatch` トリガも有効化したので、`gh workflow run CI` コマンドで手動実行できます。
+		- Cloud Run リビジョンは **Docker イメージの SHA タグが変わったときのみ**更新されます（Terraform でサービス定義に差分が無い場合はリビジョンは作成されません）。
+
+**🔐 GCP 認証は Workload Identity Federation を使用**  
+GitHub OIDC トークン → Workload‑Identity Pool / Provider → デプロイ用 SA (github‑deployer@${PROJECT_ID}).  
+IAM ロールは Terraform で一元管理され、CI ジョブ実行者のシークレットキーは不要です。
 
 	2. Docker イメージビルド
 		①ビルドスクリプトを実行
@@ -157,7 +163,7 @@ I. 主要フォルダ構成（抜粋）
 	tests/            unit / integration テスト
 	README.md         ← 本書
 
-R. 最近の変更点（2025‑06‑15）
+R. 最近の変更点（2025‑06‑17）
 
 	•	**インフラ再編** `infra/` を  
 	  ├─ **modules/**（再利用モジュール）  
@@ -174,6 +180,8 @@ R. 最近の変更点（2025‑06‑15）
 	  git push --force origin main
 	  ```  
 	•	**README 整理** このセクションを含め最新フローを反映。
+	• **CI/CD 安定化** WIF 周りの IAM ロールを整理し、Terraform Apply が GitHub Actions から通ることを確認。  
+	• **Cloud Run dev リビジョン** image_tag 更新時に自動で新リビジョンが作成されることを検証済み。  
 
 J. コントリビューション規約
 	1.	main ブランチを pull して最新化
@@ -262,30 +270,6 @@ L. よくある質問（FAQ）
 		→ テストネットのない取引所は雛形まででOK。API仕様変更時のみ実装すればよいです
 	- Q: 複数取引所の併用・拡張方法は？**  
 		→ configや.envの編集＋factory.pyのクラス追加／修正
-
-M. GitHub Actions & 自動プッシュスクリプト
-	1. CI (運用中)
-		.github/workflows/ci.yml を用いて、以下を自動実行します：
-		•Lint & Format
-			•flake8
-			•isort --check-only
-			•black --check
-		•Unit Tests & Coverage
-			•pytest --cov=crypto_bot --maxfail=1 -q --disable-warnings
-			•カバレッジが 75% 未満の場合は失敗
-		•Integration Tests (Bybit Testnet)
-			•API キー／シークレットが設定されていれば bash run_e2e.sh を実行
-		ワークフローの詳細は .github/workflows/ci.yml を参照してください。
-	2. 自動プッシュスクリプト (scripts/auto_push.sh)
-		以下のようなスクリプトを用意し、コミット → プッシュを自動化しています：
-		scripts/auto_push.sh
-		•実行例
-		bash scripts/auto_push.sh "feat: add new algo"
-		bash scripts/auto_push.sh --install "chore: clean & format"
-		•内容
-		1.isort と black でリポジトリ全体のコード整形
-		2.scripts/checks.sh を実行して Lint, Unit Tests, Coverage をチェック
-		3.すべてクリアしたら、コミットメッセージを指定して git add → git commit → git push
 
 N. Dockerでの実行・セットアップ・コマンド例
 	1. Docker環境の前提
