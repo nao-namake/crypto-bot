@@ -20,3 +20,8 @@ variable "deployer_sa" {
   type        = string
   default     = null
 }
+
+variable "mode" {
+  type    = string
+  default = "paper" # dev 環境の既定値
+}
