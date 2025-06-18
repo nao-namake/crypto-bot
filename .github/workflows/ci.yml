@@ -163,7 +163,19 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-        # Docker イメージをビルドし、latest とコミット SHA のタグで GHCR にプッシュ
+
+      - name: Authenticate Docker with GCP Artifact Registry
+        run: |
+          gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
+
+      - name: Tag image for Artifact Registry
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+
+      - name: Push to Artifact Registry
+        run: |
+          docker push asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
@@ -185,6 +197,9 @@ jobs:
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "paper"
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_github_repo: "nao-namake/crypto-bot"
+      TF_VAR_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
+      TF_VAR_deployer_sa: ${{ secrets.GCP_DEPLOYER_SA }}
 
       # ----- Terraform variables -----
       TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
