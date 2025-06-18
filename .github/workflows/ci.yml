@@ -172,11 +172,11 @@ jobs:
       - name: Tag image for Artifact Registry
         run: |
           docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
       - name: Push to Artifact Registry
         run: |
-          docker push asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+          docker push asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
