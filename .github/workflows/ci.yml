@@ -132,6 +132,7 @@ jobs:
     env:
       CR_PAT: ${{ secrets.CR_PAT }}
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -171,24 +172,11 @@ jobs:
       - name: Tag image for Artifact Registry
         run: |
           docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
       - name: Push to Artifact Registry
         run: |
-          docker push asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
-
-      - name: Authenticate Docker with GCP Artifact Registry
-        run: |
-          gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
-
-      - name: Tag image for Artifact Registry
-        run: |
-          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
-
-      - name: Push to Artifact Registry
-        run: |
-          docker push asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+          docker push asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
