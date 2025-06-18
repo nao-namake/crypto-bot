@@ -169,16 +169,16 @@ jobs:
         run: |
           gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
 
-      - name: Tag image for Artifact Registry
+      - name: Tag & push image to Artifact Registry
         if: env.GCP_PROJECT_ID != ''
+        env:
+          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
         run: |
-          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+          # Tag the GHCR image built in the previous step for Artifact Registry
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
 
-      - name: Push to Artifact Registry
-        if: env.GCP_PROJECT_ID != ''
-        run: |
-          docker push asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+          # Push to Artifact Registry
+          docker push $AR_IMAGE:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
