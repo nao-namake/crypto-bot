@@ -156,30 +156,18 @@ jobs:
           password: ${{ secrets.CR_PAT }}
         # GHCR への認証
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v3
+      - name: Build and push image to GHCR & Artifact Registry
+        id: build
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64                       # Cloud Run は amd64 単一イメージを期待
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Authenticate Docker with GCP Artifact Registry
-        run: |
-          gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
-
-      - name: Tag & push image to Artifact Registry
-        if: env.GCP_PROJECT_ID != ''
-        env:
-          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
-        run: |
-          # Tag the GHCR image built in the previous step for Artifact Registry
-          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
-
-          # Push to Artifact Registry
-          docker push $AR_IMAGE:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/crypto-bot:latest
+            ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
+            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
