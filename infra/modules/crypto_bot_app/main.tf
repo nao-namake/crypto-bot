@@ -25,8 +25,8 @@ resource "google_cloud_run_service" "service" {
           name = "BYBIT_TESTNET_API_KEY"
           value_source {
             secret_key_ref {
-              name = var.bybit_testnet_api_key_secret_name
-              key  = "latest"
+              secret  = var.bybit_testnet_api_key_secret_name
+              version = "latest"
             }
           }
         }
@@ -35,8 +35,8 @@ resource "google_cloud_run_service" "service" {
           name = "BYBIT_TESTNET_API_SECRET"
           value_source {
             secret_key_ref {
-              name = var.bybit_testnet_api_secret_secret_name
-              key  = "latest"
+              secret  = var.bybit_testnet_api_secret_secret_name
+              version = "latest"
             }
           }
         }
