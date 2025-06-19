@@ -1,3 +1,8 @@
+############################################
+# infra/modules/crypto_bot_app/main.tf
+# Cloud Run service + Artifact Registry repo
+############################################
+
 resource "google_artifact_registry_repository" "repo" {
   project       = var.project_id
   location      = var.region
@@ -13,50 +18,53 @@ resource "google_cloud_run_service" "service" {
     spec {
       containers {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"
+
         resources {
-          limits = { cpu = "1000m", memory = "1024Mi" }
+          limits = {
+            cpu    = "1000m"
+            memory = "512Mi"
+          }
         }
+
+        # ───── 通常の環境変数 ─────
         env {
           name  = "MODE"
           value = var.mode
         }
 
+        # ───── Secret 連携環境変数（API KEY）─────
         env {
           name = "BYBIT_TESTNET_API_KEY"
-          value_source {
+          value_from {
             secret_key_ref {
-              name   = var.bybit_testnet_api_key_secret_name
-              key    = "latest"
+              name = var.bybit_testnet_api_key_secret_name   # default "bybit_testnet_api_key"
+              key  = "latest"                               # Secret Manager version
             }
           }
         }
 
+        # ───── Secret 連携環境変数（API SECRET）─────
         env {
           name = "BYBIT_TESTNET_API_SECRET"
-          value_source {
+          value_from {
             secret_key_ref {
-              name   = var.bybit_testnet_api_secret_secret_name
-              key    = "latest"
+              name = var.bybit_testnet_api_secret_secret_name # default "bybit_testnet_api_secret"
+              key  = "latest"
             }
           }
         }
       }
-      container_concurrency = 1
-      timeout_seconds       = 3600     # 1 hour max request time
     }
   }
-  metadata {
-    annotations = {
-      "autoscaling.knative.dev/minScale" = "1"
-    }
-  }
-  # secret_environment_variables blocks removed (unsupported)
+
+  # 100% トラフィックを最新リビジョンへ
   traffic {
     percent         = 100
     latest_revision = true
   }
 }
 
+# Invoke permission（パブリック公開）
 resource "google_cloud_run_service_iam_member" "all_users" {
   service  = google_cloud_run_service.service.name
   location = var.region

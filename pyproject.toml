@@ -61,3 +61,12 @@ dependencies = [
 ]
 
 # build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。
+
+# ------------------------------------------------------------
+# Bot が Cloud Run で HTTP /healthz を返すための軽量 API 依存
+# ------------------------------------------------------------
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+]

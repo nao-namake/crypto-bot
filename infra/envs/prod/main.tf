@@ -2,7 +2,8 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 5.0"
+      # 5 系なら 5.0 以上 6.0 未満で許可（推奨）
+      version = ">= 5.0.0, < 6.0.0"
     }
   }
 }
@@ -27,7 +28,6 @@ module "app" {
   image_name             = var.image_name
   image_tag              = var.image_tag
   mode                   = var.mode
-  mode                 = var.mode
 }
 
 module "monitoring" {
