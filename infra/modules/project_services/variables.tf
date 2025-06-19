@@ -1,6 +1,11 @@
-variable "project_id" { type = string }
+variable "project_id" {
+  description = "Google Cloud project ID where services are enabled"
+  type        = string
+}
+
 variable "services" {
-  type    = list(string)
+  description = "List of Google APIs to enable for the project"
+  type        = list(string)
   default = [
     "artifactregistry.googleapis.com",
     "run.googleapis.com",
@@ -8,7 +13,8 @@ variable "services" {
     "monitoring.googleapis.com",
   ]
 }
+
 variable "project_number" {
-  description = "Numeric project ID (e.g. 11445303925)"
+  description = "Numeric Google Cloud project number (e.g. 11445303925)"
   type        = string
 }
