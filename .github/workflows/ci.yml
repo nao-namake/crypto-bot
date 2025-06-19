@@ -156,18 +156,39 @@ jobs:
           password: ${{ secrets.CR_PAT }}
         # GHCR への認証
 
-      - name: Build and push image to GHCR & Artifact Registry
+      # ---------- Authenticate to GCP so we can push to Artifact Registry ----------
+      - name: Auth to GCP (OIDC for AR)
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account:          ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - name: Configure docker for Artifact Registry
+        run: |
+          gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
+
+      # ---------- Build & push to GHCR (2 tags) ----------
+      - name: Build & push to GHCR
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          platforms: linux/amd64                       # Cloud Run は amd64 単一イメージを期待
+          platforms: linux/amd64
           tags: |
             ghcr.io/${{ github.repository_owner }}/crypto-bot:latest
             ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
-            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
-            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+
+      # ---------- Tag & push copy to Artifact Registry ----------
+      - name: Tag & push to Artifact Registry
+        env:
+          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
+          docker push $AR_IMAGE:${{ github.sha }}
+          docker push $AR_IMAGE:latest
 
   # ────────────────────────────────────────────────────────────────────────────
 
