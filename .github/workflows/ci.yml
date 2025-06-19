@@ -166,8 +166,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/crypto-bot:latest
             ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
-            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
-            asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
 
   # ────────────────────────────────────────────────────────────────────────────
 
