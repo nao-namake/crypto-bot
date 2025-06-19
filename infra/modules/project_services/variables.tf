@@ -8,3 +8,7 @@ variable "services" {
     "monitoring.googleapis.com",
   ]
 }
+variable "project_number" {
+  description = "Numeric project ID (e.g. 11445303925)"
+  type        = string
+}

@@ -15,6 +15,7 @@ provider "google" {
 module "services" {
   source     = "../../modules/project_services"
   project_id = var.project_id
+  project_number = var.project_number
 }
 
 module "app" {
