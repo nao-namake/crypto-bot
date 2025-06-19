@@ -14,11 +14,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends build-essential git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# pyproject.tomlを使い、プロジェクトのwheelを作成
-COPY pyproject.toml ./
+# プロジェクト全体をコピー（.dockerignore で不要ファイルは除外）
+COPY . .
 
 RUN pip install --upgrade pip \
- && pip wheel --no-cache-dir --prefer-binary -w /wheels .
+ && pip wheel --no-cache-dir --prefer-binary -w /wheels /build
 
 ###############################################################################
 # runtime stage – wheel-house からオフライン install
@@ -40,5 +40,8 @@ RUN python -m pip install --no-index --find-links=/tmp/wheels crypto-bot \
 COPY . .
 
 ENV PORT=8080
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
-CMD ["sh", "-c", "python -m http.server $PORT"]
+
+# Bot 本体を起動
+CMD ["python", "-m", "crypto_bot.main"]

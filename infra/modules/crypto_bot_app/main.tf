@@ -14,13 +14,31 @@ resource "google_cloud_run_service" "service" {
       containers {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"
         resources {
-          limits = { cpu = "1000m", memory = "512Mi" }
+          limits = { cpu = "1000m", memory = "1024Mi" }
         }
         env {
           name  = "MODE"
           value = var.mode
         }
       }
+      # Cloud Run (v1) – Secret → ENV
+      secret_environment_variables {
+        env     = "BYBIT_TESTNET_API_KEY"
+        secret  = var.bybit_testnet_api_key_secret_name
+        version = "latest"
+      }
+      secret_environment_variables {
+        env     = "BYBIT_TESTNET_API_SECRET"
+        secret  = var.bybit_testnet_api_secret_secret_name
+        version = "latest"
+      }
+      container_concurrency = 1
+      timeout_seconds       = 3600     # 1 hour max request time
+    }
+  }
+  metadata {
+    annotations = {
+      "autoscaling.knative.dev/minScale" = "1"
     }
   }
   # secret_environment_variables blocks removed (unsupported)
