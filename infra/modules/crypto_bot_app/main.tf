@@ -20,17 +20,26 @@ resource "google_cloud_run_service" "service" {
           name  = "MODE"
           value = var.mode
         }
-      }
-      # Cloud Run (v1) – Secret → ENV
-      secret_environment_variables {
-        env     = "BYBIT_TESTNET_API_KEY"
-        secret  = var.bybit_testnet_api_key_secret_name
-        version = "latest"
-      }
-      secret_environment_variables {
-        env     = "BYBIT_TESTNET_API_SECRET"
-        secret  = var.bybit_testnet_api_secret_secret_name
-        version = "latest"
+
+        env {
+          name = "BYBIT_TESTNET_API_KEY"
+          value_source {
+            secret_key_ref {
+              name = var.bybit_testnet_api_key_secret_name
+              key  = "latest"
+            }
+          }
+        }
+
+        env {
+          name = "BYBIT_TESTNET_API_SECRET"
+          value_source {
+            secret_key_ref {
+              name = var.bybit_testnet_api_secret_secret_name
+              key  = "latest"
+            }
+          }
+        }
       }
       container_concurrency = 1
       timeout_seconds       = 3600     # 1 hour max request time
