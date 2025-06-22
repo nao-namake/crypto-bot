@@ -1,0 +1,20 @@
+apiVersion: v2
+name: crypto-bot
+description: A Helm chart for Crypto Trading Bot
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+home: https://github.com/nao-namake/crypto-bot
+sources:
+  - https://github.com/nao-namake/crypto-bot
+maintainers:
+  - name: nao-namake
+    email: nao@example.com
+keywords:
+  - crypto
+  - trading
+  - bot
+  - machine-learning
+  - kubernetes
+annotations:
+  category: Application

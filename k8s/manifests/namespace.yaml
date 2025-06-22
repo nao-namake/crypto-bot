@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crypto-bot
+  labels:
+    name: crypto-bot
+    purpose: crypto-trading-bot
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crypto-bot-dev
+  labels:
+    name: crypto-bot-dev
+    purpose: crypto-trading-bot
+    environment: development
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crypto-bot-prod
+  labels:
+    name: crypto-bot-prod
+    purpose: crypto-trading-bot
+    environment: production

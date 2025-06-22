@@ -34,7 +34,8 @@ data:
 # 戦略設定 ―― MLStrategy
 # ----------------------------------------------------------------------
 strategy:
-  name: ml_strategy
+  type: single  # single または multi
+  name: ml
   params:
     model_path: model/calibrated_model.pkl
     threshold: 0.1

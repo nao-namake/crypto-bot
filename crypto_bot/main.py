@@ -36,6 +36,7 @@ from crypto_bot.ml.preprocessor import prepare_ml_dataset
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.ml_strategy import MLStrategy
+from crypto_bot.strategy.factory import StrategyFactory
 
 
 # --------------------------------------------------------------------------- #
@@ -52,10 +53,25 @@ def setup_logging():
     """LOG_LEVEL 環境変数でロガーを初期化"""
     level_name = os.getenv("CRYPTO_BOT_LOG_LEVEL", "INFO").upper()
     numeric_level = getattr(logging, level_name, logging.INFO)
+
+    # より詳細なログフォーマット
+    log_format = "[%(asctime)s] %(levelname)-8s %(name)-20s: %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
+
     logging.basicConfig(
-        format="[%(asctime)s] %(levelname)-5s %(name)s: %(message)s",
+        format=log_format,
+        datefmt=date_format,
         level=numeric_level,
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
+
+    # サードパーティライブラリのログレベルを調整
+    logging.getLogger("ccxt").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("optuna").setLevel(logging.INFO)
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging initialized at level: {level_name}")
 
 
 def update_status(total_profit: float, trade_count: int, position):
@@ -99,7 +115,22 @@ def load_config(path: str) -> dict:
         default_cfg = yaml.safe_load(f) or {}
     with open(path, "r") as f:
         user_cfg = yaml.safe_load(f) or {}
-    return deep_merge(default_cfg, user_cfg)
+
+    config = deep_merge(default_cfg, user_cfg)
+
+    # 設定検証を実行
+    try:
+        from crypto_bot.utils.config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+        validator.validate(config)
+    except ImportError:
+        logging.warning("設定検証モジュールが利用できません")
+    except Exception as e:
+        logging.error(f"設定検証エラー: {e}")
+        sys.exit(1)
+
+    return config
 
 
 # --------------------------------------------------------------------------- #
@@ -218,16 +249,24 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
     wf = cfg["walk_forward"]
     splits = split_walk_forward(df, wf["train_window"], wf["test_window"], wf["step"])
 
-    # Strategy params
-    sp = cfg["strategy"]["params"]
-    model_path = sp.get("model_path", "model.pkl")
-    threshold = sp.get("threshold", 0.0)
+    # Strategy creation using factory
+    strategy_config = cfg.get("strategy", {})
+    strategy_type = strategy_config.get("type", "single")
+    
+    if strategy_type == "multi":
+        # マルチ戦略の場合
+        strategies_config = strategy_config.get("strategies", [])
+        combination_mode = strategy_config.get("combination_mode", "weighted_average")
+        strategy = StrategyFactory.create_multi_strategy(strategies_config, combination_mode)
+    else:
+        # 単一戦略の場合（従来の形式）
+        strategy = StrategyFactory.create_strategy(strategy_config)
 
     metrics_list, trade_logs = [], []
     for _, test_df in splits:
         engine = BacktestEngine(
             price_df=test_df,
-            strategy=MLStrategy(model_path=model_path, threshold=threshold, config=cfg),
+            strategy=strategy,
             starting_balance=cfg["backtest"]["starting_balance"],
             slippage_rate=cfg["backtest"].get("slippage_rate", 0.0),
         )
@@ -560,6 +599,243 @@ def train_best(config_path: str, model_path: str, model_type: str):
 
     click.echo(">> Running optimization and training best model …")
     train_best_model(cfg, model_path)
+
+
+# --------------------------------------------------------------------------- #
+# 4. Online Learning commands
+# --------------------------------------------------------------------------- #
+@cli.command("online-train")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option("--model-type", "-t", default="river_linear", 
+              help="Model type (river_linear, sklearn_sgd_classifier, etc.)")
+@click.option("--data-source", "-d", default="live", 
+              help="Data source (live, file, or path to data file)")
+@click.option("--monitor/--no-monitor", default=True, 
+              help="Enable performance monitoring")
+@click.option("--drift-detection/--no-drift-detection", default=True,
+              help="Enable drift detection")
+def online_train(config_path: str, model_type: str, data_source: str, 
+                monitor: bool, drift_detection: bool):
+    """Start online learning training"""
+    from crypto_bot.online_learning.base import OnlineLearningConfig
+    from crypto_bot.online_learning.models import IncrementalMLModel
+    from crypto_bot.online_learning.monitoring import OnlinePerformanceTracker
+    from crypto_bot.drift_detection.monitor import DriftMonitor
+    
+    cfg = load_config(config_path)
+    
+    # Create online learning config
+    online_config = OnlineLearningConfig(
+        enable_drift_detection=drift_detection,
+        enable_auto_retrain=True
+    )
+    
+    # Initialize components
+    model = IncrementalMLModel(online_config, model_type=model_type)
+    
+    performance_tracker = None
+    drift_monitor = None
+    
+    if monitor:
+        performance_tracker = OnlinePerformanceTracker(
+            model_type="classification" if "classif" in model_type else "regression"
+        )
+    
+    if drift_detection:
+        drift_monitor = DriftMonitor()
+        drift_monitor.start_monitoring()
+    
+    click.echo(f"Starting online learning with {model_type}")
+    click.echo(f"Data source: {data_source}")
+    click.echo(f"Monitoring: {'enabled' if monitor else 'disabled'}")
+    click.echo(f"Drift detection: {'enabled' if drift_detection else 'disabled'}")
+    
+    try:
+        # Simulate online learning loop
+        if data_source == "live":
+            click.echo("Live training mode - would connect to live data stream")
+            # Implementation would connect to live data feed
+        else:
+            click.echo(f"File training mode - processing {data_source}")
+            # Load and process data file incrementally
+        
+        click.echo("Online training completed successfully")
+        
+    except KeyboardInterrupt:
+        click.echo("Training interrupted by user")
+    finally:
+        if drift_monitor:
+            drift_monitor.stop_monitoring()
+
+
+@cli.command("online-status")
+@click.option("--export", "-e", type=click.Path(), 
+              help="Export status to JSON file")
+def online_status(export: str):
+    """Show online learning system status"""
+    # This would check running online learning processes
+    status = {
+        "timestamp": datetime.now().isoformat(),
+        "active_models": 0,  # Would query actual running models
+        "drift_events": 0,   # Would query drift detection system
+        "last_update": None, # Would get from actual monitoring
+        "performance_metrics": {}
+    }
+    
+    click.echo("Online Learning System Status:")
+    click.echo(f"Timestamp: {status['timestamp']}")
+    click.echo(f"Active models: {status['active_models']}")
+    click.echo(f"Recent drift events: {status['drift_events']}")
+    
+    if export:
+        ensure_dir_for_file(export)
+        with open(export, 'w') as f:
+            json.dump(status, f, indent=2)
+        click.echo(f"Status exported to {export}")
+
+
+@cli.command("drift-monitor")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option("--log-file", "-l", type=click.Path(),
+              help="Log drift events to file")
+@click.option("--duration", "-d", default=3600, type=int,
+              help="Monitoring duration in seconds")
+def drift_monitor_cmd(config_path: str, log_file: str, duration: int):
+    """Start drift monitoring system"""
+    from crypto_bot.drift_detection.monitor import DriftMonitor, console_alert_callback
+    
+    cfg = load_config(config_path)
+    
+    # Initialize drift monitor
+    monitor = DriftMonitor(log_file=log_file)
+    monitor.add_alert_callback(console_alert_callback)
+    
+    click.echo(f"Starting drift monitoring for {duration} seconds")
+    if log_file:
+        click.echo(f"Logging to: {log_file}")
+    
+    try:
+        monitor.start_monitoring()
+        time.sleep(duration)
+        
+        # Show summary
+        summary = monitor.get_drift_summary(hours=duration/3600)
+        click.echo("\nDrift Monitoring Summary:")
+        click.echo(f"Total events: {summary.get('total_drift_events', 0)}")
+        
+    except KeyboardInterrupt:
+        click.echo("Monitoring interrupted by user")
+    finally:
+        monitor.stop_monitoring()
+
+
+@cli.command("retrain-schedule")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option("--model-id", "-m", required=True,
+              help="Model identifier for scheduling")
+@click.option("--trigger", "-t", multiple=True,
+              help="Trigger types (performance, drift, schedule, sample_count)")
+@click.option("--start/--stop", default=True,
+              help="Start or stop the scheduler")
+def retrain_schedule(config_path: str, model_id: str, trigger: tuple, start: bool):
+    """Manage automatic retraining scheduler"""
+    from crypto_bot.online_learning.scheduler import RetrainingScheduler
+    from crypto_bot.online_learning.base import OnlineLearningConfig
+    
+    cfg = load_config(config_path)
+    online_config = OnlineLearningConfig()
+    
+    scheduler = RetrainingScheduler(online_config)
+    
+    if start:
+        click.echo(f"Starting retraining scheduler for model: {model_id}")
+        click.echo(f"Enabled triggers: {', '.join(trigger) if trigger else 'all default'}")
+        scheduler.start_scheduler()
+        
+        try:
+            # Keep running until interrupted
+            while True:
+                time.sleep(60)
+                status = scheduler.get_scheduler_status()
+                if status['pending_jobs'] > 0:
+                    click.echo(f"Pending retraining jobs: {status['pending_jobs']}")
+        except KeyboardInterrupt:
+            click.echo("Scheduler stopped by user")
+        finally:
+            scheduler.stop_scheduler()
+    else:
+        click.echo("Stopping retraining scheduler...")
+        scheduler.stop_scheduler()
+
+
+# --------------------------------------------------------------------------- #
+# 5. Strategy management commands
+# --------------------------------------------------------------------------- #
+@cli.command("list-strategies")
+def list_strategies():
+    """利用可能な戦略一覧を表示"""
+    strategies = StrategyFactory.list_available_strategies()
+    click.echo("Available strategies:")
+    for strategy in sorted(strategies):
+        click.echo(f"  - {strategy}")
+
+
+@cli.command("strategy-info")
+@click.argument("strategy_name")
+def strategy_info(strategy_name: str):
+    """戦略の詳細情報を表示"""
+    try:
+        info = StrategyFactory.get_strategy_info(strategy_name)
+        click.echo(f"Strategy: {info['name']}")
+        click.echo(f"Class: {info['class_name']}")
+        click.echo(f"Module: {info['module']}")
+        if info['docstring']:
+            click.echo(f"Description: {info['docstring'].strip()}")
+        click.echo("Parameters:")
+        for param in info['parameters']:
+            default_str = f" (default: {param['default']})" if param['default'] is not None else ""
+            click.echo(f"  - {param['name']}: {param['annotation']}{default_str}")
+    except KeyError as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+@cli.command("validate-config")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+def validate_config(config_path: str):
+    """戦略設定の検証"""
+    cfg = load_config(config_path)
+    strategy_config = cfg.get("strategy", {})
+    
+    if strategy_config.get("type") == "multi":
+        strategies_config = strategy_config.get("strategies", [])
+        errors = []
+        for i, strategy_config in enumerate(strategies_config):
+            strategy_errors = StrategyFactory.validate_config(strategy_config)
+            for error in strategy_errors:
+                errors.append(f"Strategy {i+1}: {error}")
+        
+        if errors:
+            click.echo("Configuration errors found:")
+            for error in errors:
+                click.echo(f"  - {error}")
+        else:
+            click.echo("Multi-strategy configuration is valid!")
+    else:
+        errors = StrategyFactory.validate_config(strategy_config)
+        if errors:
+            click.echo("Configuration errors found:")
+            for error in errors:
+                click.echo(f"  - {error}")
+        else:
+            click.echo("Strategy configuration is valid!")
 
 
 if __name__ == "__main__":

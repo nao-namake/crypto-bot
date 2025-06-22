@@ -1,0 +1,116 @@
+# =============================================================================
+# Cloud Logging Sink の定義
+# Cloud Run のログを BigQuery に転送するための設定
+# =============================================================================
+
+# BigQuery データセット作成
+resource "google_bigquery_dataset" "crypto_bot_logs" {
+  dataset_id = "crypto_bot_logs"
+  project    = var.project_id
+  location   = "asia-northeast1"
+
+  friendly_name   = "Crypto Bot Logs"
+  description     = "Cloud Run logs for crypto-bot application"
+  
+  # ログの保持期間設定（90日）
+  default_table_expiration_ms = 7776000000  # 90 days in milliseconds
+
+  labels = {
+    env         = "production"
+    application = "crypto-bot"
+    purpose     = "logging"
+  }
+}
+
+# Logging Sink の作成
+resource "google_logging_project_sink" "crypto_bot_bq_sink" {
+  name = "crypto_bot_bq_sink"
+  
+  # Cloud Run のログのみをフィルタリング
+  filter = <<-EOT
+    resource.type="cloud_run_revision"
+    resource.labels.service_name="crypto-bot-service"
+  EOT
+
+  # BigQuery データセットを宛先に設定
+  destination = "bigquery.googleapis.com/projects/${var.project_id}/datasets/${google_bigquery_dataset.crypto_bot_logs.dataset_id}"
+
+  # ログの取り込み制御
+  unique_writer_identity = true
+}
+
+# Logging Sink に BigQuery への書き込み権限を付与
+resource "google_bigquery_dataset_iam_member" "log_sink_writer" {
+  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = google_logging_project_sink.crypto_bot_bq_sink.writer_identity
+}
+
+# ログ分析用の BigQuery ビュー作成
+resource "google_bigquery_table" "error_logs_view" {
+  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  table_id   = "error_logs_view"
+
+  view {
+    query = <<-EOT
+      SELECT 
+        timestamp,
+        severity,
+        textPayload,
+        resource.labels.service_name,
+        resource.labels.revision_name,
+        CASE 
+          WHEN textPayload LIKE '%ConnectionError%' THEN 'Connection Issue'
+          WHEN textPayload LIKE '%timeout%' THEN 'Timeout'
+          WHEN textPayload LIKE '%authentication%' THEN 'Auth Error'
+          WHEN textPayload LIKE '%rate limit%' THEN 'Rate Limit'
+          WHEN textPayload LIKE '%insufficient%' THEN 'Insufficient Balance'
+          ELSE 'Other Error'
+        END as error_category
+      FROM `${var.project_id}.${google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_stderr_*`
+      WHERE severity >= 'ERROR'
+        AND DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      ORDER BY timestamp DESC
+    EOT
+    use_legacy_sql = false
+  }
+
+  depends_on = [google_bigquery_dataset_iam_member.log_sink_writer]
+}
+
+# 性能分析用ビュー
+resource "google_bigquery_table" "performance_view" {
+  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  table_id   = "performance_view"
+
+  view {
+    query = <<-EOT
+      WITH latency_stats AS (
+        SELECT 
+          DATE(timestamp) as date,
+          EXTRACT(HOUR FROM timestamp) as hour,
+          httpRequest.status,
+          EXTRACT(EPOCH FROM CAST(httpRequest.latency AS INTERVAL)) as latency_seconds
+        FROM `${var.project_id}.${google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_requests_*`
+        WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+          AND httpRequest.latency IS NOT NULL
+          AND httpRequest.requestUrl NOT LIKE '%/healthz%'
+      )
+      SELECT 
+        date,
+        hour,
+        httpRequest.status,
+        COUNT(*) as request_count,
+        ROUND(APPROX_QUANTILES(latency_seconds, 100)[OFFSET(50)], 3) as p50_latency,
+        ROUND(APPROX_QUANTILES(latency_seconds, 100)[OFFSET(95)], 3) as p95_latency,
+        ROUND(APPROX_QUANTILES(latency_seconds, 100)[OFFSET(99)], 3) as p99_latency,
+        ROUND(AVG(latency_seconds), 3) as avg_latency
+      FROM latency_stats
+      GROUP BY date, hour, httpRequest.status
+      ORDER BY date DESC, hour DESC
+    EOT
+    use_legacy_sql = false
+  }
+
+  depends_on = [google_bigquery_dataset_iam_member.log_sink_writer]
+}

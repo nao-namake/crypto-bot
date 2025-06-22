@@ -5,6 +5,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from crypto_bot.risk.manager import RiskManager
 
@@ -32,9 +33,9 @@ def test_calc_lot_zero_division():
     rm = RiskManager()
     balance = 1000
     entry = 100.0
-    stop = 100.0  # 損失幅0
-    lot = rm.calc_lot(balance, entry, stop)
-    assert lot == 0.0  # 負や0なら0返す
+    stop = 100.0  # 損失幅0 - これは now raises ValueError
+    with pytest.raises(ValueError, match="stop_price.*must be less than entry_price"):
+        rm.calc_lot(balance, entry, stop)
 
 
 def test_dynamic_position_sizing_basic():
@@ -58,15 +59,151 @@ def test_dynamic_position_sizing_clamp_scale():
     rm = RiskManager()
     balance = 1000
     entry = 50
-    atr = pd.Series([0])  # vol_pct=0
-    # scale=1, base_lot=...0
-    lot, stop = rm.dynamic_position_sizing(
-        balance, entry, atr, target_vol=0.01, max_scale=1.0
+    atr = pd.Series([0.001])  # vol_pct極小だが0ではない
+    # scale最大制限 - target_volは1.0以下でなければならない
+    lot, _ = rm.dynamic_position_sizing(
+        balance, entry, atr, target_vol=0.9, max_scale=1.0
     )
-    assert lot == 0.0
-    # scale最大制限
-    atr = pd.Series([0.001])  # vol_pct極小
-    lot2, _ = rm.dynamic_position_sizing(
-        balance, entry, atr, target_vol=10.0, max_scale=1.0
+    assert lot >= 0.0
+
+
+# ========== New Error Handling Tests ==========
+
+
+def test_risk_manager_init_invalid_params():
+    """リスクマネージャー初期化時の無効パラメータテスト"""
+    # 負のリスク率
+    with pytest.raises(ValueError, match="risk_per_trade must be between 0 and 1.0"):
+        RiskManager(risk_per_trade=-0.01)
+
+    # リスク率が1より大きい
+    with pytest.raises(ValueError, match="risk_per_trade must be between 0 and 1.0"):
+        RiskManager(risk_per_trade=1.5)
+
+    # 負のATR倍率
+    with pytest.raises(ValueError, match="stop_atr_mult must be positive"):
+        RiskManager(stop_atr_mult=-1.0)
+
+
+def test_calc_stop_price_invalid_inputs():
+    """ストップ価格計算時の無効入力テスト"""
+    rm = RiskManager()
+
+    # 負のエントリー価格
+    with pytest.raises(ValueError, match="entry_price must be positive"):
+        rm.calc_stop_price(-100.0, pd.Series([1, 2, 3]))
+
+    # 空のATR系列
+    with pytest.raises(ValueError, match="ATR series cannot be empty"):
+        rm.calc_stop_price(100.0, pd.Series([]))
+
+    # NaNを含むATR
+    with pytest.raises(ValueError, match="Invalid ATR value"):
+        rm.calc_stop_price(100.0, pd.Series([1, 2, np.nan]))
+
+    # 負のATR値
+    with pytest.raises(ValueError, match="Invalid ATR value"):
+        rm.calc_stop_price(100.0, pd.Series([1, 2, -1]))
+
+
+def test_calc_lot_invalid_inputs():
+    """ロット計算時の無効入力テスト"""
+    rm = RiskManager()
+
+    # 負の残高
+    with pytest.raises(ValueError, match="balance must be positive"):
+        rm.calc_lot(-1000, 100.0, 95.0)
+
+    # 負のエントリー価格
+    with pytest.raises(ValueError, match="entry_price must be positive"):
+        rm.calc_lot(1000, -100.0, 95.0)
+
+    # 負のストップ価格
+    with pytest.raises(ValueError, match="stop_price must be positive"):
+        rm.calc_lot(1000, 100.0, -95.0)
+
+    # ストップ価格がエントリー価格以上
+    with pytest.raises(ValueError, match="stop_price.*must be less than entry_price"):
+        rm.calc_lot(1000, 100.0, 105.0)
+
+
+def test_dynamic_position_sizing_invalid_inputs():
+    """動的ポジションサイジング時の無効入力テスト"""
+    rm = RiskManager()
+
+    # 負の残高
+    with pytest.raises(ValueError, match="balance must be positive"):
+        rm.dynamic_position_sizing(-1000, 100.0, pd.Series([1, 2, 3]))
+
+    # 負のエントリー価格
+    with pytest.raises(ValueError, match="entry_price must be positive"):
+        rm.dynamic_position_sizing(1000, -100.0, pd.Series([1, 2, 3]))
+
+    # 無効なターゲットボラティリティ
+    with pytest.raises(ValueError, match="target_vol must be between 0 and 1.0"):
+        rm.dynamic_position_sizing(1000, 100.0, pd.Series([1, 2, 3]), target_vol=-0.01)
+
+    with pytest.raises(ValueError, match="target_vol must be between 0 and 1.0"):
+        rm.dynamic_position_sizing(1000, 100.0, pd.Series([1, 2, 3]), target_vol=1.5)
+
+    # 負の最大スケール
+    with pytest.raises(ValueError, match="max_scale must be positive"):
+        rm.dynamic_position_sizing(1000, 100.0, pd.Series([1, 2, 3]), max_scale=-1.0)
+
+    # 空のATR系列
+    with pytest.raises(ValueError, match="ATR series cannot be empty"):
+        rm.dynamic_position_sizing(1000, 100.0, pd.Series([]))
+
+
+def test_calc_stop_price_negative_protection():
+    """ストップ価格が負になる場合の保護テスト"""
+    rm = RiskManager(stop_atr_mult=10.0)  # 大きなATR倍率
+    entry = 5.0
+    atr = pd.Series([1.0])  # stop = 5 - 1*10 = -5 -> 保護により 5*0.01 = 0.05
+
+    stop = rm.calc_stop_price(entry, atr)
+    assert stop == entry * 0.01  # 保護により最小値設定
+
+
+def test_calc_lot_max_protection():
+    """ロット数の最大値保護テスト"""
+    rm = RiskManager(risk_per_trade=0.9)  # 高いリスク率
+    balance = 1000
+    entry = 100.0
+    stop = 99.9  # 非常に小さな損失幅
+
+    lot = rm.calc_lot(balance, entry, stop)
+    max_expected = balance * 0.5 / entry  # 最大保護値
+    assert lot == max_expected
+
+
+def test_dynamic_position_sizing_safety_cap():
+    """動的ポジションサイジングの安全上限テスト"""
+    rm = RiskManager(risk_per_trade=0.5)  # 高いリスク率
+    balance = 1000
+    entry = 10.0
+    atr = pd.Series([0.001])  # 非常に小さなATR → 大きなロット
+
+    lot, _ = rm.dynamic_position_sizing(
+        balance, entry, atr, target_vol=1.0, max_scale=100.0
     )
-    assert lot2 >= 0.0
+    max_expected = balance * 0.3 / entry  # 安全上限
+    assert lot <= max_expected
+
+
+def test_dynamic_position_sizing_zero_volatility_warning(caplog):
+    """ボラティリティが0の場合の警告とフォールバックテスト"""
+    rm = RiskManager()
+    balance = 1000
+    entry = 100.0
+    atr = pd.Series(
+        [0.0]
+    )  # ゼロボラティリティ → stop_price = entry_price → calc_lotでエラー → フォールバック
+
+    with caplog.at_level("WARNING"):
+        lot, stop = rm.dynamic_position_sizing(balance, entry, atr)
+
+    # フォールバックが動作することを確認
+    assert "Error in dynamic position sizing" in caplog.text
+    assert lot >= 0.0
+    assert stop > 0.0

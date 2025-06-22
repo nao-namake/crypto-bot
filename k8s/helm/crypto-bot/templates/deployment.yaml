@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "crypto-bot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "crypto-bot.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "crypto-bot.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "crypto-bot.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "crypto-bot.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            {{- if .Values.config.metricsEnabled }}
+            - name: metrics
+              containerPort: {{ .Values.config.metricsPort }}
+              protocol: TCP
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "crypto-bot.fullname" . }}-config
+          env:
+            - name: BYBIT_TESTNET_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "crypto-bot.fullname" . }}-secrets
+                  key: bybit-testnet-api-key
+            - name: BYBIT_TESTNET_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "crypto-bot.fullname" . }}-secrets
+                  key: bybit-testnet-api-secret
+            {{- if eq .Values.config.mode "live" }}
+            - name: BYBIT_LIVE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "crypto-bot.fullname" . }}-secrets
+                  key: bybit-live-api-key
+            - name: BYBIT_LIVE_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "crypto-bot.fullname" . }}-secrets
+                  key: bybit-live-api-secret
+            {{- end }}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/etc/gcp/credentials.json"
+          {{- if .Values.healthchecks.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthchecks.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthchecks.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthchecks.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthchecks.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthchecks.liveness.failureThreshold }}
+            successThreshold: {{ .Values.healthchecks.liveness.successThreshold }}
+          {{- end }}
+          {{- if .Values.healthchecks.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthchecks.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthchecks.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthchecks.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthchecks.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthchecks.readiness.failureThreshold }}
+            successThreshold: {{ .Values.healthchecks.readiness.successThreshold }}
+          {{- end }}
+          {{- if .Values.healthchecks.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.healthchecks.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthchecks.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthchecks.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthchecks.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthchecks.startup.failureThreshold }}
+            successThreshold: {{ .Values.healthchecks.startup.successThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: gcp-credentials
+              mountPath: /etc/gcp
+              readOnly: true
+            - name: model-storage
+              mountPath: /app/model
+              readOnly: true
+            - name: config-storage
+              mountPath: /app/config
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: gcp-credentials
+          secret:
+            secretName: {{ include "crypto-bot.fullname" . }}-secrets
+            items:
+            - key: gcp-credentials-json
+              path: credentials.json
+        - name: model-storage
+          emptyDir: {}
+        - name: config-storage
+          configMap:
+            name: {{ include "crypto-bot.fullname" . }}-config
+            items:
+            - key: default-config
+              path: default.yml
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

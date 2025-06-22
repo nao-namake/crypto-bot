@@ -1,0 +1,121 @@
+# =============================================================================
+# ファイル名: config/multi_strategy.yml
+# 説明:
+# マルチ戦略設定のサンプル
+# 複数の戦略を組み合わせて使用する際の設定例
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# データ取得設定
+# ----------------------------------------------------------------------
+data:
+  exchange: bybit
+  symbol: BTC/USDT
+  timeframe: 1h
+  api_key: ${BYBIT_TESTNET_API_KEY}
+  api_secret: ${BYBIT_TESTNET_API_SECRET}
+  ccxt_options:
+    defaultType: linear
+    enableRateLimit: true
+    urls:
+      api: https://api-testnet.bybit.com
+  since: "2021-01-01T00:00:00Z"
+  limit: 20000
+  paginate: true
+  per_page: 500
+
+# ----------------------------------------------------------------------
+# マルチ戦略設定
+# ----------------------------------------------------------------------
+strategy:
+  # 戦略の組み合わせモード
+  type: multi  # single または multi
+  combination_mode: weighted_average  # weighted_average, majority_vote, unanimous, first_match
+  
+  # 個別戦略の設定
+  strategies:
+    - name: ml
+      weight: 0.6  # 60%の重み
+      params:
+        model_path: model/calibrated_model.pkl
+        threshold: 0.1
+    
+    - name: simple_ma
+      weight: 0.3  # 30%の重み
+      params:
+        short_period: 20
+        long_period: 50
+    
+    - name: bollinger_bands
+      weight: 0.1  # 10%の重み
+      params:
+        period: 20
+        std_dev: 2.0
+
+# ----------------------------------------------------------------------
+# リスク管理
+# ----------------------------------------------------------------------
+risk:
+  risk_per_trade: 0.01
+  stop_atr_mult: 2.0
+  dynamic_position_sizing:
+    enabled: true
+    formula: linear
+
+# ----------------------------------------------------------------------
+# バックテスト
+# ----------------------------------------------------------------------
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+  trade_log_csv: "./results/multi_trade_log.csv"
+  aggregate_out_prefix: "./results/multi_aggregate"
+
+# ----------------------------------------------------------------------
+# ウォークフォワード分割
+# ----------------------------------------------------------------------
+walk_forward:
+  train_window: 1500
+  test_window: 250
+  step: 250
+
+# ----------------------------------------------------------------------
+# 機械学習（ML）設定
+# ----------------------------------------------------------------------
+ml:
+  feat_period: 14
+  lags: [1,2,3,4,5,6,7,8,9,10,11,12]
+  rolling_window: 20
+  horizon: 5
+  target_type: classification
+  model_type: lgbm
+  extra_features:
+    - rsi_14
+    - macd
+    - rci_9
+    - volume_zscore
+    - day_of_week
+    - hour_of_day
+    - mochipoyo_long_signal
+    - mochipoyo_short_signal
+  optuna:
+    n_trials: 30
+    timeout: 900
+    direction: maximize
+    sampler:
+      name: TPESampler
+    pruner:
+      name: MedianPruner
+      n_startup_trials: 5
+      n_warmup_steps: 10
+      interval_steps: 1
+  model_params:
+    n_estimators: 89
+    max_depth: 9
+    learning_rate: 0.09558059446177633
+    bagging_fraction: 0.6
+    lambda_l1: 1.0
+    lambda_l2: 0.5
+  calibration:
+    method: sigmoid
+    cv: prefit

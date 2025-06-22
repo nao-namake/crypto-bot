@@ -1,0 +1,57 @@
+{
+  "bybit": {
+    "last_tested_ccxt_version": "4.2.25",
+    "last_checked": "2024-12-22T10:00:00Z",
+    "api_features": ["spot", "future", "option", "websocket"],
+    "api_version": "5.0",
+    "testnet_support": true,
+    "known_issues": [],
+    "last_working_config": {
+      "enableRateLimit": true,
+      "sandbox": true,
+      "options": {
+        "defaultType": "linear"
+      }
+    }
+  },
+  "bitbank": {
+    "last_tested_ccxt_version": "4.2.25",
+    "last_checked": "2024-12-22T10:00:00Z",
+    "api_features": ["spot"],
+    "api_version": "1.0",
+    "testnet_support": false,
+    "known_issues": [
+      "No official testnet available"
+    ],
+    "last_working_config": {
+      "enableRateLimit": true,
+      "sandbox": false
+    }
+  },
+  "bitflyer": {
+    "last_tested_ccxt_version": "4.2.25",
+    "last_checked": "2024-12-22T10:00:00Z",
+    "api_features": ["spot", "future"],
+    "api_version": "1.0",
+    "testnet_support": false,
+    "known_issues": [
+      "Lightning FX requires special handling"
+    ],
+    "last_working_config": {
+      "enableRateLimit": true,
+      "sandbox": false
+    }
+  },
+  "okcoinjp": {
+    "last_tested_ccxt_version": "4.2.25",
+    "last_checked": "2024-12-22T10:00:00Z",
+    "api_features": ["spot"],
+    "api_version": "3.0",
+    "testnet_support": false,
+    "known_issues": [],
+    "last_working_config": {
+      "enableRateLimit": true,
+      "sandbox": false
+    }
+  }
+}

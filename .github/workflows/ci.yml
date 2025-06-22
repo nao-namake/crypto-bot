@@ -9,12 +9,12 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     # セマンティックバージョニングタグ（vX.Y.Z）をプッシュしたときにも起動
     tags:
       - 'v*.*.*'
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
   workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4.5.0
         with:
           token: ${{ env.CODECOV_TOKEN }}
         # CODECOV_TOKEN が設定されていれば coverage を Codecov へアップロード
@@ -127,6 +127,10 @@ jobs:
     name: Build & Push Docker Image
     needs: integration-tests
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch')
     permissions:
       id-token: write          # required for OIDC authentication to GCP
       contents: read
@@ -142,17 +146,17 @@ jobs:
         # コードをチェックアウト
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3.2.0
         with:
           platforms: all
         # クロスプラットフォーム向けに QEMU をセットアップ
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3.6.1
         # Docker Buildx をセットアップしてマルチアーキテクチャビルドに対応
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -161,7 +165,7 @@ jobs:
 
       # ---------- Authenticate to GCP so we can push to Artifact Registry ----------
       - name: Auth to GCP (OIDC for AR)
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v1.8.3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account:          ${{ secrets.GCP_DEPLOYER_SA }}
@@ -170,10 +174,10 @@ jobs:
         run: |
           gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
-      # ---------- Build & push to GHCR (2 tags) ----------
+      # ---------- Build & push to GHCR with cache optimization ----------
       - name: Build & push to GHCR
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6.7.0
         with:
           context: .
           push: true
@@ -181,6 +185,14 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/crypto-bot:latest
             ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+          cache-from: |
+            type=gha
+            type=registry,ref=ghcr.io/${{ github.repository_owner }}/crypto-bot:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=ghcr.io/${{ github.repository_owner }}/crypto-bot:buildcache,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
       # ---------- Tag & push copy to Artifact Registry ----------
       - name: Tag & push to Artifact Registry
@@ -195,10 +207,17 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
 
-  terraform-deploy:
-    name: Terraform Apply (dev)
+  # ────────────────────────────────────────────────────────────────────────────
+  # Development Environment Deploy (develop branch and PRs)
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-deploy-dev:
+    name: Deploy to Development
     needs: docker-build
     runs-on: ubuntu-latest
+    if: |
+      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+      (github.event_name == 'workflow_dispatch')
     permissions:
       id-token: write          # Workload Identity Federation
       contents: read
@@ -208,8 +227,9 @@ jobs:
       # GCP project (secret)
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
+      # Development environment specific settings
       TF_VAR_artifact_registry_repo: "crypto-bot-repo"
-      TF_VAR_service_name: "crypto-bot-service"
+      TF_VAR_service_name: "crypto-bot-dev"
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "paper"
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
@@ -221,26 +241,26 @@ jobs:
       TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
       TF_VAR_region: "asia-northeast1"
       TF_VAR_image_tag: "${{ github.sha }}"
-      TF_ENV_DIR: "infra/envs/dev"   # ← dev 環境を対象に apply
+      TF_ENV_DIR: "infra/envs/dev"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # ---------- Authenticate to GCP via Workload Identity Federation ----------
       - name: Auth to GCP (WIF)
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v1.8.3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}   # projects/*/locations/global/workloadIdentityPools/*/providers/*
           service_account: ${{ secrets.GCP_DEPLOYER_SA }}              # deployer SA (email)
 
       - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v1.14.0
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       # ---------- Terraform ----------
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v3.1.1
         with:
           terraform_version: 1.8.5
 
@@ -250,6 +270,197 @@ jobs:
       - name: Terraform Plan
         run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
 
-      - name: Terraform Apply (main only)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Terraform Apply (Development)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Production Environment Deploy (main branch only)
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-deploy-prod:
+    name: Deploy to Production
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      id-token: write          # Workload Identity Federation
+      contents: read
+    env:
+      # Docker image pushed in the previous job
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
+      # GCP project (secret)
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+      # Production environment specific settings
+      TF_VAR_artifact_registry_repo: "crypto-bot-repo"
+      TF_VAR_service_name: "crypto-bot-prod"
+      TF_VAR_image_name: "crypto-bot"
+      TF_VAR_mode: "live"
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_github_repo: "nao-namake/crypto-bot"
+      TF_VAR_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
+      TF_VAR_deployer_sa: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      # ----- Terraform variables -----
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_region: "asia-northeast1"
+      TF_VAR_image_tag: "${{ github.sha }}"
+      TF_ENV_DIR: "infra/envs/prod"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- Authenticate to GCP via Workload Identity Federation ----------
+      - name: Auth to GCP (WIF)
+        uses: google-github-actions/auth@v1.8.3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}   # projects/*/locations/global/workloadIdentityPools/*/providers/*
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}              # deployer SA (email)
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v1.14.0
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      # ---------- Terraform ----------
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3.1.1
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform Init
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
+
+      - name: Terraform Plan
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
+
+      - name: Terraform Apply (Production)
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # マルチリージョンHA環境デプロイ（タグ作成時のみ）
+  # ────────────────────────────────────────────────────────────────────────────
+  terraform-deploy-ha:
+    name: Deploy to HA Production
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: [test, integration-tests, docker-build]
+    
+    env:
+      TF_ENV_DIR: infra/envs/ha-prod
+      
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1.8.3
+        with:
+          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.14.0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.1
+        with:
+          terraform_version: 1.8.5
+
+      - name: Extract tag version
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Terraform Init
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} init
+
+      - name: Create terraform.tfvars
+        run: |
+          cat > ${{ env.TF_ENV_DIR }}/terraform.tfvars << EOF
+          project_id              = "${{ vars.GCP_PROJECT_ID }}"
+          project_number          = "${{ vars.GCP_PROJECT_NUMBER }}"
+          primary_region          = "asia-northeast1"
+          secondary_region        = "us-central1"
+          enable_secondary_region = true
+          enable_load_balancer    = true
+          enable_ssl              = false
+          enable_public_access    = true
+          enable_uptime_check     = true
+          artifact_registry_repo  = "crypto-bot"
+          service_name            = "crypto-bot-ha"
+          image_name              = "crypto-bot"
+          image_tag               = "${{ steps.tag.outputs.VERSION }}"
+          mode                    = "live"
+          cpu_limit               = "2000m"
+          memory_limit            = "1Gi"
+          min_instances           = "2"
+          max_instances           = "20"
+          alert_emails            = ["admin@example.com"]
+          github_repo             = "${{ github.repository }}"
+          deployer_sa             = "github-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+          latency_threshold_ms    = 3000
+          error_rate_threshold    = 1.0
+          loss_threshold          = -5000
+          EOF
+
+      - name: Terraform Plan
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
+
+      - name: Terraform Apply
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
+      
+      - name: Get Load Balancer IP
+        id: lb_ip
+        run: |
+          LB_IP=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw load_balancer_ip || echo "")
+          echo "IP=${LB_IP}" >> $GITHUB_OUTPUT
+      
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for HA deployment to be ready..."
+          sleep 60  # Wait for deployment to propagate
+          
+      - name: Health check
+        run: |
+          PRIMARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw primary_service_url)
+          SECONDARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw secondary_service_url)
+          
+          echo "Testing primary region health..."
+          curl -f "${PRIMARY_URL}/healthz" || exit 1
+          
+          if [ -n "$SECONDARY_URL" ]; then
+            echo "Testing secondary region health..."
+            curl -f "${SECONDARY_URL}/healthz" || exit 1
+          fi
+          
+          if [ -n "${{ steps.lb_ip.outputs.IP }}" ]; then
+            echo "Testing load balancer health..."
+            curl -f "http://${{ steps.lb_ip.outputs.IP }}/healthz" || exit 1
+          fi
+          
+          echo "✅ HA deployment health check passed!"
+
+      - name: Post deployment summary
+        run: |
+          echo "### 🚀 HA Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.tag.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Primary Region:** asia-northeast1" >> $GITHUB_STEP_SUMMARY
+          echo "**Secondary Region:** us-central1" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          PRIMARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw primary_service_url)
+          SECONDARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw secondary_service_url)
+          DASHBOARD_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw dashboard_url)
+          
+          echo "**Endpoints:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Primary: ${PRIMARY_URL}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$SECONDARY_URL" ]; then
+            echo "- Secondary: ${SECONDARY_URL}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -n "${{ steps.lb_ip.outputs.IP }}" ]; then
+            echo "- Load Balancer: http://${{ steps.lb_ip.outputs.IP }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- Monitoring Dashboard: ${DASHBOARD_URL}" >> $GITHUB_STEP_SUMMARY

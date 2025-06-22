@@ -24,23 +24,15 @@ resource "google_iam_workload_identity_pool_provider" "provider" {
   }
   # NOTE: Keep using the variable so other environments can override.
   # default value is defined in variables.tf
-  attribute_condition = "attribute.repository == \"${var.github_repo}\""
+  # Hardened: Only allow main branch deployments
+  attribute_condition = "attribute.repository == \"${var.github_repo}\" && attribute.ref == \"refs/heads/main\""
 
   oidc { issuer_uri = "https://token.actions.githubusercontent.com" }
 }
 
-
 #########################################
-# SA に ServiceAccountViewer を付与
-#   - プロジェクト IAM 経由で付与することで
-#     getIamPolicy ブートストラップ問題を回避
+# Workload Identity Federation binding
 #########################################
-resource "google_project_iam_member" "deployer_sa_sa_viewer" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountViewer"
-  member  = "serviceAccount:${var.deployer_sa}"
-}
-
 resource "google_service_account_iam_member" "wif_binding" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${var.deployer_sa}"
   role               = "roles/iam.workloadIdentityUser"
@@ -50,20 +42,67 @@ resource "google_service_account_iam_member" "wif_binding" {
   member = "principalSet://iam.googleapis.com/projects/${var.project_number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.pool.workload_identity_pool_id}/attribute.repository/${var.github_repo}"
 }
 
-#######################################
-# SA に Workload‑Identity Pool Admin を付与（Pool/Provider を Terraform 管理出来るように）
-#######################################
-resource "google_project_iam_member" "deployer_sa_wip_admin" {
+#########################################
+# Minimal permissions for GitHub deployer SA
+# Following the principle of least privilege
+#########################################
+
+# Cloud Run permissions - for deploying services
+resource "google_project_iam_member" "deployer_sa_run_admin" {
   project = var.project_id
-  role    = "roles/iam.workloadIdentityPoolAdmin"
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Artifact Registry permissions - for pushing/pulling container images
+resource "google_project_iam_member" "deployer_sa_artifact_registry_admin" {
+  project = var.project_id
+  role    = "roles/artifactregistry.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Monitoring permissions - for managing monitoring resources
+resource "google_project_iam_member" "deployer_sa_monitoring_admin" {
+  project = var.project_id
+  role    = "roles/monitoring.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Service Usage permissions - for managing enabled APIs
+resource "google_project_iam_member" "deployer_sa_service_usage_admin" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageAdmin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Secret Manager permissions - for managing API keys
+resource "google_project_iam_member" "deployer_sa_secret_manager_admin" {
+  project = var.project_id
+  role    = "roles/secretmanager.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Storage Object Admin - for Terraform state management
+resource "google_project_iam_member" "deployer_sa_storage_object_admin" {
+  project = var.project_id
+  role    = "roles/storage.objectAdmin"
   member  = "serviceAccount:${var.deployer_sa}"
 }
 
 #######################################
-# SA に ServiceAccountAdmin を付与（自身の IAM を更新出来るように）
+# Limited IAM permissions for Terraform operations
 #######################################
-resource "google_project_iam_member" "deployer_sa_admin" {
+
+# Service Account User - for using service accounts
+resource "google_project_iam_member" "deployer_sa_iam_service_account_user" {
   project = var.project_id
-  role    = "roles/iam.serviceAccountAdmin"
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# IAM Security Reviewer - minimal read-only access for IAM (replacing securityAdmin)
+resource "google_project_iam_member" "deployer_sa_security_reviewer" {
+  project = var.project_id
+  role    = "roles/iam.securityReviewer"
   member  = "serviceAccount:${var.deployer_sa}"
 }

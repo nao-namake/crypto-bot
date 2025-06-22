@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "crypto-bot.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "crypto-bot.labels" . | nindent 4 }}
+data:
+  MODE: {{ .Values.config.mode | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  HEALTH_CHECK_INTERVAL: {{ .Values.config.healthCheckInterval | quote }}
+  STARTUP_PROBE_DELAY: {{ .Values.config.startupProbeDelay | quote }}
+  METRICS_ENABLED: {{ .Values.config.metricsEnabled | quote }}
+  METRICS_PORT: {{ .Values.config.metricsPort | quote }}
+  
+  default-config: |
+    data:
+      exchange: {{ .Values.config.trading.exchange }}
+      symbol: {{ .Values.config.trading.symbol }}
+      interval: {{ .Values.config.trading.interval }}
+      limit: {{ .Values.config.trading.limit }}
+    
+    strategy:
+      type: {{ .Values.config.strategy.type }}
+      name: {{ .Values.config.strategy.name }}
+      params:
+        model_path: {{ .Values.config.strategy.modelPath }}
+        threshold: {{ .Values.config.strategy.threshold }}
+    
+    risk:
+      base_risk: {{ .Values.config.risk.baseRisk }}
+      dynamic_position_sizing: {{ .Values.config.risk.dynamicPositionSizing }}
+      max_position_size: {{ .Values.config.risk.maxPositionSize }}
+      stop_loss_atr_multiplier: {{ .Values.config.risk.stopLossAtrMultiplier }}
+    
+    ml:
+      extra_features:
+        {{- range .Values.config.ml.extraFeatures }}
+        - {{ . }}
+        {{- end }}

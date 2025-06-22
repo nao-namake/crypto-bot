@@ -1,0 +1,64 @@
+# infra/envs/k8s-gke/terraform.tfvars.example
+# Copy this file to terraform.tfvars and fill in your values
+
+# GCP Project Configuration
+project_id = "your-gcp-project-id"
+region     = "asia-northeast1"
+environment = "dev"  # dev, staging, prod
+
+# Network Configuration
+subnet_cidr   = "10.0.0.0/24"
+pods_cidr     = "10.1.0.0/16"
+services_cidr = "10.2.0.0/16"
+
+# Authorized networks for cluster access
+# For production, restrict this to your office/VPN CIDR
+authorized_networks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "All networks"
+  }
+]
+
+# Cluster Configuration
+release_channel            = "RAPID"  # RAPID, REGULAR, STABLE
+enable_binary_authorization = false
+
+# Primary Node Pool Configuration
+node_count     = 2
+min_node_count = 1
+max_node_count = 10
+machine_type   = "e2-standard-2"
+disk_size_gb   = 50
+disk_type      = "pd-ssd"
+preemptible    = false
+
+# Spot Node Pool Configuration (for cost optimization)
+enable_spot_nodes    = true
+spot_min_node_count  = 0
+spot_max_node_count  = 5
+spot_machine_type    = "e2-medium"
+
+# Crypto-bot Configuration
+crypto_bot_namespace = "crypto-bot-dev"
+crypto_bot_ksa_name  = "crypto-bot"
+
+# Additional IAM roles for crypto-bot (if needed)
+crypto_bot_iam_roles = [
+  "roles/monitoring.metricWriter",
+  "roles/logging.logWriter",
+  "roles/secretmanager.secretAccessor",
+  # Add more roles as needed
+]
+
+# Labels
+common_labels = {
+  managed-by  = "terraform"
+  project     = "crypto-bot"
+  environment = "dev"
+  owner       = "your-team"
+}
+
+node_labels = {
+  workload = "crypto-bot"
+}
