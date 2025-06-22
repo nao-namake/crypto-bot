@@ -18,17 +18,17 @@ from .detectors import (
     DDMDetector,
     EDDMDetector,
     PageHinkleyDetector,
-    StatisticalDriftDetector
+    StatisticalDriftDetector,
 )
 from .ensemble import DriftDetectionEnsemble
 from .monitor import DriftMonitor
 
 __all__ = [
-    'ADWINDetector',
-    'DDMDetector', 
-    'EDDMDetector',
-    'PageHinkleyDetector',
-    'StatisticalDriftDetector',
-    'DriftDetectionEnsemble',
-    'DriftMonitor'
+    "ADWINDetector",
+    "DDMDetector",
+    "EDDMDetector",
+    "PageHinkleyDetector",
+    "StatisticalDriftDetector",
+    "DriftDetectionEnsemble",
+    "DriftMonitor",
 ]

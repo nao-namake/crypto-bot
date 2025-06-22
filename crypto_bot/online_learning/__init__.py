@@ -13,19 +13,15 @@ Key Features:
 """
 
 from .engine import OnlineLearningEngine
-from .models import (
-    IncrementalMLModel,
-    OnlineClassifier,
-    OnlineRegressor
-)
-from .scheduler import RetrainingScheduler
+from .models import IncrementalMLModel, OnlineClassifier, OnlineRegressor
 from .monitor import ModelPerformanceMonitor
+from .scheduler import RetrainingScheduler
 
 __all__ = [
-    'OnlineLearningEngine',
-    'IncrementalMLModel', 
-    'OnlineClassifier',
-    'OnlineRegressor',
-    'RetrainingScheduler',
-    'ModelPerformanceMonitor'
+    "OnlineLearningEngine",
+    "IncrementalMLModel",
+    "OnlineClassifier",
+    "OnlineRegressor",
+    "RetrainingScheduler",
+    "ModelPerformanceMonitor",
 ]
