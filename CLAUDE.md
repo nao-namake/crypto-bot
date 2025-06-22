@@ -10,6 +10,12 @@
 - `pytest tests/integration` - 統合テスト実行（APIキーが必要）
 - `bash scripts/run_e2e.sh` - Bybit TestnetでE2Eテスト実行
 
+### 48時間本番稼働監視 🚀
+- `./scripts/monitor_48h_deployment.sh` - 48時間連続監視（5分間隔）
+- `./scripts/monitor_48h_deployment.sh --once` - ワンタイムヘルスチェック
+- `./scripts/troubleshoot_deployment.sh` - 自動エラー診断・ログ解析
+- `./scripts/verify_wif_hardening.sh` - Workload Identity Federation セキュリティ検証
+
 ### モデル学習と最適化
 - `python -m crypto_bot.main optimize-and-train --config config/default.yml` - Optuna最適化付きフルMLパイプライン
 - `python -m crypto_bot.main train --config config/default.yml` - 基本モデル学習
