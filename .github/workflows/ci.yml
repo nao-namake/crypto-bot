@@ -175,6 +175,7 @@ jobs:
 
       - name: Configure docker for Artifact Registry
         run: |
+          gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
           gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
       # ---------- Build & push to GHCR with cache optimization ----------
@@ -260,6 +261,9 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Activate service account
+        run: gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
+
       # ---------- Terraform ----------
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3.1.1
@@ -321,6 +325,9 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Activate service account
+        run: gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
       # ---------- Terraform ----------
       - name: Set up Terraform
