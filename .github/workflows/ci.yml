@@ -167,15 +167,17 @@ jobs:
         # GHCR への認証
 
       # ---------- Authenticate to GCP so we can push to Artifact Registry ----------
-      - name: Install gcloud CLI
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure docker for Artifact Registry
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
-          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-          gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
+        run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
       # ---------- Build & push to GHCR with cache optimization ----------
       - name: Build & push to GHCR
@@ -248,15 +250,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------- Authenticate to GCP via Service Account Key ----------
+      # ---------- Authenticate to GCP via Workload Identity Federation ----------
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Authenticate to GCP
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
-          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
 
       # ---------- Terraform ----------
       - name: Set up Terraform
@@ -308,15 +310,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------- Authenticate to GCP via Service Account Key ----------
+      # ---------- Authenticate to GCP via Workload Identity Federation ----------
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Authenticate to GCP
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
-          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
 
       # ---------- Terraform ----------
       - name: Set up Terraform
