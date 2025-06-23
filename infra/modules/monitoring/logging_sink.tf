@@ -5,7 +5,7 @@
 
 # BigQuery データセット作成
 resource "google_bigquery_dataset" "crypto_bot_logs" {
-  dataset_id = "crypto_bot_logs"
+  dataset_id = "${var.service_name}_logs"
   project    = var.project_id
   location   = "asia-northeast1"
 
@@ -24,12 +24,12 @@ resource "google_bigquery_dataset" "crypto_bot_logs" {
 
 # Logging Sink の作成
 resource "google_logging_project_sink" "crypto_bot_bq_sink" {
-  name = "crypto_bot_bq_sink"
+  name = "${var.service_name}_bq_sink"
   
   # Cloud Run のログのみをフィルタリング
   filter = <<-EOT
     resource.type="cloud_run_revision"
-    resource.labels.service_name="crypto-bot-service"
+    resource.labels.service_name="${var.service_name}"
   EOT
 
   # BigQuery データセットを宛先に設定
