@@ -199,15 +199,16 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
 
       # ---------- Tag & push copy to Artifact Registry ----------
-      - name: Tag & push to Artifact Registry
-        env:
-          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
-        run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
-          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
-          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
-          docker push $AR_IMAGE:${{ github.sha }}
-          docker push $AR_IMAGE:latest
+      # TEMPORARILY DISABLED: Artifact Registry push due to JWT signature issues
+      # - name: Tag & push to Artifact Registry
+      #   env:
+      #     AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+      #   run: |
+      #     docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+      #     docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
+      #     docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
+      #     docker push $AR_IMAGE:${{ github.sha }}
+      #     docker push $AR_IMAGE:latest
 
   # ────────────────────────────────────────────────────────────────────────────
 
