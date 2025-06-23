@@ -145,6 +145,18 @@ def test_backtest_e2e(monkeypatch, tmp_config, tmp_path):
 
     monkeypatch.setattr("crypto_bot.main.BacktestEngine", DummyEngine)
 
+    # StrategyFactory のモック
+    class DummyStrategyFactory:
+        @staticmethod
+        def create_strategy(strategy_config):
+            return DummyMLStrategy("", 0.0, {})
+
+        @staticmethod
+        def create_multi_strategy(strategies_config, combination_mode):
+            return DummyMLStrategy("", 0.0, {})
+
+    monkeypatch.setattr("crypto_bot.main.StrategyFactory", DummyStrategyFactory)
+
     # trade log/agg エクスポート（ファイル生成もモック化して安全に）
     monkeypatch.setattr(
         "crypto_bot.main.export_aggregates", lambda trades, prefix: None

@@ -4,14 +4,12 @@ Model performance monitoring for online learning
 
 import logging
 import threading
-import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
@@ -51,7 +49,7 @@ class ClassificationMonitor(PerformanceMonitorBase):
         self.lock = threading.Lock()
 
     def _default_alerts(self) -> List[PerformanceAlert]:
-        """Default alert thresholds for classification"""
+        """Get default alert thresholds for classification."""
         return [
             PerformanceAlert("accuracy", 0.1, "below", "high", 10),
             PerformanceAlert("accuracy", 0.05, "change", "medium", 5),
@@ -63,7 +61,7 @@ class ClassificationMonitor(PerformanceMonitorBase):
     def update(
         self, y_true: np.ndarray, y_pred: np.ndarray, timestamp: datetime = None
     ) -> Dict[str, float]:
-        """Update monitor with new predictions"""
+        """Update."""
         with self.lock:
             if timestamp is None:
                 timestamp = datetime.now()
@@ -228,7 +226,7 @@ class RegressionMonitor(PerformanceMonitorBase):
         self.lock = threading.Lock()
 
     def _default_alerts(self) -> List[PerformanceAlert]:
-        """Default alert thresholds for regression"""
+        """Get default alert thresholds for regression."""
         return [
             PerformanceAlert("mse", 1.0, "above", "high", 10),
             PerformanceAlert("mae", 0.5, "above", "medium", 5),

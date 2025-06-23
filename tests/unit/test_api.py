@@ -17,4 +17,6 @@ def test_healthz():
     """GET /healthz returns JSON {"status": "ok"} with HTTP 200."""
     response = client.get("/healthz")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    data = response.json()
+    assert "status" in data
+    assert data["status"] == "healthy"

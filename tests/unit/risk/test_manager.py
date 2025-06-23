@@ -85,7 +85,7 @@ def test_risk_manager_init_invalid_params():
         RiskManager(stop_atr_mult=-1.0)
 
 
-def test_calc_stop_price_invalid_inputs():
+def test_calc_stop_price_invalid_inputs(caplog):
     """ストップ価格計算時の無効入力テスト"""
     rm = RiskManager()
 
@@ -97,9 +97,13 @@ def test_calc_stop_price_invalid_inputs():
     with pytest.raises(ValueError, match="ATR series cannot be empty"):
         rm.calc_stop_price(100.0, pd.Series([]))
 
-    # NaNを含むATR
-    with pytest.raises(ValueError, match="Invalid ATR value"):
-        rm.calc_stop_price(100.0, pd.Series([1, 2, np.nan]))
+    # NaNを含むATR - 現在は警告をログに出してデフォルト値を使用する
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        stop_price = rm.calc_stop_price(100.0, pd.Series([1, 2, np.nan]))
+        assert stop_price > 0  # デフォルト値が使用されることを確認
+        assert "ATR value is NaN" in caplog.text
 
     # 負のATR値
     with pytest.raises(ValueError, match="Invalid ATR value"):

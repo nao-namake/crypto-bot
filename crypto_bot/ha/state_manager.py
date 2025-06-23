@@ -11,8 +11,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 try:
@@ -154,7 +153,7 @@ class StateManager:
             if success:
                 logger.info(f"Leader elected: {self.get_instance_key()}")
             else:
-                logger.info(f"Leader election failed, another instance is leader")
+                logger.info("Leader election failed, another instance is leader")
 
             return success
 
@@ -244,6 +243,7 @@ class StateManager:
             if self.is_leader:
                 self.sync_state_to_cloud(status_data)
 
+            logger.info(f"StateManager: 状態保存 {self.local_state_file}")
             return True
 
         except Exception as e:

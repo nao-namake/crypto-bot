@@ -5,11 +5,9 @@ Data drift detection algorithms
 import logging
 import threading
 from collections import deque
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
 
 import numpy as np
-import pandas as pd
 from scipy import stats
 
 from ..online_learning.base import DriftDetectorBase

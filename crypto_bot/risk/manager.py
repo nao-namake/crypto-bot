@@ -66,7 +66,7 @@ class RiskManager:
             latest_atr = atr.iloc[-1]
             if pd.isna(latest_atr):
                 # NaNの場合はデフォルトのATR値を使用（エントリー価格の2%）
-                logger.warning(f"ATR value is NaN, using default 2% of entry price")
+                logger.warning("ATR value is NaN, using default 2% of entry price")
                 latest_atr = entry_price * 0.02
             elif latest_atr < 0:
                 raise ValueError(f"Invalid ATR value: {latest_atr}")
@@ -198,7 +198,7 @@ class RiskManager:
             # 2) ボラティリティ(=ATR/価格) からスケール係数を算出
             latest_atr = atr.iloc[-1]
             if pd.isna(latest_atr):
-                logger.warning("ATR value is NaN in dynamic sizing, using default 2%")
+                logger.warning("ATR value is NaN, using default 2% of entry price")
                 latest_atr = entry_price * 0.02
             elif latest_atr < 0:
                 raise ValueError(f"Invalid ATR value: {latest_atr}")
@@ -228,6 +228,7 @@ class RiskManager:
                 )
                 lot = max_safe_lot
 
+            logger.info("RiskManager: 動的ポジションサイジング完了")
             return lot, stop_price
 
         except Exception as e:

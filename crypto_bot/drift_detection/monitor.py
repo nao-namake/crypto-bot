@@ -5,16 +5,13 @@ Drift monitoring and alerting system
 import json
 import logging
 import threading
-import time
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 
-from .detectors import ADWINDetector, DDMDetector, StatisticalDriftDetector
 from .ensemble import DriftDetectionEnsemble
 
 logger = logging.getLogger(__name__)
@@ -83,7 +80,7 @@ class DriftMonitor:
         logger.info("DriftMonitor initialized")
 
     def _default_config(self) -> Dict[str, Any]:
-        """Default configuration for drift detection"""
+        """Return default configuration for drift detection."""
         return {
             "detectors": ["adwin", "ddm", "statistical"],
             "voting_method": "majority",
@@ -98,12 +95,12 @@ class DriftMonitor:
         }
 
     def add_alert_callback(self, callback: Callable[[Dict[str, Any]], None]):
-        """Add callback function for drift alerts"""
+        """Add callback function for drift alerts."""
         self.alert_callbacks.append(callback)
         logger.info(f"Added alert callback: {callback.__name__}")
 
     def start_monitoring(self, monitoring_interval: float = 1.0):
-        """Start continuous drift monitoring"""
+        """Start continuous drift monitoring."""
         if self.monitoring_active:
             logger.warning("Monitoring already active")
             return
@@ -119,7 +116,7 @@ class DriftMonitor:
         logger.info(f"Started drift monitoring (interval: {monitoring_interval}s)")
 
     def stop_monitoring(self):
-        """Stop drift monitoring"""
+        """Stop drift monitoring."""
         if not self.monitoring_active:
             return
 
@@ -132,7 +129,7 @@ class DriftMonitor:
         logger.info("Stopped drift monitoring")
 
     def _monitoring_loop(self, interval: float):
-        """Main monitoring loop"""
+        """Run the main monitoring loop."""
         while not self.stop_event.wait(interval):
             try:
                 self._check_drift_status()
@@ -147,14 +144,7 @@ class DriftMonitor:
         error: Optional[float] = None,
         performance_metrics: Optional[Dict[str, float]] = None,
     ):
-        """
-        Update monitor with new sample
-
-        Args:
-            sample: Data sample for drift detection
-            error: Error value (0/1 for correct/incorrect)
-            performance_metrics: Current model performance metrics
-        """
+        """Update."""
         with self.lock:
             # Add to buffers
             self.sample_buffer.append(
@@ -323,7 +313,7 @@ class DriftMonitor:
                     )
 
     def _cleanup_old_data(self):
-        """Clean up old monitoring data"""
+        """Clean up old data from buffers."""
         cutoff_time = datetime.now() - timedelta(hours=24)
 
         # Clean drift events older than 24 hours
@@ -441,7 +431,7 @@ class DriftMonitor:
 
 
 def console_alert_callback(alert_data: Dict[str, Any]):
-    """Simple console alert callback"""
+    """Print alert data to console."""
     timestamp = alert_data["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
     print(f"[DRIFT ALERT {timestamp}] {alert_data['message']}")
     if alert_data.get("details"):
@@ -449,7 +439,7 @@ def console_alert_callback(alert_data: Dict[str, Any]):
 
 
 def file_alert_callback(log_file: str):
-    """Create file-based alert callback"""
+    """Return a callback that logs alert data to a file."""
 
     def callback(alert_data: Dict[str, Any]):
         try:
@@ -462,7 +452,7 @@ def file_alert_callback(log_file: str):
 
 
 def email_alert_callback(smtp_config: Dict[str, Any]):
-    """Create email-based alert callback (requires additional setup)"""
+    """Return a callback that sends alert data via email."""
 
     def callback(alert_data: Dict[str, Any]):
         # Placeholder for email implementation

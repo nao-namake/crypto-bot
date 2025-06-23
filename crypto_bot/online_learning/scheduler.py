@@ -3,7 +3,6 @@ Automatic retraining scheduler for online learning
 """
 
 import logging
-import pickle
 import threading
 import time
 from collections import defaultdict, deque
@@ -11,11 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
-
-import numpy as np
-import pandas as pd
-import schedule
+from typing import Any, Callable, Dict, List, Optional
 
 from ..drift_detection.monitor import DriftMonitor
 from .base import OnlineLearnerBase, OnlineLearningConfig
@@ -113,7 +108,7 @@ class RetrainingScheduler:
         logger.info("RetrainingScheduler initialized")
 
     def _setup_default_triggers(self):
-        """Setup default retraining triggers"""
+        """Set up default retraining triggers."""
         if self.config.enable_auto_retrain:
             # Performance degradation trigger
             perf_trigger = RetrainingTrigger(
@@ -224,7 +219,7 @@ class RetrainingScheduler:
         logger.info("Stopped retraining scheduler")
 
     def _scheduler_loop(self, check_interval: float):
-        """Main scheduler loop"""
+        """Run."""
         while not self.stop_event.wait(check_interval):
             try:
                 self._check_triggers()
@@ -234,7 +229,7 @@ class RetrainingScheduler:
                 logger.error(f"Error in scheduler loop: {e}")
 
     def _check_triggers(self):
-        """Check all triggers for all registered models"""
+        """Check all triggers for all registered models."""
         for model_id in self.registered_models.keys():
             for trigger_name, trigger in self.triggers.items():
                 if not trigger.enabled:
@@ -245,15 +240,14 @@ class RetrainingScheduler:
                         self._schedule_retrain(model_id, trigger_name, trigger)
                 except Exception as e:
                     logger.error(
-                        f"Error checking trigger {trigger_name} for model {model_id}: {e}"
+                        f"Error checking trigger {trigger_name} for model "
+                        f"{model_id}: {e}"
                     )
 
     def _should_trigger_retrain(
         self, model_id: str, trigger_name: str, trigger: RetrainingTrigger
     ) -> bool:
         """Check if a specific trigger should fire for a model"""
-        model = self.registered_models[model_id]
-
         # Check cooldown period
         last_retrain = self.last_retrain_times.get(model_id)
         if last_retrain:
@@ -518,45 +512,23 @@ class RetrainingScheduler:
             return False
 
     def get_scheduler_status(self) -> Dict[str, Any]:
-        """Get current scheduler status"""
-        with self.lock:
-            return {
-                "active": self.active,
-                "registered_models": list(self.registered_models.keys()),
-                "enabled_triggers": [
-                    name for name, trigger in self.triggers.items() if trigger.enabled
-                ],
-                "pending_jobs": len(self.pending_jobs),
-                "completed_jobs": len(self.completed_jobs),
-                "failed_jobs": len(self.failed_jobs),
-                "retrain_counts": dict(self.retrain_counts),
-                "last_retrain_times": {
-                    k: v.isoformat() for k, v in self.last_retrain_times.items()
-                },
-            }
+        """Get current scheduler status."""
+        return {
+            "active": self.active,
+            "pending_jobs": len(self.pending_jobs),
+            "registered_models": list(self.registered_models.keys()),
+            "last_retrain_times": self.last_retrain_times.copy(),
+            "retrain_counts": self.retrain_counts.copy(),
+        }
 
     def get_retraining_history(
         self, model_id: Optional[str] = None, hours: int = 24
     ) -> List[Dict[str, Any]]:
-        """Get retraining history for specified model or all models"""
+        """Get retraining history for a model or all models."""
         cutoff_time = datetime.now() - timedelta(hours=hours)
-
         history = []
-        for job_record in self.completed_jobs:
-            if job_record["timestamp"] > cutoff_time:
-                if (
-                    model_id is None
-                    or job_record["job"].metadata["model_id"] == model_id
-                ):
-                    history.append(
-                        {
-                            "job_id": job_record["job"].job_id,
-                            "model_id": job_record["job"].metadata["model_id"],
-                            "trigger_type": job_record["job"].metadata["trigger_type"],
-                            "timestamp": job_record["timestamp"].isoformat(),
-                            "execution_time": job_record["execution_time"],
-                            "samples_processed": job_record["samples_processed"],
-                        }
-                    )
-
-        return sorted(history, key=lambda x: x["timestamp"], reverse=True)
+        for job in self.completed_jobs:
+            if job.timestamp > cutoff_time:
+                if model_id is None or job.model_id == model_id:
+                    history.append(job.to_dict())
+        return history

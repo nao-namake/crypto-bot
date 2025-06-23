@@ -1,11 +1,11 @@
 # crypto_bot/strategy/__init__.py
 
 from .base import StrategyBase
+from .composite import CompositeStrategy
+from .factory import StrategyFactory
 from .ml_strategy import MLStrategy
 from .registry import StrategyRegistry, strategy_registry
-from .factory import StrategyFactory
-from .composite import CompositeStrategy
-from .simple_ma import SimpleMAStrategy, BollingerBandsStrategy
+from .simple_ma import BollingerBandsStrategy, SimpleMAStrategy
 
 __all__ = [
     "StrategyBase",
@@ -15,5 +15,5 @@ __all__ = [
     "StrategyFactory",
     "CompositeStrategy",
     "SimpleMAStrategy",
-    "BollingerBandsStrategy"
+    "BollingerBandsStrategy",
 ]

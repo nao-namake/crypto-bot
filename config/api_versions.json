@@ -1,7 +1,7 @@
 {
   "bybit": {
-    "last_tested_ccxt_version": "4.2.25",
-    "last_checked": "2024-12-22T10:00:00Z",
+    "last_tested_ccxt_version": "4.4.88",
+    "last_checked": "2025-06-23T20:00:00Z",
     "api_features": ["spot", "future", "option", "websocket"],
     "api_version": "5.0",
     "testnet_support": true,
@@ -15,8 +15,8 @@
     }
   },
   "bitbank": {
-    "last_tested_ccxt_version": "4.2.25",
-    "last_checked": "2024-12-22T10:00:00Z",
+    "last_tested_ccxt_version": "4.4.88",
+    "last_checked": "2025-06-23T20:00:00Z",
     "api_features": ["spot"],
     "api_version": "1.0",
     "testnet_support": false,
@@ -29,8 +29,8 @@
     }
   },
   "bitflyer": {
-    "last_tested_ccxt_version": "4.2.25",
-    "last_checked": "2024-12-22T10:00:00Z",
+    "last_tested_ccxt_version": "4.4.88",
+    "last_checked": "2025-06-23T20:00:00Z",
     "api_features": ["spot", "future"],
     "api_version": "1.0",
     "testnet_support": false,
@@ -43,8 +43,8 @@
     }
   },
   "okcoinjp": {
-    "last_tested_ccxt_version": "4.2.25",
-    "last_checked": "2024-12-22T10:00:00Z",
+    "last_tested_ccxt_version": "4.4.88",
+    "last_checked": "2025-06-23T20:00:00Z",
     "api_features": ["spot"],
     "api_version": "3.0",
     "testnet_support": false,

@@ -13,6 +13,7 @@ from typing import Optional
 import pandas as pd
 
 from crypto_bot.execution.engine import Position, Signal
+
 from .base import StrategyBase
 
 logger = logging.getLogger(__name__)
@@ -156,7 +157,8 @@ class BollingerBandsStrategy(StrategyBase):
         position_exists = position is not None and position.exist
 
         logger.debug(
-            f"Bollinger Bands - Upper: {current_upper:.2f}, SMA: {current_sma:.2f}, Lower: {current_lower:.2f}"
+            f"Bollinger Bands - Upper: {current_upper:.2f}, "
+            f"SMA: {current_sma:.2f}, Lower: {current_lower:.2f}"
         )
         logger.debug(f"Current price: {current_price:.2f}")
 

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List
 
 from .base import StrategyBase
 
@@ -197,7 +197,8 @@ class StrategyFactory:
                 and param_name != "config"
             ):
                 errors.append(
-                    f"Required parameter '{param_name}' is missing for strategy '{strategy_name}'"
+                    f"Required parameter '{param_name}' is missing for "
+                    f"strategy '{strategy_name}'"
                 )
 
         return errors

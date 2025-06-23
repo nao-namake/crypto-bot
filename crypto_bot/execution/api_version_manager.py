@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import ccxt
-import requests
 from packaging import version
 
 
@@ -116,12 +115,14 @@ class ApiVersionManager:
                     self._update_exchange_info(exchange_id, current_version)
                     return (
                         True,
-                        f"Compatible version upgrade: {last_tested_version} -> {current_version}",
+                        f"Compatible version upgrade: {last_tested_version} -> "
+                        f"{current_version}",
                     )
                 else:
                     return (
                         False,
-                        f"Major version change detected: {last_tested_version} -> {current_version}. Manual verification required.",
+                        f"Major version change detected: {last_tested_version} -> "
+                        f"{current_version}. Manual verification required.",
                     )
 
             return True, f"Using tested version {current_version}"
@@ -236,7 +237,6 @@ class ApiVersionManager:
             }
 
         # 3. 設定ファイルとの整合性チェック
-        stored_info = self.version_config.get(exchange_id, {})
         supported_info = self.supported_exchanges.get(exchange_id, {})
 
         validation_result["checks"]["configuration"] = {

@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple, Optional
 from enum import Enum
+from typing import List, Optional, Tuple
 
 import pandas as pd
 
 from crypto_bot.execution.engine import Position, Signal
+
 from .base import StrategyBase
 
 logger = logging.getLogger(__name__)
@@ -58,11 +59,13 @@ class CompositeStrategy(StrategyBase):
         ]
 
         logger.info(
-            f"Initialized CompositeStrategy with {len(strategies)} strategies, mode: {combination_mode}"
+            f"Initialized CompositeStrategy with {len(strategies)} strategies, "
+            f"mode: {combination_mode}"
         )
         for i, (strategy, weight) in enumerate(self.normalized_strategies):
             logger.info(
-                f"  Strategy {i+1}: {strategy.__class__.__name__} (weight: {weight:.3f})"
+                f"  Strategy {i+1}: {strategy.__class__.__name__} "
+                f"(weight: {weight:.3f})"
             )
 
     def logic_signal(

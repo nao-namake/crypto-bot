@@ -35,8 +35,8 @@ from crypto_bot.ml.optimizer import train_best_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
-from crypto_bot.strategy.ml_strategy import MLStrategy
 from crypto_bot.strategy.factory import StrategyFactory
+from crypto_bot.strategy.ml_strategy import MLStrategy
 
 
 # --------------------------------------------------------------------------- #
@@ -638,12 +638,10 @@ def online_train(
     drift_detection: bool,
 ):
     """Start online learning training"""
+    from crypto_bot.drift_detection.monitor import DriftMonitor
     from crypto_bot.online_learning.base import OnlineLearningConfig
     from crypto_bot.online_learning.models import IncrementalMLModel
     from crypto_bot.online_learning.monitoring import OnlinePerformanceTracker
-    from crypto_bot.drift_detection.monitor import DriftMonitor
-
-    cfg = load_config(config_path)
 
     # Create online learning config
     online_config = OnlineLearningConfig(
@@ -651,13 +649,12 @@ def online_train(
     )
 
     # Initialize components
-    model = IncrementalMLModel(online_config, model_type=model_type)
+    IncrementalMLModel(online_config, model_type=model_type)
 
-    performance_tracker = None
     drift_monitor = None
 
     if monitor:
-        performance_tracker = OnlinePerformanceTracker(
+        OnlinePerformanceTracker(
             model_type="classification" if "classif" in model_type else "regression"
         )
 
@@ -725,8 +722,6 @@ def drift_monitor_cmd(config_path: str, log_file: str, duration: int):
     """Start drift monitoring system"""
     from crypto_bot.drift_detection.monitor import DriftMonitor, console_alert_callback
 
-    cfg = load_config(config_path)
-
     # Initialize drift monitor
     monitor = DriftMonitor(log_file=log_file)
     monitor.add_alert_callback(console_alert_callback)
@@ -764,10 +759,9 @@ def drift_monitor_cmd(config_path: str, log_file: str, duration: int):
 @click.option("--start/--stop", default=True, help="Start or stop the scheduler")
 def retrain_schedule(config_path: str, model_id: str, trigger: tuple, start: bool):
     """Manage automatic retraining scheduler"""
-    from crypto_bot.online_learning.scheduler import RetrainingScheduler
     from crypto_bot.online_learning.base import OnlineLearningConfig
+    from crypto_bot.online_learning.scheduler import RetrainingScheduler
 
-    cfg = load_config(config_path)
     online_config = OnlineLearningConfig()
 
     scheduler = RetrainingScheduler(online_config)

@@ -8,15 +8,13 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
 try:
-    from river import ensemble, linear_model, metrics
-    from river import preprocessing as river_preprocessing
-    from river import tree
+    from river import ensemble, linear_model, tree
 
     RIVER_AVAILABLE = True
 except ImportError:
@@ -24,10 +22,8 @@ except ImportError:
     logging.warning("River not available. Install with: pip install river")
 
 try:
-    from sklearn.ensemble import RandomForestClassifier
     from sklearn.linear_model import SGDClassifier, SGDRegressor
     from sklearn.preprocessing import StandardScaler
-    from sklearn.tree import DecisionTreeClassifier
 
     SKLEARN_AVAILABLE = True
 except ImportError:

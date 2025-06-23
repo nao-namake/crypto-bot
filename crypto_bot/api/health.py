@@ -326,22 +326,40 @@ async def metrics():
         trading_status = health_checker.check_trading_status()
         basic = health_checker.check_basic_health()
 
-        metrics_text = f"""# HELP crypto_bot_uptime_seconds Total uptime in seconds
-# TYPE crypto_bot_uptime_seconds counter
-crypto_bot_uptime_seconds{{region="{basic['region']}",instance="{basic['instance_id']}"}} {basic['uptime_seconds']}
+        region = basic["region"]
+        instance_id = basic["instance_id"]
+        uptime_seconds = basic["uptime_seconds"]
+        total_profit = trading_status.get("total_profit", 0)
+        trade_count = trading_status.get("trade_count", 0)
+        health_status = (
+            1
+            if trading_status.get("status") == "healthy"
+            else 0.5 if trading_status.get("status") == "warning" else 0
+        )
 
-# HELP crypto_bot_total_profit Total profit/loss
-# TYPE crypto_bot_total_profit gauge
-crypto_bot_total_profit{{region="{basic['region']}",instance="{basic['instance_id']}"}} {trading_status.get('total_profit', 0)}
-
-# HELP crypto_bot_trade_count Total number of trades
-# TYPE crypto_bot_trade_count counter
-crypto_bot_trade_count{{region="{basic['region']}",instance="{basic['instance_id']}"}} {trading_status.get('trade_count', 0)}
-
-# HELP crypto_bot_health_status Health status (1=healthy, 0.5=warning, 0=unhealthy)
-# TYPE crypto_bot_health_status gauge
-crypto_bot_health_status{{region="{basic['region']}",instance="{basic['instance_id']}"}} {1 if trading_status.get('status') == 'healthy' else 0.5 if trading_status.get('status') == 'warning' else 0}
-"""
+        metrics_lines = [
+            "# HELP crypto_bot_uptime_seconds Total uptime in seconds",
+            "# TYPE crypto_bot_uptime_seconds counter",
+            f'crypto_bot_uptime_seconds{{region="{region}",'
+            f'instance="{instance_id}"}} {uptime_seconds}',
+            "",
+            "# HELP crypto_bot_total_profit Total profit/loss",
+            "# TYPE crypto_bot_total_profit gauge",
+            f'crypto_bot_total_profit{{region="{region}",'
+            f'instance="{instance_id}"}} {total_profit}',
+            "",
+            "# HELP crypto_bot_trade_count Total number of trades",
+            "# TYPE crypto_bot_trade_count counter",
+            f'crypto_bot_trade_count{{region="{region}",'
+            f'instance="{instance_id}"}} {trade_count}',
+            "",
+            "# HELP crypto_bot_health_status Health status "
+            "(1=healthy, 0.5=warning, 0=unhealthy)",
+            "# TYPE crypto_bot_health_status gauge",
+            f'crypto_bot_health_status{{region="{region}",'
+            f'instance="{instance_id}"}} {health_status}',
+        ]
+        metrics_text = "\n".join(metrics_lines)
 
         return Response(content=metrics_text, media_type="text/plain")
     except Exception as e:

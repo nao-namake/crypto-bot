@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-import logging
-from typing import Dict, List, Type, Any
 import importlib
 import importlib.util
 import inspect
+import logging
 from pathlib import Path
+from typing import Dict, List, Type
 
 from .base import StrategyBase
 
@@ -66,7 +66,8 @@ class StrategyRegistry:
         """
         if name not in self._strategies:
             raise KeyError(
-                f"Strategy '{name}' not found. Available strategies: {list(self._strategies.keys())}"
+                f"Strategy '{name}' not found. Available strategies: "
+                f"{list(self._strategies.keys())}"
             )
 
         return self._strategies[name]
