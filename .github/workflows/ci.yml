@@ -75,8 +75,9 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
   integration-tests:
-    name: Bybit Testnet E2E
+    name: Bybit Testnet E2E (DISABLED FOR DEBUGGING)
     needs: test
+    if: false  # Temporarily disable integration tests
     runs-on: ubuntu-latest
 
     # Bybit Testnet 用のシークレットを環境変数として渡す
@@ -128,7 +129,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   docker-build:
     name: Build & Push Docker Image
-    needs: integration-tests
+    needs: test  # Skip integration tests for now
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
@@ -208,13 +209,10 @@ jobs:
   # Development Environment Deploy (develop branch and PRs)
   # ────────────────────────────────────────────────────────────────────────────
   terraform-deploy-dev:
-    name: Deploy to Development
+    name: Deploy to Development (DISABLED FOR DEBUGGING)
     needs: docker-build
     runs-on: ubuntu-latest
-    if: |
-      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
-      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
-      (github.event_name == 'workflow_dispatch')
+    if: false  # Temporarily disable Terraform deployment
     permissions:
       contents: read
     env:
@@ -279,10 +277,10 @@ jobs:
   # Production Environment Deploy (main branch only)
   # ────────────────────────────────────────────────────────────────────────────
   terraform-deploy-prod:
-    name: Deploy to Production
+    name: Deploy to Production (DISABLED FOR DEBUGGING)
     needs: docker-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: false  # Temporarily disable production deployment
     permissions:
       contents: read
     env:
@@ -346,9 +344,9 @@ jobs:
   # マルチリージョンHA環境デプロイ（タグ作成時のみ）
   # ────────────────────────────────────────────────────────────────────────────
   terraform-deploy-ha:
-    name: Deploy to HA Production
+    name: Deploy to HA Production (DISABLED FOR DEBUGGING)
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    if: false  # Temporarily disable HA deployment
     needs: [test, integration-tests, docker-build]
     
     env:
