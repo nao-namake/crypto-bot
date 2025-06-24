@@ -175,6 +175,7 @@ jobs:
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
+            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -262,6 +263,7 @@ jobs:
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
+            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -329,6 +331,7 @@ jobs:
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
+            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
       - name: Set up gcloud for Production
         uses: google-github-actions/setup-gcloud@v2
@@ -378,6 +381,7 @@ jobs:
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
+            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
       - name: Set up Cloud SDK for HA
         uses: google-github-actions/setup-gcloud@v2
