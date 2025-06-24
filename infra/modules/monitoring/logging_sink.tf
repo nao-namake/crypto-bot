@@ -5,7 +5,7 @@
 
 # BigQuery データセット作成
 resource "google_bigquery_dataset" "crypto_bot_logs" {
-  dataset_id = "${var.service_name}_logs"
+  dataset_id = replace("${var.service_name}_logs", "-", "_")
   project    = var.project_id
   location   = "asia-northeast1"
 
