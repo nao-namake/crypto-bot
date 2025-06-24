@@ -183,6 +183,25 @@ jobs:
       - name: Configure docker for Artifact Registry
         run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
+      - name: Create Artifact Registry repository if not exists
+        run: |
+          echo "Checking if Artifact Registry repository exists..."
+          if ! gcloud artifacts repositories describe crypto-bot-repo --location=asia-northeast1 --format="value(name)" 2>/dev/null; then
+            echo "Creating Artifact Registry repository..."
+            gcloud artifacts repositories create crypto-bot-repo \
+              --repository-format=docker \
+              --location=asia-northeast1 \
+              --description="Docker repository for crypto-bot application"
+          else
+            echo "Artifact Registry repository already exists"
+          fi
+
+      - name: Test Artifact Registry authentication
+        run: |
+          echo "Testing Artifact Registry authentication..."
+          gcloud artifacts repositories list --location=asia-northeast1
+          echo "Authentication test completed"
+
       # ---------- Build & push to GHCR with cache optimization ----------
       - name: Build & push to GHCR
         id: build
