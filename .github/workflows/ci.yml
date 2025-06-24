@@ -347,6 +347,7 @@ jobs:
             https://www.googleapis.com/auth/devstorage.read_write
 
       - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Verify GCP authentication for Terraform
         run: |
@@ -404,6 +405,7 @@ jobs:
             https://www.googleapis.com/auth/devstorage.read_write
 
       - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
       - name: Verify GCP authentication for HA Terraform
         run: |
