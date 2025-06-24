@@ -1,6 +1,5 @@
 project_id             = "my-crypto-bot-project"
 region                 = "asia-northeast1"
-artifact_registry_repo = "crypto-bot-repo"
 service_name           = "crypto-bot-dev"
 image_name             = "crypto-bot"
 alert_email            = "s00198532@gmail.com"

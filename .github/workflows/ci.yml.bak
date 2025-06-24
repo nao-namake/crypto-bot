@@ -142,6 +142,7 @@ jobs:
     env:
       CR_PAT: ${{ secrets.CR_PAT }}
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -186,6 +187,16 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
+      # ---------- Tag & push copy to Artifact Registry ----------
+      - name: Tag & push to Artifact Registry
+        env:
+          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
+          docker push $AR_IMAGE:${{ github.sha }}
+          docker push $AR_IMAGE:latest
 
   # ────────────────────────────────────────────────────────────────────────────
 
@@ -209,6 +220,7 @@ jobs:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
       # Development environment specific settings
+      TF_VAR_artifact_registry_repo: "crypto-bot-repo"
       TF_VAR_service_name: "crypto-bot-dev"
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "paper"
@@ -276,6 +288,7 @@ jobs:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
       # Production environment specific settings
+      TF_VAR_artifact_registry_repo: "crypto-bot-repo"
       TF_VAR_service_name: "crypto-bot-prod"
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "live"
@@ -384,6 +397,7 @@ jobs:
           enable_ssl              = false
           enable_public_access    = true
           enable_uptime_check     = true
+          artifact_registry_repo  = "crypto-bot"
           service_name            = "crypto-bot-ha"
           image_name              = "crypto-bot"
           image_tag               = "${{ steps.tag.outputs.VERSION }}"
