@@ -20,13 +20,14 @@ module "services" {
 }
 
 module "app" {
-  source       = "../../modules/crypto_bot_app"
-  project_id   = var.project_id
-  region       = var.region
-  service_name = var.service_name
-  image_name   = var.image_name
-  image_tag    = var.image_tag
-  mode         = var.mode
+  source                 = "../../modules/crypto_bot_app"
+  project_id             = var.project_id
+  region                 = var.region
+  artifact_registry_repo = var.artifact_registry_repo
+  service_name           = var.service_name
+  image_name             = var.image_name
+  image_tag              = var.image_tag
+  mode                   = var.mode
 }
 
 module "monitoring" {
