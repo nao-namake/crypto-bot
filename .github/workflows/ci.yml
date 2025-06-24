@@ -179,15 +179,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-
-      - name: Verify and refresh GCP authentication
-        run: |
-          echo "Checking current authentication..."
-          gcloud auth list --format="table(account,status)"
-          echo "Testing GCP access..."
-          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-          echo "Authentication verified successfully"
-
       - name: Configure docker for Artifact Registry
         run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
@@ -276,15 +267,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
 
-      - name: Verify GCP authentication for Development Terraform
-        run: |
-          echo "Verifying GCP authentication..."
-          gcloud auth list --format="table(account,status)"
-          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-          echo "Testing Cloud Storage access..."
-          gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
-          echo "GCP authentication verified for Terraform"
-
       - name: Set up gcloud for Development
         uses: google-github-actions/setup-gcloud@v2
 
@@ -351,15 +333,6 @@ jobs:
       - name: Set up gcloud for Production
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Verify GCP authentication for Production Terraform
-        run: |
-          echo "Verifying GCP authentication..."
-          gcloud auth list --format="table(account,status)"
-          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-          echo "Testing Cloud Storage access..."
-          gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
-          echo "GCP authentication verified for Terraform"
-
       - name: Set up gcloud for Production Deploy
         uses: google-github-actions/setup-gcloud@v2
 
@@ -408,13 +381,6 @@ jobs:
 
       - name: Set up Cloud SDK for HA
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Verify GCP authentication for HA Terraform
-        run: |
-          echo "Verifying GCP authentication for HA..."
-          gcloud auth list --format="table(account,status)"
-          gcloud projects describe ${{ vars.GCP_PROJECT_ID }} || gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-          echo "GCP authentication verified for HA Terraform"
 
       - name: Set up Cloud SDK for HA Deploy
         uses: google-github-actions/setup-gcloud@v2
