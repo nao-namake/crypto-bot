@@ -186,7 +186,9 @@ jobs:
           gcloud auth list --format="table(account,status)"
           echo "Testing GCP access..."
           gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
-          echo "Authentication verified successfully"      - name: Configure docker for Artifact Registry
+          echo "Authentication verified successfully"
+
+      - name: Configure docker for Artifact Registry
         run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
       # ---------- Build & push to GHCR with cache optimization ----------
@@ -274,7 +276,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
 
-      - name: Verify GCP authentication for Terraform
+      - name: Verify GCP authentication for Development Terraform
         run: |
           echo "Verifying GCP authentication..."
           gcloud auth list --format="table(account,status)"
@@ -283,19 +285,19 @@ jobs:
           gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
           echo "GCP authentication verified for Terraform"
 
-      - name: Set up gcloud  
+      - name: Set up gcloud for Development
         uses: google-github-actions/setup-gcloud@v2
 
       # ---------- Terraform ----------
-      - name: Set up Terraform
+      - name: Set up Terraform for Development
         uses: hashicorp/setup-terraform@v3.1.1
         with:
           terraform_version: 1.8.5
 
-      - name: Terraform Init
+      - name: Terraform Init (Development)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
 
-      - name: Terraform Plan
+      - name: Terraform Plan (Development)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
 
       - name: Terraform Apply (Development)
@@ -346,10 +348,10 @@ jobs:
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
 
-      - name: Set up gcloud
+      - name: Set up gcloud for Production
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Verify GCP authentication for Terraform
+      - name: Verify GCP authentication for Production Terraform
         run: |
           echo "Verifying GCP authentication..."
           gcloud auth list --format="table(account,status)"
@@ -358,19 +360,19 @@ jobs:
           gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
           echo "GCP authentication verified for Terraform"
 
-      - name: Set up gcloud
+      - name: Set up gcloud for Production Deploy
         uses: google-github-actions/setup-gcloud@v2
 
       # ---------- Terraform ----------
-      - name: Set up Terraform
+      - name: Set up Terraform for Production
         uses: hashicorp/setup-terraform@v3.1.1
         with:
           terraform_version: 1.8.5
 
-      - name: Terraform Init
+      - name: Terraform Init (Production)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
 
-      - name: Terraform Plan
+      - name: Terraform Plan (Production)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
 
       - name: Terraform Apply (Production)
@@ -404,7 +406,7 @@ jobs:
             https://www.googleapis.com/auth/cloud-platform
             https://www.googleapis.com/auth/devstorage.read_write
 
-      - name: Set up Cloud SDK
+      - name: Set up Cloud SDK for HA
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Verify GCP authentication for HA Terraform
@@ -414,10 +416,10 @@ jobs:
           gcloud projects describe ${{ vars.GCP_PROJECT_ID }} || gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
           echo "GCP authentication verified for HA Terraform"
 
-      - name: Set up Cloud SDK
+      - name: Set up Cloud SDK for HA Deploy
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Setup Terraform
+      - name: Setup Terraform for HA
         uses: hashicorp/setup-terraform@v3.1.1
         with:
           terraform_version: 1.8.5
@@ -426,7 +428,7 @@ jobs:
         id: tag
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Terraform Init
+      - name: Terraform Init (HA)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} init
 
       - name: Create terraform.tfvars
@@ -458,10 +460,10 @@ jobs:
           loss_threshold          = -5000
           EOF
 
-      - name: Terraform Plan
+      - name: Terraform Plan (HA)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
 
-      - name: Terraform Apply
+      - name: Terraform Apply (HA)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
       
       - name: Get Load Balancer IP
