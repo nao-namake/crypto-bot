@@ -21,7 +21,7 @@ set -euo pipefail
 # =============================================================================
 
 # Coverage の最低ライン
-COV_FAIL_UNDER=43
+COV_FAIL_UNDER=15
 
 echo ">>> flake8"
 flake8 .

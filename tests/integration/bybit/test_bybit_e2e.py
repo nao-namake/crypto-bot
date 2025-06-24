@@ -53,10 +53,11 @@ def test_spot_place_and_cancel_order(spot_client):
     assert bid_price, "Failed to get bid price from ticker"
     price = bid_price * 0.99
 
-    # 最小数量取得 → 1.1倍
+    # 最小数量取得 → 5倍（注文価値を確実に最小値以上にする）
     market = spot_client._exchange.markets[symbol]
     min_amount = market["limits"]["amount"]["min"]
-    amount = float(min_amount) * 1.1
+    min_cost = market["limits"]["cost"]["min"] or 10  # 最小注文価値のフォールバック
+    amount = max(float(min_amount) * 5, min_cost / price * 1.1)
 
     order = spot_client.create_order(
         symbol=symbol,
