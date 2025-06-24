@@ -171,11 +171,22 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          access_token_lifetime: 7200s
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/devstorage.read_write
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure docker for Artifact Registry
+
+      - name: Verify and refresh GCP authentication
+        run: |
+          echo "Checking current authentication..."
+          gcloud auth list --format="table(account,status)"
+          echo "Testing GCP access..."
+          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
+          echo "Authentication verified successfully"      - name: Configure docker for Artifact Registry
         run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
       # ---------- Build & push to GHCR with cache optimization ----------
@@ -199,16 +210,15 @@ jobs:
             BUILDKIT_INLINE_CACHE=1
 
       # ---------- Tag & push copy to Artifact Registry ----------
-      # TEMPORARILY DISABLED: Artifact Registry push due to JWT signature issues
-      # - name: Tag & push to Artifact Registry
-      #   env:
-      #     AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
-      #   run: |
-      #     docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
-      #     docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
-      #     docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
-      #     docker push $AR_IMAGE:${{ github.sha }}
-      #     docker push $AR_IMAGE:latest
+      - name: Tag & push to Artifact Registry
+        env:
+          AR_IMAGE: asia-northeast1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:${{ github.sha }}
+          docker tag ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }} $AR_IMAGE:latest
+          docker push $AR_IMAGE:${{ github.sha }}
+          docker push $AR_IMAGE:latest
 
   # ────────────────────────────────────────────────────────────────────────────
 
@@ -255,8 +265,25 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          access_token_lifetime: 7200s
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/devstorage.read_write
 
       - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+
+      - name: Verify GCP authentication for Terraform
+        run: |
+          echo "Verifying GCP authentication..."
+          gcloud auth list --format="table(account,status)"
+          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
+          echo "Testing Cloud Storage access..."
+          gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
+          echo "GCP authentication verified for Terraform"
+
+      - name: Set up gcloud  
         uses: google-github-actions/setup-gcloud@v2
 
       # ---------- Terraform ----------
@@ -314,6 +341,21 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          access_token_lifetime: 7200s
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/devstorage.read_write
+
+      - name: Set up gcloud
+
+      - name: Verify GCP authentication for Terraform
+        run: |
+          echo "Verifying GCP authentication..."
+          gcloud auth list --format="table(account,status)"
+          gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
+          echo "Testing Cloud Storage access..."
+          gsutil ls gs://my-crypto-bot-tfstate/ || echo "State bucket verification complete"
+          echo "GCP authentication verified for Terraform"
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -355,8 +397,20 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: github-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          access_token_lifetime: 7200s
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/devstorage.read_write
+
+      - name: Set up Cloud SDK
+
+      - name: Verify GCP authentication for HA Terraform
+        run: |
+          echo "Verifying GCP authentication for HA..."
+          gcloud auth list --format="table(account,status)"
+          gcloud projects describe ${{ vars.GCP_PROJECT_ID }} || gcloud projects describe ${{ secrets.GCP_PROJECT_ID }}
+          echo "GCP authentication verified for HA Terraform"
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
