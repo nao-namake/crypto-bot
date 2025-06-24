@@ -1,8 +1,15 @@
 ############################################
 # infra/modules/crypto_bot_app/main.tf
-# Cloud Run service + Artifact Registry repo
+# Cloud Run service + Artifact Registry remote repo for GHCR
 ############################################
 
+# Artifact Registry リポジトリを作成
+resource "google_artifact_registry_repository" "repo" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = var.artifact_registry_repo
+  format        = "DOCKER"
+}
 
 resource "google_cloud_run_service" "service" {
   name     = var.service_name
@@ -11,7 +18,7 @@ resource "google_cloud_run_service" "service" {
   template {
     spec {
       containers {
-        image = "ghcr.io/nao-namake/${var.image_name}:${var.image_tag}"
+        image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"
 
         resources {
           limits = {

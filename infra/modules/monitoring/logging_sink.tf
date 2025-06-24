@@ -46,7 +46,7 @@ resource "google_bigquery_dataset_iam_member" "log_sink_writer" {
   member     = google_logging_project_sink.crypto_bot_bq_sink.writer_identity
 }
 
-# ログ分析用の BigQuery ビュー作成
+# ログ分析用の BigQuery ビュー作成（ログテーブルが作成された後に作成されるようignore_changes設定）
 resource "google_bigquery_table" "error_logs_view" {
   dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
   table_id   = "error_logs_view"
@@ -75,10 +75,14 @@ resource "google_bigquery_table" "error_logs_view" {
     use_legacy_sql = false
   }
 
+  lifecycle {
+    ignore_changes = [view[0].query]
+  }
+
   depends_on = [google_bigquery_dataset_iam_member.log_sink_writer]
 }
 
-# 性能分析用ビュー
+# 性能分析用ビュー（ログテーブルが作成された後に作成されるようignore_changes設定）
 resource "google_bigquery_table" "performance_view" {
   dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
   table_id   = "performance_view"
@@ -110,6 +114,10 @@ resource "google_bigquery_table" "performance_view" {
       ORDER BY date DESC, hour DESC
     EOT
     use_legacy_sql = false
+  }
+
+  lifecycle {
+    ignore_changes = [view[0].query]
   }
 
   depends_on = [google_bigquery_dataset_iam_member.log_sink_writer]

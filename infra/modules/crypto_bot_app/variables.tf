@@ -13,6 +13,11 @@ variable "region" {
   description = "Cloud Run / Artifact Registry をデプロイするリージョン (例: asia‑northeast1)"
 }
 
+variable "artifact_registry_repo" {
+  type        = string
+  description = "Docker イメージを格納する Artifact Registry リポジトリ名"
+  default     = "crypto-bot-repo"
+}
 
 variable "service_name" {
   type        = string
