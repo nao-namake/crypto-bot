@@ -1,5 +1,5 @@
 #######################################
-# プール
+# プール（既存リソースの管理を引き継ぎ）
 #######################################
 resource "google_iam_workload_identity_pool" "pool" {
   project                   = var.project_id
@@ -8,7 +8,7 @@ resource "google_iam_workload_identity_pool" "pool" {
 }
 
 #######################################
-# プロバイダ（GitHub OIDC, repository 条件付き）
+# プロバイダ（既存リソースの管理を引き継ぎ）
 #######################################
 resource "google_iam_workload_identity_pool_provider" "provider" {
   project                            = var.project_id
@@ -22,9 +22,6 @@ resource "google_iam_workload_identity_pool_provider" "provider" {
     "attribute.repository" = "assertion.repository"
     "attribute.ref"        = "assertion.ref"
   }
-  # NOTE: Keep using the variable so other environments can override.
-  # default value is defined in variables.tf
-  # Hardened: Only allow main branch deployments
   attribute_condition = "attribute.repository == \"${var.github_repo}\" && attribute.ref == \"refs/heads/main\""
 
   oidc { issuer_uri = "https://token.actions.githubusercontent.com" }

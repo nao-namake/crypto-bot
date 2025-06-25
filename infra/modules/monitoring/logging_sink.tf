@@ -3,7 +3,7 @@
 # Cloud Run のログを BigQuery に転送するための設定
 # =============================================================================
 
-# BigQuery データセット作成
+# BigQuery データセット（既存リソースの管理を引き継ぎ）
 resource "google_bigquery_dataset" "crypto_bot_logs" {
   dataset_id = replace("${var.service_name}_logs", "-", "_")
   project    = var.project_id

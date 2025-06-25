@@ -3,12 +3,11 @@
 # Cloud Run service + Artifact Registry remote repo for GHCR
 ############################################
 
-# Artifact Registry リポジトリを作成
-resource "google_artifact_registry_repository" "repo" {
+# Artifact Registry リポジトリを参照（既存のものを使用）
+data "google_artifact_registry_repository" "repo" {
   project       = var.project_id
   location      = var.region
   repository_id = var.artifact_registry_repo
-  format        = "DOCKER"
 }
 
 resource "google_cloud_run_service" "service" {
