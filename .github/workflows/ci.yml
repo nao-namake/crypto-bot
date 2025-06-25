@@ -137,6 +137,7 @@ jobs:
     permissions:
       id-token: write          # required for OIDC authentication to GCP
       contents: read
+      packages: write          # required for pushing to GHCR
 
     # GitHub Container Registry 用のトークンを流し込む
     env:
@@ -163,7 +164,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.CR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
         # GHCR への認証
 
 
@@ -171,7 +172,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
