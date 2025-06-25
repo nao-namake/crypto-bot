@@ -19,13 +19,12 @@ COPY pyproject.toml setup.py requirements*.txt ./
 
 # 依存関係の事前インストール（キャッシュ最適化）
 RUN pip install --upgrade pip \
- && pip install --no-cache-dir build wheel \
- && pip wheel --no-cache-dir --prefer-binary -w /wheels ".[api]"
+ && pip install --no-cache-dir build wheel
 
 # プロジェクト全体をコピー（.dockerignore で不要ファイルは除外）
 COPY . .
 
-# 最終的なwheelビルド（変更が少ない場合はキャッシュ効果）
+# wheelビルド（一度だけ実行）
 RUN pip wheel --no-cache-dir --prefer-binary -w /wheels ".[api]" \
  && rm -rf ~/.cache/pip
 
@@ -58,9 +57,6 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # ──────────────────────────────────────────────
-# ① FastAPI で /healthz を提供
-# ② Bot 本体を起動
-#    → 並列実行用に `&` でバックグラウンド化
+# FastAPI で /healthz を提供（シンプルな起動）
 # ──────────────────────────────────────────────
-CMD uvicorn crypto_bot.api:app --host 0.0.0.0 --port "$PORT" & \
-    python -m crypto_bot.main
+CMD ["uvicorn", "crypto_bot.api:app", "--host", "0.0.0.0", "--port", "8080"]
