@@ -2,19 +2,20 @@
 # .github/workflows/ci.yml
 #   - Push / PR 時に Lint・Format・UnitTest（coverage）を実行
 #   - Bybit Testnet 用 E2E テスト（API キーが無ければスキップ）
-#   - Docker イメージのビルド & GitHub Container Registry (GHCR) へのプッシュ
-#   - GCP Cloud Run への自動デプロイ
+#   - Docker イメージのビルド & Artifact Registry へのプッシュ
+#   - GCP Cloud Run への自動デプロイ（Terraform使用）
 # =============================================================================
 name: CI
 
 on:
   push:
-    branches: [ main, develop ]
-    # セマンティックバージョニングタグ（vX.Y.Z）をプッシュしたときにも起動
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
   workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -59,11 +60,10 @@ jobs:
           pip install -r requirements-dev.txt
         # プロジェクト本体と開発用依存をインストール
 
-      - name: Run unit tests only (emergency deployment)
+      - name: Run quality checks & tests
         run: |
-          echo ">>> Emergency deployment - skipping all lint checks"
-          echo ">>> pytest + coverage"
-          python -m pytest tests/unit --cov=crypto_bot --cov-report=term-missing --cov-report=html --cov-fail-under=15
+          echo ">>> Running full quality checks"
+          bash scripts/checks.sh
         # scripts/checks.sh に書かれた flake8/isort/black/pytest＋coverage コマンドを一括実行
 
       - name: Upload coverage to Codecov
@@ -178,6 +178,19 @@ jobs:
 
       - name: Configure docker for Artifact Registry
         run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
+
+      - name: Create Artifact Registry repository if not exists
+        run: |
+          echo "Checking if Artifact Registry repository exists..."
+          if ! gcloud artifacts repositories describe crypto-bot-repo --location=asia-northeast1 --format="value(name)" 2>/dev/null; then
+            echo "Creating Artifact Registry repository..."
+            gcloud artifacts repositories create crypto-bot-repo \
+              --repository-format=docker \
+              --location=asia-northeast1 \
+              --description="Docker repository for crypto-bot application"
+          else
+            echo "Artifact Registry repository already exists"
+          fi
 
       # ---------- Build & push to GHCR and Artifact Registry ----------
       - name: Build & push to registries
