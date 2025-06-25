@@ -136,6 +136,7 @@ jobs:
       (github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
+      id-token: write
 
     # Docker build and test environment
     env:
@@ -159,7 +160,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
           access_token_lifetime: 7200s
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
@@ -230,6 +232,7 @@ jobs:
       (github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
+      id-token: write
     env:
       # Docker image pushed in the previous job
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
@@ -259,7 +262,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
           access_token_lifetime: 7200s
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
@@ -298,6 +302,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
+      id-token: write
     env:
       # Docker image pushed in the previous job
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
@@ -327,7 +332,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
           access_token_lifetime: 7200s
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
@@ -377,7 +383,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
           access_token_lifetime: 7200s
           access_token_scopes: |
             https://www.googleapis.com/auth/cloud-platform
