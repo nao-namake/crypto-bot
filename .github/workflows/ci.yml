@@ -155,52 +155,48 @@ jobs:
         uses: docker/setup-buildx-action@v3
         # Docker Buildx をセットアップしてマルチアーキテクチャビルドに対応
 
-      # GHCR authentication disabled for now - focusing on local verification
-      # - name: Log in to GitHub Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      # ---------- Authenticate to GCP for Artifact Registry ----------
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          access_token_lifetime: 7200s
+          access_token_scopes: |
+            https://www.googleapis.com/auth/cloud-platform
+            https://www.googleapis.com/auth/devstorage.read_write
+            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      # TODO: Re-enable GCP Artifact Registry after GHCR is working
-      # # ---------- Authenticate to GCP for Artifact Registry ----------
-      # - name: Authenticate to Google Cloud
-      #   uses: google-github-actions/auth@v2
-      #   with:
-      #     workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-      #     service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+      - name: Configure docker for Artifact Registry
+        run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
 
-      # - name: Set up Cloud SDK
-      #   uses: google-github-actions/setup-gcloud@v2
+      - name: Create Artifact Registry repository if not exists
+        run: |
+          echo "Checking if Artifact Registry repository exists..."
+          if ! gcloud artifacts repositories describe crypto-bot-repo --location=asia-northeast1 --format="value(name)" 2>/dev/null; then
+            echo "Creating Artifact Registry repository..."
+            gcloud artifacts repositories create crypto-bot-repo \
+              --repository-format=docker \
+              --location=asia-northeast1 \
+              --description="Docker repository for crypto-bot application"
+          else
+            echo "Artifact Registry repository already exists"
+          fi
 
-      # - name: Configure docker for Artifact Registry
-      #   run: gcloud --quiet auth configure-docker asia-northeast1-docker.pkg.dev
-
-      # - name: Create Artifact Registry repository if not exists
-      #   run: |
-      #     echo "Checking if Artifact Registry repository exists..."
-      #     if ! gcloud artifacts repositories describe crypto-bot-repo --location=asia-northeast1 --format="value(name)" 2>/dev/null; then
-      #       echo "Creating Artifact Registry repository..."
-      #       gcloud artifacts repositories create crypto-bot-repo \
-      #         --repository-format=docker \
-      #         --location=asia-northeast1 \
-      #         --description="Docker repository for crypto-bot application"
-      #     else
-      #       echo "Artifact Registry repository already exists"
-      #     fi
-
-      # ---------- Build & push to GHCR and Artifact Registry ----------
-      - name: Build Docker image (no push)
+      # ---------- Build & push to Artifact Registry ----------
+      - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
-          load: true
+          push: true
+          load: false
           platforms: linux/amd64
-          tags: crypto-bot:latest
+          tags: |
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -208,8 +204,10 @@ jobs:
       
       - name: Test Docker image
         run: |
-          docker run --rm crypto-bot:latest python -c "import crypto_bot; print('Docker import test passed')"
-          docker run -d --name test-container -p 8080:8080 crypto-bot:latest
+          IMAGE_TAG="asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}"
+          docker pull "${IMAGE_TAG}"
+          docker run --rm "${IMAGE_TAG}" python -c "import crypto_bot; print('Docker import test passed')"
+          docker run -d --name test-container -p 8080:8080 "${IMAGE_TAG}"
           sleep 10
           curl -f http://localhost:8080/healthz || (echo "Health check failed" && exit 1)
           docker stop test-container
