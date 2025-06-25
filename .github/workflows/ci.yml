@@ -127,7 +127,7 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
   docker-build:
-    name: Build & Push Docker Image
+    name: Build & Test Docker Image
     needs: integration-tests
     runs-on: ubuntu-latest
     if: |
@@ -135,15 +135,11 @@ jobs:
       startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch')
     permissions:
-      id-token: write          # required for OIDC authentication to GCP
       contents: read
-      packages: write          # required for pushing to GHCR
 
-    # GitHub Container Registry 用のトークンを流し込む
+    # Docker build and test environment
     env:
-      CR_PAT: ${{ secrets.CR_PAT }}
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      IMAGE_NAME: crypto-bot
 
     steps:
       - uses: actions/checkout@v4
@@ -159,13 +155,13 @@ jobs:
         uses: docker/setup-buildx-action@v3
         # Docker Buildx をセットアップしてマルチアーキテクチャビルドに対応
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-        # GHCR への認証
+      # GHCR authentication disabled for now - focusing on local verification
+      # - name: Log in to GitHub Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
 
 
       # TODO: Re-enable GCP Artifact Registry after GHCR is working
@@ -196,20 +192,29 @@ jobs:
       #     fi
 
       # ---------- Build & push to GHCR and Artifact Registry ----------
-      - name: Build & push to registries
+      - name: Build Docker image (no push)
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: false
+          load: true
           platforms: linux/amd64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/crypto-bot:latest
-            ghcr.io/${{ github.repository_owner }}/crypto-bot:${{ github.sha }}
+          tags: crypto-bot:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+      
+      - name: Test Docker image
+        run: |
+          docker run --rm crypto-bot:latest python -c "import crypto_bot; print('Docker import test passed')"
+          docker run -d --name test-container -p 8080:8080 crypto-bot:latest
+          sleep 10
+          curl -f http://localhost:8080/healthz || (echo "Health check failed" && exit 1)
+          docker stop test-container
+          docker rm test-container
+          echo "Docker image tests passed successfully"
 
 
   # ────────────────────────────────────────────────────────────────────────────
