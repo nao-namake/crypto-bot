@@ -30,9 +30,10 @@ module "app" {
 }
 
 module "monitoring" {
-  source      = "../../modules/monitoring"
-  project_id  = var.project_id
-  alert_email = var.alert_email
+  source       = "../../modules/monitoring"
+  project_id   = var.project_id
+  alert_email  = var.alert_email
+  service_name = var.service_name
 }
 
 module "wif" {
