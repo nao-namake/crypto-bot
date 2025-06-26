@@ -3,23 +3,10 @@
 # Cloud Run のログを BigQuery に転送するための設定
 # =============================================================================
 
-# BigQuery データセット（既存リソースの管理を引き継ぎ）
-resource "google_bigquery_dataset" "crypto_bot_logs" {
+# BigQuery データセット（既存リソースを参照）
+data "google_bigquery_dataset" "crypto_bot_logs" {
   dataset_id = replace("${var.service_name}_logs", "-", "_")
   project    = var.project_id
-  location   = "asia-northeast1"
-
-  friendly_name   = "Crypto Bot Logs"
-  description     = "Cloud Run logs for crypto-bot application"
-  
-  # ログの保持期間設定（90日）
-  default_table_expiration_ms = 7776000000  # 90 days in milliseconds
-
-  labels = {
-    env         = "production"
-    application = "crypto-bot"
-    purpose     = "logging"
-  }
 }
 
 # Logging Sink の作成
@@ -33,7 +20,7 @@ resource "google_logging_project_sink" "crypto_bot_bq_sink" {
   EOT
 
   # BigQuery データセットを宛先に設定
-  destination = "bigquery.googleapis.com/projects/${var.project_id}/datasets/${google_bigquery_dataset.crypto_bot_logs.dataset_id}"
+  destination = "bigquery.googleapis.com/projects/${var.project_id}/datasets/${data.google_bigquery_dataset.crypto_bot_logs.dataset_id}"
 
   # ログの取り込み制御
   unique_writer_identity = true
@@ -41,14 +28,14 @@ resource "google_logging_project_sink" "crypto_bot_bq_sink" {
 
 # Logging Sink に BigQuery への書き込み権限を付与
 resource "google_bigquery_dataset_iam_member" "log_sink_writer" {
-  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  dataset_id = data.google_bigquery_dataset.crypto_bot_logs.dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = google_logging_project_sink.crypto_bot_bq_sink.writer_identity
 }
 
 # ログ分析用の BigQuery ビュー作成（ログテーブルが作成された後に作成されるようignore_changes設定）
 resource "google_bigquery_table" "error_logs_view" {
-  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  dataset_id = data.google_bigquery_dataset.crypto_bot_logs.dataset_id
   table_id   = "error_logs_view"
 
   view {
@@ -67,7 +54,7 @@ resource "google_bigquery_table" "error_logs_view" {
           WHEN textPayload LIKE '%insufficient%' THEN 'Insufficient Balance'
           ELSE 'Other Error'
         END as error_category
-      FROM `${var.project_id}.${google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_stderr_*`
+      FROM `${var.project_id}.${data.google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_stderr_*`
       WHERE severity >= 'ERROR'
         AND DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
       ORDER BY timestamp DESC
@@ -84,7 +71,7 @@ resource "google_bigquery_table" "error_logs_view" {
 
 # 性能分析用ビュー（ログテーブルが作成された後に作成されるようignore_changes設定）
 resource "google_bigquery_table" "performance_view" {
-  dataset_id = google_bigquery_dataset.crypto_bot_logs.dataset_id
+  dataset_id = data.google_bigquery_dataset.crypto_bot_logs.dataset_id
   table_id   = "performance_view"
 
   view {
@@ -95,7 +82,7 @@ resource "google_bigquery_table" "performance_view" {
           EXTRACT(HOUR FROM timestamp) as hour,
           httpRequest.status,
           EXTRACT(EPOCH FROM CAST(httpRequest.latency AS INTERVAL)) as latency_seconds
-        FROM `${var.project_id}.${google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_requests_*`
+        FROM `${var.project_id}.${data.google_bigquery_dataset.crypto_bot_logs.dataset_id}.run_googleapis_com_requests_*`
         WHERE DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
           AND httpRequest.latency IS NOT NULL
           AND httpRequest.requestUrl NOT LIKE '%/healthz%'

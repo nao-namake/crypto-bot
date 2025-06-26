@@ -103,3 +103,24 @@ resource "google_project_iam_member" "deployer_sa_security_reviewer" {
   role    = "roles/iam.securityReviewer"
   member  = "serviceAccount:${var.deployer_sa}"
 }
+
+# BigQuery Admin - for creating datasets and managing BigQuery resources
+resource "google_project_iam_member" "deployer_sa_bigquery_admin" {
+  project = var.project_id
+  role    = "roles/bigquery.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Logging Admin - for creating log sinks and managing logging configuration
+resource "google_project_iam_member" "deployer_sa_logging_admin" {
+  project = var.project_id
+  role    = "roles/logging.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# IAM Workload Identity Pool Admin - for managing WIF pools and providers
+resource "google_project_iam_member" "deployer_sa_wif_admin" {
+  project = var.project_id
+  role    = "roles/iam.workloadIdentityPoolAdmin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
