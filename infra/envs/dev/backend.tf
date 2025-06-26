@@ -5,7 +5,7 @@
 #---------------------------------------------------------------------------------
 terraform {
   backend "gcs" {
-    bucket = "my-crypto-bot-tfstate"
+    bucket = "my-crypto-bot-terraform-state"
     prefix = "dev"
   }
 }
