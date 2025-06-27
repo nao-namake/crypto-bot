@@ -37,9 +37,15 @@
 - `python scripts/test_alert_policies.py` - アラートポリシーのE2Eテスト
 - `bq query --use_legacy_sql=false < scripts/bigquery_log_queries.sql` - ログ分析クエリ実行
 
-### ライブトレード（ペーパー）
-- `python -m crypto_bot.main live-paper --config config/default.yml` - Testnetペーパートレード
+### ライブトレード
+- `python -m crypto_bot.main live-paper --config config/default.yml` - **Bybit Testnetライブトレード**（改善戦略）
 - `streamlit run crypto_bot/monitor.py` - ローカル監視ダッシュボード
+
+### テストネットライブモード運用監視
+- `curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health` - サービス稼働状況確認
+- `curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/trading/status` - 取引状況・パフォーマンス確認
+- `gcloud logging read "resource.labels.service_name=crypto-bot-service-prod AND textPayload~'signal'" --limit=20` - 戦略シグナル確認
+- `gcloud logging read "resource.labels.service_name=crypto-bot-service-prod AND textPayload~'LONG\|SHORT'" --limit=10` - エントリー・エグジット確認
 
 ### オンライン学習コマンド
 - `python -m crypto_bot.main online-train --config config/default.yml --model-type river_linear` - オンライン学習開始
@@ -359,3 +365,121 @@ resource "google_logging_project_sink" "crypto_bot_bq_sink" {
 ```
 
 この技術基盤により、**安定した本番環境での暗号資産取引ボット運用**が実現可能になりました。
+
+### 🚀 **2025年6月27日**: テストネットライブトレード実装・戦略ロジック大幅改善
+
+#### ✅ **新機能実装**
+**完全なライブトレード機能をテストネット環境で実現**
+- **Dockerfileアップデート**: API専用 → ライブトレード実行モードに変更
+- **戦略ロジック大幅改善**: 取引頻度5-10倍向上の積極的アルゴリズム導入
+- **API統合**: ライブトレード + ヘルスチェック機能の同時提供
+- **品質管理強化**: flake8/black/isort完全対応によるコード品質向上
+
+#### 🎯 **戦略アルゴリズム改善詳細**
+
+**1. エントリー条件の大幅緩和**
+```python
+# 改善前（保守的）
+threshold = 0.1  # 60%/40%でのみエントリー → 月1-2回
+if prob > 0.5 + 0.1:  # BUY: 60%以上
+if prob < 0.5 - 0.1:  # SELL: 40%以下
+
+# 改善後（積極的）
+threshold = 0.05  # 55%/45%でエントリー → 週2-3回期待
++ 弱いシグナル対応: 52%/48%での中間判定
++ OR条件統合: もちぽよシグナル OR MLシグナル
+```
+
+**2. 利確・損切りロジック最適化**
+```python
+# 早期EXIT条件
+exit_threshold = 0.5 - (dynamic_th * 0.7)  # 0.7倍緩和
+# リスク管理調整（テストネット用）
+risk_per_trade: 0.01 → 0.02  # ポジションサイズ2倍
+stop_atr_mult: 2.0 → 1.5     # タイトな損切り
+```
+
+**3. シグナル統合アルゴリズム**
+```python
+# 複合判定ロジック（信頼度ベース）
+if mp_long or ml_long_signal:
+    confidence = max(prob - 0.5, mp_long * 0.1)
+    return LONG_SIGNAL
+    
+# 弱いシグナル対応
+if prob > 0.52:  # 52%以上で弱いBUY
+if prob < 0.48:  # 48%以下で弱いSELL
+```
+
+#### 🏗️ **現在のシステム構成**
+
+**テストネットライブトレード環境**
+```
+GitHub Actions CI/CD
+    ↓ 自動デプロイ
+Cloud Run (ライブトレードモード)
+    ├── MLStrategy (改善されたアルゴリズム)
+    ├── FastAPI (/health, /trading/status)
+    └── EntryExit Engine (実注文実行)
+    ↓ 30秒間隔
+Bybit Testnet API
+    ├── 市場データ取得 (BTC/USDT 1h)
+    ├── 実注文執行 (仮想資金)
+    └── ポジション管理
+```
+
+#### 📊 **運用監視・分析機能**
+
+**リアルタイム監視**
+- **ヘルスチェック**: https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+- **取引状況**: https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/trading/status
+- **Cloud Monitoring**: メトリクス・アラート・ダッシュボード
+- **BigQuery**: 詳細ログ分析・パフォーマンス追跡
+
+**戦略パフォーマンス指標**
+```bash
+# 取引頻度分析
+gcloud logging read "resource.labels.service_name=crypto-bot-service-prod AND textPayload~'signal'" --limit=50
+
+# エラー監視  
+gcloud logging read "resource.labels.service_name=crypto-bot-service-prod AND severity>=WARNING" --limit=20
+
+# パフォーマンス確認
+curl -s https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/trading/status | jq .
+```
+
+#### 🔄 **継続改善サイクル（1週間テスト期間）**
+
+**Day 1-2: データ収集フェーズ**
+- 改善された戦略の初期パフォーマンス測定
+- トレード頻度・シグナル精度の実測
+- システム安定性の確認
+
+**Day 3-4: 第1次最適化**
+- しきい値微調整（0.05 → 0.03 or 0.07）
+- 時間帯フィルター導入検討
+- ボラティリティ連動調整
+
+**Day 5-7: 高度な最適化**
+- 複数時間軸シグナル統合（1h + 4h）
+- 動的しきい値調整
+- 最終パラメータ決定
+
+#### 💡 **今後の拡張計画**
+
+**短期（1-2週間）**
+- 本番取引所テスト（最小額）
+- A/Bテスト機能実装
+- パフォーマンス自動評価
+
+**中期（1ヶ月）**
+- 複数通貨ペア対応
+- ポートフォリオ最適化
+- 機械学習モデル再学習
+
+**長期（3ヶ月）**
+- 複数取引所対応
+- DeFi統合
+- 量子的戦略研究
+
+この **テストネットライブモード** により、リスクゼロで本格的なアルゴリズムトレーディングの研究開発・最適化が可能になりました。
