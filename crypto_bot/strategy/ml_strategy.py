@@ -81,24 +81,35 @@ class MLStrategy(StrategyBase):
         position_exists = position is not None and position.exist
         if position_exists:
             # ポジション有りの場合はexit条件を緩和（より早めの利確・損切り）
-            if prob < 0.5 - (dynamic_th * 0.7):  # exitしきい値を緩和
-                logger.info("Position EXIT signal: prob=%.4f < %.4f", prob, 0.5 - (dynamic_th * 0.7))
+            exit_threshold = 0.5 - (dynamic_th * 0.7)
+            if prob < exit_threshold:  # exitしきい値を緩和
+                logger.info(
+                    "Position EXIT signal: prob=%.4f < %.4f", prob, exit_threshold
+                )
                 return Signal(side="SELL", price=price)
             return None
 
         # シグナル統合ロジック（OR条件でより積極的に）
         ml_long_signal = prob > 0.5 + dynamic_th
         ml_short_signal = prob < 0.5 - dynamic_th
-        
         # もちぽよシグナル OR MLシグナル（どちらかが条件満たせばエントリー）
         if mp_long or ml_long_signal:
             confidence = max(prob - 0.5, mp_long * 0.1)  # 信頼度計算
-            logger.info("LONG signal: mochipoyo=%d, ml_prob=%.4f, confidence=%.4f", mp_long, prob, confidence)
+            logger.info(
+                "LONG signal: mochipoyo=%d, ml_prob=%.4f, " "confidence=%.4f",
+                mp_long,
+                prob,
+                confidence,
+            )
             return Signal(side="BUY", price=price)
-            
         if mp_short or ml_short_signal:
             confidence = max(0.5 - prob, mp_short * 0.1)  # 信頼度計算
-            logger.info("SHORT signal: mochipoyo=%d, ml_prob=%.4f, confidence=%.4f", mp_short, prob, confidence)
+            logger.info(
+                "SHORT signal: mochipoyo=%d, ml_prob=%.4f, " "confidence=%.4f",
+                mp_short,
+                prob,
+                confidence,
+            )
             return Signal(side="SELL", price=price)
 
         # 中間的なシグナル（確率が中央付近でも弱いシグナルとして扱う）
