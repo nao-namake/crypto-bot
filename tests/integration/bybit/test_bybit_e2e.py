@@ -107,10 +107,14 @@ def test_swap_set_leverage_and_place_order(swap_client):
     assert bid_price, "Failed to get bid price from ticker"
     price = bid_price * 0.99
 
-    # 最小数量取得 → 1.1倍
+    # 最小数量取得 → より大きなサイズにして最小注文額要件を満たす
     market = swap_client._exchange.markets[symbol]
     min_amount = market["limits"]["amount"]["min"]
-    amount = float(min_amount) * 1.1
+    # Bybitの最小注文額は通常$5-10程度なので、それを満たすよう調整
+    min_notional = max(
+        10.0 / price, float(min_amount) * 2.0
+    )  # $10相当または最小量の2倍
+    amount = min_notional
 
     order = swap_client.create_order(
         symbol=symbol,

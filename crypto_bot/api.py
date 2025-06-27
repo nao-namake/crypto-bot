@@ -26,7 +26,7 @@ def health():
 
 @app.get("/healthz")
 def healthz():
-    """Simple health check for compatibility"""
+    """Provide simple health check for compatibility"""
     return {"status": "ok"}
 
 
