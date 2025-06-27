@@ -38,22 +38,22 @@ strategy:
   name: ml
   params:
     model_path: model/calibrated_model.pkl
-    threshold: 0.1
+    threshold: 0.05  # 0.1 → 0.05 に緩和（トレード頻度向上）
     thresholds_to_test:
+      - 0.02  # より積極的な範囲に変更
       - 0.05
+      - 0.08
       - 0.10
       - 0.15
       - 0.20
       - 0.30
-      - 0.40
-      - 0.50
 
 # ----------------------------------------------------------------------
 # リスク管理
 # ----------------------------------------------------------------------
 risk:
-  risk_per_trade: 0.01
-  stop_atr_mult: 2.0
+  risk_per_trade: 0.02  # 0.01 → 0.02 に増加（テストネットなのでリスク許容）
+  stop_atr_mult: 1.5   # 2.0 → 1.5 に短縮（早めの損切り）
   dynamic_position_sizing:
     enabled: true
     formula: linear

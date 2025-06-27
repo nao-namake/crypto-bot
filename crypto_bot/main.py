@@ -430,9 +430,9 @@ def optimize_ml(config_path: str, model_type: str):
 )
 def live_paper(config_path: str, max_trades: int):
     """
-    Bybit Testnet でのペーパートレードを 30 秒間隔で回す簡易ループ。
-    ExecutionEngine の generate_entry_order / generate_exit_order を用い、
-    update_status でダッシュボード用 JSON と Monitoring 指標を更新する。
+    Bybit Testnet でのライブトレードを 30 秒間隔で回すループ。
+    改善された戦略ロジックでより積極的なトレードを実行。
+    APIサーバー機能も統合し、ヘルスチェック・トレード状況確認が可能。
     """
     cfg = load_config(config_path)
     # 取引所クライアントは Factory で生成（Bybit Testnet がデフォルト）

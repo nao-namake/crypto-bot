@@ -57,6 +57,6 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # ──────────────────────────────────────────────
-# FastAPI で /healthz を提供（シンプルな起動）
+# Testnet Live Trading Mode（ペーパートレードからライブトレードへ）
 # ──────────────────────────────────────────────
-CMD ["uvicorn", "crypto_bot.api:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "crypto_bot.main", "live-paper", "--config", "config/default.yml"]

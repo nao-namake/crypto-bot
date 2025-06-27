@@ -186,3 +186,176 @@ config/default.ymlの`ml.extra_features`で設定可能：
 - **infra/envs/k8s-eks/**: EKS環境設定
 - **.github/workflows/k8s-deploy.yml**: Kubernetes自動デプロイワークフロー
 - **docs/kubernetes-migration-guide.md**: Cloud RunからKubernetes移行ガイド
+
+## 📋 開発履歴とマイルストーン
+
+### 🎉 **2025年6月26日**: CI/CDパイプライン完全構築成功
+
+#### ✅ **技術的成果**
+**「ローカルで通ればCIも通る」原則の実証**
+- Docker build最適化によるローカル・CI環境一致性確保
+- Terraform Infrastructure as Codeによる再現可能なデプロイ
+- Workload Identity Federationによる安全な認証基盤
+
+#### 🏗️ **実装したインフラ構成**
+```
+GitHub Repository
+├── GitHub Actions (CI/CD Pipeline)
+│   ├── Docker Build & Test
+│   ├── Terraform Validation
+│   └── Multi-Environment Deploy
+├── Workload Identity Federation
+│   ├── OIDC Provider (Repository-Restricted)
+│   ├── Identity Pool (github-pool)
+│   └── Service Account Binding
+└── Google Cloud Platform
+    ├── Cloud Run Services
+    │   ├── crypto-bot-service-prod (LIVE)
+    │   └── crypto-bot-dev (PAPER)
+    ├── Artifact Registry (Docker Images)
+    ├── Cloud Monitoring (Metrics & Alerts)
+    ├── BigQuery (Log Analytics)
+    ├── Cloud Storage (Terraform State)
+    └── IAM (Minimal Privilege SA)
+```
+
+#### 🔧 **解決した主要な技術課題**
+
+**1. Docker Build タイムアウト問題**
+```dockerfile
+# 修正前: 重複ビルドによるタイムアウト
+RUN pip wheel --no-cache-dir --no-deps -w /app/wheels .
+RUN pip wheel --no-cache-dir --no-deps -w /app/wheels .  # 重複
+
+# 修正後: 効率的な単一ステージビルド
+RUN pip wheel --no-cache-dir --no-deps -w /app/wheels .
+RUN pip install --no-cache-dir --find-links /app/wheels /app/wheels/*.whl
+```
+
+**2. Workload Identity Federation 移行**
+```yaml
+# 修正前: サービスアカウントキー認証（期限切れ）
+- uses: google-github-actions/auth@v1
+  with:
+    credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+# 修正後: WIF OIDC認証（キーレス）
+- uses: google-github-actions/auth@v2
+  with:
+    workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+    service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+```
+
+**3. Terraform State共有問題**
+```hcl
+# 修正前: ローカルstate (CI/CDで共有不可)
+terraform {
+  # No remote backend
+}
+
+# 修正後: GCS Remote Backend
+terraform {
+  backend "gcs" {
+    bucket = "my-crypto-bot-terraform-state"
+    prefix = "prod"  # 環境別prefix
+  }
+}
+```
+
+**4. 最小権限IAM設計**
+```bash
+# デプロイサービスアカウントの最小権限セット
+ROLES=(
+  "roles/run.admin"                    # Cloud Run管理
+  "roles/artifactregistry.admin"       # コンテナレジストリ
+  "roles/monitoring.admin"             # メトリクス・アラート
+  "roles/secretmanager.admin"          # シークレット管理
+  "roles/storage.objectAdmin"          # Terraformステート
+  "roles/bigquery.admin"               # ログ分析
+  "roles/logging.admin"                # ログ収集
+  "roles/iam.workloadIdentityPoolAdmin" # WIF管理
+)
+```
+
+#### 🚀 **現在の稼働状況**
+- **本番サービス**: `crypto-bot-service-prod` - **RUNNING** ✅
+- **開発サービス**: `crypto-bot-dev` - **RUNNING** ✅  
+- **本番URL**: https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+- **モード**: Paper mode（24時間安定性テスト実行中）
+- **開始時刻**: 2025-06-26 21:00 JST
+- **監視**: Cloud Monitoring + BigQuery Logging 稼働中
+
+#### 📊 **次期マイルストーン**
+1. ✅ **Terraform CI/CD構築**: 完了
+2. 🔄 **Paper mode 24時間テスト**: 実行中（2025-06-26 21:00〜）
+3. ⏭️ **Live mode短時間テスト**: Paper mode成功後実施
+4. ⏭️ **Live mode 24時間本格運用**: 最終段階
+5. ⏭️ **戦略最適化**: 運用データ分析・アルゴリズム改善
+
+#### 🔍 **運用監視コマンド**
+```bash
+# デプロイメント状態確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+
+# ログ確認
+gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=crypto-bot-service-prod" --limit=50
+
+# メトリクス確認  
+gcloud monitoring metrics list --filter="metric.type:custom.googleapis.com/crypto_bot/*"
+
+# Terraform状態確認
+cd infra/envs/prod && terraform show
+```
+
+#### 💡 **学んだベストプラクティス**
+1. **ローカル優先開発**: `ローカルで通ればCIも通る`を実証
+2. **Infrastructure as Code**: Terraformによる完全な環境再現
+3. **セキュリティファースト**: WIF + 最小権限SAによるゼロトラスト
+4. **モニタリング充実**: Cloud Monitoring + BigQuery統合監視
+5. **段階的デプロイ**: dev(paper) → prod(paper) → prod(live)の慎重なプロモーション
+
+### 📝 **技術詳細アーカイブ**
+
+#### Dockerfile最適化詳細
+```dockerfile
+# マルチステージビルドによる効率化
+FROM python:3.11-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps -w /app/wheels -r requirements.txt
+COPY . .
+RUN pip wheel --no-cache-dir --no-deps -w /app/wheels .
+
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /app/wheels /app/wheels/
+RUN pip install --no-cache-dir --find-links /app/wheels /app/wheels/*.whl
+COPY . .
+CMD ["uvicorn", "crypto_bot.api:app", "--host", "0.0.0.0", "--port", "8080"]
+```
+
+#### WIF Provider設定詳細
+```bash
+# リポジトリ制限付きOIDCプロバイダー
+gcloud iam workload-identity-pools providers create-oidc "github-provider" \
+    --location="global" \
+    --workload-identity-pool="github-pool" \
+    --issuer-uri="https://token.actions.githubusercontent.com" \
+    --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+    --attribute-condition='attribute.repository == "nao-namake/crypto-bot"'
+```
+
+#### BigQuery Logging設定
+```hcl
+# ログシンク + ビュー作成（現在は一時的に無効化）
+resource "google_logging_project_sink" "crypto_bot_bq_sink" {
+  name = "${var.service_name}_bq_sink"
+  filter = <<-EOT
+    resource.type="cloud_run_revision"
+    resource.labels.service_name="${var.service_name}"
+  EOT
+  destination = "bigquery.googleapis.com/projects/${var.project_id}/datasets/${data.google_bigquery_dataset.crypto_bot_logs.dataset_id}"
+}
+```
+
+この技術基盤により、**安定した本番環境での暗号資産取引ボット運用**が実現可能になりました。

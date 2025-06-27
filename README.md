@@ -720,6 +720,56 @@ A: テストネットのない取引所は雛形まででOK。API仕様変更時
 **Q: 複数取引所の併用・拡張方法は？**
 A: 1) API互換性チェック 2) 環境変数設定 3) config編集 4) 本番テスト実行 5) 段階的運用開始。詳細は [本番取引所運用ガイド](docs/production-exchange-guide.md) を参照
 
+## 最新の導入・稼働状況
+
+### 🎉 **2025年6月26日**: CI/CD完全成功・GCP本番稼働開始
+
+**Terraformベースの本格インフラ導入により、堅実なCI/CDパイプラインが完成しました**
+
+#### ✅ **完成した機能**
+- **Terraform Infrastructure as Code**: 完全なGCPインフラ自動化
+- **Workload Identity Federation**: 安全なGitHub Actions認証システム
+- **GCSリモートバックエンド**: ローカル・CI/CD間でのTerraformステート共有
+- **マルチ環境デプロイ**: dev(paper mode) / prod(live mode) 自動切り替え
+- **完全なCI/CDパイプライン**: Docker build → Test → Deploy の自動化
+
+#### 🏗️ **インフラ構成**
+```
+GitHub Actions (CI/CD)
+    ↓
+Workload Identity Federation (認証)
+    ↓
+Google Cloud Platform
+    ├── Cloud Run (本番サービス)
+    ├── Artifact Registry (Dockerイメージ)
+    ├── Cloud Monitoring (監視・アラート)
+    ├── BigQuery (ログ分析)
+    └── GCS (Terraformステート)
+```
+
+#### 🚀 **現在の稼働状況**
+- **本番環境**: `crypto-bot-service-prod` - **RUNNING** ✅
+- **開発環境**: `crypto-bot-dev` - **RUNNING** ✅
+- **URL**: https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+- **モード**: Paper mode（24時間安定性テスト中）
+- **開始時刻**: 2025-06-26 21:00 JST
+
+#### 📊 **次のマイルストーン**
+1. ✅ **CI/CDパイプライン構築**: 完了
+2. 🔄 **Paper mode 24時間稼働テスト**: 実行中
+3. ⏭️ **Live mode短時間テスト**: 待機中
+4. ⏭️ **Live mode 24時間本格運用**: 待機中
+
+#### 🔧 **技術的成果**
+- **「ローカルで通ればCIも通る」原則**: 実証済み
+- **Terraformベスト・プラクティス**: データソース活用、既存リソース管理
+- **セキュリティ強化**: 最小権限Service Account、WIF認証
+- **運用監視**: Cloud Monitoring、BigQuery、アラートポリシー完備
+
+この堅実なTerraformアプローチにより、**安定した本番環境での長期運用が可能**になりました。
+
+---
+
 ## ライセンス
 
 本プロジェクトはMIT Licenseで公開されています。
