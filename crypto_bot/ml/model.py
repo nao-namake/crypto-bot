@@ -8,13 +8,16 @@
 # ============================================================
 
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import joblib
+import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_predict
 from xgboost import XGBClassifier
 
 
@@ -70,6 +73,199 @@ class MLModel:
         """
         est = joblib.load(filepath)
         return cls(est)
+
+
+class EnsembleModel:
+    """
+    複数のMLモデルを組み合わせるアンサンブルモデルクラス。
+
+    対応する組み合わせ手法:
+    - voting: 多数決による予測
+    - weighted: 重み付き平均
+    - stacking: スタッキング（メタ学習）
+    """
+
+    def __init__(
+        self,
+        models: List[BaseEstimator],
+        method: str = "voting",
+        weights: Optional[List[float]] = None,
+        meta_model: Optional[BaseEstimator] = None,
+    ):
+        self.models = models
+        self.method = method.lower()
+        self.weights = weights
+        self.meta_model = meta_model or LogisticRegression()
+        self.is_fitted = False
+
+        # 重みの正規化
+        if self.weights is not None:
+            total_weight = sum(self.weights)
+            self.weights = [w / total_weight for w in self.weights]
+
+        if self.method not in ["voting", "weighted", "stacking"]:
+            raise ValueError("method must be 'voting', 'weighted', or 'stacking'")
+
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "EnsembleModel":
+        """
+        アンサンブルモデルを学習します。
+        """
+        # 各ベースモデルを学習
+        for model in self.models:
+            model.fit(X, y)
+
+        # スタッキングの場合はメタモデルも学習
+        if self.method == "stacking":
+            # クロスバリデーションでベースモデルの予測を取得
+            meta_features = []
+            for model in self.models:
+                # predict_probaが利用可能な場合は確率を使用
+                if hasattr(model, "predict_proba"):
+                    cv_preds = cross_val_predict(
+                        model, X, y, cv=3, method="predict_proba"
+                    )
+                    meta_features.append(cv_preds[:, 1])  # 陽性クラスの確率
+                else:
+                    cv_preds = cross_val_predict(model, X, y, cv=3)
+                    meta_features.append(cv_preds)
+
+            # メタ特徴量を結合
+            meta_X = np.column_stack(meta_features)
+
+            # メタモデルを学習
+            self.meta_model.fit(meta_X, y)
+
+        self.is_fitted = True
+        return self
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        アンサンブル予測を返します。
+        """
+        if not self.is_fitted:
+            raise ValueError(
+                "モデルが学習されていません。先にfit()を呼び出してください。"
+            )
+
+        if self.method == "voting":
+            # 多数決
+            predictions = []
+            for model in self.models:
+                predictions.append(model.predict(X))
+
+            # 各サンプルごとに多数決
+            ensemble_pred = []
+            for i in range(len(X)):
+                votes = [pred[i] for pred in predictions]
+                ensemble_pred.append(max(set(votes), key=votes.count))
+
+            return np.array(ensemble_pred)
+
+        elif self.method == "weighted":
+            # 重み付き平均（確率ベース）
+            probabilities = self.predict_proba(X)
+            return (probabilities[:, 1] > 0.5).astype(int)
+
+        elif self.method == "stacking":
+            # スタッキング
+            meta_features = self._get_meta_features(X)
+            return self.meta_model.predict(meta_features)
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        アンサンブル確率予測を返します。
+        """
+        if not self.is_fitted:
+            raise ValueError(
+                "モデルが学習されていません。先にfit()を呼び出してください。"
+            )
+
+        if self.method == "voting":
+            # 各モデルの確率の平均
+            probabilities = []
+            for model in self.models:
+                if hasattr(model, "predict_proba"):
+                    probabilities.append(model.predict_proba(X))
+                else:
+                    # predict_probaがない場合は予測結果をワンホット化
+                    pred = model.predict(X)
+                    prob = np.zeros((len(pred), 2))
+                    prob[np.arange(len(pred)), pred] = 1.0
+                    probabilities.append(prob)
+
+            return np.mean(probabilities, axis=0)
+
+        elif self.method == "weighted":
+            # 重み付き平均
+            probabilities = []
+            weights = self.weights or [1.0 / len(self.models)] * len(self.models)
+
+            for i, model in enumerate(self.models):
+                if hasattr(model, "predict_proba"):
+                    prob = model.predict_proba(X) * weights[i]
+                else:
+                    pred = model.predict(X)
+                    prob = np.zeros((len(pred), 2))
+                    prob[np.arange(len(pred)), pred] = weights[i]
+                probabilities.append(prob)
+
+            return np.sum(probabilities, axis=0)
+
+        elif self.method == "stacking":
+            # スタッキング
+            meta_features = self._get_meta_features(X)
+            if hasattr(self.meta_model, "predict_proba"):
+                return self.meta_model.predict_proba(meta_features)
+            else:
+                pred = self.meta_model.predict(meta_features)
+                prob = np.zeros((len(pred), 2))
+                prob[np.arange(len(pred)), pred] = 1.0
+                return prob
+
+    def _get_meta_features(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        スタッキング用のメタ特徴量を取得します。
+        """
+        meta_features = []
+        for model in self.models:
+            if hasattr(model, "predict_proba"):
+                meta_features.append(model.predict_proba(X)[:, 1])
+            else:
+                meta_features.append(model.predict(X))
+
+        return np.column_stack(meta_features)
+
+    def save(self, filepath: Union[str, Path]) -> None:
+        """
+        アンサンブルモデルをファイルに保存します。
+        """
+        path = Path(filepath)
+        if not path.parent.exists():
+            raise FileNotFoundError(f"ディレクトリが存在しません: {path.parent}")
+
+        ensemble_data = {
+            "models": self.models,
+            "method": self.method,
+            "weights": self.weights,
+            "meta_model": self.meta_model,
+            "is_fitted": self.is_fitted,
+        }
+        joblib.dump(ensemble_data, path)
+
+    @classmethod
+    def load(cls, filepath: Union[str, Path]) -> "EnsembleModel":
+        """
+        ファイルからアンサンブルモデルを復元します。
+        """
+        data = joblib.load(filepath)
+        ensemble = cls(
+            models=data["models"],
+            method=data["method"],
+            weights=data["weights"],
+            meta_model=data["meta_model"],
+        )
+        ensemble.is_fitted = data["is_fitted"]
+        return ensemble
 
 
 # ------------------------------------------------------------------
@@ -177,3 +373,51 @@ def create_model(model_type: str, **kwargs) -> BaseEstimator:
                 pass
 
     return estimator
+
+
+def create_ensemble_model(
+    model_configs: List[Dict[str, Any]],
+    method: str = "voting",
+    weights: Optional[List[float]] = None,
+    meta_model_config: Optional[Dict[str, Any]] = None,
+) -> EnsembleModel:
+    """
+    設定からアンサンブルモデルを作成します。
+
+    Args:
+        model_configs: 各ベースモデルの設定リスト
+        method: アンサンブル手法 ("voting", "weighted", "stacking")
+        weights: 重み付き平均の場合の重み
+        meta_model_config: スタッキングの場合のメタモデル設定
+
+    Returns:
+        EnsembleModel: 作成されたアンサンブルモデル
+
+    Example:
+        model_configs = [
+            {"type": "lgbm", "n_estimators": 100, "max_depth": 6},
+            {"type": "rf", "n_estimators": 100, "max_depth": 8},
+            {"type": "xgb", "n_estimators": 100, "max_depth": 7}
+        ]
+        ensemble = create_ensemble_model(model_configs, method="stacking")
+    """
+    models = []
+
+    # 各ベースモデルを作成
+    for config in model_configs:
+        model_type = config.pop("type")
+        model = create_model(model_type, **config)
+        models.append(model)
+
+    # メタモデルを作成（スタッキングの場合）
+    meta_model = None
+    if method == "stacking" and meta_model_config:
+        meta_type = meta_model_config.pop("type", "lr")
+        if meta_type == "lr":
+            meta_model = LogisticRegression(**meta_model_config)
+        else:
+            meta_model = create_model(meta_type, **meta_model_config)
+
+    return EnsembleModel(
+        models=models, method=method, weights=weights, meta_model=meta_model
+    )

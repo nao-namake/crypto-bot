@@ -19,7 +19,14 @@ from sklearn.metrics import (
     recall_score,
 )
 
-from .base import PerformanceMonitorBase
+
+# Base class for performance monitors
+class PerformanceMonitorBase:
+    """Base class for performance monitoring"""
+
+    def __init__(self, window_size: int = 1000):
+        self.window_size = window_size
+
 
 logger = logging.getLogger(__name__)
 

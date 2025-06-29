@@ -38,7 +38,13 @@ strategy:
   name: ml
   params:
     model_path: model/calibrated_model.pkl
-    threshold: 0.05  # 0.1 → 0.05 に緩和（トレード頻度向上）
+    threshold: 0.05  # ベース閾値（動的調整の基準点）
+    
+    # 動的閾値調整パラメータ
+    atr_multiplier: 0.5  # ATR調整の倍数（0.3-0.8推奨）
+    volatility_adjustment: true  # ボラティリティ調整の有効/無効
+    threshold_bounds: [0.01, 0.25]  # 閾値の最小・最大値
+    
     thresholds_to_test:
       - 0.02  # より積極的な範囲に変更
       - 0.05
@@ -57,6 +63,13 @@ risk:
   dynamic_position_sizing:
     enabled: true
     formula: linear
+  
+  # Kelly基準によるポジションサイジング
+  kelly_criterion:
+    enabled: false  # Kelly基準を使用するかどうか
+    lookback_window: 50  # 過去何トレードを参考にするか
+    max_fraction: 0.25  # Kelly基準の最大割合（25%まで）
+    min_trades_required: 10  # Kelly計算に必要な最小トレード数
 
 # ----------------------------------------------------------------------
 # バックテスト
@@ -93,21 +106,83 @@ ml:
   rolling_window: 20
   horizon: 5                      # 何足先をターゲットにするか
   target_type: classification
-  model_type: lgbm                # lgbm/rf/xgb
+  model_type: lgbm                # lgbm/rf/xgb/ensemble
+  
+  # VIX恐怖指数統合設定
+  vix_integration:
+    enabled: true                 # VIX統合を有効化
+    risk_off_threshold: 25        # リスクオフ判定閾値
+    panic_threshold: 35           # パニック判定閾値
+    spike_multiplier: 2.0         # VIXスパイク倍率
+  
+  # 性能向上設定
+  performance_enhancements:
+    confidence_filter: 0.65       # 信頼度フィルター（65%以上）
+    partial_profit_levels: [0.3, 0.5]  # 段階的利確レベル（30%/50%）
+    trailing_stop: true           # トレーリングストップ有効
+
+  # アンサンブルモデル設定（model_type: ensemble の場合）
+  ensemble:
+    enabled: false  # アンサンブルモデルを使用するかどうか
+    method: stacking  # voting/weighted/stacking
+    weights: null  # weighted の場合の重み [0.4, 0.3, 0.3] など
+    
+    # ベースモデル設定
+    base_models:
+      - type: lgbm
+        n_estimators: 89
+        max_depth: 9
+        learning_rate: 0.09558059446177633
+        bagging_fraction: 0.6
+        lambda_l1: 1.0
+        lambda_l2: 0.5
+      - type: rf
+        n_estimators: 100
+        max_depth: 8
+        min_samples_split: 5
+        min_samples_leaf: 2
+      - type: xgb
+        n_estimators: 100
+        max_depth: 7
+        learning_rate: 0.1
+        subsample: 0.8
+        colsample_bytree: 0.8
+    
+    # メタモデル設定（stacking の場合）
+    meta_model:
+      type: lr  # lr/lgbm/rf/xgb
+      C: 1.0  # LogisticRegression の場合
+      max_iter: 1000
 
   # ==========================
-  # extra_features 例
+  # 勝率向上のための拡張特徴量セット
+  # 
+  # 基本テクニカル指標:
   # - rsi_14      : RSI(14)
-  # - macd        : MACD（デフォルトパラメータ）
+  # - macd        : MACD（ライン、シグナル、ヒストグラム）
   # - rci_9       : RCI(9)
-  # - sma_200     : 単純移動平均(200)
-  # - ema_50      : 指数移動平均(50)
-  # - volume_zscore: 出来高のZスコア
+  # - sma_200, ema_50 : 移動平均
+  # 
+  # 新追加の高度指標:
+  # - stoch       : ストキャスティクス（%K, %D）
+  # - bb          : ボリンジャーバンド（上限、下限、%B、幅）
+  # - willr_14    : Williams %R(14)
+  # - adx         : ADX、+DI、-DI（トレンド強度）
+  # - cmf_20      : チャイキンマネーフロー(20)
+  # - fisher      : フィッシャートランスフォーム
+  # - advanced_signals : 複合シグナル
+  # 
+  # OI・出来高・時間特徴量:
+  # - oi          : 未決済建玉関連特徴量
+  # - volume_zscore : 出来高のZスコア
   # - day_of_week : 曜日（0=月, 6=日）
   # - hour_of_day : 時間（0〜23）
-  # 例: ["rsi_14", "macd", "rci_9", "volume_zscore", "day_of_week", "hour_of_day"]
+  # 
+  # もちぽよシグナル:
+  # - mochipoyo_long_signal, mochipoyo_short_signal
   # ==========================
   extra_features:
+    # 基本テクニカル指標
     - rsi_14
     - macd
     - rci_9
@@ -116,11 +191,26 @@ ml:
     - hour_of_day
     - mochipoyo_long_signal
     - mochipoyo_short_signal
+    
+    # VIX恐怖指数統合（CLAUDE.mdに記載の通り）
+    - vix
+    
+    # 拡張テクニカル指標（勝率向上のため）
+    - stoch
+    - bb
+    - willr_14
+    - adx
+    - cmf_20
+    - fisher
+    - advanced_signals
+    
+    # OI・出来高統合特徴量
+    - oi
 
   # Optuna（ハイパーパラ最適化）設定
   optuna:
-    n_trials: 30
-    timeout: 900
+    n_trials: 10  # より高速なテストのため短縮
+    timeout: 300
     direction: maximize
     sampler:
       name: TPESampler

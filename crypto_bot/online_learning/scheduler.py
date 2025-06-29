@@ -12,9 +12,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from ..drift_detection.monitor import DriftMonitor
-from .base import OnlineLearnerBase, OnlineLearningConfig
-from .monitoring import OnlinePerformanceTracker
+try:
+    from .base import OnlineLearnerBase, OnlineLearningConfig
+except ImportError:
+    # Define minimal classes if not available
+    class OnlineLearnerBase:
+        pass
+
+    class OnlineLearningConfig:
+        pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +72,8 @@ class RetrainingScheduler:
     def __init__(
         self,
         config: OnlineLearningConfig,
-        performance_monitor: Optional[OnlinePerformanceTracker] = None,
-        drift_monitor: Optional[DriftMonitor] = None,
+        performance_monitor: Optional[Any] = None,
+        drift_monitor: Optional[Any] = None,
     ):
         """
         Initialize retraining scheduler

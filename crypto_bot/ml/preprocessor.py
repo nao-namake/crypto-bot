@@ -21,6 +21,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from crypto_bot.data.vix_fetcher import VIXDataFetcher
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.target import make_classification_target, make_regression_target
 
@@ -61,6 +62,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.config = config
         self.ind_calc = IndicatorCalculator()
         self.extra_features = self.config["ml"].get("extra_features", [])
+
+        # VIX統合設定
+        self.vix_enabled = "vix" in self.extra_features
+        if self.vix_enabled:
+            self.vix_fetcher = VIXDataFetcher()
+        else:
+            self.vix_fetcher = None
 
     def fit(self, X: pd.DataFrame, y=None):
         return self
@@ -210,6 +218,187 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         else:
                             # 空のDataFrameやDatetimeIndexでない場合は0で埋める
                             df["hour_of_day"] = 0
+                    # ストキャスティクス
+                    elif base == "stoch":
+                        try:
+                            stoch_df = self.ind_calc.stochastic(df)
+                            if not stoch_df.empty:
+                                df["stoch_k"] = stoch_df.iloc[:, 0]
+                                df["stoch_d"] = stoch_df.iloc[:, 1]
+                        except Exception as e:
+                            logger.warning("Failed to add stochastic: %s", e)
+
+                    # ボリンジャーバンド
+                    elif base == "bb" or base == "bollinger":
+                        try:
+                            bb_df = self.ind_calc.bollinger_bands(df["close"])
+                            if not bb_df.empty:
+                                df["bb_upper"] = bb_df.iloc[:, 2]  # BBU
+                                df["bb_middle"] = bb_df.iloc[:, 1]  # BBM
+                                df["bb_lower"] = bb_df.iloc[:, 0]  # BBL
+                                df["bb_percent"] = bb_df.iloc[:, 3]  # %B
+                                df["bb_width"] = bb_df.iloc[:, 4]  # Band Width
+                        except Exception as e:
+                            logger.warning("Failed to add Bollinger Bands: %s", e)
+
+                    # Williams %R
+                    elif base == "willr" or base == "williams":
+                        try:
+                            period_willr = period if period else 14
+                            willr = self.ind_calc.williams_r(df, window=period_willr)
+                            df[f"willr_{period_willr}"] = willr
+                        except Exception as e:
+                            logger.warning("Failed to add Williams %%R: %s", e)
+
+                    # ADX
+                    elif base == "adx":
+                        try:
+                            adx_df = self.ind_calc.adx(df)
+                            if not adx_df.empty:
+                                df["adx"] = adx_df.iloc[:, 0]
+                                df["di_plus"] = adx_df.iloc[:, 1]
+                                df["di_minus"] = adx_df.iloc[:, 2]
+                        except Exception as e:
+                            logger.warning("Failed to add ADX: %s", e)
+
+                    # チャイキンマネーフロー
+                    elif base == "cmf":
+                        try:
+                            period_cmf = period if period else 20
+                            cmf = self.ind_calc.chaikin_money_flow(
+                                df, window=period_cmf
+                            )
+                            df[f"cmf_{period_cmf}"] = cmf
+                        except Exception as e:
+                            logger.warning("Failed to add CMF: %s", e)
+
+                    # フィッシャートランスフォーム
+                    elif base == "fisher":
+                        try:
+                            fisher_df = self.ind_calc.fisher_transform(df)
+                            if not fisher_df.empty:
+                                df["fisher"] = fisher_df.iloc[:, 0]
+                                df["fisher_signal"] = fisher_df.iloc[:, 1]
+                        except Exception as e:
+                            logger.warning("Failed to add Fisher Transform: %s", e)
+
+                    # 高度な複合シグナル
+                    elif base == "advanced" and "signals" in feat_lc:
+                        try:
+                            advanced_df = self.ind_calc.advanced_signals(df)
+                            for col in advanced_df.columns:
+                                df[col] = advanced_df[col]
+                        except Exception as e:
+                            logger.warning("Failed to add advanced signals: %s", e)
+
+                    # VIX恐怖指数関連特徴量
+                    elif base == "vix":
+                        try:
+                            if self.vix_fetcher:
+                                # VIXデータ取得（キャッシュ活用）
+                                vix_data = self.vix_fetcher.get_vix_data(
+                                    timeframe="1d", limit=50
+                                )
+                                if not vix_data.empty:
+                                    vix_features = (
+                                        self.vix_fetcher.calculate_vix_features(
+                                            vix_data
+                                        )
+                                    )
+
+                                    # 暗号資産データとVIXデータの時間軸を合わせる
+                                    if isinstance(
+                                        df.index, pd.DatetimeIndex
+                                    ) and isinstance(
+                                        vix_features.index, pd.DatetimeIndex
+                                    ):
+                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
+                                        vix_resampled = vix_features.resample(
+                                            "1H"
+                                        ).ffill()
+
+                                        # インデックスを合わせて結合
+                                        common_index = df.index.intersection(
+                                            vix_resampled.index
+                                        )
+                                        if len(common_index) > 0:
+                                            # 主要なVIX特徴量を追加
+                                            vix_cols = [
+                                                "vix_level",
+                                                "vix_change",
+                                                "vix_zscore",
+                                                "fear_level",
+                                                "vix_spike",
+                                            ]
+                                            for col in vix_cols:
+                                                if col in vix_resampled.columns:
+                                                    df.loc[common_index, col] = (
+                                                        vix_resampled.loc[
+                                                            common_index, col
+                                                        ]
+                                                    )
+
+                                            # VIX regime をカテゴリ変数から数値に変換
+                                            if "vix_regime" in vix_resampled.columns:
+                                                regime_map = {
+                                                    "low": 0,
+                                                    "normal": 1,
+                                                    "high": 2,
+                                                    "extreme": 3,
+                                                }
+                                                vix_regime_numeric = vix_resampled.loc[
+                                                    common_index, "vix_regime"
+                                                ].map(regime_map)
+                                                df.loc[
+                                                    common_index, "vix_regime_numeric"
+                                                ] = vix_regime_numeric
+
+                                        logger.info(
+                                            f"Added VIX features: {len(common_index)} "
+                                            "data points aligned"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            "Could not align VIX data with crypto data "
+                                            "due to index type mismatch"
+                                        )
+                                else:
+                                    logger.warning("No VIX data available")
+                            else:
+                                logger.warning("VIX fetcher not initialized")
+                        except Exception as e:
+                            logger.warning("Failed to add VIX features: %s", e)
+
+                    # OI（未決済建玉）関連特徴量
+                    elif base == "oi":
+                        try:
+                            # from crypto_bot.data.fetcher import (
+                            #     MarketDataFetcher,
+                            #     OIDataFetcher,
+                            # )
+
+                            # OIデータ取得のためのプレースホルダー（実際にはより詳細な実装が必要）
+                            # 現時点では基本的なOI特徴量をシミュレート
+                            # OI変化率（価格とOIの相関）
+                            df["oi_price_divergence"] = (
+                                df["close"].pct_change()
+                                - df["volume"].pct_change().fillna(0)
+                            ).fillna(0)
+
+                            # ボリューム強度（OIの代替）
+                            df["volume_intensity"] = (
+                                df["volume"] / df["volume"].rolling(20).mean()
+                            )
+
+                            # OI勢い（ボリュームベース）
+                            df["oi_momentum_proxy"] = (
+                                df["volume"].rolling(10).sum()
+                                / df["volume"].rolling(50).sum()
+                            )
+
+                        except Exception as e:
+                            logger.warning("Failed to add OI features: %s", e)
+
                     # mochipoyo_long_signal or mochipoyo_short_signal
                     elif (
                         feat_lc == "mochipoyo_long_signal"
@@ -220,7 +409,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                 if signal_col not in df:
                                     df[signal_col] = mochipoyo_signals[signal_col]
                     else:
-                        raise ValueError(f"Unknown extra feature spec: {feat}")
+                        logger.warning(f"Unknown extra feature spec: {feat} - skipping")
 
                 except Exception as e:
                     logger.error("Failed to add extra feature %s: %s", feat, e)
@@ -229,7 +418,23 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         # 6. 欠損再補完＋0埋め
         df = df.ffill().fillna(0)
-        logger.debug("Final features shape: %s", df.shape)
+
+        # 7. 無限大値・異常値のクリーニング
+        # 無限大値を前の有効値で置換、それも無い場合は0
+        df = df.replace([np.inf, -np.inf], np.nan)
+        df = df.ffill().fillna(0)
+
+        # 異常に大きな値をクリップ（オーバーフロー防止）
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        for col in numeric_cols:
+            # 99.9%ile以上の値をクリップ
+            upper_bound = df[col].quantile(0.999)
+            lower_bound = df[col].quantile(0.001)
+
+            if np.isfinite(upper_bound) and np.isfinite(lower_bound):
+                df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
+
+        logger.debug("Final features shape after cleaning: %s", df.shape)
         return df
 
 

@@ -6,12 +6,12 @@ echo "Starting Local Tests for CI/CD Pipeline"
 echo "=========================================="
 
 # Make scripts executable
-chmod +x test_docker_local.sh
-chmod +x test_terraform_local.sh
+chmod +x scripts/test_docker_local.sh
+chmod +x scripts/test_terraform_local.sh
 
 # Run Docker tests
 echo "Starting Docker tests..."
-./test_docker_local.sh
+./scripts/test_docker_local.sh
 DOCKER_EXIT_CODE=$?
 
 if [ $DOCKER_EXIT_CODE -eq 0 ]; then
@@ -19,7 +19,7 @@ if [ $DOCKER_EXIT_CODE -eq 0 ]; then
     
     # Run Terraform tests only if Docker tests passed
     echo "Starting Terraform tests..."
-    ./test_terraform_local.sh
+    ./scripts/test_terraform_local.sh
     TERRAFORM_EXIT_CODE=$?
     
     if [ $TERRAFORM_EXIT_CODE -eq 0 ]; then

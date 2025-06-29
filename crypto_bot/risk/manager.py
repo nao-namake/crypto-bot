@@ -7,8 +7,9 @@
 # ・バックテストや自動売買の実運用で、破産リスクや過度な損失を防ぐために重要！
 
 import logging
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,14 @@ class RiskManager:
     same fraction of the account regardless of market regime.
     """
 
-    def __init__(self, risk_per_trade: float = 0.01, stop_atr_mult: float = 1.5):
+    def __init__(
+        self,
+        risk_per_trade: float = 0.01,
+        stop_atr_mult: float = 1.5,
+        kelly_enabled: bool = False,
+        kelly_lookback_window: int = 50,
+        kelly_max_fraction: float = 0.25,
+    ):
         if not 0 < risk_per_trade <= 1.0:
             raise ValueError(
                 f"risk_per_trade must be between 0 and 1.0, got {risk_per_trade}"
@@ -35,6 +43,14 @@ class RiskManager:
 
         self.risk_per_trade = risk_per_trade
         self.stop_atr_mult = stop_atr_mult
+
+        # Kelly Criterion パラメータ
+        self.kelly_enabled = kelly_enabled
+        self.kelly_lookback_window = kelly_lookback_window
+        self.kelly_max_fraction = kelly_max_fraction
+
+        # トレード履歴（Kelly基準計算用）
+        self.trade_history: List[Dict] = []
 
     def calc_stop_price(self, entry_price: float, atr: pd.Series) -> float:
         """
@@ -245,3 +261,216 @@ class RiskManager:
                 safe_lot = (balance * self.risk_per_trade) / (entry_price * 0.05)
                 max_safe = balance * 0.1 / entry_price  # 最大10%
                 return min(safe_lot, max_safe), safe_stop
+
+    # ------------------------------------------------------------------
+    # Kelly Criterion Position Sizing
+    # ------------------------------------------------------------------
+    def add_trade_result(
+        self,
+        entry_price: float,
+        exit_price: float,
+        position_size: float,
+        trade_type: str = "long",
+        timestamp: Optional[pd.Timestamp] = None,
+    ) -> None:
+        """
+        トレード結果をKelly基準計算用の履歴に追加します。
+
+        Parameters
+        ----------
+        entry_price : float
+            エントリー価格
+        exit_price : float
+            エグジット価格
+        position_size : float
+            ポジションサイズ
+        trade_type : str
+            トレードタイプ ("long" or "short")
+        timestamp : pd.Timestamp, optional
+            トレード時刻
+        """
+        if timestamp is None:
+            timestamp = pd.Timestamp.now()
+
+        # リターン計算
+        if trade_type.lower() == "long":
+            return_pct = (exit_price - entry_price) / entry_price
+        else:  # short
+            return_pct = (entry_price - exit_price) / entry_price
+
+        trade_record = {
+            "timestamp": timestamp,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "position_size": position_size,
+            "trade_type": trade_type,
+            "return_pct": return_pct,
+            "profit_loss": return_pct * position_size,
+            "is_win": return_pct > 0,
+        }
+
+        self.trade_history.append(trade_record)
+
+        # 履歴サイズを制限（メモリ効率のため）
+        max_history = self.kelly_lookback_window * 2
+        if len(self.trade_history) > max_history:
+            self.trade_history = self.trade_history[-max_history:]
+
+        logger.debug(
+            f"Added trade result: return={return_pct:.4f}, win={return_pct > 0}"
+        )
+
+    def calculate_kelly_fraction(self) -> float:
+        """
+        Kelly基準に基づく最適なポジションサイズの割合を計算します。
+
+        Kelly公式: f* = (bp - q) / b
+        where:
+        - b = 平均勝ちトレードの倍率 (average win / average loss)
+        - p = 勝率 (win probability)
+        - q = 負け率 (1 - p)
+
+        Returns
+        -------
+        float
+            最適ポジション割合（0～kelly_max_fraction の範囲）
+        """
+        if not self.kelly_enabled:
+            return self.risk_per_trade
+
+        # 十分なデータがない場合はデフォルト値を返す
+        if len(self.trade_history) < 10:
+            logger.debug(
+                "Insufficient trade history for Kelly calculation, using default risk"
+            )
+            return self.risk_per_trade
+
+        # 直近のトレード履歴を取得
+        recent_trades = self.trade_history[-self.kelly_lookback_window :]
+
+        if len(recent_trades) < 5:
+            return self.risk_per_trade
+
+        # 勝ちトレードと負けトレードを分離
+        wins = [t for t in recent_trades if t["is_win"]]
+        losses = [t for t in recent_trades if not t["is_win"]]
+
+        if len(wins) == 0 or len(losses) == 0:
+            logger.debug("No wins or losses in recent history, using default risk")
+            return self.risk_per_trade
+
+        # 勝率計算
+        win_rate = len(wins) / len(recent_trades)
+
+        # 平均勝ち・負け比率計算
+        avg_win = np.mean([abs(t["return_pct"]) for t in wins])
+        avg_loss = np.mean([abs(t["return_pct"]) for t in losses])
+
+        if avg_loss == 0:
+            logger.warning("Average loss is zero, using default risk")
+            return self.risk_per_trade
+
+        # Kelly公式の計算
+        b = avg_win / avg_loss  # オッズ比
+        p = win_rate
+        q = 1 - p
+
+        kelly_fraction = (b * p - q) / b
+
+        logger.debug(
+            f"Kelly calculation: win_rate={p:.3f}, avg_win={avg_win:.4f}, "
+            f"avg_loss={avg_loss:.4f}, b={b:.3f}, kelly_f={kelly_fraction:.4f}"
+        )
+
+        # 負の値の場合は0に制限（ベットしない）
+        kelly_fraction = max(0, kelly_fraction)
+
+        # 最大割合に制限（過度なレバレッジを防ぐ）
+        kelly_fraction = min(kelly_fraction, self.kelly_max_fraction)
+
+        return kelly_fraction
+
+    def calc_kelly_position_size(
+        self, balance: float, entry_price: float, stop_price: float
+    ) -> float:
+        """
+        Kelly基準に基づくポジションサイズを計算します。
+
+        Parameters
+        ----------
+        balance : float
+            現在の口座残高
+        entry_price : float
+            エントリー予定価格
+        stop_price : float
+            ストップロス価格
+
+        Returns
+        -------
+        float
+            Kelly基準によるロットサイズ
+        """
+        if not self.kelly_enabled:
+            return self.calc_lot(balance, entry_price, stop_price)
+
+        kelly_fraction = self.calculate_kelly_fraction()
+
+        # Kelly基準によるリスク額
+        kelly_risk_amount = balance * kelly_fraction
+
+        # 損失幅
+        loss_per_unit = entry_price - stop_price
+
+        if loss_per_unit <= 0:
+            logger.warning("Invalid stop price for Kelly calculation, using default")
+            return self.calc_lot(balance, entry_price, stop_price)
+
+        # Kelly基準ロットサイズ
+        kelly_lot = kelly_risk_amount / loss_per_unit
+
+        # 安全制限の適用
+        max_safe_lot = balance * 0.5 / entry_price
+        kelly_lot = min(kelly_lot, max_safe_lot)
+
+        logger.info(
+            f"Kelly position sizing: fraction={kelly_fraction:.4f}, "
+            f"lot={kelly_lot:.4f} (vs default="
+            f"{self.calc_lot(balance, entry_price, stop_price):.4f})"
+        )
+
+        return kelly_lot
+
+    def get_kelly_statistics(self) -> Dict:
+        """
+        Kelly基準の統計情報を取得します。
+
+        Returns
+        -------
+        Dict
+            Kelly基準関連の統計情報
+        """
+        if len(self.trade_history) < 5:
+            return {
+                "enabled": self.kelly_enabled,
+                "trade_count": len(self.trade_history),
+                "status": "insufficient_data",
+            }
+
+        recent_trades = self.trade_history[-self.kelly_lookback_window :]
+        wins = [t for t in recent_trades if t["is_win"]]
+        losses = [t for t in recent_trades if not t["is_win"]]
+
+        win_rate = len(wins) / len(recent_trades) if recent_trades else 0
+        avg_win = np.mean([abs(t["return_pct"]) for t in wins]) if wins else 0
+        avg_loss = np.mean([abs(t["return_pct"]) for t in losses]) if losses else 0
+
+        return {
+            "enabled": self.kelly_enabled,
+            "trade_count": len(recent_trades),
+            "win_rate": win_rate,
+            "avg_win": avg_win,
+            "avg_loss": avg_loss,
+            "kelly_fraction": self.calculate_kelly_fraction(),
+            "max_kelly_fraction": self.kelly_max_fraction,
+            "lookback_window": self.kelly_lookback_window,
+        }

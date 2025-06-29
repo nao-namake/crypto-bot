@@ -58,6 +58,9 @@ dependencies = [
     # --- ストリーミング (必要なら) ---
     "websockets>=11.0.0",
     "google-cloud-monitoring>=2.18.0",
+    
+    # --- VIX恐怖指数データ取得 ---
+    "yfinance>=0.2.18",
 ]
 
 # build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。

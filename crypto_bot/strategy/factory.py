@@ -19,7 +19,9 @@ class StrategyFactory:
     """戦略インスタンスの生成を管理するファクトリー"""
 
     @staticmethod
-    def create_strategy(config: Dict[str, Any]) -> StrategyBase:
+    def create_strategy(
+        config: Dict[str, Any], full_config: Dict[str, Any] = None
+    ) -> StrategyBase:
         """
         設定から単一の戦略インスタンスを生成
 
@@ -62,7 +64,11 @@ class StrategyFactory:
             # configを全体として渡すパラメータがあるかチェック
             init_params = {}
             if "config" in sig.parameters:
-                init_params["config"] = params
+                # MLStrategyなど、全体設定が必要な戦略の場合はfull_configを使用
+                if strategy_name in ["ml", "ml_strategy"] and full_config is not None:
+                    init_params["config"] = full_config
+                else:
+                    init_params["config"] = params
 
             # 個別パラメータを展開
             for param_name, param_value in params.items():

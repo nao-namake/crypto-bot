@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+from crypto_bot.data.vix_fetcher import VIXDataFetcher
 from crypto_bot.execution.engine import Position, Signal
-from crypto_bot.ml.model import MLModel
+from crypto_bot.indicator.calculator import IndicatorCalculator
+from crypto_bot.ml.model import EnsembleModel, MLModel
 from crypto_bot.ml.preprocessor import FeatureEngineer
 
 from .base import StrategyBase
@@ -34,20 +37,290 @@ class MLStrategy(StrategyBase):
     def __init__(self, model_path: str, threshold: float = None, config: dict = None):
         self.config = config or {}
         if threshold is not None:
-            self.threshold = threshold
+            self.base_threshold = threshold
         else:
-            self.threshold = self.config.get("threshold", 0.0)
-        logger.debug("MLStrategy initialised with threshold = %.4f", self.threshold)
-        self.model = MLModel.load(model_path)
+            self.base_threshold = self.config.get("threshold", 0.0)
+        logger.debug(
+            "MLStrategy initialised with base threshold = %.4f", self.base_threshold
+        )
+
+        # モデルの読み込み（MLModel or EnsembleModel）
+        try:
+            # まずEnsembleModelとして読み込みを試行
+            self.model = EnsembleModel.load(model_path)
+            self.is_ensemble = True
+            logger.info("Loaded ensemble model successfully")
+        except Exception:
+            # 失敗した場合は通常のMLModelとして読み込み
+            self.model = MLModel.load(model_path)
+            self.is_ensemble = False
+            logger.info("Loaded single model successfully")
+
         self.feature_engineer = FeatureEngineer(self.config)
         self.scaler = StandardScaler()
+        self.indicator_calc = IndicatorCalculator()
+
+        # VIX恐怖指数データ取得
+        self.vix_fetcher = VIXDataFetcher()
+
+        # Dynamic threshold parameters（strategy.paramsからも取得可能）
+        strategy_params = self.config.get("strategy", {}).get("params", {})
+        self.atr_multiplier = strategy_params.get("atr_multiplier", 0.5)
+        self.volatility_adjustment = strategy_params.get("volatility_adjustment", True)
+        self.threshold_bounds = strategy_params.get("threshold_bounds", [0.01, 0.25])
+
+        # VIX integration parameters
+        vix_config = self.config.get("ml", {}).get("vix_integration", {})
+        self.vix_enabled = vix_config.get("enabled", True)
+        self.vix_risk_off_threshold = vix_config.get("risk_off_threshold", 25)
+        self.vix_panic_threshold = vix_config.get("panic_threshold", 35)
+        self.vix_spike_multiplier = vix_config.get("spike_multiplier", 2.0)
+
+        # Performance improvement parameters
+        perf_config = self.config.get("ml", {}).get("performance_enhancements", {})
+        self.confidence_filter = perf_config.get("confidence_filter", 0.65)
+        self.partial_profit_levels = perf_config.get(
+            "partial_profit_levels", [0.3, 0.5]
+        )
+        self.trailing_stop_enabled = perf_config.get("trailing_stop", True)
+
+        # Historical performance tracking for adaptive adjustment
+        self.recent_signals = []
+        self.max_signal_history = 50
+        self.vix_data_cache = None
+        self.vix_cache_time = None
+
+    def calculate_atr_threshold(
+        self, price_df: pd.DataFrame, window: int = 14
+    ) -> float:
+        """Calculate ATR-based threshold adjustment"""
+        try:
+            atr = self.indicator_calc.atr(price_df, window=window)
+            if atr is None or atr.isna().all():
+                return 0.0
+
+            # Get current price and ATR
+            current_price = float(price_df["close"].iloc[-1])
+            current_atr = float(atr.iloc[-1])
+
+            # Calculate ATR as percentage of price
+            atr_percentage = (current_atr / current_price) if current_price > 0 else 0
+
+            # Scale ATR to threshold adjustment
+            atr_adjustment = atr_percentage * self.atr_multiplier
+
+            return min(atr_adjustment, 0.15)  # Cap at 15%
+
+        except Exception as e:
+            logger.warning("Failed to calculate ATR threshold: %s", e)
+            return 0.0
+
+    def calculate_volatility_adjustment(
+        self, price_df: pd.DataFrame, window: int = 20
+    ) -> float:
+        """Calculate volatility-based threshold adjustment"""
+        try:
+            if not self.volatility_adjustment:
+                return 0.0
+
+            # Calculate rolling volatility (standard deviation of returns)
+            returns = price_df["close"].pct_change().dropna()
+            if len(returns) < window:
+                return 0.0
+
+            rolling_vol = returns.rolling(window=window).std()
+            current_vol = float(rolling_vol.iloc[-1])
+
+            # Calculate long-term average volatility for comparison
+            long_term_vol = float(returns.rolling(window=window * 3).std().iloc[-1])
+
+            # Volatility regime detection
+            vol_ratio = current_vol / long_term_vol if long_term_vol > 0 else 1.0
+
+            # Adjust threshold based on volatility regime
+            if vol_ratio > 1.5:  # High volatility - increase threshold
+                vol_adjustment = 0.02
+            elif vol_ratio < 0.7:  # Low volatility - decrease threshold
+                vol_adjustment = -0.01
+            else:  # Normal volatility
+                vol_adjustment = 0.0
+
+            return vol_adjustment
+
+        except Exception as e:
+            logger.warning("Failed to calculate volatility adjustment: %s", e)
+            return 0.0
+
+    def calculate_performance_adjustment(self) -> float:
+        """Calculate threshold adjustment based on recent signal performance"""
+        if len(self.recent_signals) < 10:
+            return 0.0
+
+        # Calculate win rate of recent signals
+        wins = sum(
+            1 for signal in self.recent_signals[-20:] if signal.get("success", False)
+        )
+        total = len(self.recent_signals[-20:])
+        win_rate = wins / total if total > 0 else 0.5
+
+        # Adjust threshold based on performance
+        if win_rate > 0.65:  # Good performance - slightly more aggressive
+            return -0.005
+        elif win_rate < 0.35:  # Poor performance - more conservative
+            return 0.01
+        else:
+            return 0.0
+
+    def get_vix_adjustment(self) -> tuple[float, dict]:
+        """
+        VIX恐怖指数に基づく閾値調整とリスク判定
+
+        Returns:
+        --------
+        tuple[float, dict]
+            (threshold_adjustment, vix_info)
+        """
+        if not self.vix_enabled:
+            return 0.0, {}
+
+        try:
+            # VIXデータ取得（キャッシュ活用）
+            from datetime import datetime, timedelta
+
+            current_time = datetime.now()
+            if (
+                self.vix_data_cache is None
+                or self.vix_cache_time is None
+                or current_time - self.vix_cache_time > timedelta(hours=1)
+            ):
+
+                vix_data = self.vix_fetcher.get_vix_data(timeframe="1d", limit=30)
+                if not vix_data.empty:
+                    vix_features = self.vix_fetcher.calculate_vix_features(vix_data)
+                    self.vix_data_cache = vix_features
+                    self.vix_cache_time = current_time
+                else:
+                    return 0.0, {"error": "VIX data unavailable"}
+
+            vix_features = self.vix_data_cache
+            if vix_features is None or vix_features.empty:
+                return 0.0, {"error": "No VIX cache"}
+
+            # 最新のVIX指標
+            latest = vix_features.iloc[-1]
+            current_vix = latest["vix_level"]
+            vix_change = latest["vix_change"]
+            vix_spike = latest["vix_spike"]
+            fear_level = latest["fear_level"]
+
+            # 市場環境判定
+            market_regime = self.vix_fetcher.get_market_regime(current_vix)
+
+            # VIXに基づく閾値調整
+            threshold_adj = 0.0
+            risk_signal = "normal"
+
+            if current_vix < 15:
+                # 低恐怖：積極的取引
+                threshold_adj = -0.01
+                risk_signal = "risk_on"
+            elif current_vix > self.vix_panic_threshold:
+                # パニック状態：取引停止レベル
+                threshold_adj = 0.15  # 極めて保守的
+                risk_signal = "panic"
+            elif current_vix > self.vix_risk_off_threshold:
+                # リスクオフ：保守的
+                threshold_adj = 0.05
+                risk_signal = "risk_off"
+
+            # VIXスパイク（急上昇）の場合はさらに保守的に
+            if vix_spike and vix_change > 0.1:  # 10%以上上昇
+                threshold_adj += 0.03
+                risk_signal = "spike"
+
+            # VIX急低下（恐怖緩和）の場合は積極的に
+            if vix_change < -0.05:  # 5%以上低下
+                threshold_adj -= 0.005
+                risk_signal = "fear_relief"
+
+            vix_info = {
+                "current_vix": current_vix,
+                "vix_change": vix_change,
+                "fear_level": fear_level,
+                "market_regime": market_regime["regime"],
+                "risk_signal": risk_signal,
+                "spike_detected": bool(vix_spike),
+                "threshold_adjustment": threshold_adj,
+            }
+
+            logger.info(
+                f"VIX Analysis: Level={current_vix:.1f}, Change={vix_change:.3f}, "
+                f"Regime={market_regime['regime']}, Adj={threshold_adj:.3f}"
+            )
+
+            return threshold_adj, vix_info
+
+        except Exception as e:
+            logger.warning(f"VIX adjustment failed: {e}")
+            return 0.0, {"error": str(e)}
+
+    def calculate_dynamic_threshold(self, price_df: pd.DataFrame) -> float:
+        """Calculate final dynamic threshold combining all factors including VIX"""
+        # Start with base threshold
+        dynamic_threshold = self.base_threshold
+
+        # Add ATR-based adjustment
+        atr_adj = self.calculate_atr_threshold(price_df)
+        dynamic_threshold += atr_adj
+
+        # Add volatility adjustment
+        vol_adj = self.calculate_volatility_adjustment(price_df)
+        dynamic_threshold += vol_adj
+
+        # Add performance-based adjustment
+        perf_adj = self.calculate_performance_adjustment()
+        dynamic_threshold += perf_adj
+
+        # Add VIX-based adjustment (新機能)
+        vix_adj, vix_info = self.get_vix_adjustment()
+        dynamic_threshold += vix_adj
+
+        # VIX情報をログ出力
+        if vix_info and "risk_signal" in vix_info:
+            logger.info(
+                f"VIX Risk Signal: {vix_info['risk_signal']}, "
+                f"VIX Level: {vix_info.get('current_vix', 'N/A')}"
+            )
+
+        # Apply bounds to prevent extreme values
+        min_threshold, max_threshold = self.threshold_bounds
+        dynamic_threshold = np.clip(dynamic_threshold, min_threshold, max_threshold)
+
+        logger.debug(
+            "Dynamic threshold calculation: base=%.4f, atr_adj=%.4f, vol_adj=%.4f, "
+            "perf_adj=%.4f, final=%.4f",
+            self.base_threshold,
+            atr_adj,
+            vol_adj,
+            perf_adj,
+            dynamic_threshold,
+        )
+
+        return dynamic_threshold
+
+    def update_signal_history(self, signal_info: dict):
+        """Update signal history for performance tracking"""
+        self.recent_signals.append(signal_info)
+        if len(self.recent_signals) > self.max_signal_history:
+            self.recent_signals.pop(0)
 
     def logic_signal(self, price_df: pd.DataFrame, position: Position) -> Signal:
         logger.debug("Input DataFrame columns: %s", price_df.columns.tolist())
         logger.debug("Input DataFrame head (3 rows):\n%s", price_df.head(3).to_string())
 
-        dynamic_th = self.threshold
-        logger.debug("Using threshold = %.4f", dynamic_th)
+        # Calculate dynamic threshold based on market conditions
+        dynamic_th = self.calculate_dynamic_threshold(price_df)
+        logger.debug("Using dynamic threshold = %.4f", dynamic_th)
 
         # 特徴量エンジニアリング
         feat_df = self.feature_engineer.transform(price_df)
@@ -74,19 +347,41 @@ class MLStrategy(StrategyBase):
         )
 
         # --- MLモデルの確率予測 ---
-        prob = self.model.predict_proba(last_X)[0, 1]
-        logger.info("Predicted ↑ prob = %.4f", prob)
+        if self.is_ensemble:
+            # アンサンブルモデルの場合
+            prob = self.model.predict_proba(last_X)[0, 1]
+            logger.info("Ensemble predicted ↑ prob = %.4f", prob)
+        else:
+            # 単一モデルの場合
+            prob = self.model.predict_proba(last_X)[0, 1]
+            logger.info("Single model predicted ↑ prob = %.4f", prob)
 
         # ポジション有無で判定
         position_exists = position is not None and position.exist
         if position_exists:
-            # ポジション有りの場合はexit条件を緩和（より早めの利確・損切り）
-            exit_threshold = 0.5 - (dynamic_th * 0.7)
-            if prob < exit_threshold:  # exitしきい値を緩和
+            # ポジション有りの場合はexit条件を動的に調整
+            # 高ボラティリティ時は早めの利確、低ボラティリティ時は粘る
+            exit_multiplier = 0.8 if dynamic_th > self.base_threshold else 0.6
+            exit_threshold = 0.5 - (dynamic_th * exit_multiplier)
+
+            if prob < exit_threshold:  # exitしきい値を動的調整
                 logger.info(
-                    "Position EXIT signal: prob=%.4f < %.4f", prob, exit_threshold
+                    "Position EXIT signal: prob=%.4f < %.4f (dynamic)",
+                    prob,
+                    exit_threshold,
                 )
-                return Signal(side="SELL", price=price)
+                signal = Signal(side="SELL", price=price)
+                # Track exit signal
+                self.update_signal_history(
+                    {
+                        "type": "EXIT",
+                        "probability": prob,
+                        "threshold": exit_threshold,
+                        "price": price,
+                        "timestamp": pd.Timestamp.now(),
+                    }
+                )
+                return signal
             return None
 
         # シグナル統合ロジック（OR条件でより積極的に）
@@ -96,28 +391,92 @@ class MLStrategy(StrategyBase):
         if mp_long or ml_long_signal:
             confidence = max(prob - 0.5, mp_long * 0.1)  # 信頼度計算
             logger.info(
-                "LONG signal: mochipoyo=%d, ml_prob=%.4f, " "confidence=%.4f",
+                "LONG signal: mochipoyo=%d, ml_prob=%.4f, confidence=%.4f, dyn_th=%.4f",
                 mp_long,
                 prob,
                 confidence,
+                dynamic_th,
             )
-            return Signal(side="BUY", price=price)
+            signal = Signal(side="BUY", price=price)
+            # Track entry signal
+            self.update_signal_history(
+                {
+                    "type": "ENTRY_LONG",
+                    "probability": prob,
+                    "threshold": dynamic_th,
+                    "mochipoyo": mp_long,
+                    "ml_signal": ml_long_signal,
+                    "confidence": confidence,
+                    "price": price,
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+            return signal
+
         if mp_short or ml_short_signal:
             confidence = max(0.5 - prob, mp_short * 0.1)  # 信頼度計算
             logger.info(
-                "SHORT signal: mochipoyo=%d, ml_prob=%.4f, " "confidence=%.4f",
+                "SHORT signal: mochipoyo=%d, ml_prob=%.4f, confidence=%.4f, "
+                "dyn_th=%.4f",
                 mp_short,
                 prob,
                 confidence,
+                dynamic_th,
             )
-            return Signal(side="SELL", price=price)
+            signal = Signal(side="SELL", price=price)
+            # Track entry signal
+            self.update_signal_history(
+                {
+                    "type": "ENTRY_SHORT",
+                    "probability": prob,
+                    "threshold": dynamic_th,
+                    "mochipoyo": mp_short,
+                    "ml_signal": ml_short_signal,
+                    "confidence": confidence,
+                    "price": price,
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+            return signal
 
-        # 中間的なシグナル（確率が中央付近でも弱いシグナルとして扱う）
-        if prob > 0.52:  # 52%以上で弱いBUYシグナル
-            logger.info("Weak LONG signal: prob=%.4f", prob)
-            return Signal(side="BUY", price=price)
-        elif prob < 0.48:  # 48%以下で弱いSELLシグナル
-            logger.info("Weak SHORT signal: prob=%.4f", prob)
-            return Signal(side="SELL", price=price)
+        # 中間的なシグナル（動的閾値ベース）
+        # 低ボラティリティ時により積極的、高ボラティリティ時により慎重
+        weak_threshold = 0.52 - (dynamic_th * 0.4)  # 動的調整
+        weak_threshold = max(0.51, min(0.55, weak_threshold))  # 範囲制限
+
+        if prob > weak_threshold:  # 弱いBUYシグナル
+            logger.info(
+                "Weak LONG signal: prob=%.4f > %.4f (dynamic)", prob, weak_threshold
+            )
+            signal = Signal(side="BUY", price=price)
+            self.update_signal_history(
+                {
+                    "type": "WEAK_LONG",
+                    "probability": prob,
+                    "threshold": weak_threshold,
+                    "price": price,
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+            return signal
+
+        elif prob < (1.0 - weak_threshold):  # 弱いSELLシグナル
+            weak_short_threshold = 1.0 - weak_threshold
+            logger.info(
+                "Weak SHORT signal: prob=%.4f < %.4f (dynamic)",
+                prob,
+                weak_short_threshold,
+            )
+            signal = Signal(side="SELL", price=price)
+            self.update_signal_history(
+                {
+                    "type": "WEAK_SHORT",
+                    "probability": prob,
+                    "threshold": weak_short_threshold,
+                    "price": price,
+                    "timestamp": pd.Timestamp.now(),
+                }
+            )
+            return signal
 
         return None

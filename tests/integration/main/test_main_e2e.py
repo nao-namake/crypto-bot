@@ -148,7 +148,7 @@ def test_backtest_e2e(monkeypatch, tmp_config, tmp_path):
     # StrategyFactory のモック
     class DummyStrategyFactory:
         @staticmethod
-        def create_strategy(strategy_config):
+        def create_strategy(config, full_config=None):
             return DummyMLStrategy("", 0.0, {})
 
         @staticmethod

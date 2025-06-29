@@ -27,7 +27,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
-from crypto_bot.ml.model import MLModel, create_model
+from crypto_bot.ml.model import MLModel, create_ensemble_model, create_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
 
 logger = logging.getLogger(__name__)
@@ -259,6 +259,40 @@ def train_best_model(config: dict, *args):
         # 3) 最良推定器生成
         mode = config["ml"].get("target_type", "classification")
         mtype = config["ml"].get("model_type", "lgbm").lower()
+
+        # アンサンブルモデルの場合
+        if mtype == "ensemble":
+            ensemble_config = config["ml"].get("ensemble", {})
+            if ensemble_config.get("enabled", False):
+                logger.info("Creating ensemble model")
+
+                # ベースモデル設定を取得
+                base_models_config = ensemble_config.get("base_models", [])
+                method = ensemble_config.get("method", "voting")
+                weights = ensemble_config.get("weights")
+                meta_model_config = ensemble_config.get("meta_model", {})
+
+                # アンサンブルモデルを作成
+                ensemble_model = create_ensemble_model(
+                    model_configs=base_models_config,
+                    method=method,
+                    weights=weights,
+                    meta_model_config=meta_model_config,
+                )
+
+                # 学習・保存
+                model = ensemble_model.fit(X_train, y_train)
+                os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+                ensemble_model.save(output_path)
+                print(f"Best ensemble model saved to {output_path!r}")
+                return
+            else:
+                logger.warning(
+                    "Ensemble model requested but not enabled in config. "
+                    "Using default lgbm."
+                )
+                mtype = "lgbm"
+
         best_params = study.best_params.copy()
 
         if mode == "classification":

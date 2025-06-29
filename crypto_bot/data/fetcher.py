@@ -101,7 +101,8 @@ class MarketDataFetcher:
                 if not added:
                     retries += 1
                 if (
-                    sleep and hasattr(self.exchange, "rateLimit")
+                    sleep
+                    and hasattr(self.exchange, "rateLimit")
                     and self.exchange.rateLimit
                 ):
                     time.sleep(self.exchange.rateLimit / 1000.0)
@@ -110,7 +111,8 @@ class MarketDataFetcher:
         else:
             raw = self.client.fetch_ohlcv(self.symbol, timeframe, since_ms, limit)
             if (
-                sleep and hasattr(self.exchange, "rateLimit")
+                sleep
+                and hasattr(self.exchange, "rateLimit")
                 and self.exchange.rateLimit
             ):
                 time.sleep(self.exchange.rateLimit / 1000.0)
@@ -159,9 +161,7 @@ class DataPreprocessor:
         return df[~df.index.duplicated(keep="first")]
 
     @staticmethod
-    def fill_missing_bars(
-        df: pd.DataFrame, timeframe: str = "1h"
-    ) -> pd.DataFrame:
+    def fill_missing_bars(df: pd.DataFrame, timeframe: str = "1h") -> pd.DataFrame:
         freq_offset = to_offset(timeframe)
         idx = pd.date_range(
             start=df.index[0],
@@ -181,11 +181,15 @@ class DataPreprocessor:
         df = df.copy()
         price_cols = ["open", "high", "low", "close"]
         for col in [c for c in price_cols if c in df.columns]:
-            median = df[col].rolling(
-                window=window,
-                center=True,
-                min_periods=1,
-            ).median()
+            median = (
+                df[col]
+                .rolling(
+                    window=window,
+                    center=True,
+                    min_periods=1,
+                )
+                .median()
+            )
             deviation = (df[col] - median).abs()
             mad = deviation.rolling(
                 window=window,
@@ -218,4 +222,107 @@ class DataPreprocessor:
         df = DataPreprocessor.remove_outliers(df, thresh, window)
         for col in ["open", "high", "low", "close", "volume"]:
             df[col] = df[col].ffill().bfill()
+        return df
+
+
+class OIDataFetcher:
+    """OI（未決済建玉）データ取得クラス"""
+
+    def __init__(self, market_fetcher: MarketDataFetcher):
+        self.market_fetcher = market_fetcher
+        self.exchange = market_fetcher.exchange
+        self.symbol = market_fetcher.symbol
+
+    def get_oi_data(
+        self,
+        timeframe: str = "1h",
+        since: Optional[Union[str, datetime]] = None,
+        limit: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """
+        OI（未決済建玉）データを取得
+
+        Returns
+        -------
+        pd.DataFrame
+            OIデータ（index: datetime, columns: oi_amount, oi_value）
+        """
+        try:
+            # Bybitの場合のOI取得
+            if self.market_fetcher.exchange_id == "bybit":
+                # 現在のOI取得を試行
+                if hasattr(self.exchange, "fetch_open_interest"):
+                    oi_current = self.exchange.fetch_open_interest(self.symbol)
+                    if oi_current:
+                        # 単一のOIデータポイントを作成
+                        return pd.DataFrame(
+                            [
+                                {
+                                    "oi_amount": oi_current.get(
+                                        "openInterestAmount", 0
+                                    ),
+                                    "oi_value": oi_current.get("openInterestValue", 0),
+                                    "timestamp": oi_current.get(
+                                        "timestamp", datetime.now().timestamp() * 1000
+                                    ),
+                                }
+                            ],
+                            index=pd.to_datetime(
+                                [
+                                    oi_current.get(
+                                        "timestamp", datetime.now().timestamp() * 1000
+                                    )
+                                ],
+                                unit="ms",
+                            ),
+                        )
+
+                # フォールバック: 空のデータフレーム
+                return pd.DataFrame(columns=["oi_amount", "oi_value"])
+
+        except Exception as e:
+            print(f"Warning: Could not fetch OI data: {e}")
+
+        # デフォルト: 空のDataFrameを返す
+        return pd.DataFrame(columns=["oi_amount", "oi_value"])
+
+    def calculate_oi_features(self, df: pd.DataFrame, window: int = 24) -> pd.DataFrame:
+        """
+        OI関連の特徴量を計算
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            OIデータ
+        window : int
+            移動平均の期間
+
+        Returns
+        -------
+        pd.DataFrame
+            OI特徴量付きDataFrame
+        """
+        if df.empty or "oi_amount" not in df.columns:
+            return df
+
+        # OI変化率
+        df["oi_pct_change"] = df["oi_amount"].pct_change()
+
+        # OI移動平均
+        df[f"oi_ma_{window}"] = df["oi_amount"].rolling(window=window).mean()
+
+        # OI標準化（Z-score）
+        df["oi_zscore"] = (
+            df["oi_amount"] - df["oi_amount"].rolling(window=window).mean()
+        ) / df["oi_amount"].rolling(window=window).std()
+
+        # OI勢い（momentum）
+        df["oi_momentum"] = df["oi_amount"] / df["oi_amount"].shift(window) - 1
+
+        # OI急激な変化検知
+        df["oi_spike"] = (
+            df["oi_pct_change"].abs()
+            > df["oi_pct_change"].rolling(window=window).std() * 2
+        ).astype(int)
+
         return df

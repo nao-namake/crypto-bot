@@ -262,7 +262,7 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         )
     else:
         # 単一戦略の場合（従来の形式）
-        strategy = StrategyFactory.create_strategy(strategy_config)
+        strategy = StrategyFactory.create_strategy(strategy_config, cfg)
 
     metrics_list, trade_logs = [], []
     for _, test_df in splits:
@@ -402,7 +402,7 @@ def train(config_path: str, model_type: str, output_path: str):
 @click.option(
     "--model-type",
     "-t",
-    type=click.Choice(["lgbm", "rf", "xgb"], case_sensitive=False),
+    type=click.Choice(["lgbm", "rf", "xgb", "ensemble"], case_sensitive=False),
     default=None,
 )
 def optimize_ml(config_path: str, model_type: str):
@@ -525,7 +525,7 @@ def live_paper(config_path: str, max_trades: int):
 @click.option(
     "--model-type",
     "-T",
-    type=click.Choice(["lgbm", "rf", "xgb"], case_sensitive=False),
+    type=click.Choice(["lgbm", "rf", "xgb", "ensemble"], case_sensitive=False),
     default=None,
 )
 def optimize_and_train(
@@ -590,7 +590,7 @@ def optimize_and_train(
 @click.option(
     "--model-type",
     "-t",
-    type=click.Choice(["lgbm", "rf", "xgb"], case_sensitive=False),
+    type=click.Choice(["lgbm", "rf", "xgb", "ensemble"], case_sensitive=False),
     default=None,
 )
 def train_best(config_path: str, model_path: str, model_type: str):

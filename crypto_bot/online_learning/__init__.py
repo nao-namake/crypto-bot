@@ -12,16 +12,35 @@ Key Features:
 - Memory-efficient streaming learning
 """
 
-from .engine import OnlineLearningEngine
-from .models import IncrementalMLModel, OnlineClassifier, OnlineRegressor
-from .monitor import ModelPerformanceMonitor
-from .scheduler import RetrainingScheduler
+try:
+    from .base import (
+        ModelUpdateResult,
+        OnlineLearnerBase,
+        OnlineLearningConfig,
+        PredictionResult,
+    )
+    from .models import IncrementalMLModel
+    from .monitoring import ClassificationMonitor, PerformanceAlert
+    from .scheduler import (
+        RetrainingJob,
+        RetrainingScheduler,
+        RetrainingTrigger,
+        TriggerType,
+    )
+except ImportError:
+    # Handle missing dependencies gracefully
+    pass
 
 __all__ = [
-    "OnlineLearningEngine",
     "IncrementalMLModel",
-    "OnlineClassifier",
-    "OnlineRegressor",
     "RetrainingScheduler",
-    "ModelPerformanceMonitor",
+    "TriggerType",
+    "RetrainingTrigger",
+    "RetrainingJob",
+    "OnlineLearningConfig",
+    "PredictionResult",
+    "ModelUpdateResult",
+    "OnlineLearnerBase",
+    "PerformanceAlert",
+    "ClassificationMonitor",
 ]

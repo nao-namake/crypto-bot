@@ -10,7 +10,24 @@ from datetime import datetime
 import numpy as np
 from scipy import stats
 
-from ..online_learning.base import DriftDetectorBase
+
+# Base class for drift detectors
+class DriftDetectorBase:
+    """Base class for drift detection algorithms"""
+
+    def __init__(self):
+        self.drift_detected = False
+        self.last_drift_time = None
+
+    def update(self, value):
+        """Update detector with new value"""
+        pass
+
+    def reset(self):
+        """Reset detector state"""
+        self.drift_detected = False
+        self.last_drift_time = None
+
 
 logger = logging.getLogger(__name__)
 
