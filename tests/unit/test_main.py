@@ -293,7 +293,10 @@ class TestLoadConfig:
     def test_load_config_success(self, mock_file, mock_yaml):
         """正常な設定読み込みテスト"""
         # デフォルト設定をモック
-        default_config = {"ml": {"model_type": "lgbm"}, "data": {"exchange": "bybit"}}
+        default_config = {
+            "ml": {"model_type": "lgbm"},
+            "data": {"exchange": "bybit", "symbol": "BTCUSDT", "timeframe": "1h"},
+        }
         user_config = {"ml": {"epochs": 100}, "strategy": {"type": "ml"}}
 
         mock_yaml.side_effect = [default_config, user_config]
@@ -323,7 +326,8 @@ class TestLoadConfig:
             mock_path.return_value.parent.parent = Path("/test")
 
             # ConfigValidator がエラーを投げる場合をモック
-            with patch("crypto_bot.main.ConfigValidator") as mock_validator:
+            import_path = "crypto_bot.utils.config_validator.ConfigValidator"
+            with patch(import_path) as mock_validator:
                 mock_validator.return_value.validate.side_effect = Exception(
                     "Validation error"
                 )
@@ -355,7 +359,7 @@ class TestPrepareDataEnhanced:
 
     @patch("crypto_bot.main.MarketDataFetcher")
     @patch("crypto_bot.main.DataPreprocessor")
-    @patch("crypto_bot.main._mlprep")
+    @patch("crypto_bot.ml.preprocessor")
     def test_prepare_data_4_tuple_return(
         self, mock_mlprep, mock_preprocessor, mock_fetcher_class
     ):
@@ -401,7 +405,7 @@ class TestPrepareDataEnhanced:
 
     @patch("crypto_bot.main.MarketDataFetcher")
     @patch("crypto_bot.main.DataPreprocessor")
-    @patch("crypto_bot.main._mlprep")
+    @patch("crypto_bot.ml.preprocessor")
     @patch("crypto_bot.main.train_test_split")
     def test_prepare_data_3_tuple_classification(
         self, mock_split, mock_mlprep, mock_preprocessor, mock_fetcher_class
@@ -485,7 +489,7 @@ class TestPrepareDataEnhanced:
             "ml": {"feat_period": 14},
         }
 
-        with patch("crypto_bot.main._mlprep") as mock_mlprep:
+        with patch("crypto_bot.ml.preprocessor") as mock_mlprep:
             mock_mlprep.prepare_ml_dataset.return_value = (
                 pd.DataFrame(),
                 pd.Series(),
@@ -530,7 +534,7 @@ class TestPrepareDataEnhanced:
             "ml": {"feat_period": 14},
         }
 
-        with patch("crypto_bot.main._mlprep") as mock_mlprep:
+        with patch("crypto_bot.ml.preprocessor") as mock_mlprep:
             mock_mlprep.prepare_ml_dataset.return_value = (
                 pd.DataFrame(),
                 pd.Series(),
@@ -597,7 +601,7 @@ class TestIntegrationScenarios:
 
     @patch("crypto_bot.main.MarketDataFetcher")
     @patch("crypto_bot.main.DataPreprocessor")
-    @patch("crypto_bot.main._mlprep")
+    @patch("crypto_bot.ml.preprocessor")
     def test_full_prepare_data_workflow(
         self, mock_mlprep, mock_preprocessor, mock_fetcher_class
     ):
@@ -775,6 +779,7 @@ class TestCLICommands:
                 "trade_log_csv": "test_trades.csv",
                 "aggregate_out_prefix": "test_agg",
             },
+            "ml": {"model_type": "lgbm", "feat_period": 20},
         }
         mock_load_config.return_value = test_config
 
@@ -822,6 +827,15 @@ class TestCLICommands:
 
             runner = CliRunner()
             with runner.isolated_filesystem():
+                # Create the config file that CLI expects to exist
+                with open("test_config.yml", "w") as f:
+                    f.write("# Test config file\n")
+
+                # Create results directory that the code expects
+                import os
+
+                os.makedirs("results", exist_ok=True)
+
                 result = runner.invoke(cli, ["backtest", "--config", "test_config.yml"])
 
                 assert result.exit_code == 0
@@ -860,6 +874,10 @@ class TestCLICommands:
 
         runner = CliRunner()
         with runner.isolated_filesystem():
+            # Create the config file that CLI expects to exist
+            with open("test_config.yml", "w") as f:
+                f.write("# Test config file\n")
+
             result = runner.invoke(
                 cli, ["train", "--config", "test_config.yml", "--model-type", "xgb"]
             )
@@ -906,6 +924,10 @@ class TestCLICommands:
 
         runner = CliRunner()
         with runner.isolated_filesystem():
+            # Create the config file that CLI expects to exist
+            with open("test_config.yml", "w") as f:
+                f.write("# Test config file\n")
+
             result = runner.invoke(cli, ["train", "--config", "test_config.yml"])
 
             assert result.exit_code == 0
@@ -933,6 +955,10 @@ class TestCLICommands:
 
         runner = CliRunner()
         with runner.isolated_filesystem():
+            # Create the config file that CLI expects to exist
+            with open("test_config.yml", "w") as f:
+                f.write("# Test config file\n")
+
             result = runner.invoke(cli, ["train", "--config", "test_config.yml"])
 
             assert result.exit_code == 0  # sys.exit(0) が呼ばれる

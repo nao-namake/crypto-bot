@@ -63,6 +63,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.ind_calc = IndicatorCalculator()
         self.extra_features = self.config["ml"].get("extra_features", [])
 
+        # MLパラメータ設定
+        ml_config = self.config["ml"]
+        self.feat_period = ml_config.get("feat_period", 14)
+        self.lags = ml_config.get("lags", [1, 2, 3])
+        self.rolling_window = ml_config.get("rolling_window", 14)
+
         # VIX統合設定
         self.vix_enabled = "vix" in self.extra_features
         if self.vix_enabled:

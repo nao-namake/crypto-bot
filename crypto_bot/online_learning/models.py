@@ -424,6 +424,23 @@ class IncrementalMLModel(OnlineLearnerBase):
             logger.error(f"Failed to load model: {e}")
             return False
 
+    def get_status(self) -> Dict[str, Any]:
+        """Get current model status information"""
+        return {
+            "model_type": self.model_type,
+            "backend": "sklearn" if self.model_type.startswith("sklearn_") else "river",
+            "is_fitted": self.is_fitted,
+            "samples_seen": self.samples_seen,
+            "model_version": self.model_version,
+            "last_update": self.last_update.isoformat() if self.last_update else None,
+            "feature_names": self.feature_names,
+            "config": (
+                self.config.__dict__
+                if hasattr(self.config, "__dict__")
+                else str(self.config)
+            ),
+        }
+
 
 class OnlineClassifier(IncrementalMLModel):
     """Specialized online classifier"""

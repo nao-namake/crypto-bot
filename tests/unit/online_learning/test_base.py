@@ -203,6 +203,9 @@ class ConcreteOnlineLearner(OnlineLearnerBase):
     def save_model(self, path: str) -> bool:
         return True
 
+    def load_model(self, path: str) -> bool:
+        return True
+
 
 class TestOnlineLearnerBase:
     """OnlineLearnerBase のテストクラス"""

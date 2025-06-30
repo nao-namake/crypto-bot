@@ -150,8 +150,16 @@ class TestRetrainingJob:
 
     def test_initialization(self, mock_model, sample_trigger):
         """初期化のテスト"""
+        from datetime import datetime
+
         job = RetrainingJob(
-            job_id="test_job_001", trigger=sample_trigger, model=mock_model
+            job_id="test_job_001",
+            trigger=sample_trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
         )
 
         assert job.job_id == "test_job_001"
@@ -160,9 +168,27 @@ class TestRetrainingJob:
 
     def test_job_id_uniqueness(self, mock_model, sample_trigger):
         """ジョブID一意性のテスト"""
-        job1 = RetrainingJob(job_id="job_001", trigger=sample_trigger, model=mock_model)
+        from datetime import datetime
 
-        job2 = RetrainingJob(job_id="job_002", trigger=sample_trigger, model=mock_model)
+        job1 = RetrainingJob(
+            job_id="job_001",
+            trigger=sample_trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
+
+        job2 = RetrainingJob(
+            job_id="job_002",
+            trigger=sample_trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job1.job_id != job2.job_id
 
@@ -175,8 +201,26 @@ class TestRetrainingJob:
             trigger_type=TriggerType.DRIFT_DETECTION, threshold=0.05
         )
 
-        job1 = RetrainingJob("job1", trigger1, mock_model)
-        job2 = RetrainingJob("job2", trigger2, mock_model)
+        from datetime import datetime
+
+        job1 = RetrainingJob(
+            job_id="job1",
+            trigger=trigger1,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
+        job2 = RetrainingJob(
+            job_id="job2",
+            trigger=trigger2,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job1.model == job2.model
         assert job1.trigger != job2.trigger
@@ -188,7 +232,17 @@ class TestRetrainingJob:
             schedule_cron="0 */6 * * *",  # 6時間毎
         )
 
-        job = RetrainingJob(job_id="scheduled_job", trigger=trigger, model=mock_model)
+        from datetime import datetime
+
+        job = RetrainingJob(
+            job_id="scheduled_job",
+            trigger=trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job.trigger.schedule_cron == "0 */6 * * *"
         assert job.trigger.trigger_type == TriggerType.SCHEDULED_TIME
@@ -199,7 +253,17 @@ class TestRetrainingJob:
             trigger_type=TriggerType.SAMPLE_COUNT, sample_interval=5000
         )
 
-        job = RetrainingJob(job_id="sample_job", trigger=trigger, model=mock_model)
+        from datetime import datetime
+
+        job = RetrainingJob(
+            job_id="sample_job",
+            trigger=trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job.trigger.sample_interval == 5000
         assert job.trigger.trigger_type == TriggerType.SAMPLE_COUNT
@@ -208,7 +272,17 @@ class TestRetrainingJob:
         """無効トリガー付きジョブのテスト"""
         trigger = RetrainingTrigger(trigger_type=TriggerType.MANUAL, enabled=False)
 
-        job = RetrainingJob(job_id="disabled_job", trigger=trigger, model=mock_model)
+        from datetime import datetime
+
+        job = RetrainingJob(
+            job_id="disabled_job",
+            trigger=trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job.trigger.enabled is False
 
@@ -218,14 +292,32 @@ class TestRetrainingJob:
             trigger_type=TriggerType.DRIFT_DETECTION, threshold=0.01, priority=10
         )
 
-        job = RetrainingJob(job_id="urgent_job", trigger=trigger, model=mock_model)
+        from datetime import datetime
+
+        job = RetrainingJob(
+            job_id="urgent_job",
+            trigger=trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=10,
+            metadata={},
+        )
 
         assert job.trigger.priority == 10
 
     def test_job_attributes_access(self, mock_model, sample_trigger):
         """ジョブ属性アクセスのテスト"""
+        from datetime import datetime
+
         job = RetrainingJob(
-            job_id="test_access", trigger=sample_trigger, model=mock_model
+            job_id="test_access",
+            trigger=sample_trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
         )
 
         # 全ての属性にアクセス可能かテスト
@@ -240,8 +332,16 @@ class TestRetrainingJob:
 
     def test_job_string_representation(self, mock_model, sample_trigger):
         """ジョブ文字列表現のテスト"""
+        from datetime import datetime
+
         job = RetrainingJob(
-            job_id="repr_test", trigger=sample_trigger, model=mock_model
+            job_id="repr_test",
+            trigger=sample_trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
         )
 
         # 文字列表現が生成できるかテスト
@@ -258,9 +358,19 @@ class TestRetrainingJob:
             RetrainingTrigger(TriggerType.SAMPLE_COUNT, sample_interval=2000),
         ]
 
+        from datetime import datetime
+
         jobs = []
         for i, trigger in enumerate(triggers):
-            job = RetrainingJob(job_id=f"job_{i}", trigger=trigger, model=mock_model)
+            job = RetrainingJob(
+                job_id=f"job_{i}",
+                trigger=trigger,
+                model=mock_model,
+                data_source=lambda: ([], []),
+                timestamp=datetime.now(),
+                priority=1,
+                metadata={},
+            )
             jobs.append(job)
 
         assert len(jobs) == 4
@@ -271,8 +381,16 @@ class TestRetrainingJob:
         """ジョブトリガータイプ一貫性のテスト"""
         for trigger_type in TriggerType:
             trigger = RetrainingTrigger(trigger_type=trigger_type)
+            from datetime import datetime
+
             job = RetrainingJob(
-                job_id=f"job_{trigger_type.value}", trigger=trigger, model=mock_model
+                job_id=f"job_{trigger_type.value}",
+                trigger=trigger,
+                model=mock_model,
+                data_source=lambda: ([], []),
+                timestamp=datetime.now(),
+                priority=1,
+                metadata={},
             )
 
             assert job.trigger.trigger_type == trigger_type
@@ -286,7 +404,17 @@ class TestRetrainingJob:
             priority=8,
         )
 
-        job = RetrainingJob(job_id="complex_job", trigger=trigger, model=mock_model)
+        from datetime import datetime
+
+        job = RetrainingJob(
+            job_id="complex_job",
+            trigger=trigger,
+            model=mock_model,
+            data_source=lambda: ([], []),
+            timestamp=datetime.now(),
+            priority=1,
+            metadata={},
+        )
 
         assert job.trigger.threshold == 0.05
         assert job.trigger.enabled is True

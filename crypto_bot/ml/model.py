@@ -95,7 +95,7 @@ class EnsembleModel:
         self.models = models
         self.method = method.lower()
         self.weights = weights
-        self.meta_model = meta_model or LogisticRegression()
+        self.meta_model = meta_model if meta_model is not None else LogisticRegression()
         self.is_fitted = False
 
         # 重みの正規化
