@@ -165,6 +165,22 @@ class ADWINDetector(DriftDetectorBase):
         self.drift_detected = False
         self.last_drift_time = None
 
+    def get_status(self) -> dict:
+        """Get detector status"""
+        return {
+            "detector_type": "ADWIN",
+            "total_samples": self.total_samples,
+            "num_buckets": len(self.buckets),
+            "drift_detected": self.drift_detected,
+            "last_drift_time": (
+                self.last_drift_time.isoformat() if self.last_drift_time else None
+            ),
+            "mean": (
+                self.total_sum / self.total_samples if self.total_samples > 0 else 0.0
+            ),
+            "variance": self.variance,
+        }
+
 
 class DDMDetector(DriftDetectorBase):
     """
@@ -309,7 +325,9 @@ class StatisticalDriftDetector(DriftDetectorBase):
     """
 
     def __init__(self, window_size: int = 500, threshold: float = 0.01):
-        super().__init__(window_size, threshold)
+        super().__init__()
+        self.window_size = window_size
+        self.threshold = threshold
         self.reference_window = deque(maxlen=window_size)
         self.current_window = deque(maxlen=window_size)
         self.is_reference_ready = False

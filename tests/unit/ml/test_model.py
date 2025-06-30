@@ -512,9 +512,12 @@ class TestCreateEnsembleModel:
         """ML メタモデルでのスタッキング作成テスト"""
         from crypto_bot.ml.model import create_ensemble_model
 
+        # 辞書をコピーして元の設定を保護
         meta_config = {"type": "rf", "n_estimators": 10}
         ensemble = create_ensemble_model(
-            model_configs, method="stacking", meta_model_config=meta_config
+            [config.copy() for config in model_configs],
+            method="stacking",
+            meta_model_config=meta_config.copy(),
         )
 
         assert ensemble.method == "stacking"
