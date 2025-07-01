@@ -19,6 +19,7 @@ from sklearn.preprocessing import StandardScaler
 
 try:
     from crypto_bot.data.vix_fetcher import VIXDataFetcher
+
     VIX_AVAILABLE = True
 except ImportError:
     VIXDataFetcher = None
