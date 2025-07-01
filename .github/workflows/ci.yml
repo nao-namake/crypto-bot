@@ -210,8 +210,23 @@ jobs:
           docker pull "${IMAGE_TAG}"
           docker run --rm "${IMAGE_TAG}" python -c "import crypto_bot; print('Docker import test passed')"
           docker run -d --name test-container -p 8080:8080 "${IMAGE_TAG}"
-          sleep 10
-          curl -f http://localhost:8080/healthz || (echo "Health check failed" && exit 1)
+          echo "Waiting for live trading + API server to start..."
+          sleep 20
+          # Retry health check with exponential backoff
+          for i in {1..5}; do
+            if curl -f http://localhost:8080/health; then
+              echo "Health check passed on attempt $i"
+              break
+            else
+              echo "Health check failed on attempt $i, retrying in $((i*2)) seconds..."
+              sleep $((i*2))
+              if [ $i -eq 5 ]; then
+                echo "All health check attempts failed"
+                docker logs test-container
+                exit 1
+              fi
+            fi
+          done
           docker stop test-container
           docker rm test-container
           echo "Docker image tests passed successfully"
