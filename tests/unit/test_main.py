@@ -1111,9 +1111,13 @@ class TestCLICommands:
         # Order オブジェクト
         from crypto_bot.execution.engine import Order
 
+        # Create an entry order that exists to trigger trade completion
+        entry_order = Order(exist=True, side="BUY", price=100.0, lot=0.1)
         no_order = Order(exist=False)
-        mock_entry_exit.generate_entry_order.return_value = no_order
+
+        mock_entry_exit.generate_entry_order.return_value = entry_order
         mock_entry_exit.generate_exit_order.return_value = no_order
+        mock_entry_exit.fill_order.return_value = 10000  # Return balance
 
         # max-trades 1でテスト（すぐに終了するように）
         runner = CliRunner()
@@ -1122,7 +1126,7 @@ class TestCLICommands:
             with open("test_config.yml", "w") as f:
                 f.write("# Test config file\n")
 
-            with patch("crypto_bot.main.update_status"):
+            with patch("crypto_bot.main.update_status"), patch("time.sleep"):
                 runner.invoke(
                     cli,
                     ["live-paper", "--config", "test_config.yml", "--max-trades", "1"],
@@ -1140,7 +1144,7 @@ class TestCLICommands:
     @patch("crypto_bot.main.run_optuna")
     @patch("crypto_bot.main._load_and_preprocess_data")
     @patch("crypto_bot.main.prepare_ml_dataset")
-    @patch("crypto_bot.main.create_model")
+    @patch("crypto_bot.ml.model.create_model")
     @patch("crypto_bot.main.save_model")
     def test_optimize_and_train_command(
         self,
@@ -1183,6 +1187,10 @@ class TestCLICommands:
 
         runner = CliRunner()
         with runner.isolated_filesystem():
+            # Create the config file that CLI expects to exist
+            with open("test_config.yml", "w") as f:
+                f.write("# Test config file\n")
+
             with patch("crypto_bot.main.ensure_dir_for_file"):
                 result = runner.invoke(
                     cli,
@@ -1196,6 +1204,12 @@ class TestCLICommands:
                         "final_model.pkl",
                     ],
                 )
+
+                # Debug output if command fails
+                if result.exit_code != 0:
+                    print(f"Command failed with exit code {result.exit_code}")
+                    print(f"Output: {result.output}")
+                    print(f"Exception: {result.exception}")
 
                 assert result.exit_code == 0
                 mock_optuna.assert_called_once()
