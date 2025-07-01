@@ -57,6 +57,6 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # ──────────────────────────────────────────────
-# Testnet Live Trading Mode（ペーパートレードからライブトレードへ）
+# API Server Mode (確実な起動保証)
 # ──────────────────────────────────────────────
-CMD ["python", "-m", "crypto_bot.main", "live-paper", "--config", "config/default.yml"]
+CMD ["python", "-m", "uvicorn", "crypto_bot.api.server:app", "--host", "0.0.0.0", "--port", "8080"]
