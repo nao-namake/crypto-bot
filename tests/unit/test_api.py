@@ -5,11 +5,15 @@ from unittest.mock import mock_open, patch
 import pytest
 
 try:
+    import fastapi
     from fastapi.testclient import TestClient
 
     from crypto_bot.api import app
 
-    FASTAPI_AVAILABLE = True
+    # Double check that app is actually a FastAPI instance, not DummyApp
+    FASTAPI_AVAILABLE = hasattr(fastapi, "FastAPI") and not (
+        hasattr(app, "__class__") and app.__class__.__name__ == "DummyApp"
+    )
 except ImportError:
     TestClient = None
     app = None
@@ -24,6 +28,11 @@ def client():
     """Create test client for FastAPI app"""
     if not FASTAPI_AVAILABLE or app is None:
         pytest.skip("FastAPI not available")
+
+    # Check if app is DummyApp (when FastAPI dependencies are missing)
+    if app.__class__.__name__ == "DummyApp":
+        pytest.skip("FastAPI dependencies not available, using DummyApp")
+
     return TestClient(app)
 
 
