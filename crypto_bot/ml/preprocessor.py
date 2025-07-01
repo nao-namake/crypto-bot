@@ -21,7 +21,13 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from crypto_bot.data.vix_fetcher import VIXDataFetcher
+try:
+    from crypto_bot.data.vix_fetcher import VIXDataFetcher
+
+    VIX_AVAILABLE = True
+except ImportError:
+    VIXDataFetcher = None
+    VIX_AVAILABLE = False
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.target import make_classification_target, make_regression_target
 
@@ -70,8 +76,8 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.rolling_window = ml_config.get("rolling_window", 14)
 
         # VIX統合設定
-        self.vix_enabled = "vix" in self.extra_features
-        if self.vix_enabled:
+        self.vix_enabled = "vix" in self.extra_features and VIX_AVAILABLE
+        if self.vix_enabled and VIX_AVAILABLE:
             self.vix_fetcher = VIXDataFetcher()
         else:
             self.vix_fetcher = None
