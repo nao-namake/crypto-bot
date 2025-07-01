@@ -14,9 +14,19 @@ import time
 from datetime import datetime
 from typing import Any, Dict
 
-import uvicorn
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import JSONResponse
+try:
+    import uvicorn
+    from fastapi import FastAPI, HTTPException, Response
+    from fastapi.responses import JSONResponse
+
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    uvicorn = None
+    FastAPI = None
+    HTTPException = None
+    Response = None
+    JSONResponse = None
+    FASTAPI_AVAILABLE = False
 
 try:
     from crypto_bot.ha.state_manager import StateManager
@@ -27,11 +37,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Crypto Bot Health Check API",
-    description="Health check endpoints for multi-region deployment",
-    version="1.0.0",
-)
+if FASTAPI_AVAILABLE:
+    app = FastAPI(
+        title="Crypto Bot Health Check API",
+        description="Health check endpoints for multi-region deployment",
+        version="1.0.0",
+    )
+else:
+    app = None
 
 
 class HealthChecker:
