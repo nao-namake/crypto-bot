@@ -57,6 +57,6 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # ──────────────────────────────────────────────
-# API Server Mode (確実な起動保証)
+# Live Trading + API Server Mode (Bybit Testnet)
 # ──────────────────────────────────────────────
-CMD ["python", "-m", "uvicorn", "crypto_bot.api.server:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "scripts/start_live_with_api.py"]
