@@ -1123,7 +1123,7 @@ class TestCLICommands:
                 f.write("# Test config file\n")
 
             with patch("crypto_bot.main.update_status"):
-                result = runner.invoke(
+                runner.invoke(
                     cli,
                     ["live-paper", "--config", "test_config.yml", "--max-trades", "1"],
                 )
