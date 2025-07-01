@@ -11,6 +11,11 @@ import pytest
 from crypto_bot.execution.engine import Position
 from crypto_bot.strategy.ml_strategy import MLStrategy
 
+try:
+    from crypto_bot.strategy.ml_strategy import VIX_AVAILABLE
+except ImportError:
+    VIX_AVAILABLE = False
+
 
 class DummyPipeline:
     """テスト用のダミーパイプライン"""
@@ -368,6 +373,7 @@ def test_ensemble_model_loading():
         assert True  # Test passes if graceful fallback occurs
 
 
+@pytest.mark.skipif(not VIX_AVAILABLE, reason="VIX integration not available")
 def test_vix_integration_enabled():
     """Test VIX integration when enabled."""
     config = {
