@@ -65,12 +65,26 @@ class LiveTradingWithAPI:
             logger.info(f"Downloading ML model from {gcs_path}...")
             try:
                 os.makedirs("model", exist_ok=True)
-                subprocess.run([
-                    "gsutil", "cp", gcs_path, model_path
-                ], check=True)
-                logger.info("ML model downloaded successfully")
-                return True
-            except subprocess.CalledProcessError as e:
+                
+                # Parse GCS path: gs://bucket/path
+                if gcs_path.startswith("gs://"):
+                    parts = gcs_path[5:].split("/", 1)
+                    bucket_name = parts[0]
+                    blob_name = parts[1]
+                    
+                    # Use Google Cloud Storage client
+                    from google.cloud import storage
+                    client = storage.Client()
+                    bucket = client.bucket(bucket_name)
+                    blob = bucket.blob(blob_name)
+                    blob.download_to_filename(model_path)
+                    logger.info("ML model downloaded successfully")
+                    return True
+                else:
+                    logger.error(f"Invalid GCS path format: {gcs_path}")
+                    return False
+                    
+            except Exception as e:
                 logger.error(f"Failed to download model: {e}")
                 return False
         elif os.path.exists(model_path):
