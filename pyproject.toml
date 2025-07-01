@@ -58,6 +58,7 @@ dependencies = [
     # --- ストリーミング (必要なら) ---
     "websockets>=11.0.0",
     "google-cloud-monitoring>=2.18.0",
+    "google-cloud-storage>=2.17.0",
     
     # --- VIX恐怖指数データ取得 ---
     "yfinance>=0.2.18",
