@@ -17,7 +17,12 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from crypto_bot.data.vix_fetcher import VIXDataFetcher
+try:
+    from crypto_bot.data.vix_fetcher import VIXDataFetcher
+    VIX_AVAILABLE = True
+except ImportError:
+    VIXDataFetcher = None
+    VIX_AVAILABLE = False
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.model import EnsembleModel, MLModel
@@ -61,7 +66,7 @@ class MLStrategy(StrategyBase):
         self.indicator_calc = IndicatorCalculator()
 
         # VIX恐怖指数データ取得
-        self.vix_fetcher = VIXDataFetcher()
+        self.vix_fetcher = VIXDataFetcher() if VIX_AVAILABLE else None
 
         # Dynamic threshold parameters（strategy.paramsからも取得可能）
         strategy_params = self.config.get("strategy", {}).get("params", {})
@@ -180,7 +185,7 @@ class MLStrategy(StrategyBase):
         tuple[float, dict]
             (threshold_adjustment, vix_info)
         """
-        if not self.vix_enabled:
+        if not self.vix_enabled or not VIX_AVAILABLE or self.vix_fetcher is None:
             return 0.0, {}
 
         try:
