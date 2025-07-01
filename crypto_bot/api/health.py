@@ -44,7 +44,21 @@ if FASTAPI_AVAILABLE:
         version="1.0.0",
     )
 else:
-    app = None
+    # Create dummy app object with route decorators that do nothing
+    class DummyApp:
+        def get(self, path):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        def post(self, path):
+            def decorator(func):
+                return func
+
+            return decorator
+
+    app = DummyApp()
 
 
 class HealthChecker:
