@@ -54,9 +54,40 @@ class LiveTradingWithAPI:
             logger.error(f"Failed to start API server: {e}")
             return False
 
+    def download_model_if_needed(self):
+        """必要に応じてCloud StorageからMLモデルをダウンロード"""
+        import os
+        
+        model_path = "model/calibrated_model.pkl"
+        gcs_path = os.getenv("MODEL_GCS_PATH")
+        
+        if gcs_path and not os.path.exists(model_path):
+            logger.info(f"Downloading ML model from {gcs_path}...")
+            try:
+                os.makedirs("model", exist_ok=True)
+                subprocess.run([
+                    "gsutil", "cp", gcs_path, model_path
+                ], check=True)
+                logger.info("ML model downloaded successfully")
+                return True
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to download model: {e}")
+                return False
+        elif os.path.exists(model_path):
+            logger.info("ML model already exists locally")
+            return True
+        else:
+            logger.warning("No ML model available (neither local nor GCS)")
+            return False
+
     def start_live_trading(self):
         """フォアグラウンドでライブトレードを開始"""
         try:
+            # MLモデルをダウンロード
+            if not self.download_model_if_needed():
+                logger.error("Cannot start live trading without ML model")
+                return 1
+                
             logger.info("Starting live trading...")
             self.live_trade_process = subprocess.Popen(
                 [
