@@ -51,4 +51,36 @@ try:
 
 except ImportError:
     FASTAPI_AVAILABLE = False
-    app = None
+
+    # Create dummy ASGI app for testing compatibility
+    class DummyApp:
+        def get(self, path):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        def post(self, path):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        async def __call__(self, scope, receive, send):
+            """Minimal ASGI app implementation for testing"""
+            if scope["type"] == "http":
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 404,
+                        "headers": [[b"content-type", b"application/json"]],
+                    }
+                )
+                await send(
+                    {
+                        "type": "http.response.body",
+                        "body": b'{"detail": "FastAPI not available"}',
+                    }
+                )
+
+    app = DummyApp()
