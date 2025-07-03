@@ -51,6 +51,7 @@ COPY .env.example /app/
 # アプリケーションコードをコピー（最後に配置してキャッシュ効率向上）
 COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
+COPY model/ /app/model/
 
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
