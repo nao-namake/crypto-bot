@@ -57,29 +57,30 @@ class LiveTradingWithAPI:
     def download_model_if_needed(self):
         """MLモデル可用性確認（ローカル優先、GCSフォールバック）"""
         import os
-        
+
         model_path = "model/calibrated_model.pkl"
-        
+
         # ローカルモデルが存在するかチェック
         if os.path.exists(model_path):
             logger.info("ML model found locally")
             return True
-            
+
         # ローカルにない場合、GCSから試行（オプション）
         gcs_path = os.getenv("MODEL_GCS_PATH")
         if gcs_path:
             logger.info(f"Attempting to download ML model from {gcs_path}...")
             try:
                 os.makedirs("model", exist_ok=True)
-                
+
                 # Parse GCS path: gs://bucket/path
                 if gcs_path.startswith("gs://"):
                     parts = gcs_path[5:].split("/", 1)
                     bucket_name = parts[0]
                     blob_name = parts[1]
-                    
+
                     # Use Google Cloud Storage client
                     from google.cloud import storage
+
                     client = storage.Client()
                     bucket = client.bucket(bucket_name)
                     blob = bucket.blob(blob_name)
@@ -90,22 +91,24 @@ class LiveTradingWithAPI:
                     logger.error(f"Invalid GCS path format: {gcs_path}")
             except Exception as e:
                 logger.warning(f"GCS download failed: {e}")
-                
+
         # 緊急対応：シンプルなダミーモデル作成
         logger.warning("Creating dummy model for emergency operation")
         try:
             import pickle
+
             os.makedirs("model", exist_ok=True)
-            
+
             # Create minimal dummy model
             class DummyModel:
                 def predict_proba(self, X):
                     import numpy as np
+
                     # Return neutral probability (50%)
                     return np.full((len(X), 2), [0.5, 0.5])
-                    
+
             dummy_model = DummyModel()
-            with open(model_path, 'wb') as f:
+            with open(model_path, "wb") as f:
                 pickle.dump(dummy_model, f)
             logger.warning("Dummy model created for testing purposes")
             return True
@@ -120,7 +123,7 @@ class LiveTradingWithAPI:
             if not self.download_model_if_needed():
                 logger.error("Cannot start live trading without ML model")
                 return 1
-                
+
             logger.info("Starting live trading...")
             self.live_trade_process = subprocess.Popen(
                 [
