@@ -37,7 +37,7 @@ strategy:
   type: single  # single または multi
   name: ml
   params:
-    model_path: model/calibrated_model.pkl
+    model_path: model/dxy_fear_greed_2year_model.pkl
     threshold: 0.05  # ベース閾値（動的調整の基準点）
     
     # 動的閾値調整パラメータ

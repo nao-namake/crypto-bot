@@ -52,8 +52,8 @@ COPY .env.example /app/
 COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
 
-# MLモデルディレクトリ（存在しない場合は空ディレクトリを作成）
-RUN mkdir -p /app/model
+# MLモデルファイルをコピー
+COPY model/ /app/model/
 
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1

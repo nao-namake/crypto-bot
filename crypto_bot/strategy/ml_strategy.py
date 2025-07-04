@@ -53,14 +53,21 @@ class MLStrategy(StrategyBase):
         # モデルの読み込み（MLModel or EnsembleModel）
         try:
             # まずEnsembleModelとして読み込みを試行
+            logger.info(f"Attempting to load ensemble model from: {model_path}")
             self.model = EnsembleModel.load(model_path)
             self.is_ensemble = True
             logger.info("Loaded ensemble model successfully")
-        except Exception:
+        except Exception as e:
             # 失敗した場合は通常のMLModelとして読み込み
-            self.model = MLModel.load(model_path)
-            self.is_ensemble = False
-            logger.info("Loaded single model successfully")
+            logger.warning(f"Failed to load as ensemble model: {e}")
+            logger.info(f"Attempting to load as single model from: {model_path}")
+            try:
+                self.model = MLModel.load(model_path)
+                self.is_ensemble = False
+                logger.info("Loaded single model successfully")
+            except Exception as e2:
+                logger.error(f"Failed to load model: {e2}")
+                raise RuntimeError(f"Could not load model from {model_path}: {e2}")
 
         self.feature_engineer = FeatureEngineer(self.config)
         self.scaler = StandardScaler()
