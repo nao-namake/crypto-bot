@@ -512,10 +512,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             macro_resampled.index
                                         )
                                         logger.debug(
-                                            f"Crypto data range: {df.index.min()} to {df.index.max()}"
+                                            f"Crypto data range: {df.index.min()} to "
+                                            f"{df.index.max()}"
                                         )
                                         logger.debug(
-                                            f"Macro data range: {macro_resampled.index.min()} to {macro_resampled.index.max()}"
+                                            f"Macro data range: {macro_resampled.index.min()} to "
+                                            f"{macro_resampled.index.max()}"
                                         )
                                         logger.debug(
                                             f"Common index length: {len(common_index)}"

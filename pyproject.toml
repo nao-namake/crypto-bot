@@ -32,6 +32,9 @@ description = "汎用暗号資産トレーディングボット"
 # Python 3.11 と 3.12 だけをサポートするので、ここも狭めておく
 requires-python = ">=3.11,<3.13"
 
+[tool.setuptools]
+packages = ["crypto_bot"]
+
 dependencies = [
     # --- ベース ---
     "numpy>=1.23.0,<2.0",
