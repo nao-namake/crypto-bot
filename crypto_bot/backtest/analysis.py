@@ -20,12 +20,12 @@ def preprocess_trade_log(df: pd.DataFrame) -> pd.DataFrame:
 
 def aggregate_by_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
     """
-    指定した期間単位（period: 'D'=日次, 'W'=週次, 'ME'=月次）で集計します。
+    指定した期間単位（period: 'D'=日次, 'W'=週次, 'M'=月次）で集計します。
     出力: トレード数・勝率・平均リターン・合計損益
     """
-    # 'M'（月末）→ 'ME'（MonthEnd）に統一
-    if period == "M":
-        period = "ME"
+    # 'ME'（MonthEnd）→ 'M'（月末）に変換（CI環境互換性）
+    if period == "ME":
+        period = "M"
     df = preprocess_trade_log(df).set_index("exit_time")
     agg = df.groupby(pd.Grouper(freq=period)).apply(
         lambda g: {
@@ -42,7 +42,7 @@ def export_aggregates(df: pd.DataFrame, out_prefix: str):
     """
     日次・週次・月次の3パターンで集計してCSV出力
     """
-    # 'M'（月次）は将来廃止予定なので 'ME' を使う
-    for freq, name in [("D", "daily"), ("W", "weekly"), ("ME", "monthly")]:
+    # CI環境互換性のため 'M' を使用
+    for freq, name in [("D", "daily"), ("W", "weekly"), ("M", "monthly")]:
         agg = aggregate_by_period(df, freq)
         agg.to_csv(f"{out_prefix}_{name}.csv")
