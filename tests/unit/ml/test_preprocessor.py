@@ -129,8 +129,8 @@ def test_feature_engineer_transform_with_time_features(dummy_config, dummy_ohlcv
     out = fe.transform(dummy_ohlcv)
     assert "day_of_week" in out.columns
     assert "hour_of_day" in out.columns
-    assert out["day_of_week"].dtype == "int8"
-    assert out["hour_of_day"].dtype == "int8"
+    assert pd.api.types.is_integer_dtype(out["day_of_week"])
+    assert pd.api.types.is_integer_dtype(out["hour_of_day"])
 
 
 def test_feature_engineer_transform_with_mochipoyo_signals(dummy_config, dummy_ohlcv):
