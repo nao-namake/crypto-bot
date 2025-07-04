@@ -58,7 +58,7 @@ def test_aggregate_by_period_weekly():
 
 def test_aggregate_by_period_monthly():
     df = sample_trade_log()
-    agg = analysis.aggregate_by_period(df, "ME")
+    agg = analysis.aggregate_by_period(df, "M")
     assert isinstance(agg, pd.DataFrame)
     # 月次合計損益チェック
     assert agg["total_pl"].sum() == df["profit"].sum()
