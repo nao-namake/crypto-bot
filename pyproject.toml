@@ -35,42 +35,6 @@ requires-python = ">=3.11,<3.13"
 [tool.setuptools]
 packages = ["crypto_bot"]
 
-dependencies = [
-    # --- ベース ---
-    "numpy>=1.23.0,<2.0",
-    "pandas>=1.3.0",
-    "pandas-ta>=0.3.14b0",
-    "scipy>=1.7.0",
-    "pyyaml>=6.0",
-
-    # --- CLI / ランタイム追加 ---
-    "click>=8.1.0",
-    "ccxt>=2.10.0",
-    "python-dotenv>=1.0.0",
-    "tenacity>=8.2.0",
-
-    # --- 機械学習関連 ---
-    "scikit-learn>=1.2.0",
-    "optuna>=3.0.0",
-    "lightgbm>=4.0.0",
-    "xgboost>=1.7.0",
-
-    # --- プロット用 ---
-    "matplotlib>=3.5.0",
-
-    # --- ストリーミング (必要なら) ---
-    "websockets>=11.0.0",
-    "google-cloud-monitoring>=2.18.0",
-    "google-cloud-storage>=2.17.0",
-    
-    # --- VIX恐怖指数データ取得 ---
-    "yfinance>=0.2.18",
-    
-    # --- マクロ系特徴量データ取得 ---
-    "requests>=2.31.0",            # ニュースAPI用
-    "vaderSentiment>=3.3.2",       # 感情分析用
-]
-
 # build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。
 
 # ------------------------------------------------------------
