@@ -22,8 +22,10 @@ RUN pip install --no-cache-dir -r requirements-dev.txt \
 COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
 COPY config/ /app/config/
-COPY model/ /app/model/
 COPY .env.example /app/
+
+# モデルディレクトリを作成（実行時にモデルファイルが配置される）
+RUN mkdir -p /app/model
 
 # 環境変数設定
 ENV PORT=8080
