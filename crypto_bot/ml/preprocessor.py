@@ -516,7 +516,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             f"{df.index.max()}"
                                         )
                                         logger.debug(
-                                            f"Macro data range: {macro_resampled.index.min()} to "
+                                            f"Macro data range: {macro_resampled.index.min()} to "  # noqa: E501
                                             f"{macro_resampled.index.max()}"
                                         )
                                         logger.debug(
@@ -549,11 +549,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     if col in macro_values.index:
                                                         df[col] = macro_values[col]
                                                 logger.debug(
-                                                    f"Used closest macro data from {closest_date} for {len(df)} crypto data points"
+                                                    f"Used closest macro data from "
+                                                    f"{closest_date} for {len(df)} "
+                                                    f"crypto data points"
                                                 )
                                             else:
                                                 logger.warning(
-                                                    "No suitable macro data found for alignment"
+                                                    "No suitable macro data found for alignment"  # noqa: E501
                                                 )
                                         elif (
                                             len(common_index) > 0
@@ -580,15 +582,15 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     )
 
                                             logger.debug(
-                                                f"Added macro features: {len(common_index)} data points aligned"
+                                                f"Added macro features: {len(common_index)} data points aligned"  # noqa: E501
                                             )
                                         else:
                                             logger.warning(
-                                                "Could not align macro data with crypto data"
+                                                "Could not align macro data with crypto data"  # noqa: E501
                                             )
                                     else:
                                         logger.warning(
-                                            "Index type mismatch for macro data alignment"
+                                            "Index type mismatch for macro data alignment"  # noqa: E501
                                         )
                                 else:
                                     logger.warning("No macro data available")
@@ -645,7 +647,9 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             funding_resampled.index
                                         )
                                         logger.debug(
-                                            f"Funding alignment: crypto {len(df)}, funding {len(funding_resampled)}, common {len(common_index)}"
+                                            f"Funding alignment: crypto {len(df)}, "
+                                            f"funding {len(funding_resampled)}, "
+                                            f"common {len(common_index)}"
                                         )
 
                                         if len(common_index) == 0 and len(df) > 0:
@@ -664,7 +668,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     closest_date
                                                 ]
 
-                                                from crypto_bot.data.funding_fetcher import (
+                                                from crypto_bot.data.funding_fetcher import (  # noqa: E501
                                                     get_available_funding_features,
                                                 )
 
@@ -678,11 +682,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     else:
                                                         df[col] = 0  # デフォルト値
                                                 logger.debug(
-                                                    f"Used closest funding data from {closest_date}"
+                                                    f"Used closest funding data from {closest_date}"  # noqa: E501
                                                 )
                                             else:
                                                 # データなしの場合はデフォルト値
-                                                from crypto_bot.data.funding_fetcher import (
+                                                from crypto_bot.data.funding_fetcher import (  # noqa: E501
                                                     get_available_funding_features,
                                                 )
 
@@ -692,11 +696,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                 for col in funding_feature_names:
                                                     df[col] = 0
                                                 logger.warning(
-                                                    "No suitable funding data found - using default values"
+                                                    "No suitable funding data found - using default values"  # noqa: E501
                                                 )
                                         elif len(common_index) > 0:
                                             # 通常のアライメント
-                                            from crypto_bot.data.funding_fetcher import (
+                                            from crypto_bot.data.funding_fetcher import (  # noqa: E501
                                                 get_available_funding_features,
                                             )
 
@@ -713,20 +717,20 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     )
 
                                             logger.info(
-                                                f"Added {len(funding_feature_names)} funding features: {len(common_index)} data points aligned"
+                                                f"Added {len(funding_feature_names)} funding features: {len(common_index)} data points aligned"  # noqa: E501
                                             )
                                         else:
                                             logger.warning(
-                                                "Could not align funding data with crypto data"
+                                                "Could not align funding data with crypto data"  # noqa: E501
                                             )
                                     else:
                                         logger.warning(
-                                            "Index type mismatch for funding data alignment"
+                                            "Index type mismatch for funding data alignment"  # noqa: E501
                                         )
                                 else:
                                     # データなしの場合は必ずデフォルト特徴量を追加（特徴量数一致のため）
                                     logger.warning(
-                                        "No funding data available - adding default features"
+                                        "No funding data available - adding default features"  # noqa: E501
                                     )
                                     try:
                                         from crypto_bot.data.funding_fetcher import (
@@ -741,16 +745,16 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             if col not in df.columns:
                                                 df[col] = 0  # デフォルト値
                                         logger.debug(
-                                            f"Added {len(funding_feature_names)} default funding features"
+                                            f"Added {len(funding_feature_names)} default funding features"  # noqa: E501
                                         )
                                     except Exception as inner_e:
                                         logger.error(
-                                            f"Failed to add default funding features: {inner_e}"
+                                            f"Failed to add default funding features: {inner_e}"  # noqa: E501
                                         )
                             else:
                                 # Fetcherなしの場合も必ずデフォルト特徴量を追加
                                 logger.warning(
-                                    "Funding fetcher not initialized - adding default features"
+                                    "Funding fetcher not initialized - adding default features"  # noqa: E501
                                 )
                                 try:
                                     from crypto_bot.data.funding_fetcher import (
@@ -765,11 +769,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                         if col not in df.columns:
                                             df[col] = 0  # デフォルト値
                                     logger.debug(
-                                        f"Added {len(funding_feature_names)} default funding features"
+                                        f"Added {len(funding_feature_names)} default funding features"  # noqa: E501
                                     )
                                 except Exception as inner_e:
                                     logger.error(
-                                        f"Failed to add default funding features: {inner_e}"
+                                        f"Failed to add default funding features: {inner_e}"  # noqa: E501
                                     )
                         except Exception as e:
                             logger.warning("Failed to add funding features: %s", e)
@@ -785,7 +789,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                     if col not in df.columns:
                                         df[col] = 0  # デフォルト値
                                 logger.debug(
-                                    f"Added {len(funding_feature_names)} default funding features after error"
+                                    f"Added {len(funding_feature_names)} default funding features after error"  # noqa: E501
                                 )
                             except Exception as inner_e:
                                 logger.error(
@@ -801,7 +805,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                     days_back=30
                                 )
                                 if not fg_data.empty:
-                                    fg_features = self.fear_greed_fetcher.calculate_fear_greed_features(
+                                    fg_features = self.fear_greed_fetcher.calculate_fear_greed_features(  # noqa: E501
                                         fg_data
                                     )
 
@@ -812,7 +816,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                 timeframe="1d"
                                             )
                                             if not vix_data.empty:
-                                                vix_fg_correlation = self.fear_greed_fetcher.get_vix_correlation_features(
+                                                vix_fg_correlation = self.fear_greed_fetcher.get_vix_correlation_features(  # noqa: E501
                                                     fg_data, vix_data
                                                 )
                                                 if not vix_fg_correlation.empty:
@@ -824,7 +828,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                         axis=1,
                                                     )
                                                     logger.debug(
-                                                        "Added VIX-FG correlation features"
+                                                        "Added VIX-FG correlation features"  # noqa: E501
                                                     )
                                         except Exception as e:
                                             logger.warning(
@@ -847,14 +851,14 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             fg_resampled.index
                                         )
                                         logger.debug(
-                                            f"Fear & Greed alignment: crypto {len(df)}, fg {len(fg_resampled)}, common {len(common_index)}"
+                                            f"Fear & Greed alignment: crypto {len(df)}, fg {len(fg_resampled)}, common {len(common_index)}"  # noqa: E501
                                         )
 
                                         # 小さなデータチャンクの場合は最新のFear & Greedデータを使用
                                         if len(common_index) == 0 and len(df) > 0:
                                             # Fear & Greedデータが期間外の場合、最新データで全行を埋める
                                             logger.warning(
-                                                "Fear & Greed data period mismatch - using latest available data"
+                                                "Fear & Greed data period mismatch - using latest available data"  # noqa: E501
                                             )
 
                                             # 最新のFear & Greedデータを取得
@@ -866,12 +870,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     if col in latest_fg_data.index:
                                                         df[col] = latest_fg_data[col]
                                                 logger.debug(
-                                                    f"Filled all {len(df)} rows with latest Fear & Greed data"
+                                                    f"Filled all {len(df)} rows with latest Fear & Greed data"  # noqa: E501
                                                 )
                                             else:
                                                 # Fear & Greedデータが全くない場合、デフォルト値で埋める
                                                 logger.warning(
-                                                    "No Fear & Greed data available - using default values"
+                                                    "No Fear & Greed data available - using default values"  # noqa: E501
                                                 )
                                                 for col in fg_features.columns:
                                                     if col == "fg_level":
@@ -891,19 +895,19 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     )
 
                                             logger.debug(
-                                                f"Added Fear & Greed features: {len(common_index)} data points aligned"
+                                                f"Added Fear & Greed features: {len(common_index)} data points aligned"  # noqa: E501
                                             )
                                         else:
                                             logger.warning(
-                                                "Could not align Fear & Greed data with crypto data"
+                                                "Could not align Fear & Greed data with crypto data"  # noqa: E501
                                             )
                                     else:
                                         logger.warning(
-                                            "Index type mismatch for Fear & Greed data alignment"
+                                            "Index type mismatch for Fear & Greed data alignment"  # noqa: E501
                                         )
                                 else:
                                     logger.warning(
-                                        "No Fear & Greed data available - adding default Fear & Greed features"
+                                        "No Fear & Greed data available - adding default Fear & Greed features"  # noqa: E501
                                     )
                                     # Fear & Greedデータが取得できない場合、デフォルト特徴量を追加
                                     from crypto_bot.data.fear_greed_fetcher import (
@@ -923,11 +927,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             else:
                                                 df[col] = 0  # その他は0
                                     logger.debug(
-                                        f"Added {len(fg_feature_names)} default Fear & Greed features"
+                                        f"Added {len(fg_feature_names)} default Fear & Greed features"  # noqa: E501
                                     )
                             else:
                                 logger.warning(
-                                    "Fear & Greed fetcher not initialized - adding default Fear & Greed features"
+                                    "Fear & Greed fetcher not initialized - adding default Fear & Greed features"  # noqa: E501
                                 )
                                 # Fetcherが初期化されていない場合もデフォルト特徴量を追加
                                 from crypto_bot.data.fear_greed_fetcher import (
@@ -945,7 +949,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                         else:
                                             df[col] = 0  # その他は0
                                 logger.debug(
-                                    f"Added {len(fg_feature_names)} default Fear & Greed features"
+                                    f"Added {len(fg_feature_names)} default Fear & Greed features"  # noqa: E501
                                 )
                         except Exception as e:
                             logger.warning("Failed to add Fear & Greed features: %s", e)
@@ -969,11 +973,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                         else:
                                             df[col] = 0  # その他は0
                                 logger.debug(
-                                    f"Added {len(fg_feature_names)} default Fear & Greed features after error"
+                                    f"Added {len(fg_feature_names)} default Fear & Greed features after error"  # noqa: E501
                                 )
                             except Exception as inner_e:
                                 logger.error(
-                                    f"Failed to add default Fear & Greed features: {inner_e}"
+                                    f"Failed to add default Fear & Greed features: {inner_e}"  # noqa: E501
                                 )
 
                     # mochipoyo_long_signal or mochipoyo_short_signal
@@ -1079,14 +1083,19 @@ def prepare_ml_dataset(
     X_arr = pipeline.fit_transform(df)
 
     logger.info(f"Pipeline output type: {type(X_arr)}")
-    logger.info(
-        f"Pipeline output shape/len: {X_arr.shape if hasattr(X_arr, 'shape') else len(X_arr) if hasattr(X_arr, '__len__') else 'no len'}"
-    )
+    if hasattr(X_arr, "shape"):
+        shape_info = X_arr.shape
+    elif hasattr(X_arr, "__len__"):
+        shape_info = len(X_arr)
+    else:
+        shape_info = "no len"
+
+    logger.info(f"Pipeline output shape/len: {shape_info}")
 
     # X_arrがlistの場合はnumpy arrayに変換
     if isinstance(X_arr, list):
         logger.warning(
-            f"Pipeline returned list with {len(X_arr)} elements, converting to numpy array"
+            f"Pipeline returned list with {len(X_arr)} elements, converting to numpy array"  # noqa: E501
         )
         import numpy as np
 

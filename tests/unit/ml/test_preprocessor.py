@@ -161,13 +161,16 @@ def test_feature_engineer_error_handling(dummy_config, dummy_ohlcv):
 def test_feature_engineer_with_insufficient_data(dummy_config):
     """Test feature engineering with insufficient data"""
     # Very small dataset
-    small_df = pd.DataFrame({
-        "open": [1.0],
-        "high": [1.1],
-        "low": [0.9],
-        "close": [1.05],
-        "volume": [100],
-    }, index=pd.date_range("2023-01-01", periods=1, freq="D", tz="UTC"))
+    small_df = pd.DataFrame(
+        {
+            "open": [1.0],
+            "high": [1.1],
+            "low": [0.9],
+            "close": [1.05],
+            "volume": [100],
+        },
+        index=pd.date_range("2023-01-01", periods=1, freq="D", tz="UTC"),
+    )
 
     fe = FeatureEngineer(dummy_config)
     out = fe.transform(small_df)
