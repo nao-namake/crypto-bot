@@ -208,7 +208,7 @@ class BacktestEngine:
             if "exit_time" in trade_log:
                 trade_log["exit_time"] = pd.to_datetime(trade_log["exit_time"])
                 trade_log.set_index("exit_time", inplace=True)
-                for freq, name in [("D", "daily"), ("W", "weekly"), ("ME", "monthly")]:
+                for freq, name in [("D", "daily"), ("W", "weekly"), ("M", "monthly")]:
                     grp = trade_log.groupby(pd.Grouper(freq=freq))
                     agg = grp["profit"].agg(trades="count", total_pl="sum")
                     agg["win_rate"] = grp["profit"].apply(lambda x: (x > 0).mean())
