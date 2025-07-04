@@ -28,6 +28,31 @@ try:
 except ImportError:
     VIXDataFetcher = None
     VIX_AVAILABLE = False
+
+try:
+    from crypto_bot.data.macro_fetcher import MacroDataFetcher
+
+    MACRO_AVAILABLE = True
+except ImportError:
+    MacroDataFetcher = None
+    MACRO_AVAILABLE = False
+
+try:
+    from crypto_bot.data.funding_fetcher import FundingDataFetcher
+
+    FUNDING_AVAILABLE = True
+except ImportError:
+    FundingDataFetcher = None
+    FUNDING_AVAILABLE = False
+
+try:
+    from crypto_bot.data.fear_greed_fetcher import FearGreedFetcher
+
+    FEAR_GREED_AVAILABLE = True
+except ImportError:
+    FearGreedFetcher = None
+    FEAR_GREED_AVAILABLE = False
+
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.target import make_classification_target, make_regression_target
 
@@ -81,6 +106,36 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             self.vix_fetcher = VIXDataFetcher()
         else:
             self.vix_fetcher = None
+
+        # マクロデータ統合設定
+        self.macro_enabled = (
+            any(feat in self.extra_features for feat in ["dxy", "macro", "treasury"])
+            and MACRO_AVAILABLE
+        )
+        if self.macro_enabled and MACRO_AVAILABLE:
+            self.macro_fetcher = MacroDataFetcher()
+        else:
+            self.macro_fetcher = None
+
+        # Funding Rate統合設定
+        self.funding_enabled = (
+            any(feat in self.extra_features for feat in ["funding", "oi"])
+            and FUNDING_AVAILABLE
+        )
+        if self.funding_enabled and FUNDING_AVAILABLE:
+            self.funding_fetcher = FundingDataFetcher(testnet=True)
+        else:
+            self.funding_fetcher = None
+
+        # Fear & Greed統合設定
+        self.fear_greed_enabled = (
+            any(feat in self.extra_features for feat in ["fear_greed", "fg"])
+            and FEAR_GREED_AVAILABLE
+        )
+        if self.fear_greed_enabled and FEAR_GREED_AVAILABLE:
+            self.fear_greed_fetcher = FearGreedFetcher()
+        else:
+            self.fear_greed_fetcher = None
 
     def fit(self, X: pd.DataFrame, y=None):
         return self
@@ -160,8 +215,14 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             for feat in self.extra_features:
                 feat_lc = feat.lower()
                 try:
-                    base, _, param = feat_lc.partition("_")
-                    period = int(param) if param.isdigit() else None
+                    # fear_greedは特別処理（アンダースコアを含む複合語）
+                    if feat_lc == "fear_greed":
+                        base = "fear_greed"
+                        param = ""
+                        period = None
+                    else:
+                        base, _, param = feat_lc.partition("_")
+                        period = int(param) if param.isdigit() else None
 
                     # RSI
                     if base == "rsi" and period:
@@ -411,6 +472,508 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add OI features: %s", e)
 
+                    # マクロ経済データ特徴量（DXY, 金利）
+                    elif base in ["dxy", "macro", "treasury"]:
+                        try:
+                            if self.macro_fetcher:
+                                macro_data = self.macro_fetcher.get_macro_data(limit=50)
+                                if not macro_data.empty:
+                                    macro_features = (
+                                        self.macro_fetcher.calculate_macro_features(
+                                            macro_data
+                                        )
+                                    )
+
+                                    # 暗号資産データとマクロデータの時間軸を合わせる
+                                    if isinstance(
+                                        df.index, pd.DatetimeIndex
+                                    ) and isinstance(
+                                        macro_features.index, pd.DatetimeIndex
+                                    ):
+                                        # タイムゾーンを統一
+                                        if df.index.tz is None:
+                                            df.index = df.index.tz_localize("UTC")
+                                        if macro_features.index.tz is None:
+                                            macro_features.index = (
+                                                macro_features.index.tz_localize("UTC")
+                                            )
+                                        elif macro_features.index.tz != df.index.tz:
+                                            macro_features.index = (
+                                                macro_features.index.tz_convert("UTC")
+                                            )
+
+                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
+                                        macro_resampled = macro_features.resample(
+                                            "h"
+                                        ).ffill()
+
+                                        # インデックスを合わせて結合
+                                        common_index = df.index.intersection(
+                                            macro_resampled.index
+                                        )
+                                        logger.debug(
+                                            f"Crypto data range: {df.index.min()} to {df.index.max()}"
+                                        )
+                                        logger.debug(
+                                            f"Macro data range: {macro_resampled.index.min()} to {macro_resampled.index.max()}"
+                                        )
+                                        logger.debug(
+                                            f"Common index length: {len(common_index)}"
+                                        )
+
+                                        # 小さなデータチャンクの場合は前方補完で対応
+                                        if len(common_index) == 0 and len(df) > 0:
+                                            # 最も近い日付のマクロデータを使用
+                                            closest_macro_date = macro_resampled.index[
+                                                macro_resampled.index <= df.index.max()
+                                            ]
+                                            if len(closest_macro_date) > 0:
+                                                closest_date = closest_macro_date.max()
+                                                macro_values = macro_resampled.loc[
+                                                    closest_date
+                                                ]
+                                                for col in [
+                                                    "dxy_level",
+                                                    "dxy_change",
+                                                    "dxy_zscore",
+                                                    "dxy_strength",
+                                                    "treasury_10y_level",
+                                                    "treasury_10y_change",
+                                                    "treasury_10y_zscore",
+                                                    "treasury_regime",
+                                                    "yield_curve_spread",
+                                                    "risk_sentiment",
+                                                ]:
+                                                    if col in macro_values.index:
+                                                        df[col] = macro_values[col]
+                                                logger.debug(
+                                                    f"Used closest macro data from {closest_date} for {len(df)} crypto data points"
+                                                )
+                                            else:
+                                                logger.warning(
+                                                    "No suitable macro data found for alignment"
+                                                )
+                                        elif (
+                                            len(common_index) > 0
+                                        ):  # 通常のアライメント
+                                            # 主要なマクロ特徴量を追加
+                                            macro_cols = [
+                                                "dxy_level",
+                                                "dxy_change",
+                                                "dxy_zscore",
+                                                "dxy_strength",
+                                                "treasury_10y_level",
+                                                "treasury_10y_change",
+                                                "treasury_10y_zscore",
+                                                "treasury_regime",
+                                                "yield_curve_spread",
+                                                "risk_sentiment",
+                                            ]
+                                            for col in macro_cols:
+                                                if col in macro_resampled.columns:
+                                                    df.loc[common_index, col] = (
+                                                        macro_resampled.loc[
+                                                            common_index, col
+                                                        ]
+                                                    )
+
+                                            logger.debug(
+                                                f"Added macro features: {len(common_index)} data points aligned"
+                                            )
+                                        else:
+                                            logger.warning(
+                                                "Could not align macro data with crypto data"
+                                            )
+                                    else:
+                                        logger.warning(
+                                            "Index type mismatch for macro data alignment"
+                                        )
+                                else:
+                                    logger.warning("No macro data available")
+                            else:
+                                logger.warning("Macro fetcher not initialized")
+                        except Exception as e:
+                            logger.warning("Failed to add macro features: %s", e)
+
+                    # Funding Rate & Open Interest 特徴量（最適化版）
+                    elif base in ["funding", "oi"]:
+                        try:
+                            if self.funding_fetcher:
+                                funding_data = (
+                                    self.funding_fetcher.get_funding_rate_data(limit=60)
+                                )  # より多くのデータ
+                                oi_data = self.funding_fetcher.get_open_interest_data(
+                                    limit=60
+                                )
+
+                                if not funding_data.empty or not oi_data.empty:
+                                    funding_features = (
+                                        self.funding_fetcher.calculate_funding_features(
+                                            funding_data, oi_data
+                                        )
+                                    )
+
+                                    # 暗号資産データとFundingデータの時間軸を合わせる
+                                    if isinstance(
+                                        df.index, pd.DatetimeIndex
+                                    ) and isinstance(
+                                        funding_features.index, pd.DatetimeIndex
+                                    ):
+                                        # タイムゾーン統一
+                                        if df.index.tz is None:
+                                            df.index = df.index.tz_localize("UTC")
+                                        if funding_features.index.tz is None:
+                                            funding_features.index = (
+                                                funding_features.index.tz_localize(
+                                                    "UTC"
+                                                )
+                                            )
+                                        elif funding_features.index.tz != df.index.tz:
+                                            funding_features.index = (
+                                                funding_features.index.tz_convert("UTC")
+                                            )
+
+                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
+                                        funding_resampled = funding_features.resample(
+                                            "1H"
+                                        ).ffill()
+
+                                        # インデックスを合わせて結合
+                                        common_index = df.index.intersection(
+                                            funding_resampled.index
+                                        )
+                                        logger.debug(
+                                            f"Funding alignment: crypto {len(df)}, funding {len(funding_resampled)}, common {len(common_index)}"
+                                        )
+
+                                        if len(common_index) == 0 and len(df) > 0:
+                                            # 期間ミスマッチの場合、最新データで埋める
+                                            closest_funding_date = (
+                                                funding_resampled.index[
+                                                    funding_resampled.index
+                                                    <= df.index.max()
+                                                ]
+                                            )
+                                            if len(closest_funding_date) > 0:
+                                                closest_date = (
+                                                    closest_funding_date.max()
+                                                )
+                                                funding_values = funding_resampled.loc[
+                                                    closest_date
+                                                ]
+
+                                                from crypto_bot.data.funding_fetcher import (
+                                                    get_available_funding_features,
+                                                )
+
+                                                funding_feature_names = (
+                                                    get_available_funding_features()
+                                                )
+
+                                                for col in funding_feature_names:
+                                                    if col in funding_values.index:
+                                                        df[col] = funding_values[col]
+                                                    else:
+                                                        df[col] = 0  # デフォルト値
+                                                logger.debug(
+                                                    f"Used closest funding data from {closest_date}"
+                                                )
+                                            else:
+                                                # データなしの場合はデフォルト値
+                                                from crypto_bot.data.funding_fetcher import (
+                                                    get_available_funding_features,
+                                                )
+
+                                                funding_feature_names = (
+                                                    get_available_funding_features()
+                                                )
+                                                for col in funding_feature_names:
+                                                    df[col] = 0
+                                                logger.warning(
+                                                    "No suitable funding data found - using default values"
+                                                )
+                                        elif len(common_index) > 0:
+                                            # 通常のアライメント
+                                            from crypto_bot.data.funding_fetcher import (
+                                                get_available_funding_features,
+                                            )
+
+                                            funding_feature_names = (
+                                                get_available_funding_features()
+                                            )
+
+                                            for col in funding_feature_names:
+                                                if col in funding_resampled.columns:
+                                                    df.loc[common_index, col] = (
+                                                        funding_resampled.loc[
+                                                            common_index, col
+                                                        ]
+                                                    )
+
+                                            logger.info(
+                                                f"Added {len(funding_feature_names)} funding features: {len(common_index)} data points aligned"
+                                            )
+                                        else:
+                                            logger.warning(
+                                                "Could not align funding data with crypto data"
+                                            )
+                                    else:
+                                        logger.warning(
+                                            "Index type mismatch for funding data alignment"
+                                        )
+                                else:
+                                    # データなしの場合は必ずデフォルト特徴量を追加（特徴量数一致のため）
+                                    logger.warning(
+                                        "No funding data available - adding default features"
+                                    )
+                                    try:
+                                        from crypto_bot.data.funding_fetcher import (
+                                            get_available_funding_features,
+                                        )
+
+                                        funding_feature_names = (
+                                            get_available_funding_features()
+                                        )
+
+                                        for col in funding_feature_names:
+                                            if col not in df.columns:
+                                                df[col] = 0  # デフォルト値
+                                        logger.debug(
+                                            f"Added {len(funding_feature_names)} default funding features"
+                                        )
+                                    except Exception as inner_e:
+                                        logger.error(
+                                            f"Failed to add default funding features: {inner_e}"
+                                        )
+                            else:
+                                # Fetcherなしの場合も必ずデフォルト特徴量を追加
+                                logger.warning(
+                                    "Funding fetcher not initialized - adding default features"
+                                )
+                                try:
+                                    from crypto_bot.data.funding_fetcher import (
+                                        get_available_funding_features,
+                                    )
+
+                                    funding_feature_names = (
+                                        get_available_funding_features()
+                                    )
+
+                                    for col in funding_feature_names:
+                                        if col not in df.columns:
+                                            df[col] = 0  # デフォルト値
+                                    logger.debug(
+                                        f"Added {len(funding_feature_names)} default funding features"
+                                    )
+                                except Exception as inner_e:
+                                    logger.error(
+                                        f"Failed to add default funding features: {inner_e}"
+                                    )
+                        except Exception as e:
+                            logger.warning("Failed to add funding features: %s", e)
+                            # エラー時もデフォルト特徴量を追加
+                            try:
+                                from crypto_bot.data.funding_fetcher import (
+                                    get_available_funding_features,
+                                )
+
+                                funding_feature_names = get_available_funding_features()
+
+                                for col in funding_feature_names:
+                                    if col not in df.columns:
+                                        df[col] = 0  # デフォルト値
+                                logger.debug(
+                                    f"Added {len(funding_feature_names)} default funding features after error"
+                                )
+                            except Exception as inner_e:
+                                logger.error(
+                                    f"Failed to add default funding features: {inner_e}"
+                                )
+
+                    # Fear & Greed Index特徴量
+                    elif base in ["fear_greed", "fg"]:
+                        try:
+                            if self.fear_greed_fetcher:
+                                # Fear & Greedデータを取得
+                                fg_data = self.fear_greed_fetcher.get_fear_greed_data(
+                                    days_back=30
+                                )
+                                if not fg_data.empty:
+                                    fg_features = self.fear_greed_fetcher.calculate_fear_greed_features(
+                                        fg_data
+                                    )
+
+                                    # VIXとの相関特徴量も追加
+                                    if self.vix_fetcher:
+                                        try:
+                                            vix_data = self.vix_fetcher.get_vix_data(
+                                                timeframe="1d"
+                                            )
+                                            if not vix_data.empty:
+                                                vix_fg_correlation = self.fear_greed_fetcher.get_vix_correlation_features(
+                                                    fg_data, vix_data
+                                                )
+                                                if not vix_fg_correlation.empty:
+                                                    fg_features = pd.concat(
+                                                        [
+                                                            fg_features,
+                                                            vix_fg_correlation,
+                                                        ],
+                                                        axis=1,
+                                                    )
+                                                    logger.debug(
+                                                        "Added VIX-FG correlation features"
+                                                    )
+                                        except Exception as e:
+                                            logger.warning(
+                                                f"Failed to add VIX-FG correlation: {e}"
+                                            )
+
+                                    # 暗号資産データとFear & Greedデータの時間軸を合わせる
+                                    if isinstance(
+                                        df.index, pd.DatetimeIndex
+                                    ) and isinstance(
+                                        fg_features.index, pd.DatetimeIndex
+                                    ):
+                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
+                                        fg_resampled = fg_features.resample(
+                                            "1h"
+                                        ).ffill()
+
+                                        # インデックスを合わせて結合
+                                        common_index = df.index.intersection(
+                                            fg_resampled.index
+                                        )
+                                        logger.debug(
+                                            f"Fear & Greed alignment: crypto {len(df)}, fg {len(fg_resampled)}, common {len(common_index)}"
+                                        )
+
+                                        # 小さなデータチャンクの場合は最新のFear & Greedデータを使用
+                                        if len(common_index) == 0 and len(df) > 0:
+                                            # Fear & Greedデータが期間外の場合、最新データで全行を埋める
+                                            logger.warning(
+                                                "Fear & Greed data period mismatch - using latest available data"
+                                            )
+
+                                            # 最新のFear & Greedデータを取得
+                                            if not fg_resampled.empty:
+                                                latest_fg_data = fg_resampled.iloc[
+                                                    -1
+                                                ]  # 最新行
+                                                for col in fg_features.columns:
+                                                    if col in latest_fg_data.index:
+                                                        df[col] = latest_fg_data[col]
+                                                logger.debug(
+                                                    f"Filled all {len(df)} rows with latest Fear & Greed data"
+                                                )
+                                            else:
+                                                # Fear & Greedデータが全くない場合、デフォルト値で埋める
+                                                logger.warning(
+                                                    "No Fear & Greed data available - using default values"
+                                                )
+                                                for col in fg_features.columns:
+                                                    if col == "fg_level":
+                                                        df[col] = 50  # 中立値
+                                                    elif col == "fg_regime":
+                                                        df[col] = 3  # 中立レジーム
+                                                    else:
+                                                        df[col] = 0  # その他は0
+                                        elif len(common_index) > 0:
+                                            # Fear & Greed特徴量を追加
+                                            for col in fg_features.columns:
+                                                if col in fg_resampled.columns:
+                                                    df.loc[common_index, col] = (
+                                                        fg_resampled.loc[
+                                                            common_index, col
+                                                        ]
+                                                    )
+
+                                            logger.debug(
+                                                f"Added Fear & Greed features: {len(common_index)} data points aligned"
+                                            )
+                                        else:
+                                            logger.warning(
+                                                "Could not align Fear & Greed data with crypto data"
+                                            )
+                                    else:
+                                        logger.warning(
+                                            "Index type mismatch for Fear & Greed data alignment"
+                                        )
+                                else:
+                                    logger.warning(
+                                        "No Fear & Greed data available - adding default Fear & Greed features"
+                                    )
+                                    # Fear & Greedデータが取得できない場合、デフォルト特徴量を追加
+                                    from crypto_bot.data.fear_greed_fetcher import (
+                                        get_available_fear_greed_features,
+                                    )
+
+                                    fg_feature_names = (
+                                        get_available_fear_greed_features()
+                                    )
+
+                                    for col in fg_feature_names:
+                                        if col not in df.columns:
+                                            if col == "fg_level":
+                                                df[col] = 50  # 中立値
+                                            elif col == "fg_regime":
+                                                df[col] = 3  # 中立レジーム
+                                            else:
+                                                df[col] = 0  # その他は0
+                                    logger.debug(
+                                        f"Added {len(fg_feature_names)} default Fear & Greed features"
+                                    )
+                            else:
+                                logger.warning(
+                                    "Fear & Greed fetcher not initialized - adding default Fear & Greed features"
+                                )
+                                # Fetcherが初期化されていない場合もデフォルト特徴量を追加
+                                from crypto_bot.data.fear_greed_fetcher import (
+                                    get_available_fear_greed_features,
+                                )
+
+                                fg_feature_names = get_available_fear_greed_features()
+
+                                for col in fg_feature_names:
+                                    if col not in df.columns:
+                                        if col == "fg_level":
+                                            df[col] = 50  # 中立値
+                                        elif col == "fg_regime":
+                                            df[col] = 3  # 中立レジーム
+                                        else:
+                                            df[col] = 0  # その他は0
+                                logger.debug(
+                                    f"Added {len(fg_feature_names)} default Fear & Greed features"
+                                )
+                        except Exception as e:
+                            logger.warning("Failed to add Fear & Greed features: %s", e)
+                            logger.warning(
+                                "Adding default Fear & Greed features due to error"
+                            )
+                            # エラー時もデフォルト特徴量を追加して特徴量数を一致させる
+                            try:
+                                from crypto_bot.data.fear_greed_fetcher import (
+                                    get_available_fear_greed_features,
+                                )
+
+                                fg_feature_names = get_available_fear_greed_features()
+
+                                for col in fg_feature_names:
+                                    if col not in df.columns:
+                                        if col == "fg_level":
+                                            df[col] = 50  # 中立値
+                                        elif col == "fg_regime":
+                                            df[col] = 3  # 中立レジーム
+                                        else:
+                                            df[col] = 0  # その他は0
+                                logger.debug(
+                                    f"Added {len(fg_feature_names)} default Fear & Greed features after error"
+                                )
+                            except Exception as inner_e:
+                                logger.error(
+                                    f"Failed to add default Fear & Greed features: {inner_e}"
+                                )
+
                     # mochipoyo_long_signal or mochipoyo_short_signal
                     elif (
                         feat_lc == "mochipoyo_long_signal"
@@ -509,8 +1072,28 @@ def prepare_ml_dataset(
     - 必要なぶんだけ最初の行をドロップ（rolling/lags）
     - horizon, thresholdはconfig["ml"]から取得
     """
+    logger.info(f"prepare_ml_dataset input df shape: {df.shape}")
     pipeline = build_ml_pipeline(config)
     X_arr = pipeline.fit_transform(df)
+
+    logger.info(f"Pipeline output type: {type(X_arr)}")
+    logger.info(
+        f"Pipeline output shape/len: {X_arr.shape if hasattr(X_arr, 'shape') else len(X_arr) if hasattr(X_arr, '__len__') else 'no len'}"
+    )
+
+    # X_arrがlistの場合はnumpy arrayに変換
+    if isinstance(X_arr, list):
+        logger.warning(
+            f"Pipeline returned list with {len(X_arr)} elements, converting to numpy array"
+        )
+        import numpy as np
+
+        try:
+            X_arr = np.array(X_arr)
+        except Exception as e:
+            logger.error(f"Failed to convert list to numpy array: {e}")
+            # If conversion fails, return the list directly for debugging
+            return X_arr
 
     # ----- 目的変数生成 -----
     horizon = config["ml"]["horizon"]

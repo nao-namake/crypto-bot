@@ -62,6 +62,10 @@ dependencies = [
     
     # --- VIX恐怖指数データ取得 ---
     "yfinance>=0.2.18",
+    
+    # --- マクロ系特徴量データ取得 ---
+    "requests>=2.31.0",            # ニュースAPI用
+    "vaderSentiment>=3.3.2",       # 感情分析用
 ]
 
 # build-system テーブルが未記載の場合、必要に応じて Poetry / Hatchling 等を追加してください。

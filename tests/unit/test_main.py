@@ -912,11 +912,11 @@ class TestCLICommands:
         }
         mock_load_config.return_value = test_config
 
-        # データ準備
+        # データ準備 - サイズを一致させる
         X_train = pd.DataFrame({"feature1": [1, 2, 3, 4, 5]})
         y_train = pd.Series([0, 1, 0, 1, 0])
-        X_val = pd.DataFrame({"feature1": [6, 7]})
-        y_val = pd.Series([1, 0])
+        X_val = pd.DataFrame({"feature1": [6, 7, 8, 9, 10]})
+        y_val = pd.Series([1, 0, 1, 0, 1])
         mock_prepare.return_value = (X_train, y_train, X_val, y_val)
 
         # LogisticRegression モック

@@ -172,6 +172,11 @@ ml:
   # - fisher      : フィッシャートランスフォーム
   # - advanced_signals : 複合シグナル
   # 
+  # マクロ系特徴量（新実装）:
+  # - dxy         : DXY・米国債金利関連特徴量（10個）
+  # - funding     : Funding Rate・OI関連特徴量（9個）
+  # - sentiment   : ニュース感情分析特徴量（8個）
+  # 
   # OI・出来高・時間特徴量:
   # - oi          : 未決済建玉関連特徴量
   # - volume_zscore : 出来高のZスコア
@@ -194,6 +199,11 @@ ml:
     
     # VIX恐怖指数統合（CLAUDE.mdに記載の通り）
     - vix
+    
+    # マクロ系特徴量（Phase 1-3実装）
+    - dxy         # DXY・金利・マクロ経済（10特徴量）
+    - funding     # Funding Rate・OI（9特徴量）
+    - sentiment   # ニュース感情分析（8特徴量）
     
     # 拡張テクニカル指標（勝率向上のため）
     - stoch

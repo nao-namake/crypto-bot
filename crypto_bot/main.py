@@ -174,7 +174,7 @@ def prepare_data(cfg: dict):
         split = train_test_split(
             X, y, test_size=cfg["ml"].get("test_size", 0.2), random_state=42
         )
-        return split  # X_tr, X_val, y_tr, y_val
+        return tuple(split)  # Convert list to tuple: (X_tr, X_val, y_tr, y_val)
 
     return ret
 
@@ -354,11 +354,20 @@ def train(config_path: str, model_type: str, output_path: str):
 
     ret = prepare_data(cfg)
 
+    # デバッグ用ログ出力
+    import logging
+
+    logger = logging.getLogger(__name__)
+    logger.info(
+        f"prepare_data returned: type={type(ret)}, "
+        f"length={len(ret) if isinstance(ret, tuple) else 'N/A'}"
+    )
+
     if isinstance(ret, tuple) and len(ret) == 4:
-        X_tr, y_tr, X_val, y_val = ret
+        X_tr, X_val, y_tr, y_val = ret  # 順序修正
         train_samples = len(X_tr)
-    else:
-        X, y_reg, y_clf = ret  # type: ignore
+    elif isinstance(ret, tuple) and len(ret) == 3:
+        X, y_reg, y_clf = ret
         mode = cfg["ml"].get("target_type", "classification")
         y = y_clf if mode == "classification" else y_reg
         if len(X) < 2:
@@ -368,6 +377,9 @@ def train(config_path: str, model_type: str, output_path: str):
             X, y, test_size=cfg["ml"].get("test_size", 0.2), random_state=42
         )
         train_samples = len(X_tr)
+    else:
+        logger.error(f"Unexpected return from prepare_data: {ret}")
+        raise ValueError(f"prepare_data returned unexpected format: {type(ret)}")
 
     mode = cfg["ml"].get("target_type", "classification")
     click.echo(f"Training {mode} model on {train_samples} samples")

@@ -1,0 +1,67 @@
+# =============================================================================
+# ファイル名: config/dxy_simple.yml
+# 説明:
+# DXY特徴量のみの簡単テスト設定
+# =============================================================================
+
+data:
+  exchange: bybit
+  symbol: BTC/USDT
+  timeframe: 1h
+  api_key: ${BYBIT_TESTNET_API_KEY}
+  api_secret: ${BYBIT_TESTNET_API_SECRET}
+  ccxt_options:
+    defaultType: linear
+    enableRateLimit: true
+    urls:
+      api: https://api-testnet.bybit.com
+
+  # 最近のデータでテスト（マクロデータとの重複確保）
+  since: "2025-05-01T00:00:00Z"
+  limit: 1000         # 短縮
+  paginate: true
+  per_page: 500
+
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: model/dxy_test_model.pkl
+    threshold: 0.05
+
+risk:
+  risk_per_trade: 0.02
+  stop_atr_mult: 1.5
+  dynamic_position_sizing:
+    enabled: true
+    formula: linear
+
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+  trade_log_csv: "./results/trade_log_dxy.csv"
+  aggregate_out_prefix: "./results/aggregate_dxy"
+
+walk_forward:
+  train_window: 300   # 短縮
+  test_window: 50     # 短縮  
+  step: 50
+
+ml:
+  feat_period: 14
+  lags: [1,2,3]       # 短縮
+  rolling_window: 20
+  horizon: 5
+  target_type: classification
+  model_type: lgbm
+
+  # DXYのみテスト
+  extra_features:
+    - rsi_14
+    - macd
+    - dxy
+
+  model_params:
+    n_estimators: 50  # 短縮
+    max_depth: 6
+    learning_rate: 0.1

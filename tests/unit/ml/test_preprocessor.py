@@ -146,6 +146,50 @@ def test_feature_engineer_transform_with_mochipoyo_signals(dummy_config, dummy_o
     assert not out["mochipoyo_short_signal"].isnull().any()
 
 
+def test_feature_engineer_error_handling(dummy_config, dummy_ohlcv):
+    """Test error handling in feature engineering"""
+    # Test with unknown feature
+    dummy_config["ml"]["extra_features"] = ["unknown_feature"]
+    fe = FeatureEngineer(dummy_config)
+    out = fe.transform(dummy_ohlcv)
+
+    # Should not crash, but skip unknown features
+    assert isinstance(out, pd.DataFrame)
+    assert len(out) > 0
+
+
+def test_feature_engineer_with_insufficient_data(dummy_config):
+    """Test feature engineering with insufficient data"""
+    # Very small dataset
+    small_df = pd.DataFrame({
+        "open": [1.0],
+        "high": [1.1],
+        "low": [0.9],
+        "close": [1.05],
+        "volume": [100],
+    }, index=pd.date_range("2023-01-01", periods=1, freq="D", tz="UTC"))
+
+    fe = FeatureEngineer(dummy_config)
+    out = fe.transform(small_df)
+
+    # Should handle gracefully
+    assert isinstance(out, pd.DataFrame)
+
+
+def test_feature_engineer_feature_consistency(dummy_config, dummy_ohlcv):
+    """Test feature consistency across different runs"""
+    dummy_config["ml"]["extra_features"] = ["rsi_14", "macd"]
+    fe = FeatureEngineer(dummy_config)
+
+    # Generate features twice
+    out1 = fe.transform(dummy_ohlcv)
+    out2 = fe.transform(dummy_ohlcv)
+
+    # Should have same columns
+    assert list(out1.columns) == list(out2.columns)
+    assert len(out1) == len(out2)
+
+
 def test_build_ml_pipeline_runs(dummy_config, dummy_ohlcv):
     pipeline = build_ml_pipeline(dummy_config)
     arr = pipeline.fit_transform(dummy_ohlcv)

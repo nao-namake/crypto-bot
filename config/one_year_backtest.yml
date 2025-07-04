@@ -1,0 +1,96 @@
+backtest:
+  aggregate_out_prefix: ./results/aggregate_1year
+  slippage_rate: 0.001
+  starting_balance: 10000.0
+  trade_log_csv: ./results/trade_log_1year.csv
+data:
+  api_key: ${BYBIT_TESTNET_API_KEY}
+  api_secret: ${BYBIT_TESTNET_API_SECRET}
+  ccxt_options:
+    defaultType: linear
+    enableRateLimit: true
+    urls:
+      api: https://api-testnet.bybit.com
+  exchange: bybit
+  limit: 10000
+  paginate: true
+  per_page: 200
+  since: '2024-01-01T00:00:00Z'
+  symbol: BTC/USDT
+  timeframe: 1h
+execution:
+  exchange: bybit
+  limit_slippage: 0.001
+  live_mode: false
+  market_slippage: 0.001
+  testnet: true
+ml:
+  bt_win_fraction: 0.7
+  chunk_days: 10
+  extra_features:
+  - rsi_14
+  - macd
+  - day_of_week
+  - hour_of_day
+  - mochipoyo_long_signal
+  - mochipoyo_short_signal
+  - dxy
+  - fear_greed
+  - funding
+  feat_period: 20
+  horizon: 1
+  lags:
+  - 1
+  - 2
+  - 3
+  model_params:
+    lightgbm:
+      feature_fraction: 0.8
+      learning_rate: 0.05
+      max_depth: 6
+      n_estimators: 100
+      num_leaves: 31
+    random_forest:
+      max_depth: 8
+      max_features: sqrt
+      n_estimators: 100
+    xgboost:
+      learning_rate: 0.05
+      max_depth: 6
+      n_estimators: 100
+      subsample: 0.8
+  model_type: lgbm
+  rolling_window: 20
+  threshold: 0.0
+  train_months: 6
+risk:
+  enabled: true
+  kelly_enabled: true
+  kelly_max_fraction: 0.25
+  kelly_min_trades: 10
+  max_drawdown_threshold: 0.3
+  max_loss_per_trade: 0.05
+  max_position_size: 0.5
+  min_account_balance: 1000.0
+  risk_per_trade: 0.02
+  stop_atr_mult: 2.0
+  take_profit_atr_mult: 4.0
+  volatility_lookback: 20
+skip_scaling: false
+strategy:
+  dynamic_threshold: true
+  exit_always: true
+  exit_threshold: 0.45
+  name: ml
+  model_path: model/one_year_model.pkl
+  stop_loss_enabled: true
+  take_profit_enabled: true
+  threshold: 0.05
+  vix_integration:
+    enabled: true
+    panic_threshold: 35
+    risk_off_threshold: 25
+walk_forward:
+  enabled: true
+  num_folds: 20
+  retrain_window: 30
