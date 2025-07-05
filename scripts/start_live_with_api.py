@@ -25,7 +25,7 @@ def start_api_server():
     """APIサーバーをバックグラウンドで起動"""
     try:
         import uvicorn
-        
+
         # 直接crypto_bot.apiからFastAPIアプリを取得
         try:
             from crypto_bot.api.health import app, FASTAPI_AVAILABLE
