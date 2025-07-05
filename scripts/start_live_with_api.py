@@ -25,8 +25,19 @@ def start_api_server():
     """APIサーバーをバックグラウンドで起動"""
     try:
         import uvicorn
-
-        from crypto_bot.api.server import app
+        
+        # 直接crypto_bot.apiからFastAPIアプリを取得
+        try:
+            from crypto_bot.api.health import app, FASTAPI_AVAILABLE
+            if not FASTAPI_AVAILABLE:
+                raise ImportError("FastAPI not available in health module")
+            logger.info("Using comprehensive health API")
+        except ImportError:
+            # フォールバック: 基本APIを使用
+            from crypto_bot.api import app, FASTAPI_AVAILABLE
+            if not FASTAPI_AVAILABLE:
+                raise ImportError("FastAPI not available")
+            logger.info("Using basic API as fallback")
 
         logger.info("Starting API server on port 8080...")
 
@@ -36,7 +47,14 @@ def start_api_server():
         )
     except Exception as e:
         logger.error(f"Failed to start API server: {e}")
-        sys.exit(1)
+        # API起動に失敗してもプロセスは継続
+        logger.info("Continuing without API server...")
+        try:
+            while True:
+                time.sleep(60)
+                logger.info("No-API mode: heartbeat")
+        except KeyboardInterrupt:
+            logger.info("No-API mode interrupted")
 
 
 def start_live_trading():
@@ -116,7 +134,12 @@ def check_requirements():
         logger.info("✅ crypto_bot module imported successfully")
 
         # APIサーバーのテスト
-        from crypto_bot.api.server import app  # noqa: F401
+        try:
+            from crypto_bot.api.health import app  # noqa: F401
+            logger.info("✅ Health API module imported successfully")
+        except ImportError:
+            from crypto_bot.api import app  # noqa: F401
+            logger.info("✅ Basic API module imported successfully")
 
         logger.info("✅ API server module imported successfully")
 
