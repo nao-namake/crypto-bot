@@ -211,15 +211,25 @@ jobs:
           docker run --rm "${IMAGE_TAG}" python -c "import crypto_bot; print('Docker import test passed')"
           
           # Test API server only mode for CI (no live trading due to missing model)
-          docker run -d --name test-container -p 8080:8080 "${IMAGE_TAG}" python -m uvicorn crypto_bot.api.server:app --host 0.0.0.0 --port 8080
+          docker run -d --name test-container -p 8080:8080 -e CI=true -e API_ONLY_MODE=true "${IMAGE_TAG}"
           echo "Waiting for API server to start..."
-          sleep 10
+          sleep 15
           
           # Test API server health
           if curl -f http://localhost:8080/health; then
             echo "✅ API server health check passed"
           else
             echo "❌ API server health check failed"
+            echo "Container logs:"
+            docker logs test-container
+            exit 1
+          fi
+          
+          # Test additional endpoints
+          if curl -f http://localhost:8080/healthz; then
+            echo "✅ Healthz endpoint check passed"
+          else
+            echo "❌ Healthz endpoint check failed"
             docker logs test-container
             exit 1
           fi
