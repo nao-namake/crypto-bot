@@ -28,13 +28,15 @@ def start_api_server():
 
         # 直接crypto_bot.apiからFastAPIアプリを取得
         try:
-            from crypto_bot.api.health import app, FASTAPI_AVAILABLE
+            from crypto_bot.api.health import FASTAPI_AVAILABLE, app
+
             if not FASTAPI_AVAILABLE:
                 raise ImportError("FastAPI not available in health module")
             logger.info("Using comprehensive health API")
         except ImportError:
             # フォールバック: 基本APIを使用
-            from crypto_bot.api import app, FASTAPI_AVAILABLE
+            from crypto_bot.api import FASTAPI_AVAILABLE, app
+
             if not FASTAPI_AVAILABLE:
                 raise ImportError("FastAPI not available")
             logger.info("Using basic API as fallback")
@@ -136,9 +138,11 @@ def check_requirements():
         # APIサーバーのテスト
         try:
             from crypto_bot.api.health import app  # noqa: F401
+
             logger.info("✅ Health API module imported successfully")
         except ImportError:
             from crypto_bot.api import app  # noqa: F401
+
             logger.info("✅ Basic API module imported successfully")
 
         logger.info("✅ API server module imported successfully")
