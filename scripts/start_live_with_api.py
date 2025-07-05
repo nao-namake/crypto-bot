@@ -16,8 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ログ設定
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -33,12 +32,7 @@ def start_api_server():
 
         # uvicornサーバーを起動
         uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=8080,
-            log_level="info",
-            access_log=True,
-            workers=1
+            app, host="0.0.0.0", port=8080, log_level="info", access_log=True, workers=1
         )
     except Exception as e:
         logger.error(f"Failed to start API server: {e}")
@@ -90,7 +84,8 @@ def start_live_trading():
         sys.argv = [
             "crypto_bot",
             "live-paper" if mode == "paper" else "live-real",
-            "--config", config_file
+            "--config",
+            config_file,
         ]
 
         # メイン関数を実行
@@ -117,10 +112,12 @@ def check_requirements():
     try:
         # 基本モジュールのインポートテスト
         import crypto_bot  # noqa: F401
+
         logger.info("✅ crypto_bot module imported successfully")
 
         # APIサーバーのテスト
         from crypto_bot.api.server import app  # noqa: F401
+
         logger.info("✅ API server module imported successfully")
 
         # 設定ファイルの存在確認
