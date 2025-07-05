@@ -26,6 +26,7 @@ def start_api_server():
     """APIサーバーをバックグラウンドで起動"""
     try:
         import uvicorn
+
         from crypto_bot.api.server import app
 
         logger.info("Starting API server on port 8080...")
