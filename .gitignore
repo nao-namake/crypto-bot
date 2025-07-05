@@ -98,6 +98,12 @@ big.txt
 temp_*.py
 *_temp.py
 
+# 投機・試算分析ファイル
+aggressive_projection_analysis.py
+analyze_bitbank_projection.py
+realistic_annual_projection.py
+realistic_bitbank_projection.py
+
 # ──────────────────────────────────────────────────────────────────────────────
 # ステータス・監視ファイル
 # ──────────────────────────────────────────────────────────────────────────────
