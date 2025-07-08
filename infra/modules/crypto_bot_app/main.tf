@@ -27,20 +27,20 @@ resource "google_cloud_run_service" "service" {
         }
         
         env {
-          name = "BYBIT_TESTNET_API_KEY"
+          name = "BITBANK_API_KEY"
           value_from {
             secret_key_ref {
-              name = var.bybit_testnet_api_key_secret_name
+              name = var.bitbank_api_key_secret_name
               key  = "latest"
             }
           }
         }
         
         env {
-          name = "BYBIT_TESTNET_API_SECRET"
+          name = "BITBANK_API_SECRET"
           value_from {
             secret_key_ref {
-              name = var.bybit_testnet_api_secret_secret_name
+              name = var.bitbank_api_secret_secret_name
               key  = "latest"
             }
           }

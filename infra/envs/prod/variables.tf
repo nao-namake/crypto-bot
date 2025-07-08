@@ -29,5 +29,5 @@ variable "deployer_sa" {
 variable "mode" {
   description = "Bot の実行モード: paper | live"
   type        = string
-  default     = "paper"  # ← prod でもまずは paper で安全に稼働
+  default     = "live"  # ← Bitbank実トレードモードに変更
 }

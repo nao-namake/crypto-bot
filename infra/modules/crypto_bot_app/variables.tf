@@ -41,16 +41,16 @@ variable "mode" {
 }
 
 # --------------------------------------------------
-# Secret Manager settings (Bybit Testnet credentials)
+# Secret Manager settings (Bitbank credentials)
 # --------------------------------------------------
-variable "bybit_testnet_api_key_secret_name" {
+variable "bitbank_api_key_secret_name" {
   type        = string
-  description = "Bybit Testnet の API キーを格納している Secret Manager のシークレット名"
-  default     = "bybit_testnet_api_key"
+  description = "Bitbank の API キーを格納している Secret Manager のシークレット名"
+  default     = "bitbank_api_key"
 }
 
-variable "bybit_testnet_api_secret_secret_name" {
+variable "bitbank_api_secret_secret_name" {
   type        = string
-  description = "Bybit Testnet の API シークレットを格納している Secret Manager のシークレット名"
-  default     = "bybit_testnet_api_secret"
+  description = "Bitbank の API シークレットを格納している Secret Manager のシークレット名"
+  default     = "bitbank_api_secret"
 }

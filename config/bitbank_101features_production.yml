@@ -204,14 +204,21 @@ ml:
 # ライブトレード設定（1万円フロントテスト用）
 # ----------------------------------------------------------------------
 live:
-  mode: paper  # フロントテストはpaper mode
+  mode: live  # 実トレードモードに変更
   trade_interval: 60
-  min_order_size: 0.0001  # Bitbank最小注文サイズ
+  min_order_size: 0.001  # Bitbank最小注文サイズ
   max_daily_trades: 5     # 1日最大5回（保守的）
   emergency_stop_loss: 0.05
   log_level: INFO
   log_trades: true
   status_file: status_bitbank_101feat.json
+  
+  # 信用取引設定
+  margin_trading:
+    enabled: true
+    leverage: 1.0  # レバレッジ1倍（安全運用）
+    position_type: "both"  # ロング・ショート両対応
+    margin_maintenance_ratio: 0.3  # 維持率30%
 
 # ----------------------------------------------------------------------
 # 監視・アラート設定
