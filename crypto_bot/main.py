@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 import click
+
 # import matplotlib.dates as mdates  # unused import
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -54,7 +55,10 @@ def ensure_dir_for_file(path: str):
 def setup_logging():
     """LOG_LEVEL 環境変数でロガーを初期化"""
     level_name = os.getenv("CRYPTO_BOT_LOG_LEVEL", "INFO").upper()
-    numeric_level = getattr(logging, level_name, logging.INFO)
+    if hasattr(logging, level_name):
+        numeric_level = getattr(logging, level_name)
+    else:
+        numeric_level = logging.INFO
 
     # より詳細なログフォーマット
     log_format = "[%(asctime)s] %(levelname)-8s %(name)-20s: %(message)s"
