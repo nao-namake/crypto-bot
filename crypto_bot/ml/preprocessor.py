@@ -364,13 +364,18 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add advanced signals: %s", e)
 
-                    # VIX恐怖指数関連特徴量
+                    # VIX恐怖指数関連特徴量（改良版）
                     elif base == "vix":
                         try:
                             if self.vix_fetcher:
-                                # VIXデータ取得（キャッシュ活用）
+                                # バックテスト期間を設定
+                                backtest_since = None
+                                if hasattr(df, "index") and len(df) > 0:
+                                    backtest_since = df.index.min()
+
+                                # VIXデータ取得（バックテスト期間対応）
                                 vix_data = self.vix_fetcher.get_vix_data(
-                                    timeframe="1d", limit=50
+                                    timeframe="1d", limit=100, since=backtest_since
                                 )
                                 if not vix_data.empty:
                                     vix_features = (
@@ -379,61 +384,84 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                         )
                                     )
 
-                                    # 暗号資産データとVIXデータの時間軸を合わせる
+                                    # タイムゾーン統一・データアライメント改良
                                     if isinstance(
                                         df.index, pd.DatetimeIndex
                                     ) and isinstance(
                                         vix_features.index, pd.DatetimeIndex
                                     ):
-                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
-                                        vix_resampled = vix_features.resample(
-                                            "1H"
-                                        ).ffill()
+                                        # タイムゾーン統一（重要な修正）
+                                        if df.index.tz is None:
+                                            df.index = df.index.tz_localize("UTC")
+                                        if vix_features.index.tz is None:
+                                            vix_features.index = (
+                                                vix_features.index.tz_localize("UTC")
+                                            )
+                                        elif vix_features.index.tz != df.index.tz:
+                                            vix_features.index = (
+                                                vix_features.index.tz_convert("UTC")
+                                            )
 
-                                        # インデックスを合わせて結合
-                                        common_index = df.index.intersection(
-                                            vix_resampled.index
-                                        )
-                                        if len(common_index) > 0:
-                                            # 主要なVIX特徴量を追加
-                                            vix_cols = [
-                                                "vix_level",
-                                                "vix_change",
-                                                "vix_zscore",
-                                                "fear_level",
-                                                "vix_spike",
-                                            ]
-                                            for col in vix_cols:
-                                                if col in vix_resampled.columns:
-                                                    df.loc[common_index, col] = (
-                                                        vix_resampled.loc[
-                                                            common_index, col
-                                                        ]
-                                                    )
+                                        # 改良されたリサンプリング：日次→時間足への変換
+                                        # 前方補完（ffill）で日次データを時間足に展開
+                                        vix_hourly = vix_features.resample("H").ffill()
 
-                                            # VIX regime をカテゴリ変数から数値に変換
-                                            if "vix_regime" in vix_resampled.columns:
-                                                regime_map = {
-                                                    "low": 0,
-                                                    "normal": 1,
-                                                    "high": 2,
-                                                    "extreme": 3,
-                                                }
-                                                vix_regime_numeric = vix_resampled.loc[
-                                                    common_index, "vix_regime"
-                                                ].map(regime_map)
-                                                df.loc[
-                                                    common_index, "vix_regime_numeric"
-                                                ] = vix_regime_numeric
+                                        # 暗号資産データの時間範囲に合わせて制限
+                                        start_time = df.index.min()
+                                        end_time = df.index.max()
+                                        vix_hourly = vix_hourly.loc[start_time:end_time]
+
+                                        # より柔軟なマッチング：最も近い時刻のデータを使用
+                                        vix_cols = [
+                                            "vix_level",
+                                            "vix_change",
+                                            "vix_zscore",
+                                            "fear_level",
+                                            "vix_spike",
+                                            "vix_regime",
+                                        ]
+                                        added_features = 0
+
+                                        for i, timestamp in enumerate(df.index):
+                                            # 最も近いVIXデータポイントを検索
+                                            if len(vix_hourly) > 0:
+                                                closest_idx = (
+                                                    vix_hourly.index.get_indexer(
+                                                        [timestamp], method="ffill"
+                                                    )[0]
+                                                )
+                                                if closest_idx >= 0:
+                                                    vix_row = vix_hourly.iloc[
+                                                        closest_idx
+                                                    ]
+                                                    for col in vix_cols:
+                                                        if col in vix_row.index:
+                                                            if col == "vix_regime":
+                                                                # カテゴリを数値に変換
+                                                                regime_map = {
+                                                                    "low": 0,
+                                                                    "normal": 1,
+                                                                    "high": 2,
+                                                                    "extreme": 3,
+                                                                }
+                                                                df.loc[
+                                                                    timestamp,
+                                                                    "vix_regime_numeric",
+                                                                ] = regime_map.get(
+                                                                    vix_row[col], 1
+                                                                )
+                                                            else:
+                                                                df.loc[
+                                                                    timestamp, col
+                                                                ] = vix_row[col]
+                                                    added_features = i + 1
 
                                         logger.info(
-                                            f"Added VIX features: {len(common_index)} "
-                                            "data points aligned"
+                                            f"Added VIX features to {added_features}/{len(df)} data points"
                                         )
                                     else:
                                         logger.warning(
-                                            "Could not align VIX data with crypto data "
-                                            "due to index type mismatch"
+                                            "Could not align VIX data - index type mismatch"
                                         )
                                 else:
                                     logger.warning("No VIX data available")
@@ -476,6 +504,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                     elif base in ["dxy", "macro", "treasury"]:
                         try:
                             if self.macro_fetcher:
+                                # バックテスト年を設定
+                                if hasattr(df, "index") and len(df) > 0:
+                                    backtest_year = df.index.min().year
+                                    self.macro_fetcher._backtest_start_year = (
+                                        backtest_year
+                                    )
                                 macro_data = self.macro_fetcher.get_macro_data(limit=50)
                                 if not macro_data.empty:
                                     macro_features = (
@@ -502,92 +536,55 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                 macro_features.index.tz_convert("UTC")
                                             )
 
-                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
-                                        macro_resampled = macro_features.resample(
-                                            "h"
+                                        # 改良されたリサンプリング：日次→時間足への変換
+                                        macro_hourly = macro_features.resample(
+                                            "H"
                                         ).ffill()
 
-                                        # インデックスを合わせて結合
-                                        common_index = df.index.intersection(
-                                            macro_resampled.index
-                                        )
-                                        logger.debug(
-                                            f"Crypto data range: {df.index.min()} to "
-                                            f"{df.index.max()}"
-                                        )
-                                        logger.debug(
-                                            f"Macro data range: {macro_resampled.index.min()} to "  # noqa: E501
-                                            f"{macro_resampled.index.max()}"
-                                        )
-                                        logger.debug(
-                                            f"Common index length: {len(common_index)}"
-                                        )
+                                        # 暗号資産データの時間範囲に合わせて制限
+                                        start_time = df.index.min()
+                                        end_time = df.index.max()
+                                        macro_hourly = macro_hourly.loc[
+                                            start_time:end_time
+                                        ]
 
-                                        # 小さなデータチャンクの場合は前方補完で対応
-                                        if len(common_index) == 0 and len(df) > 0:
-                                            # 最も近い日付のマクロデータを使用
-                                            closest_macro_date = macro_resampled.index[
-                                                macro_resampled.index <= df.index.max()
-                                            ]
-                                            if len(closest_macro_date) > 0:
-                                                closest_date = closest_macro_date.max()
-                                                macro_values = macro_resampled.loc[
-                                                    closest_date
-                                                ]
-                                                for col in [
-                                                    "dxy_level",
-                                                    "dxy_change",
-                                                    "dxy_zscore",
-                                                    "dxy_strength",
-                                                    "treasury_10y_level",
-                                                    "treasury_10y_change",
-                                                    "treasury_10y_zscore",
-                                                    "treasury_regime",
-                                                    "yield_curve_spread",
-                                                    "risk_sentiment",
-                                                ]:
-                                                    if col in macro_values.index:
-                                                        df[col] = macro_values[col]
-                                                logger.debug(
-                                                    f"Used closest macro data from "
-                                                    f"{closest_date} for {len(df)} "
-                                                    f"crypto data points"
-                                                )
-                                            else:
-                                                logger.warning(
-                                                    "No suitable macro data found for alignment"  # noqa: E501
-                                                )
-                                        elif (
-                                            len(common_index) > 0
-                                        ):  # 通常のアライメント
-                                            # 主要なマクロ特徴量を追加
-                                            macro_cols = [
-                                                "dxy_level",
-                                                "dxy_change",
-                                                "dxy_zscore",
-                                                "dxy_strength",
-                                                "treasury_10y_level",
-                                                "treasury_10y_change",
-                                                "treasury_10y_zscore",
-                                                "treasury_regime",
-                                                "yield_curve_spread",
-                                                "risk_sentiment",
-                                            ]
-                                            for col in macro_cols:
-                                                if col in macro_resampled.columns:
-                                                    df.loc[common_index, col] = (
-                                                        macro_resampled.loc[
-                                                            common_index, col
-                                                        ]
-                                                    )
+                                        # より柔軟なマッチング：最も近い時刻のデータを使用
+                                        macro_cols = [
+                                            "dxy_level",
+                                            "dxy_change",
+                                            "dxy_zscore",
+                                            "dxy_strength",
+                                            "treasury_10y_level",
+                                            "treasury_10y_change",
+                                            "treasury_10y_zscore",
+                                            "treasury_regime",
+                                            "yield_curve_spread",
+                                            "risk_sentiment",
+                                        ]
+                                        added_features = 0
 
-                                            logger.debug(
-                                                f"Added macro features: {len(common_index)} data points aligned"  # noqa: E501
-                                            )
-                                        else:
-                                            logger.warning(
-                                                "Could not align macro data with crypto data"  # noqa: E501
-                                            )
+                                        for i, timestamp in enumerate(df.index):
+                                            # 最も近いマクロデータポイントを検索
+                                            if len(macro_hourly) > 0:
+                                                closest_idx = (
+                                                    macro_hourly.index.get_indexer(
+                                                        [timestamp], method="ffill"
+                                                    )[0]
+                                                )
+                                                if closest_idx >= 0:
+                                                    macro_row = macro_hourly.iloc[
+                                                        closest_idx
+                                                    ]
+                                                    for col in macro_cols:
+                                                        if col in macro_row.index:
+                                                            df.loc[timestamp, col] = (
+                                                                macro_row[col]
+                                                            )
+                                                    added_features = i + 1
+
+                                        logger.info(
+                                            f"Added DXY/macro features to {added_features}/{len(df)} data points"
+                                        )
                                     else:
                                         logger.warning(
                                             "Index type mismatch for macro data alignment"  # noqa: E501

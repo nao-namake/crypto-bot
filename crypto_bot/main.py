@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 import click
+# import matplotlib.dates as mdates  # unused import
+import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
 from sklearn.linear_model import LogisticRegression
@@ -64,6 +66,87 @@ def setup_logging():
         level=numeric_level,
         handlers=[logging.StreamHandler(sys.stdout)],
     )
+
+
+def create_performance_chart(portfolio_df, cfg):
+    """収益推移のチャートを作成"""
+    try:
+        plt.style.use("default")
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+
+        # ポートフォリオ価値の推移
+        ax1.plot(
+            portfolio_df["period"],
+            portfolio_df["portfolio_value"],
+            marker="o",
+            linewidth=2,
+            markersize=4,
+            color="blue",
+        )
+        ax1.set_title(
+            "65特徴量システム - ポートフォリオ価値推移", fontsize=14, fontweight="bold"
+        )
+        ax1.set_xlabel("期間")
+        ax1.set_ylabel("ポートフォリオ価値 (USDT)")
+        ax1.grid(True, alpha=0.3)
+        ax1.ticklabel_format(style="plain", axis="y")
+
+        # 開始価値との比較線を追加
+        starting_balance = cfg["backtest"]["starting_balance"]
+        ax1.axhline(
+            y=starting_balance,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label=f"開始価値: {starting_balance:,.0f}",
+        )
+        ax1.legend()
+
+        # 収益率の推移
+        ax2.plot(
+            portfolio_df["period"],
+            portfolio_df["return_pct"],
+            marker="s",
+            linewidth=2,
+            markersize=4,
+            color="green",
+        )
+        ax2.set_title("累積収益率推移", fontsize=14, fontweight="bold")
+        ax2.set_xlabel("期間")
+        ax2.set_ylabel("収益率 (%)")
+        ax2.grid(True, alpha=0.3)
+        ax2.axhline(y=0, color="red", linestyle="--", alpha=0.7, label="損益分岐点")
+        ax2.legend()
+
+        # 最終統計を追加
+        final_return = portfolio_df["return_pct"].iloc[-1]
+        max_return = portfolio_df["return_pct"].max()
+        min_return = portfolio_df["return_pct"].min()
+
+        plt.figtext(
+            0.02,
+            0.02,
+            f"最終収益率: {final_return:.1f}% | 最高: {max_return:.1f}% | 最低: {min_return:.1f}%",
+            fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"),
+        )
+
+        plt.tight_layout()
+        plt.subplots_adjust(bottom=0.1)
+
+        # 保存
+        chart_path = cfg["backtest"].get(
+            "performance_chart", "results/performance_chart.png"
+        )
+        ensure_dir_for_file(chart_path)
+        plt.savefig(chart_path, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        click.echo(f"Performance chart saved to {chart_path!r}")
+
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"チャート作成中にエラー: {e}")
+        # matplotlibが利用できない環境でもエラーで止まらないように
 
     # サードパーティライブラリのログレベルを調整
     logging.getLogger("ccxt").setLevel(logging.WARNING)
@@ -222,6 +305,7 @@ def cli():
 )
 def backtest(config_path: str, stats_output: str, show_trades: bool):
     """Walk-forward バックテスト（MLStrategy）"""
+    logger = logging.getLogger(__name__)
     cfg = load_config(config_path)
     ensure_dir_for_file(stats_output)
 
@@ -249,6 +333,19 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
     wf = cfg["walk_forward"]
     splits = split_walk_forward(df, wf["train_window"], wf["test_window"], wf["step"])
 
+    logger.info(f"データサイズ: {len(df)}行, ウォークフォワード分割数: {len(splits)}")
+    logger.info(f"65特徴量システム有効: {len(df.columns)}列のデータで実行")
+
+    if len(splits) == 0:
+        logger.warning(
+            "ウォークフォワード分割が生成されませんでした。パラメータを調整します。"
+        )
+        # 小さなウィンドウでフォールバック
+        splits = split_walk_forward(
+            df, min(500, len(df) // 4), min(100, len(df) // 10), min(50, len(df) // 20)
+        )
+        logger.info(f"フォールバック分割数: {len(splits)}")
+
     # Strategy creation using factory
     strategy_config = cfg.get("strategy", {})
     strategy_type = strategy_config.get("type", "single")
@@ -265,7 +362,10 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         strategy = StrategyFactory.create_strategy(strategy_config, cfg)
 
     metrics_list, trade_logs = [], []
-    for _, test_df in splits:
+    portfolio_values = []  # 収益推移可視化用
+
+    for i, (_, test_df) in enumerate(splits):
+        logger.info(f"バックテスト実行 {i+1}/{len(splits)}: {len(test_df)}行のデータ")
         engine = BacktestEngine(
             price_df=test_df,
             strategy=strategy,
@@ -273,18 +373,65 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
             slippage_rate=cfg["backtest"].get("slippage_rate", 0.0),
         )
         m_df, t_df = engine.run()
-        metrics_list.append(m_df)
-        trade_logs.append(t_df)
+
+        if not m_df.empty:
+            metrics_list.append(m_df)
+            # ポートフォリオ価値を記録
+            final_balance = (
+                m_df.iloc[0]["final_balance"]
+                if "final_balance" in m_df.columns
+                else cfg["backtest"]["starting_balance"]
+            )
+            portfolio_values.append(
+                {
+                    "period": i + 1,
+                    "timestamp": (
+                        test_df.index[-1] if len(test_df) > 0 else pd.Timestamp.now()
+                    ),
+                    "portfolio_value": final_balance,
+                    "return_pct": (
+                        (final_balance / cfg["backtest"]["starting_balance"]) - 1
+                    )
+                    * 100,
+                }
+            )
+
+        if not t_df.empty:
+            trade_logs.append(t_df)
+
+    logger.info(
+        f"有効なメトリクス: {len(metrics_list)}, 有効なトレードログ: {len(trade_logs)}"
+    )
+
+    if len(metrics_list) == 0:
+        logger.error("有効なバックテスト結果がありません。設定を確認してください。")
+        return
 
     stats_df = pd.concat(metrics_list, ignore_index=True)
     stats_df.to_csv(stats_output, index=False)
     click.echo(f"Statistics saved to {stats_output!r}")
 
-    full_trade_df = pd.concat(trade_logs, ignore_index=True)
-    trade_log_csv = cfg["backtest"].get("trade_log_csv", "results/trade_log.csv")
-    ensure_dir_for_file(trade_log_csv)
-    full_trade_df.to_csv(trade_log_csv, index=False)
-    click.echo(f"Trade log saved to {trade_log_csv!r}")
+    # 収益推移可視化の実装
+    if portfolio_values:
+        portfolio_df = pd.DataFrame(portfolio_values)
+        portfolio_csv = cfg["backtest"].get(
+            "portfolio_csv", "results/portfolio_evolution.csv"
+        )
+        ensure_dir_for_file(portfolio_csv)
+        portfolio_df.to_csv(portfolio_csv, index=False)
+        click.echo(f"Portfolio evolution saved to {portfolio_csv!r}")
+
+        # 収益推移グラフ作成
+        create_performance_chart(portfolio_df, cfg)
+
+    if trade_logs:
+        full_trade_df = pd.concat(trade_logs, ignore_index=True)
+        trade_log_csv = cfg["backtest"].get("trade_log_csv", "results/trade_log.csv")
+        ensure_dir_for_file(trade_log_csv)
+        full_trade_df.to_csv(trade_log_csv, index=False)
+        click.echo(f"Trade log saved to {trade_log_csv!r}")
+    else:
+        click.echo("No trades executed during backtest")
 
     agg_prefix = cfg["backtest"].get("aggregate_out_prefix", "results/agg")
     ensure_dir_for_file(agg_prefix + "_dummy")

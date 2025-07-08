@@ -239,16 +239,19 @@ class BacktestEngine:
                 "start_date": "",
                 "end_date": "",
                 "total_profit": 0.0,
+                "final_balance": self.starting_balance,
                 "max_drawdown": 0.0,
                 "cagr": 0.0,
                 "sharpe": 0.0,
             }
         start, end = eq.index.min(), eq.index.max()
         days = (end - start).days
+        final_balance = float(eq.iloc[-1])
         return {
             "start_date": start.strftime("%Y-%m-%d"),
             "end_date": end.strftime("%Y-%m-%d"),
-            "total_profit": float(eq.iloc[-1] - self.starting_balance),
+            "total_profit": float(final_balance - self.starting_balance),
+            "final_balance": self.balance,  # 最終残高を現在のバランスに修正
             "max_drawdown": float(max_drawdown(eq)),
             "cagr": float(cagr(eq, days)),
             "sharpe": float(sharpe_ratio(eq.pct_change().dropna())),

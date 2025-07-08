@@ -238,17 +238,60 @@ class ConfigValidator:
             if not isinstance(features, list):
                 self.errors.append("ml.extra_features はリストである必要があります")
             else:
+                # 65特徴量システム対応 - 実装済み全特徴量リスト
                 valid_features = [
+                    # 基本テクニカル指標
                     "rsi_14",
-                    "macd",
+                    "rsi_21",
+                    "rsi_9",  # RSI系
+                    "macd",  # MACD
                     "rci_9",
+                    "rci_14",  # RCI系
                     "volume_zscore",
+                    "volume_zscore_20",
+                    "volume_zscore_14",  # 出来高系
+                    # 移動平均系
+                    "sma_200",
+                    "sma_50",
+                    "sma_20",
+                    "sma_10",
+                    "sma_5",
+                    "ema_50",
+                    "ema_20",
+                    "ema_12",
+                    "ema_26",
+                    # 高度テクニカル指標
+                    "stoch",  # ストキャスティクス
+                    "bb",
+                    "bollinger",  # ボリンジャーバンド
+                    "adx",  # ADX
+                    "willr",
+                    "williams",  # Williams %R
+                    "cmf",  # チャイキンマネーフロー
+                    "fisher",  # フィッシャートランスフォーム
+                    # マクロ経済統合特徴量（実装済み）
+                    "vix",  # VIX恐怖指数統合（6特徴量）
+                    "dxy",
+                    "macro",
+                    "treasury",  # DXY・金利統合（10特徴量）
+                    "fear_greed",
+                    "fg",  # Fear & Greed指数統合
+                    "funding",
+                    "oi",  # Funding Rate・OI統合（17特徴量）
+                    # 時間特徴量
                     "day_of_week",
                     "hour_of_day",
-                    "sma_200",
-                    "ema_50",
+                    # 独自シグナル
                     "mochipoyo_long_signal",
                     "mochipoyo_short_signal",
+                    # 追加可能な拡張特徴量（将来実装用）
+                    "momentum_14",
+                    "momentum_21",  # モメンタム系
+                    "trend_strength",  # トレンド強度
+                    "market_regime",  # 市場環境判定
+                    "volatility_regime",  # ボラティリティレジーム
+                    "correlation_spy",  # SPY相関
+                    "correlation_gold",  # 金相関
                 ]
                 for feature in features:
                     if not isinstance(feature, str):

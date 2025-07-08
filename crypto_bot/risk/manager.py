@@ -52,9 +52,12 @@ class RiskManager:
         # トレード履歴（Kelly基準計算用）
         self.trade_history: List[Dict] = []
 
-    def calc_stop_price(self, entry_price: float, atr: pd.Series) -> float:
+    def calc_stop_price(
+        self, entry_price: float, atr: pd.Series, side: str = "BUY"
+    ) -> float:
         """
-        ATR の最新値を取り、stop_atr_mult 倍した幅を下にずらした価格を返す。
+        ATR の最新値を取り、stop_atr_mult 倍した幅でストップ価格を計算する。
+        ロングの場合は下にずらし、ショートの場合は上にずらす。
 
         Parameters
         ----------
@@ -62,6 +65,8 @@ class RiskManager:
             エントリー価格（正の値でなければならない）
         atr : pd.Series
             ATR時系列データ（空でない）
+        side : str
+            ポジション方向（"BUY"=ロング、"SELL"=ショート）
 
         Returns
         -------
@@ -87,25 +92,38 @@ class RiskManager:
             elif latest_atr < 0:
                 raise ValueError(f"Invalid ATR value: {latest_atr}")
 
-            stop_price = entry_price - latest_atr * self.stop_atr_mult
-
-            # ストップ価格が負になることを防ぐ
-            if stop_price <= 0:
-                logger.warning(
-                    f"Calculated stop price {stop_price} is negative, "
-                    f"setting to entry_price * 0.01"
+            # ポジション方向に応じてストップ価格を計算
+            if side.upper() == "BUY":
+                # ロングポジション：エントリー価格より下にストップ
+                stop_price = entry_price - latest_atr * self.stop_atr_mult
+                # ストップ価格が負になることを防ぐ
+                if stop_price <= 0:
+                    logger.warning(
+                        f"Calculated LONG stop price {stop_price} is negative, "
+                        f"setting to entry_price * 0.01"
+                    )
+                    stop_price = entry_price * 0.01
+            elif side.upper() == "SELL":
+                # ショートポジション：エントリー価格より上にストップ
+                stop_price = entry_price + latest_atr * self.stop_atr_mult
+                logger.debug(
+                    f"SHORT stop price calculated: entry={entry_price}, "
+                    f"atr={latest_atr}, mult={self.stop_atr_mult}, stop={stop_price}"
                 )
-                stop_price = entry_price * 0.01
+            else:
+                raise ValueError(f"Invalid side: {side}. Must be 'BUY' or 'SELL'")
 
             return stop_price
 
         except (IndexError, KeyError) as e:
             raise ValueError(f"Unable to access ATR data: {e}") from e
 
-    def calc_lot(self, balance: float, entry_price: float, stop_price: float) -> float:
+    def calc_lot(
+        self, balance: float, entry_price: float, stop_price: float, side: str = "BUY"
+    ) -> float:
         """
         許容損失 = balance * risk_per_trade
-        損失幅 = entry_price - stop_price
+        損失幅 = |entry_price - stop_price|
         ロット数 = 許容損失 ÷ 損失幅
 
         Parameters
@@ -115,7 +133,9 @@ class RiskManager:
         entry_price : float
             エントリー価格（正の値でなければならない）
         stop_price : float
-            ストップ価格（entry_priceより小さくなければならない）
+            ストップ価格（正の値でなければならない）
+        side : str
+            ポジション方向（"BUY"=ロング、"SELL"=ショート）
 
         Returns
         -------
@@ -133,15 +153,28 @@ class RiskManager:
             raise ValueError(f"entry_price must be positive, got {entry_price}")
         if stop_price <= 0:
             raise ValueError(f"stop_price must be positive, got {stop_price}")
-        if stop_price >= entry_price:
-            raise ValueError(
-                f"stop_price ({stop_price}) must be less than "
-                f"entry_price ({entry_price})"
-            )
+
+        # ポジション方向に応じた損失幅計算
+        if side.upper() == "BUY":
+            # ロング：ストップ価格はエントリー価格より下
+            if stop_price >= entry_price:
+                raise ValueError(
+                    f"For LONG position, stop_price ({stop_price}) must be less than "
+                    f"entry_price ({entry_price})"
+                )
+            loss_per_unit = entry_price - stop_price
+        elif side.upper() == "SELL":
+            # ショート：ストップ価格はエントリー価格より上
+            if stop_price <= entry_price:
+                raise ValueError(
+                    f"For SHORT position, stop_price ({stop_price}) must be "
+                    f"greater than entry_price ({entry_price})"
+                )
+            loss_per_unit = stop_price - entry_price
+        else:
+            raise ValueError(f"Invalid side: {side}. Must be 'BUY' or 'SELL'")
 
         risk_amount = balance * self.risk_per_trade
-        loss_per_unit = entry_price - stop_price
-
         lot = risk_amount / loss_per_unit
 
         # 異常に大きなロット数を防ぐ（口座の50%以上のポジションは危険）
@@ -151,6 +184,11 @@ class RiskManager:
                 f"Calculated lot {lot} exceeds maximum safe lot {max_lot}, capping it"
             )
             lot = max_lot
+
+        logger.debug(
+            f"Position sizing: {side} entry={entry_price}, stop={stop_price}, "
+            f"loss_per_unit={loss_per_unit}, lot={lot}"
+        )
 
         return lot
 

@@ -37,7 +37,7 @@ strategy:
   type: single  # single または multi
   name: ml
   params:
-    model_path: model/dxy_fear_greed_2year_model.pkl
+    model_path: model.pkl
     threshold: 0.05  # ベース閾値（動的調整の基準点）
     
     # 動的閾値調整パラメータ
@@ -187,35 +187,43 @@ ml:
   # - mochipoyo_long_signal, mochipoyo_short_signal
   # ==========================
   extra_features:
-    # 基本テクニカル指標
-    - rsi_14
-    - macd
-    - rci_9
-    - volume_zscore
+    # === 高効果基本指標（6個） ===
+    - rsi_14      # 最重要モメンタム
+    - macd        # 最重要トレンド転換
+    - rci_9       # 効果的逆張り
+    - volume_zscore  # 重要出来高分析
+    - sma_200     # 長期トレンド
+    - ema_50      # 中期トレンド
+    
+    # === 効果的高度指標（6個） ===
+    - stoch       # オシレータ
+    - bb          # ボラティリティ
+    - adx         # トレンド強度
+    - willr       # 短期オシレータ
+    - cmf         # 資金フロー
+    - fisher      # 転換点検知
+    
+    # === マクロ経済統合（35個） ===
+    - vix         # VIX恐怖指数（6特徴量）
+    - dxy         # DXY・金利（10特徴量）
+    - fear_greed  # Fear&Greed（12特徴量）
+    - funding     # Funding Rate・OI（7特徴量）
+    
+    # === 時間・シグナル特徴量（4個） ===
     - day_of_week
     - hour_of_day
     - mochipoyo_long_signal
     - mochipoyo_short_signal
     
-    # VIX恐怖指数統合（CLAUDE.mdに記載の通り）
-    - vix
-    
-    # マクロ系特徴量（Phase 1-3実装）
-    - dxy         # DXY・金利・マクロ経済（10特徴量）
-    - funding     # Funding Rate・OI（9特徴量）
-    - sentiment   # ニュース感情分析（8特徴量）
-    
-    # 拡張テクニカル指標（勝率向上のため）
-    - stoch
-    - bb
-    - willr_14
-    - adx
-    - cmf_20
-    - fisher
-    - advanced_signals
-    
-    # OI・出来高統合特徴量
-    - oi
+    # === 追加移動平均（8個） ===
+    - sma_50
+    - sma_100
+    - ema_12
+    - ema_26
+    - sma_20
+    - ema_20
+    - sma_10
+    - ema_10
 
   # Optuna（ハイパーパラ最適化）設定
   optuna:

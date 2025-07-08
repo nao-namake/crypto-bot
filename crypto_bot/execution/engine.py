@@ -75,12 +75,16 @@ class EntryExit:
             return order
 
         if sig.side == "BUY":
+            # ロングエントリー
             entry_price = sig.price
-            stop_price = self.risk_manager.calc_stop_price(entry_price, self.atr_series)
+            stop_price = self.risk_manager.calc_stop_price(
+                entry_price, self.atr_series, side="BUY"
+            )
             lot = self.risk_manager.calc_lot(
                 balance=self.current_balance,
                 entry_price=entry_price,
                 stop_price=stop_price,
+                side="BUY",
             )
             if lot > 0:
                 order.exist = True
@@ -89,22 +93,59 @@ class EntryExit:
                 order.lot = lot
                 order.stop_price = stop_price
                 logging.getLogger(__name__).info(
-                    f"[ENTRY] BUY @ {entry_price:.2f}, lot={lot:.4f}, "
+                    f"[ENTRY LONG] BUY @ {entry_price:.2f}, lot={lot:.4f}, "
+                    f"stop={stop_price:.2f}"
+                )
+        elif sig.side == "SELL":
+            # ショートエントリー
+            entry_price = sig.price
+            stop_price = self.risk_manager.calc_stop_price(
+                entry_price, self.atr_series, side="SELL"
+            )
+            lot = self.risk_manager.calc_lot(
+                balance=self.current_balance,
+                entry_price=entry_price,
+                stop_price=stop_price,
+                side="SELL",
+            )
+            if lot > 0:
+                order.exist = True
+                order.side = "SELL"
+                order.price = entry_price
+                order.lot = lot
+                order.stop_price = stop_price
+                logging.getLogger(__name__).info(
+                    f"[ENTRY SHORT] SELL @ {entry_price:.2f}, lot={lot:.4f}, "
                     f"stop={stop_price:.2f}"
                 )
         return order
 
     def generate_exit_order(self, price_df, position: Position) -> Order:
         order = Order()
-        # 1) Stop-loss 判定
-        if position.exist and price_df["low"].iloc[-1] <= position.stop_price:
-            order.exist = True
-            order.side = "SELL"
-            order.price = position.stop_price
-            logging.getLogger(__name__).info(
-                f"[STOP-LOSS] SELL @ {position.stop_price:.2f}"
-            )
+
+        if not position.exist:
             return order
+        # 1) Stop-loss 判定（ポジション方向で条件変更）
+        if position.side == "BUY":
+            # ロングポジション：価格が下落してストップロス価格に到達
+            if price_df["low"].iloc[-1] <= position.stop_price:
+                order.exist = True
+                order.side = "SELL"  # ロングクローズは売り
+                order.price = position.stop_price
+                logging.getLogger(__name__).info(
+                    f"[STOP-LOSS LONG] SELL @ {position.stop_price:.2f}"
+                )
+                return order
+        elif position.side == "SELL":
+            # ショートポジション：価格が上昇してストップロス価格に到達
+            if price_df["high"].iloc[-1] >= position.stop_price:
+                order.exist = True
+                order.side = "BUY"  # ショートクローズは買い
+                order.price = position.stop_price
+                logging.getLogger(__name__).info(
+                    f"[STOP-LOSS SHORT] BUY @ {position.stop_price:.2f}"
+                )
+                return order
 
         # 2) 戦略シグナルによるクローズ判定
         sig = self.strategy.logic_signal(price_df, position)
@@ -112,35 +153,68 @@ class EntryExit:
         if sig is None or sig.side is None:
             logging.getLogger(__name__).debug("generate_exit_order: No exit signal.")
             return order
-        if sig.side == "SELL":
+
+        # ポジション方向に応じたエグジットシグナル処理
+        if position.side == "BUY" and sig.side == "SELL":
+            # ロングポジションのエグジット
             order.exist = True
             order.side = "SELL"
             order.price = sig.price
-            logging.getLogger(__name__).info(f"[EXIT] SELL @ {sig.price:.2f}")
+            logging.getLogger(__name__).info(f"[EXIT LONG] SELL @ {sig.price:.2f}")
+        elif position.side == "SELL" and sig.side == "BUY":
+            # ショートポジションのエグジット
+            order.exist = True
+            order.side = "BUY"
+            order.price = sig.price
+            logging.getLogger(__name__).info(f"[EXIT SHORT] BUY @ {sig.price:.2f}")
+
         return order
 
     def fill_order(self, order: Order, position: Position, balance: float) -> float:
         """
         Order の内容を Position に反映し、
         実損益を balance に反映して返す。
+        ロング・ショート両方向に対応。
         """
-        # BUY の場合は lot>0 をチェックするが、SELL は許容する
-        if not order.exist or (order.side == "BUY" and order.lot <= 0):
+        # 注文が存在しないか、ロットサイズが不正な場合はスキップ
+        if not order.exist or order.lot <= 0:
             return balance
 
-        if order.side == "BUY":
-            # エントリー約定
+        # ポジションが存在しない場合（新規エントリー）
+        if not position.exist:
+            # 新規エントリー約定
             position.exist = True
-            position.side = "BUY"
+            position.side = order.side  # "BUY"（ロング）または "SELL"（ショート）
             position.entry_price = order.price
             position.lot = order.lot
             position.stop_price = order.stop_price
             position.hold_bars = 0
+            logging.getLogger(__name__).info(
+                f"[FILL ENTRY] {position.side} position opened @ {order.price:.2f}, "
+                f"lot={order.lot:.4f}, stop={order.stop_price:.2f}"
+            )
         else:
-            # 決済約定
-            profit = (order.price - position.entry_price) * position.lot
-            balance += profit
-            position.exist = False
+            # ポジション決済約定
+            if position.side == "BUY":
+                # ロングポジションの決済（SELLで決済）
+                if order.side == "SELL":
+                    profit = (order.price - position.entry_price) * position.lot
+                    balance += profit
+                    logging.getLogger(__name__).info(
+                        f"[FILL EXIT LONG] Profit: {profit:.2f}, "
+                        f"entry={position.entry_price:.2f}, exit={order.price:.2f}"
+                    )
+                    position.exist = False
+            elif position.side == "SELL":
+                # ショートポジションの決済（BUYで決済）
+                if order.side == "BUY":
+                    profit = (position.entry_price - order.price) * position.lot
+                    balance += profit
+                    logging.getLogger(__name__).info(
+                        f"[FILL EXIT SHORT] Profit: {profit:.2f}, "
+                        f"entry={position.entry_price:.2f}, exit={order.price:.2f}"
+                    )
+                    position.exist = False
 
         # 一度約定したら exist フラグをリセット
         order.exist = False

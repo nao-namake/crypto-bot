@@ -31,10 +31,13 @@ class DummyStrategy:
 
 
 class DummyRiskManager:
-    def calc_stop_price(self, entry_price, atr_series):
-        return entry_price - 10
+    def calc_stop_price(self, entry_price, atr_series, side="BUY"):
+        if side == "BUY":
+            return entry_price - 10
+        else:  # SELL
+            return entry_price + 10
 
-    def calc_lot(self, balance, entry_price, stop_price):
+    def calc_lot(self, balance, entry_price, stop_price, side="BUY"):
         return 1.0
 
 

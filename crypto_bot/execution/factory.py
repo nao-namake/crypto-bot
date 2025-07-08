@@ -22,6 +22,7 @@ def create_exchange_client(
     api_secret: Optional[str] = None,
     testnet: bool = True,
     ccxt_options: Optional[Dict[str, Any]] = None,
+    margin_mode: bool = False,
     **kwargs: Any,
 ):
     """
@@ -35,6 +36,8 @@ def create_exchange_client(
         テストネットを使うかどうか（Bybit は True 推奨）
     ccxt_options : dict | None
         CCXT に直接渡す追加オプション
+    margin_mode : bool
+        信用取引モード（Bitbankのみ対応）
     """
     eid = exchange_id.lower()
 
@@ -45,7 +48,9 @@ def create_exchange_client(
 
     # ── 以降は CCXT ラッパー系 ──────────────────────────────
     if eid == "bitbank":
-        return BitbankClient(api_key, api_secret, testnet=testnet)
+        return BitbankClient(
+            api_key, api_secret, testnet=testnet, margin_mode=margin_mode
+        )
 
     if eid == "bitflyer":
         return BitflyerClient(api_key, api_secret, testnet=testnet)
