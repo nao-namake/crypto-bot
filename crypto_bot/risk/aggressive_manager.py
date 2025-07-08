@@ -7,7 +7,7 @@
 # - 最大収益化のための戦略的リスクテイク
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -56,7 +56,7 @@ class AggressiveRiskManager(RiskManager):
         self.recent_performance = []
         self.volatility_history = []
 
-        logger.info(f"AggressiveRiskManager initialized with:")
+        logger.info("AggressiveRiskManager initialized with:")
         logger.info(f"  risk_per_trade: {self.risk_per_trade}")
         logger.info(f"  kelly_max_fraction: {self.kelly_max_fraction}")
         logger.info(f"  confidence_multiplier: {self.confidence_multiplier}")
@@ -170,7 +170,8 @@ class AggressiveRiskManager(RiskManager):
             high_winrate_bonus = self.high_winrate_multiplier
             kelly_fraction *= high_winrate_bonus
             logger.info(
-                f"High win rate bonus applied: {win_rate:.2f} >= {self.high_winrate_threshold:.2f}, "
+                f"High win rate bonus applied: {win_rate:.2f} >= "
+                f"{self.high_winrate_threshold:.2f}, "
                 f"multiplier={high_winrate_bonus:.2f}"
             )
 
@@ -406,5 +407,3 @@ class AggressiveRiskManager(RiskManager):
 
         # 上限制御
         return min(base_multiplier, self.max_aggressive_multiplier)
-
-

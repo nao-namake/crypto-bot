@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -71,7 +71,7 @@ class AggressiveMLStrategy(MLStrategy):
         self.trailing_stop_enabled = True
         self.dynamic_stops = True
 
-        logger.info(f"AggressiveMLStrategy initialized:")
+        logger.info("AggressiveMLStrategy initialized:")
         logger.info(f"  aggressive_threshold: {self.aggressive_threshold}")
         logger.info(f"  confidence_threshold: {self.confidence_threshold}")
         logger.info(f"  multi_timeframe: {self.multi_timeframe_enabled}")
@@ -259,7 +259,7 @@ class AggressiveMLStrategy(MLStrategy):
                         else prediction_proba[0, 0]
                     )
                     confidence = abs(prediction - 0.5) * 2
-                except:
+                except Exception:
                     # predict_probaが使えない場合のフォールバック
                     prediction = self.model.predict(features)[0]
                     prediction = 1 / (1 + np.exp(-prediction))  # シグモイド変換
@@ -479,7 +479,8 @@ class AggressiveMLStrategy(MLStrategy):
         # 2. 中期間で適度な利益
         if position.hold_bars <= 12 and profit_rate > 0.015:  # 12時間以内で1.5%利益
             logger.info(
-                f"Medium-term profit taking: {profit_rate:.2%} in {position.hold_bars} bars"
+                f"Medium-term profit taking: {profit_rate:.2%} in "
+                f"{position.hold_bars} bars"
             )
             return True
 
@@ -494,7 +495,8 @@ class AggressiveMLStrategy(MLStrategy):
 
             if profit_rate > atr * self.profit_target_multiplier:
                 logger.info(
-                    f"ATR-based profit taking: {profit_rate:.2%} > {atr * self.profit_target_multiplier:.2%}"
+                    f"ATR-based profit taking: {profit_rate:.2%} > "
+                    f"{atr * self.profit_target_multiplier:.2%}"
                 )
                 return True
 
@@ -539,7 +541,8 @@ class AggressiveMLStrategy(MLStrategy):
 
             if loss_rate > dynamic_stop_threshold:
                 logger.info(
-                    f"Dynamic stop loss triggered: {loss_rate:.2%} > {dynamic_stop_threshold:.2%}"
+                    f"Dynamic stop loss triggered: {loss_rate:.2%} > "
+                    f"{dynamic_stop_threshold:.2%}"
                 )
                 return True
 
@@ -626,9 +629,7 @@ class AggressiveMLStrategy(MLStrategy):
             "avg_confidence": avg_confidence,
             "confidence_trend": confidence_trend,
             "signals_generated": len(self.signal_confidence_history),
-            "aggressive_multiplier": self.aggressive_risk_manager.get_aggressive_multiplier(
-                avg_confidence
+            "aggressive_multiplier": (
+                self.aggressive_risk_manager.get_aggressive_multiplier(avg_confidence)
             ),
         }
-
-

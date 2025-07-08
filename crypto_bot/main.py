@@ -130,7 +130,10 @@ def create_performance_chart(portfolio_df, cfg):
         plt.figtext(
             0.02,
             0.02,
-            f"最終収益率: {final_return:.1f}% | 最高: {max_return:.1f}% | 最低: {min_return:.1f}%",
+            (
+                f"最終収益率: {final_return:.1f}% | "
+                f"最高: {max_return:.1f}% | 最低: {min_return:.1f}%"
+            ),
             fontsize=10,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"),
         )
@@ -158,7 +161,8 @@ def create_performance_chart(portfolio_df, cfg):
     logging.getLogger("optuna").setLevel(logging.INFO)
 
     logger = logging.getLogger(__name__)
-    logger.info(f"Logging initialized at level: {level_name}")
+    current_level = logging.getLevelName(logger.getEffectiveLevel())
+    logger.info(f"Logging initialized at level: {current_level}")
 
 
 def update_status(total_profit: float, trade_count: int, position):

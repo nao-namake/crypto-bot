@@ -444,12 +444,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                                     "high": 2,
                                                                     "extreme": 3,
                                                                 }
-                                                                df.loc[
-                                                                    timestamp,
-                                                                    "vix_regime_numeric",
-                                                                ] = regime_map.get(
+                                                                # vix_regime設定
+                                                                k = "vix_regime_numeric"
+                                                                v = regime_map.get(
                                                                     vix_row[col], 1
                                                                 )
+                                                                df.loc[timestamp, k] = v
                                                             else:
                                                                 df.loc[
                                                                     timestamp, col
@@ -457,11 +457,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     added_features = i + 1
 
                                         logger.info(
-                                            f"Added VIX features to {added_features}/{len(df)} data points"
+                                            f"Added VIX features to "
+                                            f"{added_features}/{len(df)} data points"
                                         )
                                     else:
                                         logger.warning(
-                                            "Could not align VIX data - index type mismatch"
+                                            "Could not align VIX data - "
+                                            "index type mismatch"
                                         )
                                 else:
                                     logger.warning("No VIX data available")
@@ -583,11 +585,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                                     added_features = i + 1
 
                                         logger.info(
-                                            f"Added DXY/macro features to {added_features}/{len(df)} data points"
+                                            f"Added DXY/macro features to "
+                                            f"{added_features}/{len(df)} data points"
                                         )
                                     else:
                                         logger.warning(
-                                            "Index type mismatch for macro data alignment"  # noqa: E501
+                                            "Index type mismatch for "
+                                            "macro data alignment"
                                         )
                                 else:
                                     logger.warning("No macro data available")
