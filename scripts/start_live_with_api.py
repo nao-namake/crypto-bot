@@ -79,8 +79,8 @@ def start_live_trading():
         # 環境変数から設定を取得
         mode = os.getenv("MODE", "live")  # live modeに変更
         config_file = os.getenv(
-            "CONFIG_FILE", "config/bitbank_101features_production.yml"
-        )  # Bitbank設定
+            "CONFIG_FILE", "/app/config/bitbank_101features_production.yml"
+        )  # Bitbank設定（Docker絶対パス）
 
         # 必要なファイルの存在確認
         if not os.path.exists(config_file):
@@ -151,7 +151,7 @@ def check_requirements():
 
         # 設定ファイルの存在確認
         config_file = os.getenv(
-            "CONFIG_FILE", "config/bitbank_101features_production.yml"
+            "CONFIG_FILE", "/app/config/bitbank_101features_production.yml"
         )
         if os.path.exists(config_file):
             logger.info(f"✅ Config file found: {config_file}")
@@ -190,7 +190,7 @@ def main():
 
     # 環境変数の表示
     mode = os.getenv("MODE", "live")
-    config_file = os.getenv("CONFIG_FILE", "config/bitbank_101features_production.yml")
+    config_file = os.getenv("CONFIG_FILE", "/app/config/bitbank_101features_production.yml")
     logger.info(f"Mode: {mode}")
     logger.info(f"Config: {config_file}")
 
