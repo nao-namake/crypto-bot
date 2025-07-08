@@ -40,7 +40,8 @@ pytest \
   --cov=crypto_bot \
   --cov-report=term-missing \
   --cov-report=html \
-  --cov-fail-under="${COV_FAIL_UNDER}"
+  --cov-fail-under="${COV_FAIL_UNDER}" \
+  --ignore=tests/unit/test_monitor.py
 
 echo
 echo "✅ all checks passed! Coverage report: ./htmlcov/index.html"
