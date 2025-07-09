@@ -132,47 +132,48 @@ def start_live_trading():
 def download_model_if_needed():
     """Cloud StorageからMLモデルをダウンロード"""
     model_path = "/app/model.pkl"
-    
+
     if os.path.exists(model_path):
         logger.info(f"✅ Model file already exists: {model_path}")
         return True
-    
+
     try:
         logger.info("📥 Downloading model from Cloud Storage...")
         from google.cloud import storage
-        
+
         client = storage.Client()
-        bucket = client.bucket('my-crypto-bot-models')
-        blob = bucket.blob('model.pkl')
-        
+        bucket = client.bucket("my-crypto-bot-models")
+        blob = bucket.blob("model.pkl")
+
         # ダウンロード
         blob.download_to_filename(model_path)
         logger.info(f"✅ Model downloaded successfully: {model_path}")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to download model: {e}")
-        
+
         # フォールバック: ダミーモデルを作成
         try:
             logger.info("🔄 Creating dummy model for fallback...")
             import pickle
-            from sklearn.linear_model import LogisticRegression
+
             import numpy as np
-            
+            from sklearn.linear_model import LogisticRegression
+
             # ダミーモデルを作成（101特徴量対応）
             dummy_model = LogisticRegression(random_state=42)
             X_dummy = np.random.randn(100, 101)  # 101特徴量
             y_dummy = np.random.randint(0, 2, 100)
             dummy_model.fit(X_dummy, y_dummy)
-            
+
             # 保存
-            with open(model_path, 'wb') as f:
+            with open(model_path, "wb") as f:
                 pickle.dump(dummy_model, f)
-            
+
             logger.info(f"✅ Dummy model created: {model_path}")
             return True
-            
+
         except Exception as fallback_error:
             logger.error(f"❌ Failed to create dummy model: {fallback_error}")
             return False
