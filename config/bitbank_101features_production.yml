@@ -106,7 +106,7 @@ ml:
 
   # アンサンブルモデル設定（実証済み）
   ensemble:
-    enabled: false
+    enabled: true
     method: stacking
     weights: [0.4, 0.3, 0.3]
     
@@ -165,13 +165,13 @@ ml:
     
     # === 追加移動平均（8特徴量） ===
     - sma_50
-    - sma_100
+    - sma_10     # サポート済み特徴量
     - ema_12
     - ema_26
     - sma_20
     - ema_20
-    - sma_10
-    - ema_10
+    - momentum_14  # サポート済み拡張特徴量
+    - trend_strength  # サポート済み拡張特徴量
 
   # Optuna設定（実証済み）
   optuna:
