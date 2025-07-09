@@ -105,7 +105,7 @@ def start_live_trading():
         # コマンドライン引数を設定
         sys.argv = [
             "crypto_bot",
-            "live-paper" if mode == "paper" else "live-real",
+            "live-paper",  # 常にlive-paperコマンドを使用
             "--config",
             config_file,
         ]

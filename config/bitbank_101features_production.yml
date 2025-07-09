@@ -106,7 +106,7 @@ ml:
 
   # アンサンブルモデル設定（実証済み）
   ensemble:
-    enabled: true
+    enabled: false
     method: stacking
     weights: [0.4, 0.3, 0.3]
     
