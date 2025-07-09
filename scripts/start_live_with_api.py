@@ -100,7 +100,7 @@ def start_live_trading():
         logger.info(f"Using config: {config_file}")
 
         # ライブトレーディングの実行
-        from crypto_bot.main import main
+        from crypto_bot.main import cli
 
         # コマンドライン引数を設定
         sys.argv = [
@@ -111,7 +111,7 @@ def start_live_trading():
         ]
 
         # メイン関数を実行
-        main()
+        cli()
 
     except KeyboardInterrupt:
         logger.info("Live trading interrupted by user")
