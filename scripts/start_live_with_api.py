@@ -190,7 +190,9 @@ def main():
 
     # 環境変数の表示
     mode = os.getenv("MODE", "live")
-    config_file = os.getenv("CONFIG_FILE", "/app/config/bitbank_101features_production.yml")
+    config_file = os.getenv(
+        "CONFIG_FILE", "/app/config/bitbank_101features_production.yml"
+    )
     logger.info(f"Mode: {mode}")
     logger.info(f"Config: {config_file}")
 
