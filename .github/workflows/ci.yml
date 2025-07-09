@@ -334,7 +334,7 @@ jobs:
 
       # Production environment specific settings
       TF_VAR_artifact_registry_repo: "crypto-bot-repo"
-      TF_VAR_service_name: "crypto-bot-prod"
+      TF_VAR_service_name: "crypto-bot-service-prod"
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "live"
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
