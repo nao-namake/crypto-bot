@@ -229,18 +229,29 @@ def load_config(path: str) -> dict:
 # --------------------------------------------------------------------------- #
 def prepare_data(cfg: dict):
     dd = cfg.get("data", {})
-    fetcher = MarketDataFetcher(
-        exchange_id=dd.get("exchange"),
-        symbol=dd.get("symbol"),
-        ccxt_options=dd.get("ccxt_options"),
-    )
-    df = fetcher.get_price_df(
-        timeframe=dd.get("timeframe"),
-        since=dd.get("since"),
-        limit=dd.get("limit"),
-        paginate=dd.get("paginate", False),
-        per_page=dd.get("per_page", 0),
-    )
+
+    # CSV モードかAPI モードかを判定
+    if dd.get("exchange") == "csv" or dd.get("csv_path"):
+        # CSV モード
+        fetcher = MarketDataFetcher(csv_path=dd.get("csv_path"))
+        df = fetcher.get_price_df(
+            since=dd.get("since"),
+            limit=dd.get("limit"),
+        )
+    else:
+        # API モード
+        fetcher = MarketDataFetcher(
+            exchange_id=dd.get("exchange"),
+            symbol=dd.get("symbol"),
+            ccxt_options=dd.get("ccxt_options"),
+        )
+        df = fetcher.get_price_df(
+            timeframe=dd.get("timeframe"),
+            since=dd.get("since"),
+            limit=dd.get("limit"),
+            paginate=dd.get("paginate", False),
+            per_page=dd.get("per_page", 0),
+        )
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
     if "volume" not in df.columns:
@@ -317,20 +328,43 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
     cfg = load_config(config_path)
     ensure_dir_for_file(stats_output)
 
+    # CSV モードの場合は外部データキャッシュを初期化
+    dd = cfg.get("data", {})
+    if dd.get("exchange") == "csv" or dd.get("csv_path"):
+        logger.info("CSV mode detected - initializing external data cache")
+        from crypto_bot.ml.external_data_cache import initialize_global_cache
+
+        cache = initialize_global_cache(
+            start_date=dd.get("since", "2024-01-01"), end_date="2024-12-31"
+        )
+        cache_info = cache.get_cache_info()
+        logger.info(f"External data cache initialized: {cache_info}")
+
     # データ取得
     dd = cfg.get("data", {})
-    fetcher = MarketDataFetcher(
-        exchange_id=dd.get("exchange"),
-        symbol=dd.get("symbol"),
-        ccxt_options=dd.get("ccxt_options"),
-    )
-    df = fetcher.get_price_df(
-        timeframe=dd.get("timeframe"),
-        since=dd.get("since"),
-        limit=dd.get("limit"),
-        paginate=dd.get("paginate", False),
-        per_page=dd.get("per_page", 0),
-    )
+
+    # CSV モードかAPI モードかを判定
+    if dd.get("exchange") == "csv" or dd.get("csv_path"):
+        # CSV モード
+        fetcher = MarketDataFetcher(csv_path=dd.get("csv_path"))
+        df = fetcher.get_price_df(
+            since=dd.get("since"),
+            limit=dd.get("limit"),
+        )
+    else:
+        # API モード
+        fetcher = MarketDataFetcher(
+            exchange_id=dd.get("exchange"),
+            symbol=dd.get("symbol"),
+            ccxt_options=dd.get("ccxt_options"),
+        )
+        df = fetcher.get_price_df(
+            timeframe=dd.get("timeframe"),
+            since=dd.get("since"),
+            limit=dd.get("limit"),
+            paginate=dd.get("paginate", False),
+            per_page=dd.get("per_page", 0),
+        )
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index)
 

@@ -31,23 +31,31 @@ class MarketDataFetcher:
         symbol: str = "BTC/USDT",
         testnet: bool = True,
         ccxt_options: Optional[dict] = None,
+        csv_path: Optional[str] = None,
     ):
         self.exchange_id = exchange_id
         self.symbol = symbol
-        api_key = api_key or os.getenv(f"{exchange_id.upper()}_API_KEY")
-        api_secret = api_secret or os.getenv(f"{exchange_id.upper()}_API_SECRET")
-        env_test_key = os.getenv(f"{exchange_id.upper()}_TESTNET_API_KEY")
-        testnet = testnet or bool(env_test_key)
-        self.client = create_exchange_client(
-            exchange_id=exchange_id,
-            api_key=api_key,
-            api_secret=api_secret,
-            testnet=testnet,
-            ccxt_options=ccxt_options or {},
-        )
-        if exchange_id == "bybit" and not api_key:
-            self.client.has["fetchCurrencies"] = False
-        self.exchange = getattr(self.client, "_exchange", self.client)
+        self.csv_path = csv_path
+
+        # CSV モードの場合はAPI接続をスキップ
+        if csv_path:
+            self.client = None
+            self.exchange = None
+        else:
+            api_key = api_key or os.getenv(f"{exchange_id.upper()}_API_KEY")
+            api_secret = api_secret or os.getenv(f"{exchange_id.upper()}_API_SECRET")
+            env_test_key = os.getenv(f"{exchange_id.upper()}_TESTNET_API_KEY")
+            testnet = testnet or bool(env_test_key)
+            self.client = create_exchange_client(
+                exchange_id=exchange_id,
+                api_key=api_key,
+                api_secret=api_secret,
+                testnet=testnet,
+                ccxt_options=ccxt_options or {},
+            )
+            if exchange_id == "bybit" and not api_key:
+                self.client.has["fetchCurrencies"] = False
+            self.exchange = getattr(self.client, "_exchange", self.client)
 
     def get_price_df(
         self,
@@ -58,6 +66,10 @@ class MarketDataFetcher:
         sleep: bool = True,
         per_page: int = 500,
     ) -> pd.DataFrame:
+        # CSV モードの場合は CSV から読み込み
+        if self.csv_path:
+            return self._get_price_from_csv(since, limit)
+
         import time
 
         since_ms: Optional[int] = None
@@ -153,6 +165,69 @@ class MarketDataFetcher:
             df = df.head(limit)
 
         return df[["open", "high", "low", "close", "volume"]]
+
+    def _get_price_from_csv(
+        self,
+        since: Optional[Union[int, float, str, datetime]] = None,
+        limit: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """
+        CSVファイルから価格データを読み込み
+
+        Parameters
+        ----------
+        since : Optional[Union[int, float, str, datetime]]
+            開始時刻
+        limit : Optional[int]
+            取得件数制限
+
+        Returns
+        -------
+        pd.DataFrame
+            価格データ
+        """
+        if not os.path.exists(self.csv_path):
+            raise FileNotFoundError(f"CSV file not found: {self.csv_path}")
+
+        # CSVファイル読み込み
+        df = pd.read_csv(self.csv_path, parse_dates=True, index_col=0)
+
+        # インデックスがdatetimeでない場合は変換
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+
+        # タイムゾーンを UTC に設定
+        if df.index.tz is None:
+            df.index = df.index.tz_localize('UTC')
+
+        # since パラメータでフィルタリング
+        if since is not None:
+            if isinstance(since, str):
+                since_dt = pd.to_datetime(since, utc=True)
+            elif isinstance(since, datetime):
+                since_dt = since
+                if since_dt.tzinfo is None:
+                    since_dt = since_dt.replace(tzinfo=pd.Timestamp.now().tz)
+            else:
+                # タイムスタンプの場合
+                since_dt = pd.to_datetime(since, unit='ms', utc=True)
+
+            df = df[df.index >= since_dt]
+
+        # limit パラメータで件数制限
+        if limit is not None:
+            df = df.head(limit)
+
+        # 必要な列のみ返す
+        required_columns = ["open", "high", "low", "close", "volume"]
+        available_columns = [col for col in required_columns if col in df.columns]
+
+        if not available_columns:
+            raise ValueError(
+                f"Required columns {required_columns} not found in CSV file"
+            )
+
+        return df[available_columns]
 
 
 class DataPreprocessor:

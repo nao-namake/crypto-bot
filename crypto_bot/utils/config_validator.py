@@ -73,7 +73,7 @@ class ConfigValidator:
 
         # exchange validation
         if "exchange" in data_config:
-            valid_exchanges = ["bybit", "bitbank", "bitflyer", "okcoinjp"]
+            valid_exchanges = ["bybit", "bitbank", "bitflyer", "okcoinjp", "csv"]
             if data_config["exchange"] not in valid_exchanges:
                 self.errors.append(
                     f"data.exchange は {valid_exchanges} のいずれかである必要があります"

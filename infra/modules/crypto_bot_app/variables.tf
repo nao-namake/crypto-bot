@@ -37,7 +37,7 @@ variable "image_tag" {
 variable "mode" {
   description = "Botコンテナの実行モード (例: \"paper\" または \"prod\")。Cloud Run に環境変数 MODE として渡されます。"
   type        = string
-  default     = "paper"
+  default     = "Live"
 }
 
 # --------------------------------------------------

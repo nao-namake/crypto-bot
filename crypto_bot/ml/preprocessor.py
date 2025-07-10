@@ -137,6 +137,41 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         else:
             self.fear_greed_fetcher = None
 
+    def _get_cached_external_data(
+        self, data_type: str, time_index: pd.DatetimeIndex
+    ) -> pd.DataFrame:
+        """
+        キャッシュから外部データを取得
+
+        Parameters
+        ----------
+        data_type : str
+            データタイプ ('vix', 'macro', 'fear_greed', 'funding')
+        time_index : pd.DatetimeIndex
+            対象期間のタイムインデックス
+
+        Returns
+        -------
+        pd.DataFrame
+            キャッシュされた外部データ（該当期間）
+        """
+        try:
+            from crypto_bot.ml.external_data_cache import get_global_cache
+
+            cache = get_global_cache()
+            if not cache.is_initialized:
+                return pd.DataFrame()
+
+            start_time = time_index.min()
+            end_time = time_index.max()
+
+            cached_data = cache.get_period_data(data_type, start_time, end_time)
+            return cached_data
+
+        except Exception as e:
+            logger.debug(f"Failed to get cached {data_type} data: {e}")
+            return pd.DataFrame()
+
     def fit(self, X: pd.DataFrame, y=None):
         return self
 
@@ -364,16 +399,23 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add advanced signals: %s", e)
 
-                    # VIX恐怖指数関連特徴量（改良版）
+                    # VIX恐怖指数関連特徴量（キャッシュ優先版）
                     elif base == "vix":
                         try:
-                            if self.vix_fetcher:
-                                # バックテスト期間を設定
+                            # キャッシュからVIXデータを取得（優先）
+                            cached_vix = self._get_cached_external_data("vix", df.index)
+
+                            if not cached_vix.empty:
+                                logger.debug(
+                                    f"Using cached VIX data: {len(cached_vix)} records"
+                                )
+                                vix_features = cached_vix
+                            elif self.vix_fetcher:
+                                # キャッシュがない場合は従来の方法
                                 backtest_since = None
                                 if hasattr(df, "index") and len(df) > 0:
                                     backtest_since = df.index.min()
 
-                                # VIXデータ取得（バックテスト期間対応）
                                 vix_data = self.vix_fetcher.get_vix_data(
                                     timeframe="1d", limit=100, since=backtest_since
                                 )
@@ -502,11 +544,21 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add OI features: %s", e)
 
-                    # マクロ経済データ特徴量（DXY, 金利）
+                    # マクロ経済データ特徴量（DXY, 金利）（キャッシュ優先版）
                     elif base in ["dxy", "macro", "treasury"]:
                         try:
-                            if self.macro_fetcher:
-                                # バックテスト年を設定
+                            # キャッシュからマクロデータを取得（優先）
+                            cached_macro = self._get_cached_external_data(
+                                "macro", df.index
+                            )
+
+                            if not cached_macro.empty:
+                                logger.debug(
+                                    f"Using cached macro: {len(cached_macro)} items"
+                                )
+                                macro_features = cached_macro
+                            elif self.macro_fetcher:
+                                # キャッシュがない場合は従来の方法
                                 if hasattr(df, "index") and len(df) > 0:
                                     backtest_year = df.index.min().year
                                     self.macro_fetcher._backtest_start_year = (
@@ -600,10 +652,21 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add macro features: %s", e)
 
-                    # Funding Rate & Open Interest 特徴量（最適化版）
+                    # Funding Rate & Open Interest 特徴量（キャッシュ優先版）
                     elif base in ["funding", "oi"]:
                         try:
-                            if self.funding_fetcher:
+                            # キャッシュからFunding Rateデータを取得（優先）
+                            cached_funding = self._get_cached_external_data(
+                                "funding", df.index
+                            )
+
+                            if not cached_funding.empty:
+                                logger.debug(
+                                    f"Using cached funding: {len(cached_funding)} items"
+                                )
+                                funding_features = cached_funding
+                            elif self.funding_fetcher:
+                                # キャッシュがない場合は従来の方法
                                 funding_data = (
                                     self.funding_fetcher.get_funding_rate_data(limit=60)
                                 )  # より多くのデータ
@@ -797,11 +860,21 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                     f"Failed to add default funding features: {inner_e}"
                                 )
 
-                    # Fear & Greed Index特徴量
+                    # Fear & Greed Index特徴量（キャッシュ優先版）
                     elif base in ["fear_greed", "fg"]:
                         try:
-                            if self.fear_greed_fetcher:
-                                # Fear & Greedデータを取得
+                            # キャッシュからFear&Greedデータを取得（優先）
+                            cached_fg = self._get_cached_external_data(
+                                "fear_greed", df.index
+                            )
+
+                            if not cached_fg.empty:
+                                logger.debug(
+                                    f"Using cached Fear&Greed: {len(cached_fg)} items"
+                                )
+                                fg_features = cached_fg
+                            elif self.fear_greed_fetcher:
+                                # キャッシュがない場合は従来の方法
                                 fg_data = self.fear_greed_fetcher.get_fear_greed_data(
                                     days_back=30
                                 )
@@ -990,6 +1063,31 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             for signal_col in mochipoyo_signals.columns:
                                 if signal_col not in df:
                                     df[signal_col] = mochipoyo_signals[signal_col]
+
+                    # momentum_14 特徴量
+                    elif feat_lc == "momentum_14":
+                        df["momentum_14"] = df["close"].pct_change(14).fillna(0)
+
+                    # trend_strength 特徴量
+                    elif feat_lc == "trend_strength":
+                        # トレンド強度を計算（ADXベース）
+                        try:
+                            import pandas_ta as ta
+
+                            adx_series = ta.adx(
+                                high=df["high"],
+                                low=df["low"],
+                                close=df["close"],
+                                length=14,
+                            )
+                            if adx_series is not None and not adx_series.isnull().all():
+                                df["trend_strength"] = adx_series.fillna(25)
+                            else:
+                                df["trend_strength"] = 25  # デフォルト値
+                        except Exception as e:
+                            logger.warning(f"Failed to calculate trend_strength: {e}")
+                            df["trend_strength"] = 25  # デフォルト値
+
                     else:
                         logger.warning(f"Unknown extra feature spec: {feat} - skipping")
 
@@ -1017,6 +1115,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
 
         logger.debug("Final features shape after cleaning: %s", df.shape)
+
+        # 101特徴量の確実な保証（最終チェック）
+        from crypto_bot.ml.feature_defaults import ensure_feature_consistency
+
+        df = ensure_feature_consistency(df, target_count=101)
+        logger.info(f"Final guaranteed feature count: {len(df.columns)}")
+
         return df
 
 

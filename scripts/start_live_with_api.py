@@ -103,9 +103,11 @@ def start_live_trading():
         from crypto_bot.main import cli
 
         # コマンドライン引数を設定
+        # 設定ファイルのmodeに基づいてコマンドを選択
+        command = "live" if mode == "live" else "live-paper"
         sys.argv = [
             "crypto_bot",
-            "live-paper",  # 常にlive-paperコマンドを使用
+            command,
             "--config",
             config_file,
         ]
