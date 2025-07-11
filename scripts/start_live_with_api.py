@@ -104,7 +104,8 @@ def start_live_trading():
 
         # コマンドライン引数を設定
         # 設定ファイルのmodeに基づいてコマンドを選択
-        command = "live" if mode == "live" else "live-paper"
+        # 注意: 現在のmain.pyには'live'コマンドは存在しない
+        command = "live-paper"  # 常にlive-paperコマンドを使用
         sys.argv = [
             "crypto_bot",
             command,
