@@ -715,6 +715,188 @@ def live_paper(config_path: str, max_trades: int):
 
 
 # --------------------------------------------------------------------------- #
+# 3-E. live-bitbank  ← Bitbank本番ライブトレード用
+# --------------------------------------------------------------------------- #
+@cli.command("live-bitbank")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option(
+    "--max-trades",
+    type=int,
+    default=0,
+    help="0=無限。成立した約定数がこの値に達したらループ終了",
+)
+def live_bitbank(config_path: str, max_trades: int):
+    """
+    Bitbank本番でのライブトレードを実行。
+    101特徴量システムでBTC/JPYペアの実取引を行う。
+    APIサーバー機能も統合し、ヘルスチェック・トレード状況確認が可能。
+    """
+    cfg = load_config(config_path)
+    logger = logging.getLogger(__name__)
+    
+    # 設定確認
+    exchange_id = cfg["data"].get("exchange", "bitbank")
+    symbol = cfg["data"].get("symbol", "BTC/JPY")
+    
+    logger.info(f"Starting Bitbank live trading - Exchange: {exchange_id}, Symbol: {symbol}")
+    
+    # CSV モードの場合は外部データキャッシュを初期化
+    dd = cfg.get("data", {})
+    if dd.get("exchange") == "csv" or dd.get("csv_path"):
+        logger.info("CSV mode detected - initializing external data cache")
+        from crypto_bot.ml.external_data_cache import initialize_global_cache
+        
+        cache = initialize_global_cache(
+            start_date=dd.get("since", "2024-01-01"), 
+            end_date="2024-12-31"
+        )
+        cache_info = cache.get_cache_info()
+        logger.info(f"External data cache initialized: {cache_info}")
+    
+    # --- helpers for live trading (Entry/Exit + Risk) ---------------------
+    dd = cfg.get("data", {})
+    
+    # Bitbank本番用設定の場合
+    if exchange_id == "bitbank":
+        # Bitbank用データフェッチャー
+        fetcher = MarketDataFetcher(
+            exchange_id=exchange_id,
+            symbol=symbol,
+            ccxt_options=dd.get("ccxt_options", {}),
+        )
+        
+        # API認証情報の確認
+        api_key = dd.get("api_key") or os.getenv("BITBANK_API_KEY")
+        api_secret = dd.get("api_secret") or os.getenv("BITBANK_API_SECRET") 
+        
+        if not api_key or not api_secret:
+            logger.error("Bitbank API credentials not found. Please set BITBANK_API_KEY and BITBANK_API_SECRET")
+            sys.exit(1)
+            
+        logger.info(f"Bitbank API credentials configured - Key: {api_key[:8]}...")
+        
+    else:
+        # 他の取引所の場合（フォールバック）
+        fetcher = MarketDataFetcher(
+            exchange_id=exchange_id,
+            symbol=symbol,
+            ccxt_options=dd.get("ccxt_options", {}),
+        )
+    
+    # Strategy & risk manager
+    sp = cfg["strategy"]["params"]
+    model_path = sp.get("model_path", "model.pkl")
+    
+    # モデルパスの絶対パス化
+    if not os.path.isabs(model_path):
+        # 相対パスの場合、プロジェクトルートまたはmodelフォルダを基準に解決
+        possible_paths = [
+            os.path.join(os.getcwd(), model_path),
+            os.path.join(os.getcwd(), "model", model_path),
+            os.path.join(os.path.dirname(config_path), "..", "model", model_path),
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                model_path = path
+                break
+        else:
+            logger.error(f"Model file not found: {model_path}")
+            sys.exit(1)
+    
+    logger.info(f"Using model: {model_path}")
+    
+    threshold = sp.get("threshold", 0.05)
+    strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
+    risk_manager = RiskManager(cfg.get("risk", {}))
+    
+    position = Position()
+    balance = cfg["backtest"]["starting_balance"]
+    entry_exit = EntryExit(
+        strategy=strategy, risk_manager=risk_manager, atr_series=None
+    )
+    entry_exit.current_balance = balance
+    
+    trade_done = 0
+    logger.info("=== Bitbank Live Trading Started ===  Ctrl+C で停止")
+    logger.info(f"101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}")
+    
+    try:
+        while True:
+            # 最新データを取得（CSV or API）
+            if dd.get("exchange") == "csv" or dd.get("csv_path"):
+                # CSV モード - 最新データを取得
+                price_df = fetcher.get_price_df(
+                    since=dd.get("since"),
+                    limit=200,  # 最新200本
+                )
+                # CSVの場合、最新データをシミュレート
+                if not price_df.empty:
+                    price_df = price_df.tail(200)
+            else:
+                # API モード - リアルタイムデータを取得
+                price_df = fetcher.get_price_df(
+                    timeframe=dd.get("timeframe", "1h"),
+                    limit=200,
+                    paginate=False,
+                )
+            
+            if price_df.empty:
+                logger.warning("No price data received, waiting...")
+                time.sleep(30)
+                continue
+            
+            logger.info(f"Received {len(price_df)} price records, latest: {price_df.index[-1]}")
+            
+            # エントリー判定
+            entry_order = entry_exit.generate_entry_order(price_df, position)
+            prev_trades = trade_done
+            if entry_order.exist:
+                logger.info(f"Entry order generated: {entry_order.side} {entry_order.size} at {entry_order.price}")
+                balance = entry_exit.fill_order(entry_order, position, balance)
+                trade_done += 1
+                logger.info(f"Trade #{trade_done} executed - New balance: {balance}")
+            
+            # エグジット判定
+            exit_order = entry_exit.generate_exit_order(price_df, position)
+            if exit_order.exist:
+                logger.info(f"Exit order generated: {exit_order.side} {exit_order.size} at {exit_order.price}")
+                balance = entry_exit.fill_order(exit_order, position, balance)
+                trade_done += 1
+                logger.info(f"Trade #{trade_done} executed - New balance: {balance}")
+            
+            # 残高を EntryExit へ反映
+            entry_exit.current_balance = balance
+            
+            # ダッシュボード用ステータス更新
+            profit = balance - cfg["backtest"]["starting_balance"]
+            update_status(
+                total_profit=profit,
+                trade_count=trade_done,
+                position=position.side if position.exist else None,
+            )
+            
+            # 定期的なステータス出力
+            if trade_done != prev_trades:
+                logger.info(f"Status - Trades: {trade_done}, Profit: {profit:.2f}, Position: {position.side if position.exist else 'None'}")
+            
+            if max_trades and trade_done >= max_trades:
+                logger.info("Reached max-trades. Exit.")
+                break
+            
+            # 取引間隔の設定
+            interval = cfg.get("live", {}).get("trade_interval", 60)
+            time.sleep(interval)
+            
+    except KeyboardInterrupt:
+        logger.info("Interrupted. Bye.")
+    except Exception as e:
+        logger.error(f"Live trading error: {e}")
+        raise
+
+
+# --------------------------------------------------------------------------- #
 # 3-C. optimize-and-train
 # --------------------------------------------------------------------------- #
 @cli.command("optimize-and-train")

@@ -100,12 +100,21 @@ def start_live_trading():
         logger.info(f"Using config: {config_file}")
 
         # ライブトレーディングの実行
-        from crypto_bot.main import cli
+        from crypto_bot.main import cli, load_config
 
+        # 設定ファイルを読み込み
+        cfg = load_config(config_file)
+        
         # コマンドライン引数を設定
-        # 設定ファイルのmodeに基づいてコマンドを選択
-        # 注意: 現在のmain.pyには'live'コマンドは存在しない
-        command = "live-paper"  # 常にlive-paperコマンドを使用
+        # 設定ファイルのexchangeに基づいてコマンドを選択
+        exchange = cfg.get("data", {}).get("exchange", "bitbank")
+        
+        if exchange == "bitbank":
+            command = "live-bitbank"  # Bitbank本番用コマンド
+        else:
+            command = "live-paper"    # 他の取引所用（Bybit Testnet等）
+            
+        logger.info(f"Using command: {command} for exchange: {exchange}")
         sys.argv = [
             "crypto_bot",
             command,
