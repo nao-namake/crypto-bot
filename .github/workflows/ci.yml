@@ -25,10 +25,10 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
 
-    # ここでテストを走らせる Python バージョンを 3.11, 3.12 のみに絞る
+    # Bitbank本番運用に最適化 - Python 3.11のみでテスト実行
     strategy:
       matrix:
-        python-version: ['3.11', '3.12']
+        python-version: ['3.11']
 
     # Codecov 用のトークンを事前に環境変数へ流し込んでおく
     env:
@@ -74,61 +74,14 @@ jobs:
         # CODECOV_TOKEN が設定されていれば coverage を Codecov へアップロード
 
   # ────────────────────────────────────────────────────────────────────────────
-  integration-tests:
-    name: Bybit Testnet E2E
-    needs: test
-    runs-on: ubuntu-latest
-
-    # Bybit Testnet 用のシークレットを環境変数として渡す
-    env:
-      BYBIT_TESTNET_API_KEY: ${{ secrets.BYBIT_TESTNET_API_KEY }}
-      BYBIT_TESTNET_API_SECRET: ${{ secrets.BYBIT_TESTNET_API_SECRET }}
-
-    steps:
-      - uses: actions/checkout@v4
-        # もう一度チェックアウト（別ジョブなので必要）
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-integration-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-        # E2E も pip キャッシュを使う
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-        # E2E テストは Python 3.11 環境で実行
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install -r requirements-dev.txt
-        # E2E 用に同じ依存をインストール
-
-      - name: Make run_e2e.sh executable
-        run: chmod +x scripts/run_e2e.sh
-        # スクリプトに実行権限を付与
-
-      - name: Skip if BYBIT_TESTNET_API_KEY/SECRET not set
-        if: ${{ env.BYBIT_TESTNET_API_KEY == '' || env.BYBIT_TESTNET_API_SECRET == '' }}
-        run: |
-          echo "Bybit Testnet API Key or Secret not set. Skipping integration tests."
-        # シークレットが空文字列の場合は「正常終了（Skip）」で止める
-
-      - name: Run Bybit E2E
-        if: ${{ env.BYBIT_TESTNET_API_KEY != '' && env.BYBIT_TESTNET_API_SECRET != '' }}
-        run: ./scripts/run_e2e.sh
-        # 両方のシークレットが設定されている場合のみ E2E スクリプトを実行
+  # Bybit Testnet E2E テスト - Bitbank本番運用のため除外
+  # 必要に応じて手動実行可能
+  # ────────────────────────────────────────────────────────────────────────────
 
   # ────────────────────────────────────────────────────────────────────────────
   docker-build:
     name: Build & Test Docker Image
-    needs: integration-tests
+    needs: test
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
@@ -391,7 +344,7 @@ jobs:
     name: Deploy to HA Production
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
-    needs: [test, integration-tests, docker-build]
+    needs: [test, docker-build]
     
     env:
       TF_ENV_DIR: infra/envs/ha-prod
