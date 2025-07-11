@@ -617,129 +617,129 @@ def optimize_ml(config_path: str, model_type: str):
 
 
 # --------------------------------------------------------------------------- #
-# 3-D. live-paper  ← Testnet ペーパートレード用
+# 3-D. live-paper  ← Bybit Testnet ペーパートレード用（本番に影響しないようコメントアウト）
 # --------------------------------------------------------------------------- #
-@cli.command("live-paper")
-@click.option(
-    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
-)
-@click.option(
-    "--max-trades",
-    type=int,
-    default=0,
-    help="0=無限。成立した約定数がこの値に達したらループ終了",
-)
-def live_paper(config_path: str, max_trades: int):
-    """
-    Bybit Testnet でのライブトレードを 30 秒間隔で回すループ。
-    改善された戦略ロジックでより積極的なトレードを実行。
-    APIサーバー機能も統合し、ヘルスチェック・トレード状況確認が可能。
-    """
-    cfg = load_config(config_path)
-    # 取引所クライアントは Factory で生成（Bybit Testnet がデフォルト）
-    # client = create_exchange_client(
-    #     exchange_id=cfg["data"].get("exchange", "bybit"),
-    #     api_key=cfg["data"].get("api_key", ""),
-    #     api_secret=cfg["data"].get("api_secret", ""),
-    #     testnet=True,
-    # )
+# @cli.command("live-paper")
+# @click.option(
+#     "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+# )
+# @click.option(
+#     "--max-trades",
+#     type=int,
+#     default=0,
+#     help="0=無限。成立した約定数がこの値に達したらループ終了",
+# )
+# def live_paper(config_path: str, max_trades: int):
+#     """
+#     Bybit Testnet でのライブトレードを 30 秒間隔で回すループ。
+#     改善された戦略ロジックでより積極的なトレードを実行。
+#     APIサーバー機能も統合し、ヘルスチェック・トレード状況確認が可能。
+#     """
+#     cfg = load_config(config_path)
+#     # 取引所クライアントは Factory で生成（Bybit Testnet がデフォルト）
+#     # client = create_exchange_client(
+#     #     exchange_id=cfg["data"].get("exchange", "bybit"),
+#     #     api_key=cfg["data"].get("api_key", ""),
+#     #     api_secret=cfg["data"].get("api_secret", ""),
+#     #     testnet=True,
+#     # )
 
-    # --- helpers for paper trading (Entry/Exit + Risk) ---------------------
-    dd = cfg.get("data", {})
-    fetcher = MarketDataFetcher(
-        exchange_id=dd.get("exchange"),
-        symbol=dd.get("symbol"),
-        ccxt_options=dd.get("ccxt_options"),
-    )
+#     # --- helpers for paper trading (Entry/Exit + Risk) ---------------------
+#     dd = cfg.get("data", {})
+#     fetcher = MarketDataFetcher(
+#         exchange_id=dd.get("exchange"),
+#         symbol=dd.get("symbol"),
+#         ccxt_options=dd.get("ccxt_options"),
+#     )
 
-    # Strategy & risk manager
-    sp = cfg["strategy"]["params"]
-    model_path = sp.get("model_path", "model.pkl")
-    threshold = sp.get("threshold", 0.0)
-    strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
+#     # Strategy & risk manager
+#     sp = cfg["strategy"]["params"]
+#     model_path = sp.get("model_path", "model.pkl")
+#     threshold = sp.get("threshold", 0.0)
+#     strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
 
-    # RiskManager初期化
-    risk_config = cfg.get("risk", {})
-    kelly_config = risk_config.get("kelly_criterion", {})
-    risk_manager = RiskManager(
-        risk_per_trade=risk_config.get("risk_per_trade", 0.01),
-        stop_atr_mult=risk_config.get("stop_atr_mult", 1.5),
-        kelly_enabled=kelly_config.get("enabled", False),
-        kelly_lookback_window=kelly_config.get("lookback_window", 50),
-        kelly_max_fraction=kelly_config.get("max_fraction", 0.25),
-    )
+#     # RiskManager初期化
+#     risk_config = cfg.get("risk", {})
+#     kelly_config = risk_config.get("kelly_criterion", {})
+#     risk_manager = RiskManager(
+#         risk_per_trade=risk_config.get("risk_per_trade", 0.01),
+#         stop_atr_mult=risk_config.get("stop_atr_mult", 1.5),
+#         kelly_enabled=kelly_config.get("enabled", False),
+#         kelly_lookback_window=kelly_config.get("lookback_window", 50),
+#         kelly_max_fraction=kelly_config.get("max_fraction", 0.25),
+#     )
 
-    position = Position()
-    balance = cfg["backtest"]["starting_balance"]
+#     position = Position()
+#     balance = cfg["backtest"]["starting_balance"]
 
-    # ATRを計算するための初期データを取得
-    initial_df = fetcher.get_price_df(
-        timeframe=dd.get("timeframe"),
-        limit=200,
-        paginate=False,
-    )
+#     # ATRを計算するための初期データを取得
+#     initial_df = fetcher.get_price_df(
+#         timeframe=dd.get("timeframe"),
+#         limit=200,
+#         paginate=False,
+#     )
 
-    # ATRを計算
-    atr_series = None
-    if not initial_df.empty:
-        from crypto_bot.indicator.calculator import IndicatorCalculator
+#     # ATRを計算
+#     atr_series = None
+#     if not initial_df.empty:
+#         from crypto_bot.indicator.calculator import IndicatorCalculator
 
-        calculator = IndicatorCalculator()
-        atr_series = calculator.calculate_atr(initial_df, period=14)
-        latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
-        click.echo(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
+#         calculator = IndicatorCalculator()
+#         atr_series = calculator.calculate_atr(initial_df, period=14)
+#         latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
+#         click.echo(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
 
-    entry_exit = EntryExit(
-        strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
-    )
-    entry_exit.current_balance = balance
+#     entry_exit = EntryExit(
+#         strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
+#     )
+#     entry_exit.current_balance = balance
 
-    trade_done = 0
-    click.echo("=== live‑paper mode start ===  Ctrl+C で停止")
-    try:
-        while True:
-            # 最新 200 本だけ取得し、Entry/Exit 判定に利用
-            price_df = fetcher.get_price_df(
-                timeframe=dd.get("timeframe"),
-                limit=200,
-                paginate=False,
-            )
-            if price_df.empty:
-                time.sleep(30)
-                continue
+#     trade_done = 0
+#     click.echo("=== live‑paper mode start ===  Ctrl+C で停止")
+#     try:
+#         while True:
+#             # 最新 200 本だけ取得し、Entry/Exit 判定に利用
+#             price_df = fetcher.get_price_df(
+#                 timeframe=dd.get("timeframe"),
+#                 limit=200,
+#                 paginate=False,
+#             )
+#             if price_df.empty:
+#                 time.sleep(30)
+#                 continue
 
-            # エントリー判定
-            entry_order = entry_exit.generate_entry_order(price_df, position)
-            prev_trades = trade_done
-            if entry_order.exist:
-                balance = entry_exit.fill_order(entry_order, position, balance)
-                trade_done += 1
+#             # エントリー判定
+#             entry_order = entry_exit.generate_entry_order(price_df, position)
+#             prev_trades = trade_done
+#             if entry_order.exist:
+#                 balance = entry_exit.fill_order(entry_order, position, balance)
+#                 trade_done += 1
 
-            # エグジット判定
-            exit_order = entry_exit.generate_exit_order(price_df, position)
-            if exit_order.exist:
-                balance = entry_exit.fill_order(exit_order, position, balance)
-                trade_done += 1
+#             # エグジット判定
+#             exit_order = entry_exit.generate_exit_order(price_df, position)
+#             if exit_order.exist:
+#                 balance = entry_exit.fill_order(exit_order, position, balance)
+#                 trade_done += 1
 
-            # 残高を EntryExit へ反映
-            entry_exit.current_balance = balance
+#             # 残高を EntryExit へ反映
+#             entry_exit.current_balance = balance
 
-            # ダッシュボード用ステータス更新
-            update_status(
-                total_profit=balance - cfg["backtest"]["starting_balance"],
-                trade_count=trade_done,
-                position=position.side if position.exist else None,
-            )
+#             # ダッシュボード用ステータス更新
+#             update_status(
+#                 total_profit=balance - cfg["backtest"]["starting_balance"],
+#                 trade_count=trade_done,
+#                 position=position.side if position.exist else None,
+#             )
 
-            if max_trades and trade_done >= max_trades:
-                click.echo("Reached max‑trades. Exit.")
-                break
+#             if max_trades and trade_done >= max_trades:
+#                 click.echo("Reached max‑trades. Exit.")
+#                 break
 
-            # 取引が無い場合も一定間隔でループ
-            if trade_done == prev_trades:
-                time.sleep(30)
-    except KeyboardInterrupt:
-        click.echo("Interrupted. Bye.")
+#             # 取引が無い場合も一定間隔でループ
+#             if trade_done == prev_trades:
+#                 time.sleep(30)
+#     except KeyboardInterrupt:
+#         click.echo("Interrupted. Bye.")
 
 
 # --------------------------------------------------------------------------- #
@@ -926,11 +926,19 @@ def live_bitbank(config_path: str, max_trades: int):
                         # Bitbank実取引
                         from crypto_bot.execution.factory import create_exchange_client
 
+                        # 信用取引モード設定の取得
+                        live_config = cfg.get("live", {})
+                        margin_config = live_config.get("margin_trading", {})
+                        margin_enabled = margin_config.get("enabled", False)
+
+                        logger.info(f"Margin trading mode: {margin_enabled}")
+
                         client = create_exchange_client(
                             exchange_id=exchange_id,
                             api_key=api_key,
                             api_secret=api_secret,
                             ccxt_options=dd.get("ccxt_options", {}),
+                            margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
 
                         # 実際の注文送信
@@ -988,11 +996,19 @@ def live_bitbank(config_path: str, max_trades: int):
                         # Bitbank実取引
                         from crypto_bot.execution.factory import create_exchange_client
 
+                        # 信用取引モード設定の取得
+                        live_config = cfg.get("live", {})
+                        margin_config = live_config.get("margin_trading", {})
+                        margin_enabled = margin_config.get("enabled", False)
+
+                        logger.info(f"Margin trading mode: {margin_enabled}")
+
                         client = create_exchange_client(
                             exchange_id=exchange_id,
                             api_key=api_key,
                             api_secret=api_secret,
                             ccxt_options=dd.get("ccxt_options", {}),
+                            margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
 
                         # 実際の注文送信

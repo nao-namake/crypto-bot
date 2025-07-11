@@ -12,7 +12,8 @@ from typing import Any, Dict, Optional
 
 from .bitbank_client import BitbankClient
 from .bitflyer_client import BitflyerClient
-from .bybit_client import BybitTestnetClient
+
+# 🚫 from .bybit_client import BybitTestnetClient  # 本番に影響しないようコメントアウト
 from .okcoinjp_client import OkcoinJpClient
 
 
@@ -41,10 +42,10 @@ def create_exchange_client(
     """
     eid = exchange_id.lower()
 
-    # ── Bybit Testnet ───────────────────────────────────────────
+    # 🚫 Bybit Testnet - 本番に影響しないようコメントアウト
     # 独自ラッパーなので ccxt_options は渡さない
-    if eid in ("bybit", "bybit-testnet", "bybit_testnet"):
-        return BybitTestnetClient(api_key, api_secret, testnet=testnet)
+    # if eid in ("bybit", "bybit-testnet", "bybit_testnet"):
+    #     return BybitTestnetClient(api_key, api_secret, testnet=testnet)
 
     # ── 以降は CCXT ラッパー系 ──────────────────────────────
     if eid == "bitbank":

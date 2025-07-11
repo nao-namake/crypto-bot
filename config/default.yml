@@ -10,19 +10,34 @@
 # データ取得設定
 # ----------------------------------------------------------------------
 data:
-  exchange: bybit
-  symbol: BTC/USDT
+  # ============== Bybit設定 - 本番に影響しないようコメントアウト ==============
+  # exchange: bybit
+  # symbol: BTC/USDT
+  # timeframe: 1h
+  
+  # ------ Bybit Testnet オプション（非アクティブ） ------
+  # api_key: ${BYBIT_TESTNET_API_KEY}    # .env から読み込み
+  # api_secret: ${BYBIT_TESTNET_API_SECRET}  # .env から読み込み
+  # ccxt_options:
+  #   defaultType: linear
+  #   enableRateLimit: true
+  #   urls:
+  #     api: https://api-testnet.bybit.com
+  # -------------------------------------------------------
+  # ========================================================================
+  
+  # デフォルト設定をBitbankに変更
+  exchange: bitbank
+  symbol: BTC/JPY
   timeframe: 1h
-
-  # ------ Bybit Testnet オプション ------
-  api_key: ${BYBIT_TESTNET_API_KEY}    # .env から読み込み
-  api_secret: ${BYBIT_TESTNET_API_SECRET}  # .env から読み込み
+  
+  # ------ Bitbank 本番オプション ------
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
-    defaultType: linear
     enableRateLimit: true
-    urls:
-      api: https://api-testnet.bybit.com
-  # --------------------------------------
+    rateLimit: 1000  # Bitbank API制限対応
+  # ------------------------------------
 
   # データ取得範囲
   since: "2021-01-01T00:00:00Z"

@@ -17,7 +17,7 @@ from crypto_bot.execution.factory import create_exchange_client
 @pytest.mark.parametrize(
     "exchange_id, symbol",
     [
-        ("bybit", "BTC/USDT"),
+        # 🚫 ("bybit", "BTC/USDT"),  # 本番に影響しないようコメントアウト
         ("bitbank", "BTC/JPY"),
         # 必要なら他の取引所も追加
     ],

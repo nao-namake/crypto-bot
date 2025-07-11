@@ -9,7 +9,9 @@ import pytest
 
 from crypto_bot.execution.bitbank_client import BitbankClient
 from crypto_bot.execution.bitflyer_client import BitflyerClient
-from crypto_bot.execution.bybit_client import BybitTestnetClient
+
+# 🚫 from crypto_bot.execution.bybit_client import BybitTestnetClient
+# 本番に影響しないようコメントアウト
 from crypto_bot.execution.factory import create_exchange_client
 from crypto_bot.execution.okcoinjp_client import OkcoinJpClient
 
@@ -17,9 +19,10 @@ from crypto_bot.execution.okcoinjp_client import OkcoinJpClient
 @pytest.mark.parametrize(
     "exchange_id,expected_cls",
     [
-        ("bybit", BybitTestnetClient),
-        ("bybit-testnet", BybitTestnetClient),
-        ("BYBIT_TESTNET", BybitTestnetClient),
+        # 🚫 Bybitテストはコメントアウト
+        # ("bybit", BybitTestnetClient),
+        # ("bybit-testnet", BybitTestnetClient),
+        # ("BYBIT_TESTNET", BybitTestnetClient),
         ("bitbank", BitbankClient),
         ("bitflyer", BitflyerClient),
         ("okcoinjp", OkcoinJpClient),
@@ -35,3 +38,9 @@ def test_create_exchange_client(exchange_id, expected_cls):
 def test_unknown_exchange_id():
     with pytest.raises(ValueError):
         create_exchange_client("unknownex")
+
+
+def test_bybit_exchange_raises_error():
+    # Bybitがコメントアウトされているため、エラーが発生することを確認
+    with pytest.raises(ValueError):
+        create_exchange_client("bybit")

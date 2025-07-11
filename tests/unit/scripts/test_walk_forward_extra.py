@@ -48,8 +48,8 @@ def test_main_smoke(monkeypatch, capsys):
     # --- (a) config YAML を置き換え ---
     dummy_cfg = {
         "data": {
-            "exchange": "bybit",
-            "symbol": "BTC/USDT",
+            "exchange": "bitbank",
+            "symbol": "BTC/JPY",
             "timeframe": "1h",
             "since": None,
             "limit": 10,

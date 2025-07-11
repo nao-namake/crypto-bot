@@ -53,8 +53,8 @@ def dummy_config():
             },
         },
         "data": {
-            "exchange": "bybit",
-            "symbol": "BTC/USDT",
+            "exchange": "bitbank",
+            "symbol": "BTC/JPY",
             "timeframe": "1d",
             "since": None,
             "limit": 40,

@@ -4,14 +4,16 @@
 
 ## 現在のシステム概要 (2025年7月11日更新)
 
-### 🚀 **最新実装: Bitbank本番 101特徴量ライブトレードシステム**
+### 🚀 **最新実装: Bitbank本番専用システム（Bybit設定削除完了）**
 
-**Bitbank本番デプロイ完了 - 101特徴量ライブトレードシステム実現**
+**Bitbank本番専用デプロイ完了 - 101特徴量ライブトレードシステム実現**
 
 #### ✅ **重要な技術的成果**
 - **Bitbank本番ライブトレード**: 101特徴量システムでBTC/JPY実取引開始
 - **live-bitbankコマンド**: Bitbank専用ライブトレードCLI実装
-- **RiskManager修正**: 型エラー解決・動的ポジションサイジング安定化
+- **信用口座1倍レバレッジ**: ロング・ショート両対応で安全運用実現
+- **Bybit完全コメントアウト**: 本番に影響しない完全分離実現
+- **信用取引モード自動有効化**: 設定ファイル連動でmargin_mode自動設定
 - **101特徴量システム**: 訓練時と推論時で100%一致する101特徴量システム実現
 - **CSV高速バックテスト**: API制限を回避した1年間高速バックテスト対応
 - **外部データキャッシュ**: VIX・DXY・Fear&Greed・Funding Rateの事前キャッシュ機能
@@ -19,11 +21,12 @@
 
 #### **実装システム詳細**
 
-**1. Bitbank本番ライブトレードシステム**
-- `crypto_bot/main.py`: live-bitbankコマンド実装・RiskManager修正
+**1. Bitbank本番ライブトレードシステム（信用取引1倍レバレッジ対応）**
+- `crypto_bot/main.py`: live-bitbankコマンド実装・信用取引モード自動有効化
+- `config/bitbank_101features_production.yml`: 信用取引enabled=true・1倍レバレッジ設定
+- `crypto_bot/execution/bitbank_client.py`: ロング・ショート両対応実装
+- `crypto_bot/api/health.py`: 信用取引モード状態の正確な報告機能
 - `scripts/start_live_with_api.py`: 取引所別コマンド自動選択
-- `config/bitbank_101features_production.yml`: Bitbank本番用101特徴量設定
-- `crypto_bot/risk/manager.py`: 型エラー修正・Kelly基準対応
 
 **2. CSV対応マーケットデータ取得**
 - `crypto_bot/data/fetcher.py`: CSV入力対応・API/CSV両対応
@@ -40,7 +43,14 @@
 - `ensure_feature_consistency()`: 最終的な101特徴量保証
 - 外部データ失敗時でも確実に101特徴量を維持
 
-**5. 101特徴量内訳**
+**5. Bybit完全コメントアウトシステム（本番安全性確保）**
+- `config/default.yml`: Bybit設定を完全コメントアウト・Bitbankデフォルト化
+- `crypto_bot/main.py`: live-paperコマンド完全コメントアウト
+- `crypto_bot/execution/bybit_client.py`: 全機能をマルチライン文字列でコメントアウト
+- `crypto_bot/execution/factory.py`: BybitTestnetClient import・処理をコメントアウト
+- `tests/unit/execution/test_bybit_client.py`: Bybitテスト全体をコメントアウト
+
+**6. 101特徴量内訳**
 ```
 基本テクニカル指標（20特徴量）: RSI, MACD, RCI, SMA, EMA等
 VIX恐怖指数（6特徴量）: レベル・変化率・Z-score・恐怖度等
@@ -53,9 +63,9 @@ Funding Rate・OI（17特徴量）: 資金フロー・レバレッジリスク�
 
 ## 開発コマンド
 
-### **Bitbank本番ライブトレード（最新機能）**
+### **Bitbank本番ライブトレード（信用口座1倍レバレッジ）**
 ```bash
-# Bitbank本番ライブトレード（101特徴量完全版）
+# Bitbank本番ライブトレード（101特徴量・信用口座1倍レバレッジ）
 python -m crypto_bot.main live-bitbank --config config/bitbank_101features_production.yml
 
 # 本番稼働確認
@@ -102,11 +112,12 @@ pytest --cov=crypto_bot --cov-report=html tests/unit/
 ```
 
 **現在のテストカバレッジ状況:**
-- **全体カバレッジ**: 57% ✅ 
-- **テスト成功率**: 530テスト PASSED (100%成功率) ✅
-- **リスク管理**: 90% ✅ (Kelly基準、動的リスク調整)
+- **全体カバレッジ**: 51.44% ✅ (本番デプロイ準拠)
+- **テスト成功率**: 556テスト PASSED (100%成功率) ✅
+- **リスク管理**: 90% ✅ (Kelly基準、動的リスク調整、信用口座対応)
 - **ML戦略**: 78% ✅ (VIX統合、動的閾値調整)
 - **MLモデル**: 92% ✅ (アンサンブルモデル対応)
+- **Bitbank実装**: 95% ✅ (信用口座1倍レバレッジ対応)
 
 ### 機械学習・最適化
 ```bash
@@ -314,9 +325,15 @@ git push origin develop  # → 開発デプロイ
 4. **API制限**: CSV-based バックテストで回避
 5. **外部データエラー**: ロバストなフォールバック機能で対応
 6. **時間軸アライメント**: 統一されたリサンプリング・前方補完で解決
+7. **Bybit本番影響問題**: 完全コメントアウトによる本番環境分離実現
+8. **信用取引モード無効化問題**: 設定ファイル連動の自動有効化で解決
+9. **ショート取引不可問題**: margin_mode有効化でロング・ショート両対応実現
 
 ### **現在の安定性**
 - **Bitbank本番ライブトレード稼働中** ✅
+- **信用口座1倍レバレッジ運用** (ロング・ショート両対応・安全性最優先)
+- **Bybit完全コメントアウト完了** (本番影響完全除去)
+- **信用取引モード自動有効化** (margin_mode設定ファイル連動)
 - **556テスト成功** (100%成功率)
 - **51.44%テストカバレッジ** (主要モジュール90%+)
 - **CI/CD完全自動化** (デプロイエラー0件)

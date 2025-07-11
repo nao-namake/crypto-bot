@@ -1,14 +1,13 @@
 # =============================================================================
 # ファイル名: crypto_bot/execution/bybit_client.py
 # 説明:
-# Bybit Testnet専用の取引所クライアントラッパー。
-# - .env自動読込対応
-# - CCXTライブラリのBybit実装に型ヒントとPythonicなラップを提供
-# - 未定義メソッド/属性は内部のccxt.bybitへ自動フォールバック
-# - バックテスト・リアル取引・データ取得に共通利用
-# - 必要に応じて認証・テストネット対応、注文・残高・OHLCV取得可
+# 🚫 Bybit Testnet専用の取引所クライアントラッパー（本番に影響しないようコメントアウト）
+# - 本番環境はBitbank専用システムに移行済み
+# - Bybit関連機能は保持するが非アクティブ化
 # =============================================================================
 
+# 🚫 Bybit関連コード - 本番に影響しないよう全てコメントアウト
+"""
 from __future__ import annotations
 
 import os
@@ -22,72 +21,53 @@ from .base import ExchangeClient
 
 
 class BybitTestnetClient(ExchangeClient):
-    """
-    Bybit Testnet 用の軽量ラッパー。
-
-    * キー未設定でも公開エンドポイントのみで動作可能
-    * attributes が見つからない場合は内部 ccxt Exchange へ自動委譲
-    """
-
     def __init__(
         self,
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
         testnet: bool = True,
-        default_type: str = "linear",
-        ccxt_options: Optional[Dict[str, Any]] = None,
-        dotenv_path: Optional[str] = ".env",
-        **_: Any,
     ):
-        # ── .env 読み込み ─────────────────────────────
-        if dotenv_path:
-            load_dotenv(dotenv_path=dotenv_path)
+        # 環境変数を自動読み込み（.envファイルサポート）
+        load_dotenv()
 
-        self.api_key = api_key or os.getenv("BYBIT_TESTNET_API_KEY")
-        self.api_secret = api_secret or os.getenv("BYBIT_TESTNET_API_SECRET")
+        # API キーが明示的に渡されない場合は環境変数から取得
+        if api_key is None:
+            api_key = os.getenv("BYBIT_TESTNET_API_KEY")
+        if api_secret is None:
+            api_secret = os.getenv("BYBIT_TESTNET_API_SECRET")
 
-        # ── ccxt Exchange インスタンス生成 ──────────────
-        opts: Dict[str, Any] = {
-            "enableRateLimit": True,
-            "urls": {"api": "https://api-testnet.bybit.com"},
-            "options": {"defaultType": default_type},
-        }
-        if ccxt_options:
-            opts.update(ccxt_options)
+        # CCXT Bybit初期化
+        self._exchange = ccxt.bybit(
+            {
+                "apiKey": api_key,
+                "secret": api_secret,
+                "sandbox": testnet,  # True でテストネット使用
+                "enableRateLimit": True,
+                "rateLimit": 120,  # API 制限対応
+                "options": {
+                    "defaultType": "linear",  # デリバティブ取引用設定
+                },
+                "urls": {
+                    "api": ("https://api-testnet.bybit.com" if testnet
+                           else "https://api.bybit.com")
+                },
+            }
+        )
 
-        self._exchange = ccxt.bybit(opts)
+    def __getattr__(self, name: str) -> Any:
+        # 未定義メソッド・属性は内部のccxt.bybitへ自動フォールバック
+        return getattr(self._exchange, name)
 
-        # 認証キー設定（存在する場合のみ）
-        if self.api_key:
-            self._exchange.apiKey = self.api_key
-            self._exchange.secret = self.api_secret
-
-        # テストネット sandbox モード（try/exceptで互換性担保）
-        if testnet and hasattr(self._exchange, "set_sandbox_mode"):
-            try:
-                self._exchange.set_sandbox_mode(True)
-            except Exception:
-                pass
-
-    # ------------------------------------------------------------------
-    # ❶ 未定義属性は _exchange へ自動フォールバック
-    # ------------------------------------------------------------------
-    def __getattr__(self, item: str):  # noqa: D401
-        return getattr(self._exchange, item)
-
-    # ------------------------------------------------------------------
-    # ❷ 型ヒント付きラッパー（必要最低限）
-    # ------------------------------------------------------------------
-    def fetch_balance(self) -> dict:
+    def fetch_balance(self) -> Dict[str, Any]:
         return self._exchange.fetch_balance()
 
     def fetch_ohlcv(
         self,
         symbol: str,
-        timeframe: str,
-        since: Optional[Union[int, float]] = None,
-        limit: int | None = None,
-    ):
+        timeframe: str = "1h",
+        since: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> List[List[Union[int, float]]]:
         return self._exchange.fetch_ohlcv(symbol, timeframe, since, limit)
 
     def create_order(
@@ -96,41 +76,84 @@ class BybitTestnetClient(ExchangeClient):
         side: str,
         type: str,
         amount: float,
-        price: float | None = None,
+        price: Optional[float] = None,
         params: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> Dict[str, Any]:
         return self._exchange.create_order(
-            symbol,
-            type.lower(),
-            side.lower(),
-            amount,
-            price,
-            params or {},
+            symbol, side, type, amount, price, params or {}
         )
 
     def cancel_order(
-        self,
-        symbol: str,
-        order_id: str,
-        params: Optional[Dict[str, Any]] = None,
-    ):
+        self, order_id: str, symbol: str, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         return self._exchange.cancel_order(order_id, symbol, params or {})
 
-    def cancel_all_orders(self, symbol: str) -> List[dict]:
-        results: List[dict] = []
-        for o in self._exchange.fetch_open_orders(symbol):
-            oid = o.get("id") or o.get("orderId")
-            if oid:
-                results.append(self.cancel_order(symbol, oid))
-        return results
+    def fetch_open_orders(
+        self, symbol: Optional[str] = None, since: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return self._exchange.fetch_open_orders(symbol, since, limit)
+
+    def cancel_all_orders(
+        self, symbol: Optional[str] = None, params: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        return self._exchange.cancel_all_orders(symbol, params or {})
+
+    def fetch_ticker(self, symbol: str) -> Dict[str, Any]:
+        return self._exchange.fetch_ticker(symbol)
+
+    def fetch_trades(
+        self,
+        symbol: str,
+        since: Optional[int] = None,
+        limit: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        return self._exchange.fetch_trades(symbol, since, limit, params or {})
+
+    def fetch_order_book(
+        self, symbol: str, limit: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        return self._exchange.fetch_order_book(symbol, limit, params or {})
+
+    def get_position_info(self, symbol: str) -> Dict[str, Any]:
+        try:
+            return self._exchange.fetch_positions([symbol])
+        except NotSupported:
+            return {}
 
     def set_leverage(
         self,
+        leverage: float,
         symbol: str,
-        leverage: int,
         params: Optional[Dict[str, Any]] = None,
     ):
         try:
             return self._exchange.set_leverage(leverage, symbol, params or {})
         except NotSupported:
             return {}
+
+    def enable_unified_margin(
+        self, account_type: str = "unified",
+        params: Optional[Dict[str, Any]] = None
+    ):
+        try:
+            return self._exchange.switch_account_type(account_type, params or {})
+        except NotSupported:
+            return {}
+
+    @property
+    def exchange_id(self) -> str:
+        return "bybit"
+
+    @property
+    def is_testnet(self) -> bool:
+        return True  # このクラスは常にテストネット用
+
+    def __repr__(self) -> str:
+        return f"BybitTestnetClient(testnet={self.is_testnet})"
+"""
+
+# ⚠️ 本番環境ではBitbankClientを使用してください
+# from .bitbank_client import BitbankClient

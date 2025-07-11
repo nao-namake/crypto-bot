@@ -137,12 +137,45 @@ class HealthChecker:
             bitbank_api_secret = os.getenv("BITBANK_API_SECRET")
 
             if bitbank_api_key and bitbank_api_secret:
+                # 信用取引モードの確認（環境変数・設定ファイル両方をチェック）
+                margin_mode = False
+
+                # まず環境変数をチェック
+                env_margin = os.getenv("BITBANK_MARGIN_MODE", "false").lower() == "true"
+
+                # 設定ファイルからも確認（利用可能な場合）
+                try:
+                    import yaml
+
+                    # 本番設定ファイルを確認
+                    config_files = [
+                        "config/bitbank_101features_production.yml",
+                        "/app/config/bitbank_101features_production.yml",
+                    ]
+
+                    for config_file in config_files:
+                        if os.path.exists(config_file):
+                            with open(config_file, "r", encoding="utf-8") as f:
+                                config = yaml.safe_load(f)
+                                margin_config = config.get("live", {}).get(
+                                    "margin_trading", {}
+                                )
+                                margin_mode = margin_config.get("enabled", False)
+                                break
+
+                    # 環境変数が設定されている場合はそちらを優先
+                    if env_margin:
+                        margin_mode = True
+
+                except Exception:
+                    # 設定ファイル読み取りエラー時は環境変数のみ使用
+                    margin_mode = env_margin
+
                 checks["api_credentials"] = {
                     "status": "healthy",
                     "details": "Bitbank API credentials configured",
                     "exchange": "bitbank",
-                    "margin_mode": os.getenv("BITBANK_MARGIN_MODE", "false").lower()
-                    == "true",
+                    "margin_mode": margin_mode,
                 }
             else:
                 checks["api_credentials"] = {
