@@ -671,8 +671,26 @@ def live_paper(config_path: str, max_trades: int):
 
     position = Position()
     balance = cfg["backtest"]["starting_balance"]
+
+    # ATRを計算するための初期データを取得
+    initial_df = fetcher.get_price_df(
+        timeframe=dd.get("timeframe"),
+        limit=200,
+        paginate=False,
+    )
+
+    # ATRを計算
+    atr_series = None
+    if not initial_df.empty:
+        from crypto_bot.indicator.calculator import IndicatorCalculator
+
+        calculator = IndicatorCalculator()
+        atr_series = calculator.calculate_atr(initial_df, period=14)
+        latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
+        click.echo(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
+
     entry_exit = EntryExit(
-        strategy=strategy, risk_manager=risk_manager, atr_series=None
+        strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
     )
     entry_exit.current_balance = balance
 
@@ -837,8 +855,26 @@ def live_bitbank(config_path: str, max_trades: int):
 
     position = Position()
     balance = cfg["backtest"]["starting_balance"]
+
+    # ATRを計算するための初期データを取得
+    initial_df = fetcher.get_price_df(
+        timeframe=dd.get("timeframe", "1h"),
+        limit=200,
+        paginate=False,
+    )
+
+    # ATRを計算
+    atr_series = None
+    if not initial_df.empty:
+        from crypto_bot.indicator.calculator import IndicatorCalculator
+
+        calculator = IndicatorCalculator()
+        atr_series = calculator.calculate_atr(initial_df, period=14)
+        latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
+        logger.info(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
+
     entry_exit = EntryExit(
-        strategy=strategy, risk_manager=risk_manager, atr_series=None
+        strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
     )
     entry_exit.current_balance = balance
 
@@ -881,22 +917,123 @@ def live_bitbank(config_path: str, max_trades: int):
             if entry_order.exist:
                 logger.info(
                     f"Entry order generated: {entry_order.side} "
-                    f"{entry_order.size} at {entry_order.price}"
+                    f"{entry_order.lot} at {entry_order.price}"
                 )
-                balance = entry_exit.fill_order(entry_order, position, balance)
-                trade_done += 1
-                logger.info(f"Trade #{trade_done} executed - New balance: {balance}")
+
+                # 実際のBitbank取引実行
+                try:
+                    if exchange_id == "bitbank":
+                        # Bitbank実取引
+                        from crypto_bot.execution.factory import create_exchange_client
+
+                        client = create_exchange_client(
+                            exchange_id=exchange_id,
+                            api_key=api_key,
+                            api_secret=api_secret,
+                            ccxt_options=dd.get("ccxt_options", {}),
+                        )
+
+                        # 実際の注文送信
+                        order_result = client.create_order(
+                            symbol=symbol,
+                            type="market",
+                            side=entry_order.side.lower(),
+                            amount=entry_order.lot,
+                        )
+
+                        logger.info(f"✅ REAL BITBANK ORDER EXECUTED: {order_result}")
+
+                        # ポジション更新
+                        position.exist = True
+                        position.side = entry_order.side
+                        position.entry_price = entry_order.price
+                        position.lot = entry_order.lot
+                        position.stop_price = entry_order.stop_price
+
+                        trade_done += 1
+                        logger.info(
+                            f"Trade #{trade_done} executed on Bitbank - "
+                            f"Position: {position.side} {position.lot}"
+                        )
+                    else:
+                        # フォールバック: 模擬取引
+                        balance = entry_exit.fill_order(entry_order, position, balance)
+                        trade_done += 1
+                        logger.info(
+                            f"Trade #{trade_done} executed (simulation) - "
+                            f"New balance: {balance}"
+                        )
+
+                except Exception as e:
+                    logger.error(f"❌ BITBANK ORDER FAILED: {e}")
+                    # エラー時は模擬取引にフォールバック
+                    balance = entry_exit.fill_order(entry_order, position, balance)
+                    trade_done += 1
+                    logger.warning(
+                        f"Trade #{trade_done} executed (fallback simulation) - "
+                        f"New balance: {balance}"
+                    )
 
             # エグジット判定
             exit_order = entry_exit.generate_exit_order(price_df, position)
             if exit_order.exist:
                 logger.info(
                     f"Exit order generated: {exit_order.side} "
-                    f"{exit_order.size} at {exit_order.price}"
+                    f"{exit_order.lot} at {exit_order.price}"
                 )
-                balance = entry_exit.fill_order(exit_order, position, balance)
-                trade_done += 1
-                logger.info(f"Trade #{trade_done} executed - New balance: {balance}")
+
+                # 実際のBitbank取引実行
+                try:
+                    if exchange_id == "bitbank":
+                        # Bitbank実取引
+                        from crypto_bot.execution.factory import create_exchange_client
+
+                        client = create_exchange_client(
+                            exchange_id=exchange_id,
+                            api_key=api_key,
+                            api_secret=api_secret,
+                            ccxt_options=dd.get("ccxt_options", {}),
+                        )
+
+                        # 実際の注文送信
+                        order_result = client.create_order(
+                            symbol=symbol,
+                            type="market",
+                            side=exit_order.side.lower(),
+                            amount=exit_order.lot,
+                        )
+
+                        logger.info(
+                            f"✅ REAL BITBANK EXIT ORDER EXECUTED: {order_result}"
+                        )
+
+                        # ポジション解消
+                        position.exist = False
+                        position.side = None
+
+                        trade_done += 1
+                        logger.info(
+                            f"Trade #{trade_done} exit executed on Bitbank - "
+                            f"Position closed"
+                        )
+                    else:
+                        # フォールバック: 模擬取引
+                        balance = entry_exit.fill_order(exit_order, position, balance)
+                        trade_done += 1
+                        logger.info(
+                            f"Trade #{trade_done} executed (simulation) - "
+                            f"New balance: {balance}"
+                        )
+
+                except Exception as e:
+                    logger.error(f"❌ BITBANK EXIT ORDER FAILED: {e}")
+                    # エラー時は模擬取引にフォールバック
+                    balance = entry_exit.fill_order(exit_order, position, balance)
+                    trade_done += 1
+                    logger.warning(
+                        f"Trade #{trade_done} executed (fallback simulation) - "
+                        f"New balance: {balance}"
+                    )
 
             # 残高を EntryExit へ反映
             entry_exit.current_balance = balance

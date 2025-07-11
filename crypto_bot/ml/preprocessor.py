@@ -117,15 +117,14 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         else:
             self.macro_fetcher = None
 
-        # Funding Rate統合設定
-        self.funding_enabled = (
-            any(feat in self.extra_features for feat in ["funding", "oi"])
-            and FUNDING_AVAILABLE
+        # Funding Rate統合設定（Bitbank専用：現物取引のため無効化）
+        self.funding_enabled = False
+        self.funding_fetcher = None
+
+        # Bitbank現物取引では代替特徴量を使用
+        self.funding_alternative_enabled = any(
+            feat in self.extra_features for feat in ["funding", "oi"]
         )
-        if self.funding_enabled and FUNDING_AVAILABLE:
-            self.funding_fetcher = FundingDataFetcher(testnet=True)
-        else:
-            self.funding_fetcher = None
 
         # Fear & Greed統合設定
         self.fear_greed_enabled = (
@@ -652,213 +651,183 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add macro features: %s", e)
 
-                    # Funding Rate & Open Interest 特徴量（キャッシュ優先版）
+                    # Funding Rate & Open Interest 特徴量（Bitbank信用取引専用代替実装）
                     elif base in ["funding", "oi"]:
                         try:
-                            # キャッシュからFunding Rateデータを取得（優先）
-                            cached_funding = self._get_cached_external_data(
-                                "funding", df.index
+                            # Bitbank信用取引（1倍レバレッジ）に適した代替特徴量（17特徴量）
+                            logger.info(
+                                "Adding Bitbank margin trading alternative features"
                             )
 
-                            if not cached_funding.empty:
-                                logger.debug(
-                                    f"Using cached funding: {len(cached_funding)} items"
-                                )
-                                funding_features = cached_funding
-                            elif self.funding_fetcher:
-                                # キャッシュがない場合は従来の方法
-                                funding_data = (
-                                    self.funding_fetcher.get_funding_rate_data(limit=60)
-                                )  # より多くのデータ
-                                oi_data = self.funding_fetcher.get_open_interest_data(
-                                    limit=60
-                                )
+                            # 1. 金利コスト推定特徴量（Funding Rate代替）
+                            # 価格変動率から金利コストを推定（信用取引の借入コスト）
+                            returns = df["close"].pct_change()
+                            df["fr_rate"] = (
+                                returns.rolling(20).std() * 100
+                            )  # 変動率をコスト代替
+                            df["fr_change_1d"] = (
+                                df["fr_rate"].pct_change(24) * 100
+                            )  # 1日変化率
+                            df["fr_change_3d"] = (
+                                df["fr_rate"].pct_change(72) * 100
+                            )  # 3日変化率
 
-                                if not funding_data.empty or not oi_data.empty:
-                                    funding_features = (
-                                        self.funding_fetcher.calculate_funding_features(
-                                            funding_data, oi_data
-                                        )
+                            # 2. 信用取引リスク指標（Funding Z-Score代替）
+                            # 価格変動率のZ-Score（信用取引リスク）
+                            vol_ma_7 = returns.rolling(7 * 24).std()
+                            vol_std_7 = (
+                                returns.rolling(7 * 24).std().rolling(7 * 24).std()
+                            )
+                            df["fr_zscore_7d"] = (
+                                returns.rolling(24).std() - vol_ma_7
+                            ) / vol_std_7.replace(0, 1)
+
+                            vol_ma_30 = returns.rolling(30 * 24).std()
+                            vol_std_30 = (
+                                returns.rolling(30 * 24).std().rolling(30 * 24).std()
+                            )
+                            df["fr_zscore_30d"] = (
+                                returns.rolling(24).std() - vol_ma_30
+                            ) / vol_std_30.replace(0, 1)
+
+                            # 3. 市場レジーム判定（信用取引リスクベース）
+                            current_vol = returns.rolling(24).std()
+                            df["fr_regime"] = 0  # デフォルト：中立
+                            df.loc[
+                                current_vol > vol_ma_30 + vol_std_30, "fr_regime"
+                            ] = 1  # 高リスク
+                            df.loc[
+                                current_vol < vol_ma_30 - vol_std_30, "fr_regime"
+                            ] = -1  # 低リスク
+
+                            # 4. 極端値検知（信用取引リスク転換シグナル）
+                            vol_q95 = current_vol.rolling(60 * 24).quantile(0.95)
+                            vol_q05 = current_vol.rolling(60 * 24).quantile(0.05)
+                            df["fr_extreme_long"] = (current_vol > vol_q95).astype(int)
+                            df["fr_extreme_short"] = (current_vol < vol_q05).astype(int)
+
+                            # 5. 信用取引コスト波動率（リスク指標）
+                            df["fr_volatility"] = (
+                                current_vol.rolling(7 * 24).std() * 100
+                            )
+
+                            # 6. トレンド強度（信用取引方向性）
+                            price_sma_3 = df["close"].rolling(3 * 24).mean()
+                            price_sma_10 = df["close"].rolling(10 * 24).mean()
+                            df["fr_trend_strength"] = (
+                                (price_sma_3 - price_sma_10)
+                                / price_sma_10.replace(0, 1)
+                                * 100
+                            )
+
+                            # 7. ポジション規模推定（Open Interest代替）
+                            # 出来高×価格で信用取引規模を推定
+                            position_size = df["volume"] * df["close"]
+                            oi_ma_30 = position_size.rolling(30 * 24).mean()
+                            df["oi_normalized"] = (
+                                position_size / oi_ma_30.replace(0, 1)
+                            ) - 1
+
+                            # 8. ポジション変化率（OI変化率代替）
+                            df["oi_change_1d"] = position_size.pct_change(24) * 100
+                            df["oi_momentum_3d"] = position_size.pct_change(72) * 100
+
+                            # 9. ポジション規模Z-Score（OI Z-Score代替）
+                            pos_ma_7 = position_size.rolling(7 * 24).mean()
+                            pos_std_7 = position_size.rolling(7 * 24).std()
+                            df["oi_zscore_7d"] = (
+                                position_size - pos_ma_7
+                            ) / pos_std_7.replace(0, 1)
+
+                            # 10. ポジション新高値・新安値（OI新高値・新安値代替）
+                            pos_max_30 = position_size.rolling(30 * 24).max()
+                            pos_min_30 = position_size.rolling(30 * 24).min()
+                            df["oi_new_high"] = (
+                                position_size >= pos_max_30 * 0.98
+                            ).astype(int)
+                            df["oi_new_low"] = (
+                                position_size <= pos_min_30 * 1.02
+                            ).astype(int)
+
+                            # 11. 信用取引偏向指標（ポジション偏向指標代替）
+                            # 金利コストとポジション規模の複合指標
+                            fr_abs = df["fr_rate"].abs()
+                            oi_abs = df["oi_normalized"].abs()
+                            df["position_bias"] = fr_abs * oi_abs
+
+                            # 欠損値処理
+                            funding_cols = [
+                                "fr_rate",
+                                "fr_change_1d",
+                                "fr_change_3d",
+                                "fr_zscore_7d",
+                                "fr_zscore_30d",
+                                "fr_regime",
+                                "fr_extreme_long",
+                                "fr_extreme_short",
+                                "fr_volatility",
+                                "fr_trend_strength",
+                                "oi_normalized",
+                                "oi_change_1d",
+                                "oi_momentum_3d",
+                                "oi_zscore_7d",
+                                "oi_new_high",
+                                "oi_new_low",
+                                "position_bias",
+                            ]
+
+                            for col in funding_cols:
+                                if col in df.columns:
+                                    df[col] = df[col].bfill().ffill().fillna(0)
+                                    df[col] = df[col].replace(
+                                        [float("inf"), float("-inf")], 0
                                     )
 
-                                    # 暗号資産データとFundingデータの時間軸を合わせる
-                                    if isinstance(
-                                        df.index, pd.DatetimeIndex
-                                    ) and isinstance(
-                                        funding_features.index, pd.DatetimeIndex
+                                    # 異常値クリッピング
+                                    q975 = df[col].quantile(0.975)
+                                    q025 = df[col].quantile(0.025)
+                                    if (
+                                        pd.notna(q975)
+                                        and pd.notna(q025)
+                                        and q975 != q025
                                     ):
-                                        # タイムゾーン統一
-                                        if df.index.tz is None:
-                                            df.index = df.index.tz_localize("UTC")
-                                        if funding_features.index.tz is None:
-                                            funding_features.index = (
-                                                funding_features.index.tz_localize(
-                                                    "UTC"
-                                                )
-                                            )
-                                        elif funding_features.index.tz != df.index.tz:
-                                            funding_features.index = (
-                                                funding_features.index.tz_convert("UTC")
-                                            )
+                                        df[col] = df[col].clip(lower=q025, upper=q975)
 
-                                        # 日次データなので、暗号資産の時間軸に合わせてリサンプリング
-                                        funding_resampled = funding_features.resample(
-                                            "1H"
-                                        ).ffill()
+                            logger.info(
+                                f"Added {len(funding_cols)} Bitbank margin features"
+                            )
 
-                                        # インデックスを合わせて結合
-                                        common_index = df.index.intersection(
-                                            funding_resampled.index
-                                        )
-                                        logger.debug(
-                                            f"Funding alignment: crypto {len(df)}, "
-                                            f"funding {len(funding_resampled)}, "
-                                            f"common {len(common_index)}"
-                                        )
-
-                                        if len(common_index) == 0 and len(df) > 0:
-                                            # 期間ミスマッチの場合、最新データで埋める
-                                            closest_funding_date = (
-                                                funding_resampled.index[
-                                                    funding_resampled.index
-                                                    <= df.index.max()
-                                                ]
-                                            )
-                                            if len(closest_funding_date) > 0:
-                                                closest_date = (
-                                                    closest_funding_date.max()
-                                                )
-                                                funding_values = funding_resampled.loc[
-                                                    closest_date
-                                                ]
-
-                                                from crypto_bot.data.funding_fetcher import (  # noqa: E501
-                                                    get_available_funding_features,
-                                                )
-
-                                                funding_feature_names = (
-                                                    get_available_funding_features()
-                                                )
-
-                                                for col in funding_feature_names:
-                                                    if col in funding_values.index:
-                                                        df[col] = funding_values[col]
-                                                    else:
-                                                        df[col] = 0  # デフォルト値
-                                                logger.debug(
-                                                    f"Used closest funding data from {closest_date}"  # noqa: E501
-                                                )
-                                            else:
-                                                # データなしの場合はデフォルト値
-                                                from crypto_bot.data.funding_fetcher import (  # noqa: E501
-                                                    get_available_funding_features,
-                                                )
-
-                                                funding_feature_names = (
-                                                    get_available_funding_features()
-                                                )
-                                                for col in funding_feature_names:
-                                                    df[col] = 0
-                                                logger.warning(
-                                                    "No suitable funding data found - using default values"  # noqa: E501
-                                                )
-                                        elif len(common_index) > 0:
-                                            # 通常のアライメント
-                                            from crypto_bot.data.funding_fetcher import (  # noqa: E501
-                                                get_available_funding_features,
-                                            )
-
-                                            funding_feature_names = (
-                                                get_available_funding_features()
-                                            )
-
-                                            for col in funding_feature_names:
-                                                if col in funding_resampled.columns:
-                                                    df.loc[common_index, col] = (
-                                                        funding_resampled.loc[
-                                                            common_index, col
-                                                        ]
-                                                    )
-
-                                            logger.info(
-                                                f"Added {len(funding_feature_names)} funding features: {len(common_index)} data points aligned"  # noqa: E501
-                                            )
-                                        else:
-                                            logger.warning(
-                                                "Could not align funding data with crypto data"  # noqa: E501
-                                            )
-                                    else:
-                                        logger.warning(
-                                            "Index type mismatch for funding data alignment"  # noqa: E501
-                                        )
-                                else:
-                                    # データなしの場合は必ずデフォルト特徴量を追加（特徴量数一致のため）
-                                    logger.warning(
-                                        "No funding data available - adding default features"  # noqa: E501
-                                    )
-                                    try:
-                                        from crypto_bot.data.funding_fetcher import (
-                                            get_available_funding_features,
-                                        )
-
-                                        funding_feature_names = (
-                                            get_available_funding_features()
-                                        )
-
-                                        for col in funding_feature_names:
-                                            if col not in df.columns:
-                                                df[col] = 0  # デフォルト値
-                                        logger.debug(
-                                            f"Added {len(funding_feature_names)} default funding features"  # noqa: E501
-                                        )
-                                    except Exception as inner_e:
-                                        logger.error(
-                                            f"Failed to add default funding features: {inner_e}"  # noqa: E501
-                                        )
-                            else:
-                                # Fetcherなしの場合も必ずデフォルト特徴量を追加
-                                logger.warning(
-                                    "Funding fetcher not initialized - adding default features"  # noqa: E501
-                                )
-                                try:
-                                    from crypto_bot.data.funding_fetcher import (
-                                        get_available_funding_features,
-                                    )
-
-                                    funding_feature_names = (
-                                        get_available_funding_features()
-                                    )
-
-                                    for col in funding_feature_names:
-                                        if col not in df.columns:
-                                            df[col] = 0  # デフォルト値
-                                    logger.debug(
-                                        f"Added {len(funding_feature_names)} default funding features"  # noqa: E501
-                                    )
-                                except Exception as inner_e:
-                                    logger.error(
-                                        f"Failed to add default funding features: {inner_e}"  # noqa: E501
-                                    )
                         except Exception as e:
-                            logger.warning("Failed to add funding features: %s", e)
-                            # エラー時もデフォルト特徴量を追加
-                            try:
-                                from crypto_bot.data.funding_fetcher import (
-                                    get_available_funding_features,
-                                )
-
-                                funding_feature_names = get_available_funding_features()
-
-                                for col in funding_feature_names:
-                                    if col not in df.columns:
-                                        df[col] = 0  # デフォルト値
-                                logger.debug(
-                                    f"Added {len(funding_feature_names)} default funding features after error"  # noqa: E501
-                                )
-                            except Exception as inner_e:
-                                logger.error(
-                                    f"Failed to add default funding features: {inner_e}"
-                                )
+                            logger.error(
+                                "Failed to add Bitbank margin alternative features: %s",
+                                e,
+                            )
+                            # エラー時はデフォルト値で17特徴量を追加
+                            default_cols = [
+                                "fr_rate",
+                                "fr_change_1d",
+                                "fr_change_3d",
+                                "fr_zscore_7d",
+                                "fr_zscore_30d",
+                                "fr_regime",
+                                "fr_extreme_long",
+                                "fr_extreme_short",
+                                "fr_volatility",
+                                "fr_trend_strength",
+                                "oi_normalized",
+                                "oi_change_1d",
+                                "oi_momentum_3d",
+                                "oi_zscore_7d",
+                                "oi_new_high",
+                                "oi_new_low",
+                                "position_bias",
+                            ]
+                            for col in default_cols:
+                                if col not in df.columns:
+                                    df[col] = 0
+                            logger.warning(
+                                "Used default values for Bitbank margin features"
+                            )
 
                     # Fear & Greed Index特徴量（キャッシュ優先版）
                     elif base in ["fear_greed", "fg"]:

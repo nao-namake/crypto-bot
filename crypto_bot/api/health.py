@@ -130,37 +130,24 @@ class HealthChecker:
         """依存関係のヘルスチェック"""
         checks = {}
 
-        # API キーの存在確認 (Bitbank本番用)
+        # API キーの存在確認 (Bitbank本番専用)
         try:
             # Bitbank本番用認証情報をチェック
             bitbank_api_key = os.getenv("BITBANK_API_KEY")
             bitbank_api_secret = os.getenv("BITBANK_API_SECRET")
 
-            # Bybit TestNet用認証情報をチェック（フォールバック）
-            bybit_api_key = os.getenv("BYBIT_TESTNET_API_KEY")
-            bybit_api_secret = os.getenv("BYBIT_TESTNET_API_SECRET")
-
-            # どちらかの認証情報が利用可能であればOK
-            has_bitbank_creds = bitbank_api_key and bitbank_api_secret
-            has_bybit_creds = bybit_api_key and bybit_api_secret
-
-            if has_bitbank_creds:
+            if bitbank_api_key and bitbank_api_secret:
                 checks["api_credentials"] = {
                     "status": "healthy",
                     "details": "Bitbank API credentials configured",
-                }
-            elif has_bybit_creds:
-                checks["api_credentials"] = {
-                    "status": "healthy",
-                    "details": "Bybit API credentials configured",
+                    "exchange": "bitbank",
+                    "margin_mode": os.getenv("BITBANK_MARGIN_MODE", "false").lower()
+                    == "true",
                 }
             else:
                 checks["api_credentials"] = {
                     "status": "unhealthy",
-                    "details": (
-                        "Missing API credentials "
-                        "(neither Bitbank nor Bybit configured)"
-                    ),
+                    "details": "Missing Bitbank API credentials",
                 }
         except Exception as e:
             checks["api_credentials"] = {

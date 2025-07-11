@@ -7,6 +7,7 @@
 # ・バックテストや学習データ用のデータ取得・整形の中心的な役割
 # =============================================================================
 
+import logging
 import numbers
 import os
 from datetime import datetime
@@ -21,21 +22,24 @@ from crypto_bot.execution.factory import create_exchange_client
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class MarketDataFetcher:
     def __init__(
         self,
-        exchange_id: str = "bybit",
+        exchange_id: str = "bitbank",
         api_key: Optional[str] = None,
         api_secret: Optional[str] = None,
-        symbol: str = "BTC/USDT",
-        testnet: bool = True,
+        symbol: str = "BTC/JPY",
+        testnet: bool = False,
         ccxt_options: Optional[dict] = None,
         csv_path: Optional[str] = None,
     ):
         self.exchange_id = exchange_id
         self.symbol = symbol
         self.csv_path = csv_path
+        self.testnet = testnet
 
         # CSV モードの場合はAPI接続をスキップ
         if csv_path:
@@ -53,8 +57,10 @@ class MarketDataFetcher:
                 testnet=testnet,
                 ccxt_options=ccxt_options or {},
             )
-            if exchange_id == "bybit" and not api_key:
-                self.client.has["fetchCurrencies"] = False
+            # Bitbank固有の設定があれば追加
+            if exchange_id == "bitbank":
+                # Bitbank特有の設定を追加する場合はここで実装
+                pass
             self.exchange = getattr(self.client, "_exchange", self.client)
 
     def get_price_df(
@@ -132,22 +138,10 @@ class MarketDataFetcher:
                 return raw
             data = raw or []
 
-            if (
-                not data
-                and self.exchange_id == "bybit"
-                and "/USDT" in self.symbol
-                and ":USDT" not in self.symbol
-            ):
-                retry_symbol = f"{self.symbol}:USDT"
-                try:
-                    raw = self.client.fetch_ohlcv(
-                        retry_symbol, timeframe, since_ms, limit
-                    )
-                    if raw:
-                        self.symbol = retry_symbol
-                        data = raw
-                except Exception:
-                    pass
+            # Bitbank固有の再試行ロジック（必要に応じて実装）
+            if not data and self.exchange_id == "bitbank":
+                # Bitbank特有の処理が必要な場合はここで実装
+                pass
 
         if not data:
             return pd.DataFrame()
@@ -198,7 +192,7 @@ class MarketDataFetcher:
 
         # タイムゾーンを UTC に設定
         if df.index.tz is None:
-            df.index = df.index.tz_localize('UTC')
+            df.index = df.index.tz_localize("UTC")
 
         # since パラメータでフィルタリング
         if since is not None:
@@ -210,7 +204,7 @@ class MarketDataFetcher:
                     since_dt = since_dt.replace(tzinfo=pd.Timestamp.now().tz)
             else:
                 # タイムスタンプの場合
-                since_dt = pd.to_datetime(since, unit='ms', utc=True)
+                since_dt = pd.to_datetime(since, unit="ms", utc=True)
 
             df = df[df.index >= since_dt]
 
@@ -323,40 +317,35 @@ class OIDataFetcher:
             OIデータ（index: datetime, columns: oi_amount, oi_value）
         """
         try:
-            # Bybitの場合のOI取得
-            if self.market_fetcher.exchange_id == "bybit":
-                # 現在のOI取得を試行
-                if hasattr(self.exchange, "fetch_open_interest"):
-                    oi_current = self.exchange.fetch_open_interest(self.symbol)
-                    if oi_current:
-                        # 単一のOIデータポイントを作成
-                        return pd.DataFrame(
-                            [
-                                {
-                                    "oi_amount": oi_current.get(
-                                        "openInterestAmount", 0
-                                    ),
-                                    "oi_value": oi_current.get("openInterestValue", 0),
-                                    "timestamp": oi_current.get(
-                                        "timestamp", datetime.now().timestamp() * 1000
-                                    ),
-                                }
-                            ],
-                            index=pd.to_datetime(
-                                [
-                                    oi_current.get(
-                                        "timestamp", datetime.now().timestamp() * 1000
-                                    )
-                                ],
-                                unit="ms",
-                            ),
-                        )
+            # Bitbankの場合のOI取得（現物・信用取引対応）
+            if self.market_fetcher.exchange_id == "bitbank":
+                # Bitbank現物取引にはOIがないため、代替指標を使用
+                # 取引量×価格でポジション規模を推定
+                logger.info("Generating OI approximation for Bitbank")
 
-                # フォールバック: 空のデータフレーム
+                # 最新の価格・出来高データを取得
+                price_data = self.market_fetcher.get_price_df(
+                    timeframe="1h", limit=168  # 1週間分
+                )
+
+                if not price_data.empty:
+                    # ポジション規模の推定（出来高×価格）
+                    position_size = price_data["volume"] * price_data["close"]
+
+                    result = pd.DataFrame(
+                        {
+                            "oi_amount": position_size,
+                            "oi_value": position_size * price_data["close"],
+                        }
+                    )
+
+                    return result
+
+                # データがない場合は空のDataFrame
                 return pd.DataFrame(columns=["oi_amount", "oi_value"])
 
         except Exception as e:
-            print(f"Warning: Could not fetch OI data: {e}")
+            logger.warning(f"Could not fetch OI approximation: {e}")
 
         # デフォルト: 空のDataFrameを返す
         return pd.DataFrame(columns=["oi_amount", "oi_value"])
