@@ -104,16 +104,16 @@ def start_live_trading():
 
         # 設定ファイルを読み込み
         cfg = load_config(config_file)
-        
+
         # コマンドライン引数を設定
         # 設定ファイルのexchangeに基づいてコマンドを選択
         exchange = cfg.get("data", {}).get("exchange", "bitbank")
-        
+
         if exchange == "bitbank":
             command = "live-bitbank"  # Bitbank本番用コマンド
         else:
-            command = "live-paper"    # 他の取引所用（Bybit Testnet等）
-            
+            command = "live-paper"  # 他の取引所用（Bybit Testnet等）
+
         logger.info(f"Using command: {command} for exchange: {exchange}")
         sys.argv = [
             "crypto_bot",
