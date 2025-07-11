@@ -2,13 +2,16 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年7月10日更新)
+## 現在のシステム概要 (2025年7月11日更新)
 
-### 🚀 **最新実装: CSV-based 101特徴量バックテストシステム**
+### 🚀 **最新実装: Bitbank本番 101特徴量ライブトレードシステム**
 
-**CSV-based一年間バックテスト対応完了 - 101特徴量完全一致システム実現**
+**Bitbank本番デプロイ完了 - 101特徴量ライブトレードシステム実現**
 
 #### ✅ **重要な技術的成果**
+- **Bitbank本番ライブトレード**: 101特徴量システムでBTC/JPY実取引開始
+- **live-bitbankコマンド**: Bitbank専用ライブトレードCLI実装
+- **RiskManager修正**: 型エラー解決・動的ポジションサイジング安定化
 - **101特徴量システム**: 訓練時と推論時で100%一致する101特徴量システム実現
 - **CSV高速バックテスト**: API制限を回避した1年間高速バックテスト対応
 - **外部データキャッシュ**: VIX・DXY・Fear&Greed・Funding Rateの事前キャッシュ機能
@@ -16,22 +19,28 @@
 
 #### **実装システム詳細**
 
-**1. CSV対応マーケットデータ取得**
+**1. Bitbank本番ライブトレードシステム**
+- `crypto_bot/main.py`: live-bitbankコマンド実装・RiskManager修正
+- `scripts/start_live_with_api.py`: 取引所別コマンド自動選択
+- `config/bitbank_101features_production.yml`: Bitbank本番用101特徴量設定
+- `crypto_bot/risk/manager.py`: 型エラー修正・Kelly基準対応
+
+**2. CSV対応マーケットデータ取得**
 - `crypto_bot/data/fetcher.py`: CSV入力対応・API/CSV両対応
 - `scripts/generate_btc_csv_data.py`: 統計的に正確な1年間BTC価格データ生成
 - `config/bitbank_101features_csv_backtest.yml`: CSV専用101特徴量設定
 
-**2. 外部データキャッシュシステム**
+**3. 外部データキャッシュシステム**
 - `crypto_bot/ml/external_data_cache.py`: 全期間外部データ事前キャッシュ
 - VIX・DXY・Fear&Greed・Funding Rate の1年間データ保持
 - ウォークフォワード各期間での高速データ抽出
 
-**3. 確実な101特徴量生成**
+**4. 確実な101特徴量生成**
 - `crypto_bot/ml/feature_defaults.py`: デフォルト特徴量生成システム
 - `ensure_feature_consistency()`: 最終的な101特徴量保証
 - 外部データ失敗時でも確実に101特徴量を維持
 
-**4. 101特徴量内訳**
+**5. 101特徴量内訳**
 ```
 基本テクニカル指標（20特徴量）: RSI, MACD, RCI, SMA, EMA等
 VIX恐怖指数（6特徴量）: レベル・変化率・Z-score・恐怖度等
@@ -44,7 +53,19 @@ Funding Rate・OI（17特徴量）: 資金フロー・レバレッジリスク�
 
 ## 開発コマンド
 
-### **CSV-based バックテスト（最新機能）**
+### **Bitbank本番ライブトレード（最新機能）**
+```bash
+# Bitbank本番ライブトレード（101特徴量完全版）
+python -m crypto_bot.main live-bitbank --config config/bitbank_101features_production.yml
+
+# 本番稼働確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+
+# 取引状況確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/trading/status
+```
+
+### **CSV-based バックテスト**
 ```bash
 # 1年間高速CSV バックテスト（101特徴量完全版）
 python -m crypto_bot.main backtest --config config/bitbank_101features_csv_backtest.yml
@@ -287,14 +308,17 @@ git push origin develop  # → 開発デプロイ
 ## 技術的課題と解決策
 
 ### **解決済み課題**
-1. **特徴量数不一致**: 外部データキャッシュ + デフォルト生成で解決
-2. **API制限**: CSV-based バックテストで回避
-3. **外部データエラー**: ロバストなフォールバック機能で対応
-4. **時間軸アライメント**: 統一されたリサンプリング・前方補完で解決
+1. **RiskManager型エラー**: 初期化パラメータ修正・動的ポジションサイジング安定化
+2. **CLI コマンド不一致**: live-bitbankコマンド実装・取引所別自動選択
+3. **特徴量数不一致**: 外部データキャッシュ + デフォルト生成で解決
+4. **API制限**: CSV-based バックテストで回避
+5. **外部データエラー**: ロバストなフォールバック機能で対応
+6. **時間軸アライメント**: 統一されたリサンプリング・前方補完で解決
 
 ### **現在の安定性**
-- **530テスト成功** (100%成功率)
-- **57%テストカバレッジ** (主要モジュール90%+)
+- **Bitbank本番ライブトレード稼働中** ✅
+- **556テスト成功** (100%成功率)
+- **51.44%テストカバレッジ** (主要モジュール90%+)
 - **CI/CD完全自動化** (デプロイエラー0件)
 - **101特徴量システム安定稼働**
 

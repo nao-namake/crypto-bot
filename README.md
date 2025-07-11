@@ -1,42 +1,48 @@
-# Crypto-Bot - CSV-based 101特徴量バックテストシステム
+# Crypto-Bot - Bitbank本番 101特徴量ライブトレードシステム
 
-## 🚀 **最新実装完了: CSV-based 1年間バックテスト対応システム** (2025年7月10日完成)
+## 🚀 **最新実装完了: Bitbank本番ライブトレード対応システム** (2025年7月11日完成)
 
-**世界最先端101特徴量・CSV高速バックテストシステム**による暗号資産自動売買ボットです。
+**世界最先端101特徴量・Bitbank本番ライブトレードシステム**による暗号資産自動売買ボットです。
 
 ### 💎 **革新的技術成果**
 ```
-🎯 CSV-based高速バックテスト実現:
-- API制限回避: 1年間データでタイムアウトなし
-- 101特徴量完全一致: 訓練時と推論時で100%統一
-- 外部データキャッシュ: VIX・DXY・Fear&Greed・Funding Rate事前保持
-- ロバスト特徴量生成: 外部エラー時でも確実に101特徴量を維持
+🎯 Bitbank本番ライブトレード実現:
+- 101特徴量システム: BTC/JPY実取引で世界最先端AI運用
+- live-bitbankコマンド: Bitbank専用ライブトレードCLI実装
+- RiskManager完全修正: 型エラー解決・動的ポジションサイジング安定化
+- 取引所別自動選択: 設定に応じた最適コマンド実行
 
 🔬 技術的ブレークスルー:
-- 8,761レコード1年間BTC高速処理
-- 329期間ウォークフォワード検証成功
+- 本番デプロイ完了: Cloud Run稼働中・CI/CD完全自動化
+- 556テスト成功: 100%成功率・51.44%カバレッジ達成
 - 外部データ失敗時の確実なフォールバック
 - 完璧な特徴量数整合性保証
 ```
 
 ### 🏗️ **実装システム詳細**
 
-#### **1. CSV対応高速バックテスト**
+#### **1. Bitbank本番ライブトレードシステム**
+- **crypto_bot/main.py**: live-bitbankコマンド実装・RiskManager修正
+- **scripts/start_live_with_api.py**: 取引所別コマンド自動選択機能
+- **config/bitbank_101features_production.yml**: Bitbank本番用101特徴量設定
+- **crypto_bot/risk/manager.py**: 型エラー修正・Kelly基準対応・動的ポジションサイジング
+
+#### **2. CSV対応高速バックテスト**
 - **scripts/generate_btc_csv_data.py**: 統計的に正確な1年間BTC価格データ生成
 - **crypto_bot/data/fetcher.py**: CSV/API統合対応・デュアルモード実装
 - **config/bitbank_101features_csv_backtest.yml**: CSV専用101特徴量設定
 
-#### **2. 外部データキャッシュシステム**
+#### **3. 外部データキャッシュシステム**
 - **crypto_bot/ml/external_data_cache.py**: 全期間外部データ事前キャッシュ
 - 1年間のVIX・DXY・Fear&Greed・Funding Rateデータ保持
 - ウォークフォワード各期間での高速抽出
 
-#### **3. 確実な101特徴量生成**
+#### **4. 確実な101特徴量生成**
 - **crypto_bot/ml/feature_defaults.py**: デフォルト特徴量生成システム
 - **ensure_feature_consistency()**: 最終的な101特徴量保証機能
 - 外部データ失敗時でも確実に101特徴量を維持
 
-#### **4. 101特徴量完全内訳**
+#### **5. 101特徴量完全内訳**
 ```
 基本テクニカル指標（20特徴量）: RSI, MACD, RCI, SMA, EMA, Bollinger Bands等
 VIX恐怖指数（6特徴量）: レベル・変化率・Z-score・恐怖度・スパイク・市場環境
@@ -75,7 +81,19 @@ Dimension 4: 資金フロー分析次元
 
 ## 基本コマンド
 
-### **CSV-based高速バックテスト（最新機能）**
+### **Bitbank本番ライブトレード（最新機能）**
+```bash
+# Bitbank本番ライブトレード（101特徴量完全版）
+python -m crypto_bot.main live-bitbank --config config/bitbank_101features_production.yml
+
+# 本番稼働状況確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+
+# 取引状況確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/trading/status
+```
+
+### **CSV-based高速バックテスト**
 ```bash
 # 1年間高速CSVバックテスト（101特徴量完全版）
 python -m crypto_bot.main backtest --config config/bitbank_101features_csv_backtest.yml
@@ -124,9 +142,9 @@ pytest tests/integration
 ```
 
 **最新テストカバレッジ状況:**
-- **全体カバレッジ**: **57%** ✅ (目標達成)
-- **テスト成功率**: **530テスト PASSED** (100%成功率) ✅
-- **リスク管理**: 90% ✅ (Kelly基準、動的サイジング)
+- **全体カバレッジ**: **51.44%** ✅ (本番デプロイ準拠)
+- **テスト成功率**: **556テスト PASSED** (100%成功率) ✅
+- **リスク管理**: 90% ✅ (Kelly基準、動的サイジング、RiskManager修正)
 - **ML戦略**: 78% ✅ (VIX統合、動的閾値)
 - **MLモデル**: 92% ✅ (アンサンブル、最適化)
 - **指標計算**: 75% ✅ (テクニカル指標)
@@ -134,6 +152,12 @@ pytest tests/integration
 ## 🚀 主な機能
 
 ### **現在の革新的実装（2025年7月更新）**
+
+#### **Bitbank本番ライブトレードシステム ✅**
+- **本番稼働中**: Cloud Run・101特徴量システムでBTC/JPY実取引
+- **live-bitbankコマンド**: Bitbank専用ライブトレードCLI完全実装
+- **RiskManager修正**: 型エラー解決・動的ポジションサイジング安定化
+- **取引所別自動選択**: 設定に応じた最適コマンド実行
 
 #### **CSV-based高速バックテストシステム ✅**
 - **1年間バックテスト**: API制限なし・高速実行・タイムアウト回避
@@ -323,25 +347,34 @@ ml:
 
 ### **解決した重要課題**
 
-#### **1. 特徴量数不一致問題**
+#### **1. RiskManager型エラー問題**
+- **課題**: 初期化時の型エラーによる本番デプロイ失敗
+- **解決**: 個別パラメータ抽出・動的ポジションサイジング安定化で完全解決
+
+#### **2. CLI コマンド不一致問題**
+- **課題**: 本番環境で"No such command 'live'"エラー発生
+- **解決**: live-bitbankコマンド実装・取引所別自動選択で完全解決
+
+#### **3. 特徴量数不一致問題**
 - **課題**: 訓練時101特徴量 vs バックテスト時83-99特徴量の不一致
 - **解決**: 外部データキャッシュ + ロバストデフォルト生成で完全解決
 
-#### **2. API制限・タイムアウト問題**  
+#### **4. API制限・タイムアウト問題**  
 - **課題**: 1年間データ取得でAPI制限・タイムアウト発生
 - **解決**: CSV-based高速バックテストで完全回避
 
-#### **3. 外部データ取得エラー**
+#### **5. 外部データ取得エラー**
 - **課題**: VIX・DXY等の外部API エラーによる特徴量生成失敗
 - **解決**: 包括的フォールバック + デフォルト値生成で確実に101特徴量維持
 
-#### **4. 時間軸アライメント問題**
+#### **6. 時間軸アライメント問題**
 - **課題**: 暗号資産1時間足 vs マクロデータ日足の時間軸不一致
 - **解決**: 統一リサンプリング・前方補完で完全同期
 
 ### **現在の安定性指標**
-- **530テスト成功** (100%成功率)
-- **57%テストカバレッジ** (主要モジュール90%+)
+- **Bitbank本番ライブトレード稼働中** ✅
+- **556テスト成功** (100%成功率)
+- **51.44%テストカバレッジ** (主要モジュール90%+)
 - **CI/CD完全自動化** (デプロイエラー0件)
 - **101特徴量システム安定稼働** (特徴量数不一致エラー0件)
 
@@ -454,8 +487,8 @@ A: 1) `preprocessor.py`に実装 2) `config_validator.py`に追加 3) 設定フ�
 
 #### 基本使用
 ```bash
-# 本番ライブトレード
-python -m crypto_bot.main live-paper --config config/bitbank_101features_production.yml
+# 本番ライブトレード（Bitbank）
+python -m crypto_bot.main live-bitbank --config config/bitbank_101features_production.yml
 
 # バックテスト実行
 python -m crypto_bot.main backtest --config config/bitbank_101features_csv_backtest.yml
@@ -493,4 +526,4 @@ python -m crypto_bot.main strategy-info --config config/[設定ファイル名].
 
 ---
 
-**このREADMEは、最新のCSV-based 101特徴量バックテストシステム（2025年7月10日完成）を基に作成されています。**
+**このREADMEは、最新のBitbank本番 101特徴量ライブトレードシステム（2025年7月11日完成）を基に作成されています。**

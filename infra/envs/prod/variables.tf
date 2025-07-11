@@ -31,3 +31,16 @@ variable "mode" {
   type        = string
   default     = "live"  # ← Bitbank実トレードモードに変更
 }
+
+# Bitbank API credentials (from GitHub Secrets)
+variable "bitbank_api_key" {
+  type        = string
+  description = "Bitbank の API キー (GitHub Secrets から渡される)"
+  sensitive   = true
+}
+
+variable "bitbank_api_secret" {
+  type        = string
+  description = "Bitbank の API シークレット (GitHub Secrets から渡される)"
+  sensitive   = true
+}

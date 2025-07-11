@@ -299,6 +299,8 @@ jobs:
       TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
       TF_VAR_region: "asia-northeast1"
       TF_VAR_image_tag: "${{ github.sha }}"
+      TF_VAR_bitbank_api_key: ${{ secrets.BITBANK_API_KEY }}
+      TF_VAR_bitbank_api_secret: ${{ secrets.BITBANK_API_SECRET }}
       TF_ENV_DIR: "infra/envs/prod"
     steps:
       - name: Checkout

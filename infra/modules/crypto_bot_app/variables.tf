@@ -41,16 +41,16 @@ variable "mode" {
 }
 
 # --------------------------------------------------
-# Secret Manager settings (Bitbank credentials)
+# Bitbank API credentials (from GitHub Secrets)
 # --------------------------------------------------
-variable "bitbank_api_key_secret_name" {
+variable "bitbank_api_key" {
   type        = string
-  description = "Bitbank の API キーを格納している Secret Manager のシークレット名"
-  default     = "bitbank_api_key"
+  description = "Bitbank の API キー (GitHub Secrets から渡される)"
+  sensitive   = true
 }
 
-variable "bitbank_api_secret_secret_name" {
+variable "bitbank_api_secret" {
   type        = string
-  description = "Bitbank の API シークレットを格納している Secret Manager のシークレット名"
-  default     = "bitbank_api_secret"
+  description = "Bitbank の API シークレット (GitHub Secrets から渡される)"
+  sensitive   = true
 }
