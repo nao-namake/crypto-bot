@@ -71,7 +71,6 @@ class DataQualityManager:
             bool: 品質基準を満たすかどうか
             dict: 品質レポート
         """
-
         quality_report = {
             "total_features": len(df.columns),
             "real_data_features": 0,
@@ -133,7 +132,6 @@ class DataQualityManager:
         """
         実データかデフォルトデータかを判定
         """
-
         # メタデータに情報がある場合
         source_info = metadata.get("feature_sources", {}).get(column)
         if source_info:
@@ -178,7 +176,6 @@ class DataQualityManager:
         """
         データ品質スコア計算（0-100）
         """
-
         total_features = real_count + default_count
         if total_features == 0:
             return 0.0
@@ -198,7 +195,6 @@ class DataQualityManager:
         """
         品質基準の評価
         """
-
         # 基準1: デフォルト比率が30%以下
         if quality_report["default_ratio"] > self.max_default_ratio:
             logger.warning(
@@ -235,7 +231,6 @@ class DataQualityManager:
             pd.DataFrame: 改善されたデータフレーム
             dict: 改善レポート
         """
-
         improvement_report = {
             "actions_taken": [],
             "features_removed": [],
@@ -284,7 +279,6 @@ class DataQualityManager:
         """
         優先度の低いデフォルト特徴量を削除
         """
-
         features_to_remove = []
 
         for column in df.columns:
@@ -310,7 +304,6 @@ class DataQualityManager:
         """
         重要特徴量の実データ再取得を試行
         """
-
         fallback_features = []
 
         # ここでは実際のAPI再取得は行わず、フォールバック処理のみ
@@ -344,7 +337,6 @@ class DataQualityManager:
         """
         データ品質要件の取得
         """
-
         return {
             "max_default_ratio": self.max_default_ratio,
             "critical_features": self.critical_features,
