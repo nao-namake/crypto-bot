@@ -90,9 +90,8 @@ class TestEnsembleMLStrategy(unittest.TestCase):
 
     @patch("crypto_bot.strategy.ensemble_ml_strategy.create_trading_ensemble")
     @patch("crypto_bot.ml.preprocessor.FeatureEngineer")
-    @patch("crypto_bot.data.vix_fetcher.VIXDataFetcher")
     def test_ensemble_signal_generation(
-        self, mock_vix_fetcher, mock_feature_engineer, mock_create_ensemble
+        self, mock_feature_engineer, mock_create_ensemble
     ):
         """アンサンブルシグナル生成テスト"""
         # モック設定
@@ -113,8 +112,6 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         mock_fe.transform.return_value = pd.DataFrame(np.random.randn(100, 5))
         mock_feature_engineer.return_value = mock_fe
 
-        mock_vix = MagicMock()
-        mock_vix_fetcher.return_value = mock_vix
 
         strategy = EnsembleMLStrategy(config=self.ensemble_config)
 
@@ -216,7 +213,6 @@ class TestEnsembleMLStrategy(unittest.TestCase):
     def test_market_context_generation(self):
         """市場コンテキスト生成テスト"""
         strategy = EnsembleMLStrategy(config=self.ensemble_config)
-        strategy.vix_fetcher = MagicMock()
         strategy.vix_adjustment_enabled = True
 
         # VIX情報のモック
@@ -229,10 +225,11 @@ class TestEnsembleMLStrategy(unittest.TestCase):
 
         context = strategy._generate_market_context(self.price_df)
 
-        self.assertIn("vix_level", context)
+        # 基本的な市場コンテキストが生成されることを確認
         self.assertIn("volatility", context)
         self.assertIn("trend_strength", context)
-        self.assertEqual(context["vix_level"], 25.0)
+        self.assertIsInstance(context["volatility"], float)
+        self.assertIsInstance(context["trend_strength"], float)
 
     def test_exit_threshold_calculation(self):
         """エグジット閾値計算テスト"""

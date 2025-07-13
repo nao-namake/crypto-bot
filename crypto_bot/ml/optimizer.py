@@ -339,7 +339,9 @@ def train_best_model(config: dict, *args):
         # 5) 特徴量重要度分析・出力
         importance_df = model.get_feature_importance(X_train.columns.tolist())
         if importance_df is not None:
-            importance_path = output_path.replace(".pkl", "_feature_importance.csv")
+            importance_path = str(output_path).replace(
+                ".pkl", "_feature_importance.csv"
+            )
             importance_df.to_csv(importance_path, index=False)
             print(f"Feature importance saved to {importance_path!r}")
 

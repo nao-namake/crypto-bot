@@ -24,16 +24,16 @@ set -euo pipefail
 COV_FAIL_UNDER=14
 
 echo ">>> flake8"
-flake8 .
+python3 -m flake8 .
 
 echo ">>> isort (check only)"
-isort --check-only .
+python3 -m isort --check-only .
 
 echo ">>> black (check only)"
-black --check .
+python3 -m black --check .
 
 echo ">>> pytest (with coverage)"
-pytest \
+python3 -m pytest \
   --maxfail=1 \
   --disable-warnings \
   -q \
