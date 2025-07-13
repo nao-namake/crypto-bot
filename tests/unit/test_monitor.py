@@ -66,7 +66,9 @@ class DummyTimeSeries:
         self.points = []
 
 
-@pytest.mark.skip(reason="Monitor module is a Streamlit app and cannot be imported directly")
+@pytest.mark.skip(
+    reason="Monitor module is a Streamlit app and cannot be imported directly"
+)
 def test_monitor_dashboard_runs(tmp_path, monkeypatch):
     """Ensure crypto_bot.monitor runs end‑to‑end without raising and pushes metrics."""
     # 1. Prepare a temporary working dir with a minimal status.json

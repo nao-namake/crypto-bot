@@ -1046,7 +1046,7 @@ def main():
         comparison_system._generate_sample_data()
 
         # 包括的比較実行
-        results = comparison_system.run_comprehensive_comparison()
+        comparison_system.run_comprehensive_comparison()
 
         # 結果表示
         report = comparison_system.generate_detailed_report()

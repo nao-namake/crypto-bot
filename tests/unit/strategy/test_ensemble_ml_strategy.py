@@ -112,7 +112,6 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         mock_fe.transform.return_value = pd.DataFrame(np.random.randn(100, 5))
         mock_feature_engineer.return_value = mock_fe
 
-
         strategy = EnsembleMLStrategy(config=self.ensemble_config)
 
         # ポジションなしでのシグナル生成
