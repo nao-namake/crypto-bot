@@ -133,11 +133,15 @@ class TestTradingEnsembleClassifier(unittest.TestCase):
         
         # 低VIX環境
         low_vix_context = {'vix_level': 12.0, 'volatility': 0.01}
-        low_vix_threshold = ensemble._calculate_dynamic_threshold(self.X[:5], low_vix_context)
+        low_vix_threshold = ensemble._calculate_dynamic_threshold(
+            self.X[:5], low_vix_context
+        )
         
         # 高VIX環境
         high_vix_context = {'vix_level': 40.0, 'volatility': 0.06}
-        high_vix_threshold = ensemble._calculate_dynamic_threshold(self.X[:5], high_vix_context)
+        high_vix_threshold = ensemble._calculate_dynamic_threshold(
+            self.X[:5], high_vix_context
+        )
         
         # 高VIXの方が保守的（高い閾値）であることを確認
         self.assertGreater(high_vix_threshold, low_vix_threshold)

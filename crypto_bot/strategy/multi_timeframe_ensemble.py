@@ -53,7 +53,10 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         self.prediction_history = []
         self.timeframe_performance = {}
         
-        logger.info(f"Initialized Multi-Timeframe Ensemble Strategy: {self.timeframes} with weights {self.weights}")
+        logger.info(
+            f"Initialized Multi-Timeframe Ensemble Strategy: {self.timeframes} "
+            f"with weights {self.weights}"
+        )
     
     def _initialize_ensemble_strategies(self):
         """各タイムフレーム用のアンサンブル戦略初期化"""
@@ -86,7 +89,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         if "data" not in tf_config:
             tf_config["data"] = {
                 "exchange": "csv",
-                "csv_path": "/Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv",
+                "csv_path": (
+                    "/Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv"
+                ),
                 "symbol": "BTC/USDT"
             }
         
@@ -141,37 +146,45 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         """101特徴量フルセット取得"""
         return [
             # VIX恐怖指数（6特徴量）
-            "vix", "vix_change", "vix_zscore", "vix_spike", "fear_level", "volatility_regime",
+            "vix", "vix_change", "vix_zscore", "vix_spike", "fear_level",
+            "volatility_regime",
             
             # DXY・金利（10特徴量）
             "dxy", "dxy_change", "us_10y", "yield_curve", "real_rates",
-            "dollar_strength", "fed_funds_rate", "treasury_volatility", "currency_momentum", "rate_expectations",
+            "dollar_strength", "fed_funds_rate", "treasury_volatility",
+            "currency_momentum", "rate_expectations",
             
             # Fear&Greed（13特徴量）
-            "fear_greed", "fear_greed_ma", "fear_greed_change", "extreme_fear", "extreme_greed",
-            "sentiment_regime", "sentiment_divergence", "social_sentiment", "options_sentiment",
-            "momentum_sentiment", "volume_sentiment", "breadth_sentiment", "volatility_sentiment",
+            "fear_greed", "fear_greed_ma", "fear_greed_change", "extreme_fear",
+            "extreme_greed", "sentiment_regime", "sentiment_divergence",
+            "social_sentiment", "options_sentiment", "momentum_sentiment",
+            "volume_sentiment", "breadth_sentiment", "volatility_sentiment",
             
             # Funding Rate・OI（17特徴量）
             "funding", "funding_ma", "funding_change", "funding_extreme", "oi_change",
-            "oi_volume_ratio", "leverage_ratio", "long_short_ratio", "liquidation_risk",
-            "perpetual_basis", "futures_basis", "options_flow", "institutional_flow",
-            "retail_sentiment", "whale_activity", "exchange_flows", "stablecoin_flows",
+            "oi_volume_ratio", "leverage_ratio", "long_short_ratio",
+            "liquidation_risk", "perpetual_basis", "futures_basis", "options_flow",
+            "institutional_flow", "retail_sentiment", "whale_activity",
+            "exchange_flows", "stablecoin_flows",
             
             # 基本テクニカル（20特徴量）
             "rsi_14", "rsi_7", "rsi_21", "macd", "macd_signal", "macd_histogram",
-            "bb_percent", "bb_width", "sma_20", "sma_50", "sma_200", "ema_12", "ema_26", "ema_50",
-            "adx", "cci", "williams_r", "stoch_k", "stoch_d", "momentum_14",
+            "bb_percent", "bb_width", "sma_20", "sma_50", "sma_200", "ema_12",
+            "ema_26", "ema_50", "adx", "cci", "williams_r", "stoch_k", "stoch_d",
+            "momentum_14",
             
             # その他重要特徴量（35特徴量）
-            "day_of_week", "hour_of_day", "mochipoyo_long_signal", "mochipoyo_short_signal",
-            "price_change_1h", "price_change_4h", "price_change_24h", "volume_change_1h", "volume_change_24h",
-            "volume_zscore", "volatility_1h", "volatility_24h", "support_resistance", "trend_strength",
-            "breakout_signal", "reversal_signal", "fibonacci_level", "pivot_points", "bollinger_squeeze",
-            "volume_profile", "order_flow", "market_microstructure", "cross_asset_correlation",
-            "sector_rotation", "macro_regime", "central_bank_policy", "economic_surprises",
-            "earnings_season", "options_expiry", "futures_rollover", "seasonal_patterns",
-            "anomaly_detection", "regime_change", "tail_risk", "skewness"
+            "day_of_week", "hour_of_day", "mochipoyo_long_signal",
+            "mochipoyo_short_signal", "price_change_1h", "price_change_4h",
+            "price_change_24h", "volume_change_1h", "volume_change_24h",
+            "volume_zscore", "volatility_1h", "volatility_24h", "support_resistance",
+            "trend_strength", "breakout_signal", "reversal_signal", "fibonacci_level",
+            "pivot_points", "bollinger_squeeze", "volume_profile", "order_flow",
+            "market_microstructure", "cross_asset_correlation", "sector_rotation",
+            "macro_regime", "central_bank_policy", "economic_surprises",
+            "earnings_season", "options_expiry", "futures_rollover",
+            "seasonal_patterns", "anomaly_detection", "regime_change", "tail_risk",
+            "skewness"
         ]
     
     def logic_signal(self, price_df: pd.DataFrame, position: Position) -> Signal:
@@ -203,7 +216,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             )
             
             # パフォーマンス追跡
-            self._track_prediction_performance(timeframe_predictions, integrated_signal, signal_info)
+            self._track_prediction_performance(
+                timeframe_predictions, integrated_signal, signal_info
+            )
             
             return final_signal
             
@@ -211,7 +226,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             logger.error(f"Multi-timeframe ensemble signal generation failed: {e}")
             return Signal()
     
-    def _get_timeframe_ensemble_predictions(self, price_df: pd.DataFrame) -> Dict[str, Dict]:
+    def _get_timeframe_ensemble_predictions(
+        self, price_df: pd.DataFrame
+    ) -> Dict[str, Dict]:
         """各タイムフレームのアンサンブル予測取得"""
         predictions = {}
         
@@ -253,7 +270,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         
         return predictions
     
-    def _get_timeframe_data(self, price_df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    def _get_timeframe_data(
+        self, price_df: pd.DataFrame, timeframe: str
+    ) -> pd.DataFrame:
         """タイムフレーム別データ生成（キャッシュ活用）"""
         cache_key = f"{timeframe}_data"
         current_time = datetime.now()
@@ -283,7 +302,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             
             # データ品質チェック
             if len(tf_data) < 50:  # 最小データ要件
-                logger.warning(f"Insufficient data for {timeframe}: {len(tf_data)} rows")
+                logger.warning(
+                    f"Insufficient data for {timeframe}: {len(tf_data)} rows"
+                )
                 return pd.DataFrame()
             
             # キャッシュ更新
@@ -303,7 +324,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         
         try:
             # 基本品質指標
-            completeness = 1.0 - (data.isnull().sum().sum() / (len(data) * len(data.columns)))
+            total_cells = len(data) * len(data.columns)
+            null_cells = data.isnull().sum().sum()
+            completeness = 1.0 - (null_cells / total_cells)
             data_length_score = min(len(data) / 100.0, 1.0)  # 100行以上で満点
             
             # 価格データの妥当性
@@ -314,7 +337,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 if len(data) > 0:
                     price_validity = 1.0 - (extreme_changes / len(data))
             
-            quality_score = (completeness * 0.4 + data_length_score * 0.3 + price_validity * 0.3)
+            quality_score = (
+                completeness * 0.4 + data_length_score * 0.3 + price_validity * 0.3
+            )
             
             return {
                 'quality_score': quality_score,
@@ -327,7 +352,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             logger.error(f"Data quality assessment failed: {e}")
             return {'quality_score': 0.5}
     
-    def _integrate_ensemble_signals(self, timeframe_predictions: Dict, position: Position) -> Tuple[float, Dict]:
+    def _integrate_ensemble_signals(
+        self, timeframe_predictions: Dict, position: Position
+    ) -> Tuple[float, Dict]:
         """アンサンブルシグナル統合"""
         signal_values = []
         weights = []
@@ -373,7 +400,8 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         
         # 重み付き統合計算
         if signal_values and sum(weights) > 0:
-            integrated_signal = sum(s * w for s, w in zip(signal_values, weights)) / sum(weights)
+            weighted_sum = sum(s * w for s, w in zip(signal_values, weights))
+            integrated_signal = weighted_sum / sum(weights)
         else:
             integrated_signal = 0.5  # ニュートラル
         
@@ -396,17 +424,22 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         return consensus
     
     def _make_final_signal_decision(
-            self, integrated_signal: float, signal_info: Dict,
-            price_df: pd.DataFrame, position: Position
+        self, integrated_signal: float, signal_info: Dict,
+        price_df: pd.DataFrame, position: Position
     ) -> Signal:
         """最終シグナル判定"""
-        current_price = float(price_df["close"].iloc[-1]) if not price_df.empty else None
+        if not price_df.empty:
+            current_price = float(price_df["close"].iloc[-1])
+        else:
+            current_price = None
         
         if current_price is None:
             return Signal()
         
         # 動的閾値計算
-        dynamic_threshold = self._calculate_multi_timeframe_threshold(signal_info)
+        dynamic_threshold = self._calculate_multi_timeframe_threshold(
+            signal_info
+        )
         
         # 合意度チェック
         consensus = signal_info.get('signal_consensus', 0.0)
@@ -420,7 +453,8 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             
             if integrated_signal < exit_threshold:
                 logger.info(
-                    f"Multi-timeframe ensemble EXIT: signal={integrated_signal:.3f} < {exit_threshold:.3f}"
+                    f"Multi-timeframe ensemble EXIT: "
+                    f"signal={integrated_signal:.3f} < {exit_threshold:.3f}"
                 )
                 return Signal(side="SELL", price=current_price)
             
@@ -446,7 +480,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             
             return Signal()  # ホールド
     
-    def _calculate_multi_timeframe_threshold(self, signal_info: Dict) -> float:
+    def _calculate_multi_timeframe_threshold(
+        self, signal_info: Dict
+    ) -> float:
         """マルチタイムフレーム動的閾値計算"""
         base_threshold = self.confidence_threshold - 0.5  # 基本閾値調整
         
@@ -458,13 +494,15 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         consensus = signal_info.get('signal_consensus', 0.5)
         consensus_adjustment = (consensus - 0.5) * 0.1  # 高合意度ほど積極的
         
-        dynamic_threshold = base_threshold - quality_adjustment - consensus_adjustment
+        dynamic_threshold = (
+            base_threshold - quality_adjustment - consensus_adjustment
+        )
         
         return max(0.05, min(0.2, dynamic_threshold))  # 範囲制限
     
     def _track_prediction_performance(
-            self, timeframe_predictions: Dict,
-            integrated_signal: float, signal_info: Dict
+        self, timeframe_predictions: Dict,
+        integrated_signal: float, signal_info: Dict
     ):
         """予測パフォーマンス追跡"""
         prediction_record = {
@@ -502,12 +540,16 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     except Exception as e:
                         info['timeframe_strategies'][timeframe] = {'error': str(e)}
                 else:
-                    info['timeframe_strategies'][timeframe] = {'status': 'not_available'}
+                    info['timeframe_strategies'][timeframe] = {
+                        'status': 'not_available'
+                    }
             
             # 最近のパフォーマンス統計
             if self.prediction_history:
                 recent_predictions = self.prediction_history[-10:]
-                info['recent_performance'] = self._analyze_recent_performance(recent_predictions)
+                info['recent_performance'] = self._analyze_recent_performance(
+                    recent_predictions
+                )
             
             return info
             
@@ -519,7 +561,10 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         """最近のパフォーマンス分析"""
         try:
             integrated_signals = [p['integrated_signal'] for p in recent_predictions]
-            consensus_scores = [p['signal_info'].get('signal_consensus', 0.5) for p in recent_predictions]
+            consensus_scores = [
+                p['signal_info'].get('signal_consensus', 0.5)
+                for p in recent_predictions
+            ]
             
             return {
                 'avg_integrated_signal': np.mean(integrated_signals),

@@ -28,7 +28,9 @@ class EnsembleMLStrategy(MLStrategy):
     勝率と収益性の向上に焦点を当てた実装
     """
     
-    def __init__(self, model_path: str = None, threshold: float = None, config: dict = None):
+    def __init__(
+        self, model_path: str = None, threshold: float = None, config: dict = None
+    ):
         """
         アンサンブルML戦略の初期化
         
@@ -72,7 +74,9 @@ class EnsembleMLStrategy(MLStrategy):
         else:
             self.base_threshold = self.config.get("threshold", 0.45)  # より保守的
             
-        logger.info(f"Ensemble ML Strategy initialized with threshold = {self.base_threshold}")
+        logger.info(
+            f"Ensemble ML Strategy initialized with threshold = {self.base_threshold}"
+        )
         
         # 既存MLStrategyの初期化処理を継承
         self._initialize_components()
@@ -109,13 +113,17 @@ class EnsembleMLStrategy(MLStrategy):
         ensemble_config = self.config.get('ml', {}).get('ensemble', {})
         
         # 取引特化型設定
-        self.trading_confidence_threshold = ensemble_config.get('confidence_threshold', 0.65)
+        self.trading_confidence_threshold = ensemble_config.get(
+            'confidence_threshold', 0.65
+        )
         self.risk_adjustment_enabled = ensemble_config.get('risk_adjustment', True)
         
         # 動的閾値設定
         dynamic_config = self.config.get('ml', {}).get('dynamic_threshold', {})
         self.dynamic_threshold_enabled = dynamic_config.get('enabled', True)
-        self.vix_adjustment_enabled = dynamic_config.get('vix_adjustment', True)
+        self.vix_adjustment_enabled = dynamic_config.get(
+            'vix_adjustment', True
+        )
         
         # 市場レジーム設定
         self.vix_levels = dynamic_config.get('vix_levels', {
@@ -126,7 +134,8 @@ class EnsembleMLStrategy(MLStrategy):
         })
         
         logger.info(
-            f"Ensemble settings: confidence_threshold={self.trading_confidence_threshold}, "
+            f"Ensemble settings: "
+            f"confidence_threshold={self.trading_confidence_threshold}, "
             f"risk_adjustment={self.risk_adjustment_enabled}, "
             f"dynamic_threshold={self.dynamic_threshold_enabled}"
         )
@@ -145,7 +154,9 @@ class EnsembleMLStrategy(MLStrategy):
             
             # スケーリング
             scaled = self.scaler.fit_transform(feat_df.values)
-            X_scaled = pd.DataFrame(scaled, index=feat_df.index, columns=feat_df.columns)
+            X_scaled = pd.DataFrame(
+                scaled, index=feat_df.index, columns=feat_df.columns
+            )
             
             # アンサンブルモデル学習
             self.ensemble_model.fit(X_scaled, y)
@@ -193,7 +204,9 @@ class EnsembleMLStrategy(MLStrategy):
         try:
             # アンサンブル予測（取引特化型信頼度付き）
             predictions, probabilities, confidence_scores, trading_info = \
-                self.ensemble_model.predict_with_trading_confidence(last_X, market_context)
+                self.ensemble_model.predict_with_trading_confidence(
+                    last_X, market_context
+                )
                 
             # 予測結果の詳細
             prediction = predictions[0]
@@ -202,8 +215,9 @@ class EnsembleMLStrategy(MLStrategy):
             dynamic_threshold = trading_info['dynamic_threshold']
             
             logger.info(
-                f"Ensemble Prediction: prob={probability:.4f}, confidence={confidence:.4f}, "
-                f"threshold={dynamic_threshold:.4f}, market_regime={trading_info['market_regime']}"
+                f"Ensemble Prediction: prob={probability:.4f}, "
+                f"confidence={confidence:.4f}, threshold={dynamic_threshold:.4f}, "
+                f"market_regime={trading_info['market_regime']}"
             )
             
             # ポジション管理
@@ -211,12 +225,19 @@ class EnsembleMLStrategy(MLStrategy):
             
             if position_exists:
                 # エグジット判定（リスク調整型）
-                exit_threshold = self._calculate_exit_threshold(trading_info, confidence)
+                exit_threshold = self._calculate_exit_threshold(
+                    trading_info, confidence
+                )
                 
                 if probability < exit_threshold:
-                    logger.info(f"Ensemble EXIT signal: prob={probability:.4f} < {exit_threshold:.4f}")
+                    logger.info(
+                        f"Ensemble EXIT signal: prob={probability:.4f} < "
+                        f"{exit_threshold:.4f}"
+                    )
                     signal = Signal(side="SELL", price=current_price)
-                    self._update_signal_history("EXIT", probability, confidence, trading_info)
+                    self._update_signal_history(
+                        "EXIT", probability, confidence, trading_info
+                    )
                     return signal
                     
                 return Signal()  # ホールド
@@ -225,24 +246,40 @@ class EnsembleMLStrategy(MLStrategy):
                 # エントリー判定（信頼度ベース）
                 if prediction == 1 and confidence >= self.trading_confidence_threshold:
                     # 高信頼度ロングシグナル
-                    logger.info(f"Ensemble LONG signal: prob={probability:.4f}, confidence={confidence:.4f}")
+                    logger.info(
+                        f"Ensemble LONG signal: prob={probability:.4f}, "
+                        f"confidence={confidence:.4f}"
+                    )
                     signal = Signal(side="BUY", price=current_price)
-                    self._update_signal_history("ENTRY_LONG", probability, confidence, trading_info)
+                    self._update_signal_history(
+                        "ENTRY_LONG", probability, confidence, trading_info
+                    )
                     return signal
                     
-                elif probability < (1.0 - dynamic_threshold) and confidence >= self.trading_confidence_threshold:
+                elif (probability < (1.0 - dynamic_threshold) and
+                      confidence >= self.trading_confidence_threshold):
                     # 高信頼度ショートシグナル
-                    logger.info(f"Ensemble SHORT signal: prob={probability:.4f}, confidence={confidence:.4f}")
+                    logger.info(
+                        f"Ensemble SHORT signal: prob={probability:.4f}, "
+                        f"confidence={confidence:.4f}"
+                    )
                     signal = Signal(side="SELL", price=current_price)
-                    self._update_signal_history("ENTRY_SHORT", probability, confidence, trading_info)
+                    self._update_signal_history(
+                        "ENTRY_SHORT", probability, confidence, trading_info
+                    )
                     return signal
                 
                 # 中程度の信頼度でのシグナル（より保守的）
                 weak_threshold = dynamic_threshold + 0.1  # より高い閾値
                 if probability > (0.5 + weak_threshold) and confidence >= 0.5:
-                    logger.info(f"Ensemble Weak LONG: prob={probability:.4f}, confidence={confidence:.4f}")
+                    logger.info(
+                        f"Ensemble Weak LONG: prob={probability:.4f}, "
+                        f"confidence={confidence:.4f}"
+                    )
                     signal = Signal(side="BUY", price=current_price)
-                    self._update_signal_history("WEAK_LONG", probability, confidence, trading_info)
+                    self._update_signal_history(
+                        "WEAK_LONG", probability, confidence, trading_info
+                    )
                     return signal
                 
                 return Signal()  # ホールド
@@ -268,7 +305,10 @@ class EnsembleMLStrategy(MLStrategy):
             # ボラティリティ計算
             if len(price_df) >= 20:
                 returns = price_df["close"].pct_change().dropna()
-                context['volatility'] = returns.rolling(20).std().iloc[-1] if len(returns) >= 20 else 0.02
+                if len(returns) >= 20:
+                    context['volatility'] = returns.rolling(20).std().iloc[-1]
+                else:
+                    context['volatility'] = 0.02
             else:
                 context['volatility'] = 0.02
                 
@@ -308,7 +348,10 @@ class EnsembleMLStrategy(MLStrategy):
         
         return base_exit + regime_adj + confidence_adj
     
-    def _update_signal_history(self, signal_type: str, probability: float, confidence: float, trading_info: Dict):
+    def _update_signal_history(
+        self, signal_type: str, probability: float, confidence: float,
+        trading_info: Dict
+    ):
         """シグナル履歴更新"""
         signal_record = {
             'type': signal_type,
@@ -375,7 +418,10 @@ class EnsembleMLStrategy(MLStrategy):
         ensemble_config = new_config.get('ml', {}).get('ensemble', {})
         if 'confidence_threshold' in ensemble_config:
             self.trading_confidence_threshold = ensemble_config['confidence_threshold']
-            logger.info(f"Updated trading confidence threshold: {self.trading_confidence_threshold}")
+            logger.info(
+                f"Updated trading confidence threshold: "
+                f"{self.trading_confidence_threshold}"
+            )
         
         # その他の設定更新
         if 'risk_adjustment' in ensemble_config:

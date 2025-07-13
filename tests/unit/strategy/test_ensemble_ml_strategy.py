@@ -66,7 +66,9 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         
     @patch('crypto_bot.strategy.ensemble_ml_strategy.create_trading_ensemble')
     @patch('crypto_bot.ml.preprocessor.FeatureEngineer')
-    def test_ensemble_strategy_initialization(self, mock_feature_engineer, mock_create_ensemble):
+    def test_ensemble_strategy_initialization(
+        self, mock_feature_engineer, mock_create_ensemble
+    ):
         """アンサンブル戦略初期化テスト"""
         # モック設定
         mock_ensemble = MagicMock()
@@ -93,7 +95,9 @@ class TestEnsembleMLStrategy(unittest.TestCase):
     @patch('crypto_bot.strategy.ensemble_ml_strategy.create_trading_ensemble')
     @patch('crypto_bot.ml.preprocessor.FeatureEngineer')
     @patch('crypto_bot.data.vix_fetcher.VIXDataFetcher')
-    def test_ensemble_signal_generation(self, mock_vix_fetcher, mock_feature_engineer, mock_create_ensemble):
+    def test_ensemble_signal_generation(
+        self, mock_vix_fetcher, mock_feature_engineer, mock_create_ensemble
+    ):
         """アンサンブルシグナル生成テスト"""
         # モック設定
         mock_ensemble = MagicMock()
@@ -129,7 +133,9 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         
     @patch('crypto_bot.strategy.ensemble_ml_strategy.create_trading_ensemble')
     @patch('crypto_bot.ml.preprocessor.FeatureEngineer')
-    def test_high_confidence_long_signal(self, mock_feature_engineer, mock_create_ensemble):
+    def test_high_confidence_long_signal(
+        self, mock_feature_engineer, mock_create_ensemble
+    ):
         """高信頼度ロングシグナルテスト"""
         # 高信頼度ロング予測のモック
         mock_ensemble = MagicMock()
@@ -156,7 +162,9 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         
     @patch('crypto_bot.strategy.ensemble_ml_strategy.create_trading_ensemble')
     @patch('crypto_bot.ml.preprocessor.FeatureEngineer')
-    def test_low_confidence_no_signal(self, mock_feature_engineer, mock_create_ensemble):
+    def test_low_confidence_no_signal(
+        self, mock_feature_engineer, mock_create_ensemble
+    ):
         """低信頼度でシグナルなしテスト"""
         # 低信頼度予測のモック
         mock_ensemble = MagicMock()

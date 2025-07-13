@@ -192,7 +192,10 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         self.fitted_base_models = []
         
         for i, model in enumerate(self.base_models):
-            logger.info(f"Training base model {i+1}/{len(self.base_models)}: {type(model).__name__}")
+            logger.info(
+                f"Training base model {i+1}/{len(self.base_models)}: "
+                f"{type(model).__name__}"
+            )
             
             try:
                 # 確率校正付きモデル
@@ -219,8 +222,8 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         """取引特化型メタモデルの学習"""
         logger.info("Generating trading-optimized meta-features")
         
-        # 取引特化型メタ特徴量生成
-        meta_features = np.zeros((len(X), len(self.fitted_base_models) * 3))  # 確率・信頼度・リスク調整値
+        # 取引特化型メタ特徴量生成（確率・信頼度・リスク調整値）
+        meta_features = np.zeros((len(X), len(self.fitted_base_models) * 3))
         
         cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
         
@@ -232,11 +235,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 )
                 
                 # 基本確率
-                proba = cv_predictions[:, 1] if cv_predictions.shape[1] > 1 else cv_predictions[:, 0]
+                if cv_predictions.shape[1] > 1:
+                    proba = cv_predictions[:, 1]
+                else:
+                    proba = cv_predictions[:, 0]
                 meta_features[:, i * 3] = proba
                 
                 # 予測信頼度（エントロピーベース）
-                entropy = -np.sum(cv_predictions * np.log(cv_predictions + 1e-8), axis=1)
+                entropy = -np.sum(
+                    cv_predictions * np.log(cv_predictions + 1e-8), axis=1
+                )
                 confidence = 1 - (entropy / np.log(2))  # 正規化
                 meta_features[:, i * 3 + 1] = confidence
                 
@@ -248,7 +256,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                     meta_features[:, i * 3 + 2] = 1.0
                 
             except Exception as e:
-                logger.error(f"Failed to generate trading meta-features for model {i+1}: {e}")
+                logger.error(
+                    f"Failed to generate trading meta-features for model {i+1}: {e}"
+                )
                 # エラー時はニュートラル値
                 meta_features[:, i * 3:i * 3 + 3] = [0.5, 0.5, 1.0]
         
@@ -270,7 +280,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 accuracy = np.mean(cv_predictions == y)
                 
                 # 予測安定性計算（予測分散）
-                cv_probas = cross_val_predict(model, X, y, cv=cv, method='predict_proba')
+                cv_probas = cross_val_predict(
+                    model, X, y, cv=cv, method='predict_proba'
+                )
                 stability = 1.0 - np.std(cv_probas[:, 1])  # 低分散 = 高安定性
                 
                 # リスク調整重み（精度×安定性）
@@ -344,7 +356,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
     
     def _predict_proba_risk_weighted(self, X: pd.DataFrame) -> np.ndarray:
         """リスク加重型予測"""
-        weights = self.trading_weights_ or [1.0 / len(self.fitted_base_models)] * len(self.fitted_base_models)
+        weights = self.trading_weights_ or [
+            1.0 / len(self.fitted_base_models)
+        ] * len(self.fitted_base_models)
         
         weighted_proba = np.zeros((len(X), 2))
         total_weight = 0
@@ -375,11 +389,19 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         performance_weights = []
         for model_name, performance in self.model_performance_.items():
             # 取引メトリクス重み付き総合スコア
-            score = (
-                performance.get('accuracy', 0.5) * self.trading_metrics.get('win_rate', 0.3) +
-                performance.get('f1', 0.5) * self.trading_metrics.get('sharpe_ratio', 0.4) +
-                (1.0 - performance.get('precision', 0.5)) * abs(self.trading_metrics.get('max_drawdown', -0.2))
+            win_rate_score = (
+                performance.get('accuracy', 0.5) *
+                self.trading_metrics.get('win_rate', 0.3)
             )
+            sharpe_score = (
+                performance.get('f1', 0.5) *
+                self.trading_metrics.get('sharpe_ratio', 0.4)
+            )
+            drawdown_penalty = (
+                (1.0 - performance.get('precision', 0.5)) *
+                abs(self.trading_metrics.get('max_drawdown', -0.2))
+            )
+            score = win_rate_score + sharpe_score + drawdown_penalty
             performance_weights.append(score)
         
         # 正規化
@@ -387,11 +409,15 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         if total_perf > 0:
             performance_weights = [w / total_perf for w in performance_weights]
         else:
-            performance_weights = [1.0 / len(self.fitted_base_models)] * len(self.fitted_base_models)
+            performance_weights = [
+                1.0 / len(self.fitted_base_models)
+            ] * len(self.fitted_base_models)
         
         weighted_proba = np.zeros((len(X), 2))
         
-        for i, (model, weight) in enumerate(zip(self.fitted_base_models, performance_weights)):
+        for i, (model, weight) in enumerate(
+            zip(self.fitted_base_models, performance_weights)
+        ):
             try:
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
@@ -402,7 +428,11 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
     
     def _predict_proba_weighted_voting(self, X: pd.DataFrame) -> np.ndarray:
         """重み付き投票予測"""
-        weights = self.ensemble_weights_ or self.voting_weights or [1.0] * len(self.fitted_base_models)
+        weights = (
+            self.ensemble_weights_ or
+            self.voting_weights or
+            [1.0] * len(self.fitted_base_models)
+        )
         
         weighted_proba = np.zeros((len(X), 2))
         total_weight = 0
@@ -452,7 +482,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         predictions = (probabilities[:, 1] > dynamic_threshold).astype(int)
         
         # 取引特化型信頼度計算
-        confidence_scores = self._calculate_trading_confidence(probabilities, X, market_context)
+        confidence_scores = self._calculate_trading_confidence(
+            probabilities, X, market_context
+        )
         
         # 取引情報まとめ
         trading_info = {
@@ -460,12 +492,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
             'base_threshold': 0.5,
             'market_regime': self._assess_market_regime(market_context),
             'risk_level': self._assess_risk_level(confidence_scores),
-            'recommended_position_size': self._calculate_position_sizing(confidence_scores, market_context)
+            'recommended_position_size': self._calculate_position_sizing(
+                confidence_scores, market_context
+            )
         }
         
         return predictions, probabilities, confidence_scores, trading_info
     
-    def _calculate_dynamic_threshold(self, X: pd.DataFrame, market_context: Dict = None) -> float:
+    def _calculate_dynamic_threshold(
+        self, X: pd.DataFrame, market_context: Dict = None
+    ) -> float:
         """動的閾値計算"""
         base_threshold = self.confidence_threshold
         
@@ -593,7 +629,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         else:
             return "very_high"
     
-    def _calculate_position_sizing(self, confidence_scores: np.ndarray, market_context: Dict = None) -> float:
+    def _calculate_position_sizing(
+        self, confidence_scores: np.ndarray, market_context: Dict = None
+    ) -> float:
         """ポジションサイジング推奨計算"""
         avg_confidence = np.mean(confidence_scores)
         
@@ -640,7 +678,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         
         return confidence_scores
     
-    def _calculate_model_agreement(self, ensemble_probabilities: np.ndarray) -> np.ndarray:
+    def _calculate_model_agreement(
+        self, ensemble_probabilities: np.ndarray
+    ) -> np.ndarray:
         """ベースモデル間の予測一致度計算"""
         # 各ベースモデルの予測確率を取得
         individual_probabilities = []
@@ -650,14 +690,17 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 proba = model.predict_proba(self.last_X_)  # 最後に予測したX
                 individual_probabilities.append(proba[:, 1])
             except Exception:
-                individual_probabilities.append(np.full(len(ensemble_probabilities), 0.5))
+                individual_probabilities.append(
+                    np.full(len(ensemble_probabilities), 0.5)
+                )
         
         if len(individual_probabilities) < 2:
             return np.ones(len(ensemble_probabilities))
         
         # 標準偏差ベースの一致度（低分散 = 高一致度）
         prob_array = np.array(individual_probabilities).T
-        agreement = 1 - np.std(prob_array, axis=1) / 0.5  # 最大標準偏差で正規化
+        # 最大標準偏差で正規化
+        agreement = 1 - np.std(prob_array, axis=1) / 0.5
         
         return np.clip(agreement, 0, 1)
     
@@ -674,17 +717,25 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 
                 performance = {
                     'accuracy': accuracy_score(y, cv_predictions),
-                    'precision': precision_score(y, cv_predictions, average='weighted', zero_division=0),
-                    'recall': recall_score(y, cv_predictions, average='weighted', zero_division=0),
-                    'f1': f1_score(y, cv_predictions, average='weighted', zero_division=0)
+                    'precision': precision_score(
+                        y, cv_predictions, average='weighted', zero_division=0
+                    ),
+                    'recall': recall_score(
+                        y, cv_predictions, average='weighted', zero_division=0
+                    ),
+                    'f1': f1_score(
+                        y, cv_predictions, average='weighted', zero_division=0
+                    )
                 }
                 
-                self.model_performance_[f'model_{i+1}_{type(model).__name__}'] = performance
+                model_key = f'model_{i+1}_{type(model).__name__}'
+                self.model_performance_[model_key] = performance
                 logger.info(f"Model {i+1} performance: {performance}")
                 
             except Exception as e:
                 logger.error(f"Performance evaluation failed for model {i+1}: {e}")
-                self.model_performance_[f'model_{i+1}_{type(model).__name__}'] = {
+                model_key = f'model_{i+1}_{type(model).__name__}'
+                self.model_performance_[model_key] = {
                     'accuracy': 0.5, 'precision': 0.5, 'recall': 0.5, 'f1': 0.5
                 }
     
@@ -698,12 +749,20 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         trading_scores = []
         for model_name, performance in self.model_performance_.items():
             # 勝率重視の総合スコア
-            score = (
-                performance.get('accuracy', 0.5) * self.trading_metrics.get('win_rate', 0.3) +
-                performance.get('precision', 0.5) * self.trading_metrics.get('sharpe_ratio', 0.4) +
-                performance.get('f1', 0.5) * 0.2 +
-                (1.0 - performance.get('recall', 0.5)) * abs(self.trading_metrics.get('max_drawdown', -0.2)) * 0.1
+            win_rate_score = (
+                performance.get('accuracy', 0.5) *
+                self.trading_metrics.get('win_rate', 0.3)
             )
+            sharpe_score = (
+                performance.get('precision', 0.5) *
+                self.trading_metrics.get('sharpe_ratio', 0.4)
+            )
+            f1_score = performance.get('f1', 0.5) * 0.2
+            drawdown_penalty = (
+                (1.0 - performance.get('recall', 0.5)) *
+                abs(self.trading_metrics.get('max_drawdown', -0.2)) * 0.1
+            )
+            score = win_rate_score + sharpe_score + f1_score + drawdown_penalty
             trading_scores.append(max(score, 0.1))  # 最小重み保証
         
         # 重みの正規化
@@ -711,7 +770,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         if total_score > 0:
             self.trading_weights_ = [score / total_score for score in trading_scores]
         else:
-            self.trading_weights_ = [1.0 / len(self.fitted_base_models)] * len(self.fitted_base_models)
+            self.trading_weights_ = [
+                1.0 / len(self.fitted_base_models)
+            ] * len(self.fitted_base_models)
         
         logger.info(f"Calculated trading weights: {self.trading_weights_}")
         
@@ -720,7 +781,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
             'weight_diversity': np.std(self.trading_weights_),
             'max_weight': max(self.trading_weights_),
             'min_weight': min(self.trading_weights_),
-            'weight_concentration': max(self.trading_weights_) / np.mean(self.trading_weights_)
+            'weight_concentration': (
+                max(self.trading_weights_) / np.mean(self.trading_weights_)
+            )
         }
     
     def get_trading_ensemble_info(self) -> Dict[str, Any]:
@@ -817,5 +880,8 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
         confidence_threshold=confidence_threshold
     )
     
-    logger.info(f"Created trading-optimized ensemble: {ensemble_method} with risk_adjustment={risk_adjustment}")
+    logger.info(
+        f"Created trading-optimized ensemble: {ensemble_method} "
+        f"with risk_adjustment={risk_adjustment}"
+    )
     return ensemble

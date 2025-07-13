@@ -238,14 +238,18 @@ class TestMultiTimeframeEnsembleStrategy(unittest.TestCase):
             'total_weight': 1.0,
             'signal_consensus': 0.9
         }
-        high_quality_threshold = strategy._calculate_multi_timeframe_threshold(high_quality_info)
+        high_quality_threshold = strategy._calculate_multi_timeframe_threshold(
+            high_quality_info
+        )
         
         # 低品質・低合意度
         low_quality_info = {
             'total_weight': 0.5,
             'signal_consensus': 0.4
         }
-        low_quality_threshold = strategy._calculate_multi_timeframe_threshold(low_quality_info)
+        low_quality_threshold = strategy._calculate_multi_timeframe_threshold(
+            low_quality_info
+        )
         
         # 高品質の方がより積極的な閾値（低い値）
         self.assertLess(high_quality_threshold, low_quality_threshold)
