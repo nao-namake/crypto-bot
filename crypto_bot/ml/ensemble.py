@@ -386,7 +386,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         """パフォーマンス加重投票予測"""
         # モデル性能ベースの重み使用
         performance_weights = []
-        for model_name, performance in self.model_performance_.items():
+        for _model_name, performance in self.model_performance_.items():
             # 取引メトリクス重み付き総合スコア
             win_rate_score = performance.get(
                 "accuracy", 0.5
@@ -743,7 +743,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         # 取引メトリクス総合スコア計算
         trading_scores = []
-        for model_name, performance in self.model_performance_.items():
+        for _model_name, performance in self.model_performance_.items():
             # 勝率重視の総合スコア
             win_rate_score = performance.get(
                 "accuracy", 0.5
@@ -810,7 +810,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         importance_data = []
 
-        for i, model in enumerate(self.fitted_base_models):
+        for _i, model in enumerate(self.fitted_base_models):
             if hasattr(model, "feature_importances_"):
                 importance_data.append(model.feature_importances_)
             elif hasattr(model, "coef_"):

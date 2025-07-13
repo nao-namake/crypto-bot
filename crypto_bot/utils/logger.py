@@ -235,7 +235,7 @@ class StructuredLogger:
         status_code: int = None,
         error: str = None,
     ):
-        """API リクエストのログ記録"""
+        """Record API request logs."""
         extra = {
             "api_endpoint": endpoint,
             "http_method": method,
