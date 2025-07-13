@@ -8,6 +8,12 @@
 # =============================================================================
 
 # ----------------------------------------------------------------------
+# 実行再現性設定（全コマンド統一シード）
+# ----------------------------------------------------------------------
+global:
+  seed: 42  # 実行再現性確保のための乱数シード
+
+# ----------------------------------------------------------------------
 # データ取得設定（Bitbank本番・JPY建て）
 # ----------------------------------------------------------------------
 data:
@@ -34,7 +40,7 @@ data:
 # ----------------------------------------------------------------------
 strategy:
   type: single
-  name: ml
+  name: ensemble_ml  # アンサンブル学習戦略に変更
   params:
     model_path: model/model_101feat.pkl  # 101特徴量対応モデル
     threshold: 0.05  # 実証済み最適閾値
@@ -48,18 +54,23 @@ strategy:
 # リスク管理（1万円フロントテスト対応）
 # ----------------------------------------------------------------------
 risk:
-  risk_per_trade: 0.01   # 1%リスク（1万円×1% = 100円リスク）
-  stop_atr_mult: 1.5     # タイトストップロス
+  risk_per_trade: 0.005  # 0.5%リスク（1万円×0.5% = 50円リスク）より保守的
+  stop_atr_mult: 1.2     # より厳格なストップロス
   dynamic_position_sizing:
     enabled: true
     formula: linear
   
-  # Kelly基準（実証済み設定）
+  # Kelly基準（フロントテスト用超保守的設定）
   kelly_criterion:
     enabled: true
     lookback_window: 30
-    max_fraction: 0.10   # 10%上限（フロントテスト用保守的）
+    max_fraction: 0.05   # 5%上限（1万円用超保守的）
     min_trades_required: 10
+  
+  # 小額取引用追加制限
+  max_position_size: 0.0005  # 最大ポジション0.0005BTC（約2,000円相当）
+  daily_loss_limit: 0.03     # 日次損失限界3%（300円）
+  consecutive_loss_limit: 3   # 連続損失回数制限
 
 # ----------------------------------------------------------------------
 # バックテスト設定（1万円想定）
@@ -166,18 +177,25 @@ ml:
     - momentum_14  # サポート済み拡張特徴量
     - trend_strength  # サポート済み拡張特徴量
 
-  # Optuna設定（実証済み）
+  # Optuna設定（強化版）
   optuna:
-    n_trials: 10
-    timeout: 300
+    n_trials: 50  # 10 → 50回に増加（精度向上）
+    timeout: 600  # 10分に拡張
     direction: maximize
     sampler:
       name: TPESampler
     pruner:
       name: MedianPruner
-      n_startup_trials: 5
-      n_warmup_steps: 10
+      n_startup_trials: 10
+      n_warmup_steps: 15
       interval_steps: 1
+  
+  # 過学習対策設定（新規追加）
+  early_stopping_rounds: 50  # LightGBM/XGBoost用早期停止
+  feature_selection:
+    enabled: true
+    max_features: 80  # 101 → 80特徴量への最適化
+    importance_threshold: 0.005
 
   # モデルパラメータ（実証済み最適値）
   model_params:
@@ -199,12 +217,19 @@ ml:
 live:
   mode: live  # 本番ライブトレード
   trade_interval: 60
-  min_order_size: 0.001  # Bitbank最小注文サイズ
-  max_daily_trades: 5     # 1日最大5回（保守的）
-  emergency_stop_loss: 0.05
+  min_order_size: 0.0003  # 1万円用最小注文サイズ（約1,200円相当）
+  max_order_size: 0.0005  # 1万円用最大注文サイズ（約2,000円相当）
+  max_daily_trades: 3     # 1日最大3回（超保守的）
+  max_weekly_trades: 15   # 週間制限追加（フロントテスト用）
+  emergency_stop_loss: 0.03  # 3%緊急停止（より厳格）
   log_level: INFO
   log_trades: true
-  status_file: status_bitbank_101feat.json
+  status_file: status_bitbank_101feat_fronttest.json
+  
+  # フロントテスト専用設定
+  front_test_mode: true
+  front_test_duration_days: 7  # 1週間フロントテスト
+  front_test_balance_limit: 10000  # 1万円上限確認
   
   # 信用取引設定
   margin_trading:
@@ -214,19 +239,51 @@ live:
     margin_maintenance_ratio: 0.3  # 維持率30%
 
 # ----------------------------------------------------------------------
-# 監視・アラート設定
+# 監視・アラート設定（1万円フロントテスト用強化版）
 # ----------------------------------------------------------------------
 monitoring:
   enabled: true
-  check_interval: 60
+  check_interval: 30  # 30秒間隔で監視強化
+  health_check_enabled: true
+  ensemble_monitoring: true  # アンサンブル特有監視有効化
   
+  # フロントテスト用アラート設定
   alerts:
     - type: daily_profit
-      threshold: 0.03  # 3%利益でアラート
+      threshold: 0.02  # 2%利益（200円）でアラート
       action: notify
     - type: daily_loss
-      threshold: 0.02  # 2%損失でアラート
+      threshold: 0.015  # 1.5%損失（150円）でアラート
       action: reduce_risk
+    - type: consecutive_losses
+      threshold: 2  # 連続2回損失でアラート
+      action: pause_trading
+    - type: weekly_loss
+      threshold: 0.05  # 週間5%損失（500円）でアラート
+      action: emergency_stop
+    - type: position_size_warning
+      threshold: 0.0005  # ポジションサイズ警告
+      action: notify
+    - type: ensemble_disagreement
+      threshold: 0.3  # アンサンブルモデル合意度低下
+      action: notify
+    - type: prediction_confidence_low
+      threshold: 0.6  # 予測信頼度低下
+      action: skip_trade
+  
+  # 通知設定
+  notifications:
+    email_enabled: false  # フロントテスト中はログベース
+    slack_enabled: false
+    webhook_enabled: false
+    log_level: INFO
+    
+  # フロントテスト専用監視
+  front_test_monitoring:
+    enabled: true
+    daily_summary: true
+    performance_tracking: true
+    risk_metrics_tracking: true
 
 # ----------------------------------------------------------------------
 # 💰 1万円フロントテスト期待効果

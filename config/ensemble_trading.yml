@@ -1,0 +1,274 @@
+# =============================================================================
+# 取引特化型アンサンブル学習設定ファイル
+# 勝率と収益性向上を目的とした最適化設定
+# =============================================================================
+
+# 基本データ設定（既存システム継承）
+data:
+  exchange: csv
+  csv_path: "/Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv"
+  symbol: BTC/USDT
+  timeframe: 1h
+
+# 取引特化型ML設定
+ml:
+  # アンサンブル学習設定
+  ensemble:
+    enabled: true
+    method: "trading_stacking"  # trading_stacking | risk_weighted | performance_voting
+    risk_adjustment: true
+    confidence_threshold: 0.65  # より保守的な閾値
+    
+    # 取引メトリクス重み（勝率・収益性重視）
+    trading_metrics:
+      sharpe_ratio: 0.4    # シャープレシオ重視
+      win_rate: 0.3        # 勝率重視
+      max_drawdown: -0.2   # ドローダウン回避
+      profit_factor: 0.1   # 利益率考慮
+    
+    # ベースモデル設定
+    base_models:
+      - type: "lgbm"
+        n_estimators: 200
+        max_depth: 8
+        learning_rate: 0.05
+        feature_fraction: 0.9
+        bagging_fraction: 0.8
+        lambda_l1: 0.1
+        lambda_l2: 0.1
+        
+      - type: "xgb" 
+        n_estimators: 200
+        max_depth: 6
+        learning_rate: 0.05
+        subsample: 0.8
+        colsample_bytree: 0.8
+        reg_alpha: 0.1
+        reg_lambda: 0.1
+        
+      - type: "rf"
+        n_estimators: 150
+        max_depth: 10
+        min_samples_split: 5
+        min_samples_leaf: 2
+        max_features: "sqrt"
+    
+    # メタモデル設定（取引最適化用）
+    meta_model:
+      type: "lr"
+      C: 1.0
+      class_weight: "balanced"
+      max_iter: 1000
+  
+  # 動的閾値最適化
+  dynamic_threshold:
+    enabled: true
+    base_threshold: 0.45
+    vix_adjustment: true
+    volatility_adjustment: true
+    performance_adjustment: true
+    
+    # VIX段階別設定
+    vix_levels:
+      low_vix:
+        threshold: 15
+        adjustment: -0.05     # より積極的
+      medium_vix:
+        threshold: 25
+        adjustment: 0.0       # ニュートラル
+      high_vix:
+        threshold: 35
+        adjustment: 0.1       # より保守的
+      extreme_vix:
+        threshold: 50
+        adjustment: 0.2       # 極めて保守的
+  
+  # 101特徴量設定（既存システム継承）
+  feat_period: 14
+  lags: [1, 2, 3]
+  rolling_window: 20
+  horizon: 5
+  target_type: "classification"
+  
+  extra_features:
+    # VIX恐怖指数（6特徴量）
+    - vix
+    - vix_change
+    - vix_zscore
+    - vix_spike
+    - fear_level
+    - volatility_regime
+    
+    # DXY・金利（10特徴量）
+    - dxy
+    - dxy_change
+    - us_10y
+    - yield_curve
+    - real_rates
+    - dollar_strength
+    - fed_funds_rate
+    - treasury_volatility
+    - currency_momentum
+    - rate_expectations
+    
+    # Fear&Greed（13特徴量）
+    - fear_greed
+    - fear_greed_ma
+    - fear_greed_change
+    - extreme_fear
+    - extreme_greed
+    - sentiment_regime
+    - sentiment_divergence
+    - social_sentiment
+    - options_sentiment
+    - momentum_sentiment
+    - volume_sentiment
+    - breadth_sentiment
+    - volatility_sentiment
+    
+    # Funding Rate・OI（17特徴量）
+    - funding
+    - funding_ma
+    - funding_change
+    - funding_extreme
+    - oi_change
+    - oi_volume_ratio
+    - leverage_ratio
+    - long_short_ratio
+    - liquidation_risk
+    - perpetual_basis
+    - futures_basis
+    - options_flow
+    - institutional_flow
+    - retail_sentiment
+    - whale_activity
+    - exchange_flows
+    - stablecoin_flows
+    
+    # 基本テクニカル（20特徴量）
+    - rsi_14
+    - rsi_7
+    - rsi_21
+    - macd
+    - macd_signal
+    - macd_histogram
+    - bb_percent
+    - bb_width
+    - sma_20
+    - sma_50
+    - sma_200
+    - ema_12
+    - ema_26
+    - ema_50
+    - adx
+    - cci
+    - williams_r
+    - stoch_k
+    - stoch_d
+    - momentum_14
+    
+    # 時間・シグナル特徴量（4特徴量）
+    - day_of_week
+    - hour_of_day
+    - mochipoyo_long_signal
+    - mochipoyo_short_signal
+    
+    # 追加特徴量（31特徴量）
+    - price_change_1h
+    - price_change_4h
+    - price_change_24h
+    - volume_change_1h
+    - volume_change_24h
+    - volume_zscore
+    - volatility_1h
+    - volatility_24h
+    - support_resistance
+    - trend_strength
+    - breakout_signal
+    - reversal_signal
+    - fibonacci_level
+    - pivot_points
+    - bollinger_squeeze
+    - volume_profile
+    - order_flow
+    - market_microstructure
+    - cross_asset_correlation
+    - sector_rotation
+    - macro_regime
+    - central_bank_policy
+    - economic_surprises
+    - earnings_season
+    - options_expiry
+    - futures_rollover
+    - seasonal_patterns
+    - anomaly_detection
+    - regime_change
+    - tail_risk
+    - skewness
+
+# 取引戦略設定（既存システム統合）
+strategy:
+  name: "ensemble_ml_strategy"
+  params:
+    # 動的閾値パラメータ
+    atr_multiplier: 0.5
+    volatility_adjustment: true
+    threshold_bounds: [0.3, 0.8]
+    
+    # VIX統合パラメータ
+    vix_risk_off_threshold: 25
+    vix_panic_threshold: 35
+    vix_spike_multiplier: 2.0
+    
+    # パフォーマンス改善パラメータ
+    confidence_filter: 0.65
+    partial_profit_levels: [0.3, 0.5]
+    trailing_stop_enabled: true
+
+# リスク管理設定
+risk:
+  position_sizing:
+    method: "kelly_criterion"
+    base_size: 0.1
+    max_size: 0.15
+    confidence_scaling: true
+    risk_adjustment: true
+  
+  stop_loss:
+    enabled: true
+    atr_multiplier: 2.0
+    max_loss: 0.02
+  
+  take_profit:
+    enabled: true
+    profit_targets: [0.015, 0.03, 0.05]
+    partial_sizes: [0.3, 0.4, 0.3]
+
+# バックテスト設定
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+  initial_balance: 1000000
+  commission: 0.001
+  slippage: 0.0005
+  
+  # アンサンブル評価指標
+  evaluation_metrics:
+    - "total_return"
+    - "sharpe_ratio"
+    - "win_rate"
+    - "max_drawdown"
+    - "profit_factor"
+    - "calmar_ratio"
+    - "sortino_ratio"
+    - "ensemble_confidence"
+    - "model_agreement"
+    - "prediction_stability"
+
+# ログ設定
+logging:
+  level: INFO
+  ensemble_tracking: true
+  trading_decisions: true
+  performance_metrics: true
+  risk_metrics: true
