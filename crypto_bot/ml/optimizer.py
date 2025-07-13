@@ -178,9 +178,24 @@ def objective(trial: optuna.Trial, config: dict) -> float:
         else:
             raise ValueError(f"Unknown regression model_type={mtype}")
 
-    # --- 学習・予測・評価 ---
+    # --- 学習・予測・評価（早期停止対応） ---
     model = MLModel(estimator)
-    model.fit(X_train, y_train)
+
+    # 早期停止パラメータの取得
+    early_stopping_rounds = config["ml"].get("early_stopping_rounds", 50)
+
+    # 早期停止を使った学習（LightGBM、XGBoostのみ）
+    if mtype in ["lgbm", "xgb"]:
+        model.fit(
+            X_train,
+            y_train,
+            X_val=X_val,
+            y_val=y_val,
+            early_stopping_rounds=early_stopping_rounds,
+        )
+    else:
+        model.fit(X_train, y_train)
+
     y_pred = model.predict(X_val)
     score = accuracy_score(y_val, y_pred)
 
@@ -320,6 +335,31 @@ def train_best_model(config: dict, *args):
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         joblib.dump(model, output_path)
         print(f"Best model saved to {output_path!r}")
+
+        # 5) 特徴量重要度分析・出力
+        importance_df = model.get_feature_importance(X_train.columns.tolist())
+        if importance_df is not None:
+            importance_path = output_path.replace(".pkl", "_feature_importance.csv")
+            importance_df.to_csv(importance_path, index=False)
+            print(f"Feature importance saved to {importance_path!r}")
+
+            # 上位20特徴量をログ出力
+            logger.info("Top 20 Important Features:")
+            for _, row in importance_df.head(20).iterrows():
+                logger.info(f"  {row['feature']}: {row['importance']:.4f}")
+
+            # 特徴量選択推奨（101 → 80特徴量）
+            selected_features = model.select_features_by_importance(
+                X_train, threshold=0.005, max_features=80
+            )
+            print(
+                f"Recommended feature selection: "
+                f"{len(X_train.columns)} → {len(selected_features)} features"
+            )
+            logger.info(
+                f"Selected features for optimization: {selected_features[:10]}..."
+            )
+
         return
 
     raise TypeError(

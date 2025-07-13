@@ -35,11 +35,73 @@ class MLModel:
     def __init__(self, estimator: BaseEstimator):
         self.estimator = estimator
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "MLModel":
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        X_val: Optional[pd.DataFrame] = None,
+        y_val: Optional[pd.Series] = None,
+        early_stopping_rounds: Optional[int] = None,
+    ) -> "MLModel":
         """
         モデルを学習します。
+
+        Parameters:
+        -----------
+        X : pd.DataFrame
+            学習用特徴量
+        y : pd.Series
+            学習用ターゲット
+        X_val : pd.DataFrame, optional
+            検証用特徴量（早期停止用）
+        y_val : pd.Series, optional
+            検証用ターゲット（早期停止用）
+        early_stopping_rounds : int, optional
+            早期停止のラウンド数
         """
-        self.estimator.fit(X, y)
+        # 早期停止対応モデル（LightGBM、XGBoost）
+        if hasattr(self.estimator, "fit") and any(
+            cls_name in str(type(self.estimator))
+            for cls_name in ["LGBMClassifier", "XGBClassifier"]
+        ):
+
+            if (
+                X_val is not None
+                and y_val is not None
+                and early_stopping_rounds is not None
+            ):
+                if "LGBM" in str(type(self.estimator)):
+                    # LightGBM用早期停止
+                    self.estimator.fit(
+                        X,
+                        y,
+                        eval_set=[(X_val, y_val)],
+                        eval_metric="binary_logloss",
+                        callbacks=[
+                            self.estimator.__class__.early_stopping(
+                                early_stopping_rounds, verbose=0
+                            )
+                        ],
+                    )
+                elif "XGB" in str(type(self.estimator)):
+                    # XGBoost用早期停止
+                    self.estimator.fit(
+                        X,
+                        y,
+                        eval_set=[(X_val, y_val)],
+                        early_stopping_rounds=early_stopping_rounds,
+                        verbose=False,
+                    )
+                else:
+                    # その他のモデル（RandomForest等）
+                    self.estimator.fit(X, y)
+            else:
+                # 早期停止パラメータがない場合は通常学習
+                self.estimator.fit(X, y)
+        else:
+            # sklearn標準モデル
+            self.estimator.fit(X, y)
+
         return self
 
     def predict(self, X: pd.DataFrame) -> Any:
@@ -73,6 +135,73 @@ class MLModel:
         """
         est = joblib.load(filepath)
         return cls(est)
+
+    def get_feature_importance(
+        self, feature_names: Optional[List[str]] = None
+    ) -> Optional[pd.DataFrame]:
+        """
+        特徴量重要度を取得します。
+
+        Parameters:
+        -----------
+        feature_names : List[str], optional
+            特徴量名のリスト
+
+        Returns:
+        --------
+        pd.DataFrame or None
+            特徴量重要度（重要度順にソート）
+        """
+        if not hasattr(self.estimator, "feature_importances_"):
+            return None
+
+        importance = self.estimator.feature_importances_
+
+        if feature_names is None:
+            feature_names = [f"feature_{i}" for i in range(len(importance))]
+
+        df = pd.DataFrame(
+            {"feature": feature_names, "importance": importance}
+        ).sort_values("importance", ascending=False)
+
+        return df
+
+    def select_features_by_importance(
+        self,
+        X: pd.DataFrame,
+        threshold: float = 0.01,
+        max_features: Optional[int] = None,
+    ) -> List[str]:
+        """
+        重要度に基づいて特徴量を選択します。
+
+        Parameters:
+        -----------
+        X : pd.DataFrame
+            特徴量データ
+        threshold : float
+            重要度の閾値
+        max_features : int, optional
+            最大特徴量数
+
+        Returns:
+        --------
+        List[str]
+            選択された特徴量名のリスト
+        """
+        importance_df = self.get_feature_importance(X.columns.tolist())
+
+        if importance_df is None:
+            return X.columns.tolist()
+
+        # 重要度閾値でフィルタ
+        selected = importance_df[importance_df["importance"] >= threshold]
+
+        # 最大特徴量数制限
+        if max_features is not None:
+            selected = selected.head(max_features)
+
+        return selected["feature"].tolist()
 
 
 class EnsembleModel:
@@ -329,6 +458,37 @@ def create_model(model_type: str, **kwargs) -> BaseEstimator:
         raise ValueError(
             f"Unknown model_type '{model_type}'. valid types: {list(_MODEL_REGISTRY)}"
         )
+
+    # ------------------------------------------------------------------ #
+    # 実行再現性のためのシード設定
+    # ------------------------------------------------------------------ #
+    import os
+
+    # 環境変数またはデフォルトのシード値を取得（CRYPTO_BOT_SEED優先）
+    default_seed = int(
+        os.environ.get(
+            "CRYPTO_BOT_SEED",
+            os.environ.get(
+                "LIGHTGBM_SEED",
+                os.environ.get("SKLEARN_SEED", os.environ.get("XGBOOST_SEED", 42)),
+            ),
+        )
+    )
+
+    # モデル別のシード設定
+    if key == "lgbm":
+        kwargs.setdefault("random_state", default_seed)
+        kwargs.setdefault("seed", default_seed)
+        kwargs.setdefault("feature_fraction_seed", default_seed)
+        kwargs.setdefault("bagging_seed", default_seed)
+        kwargs.setdefault("data_random_seed", default_seed)
+    elif key == "rf":
+        kwargs.setdefault("random_state", default_seed)
+    elif key == "xgb":
+        kwargs.setdefault("random_state", default_seed)
+        kwargs.setdefault("seed", default_seed)
+    elif key == "lr":
+        kwargs.setdefault("random_state", default_seed)
 
     cls = _MODEL_REGISTRY[key]
 

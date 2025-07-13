@@ -1085,6 +1085,62 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         logger.debug("Final features shape after cleaning: %s", df.shape)
 
+        # データ品質管理システム（勝率改善のための重要なステップ）
+        try:
+            from crypto_bot.ml.data_quality_manager import DataQualityManager
+
+            quality_manager = DataQualityManager(self.config)
+
+            # メタデータ作成（外部データソース情報）
+            metadata = {
+                "feature_sources": {},
+                "external_data_enabled": {
+                    "vix": self.vix_enabled,
+                    "macro": self.macro_enabled,
+                    "fear_greed": self.fear_greed_enabled,
+                    "funding": self.funding_enabled,
+                },
+            }
+
+            # 各特徴量のソース情報を記録
+            for column in df.columns:
+                vix_prefixes = ["vix_", "dxy_", "treasury_"]
+                if any(column.startswith(prefix) for prefix in vix_prefixes):
+                    source_type = "api" if self.macro_enabled else "default"
+                    metadata["feature_sources"][column] = {"source_type": source_type}
+                elif any(column.startswith(prefix) for prefix in ["fear_greed", "fg_"]):
+                    source_type = "api" if self.fear_greed_enabled else "default"
+                    metadata["feature_sources"][column] = {"source_type": source_type}
+                elif any(column.startswith(prefix) for prefix in ["fr_", "oi_"]):
+                    # Bitbank代替特徴量
+                    metadata["feature_sources"][column] = {"source_type": "calculated"}
+                else:
+                    metadata["feature_sources"][column] = {"source_type": "calculated"}
+
+            # データ品質検証
+            quality_passed, quality_report = quality_manager.validate_data_quality(
+                df, metadata
+            )
+
+            if not quality_passed:
+                logger.warning(f"Data quality check failed: {quality_report}")
+
+                # データ品質改善を試行
+                df_improved, improvement_report = quality_manager.improve_data_quality(
+                    df, metadata
+                )
+                df = df_improved
+
+                logger.info(f"Data quality improvement applied: {improvement_report}")
+            else:
+                score = quality_report["quality_score"]
+                logger.info(f"Data quality check passed: score={score:.1f}")
+
+        except Exception as e:
+            logger.warning(
+                f"Data quality management failed: {e} - continuing with original data"
+            )
+
         # 101特徴量の確実な保証（最終チェック）
         from crypto_bot.ml.feature_defaults import ensure_feature_consistency
 

@@ -10,9 +10,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import statistics
 import time
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 try:
     import uvicorn
@@ -273,11 +274,212 @@ class HealthChecker:
                 "details": f"Trading status check error: {str(e)}",
             }
 
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """パフォーマンスメトリクス取得（Kelly比率・勝率・ドローダウン）"""
+        try:
+            # 取引履歴ファイル検索
+            trade_files = []
+            for file_pattern in [
+                "results/*trades.csv",
+                "logs/trading_metrics.jsonl",
+                "trades.json",
+            ]:
+                import glob
+
+                trade_files.extend(glob.glob(file_pattern))
+
+            if not trade_files:
+                return {
+                    "status": "no_data",
+                    "message": "No trading history found",
+                    "kelly_ratio": 0.0,
+                    "win_rate": 0.0,
+                    "max_drawdown": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "trade_count": 0,
+                }
+
+            # 最新の取引ファイルを使用
+            latest_file = max(trade_files, key=os.path.getmtime)
+            trades_data = self._parse_trading_data(latest_file)
+
+            if not trades_data:
+                return {
+                    "status": "no_trades",
+                    "message": "No completed trades found",
+                    "kelly_ratio": 0.0,
+                    "win_rate": 0.0,
+                    "max_drawdown": 0.0,
+                    "sharpe_ratio": 0.0,
+                    "trade_count": 0,
+                }
+
+            # パフォーマンス計算
+            metrics = self._calculate_performance_metrics(trades_data)
+            metrics["status"] = "calculated"
+            metrics["last_calculation"] = datetime.utcnow().isoformat()
+
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Performance metrics calculation failed: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to calculate metrics: {str(e)}",
+                "kelly_ratio": 0.0,
+                "win_rate": 0.0,
+                "max_drawdown": 0.0,
+                "sharpe_ratio": 0.0,
+                "trade_count": 0,
+            }
+
+    def _parse_trading_data(self, file_path: str) -> List[Dict]:
+        """取引データのパース"""
+        trades = []
+
+        try:
+            if file_path.endswith(".csv"):
+                import csv
+
+                with open(file_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if "pnl" in row or "profit" in row:
+                            pnl = float(row.get("pnl", row.get("profit", 0)))
+                            trades.append(
+                                {
+                                    "pnl": pnl,
+                                    "timestamp": row.get("timestamp", ""),
+                                    "side": row.get("side", ""),
+                                    "price": float(row.get("price", 0)),
+                                    "quantity": float(row.get("quantity", 0)),
+                                }
+                            )
+
+            elif file_path.endswith(".jsonl"):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        data = json.loads(line.strip())
+                        if data.get(
+                            "type"
+                        ) == "trade_execution" and "profit_loss" in data.get(
+                            "data", {}
+                        ):
+                            metrics_data = data.get("data", {})
+                            trades.append(
+                                {
+                                    "pnl": metrics_data.get("profit_loss", 0),
+                                    "timestamp": data.get("timestamp", ""),
+                                    "side": metrics_data.get("type", ""),
+                                    "price": metrics_data.get("price", 0),
+                                    "quantity": metrics_data.get("quantity", 0),
+                                }
+                            )
+
+            elif file_path.endswith(".json"):
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        trades = data
+                    elif isinstance(data, dict) and "trades" in data:
+                        trades = data["trades"]
+
+        except Exception as e:
+            logger.error(f"Failed to parse trading data from {file_path}: {e}")
+
+        return trades
+
+    def _calculate_performance_metrics(self, trades: List[Dict]) -> Dict[str, Any]:
+        """パフォーマンスメトリクス計算"""
+        if not trades:
+            return {
+                "kelly_ratio": 0.0,
+                "win_rate": 0.0,
+                "max_drawdown": 0.0,
+                "sharpe_ratio": 0.0,
+                "trade_count": 0,
+                "total_pnl": 0.0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+            }
+
+        # PnL抽出
+        pnls = [trade["pnl"] for trade in trades if "pnl" in trade]
+
+        if not pnls:
+            return {
+                "kelly_ratio": 0.0,
+                "win_rate": 0.0,
+                "max_drawdown": 0.0,
+                "sharpe_ratio": 0.0,
+                "trade_count": 0,
+                "total_pnl": 0.0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+            }
+
+        # 基本統計
+        total_trades = len(pnls)
+        winning_trades = [pnl for pnl in pnls if pnl > 0]
+        losing_trades = [pnl for pnl in pnls if pnl < 0]
+
+        win_rate = len(winning_trades) / total_trades if total_trades > 0 else 0.0
+        total_pnl = sum(pnls)
+
+        # 平均損益
+        avg_win = statistics.mean(winning_trades) if winning_trades else 0.0
+        avg_loss = statistics.mean(losing_trades) if losing_trades else 0.0
+
+        # Kelly比率計算
+        kelly_ratio = 0.0
+        if avg_loss != 0 and win_rate > 0:
+            win_loss_ratio = abs(avg_win / avg_loss)
+            kelly_ratio = win_rate - ((1 - win_rate) / win_loss_ratio)
+            kelly_ratio = max(0.0, min(1.0, kelly_ratio))  # 0-1の範囲にクリップ
+
+        # 最大ドローダウン計算
+        cumulative_pnl = []
+        running_total = 0
+        for pnl in pnls:
+            running_total += pnl
+            cumulative_pnl.append(running_total)
+
+        max_drawdown = 0.0
+        if cumulative_pnl:
+            peak = cumulative_pnl[0]
+            for value in cumulative_pnl:
+                if value > peak:
+                    peak = value
+                drawdown = (peak - value) / max(abs(peak), 1) if peak != 0 else 0
+                max_drawdown = max(max_drawdown, drawdown)
+
+        # シャープレシオ計算（簡易版）
+        sharpe_ratio = 0.0
+        if pnls and len(pnls) > 1:
+            mean_return = statistics.mean(pnls)
+            std_return = statistics.stdev(pnls)
+            if std_return > 0:
+                sharpe_ratio = mean_return / std_return
+
+        return {
+            "kelly_ratio": round(kelly_ratio, 4),
+            "win_rate": round(win_rate, 4),
+            "max_drawdown": round(max_drawdown, 4),
+            "sharpe_ratio": round(sharpe_ratio, 4),
+            "trade_count": total_trades,
+            "total_pnl": round(total_pnl, 2),
+            "avg_win": round(avg_win, 2),
+            "avg_loss": round(avg_loss, 2),
+            "winning_trades": len(winning_trades),
+            "losing_trades": len(losing_trades),
+        }
+
     def get_comprehensive_health(self) -> Dict[str, Any]:
         """包括的なヘルスチェック"""
         basic = self.check_basic_health()
         dependencies = self.check_dependencies()
         trading = self.check_trading_status()
+        performance = self.get_performance_metrics()
 
         # 全体の状態を判定
         all_statuses = [basic["status"]]
@@ -296,6 +498,7 @@ class HealthChecker:
             "basic": basic,
             "dependencies": dependencies,
             "trading": trading,
+            "performance": performance,
         }
 
 
@@ -400,14 +603,30 @@ async def liveness_check():
         raise HTTPException(status_code=503, detail="Service not alive")
 
 
+@app.get("/health/performance")
+async def performance_metrics():
+    """
+    パフォーマンスメトリクス専用エンドポイント
+
+    Kelly比率・勝率・ドローダウン・シャープレシオを提供します。
+    """
+    try:
+        performance = health_checker.get_performance_metrics()
+        return JSONResponse(content=performance, status_code=200)
+    except Exception as e:
+        logger.error(f"Performance metrics failed: {e}")
+        raise HTTPException(status_code=503, detail="Performance metrics unavailable")
+
+
 @app.get("/metrics")
 async def metrics():
     """
-    Prometheus形式のメトリクスエンドポイント
+    Prometheus形式のメトリクスエンドポイント（拡張版）
     """
     try:
         trading_status = health_checker.check_trading_status()
         basic = health_checker.check_basic_health()
+        performance = health_checker.get_performance_metrics()
 
         region = basic["region"]
         instance_id = basic["instance_id"]
@@ -419,6 +638,13 @@ async def metrics():
             if trading_status.get("status") == "healthy"
             else 0.5 if trading_status.get("status") == "warning" else 0
         )
+
+        # パフォーマンスメトリクス
+        kelly_ratio = performance.get("kelly_ratio", 0)
+        win_rate = performance.get("win_rate", 0)
+        max_drawdown = performance.get("max_drawdown", 0)
+        sharpe_ratio = performance.get("sharpe_ratio", 0)
+        performance_trade_count = performance.get("trade_count", 0)
 
         metrics_lines = [
             "# HELP crypto_bot_uptime_seconds Total uptime in seconds",
@@ -441,6 +667,33 @@ async def metrics():
             "# TYPE crypto_bot_health_status gauge",
             f'crypto_bot_health_status{{region="{region}",'
             f'instance="{instance_id}"}} {health_status}',
+            "",
+            "# HELP crypto_bot_kelly_ratio Kelly criterion ratio "
+            "(optimal position size)",
+            "# TYPE crypto_bot_kelly_ratio gauge",
+            f'crypto_bot_kelly_ratio{{region="{region}",'
+            f'instance="{instance_id}"}} {kelly_ratio}',
+            "",
+            "# HELP crypto_bot_win_rate Win rate percentage (0.0-1.0)",
+            "# TYPE crypto_bot_win_rate gauge",
+            f'crypto_bot_win_rate{{region="{region}",'
+            f'instance="{instance_id}"}} {win_rate}',
+            "",
+            "# HELP crypto_bot_max_drawdown Maximum drawdown percentage (0.0-1.0)",
+            "# TYPE crypto_bot_max_drawdown gauge",
+            f'crypto_bot_max_drawdown{{region="{region}",'
+            f'instance="{instance_id}"}} {max_drawdown}',
+            "",
+            "# HELP crypto_bot_sharpe_ratio Sharpe ratio (risk-adjusted return)",
+            "# TYPE crypto_bot_sharpe_ratio gauge",
+            f'crypto_bot_sharpe_ratio{{region="{region}",'
+            f'instance="{instance_id}"}} {sharpe_ratio}',
+            "",
+            "# HELP crypto_bot_performance_trade_count Number of trades "
+            "used for performance calculation",
+            "# TYPE crypto_bot_performance_trade_count gauge",
+            f'crypto_bot_performance_trade_count{{region="{region}",'
+            f'instance="{instance_id}"}} {performance_trade_count}',
         ]
         metrics_text = "\n".join(metrics_lines)
 
