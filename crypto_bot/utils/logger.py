@@ -34,7 +34,6 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """ログレコードをJSON形式にフォーマット"""
-
         # 基本ログ構造
         log_entry = {
             # タイムスタンプ（ISO 8601形式・UTC）
@@ -179,7 +178,6 @@ def setup_structured_logging(
     enable_metrics: bool = True,
 ) -> logging.Logger:
     """構造化ログシステムのセットアップ"""
-
     # ログレベル設定
     log_level = log_level or os.getenv("LOG_LEVEL", "INFO")
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)

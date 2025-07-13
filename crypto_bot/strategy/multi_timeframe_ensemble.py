@@ -60,7 +60,6 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
 
     def _initialize_ensemble_strategies(self):
         """各タイムフレーム用のアンサンブル戦略初期化"""
-
         for timeframe in self.timeframes:
             # タイムフレーム別設定作成
             tf_config = self._create_timeframe_config(timeframe)
