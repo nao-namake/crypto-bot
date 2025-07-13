@@ -2,7 +2,12 @@
   "bybit": {
     "last_tested_ccxt_version": "4.4.88",
     "last_checked": "2025-06-23T20:00:00Z",
-    "api_features": ["spot", "future", "option", "websocket"],
+    "api_features": [
+      "spot",
+      "future",
+      "option",
+      "websocket"
+    ],
     "api_version": "5.0",
     "testnet_support": true,
     "known_issues": [],
@@ -15,9 +20,11 @@
     }
   },
   "bitbank": {
-    "last_tested_ccxt_version": "4.4.88",
-    "last_checked": "2025-06-23T20:00:00Z",
-    "api_features": ["spot"],
+    "last_tested_ccxt_version": "4.4.91",
+    "last_checked": "2025-07-13T19:34:40.552085+00:00",
+    "api_features": [
+      "spot"
+    ],
     "api_version": "1.0",
     "testnet_support": false,
     "known_issues": [
@@ -29,9 +36,12 @@
     }
   },
   "bitflyer": {
-    "last_tested_ccxt_version": "4.4.88",
-    "last_checked": "2025-06-23T20:00:00Z",
-    "api_features": ["spot", "future"],
+    "last_tested_ccxt_version": "4.4.91",
+    "last_checked": "2025-07-13T19:34:40.543050+00:00",
+    "api_features": [
+      "spot",
+      "future"
+    ],
     "api_version": "1.0",
     "testnet_support": false,
     "known_issues": [
@@ -43,9 +53,11 @@
     }
   },
   "okcoinjp": {
-    "last_tested_ccxt_version": "4.4.88",
-    "last_checked": "2025-06-23T20:00:00Z",
-    "api_features": ["spot"],
+    "last_tested_ccxt_version": "4.4.91",
+    "last_checked": "2025-07-13T19:34:40.936630+00:00",
+    "api_features": [
+      "spot"
+    ],
     "api_version": "3.0",
     "testnet_support": false,
     "known_issues": [],

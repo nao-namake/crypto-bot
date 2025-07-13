@@ -21,13 +21,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# プロジェクトルートをパスに追加
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
 import numpy as np
 import requests
 import yaml
+
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
 # ログ設定
 logging.basicConfig(
@@ -405,7 +405,8 @@ class PerformanceMonitor:
                 AlertType.PERFORMANCE_DEGRADATION,
                 AlertLevel.WARNING if metrics.win_rate > 0.45 else AlertLevel.CRITICAL,
                 "勝率低下検知",
-                f"勝率が閾値を下回りました: {metrics.win_rate:.2%} (閾値: {self.config.min_win_rate:.2%})",
+                f"勝率が閾値を下回りました: {metrics.win_rate:.2%} "
+                f"(閾値: {self.config.min_win_rate:.2%})",
                 {
                     "current_win_rate": metrics.win_rate,
                     "threshold": self.config.min_win_rate,
@@ -421,7 +422,8 @@ class PerformanceMonitor:
                 AlertType.DRAWDOWN_LIMIT,
                 AlertLevel.CRITICAL,
                 "ドローダウン限界超過",
-                f"ドローダウンが限界を超えました: {metrics.max_drawdown:.2%} (限界: {self.config.max_drawdown_limit:.2%})",
+                f"ドローダウンが限界を超えました: {metrics.max_drawdown:.2%} "
+                f"(限界: {self.config.max_drawdown_limit:.2%})",
                 {
                     "current_drawdown": metrics.max_drawdown,
                     "limit": self.config.max_drawdown_limit,
@@ -442,7 +444,8 @@ class PerformanceMonitor:
                 AlertType.ERROR_RATE_SPIKE,
                 AlertLevel.WARNING,
                 "エラー率上昇",
-                f"エラー率が上昇しています: {error_rate:.2%} (閾値: {self.config.max_error_rate:.2%})",
+                f"エラー率が上昇しています: {error_rate:.2%} "
+                f"(閾値: {self.config.max_error_rate:.2%})",
                 {
                     "current_error_rate": error_rate,
                     "threshold": self.config.max_error_rate,
@@ -458,7 +461,8 @@ class PerformanceMonitor:
                 AlertType.CONFIDENCE_DROP,
                 AlertLevel.WARNING,
                 "予測信頼度低下",
-                f"平均信頼度が低下しています: {metrics.avg_confidence:.3f} (閾値: {self.config.min_confidence:.3f})",
+                f"平均信頼度が低下しています: {metrics.avg_confidence:.3f} "
+                f"(閾値: {self.config.min_confidence:.3f})",
                 {
                     "current_confidence": metrics.avg_confidence,
                     "threshold": self.config.min_confidence,
@@ -477,7 +481,8 @@ class PerformanceMonitor:
                 AlertType.ENSEMBLE_DISAGREEMENT,
                 AlertLevel.WARNING,
                 "モデル間合意度低下",
-                f"モデル間の合意度が低下しています: {metrics.model_agreement:.3f} (閾値: {self.config.min_model_agreement:.3f})",
+                f"モデル間の合意度が低下しています: {metrics.model_agreement:.3f} "
+                f"(閾値: {self.config.min_model_agreement:.3f})",
                 {
                     "current_agreement": metrics.model_agreement,
                     "threshold": self.config.min_model_agreement,
@@ -493,7 +498,8 @@ class PerformanceMonitor:
                 AlertType.SYSTEM_ERROR,
                 AlertLevel.WARNING,
                 "応答時間遅延",
-                f"システム応答時間が遅延しています: {metrics.response_time:.2f}秒 (閾値: {self.config.max_response_time:.2f}秒)",
+                f"システム応答時間が遅延しています: {metrics.response_time:.2f}秒 "
+                f"(閾値: {self.config.max_response_time:.2f}秒)",
                 {
                     "current_response_time": metrics.response_time,
                     "threshold": self.config.max_response_time,
@@ -929,7 +935,7 @@ def main():
 
             elif choice == "3":
                 status = monitoring_system.get_monitoring_status()
-                print(f"\n📊 監視ステータス:")
+                print("\n📊 監視ステータス:")
                 print(f"  監視実行中: {status['is_monitoring']}")
                 print(
                     f"  アクティブアラート数: {status['alert_summary']['total_active']}"
@@ -953,7 +959,7 @@ def main():
 
             elif choice == "6":
                 dashboard_data = monitoring_system.dashboard.generate_dashboard_data()
-                print(f"\n📈 ダッシュボード:")
+                print("\n📈 ダッシュボード:")
                 print(f"  システム状態: {dashboard_data['status']}")
                 print(
                     f"  ヘルススコア: {dashboard_data['system_health']['health_score']}/100"

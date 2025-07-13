@@ -18,12 +18,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np
+import yaml
+
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-import numpy as np
-import yaml
 
 # ログ設定
 logging.basicConfig(
@@ -125,7 +125,8 @@ class ProductionIntegrationSystem:
         self.status_file = project_root / "status_integration.json"
 
         logger.info(
-            f"Production Integration System initialized - Phase: {self.current_phase.value}"
+            f"Production Integration System initialized - "
+            f"Phase: {self.current_phase.value}"
         )
 
     def _load_deployment_config(self) -> DeploymentConfig:
@@ -530,9 +531,10 @@ class ProductionIntegrationSystem:
             > rollback_conditions["max_error_rate"]
         ):
 
+            error_rate = metrics.error_count / max(metrics.signal_count, 1)
             self.emergency_stop_system(
                 f"Performance anomaly detected: WinRate={metrics.win_rate:.2%}, "
-                f"Drawdown={metrics.max_drawdown:.2%}, ErrorRate={metrics.error_count/max(metrics.signal_count, 1):.2%}"
+                f"Drawdown={metrics.max_drawdown:.2%}, ErrorRate={error_rate:.2%}"
             )
 
     def _check_advance_conditions(self) -> bool:

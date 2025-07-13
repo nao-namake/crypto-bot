@@ -15,16 +15,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+import pandas as pd
+import yaml
+from scipy import stats
+
 warnings.filterwarnings("ignore")
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-import numpy as np
-import pandas as pd
-import yaml
-from scipy import stats
 
 # ログ設定
 logging.basicConfig(
@@ -566,11 +566,20 @@ class PerformanceComparisonSystem:
 
         # 総合解釈
         if significant and improvement_pct > 0:
-            return f"Statistically significant improvement ({improvement_pct:.2f}%, {size_interpretation} effect)"
+            return (
+                f"Statistically significant improvement "
+                f"({improvement_pct:.2f}%, {size_interpretation} effect)"
+            )
         elif significant and improvement_pct < 0:
-            return f"Statistically significant decline ({improvement_pct:.2f}%, {size_interpretation} effect)"
+            return (
+                f"Statistically significant decline "
+                f"({improvement_pct:.2f}%, {size_interpretation} effect)"
+            )
         else:
-            return f"No significant difference ({improvement_pct:.2f}%, {size_interpretation} effect)"
+            return (
+                f"No significant difference "
+                f"({improvement_pct:.2f}%, {size_interpretation} effect)"
+            )
 
     def _interpret_statistical_test(
         self, p_value: float, effect_size: float, is_significant: bool
@@ -924,7 +933,7 @@ class PerformanceComparisonSystem:
 
         # 実行サマリー
         metadata = self.comparison_results.get("metadata", {})
-        report_lines.append(f"\n📊 分析概要:")
+        report_lines.append("\n📊 分析概要:")
         report_lines.append(f"  比較実行日時: {metadata.get('comparison_date', 'N/A')}")
         report_lines.append(
             f"  従来手法サンプル数: {metadata.get('traditional_sample_size', 0)}"
@@ -935,13 +944,14 @@ class PerformanceComparisonSystem:
 
         # 基本比較結果
         if "basic_comparison" in self.comparison_results:
-            report_lines.append(f"\n📈 基本パフォーマンス比較:")
+            report_lines.append("\n📈 基本パフォーマンス比較:")
             for metric, result in self.comparison_results["basic_comparison"].items():
                 report_lines.append(f"  {metric}:")
                 report_lines.append(f"    従来手法: {result.traditional_value:.4f}")
                 report_lines.append(f"    アンサンブル: {result.ensemble_value:.4f}")
                 report_lines.append(
-                    f"    改善効果: {result.improvement_pct:+.2f}% (効果サイズ: {result.effect_size:.3f})"
+                    f"    改善効果: {result.improvement_pct:+.2f}% "
+                    + f"(効果サイズ: {result.effect_size:.3f})"
                 )
                 report_lines.append(
                     f"    有意性: p={result.statistical_significance:.4f}"
@@ -951,7 +961,7 @@ class PerformanceComparisonSystem:
         # 総合評価
         if "overall_assessment" in self.comparison_results:
             assessment = self.comparison_results["overall_assessment"]
-            report_lines.append(f"\n🏆 総合評価:")
+            report_lines.append("\n🏆 総合評価:")
 
             if "overall_score" in assessment:
                 score_info = assessment["overall_score"]
@@ -969,14 +979,14 @@ class PerformanceComparisonSystem:
                 )
 
             if "recommendations" in assessment:
-                report_lines.append(f"\n💡 推奨事項:")
+                report_lines.append("\n💡 推奨事項:")
                 for rec in assessment["recommendations"]:
                     report_lines.append(f"  • {rec}")
 
         # ML特有分析
         if "ml_analysis" in self.comparison_results:
             ml_analysis = self.comparison_results["ml_analysis"]
-            report_lines.append(f"\n🤖 ML特有分析:")
+            report_lines.append("\n🤖 ML特有分析:")
 
             if "prediction_accuracy" in ml_analysis:
                 acc = ml_analysis["prediction_accuracy"]
@@ -987,7 +997,7 @@ class PerformanceComparisonSystem:
                     f"  精度安定性改善: {acc.get('accuracy_consistency_improvement', 0):.3f}"
                 )
 
-        report_lines.append(f"\n" + "=" * 80)
+        report_lines.append("\n" + "=" * 80)
 
         return "\n".join(report_lines)
 
