@@ -42,7 +42,7 @@ strategy:
   type: single
   name: ensemble_ml  # アンサンブル学習戦略に変更
   params:
-    model_path: model/model_101feat.pkl  # 101特徴量対応モデル
+    model_path: /app/model.pkl  # Cloud Storageからダウンロードされるモデル
     threshold: 0.05  # 実証済み最適閾値
     
     # 動的閾値調整（実証済み設定）
