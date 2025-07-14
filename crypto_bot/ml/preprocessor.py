@@ -100,34 +100,58 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.lags = ml_config.get("lags", [1, 2, 3])
         self.rolling_window = ml_config.get("rolling_window", 14)
 
-        # VIX統合設定
+        # VIX統合設定（強制初期化版）
         logger.info(f"🔍 VIX Debug: extra_features={self.extra_features}")
         logger.info(f"🔍 VIX Debug: VIX_AVAILABLE={VIX_AVAILABLE}")
         vix_in_features = "vix" in self.extra_features
         logger.info(f"🔍 VIX Debug: vix_in_features={vix_in_features}")
-        self.vix_enabled = vix_in_features and VIX_AVAILABLE
-        logger.info(f"🔍 VIX Debug: vix_enabled={self.vix_enabled}")
         
-        if self.vix_enabled and VIX_AVAILABLE:
+        # 強制初期化：VIXが設定されている場合は必ず初期化を試行
+        if vix_in_features:
             try:
-                self.vix_fetcher = VIXDataFetcher()
-                logger.info("✅ VIX fetcher initialized successfully")
+                if VIX_AVAILABLE and VIXDataFetcher:
+                    self.vix_fetcher = VIXDataFetcher()
+                    self.vix_enabled = True
+                    logger.info("✅ VIX fetcher initialized successfully (forced)")
+                else:
+                    # VIXDataFetcherを直接インポートして初期化を強制
+                    from crypto_bot.data.vix_fetcher import VIXDataFetcher as DirectVIXFetcher
+                    self.vix_fetcher = DirectVIXFetcher()
+                    self.vix_enabled = True
+                    logger.info("✅ VIX fetcher initialized with direct import")
             except Exception as e:
                 logger.error(f"❌ VIX fetcher initialization failed: {e}")
                 self.vix_fetcher = None
+                self.vix_enabled = False
         else:
+            self.vix_enabled = False
             self.vix_fetcher = None
-            logger.warning(f"⚠️ VIX fetcher not initialized: vix_enabled={self.vix_enabled}, VIX_AVAILABLE={VIX_AVAILABLE}")
+            logger.info(f"⚠️ VIX not in extra_features: {self.extra_features}")
 
-        # マクロデータ統合設定
-        self.macro_enabled = (
-            any(feat in self.extra_features for feat in ["dxy", "macro", "treasury"])
-            and MACRO_AVAILABLE
-        )
-        if self.macro_enabled and MACRO_AVAILABLE:
-            self.macro_fetcher = MacroDataFetcher()
+        # マクロデータ統合設定（強制初期化版）
+        macro_in_features = any(feat in self.extra_features for feat in ["dxy", "macro", "treasury"])
+        logger.info(f"🔍 Macro Debug: macro_in_features={macro_in_features}")
+        
+        if macro_in_features:
+            try:
+                if MACRO_AVAILABLE and MacroDataFetcher:
+                    self.macro_fetcher = MacroDataFetcher()
+                    self.macro_enabled = True
+                    logger.info("✅ Macro fetcher initialized successfully (forced)")
+                else:
+                    # MacroDataFetcherを直接インポートして初期化を強制
+                    from crypto_bot.data.macro_fetcher import MacroDataFetcher as DirectMacroFetcher
+                    self.macro_fetcher = DirectMacroFetcher()
+                    self.macro_enabled = True
+                    logger.info("✅ Macro fetcher initialized with direct import")
+            except Exception as e:
+                logger.error(f"❌ Macro fetcher initialization failed: {e}")
+                self.macro_fetcher = None
+                self.macro_enabled = False
         else:
+            self.macro_enabled = False
             self.macro_fetcher = None
+            logger.info(f"⚠️ Macro features not in extra_features: {self.extra_features}")
 
         # Funding Rate統合設定（Bitbank専用：現物取引のため無効化）
         self.funding_enabled = False
@@ -138,15 +162,30 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             feat in self.extra_features for feat in ["funding", "oi"]
         )
 
-        # Fear & Greed統合設定
-        self.fear_greed_enabled = (
-            any(feat in self.extra_features for feat in ["fear_greed", "fg"])
-            and FEAR_GREED_AVAILABLE
-        )
-        if self.fear_greed_enabled and FEAR_GREED_AVAILABLE:
-            self.fear_greed_fetcher = FearGreedDataFetcher()
+        # Fear & Greed統合設定（強制初期化版）
+        fear_greed_in_features = any(feat in self.extra_features for feat in ["fear_greed", "fg"])
+        logger.info(f"🔍 Fear&Greed Debug: fear_greed_in_features={fear_greed_in_features}")
+        
+        if fear_greed_in_features:
+            try:
+                if FEAR_GREED_AVAILABLE and FearGreedDataFetcher:
+                    self.fear_greed_fetcher = FearGreedDataFetcher()
+                    self.fear_greed_enabled = True
+                    logger.info("✅ Fear&Greed fetcher initialized successfully (forced)")
+                else:
+                    # FearGreedDataFetcherを直接インポートして初期化を強制
+                    from crypto_bot.data.fear_greed_fetcher import FearGreedDataFetcher as DirectFGFetcher
+                    self.fear_greed_fetcher = DirectFGFetcher()
+                    self.fear_greed_enabled = True
+                    logger.info("✅ Fear&Greed fetcher initialized with direct import")
+            except Exception as e:
+                logger.error(f"❌ Fear&Greed fetcher initialization failed: {e}")
+                self.fear_greed_fetcher = None
+                self.fear_greed_enabled = False
         else:
+            self.fear_greed_enabled = False
             self.fear_greed_fetcher = None
+            logger.info(f"⚠️ Fear&Greed not in extra_features: {self.extra_features}")
 
     def _get_cached_external_data(
         self, data_type: str, time_index: pd.DatetimeIndex
@@ -183,11 +222,93 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             logger.debug(f"Failed to get cached {data_type} data: {e}")
             return pd.DataFrame()
 
+    def _validate_external_data_fetchers(self) -> dict:
+        """
+        外部データフェッチャーの状態を検証し、データ品質改善のための情報を返す
+        
+        Returns
+        -------
+        dict
+            フェッチャーの状態レポート
+        """
+        validation_report = {
+            "vix": {"available": False, "initialized": False, "working": False},
+            "macro": {"available": False, "initialized": False, "working": False},
+            "fear_greed": {"available": False, "initialized": False, "working": False},
+            "total_working": 0,
+            "external_data_success_rate": 0.0
+        }
+        
+        # VIX検証
+        if "vix" in self.extra_features:
+            validation_report["vix"]["available"] = True
+            if self.vix_fetcher is not None:
+                validation_report["vix"]["initialized"] = True
+                try:
+                    # 簡単なテスト取得
+                    test_data = self.vix_fetcher.get_vix_data(timeframe="1d", limit=1)
+                    if test_data is not None and not test_data.empty:
+                        validation_report["vix"]["working"] = True
+                        validation_report["total_working"] += 1
+                        logger.info("✅ VIX fetcher validation: WORKING")
+                    else:
+                        logger.warning("⚠️ VIX fetcher validation: NOT WORKING (empty data)")
+                except Exception as e:
+                    logger.error(f"❌ VIX fetcher validation failed: {e}")
+            
+        # Macro検証
+        if any(feat in self.extra_features for feat in ["dxy", "macro", "treasury"]):
+            validation_report["macro"]["available"] = True
+            if self.macro_fetcher is not None:
+                validation_report["macro"]["initialized"] = True
+                try:
+                    # 簡単なテスト取得
+                    test_data = self.macro_fetcher.get_macro_data()
+                    if test_data and not all(df.empty for df in test_data.values()):
+                        validation_report["macro"]["working"] = True
+                        validation_report["total_working"] += 1
+                        logger.info("✅ Macro fetcher validation: WORKING")
+                    else:
+                        logger.warning("⚠️ Macro fetcher validation: NOT WORKING (empty data)")
+                except Exception as e:
+                    logger.error(f"❌ Macro fetcher validation failed: {e}")
+                    
+        # Fear&Greed検証
+        if any(feat in self.extra_features for feat in ["fear_greed", "fg"]):
+            validation_report["fear_greed"]["available"] = True
+            if self.fear_greed_fetcher is not None:
+                validation_report["fear_greed"]["initialized"] = True
+                try:
+                    # 簡単なテスト取得
+                    test_data = self.fear_greed_fetcher.get_fear_greed_data(days_back=1)
+                    if test_data is not None and not test_data.empty:
+                        validation_report["fear_greed"]["working"] = True
+                        validation_report["total_working"] += 1
+                        logger.info("✅ Fear&Greed fetcher validation: WORKING")
+                    else:
+                        logger.warning("⚠️ Fear&Greed fetcher validation: NOT WORKING (empty data)")
+                except Exception as e:
+                    logger.error(f"❌ Fear&Greed fetcher validation failed: {e}")
+        
+        # 成功率計算
+        total_available = sum(1 for fetcher in validation_report.values() 
+                            if isinstance(fetcher, dict) and fetcher.get("available", False))
+        if total_available > 0:
+            validation_report["external_data_success_rate"] = validation_report["total_working"] / total_available
+        
+        logger.info(f"🔍 External data validation: {validation_report['total_working']}/{total_available} fetchers working ({validation_report['external_data_success_rate']*100:.1f}% success rate)")
+        return validation_report
+
     def fit(self, X: pd.DataFrame, y=None):
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         logger.debug("Input DataFrame shape: %s", X.shape)
+        
+        # 外部データフェッチャーの状態検証（データ品質改善）
+        validation_report = self._validate_external_data_fetchers()
+        logger.info(f"🔍 External data fetcher status: {validation_report['total_working']} working, {validation_report['external_data_success_rate']*100:.1f}% success rate")
+        
         if X.empty:
             feat_period = self.config["ml"]["feat_period"]
             win = self.config["ml"]["rolling_window"]
@@ -410,32 +531,39 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add advanced signals: %s", e)
 
-                    # VIX恐怖指数関連特徴量（キャッシュ優先版）
+                    # VIX恐怖指数関連特徴量（強制取得版）
                     elif base == "vix":
                         try:
+                            logger.info(f"🔍 Processing VIX features: vix_enabled={self.vix_enabled}, vix_fetcher={self.vix_fetcher is not None}")
+                            
+                            vix_features = None
+                            
                             # キャッシュからVIXデータを取得（優先）
                             cached_vix = self._get_cached_external_data("vix", df.index)
-
                             if not cached_vix.empty:
-                                logger.debug(
-                                    f"Using cached VIX data: {len(cached_vix)} records"
-                                )
+                                logger.info(f"✅ Using cached VIX data: {len(cached_vix)} records")
                                 vix_features = cached_vix
-                            elif self.vix_fetcher:
-                                # キャッシュがない場合は従来の方法
-                                backtest_since = None
-                                if hasattr(df, "index") and len(df) > 0:
-                                    backtest_since = df.index.min()
-
-                                vix_data = self.vix_fetcher.get_vix_data(
-                                    timeframe="1d", limit=100, since=backtest_since
-                                )
-                                if not vix_data.empty:
-                                    vix_features = (
-                                        self.vix_fetcher.calculate_vix_features(
-                                            vix_data
+                            
+                            # キャッシュが空の場合、VIXフェッチャーで直接取得
+                            if vix_features is None or vix_features.empty:
+                                if self.vix_fetcher:
+                                    logger.info("🔍 Fetching fresh VIX data...")
+                                    try:
+                                        vix_data = self.vix_fetcher.get_vix_data(
+                                            timeframe="1d", limit=100
                                         )
-                                    )
+                                        if not vix_data.empty:
+                                            logger.info(f"✅ Fresh VIX data retrieved: {len(vix_data)} records")
+                                            vix_features = self.vix_fetcher.calculate_vix_features(vix_data)
+                                        else:
+                                            logger.warning("❌ VIX data empty from fetcher")
+                                    except Exception as e:
+                                        logger.error(f"❌ VIX fetching failed: {e}")
+                                else:
+                                    logger.warning("❌ VIX fetcher not available")
+                                    
+                            # VIXデータが取得できた場合の処理
+                            if vix_features is not None and not vix_features.empty:
 
                                     # タイムゾーン統一・データアライメント改良
                                     if isinstance(
@@ -555,20 +683,37 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         except Exception as e:
                             logger.warning("Failed to add OI features: %s", e)
 
-                    # マクロ経済データ特徴量（DXY, 金利）（キャッシュ優先版）
+                    # マクロ経済データ特徴量（DXY, 金利）（強制取得版）
                     elif base in ["dxy", "macro", "treasury"]:
                         try:
+                            logger.info(f"🔍 Processing Macro features: macro_enabled={self.macro_enabled}, macro_fetcher={self.macro_fetcher is not None}")
+                            
+                            macro_features = None
+                            
                             # キャッシュからマクロデータを取得（優先）
-                            cached_macro = self._get_cached_external_data(
-                                "macro", df.index
-                            )
-
+                            cached_macro = self._get_cached_external_data("macro", df.index)
                             if not cached_macro.empty:
-                                logger.debug(
-                                    f"Using cached macro: {len(cached_macro)} items"
-                                )
+                                logger.info(f"✅ Using cached macro data: {len(cached_macro)} records")
                                 macro_features = cached_macro
-                            elif self.macro_fetcher:
+                            
+                            # キャッシュが空の場合、マクロフェッチャーで直接取得
+                            if macro_features is None or macro_features.empty:
+                                if self.macro_fetcher:
+                                    logger.info("🔍 Fetching fresh Macro data...")
+                                    try:
+                                        macro_data = self.macro_fetcher.get_macro_data()
+                                        if macro_data and not all(df.empty for df in macro_data.values()):
+                                            logger.info(f"✅ Fresh Macro data retrieved: {len(macro_data)} datasets")
+                                            macro_features = self.macro_fetcher.calculate_macro_features(macro_data)
+                                        else:
+                                            logger.warning("❌ Macro data empty from fetcher")
+                                    except Exception as e:
+                                        logger.error(f"❌ Macro fetching failed: {e}")
+                                else:
+                                    logger.warning("❌ Macro fetcher not available")
+                                    
+                            # マクロデータが取得できた場合の処理
+                            if macro_features is not None and not macro_features.empty:
                                 # キャッシュがない場合は従来の方法
                                 if hasattr(df, "index") and len(df) > 0:
                                     backtest_year = df.index.min().year
@@ -841,20 +986,37 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                 "Used default values for Bitbank margin features"
                             )
 
-                    # Fear & Greed Index特徴量（キャッシュ優先版）
+                    # Fear & Greed Index特徴量（強制取得版）
                     elif base in ["fear_greed", "fg"]:
                         try:
+                            logger.info(f"🔍 Processing Fear&Greed features: fear_greed_enabled={self.fear_greed_enabled}, fear_greed_fetcher={self.fear_greed_fetcher is not None}")
+                            
+                            fg_features = None
+                            
                             # キャッシュからFear&Greedデータを取得（優先）
-                            cached_fg = self._get_cached_external_data(
-                                "fear_greed", df.index
-                            )
-
+                            cached_fg = self._get_cached_external_data("fear_greed", df.index)
                             if not cached_fg.empty:
-                                logger.debug(
-                                    f"Using cached Fear&Greed: {len(cached_fg)} items"
-                                )
+                                logger.info(f"✅ Using cached Fear&Greed data: {len(cached_fg)} records")
                                 fg_features = cached_fg
-                            elif self.fear_greed_fetcher:
+                            
+                            # キャッシュが空の場合、Fear&Greedフェッチャーで直接取得
+                            if fg_features is None or fg_features.empty:
+                                if self.fear_greed_fetcher:
+                                    logger.info("🔍 Fetching fresh Fear&Greed data...")
+                                    try:
+                                        fg_data = self.fear_greed_fetcher.get_fear_greed_data(days_back=30)
+                                        if not fg_data.empty:
+                                            logger.info(f"✅ Fresh Fear&Greed data retrieved: {len(fg_data)} records")
+                                            fg_features = self.fear_greed_fetcher.calculate_fear_greed_features(fg_data)
+                                        else:
+                                            logger.warning("❌ Fear&Greed data empty from fetcher")
+                                    except Exception as e:
+                                        logger.error(f"❌ Fear&Greed fetching failed: {e}")
+                                else:
+                                    logger.warning("❌ Fear&Greed fetcher not available")
+                                    
+                            # Fear&Greedデータが取得できた場合の処理
+                            if fg_features is not None and not fg_features.empty:
                                 # キャッシュがない場合は従来の方法
                                 fg_data = self.fear_greed_fetcher.get_fear_greed_data(
                                     days_back=30
