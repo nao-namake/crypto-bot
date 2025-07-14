@@ -4,6 +4,7 @@ Yahoo Financeから米国VIX指数データを取得し、101特徴量システ�
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -44,12 +45,26 @@ class VIXDataFetcher:
             if not start_date:
                 start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
-            # Yahoo Financeからデータ取得
+            logger.info(f"🔍 Fetching VIX data from {start_date} to {end_date}")
+            
+            # Yahoo Financeからデータ取得（リトライ機能付き）
             vix_ticker = yf.Ticker(self.symbol)
-            vix_data = vix_ticker.history(start=start_date, end=end_date)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    vix_data = vix_ticker.history(start=start_date, end=end_date)
+                    if not vix_data.empty:
+                        break
+                    logger.warning(f"VIX data empty on attempt {attempt + 1}")
+                except Exception as e:
+                    logger.warning(f"VIX fetch attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2)  # 2秒待機してリトライ
+                    else:
+                        raise
 
             if vix_data.empty:
-                logger.warning("No VIX data retrieved")
+                logger.error("❌ No VIX data retrieved after all retries")
                 return None
 
             # カラム名を統一

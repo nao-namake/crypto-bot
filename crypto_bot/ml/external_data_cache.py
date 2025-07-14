@@ -256,3 +256,14 @@ def initialize_global_cache(
     _global_cache = ExternalDataCache(start_date, end_date)
     _global_cache.initialize_cache()
     return _global_cache
+
+
+def clear_global_cache():
+    """グローバルキャッシュを完全クリア"""
+    global _global_cache
+    if _global_cache is not None:
+        _global_cache.cache.clear()
+        _global_cache.is_initialized = False
+        logger.info("🗑️ Global cache cleared completely")
+    _global_cache = None
+    logger.info("✅ Global cache reset to None")

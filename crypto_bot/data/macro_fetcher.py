@@ -4,6 +4,7 @@ Yahoo Financeから米ドル指数(DXY)・金利データを取得し、101特�
 """
 
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -49,19 +50,32 @@ class MacroDataFetcher:
             macro_data = {}
 
             for name, symbol in self.symbols.items():
-                try:
-                    ticker = yf.Ticker(symbol)
-                    data = ticker.history(start=start_date, end=end_date)
+                logger.info(f"🔍 Fetching {name} data ({symbol})")
+                success = False
+                
+                # リトライ機能追加
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        ticker = yf.Ticker(symbol)
+                        data = ticker.history(start=start_date, end=end_date)
 
-                    if not data.empty:
-                        data.columns = data.columns.str.lower()
-                        macro_data[name] = data
-                        logger.info(f"{name} data retrieved: {len(data)} records")
-                    else:
-                        logger.warning(f"No data retrieved for {name}")
-
-                except Exception as e:
-                    logger.error(f"Failed to fetch {name} data: {e}")
+                        if not data.empty:
+                            data.columns = data.columns.str.lower()
+                            macro_data[name] = data
+                            logger.info(f"✅ {name} data retrieved: {len(data)} records")
+                            success = True
+                            break
+                        else:
+                            logger.warning(f"{name} data empty on attempt {attempt + 1}")
+                    
+                    except Exception as e:
+                        logger.warning(f"{name} fetch attempt {attempt + 1} failed: {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(2)  # 2秒待機してリトライ
+                
+                if not success:
+                    logger.error(f"❌ Failed to fetch {name} data after all retries")
 
             return macro_data
 
