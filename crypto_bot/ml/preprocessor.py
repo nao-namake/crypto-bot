@@ -101,11 +101,23 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         self.rolling_window = ml_config.get("rolling_window", 14)
 
         # VIX統合設定
-        self.vix_enabled = "vix" in self.extra_features and VIX_AVAILABLE
+        logger.info(f"🔍 VIX Debug: extra_features={self.extra_features}")
+        logger.info(f"🔍 VIX Debug: VIX_AVAILABLE={VIX_AVAILABLE}")
+        vix_in_features = "vix" in self.extra_features
+        logger.info(f"🔍 VIX Debug: vix_in_features={vix_in_features}")
+        self.vix_enabled = vix_in_features and VIX_AVAILABLE
+        logger.info(f"🔍 VIX Debug: vix_enabled={self.vix_enabled}")
+        
         if self.vix_enabled and VIX_AVAILABLE:
-            self.vix_fetcher = VIXDataFetcher()
+            try:
+                self.vix_fetcher = VIXDataFetcher()
+                logger.info("✅ VIX fetcher initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ VIX fetcher initialization failed: {e}")
+                self.vix_fetcher = None
         else:
             self.vix_fetcher = None
+            logger.warning(f"⚠️ VIX fetcher not initialized: vix_enabled={self.vix_enabled}, VIX_AVAILABLE={VIX_AVAILABLE}")
 
         # マクロデータ統合設定
         self.macro_enabled = (
