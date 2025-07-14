@@ -564,92 +564,52 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                     
                             # VIXデータが取得できた場合の処理
                             if vix_features is not None and not vix_features.empty:
+                                # タイムゾーン統一・データアライメント改良
+                                if isinstance(df.index, pd.DatetimeIndex) and isinstance(vix_features.index, pd.DatetimeIndex):
+                                    # タイムゾーン統一（重要な修正）
+                                    if df.index.tz is None:
+                                        df.index = df.index.tz_localize("UTC")
+                                    if vix_features.index.tz is None:
+                                        vix_features.index = vix_features.index.tz_localize("UTC")
+                                    elif vix_features.index.tz != df.index.tz:
+                                        vix_features.index = vix_features.index.tz_convert("UTC")
 
-                                    # タイムゾーン統一・データアライメント改良
-                                    if isinstance(
-                                        df.index, pd.DatetimeIndex
-                                    ) and isinstance(
-                                        vix_features.index, pd.DatetimeIndex
-                                    ):
-                                        # タイムゾーン統一（重要な修正）
-                                        if df.index.tz is None:
-                                            df.index = df.index.tz_localize("UTC")
-                                        if vix_features.index.tz is None:
-                                            vix_features.index = (
-                                                vix_features.index.tz_localize("UTC")
-                                            )
-                                        elif vix_features.index.tz != df.index.tz:
-                                            vix_features.index = (
-                                                vix_features.index.tz_convert("UTC")
-                                            )
+                                    # 改良されたリサンプリング：日次→時間足への変換
+                                    # 前方補完（ffill）で日次データを時間足に展開
+                                    vix_hourly = vix_features.resample("H").ffill()
 
-                                        # 改良されたリサンプリング：日次→時間足への変換
-                                        # 前方補完（ffill）で日次データを時間足に展開
-                                        vix_hourly = vix_features.resample("H").ffill()
+                                    # 暗号資産データの時間範囲に合わせて制限
+                                    start_time = df.index.min()
+                                    end_time = df.index.max()
+                                    vix_hourly = vix_hourly.loc[start_time:end_time]
 
-                                        # 暗号資産データの時間範囲に合わせて制限
-                                        start_time = df.index.min()
-                                        end_time = df.index.max()
-                                        vix_hourly = vix_hourly.loc[start_time:end_time]
+                                    # より柔軟なマッチング：最も近い時刻のデータを使用
+                                    vix_cols = ["vix_level", "vix_change", "vix_zscore", "fear_level", "vix_spike", "vix_regime"]
+                                    added_features = 0
 
-                                        # より柔軟なマッチング：最も近い時刻のデータを使用
-                                        vix_cols = [
-                                            "vix_level",
-                                            "vix_change",
-                                            "vix_zscore",
-                                            "fear_level",
-                                            "vix_spike",
-                                            "vix_regime",
-                                        ]
-                                        added_features = 0
+                                    for i, timestamp in enumerate(df.index):
+                                        # 最も近いVIXデータポイントを検索
+                                        if len(vix_hourly) > 0:
+                                            closest_idx = vix_hourly.index.get_indexer([timestamp], method="ffill")[0]
+                                            if closest_idx >= 0:
+                                                vix_row = vix_hourly.iloc[closest_idx]
+                                                for col in vix_cols:
+                                                    if col in vix_row.index:
+                                                        if col == "vix_regime":
+                                                            # カテゴリを数値に変換
+                                                            regime_map = {"low": 0, "normal": 1, "high": 2, "extreme": 3}
+                                                            k = "vix_regime_numeric"
+                                                            v = regime_map.get(vix_row[col], 1)
+                                                            df.loc[timestamp, k] = v
+                                                        else:
+                                                            df.loc[timestamp, col] = vix_row[col]
+                                        added_features = i + 1
 
-                                        for i, timestamp in enumerate(df.index):
-                                            # 最も近いVIXデータポイントを検索
-                                            if len(vix_hourly) > 0:
-                                                closest_idx = (
-                                                    vix_hourly.index.get_indexer(
-                                                        [timestamp], method="ffill"
-                                                    )[0]
-                                                )
-                                                if closest_idx >= 0:
-                                                    vix_row = vix_hourly.iloc[
-                                                        closest_idx
-                                                    ]
-                                                    for col in vix_cols:
-                                                        if col in vix_row.index:
-                                                            if col == "vix_regime":
-                                                                # カテゴリを数値に変換
-                                                                regime_map = {
-                                                                    "low": 0,
-                                                                    "normal": 1,
-                                                                    "high": 2,
-                                                                    "extreme": 3,
-                                                                }
-                                                                # vix_regime設定
-                                                                k = "vix_regime_numeric"
-                                                                v = regime_map.get(
-                                                                    vix_row[col], 1
-                                                                )
-                                                                df.loc[timestamp, k] = v
-                                                            else:
-                                                                df.loc[
-                                                                    timestamp, col
-                                                                ] = vix_row[col]
-                                                    added_features = i + 1
-
-                                        logger.info(
-                                            f"Added VIX features to "
-                                            f"{added_features}/{len(df)} data points"
-                                        )
-                                    else:
-                                        logger.warning(
-                                            "Could not align VIX data - "
-                                            "index type mismatch"
-                                        )
+                                    logger.info(f"Added VIX features to {added_features}/{len(df)} data points")
                                 else:
-                                    logger.warning("No VIX data available")
+                                    logger.warning("Could not align VIX data - index type mismatch")
                             else:
-                                logger.warning("VIX fetcher not initialized")
+                                logger.warning("No VIX data available - using defaults")
                         except Exception as e:
                             logger.warning("Failed to add VIX features: %s", e)
 
