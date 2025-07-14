@@ -43,7 +43,9 @@ class RealTimeFetcher:
         self._ws = await websockets.connect(self.url)
         subscribe_msg = {
             "op": "subscribe",
-            "args": [f"trade.{self.symbol}"],  # Bybitの場合。取引所ごとにチャンネル名調整
+            "args": [
+                f"trade.{self.symbol}"
+            ],  # Bybitの場合。取引所ごとにチャンネル名調整
         }
         await self._ws.send(json.dumps(subscribe_msg))
 
