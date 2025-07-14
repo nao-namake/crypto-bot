@@ -794,18 +794,40 @@ def live_bitbank(config_path: str, max_trades: int):
             ccxt_options=dd.get("ccxt_options", {}),
         )
 
-        # API認証情報の確認
-        api_key = dd.get("api_key") or os.getenv("BITBANK_API_KEY")
-        api_secret = dd.get("api_secret") or os.getenv("BITBANK_API_SECRET")
+        # API認証情報の確認（環境変数置換対応）
+        def resolve_env_var(value):
+            """環境変数置換パターン ${ENV_VAR} を解決"""
+            if (isinstance(value, str)
+                    and value.startswith("${") and value.endswith("}")):
+                env_var_name = value[2:-1]  # ${} を除去
+                return os.getenv(env_var_name)
+            return value
+
+        api_key = (resolve_env_var(dd.get("api_key"))
+                   or os.getenv("BITBANK_API_KEY"))
+        api_secret = (resolve_env_var(dd.get("api_secret"))
+                      or os.getenv("BITBANK_API_SECRET"))
 
         if not api_key or not api_secret:
             logger.error(
-                "Bitbank API credentials not found. "
-                "Please set BITBANK_API_KEY and BITBANK_API_SECRET"
+                "Bitbank API credentials not found. Please set BITBANK_API_KEY "
+                "and BITBANK_API_SECRET environment variables"
             )
+            logger.error(f"Config api_key: {dd.get('api_key', 'Not set')}")
+            api_key_status = ('Set' if os.getenv('BITBANK_API_KEY') else 'Not set')
+            logger.error(f"Env BITBANK_API_KEY: {api_key_status}")
+            secret_status = ('Set' if os.getenv('BITBANK_API_SECRET') else 'Not set')
+            logger.error(f"Env BITBANK_API_SECRET: {secret_status}")
             sys.exit(1)
 
-        logger.info(f"Bitbank API credentials configured - Key: {api_key[:8]}...")
+        logger.info(
+            f"✅ Bitbank API credentials resolved successfully - "
+            f"Key: {api_key[:8]}..."
+        )
+        if dd.get("api_key", "").startswith("${"):
+            logger.info(
+                "📝 Environment variable substitution performed for API credentials"
+            )
 
     else:
         # 他の取引所の場合（フォールバック）
