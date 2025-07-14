@@ -907,6 +907,7 @@ def live_bitbank(config_path: str, max_trades: int):
 
     # 古いキャッシュをクリア（データ鮮度確保）
     from crypto_bot.ml.external_data_cache import clear_global_cache
+
     clear_global_cache()
     logger.info("🗑️ Cleared old cache for fresh data")
 
@@ -938,14 +939,17 @@ def live_bitbank(config_path: str, max_trades: int):
             latest_time = price_df.index[-1]
             time_diff = pd.Timestamp.now(tz="UTC") - latest_time
             hours_old = time_diff.total_seconds() / 3600
-            
+
             logger.info(
-                f"Received {len(price_df)} price records, latest: {latest_time} ({hours_old:.1f}h ago)"
+                f"Received {len(price_df)} price records, "
+                f"latest: {latest_time} ({hours_old:.1f}h ago)"
             )
-            
+
             # データ鮮度監視（24時間以上古い場合は警告）
             if hours_old > 24:
-                logger.warning(f"⚠️ Data is {hours_old:.1f} hours old - may need fresh data fetch")
+                logger.warning(
+                    f"⚠️ Data is {hours_old:.1f} hours old - may need fresh data fetch"
+                )
                 # 古いキャッシュを再クリア
                 clear_global_cache()
                 logger.info("🔄 Re-cleared cache due to stale data")

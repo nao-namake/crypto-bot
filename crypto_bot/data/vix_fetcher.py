@@ -46,7 +46,7 @@ class VIXDataFetcher:
                 start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
 
             logger.info(f"🔍 Fetching VIX data from {start_date} to {end_date}")
-            
+
             # Yahoo Financeからデータ取得（リトライ機能付き）
             vix_ticker = yf.Ticker(self.symbol)
             max_retries = 3
