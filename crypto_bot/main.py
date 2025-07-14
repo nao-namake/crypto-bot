@@ -797,16 +797,19 @@ def live_bitbank(config_path: str, max_trades: int):
         # API認証情報の確認（環境変数置換対応）
         def resolve_env_var(value):
             """環境変数置換パターン ${ENV_VAR} を解決"""
-            if (isinstance(value, str)
-                    and value.startswith("${") and value.endswith("}")):
+            if (
+                isinstance(value, str)
+                and value.startswith("${")
+                and value.endswith("}")
+            ):
                 env_var_name = value[2:-1]  # ${} を除去
                 return os.getenv(env_var_name)
             return value
 
-        api_key = (resolve_env_var(dd.get("api_key"))
-                   or os.getenv("BITBANK_API_KEY"))
-        api_secret = (resolve_env_var(dd.get("api_secret"))
-                      or os.getenv("BITBANK_API_SECRET"))
+        api_key = resolve_env_var(dd.get("api_key")) or os.getenv("BITBANK_API_KEY")
+        api_secret = resolve_env_var(dd.get("api_secret")) or os.getenv(
+            "BITBANK_API_SECRET"
+        )
 
         if not api_key or not api_secret:
             logger.error(
@@ -814,9 +817,9 @@ def live_bitbank(config_path: str, max_trades: int):
                 "and BITBANK_API_SECRET environment variables"
             )
             logger.error(f"Config api_key: {dd.get('api_key', 'Not set')}")
-            api_key_status = ('Set' if os.getenv('BITBANK_API_KEY') else 'Not set')
+            api_key_status = "Set" if os.getenv("BITBANK_API_KEY") else "Not set"
             logger.error(f"Env BITBANK_API_KEY: {api_key_status}")
-            secret_status = ('Set' if os.getenv('BITBANK_API_SECRET') else 'Not set')
+            secret_status = "Set" if os.getenv("BITBANK_API_SECRET") else "Not set"
             logger.error(f"Env BITBANK_API_SECRET: {secret_status}")
             sys.exit(1)
 
