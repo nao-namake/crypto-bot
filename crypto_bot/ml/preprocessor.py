@@ -46,11 +46,11 @@ except ImportError:
     FUNDING_AVAILABLE = False
 
 try:
-    from crypto_bot.data.fear_greed_fetcher import FearGreedFetcher
+    from crypto_bot.data.fear_greed_fetcher import FearGreedDataFetcher
 
     FEAR_GREED_AVAILABLE = True
 except ImportError:
-    FearGreedFetcher = None
+    FearGreedDataFetcher = None
     FEAR_GREED_AVAILABLE = False
 
 from crypto_bot.indicator.calculator import IndicatorCalculator
@@ -132,7 +132,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             and FEAR_GREED_AVAILABLE
         )
         if self.fear_greed_enabled and FEAR_GREED_AVAILABLE:
-            self.fear_greed_fetcher = FearGreedFetcher()
+            self.fear_greed_fetcher = FearGreedDataFetcher()
         else:
             self.fear_greed_fetcher = None
 
@@ -1043,14 +1043,26 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         try:
                             import pandas_ta as ta
 
-                            adx_series = ta.adx(
+                            adx_result = ta.adx(
                                 high=df["high"],
                                 low=df["low"],
                                 close=df["close"],
                                 length=14,
                             )
-                            if adx_series is not None and not adx_series.isnull().all():
-                                df["trend_strength"] = adx_series.fillna(25)
+
+                            if adx_result is not None and not adx_result.empty:
+                                # ADXの結果はDataFrameなので、ADX列を取得
+                                if (
+                                    isinstance(adx_result, pd.DataFrame)
+                                    and "ADX_14" in adx_result.columns
+                                ):
+                                    df["trend_strength"] = adx_result["ADX_14"].fillna(
+                                        25
+                                    )
+                                elif isinstance(adx_result, pd.Series):
+                                    df["trend_strength"] = adx_result.fillna(25)
+                                else:
+                                    df["trend_strength"] = 25
                             else:
                                 df["trend_strength"] = 25  # デフォルト値
                         except Exception as e:

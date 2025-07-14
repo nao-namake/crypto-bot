@@ -16,8 +16,6 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-
-# import matplotlib.dates as mdates  # unused import
 import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
@@ -964,23 +962,41 @@ def live_bitbank(config_path: str, max_trades: int):
                             f"Position: {position.side} {position.lot}"
                         )
                     else:
-                        # フォールバック: 模擬取引
-                        balance = entry_exit.fill_order(entry_order, position, balance)
-                        trade_done += 1
-                        logger.info(
-                            f"Trade #{trade_done} executed (simulation) - "
-                            f"New balance: {balance}"
+                        # 実取引強制化: 非対応取引所での実行を拒否
+                        logger.error(f"🚨 UNSUPPORTED EXCHANGE: {exchange_id}")
+                        logger.error("Real trading is only supported for Bitbank")
+                        logger.error("Configure exchange_id='bitbank' for real trading")
+                        raise RuntimeError(
+                            f"Unsupported exchange for real trading: {exchange_id}"
                         )
 
                 except Exception as e:
                     logger.error(f"❌ BITBANK ORDER FAILED: {e}")
-                    # エラー時は模擬取引にフォールバック
-                    balance = entry_exit.fill_order(entry_order, position, balance)
-                    trade_done += 1
-                    logger.warning(
-                        f"Trade #{trade_done} executed (fallback simulation) - "
-                        f"New balance: {balance}"
-                    )
+                    logger.error(f"Error details: {type(e).__name__}: {str(e)}")
+                    # 実取引強制化: フォールバックを無効化
+                    if exchange_id == "bitbank":
+                        logger.error(
+                            "🚨 REAL TRADING FAILED - ABORTING TO PREVENT "
+                            "SIMULATION FALLBACK"
+                        )
+                        logger.error(f"API Key present: {'Yes' if api_key else 'No'}")
+                        logger.error(
+                            f"API Secret present: {'Yes' if api_secret else 'No'}"
+                        )
+                        logger.error(f"Margin mode: {margin_enabled}")
+                        logger.error(
+                            f"Order details: {entry_order.side} {entry_order.lot} "
+                            f"at {entry_order.price}"
+                        )
+                        raise RuntimeError(f"Real trading execution failed: {e}")
+                    else:
+                        # 非Bitbank取引所の場合のみフォールバック許可
+                        balance = entry_exit.fill_order(entry_order, position, balance)
+                        trade_done += 1
+                        logger.warning(
+                            f"Trade #{trade_done} executed (fallback simulation) - "
+                            f"New balance: {balance}"
+                        )
 
             # エグジット判定
             exit_order = entry_exit.generate_exit_order(price_df, position)
@@ -1033,23 +1049,41 @@ def live_bitbank(config_path: str, max_trades: int):
                             f"Position closed"
                         )
                     else:
-                        # フォールバック: 模擬取引
-                        balance = entry_exit.fill_order(exit_order, position, balance)
-                        trade_done += 1
-                        logger.info(
-                            f"Trade #{trade_done} executed (simulation) - "
-                            f"New balance: {balance}"
+                        # 実取引強制化: 非対応取引所での実行を拒否
+                        logger.error(f"🚨 UNSUPPORTED EXCHANGE FOR EXIT: {exchange_id}")
+                        logger.error("Real exit trading is only supported for Bitbank")
+                        logger.error("Configure exchange_id='bitbank' for real trading")
+                        raise RuntimeError(
+                            f"Unsupported exchange for real exit trading: {exchange_id}"
                         )
 
                 except Exception as e:
                     logger.error(f"❌ BITBANK EXIT ORDER FAILED: {e}")
-                    # エラー時は模擬取引にフォールバック
-                    balance = entry_exit.fill_order(exit_order, position, balance)
-                    trade_done += 1
-                    logger.warning(
-                        f"Trade #{trade_done} executed (fallback simulation) - "
-                        f"New balance: {balance}"
-                    )
+                    logger.error(f"Error details: {type(e).__name__}: {str(e)}")
+                    # 実取引強制化: フォールバックを無効化
+                    if exchange_id == "bitbank":
+                        logger.error(
+                            "🚨 REAL EXIT TRADING FAILED - ABORTING TO PREVENT "
+                            "SIMULATION FALLBACK"
+                        )
+                        logger.error(f"API Key present: {'Yes' if api_key else 'No'}")
+                        logger.error(
+                            f"API Secret present: {'Yes' if api_secret else 'No'}"
+                        )
+                        logger.error(f"Margin mode: {margin_enabled}")
+                        logger.error(
+                            f"Exit order details: {exit_order.side} {exit_order.lot} "
+                            f"at {exit_order.price}"
+                        )
+                        raise RuntimeError(f"Real exit trading execution failed: {e}")
+                    else:
+                        # 非Bitbank取引所の場合のみフォールバック許可
+                        balance = entry_exit.fill_order(exit_order, position, balance)
+                        trade_done += 1
+                        logger.warning(
+                            f"Trade #{trade_done} executed (fallback simulation) - "
+                            f"New balance: {balance}"
+                        )
 
             # 残高を EntryExit へ反映
             entry_exit.current_balance = balance
