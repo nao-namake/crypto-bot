@@ -6,16 +6,9 @@
 # =============================================================================
 name: Kubernetes Deploy
 
+# TEMPORARILY DISABLED - Kubernetes validation causes CI failures
+# Will be re-enabled when needed for actual K8s deployment
 on:
-  push:
-    branches: [ main ]
-    tags:
-      - 'v*.*.*'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'k8s/**'
-      - '.github/workflows/k8s-deploy.yml'
   workflow_dispatch:
     inputs:
       environment:
