@@ -924,12 +924,22 @@ def live_bitbank(config_path: str, max_trades: int):
                 if not price_df.empty:
                     price_df = price_df.tail(200)
             else:
-                # API モード - リアルタイムデータを取得
-                price_df = fetcher.get_price_df(
-                    timeframe=dd.get("timeframe", "1h"),
-                    limit=200,
-                    paginate=False,
-                )
+                # API モード - リアルタイムデータを取得（タイムアウト対策）
+                try:
+                    logger.info("📊 Fetching price data from Bitbank API...")
+                    price_df = fetcher.get_price_df(
+                        timeframe=dd.get("timeframe", "1h"),
+                        limit=200,
+                        paginate=False,
+                    )
+                    logger.info(
+                        f"✅ Price data fetched successfully: {len(price_df)} records"
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Failed to fetch price data: {e}")
+                    logger.info("⏰ Waiting 30 seconds before retry...")
+                    time.sleep(30)
+                    continue
 
             if price_df.empty:
                 logger.warning("No price data received, waiting...")
