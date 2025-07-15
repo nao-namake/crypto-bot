@@ -937,6 +937,9 @@ def live_bitbank(config_path: str, max_trades: int):
                 continue
 
             latest_time = price_df.index[-1]
+            # タイムゾーン一致: latest_timeにUTCを付加してtz-aware timestamp同士で計算
+            if latest_time.tz is None:
+                latest_time = latest_time.tz_localize("UTC")
             time_diff = pd.Timestamp.now(tz="UTC") - latest_time
             hours_old = time_diff.total_seconds() / 3600
 
