@@ -767,8 +767,10 @@ def live_bitbank(config_path: str, max_trades: int):
     symbol = cfg["data"].get("symbol", "BTC/JPY")
 
     logger.info(
-        f"Starting Bitbank live trading - Exchange: {exchange_id}, Symbol: {symbol}"
+        f"🚀 [INIT-1] Starting Bitbank live trading - "
+        f"Exchange: {exchange_id}, Symbol: {symbol}"
     )
+    logger.info(f"⏰ [INIT-1] Timestamp: {pd.Timestamp.now()}")
 
     # CSV モードの場合は外部データキャッシュを初期化
     dd = cfg.get("data", {})
@@ -787,12 +789,15 @@ def live_bitbank(config_path: str, max_trades: int):
 
     # Bitbank本番用設定の場合
     if exchange_id == "bitbank":
+        logger.info("🔌 [INIT-2] Initializing Bitbank data fetcher...")
+        logger.info(f"⏰ [INIT-2] Timestamp: {pd.Timestamp.now()}")
         # Bitbank用データフェッチャー
         fetcher = MarketDataFetcher(
             exchange_id=exchange_id,
             symbol=symbol,
             ccxt_options=dd.get("ccxt_options", {}),
         )
+        logger.info("✅ [INIT-2] Bitbank data fetcher initialized successfully")
 
         # API認証情報の確認（環境変数置換対応）
         def resolve_env_var(value):
@@ -860,12 +865,17 @@ def live_bitbank(config_path: str, max_trades: int):
             logger.error(f"Model file not found: {model_path}")
             sys.exit(1)
 
-    logger.info(f"Using model: {model_path}")
+    logger.info(f"📊 [INIT-3] Using model: {model_path}")
+    logger.info(f"⏰ [INIT-3] Timestamp: {pd.Timestamp.now()}")
+    logger.info("🤖 [INIT-3] Initializing ML Strategy (this may take time)...")
 
     threshold = sp.get("threshold", 0.05)
     strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
+    logger.info("✅ [INIT-3] ML Strategy initialized successfully")
 
     # RiskManager初期化
+    logger.info("⚖️ [INIT-4] Initializing Risk Manager...")
+    logger.info(f"⏰ [INIT-4] Timestamp: {pd.Timestamp.now()}")
     risk_config = cfg.get("risk", {})
     kelly_config = risk_config.get("kelly_criterion", {})
     risk_manager = RiskManager(
@@ -875,16 +885,20 @@ def live_bitbank(config_path: str, max_trades: int):
         kelly_lookback_window=kelly_config.get("lookback_window", 50),
         kelly_max_fraction=kelly_config.get("max_fraction", 0.25),
     )
+    logger.info("✅ [INIT-4] Risk Manager initialized successfully")
 
     position = Position()
     balance = cfg["backtest"]["starting_balance"]
 
     # ATRを計算するための初期データを取得
+    logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
+    logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     initial_df = fetcher.get_price_df(
         timeframe=dd.get("timeframe", "1h"),
         limit=200,
         paginate=False,
     )
+    logger.info(f"✅ [INIT-5] Initial price data fetched: {len(initial_df)} records")
 
     # ATRを計算
     atr_series = None
@@ -896,23 +910,35 @@ def live_bitbank(config_path: str, max_trades: int):
         latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
         logger.info(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
 
+    logger.info("🎯 [INIT-6] Initializing Entry/Exit system...")
+    logger.info(f"⏰ [INIT-6] Timestamp: {pd.Timestamp.now()}")
     entry_exit = EntryExit(
         strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
     )
     entry_exit.current_balance = balance
+    logger.info("✅ [INIT-6] Entry/Exit system initialized successfully")
 
     trade_done = 0
-    logger.info("=== Bitbank Live Trading Started ===  Ctrl+C で停止")
-    logger.info(f"101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}")
+    logger.info("🎊 [INIT-7] === Bitbank Live Trading Started ===  Ctrl+C で停止")
+    logger.info(
+        f"🚀 [INIT-7] 101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
+    )
+    logger.info(f"⏰ [INIT-7] Timestamp: {pd.Timestamp.now()}")
 
     # 古いキャッシュをクリア（データ鮮度確保）
     from crypto_bot.ml.external_data_cache import clear_global_cache
 
+    logger.info("🧹 [INIT-8] Clearing old cache for fresh data...")
+    logger.info(f"⏰ [INIT-8] Timestamp: {pd.Timestamp.now()}")
     clear_global_cache()
-    logger.info("🗑️ Cleared old cache for fresh data")
+    logger.info("✅ [INIT-8] 🗑️ Cleared old cache for fresh data")
 
+    logger.info("🔄 [LOOP-START] Starting main trading loop...")
+    logger.info(f"⏰ [LOOP-START] Timestamp: {pd.Timestamp.now()}")
     try:
         while True:
+            logger.info("🔄 [LOOP-ITER] Starting new trading iteration...")
+            logger.info(f"⏰ [LOOP-ITER] Timestamp: {pd.Timestamp.now()}")
             # 最新データを取得（CSV or API）
             if dd.get("exchange") == "csv" or dd.get("csv_path"):
                 # CSV モード - 最新データを取得
@@ -926,18 +952,25 @@ def live_bitbank(config_path: str, max_trades: int):
             else:
                 # API モード - リアルタイムデータを取得（タイムアウト対策）
                 try:
-                    logger.info("📊 Fetching price data from Bitbank API...")
+                    logger.info(
+                        "📊 [DATA-FETCH] Fetching price data from Bitbank API..."
+                    )
+                    logger.info(f"⏰ [DATA-FETCH] Timestamp: {pd.Timestamp.now()}")
                     price_df = fetcher.get_price_df(
                         timeframe=dd.get("timeframe", "1h"),
                         limit=200,
                         paginate=False,
                     )
                     logger.info(
-                        f"✅ Price data fetched successfully: {len(price_df)} records"
+                        f"✅ [DATA-FETCH] Price data fetched successfully: "
+                        f"{len(price_df)} records"
+                    )
+                    logger.info(
+                        f"⏰ [DATA-FETCH] Fetch completed at: {pd.Timestamp.now()}"
                     )
                 except Exception as e:
-                    logger.error(f"❌ Failed to fetch price data: {e}")
-                    logger.info("⏰ Waiting 30 seconds before retry...")
+                    logger.error(f"❌ [DATA-FETCH] Failed to fetch price data: {e}")
+                    logger.info("⏰ [DATA-FETCH] Waiting 30 seconds before retry...")
                     time.sleep(30)
                     continue
 
@@ -968,7 +1001,13 @@ def live_bitbank(config_path: str, max_trades: int):
                 logger.info("🔄 Re-cleared cache due to stale data")
 
             # エントリー判定
+            logger.info("📊 [ENTRY-JUDGE] Starting entry order generation...")
+            logger.info(f"⏰ [ENTRY-JUDGE] Timestamp: {pd.Timestamp.now()}")
             entry_order = entry_exit.generate_entry_order(price_df, position)
+            logger.info(
+                f"✅ [ENTRY-JUDGE] Entry judgment completed - "
+                f"Order exists: {entry_order.exist}"
+            )
             prev_trades = trade_done
             if entry_order.exist:
                 logger.info(
@@ -1057,7 +1096,13 @@ def live_bitbank(config_path: str, max_trades: int):
                         )
 
             # エグジット判定
+            logger.info("📊 [EXIT-JUDGE] Starting exit order generation...")
+            logger.info(f"⏰ [EXIT-JUDGE] Timestamp: {pd.Timestamp.now()}")
             exit_order = entry_exit.generate_exit_order(price_df, position)
+            logger.info(
+                f"✅ [EXIT-JUDGE] Exit judgment completed - "
+                f"Order exists: {exit_order.exist}"
+            )
             if exit_order.exist:
                 logger.info(
                     f"Exit order generated: {exit_order.side} "
@@ -1168,12 +1213,21 @@ def live_bitbank(config_path: str, max_trades: int):
 
             # 取引間隔の設定
             interval = cfg.get("live", {}).get("trade_interval", 60)
+            logger.info(
+                f"⏰ [SLEEP] Waiting {interval} seconds until next iteration..."
+            )
+            logger.info(f"⏰ [SLEEP] Sleep start: {pd.Timestamp.now()}")
             time.sleep(interval)
+            logger.info(f"⏰ [SLEEP] Sleep end: {pd.Timestamp.now()}")
 
     except KeyboardInterrupt:
-        logger.info("Interrupted. Bye.")
+        logger.info("🛑 [SHUTDOWN] Interrupted. Bye.")
     except Exception as e:
-        logger.error(f"Live trading error: {e}")
+        logger.error(f"❌ [ERROR] Live trading error: {e}")
+        logger.error(f"⏰ [ERROR] Error occurred at: {pd.Timestamp.now()}")
+        import traceback
+
+        logger.error(f"🔍 [ERROR] Traceback: {traceback.format_exc()}")
         raise
 
 
