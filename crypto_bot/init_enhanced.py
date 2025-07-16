@@ -88,22 +88,21 @@ def enhanced_init_5_fetch_price_data(
                 f"Fetching initial price data..."
             )
 
-            # タイムアウト付きでデータ取得
-            import signal
+            # Cloud Run対応タイムアウト付きでデータ取得
+            from concurrent.futures import ThreadPoolExecutor
+            from concurrent.futures import TimeoutError as FutureTimeoutError
 
-            def timeout_handler(signum, frame):
-                raise TimeoutError(f"Data fetch timeout after {timeout}s")
-
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
-
-            try:
-                initial_df = fetcher.get_price_df(
+            def fetch_data():
+                return fetcher.get_price_df(
                     timeframe=timeframe,
                     limit=limit,
                     paginate=False,
                 )
-                signal.alarm(0)  # タイムアウト解除
+
+            try:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(fetch_data)
+                    initial_df = future.result(timeout=timeout)
 
                 fetch_time = time.time() - start_time
                 logger.info(
@@ -138,8 +137,7 @@ def enhanced_init_5_fetch_price_data(
 
                 break
 
-            except TimeoutError as e:
-                signal.alarm(0)  # タイムアウト解除
+            except (FutureTimeoutError, TimeoutError) as e:
                 logger.error(f"⏰ [INIT-5] Timeout error: {e}")
                 raise
 
