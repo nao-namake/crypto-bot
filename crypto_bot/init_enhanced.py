@@ -238,7 +238,7 @@ def enhanced_init_6_calculate_atr(
                 if latest_atr <= 0 or latest_atr > 1.0:
                     logger.warning(
                         f"⚠️ [INIT-6] ATR value may be unusual: {latest_atr}"
-                    )
+                    )  # noqa: E501
 
             else:
                 logger.error("❌ [INIT-6] ATR calculation returned empty series")
@@ -287,8 +287,7 @@ def enhanced_init_6_fallback_atr(period: int = 14) -> pd.Series:
     latest_atr = atr_series.iloc[-1]
 
     logger.info(
-        f"✅ [INIT-6] Enhanced fallback ATR generated: "
-        f"{len(atr_series)} values"
+        f"✅ [INIT-6] Enhanced fallback ATR generated: " f"{len(atr_series)} values"
     )
     logger.info(
         f"📊 [INIT-6] Fallback ATR statistics: "

@@ -60,9 +60,11 @@ def start_live_trading():
     # 【修正】CI環境やAPI_ONLY_MODEでも強制的にライブトレーディングを試行
     ci_mode = os.getenv("CI") == "true"
     api_only_mode = os.getenv("API_ONLY_MODE") == "true"
-    
+
     if ci_mode or api_only_mode:
-        logger.warning("CI or API_ONLY_MODE detected - but attempting live trading anyway")
+        logger.warning(
+            "CI or API_ONLY_MODE detected - but attempting live trading anyway"
+        )
         logger.warning("This system is designed for LIVE trading only")
         # 【修正】フォールバックせずに処理を続行
 
@@ -76,21 +78,29 @@ def start_live_trading():
         # 【修正】必要なファイルの存在確認 - 見つからない場合は即座終了
         if not os.path.exists(config_file):
             logger.error(f"Config file not found: {config_file}")
-            logger.error("Live trading requires valid config file - terminating process")
+            logger.error(
+                "Live trading requires valid config file - terminating process"
+            )
             sys.exit(1)
 
         # 【修正】環境変数の必須チェック
         api_key = os.getenv("BITBANK_API_KEY")
         api_secret = os.getenv("BITBANK_API_SECRET")
-        
+
         if not api_key or not api_secret:
-            logger.error("BITBANK_API_KEY or BITBANK_API_SECRET not found in environment")
-            logger.error("Live trading requires valid API credentials - terminating process")
+            logger.error(
+                "BITBANK_API_KEY or BITBANK_API_SECRET not found in environment"
+            )
+            logger.error(
+                "Live trading requires valid API credentials - terminating process"
+            )
             sys.exit(1)
 
         if api_key == "null" or api_secret == "null":
             logger.error("BITBANK_API_KEY or BITBANK_API_SECRET is set to 'null'")
-            logger.error("Live trading requires valid API credentials - terminating process")
+            logger.error(
+                "Live trading requires valid API credentials - terminating process"
+            )
             sys.exit(1)
 
         logger.info(f"Starting live trading in {mode} mode...")
@@ -215,16 +225,23 @@ def check_requirements():
             logger.info(f"✅ Config file found: {config_file}")
         else:
             logger.error(f"❌ Config file not found: {config_file}")
-            logger.error("Live trading requires valid config file - terminating process")
+            logger.error(
+                "Live trading requires valid config file - terminating process"
+            )
             return False
 
         # 【修正】yfinance依存関係の確認
         try:
             import yfinance  # noqa: F401
+
             logger.info("✅ yfinance module imported successfully")
         except ImportError:
-            logger.error("❌ yfinance module not found - external data fetchers will fail")
-            logger.error("Live trading requires yfinance for external data - terminating process")
+            logger.error(
+                "❌ yfinance module not found - external data fetchers will fail"
+            )
+            logger.error(
+                "Live trading requires yfinance for external data - terminating process"
+            )
             return False
 
         return True
@@ -270,7 +287,9 @@ def main():
     api_key = os.getenv("BITBANK_API_KEY")
     api_secret = os.getenv("BITBANK_API_SECRET")
     logger.info(f"API Key set: {'Yes' if api_key and api_key != 'null' else 'No'}")
-    logger.info(f"API Secret set: {'Yes' if api_secret and api_secret != 'null' else 'No'}")
+    logger.info(
+        f"API Secret set: {'Yes' if api_secret and api_secret != 'null' else 'No'}"
+    )
 
     try:
         # ThreadPoolExecutorを使用してAPIサーバーとライブトレードを並行実行

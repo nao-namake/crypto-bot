@@ -6,39 +6,51 @@ Phase 4.1d: パフォーマンス最適化
 
 import json
 import os
-import time
 import subprocess
-import requests
+import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
+import requests
+
+
 class PerformanceOptimizer:
     """パフォーマンス最適化クラス"""
-    
+
     def __init__(self):
         self.optimization_results = []
         self.start_time = datetime.now()
-        self.base_url = "https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app"
-        
-    def log_optimization(self, optimization_name: str, status: str, message: str = "", data: Optional[Dict] = None):
+        self.base_url = (
+            "https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app"
+        )
+
+    def log_optimization(
+        self,
+        optimization_name: str,
+        status: str,
+        message: str = "",
+        data: Optional[Dict] = None,
+    ):
         """最適化結果をログに記録"""
         result = {
             "timestamp": datetime.now().isoformat(),
             "optimization_name": optimization_name,
             "status": status,
             "message": message,
-            "data": data or {}
+            "data": data or {},
         }
         self.optimization_results.append(result)
-        
-        status_emoji = "✅" if status == "success" else "❌" if status == "failed" else "⚠️"
+
+        status_emoji = (
+            "✅" if status == "success" else "❌" if status == "failed" else "⚠️"
+        )
         print(f"{status_emoji} {optimization_name}: {status}")
         if message:
             print(f"   {message}")
         if data:
             print(f"   Data: {json.dumps(data, indent=2)}")
         print()
-    
+
     def optimize_memory_usage(self) -> bool:
         """メモリ使用量最適化"""
         try:
@@ -51,41 +63,41 @@ class PerformanceOptimizer:
                         "component": "external_data_cache",
                         "optimization": "cache_size_limit",
                         "value": "100MB",
-                        "description": "外部データキャッシュサイズ制限"
+                        "description": "外部データキャッシュサイズ制限",
                     },
                     {
                         "component": "pandas_dataframes",
                         "optimization": "memory_efficient_dtypes",
                         "value": "category_for_strings",
-                        "description": "pandas DataFrameの効率的なデータ型使用"
+                        "description": "pandas DataFrameの効率的なデータ型使用",
                     },
                     {
                         "component": "ml_models",
                         "optimization": "model_compression",
                         "value": "quantization",
-                        "description": "MLモデルの圧縮"
+                        "description": "MLモデルの圧縮",
                     },
                     {
                         "component": "logging",
                         "optimization": "buffer_size",
                         "value": "1MB",
-                        "description": "ログバッファサイズ制限"
+                        "description": "ログバッファサイズ制限",
                     },
                     {
                         "component": "garbage_collection",
                         "optimization": "aggressive_gc",
                         "value": "every_100_iterations",
-                        "description": "積極的なガベージコレクション"
-                    }
+                        "description": "積極的なガベージコレクション",
+                    },
                 ],
                 "expected_improvement": "20%",
                 "monitoring": {
                     "metric": "memory_usage",
                     "threshold": "512MB",
-                    "alert": "memory_usage_high"
-                }
+                    "alert": "memory_usage_high",
+                },
             }
-            
+
             # メモリ最適化コードの生成
             memory_optimization_code = '''
 # メモリ最適化設定
@@ -138,30 +150,31 @@ class MemoryOptimizer:
         
         return cache
 '''
-            
+
             # メモリ最適化設定をファイルに保存
             with open("memory_optimization_config.json", "w") as f:
                 json.dump(memory_optimization_config, f, indent=2)
-            
+
             with open("memory_optimizer.py", "w") as f:
                 f.write(memory_optimization_code)
-            
+
             self.log_optimization(
                 "メモリ使用量最適化",
                 "success",
                 f"{len(memory_optimization_config['optimizations'])} 個の最適化が設定されました",
-                {"config_file": "memory_optimization_config.json", "code_file": "memory_optimizer.py"}
+                {
+                    "config_file": "memory_optimization_config.json",
+                    "code_file": "memory_optimizer.py",
+                },
             )
             return True
-            
+
         except Exception as e:
             self.log_optimization(
-                "メモリ使用量最適化",
-                "failed",
-                f"Exception: {str(e)}"
+                "メモリ使用量最適化", "failed", f"Exception: {str(e)}"
             )
             return False
-    
+
     def optimize_cpu_usage(self) -> bool:
         """CPU使用率最適化"""
         try:
@@ -174,41 +187,41 @@ class MemoryOptimizer:
                         "component": "ml_prediction",
                         "optimization": "batch_processing",
                         "value": "process_in_batches_of_10",
-                        "description": "ML予測のバッチ処理"
+                        "description": "ML予測のバッチ処理",
                     },
                     {
                         "component": "data_processing",
                         "optimization": "vectorization",
                         "value": "use_numpy_vectorized_operations",
-                        "description": "データ処理のベクトル化"
+                        "description": "データ処理のベクトル化",
                     },
                     {
                         "component": "indicator_calculation",
                         "optimization": "caching",
                         "value": "cache_frequently_used_indicators",
-                        "description": "頻繁に使用される指標のキャッシュ"
+                        "description": "頻繁に使用される指標のキャッシュ",
                     },
                     {
                         "component": "api_calls",
                         "optimization": "connection_pooling",
                         "value": "reuse_http_connections",
-                        "description": "HTTP接続の再利用"
+                        "description": "HTTP接続の再利用",
                     },
                     {
                         "component": "concurrent_processing",
                         "optimization": "thread_pool_optimization",
                         "value": "optimal_thread_count",
-                        "description": "スレッドプールの最適化"
-                    }
+                        "description": "スレッドプールの最適化",
+                    },
                 ],
                 "expected_improvement": "15%",
                 "monitoring": {
                     "metric": "cpu_usage",
                     "threshold": "80%",
-                    "alert": "cpu_usage_high"
-                }
+                    "alert": "cpu_usage_high",
+                },
             }
-            
+
             # CPU最適化コードの生成
             cpu_optimization_code = '''
 # CPU最適化設定
@@ -290,30 +303,29 @@ class CPUOptimizer:
         
         return results
 '''
-            
+
             # CPU最適化設定をファイルに保存
             with open("cpu_optimization_config.json", "w") as f:
                 json.dump(cpu_optimization_config, f, indent=2)
-            
+
             with open("cpu_optimizer.py", "w") as f:
                 f.write(cpu_optimization_code)
-            
+
             self.log_optimization(
                 "CPU使用率最適化",
                 "success",
                 f"{len(cpu_optimization_config['optimizations'])} 個の最適化が設定されました",
-                {"config_file": "cpu_optimization_config.json", "code_file": "cpu_optimizer.py"}
+                {
+                    "config_file": "cpu_optimization_config.json",
+                    "code_file": "cpu_optimizer.py",
+                },
             )
             return True
-            
+
         except Exception as e:
-            self.log_optimization(
-                "CPU使用率最適化",
-                "failed",
-                f"Exception: {str(e)}"
-            )
+            self.log_optimization("CPU使用率最適化", "failed", f"Exception: {str(e)}")
             return False
-    
+
     def optimize_network_communication(self) -> bool:
         """ネットワーク通信最適化"""
         try:
@@ -326,41 +338,41 @@ class CPUOptimizer:
                         "component": "bitbank_api",
                         "optimization": "connection_pooling",
                         "value": "persistent_connections",
-                        "description": "Bitbank API接続の持続化"
+                        "description": "Bitbank API接続の持続化",
                     },
                     {
                         "component": "external_data_apis",
                         "optimization": "request_batching",
                         "value": "batch_multiple_requests",
-                        "description": "外部データAPI要求のバッチ化"
+                        "description": "外部データAPI要求のバッチ化",
                     },
                     {
                         "component": "response_caching",
                         "optimization": "intelligent_caching",
                         "value": "cache_static_responses",
-                        "description": "静的レスポンスのキャッシュ"
+                        "description": "静的レスポンスのキャッシュ",
                     },
                     {
                         "component": "retry_logic",
                         "optimization": "exponential_backoff",
                         "value": "smart_retry_with_backoff",
-                        "description": "指数バックオフによる再試行"
+                        "description": "指数バックオフによる再試行",
                     },
                     {
                         "component": "compression",
                         "optimization": "gzip_compression",
                         "value": "compress_large_responses",
-                        "description": "大きなレスポンスの圧縮"
-                    }
+                        "description": "大きなレスポンスの圧縮",
+                    },
                 ],
                 "expected_improvement": "25%",
                 "monitoring": {
                     "metric": "network_latency",
                     "threshold": "500ms",
-                    "alert": "network_latency_high"
-                }
+                    "alert": "network_latency_high",
+                },
             }
-            
+
             # ネットワーク最適化コードの生成
             network_optimization_code = '''
 # ネットワーク通信最適化
@@ -455,30 +467,31 @@ class NetworkOptimizer:
         json_str = gzip.decompress(compressed_data).decode()
         return json.loads(json_str)
 '''
-            
+
             # ネットワーク最適化設定をファイルに保存
             with open("network_optimization_config.json", "w") as f:
                 json.dump(network_optimization_config, f, indent=2)
-            
+
             with open("network_optimizer.py", "w") as f:
                 f.write(network_optimization_code)
-            
+
             self.log_optimization(
                 "ネットワーク通信最適化",
                 "success",
                 f"{len(network_optimization_config['optimizations'])} 個の最適化が設定されました",
-                {"config_file": "network_optimization_config.json", "code_file": "network_optimizer.py"}
+                {
+                    "config_file": "network_optimization_config.json",
+                    "code_file": "network_optimizer.py",
+                },
             )
             return True
-            
+
         except Exception as e:
             self.log_optimization(
-                "ネットワーク通信最適化",
-                "failed",
-                f"Exception: {str(e)}"
+                "ネットワーク通信最適化", "failed", f"Exception: {str(e)}"
             )
             return False
-    
+
     def optimize_cache_efficiency(self) -> bool:
         """キャッシュ効率最適化"""
         try:
@@ -491,41 +504,41 @@ class NetworkOptimizer:
                         "component": "external_data_cache",
                         "optimization": "lru_cache",
                         "value": "least_recently_used",
-                        "description": "LRUキャッシュアルゴリズム"
+                        "description": "LRUキャッシュアルゴリズム",
                     },
                     {
                         "component": "indicator_cache",
                         "optimization": "ttl_cache",
                         "value": "time_to_live_300s",
-                        "description": "TTLキャッシュ（5分）"
+                        "description": "TTLキャッシュ（5分）",
                     },
                     {
                         "component": "ml_prediction_cache",
                         "optimization": "size_based_cache",
                         "value": "max_1000_entries",
-                        "description": "サイズベースキャッシュ"
+                        "description": "サイズベースキャッシュ",
                     },
                     {
                         "component": "api_response_cache",
                         "optimization": "compressed_cache",
                         "value": "gzip_compression",
-                        "description": "圧縮キャッシュ"
+                        "description": "圧縮キャッシュ",
                     },
                     {
                         "component": "cache_warming",
                         "optimization": "preload_cache",
                         "value": "warm_frequently_used_data",
-                        "description": "キャッシュのウォームアップ"
-                    }
+                        "description": "キャッシュのウォームアップ",
+                    },
                 ],
                 "expected_improvement": "30%",
                 "monitoring": {
                     "metric": "cache_hit_rate",
                     "threshold": "80%",
-                    "alert": "cache_hit_rate_low"
-                }
+                    "alert": "cache_hit_rate_low",
+                },
             }
-            
+
             # キャッシュ最適化コードの生成
             cache_optimization_code = '''
 # キャッシュ効率最適化
@@ -625,88 +638,93 @@ class CacheOptimizer:
             'evictions': self.cache_stats['evictions']
         }
 '''
-            
+
             # キャッシュ最適化設定をファイルに保存
             with open("cache_optimization_config.json", "w") as f:
                 json.dump(cache_optimization_config, f, indent=2)
-            
+
             with open("cache_optimizer.py", "w") as f:
                 f.write(cache_optimization_code)
-            
+
             self.log_optimization(
                 "キャッシュ効率最適化",
                 "success",
                 f"{len(cache_optimization_config['optimizations'])} 個の最適化が設定されました",
-                {"config_file": "cache_optimization_config.json", "code_file": "cache_optimizer.py"}
+                {
+                    "config_file": "cache_optimization_config.json",
+                    "code_file": "cache_optimizer.py",
+                },
             )
             return True
-            
+
         except Exception as e:
             self.log_optimization(
-                "キャッシュ効率最適化",
-                "failed",
-                f"Exception: {str(e)}"
+                "キャッシュ効率最適化", "failed", f"Exception: {str(e)}"
             )
             return False
-    
+
     def measure_current_performance(self) -> Dict[str, Any]:
         """現在のパフォーマンス測定"""
         try:
             # パフォーマンス測定
             performance_metrics = {}
-            
+
             # レスポンス時間測定
             start_time = time.time()
             response = requests.get(f"{self.base_url}/health", timeout=10)
             end_time = time.time()
-            
+
             if response.status_code == 200:
-                performance_metrics['response_time'] = end_time - start_time
-                performance_metrics['response_status'] = 'healthy'
+                performance_metrics["response_time"] = end_time - start_time
+                performance_metrics["response_status"] = "healthy"
             else:
-                performance_metrics['response_time'] = None
-                performance_metrics['response_status'] = 'unhealthy'
-            
+                performance_metrics["response_time"] = None
+                performance_metrics["response_status"] = "unhealthy"
+
             # パフォーマンスメトリクス取得
             try:
-                perf_response = requests.get(f"{self.base_url}/health/performance", timeout=10)
+                perf_response = requests.get(
+                    f"{self.base_url}/health/performance", timeout=10
+                )
                 if perf_response.status_code == 200:
                     perf_data = perf_response.json()
                     performance_metrics.update(perf_data)
             except:
                 pass
-            
+
             self.log_optimization(
                 "現在のパフォーマンス測定",
                 "success",
                 f"パフォーマンスメトリクスを取得しました",
-                performance_metrics
+                performance_metrics,
             )
-            
+
             return performance_metrics
-            
+
         except Exception as e:
             self.log_optimization(
-                "現在のパフォーマンス測定",
-                "failed",
-                f"Exception: {str(e)}"
+                "現在のパフォーマンス測定", "failed", f"Exception: {str(e)}"
             )
             return {}
-    
+
     def generate_optimization_report(self) -> Dict:
         """最適化レポートを生成"""
         total_optimizations = len(self.optimization_results)
-        successful_optimizations = len([r for r in self.optimization_results if r["status"] == "success"])
-        failed_optimizations = len([r for r in self.optimization_results if r["status"] == "failed"])
-        
+        successful_optimizations = len(
+            [r for r in self.optimization_results if r["status"] == "success"]
+        )
+        failed_optimizations = len(
+            [r for r in self.optimization_results if r["status"] == "failed"]
+        )
+
         # 期待される改善効果を計算
         expected_improvements = {
             "memory_usage": 20,  # 20%削減
-            "cpu_usage": 15,     # 15%削減
+            "cpu_usage": 15,  # 15%削減
             "network_latency": 25,  # 25%削減
-            "cache_hit_rate": 30    # 30%改善
+            "cache_hit_rate": 30,  # 30%改善
         }
-        
+
         report = {
             "report_timestamp": datetime.now().isoformat(),
             "optimization_duration": str(datetime.now() - self.start_time),
@@ -714,30 +732,34 @@ class CacheOptimizer:
                 "total_optimizations": total_optimizations,
                 "successful_optimizations": successful_optimizations,
                 "failed_optimizations": failed_optimizations,
-                "success_rate": f"{(successful_optimizations / total_optimizations * 100):.1f}%" if total_optimizations > 0 else "0%",
-                "expected_improvements": expected_improvements
+                "success_rate": (
+                    f"{(successful_optimizations / total_optimizations * 100):.1f}%"
+                    if total_optimizations > 0
+                    else "0%"
+                ),
+                "expected_improvements": expected_improvements,
             },
-            "detailed_results": self.optimization_results
+            "detailed_results": self.optimization_results,
         }
-        
+
         return report
-    
+
     def run_all_optimizations(self) -> bool:
         """全ての最適化を実行"""
         print("⚡ Phase 4.1d: パフォーマンス最適化開始")
         print("=" * 50)
-        
+
         # 現在のパフォーマンスを測定
         print("📊 現在のパフォーマンス測定中...")
         current_performance = self.measure_current_performance()
-        
+
         optimizations = [
             ("メモリ使用量最適化", self.optimize_memory_usage),
             ("CPU使用率最適化", self.optimize_cpu_usage),
             ("ネットワーク通信最適化", self.optimize_network_communication),
             ("キャッシュ効率最適化", self.optimize_cache_efficiency),
         ]
-        
+
         overall_success = True
         for optimization_name, optimization_func in optimizations:
             print(f"⚡ {optimization_name} 実行中...")
@@ -745,10 +767,10 @@ class CacheOptimizer:
             if not success:
                 overall_success = False
             time.sleep(1)
-        
+
         # レポート生成
         report = self.generate_optimization_report()
-        
+
         print("📊 パフォーマンス最適化完了サマリー")
         print("=" * 50)
         print(f"総最適化数: {report['summary']['total_optimizations']}")
@@ -756,11 +778,11 @@ class CacheOptimizer:
         print(f"失敗: {report['summary']['failed_optimizations']}")
         print(f"成功率: {report['summary']['success_rate']}")
         print(f"実行時間: {report['optimization_duration']}")
-        
+
         print("\\n📈 期待される改善効果:")
-        for metric, improvement in report['summary']['expected_improvements'].items():
+        for metric, improvement in report["summary"]["expected_improvements"].items():
             print(f"  - {metric}: {improvement}%改善")
-        
+
         # レポートをファイルに保存
         try:
             with open("phase4_1_optimization_report.json", "w") as f:
@@ -768,25 +790,29 @@ class CacheOptimizer:
             print("\\n📄 詳細レポートをphase4_1_optimization_report.jsonに保存しました")
         except Exception as e:
             print(f"\\n⚠️  レポート保存に失敗: {e}")
-        
+
         if overall_success:
-            print("\\n🎉 Phase 4.1d: パフォーマンス最適化 - 全ての最適化が成功しました!")
+            print(
+                "\\n🎉 Phase 4.1d: パフォーマンス最適化 - 全ての最適化が成功しました!"
+            )
         else:
             print("\\n⚠️  Phase 4.1d: パフォーマンス最適化 - 一部の最適化が失敗しました")
-        
+
         return overall_success
+
 
 def main():
     """メイン実行関数"""
     optimizer = PerformanceOptimizer()
     success = optimizer.run_all_optimizations()
-    
+
     if success:
         print("\\n✅ Phase 4.1d完了 - 次のフェーズ（Phase 4.1e）に進むことができます")
         return 0
     else:
         print("\\n❌ Phase 4.1d失敗 - 問題を解決してから次のフェーズに進んでください")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

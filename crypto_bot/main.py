@@ -899,11 +899,13 @@ def live_bitbank(config_path: str, max_trades: int):
         dd=dd,
         strategy=strategy,
         risk_manager=risk_manager,
-        balance=balance
+        balance=balance,
     )
 
     trade_done = 0
-    logger.info("🎊 [INIT-COMPLETE] === Bitbank Live Trading Started ===  Ctrl+C で停止")
+    logger.info(
+        "🎊 [INIT-COMPLETE] === Bitbank Live Trading Started ===  Ctrl+C で停止"
+    )
     logger.info(
         f"🚀 [INIT-COMPLETE] 101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
     )
