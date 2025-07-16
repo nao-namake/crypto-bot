@@ -7,8 +7,9 @@ main.pyのINIT-5～INIT-8段階を強化した版
 
 import logging
 import time
+from typing import Any, Optional
+
 import pandas as pd
-from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
