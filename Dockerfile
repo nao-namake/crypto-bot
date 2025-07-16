@@ -34,5 +34,5 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8080
 
-# Live Trading + API Server Mode (Bybit Testnet)
-CMD ["python", "scripts/start_live_with_api.py"]
+# Live Trading + API Server Mode (No-Fallback Version)
+CMD ["python", "scripts/start_live_with_api_fixed.py"]
