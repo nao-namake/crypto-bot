@@ -890,92 +890,23 @@ def live_bitbank(config_path: str, max_trades: int):
     position = Position()
     balance = cfg["backtest"]["starting_balance"]
 
-    # ATRを計算するための初期データを取得（エラーハンドリング強化版）
-    logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
-    logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
-
-    initial_df = None
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            logger.info(
-                f"🔄 [INIT-5] Attempt {attempt + 1}/{max_retries} - "
-                "Fetching initial price data..."
-            )
-            initial_df = fetcher.get_price_df(
-                timeframe=dd.get("timeframe", "1h"),
-                limit=200,
-                paginate=False,
-            )
-            logger.info(
-                f"✅ [INIT-5] Initial price data fetched successfully: "
-                f"{len(initial_df)} records"
-            )
-            break
-        except Exception as e:
-            logger.error(f"❌ [INIT-5] Attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 10
-                logger.info(f"⏳ [INIT-5] Waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-            else:
-                logger.error(
-                    "❌ [INIT-5] All attempts failed - "
-                    "using fallback ATR calculation"
-                )
-                initial_df = None
-
-    # ATRを計算（フォールバック対応版）
-    logger.info("🔢 [INIT-6] Calculating ATR...")
-    logger.info(f"⏰ [INIT-6] Timestamp: {pd.Timestamp.now()}")
-
-    atr_series = None
-    if initial_df is not None and not initial_df.empty:
-        try:
-            from crypto_bot.indicator.calculator import IndicatorCalculator
-
-            calculator = IndicatorCalculator()
-            atr_series = calculator.calculate_atr(initial_df, period=14)
-            logger.info(
-                f"✅ [INIT-6] ATR calculated successfully: " f"{len(atr_series)} values"
-            )
-        except Exception as e:
-            logger.error(f"❌ [INIT-6] ATR calculation failed: {e}")
-            atr_series = None
-    else:
-        logger.warning("⚠️ [INIT-6] No initial data available for ATR calculation")
-
-    if atr_series is None or atr_series.empty:
-        logger.info("🔧 [INIT-6] Using fallback ATR value (0.01)")
-        # フォールバック: 固定ATR値を使用（1%相当）
-        import pandas as pd
-
-        atr_series = pd.Series([0.01] * 14)
-        latest_atr = atr_series.iloc[-1] if not atr_series.empty else "N/A"
-        logger.info(f"ATR calculated: {len(atr_series)} values, latest: {latest_atr}")
-
-    logger.info("🎯 [INIT-7] Initializing Entry/Exit system...")
-    logger.info(f"⏰ [INIT-7] Timestamp: {pd.Timestamp.now()}")
-    entry_exit = EntryExit(
-        strategy=strategy, risk_manager=risk_manager, atr_series=atr_series
+    # INIT-5〜INIT-8の強化版シーケンス実行
+    from crypto_bot.init_enhanced import enhanced_init_sequence
+    
+    entry_exit, position = enhanced_init_sequence(
+        fetcher=fetcher,
+        dd=dd,
+        strategy=strategy,
+        risk_manager=risk_manager,
+        balance=balance
     )
-    logger.info("✅ [INIT-7] Entry/Exit system initialized successfully")
-    entry_exit.current_balance = balance
 
     trade_done = 0
-    logger.info("🎊 [INIT-7] === Bitbank Live Trading Started ===  Ctrl+C で停止")
+    logger.info("🎊 [INIT-COMPLETE] === Bitbank Live Trading Started ===  Ctrl+C で停止")
     logger.info(
-        f"🚀 [INIT-7] 101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
+        f"🚀 [INIT-COMPLETE] 101特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
     )
-    logger.info(f"⏰ [INIT-7] Timestamp: {pd.Timestamp.now()}")
-
-    # 古いキャッシュをクリア（データ鮮度確保）
-    from crypto_bot.ml.external_data_cache import clear_global_cache
-
-    logger.info("🧹 [INIT-8] Clearing old cache for fresh data...")
-    logger.info(f"⏰ [INIT-8] Timestamp: {pd.Timestamp.now()}")
-    clear_global_cache()
-    logger.info("✅ [INIT-8] 🗑️ Cleared old cache for fresh data")
+    logger.info(f"⏰ [INIT-COMPLETE] Timestamp: {pd.Timestamp.now()}")
 
     logger.info("🔄 [LOOP-START] Starting main trading loop...")
     logger.info(f"⏰ [LOOP-START] Timestamp: {pd.Timestamp.now()}")
