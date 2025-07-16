@@ -29,11 +29,12 @@ from crypto_bot.backtest.optimizer import (  # noqa: F401  他コマンドで使
     optimize_backtest,
 )
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
-from crypto_bot.execution.engine import EntryExit, Position
+from crypto_bot.execution.engine import Position
 from crypto_bot.ml.optimizer import _load_and_preprocess_data
 from crypto_bot.ml.optimizer import optimize_ml as run_optuna
 from crypto_bot.ml.optimizer import train_best_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
+from crypto_bot.ml.external_data_cache import clear_global_cache
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
@@ -892,7 +893,7 @@ def live_bitbank(config_path: str, max_trades: int):
 
     # INIT-5〜INIT-8の強化版シーケンス実行
     from crypto_bot.init_enhanced import enhanced_init_sequence
-    
+
     entry_exit, position = enhanced_init_sequence(
         fetcher=fetcher,
         dd=dd,
