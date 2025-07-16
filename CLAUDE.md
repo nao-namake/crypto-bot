@@ -2,32 +2,26 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年7月16日 新セッション開始)
+## 現在のシステム概要 (2025年7月17日更新)
 
-### 🚀 **最新実装: Phase 2.2 ATR修正システム実装完了・デプロイ待機中**
+### 🚀 **最新実装: Phase 2.2 ATR修正システム完全デプロイ完了**
 
-**API-onlyモード根本解決・ATRハング修正・yfinance依存関係修正により確実なライブモード維持実現**
+**Cloud Run環境向けsignal handling修正・ATRハング根本解決・API-onlyモード完全回避実現**
 
-#### ✅ **最新技術的成果（2025/7/16 実装完了・デプロイ待機中）**
+#### ✅ **最新技術的成果（2025/7/17 本番デプロイ完了）**
 
-**🔧 Phase 2.2 ATR計算エンハンスメント実装完了**
+**🔧 Phase 2.2 ATR計算エンハンスメント本番稼働中**
 - **✅ enhanced_init_sequence実装**: timeout・retry logic・fallback values・exponential backoff
 - **✅ INIT-5~INIT-8強化版**: ATRハング根本解決・データ品質チェック・依存関係検証
-- **✅ yfinance依存関係修正**: requirements-dev.txt追加・モジュール検証・エラーハンドリング
-- **✅ API-onlyモード回避**: フォールバック削除・即座終了・確実なライブモード維持
-- **⚠️ デプロイ未実行**: 実装完了済みもgit commit・CI/CD未実行・本番反映待機中
+- **✅ Cloud Run対応signal修正**: signal.SIGALRM → ThreadPoolExecutor timeout使用
+- **✅ API-onlyモード完全回避**: フォールバック削除・即座終了・確実なライブモード維持
+- **✅ 本番デプロイ完了**: commit 30d1e3fc・リビジョン crypto-bot-service-prod-00002-wcs稼働中
 
-**🚨 緊急課題（現在のセッション課題）**
-- **🔴 実装済み変更未デプロイ**: crypto_bot/init_enhanced.py・main.py修正済み・git commit待機
-- **🔴 Shell snapshot問題**: Claude Code bash実行制限・手動git操作必要
-- **🔴 CI/CD未実行**: Phase 2.2修正のデプロイ待機・本番稼働阻害
-- **🔴 旧版本番稼働**: 修正前システム稼働継続・ATRハング問題未解決
-
-**📊 現在の稼働状況（2025/7/16 セッション開始時点）**
-- **⚠️ 旧版システム稼働**: Phase 2.2修正前バージョン稼働継続
-- **❌ ATRハング問題**: INIT-5段階でのデータ取得ハング・取引ループ開始不可
-- **❌ API-onlyモード**: Bitbank API認証エラー時の不適切なフォールバック実行
-- **✅ 修正版実装完了**: enhanced_init_sequence実装済み・デプロイ待機中
+**📊 現在の稼働状況（2025/7/17 8:40時点）**
+- **✅ Phase 2.2修正版稼働中**: enhanced_init_sequence・Cloud Run対応完了
+- **✅ システム健全性**: ヘルスチェック正常・API稼働確認済み
+- **✅ 信用取引モード有効**: margin_mode: true・Bitbank API接続正常
+- **⏳ 取引ループ開始待機**: モデルファイル配置後自動開始予定
 
 **🔬 実データバックテストシステム**
 - **✅ 比較分析**: 従来ML vs 4種類のアンサンブル戦略の完全比較

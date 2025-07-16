@@ -1,24 +1,24 @@
-# Crypto-Bot - Phase 2 ATR修正システム・4ターミナル並列実行戦略確立
+# Crypto-Bot - Phase 2.2 ATR修正システム完全デプロイ完了
 
-## 🚀 **最新実装完了: Phase 2.2 ATR修正システム実装完了・デプロイ待機中** (2025年7月16日新セッション開始)
+## 🚀 **最新実装: Phase 2.2 ATR修正システム本番稼働中** (2025年7月17日更新)
 
-**API-onlyモード根本解決・ATRハング修正・yfinance依存関係修正により確実なライブモード維持実現**完了。実装済み変更のgit commit・CI/CD実行待機中。
+**Cloud Run環境向けsignal handling修正・ATRハング根本解決・API-onlyモード完全回避実現**
 
-### 💎 **革新的技術成果** (2025年7月16日最新更新)
+### 💎 **革新的技術成果** (2025年7月17日最新更新)
 ```
-🔧 Phase 2.2 ATR計算エンハンスメント実装完了:
+✅ Phase 2.2 ATR計算エンハンスメント本番稼働:
 - enhanced_init_sequence実装: timeout・retry logic・fallback values・exponential backoff
 - INIT-5~INIT-8強化版: ATRハング根本解決・データ品質チェック・依存関係検証
-- yfinance依存関係修正: requirements-dev.txt追加・モジュール検証・エラーハンドリング
-- API-onlyモード回避: フォールバック削除・即座終了・確実なライブモード維持
-- crypto_bot/init_enhanced.py: 完全実装・timeout・retry・fallback機能統合
-- crypto_bot/main.py: enhanced_init_sequence統合・INIT-5段階修正
+- Cloud Run対応signal修正: signal.SIGALRM → ThreadPoolExecutor timeout使用
+- API-onlyモード完全回避: フォールバック削除・即座終了・確実なライブモード維持
+- crypto_bot/init_enhanced.py: 完全実装・Cloud Run対応・品質チェック完全準拠
+- crypto_bot/main.py: enhanced_init_sequence統合・本番デプロイ完了
 
-⚠️ 緊急課題:
-- 実装済み変更未デプロイ: Phase 2.2修正実装完了・git commit待機
-- Shell snapshot問題: Claude Code bash実行制限・手動git操作必要
-- 旧版本番稼働: 修正前システム稼働継続・ATRハング問題未解決
-- CI/CD未実行: Phase 2.2修正のデプロイ待機・本番稼働阻害
+📊 現在の稼働状況（2025/7/17 8:40時点）:
+- Phase 2.2修正版稼働中: リビジョン crypto-bot-service-prod-00002-wcs
+- システム健全性: ヘルスチェック正常・API稼働確認済み
+- 信用取引モード有効: margin_mode: true・Bitbank API接続正常
+- 取引ループ開始待機: モデルファイル配置後自動開始予定
 
 🎯 アンサンブル学習による勝率・収益性向上:
 - 勝率向上: 58% → 63%（5%ポイント改善・統計的有意）
