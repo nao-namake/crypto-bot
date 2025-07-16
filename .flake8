@@ -30,4 +30,5 @@ exclude =
     build,
     dist,
     crypto_bot/data/.ipynb_checkpoints,
-    tests/integration
+    tests/integration,
+    scripts
