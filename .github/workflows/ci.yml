@@ -99,15 +99,11 @@ jobs:
       - uses: actions/checkout@v4
         # コードをチェックアウト
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
-        # クロスプラットフォーム向けに QEMU をセットアップ
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        # Docker Buildx をセットアップしてマルチアーキテクチャビルドに対応
+        with:
+          platforms: linux/amd64
+        # Docker Buildx をセットアップ (AMD64専用)
 
       # ---------- Authenticate to GCP for Artifact Registry ----------
       - name: Authenticate to Google Cloud
@@ -149,6 +145,7 @@ jobs:
           push: true
           load: false
           platforms: linux/amd64
+          provenance: false
           tags: |
             asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
             asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
