@@ -27,23 +27,13 @@ resource "google_cloud_run_service" "service" {
         }
         
         env {
-          name = "BITBANK_API_KEY"
-          value_from {
-            secret_key_ref {
-              name = "BITBANK_API_KEY"
-              key  = "latest"
-            }
-          }
+          name  = "BITBANK_API_KEY"
+          value = var.bitbank_api_key
         }
         
         env {
-          name = "BITBANK_API_SECRET" 
-          value_from {
-            secret_key_ref {
-              name = "BITBANK_API_SECRET"
-              key  = "latest"
-            }
-          }
+          name  = "BITBANK_API_SECRET"
+          value = var.bitbank_api_secret
         }
         
         ports {
