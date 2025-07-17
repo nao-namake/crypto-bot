@@ -934,11 +934,20 @@ def live_bitbank(config_path: str, max_trades: int):
                         "📊 [DATA-FETCH] Fetching price data from Bitbank API..."
                     )
                     logger.info(f"⏰ [DATA-FETCH] Timestamp: {pd.Timestamp.now()}")
-                    
-                    # 最新データを確実に取得するため since=None で実行
+
+                    # 最新データを確実に取得（過去データ参照防止）
+                    # since=None かつ現在時刻から逆算して最新データのみ取得
+                    current_time = pd.Timestamp.now(tz="UTC")
+                    hours_back = 200  # 200時間分のデータ
+                    since_time = current_time - pd.Timedelta(hours=hours_back)
+                    logger.info(
+                        f"🔄 Fetching latest data since: {since_time} "
+                        f"(current: {current_time})"
+                    )
+
                     price_df = fetcher.get_price_df(
                         timeframe=dd.get("timeframe", "1h"),
-                        since=None,  # 最新データを取得
+                        since=since_time,  # 最新200時間のデータのみ
                         limit=200,
                         paginate=False,
                     )
@@ -972,14 +981,22 @@ def live_bitbank(config_path: str, max_trades: int):
                 f"latest: {latest_time} ({hours_old:.1f}h ago)"
             )
 
-            # データ鮮度監視（24時間以上古い場合は警告）
+            # データ鮮度監視（3時間以上古い場合は警告、24時間以上は強制再取得）
             if hours_old > 24:
-                logger.warning(
-                    f"⚠️ Data is {hours_old:.1f} hours old - may need fresh data fetch"
+                logger.error(
+                    f"🚨 Data is {hours_old:.1f} hours old - FORCING FRESH DATA FETCH"
                 )
                 # 古いキャッシュを再クリア
                 clear_global_cache()
                 logger.info("🔄 Re-cleared cache due to stale data")
+                # 次のループで新しいデータ取得を強制
+                logger.info("⏰ Waiting 30 seconds before fresh data fetch...")
+                time.sleep(30)
+                continue
+            elif hours_old > 3:
+                logger.warning(
+                    f"⚠️ Data is {hours_old:.1f} hours old - consider fresh data"
+                )
 
             # エントリー判定
             logger.info("📊 [ENTRY-JUDGE] Starting entry order generation...")
@@ -1018,17 +1035,29 @@ def live_bitbank(config_path: str, max_trades: int):
                         )
 
                         # 注文パラメータの検証とログ出力
-                        current_price = price_df['close'].iloc[-1] if not price_df.empty else entry_order.price
-                        logger.info(f"📊 Order params - Symbol: {symbol}, Side: {entry_order.side.lower()}, Amount: {entry_order.lot}, Current price: {current_price}")
-                        
+                        current_price = (
+                            price_df["close"].iloc[-1]
+                            if not price_df.empty
+                            else entry_order.price
+                        )
+                        logger.info(
+                            f"📊 Order params - Symbol: {symbol}, "
+                            f"Side: {entry_order.side.lower()}, "
+                            f"Amount: {entry_order.lot}, "
+                            f"Current price: {current_price}"
+                        )
+
                         # 最小注文量チェック（Bitbank BTC/JPYは0.0001以上）
                         min_amount = 0.0001
                         if entry_order.lot < min_amount:
-                            logger.warning(f"⚠️ Order amount {entry_order.lot} too small, adjusting to minimum {min_amount}")
+                            logger.warning(
+                                f"⚠️ Order amount {entry_order.lot} "
+                                f"too small, adjusting to minimum "
+                                f"{min_amount}"
+                            )
                             adjusted_amount = min_amount
                         else:
                             adjusted_amount = entry_order.lot
-                        
                         # 実際の注文送信
                         order_result = client.create_order(
                             symbol=symbol,
@@ -1063,26 +1092,47 @@ def live_bitbank(config_path: str, max_trades: int):
                 except Exception as e:
                     logger.error(f"❌ BITBANK ORDER FAILED: {e}")
                     logger.error(f"Error details: {type(e).__name__}: {str(e)}")
-                    
+
                     if exchange_id == "bitbank":
                         # Bitbank APIエラーの詳細ログ
-                        logger.error(f"API Key present: {'Yes' if api_key else 'No'}")
-                        logger.error(f"API Secret present: {'Yes' if api_secret else 'No'}")
+                        api_key_status = "Yes" if api_key else "No"
+                        api_secret_status = "Yes" if api_secret else "No"
+                        logger.error(f"API Key present: {api_key_status}")
+                        logger.error(f"API Secret present: {api_secret_status}")
                         logger.error(f"Margin mode: {margin_enabled}")
-                        logger.error(f"Order details: {entry_order.side} {entry_order.lot} at {entry_order.price}")
-                        
+                        logger.error(
+                            f"Order details: {entry_order.side} "
+                            f"{entry_order.lot} at {entry_order.price}"
+                        )
+
                         # エラー40024の場合は信用取引設定の問題として継続実行
                         if "40024" in str(e):
-                            logger.warning("⚠️ Error 40024 detected - likely margin trading permission issue")
-                            logger.warning("🔄 Continuing trading loop - will retry on next iteration")
-                        elif "timeout" in str(e).lower() or "connection" in str(e).lower():
+                            logger.warning(
+                                "⚠️ Error 40024 detected - likely "
+                                "margin trading permission issue"
+                            )
+                            logger.warning(
+                                "🔄 Continuing trading loop - "
+                                "will retry on next iteration"
+                            )
+                        elif (
+                            "timeout" in str(e).lower()
+                            or "connection" in str(e).lower()
+                        ):
                             logger.warning("⚠️ Network/timeout error detected")
-                            logger.warning("🔄 Continuing trading loop - will retry on next iteration")
+                            logger.warning(
+                                "🔄 Continuing trading loop - "
+                                "will retry on next iteration"
+                            )
                         else:
-                            logger.warning("⚠️ Trading error occurred - continuing loop")
-                        
+                            logger.warning(
+                                "⚠️ Trading error occurred - " "continuing loop"
+                            )
+
                         # プロセスを停止せず次のループに続行
-                        logger.info("⏰ Waiting 60 seconds before next trading attempt...")
+                        logger.info(
+                            "⏰ Waiting 60 seconds before next " "trading attempt..."
+                        )
                         time.sleep(60)
                     else:
                         # 非Bitbank取引所の場合のみフォールバック許可
