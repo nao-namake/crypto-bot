@@ -22,7 +22,7 @@ strategy:
   name: ml
   params:
     model_path: /app/model.pkl
-    threshold: 0.05
+    threshold: 0.02
 
 risk:
   risk_per_trade: 0.005
