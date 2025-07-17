@@ -148,8 +148,11 @@ class HealthChecker:
                 try:
                     import yaml
 
-                    # 本番設定ファイルを確認
+                    # 本番設定ファイルを確認（新フォルダ構造）
                     config_files = [
+                        "config/production/bitbank_config.yml",
+                        "/app/config/production/bitbank_config.yml",
+                        # フォールバック（旧構造）
                         "config/bitbank_101features_production.yml",
                         "/app/config/bitbank_101features_production.yml",
                     ]
