@@ -34,12 +34,18 @@ risk:
 live:
   mode: live
   trade_interval: 60
-  min_order_size: 0.0003
+  min_order_size: 0.0001  # Bitbank最小単位に合わせて調整
   max_order_size: 0.0005
   margin_trading:
-    enabled: true
-    leverage: 1.0
-    position_type: "both"
+    enabled: true   # 信用取引有効
+    leverage: 1.0   # 1倍レバレッジ
+    position_type: "both"  # ロング・ショート両対応
+  
+  # Bitbank固有設定
+  bitbank_settings:
+    min_btc_amount: 0.0001  # BTC最小取引量
+    max_retries: 3          # API失敗時リトライ回数
+    retry_delay: 5          # リトライ間隔（秒）
 
 # 軽量ML設定
 ml:

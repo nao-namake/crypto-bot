@@ -934,8 +934,11 @@ def live_bitbank(config_path: str, max_trades: int):
                         "📊 [DATA-FETCH] Fetching price data from Bitbank API..."
                     )
                     logger.info(f"⏰ [DATA-FETCH] Timestamp: {pd.Timestamp.now()}")
+                    
+                    # 最新データを確実に取得するため since=None で実行
                     price_df = fetcher.get_price_df(
                         timeframe=dd.get("timeframe", "1h"),
+                        since=None,  # 最新データを取得
                         limit=200,
                         paginate=False,
                     )
@@ -1014,12 +1017,24 @@ def live_bitbank(config_path: str, max_trades: int):
                             margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
 
+                        # 注文パラメータの検証とログ出力
+                        current_price = price_df['close'].iloc[-1] if not price_df.empty else entry_order.price
+                        logger.info(f"📊 Order params - Symbol: {symbol}, Side: {entry_order.side.lower()}, Amount: {entry_order.lot}, Current price: {current_price}")
+                        
+                        # 最小注文量チェック（Bitbank BTC/JPYは0.0001以上）
+                        min_amount = 0.0001
+                        if entry_order.lot < min_amount:
+                            logger.warning(f"⚠️ Order amount {entry_order.lot} too small, adjusting to minimum {min_amount}")
+                            adjusted_amount = min_amount
+                        else:
+                            adjusted_amount = entry_order.lot
+                        
                         # 実際の注文送信
                         order_result = client.create_order(
                             symbol=symbol,
                             type="market",
                             side=entry_order.side.lower(),
-                            amount=entry_order.lot,
+                            amount=adjusted_amount,
                         )
 
                         logger.info(f"✅ REAL BITBANK ORDER EXECUTED: {order_result}")
@@ -1048,22 +1063,27 @@ def live_bitbank(config_path: str, max_trades: int):
                 except Exception as e:
                     logger.error(f"❌ BITBANK ORDER FAILED: {e}")
                     logger.error(f"Error details: {type(e).__name__}: {str(e)}")
-                    # 実取引強制化: フォールバックを無効化
+                    
                     if exchange_id == "bitbank":
-                        logger.error(
-                            "🚨 REAL TRADING FAILED - ABORTING TO PREVENT "
-                            "SIMULATION FALLBACK"
-                        )
+                        # Bitbank APIエラーの詳細ログ
                         logger.error(f"API Key present: {'Yes' if api_key else 'No'}")
-                        logger.error(
-                            f"API Secret present: {'Yes' if api_secret else 'No'}"
-                        )
+                        logger.error(f"API Secret present: {'Yes' if api_secret else 'No'}")
                         logger.error(f"Margin mode: {margin_enabled}")
-                        logger.error(
-                            f"Order details: {entry_order.side} {entry_order.lot} "
-                            f"at {entry_order.price}"
-                        )
-                        raise RuntimeError(f"Real trading execution failed: {e}")
+                        logger.error(f"Order details: {entry_order.side} {entry_order.lot} at {entry_order.price}")
+                        
+                        # エラー40024の場合は信用取引設定の問題として継続実行
+                        if "40024" in str(e):
+                            logger.warning("⚠️ Error 40024 detected - likely margin trading permission issue")
+                            logger.warning("🔄 Continuing trading loop - will retry on next iteration")
+                        elif "timeout" in str(e).lower() or "connection" in str(e).lower():
+                            logger.warning("⚠️ Network/timeout error detected")
+                            logger.warning("🔄 Continuing trading loop - will retry on next iteration")
+                        else:
+                            logger.warning("⚠️ Trading error occurred - continuing loop")
+                        
+                        # プロセスを停止せず次のループに続行
+                        logger.info("⏰ Waiting 60 seconds before next trading attempt...")
+                        time.sleep(60)
                     else:
                         # 非Bitbank取引所の場合のみフォールバック許可
                         balance = entry_exit.fill_order(entry_order, position, balance)
