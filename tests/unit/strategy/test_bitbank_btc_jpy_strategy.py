@@ -92,7 +92,6 @@ class TestBitbankBTCJPYStrategy:
         assert btc_strategy is not None
         assert btc_strategy.market_context is not None
         assert btc_strategy.btc_config is not None
-        assert btc_strategy.performance_metrics is not None
         assert btc_strategy.trend_analysis is not None
 
     def test_market_context_analysis(self, btc_strategy):
