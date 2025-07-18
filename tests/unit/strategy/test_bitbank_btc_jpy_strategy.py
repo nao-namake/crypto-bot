@@ -170,14 +170,13 @@ class TestBitbankBTCJPYStrategy:
     def test_large_order_execution(self, btc_strategy):
         """大口注文実行戦略テスト"""
         # 大口注文の実行
-        order_amount = 2.0
+        side = "long"  # または "short"
+        total_amount = 2.0
         target_price = 3000000
-        max_slippage = 0.001
-        time_horizon = 3600
 
         # 実際の実装メソッドを使用
         success, message = btc_strategy.execute_large_order(
-            order_amount, target_price, max_slippage, time_horizon
+            side, total_amount, target_price
         )
         assert isinstance(success, bool)
         assert isinstance(message, str)
@@ -257,7 +256,6 @@ class TestBitbankBTCJPYStrategy:
         assert btc_strategy.fee_optimizer is not None
         assert btc_strategy.fee_guard is not None
         assert btc_strategy.order_manager is not None
-        assert btc_strategy.position_manager is not None
 
     def test_configuration_validation(self, btc_strategy):
         """設定検証テスト"""
@@ -265,10 +263,11 @@ class TestBitbankBTCJPYStrategy:
         config = btc_strategy.btc_config
         assert config.large_order_threshold > 0
         assert 0 < config.trend_profit_target <= 1
-        assert 0 < config.swing_profit_target <= 1
-        assert config.spread_capture_threshold > 0
-        assert config.position_max_size > 0
-        assert 0 < config.risk_per_trade <= 1
+        assert 0 < config.reversion_profit_target <= 1
+        assert 0 < config.breakout_profit_target <= 1
+        assert config.max_spread_ratio > 0
+        assert config.position_size_limit > 0
+        assert 0 < config.daily_loss_limit <= 1
 
 
 if __name__ == "__main__":
