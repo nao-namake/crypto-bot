@@ -958,7 +958,6 @@ class BitbankBTCJPYStrategy(BitbankEnhancedPositionManager):
 
     def _set_stop_loss(self, position_id: str, stop_price: float) -> None:
         """ストップロス設定"""
-
         # 簡易実装（実際にはより詳細な実装が必要）
         def monitor_stop_loss():
             while position_id in self.active_positions:
