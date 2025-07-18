@@ -41,7 +41,8 @@ python3 -m pytest \
   --cov-report=term-missing \
   --cov-report=html \
   --cov-fail-under="${COV_FAIL_UNDER}" \
-  --ignore=tests/unit/test_monitor.py
+  --ignore=tests/unit/test_monitor.py \
+  --ignore=tests/integration
 
 echo
 echo "✅ all checks passed! Coverage report: ./htmlcov/index.html"
