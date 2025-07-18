@@ -4,9 +4,9 @@ Phase 8統計システム検証スクリプト
 API認証不要でのシステム動作確認・126特徴量・統計機能テスト
 """
 
+import logging
 import sys
 import time
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -14,9 +14,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 from crypto_bot.utils.enhanced_status_manager import EnhancedStatusManager
-from crypto_bot.utils.trading_statistics_manager import TradeRecord, DailyStatistics
+from crypto_bot.utils.trading_integration_service import TradingIntegrationService
+from crypto_bot.utils.trading_statistics_manager import DailyStatistics, TradeRecord
 
 
 class Phase8StatisticsVerification:

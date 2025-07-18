@@ -4,11 +4,11 @@
 Phase 8統計システム実動作検証・126特徴量・外部APIエラー確認
 """
 
+import logging
 import os
+import subprocess
 import sys
 import time
-import logging
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -16,8 +16,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 from crypto_bot.utils.enhanced_status_manager import EnhancedStatusManager
+from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 
 
 class FrontTestManager:
@@ -412,11 +412,11 @@ if __name__ == "__main__":
 超保守的リスク設定での実資金テスト
 """
 
+import json
+import logging
 import os
 import sys
 import time
-import json
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 

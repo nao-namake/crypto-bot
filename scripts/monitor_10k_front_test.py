@@ -4,13 +4,14 @@
 テスト進行状況のリアルタイム監視
 """
 
+import json
+import logging
 import os
 import sys
 import time
-import json
-import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
 
 def load_test_status():
     """テスト状況ファイル読み込み"""
