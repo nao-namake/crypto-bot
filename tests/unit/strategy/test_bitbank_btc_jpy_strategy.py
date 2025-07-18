@@ -103,8 +103,8 @@ class TestBitbankBTCJPYStrategy:
         assert context.bid_ask_spread > 0
         assert context.spread_ratio > 0
         assert context.volume_24h >= 0  # モック環境では0になる可能性がある
-        assert 0 <= context.liquidity_score <= 1
-        assert 0 <= context.volatility_score <= 1
+        assert context.volatility >= 0
+        assert context.trend_strength >= 0
 
     def test_trading_phase_detection(self, btc_strategy):
         """取引フェーズ検出テスト"""
