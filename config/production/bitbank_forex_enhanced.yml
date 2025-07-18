@@ -1,0 +1,117 @@
+# USD/JPY為替特徴量統合版・段階的外部データ復活第一弾
+# 2.0%閾値 + 為替特徴量で予測精度向上
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 1000
+
+  # 最小限データ取得（安定性維持）
+  since: "2025-01-01T00:00:00Z"
+  limit: 200  # 100→200に増加（為替データ対応）
+  paginate: true
+  per_page: 100  # 50→100に増加（為替データ対応）
+
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: /app/model.pkl
+    threshold: 0.02  # 2.0%閾値（Phase1で確定）
+
+risk:
+  risk_per_trade: 0.005
+  stop_atr_mult: 1.2
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.05
+
+live:
+  mode: live
+  trade_interval: 60
+  min_order_size: 0.0001
+  max_order_size: 0.0005
+  margin_trading:
+    enabled: true
+    leverage: 1.0
+    position_type: "both"
+  
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 3
+    retry_delay: 5
+
+# 為替特徴量強化ML設定
+ml:
+  feat_period: 14
+  lags: [1,2,3]
+  rolling_window: 10
+  horizon: 3
+  target_type: classification
+  model_type: lgbm
+  
+  # 段階的外部データ復活：VIX・Fear&Greed指数復活実装（Phase1）
+  extra_features:
+    - rsi_14
+    - macd
+    - sma_50
+    - dxy           # DXY米ドル指数（USD/JPY含む）
+    - vix           # VIX恐怖指数（Phase1復活完了）
+    - fear_greed    # Fear&Greed指数（Phase1復活実装中）
+    - momentum_14   # 追加テクニカル特徴量
+    - trend_strength # トレンド強度
+    # 次に追加予定：
+    # - macro       # 完全マクロ経済特徴量（Phase2で段階的復活）
+
+# 外部データ取得設定
+external_data:
+  enabled: true
+  cache_enabled: true
+  
+  # USD/JPY為替データ設定
+  forex:
+    enabled: true
+    symbol: "USDJPY=X"
+    timeframe: "1d"
+    lookback_days: 365
+    
+  # VIX恐怖指数設定（Phase1復活完了）
+  vix:
+    enabled: true
+    symbol: "^VIX"
+    timeframe: "1d"
+    lookback_days: 365
+    cache_hours: 24     # 24時間キャッシュ
+    sources:            # 複数データソース（フォールバック）
+      - yahoo
+      - alpha_vantage
+    quality_threshold: 0.7  # 品質閾値（70%以上で有効）
+    
+  # Fear&Greed指数設定（Phase1復活完了）
+  fear_greed:
+    enabled: true
+    url: "https://api.alternative.me/fng/"
+    backup_url: "https://api.alternative.me/fng/?limit=365"
+    timeframe: "1d"
+    lookback_days: 365
+    cache_hours: 24     # 24時間キャッシュ
+    sources:            # 複数データソース（フォールバック）
+      - alternative_me
+      - cnn_fear_greed
+    quality_threshold: 0.5  # 品質閾値（50%以上で有効・調整済み）
+    fallback_days: 7    # 前日値トレンド推定期間
+    
+  # 将来的に段階的有効化予定
+  macro:
+    enabled: false  # Phase2で有効化予定
+
+# ログ設定
+logging:
+  level: INFO
+  format: structured
+  external_data_debug: true  # 外部データ取得状況詳細ログ

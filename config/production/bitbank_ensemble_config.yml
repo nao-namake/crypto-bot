@@ -1,0 +1,138 @@
+# アンサンブル学習統合・本番稼働用設定
+# 精度向上（+4.0%）を実環境で活用
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 1000
+
+  # 最適化されたデータ取得設定
+  since: "2025-01-01T00:00:00Z"
+  limit: 150  # アンサンブル用に少し増加
+  paginate: true
+  per_page: 75  # データ品質向上のため調整
+
+strategy:
+  type: ensemble  # アンサンブル戦略に変更
+  name: ml
+  params:
+    model_path: /app/model.pkl
+    base_threshold: 0.035  # より積極的な基本閾値
+    
+    # アンサンブル特有パラメータ
+    ensemble_config:
+      models:
+        - type: lgbm
+          weight: 0.4
+        - type: xgboost  
+          weight: 0.35
+        - type: random_forest
+          weight: 0.25
+      
+      # 動的重み調整
+      dynamic_weighting: true
+      performance_window: 50
+      
+      # 信頼度フィルタリング
+      confidence_threshold: 0.60  # デモより緩和
+      agreement_threshold: 0.65   # モデル合意度
+      
+      # 保守的エントリー設定
+      entry_threshold: 0.52      # デモの0.55より積極的
+      exit_threshold: 0.48       # 早めの利確設定
+
+    # VIX統合パラメータ
+    vix_integration:
+      enabled: true
+      risk_off_threshold: 25
+      panic_threshold: 35
+      spike_multiplier: 1.5      # より抑制的
+
+    # パフォーマンス向上設定
+    performance_enhancements:
+      confidence_filter: 0.60    # デモの0.65より緩和
+      trailing_stop: true
+      partial_profit_levels: [0.2, 0.4]  # より早めの利確
+
+risk:
+  risk_per_trade: 0.003         # より保守的なリスク
+  stop_atr_mult: 1.0            # タイトなストップ
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.03          # より保守的
+    confidence_multiplier: 0.8   # アンサンブル信頼度考慮
+
+live:
+  mode: live
+  trade_interval: 45            # より頻繁な監視
+  min_order_size: 0.0001
+  max_order_size: 0.0003       # より小さな注文サイズ
+  margin_trading:
+    enabled: true
+    leverage: 1.0
+    position_type: "both"
+  
+  # Bitbank設定（アンサンブル対応）
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 5             # アンサンブル処理でリトライ増加
+    retry_delay: 3             # より短いリトライ間隔
+
+# アンサンブル対応ML設定
+ml:
+  feat_period: 14
+  lags: [1,2,3,4,5]           # 特徴量を少し増加
+  rolling_window: 15          # ウィンドウサイズ調整
+  horizon: 3
+  target_type: classification
+  model_type: ensemble        # アンサンブルモデル指定
+  
+  # 基本特徴量（軽量版ベース）
+  extra_features:
+    - rsi_14
+    - macd
+    - sma_50
+    - ema_21                  # 追加特徴量
+    - bb_bands                # ボリンジャーバンド
+    - atr_14                  # ATR
+    
+  # アンサンブル学習設定
+  ensemble:
+    enabled: true
+    base_models:
+      - lgbm
+      - xgboost
+      - random_forest
+    
+    # メタ学習設定
+    meta_learner: "linear"
+    cv_folds: 3               # 軽量版のため削減
+    
+    # 多様性促進
+    feature_sampling: 0.8     # 特徴量サンプリング
+    sample_weight_adjustment: true
+
+# 監視・ログ設定
+monitoring:
+  ensemble_metrics:
+    track_model_agreement: true
+    track_confidence_distribution: true
+    alert_on_low_agreement: true
+    agreement_threshold: 0.6
+  
+  performance_tracking:
+    track_ensemble_vs_single: true
+    comparison_window: 100
+    alert_on_performance_drop: true
+
+# A/Bテスト設定
+ab_testing:
+  enabled: true
+  test_ratio: 0.3           # 30%でアンサンブル、70%で従来手法
+  minimum_samples: 50       # 統計的有意性のための最小サンプル
+  switch_threshold: 0.05    # 5%有意水準

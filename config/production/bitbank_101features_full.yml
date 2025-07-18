@@ -1,0 +1,125 @@
+# 101特徴量フル版本番設定
+# 外部データフェッチャー完全復旧版
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 1000
+
+  # 本番用データ取得設定
+  since: "2025-01-01T00:00:00Z"
+  limit: 500  # 軽量版100→500に段階的増加
+  paginate: true
+  per_page: 100  # 軽量版50→100に段階的増加
+
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: /app/model.pkl
+    threshold: 0.05
+
+risk:
+  risk_per_trade: 0.005
+  stop_atr_mult: 1.2
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.05
+
+live:
+  mode: live
+  trade_interval: 60
+  min_order_size: 0.0001
+  max_order_size: 0.0005
+  margin_trading:
+    enabled: true
+    leverage: 1.0
+    position_type: "both"
+  
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 3
+    retry_delay: 5
+
+# 101特徴量フル版ML設定
+ml:
+  feat_period: 14
+  lags: [1,2,3,4,5]  # 軽量版3→5に復旧
+  rolling_window: 20  # 軽量版10→20に復旧
+  horizon: 5  # 軽量版3→5に復旧
+  target_type: classification
+  model_type: lgbm
+  
+  # 101特徴量フル版：外部データ完全復旧
+  extra_features:
+    # 基本テクニカル特徴量
+    - rsi_14
+    - macd
+    - sma_50
+    - sma_200
+    - ema_12
+    - ema_26
+    - bb_upper
+    - bb_lower
+    - atr_14
+    - volume_sma
+    
+    # 外部データ特徴量（段階的復旧）
+    - vix          # VIX恐怖指数（6特徴量）
+    - dxy          # ドル指数・金利（10特徴量）
+    - fear_greed   # Fear&Greed指数（13特徴量）
+    - funding      # Funding Rate・OI（6特徴量）
+    
+    # 高度特徴量
+    - momentum_signals
+    - volatility_regime
+    - market_structure
+    - liquidity_indicators
+    
+  # 外部データ設定
+  external_data:
+    enabled: true
+    cache_enabled: true
+    fallback_enabled: true
+    
+    vix:
+      enabled: true
+      symbol: "^VIX"
+      timeframe: "1d"
+      fallback_level: 20.0
+      
+    macro:
+      enabled: true
+      symbols:
+        dxy: "DX-Y.NYB"
+        us10y: "^TNX"
+        us2y: "^IRX"
+      fallback_values:
+        dxy: 103.0
+        us10y: 4.5
+        us2y: 4.8
+        
+    fear_greed:
+      enabled: true
+      api_url: "https://api.alternative.me/fng/"
+      fallback_index: 50
+      
+    funding:
+      enabled: true
+      exchanges: ["binance", "bybit"]
+      fallback_rate: 0.0001
+
+# 外部データリトライ設定
+external_data_retry:
+  max_retries: 3
+  retry_delay: 2
+  exponential_backoff: true
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 300

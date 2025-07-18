@@ -4,12 +4,13 @@ Yahoo Financeから米ドル指数(DXY)・金利データを取得し、101特�
 """
 
 import logging
-import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import pandas as pd
 import yfinance as yf
+
+from ..utils.api_retry import api_retry
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class MacroDataFetcher:
             "dxy": "DX-Y.NYB",  # ドル指数
             "us10y": "^TNX",  # 米10年債利回り
             "us2y": "^IRX",  # 米2年債利回り
+            "usdjpy": "USDJPY=X",  # USD/JPY為替レート
         }
 
     def get_macro_data(
@@ -51,43 +53,41 @@ class MacroDataFetcher:
 
             for name, symbol in self.symbols.items():
                 logger.info(f"🔍 Fetching {name} data ({symbol})")
-                success = False
 
-                # リトライ機能追加
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        ticker = yf.Ticker(symbol)
-                        data = ticker.history(start=start_date, end=end_date)
+                try:
+                    # 統一リトライ機能付きデータ取得
+                    data = self._fetch_macro_data_with_retry(
+                        name, symbol, start_date, end_date
+                    )
 
-                        if not data.empty:
-                            data.columns = data.columns.str.lower()
-                            macro_data[name] = data
-                            logger.info(
-                                f"✅ {name} data retrieved: {len(data)} records"
-                            )
-                            success = True
-                            break
-                        else:
-                            logger.warning(
-                                f"{name} data empty on attempt {attempt + 1}"
-                            )
+                    if data is not None and not data.empty:
+                        data.columns = data.columns.str.lower()
+                        macro_data[name] = data
+                        logger.info(f"✅ {name} data retrieved: {len(data)} records")
+                    else:
+                        logger.error(f"❌ Failed to fetch {name} data")
 
-                    except Exception as e:
-                        logger.warning(
-                            f"{name} fetch attempt {attempt + 1} failed: {e}"
-                        )
-                        if attempt < max_retries - 1:
-                            time.sleep(2)  # 2秒待機してリトライ
-
-                if not success:
-                    logger.error(f"❌ Failed to fetch {name} data after all retries")
+                except Exception as e:
+                    logger.error(f"❌ Failed to fetch {name} data: {e}")
 
             return macro_data
 
         except Exception as e:
             logger.error(f"Failed to fetch macro data: {e}")
             return {}
+
+    @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
+    def _fetch_macro_data_with_retry(
+        self, name: str, symbol: str, start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        """統一リトライ機能付きマクロデータ取得"""
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(start=start_date, end=end_date)
+
+        if data.empty:
+            raise ValueError(f"{name} data is empty")
+
+        return data
 
     def calculate_macro_features(
         self, macro_data: Dict[str, pd.DataFrame]
@@ -182,6 +182,33 @@ class MacroDataFetcher:
                 for key, value in defaults.items():
                     features_df[key] = value
 
+            # USD/JPY為替レート特徴量（BTC/JPY予測精度向上）
+            if "usdjpy" in macro_data and not macro_data["usdjpy"].empty:
+                usdjpy_data = macro_data["usdjpy"]
+                usdjpy_aligned = usdjpy_data.reindex(features_df.index, method="ffill")
+
+                usdjpy_ma20 = usdjpy_aligned["close"].rolling(20).mean()
+                usdjpy_std = usdjpy_aligned["close"].rolling(20).std()
+
+                features_df["usdjpy_level"] = usdjpy_aligned["close"]
+                features_df["usdjpy_change"] = usdjpy_aligned["close"].pct_change()
+                features_df["usdjpy_volatility"] = (
+                    usdjpy_aligned["close"].rolling(24).std()
+                )
+                features_df["usdjpy_zscore"] = (
+                    usdjpy_aligned["close"] - usdjpy_ma20
+                ) / usdjpy_std
+                features_df["usdjpy_trend"] = (
+                    usdjpy_aligned["close"] > usdjpy_ma20
+                ).astype(int)
+                features_df["usdjpy_strength"] = (
+                    usdjpy_aligned["close"].pct_change() > 0
+                ).astype(int)
+            else:
+                defaults = self._get_default_usdjpy_features()
+                for key, value in defaults.items():
+                    features_df[key] = value
+
             # NaN値を適切にデフォルト値で補完
             default_values = self._get_default_macro_features()
             for col in features_df.columns:
@@ -228,10 +255,22 @@ class MacroDataFetcher:
             "risk_sentiment": 0,
         }
 
+    def _get_default_usdjpy_features(self) -> Dict[str, Any]:
+        """USD/JPY為替特徴量デフォルト値"""
+        return {
+            "usdjpy_level": 150.0,  # 典型的なUSD/JPYレベル
+            "usdjpy_change": 0.0,  # 変動率
+            "usdjpy_volatility": 0.005,  # 為替ボラティリティ
+            "usdjpy_zscore": 0.0,  # Z-score
+            "usdjpy_trend": 0,  # トレンド方向
+            "usdjpy_strength": 0,  # 強度
+        }
+
     def _get_default_macro_features(self) -> Dict[str, Any]:
-        """マクロ特徴量デフォルト値（10特徴量）"""
+        """マクロ特徴量デフォルト値（16特徴量）"""
         features = {}
         features.update(self._get_default_dxy_features())
         features.update(self._get_default_10y_features())
         features.update(self._get_default_2y_features())
+        features.update(self._get_default_usdjpy_features())
         return features

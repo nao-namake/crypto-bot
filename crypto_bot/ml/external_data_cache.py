@@ -36,6 +36,9 @@ class ExternalDataCache:
             # DXY・マクロデータキャッシュ
             self._cache_macro_data()
 
+            # USD/JPY為替データキャッシュ
+            self._cache_forex_data()
+
             # Fear&Greedデータキャッシュ
             self._cache_fear_greed_data()
 
@@ -97,6 +100,107 @@ class ExternalDataCache:
         except Exception as e:
             logger.warning(f"Failed to cache macro data: {e}")
             self.cache["macro"] = pd.DataFrame()
+
+    def _cache_forex_data(self):
+        """USD/JPY為替データをキャッシュ"""
+        try:
+            from crypto_bot.data.macro_fetcher import MacroDataFetcher
+
+            macro_fetcher = MacroDataFetcher()
+            start_dt = pd.to_datetime(self.start_date)
+            end_dt = pd.to_datetime(self.end_date)
+
+            # USD/JPYデータのみを取得
+            forex_data = macro_fetcher.get_macro_data(
+                start_date=start_dt.strftime("%Y-%m-%d"),
+                end_date=end_dt.strftime("%Y-%m-%d"),
+            )
+
+            if forex_data and "usdjpy" in forex_data and not forex_data["usdjpy"].empty:
+                usdjpy_data = forex_data["usdjpy"]
+                # USD/JPY特徴量の計算
+                forex_features = self._calculate_forex_features(usdjpy_data)
+                # 日次→時間足変換
+                forex_hourly = forex_features.resample("1h").ffill()
+                self.cache["forex"] = forex_hourly
+                logger.info(f"Cached forex data: {len(forex_hourly)} hourly records")
+            else:
+                # デフォルト特徴量を生成
+                default_forex = self._get_default_forex_features()
+                # 全期間の時間インデックス生成
+                hourly_index = pd.date_range(
+                    start=self.start_date, end=self.end_date, freq="1h", tz="UTC"
+                )
+                default_forex_df = pd.DataFrame(
+                    index=hourly_index, columns=list(default_forex.keys())
+                )
+                for col, val in default_forex.items():
+                    default_forex_df[col] = val
+                self.cache["forex"] = default_forex_df
+                logger.info(
+                    f"Created default forex data: {len(default_forex_df)} items"
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to cache forex data: {e}")
+            # エラー時もデフォルト特徴量を生成
+            try:
+                default_forex = self._get_default_forex_features()
+                hourly_index = pd.date_range(
+                    start=self.start_date, end=self.end_date, freq="1h", tz="UTC"
+                )
+                default_forex_df = pd.DataFrame(
+                    index=hourly_index, columns=list(default_forex.keys())
+                )
+                for col, val in default_forex.items():
+                    default_forex_df[col] = val
+                self.cache["forex"] = default_forex_df
+                logger.info(
+                    f"Created default forex after error: {len(default_forex_df)} items"
+                )
+            except Exception as inner_e:
+                logger.error(f"Failed to create default forex data: {inner_e}")
+                self.cache["forex"] = pd.DataFrame()
+
+    def _calculate_forex_features(self, usdjpy_data: pd.DataFrame) -> pd.DataFrame:
+        """USD/JPY為替特徴量計算"""
+        features_df = pd.DataFrame(index=usdjpy_data.index)
+
+        # 移動平均とボラティリティ
+        ma20 = usdjpy_data["close"].rolling(20).mean()
+        std20 = usdjpy_data["close"].rolling(20).std()
+
+        # 為替特徴量
+        features_df["usdjpy_level"] = usdjpy_data["close"]
+        features_df["usdjpy_change"] = usdjpy_data["close"].pct_change()
+        features_df["usdjpy_volatility"] = usdjpy_data["close"].rolling(24).std()
+        features_df["usdjpy_zscore"] = (usdjpy_data["close"] - ma20) / std20
+        features_df["usdjpy_trend"] = (usdjpy_data["close"] > ma20).astype(int)
+        features_df["usdjpy_strength"] = (usdjpy_data["close"].pct_change() > 0).astype(
+            int
+        )
+
+        # デフォルト値で補完
+        default_values = self._get_default_forex_features()
+        for col in features_df.columns:
+            features_df[col] = features_df[col].fillna(default_values.get(col, 0))
+            # 無限大値も補完
+            features_df[col] = features_df[col].replace(
+                [float("inf"), float("-inf")], default_values.get(col, 0)
+            )
+
+        return features_df
+
+    def _get_default_forex_features(self) -> Dict[str, float]:
+        """USD/JPY為替特徴量デフォルト値"""
+        return {
+            "usdjpy_level": 150.0,  # 典型的なUSD/JPYレベル
+            "usdjpy_change": 0.0,  # 変動率
+            "usdjpy_volatility": 0.005,  # 為替ボラティリティ
+            "usdjpy_zscore": 0.0,  # Z-score
+            "usdjpy_trend": 0,  # トレンド方向
+            "usdjpy_strength": 0,  # 強度
+        }
 
     def _cache_fear_greed_data(self):
         """Fear&Greedデータをキャッシュ"""
@@ -197,7 +301,7 @@ class ExternalDataCache:
         Parameters
         ----------
         data_type : str
-            データタイプ ('vix', 'macro', 'fear_greed', 'funding')
+            データタイプ ('vix', 'macro', 'forex', 'fear_greed', 'funding')
         start_time : pd.Timestamp
             開始時刻
         end_time : pd.Timestamp

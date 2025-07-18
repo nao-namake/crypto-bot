@@ -106,22 +106,26 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         vix_in_features = "vix" in self.extra_features
         logger.info(f"🔍 VIX Debug: vix_in_features={vix_in_features}")
 
-        # 強制初期化：VIXが設定されている場合は必ず初期化を試行
+        # VIX復活実装：設定対応・複数データソース・キャッシュ機能
         if vix_in_features:
             try:
                 if VIX_AVAILABLE and VIXDataFetcher:
-                    self.vix_fetcher = VIXDataFetcher()
+                    self.vix_fetcher = VIXDataFetcher(self.config)
                     self.vix_enabled = True
-                    logger.info("✅ VIX fetcher initialized successfully (forced)")
+                    logger.info(
+                        "✅ VIX fetcher initialized successfully (config-aware)"
+                    )
                 else:
                     # VIXDataFetcherを直接インポートして初期化を強制
                     from crypto_bot.data.vix_fetcher import (
                         VIXDataFetcher as DirectVIXFetcher,
                     )
 
-                    self.vix_fetcher = DirectVIXFetcher()
+                    self.vix_fetcher = DirectVIXFetcher(self.config)
                     self.vix_enabled = True
-                    logger.info("✅ VIX fetcher initialized with direct import")
+                    logger.info(
+                        "✅ VIX fetcher initialized with direct import (config-aware)"
+                    )
             except Exception as e:
                 logger.error(f"❌ VIX fetcher initialization failed: {e}")
                 self.vix_fetcher = None
@@ -172,7 +176,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             feat in self.extra_features for feat in ["funding", "oi"]
         )
 
-        # Fear & Greed統合設定（強制初期化版）
+        # Fear & Greed復活実装：設定対応・複数データソース・フォールバック機能
         fear_greed_in_features = any(
             feat in self.extra_features for feat in ["fear_greed", "fg"]
         )
@@ -183,10 +187,10 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         if fear_greed_in_features:
             try:
                 if FEAR_GREED_AVAILABLE and FearGreedDataFetcher:
-                    self.fear_greed_fetcher = FearGreedDataFetcher()
+                    self.fear_greed_fetcher = FearGreedDataFetcher(self.config)
                     self.fear_greed_enabled = True
                     logger.info(
-                        "✅ Fear&Greed fetcher initialized successfully (forced)"
+                        "✅ Fear&Greed fetcher initialized successfully (config-aware)"
                     )
                 else:
                     # FearGreedDataFetcherを直接インポートして初期化を強制
@@ -194,9 +198,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         FearGreedDataFetcher as DirectFGFetcher,
                     )
 
-                    self.fear_greed_fetcher = DirectFGFetcher()
+                    self.fear_greed_fetcher = DirectFGFetcher(self.config)
                     self.fear_greed_enabled = True
-                    logger.info("✅ Fear&Greed fetcher initialized with direct import")
+                    logger.info(
+                        "✅ Fear&Greed fetcher initialized with direct import "
+                        "(config-aware)"
+                    )
             except Exception as e:
                 logger.error(f"❌ Fear&Greed fetcher initialization failed: {e}")
                 self.fear_greed_fetcher = None
@@ -205,6 +212,37 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             self.fear_greed_enabled = False
             self.fear_greed_fetcher = None
             logger.info(f"⚠️ Fear&Greed not in extra_features: {self.extra_features}")
+
+        # USD/JPY為替データ統合設定（強制初期化版）
+        forex_in_features = any(
+            feat in self.extra_features for feat in ["forex", "usdjpy", "jpy"]
+        )
+        logger.info(f"🔍 Forex Debug: forex_in_features={forex_in_features}")
+
+        if forex_in_features:
+            try:
+                # MacroDataFetcherを為替データ取得に再利用
+                if MACRO_AVAILABLE and MacroDataFetcher:
+                    self.forex_fetcher = MacroDataFetcher()
+                    self.forex_enabled = True
+                    logger.info("✅ Forex fetcher initialized successfully (forced)")
+                else:
+                    # MacroDataFetcherを直接インポートして初期化を強制
+                    from crypto_bot.data.macro_fetcher import (
+                        MacroDataFetcher as DirectForexFetcher,
+                    )
+
+                    self.forex_fetcher = DirectForexFetcher()
+                    self.forex_enabled = True
+                    logger.info("✅ Forex fetcher initialized with direct import")
+            except Exception as e:
+                logger.error(f"❌ Forex fetcher initialization failed: {e}")
+                self.forex_fetcher = None
+                self.forex_enabled = False
+        else:
+            self.forex_enabled = False
+            self.forex_fetcher = None
+            logger.info(f"⚠️ Forex not in extra_features: {self.extra_features}")
 
     def _get_cached_external_data(
         self, data_type: str, time_index: pd.DatetimeIndex
@@ -215,7 +253,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         Parameters
         ----------
         data_type : str
-            データタイプ ('vix', 'macro', 'fear_greed', 'funding')
+            データタイプ ('vix', 'macro', 'forex', 'fear_greed', 'funding')
         time_index : pd.DatetimeIndex
             対象期間のタイムインデックス
 
@@ -253,6 +291,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         validation_report = {
             "vix": {"available": False, "initialized": False, "working": False},
             "macro": {"available": False, "initialized": False, "working": False},
+            "forex": {"available": False, "initialized": False, "working": False},
             "fear_greed": {"available": False, "initialized": False, "working": False},
             "total_working": 0,
             "external_data_success_rate": 0.0,
@@ -314,6 +353,29 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                         )
                 except Exception as e:
                     logger.error(f"❌ Fear&Greed fetcher validation failed: {e}")
+
+        # Forex検証
+        if any(feat in self.extra_features for feat in ["forex", "usdjpy", "jpy"]):
+            validation_report["forex"]["available"] = True
+            if self.forex_fetcher is not None:
+                validation_report["forex"]["initialized"] = True
+                try:
+                    # 簡単なテスト取得
+                    test_data = self.forex_fetcher.get_macro_data()
+                    if (
+                        test_data
+                        and "usdjpy" in test_data
+                        and not test_data["usdjpy"].empty
+                    ):
+                        validation_report["forex"]["working"] = True
+                        validation_report["total_working"] += 1
+                        logger.info("✅ Forex fetcher validation: WORKING")
+                    else:
+                        logger.warning(
+                            "⚠️ Forex fetcher validation: NOT WORKING (empty data)"
+                        )
+                except Exception as e:
+                    logger.error(f"❌ Forex fetcher validation failed: {e}")
 
         # 成功率計算
         total_available = sum(
@@ -778,7 +840,9 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                         backtest_year
                                     )
                                 macro_data = self.macro_fetcher.get_macro_data(limit=50)
-                                if not macro_data.empty:
+                                if macro_data and not all(
+                                    df.empty for df in macro_data.values()
+                                ):
                                     macro_features = (
                                         self.macro_fetcher.calculate_macro_features(
                                             macro_data
@@ -827,6 +891,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                             "treasury_regime",
                                             "yield_curve_spread",
                                             "risk_sentiment",
+                                            # USD/JPY為替特徴量追加
+                                            "usdjpy_level",
+                                            "usdjpy_change",
+                                            "usdjpy_volatility",
+                                            "usdjpy_zscore",
+                                            "usdjpy_trend",
+                                            "usdjpy_strength",
                                         ]
                                         added_features = 0
 

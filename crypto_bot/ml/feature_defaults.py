@@ -45,6 +45,18 @@ class FeatureDefaults:
         ]
 
     @staticmethod
+    def get_default_forex_features() -> List[str]:
+        """USD/JPY為替特徴量の名前リスト"""
+        return [
+            "usdjpy_level",
+            "usdjpy_change",
+            "usdjpy_volatility",
+            "usdjpy_zscore",
+            "usdjpy_trend",
+            "usdjpy_strength",
+        ]
+
+    @staticmethod
     def get_default_fear_greed_features() -> List[str]:
         """Fear&Greed特徴量の名前リスト"""
         return [
@@ -110,6 +122,25 @@ class FeatureDefaults:
         return df
 
     @staticmethod
+    def add_default_forex_features(df: pd.DataFrame) -> pd.DataFrame:
+        """USD/JPY為替デフォルト特徴量を追加"""
+        forex_features = FeatureDefaults.get_default_forex_features()
+        for feature in forex_features:
+            if feature not in df.columns:
+                if feature == "usdjpy_level":
+                    df[feature] = 150.0  # 典型的なUSD/JPYレベル
+                elif feature == "usdjpy_volatility":
+                    df[feature] = 0.005  # 為替ボラティリティ
+                elif feature == "usdjpy_trend":
+                    df[feature] = 0  # トレンド方向
+                elif feature == "usdjpy_strength":
+                    df[feature] = 0  # 強度
+                else:
+                    df[feature] = 0.0
+        logger.debug(f"Added {len(forex_features)} default forex features")
+        return df
+
+    @staticmethod
     def add_default_fear_greed_features(df: pd.DataFrame) -> pd.DataFrame:
         """Fear&Greedデフォルト特徴量を追加"""
         fg_features = FeatureDefaults.get_default_fear_greed_features()
@@ -167,6 +198,7 @@ class FeatureDefaults:
         # 外部データ特徴量のデフォルト値追加
         df = FeatureDefaults.add_default_vix_features(df)
         df = FeatureDefaults.add_default_macro_features(df)
+        df = FeatureDefaults.add_default_forex_features(df)
         df = FeatureDefaults.add_default_fear_greed_features(df)
         df = FeatureDefaults.add_default_funding_features(df)
 

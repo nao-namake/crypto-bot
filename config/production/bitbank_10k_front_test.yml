@@ -1,0 +1,165 @@
+# 1万円フロントテスト用設定
+# 超保守的リスク設定・最小注文サイズ・緊急停止機能統合
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 1000
+
+  # 本番同等データ取得設定（外部APIエラー確認目的）
+  since: "2025-01-01T00:00:00Z"
+  limit: 500  # 本番同等に増量
+  paginate: true
+  per_page: 100  # 本番同等に増量
+
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: /app/model.pkl
+    threshold: 0.02
+
+# 超保守的リスク設定（1万円フロントテスト用）
+risk:
+  risk_per_trade: 0.001  # 0.1%（極めて保守的）
+  stop_atr_mult: 1.0     # より厳格なストップロス
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.01   # 最大1%に制限
+  
+  # 緊急停止機能統合
+  emergency_stop:
+    enabled: true
+    max_daily_loss: 0.02        # 日次最大損失2%
+    max_consecutive_losses: 3   # 連続損失3回で停止
+    max_drawdown: 0.05         # 最大ドローダウン5%
+    cooldown_period: 3600      # 停止後1時間のクールダウン
+
+live:
+  mode: live
+  trade_interval: 60
+  min_order_size: 0.0001     # Bitbank最小単位
+  max_order_size: 0.0001     # フロントテスト用最小注文のみ
+  margin_trading:
+    enabled: true
+    leverage: 1.0
+    position_type: "both"
+  
+  # Bitbank固有設定
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 3
+    retry_delay: 5
+    
+  # フロントテスト用制限設定
+  front_test_settings:
+    enabled: true
+    max_portfolio_value: 10000  # 最大ポートフォリオ価値1万円
+    max_daily_trades: 5         # 1日最大5取引
+    max_position_size: 0.0001   # 最大ポジションサイズ
+    test_duration_hours: 24     # テスト期間24時間
+    
+  # 詳細監視設定
+  monitoring:
+    enabled: true
+    log_level: DEBUG
+    performance_tracking: true
+    alert_on_loss: true
+    alert_threshold: 0.005     # 0.5%損失でアラート
+    status_file: /app/status_10k_test.json
+
+# 126特徴量フル版ML設定（本番同等・外部APIエラー確認目的）
+ml:
+  feat_period: 14
+  lags: [1,2,3,4,5]  # 本番同等に復旧
+  rolling_window: 20  # 本番同等に復旧
+  horizon: 5  # 本番同等に復旧
+  target_type: classification
+  model_type: lgbm
+  
+  # 126特徴量フル版：外部データ完全復旧（本番同等）
+  extra_features:
+    # 基本テクニカル特徴量
+    - rsi_14
+    - macd
+    - sma_50
+    - sma_200
+    - ema_12
+    - ema_26
+    - bb_upper
+    - bb_lower
+    - atr_14
+    - volume_sma
+    
+    # 外部データ特徴量（エラー確認目的）
+    - vix          # VIX恐怖指数（6特徴量）
+    - dxy          # ドル指数・金利（10特徴量）
+    - fear_greed   # Fear&Greed指数（13特徴量）
+    - funding      # Funding Rate・OI（6特徴量）
+    
+    # 高度特徴量
+    - momentum_signals
+    - volatility_regime
+    - market_structure
+    - liquidity_indicators
+    
+  # 外部データ設定（本番同等）
+  external_data:
+    enabled: true
+    cache_enabled: true
+    fallback_enabled: true
+    
+    vix:
+      enabled: true
+      symbol: "^VIX"
+      timeframe: "1d"
+      fallback_level: 20.0
+      
+    macro:
+      enabled: true
+      symbols:
+        dxy: "DX-Y.NYB"
+        us10y: "^TNX"
+        us2y: "^IRX"
+      fallback_values:
+        dxy: 103.0
+        us10y: 4.5
+        us2y: 4.8
+        
+    fear_greed:
+      enabled: true
+      api_url: "https://api.alternative.me/fng/"
+      fallback_index: 50
+      
+    funding:
+      enabled: true
+      exchanges: ["binance", "bybit"]
+      fallback_rate: 0.0001
+
+# 外部データリトライ設定（本番同等）
+external_data_retry:
+  max_retries: 3
+  retry_delay: 2
+  exponential_backoff: true
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 300
+
+# 品質監視設定
+quality_monitoring:
+  enabled: true
+  default_threshold: 0.3       # 30%ルール
+  emergency_stop_threshold: 0.5 # 50%でテスト停止
+  
+# ログ設定
+logging:
+  level: INFO
+  file: /app/logs/bitbank_10k_front_test.log
+  rotation: daily
+  retention: 7

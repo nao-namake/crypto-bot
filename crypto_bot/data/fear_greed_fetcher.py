@@ -1,28 +1,116 @@
 """
 Fear&Greed指数データフェッチャー
-Alternative.me APIからCrypto Fear & Greed Indexを取得し、101特徴量システムに統合
+複数データソース・キャッシュ機能・フォールバック機能対応
+ChatGPTアドバイス反映版：段階的・品質重視アプローチ
+MultiSourceDataFetcher継承版 - Phase2統合実装
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 import pandas as pd
 import requests
 
+from ..utils.api_retry import api_retry
+from .multi_source_fetcher import MultiSourceDataFetcher
+
 logger = logging.getLogger(__name__)
 
 
-class FearGreedDataFetcher:
-    """Fear&Greed指数データ取得クラス"""
+class FearGreedDataFetcher(MultiSourceDataFetcher):
+    """Fear&Greed指数データ取得クラス（複数データソース・キャッシュ対応）"""
 
-    def __init__(self):
-        self.api_url = "https://api.alternative.me/fng/"
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        # 親クラス初期化
+        super().__init__(config, data_type="fear_greed")
+
+        # Fear&Greed特有設定
+        self.api_url = self.data_config.get("url", "https://api.alternative.me/fng/")
+        self.backup_url = self.data_config.get(
+            "backup_url", "https://api.alternative.me/fng/?limit=365"
+        )
+        self.fallback_days = self.data_config.get("fallback_days", 7)
+
+        logger.info(
+            "🔧 Fear&Greed Fetcher initialized with MultiSourceDataFetcher base"
+        )
+
+    def _validate_data_quality(self, data: pd.DataFrame) -> float:
+        """データ品質検証（MultiSourceDataFetcher抽象メソッド実装）"""
+        if data is None or data.empty:
+            return 0.0
+
+        # 品質評価指標
+        total_points = len(data)
+        valid_points = len(data.dropna())
+
+        if total_points == 0:
+            return 0.0
+
+        # Fear&Greed特有の検証
+        range_score = 0.0
+        if "value" in data.columns:
+            # 値が0-100の範囲内かチェック
+            valid_range = ((data["value"] >= 0) & (data["value"] <= 100)).sum()
+            range_score = valid_range / total_points
+
+        # 総合品質スコア
+        quality_score = (valid_points / total_points) * 0.7 + range_score * 0.3
+        logger.debug(
+            f"📊 Fear&Greed data quality: {quality_score:.3f} "
+            f"(valid: {valid_points}/{total_points}, range: {range_score:.3f})"
+        )
+
+        return quality_score
+
+    def _generate_trend_fallback(
+        self, last_value: float, days: int = 7
+    ) -> pd.DataFrame:
+        """前日値トレンド推定フォールバック"""
+        try:
+            # 簡単なトレンド推定（市場が不安定な場合は恐怖指数が上昇傾向）
+            base_value = last_value if last_value > 0 else 50.0
+
+            # 過去7日分のデータを生成
+            dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
+
+            # 軽微な変動を加えた推定値
+            import numpy as np
+
+            values = []
+            for _i in range(days):
+                # 前日比±5%程度の変動
+                variation = base_value * 0.05 * (0.5 - np.random.random())
+                estimated_value = base_value + variation
+                # 0-100の範囲に制限
+                estimated_value = max(0, min(100, estimated_value))
+                values.append(estimated_value)
+                base_value = estimated_value
+
+            fallback_data = pd.DataFrame(
+                {
+                    "timestamp": dates,
+                    "value": values,
+                    "value_classification": ["Neutral"] * days,
+                }
+            )
+
+            logger.info(
+                f"📈 Generated Fear&Greed trend fallback: {days} days, "
+                f"base_value={last_value}"
+            )
+            return fallback_data
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate trend fallback: {e}")
+            return pd.DataFrame()
 
     def get_fear_greed_data(
         self, limit: int = 30, days_back: Optional[int] = None
     ) -> Optional[pd.DataFrame]:
         """
-        Fear&Greedデータ取得
+        Fear&Greedデータ取得（MultiSourceDataFetcher統合版）
 
         Args:
             limit: 取得するデータ数
@@ -31,20 +119,55 @@ class FearGreedDataFetcher:
         Returns:
             Fear&GreedデータのDataFrame
         """
-        try:
-            # days_backが指定されている場合はlimitとして使用
-            if days_back is not None:
-                limit = days_back
+        # days_backが指定されている場合はlimitとして使用
+        if days_back is not None:
+            limit = days_back
 
-            # Alternative.me APIからデータ取得
+        # 親クラスのget_dataメソッドを呼び出し
+        return self.get_data(limit=limit)
+
+    def _fetch_data_from_source(
+        self, source_name: str, **kwargs
+    ) -> Optional[pd.DataFrame]:
+        """特定データソースからデータ取得（MultiSourceDataFetcher抽象メソッド実装）"""
+        limit = kwargs.get("limit", 30)
+
+        if source_name == "alternative_me":
+            return self._fetch_alternative_me(limit)
+        elif source_name == "cnn_fear_greed":
+            return self._fetch_cnn_fear_greed(limit)
+        else:
+            logger.warning(f"Unknown Fear&Greed data source: {source_name}")
+            return None
+
+    def _generate_fallback_data(self, **kwargs) -> Optional[pd.DataFrame]:
+        """フォールバックデータ生成（MultiSourceDataFetcher抽象メソッド実装）"""
+        # 最後の既知の値を使用してトレンド推定
+        last_value = 50.0  # デフォルト値（中立）
+        if self.cache_data is not None and not self.cache_data.empty:
+            last_value = self.cache_data["value"].iloc[-1]
+
+        fallback_data = self._generate_trend_fallback(last_value, self.fallback_days)
+
+        if not fallback_data.empty:
+            logger.info(
+                f"✅ Generated Fear&Greed fallback data: {len(fallback_data)} records"
+            )
+            return fallback_data
+
+        return None
+
+    @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
+    def _fetch_alternative_me(self, limit: int) -> Optional[pd.DataFrame]:
+        """Alternative.me APIからFear&Greedデータ取得"""
+        try:
             params = {"limit": limit}
             response = requests.get(self.api_url, params=params, timeout=10)
             response.raise_for_status()
 
             data = response.json()
             if "data" not in data:
-                logger.warning("No Fear&Greed data in response")
-                return None
+                raise ValueError("No Fear&Greed data in response")
 
             # DataFrameに変換
             fg_data = pd.DataFrame(data["data"])
@@ -52,12 +175,44 @@ class FearGreedDataFetcher:
             fg_data["value"] = pd.to_numeric(fg_data["value"])
             fg_data = fg_data.sort_values("timestamp").set_index("timestamp")
 
-            logger.info(f"Fear&Greed data retrieved: {len(fg_data)} records")
             return fg_data
 
         except Exception as e:
-            logger.error(f"Failed to fetch Fear&Greed data: {e}")
-            return None
+            logger.error(f"Alternative.me Fear&Greed fetch failed: {e}")
+            raise
+
+    @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
+    def _fetch_cnn_fear_greed(self, limit: int) -> Optional[pd.DataFrame]:
+        """CNN Fear&Greedデータ取得（代替実装）"""
+        try:
+            # CNN Fear&Greed API実装（簡略版）
+            # 実際の実装では、CNN Business APIまたはスクレイピングが必要
+            # 現在は Alternative.me のバックアップURLを使用
+            logger.info(
+                "📡 Using Alternative.me backup URL as CNN Fear&Greed alternative"
+            )
+
+            response = requests.get(self.backup_url, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+            if "data" not in data:
+                raise ValueError("No Fear&Greed data in backup response")
+
+            # DataFrameに変換
+            fg_data = pd.DataFrame(data["data"])
+            fg_data["timestamp"] = pd.to_datetime(fg_data["timestamp"], unit="s")
+            fg_data["value"] = pd.to_numeric(fg_data["value"])
+            fg_data = fg_data.sort_values("timestamp").set_index("timestamp")
+
+            # 最新のlimit件に制限
+            fg_data = fg_data.head(limit)
+
+            return fg_data
+
+        except Exception as e:
+            logger.error(f"CNN Fear&Greed fetch failed: {e}")
+            raise
 
     def calculate_fear_greed_features(self, fg_data: pd.DataFrame) -> pd.DataFrame:
         """
