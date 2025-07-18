@@ -7,12 +7,12 @@ import json
 import logging
 import threading
 import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
-from .trading_statistics_manager import TradingStatisticsManager, TradeRecord
+from .trading_statistics_manager import TradeRecord, TradingStatisticsManager
 
 
 @dataclass
@@ -551,7 +551,7 @@ def main():
     )
 
     # テスト取引記録
-    trade_id = status_manager.record_trade_entry(
+    _ = status_manager.record_trade_entry(
         symbol="BTC/JPY",
         side="buy",
         entry_price=3000000.0,

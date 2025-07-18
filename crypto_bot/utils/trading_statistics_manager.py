@@ -3,16 +3,16 @@
 パフォーマンス指標追跡・リアルタイム統計更新・詳細レポート生成
 """
 
-import json
 import csv
+import json
 import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
-from dataclasses import dataclass, asdict
-from decimal import Decimal
-import pandas as pd
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+import pandas as pd
 
 
 @dataclass
@@ -249,7 +249,8 @@ class TradingStatisticsManager:
             self._update_statistics(trade)
 
         self.logger.info(
-            f"取引記録: {trade.trade_id} - {trade.side} {trade.symbol} @ {trade.entry_price}"
+            f"取引記録: {trade.trade_id} - {trade.side} {trade.symbol} @ "
+            f"{trade.entry_price}"
         )
 
         return trade.trade_id

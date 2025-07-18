@@ -2,16 +2,16 @@
 Bitbank BTC/JPY戦略の包括的テスト
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from datetime import datetime
+from unittest.mock import Mock, patch
+
+import pytest
 
 from crypto_bot.strategy.bitbank_btc_jpy_strategy import (
     BitbankBTCJPYStrategy,
+    BTCMarketContext,
     BTCTradingPhase,
     BTCTradingStrategy,
-    BTCMarketContext,
-    BTCTradingConfig,
 )
 
 
@@ -75,7 +75,8 @@ class TestBitbankBTCJPYStrategy:
         mock_order_manager = Mock()
 
         with patch(
-            "crypto_bot.strategy.bitbank_btc_jpy_strategy.BitbankEnhancedPositionManager"
+            "crypto_bot.strategy.bitbank_btc_jpy_strategy."
+            "BitbankEnhancedPositionManager"
         ):
             strategy = BitbankBTCJPYStrategy(
                 mock_bitbank_client,
