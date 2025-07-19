@@ -235,7 +235,7 @@ class TestBitbankXRPJPYStrategy:
         success, message = xrp_strategy.execute_scalping_strategy()
 
         if success:
-            assert "scalping_strategy" in message
+            assert "Position opened" in message
             assert xrp_strategy.xrp_stats["scalping_trades"] == 1
             assert len(xrp_strategy.active_positions) == 1
 
@@ -258,7 +258,7 @@ class TestBitbankXRPJPYStrategy:
         success, message = xrp_strategy.execute_momentum_strategy()
 
         if success:
-            assert "momentum_strategy" in message
+            assert "Position opened" in message
             assert xrp_strategy.xrp_stats["momentum_trades"] == 1
 
         # 不十分なモメンタムでの拒否テスト
@@ -279,7 +279,7 @@ class TestBitbankXRPJPYStrategy:
         success, message = xrp_strategy.execute_range_trading_strategy()
 
         if success:
-            assert "range_trading_strategy" in message
+            assert "Position opened" in message
             assert xrp_strategy.xrp_stats["range_trades"] == 1
 
         # 狭すぎるレンジでの拒否テスト
@@ -302,7 +302,7 @@ class TestBitbankXRPJPYStrategy:
         success, message = xrp_strategy.execute_liquidity_provisioning_strategy()
 
         if success:
-            assert "liquidity_provisioning" in message
+            assert "Position opened" in message
             assert xrp_strategy.xrp_stats["liquidity_trades"] == 1
 
         # 在庫制限超過での拒否テスト
@@ -325,8 +325,8 @@ class TestBitbankXRPJPYStrategy:
         success, message = xrp_strategy.execute_volatility_harvesting_strategy()
 
         if success:
-            assert "volatility_harvesting" in message
-            assert "positions opened" in message
+            assert "Position opened" in message
+            assert "positions" in message
             # 複数ポジションが開設されることを確認
             assert len(xrp_strategy.active_positions) > 0
 

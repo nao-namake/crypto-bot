@@ -71,9 +71,7 @@ def start_live_trading():
     try:
         # 環境変数から設定を取得
         mode = os.getenv("MODE", "live")
-        config_file = os.getenv(
-            "CONFIG_FILE", "/app/config/production/bitbank_101features_production.yml"
-        )
+        config_file = os.getenv("CONFIG_FILE", "/app/config/production/production.yml")
 
         # 【修正】必要なファイルの存在確認 - 見つからない場合は即座終了
         if not os.path.exists(config_file):
@@ -218,9 +216,7 @@ def check_requirements():
             return False
 
         # 設定ファイルの存在確認
-        config_file = os.getenv(
-            "CONFIG_FILE", "/app/config/production/bitbank_101features_production.yml"
-        )
+        config_file = os.getenv("CONFIG_FILE", "/app/config/production/production.yml")
         if os.path.exists(config_file):
             logger.info(f"✅ Config file found: {config_file}")
         else:
@@ -277,9 +273,7 @@ def main():
 
     # 環境変数の表示
     mode = os.getenv("MODE", "live")
-    config_file = os.getenv(
-        "CONFIG_FILE", "/app/config/bitbank_101features_production.yml"
-    )
+    config_file = os.getenv("CONFIG_FILE", "/app/config/production/production.yml")
     logger.info(f"Mode: {mode}")
     logger.info(f"Config: {config_file}")
 
