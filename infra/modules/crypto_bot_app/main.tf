@@ -17,9 +17,27 @@ resource "google_cloud_run_service" "service" {
   project  = var.project_id
 
   template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = "5"
+        "run.googleapis.com/cpu-throttling" = "false"
+        "run.googleapis.com/execution-environment" = "gen2"
+      }
+    }
     spec {
       containers {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"
+        
+        resources {
+          limits = {
+            cpu    = "2000m"  # 2 CPU (126特徴量対応)
+            memory = "4Gi"    # 4GB RAM (外部データ処理対応)
+          }
+          requests = {
+            cpu    = "1000m"  # 最小1 CPU
+            memory = "2Gi"    # 最小2GB RAM
+          }
+        }
         
         env {
           name  = "MODE"
@@ -34,6 +52,11 @@ resource "google_cloud_run_service" "service" {
         env {
           name  = "BITBANK_API_SECRET"
           value = var.bitbank_api_secret
+        }
+        
+        env {
+          name  = "FEATURE_MODE"
+          value = var.feature_mode
         }
         
         ports {

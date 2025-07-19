@@ -29,6 +29,7 @@ module "app" {
   mode              = var.mode
   bitbank_api_key   = var.bitbank_api_key
   bitbank_api_secret = var.bitbank_api_secret
+  feature_mode      = var.feature_mode
 }
 
 module "monitoring" {

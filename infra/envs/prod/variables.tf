@@ -44,3 +44,16 @@ variable "bitbank_api_secret" {
   description = "Bitbank の API シークレット (GitHub Secrets から渡される)"
   sensitive   = true
 }
+
+# --------------------------------------------------
+# Feature Mode (lite/full) for system optimization  
+# --------------------------------------------------
+variable "feature_mode" {
+  type        = string
+  description = "特徴量モード: lite (3特徴量・高速) または full (126特徴量・完全版)"
+  default     = "lite"
+  validation {
+    condition     = contains(["lite", "full"], var.feature_mode)
+    error_message = "feature_mode must be either 'lite' or 'full'."
+  }
+}

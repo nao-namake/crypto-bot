@@ -298,6 +298,7 @@ jobs:
       TF_VAR_image_tag: "${{ github.sha }}"
       TF_VAR_bitbank_api_key: ${{ secrets.BITBANK_API_KEY }}
       TF_VAR_bitbank_api_secret: ${{ secrets.BITBANK_API_SECRET }}
+      TF_VAR_feature_mode: "lite"  # 安定性優先: まずliteモードでテスト
       TF_ENV_DIR: "infra/envs/prod"
     steps:
       - name: Checkout
