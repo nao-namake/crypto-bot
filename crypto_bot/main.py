@@ -772,12 +772,13 @@ def live_bitbank(config_path: str, max_trades: int):
         f"Exchange: {exchange_id}, Symbol: {symbol}"
     )
     logger.info(f"⏰ [INIT-1] Timestamp: {pd.Timestamp.now()}")
-    
+
     # 初期化状況を更新
     try:
         from crypto_bot.api.health import update_init_status
+
         update_init_status("basic", "basic_system")
-    except:
+    except Exception:
         pass
 
     # CSV モードの場合は外部データキャッシュを初期化
@@ -880,12 +881,13 @@ def live_bitbank(config_path: str, max_trades: int):
     threshold = sp.get("threshold", 0.05)
     strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
     logger.info("✅ [INIT-3] ML Strategy initialized successfully")
-    
+
     # 特徴量システム初期化を記録
     try:
         from crypto_bot.api.health import update_init_status
+
         update_init_status("features", "feature_system")
-    except:
+    except Exception:
         pass
 
     # RiskManager初期化
@@ -920,22 +922,22 @@ def live_bitbank(config_path: str, max_trades: int):
     logger.info("📊 [INIT-9] Initializing Phase 8 Statistics System...")
     logger.info(f"⏰ [INIT-9] Timestamp: {pd.Timestamp.now()}")
     from crypto_bot.utils.trading_integration_service import TradingIntegrationService
-    
+
     # TradingIntegrationService初期化
     integration_service = TradingIntegrationService(
-        base_dir=".",
-        initial_balance=balance
+        base_dir=".", initial_balance=balance
     )
-    
+
     # MLStrategyとの統合
     integration_service.integrate_with_ml_strategy(strategy)
     logger.info("✅ [INIT-9] Phase 8 Statistics System initialized successfully")
-    
+
     # 初期化状況を更新
     try:
         from crypto_bot.api.health import update_init_status
+
         update_init_status("statistics", "statistics_system")
-    except:
+    except Exception:
         pass
 
     trade_done = 0
@@ -949,14 +951,15 @@ def live_bitbank(config_path: str, max_trades: int):
 
     logger.info("🔄 [LOOP-START] Starting main trading loop...")
     logger.info(f"⏰ [LOOP-START] Timestamp: {pd.Timestamp.now()}")
-    
+
     # 初期化完了を記録
     try:
         from crypto_bot.api.health import update_init_status
+
         update_init_status("complete", "trading_loop")
-    except:
+    except Exception:
         pass
-    
+
     try:
         while True:
             logger.info("🔄 [LOOP-ITER] Starting new trading iteration...")
@@ -1077,7 +1080,7 @@ def live_bitbank(config_path: str, max_trades: int):
                             ccxt_options=dd.get("ccxt_options", {}),
                             margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
-                        
+
                         # Phase 8統計システムとExecutionClient統合
                         integration_service.integrate_with_execution_client(client)
 

@@ -4,31 +4,29 @@
 
 ## 現在のシステム概要 (2025年7月19日更新)
 
-### 🔄 **最新状況: Phase 9-4実行中・126特徴量本番稼働・実取引準備完了**
+### 🚀 **最新状況: Phase 9-5実行中・包括的改善実装・CI/CD品質問題修正中**
 
-**Phase 9-4実行中：126特徴量本番稼働・エントリーシグナル待機・1万円少額実取引テスト準備完了**
+**Phase 9-5実行中：包括的bot稼働改善実装完了・CI/CD品質問題修正・確実なデプロイメント実現**
 
-#### 🔄 **現在の状況（2025/7/19 Phase 9-4実行中）**
+#### 🔄 **現在の状況（2025/7/19 Phase 9-5実行中）**
 
-**✅ Phase 9-3完全完了タスク:**
-- **設定ファイル統一化完了**: config/production/production.yml固定名運用確立・設定混乱完全解消
-- **CI/CDデプロイ成功**: XRP戦略テスト修正・全テスト100%成功・本番環境更新完了
-- **margin_mode確実動作**: health.py修正完了・margin_mode: true本番確認済み
-- **126特徴量本番稼働**: 外部データ統合・メイントレーディングループ稼働中
-- **ファイル整理完了**: 不要ファイル8件削除・システム安定性維持
-- **品質保証システム安定化**: flake8・black・isort・pytest全チェック常時パス
+**✅ Phase 9-4完全完了タスク:**
+- **包括的改善実装完了**: 固定パス戦略・Phase 8統計システム統合・段階的初期化プロセス実装
+- **モデルファイル管理改善**: models/production/model.pkl固定パス・Cloud Storage連携・フォールバック機能
+- **軽量版・完全版切り替え**: FEATURE_MODE環境変数・lite(3特徴量)/full(126特徴量)動的切り替え
+- **ヘルスチェック機能強化**: /health/init初期化監視・段階的ステータス追跡・コンポーネント別監視
+- **デプロイ戦略文書化**: docs/DEPLOYMENT_STRATEGY.md・トラブルシューティング・運用チェックリスト
 
-**🔄 現在のシステム状態（Phase 9-4実行中）:**
-- **メイントレーディングループ稼働中**: 30秒間隔でエントリーシグナル監視・実取引準備完了
-- **126特徴量システム動作中**: VIX・Fear&Greed・Macroデータ統合計算・リアルタイム分析
-- **API認証正常**: Bitbank API接続・margin_mode: true確認済み・実取引可能状態
-- **エントリーシグナル待機中**: シグナル発生時に即座取引実行・1万円少額実取引テスト準備完了
+**🔄 現在の課題（Phase 9-5実行中）:**
+- **CI/CD品質問題**: flake8エラー24件・health.pyとmain.pyのフォーマット問題・bare except文修正必要
+- **新機能未デプロイ**: /health/initエンドポイント404・Phase 8統計システム未反映・改善内容未適用
+- **コード品質修正必要**: E302空行不足・F824未使用global・W293空白行・E501行長すぎ・B001/E722例外処理
 
-**📋 Phase 9-4実行内容（現在進行中）:**
-- エントリーシグナル発生待機・初回取引実行・結果分析
-- Phase 8統計システム実動作検証・包括的パフォーマンス測定
-- 126特徴量システム実環境検証・外部データ品質確認
-- 1万円少額実取引テスト・安全性・収益性検証・段階的スケールアップ基盤確立
+**📋 Phase 9-5実行内容（現在進行中）:**
+- flake8品質問題修正・コードフォーマット修正・CI/CDパス実現
+- 包括的改善内容の確実なデプロイメント・新機能有効化確認
+- Phase 8統計システム動作検証・/health/init監視機能確認
+- 軽量版での安定稼働確認後・完全版への段階的移行
 
 ### 🎉 **歴史的実装完了: 包括的暗号通貨取引システム**
 
@@ -74,30 +72,36 @@
 
 #### **実装システム詳細**
 
-**1. 設定ファイル統一化システム（2025/7/19完成・Phase 9-3）**
-- `config/production/production.yml`: 固定ファイル名による設定統一化・126特徴量完全版設定
-- `scripts/start_live_with_api_fixed.py`: 固定パス対応・設定ファイル参照の完全統一化
-- `crypto_bot/api/health.py`: 設定ファイルパス優先順位更新・margin_mode正常読み込み対応
-- 設定ファイル管理方針確立: 今後は固定ファイル名に上書きする統一運用・設定混乱完全解消
-- CI/CDエラー完全解決: XRP戦略テスト修正・600テスト100%成功・43.79%カバレッジ達成
+**1. 包括的bot稼働改善システム（2025/7/19完成・Phase 9-4/9-5）**
+- `models/production/model.pkl`: 固定パスでのモデルファイル管理・Cloud Storage連携・自動フォールバック
+- `crypto_bot/main.py`: Phase 8統計システム初期化(INIT-9)・TradingIntegrationService統合・段階的初期化
+- `scripts/start_live_with_api_fixed.py`: FEATURE_MODE対応・lite/full切り替え・固定パス戦略・初期化ステータス追跡
+- `crypto_bot/api/health.py`: /health/init新エンドポイント・初期化進捗監視・コンポーネント別ステータス
+- `config/production/production_lite.yml`: 軽量版3特徴量設定・高速初期化・安定性重視
+- `docs/DEPLOYMENT_STRATEGY.md`: 段階的デプロイ戦略・トラブルシューティング・運用チェックリスト
+- `Dockerfile`: FEATURE_MODE環境変数・models/ディレクトリコピー・ヘルスチェック設定
 
-**2. Bitbank特化手数料最適化システム（2025/7/18完成）**
+**2. 設定ファイル統一化システム（2025/7/19完成・Phase 9-3）**
+- `config/production/production.yml`: 固定ファイル名による設定統一化・126特徴量完全版設定
+- 設定ファイル管理方針確立: 今後は固定ファイル名に上書きする統一運用・設定混乱完全解消
+
+**3. Bitbank特化手数料最適化システム（2025/7/18完成）**
 - `crypto_bot/execution/bitbank_fee_optimizer.py`: メイカー-0.02%活用・テイカー0.12%回避・動的注文タイプ選択
 - `crypto_bot/execution/bitbank_fee_guard.py`: 累積手数料監視・最小利益閾値設定・緊急停止機能・リスク評価
 - `crypto_bot/execution/bitbank_order_manager.py`: 30件/ペア制限対応・API制限管理・注文キューイング・優先度制御
 - `crypto_bot/execution/bitbank_api_rate_limiter.py`: 429エラー対応・自動リトライ・Circuit Breaker・Exponential Backoff
 
-**3. 通貨ペア特化戦略システム（2025/7/17完成）**
+**4. 通貨ペア特化戦略システム（2025/7/17完成）**
 - `crypto_bot/strategy/bitbank_xrp_jpy_strategy.py`: XRP/JPY特化戦略・最高流動性活用・5種類戦略統合
 - `crypto_bot/strategy/bitbank_btc_jpy_strategy.py`: BTC/JPY安定戦略・大口対応・6種類戦略統合
 - `crypto_bot/strategy/bitbank_integrated_strategy.py`: 全コンポーネント統合・統合判定・パフォーマンス最適化
 
-**4. 取引履歴・統計システム（2025/7/18完成・Phase 8）**
+**5. 取引履歴・統計システム（2025/7/18完成・Phase 8）**
 - `crypto_bot/utils/trading_statistics_manager.py`: 包括的統計管理・30種類パフォーマンス指標・詳細取引記録
 - `crypto_bot/utils/enhanced_status_manager.py`: リアルタイム監視・システムヘルス・市場状況・取引シグナル統合
 - `crypto_bot/utils/trading_integration_service.py`: MLStrategy・ExecutionClient完全統合・自動記録・統計連携
 
-**5. 126特徴量統合システム（2025/7/18完成）**
+**6. 126特徴量統合システム（2025/7/18完成）**
 - `crypto_bot/data/vix_fetcher.py`: VIX恐怖指数データフェッチャー・統一リトライ適用
 - `crypto_bot/data/fear_greed_fetcher.py`: Fear&Greed指数データフェッチャー・統一リトライ適用
 - `crypto_bot/data/macro_fetcher.py`: マクロ経済データフェッチャー・統一リトライ適用
@@ -114,26 +118,29 @@
 
 ## 開発コマンド
 
-### **本番稼働中Bitbank実取引モード（126特徴量完全版）**
+### **包括的改善版・段階的初期化システム（Phase 9-5完成）**
 ```bash
-# 126特徴量実取引モード稼働中（Phase 9-4実行中・設定統一化・実取引準備完了）
+# 軽量版モード（高速初期化・3特徴量・CI/CD修正後有効）
+export FEATURE_MODE=lite
 python scripts/start_live_with_api_fixed.py
-# → 自動的に config/production/production.yml を使用・126特徴量完全版・エントリー待機中
+# → 自動的に config/production/production_lite.yml を使用・高速起動・安定性重視
 
-# 126特徴量フル版モード（外部データ統合版・固定ファイル名・Phase 9-4実行中）
-python -m crypto_bot.main live-bitbank --config config/production/production.yml
+# 完全版モード（126特徴量・外部データ統合・CI/CD修正後有効）
+export FEATURE_MODE=full
+python scripts/start_live_with_api_fixed.py
+# → 自動的に config/production/production.yml を使用・126特徴量システム
 
-# 本番稼働確認（Phase 9-4実行中・メイントレーディングループ稼働中）
-curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
-# 期待レスポンス: {"mode":"live","margin_mode":true,"exchange":"bitbank","phase":"9-4","status":"active"}
+# 初期化状況確認（新機能・CI/CD修正後有効）
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/init
+# 期待レスポンス: {"phase":"complete","is_complete":true,"components":{"api_server":true,"statistics_system":true,"feature_system":true,"trading_loop":true}}
 
-# 詳細ヘルスチェック（信用取引モード確認・実取引準備完了）
+# Phase 8統計システム動作確認（CI/CD修正後有効）
 curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/detailed
-# 期待レスポンス: {"margin_mode":true,"api_credentials":"healthy","trading_loop":"active","entry_signals":"monitoring"}
+# 期待レスポンス: {"trading":{"status":"healthy"},"statistics_integration":"active"}
 
-# Phase 8統計システム稼働確認（実動作検証中・30種類パフォーマンス指標）
-curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/performance
-# 期待レスポンス: {"trading_statistics_manager":"active","enhanced_status_manager":"active","integration_service":"active"}
+# 現在の本番稼働確認（旧バージョン・CI/CD修正後更新予定）
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+# 現在レスポンス: {"mode":"live","margin_mode":true,"exchange":"bitbank","uptime_seconds":4}
 ```
 
 ### **Bitbank特化手数料最適化システム**
