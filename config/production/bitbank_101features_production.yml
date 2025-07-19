@@ -1,5 +1,5 @@
-# 101特徴量フル版本番設定
-# 外部データフェッチャー完全復旧版
+# 126特徴量本番環境設定
+# 外部データ統合・品質監視・手数料最適化完全版
 
 data:
   exchange: bitbank
@@ -11,11 +11,11 @@ data:
     enableRateLimit: true
     rateLimit: 1000
 
-  # 本番用データ取得設定
-  since: "2025-01-01T00:00:00Z"
-  limit: 500  # 軽量版100→500に段階的増加
+  # 本番データ取得設定（7日前から200レコード）
+  since: "2025-07-12T05:00:00Z"  # 7日前からのデータ取得
+  limit: 200   # 十分なレコード数
   paginate: true
-  per_page: 100  # 軽量版50→100に段階的増加
+  per_page: 100
 
 strategy:
   type: single
@@ -24,12 +24,16 @@ strategy:
     model_path: /app/model.pkl
     threshold: 0.05
 
+# 本番リスク設定
 risk:
   risk_per_trade: 0.005
   stop_atr_mult: 1.2
   kelly_criterion:
     enabled: true
     max_fraction: 0.05
+
+  # ATR期間を調整（データ不足に対応）
+  atr_period: 10  # 15→10に調整
 
 live:
   mode: live
@@ -41,21 +45,22 @@ live:
     leverage: 1.0
     position_type: "both"
   
+  # Bitbank固有設定
   bitbank_settings:
     min_btc_amount: 0.0001
     max_retries: 3
     retry_delay: 5
 
-# 101特徴量フル版ML設定
+# 126特徴量フル版ML設定
 ml:
   feat_period: 14
-  lags: [1,2,3,4,5]  # 軽量版3→5に復旧
-  rolling_window: 20  # 軽量版10→20に復旧
-  horizon: 5  # 軽量版3→5に復旧
+  lags: [1,2,3,4,5]
+  rolling_window: 20
+  horizon: 5
   target_type: classification
   model_type: lgbm
   
-  # 101特徴量フル版：外部データ完全復旧
+  # 126特徴量フル版：外部データ完全統合
   extra_features:
     # 基本テクニカル特徴量
     - rsi_14
@@ -69,7 +74,7 @@ ml:
     - atr_14
     - volume_sma
     
-    # 外部データ特徴量（段階的復旧）
+    # 外部データ特徴量
     - vix          # VIX恐怖指数（6特徴量）
     - dxy          # ドル指数・金利（10特徴量）
     - fear_greed   # Fear&Greed指数（13特徴量）
@@ -123,3 +128,38 @@ external_data_retry:
     enabled: true
     failure_threshold: 5
     recovery_timeout: 300
+
+# 品質監視設定
+quality_monitoring:
+  enabled: true
+  default_threshold: 0.3       # 30%ルール
+  emergency_stop_threshold: 0.5 # 50%で緊急停止
+  
+# ログ設定
+logging:
+  level: INFO
+  file: /app/logs/bitbank_production.log
+  rotation: daily
+  retention: 7
+
+# Bitbank手数料最適化設定
+bitbank:
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002  # -0.02%
+    taker_fee: 0.0012   # 0.12%
+    prefer_maker: true
+    min_profit_after_fees: 0.002  # 0.2%
+    
+  order_management:
+    max_open_orders: 30  # 30件/ペア制限
+    rate_limit:
+      get_requests: 10   # 10回/秒
+      post_requests: 6   # 6回/秒
+    queue_enabled: true
+    
+  day_trading:
+    enabled: true
+    interest_rate: 0.0004  # 0.04%/日
+    auto_close_before_rollover: true
+    rollover_time: "00:00:00"
