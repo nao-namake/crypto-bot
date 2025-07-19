@@ -38,6 +38,36 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# 初期化状況を追跡するグローバル変数
+INIT_STATUS = {
+    "phase": "starting",  # starting, basic, statistics, features, complete
+    "timestamp": datetime.utcnow().isoformat(),
+    "details": {
+        "api_server": False,
+        "basic_system": False,
+        "statistics_system": False,
+        "feature_system": False,
+        "trading_loop": False
+    },
+    "errors": []
+}
+
+def update_init_status(phase: str, component: str = None, error: str = None):
+    """初期化状況を更新する"""
+    global INIT_STATUS
+    INIT_STATUS["phase"] = phase
+    INIT_STATUS["timestamp"] = datetime.utcnow().isoformat()
+    
+    if component:
+        INIT_STATUS["details"][component] = True
+    
+    if error:
+        INIT_STATUS["errors"].append({
+            "phase": phase,
+            "error": error,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
 if FASTAPI_AVAILABLE:
     app = FastAPI(
         title="Crypto Bot Health Check API",
@@ -741,6 +771,44 @@ async def cluster_health():
     except Exception as e:
         logger.error(f"Cluster health check failed: {e}")
         raise HTTPException(status_code=503, detail="Cluster health unavailable")
+
+
+@app.get("/health/init")
+async def initialization_status():
+    """
+    初期化状況の確認
+    
+    システムの初期化進捗を確認します。
+    Cloud Runの起動時やデバッグ時に使用します。
+    """
+    try:
+        global INIT_STATUS
+        
+        # 初期化完了チェック
+        all_components = all(INIT_STATUS["details"].values())
+        
+        # ステータスコード決定
+        if INIT_STATUS["phase"] == "complete" and all_components:
+            status_code = 200
+        elif INIT_STATUS["errors"]:
+            status_code = 503
+        else:
+            status_code = 202  # Accepted - still initializing
+        
+        return JSONResponse(
+            content={
+                "phase": INIT_STATUS["phase"],
+                "timestamp": INIT_STATUS["timestamp"],
+                "is_complete": all_components,
+                "components": INIT_STATUS["details"],
+                "errors": INIT_STATUS["errors"][-5:] if INIT_STATUS["errors"] else [],  # 最新5件のエラー
+                "feature_mode": os.getenv("FEATURE_MODE", "full")
+            },
+            status_code=status_code
+        )
+    except Exception as e:
+        logger.error(f"Init status check failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check init status")
 
 
 @app.post("/health/failover")

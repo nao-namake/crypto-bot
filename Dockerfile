@@ -22,17 +22,21 @@ RUN pip install --no-cache-dir -r requirements-dev.txt \
 COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
 COPY config/ /app/config/
+COPY models/ /app/models/
 COPY .env.example /app/
-
-# モデルディレクトリを作成（実行時にモデルファイルが配置される）
-RUN mkdir -p /app/model
 
 # 環境変数設定
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+# デフォルトは軽量モードで起動（高速初期化）
+ENV FEATURE_MODE=lite
 
 EXPOSE 8080
+
+# ヘルスチェック（初期化状況確認）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+  CMD curl -f http://localhost:8080/health || exit 1
 
 # Live Trading + API Server Mode (No-Fallback Version)
 CMD ["python", "scripts/start_live_with_api_fixed.py"]

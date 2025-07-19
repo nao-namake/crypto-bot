@@ -1,5 +1,5 @@
-# 軽量版・取引開始テスト用設定
-# INIT-5ハング問題解決のため最小限データ取得
+# 軽量版設定（3特徴量）- 初期化高速化・安定性重視
+# 初期起動時の動作確認用
 
 data:
   exchange: bitbank
@@ -11,11 +11,11 @@ data:
     enableRateLimit: true
     rateLimit: 1000
 
-  # 最小限データ取得でハング回避
-  since: "2025-01-01T00:00:00Z"
-  limit: 100  # 8000→100に大幅削減
+  # 最小限データ取得で高速化
+  since: "2025-07-12T05:00:00Z"  # 7日前からのデータ取得
+  limit: 100  # 最小限のレコード数
   paginate: true
-  per_page: 50  # 200→50に削減
+  per_page: 50
 
 strategy:
   type: single
@@ -27,32 +27,32 @@ strategy:
 risk:
   risk_per_trade: 0.005
   stop_atr_mult: 1.2
+  atr_period: 10  # ATR計算期間短縮
   kelly_criterion:
     enabled: true
     max_fraction: 0.05
 
 live:
   mode: live
-  trade_interval: 60
-  min_order_size: 0.0003
+  trade_interval: 30  # 30秒間隔
+  min_order_size: 0.0001
   max_order_size: 0.0005
   margin_trading:
     enabled: true
     leverage: 1.0
     position_type: "both"
 
-# 軽量ML設定
+# 軽量ML設定（3特徴量のみ）
 ml:
   feat_period: 14
-  lags: [1,2,3]  # 12→3に削減
-  rolling_window: 10  # 20→10に削減
-  horizon: 3  # 5→3に削減
+  lags: [1,2,3]  # 最小限のラグ
+  rolling_window: 10
+  horizon: 3
   target_type: classification
   model_type: lgbm
   
-  # 外部データ無効化でハング回避
+  # 3つの基本特徴量のみ（外部データ無効化）
   extra_features:
     - rsi_14
     - macd
     - sma_50
-    # VIX等の外部データを一時無効化

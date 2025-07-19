@@ -29,11 +29,14 @@ def start_api_server():
 
         # 直接crypto_bot.apiからFastAPIアプリを取得
         try:
-            from crypto_bot.api.health import FASTAPI_AVAILABLE, app
+            from crypto_bot.api.health import FASTAPI_AVAILABLE, app, update_init_status
 
             if not FASTAPI_AVAILABLE:
                 raise ImportError("FastAPI not available in health module")
             logger.info("Using comprehensive health API")
+            
+            # APIサーバー初期化完了を記録
+            update_init_status("basic", "api_server")
         except ImportError:
             # フォールバック: 基本APIを使用
             from crypto_bot.api import FASTAPI_AVAILABLE, app
@@ -52,6 +55,14 @@ def start_api_server():
         logger.error(f"Failed to start API server: {e}")
         # 【修正】API起動失敗時は即座にプロセス終了
         logger.error("API server startup failed - terminating process")
+        
+        # エラーを記録
+        try:
+            from crypto_bot.api.health import update_init_status
+            update_init_status("basic", error=str(e))
+        except:
+            pass
+            
         sys.exit(1)
 
 
@@ -71,7 +82,17 @@ def start_live_trading():
     try:
         # 環境変数から設定を取得
         mode = os.getenv("MODE", "live")
-        config_file = os.getenv("CONFIG_FILE", "/app/config/production/production.yml")
+        feature_mode = os.getenv("FEATURE_MODE", "full")  # lite or full
+        
+        # 特徴量モードに応じた設定ファイル選択
+        if feature_mode == "lite":
+            default_config = "/app/config/production/production_lite.yml"
+            logger.info("🎯 Using LITE mode (3 features) for fast initialization")
+        else:
+            default_config = "/app/config/production/production.yml"
+            logger.info("🎯 Using FULL mode (126 features)")
+        
+        config_file = os.getenv("CONFIG_FILE", default_config)
 
         # 【修正】必要なファイルの存在確認 - 見つからない場合は即座終了
         if not os.path.exists(config_file):
@@ -142,7 +163,14 @@ def start_live_trading():
 
 def download_model_if_needed():
     """Cloud StorageからMLモデルをダウンロード"""
-    model_path = "/app/model.pkl"
+    # 固定パス使用
+    model_path = "/app/models/production/model.pkl"
+    model_dir = os.path.dirname(model_path)
+    
+    # ディレクトリ作成
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir, exist_ok=True)
+        logger.info(f"📁 Created model directory: {model_dir}")
 
     if os.path.exists(model_path):
         logger.info(f"✅ Model file already exists: {model_path}")
