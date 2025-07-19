@@ -1,5 +1,5 @@
-# 軽量版・取引開始テスト用設定
-# INIT-5ハング問題解決のため最小限データ取得
+# 126特徴量本番環境設定
+# 外部データ統合・品質監視・手数料最適化完全版
 
 data:
   exchange: bitbank
@@ -11,19 +11,20 @@ data:
     enableRateLimit: true
     rateLimit: 1000
 
-  # 最小限データ取得でハング回避
-  since: "2025-01-01T00:00:00Z"
-  limit: 100  # 8000→100に大幅削減
+  # 本番データ取得設定（7日前から200レコード）
+  since: "2025-07-12T05:00:00Z"  # 7日前からのデータ取得
+  limit: 200   # 十分なレコード数
   paginate: true
-  per_page: 50  # 200→50に削減
+  per_page: 100
 
 strategy:
   type: single
   name: ml
   params:
-    model_path: /app/models/production/model.pkl  # 固定パス
+    model_path: /app/models/production/model.pkl  # 固定パス統一
     threshold: 0.05
 
+# 本番リスク設定
 risk:
   risk_per_trade: 0.005
   stop_atr_mult: 1.2
@@ -31,28 +32,134 @@ risk:
     enabled: true
     max_fraction: 0.05
 
+  # ATR期間を調整（データ不足に対応）
+  atr_period: 7  # 軽量版と同じ期間に統一
+
 live:
   mode: live
   trade_interval: 60
-  min_order_size: 0.0003
+  min_order_size: 0.0001
   max_order_size: 0.0005
   margin_trading:
     enabled: true
     leverage: 1.0
     position_type: "both"
+  
+  # Bitbank固有設定
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 3
+    retry_delay: 5
 
-# 軽量ML設定
+# 126特徴量フル版ML設定
 ml:
   feat_period: 14
-  lags: [1,2,3]  # 12→3に削減
-  rolling_window: 10  # 20→10に削減
-  horizon: 3  # 5→3に削減
+  lags: [1,2,3,4,5]
+  rolling_window: 20
+  horizon: 5
   target_type: classification
   model_type: lgbm
   
-  # 外部データ無効化でハング回避
+  # 126特徴量フル版：外部データ完全統合
   extra_features:
+    # 基本テクニカル特徴量
     - rsi_14
     - macd
     - sma_50
-    # VIX等の外部データを一時無効化
+    - sma_200
+    - ema_12
+    - ema_26
+    - bb_upper
+    - bb_lower
+    - atr_14
+    - volume_sma
+    
+    # 外部データ特徴量
+    - vix          # VIX恐怖指数（6特徴量）
+    - dxy          # ドル指数・金利（10特徴量）
+    - fear_greed   # Fear&Greed指数（13特徴量）
+    - funding      # Funding Rate・OI（6特徴量）
+    
+    # 高度特徴量
+    - momentum_signals
+    - volatility_regime
+    - market_structure
+    - liquidity_indicators
+    
+  # 外部データ設定
+  external_data:
+    enabled: true
+    cache_enabled: true
+    fallback_enabled: true
+    
+    vix:
+      enabled: true
+      symbol: "^VIX"
+      timeframe: "1d"
+      fallback_level: 20.0
+      
+    macro:
+      enabled: true
+      symbols:
+        dxy: "DX-Y.NYB"
+        us10y: "^TNX"
+        us2y: "^IRX"
+      fallback_values:
+        dxy: 103.0
+        us10y: 4.5
+        us2y: 4.8
+        
+    fear_greed:
+      enabled: true
+      api_url: "https://api.alternative.me/fng/"
+      fallback_index: 50
+      
+    funding:
+      enabled: true
+      exchanges: ["binance", "bybit"]
+      fallback_rate: 0.0001
+
+# 外部データリトライ設定
+external_data_retry:
+  max_retries: 3
+  retry_delay: 2
+  exponential_backoff: true
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 300
+
+# 品質監視設定
+quality_monitoring:
+  enabled: true
+  default_threshold: 0.3       # 30%ルール
+  emergency_stop_threshold: 0.5 # 50%で緊急停止
+  
+# ログ設定
+logging:
+  level: INFO
+  file: /app/logs/bitbank_production.log
+  rotation: daily
+  retention: 7
+
+# Bitbank手数料最適化設定
+bitbank:
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002  # -0.02%
+    taker_fee: 0.0012   # 0.12%
+    prefer_maker: true
+    min_profit_after_fees: 0.002  # 0.2%
+    
+  order_management:
+    max_open_orders: 30  # 30件/ペア制限
+    rate_limit:
+      get_requests: 10   # 10回/秒
+      post_requests: 6   # 6回/秒
+    queue_enabled: true
+    
+  day_trading:
+    enabled: true
+    interest_rate: 0.0004  # 0.04%/日
+    auto_close_before_rollover: true
+    rollover_time: "00:00:00"
