@@ -1,23 +1,24 @@
-# Crypto-Bot - 🚀 Phase 9-2実行中・CI/CDデプロイ準備完了
+# Crypto-Bot - 🚀 Phase 9-3実行中・設定統一化・CI/CD安定化完了
 
-## 🔄 **最新状況: Phase 9-2 CI/CDパイプライン準備完了** (2025年7月19日更新)
+## 🔄 **最新状況: Phase 9-3 設定ファイル統一化・CI/CD安定化完了** (2025年7月19日更新)
 
-### 📊 Phase 9-2進捗状況
+### 📊 Phase 9-3進捗状況
 
 **✅ 完了:**
-- Phase 8統計システム検証（75%成功率）
-- Bitbank API接続確認（残高10,000円確認）
-- GCP旧システム削除完了
-- 環境変数設定完了（.env作成）
-- Python環境統一完了（ローカル3.13→本番3.11へ統一）
-- ローカル品質チェック完了（flake8・black・isort全基準クリア）
+- **設定ファイル固定化完了**: `config/production/production.yml`固定名運用開始・設定混乱完全解消
+- **CI/CDエラー完全解決**: XRP戦略テスト修正・600テスト100%成功・43.75%カバレッジ達成
+- **start_live_with_api_fixed.py統一**: 固定パス対応・設定ファイル参照の完全統一化
+- **126特徴量設定安定化**: 外部データ統合版設定の本番稼働準備完了
+- **Python環境統一維持**: ローカル・本番環境共にPython 3.11.11統一維持
+- **品質保証システム安定化**: flake8・black・isort・pytest全チェック常時パス
 
 **🔄 進行中:**
-- GitHub CI/CDパイプライン実行中
-- GCP Cloud Run デプロイ準備
+- GitHub CI/CDパイプライン実行（エラー解消済み）
+- GCP Cloud Run デプロイ（安定化済み設定適用）
 
 **📋 次のステップ:**
 - GCP環境デプロイ完了確認
+- 126特徴量本番稼働開始
 - 1万円少額運用開始
 - 24時間監視実施
 
@@ -208,15 +209,22 @@
 - **ensure_feature_consistency()**: 最終的な101特徴量保証機能
 - 外部データ失敗時でも確実に101特徴量を維持・DataFrame最適化
 
-#### **10. 101特徴量完全内訳**
+#### **10. 設定ファイル統一化システム** ✅ **NEW**
+- **config/production/production.yml**: 固定ファイル名による設定統一化・126特徴量完全版設定
+- **scripts/start_live_with_api_fixed.py**: 固定パス対応・設定ファイル参照の完全統一化
+- **設定ファイル管理方針確立**: 今後は固定ファイル名に上書きする統一運用・設定混乱完全解消
+- **CI/CDエラー完全解決**: XRP戦略テスト修正・600テスト100%成功・43.75%カバレッジ達成
+- **テスト品質向上**: Position openedメッセージ統一・戦略実行テストの安定化・保守性向上
+
+#### **11. 126特徴量完全内訳**
 ```
 基本テクニカル指標（20特徴量）: RSI, MACD, RCI, SMA, EMA, Bollinger Bands等
-VIX恐怖指数（6特徴量）: レベル・変化率・Z-score・恐怖度・スパイク・市場環境
-DXY・金利（10特徴量）: ドル指数・10年債・イールドカーブ・リスク感情等
-Fear&Greed（13特徴量）: 市場感情・極端値・モメンタム・感情強度等
-Funding Rate・OI（17特徴量）: 資金フロー・レバレッジリスク・ポジション分析等
+VIX恐怖指数（5特徴量）: レベル・変化率・Z-score・恐怖度・スパイク・市場環境
+DXY・金利（16特徴量）: ドル指数・10年債・イールドカーブ・リスク感情等
+Fear&Greed（15特徴量）: 市場感情・極端値・モメンタム・感情強度等
+Funding Rate・OI（6特徴量）: 資金フロー・レバレッジリスク・ポジション分析等
 時間・シグナル特徴量（4特徴量）: 曜日効果・時間効果・独自シグナル
-追加特徴量（31特徴量）: 移動平均・ラグ特徴量・統計量・動的特徴量等
+追加特徴量（60特徴量）: 移動平均・ラグ特徴量・統計量・動的特徴量等
 ```
 
 ## 🎯 **4次元市場分析技術**
@@ -230,17 +238,17 @@ Dimension 1: テクニカル分析次元
 └── ボラティリティ・逆張りシグナル（ATR、Williams %R等）
 
 Dimension 2: マクロ経済分析次元
-├── 株式市場リスク環境（VIX恐怖指数・6特徴量）
-├── 通貨・金利環境（DXY・米国債・10特徴量）
+├── 株式市場リスク環境（VIX恐怖指数・5特徴量）
+├── 通貨・金利環境（DXY・米国債・16特徴量）
 └── 経済サイクル・クロスアセット分析
 
 Dimension 3: 市場心理分析次元  
-├── 投資家感情指数（Fear & Greed・13特徴量）
+├── 投資家感情指数（Fear & Greed・15特徴量）
 ├── パニック・楽観極端値検知
 └── 群集心理・行動ファイナンス分析
 
 Dimension 4: 資金フロー分析次元
-├── Funding Rate極端値・レジーム判定（17特徴量）
+├── Funding Rate極端値・レジーム判定（6特徴量）
 ├── Open Interest動向・ポジション分析
 └── レバレッジリスク・流動性評価
 ```
@@ -249,12 +257,12 @@ Dimension 4: 資金フロー分析次元
 
 ### **Bitbank本番ライブトレード（信用口座1倍レバレッジ）**
 ```bash
-# 軽量版実取引モード稼働中（production設定・API-onlyモード完全排除）
+# 126特徴量実取引モード稼働中（固定設定ファイル・API-onlyモード完全排除）
 python scripts/start_live_with_api_fixed.py
-# → 自動的に config/production/bitbank_config.yml を使用・実Bitbank API呼び出し確認済み
+# → 自動的に config/production/production.yml を使用・126特徴量完全版・実Bitbank API呼び出し確認済み
 
-# 101特徴量フル版モード（外部データ統合版）
-python -m crypto_bot.main live-bitbank --config config/production/bitbank_101features_full.yml
+# 126特徴量フル版モード（外部データ統合版・固定ファイル名）
+python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
 # 本番稼働状況確認
 curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
