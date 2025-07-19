@@ -27,7 +27,7 @@ strategy:
 risk:
   risk_per_trade: 0.005
   stop_atr_mult: 1.2
-  atr_period: 10  # ATR計算期間短縮
+  atr_period: 7  # ATR計算期間を利用可能データに合わせて調整
   kelly_criterion:
     enabled: true
     max_fraction: 0.05
