@@ -94,20 +94,33 @@ class MarketDataFetcher:
         max_records = limit if limit is not None else float("inf")
 
         if paginate and limit:
+            logger.info(f"🔄 Paginated fetch: limit={limit}, per_page={per_page}")
             records: List = []
             seen_ts = set()
             last_since = since_ms
             retries = 0
-            MAX_RETRIES = 5
+            MAX_RETRIES = 20  # 5→20に増加
+
             while len(records) < max_records and retries < MAX_RETRIES:
+                logger.info(
+                    f"🔄 Batch {retries+1}: fetching from {last_since}, "
+                    f"target={len(records)}/{max_records}"
+                )
+
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page
                 )
-                if isinstance(batch, pd.DataFrame):
-                    return batch
-                if not batch:
-                    break
 
+                if isinstance(batch, pd.DataFrame):
+                    logger.info(f"✅ Received DataFrame directly: {len(batch)} records")
+                    return batch
+
+                if not batch:
+                    logger.warning(f"⚠️ Empty batch received at retry {retries}")
+                    retries += 1
+                    continue
+
+                logger.info(f"📊 Batch received: {len(batch)} records")
                 added = False
                 for row in batch:
                     ts = row[0]
@@ -116,14 +129,23 @@ class MarketDataFetcher:
                         records.append(row)
                         last_since = ts + 1
                         added = True
+
                 if not added:
+                    logger.warning(f"⚠️ No new records added in batch {retries}")
                     retries += 1
+                else:
+                    logger.info(f"✅ Added records: total={len(records)}")
+
                 if (
                     sleep
                     and hasattr(self.exchange, "rateLimit")
                     and self.exchange.rateLimit
                 ):
                     time.sleep(self.exchange.rateLimit / 1000.0)
+
+            logger.info(
+                f"✅ Pagination complete: {len(records)} total records collected"
+            )
             data = records if limit is None else records[:limit]
 
         else:
