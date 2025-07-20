@@ -916,7 +916,22 @@ def live_bitbank(config_path: str, max_trades: int):
     logger.info("✅ [INIT-4] Risk Manager initialized successfully")
 
     position = Position()
-    balance = cfg["backtest"]["starting_balance"]
+    
+    # ライブトレードでは実際の口座残高を取得（フォールバック付き）
+    try:
+        # 実際の口座残高を取得
+        balance = fetcher.get_balance("JPY")
+        logger.info(f"💰 [INIT-4] Real account balance: {balance:.2f} JPY")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to get real balance: {e}")
+        # フォールバック: live設定またはbacktest設定から取得
+        live_config = cfg.get("live", {})
+        if "starting_balance" in live_config:
+            balance = live_config["starting_balance"]
+            logger.info(f"💰 [INIT-4] Using live.starting_balance: {balance:.2f} JPY")
+        else:
+            balance = cfg["backtest"]["starting_balance"]
+            logger.info(f"💰 [INIT-4] Using backtest.starting_balance as fallback: {balance:.2f} JPY")
 
     # INIT-5〜INIT-8の強化版シーケンス実行
     from crypto_bot.init_enhanced import enhanced_init_sequence

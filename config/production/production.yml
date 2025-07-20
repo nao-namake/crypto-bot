@@ -40,6 +40,7 @@ live:
   trade_interval: 60
   min_order_size: 0.0001
   max_order_size: 0.0005
+  starting_balance: 10000.0  # 実際の残高取得失敗時のフォールバック
   margin_trading:
     enabled: true
     leverage: 1.0
