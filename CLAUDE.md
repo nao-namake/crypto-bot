@@ -506,3 +506,65 @@ git push origin develop  # → 開発デプロイ
 ---
 
 このガイダンスは、現在のCI/CDデプロイ中状況（2025年7月19日）を基に作成されており、ボット稼働開始に向けて継続的に更新されます。
+
+## Bot稼働後チェック項目（デプロイ後必須確認）
+
+### **🔍 基本システム確認**
+1. **ヘルスチェック**: `curl /health` レスポンス正常
+2. **詳細ヘルスチェック**: `curl /health/detailed` 全項目healthy
+3. **稼働モード確認**: `mode: "live"` 確認
+4. **取引所確認**: `exchange: "bitbank"` 確認
+5. **信用取引モード**: `margin_mode: true` 確認
+
+### **📊 データ取得・特徴量確認**
+6. **データ取得件数**: **500件取得確認**（10件→500件修正効果）
+7. **145特徴量使用**: ログで"145特徴量システム稼働中"確認
+8. **直近データ取得**: 38時間前→より新しいデータに改善確認
+9. **土日データ対応**: 24/7データ取得確認
+10. **外部データ統合**: VIX・Fear&Greed・Macro・FR・OIデータ取得確認
+
+### **⚙️ 設定ファイル確認**
+11. **本番設定使用**: `config/production/production.yml` 使用確認
+12. **不要取引所除外**: Bybit・Binance（取引用）API呼び出し除外確認
+13. **ページネーション有効**: `paginate: true` 設定動作確認
+14. **145特徴量設定**: `extra_features` 全項目有効確認
+15. **FR・OI有効確認**: `funding.enabled: true` 動作確認
+
+### **🤖 MLモデル・ファイル確認**
+16. **pklファイル**: `/app/models/production/model.pkl` 使用確認
+17. **モデルロード**: MLStrategyエラーなし確認
+18. **特徴量生成**: 145特徴量正常生成確認
+19. **予測機能**: エントリー判定機能動作確認
+20. **FR・OI特徴量**: Funding Rate・OI特徴量生成確認
+
+### **💰 残高・取引確認**
+21. **口座残高取得**: 実際のBitbank残高取得成功
+22. **API認証**: Bitbank API接続正常
+23. **取引準備**: エントリー機会監視中確認
+24. **リスク管理**: Kelly基準・ATR計算正常
+25. **信用取引機能**: レバレッジ1倍・ロング/ショート両対応確認
+
+### **📈 FR・OI市況判定機能確認**
+26. **Funding Rate取得**: Binance FR正常取得・市況判定動作
+27. **Open Interest取得**: OI変動監視・トレンド継続性判定
+28. **トレンド判定**: FR過熱感検知・反転サイン生成
+29. **タイミング測定**: エントリー/エグジット判定支援機能
+
+### **🔧 チェック実行コマンド**
+```bash
+# 基本ヘルスチェック
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+
+# 詳細状態確認
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/detailed
+
+# データ取得状況確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"records\"" --limit=5
+
+# 145特徴量確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"145特徴量\"" --limit=3
+
+# FR・OI取得確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"funding\"" --limit=5
+```
+
