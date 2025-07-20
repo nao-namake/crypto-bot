@@ -920,8 +920,13 @@ def live_bitbank(config_path: str, max_trades: int):
     # ライブトレードでは実際の口座残高を取得（フォールバック付き）
     try:
         # 実際の口座残高を取得
-        balance = fetcher.get_balance("JPY")
-        logger.info(f"💰 [INIT-4] Real account balance: {balance:.2f} JPY")
+        balance_data = fetcher.fetch_balance()
+        jpy_balance = balance_data.get("JPY", {}).get("free", 0.0)
+        if jpy_balance > 0:
+            balance = jpy_balance
+            logger.info(f"💰 [INIT-4] Real account balance: {balance:.2f} JPY")
+        else:
+            raise ValueError("JPY balance is 0 or not found")
     except Exception as e:
         logger.warning(f"⚠️ Failed to get real balance: {e}")
         # フォールバック: live設定またはbacktest設定から取得
