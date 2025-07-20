@@ -211,7 +211,7 @@ def load_config(path: str) -> dict:
         logger.info(f"🔒 [CONFIG] Production mode: Using {path} only")
     else:
         # 開発環境のみ default.yml とマージ
-        default_path = base / "config" / "default.yml"
+        default_path = base / "config" / "development" / "default.yml"
         with open(default_path, "r") as f:
             default_cfg = yaml.safe_load(f) or {}
         with open(path, "r") as f:

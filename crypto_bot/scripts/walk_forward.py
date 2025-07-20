@@ -119,7 +119,9 @@ def main(config_path=None, output_path=None):
         cfg = yaml.safe_load(open(cfg_path))
     else:
         project_root = Path(__file__).resolve().parents[2]
-        cfg = yaml.safe_load(open(project_root / "config" / "default.yml"))
+        cfg = yaml.safe_load(
+            open(project_root / "config" / "development" / "default.yml")
+        )
 
     # 1) データ取得
     fetch_cfg = cfg["data"]

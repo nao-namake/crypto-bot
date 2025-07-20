@@ -24,7 +24,7 @@ class FrontTestManager:
     """1万円フロントテスト管理クラス"""
 
     def __init__(self):
-        self.test_config = "config/production/bitbank_10k_front_test.yml"
+        self.test_config = "config/development/bitbank_10k_front_test.yml"
         self.test_duration_hours = 24
         self.start_time = datetime.now()
         self.end_time = self.start_time + timedelta(hours=self.test_duration_hours)
@@ -464,7 +464,7 @@ def check_prerequisites():
     config_path = (
         Path(__file__).parent.parent
         / "config"
-        / "production"
+        / "development"
         / "bitbank_10k_front_test.yml"
     )
     if not config_path.exists():
@@ -564,7 +564,7 @@ def main():
         config_path = (
             Path(__file__).parent.parent
             / "config"
-            / "production"
+            / "development"
             / "bitbank_10k_front_test.yml"
         )
         cmd = f"python -m crypto_bot.main live-bitbank --config {config_path}"

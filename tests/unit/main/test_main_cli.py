@@ -24,7 +24,7 @@ def test_cli_train_with_model_option(tmp_path, monkeypatch):
     monkeypatch.setattr("crypto_bot.main.save_model", lambda m, p: None)
 
     result = runner.invoke(
-        cli, ["train", "-c", "config/default.yml", "--model-type", "xgb"]
+        cli, ["train", "-c", "config/development/default.yml", "--model-type", "xgb"]
     )
     assert result.exit_code == 0
     assert "Using model_type: xgb" in result.output
