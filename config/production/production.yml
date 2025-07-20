@@ -135,6 +135,11 @@ quality_monitoring:
   default_threshold: 0.3       # 30%ルール
   emergency_stop_threshold: 0.5 # 50%で緊急停止
   
+# バックテスト設定（ライブトレードでの初期設定用）
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+
 # ログ設定
 logging:
   level: INFO
