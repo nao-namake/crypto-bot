@@ -347,8 +347,15 @@ class TestLoadConfig:
         with patch("crypto_bot.main.Path") as mock_path:
             mock_path.return_value.parent.parent = Path("/test")
 
-            # ImportError をモック
-            with patch("builtins.__import__", side_effect=ImportError()):
+            # ConfigValidator のimportのみエラーにする（loggingは正常に動作させる）
+            original_import = __builtins__["__import__"]
+
+            def mock_import(name, *args, **kwargs):
+                if "config_validator" in name:
+                    raise ImportError("ConfigValidator import error")
+                return original_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=mock_import):
                 result = load_config("test_config.yml")
                 # ImportError でも正常に辞書が返されることを確認
                 assert isinstance(result, dict)
