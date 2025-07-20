@@ -4,38 +4,49 @@
 
 ## 現在のシステム概要 (2025年7月20日更新)
 
-### 🚀 **最新状況: Phase 9-6完了・2021年データ問題根本解決・本番環境設定完全分離**
+### 🚀 **最新状況: Phase 9-6完了・129特徴量システム本番稼働・Discord通知実装準備**
 
-**Phase 9-6完了：2021年データ問題根本解決・本番環境でdefault.yml完全回避・トレード成立基盤確立**
+**Phase 9-6完了：129特徴量FR・OI市況判定システム完全稼働・Discord通知システム実装準備完了**
 
-#### 🔄 **Phase 9-6最終完了状況（2025/7/20 根本問題解決）**
+#### 🔄 **Phase 9-6最終完了状況（2025/7/20 129特徴量システム稼働完了）**
 
 **✅ 完了したタスク:**
-- **2021年データ問題根本解決**: config/default.yml内の2021年since設定が原因・完全削除
-- **load_config関数修正**: 本番環境でproduction.ymlのみ読み込み・default.yml完全回避
-- **設定読み込み安全機構**: 本番/開発環境の完全分離・設定混在防止
-- **48時間動的データ取得**: リアルタイムデータによる正確なML予測・市場分析
-- **古いファイル整理**: 直下model.pkl削除・models/production/model.pkl使用確定
+- **129特徴量システム完全稼働**: FR・OI市況判定機能統合・Binance公開API活用・25特徴量追加
+- **FundingDataFetcher実装**: 125行・13メソッド・Funding Rate履歴・Open Interest分析・市況判定
+- **トレンド判定機能**: FR過熱感検知・反転シグナル生成・エントリー/エグジット判定支援
+- **本番環境稼働確認**: ヘルスチェックAPI正常・mode:live・margin_mode:true・129特徴量稼働
+- **Discord通知システム準備**: TODO_ROADMAP.mdに高優先度追加・GCPエラーメール置換準備
 
-**🎯 根本問題と解決策:**
-- **根本原因**: default.yml内の"since: 2021-01-01"設定が4.5年前データ取得を強制
-- **解決策**: 本番環境でdefault.yml読み込み回避・production.ymlのみ使用
-- **技術的詳細**: load_config関数でproductionパス検出時の分岐処理実装
+**🎯 129特徴量システム詳細:**
+- **基本特徴量**: 65特徴量（価格・出来高・基本テクニカル等）
+- **追加テクニカル**: 10特徴量（RSI・MACD・Bollinger Bands等）
+- **VIX**: 6特徴量（恐怖指数・市場リスク等）
+- **DXY/マクロ**: 10特徴量（ドル指数・金利等）
+- **Fear&Greed**: 13特徴量（投資家心理・感情指数等）
+- **Funding Rate/OI**: 25特徴量（資金調達率・建玉等）
+- **市況判定**: bullish_extreme・bearish_extreme・neutral判定・トレンド分析
 
-**🔒 本番環境安全機構:**
-- **本番**: config/production/production.yml のみ読み込み
-- **開発**: default.yml + ユーザー設定マージ（従来通り）
-- **ログ確認**: "🔒 [CONFIG] Production mode: Using ... only"で確認可能
+**🌊 FR・OI市況判定機能:**
+- **Funding Rate分析**: ±0.01%極値検知・8/24時間移動平均・反転シグナル
+- **Open Interest分析**: 変動率・トレンド・スパイク検知・モメンタム分析
+- **市況判定**: 過熱感検知・トレンド継続性・反転タイミング測定
+- **取引支援**: エントリー/エグジット判定・リスク評価・ポジション調整
 
 **🔄 現在の状況:**
-- 2回目のCI/CDデプロイ完了待ち（2025/7/20 12:54開始）
-- 2021年データ警告の完全消失確認予定
-- リアルタイムデータでのトレード機能検証予定
+- 129特徴量システム本番稼働中（2025/7/20 14:24確認済み）
+- FR・OI市況判定機能活用準備完了
+- Discord通知システム実装待ち
 
-**📋 次ステップ:**
-- CI完了後の動作確認
-- 48時間以内データ取得の確認
-- **トレード成立の実現**
+**🚨 緊急対応が必要な問題（2025/7/20 CI通過後検証で発見）:**
+- **❌ データ取得9件制限問題**: 設定500件に対し9件のみ取得・pagination未動作
+- **⚠️ 土日データ取得不可**: 最新データ39.6時間前（金曜23時）・Bitbank営業時間制限の可能性
+- **⚠️ 未知特徴量警告**: momentum_signals・volatility_regime・market_structure・liquidity_indicators未定義
+- **📊 システム状況**: トレード準備完了・残高取得正常・API接続健全
+
+**📋 緊急対応計画:**
+- **最優先**: データ取得制限根本解決・Bitbank API制限調査
+- **高優先**: 未知特徴量定義・設定ファイル最適化
+- **並行**: Discord通知システム実装（GCPエラーメール置換）
 
 ### 🎉 **歴史的実装完了: 包括的暗号通貨取引システム**
 
@@ -518,7 +529,7 @@ git push origin develop  # → 開発デプロイ
 
 ### **📊 データ取得・特徴量確認**
 6. **データ取得件数**: **500件取得確認**（10件→500件修正効果）
-7. **145特徴量使用**: ログで"145特徴量システム稼働中"確認
+7. **129特徴量使用**: ログで"129特徴量システム稼働中"確認
 8. **直近データ取得**: 38時間前→より新しいデータに改善確認
 9. **土日データ対応**: 24/7データ取得確認
 10. **外部データ統合**: VIX・Fear&Greed・Macro・FR・OIデータ取得確認
@@ -527,13 +538,13 @@ git push origin develop  # → 開発デプロイ
 11. **本番設定使用**: `config/production/production.yml` 使用確認
 12. **不要取引所除外**: Bybit・Binance（取引用）API呼び出し除外確認
 13. **ページネーション有効**: `paginate: true` 設定動作確認
-14. **145特徴量設定**: `extra_features` 全項目有効確認
+14. **129特徴量設定**: `extra_features` 全項目有効確認
 15. **FR・OI有効確認**: `funding.enabled: true` 動作確認
 
 ### **🤖 MLモデル・ファイル確認**
 16. **pklファイル**: `/app/models/production/model.pkl` 使用確認
 17. **モデルロード**: MLStrategyエラーなし確認
-18. **特徴量生成**: 145特徴量正常生成確認
+18. **特徴量生成**: 129特徴量正常生成確認
 19. **予測機能**: エントリー判定機能動作確認
 20. **FR・OI特徴量**: Funding Rate・OI特徴量生成確認
 
@@ -561,8 +572,8 @@ curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/
 # データ取得状況確認
 gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"records\"" --limit=5
 
-# 145特徴量確認
-gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"145特徴量\"" --limit=3
+# 129特徴量確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"129特徴量\"" --limit=3
 
 # FR・OI取得確認
 gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"funding\"" --limit=5
