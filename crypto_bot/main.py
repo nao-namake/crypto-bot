@@ -982,11 +982,17 @@ def live_bitbank(config_path: str, max_trades: int):
                     )
                     logger.info(f"⏰ [DATA-FETCH] Timestamp: {pd.Timestamp.now()}")
 
-                    # 最新データを確実に取得（過去データ参照防止）
-                    # since=None かつ現在時刻から逆算して最新データのみ取得
+                    # 最新データを確実に取得（設定ファイルのsince設定を使用）
                     current_time = pd.Timestamp.now(tz="UTC")
-                    hours_back = 200  # 200時間分のデータ
-                    since_time = current_time - pd.Timedelta(hours=hours_back)
+
+                    # 設定ファイルのsince設定を尊重、なければ48時間前をデフォルト
+                    if dd.get("since"):
+                        since_time = pd.Timestamp(dd["since"])
+                        if since_time.tz is None:
+                            since_time = since_time.tz_localize("UTC")
+                    else:
+                        hours_back = 48  # デフォルト48時間（リアルタイム重視）
+                        since_time = current_time - pd.Timedelta(hours=hours_back)
                     logger.info(
                         f"🔄 Fetching latest data since: {since_time} "
                         f"(current: {current_time})"
@@ -1028,21 +1034,20 @@ def live_bitbank(config_path: str, max_trades: int):
                 f"latest: {latest_time} ({hours_old:.1f}h ago)"
             )
 
-            # データ鮮度監視（3時間以上古い場合は警告、24時間以上は強制再取得）
-            if hours_old > 24:
+            # データ鮮度監視（1時間以上古い場合は警告、3時間以上は強制再取得）
+            if hours_old > 3:
                 logger.error(
                     f"🚨 Data is {hours_old:.1f} hours old - FORCING FRESH DATA FETCH"
                 )
                 # 古いキャッシュを再クリア
                 clear_global_cache()
                 logger.info("🔄 Re-cleared cache due to stale data")
-                # 次のループで新しいデータ取得を強制
                 logger.info("⏰ Waiting 30 seconds before fresh data fetch...")
                 time.sleep(30)
                 continue
-            elif hours_old > 3:
+            elif hours_old > 1:
                 logger.warning(
-                    f"⚠️ Data is {hours_old:.1f} hours old - consider fresh data"
+                    f"⚠️ Data is {hours_old:.1f} hours old - monitoring for freshness"
                 )
 
             # エントリー判定
