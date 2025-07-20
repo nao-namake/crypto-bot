@@ -199,14 +199,25 @@ def deep_merge(default: dict, override: dict) -> dict:
 
 
 def load_config(path: str) -> dict:
-    base = Path(__file__).parent.parent
-    default_path = base / "config" / "default.yml"
-    with open(default_path, "r") as f:
-        default_cfg = yaml.safe_load(f) or {}
-    with open(path, "r") as f:
-        user_cfg = yaml.safe_load(f) or {}
+    import logging
 
-    config = deep_merge(default_cfg, user_cfg)
+    logger = logging.getLogger(__name__)
+    base = Path(__file__).parent.parent
+
+    # 本番環境では production.yml のみを使用（default.yml 読み込み回避）
+    if "production" in path:
+        with open(path, "r") as f:
+            config = yaml.safe_load(f) or {}
+        logger.info(f"🔒 [CONFIG] Production mode: Using {path} only")
+    else:
+        # 開発環境のみ default.yml とマージ
+        default_path = base / "config" / "default.yml"
+        with open(default_path, "r") as f:
+            default_cfg = yaml.safe_load(f) or {}
+        with open(path, "r") as f:
+            user_cfg = yaml.safe_load(f) or {}
+        config = deep_merge(default_cfg, user_cfg)
+        logger.info("🔧 [CONFIG] Development mode: Merged default.yml")
 
     # 設定検証を実行
     try:
@@ -986,13 +997,18 @@ def live_bitbank(config_path: str, max_trades: int):
                     current_time = pd.Timestamp.now(tz="UTC")
 
                     # 設定ファイルのsince設定を尊重、なければ48時間前をデフォルト
+                    logger.info(f"🔍 [DEBUG] dd content: {dd}")
+                    logger.info(f"🔍 [DEBUG] dd.get('since'): {dd.get('since')}")
+
                     if dd.get("since"):
                         since_time = pd.Timestamp(dd["since"])
                         if since_time.tz is None:
                             since_time = since_time.tz_localize("UTC")
+                        logger.info(f"🔍 [DEBUG] Using config since: {since_time}")
                     else:
                         hours_back = 48  # デフォルト48時間（リアルタイム重視）
                         since_time = current_time - pd.Timedelta(hours=hours_back)
+                        logger.info(f"🔍 [DEBUG] Using default 48h: {since_time}")
                     logger.info(
                         f"🔄 Fetching latest data since: {since_time} "
                         f"(current: {current_time})"
