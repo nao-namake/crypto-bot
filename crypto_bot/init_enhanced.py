@@ -96,7 +96,8 @@ def enhanced_init_5_fetch_price_data(
                 return fetcher.get_price_df(
                     timeframe=timeframe,
                     limit=limit,
-                    paginate=False,
+                    paginate=dd.get("paginate", True),
+                    per_page=dd.get("per_page", 100),
                 )
 
             try:

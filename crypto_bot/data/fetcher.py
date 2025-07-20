@@ -63,6 +63,18 @@ class MarketDataFetcher:
                 pass
             self.exchange = getattr(self.client, "_exchange", self.client)
 
+    def fetch_balance(self) -> dict:
+        """
+        残高情報を取得
+
+        Returns:
+            dict: 残高情報
+        """
+        if not self.client:
+            raise RuntimeError("Client not initialized (CSV mode)")
+
+        return self.client.fetch_balance()
+
     def get_price_df(
         self,
         timeframe: str = "1m",
