@@ -1040,8 +1040,12 @@ def live_bitbank(config_path: str, max_trades: int):
                     price_df = fetcher.get_price_df(
                         timeframe=dd.get("timeframe", "1h"),
                         since=since_time,  # 設定ファイルで指定した時間のデータ
-                        limit=dd.get("limit", 500),  # 設定ファイルから読み込み（デフォルト500）
-                        paginate=dd.get("paginate", True),  # 設定ファイルから読み込み（デフォルトTrue）
+                        limit=dd.get(
+                            "limit", 500
+                        ),  # 設定ファイルから読み込み（デフォルト500）
+                        paginate=dd.get(
+                            "paginate", True
+                        ),  # 設定ファイルから読み込み（デフォルトTrue）
                     )
                     logger.info(
                         f"✅ [DATA-FETCH] Price data fetched successfully: "

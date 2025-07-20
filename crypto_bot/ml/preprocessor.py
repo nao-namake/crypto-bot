@@ -1394,6 +1394,145 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             logger.warning(f"Failed to calculate trend_strength: {e}")
                             df["trend_strength"] = 25  # デフォルト値
 
+                    # volatility_regime 特徴量 (5特徴量)
+                    elif feat_lc == "volatility_regime":
+                        try:
+                            # 複数期間でのボラティリティレジーム分析
+                            volatility_windows = [10, 20, 50]
+
+                            for window in volatility_windows:
+                                # rolling標準偏差を計算
+                                vol = df["close"].rolling(window=window).std()
+
+                                # ボラティリティレジームを3段階に分類 (0:低, 1:中, 2:高)
+                                vol_regime = pd.cut(vol, bins=3, labels=[0, 1, 2])
+                                df[f"vol_regime_{window}"] = pd.to_numeric(
+                                    vol_regime, errors="coerce"
+                                ).fillna(1)
+
+                                # ボラティリティ百分位数
+                                df[f"vol_percentile_{window}"] = (
+                                    vol.rolling(window=100, min_periods=window)
+                                    .rank(pct=True)
+                                    .fillna(0.5)
+                                )
+
+                            # 短期vs長期ボラティリティ比率
+                            short_vol = df["close"].rolling(window=10).std()
+                            long_vol = df["close"].rolling(window=50).std()
+                            df["vol_ratio_short_long"] = (short_vol / long_vol).fillna(
+                                1.0
+                            )
+
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to calculate volatility_regime: {e}"
+                            )
+                            # デフォルト値設定
+                            for window in [10, 20, 50]:
+                                df[f"vol_regime_{window}"] = 1
+                                df[f"vol_percentile_{window}"] = 0.5
+                            df["vol_ratio_short_long"] = 1.0
+
+                    # momentum_signals 特徴量 (7特徴量)
+                    elif feat_lc == "momentum_signals":
+                        try:
+                            # 複数期間のモメンタム信号
+                            momentum_periods = [1, 3, 7, 14, 21, 30]
+
+                            for period in momentum_periods:
+                                df[f"momentum_{period}"] = (
+                                    df["close"].pct_change(period).fillna(0)
+                                )
+
+                            # モメンタム収束・発散指標
+                            mom_short = df["close"].pct_change(3)
+                            mom_long = df["close"].pct_change(21)
+                            df["momentum_convergence"] = (mom_short - mom_long).fillna(
+                                0
+                            )
+
+                        except Exception as e:
+                            logger.warning(f"Failed to calculate momentum_signals: {e}")
+                            # デフォルト値設定
+                            for period in [1, 3, 7, 14, 21, 30]:
+                                df[f"momentum_{period}"] = 0
+                            df["momentum_convergence"] = 0
+
+                    # liquidity_indicators 特徴量 (8特徴量)
+                    elif feat_lc == "liquidity_indicators":
+                        try:
+                            # Amihud流動性指標（非流動性度）
+                            price_change = abs(df["close"].pct_change())
+                            volume_scaled = (
+                                df["volume"] / df["volume"].rolling(window=20).mean()
+                            )
+                            df["amihud_illiquidity"] = (
+                                price_change / (volume_scaled + 1e-8)
+                            ).fillna(0)
+
+                            # 価格インパクト指標
+                            df["price_impact"] = (
+                                (df["high"] - df["low"]) / (df["volume"] + 1e-8)
+                            ).fillna(0)
+
+                            # ボリューム・プライス・トレンド（VPT）
+                            df["vpt"] = (
+                                (df["volume"] * df["close"].pct_change())
+                                .cumsum()
+                                .fillna(0)
+                            )
+
+                            # 出来高相対強度
+                            df["volume_strength"] = (
+                                df["volume"] / df["volume"].rolling(window=20).mean()
+                            ).fillna(1.0)
+
+                            # 流動性枯渇指標
+                            volume_ma = df["volume"].rolling(window=10).mean()
+                            volume_std = df["volume"].rolling(window=10).std()
+                            df["liquidity_drought"] = (
+                                (volume_ma - df["volume"]) / (volume_std + 1e-8)
+                            ).fillna(0)
+
+                            # ビッド・アスク代理指標（高値-安値スプレッド）
+                            typical_price = (df["high"] + df["low"] + df["close"]) / 3
+                            df["spread_proxy"] = (
+                                (df["high"] - df["low"]) / typical_price
+                            ).fillna(0)
+
+                            # 出来高加重平均価格からの乖離
+                            vwap = (typical_price * df["volume"]).rolling(
+                                window=20
+                            ).sum() / df["volume"].rolling(window=20).sum()
+                            df["vwap_deviation"] = ((df["close"] - vwap) / vwap).fillna(
+                                0
+                            )
+
+                            # 注文不均衡代理指標
+                            df["order_imbalance_proxy"] = (
+                                (df["close"] - df["open"])
+                                / (df["high"] - df["low"] + 1e-8)
+                            ).fillna(0)
+
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to calculate liquidity_indicators: {e}"
+                            )
+                            # デフォルト値設定
+                            liquidity_features = [
+                                "amihud_illiquidity",
+                                "price_impact",
+                                "vpt",
+                                "volume_strength",
+                                "liquidity_drought",
+                                "spread_proxy",
+                                "vwap_deviation",
+                                "order_imbalance_proxy",
+                            ]
+                            for feat in liquidity_features:
+                                df[feat] = 0
+
                     else:
                         logger.warning(f"Unknown extra feature spec: {feat} - skipping")
 

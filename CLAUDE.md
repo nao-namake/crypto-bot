@@ -4,26 +4,27 @@
 
 ## 現在のシステム概要 (2025年7月20日更新)
 
-### 🚀 **最新状況: Phase 9-6完了・129特徴量システム本番稼働・Discord通知実装準備**
+### 🚀 **最新状況: Phase 9-6完了・151特徴量システム本番稼働・Discord通知実装準備**
 
-**Phase 9-6完了：129特徴量FR・OI市況判定システム完全稼働・Discord通知システム実装準備完了**
+**Phase 9-6完了：151特徴量FR・OI市況判定システム完全稼働・Discord通知システム実装準備完了**
 
-#### 🔄 **Phase 9-6最終完了状況（2025/7/20 129特徴量システム稼働完了）**
+#### 🔄 **Phase 9-6最終完了状況（2025/7/20 151特徴量システム稼働完了）**
 
 **✅ 完了したタスク:**
-- **129特徴量システム完全稼働**: FR・OI市況判定機能統合・Binance公開API活用・25特徴量追加
+- **151特徴量システム完全稼働**: FR・OI市況判定機能統合・Binance公開API活用・25特徴量追加
 - **FundingDataFetcher実装**: 125行・13メソッド・Funding Rate履歴・Open Interest分析・市況判定
 - **トレンド判定機能**: FR過熱感検知・反転シグナル生成・エントリー/エグジット判定支援
-- **本番環境稼働確認**: ヘルスチェックAPI正常・mode:live・margin_mode:true・129特徴量稼働
+- **本番環境稼働確認**: ヘルスチェックAPI正常・mode:live・margin_mode:true・151特徴量稼働
 - **Discord通知システム準備**: TODO_ROADMAP.mdに高優先度追加・GCPエラーメール置換準備
 
-**🎯 129特徴量システム詳細:**
+**🎯 151特徴量システム詳細:**
 - **基本特徴量**: 65特徴量（価格・出来高・基本テクニカル等）
 - **追加テクニカル**: 10特徴量（RSI・MACD・Bollinger Bands等）
 - **VIX**: 6特徴量（恐怖指数・市場リスク等）
 - **DXY/マクロ**: 10特徴量（ドル指数・金利等）
 - **Fear&Greed**: 13特徴量（投資家心理・感情指数等）
 - **Funding Rate/OI**: 25特徴量（資金調達率・建玉等）
+- **高度特徴量**: 22特徴量（ボラティリティレジーム・モメンタム・流動性指標）
 - **市況判定**: bullish_extreme・bearish_extreme・neutral判定・トレンド分析
 
 **🌊 FR・OI市況判定機能:**
@@ -33,7 +34,7 @@
 - **取引支援**: エントリー/エグジット判定・リスク評価・ポジション調整
 
 **🔄 現在の状況:**
-- 129特徴量システム本番稼働中（2025/7/20 14:24確認済み）
+- 151特徴量システム本番稼働中（2025/7/20 14:24確認済み）
 - FR・OI市況判定機能活用準備完了
 - Discord通知システム実装待ち
 
@@ -50,7 +51,7 @@
 
 ### 🎉 **歴史的実装完了: 包括的暗号通貨取引システム**
 
-**126特徴量×アンサンブル学習×通貨ペア特化戦略×手数料最適化×品質監視システム統合による次世代取引プラットフォーム実現**
+**151特徴量×アンサンブル学習×通貨ペア特化戦略×手数料最適化×品質監視システム統合による次世代取引プラットフォーム実現**
 
 #### ✅ **核心技術成果（2025/7/19 最終完成）**
 
@@ -78,7 +79,7 @@
 - **TradingIntegrationService**: MLStrategy・ExecutionClient完全統合・自動記録・統計連携
 - **status.json革新**: 従来4項目→55項目・後方互換性維持・リアルタイム更新
 
-**🎊 126特徴量フル版システム**
+**🎊 151特徴量フル版システム**
 - **VIX恐怖指数**: 5特徴量・Yahoo Finance + Alpha Vantage・品質閾値0.7
 - **Fear&Greed指数**: 15特徴量・Alternative.me + バックアップ・品質閾値0.5
 - **Macro経済指標**: 16特徴量・USD/JPY・DXY・US10Y・US2Y・収益率カーブ
@@ -102,7 +103,7 @@
 - `Dockerfile`: FEATURE_MODE環境変数・models/ディレクトリコピー・ヘルスチェック設定
 
 **2. 設定ファイル統一化システム（2025/7/19完成・Phase 9-3）**
-- `config/production/production.yml`: 固定ファイル名による設定統一化・126特徴量完全版設定
+- `config/production/production.yml`: 固定ファイル名による設定統一化・151特徴量完全版設定
 - 設定ファイル管理方針確立: 今後は固定ファイル名に上書きする統一運用・設定混乱完全解消
 
 **3. Bitbank特化手数料最適化システム（2025/7/18完成）**
@@ -121,7 +122,7 @@
 - `crypto_bot/utils/enhanced_status_manager.py`: リアルタイム監視・システムヘルス・市場状況・取引シグナル統合
 - `crypto_bot/utils/trading_integration_service.py`: MLStrategy・ExecutionClient完全統合・自動記録・統計連携
 
-**6. 126特徴量統合システム（2025/7/18完成）**
+**6. 151特徴量統合システム（2025/7/18完成）**
 - `crypto_bot/data/vix_fetcher.py`: VIX恐怖指数データフェッチャー・統一リトライ適用
 - `crypto_bot/data/fear_greed_fetcher.py`: Fear&Greed指数データフェッチャー・統一リトライ適用
 - `crypto_bot/data/macro_fetcher.py`: マクロ経済データフェッチャー・統一リトライ適用
@@ -145,10 +146,10 @@ export FEATURE_MODE=lite
 python scripts/start_live_with_api_fixed.py
 # → 自動的に config/production/production_lite.yml を使用・高速起動・安定性重視
 
-# 完全版モード（126特徴量・外部データ統合・CI/CD修正後有効）
+# 完全版モード（151特徴量・外部データ統合・CI/CD修正後有効）
 export FEATURE_MODE=full
 python scripts/start_live_with_api_fixed.py
-# → 自動的に config/production/production.yml を使用・126特徴量システム
+# → 自動的に config/production/production.yml を使用・151特徴量システム
 
 # 初期化状況確認（新機能・CI/CD修正後有効）
 curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/init
@@ -178,9 +179,9 @@ python -c "from crypto_bot.execution.bitbank_order_manager import get_order_mana
 python -c "from crypto_bot.execution.bitbank_api_rate_limiter import get_api_limiter_status; print(get_api_limiter_status())"
 ```
 
-### **126特徴量システム・品質監視**
+### **151特徴量システム・品質監視**
 ```bash
-# 126特徴量フル版でのライブトレード（品質監視統合・固定ファイル名）
+# 151特徴量フル版でのライブトレード（品質監視統合・固定ファイル名）
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
 # 品質監視システムテスト
@@ -210,7 +211,7 @@ python -m crypto_bot.main live-bitbank --config config/validation/ensemble_tradi
 
 ### **CSV-based バックテスト**
 ```bash
-# 1年間高速CSV バックテスト（126特徴量完全版）
+# 1年間高速CSV バックテスト（151特徴量完全版）
 python -m crypto_bot.main backtest --config config/validation/bitbank_101features_csv_backtest.yml
 
 # CSV データ生成（8,761レコード・1年間）
@@ -244,14 +245,14 @@ pytest --cov=crypto_bot --cov-report=html tests/unit/
 - **外部API復活**: 100% ✅ (VIX・Fear&Greed・MultiSourceDataFetcher)
 - **品質監視システム**: 100% ✅ (30%ルール・緊急停止・回復判定)
 - **リスク管理**: 90% ✅ (Kelly基準、動的リスク調整、信用口座対応)
-- **ML戦略**: 78% ✅ (126特徴量統合、動的閾値調整)
+- **ML戦略**: 78% ✅ (151特徴量統合、動的閾値調整)
 - **MLモデル**: 92% ✅ (アンサンブルモデル対応)
 - **Bitbank実装**: 95% ✅ (信用口座1倍レバレッジ対応・本番稼働準備完了)
 - **本番システム監視**: 100% ✅ (ヘルスチェックAPI・品質監視統合・完全稼働)
 
 ### 機械学習・最適化
 ```bash
-# 126特徴量対応モデル学習
+# 151特徴量対応モデル学習
 python -m crypto_bot.main train --config config/validation/bitbank_101features_csv_backtest.yml
 
 # Optuna最適化付きフルMLパイプライン
@@ -293,7 +294,7 @@ gcloud logging read "resource.labels.service_name=crypto-bot-service-prod" --lim
 - **crypto_bot/main.py** - CLI エントリポイント（CSV/API両対応）
 - **crypto_bot/strategy/** - トレード戦略（ML Strategy・通貨ペア特化・アンサンブル学習）
 - **crypto_bot/execution/** - 取引所クライアント（Bitbank特化・手数料最適化）
-- **crypto_bot/ml/** - 機械学習パイプライン（126特徴量・アンサンブル対応）
+- **crypto_bot/ml/** - 機械学習パイプライン（151特徴量・アンサンブル対応）
 - **crypto_bot/data/** - データ取得・前処理（CSV/API統合・外部データ統合）
 - **crypto_bot/risk/** - リスク管理（Kelly基準・動的サイジング）
 - **crypto_bot/monitoring/** - 品質監視（30%ルール・緊急停止）
@@ -315,7 +316,7 @@ gcloud logging read "resource.labels.service_name=crypto-bot-service-prod" --lim
     ↓
 外部データキャッシュ（年間データ保持）
     ↓  
-特徴量エンジニアリング（126特徴量生成）
+特徴量エンジニアリング（151特徴量生成）
     ↓
 機械学習モデル（LightGBM+RandomForest+XGBoost）
     ↓
@@ -328,7 +329,7 @@ gcloud logging read "resource.labels.service_name=crypto-bot-service-prod" --lim
 ```
 config/
 ├── production/         # 本番環境用設定（固定ファイル名運用）
-│   ├── production.yml - 本番稼働用固定設定・126特徴量完全版
+│   ├── production.yml - 本番稼働用固定設定・151特徴量完全版
 │   └── bitbank_10k_front_test.yml - 1万円フロントテスト用設定
 ├── development/        # 開発・テスト用設定
 │   └── bitbank_config.yml - ローカル検証用設定
@@ -342,7 +343,7 @@ config/
 ```
 
 ### **🔧 現在使用中設定（固定ファイル名運用）**
-- **config/production/production.yml** - 本番稼働用固定設定・126特徴量完全版・外部データ統合
+- **config/production/production.yml** - 本番稼働用固定設定・151特徴量完全版・外部データ統合
 - **config/production/bitbank_10k_front_test.yml** - 1万円フロントテスト用設定・超保守的リスク設定
 - **data/btc_usd_2024_hourly.csv** - 1年間BTCデータ（8,761レコード）
 
@@ -353,7 +354,7 @@ config/
 
 ### **主要設定項目**
 ```yaml
-# 126特徴量設定例（外部データ統合版）
+# 151特徴量設定例（外部データ統合版）
 ml:
   extra_features:
     - vix           # VIX恐怖指数（5特徴量）
@@ -384,7 +385,7 @@ quality_monitoring:
 - **ユニットテスト**: 個別コンポーネント（600テスト・100%成功）
 - **統合テスト**: 取引所API連携
 - **E2Eテスト**: TestNet完全ワークフロー
-- **CSV テスト**: 126特徴量一致検証
+- **CSV テスト**: 151特徴量一致検証
 - **品質監視テスト**: 30%ルール・緊急停止・回復判定検証
 
 ### **品質保証アプローチ**
@@ -435,7 +436,7 @@ git push origin develop  # → 開発デプロイ
 
 ### **現在の革新的実装（2025年7月19日・稼働直前）**
 
-#### **126特徴量統合システム ✅ 本番稼働準備完了**
+#### **151特徴量統合システム ✅ 本番稼働準備完了**
 - **4次元市場分析**: テクニカル・マクロ・心理・資金フロー完全統合
 - **VIX恐怖指数**: 市場パニック検知・リスクオフ判定（5特徴量）
 - **DXY・金利統合**: マクロ経済環境分析（16特徴量）
@@ -445,7 +446,7 @@ git push origin develop  # → 開発デプロイ
 #### **Bitbank本番ライブトレードシステム ✅ 稼働準備完了**
 - **信用口座1倍レバレッジ**: ロング・ショート両対応・BTC/JPY・本番稼働準備完了
 - **margin_mode問題完全解決**: ヘルスチェックAPI修正・設定ファイル正常読み込み確認
-- **126特徴量ML戦略**: VIX・DXY・Fear&Greed・Funding Rate統合・エントリー機会監視準備
+- **151特徴量ML戦略**: VIX・DXY・Fear&Greed・Funding Rate統合・エントリー機会監視準備
 - **自動リスク管理**: Kelly基準・動的ポジションサイジング・安全運用設定
 
 #### **手数料最適化システム ✅**
@@ -489,7 +490,7 @@ git push origin develop  # → 開発デプロイ
 - **✅ 設定ファイル統一化完了** (固定ファイル名運用・設定混乱完全解消)
 - **✅ margin_mode問題完全解決** (ヘルスチェックAPI修正・正常読み込み確認)
 - **✅ CI/CDエラー完全解決** (600テスト100%成功・43.79%カバレッジ・継続的デプロイ体制)
-- **✅ 126特徴量システム安定化** (外部データ統合・品質監視・フォールバック機能)
+- **✅ 151特徴量システム安定化** (外部データ統合・品質監視・フォールバック機能)
 - **✅ 本番稼働準備完了** (Bitbank API接続・信用取引モード・リスク管理設定)
 
 ## 現在の課題と今後の計画
@@ -497,7 +498,7 @@ git push origin develop  # → 開発デプロイ
 ### **🔥 最優先課題（現在進行中）**
 - **🔄 CI/CDデプロイ完了確認**: f2dfe3b6コミット・margin_mode修正適用
 - **🚀 ボット稼働確認**: margin_mode: true・信用取引モード有効化確認
-- **🎯 126特徴量本番稼働開始**: 外部データ統合・品質監視システム動作確認
+- **🎯 151特徴量本番稼働開始**: 外部データ統合・品質監視システム動作確認
 
 ### **🚀 短期計画（1-2日）**
 - **💰 1万円少額実取引テスト**: 超保守的リスク設定・緊急停止機能・実資金検証
@@ -529,7 +530,7 @@ git push origin develop  # → 開発デプロイ
 
 ### **📊 データ取得・特徴量確認**
 6. **データ取得件数**: **500件取得確認**（10件→500件修正効果）
-7. **129特徴量使用**: ログで"129特徴量システム稼働中"確認
+7. **151特徴量使用**: ログで"151特徴量システム稼働中"確認
 8. **直近データ取得**: 38時間前→より新しいデータに改善確認
 9. **土日データ対応**: 24/7データ取得確認
 10. **外部データ統合**: VIX・Fear&Greed・Macro・FR・OIデータ取得確認
@@ -538,13 +539,13 @@ git push origin develop  # → 開発デプロイ
 11. **本番設定使用**: `config/production/production.yml` 使用確認
 12. **不要取引所除外**: Bybit・Binance（取引用）API呼び出し除外確認
 13. **ページネーション有効**: `paginate: true` 設定動作確認
-14. **129特徴量設定**: `extra_features` 全項目有効確認
+14. **151特徴量設定**: `extra_features` 全項目有効確認
 15. **FR・OI有効確認**: `funding.enabled: true` 動作確認
 
 ### **🤖 MLモデル・ファイル確認**
 16. **pklファイル**: `/app/models/production/model.pkl` 使用確認
 17. **モデルロード**: MLStrategyエラーなし確認
-18. **特徴量生成**: 129特徴量正常生成確認
+18. **特徴量生成**: 151特徴量正常生成確認
 19. **予測機能**: エントリー判定機能動作確認
 20. **FR・OI特徴量**: Funding Rate・OI特徴量生成確認
 
@@ -572,8 +573,8 @@ curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health/
 # データ取得状況確認
 gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"records\"" --limit=5
 
-# 129特徴量確認
-gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"129特徴量\"" --limit=3
+# 151特徴量確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"151特徴量\"" --limit=3
 
 # FR・OI取得確認
 gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"funding\"" --limit=5

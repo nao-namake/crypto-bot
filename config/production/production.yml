@@ -81,6 +81,11 @@ ml:
     - fear_greed   # Fear&Greed指数（13特徴量）
     - funding      # Funding Rate・OI（25特徴量・トレンド判定）
     
+    # 高度特徴量（22特徴量追加）
+    - volatility_regime    # ボラティリティレジーム（7特徴量）
+    - momentum_signals     # モメンタム信号（7特徴量）
+    - liquidity_indicators # 流動性指標（8特徴量）
+    
     
   # 外部データ設定
   external_data:

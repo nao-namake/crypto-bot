@@ -1,17 +1,17 @@
-# Crypto-Bot - 🚀 Phase 9-6完了・145特徴量FR/OI市況判定システム稼働・Discord通知準備
+# Crypto-Bot - 🚀 Phase 9-6完了・151特徴量FR/OI市況判定システム稼働・Discord通知準備
 
-## 🚀 **最新状況: Phase 9-6完了・145特徴量システム完全稼働・Discord通知実装準備** (2025年7月20日更新)
+## 🚀 **最新状況: Phase 9-6完了・151特徴量システム完全稼働・Discord通知実装準備** (2025年7月20日更新)
 
-### 🔄 **Phase 9-6完了・145特徴量FR/OI市況判定システム稼働・Discord通知準備**
+### 🔄 **Phase 9-6完了・151特徴量FR/OI市況判定システム稼働・Discord通知準備**
 
 **🎉 Phase 9-6完全完了実績:**
-- **145特徴量システム完全稼働**: FR・OI市況判定機能統合・Binance公開API活用・25特徴量追加
+- **151特徴量システム完全稼働**: FR・OI市況判定機能統合・Binance公開API活用・25特徴量追加
 - **FundingDataFetcher実装**: 125行・13メソッド・Funding Rate履歴・Open Interest分析・市況判定
 - **トレンド判定機能**: FR過熱感検知・反転シグナル生成・エントリー/エグジット判定支援
-- **本番環境稼働確認**: ヘルスチェックAPI正常・mode:live・margin_mode:true・145特徴量稼働
+- **本番環境稼働確認**: ヘルスチェックAPI正常・mode:live・margin_mode:true・151特徴量稼働
 - **Discord通知システム準備**: TODO_ROADMAP.mdに高優先度追加・GCPエラーメール置換準備
 
-**🎯 145特徴量システム詳細:**
+**🎯 151特徴量システム詳細:**
 - **基本特徴量**: 90特徴量（テクニカル・VIX・Fear&Greed・Macro等）
 - **FR特徴量**: 13特徴量（funding_rate・trend・volatility・reversal_signal等）
 - **OI特徴量**: 12特徴量（level・change・momentum・spike_detection等）
@@ -39,7 +39,7 @@
    - **影響**: システム警告・特徴量不整合の可能性
 
 ### **✅ 正常動作確認済み**
-- **145特徴量システム**: 稼働中・FR/OI機能統合完了
+- **151特徴量システム**: 稼働中・FR/OI機能統合完了
 - **Bitbank残高取得**: 10,000円JPY取得成功
 - **API接続**: 健全・信用取引モード有効
 - **トレード機能**: 準備完了・統合サービス初期化済み
