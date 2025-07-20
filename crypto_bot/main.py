@@ -768,7 +768,7 @@ def optimize_ml(config_path: str, model_type: str):
 def live_bitbank(config_path: str, max_trades: int):
     """
     Bitbank本番でのライブトレードを実行。
-    126特徴量システムでBTC/JPYペアの実取引を行う。
+    120特徴量システムでBTC/JPYペアの実取引を行う。
     APIサーバー機能も統合し、ヘルスチェック・トレード状況確認が可能。
     """
     cfg = load_config(config_path)
@@ -979,7 +979,7 @@ def live_bitbank(config_path: str, max_trades: int):
         "🎊 [INIT-COMPLETE] === Bitbank Live Trading Started ===  Ctrl+C で停止"
     )
     logger.info(
-        f"🚀 [INIT-COMPLETE] 126特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
+        f"🚀 [INIT-COMPLETE] 120特徴量システム稼働中 - Symbol: {symbol}, Balance: {balance}"
     )
     logger.info(f"⏰ [INIT-COMPLETE] Timestamp: {pd.Timestamp.now()}")
 

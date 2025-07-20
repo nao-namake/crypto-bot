@@ -79,7 +79,7 @@ ml:
     - vix          # VIX恐怖指数（6特徴量）
     - dxy          # ドル指数・金利（10特徴量）
     - fear_greed   # Fear&Greed指数（13特徴量）
-    - funding      # Funding Rate・OI（信用取引重要）
+    # - funding      # Funding Rate実装未完了・無効化
     
     # 高度特徴量
     - momentum_signals
@@ -115,10 +115,8 @@ ml:
       api_url: "https://api.alternative.me/fng/"
       fallback_index: 50
       
-    funding:
-      enabled: true
-      exchanges: ["binance"]  # Bitbank信用取引参考用
-      fallback_rate: 0.0001
+    # funding:
+    #   enabled: false  # 実装未完了・無効化
 
 # 外部データリトライ設定
 external_data_retry:
