@@ -117,7 +117,7 @@ ml:
       
     funding:
       enabled: true
-      exchanges: ["binance"]
+      exchanges: []
       fallback_rate: 0.0001
 
 # 外部データリトライ設定
