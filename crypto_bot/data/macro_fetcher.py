@@ -23,14 +23,14 @@ class MacroDataFetcher(MultiSourceDataFetcher):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         # 親クラス初期化
         super().__init__(config, data_type="macro")
-        
+
         self.symbols = {
             "dxy": "DX-Y.NYB",  # ドル指数
             "us10y": "^TNX",  # 米10年債利回り
             "us2y": "^IRX",  # 米2年債利回り
             "usdjpy": "USDJPY=X",  # USD/JPY為替レート
         }
-        
+
         logger.info("🔧 MacroDataFetcher initialized with MultiSourceDataFetcher base")
 
     def _validate_data_quality(self, data: pd.DataFrame) -> float:
@@ -47,26 +47,30 @@ class MacroDataFetcher(MultiSourceDataFetcher):
 
         # マクロ経済データ特有の品質検証
         range_quality_score = 0.0
-        numeric_cols = data.select_dtypes(include=['number']).columns
-        
+        numeric_cols = data.select_dtypes(include=["number"]).columns
+
         if len(numeric_cols) > 0:
             # 妥当な数値範囲かチェック（極端な値を除外）
             valid_ranges = 0
             for col in numeric_cols:
                 # 各指標の妥当性をチェック
-                if 'dxy' in col.lower():
+                if "dxy" in col.lower():
                     # DXYは90-120の範囲が妥当
                     valid_ranges += ((data[col] >= 80) & (data[col] <= 130)).sum()
-                elif 'treasury' in col.lower() or 'us10y' in col.lower() or 'us2y' in col.lower():
+                elif (
+                    "treasury" in col.lower()
+                    or "us10y" in col.lower()
+                    or "us2y" in col.lower()
+                ):
                     # 金利は0-15%の範囲が妥当
                     valid_ranges += ((data[col] >= 0) & (data[col] <= 15)).sum()
-                elif 'usdjpy' in col.lower():
+                elif "usdjpy" in col.lower():
                     # USD/JPYは100-180の範囲が妥当
                     valid_ranges += ((data[col] >= 80) & (data[col] <= 200)).sum()
                 else:
                     # その他は無限大値のみをチェック
                     valid_ranges += (~(data[col].isinf() | data[col].isna())).sum()
-            
+
             range_quality_score = valid_ranges / (len(numeric_cols) * total_points)
 
         # 総合品質スコア
@@ -134,39 +138,39 @@ class MacroDataFetcher(MultiSourceDataFetcher):
         """Yahoo Financeからマクロデータをまとめて取得"""
         try:
             combined_data = pd.DataFrame()
-            
+
             for name, symbol in self.symbols.items():
                 try:
                     ticker = yf.Ticker(symbol)
                     data = ticker.history(start=start_date, end=end_date)
-                    
+
                     if data.empty:
                         logger.warning(f"⚠️ No data for {name} ({symbol})")
                         continue
-                        
+
                     # カラム名を統一（シンボル名をプレフィックスに追加）
                     data.columns = [f"{name}_{col.lower()}" for col in data.columns]
-                    
+
                     if combined_data.empty:
                         combined_data = data.copy()
                     else:
                         # インデックス（日付）で結合
-                        combined_data = combined_data.join(data, how='outer')
-                        
+                        combined_data = combined_data.join(data, how="outer")
+
                     logger.info(f"✅ {name} data: {len(data)} records")
-                    
+
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to fetch {name} data: {e}")
                     continue
-            
+
             if combined_data.empty:
                 raise ValueError("All macro symbols failed to fetch")
-                
+
             # 前方埋めで欠損値を補完
-            combined_data = combined_data.fillna(method='ffill')
-            
+            combined_data = combined_data.fillna(method="ffill")
+
             return combined_data
-            
+
         except Exception as e:
             logger.error(f"Yahoo Finance macro fetch failed: {e}")
             raise
@@ -181,9 +185,9 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # 実際の実装では、Alpha Vantage APIキーが必要
             # 現在は Yahoo Finance のフォールバックとして実装
             logger.info("📡 Using Yahoo Finance as Alpha Vantage macro alternative")
-            
+
             return self._fetch_yahoo_macro_data(start_date, end_date)
-            
+
         except Exception as e:
             logger.error(f"Alpha Vantage macro fetch failed: {e}")
             raise
@@ -197,9 +201,9 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # FRED API実装（将来の拡張用）
             # 現在はYahoo Financeフォールバックとして実装
             logger.info("📡 Using Yahoo Finance as FRED macro alternative")
-            
+
             return self._fetch_yahoo_macro_data(start_date, end_date)
-            
+
         except Exception as e:
             logger.error(f"FRED macro fetch failed: {e}")
             raise
@@ -224,27 +228,34 @@ class MacroDataFetcher(MultiSourceDataFetcher):
         unified_data = self.get_data(
             start_date=start_date, end_date=end_date, limit=limit
         )
-        
+
         if unified_data is None or unified_data.empty:
             logger.warning("❌ No macro data retrieved from MultiSourceDataFetcher")
             return {}
-        
+
         # 統合データを個別データ辞書形式に変換（後方互換性のため）
         macro_data = {}
         for symbol_name in self.symbols.keys():
             # 統合データから各シンボルのデータを抽出
-            symbol_columns = [col for col in unified_data.columns if symbol_name in col.lower()]
+            symbol_columns = [
+                col for col in unified_data.columns if symbol_name in col.lower()
+            ]
             if symbol_columns:
                 macro_data[symbol_name] = unified_data[symbol_columns].copy()
                 # 'close'列があることを確認（特徴量計算で使用）
-                if 'close' not in macro_data[symbol_name].columns and symbol_columns:
+                if "close" not in macro_data[symbol_name].columns and symbol_columns:
                     # 最初の数値列をcloseとして使用
-                    numeric_cols = macro_data[symbol_name].select_dtypes(include=['number']).columns
+                    numeric_cols = (
+                        macro_data[symbol_name]
+                        .select_dtypes(include=["number"])
+                        .columns
+                    )
                     if len(numeric_cols) > 0:
-                        macro_data[symbol_name]['close'] = macro_data[symbol_name][numeric_cols[0]]
-            
-        return macro_data
+                        macro_data[symbol_name]["close"] = macro_data[symbol_name][
+                            numeric_cols[0]
+                        ]
 
+        return macro_data
 
     def calculate_macro_features(
         self, macro_data: Dict[str, pd.DataFrame]
@@ -436,24 +447,26 @@ class MacroDataFetcher(MultiSourceDataFetcher):
         """マクロデータ特有のデフォルト値カウント（品質監視用）"""
         try:
             default_count = 0
-            
+
             # DXY特有のデフォルト値チェック
             for col in data.columns:
-                if 'dxy' in col.lower() and 'close' in col.lower():
+                if "dxy" in col.lower() and "close" in col.lower():
                     # DXY=103.0がデフォルト値
                     default_count += (data[col] == 103.0).sum()
-                elif ('treasury' in col.lower() or 'us10y' in col.lower()) and 'close' in col.lower():
+                elif (
+                    "treasury" in col.lower() or "us10y" in col.lower()
+                ) and "close" in col.lower():
                     # 10年債=4.5がデフォルト値
                     default_count += (data[col] == 4.5).sum()
-                elif 'us2y' in col.lower() and 'close' in col.lower():
+                elif "us2y" in col.lower() and "close" in col.lower():
                     # 2年債=4.8がデフォルト値
                     default_count += (data[col] == 4.8).sum()
-                elif 'usdjpy' in col.lower() and 'close' in col.lower():
+                elif "usdjpy" in col.lower() and "close" in col.lower():
                     # USD/JPY=150.0がデフォルト値
                     default_count += (data[col] == 150.0).sum()
-            
+
             return default_count
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to count macro default values: {e}")
             return 0

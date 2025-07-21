@@ -10,7 +10,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -50,11 +50,13 @@ class MultiTimeframeDataFetcher:
             sync_tolerance_minutes: 同期許容誤差（分）
         """
         # configからの設定読み取り
-        if config and 'multi_timeframe' in config:
-            mtf_config = config['multi_timeframe']
-            timeframes = timeframes or mtf_config.get('timeframes', ["15m", "1h", "4h"])
-            synchronization_enabled = mtf_config.get('data_sync_enabled', synchronization_enabled)
-        
+        if config and "multi_timeframe" in config:
+            mtf_config = config["multi_timeframe"]
+            timeframes = timeframes or mtf_config.get("timeframes", ["15m", "1h", "4h"])
+            synchronization_enabled = mtf_config.get(
+                "data_sync_enabled", synchronization_enabled
+            )
+
         self.base_fetcher = base_fetcher
         self.config = config
         self.timeframes = timeframes or ["15m", "1h", "4h"]
@@ -73,7 +75,9 @@ class MultiTimeframeDataFetcher:
                     missing_data_threshold=min(1.0 - self.data_quality_threshold, 0.5),
                     consistency_check_enabled=True,
                 )
-                logger.info(f"  - Synchronizer initialized: {self.synchronizer is not None}")
+                logger.info(
+                    f"  - Synchronizer initialized: {self.synchronizer is not None}"
+                )
             except Exception as e:
                 logger.warning(f"⚠️ TimeframeSynchronizer initialization failed: {e}")
                 logger.info("  - Falling back to basic synchronizer")
@@ -96,7 +100,7 @@ class MultiTimeframeDataFetcher:
             "synchronization_count": 0,
         }
 
-        logger.info(f"🔄 MultiTimeframeDataFetcher initialized")
+        logger.info("🔄 MultiTimeframeDataFetcher initialized")
         logger.info(f"  - Timeframes: {self.timeframes}")
         logger.info(f"  - Base timeframe: {self.base_timeframe}")
         logger.info(f"  - Cache enabled: {self.cache_enabled}")
@@ -158,11 +162,14 @@ class MultiTimeframeDataFetcher:
             # Phase 2.2: データ同期・統合システム適用
             if self.synchronization_enabled and self.synchronizer and multi_data:
                 logger.info("🔄 Applying timeframe synchronization")
-                synchronized_data = self.synchronizer.synchronize_multi_timeframe_data(multi_data)
+                synchronized_data = self.synchronizer.synchronize_multi_timeframe_data(
+                    multi_data
+                )
                 self.quality_stats["synchronization_count"] += 1
-                
+
                 logger.info(
-                    f"✅ Multi-timeframe fetch + synchronization complete: {len(synchronized_data)} timeframes"
+                    f"✅ Multi-timeframe fetch + synchronization complete: "
+                    f"{len(synchronized_data)} timeframes"
                 )
                 return synchronized_data
             else:
@@ -199,9 +206,11 @@ class MultiTimeframeDataFetcher:
 
         # base_fetcherがNoneの場合（テスト用）
         if self.base_fetcher is None:
-            logger.info(f"🧪 Generating test data for {self.base_timeframe} (no base_fetcher)")
+            logger.info(
+                f"🧪 Generating test data for {self.base_timeframe} (no base_fetcher)"
+            )
             data = self._generate_test_data(limit or 100)
-            
+
             if not data.empty:
                 # キャッシュ更新
                 if self.cache_enabled:
@@ -256,7 +265,8 @@ class MultiTimeframeDataFetcher:
                 return self._aggregate_to_4h(base_data)
             else:
                 logger.warning(
-                    f"⚠️ Unsupported conversion: {self.base_timeframe} → {target_timeframe}"
+                    f"⚠️ Unsupported conversion: "
+                    f"{self.base_timeframe} → {target_timeframe}"
                 )
                 return pd.DataFrame()
 
@@ -276,9 +286,7 @@ class MultiTimeframeDataFetcher:
             # 15分間隔のタイムインデックス作成
             start_time = hourly_data.index[0]
             end_time = hourly_data.index[-1]
-            minute_15_index = pd.date_range(
-                start=start_time, end=end_time, freq="15T"
-            )
+            minute_15_index = pd.date_range(start=start_time, end=end_time, freq="15T")
 
             interpolated_data = pd.DataFrame(index=minute_15_index)
 
@@ -306,14 +314,14 @@ class MultiTimeframeDataFetcher:
                                 bounds_error=False,
                                 fill_value="extrapolate",
                             )
-                            interpolated_data[col] = f(
-                                minute_15_index.astype(np.int64)
-                            )
+                            interpolated_data[col] = f(minute_15_index.astype(np.int64))
                         else:
                             # データ不足時は線形補間
-                            interpolated_data[col] = hourly_data[col].reindex(
-                                minute_15_index
-                            ).interpolate(method="linear")
+                            interpolated_data[col] = (
+                                hourly_data[col]
+                                .reindex(minute_15_index)
+                                .interpolate(method="linear")
+                            )
 
             # データ品質改善
             interpolated_data = self._improve_interpolated_data(interpolated_data)
@@ -331,13 +339,13 @@ class MultiTimeframeDataFetcher:
         """高値・安値の特別補間処理"""
         try:
             # 基本補間
-            base_series = hourly_data[col].reindex(target_index).interpolate(
-                method="linear"
+            base_series = (
+                hourly_data[col].reindex(target_index).interpolate(method="linear")
             )
 
             # 高値・安値の現実性調整
-            close_series = hourly_data["close"].reindex(target_index).interpolate(
-                method="linear"
+            close_series = (
+                hourly_data["close"].reindex(target_index).interpolate(method="linear")
             )
 
             if col == "high":
@@ -496,11 +504,13 @@ class MultiTimeframeDataFetcher:
             "quality_stats": self.quality_stats.copy(),
             "synchronization_enabled": self.synchronization_enabled,
         }
-        
+
         # 同期統計情報追加
         if self.synchronizer:
-            info["synchronization_stats"] = self.synchronizer.get_synchronization_stats()
-        
+            info["synchronization_stats"] = (
+                self.synchronizer.get_synchronization_stats()
+            )
+
         return info
 
     def clear_cache(self, timeframe: Optional[str] = None) -> None:
@@ -517,23 +527,23 @@ class MultiTimeframeDataFetcher:
     def _generate_test_data(self, n_records: int = 100) -> pd.DataFrame:
         """テスト用ダミーデータ生成"""
         try:
-            from datetime import timedelta
             import random
-            
+            from datetime import timedelta
+
             # 時系列インデックス生成
             end_time = datetime.now().replace(minute=0, second=0, microsecond=0)
             timestamps = [end_time - timedelta(hours=i) for i in range(n_records)]
             timestamps.reverse()
-            
+
             # ランダムなOHLCVデータ生成
             base_price = 5000000  # BTC/JPY想定
             ohlcv_data = []
-            
-            for ts in timestamps:
+
+            for _ts in timestamps:
                 # 価格変動生成
                 price_change = random.gauss(0, 0.01) * 0.02
-                base_price *= (1 + price_change)
-                
+                base_price *= 1 + price_change
+
                 # OHLC生成
                 volatility = abs(random.gauss(0.005, 0.002))
                 high = base_price * (1 + volatility)
@@ -541,19 +551,21 @@ class MultiTimeframeDataFetcher:
                 open_price = base_price + random.gauss(0, volatility * 0.5) * base_price
                 close_price = base_price
                 volume = abs(random.gauss(50, 20))
-                
-                ohlcv_data.append({
-                    'open': open_price,
-                    'high': high,
-                    'low': low,
-                    'close': close_price,
-                    'volume': volume
-                })
-            
+
+                ohlcv_data.append(
+                    {
+                        "open": open_price,
+                        "high": high,
+                        "low": low,
+                        "close": close_price,
+                        "volume": volume,
+                    }
+                )
+
             df = pd.DataFrame(ohlcv_data, index=timestamps)
             logger.info(f"🧪 Generated test data: {len(df)} records")
             return df
-            
+
         except Exception as e:
             logger.error(f"❌ Test data generation failed: {e}")
             return pd.DataFrame()

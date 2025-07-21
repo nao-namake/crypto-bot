@@ -134,11 +134,11 @@ class MultiSourceDataFetcher(ABC):
         """グローバルキャッシュ有効性チェック（Phase A3対応）"""
         cache_key = self._get_cache_key(**kwargs)
         cached_data = self.global_cache.get(cache_key)
-        
+
         if cached_data is not None:
             logger.debug(f"📋 Global cache hit for {self.data_type}: {cache_key}")
             return cached_data, True
-        
+
         logger.debug(f"❌ Global cache miss for {self.data_type}: {cache_key}")
         return None, False
 
@@ -146,15 +146,11 @@ class MultiSourceDataFetcher(ABC):
         """グローバルキャッシュ更新（Phase A3対応）"""
         cache_key = self._get_cache_key(**kwargs)
         ttl = timedelta(hours=self.cache_hours)
-        
+
         success = self.global_cache.put(
-            cache_key,
-            data,
-            source=self.data_type,
-            ttl=ttl,
-            quality_score=quality_score
+            cache_key, data, source=self.data_type, ttl=ttl, quality_score=quality_score
         )
-        
+
         if success:
             logger.info(
                 f"✅ {self.data_type} global cache updated: {len(data)} records, "

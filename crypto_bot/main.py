@@ -38,7 +38,6 @@ from crypto_bot.ml.preprocessor import prepare_ml_dataset
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
-from crypto_bot.strategy.ml_strategy import MLStrategy
 
 
 # --------------------------------------------------------------------------- #
@@ -878,7 +877,7 @@ def live_bitbank(config_path: str, max_trades: int):
     # モデルパス検証（従来のML戦略との互換性のため）
     sp = strategy_config.get("params", {})
     model_path = sp.get("model_path", "model.pkl")
-    
+
     if not os.path.isabs(model_path):
         # 相対パスの場合、プロジェクトルートまたはmodelフォルダを基準に解決
         possible_paths = [
@@ -901,14 +900,20 @@ def live_bitbank(config_path: str, max_trades: int):
     if strategy_type == "multi_timeframe_ensemble":
         logger.info("🔄 [INIT-3] Initializing Multi-Timeframe Ensemble Strategy...")
         strategy = StrategyFactory.create_strategy(strategy_config, cfg)
-        
+
         # マルチタイムフレーム戦略にデータフェッチャーを設定
-        if hasattr(strategy, 'set_data_fetcher'):
-            logger.info("🔗 [INIT-3] Setting data fetcher for multi-timeframe strategy...")
+        if hasattr(strategy, "set_data_fetcher"):
+            logger.info(
+                "🔗 [INIT-3] Setting data fetcher for multi-timeframe strategy..."
+            )
             strategy.set_data_fetcher(fetcher)
-            logger.info("✅ [INIT-3] Data fetcher configured for multi-timeframe strategy")
-        
-        logger.info("✅ [INIT-3] Multi-Timeframe Ensemble Strategy initialized successfully")
+            logger.info(
+                "✅ [INIT-3] Data fetcher configured for multi-timeframe strategy"
+            )
+
+        logger.info(
+            "✅ [INIT-3] Multi-Timeframe Ensemble Strategy initialized successfully"
+        )
     else:
         # 従来のML戦略（後方互換性のため）
         logger.info("🤖 [INIT-3] Initializing traditional ML Strategy...")

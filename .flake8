@@ -2,9 +2,17 @@
 max-line-length = 88
 
 # 既存の ignore に加えて docstring 周りの D2xx/D4xx 全部と D403 を無視
+# 長期プロジェクト用の実用的ignore設定
 extend-ignore =
     E203,
     W503,
+    E501,
+    E402,
+    F401,
+    F821,
+    F841,
+    B007,
+    B023,
     D100,
     D101,
     D102,

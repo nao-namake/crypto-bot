@@ -283,7 +283,7 @@ def get_available_vix_features():
     """利用可能なVIX特徴量の名前リストを取得"""
     return [
         "vix_level",
-        "vix_change", 
+        "vix_change",
         "vix_zscore",
         "fear_level",
         "vix_spike",

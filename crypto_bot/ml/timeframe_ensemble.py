@@ -16,10 +16,10 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from crypto_bot.execution.engine import Position, Signal
+from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.ensemble import TradingEnsembleClassifier, create_trading_ensemble
 from crypto_bot.ml.preprocessor import FeatureEngineer
 from crypto_bot.utils.ensemble_confidence import EnsembleConfidenceCalculator
-from crypto_bot.indicator.calculator import IndicatorCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class TimeframeEnsembleProcessor:
     """
     単一タイムフレーム内アンサンブル学習処理システム
-    
+
     機能:
     - 単一タイムフレーム用の複数モデルアンサンブル
     - Phase B基盤（BatchFeatureCalculator等）統合
@@ -40,11 +40,11 @@ class TimeframeEnsembleProcessor:
         self,
         timeframe: str,
         config: Dict[str, Any],
-        feature_engineer: Optional[FeatureEngineer] = None
+        feature_engineer: Optional[FeatureEngineer] = None,
     ):
         """
         タイムフレーム内アンサンブル処理初期化
-        
+
         Parameters:
         -----------
         timeframe : str
@@ -56,38 +56,42 @@ class TimeframeEnsembleProcessor:
         """
         self.timeframe = timeframe
         self.config = config
-        
+
         # アンサンブル設定取得
         ensemble_config = self.config.get("ml", {}).get("ensemble", {})
         self.ensemble_enabled = ensemble_config.get("enabled", True)
         self.ensemble_method = ensemble_config.get("method", "trading_stacking")
-        self.base_confidence_threshold = ensemble_config.get("confidence_threshold", 0.65)
-        
+        self.base_confidence_threshold = ensemble_config.get(
+            "confidence_threshold", 0.65
+        )
+
         # 特徴量エンジニアリング初期化
         if feature_engineer is not None:
             self.feature_engineer = feature_engineer
         else:
             self.feature_engineer = FeatureEngineer(self.config)
-            
-        # その他コンポーネント初期化  
+
+        # その他コンポーネント初期化
         self.scaler = StandardScaler()
         self.indicator_calc = IndicatorCalculator()
-        
+
         # 信頼度計算システム初期化（新Phase C1機能）
         self.confidence_calculator = EnsembleConfidenceCalculator(self.config)
-        
+
         # アンサンブルモデル初期化
         self.ensemble_model: Optional[TradingEnsembleClassifier] = None
         self.is_fitted = False
-        
+
         if self.ensemble_enabled:
             try:
                 self.ensemble_model = create_trading_ensemble(self.config)
-                logger.info(f"✅ {timeframe} ensemble model created: {self.ensemble_method}")
+                logger.info(
+                    f"✅ {timeframe} ensemble model created: {self.ensemble_method}"
+                )
             except Exception as e:
                 logger.error(f"❌ Failed to create {timeframe} ensemble model: {e}")
                 self.ensemble_enabled = False
-        
+
         # パフォーマンス統計
         self.processing_stats = {
             "predictions_made": 0,
@@ -96,132 +100,131 @@ class TimeframeEnsembleProcessor:
             "ensemble_predictions": 0,
             "fallback_predictions": 0,
         }
-        
+
         # 予測履歴（最新パフォーマンス追跡用）
         self.prediction_history: List[Dict[str, Any]] = []
         self.max_history_size = 50
-        
+
         logger.info(f"🔄 TimeframeEnsembleProcessor initialized for {timeframe}")
 
     def fit(self, price_df: pd.DataFrame, y: pd.Series) -> TimeframeEnsembleProcessor:
         """
         タイムフレーム特化アンサンブルモデル学習
-        
+
         Parameters:
         -----------
         price_df : pd.DataFrame
             価格データ
-        y : pd.Series  
+        y : pd.Series
             ターゲットデータ
-            
+
         Returns:
         --------
         TimeframeEnsembleProcessor
             学習済みプロセッサー
         """
         if not self.ensemble_enabled or self.ensemble_model is None:
-            logger.warning(f"Ensemble not enabled for {self.timeframe}, skipping training")
+            logger.warning(
+                f"Ensemble not enabled for {self.timeframe}, skipping training"
+            )
             return self
-            
+
         logger.info(f"🎯 Training {self.timeframe} timeframe ensemble model")
-        
+
         try:
             # 特徴量エンジニアリング
             feat_df = self.feature_engineer.transform(price_df)
             self.processing_stats["feature_engineering_calls"] += 1
-            
+
             if feat_df.empty:
                 logger.error(f"Empty features for {self.timeframe} training")
                 return self
-                
+
             # スケーリング
             scaled_features = self.scaler.fit_transform(feat_df.values)
             X_scaled = pd.DataFrame(
-                scaled_features, 
-                index=feat_df.index, 
-                columns=feat_df.columns
+                scaled_features, index=feat_df.index, columns=feat_df.columns
             )
-            
+
             # アンサンブルモデル学習
             self.ensemble_model.fit(X_scaled, y)
             self.is_fitted = True
-            
+
             # 学習結果情報取得
             ensemble_info = self.ensemble_model.get_trading_ensemble_info()
             logger.info(f"✅ {self.timeframe} ensemble training completed")
             logger.info(f"   Models: {ensemble_info.get('num_base_models', 'N/A')}")
             logger.info(f"   Method: {ensemble_info.get('ensemble_method', 'N/A')}")
-            
+
         except Exception as e:
             logger.error(f"❌ {self.timeframe} ensemble training failed: {e}")
             self.ensemble_enabled = False
             self.is_fitted = False
-            
+
         return self
 
     def predict_with_confidence(
-        self, 
-        price_df: pd.DataFrame,
-        market_context: Optional[Dict[str, Any]] = None
+        self, price_df: pd.DataFrame, market_context: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """
         信頼度付きアンサンブル予測（Phase C1統合機能）
-        
+
         Parameters:
         -----------
         price_df : pd.DataFrame
             価格データ
         market_context : Dict[str, Any], optional
             市場環境コンテキスト
-            
+
         Returns:
         --------
         Tuple[np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]
             (予測クラス, 予測確率, 信頼度スコア, 予測情報)
         """
         self.processing_stats["predictions_made"] += 1
-        
+
         # フォールバック処理
         def create_fallback_result():
             self.processing_stats["fallback_predictions"] += 1
-            n_samples = 1
             return (
                 np.array([0]),  # 中立予測
                 np.array([[0.5, 0.5]]),  # 中立確率
                 np.array([0.5]),  # 中程度信頼度
                 {
                     "timeframe": self.timeframe,
-                    "method": "fallback", 
+                    "method": "fallback",
                     "ensemble_enabled": False,
                     "dynamic_threshold": 0.5,
                     "risk_level": "medium",
-                }
+                },
             )
-        
-        if not self.ensemble_enabled or not self.is_fitted or self.ensemble_model is None:
+
+        if (
+            not self.ensemble_enabled
+            or not self.is_fitted
+            or self.ensemble_model is None
+        ):
             logger.warning(f"Ensemble not available for {self.timeframe}")
             return create_fallback_result()
-            
+
         try:
             # 特徴量エンジニアリング
             feat_df = self.feature_engineer.transform(price_df)
             self.processing_stats["feature_engineering_calls"] += 1
-            
+
             if feat_df.empty:
                 logger.warning(f"Empty features for {self.timeframe} prediction")
                 return create_fallback_result()
-                
+
             # スケーリング
             scaled_features = self.scaler.transform(feat_df.values)
             X_scaled = pd.DataFrame(
-                scaled_features,
-                index=feat_df.index, 
-                columns=feat_df.columns
+                scaled_features, index=feat_df.index, columns=feat_df.columns
             )
-            
+
             # 最新データ取得
             last_X = X_scaled.iloc[[-1]]
-            
+
             # アンサンブル予測実行
             predictions, probabilities, ensemble_confidence, trading_info = (
                 self.ensemble_model.predict_with_trading_confidence(
@@ -229,19 +232,19 @@ class TimeframeEnsembleProcessor:
                 )
             )
             self.processing_stats["ensemble_predictions"] += 1
-            
+
             # Phase C1統合: 新信頼度計算システム使用
             # 個別モデル予測取得（合意度計算用）
             individual_predictions = self._get_individual_model_predictions(last_X)
-            
+
             # 統合信頼度計算
-            unified_confidence = self.confidence_calculator.calculate_prediction_confidence(
-                probabilities,
-                individual_predictions,
-                market_context
+            unified_confidence = (
+                self.confidence_calculator.calculate_prediction_confidence(
+                    probabilities, individual_predictions, market_context
+                )
             )
             self.processing_stats["confidence_calculations"] += 1
-            
+
             # 予測情報統合
             prediction_info = {
                 "timeframe": self.timeframe,
@@ -252,17 +255,19 @@ class TimeframeEnsembleProcessor:
                 "dynamic_threshold": trading_info.get("dynamic_threshold", 0.5),
                 "market_regime": trading_info.get("market_regime", "normal"),
                 "risk_level": trading_info.get("risk_level", "medium"),
-                "model_agreement": self._calculate_model_agreement(individual_predictions),
+                "model_agreement": self._calculate_model_agreement(
+                    individual_predictions
+                ),
                 "prediction_quality": self._assess_prediction_quality(
                     probabilities, unified_confidence[0]
                 ),
             }
-            
+
             # 予測履歴記録
             self._record_prediction(prediction_info, probabilities[0], market_context)
-            
+
             return predictions, probabilities, unified_confidence, prediction_info
-            
+
         except Exception as e:
             logger.error(f"❌ {self.timeframe} prediction failed: {e}")
             return create_fallback_result()
@@ -271,9 +276,9 @@ class TimeframeEnsembleProcessor:
         self, X: pd.DataFrame
     ) -> Optional[List[np.ndarray]]:
         """個別モデル予測取得（合意度計算用）"""
-        if not hasattr(self.ensemble_model, 'fitted_base_models'):
+        if not hasattr(self.ensemble_model, "fitted_base_models"):
             return None
-            
+
         try:
             individual_predictions = []
             for model in self.ensemble_model.fitted_base_models:
@@ -281,7 +286,9 @@ class TimeframeEnsembleProcessor:
                 individual_predictions.append(proba[:, 1])  # 正例クラス確率
             return individual_predictions
         except Exception as e:
-            logger.error(f"Failed to get individual predictions for {self.timeframe}: {e}")
+            logger.error(
+                f"Failed to get individual predictions for {self.timeframe}: {e}"
+            )
             return None
 
     def _calculate_model_agreement(
@@ -290,7 +297,7 @@ class TimeframeEnsembleProcessor:
         """モデル合意度計算"""
         if individual_predictions is None or len(individual_predictions) < 2:
             return 1.0
-            
+
         try:
             # 標準偏差ベース合意度計算
             pred_array = np.array(individual_predictions)
@@ -304,7 +311,7 @@ class TimeframeEnsembleProcessor:
     ) -> str:
         """予測品質評価"""
         prob_max = np.max(probabilities[0])
-        
+
         if confidence > 0.8 and prob_max > 0.7:
             return "excellent"
         elif confidence > 0.6 and prob_max > 0.6:
@@ -315,10 +322,10 @@ class TimeframeEnsembleProcessor:
             return "poor"
 
     def _record_prediction(
-        self, 
-        prediction_info: Dict[str, Any], 
+        self,
+        prediction_info: Dict[str, Any],
         probabilities: np.ndarray,
-        market_context: Optional[Dict[str, Any]]
+        market_context: Optional[Dict[str, Any]],
     ):
         """予測履歴記録"""
         record = {
@@ -329,13 +336,13 @@ class TimeframeEnsembleProcessor:
             "market_regime": prediction_info.get("market_regime", "normal"),
             "prediction_quality": prediction_info.get("prediction_quality", "unknown"),
         }
-        
+
         if market_context:
             record["vix_level"] = market_context.get("vix_level", 20.0)
             record["volatility"] = market_context.get("volatility", 0.02)
-            
+
         self.prediction_history.append(record)
-        
+
         # 履歴サイズ制限
         if len(self.prediction_history) > self.max_history_size:
             self.prediction_history.pop(0)
@@ -344,11 +351,11 @@ class TimeframeEnsembleProcessor:
         self,
         price_df: pd.DataFrame,
         position: Optional[Position] = None,
-        market_context: Optional[Dict[str, Any]] = None
+        market_context: Optional[Dict[str, Any]] = None,
     ) -> Signal:
         """
         取引シグナル生成（タイムフレーム特化）
-        
+
         Parameters:
         -----------
         price_df : pd.DataFrame
@@ -357,7 +364,7 @@ class TimeframeEnsembleProcessor:
             現在のポジション
         market_context : Dict[str, Any], optional
             市場環境コンテキスト
-            
+
         Returns:
         --------
         Signal
@@ -368,48 +375,48 @@ class TimeframeEnsembleProcessor:
             predictions, probabilities, confidence_scores, prediction_info = (
                 self.predict_with_confidence(price_df, market_context)
             )
-            
+
             current_price = float(price_df["close"].iloc[-1])
             prediction = predictions[0]
             probability = probabilities[0, 1]  # 正例クラス確率
             confidence = confidence_scores[0]
-            
+
             # 動的閾値取得
             dynamic_threshold = self.confidence_calculator.calculate_dynamic_threshold(
                 market_context, confidence
             )
-            
+
             # ポジション状況確認
             position_exists = position is not None and position.exist
-            
+
             if position_exists:
                 # エグジット判定（リスク調整型）
                 exit_threshold = self.confidence_calculator.calculate_exit_threshold(
                     market_context, confidence
                 )
-                
+
                 if probability < exit_threshold:
                     logger.info(
                         f"🚪 {self.timeframe} EXIT signal: "
                         f"prob={probability:.4f} < {exit_threshold:.4f}"
                     )
                     return Signal(side="SELL", price=current_price)
-                    
+
                 return Signal()  # ホールド
-                
+
             else:
                 # エントリー判定（信頼度ベース）
                 min_confidence = max(dynamic_threshold, 0.5)
-                
+
                 if prediction == 1 and confidence >= min_confidence:
                     logger.info(
                         f"📈 {self.timeframe} LONG signal: "
                         f"prob={probability:.4f}, confidence={confidence:.4f}"
                     )
                     return Signal(side="BUY", price=current_price)
-                    
+
                 elif (
-                    probability < (1.0 - dynamic_threshold) 
+                    probability < (1.0 - dynamic_threshold)
                     and confidence >= min_confidence
                 ):
                     logger.info(
@@ -417,9 +424,9 @@ class TimeframeEnsembleProcessor:
                         f"prob={probability:.4f}, confidence={confidence:.4f}"
                     )
                     return Signal(side="SELL", price=current_price)
-                    
+
                 return Signal()  # ホールド
-                
+
         except Exception as e:
             logger.error(f"❌ {self.timeframe} signal generation failed: {e}")
             return Signal()
@@ -435,7 +442,7 @@ class TimeframeEnsembleProcessor:
             "processing_stats": self.processing_stats.copy(),
             "prediction_history_size": len(self.prediction_history),
         }
-        
+
         # アンサンブルモデル情報
         if self.ensemble_model and self.is_fitted:
             try:
@@ -443,25 +450,29 @@ class TimeframeEnsembleProcessor:
                 info["ensemble_details"] = ensemble_info
             except Exception as e:
                 info["ensemble_details"] = {"error": str(e)}
-                
+
         # 最近のパフォーマンス分析
         if self.prediction_history:
             recent_predictions = self.prediction_history[-10:]
-            info["recent_performance"] = self._analyze_recent_performance(recent_predictions)
-            
+            info["recent_performance"] = self._analyze_recent_performance(
+                recent_predictions
+            )
+
         return info
 
-    def _analyze_recent_performance(self, recent_predictions: List[Dict]) -> Dict[str, Any]:
+    def _analyze_recent_performance(
+        self, recent_predictions: List[Dict]
+    ) -> Dict[str, Any]:
         """最近のパフォーマンス分析"""
         try:
             confidences = [p["confidence"] for p in recent_predictions]
             vix_levels = [p.get("vix_level", 20.0) for p in recent_predictions]
-            
+
             quality_counts = {}
             for p in recent_predictions:
                 quality = p.get("prediction_quality", "unknown")
                 quality_counts[quality] = quality_counts.get(quality, 0) + 1
-                
+
             return {
                 "avg_confidence": np.mean(confidences) if confidences else 0.0,
                 "confidence_stability": np.std(confidences) if confidences else 0.0,
@@ -469,7 +480,7 @@ class TimeframeEnsembleProcessor:
                 "prediction_count": len(recent_predictions),
                 "quality_distribution": quality_counts,
             }
-            
+
         except Exception as e:
             logger.error(f"Performance analysis failed for {self.timeframe}: {e}")
             return {}
@@ -486,14 +497,15 @@ class TimeframeEnsembleProcessor:
 
 # ファクトリー関数
 
+
 def create_timeframe_ensemble_processor(
     timeframe: str,
     config: Dict[str, Any],
-    feature_engineer: Optional[FeatureEngineer] = None
+    feature_engineer: Optional[FeatureEngineer] = None,
 ) -> TimeframeEnsembleProcessor:
     """
     タイムフレーム内アンサンブルプロセッサー作成
-    
+
     Parameters:
     -----------
     timeframe : str
@@ -502,7 +514,7 @@ def create_timeframe_ensemble_processor(
         設定辞書
     feature_engineer : FeatureEngineer, optional
         特徴量エンジニアリングインスタンス
-        
+
     Returns:
     --------
     TimeframeEnsembleProcessor

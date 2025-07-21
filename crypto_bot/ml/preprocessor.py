@@ -26,9 +26,10 @@ from sklearn.preprocessing import StandardScaler
 try:
     from crypto_bot.ml.feature_engines import (
         BatchFeatureCalculator,
-        TechnicalFeatureEngine,
         ExternalDataIntegrator,
+        TechnicalFeatureEngine,
     )
+
     BATCH_ENGINES_AVAILABLE = True
 except ImportError as e:
     # logger is not yet defined, use print temporarily
@@ -267,27 +268,33 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         DataFrame断片化解消のための新エンジンシステム
         """
         if not BATCH_ENGINES_AVAILABLE:
-            logger.warning("⚠️ Batch engines not available, falling back to legacy processing")
+            logger.warning(
+                "⚠️ Batch engines not available, falling back to legacy processing"
+            )
             self.batch_engines_enabled = False
             return
-        
+
         try:
             # BatchFeatureCalculator（コア）
             self.batch_calculator = BatchFeatureCalculator(self.config)
-            
+
             # TechnicalFeatureEngine（テクニカル指標）
-            self.technical_engine = TechnicalFeatureEngine(self.config, self.batch_calculator)
-            
+            self.technical_engine = TechnicalFeatureEngine(
+                self.config, self.batch_calculator
+            )
+
             # ExternalDataIntegrator（外部データ統合）
-            self.external_integrator = ExternalDataIntegrator(self.config, self.batch_calculator)
-            
+            self.external_integrator = ExternalDataIntegrator(
+                self.config, self.batch_calculator
+            )
+
             self.batch_engines_enabled = True
-            
+
             logger.info(
                 "🚀 Phase B2.4: Batch processing engines initialized successfully - "
                 "DataFrame fragmentation optimization enabled"
             )
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to initialize batch engines: {e}")
             self.batch_engines_enabled = False
@@ -299,52 +306,61 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         """
         start_time = time.time()
         logger.info("🚀 Starting batch processing feature generation")
-        
+
         feature_batches = []
-        
+
         try:
             # 1. テクニカル指標バッチ処理
-            technical_batches = self.technical_engine.calculate_all_technical_batches(df)
+            technical_batches = self.technical_engine.calculate_all_technical_batches(
+                df
+            )
             feature_batches.extend(technical_batches)
             logger.debug(f"📊 Technical batches: {len(technical_batches)}")
-            
+
             # 2. 外部データ統合バッチ処理
             if self.external_integrator:
-                external_batches = self.external_integrator.create_external_data_batches(df.index)
+                external_batches = (
+                    self.external_integrator.create_external_data_batches(df.index)
+                )
                 feature_batches.extend(external_batches)
                 logger.debug(f"📊 External data batches: {len(external_batches)}")
-            
+
             # 3. 一括統合（断片化解消の中核）
-            result_df = self.batch_calculator.merge_batches_efficient(df, feature_batches)
-            
+            result_df = self.batch_calculator.merge_batches_efficient(
+                df, feature_batches
+            )
+
             processing_time = time.time() - start_time
             total_features = sum(len(batch) for batch in feature_batches)
-            
+
             logger.info(
                 f"✅ Batch processing completed: {total_features} features "
                 f"in {processing_time:.3f}s ({total_features/processing_time:.1f} features/sec)"
             )
-            
+
             # パフォーマンス統計出力
             batch_stats = self.batch_calculator.get_performance_summary()
             logger.debug(f"📊 Batch Performance:\n{batch_stats}")
-            
+
             return result_df
-            
+
         except Exception as e:
             import traceback
+
             logger.error(f"❌ Batch processing failed: {e}")
-            logger.error(f"❌ Batch processing error details:\n{traceback.format_exc()}")
+            logger.error(
+                f"❌ Batch processing error details:\n{traceback.format_exc()}"
+            )
             logger.warning("⚠️ Falling back to legacy processing")
             return self._transform_legacy(df)
-    
+
     def _transform_legacy(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         レガシー特徴量処理（フォールバック用）
         個別DataFrame操作による従来方式
         """
         logger.warning("⚠️ Using legacy feature processing - performance may be slower")
-        
+
         # 2. ATR
         feat_period = self.config["ml"]["feat_period"]
         atr = self.ind_calc.atr(df, window=feat_period)
@@ -367,7 +383,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         # 5. extra_features処理（レガシー方式）
         return self._process_extra_features_legacy(df)
-    
+
     def _process_extra_features_legacy(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         レガシー方式による extra_features 処理
@@ -375,13 +391,15 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         """
         if not self.extra_features:
             return df
-            
-        logger.warning("⚠️ Using legacy feature processing - individual DataFrame operations")
+
+        logger.warning(
+            "⚠️ Using legacy feature processing - individual DataFrame operations"
+        )
         logger.debug(f"Legacy processing for: {self.extra_features}")
-        
+
         # レガシー処理では既存のextra_features処理ループを使用
         # （メインのtransform内の処理と重複を避けるため、ここでは基本処理のみ）
-        
+
         return df
 
     def _get_cached_external_data(
@@ -623,13 +641,35 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                     # Phase B2.5: バッチ処理済み特徴量のスキップロジック
                     if self.batch_engines_enabled:
                         # バッチ処理済み特徴量はスキップ
-                        skip_features = ["rsi", "ema", "sma", "macd", "atr", "volume", "stoch", 
-                                       "bb", "bollinger", "willr", "williams", "adx", "cmf", "fisher",
-                                       "vix", "dxy", "macro", "treasury", "fear_greed", "fg"]
-                        if any(base == skip_feat or base.startswith(skip_feat) for skip_feat in skip_features):
+                        skip_features = [
+                            "rsi",
+                            "ema",
+                            "sma",
+                            "macd",
+                            "atr",
+                            "volume",
+                            "stoch",
+                            "bb",
+                            "bollinger",
+                            "willr",
+                            "williams",
+                            "adx",
+                            "cmf",
+                            "fisher",
+                            "vix",
+                            "dxy",
+                            "macro",
+                            "treasury",
+                            "fear_greed",
+                            "fg",
+                        ]
+                        if any(
+                            base == skip_feat or base.startswith(skip_feat)
+                            for skip_feat in skip_features
+                        ):
                             logger.debug(f"Skipping batch-processed feature: {feat}")
                             continue
-                    
+
                     # 時間特徴量（バッチ処理対象外のため継続処理）
                     if feat_lc == "day_of_week":
                         if isinstance(df.index, pd.DatetimeIndex):
@@ -1543,7 +1583,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             ]
                             for feat in liquidity_features:
                                 df[feat] = 0
-                    
+
                     # Phase 3.2A: 追加ATR期間（atr_7, atr_21）
                     elif base == "atr" and period and period != self.feat_period:
                         atr_calc = self.ind_calc.atr(df, window=period)
@@ -1551,7 +1591,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             df[f"atr_{period}"] = atr_calc
                         else:
                             df[f"atr_{period}"] = atr_calc.iloc[:, 0]
-                    
+
                     # Phase 3.2B: 価格ポジション指標（5特徴量）
                     elif feat_lc == "price_position":
                         try:
@@ -1561,18 +1601,20 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             df["price_position_20"] = (
                                 (df["close"] - low_20) / (high_20 - low_20 + 1e-8)
                             ).fillna(0.5)
-                            
+
                             # 異なる期間での価格位置
                             high_50 = df["high"].rolling(50).max()
                             low_50 = df["low"].rolling(50).min()
                             df["price_position_50"] = (
                                 (df["close"] - low_50) / (high_50 - low_50 + 1e-8)
                             ).fillna(0.5)
-                            
+
                             # 移動平均からの位置
                             sma_20 = df["close"].rolling(20).mean()
-                            df["price_vs_sma20"] = ((df["close"] - sma_20) / sma_20).fillna(0)
-                            
+                            df["price_vs_sma20"] = (
+                                (df["close"] - sma_20) / sma_20
+                            ).fillna(0)
+
                             # ボリンジャーバンド内位置（%B）
                             bb_middle = df["close"].rolling(20).mean()
                             bb_std = df["close"].rolling(20).std()
@@ -1581,53 +1623,62 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             df["bb_position"] = (
                                 (df["close"] - bb_lower) / (bb_upper - bb_lower + 1e-8)
                             ).fillna(0.5)
-                            
+
                             # 日中レンジ内位置
                             df["intraday_position"] = (
-                                (df["close"] - df["low"]) / (df["high"] - df["low"] + 1e-8)
+                                (df["close"] - df["low"])
+                                / (df["high"] - df["low"] + 1e-8)
                             ).fillna(0.5)
-                            
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate price_position: {e}")
                             for i in range(5):
                                 df[f"price_pos_{i}"] = 0.5
-                    
+
                     # Phase 3.2B: ローソク足パターン（4特徴量）
                     elif feat_lc == "candle_patterns":
                         try:
                             # ドジ（十字線）
                             body_size = abs(df["close"] - df["open"])
                             candle_range = df["high"] - df["low"]
-                            df["doji"] = (body_size / (candle_range + 1e-8) < 0.1).astype(int)
-                            
-                            # ハンマー/ハンギングマン
-                            upper_shadow = df["high"] - np.maximum(df["open"], df["close"])
-                            lower_shadow = np.minimum(df["open"], df["close"]) - df["low"]
-                            df["hammer"] = (
-                                (lower_shadow > body_size * 2) & 
-                                (upper_shadow < body_size * 0.5)
+                            df["doji"] = (
+                                body_size / (candle_range + 1e-8) < 0.1
                             ).astype(int)
-                            
+
+                            # ハンマー/ハンギングマン
+                            upper_shadow = df["high"] - np.maximum(
+                                df["open"], df["close"]
+                            )
+                            lower_shadow = (
+                                np.minimum(df["open"], df["close"]) - df["low"]
+                            )
+                            df["hammer"] = (
+                                (lower_shadow > body_size * 2)
+                                & (upper_shadow < body_size * 0.5)
+                            ).astype(int)
+
                             # エンゴルフィングパターン
                             prev_body = abs(df["close"].shift(1) - df["open"].shift(1))
                             curr_body = abs(df["close"] - df["open"])
                             df["engulfing"] = (
-                                (curr_body > prev_body * 1.5) &
-                                (df["close"] > df["open"]) &  # 現在のローソクが陽線
-                                (df["close"].shift(1) < df["open"].shift(1))  # 前のローソクが陰線
+                                (curr_body > prev_body * 1.5)
+                                & (df["close"] > df["open"])  # 現在のローソクが陽線
+                                & (
+                                    df["close"].shift(1) < df["open"].shift(1)
+                                )  # 前のローソクが陰線
                             ).astype(int)
-                            
+
                             # ピンバー（上ヒゲ・下ヒゲ）
                             df["pinbar"] = (
-                                (upper_shadow > body_size * 3) | 
-                                (lower_shadow > body_size * 3)
+                                (upper_shadow > body_size * 3)
+                                | (lower_shadow > body_size * 3)
                             ).astype(int)
-                            
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate candle_patterns: {e}")
                             for pattern in ["doji", "hammer", "engulfing", "pinbar"]:
                                 df[pattern] = 0
-                    
+
                     # Phase 3.2B: サポート・レジスタンス（3特徴量）
                     elif feat_lc == "support_resistance":
                         try:
@@ -1636,26 +1687,32 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             df["support_distance"] = (
                                 (df["close"] - support_level) / support_level
                             ).fillna(0)
-                            
+
                             # レジスタンスレベルからの距離
                             resistance_level = df["high"].rolling(50).max()
                             df["resistance_distance"] = (
                                 (resistance_level - df["close"]) / resistance_level
                             ).fillna(0)
-                            
+
                             # サポート・レジスタンスレベルの強度
                             support_tests = (
-                                df["low"].rolling(10).apply(
-                                    lambda x: (x <= x.min() * 1.02).sum()
-                                )
+                                df["low"]
+                                .rolling(10)
+                                .apply(lambda x: (x <= x.min() * 1.02).sum())
                             )
                             df["support_strength"] = support_tests.fillna(0)
-                            
+
                         except Exception as e:
-                            logger.warning(f"Failed to calculate support_resistance: {e}")
-                            for sr in ["support_distance", "resistance_distance", "support_strength"]:
+                            logger.warning(
+                                f"Failed to calculate support_resistance: {e}"
+                            )
+                            for sr in [
+                                "support_distance",
+                                "resistance_distance",
+                                "support_strength",
+                            ]:
                                 df[sr] = 0
-                    
+
                     # Phase 3.2B: ブレイクアウトシグナル（3特徴量）
                     elif feat_lc == "breakout_signals":
                         try:
@@ -1663,23 +1720,34 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             volume_ma = df["volume"].rolling(20).mean()
                             price_change = abs(df["close"].pct_change())
                             df["volume_breakout"] = (
-                                (df["volume"] > volume_ma * 2) & 
-                                (price_change > price_change.rolling(20).quantile(0.8))
+                                (df["volume"] > volume_ma * 2)
+                                & (
+                                    price_change
+                                    > price_change.rolling(20).quantile(0.8)
+                                )
                             ).astype(int)
-                            
+
                             # 価格ブレイクアウト（レンジ上放れ）
                             high_20 = df["high"].rolling(20).max()
-                            df["price_breakout_up"] = (df["close"] > high_20.shift(1)).astype(int)
-                            
+                            df["price_breakout_up"] = (
+                                df["close"] > high_20.shift(1)
+                            ).astype(int)
+
                             # 価格ブレイクダウン（レンジ下放れ）
                             low_20 = df["low"].rolling(20).min()
-                            df["price_breakout_down"] = (df["close"] < low_20.shift(1)).astype(int)
-                            
+                            df["price_breakout_down"] = (
+                                df["close"] < low_20.shift(1)
+                            ).astype(int)
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate breakout_signals: {e}")
-                            for bo in ["volume_breakout", "price_breakout_up", "price_breakout_down"]:
+                            for bo in [
+                                "volume_breakout",
+                                "price_breakout_up",
+                                "price_breakout_down",
+                            ]:
                                 df[bo] = 0
-                    
+
                     # Phase 3.2C: 自己相関（5特徴量）
                     elif feat_lc == "autocorrelation":
                         try:
@@ -1687,14 +1755,16 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             for lag in [1, 5, 10, 20, 50]:
                                 df[f"autocorr_lag_{lag}"] = (
                                     returns.rolling(100).apply(
-                                        lambda x: x.autocorr(lag=lag) if len(x) > lag else 0
+                                        lambda x: (
+                                            x.autocorr(lag=lag) if len(x) > lag else 0
+                                        )
                                     )
                                 ).fillna(0)
                         except Exception as e:
                             logger.warning(f"Failed to calculate autocorrelation: {e}")
                             for lag in [1, 5, 10, 20, 50]:
                                 df[f"autocorr_lag_{lag}"] = 0
-                    
+
                     # Phase 3.2C: 季節性パターン（4特徴量）
                     elif feat_lc == "seasonal_patterns":
                         try:
@@ -1706,133 +1776,187 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                                 # 月初月末効果
                                 df["month_day_effect"] = df.index.day.astype(float)
                                 # アジア時間・欧米時間区分
-                                asia_hours = ((df.index.hour >= 0) & (df.index.hour < 8)).astype(int)
+                                asia_hours = (
+                                    (df.index.hour >= 0) & (df.index.hour < 8)
+                                ).astype(int)
                                 df["asia_session"] = asia_hours
                             else:
-                                for feat in ["weekday_effect", "hour_effect", "month_day_effect", "asia_session"]:
+                                for feat in [
+                                    "weekday_effect",
+                                    "hour_effect",
+                                    "month_day_effect",
+                                    "asia_session",
+                                ]:
                                     df[feat] = 0
                         except Exception as e:
-                            logger.warning(f"Failed to calculate seasonal_patterns: {e}")
-                            for feat in ["weekday_effect", "hour_effect", "month_day_effect", "asia_session"]:
+                            logger.warning(
+                                f"Failed to calculate seasonal_patterns: {e}"
+                            )
+                            for feat in [
+                                "weekday_effect",
+                                "hour_effect",
+                                "month_day_effect",
+                                "asia_session",
+                            ]:
                                 df[feat] = 0
-                    
+
                     # Phase 3.2C: レジーム検出（3特徴量）
                     elif feat_lc == "regime_detection":
                         try:
                             returns = df["close"].pct_change()
                             vol = returns.rolling(20).std()
-                            
+
                             # 高ボラティリティレジーム
                             vol_threshold = vol.rolling(100).quantile(0.8)
                             df["high_vol_regime"] = (vol > vol_threshold).astype(int)
-                            
+
                             # トレンドレジーム（上昇・下降・横ばい）
                             price_ma_short = df["close"].rolling(10).mean()
                             price_ma_long = df["close"].rolling(50).mean()
-                            trend_strength = (price_ma_short - price_ma_long) / price_ma_long
+                            trend_strength = (
+                                price_ma_short - price_ma_long
+                            ) / price_ma_long
                             df["trend_regime"] = np.where(
-                                trend_strength > 0.02, 1,  # 上昇トレンド
-                                np.where(trend_strength < -0.02, -1, 0)  # 下降トレンド vs 横ばい
+                                trend_strength > 0.02,
+                                1,  # 上昇トレンド
+                                np.where(
+                                    trend_strength < -0.02, -1, 0
+                                ),  # 下降トレンド vs 横ばい
                             )
-                            
+
                             # モメンタムレジーム
                             momentum = returns.rolling(14).mean()
                             df["momentum_regime"] = np.where(
-                                momentum > momentum.rolling(100).quantile(0.8), 1,
-                                np.where(momentum < momentum.rolling(100).quantile(0.2), -1, 0)
+                                momentum > momentum.rolling(100).quantile(0.8),
+                                1,
+                                np.where(
+                                    momentum < momentum.rolling(100).quantile(0.2),
+                                    -1,
+                                    0,
+                                ),
                             )
-                            
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate regime_detection: {e}")
-                            for regime in ["high_vol_regime", "trend_regime", "momentum_regime"]:
+                            for regime in [
+                                "high_vol_regime",
+                                "trend_regime",
+                                "momentum_regime",
+                            ]:
                                 df[regime] = 0
-                    
+
                     # Phase 3.2C: サイクル分析（3特徴量）
                     elif feat_lc == "cycle_analysis":
                         try:
                             # 価格サイクル（デトレンド価格）
                             price_ma = df["close"].rolling(50).mean()
-                            df["price_cycle"] = ((df["close"] - price_ma) / price_ma).fillna(0)
-                            
+                            df["price_cycle"] = (
+                                (df["close"] - price_ma) / price_ma
+                            ).fillna(0)
+
                             # ボリュームサイクル
                             volume_ma = df["volume"].rolling(50).mean()
-                            df["volume_cycle"] = ((df["volume"] - volume_ma) / volume_ma).fillna(0)
-                            
+                            df["volume_cycle"] = (
+                                (df["volume"] - volume_ma) / volume_ma
+                            ).fillna(0)
+
                             # RSIサイクル（過買い過売りサイクル）
                             rsi = self.ind_calc.rsi(df["close"], window=14)
                             df["rsi_cycle"] = ((rsi - 50) / 50).fillna(0)
-                            
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate cycle_analysis: {e}")
                             for cycle in ["price_cycle", "volume_cycle", "rsi_cycle"]:
                                 df[cycle] = 0
-                    
+
                     # Phase 3.2D: クロス相関（5特徴量）
                     elif feat_lc == "cross_correlation":
                         try:
                             returns = df["close"].pct_change()
                             volume_returns = df["volume"].pct_change()
-                            
+
                             # 価格-ボリューム相関
                             for window in [10, 20, 50]:
                                 df[f"price_volume_corr_{window}"] = (
                                     returns.rolling(window).corr(volume_returns)
                                 ).fillna(0)
-                            
+
                             # 高値-低値相関（ボラティリティ構造）
                             high_returns = df["high"].pct_change()
                             low_returns = df["low"].pct_change()
                             df["high_low_corr_20"] = (
                                 high_returns.rolling(20).corr(low_returns)
                             ).fillna(0)
-                            
+
                             # 価格ラグ相関（自己相関簡易版）
                             df["price_lag_corr"] = (
                                 returns.rolling(30).corr(returns.shift(1))
                             ).fillna(0)
-                            
+
                         except Exception as e:
-                            logger.warning(f"Failed to calculate cross_correlation: {e}")
-                            corr_features = ["price_volume_corr_10", "price_volume_corr_20", 
-                                           "price_volume_corr_50", "high_low_corr_20", "price_lag_corr"]
+                            logger.warning(
+                                f"Failed to calculate cross_correlation: {e}"
+                            )
+                            corr_features = [
+                                "price_volume_corr_10",
+                                "price_volume_corr_20",
+                                "price_volume_corr_50",
+                                "high_low_corr_20",
+                                "price_lag_corr",
+                            ]
                             for feat in corr_features:
                                 df[feat] = 0
-                    
+
                     # Phase 3.2D: 相対強度（5特徴量）
                     elif feat_lc == "relative_strength":
                         try:
                             # 短期 vs 長期相対強度
                             short_ma = df["close"].rolling(10).mean()
                             long_ma = df["close"].rolling(50).mean()
-                            df["short_long_strength"] = ((short_ma - long_ma) / long_ma).fillna(0)
-                            
+                            df["short_long_strength"] = (
+                                (short_ma - long_ma) / long_ma
+                            ).fillna(0)
+
                             # ボリューム相対強度
                             volume_short = df["volume"].rolling(10).mean()
                             volume_long = df["volume"].rolling(50).mean()
-                            df["volume_relative_strength"] = ((volume_short - volume_long) / volume_long).fillna(0)
-                            
+                            df["volume_relative_strength"] = (
+                                (volume_short - volume_long) / volume_long
+                            ).fillna(0)
+
                             # ボラティリティ相対強度
                             vol_short = df["close"].pct_change().rolling(10).std()
                             vol_long = df["close"].pct_change().rolling(50).std()
-                            df["volatility_relative_strength"] = ((vol_short - vol_long) / vol_long).fillna(0)
-                            
+                            df["volatility_relative_strength"] = (
+                                (vol_short - vol_long) / vol_long
+                            ).fillna(0)
+
                             # 価格動勉相対強度
                             momentum_short = df["close"].pct_change(5)
                             momentum_long = df["close"].pct_change(20)
-                            df["momentum_relative_strength"] = (momentum_short - momentum_long).fillna(0)
-                            
+                            df["momentum_relative_strength"] = (
+                                momentum_short - momentum_long
+                            ).fillna(0)
+
                             # RSI相対強度
                             rsi_14 = self.ind_calc.rsi(df["close"], window=14)
                             rsi_7 = self.ind_calc.rsi(df["close"], window=7)
                             df["rsi_relative_strength"] = (rsi_7 - rsi_14).fillna(0)
-                            
+
                         except Exception as e:
-                            logger.warning(f"Failed to calculate relative_strength: {e}")
-                            rs_features = ["short_long_strength", "volume_relative_strength", 
-                                         "volatility_relative_strength", "momentum_relative_strength", "rsi_relative_strength"]
+                            logger.warning(
+                                f"Failed to calculate relative_strength: {e}"
+                            )
+                            rs_features = [
+                                "short_long_strength",
+                                "volume_relative_strength",
+                                "volatility_relative_strength",
+                                "momentum_relative_strength",
+                                "rsi_relative_strength",
+                            ]
                             for feat in rs_features:
                                 df[feat] = 0
-                    
+
                     # Phase 3.2D: スプレッド分析（5特徴量）
                     elif feat_lc == "spread_analysis":
                         try:
@@ -1840,22 +1964,32 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             hl_spread = (df["high"] - df["low"]) / df["close"]
                             df["hl_spread"] = hl_spread.fillna(0)
                             df["hl_spread_ma"] = hl_spread.rolling(20).mean().fillna(0)
-                            
+
                             # 始値-終値スプレッド
                             oc_spread = abs(df["open"] - df["close"]) / df["close"]
                             df["oc_spread"] = oc_spread.fillna(0)
-                            
+
                             # ボラティリティスプレッド（短期 vs 長期）
                             vol_short = df["close"].pct_change().rolling(5).std()
                             vol_long = df["close"].pct_change().rolling(20).std()
                             df["volatility_spread"] = (vol_short - vol_long).fillna(0)
-                            
+
                             # タイムスプレッド（連続期間の価格差）
-                            df["time_spread"] = (df["close"] - df["close"].shift(24)).fillna(0)  # 24時間前との差
-                            
+                            df["time_spread"] = (
+                                df["close"] - df["close"].shift(24)
+                            ).fillna(
+                                0
+                            )  # 24時間前との差
+
                         except Exception as e:
                             logger.warning(f"Failed to calculate spread_analysis: {e}")
-                            spread_features = ["hl_spread", "hl_spread_ma", "oc_spread", "volatility_spread", "time_spread"]
+                            spread_features = [
+                                "hl_spread",
+                                "hl_spread_ma",
+                                "oc_spread",
+                                "volatility_spread",
+                                "time_spread",
+                            ]
                             for feat in spread_features:
                                 df[feat] = 0
 
@@ -1946,7 +2080,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         # Phase B2.4: バッチ処理完了後の最終処理
         if self.batch_engines_enabled:
             logger.info("🔄 Batch processing completed - performing final validation")
-            
+
         # 151特徴量の確実な保証（最終チェック）
         from crypto_bot.ml.feature_defaults import ensure_feature_consistency
 

@@ -9,7 +9,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -68,7 +68,7 @@ class TimeframeSynchronizer:
             "1d": timedelta(days=1),
         }
 
-        logger.info(f"🔄 TimeframeSynchronizer initialized")
+        logger.info("🔄 TimeframeSynchronizer initialized")
         logger.info(f"  - Timeframes: {self.timeframes}")
         logger.info(f"  - Base timeframe: {self.base_timeframe}")
         logger.info(f"  - Sync tolerance: {self.sync_tolerance}")
@@ -86,7 +86,7 @@ class TimeframeSynchronizer:
             Dict[str, pd.DataFrame]: 同期済みデータ
         """
         try:
-            logger.info(f"🔄 Starting multi-timeframe synchronization")
+            logger.info("🔄 Starting multi-timeframe synchronization")
             self.sync_stats["sync_operations"] += 1
 
             if not multi_data:
@@ -108,7 +108,7 @@ class TimeframeSynchronizer:
             # 4. 品質向上
             improved_data = self._improve_data_quality(consistent_data)
 
-            logger.info(f"✅ Multi-timeframe synchronization complete")
+            logger.info("✅ Multi-timeframe synchronization complete")
             logger.info(f"  - Processed {len(improved_data)} timeframes")
 
             return improved_data
@@ -204,7 +204,9 @@ class TimeframeSynchronizer:
                     )
                 else:  # 1時間未満
                     minute_period = int(period.total_seconds() // 60)
-                    aligned_minute = (start_time.minute // minute_period) * minute_period
+                    aligned_minute = (
+                        start_time.minute // minute_period
+                    ) * minute_period
                     aligned_start = start_time.replace(
                         minute=aligned_minute, second=0, microsecond=0
                     )
@@ -279,7 +281,7 @@ class TimeframeSynchronizer:
                     missing_ratio = data.isnull().all(axis=1).mean()
                     if missing_ratio > self.missing_data_threshold:
                         logger.warning(
-                            f"⚠️ {timeframe}: High missing data ratio {missing_ratio:.2f}"
+                            f"⚠️ {timeframe}: High missing ratio " f"{missing_ratio:.2f}"
                         )
 
                     # 欠損データ補完
@@ -288,7 +290,9 @@ class TimeframeSynchronizer:
 
                     fill_count = data.isnull().sum().sum() - filled.isnull().sum().sum()
                     if fill_count > 0:
-                        logger.debug(f"✅ {timeframe}: Filled {fill_count} missing values")
+                        logger.debug(
+                            f"✅ {timeframe}: Filled {fill_count} missing values"
+                        )
                         self.sync_stats["missing_data_filled"] += fill_count
 
                 except Exception as e:
@@ -401,9 +405,7 @@ class TimeframeSynchronizer:
                     consistent_data[timeframe] = corrected
 
                 except Exception as e:
-                    logger.error(
-                        f"❌ Consistency check failed for {timeframe}: {e}"
-                    )
+                    logger.error(f"❌ Consistency check failed for {timeframe}: {e}")
 
             return consistent_data
 
@@ -443,11 +445,15 @@ class TimeframeSynchronizer:
                 # 異常値検出・修正
                 if row["close"] < base_min * 0.95 or row["close"] > base_max * 1.05:
                     # 5%を超える乖離は異常値として修正
-                    corrected.loc[timestamp, "close"] = base_period_data["close"].iloc[-1]
+                    corrected.loc[timestamp, "close"] = base_period_data["close"].iloc[
+                        -1
+                    ]
                     violations += 1
 
             if violations > 0:
-                logger.debug(f"🔧 {timeframe}: Corrected {violations} consistency violations")
+                logger.debug(
+                    f"🔧 {timeframe}: Corrected {violations} consistency violations"
+                )
                 self.sync_stats["consistency_violations"] += violations
 
             return corrected
@@ -488,7 +494,10 @@ class TimeframeSynchronizer:
                     improved = data.copy()
 
                     # OHLC整合性確保
-                    if all(col in improved.columns for col in ["open", "high", "low", "close"]):
+                    if all(
+                        col in improved.columns
+                        for col in ["open", "high", "low", "close"]
+                    ):
                         improved = self._ensure_ohlc_consistency(improved)
 
                     # 外れ値のスムージング
@@ -518,12 +527,10 @@ class TimeframeSynchronizer:
 
             # High >= max(Open, Close), Low <= min(Open, Close)
             corrected["high"] = np.maximum(
-                corrected["high"],
-                np.maximum(corrected["open"], corrected["close"])
+                corrected["high"], np.maximum(corrected["open"], corrected["close"])
             )
             corrected["low"] = np.minimum(
-                corrected["low"],
-                np.minimum(corrected["open"], corrected["close"])
+                corrected["low"], np.minimum(corrected["open"], corrected["close"])
             )
 
             # High >= Low

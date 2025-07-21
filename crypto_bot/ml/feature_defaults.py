@@ -250,11 +250,11 @@ def ensure_feature_consistency(
 
         # 効率的なデフォルト特徴量生成（pd.concat使用）
         default_features = pd.DataFrame(
-            0.0, 
-            index=df.index, 
-            columns=[f"default_feature_{i}" for i in range(missing_count)]
+            0.0,
+            index=df.index,
+            columns=[f"default_feature_{i}" for i in range(missing_count)],
         )
-        
+
         # 一括結合（断片化回避）
         df = pd.concat([df, default_features], axis=1)
 

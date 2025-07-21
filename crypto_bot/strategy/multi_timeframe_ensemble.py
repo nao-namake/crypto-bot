@@ -12,10 +12,10 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from crypto_bot.data.multi_timeframe_fetcher import MultiTimeframeDataFetcher
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.strategy.base import StrategyBase
 from crypto_bot.strategy.ensemble_ml_strategy import EnsembleMLStrategy
-from crypto_bot.data.multi_timeframe_fetcher import MultiTimeframeDataFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
     def set_data_fetcher(self, base_fetcher):
         """
         ベースデータフェッチャーを設定し、マルチタイムフレームフェッチャーを初期化
-        
+
         Args:
             base_fetcher: MarketDataFetcher インスタンス
         """
@@ -396,10 +396,14 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 # マルチタイムフレームデータを取得
                 multi_data = self.multi_timeframe_fetcher.get_multi_timeframe_data()
                 if timeframe in multi_data:
-                    logger.debug(f"✅ Got {timeframe} data from multi-timeframe fetcher: {len(multi_data[timeframe])} records")
+                    logger.debug(
+                        f"✅ Got {timeframe} data from multi-timeframe fetcher: {len(multi_data[timeframe])} records"
+                    )
                     return multi_data[timeframe]
                 else:
-                    logger.warning(f"⚠️ {timeframe} not available from multi-timeframe fetcher")
+                    logger.warning(
+                        f"⚠️ {timeframe} not available from multi-timeframe fetcher"
+                    )
 
             # フォールバック: 従来の方式（キャッシュ活用）
             cache_key = f"{timeframe}_data"
@@ -416,7 +420,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
 
             # 従来のタイムフレーム変換
             logger.debug(f"🔄 Fallback timeframe conversion for {timeframe}")
-            
+
             if timeframe == "15m":
                 # 1時間足から15分足に補間
                 tf_data = price_df.resample("15T").interpolate(method="linear")

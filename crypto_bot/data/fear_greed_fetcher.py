@@ -144,14 +144,20 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
         """フォールバックデータ生成（MultiSourceDataFetcher抽象メソッド実装）"""
         # 最後の既知の値を使用してトレンド推定
         last_value = 50.0  # デフォルト値（中立）
-        
+
         # グローバルキャッシュから最新データを試行取得
         try:
             cache_key = self._get_cache_key(limit=1)
             cached_data = self.global_cache.get(cache_key)
-            if cached_data is not None and not cached_data.empty and "value" in cached_data.columns:
+            if (
+                cached_data is not None
+                and not cached_data.empty
+                and "value" in cached_data.columns
+            ):
                 last_value = cached_data["value"].iloc[-1]
-                logger.debug(f"📋 Using cached Fear&Greed value for fallback: {last_value}")
+                logger.debug(
+                    f"📋 Using cached Fear&Greed value for fallback: {last_value}"
+                )
         except Exception:
             logger.debug("⚠️ No cached Fear&Greed data for fallback, using default")
 
@@ -312,11 +318,11 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
     ) -> pd.DataFrame:
         """
         VIXとFear&Greedの相関特徴量計算
-        
+
         Args:
             fg_data: Fear&Greedデータ
             vix_data: VIXデータ
-            
+
         Returns:
             VIX-FG相関特徴量DataFrame
         """
@@ -324,46 +330,49 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
             if fg_data.empty or vix_data.empty:
                 logger.warning("⚠️ Empty data for VIX-FG correlation")
                 return pd.DataFrame()
-            
+
             # データを共通の時間軸に合わせる
             common_index = fg_data.index.intersection(vix_data.index)
             if len(common_index) == 0:
                 # インデックスが全く合わない場合、最新データで補完
                 logger.warning("⚠️ No common index for VIX-FG correlation")
                 return pd.DataFrame()
-            
+
             # 共通期間のデータを抽出
             fg_common = fg_data.loc[common_index]
             vix_common = vix_data.loc[common_index]
-            
+
             # 相関特徴量を計算
             correlation_features = pd.DataFrame(index=common_index)
-            
+
             # 基本相関
             if "value" in fg_common.columns and "vix_level" in vix_common.columns:
                 # 30日間の相関係数
                 correlation_features["vix_fg_correlation_30d"] = (
                     fg_common["value"].rolling(30).corr(vix_common["vix_level"])
                 )
-                
+
                 # 差分の相関
                 fg_change = fg_common["value"].pct_change()
                 vix_change = vix_common["vix_level"].pct_change()
-                correlation_features["vix_fg_change_correlation"] = (
-                    fg_change.rolling(30).corr(vix_change)
-                )
-                
+                correlation_features["vix_fg_change_correlation"] = fg_change.rolling(
+                    30
+                ).corr(vix_change)
+
                 # 逆相関シグナル（VIX上昇時のFG下降）
                 correlation_features["vix_fg_divergence"] = (
                     (vix_change > 0) & (fg_change < 0)
                 ).astype(int)
-            
+
             # 欠損値を0で埋める
             correlation_features = correlation_features.fillna(0)
-            
-            logger.info(f"✅ VIX-FG correlation features: {len(correlation_features.columns)} columns")
+
+            logger.info(
+                f"✅ VIX-FG correlation features: "
+                f"{len(correlation_features.columns)} columns"
+            )
             return correlation_features
-            
+
         except Exception as e:
             logger.error(f"❌ VIX-FG correlation calculation failed: {e}")
             return pd.DataFrame()
