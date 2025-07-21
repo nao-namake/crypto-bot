@@ -221,7 +221,7 @@ class FeatureDefaults:
 
 
 def ensure_feature_consistency(
-    df: pd.DataFrame, target_count: int = 101
+    df: pd.DataFrame, target_count: int = 151
 ) -> pd.DataFrame:
     """
     特徴量数の一致を保証する最終チェック
@@ -244,13 +244,19 @@ def ensure_feature_consistency(
         logger.info(f"Feature count matches target: {current_count}")
         return df
     elif current_count < target_count:
-        # 不足分を補完
+        # 不足分を補完（パフォーマンス最適化版）
         missing_count = target_count - current_count
         logger.warning(f"Missing {missing_count} features, adding defaults")
 
-        for i in range(missing_count):
-            feature_name = f"default_feature_{i}"
-            df[feature_name] = 0.0
+        # 効率的なデフォルト特徴量生成（pd.concat使用）
+        default_features = pd.DataFrame(
+            0.0, 
+            index=df.index, 
+            columns=[f"default_feature_{i}" for i in range(missing_count)]
+        )
+        
+        # 一括結合（断片化回避）
+        df = pd.concat([df, default_features], axis=1)
 
         logger.info(f"Added {missing_count} default features, total: {len(df.columns)}")
         return df

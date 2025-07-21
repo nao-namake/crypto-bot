@@ -277,3 +277,15 @@ class VIXDataFetcher(MultiSourceDataFetcher):
             "vix_spike": 0,
             "vix_regime_numeric": 1,  # 通常レジーム
         }
+
+
+def get_available_vix_features():
+    """利用可能なVIX特徴量の名前リストを取得"""
+    return [
+        "vix_level",
+        "vix_change", 
+        "vix_zscore",
+        "fear_level",
+        "vix_spike",
+        "vix_regime_numeric",
+    ]

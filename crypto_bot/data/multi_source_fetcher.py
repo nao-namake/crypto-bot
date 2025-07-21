@@ -3,7 +3,7 @@ MultiSourceDataFetcher - 複数データソース統合管理システム
 ChatGPTアドバイス反映版：段階的・品質重視アプローチ
 
 複数データソースの統合管理・自動フォールバック・データ品質検証
-Phase 2: 外部API復活実装の基盤クラス
+Phase A3: 外部データキャッシュ最適化・グローバルキャッシュ統合
 """
 
 import logging
@@ -12,9 +12,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
+
+from .global_cache_manager import get_global_cache
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +81,8 @@ class MultiSourceDataFetcher(ABC):
         self.quality_threshold = self.data_config.get("quality_threshold", 0.7)
         self.enabled = self.data_config.get("enabled", True)
 
-        # キャッシュ管理
-        self.cache_data = None
-        self.cache_timestamp = None
-        self.cache_quality_score = 0.0
+        # グローバルキャッシュマネージャー統合（Phase A3）
+        self.global_cache = get_global_cache()
 
         # データソース状態管理
         self.source_states: Dict[str, DataSourceStatus] = {}
@@ -96,6 +96,7 @@ class MultiSourceDataFetcher(ABC):
         logger.info(f"  - Sources: {[ds.name for ds in self.data_sources]}")
         logger.info(f"  - Cache hours: {self.cache_hours}")
         logger.info(f"  - Quality threshold: {self.quality_threshold}")
+        logger.info(f"  - Global cache integrated: {self.global_cache is not None}")
 
     def _initialize_data_sources(self) -> None:
         """データソース設定初期化"""
@@ -125,29 +126,42 @@ class MultiSourceDataFetcher(ABC):
         # 優先度でソート
         self.data_sources.sort(key=lambda x: x.priority)
 
-    def _is_cache_valid(self) -> bool:
-        """キャッシュ有効性チェック"""
-        if self.cache_data is None or self.cache_timestamp is None:
-            return False
+    def _get_cache_key(self, **kwargs) -> str:
+        """キャッシュキー生成"""
+        return self.global_cache.get_cache_key(self.data_type, kwargs)
 
-        cache_age = datetime.now() - self.cache_timestamp
-        cache_valid = cache_age.total_seconds() < (self.cache_hours * 3600)
+    def _is_cache_valid(self, **kwargs) -> Tuple[Optional[pd.DataFrame], bool]:
+        """グローバルキャッシュ有効性チェック（Phase A3対応）"""
+        cache_key = self._get_cache_key(**kwargs)
+        cached_data = self.global_cache.get(cache_key)
+        
+        if cached_data is not None:
+            logger.debug(f"📋 Global cache hit for {self.data_type}: {cache_key}")
+            return cached_data, True
+        
+        logger.debug(f"❌ Global cache miss for {self.data_type}: {cache_key}")
+        return None, False
 
-        # 品質閾値もチェック
-        quality_valid = self.cache_quality_score >= self.quality_threshold
-
-        return cache_valid and quality_valid
-
-    def _update_cache(self, data: pd.DataFrame, quality_score: float) -> None:
-        """キャッシュ更新"""
-        self.cache_data = data.copy()
-        self.cache_timestamp = datetime.now()
-        self.cache_quality_score = quality_score
-
-        logger.info(
-            f"✅ {self.data_type} cache updated: {len(data)} records, "
-            f"quality={quality_score:.3f}"
+    def _update_cache(self, data: pd.DataFrame, quality_score: float, **kwargs) -> None:
+        """グローバルキャッシュ更新（Phase A3対応）"""
+        cache_key = self._get_cache_key(**kwargs)
+        ttl = timedelta(hours=self.cache_hours)
+        
+        success = self.global_cache.put(
+            cache_key,
+            data,
+            source=self.data_type,
+            ttl=ttl,
+            quality_score=quality_score
         )
+        
+        if success:
+            logger.info(
+                f"✅ {self.data_type} global cache updated: {len(data)} records, "
+                f"quality={quality_score:.3f}, ttl={self.cache_hours}h"
+            )
+        else:
+            logger.warning(f"⚠️ Failed to update global cache for {self.data_type}")
 
     def _check_circuit_breaker(self, source_name: str) -> bool:
         """サーキットブレーカー状態チェック"""
@@ -225,25 +239,26 @@ class MultiSourceDataFetcher(ABC):
             except ImportError:
                 quality_monitor = None
 
-            # キャッシュ有効性チェック
-            if self._is_cache_valid():
+            # グローバルキャッシュ有効性チェック（Phase A3対応）
+            cached_data, cache_hit = self._is_cache_valid(**kwargs)
+            if cache_hit and cached_data is not None:
                 logger.info(
-                    f"✅ Using cached {self.data_type} data "
-                    f"(quality={self.cache_quality_score:.3f})"
+                    f"✅ Using global cached {self.data_type} data "
+                    f"({len(cached_data)} records)"
                 )
 
                 # 品質監視記録（キャッシュ使用）
                 if quality_monitor:
                     quality_monitor.record_quality_metrics(
                         source_type=self.data_type,
-                        source_name="cache",
-                        quality_score=self.cache_quality_score,
+                        source_name="global_cache",
+                        quality_score=1.0,  # キャッシュデータは品質保証済み
                         default_ratio=0.0,  # キャッシュはデフォルト値なし
                         success=True,
                         latency_ms=(time.time() - start_time) * 1000,
                     )
 
-                return self.cache_data
+                return cached_data
 
             logger.info(f"🔍 Fetching {self.data_type} data from multiple sources")
 
@@ -286,7 +301,7 @@ class MultiSourceDataFetcher(ABC):
                     if result.quality_score >= source_config.quality_threshold:
                         # 成功処理
                         self._update_source_state(source_config.name, True)
-                        self._update_cache(result.data, result.quality_score)
+                        self._update_cache(result.data, result.quality_score, **kwargs)
                         return result.data
                     else:
                         logger.warning(

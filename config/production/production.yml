@@ -1,28 +1,50 @@
-# 126特徴量本番環境設定
-# 外部データ統合・品質監視・手数料最適化完全版
+# 151特徴量本番環境設定（マルチタイムフレーム×アンサンブル学習）
+# 外部データ統合・品質監視・手数料最適化・2段階アンサンブル完全版
 
 data:
   exchange: bitbank
   symbol: BTC/JPY
-  timeframe: 1h
+  timeframe: 1h  # ベースタイムフレーム（マルチタイムフレーム変換用）
   api_key: ${BITBANK_API_KEY}
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 1000
+    rateLimit: 2000  # Bitbank実測値（2000ms）に最適化
 
-  # 本番データ取得設定（48時間前から500レコード・土日対応強化）
-  # since設定をなくしてコードのデフォルト48時間を使用（動的計算）
-  limit: 500   # 土日含む十分なレコード数に増加
+  # Bitbank API制限最適化設定（実測：100件要求→20件取得）
+  # since設定なし→動的48時間計算・土日24/7対応
+  limit: 100   # Bitbank実測制限に最適化（効率的データ取得）
   paginate: true
-  per_page: 100
+  per_page: 20  # 実際の取得可能件数に最適化
+  
+  # マルチタイムフレーム対応データ設定
+  multi_timeframe_data:
+    base_timeframe: "1h"  # データ取得ベース
+    target_timeframes:    # 変換対象タイムフレーム
+      15m:
+        method: "interpolation"  # 1h→15m 補間
+        min_points: 50
+      1h:
+        method: "direct"         # 直接使用
+        min_points: 100
+      4h:
+        method: "aggregation"    # 1h→4h 集約
+        min_points: 25
 
 strategy:
-  type: single
-  name: ml
+  type: multi_timeframe_ensemble
+  name: multi_timeframe_ensemble
   params:
     model_path: /app/models/production/model.pkl  # 固定パス統一
     threshold: 0.05
+
+# マルチタイムフレーム設定
+multi_timeframe:
+  timeframes: ["15m", "1h", "4h"]
+  weights: [0.3, 0.5, 0.2]  # 15分足30%, 1時間足50%, 4時間足20%
+  data_sync_enabled: true
+  missing_data_tolerance: 0.1  # 10%まで欠損許容
+  timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
 
 # 本番リスク設定
 risk:
@@ -52,7 +74,7 @@ live:
     max_retries: 3
     retry_delay: 5
 
-# 126特徴量フル版ML設定
+# 151特徴量フル版ML設定（マルチタイムフレーム対応）
 ml:
   feat_period: 14
   lags: [1,2,3,4,5]
@@ -61,9 +83,18 @@ ml:
   target_type: classification
   model_type: lgbm
   
-  # 126特徴量フル版：外部データ完全統合
+  # アンサンブル学習設定
+  ensemble:
+    enabled: true
+    method: trading_stacking
+    confidence_threshold: 0.65
+    risk_adjustment: true
+    models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
+    model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
+    
+  # 151特徴量フル版：外部データ完全統合
   extra_features:
-    # 基本テクニカル特徴量
+    # 基本テクニカル特徴量（10特徴量）
     - rsi_14
     - macd
     - sma_50
@@ -75,13 +106,52 @@ ml:
     - atr_14
     - volume_sma
     
+    # Phase 3.2A: 高優先度テクニカル指標（20特徴量）
+    - rsi_7        # RSI 7期間
+    - rsi_21       # RSI 21期間
+    - sma_10       # SMA 10期間
+    - sma_20       # SMA 20期間
+    - sma_100      # SMA 100期間
+    - ema_10       # EMA 10期間
+    - ema_50       # EMA 50期間
+    - ema_100      # EMA 100期間
+    - stoch        # ストキャスティクス（K, D）
+    - willr        # Williams %R
+    - adx          # ADX（ADX, DI+, DI-）
+    - cmf          # チャイキンマネーフロー
+    - bollinger    # ボリンジャーバンド完全版（上位・下位・%B・幅）
+    - fisher       # フィッシャートランスフォーム
+    - atr_7        # ATR 7期間
+    - atr_21       # ATR 21期間
+    - momentum_14  # モメンタム 14期間
+    - trend_strength # トレンド強度（ADXベース）
+    - volume_zscore_14 # ボリューム Z-Score 14期間
+    - volume_zscore_50 # ボリューム Z-Score 50期間
+    
+    # Phase 3.2B: 価格アクション特徴量（15特徴量）
+    - price_position    # 価格位置指標（5特徴量）
+    - candle_patterns   # ローソク足パターン（4特徴量）
+    - support_resistance # サポート・レジスタンス（3特徴量）
+    - breakout_signals  # ブレイクアウトシグナル（3特徴量）
+    
+    # Phase 3.2C: 時系列・トレンド特徴量（15特徴量）
+    - autocorrelation   # 自己相関（5特徴量）
+    - seasonal_patterns # 季節性パターン（4特徴量）
+    - regime_detection  # レジーム検出（3特徴量）
+    - cycle_analysis    # サイクル分析（3特徴量）
+    
+    # Phase 3.2D: クロスアセット特徴量（15特徴量）
+    - cross_correlation # クロス相関（5特徴量）
+    - relative_strength # 相対強度（5特徴量）
+    - spread_analysis   # スプレッド分析（5特徴量）
+    
     # 外部データ特徴量
     - vix          # VIX恐怖指数（6特徴量）
     - dxy          # ドル指数・金利（10特徴量）
     - fear_greed   # Fear&Greed指数（13特徴量）
     - funding      # Funding Rate・OI（25特徴量・トレンド判定）
     
-    # 高度特徴量（22特徴量追加）
+    # 高度特徴量（22特徴量）
     - volatility_regime    # ボラティリティレジーム（7特徴量）
     - momentum_signals     # モメンタム信号（7特徴量）
     - liquidity_indicators # 流動性指標（8特徴量）
@@ -98,6 +168,9 @@ ml:
       symbol: "^VIX"
       timeframe: "1d"
       fallback_level: 20.0
+      sources: ["yahoo", "alpha_vantage"]  # データソース優先順位
+      quality_threshold: 0.7
+      cache_hours: 24
       
     macro:
       enabled: true
@@ -109,11 +182,17 @@ ml:
         dxy: 103.0
         us10y: 4.5
         us2y: 4.8
+      sources: ["yahoo"]  # Yahoo Finance統一
+      quality_threshold: 0.8
+      cache_hours: 6
         
     fear_greed:
       enabled: true
       api_url: "https://api.alternative.me/fng/"
       fallback_index: 50
+      sources: ["alternative_me", "cnn_backup"]  # プライマリと バックアップ
+      quality_threshold: 0.5  # Fear&Greedは品質変動大
+      cache_hours: 1
       
     funding:
       enabled: true
@@ -121,6 +200,9 @@ ml:
       exchanges: ["binance"]  # トレンド判定・市況分析用
       fallback_rate: 0.0001
       oi_enabled: true  # Open Interest有効化
+      sources: ["binance", "bybit"]  # 取引所優先順位
+      quality_threshold: 0.6
+      cache_hours: 0.5  # 30分キャッシュ
 
 # 外部データリトライ設定
 external_data_retry:

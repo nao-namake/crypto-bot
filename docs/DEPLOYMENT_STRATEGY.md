@@ -73,7 +73,7 @@ curl https://your-service.run.app/health/detailed
 ### 症状: エントリーシグナルが発生しない
 **確認事項**:
 1. trading_loopがtrueになっているか確認
-2. 126特徴量システムが正常に動作しているか確認
+2. 151特徴量システムが正常に動作しているか確認
 3. 市場条件がエントリー基準を満たしているか確認
 
 ## 🔧 設定ファイル
@@ -85,7 +85,7 @@ curl https://your-service.run.app/health/detailed
 
 ### 完全版（本番運用）
 - **ファイル**: `config/production/production.yml`
-- **特徴量**: 126個（VIX, Fear&Greed, Macro含む）
+- **特徴量**: 151個（VIX, Fear&Greed, Macro, Phase 3.2A-D高度特徴量含む）
 - **用途**: 本番取引
 
 ## 📝 運用チェックリスト
@@ -105,5 +105,5 @@ curl https://your-service.run.app/health/detailed
 ### 本番移行
 - [ ] 軽量版で安定稼働確認
 - [ ] 完全版への切り替え実施
-- [ ] 126特徴量システム正常動作確認
+- [ ] 151特徴量システム正常動作確認
 - [ ] 取引実行能力確認

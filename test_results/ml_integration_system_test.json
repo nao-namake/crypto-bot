@@ -1,0 +1,111 @@
+{
+  "test_metadata": {
+    "timestamp": 1753133029.441236,
+    "python_version": "3.12.8 (v3.12.8:2dc476bcb91, Dec  3 2024, 14:43:19) [Clang 13.0.0 (clang-1300.0.29.30)]",
+    "test_phase": "B2.6.3"
+  },
+  "ml_pipeline_integration": {
+    "complete_pipeline": {
+      "feature_engineering_success": true,
+      "features_generated": 151,
+      "expected_features_range": [
+        50,
+        200
+      ],
+      "training_success": true,
+      "prediction_success": true,
+      "predictions_count": 200,
+      "model_performance": {
+        "accuracy": 0.475,
+        "precision": 0.6923076923076923,
+        "recall": 0.08181818181818182
+      },
+      "performance_metrics": {
+        "total_time_seconds": 1.1408109664916992,
+        "features_per_second": 132.36198146338447,
+        "predictions_per_second": 175.31388273295954
+      },
+      "success": true
+    }
+  },
+  "backtest_system_integration": {
+    "components_test": {
+      "data_loading_success": true,
+      "config_loading_success": true,
+      "feature_pipeline_success": true,
+      "test_data_rows": 1000,
+      "features_generated": 151,
+      "backtest_components": {
+        "data_preparation": true,
+        "configuration": true,
+        "feature_engineering": true
+      },
+      "performance_metrics": {
+        "total_time_seconds": 0.8999032974243164,
+        "data_rows_per_second": 1111.2305098360882
+      },
+      "files_created": {
+        "test_data_csv": "/Users/nao/Desktop/bot/test_results/integration_test_data.csv",
+        "test_config_yml": "/Users/nao/Desktop/bot/test_results/integration_backtest_config.yml"
+      },
+      "success": true
+    }
+  },
+  "strategy_integration": {
+    "comprehensive_test": {
+      "strategies_tested": [
+        "ml_strategy",
+        "feature_engineer_strategy"
+      ],
+      "individual_results": {
+        "ml_strategy": {
+          "initialization_success": true,
+          "signal_generation_success": true,
+          "signal_type": "method_not_available",
+          "success": true
+        },
+        "feature_engineer_strategy": {
+          "initialization_success": true,
+          "feature_generation_success": true,
+          "features_count": 151,
+          "batch_engines_enabled": true,
+          "success": true
+        }
+      },
+      "overall_success": true,
+      "success_rate": 1.0
+    }
+  },
+  "performance_pipeline": {
+    "comprehensive_test": {
+      "error": "No module named 'psutil'",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/nao/Desktop/bot/scripts/ml_integration_system_test.py\", line 582, in test_performance_pipeline\n    import psutil\nModuleNotFoundError: No module named 'psutil'\n",
+      "success": false
+    }
+  },
+  "memory_management": {
+    "efficiency_test": {
+      "error": "No module named 'psutil'",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/nao/Desktop/bot/scripts/ml_integration_system_test.py\", line 687, in test_memory_management\n    import psutil\nModuleNotFoundError: No module named 'psutil'\n",
+      "success": false
+    }
+  },
+  "overall_assessment": {
+    "overall_score": 0.5,
+    "integration_level": "Poor - Major Issues",
+    "category_scores": {
+      "ml_pipeline_integration": 1.0,
+      "backtest_system_integration": 1.0,
+      "strategy_integration": 0.0,
+      "performance_pipeline": 0.0,
+      "memory_management": 0.0
+    },
+    "critical_systems": {
+      "ml_pipeline": true,
+      "backtest_system": true,
+      "performance": false
+    },
+    "recommendation": "パフォーマンス最適化が必要; メモリ管理の改善が必要; 重要な統合問題の解決が必要",
+    "production_readiness": false
+  }
+}

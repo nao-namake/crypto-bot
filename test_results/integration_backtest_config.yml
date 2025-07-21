@@ -1,0 +1,208 @@
+backtest:
+  commission: 0.001
+  end_date: '2024-12-31'
+  initial_balance: 10000
+  start_date: '2024-01-01'
+bitbank:
+  day_trading:
+    auto_close_before_rollover: true
+    enabled: true
+    interest_rate: 0.0004
+    rollover_time: 00:00:00
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    min_profit_after_fees: 0.002
+    prefer_maker: true
+    taker_fee: 0.0012
+  order_management:
+    max_open_orders: 30
+    queue_enabled: true
+    rate_limit:
+      get_requests: 10
+      post_requests: 6
+data:
+  csv_path: /Users/nao/Desktop/bot/test_results/integration_test_data.csv
+  source: csv
+external_data_retry:
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 300
+  exponential_backoff: true
+  max_retries: 3
+  retry_delay: 2
+live:
+  bitbank_settings:
+    max_retries: 3
+    min_btc_amount: 0.0001
+    retry_delay: 5
+  margin_trading:
+    enabled: true
+    leverage: 1.0
+    position_type: both
+  max_order_size: 0.0005
+  min_order_size: 0.0001
+  mode: live
+  starting_balance: 10000.0
+  trade_interval: 60
+logging:
+  file: /app/logs/bitbank_production.log
+  level: INFO
+  retention: 7
+  rotation: daily
+ml:
+  early_stopping_rounds: 10
+  ensemble:
+    confidence_threshold: 0.65
+    enabled: true
+    method: trading_stacking
+    model_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    models:
+    - lgbm
+    - xgb
+    - rf
+    risk_adjustment: true
+  external_data:
+    cache_enabled: true
+    enabled: true
+    fallback_enabled: true
+    fear_greed:
+      api_url: https://api.alternative.me/fng/
+      cache_hours: 1
+      enabled: true
+      fallback_index: 50
+      quality_threshold: 0.5
+      sources:
+      - alternative_me
+      - cnn_backup
+    funding:
+      cache_hours: 0.5
+      enabled: true
+      exchanges:
+      - binance
+      fallback_rate: 0.0001
+      oi_enabled: true
+      quality_threshold: 0.6
+      sources:
+      - binance
+      - bybit
+      symbol: BTC/USDT
+    macro:
+      cache_hours: 6
+      enabled: true
+      fallback_values:
+        dxy: 103.0
+        us10y: 4.5
+        us2y: 4.8
+      quality_threshold: 0.8
+      sources:
+      - yahoo
+      symbols:
+        dxy: DX-Y.NYB
+        us10y: ^TNX
+        us2y: ^IRX
+    vix:
+      cache_hours: 24
+      enabled: true
+      fallback_level: 20.0
+      quality_threshold: 0.7
+      sources:
+      - yahoo
+      - alpha_vantage
+      symbol: ^VIX
+      timeframe: 1d
+  extra_features:
+  - rsi_14
+  - macd
+  - sma_50
+  - sma_200
+  - ema_12
+  - ema_26
+  - bb_upper
+  - bb_lower
+  - atr_14
+  - volume_sma
+  - rsi_7
+  - rsi_21
+  - sma_10
+  - sma_20
+  - sma_100
+  - ema_10
+  - ema_50
+  - ema_100
+  - stoch
+  - willr
+  - adx
+  - cmf
+  - bollinger
+  - fisher
+  - atr_7
+  - atr_21
+  - momentum_14
+  - trend_strength
+  - volume_zscore_14
+  - volume_zscore_50
+  - price_position
+  - candle_patterns
+  - support_resistance
+  - breakout_signals
+  - autocorrelation
+  - seasonal_patterns
+  - regime_detection
+  - cycle_analysis
+  - cross_correlation
+  - relative_strength
+  - spread_analysis
+  - vix
+  - dxy
+  - fear_greed
+  - funding
+  - volatility_regime
+  - momentum_signals
+  - liquidity_indicators
+  feat_period: 14
+  horizon: 5
+  lags:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  model_type: lightgbm
+  n_estimators: 50
+  rolling_window: 20
+  target_type: classification
+mode: backtest
+multi_timeframe:
+  data_sync_enabled: true
+  missing_data_tolerance: 0.1
+  timeframe_consensus_threshold: 0.6
+  timeframes:
+  - 15m
+  - 1h
+  - 4h
+  weights:
+  - 0.3
+  - 0.5
+  - 0.2
+quality_monitoring:
+  default_threshold: 0.3
+  emergency_stop_threshold: 0.5
+  enabled: true
+risk:
+  atr_period: 7
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.05
+  risk_per_trade: 0.005
+  stop_atr_mult: 1.2
+strategy:
+  name: multi_timeframe_ensemble
+  params:
+    model_path: /app/models/production/model.pkl
+    threshold: 0.05
+  type: multi_timeframe_ensemble

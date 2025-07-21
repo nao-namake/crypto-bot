@@ -1,0 +1,77 @@
+{
+  "timeframe_tests": {
+    "15m": {
+      "input_size": 200,
+      "output_size": 797,
+      "expected_ratio": 4,
+      "actual_ratio": 3.985,
+      "success": true
+    },
+    "4h": {
+      "input_size": 200,
+      "output_size": 50,
+      "expected_ratio": 0.25,
+      "actual_ratio": 0.25,
+      "success": true
+    }
+  },
+  "synchronization_tests": {
+    "error": "'TimeframeSynchronizer' object has no attribute 'synchronize_timeframes'"
+  },
+  "data_quality_tests": {
+    "15m": {
+      "total_records": 797,
+      "nan_percentage": 0.0,
+      "duplicate_timestamps": "0",
+      "price_range_check": {
+        "min_price": 4937836.384501291,
+        "max_price": 5053137.380332014,
+        "price_variance": 14196725.88453589
+      },
+      "volume_stats": {
+        "min_volume": 0.10091938019886726,
+        "max_volume": 25.34341970469557,
+        "avg_volume": 12.258024620386786
+      }
+    },
+    "1h": {
+      "total_records": 200,
+      "nan_percentage": 0.0,
+      "duplicate_timestamps": "0",
+      "price_range_check": {
+        "min_price": 4943287.110864027,
+        "max_price": 5053137.380332014,
+        "price_variance": 14327749.704021243
+      },
+      "volume_stats": {
+        "min_volume": 0.40367752079546904,
+        "max_volume": 101.37367881878228,
+        "avg_volume": 48.98861539636791
+      }
+    },
+    "4h": {
+      "total_records": 50,
+      "nan_percentage": 0.0,
+      "duplicate_timestamps": "0",
+      "price_range_check": {
+        "min_price": 4943287.110864027,
+        "max_price": 5052673.186748591,
+        "price_variance": 14477118.759278005
+      },
+      "volume_stats": {
+        "min_volume": 81.92397952556894,
+        "max_volume": 309.1808344223215,
+        "avg_volume": 195.95446158547165
+      }
+    }
+  },
+  "performance_metrics": {
+    "error": "'TimeframeSynchronizer' object has no attribute 'synchronize_timeframes'"
+  },
+  "test_status": "FAILED",
+  "execution_time": 0.023884057998657227,
+  "errors": [
+    "Data synchronization: 'TimeframeSynchronizer' object has no attribute 'synchronize_timeframes'",
+    "Performance: 'TimeframeSynchronizer' object has no attribute 'synchronize_timeframes'"
+  ]
+}

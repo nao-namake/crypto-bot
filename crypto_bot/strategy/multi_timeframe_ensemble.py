@@ -15,6 +15,7 @@ import pandas as pd
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.strategy.base import StrategyBase
 from crypto_bot.strategy.ensemble_ml_strategy import EnsembleMLStrategy
+from crypto_bot.data.multi_timeframe_fetcher import MultiTimeframeDataFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,15 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         self.ensemble_method = ensemble_config.get("method", "trading_stacking")
         self.confidence_threshold = ensemble_config.get("confidence_threshold", 0.65)
 
+        # マルチタイムフレームデータフェッチャー初期化
+        self.multi_timeframe_fetcher = None
+        self._base_fetcher = None  # 後で設定
+
+        # データ品質設定
+        data_config = multi_config.get("multi_timeframe_data", {})
+        self.base_timeframe = data_config.get("base_timeframe", "1h")
+        self.data_quality_threshold = multi_config.get("data_quality_threshold", 0.9)
+
         # 各タイムフレーム用のアンサンブル戦略
         self.ensemble_strategies = {}
         self._initialize_ensemble_strategies()
@@ -57,6 +67,29 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             f"Initialized Multi-Timeframe Ensemble Strategy: {self.timeframes} "
             f"with weights {self.weights}"
         )
+        logger.info(f"  - Base timeframe: {self.base_timeframe}")
+        logger.info(f"  - Data quality threshold: {self.data_quality_threshold}")
+
+    def set_data_fetcher(self, base_fetcher):
+        """
+        ベースデータフェッチャーを設定し、マルチタイムフレームフェッチャーを初期化
+        
+        Args:
+            base_fetcher: MarketDataFetcher インスタンス
+        """
+        try:
+            self._base_fetcher = base_fetcher
+            self.multi_timeframe_fetcher = MultiTimeframeDataFetcher(
+                base_fetcher=base_fetcher,
+                timeframes=self.timeframes,
+                base_timeframe=self.base_timeframe,
+                cache_enabled=True,
+                data_quality_threshold=self.data_quality_threshold,
+            )
+            logger.info("✅ Multi-timeframe data fetcher initialized")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize multi-timeframe fetcher: {e}")
+            self.multi_timeframe_fetcher = None
 
     def _initialize_ensemble_strategies(self):
         """各タイムフレーム用のアンサンブル戦略初期化"""
@@ -356,20 +389,34 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
     def _get_timeframe_data(
         self, price_df: pd.DataFrame, timeframe: str
     ) -> pd.DataFrame:
-        """タイムフレーム別データ生成（キャッシュ活用）"""
-        cache_key = f"{timeframe}_data"
-        current_time = datetime.now()
-
-        # キャッシュチェック
-        if (
-            cache_key in self.data_cache
-            and cache_key in self.last_cache_time
-            and current_time - self.last_cache_time[cache_key] < self.cache_timeout
-        ):
-            return self.data_cache[cache_key]
-
+        """タイムフレーム別データ生成（新しいMultiTimeframeDataFetcher使用）"""
         try:
-            # タイムフレーム変換
+            # MultiTimeframeDataFetcherが利用可能な場合は使用
+            if self.multi_timeframe_fetcher is not None:
+                # マルチタイムフレームデータを取得
+                multi_data = self.multi_timeframe_fetcher.get_multi_timeframe_data()
+                if timeframe in multi_data:
+                    logger.debug(f"✅ Got {timeframe} data from multi-timeframe fetcher: {len(multi_data[timeframe])} records")
+                    return multi_data[timeframe]
+                else:
+                    logger.warning(f"⚠️ {timeframe} not available from multi-timeframe fetcher")
+
+            # フォールバック: 従来の方式（キャッシュ活用）
+            cache_key = f"{timeframe}_data"
+            current_time = datetime.now()
+
+            # キャッシュチェック
+            if (
+                cache_key in self.data_cache
+                and cache_key in self.last_cache_time
+                and current_time - self.last_cache_time[cache_key] < self.cache_timeout
+            ):
+                logger.debug(f"📋 Using cached {timeframe} data")
+                return self.data_cache[cache_key]
+
+            # 従来のタイムフレーム変換
+            logger.debug(f"🔄 Fallback timeframe conversion for {timeframe}")
+            
             if timeframe == "15m":
                 # 1時間足から15分足に補間
                 tf_data = price_df.resample("15T").interpolate(method="linear")
@@ -398,10 +445,11 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             self.data_cache[cache_key] = tf_data
             self.last_cache_time[cache_key] = current_time
 
+            logger.debug(f"✅ Generated {timeframe} data: {len(tf_data)} records")
             return tf_data
 
         except Exception as e:
-            logger.error(f"Failed to generate {timeframe} data: {e}")
+            logger.error(f"❌ Failed to generate {timeframe} data: {e}")
             return pd.DataFrame()
 
     def _assess_data_quality(self, data: pd.DataFrame) -> Dict[str, float]:

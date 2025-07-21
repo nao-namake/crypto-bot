@@ -865,11 +865,20 @@ def live_bitbank(config_path: str, max_trades: int):
             ccxt_options=dd.get("ccxt_options", {}),
         )
 
-    # Strategy & risk manager
-    sp = cfg["strategy"]["params"]
-    model_path = sp.get("model_path", "model.pkl")
+    # Strategy initialization using StrategyFactory
+    strategy_config = cfg.get("strategy", {})
+    strategy_type = strategy_config.get("type", "single")
+    strategy_name = strategy_config.get("name", "ml")
 
-    # モデルパスの絶対パス化
+    logger.info(f"📊 [INIT-3] Strategy Type: {strategy_type}")
+    logger.info(f"📊 [INIT-3] Strategy Name: {strategy_name}")
+    logger.info(f"⏰ [INIT-3] Timestamp: {pd.Timestamp.now()}")
+    logger.info("🤖 [INIT-3] Initializing Strategy (this may take time)...")
+
+    # モデルパス検証（従来のML戦略との互換性のため）
+    sp = strategy_config.get("params", {})
+    model_path = sp.get("model_path", "model.pkl")
+    
     if not os.path.isabs(model_path):
         # 相対パスの場合、プロジェクトルートまたはmodelフォルダを基準に解決
         possible_paths = [
@@ -880,18 +889,31 @@ def live_bitbank(config_path: str, max_trades: int):
         for path in possible_paths:
             if os.path.exists(path):
                 model_path = path
+                strategy_config["params"]["model_path"] = model_path
                 break
         else:
             logger.error(f"Model file not found: {model_path}")
             sys.exit(1)
 
     logger.info(f"📊 [INIT-3] Using model: {model_path}")
-    logger.info(f"⏰ [INIT-3] Timestamp: {pd.Timestamp.now()}")
-    logger.info("🤖 [INIT-3] Initializing ML Strategy (this may take time)...")
 
-    threshold = sp.get("threshold", 0.05)
-    strategy = MLStrategy(model_path=model_path, threshold=threshold, config=cfg)
-    logger.info("✅ [INIT-3] ML Strategy initialized successfully")
+    # StrategyFactoryで戦略作成
+    if strategy_type == "multi_timeframe_ensemble":
+        logger.info("🔄 [INIT-3] Initializing Multi-Timeframe Ensemble Strategy...")
+        strategy = StrategyFactory.create_strategy(strategy_config, cfg)
+        
+        # マルチタイムフレーム戦略にデータフェッチャーを設定
+        if hasattr(strategy, 'set_data_fetcher'):
+            logger.info("🔗 [INIT-3] Setting data fetcher for multi-timeframe strategy...")
+            strategy.set_data_fetcher(fetcher)
+            logger.info("✅ [INIT-3] Data fetcher configured for multi-timeframe strategy")
+        
+        logger.info("✅ [INIT-3] Multi-Timeframe Ensemble Strategy initialized successfully")
+    else:
+        # 従来のML戦略（後方互換性のため）
+        logger.info("🤖 [INIT-3] Initializing traditional ML Strategy...")
+        strategy = StrategyFactory.create_strategy(strategy_config, cfg)
+        logger.info("✅ [INIT-3] Traditional Strategy initialized successfully")
 
     # 特徴量システム初期化を記録
     try:
