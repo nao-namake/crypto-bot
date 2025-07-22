@@ -25,13 +25,14 @@ import sys
 import unittest
 import warnings
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
 
 # プロジェクトパス設定
-sys.path.append("/Users/nao/Desktop/bot")
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # 警告抑制
 warnings.filterwarnings("ignore")

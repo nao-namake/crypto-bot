@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd  # noqa: F401
 
 # プロジェクトパス追加
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # ログ設定
 logging.basicConfig(

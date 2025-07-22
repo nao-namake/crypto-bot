@@ -69,8 +69,8 @@ jobs:
       - name: Run Phase C1 integration tests
         run: |
           echo ">>> Running Phase C1 integration tests"
-          if [ -f "test_phase_c1_integration.py" ]; then
-            python test_phase_c1_integration.py || echo "⚠️ Phase C1 integration tests failed but continuing"
+          if [ -f "tests/integration/test_phase_c1_integration.py" ]; then
+            python tests/integration/test_phase_c1_integration.py || echo "⚠️ Phase C1 integration tests failed but continuing"
           else
             echo "⚠️ Phase C1 integration tests not found - skipping"
           fi
@@ -79,8 +79,8 @@ jobs:
       - name: Run Phase C2 integration tests
         run: |
           echo ">>> Running Phase C2 integration tests"
-          if [ -f "test_phase_c2_integration.py" ]; then
-            python test_phase_c2_integration.py || echo "⚠️ Phase C2 integration tests failed but continuing"
+          if [ -f "tests/integration/test_phase_c2_integration.py" ]; then
+            python tests/integration/test_phase_c2_integration.py || echo "⚠️ Phase C2 integration tests failed but continuing"
           else
             echo "⚠️ Phase C2 integration tests not found - skipping"
           fi
