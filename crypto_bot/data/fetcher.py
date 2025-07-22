@@ -110,50 +110,102 @@ class MarketDataFetcher:
             records: List = []
             seen_ts = set()
             last_since = since_ms
-            retries = 0
-            MAX_RETRIES = 20  # 5→20に増加
+            attempt = 0
+            consecutive_empty = 0
+            consecutive_no_new = 0
+            MAX_ATTEMPTS = 15  # 総試行回数
+            MAX_CONSECUTIVE_EMPTY = 3  # 連続空バッチ許容数
+            MAX_CONSECUTIVE_NO_NEW = 5  # 連続新レコードなし許容数
 
-            while len(records) < max_records and retries < MAX_RETRIES:
+            while len(records) < max_records and attempt < MAX_ATTEMPTS:
                 logger.info(
-                    f"🔄 Batch {retries+1}: fetching from {last_since}, "
-                    f"target={len(records)}/{max_records}"
+                    f"🔄 Attempt {attempt+1}/{MAX_ATTEMPTS}: fetching from {last_since}, "
+                    f"current={len(records)}/{max_records}"
                 )
 
-                batch = self.client.fetch_ohlcv(
-                    self.symbol, timeframe, last_since, per_page
-                )
+                try:
+                    batch = self.client.fetch_ohlcv(
+                        self.symbol, timeframe, last_since, per_page
+                    )
 
-                if isinstance(batch, pd.DataFrame):
-                    logger.info(f"✅ Received DataFrame directly: {len(batch)} records")
-                    return batch
+                    if isinstance(batch, pd.DataFrame):
+                        logger.info(
+                            f"✅ Received DataFrame directly: {len(batch)} records"
+                        )
+                        return batch
 
-                if not batch:
-                    logger.warning(f"⚠️ Empty batch received at retry {retries}")
-                    retries += 1
-                    continue
+                    if not batch:
+                        consecutive_empty += 1
+                        logger.warning(
+                            f"⚠️ Empty batch {consecutive_empty}/{MAX_CONSECUTIVE_EMPTY}"
+                        )
 
-                logger.info(f"📊 Batch received: {len(batch)} records")
-                added = False
-                for row in batch:
-                    ts = row[0]
-                    if ts not in seen_ts:
-                        seen_ts.add(ts)
-                        records.append(row)
-                        last_since = ts + 1
-                        added = True
+                        if consecutive_empty >= MAX_CONSECUTIVE_EMPTY:
+                            logger.warning(
+                                "❌ Too many consecutive empty batches, stopping"
+                            )
+                            break
 
-                if not added:
-                    logger.warning(f"⚠️ No new records added in batch {retries}")
-                    retries += 1
-                else:
-                    logger.info(f"✅ Added records: total={len(records)}")
+                        # 空バッチの場合は指数バックオフで待機
+                        backoff_delay = min(consecutive_empty * 2, 10)
+                        time.sleep(backoff_delay)
+                        attempt += 1
+                        continue
 
-                if (
-                    sleep
-                    and hasattr(self.exchange, "rateLimit")
-                    and self.exchange.rateLimit
-                ):
-                    time.sleep(self.exchange.rateLimit / 1000.0)
+                    # 空バッチカウンタリセット
+                    consecutive_empty = 0
+
+                    logger.info(f"📊 Batch received: {len(batch)} records")
+                    added = False
+                    for row in batch:
+                        ts = row[0]
+                        if ts not in seen_ts:
+                            seen_ts.add(ts)
+                            records.append(row)
+                            last_since = ts + 1
+                            added = True
+
+                    if not added:
+                        consecutive_no_new += 1
+                        logger.warning(
+                            f"⚠️ No new records {consecutive_no_new}/{MAX_CONSECUTIVE_NO_NEW}"
+                        )
+
+                        if consecutive_no_new >= MAX_CONSECUTIVE_NO_NEW:
+                            logger.warning(
+                                "❌ Too many attempts with no new records, stopping"
+                            )
+                            break
+
+                        # 新レコードなしの場合はタイムスタンプを進める
+                        if batch:
+                            last_since = batch[-1][0] + 1
+                    else:
+                        # 新レコードがあった場合はカウンタリセット
+                        consecutive_no_new = 0
+                        logger.info(
+                            f"✅ Added {sum(1 for row in batch if row[0] in seen_ts and row[0] >= last_since - len(batch))} records, total={len(records)}"
+                        )
+
+                    # 動的レート制限
+                    if (
+                        sleep
+                        and hasattr(self.exchange, "rateLimit")
+                        and self.exchange.rateLimit
+                    ):
+                        base_delay = self.exchange.rateLimit / 1000.0
+                        # 連続問題発生時は待機時間を延長
+                        if consecutive_empty > 0 or consecutive_no_new > 0:
+                            base_delay *= 1.5
+                        time.sleep(base_delay)
+
+                except Exception as e:
+                    logger.error(f"❌ Batch fetch error on attempt {attempt+1}: {e}")
+                    # エラー時は少し待機してリトライ
+                    error_delay = min((attempt + 1) * 1.5, 8)
+                    time.sleep(error_delay)
+
+                attempt += 1
 
             logger.info(
                 f"✅ Pagination complete: {len(records)} total records collected"

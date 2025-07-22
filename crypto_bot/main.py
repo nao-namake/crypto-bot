@@ -1056,9 +1056,36 @@ def live_bitbank(config_path: str, max_trades: int):
                             since_time = since_time.tz_localize("UTC")
                         logger.info(f"🔍 [DEBUG] Using config since: {since_time}")
                     else:
-                        hours_back = 48  # デフォルト48時間（リアルタイム重視）
+                        # 動的since_hours計算（土日ギャップ・祝日対応）
+                        base_hours = dd.get("since_hours", 48)
+
+                        # 曜日判定（月曜日=0, 日曜日=6）
+                        current_day = current_time.dayofweek
+                        current_hour = current_time.hour
+
+                        # 土日ギャップ対応
+                        if current_day == 0:  # 月曜日
+                            # 月曜日は土日ギャップを考慮して延長
+                            extended_hours = base_hours + 48  # 2日間追加
+                            logger.info(
+                                f"🗓️ Monday detected: extending lookback from {base_hours}h to {extended_hours}h"
+                            )
+                            hours_back = extended_hours
+                        elif current_day <= 1 and current_hour < 12:  # 月曜・火曜午前
+                            # 月曜午後・火曜午前も少し延長
+                            extended_hours = base_hours + 24  # 1日間追加
+                            logger.info(
+                                f"🌅 Early week detected: extending lookback from {base_hours}h to {extended_hours}h"
+                            )
+                            hours_back = extended_hours
+                        else:
+                            # 平日は通常の設定
+                            hours_back = base_hours
+
                         since_time = current_time - pd.Timedelta(hours=hours_back)
-                        logger.info(f"🔍 [DEBUG] Using default 48h: {since_time}")
+                        logger.info(
+                            f"🔍 [DEBUG] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, Lookback: {hours_back}h, Since: {since_time}"
+                        )
                     logger.info(
                         f"🔄 Fetching latest data since: {since_time} "
                         f"(current: {current_time})"
@@ -1073,6 +1100,9 @@ def live_bitbank(config_path: str, max_trades: int):
                         paginate=dd.get(
                             "paginate", True
                         ),  # 設定ファイルから読み込み（デフォルトTrue）
+                        per_page=dd.get(
+                            "per_page", 100
+                        ),  # 設定ファイルから読み込み（デフォルト100）
                     )
                     logger.info(
                         f"✅ [DATA-FETCH] Price data fetched successfully: "
@@ -1145,8 +1175,19 @@ def live_bitbank(config_path: str, max_trades: int):
                         live_config = cfg.get("live", {})
                         margin_config = live_config.get("margin_trading", {})
                         margin_enabled = margin_config.get("enabled", False)
+                        force_margin = margin_config.get("force_margin_mode", False)
+                        verify_margin = margin_config.get("verify_margin_status", False)
 
-                        logger.info(f"Margin trading mode: {margin_enabled}")
+                        # force_margin_mode設定処理
+                        if force_margin:
+                            margin_enabled = True
+                            logger.info(
+                                "🔒 Force margin mode enabled - overriding margin_enabled setting"
+                            )
+
+                        logger.info(
+                            f"Margin trading mode: {margin_enabled} (force: {force_margin}, verify: {verify_margin})"
+                        )
 
                         client = create_exchange_client(
                             exchange_id=exchange_id,
@@ -1155,6 +1196,31 @@ def live_bitbank(config_path: str, max_trades: int):
                             ccxt_options=dd.get("ccxt_options", {}),
                             margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
+
+                        # マージン状態検証（verify_margin_status=trueの場合）
+                        if verify_margin:
+                            try:
+                                if hasattr(client, "is_margin_enabled"):
+                                    actual_margin_status = client.is_margin_enabled()
+                                    logger.info(
+                                        f"🔍 Margin status verification: expected={margin_enabled}, actual={actual_margin_status}"
+                                    )
+                                    if margin_enabled and not actual_margin_status:
+                                        logger.warning(
+                                            "⚠️ Margin mode mismatch - expected enabled but actual disabled"
+                                        )
+                                elif hasattr(client, "exchange") and hasattr(
+                                    client.exchange, "privateGetAccount"
+                                ):
+                                    # Bitbank APIでアカウント情報確認
+                                    account_info = client.exchange.privateGetAccount()
+                                    logger.info(
+                                        f"🔍 Account info retrieved for margin verification: {account_info}"
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    f"🔍 Margin status verification failed: {e}"
+                                )
 
                         # Phase 8統計システムとExecutionClient統合
                         integration_service.integrate_with_execution_client(client)
@@ -1292,8 +1358,19 @@ def live_bitbank(config_path: str, max_trades: int):
                         live_config = cfg.get("live", {})
                         margin_config = live_config.get("margin_trading", {})
                         margin_enabled = margin_config.get("enabled", False)
+                        force_margin = margin_config.get("force_margin_mode", False)
+                        verify_margin = margin_config.get("verify_margin_status", False)
 
-                        logger.info(f"Margin trading mode: {margin_enabled}")
+                        # force_margin_mode設定処理
+                        if force_margin:
+                            margin_enabled = True
+                            logger.info(
+                                "🔒 Force margin mode enabled - overriding margin_enabled setting"
+                            )
+
+                        logger.info(
+                            f"Margin trading mode: {margin_enabled} (force: {force_margin}, verify: {verify_margin})"
+                        )
 
                         client = create_exchange_client(
                             exchange_id=exchange_id,
@@ -1302,6 +1379,31 @@ def live_bitbank(config_path: str, max_trades: int):
                             ccxt_options=dd.get("ccxt_options", {}),
                             margin_mode=margin_enabled,  # 信用取引モード有効化
                         )
+
+                        # マージン状態検証（verify_margin_status=trueの場合）
+                        if verify_margin:
+                            try:
+                                if hasattr(client, "is_margin_enabled"):
+                                    actual_margin_status = client.is_margin_enabled()
+                                    logger.info(
+                                        f"🔍 Exit Margin status verification: expected={margin_enabled}, actual={actual_margin_status}"
+                                    )
+                                    if margin_enabled and not actual_margin_status:
+                                        logger.warning(
+                                            "⚠️ Exit Margin mode mismatch - expected enabled but actual disabled"
+                                        )
+                                elif hasattr(client, "exchange") and hasattr(
+                                    client.exchange, "privateGetAccount"
+                                ):
+                                    # Bitbank APIでアカウント情報確認
+                                    account_info = client.exchange.privateGetAccount()
+                                    logger.info(
+                                        f"🔍 Exit Account info retrieved for margin verification: {account_info}"
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    f"🔍 Exit Margin status verification failed: {e}"
+                                )
 
                         # 実際の注文送信
                         order_result = client.create_order(

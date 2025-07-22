@@ -11,14 +11,26 @@ data:
     enableRateLimit: true
     rateLimit: 2000  # Bitbank実測値（2000ms）に最適化
 
-  # Bitbank API制限最適化設定（改善版：500件目標）
-  # 48時間以内の最新データ確実取得・土日24/7対応
+  # Bitbank API制限最適化設定（Phase3改善版：500件確実取得）
+  # 土日ギャップ・動的lookback・段階的フェッチ対応
   limit: 500   # 目標取得件数（500件）
   paginate: true
-  per_page: 100  # 1回あたり最大取得数
-  since_hours: 48  # 明示的48時間設定
+  per_page: 50   # APIコンプライアンス向上（100→50に削減）
+  since_hours: 72  # 土日ギャップ基準時間（48→72に延長）
   weekend_data: true  # 土日データ取得対応
-  fetch_retries: 3  # データ取得リトライ
+  fetch_retries: 5   # データ取得リトライ増加（3→5）
+  adaptive_rate_limit: true  # 動的レート制限有効化
+  
+  # 土日ギャップ対応設定
+  weekend_extension_hours: 48  # 月曜日追加時間
+  early_week_extension_hours: 24  # 火曜午前追加時間
+  
+  # API最適化パラメータ
+  max_consecutive_empty: 3  # 連続空バッチ許容数
+  max_consecutive_no_new: 5  # 連続新レコードなし許容数
+  exponential_backoff: true  # 指数バックオフ有効化
+  min_delay_ms: 2000  # 最小遅延（Bitbank推奨）
+  max_delay_ms: 10000  # 最大遅延
   
   # マルチタイムフレーム対応データ設定
   multi_timeframe_data:
