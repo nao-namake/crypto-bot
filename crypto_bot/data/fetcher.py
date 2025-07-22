@@ -119,7 +119,7 @@ class MarketDataFetcher:
 
             while len(records) < max_records and attempt < MAX_ATTEMPTS:
                 logger.info(
-                    f"🔄 Attempt {attempt+1}/{MAX_ATTEMPTS}: fetching from {last_since}, "
+                    f"🔄 Attempt {attempt + 1}/{MAX_ATTEMPTS}: fetching from {last_since}, "
                     f"current={len(records)}/{max_records}"
                 )
 
@@ -162,7 +162,19 @@ class MarketDataFetcher:
                         if ts not in seen_ts:
                             seen_ts.add(ts)
                             records.append(row)
-                            last_since = ts + 1
+                            # タイムフレームに応じた適切な時刻進行
+                            # 1h = 3600秒, 4h = 14400秒, 15m = 900秒
+                            timeframe_ms = {
+                                "1m": 60 * 1000,
+                                "5m": 5 * 60 * 1000,
+                                "15m": 15 * 60 * 1000,
+                                "1h": 60 * 60 * 1000,
+                                "4h": 4 * 60 * 60 * 1000,
+                                "1d": 24 * 60 * 60 * 1000,
+                            }.get(
+                                timeframe, 60 * 60 * 1000
+                            )  # デフォルト1時間
+                            last_since = ts + timeframe_ms
                             added = True
 
                     if not added:
@@ -179,7 +191,18 @@ class MarketDataFetcher:
 
                         # 新レコードなしの場合はタイムスタンプを進める
                         if batch:
-                            last_since = batch[-1][0] + 1
+                            # タイムフレームに応じた適切な時刻進行
+                            timeframe_ms = {
+                                "1m": 60 * 1000,
+                                "5m": 5 * 60 * 1000,
+                                "15m": 15 * 60 * 1000,
+                                "1h": 60 * 60 * 1000,
+                                "4h": 4 * 60 * 60 * 1000,
+                                "1d": 24 * 60 * 60 * 1000,
+                            }.get(
+                                timeframe, 60 * 60 * 1000
+                            )  # デフォルト1時間
+                            last_since = batch[-1][0] + timeframe_ms
                     else:
                         # 新レコードがあった場合はカウンタリセット
                         consecutive_no_new = 0
@@ -200,7 +223,7 @@ class MarketDataFetcher:
                         time.sleep(base_delay)
 
                 except Exception as e:
-                    logger.error(f"❌ Batch fetch error on attempt {attempt+1}: {e}")
+                    logger.error(f"❌ Batch fetch error on attempt {attempt + 1}: {e}")
                     # エラー時は少し待機してリトライ
                     error_delay = min((attempt + 1) * 1.5, 8)
                     time.sleep(error_delay)
