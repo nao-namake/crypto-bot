@@ -11,11 +11,14 @@ data:
     enableRateLimit: true
     rateLimit: 2000  # Bitbank実測値（2000ms）に最適化
 
-  # Bitbank API制限最適化設定（実測：100件要求→20件取得）
-  # since設定なし→動的48時間計算・土日24/7対応
-  limit: 100   # Bitbank実測制限に最適化（効率的データ取得）
+  # Bitbank API制限最適化設定（改善版：500件目標）
+  # 48時間以内の最新データ確実取得・土日24/7対応
+  limit: 500   # 目標取得件数（500件）
   paginate: true
-  per_page: 20  # 実際の取得可能件数に最適化
+  per_page: 100  # 1回あたり最大取得数
+  since_hours: 48  # 明示的48時間設定
+  weekend_data: true  # 土日データ取得対応
+  fetch_retries: 3  # データ取得リトライ
   
   # マルチタイムフレーム対応データ設定
   multi_timeframe_data:
@@ -37,6 +40,17 @@ strategy:
   params:
     model_path: /app/models/production/model.pkl  # 固定パス統一
     threshold: 0.05
+    ml_config:
+      feat_period: 14
+      lags: [1,2,3,4,5]
+      rolling_window: 20
+      horizon: 5
+      target_type: classification
+      model_type: lgbm
+      ensemble:
+        enabled: true
+        method: trading_stacking
+        confidence_threshold: 0.65
 
 # マルチタイムフレーム設定
 multi_timeframe:
@@ -67,6 +81,8 @@ live:
     enabled: true
     leverage: 1.0
     position_type: "both"
+    force_margin_mode: true  # margin_mode=true強制適用
+    verify_margin_status: true  # margin状態確認強制
   
   # Bitbank固有設定
   bitbank_settings:
@@ -92,69 +108,59 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 151特徴量フル版：外部データ完全統合
+  # 実装済み特徴量のみ（WARNING解消・安定動作重視）
   extra_features:
-    # 基本テクニカル特徴量（10特徴量）
+    # 基本テクニカル特徴量（実装済み）
     - rsi_14
+    - rsi_7
+    - rsi_21
     - macd
+    - sma_10
+    - sma_20
     - sma_50
+    - sma_100
     - sma_200
+    - ema_10
     - ema_12
     - ema_26
+    - ema_50
+    - ema_100
     - bb_upper
     - bb_lower
+    - bb_percent
+    - bb_width
+    - atr_7
     - atr_14
+    - atr_21
     - volume_sma
+    - volume_zscore_14
+    - volume_zscore_50
+    - momentum_14
+    - trend_strength
     
-    # Phase 3.2A: 高優先度テクニカル指標（20特徴量）
-    - rsi_7        # RSI 7期間
-    - rsi_21       # RSI 21期間
-    - sma_10       # SMA 10期間
-    - sma_20       # SMA 20期間
-    - sma_100      # SMA 100期間
-    - ema_10       # EMA 10期間
-    - ema_50       # EMA 50期間
-    - ema_100      # EMA 100期間
-    - stoch        # ストキャスティクス（K, D）
-    - willr        # Williams %R
-    - adx          # ADX（ADX, DI+, DI-）
-    - cmf          # チャイキンマネーフロー
-    - bollinger    # ボリンジャーバンド完全版（上位・下位・%B・幅）
+    # Phase 3.2A: 高度テクニカル指標（実装済み）
+    - stoch        # ストキャスティクス
+    - willr_14     # Williams %R
+    - adx          # ADX
+    - cmf_20       # チャイキンマネーフロー
     - fisher       # フィッシャートランスフォーム
-    - atr_7        # ATR 7期間
-    - atr_21       # ATR 21期間
-    - momentum_14  # モメンタム 14期間
-    - trend_strength # トレンド強度（ADXベース）
-    - volume_zscore_14 # ボリューム Z-Score 14期間
-    - volume_zscore_50 # ボリューム Z-Score 50期間
     
-    # Phase 3.2B: 価格アクション特徴量（15特徴量）
-    - price_position    # 価格位置指標（5特徴量）
-    - candle_patterns   # ローソク足パターン（4特徴量）
-    - support_resistance # サポート・レジスタンス（3特徴量）
-    - breakout_signals  # ブレイクアウトシグナル（3特徴量）
+    # 外部データ特徴量（実装済み・動作確認済み）
+    - vix          # VIX恐怖指数（Yahoo Finance）
+    - dxy          # ドル指数・金利（Yahoo Finance）
+    - fear_greed   # Fear&Greed指数（Alternative.me）
+    - funding      # Funding Rate・OI（Binance）
     
-    # Phase 3.2C: 時系列・トレンド特徴量（15特徴量）
-    - autocorrelation   # 自己相関（5特徴量）
-    - seasonal_patterns # 季節性パターン（4特徴量）
-    - regime_detection  # レジーム検出（3特徴量）
-    - cycle_analysis    # サイクル分析（3特徴量）
-    
-    # Phase 3.2D: クロスアセット特徴量（15特徴量）
-    - cross_correlation # クロス相関（5特徴量）
-    - relative_strength # 相対強度（5特徴量）
-    - spread_analysis   # スプレッド分析（5特徴量）
-    
-    # 外部データ特徴量
-    - vix          # VIX恐怖指数（6特徴量）
-    - dxy          # ドル指数・金利（10特徴量）
-    - fear_greed   # Fear&Greed指数（13特徴量）
-    - funding      # Funding Rate・OI（25特徴量・トレンド判定）
-    
-    # 高度特徴量（22特徴量）
-    - volatility_regime    # ボラティリティレジーム（7特徴量）
-    - momentum_signals     # モメンタム信号（7特徴量）
-    - liquidity_indicators # 流動性指標（8特徴量）
+    # 時間・シグナル特徴量（実装済み）
+    - day_of_week
+    - hour_of_day
+    - price_change_1h
+    - price_change_4h
+    - price_change_24h
+    - volume_change_1h
+    - volume_change_24h
+    - volatility_1h
+    - volatility_24h
     
     
   # 外部データ設定
