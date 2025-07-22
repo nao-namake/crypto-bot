@@ -11,11 +11,11 @@ import sys
 import traceback
 from pathlib import Path
 
+import numpy as np
+import pandas as pd  # noqa: F401
+
 # プロジェクトパス追加
 sys.path.insert(0, str(Path(__file__).parent))
-
-import numpy as np
-import pandas as pd
 
 # ログ設定
 logging.basicConfig(
@@ -29,22 +29,21 @@ def test_phase_c1_imports():
     logger.info("🔍 Phase C1モジュールインポートテスト開始...")
 
     try:
-        # Phase C1新モジュール群インポート
+        # Phase C1新モジュール群インポート（テスト用）
         from crypto_bot.ml.cross_timeframe_ensemble import (
-            CrossTimeframeIntegrator,
             create_cross_timeframe_integrator,
         )
-        from crypto_bot.ml.timeframe_ensemble import (
-            TimeframeEnsembleProcessor,
-            create_timeframe_ensemble_processor,
-        )
+        from crypto_bot.ml.timeframe_ensemble import create_timeframe_ensemble_processor
         from crypto_bot.strategy.multi_timeframe_ensemble_strategy import (
             MultiTimeframeEnsembleStrategy,
         )
-        from crypto_bot.utils.ensemble_confidence import (
-            EnsembleConfidenceCalculator,
-            calculate_ensemble_confidence,
-        )
+        from crypto_bot.utils.ensemble_confidence import EnsembleConfidenceCalculator
+
+        # インポートテスト：存在することを確認
+        assert callable(create_cross_timeframe_integrator)
+        assert callable(create_timeframe_ensemble_processor)
+        assert MultiTimeframeEnsembleStrategy is not None
+        assert EnsembleConfidenceCalculator is not None
 
         logger.info("✅ 全Phase C1モジュール正常インポート成功")
         return True
@@ -131,17 +130,17 @@ def test_timeframe_ensemble_processor():
         processor = create_timeframe_ensemble_processor("1h", config)
 
         # テストデータ作成（簡単な価格データ）
-        dates = pd.date_range("2024-01-01", periods=100, freq="H")
-        _price_data = pd.DataFrame(
-            {
-                "open": np.random.normal(50000, 1000, 100),
-                "high": np.random.normal(50500, 1000, 100),
-                "low": np.random.normal(49500, 1000, 100),
-                "close": np.random.normal(50000, 1000, 100),
-                "volume": np.random.normal(100, 20, 100),
-            },
-            index=dates,
-        )
+        # dates = pd.date_range("2024-01-01", periods=100, freq="H")  # 未使用のためコメントアウト
+        # price_data = pd.DataFrame(
+        #     {
+        #         "open": np.random.normal(50000, 1000, 100),
+        #         "high": np.random.normal(50500, 1000, 100),
+        #         "low": np.random.normal(49500, 1000, 100),
+        #         "close": np.random.normal(50000, 1000, 100),
+        #         "volume": np.random.normal(100, 20, 100),
+        #     },
+        #     index=dates,
+        # )
 
         # プロセッサー情報取得テスト
         processor_info = processor.get_processor_info()
@@ -352,17 +351,25 @@ def test_existing_system_integration():
                 TechnicalFeatureEngine,
             )
 
+            # 存在確認テスト
+            assert BatchFeatureCalculator is not None
+            assert ExternalDataIntegrator is not None
+            assert TechnicalFeatureEngine is not None
+
             logger.info("   ✅ Phase B基盤モジュール利用可能")
-            _phase_b_available = True
+            # _phase_b_available = True  # noqa: F841
         except ImportError:
             logger.info("   ⚠️ Phase B基盤モジュール未利用（正常動作可能）")
-            _phase_b_available = False
+            # _phase_b_available = False  # noqa: F841
 
         # 既存ML統合システム確認
         try:
-            from crypto_bot.ml.ensemble import TradingEnsembleClassifier
-            from crypto_bot.ml.preprocessor import FeatureEngineer
+            from crypto_bot.ml.ensemble import TradingEnsembleClassifier  # noqa: F401
+            from crypto_bot.ml.preprocessor import FeatureEngineer  # noqa: F401
             from crypto_bot.strategy.ensemble_ml_strategy import EnsembleMLStrategy
+
+            # 存在確認テスト
+            assert EnsembleMLStrategy is not None
 
             logger.info("   ✅ 既存ML統合システム利用可能")
         except ImportError as e:
@@ -375,6 +382,11 @@ def test_existing_system_integration():
             from crypto_bot.data.macro_fetcher import MacroDataFetcher
             from crypto_bot.data.vix_fetcher import VIXDataFetcher
 
+            # 存在確認テスト
+            assert FearGreedDataFetcher is not None
+            assert MacroDataFetcher is not None
+            assert VIXDataFetcher is not None
+
             logger.info("   ✅ 151特徴量システム利用可能")
         except ImportError as e:
             logger.warning(f"   ⚠️ 一部151特徴量システム未利用: {e}")
@@ -384,7 +396,13 @@ def test_existing_system_integration():
             from crypto_bot.data.multi_timeframe_fetcher import (
                 MultiTimeframeDataFetcher,
             )
+
+            # 存在確認テスト
+            assert MultiTimeframeDataFetcher is not None
             from crypto_bot.data.timeframe_synchronizer import TimeframeSynchronizer
+
+            # 存在確認テスト
+            assert TimeframeSynchronizer is not None
 
             logger.info("   ✅ マルチタイムフレームデータ基盤利用可能")
         except ImportError as e:

@@ -15,10 +15,7 @@ import pandas as pd
 
 from crypto_bot.data.multi_timeframe_fetcher import MultiTimeframeDataFetcher
 from crypto_bot.execution.engine import Position, Signal
-from crypto_bot.ml.cross_timeframe_ensemble import (
-    CrossTimeframeIntegrator,
-    create_cross_timeframe_integrator,
-)
+from crypto_bot.ml.cross_timeframe_ensemble import create_cross_timeframe_integrator
 from crypto_bot.ml.preprocessor import FeatureEngineer
 from crypto_bot.ml.timeframe_ensemble import (
     TimeframeEnsembleProcessor,

@@ -6,22 +6,18 @@
 # 科学的検証・効果測定・意思決定支援システム
 # =============================================================================
 
-import json
 import logging
-import os
 import threading
 import uuid
 from collections import defaultdict, deque
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from scipy import stats
-from scipy.stats import chi2_contingency, mannwhitneyu, ttest_ind, wilcoxon
+from scipy.stats import mannwhitneyu, ttest_ind
 
 try:
     import seaborn as sns

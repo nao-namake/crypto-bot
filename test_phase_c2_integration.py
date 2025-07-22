@@ -293,7 +293,7 @@ class PhaseC2IntegrationTest(unittest.TestCase):
             for i in range(15):  # 十分なサンプル数
                 # 予測結果記録を使用
                 timeframe = np.random.choice(["15m", "1h", "4h"])
-                _accuracy = np.random.uniform(0.5, 0.8)
+                # _accuracy = np.random.uniform(0.5, 0.8)  # noqa: F841
                 confidence = np.random.uniform(0.6, 0.9)
 
                 monitor.record_prediction_result(
@@ -462,14 +462,14 @@ class PhaseC2IntegrationTest(unittest.TestCase):
             from crypto_bot.feedback.feedback_loop_manager import FeedbackLoopManager
             from crypto_bot.ml.dynamic_weight_adjuster import DynamicWeightAdjuster
             from crypto_bot.monitoring.performance_monitor import PerformanceMonitor
-            from crypto_bot.validation.ab_testing_system import ABTestingSystem
 
+            # from crypto_bot.validation.ab_testing_system import ABTestingSystem  # 未使用のためコメントアウト
             # すべてのコンポーネント初期化
             market_analyzer = MarketEnvironmentAnalyzer(self.test_config)
             weight_adjuster = DynamicWeightAdjuster(self.test_config)
             performance_monitor = PerformanceMonitor(self.test_config)
             feedback_manager = FeedbackLoopManager(self.test_config)
-            ab_tester = ABTestingSystem(self.test_config)
+            # ab_tester = ABTestingSystem(self.test_config)  # 未使用のためコメントアウト
 
             # 統合ワークフロー実行
             logger.info("   🔄 Running integrated workflow simulation...")
@@ -561,14 +561,18 @@ class PhaseC2IntegrationTest(unittest.TestCase):
                 from crypto_bot.data.multi_source_fetcher import MultiSourceDataFetcher
                 from crypto_bot.ml.preprocessor import FeatureEngineer
 
+                # 存在確認テスト
+                assert MultiSourceDataFetcher is not None
+                assert FeatureEngineer is not None
+
                 logger.info("   ✅ Phase B modules available for integration")
-                phase_b_available = True
+                # phase_b_available = True  # 未使用のためコメントアウト
 
             except ImportError:
                 logger.info(
                     "   ⚠️  Phase B modules not available, testing with fallback"
                 )
-                phase_b_available = False
+                # phase_b_available = False  # 未使用のためコメントアウト
 
             # Phase C2システムでPhase B風機能をシミュレート
             from crypto_bot.ml.dynamic_weight_adjuster import DynamicWeightAdjuster
@@ -619,19 +623,23 @@ class PhaseC2IntegrationTest(unittest.TestCase):
                     MultiTimeframeEnsembleStrategy,
                 )
 
+                # 存在確認テスト
+                assert CrossTimeframeIntegrator is not None
+                assert MultiTimeframeEnsembleStrategy is not None
+
                 logger.info("   ✅ Phase C1 modules available for integration")
-                phase_c1_available = True
+                # phase_c1_available = True  # 未使用のためコメントアウト
 
             except ImportError:
                 logger.info(
                     "   ⚠️  Phase C1 modules not available, testing with simulation"
                 )
-                phase_c1_available = False
+                # phase_c1_available = False  # 未使用のためコメントアウト
 
             # Phase C1機能をPhase C2システムで統合テスト
             from crypto_bot.ml.dynamic_weight_adjuster import DynamicWeightAdjuster
-            from crypto_bot.monitoring.performance_monitor import PerformanceMonitor
 
+            # from crypto_bot.monitoring.performance_monitor import PerformanceMonitor  # 未使用のためコメントアウト
             # Phase C1風の2段階アンサンブル結果シミュレート
             ensemble_results = {
                 "stage1_results": {  # タイムフレーム内アンサンブル
@@ -661,7 +669,7 @@ class PhaseC2IntegrationTest(unittest.TestCase):
 
             # Phase C2でPhase C1結果を活用した動的重み調整
             weight_adjuster = DynamicWeightAdjuster(self.test_config)
-            performance_monitor = PerformanceMonitor(self.test_config)
+            # performance_monitor = PerformanceMonitor(self.test_config)  # 未使用のためコメントアウト
 
             # アンサンブル統合重みを基に動的調整
             base_weights = ensemble_results["stage2_results"]["integration_weights"]
@@ -743,14 +751,16 @@ def run_phase_c2_integration_tests():
         if failures:
             print("\n❌ Test Failures:")
             for i, (test, traceback) in enumerate(result.failures, 1):
+                newline = "\n"
                 print(
-                    f"   {i}. {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}"
+                    f"   {i}. {test}: {traceback.split('AssertionError: ')[-1].split(newline)[0]}"
                 )
 
         if errors:
             print("\n💥 Test Errors:")
             for i, (test, traceback) in enumerate(result.errors, 1):
-                print(f"   {i}. {test}: {traceback.split('\\n')[-2]}")
+                newline = "\n"
+                print(f"   {i}. {test}: {traceback.split(newline)[-2]}")
 
     print("\n" + "=" * 80)
     return result.wasSuccessful()
