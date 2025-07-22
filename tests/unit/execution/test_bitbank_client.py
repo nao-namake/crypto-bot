@@ -4,7 +4,6 @@
 #   - BitbankClient: bitbank.cc APIラッパー
 #   - 注文・キャンセル・残高照会等の基本機能
 
-import pandas as pd
 import pytest
 
 from crypto_bot.execution.bitbank_client import BitbankClient
@@ -42,10 +41,12 @@ def test_fetch_balance(mock_ccxt_bitbank):
 
 def test_fetch_ohlcv(mock_ccxt_bitbank):
     client = BitbankClient(api_key="x", api_secret="y")
-    df = client.fetch_ohlcv("BTC/JPY", "1m")
-    assert isinstance(df, pd.DataFrame)
-    assert "open" in df.columns
-    assert df.iloc[0]["open"] == 1
+    data = client.fetch_ohlcv("BTC/JPY", "1m")
+    assert isinstance(data, list)
+    assert len(data) > 0
+    # OHLCV データ構造確認: [timestamp, open, high, low, close, volume]
+    assert len(data[0]) == 6  # OHLCV + volume
+    assert data[0][1] == 1  # open価格
 
 
 def test_create_order(mock_ccxt_bitbank):

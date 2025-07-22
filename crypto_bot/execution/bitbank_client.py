@@ -9,7 +9,6 @@
 import logging
 
 import ccxt
-import pandas as pd
 
 from .base import ExchangeClient
 
@@ -46,13 +45,25 @@ class BitbankClient(ExchangeClient):
     def fetch_balance(self) -> dict:
         return self._exchange.fetch_balance()
 
-    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None) -> pd.DataFrame:
+    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None) -> list:
+        """
+        OHLCV データを取得（ページネーション対応のため生データを返す）
+
+        Args:
+            symbol: 通貨ペア
+            timeframe: タイムフレーム
+            since: 開始時刻（ms）
+            limit: 取得件数上限
+
+        Returns:
+            list: OHLCV生データ [[timestamp, open, high, low, close, volume], ...]
+
+        Note:
+            DataFrameへの変換はMarketDataFetcher側で統一的に行う
+            これによりページネーション機能が正常動作する
+        """
         data = self._exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=limit)
-        df = pd.DataFrame(
-            data, columns=["ts", "open", "high", "low", "close", "volume"]
-        )
-        df["ts"] = pd.to_datetime(df["ts"], unit="ms")
-        return df.set_index("ts")
+        return data  # 生データ（list）をそのまま返してページネーション機能を有効化
 
     def create_order(self, symbol, side, type, amount, price=None, params=None):
         """
