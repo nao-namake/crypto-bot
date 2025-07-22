@@ -40,7 +40,8 @@ strategy:
   params:
     model_path: /app/models/production/model.pkl  # 固定パス統一
     threshold: 0.05
-    ml_config:
+    # 戦略が期待するMLセクション全体を追加
+    ml:
       feat_period: 14
       lags: [1,2,3,4,5]
       rolling_window: 20
@@ -51,6 +52,64 @@ strategy:
         enabled: true
         method: trading_stacking
         confidence_threshold: 0.65
+        risk_adjustment: true
+        models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
+        model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
+      # 実装済み特徴量のみ（WARNING解消・安定動作重視）
+      extra_features:
+        # 基本テクニカル特徴量（実装済み）
+        - rsi_14
+        - rsi_7
+        - rsi_21
+        - macd
+        - sma_10
+        - sma_20
+        - sma_50
+        - sma_100
+        - sma_200
+        - ema_10
+        - ema_12
+        - ema_26
+        - ema_50
+        - ema_100
+        - bb_upper
+        - bb_lower
+        - bb_percent
+        - bb_width
+        - atr_7
+        - atr_14
+        - atr_21
+        - volume_sma
+        - volume_zscore_14
+        - volume_zscore_50
+        - momentum_14
+        - trend_strength
+        # Phase 3.2A: 高度テクニカル指標（実装済み）
+        - stoch        # ストキャスティクス
+        - willr_14     # Williams %R
+        - adx          # ADX
+        - cmf_20       # チャイキンマネーフロー
+        - fisher       # フィッシャートランスフォーム
+        # 外部データ特徴量（実装済み・動作確認済み）
+        - vix          # VIX恐怖指数（Yahoo Finance）
+        - dxy          # ドル指数・金利（Yahoo Finance）
+        - fear_greed   # Fear&Greed指数（Alternative.me）
+        - funding      # Funding Rate・OI（Binance）
+        # 時間・シグナル特徴量（実装済み）
+        - day_of_week
+        - hour_of_day
+        - price_change_1h
+        - price_change_4h
+        - price_change_24h
+        - volume_change_1h
+        - volume_change_24h
+        - volatility_1h
+        - volatility_24h
+      # 外部データ設定
+      external_data:
+        enabled: true
+        cache_enabled: true
+        fallback_enabled: true
 
 # マルチタイムフレーム設定
 multi_timeframe:
