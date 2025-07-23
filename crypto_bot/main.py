@@ -1196,9 +1196,15 @@ def live_bitbank(config_path: str, max_trades: int):
                         verify_margin = margin_config.get("verify_margin_status", False)
 
                         # 🔥 Phase F.1: デバッグログ追加
-                        logger.info(f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}")
-                        logger.info(f"🔍 [DEBUG] margin_config content: {margin_config}")
-                        logger.info(f"🔍 [DEBUG] force_margin_mode value: {force_margin}")
+                        logger.info(
+                            f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}"
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] margin_config content: {margin_config}"
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] force_margin_mode value: {force_margin}"
+                        )
 
                         # force_margin_mode設定処理
                         if force_margin:
@@ -1384,9 +1390,15 @@ def live_bitbank(config_path: str, max_trades: int):
                         verify_margin = margin_config.get("verify_margin_status", False)
 
                         # 🔥 Phase F.1: デバッグログ追加
-                        logger.info(f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}")
-                        logger.info(f"🔍 [DEBUG] margin_config content: {margin_config}")
-                        logger.info(f"🔍 [DEBUG] force_margin_mode value: {force_margin}")
+                        logger.info(
+                            f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}"
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] margin_config content: {margin_config}"
+                        )
+                        logger.info(
+                            f"🔍 [DEBUG] force_margin_mode value: {force_margin}"
+                        )
 
                         # force_margin_mode設定処理
                         if force_margin:
