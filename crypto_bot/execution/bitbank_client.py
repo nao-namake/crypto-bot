@@ -42,7 +42,7 @@ class BitbankClient(ExchangeClient):
         if ccxt_options:
             exchange_config.update(ccxt_options)
             logger.info(f"BitbankClient ccxt_options applied: {ccxt_options}")
-        
+
         self._exchange = ccxt.bitbank(exchange_config)
         self.margin_mode = margin_mode
         logger.info(f"BitbankClient initialized: margin_mode={margin_mode}")
