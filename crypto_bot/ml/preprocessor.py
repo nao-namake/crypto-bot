@@ -597,9 +597,17 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 elif feat_lc == "hour_of_day":
                     columns.append("hour_of_day")
                 # Phase F.3: 新規特徴量の列名定義
-                elif feat_lc in ["volatility_24h", "volatility_1h", "volume_change_24h", 
-                                "volume_change_1h", "price_change_24h", "price_change_4h", 
-                                "price_change_1h", "cmf_20", "willr_14"]:
+                elif feat_lc in [
+                    "volatility_24h",
+                    "volatility_1h",
+                    "volume_change_24h",
+                    "volume_change_1h",
+                    "price_change_24h",
+                    "price_change_4h",
+                    "price_change_1h",
+                    "cmf_20",
+                    "willr_14",
+                ]:
                     columns.append(feat_lc)
                 elif feat_lc in ["mochipoyo_long_signal", "mochipoyo_short_signal"]:
                     columns.extend(["mochipoyo_long_signal", "mochipoyo_short_signal"])
@@ -693,15 +701,25 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                     elif feat_lc == "volatility_1h":
                         df["volatility_1h"] = self.ind_calc.volatility_1h(df["close"])
                     elif feat_lc == "volume_change_24h":
-                        df["volume_change_24h"] = self.ind_calc.volume_change_24h(df["volume"])
+                        df["volume_change_24h"] = self.ind_calc.volume_change_24h(
+                            df["volume"]
+                        )
                     elif feat_lc == "volume_change_1h":
-                        df["volume_change_1h"] = self.ind_calc.volume_change_1h(df["volume"])
+                        df["volume_change_1h"] = self.ind_calc.volume_change_1h(
+                            df["volume"]
+                        )
                     elif feat_lc == "price_change_24h":
-                        df["price_change_24h"] = self.ind_calc.price_change_24h(df["close"])
+                        df["price_change_24h"] = self.ind_calc.price_change_24h(
+                            df["close"]
+                        )
                     elif feat_lc == "price_change_4h":
-                        df["price_change_4h"] = self.ind_calc.price_change_4h(df["close"])
+                        df["price_change_4h"] = self.ind_calc.price_change_4h(
+                            df["close"]
+                        )
                     elif feat_lc == "price_change_1h":
-                        df["price_change_1h"] = self.ind_calc.price_change_1h(df["close"])
+                        df["price_change_1h"] = self.ind_calc.price_change_1h(
+                            df["close"]
+                        )
                     elif feat_lc == "cmf_20":
                         df["cmf_20"] = self.ind_calc.cmf_20(df)
                     elif feat_lc == "willr_14":

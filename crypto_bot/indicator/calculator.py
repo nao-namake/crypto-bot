@@ -448,37 +448,41 @@ class IndicatorCalculator:
     def volatility_24h(self, series: pd.Series) -> pd.Series:
         """24時間ボラティリティ"""
         returns = series.pct_change()
-        return (returns.rolling(24).std() * np.sqrt(24)).fillna(0.0).rename("volatility_24h")
-    
+        return (
+            (returns.rolling(24).std() * np.sqrt(24))
+            .fillna(0.0)
+            .rename("volatility_24h")
+        )
+
     def volatility_1h(self, series: pd.Series) -> pd.Series:
         """1時間ボラティリティ"""
         returns = series.pct_change()
         return returns.rolling(1).std().fillna(0.0).rename("volatility_1h")
-    
+
     def volume_change_24h(self, series: pd.Series) -> pd.Series:
         """24時間ボリューム変化率"""
         return series.pct_change(24).fillna(0.0).rename("volume_change_24h")
-    
+
     def volume_change_1h(self, series: pd.Series) -> pd.Series:
         """1時間ボリューム変化率"""
         return series.pct_change(1).fillna(0.0).rename("volume_change_1h")
-    
+
     def price_change_24h(self, series: pd.Series) -> pd.Series:
         """24時間価格変化率"""
         return series.pct_change(24).fillna(0.0).rename("price_change_24h")
-    
+
     def price_change_4h(self, series: pd.Series) -> pd.Series:
         """4時間価格変化率"""
         return series.pct_change(4).fillna(0.0).rename("price_change_4h")
-    
+
     def price_change_1h(self, series: pd.Series) -> pd.Series:
         """1時間価格変化率"""
         return series.pct_change(1).fillna(0.0).rename("price_change_1h")
-    
+
     def cmf_20(self, df: pd.DataFrame) -> pd.Series:
         """CMF 20期間（WARNING解消用）"""
         return self.chaikin_money_flow(df, window=20).rename("cmf_20")
-    
+
     def willr_14(self, df: pd.DataFrame) -> pd.Series:
         """Williams %R 14期間（WARNING解消用）"""
         return self.williams_r(df, window=14).rename("willr_14")

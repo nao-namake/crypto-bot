@@ -145,7 +145,7 @@ def enhanced_init_5_fetch_price_data(
         except Exception as e:
             fetch_time = time.time() - start_time
             error_str = str(e)
-            
+
             # Phase F.4: API制限エラー特別処理
             if "10000" in error_str or "rate limit" in error_str.lower():
                 logger.error(
@@ -162,7 +162,9 @@ def enhanced_init_5_fetch_price_data(
                 )
                 # 通常エラーの場合は標準的な待機時間
                 wait_time = min((attempt + 1) * 10, 60)
-                logger.info(f"⏳ [INIT-5] Standard backoff: waiting {wait_time}s before retry...")
+                logger.info(
+                    f"⏳ [INIT-5] Standard backoff: waiting {wait_time}s before retry..."
+                )
 
             if attempt < max_retries - 1:
                 time.sleep(wait_time)
