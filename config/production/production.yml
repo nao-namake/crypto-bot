@@ -9,28 +9,28 @@ data:
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 10000  # Bitbank実測値に基づく安全設定（5000→10000ms）
+    rateLimit: 20000  # Phase G.1.1: 構造修正後最適設定（20秒間隔・確実なAPI安全性）
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Bitbank API 実用最適設定（ML性能とAPI安全の実測バランス）
+  # Phase G.1.1: Bitbank API 超保守的設定（API安全性完全優先・エラー10000根絶）
   limit: 100       # ML品質確保（50→100件に戻す、十分な学習データ）
   paginate: true   # ページネーション有効
-  per_page: 10     # 超安全設定（20→10件、API負荷最小化）
-  since_hours: 48  # データ範囲適正化（安定性とML品質のバランス）
-  weekend_data: true  # 土日データ取得対応
-  fetch_retries: 1    # 最小リトライ（2→1回、APIコール削減）
+  per_page: 20     # Phase G.1.1: 構造修正後効率設定（5→20件、API負荷と効率のバランス）
+  since_hours: 48  # Phase G.1.1: 48時間データ範囲維持（ML精度保持・構造修正でAPI安全性確保）
+  weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
+  fetch_retries: 2    # Phase G.1.1: 適度リトライ（0→2回、安定性とAPI安全のバランス）
   adaptive_rate_limit: true  # 動的レート制限有効化
   
   # 土日ギャップ対応設定（動的since_hours拡張・品質向上対応）
   weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
   early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
   
-  # ページネーション最適化パラメータ（10秒間隔対応・実測安全設定）
+  # Phase G.1.1: ページネーション超保守的パラメータ（15秒間隔・エラー10000根絶）
   max_consecutive_empty: 1  # 連続空バッチ許容数（早期終了でAPI負荷削減）
   max_consecutive_no_new: 1  # 連続新レコードなし許容数（2→1、効率化）
   exponential_backoff: true  # 指数バックオフ有効化
-  min_delay_ms: 10000  # 最小遅延（5000→10000ms、rateLimit統一）
+  min_delay_ms: 20000  # Phase G.1.1: 構造修正後最適遅延（15000→20000ms、rateLimit統一）
   max_delay_ms: 30000  # 最大遅延（15000→30000ms、確実な安全性）
   
   # マルチタイムフレーム対応データ設定

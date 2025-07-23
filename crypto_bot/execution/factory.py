@@ -50,7 +50,8 @@ def create_exchange_client(
     # ── 以降は CCXT ラッパー系 ──────────────────────────────
     if eid == "bitbank":
         return BitbankClient(
-            api_key, api_secret, testnet=testnet, margin_mode=margin_mode
+            api_key, api_secret, testnet=testnet, margin_mode=margin_mode,
+            ccxt_options=ccxt_options or {}  # Phase G.1.1: ccxt_options伝達欠陥修復
         )
 
     if eid == "bitflyer":

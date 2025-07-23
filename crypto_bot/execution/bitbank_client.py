@@ -22,6 +22,7 @@ class BitbankClient(ExchangeClient):
         api_secret: str,
         testnet: bool = False,
         margin_mode: bool = False,
+        ccxt_options: dict = None,  # Phase G.1.1: ccxt_optionsパラメータ追加
     ):
         """
         Bitbank取引所クライアント
@@ -32,13 +33,17 @@ class BitbankClient(ExchangeClient):
             testnet: テストネットフラグ（Bitbankでは無視）
             margin_mode: 信用取引モード（True=信用取引、False=現物取引）
         """
-        # bitbank にはテストネットは公式にはないので testnet フラグは無視してよい
-        self._exchange = ccxt.bitbank(
-            {
-                "apiKey": api_key,
-                "secret": api_secret,
-            }
-        )
+        # Phase G.1.1: ccxt_options統合・bitbank設定完全反映
+        exchange_config = {
+            "apiKey": api_key,
+            "secret": api_secret,
+        }
+        # ccxt_optionsが指定されている場合は統合（rateLimit等を反映）
+        if ccxt_options:
+            exchange_config.update(ccxt_options)
+            logger.info(f"BitbankClient ccxt_options applied: {ccxt_options}")
+        
+        self._exchange = ccxt.bitbank(exchange_config)
         self.margin_mode = margin_mode
         logger.info(f"BitbankClient initialized: margin_mode={margin_mode}")
 
