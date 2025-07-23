@@ -108,6 +108,7 @@ class MultiTimeframeDataFetcher:
         logger.info(f"  - Timeframes: {self.timeframes}")
         logger.info(f"  - Base timeframe: {self.base_timeframe}")
         logger.info(f"  - Cache enabled: {self.cache_enabled}")
+        logger.info(f"  - Data quality threshold: {self.data_quality_threshold}")
         logger.info(f"  - Synchronization enabled: {self.synchronization_enabled}")
 
     def get_multi_timeframe_data(

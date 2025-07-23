@@ -78,6 +78,10 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         self.base_timeframe = multi_config.get("base_timeframe", "1h")
         self.data_quality_threshold = multi_config.get("data_quality_threshold", 0.9)
 
+        logger.info(
+            f"🔧 Strategy data quality threshold set to: {self.data_quality_threshold}"
+        )
+
         # アンサンブル設定
         ensemble_config = config.get("ml", {}).get("ensemble", {})
         self.ensemble_enabled = ensemble_config.get("enabled", True)
