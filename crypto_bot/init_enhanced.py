@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def enhanced_init_5_fetch_price_data(
-    fetcher, dd: dict, max_retries: int = 5, timeout: int = 30
+    fetcher, dd: dict, max_retries: int = 5, timeout: int = 60
 ) -> Optional[pd.DataFrame]:
     """
     INIT-5段階: 初期価格データ取得（強化版）
@@ -24,7 +24,7 @@ def enhanced_init_5_fetch_price_data(
         fetcher: データフェッチャー
         dd: データ設定辞書
         max_retries: 最大再試行回数
-        timeout: タイムアウト秒数
+        timeout: タイムアウト秒数（Phase F.4: 30→60秒延長）
 
     Returns:
         DataFrame: 価格データ（失敗時はNone）
@@ -32,7 +32,7 @@ def enhanced_init_5_fetch_price_data(
     logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
     logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     logger.info(
-        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s"
+        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase F.4延長)"
     )
 
     # 外部データフェッチャーの初期化確認
@@ -144,19 +144,32 @@ def enhanced_init_5_fetch_price_data(
 
         except Exception as e:
             fetch_time = time.time() - start_time
-            logger.error(
-                f"❌ [INIT-5] Attempt {attempt + 1} failed after {fetch_time:.2f}s: {e}"
-            )
+            error_str = str(e)
+            
+            # Phase F.4: API制限エラー特別処理
+            if "10000" in error_str or "rate limit" in error_str.lower():
+                logger.error(
+                    f"🚨 [INIT-5] API rate limit error detected (attempt {attempt + 1}): {e}"
+                )
+                # API制限エラーの場合はより長い待機時間
+                wait_time = min((attempt + 1) * 20, 120)  # 最大2分待機
+                logger.warning(
+                    f"⏳ [INIT-5] API limit backoff: waiting {wait_time}s for recovery..."
+                )
+            else:
+                logger.error(
+                    f"❌ [INIT-5] Attempt {attempt + 1} failed after {fetch_time:.2f}s: {e}"
+                )
+                # 通常エラーの場合は標準的な待機時間
+                wait_time = min((attempt + 1) * 10, 60)
+                logger.info(f"⏳ [INIT-5] Standard backoff: waiting {wait_time}s before retry...")
 
             if attempt < max_retries - 1:
-                # 指数バックオフ
-                wait_time = min((attempt + 1) * 10, 60)
-                logger.info(f"⏳ [INIT-5] Waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
             else:
                 logger.error(
                     f"❌ [INIT-5] All {max_retries} attempts failed - "
-                    "data fetch completely failed"
+                    "data fetch completely failed. Consider increasing timeout or reducing API load."
                 )
                 initial_df = None
 
