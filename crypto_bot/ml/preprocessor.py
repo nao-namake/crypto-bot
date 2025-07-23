@@ -596,6 +596,11 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                     columns.append("day_of_week")
                 elif feat_lc == "hour_of_day":
                     columns.append("hour_of_day")
+                # Phase F.3: 新規特徴量の列名定義
+                elif feat_lc in ["volatility_24h", "volatility_1h", "volume_change_24h", 
+                                "volume_change_1h", "price_change_24h", "price_change_4h", 
+                                "price_change_1h", "cmf_20", "willr_14"]:
+                    columns.append(feat_lc)
                 elif feat_lc in ["mochipoyo_long_signal", "mochipoyo_short_signal"]:
                     columns.extend(["mochipoyo_long_signal", "mochipoyo_short_signal"])
             return pd.DataFrame(columns=columns)
@@ -681,6 +686,26 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                             df["hour_of_day"] = df.index.hour.astype("int8")
                         else:
                             df["hour_of_day"] = 0
+
+                    # Phase F.3: 151特徴量WARNING解消 - 不足特徴量処理
+                    elif feat_lc == "volatility_24h":
+                        df["volatility_24h"] = self.ind_calc.volatility_24h(df["close"])
+                    elif feat_lc == "volatility_1h":
+                        df["volatility_1h"] = self.ind_calc.volatility_1h(df["close"])
+                    elif feat_lc == "volume_change_24h":
+                        df["volume_change_24h"] = self.ind_calc.volume_change_24h(df["volume"])
+                    elif feat_lc == "volume_change_1h":
+                        df["volume_change_1h"] = self.ind_calc.volume_change_1h(df["volume"])
+                    elif feat_lc == "price_change_24h":
+                        df["price_change_24h"] = self.ind_calc.price_change_24h(df["close"])
+                    elif feat_lc == "price_change_4h":
+                        df["price_change_4h"] = self.ind_calc.price_change_4h(df["close"])
+                    elif feat_lc == "price_change_1h":
+                        df["price_change_1h"] = self.ind_calc.price_change_1h(df["close"])
+                    elif feat_lc == "cmf_20":
+                        df["cmf_20"] = self.ind_calc.cmf_20(df)
+                    elif feat_lc == "willr_14":
+                        df["willr_14"] = self.ind_calc.willr_14(df)
 
                     # Phase B2.5: VIX特徴量は既にExternalDataIntegratorで処理済み
                     elif base == "vix":
