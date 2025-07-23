@@ -130,6 +130,7 @@ multi_timeframe:
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
+  data_quality_threshold: 0.6  # 60%以上の品質で使用（90%→60%に緩和）
 
 # 本番リスク設定
 risk:
