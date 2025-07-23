@@ -56,6 +56,10 @@ class MultiTimeframeDataFetcher:
             synchronization_enabled = mtf_config.get(
                 "data_sync_enabled", synchronization_enabled
             )
+            # データ品質閾値も設定から読み取る
+            data_quality_threshold = mtf_config.get(
+                "data_quality_threshold", data_quality_threshold
+            )
 
         self.base_fetcher = base_fetcher
         self.config = config
