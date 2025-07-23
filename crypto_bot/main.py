@@ -197,6 +197,19 @@ def deep_merge(default: dict, override: dict) -> dict:
     return default
 
 
+def expand_env_vars_recursive(obj):
+    """再帰的に環境変数を展開"""
+    if isinstance(obj, dict):
+        return {key: expand_env_vars_recursive(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [expand_env_vars_recursive(item) for item in obj]
+    elif isinstance(obj, str):
+        # ${ENV_VAR} パターンを展開
+        return os.path.expandvars(obj)
+    else:
+        return obj
+
+
 def load_config(path: str) -> dict:
     import logging
 
@@ -217,6 +230,10 @@ def load_config(path: str) -> dict:
             user_cfg = yaml.safe_load(f) or {}
         config = deep_merge(default_cfg, user_cfg)
         logger.info("🔧 [CONFIG] Development mode: Merged default.yml")
+
+    # 🔥 Phase F.1: 環境変数展開処理を追加
+    config = expand_env_vars_recursive(config)
+    logger.info("🔧 [CONFIG] Environment variables expanded")
 
     # 設定検証を実行
     try:
@@ -1178,6 +1195,11 @@ def live_bitbank(config_path: str, max_trades: int):
                         force_margin = margin_config.get("force_margin_mode", False)
                         verify_margin = margin_config.get("verify_margin_status", False)
 
+                        # 🔥 Phase F.1: デバッグログ追加
+                        logger.info(f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}")
+                        logger.info(f"🔍 [DEBUG] margin_config content: {margin_config}")
+                        logger.info(f"🔍 [DEBUG] force_margin_mode value: {force_margin}")
+
                         # force_margin_mode設定処理
                         if force_margin:
                             margin_enabled = True
@@ -1360,6 +1382,11 @@ def live_bitbank(config_path: str, max_trades: int):
                         margin_enabled = margin_config.get("enabled", False)
                         force_margin = margin_config.get("force_margin_mode", False)
                         verify_margin = margin_config.get("verify_margin_status", False)
+
+                        # 🔥 Phase F.1: デバッグログ追加
+                        logger.info(f"🔍 [DEBUG] live_config keys: {list(live_config.keys())}")
+                        logger.info(f"🔍 [DEBUG] margin_config content: {margin_config}")
+                        logger.info(f"🔍 [DEBUG] force_margin_mode value: {force_margin}")
 
                         # force_margin_mode設定処理
                         if force_margin:
