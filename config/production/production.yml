@@ -9,17 +9,17 @@ data:
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 5000  # 十分な余裕（2000→5000ms、レート制限遵守）
+    rateLimit: 3000  # ML性能とAPI安全のバランス（5000→3000ms）
     timeout: 30000   # タイムアウト30秒
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Bitbank API安全設定（十分な余裕を持った保守的値）
-  limit: 50        # 非常に安全な取得件数（API負荷軽減）
+  # Bitbank API バランス設定（ML性能要件とAPI安全性の最適化）
+  limit: 100       # ML品質に必要なデータ量確保（50→100）
   paginate: true   # ページネーション有効
-  per_page: 20     # 1回の取得を保守的に設定（API安定性重視）
+  per_page: 40     # 効率的取得とAPI安全のバランス（20→40）
   since_hours: 72  # データ品質向上（48→72に拡大・品質スコア改善）
   weekend_data: true  # 土日データ取得対応
-  fetch_retries: 3    # リトライ回数を適度に（5→3、過度な負荷回避）
+  fetch_retries: 4    # リトライ回数をバランス調整（3→4、ML品質確保）
   adaptive_rate_limit: true  # 動的レート制限有効化
   
   # 土日ギャップ対応設定（動的since_hours拡張・品質向上対応）
@@ -30,8 +30,8 @@ data:
   max_consecutive_empty: 2  # 連続空バッチ許容数（3→2に効率化）
   max_consecutive_no_new: 3  # 連続新レコードなし許容数（5→3に効率化）
   exponential_backoff: true  # 指数バックオフ有効化
-  min_delay_ms: 3000  # 最小遅延（十分な余裕、1500→3000ms）
-  max_delay_ms: 15000  # 最大遅延（安全性重視、8000→15000ms）
+  min_delay_ms: 2500  # 最小遅延（ML速度とAPI安全のバランス）
+  max_delay_ms: 10000  # 最大遅延（実用性重視、15000→10000ms）
   
   # マルチタイムフレーム対応データ設定
   multi_timeframe_data:
