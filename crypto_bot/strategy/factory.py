@@ -64,8 +64,8 @@ class StrategyFactory:
             # configを全体として渡すパラメータがあるかチェック
             init_params = {}
             if "config" in sig.parameters:
-                # MLStrategyなど、全体設定が必要な戦略の場合はfull_configを使用
-                if strategy_name in ["ml", "ml_strategy"] and full_config is not None:
+                # MLStrategyや、multi_timeframe_ensembleなど、全体設定が必要な戦略の場合はfull_configを使用
+                if strategy_name in ["ml", "ml_strategy", "multi_timeframe_ensemble"] and full_config is not None:
                     init_params["config"] = full_config
                 else:
                     init_params["config"] = params
