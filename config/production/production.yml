@@ -13,9 +13,9 @@ data:
 
   # Bitbank API最適化設定（ページネーション復活版：500件確実取得）
   # BitbankClient修正により生データ返し・ページネーション完全復活
-  limit: 500   # 目標取得件数（500件）
+  limit: 100   # 安全な取得件数（500→100に緊急修正）
   paginate: true
-  per_page: 100  # BitbankAPI上限活用（50→100に最適化）
+  per_page: 50  # BitbankAPI安全値（100→50に緊急修正）
   since_hours: 72  # データ品質向上（48→72に拡大・品質スコア改善）
   weekend_data: true  # 土日データ取得対応
   fetch_retries: 5   # データ取得リトライ増加
