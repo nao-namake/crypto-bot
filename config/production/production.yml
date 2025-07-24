@@ -17,7 +17,7 @@ data:
   limit: 100       # ML品質確保（50→100件に戻す、十分な学習データ）
   paginate: true   # ページネーション有効
   per_page: 20     # Phase G.1.1: 構造修正後効率設定（5→20件、API負荷と効率のバランス）
-  since_hours: 72  # Phase H.4: 48→72時間に拡大（データ取得問題解決・Bitbank API適正化）
+  since_hours: 120  # Phase H.5.3: 72→120時間（5日間）ML戦略データ不足解決
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 2    # Phase G.1.1: 適度リトライ（0→2回、安定性とAPI安全のバランス）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -34,19 +34,19 @@ data:
   min_delay_ms: 20000  # Phase G.1.1: 構造修正後最適遅延（15000→20000ms、rateLimit統一）
   max_delay_ms: 30000  # 最大遅延（15000→30000ms、確実な安全性）
   
-  # マルチタイムフレーム対応データ設定（Phase H.2.2: 4h復活・1hベース変換設計）
+  # マルチタイムフレーム対応データ設定（Phase H.5.3: 現実的データ量調整）
   multi_timeframe_data:
     base_timeframe: "1h"  # データ取得ベース（Bitbank APIから1hのみ取得）
     target_timeframes:    # 変換対象タイムフレーム（内部変換で15m補間・4h集約）
       15m:
         method: "interpolation"  # 1h→15m 補間
-        min_points: 50
+        min_points: 15           # 72h→15m補間で十分なデータ量（15→30調整）
       1h:
         method: "direct"         # 直接使用
-        min_points: 100
+        min_points: 15           # 100→15に大幅緩和（現実的な最小値）
       4h:
         method: "aggregation"    # 1h→4h 集約（Phase H.2.2復活）
-        min_points: 25
+        min_points: 5            # 25→5に緩和（72時間から作成可能な最小値）
 
 strategy:
   type: multi_timeframe_ensemble
@@ -132,7 +132,7 @@ multi_timeframe:
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
-  data_quality_threshold: 0.6  # 60%以上の品質で使用（90%→60%に緩和）
+  data_quality_threshold: 0.4  # 40%以上の品質で使用（60%→40%にさらに緩和・ML稼働優先）
 
 # 本番リスク設定
 risk:
@@ -333,3 +333,80 @@ bitbank:
     interest_rate: 0.0004  # 0.04%/日
     auto_close_before_rollover: true
     rollover_time: "00:00:00"
+
+# Phase H.5.1: 出来高重点取引戦略（アメリカ・ヨーロッパ時間対応）
+trading_schedule:
+  enabled: true
+  volume_based_trading: true    # 出来高ベーストレード
+  
+  # 高出来高時間帯（UTC基準）
+  peak_trading_hours: [13, 23]  # UTC 13-23時（アメリカ・ヨーロッパピーク）
+  # 日本時間換算: 22:00-08:00（翌日）
+  
+  # 中出来高時間帯
+  moderate_trading_hours: [8, 13] # UTC 8-13時（アジア・ヨーロッパ）
+  # 日本時間換算: 17:00-22:00
+  
+  # 低出来高時間帯（取引控えめ）
+  low_volume_hours: [1, 8]      # UTC 1-8時（深夜・早朝）
+  # 日本時間換算: 10:00-17:00
+  
+  weekend_monitoring: true      # 土日は監視のみ（緊急時対応）
+  timezone: "UTC"              # UTC基準で統一管理
+  
+  # 出来高別取引戦略
+  volume_strategies:
+    high_volume:      # 高出来高時（アメリカ・ヨーロッパピーク）
+      aggressiveness: 1.0     # 積極的取引
+      position_size_mult: 1.2 # ポジションサイズ20%増
+      stop_loss_mult: 0.8     # ストップロス20%タイト
+      
+    moderate_volume:  # 中出来高時（アジア・ヨーロッパ）
+      aggressiveness: 0.7     # 標準的取引
+      position_size_mult: 1.0 # 標準ポジションサイズ
+      stop_loss_mult: 1.0     # 標準ストップロス
+      
+    low_volume:       # 低出来高時（深夜・早朝）
+      aggressiveness: 0.3     # 保守的取引
+      position_size_mult: 0.5 # ポジションサイズ50%削減
+      stop_loss_mult: 1.5     # ストップロス50%緩い
+  
+  # 取引停止期間（出来高・流動性考慮）
+  trading_blackout:
+    weekend_full: true         # 土日完全停止
+    extreme_low_volume: true   # 極度低出来高時停止
+    major_holidays: true       # 主要祝日停止
+  
+  # 監視継続設定  
+  monitoring_only_periods:
+    - start: "Saturday 00:00"
+      end: "Monday 08:00"
+      reason: "weekend_low_liquidity"
+
+# Phase H.5.2: 出来高ベース動的データ取得最適化
+dynamic_data_fetching:
+  enabled: true
+  
+  # 出来高時間帯別since_hours設定
+  high_volume_hours: 96         # 高出来高時は96時間（4日分・より多くのデータ）
+  moderate_volume_hours: 72     # 中出来高時は72時間（標準）
+  low_volume_hours: 48          # 低出来高時は48時間（最小限）
+  
+  # アメリカ市場重点設定
+  us_market_peak_extension: 24  # アメリカピーク時は24時間延長
+  europe_market_bonus: 12       # ヨーロッパ時間は12時間延長
+  asia_market_reduction: 12     # アジア時間は12時間短縮
+  
+  # 出来高ベースAPI最適化
+  volume_based_batching:
+    high_volume_batch: 50       # 高出来高時：大バッチで効率化
+    moderate_volume_batch: 30   # 中出来高時：標準バッチ
+    low_volume_batch: 10        # 低出来高時：小バッチで負荷軽減
+    
+  # 流動性考慮調整
+  high_liquidity_fast_fetch: true  # 高流動性時は高速取得
+  low_liquidity_throttling: true   # 低流動性時はスロットリング
+  
+  # 土日・祝日対応
+  weekend_minimal_fetching: true    # 土日は最小限データ取得
+  holiday_reduced_frequency: true   # 祝日は取得頻度削減
