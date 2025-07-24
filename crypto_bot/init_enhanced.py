@@ -75,10 +75,37 @@ def enhanced_init_5_fetch_price_data(
 
     # メインのデータ取得処理
     initial_df = None
-    timeframe = dd.get("timeframe", "1h")
+
+    # Phase H.3.2: マルチタイムフレーム戦略対応・INIT-5ベースタイムフレーム強制
+    # 設定ファイルからベースタイムフレームを明示的に取得（4h直接要求防止）
+    base_timeframe = "1h"  # デフォルト
+
+    # multi_timeframe_data設定からベースタイムフレームを取得
+    if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+        base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+        logger.info(
+            f"🔧 [INIT-5] Using base_timeframe from multi_timeframe_data: {base_timeframe}"
+        )
+    else:
+        # フォールバック: 通常のtimeframe設定を使用（ただし4hは強制的に1hに変更）
+        timeframe_raw = dd.get("timeframe", "1h")
+        if timeframe_raw == "4h":
+            base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+            logger.warning(
+                "🚨 [INIT-5] Phase H.3.2: 4h timeframe detected, forcing to 1h (Bitbank API compatibility)"
+            )
+        else:
+            base_timeframe = timeframe_raw
+            logger.info(
+                f"🔧 [INIT-5] Using timeframe from data config: {base_timeframe}"
+            )
+
+    timeframe = base_timeframe
     limit = dd.get("limit", 200)
 
-    logger.info(f"🔧 [INIT-5] Fetching data: timeframe={timeframe}, limit={limit}")
+    logger.info(
+        f"🔧 [INIT-5] Phase H.3.2 Modified: timeframe={timeframe}, limit={limit} (API Error 10000 prevention)"
+    )
 
     for attempt in range(max_retries):
         try:
