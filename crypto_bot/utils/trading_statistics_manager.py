@@ -121,7 +121,9 @@ class PerformanceMetrics:
 class TradingStatisticsManager:
     """取引統計管理メインクラス"""
 
-    def __init__(self, base_dir: str = ".", initial_balance: float = 100000.0):
+    def __init__(
+        self, base_dir: str = "/app", initial_balance: float = 100000.0
+    ):  # Phase G.2.4.1: Cloud Run環境統一
         self.base_dir = Path(base_dir)
         self.results_dir = self.base_dir / "results"
         self.results_dir.mkdir(exist_ok=True)

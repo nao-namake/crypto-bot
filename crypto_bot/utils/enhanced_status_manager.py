@@ -106,13 +106,17 @@ class RiskMetrics:
 class EnhancedStatusManager:
     """拡張ステータス管理メインクラス"""
 
-    def __init__(self, base_dir: str = ".", update_interval: int = 30):
+    def __init__(
+        self, base_dir: str = "/app", update_interval: int = 30
+    ):  # Phase G.2.4.1: Cloud Run環境デフォルト
         self.base_dir = Path(base_dir)
         self.update_interval = update_interval
 
-        # ファイルパス
-        self.status_file = self.base_dir / "status.json"
-        self.enhanced_status_file = self.base_dir / "enhanced_status.json"
+        # ファイルパス（Cloud Run環境統一）
+        self.status_file = self.base_dir / "status.json"  # /app/status.json
+        self.enhanced_status_file = (
+            self.base_dir / "enhanced_status.json"
+        )  # /app/enhanced_status.json
         self.system_log_file = self.base_dir / "logs" / "system.log"
 
         # ログディレクトリ作成

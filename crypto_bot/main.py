@@ -996,19 +996,54 @@ def live_bitbank(config_path: str, max_trades: int):
         balance=balance,
     )
 
-    # Phase 8統計システム初期化
+    # Phase 8統計システム初期化（エラーハンドリング強化）
     logger.info("📊 [INIT-9] Initializing Phase 8 Statistics System...")
     logger.info(f"⏰ [INIT-9] Timestamp: {pd.Timestamp.now()}")
-    from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 
-    # TradingIntegrationService初期化
-    integration_service = TradingIntegrationService(
-        base_dir=".", initial_balance=balance
-    )
+    integration_service = None
+    try:
+        from crypto_bot.utils.trading_integration_service import (
+            TradingIntegrationService,
+        )
 
-    # MLStrategyとの統合
-    integration_service.integrate_with_ml_strategy(strategy)
-    logger.info("✅ [INIT-9] Phase 8 Statistics System initialized successfully")
+        # TradingIntegrationService初期化（Cloud Run環境統一）
+        integration_service = TradingIntegrationService(
+            base_dir="/app",
+            initial_balance=balance,  # Phase G.2.4.1: Cloud Run環境パス統一
+        )
+
+        # MLStrategyとの統合
+        integration_service.integrate_with_ml_strategy(strategy)
+        logger.info("✅ [INIT-9] Phase 8 Statistics System initialized successfully")
+
+    except Exception as e:
+        logger.warning(f"⚠️ [INIT-9] Statistics System initialization failed: {e}")
+        logger.info("🔄 [INIT-9] Continuing with basic status.json fallback system...")
+
+        # Phase G.2.4.2: フォールバック - 基本的なstatus.json作成
+        try:
+            import json
+
+            basic_status = {
+                "last_updated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "system_status": "running",
+                "total_profit": 0.0,
+                "trade_count": 0,
+                "position": "No active position",
+                "status": "Statistics system fallback active",
+            }
+            with open("/app/status.json", "w", encoding="utf-8") as f:
+                json.dump(basic_status, f, indent=2, ensure_ascii=False)
+            logger.info(
+                "✅ [INIT-9] Basic status.json created successfully (fallback mode)"
+            )
+        except Exception as fallback_error:
+            logger.error(
+                f"❌ [INIT-9] Fallback status.json creation failed: {fallback_error}"
+            )
+            logger.info("🔄 [INIT-9] Continuing without status file (minimal mode)")
+
+        integration_service = None  # フォールバックモードではNone
 
     # 初期化状況を更新
     try:
@@ -1167,14 +1202,51 @@ def live_bitbank(config_path: str, max_trades: int):
                     f"⚠️ Data is {hours_old:.1f} hours old - monitoring for freshness"
                 )
 
-            # エントリー判定
+            # エントリー判定（Phase G.2.4.3: デバッグ情報強化）
             logger.info("📊 [ENTRY-JUDGE] Starting entry order generation...")
             logger.info(f"⏰ [ENTRY-JUDGE] Timestamp: {pd.Timestamp.now()}")
-            entry_order = entry_exit.generate_entry_order(price_df, position)
-            logger.info(
-                f"✅ [ENTRY-JUDGE] Entry judgment completed - "
-                f"Order exists: {entry_order.exist}"
-            )
+            logger.info(f"🔍 [DEBUG] Price data shape: {price_df.shape}")
+            logger.info(f"🔍 [DEBUG] Price data latest: {price_df.tail(1).to_dict()}")
+
+            # Phase G.2.4.3: エントリー判定詳細ログ
+            try:
+                entry_order = entry_exit.generate_entry_order(price_df, position)
+                logger.info(
+                    f"✅ [ENTRY-JUDGE] Entry judgment completed - "
+                    f"Order exists: {entry_order.exist}"
+                )
+
+                # Phase G.2.4.3: シグナル詳細情報ログ
+                if hasattr(entry_order, "side") and hasattr(entry_order, "price"):
+                    logger.info(
+                        f"🔍 [DEBUG] Entry order details: side={getattr(entry_order, 'side', 'N/A')}, price={getattr(entry_order, 'price', 'N/A')}, lot={getattr(entry_order, 'lot', 'N/A')}"
+                    )
+
+                # Phase G.2.4.3: 戦略内部状態確認
+                if hasattr(entry_exit, "strategy"):
+                    logger.info(
+                        f"🔍 [DEBUG] Strategy type: {type(entry_exit.strategy).__name__}"
+                    )
+                    if hasattr(entry_exit.strategy, "get_multi_ensemble_info"):
+                        try:
+                            ensemble_info = (
+                                entry_exit.strategy.get_multi_ensemble_info()
+                            )
+                            logger.info(
+                                f"🔍 [DEBUG] Multi-ensemble info: {ensemble_info.get('strategy_type', 'unknown')}"
+                            )
+                        except Exception as ensemble_error:
+                            logger.warning(
+                                f"⚠️ [DEBUG] Ensemble info retrieval failed: {ensemble_error}"
+                            )
+
+            except Exception as entry_error:
+                logger.error(
+                    f"❌ [ENTRY-JUDGE] Entry order generation failed: {entry_error}"
+                )
+                logger.info("🔄 [ENTRY-JUDGE] Continuing to next iteration...")
+                time.sleep(30)
+                continue
             prev_trades = trade_done
             if entry_order.exist:
                 logger.info(
@@ -1250,8 +1322,16 @@ def live_bitbank(config_path: str, max_trades: int):
                                     f"🔍 Margin status verification failed: {e}"
                                 )
 
-                        # Phase 8統計システムとExecutionClient統合
-                        integration_service.integrate_with_execution_client(client)
+                        # Phase 8統計システムとExecutionClient統合（Noneチェック追加）
+                        if integration_service is not None:
+                            integration_service.integrate_with_execution_client(client)
+                            logger.debug(
+                                "📊 Statistics system integrated with execution client"
+                            )
+                        else:
+                            logger.debug(
+                                "📊 Statistics system not available (fallback mode)"
+                            )
 
                         # 注文パラメータの検証とログ出力
                         current_price = (
@@ -1362,14 +1442,55 @@ def live_bitbank(config_path: str, max_trades: int):
                             f"New balance: {balance}"
                         )
 
-            # エグジット判定
+            # エグジット判定（Phase G.2.4.3: デバッグ情報強化）
             logger.info("📊 [EXIT-JUDGE] Starting exit order generation...")
             logger.info(f"⏰ [EXIT-JUDGE] Timestamp: {pd.Timestamp.now()}")
-            exit_order = entry_exit.generate_exit_order(price_df, position)
             logger.info(
-                f"✅ [EXIT-JUDGE] Exit judgment completed - "
-                f"Order exists: {exit_order.exist}"
+                f"🔍 [DEBUG] Current position state: exist={position.exist}, side={getattr(position, 'side', 'N/A')}"
             )
+            logger.info(
+                f"🔍 [DEBUG] Position entry_price={getattr(position, 'entry_price', 'N/A')}, lot={getattr(position, 'lot', 'N/A')}"
+            )
+
+            # Phase G.2.4.3: エグジット判定詳細ログ
+            try:
+                exit_order = entry_exit.generate_exit_order(price_df, position)
+                logger.info(
+                    f"✅ [EXIT-JUDGE] Exit judgment completed - "
+                    f"Order exists: {exit_order.exist}"
+                )
+
+                # Phase G.2.4.3: エグジットシグナル詳細情報ログ
+                if hasattr(exit_order, "side") and hasattr(exit_order, "price"):
+                    logger.info(
+                        f"🔍 [DEBUG] Exit order details: side={getattr(exit_order, 'side', 'N/A')}, price={getattr(exit_order, 'price', 'N/A')}, lot={getattr(exit_order, 'lot', 'N/A')}"
+                    )
+
+                # Phase G.2.4.3: エグジット戦略内部状態確認
+                if hasattr(entry_exit, "strategy"):
+                    logger.info(
+                        f"🔍 [DEBUG] Exit Strategy type: {type(entry_exit.strategy).__name__}"
+                    )
+                    if hasattr(entry_exit.strategy, "get_multi_ensemble_info"):
+                        try:
+                            ensemble_info = (
+                                entry_exit.strategy.get_multi_ensemble_info()
+                            )
+                            logger.info(
+                                f"🔍 [DEBUG] Exit Multi-ensemble info: {ensemble_info.get('strategy_type', 'unknown')}"
+                            )
+                        except Exception as ensemble_error:
+                            logger.warning(
+                                f"⚠️ [DEBUG] Exit ensemble info retrieval failed: {ensemble_error}"
+                            )
+
+            except Exception as exit_error:
+                logger.error(
+                    f"❌ [EXIT-JUDGE] Exit order generation failed: {exit_error}"
+                )
+                logger.info("🔄 [EXIT-JUDGE] Continuing to next iteration...")
+                time.sleep(30)
+                continue
             if exit_order.exist:
                 logger.info(
                     f"Exit order generated: {exit_order.side} "

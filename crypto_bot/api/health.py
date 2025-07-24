@@ -264,8 +264,10 @@ class HealthChecker:
     def check_trading_status(self) -> Dict[str, Any]:
         """取引状態のチェック"""
         try:
-            # status.json ファイルから最新の取引状態を読み取り
-            status_file = "status.json"
+            # status.json ファイルから最新の取引状態を読み取り（Cloud Run環境対応）
+            status_file = (
+                "/app/status.json"  # Phase G.2.4.1: 絶対パス統一・Cloud Run環境対応
+            )
             if os.path.exists(status_file):
                 with open(status_file, "r") as f:
                     status_data = json.load(f)

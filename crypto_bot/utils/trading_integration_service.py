@@ -13,7 +13,9 @@ from .enhanced_status_manager import EnhancedStatusManager
 class TradingIntegrationService:
     """取引統合サービスメインクラス"""
 
-    def __init__(self, base_dir: str = ".", initial_balance: float = 100000.0):
+    def __init__(
+        self, base_dir: str = "/app", initial_balance: float = 100000.0
+    ):  # Phase G.2.4.1: Cloud Run環境統一
         self.base_dir = base_dir
         self.initial_balance = initial_balance
 
