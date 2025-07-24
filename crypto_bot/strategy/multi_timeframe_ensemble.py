@@ -88,7 +88,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 data_quality_threshold=self.data_quality_threshold,
                 synchronization_enabled=True,
             )
-            logger.info(f"✅ Multi-timeframe data fetcher initialized with config support")
+            logger.info(
+                "✅ Multi-timeframe data fetcher initialized with config support"
+            )
             logger.info(f"  - Timeframes: {self.timeframes}")
             logger.info(f"  - Base timeframe: {self.base_timeframe}")
             logger.info(f"  - Quality threshold: {self.data_quality_threshold}")
