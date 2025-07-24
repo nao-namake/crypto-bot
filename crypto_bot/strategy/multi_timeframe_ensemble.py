@@ -72,7 +72,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
 
     def set_data_fetcher(self, base_fetcher):
         """
-        ベースデータフェッチャーを設定し、マルチタイムフレームフェッチャーを初期化
+        ベースデータフェッチャーを設定し、マルチタイムフレームフェッチャーを初期化（Phase H.2.2強化）
 
         Args:
             base_fetcher: MarketDataFetcher インスタンス
@@ -81,12 +81,17 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             self._base_fetcher = base_fetcher
             self.multi_timeframe_fetcher = MultiTimeframeDataFetcher(
                 base_fetcher=base_fetcher,
+                config=self.config,  # Phase H.2.2: 完全な設定を渡す
                 timeframes=self.timeframes,
                 base_timeframe=self.base_timeframe,
                 cache_enabled=True,
                 data_quality_threshold=self.data_quality_threshold,
+                synchronization_enabled=True,
             )
-            logger.info("✅ Multi-timeframe data fetcher initialized")
+            logger.info(f"✅ Multi-timeframe data fetcher initialized with config support")
+            logger.info(f"  - Timeframes: {self.timeframes}")
+            logger.info(f"  - Base timeframe: {self.base_timeframe}")
+            logger.info(f"  - Quality threshold: {self.data_quality_threshold}")
         except Exception as e:
             logger.error(f"❌ Failed to initialize multi-timeframe fetcher: {e}")
             self.multi_timeframe_fetcher = None

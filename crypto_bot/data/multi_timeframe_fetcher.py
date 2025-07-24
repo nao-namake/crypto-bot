@@ -49,7 +49,7 @@ class MultiTimeframeDataFetcher:
             synchronization_enabled: 同期機能有効化
             sync_tolerance_minutes: 同期許容誤差（分）
         """
-        # configからの設定読み取り
+        # configからの設定読み取り（Phase H.2.2: 4h復活対応）
         if config and "multi_timeframe" in config:
             mtf_config = config["multi_timeframe"]
             timeframes = timeframes or mtf_config.get("timeframes", ["15m", "1h", "4h"])
@@ -60,6 +60,24 @@ class MultiTimeframeDataFetcher:
             data_quality_threshold = mtf_config.get(
                 "data_quality_threshold", data_quality_threshold
             )
+            
+        # multi_timeframe_data設定も読み取り（Phase H.2.2: target_timeframes対応）
+        if config and "data" in config and "multi_timeframe_data" in config["data"]:
+            mtf_data_config = config["data"]["multi_timeframe_data"]
+            # base_timeframeの確認
+            config_base_timeframe = mtf_data_config.get("base_timeframe", "1h")
+            if config_base_timeframe != base_timeframe:
+                logger.info(f"Using config base_timeframe: {config_base_timeframe}")
+                base_timeframe = config_base_timeframe
+            
+            # target_timeframesがある場合はそれを使用
+            target_timeframes_config = mtf_data_config.get("target_timeframes", {})
+            if target_timeframes_config:
+                # 設定されたタイムフレームのみを使用
+                configured_timeframes = list(target_timeframes_config.keys())
+                if configured_timeframes:
+                    timeframes = configured_timeframes
+                    logger.info(f"Using configured target timeframes: {timeframes}")
 
         self.base_fetcher = base_fetcher
         self.config = config
@@ -259,25 +277,64 @@ class MultiTimeframeDataFetcher:
     def _convert_to_timeframe(
         self, base_data: pd.DataFrame, target_timeframe: str
     ) -> pd.DataFrame:
-        """タイムフレーム変換"""
+        """タイムフレーム変換（Phase H.2.2: 設定ベース強化・4h復活対応）"""
         if target_timeframe == self.base_timeframe:
             return base_data.copy()
 
         try:
-            if target_timeframe == "15m" and self.base_timeframe == "1h":
+            # 設定ファイルから変換方法を取得
+            conversion_method = self._get_conversion_method(target_timeframe)
+            
+            logger.debug(f"Converting {self.base_timeframe} → {target_timeframe} using method: {conversion_method}")
+
+            if conversion_method == "interpolation" and target_timeframe == "15m":
                 return self._interpolate_to_15m(base_data)
-            elif target_timeframe == "4h" and self.base_timeframe == "1h":
+            elif conversion_method == "aggregation" and target_timeframe == "4h":
                 return self._aggregate_to_4h(base_data)
+            elif conversion_method == "direct":
+                return base_data.copy()
             else:
-                logger.warning(
-                    f"⚠️ Unsupported conversion: "
-                    f"{self.base_timeframe} → {target_timeframe}"
-                )
-                return pd.DataFrame()
+                # フォールバック: 従来の方式
+                if target_timeframe == "15m" and self.base_timeframe == "1h":
+                    return self._interpolate_to_15m(base_data)
+                elif target_timeframe == "4h" and self.base_timeframe == "1h":
+                    return self._aggregate_to_4h(base_data)
+                else:
+                    logger.warning(
+                        f"⚠️ Unsupported conversion: "
+                        f"{self.base_timeframe} → {target_timeframe}"
+                    )
+                    return pd.DataFrame()
 
         except Exception as e:
             logger.error(f"❌ Timeframe conversion failed: {e}")
             return pd.DataFrame()
+    
+    def _get_conversion_method(self, target_timeframe: str) -> str:
+        """設定から変換方法を取得（Phase H.2.2）"""
+        try:
+            if (self.config and 
+                "data" in self.config and 
+                "multi_timeframe_data" in self.config["data"]):
+                
+                target_config = self.config["data"]["multi_timeframe_data"].get("target_timeframes", {})
+                tf_config = target_config.get(target_timeframe, {})
+                method = tf_config.get("method", "auto")
+                
+                if method != "auto":
+                    return method
+            
+            # デフォルト方式
+            if target_timeframe == "15m":
+                return "interpolation"
+            elif target_timeframe == "4h":
+                return "aggregation"
+            else:
+                return "direct"
+                
+        except Exception as e:
+            logger.warning(f"Failed to get conversion method for {target_timeframe}: {e}")
+            return "auto"
 
     def _interpolate_to_15m(self, hourly_data: pd.DataFrame) -> pd.DataFrame:
         """1時間足→15分足補間"""

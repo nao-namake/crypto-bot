@@ -33,10 +33,10 @@ data:
   min_delay_ms: 20000  # Phase G.1.1: 構造修正後最適遅延（15000→20000ms、rateLimit統一）
   max_delay_ms: 30000  # 最大遅延（15000→30000ms、確実な安全性）
   
-  # マルチタイムフレーム対応データ設定
+  # マルチタイムフレーム対応データ設定（Phase H.2.2: 4h復活・1hベース変換設計）
   multi_timeframe_data:
-    base_timeframe: "1h"  # データ取得ベース
-    target_timeframes:    # 変換対象タイムフレーム
+    base_timeframe: "1h"  # データ取得ベース（Bitbank APIから1hのみ取得）
+    target_timeframes:    # 変換対象タイムフレーム（内部変換で15m補間・4h集約）
       15m:
         method: "interpolation"  # 1h→15m 補間
         min_points: 50
@@ -44,7 +44,7 @@ data:
         method: "direct"         # 直接使用
         min_points: 100
       4h:
-        method: "aggregation"    # 1h→4h 集約
+        method: "aggregation"    # 1h→4h 集約（Phase H.2.2復活）
         min_points: 25
 
 strategy:
@@ -124,10 +124,10 @@ strategy:
         cache_enabled: true
         fallback_enabled: true
 
-# マルチタイムフレーム設定
+# マルチタイムフレーム設定（Phase H.2.2: 本来設計復活・1h→15m/4h変換）
 multi_timeframe:
-  timeframes: ["15m", "1h", "4h"]
-  weights: [0.3, 0.5, 0.2]  # 15分足30%, 1時間足50%, 4時間足20%
+  timeframes: ["15m", "1h", "4h"]  # 3つのタイムフレーム統合（1hベースから15m補間・4h集約）
+  weights: [0.3, 0.5, 0.2]  # 15分足30%, 1時間足50%, 4時間足20%（本来の配分復活）
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
