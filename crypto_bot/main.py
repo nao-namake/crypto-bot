@@ -271,8 +271,19 @@ def prepare_data(cfg: dict):
             symbol=dd.get("symbol"),
             ccxt_options=dd.get("ccxt_options"),
         )
+        # Phase H.3.2 Fix: prepare_dataでもベースタイムフレームを使用
+        base_timeframe = "1h"  # デフォルト
+        if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+            base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+        else:
+            timeframe_raw = dd.get("timeframe", "1h")
+            if timeframe_raw == "4h":
+                base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+            else:
+                base_timeframe = timeframe_raw
+                
         df = fetcher.get_price_df(
-            timeframe=dd.get("timeframe"),
+            timeframe=base_timeframe,  # Phase H.3.2: base_timeframeを使用
             since=dd.get("since"),
             limit=dd.get("limit"),
             paginate=dd.get("paginate", False),
@@ -283,7 +294,7 @@ def prepare_data(cfg: dict):
     if "volume" not in df.columns:
         df["volume"] = 0
     window = cfg["ml"].get("feat_period", 0)
-    df = DataPreprocessor.clean(df, timeframe=dd.get("timeframe"), window=window)
+    df = DataPreprocessor.clean(df, timeframe=base_timeframe, window=window)  # Phase H.3.2: base_timeframeを使用
 
     if df.empty:
         return pd.DataFrame(), pd.Series(), pd.DataFrame(), pd.Series()
@@ -384,8 +395,19 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
             symbol=dd.get("symbol"),
             ccxt_options=dd.get("ccxt_options"),
         )
+        # Phase H.3.2 Fix: run_optimizationでもベースタイムフレームを使用
+        base_timeframe = "1h"  # デフォルト
+        if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+            base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+        else:
+            timeframe_raw = dd.get("timeframe", "1h")
+            if timeframe_raw == "4h":
+                base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+            else:
+                base_timeframe = timeframe_raw
+                
         df = fetcher.get_price_df(
-            timeframe=dd.get("timeframe"),
+            timeframe=base_timeframe,  # Phase H.3.2: base_timeframeを使用
             since=dd.get("since"),
             limit=dd.get("limit"),
             paginate=dd.get("paginate", False),
@@ -395,7 +417,7 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         df.index = pd.to_datetime(df.index)
 
     window = cfg["ml"].get("feat_period", 0)
-    df = DataPreprocessor.clean(df, timeframe=dd.get("timeframe"), window=window)
+    df = DataPreprocessor.clean(df, timeframe=base_timeframe, window=window)  # Phase H.3.2: base_timeframeを使用
 
     # Walk-forward split
     wf = cfg["walk_forward"]
@@ -1143,8 +1165,31 @@ def live_bitbank(config_path: str, max_trades: int):
                         f"(current: {current_time})"
                     )
 
+                    # Phase H.3.2 Fix: マルチタイムフレーム戦略でもベースタイムフレームを使用
+                    base_timeframe = "1h"  # デフォルト
+                    
+                    # multi_timeframe_data設定からベースタイムフレームを取得
+                    if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+                        base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+                        logger.info(
+                            f"🔧 [DATA-FETCH] Using base_timeframe from multi_timeframe_data: {base_timeframe}"
+                        )
+                    else:
+                        # フォールバック: 通常のtimeframe設定を使用（ただし4hは強制的に1hに変更）
+                        timeframe_raw = dd.get("timeframe", "1h")
+                        if timeframe_raw == "4h":
+                            base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+                            logger.warning(
+                                "🚨 [DATA-FETCH] Phase H.3.2: 4h timeframe detected in main loop, forcing to 1h (Bitbank API compatibility)"
+                            )
+                        else:
+                            base_timeframe = timeframe_raw
+                            logger.info(
+                                f"🔧 [DATA-FETCH] Using timeframe from data config: {base_timeframe}"
+                            )
+
                     price_df = fetcher.get_price_df(
-                        timeframe=dd.get("timeframe", "1h"),
+                        timeframe=base_timeframe,  # Phase H.3.2: base_timeframeを使用
                         since=since_time,  # 設定ファイルで指定した時間のデータ
                         limit=dd.get(
                             "limit", 500
