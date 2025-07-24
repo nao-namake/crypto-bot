@@ -273,7 +273,10 @@ def prepare_data(cfg: dict):
         )
         # Phase H.3.2 Fix: prepare_dataでもベースタイムフレームを使用
         base_timeframe = "1h"  # デフォルト
-        if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+        if (
+            "multi_timeframe_data" in dd
+            and "base_timeframe" in dd["multi_timeframe_data"]
+        ):
             base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
         else:
             timeframe_raw = dd.get("timeframe", "1h")
@@ -281,7 +284,7 @@ def prepare_data(cfg: dict):
                 base_timeframe = "1h"  # 4h要求を強制的に1hに変換
             else:
                 base_timeframe = timeframe_raw
-                
+
         df = fetcher.get_price_df(
             timeframe=base_timeframe,  # Phase H.3.2: base_timeframeを使用
             since=dd.get("since"),
@@ -294,7 +297,9 @@ def prepare_data(cfg: dict):
     if "volume" not in df.columns:
         df["volume"] = 0
     window = cfg["ml"].get("feat_period", 0)
-    df = DataPreprocessor.clean(df, timeframe=base_timeframe, window=window)  # Phase H.3.2: base_timeframeを使用
+    df = DataPreprocessor.clean(
+        df, timeframe=base_timeframe, window=window
+    )  # Phase H.3.2: base_timeframeを使用
 
     if df.empty:
         return pd.DataFrame(), pd.Series(), pd.DataFrame(), pd.Series()
@@ -397,7 +402,10 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         )
         # Phase H.3.2 Fix: run_optimizationでもベースタイムフレームを使用
         base_timeframe = "1h"  # デフォルト
-        if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+        if (
+            "multi_timeframe_data" in dd
+            and "base_timeframe" in dd["multi_timeframe_data"]
+        ):
             base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
         else:
             timeframe_raw = dd.get("timeframe", "1h")
@@ -405,7 +413,6 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
                 base_timeframe = "1h"  # 4h要求を強制的に1hに変換
             else:
                 base_timeframe = timeframe_raw
-                
         df = fetcher.get_price_df(
             timeframe=base_timeframe,  # Phase H.3.2: base_timeframeを使用
             since=dd.get("since"),
@@ -417,7 +424,9 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         df.index = pd.to_datetime(df.index)
 
     window = cfg["ml"].get("feat_period", 0)
-    df = DataPreprocessor.clean(df, timeframe=base_timeframe, window=window)  # Phase H.3.2: base_timeframeを使用
+    df = DataPreprocessor.clean(
+        df, timeframe=base_timeframe, window=window
+    )  # Phase H.3.2: base_timeframeを使用
 
     # Walk-forward split
     wf = cfg["walk_forward"]
@@ -1162,24 +1171,39 @@ def live_bitbank(config_path: str, max_trades: int):
                         logger.info(
                             f"🔍 [DEBUG] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, Lookback: {hours_back}h, Since: {since_time}"
                         )
-                        logger.info(f"🕐 [PHASE-H4] Time range details:")
+                        logger.info("🕐 [PHASE-H4] Time range details:")
                         logger.info(f"   📅 Current time: {current_time}")
                         logger.info(f"   📅 Since time: {since_time}")
-                        logger.info(f"   ⏰ Time span: {hours_back} hours ({hours_back/24:.1f} days)")
+                        logger.info(
+                            f"   ⏰ Time span: {hours_back} hours ({hours_back/24:.1f} days)"
+                        )
                         logger.info(f"   📊 Expected 1h records: ~{hours_back}")
-                        
                         # Phase H.4: 時間範囲妥当性チェック
-                        time_diff_hours = (current_time - since_time).total_seconds() / 3600
+                        time_diff_hours = (
+                            current_time - since_time
+                        ).total_seconds() / 3600
                         if time_diff_hours != hours_back:
-                            logger.warning(f"⚠️ [PHASE-H4] Time calculation mismatch: expected {hours_back}h, actual {time_diff_hours:.2f}h")
-                        
+                            logger.warning(
+                                f"⚠️ [PHASE-H4] Time calculation mismatch: expected {hours_back}h, actual {time_diff_hours:.2f}h"
+                            )
                         # Phase H.4: Bitbank市場時間との整合性チェック
                         if hours_back > 168:  # 1週間以上
-                            logger.warning(f"⚠️ [PHASE-H4] Large time range detected: {hours_back}h might exceed Bitbank data availability")
-                        
+                            logger.warning(
+                                f"⚠️ [PHASE-H4] Large time range detected: {hours_back}h might exceed Bitbank data availability"
+                            )
                         # Phase H.4: 土日データ可用性チェック
-                        weekday_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][current_day]
-                        logger.info(f"📅 [PHASE-H4] Today is {weekday_name}, weekend data extension applied: {hours_back > base_hours}")
+                        weekday_name = [
+                            "Monday",
+                            "Tuesday",
+                            "Wednesday",
+                            "Thursday",
+                            "Friday",
+                            "Saturday",
+                            "Sunday",
+                        ][current_day]
+                        logger.info(
+                            f"📅 [PHASE-H4] Today is {weekday_name}, weekend data extension applied: {hours_back > base_hours}"
+                        )
                     logger.info(
                         f"🔄 Fetching latest data since: {since_time} "
                         f"(current: {current_time})"
@@ -1187,9 +1211,11 @@ def live_bitbank(config_path: str, max_trades: int):
 
                     # Phase H.3.2 Fix: マルチタイムフレーム戦略でもベースタイムフレームを使用
                     base_timeframe = "1h"  # デフォルト
-                    
                     # multi_timeframe_data設定からベースタイムフレームを取得
-                    if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
+                    if (
+                        "multi_timeframe_data" in dd
+                        and "base_timeframe" in dd["multi_timeframe_data"]
+                    ):
                         base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
                         logger.info(
                             f"🔧 [DATA-FETCH] Using base_timeframe from multi_timeframe_data: {base_timeframe}"

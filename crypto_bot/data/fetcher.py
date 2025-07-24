@@ -111,11 +111,16 @@ class MarketDataFetcher:
         if paginate and limit:
             # Phase H.4: 設定値の動的読み込み（デフォルト値は従来通り）
             MAX_ATTEMPTS = max_attempts if max_attempts is not None else 15
-            MAX_CONSECUTIVE_EMPTY = max_consecutive_empty if max_consecutive_empty is not None else 3
-            MAX_CONSECUTIVE_NO_NEW = max_consecutive_no_new if max_consecutive_no_new is not None else 5
-            
+            MAX_CONSECUTIVE_EMPTY = (
+                max_consecutive_empty if max_consecutive_empty is not None else 3
+            )
+            MAX_CONSECUTIVE_NO_NEW = (
+                max_consecutive_no_new if max_consecutive_no_new is not None else 5
+            )
             logger.info(f"🔄 Paginated fetch: limit={limit}, per_page={per_page}")
-            logger.info(f"🔧 [PHASE-H4] Pagination config: MAX_ATTEMPTS={MAX_ATTEMPTS}, MAX_CONSECUTIVE_EMPTY={MAX_CONSECUTIVE_EMPTY}, MAX_CONSECUTIVE_NO_NEW={MAX_CONSECUTIVE_NO_NEW}")
+            logger.info(
+                f"🔧 [PHASE-H4] Pagination config: MAX_ATTEMPTS={MAX_ATTEMPTS}, MAX_CONSECUTIVE_EMPTY={MAX_CONSECUTIVE_EMPTY}, MAX_CONSECUTIVE_NO_NEW={MAX_CONSECUTIVE_NO_NEW}"
+            )
             records: List = []
             seen_ts = set()
             last_since = since_ms
@@ -145,15 +150,19 @@ class MarketDataFetcher:
                         logger.warning(
                             f"⚠️ Empty batch {consecutive_empty}/{MAX_CONSECUTIVE_EMPTY}"
                         )
-                        
+
                         # Phase H.4: 空バッチの詳細情報
-                        logger.warning(f"🔍 [PHASE-H4] Empty batch at timestamp: {last_since}, attempt {attempt + 1}")
+                        logger.warning(
+                            f"🔍 [PHASE-H4] Empty batch at timestamp: {last_since}, attempt {attempt + 1}"
+                        )
 
                         if consecutive_empty >= MAX_CONSECUTIVE_EMPTY:
                             logger.warning(
                                 f"❌ [PHASE-H4] EARLY TERMINATION: Too many consecutive empty batches ({consecutive_empty}/{MAX_CONSECUTIVE_EMPTY}), stopping pagination"
                             )
-                            logger.warning(f"📊 [PHASE-H4] Final stats: {len(records)} records collected in {attempt + 1} attempts")
+                            logger.warning(
+                                f"📊 [PHASE-H4] Final stats: {len(records)} records collected in {attempt + 1} attempts"
+                            )
                             break
 
                         # 空バッチの場合は指数バックオフで待機
@@ -166,20 +175,23 @@ class MarketDataFetcher:
                     consecutive_empty = 0
 
                     logger.info(f"📊 Batch received: {len(batch)} records")
-                    
+
                     # Phase H.4: バッチ内容の詳細分析ログ
                     if batch:
                         first_ts = batch[0][0]
                         last_ts = batch[-1][0]
-                        first_time = pd.Timestamp(first_ts, unit='ms')
-                        last_time = pd.Timestamp(last_ts, unit='ms')
-                        logger.info(f"🔍 [PHASE-H4] Batch time range: {first_time} to {last_time}")
-                        logger.info(f"🔍 [PHASE-H4] Batch time span: {(last_ts - first_ts) / (1000 * 3600):.2f} hours")
-                    
+                        first_time = pd.Timestamp(first_ts, unit="ms")
+                        last_time = pd.Timestamp(last_ts, unit="ms")
+                        logger.info(
+                            f"🔍 [PHASE-H4] Batch time range: {first_time} to {last_time}"
+                        )
+                        logger.info(
+                            f"🔍 [PHASE-H4] Batch time span: {(last_ts - first_ts) / (1000 * 3600):.2f} hours"
+                        )
+
                     added = False
                     new_records_count = 0
                     duplicate_count = 0
-                    
                     for row in batch:
                         ts = row[0]
                         if ts not in seen_ts:
@@ -202,24 +214,32 @@ class MarketDataFetcher:
                             added = True
                         else:
                             duplicate_count += 1
-                    
-                    logger.info(f"✅ [PHASE-H4] Added {new_records_count} new records, {duplicate_count} duplicates, total={len(records)}")
-                    logger.info(f"📈 [PHASE-H4] Progress: {len(records)}/{max_records} ({len(records)/max_records*100:.1f}%)")
+
+                    logger.info(
+                        f"✅ [PHASE-H4] Added {new_records_count} new records, {duplicate_count} duplicates, total={len(records)}"
+                    )
+                    logger.info(
+                        f"📈 [PHASE-H4] Progress: {len(records)}/{max_records} ({len(records)/max_records*100:.1f}%)"
+                    )
 
                     if not added:
                         consecutive_no_new += 1
                         logger.warning(
                             f"⚠️ No new records {consecutive_no_new}/{MAX_CONSECUTIVE_NO_NEW}"
                         )
-                        
+
                         # Phase H.4: 早期終了の詳細理由ログ
-                        logger.warning(f"🔍 [PHASE-H4] No new records reason: {len(batch)} total received, {duplicate_count} were duplicates")
+                        logger.warning(
+                            f"🔍 [PHASE-H4] No new records reason: {len(batch)} total received, {duplicate_count} were duplicates"
+                        )
 
                         if consecutive_no_new >= MAX_CONSECUTIVE_NO_NEW:
                             logger.warning(
                                 f"❌ [PHASE-H4] EARLY TERMINATION: Too many attempts with no new records ({consecutive_no_new}/{MAX_CONSECUTIVE_NO_NEW}), stopping pagination"
                             )
-                            logger.warning(f"📊 [PHASE-H4] Final stats: {len(records)} records collected in {attempt + 1} attempts")
+                            logger.warning(
+                                f"📊 [PHASE-H4] Final stats: {len(records)} records collected in {attempt + 1} attempts"
+                            )
                             break
 
                         # 新レコードなしの場合はタイムスタンプを進める
@@ -268,11 +288,15 @@ class MarketDataFetcher:
                 f"✅ [PHASE-H4] Pagination complete: {len(records)} total records collected in {attempt} attempts"
             )
             if records:
-                first_record_time = pd.Timestamp(records[0][0], unit='ms')
-                last_record_time = pd.Timestamp(records[-1][0], unit='ms')
+                first_record_time = pd.Timestamp(records[0][0], unit="ms")
+                last_record_time = pd.Timestamp(records[-1][0], unit="ms")
                 time_span = (records[-1][0] - records[0][0]) / (1000 * 3600)  # hours
-                logger.info(f"📊 [PHASE-H4] Data time range: {first_record_time} to {last_record_time} ({time_span:.2f} hours)")
-            logger.info(f"🔧 [PHASE-H4] Termination reason: MAX_RECORDS_REACHED={len(records) >= max_records}, MAX_ATTEMPTS_REACHED={attempt >= MAX_ATTEMPTS}")
+                logger.info(
+                    f"📊 [PHASE-H4] Data time range: {first_record_time} to {last_record_time} ({time_span:.2f} hours)"
+                )
+            logger.info(
+                f"🔧 [PHASE-H4] Termination reason: MAX_RECORDS_REACHED={len(records) >= max_records}, MAX_ATTEMPTS_REACHED={attempt >= MAX_ATTEMPTS}"
+            )
             data = records if limit is None else records[:limit]
 
         else:
