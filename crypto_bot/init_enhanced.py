@@ -125,6 +125,10 @@ def enhanced_init_5_fetch_price_data(
                     limit=limit,
                     paginate=dd.get("paginate", True),
                     per_page=dd.get("per_page", 100),
+                    # Phase H.4: ページネーション設定の動的読み込み
+                    max_consecutive_empty=dd.get("max_consecutive_empty", None),
+                    max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
+                    max_attempts=dd.get("max_attempts", None),
                 )
 
             try:

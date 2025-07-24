@@ -1157,9 +1157,29 @@ def live_bitbank(config_path: str, max_trades: int):
                             hours_back = base_hours
 
                         since_time = current_time - pd.Timedelta(hours=hours_back)
+
+                        # Phase H.4: 時間範囲計算の詳細ログ
                         logger.info(
                             f"🔍 [DEBUG] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, Lookback: {hours_back}h, Since: {since_time}"
                         )
+                        logger.info(f"🕐 [PHASE-H4] Time range details:")
+                        logger.info(f"   📅 Current time: {current_time}")
+                        logger.info(f"   📅 Since time: {since_time}")
+                        logger.info(f"   ⏰ Time span: {hours_back} hours ({hours_back/24:.1f} days)")
+                        logger.info(f"   📊 Expected 1h records: ~{hours_back}")
+                        
+                        # Phase H.4: 時間範囲妥当性チェック
+                        time_diff_hours = (current_time - since_time).total_seconds() / 3600
+                        if time_diff_hours != hours_back:
+                            logger.warning(f"⚠️ [PHASE-H4] Time calculation mismatch: expected {hours_back}h, actual {time_diff_hours:.2f}h")
+                        
+                        # Phase H.4: Bitbank市場時間との整合性チェック
+                        if hours_back > 168:  # 1週間以上
+                            logger.warning(f"⚠️ [PHASE-H4] Large time range detected: {hours_back}h might exceed Bitbank data availability")
+                        
+                        # Phase H.4: 土日データ可用性チェック
+                        weekday_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][current_day]
+                        logger.info(f"📅 [PHASE-H4] Today is {weekday_name}, weekend data extension applied: {hours_back > base_hours}")
                     logger.info(
                         f"🔄 Fetching latest data since: {since_time} "
                         f"(current: {current_time})"
@@ -1200,6 +1220,10 @@ def live_bitbank(config_path: str, max_trades: int):
                         per_page=dd.get(
                             "per_page", 100
                         ),  # 設定ファイルから読み込み（デフォルト100）
+                        # Phase H.4: ページネーション設定の動的読み込み
+                        max_consecutive_empty=dd.get("max_consecutive_empty", None),
+                        max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
+                        max_attempts=dd.get("max_attempts", None),
                     )
                     logger.info(
                         f"✅ [DATA-FETCH] Price data fetched successfully: "

@@ -17,7 +17,7 @@ data:
   limit: 100       # ML品質確保（50→100件に戻す、十分な学習データ）
   paginate: true   # ページネーション有効
   per_page: 20     # Phase G.1.1: 構造修正後効率設定（5→20件、API負荷と効率のバランス）
-  since_hours: 48  # Phase G.1.1: 48時間データ範囲維持（ML精度保持・構造修正でAPI安全性確保）
+  since_hours: 72  # Phase H.4: 48→72時間に拡大（データ取得問題解決・Bitbank API適正化）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 2    # Phase G.1.1: 適度リトライ（0→2回、安定性とAPI安全のバランス）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -26,9 +26,10 @@ data:
   weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
   early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
   
-  # Phase G.1.1: ページネーション超保守的パラメータ（15秒間隔・エラー10000根絶）
-  max_consecutive_empty: 1  # 連続空バッチ許容数（早期終了でAPI負荷削減）
-  max_consecutive_no_new: 1  # 連続新レコードなし許容数（2→1、効率化）
+  # Phase H.4: ページネーション適正化パラメータ（データ取得優先・早期終了防止）
+  max_consecutive_empty: 5  # 連続空バッチ許容数（1→5、データ取得優先）
+  max_consecutive_no_new: 10  # 連続新レコードなし許容数（1→10、十分な取得機会確保）
+  max_attempts: 20  # 最大試行回数（15→20、データ取得機会拡大）
   exponential_backoff: true  # 指数バックオフ有効化
   min_delay_ms: 20000  # Phase G.1.1: 構造修正後最適遅延（15000→20000ms、rateLimit統一）
   max_delay_ms: 30000  # 最大遅延（15000→30000ms、確実な安全性）
