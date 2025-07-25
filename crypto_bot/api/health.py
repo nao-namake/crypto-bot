@@ -36,6 +36,17 @@ try:
 except ImportError:
     HA_AVAILABLE = False
 
+# Phase H.8.5: エラー耐性管理システム統合
+try:
+    from crypto_bot.utils.error_resilience import (
+        get_resilience_manager,
+        get_system_health_status,
+    )
+
+    RESILIENCE_AVAILABLE = True
+except ImportError:
+    RESILIENCE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # 初期化状況を追跡するグローバル変数
@@ -529,12 +540,22 @@ class HealthChecker:
         else:
             overall_status = "healthy"
 
+        # Phase H.8.5: エラー耐性情報を追加
+        resilience_info = {}
+        if RESILIENCE_AVAILABLE:
+            try:
+                resilience_info = get_system_health_status()
+            except Exception as e:
+                logger.warning(f"Failed to get resilience info: {e}")
+                resilience_info = {"status": "unavailable", "error": str(e)}
+
         return {
             "overall_status": overall_status,
             "basic": basic,
             "dependencies": dependencies,
             "trading": trading,
             "performance": performance,
+            "resilience": resilience_info,  # Phase H.8.5: エラー耐性情報追加
         }
 
 
@@ -810,6 +831,96 @@ async def initialization_status():
     except Exception as e:
         logger.error(f"Init status check failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to check init status")
+
+
+@app.get("/health/resilience")
+async def resilience_status():
+    """
+    エラー耐性状態専用エンドポイント（Phase H.8.5）
+
+    システムのエラー耐性、サーキットブレーカー状態、エラー履歴を提供します。
+    """
+    try:
+        if not RESILIENCE_AVAILABLE:
+            return JSONResponse(
+                content={
+                    "status": "unavailable",
+                    "message": "Error resilience system not available",
+                },
+                status_code=200,
+            )
+
+        resilience_manager = get_resilience_manager()
+
+        # エラーサマリー（過去1時間）
+        error_summary_1h = resilience_manager.get_error_summary(hours=1)
+
+        # エラーサマリー（過去24時間）
+        error_summary_24h = resilience_manager.get_error_summary(hours=24)
+
+        # システムヘルス状態
+        system_health = get_system_health_status()
+
+        response_data = {
+            "system_health": system_health,
+            "error_summary_1h": error_summary_1h,
+            "error_summary_24h": error_summary_24h,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        # ステータスコード決定
+        status_code = 200
+        if system_health.get("overall_health") == "CRITICAL":
+            status_code = 503
+        elif system_health.get("overall_health") == "WARNING":
+            status_code = 200  # 警告でも200を返す
+
+        return JSONResponse(content=response_data, status_code=status_code)
+
+    except Exception as e:
+        logger.error(f"Resilience status check failed: {e}")
+        raise HTTPException(status_code=503, detail="Resilience status unavailable")
+
+
+@app.post("/health/resilience/reset")
+async def reset_resilience():
+    """
+    エラー耐性状態リセットエンドポイント（Phase H.8.5）
+
+    緊急停止状態やサーキットブレーカーを手動でリセットします。
+    """
+    try:
+        if not RESILIENCE_AVAILABLE:
+            raise HTTPException(
+                status_code=400, detail="Error resilience system not available"
+            )
+
+        resilience_manager = get_resilience_manager()
+
+        # 緊急停止リセット
+        resilience_manager.reset_emergency_stop()
+
+        # 全サーキットブレーカーリセット
+        reset_components = []
+        for component in list(resilience_manager.circuit_breakers.keys()):
+            if resilience_manager.force_recovery(component):
+                reset_components.append(component)
+
+        logger.info(f"🔄 [PHASE-H8.5] Manual resilience reset: {reset_components}")
+
+        return JSONResponse(
+            content={
+                "status": "success",
+                "message": "Resilience state reset successfully",
+                "reset_components": reset_components,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+            status_code=200,
+        )
+
+    except Exception as e:
+        logger.error(f"Resilience reset failed: {e}")
+        raise HTTPException(status_code=503, detail="Resilience reset failed")
 
 
 @app.post("/health/failover")

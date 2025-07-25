@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from pandas.tseries.frequencies import to_offset
 
 from crypto_bot.execution.factory import create_exchange_client
+from crypto_bot.utils.error_resilience import get_resilience_manager, with_resilience
 
 load_dotenv()
 
@@ -41,28 +42,55 @@ class MarketDataFetcher:
         self.csv_path = csv_path
         self.testnet = testnet
 
+        # Phase H.8.3: エラー耐性管理システム統合
+        self.resilience = get_resilience_manager()
+
         # CSV モードの場合はAPI接続をスキップ
         if csv_path:
             self.client = None
             self.exchange = None
+            logger.info(f"🗂️ [RESILIENCE] CSV mode initialized: {csv_path}")
         else:
-            api_key = api_key or os.getenv(f"{exchange_id.upper()}_API_KEY")
-            api_secret = api_secret or os.getenv(f"{exchange_id.upper()}_API_SECRET")
-            env_test_key = os.getenv(f"{exchange_id.upper()}_TESTNET_API_KEY")
-            testnet = testnet or bool(env_test_key)
-            self.client = create_exchange_client(
-                exchange_id=exchange_id,
-                api_key=api_key,
-                api_secret=api_secret,
-                testnet=testnet,
-                ccxt_options=ccxt_options or {},
-            )
-            # Bitbank固有の設定があれば追加
-            if exchange_id == "bitbank":
-                # Bitbank特有の設定を追加する場合はここで実装
-                pass
-            self.exchange = getattr(self.client, "_exchange", self.client)
+            try:
+                api_key = api_key or os.getenv(f"{exchange_id.upper()}_API_KEY")
+                api_secret = api_secret or os.getenv(
+                    f"{exchange_id.upper()}_API_SECRET"
+                )
+                env_test_key = os.getenv(f"{exchange_id.upper()}_TESTNET_API_KEY")
+                testnet = testnet or bool(env_test_key)
+                self.client = create_exchange_client(
+                    exchange_id=exchange_id,
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    testnet=testnet,
+                    ccxt_options=ccxt_options or {},
+                )
+                # Bitbank固有の設定があれば追加
+                if exchange_id == "bitbank":
+                    # Bitbank特有の設定を追加する場合はここで実装
+                    pass
+                self.exchange = getattr(self.client, "_exchange", self.client)
 
+                # Phase H.8.3: 初期化成功を記録
+                self.resilience.record_success("market_data_fetcher")
+                logger.info(
+                    f"✅ [RESILIENCE] Market data fetcher initialized: {exchange_id}"
+                )
+
+            except Exception as e:
+                # Phase H.8.3: 初期化失敗を記録
+                self.resilience.record_error(
+                    component="market_data_fetcher",
+                    error_type="InitializationError",
+                    error_message=f"Failed to initialize {exchange_id}: {str(e)}",
+                    severity="CRITICAL",
+                )
+                logger.error(
+                    f"❌ [RESILIENCE] Market data fetcher initialization failed: {e}"
+                )
+                raise
+
+    @with_resilience("market_data_fetcher", "fetch_balance")
     def fetch_balance(self) -> dict:
         """
         残高情報を取得
@@ -73,8 +101,10 @@ class MarketDataFetcher:
         if not self.client:
             raise RuntimeError("Client not initialized (CSV mode)")
 
+        logger.info("💰 [RESILIENCE] Fetching balance with error resilience")
         return self.client.fetch_balance()
 
+    @with_resilience("market_data_fetcher", "get_price_df")
     def get_price_df(
         self,
         timeframe: str = "1m",
@@ -367,6 +397,254 @@ class MarketDataFetcher:
             df = df.head(limit)
 
         return df[["open", "high", "low", "close", "volume"]]
+
+    def _is_data_too_old(self, data: pd.DataFrame, max_age_hours: float = 2.0) -> bool:
+        """
+        データが古すぎるかどうかをチェック
+
+        Args:
+            data: チェック対象のDataFrame
+            max_age_hours: 許容される最大時間（時間）
+
+        Returns:
+            bool: データが古すぎる場合True
+        """
+        if data is None or data.empty:
+            return True
+
+        # 最新データのタイムスタンプを取得
+        latest_timestamp = data.index.max()
+        current_time = pd.Timestamp.now(tz="UTC")
+
+        # タイムゾーン情報を統一
+        if latest_timestamp.tz is None:
+            latest_timestamp = latest_timestamp.tz_localize("UTC")
+
+        # データの年齢を計算
+        data_age = current_time - latest_timestamp
+        data_age_hours = data_age.total_seconds() / 3600
+
+        logger.info(
+            f"🔍 [DATA-FRESHNESS] Latest data: {latest_timestamp}, Age: {data_age_hours:.1f}h"
+        )
+
+        if data_age_hours > max_age_hours:
+            logger.warning(
+                f"⚠️ [DATA-FRESHNESS] Data too old: {data_age_hours:.1f}h > {max_age_hours}h"
+            )
+            return True
+
+        logger.info(
+            f"✅ [DATA-FRESHNESS] Data is fresh: {data_age_hours:.1f}h <= {max_age_hours}h"
+        )
+        return False
+
+    def _select_freshest_data(
+        self, data1: pd.DataFrame, data2: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        2つのDataFrameから新しいデータを選択
+
+        Args:
+            data1: 比較対象データ1
+            data2: 比較対象データ2
+
+        Returns:
+            pd.DataFrame: より新しいデータ
+        """
+        if data1 is None or data1.empty:
+            return data2 if data2 is not None else pd.DataFrame()
+
+        if data2 is None or data2.empty:
+            return data1
+
+        # 最新タイムスタンプを比較
+        latest1 = data1.index.max()
+        latest2 = data2.index.max()
+
+        if latest1.tz is None:
+            latest1 = latest1.tz_localize("UTC")
+        if latest2.tz is None:
+            latest2 = latest2.tz_localize("UTC")
+
+        if latest2 > latest1:
+            logger.info(
+                f"✅ [DATA-SELECT] Selected data2 (newer): {latest2} vs {latest1}"
+            )
+            return data2
+        else:
+            logger.info(
+                f"✅ [DATA-SELECT] Selected data1 (newer/equal): {latest1} vs {latest2}"
+            )
+            return data1
+
+    def fetch_with_freshness_fallback(
+        self,
+        timeframe: str = "1h",
+        since: Optional[Union[int, float, str, datetime]] = None,
+        limit: Optional[int] = None,
+        max_age_hours: float = 2.0,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        データ新鮮度チェック付きデータ取得（Phase H.8.1）
+
+        Args:
+            timeframe: タイムフレーム
+            since: 開始時刻
+            limit: 取得件数上限
+            max_age_hours: 許容される最大データ年齢（時間）
+            **kwargs: get_price_dfへの追加パラメータ
+
+        Returns:
+            pd.DataFrame: 新鮮なデータ
+        """
+        logger.info("🚀 [PHASE-H8.1] Starting freshness-aware data fetch")
+        logger.info(
+            f"🔧 [PHASE-H8.1] Config: timeframe={timeframe}, since={since}, limit={limit}, max_age_hours={max_age_hours}"
+        )
+
+        try:
+            # 通常のsince指定取得
+            logger.info("📡 [PHASE-H8.1] Attempting since-based fetch...")
+            data = self.get_price_df(
+                timeframe=timeframe, since=since, limit=limit, **kwargs
+            )
+
+            # データ新鮮度チェック
+            if not self._is_data_too_old(data, max_age_hours):
+                logger.info("✅ [PHASE-H8.1] Since-based data is fresh, using it")
+                return data
+
+            # データが古い場合：since=Noneで最新データ取得
+            logger.warning(
+                "🔄 [PHASE-H8.1] Data too old, falling back to latest data fetch"
+            )
+            latest_data = self.get_price_df(
+                timeframe=timeframe,
+                since=None,
+                limit=min(limit or 100, 100),  # 最新データは100件以下に制限
+                paginate=False,  # 最新データは高速取得
+                **{k: v for k, v in kwargs.items() if k != "paginate"},
+            )
+
+            if not latest_data.empty:
+                logger.info(
+                    f"✅ [PHASE-H8.1] Latest data fallback successful: {len(latest_data)} records"
+                )
+                return latest_data
+            else:
+                logger.warning(
+                    "⚠️ [PHASE-H8.1] Latest data fallback also empty, returning original"
+                )
+                return data
+
+        except Exception as e:
+            logger.error(f"❌ [PHASE-H8.1] Freshness fallback failed: {e}")
+            # エラー時は通常の取得を試行
+            try:
+                return self.get_price_df(
+                    timeframe=timeframe, since=since, limit=limit, **kwargs
+                )
+            except Exception as e2:
+                logger.error(
+                    f"❌ [PHASE-H8.1] Fallback to normal fetch also failed: {e2}"
+                )
+                return pd.DataFrame()
+
+    def parallel_data_fetch(
+        self,
+        timeframe: str = "1h",
+        since: Optional[Union[int, float, str, datetime]] = None,
+        limit: Optional[int] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        並行データ取得（since指定 vs since=None）（Phase H.8.1）
+
+        Args:
+            timeframe: タイムフレーム
+            since: 開始時刻
+            limit: 取得件数上限
+            **kwargs: get_price_dfへの追加パラメータ
+
+        Returns:
+            pd.DataFrame: より新しいデータ
+        """
+        logger.info("🚀 [PHASE-H8.1] Starting parallel data fetch")
+
+        import concurrent.futures
+
+        def fetch_since_data():
+            try:
+                logger.info("📡 [PARALLEL-SINCE] Fetching since-based data...")
+                return self.get_price_df(
+                    timeframe=timeframe, since=since, limit=limit, **kwargs
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ [PARALLEL-SINCE] Failed: {e}")
+                return pd.DataFrame()
+
+        def fetch_latest_data():
+            try:
+                logger.info("📡 [PARALLEL-LATEST] Fetching latest data...")
+                # 最新データは高速設定で取得
+                return self.get_price_df(
+                    timeframe=timeframe,
+                    since=None,
+                    limit=min(limit or 50, 50),
+                    paginate=False,
+                    **{
+                        k: v
+                        for k, v in kwargs.items()
+                        if k not in ["paginate", "per_page"]
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ [PARALLEL-LATEST] Failed: {e}")
+                return pd.DataFrame()
+
+        try:
+            # 並行実行（最大60秒でタイムアウト）
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_since = executor.submit(fetch_since_data)
+                future_latest = executor.submit(fetch_latest_data)
+
+                # 結果取得（タイムアウト付き）
+                try:
+                    data_since = future_since.result(timeout=60)
+                    data_latest = future_latest.result(timeout=60)
+                except concurrent.futures.TimeoutError:
+                    logger.warning(
+                        "⚠️ [PHASE-H8.1] Parallel fetch timeout, canceling futures"
+                    )
+                    future_since.cancel()
+                    future_latest.cancel()
+                    # タイムアウト時は通常の取得にフォールバック
+                    return self.get_price_df(
+                        timeframe=timeframe, since=since, limit=limit, **kwargs
+                    )
+
+            # より新しいデータを選択
+            best_data = self._select_freshest_data(data_since, data_latest)
+
+            if not best_data.empty:
+                logger.info(
+                    f"✅ [PHASE-H8.1] Parallel fetch successful: {len(best_data)} records"
+                )
+            else:
+                logger.warning(
+                    "⚠️ [PHASE-H8.1] Both parallel fetches returned empty data"
+                )
+
+            return best_data
+
+        except Exception as e:
+            logger.error(f"❌ [PHASE-H8.1] Parallel fetch failed: {e}")
+            # エラー時は通常の取得にフォールバック
+            return self.get_price_df(
+                timeframe=timeframe, since=since, limit=limit, **kwargs
+            )
 
     def _get_price_from_csv(
         self,

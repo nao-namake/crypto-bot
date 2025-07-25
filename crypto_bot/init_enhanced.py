@@ -11,14 +11,17 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from crypto_bot.utils.error_resilience import with_resilience
+
 logger = logging.getLogger(__name__)
 
 
+@with_resilience("init_system", "init_5_fetch_price_data")
 def enhanced_init_5_fetch_price_data(
     fetcher, dd: dict, max_retries: int = 5, timeout: int = 120
 ) -> Optional[pd.DataFrame]:
     """
-    INIT-5段階: 初期価格データ取得（強化版）
+    INIT-5段階: 初期価格データ取得（強化版・Phase H.8.4）
 
     Args:
         fetcher: データフェッチャー
@@ -29,11 +32,14 @@ def enhanced_init_5_fetch_price_data(
     Returns:
         DataFrame: 価格データ（失敗時はNone）
     """
+    # Phase H.8.4: エラー耐性管理システム統合（記録のみ）
+
     logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
     logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     logger.info(
         f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase H.7延長)"
     )
+    logger.info("🛡️ [PHASE-H8.4] INIT-5 with enhanced error resilience")
 
     # Phase H.6.1: 動的since計算（メインループと同じロジック）
     current_time = pd.Timestamp.now(tz="UTC")
@@ -120,31 +126,52 @@ def enhanced_init_5_fetch_price_data(
     # メインのデータ取得処理
     initial_df = None
 
-    # Phase H.3.2: マルチタイムフレーム戦略対応・INIT-5ベースタイムフレーム強制
-    # 設定ファイルからベースタイムフレームを明示的に取得（4h直接要求防止）
-    base_timeframe = "1h"  # デフォルト
+    # Phase H.8.2: API Error 10000完全解決・4h直接取得完全禁止
+    # 4hタイムフレームの検出と強制変換（設定に関係なく1h固定）
+    forced_timeframe = "1h"  # Phase H.8.2: 設定に関係なく1h固定
 
-    # multi_timeframe_data設定からベースタイムフレームを取得
-    if "multi_timeframe_data" in dd and "base_timeframe" in dd["multi_timeframe_data"]:
-        base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
-        logger.info(
-            f"🔧 [INIT-5] Using base_timeframe from multi_timeframe_data: {base_timeframe}"
+    # 全ての4h関連設定を検出して警告・強制変換
+    multi_tf_base = dd.get("multi_timeframe_data", {}).get("base_timeframe", "1h")
+    data_timeframe = dd.get("timeframe", "1h")
+
+    # 4h検出の包括チェック
+    four_hour_detected = False
+    detection_sources = []
+
+    if multi_tf_base == "4h":
+        four_hour_detected = True
+        detection_sources.append("multi_timeframe_data.base_timeframe")
+        logger.critical(
+            "🚨 [INIT-5] CRITICAL: 4h detected in multi_timeframe_data.base_timeframe"
+        )
+
+    if data_timeframe == "4h":
+        four_hour_detected = True
+        detection_sources.append("data.timeframe")
+        logger.critical("🚨 [INIT-5] CRITICAL: 4h detected in data.timeframe")
+
+    # タイムフレーム設定の強制修正
+    if four_hour_detected:
+        logger.critical(
+            f"🚨 [INIT-5] Phase H.8.2: 4h timeframe BLOCKED - Sources: {', '.join(detection_sources)}"
+        )
+        logger.critical(
+            "🚨 [INIT-5] Phase H.8.2: Forcing to 1h to prevent API Error 10000"
         )
     else:
-        # フォールバック: 通常のtimeframe設定を使用（ただし4hは強制的に1hに変更）
-        timeframe_raw = dd.get("timeframe", "1h")
-        if timeframe_raw == "4h":
-            base_timeframe = "1h"  # 4h要求を強制的に1hに変換
-            logger.warning(
-                "🚨 [INIT-5] Phase H.3.2: 4h timeframe detected, forcing to 1h (Bitbank API compatibility)"
-            )
-        else:
-            base_timeframe = timeframe_raw
-            logger.info(
-                f"🔧 [INIT-5] Using timeframe from data config: {base_timeframe}"
-            )
+        logger.info(
+            "✅ [INIT-5] Phase H.8.2: No 4h timeframe detected, safe to proceed"
+        )
 
-    timeframe = base_timeframe
+    timeframe = forced_timeframe  # 常に1h使用
+    logger.info(f"🔧 [INIT-5] Phase H.8.2: Using forced timeframe: {timeframe}")
+
+    # API Error 10000防止の最終確認
+    if timeframe == "4h":
+        logger.critical(
+            "🚨 [INIT-5] Phase H.8.2: EMERGENCY: 4h still detected, forcing to 1h"
+        )
+        timeframe = "1h"
     # Phase H.7.1: INIT-5専用の軽量設定（ATR計算に必要な最小限）
     init_limit = 30  # ATR計算に十分な量（period=14 + バッファ）
     init_paginate = False  # ページネーション無効化で高速化
@@ -169,11 +196,15 @@ def enhanced_init_5_fetch_price_data(
             from concurrent.futures import TimeoutError as FutureTimeoutError
 
             def fetch_data():
-                # Phase H.7.1: INIT-5専用の軽量設定を使用
-                return fetcher.get_price_df(
+                # Phase H.8.1: データ新鮮度チェック付きフェッチ使用
+                logger.info(
+                    "🚀 [PHASE-H8.1] Using freshness-aware data fetch for INIT-5"
+                )
+                return fetcher.fetch_with_freshness_fallback(
                     timeframe=timeframe,
                     since=since_time,  # Phase H.6.1: since時刻を追加
                     limit=init_limit,  # Phase H.7.1: 30レコードのみ
+                    max_age_hours=2.0,  # Phase H.8.1: 2時間以内のデータを要求
                     paginate=init_paginate,  # Phase H.7.1: False（ページネーション無効）
                     per_page=30,  # Phase H.7.1: 単一呼び出しで全データ取得
                     # ページネーション無効なので以下は不要だが念のため設定
@@ -263,11 +294,12 @@ def enhanced_init_5_fetch_price_data(
     return initial_df
 
 
+@with_resilience("init_system", "init_6_calculate_atr")
 def enhanced_init_6_calculate_atr(
     initial_df: Optional[pd.DataFrame], period: int = 14
 ) -> Optional[pd.Series]:
     """
-    INIT-6段階: ATR計算（強化版）
+    INIT-6段階: ATR計算（強化版・Phase H.8.4）
 
     Args:
         initial_df: 初期価格データ
@@ -279,6 +311,7 @@ def enhanced_init_6_calculate_atr(
     logger.info("🔢 [INIT-6] Calculating ATR...")
     logger.info(f"⏰ [INIT-6] Timestamp: {pd.Timestamp.now()}")
     logger.info(f"🔧 [INIT-6] ATR period: {period}")
+    logger.info("🛡️ [PHASE-H8.4] INIT-6 with enhanced error resilience")
 
     atr_series = None
 
@@ -396,11 +429,12 @@ def enhanced_init_6_fallback_atr(period: int = 14) -> pd.Series:
     return atr_series
 
 
+@with_resilience("init_system", "init_7_initialize_entry_exit")
 def enhanced_init_7_initialize_entry_exit(
     strategy, risk_manager, atr_series: pd.Series
 ) -> Any:
     """
-    INIT-7段階: Entry/Exitシステム初期化（強化版）
+    INIT-7段階: Entry/Exitシステム初期化（強化版・Phase H.8.4）
 
     Args:
         strategy: 取引戦略
@@ -412,6 +446,7 @@ def enhanced_init_7_initialize_entry_exit(
     """
     logger.info("🎯 [INIT-7] Initializing Entry/Exit system...")
     logger.info(f"⏰ [INIT-7] Timestamp: {pd.Timestamp.now()}")
+    logger.info("🛡️ [PHASE-H8.4] INIT-7 with enhanced error resilience")
 
     try:
         # 依存関係の確認

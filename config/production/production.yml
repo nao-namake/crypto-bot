@@ -125,14 +125,14 @@ strategy:
         cache_enabled: true
         fallback_enabled: true
 
-# マルチタイムフレーム設定（Phase H.2.2: 本来設計復活・1h→15m/4h変換）
+# マルチタイムフレーム設定（Phase H.8.2: API Error 10000完全解決・4h直接取得禁止）
 multi_timeframe:
-  timeframes: ["15m", "1h", "4h"]  # 3つのタイムフレーム統合（1hベースから15m補間・4h集約）
-  weights: [0.3, 0.5, 0.2]  # 15分足30%, 1時間足50%, 4時間足20%（本来の配分復活）
+  timeframes: ["15m", "1h"]  # Phase H.8.2: 4h削除・1hベースから15m補間のみ（4h集約は内部処理）
+  weights: [0.4, 0.6]  # Phase H.8.2: 15分足40%, 1時間足60%（4h重み分を1hに統合）
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
-  data_quality_threshold: 0.4  # 40%以上の品質で使用（ML稼働優先・段階的改善予定）
+  data_quality_threshold: 0.6  # Phase H.8.2: 0.4→0.6品質向上（エントリーシグナル生成改善）
   
   # Phase H.5.4: 品質管理強化設定
   quality_management:
