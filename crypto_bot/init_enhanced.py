@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def enhanced_init_5_fetch_price_data(
-    fetcher, dd: dict, max_retries: int = 5, timeout: int = 60
+    fetcher, dd: dict, max_retries: int = 5, timeout: int = 120
 ) -> Optional[pd.DataFrame]:
     """
     INIT-5段階: 初期価格データ取得（強化版）
@@ -24,7 +24,7 @@ def enhanced_init_5_fetch_price_data(
         fetcher: データフェッチャー
         dd: データ設定辞書
         max_retries: 最大再試行回数
-        timeout: タイムアウト秒数（Phase F.4: 30→60秒延長）
+        timeout: タイムアウト秒数（Phase H.7: 60→120秒延長）
 
     Returns:
         DataFrame: 価格データ（失敗時はNone）
@@ -32,7 +32,7 @@ def enhanced_init_5_fetch_price_data(
     logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
     logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     logger.info(
-        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase F.4延長)"
+        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase H.7延長)"
     )
 
     # Phase H.6.1: 動的since計算（メインループと同じロジック）
@@ -145,10 +145,15 @@ def enhanced_init_5_fetch_price_data(
             )
 
     timeframe = base_timeframe
-    limit = dd.get("limit", 200)
+    # Phase H.7.1: INIT-5専用の軽量設定（ATR計算に必要な最小限）
+    init_limit = 30  # ATR計算に十分な量（period=14 + バッファ）
+    init_paginate = False  # ページネーション無効化で高速化
 
     logger.info(
-        f"🔧 [INIT-5] Phase H.3.2 Modified: timeframe={timeframe}, limit={limit} (API Error 10000 prevention)"
+        f"🔧 [INIT-5] Phase H.7 Optimized: timeframe={timeframe}, limit={init_limit}, paginate={init_paginate}"
+    )
+    logger.info(
+        f"🔧 [INIT-5] Using lightweight settings for faster initialization (30 records, no pagination)"
     )
 
     for attempt in range(max_retries):
@@ -164,16 +169,17 @@ def enhanced_init_5_fetch_price_data(
             from concurrent.futures import TimeoutError as FutureTimeoutError
 
             def fetch_data():
+                # Phase H.7.1: INIT-5専用の軽量設定を使用
                 return fetcher.get_price_df(
                     timeframe=timeframe,
                     since=since_time,  # Phase H.6.1: since時刻を追加
-                    limit=limit,
-                    paginate=dd.get("paginate", True),
-                    per_page=dd.get("per_page", 100),
-                    # Phase H.4: ページネーション設定の動的読み込み
-                    max_consecutive_empty=dd.get("max_consecutive_empty", None),
-                    max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
-                    max_attempts=dd.get("max_attempts", None),
+                    limit=init_limit,  # Phase H.7.1: 30レコードのみ
+                    paginate=init_paginate,  # Phase H.7.1: False（ページネーション無効）
+                    per_page=30,  # Phase H.7.1: 単一呼び出しで全データ取得
+                    # ページネーション無効なので以下は不要だが念のため設定
+                    max_consecutive_empty=1,
+                    max_consecutive_no_new=1,
+                    max_attempts=1,
                 )
 
             try:
@@ -185,6 +191,9 @@ def enhanced_init_5_fetch_price_data(
                 logger.info(
                     f"✅ [INIT-5] Initial price data fetched successfully: "
                     f"{len(initial_df)} records in {fetch_time:.2f}s"
+                )
+                logger.info(
+                    f"✅ [INIT-5] Phase H.7 optimization successful - lightweight fetch completed"
                 )
 
                 # データ品質確認
