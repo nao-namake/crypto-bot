@@ -446,7 +446,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 tf_data = price_df.copy()
 
             # データ品質チェック（Phase H.9.3: 即座取引開始対応・18行実稼働許可）
-            if len(tf_data) < 18:  # 最小データ要件（50→18に緩和・実データに基づく現実的設定）
+            if (
+                len(tf_data) < 18
+            ):  # 最小データ要件（50→18に緩和・実データに基づく現実的設定）
                 logger.warning(
                     f"Insufficient data for {timeframe}: {len(tf_data)} rows (minimum: 18)"
                 )
