@@ -153,7 +153,7 @@ def enhanced_init_5_fetch_price_data(
         f"🔧 [INIT-5] Phase H.7 Optimized: timeframe={timeframe}, limit={init_limit}, paginate={init_paginate}"
     )
     logger.info(
-        f"🔧 [INIT-5] Using lightweight settings for faster initialization (30 records, no pagination)"
+        "🔧 [INIT-5] Using lightweight settings for faster initialization (30 records, no pagination)"
     )
 
     for attempt in range(max_retries):
@@ -193,7 +193,7 @@ def enhanced_init_5_fetch_price_data(
                     f"{len(initial_df)} records in {fetch_time:.2f}s"
                 )
                 logger.info(
-                    f"✅ [INIT-5] Phase H.7 optimization successful - lightweight fetch completed"
+                    "✅ [INIT-5] Phase H.7 optimization successful - lightweight fetch completed"
                 )
 
                 # データ品質確認
