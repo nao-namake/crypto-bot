@@ -140,20 +140,18 @@ class MarketDataFetcher:
                         f"🔍 [PHASE-H6] Calling API: symbol={self.symbol}, timeframe={timeframe}, "
                         f"since={last_since}, limit={per_page}"
                     )
-                    
+
                     batch = self.client.fetch_ohlcv(
                         self.symbol, timeframe, last_since, per_page
                     )
-                    
+
                     # Phase H.6.3: レスポンスタイプと内容の詳細ログ
                     logger.info(
                         f"🔍 [PHASE-H6] API response type: {type(batch).__name__}"
                     )
-                    
+
                     if batch and isinstance(batch, list) and len(batch) > 0:
-                        logger.info(
-                            f"🔍 [PHASE-H6] First record sample: {batch[0]}"
-                        )
+                        logger.info(f"🔍 [PHASE-H6] First record sample: {batch[0]}")
 
                     if isinstance(batch, pd.DataFrame):
                         logger.info(
@@ -321,15 +319,14 @@ class MarketDataFetcher:
                 f"🔍 [PHASE-H6] Non-paginated fetch: timeframe={timeframe}, "
                 f"since_ms={since_ms}, limit={limit}"
             )
-            
+
             raw = self.client.fetch_ohlcv(self.symbol, timeframe, since_ms, limit)
-            
+
             # Phase H.6.3: レスポンス詳細ログ
             logger.info(
                 f"🔍 [PHASE-H6] Response type: {type(raw).__name__}, "
                 f"content: {len(raw) if raw else 0} records"
             )
-            
             if (
                 sleep
                 and hasattr(self.exchange, "rateLimit")
@@ -346,7 +343,9 @@ class MarketDataFetcher:
                     f"⚠️ [PHASE-H6] Bitbank returned no data for since_ms={since_ms}"
                 )
                 # Phase H.6.3: 最新データ取得を試みる
-                logger.info("🔄 [PHASE-H6] Trying to fetch latest data without since parameter")
+                logger.info(
+                    "🔄 [PHASE-H6] Trying to fetch latest data without since parameter"
+                )
                 raw_latest = self.client.fetch_ohlcv(self.symbol, timeframe, None, 10)
                 if raw_latest:
                     logger.info(f"✅ [PHASE-H6] Got {len(raw_latest)} latest records")
