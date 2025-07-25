@@ -54,8 +54,8 @@ strategy:
     # 戦略が期待するMLセクション全体を追加
     ml:
       feat_period: 14
-      lags: [1,2,3,4,5]
-      rolling_window: 20
+      lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
+      rolling_window: 10  # Phase H.9.3: 20→10削減・データ効率向上・即座取引開始対応
       horizon: 5
       target_type: classification
       model_type: lgbm
@@ -188,8 +188,8 @@ live:
 # 151特徴量フル版ML設定（マルチタイムフレーム対応）
 ml:
   feat_period: 14
-  lags: [1,2,3,4,5]
-  rolling_window: 20
+  lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
+  rolling_window: 10  # Phase H.9.3: 20→10削減・データ効率向上・即座取引開始対応
   horizon: 5
   target_type: classification
   model_type: lgbm

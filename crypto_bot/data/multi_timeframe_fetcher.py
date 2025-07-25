@@ -533,9 +533,9 @@ class MultiTimeframeDataFetcher:
             completeness = 1.0 - (missing_cells / total_cells)
             quality_factors.append(completeness * 0.3)
 
-            # 2. データ量充足性
-            min_required = {"15m": 50, "1h": 100, "4h": 25}
-            min_req = min_required.get(timeframe, 50)
+            # 2. データ量充足性（Phase H.9.3: 現実的最小要件・即座取引開始対応）
+            min_required = {"15m": 18, "1h": 18, "4h": 12}  # 実データに基づく現実的設定
+            min_req = min_required.get(timeframe, 18)
             data_sufficiency = min(len(data) / min_req, 1.0)
             quality_factors.append(data_sufficiency * 0.3)
 
