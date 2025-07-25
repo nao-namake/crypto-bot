@@ -13,7 +13,7 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Phase H.9.2: データ取得量劇的改善設定（ATR計算成功・トレーディング復活）
+  # Phase H.10: ML最適化設定強制反映・即座取引開始実現
   limit: 200       # Phase H.9.2: 100→200件（データ量2倍増・ATR計算確実成功）
   paginate: true   # ページネーション有効
   per_page: 50     # Phase H.9.2: 10→50件（データ取得量5倍増・効率化）
