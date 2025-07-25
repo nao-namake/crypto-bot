@@ -34,6 +34,48 @@ def enhanced_init_5_fetch_price_data(
     logger.info(
         f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase F.4延長)"
     )
+    
+    # Phase H.6.1: 動的since計算（メインループと同じロジック）
+    current_time = pd.Timestamp.now(tz="UTC")
+    
+    if dd.get("since"):
+        since_time = pd.Timestamp(dd["since"])
+        if since_time.tz is None:
+            since_time = since_time.tz_localize("UTC")
+        logger.info(f"🔧 [INIT-5] Using config since: {since_time}")
+    else:
+        # 動的since_hours計算（土日ギャップ・祝日対応）
+        base_hours = dd.get("since_hours", 120)  # Phase H.5.3: 120時間デフォルト
+        
+        # 曜日判定（月曜日=0, 日曜日=6）
+        current_day = current_time.dayofweek
+        current_hour = current_time.hour
+        
+        # 土日ギャップ対応
+        if current_day == 0:  # 月曜日
+            # 月曜日は土日ギャップを考慮して延長
+            extended_hours = dd.get("weekend_extension_hours", 72)  # 3日間追加
+            lookback_hours = base_hours + extended_hours
+            logger.info(
+                f"🔧 [INIT-5] Monday detected: extending lookback by {extended_hours}h to {lookback_hours}h"
+            )
+        elif current_day == 1 and current_hour < 12:  # 火曜日午前
+            # 火曜日午前も少し延長
+            extended_hours = dd.get("early_week_extension_hours", 36)  # 1.5日追加
+            lookback_hours = base_hours + extended_hours
+            logger.info(
+                f"🔧 [INIT-5] Tuesday morning: extending by {extended_hours}h to {lookback_hours}h"
+            )
+        else:
+            lookback_hours = base_hours
+            
+        since_time = current_time - pd.Timedelta(hours=lookback_hours)
+        logger.info(
+            f"🔍 [INIT-5] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, "
+            f"Lookback: {lookback_hours}h, Since: {since_time}"
+        )
+        logger.info(f"   ⏰ Time span: {lookback_hours} hours ({lookback_hours/24:.1f} days)")
+        logger.info(f"   📊 Expected 1h records: ~{lookback_hours}")
 
     # 外部データフェッチャーの初期化確認
     try:
@@ -122,6 +164,7 @@ def enhanced_init_5_fetch_price_data(
             def fetch_data():
                 return fetcher.get_price_df(
                     timeframe=timeframe,
+                    since=since_time,  # Phase H.6.1: since時刻を追加
                     limit=limit,
                     paginate=dd.get("paginate", True),
                     per_page=dd.get("per_page", 100),

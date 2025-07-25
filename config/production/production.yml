@@ -16,10 +16,10 @@ data:
   # Phase G.1.1: Bitbank API 超保守的設定（API安全性完全優先・エラー10000根絶）
   limit: 100       # ML品質確保（50→100件に戻す、十分な学習データ）
   paginate: true   # ページネーション有効
-  per_page: 20     # Phase G.1.1: 構造修正後効率設定（5→20件、API負荷と効率のバランス）
+  per_page: 10     # Phase H.6.2: 更に保守的設定（20→10件、確実なデータ取得優先）
   since_hours: 120  # Phase H.5.3: 72→120時間（5日間）ML戦略データ不足解決
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
-  fetch_retries: 2    # Phase G.1.1: 適度リトライ（0→2回、安定性とAPI安全のバランス）
+  fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化
   
   # 土日ギャップ対応設定（動的since_hours拡張・品質向上対応）
@@ -31,8 +31,8 @@ data:
   max_consecutive_no_new: 10  # 連続新レコードなし許容数（1→10、十分な取得機会確保）
   max_attempts: 20  # 最大試行回数（15→20、データ取得機会拡大）
   exponential_backoff: true  # 指数バックオフ有効化
-  min_delay_ms: 20000  # Phase G.1.1: 構造修正後最適遅延（15000→20000ms、rateLimit統一）
-  max_delay_ms: 30000  # 最大遅延（15000→30000ms、確実な安全性）
+  min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
+  max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
   
   # マルチタイムフレーム対応データ設定（Phase H.5.3: 現実的データ量調整）
   multi_timeframe_data:
@@ -132,7 +132,31 @@ multi_timeframe:
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
-  data_quality_threshold: 0.4  # 40%以上の品質で使用（60%→40%にさらに緩和・ML稼働優先）
+  data_quality_threshold: 0.4  # 40%以上の品質で使用（ML稼働優先・段階的改善予定）
+  
+  # Phase H.5.4: 品質管理強化設定
+  quality_management:
+    enabled: true
+    adaptive_threshold: true      # 適応的品質閾値
+    min_threshold: 0.4           # 最小品質（緊急時）
+    target_threshold: 0.6        # 目標品質（通常時）  
+    max_threshold: 0.8           # 最高品質（理想時）
+    
+    # 品質ベース取引調整
+    low_quality_mode:             # 低品質時（0.4-0.5）
+      position_size_reduction: 0.5  # ポジションサイズ50%削減
+      confidence_boost: 0.1         # 信頼度閾値10%引き上げ
+      stop_loss_tightening: 0.8     # ストップロス20%厳格化
+      
+    medium_quality_mode:          # 中品質時（0.5-0.6）
+      position_size_reduction: 0.7  # ポジションサイズ30%削減
+      confidence_boost: 0.05        # 信頼度閾値5%引き上げ
+      stop_loss_tightening: 0.9     # ストップロス10%厳格化
+    
+    high_quality_mode:            # 高品質時（0.6+）
+      position_size_reduction: 1.0  # 標準ポジションサイズ
+      confidence_boost: 0.0         # 標準信頼度閾値
+      stop_loss_tightening: 1.0     # 標準ストップロス
 
 # 本番リスク設定
 risk:
