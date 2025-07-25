@@ -372,7 +372,7 @@ trading_schedule:
   low_volume_hours: [1, 8]      # UTC 1-8時（深夜・早朝）
   # 日本時間換算: 10:00-17:00
   
-  weekend_monitoring: true      # 土日は監視のみ（緊急時対応）
+  weekend_monitoring: false     # 土日も通常取引（24時間フル稼働）
   timezone: "UTC"              # UTC基準で統一管理
   
   # 出来高別取引戦略
@@ -394,15 +394,12 @@ trading_schedule:
   
   # 取引停止期間（出来高・流動性考慮）
   trading_blackout:
-    weekend_full: true         # 土日完全停止
+    weekend_full: false        # 土日取引有効化（24時間市場対応）
     extreme_low_volume: true   # 極度低出来高時停止
     major_holidays: true       # 主要祝日停止
   
-  # 監視継続設定  
-  monitoring_only_periods:
-    - start: "Saturday 00:00"
-      end: "Monday 08:00"
-      reason: "weekend_low_liquidity"
+  # 監視継続設定（土日取引有効化のため無効化）
+  monitoring_only_periods: []  # 土日取引有効化・24時間フル稼働
 
 # Phase H.5.2: 出来高ベース動的データ取得最適化
 dynamic_data_fetching:
