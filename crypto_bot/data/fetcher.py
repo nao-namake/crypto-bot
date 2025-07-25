@@ -487,7 +487,7 @@ class MarketDataFetcher:
         **kwargs,
     ) -> pd.DataFrame:
         """
-        データ新鮮度チェック付きデータ取得（Phase H.8.1）
+        データ新鮮度チェック付きデータ取得（Phase H.8.1 + H.9.4土日対応強化）
 
         Args:
             timeframe: タイムフレーム
@@ -499,9 +499,38 @@ class MarketDataFetcher:
         Returns:
             pd.DataFrame: 新鮮なデータ
         """
-        logger.info("🚀 [PHASE-H8.1] Starting freshness-aware data fetch")
         logger.info(
-            f"🔧 [PHASE-H8.1] Config: timeframe={timeframe}, since={since}, limit={limit}, max_age_hours={max_age_hours}"
+            "🚀 [PHASE-H9.4] Starting enhanced freshness data fetch with fallback optimization"
+        )
+
+        # Phase H.9.4: since計算問題解決・強制最新データ取得戦略
+        current_time = pd.Timestamp.now(tz="UTC")
+
+        # since が古すぎる場合の自動調整（Phase H.9.4根本解決）
+        if since is not None:
+            if isinstance(since, str):
+                since_dt = pd.to_datetime(since, utc=True)
+            elif isinstance(since, datetime):
+                since_dt = (
+                    since
+                    if since.tzinfo
+                    else since.replace(tzinfo=pd.Timestamp.now().tz)
+                )
+            else:
+                since_dt = pd.to_datetime(
+                    since, unit="ms" if since > 1e12 else "s", utc=True
+                )
+
+            age_hours = (current_time - since_dt).total_seconds() / 3600
+            if age_hours > 24:  # 24時間以上古い場合は強制調整
+                new_since = current_time - pd.Timedelta(hours=6)  # 6時間前に調整
+                logger.warning(
+                    f"🔧 [PHASE-H9.4] since too old ({age_hours:.1f}h), adjusting: {since_dt} → {new_since}"
+                )
+                since = new_since
+
+        logger.info(
+            f"🔧 [PHASE-H9.4] Config: timeframe={timeframe}, since={since}, limit={limit}, max_age_hours={max_age_hours}"
         )
 
         try:
@@ -511,9 +540,9 @@ class MarketDataFetcher:
                 timeframe=timeframe, since=since, limit=limit, **kwargs
             )
 
-            # データ新鮮度チェック
+            # データ新鮮度チェック（Phase H.9.4: 調整されたmax_age_hours使用）
             if not self._is_data_too_old(data, max_age_hours):
-                logger.info("✅ [PHASE-H8.1] Since-based data is fresh, using it")
+                logger.info("✅ [PHASE-H9.4] Since-based data is fresh, using it")
                 return data
 
             # データが古い場合：since=Noneで最新データ取得

@@ -13,11 +13,11 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Phase G.1.1: Bitbank API 超保守的設定（API安全性完全優先・エラー10000根絶）
-  limit: 100       # ML品質確保（50→100件に戻す、十分な学習データ）
+  # Phase H.9.2: データ取得量劇的改善設定（ATR計算成功・トレーディング復活）
+  limit: 200       # Phase H.9.2: 100→200件（データ量2倍増・ATR計算確実成功）
   paginate: true   # ページネーション有効
-  per_page: 10     # Phase H.6.2: 更に保守的設定（20→10件、確実なデータ取得優先）
-  since_hours: 120  # Phase H.5.3: 72→120時間（5日間）ML戦略データ不足解決
+  per_page: 50     # Phase H.9.2: 10→50件（データ取得量5倍増・効率化）
+  since_hours: 72  # Phase H.9.2: 120→72時間（現実的範囲・新鮮度向上）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -37,16 +37,13 @@ data:
   # マルチタイムフレーム対応データ設定（Phase H.5.3: 現実的データ量調整）
   multi_timeframe_data:
     base_timeframe: "1h"  # データ取得ベース（Bitbank APIから1hのみ取得）
-    target_timeframes:    # 変換対象タイムフレーム（内部変換で15m補間・4h集約）
+    target_timeframes:    # Phase H.9.1: 4h完全削除・15m/1hのみ（API Error 10000根絶）
       15m:
         method: "interpolation"  # 1h→15m 補間
-        min_points: 15           # 72h→15m補間で十分なデータ量（15→30調整）
+        min_points: 10           # Phase H.9.1: 15→10に緩和（ATR計算成功優先）
       1h:
         method: "direct"         # 直接使用
-        min_points: 15           # 100→15に大幅緩和（現実的な最小値）
-      4h:
-        method: "aggregation"    # 1h→4h 集約（Phase H.2.2復活）
-        min_points: 5            # 25→5に緩和（72時間から作成可能な最小値）
+        min_points: 10           # Phase H.9.1: 15→10に緩和（現実的最小値）
 
 strategy:
   type: multi_timeframe_ensemble

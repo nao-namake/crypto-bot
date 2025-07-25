@@ -329,14 +329,21 @@ def enhanced_init_6_calculate_atr(
                 )
                 return None
 
-            # ATR計算に必要な最小レコード数確認
-            min_records = period + 1
-            if len(initial_df) < min_records:
+            # ATR計算に必要な最小レコード数確認（Phase H.9.3: 現実的調整）
+            min_records_ideal = period + 1  # 理想: 15件
+            min_records_minimum = max(period // 2, 5)  # Phase H.9.3: 最小7件で計算可能
+
+            if len(initial_df) < min_records_minimum:
                 logger.error(
-                    f"❌ [INIT-6] Insufficient data for ATR calculation: "
-                    f"{len(initial_df)} < {min_records}"
+                    f"❌ [INIT-6] Critical data shortage for ATR calculation: "
+                    f"{len(initial_df)} < {min_records_minimum} (absolute minimum)"
                 )
                 return None
+            elif len(initial_df) < min_records_ideal:
+                logger.warning(
+                    f"⚠️ [INIT-6] Suboptimal data for ATR calculation: "
+                    f"{len(initial_df)} < {min_records_ideal} (ideal), but proceeding with calculation"
+                )
 
             logger.info(
                 f"📊 [INIT-6] Data validation passed: "
@@ -387,17 +394,23 @@ def enhanced_init_6_calculate_atr(
     return atr_series
 
 
-def enhanced_init_6_fallback_atr(period: int = 14) -> pd.Series:
+def enhanced_init_6_fallback_atr(
+    period: int = 14, market_context: str = "BTC/JPY"
+) -> pd.Series:
     """
-    INIT-6段階: ATRフォールバック値生成（強化版）
+    INIT-6段階: ATRフォールバック値生成（Phase H.9.3強化版）
 
     Args:
         period: ATR期間
+        market_context: 市場コンテキスト（BTC/JPY等）
 
     Returns:
         Series: フォールバックATR値
     """
-    logger.info("🔧 [INIT-6] Using enhanced fallback ATR calculation...")
+    logger.info(
+        "🔧 [INIT-6] Phase H.9.3: Using enhanced adaptive fallback ATR calculation..."
+    )
+    logger.info(f"🔧 [INIT-6] Market context: {market_context}, Period: {period}")
 
     # より現実的なフォールバック値を生成
     # 暗号資産の典型的なATR値: 0.005-0.02 (0.5%-2%)
@@ -528,10 +541,13 @@ def enhanced_init_sequence(fetcher, dd: dict, strategy, risk_manager, balance: f
     # INIT-6: ATR計算（強化版）
     atr_series = enhanced_init_6_calculate_atr(initial_df)
 
-    # フォールバック処理
+    # フォールバック処理（Phase H.9.3: 適応的フォールバック）
     if atr_series is None or atr_series.empty:
-        logger.info("🔧 [INIT-6] Using enhanced fallback ATR calculation")
-        atr_series = enhanced_init_6_fallback_atr()
+        logger.info(
+            "🔧 [INIT-6] Phase H.9.3: Using enhanced adaptive fallback ATR calculation"
+        )
+        symbol = dd.get("symbol", "BTC/JPY")
+        atr_series = enhanced_init_6_fallback_atr(market_context=symbol)
 
     # INIT-7: Entry/Exit初期化（強化版）
     entry_exit = enhanced_init_7_initialize_entry_exit(
