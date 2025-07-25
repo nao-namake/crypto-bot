@@ -91,7 +91,7 @@ def start_live_trading():
             logger.info("🎯 Using LITE mode (3 features) for fast initialization")
         else:
             default_config = "/app/config/production/production.yml"
-            logger.info("🎯 Using FULL mode (126 features)")
+            logger.info("🎯 Using FULL mode (target: 151 features, actual count determined by ML processing)")
 
         config_file = os.getenv("CONFIG_FILE", default_config)
 
