@@ -640,9 +640,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 logger.warning(
                     f"Insufficient {timeframe} data: {len(tf_data)} rows (minimum: 18)"
                 )
-            elif len(tf_data) < 30:  # 軽度警告レベル
+            elif len(tf_data) < 20:  # 軽度警告レベル（rolling_window=10対応）
                 logger.info(
-                    f"⚠️ Limited {timeframe} data: {len(tf_data)} rows (recommended: 30+)"
+                    f"⚠️ Limited {timeframe} data: {len(tf_data)} rows (recommended: 20+)"
                 )
 
             # キャッシュ更新
