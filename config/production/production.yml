@@ -54,7 +54,13 @@ strategy:
   name: multi_timeframe_ensemble
   params:
     model_path: /app/models/production/model.pkl  # 固定パス統一
-    threshold: 0.05
+    threshold: 0.02  # Phase H.15: エントリー頻度最適化（月60-100回目標）
+    # 動的閾値調整パラメータ
+    atr_multiplier: 0.3  # Phase H.15: 0.5→0.3（影響抑制）
+    volatility_adjustment: true
+    threshold_bounds: [0.005, 0.10]  # Phase H.15: より狭い範囲で安定性向上
+    max_volatility_adj: 0.03  # Phase H.15: ボラティリティ調整上限（新規）
+    performance_adj_range: [-0.003, 0.005]  # Phase H.15: パフォーマンス調整範囲（新規）
     # 戦略が期待するMLセクション全体を追加
     ml:
       feat_period: 14
@@ -66,7 +72,7 @@ strategy:
       ensemble:
         enabled: true
         method: trading_stacking
-        confidence_threshold: 0.65
+        confidence_threshold: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
         risk_adjustment: true
         models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
         model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
@@ -202,7 +208,7 @@ ml:
   ensemble:
     enabled: true
     method: trading_stacking
-    confidence_threshold: 0.65
+    confidence_threshold: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
     risk_adjustment: true
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
@@ -264,6 +270,21 @@ ml:
     enabled: true
     cache_enabled: true
     fallback_enabled: true
+  
+  # VIX統合パラメータ（Phase H.15: エントリー頻度最適化）
+  vix_integration:
+    enabled: true
+    risk_off_threshold: 25
+    panic_threshold: 35
+    spike_multiplier: 2.0
+    vix_extreme_adj: 0.05  # Phase H.15: 極端な調整を0.15→0.05に抑制
+    vix_normal_range: [15, 25]  # 通常範囲定義
+  
+  # パフォーマンス向上パラメータ（Phase H.15）
+  performance_enhancements:
+    confidence_filter: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
+    partial_profit_levels: [0.3, 0.5]
+    trailing_stop: true
     
     vix:
       enabled: true

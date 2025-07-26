@@ -81,6 +81,11 @@ class MLStrategy(StrategyBase):
         self.atr_multiplier = strategy_params.get("atr_multiplier", 0.5)
         self.volatility_adjustment = strategy_params.get("volatility_adjustment", True)
         self.threshold_bounds = strategy_params.get("threshold_bounds", [0.01, 0.25])
+        # Phase H.15: 新規パラメータ追加
+        self.max_volatility_adj = strategy_params.get("max_volatility_adj", 0.1)
+        self.performance_adj_range = strategy_params.get(
+            "performance_adj_range", [-0.01, 0.01]
+        )
 
         # VIX integration parameters
         vix_config = self.config.get("ml", {}).get("vix_integration", {})
@@ -88,10 +93,15 @@ class MLStrategy(StrategyBase):
         self.vix_risk_off_threshold = vix_config.get("risk_off_threshold", 25)
         self.vix_panic_threshold = vix_config.get("panic_threshold", 35)
         self.vix_spike_multiplier = vix_config.get("spike_multiplier", 2.0)
+        self.vix_extreme_adj = vix_config.get(
+            "vix_extreme_adj", 0.05
+        )  # Phase H.15: 極端な調整を抑制
 
         # Performance improvement parameters
         perf_config = self.config.get("ml", {}).get("performance_enhancements", {})
-        self.confidence_filter = perf_config.get("confidence_filter", 0.65)
+        self.confidence_filter = perf_config.get(
+            "confidence_filter", 0.60
+        )  # Phase H.15: 0.65→0.60
         self.partial_profit_levels = perf_config.get(
             "partial_profit_levels", [0.3, 0.5]
         )
@@ -158,6 +168,11 @@ class MLStrategy(StrategyBase):
             else:  # Normal volatility
                 vol_adjustment = 0.0
 
+            # Phase H.15: ボラティリティ調整の上限制御
+            vol_adjustment = np.clip(
+                vol_adjustment, -self.max_volatility_adj, self.max_volatility_adj
+            )
+
             return vol_adjustment
 
         except Exception as e:
@@ -178,11 +193,15 @@ class MLStrategy(StrategyBase):
 
         # Adjust threshold based on performance
         if win_rate > 0.65:  # Good performance - slightly more aggressive
-            return -0.005
+            perf_adj = -0.005
         elif win_rate < 0.35:  # Poor performance - more conservative
-            return 0.01
+            perf_adj = 0.01
         else:
-            return 0.0
+            perf_adj = 0.0
+
+        # Phase H.15: パフォーマンス調整の範囲制限
+        min_adj, max_adj = self.performance_adj_range
+        return np.clip(perf_adj, min_adj, max_adj)
 
     def get_vix_adjustment(self) -> tuple[float, dict]:
         """
@@ -239,11 +258,12 @@ class MLStrategy(StrategyBase):
                 risk_signal = "risk_on"
             elif current_vix > self.vix_panic_threshold:
                 # パニック状態：取引停止レベル
-                threshold_adj = 0.15  # 極めて保守的
+                # Phase H.15: 極端な調整を抑制（0.15→vix_extreme_adj）
+                threshold_adj = self.vix_extreme_adj  # デフォルト0.05
                 risk_signal = "panic"
             elif current_vix > self.vix_risk_off_threshold:
                 # リスクオフ：保守的
-                threshold_adj = 0.05
+                threshold_adj = 0.03  # Phase H.15: 0.05→0.03（影響を抑制）
                 risk_signal = "risk_off"
 
             # VIXスパイク（急上昇）の場合はさらに保守的に
@@ -454,8 +474,11 @@ class MLStrategy(StrategyBase):
 
         # 中間的なシグナル（動的閾値ベース）
         # 低ボラティリティ時により積極的、高ボラティリティ時により慎重
-        weak_threshold = 0.52 - (dynamic_th * 0.4)  # 動的調整
-        weak_threshold = max(0.51, min(0.55, weak_threshold))  # 範囲制限
+        # Phase H.15: より積極的な弱シグナル（0.4→0.2、範囲も調整）
+        weak_threshold = 0.51 - (dynamic_th * 0.2)  # 動的調整（係数を0.4→0.2）
+        weak_threshold = max(
+            0.505, min(0.53, weak_threshold)
+        )  # 範囲制限（0.51-0.55→0.505-0.53）
 
         if prob > weak_threshold:  # 弱いBUYシグナル
             logger.info(

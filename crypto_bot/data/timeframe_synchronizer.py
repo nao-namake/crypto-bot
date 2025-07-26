@@ -246,10 +246,12 @@ class TimeframeSynchronizer:
             for target_time in target_index:
                 # 許容誤差内の最近傍データを検索
                 time_diff = np.abs(data.index - target_time)
-                # ✅ Phase H.14修正: TimedeltaIndexエラー完全解決・argmin()でint取得・iloc使用
+                # ✅ Phase H.14修正: TimedeltaIndexエラー完全解決・argmin()でint取得・直接インデックス使用
                 min_diff_argmin = time_diff.argmin()
                 min_diff_idx = data.index[min_diff_argmin]
-                min_diff = time_diff.iloc[min_diff_argmin]
+                min_diff = time_diff[
+                    min_diff_argmin
+                ]  # TimedeltaIndexは直接インデックスアクセス
 
                 if min_diff <= self.sync_tolerance:
                     aligned_data.loc[target_time] = data.loc[min_diff_idx]
