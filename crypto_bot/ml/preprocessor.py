@@ -42,7 +42,7 @@ try:
         FeatureEngineeringEnhanced,
         enhance_feature_engineering,
     )
-    
+
     ENHANCED_FEATURES_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ Enhanced feature engineering not available: {e}")
@@ -2250,138 +2250,173 @@ def prepare_ml_dataset(
 
 
 # Phase H.11: 特徴量完全性保証システム統合
-def prepare_ml_dataset_enhanced(df: pd.DataFrame, config: Dict[str, Any]) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
+def prepare_ml_dataset_enhanced(
+    df: pd.DataFrame, config: Dict[str, Any]
+) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
     """
     特徴量完全性保証付きML用データセット作成
-    
+
     Args:
         df: OHLCVデータ
         config: 設定辞書
-        
+
     Returns:
         (特徴量DataFrame, 回帰ターゲット, 分類ターゲット)
     """
     logger.info("🚀 [ENHANCED-ML] Starting enhanced ML dataset preparation...")
     logger.info(f"📊 [ENHANCED-ML] Input shape: {df.shape}")
-    
+
     # Phase H.11: 特徴量完全性保証実行
     if ENHANCED_FEATURES_AVAILABLE:
         logger.info("✅ [ENHANCED-ML] Using enhanced feature engineering system")
         enhanced_df, feature_report = enhance_feature_engineering(df, config)
-        
+
         # 特徴量レポートの出力
-        logger.info(f"📋 [ENHANCED-ML] Feature completeness report:")
-        logger.info(f"   - Implementation rate: {feature_report['audit_result']['implementation_rate']:.1%}")
-        logger.info(f"   - Generated features: {len(feature_report['generated_features'])}")
+        logger.info("📋 [ENHANCED-ML] Feature completeness report:")
+        logger.info(
+            f"   - Implementation rate: {feature_report['audit_result']['implementation_rate']:.1%}"
+        )
+        logger.info(
+            f"   - Generated features: {len(feature_report['generated_features'])}"
+        )
         logger.info(f"   - Final features: {feature_report['final_feature_count']}")
-        logger.info(f"   - Completeness rate: {feature_report['completeness_rate']:.1%}")
-        
+        logger.info(
+            f"   - Completeness rate: {feature_report['completeness_rate']:.1%}"
+        )
+
         # 品質の低い特徴量の警告
         low_quality_features = [
-            f for f, score in feature_report['quality_scores'].items() 
-            if score < 0.5
+            f for f, score in feature_report["quality_scores"].items() if score < 0.5
         ]
         if low_quality_features:
-            logger.warning(f"⚠️ [ENHANCED-ML] Low quality features ({len(low_quality_features)}): {low_quality_features[:5]}...")
-        
+            logger.warning(
+                f"⚠️ [ENHANCED-ML] Low quality features ({len(low_quality_features)}): {low_quality_features[:5]}..."
+            )
+
         # 強化されたDataFrameを使用してML処理継続
         logger.info(f"📊 [ENHANCED-ML] Enhanced shape: {enhanced_df.shape}")
         result_df = enhanced_df
     else:
-        logger.warning("⚠️ [ENHANCED-ML] Enhanced features not available, falling back to standard processing")
+        logger.warning(
+            "⚠️ [ENHANCED-ML] Enhanced features not available, falling back to standard processing"
+        )
         result_df = df
-    
+
     # 標準のML処理パイプライン実行
     pipeline = build_ml_pipeline(config)
     X_arr = pipeline.fit_transform(result_df)
-    
-    logger.info(f"🔧 [ENHANCED-ML] Pipeline output shape: {X_arr.shape if hasattr(X_arr, 'shape') else len(X_arr)}")
-    
+
+    logger.info(
+        f"🔧 [ENHANCED-ML] Pipeline output shape: {X_arr.shape if hasattr(X_arr, 'shape') else len(X_arr)}"
+    )
+
     # X_arrがlistの場合はnumpy arrayに変換
     if isinstance(X_arr, list):
         logger.warning("🔄 [ENHANCED-ML] Converting list to numpy array")
         import numpy as np
+
         try:
             X_arr = np.array(X_arr)
         except Exception as e:
             logger.error(f"❌ [ENHANCED-ML] Array conversion failed: {e}")
             return X_arr, None, None
-    
+
     # 目的変数生成
     horizon = config["ml"]["horizon"]
     thresh = config["ml"].get("threshold", 0.0)
     y_reg = make_regression_target(result_df, horizon).rename(f"return_{horizon}")
-    y_clf = make_classification_target(result_df, horizon, thresh).rename(f"up_{horizon}")
-    
+    y_clf = make_classification_target(result_df, horizon, thresh).rename(
+        f"up_{horizon}"
+    )
+
     # 行数調整
     win = config["ml"]["rolling_window"]
     lags = config["ml"]["lags"]
     drop_n = win + max(lags) if lags else win
-    
+
     idx = result_df.index[drop_n:]
     X = pd.DataFrame(X_arr[drop_n:], index=idx)
-    
-    logger.info(f"✅ [ENHANCED-ML] Enhanced ML dataset ready: X{X.shape}, y_reg{y_reg.loc[idx].shape}, y_clf{y_clf.loc[idx].shape}")
-    
+
+    logger.info(
+        f"✅ [ENHANCED-ML] Enhanced ML dataset ready: X{X.shape}, y_reg{y_reg.loc[idx].shape}, y_clf{y_clf.loc[idx].shape}"
+    )
+
     return X, y_reg.loc[idx], y_clf.loc[idx]
 
 
 def ensure_feature_coverage(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     設定ファイルの特徴量カバレッジ確保
-    
+
     Args:
         config: 設定辞書
-        
+
     Returns:
         特徴量カバレッジ保証済み設定辞書
     """
     if not ENHANCED_FEATURES_AVAILABLE:
         logger.warning("⚠️ Enhanced feature engineering not available")
         return config
-    
+
     logger.info("🔍 [COVERAGE] Ensuring feature coverage in configuration...")
-    
+
     enhanced_config = config.copy()
-    
+
     # ML設定から要求特徴量を取得
-    ml_features = config.get('ml', {}).get('extra_features', [])
-    strategy_features = config.get('strategy', {}).get('params', {}).get('ml', {}).get('extra_features', [])
-    
+    ml_features = config.get("ml", {}).get("extra_features", [])
+    strategy_features = (
+        config.get("strategy", {})
+        .get("params", {})
+        .get("ml", {})
+        .get("extra_features", [])
+    )
+
     all_features = list(set(ml_features + strategy_features))
-    
+
     if not all_features:
         logger.warning("⚠️ [COVERAGE] No features specified in configuration")
         return enhanced_config
-    
+
     # 特徴量実装監査
     enhancer = FeatureEngineeringEnhanced()
     audit_result = enhancer.audit_feature_implementation(all_features)
-    
+
     # 未実装特徴量の警告とフォールバック設定
-    if audit_result['missing']:
-        logger.warning(f"⚠️ [COVERAGE] Unimplemented features detected ({len(audit_result['missing'])})")
-        logger.info(f"   Missing: {audit_result['missing'][:10]}...")  # 最初の10個を表示
-        
+    if audit_result["missing"]:
+        logger.warning(
+            f"⚠️ [COVERAGE] Unimplemented features detected ({len(audit_result['missing'])})"
+        )
+        logger.info(
+            f"   Missing: {audit_result['missing'][:10]}..."
+        )  # 最初の10個を表示
+
         # フォールバック設定を追加
-        enhanced_config.setdefault('feature_fallback', {})
-        enhanced_config['feature_fallback']['auto_generate_missing'] = True
-        enhanced_config['feature_fallback']['missing_features'] = audit_result['missing']
-    
+        enhanced_config.setdefault("feature_fallback", {})
+        enhanced_config["feature_fallback"]["auto_generate_missing"] = True
+        enhanced_config["feature_fallback"]["missing_features"] = audit_result[
+            "missing"
+        ]
+
     # 外部データ依存特徴量の設定確認
-    if audit_result['external_dependent']:
-        logger.info(f"📡 [COVERAGE] External data features ({len(audit_result['external_dependent'])})")
-        
+    if audit_result["external_dependent"]:
+        logger.info(
+            f"📡 [COVERAGE] External data features ({len(audit_result['external_dependent'])})"
+        )
+
         # 外部データ設定の存在確認
-        external_config = enhanced_config.get('ml', {}).get('external_data', {})
-        if not external_config.get('enabled', False):
-            logger.warning("⚠️ [COVERAGE] External data features requested but external_data not enabled")
-            enhanced_config.setdefault('ml', {}).setdefault('external_data', {})['enabled'] = True
-    
-    logger.info(f"✅ [COVERAGE] Feature coverage ensured:")
+        external_config = enhanced_config.get("ml", {}).get("external_data", {})
+        if not external_config.get("enabled", False):
+            logger.warning(
+                "⚠️ [COVERAGE] External data features requested but external_data not enabled"
+            )
+            enhanced_config.setdefault("ml", {}).setdefault("external_data", {})[
+                "enabled"
+            ] = True
+
+    logger.info("✅ [COVERAGE] Feature coverage ensured:")
     logger.info(f"   - Implementation rate: {audit_result['implementation_rate']:.1%}")
     logger.info(f"   - Total features: {audit_result['total_requested']}")
     logger.info(f"   - Implemented: {len(audit_result['implemented'])}")
     logger.info(f"   - Missing: {len(audit_result['missing'])}")
-    
+
     return enhanced_config

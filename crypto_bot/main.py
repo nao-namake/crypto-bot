@@ -38,12 +38,10 @@ from crypto_bot.ml.preprocessor import prepare_ml_dataset
 
 # Phase H.11: 特徴量強化システム統合
 try:
-    from crypto_bot.ml.preprocessor import (
-        prepare_ml_dataset_enhanced,
-        ensure_feature_coverage,
-    )
-    from crypto_bot.ml.feature_engineering_enhanced import enhance_feature_engineering
-    
+    # prepare_ml_dataset_enhanced, ensure_feature_coverage は _mlprep 経由で使用
+    # enhance_feature_engineering は間接的に使用
+    import crypto_bot.ml.feature_engineering_enhanced  # noqa: F401
+
     ENHANCED_FEATURES_AVAILABLE = True
 except ImportError:
     ENHANCED_FEATURES_AVAILABLE = False
@@ -262,6 +260,7 @@ def load_config(path: str) -> dict:
     # Phase H.11: 特徴量カバレッジ確保
     if ENHANCED_FEATURES_AVAILABLE:
         try:
+            from crypto_bot.ml.preprocessor import ensure_feature_coverage
             config = ensure_feature_coverage(config)
             logger.info("✅ [CONFIG] Feature coverage ensured")
         except Exception as e:
@@ -331,9 +330,13 @@ def prepare_data(cfg: dict):
     if ENHANCED_FEATURES_AVAILABLE:
         try:
             ret = _mlprep.prepare_ml_dataset_enhanced(df, cfg)
-            logging.getLogger(__name__).info("✅ [PREPARE] Using enhanced feature engineering")
+            logging.getLogger(__name__).info(
+                "✅ [PREPARE] Using enhanced feature engineering"
+            )
         except Exception as e:
-            logging.getLogger(__name__).warning(f"⚠️ [PREPARE] Enhanced features failed, fallback: {e}")
+            logging.getLogger(__name__).warning(
+                f"⚠️ [PREPARE] Enhanced features failed, fallback: {e}"
+            )
             ret = _mlprep.prepare_ml_dataset(df, cfg)
     else:
         ret = _mlprep.prepare_ml_dataset(df, cfg)
