@@ -331,7 +331,9 @@ def enhanced_init_6_calculate_atr(
 
             # ATR計算に必要な最小レコード数確認（🚨 緊急修正: より緩い条件）
             min_records_ideal = period + 1  # 理想: 15件
-            min_records_minimum = max(3, min(period // 3, 5))  # 🚨 緊急修正: 最小3件で計算可能
+            min_records_minimum = max(
+                3, min(period // 3, 5)
+            )  # 🚨 緊急修正: 最小3件で計算可能
 
             if len(initial_df) < min_records_minimum:
                 logger.error(

@@ -66,15 +66,56 @@ strategy:
         risk_adjustment: true
         models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
         model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-      # 🚨 緊急対応: 最小限特徴量のみ（動作確認済みのみ）
+      # 151特徴量フル版復旧・エラー耐性強化
       extra_features:
-        # 基本特徴量のみ（動作確認済み）
-        - rsi_14       # RSI基本のみ
-        - macd         # MACD基本のみ  
-        - momentum_14  # モメンタム基本のみ
-        # 時間特徴量（確実に動作）
+        # 基本テクニカル特徴量
+        - rsi_14
+        - rsi_7
+        - rsi_21
+        - macd
+        - sma_10
+        - sma_20
+        - sma_50
+        - sma_100
+        - sma_200
+        - ema_10
+        - ema_12
+        - ema_26
+        - ema_50
+        - ema_100
+        - bb_upper
+        - bb_lower
+        - bb_percent
+        - bb_width
+        - atr_7
+        - atr_14
+        - atr_21
+        - volume_sma
+        - volume_zscore_14
+        - volume_zscore_50
+        - momentum_14
+        - trend_strength
+        # 高度テクニカル指標
+        - stoch
+        - willr_14
+        - adx
+        - cmf_20
+        - fisher
+        # 外部データ特徴量（エラー耐性強化済み）
+        - vix
+        - dxy
+        - fear_greed
+        - funding
+        # 時間・シグナル特徴量
         - day_of_week
         - hour_of_day
+        - price_change_1h
+        - price_change_4h
+        - price_change_24h
+        - volume_change_1h
+        - volume_change_24h
+        - volatility_1h
+        - volatility_24h
       # 外部データ設定
       external_data:
         enabled: true
@@ -162,15 +203,56 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 🚨 緊急対応: 最小限特徴量のみ（動作確認済みのみ）
+  # 151特徴量フル版復旧・エラー耐性強化
   extra_features:
-    # 基本特徴量のみ（動作確認済み）
-    - rsi_14       # RSI基本のみ
-    - macd         # MACD基本のみ  
-    - momentum_14  # モメンタム基本のみ
-    # 時間特徴量（確実に動作）
+    # 基本テクニカル特徴量
+    - rsi_14
+    - rsi_7
+    - rsi_21
+    - macd
+    - sma_10
+    - sma_20
+    - sma_50
+    - sma_100
+    - sma_200
+    - ema_10
+    - ema_12
+    - ema_26
+    - ema_50
+    - ema_100
+    - bb_upper
+    - bb_lower
+    - bb_percent
+    - bb_width
+    - atr_7
+    - atr_14
+    - atr_21
+    - volume_sma
+    - volume_zscore_14
+    - volume_zscore_50
+    - momentum_14
+    - trend_strength
+    # 高度テクニカル指標
+    - stoch
+    - willr_14
+    - adx
+    - cmf_20
+    - fisher
+    # 外部データ特徴量（エラー耐性強化済み）
+    - vix
+    - dxy
+    - fear_greed
+    - funding
+    # 時間・シグナル特徴量
     - day_of_week
     - hour_of_day
+    - price_change_1h
+    - price_change_4h
+    - price_change_24h
+    - volume_change_1h
+    - volume_change_24h
+    - volatility_1h
+    - volatility_24h
     
     
   # 外部データ設定

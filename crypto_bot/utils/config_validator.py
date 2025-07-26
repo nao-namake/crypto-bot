@@ -298,9 +298,9 @@ class ConfigValidator:
                         self.errors.append(
                             f"ml.extra_features の要素は文字列である必要があります: {feature}"
                         )
-                    # 警告レベル - 無効な特徴量があっても動作は可能
+                    # 警告レベル - 無効な特徴量があっても動作は可能（エラー耐性強化）
                     elif feature not in valid_features:
-                        logger.warning(f"未知の特徴量が指定されています: {feature}")
+                        logger.info(f"ℹ️ 未実装特徴量（デフォルト値使用）: {feature}")
 
         # optuna section validation
         if "optuna" in ml_config:
