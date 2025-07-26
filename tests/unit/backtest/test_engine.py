@@ -38,15 +38,15 @@ class DummyStrategy(StrategyBase):
 
 
 def dummy_price_df():
-    # シンプルなテスト用OHLCV
+    # Phase H.13対応: ATR計算に十分なテスト用OHLCV（最小5件以上）
     return pd.DataFrame(
         {
-            "open": [100, 101, 102],
-            "high": [101, 102, 103],
-            "low": [99, 100, 101],
-            "close": [100, 102, 103],
+            "open": [100, 101, 102, 103, 104, 105],
+            "high": [101, 102, 103, 104, 105, 106],
+            "low": [99, 100, 101, 102, 103, 104],
+            "close": [100, 102, 103, 104, 105, 106],
         },
-        index=pd.date_range("2024-01-01", periods=3, freq="1min"),
+        index=pd.date_range("2024-01-01", periods=6, freq="1min"),
     )
 
 

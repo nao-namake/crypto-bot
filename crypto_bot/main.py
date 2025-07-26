@@ -1049,7 +1049,92 @@ def live_bitbank(config_path: str, max_trades: int):
                 f"{balance:.2f} JPY"
             )
 
-    # INIT-5〜INIT-8の強化版シーケンス実行
+    # Phase H.13: INIT段階用データプリフェッチ（メインループデータ共有）
+    logger.info("📊 [INIT-PREFETCH] Pre-fetching data for INIT stages optimization...")
+    logger.info(f"⏰ [INIT-PREFETCH] Timestamp: {pd.Timestamp.now()}")
+
+    init_prefetch_data = None
+    try:
+        # メインループと同じデータフェッチロジックを使用（効率的データ共有）
+        current_time = pd.Timestamp.now(tz="UTC")
+
+        # 動的since計算（メインループと同じロジック）
+        if dd.get("since"):
+            since_time = pd.Timestamp(dd["since"])
+            if since_time.tz is None:
+                since_time = since_time.tz_localize("UTC")
+        else:
+            base_hours = dd.get("since_hours", 120)  # メインループと同じ
+
+            # 土日ギャップ対応（メインループと同じロジック）
+            current_day = current_time.dayofweek
+            current_hour = current_time.hour
+
+            if current_day == 0:  # 月曜日
+                hours_back = base_hours + 48
+                logger.info(f"🗓️ [INIT-PREFETCH] Monday: extending to {hours_back}h")
+            elif current_day <= 1 and current_hour < 12:  # 火曜午前
+                hours_back = base_hours + 24
+                logger.info(
+                    f"🌅 [INIT-PREFETCH] Early week: extending to {hours_back}h"
+                )
+            else:
+                hours_back = base_hours
+
+            since_time = current_time - pd.Timedelta(hours=hours_back)
+
+        # Phase H.13: ベースタイムフレーム決定（メインループと同じロジック）
+        base_timeframe = "1h"  # デフォルト
+        if (
+            "multi_timeframe_data" in dd
+            and "base_timeframe" in dd["multi_timeframe_data"]
+        ):
+            base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+        else:
+            timeframe_raw = dd.get("timeframe", "1h")
+            if timeframe_raw == "4h":
+                base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+                logger.warning(
+                    "🚨 [INIT-PREFETCH] 4h timeframe forced to 1h (API compatibility)"
+                )
+            else:
+                base_timeframe = timeframe_raw
+
+        logger.info(f"🔧 [INIT-PREFETCH] Base timeframe: {base_timeframe}")
+        logger.info(f"⏰ [INIT-PREFETCH] Since: {since_time}")
+
+        # データプリフェッチ実行（メインループと同じパラメータ）
+        init_prefetch_data = fetcher.get_price_df(
+            timeframe=base_timeframe,
+            since=since_time,
+            limit=dd.get("limit", 500),  # メインループと同じ
+            paginate=dd.get("paginate", True),
+            per_page=dd.get("per_page", 100),
+            max_consecutive_empty=dd.get("max_consecutive_empty", None),
+            max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
+            max_attempts=dd.get("max_attempts", None),
+        )
+
+        if init_prefetch_data is not None and not init_prefetch_data.empty:
+            logger.info(
+                f"✅ [INIT-PREFETCH] Successfully prefetched {len(init_prefetch_data)} records for INIT stages"
+            )
+            logger.info(
+                f"📊 [INIT-PREFETCH] Data range: {init_prefetch_data.index.min()} to {init_prefetch_data.index.max()}"
+            )
+        else:
+            logger.warning(
+                "⚠️ [INIT-PREFETCH] No data prefetched, INIT stages will use fallback"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ [INIT-PREFETCH] Data prefetch failed: {e}")
+        logger.info(
+            "🔄 [INIT-PREFETCH] INIT stages will use independent fetch as fallback"
+        )
+        init_prefetch_data = None
+
+    # INIT-5〜INIT-8の強化版シーケンス実行（Phase H.13: プリフェッチデータ統合）
     from crypto_bot.init_enhanced import enhanced_init_sequence
 
     entry_exit, position = enhanced_init_sequence(
@@ -1058,6 +1143,7 @@ def live_bitbank(config_path: str, max_trades: int):
         strategy=strategy,
         risk_manager=risk_manager,
         balance=balance,
+        prefetch_data=init_prefetch_data,  # Phase H.13: プリフェッチデータ渡し
     )
 
     # Phase 8統計システム初期化（エラーハンドリング強化）

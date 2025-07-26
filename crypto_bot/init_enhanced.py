@@ -18,23 +18,57 @@ logger = logging.getLogger(__name__)
 
 @with_resilience("init_system", "init_5_fetch_price_data")
 def enhanced_init_5_fetch_price_data(
-    fetcher, dd: dict, max_retries: int = 5, timeout: int = 120
+    fetcher, dd: dict, max_retries: int = 5, timeout: int = 120, prefetch_data=None
 ) -> Optional[pd.DataFrame]:
     """
-    INIT-5段階: 初期価格データ取得（強化版・Phase H.8.4）
+    INIT-5段階: 初期価格データ取得（強化版・Phase H.13: プリフェッチデータ統合）
 
     Args:
         fetcher: データフェッチャー
         dd: データ設定辞書
         max_retries: 最大再試行回数
         timeout: タイムアウト秒数（Phase H.7: 60→120秒延長）
+        prefetch_data: プリフェッチデータ（Phase H.13: メインループ共有用）
 
     Returns:
         DataFrame: 価格データ（失敗時はNone）
     """
-    # Phase H.8.4: エラー耐性管理システム統合（記録のみ）
+    # Phase H.13: プリフェッチデータ優先使用（ATR計算データ最大化）
+    if prefetch_data is not None and not prefetch_data.empty:
+        logger.info(
+            "📊 [INIT-5] Phase H.13: Using prefetched data for optimal ATR calculation"
+        )
+        logger.info(
+            f"✅ [INIT-5] Prefetch data utilized: {len(prefetch_data)} records (vs previous 5 records)"
+        )
+        logger.info(
+            f"📈 [INIT-5] Data range: {prefetch_data.index.min()} to {prefetch_data.index.max()}"
+        )
 
-    logger.info("📈 [INIT-5] Fetching initial price data for ATR calculation...")
+        # データ品質確認
+        required_columns = ["open", "high", "low", "close", "volume"]
+        missing_columns = [
+            col for col in required_columns if col not in prefetch_data.columns
+        ]
+
+        if missing_columns:
+            logger.warning(
+                f"⚠️ [INIT-5] Missing columns in prefetch data: {missing_columns}"
+            )
+            logger.info("🔄 [INIT-5] Falling back to independent fetch")
+        else:
+            logger.info(
+                "✅ [INIT-5] Phase H.13: All required columns present in prefetch data"
+            )
+            logger.info(
+                f"🎯 [INIT-5] Phase H.13: ATR calculation will use {len(prefetch_data)} records (sufficient for period=14)"
+            )
+            return prefetch_data.copy()  # プリフェッチデータを返す
+
+    # Phase H.8.4: エラー耐性管理システム統合（記録のみ）
+    logger.info(
+        "📈 [INIT-5] Fetching initial price data for ATR calculation (fallback mode)..."
+    )
     logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     logger.info(
         f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase H.7延長)"
@@ -172,15 +206,21 @@ def enhanced_init_5_fetch_price_data(
             "🚨 [INIT-5] Phase H.8.2: EMERGENCY: 4h still detected, forcing to 1h"
         )
         timeframe = "1h"
-    # Phase H.7.1: INIT-5専用の軽量設定（ATR計算に必要な最小限）
-    init_limit = 100  # 🚨 緊急修正: 30→100件に増加（データ不足対策）
-    init_paginate = True  # 🚨 緊急修正: ページネーション有効化でデータ確保
+    # Phase H.13: INIT-5専用設定（データ不足対応・十分な余裕確保・安全マージン強化）
+    init_limit = 200  # Phase H.13: 安全マージン強化（ATR期間14に対して14倍以上の余裕・100データ未取得対策）
+    init_paginate = True  # Phase H.13: ページネーション有効化（データ確保優先）
+    init_per_page = (
+        100  # Phase H.13: 大きめのページサイズ（効率的な大量取得・安全マージン強化）
+    )
 
     logger.info(
-        f"🔧 [INIT-5] Phase H.7 Optimized: timeframe={timeframe}, limit={init_limit}, paginate={init_paginate}"
+        f"🔧 [INIT-5] Phase H.13: timeframe={timeframe}, limit={init_limit}, paginate={init_paginate}, per_page={init_per_page}"
     )
     logger.info(
-        "🔧 [INIT-5] Using lightweight settings for faster initialization (30 records, no pagination)"
+        f"🔧 [INIT-5] Phase H.13: Enhanced safety margin settings ({init_limit} records target, robust against <100 data scenarios)"
+    )
+    logger.info(
+        "⚠️ [INIT-5] Phase H.13: Note - prefetch data preferred, this is safety fallback"
     )
 
     for attempt in range(max_retries):
@@ -203,14 +243,20 @@ def enhanced_init_5_fetch_price_data(
                 return fetcher.fetch_with_freshness_fallback(
                     timeframe=timeframe,
                     since=since_time,  # Phase H.6.1: since時刻を追加
-                    limit=init_limit,  # Phase H.7.1: 30レコードのみ
+                    limit=init_limit,  # Phase H.13: 200レコード（安全マージン強化・100データ未取得対策）
                     max_age_hours=2.0,  # Phase H.8.1: 2時間以内のデータを要求
-                    paginate=init_paginate,  # Phase H.7.1: False（ページネーション無効）
-                    per_page=30,  # Phase H.7.1: 単一呼び出しで全データ取得
-                    # ページネーション無効なので以下は不要だが念のため設定
-                    max_consecutive_empty=1,
-                    max_consecutive_no_new=1,
-                    max_attempts=1,
+                    paginate=init_paginate,  # Phase H.13: True（ページネーション有効）
+                    per_page=init_per_page,  # Phase H.13: 100件ページサイズ（大量効率取得・安全マージン強化）
+                    # Phase H.13: 安全マージン強化・十分な取得機会確保（API制限・ネットワーク問題対応）
+                    max_consecutive_empty=dd.get(
+                        "max_consecutive_empty", 10
+                    ),  # 5→10に拡大（余裕確保）
+                    max_consecutive_no_new=dd.get(
+                        "max_consecutive_no_new", 20
+                    ),  # 10→20に拡大（データ確保重視）
+                    max_attempts=dd.get(
+                        "max_attempts", 35
+                    ),  # 15→35に拡大（200レコード確実取得）
                 )
 
             try:
@@ -329,30 +375,66 @@ def enhanced_init_6_calculate_atr(
                 )
                 return None
 
-            # ATR計算に必要な最小レコード数確認（🚨 緊急修正: より緩い条件）
-            min_records_ideal = period + 1  # 理想: 15件
+            # Phase H.13: ATR計算データ量評価（余裕を持った基準・実用性重視）
+            data_count = len(initial_df)
+            min_records_excellent = period * 3  # 優秀: period × 3（42件）
+            min_records_ideal = period + 5  # 理想: period + 余裕（19件）
+            min_records_good = period + 1  # 良好: period + 1（15件）
+            min_records_acceptable = max(
+                period // 2, 5
+            )  # 許容: period半分または5件（7件）
             min_records_minimum = max(
-                3, min(period // 3, 5)
-            )  # 🚨 緊急修正: 最小3件で計算可能
+                3, period // 3
+            )  # 最小: period三分の一または3件（5件）
 
-            if len(initial_df) < min_records_minimum:
+            # Phase H.13: データ量による品質評価・余裕を持った判定
+            if data_count >= min_records_excellent:
+                logger.info(
+                    f"🌟 [INIT-6] Phase H.13: EXCELLENT data for ATR calculation: {data_count} records >= {min_records_excellent} (3x period)"
+                )
+                logger.info(
+                    "✨ [INIT-6] Phase H.13: Optimal data volume for maximum ATR precision"
+                )
+            elif data_count >= min_records_ideal:
+                logger.info(
+                    f"🎯 [INIT-6] Phase H.13: VERY GOOD data for ATR calculation: {data_count} records >= {min_records_ideal} (period + 5)"
+                )
+                logger.info(
+                    "✨ [INIT-6] Phase H.13: Large data volume enables high-precision ATR calculation"
+                )
+            elif data_count >= min_records_good:
+                logger.info(
+                    f"✅ [INIT-6] Phase H.13: GOOD data for ATR calculation: {data_count} records >= {min_records_good} (period + 1)"
+                )
+            elif data_count >= min_records_acceptable:
+                logger.info(
+                    f"🔶 [INIT-6] Phase H.13: ACCEPTABLE data for ATR calculation: {data_count} records >= {min_records_acceptable} (adequate)"
+                )
+                logger.info(
+                    "📊 [INIT-6] Phase H.13: ATR calculation possible but with reduced precision"
+                )
+            elif data_count >= min_records_minimum:
+                logger.warning(
+                    f"⚠️ [INIT-6] Phase H.13: MINIMAL data for ATR calculation: {data_count} records >= {min_records_minimum} (minimum)"
+                )
+                logger.warning(
+                    "⚠️ [INIT-6] Phase H.13: ATR calculation possible but precision may be limited"
+                )
+            else:
                 logger.error(
-                    f"❌ [INIT-6] Critical data shortage for ATR calculation: "
-                    f"{len(initial_df)} < {min_records_minimum} (absolute minimum)"
+                    f"❌ [INIT-6] Phase H.13: INSUFFICIENT data for ATR calculation: "
+                    f"{data_count} < {min_records_minimum} (absolute minimum)"
+                )
+                logger.error(
+                    "❌ [INIT-6] Phase H.13: Cannot proceed with ATR calculation"
                 )
                 return None
-            elif len(initial_df) < min_records_ideal:
-                logger.warning(
-                    f"⚠️ [INIT-6] Suboptimal data for ATR calculation: "
-                    f"{len(initial_df)} < {min_records_ideal} (ideal), but proceeding with calculation"
-                )
 
             logger.info(
-                f"📊 [INIT-6] Data validation passed: "
-                f"{len(initial_df)} records available"
+                f"📊 [INIT-6] Phase H.13: Data validation passed with {data_count} records (period={period})"
             )
 
-            # ATR計算実行
+            # ATR計算実行（Phase H.13: 強化版・nan値防止・品質保証）
             from crypto_bot.indicator.calculator import IndicatorCalculator
 
             calculator = IndicatorCalculator()
@@ -361,28 +443,62 @@ def enhanced_init_6_calculate_atr(
             atr_series = calculator.calculate_atr(initial_df, period=period)
             calc_time = time.time() - start_time
 
-            logger.info(
-                f"✅ [INIT-6] ATR calculated successfully: "
-                f"{len(atr_series)} values in {calc_time:.2f}s"
-            )
-
-            # ATR値の品質確認
+            # Phase H.13: ATR計算結果の包括的検証
             if atr_series is not None and not atr_series.empty:
-                latest_atr = atr_series.iloc[-1]
-                mean_atr = atr_series.mean()
-                logger.info(
-                    f"📊 [INIT-6] ATR statistics: "
-                    f"latest={latest_atr:.6f}, mean={mean_atr:.6f}"
-                )
-
-                # 異常値チェック
-                if latest_atr <= 0 or latest_atr > 1.0:
+                # nan値チェック（Phase H.13: 最重要検証）
+                nan_count = atr_series.isna().sum()
+                if nan_count > 0:
                     logger.warning(
-                        f"⚠️ [INIT-6] ATR value may be unusual: {latest_atr}"
-                    )  # noqa: E501
+                        f"⚠️ [INIT-6] Phase H.13: ATR contains {nan_count} nan values"
+                    )
+                    # nan値を除去して有効値のみ使用
+                    atr_series = atr_series.dropna()
+                    if atr_series.empty:
+                        logger.error(
+                            "❌ [INIT-6] Phase H.13: All ATR values are nan after cleaning"
+                        )
+                        atr_series = None
+                    else:
+                        logger.info(
+                            f"✅ [INIT-6] Phase H.13: ATR cleaned, {len(atr_series)} valid values remain"
+                        )
 
+                if atr_series is not None and not atr_series.empty:
+                    latest_atr = atr_series.iloc[-1]
+                    mean_atr = atr_series.mean()
+                    std_atr = atr_series.std()
+
+                    logger.info(
+                        f"✅ [INIT-6] Phase H.13: ATR calculated successfully: {len(atr_series)} values in {calc_time:.2f}s"
+                    )
+                    logger.info(
+                        f"📊 [INIT-6] Phase H.13: ATR statistics: latest={latest_atr:.6f}, mean={mean_atr:.6f}, std={std_atr:.6f}"
+                    )
+
+                    # Phase H.13: 異常値チェック強化
+                    if pd.isna(latest_atr):
+                        logger.error(
+                            "❌ [INIT-6] Phase H.13: Latest ATR is nan - this will cause trading failure"
+                        )
+                        atr_series = None
+                    elif latest_atr <= 0:
+                        logger.error(
+                            f"❌ [INIT-6] Phase H.13: Latest ATR is zero or negative: {latest_atr}"
+                        )
+                        atr_series = None
+                    elif latest_atr > 1.0:
+                        logger.warning(
+                            f"⚠️ [INIT-6] Phase H.13: Latest ATR unusually high: {latest_atr} (>1.0)"
+                        )
+                        # 高すぎる値でも使用可能とする
+                    else:
+                        logger.info(
+                            f"✅ [INIT-6] Phase H.13: ATR value quality check passed: {latest_atr:.6f}"
+                        )
             else:
-                logger.error("❌ [INIT-6] ATR calculation returned empty series")
+                logger.error(
+                    "❌ [INIT-6] Phase H.13: ATR calculation returned empty or None series"
+                )
                 atr_series = None
 
         except Exception as e:
@@ -521,9 +637,11 @@ def enhanced_init_8_clear_cache() -> None:
 
 
 # 使用例（main.pyでの置き換え用）
-def enhanced_init_sequence(fetcher, dd: dict, strategy, risk_manager, balance: float):
+def enhanced_init_sequence(
+    fetcher, dd: dict, strategy, risk_manager, balance: float, prefetch_data=None
+):
     """
-    INIT-5～INIT-8の強化版シーケンス
+    INIT-5～INIT-8の強化版シーケンス（Phase H.13: プリフェッチデータ対応）
 
     Args:
         fetcher: データフェッチャー
@@ -531,14 +649,30 @@ def enhanced_init_sequence(fetcher, dd: dict, strategy, risk_manager, balance: f
         strategy: 取引戦略
         risk_manager: リスク管理
         balance: 初期残高
+        prefetch_data: プリフェッチデータ（Phase H.13: メインループ共有用）
 
     Returns:
         tuple: (entry_exit, position)
     """
     logger.info("🚀 [INIT-ENHANCED] Starting enhanced initialization sequence...")
 
-    # INIT-5: 初期価格データ取得（強化版）
-    initial_df = enhanced_init_5_fetch_price_data(fetcher, dd)
+    # Phase H.13: プリフェッチデータの状況確認
+    if prefetch_data is not None and not prefetch_data.empty:
+        logger.info(
+            f"📊 [INIT-ENHANCED] Phase H.13: Using prefetched data with {len(prefetch_data)} records"
+        )
+        logger.info(
+            f"📈 [INIT-ENHANCED] Prefetch data range: {prefetch_data.index.min()} to {prefetch_data.index.max()}"
+        )
+    else:
+        logger.info(
+            "🔄 [INIT-ENHANCED] Phase H.13: No prefetch data, using independent fetch"
+        )
+
+    # INIT-5: 初期価格データ取得（強化版・Phase H.13: プリフェッチデータ統合）
+    initial_df = enhanced_init_5_fetch_price_data(
+        fetcher, dd, prefetch_data=prefetch_data
+    )
 
     # INIT-6: ATR計算（強化版）
     atr_series = enhanced_init_6_calculate_atr(initial_df)

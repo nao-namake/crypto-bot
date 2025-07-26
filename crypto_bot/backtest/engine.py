@@ -56,10 +56,10 @@ class BacktestEngine:
         self.starting_balance = starting_balance
         self.slippage_rate = slippage_rate
 
-        # ATR
+        # ATR（Phase H.13: 空データ対応強化）
         self.atr = (
             IndicatorCalculator.calculate_atr(self.df, period=14)
-            if self.df is not None
+            if self.df is not None and not self.df.empty and len(self.df) >= 4
             else None
         )
 

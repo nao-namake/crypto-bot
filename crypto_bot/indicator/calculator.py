@@ -23,21 +23,100 @@ class IndicatorCalculator:
     # ------------------------------------------------------------------
     @staticmethod
     def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-        """平均真の範囲 (ATR) を返す。"""
+        """平均真の範囲 (ATR) を返す（Phase H.13: 強化版・nan値防止・データ不足対応）"""
         tmp = df[["high", "low", "close"]].astype("float64")
+
+        # Phase H.13: データ不足チェック
+        if len(tmp) < max(3, period // 3):
+            raise ValueError(
+                f"Insufficient data for ATR calculation: {len(tmp)} records (minimum: {max(3, period // 3)})"
+            )
+
+        # Phase H.13: 動的period調整（データ不足時）
+        effective_period = min(period, len(tmp) - 1) if len(tmp) < period else period
+        if effective_period != period:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"⚠️ ATR period adjusted from {period} to {effective_period} due to data constraints"
+            )
+
+        atr_series = None
         try:
+            # Phase H.13: pandas-taでのATR計算（主要手法）
             atr_series = ta.atr(
                 high=tmp["high"],
                 low=tmp["low"],
                 close=tmp["close"],
-                length=period,
+                length=effective_period,
             )
-        except Exception:
+
+            # Phase H.13: 結果の品質チェック
+            if atr_series is not None and not atr_series.isnull().all():
+                # nan値の個数をチェック
+                nan_count = atr_series.isnull().sum()
+                if nan_count > 0:
+                    import logging
+
+                    logger = logging.getLogger(__name__)
+                    logger.info(
+                        f"📊 ATR calculation: {nan_count}/{len(atr_series)} nan values, using available data"
+                    )
+
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"⚠️ pandas-ta ATR calculation failed: {e}, using fallback method"
+            )
             atr_series = None
-        # None が返ってきた場合のフォールバック
+
+        # Phase H.13: フォールバック処理強化
         if atr_series is None or atr_series.isnull().all():
-            # 終値の標準偏差を代わりに使用（近似）
-            atr_series = tmp["close"].rolling(period).std()
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.info("🔄 Using enhanced fallback ATR calculation")
+
+            # Fallback 1: True Range + Simple Moving Average
+            try:
+                high_low = tmp["high"] - tmp["low"]
+                high_close_prev = abs(tmp["high"] - tmp["close"].shift(1))
+                low_close_prev = abs(tmp["low"] - tmp["close"].shift(1))
+
+                true_range = pd.concat(
+                    [high_low, high_close_prev, low_close_prev], axis=1
+                ).max(axis=1)
+                atr_series = true_range.rolling(
+                    window=effective_period, min_periods=max(1, effective_period // 2)
+                ).mean()
+
+                logger.info("✅ Fallback ATR calculated using True Range method")
+            except Exception as e2:
+                logger.warning(
+                    f"⚠️ True Range fallback failed: {e2}, using final fallback"
+                )
+
+                # Fallback 2: 終値の標準偏差（最終手段）
+                atr_series = (
+                    tmp["close"]
+                    .rolling(
+                        window=effective_period,
+                        min_periods=max(1, effective_period // 3),
+                    )
+                    .std()
+                )
+                if atr_series is not None and not atr_series.isnull().all():
+                    logger.info(
+                        "✅ Final fallback ATR calculated using price volatility"
+                    )
+                else:
+                    # 絶対的最終手段: 固定値
+                    atr_series = pd.Series([0.01] * len(tmp), index=tmp.index)
+                    logger.warning("⚠️ Using emergency fixed ATR values (0.01)")
+
         return atr_series.rename(f"ATR_{period}")
 
     # ------------------------------------------------------------------
