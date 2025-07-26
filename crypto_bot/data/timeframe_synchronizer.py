@@ -184,9 +184,11 @@ class TimeframeSynchronizer:
             # タイムフレームに応じた開始時刻調整
             if timeframe in ["4h", "8h", "12h"]:
                 # 4時間・8時間・12時間足は00:00UTCから開始
+                # ✅ Phase H.14修正: period.total_seconds()をint()で明示的型変換
+                hours_per_period = int(period.total_seconds() // 3600)
+                aligned_hour = (start_time.hour // hours_per_period) * hours_per_period
                 aligned_start = start_time.replace(
-                    hour=(start_time.hour // (period.total_seconds() // 3600))
-                    * int(period.total_seconds() // 3600),
+                    hour=aligned_hour,
                     minute=0,
                     second=0,
                     microsecond=0,
@@ -244,9 +246,10 @@ class TimeframeSynchronizer:
             for target_time in target_index:
                 # 許容誤差内の最近傍データを検索
                 time_diff = np.abs(data.index - target_time)
-                # ✅ 修正: TimedeltaIndexエラー解決・values配列使用でilocエラー回避
-                min_diff_idx = data.index[time_diff.argmin()]
-                min_diff = time_diff.values[time_diff.argmin()]
+                # ✅ Phase H.14修正: TimedeltaIndexエラー完全解決・argmin()でint取得・iloc使用
+                min_diff_argmin = time_diff.argmin()
+                min_diff_idx = data.index[min_diff_argmin]
+                min_diff = time_diff.iloc[min_diff_argmin]
 
                 if min_diff <= self.sync_tolerance:
                     aligned_data.loc[target_time] = data.loc[min_diff_idx]

@@ -232,13 +232,26 @@ class EnsembleConfidenceCalculator:
 
         # 重み付き標準偏差計算
         if weights is not None and len(weights) == len(signal_values):
-            # 重み付き平均
-            weighted_mean = np.average(signal_values, weights=weights)
-            # 重み付き分散
-            weighted_var = np.average(
-                [(x - weighted_mean) ** 2 for x in signal_values], weights=weights
-            )
-            weighted_std = np.sqrt(weighted_var)
+            try:
+                # ✅ Phase H.14修正: 形状チェック・型変換でnp.averageエラー解決
+                signal_array = np.asarray(signal_values)
+                weight_array = np.asarray(weights)
+                if signal_array.shape[0] != weight_array.shape[0]:
+                    logger.warning(
+                        f"Shape mismatch: signal_values={signal_array.shape}, weights={weight_array.shape}"
+                    )
+                    weighted_std = np.std(signal_values)
+                else:
+                    # 重み付き平均
+                    weighted_mean = np.average(signal_array, weights=weight_array)
+                    # 重み付き分散
+                    weighted_var = np.average(
+                        (signal_array - weighted_mean) ** 2, weights=weight_array
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+            except Exception as e:
+                logger.error(f"❌ Weighted calculation failed: {e}")
+                weighted_std = np.std(signal_values)
         else:
             # 単純標準偏差
             weighted_std = np.std(signal_values)
