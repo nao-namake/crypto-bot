@@ -66,56 +66,15 @@ strategy:
         risk_adjustment: true
         models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
         model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-      # 実装済み特徴量のみ（WARNING解消・安定動作重視）
+      # 🚨 緊急対応: 最小限特徴量のみ（動作確認済みのみ）
       extra_features:
-        # 基本テクニカル特徴量（実装済み）
-        - rsi_14
-        - rsi_7
-        - rsi_21
-        - macd
-        - sma_10
-        - sma_20
-        - sma_50
-        - sma_100
-        - sma_200
-        - ema_10
-        - ema_12
-        - ema_26
-        - ema_50
-        - ema_100
-        - bb_upper
-        - bb_lower
-        - bb_percent
-        - bb_width
-        - atr_7
-        - atr_14
-        - atr_21
-        - volume_sma
-        - volume_zscore_14
-        - volume_zscore_50
-        - momentum_14
-        - trend_strength
-        # Phase 3.2A: 高度テクニカル指標（実装済み）
-        - stoch        # ストキャスティクス
-        - willr_14     # Williams %R
-        - adx          # ADX
-        - cmf_20       # チャイキンマネーフロー
-        - fisher       # フィッシャートランスフォーム
-        # 外部データ特徴量（実装済み・動作確認済み）
-        - vix          # VIX恐怖指数（Yahoo Finance）
-        - dxy          # ドル指数・金利（Yahoo Finance）
-        - fear_greed   # Fear&Greed指数（Alternative.me）
-        - funding      # Funding Rate・OI（Binance）
-        # 時間・シグナル特徴量（実装済み）
+        # 基本特徴量のみ（動作確認済み）
+        - rsi_14       # RSI基本のみ
+        - macd         # MACD基本のみ  
+        - momentum_14  # モメンタム基本のみ
+        # 時間特徴量（確実に動作）
         - day_of_week
         - hour_of_day
-        - price_change_1h
-        - price_change_4h
-        - price_change_24h
-        - volume_change_1h
-        - volume_change_24h
-        - volatility_1h
-        - volatility_24h
       # 外部データ設定
       external_data:
         enabled: true
@@ -190,7 +149,7 @@ ml:
   feat_period: 14
   lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
   rolling_window: 10  # Phase H.9.3: 20→10削減・データ効率向上・即座取引開始対応
-  horizon: 5
+  horizon: 5         # 🚨 修正: horizon明示的に設定
   target_type: classification
   model_type: lgbm
   
@@ -203,59 +162,15 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 実装済み特徴量のみ（WARNING解消・安定動作重視）
+  # 🚨 緊急対応: 最小限特徴量のみ（動作確認済みのみ）
   extra_features:
-    # 基本テクニカル特徴量（実装済み）
-    - rsi_14
-    - rsi_7
-    - rsi_21
-    - macd
-    - sma_10
-    - sma_20
-    - sma_50
-    - sma_100
-    - sma_200
-    - ema_10
-    - ema_12
-    - ema_26
-    - ema_50
-    - ema_100
-    - bb_upper
-    - bb_lower
-    - bb_percent
-    - bb_width
-    - atr_7
-    - atr_14
-    - atr_21
-    - volume_sma
-    - volume_zscore_14
-    - volume_zscore_50
-    - momentum_14
-    - trend_strength
-    
-    # Phase 3.2A: 高度テクニカル指標（実装済み）
-    - stoch        # ストキャスティクス
-    - willr_14     # Williams %R
-    - adx          # ADX
-    - cmf_20       # チャイキンマネーフロー
-    - fisher       # フィッシャートランスフォーム
-    
-    # 外部データ特徴量（実装済み・動作確認済み）
-    - vix          # VIX恐怖指数（Yahoo Finance）
-    - dxy          # ドル指数・金利（Yahoo Finance）
-    - fear_greed   # Fear&Greed指数（Alternative.me）
-    - funding      # Funding Rate・OI（Binance）
-    
-    # 時間・シグナル特徴量（実装済み）
+    # 基本特徴量のみ（動作確認済み）
+    - rsi_14       # RSI基本のみ
+    - macd         # MACD基本のみ  
+    - momentum_14  # モメンタム基本のみ
+    # 時間特徴量（確実に動作）
     - day_of_week
     - hour_of_day
-    - price_change_1h
-    - price_change_4h
-    - price_change_24h
-    - volume_change_1h
-    - volume_change_24h
-    - volatility_1h
-    - volatility_24h
     
     
   # 外部データ設定
