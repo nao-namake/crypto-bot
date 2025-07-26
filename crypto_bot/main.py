@@ -35,6 +35,18 @@ from crypto_bot.ml.optimizer import _load_and_preprocess_data
 from crypto_bot.ml.optimizer import optimize_ml as run_optuna
 from crypto_bot.ml.optimizer import train_best_model
 from crypto_bot.ml.preprocessor import prepare_ml_dataset
+
+# Phase H.11: 特徴量強化システム統合
+try:
+    from crypto_bot.ml.preprocessor import (
+        prepare_ml_dataset_enhanced,
+        ensure_feature_coverage,
+    )
+    from crypto_bot.ml.feature_engineering_enhanced import enhance_feature_engineering
+    
+    ENHANCED_FEATURES_AVAILABLE = True
+except ImportError:
+    ENHANCED_FEATURES_AVAILABLE = False
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
@@ -247,6 +259,14 @@ def load_config(path: str) -> dict:
         logging.error(f"設定検証エラー: {e}")
         sys.exit(1)
 
+    # Phase H.11: 特徴量カバレッジ確保
+    if ENHANCED_FEATURES_AVAILABLE:
+        try:
+            config = ensure_feature_coverage(config)
+            logger.info("✅ [CONFIG] Feature coverage ensured")
+        except Exception as e:
+            logger.warning(f"⚠️ [CONFIG] Feature coverage check failed: {e}")
+
     return config
 
 
@@ -307,7 +327,16 @@ def prepare_data(cfg: dict):
     # monkey-patch を尊重するため遅延 import
     from crypto_bot.ml import preprocessor as _mlprep
 
-    ret = _mlprep.prepare_ml_dataset(df, cfg)
+    # Phase H.11: 特徴量強化システム使用
+    if ENHANCED_FEATURES_AVAILABLE:
+        try:
+            ret = _mlprep.prepare_ml_dataset_enhanced(df, cfg)
+            logging.getLogger(__name__).info("✅ [PREPARE] Using enhanced feature engineering")
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"⚠️ [PREPARE] Enhanced features failed, fallback: {e}")
+            ret = _mlprep.prepare_ml_dataset(df, cfg)
+    else:
+        ret = _mlprep.prepare_ml_dataset(df, cfg)
     if isinstance(ret, tuple) and len(ret) == 4:
         return ret
 
