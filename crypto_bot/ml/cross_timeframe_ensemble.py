@@ -41,10 +41,12 @@ class CrossTimeframeIntegrator:
         """
         self.config = config
 
-        # マルチタイムフレーム設定取得
+        # マルチタイムフレーム設定取得（Phase H.12: 4h内部処理復活・本来設計復旧）
         multi_config = self.config.get("multi_timeframe", {})
-        self.timeframes = multi_config.get("timeframes", ["15m", "1h", "4h"])
-        self.base_weights = multi_config.get("weights", [0.3, 0.5, 0.2])
+        self.timeframes = multi_config.get(
+            "timeframes", ["15m", "1h", "4h"]
+        )  # 本来設計復旧
+        self.base_weights = multi_config.get("weights", [0.3, 0.5, 0.2])  # 本来重み復旧
         self.consensus_threshold = multi_config.get(
             "timeframe_consensus_threshold", 0.6
         )

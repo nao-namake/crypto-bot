@@ -34,16 +34,20 @@ data:
   min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
   max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
   
-  # マルチタイムフレーム対応データ設定（Phase H.5.3: 現実的データ量調整）
+  # マルチタイムフレーム対応データ設定（Phase H.12: 4h内部処理復活・API Error回避）
   multi_timeframe_data:
     base_timeframe: "1h"  # データ取得ベース（Bitbank APIから1hのみ取得）
-    target_timeframes:    # Phase H.9.1: 4h完全削除・15m/1hのみ（API Error 10000根絶）
+    target_timeframes:    # Phase H.12: 4h内部処理復活・API直接取得は禁止維持
       15m:
         method: "interpolation"  # 1h→15m 補間
         min_points: 10           # Phase H.9.1: 15→10に緩和（ATR計算成功優先）
       1h:
         method: "direct"         # 直接使用
         min_points: 10           # Phase H.9.1: 15→10に緩和（現実的最小値）
+      4h:
+        method: "aggregation"    # Phase H.12: 1h→4h集約（内部処理のみ・API取得禁止）
+        min_points: 8            # Phase H.12: 4h×8=32時間分の最小データ要件
+        api_fetch: false         # Phase H.12: API Error 10000防止・内部処理専用
 
 strategy:
   type: multi_timeframe_ensemble
@@ -122,10 +126,10 @@ strategy:
         cache_enabled: true
         fallback_enabled: true
 
-# マルチタイムフレーム設定（Phase H.8.2: API Error 10000完全解決・4h直接取得禁止）
+# マルチタイムフレーム設定（Phase H.12: 4h内部処理復活・本来の3タイムフレーム戦略復旧）
 multi_timeframe:
-  timeframes: ["15m", "1h"]  # Phase H.8.2: 4h削除・1hベースから15m補間のみ（4h集約は内部処理）
-  weights: [0.4, 0.6]  # Phase H.8.2: 15分足40%, 1時間足60%（4h重み分を1hに統合）
+  timeframes: ["15m", "1h", "4h"]  # Phase H.12: 4h内部処理復活・本来設計通り
+  weights: [0.3, 0.5, 0.2]  # Phase H.12: 本来重み復活・15分足30%, 1時間足50%, 4時間足20%
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生

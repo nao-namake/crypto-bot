@@ -32,10 +32,12 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         super().__init__()
         self.config = config
 
-        # タイムフレーム設定
+        # タイムフレーム設定（Phase H.12: 4h内部処理復活・本来設計復旧）
         multi_config = config.get("multi_timeframe", {})
-        self.timeframes = multi_config.get("timeframes", ["15m", "1h", "4h"])
-        self.weights = multi_config.get("weights", [0.3, 0.5, 0.2])
+        self.timeframes = multi_config.get(
+            "timeframes", ["15m", "1h", "4h"]
+        )  # 本来設計復旧
+        self.weights = multi_config.get("weights", [0.3, 0.5, 0.2])  # 本来重み復旧
 
         # アンサンブル統合設定
         ensemble_config = config.get("ml", {}).get("ensemble", {})

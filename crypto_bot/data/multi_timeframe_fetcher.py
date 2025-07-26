@@ -245,15 +245,30 @@ class MultiTimeframeDataFetcher:
                 logger.error("❌ Failed to generate test data")
                 return pd.DataFrame()
 
-        # 新規データ取得
+        # 新規データ取得（Phase H.12: 設定パラメータ完全反映・データ取得量改善）
         try:
             logger.info(f"🔄 Fetching base data: {self.base_timeframe}")
-            data = self.base_fetcher.get_price_df(
-                timeframe=self.base_timeframe,
-                since=since,
-                limit=limit,
-                paginate=True,
+
+            # データ取得設定を設定ファイルから読み取り
+            data_config = self.config.get("data", {}) if self.config else {}
+            fetch_params = {
+                "timeframe": self.base_timeframe,
+                "since": since,
+                "limit": limit
+                or data_config.get("limit", 500),  # Phase H.12: 設定値優先
+                "paginate": data_config.get("paginate", True),
+                "per_page": data_config.get("per_page", 100),  # Phase H.12: 設定値反映
+                "max_consecutive_empty": data_config.get("max_consecutive_empty", 5),
+                "max_consecutive_no_new": data_config.get("max_consecutive_no_new", 10),
+                "max_attempts": data_config.get("max_attempts", 20),
+            }
+
+            logger.info(
+                f"📋 [PHASE-H12] Fetch params: limit={fetch_params['limit']}, "
+                f"per_page={fetch_params['per_page']}, paginate={fetch_params['paginate']}"
             )
+
+            data = self.base_fetcher.get_price_df(**fetch_params)
 
             if not data.empty:
                 # データ前処理
