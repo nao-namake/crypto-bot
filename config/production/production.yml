@@ -13,11 +13,11 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Phase H.10: ML最適化設定強制反映・即座取引開始実現
-  limit: 200       # Phase H.9.2: 100→200件（データ量2倍増・ATR計算確実成功）
+  # 🚨 緊急修正: データ取得設定大幅強化・クラッシュ防止
+  limit: 500       # 🚨 緊急修正: 200→500件（データ不足完全解決）
   paginate: true   # ページネーション有効
-  per_page: 50     # Phase H.9.2: 10→50件（データ取得量5倍増・効率化）
-  since_hours: 72  # Phase H.9.2: 120→72時間（現実的範囲・新鮮度向上）
+  per_page: 100    # 🚨 緊急修正: 50→100件（大量データ取得効率化）
+  since_hours: 120 # 🚨 緊急修正: 72→120時間（十分なデータ範囲確保）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化

@@ -173,8 +173,8 @@ def enhanced_init_5_fetch_price_data(
         )
         timeframe = "1h"
     # Phase H.7.1: INIT-5専用の軽量設定（ATR計算に必要な最小限）
-    init_limit = 30  # ATR計算に十分な量（period=14 + バッファ）
-    init_paginate = False  # ページネーション無効化で高速化
+    init_limit = 100  # 🚨 緊急修正: 30→100件に増加（データ不足対策）
+    init_paginate = True  # 🚨 緊急修正: ページネーション有効化でデータ確保
 
     logger.info(
         f"🔧 [INIT-5] Phase H.7 Optimized: timeframe={timeframe}, limit={init_limit}, paginate={init_paginate}"
@@ -329,9 +329,9 @@ def enhanced_init_6_calculate_atr(
                 )
                 return None
 
-            # ATR計算に必要な最小レコード数確認（Phase H.9.3: 現実的調整）
+            # ATR計算に必要な最小レコード数確認（🚨 緊急修正: より緩い条件）
             min_records_ideal = period + 1  # 理想: 15件
-            min_records_minimum = max(period // 2, 5)  # Phase H.9.3: 最小7件で計算可能
+            min_records_minimum = max(3, min(period // 3, 5))  # 🚨 緊急修正: 最小3件で計算可能
 
             if len(initial_df) < min_records_minimum:
                 logger.error(
