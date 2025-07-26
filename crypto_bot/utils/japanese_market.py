@@ -246,7 +246,7 @@ class JPYBacktestEnhancer:
 
         logger.info(
             f"Enhanced backtest data with Japanese market characteristics: "
-            f"{enhanced_df.shape}"
+            f"{tuple(enhanced_df.shape)}"
         )
         return enhanced_df
 

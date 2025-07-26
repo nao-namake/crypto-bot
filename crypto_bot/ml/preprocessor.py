@@ -2204,7 +2204,7 @@ def prepare_ml_dataset(
     - 必要なぶんだけ最初の行をドロップ（rolling/lags）
     - horizon, thresholdはconfig["ml"]から取得
     """
-    logger.info(f"prepare_ml_dataset input df shape: {df.shape}")
+    logger.info(f"prepare_ml_dataset input df shape: {tuple(df.shape)}")
     pipeline = build_ml_pipeline(config)
     X_arr = pipeline.fit_transform(df)
 
@@ -2264,7 +2264,7 @@ def prepare_ml_dataset_enhanced(
         (特徴量DataFrame, 回帰ターゲット, 分類ターゲット)
     """
     logger.info("🚀 [ENHANCED-ML] Starting enhanced ML dataset preparation...")
-    logger.info(f"📊 [ENHANCED-ML] Input shape: {df.shape}")
+    logger.info(f"📊 [ENHANCED-ML] Input shape: {tuple(df.shape)}")
 
     # Phase H.11: 特徴量完全性保証実行
     if ENHANCED_FEATURES_AVAILABLE:
@@ -2294,7 +2294,7 @@ def prepare_ml_dataset_enhanced(
             )
 
         # 強化されたDataFrameを使用してML処理継続
-        logger.info(f"📊 [ENHANCED-ML] Enhanced shape: {enhanced_df.shape}")
+        logger.info(f"📊 [ENHANCED-ML] Enhanced shape: {tuple(enhanced_df.shape)}")
         result_df = enhanced_df
     else:
         logger.warning(
@@ -2307,7 +2307,7 @@ def prepare_ml_dataset_enhanced(
     X_arr = pipeline.fit_transform(result_df)
 
     logger.info(
-        f"🔧 [ENHANCED-ML] Pipeline output shape: {X_arr.shape if hasattr(X_arr, 'shape') else len(X_arr)}"
+        f"🔧 [ENHANCED-ML] Pipeline output shape: {tuple(X_arr.shape) if hasattr(X_arr, 'shape') else len(X_arr)}"
     )
 
     # X_arrがlistの場合はnumpy arrayに変換
@@ -2338,7 +2338,7 @@ def prepare_ml_dataset_enhanced(
     X = pd.DataFrame(X_arr[drop_n:], index=idx)
 
     logger.info(
-        f"✅ [ENHANCED-ML] Enhanced ML dataset ready: X{X.shape}, y_reg{y_reg.loc[idx].shape}, y_clf{y_clf.loc[idx].shape}"
+        f"✅ [ENHANCED-ML] Enhanced ML dataset ready: X{tuple(X.shape)}, y_reg{tuple(y_reg.loc[idx].shape)}, y_clf{tuple(y_clf.loc[idx].shape)}"
     )
 
     return X, y_reg.loc[idx], y_clf.loc[idx]
