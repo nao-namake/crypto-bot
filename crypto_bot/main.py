@@ -261,6 +261,7 @@ def load_config(path: str) -> dict:
     if ENHANCED_FEATURES_AVAILABLE:
         try:
             from crypto_bot.ml.preprocessor import ensure_feature_coverage
+
             config = ensure_feature_coverage(config)
             logger.info("✅ [CONFIG] Feature coverage ensured")
         except Exception as e:

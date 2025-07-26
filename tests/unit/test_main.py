@@ -395,6 +395,13 @@ class TestPrepareDataEnhanced:
         X_val = pd.DataFrame({"feature1": [4, 5]})
         y_val = pd.Series([1, 0])
 
+        # 特徴量強化システム統合により新しいメソッドを使用
+        mock_mlprep.prepare_ml_dataset_enhanced.return_value = (
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+        )
         mock_mlprep.prepare_ml_dataset.return_value = (X_train, y_train, X_val, y_val)
 
         cfg = {
@@ -441,6 +448,10 @@ class TestPrepareDataEnhanced:
         y_reg = pd.Series([0.1, 0.2, 0.3])  # 回帰用
         y_clf = pd.Series([0, 1, 0])  # 分類用
 
+        # 特徴量強化システム統合により新しいメソッドを使用
+        mock_mlprep.prepare_ml_dataset_enhanced.return_value = (X, y_reg, y_clf)
+        # 特徴量強化システム統合により新しいメソッドを使用
+        mock_mlprep.prepare_ml_dataset_enhanced.return_value = (X, y_reg, y_clf)
         mock_mlprep.prepare_ml_dataset.return_value = (X, y_reg, y_clf)
 
         # train_test_split のモック
@@ -497,6 +508,13 @@ class TestPrepareDataEnhanced:
         }
 
         with patch("crypto_bot.ml.preprocessor") as mock_mlprep:
+            # 特徴量強化システム統合により新しいメソッドを使用
+            mock_mlprep.prepare_ml_dataset_enhanced.return_value = (
+                pd.DataFrame(),
+                pd.Series(),
+                pd.DataFrame(),
+                pd.Series(),
+            )
             mock_mlprep.prepare_ml_dataset.return_value = (
                 pd.DataFrame(),
                 pd.Series(),
@@ -542,6 +560,13 @@ class TestPrepareDataEnhanced:
         }
 
         with patch("crypto_bot.ml.preprocessor") as mock_mlprep:
+            # 特徴量強化システム統合により新しいメソッドを使用
+            mock_mlprep.prepare_ml_dataset_enhanced.return_value = (
+                pd.DataFrame(),
+                pd.Series(),
+                pd.DataFrame(),
+                pd.Series(),
+            )
             mock_mlprep.prepare_ml_dataset.return_value = (
                 pd.DataFrame(),
                 pd.Series(),
@@ -641,6 +666,8 @@ class TestIntegrationScenarios:
         y_reg = pd.Series([0.1, 0.2, 0.3, 0.4, 0.5])
         y_clf = pd.Series([0, 1, 0, 1, 0])
 
+        # 特徴量強化システム統合により新しいメソッドを使用
+        mock_mlprep.prepare_ml_dataset_enhanced.return_value = (X, y_reg, y_clf)
         mock_mlprep.prepare_ml_dataset.return_value = (X, y_reg, y_clf)
 
         cfg = {
@@ -677,7 +704,8 @@ class TestIntegrationScenarios:
             )
 
             mock_preprocessor.clean.assert_called_once()
-            mock_mlprep.prepare_ml_dataset.assert_called_once()
+            # 特徴量強化システム統合により新しいメソッドが呼ばれる
+            mock_mlprep.prepare_ml_dataset_enhanced.assert_called_once()
             mock_split.assert_called_once()
 
             # 結果の検証

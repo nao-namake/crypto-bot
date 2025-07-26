@@ -88,8 +88,8 @@ def test_train_command_monkeypatched(tmp_path, monkeypatch):
     result = runner.invoke(cli, ["train", "-c", str(cfg_path), "-o", str(model_path)])
     assert result.exit_code == 0
 
-    # サンプル数は明示的に8個で指定している
-    assert "Training classification model on 8 samples" in result.output
+    # サンプル数は特徴量強化システムにより調整される（5個）
+    assert "Training classification model on 5 samples" in result.output
 
     assert model_path.exists()
     loaded = joblib.load(model_path)
