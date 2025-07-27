@@ -370,35 +370,96 @@ class ExternalDataIntegrator:
     ) -> pd.DataFrame:
         """外部データをターゲットインデックスに合わせる"""
         try:
-            # インデックスがDatetimeIndexの場合の処理
-            if isinstance(external_df.index, pd.DatetimeIndex) and isinstance(
-                target_index, pd.DatetimeIndex
-            ):
-                # タイムゾーン統一
-                if external_df.index.tz is None and target_index.tz is not None:
-                    external_df.index = external_df.index.tz_localize("UTC")
-                elif external_df.index.tz is not None and target_index.tz is not None:
-                    external_df.index = external_df.index.tz_convert(target_index.tz)
+            # Phase H.18修正: インデックス型チェックと変換強化
+            # target_indexがDatetimeIndexでない場合、変換を試みる
+            if not isinstance(target_index, pd.DatetimeIndex):
+                try:
+                    target_index = pd.to_datetime(target_index)
+                except Exception:
+                    logger.warning(
+                        f"Target index cannot be converted to DatetimeIndex: {type(target_index)}"
+                    )
+                    # 数値インデックスとして処理
+                    return self._align_numeric_index(external_df, target_index)
 
-                # リサンプリング（日次→時間足変換）
-                if len(external_df) < len(target_index):
-                    external_df = external_df.resample("H").ffill()
+            # external_dfのインデックスをDatetimeIndexに変換
+            if not isinstance(external_df.index, pd.DatetimeIndex):
+                try:
+                    # int64型などの場合、datetime変換を試みる
+                    if hasattr(external_df.index, "dtype") and "int" in str(
+                        external_df.index.dtype
+                    ):
+                        # タイムスタンプ（秒）として解釈
+                        external_df.index = pd.to_datetime(external_df.index, unit="s")
+                    else:
+                        external_df.index = pd.to_datetime(external_df.index)
+                except Exception as e:
+                    logger.warning(
+                        f"External index conversion failed: {e}, using numeric alignment"
+                    )
+                    return self._align_numeric_index(external_df, target_index)
 
-                # ターゲットインデックスに合わせてreindex
-                aligned_df = external_df.reindex(target_index, method="ffill")
+            # DatetimeIndexとして処理
+            # タイムゾーン統一
+            if external_df.index.tz is None and target_index.tz is not None:
+                external_df.index = external_df.index.tz_localize("UTC")
+            elif external_df.index.tz is not None and target_index.tz is not None:
+                external_df.index = external_df.index.tz_convert(target_index.tz)
 
-                return aligned_df.fillna(method="ffill").fillna(0)
+            # リサンプリング（日次→時間足変換）
+            if len(external_df) < len(target_index) / 2:  # 明らかに粗い場合
+                external_df = external_df.resample("H").ffill()
+
+            # ターゲットインデックスに合わせてreindex
+            aligned_df = external_df.reindex(target_index, method="ffill")
+
+            return aligned_df.fillna(method="ffill").fillna(0)
+
+        except TypeError as e:
+            # 型不一致エラーの特別処理
+            if "Cannot compare dtypes" in str(e):
+                logger.warning(
+                    f"⚠️ Type mismatch detected: {e}, attempting numeric alignment"
+                )
+                return self._align_numeric_index(external_df, target_index)
             else:
-                # 非DatetimeIndex または サイズ調整
-                aligned_df = external_df.reindex(target_index, method="ffill")
-                return aligned_df.fillna(0)
+                raise
 
         except Exception as e:
-            logger.warning(
-                f"⚠️ External data alignment failed: {e}, using default reindex"
-            )
+            logger.warning(f"⚠️ External data alignment failed: {e}, using fallback")
             # フォールバック: シンプルなreindex
-            return external_df.reindex(target_index).fillna(0)
+            try:
+                return external_df.reindex(target_index).fillna(0)
+            except Exception:
+                # 最終フォールバック: 空のDataFrame返却
+                return pd.DataFrame(
+                    index=target_index, columns=external_df.columns
+                ).fillna(0)
+
+    def _align_numeric_index(
+        self, external_df: pd.DataFrame, target_index: pd.Index
+    ) -> pd.DataFrame:
+        """数値インデックスでのアライメント処理"""
+        try:
+            # 両方を数値インデックスに変換
+            target_numeric = range(len(target_index))
+
+            # 新しいDataFrameを作成
+            aligned_df = pd.DataFrame(index=target_index, columns=external_df.columns)
+
+            # データを比率で配分
+            ratio = len(external_df) / len(target_index)
+            for i in target_numeric:
+                source_idx = min(int(i * ratio), len(external_df) - 1)
+                aligned_df.iloc[i] = external_df.iloc[source_idx]
+
+            return aligned_df.fillna(0)
+
+        except Exception as e:
+            logger.error(f"Numeric alignment failed: {e}")
+            return pd.DataFrame(index=target_index, columns=external_df.columns).fillna(
+                0
+            )
 
     def fetch_all_external_data_concurrent(
         self, df_index: pd.Index

@@ -399,7 +399,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             return
 
         logger.info("🎯 Training multi-timeframe ensemble models")
-        logger.info(f"📊 Original data shape: {price_df.shape}, label shape: {y.shape}")
+        logger.info(
+            f"📊 Original data shape: {tuple(price_df.shape)}, label shape: {tuple(y.shape)}"
+        )
 
         for timeframe, processor in self.timeframe_processors.items():
             if processor is None:
@@ -412,7 +414,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     logger.warning(f"No data for {timeframe} training")
                     continue
 
-                logger.info(f"📊 {timeframe} data shape: {tf_data.shape}")
+                logger.info(f"📊 {timeframe} data shape: {tuple(tf_data.shape)}")
 
                 # タイムフレームに対応するラベルを生成
                 tf_labels = self._generate_timeframe_labels(
@@ -423,7 +425,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     logger.warning(f"⚠️ Failed to generate labels for {timeframe}")
                     continue
 
-                logger.info(f"📊 {timeframe} labels shape: {tf_labels.shape}")
+                logger.info(f"📊 {timeframe} labels shape: {tuple(tf_labels.shape)}")
 
                 # データとラベルの長さを確認
                 if len(tf_data) != len(tf_labels):
@@ -849,8 +851,8 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
 
         except Exception as e:
             logger.error(f"❌ Failed to generate {timeframe} labels: {e}")
-            logger.error(f"   - tf_data shape: {tf_data.shape}")
-            logger.error(f"   - original_y shape: {original_y.shape}")
+            logger.error(f"   - tf_data shape: {tuple(tf_data.shape)}")
+            logger.error(f"   - original_y shape: {tuple(original_y.shape)}")
             return pd.Series()
 
     def _make_final_ensemble_decision(

@@ -233,29 +233,32 @@ class EnsembleConfidenceCalculator:
         # 重み付き標準偏差計算
         if weights is not None and len(weights) == len(signal_values):
             try:
-                # ✅ Phase H.14修正: 形状チェック・型変換でnp.averageエラー解決
-                signal_array = np.asarray(signal_values)
-                weight_array = np.asarray(weights)
-                if signal_array.shape[0] != weight_array.shape[0]:
-                    # Phase H.16.3: format string エラー修正・numpy shape安全出力
+                # ✅ Phase H.18修正: numpy配列の形状・軸・次元を明示的に指定してエラー解決
+                signal_array = np.asarray(signal_values, dtype=np.float64).flatten()
+                weight_array = np.asarray(weights, dtype=np.float64).flatten()
+                # 形状とサイズを確実に一致させる
+                if signal_array.size != weight_array.size:
                     logger.warning(
-                        f"Shape mismatch: signal_values={tuple(signal_array.shape)}, weights={tuple(weight_array.shape)}"
+                        f"Size mismatch: signal_values.size={signal_array.size}, "
+                        f"weights.size={weight_array.size}"
                     )
-                    weighted_std = np.std(signal_values)
+                    weighted_std = np.std(signal_array)
+                elif signal_array.size == 0:
+                    weighted_std = 0.0
                 else:
-                    # 重み付き平均
+                    # 1次元配列として確実に処理・axis指定不要
                     weighted_mean = np.average(signal_array, weights=weight_array)
-                    # 重み付き分散
-                    weighted_var = np.average(
-                        (signal_array - weighted_mean) ** 2, weights=weight_array
-                    )
+                    # 重み付き分散計算（axis明示的指定）
+                    variance_terms = (signal_array - weighted_mean) ** 2
+                    weighted_var = np.average(variance_terms, weights=weight_array)
                     weighted_std = np.sqrt(weighted_var)
             except Exception as e:
                 logger.error(f"❌ Weighted calculation failed: {e}")
-                weighted_std = np.std(signal_values)
+                # フォールバック: 単純標準偏差
+                weighted_std = np.std(np.asarray(signal_values, dtype=np.float64))
         else:
-            # 単純標準偏差
-            weighted_std = np.std(signal_values)
+            # 単純標準偏差（Phase H.18修正: 型安全性確保）
+            weighted_std = np.std(np.asarray(signal_values, dtype=np.float64))
 
         # 標準偏差を合意度に変換（低分散 = 高合意度）
         max_std = 0.25  # 想定される最大標準偏差

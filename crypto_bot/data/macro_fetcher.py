@@ -324,7 +324,14 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # DXY（ドル指数）特徴量（preprocessor期待形式）
             if "dxy" in macro_data and not macro_data["dxy"].empty:
                 dxy_data = macro_data["dxy"]
-                dxy_aligned = dxy_data.reindex(features_df.index, method="ffill")
+                # Phase H.18修正: 型安全なreindex処理
+                try:
+                    dxy_aligned = dxy_data.reindex(features_df.index, method="ffill")
+                except TypeError:
+                    # インデックス型不一致時の処理
+                    if hasattr(dxy_data.index, "to_timestamp"):
+                        dxy_data.index = dxy_data.index.to_timestamp()
+                    dxy_aligned = dxy_data.reindex(features_df.index, method="ffill")
 
                 dxy_ma20 = dxy_aligned["close"].rolling(20).mean()
                 dxy_std = dxy_aligned["close"].rolling(20).std()
@@ -343,7 +350,18 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # 米10年債利回り特徴量（preprocessor期待形式）
             if "us10y" in macro_data and not macro_data["us10y"].empty:
                 us10y_data = macro_data["us10y"]
-                us10y_aligned = us10y_data.reindex(features_df.index, method="ffill")
+                # Phase H.18修正: 型安全なreindex処理
+                try:
+                    us10y_aligned = us10y_data.reindex(
+                        features_df.index, method="ffill"
+                    )
+                except TypeError:
+                    # インデックス型不一致時の処理
+                    if hasattr(us10y_data.index, "to_timestamp"):
+                        us10y_data.index = us10y_data.index.to_timestamp()
+                    us10y_aligned = us10y_data.reindex(
+                        features_df.index, method="ffill"
+                    )
 
                 us10y_ma20 = us10y_aligned["close"].rolling(20).mean()
                 us10y_std = us10y_aligned["close"].rolling(20).std()
@@ -364,7 +382,14 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # 米2年債利回り特徴量とイールドカーブ
             if "us2y" in macro_data and not macro_data["us2y"].empty:
                 us2y_data = macro_data["us2y"]
-                us2y_aligned = us2y_data.reindex(features_df.index, method="ffill")
+                # Phase H.18修正: 型安全なreindex処理
+                try:
+                    us2y_aligned = us2y_data.reindex(features_df.index, method="ffill")
+                except TypeError:
+                    # インデックス型不一致時の処理
+                    if hasattr(us2y_data.index, "to_timestamp"):
+                        us2y_data.index = us2y_data.index.to_timestamp()
+                    us2y_aligned = us2y_data.reindex(features_df.index, method="ffill")
 
                 # イールドカーブとリスクセンチメント
                 treasury_10y = features_df.get("treasury_10y_level", 4.0)
@@ -387,7 +412,18 @@ class MacroDataFetcher(MultiSourceDataFetcher):
             # USD/JPY為替レート特徴量（BTC/JPY予測精度向上）
             if "usdjpy" in macro_data and not macro_data["usdjpy"].empty:
                 usdjpy_data = macro_data["usdjpy"]
-                usdjpy_aligned = usdjpy_data.reindex(features_df.index, method="ffill")
+                # Phase H.18修正: 型安全なreindex処理
+                try:
+                    usdjpy_aligned = usdjpy_data.reindex(
+                        features_df.index, method="ffill"
+                    )
+                except TypeError:
+                    # インデックス型不一致時の処理
+                    if hasattr(usdjpy_data.index, "to_timestamp"):
+                        usdjpy_data.index = usdjpy_data.index.to_timestamp()
+                    usdjpy_aligned = usdjpy_data.reindex(
+                        features_df.index, method="ffill"
+                    )
 
                 usdjpy_ma20 = usdjpy_aligned["close"].rolling(20).mean()
                 usdjpy_std = usdjpy_aligned["close"].rolling(20).std()

@@ -380,10 +380,23 @@ class MultiTimeframeDataFetcher:
                 if col in hourly_data.columns:
                     if col == "volume":
                         # ボリュームは線形分割
-                        interpolated_data[col] = (
-                            hourly_data[col].reindex(minute_15_index, method="ffill")
-                            / 4.0
-                        )
+                        # Phase H.18修正: 型安全なreindex処理
+                        try:
+                            interpolated_data[col] = (
+                                hourly_data[col].reindex(
+                                    minute_15_index, method="ffill"
+                                )
+                                / 4.0
+                            )
+                        except TypeError:
+                            # インデックス型変換後に再試行
+                            hourly_data.index = pd.to_datetime(hourly_data.index)
+                            interpolated_data[col] = (
+                                hourly_data[col].reindex(
+                                    minute_15_index, method="ffill"
+                                )
+                                / 4.0
+                            )
                     elif col in ["high", "low"]:
                         # 高値・安値は特別処理
                         interpolated_data[col] = self._interpolate_high_low(
@@ -424,9 +437,17 @@ class MultiTimeframeDataFetcher:
         """高値・安値の特別補間処理"""
         try:
             # 基本補間
-            base_series = (
-                hourly_data[col].reindex(target_index).interpolate(method="linear")
-            )
+            # Phase H.18修正: 型安全なreindex処理
+            try:
+                base_series = (
+                    hourly_data[col].reindex(target_index).interpolate(method="linear")
+                )
+            except TypeError:
+                # インデックス型変換後に再試行
+                hourly_data.index = pd.to_datetime(hourly_data.index)
+                base_series = (
+                    hourly_data[col].reindex(target_index).interpolate(method="linear")
+                )
 
             # 高値・安値の現実性調整
             close_series = (
