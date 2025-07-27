@@ -209,6 +209,11 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
 
             # DataFrameに変換
             fg_data = pd.DataFrame(data["data"])
+
+            # 空データの場合は空のDataFrameを返す
+            if fg_data.empty:
+                return pd.DataFrame()
+
             fg_data["timestamp"] = pd.to_datetime(fg_data["timestamp"], unit="s")
             fg_data["value"] = pd.to_numeric(fg_data["value"])
             fg_data = fg_data.sort_values("timestamp").set_index("timestamp")
@@ -249,6 +254,11 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
 
             # DataFrameに変換
             fg_data = pd.DataFrame(data["data"])
+
+            # 空データの場合は空のDataFrameを返す
+            if fg_data.empty:
+                return pd.DataFrame()
+
             fg_data["timestamp"] = pd.to_datetime(fg_data["timestamp"], unit="s")
             fg_data["value"] = pd.to_numeric(fg_data["value"])
             fg_data = fg_data.sort_values("timestamp").set_index("timestamp")

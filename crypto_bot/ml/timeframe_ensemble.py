@@ -18,9 +18,9 @@ from sklearn.preprocessing import StandardScaler
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.ensemble import TradingEnsembleClassifier, create_trading_ensemble
+from crypto_bot.ml.feature_order_manager import get_feature_order_manager
 from crypto_bot.ml.preprocessor import FeatureEngineer
 from crypto_bot.utils.ensemble_confidence import EnsembleConfidenceCalculator
-from crypto_bot.ml.feature_order_manager import get_feature_order_manager
 
 logger = logging.getLogger(__name__)
 
