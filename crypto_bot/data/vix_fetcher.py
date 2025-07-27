@@ -148,13 +148,55 @@ class VIXDataFetcher(MultiSourceDataFetcher):
     def _fetch_yahoo_vix(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """Yahoo FinanceからVIXデータ取得"""
+        """Yahoo FinanceからVIXデータ取得（Cloud Run対応）"""
         try:
-            vix_ticker = yf.Ticker(self.symbol)
-            vix_data = vix_ticker.history(start=start_date, end=end_date)
+            # Phase H.17: Cloud Run環境でのプロキシ設定
+            import os
 
-            if vix_data.empty:
-                raise ValueError("Yahoo VIX data is empty")
+            # Cloud Run環境検出
+            is_cloud_run = os.getenv("K_SERVICE") is not None
+
+            if is_cloud_run:
+                logger.info(
+                    "🌐 Cloud Run environment detected, using optimized settings"
+                )
+                # Cloud Run用の設定（タイムアウト延長）
+                yf.set_tz_cache_location("/tmp")  # Cloud Run用一時ディレクトリ
+
+            vix_ticker = yf.Ticker(self.symbol)
+
+            # Phase H.17: 複数の方法でデータ取得を試みる
+            vix_data = None
+
+            # 方法1: history()メソッド
+            try:
+                vix_data = vix_ticker.history(start=start_date, end=end_date)
+                if not vix_data.empty:
+                    logger.info(
+                        f"✅ VIX data fetched via history(): {len(vix_data)} records"
+                    )
+            except Exception as e:
+                logger.warning(f"⚠️ history() method failed: {e}")
+
+            # 方法2: download()関数を直接使用
+            if vix_data is None or vix_data.empty:
+                try:
+                    vix_data = yf.download(
+                        self.symbol,
+                        start=start_date,
+                        end=end_date,
+                        progress=False,
+                        timeout=30,  # タイムアウト延長
+                    )
+                    if not vix_data.empty:
+                        logger.info(
+                            f"✅ VIX data fetched via download(): {len(vix_data)} records"
+                        )
+                except Exception as e:
+                    logger.warning(f"⚠️ download() method failed: {e}")
+
+            if vix_data is None or vix_data.empty:
+                raise ValueError("Yahoo VIX data is empty after all attempts")
 
             # カラム名を統一
             vix_data.columns = vix_data.columns.str.lower()
@@ -164,6 +206,9 @@ class VIXDataFetcher(MultiSourceDataFetcher):
 
         except Exception as e:
             logger.error(f"Yahoo Finance VIX fetch failed: {e}")
+            logger.error(
+                f"Environment: Cloud Run={is_cloud_run if 'is_cloud_run' in locals() else 'Unknown'}"
+            )
             raise
 
     @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)

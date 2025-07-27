@@ -20,6 +20,7 @@ from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.ensemble import TradingEnsembleClassifier, create_trading_ensemble
 from crypto_bot.ml.preprocessor import FeatureEngineer
 from crypto_bot.utils.ensemble_confidence import EnsembleConfidenceCalculator
+from crypto_bot.ml.feature_order_manager import get_feature_order_manager
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,9 @@ class TimeframeEnsembleProcessor:
         # その他コンポーネント初期化
         self.scaler = StandardScaler()
         self.indicator_calc = IndicatorCalculator()
+
+        # Phase H.17: 特徴量順序管理システム
+        self.feature_order_manager = get_feature_order_manager()
 
         # 信頼度計算システム初期化（新Phase C1機能）
         self.confidence_calculator = EnsembleConfidenceCalculator(self.config)
@@ -139,6 +143,14 @@ class TimeframeEnsembleProcessor:
             if feat_df.empty:
                 logger.error(f"Empty features for {self.timeframe} training")
                 return self
+
+            # Phase H.17: 特徴量順序の保存と整合
+            feat_df = self.feature_order_manager.ensure_column_order(feat_df)
+            feature_columns = list(feat_df.columns)
+            self.feature_order_manager.save_feature_order(feature_columns)
+            logger.info(
+                f"📊 [{self.timeframe}] Saved feature order: {len(feature_columns)} features"
+            )
 
             # スケーリング
             scaled_features = self.scaler.fit_transform(feat_df.values)
@@ -267,6 +279,12 @@ class TimeframeEnsembleProcessor:
             if feat_df.empty:
                 logger.warning(f"Empty features for {self.timeframe} prediction")
                 return create_fallback_result()
+
+            # Phase H.17: 特徴量順序の整合
+            feat_df = self.feature_order_manager.ensure_column_order(feat_df)
+            logger.debug(
+                f"📊 [{self.timeframe}] Aligned features for prediction: {len(feat_df.columns)}"
+            )
 
             # スケーリング
             scaled_features = self.scaler.transform(feat_df.values)

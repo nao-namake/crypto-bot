@@ -135,14 +135,48 @@ class MacroDataFetcher(MultiSourceDataFetcher):
     def _fetch_yahoo_macro_data(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """Yahoo Financeからマクロデータをまとめて取得"""
+        """Yahoo Financeからマクロデータをまとめて取得（Cloud Run対応）"""
         try:
+            # Phase H.17: Cloud Run環境での最適化
+            import os
+
+            is_cloud_run = os.getenv("K_SERVICE") is not None
+
+            if is_cloud_run:
+                logger.info("🌐 Cloud Run environment detected for macro data")
+                yf.set_tz_cache_location("/tmp")  # Cloud Run用一時ディレクトリ
+
             combined_data = pd.DataFrame()
 
             for name, symbol in self.symbols.items():
                 try:
                     ticker = yf.Ticker(symbol)
-                    data = ticker.history(start=start_date, end=end_date)
+
+                    # Phase H.17: 複数の方法で取得を試みる
+                    data = None
+
+                    # 方法1: history()メソッド
+                    try:
+                        data = ticker.history(start=start_date, end=end_date)
+                        if not data.empty:
+                            logger.debug(f"✅ {name} fetched via history()")
+                    except Exception as e:
+                        logger.debug(f"history() failed for {name}: {e}")
+
+                    # 方法2: download()を直接使用
+                    if data is None or data.empty:
+                        try:
+                            data = yf.download(
+                                symbol,
+                                start=start_date,
+                                end=end_date,
+                                progress=False,
+                                timeout=30 if is_cloud_run else 10,
+                            )
+                            if not data.empty:
+                                logger.debug(f"✅ {name} fetched via download()")
+                        except Exception as e:
+                            logger.debug(f"download() failed for {name}: {e}")
 
                     if data.empty:
                         logger.warning(f"⚠️ No data for {name} ({symbol})")

@@ -173,10 +173,34 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
 
     @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
     def _fetch_alternative_me(self, limit: int) -> Optional[pd.DataFrame]:
-        """Alternative.me APIからFear&Greedデータ取得"""
+        """Alternative.me APIからFear&Greedデータ取得（Cloud Run対応）"""
         try:
+            # Phase H.17: Cloud Run環境でのリクエスト最適化
+            import os
+
+            is_cloud_run = os.getenv("K_SERVICE") is not None
+
+            # ヘッダー設定（User-Agent追加）
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; CryptoBot/1.0; +https://github.com/crypto-bot)",
+                "Accept": "application/json",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Cache-Control": "no-cache",
+            }
+
             params = {"limit": limit}
-            response = requests.get(self.api_url, params=params, timeout=10)
+
+            # Cloud Run環境では長めのタイムアウト
+            timeout = 30 if is_cloud_run else 10
+
+            if is_cloud_run:
+                logger.info(f"🌐 Cloud Run environment: using timeout={timeout}s")
+
+            response = requests.get(
+                self.api_url, params=params, headers=headers, timeout=timeout
+            )
+
+            logger.info(f"📡 Alternative.me response status: {response.status_code}")
             response.raise_for_status()
 
             data = response.json()
@@ -206,7 +230,17 @@ class FearGreedDataFetcher(MultiSourceDataFetcher):
                 "📡 Using Alternative.me backup URL as CNN Fear&Greed alternative"
             )
 
-            response = requests.get(self.backup_url, timeout=10)
+            # Phase H.17: Cloud Run対応ヘッダー
+            import os
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; CryptoBot/1.0; +https://github.com/crypto-bot)",
+                "Accept": "application/json",
+            }
+
+            timeout = 30 if os.getenv("K_SERVICE") else 10
+
+            response = requests.get(self.backup_url, headers=headers, timeout=timeout)
             response.raise_for_status()
 
             data = response.json()
