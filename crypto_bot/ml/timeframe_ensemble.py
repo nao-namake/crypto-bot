@@ -183,19 +183,71 @@ class TimeframeEnsembleProcessor:
         """
         self.processing_stats["predictions_made"] += 1
 
-        # フォールバック処理
+        # フォールバック処理（改善版：簡易テクニカル分析）
         def create_fallback_result():
             self.processing_stats["fallback_predictions"] += 1
+            logger.info(
+                f"🔄 [{self.timeframe}] Using fallback prediction with simple technical analysis"
+            )
+
+            # 簡易テクニカル分析を試みる
+            try:
+                if len(price_df) >= 20:
+                    close_prices = price_df["close"].values
+                    sma20 = np.mean(close_prices[-20:])
+                    current_price = close_prices[-1]
+
+                    # 価格とSMA20の関係から簡易的な予測
+                    if current_price > sma20 * 1.01:  # 1%以上上
+                        prediction = 1
+                        probability = 0.6
+                        confidence = 0.55
+                        logger.info(
+                            f"📈 [{self.timeframe}] Fallback: Bullish signal (price > SMA20)"
+                        )
+                    elif current_price < sma20 * 0.99:  # 1%以上下
+                        prediction = 0
+                        probability = 0.4
+                        confidence = 0.55
+                        logger.info(
+                            f"📉 [{self.timeframe}] Fallback: Bearish signal (price < SMA20)"
+                        )
+                    else:
+                        prediction = 0
+                        probability = 0.5
+                        confidence = 0.4
+                        logger.info(f"➡️ [{self.timeframe}] Fallback: Neutral signal")
+                else:
+                    # データ不足の場合
+                    prediction = 0
+                    probability = 0.5
+                    confidence = 0.3
+                    logger.warning(
+                        f"⚠️ [{self.timeframe}] Fallback: Insufficient data for technical analysis"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"❌ [{self.timeframe}] Fallback technical analysis failed: {e}"
+                )
+                prediction = 0
+                probability = 0.5
+                confidence = 0.3
+
             return (
-                np.array([0]),  # 中立予測
-                np.array([[0.5, 0.5]]),  # 中立確率
-                np.array([0.5]),  # 中程度信頼度
+                np.array([prediction]),
+                np.array([[1 - probability, probability]]),
+                np.array([confidence]),
                 {
                     "timeframe": self.timeframe,
-                    "method": "fallback",
+                    "method": "fallback_technical",
                     "ensemble_enabled": False,
                     "dynamic_threshold": 0.5,
                     "risk_level": "medium",
+                    "fallback_reason": (
+                        "model_not_fitted"
+                        if not self.is_fitted
+                        else "ensemble_disabled"
+                    ),
                 },
             )
 

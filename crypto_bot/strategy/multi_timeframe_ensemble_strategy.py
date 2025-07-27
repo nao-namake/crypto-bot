@@ -426,41 +426,120 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         Stage 2: タイムフレーム間アンサンブル（3タイムフレーム予測重み付き統合）
         """
         self.strategy_stats["total_predictions"] += 1
+        start_time = datetime.now()
 
         try:
-            logger.debug("🚀 Phase C1: 2段階アンサンブル統合シグナル生成開始")
+            logger.info(
+                "🚀 [LOGIC-SIGNAL] Phase C1: 2段階アンサンブル統合シグナル生成開始"
+            )
+            logger.info(
+                f"📊 [LOGIC-SIGNAL] Input price_df shape: {tuple(price_df.shape)}"
+            )
+            logger.info(f"📊 [LOGIC-SIGNAL] Position exists: {position.exist}")
+
+            # モデル状態の確認ログ
+            logger.info("🔍 [LOGIC-SIGNAL] Checking ensemble model states...")
+            if hasattr(self, "timeframe_processors"):
+                for tf, processor in self.timeframe_processors.items():
+                    if processor:
+                        logger.info(
+                            f"  - {tf} processor: fitted={processor.is_fitted}, enabled={processor.ensemble_enabled}"
+                        )
+                    else:
+                        logger.warning(f"  - {tf} processor: NOT INITIALIZED")
+            else:
+                logger.error("❌ [LOGIC-SIGNAL] No timeframe processors found!")
 
             # 市場コンテキスト生成
+            logger.info("🔄 [LOGIC-SIGNAL] Step 1: 市場コンテキスト生成開始")
+            context_start = datetime.now()
             market_context = self._generate_market_context(price_df)
+            context_elapsed = (datetime.now() - context_start).total_seconds()
+            logger.info(
+                f"✅ [LOGIC-SIGNAL] Step 1完了: 市場コンテキスト生成 ({context_elapsed:.2f}秒)"
+            )
+            logger.debug(f"📊 [LOGIC-SIGNAL] Market context: {market_context}")
 
             # Stage 1: タイムフレーム内アンサンブル予測実行
+            logger.info(
+                "🔄 [LOGIC-SIGNAL] Step 2: Stage 1 タイムフレーム内アンサンブル予測開始"
+            )
+            stage1_start = datetime.now()
             timeframe_predictions = self._execute_stage1_ensemble_predictions(
                 price_df, market_context
             )
+            stage1_elapsed = (datetime.now() - stage1_start).total_seconds()
+            logger.info(
+                f"✅ [LOGIC-SIGNAL] Step 2完了: Stage 1予測 ({stage1_elapsed:.2f}秒)"
+            )
+            logger.info(
+                f"📊 [LOGIC-SIGNAL] Timeframe predictions count: {len(timeframe_predictions)}"
+            )
 
             if not timeframe_predictions:
-                logger.warning("No Stage 1 predictions available")
+                logger.warning(
+                    "⚠️ [LOGIC-SIGNAL] No Stage 1 predictions available - returning empty signal"
+                )
+                total_elapsed = (datetime.now() - start_time).total_seconds()
+                logger.info(
+                    f"🏁 [LOGIC-SIGNAL] 処理終了（空シグナル） - 総処理時間: {total_elapsed:.2f}秒"
+                )
                 return Signal()
 
             # Stage 2: タイムフレーム間アンサンブル統合
+            logger.info(
+                "🔄 [LOGIC-SIGNAL] Step 3: Stage 2 タイムフレーム間アンサンブル統合開始"
+            )
+            stage2_start = datetime.now()
             integrated_signal, integration_info = self._execute_stage2_integration(
                 timeframe_predictions, market_context
             )
+            stage2_elapsed = (datetime.now() - stage2_start).total_seconds()
+            logger.info(
+                f"✅ [LOGIC-SIGNAL] Step 3完了: Stage 2統合 ({stage2_elapsed:.2f}秒)"
+            )
+            logger.info(f"📊 [LOGIC-SIGNAL] Integrated signal: {integrated_signal:.3f}")
 
             # 最終シグナル判定
+            logger.info("🔄 [LOGIC-SIGNAL] Step 4: 最終シグナル判定開始")
+            decision_start = datetime.now()
             final_signal = self._make_final_ensemble_decision(
                 integrated_signal, integration_info, price_df, position
             )
+            decision_elapsed = (datetime.now() - decision_start).total_seconds()
+            logger.info(
+                f"✅ [LOGIC-SIGNAL] Step 4完了: 最終判定 ({decision_elapsed:.2f}秒)"
+            )
+            logger.info(
+                f"📊 [LOGIC-SIGNAL] Final signal: side={final_signal.side}, price={final_signal.price}"
+            )
 
             # パフォーマンス追跡
+            logger.info("🔄 [LOGIC-SIGNAL] Step 5: パフォーマンス追跡開始")
+            track_start = datetime.now()
             self._track_ensemble_performance(
                 timeframe_predictions, integrated_signal, integration_info, final_signal
             )
+            track_elapsed = (datetime.now() - track_start).total_seconds()
+            logger.info(
+                f"✅ [LOGIC-SIGNAL] Step 5完了: パフォーマンス追跡 ({track_elapsed:.2f}秒)"
+            )
 
+            total_elapsed = (datetime.now() - start_time).total_seconds()
+            logger.info(
+                f"🏁 [LOGIC-SIGNAL] 処理完了 - 総処理時間: {total_elapsed:.2f}秒"
+            )
             return final_signal
 
         except Exception as e:
-            logger.error(f"❌ Phase C1 2段階アンサンブル失敗: {e}")
+            total_elapsed = (datetime.now() - start_time).total_seconds()
+            logger.error(f"❌ [LOGIC-SIGNAL] Phase C1 2段階アンサンブル失敗: {e}")
+            logger.error(
+                f"🏁 [LOGIC-SIGNAL] エラー終了 - 処理時間: {total_elapsed:.2f}秒"
+            )
+            import traceback
+
+            logger.error(f"📋 [LOGIC-SIGNAL] Stack trace: {traceback.format_exc()}")
             return Signal()
 
     def _execute_stage1_ensemble_predictions(

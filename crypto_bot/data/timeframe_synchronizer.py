@@ -559,15 +559,40 @@ class TimeframeSynchronizer:
                 if col not in data.columns:
                     continue
 
-                # Z-score ベースの外れ値検出
-                z_scores = np.abs(stats.zscore(data[col].dropna()))
-                outliers = z_scores > threshold
+                try:
+                    # Phase H.16.2: numpy/pandas互換性修復・データ型安全性確保
+                    col_data = data[col].dropna()
 
-                if outliers.any():
-                    # 外れ値を移動平均で置換
-                    window = 5 if timeframe in ["15m", "1h"] else 3
-                    ma = data[col].rolling(window=window, center=True).mean()
-                    smoothed.loc[outliers, col] = ma[outliers]
+                    # 数値データの確認と変換
+                    if len(col_data) == 0:
+                        continue
+
+                    # float64に明示的変換（numpy互換性確保）
+                    col_data = pd.to_numeric(col_data, errors="coerce").astype(
+                        np.float64
+                    )
+
+                    # NaN削除後の最終チェック
+                    col_data = col_data.dropna()
+                    if len(col_data) < 3:  # 最小データ要件
+                        continue
+
+                    # Z-score計算（型安全）
+                    z_scores = np.abs(stats.zscore(col_data.values))
+                    outliers_mask = z_scores > threshold
+
+                    if np.any(outliers_mask):
+                        # 外れ値インデックス取得
+                        outlier_indices = col_data.index[outliers_mask]
+
+                        # 移動平均で置換
+                        window = 5 if timeframe in ["15m", "1h"] else 3
+                        ma = data[col].rolling(window=window, center=True).mean()
+                        smoothed.loc[outlier_indices, col] = ma.loc[outlier_indices]
+
+                except Exception as e:
+                    logger.debug(f"⚠️ Outlier smoothing failed for {col}: {e}")
+                    continue
 
             return smoothed
 

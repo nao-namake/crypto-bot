@@ -694,6 +694,59 @@ def enhanced_init_sequence(
     # INIT-8: キャッシュクリア（強化版）
     enhanced_init_8_clear_cache()
 
+    # INIT-9: アンサンブルモデル学習（Phase H問題解決）
+    logger.info("🤖 [INIT-9] Training ensemble models...")
+    logger.info(f"⏰ [INIT-9] Timestamp: {pd.Timestamp.now()}")
+
+    if hasattr(strategy, "fit_ensemble_models"):
+        try:
+            # 学習用データの準備
+            if initial_df is not None and len(initial_df) >= 50:
+                logger.info(
+                    f"📊 [INIT-9] Preparing training data from {len(initial_df)} records"
+                )
+
+                # 簡易的なラベル生成（将来の価格変動から）
+                price_change = (
+                    initial_df["close"].pct_change().shift(-1)
+                )  # 次の期間の価格変動
+                y = (price_change > 0).astype(int)  # 上昇=1, 下降=0
+                y = y.dropna()
+
+                # データの整合性確保
+                train_df = initial_df.iloc[:-1]  # 最後の行を除外（ラベルがないため）
+
+                if len(train_df) >= 50:
+                    logger.info(
+                        f"🎯 [INIT-9] Training ensemble models with {len(train_df)} samples"
+                    )
+                    strategy.fit_ensemble_models(train_df, y)
+                    logger.info("✅ [INIT-9] Ensemble models trained successfully")
+
+                    # モデル状態の確認
+                    if hasattr(strategy, "timeframe_processors"):
+                        for tf, processor in strategy.timeframe_processors.items():
+                            if processor:
+                                logger.info(
+                                    f"📊 [INIT-9] {tf} processor fitted: {processor.is_fitted}"
+                                )
+                else:
+                    logger.warning(
+                        f"⚠️ [INIT-9] Insufficient data for training: {len(train_df)} records (need 50+)"
+                    )
+            else:
+                logger.warning(
+                    "⚠️ [INIT-9] No initial data available for model training"
+                )
+                logger.info(
+                    "🔄 [INIT-9] Models will use fallback strategies until sufficient data is collected"
+                )
+        except Exception as e:
+            logger.error(f"❌ [INIT-9] Ensemble model training failed: {e}")
+            logger.info("🔄 [INIT-9] Continuing with untrained models (fallback mode)")
+    else:
+        logger.info("ℹ️ [INIT-9] Strategy does not support ensemble model training")
+
     # Position初期化
     from crypto_bot.execution.engine import Position
 

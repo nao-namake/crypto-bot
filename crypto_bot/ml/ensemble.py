@@ -100,6 +100,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         self.trading_weights_ = None
         self.risk_metrics_ = {}
         self.market_regime_weights_ = {}
+        self.is_fitted = False  # Phase H.16.1: is_fitted属性追加
 
         # 取引パフォーマンス追跡
         self.prediction_history_ = []
@@ -182,6 +183,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         # 4. 取引特化型重み計算
         self._calculate_trading_weights()
+
+        # Phase H.16.1: 学習完了フラグ設定
+        self.is_fitted = True
 
         logger.info("Ensemble training completed")
         return self

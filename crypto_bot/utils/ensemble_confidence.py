@@ -237,8 +237,9 @@ class EnsembleConfidenceCalculator:
                 signal_array = np.asarray(signal_values)
                 weight_array = np.asarray(weights)
                 if signal_array.shape[0] != weight_array.shape[0]:
+                    # Phase H.16.3: format string エラー修正・numpy shape安全出力
                     logger.warning(
-                        f"Shape mismatch: signal_values={signal_array.shape}, weights={weight_array.shape}"
+                        f"Shape mismatch: signal_values={tuple(signal_array.shape)}, weights={tuple(weight_array.shape)}"
                     )
                     weighted_std = np.std(signal_values)
                 else:

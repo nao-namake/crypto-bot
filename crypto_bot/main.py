@@ -1146,9 +1146,39 @@ def live_bitbank(config_path: str, max_trades: int):
         prefetch_data=init_prefetch_data,  # Phase H.13: プリフェッチデータ渡し
     )
 
+    # モデル状態の最終確認
+    logger.info(
+        "🔍 [INIT-VERIFY] Verifying ensemble model states after initialization..."
+    )
+    if hasattr(strategy, "timeframe_processors"):
+        model_ready = False
+        for tf, processor in strategy.timeframe_processors.items():
+            if processor:
+                fitted = processor.is_fitted
+                enabled = processor.ensemble_enabled
+                logger.info(f"  ✅ {tf} processor: fitted={fitted}, enabled={enabled}")
+                if fitted and enabled:
+                    model_ready = True
+            else:
+                logger.warning(f"  ❌ {tf} processor: NOT INITIALIZED")
+
+        if model_ready:
+            logger.info(
+                "🎯 [INIT-VERIFY] At least one ensemble model is ready for trading"
+            )
+        else:
+            logger.warning(
+                "⚠️ [INIT-VERIFY] No ensemble models are ready - will use fallback strategies"
+            )
+            logger.info(
+                "🔄 [INIT-VERIFY] Models will be trained automatically when sufficient data is collected"
+            )
+    else:
+        logger.info("ℹ️ [INIT-VERIFY] Strategy does not use ensemble models")
+
     # Phase 8統計システム初期化（エラーハンドリング強化）
-    logger.info("📊 [INIT-9] Initializing Phase 8 Statistics System...")
-    logger.info(f"⏰ [INIT-9] Timestamp: {pd.Timestamp.now()}")
+    logger.info("📊 [INIT-10] Initializing Phase 8 Statistics System...")
+    logger.info(f"⏰ [INIT-10] Timestamp: {pd.Timestamp.now()}")
 
     integration_service = None
     try:
@@ -1419,7 +1449,8 @@ def live_bitbank(config_path: str, max_trades: int):
             # エントリー判定（Phase G.2.4.3: デバッグ情報強化）
             logger.info("📊 [ENTRY-JUDGE] Starting entry order generation...")
             logger.info(f"⏰ [ENTRY-JUDGE] Timestamp: {pd.Timestamp.now()}")
-            logger.info(f"🔍 [DEBUG] Price data shape: {price_df.shape}")
+            # Phase H.16.3: format string エラー修正・numpy shape安全出力
+            logger.info(f"🔍 [DEBUG] Price data shape: {tuple(price_df.shape)}")
             logger.info(f"🔍 [DEBUG] Price data latest: {price_df.tail(1).to_dict()}")
 
             # Phase G.2.4.3: エントリー判定詳細ログ
