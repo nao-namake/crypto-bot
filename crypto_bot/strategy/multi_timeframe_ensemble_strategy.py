@@ -399,6 +399,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             return
 
         logger.info("🎯 Training multi-timeframe ensemble models")
+        logger.info(f"📊 Original data shape: {price_df.shape}, label shape: {y.shape}")
 
         for timeframe, processor in self.timeframe_processors.items():
             if processor is None:
@@ -411,12 +412,35 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     logger.warning(f"No data for {timeframe} training")
                     continue
 
+                logger.info(f"📊 {timeframe} data shape: {tf_data.shape}")
+
+                # タイムフレームに対応するラベルを生成
+                tf_labels = self._generate_timeframe_labels(
+                    tf_data, price_df, y, timeframe
+                )
+
+                if tf_labels is None or len(tf_labels) == 0:
+                    logger.warning(f"⚠️ Failed to generate labels for {timeframe}")
+                    continue
+
+                logger.info(f"📊 {timeframe} labels shape: {tf_labels.shape}")
+
+                # データとラベルの長さを確認
+                if len(tf_data) != len(tf_labels):
+                    logger.error(
+                        f"❌ {timeframe} data/label mismatch: data={len(tf_data)}, labels={len(tf_labels)}"
+                    )
+                    continue
+
                 # アンサンブルモデル学習
-                processor.fit(tf_data, y)
-                logger.info(f"✅ {timeframe} ensemble model trained")
+                processor.fit(tf_data, tf_labels)
+                logger.info(f"✅ {timeframe} ensemble model trained successfully")
+                logger.info(f"   - Processor fitted: {processor.is_fitted}")
 
             except Exception as e:
                 logger.error(f"❌ {timeframe} ensemble training failed: {e}")
+                logger.error(f"   - Error type: {type(e).__name__}")
+                logger.error(f"   - Error details: {str(e)}")
 
     def logic_signal(self, price_df: pd.DataFrame, position: Position) -> Signal:
         """
@@ -756,6 +780,78 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         except Exception as e:
             logger.error(f"Timeframe conversion failed for {timeframe}: {e}")
             return pd.DataFrame()
+
+    def _generate_timeframe_labels(
+        self,
+        tf_data: pd.DataFrame,
+        original_df: pd.DataFrame,
+        original_y: pd.Series,
+        timeframe: str,
+    ) -> pd.Series:
+        """タイムフレーム変換後のデータに対応するラベルを生成
+
+        Args:
+            tf_data: タイムフレーム変換後のデータ
+            original_df: 元の価格データ（1時間足）
+            original_y: 元のラベル
+            timeframe: タイムフレーム
+
+        Returns:
+            pd.Series: タイムフレームに対応するラベル
+        """
+        try:
+            if tf_data.empty:
+                logger.warning(f"Empty data for {timeframe} label generation")
+                return pd.Series()
+
+            # タイムフレームごとの価格変化からラベルを生成
+            if timeframe == "15m":
+                # 15分足: 次の15分の価格変化を予測
+                price_change = tf_data["close"].pct_change().shift(-1)
+                tf_labels = (price_change > 0).astype(int)
+
+            elif timeframe == "4h":
+                # 4時間足: 次の4時間の価格変化を予測
+                price_change = tf_data["close"].pct_change().shift(-1)
+                tf_labels = (price_change > 0).astype(int)
+
+            else:  # 1h
+                # 1時間足: 元のラベルをそのまま使用（インデックスで整合性確保）
+                # tf_dataのインデックスに合わせてラベルを抽出
+                common_index = tf_data.index.intersection(original_y.index)
+                if len(common_index) == 0:
+                    # インデックスが一致しない場合は、元のラベルを使用
+                    tf_labels = original_y.iloc[: len(tf_data)]
+                else:
+                    tf_labels = original_y.loc[common_index]
+
+            # NaNを除去（最後の行にはラベルがない）
+            tf_labels = tf_labels.dropna()
+
+            # データとラベルの長さを調整（最後の行を除外）
+            if len(tf_data) > len(tf_labels):
+                tf_data_adjusted = tf_data.iloc[: len(tf_labels)]
+                logger.debug(
+                    f"📊 {timeframe} adjusted data length: {len(tf_data)} → {len(tf_data_adjusted)}"
+                )
+            else:
+                tf_data_adjusted = tf_data
+
+            # インデックスを揃える
+            tf_labels.index = tf_data_adjusted.index
+
+            logger.info(
+                f"✅ {timeframe} labels generated: {len(tf_labels)} labels, "
+                f"positive rate: {tf_labels.mean():.2%}"
+            )
+
+            return tf_labels
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate {timeframe} labels: {e}")
+            logger.error(f"   - tf_data shape: {tf_data.shape}")
+            logger.error(f"   - original_y shape: {original_y.shape}")
+            return pd.Series()
 
     def _make_final_ensemble_decision(
         self,
