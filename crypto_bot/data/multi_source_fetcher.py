@@ -76,10 +76,16 @@ class MultiSourceDataFetcher(ABC):
         self.data_type = data_type
         self.data_config = self.config.get("external_data", {}).get(data_type, {})
 
-        # 基本設定
+        # Phase H.22.4: データ品質監視強化・実API優先戦略
         self.cache_hours = self.data_config.get("cache_hours", 24)
-        self.quality_threshold = self.data_config.get("quality_threshold", 0.7)
+        self.quality_threshold = self.data_config.get(
+            "quality_threshold", 0.6
+        )  # 0.7→0.6緩和
         self.enabled = self.data_config.get("enabled", True)
+
+        # Phase H.22.4: 実APIデータ品質向上設定
+        self.real_api_priority_boost = 0.2  # 実APIデータに20%品質ボーナス
+        self.fallback_quality_penalty = 0.1  # フォールバックデータに10%品質ペナルティ
 
         # グローバルキャッシュマネージャー統合（Phase A3）
         self.global_cache = get_global_cache()
@@ -394,13 +400,32 @@ class MultiSourceDataFetcher(ABC):
                     success=False,
                 )
 
-            # データ品質検証
-            quality_score = self._validate_data_quality(data)
+            # Phase H.22.4: データ品質検証強化・実API優先戦略
+            base_quality_score = self._validate_data_quality(data)
+
+            # 実APIデータ品質ボーナス判定
+            enhanced_quality_score = base_quality_score
+            if self._is_real_api_source(source_config.name):
+                enhanced_quality_score = min(
+                    1.0, base_quality_score + self.real_api_priority_boost
+                )
+                logger.info(
+                    f"✅ [PHASE-H22.4] Real API quality boost: {base_quality_score:.3f} → {enhanced_quality_score:.3f} ({source_config.name})"
+                )
+
+            # フォールバックデータ品質ペナルティ
+            elif self._is_fallback_source(source_config.name):
+                enhanced_quality_score = max(
+                    0.0, base_quality_score - self.fallback_quality_penalty
+                )
+                logger.info(
+                    f"⚠️ [PHASE-H22.4] Fallback quality penalty: {base_quality_score:.3f} → {enhanced_quality_score:.3f} ({source_config.name})"
+                )
 
             return DataSourceResult(
                 source_name=source_config.name,
                 data=data,
-                quality_score=quality_score,
+                quality_score=enhanced_quality_score,
                 error=None,
                 fetch_time=fetch_time,
                 success=True,
@@ -509,3 +534,13 @@ class MultiSourceDataFetcher(ABC):
     def _generate_fallback_data(self, **kwargs) -> Optional[pd.DataFrame]:
         """フォールバックデータ生成（継承クラスで実装）"""
         pass
+
+    def _is_real_api_source(self, source_name: str) -> bool:
+        """実APIソース判定（Phase H.22.4: 品質優先戦略）"""
+        real_api_sources = ["yahoo", "alpha_vantage", "polygon", "fred", "binance"]
+        return source_name.lower() in real_api_sources
+
+    def _is_fallback_source(self, source_name: str) -> bool:
+        """フォールバックソース判定（Phase H.22.4: 品質監視）"""
+        fallback_sources = ["fallback", "generated", "default"]
+        return any(fb in source_name.lower() for fb in fallback_sources)

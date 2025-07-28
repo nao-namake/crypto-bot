@@ -266,24 +266,58 @@ class VIXDataFetcher(MultiSourceDataFetcher):
     def _fetch_alpha_vantage_vix(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """Alpha VantageからVIXデータ取得（Phase H.20.2.2フェイルオーバー実装）"""
+        """Alpha VantageからVIXデータ取得（Phase H.22.1: 実APIキー統合）"""
         try:
-            # Phase H.20.2.2: Alpha Vantage実装
+            import os
+
             from ..utils.http_client_optimizer import OptimizedHTTPClient
 
-            logger.info("📡 Phase H.20.2.2: Alpha Vantage VIX取得開始")
+            # Phase H.22.1: 実APIキー取得・フォールバック戦略
+            api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+            if not api_key:
+                logger.warning("⚠️ Alpha Vantage APIキー未設定、デモキー使用")
+                api_key = "demo"
+            else:
+                logger.info("✅ Phase H.22.1: Alpha Vantage実APIキー使用")
 
-            # Alpha Vantage無料版でSPYの日次データを取得してボラティリティ計算
+            logger.info("📡 Phase H.22.1: Alpha Vantage VIX取得開始")
+
+            # Alpha Vantage本格版でVIX直接取得を試みる
             http_client = OptimizedHTTPClient.get_instance("alpha_vantage")
 
-            # Alpha Vantage API（無料版・APIキー不要のデモエンドポイント）
+            # 方法1: VIX直接取得を試みる（実APIキーの場合）
+            if api_key != "demo":
+                try:
+                    url = "https://www.alphavantage.co/query"
+                    params = {
+                        "function": "TIME_SERIES_DAILY",
+                        "symbol": "VIX",
+                        "outputsize": "compact",
+                        "datatype": "json",
+                        "apikey": api_key,
+                    }
+
+                    response = http_client.get_with_api_optimization(
+                        url, "alpha_vantage", params=params
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                    if "Time Series (Daily)" in data:
+                        logger.info("✅ Phase H.22.1: VIX直接取得成功")
+                        return self._process_alpha_vantage_vix_direct(data)
+
+                except Exception as e:
+                    logger.warning(f"⚠️ VIX直接取得失敗、SPY推定にフォールバック: {e}")
+
+            # 方法2: SPY推定VIX（デモキー対応）
             url = "https://www.alphavantage.co/query"
             params = {
                 "function": "TIME_SERIES_DAILY",
                 "symbol": "SPY",
                 "outputsize": "compact",
                 "datatype": "json",
-                "apikey": "demo",  # デモキー（制限あり）
+                "apikey": api_key,
             }
 
             response = http_client.get_with_api_optimization(
@@ -328,26 +362,62 @@ class VIXDataFetcher(MultiSourceDataFetcher):
             logger.error(f"Alpha Vantage VIX fetch failed: {e}")
             raise
 
+    def _process_alpha_vantage_vix_direct(self, data: dict) -> pd.DataFrame:
+        """Alpha VantageからのVIX直接データ処理（Phase H.22.1新機能）"""
+        try:
+            vix_data = data["Time Series (Daily)"]
+            dates = []
+            vix_values = []
+
+            # 最新100日分のデータを処理
+            sorted_dates = sorted(vix_data.keys(), reverse=True)[:100]
+
+            for date_str in sorted_dates:
+                day_data = vix_data[date_str]
+                close_price = float(day_data["4. close"])
+
+                dates.append(pd.Timestamp(date_str))
+                vix_values.append(close_price)
+
+            vix_df = pd.DataFrame({"date": dates, "vix_close": vix_values})
+            vix_df = vix_df.set_index("date").sort_index()
+
+            logger.info(f"✅ Phase H.22.1: VIX直接データ処理完了: {len(vix_df)}件")
+            return vix_df
+
+        except Exception as e:
+            logger.error(f"VIX直接データ処理失敗: {e}")
+            raise
+
     @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
     def _fetch_polygon_vix(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """Polygon APIからVIXデータ取得（Phase H.20.2.2第3段階フェイルオーバー）"""
+        """Polygon APIからVIXデータ取得（Phase H.22.1: 実APIキー統合）"""
         try:
-            # Phase H.20.2.2: Polygon API実装
+            import os
+
             from ..utils.http_client_optimizer import OptimizedHTTPClient
 
-            logger.info("📡 Phase H.20.2.2: Polygon VIX取得開始")
+            # Phase H.22.1: 実APIキー取得・フォールバック戦略
+            api_key = os.getenv("POLYGON_API_KEY")
+            if not api_key:
+                logger.warning("⚠️ Polygon APIキー未設定、デモキー使用")
+                api_key = "DEMO_KEY"
+            else:
+                logger.info("✅ Phase H.22.1: Polygon実APIキー使用")
 
-            # Polygon API（無料版・制限あり）
+            logger.info("📡 Phase H.22.1: Polygon VIX取得開始")
+
+            # Polygon API（実キー・バックアップ用）
             http_client = OptimizedHTTPClient.get_instance("polygon")
 
-            # Polygon無料エンドポイント（SPYデータ）
+            # Polygon APIエンドポイント（SPYデータ）
             url = f"https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/{start_date}/{end_date}"
             params = {
                 "adjusted": "true",
                 "sort": "asc",
-                "apikey": "DEMO_KEY",  # デモキー（制限あり）
+                "apikey": api_key,
             }
 
             response = http_client.get_with_api_optimization(

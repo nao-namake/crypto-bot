@@ -49,10 +49,25 @@ from crypto_bot.risk.manager import RiskManager
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
 
-
 # --------------------------------------------------------------------------- #
 # ユーティリティ
 # --------------------------------------------------------------------------- #
+
+# Phase H.22.3: グローバル設定保持（ATR期間統一用）
+_current_config = None
+
+
+def set_current_config(config: dict):
+    """現在の設定を保存（Phase H.22.3: ATR期間統一用）"""
+    global _current_config
+    _current_config = config
+
+
+def get_current_config() -> dict:
+    """現在の設定を取得（Phase H.22.3: ATR期間統一用）"""
+    return _current_config or {}
+
+
 def ensure_dir_for_file(path: str):
     """親ディレクトリが無ければ作成する"""
     dir_path = os.path.dirname(path)
@@ -243,6 +258,9 @@ def load_config(path: str) -> dict:
 
     # 🔥 Phase F.1: 環境変数展開処理を追加
     config = expand_env_vars_recursive(config)
+
+    # Phase H.22.3: 設定をグローバルに保存（ATR期間統一用）
+    set_current_config(config)
     logger.info("🔧 [CONFIG] Environment variables expanded")
 
     # 設定検証を実行
@@ -1081,7 +1099,34 @@ def live_bitbank(config_path: str, max_trades: int):
             else:
                 hours_back = base_hours
 
+            # Phase H.22.2: 異常タイムスタンプ修正・安全性確保（INIT段階）
             since_time = current_time - pd.Timedelta(hours=hours_back)
+
+            # タイムスタンプ妥当性検証・修正
+            current_timestamp = int(current_time.timestamp() * 1000)
+            since_timestamp = int(since_time.timestamp() * 1000)
+
+            # 未来タイムスタンプ検出・修正
+            if since_timestamp > current_timestamp:
+                logger.error(
+                    f"🚨 [INIT-PREFETCH-H22.2] CRITICAL: Future timestamp detected! since={since_timestamp}, current={current_timestamp}"
+                )
+                # 安全な過去時刻に修正（96時間前）
+                since_time = current_time - pd.Timedelta(hours=96)
+                since_timestamp = int(since_time.timestamp() * 1000)
+                logger.warning(
+                    f"🔧 [INIT-PREFETCH-H22.2] Auto-corrected to safe past time: {since_time} (timestamp={since_timestamp})"
+                )
+
+            # 極端に古いタイムスタンプ検出・修正
+            max_hours_back = 720  # 30日間の上限
+            if hours_back > max_hours_back:
+                logger.warning(
+                    f"⚠️ [INIT-PREFETCH-H22.2] Excessive hours_back detected: {hours_back}h > {max_hours_back}h, capping"
+                )
+                hours_back = max_hours_back
+                since_time = current_time - pd.Timedelta(hours=hours_back)
+                since_timestamp = int(since_time.timestamp() * 1000)
 
         # Phase H.13: ベースタイムフレーム決定（メインループと同じロジック）
         base_timeframe = "1h"  # デフォルト
@@ -1314,11 +1359,41 @@ def live_bitbank(config_path: str, max_trades: int):
                             # 平日は通常の設定
                             hours_back = base_hours
 
+                        # Phase H.22.2: 異常タイムスタンプ修正・安全性確保
                         since_time = current_time - pd.Timedelta(hours=hours_back)
 
-                        # Phase H.4: 時間範囲計算の詳細ログ
+                        # タイムスタンプ妥当性検証・修正
+                        current_timestamp = int(current_time.timestamp() * 1000)
+                        since_timestamp = int(since_time.timestamp() * 1000)
+
+                        # 未来タイムスタンプ検出・修正
+                        if since_timestamp > current_timestamp:
+                            logger.error(
+                                f"🚨 [PHASE-H22.2] CRITICAL: Future timestamp detected! since={since_timestamp}, current={current_timestamp}"
+                            )
+                            # 安全な過去時刻に修正（96時間前）
+                            since_time = current_time - pd.Timedelta(hours=96)
+                            since_timestamp = int(since_time.timestamp() * 1000)
+                            logger.warning(
+                                f"🔧 [PHASE-H22.2] Auto-corrected to safe past time: {since_time} (timestamp={since_timestamp})"
+                            )
+
+                        # 極端に古いタイムスタンプ検出・修正
+                        max_hours_back = 720  # 30日間の上限
+                        if hours_back > max_hours_back:
+                            logger.warning(
+                                f"⚠️ [PHASE-H22.2] Excessive hours_back detected: {hours_back}h > {max_hours_back}h, capping"
+                            )
+                            hours_back = max_hours_back
+                            since_time = current_time - pd.Timedelta(hours=hours_back)
+                            since_timestamp = int(since_time.timestamp() * 1000)
+
+                        # Phase H.22.2: 強化された時間範囲計算詳細ログ
                         logger.info(
-                            f"🔍 [DEBUG] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, Lookback: {hours_back}h, Since: {since_time}"
+                            f"🔍 [PHASE-H22.2] Dynamic since calculation - Day: {current_day}, Hour: {current_hour}, Lookback: {hours_back}h"
+                        )
+                        logger.info(
+                            f"🔍 [PHASE-H22.2] Timestamps - Since: {since_timestamp}, Current: {current_timestamp}, Delta: {current_timestamp - since_timestamp}ms"
                         )
                         logger.info("🕐 [PHASE-H4] Time range details:")
                         logger.info(f"   📅 Current time: {current_time}")

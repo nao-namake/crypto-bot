@@ -1,7 +1,7 @@
 {
-  "timestamp": "2025-07-28T06:11:57.850649",
+  "timestamp": "2025-07-28T20:15:11.533142",
   "is_cloud_run": false,
-  "total_diagnostic_time": 1.7268989086151123,
+  "total_diagnostic_time": 1.8293571472167969,
   "results": [
     {
       "test": "basic_network",
@@ -13,35 +13,35 @@
       "test": "dns_resolution",
       "domain": "api.alternative.me",
       "ip_address": "54.39.131.114",
-      "resolution_time_ms": 30.834197998046875,
+      "resolution_time_ms": 59.81016159057617,
       "success": true
     },
     {
       "test": "dns_resolution",
       "domain": "query1.finance.yahoo.com",
       "ip_address": "180.222.119.248",
-      "resolution_time_ms": 22.21393585205078,
+      "resolution_time_ms": 19.548892974853516,
       "success": true
     },
     {
       "test": "dns_resolution",
       "domain": "api.binance.com",
-      "ip_address": "18.65.138.47",
-      "resolution_time_ms": 43.495893478393555,
+      "ip_address": "18.65.152.46",
+      "resolution_time_ms": 40.55905342102051,
       "success": true
     },
     {
       "test": "dns_resolution",
       "domain": "fapi.binance.com",
-      "ip_address": "3.113.90.70",
-      "resolution_time_ms": 30.357837677001953,
+      "ip_address": "57.180.201.90",
+      "resolution_time_ms": 85.13712882995605,
       "success": true
     },
     {
       "test": "ssl_connection",
       "host": "api.alternative.me:443",
       "success": true,
-      "connection_time_ms": 402.01711654663086,
+      "connection_time_ms": 414.1278266906738,
       "ssl_version": "TLSv1.3",
       "cipher": [
         "TLS_AES_256_GCM_SHA384",
@@ -53,7 +53,7 @@
       "test": "ssl_connection",
       "host": "query1.finance.yahoo.com:443",
       "success": true,
-      "connection_time_ms": 58.4559440612793,
+      "connection_time_ms": 72.39890098571777,
       "ssl_version": "TLSv1.3",
       "cipher": [
         "TLS_AES_128_GCM_SHA256",
@@ -65,7 +65,7 @@
       "test": "ssl_connection",
       "host": "api.binance.com:443",
       "success": true,
-      "connection_time_ms": 59.23819541931152,
+      "connection_time_ms": 44.97480392456055,
       "ssl_version": "TLSv1.3",
       "cipher": [
         "TLS_AES_128_GCM_SHA256",
@@ -80,11 +80,11 @@
       "description": "Fear&Greed Index API",
       "success": true,
       "status_code": 200,
-      "request_time_ms": 586.014986038208,
+      "request_time_ms": 623.9757537841797,
       "response_size": 209,
       "headers": {
         "Server": "nginx/1.14.2",
-        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Date": "Mon, 28 Jul 2025 11:15:11 GMT",
         "Content-Type": "application/json",
         "Transfer-Encoding": "chunked",
         "Connection": "keep-alive",
@@ -94,7 +94,7 @@
         "Content-Encoding": "gzip"
       },
       "has_valid_json": true,
-      "sample_data": "{'name': 'Fear and Greed Index', 'data': [{'value': '73', 'value_classification': 'Greed', 'timestamp': '1753574400', 'time_until_update': '10083'}], 'metadata': {'error': None}}"
+      "sample_data": "{'name': 'Fear and Greed Index', 'data': [{'value': '75', 'value_classification': 'Greed', 'timestamp': '1753660800', 'time_until_update': '45889'}], 'metadata': {'error': None}}"
     },
     {
       "test": "api_endpoint",
@@ -103,25 +103,25 @@
       "description": "Yahoo Finance VIX",
       "success": true,
       "status_code": 200,
-      "request_time_ms": 207.00502395629883,
-      "response_size": 68418,
+      "request_time_ms": 91.09997749328613,
+      "response_size": 20952,
       "headers": {
         "content-type": "application/json;charset=utf-8",
-        "y-rid": "7p1d935k8d5gt",
+        "y-rid": "0tqamapk8emto",
         "vary": "Origin,Accept-Encoding",
         "cache-control": "public, max-age=10, stale-while-revalidate=20",
         "content-encoding": "gzip",
-        "x-envoy-upstream-service-time": "14",
-        "date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "x-envoy-upstream-service-time": "5",
+        "date": "Mon, 28 Jul 2025 11:15:04 GMT",
         "server": "ATS",
-        "x-envoy-decorator-operation": "finance-chart-api--mtls-production-sg3.finance-k8s:4080/*",
-        "Age": "0",
+        "x-envoy-decorator-operation": "finance-chart-api--mtls-baseline-production-sg3.finance-k8s:4080/*",
+        "Age": "7",
         "Strict-Transport-Security": "max-age=31536000",
         "Referrer-Policy": "no-referrer-when-downgrade",
         "X-Content-Type-Options": "nosniff",
         "X-XSS-Protection": "1; mode=block",
         "X-Frame-Options": "SAMEORIGIN",
-        "Transfer-Encoding": "chunked",
+        "Content-Length": "1912",
         "Connection": "keep-alive"
       },
       "has_valid_json": true,
@@ -134,24 +134,25 @@
       "description": "Yahoo Finance DXY",
       "success": true,
       "status_code": 200,
-      "request_time_ms": 118.55792999267578,
-      "response_size": 1024,
+      "request_time_ms": 151.1240005493164,
+      "response_size": 36895,
       "headers": {
         "content-type": "application/json;charset=utf-8",
-        "y-rid": "5f4nas9k8d5gt",
+        "y-rid": "79rc791k8emtv",
         "vary": "Origin,Accept-Encoding",
         "cache-control": "public, max-age=10, stale-while-revalidate=20",
-        "content-length": "1024",
-        "x-envoy-upstream-service-time": "3",
-        "date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "content-encoding": "gzip",
+        "x-envoy-upstream-service-time": "11",
+        "date": "Mon, 28 Jul 2025 11:15:10 GMT",
         "server": "ATS",
         "x-envoy-decorator-operation": "finance-chart-api--mtls-production-sg3.finance-k8s:4080/*",
-        "Age": "0",
+        "Age": "1",
         "Strict-Transport-Security": "max-age=31536000",
         "Referrer-Policy": "no-referrer-when-downgrade",
         "X-Content-Type-Options": "nosniff",
         "X-XSS-Protection": "1; mode=block",
         "X-Frame-Options": "SAMEORIGIN",
+        "Transfer-Encoding": "chunked",
         "Connection": "keep-alive"
       },
       "has_valid_json": true,
@@ -164,10 +165,10 @@
       "description": "Binance Funding Rate",
       "success": true,
       "status_code": 200,
-      "request_time_ms": 82.31019973754883,
+      "request_time_ms": 126.40833854675293,
       "response_size": 107,
       "headers": {
-        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Date": "Mon, 28 Jul 2025 11:15:11 GMT",
         "Content-Type": "application/json;charset=UTF-8",
         "Transfer-Encoding": "chunked",
         "Connection": "keep-alive",
@@ -188,7 +189,7 @@
         "Content-Encoding": "gzip"
       },
       "has_valid_json": true,
-      "sample_data": "[{'symbol': 'BTCUSDT', 'fundingTime': 1753632000008, 'fundingRate': '0.00010000', 'markPrice': '118580.80000000'}]"
+      "sample_data": "[{'symbol': 'BTCUSDT', 'fundingTime': 1753689600000, 'fundingRate': '0.00010000', 'markPrice': '118886.24443841'}]"
     },
     {
       "test": "api_endpoint",
@@ -197,16 +198,16 @@
       "description": "Binance Server Time (Test)",
       "success": true,
       "status_code": 200,
-      "request_time_ms": 62.597036361694336,
+      "request_time_ms": 73.72474670410156,
       "response_size": 28,
       "headers": {
         "Content-Type": "application/json;charset=UTF-8",
         "Content-Length": "28",
         "Connection": "keep-alive",
-        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Date": "Mon, 28 Jul 2025 11:15:11 GMT",
         "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
         "Server": "nginx",
-        "x-mbx-uuid": "e5ec560b-5b6a-4157-a400-8d556d39b1d1",
+        "x-mbx-uuid": "95dadee0-fbcd-4bb8-a076-d3b14fb5ac2e",
         "x-mbx-used-weight": "1",
         "x-mbx-used-weight-1m": "1",
         "Strict-Transport-Security": "max-age=31536000; includeSubdomains",
@@ -221,18 +222,18 @@
         "Expires": "0",
         "Access-Control-Allow-Origin": "*",
         "X-Cache": "Miss from cloudfront",
-        "Via": "1.1 ab79b12cbe5b584e9d9f38ed17d16d08.cloudfront.net (CloudFront)",
-        "X-Amz-Cf-Pop": "KIX82-P1",
-        "X-Amz-Cf-Id": "VBFaI1746gmQaidZIY_z1fICeoCrImVvwCYYdPkw7t77d0OS7UXm6g=="
+        "Via": "1.1 50f6891cd33eb819319509ee4d5de566.cloudfront.net (CloudFront)",
+        "X-Amz-Cf-Pop": "KIX82-P2",
+        "X-Amz-Cf-Id": "m9LbUaRo-KknKK-i5cUpEvWyGUlLBQa43dM0w1Y3b6gxhtLHDJTBxA=="
       },
       "has_valid_json": true,
-      "sample_data": "{'serverTime': 1753650717847}"
+      "sample_data": "{'serverTime': 1753701311583}"
     },
     {
       "test": "http_client_config",
       "urllib3_version": "2.5.0",
       "requests_version": "2.32.4",
-      "session_adapters": "OrderedDict([('https://', <requests.adapters.HTTPAdapter object at 0x1554d2ed0>), ('http://', <requests.adapters.HTTPAdapter object at 0x1554d2ed0>)])",
+      "session_adapters": "OrderedDict([('https://', <requests.adapters.HTTPAdapter object at 0x105904750>), ('http://', <requests.adapters.HTTPAdapter object at 0x105904750>)])",
       "verify_ssl": true
     },
     {
@@ -263,37 +264,37 @@
     "total_tests": 16,
     "successful_tests": 16,
     "failed_tests": 0,
-    "total_time_seconds": 1.7268989086151123,
+    "total_time_seconds": 1.8293571472167969,
     "api_results": {
       "alternative_me": {
         "success": true,
         "error": null,
         "status_code": 200,
-        "time_ms": 586.014986038208
+        "time_ms": 623.9757537841797
       },
       "yahoo_finance_vix": {
         "success": true,
         "error": null,
         "status_code": 200,
-        "time_ms": 207.00502395629883
+        "time_ms": 91.09997749328613
       },
       "yahoo_finance_dxy": {
         "success": true,
         "error": null,
         "status_code": 200,
-        "time_ms": 118.55792999267578
+        "time_ms": 151.1240005493164
       },
       "binance_funding": {
         "success": true,
         "error": null,
         "status_code": 200,
-        "time_ms": 82.31019973754883
+        "time_ms": 126.40833854675293
       },
       "binance_server_time": {
         "success": true,
         "error": null,
         "status_code": 200,
-        "time_ms": 62.597036361694336
+        "time_ms": 73.72474670410156
       }
     },
     "recommendations": []

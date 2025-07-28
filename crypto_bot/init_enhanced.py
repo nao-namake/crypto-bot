@@ -342,21 +342,35 @@ def enhanced_init_5_fetch_price_data(
 
 @with_resilience("init_system", "init_6_calculate_atr")
 def enhanced_init_6_calculate_atr(
-    initial_df: Optional[pd.DataFrame], period: int = 14
+    initial_df: Optional[pd.DataFrame], period: int = None
 ) -> Optional[pd.Series]:
     """
-    INIT-6段階: ATR計算（強化版・Phase H.8.4）
+    INIT-6段階: ATR計算（強化版・Phase H.22.3: 設定統一）
 
     Args:
         initial_df: 初期価格データ
-        period: ATR計算期間
+        period: ATR計算期間（Noneの場合は設定ファイルから取得）
 
     Returns:
         Series: ATR値（失敗時はNone）
     """
+    # Phase H.22.3: ATR期間設定統一・production.yml設定値使用
+    if period is None:
+        from crypto_bot.main import get_current_config
+
+        try:
+            config = get_current_config()
+            period = config.get("risk_management", {}).get("atr_period", 20)
+            logger.info(f"✅ [INIT-6-H22.3] Using config atr_period: {period}")
+        except Exception as e:
+            logger.warning(
+                f"⚠️ [INIT-6-H22.3] Config read failed, using default 20: {e}"
+            )
+            period = 20
+
     logger.info("🔢 [INIT-6] Calculating ATR...")
     logger.info(f"⏰ [INIT-6] Timestamp: {pd.Timestamp.now()}")
-    logger.info(f"🔧 [INIT-6] ATR period: {period}")
+    logger.info(f"🔧 [INIT-6-H22.3] ATR period: {period} (config-unified)")
     logger.info("🛡️ [PHASE-H8.4] INIT-6 with enhanced error resilience")
 
     atr_series = None

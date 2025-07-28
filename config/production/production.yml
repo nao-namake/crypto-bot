@@ -291,8 +291,8 @@ ml:
       symbol: "^VIX"
       timeframe: "1d"
       fallback_level: 20.0
-      sources: ["yahoo"]  # Phase H.21.3: Yahoo Finance単体・API key不要・安定性重視
-      quality_threshold: 0.5  # 0.7→0.5 Yahoo単体での現実的品質閾値
+      sources: ["yahoo", "alpha_vantage", "polygon"]  # Phase H.22.1: 実APIキー統合・3段階フェイルオーバー
+      quality_threshold: 0.6  # Phase H.22.4: 品質閾値調整・実API品質ボーナス適用
       cache_hours: 24
       
     macro:
@@ -305,8 +305,8 @@ ml:
         dxy: 103.0
         us10y: 4.5
         us2y: 4.8
-      sources: ["yahoo"]  # Yahoo Finance統一
-      quality_threshold: 0.8
+      sources: ["yahoo", "fred"]  # Phase H.22.1: FRED APIキー統合・経済指標品質向上
+      quality_threshold: 0.7  # Phase H.22.4: 実API品質向上・適切な閾値設定
       cache_hours: 6
         
     fear_greed:

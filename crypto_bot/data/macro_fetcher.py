@@ -242,17 +242,95 @@ class MacroDataFetcher(MultiSourceDataFetcher):
     def _fetch_fred_macro_data(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """FRED（Federal Reserve Economic Data）からマクロデータ取得（将来実装）"""
+        """FRED（Federal Reserve Economic Data）からマクロデータ取得（Phase H.22.1: 実APIキー統合）"""
         try:
-            # FRED API実装（将来の拡張用）
-            # 現在はYahoo Financeフォールバックとして実装
-            logger.info("📡 Using Yahoo Finance as FRED macro alternative")
+            import os
 
-            return self._fetch_yahoo_macro_data(start_date, end_date)
+            from ..utils.http_client_optimizer import OptimizedHTTPClient
+
+            # Phase H.22.1: FRED実APIキー取得・フォールバック戦略
+            api_key = os.getenv("FRED_API_KEY")
+            if not api_key:
+                logger.warning("⚠️ FRED APIキー未設定、Yahoo Financeフォールバック使用")
+                return self._fetch_yahoo_macro_data(start_date, end_date)
+            else:
+                logger.info("✅ Phase H.22.1: FRED実APIキー使用")
+
+            logger.info("📡 Phase H.22.1: FRED経済指標取得開始")
+
+            # FRED API実装（実キー使用）
+            http_client = OptimizedHTTPClient.get_instance("fred")
+
+            # FRED主要経済指標取得
+            fred_indicators = {
+                "DGS10": "us10y_close",  # 10年債利回り
+                "DGS2": "us2y_close",  # 2年債利回り
+                "DEXUSEU": "dxy_close",  # 米ドル指数（代替）
+                "DEXJPUS": "usdjpy_close",  # USD/JPY
+            }
+
+            combined_data = pd.DataFrame()
+
+            for fred_id, column_name in fred_indicators.items():
+                try:
+                    url = "https://api.stlouisfed.org/fred/series/observations"
+                    params = {
+                        "series_id": fred_id,
+                        "api_key": api_key,
+                        "file_type": "json",
+                        "observation_start": start_date,
+                        "observation_end": end_date,
+                        "frequency": "d",  # 日次データ
+                        "aggregation_method": "avg",
+                    }
+
+                    response = http_client.get_with_api_optimization(
+                        url, "fred", params=params
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                    if "observations" in data:
+                        observations = data["observations"]
+                        dates = []
+                        values = []
+
+                        for obs in observations:
+                            if obs["value"] != ".":  # FRED missing value indicator
+                                dates.append(pd.Timestamp(obs["date"]))
+                                values.append(float(obs["value"]))
+
+                        if dates and values:
+                            indicator_df = pd.DataFrame(
+                                {"date": dates, column_name: values}
+                            ).set_index("date")
+
+                            if combined_data.empty:
+                                combined_data = indicator_df
+                            else:
+                                combined_data = combined_data.join(
+                                    indicator_df, how="outer"
+                                )
+
+                            logger.info(f"✅ FRED {fred_id}: {len(indicator_df)}件取得")
+
+                except Exception as e:
+                    logger.warning(f"⚠️ FRED {fred_id}取得失敗: {e}")
+                    continue
+
+            if not combined_data.empty:
+                logger.info(
+                    f"✅ Phase H.22.1: FRED統合データ取得完了: {len(combined_data)}件"
+                )
+                return combined_data.sort_index()
+            else:
+                logger.warning("❌ FRED全指標取得失敗、Yahoo Financeフォールバック")
+                return self._fetch_yahoo_macro_data(start_date, end_date)
 
         except Exception as e:
             logger.error(f"FRED macro fetch failed: {e}")
-            raise
+            # エラー時はYahoo Financeフォールバック
+            return self._fetch_yahoo_macro_data(start_date, end_date)
 
     def get_macro_data(
         self,

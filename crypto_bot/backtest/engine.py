@@ -56,10 +56,20 @@ class BacktestEngine:
         self.starting_balance = starting_balance
         self.slippage_rate = slippage_rate
 
-        # ATR（Phase H.13: 空データ対応強化）
+        # ATR（Phase H.22.3: 設定統一・Phase H.13: 空データ対応強化）
+        atr_period = 20  # Phase H.22.3: デフォルト20期間
+        try:
+            from crypto_bot.main import get_current_config
+
+            config = get_current_config()
+            atr_period = config.get("risk_management", {}).get("atr_period", 20)
+        except Exception:
+            # config取得失敗時はデフォルト使用
+            pass
+
         self.atr = (
-            IndicatorCalculator.calculate_atr(self.df, period=14)
-            if self.df is not None and not self.df.empty and len(self.df) >= 4
+            IndicatorCalculator.calculate_atr(self.df, period=atr_period)
+            if self.df is not None and not self.df.empty and len(self.df) >= atr_period
             else None
         )
 
@@ -107,8 +117,18 @@ class BacktestEngine:
         if "low" not in self.df.columns:
             self.df["low"] = self.df["close"]
 
-        # ATR 再計算
-        self.atr = IndicatorCalculator.calculate_atr(self.df, period=14).mask(
+        # ATR 再計算（Phase H.22.3: 設定統一）
+        atr_period = 20  # Phase H.22.3: デフォルト20期間
+        try:
+            from crypto_bot.main import get_current_config
+
+            config = get_current_config()
+            atr_period = config.get("risk_management", {}).get("atr_period", 20)
+        except Exception:
+            # config取得失敗時はデフォルト使用
+            pass
+
+        self.atr = IndicatorCalculator.calculate_atr(self.df, period=atr_period).mask(
             lambda s: s == 0.0, 1.0
         )
         self.ee.atr_series = self.atr
