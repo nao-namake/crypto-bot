@@ -1,0 +1,301 @@
+{
+  "timestamp": "2025-07-28T06:11:57.850649",
+  "is_cloud_run": false,
+  "total_diagnostic_time": 1.7268989086151123,
+  "results": [
+    {
+      "test": "basic_network",
+      "target": "8.8.8.8:53 (Google DNS)",
+      "success": true,
+      "message": "Basic network connectivity OK"
+    },
+    {
+      "test": "dns_resolution",
+      "domain": "api.alternative.me",
+      "ip_address": "54.39.131.114",
+      "resolution_time_ms": 30.834197998046875,
+      "success": true
+    },
+    {
+      "test": "dns_resolution",
+      "domain": "query1.finance.yahoo.com",
+      "ip_address": "180.222.119.248",
+      "resolution_time_ms": 22.21393585205078,
+      "success": true
+    },
+    {
+      "test": "dns_resolution",
+      "domain": "api.binance.com",
+      "ip_address": "18.65.138.47",
+      "resolution_time_ms": 43.495893478393555,
+      "success": true
+    },
+    {
+      "test": "dns_resolution",
+      "domain": "fapi.binance.com",
+      "ip_address": "3.113.90.70",
+      "resolution_time_ms": 30.357837677001953,
+      "success": true
+    },
+    {
+      "test": "ssl_connection",
+      "host": "api.alternative.me:443",
+      "success": true,
+      "connection_time_ms": 402.01711654663086,
+      "ssl_version": "TLSv1.3",
+      "cipher": [
+        "TLS_AES_256_GCM_SHA384",
+        "TLSv1.3",
+        256
+      ]
+    },
+    {
+      "test": "ssl_connection",
+      "host": "query1.finance.yahoo.com:443",
+      "success": true,
+      "connection_time_ms": 58.4559440612793,
+      "ssl_version": "TLSv1.3",
+      "cipher": [
+        "TLS_AES_128_GCM_SHA256",
+        "TLSv1.3",
+        128
+      ]
+    },
+    {
+      "test": "ssl_connection",
+      "host": "api.binance.com:443",
+      "success": true,
+      "connection_time_ms": 59.23819541931152,
+      "ssl_version": "TLSv1.3",
+      "cipher": [
+        "TLS_AES_128_GCM_SHA256",
+        "TLSv1.3",
+        128
+      ]
+    },
+    {
+      "test": "api_endpoint",
+      "name": "alternative_me",
+      "url": "https://api.alternative.me/fng/?limit=1",
+      "description": "Fear&Greed Index API",
+      "success": true,
+      "status_code": 200,
+      "request_time_ms": 586.014986038208,
+      "response_size": 209,
+      "headers": {
+        "Server": "nginx/1.14.2",
+        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Content-Type": "application/json",
+        "Transfer-Encoding": "chunked",
+        "Connection": "keep-alive",
+        "Vary": "Accept-Encoding",
+        "Access-Control-Allow-Origin": "*",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "Content-Encoding": "gzip"
+      },
+      "has_valid_json": true,
+      "sample_data": "{'name': 'Fear and Greed Index', 'data': [{'value': '73', 'value_classification': 'Greed', 'timestamp': '1753574400', 'time_until_update': '10083'}], 'metadata': {'error': None}}"
+    },
+    {
+      "test": "api_endpoint",
+      "name": "yahoo_finance_vix",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/^VIX",
+      "description": "Yahoo Finance VIX",
+      "success": true,
+      "status_code": 200,
+      "request_time_ms": 207.00502395629883,
+      "response_size": 68418,
+      "headers": {
+        "content-type": "application/json;charset=utf-8",
+        "y-rid": "7p1d935k8d5gt",
+        "vary": "Origin,Accept-Encoding",
+        "cache-control": "public, max-age=10, stale-while-revalidate=20",
+        "content-encoding": "gzip",
+        "x-envoy-upstream-service-time": "14",
+        "date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "server": "ATS",
+        "x-envoy-decorator-operation": "finance-chart-api--mtls-production-sg3.finance-k8s:4080/*",
+        "Age": "0",
+        "Strict-Transport-Security": "max-age=31536000",
+        "Referrer-Policy": "no-referrer-when-downgrade",
+        "X-Content-Type-Options": "nosniff",
+        "X-XSS-Protection": "1; mode=block",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Transfer-Encoding": "chunked",
+        "Connection": "keep-alive"
+      },
+      "has_valid_json": true,
+      "sample_data": "{'chart': {'result': [{'meta': {'currency': 'USD', 'symbol': '^VIX', 'exchangeName': 'CXI', 'fullExchangeName': 'Cboe Indices', 'instrumentType': 'INDEX', 'firstTradeDate': 631267200, 'regularMarketTi"
+    },
+    {
+      "test": "api_endpoint",
+      "name": "yahoo_finance_dxy",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB",
+      "description": "Yahoo Finance DXY",
+      "success": true,
+      "status_code": 200,
+      "request_time_ms": 118.55792999267578,
+      "response_size": 1024,
+      "headers": {
+        "content-type": "application/json;charset=utf-8",
+        "y-rid": "5f4nas9k8d5gt",
+        "vary": "Origin,Accept-Encoding",
+        "cache-control": "public, max-age=10, stale-while-revalidate=20",
+        "content-length": "1024",
+        "x-envoy-upstream-service-time": "3",
+        "date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "server": "ATS",
+        "x-envoy-decorator-operation": "finance-chart-api--mtls-production-sg3.finance-k8s:4080/*",
+        "Age": "0",
+        "Strict-Transport-Security": "max-age=31536000",
+        "Referrer-Policy": "no-referrer-when-downgrade",
+        "X-Content-Type-Options": "nosniff",
+        "X-XSS-Protection": "1; mode=block",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Connection": "keep-alive"
+      },
+      "has_valid_json": true,
+      "sample_data": "{'chart': {'result': [{'meta': {'currency': 'USD', 'symbol': 'DX-Y.NYB', 'exchangeName': 'NYB', 'fullExchangeName': 'ICE Futures', 'instrumentType': 'INDEX', 'firstTradeDate': 31813200, 'regularMarket"
+    },
+    {
+      "test": "api_endpoint",
+      "name": "binance_funding",
+      "url": "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1",
+      "description": "Binance Funding Rate",
+      "success": true,
+      "status_code": 200,
+      "request_time_ms": 82.31019973754883,
+      "response_size": 107,
+      "headers": {
+        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Content-Type": "application/json;charset=UTF-8",
+        "Transfer-Encoding": "chunked",
+        "Connection": "keep-alive",
+        "Server": "Tengine",
+        "Vary": "Accept-Encoding",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Headers": "*,clienttype,Content-Type,lang,x-ui-request-trace,bnc-uuid",
+        "Content-Security-Policy": "default-src 'self'",
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "expires": "0",
+        "pragma": "no-cache",
+        "strict-transport-security": "max-age=31536000; includeSubdomains",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "SAMEORIGIN",
+        "x-xss-protection": "1; mode=block",
+        "Content-Encoding": "gzip"
+      },
+      "has_valid_json": true,
+      "sample_data": "[{'symbol': 'BTCUSDT', 'fundingTime': 1753632000008, 'fundingRate': '0.00010000', 'markPrice': '118580.80000000'}]"
+    },
+    {
+      "test": "api_endpoint",
+      "name": "binance_server_time",
+      "url": "https://api.binance.com/api/v3/time",
+      "description": "Binance Server Time (Test)",
+      "success": true,
+      "status_code": 200,
+      "request_time_ms": 62.597036361694336,
+      "response_size": 28,
+      "headers": {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Content-Length": "28",
+        "Connection": "keep-alive",
+        "Date": "Sun, 27 Jul 2025 21:11:57 GMT",
+        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        "Server": "nginx",
+        "x-mbx-uuid": "e5ec560b-5b6a-4157-a400-8d556d39b1d1",
+        "x-mbx-used-weight": "1",
+        "x-mbx-used-weight-1m": "1",
+        "Strict-Transport-Security": "max-age=31536000; includeSubdomains",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Xss-Protection": "1; mode=block",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'self'",
+        "X-Content-Security-Policy": "default-src 'self'",
+        "X-WebKit-CSP": "default-src 'self'",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        "Access-Control-Allow-Origin": "*",
+        "X-Cache": "Miss from cloudfront",
+        "Via": "1.1 ab79b12cbe5b584e9d9f38ed17d16d08.cloudfront.net (CloudFront)",
+        "X-Amz-Cf-Pop": "KIX82-P1",
+        "X-Amz-Cf-Id": "VBFaI1746gmQaidZIY_z1fICeoCrImVvwCYYdPkw7t77d0OS7UXm6g=="
+      },
+      "has_valid_json": true,
+      "sample_data": "{'serverTime': 1753650717847}"
+    },
+    {
+      "test": "http_client_config",
+      "urllib3_version": "2.5.0",
+      "requests_version": "2.32.4",
+      "session_adapters": "OrderedDict([('https://', <requests.adapters.HTTPAdapter object at 0x1554d2ed0>), ('http://', <requests.adapters.HTTPAdapter object at 0x1554d2ed0>)])",
+      "verify_ssl": true
+    },
+    {
+      "test": "proxy_config",
+      "proxy_settings": {
+        "http_proxy": "not set",
+        "https_proxy": "not set",
+        "HTTP_PROXY": "not set",
+        "HTTPS_PROXY": "not set",
+        "no_proxy": "not set",
+        "NO_PROXY": "not set"
+      }
+    },
+    {
+      "test": "environment",
+      "cloud_run_env": {
+        "K_SERVICE": "not set",
+        "K_REVISION": "not set",
+        "PORT": "not set",
+        "GOOGLE_CLOUD_PROJECT": "not set",
+        "TZ": "not set",
+        "LANG": "ja_JP.UTF-8"
+      },
+      "python_version": "3.11.11 (main, Jul 19 2025, 06:57:33) [Clang 17.0.0 (clang-1700.0.13.5)]"
+    }
+  ],
+  "summary": {
+    "total_tests": 16,
+    "successful_tests": 16,
+    "failed_tests": 0,
+    "total_time_seconds": 1.7268989086151123,
+    "api_results": {
+      "alternative_me": {
+        "success": true,
+        "error": null,
+        "status_code": 200,
+        "time_ms": 586.014986038208
+      },
+      "yahoo_finance_vix": {
+        "success": true,
+        "error": null,
+        "status_code": 200,
+        "time_ms": 207.00502395629883
+      },
+      "yahoo_finance_dxy": {
+        "success": true,
+        "error": null,
+        "status_code": 200,
+        "time_ms": 118.55792999267578
+      },
+      "binance_funding": {
+        "success": true,
+        "error": null,
+        "status_code": 200,
+        "time_ms": 82.31019973754883
+      },
+      "binance_server_time": {
+        "success": true,
+        "error": null,
+        "status_code": 200,
+        "time_ms": 62.597036361694336
+      }
+    },
+    "recommendations": []
+  }
+}

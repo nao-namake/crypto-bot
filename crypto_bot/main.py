@@ -2255,5 +2255,70 @@ def validate_config(config_path: str):
             click.echo("Strategy configuration is valid!")
 
 
+@cli.command("diagnose-apis")
+def diagnose_apis():
+    """外部API接続の診断（Phase H.19）"""
+    import json
+
+    from .utils.cloud_run_api_diagnostics import run_diagnostics
+
+    click.echo("🔍 外部API接続診断を開始します...")
+    click.echo("-" * 80)
+
+    try:
+        results = run_diagnostics()
+
+        # 結果の表示
+        click.echo("\n📊 診断結果サマリー:")
+        click.echo(f"  - Cloud Run環境: {results['is_cloud_run']}")
+        click.echo(f"  - 総テスト数: {results['summary']['total_tests']}")
+        click.echo(f"  - 成功: {results['summary']['successful_tests']}")
+        click.echo(f"  - 失敗: {results['summary']['failed_tests']}")
+        click.echo(f"  - 診断時間: {results['summary']['total_time_seconds']:.2f}秒")
+
+        # API別の結果
+        click.echo("\n🌐 API接続結果:")
+        for api_name, api_result in results["summary"]["api_results"].items():
+            status = "✅" if api_result["success"] else "❌"
+            click.echo(f"  {status} {api_name}: ", nl=False)
+            if api_result["success"]:
+                click.echo(f"成功 (応答時間: {api_result.get('time_ms', 'N/A'):.1f}ms)")
+            else:
+                click.echo(f"失敗 - {api_result.get('error', 'Unknown error')}")
+
+        # 推奨事項
+        if results["summary"]["recommendations"]:
+            click.echo("\n💡 推奨事項:")
+            for recommendation in results["summary"]["recommendations"]:
+                click.echo(f"  - {recommendation}")
+
+        # 詳細な結果をJSONファイルに保存
+        output_file = "cloud_run_api_diagnostics_result.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        click.echo(f"\n📄 詳細な診断結果を {output_file} に保存しました。")
+
+        # Cloud Run環境の場合は、環境変数も表示
+        if results["is_cloud_run"]:
+            click.echo("\n🌍 Cloud Run環境変数:")
+            env_result = next(
+                (r for r in results["results"] if r.get("test") == "environment"), None
+            )
+            if env_result:
+                for key, value in env_result["cloud_run_env"].items():
+                    click.echo(f"  - {key}: {value}")
+
+        # 失敗があった場合は終了コード1
+        if results["summary"]["failed_tests"] > 0:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"\n❌ 診断中にエラーが発生しました: {e}", err=True)
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()

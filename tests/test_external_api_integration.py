@@ -157,7 +157,7 @@ class TestExternalAPIIntegration(unittest.TestCase):
         self.assertIn("value", result.columns)
         self.assertIn("value_classification", result.columns)
 
-    @patch("requests.get")
+    @patch("crypto_bot.utils.http_client_optimizer.OptimizedHTTPClient.get")
     @patch.dict(os.environ, {"K_SERVICE": "test-service"})
     def test_fear_greed_cloud_run_headers(self, mock_get):
         """Fear & Greed Cloud Run環境でのヘッダー設定テスト"""
@@ -171,12 +171,9 @@ class TestExternalAPIIntegration(unittest.TestCase):
         fetcher = FearGreedDataFetcher(self.test_config)
         fetcher._fetch_alternative_me(limit=1)
 
-        # リクエストが正しいヘッダーで呼ばれたことを確認
+        # 最適化されたHTTPクライアントが使用されたことを確認
+        mock_get.assert_called_once()
         args, kwargs = mock_get.call_args
-        self.assertIn("headers", kwargs)
-        headers = kwargs["headers"]
-        self.assertIn("User-Agent", headers)
-        self.assertIn("Accept", headers)
         self.assertEqual(kwargs["timeout"], 30)  # Cloud Run環境では30秒
 
     def test_macro_fetcher_initialization(self):

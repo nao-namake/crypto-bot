@@ -137,14 +137,26 @@ class MacroDataFetcher(MultiSourceDataFetcher):
     ) -> Optional[pd.DataFrame]:
         """Yahoo Financeからマクロデータをまとめて取得（Cloud Run対応）"""
         try:
-            # Phase H.17: Cloud Run環境での最適化
+            # Phase H.19: HTTPクライアント最適化
             import os
+
+            from ..utils.http_client_optimizer import get_optimized_client
 
             is_cloud_run = os.getenv("K_SERVICE") is not None
 
             if is_cloud_run:
                 logger.info("🌐 Cloud Run environment detected for macro data")
                 yf.set_tz_cache_location("/tmp")  # Cloud Run用一時ディレクトリ
+
+                # Phase H.19: 最適化されたHTTPクライアントを使用
+                http_client = get_optimized_client("yahoo")
+                # yfinanceにセッションを注入
+                try:
+                    import yfinance.utils as yf_utils
+
+                    yf_utils.requests = http_client.session
+                except (ImportError, AttributeError):
+                    pass
 
             combined_data = pd.DataFrame()
 

@@ -150,8 +150,10 @@ class VIXDataFetcher(MultiSourceDataFetcher):
     ) -> Optional[pd.DataFrame]:
         """Yahoo FinanceからVIXデータ取得（Cloud Run対応）"""
         try:
-            # Phase H.17: Cloud Run環境でのプロキシ設定
+            # Phase H.19: HTTPクライアント最適化
             import os
+
+            from ..utils.http_client_optimizer import get_optimized_client
 
             # Cloud Run環境検出
             is_cloud_run = os.getenv("K_SERVICE") is not None
@@ -162,6 +164,16 @@ class VIXDataFetcher(MultiSourceDataFetcher):
                 )
                 # Cloud Run用の設定（タイムアウト延長）
                 yf.set_tz_cache_location("/tmp")  # Cloud Run用一時ディレクトリ
+
+                # Phase H.19: 最適化されたHTTPクライアントを使用
+                http_client = get_optimized_client("yahoo")
+                # yfinanceにセッションを注入（可能な場合）
+                try:
+                    import yfinance.utils as yf_utils
+
+                    yf_utils.requests = http_client.session
+                except (ImportError, AttributeError):
+                    pass
 
             vix_ticker = yf.Ticker(self.symbol)
 

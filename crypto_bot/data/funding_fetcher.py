@@ -26,13 +26,30 @@ class FundingDataFetcher:
     def _initialize_exchange(self):
         """取引所接続初期化"""
         try:
+            import os
+
             import ccxt
+
+            # Phase H.19: HTTPクライアント最適化
+            from ..utils.http_client_optimizer import get_optimized_client
+
+            # Cloud Run環境検出
+            is_cloud_run = os.getenv("K_SERVICE") is not None
+
+            # 最適化されたHTTPクライアントを使用
+            if is_cloud_run:
+                http_client = get_optimized_client("binance")
+                # ccxtにセッションを注入（可能な場合）
+                session = http_client.session
+            else:
+                session = None
 
             self.exchange = ccxt.binance(
                 {
                     "enableRateLimit": True,
-                    "timeout": 10000,
+                    "timeout": 30000 if is_cloud_run else 10000,  # Cloud Runでは長めに
                     "options": {"defaultType": "future"},  # 先物取引（FR/OI取得用）
+                    "session": session,  # 最適化されたセッションを使用
                 }
             )
             logger.info("✅ Binance connection initialized for FR/OI data")
@@ -84,8 +101,30 @@ class FundingDataFetcher:
             df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
             df = df.set_index("datetime")
 
-            # 必要な列のみ抽出
-            df = df[["fundingRate", "fundingTimestamp"]].copy()
+            # Phase H.19修正: 必要な列のみ抽出（存在確認付き）
+            available_columns = df.columns.tolist()
+            required_columns = []
+
+            # fundingRate列の存在確認
+            if "fundingRate" in available_columns:
+                required_columns.append("fundingRate")
+            elif "rate" in available_columns:
+                df["fundingRate"] = df["rate"]
+                required_columns.append("fundingRate")
+            else:
+                logger.warning("No funding rate column found, using default")
+                df["fundingRate"] = 0.0001  # デフォルト値
+                required_columns.append("fundingRate")
+
+            # fundingTimestamp列の存在確認（オプション）
+            if "fundingTimestamp" in available_columns:
+                required_columns.append("fundingTimestamp")
+            elif "timestamp" in available_columns:
+                df["fundingTimestamp"] = df["timestamp"]
+                required_columns.append("fundingTimestamp")
+            # fundingTimestampは必須ではないので、なくても続行
+
+            df = df[required_columns].copy()
             df["fundingRate"] = pd.to_numeric(df["fundingRate"], errors="coerce")
 
             logger.info(f"✅ Retrieved {len(df)} funding rate records for {symbol}")

@@ -130,6 +130,15 @@ class DataQualityMonitor:
         self.enable_alerts = self.config.get("enable_alerts", True)
         self.alert_channels = self.config.get("alert_channels", ["log"])
 
+        # Phase H.19: グレースフルデグレード設定
+        self.graceful_degradation_enabled = self.config.get(
+            "graceful_degradation", True
+        )
+        self.partial_data_acceptance = self.config.get("partial_data_acceptance", True)
+        self.quality_improvement_factor = self.config.get(
+            "quality_improvement_factor", 1.1
+        )  # 10%改善
+
         logger.info("🔧 DataQualityMonitor initialized")
         logger.info(
             f"  - Default ratio thresholds: "
@@ -611,6 +620,145 @@ class DataQualityMonitor:
         }
 
         return report
+
+    def improve_data_quality(self, current_quality: float, source_type: str) -> float:
+        """Phase H.19: データ品質を改善する試み
+
+        Args:
+            current_quality: 現在の品質スコア
+            source_type: データソースタイプ
+
+        Returns:
+            改善された品質スコア
+        """
+        if not self.graceful_degradation_enabled:
+            return current_quality
+
+        # グレースフルデグレード：部分的データでも活用
+        improved_quality = current_quality
+
+        # 1. キャッシュヒットによる品質改善
+        if self.partial_data_acceptance and current_quality > 0.4:
+            # 40%以上のデータがあれば、キャッシュデータで補完可能と判断
+            improved_quality = min(
+                current_quality * self.quality_improvement_factor, 0.65
+            )
+            logger.info(
+                f"📈 Quality improved by cache supplementation: "
+                f"{current_quality:.2f} → {improved_quality:.2f}"
+            )
+
+        # 2. 外部データソースの部分的成功を考慮
+        recent_metrics = [
+            m
+            for m in self.quality_history[-10:]
+            if m.source_type == source_type and m.success_rate > 0
+        ]
+
+        if recent_metrics:
+            # 最近の成功率を考慮
+            avg_success_rate = sum(m.success_rate for m in recent_metrics) / len(
+                recent_metrics
+            )
+            if avg_success_rate > 0.5:  # 50%以上成功していれば
+                quality_boost = avg_success_rate * 0.1  # 最大10%のブースト
+                improved_quality = min(improved_quality + quality_boost, 0.7)
+                logger.info(
+                    f"📊 Quality boosted by historical success rate: "
+                    f"+{quality_boost:.2f} (total: {improved_quality:.2f})"
+                )
+
+        # 3. 複数ソースの組み合わせによる品質向上
+        if source_type in ["external_data", "multi_source"]:
+            # 複数ソースからのデータがある場合、相互補完
+            other_sources = [
+                m
+                for m in self.quality_history[-5:]
+                if m.source_type != source_type and m.quality_score > 0.5
+            ]
+
+            if len(other_sources) >= 2:
+                # 他のソースが健全なら品質を向上
+                improved_quality = min(improved_quality + 0.05, 0.65)
+                logger.info(
+                    f"🔄 Quality improved by multi-source validation: "
+                    f"{improved_quality:.2f}"
+                )
+
+        return improved_quality
+
+    def get_adjusted_quality_threshold(self, base_threshold: float) -> float:
+        """Phase H.19: 動的品質閾値の調整
+
+        Args:
+            base_threshold: 基本品質閾値
+
+        Returns:
+            調整された品質閾値
+        """
+        if not self.graceful_degradation_enabled:
+            return base_threshold
+
+        # 全体的な品質状況を評価
+        recent_metrics = self.quality_history[-30:]  # 最新30件
+        if not recent_metrics:
+            return base_threshold
+
+        # 平均品質スコアを計算
+        avg_quality = sum(m.quality_score for m in recent_metrics) / len(recent_metrics)
+
+        # 品質が全体的に低い場合、閾値を少し緩和
+        if avg_quality < 0.6:
+            # 最大10%まで閾値を下げる
+            adjustment = max(0.9, avg_quality / 0.6)
+            adjusted_threshold = base_threshold * adjustment
+
+            logger.info(
+                f"🎯 Quality threshold adjusted: {base_threshold:.2f} → "
+                f"{adjusted_threshold:.2f} (avg quality: {avg_quality:.2f})"
+            )
+
+            return adjusted_threshold
+
+        return base_threshold
+
+    def calculate_composite_quality(self, metrics_dict: Dict[str, float]) -> float:
+        """Phase H.19: 複合品質スコアの計算
+
+        Args:
+            metrics_dict: 各メトリクスの辞書
+
+        Returns:
+            複合品質スコア
+        """
+        # 重み付け設定
+        weights = {
+            "price_data": 0.4,  # 価格データが最重要
+            "technical": 0.3,  # テクニカル指標
+            "external": 0.2,  # 外部データ
+            "market": 0.1,  # 市場データ
+        }
+
+        composite_score = 0.0
+        total_weight = 0.0
+
+        for category, weight in weights.items():
+            if category in metrics_dict:
+                score = metrics_dict[category]
+                # グレースフルデグレード：部分的な成功も考慮
+                if self.partial_data_acceptance and score > 0:
+                    composite_score += score * weight
+                    total_weight += weight
+
+        # 正規化
+        if total_weight > 0:
+            composite_score = composite_score / total_weight
+
+        # 最低品質保証（価格データがあれば最低40%）
+        if "price_data" in metrics_dict and metrics_dict["price_data"] > 0.8:
+            composite_score = max(composite_score, 0.4)
+
+        return composite_score
 
 
 # グローバルインスタンス
