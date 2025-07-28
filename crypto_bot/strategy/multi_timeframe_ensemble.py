@@ -609,9 +609,20 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             )  # 低合意度では早めにエグジット
 
             if integrated_signal < exit_threshold:
+                # Phase H.20.1.1: numpy配列安全処理
+                safe_signal = (
+                    float(integrated_signal)
+                    if hasattr(integrated_signal, "__len__")
+                    else float(integrated_signal)
+                )
+                safe_threshold = (
+                    float(exit_threshold)
+                    if hasattr(exit_threshold, "__len__")
+                    else float(exit_threshold)
+                )
                 logger.info(
                     f"Multi-timeframe ensemble EXIT: "
-                    f"signal={integrated_signal:.3f} < {exit_threshold:.3f}"
+                    f"signal={safe_signal:.3f} < {safe_threshold:.3f}"
                 )
                 return Signal(side="SELL", price=current_price)
 
@@ -623,9 +634,20 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 integrated_signal > (0.5 + dynamic_threshold)
                 and consensus >= min_consensus
             ):
+                # Phase H.20.1.1: numpy配列安全処理
+                safe_signal = (
+                    float(integrated_signal)
+                    if hasattr(integrated_signal, "__len__")
+                    else float(integrated_signal)
+                )
+                safe_consensus = (
+                    float(consensus)
+                    if hasattr(consensus, "__len__")
+                    else float(consensus)
+                )
                 logger.info(
-                    f"Multi-timeframe ensemble LONG: signal={integrated_signal:.3f}, "
-                    f"consensus={consensus:.3f}"
+                    f"Multi-timeframe ensemble LONG: signal={safe_signal:.3f}, "
+                    f"consensus={safe_consensus:.3f}"
                 )
                 return Signal(side="BUY", price=current_price)
 
@@ -633,9 +655,20 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 integrated_signal < (0.5 - dynamic_threshold)
                 and consensus >= min_consensus
             ):
+                # Phase H.20.1.1: numpy配列安全処理
+                safe_signal = (
+                    float(integrated_signal)
+                    if hasattr(integrated_signal, "__len__")
+                    else float(integrated_signal)
+                )
+                safe_consensus = (
+                    float(consensus)
+                    if hasattr(consensus, "__len__")
+                    else float(consensus)
+                )
                 logger.info(
-                    f"Multi-timeframe ensemble SHORT: signal={integrated_signal:.3f}, "
-                    f"consensus={consensus:.3f}"
+                    f"Multi-timeframe ensemble SHORT: signal={safe_signal:.3f}, "
+                    f"consensus={safe_consensus:.3f}"
                 )
                 return Signal(side="SELL", price=current_price)
 

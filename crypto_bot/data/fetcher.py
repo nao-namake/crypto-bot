@@ -139,13 +139,19 @@ class MarketDataFetcher:
         max_records = limit if limit is not None else float("inf")
 
         if paginate and limit:
-            # Phase H.4: 設定値の動的読み込み（デフォルト値は従来通り）
-            MAX_ATTEMPTS = max_attempts if max_attempts is not None else 15
+            # Phase H.20.1.3: データ取得アルゴリズム改善（168件→300件目標）
+            MAX_ATTEMPTS = (
+                max_attempts if max_attempts is not None else 20
+            )  # 15→20に増加
             MAX_CONSECUTIVE_EMPTY = (
-                max_consecutive_empty if max_consecutive_empty is not None else 3
+                max_consecutive_empty
+                if max_consecutive_empty is not None
+                else 5  # 3→5に増加
             )
             MAX_CONSECUTIVE_NO_NEW = (
-                max_consecutive_no_new if max_consecutive_no_new is not None else 5
+                max_consecutive_no_new
+                if max_consecutive_no_new is not None
+                else 8  # 5→8に増加
             )
             logger.info(f"🔄 Paginated fetch: limit={limit}, per_page={per_page}")
             logger.info(
@@ -209,8 +215,14 @@ class MarketDataFetcher:
                             )
                             break
 
-                        # 空バッチの場合は指数バックオフで待機
-                        backoff_delay = min(consecutive_empty * 2, 10)
+                        # Phase H.20.1.3: 最適化されたバックオフ戦略
+                        # より効率的な取得のため待機時間短縮（10秒→6秒上限）
+                        backoff_delay = min(
+                            consecutive_empty * 1.5, 6
+                        )  # 2→1.5, 10→6に短縮
+                        logger.debug(
+                            f"🔄 [PHASE-H20.1.3] Backoff delay: {backoff_delay}秒"
+                        )
                         time.sleep(backoff_delay)
                         attempt += 1
                         continue
@@ -286,9 +298,9 @@ class MarketDataFetcher:
                             )
                             break
 
-                        # 新レコードなしの場合はタイムスタンプを進める
+                        # Phase H.20.1.3: 改善されたタイムスタンプ進行戦略
                         if batch:
-                            # タイムフレームに応じた適切な時刻進行
+                            # より小さな単位でタイムスタンプを進めて見逃しを減少
                             timeframe_ms = {
                                 "1m": 60 * 1000,
                                 "5m": 5 * 60 * 1000,
@@ -296,10 +308,16 @@ class MarketDataFetcher:
                                 "1h": 60 * 60 * 1000,
                                 "4h": 4 * 60 * 60 * 1000,
                                 "1d": 24 * 60 * 60 * 1000,
-                            }.get(
-                                timeframe, 60 * 60 * 1000
-                            )  # デフォルト1時間
-                            last_since = batch[-1][0] + timeframe_ms
+                            }.get(timeframe, 60 * 60 * 1000)
+
+                            # 小刻みに進行（従来の半分の幅で進む）
+                            step_ms = timeframe_ms // 2  # 半分の時間間隔で進行
+                            last_since = batch[-1][0] + step_ms
+
+                            logger.debug(
+                                f"🔄 [PHASE-H20.1.3] Timestamp advance: +{step_ms}ms "
+                                f"(half of {timeframe} interval)"
+                            )
                     else:
                         # 新レコードがあった場合はカウンタリセット
                         consecutive_no_new = 0
@@ -307,16 +325,24 @@ class MarketDataFetcher:
                             f"✅ Added {sum(1 for row in batch if row[0] in seen_ts and row[0] >= last_since - len(batch))} records, total={len(records)}"
                         )
 
-                    # 動的レート制限
+                    # Phase H.20.1.3: 最適化されたレート制限
                     if (
                         sleep
                         and hasattr(self.exchange, "rateLimit")
                         and self.exchange.rateLimit
                     ):
                         base_delay = self.exchange.rateLimit / 1000.0
-                        # 連続問題発生時は待機時間を延長
+
+                        # より効率的な取得のため基本待機時間を短縮
+                        base_delay *= 0.8  # 20%短縮でより積極的取得
+
+                        # 連続問題発生時の延長も抑制（1.5→1.3）
                         if consecutive_empty > 0 or consecutive_no_new > 0:
-                            base_delay *= 1.5
+                            base_delay *= 1.3
+
+                        logger.debug(
+                            f"🔄 [PHASE-H20.1.3] Rate limit delay: {base_delay:.3f}秒"
+                        )
                         time.sleep(base_delay)
 
                 except Exception as e:

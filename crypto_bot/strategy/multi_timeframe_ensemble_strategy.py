@@ -524,7 +524,13 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             logger.info(
                 f"✅ [LOGIC-SIGNAL] Step 3完了: Stage 2統合 ({stage2_elapsed:.2f}秒)"
             )
-            logger.info(f"📊 [LOGIC-SIGNAL] Integrated signal: {integrated_signal:.3f}")
+            # Phase H.20.1.1: numpy配列安全処理
+            safe_signal = (
+                float(integrated_signal)
+                if hasattr(integrated_signal, "__len__")
+                else float(integrated_signal)
+            )
+            logger.info(f"📊 [LOGIC-SIGNAL] Integrated signal: {safe_signal:.3f}")
 
             # 最終シグナル判定
             logger.info("🔄 [LOGIC-SIGNAL] Step 4: 最終シグナル判定開始")

@@ -101,10 +101,13 @@ class VIXDataFetcher(MultiSourceDataFetcher):
         )
         end_date = kwargs.get("end_date", datetime.now().strftime("%Y-%m-%d"))
 
+        # Phase H.20.2.2: 3段階フェイルオーバー実装
         if source_name == "yahoo":
             return self._fetch_yahoo_vix(start_date, end_date)
         elif source_name == "alpha_vantage":
             return self._fetch_alpha_vantage_vix(start_date, end_date)
+        elif source_name == "polygon":
+            return self._fetch_polygon_vix(start_date, end_date)
         else:
             logger.warning(f"Unknown VIX data source: {source_name}")
             return None
@@ -153,8 +156,6 @@ class VIXDataFetcher(MultiSourceDataFetcher):
             # Phase H.19: HTTPクライアント最適化
             import os
 
-            from ..utils.http_client_optimizer import get_optimized_client
-
             # Cloud Run環境検出
             is_cloud_run = os.getenv("K_SERVICE") is not None
 
@@ -165,15 +166,31 @@ class VIXDataFetcher(MultiSourceDataFetcher):
                 # Cloud Run用の設定（タイムアウト延長）
                 yf.set_tz_cache_location("/tmp")  # Cloud Run用一時ディレクトリ
 
-                # Phase H.19: 最適化されたHTTPクライアントを使用
-                http_client = get_optimized_client("yahoo")
-                # yfinanceにセッションを注入（可能な場合）
+                # Phase H.20.1.2: Yahoo Finance専用最適化クライアントを使用
+                from crypto_bot.utils.http_client_optimizer import (
+                    YahooFinanceHTTPClient,
+                )
+
+                yahoo_client = YahooFinanceHTTPClient.get_instance("yahoo_vix")
+
+                # yfinanceに最適化セッションを注入
                 try:
+                    import yfinance.base as yf_base
                     import yfinance.utils as yf_utils
 
-                    yf_utils.requests = http_client.session
-                except (ImportError, AttributeError):
-                    pass
+                    # リクエストセッション置き換え
+                    yf_utils.requests = yahoo_client.session
+
+                    # 内部セッションも置き換え（存在する場合）
+                    if hasattr(yf_base, "_requests_session"):
+                        yf_base._requests_session = yahoo_client.session
+
+                    logger.info(
+                        "✅ Phase H.20.1.2: Yahoo Finance HTTPクライアント最適化完了"
+                    )
+                except (ImportError, AttributeError) as e:
+                    logger.warning(f"⚠️ yfinance最適化失敗（fallback使用）: {e}")
+                    # get_optimized_clientは上部でインポート済み
 
             vix_ticker = yf.Ticker(self.symbol)
 
@@ -227,39 +244,128 @@ class VIXDataFetcher(MultiSourceDataFetcher):
     def _fetch_alpha_vantage_vix(
         self, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
-        """Alpha VantageからVIXデータ取得（代替実装）"""
+        """Alpha VantageからVIXデータ取得（Phase H.20.2.2フェイルオーバー実装）"""
         try:
-            # Alpha Vantage API実装（簡略版）
-            # 実際の実装では、Alpha Vantage APIキーが必要
-            # 現在は Yahoo Finance の代替として SPY のボラティリティを使用
-            logger.info(
-                "📡 Using SPY volatility as VIX alternative (Alpha Vantage placeholder)"
+            # Phase H.20.2.2: Alpha Vantage実装
+            from ..utils.http_client_optimizer import OptimizedHTTPClient
+
+            logger.info("📡 Phase H.20.2.2: Alpha Vantage VIX取得開始")
+
+            # Alpha Vantage無料版でSPYの日次データを取得してボラティリティ計算
+            http_client = OptimizedHTTPClient.get_instance("alpha_vantage")
+
+            # Alpha Vantage API（無料版・APIキー不要のデモエンドポイント）
+            url = "https://www.alphavantage.co/query"
+            params = {
+                "function": "TIME_SERIES_DAILY",
+                "symbol": "SPY",
+                "outputsize": "compact",
+                "datatype": "json",
+                "apikey": "demo",  # デモキー（制限あり）
+            }
+
+            response = http_client.get_with_api_optimization(
+                url, "alpha_vantage", params=params
             )
+            response.raise_for_status()
 
-            spy_ticker = yf.Ticker("SPY")
-            spy_data = spy_ticker.history(start=start_date, end=end_date)
+            data = response.json()
 
-            if spy_data.empty:
-                raise ValueError("SPY data is empty")
+            if "Time Series (Daily)" not in data:
+                raise ValueError("Alpha Vantage response missing time series data")
 
-            # SPY のボラティリティからVIX近似値を計算
-            spy_returns = spy_data["Close"].pct_change().dropna()
-            rolling_vol = spy_returns.rolling(window=20).std() * (252**0.5) * 100
+            # SPYデータからVIX推定
+            spy_data = data["Time Series (Daily)"]
+            dates = []
+            vix_estimates = []
 
-            # VIX形式のDataFrameを作成
-            vix_data = pd.DataFrame(index=spy_data.index)
-            vix_data["vix_close"] = rolling_vol * 0.8 + 15  # VIX近似値（簡略計算）
+            # 最新100日分のデータを処理
+            sorted_dates = sorted(spy_data.keys(), reverse=True)[:100]
 
-            # 欠損値処理
-            vix_data = vix_data.dropna()
+            for date_str in sorted_dates:
+                day_data = spy_data[date_str]
+                high = float(day_data["2. high"])
+                low = float(day_data["1. open"])
+                close = float(day_data["4. close"])
 
-            if vix_data.empty:
-                raise ValueError("Alpha Vantage VIX approximation failed")
+                # 簡易VIX推定（高値-安値の変動率を基準）
+                daily_volatility = (high - low) / close if close > 0 else 0
+                vix_estimate = daily_volatility * 100 * 16  # 年率換算
+                vix_estimate = max(5, min(80, vix_estimate))  # 5-80の範囲に制限
 
-            return vix_data
+                dates.append(pd.Timestamp(date_str))
+                vix_estimates.append(vix_estimate)
+
+            vix_df = pd.DataFrame({"date": dates, "vix_close": vix_estimates})
+            vix_df = vix_df.set_index("date").sort_index()
+
+            logger.info(f"✅ Alpha Vantage VIX推定データ生成: {len(vix_df)}件")
+            return vix_df
 
         except Exception as e:
             logger.error(f"Alpha Vantage VIX fetch failed: {e}")
+            raise
+
+    @api_retry(max_retries=3, base_delay=2.0, circuit_breaker=True)
+    def _fetch_polygon_vix(
+        self, start_date: str, end_date: str
+    ) -> Optional[pd.DataFrame]:
+        """Polygon APIからVIXデータ取得（Phase H.20.2.2第3段階フェイルオーバー）"""
+        try:
+            # Phase H.20.2.2: Polygon API実装
+            from ..utils.http_client_optimizer import OptimizedHTTPClient
+
+            logger.info("📡 Phase H.20.2.2: Polygon VIX取得開始")
+
+            # Polygon API（無料版・制限あり）
+            http_client = OptimizedHTTPClient.get_instance("polygon")
+
+            # Polygon無料エンドポイント（SPYデータ）
+            url = f"https://api.polygon.io/v2/aggs/ticker/SPY/range/1/day/{start_date}/{end_date}"
+            params = {
+                "adjusted": "true",
+                "sort": "asc",
+                "apikey": "DEMO_KEY",  # デモキー（制限あり）
+            }
+
+            response = http_client.get_with_api_optimization(
+                url, "polygon", params=params
+            )
+            response.raise_for_status()
+
+            data = response.json()
+
+            if "results" not in data or not data["results"]:
+                raise ValueError("Polygon response missing results data")
+
+            # SPYデータからVIX推定
+            dates = []
+            vix_estimates = []
+
+            for result in data["results"]:
+                timestamp = result["t"] / 1000  # ミリ秒をミリ秒に変換
+                high = result["h"]
+                low = result["l"]
+                close = result["c"]
+                volume = result["v"]
+
+                # ボリューム加重VIX推定
+                daily_range = (high - low) / close if close > 0 else 0
+                volume_factor = min(volume / 1000000, 5)  # ボリューム係数（上限5）
+                vix_estimate = daily_range * 100 * 15 * (1 + volume_factor * 0.1)
+                vix_estimate = max(5, min(80, vix_estimate))  # 5-80の範囲に制限
+
+                dates.append(pd.Timestamp(timestamp, unit="s"))
+                vix_estimates.append(vix_estimate)
+
+            vix_df = pd.DataFrame({"date": dates, "vix_close": vix_estimates})
+            vix_df = vix_df.set_index("date").sort_index()
+
+            logger.info(f"✅ Polygon VIX推定データ生成: {len(vix_df)}件")
+            return vix_df
+
+        except Exception as e:
+            logger.error(f"Polygon VIX fetch failed: {e}")
             raise
 
     def calculate_vix_features(self, vix_data: pd.DataFrame) -> pd.DataFrame:

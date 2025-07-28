@@ -180,9 +180,21 @@ class CrossTimeframeIntegrator:
             else:
                 self.integration_stats["low_consensus_rejections"] += 1
 
+            # Phase H.20.1.1: numpy配列対応の安全なフォーマット処理
+            safe_signal = (
+                float(integrated_signal)
+                if hasattr(integrated_signal, "__len__") and len(integrated_signal) == 1
+                else float(integrated_signal)
+            )
+            safe_consensus = (
+                float(consensus_score)
+                if hasattr(consensus_score, "__len__") and len(consensus_score) == 1
+                else float(consensus_score)
+            )
+
             logger.debug(
-                f"🔗 Cross-timeframe integration: signal={integrated_signal:.3f}, "
-                f"consensus={consensus_score:.3f}, quality={integration_quality}"
+                f"🔗 Cross-timeframe integration: signal={safe_signal:.3f}, "
+                f"consensus={safe_consensus:.3f}, quality={integration_quality}"
             )
 
             return integrated_signal, integration_info

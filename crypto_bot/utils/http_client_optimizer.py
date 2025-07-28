@@ -62,30 +62,43 @@ class OptimizedHTTPClient:
         """最適化されたHTTPセッションの作成"""
         session = requests.Session()
 
-        # リトライ戦略
+        # Phase H.20.1.2: 強化されたリトライ戦略
         retry_strategy = Retry(
-            total=3,  # 総リトライ回数
-            backoff_factor=1.5,  # 指数バックオフ
-            status_forcelist=[429, 500, 502, 503, 504],  # リトライ対象ステータス
+            total=5,  # 総リトライ回数増加（3→5）
+            backoff_factor=2.0,  # より積極的な指数バックオフ（1.5→2.0）
+            status_forcelist=[
+                429,
+                500,
+                502,
+                503,
+                504,
+                520,
+                521,
+                522,
+                523,
+                524,
+            ],  # CloudFlareエラーも追加
             allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE"],
             # Cloud Run環境では接続エラーもリトライ
             raise_on_status=False if self.is_cloud_run else True,
+            # 接続エラーもリトライ対象に追加
+            raise_on_redirect=False,
         )
 
-        # Cloud Run環境用の設定
+        # Phase H.20.1.2: Cloud Run環境用強化設定
         if self.is_cloud_run:
             # 接続プールサイズを増やす
-            pool_connections = 20
-            pool_maxsize = 20
-            # タイムアウトを長めに設定
-            timeout_connect = 10
-            timeout_read = 30
+            pool_connections = 25  # 20→25に増加
+            pool_maxsize = 25
+            # より積極的なタイムアウト設定
+            timeout_connect = 15  # 10→15秒に延長
+            timeout_read = 45  # 30→45秒に延長
         else:
             # ローカル環境
             pool_connections = 10
             pool_maxsize = 10
-            timeout_connect = 5
-            timeout_read = 15
+            timeout_connect = 8  # 5→8秒に延長
+            timeout_read = 25  # 15→25秒に延長
 
         # HTTPアダプター設定
         adapter = HTTPAdapter(
@@ -194,6 +207,100 @@ class OptimizedHTTPClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    # Phase H.20.1.2: 外部API別最適化メソッド
+    def get_api_optimized_headers(self, api_type: str) -> Dict[str, str]:
+        """API別の最適化ヘッダーを取得"""
+        base_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json, text/html, */*",
+            "Accept-Language": "en-US,en;q=0.9,ja;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
+        }
+
+        # API別の特別設定
+        if api_type == "yahoo_finance":
+            base_headers.update(
+                {
+                    "Referer": "https://finance.yahoo.com/",
+                    "Origin": "https://finance.yahoo.com",
+                    "X-Requested-With": "XMLHttpRequest",
+                }
+            )
+        elif api_type == "alternative_me":
+            base_headers.update(
+                {
+                    "Referer": "https://alternative.me/",
+                    "Accept": "application/json",
+                }
+            )
+        elif api_type == "binance":
+            base_headers.update(
+                {
+                    "Accept": "application/json",
+                    "X-MBX-APIKEY": "",  # 必要に応じて設定
+                }
+            )
+        elif api_type == "coingecko":
+            base_headers.update(
+                {
+                    "Accept": "application/json",
+                    "X-CG-Demo-API-Key": "",  # デモキー
+                }
+            )
+        elif api_type == "cryptocompare":
+            base_headers.update(
+                {
+                    "Accept": "application/json",
+                    "authorization": "Apikey {demo_key}",  # デモキー
+                }
+            )
+        elif api_type == "alpha_vantage":
+            base_headers.update(
+                {
+                    "Accept": "application/json",
+                    "User-Agent": "AlphaVantage-Client/1.0",
+                }
+            )
+        elif api_type == "polygon":
+            base_headers.update(
+                {
+                    "Accept": "application/json",
+                    "Authorization": "Bearer DEMO_KEY",  # デモキー
+                }
+            )
+
+        return base_headers
+
+    def get_with_api_optimization(
+        self, url: str, api_type: str, **kwargs
+    ) -> requests.Response:
+        """API最適化ヘッダーでGETリクエスト実行"""
+        optimized_headers = self.get_api_optimized_headers(api_type)
+
+        # 既存ヘッダーとマージ
+        if "headers" in kwargs:
+            optimized_headers.update(kwargs["headers"])
+        kwargs["headers"] = optimized_headers
+
+        # Phase H.20.1.2: API別タイムアウト調整
+        if "timeout" not in kwargs:
+            if api_type == "yahoo_finance":
+                kwargs["timeout"] = (20, 60) if self.is_cloud_run else (10, 30)
+            elif api_type == "alternative_me":
+                kwargs["timeout"] = (15, 45) if self.is_cloud_run else (8, 25)
+            elif api_type == "binance":
+                kwargs["timeout"] = (10, 30) if self.is_cloud_run else (5, 15)
+            else:
+                kwargs["timeout"] = (15, 45) if self.is_cloud_run else (8, 25)
+
+        return self.get(url, **kwargs)
+
 
 # Yahoo Finance用の特殊最適化
 class YahooFinanceHTTPClient(OptimizedHTTPClient):
@@ -202,13 +309,23 @@ class YahooFinanceHTTPClient(OptimizedHTTPClient):
     def __init__(self):
         super().__init__("yahoo_finance")
 
-        # Yahoo Finance特有のヘッダー追加
+        # Phase H.20.1.2: Yahoo Finance強化ヘッダー
         self.session.headers.update(
             {
-                "User-Agent": "Mozilla/5.0 (compatible; CryptoBot/1.0; +https://github.com/crypto-bot)",
-                "Accept-Language": "en-US,en;q=0.9",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/html, */*",
+                "Accept-Language": "en-US,en;q=0.9,ja;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br",
                 "Origin": "https://finance.yahoo.com",
                 "Referer": "https://finance.yahoo.com/",
+                "X-Requested-With": "XMLHttpRequest",
+                "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
             }
         )
 
