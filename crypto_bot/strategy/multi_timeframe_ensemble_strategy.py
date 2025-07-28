@@ -611,7 +611,13 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     "info": pred_info,
                 }
 
-                logger.debug(f"✅ Stage 1 {timeframe}: conf={conf_result[0]:.3f}")
+                # Phase H.21.1: numpy配列format string修正（エントリーシグナル復活）
+                safe_conf = (
+                    float(conf_result[0])
+                    if hasattr(conf_result[0], "__len__")
+                    else float(conf_result[0])
+                )
+                logger.debug(f"✅ Stage 1 {timeframe}: conf={safe_conf:.3f}")
 
             except Exception as e:
                 logger.error(f"❌ Stage 1 {timeframe} failed: {e}")

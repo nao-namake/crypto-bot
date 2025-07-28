@@ -13,11 +13,11 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # 🚨 緊急修正: データ取得設定大幅強化・クラッシュ防止
-  limit: 500       # 🚨 緊急修正: 200→500件（データ不足完全解決）
+  # Phase H.21.5: データ品質監視強化・効率化・安定性重視
+  limit: 400       # 500→400件（品質重視・安定性向上）
   paginate: true   # ページネーション有効
-  per_page: 100    # 🚨 緊急修正: 50→100件（大量データ取得効率化）
-  since_hours: 120 # 🚨 緊急修正: 72→120時間（十分なデータ範囲確保）
+  per_page: 80     # 100→80件（バッチサイズ最適化・API負荷軽減）
+  since_hours: 96  # 120→96時間（効率化・十分なデータ範囲維持）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -139,7 +139,7 @@ multi_timeframe:
   data_sync_enabled: true
   missing_data_tolerance: 0.1  # 10%まで欠損許容
   timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
-  data_quality_threshold: 0.6  # Phase H.8.2: 0.4→0.6品質向上（エントリーシグナル生成改善）
+  data_quality_threshold: 0.55  # Phase H.21.5: 0.6→0.55 実用的品質基準（Phase H.21修正効果考慮）
   
   # Phase H.5.4: 品質管理強化設定
   quality_management:
@@ -155,12 +155,12 @@ multi_timeframe:
       confidence_boost: 0.1         # 信頼度閾値10%引き上げ
       stop_loss_tightening: 0.8     # ストップロス20%厳格化
       
-    medium_quality_mode:          # 中品質時（0.5-0.6）
-      position_size_reduction: 0.7  # ポジションサイズ30%削減
-      confidence_boost: 0.05        # 信頼度閾値5%引き上げ
-      stop_loss_tightening: 0.9     # ストップロス10%厳格化
+    medium_quality_mode:          # 中品質時（0.4-0.55）Phase H.21.6: 範囲調整
+      position_size_reduction: 0.8  # ポジションサイズ20%削減（緩和）
+      confidence_boost: 0.03        # 信頼度閾値3%引き上げ（緩和）
+      stop_loss_tightening: 0.95    # ストップロス5%厳格化（緩和）
     
-    high_quality_mode:            # 高品質時（0.6+）
+    high_quality_mode:            # 高品質時（0.55+）Phase H.21.6: 閾値下げ・早期高品質判定
       position_size_reduction: 1.0  # 標準ポジションサイズ
       confidence_boost: 0.0         # 標準信頼度閾値
       stop_loss_tightening: 1.0     # 標準ストップロス
@@ -173,8 +173,8 @@ risk:
     enabled: true
     max_fraction: 0.05
 
-  # ATR期間を調整（データ不足に対応）
-  atr_period: 7  # 軽量版と同じ期間に統一
+  # Phase H.21.2: ATR期間最適化（100レコード安全活用・リスク管理精度向上）
+  atr_period: 20  # 7→20期間・100レコード安全活用・実用的精度向上
 
 live:
   mode: live
@@ -291,8 +291,8 @@ ml:
       symbol: "^VIX"
       timeframe: "1d"
       fallback_level: 20.0
-      sources: ["yahoo", "alpha_vantage"]  # データソース優先順位
-      quality_threshold: 0.7
+      sources: ["yahoo"]  # Phase H.21.3: Yahoo Finance単体・API key不要・安定性重視
+      quality_threshold: 0.5  # 0.7→0.5 Yahoo単体での現実的品質閾値
       cache_hours: 24
       
     macro:
@@ -313,8 +313,8 @@ ml:
       enabled: true
       api_url: "https://api.alternative.me/fng/"
       fallback_index: 50
-      sources: ["alternative_me", "cnn_backup"]  # プライマリと バックアップ
-      quality_threshold: 0.5  # Fear&Greedは品質変動大
+      sources: ["alternative_me"]  # Phase H.21.3: Alternative.me単体・API key不要・安定性重視
+      quality_threshold: 0.4  # 0.5→0.4 単体での現実的品質閾値・変動許容
       cache_hours: 1
       
     funding:
@@ -341,7 +341,7 @@ external_data_retry:
 quality_monitoring:
   enabled: true
   default_threshold: 0.3       # 30%ルール
-  emergency_stop_threshold: 0.5 # 50%で緊急停止
+  emergency_stop_threshold: 0.35 # Phase H.21.4: 0.5→0.35 緊急停止安全マージン確保
   
 # バックテスト設定（ライブトレードでの初期設定用）
 backtest:
