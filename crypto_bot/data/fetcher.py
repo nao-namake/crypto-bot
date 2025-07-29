@@ -125,7 +125,11 @@ class MarketDataFetcher:
 
         since_ms: Optional[int] = None
         if since is not None:
-            if isinstance(since, str):
+            # Phase H.22 fix: pd.Timestamp型の処理を追加
+            if hasattr(since, "value"):  # pd.Timestampかどうかチェック
+                # pd.Timestamp.valueはナノ秒なので、ミリ秒に変換
+                since_ms = int(since.value // 1_000_000)
+            elif isinstance(since, str):
                 dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
                 since_ms = int(dt.timestamp() * 1000)
             elif isinstance(since, datetime):

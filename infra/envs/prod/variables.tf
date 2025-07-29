@@ -46,6 +46,30 @@ variable "bitbank_api_secret" {
 }
 
 # --------------------------------------------------
+# External API Keys (Phase H.22)
+# --------------------------------------------------
+variable "alpha_vantage_api_key" {
+  type        = string
+  description = "Alpha Vantage API キー (VIXデータ取得用)"
+  sensitive   = true
+  default     = ""
+}
+
+variable "polygon_api_key" {
+  type        = string
+  description = "Polygon.io API キー (市場データ取得用)"
+  sensitive   = true
+  default     = ""
+}
+
+variable "fred_api_key" {
+  type        = string
+  description = "FRED API キー (経済指標取得用)"
+  sensitive   = true
+  default     = ""
+}
+
+# --------------------------------------------------
 # Feature Mode (lite/full) for system optimization  
 # --------------------------------------------------
 variable "feature_mode" {

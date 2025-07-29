@@ -20,16 +20,19 @@ module "services" {
 }
 
 module "app" {
-  source            = "../../modules/crypto_bot_app"
-  project_id        = var.project_id
-  region            = var.region
-  service_name      = var.service_name
-  image_name        = var.image_name
-  image_tag         = var.image_tag
-  mode              = var.mode
-  bitbank_api_key   = var.bitbank_api_key
-  bitbank_api_secret = var.bitbank_api_secret
-  feature_mode      = var.feature_mode
+  source               = "../../modules/crypto_bot_app"
+  project_id           = var.project_id
+  region               = var.region
+  service_name         = var.service_name
+  image_name           = var.image_name
+  image_tag            = var.image_tag
+  mode                 = var.mode
+  bitbank_api_key      = var.bitbank_api_key
+  bitbank_api_secret   = var.bitbank_api_secret
+  alpha_vantage_api_key = var.alpha_vantage_api_key
+  polygon_api_key      = var.polygon_api_key
+  fred_api_key         = var.fred_api_key
+  feature_mode         = var.feature_mode
 }
 
 module "monitoring" {

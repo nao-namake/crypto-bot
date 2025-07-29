@@ -318,6 +318,9 @@ jobs:
       TF_VAR_image_tag: "${{ github.sha }}"
       TF_VAR_bitbank_api_key: ${{ secrets.BITBANK_API_KEY }}
       TF_VAR_bitbank_api_secret: ${{ secrets.BITBANK_API_SECRET }}
+      TF_VAR_alpha_vantage_api_key: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      TF_VAR_polygon_api_key: ${{ secrets.POLYGON_API_KEY }}
+      TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
       TF_VAR_feature_mode: "full"  # 151特徴量完全版: Phase B・C1・C2統合システム
       TF_ENV_DIR: "infra/envs/prod"
     steps:

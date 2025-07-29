@@ -59,6 +59,22 @@ resource "google_cloud_run_service" "service" {
           value = var.feature_mode
         }
         
+        # Phase H.22: External API Keys
+        env {
+          name  = "ALPHA_VANTAGE_API_KEY"
+          value = var.alpha_vantage_api_key
+        }
+        
+        env {
+          name  = "POLYGON_API_KEY"
+          value = var.polygon_api_key
+        }
+        
+        env {
+          name  = "FRED_API_KEY"
+          value = var.fred_api_key
+        }
+        
         ports {
           container_port = 8080
         }
