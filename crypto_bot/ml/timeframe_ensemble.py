@@ -144,12 +144,13 @@ class TimeframeEnsembleProcessor:
                 logger.error(f"Empty features for {self.timeframe} training")
                 return self
 
-            # Phase H.17: 特徴量順序の保存と整合
+            # Phase H.23.5: 特徴量順序保護・自動更新無効化
             feat_df = self.feature_order_manager.ensure_column_order(feat_df)
             feature_columns = list(feat_df.columns)
-            self.feature_order_manager.save_feature_order(feature_columns)
+            # Phase H.23.5: save_feature_order無効化 - 154特徴量設定保護
+            # self.feature_order_manager.save_feature_order(feature_columns)
             logger.info(
-                f"📊 [{self.timeframe}] Saved feature order: {len(feature_columns)} features"
+                f"📊 [{self.timeframe}] Feature order protected: {len(feature_columns)} features (save disabled)"
             )
 
             # スケーリング

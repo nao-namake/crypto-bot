@@ -143,19 +143,19 @@ class MarketDataFetcher:
         max_records = limit if limit is not None else float("inf")
 
         if paginate and limit:
-            # Phase H.20.1.3: データ取得アルゴリズム改善（168件→300件目標）
+            # Phase H.23.6: データ取得アルゴリズム最適化（400レコード確実達成）
             MAX_ATTEMPTS = (
-                max_attempts if max_attempts is not None else 20
-            )  # 15→20に増加
+                max_attempts if max_attempts is not None else 25
+            )  # 20→25に増加（per_page=200対応）
             MAX_CONSECUTIVE_EMPTY = (
                 max_consecutive_empty
                 if max_consecutive_empty is not None
-                else 5  # 3→5に増加
+                else 8  # 5→8に増加（安定取得強化）
             )
             MAX_CONSECUTIVE_NO_NEW = (
                 max_consecutive_no_new
                 if max_consecutive_no_new is not None
-                else 8  # 5→8に増加
+                else 15  # 8→15に増加（per_page大幅増加対応）
             )
             logger.info(f"🔄 Paginated fetch: limit={limit}, per_page={per_page}")
             logger.info(

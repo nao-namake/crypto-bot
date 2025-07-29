@@ -270,15 +270,21 @@ class VIXDataFetcher(MultiSourceDataFetcher):
         try:
             import os
 
+            from ..config.external_api_keys import get_api_key
             from ..utils.http_client_optimizer import OptimizedHTTPClient
 
-            # Phase H.22.1: 実APIキー取得・フォールバック戦略
-            api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+            # Phase H.23.4: ファイル直接埋め込み方式APIキー取得
+            api_key = get_api_key("ALPHA_VANTAGE_API_KEY")
             if not api_key:
-                logger.warning("⚠️ Alpha Vantage APIキー未設定、デモキー使用")
-                api_key = "demo"
+                # フォールバック: 環境変数からも確認
+                api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+                if not api_key:
+                    logger.warning("⚠️ Alpha Vantage APIキー未設定、デモキー使用")
+                    api_key = "demo"
+                else:
+                    logger.info("✅ Phase H.23.4: Alpha Vantage環境変数APIキー使用")
             else:
-                logger.info("✅ Phase H.22.1: Alpha Vantage実APIキー使用")
+                logger.info("✅ Phase H.23.4: Alpha Vantage直接埋め込みAPIキー使用")
 
             logger.info("📡 Phase H.22.1: Alpha Vantage VIX取得開始")
 
@@ -397,15 +403,21 @@ class VIXDataFetcher(MultiSourceDataFetcher):
         try:
             import os
 
+            # Phase H.23.4: Polygon実APIキー取得・直接埋め込み方式
+            from ..config.external_api_keys import get_api_key
             from ..utils.http_client_optimizer import OptimizedHTTPClient
 
-            # Phase H.22.1: 実APIキー取得・フォールバック戦略
-            api_key = os.getenv("POLYGON_API_KEY")
+            api_key = get_api_key("POLYGON_API_KEY")
             if not api_key:
-                logger.warning("⚠️ Polygon APIキー未設定、デモキー使用")
-                api_key = "DEMO_KEY"
+                # フォールバック: 環境変数からも確認
+                api_key = os.getenv("POLYGON_API_KEY")
+                if not api_key:
+                    logger.warning("⚠️ Polygon APIキー未設定、デモキー使用")
+                    api_key = "DEMO_KEY"
+                else:
+                    logger.info("✅ Phase H.23.4: Polygon環境変数APIキー使用")
             else:
-                logger.info("✅ Phase H.22.1: Polygon実APIキー使用")
+                logger.info("✅ Phase H.23.4: Polygon直接埋め込みAPIキー使用")
 
             logger.info("📡 Phase H.22.1: Polygon VIX取得開始")
 

@@ -113,9 +113,12 @@ class IndicatorCalculator:
                         "✅ Final fallback ATR calculated using price volatility"
                     )
                 else:
-                    # 絶対的最終手段: 固定値
-                    atr_series = pd.Series([0.01] * len(tmp), index=tmp.index)
-                    logger.warning("⚠️ Using emergency fixed ATR values (0.01)")
+                    # Phase H.23.6: 価格比例緊急ATR（固定値0.01→価格の2%に改善）
+                    emergency_atr = tmp["close"] * 0.02  # 価格の2%
+                    atr_series = pd.Series(emergency_atr, index=tmp.index)
+                    logger.warning(
+                        "⚠️ Using emergency price-based ATR values (2% of price)"
+                    )
 
         return atr_series.rename(f"ATR_{period}")
 

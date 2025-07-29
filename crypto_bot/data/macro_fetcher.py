@@ -246,15 +246,23 @@ class MacroDataFetcher(MultiSourceDataFetcher):
         try:
             import os
 
+            # Phase H.23.4: FRED実APIキー取得・直接埋め込み方式
+            from ..config.external_api_keys import get_api_key
             from ..utils.http_client_optimizer import OptimizedHTTPClient
 
-            # Phase H.22.1: FRED実APIキー取得・フォールバック戦略
-            api_key = os.getenv("FRED_API_KEY")
+            api_key = get_api_key("FRED_API_KEY")
             if not api_key:
-                logger.warning("⚠️ FRED APIキー未設定、Yahoo Financeフォールバック使用")
-                return self._fetch_yahoo_macro_data(start_date, end_date)
+                # フォールバック: 環境変数からも確認
+                api_key = os.getenv("FRED_API_KEY")
+                if not api_key:
+                    logger.warning(
+                        "⚠️ FRED APIキー未設定、Yahoo Financeフォールバック使用"
+                    )
+                    return self._fetch_yahoo_macro_data(start_date, end_date)
+                else:
+                    logger.info("✅ Phase H.23.4: FRED環境変数APIキー使用")
             else:
-                logger.info("✅ Phase H.22.1: FRED実APIキー使用")
+                logger.info("✅ Phase H.23.4: FRED直接埋め込みAPIキー使用")
 
             logger.info("📡 Phase H.22.1: FRED経済指標取得開始")
 

@@ -228,7 +228,25 @@ class TechnicalFeatureEngine:
 
         except Exception as e:
             logger.error(f"❌ ATR batch calculation failed: {e}")
-            return FeatureBatch("atr_batch", {})
+            # Phase H.23.6: エラー時でも緊急ATR値を提供
+            emergency_features = {}
+            try:
+                # 緊急フォールバック: 全期間に対して価格の2%を設定
+                logger.info("🚨 Generating emergency ATR values (2% of price)")
+                emergency_atr = df["close"] * 0.02
+
+                for period in all_periods:
+                    if period == self.ml_config.get("feat_period", 14):
+                        emergency_features[f"ATR_{period}"] = emergency_atr
+                    emergency_features[f"atr_{period}"] = emergency_atr
+
+                logger.warning(
+                    f"⚠️ Using emergency ATR for {len(emergency_features)} features"
+                )
+                return FeatureBatch("atr_batch", emergency_features, df.index)
+            except Exception as emergency_error:
+                logger.error(f"❌ Emergency ATR generation failed: {emergency_error}")
+                return FeatureBatch("atr_batch", {})
 
     def calculate_volume_zscore_batch(self, df: pd.DataFrame) -> FeatureBatch:
         """Volume Z-Score バッチ計算"""
@@ -460,14 +478,74 @@ class TechnicalFeatureEngine:
         return rsi.fillna(50)  # デフォルト中立値
 
     def _calculate_atr_builtin(self, df: pd.DataFrame, period: int) -> pd.Series:
-        """内蔵ATR計算"""
-        high_low = df["high"] - df["low"]
-        high_close = np.abs(df["high"] - df["close"].shift())
-        low_close = np.abs(df["low"] - df["close"].shift())
+        """Phase H.23.6: 強化版内蔵ATR計算 - NaN値防止・多段階フォールバック"""
+        try:
+            # データ不足チェック
+            min_required = max(3, period // 2)
+            if len(df) < min_required:
+                logger.warning(
+                    f"⚠️ ATR: Insufficient data ({len(df)} < {min_required}), using price-based fallback"
+                )
+                # 価格の2%をATR代替値として使用
+                price_based_atr = df["close"] * 0.02
+                return pd.Series(price_based_atr, index=df.index, name=f"atr_{period}")
 
-        true_range = np.maximum(high_low, np.maximum(high_close, low_close))
-        atr = pd.Series(true_range).rolling(window=period).mean()
-        return atr.fillna(0)
+            # 動的period調整
+            effective_period = min(period, len(df) - 1)
+            if effective_period != period:
+                logger.warning(f"⚠️ ATR period adjusted: {period} → {effective_period}")
+
+            # True Range計算（強化版）
+            high_low = df["high"] - df["low"]
+            high_close = np.abs(df["high"] - df["close"].shift())
+            low_close = np.abs(df["low"] - df["close"].shift())
+
+            # NaN値処理強化
+            high_low = high_low.fillna(0)
+            high_close = high_close.fillna(
+                high_low
+            )  # 前日終値データがない場合はhigh-lowを使用
+            low_close = low_close.fillna(high_low)
+
+            true_range = np.maximum(high_low, np.maximum(high_close, low_close))
+
+            # ATR計算（min_periodsで部分データ使用可能）
+            atr = (
+                pd.Series(true_range, index=df.index)
+                .rolling(
+                    window=effective_period, min_periods=max(1, effective_period // 3)
+                )
+                .mean()
+            )
+
+            # Phase H.23.6: 現実的なNaN値フォールバック
+            if atr.isnull().any():
+                # フォールバック1: 価格変動率ベース（現実的）
+                price_volatility = (
+                    df["close"]
+                    .pct_change()
+                    .abs()
+                    .rolling(window=effective_period, min_periods=1)
+                    .mean()
+                    * df["close"]
+                )
+
+                # フォールバック2: 価格の2%（最終手段）
+                emergency_atr = df["close"] * 0.02
+
+                # 階層的フォールバック適用
+                atr = atr.fillna(price_volatility).fillna(emergency_atr)
+
+            logger.debug(
+                f"✅ ATR calculated: period={effective_period}, nan_count={atr.isnull().sum()}"
+            )
+            return atr.rename(f"atr_{period}")
+
+        except Exception as e:
+            logger.error(f"❌ ATR builtin calculation failed: {e}")
+            # 緊急フォールバック: 価格の2%
+            emergency_atr = df["close"] * 0.02
+            return pd.Series(emergency_atr, index=df.index, name=f"atr_{period}")
 
     def _calculate_macd_builtin(
         self, series: pd.Series

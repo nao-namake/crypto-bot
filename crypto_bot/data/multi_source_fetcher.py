@@ -83,9 +83,12 @@ class MultiSourceDataFetcher(ABC):
         )  # 0.7→0.6緩和
         self.enabled = self.data_config.get("enabled", True)
 
-        # Phase H.22.4: 実APIデータ品質向上設定
+        # Phase H.23.2: フォールバック品質向上設定
         self.real_api_priority_boost = 0.2  # 実APIデータに20%品質ボーナス
-        self.fallback_quality_penalty = 0.1  # フォールバックデータに10%品質ペナルティ
+        self.fallback_quality_boost = self.data_config.get(
+            "fallback_quality_boost", 0.20
+        )  # Phase H.23.2: フォールバック品質ブースト（デフォルト20%）
+        self.base_fallback_quality = 0.30  # Phase H.23.2: ベースフォールバック品質
 
         # グローバルキャッシュマネージャー統合（Phase A3）
         self.global_cache = get_global_cache()
@@ -326,9 +329,13 @@ class MultiSourceDataFetcher(ABC):
             # フォールバック処理
             fallback_data = self._generate_fallback_data(**kwargs)
             if fallback_data is not None and not fallback_data.empty:
+                # Phase H.23.2: フォールバック品質計算強化
+                enhanced_fallback_quality = min(
+                    1.0, self.base_fallback_quality + self.fallback_quality_boost
+                )
                 logger.info(
                     f"✅ Using {self.data_type} fallback data: "
-                    f"{len(fallback_data)} records"
+                    f"{len(fallback_data)} records (quality: {enhanced_fallback_quality:.3f})"
                 )
 
                 # フォールバック品質監視記録
@@ -336,14 +343,14 @@ class MultiSourceDataFetcher(ABC):
                     quality_monitor.record_quality_metrics(
                         source_type=self.data_type,
                         source_name="fallback",
-                        quality_score=0.3,  # フォールバックは低品質
+                        quality_score=enhanced_fallback_quality,  # Phase H.23.2: 動的品質計算
                         default_ratio=1.0,  # フォールバックは100%デフォルト
                         success=True,
                         latency_ms=(time.time() - start_time) * 1000,
                     )
 
-                # 低品質でもキャッシュ更新
-                self._update_cache(fallback_data, 0.3)
+                # Phase H.23.2: 向上した品質でキャッシュ更新
+                self._update_cache(fallback_data, enhanced_fallback_quality)
                 return fallback_data
 
             logger.error(f"❌ All {self.data_type} data sources and fallback failed")

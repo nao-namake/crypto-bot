@@ -1,0 +1,120 @@
+{
+  "timestamp": "2025-07-30T04:43:33.720839",
+  "environment": {
+    "is_cloud_run": false,
+    "is_docker": false,
+    "python_version": "3.11.11 (main, Jul 19 2025, 06:57:33) [Clang 17.0.0 (clang-1700.0.13.5)]",
+    "platform": "darwin"
+  },
+  "api_tests": {
+    "vix": {
+      "api_name": "Yahoo Finance VIX",
+      "symbol": "^VIX",
+      "status": "SUCCESS",
+      "error": null,
+      "data_sample": {
+        "latest_close": 15.869999885559082,
+        "date": "2025-07-29 00:00:00-05:00",
+        "5d_avg": 15.318000030517577
+      },
+      "latency_ms": 1161,
+      "details": {
+        "period_1d": {
+          "success": true,
+          "records": 1,
+          "latest_value": 15.869999885559082
+        },
+        "period_5d": {
+          "success": true,
+          "records": 5,
+          "latest_value": 15.869999885559082
+        },
+        "period_1mo": {
+          "success": true,
+          "records": 21,
+          "latest_value": 15.869999885559082
+        },
+        "info_available": true
+      }
+    },
+    "fear_greed": {
+      "api_name": "Alternative.me Fear & Greed",
+      "endpoint": "https://api.alternative.me/fng/",
+      "status": "SUCCESS",
+      "error": null,
+      "data_sample": {
+        "value": 73,
+        "classification": "Greed",
+        "timestamp": "1753747200"
+      },
+      "latency_ms": 1819,
+      "details": {
+        "最新データ": {
+          "success": true,
+          "records": 1,
+          "latest_value": "73",
+          "latest_classification": "Greed"
+        },
+        "7日間データ": {
+          "success": true,
+          "records": 7,
+          "latest_value": "73",
+          "latest_classification": "Greed"
+        },
+        "30日間データ": {
+          "success": true,
+          "records": 30,
+          "latest_value": "73",
+          "latest_classification": "Greed"
+        }
+      }
+    },
+    "macro": {
+      "api_name": "Yahoo Finance Macro Data",
+      "symbols": [
+        "DX-Y.NYB",
+        "^TNX",
+        "^TYX"
+      ],
+      "status": "SUCCESS",
+      "error": null,
+      "data_sample": {
+        "DX-Y.NYB": 98.8489990234375,
+        "^TNX": 4.329999923706055,
+        "^TYX": 4.870999813079834
+      },
+      "latency_ms": 421,
+      "details": {
+        "DX-Y.NYB": {
+          "success": true,
+          "description": "ドル指数",
+          "records": 4,
+          "latest_value": 98.8489990234375
+        },
+        "^TNX": {
+          "success": true,
+          "description": "10年米国債利回り",
+          "records": 5,
+          "latest_value": 4.329999923706055
+        },
+        "^TYX": {
+          "success": true,
+          "description": "30年米国債利回り",
+          "records": 5,
+          "latest_value": 4.870999813079834
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_apis_tested": 3,
+    "successful_apis": 3,
+    "failed_apis": 0,
+    "success_rate": "100.0%",
+    "api_status": {
+      "vix": "SUCCESS",
+      "fear_greed": "SUCCESS",
+      "macro": "SUCCESS"
+    }
+  }
+}

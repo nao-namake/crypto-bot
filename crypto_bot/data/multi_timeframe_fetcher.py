@@ -249,22 +249,26 @@ class MultiTimeframeDataFetcher:
         try:
             logger.info(f"🔄 Fetching base data: {self.base_timeframe}")
 
-            # データ取得設定を設定ファイルから読み取り
+            # Phase H.23.6: データ取得設定最適化・400レコード確実達成
             data_config = self.config.get("data", {}) if self.config else {}
             fetch_params = {
                 "timeframe": self.base_timeframe,
                 "since": since,
                 "limit": limit
-                or data_config.get("limit", 500),  # Phase H.12: 設定値優先
+                or data_config.get(
+                    "limit", 400
+                ),  # Phase H.23.6: 設定値優先（400レコード）
                 "paginate": data_config.get("paginate", True),
-                "per_page": data_config.get("per_page", 100),  # Phase H.12: 設定値反映
-                "max_consecutive_empty": data_config.get("max_consecutive_empty", 5),
-                "max_consecutive_no_new": data_config.get("max_consecutive_no_new", 10),
-                "max_attempts": data_config.get("max_attempts", 20),
+                "per_page": data_config.get(
+                    "per_page", 200
+                ),  # Phase H.23.6: 100→200（効率的ページング）
+                "max_consecutive_empty": data_config.get("max_consecutive_empty", 8),
+                "max_consecutive_no_new": data_config.get("max_consecutive_no_new", 15),
+                "max_attempts": data_config.get("max_attempts", 25),
             }
 
             logger.info(
-                f"📋 [PHASE-H12] Fetch params: limit={fetch_params['limit']}, "
+                f"📋 [PHASE-H23.6] Fetch params: limit={fetch_params['limit']}, "
                 f"per_page={fetch_params['per_page']}, paginate={fetch_params['paginate']}"
             )
 

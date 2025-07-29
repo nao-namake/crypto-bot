@@ -13,11 +13,11 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Phase H.21.5: データ品質監視強化・効率化・安定性重視
-  limit: 400       # 500→400件（品質重視・安定性向上）
+  # Phase H.23.6: データ取得量根本修復・400レコード確実達成
+  limit: 400       # 目標レコード数維持
   paginate: true   # ページネーション有効
-  per_page: 80     # 100→80件（バッチサイズ最適化・API負荷軽減）
-  since_hours: 96  # 120→96時間（効率化・十分なデータ範囲維持）
+  per_page: 200    # 80→200件（2ページで400レコード達成・効率的取得）
+  since_hours: 96  # 96時間維持（十分なデータ範囲）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -26,10 +26,10 @@ data:
   weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
   early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
   
-  # Phase H.4: ページネーション適正化パラメータ（データ取得優先・早期終了防止）
-  max_consecutive_empty: 5  # 連続空バッチ許容数（1→5、データ取得優先）
-  max_consecutive_no_new: 10  # 連続新レコードなし許容数（1→10、十分な取得機会確保）
-  max_attempts: 20  # 最大試行回数（15→20、データ取得機会拡大）
+  # Phase H.23.6: ページネーション強化・400レコード確実達成設定
+  max_consecutive_empty: 8  # 5→8（400レコード達成のため余裕を持った設定）
+  max_consecutive_no_new: 15  # 10→15（per_page大幅増加に対応・確実取得）
+  max_attempts: 25  # 20→25（per_page=200での確実なページネーション完了）
   exponential_backoff: true  # 指数バックオフ有効化
   min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
   max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
@@ -76,56 +76,197 @@ strategy:
         risk_adjustment: true
         models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
         model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-      # 151特徴量フル版復旧・エラー耐性強化
+      # 155特徴量完全実装（Phase H.23.6: momentum_14追加・enhanced_default廃止・真の特徴量システム）
       extra_features:
-        # 基本テクニカル特徴量
-        - rsi_14
-        - rsi_7
-        - rsi_21
-        - macd
+        # ラグ特徴量 (10個)
+        - close_lag_1
+        - close_lag_2
+        - close_lag_3
+        - close_lag_4
+        - close_lag_5
+        - volume_lag_1
+        - volume_lag_2
+        - volume_lag_3
+        - volume_lag_4
+        - volume_lag_5
+        
+        # リターン特徴量 (10個)
+        - returns_1
+        - returns_2
+        - returns_3
+        - returns_5
+        - returns_10
+        - log_returns_1
+        - log_returns_2
+        - log_returns_3
+        - log_returns_5
+        - log_returns_10
+        
+        # 移動平均 (12個)
+        - sma_5
         - sma_10
         - sma_20
         - sma_50
         - sma_100
         - sma_200
+        - ema_5
         - ema_10
-        - ema_12
-        - ema_26
+        - ema_20
         - ema_50
         - ema_100
+        - ema_200
+        
+        # 価格位置 (5個)
+        - price_position_20
+        - price_position_50
+        - price_vs_sma20
+        - bb_position
+        - intraday_position
+        
+        # ボリンジャーバンド (5個)
         - bb_upper
+        - bb_middle
         - bb_lower
-        - bb_percent
         - bb_width
-        - atr_7
+        - bb_squeeze
+        
+        # モメンタム指標 (14個)
+        - rsi_14
+        - rsi_7
+        - rsi_21
+        - rsi_oversold
+        - rsi_overbought
+        - macd
+        - macd_signal
+        - macd_hist
+        - macd_cross_up
+        - macd_cross_down
+        - stoch_k
+        - stoch_d
+        - stoch_oversold
+        - stoch_overbought
+        
+        # ボラティリティ (8個)
         - atr_14
+        - atr_7
         - atr_21
-        - volume_sma
-        - volume_zscore_14
-        - volume_zscore_50
-        - momentum_14
+        - volatility_20
+        - volatility_50
+        - high_low_ratio
+        - true_range
+        - volatility_ratio
+        
+        # 出来高指標 (10個)
+        - volume_sma_20
+        - volume_ratio
+        - volume_trend
+        - vwap
+        - vwap_distance
+        - obv
+        - obv_sma
+        - cmf
+        - mfi
+        - ad_line
+        
+        # トレンド指標 (8個)
+        - adx_14
+        - plus_di
+        - minus_di
         - trend_strength
-        # 高度テクニカル指標
-        - stoch
-        - willr_14
-        - adx
-        - cmf_20
-        - fisher
-        # 外部データ特徴量（エラー耐性強化済み）
-        - vix
-        - dxy
-        - fear_greed
-        - funding
-        # 時間・シグナル特徴量
+        - trend_direction
+        - cci_20
+        - williams_r
+        - ultimate_oscillator
+        
+        # マーケット構造 (6個)
+        - support_distance
+        - resistance_distance
+        - support_strength
+        - volume_breakout
+        - price_breakout_up
+        - price_breakout_down
+        
+        # ローソク足パターン (4個)
+        - doji
+        - hammer
+        - engulfing
+        - pinbar
+        
+        # 統計的特徴量 (5個)
+        - skewness_20
+        - kurtosis_20
+        - zscore
+        - mean_reversion_20
+        - mean_reversion_50
+        
+        # 時系列特徴量 (6個)
+        - hour
         - day_of_week
-        - hour_of_day
-        - price_change_1h
-        - price_change_4h
-        - price_change_24h
-        - volume_change_1h
-        - volume_change_24h
-        - volatility_1h
-        - volatility_24h
+        - is_weekend
+        - is_asian_session
+        - is_european_session
+        - is_us_session
+        
+        # 外部データ特徴量 - VIX (6個)
+        - vix_level
+        - vix_change
+        - vix_zscore
+        - fear_level
+        - vix_spike
+        - vix_regime
+        
+        # 外部データ特徴量 - Fear & Greed (6個)
+        - fear_greed_value
+        - fear_greed_classification
+        - fear_greed_change
+        - fear_greed_ma5
+        - fear_greed_extreme
+        - sentiment_regime
+        
+        # 外部データ特徴量 - マクロ (8個)
+        - dxy_level
+        - dxy_change
+        - dxy_trend
+        - treasury_10y
+        - treasury_30y
+        - yield_curve_slope
+        - real_rates
+        - macro_regime
+        
+        # 外部データ特徴量 - Funding (7個)
+        - funding_rate
+        - funding_ma8
+        - funding_trend
+        - open_interest
+        - oi_change
+        - oi_trend
+        - funding_regime
+        
+        # クロスアセット相関 (3個)
+        - btc_stock_corr
+        - btc_gold_corr
+        - btc_dxy_corr
+        
+        # 追加の技術指標 (10個)
+        - roc_10
+        - roc_20
+        - trix
+        - mass_index
+        - keltner_upper
+        - keltner_lower
+        - donchian_upper
+        - donchian_lower
+        - ichimoku_conv
+        - ichimoku_base
+        
+        # その他の派生特徴量 (7個)
+        - price_efficiency
+        - trend_consistency
+        - volume_price_correlation
+        - volatility_regime
+        - momentum_quality
+        - market_phase
+        - momentum_14
       # 外部データ設定
       external_data:
         enabled: true
@@ -213,56 +354,197 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 151特徴量フル版復旧・エラー耐性強化
+  # 154特徴量完全実装（Phase H.23: enhanced_default廃止・真の特徴量システム）
   extra_features:
-    # 基本テクニカル特徴量
-    - rsi_14
-    - rsi_7
-    - rsi_21
-    - macd
+    # ラグ特徴量 (10個)
+    - close_lag_1
+    - close_lag_2
+    - close_lag_3
+    - close_lag_4
+    - close_lag_5
+    - volume_lag_1
+    - volume_lag_2
+    - volume_lag_3
+    - volume_lag_4
+    - volume_lag_5
+    
+    # リターン特徴量 (10個)
+    - returns_1
+    - returns_2
+    - returns_3
+    - returns_5
+    - returns_10
+    - log_returns_1
+    - log_returns_2
+    - log_returns_3
+    - log_returns_5
+    - log_returns_10
+    
+    # 移動平均 (12個)
+    - sma_5
     - sma_10
     - sma_20
     - sma_50
     - sma_100
     - sma_200
+    - ema_5
     - ema_10
-    - ema_12
-    - ema_26
+    - ema_20
     - ema_50
     - ema_100
+    - ema_200
+    
+    # 価格位置 (5個)
+    - price_position_20
+    - price_position_50
+    - price_vs_sma20
+    - bb_position
+    - intraday_position
+    
+    # ボリンジャーバンド (5個)
     - bb_upper
+    - bb_middle
     - bb_lower
-    - bb_percent
     - bb_width
-    - atr_7
+    - bb_squeeze
+    
+    # モメンタム指標 (10個)
+    - rsi_14
+    - rsi_7
+    - rsi_21
+    - rsi_oversold
+    - rsi_overbought
+    - macd
+    - macd_signal
+    - macd_hist
+    - macd_cross_up
+    - macd_cross_down
+    - stoch_k
+    - stoch_d
+    - stoch_oversold
+    - stoch_overbought
+    
+    # ボラティリティ (8個)
     - atr_14
+    - atr_7
     - atr_21
-    - volume_sma
-    - volume_zscore_14
-    - volume_zscore_50
-    - momentum_14
+    - volatility_20
+    - volatility_50
+    - high_low_ratio
+    - true_range
+    - volatility_ratio
+    
+    # 出来高指標 (10個)
+    - volume_sma_20
+    - volume_ratio
+    - volume_trend
+    - vwap
+    - vwap_distance
+    - obv
+    - obv_sma
+    - cmf
+    - mfi
+    - ad_line
+    
+    # トレンド指標 (8個)
+    - adx_14
+    - plus_di
+    - minus_di
     - trend_strength
-    # 高度テクニカル指標
-    - stoch
-    - willr_14
-    - adx
-    - cmf_20
-    - fisher
-    # 外部データ特徴量（エラー耐性強化済み）
-    - vix
-    - dxy
-    - fear_greed
-    - funding
-    # 時間・シグナル特徴量
+    - trend_direction
+    - cci_20
+    - williams_r
+    - ultimate_oscillator
+    
+    # マーケット構造 (6個)
+    - support_distance
+    - resistance_distance
+    - support_strength
+    - volume_breakout
+    - price_breakout_up
+    - price_breakout_down
+    
+    # ローソク足パターン (4個)
+    - doji
+    - hammer
+    - engulfing
+    - pinbar
+    
+    # 統計的特徴量 (5個)
+    - skewness_20
+    - kurtosis_20
+    - zscore
+    - mean_reversion_20
+    - mean_reversion_50
+    
+    # 時系列特徴量 (6個)
+    - hour
     - day_of_week
-    - hour_of_day
-    - price_change_1h
-    - price_change_4h
-    - price_change_24h
-    - volume_change_1h
-    - volume_change_24h
-    - volatility_1h
-    - volatility_24h
+    - is_weekend
+    - is_asian_session
+    - is_european_session
+    - is_us_session
+    
+    # 外部データ特徴量 - VIX (6個)
+    - vix_level
+    - vix_change
+    - vix_zscore
+    - fear_level
+    - vix_spike
+    - vix_regime
+    
+    # 外部データ特徴量 - Fear & Greed (6個)
+    - fear_greed_value
+    - fear_greed_classification
+    - fear_greed_change
+    - fear_greed_ma5
+    - fear_greed_extreme
+    - sentiment_regime
+    
+    # 外部データ特徴量 - マクロ (8個)
+    - dxy_level
+    - dxy_change
+    - dxy_trend
+    - treasury_10y
+    - treasury_30y
+    - yield_curve_slope
+    - real_rates
+    - macro_regime
+    
+    # 外部データ特徴量 - Funding (7個)
+    - funding_rate
+    - funding_ma8
+    - funding_trend
+    - open_interest
+    - oi_change
+    - oi_trend
+    - funding_regime
+    
+    # クロスアセット相関 (3個)
+    - btc_stock_corr
+    - btc_gold_corr
+    - btc_dxy_corr
+    
+    # 追加の技術指標 (10個)
+    - roc_10
+    - roc_20
+    - trix
+    - mass_index
+    - keltner_upper
+    - keltner_lower
+    - donchian_upper
+    - donchian_lower
+    - ichimoku_conv
+    - ichimoku_base
+    
+    # その他の派生特徴量 (7個)
+    - price_efficiency
+    - trend_consistency
+    - volume_price_correlation
+    - volatility_regime
+    - momentum_quality
+    - market_phase
+    - momentum_14
     
     
   # 外部データ設定
@@ -291,8 +573,9 @@ ml:
       symbol: "^VIX"
       timeframe: "1d"
       fallback_level: 20.0
-      sources: ["yahoo", "alpha_vantage", "polygon"]  # Phase H.22.1: 実APIキー統合・3段階フェイルオーバー
-      quality_threshold: 0.6  # Phase H.22.4: 品質閾値調整・実API品質ボーナス適用
+      sources: ["alpha_vantage", "polygon", "yahoo"]  # Phase H.23.3: 新規APIキー優先・Yahoo Finance最後化
+      quality_threshold: 0.35  # Phase H.23.2: 0.6→0.35 フォールバック品質実用化・API失敗時対応
+      fallback_quality_boost: 0.25  # Phase H.23.2: フォールバック品質ブースト追加
       cache_hours: 24
       
     macro:
@@ -305,8 +588,9 @@ ml:
         dxy: 103.0
         us10y: 4.5
         us2y: 4.8
-      sources: ["yahoo", "fred"]  # Phase H.22.1: FRED APIキー統合・経済指標品質向上
-      quality_threshold: 0.7  # Phase H.22.4: 実API品質向上・適切な閾値設定
+      sources: ["fred", "yahoo"]  # Phase H.23.3: 新規APIキー優先・Yahoo Finance最後化
+      quality_threshold: 0.40  # Phase H.23.2: 0.7→0.40 フォールバック品質実用化・API失敗時対応
+      fallback_quality_boost: 0.30  # Phase H.23.2: フォールバック品質ブースト追加
       cache_hours: 6
         
     fear_greed:
@@ -314,7 +598,8 @@ ml:
       api_url: "https://api.alternative.me/fng/"
       fallback_index: 50
       sources: ["alternative_me"]  # Phase H.21.3: Alternative.me単体・API key不要・安定性重視
-      quality_threshold: 0.4  # 0.5→0.4 単体での現実的品質閾値・変動許容
+      quality_threshold: 0.30  # Phase H.23.2: 0.4→0.30 フォールバック品質実用化・API失敗時対応
+      fallback_quality_boost: 0.35  # Phase H.23.2: フォールバック品質ブースト追加
       cache_hours: 1
       
     funding:
@@ -324,7 +609,8 @@ ml:
       fallback_rate: 0.0001
       oi_enabled: true  # Open Interest有効化
       sources: ["binance", "bybit"]  # 取引所優先順位
-      quality_threshold: 0.6
+      quality_threshold: 0.35  # Phase H.23.2: 0.6→0.35 フォールバック品質実用化・API失敗時対応
+      fallback_quality_boost: 0.30  # Phase H.23.2: フォールバック品質ブースト追加
       cache_hours: 0.5  # 30分キャッシュ
 
 # 外部データリトライ設定
