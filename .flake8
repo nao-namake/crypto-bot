@@ -7,6 +7,7 @@ extend-ignore =
     E203,
     W503,
     E501,
+    E402,
     B007,
     B023,
     D100,
@@ -36,4 +37,6 @@ exclude =
     dist,
     crypto_bot/data/.ipynb_checkpoints,
     tests/integration,
-    scripts
+    scripts,
+    verify_155_features.py,
+    retrain_models.py

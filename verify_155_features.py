@@ -55,14 +55,16 @@ def create_sample_data() -> pd.DataFrame:
         new_price = prices[-1] * (1 + change)
         prices.append(max(new_price, base_price * 0.5))  # 最低価格制限
 
-    df = pd.DataFrame({
-        "timestamp": dates,
-        "open": prices,
-        "high": [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
-        "low": [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
-        "close": prices,
-        "volume": np.random.uniform(10, 100, 200)
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": prices,
+            "high": [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+            "low": [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+            "close": prices,
+            "volume": np.random.uniform(10, 100, 200),
+        }
+    )
 
     df.set_index("timestamp", inplace=True)
     logger.info(f"✅ Created sample OHLCV data: {len(df)} records")

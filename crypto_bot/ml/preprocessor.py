@@ -2136,10 +2136,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         if self.batch_engines_enabled:
             logger.info("🔄 Batch processing completed - performing final validation")
 
-        # 151特徴量の確実な保証（最終チェック）
+        # 155特徴量の確実な保証（最終チェック）Phase H.23.7
         from crypto_bot.ml.feature_defaults import ensure_feature_consistency
 
-        df = ensure_feature_consistency(df, target_count=151)
+        df = ensure_feature_consistency(
+            df, target_count=155
+        )  # Phase H.23.7: 155特徴量に統一
         logger.info(f"Final guaranteed feature count: {len(df.columns)}")
 
         return df

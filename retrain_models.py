@@ -27,6 +27,7 @@ from sklearn.model_selection import train_test_split
 sys.path.append(str(Path(__file__).parent))
 
 import ccxt  # noqa: E402
+
 from crypto_bot.ml.ensemble import (  # noqa: E402
     TradingEnsembleClassifier,
     create_trading_ensemble,
@@ -70,11 +71,13 @@ def prepare_training_data(config: dict, timeframe: str) -> tuple:
 
     # ccxtで直接データ取得
     try:
-        exchange = getattr(ccxt, exchange_id)({
-            "apiKey": exchange_config.get("api_key"),
-            "secret": exchange_config.get("api_secret"),
-            "enableRateLimit": True
-        })
+        exchange = getattr(ccxt, exchange_id)(
+            {
+                "apiKey": exchange_config.get("api_key"),
+                "secret": exchange_config.get("api_secret"),
+                "enableRateLimit": True,
+            }
+        )
 
         # 30日分のデータを取得
         since_ms = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
@@ -82,8 +85,7 @@ def prepare_training_data(config: dict, timeframe: str) -> tuple:
 
         # DataFrameに変換
         df = pd.DataFrame(
-            ohlcv,
-            columns=["timestamp", "open", "high", "low", "close", "volume"]
+            ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
         )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("timestamp", inplace=True)
