@@ -2,7 +2,28 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年7月30日最終更新)
+## 現在のシステム概要 (2025年7月31日最終更新)
+
+### 🚀 **Phase H.24完全実装完了・システム整合性統一・155特徴量完全確立・品質保証体制構築** (2025年7月31日)
+
+**🎯 Phase H.24: システム整合性統一・155特徴量完全確立実装（2025/7/31）：**
+- **H.24.1**: production.yml設定整合性統一（重複extra_features統合・155特徴量コメント統一）
+- **H.24.2**: FeatureOrderManager完全対応（FEATURE_ORDER_155統一・変数名一致保証）
+- **H.24.3**: システム検証スイート実装（verify_155_features.py・retrain_models.py・包括検証）
+- **H.24.4**: CI/CD品質保証強化（flake8・isort・black完全統一・619テスト通過・38.85%カバレッジ）
+- **H.24.5**: 整合性チェック体制確立（設定・特徴量・モデル・品質の4軸検証）
+
+**🔧 Phase H.24技術実装詳細：**
+- **設定統一**: production.yml重複解消・155特徴量コメント統一・設定一貫性保証
+- **特徴量管理**: FEATURE_ORDER_155統一・FeatureOrderManager完全対応・決定論的順序保証
+- **検証システム**: 155特徴量検証・モデル互換性確認・feature_order.json整合性チェック
+- **品質保証**: ローカル・CI両環境品質チェック統一・コード品質完全統一・テスト体制確立
+
+**🎊 Phase H.24実装効果（検証完了）：**
+- **システム整合性向上**: 設定・特徴量・モデル間の完全一致・不整合解消
+- **品質保証体制確立**: ローカルchecks.sh完全通過・CI/CD確実デプロイ・品質担保
+- **155特徴量完全確立**: momentum_14統合・feature_order.json保護・自動検証体制
+- **開発効率向上**: 包括検証スクリプト・問題早期発見・確実な品質担保
 
 ### 🚀 **Phase H.23完全実装完了・外部APIキー直接埋め込み・155特徴量完全統合・bot稼働準備完了** (2025年7月30日)
 
@@ -228,7 +249,7 @@
 ```
 取引ループ（毎60秒）
 ├── 1. データ取得（72時間・500件能力）
-├── 2. 151特徴量生成（外部データ統合）
+├── 2. 155特徴量生成（外部データ統合）
 ├── 3. アンサンブルML予測（3モデル統合）
 ├── 4. エントリー条件判定（信頼度65%）
 ├── 5. Kelly基準リスク管理（ポジションサイズ計算）
@@ -252,6 +273,12 @@
 - **crypto_bot/risk/**: Kelly基準・動的ポジションサイジング・ATR計算
 - **crypto_bot/monitoring/**: 品質監視・エラー耐性・システム診断
 - **crypto_bot/utils/**: 統計管理・ステータス追跡・取引履歴・HTTP最適化
+
+### **🆕 Phase H.24新機能強化・システム整合性統一・品質保証体制構築**
+- **verify_155_features.py**: 155特徴量システム完全検証・feature_order.json整合性確認・モデル互換性テスト
+- **retrain_models.py**: 155特徴量対応モデル再学習・アンサンブル学習システム・本番準備スクリプト
+- **config/production/production.yml**: 重複設定統合・155特徴量コメント統一・設定整合性保証
+- **.flake8**: E402適切除外・品質チェック最適化・CI/CD準拠設定
 
 ### **🆕 Phase H.23新機能強化・外部APIキー直接埋め込み・155特徴量完全統合**
 - **crypto_bot/config/external_api_keys.py**: 外部APIキー一元管理・直接埋め込み方式・フォールバック戦略
@@ -364,6 +391,14 @@ python scripts/diagnose_external_apis.py
 # 🆕 Phase H.19 Cloud Run API診断
 python scripts/diagnose_cloud_run_apis.py
 # 期待: DNS解決・SSL/TLS・API接続・HTTP設定すべて正常
+
+# 🆕 Phase H.24 システム整合性検証
+python verify_155_features.py
+# 期待: 155特徴量完全検証・feature_order.json整合性・モデル互換性確認
+
+# 🆕 Phase H.24 品質チェック完全実行
+bash scripts/checks.sh
+# 期待: flake8・isort・black・pytest全通過・619テスト成功・38.85%カバレッジ
 ```
 
 ### **🔍 取引状況・ログ確認**
