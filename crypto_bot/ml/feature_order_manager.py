@@ -4,7 +4,7 @@ Phase H.17: 学習時と予測時の特徴量順序を完全一致させる
 
 目的:
 - XGBoost/RandomForestのfeature_names mismatchエラー解決
-- 151特徴量の決定論的順序管理
+- 155特徴量の決定論的順序管理
 - 学習・予測間の一貫性保証
 """
 
@@ -23,14 +23,14 @@ class FeatureOrderManager:
     特徴量順序の決定論的管理クラス
 
     機能:
-    - 151特徴量の固定順序定義
+    - 155特徴量の固定順序定義
     - 学習時の特徴量順序記録
     - 予測時の特徴量順序整合
     - 特徴量順序の検証・ログ出力
     """
 
-    # 151特徴量の決定論的順序（アルファベット順）
-    FEATURE_ORDER_151 = [
+    # 155特徴量の決定論的順序（アルファベット順）
+    FEATURE_ORDER_155 = [
         # 基本OHLCV特徴量
         "open",
         "high",
@@ -206,6 +206,7 @@ class FeatureOrderManager:
         "volatility_regime",
         "momentum_quality",
         "market_phase",
+        "momentum_14",  # Phase H.23.7: momentum_14追加で155特徴量に統一
     ]
 
     def __init__(self, feature_order_file: Optional[str] = None):
@@ -222,7 +223,7 @@ class FeatureOrderManager:
         self._load_stored_order()
 
         logger.info("🔧 FeatureOrderManager initialized")
-        logger.info(f"  - Default order: {len(self.FEATURE_ORDER_151)} features")
+        logger.info(f"  - Default order: {len(self.FEATURE_ORDER_155)} features")
         logger.info(f"  - Storage file: {self.feature_order_file}")
 
     def _load_stored_order(self):
@@ -325,10 +326,10 @@ class FeatureOrderManager:
         current_set = set(current_features)
 
         # デフォルト順序に存在する特徴量を抽出
-        aligned = [f for f in self.FEATURE_ORDER_151 if f in current_set]
+        aligned = [f for f in self.FEATURE_ORDER_155 if f in current_set]
 
         # デフォルトにない特徴量を追加
-        extra_features = current_set - set(self.FEATURE_ORDER_151)
+        extra_features = current_set - set(self.FEATURE_ORDER_155)
         if extra_features:
             logger.info(
                 f"📝 Extra features not in default order: {len(extra_features)}"

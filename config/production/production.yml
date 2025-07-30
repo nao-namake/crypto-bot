@@ -1,4 +1,4 @@
-# 151特徴量本番環境設定（マルチタイムフレーム×アンサンブル学習）
+# 155特徴量本番環境設定（マルチタイムフレーム×アンサンブル学習）
 # 外部データ統合・品質監視・手数料最適化・2段階アンサンブル完全版
 
 data:
@@ -76,197 +76,7 @@ strategy:
         risk_adjustment: true
         models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
         model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-      # 155特徴量完全実装（Phase H.23.6: momentum_14追加・enhanced_default廃止・真の特徴量システム）
-      extra_features:
-        # ラグ特徴量 (10個)
-        - close_lag_1
-        - close_lag_2
-        - close_lag_3
-        - close_lag_4
-        - close_lag_5
-        - volume_lag_1
-        - volume_lag_2
-        - volume_lag_3
-        - volume_lag_4
-        - volume_lag_5
-        
-        # リターン特徴量 (10個)
-        - returns_1
-        - returns_2
-        - returns_3
-        - returns_5
-        - returns_10
-        - log_returns_1
-        - log_returns_2
-        - log_returns_3
-        - log_returns_5
-        - log_returns_10
-        
-        # 移動平均 (12個)
-        - sma_5
-        - sma_10
-        - sma_20
-        - sma_50
-        - sma_100
-        - sma_200
-        - ema_5
-        - ema_10
-        - ema_20
-        - ema_50
-        - ema_100
-        - ema_200
-        
-        # 価格位置 (5個)
-        - price_position_20
-        - price_position_50
-        - price_vs_sma20
-        - bb_position
-        - intraday_position
-        
-        # ボリンジャーバンド (5個)
-        - bb_upper
-        - bb_middle
-        - bb_lower
-        - bb_width
-        - bb_squeeze
-        
-        # モメンタム指標 (14個)
-        - rsi_14
-        - rsi_7
-        - rsi_21
-        - rsi_oversold
-        - rsi_overbought
-        - macd
-        - macd_signal
-        - macd_hist
-        - macd_cross_up
-        - macd_cross_down
-        - stoch_k
-        - stoch_d
-        - stoch_oversold
-        - stoch_overbought
-        
-        # ボラティリティ (8個)
-        - atr_14
-        - atr_7
-        - atr_21
-        - volatility_20
-        - volatility_50
-        - high_low_ratio
-        - true_range
-        - volatility_ratio
-        
-        # 出来高指標 (10個)
-        - volume_sma_20
-        - volume_ratio
-        - volume_trend
-        - vwap
-        - vwap_distance
-        - obv
-        - obv_sma
-        - cmf
-        - mfi
-        - ad_line
-        
-        # トレンド指標 (8個)
-        - adx_14
-        - plus_di
-        - minus_di
-        - trend_strength
-        - trend_direction
-        - cci_20
-        - williams_r
-        - ultimate_oscillator
-        
-        # マーケット構造 (6個)
-        - support_distance
-        - resistance_distance
-        - support_strength
-        - volume_breakout
-        - price_breakout_up
-        - price_breakout_down
-        
-        # ローソク足パターン (4個)
-        - doji
-        - hammer
-        - engulfing
-        - pinbar
-        
-        # 統計的特徴量 (5個)
-        - skewness_20
-        - kurtosis_20
-        - zscore
-        - mean_reversion_20
-        - mean_reversion_50
-        
-        # 時系列特徴量 (6個)
-        - hour
-        - day_of_week
-        - is_weekend
-        - is_asian_session
-        - is_european_session
-        - is_us_session
-        
-        # 外部データ特徴量 - VIX (6個)
-        - vix_level
-        - vix_change
-        - vix_zscore
-        - fear_level
-        - vix_spike
-        - vix_regime
-        
-        # 外部データ特徴量 - Fear & Greed (6個)
-        - fear_greed_value
-        - fear_greed_classification
-        - fear_greed_change
-        - fear_greed_ma5
-        - fear_greed_extreme
-        - sentiment_regime
-        
-        # 外部データ特徴量 - マクロ (8個)
-        - dxy_level
-        - dxy_change
-        - dxy_trend
-        - treasury_10y
-        - treasury_30y
-        - yield_curve_slope
-        - real_rates
-        - macro_regime
-        
-        # 外部データ特徴量 - Funding (7個)
-        - funding_rate
-        - funding_ma8
-        - funding_trend
-        - open_interest
-        - oi_change
-        - oi_trend
-        - funding_regime
-        
-        # クロスアセット相関 (3個)
-        - btc_stock_corr
-        - btc_gold_corr
-        - btc_dxy_corr
-        
-        # 追加の技術指標 (10個)
-        - roc_10
-        - roc_20
-        - trix
-        - mass_index
-        - keltner_upper
-        - keltner_lower
-        - donchian_upper
-        - donchian_lower
-        - ichimoku_conv
-        - ichimoku_base
-        
-        # その他の派生特徴量 (7個)
-        - price_efficiency
-        - trend_consistency
-        - volume_price_correlation
-        - volatility_regime
-        - momentum_quality
-        - market_phase
-        - momentum_14
+      # extra_featuresはml.extra_featuresで定義（重複削除）
       # 外部データ設定
       external_data:
         enabled: true
@@ -336,7 +146,7 @@ live:
     max_retries: 3
     retry_delay: 5
 
-# 151特徴量フル版ML設定（マルチタイムフレーム対応）
+# 155特徴量フル版ML設定（マルチタイムフレーム対応）
 ml:
   feat_period: 14
   lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
@@ -354,7 +164,7 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 154特徴量完全実装（Phase H.23: enhanced_default廃止・真の特徴量システム）
+  # 155特徴量完全実装（Phase H.23.7: momentum_14追加・enhanced_default廃止・特徴量数統一）
   extra_features:
     # ラグ特徴量 (10個)
     - close_lag_1
@@ -547,12 +357,6 @@ ml:
     - momentum_14
     
     
-  # 外部データ設定
-  external_data:
-    enabled: true
-    cache_enabled: true
-    fallback_enabled: true
-  
   # VIX統合パラメータ（Phase H.15: エントリー頻度最適化）
   vix_integration:
     enabled: true
@@ -567,6 +371,14 @@ ml:
     confidence_filter: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
     partial_profit_levels: [0.3, 0.5]
     trailing_stop: true
+  
+  # Phase H.24.4: 外部データ設定（ml配下に統合）
+  external_data:
+    enabled: true
+    cache_enabled: true
+    fallback_enabled: true
+    # Phase H.24.4: 外部データ特徴量をextra_featuresから分離
+    include_in_features: true  # 特徴量に外部データを含む
     
     vix:
       enabled: true
