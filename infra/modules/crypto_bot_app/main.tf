@@ -30,12 +30,12 @@ resource "google_cloud_run_service" "service" {
         
         resources {
           limits = {
-            cpu    = "2000m"  # 2 CPU (126特徴量対応)
-            memory = "4Gi"    # 4GB RAM (外部データ処理対応)
+            cpu    = "1000m"  # 1 CPU (Phase H.25: 外部API無効化により削減)
+            memory = "2Gi"    # 2GB RAM (125特徴量での動作に十分)
           }
           requests = {
-            cpu    = "1000m"  # 最小1 CPU
-            memory = "2Gi"    # 最小2GB RAM
+            cpu    = "500m"   # 最小0.5 CPU
+            memory = "1Gi"    # 最小1GB RAM
           }
         }
         

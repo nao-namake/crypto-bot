@@ -83,7 +83,7 @@ def test_feature_engineer_transform_with_rsi(dummy_config, dummy_ohlcv):
     out = fe.transform(dummy_ohlcv)
     # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
     # 結果として151特徴量が生成されることを確認
-    assert len(out.columns) == 155  # Phase H.24: 155特徴量システム
+    assert len(out.columns) == 125  # Phase H.25: 125特徴量システム（外部API除外）
     assert not out.isnull().any().any()  # NaN値なし
 
 
@@ -119,7 +119,7 @@ def test_feature_engineer_transform_with_rci(dummy_config, dummy_ohlcv):
     out = fe.transform(dummy_ohlcv)
     # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
     # 結果として151特徴量が生成されることを確認
-    assert len(out.columns) == 155  # Phase H.24: 155特徴量システム
+    assert len(out.columns) == 125  # Phase H.25: 125特徴量システム（外部API除外）
     assert not out.isnull().any().any()  # NaN値なし
 
 
@@ -137,7 +137,7 @@ def test_feature_engineer_transform_with_time_features(dummy_config, dummy_ohlcv
     out = fe.transform(dummy_ohlcv)
     # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
     # 結果として151特徴量が生成されることを確認
-    assert len(out.columns) == 155  # Phase H.24: 155特徴量システム
+    assert len(out.columns) == 125  # Phase H.25: 125特徴量システム（外部API除外）
     assert not out.isnull().any().any()  # NaN値なし
 
 
@@ -150,7 +150,7 @@ def test_feature_engineer_transform_with_mochipoyo_signals(dummy_config, dummy_o
     out = fe.transform(dummy_ohlcv)
     # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
     # 結果として151特徴量が生成されることを確認
-    assert len(out.columns) == 155  # Phase H.24: 155特徴量システム
+    assert len(out.columns) == 125  # Phase H.25: 125特徴量システム（外部API除外）
     assert not out.isnull().any().any()  # NaN値なし
 
 
@@ -398,8 +398,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(dummy_ohlcv)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
     def test_feature_engineer_williams_r(self, dummy_config, dummy_ohlcv):
@@ -409,8 +411,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(dummy_ohlcv)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
     def test_feature_engineer_adx(self, dummy_config, dummy_ohlcv):
@@ -420,8 +424,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(dummy_ohlcv)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
     def test_feature_engineer_cmf(self, dummy_config, dummy_ohlcv):
@@ -431,8 +437,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(dummy_ohlcv)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
     def test_feature_engineer_fisher_transform(self, dummy_config, dummy_ohlcv):
@@ -442,8 +450,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(dummy_ohlcv)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
     def test_feature_engineer_advanced_signals(self, dummy_config, dummy_ohlcv):
@@ -524,8 +534,10 @@ class TestFeatureEngineerAdvanced:
         result = fe.transform(df)
 
         # Phase Dの実装により、計算できない特徴量はデフォルト値で置き換えられる
-        # 結果として151特徴量が生成されることを確認
-        assert len(result.columns) == 155  # Phase H.24: 155特徴量システム
+        # 結果として125特徴量が生成されることを確認
+        assert (
+            len(result.columns) == 125
+        )  # Phase H.25: 125特徴量システム（外部API除外）
         assert not result.isnull().any().any()  # NaN値なし
 
 

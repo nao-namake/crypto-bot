@@ -295,10 +295,18 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 self.config, self.batch_calculator
             )
 
-            # ExternalDataIntegrator（外部データ統合）
-            self.external_integrator = ExternalDataIntegrator(
-                self.config, self.batch_calculator
+            # Phase H.25: 外部データ無効化時はExternalDataIntegratorをスキップ
+            external_data_enabled = (
+                self.config.get("ml", {}).get("external_data", {}).get("enabled", True)
             )
+            if external_data_enabled:
+                # ExternalDataIntegrator（外部データ統合）
+                self.external_integrator = ExternalDataIntegrator(
+                    self.config, self.batch_calculator
+                )
+            else:
+                self.external_integrator = None
+                logger.info("⚠️ ExternalDataIntegrator skipped - external data disabled")
 
             self.batch_engines_enabled = True
 
@@ -2136,12 +2144,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         if self.batch_engines_enabled:
             logger.info("🔄 Batch processing completed - performing final validation")
 
-        # 155特徴量の確実な保証（最終チェック）Phase H.23.7
+        # 125特徴量の確実な保証（最終チェック）Phase H.25
         from crypto_bot.ml.feature_defaults import ensure_feature_consistency
 
         df = ensure_feature_consistency(
-            df, target_count=155
-        )  # Phase H.23.7: 155特徴量に統一
+            df, target_count=125
+        )  # Phase H.25: 125特徴量に統一（外部API除外）
         logger.info(f"Final guaranteed feature count: {len(df.columns)}")
 
         return df

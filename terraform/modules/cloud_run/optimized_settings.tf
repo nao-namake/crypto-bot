@@ -22,15 +22,15 @@ resource "google_cloud_run_service" "crypto_bot_optimized" {
       containers {
         image = var.container_image
         
-        # Phase H.19: 最適化されたリソース設定
+        # Phase H.25: 外部API無効化に伴うリソース最適化
         resources {
           limits = {
-            cpu    = "2000m"      # 2 vCPU
-            memory = "4096Mi"     # 4GB メモリ
+            cpu    = "1000m"      # 2→1 vCPU (50%削減)
+            memory = "2048Mi"     # 4→2GB メモリ (50%削減)
           }
           requests = {
-            cpu    = "1000m"      # 最小1 vCPU
-            memory = "2048Mi"     # 最小2GB
+            cpu    = "500m"       # 最小0.5 vCPU
+            memory = "1024Mi"     # 最小1GB
           }
         }
         

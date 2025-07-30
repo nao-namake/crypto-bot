@@ -13,11 +13,11 @@ data:
     timeout: 60000   # タイムアウト60秒（API応答時間考慮）
     verbose: false   # デバッグ用（本番ではfalse）
 
-  # Phase H.23.6: データ取得量根本修復・400レコード確実達成
-  limit: 400       # 目標レコード数維持
+  # Phase H.25: 外部API切り離し・データ取得最適化
+  limit: 200       # 400→200（外部API無効化により削減）
   paginate: true   # ページネーション有効
-  per_page: 200    # 80→200件（2ページで400レコード達成・効率的取得）
-  since_hours: 96  # 96時間維持（十分なデータ範囲）
+  per_page: 100    # 200→100（API負荷軽減・安定性向上）
+  since_hours: 72  # 96→72時間（データ範囲最適化）
   weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
   fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
   adaptive_rate_limit: true  # 動的レート制限有効化
@@ -26,10 +26,10 @@ data:
   weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
   early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
   
-  # Phase H.23.6: ページネーション強化・400レコード確実達成設定
-  max_consecutive_empty: 8  # 5→8（400レコード達成のため余裕を持った設定）
-  max_consecutive_no_new: 15  # 10→15（per_page大幅増加に対応・確実取得）
-  max_attempts: 25  # 20→25（per_page=200での確実なページネーション完了）
+  # Phase H.25: ページネーション設定最適化
+  max_consecutive_empty: 5  # 8→5（現実的な設定）
+  max_consecutive_no_new: 10  # 15→10（無限ループ防止）
+  max_attempts: 15  # 25→15（実用的な試行回数）
   exponential_backoff: true  # 指数バックオフ有効化
   min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
   max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
@@ -79,7 +79,7 @@ strategy:
       # extra_featuresはml.extra_featuresで定義（重複削除）
       # 外部データ設定
       external_data:
-        enabled: true
+        enabled: false
         cache_enabled: true
         fallback_enabled: true
 
@@ -164,7 +164,8 @@ ml:
     models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
     model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
     
-  # 155特徴量完全実装（Phase H.23.7: momentum_14追加・enhanced_default廃止・特徴量数統一）
+  # Phase H.25: 外部API特徴量一時削除・125特徴量での動作確保
+  # 削除対象: VIX(6), Fear&Greed(6), マクロ(8), Funding(7), 相関(3) = 計30特徴量
   extra_features:
     # ラグ特徴量 (10個)
     - close_lag_1
@@ -295,45 +296,9 @@ ml:
     - is_european_session
     - is_us_session
     
-    # 外部データ特徴量 - VIX (6個)
-    - vix_level
-    - vix_change
-    - vix_zscore
-    - fear_level
-    - vix_spike
-    - vix_regime
-    
-    # 外部データ特徴量 - Fear & Greed (6個)
-    - fear_greed_value
-    - fear_greed_classification
-    - fear_greed_change
-    - fear_greed_ma5
-    - fear_greed_extreme
-    - sentiment_regime
-    
-    # 外部データ特徴量 - マクロ (8個)
-    - dxy_level
-    - dxy_change
-    - dxy_trend
-    - treasury_10y
-    - treasury_30y
-    - yield_curve_slope
-    - real_rates
-    - macro_regime
-    
-    # 外部データ特徴量 - Funding (7個)
-    - funding_rate
-    - funding_ma8
-    - funding_trend
-    - open_interest
-    - oi_change
-    - oi_trend
-    - funding_regime
-    
-    # クロスアセット相関 (3個)
-    - btc_stock_corr
-    - btc_gold_corr
-    - btc_dxy_corr
+    # Phase H.25: 外部データ特徴量一時削除（30個）
+    # VIX関連(6個), Fear&Greed(6個), マクロ(8個), Funding(7個), 相関(3個)
+    # bot基本動作確認後、段階的に再導入予定
     
     # 追加の技術指標 (10個)
     - roc_10
@@ -372,9 +337,9 @@ ml:
     partial_profit_levels: [0.3, 0.5]
     trailing_stop: true
   
-  # Phase H.24.4: 外部データ設定（ml配下に統合）
+  # Phase H.25: 外部データ一時無効化（bot基本動作優先）
   external_data:
-    enabled: true
+    enabled: false
     cache_enabled: true
     fallback_enabled: true
     # Phase H.24.4: 外部データ特徴量をextra_featuresから分離

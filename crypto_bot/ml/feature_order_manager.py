@@ -29,8 +29,8 @@ class FeatureOrderManager:
     - 特徴量順序の検証・ログ出力
     """
 
-    # 155特徴量の決定論的順序（アルファベット順）
-    FEATURE_ORDER_155 = [
+    # Phase H.25: 125特徴量の決定論的順序（外部API特徴量を除外）
+    FEATURE_ORDER_125 = [
         # 基本OHLCV特徴量
         "open",
         "high",
@@ -153,41 +153,7 @@ class FeatureOrderManager:
         "is_asian_session",
         "is_european_session",
         "is_us_session",
-        # 外部データ特徴量（VIX）
-        "vix_level",
-        "vix_change",
-        "vix_zscore",
-        "fear_level",
-        "vix_spike",
-        "vix_regime",
-        # 外部データ特徴量（Fear & Greed）
-        "fear_greed_value",
-        "fear_greed_classification",
-        "fear_greed_change",
-        "fear_greed_ma5",
-        "fear_greed_extreme",
-        "sentiment_regime",
-        # 外部データ特徴量（マクロ）
-        "dxy_level",
-        "dxy_change",
-        "dxy_trend",
-        "treasury_10y",
-        "treasury_30y",
-        "yield_curve_slope",
-        "real_rates",
-        "macro_regime",
-        # 外部データ特徴量（Funding）
-        "funding_rate",
-        "funding_ma8",
-        "funding_trend",
-        "open_interest",
-        "oi_change",
-        "oi_trend",
-        "funding_regime",
-        # クロスアセット相関
-        "btc_stock_corr",
-        "btc_gold_corr",
-        "btc_dxy_corr",
+        # Phase H.25: 外部データ特徴量を削除（VIX, Fear&Greed, マクロ, Funding, 相関）
         # 追加の技術指標
         "roc_10",
         "roc_20",
@@ -223,7 +189,7 @@ class FeatureOrderManager:
         self._load_stored_order()
 
         logger.info("🔧 FeatureOrderManager initialized")
-        logger.info(f"  - Default order: {len(self.FEATURE_ORDER_155)} features")
+        logger.info(f"  - Default order: {len(self.FEATURE_ORDER_125)} features")
         logger.info(f"  - Storage file: {self.feature_order_file}")
 
     def _load_stored_order(self):
@@ -326,10 +292,10 @@ class FeatureOrderManager:
         current_set = set(current_features)
 
         # デフォルト順序に存在する特徴量を抽出
-        aligned = [f for f in self.FEATURE_ORDER_155 if f in current_set]
+        aligned = [f for f in self.FEATURE_ORDER_125 if f in current_set]
 
         # デフォルトにない特徴量を追加
-        extra_features = current_set - set(self.FEATURE_ORDER_155)
+        extra_features = current_set - set(self.FEATURE_ORDER_125)
         if extra_features:
             logger.info(
                 f"📝 Extra features not in default order: {len(extra_features)}"
