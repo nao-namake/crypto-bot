@@ -6,6 +6,7 @@
 import logging
 from typing import Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,457 @@ class DataQualityManager:
                 "sentiment_regime",
             ],
         }
+
+    def validate_input_data_h28(
+        self, raw_data: pd.DataFrame, source: str = "api"
+    ) -> tuple[bool, dict]:
+        """
+        Phase H.28.3: 入力データ事前検証システム
+
+        API取得直後のデータを検証し、後続処理の品質を保証
+
+        Args:
+            raw_data: API取得後の生データ
+            source: データ取得元（"api", "csv", "cache"等）
+
+        Returns:
+            tuple[bool, dict]: (品質合格, 検証レポート)
+        """
+        validation_report = {
+            "source": source,
+            "validation_passed": False,
+            "total_rows": len(raw_data),
+            "total_columns": len(raw_data.columns),
+            "issues": [],
+            "corrections": [],
+            "quality_score": 0.0,
+        }
+
+        issues = []
+        corrections = []
+
+        try:
+            # H.28.3-Check1: 基本データ構造検証
+            if raw_data.empty:
+                issues.append("Empty dataframe")
+                validation_report.update({"validation_passed": False, "issues": issues})
+                return False, validation_report
+
+            # H.28.3-Check2: 必須カラム存在確認
+            required_columns = ["open", "high", "low", "close", "volume"]
+            missing_columns = [
+                col for col in required_columns if col not in raw_data.columns
+            ]
+            if missing_columns:
+                issues.append(f"Missing required columns: {missing_columns}")
+
+            # H.28.3-Check3: データ型検証・修正
+            numeric_columns = ["open", "high", "low", "close", "volume"]
+            for col in numeric_columns:
+                if col in raw_data.columns:
+                    if not pd.api.types.is_numeric_dtype(raw_data[col]):
+                        try:
+                            raw_data[col] = pd.to_numeric(
+                                raw_data[col], errors="coerce"
+                            )
+                            corrections.append(f"Converted {col} to numeric")
+                        except Exception as e:
+                            issues.append(f"Failed to convert {col} to numeric: {e}")
+
+            # H.28.3-Check4: 異常値検出・修正
+            for col in numeric_columns:
+                if col in raw_data.columns:
+                    # 負の価格・出来高チェック
+                    if (
+                        col in ["open", "high", "low", "close"]
+                        and (raw_data[col] <= 0).any()
+                    ):
+                        negative_count = (raw_data[col] <= 0).sum()
+                        issues.append(
+                            f"Negative prices in {col}: {negative_count} rows"
+                        )
+
+                    # 極端な異常値チェック（前値の10倍以上・1/10以下）
+                    if len(raw_data) > 1:
+                        price_changes = raw_data[col].pct_change().abs()
+                        extreme_changes = (price_changes > 5.0).sum()  # 500%以上の変化
+                        if extreme_changes > 0:
+                            issues.append(
+                                f"Extreme price changes in {col}: {extreme_changes} occurrences"
+                            )
+
+            # H.28.3-Check5: データ新鮮度検証
+            if "timestamp" in raw_data.columns:
+                current_time = pd.Timestamp.now()
+                if not raw_data["timestamp"].empty:
+                    newest_data = pd.to_datetime(raw_data["timestamp"].max(), unit="ms")
+                    data_age_hours = (current_time - newest_data).total_seconds() / 3600
+                    if data_age_hours > 2:  # 2時間以上古い
+                        issues.append(
+                            f"Stale data detected: {data_age_hours:.1f} hours old"
+                        )
+
+            # H.28.3-Check6: 品質スコア計算
+            quality_score = 100.0
+            quality_score -= len(issues) * 10  # 問題1つにつき10点減点
+            quality_score += len(corrections) * 2  # 修正1つにつき2点加点
+            quality_score = max(0, min(100, quality_score))
+
+            # 合格判定（品質スコア60以上で合格）
+            validation_passed = (
+                quality_score >= 60
+                and len([i for i in issues if "Missing required" in i]) == 0
+            )
+
+            validation_report.update(
+                {
+                    "validation_passed": validation_passed,
+                    "issues": issues,
+                    "corrections": corrections,
+                    "quality_score": quality_score,
+                }
+            )
+
+            logger.info(
+                f"🔍 [H.28.3] Input validation: {source} -> score={quality_score:.1f}, passed={validation_passed}"
+            )
+            if issues:
+                logger.warning(f"⚠️ [H.28.3] Input issues found: {issues}")
+            if corrections:
+                logger.info(f"🔧 [H.28.3] Auto corrections applied: {corrections}")
+
+            return validation_passed, validation_report
+
+        except Exception as e:
+            logger.error(f"🚨 [H.28.3] Input validation error: {e}")
+            validation_report.update(
+                {
+                    "validation_passed": False,
+                    "issues": [f"Validation error: {e}"],
+                    "quality_score": 0.0,
+                }
+            )
+            return False, validation_report
+
+    def monitor_processing_quality_h28(
+        self, stage: str, data: pd.DataFrame, metadata: dict
+    ) -> dict:
+        """
+        Phase H.28.3: リアルタイム処理品質監視
+
+        データ処理の各段階で品質を監視し、問題を早期発見
+
+        Args:
+            stage: 処理段階（"preprocessing", "feature_engineering", "ml_ready"）
+            data: 現在のデータ状態
+            metadata: メタデータ情報
+
+        Returns:
+            dict: 品質監視レポート
+        """
+        monitoring_report = {
+            "stage": stage,
+            "timestamp": pd.Timestamp.now().isoformat(),
+            "data_shape": data.shape,
+            "quality_metrics": {},
+            "alerts": [],
+            "recommendations": [],
+        }
+
+        try:
+            # 段階別品質チェック
+            if stage == "preprocessing":
+                # 前処理段階：基本データ整合性
+                null_ratio = data.isnull().sum().sum() / (data.shape[0] * data.shape[1])
+                monitoring_report["quality_metrics"]["null_ratio"] = null_ratio
+
+                if null_ratio > 0.1:  # 10%以上のNULL値
+                    monitoring_report["alerts"].append(
+                        f"High null ratio: {null_ratio:.2%}"
+                    )
+
+            elif stage == "feature_engineering":
+                # 特徴量生成段階：実データ比率チェック
+                real_features = sum(
+                    1
+                    for col in data.columns
+                    if self._is_real_data(col, data[col], metadata)
+                )
+                total_features = len(data.columns)
+                real_ratio = real_features / total_features if total_features > 0 else 0
+
+                monitoring_report["quality_metrics"]["real_data_ratio"] = real_ratio
+                monitoring_report["quality_metrics"][
+                    "real_features_count"
+                ] = real_features
+                monitoring_report["quality_metrics"][
+                    "total_features_count"
+                ] = total_features
+
+                if real_ratio < 0.7:  # 70%未満が実データ
+                    monitoring_report["alerts"].append(
+                        f"Low real data ratio: {real_ratio:.2%}"
+                    )
+                    monitoring_report["recommendations"].append(
+                        "Check feature generation logic"
+                    )
+
+            elif stage == "ml_ready":
+                # ML準備段階：最終品質確認
+                inf_count = (
+                    np.isinf(data.select_dtypes(include=[np.number])).sum().sum()
+                )
+                monitoring_report["quality_metrics"]["inf_values"] = inf_count
+
+                if inf_count > 0:
+                    monitoring_report["alerts"].append(
+                        f"Infinite values detected: {inf_count}"
+                    )
+
+            logger.debug(
+                f"🔍 [H.28.3] Quality monitoring: {stage} -> {monitoring_report['quality_metrics']}"
+            )
+
+        except Exception as e:
+            logger.error(f"🚨 [H.28.3] Quality monitoring error at {stage}: {e}")
+            monitoring_report["alerts"].append(f"Monitoring error: {e}")
+
+        return monitoring_report
+
+    def escalate_quality_issues_h28(
+        self, quality_reports: List[dict], critical_threshold: float = 30.0
+    ) -> dict:
+        """
+        Phase H.28.3: 品質エスカレーションシステム
+
+        複数の品質レポートを分析し、重大問題時にエスカレーション
+
+        Args:
+            quality_reports: 品質レポートのリスト
+            critical_threshold: 緊急時と判定する品質スコア閾値
+
+        Returns:
+            dict: エスカレーション判定・対策レポート
+        """
+        escalation_report = {
+            "escalation_level": "none",  # none, warning, critical, emergency
+            "overall_quality_score": 0.0,
+            "critical_issues": [],
+            "recommended_actions": [],
+            "system_protection_mode": False,
+            "timestamp": pd.Timestamp.now().isoformat(),
+        }
+
+        try:
+            if not quality_reports:
+                escalation_report["escalation_level"] = "warning"
+                escalation_report["critical_issues"].append(
+                    "No quality reports available"
+                )
+                return escalation_report
+
+            # 全体品質スコア計算
+            valid_scores = [
+                r.get("quality_score", 0)
+                for r in quality_reports
+                if "quality_score" in r
+            ]
+            if valid_scores:
+                overall_score = np.mean(valid_scores)
+                escalation_report["overall_quality_score"] = overall_score
+            else:
+                overall_score = 0.0
+                escalation_report["critical_issues"].append("No valid quality scores")
+
+            # エスカレーションレベル判定
+            critical_issues = []
+
+            # H.28.3-Escalation1: 全体品質スコアチェック
+            if overall_score <= critical_threshold:
+                critical_issues.append(
+                    f"Overall quality score critical: {overall_score:.1f} <= {critical_threshold}"
+                )
+                escalation_report["escalation_level"] = "critical"
+
+            # H.28.3-Escalation2: 実データ比率チェック
+            real_data_ratios = []
+            for report in quality_reports:
+                if "real_data_ratio" in report.get("quality_metrics", {}):
+                    real_data_ratios.append(
+                        report["quality_metrics"]["real_data_ratio"]
+                    )
+
+            if real_data_ratios:
+                avg_real_ratio = np.mean(real_data_ratios)
+                if avg_real_ratio < 0.1:  # 10%未満が実データ
+                    critical_issues.append(
+                        f"Real data ratio critical: {avg_real_ratio:.1%}"
+                    )
+                    escalation_report["escalation_level"] = "emergency"
+
+            # H.28.3-Escalation3: 連続品質問題チェック
+            consecutive_low_quality = 0
+            for report in quality_reports[-5:]:  # 直近5つをチェック
+                if report.get("quality_score", 100) < 50:
+                    consecutive_low_quality += 1
+
+            if consecutive_low_quality >= 3:
+                critical_issues.append(
+                    f"Consecutive low quality: {consecutive_low_quality}/5 reports"
+                )
+                escalation_report["escalation_level"] = "critical"
+
+            # H.28.3-Escalation4: システム保護モード判定
+            emergency_conditions = [
+                overall_score <= 10,  # 品質スコア10以下
+                len([r for r in real_data_ratios if r < 0.05]) > 0,  # 実データ5%未満
+                consecutive_low_quality >= 4,  # 連続4回以上の低品質
+            ]
+
+            if any(emergency_conditions):
+                escalation_report["system_protection_mode"] = True
+                escalation_report["escalation_level"] = "emergency"
+                critical_issues.append("System protection mode activated")
+
+            # 推奨アクション決定
+            recommended_actions = []
+            if escalation_report["escalation_level"] == "emergency":
+                recommended_actions.extend(
+                    [
+                        "Activate emergency fallback mode",
+                        "Stop automated trading temporarily",
+                        "Alert system administrators",
+                        "Switch to safe default parameters",
+                    ]
+                )
+            elif escalation_report["escalation_level"] == "critical":
+                recommended_actions.extend(
+                    [
+                        "Increase data validation strictness",
+                        "Enable enhanced monitoring",
+                        "Review feature generation logic",
+                        "Check external data sources",
+                    ]
+                )
+            elif escalation_report["escalation_level"] == "warning":
+                recommended_actions.extend(
+                    [
+                        "Monitor data quality closely",
+                        "Log additional diagnostic information",
+                    ]
+                )
+
+            escalation_report.update(
+                {
+                    "critical_issues": critical_issues,
+                    "recommended_actions": recommended_actions,
+                }
+            )
+
+            # ログ出力
+            if escalation_report["escalation_level"] != "none":
+                logger.warning(
+                    f"🚨 [H.28.3] Quality escalation: {escalation_report['escalation_level']} "
+                    f"(score={overall_score:.1f})"
+                )
+                for issue in critical_issues:
+                    logger.error(f"🚨 [H.28.3] Critical issue: {issue}")
+                for action in recommended_actions:
+                    logger.info(f"💡 [H.28.3] Recommended: {action}")
+
+            return escalation_report
+
+        except Exception as e:
+            logger.error(f"🚨 [H.28.3] Escalation system error: {e}")
+            escalation_report.update(
+                {
+                    "escalation_level": "emergency",
+                    "critical_issues": [f"Escalation system failure: {e}"],
+                    "system_protection_mode": True,
+                }
+            )
+            return escalation_report
+
+    def apply_quality_corrections_h28(
+        self, data: pd.DataFrame, quality_issues: List[str]
+    ) -> pd.DataFrame:
+        """
+        Phase H.28.3: 自動品質修復システム
+
+        検出された品質問題を自動修正
+
+        Args:
+            data: 修正対象データ
+            quality_issues: 検出された品質問題リスト
+
+        Returns:
+            pd.DataFrame: 修正済みデータ
+        """
+        corrected_data = data.copy()
+        corrections_applied = []
+
+        try:
+            for issue in quality_issues:
+                # H.28.3-Fix1: 数値型修正
+                if "numeric" in issue.lower():
+                    numeric_columns = ["open", "high", "low", "close", "volume"]
+                    for col in numeric_columns:
+                        if col in corrected_data.columns:
+                            corrected_data[col] = pd.to_numeric(
+                                corrected_data[col], errors="coerce"
+                            )
+                            corrections_applied.append(f"Fixed numeric type: {col}")
+
+                # H.28.3-Fix2: 負の価格修正
+                if "negative price" in issue.lower():
+                    price_columns = ["open", "high", "low", "close"]
+                    for col in price_columns:
+                        if col in corrected_data.columns:
+                            # 負の値を前回値で補間（前回値がない場合は中央値）
+                            negative_mask = corrected_data[col] <= 0
+                            if negative_mask.any():
+                                corrected_data.loc[negative_mask, col] = corrected_data[
+                                    col
+                                ].ffill()
+                                if corrected_data[col].isna().any():
+                                    median_val = corrected_data[col].median()
+                                    corrected_data[col].fillna(median_val, inplace=True)
+                                corrections_applied.append(
+                                    f"Fixed negative prices: {col}"
+                                )
+
+                # H.28.3-Fix3: 極端値修正
+                if "extreme" in issue.lower():
+                    numeric_columns = corrected_data.select_dtypes(
+                        include=[np.number]
+                    ).columns
+                    for col in numeric_columns:
+                        # IQR法で外れ値を検出・修正
+                        Q1 = corrected_data[col].quantile(0.25)
+                        Q3 = corrected_data[col].quantile(0.75)
+                        IQR = Q3 - Q1
+                        lower_bound = Q1 - 1.5 * IQR
+                        upper_bound = Q3 + 1.5 * IQR
+
+                        extreme_mask = (corrected_data[col] < lower_bound) | (
+                            corrected_data[col] > upper_bound
+                        )
+                        if extreme_mask.any():
+                            corrected_data.loc[extreme_mask, col] = np.clip(
+                                corrected_data.loc[extreme_mask, col],
+                                lower_bound,
+                                upper_bound,
+                            )
+                            corrections_applied.append(f"Clipped extreme values: {col}")
+
+            if corrections_applied:
+                logger.info(f"🔧 [H.28.3] Auto corrections: {corrections_applied}")
+
+        except Exception as e:
+            logger.error(f"🚨 [H.28.3] Auto correction error: {e}")
+            return data  # エラー時は元データを返す
+
+        return corrected_data
 
     def validate_data_quality(
         self, df: pd.DataFrame, metadata: Dict

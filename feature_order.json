@@ -11,7 +11,7 @@
     "close_lag_4",
     "close_lag_5",
     "volume_lag_1",
-    "volume_lag_2", 
+    "volume_lag_2",
     "volume_lag_3",
     "volume_lag_4",
     "volume_lag_5",
@@ -127,8 +127,5 @@
     "momentum_14"
   ],
   "num_features": 125,
-  "timestamp": "2025-08-01T06:21:40.000000",
-  "phase": "H.27.8",
-  "auto_update_disabled": true,
-  "description": "125-feature order for Phase H.27.8 CI challenge - verified and production ready"
+  "timestamp": "2025-08-01T07:48:57.931677"
 }

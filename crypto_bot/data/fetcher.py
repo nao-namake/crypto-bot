@@ -10,6 +10,7 @@
 import logging
 import numbers
 import os
+import time
 from datetime import datetime
 from typing import List, Optional, Union
 
@@ -104,6 +105,228 @@ class MarketDataFetcher:
         logger.info("💰 [RESILIENCE] Fetching balance with error resilience")
         return self.client.fetch_balance()
 
+    def _validate_timestamp_h28(
+        self, timestamp: Optional[int], context: str = "unknown"
+    ) -> Optional[int]:
+        """
+        Phase H.28.1: タイムスタンプ堅牢性システム - 5段階検証
+
+        Args:
+            timestamp: 検証対象のタイムスタンプ（ミリ秒）
+            context: 呼び出し元の文脈情報
+
+        Returns:
+            Optional[int]: 検証済み・修正済みタイムスタンプ、または None（異常値の場合）
+        """
+        if timestamp is None:
+            return None
+
+        try:
+            # H.28.1-Stage1: 型安全性保証
+            if (
+                not isinstance(timestamp, (int, float))
+                or np.isnan(timestamp)
+                or np.isinf(timestamp)
+            ):
+                logger.error(
+                    f"🚨 [H.28.1-Stage1] Invalid timestamp type/value: {timestamp} (context: {context})"
+                )
+                return None
+
+            ts = int(timestamp)
+
+            # H.28.1-Stage2: ミリ秒桁数検証（10桁=秒、13桁=ミリ秒）
+            if ts < 1e12:  # 10桁以下（秒単位の可能性）
+                ts = ts * 1000  # ミリ秒に変換
+                logger.info(
+                    f"🔄 [H.28.1-Stage2] Converted seconds to milliseconds: {timestamp} -> {ts}"
+                )
+            elif ts > 1e16:  # 16桁以上（異常値）
+                logger.error(
+                    f"🚨 [H.28.1-Stage2] Timestamp too large: {ts} (context: {context})"
+                )
+                return None
+
+            # H.28.1-Stage3: 現在時刻比較・合理的範囲チェック
+            current_time_ms = int(time.time() * 1000)
+            one_year_ago_ms = current_time_ms - (365 * 24 * 60 * 60 * 1000)
+            one_day_future_ms = current_time_ms + (24 * 60 * 60 * 1000)
+
+            if ts < one_year_ago_ms:
+                logger.error(
+                    f"🚨 [H.28.1-Stage3] Timestamp too old: {ts} < {one_year_ago_ms} (context: {context})"
+                )
+                return None
+            elif ts > one_day_future_ms:
+                logger.error(
+                    f"🚨 [H.28.1-Stage3] Timestamp too future: {ts} > {one_day_future_ms} (context: {context})"
+                )
+                # 未来時刻の場合は現在時刻に修正
+                corrected_ts = current_time_ms
+                logger.warning(
+                    f"🔧 [H.28.1-Stage3] Corrected future timestamp: {ts} -> {corrected_ts} (context: {context})"
+                )
+                return corrected_ts
+
+            # H.28.1-Stage4: API仕様準拠確認（Bitbank用）
+            # Bitbank APIは通常、現在時刻から過去72時間のデータを提供
+            bitbank_limit_ms = current_time_ms - (72 * 60 * 60 * 1000)
+            if ts < bitbank_limit_ms:
+                logger.warning(
+                    f"⚠️ [H.28.1-Stage4] Timestamp beyond Bitbank limit: {ts} < {bitbank_limit_ms} (context: {context})"
+                )
+                # API制限を超えているが、エラーではなく警告として処理
+
+            # H.28.1-Stage5: 最終検証・ログ出力
+            ts_datetime = datetime.fromtimestamp(ts / 1000)
+            logger.debug(
+                f"✅ [H.28.1-Stage5] Timestamp validated: {ts} ({ts_datetime}) (context: {context})"
+            )
+
+            return ts
+
+        except Exception as e:
+            logger.error(
+                f"🚨 [H.28.1] Timestamp validation error: {e} (timestamp: {timestamp}, context: {context})"
+            )
+            return None
+
+    def _calculate_safe_since_h28(self, base_timestamp: int, timeframe: str) -> int:
+        """
+        Phase H.28.1: 安全なsince値計算
+
+        Args:
+            base_timestamp: ベースとなるタイムスタンプ（ミリ秒）
+            timeframe: タイムフレーム（"1h", "4h", "15m"等）
+
+        Returns:
+            int: 検証済みの次回取得用タイムスタンプ
+        """
+        try:
+            # タイムフレーム→ミリ秒変換
+            timeframe_ms = {
+                "1m": 60 * 1000,
+                "5m": 5 * 60 * 1000,
+                "15m": 15 * 60 * 1000,
+                "1h": 60 * 60 * 1000,
+                "4h": 4 * 60 * 60 * 1000,
+                "1d": 24 * 60 * 60 * 1000,
+            }.get(
+                timeframe, 60 * 60 * 1000
+            )  # デフォルト1時間
+
+            # 安全な次回タイムスタンプ計算
+            next_timestamp = base_timestamp + timeframe_ms
+
+            # H.28.1 検証システムで検証
+            validated_timestamp = self._validate_timestamp_h28(
+                next_timestamp, f"calculate_since_{timeframe}"
+            )
+
+            if validated_timestamp is None:
+                # 異常値の場合は現在時刻を使用
+                current_time_ms = int(time.time() * 1000)
+                logger.error(
+                    f"🚨 [H.28.1] Safe since calculation failed, using current time: {current_time_ms}"
+                )
+                return current_time_ms
+
+            return validated_timestamp
+
+        except Exception as e:
+            # 計算失敗時は現在時刻を安全な値として返す
+            current_time_ms = int(time.time() * 1000)
+            logger.error(
+                f"🚨 [H.28.1] Since calculation error: {e}, using current time: {current_time_ms}"
+            )
+            return current_time_ms
+
+    def _should_abort_retry_h28(
+        self, error_context: dict, attempt: int, max_attempts: int
+    ) -> tuple[bool, str]:
+        """
+        Phase H.28.2: インテリジェントリトライ判定システム
+
+        Args:
+            error_context: エラー文脈情報
+            attempt: 現在の試行回数
+            max_attempts: 最大試行回数
+
+        Returns:
+            tuple[bool, str]: (停止すべきか, 理由)
+        """
+        # H.28.2-Rule1: 異常タイムスタンプ検出時は即座停止
+        if error_context.get("timestamp_anomaly", False):
+            return True, "Timestamp anomaly detected - no point in retrying"
+
+        # H.28.2-Rule2: 構造的問題検出時は即座停止
+        structural_issues = [
+            "Invalid API credentials",
+            "Symbol not found",
+            "Timeframe not supported",
+            "Permission denied",
+        ]
+        error_msg = error_context.get("error_message", "")
+        for issue in structural_issues:
+            if issue.lower() in error_msg.lower():
+                return True, f"Structural issue detected: {issue}"
+
+        # H.28.2-Rule3: 連続空レスポンス数に基づく判定
+        consecutive_empty = error_context.get("consecutive_empty", 0)
+        if consecutive_empty >= 8:  # 12→8に厳格化
+            return True, f"Too many consecutive empty responses: {consecutive_empty}"
+
+        # H.28.2-Rule4: タイムウィンドウ制御
+        time_span_hours = error_context.get("time_span_hours", 0)
+        if time_span_hours > 96:  # 96時間（4日）を超える場合は停止
+            return True, f"Time window exceeded: {time_span_hours}h > 96h limit"
+
+        # H.28.2-Rule5: 通常の試行回数制限
+        if attempt >= max_attempts:
+            return True, f"Max attempts reached: {attempt}/{max_attempts}"
+
+        return False, "Continue retrying"
+
+    def _calculate_smart_backoff_h28(
+        self, attempt: int, consecutive_empty: int, error_type: str
+    ) -> float:
+        """
+        Phase H.28.2: スマートバックオフ戦略
+
+        Args:
+            attempt: 試行回数
+            consecutive_empty: 連続空レスポンス数
+            error_type: エラータイプ
+
+        Returns:
+            float: 待機時間（秒）
+        """
+        # エラータイプ別の基本待機時間
+        base_delays = {
+            "rate_limit": 30,  # レート制限
+            "server_error": 10,  # サーバーエラー
+            "network_error": 5,  # ネットワークエラー
+            "empty_response": 2,  # 空レスポンス
+            "default": 3,  # デフォルト
+        }
+
+        base_delay = base_delays.get(error_type, base_delays["default"])
+
+        # 指数バックオフ（上限付き）
+        exponential_factor = min(2 ** (attempt - 1), 8)  # 最大8倍
+
+        # 連続空レスポンスペナルティ
+        empty_penalty = consecutive_empty * 0.5
+
+        # 最終計算（上限15秒）
+        total_delay = min(base_delay * exponential_factor + empty_penalty, 15)
+
+        logger.debug(
+            f"🔄 [H.28.2] Smart backoff: attempt={attempt}, empty={consecutive_empty}, type={error_type} -> {total_delay}s"
+        )
+
+        return total_delay
+
     @with_resilience("market_data_fetcher", "get_price_df")
     def get_price_df(
         self,
@@ -125,20 +348,43 @@ class MarketDataFetcher:
 
         since_ms: Optional[int] = None
         if since is not None:
-            # Phase H.22 fix: pd.Timestamp型の処理を追加
-            if hasattr(since, "value"):  # pd.Timestampかどうかチェック
-                # pd.Timestamp.valueはナノ秒なので、ミリ秒に変換
-                since_ms = int(since.value // 1_000_000)
-            elif isinstance(since, str):
-                dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
-                since_ms = int(dt.timestamp() * 1000)
-            elif isinstance(since, datetime):
-                since_ms = int(since.timestamp() * 1000)
-            elif isinstance(since, numbers.Real):
-                ts = int(since)
-                since_ms = ts if ts > 1e12 else int(ts * 1000)
-            else:
-                raise TypeError(f"Unsupported type for since: {type(since)}")
+            # Phase H.28.1: タイムスタンプ堅牢性システム統合
+            raw_since_ms: Optional[int] = None
+
+            try:
+                if hasattr(since, "value"):  # pd.Timestampかどうかチェック
+                    # pd.Timestamp.valueはナノ秒なので、ミリ秒に変換
+                    raw_since_ms = int(since.value // 1_000_000)
+                elif isinstance(since, str):
+                    dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                    raw_since_ms = int(dt.timestamp() * 1000)
+                elif isinstance(since, datetime):
+                    raw_since_ms = int(since.timestamp() * 1000)
+                elif isinstance(since, numbers.Real):
+                    ts = int(since)
+                    raw_since_ms = ts if ts > 1e12 else int(ts * 1000)
+                else:
+                    raise TypeError(f"Unsupported type for since: {type(since)}")
+
+                # H.28.1: 5段階検証システムで検証
+                since_ms = self._validate_timestamp_h28(
+                    raw_since_ms, f"since_calculation_{type(since).__name__}"
+                )
+
+                if since_ms is None:
+                    # 検証失敗時は現在時刻から72時間前を安全な開始点として使用
+                    current_time_ms = int(time.time() * 1000)
+                    since_ms = current_time_ms - (72 * 60 * 60 * 1000)  # 72時間前
+                    logger.warning(
+                        f"🔧 [H.28.1] Invalid since value, using 72h ago: {since_ms}"
+                    )
+
+            except Exception as e:
+                logger.error(f"🚨 [H.28.1] Since calculation error: {e}")
+                # エラー時は現在時刻から72時間前を使用
+                current_time_ms = int(time.time() * 1000)
+                since_ms = current_time_ms - (72 * 60 * 60 * 1000)
+                logger.warning(f"🔧 [H.28.1] Error fallback, using 72h ago: {since_ms}")
 
         max_records = limit if limit is not None else float("inf")
 
@@ -205,27 +451,45 @@ class MarketDataFetcher:
                             f"⚠️ Empty batch {consecutive_empty}/{MAX_CONSECUTIVE_EMPTY}"
                         )
 
-                        # Phase H.4: 空バッチの詳細情報
-                        logger.warning(
-                            f"🔍 [PHASE-H4] Empty batch at timestamp: {last_since}, attempt {attempt + 1}"
+                        # Phase H.28.2: インテリジェントリトライシステム適用
+                        # エラー文脈構築
+                        error_context = {
+                            "consecutive_empty": consecutive_empty,
+                            "timestamp_anomaly": last_since
+                            and (
+                                last_since
+                                > int(time.time() * 1000) + 24 * 60 * 60 * 1000
+                            ),
+                            "error_message": "Empty batch response",
+                            "time_span_hours": (
+                                (int(time.time() * 1000) - (since_ms or 0))
+                                / (1000 * 3600)
+                                if since_ms
+                                else 0
+                            ),
+                        }
+
+                        # インテリジェント停止判定
+                        should_abort, abort_reason = self._should_abort_retry_h28(
+                            error_context, attempt + 1, MAX_ATTEMPTS
                         )
 
-                        if consecutive_empty >= MAX_CONSECUTIVE_EMPTY:
+                        if should_abort:
                             logger.warning(
-                                f"❌ [PHASE-H4] EARLY TERMINATION: Too many consecutive empty batches ({consecutive_empty}/{MAX_CONSECUTIVE_EMPTY}), stopping pagination"
+                                f"🚨 [H.28.2] INTELLIGENT TERMINATION: {abort_reason}"
                             )
                             logger.warning(
-                                f"📊 [PHASE-H4] Final stats: {len(records)} records collected in {attempt + 1} attempts"
+                                f"📊 [H.28.2] Final stats: {len(records)} records collected in {attempt + 1} attempts"
                             )
                             break
 
-                        # Phase H.20.1.3: 最適化されたバックオフ戦略
-                        # より効率的な取得のため待機時間短縮（10秒→6秒上限）
-                        backoff_delay = min(
-                            consecutive_empty * 1.5, 6
-                        )  # 2→1.5, 10→6に短縮
-                        logger.debug(
-                            f"🔄 [PHASE-H20.1.3] Backoff delay: {backoff_delay}秒"
+                        # Phase H.28.2: スマートバックオフ戦略
+                        backoff_delay = self._calculate_smart_backoff_h28(
+                            attempt + 1, consecutive_empty, "empty_response"
+                        )
+
+                        logger.info(
+                            f"🔄 [H.28.2] Smart backoff: {backoff_delay}s (attempt={attempt + 1}, empty={consecutive_empty})"
                         )
                         time.sleep(backoff_delay)
                         attempt += 1
@@ -258,19 +522,26 @@ class MarketDataFetcher:
                             seen_ts.add(ts)
                             records.append(row)
                             new_records_count += 1
-                            # タイムフレームに応じた適切な時刻進行
-                            # 1h = 3600秒, 4h = 14400秒, 15m = 900秒
-                            timeframe_ms = {
-                                "1m": 60 * 1000,
-                                "5m": 5 * 60 * 1000,
-                                "15m": 15 * 60 * 1000,
-                                "1h": 60 * 60 * 1000,
-                                "4h": 4 * 60 * 60 * 1000,
-                                "1d": 24 * 60 * 60 * 1000,
-                            }.get(
-                                timeframe, 60 * 60 * 1000
-                            )  # デフォルト1時間
-                            last_since = ts + timeframe_ms
+                            # Phase H.28.1: 安全なタイムスタンプ計算
+                            # まず、現在のtsを検証
+                            validated_ts = self._validate_timestamp_h28(
+                                ts, f"batch_record_{new_records_count}"
+                            )
+                            if validated_ts is not None:
+                                # 検証済みtsから安全な次回タイムスタンプを計算
+                                last_since = self._calculate_safe_since_h28(
+                                    validated_ts, timeframe
+                                )
+                                logger.debug(
+                                    f"🔧 [H.28.1] Safe since calculated: {validated_ts} + {timeframe} -> {last_since}"
+                                )
+                            else:
+                                # tsが異常値の場合は現在時刻を使用
+                                current_time_ms = int(time.time() * 1000)
+                                last_since = current_time_ms
+                                logger.warning(
+                                    f"🚨 [H.28.1] Invalid batch timestamp {ts}, using current time: {last_since}"
+                                )
                             added = True
                         else:
                             duplicate_count += 1
@@ -350,9 +621,61 @@ class MarketDataFetcher:
                         time.sleep(base_delay)
 
                 except Exception as e:
-                    logger.error(f"❌ Batch fetch error on attempt {attempt + 1}: {e}")
-                    # エラー時は少し待機してリトライ
-                    error_delay = min((attempt + 1) * 1.5, 8)
+                    error_str = str(e).lower()
+                    logger.error(
+                        f"❌ [H.28.2] Batch fetch error on attempt {attempt + 1}: {e}"
+                    )
+
+                    # Phase H.28.2: エラー分類とインテリジェント対応
+                    error_type = "default"
+                    if "rate limit" in error_str or "too many requests" in error_str:
+                        error_type = "rate_limit"
+                    elif "timeout" in error_str or "connection" in error_str:
+                        error_type = "network_error"
+                    elif (
+                        "server error" in error_str
+                        or "500" in error_str
+                        or "502" in error_str
+                    ):
+                        error_type = "server_error"
+                    elif "permission" in error_str or "unauthorized" in error_str:
+                        error_type = "structural"
+                    elif "symbol" in error_str or "market" in error_str:
+                        error_type = "structural"
+
+                    # エラー文脈構築
+                    error_context = {
+                        "consecutive_empty": consecutive_empty,
+                        "timestamp_anomaly": last_since
+                        and (
+                            last_since > int(time.time() * 1000) + 24 * 60 * 60 * 1000
+                        ),
+                        "error_message": str(e),
+                        "time_span_hours": (
+                            (int(time.time() * 1000) - (since_ms or 0)) / (1000 * 3600)
+                            if since_ms
+                            else 0
+                        ),
+                    }
+
+                    # インテリジェント停止判定
+                    should_abort, abort_reason = self._should_abort_retry_h28(
+                        error_context, attempt + 1, MAX_ATTEMPTS
+                    )
+
+                    if should_abort:
+                        logger.warning(
+                            f"🚨 [H.28.2] INTELLIGENT TERMINATION after error: {abort_reason}"
+                        )
+                        break
+
+                    # Phase H.28.2: スマートバックオフ戦略
+                    error_delay = self._calculate_smart_backoff_h28(
+                        attempt + 1, consecutive_empty, error_type
+                    )
+                    logger.info(
+                        f"🔄 [H.28.2] Error recovery backoff: {error_delay}s (type={error_type})"
+                    )
                     time.sleep(error_delay)
 
                 attempt += 1
