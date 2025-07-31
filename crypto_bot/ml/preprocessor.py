@@ -2116,30 +2116,95 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
             quality_manager = DataQualityManager(self.config)
 
-            # メタデータ作成（外部データソース情報）
+            # Phase H.27.5: 設定ファイルから直接外部データ状態を取得（確実性向上）
+            external_config = self.config.get("ml", {}).get("external_data", {})
+            external_data_master_enabled = external_config.get("enabled", False)
+
+            # 個別外部データ設定を設定ファイルから直接取得
+            vix_config_enabled = (
+                external_config.get("vix", {}).get("enabled", False)
+                and external_data_master_enabled
+            )
+            macro_config_enabled = (
+                external_config.get("macro", {}).get("enabled", False)
+                and external_data_master_enabled
+            )
+            fear_greed_config_enabled = (
+                external_config.get("fear_greed", {}).get("enabled", False)
+                and external_data_master_enabled
+            )
+            funding_config_enabled = (
+                external_config.get("funding", {}).get("enabled", False)
+                and external_data_master_enabled
+            )
+
+            # メタデータ作成（設定ファイル基準・確実性重視）
             metadata = {
                 "feature_sources": {},
                 "external_data_enabled": {
-                    "vix": self.vix_enabled,
-                    "macro": self.macro_enabled,
-                    "fear_greed": self.fear_greed_enabled,
-                    "funding": self.funding_enabled,
+                    "master": external_data_master_enabled,
+                    "vix": vix_config_enabled,
+                    "macro": macro_config_enabled,
+                    "fear_greed": fear_greed_config_enabled,
+                    "funding": funding_config_enabled,
                 },
+                "phase": "H.27.5",  # デバッグ用
             }
 
-            # 各特徴量のソース情報を記録
+            # Phase H.27.5: 各特徴量のソース情報記録（設定ファイル基準）
             for column in df.columns:
-                vix_prefixes = ["vix_", "dxy_", "treasury_"]
-                if any(column.startswith(prefix) for prefix in vix_prefixes):
-                    source_type = "api" if self.macro_enabled else "default"
-                    metadata["feature_sources"][column] = {"source_type": source_type}
-                elif any(column.startswith(prefix) for prefix in ["fear_greed", "fg_"]):
-                    source_type = "api" if self.fear_greed_enabled else "default"
-                    metadata["feature_sources"][column] = {"source_type": source_type}
-                elif any(column.startswith(prefix) for prefix in ["fr_", "oi_"]):
-                    # Bitbank代替特徴量
+                column_lower = column.lower()
+
+                # 外部データ特徴量は設定に関係なく「default」として扱う（Phase H.27.5: 確実な除外）
+                if any(
+                    pattern in column_lower
+                    for pattern in [
+                        "vix_",
+                        "dxy_",
+                        "treasury_",
+                        "us10y",
+                        "us2y",
+                        "macro_",
+                        "fear_greed",
+                        "fg_",
+                        "sentiment_",
+                        "funding_",
+                        "fr_",
+                        "oi_",
+                        "corr_btc_",
+                    ]
+                ):
+                    metadata["feature_sources"][column] = {"source_type": "default"}
+                # 基本OHLCV・テクニカル指標は「calculated」（実データ扱い）
+                elif any(
+                    pattern in column_lower
+                    for pattern in [
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                        "rsi",
+                        "sma",
+                        "ema",
+                        "atr",
+                        "macd",
+                        "bb_",
+                        "stoch",
+                        "adx",
+                        "returns",
+                        "lag_",
+                        "price_",
+                        "volatility_",
+                        "trend_",
+                        "hour",
+                        "day_of_week",
+                        "is_",
+                    ]
+                ):
                     metadata["feature_sources"][column] = {"source_type": "calculated"}
                 else:
+                    # その他は「calculated」として扱う
                     metadata["feature_sources"][column] = {"source_type": "calculated"}
 
             # データ品質検証

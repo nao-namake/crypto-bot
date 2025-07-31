@@ -337,16 +337,16 @@ ml:
     partial_profit_levels: [0.3, 0.5]
     trailing_stop: true
   
-  # Phase H.25: 外部データ一時無効化（bot基本動作優先）
+  # Phase H.27: 外部データ完全無効化（125特徴量システム・エントリーシグナル生成復活）
   external_data:
     enabled: false
     cache_enabled: true
     fallback_enabled: true
-    # Phase H.24.4: 外部データ特徴量をextra_featuresから分離
-    include_in_features: true  # 特徴量に外部データを含む
+    # Phase H.27.1: include_in_features完全無効化・データ品質混乱解消
+    include_in_features: false  # 外部データ特徴量完全除外
     
     vix:
-      enabled: true
+      enabled: false  # Phase H.27.1: VIX完全無効化
       symbol: "^VIX"
       timeframe: "1d"
       fallback_level: 20.0
@@ -356,7 +356,7 @@ ml:
       cache_hours: 24
       
     macro:
-      enabled: true
+      enabled: false  # Phase H.27.1: マクロデータ完全無効化
       symbols:
         dxy: "DX-Y.NYB"
         us10y: "^TNX"
@@ -371,7 +371,7 @@ ml:
       cache_hours: 6
         
     fear_greed:
-      enabled: true
+      enabled: false  # Phase H.27.1: Fear&Greed完全無効化
       api_url: "https://api.alternative.me/fng/"
       fallback_index: 50
       sources: ["alternative_me"]  # Phase H.21.3: Alternative.me単体・API key不要・安定性重視
@@ -380,7 +380,7 @@ ml:
       cache_hours: 1
       
     funding:
-      enabled: true
+      enabled: false  # Phase H.27.1: Fundingデータ完全無効化
       symbol: "BTC/USDT"
       exchanges: ["binance"]  # トレンド判定・市況分析用
       fallback_rate: 0.0001

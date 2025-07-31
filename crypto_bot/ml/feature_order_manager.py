@@ -385,10 +385,11 @@ class FeatureOrderManager:
 
         return False
 
-    # Phase H.26: 125特徴量完全性保証システム
+    # Phase H.27.6: 125特徴量完全性保証システム強化版
     def ensure_125_features_completeness(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        125特徴量の完全性を保証する包括的システム
+        125特徴量の完全性を保証する包括的システム - Phase H.27.6強化版
+        エントリーシグナル生成復活のための決定的保証
 
         Args:
             df: 入力DataFrame
@@ -397,36 +398,82 @@ class FeatureOrderManager:
             正確に125個の特徴量を持つDataFrame
         """
         logger.info(
-            f"🔍 Starting 125-feature completeness check: {len(df.columns)} input features"
+            f"🔍 [Phase H.27.6] Starting enhanced 125-feature completeness: {len(df.columns)} input features"
         )
 
         try:
-            # Step 1: 重複特徴量の検出・排除
-            df_dedup = self._remove_duplicate_features(df)
+            # Phase H.27.6: Step 0 - 外部データ特徴量の確実な事前除去
+            df_cleaned = self._phase_h27_external_data_cleanup(df)
 
-            # Step 2: 125特徴量リストとの照合
+            # Step 1: 重複特徴量の検出・排除（既存メソッド使用）
+            df_dedup = self._remove_duplicate_features(df_cleaned)
+
+            # Step 2: 125特徴量リストとの照合（既存メソッド使用）
             df_aligned = self._align_to_target_features(df_dedup)
 
-            # Step 3: 不足特徴量の自動補完
+            # Step 3: 不足特徴量の自動補完（既存メソッド使用）
             df_complete = self._fill_missing_features(df_aligned)
 
-            # Step 4: 余分特徴量の管理
-            df_trimmed = self._trim_excess_features(df_complete)
+            # Step 4: Phase H.27.6: 125特徴量厳守の強化版
+            df_trimmed = self._trim_excess_features_h27(df_complete)
 
-            # Step 5: 特徴量品質チェック・修正
+            # Step 5: 特徴量品質チェック・修正（既存メソッド使用）
             df_quality = self._ensure_feature_quality(df_trimmed)
 
-            # Step 6: 最終検証
-            df_final = self._final_125_validation(df_quality)
+            # Step 6: Phase H.27.6: 最終検証厳格版
+            df_final = self._final_125_validation_h27(df_quality)
 
             logger.info(
-                f"✅ 125-feature completeness guaranteed: {len(df_final.columns)} features"
+                f"✅ [Phase H.27.6] Enhanced 125-feature completeness guaranteed: {len(df_final.columns)} features"
             )
             return df_final
 
         except Exception as e:
-            logger.error(f"❌ 125-feature completeness failed: {e}")
-            return self._emergency_125_fallback(df)
+            logger.error(
+                f"❌ [Phase H.27.6] Enhanced 125-feature completeness failed: {e}"
+            )
+            import traceback
+
+            traceback.print_exc()
+            return self._emergency_125_fallback_enhanced(df)
+
+    def _phase_h27_external_data_cleanup(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Phase H.27.6: 外部データ特徴量の確実な事前除去"""
+        external_patterns = [
+            "vix_",
+            "fear_greed",
+            "fg_",
+            "dxy_",
+            "treasury_",
+            "us10y",
+            "us2y",
+            "funding_",
+            "fr_",
+            "oi_",
+            "macro_",
+            "sentiment_",
+            "corr_btc_",
+            "enhanced_default",
+        ]
+
+        columns_to_remove = []
+        for col in df.columns:
+            col_lower = col.lower()
+            if any(pattern in col_lower for pattern in external_patterns):
+                columns_to_remove.append(col)
+
+        if columns_to_remove:
+            logger.info(
+                f"🧹 [Phase H.27.6] Removing {len(columns_to_remove)} external data features"
+            )
+            df_cleaned = df.drop(columns=columns_to_remove)
+        else:
+            df_cleaned = df.copy()
+
+        logger.info(
+            f"🧹 [Phase H.27.6] External cleanup: {len(df.columns)} → {len(df_cleaned.columns)} features"
+        )
+        return df_cleaned
 
     def _remove_duplicate_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """重複特徴量の検出・排除"""
@@ -717,9 +764,142 @@ class FeatureOrderManager:
         logger.info(f"✅ Final validation passed: {len(df.columns)} unique features")
         return df
 
-    def _emergency_125_fallback(self, df: pd.DataFrame) -> pd.DataFrame:
-        """緊急時の125特徴量フォールバック"""
-        logger.warning("Using emergency 125-feature fallback")
+    def _trim_excess_features_h27(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Phase H.27.6: 余分特徴量の管理強化版（125特徴量厳守）"""
+        if len(df.columns) <= 125:
+            logger.info(
+                f"🔧 [Phase H.27.6] Features within limit: {len(df.columns)}/125"
+            )
+            return df
+
+        logger.info(
+            f"🔧 [Phase H.27.6] Trimming excess features: {len(df.columns)} → 125"
+        )
+
+        # Phase H.27.6: 優先度ベース特徴量選択（FEATURE_ORDER_125準拠）
+        ordered_features = []
+        available_features = set(df.columns)
+
+        # Step 1: 125リストの特徴量を順序通りに最優先で追加
+        for feature in self.FEATURE_ORDER_125:
+            if feature in available_features and len(ordered_features) < 125:
+                ordered_features.append(feature)
+
+        # Step 2: まだ125に達していない場合、重要そうな特徴量を追加
+        if len(ordered_features) < 125:
+            remaining_features = available_features - set(ordered_features)
+            # 重要度順でソート（テクニカル指標優先）
+            technical_priority = []
+            other_features = []
+
+            for feature in remaining_features:
+                feature_lower = feature.lower()
+                if any(
+                    pattern in feature_lower
+                    for pattern in [
+                        "rsi",
+                        "sma",
+                        "ema",
+                        "atr",
+                        "macd",
+                        "volume",
+                        "price",
+                        "close",
+                        "returns",
+                    ]
+                ):
+                    technical_priority.append(feature)
+                else:
+                    other_features.append(feature)
+
+            # テクニカル指標を優先的に追加
+            needed = 125 - len(ordered_features)
+            priority_list = sorted(technical_priority) + sorted(other_features)
+            ordered_features.extend(priority_list[:needed])
+
+        # 正確に125特徴量を選択
+        selected_features = ordered_features[:125]
+
+        logger.info(
+            f"✅ [Phase H.27.6] Selected {len(selected_features)} features (target: 125)"
+        )
+        return df[selected_features]
+
+    def _final_125_validation_h27(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Phase H.27.6: 最終的な125特徴量検証強化版"""
+        if len(df.columns) == 125:
+            logger.info(
+                "✅ [Phase H.27.6] Final validation passed: exactly 125 features"
+            )
+            return df
+
+        logger.error(
+            f"❌ [Phase H.27.6] Final validation failed: {len(df.columns)} features instead of 125"
+        )
+
+        if len(df.columns) > 125:
+            # 余分な特徴量を削除（後ろから）
+            df_fixed = df.iloc[:, :125]
+            logger.warning(
+                f"🔧 [Phase H.27.6] Trimmed to 125: removed {len(df.columns) - 125} excess features"
+            )
+        elif len(df.columns) < 125:
+            # 不足分を補完（FEATURE_ORDER_125から）
+            df_fixed = df.copy()
+            current_features = set(df_fixed.columns)
+            needed = 125 - len(df_fixed.columns)
+
+            # FEATURE_ORDER_125から不足分を補完
+            missing_candidates = [
+                f for f in self.FEATURE_ORDER_125 if f not in current_features
+            ]
+
+            for i, feature_name in enumerate(missing_candidates[:needed]):
+                # 安全なデフォルト値で補完
+                df_fixed[feature_name] = 0.0
+
+            # まだ不足している場合は自動生成
+            current_count = len(df_fixed.columns)
+            for i in range(current_count, 125):
+                feature_name = f"auto_h27_{i-current_count:03d}"
+                df_fixed[feature_name] = 0.0
+
+            logger.warning(
+                f"🔧 [Phase H.27.6] Filled to 125: added {125 - len(df.columns)} missing features"
+            )
+        else:
+            df_fixed = df
+
+        # 特徴量名の最終調整（重複チェック強化）
+        final_columns = []
+        seen_names = set()
+
+        for col in df_fixed.columns:
+            if col in seen_names:
+                # 重複がある場合は番号を付加
+                counter = 1
+                new_name = f"{col}_h27_{counter}"
+                while new_name in seen_names:
+                    counter += 1
+                    new_name = f"{col}_h27_{counter}"
+                final_columns.append(new_name)
+                seen_names.add(new_name)
+            else:
+                final_columns.append(col)
+                seen_names.add(col)
+
+        df_fixed.columns = final_columns
+
+        logger.info(
+            f"✅ [Phase H.27.6] Final validation completed: {len(df_fixed.columns)} unique features"
+        )
+        return df_fixed
+
+    def _emergency_125_fallback_enhanced(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Phase H.27.6: 緊急時の125特徴量フォールバック強化版"""
+        logger.warning(
+            "🚨 [Phase H.27.6] Using enhanced emergency 125-feature fallback"
+        )
 
         try:
             # 使用可能な特徴量を最大限活用
@@ -728,36 +908,74 @@ class FeatureOrderManager:
             # 125特徴量の基本フレームワークを作成
             result_df = pd.DataFrame(index=df.index)
 
-            # Step 1: 既存の特徴量をコピー（最大125まで）
-            for i, feature in enumerate(available_features[:125]):
-                result_df[f"feature_{i:03d}"] = df[feature]
+            # Step 1: FEATURE_ORDER_125に基づく優先順位付け
+            priority_features = []
+            for feature in self.FEATURE_ORDER_125:
+                if feature in available_features:
+                    priority_features.append(feature)
 
-            # Step 2: 不足分を基本的な特徴量で補完
-            for i in range(len(available_features), 125):
-                if i < 5 and "close" in df.columns:
-                    # 基本価格特徴量
-                    result_df[f"feature_{i:03d}"] = df["close"]
-                elif i < 10 and "volume" in df.columns:
-                    # 出来高特徴量
-                    result_df[f"feature_{i:03d}"] = df["volume"]
-                else:
-                    # デフォルト値
-                    result_df[f"feature_{i:03d}"] = 0.0
+            # Step 2: 優先特徴量をコピー（最大125まで）
+            features_added = 0
+            for feature in priority_features[:125]:
+                if features_added < 125:
+                    result_df[feature] = df[feature]
+                    features_added += 1
+
+            # Step 3: 不足分を基本的な特徴量で補完
+            if features_added < 125:
+                # 基本価格データ系の補完
+                basic_features = ["close", "open", "high", "low", "volume"]
+                for feature in basic_features:
+                    if feature in df.columns and features_added < 125:
+                        for suffix in ["", "_lag_1", "_lag_2", "_sma_5", "_sma_20"]:
+                            new_feature = f"{feature}{suffix}"
+                            if (
+                                new_feature not in result_df.columns
+                                and features_added < 125
+                            ):
+                                if suffix == "":
+                                    result_df[new_feature] = df[feature]
+                                elif "_lag_" in suffix:
+                                    result_df[new_feature] = df[feature].shift(
+                                        int(suffix.split("_")[-1])
+                                    )
+                                elif "_sma_" in suffix:
+                                    window = int(suffix.split("_")[-1])
+                                    result_df[new_feature] = (
+                                        df[feature].rolling(window=window).mean()
+                                    )
+                                features_added += 1
+
+            # Step 4: まだ不足分があれば0埋め
+            for i in range(features_added, 125):
+                feature_name = f"emergency_h27_{i:03d}"
+                result_df[feature_name] = 0.0
+
+            # NaN値の処理
+            result_df = result_df.fillna(0.0)
 
             logger.warning(
-                f"Emergency fallback created: {len(result_df.columns)} features"
+                f"🚨 [Phase H.27.6] Enhanced emergency fallback created: {len(result_df.columns)} features"
             )
             return result_df
 
         except Exception as e:
-            logger.error(f"Emergency fallback failed: {e}")
-            # 最後の手段：全て0の125特徴量DataFrame
+            logger.error(f"❌ [Phase H.27.6] Enhanced emergency fallback failed: {e}")
+            # 最後の手段：FEATURE_ORDER_125ベースの0埋めDataFrame
             emergency_df = pd.DataFrame(
                 0.0,
                 index=df.index if not df.empty else [0],
-                columns=[f"emergency_{i:03d}" for i in range(125)],
+                columns=self.FEATURE_ORDER_125,
+            )
+            logger.error(
+                f"🚨 [Phase H.27.6] Created zero-filled emergency DataFrame: {len(emergency_df.columns)} features"
             )
             return emergency_df
+
+    def _emergency_125_fallback(self, df: pd.DataFrame) -> pd.DataFrame:
+        """緊急時の125特徴量フォールバック（旧版・互換性維持）"""
+        logger.warning("Using legacy emergency 125-feature fallback")
+        return self._emergency_125_fallback_enhanced(df)
 
 
 # グローバルインスタンス
