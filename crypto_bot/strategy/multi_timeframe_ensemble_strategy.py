@@ -665,8 +665,10 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             )
         )
 
+        # Phase H.25: numpy配列のフォーマットエラー修正
+        safe_signal = float(integrated_signal) if hasattr(integrated_signal, '__array__') else integrated_signal
         logger.debug(
-            f"✅ Stage 2 integration: signal={integrated_signal:.3f}, "
+            f"✅ Stage 2 integration: signal={safe_signal:.3f}, "
             f"consensus={integration_info.get('consensus_score', 0):.3f}"
         )
 
