@@ -180,7 +180,7 @@ class CrossTimeframeIntegrator:
             else:
                 self.integration_stats["low_consensus_rejections"] += 1
 
-            # Phase H.24.3: numpy配列対応の安全なフォーマット処理（完全修正）
+            # Phase H.26: numpy配列対応の完全安全フォーマット処理
             # numpy配列の場合は常に最初の要素を取得、スカラーの場合はそのまま使用
             if isinstance(integrated_signal, np.ndarray):
                 safe_signal = float(integrated_signal.flat[0])
@@ -201,7 +201,8 @@ class CrossTimeframeIntegrator:
                 f"consensus={safe_consensus:.3f}, quality={integration_quality}"
             )
 
-            return integrated_signal, integration_info
+            # Phase H.26: 戻り値も安全なスカラー値を返す（後続処理での配列エラー防止）
+            return safe_signal, integration_info
 
         except Exception as e:
             logger.error(f"❌ Cross-timeframe integration failed: {e}")
@@ -584,31 +585,31 @@ class CrossTimeframeIntegrator:
         consensus_score = integration_info["consensus_score"]
         integration_quality = integration_info["integration_quality"]
 
+        # Phase H.26: 入力値の安全処理
+        safe_consensus_score = (
+            float(consensus_score.flat[0])
+            if isinstance(consensus_score, np.ndarray)
+            else float(consensus_score)
+        )
+        safe_integrated_signal = (
+            float(integrated_signal.flat[0])
+            if isinstance(integrated_signal, np.ndarray)
+            else float(integrated_signal)
+        )
+
         # 合意度閾値チェック
-        if consensus_score < self.consensus_threshold:
-            # Phase H.24.3: numpy配列安全処理
-            safe_consensus = (
-                float(consensus_score.flat[0])
-                if isinstance(consensus_score, np.ndarray)
-                else float(consensus_score)
-            )
+        if safe_consensus_score < self.consensus_threshold:
             logger.debug(
-                f"🚫 Low consensus rejection: {safe_consensus:.3f} < {self.consensus_threshold}"
+                f"🚫 Low consensus rejection: {safe_consensus_score:.3f} < {self.consensus_threshold}"
             )
             return Signal()  # シグナルなし
 
         if position_exists:
             # エグジット判定
-            exit_threshold = 0.4 + (1.0 - consensus_score) * 0.1
-            if integrated_signal < exit_threshold:
-                # Phase H.24.3: numpy配列安全処理
-                safe_signal = (
-                    float(integrated_signal.flat[0])
-                    if isinstance(integrated_signal, np.ndarray)
-                    else float(integrated_signal)
-                )
+            exit_threshold = 0.4 + (1.0 - safe_consensus_score) * 0.1
+            if safe_integrated_signal < exit_threshold:
                 logger.info(
-                    f"🚪 Cross-timeframe EXIT: signal={safe_signal:.3f} < {exit_threshold:.3f}"
+                    f"🚪 Cross-timeframe EXIT: signal={safe_integrated_signal:.3f} < {exit_threshold:.3f}"
                 )
                 return Signal(side="SELL", price=current_price)
             return Signal()  # ホールド
@@ -617,44 +618,22 @@ class CrossTimeframeIntegrator:
             # エントリー判定
             entry_threshold = 0.5 + (self.ensemble_confidence_threshold - 0.5)
 
-            if integrated_signal > entry_threshold and integration_quality in [
+            if safe_integrated_signal > entry_threshold and integration_quality in [
                 "good",
                 "excellent",
             ]:
-                # Phase H.24.3: numpy配列安全処理
-                safe_signal = (
-                    float(integrated_signal.flat[0])
-                    if isinstance(integrated_signal, np.ndarray)
-                    else float(integrated_signal)
-                )
-                safe_consensus = (
-                    float(consensus_score.flat[0])
-                    if isinstance(consensus_score, np.ndarray)
-                    else float(consensus_score)
-                )
                 logger.info(
-                    f"📈 Cross-timeframe LONG: signal={safe_signal:.3f}, "
-                    f"consensus={safe_consensus:.3f}, quality={integration_quality}"
+                    f"📈 Cross-timeframe LONG: signal={safe_integrated_signal:.3f}, "
+                    f"consensus={safe_consensus_score:.3f}, quality={integration_quality}"
                 )
                 return Signal(side="BUY", price=current_price)
 
-            elif integrated_signal < (
+            elif safe_integrated_signal < (
                 1.0 - entry_threshold
             ) and integration_quality in ["good", "excellent"]:
-                # Phase H.24.3: numpy配列安全処理
-                safe_signal = (
-                    float(integrated_signal.flat[0])
-                    if isinstance(integrated_signal, np.ndarray)
-                    else float(integrated_signal)
-                )
-                safe_consensus = (
-                    float(consensus_score.flat[0])
-                    if isinstance(consensus_score, np.ndarray)
-                    else float(consensus_score)
-                )
                 logger.info(
-                    f"📉 Cross-timeframe SHORT: signal={safe_signal:.3f}, "
-                    f"consensus={safe_consensus:.3f}, quality={integration_quality}"
+                    f"📉 Cross-timeframe SHORT: signal={safe_integrated_signal:.3f}, "
+                    f"consensus={safe_consensus_score:.3f}, quality={integration_quality}"
                 )
                 return Signal(side="SELL", price=current_price)
 

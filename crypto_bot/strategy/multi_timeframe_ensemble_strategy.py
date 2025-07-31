@@ -665,15 +665,24 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             )
         )
 
-        # Phase H.25: numpy配列のフォーマットエラー修正
+        # Phase H.26: numpy配列のフォーマットエラー完全修正
         safe_signal = (
-            float(integrated_signal)
-            if hasattr(integrated_signal, "__array__")
-            else integrated_signal
+            float(integrated_signal.flat[0])
+            if isinstance(integrated_signal, np.ndarray)
+            else float(integrated_signal)
         )
+
+        # consensus_scoreも安全に処理
+        consensus_raw = integration_info.get("consensus_score", 0)
+        safe_consensus = (
+            float(consensus_raw.flat[0])
+            if isinstance(consensus_raw, np.ndarray)
+            else float(consensus_raw)
+        )
+
         logger.debug(
             f"✅ Stage 2 integration: signal={safe_signal:.3f}, "
-            f"consensus={integration_info.get('consensus_score', 0):.3f}"
+            f"consensus={safe_consensus:.3f}"
         )
 
         return integrated_signal, integration_info
@@ -892,9 +901,16 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         consensus_score = integration_info.get("consensus_score", 0.0)
         integration_quality = integration_info.get("integration_quality", "poor")
 
+        # Phase H.26: consensus_scoreの安全処理
+        safe_consensus_score = (
+            float(consensus_score.flat[0])
+            if isinstance(consensus_score, np.ndarray)
+            else float(consensus_score)
+        )
+
         # 信頼度フィルタリング
-        if consensus_score < self.cross_timeframe_integrator.consensus_threshold:
-            logger.debug(f"🚫 Low consensus rejection: {consensus_score:.3f}")
+        if safe_consensus_score < self.cross_timeframe_integrator.consensus_threshold:
+            logger.debug(f"🚫 Low consensus rejection: {safe_consensus_score:.3f}")
             self.strategy_stats["low_confidence_rejections"] += 1
             return Signal()
 

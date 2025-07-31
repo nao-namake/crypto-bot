@@ -154,7 +154,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
     def fit(self, X: pd.DataFrame, y: pd.Series) -> "TradingEnsembleClassifier":
         """
-        アンサンブルモデルの学習
+        アンサンブルモデルの学習（Phase H.26: 堅牢化版）
 
         Parameters:
         -----------
@@ -163,32 +163,78 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         y : pd.Series
             ターゲットデータ
         """
-        self.feature_names_ = X.columns.tolist()
-        self.classes_ = np.unique(y)
+        try:
+            # Phase H.26: データ妥当性チェック
+            if not self._validate_training_data(X, y):
+                logger.error("Training data validation failed")
+                return self._create_fallback_ensemble()
 
-        logger.info(f"Training ensemble with {len(self.base_models)} base models")
-        logger.info(f"Ensemble method: {self.ensemble_method}")
+            # Phase H.26: インデックス整合性確保
+            X_clean, y_clean = self._align_and_clean_data(X, y)
 
-        # 1. ベースモデル学習
-        self._fit_base_models(X, y)
+            # Phase H.26: 最小サンプル数チェック
+            min_samples = max(20, len(X_clean.columns) // 5)  # 動的最小サンプル数
+            if len(y_clean) < min_samples:
+                logger.warning(
+                    f"Insufficient training samples: {len(y_clean)} < {min_samples}"
+                )
+                return self._create_fallback_ensemble()
 
-        # 2. 取引特化型メタ特徴量生成
-        if self.ensemble_method == "trading_stacking":
-            self._fit_trading_meta_model(X, y)
-        elif self.ensemble_method == "risk_weighted":
-            self._calculate_risk_weights(X, y)
+            self.feature_names_ = X_clean.columns.tolist()
+            self.classes_ = np.unique(y_clean)
 
-        # 3. モデル性能評価
-        self._evaluate_model_performance(X, y)
+            logger.info(f"Training ensemble with {len(self.base_models)} base models")
+            logger.info(f"Ensemble method: {self.ensemble_method}")
+            logger.info(
+                f"Training samples: {len(y_clean)}, Features: {len(X_clean.columns)}"
+            )
 
-        # 4. 取引特化型重み計算
-        self._calculate_trading_weights()
+            # 1. ベースモデル学習（堅牢化）
+            successful_models = self._fit_base_models_robust(X_clean, y_clean)
+            if successful_models == 0:
+                logger.error("All base models failed to train")
+                return self._create_fallback_ensemble()
 
-        # Phase H.16.1: 学習完了フラグ設定
-        self.is_fitted = True
+            # 2. 取引特化型メタ特徴量生成（堅牢化）
+            if self.ensemble_method == "trading_stacking" and successful_models >= 2:
+                try:
+                    self._fit_trading_meta_model(X_clean, y_clean)
+                except Exception as e:
+                    logger.warning(
+                        f"Meta model training failed: {e}, using simple voting"
+                    )
+                    self.ensemble_method = "risk_weighted"
+                    self._calculate_risk_weights(X_clean, y_clean)
+            elif self.ensemble_method == "risk_weighted":
+                self._calculate_risk_weights(X_clean, y_clean)
 
-        logger.info("Ensemble training completed")
-        return self
+            # 3. モデル性能評価（堅牢化）
+            try:
+                self._evaluate_model_performance(X_clean, y_clean)
+            except Exception as e:
+                logger.warning(f"Performance evaluation failed: {e}")
+                self.model_performance_ = {}
+
+            # 4. 取引特化型重み計算（堅牢化）
+            try:
+                self._calculate_trading_weights()
+            except Exception as e:
+                logger.warning(f"Trading weights calculation failed: {e}")
+                self.trading_weights_ = [1.0 / len(self.fitted_base_models)] * len(
+                    self.fitted_base_models
+                )
+
+            # Phase H.26: 学習完了フラグ設定
+            self.is_fitted = True
+
+            logger.info(
+                f"✅ Ensemble training completed successfully ({successful_models}/{len(self.base_models)} models)"
+            )
+            return self
+
+        except Exception as e:
+            logger.error(f"❌ Ensemble training failed completely: {e}")
+            return self._create_fallback_ensemble()
 
     def _fit_base_models(self, X: pd.DataFrame, y: pd.Series):
         """ベースモデルの学習"""
@@ -455,7 +501,7 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         self, X: pd.DataFrame, market_context: Dict = None
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
         """
-        取引特化型信頼度付き予測
+        取引特化型信頼度付き予測（Phase H.26: 堅牢化版）
 
         Parameters:
         -----------
@@ -475,7 +521,43 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         trading_info : Dict
             取引判断に関する詳細情報
         """
-        probabilities = self.predict_proba(X)
+        # Phase H.26: 予測前の堅牢性チェック
+        try:
+            # 学習済みチェック
+            if not hasattr(self, "is_fitted") or not self.is_fitted:
+                logger.warning("Model not fitted, using fallback predictions")
+                return self._create_fallback_predictions(X)
+
+            # ベースモデル存在チェック
+            if not self.fitted_base_models or len(self.fitted_base_models) == 0:
+                logger.warning("No fitted base models, using fallback predictions")
+                return self._create_fallback_predictions(X)
+
+            # 入力データ検証
+            if X is None or X.empty:
+                logger.error("Empty input data")
+                return self._create_fallback_predictions(X)
+
+            # 特徴量整合性チェック
+            if hasattr(self, "feature_names_") and self.feature_names_:
+                if list(X.columns) != self.feature_names_:
+                    logger.warning("Feature mismatch, attempting alignment")
+                    X = self._align_prediction_features(X)
+
+            # NaN値チェック
+            nan_ratio = X.isna().sum().sum() / (len(X) * len(X.columns))
+            if nan_ratio > 0.8:  # 80%以上がNaN
+                logger.error(f"Too many NaN values for prediction: {nan_ratio:.2%}")
+                return self._create_fallback_predictions(X)
+
+            # NaN値補完
+            X_clean = X.ffill().bfill().fillna(0)
+
+            probabilities = self.predict_proba(X_clean)
+
+        except Exception as e:
+            logger.error(f"Prediction failed: {e}, using fallback")
+            return self._create_fallback_predictions(X)
 
         # 動的閾値計算
         dynamic_threshold = self._calculate_dynamic_threshold(X, market_context)
@@ -841,6 +923,268 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         ).sort_values("importance", ascending=False)
 
         return importance_df
+
+    # Phase H.26: アンサンブル学習堅牢化メソッド群
+    def _validate_training_data(self, X: pd.DataFrame, y: pd.Series) -> bool:
+        """データ妥当性チェック"""
+        try:
+            # 基本的な存在確認
+            if X is None or y is None:
+                logger.error("X or y is None")
+                return False
+
+            if X.empty or y.empty:
+                logger.error("X or y is empty")
+                return False
+
+            # サイズ確認
+            if len(X) != len(y):
+                logger.error(f"Size mismatch: X={len(X)}, y={len(y)}")
+                return False
+
+            # 最小サイズ確認
+            if len(X) < 10:  # 絶対最小
+                logger.error(f"Dataset too small: {len(X)} samples")
+                return False
+
+            # NaN値チェック
+            x_nan_ratio = X.isna().sum().sum() / (len(X) * len(X.columns))
+            y_nan_ratio = y.isna().sum() / len(y)
+
+            if x_nan_ratio > 0.5:  # 50%以上がNaN
+                logger.error(f"Too many NaN values in X: {x_nan_ratio:.2%}")
+                return False
+
+            if y_nan_ratio > 0.3:  # 30%以上がNaN
+                logger.error(f"Too many NaN values in y: {y_nan_ratio:.2%}")
+                return False
+
+            # ターゲット値の多様性確認
+            unique_targets = len(y.unique())
+            if unique_targets < 2:
+                logger.error(f"Insufficient target diversity: {unique_targets} classes")
+                return False
+
+            logger.info(
+                f"✅ Data validation passed: {len(X)} samples, X_NaN={x_nan_ratio:.2%}, y_NaN={y_nan_ratio:.2%}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Data validation failed: {e}")
+            return False
+
+    def _align_and_clean_data(
+        self, X: pd.DataFrame, y: pd.Series
+    ) -> Tuple[pd.DataFrame, pd.Series]:
+        """インデックス整合性確保とNaN除去"""
+        try:
+            # インデックス整合
+            common_index = X.index.intersection(y.index)
+            if len(common_index) == 0:
+                logger.warning("No common index, using positional alignment")
+                # 位置ベース整合
+                min_len = min(len(X), len(y))
+                X_aligned = X.iloc[:min_len].reset_index(drop=True)
+                y_aligned = y.iloc[:min_len].reset_index(drop=True)
+            else:
+                X_aligned = X.loc[common_index]
+                y_aligned = y.loc[common_index]
+
+            # NaN除去
+            # まずyのNaNを除去
+            y_valid_mask = ~y_aligned.isna()
+            y_clean = y_aligned[y_valid_mask]
+            X_temp = X_aligned[y_valid_mask]
+
+            # 次にXの行で全てNaNの行を除去
+            x_valid_mask = ~X_temp.isna().all(axis=1)
+            X_clean = X_temp[x_valid_mask]
+            y_clean = y_clean[x_valid_mask]
+
+            # 各列で残っているNaNを前方補完（Phase H.26: pandas非推奨対応）
+            X_clean = X_clean.ffill().bfill().fillna(0)
+
+            logger.info(
+                f"Data alignment: {len(X)} → {len(X_clean)} samples after cleaning"
+            )
+            return X_clean, y_clean
+
+        except Exception as e:
+            logger.error(f"Data alignment failed: {e}")
+            # フォールバック: 単純な整合
+            min_len = min(len(X), len(y))
+            return X.iloc[:min_len].fillna(0), y.iloc[:min_len].fillna(0)
+
+    def _fit_base_models_robust(self, X: pd.DataFrame, y: pd.Series) -> int:
+        """堅牢なベースモデル学習"""
+        self.fitted_base_models = []
+        successful_models = 0
+
+        for i, model in enumerate(self.base_models):
+            try:
+                logger.info(
+                    f"Training base model {i+1}/{len(self.base_models)}: {type(model).__name__}"
+                )
+
+                # モデル固有の最小サンプル数チェック
+                model_min_samples = self._get_model_min_samples(model)
+                if len(y) < model_min_samples:
+                    logger.warning(
+                        f"Insufficient samples for {type(model).__name__}: {len(y)} < {model_min_samples}"
+                    )
+                    continue
+
+                # 確率校正付きモデルの学習
+                if hasattr(self, "use_calibration") and self.use_calibration:
+                    calibrated_model = CalibratedClassifierCV(
+                        model, method="sigmoid", cv=3
+                    )
+                    calibrated_model.fit(X, y)
+                    self.fitted_base_models.append(calibrated_model)
+                else:
+                    model.fit(X, y)
+                    self.fitted_base_models.append(model)
+
+                successful_models += 1
+                logger.info(f"✅ Base model {i+1} training completed")
+
+            except Exception as e:
+                logger.error(f"❌ Base model {i+1} failed: {e}")
+                # フォールバック: シンプルなLogisticRegression
+                try:
+                    fallback_model = LogisticRegression(random_state=42, max_iter=100)
+                    fallback_model.fit(X, y)
+                    self.fitted_base_models.append(fallback_model)
+                    successful_models += 1
+                    logger.warning(f"⚠️ Using fallback model for base model {i+1}")
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback model also failed: {fallback_error}")
+                    continue
+
+        logger.info(
+            f"Base models training completed: {successful_models}/{len(self.base_models)} successful"
+        )
+        return successful_models
+
+    def _get_model_min_samples(self, model) -> int:
+        """モデル別最小サンプル数取得"""
+        model_name = type(model).__name__
+
+        if model_name in ["XGBClassifier", "LGBMClassifier"]:
+            return 50  # 勾配ブースティング系
+        elif model_name == "RandomForestClassifier":
+            return 30  # ランダムフォレスト
+        elif model_name in ["LogisticRegression", "SVC"]:
+            return 20  # 線形モデル
+        else:
+            return 25  # その他
+
+    def _create_fallback_ensemble(self) -> "TradingEnsembleClassifier":
+        """フォールバック用簡易アンサンブル作成"""
+        logger.warning("Creating fallback ensemble with single LogisticRegression")
+
+        try:
+            # 最小限のLogisticRegressionモデル
+            fallback_model = LogisticRegression(
+                random_state=42, max_iter=100, class_weight="balanced"
+            )
+            self.fitted_base_models = [fallback_model]
+            self.ensemble_method = "simple_fallback"
+            self.is_fitted = False  # まだ学習していない
+            self.feature_names_ = []
+            self.classes_ = np.array([0, 1])
+            self.model_performance_ = {}
+            self.trading_weights_ = [1.0]
+
+            return self
+
+        except Exception as e:
+            logger.error(f"Failed to create fallback ensemble: {e}")
+            # 完全フォールバック
+            self.fitted_base_models = []
+            self.is_fitted = False
+            return self
+
+    def _create_fallback_predictions(
+        self, X: pd.DataFrame
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
+        """フォールバック予測生成"""
+        try:
+            n_samples = len(X)
+
+            # 基本的な確率（わずかに楽観的）
+            fallback_probabilities = np.column_stack(
+                [
+                    np.full(n_samples, 0.45),  # クラス0確率
+                    np.full(n_samples, 0.55),  # クラス1確率（わずかに楽観的）
+                ]
+            )
+
+            # 予測クラス
+            predictions = np.ones(n_samples, dtype=int)  # わずかに楽観的
+
+            # 低めの信頼度
+            confidence_scores = np.full(n_samples, 0.35)
+
+            # フォールバック情報
+            trading_info = {
+                "method": "fallback",
+                "ensemble_enabled": False,
+                "dynamic_threshold": 0.5,
+                "market_regime": "unknown",
+                "risk_level": "high",
+                "model_agreement": 0.5,
+                "prediction_quality": "poor",
+            }
+
+            logger.warning(f"Using fallback predictions for {n_samples} samples")
+            return predictions, fallback_probabilities, confidence_scores, trading_info
+
+        except Exception as e:
+            logger.error(f"Fallback prediction failed: {e}")
+            # 最後の手段
+            n_samples = max(1, len(X) if X is not None and not X.empty else 1)
+            return (
+                np.zeros(n_samples, dtype=int),
+                np.full((n_samples, 2), 0.5),
+                np.full(n_samples, 0.1),
+                {"method": "emergency_fallback", "ensemble_enabled": False},
+            )
+
+    def _align_prediction_features(self, X: pd.DataFrame) -> pd.DataFrame:
+        """予測用特徴量整合"""
+        try:
+            if not hasattr(self, "feature_names_") or not self.feature_names_:
+                logger.warning("No stored feature names, using input as-is")
+                return X
+
+            # 不足する特徴量を0で補完
+            missing_features = set(self.feature_names_) - set(X.columns)
+            if missing_features:
+                logger.warning(
+                    f"Adding missing features with zeros: {len(missing_features)} features"
+                )
+                for feature in missing_features:
+                    X[feature] = 0.0
+
+            # 余分な特徴量を削除
+            extra_features = set(X.columns) - set(self.feature_names_)
+            if extra_features:
+                logger.warning(
+                    f"Removing extra features: {len(extra_features)} features"
+                )
+                X = X.drop(columns=extra_features)
+
+            # 順序を合わせる
+            X = X[self.feature_names_]
+
+            logger.info(f"Feature alignment completed: {len(X.columns)} features")
+            return X
+
+        except Exception as e:
+            logger.error(f"Feature alignment failed: {e}")
+            return X  # 元のまま返す
 
 
 def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier:

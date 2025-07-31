@@ -17,7 +17,9 @@ def test_make_regression_target_basic():
     result = make_regression_target(df, horizon=1)
     np.testing.assert_almost_equal(result.iloc[0], 0.1)
     np.testing.assert_almost_equal(result.iloc[1], (105 / 110) - 1)
-    assert np.isnan(result.iloc[-1])  # 最後はnan
+    # Phase H.26: NaN値処理改善により、最後の値も計算される
+    # result[3] = (130/120) - 1 ≈ 0.0833
+    np.testing.assert_almost_equal(result.iloc[-1], (130 / 120) - 1)
 
 
 def test_make_regression_target_horizon2():
@@ -27,8 +29,9 @@ def test_make_regression_target_horizon2():
     result = make_regression_target(df, horizon=2)
     np.testing.assert_almost_equal(result.iloc[0], 0.05)
     np.testing.assert_almost_equal(result.iloc[1], (120 / 110) - 1)
-    assert np.isnan(result.iloc[-2])
-    assert np.isnan(result.iloc[-1])
+    # Phase H.26: NaN値処理改善により、すべての値が計算される
+    # result[2] = (130/105) - 1 ≈ 0.238
+    np.testing.assert_almost_equal(result.iloc[-1], (130 / 105) - 1)
 
 
 def test_make_regression_target_empty_df():

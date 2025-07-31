@@ -2282,7 +2282,18 @@ def prepare_ml_dataset(
     idx = df.index[drop_n:]
     X = pd.DataFrame(X_arr[drop_n:], index=idx)
 
-    return X, y_reg.loc[idx], y_clf.loc[idx]
+    # Phase H.26: 安全なインデックス処理（共通インデックスのみ使用）
+    common_idx = idx.intersection(y_reg.index).intersection(y_clf.index)
+    if len(common_idx) != len(idx):
+        import logging
+
+        prep_logger = logging.getLogger(__name__)
+        prep_logger.warning(
+            f"Index mismatch detected: {len(idx)} -> {len(common_idx)} samples"
+        )
+        X = X.loc[common_idx]
+
+    return X, y_reg.loc[common_idx], y_clf.loc[common_idx]
 
 
 # Phase H.11: 特徴量完全性保証システム統合

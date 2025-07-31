@@ -150,12 +150,12 @@ class MarketDataFetcher:
             MAX_CONSECUTIVE_EMPTY = (
                 max_consecutive_empty
                 if max_consecutive_empty is not None
-                else 8  # 5→8に増加（安定取得強化）
+                else 12  # Phase H.26: 200レコード確実取得のため増加
             )
             MAX_CONSECUTIVE_NO_NEW = (
                 max_consecutive_no_new
                 if max_consecutive_no_new is not None
-                else 15  # 8→15に増加（per_page大幅増加対応）
+                else 20  # Phase H.26: 小バッチ対応・継続取得強化
             )
             logger.info(f"🔄 Paginated fetch: limit={limit}, per_page={per_page}")
             logger.info(

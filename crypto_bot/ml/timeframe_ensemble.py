@@ -153,14 +153,51 @@ class TimeframeEnsembleProcessor:
                 f"📊 [{self.timeframe}] Feature order protected: {len(feature_columns)} features (save disabled)"
             )
 
-            # スケーリング
-            scaled_features = self.scaler.fit_transform(feat_df.values)
-            X_scaled = pd.DataFrame(
-                scaled_features, index=feat_df.index, columns=feat_df.columns
+            # Phase H.26: 学習前のNaN値除去処理
+            # X, yのインデックスを合わせる
+            common_index = feat_df.index.intersection(y.index)
+            if len(common_index) == 0:
+                logger.error(
+                    f"No common index between features and target for {self.timeframe}"
+                )
+                return self
+
+            feat_df_aligned = feat_df.loc[common_index]
+            y_aligned = y.loc[common_index]
+
+            # NaN値を含む行を除去
+            valid_mask = ~(feat_df_aligned.isna().any(axis=1) | y_aligned.isna())
+            if valid_mask.sum() == 0:
+                logger.error(f"All samples contain NaN values for {self.timeframe}")
+                return self
+
+            feat_df_clean = feat_df_aligned[valid_mask]
+            y_clean = y_aligned[valid_mask]
+
+            logger.info(
+                f"📊 [{self.timeframe}] Clean data: {len(y_clean)}/{len(y_aligned)} samples ({len(y_clean)/len(y_aligned)*100:.1f}%)"
             )
 
-            # アンサンブルモデル学習
-            self.ensemble_model.fit(X_scaled, y)
+            # 最小学習サンプル数チェック
+            min_samples = max(
+                15, len(feat_df_clean.columns) // 10
+            )  # Phase H.26: 動的最小サンプル数
+            if len(y_clean) < min_samples:
+                logger.warning(
+                    f"Insufficient clean samples for {self.timeframe}: {len(y_clean)} < {min_samples}"
+                )
+                return self
+
+            # スケーリング
+            scaled_features = self.scaler.fit_transform(feat_df_clean.values)
+            X_scaled = pd.DataFrame(
+                scaled_features,
+                index=feat_df_clean.index,
+                columns=feat_df_clean.columns,
+            )
+
+            # アンサンブルモデル学習（クリーンなデータで）
+            self.ensemble_model.fit(X_scaled, y_clean)
             self.is_fitted = True
 
             # 学習結果情報取得

@@ -26,10 +26,10 @@ data:
   weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
   early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
   
-  # Phase H.25: ページネーション設定最適化
-  max_consecutive_empty: 5  # 8→5（現実的な設定）
-  max_consecutive_no_new: 10  # 15→10（無限ループ防止）
-  max_attempts: 15  # 25→15（実用的な試行回数）
+  # Phase H.26: ページネーション設定強化（200レコード確実取得）
+  max_consecutive_empty: 12  # 5→12（200レコード目標達成のため増加）
+  max_consecutive_no_new: 20  # 10→20（小バッチ対応・継続取得強化）
+  max_attempts: 25  # 15→25（十分な試行回数確保）
   exponential_backoff: true  # 指数バックオフ有効化
   min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
   max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
