@@ -846,19 +846,21 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
 
             # データとラベルの長さを調整（最後の行を除外）
             if len(tf_data) > len(tf_labels):
-                tf_data_adjusted = tf_data.iloc[: len(tf_labels)]
+                # tf_dataの長さに合わせるため、最後にNaNを追加
+                nan_count = len(tf_data) - len(tf_labels)
+                nan_series = pd.Series([np.nan] * nan_count, index=tf_data.index[-nan_count:])
+                tf_labels = pd.concat([tf_labels, nan_series])
                 logger.debug(
-                    f"📊 {timeframe} adjusted data length: {len(tf_data)} → {len(tf_data_adjusted)}"
+                    f"📊 {timeframe} labels padded with {nan_count} NaN values"
                 )
-            else:
-                tf_data_adjusted = tf_data
 
             # インデックスを揃える
-            tf_labels.index = tf_data_adjusted.index
+            tf_labels.index = tf_data.index
 
             logger.info(
                 f"✅ {timeframe} labels generated: {len(tf_labels)} labels, "
-                f"positive rate: {tf_labels.mean():.2%}"
+                f"non-NaN labels: {tf_labels.notna().sum()}, "
+                f"positive rate: {tf_labels.dropna().mean():.2%}"
             )
 
             return tf_labels

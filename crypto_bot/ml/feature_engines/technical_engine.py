@@ -81,7 +81,7 @@ class TechnicalFeatureEngine:
                 # 数値期間の場合
                 if param.isdigit():
                     period = int(param)
-                    if base in configs:
+                    if base in configs and "periods" in configs[base]:
                         configs[base]["periods"].append(period)
                 # 複合パラメータの場合
                 elif base == "volume" and "zscore" in param:
@@ -98,6 +98,10 @@ class TechnicalFeatureEngine:
                     configs["ema"]["periods"].extend([10, 12, 26, 50, 100])
                 elif feat_lc in ["macd", "stoch", "adx"]:
                     configs[feat_lc]["enabled"] = True
+                elif "stoch" in feat_lc:
+                    configs["stoch"]["enabled"] = True
+                elif "adx" in feat_lc:
+                    configs["adx"]["enabled"] = True
 
         # 重複除去・ソート
         for indicator in ["rsi", "sma", "ema", "atr", "volume_zscore"]:
@@ -105,6 +109,19 @@ class TechnicalFeatureEngine:
                 configs[indicator]["periods"] = sorted(
                     list(set(configs[indicator]["periods"]))
                 )
+        
+        # Phase H.25: 関連特徴量から親指標を有効化
+        # stoch_k, stoch_d などが含まれていればstochを有効化
+        if any("stoch" in feat.lower() for feat in extra_features):
+            configs["stoch"]["enabled"] = True
+        
+        # adx_14などが含まれていればadxを有効化
+        if any("adx" in feat.lower() for feat in extra_features):
+            configs["adx"]["enabled"] = True
+        
+        # macd関連も同様に
+        if any("macd" in feat.lower() for feat in extra_features):
+            configs["macd"]["enabled"] = True
 
         return configs
 
@@ -128,6 +145,12 @@ class TechnicalFeatureEngine:
                     rsi_values = self._calculate_rsi_builtin(close_series, period)
 
                 rsi_features[f"rsi_{period}"] = rsi_values
+            
+            # RSI oversold/overbought特徴量を追加
+            if "rsi_14" in rsi_features:
+                rsi_14 = rsi_features["rsi_14"]
+                rsi_features["rsi_oversold"] = (rsi_14 < 30).astype(int)
+                rsi_features["rsi_overbought"] = (rsi_14 > 70).astype(int)
 
             logger.debug(f"✅ RSI batch: {len(rsi_features)} indicators ({periods})")
             return self.batch_calc.create_feature_batch(
@@ -214,9 +237,7 @@ class TechnicalFeatureEngine:
                 else:
                     atr_values = self._calculate_atr_builtin(df, period)
 
-                # 基本ATRは特別な名前
-                if period == base_period:
-                    atr_features[f"ATR_{period}"] = atr_values
+                # 小文字のatr_期間のみを使用（重複を避ける）
                 atr_features[f"atr_{period}"] = atr_values
 
             logger.debug(
@@ -307,6 +328,16 @@ class TechnicalFeatureEngine:
                             "macd_hist": macd_hist,
                         }
                     )
+                
+                # MACD cross特徴量を追加
+                if "macd" in complex_features and "macd_signal" in complex_features:
+                    macd = complex_features["macd"]
+                    signal = complex_features["macd_signal"]
+                    # クロスの検出
+                    macd_above = macd > signal
+                    macd_below = macd < signal
+                    complex_features["macd_cross_up"] = (macd_above & macd_below.shift(1)).astype(int)
+                    complex_features["macd_cross_down"] = (macd_below & macd_above.shift(1)).astype(int)
 
             # Stochastic計算
             if self.technical_configs["stoch"]["enabled"]:
@@ -360,6 +391,12 @@ class TechnicalFeatureEngine:
                 else:
                     stoch_k, stoch_d = self._calculate_stochastic_builtin(df)
                     complex_features.update({"stoch_k": stoch_k, "stoch_d": stoch_d})
+            
+            # Stochastic oversold/overbought特徴量を追加
+            if "stoch_k" in complex_features:
+                stoch_k = complex_features["stoch_k"]
+                complex_features["stoch_oversold"] = (stoch_k < 20).astype(int)
+                complex_features["stoch_overbought"] = (stoch_k > 80).astype(int)
 
             # ADX計算
             if self.technical_configs["adx"]["enabled"]:
@@ -390,14 +427,14 @@ class TechnicalFeatureEngine:
                             else:
                                 adx = self._calculate_adx_builtin(df)
 
-                        complex_features["adx"] = adx
+                        complex_features["adx_14"] = adx
 
                     except (AttributeError, TypeError, ValueError) as e:
                         logger.warning(
                             f"⚠️ IndicatorCalculator ADX failed: {e}, using builtin"
                         )
                         adx = self._calculate_adx_builtin(df)
-                        complex_features["adx"] = adx
+                        complex_features["adx_14"] = adx
                 else:
                     adx = self._calculate_adx_builtin(df)
                     complex_features["adx"] = adx
@@ -443,6 +480,286 @@ class TechnicalFeatureEngine:
             logger.error(f"❌ Lag/Rolling batch calculation failed: {e}")
             return FeatureBatch("lag_roll_batch", {})
 
+    def calculate_missing_features_batch(self, df: pd.DataFrame) -> FeatureBatch:
+        """Phase H.25: 不足している125特徴量を計算"""
+        try:
+            missing_features = {}
+            
+            # 基本OHLCV特徴量
+            missing_features["open"] = df["open"]
+            missing_features["high"] = df["high"]  
+            missing_features["low"] = df["low"]
+            
+            # ボリンジャーバンド
+            if self.indicator_available and self.ind_calc:
+                bb_result = self.ind_calc.bollinger_bands(df["close"])
+                if isinstance(bb_result, pd.DataFrame):
+                    # BBL_20_2.0 -> bb_lower のようにマッピング
+                    if "BBL_20_2.0" in bb_result.columns:
+                        missing_features["bb_lower"] = bb_result["BBL_20_2.0"]
+                    if "BBM_20_2.0" in bb_result.columns:
+                        missing_features["bb_middle"] = bb_result["BBM_20_2.0"]
+                    if "BBU_20_2.0" in bb_result.columns:
+                        missing_features["bb_upper"] = bb_result["BBU_20_2.0"]
+                    if "BBB_20_2.0" in bb_result.columns:
+                        missing_features["bb_position"] = bb_result["BBB_20_2.0"]
+                    if "BBW_20_2.0" in bb_result.columns:
+                        missing_features["bb_width"] = bb_result["BBW_20_2.0"]
+                    else:
+                        # BBWが無い場合は計算する
+                        if "BBU_20_2.0" in bb_result.columns and "BBL_20_2.0" in bb_result.columns and "BBM_20_2.0" in bb_result.columns:
+                            missing_features["bb_width"] = (bb_result["BBU_20_2.0"] - bb_result["BBL_20_2.0"]) / bb_result["BBM_20_2.0"]
+            else:
+                # 内蔵計算
+                sma_20 = df["close"].rolling(window=20).mean()
+                std_20 = df["close"].rolling(window=20).std()
+                missing_features["bb_upper"] = sma_20 + (std_20 * 2)
+                missing_features["bb_middle"] = sma_20
+                missing_features["bb_lower"] = sma_20 - (std_20 * 2)
+                missing_features["bb_width"] = (missing_features["bb_upper"] - missing_features["bb_lower"]) / sma_20
+                missing_features["bb_position"] = (df["close"] - missing_features["bb_lower"]) / (missing_features["bb_upper"] - missing_features["bb_lower"] + 1e-8)
+            
+            # SMA変数を確実に定義
+            if 'sma_20' not in locals():
+                sma_20 = df["close"].rolling(window=20).mean()
+            if 'std_20' not in locals():
+                std_20 = df["close"].rolling(window=20).std()
+            
+            # ボリンジャーバンドスクイーズ
+            missing_features["bb_squeeze"] = (missing_features.get("bb_width", std_20 * 4 / sma_20) < 0.1).astype(int)
+            
+            # 価格位置特徴量
+            missing_features["price_position_20"] = (df["close"] - df["close"].rolling(20).min()) / (df["close"].rolling(20).max() - df["close"].rolling(20).min() + 1e-8)
+            missing_features["price_position_50"] = (df["close"] - df["close"].rolling(50).min()) / (df["close"].rolling(50).max() - df["close"].rolling(50).min() + 1e-8)
+            missing_features["price_vs_sma20"] = (df["close"] - sma_20) / sma_20
+            missing_features["intraday_position"] = (df["close"] - df["low"]) / (df["high"] - df["low"] + 1e-8)
+            
+            # リターン特徴量
+            for period in [1, 2, 3, 5, 10]:
+                missing_features[f"returns_{period}"] = df["close"].pct_change(period)
+                missing_features[f"log_returns_{period}"] = np.log(df["close"] / df["close"].shift(period))
+            
+            # ボリュームラグ特徴量
+            for lag in [1, 2, 3, 4, 5]:
+                missing_features[f"volume_lag_{lag}"] = df["volume"].shift(lag)
+            
+            # 追加のラグ特徴量
+            missing_features["close_lag_4"] = df["close"].shift(4)
+            missing_features["close_lag_5"] = df["close"].shift(5)
+            
+            # ボラティリティ特徴量
+            missing_features["volatility_20"] = df["close"].pct_change().rolling(20).std()
+            missing_features["volatility_50"] = df["close"].pct_change().rolling(50).std()
+            missing_features["high_low_ratio"] = df["high"] / df["low"]
+            missing_features["true_range"] = np.maximum(df["high"] - df["low"], np.maximum(np.abs(df["high"] - df["close"].shift()), np.abs(df["low"] - df["close"].shift())))
+            missing_features["volatility_ratio"] = missing_features["volatility_20"] / (missing_features["volatility_50"] + 1e-8)
+            
+            # ボリューム関連特徴量
+            missing_features["volume_sma_20"] = df["volume"].rolling(20).mean()
+            missing_features["volume_ratio"] = df["volume"] / (missing_features["volume_sma_20"] + 1e-8)
+            missing_features["volume_trend"] = missing_features["volume_sma_20"].pct_change(5)
+            
+            # VWAP
+            typical_price = (df["high"] + df["low"] + df["close"]) / 3
+            missing_features["vwap"] = (typical_price * df["volume"]).cumsum() / df["volume"].cumsum()
+            missing_features["vwap_distance"] = (df["close"] - missing_features["vwap"]) / missing_features["vwap"]
+            
+            # その他のテクニカル指標
+            if self.indicator_available and self.ind_calc:
+                # Williams %R
+                try:
+                    missing_features["williams_r"] = self.ind_calc.williams_r(df)
+                except:
+                    # フォールバック
+                    highest_high = df["high"].rolling(14).max()
+                    lowest_low = df["low"].rolling(14).min()
+                    missing_features["williams_r"] = -100 * (highest_high - df["close"]) / (highest_high - lowest_low + 1e-8)
+                
+                # CCI
+                try:
+                    cci = self.ind_calc.cci(df, window=20)
+                    if isinstance(cci, pd.Series):
+                        missing_features["cci_20"] = cci
+                except:
+                    # フォールバック
+                    typical_price = (df["high"] + df["low"] + df["close"]) / 3
+                    sma_tp = typical_price.rolling(20).mean()
+                    mad = typical_price.rolling(20).apply(lambda x: np.abs(x - x.mean()).mean())
+                    missing_features["cci_20"] = (typical_price - sma_tp) / (0.015 * mad + 1e-8)
+            else:
+                # 内蔵計算
+                # Williams %R
+                highest_high = df["high"].rolling(14).max()
+                lowest_low = df["low"].rolling(14).min()
+                missing_features["williams_r"] = -100 * (highest_high - df["close"]) / (highest_high - lowest_low + 1e-8)
+                
+                # CCI
+                typical_price = (df["high"] + df["low"] + df["close"]) / 3
+                sma_tp = typical_price.rolling(20).mean()
+                mad = typical_price.rolling(20).apply(lambda x: np.abs(x - x.mean()).mean())
+                missing_features["cci_20"] = (typical_price - sma_tp) / (0.015 * mad + 1e-8)
+            
+            # OBV（On Balance Volume）
+            obv = (np.sign(df["close"].diff()) * df["volume"]).cumsum()
+            missing_features["obv"] = obv
+            missing_features["obv_sma"] = obv.rolling(20).mean()
+            
+            # AD Line
+            clv = ((df["close"] - df["low"]) - (df["high"] - df["close"])) / (df["high"] - df["low"] + 1e-8)
+            missing_features["ad_line"] = (clv * df["volume"]).cumsum()
+            
+            # CMF（Chaikin Money Flow）
+            mf_multiplier = clv
+            mf_volume = mf_multiplier * df["volume"]
+            missing_features["cmf"] = mf_volume.rolling(20).sum() / df["volume"].rolling(20).sum()
+            
+            # MFI（Money Flow Index）
+            typical_price = (df["high"] + df["low"] + df["close"]) / 3
+            raw_money_flow = typical_price * df["volume"]
+            positive_flow = raw_money_flow.where(typical_price > typical_price.shift(), 0).rolling(14).sum()
+            negative_flow = raw_money_flow.where(typical_price <= typical_price.shift(), 0).rolling(14).sum()
+            mfi_ratio = positive_flow / (negative_flow + 1e-8)
+            missing_features["mfi"] = 100 - (100 / (1 + mfi_ratio))
+            
+            # ADXの要素（Plus/Minus DI）
+            high_diff = df["high"].diff()
+            low_diff = -df["low"].diff()
+            plus_dm = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0)
+            minus_dm = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0)
+            tr = missing_features.get("true_range", self._calculate_atr_builtin(df, 1))
+            missing_features["plus_di"] = 100 * (pd.Series(plus_dm).rolling(14).sum() / tr.rolling(14).sum())
+            missing_features["minus_di"] = 100 * (pd.Series(minus_dm).rolling(14).sum() / tr.rolling(14).sum())
+            
+            # ADX（既に計算されているが、adx_14として保存）
+            if "adx" in missing_features:
+                missing_features["adx_14"] = missing_features.pop("adx")
+            
+            # トレンド関連特徴量
+            missing_features["trend_strength"] = abs(missing_features.get("price_vs_sma20", 0))
+            missing_features["trend_direction"] = np.sign(df["close"] - sma_20)
+            
+            # Ultimate Oscillator（簡易版）
+            bp = df["close"] - np.minimum(df["low"], df["close"].shift())
+            tr = missing_features.get("true_range", self._calculate_atr_builtin(df, 1))
+            avg7 = bp.rolling(7).sum() / tr.rolling(7).sum()
+            avg14 = bp.rolling(14).sum() / tr.rolling(14).sum()
+            avg28 = bp.rolling(28).sum() / tr.rolling(28).sum()
+            missing_features["ultimate_oscillator"] = 100 * ((4 * avg7) + (2 * avg14) + avg28) / 7
+            
+            # サポート・レジスタンス距離（簡易版）
+            support = df["low"].rolling(20).min()
+            resistance = df["high"].rolling(20).max()
+            missing_features["support_distance"] = (df["close"] - support) / df["close"]
+            missing_features["resistance_distance"] = (resistance - df["close"]) / df["close"]
+            missing_features["support_strength"] = (df["close"] - support) / (resistance - support + 1e-8)
+            
+            # ブレイクアウト関連
+            missing_features["volume_breakout"] = (df["volume"] > df["volume"].rolling(20).mean() * 2).astype(int)
+            missing_features["price_breakout_up"] = (df["close"] > df["high"].shift(1).rolling(20).max()).astype(int)
+            missing_features["price_breakout_down"] = (df["close"] < df["low"].shift(1).rolling(20).min()).astype(int)
+            
+            # キャンドルパターン（簡易版）
+            body = df["close"] - df["open"]
+            upper_shadow = df["high"] - np.maximum(df["open"], df["close"])
+            lower_shadow = np.minimum(df["open"], df["close"]) - df["low"]
+            body_size = abs(body)
+            
+            missing_features["doji"] = (body_size < (df["high"] - df["low"]) * 0.1).astype(int)
+            missing_features["hammer"] = ((lower_shadow > body_size * 2) & (upper_shadow < body_size * 0.5)).astype(int)
+            missing_features["engulfing"] = ((body > 0) & (body.shift() < 0) & (abs(body) > abs(body.shift()))).astype(int)
+            missing_features["pinbar"] = ((upper_shadow > body_size * 2) | (lower_shadow > body_size * 2)).astype(int)
+            
+            # 統計的特徴量
+            missing_features["skewness_20"] = df["close"].pct_change().rolling(20).apply(lambda x: x.skew())
+            missing_features["kurtosis_20"] = df["close"].pct_change().rolling(20).apply(lambda x: x.kurt())
+            missing_features["zscore"] = (df["close"] - df["close"].rolling(20).mean()) / df["close"].rolling(20).std()
+            missing_features["mean_reversion_20"] = -missing_features["zscore"]
+            missing_features["mean_reversion_50"] = -(df["close"] - df["close"].rolling(50).mean()) / df["close"].rolling(50).std()
+            
+            # 時間関連特徴量
+            if "timestamp" in df.columns:
+                dt_index = pd.to_datetime(df["timestamp"])
+                missing_features["hour"] = dt_index.dt.hour
+                missing_features["day_of_week"] = dt_index.dt.dayofweek
+                missing_features["is_weekend"] = (dt_index.dt.dayofweek >= 5).astype(int)
+                missing_features["is_asian_session"] = ((dt_index.dt.hour >= 0) & (dt_index.dt.hour < 8)).astype(int)
+                missing_features["is_european_session"] = ((dt_index.dt.hour >= 8) & (dt_index.dt.hour < 16)).astype(int)
+                missing_features["is_us_session"] = ((dt_index.dt.hour >= 16) & (dt_index.dt.hour < 24)).astype(int)
+            
+            # 追加の指標
+            missing_features["roc_10"] = df["close"].pct_change(10) * 100
+            missing_features["roc_20"] = df["close"].pct_change(20) * 100
+            
+            # TRIX（簡易版）
+            ema1 = df["close"].ewm(span=14, adjust=False).mean()
+            ema2 = ema1.ewm(span=14, adjust=False).mean()
+            ema3 = ema2.ewm(span=14, adjust=False).mean()
+            missing_features["trix"] = ema3.pct_change() * 10000
+            
+            # Mass Index（簡易版）
+            ema_hl = (df["high"] - df["low"]).ewm(span=9, adjust=False).mean()
+            ema_ema_hl = ema_hl.ewm(span=9, adjust=False).mean()
+            missing_features["mass_index"] = (ema_hl / ema_ema_hl).rolling(25).sum()
+            
+            # Keltner Channels
+            kc_ema = df["close"].ewm(span=20, adjust=False).mean()
+            kc_atr = missing_features.get("atr_14", self._calculate_atr_builtin(df, 14))
+            missing_features["keltner_upper"] = kc_ema + (kc_atr * 2)
+            missing_features["keltner_lower"] = kc_ema - (kc_atr * 2)
+            
+            # Donchian Channels
+            missing_features["donchian_upper"] = df["high"].rolling(20).max()
+            missing_features["donchian_lower"] = df["low"].rolling(20).min()
+            
+            # Ichimoku（簡易版）
+            high_9 = df["high"].rolling(9).max()
+            low_9 = df["low"].rolling(9).min()
+            missing_features["ichimoku_conv"] = (high_9 + low_9) / 2
+            
+            high_26 = df["high"].rolling(26).max()
+            low_26 = df["low"].rolling(26).min()
+            missing_features["ichimoku_base"] = (high_26 + low_26) / 2
+            
+            # 効率性・品質指標
+            missing_features["price_efficiency"] = abs(df["close"] - df["close"].shift(20)) / (df["high"].rolling(20).max() - df["low"].rolling(20).min() + 1e-8)
+            missing_features["trend_consistency"] = df["close"].diff().rolling(20).apply(lambda x: (x > 0).sum() / len(x))
+            missing_features["volume_price_correlation"] = df["close"].pct_change().rolling(20).corr(df["volume"].pct_change())
+            
+            # レジーム判定
+            vol_20 = missing_features.get("volatility_20", df["close"].pct_change().rolling(20).std())
+            vol_median = vol_20.rolling(100).median()
+            missing_features["volatility_regime"] = (vol_20 > vol_median * 1.5).astype(int)
+            
+            # モメンタム品質
+            returns = df["close"].pct_change()
+            missing_features["momentum_quality"] = returns.rolling(20).mean() / (returns.rolling(20).std() + 1e-8)
+            
+            # マーケットフェーズ
+            sma_50 = df["close"].rolling(50).mean()
+            sma_200 = df["close"].rolling(200).mean()
+            phase = np.where(
+                (df["close"] > sma_50) & (sma_50 > sma_200), 1,  # 上昇トレンド
+                np.where(
+                    (df["close"] < sma_50) & (sma_50 < sma_200), -1,  # 下降トレンド
+                    0  # レンジ
+                )
+            )
+            missing_features["market_phase"] = pd.Series(phase, index=df.index)
+            
+            # momentum_14（最後に追加）
+            missing_features["momentum_14"] = df["close"] - df["close"].shift(14)
+            
+            logger.info(f"✅ Missing features batch: {len(missing_features)} features calculated")
+            return self.batch_calc.create_feature_batch(
+                "missing_features_batch", missing_features, df.index
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Missing features batch calculation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return FeatureBatch("missing_features_batch", {})
+
     def calculate_all_technical_batches(self, df: pd.DataFrame) -> List[FeatureBatch]:
         """全テクニカル指標バッチ計算"""
         batches = []
@@ -455,6 +772,7 @@ class TechnicalFeatureEngine:
         batches.append(self.calculate_atr_batch(df))  # ATR
         batches.append(self.calculate_volume_zscore_batch(df))  # Volume指標
         batches.append(self.calculate_complex_indicators_batch(df))  # 複合指標
+        batches.append(self.calculate_missing_features_batch(df))  # Phase H.25: 不足特徴量
 
         # 空でないバッチのみを返す
         non_empty_batches = [batch for batch in batches if len(batch) > 0]

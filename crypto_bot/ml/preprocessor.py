@@ -29,6 +29,7 @@ try:
         ExternalDataIntegrator,
         TechnicalFeatureEngine,
     )
+    from crypto_bot.ml.feature_order_manager import FeatureOrderManager
 
     BATCH_ENGINES_AVAILABLE = True
 except ImportError as e:
@@ -349,9 +350,28 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             result_df = self.batch_calculator.merge_batches_efficient(
                 df, feature_batches
             )
+            
+            # Phase H.25: 特徴量順序の整合性確保
+            # timestampを除外し、feature_order.jsonの順序に合わせる
+            if "timestamp" in result_df.columns:
+                result_df = result_df.drop(columns=["timestamp"])
+            
+            # FeatureOrderManagerを使用して順序を整合
+            fom = FeatureOrderManager()
+            expected_features = fom.FEATURE_ORDER_125
+            
+            # 期待される特徴量のみを選択し、順序を保証
+            available_features = [col for col in expected_features if col in result_df.columns]
+            missing_features = [col for col in expected_features if col not in result_df.columns]
+            
+            if missing_features:
+                logger.warning(f"⚠️ Missing {len(missing_features)} features: {missing_features[:10]}...")
+            
+            # 期待される順序で特徴量を並べ替え
+            result_df = result_df[available_features]
 
             processing_time = time.time() - start_time
-            total_features = sum(len(batch) for batch in feature_batches)
+            total_features = len(result_df.columns)
 
             logger.info(
                 f"✅ Batch processing completed: {total_features} features "
