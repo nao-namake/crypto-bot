@@ -666,7 +666,11 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         )
 
         # Phase H.25: numpy配列のフォーマットエラー修正
-        safe_signal = float(integrated_signal) if hasattr(integrated_signal, '__array__') else integrated_signal
+        safe_signal = (
+            float(integrated_signal)
+            if hasattr(integrated_signal, "__array__")
+            else integrated_signal
+        )
         logger.debug(
             f"✅ Stage 2 integration: signal={safe_signal:.3f}, "
             f"consensus={integration_info.get('consensus_score', 0):.3f}"
@@ -848,7 +852,9 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             if len(tf_data) > len(tf_labels):
                 # tf_dataの長さに合わせるため、最後にNaNを追加
                 nan_count = len(tf_data) - len(tf_labels)
-                nan_series = pd.Series([np.nan] * nan_count, index=tf_data.index[-nan_count:])
+                nan_series = pd.Series(
+                    [np.nan] * nan_count, index=tf_data.index[-nan_count:]
+                )
                 tf_labels = pd.concat([tf_labels, nan_series])
                 logger.debug(
                     f"📊 {timeframe} labels padded with {nan_count} NaN values"

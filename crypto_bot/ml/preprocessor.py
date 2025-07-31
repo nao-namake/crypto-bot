@@ -350,23 +350,29 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             result_df = self.batch_calculator.merge_batches_efficient(
                 df, feature_batches
             )
-            
+
             # Phase H.25: 特徴量順序の整合性確保
             # timestampを除外し、feature_order.jsonの順序に合わせる
             if "timestamp" in result_df.columns:
                 result_df = result_df.drop(columns=["timestamp"])
-            
+
             # FeatureOrderManagerを使用して順序を整合
             fom = FeatureOrderManager()
             expected_features = fom.FEATURE_ORDER_125
-            
+
             # 期待される特徴量のみを選択し、順序を保証
-            available_features = [col for col in expected_features if col in result_df.columns]
-            missing_features = [col for col in expected_features if col not in result_df.columns]
-            
+            available_features = [
+                col for col in expected_features if col in result_df.columns
+            ]
+            missing_features = [
+                col for col in expected_features if col not in result_df.columns
+            ]
+
             if missing_features:
-                logger.warning(f"⚠️ Missing {len(missing_features)} features: {missing_features[:10]}...")
-            
+                logger.warning(
+                    f"⚠️ Missing {len(missing_features)} features: {missing_features[:10]}..."
+                )
+
             # 期待される順序で特徴量を並べ替え
             result_df = result_df[available_features]
 
