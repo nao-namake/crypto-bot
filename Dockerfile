@@ -40,5 +40,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Live Trading + API Server Mode (Phase H.28 Compatible)
-# CI環境ではAPI-onlyモード、本番環境ではライブトレード
-CMD ["sh", "-c", "if [ \"$CI\" = \"true\" ] && [ \"$API_ONLY_MODE\" = \"true\" ]; then python -m crypto_bot.api.server; else python -m crypto_bot.main live-bitbank --config config/production/production.yml; fi"]
+# 本番環境・CI環境ともにAPIサーバー統合実行
+# MODE環境変数でライブトレード統合制御
+COPY docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
+CMD ["/app/docker-entrypoint.sh"]
