@@ -218,6 +218,14 @@ class FeatureOrderManager:
         Args:
             features: 学習時の特徴量リスト
         """
+        # Phase H.29: 本番環境での125特徴量保護
+        if len(features) < 100:
+            logger.warning(
+                f"🛡️ [PROTECTION] Rejected saving {len(features)} features "
+                f"(< 100) to protect 125-feature system"
+            )
+            return
+            
         try:
             data = {
                 "feature_order": features,
