@@ -248,8 +248,17 @@ def ensure_feature_consistency(
         logger.info(f"✅ Feature count matches target: {current_count}")
         return df
     elif current_count < target_count:
-        # 不足分を補完（Phase H.12: 強化版）
+        # Phase H.29: 不足特徴量の詳細ログ追加
         missing_count = target_count - current_count
+        logger.error(
+            f"🚨 [PHASE-H29] CRITICAL: Missing {missing_count} features! Current: {current_count}, Target: {target_count}"
+        )
+
+        # Phase H.29: 既存特徴量と期待特徴量の比較
+        if hasattr(df, "columns"):
+            logger.error(
+                f"🚨 [PHASE-H29] Current features: {list(df.columns)[:10]}... (showing first 10)"
+            )
         logger.warning(
             f"⚠️ [PHASE-H12] Missing {missing_count} features, adding smart defaults"
         )

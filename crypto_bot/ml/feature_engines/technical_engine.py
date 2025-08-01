@@ -955,14 +955,14 @@ class TechnicalFeatureEngine:
     def _calculate_atr_builtin(self, df: pd.DataFrame, period: int) -> pd.Series:
         """Phase H.23.6: 強化版内蔵ATR計算 - NaN値防止・多段階フォールバック"""
         try:
-            # データ不足チェック
-            min_required = max(3, period // 2)
+            # Phase H.29: データ不足チェック緩和（実データ優先）
+            min_required = max(2, period // 5)  # より少ないデータでも実計算を試みる
             if len(df) < min_required:
                 logger.warning(
                     f"⚠️ ATR: Insufficient data ({len(df)} < {min_required}), using price-based fallback"
                 )
-                # 価格の2%をATR代替値として使用
-                price_based_atr = df["close"] * 0.02
+                # Phase H.29: 価格の0.02%をATR代替値として使用（BTCJPYスケーリング対応）
+                price_based_atr = df["close"] * 0.0002
                 return pd.Series(price_based_atr, index=df.index, name=f"atr_{period}")
 
             # 動的period調整
@@ -984,11 +984,14 @@ class TechnicalFeatureEngine:
 
             true_range = np.maximum(high_low, np.maximum(high_close, low_close))
 
-            # ATR計算（min_periodsで部分データ使用可能）
+            # Phase H.29: ATR計算（min_periods緩和で実データ優先）
             atr = (
                 pd.Series(true_range, index=df.index)
                 .rolling(
-                    window=effective_period, min_periods=max(1, effective_period // 3)
+                    window=effective_period,
+                    min_periods=max(
+                        1, effective_period // 5
+                    ),  # より少ないデータでも計算
                 )
                 .mean()
             )
@@ -1005,8 +1008,8 @@ class TechnicalFeatureEngine:
                     * df["close"]
                 )
 
-                # フォールバック2: 価格の2%（最終手段）
-                emergency_atr = df["close"] * 0.02
+                # フォールバック2: 価格の0.02%（最終手段）Phase H.29対応
+                emergency_atr = df["close"] * 0.0002
 
                 # 階層的フォールバック適用
                 atr = atr.fillna(price_volatility).fillna(emergency_atr)
@@ -1018,8 +1021,8 @@ class TechnicalFeatureEngine:
 
         except Exception as e:
             logger.error(f"❌ ATR builtin calculation failed: {e}")
-            # 緊急フォールバック: 価格の2%
-            emergency_atr = df["close"] * 0.02
+            # 緊急フォールバック: 価格の0.02% Phase H.29対応
+            emergency_atr = df["close"] * 0.0002
             return pd.Series(emergency_atr, index=df.index, name=f"atr_{period}")
 
     def _calculate_macd_builtin(

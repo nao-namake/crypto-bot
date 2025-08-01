@@ -1071,14 +1071,15 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         """モデル別最小サンプル数取得"""
         model_name = type(model).__name__
 
+        # Phase H.29: 4hタイムフレーム対応のため最小サンプル数を緩和
         if model_name in ["XGBClassifier", "LGBMClassifier"]:
-            return 50  # 勾配ブースティング系
+            return 30  # 勾配ブースティング系（50→30に緩和）
         elif model_name == "RandomForestClassifier":
-            return 30  # ランダムフォレスト
+            return 20  # ランダムフォレスト（30→20に緩和）
         elif model_name in ["LogisticRegression", "SVC"]:
-            return 20  # 線形モデル
+            return 15  # 線形モデル（20→15に緩和）
         else:
-            return 25  # その他
+            return 20  # その他（25→20に緩和）
 
     def _create_fallback_ensemble(self) -> "TradingEnsembleClassifier":
         """フォールバック用簡易アンサンブル作成"""

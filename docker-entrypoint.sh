@@ -26,9 +26,34 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     # APIサーバー起動確認
     sleep 10
     
-    # ライブトレードをフォアグラウンドで実行
+    # ライブトレードをフォアグラウンドで実行（execを使わない）
     echo "🔄 ライブトレード起動..."
-    exec python -m crypto_bot.main live-bitbank --config config/production/production.yml
+    python -m crypto_bot.main live-bitbank --config config/production/production.yml &
+    TRADING_PID=$!
+    echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
+    
+    # Phase H.29: 両プロセスの監視とシグナルハンドリング
+    trap 'echo "🛑 シグナル受信、プロセス停止..."; kill $API_PID $TRADING_PID 2>/dev/null; exit' SIGTERM SIGINT
+    
+    # プロセス監視ループ
+    while true; do
+        # APIサーバーの生存確認
+        if ! kill -0 $API_PID 2>/dev/null; then
+            echo "❌ APIサーバーが停止しました"
+            kill $TRADING_PID 2>/dev/null
+            exit 1
+        fi
+        
+        # トレーディングプロセスの生存確認
+        if ! kill -0 $TRADING_PID 2>/dev/null; then
+            echo "❌ トレーディングプロセスが停止しました"
+            kill $API_PID 2>/dev/null
+            exit 1
+        fi
+        
+        # 10秒ごとに確認
+        sleep 10
+    done
     
 elif [ "$CI" = "true" ] || [ "$API_ONLY_MODE" = "true" ]; then
     echo "🧪 CI/テスト環境 - API-onlyモード"

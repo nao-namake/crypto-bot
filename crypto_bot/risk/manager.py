@@ -86,9 +86,11 @@ class RiskManager:
         try:
             latest_atr = atr.iloc[-1]
             if pd.isna(latest_atr):
-                # Phase H.23.6: NaN対策強化（エントリー価格の2%）
-                logger.warning("⚠️ ATR value is NaN, using fallback 2% of entry price")
-                latest_atr = entry_price * 0.02
+                # Phase H.29: NaN対策強化（エントリー価格の0.02%）
+                logger.warning(
+                    "⚠️ ATR value is NaN, using fallback 0.02% of entry price"
+                )
+                latest_atr = entry_price * 0.0002
             elif latest_atr < 0:
                 raise ValueError(f"Invalid ATR value: {latest_atr}")
 
@@ -252,9 +254,11 @@ class RiskManager:
             # 2) ボラティリティ(=ATR/価格) からスケール係数を算出
             latest_atr = atr.iloc[-1]
             if pd.isna(latest_atr):
-                # Phase H.23.6: NaN対策強化（エントリー価格の2%）
-                logger.warning("⚠️ ATR value is NaN, using fallback 2% of entry price")
-                latest_atr = entry_price * 0.02
+                # Phase H.29: NaN対策強化（エントリー価格の0.02%）
+                logger.warning(
+                    "⚠️ ATR value is NaN, using fallback 0.02% of entry price"
+                )
+                latest_atr = entry_price * 0.0002
             elif latest_atr < 0:
                 raise ValueError(f"Invalid ATR value: {latest_atr}")
 

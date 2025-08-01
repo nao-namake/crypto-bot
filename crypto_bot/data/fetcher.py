@@ -150,21 +150,24 @@ class MarketDataFetcher:
             # H.28.1-Stage3: 現在時刻比較・合理的範囲チェック
             current_time_ms = int(time.time() * 1000)
             one_year_ago_ms = current_time_ms - (365 * 24 * 60 * 60 * 1000)
-            one_day_future_ms = current_time_ms + (24 * 60 * 60 * 1000)
+            # Phase H.29: 未来時刻許容を24時間から1時間に厳格化
+            one_hour_future_ms = current_time_ms + (60 * 60 * 1000)  # 1時間後まで
 
             if ts < one_year_ago_ms:
                 logger.error(
                     f"🚨 [H.28.1-Stage3] Timestamp too old: {ts} < {one_year_ago_ms} (context: {context})"
                 )
                 return None
-            elif ts > one_day_future_ms:
+            elif ts > one_hour_future_ms:
+                # Phase H.29: 未来時刻検出時の詳細ログ
+                time_diff_hours = (ts - current_time_ms) / (60 * 60 * 1000)
                 logger.error(
-                    f"🚨 [H.28.1-Stage3] Timestamp too future: {ts} > {one_day_future_ms} (context: {context})"
+                    f"🚨 [H.29-Stage3] Future timestamp detected: {ts} is {time_diff_hours:.2f} hours ahead (context: {context})"
                 )
                 # 未来時刻の場合は現在時刻に修正
                 corrected_ts = current_time_ms
                 logger.warning(
-                    f"🔧 [H.28.1-Stage3] Corrected future timestamp: {ts} -> {corrected_ts} (context: {context})"
+                    f"🔧 [H.29-Stage3] Corrected future timestamp: {ts} -> {corrected_ts} (context: {context})"
                 )
                 return corrected_ts
 
