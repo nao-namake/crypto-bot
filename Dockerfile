@@ -23,6 +23,7 @@ COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
 COPY config/ /app/config/
 COPY models/ /app/models/
+COPY feature_order.json /app/
 COPY .env.example /app/
 
 # 環境変数設定
@@ -38,5 +39,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-# Live Trading + API Server Mode (No-Fallback Version)
-CMD ["python", "scripts/start_live_with_api_fixed.py"]
+# Live Trading + API Server Mode (Phase H.28 Compatible)
+# CI環境ではAPI-onlyモード、本番環境ではライブトレード
+CMD ["sh", "-c", "if [ \"$CI\" = \"true\" ] && [ \"$API_ONLY_MODE\" = \"true\" ]; then python -m crypto_bot.api.server; else python -m crypto_bot.main live-bitbank --config config/production/production.yml; fi"]
