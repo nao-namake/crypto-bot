@@ -23,7 +23,7 @@ COPY crypto_bot/ /app/crypto_bot/
 COPY scripts/ /app/scripts/
 COPY config/ /app/config/
 COPY models/ /app/models/
-COPY feature_order.json /app/
+COPY config/core/feature_order.json /app/feature_order.json
 COPY .env.example /app/
 
 # 環境変数設定
