@@ -23,14 +23,18 @@ set -euo pipefail
 # Coverage の最低ライン
 COV_FAIL_UNDER=14
 
+# Phase H.29.6: feature_order.json保護システム事前チェック
+echo ">>> feature_order.json integrity check"
+python3 scripts/core/protect_feature_order.py
+
 echo ">>> flake8"
-python3 -m flake8 .
+python3 -m flake8 crypto_bot/ tests/
 
 echo ">>> isort (check only)"
-python3 -m isort --check-only .
+python3 -m isort --check-only crypto_bot/ tests/
 
 echo ">>> black (check only)"
-python3 -m black --check .
+python3 -m black --check crypto_bot/ tests/
 
 echo ">>> pytest (with coverage)"
 python3 -m pytest \

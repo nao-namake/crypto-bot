@@ -42,6 +42,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
 # Live Trading + API Server Mode (Phase H.28 Compatible)
 # 本番環境・CI環境ともにAPIサーバー統合実行
 # MODE環境変数でライブトレード統合制御
-COPY docker-entrypoint.sh /app/
+COPY docker/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 CMD ["/app/docker-entrypoint.sh"]

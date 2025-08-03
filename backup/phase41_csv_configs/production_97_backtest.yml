@@ -1,0 +1,246 @@
+# =============================================================================
+# 97特徴量MLbot専用バックテスト設定
+# production.yml準拠・外部データ完全無効・軽量化版
+# bitbank-labo × 97特徴量ML ハイブリッドアプローチ対応
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# データ取得設定（CSV軽量版）
+# ----------------------------------------------------------------------
+data:
+  exchange: csv  
+  symbol: BTC/JPY  # 本番と同じ通貨ペア
+  timeframe: 1h
+  
+  csv_path: data/btc_usd_2024_hourly.csv
+  since: "2024-01-01T00:00:00Z"
+  limit: 1000   # 軽量化：1000件に制限
+  
+  api_key: null
+  api_secret: null
+  ccxt_options: {}
+  
+  # マルチタイムフレーム（簡略版）
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      1h:
+        method: direct
+        min_points: 10
+
+# ----------------------------------------------------------------------
+# ML設定（production.yml準拠・97特徴量）
+# ----------------------------------------------------------------------
+ml:
+  confidence_threshold: 0.65
+  feat_period: 14
+  horizon: 5
+  lags: [1, 2, 3]
+  rolling_window: 10
+  target_type: classification
+  model_type: lgbm
+  
+  # 外部データ完全無効化
+  external_data:
+    enabled: false
+    include_in_features: false
+    vix:
+      enabled: false
+    macro:
+      enabled: false
+    fear_greed:
+      enabled: false
+    funding:
+      enabled: false
+  
+  # Phase 2: 97特徴量最適化版（production.ymlと同一）
+  extra_features:
+  - close_lag_1
+  - close_lag_3
+  - volume_lag_1
+  - volume_lag_4
+  - volume_lag_5
+  - returns_1
+  - returns_2
+  - returns_3
+  - returns_5
+  - returns_10
+  - ema_5
+  - ema_10
+  - ema_20
+  - ema_50
+  - ema_100
+  - ema_200
+  - price_position_20
+  - price_position_50
+  - price_vs_sma20
+  - bb_position
+  - intraday_position
+  - bb_upper
+  - bb_middle
+  - bb_lower
+  - bb_width
+  - bb_squeeze
+  - rsi_14
+  - rsi_oversold
+  - rsi_overbought
+  - macd
+  - macd_signal
+  - macd_hist
+  - macd_cross_up
+  - macd_cross_down
+  - stoch_k
+  - stoch_d
+  - stoch_oversold
+  - stoch_overbought
+  - atr_14
+  - volatility_20
+  - volume_sma_20
+  - volume_ratio
+  - volume_trend
+  - vwap
+  - vwap_distance
+  - obv
+  - obv_sma
+  - cmf
+  - mfi
+  - ad_line
+  - adx_14
+  - plus_di
+  - minus_di
+  - trend_strength
+  - trend_direction
+  - cci_20
+  - williams_r
+  - ultimate_oscillator
+  - momentum_14
+  - support_distance
+  - resistance_distance
+  - support_strength
+  - volume_breakout
+  - price_breakout_up
+  - price_breakout_down
+  - doji
+  - hammer
+  - engulfing
+  - pinbar
+  - zscore
+  - close_std_10
+  - hour
+  - day_of_week
+  - is_weekend
+  - is_asian_session
+  - is_us_session
+  - roc_10
+  - roc_20
+  - trix
+  - mass_index
+  - keltner_upper
+  - keltner_lower
+  - donchian_upper
+  - donchian_lower
+  - ichimoku_conv
+  - ichimoku_base
+  - price_efficiency
+  - trend_consistency
+  - volume_price_correlation
+  - volatility_regime
+  - momentum_quality
+  - market_phase
+  
+  # アンサンブル設定（production.yml準拠）
+  ensemble:
+    enabled: true
+    method: trading_stacking
+    models: [lgbm, xgb, rf]
+    model_weights: [0.5, 0.3, 0.2]
+    confidence_threshold: 0.6
+    risk_adjustment: true
+
+# ----------------------------------------------------------------------
+# 戦略設定（ML・軽量版）
+# ----------------------------------------------------------------------
+strategy:
+  type: multi_timeframe_ensemble
+  name: multi_timeframe_ensemble
+  confidence_threshold: 0.65
+  params:
+    model_path: models/production/xgb_97_features.pkl  # 97特徴量モデル使用
+    threshold: 0.02  # 取引機会確保
+    atr_multiplier: 0.3
+    volatility_adjustment: true
+    threshold_bounds: [0.01, 0.08]
+
+# ----------------------------------------------------------------------
+# バックテスト設定（軽量・高速版）
+# ----------------------------------------------------------------------
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+
+# リスク管理（production.yml準拠）
+risk:
+  risk_per_trade: 0.01
+  stop_atr_mult: 1.2
+  atr_period: 20
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.03
+
+# ----------------------------------------------------------------------
+# bitbank設定（production.yml準拠）
+# ----------------------------------------------------------------------
+bitbank:
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    taker_fee: 0.0012
+    prefer_maker: true
+
+# ----------------------------------------------------------------------
+# ログ・出力設定
+# ----------------------------------------------------------------------
+logging:
+  level: INFO
+  file: logs/production_97_backtest.log
+
+# ----------------------------------------------------------------------
+# 品質監視（production.yml準拠）
+# ----------------------------------------------------------------------
+quality_monitoring:
+  enabled: true
+  default_threshold: 0.3
+  emergency_stop_threshold: 0.35
+
+# ----------------------------------------------------------------------
+# 軽量化設定（タイムアウト防止）
+# ----------------------------------------------------------------------
+optimization:
+  # ウォークフォワード無効化（軽量化）
+  walk_forward_enabled: false
+  
+  # データ制限
+  max_data_points: 1000
+  
+  # 外部データ完全スキップ
+  skip_external_data: true
+  
+  # 高速モード
+  fast_mode: true
+  
+  # デバッグ機能
+  debug_enabled: true
+  step_by_step: false
+
+# ----------------------------------------------------------------------
+# Phase情報
+# ----------------------------------------------------------------------
+phase_info:
+  version: "Phase_2_97Features_Hybrid"
+  base_config: "production.yml"
+  optimization: "127→97特徴量最適化"
+  approach: "bitbank-labo × MLbot ハイブリッド"
+  target_execution_time: "5-10分以内"
+  features_count: 97
+  external_data: false
+  created: "2025-08-02"

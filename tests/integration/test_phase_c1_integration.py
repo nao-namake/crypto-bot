@@ -341,13 +341,13 @@ def test_existing_system_integration():
     try:
         # 既存Phase Bモジュール確認
         try:
-            from crypto_bot.feature_engineering.batch_feature_calculator import (
+            from crypto_bot.ml.feature_engines.batch_calculator import (
                 BatchFeatureCalculator,
             )
-            from crypto_bot.feature_engineering.external_data_integrator import (
+            from crypto_bot.ml.feature_engines.external_data_engine import (
                 ExternalDataIntegrator,
             )
-            from crypto_bot.feature_engineering.technical_feature_engine import (
+            from crypto_bot.ml.feature_engines.technical_engine import (
                 TechnicalFeatureEngine,
             )
 

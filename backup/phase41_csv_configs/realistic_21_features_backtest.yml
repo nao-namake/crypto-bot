@@ -1,0 +1,120 @@
+# =============================================================================
+# 21特徴量リアルバックテスト設定（本番同等・実装済み特徴量のみ）
+# 実装済み21特徴量対応・損益プラス目標設定
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# データ取得設定（CSV版）
+# ----------------------------------------------------------------------
+data:
+  exchange: csv  
+  symbol: BTC/USD  
+  timeframe: 1h
+  
+  csv_path: data/btc_usd_2024_hourly.csv
+  since: "2024-01-01T00:00:00Z"
+  limit: 500   # 十分なデータ確保（RSI計算に必要）
+  
+  api_key: null
+  api_secret: null
+  ccxt_options: {}
+  
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      15m:
+        method: interpolation
+        min_points: 10
+      1h:
+        method: direct
+        min_points: 10
+      4h:
+        method: aggregation
+        min_points: 8
+
+# ----------------------------------------------------------------------
+# 戦略設定（低閾値・取引機会確保）
+# ----------------------------------------------------------------------
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: models/production/model.pkl
+    threshold: 0.05  # 現実的な閾値設定
+    atr_multiplier: 0.3
+    volatility_adjustment: true
+    threshold_bounds: [0.02, 0.15]
+
+# ----------------------------------------------------------------------
+# ML設定（21特徴量対応）
+# ----------------------------------------------------------------------
+ml:
+  feat_period: 14
+  lags: [1, 2, 3]
+  rolling_window: 10
+  horizon: 5
+  target_type: classification
+  model_type: lgbm
+  confidence_threshold: 0.35  # 取引機会確保（月60-100回目標）
+  
+  # 実装済み21特徴量リスト（本番環境と完全一致）
+  extra_features:
+  # 基本OHLCV（常に利用可能）
+  - open
+  - high  
+  - low
+  - close
+  - volume
+  # 実装済みテクニカル指標
+  - rsi_14           # RSI（14期間）
+  - sma_20           # SMA 20期間  
+  - sma_50           # SMA 50期間
+  - ema_20           # EMA 20期間
+  - ema_50           # EMA 50期間
+  - atr_14           # ATR 14期間
+  - macd             # MACD
+  - volatility_20    # 20期間ボラティリティ
+  - volume_sma_20    # 出来高SMA
+  - volume_ratio     # 出来高比率
+  - high_low_ratio   # 高値安値比
+  - true_range       # トゥルーレンジ
+  - trend_strength   # トレンド強度
+  - hour             # 時間（時）
+  - day_of_week      # 曜日
+  - momentum_14      # モメンタム14期間
+
+# ----------------------------------------------------------------------
+# リスク管理（本番準拠）
+# ----------------------------------------------------------------------
+risk:
+  risk_per_trade: 0.01
+  stop_atr_mult: 1.5
+  atr_period: 14
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.02
+
+# ----------------------------------------------------------------------
+# バックテスト設定
+# ----------------------------------------------------------------------
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+
+# ----------------------------------------------------------------------
+# ウォークフォワード分割（高速化）
+# ----------------------------------------------------------------------
+walk_forward:
+  train_window: 200      # 8日間学習（現実的）
+  test_window: 24        # 1日間テスト
+  step: 6                # 6時間間隔
+
+# ----------------------------------------------------------------------
+# 手数料設定（Bitbank準拠）
+# ----------------------------------------------------------------------
+bitbank:
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    taker_fee: 0.0012
+    prefer_maker: true

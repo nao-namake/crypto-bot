@@ -1,0 +1,262 @@
+# =============================================================================
+# 本番環境と同一条件のバックテスト設定
+# 97特徴量システム・multi_timeframe_ensemble戦略・アンサンブル有効
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# データ取得設定（CSV版）
+# ----------------------------------------------------------------------
+data:
+  exchange: csv  
+  symbol: BTC/USD  
+  timeframe: 1h
+  
+  csv_path: data/btc_usd_2024_hourly.csv
+  since: "2024-01-01T00:00:00Z"
+  limit: 500   # 本番と同じ
+  
+  api_key: null
+  api_secret: null
+  ccxt_options: {}
+  
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      15m:
+        method: interpolation
+        min_points: 10
+      1h:
+        method: direct
+        min_points: 10
+      4h:
+        method: aggregation
+        min_points: 8
+
+# ----------------------------------------------------------------------
+# 戦略設定（本番環境と完全一致）
+# ----------------------------------------------------------------------
+strategy:
+  name: multi_timeframe_ensemble  # 本番と同じ
+  params:
+    atr_multiplier: 0.3  # 本番と同じ
+    max_volatility_adj: 0.03  # 本番と同じ
+    threshold: 0.02  # 本番と同じ
+    threshold_bounds: [0.01, 0.08]  # 本番と同じ
+    volatility_adjustment: true  # 本番と同じ
+  confidence_threshold: 0.65  # 本番と同じ
+
+# ----------------------------------------------------------------------
+# ML設定（97特徴量・本番環境と完全一致）
+# ----------------------------------------------------------------------
+ml:
+  # Phase 2: 97特徴量最適化版（FEATURE_ORDER_97完全準拠）
+  # 基本OHLCV（5個）+ extra_features（92個）= 正確に97特徴量
+  extra_features:
+    # ラグ特徴量（最適化：重要な間隔のみ保持）
+    - close_lag_1
+    - close_lag_3
+    - volume_lag_1
+    - volume_lag_4
+    - volume_lag_5
+    # リターン（最適化：対数リターン削除）
+    - returns_1
+    - returns_2
+    - returns_3
+    - returns_5
+    - returns_10
+    # 移動平均（最適化：EMAのみ、SMA削除）
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    # 価格位置指標
+    - price_position_20
+    - price_position_50
+    - price_vs_sma20
+    - bb_position
+    - intraday_position
+    # ボリンジャーバンド
+    - bb_upper
+    - bb_middle
+    - bb_lower
+    - bb_width
+    - bb_squeeze
+    # モメンタム指標（最適化：RSI_14のみ保持）
+    - rsi_14
+    - rsi_oversold
+    - rsi_overbought
+    - macd
+    - macd_signal
+    - macd_hist
+    - macd_cross_up
+    - macd_cross_down
+    - stoch_k
+    - stoch_d
+    - stoch_oversold
+    - stoch_overbought
+    # ボラティリティ（最適化：ATR_14とvolatility_20のみ保持）
+    - atr_14
+    - volatility_20
+    # 出来高指標
+    - volume_sma_20
+    - volume_ratio
+    - volume_trend
+    - vwap
+    - vwap_distance
+    - obv
+    - obv_sma
+    - cmf
+    - mfi
+    - ad_line
+    # トレンド指標
+    - adx_14
+    - plus_di
+    - minus_di
+    - trend_strength
+    - trend_direction
+    - cci_20
+    - williams_r
+    - ultimate_oscillator
+    - momentum_14
+    # マーケット構造
+    - support_distance
+    - resistance_distance
+    - support_strength
+    - volume_breakout
+    - price_breakout_up
+    - price_breakout_down
+    # ローソク足パターン
+    - doji
+    - hammer
+    - engulfing
+    - pinbar
+    # 統計的特徴量（最適化：zscore, close_std_10のみ保持）
+    - zscore
+    - close_std_10
+    # 時系列特徴量（最適化：is_european_session削除）
+    - hour
+    - day_of_week
+    - is_weekend
+    - is_asian_session
+    - is_us_session
+    # 追加の技術指標
+    - roc_10
+    - roc_20
+    - trix
+    - mass_index
+    - keltner_upper
+    - keltner_lower
+    - donchian_upper
+    - donchian_lower
+    - ichimoku_conv
+    - ichimoku_base
+    # その他の派生特徴量
+    - price_efficiency
+    - trend_consistency
+    - volume_price_correlation
+    - volatility_regime
+    - momentum_quality
+    - market_phase
+
+  # 基本特徴量設定（本番と同一）
+  feat_period: 14
+  horizon: 5
+  lags: [1, 2, 3]  # 本番と同じ（注：extra_featuresで2は除外）
+  model_type: lgbm
+  rolling_window: 10
+  
+  # リターン計算（本番と同一）
+  return_periods: [1, 2, 3, 5, 10]
+  log_returns: false  # 対数リターン無効化
+  
+  # ターゲット生成設定
+  target:
+    type: classification
+    method: threshold
+    buy_threshold: 0.005   # 0.5%
+    sell_threshold: -0.005
+    lookahead: 3
+    
+    # ラベルバランス調整
+    balance_data: true
+    balance_method: undersample
+  
+  # アンサンブル設定（本番と同一）
+  ensemble:
+    enabled: true  # 本番では有効
+    method: trading_stacking
+    model_weights: [0.5, 0.3, 0.2]
+    confidence_threshold: 0.6
+    
+  # パフォーマンス向上設定（本番と同一）
+  performance_enhancements:
+    confidence_filter: 0.6
+    partial_profit_levels: [0.3, 0.5]
+    trailing_stop: true
+
+# ----------------------------------------------------------------------
+# 外部データ設定（本番と同一：無効）
+# ----------------------------------------------------------------------
+external_data:
+  enabled: false  # 97特徴量最適化では外部データ無効
+
+# ----------------------------------------------------------------------
+# バックテスト設定
+# ----------------------------------------------------------------------
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2024-06-30"    # 6ヶ月テスト
+  
+  initial_balance: 10000    # ¥10,000
+  starting_balance: 10000   # ¥10,000 (互換性のため両方設定)
+  commission: 0.0012        # bitbank手数料（0.12%）
+  
+  # ポジション管理（本番環境類似）
+  position_sizing:
+    method: kelly_criterion
+    max_position_size: 0.95
+    min_position_size: 0.01
+    risk_free_rate: 0.001
+  
+  # リスク管理（本番環境類似）
+  risk_management:
+    max_drawdown: 0.15      # 15%最大ドローダウン
+    stop_loss: 0.03         # 3%ストップロス
+    take_profit: 0.06       # 6%利確
+    trailing_stop: 0.02     # 2%トレーリングストップ
+
+# ----------------------------------------------------------------------
+# ウォークフォワード設定（必須）
+# ----------------------------------------------------------------------
+walk_forward:
+  enabled: false  # 単純バックテストの場合は無効
+  train_window: 100  # 最小値設定（無効時は使用されない）
+  test_window: 20    # 最小値設定（無効時は使用されない）
+  step: 20           # 最小値設定（無効時は使用されない）
+
+# ----------------------------------------------------------------------
+# ログ・出力設定
+# ----------------------------------------------------------------------
+logging:
+  level: INFO
+  file: logs/production_matching_backtest.log
+  
+output:
+  results_dir: results/production_matching_backtest
+  save_trades: true
+  save_equity_curve: true
+  save_metrics: true
+  generate_report: true
+
+# ----------------------------------------------------------------------
+# 本番環境一致情報
+# ----------------------------------------------------------------------
+production_matching_info:
+  strategy: "multi_timeframe_ensemble"
+  features: "97 features (Phase 2 optimized)"
+  ensemble: "enabled with 3 models"
+  confidence_threshold: 0.65
+  external_data: "disabled"
+  note: "本番環境と完全に同一の設定でバックテスト実行"

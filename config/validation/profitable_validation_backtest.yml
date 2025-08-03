@@ -1,0 +1,64 @@
+backtest:
+  aggregate_out_prefix: ./results/aggregate_profitable_validation
+  slippage_rate: 0.001
+  starting_balance: 10000.0
+  trade_log_csv: ./results/trade_log_profitable_validation.csv
+bitbank:
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    prefer_maker: true
+    taker_fee: 0.0012
+data:
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 20000
+    timeout: 60000
+    verbose: false
+  exchange: bitbank
+  exponential_backoff: true
+  fetch_retries: 3
+  limit: 400
+  paginate: true
+  per_page: 200
+  since_hours: 96
+  symbol: BTC/JPY
+  timeframe: 1h
+  weekend_data: true
+  weekend_extension_hours: 72
+ml:
+  confidence_threshold: 0.35
+  feat_period: 14
+  horizon: 5
+  lags:
+  - 1
+  - 2
+  - 3
+  model_type: lgbm
+  rolling_window: 10
+  target_type: classification
+risk:
+  atr_period: 20
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.02
+    min_trades_required: 3
+  risk_per_trade: 0.005
+  stop_atr_mult: 2.0
+strategy:
+  name: ml
+  params:
+    atr_multiplier: 0.2
+    model_path: models/production/model.pkl
+    threshold: 0.01
+    threshold_bounds:
+    - 0.005
+    - 0.05
+    volatility_adjustment: false
+  type: single
+walk_forward:
+  step: 12
+  test_window: 48
+  train_window: 240

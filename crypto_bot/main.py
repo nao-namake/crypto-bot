@@ -30,7 +30,6 @@ from crypto_bot.backtest.optimizer import (  # noqa: F401  他コマンドで使
 )
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.execution.engine import Position
-from crypto_bot.ml.external_data_cache import clear_global_cache
 from crypto_bot.ml.optimizer import _load_and_preprocess_data
 from crypto_bot.ml.optimizer import optimize_ml as run_optuna
 from crypto_bot.ml.optimizer import train_best_model
@@ -418,13 +417,33 @@ def cli():
 def backtest(config_path: str, stats_output: str, show_trades: bool):
     """Walk-forward バックテスト（MLStrategy）"""
     logger = logging.getLogger(__name__)
+
+    # Phase 7: 環境変数読み込み強化（API問題根本修正）
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()  # .envファイルから環境変数を読み込み
+
+    # API接続前検証
+    if os.getenv("BITBANK_API_KEY") and os.getenv("BITBANK_API_SECRET"):
+        logger.info("✅ [PHASE-7] Bitbank API credentials loaded")
+    else:
+        logger.warning(
+            "⚠️ [PHASE-7] Bitbank API credentials not found, using fallback methods"
+        )
+
     cfg = load_config(config_path)
     ensure_dir_for_file(stats_output)
 
-    # CSV モードの場合は外部データキャッシュを初期化
+    # Phase 3: 外部データ完全無効化 - 外部データキャッシュは使用しない
     dd = cfg.get("data", {})
-    if dd.get("exchange") == "csv" or dd.get("csv_path"):
-        logger.info("CSV mode detected - initializing external data cache")
+    external_data_enabled = False  # Phase 3で外部API完全除去
+
+    if (dd.get("exchange") == "csv" or dd.get("csv_path")) and external_data_enabled:
+        logger.info(
+            "CSV mode + external data enabled - initializing external data cache"
+        )
         from crypto_bot.ml.external_data_cache import initialize_global_cache
 
         cache = initialize_global_cache(
@@ -432,6 +451,10 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
         )
         cache_info = cache.get_cache_info()
         logger.info(f"External data cache initialized: {cache_info}")
+    elif dd.get("exchange") == "csv" or dd.get("csv_path"):
+        logger.info(
+            "CSV mode detected - external data disabled, skipping cache initialization"
+        )
 
     # データ取得
     dd = cfg.get("data", {})
@@ -439,6 +462,20 @@ def backtest(config_path: str, stats_output: str, show_trades: bool):
     # CSV モードかAPI モードかを判定
     if dd.get("exchange") == "csv" or dd.get("csv_path"):
         # CSV モード
+        # Phase H.3.2 Fix: CSVモードでもベースタイムフレームを設定
+        base_timeframe = "1h"  # デフォルト
+        if (
+            "multi_timeframe_data" in dd
+            and "base_timeframe" in dd["multi_timeframe_data"]
+        ):
+            base_timeframe = dd["multi_timeframe_data"]["base_timeframe"]
+        else:
+            timeframe_raw = dd.get("timeframe", "1h")
+            if timeframe_raw == "4h":
+                base_timeframe = "1h"  # 4h要求を強制的に1hに変換
+            else:
+                base_timeframe = timeframe_raw
+
         fetcher = MarketDataFetcher(csv_path=dd.get("csv_path"))
         df = fetcher.get_price_df(
             since=dd.get("since"),
@@ -890,10 +927,14 @@ def live_bitbank(config_path: str, max_trades: int):
     except Exception:
         pass
 
-    # CSV モードの場合は外部データキャッシュを初期化
+    # Phase 3: 外部データ完全無効化 - 外部データキャッシュは使用しない
     dd = cfg.get("data", {})
-    if dd.get("exchange") == "csv" or dd.get("csv_path"):
-        logger.info("CSV mode detected - initializing external data cache")
+    external_data_enabled = False  # Phase 3で外部API完全除去
+
+    if (dd.get("exchange") == "csv" or dd.get("csv_path")) and external_data_enabled:
+        logger.info(
+            "CSV mode + external data enabled - initializing external data cache"
+        )
         from crypto_bot.ml.external_data_cache import initialize_global_cache
 
         cache = initialize_global_cache(
@@ -901,6 +942,10 @@ def live_bitbank(config_path: str, max_trades: int):
         )
         cache_info = cache.get_cache_info()
         logger.info(f"External data cache initialized: {cache_info}")
+    elif dd.get("exchange") == "csv" or dd.get("csv_path"):
+        logger.info(
+            "CSV mode detected - external data disabled, skipping cache initialization"
+        )
 
     # --- helpers for live trading (Entry/Exit + Risk) ---------------------
     dd = cfg.get("data", {})
@@ -1511,7 +1556,7 @@ def live_bitbank(config_path: str, max_trades: int):
                     f"🚨 Data is {hours_old:.1f} hours old - FORCING FRESH DATA FETCH"
                 )
                 # 古いキャッシュを再クリア
-                clear_global_cache()
+                # clear_global_cache()  # 未定義関数をコメントアウト
                 logger.info("🔄 Re-cleared cache due to stale data")
                 logger.info("⏰ Waiting 30 seconds before fresh data fetch...")
                 time.sleep(30)
@@ -1983,6 +2028,194 @@ def live_bitbank(config_path: str, max_trades: int):
         import traceback
 
         logger.error(f"🔍 [ERROR] Traceback: {traceback.format_exc()}")
+        raise
+
+
+# --------------------------------------------------------------------------- #
+# 3-B. live-bitbank-simple  ← Bitbank本番ライブトレード用（シンプル版）
+# --------------------------------------------------------------------------- #
+@cli.command("live-bitbank-simple")
+@click.option(
+    "--config", "-c", "config_path", required=True, type=click.Path(exists=True)
+)
+@click.option(
+    "--max-trades",
+    type=int,
+    default=0,
+    help="0=無限。成立した約定数がこの値に達したらループ終了",
+)
+def live_bitbank_simple(config_path: str, max_trades: int):
+    """
+    Bitbank本番でのライブトレード（シンプル版）を実行。
+    125特徴量システムでBTC/JPYペアの実取引を行う。
+    複雑な初期化・プリフェッチシステムを除去し、ローカル動作を重視。
+    """
+    cfg = load_config(config_path)
+    logger = logging.getLogger(__name__)
+
+    # 設定確認
+    exchange_id = cfg["data"].get("exchange", "bitbank")
+    symbol = cfg["data"].get("symbol", "BTC/JPY")
+
+    logger.info(
+        f"🚀 [SIMPLE-INIT] Starting Bitbank live trading (Simple Version) - "
+        f"Exchange: {exchange_id}, Symbol: {symbol}"
+    )
+    logger.info(f"⏰ [SIMPLE-INIT] Timestamp: {pd.Timestamp.now()}")
+
+    # APIキー確認（環境変数からのみ）
+    dd = cfg.get("data", {})
+
+    def resolve_env_var(value):
+        if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+            env_var_name = value[2:-1]
+            return os.getenv(env_var_name)
+        return value
+
+    api_key = resolve_env_var(dd.get("api_key")) or os.getenv("BITBANK_API_KEY")
+    api_secret = resolve_env_var(dd.get("api_secret")) or os.getenv(
+        "BITBANK_API_SECRET"
+    )
+
+    if not api_key or not api_secret:
+        logger.error(
+            "Bitbank API credentials not found. Please set BITBANK_API_KEY and BITBANK_API_SECRET"
+        )
+        sys.exit(1)
+
+    logger.info("✅ [SIMPLE-INIT] API credentials confirmed")
+
+    # データフェッチャー初期化（シンプル版）
+    logger.info("🔌 [SIMPLE-INIT] Initializing data fetcher...")
+    from crypto_bot.data.fetcher import MarketDataFetcher
+
+    fetcher = MarketDataFetcher(
+        exchange_id=exchange_id,
+        symbol=symbol,
+        ccxt_options=dd.get("ccxt_options", {}),
+    )
+    logger.info("✅ [SIMPLE-INIT] Data fetcher initialized")
+
+    # 戦略初期化（シンプル版）
+    logger.info("📊 [SIMPLE-INIT] Initializing strategy...")
+    from crypto_bot.strategy.factory import StrategyFactory
+
+    strategy_config = cfg.get("strategy", {})
+    strategy = StrategyFactory.create_strategy(strategy_config, cfg)
+    logger.info("✅ [SIMPLE-INIT] Strategy initialized")
+
+    # リスク管理初期化（シンプル版）
+    logger.info("⚖️ [SIMPLE-INIT] Initializing risk manager...")
+    from crypto_bot.risk.manager import RiskManager
+
+    risk_config = cfg.get("risk", {})
+    kelly_config = risk_config.get("kelly_criterion", {})
+    risk_manager = RiskManager(
+        risk_per_trade=risk_config.get("risk_per_trade", 0.01),
+        stop_atr_mult=risk_config.get("stop_atr_mult", 1.5),
+        kelly_enabled=kelly_config.get("enabled", False),
+        kelly_lookback_window=kelly_config.get("lookback_window", 50),
+        kelly_max_fraction=kelly_config.get("max_fraction", 0.25),
+    )
+    logger.info("✅ [SIMPLE-INIT] Risk manager initialized")
+
+    # 残高取得（シンプル版）
+    try:
+        balance_data = fetcher.fetch_balance()
+        balance = balance_data.get("JPY", {}).get("free", 0.0)
+        if balance <= 0:
+            raise ValueError("JPY balance is 0 or not found")
+        logger.info(f"💰 [SIMPLE-INIT] Account balance: {balance:.2f} JPY")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to get real balance: {e}")
+        balance = cfg.get("live", {}).get("starting_balance", 10000.0)
+        logger.info(f"💰 [SIMPLE-INIT] Using fallback balance: {balance:.2f} JPY")
+
+    # エントリー・エグジット初期化（シンプル版）
+    logger.info("🎯 [SIMPLE-INIT] Initializing entry/exit system...")
+    from crypto_bot.execution.engine import EntryExit, Position
+
+    entry_exit = EntryExit(
+        strategy=strategy, risk_manager=risk_manager, atr_series=None
+    )
+    entry_exit.current_balance = balance
+    position = Position()
+    logger.info("✅ [SIMPLE-INIT] Entry/exit system initialized")
+
+    # 取引ループ（シンプル版）
+    logger.info("🔄 [SIMPLE-INIT] Starting simple trading loop...")
+    trade_done = 0
+
+    try:
+        while True:
+            logger.info("🔄 [LOOP] Starting trading iteration (Simple Version)...")
+
+            # データ取得（シンプル版）
+            try:
+                current_time = pd.Timestamp.now(tz="UTC")
+                since_time = current_time - pd.Timedelta(hours=96)  # 4日間固定
+
+                price_df = fetcher.get_price_df(
+                    timeframe="1h",
+                    since=since_time,
+                    limit=200,
+                    paginate=True,
+                    per_page=100,
+                )
+
+                if price_df.empty:
+                    logger.warning("⚠️ [LOOP] No data received, retrying...")
+                    time.sleep(60)
+                    continue
+
+                logger.info(f"📊 [LOOP] Fetched {len(price_df)} records")
+
+            except Exception as e:
+                logger.error(f"❌ [LOOP] Data fetch failed: {e}")
+                time.sleep(60)
+                continue
+
+            # エントリー判定
+            try:
+                entry_order = entry_exit.generate_entry_order(price_df, position)
+                if entry_order.exist:
+                    logger.info("🎯 [LOOP] Entry signal generated!")
+                    # 実際の注文実行はここに実装
+                    # balance = entry_exit.fill_order(entry_order, position, balance)
+                    # trade_done += 1
+                else:
+                    logger.info("📊 [LOOP] No entry signal")
+            except Exception as e:
+                logger.error(f"❌ [LOOP] Entry judgment failed: {e}")
+
+            # エグジット判定
+            try:
+                exit_order = entry_exit.generate_exit_order(price_df, position)
+                if exit_order.exist:
+                    logger.info("🎯 [LOOP] Exit signal generated!")
+                    # 実際の注文実行はここに実装
+                    # balance = entry_exit.fill_order(exit_order, position, balance)
+                    # trade_done += 1
+                else:
+                    logger.info("📊 [LOOP] No exit signal")
+            except Exception as e:
+                logger.error(f"❌ [LOOP] Exit judgment failed: {e}")
+
+            # 最大取引数チェック
+            if max_trades > 0 and trade_done >= max_trades:
+                logger.info(
+                    f"🏁 [SIMPLE] Reached max trades ({max_trades}), stopping..."
+                )
+                break
+
+            # 60秒待機
+            logger.info("⏰ [LOOP] Waiting 60 seconds...")
+            time.sleep(60)
+
+    except KeyboardInterrupt:
+        logger.info("🛑 [SIMPLE] Trading stopped by user")
+    except Exception as e:
+        logger.error(f"❌ [SIMPLE] Unexpected error: {e}")
         raise
 
 

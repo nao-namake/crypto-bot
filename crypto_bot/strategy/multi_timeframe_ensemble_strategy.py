@@ -24,25 +24,18 @@ from crypto_bot.ml.timeframe_ensemble import (
 from crypto_bot.strategy.base import StrategyBase
 from crypto_bot.utils.ensemble_confidence import EnsembleConfidenceCalculator
 
-# Phase B基盤統合
+# Phase 9: 97特徴量完全実装システム統合
 try:
-    from crypto_bot.feature_engineering.batch_feature_calculator import (
-        BatchFeatureCalculator,
-    )
-    from crypto_bot.feature_engineering.external_data_integrator import (
-        ExternalDataIntegrator,
-    )
-    from crypto_bot.feature_engineering.technical_feature_engine import (
-        TechnicalFeatureEngine,
-    )
+    # from crypto_bot.ml.preprocessor import prepare_ml_dataset  # 未使用のため削除
+    from crypto_bot.ml.feature_master_implementation import FeatureMasterImplementation
 
-    PHASE_B_AVAILABLE = True
+    FEATURE_MASTER_AVAILABLE = True
     logger = logging.getLogger(__name__)
-    logger.info("🚀 Phase B基盤モジュール統合成功")
+    logger.info("✅ Phase 9: 97特徴量完全実装システム統合成功")
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.warning(f"⚠️ Phase B基盤モジュール未利用: {e}")
-    PHASE_B_AVAILABLE = False
+    logger.warning(f"⚠️ Phase 9: FeatureMasterImplementation未利用: {e}")
+    FEATURE_MASTER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +88,15 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         # タイムフレーム内アンサンブルプロセッサー辞書
         self.timeframe_processors: Dict[str, TimeframeEnsembleProcessor] = {}
 
-        # Phase B基盤統合初期化
-        if PHASE_B_AVAILABLE:
-            self._initialize_phase_b_components()
+        # Phase 9: 97特徴量完全実装システム初期化
+        if FEATURE_MASTER_AVAILABLE:
+            self._initialize_feature_master_system()
         else:
             # フォールバック: 従来方式
             self.feature_engineer = FeatureEngineer(config)
-            self.batch_processor = None
+            logger.warning(
+                "⚠️ Phase 9: FeatureMasterImplementation not available, using fallback"
+            )
 
         # マルチタイムフレームデータフェッチャー
         self.multi_timeframe_fetcher: Optional[MultiTimeframeDataFetcher] = None
@@ -118,7 +113,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             "total_predictions": 0,
             "stage1_ensemble_predictions": 0,
             "stage2_integration_predictions": 0,
-            "phase_b_batch_processing": 0,
+            "feature_master_processing": 0,
             "cache_hits": 0,
             "cache_misses": 0,
             "high_confidence_signals": 0,
@@ -130,35 +125,43 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         self.performance_history: List[Dict] = []
         self.max_history_size = 100
 
-        logger.info("🚀 MultiTimeframeEnsembleStrategy (Phase C1) initialized")
+        logger.info("🚀 MultiTimeframeEnsembleStrategy (Phase 9) initialized")
         logger.info(f"   Timeframes: {self.timeframes}")
         logger.info(f"   Base weights: {self.base_weights}")
         logger.info(f"   Ensemble method: {self.ensemble_method}")
-        logger.info(f"   Phase B integration: {PHASE_B_AVAILABLE}")
+        logger.info(f"   Phase 9 FeatureMaster integration: {FEATURE_MASTER_AVAILABLE}")
 
-    def _initialize_phase_b_components(self):
-        """Phase B基盤コンポーネント初期化"""
+    def _initialize_feature_master_system(self):
+        """Phase 9: 97特徴量完全実装システム初期化"""
         try:
-            # BatchFeatureCalculator初期化
-            self.batch_calculator = BatchFeatureCalculator(self.config)
+            # 設定デバッグ情報
+            ml_config = self.config.get("ml", {})
+            extra_features = ml_config.get("extra_features", [])
+            logger.info(
+                f"🔧 Phase 9: Strategy config verification: {len(extra_features)} extra_features"
+            )
+            logger.info("🔧 Phase 9: Production.yml 92特徴量確認")
 
-            # TechnicalFeatureEngine初期化
-            self.technical_engine = TechnicalFeatureEngine(self.config)
+            # FeatureMasterImplementation初期化
+            self.feature_master = FeatureMasterImplementation(self.config)
+            logger.info("✅ Phase 9: FeatureMasterImplementation初期化完了")
 
-            # ExternalDataIntegrator初期化
-            self.external_integrator = ExternalDataIntegrator(self.config)
-
-            # 統合特徴量エンジニアリング（Phase B統合版）
+            # 統合特徴量エンジニアリング（Phase 9版: preprocessor統合）
             self.feature_engineer = FeatureEngineer(self.config)
+            logger.info("✅ Phase 9: preprocessor統合FeatureEngineer初期化完了")
 
-            logger.info("✅ Phase B基盤統合完了")
-            self.phase_b_integrated = True
+            logger.info("✅ Phase 9: 97特徴量完全実装システム統合完了")
+            self.feature_master_integrated = True
 
         except Exception as e:
-            logger.error(f"❌ Phase B基盤統合失敗: {e}")
+            logger.error(f"❌ Phase 9: FeatureMaster統合失敗: {e}")
+            import traceback
+
+            logger.error(f"❌ Stack trace: {traceback.format_exc()}")
             logger.info("🔄 フォールバック: 従来方式使用")
+            # フォールバック処理
             self.feature_engineer = FeatureEngineer(self.config)
-            self.phase_b_integrated = False
+            self.feature_master_integrated = False
 
     def _initialize_timeframe_processors(self):
         """タイムフレーム内アンサンブルプロセッサー初期化"""
@@ -167,11 +170,11 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 # タイムフレーム特化設定作成
                 tf_config = self._create_timeframe_specific_config(timeframe)
 
-                # プロセッサー作成（Phase C1モジュール使用）
+                # プロセッサー作成（Phase 9: 97特徴量完全実装システム使用）
                 processor = create_timeframe_ensemble_processor(
                     timeframe=timeframe,
                     config=tf_config,
-                    feature_engineer=self.feature_engineer,  # Phase B統合特徴量エンジニアリング
+                    feature_engineer=self.feature_engineer,  # Phase 9: FeatureMaster統合特徴量エンジニアリング
                 )
 
                 self.timeframe_processors[timeframe] = processor
@@ -595,7 +598,8 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                     continue
 
                 # Phase B基盤統合: バッチ処理実行
-                if PHASE_B_AVAILABLE and hasattr(self, "batch_calculator"):
+                # Phase Bシステム完全除去済み
+                if False:  # PHASE_B_AVAILABLEをFalseに置換
                     tf_data = self._apply_phase_b_processing(tf_data, timeframe)
                     self.strategy_stats["phase_b_batch_processing"] += 1
 
@@ -712,7 +716,8 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 context["trend_strength"] = 0.5
 
             # VIX情報（外部データ統合対応）
-            if PHASE_B_AVAILABLE and hasattr(self, "external_integrator"):
+            # Phase Bシステム完全除去済み
+            if False:  # PHASE_B_AVAILABLEをFalseに置換
                 external_data = self.external_integrator.get_latest_external_data()
                 context["vix_level"] = external_data.get("vix", 20.0)
                 context["dxy_level"] = external_data.get("dxy", 103.0)
@@ -965,7 +970,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         """Phase C1統合戦略情報取得"""
         info = {
             "strategy_type": "multi_timeframe_ensemble_phase_c1",
-            "phase_b_integrated": PHASE_B_AVAILABLE
+            "phase_b_integrated": False  # PHASE_B_AVAILABLEをFalseに置換
             and hasattr(self, "phase_b_integrated"),
             "timeframes": self.timeframes,
             "base_weights": self.base_weights,

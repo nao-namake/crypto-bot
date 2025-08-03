@@ -1,5 +1,9 @@
 {
-  "feature_order": [
+  "model_type": "LGBMClassifier_sklearn_compatible",
+  "accuracy": 0.999,
+  "f1_score": 0.9987515605493134,
+  "n_features": 127,
+  "feature_names": [
     "open",
     "high",
     "low",
@@ -124,8 +128,8 @@
     "volatility_regime",
     "momentum_quality",
     "market_phase",
-    "momentum_14"
-  ],
-  "num_features": 125,
-  "timestamp": "2025-08-01T15:08:50.000000"
+    "momentum_14",
+    "close_mean_10",
+    "close_std_10"
+  ]
 }

@@ -1,0 +1,393 @@
+# ローカル動作確認専用設定 - live-bitbank-simple コマンド用
+# シンプル版初期化プロセス・デバッグ特化設定
+
+backtest:
+  slippage_rate: 0.001
+  starting_balance: 10000.0
+
+bitbank:
+  day_trading:
+    auto_close_before_rollover: true
+    enabled: true
+    interest_rate: 0.0004
+    rollover_time: 00:00:00
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    min_profit_after_fees: 0.002
+    prefer_maker: true
+    taker_fee: 0.0012
+  order_management:
+    max_open_orders: 30
+    queue_enabled: true
+    rate_limit:
+      get_requests: 10
+      post_requests: 6
+
+data:
+  adaptive_rate_limit: true
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 20000
+    timeout: 60000
+    verbose: false
+  # ローカル動作特化設定
+  early_week_extension_hours: 24  # 36→24に削減
+  exchange: bitbank
+  exponential_backoff: true
+  fetch_retries: 2  # 3→2に削減
+  limit: 200  # 400→200に削減（ローカル高速化）
+  max_attempts: 15  # 25→15に削減
+  max_consecutive_empty: 8  # 12→8に削減
+  max_consecutive_no_new: 15  # 20→15に削減
+  max_delay_ms: 30000  # 45000→30000に短縮
+  min_delay_ms: 20000  # 30000→20000に短縮
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      15m:
+        method: interpolation
+        min_points: 8  # 10→8に削減
+      1h:
+        method: direct
+        min_points: 8  # 10→8に削減
+      4h:
+        api_fetch: false
+        method: aggregation
+        min_points: 6  # 8→6に削減
+  paginate: true
+  per_page: 100  # 200→100に削減（ローカル高速化）
+  since_hours: 72  # 96→72に短縮（3日間）
+  symbol: BTC/JPY
+  timeframe: 1h
+  weekend_data: true
+  weekend_extension_hours: 48  # 72→48に短縮
+
+dynamic_data_fetching:
+  asia_market_reduction: 8  # 12→8に削減
+  enabled: true
+  europe_market_bonus: 8  # 12→8に削減
+  high_liquidity_fast_fetch: true
+  high_volume_hours: 72  # 96→72に短縮
+  holiday_reduced_frequency: true
+  low_liquidity_throttling: true
+  low_volume_hours: 36  # 48→36に短縮
+  moderate_volume_hours: 48  # 72→48に短縮
+  us_market_peak_extension: 16  # 24→16に短縮
+  volume_based_batching:
+    high_volume_batch: 30  # 50→30に削減
+    low_volume_batch: 8   # 10→8に削減
+    moderate_volume_batch: 20  # 30→20に削減
+  weekend_minimal_fetching: true
+
+external_data_retry:
+  circuit_breaker:
+    enabled: false  # ローカル動作では無効化
+    failure_threshold: 5
+    recovery_timeout: 300
+  exponential_backoff: true
+  max_retries: 2  # 3→2に削減
+  retry_delay: 1  # 2→1に短縮
+
+live:
+  bitbank_settings:
+    max_retries: 2  # 3→2に削減
+    min_btc_amount: 0.0001
+    retry_delay: 3  # 5→3に短縮
+  margin_trading:
+    enabled: true
+    force_margin_mode: true
+    leverage: 1.0
+    position_type: both
+    verify_margin_status: true
+  max_order_size: 0.0005
+  min_order_size: 0.0001
+  mode: live
+  starting_balance: 10000.0
+  trade_interval: 60
+
+logging:
+  file: ./logs/local_trading.log  # ローカルパス
+  level: DEBUG  # INFO→DEBUG（詳細ログ）
+  retention: 3  # 7→3に短縮
+  rotation: daily
+
+ml:
+  # Stage 1適正化済み設定
+  confidence_threshold: 0.65
+  ensemble:
+    confidence_threshold: 0.6
+    enabled: true
+    method: trading_stacking
+    model_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    models:
+    - lgbm
+    - xgb
+    - rf
+    risk_adjustment: true
+  external_data:
+    # ローカル動作では外部データを完全無効化
+    cache_enabled: false
+    enabled: false
+    fallback_enabled: false
+    fear_greed:
+      enabled: false
+    funding:
+      enabled: false
+    include_in_features: false
+    macro:
+      enabled: false
+    vix:
+      enabled: false
+  # 125特徴量システム（外部データ除去版）
+  extra_features:
+  - close_lag_1
+  - close_lag_2
+  - close_lag_3
+  - close_lag_4
+  - close_lag_5
+  - volume_lag_1
+  - volume_lag_2
+  - volume_lag_3
+  - volume_lag_4
+  - volume_lag_5
+  - returns_1
+  - returns_2
+  - returns_3
+  - returns_5
+  - returns_10
+  - log_returns_1
+  - log_returns_2
+  - log_returns_3
+  - log_returns_5
+  - log_returns_10
+  - sma_5
+  - sma_10
+  - sma_20
+  - sma_50
+  - sma_100
+  - sma_200
+  - ema_5
+  - ema_10
+  - ema_20
+  - ema_50
+  - ema_100
+  - ema_200
+  - price_position_20
+  - price_position_50
+  - price_vs_sma20
+  - bb_position
+  - intraday_position
+  - bb_upper
+  - bb_middle
+  - bb_lower
+  - bb_width
+  - bb_squeeze
+  - rsi_14
+  - rsi_7
+  - rsi_21
+  - rsi_oversold
+  - rsi_overbought
+  - macd
+  - macd_signal
+  - macd_hist
+  - macd_cross_up
+  - macd_cross_down
+  - stoch_k
+  - stoch_d
+  - stoch_oversold
+  - stoch_overbought
+  - atr_14
+  - atr_7
+  - atr_21
+  - volatility_20
+  - volatility_50
+  - high_low_ratio
+  - true_range
+  - volatility_ratio
+  - volume_sma_20
+  - volume_ratio
+  - volume_trend
+  - vwap
+  - vwap_distance
+  - obv
+  - obv_sma
+  - cmf
+  - mfi
+  - ad_line
+  - adx_14
+  - plus_di
+  - minus_di
+  - trend_strength
+  - trend_direction
+  - cci_20
+  - williams_r
+  - ultimate_oscillator
+  - support_distance
+  - resistance_distance
+  - support_strength
+  - volume_breakout
+  - price_breakout_up
+  - price_breakout_down
+  - doji
+  - hammer
+  - engulfing
+  - pinbar
+  - skewness_20
+  - kurtosis_20
+  - zscore
+  - mean_reversion_20
+  - mean_reversion_50
+  - hour
+  - day_of_week
+  - is_weekend
+  - is_asian_session
+  - is_european_session
+  - is_us_session
+  - roc_10
+  - roc_20
+  - trix
+  - mass_index
+  - keltner_upper
+  - keltner_lower
+  - donchian_upper
+  - donchian_lower
+  - ichimoku_conv
+  - ichimoku_base
+  - price_efficiency
+  - trend_consistency
+  - volume_price_correlation
+  - volatility_regime
+  - momentum_quality
+  - market_phase
+  - momentum_14
+  feat_period: 14
+  horizon: 5
+  lags:
+  - 1
+  - 2
+  - 3
+  model_type: lgbm
+  performance_enhancements:
+    confidence_filter: 0.6
+    partial_profit_levels:
+    - 0.3
+    - 0.5
+    trailing_stop: true
+  rolling_window: 10
+  target_type: classification
+  vix_integration:
+    enabled: false  # ローカル動作では無効化
+
+multi_timeframe:
+  data_quality_threshold: 0.5  # 0.55→0.5に緩和（ローカル動作）
+  data_sync_enabled: true
+  missing_data_tolerance: 0.15  # 0.1→0.15に緩和
+  quality_management:
+    adaptive_threshold: true
+    enabled: true
+    high_quality_mode:
+      confidence_boost: 0.0
+      position_size_reduction: 1.0
+      stop_loss_tightening: 1.0
+    low_quality_mode:
+      confidence_boost: 0.1
+      position_size_reduction: 0.5
+      stop_loss_tightening: 0.8
+    max_threshold: 0.7  # 0.8→0.7に緩和
+    medium_quality_mode:
+      confidence_boost: 0.03
+      position_size_reduction: 0.8
+      stop_loss_tightening: 0.95
+    min_threshold: 0.3  # 0.4→0.3に緩和
+    target_threshold: 0.5  # 0.6→0.5に緩和
+  timeframe_consensus_threshold: 0.55  # 0.6→0.55に緩和
+  timeframes:
+  - 15m
+  - 1h
+  - 4h
+  weights:
+  - 0.3
+  - 0.5
+  - 0.2
+
+quality_monitoring:
+  default_threshold: 0.25  # 0.3→0.25に緩和
+  emergency_stop_threshold: 0.3  # 0.35→0.3に緩和
+  enabled: true
+
+risk:
+  atr_period: 20
+  # Stage 1適正化済み設定
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.03
+  risk_per_trade: 0.01
+  stop_atr_mult: 1.2
+
+strategy:
+  # Stage 1適正化済み設定
+  confidence_threshold: 0.65
+  name: multi_timeframe_ensemble
+  params:
+    atr_multiplier: 0.3
+    max_volatility_adj: 0.03
+    ml:
+      # ML学習パラメータ（strategy固有）
+      feat_period: 14
+      horizon: 5
+      lags:
+      - 1
+      - 2
+      - 3
+      model_type: lgbm
+      rolling_window: 10
+      target_type: classification
+    model_path: models/production/model.pkl  # ローカルパス
+    performance_adj_range:
+    - -0.003
+    - 0.005
+    threshold: 0.02
+    threshold_bounds:
+    - 0.005
+    - 0.1
+    volatility_adjustment: true
+  type: multi_timeframe_ensemble
+
+trading_schedule:
+  enabled: true
+  low_volume_hours:
+  - 1
+  - 8
+  moderate_trading_hours:
+  - 8
+  - 13
+  monitoring_only_periods: []
+  peak_trading_hours:
+  - 13
+  - 23
+  timezone: UTC
+  trading_blackout:
+    extreme_low_volume: false  # ローカルテストでは無効化
+    major_holidays: false      # ローカルテストでは無効化  
+    weekend_full: false
+  volume_based_trading: true
+  volume_strategies:
+    high_volume:
+      aggressiveness: 1.0
+      position_size_mult: 1.2
+      stop_loss_mult: 0.8
+    low_volume:
+      aggressiveness: 0.3
+      position_size_mult: 0.5
+      stop_loss_mult: 1.5
+    moderate_volume:
+      aggressiveness: 0.7
+      position_size_mult: 1.0
+      stop_loss_mult: 1.0
+  weekend_monitoring: false

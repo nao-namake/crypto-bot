@@ -1,236 +1,167 @@
-# =============================================================================
-# ファイル名: config/bitbank_101features_csv_backtest.yml
-# 説明:
-# CSV版・1年間バックテスト専用設定
-# - 高速なCSV読み込みによる1年間フルバックテスト
-# - タイムアウト回避・軽量化対応
-# - 101特徴量・アンサンブルモデル対応
-# =============================================================================
-
-# ----------------------------------------------------------------------
-# データ取得設定（CSV版）
-# ----------------------------------------------------------------------
+backtest:
+  aggregate_out_prefix: ./results/aggregate_csv_1year
+  commission_rate: 0.0005
+  slippage_rate: 0.001
+  starting_balance: 10000.0
+  trade_log_csv: ./results/trade_log_csv_1year.csv
 data:
-  exchange: csv  # CSV モードを指定
-  symbol: BTC/USD  # CSVファイルのシンボル
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 20000
+    timeout: 60000
+    verbose: false
+  exchange: bitbank
+  exponential_backoff: true
+  fetch_retries: 3
+  limit: 400
+  paginate: true
+  per_page: 200
+  since_hours: 96
+  symbol: BTC/JPY
   timeframe: 1h
-  
-  # CSV ファイル指定
-  csv_path: /Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv
-  
-  # 学習用データ期間（1年間フル）
-  since: "2024-01-01T00:00:00Z"
-  limit: 8760  # 1年分（365日 × 24時間）
-  
-  # API設定は無効化
-  api_key: null
-  api_secret: null
-  ccxt_options: {}
-
-# ----------------------------------------------------------------------
-# 戦略設定（101特徴量・アンサンブル対応）
-# ----------------------------------------------------------------------
-strategy:
-  type: single
-  name: ml
-  params:
-    model_path: csv_model_101feat.pkl
-    threshold: 0.05
-    
-    # 動的閾値調整
-    atr_multiplier: 0.5
-    volatility_adjustment: true
-    threshold_bounds: [0.01, 0.25]
-    
-    thresholds_to_test:
-      - 0.02
-      - 0.05
-      - 0.08
-      - 0.10
-      - 0.15
-
-# ----------------------------------------------------------------------
-# リスク管理（CSV用最適化）
-# ----------------------------------------------------------------------
+  weekend_data: true
+  weekend_extension_hours: 72
+ml:
+  calibration:
+    cv: prefit
+    method: sigmoid
+  ensemble:
+    base_models:
+    - bagging_fraction: 0.8
+      lambda_l1: 0.5
+      lambda_l2: 0.5
+      learning_rate: 0.1
+      max_depth: 8
+      n_estimators: 100
+      type: lgbm
+    - max_depth: 8
+      min_samples_leaf: 2
+      min_samples_split: 5
+      n_estimators: 100
+      type: rf
+    - colsample_bytree: 0.8
+      learning_rate: 0.1
+      max_depth: 6
+      n_estimators: 100
+      subsample: 0.8
+      type: xgb
+    enabled: true
+    method: stacking
+    weights:
+    - 0.4
+    - 0.3
+    - 0.3
+  extra_features:
+  - rsi_14
+  - macd
+  - rci_9
+  - volume_zscore
+  - sma_200
+  - ema_50
+  - stoch
+  - bb
+  - adx
+  - willr
+  - cmf
+  - fisher
+  - vix
+  - dxy
+  - fear_greed
+  - funding
+  - day_of_week
+  - hour_of_day
+  - mochipoyo_long_signal
+  - mochipoyo_short_signal
+  - sma_50
+  - sma_10
+  - ema_12
+  - ema_26
+  - sma_20
+  - ema_20
+  - momentum_14
+  - trend_strength
+  feat_period: 14
+  horizon: 5
+  lags:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  model_params:
+    bagging_fraction: 0.8
+    lambda_l1: 0.5
+    lambda_l2: 0.5
+    learning_rate: 0.1
+    max_depth: 8
+    n_estimators: 100
+  model_type: lgbm
+  optuna:
+    direction: maximize
+    n_trials: 5
+    pruner:
+      interval_steps: 1
+      n_startup_trials: 3
+      n_warmup_steps: 5
+      name: MedianPruner
+    sampler:
+      name: TPESampler
+    timeout: 180
+  rolling_window: 20
+  target_type: classification
+  vix_integration:
+    enabled: true
+    panic_threshold: 35
+    risk_off_threshold: 25
+    spike_multiplier: 2.0
+monitoring:
+  check_interval: 300
+  enabled: true
+  metrics:
+  - total_return
+  - sharpe_ratio
+  - max_drawdown
+  - win_rate
+  - profit_factor
+  - calmar_ratio
 risk:
-  risk_per_trade: 0.02   # 2%リスク（バックテスト用）
-  stop_atr_mult: 2.0     # 標準的なストップロス
   dynamic_position_sizing:
     enabled: true
     formula: linear
-  
-  # Kelly基準
   kelly_criterion:
     enabled: true
     lookback_window: 50
     max_fraction: 0.25
     min_trades_required: 10
-
-# ----------------------------------------------------------------------
-# バックテスト設定（1年間・高速化）
-# ----------------------------------------------------------------------
-backtest:
-  starting_balance: 10000.0   # 1万円
-  slippage_rate: 0.001        # 軽量化のため低めに設定
-  commission_rate: 0.0005     # 軽量化のため低めに設定
-  trade_log_csv: "./results/trade_log_csv_1year.csv"
-  aggregate_out_prefix: "./results/aggregate_csv_1year"
-
-# ----------------------------------------------------------------------
-# ウォークフォワード分割（1年間用最適化）
-# ----------------------------------------------------------------------
+  risk_per_trade: 0.02
+  stop_atr_mult: 2.0
+strategy:
+  name: ml
+  params:
+    atr_multiplier: 0.5
+    model_path: models/production/perfect_127_features_model.pkl
+    threshold: 0.05
+    threshold_bounds:
+    - 0.01
+    - 0.25
+    thresholds_to_test:
+    - 0.02
+    - 0.05
+    - 0.08
+    - 0.1
+    - 0.15
+    volatility_adjustment: true
+  type: single
 walk_forward:
-  train_window: 720      # 30日間学習（720時間）
-  test_window: 168       # 1週間テスト（168時間）
-  step: 24               # 1日間隔でスライド（高速化）
-
-# ----------------------------------------------------------------------
-# 機械学習（101特徴量完全版）
-# ----------------------------------------------------------------------
-ml:
-  feat_period: 14
-  lags: [1,2,3,4,5,6,7,8,9,10,11,12]
-  rolling_window: 20
-  horizon: 5
-  target_type: classification
-  model_type: lgbm
-
-  # VIX統合設定
-  vix_integration:
-    enabled: true
-    risk_off_threshold: 25
-    panic_threshold: 35
-    spike_multiplier: 2.0
-
-  # アンサンブルモデル設定
-  ensemble:
-    enabled: true
-    method: stacking
-    weights: [0.4, 0.3, 0.3]
-    
-    base_models:
-      - type: lgbm
-        n_estimators: 100
-        max_depth: 8
-        learning_rate: 0.1
-        bagging_fraction: 0.8
-        lambda_l1: 0.5
-        lambda_l2: 0.5
-      - type: rf
-        n_estimators: 100
-        max_depth: 8
-        min_samples_split: 5
-        min_samples_leaf: 2
-      - type: xgb
-        n_estimators: 100
-        max_depth: 6
-        learning_rate: 0.1
-        subsample: 0.8
-        colsample_bytree: 0.8
-
-  # ==========================
-  # 📊 101特徴量システム（VIX・DXY完全統合版）
-  # 100%勝率・ゼロドローダウン実証済み
-  # ==========================
-  extra_features:
-    # === 基本テクニカル指標（6特徴量） ===
-    - rsi_14      # RSI(14)
-    - macd        # MACD（3カラム生成: macd, macd_signal, macd_hist）
-    - rci_9       # RCI(9)
-    - volume_zscore  # 出来高Zスコア
-    - sma_200     # 長期移動平均
-    - ema_50      # 中期移動平均
-    
-    # === 高度テクニカル指標（14特徴量） ===
-    - stoch       # ストキャスティクス（2カラム: stoch_k, stoch_d）
-    - bb          # ボリンジャーバンド（5カラム: bb_upper, bb_middle, bb_lower, bb_percent, bb_width）
-    - adx         # ADX（3カラム: adx, di_plus, di_minus）
-    - willr       # Williams %R
-    - cmf         # チャイキンマネーフロー
-    - fisher      # フィッシャートランスフォーム（2カラム: fisher, fisher_signal）
-    
-    # === 🎯 マクロ経済統合（46特徴量）- 全特徴量有効化 ===
-    - vix         # VIX恐怖指数（6特徴量）✅ 100%勝率の鍵
-    - dxy         # DXY・金利（10特徴量）✅ マクロ環境適応
-    - fear_greed  # Fear&Greed（13特徴量）✅ 市場心理分析
-    - funding     # Funding Rate・OI（17特徴量）✅ 資金フロー分析
-    
-    # === 時間・シグナル特徴量（4特徴量） ===
-    - day_of_week
-    - hour_of_day
-    - mochipoyo_long_signal
-    - mochipoyo_short_signal
-    
-    # === 追加移動平均（8特徴量） ===
-    - sma_50
-    - sma_10     # サポート済み特徴量
-    - ema_12
-    - ema_26
-    - sma_20
-    - ema_20
-    - momentum_14  # サポート済み拡張特徴量
-    - trend_strength  # サポート済み拡張特徴量
-
-  # Optuna設定（高速化）
-  optuna:
-    n_trials: 5      # 高速化のため試行数削減
-    timeout: 180     # 3分タイムアウト
-    direction: maximize
-    sampler:
-      name: TPESampler
-    pruner:
-      name: MedianPruner
-      n_startup_trials: 3
-      n_warmup_steps: 5
-      interval_steps: 1
-
-  # モデルパラメータ（軽量化）
-  model_params:
-    n_estimators: 100
-    max_depth: 8
-    learning_rate: 0.1
-    bagging_fraction: 0.8
-    lambda_l1: 0.5
-    lambda_l2: 0.5
-
-  # モデルキャリブレーション
-  calibration:
-    method: sigmoid
-    cv: prefit
-
-# ----------------------------------------------------------------------
-# 監視・レポート設定
-# ----------------------------------------------------------------------
-monitoring:
-  enabled: true
-  check_interval: 300  # 5分間隔（軽量化）
-  
-  metrics:
-    - total_return
-    - sharpe_ratio
-    - max_drawdown
-    - win_rate
-    - profit_factor
-    - calmar_ratio
-
-# ----------------------------------------------------------------------
-# 🎯 CSV版バックテスト期待効果
-# ----------------------------------------------------------------------
-# この設定による特徴:
-# 
-# 📈 高速化効果:
-# - API制限なし: タイムアウト完全回避
-# - 軽量処理: 1年間データを瞬時に読み込み
-# - 並列処理: マルチコア活用でさらに高速化
-# 
-# 🔍 詳細分析:
-# - 8,760時間のフルデータ: 月次・季節パターン検出
-# - 52週間のウォークフォワード: 実運用に近い検証
-# - 101特徴量フル活用: 最大精度での戦略検証
-# 
-# 📊 期待結果:
-# - 完全な年間パフォーマンス測定
-# - 四半期別・月別詳細分析
-# - 最適なパラメータ発見
-# - 実運用前の最終検証
-# ----------------------------------------------------------------------
+  step: 24
+  test_window: 168
+  train_window: 720

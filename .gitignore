@@ -109,8 +109,14 @@ realistic_annual_projection.py
 realistic_bitbank_projection.py
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ステータス・監視ファイル
+# ステータス・監視ファイル・バックアップ
 # ──────────────────────────────────────────────────────────────────────────────
 status.json
 *.monitoring_*.log
 pipeline_log/
+
+# Phase H.29.11: コア設定・スクリプト・Docker・バックアップファイル (適切なフォルダに整理)
+backups/
+feature_order_backup_*.json
+config/core/feature_order.checksum
+scripts/verification_results_*.json

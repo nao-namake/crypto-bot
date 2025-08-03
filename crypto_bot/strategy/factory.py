@@ -69,7 +69,17 @@ class StrategyFactory:
                     strategy_name in ["ml", "ml_strategy", "multi_timeframe_ensemble"]
                     and full_config is not None
                 ):
-                    init_params["config"] = full_config
+                    # 戦略パラメータのML設定をfull_configにマージ
+                    merged_config = full_config.copy()
+                    if "ml" in params:
+                        if "ml" not in merged_config:
+                            merged_config["ml"] = {}
+                        # 戦略パラメータのML設定で上書き
+                        merged_config["ml"].update(params["ml"])
+                        logger.info(
+                            f"🔧 Strategy ML params merged: {len(params['ml'].get('extra_features', []))} extra_features"
+                        )
+                    init_params["config"] = merged_config
                 else:
                     init_params["config"] = params
 

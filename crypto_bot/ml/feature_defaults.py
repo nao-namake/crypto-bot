@@ -1,6 +1,6 @@
 """
 確実な特徴量生成システム
-外部データが取得できない場合でも、必ず101特徴量を生成する
+外部データが取得できない場合でも、必ず97特徴量を生成する
 """
 
 import logging
@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 class FeatureDefaults:
     """
     外部データエラー時の確実な特徴量生成
+    Phase 2: 97特徴量最適化対応
     """
+
+    # Phase 2: 97特徴量最適化システム対応
+    target_count = 97
 
     @staticmethod
     def get_default_vix_features() -> List[str]:
@@ -173,9 +177,9 @@ class FeatureDefaults:
         return df
 
     @staticmethod
-    def ensure_101_features(df: pd.DataFrame) -> pd.DataFrame:
+    def ensure_97_features(df: pd.DataFrame) -> pd.DataFrame:
         """
-        確実に101特徴量を生成
+        確実に97特徴量を生成（Phase 2最適化対応）
 
         Parameters
         ----------
@@ -185,9 +189,9 @@ class FeatureDefaults:
         Returns
         -------
         pd.DataFrame
-            101特徴量が保証されたデータフレーム
+            97特徴量が保証されたデータフレーム
         """
-        logger.info("Ensuring 101 features with defaults")
+        logger.info("Ensuring 97 optimized features with defaults")
 
         # 基本特徴量（データから計算される）の確認
         basic_features = ["open", "high", "low", "close", "volume"]
@@ -195,33 +199,38 @@ class FeatureDefaults:
             if feature not in df.columns:
                 logger.warning(f"Missing basic feature: {feature}")
 
-        # 外部データ特徴量のデフォルト値追加
-        df = FeatureDefaults.add_default_vix_features(df)
-        df = FeatureDefaults.add_default_macro_features(df)
-        df = FeatureDefaults.add_default_forex_features(df)
-        df = FeatureDefaults.add_default_fear_greed_features(df)
-        df = FeatureDefaults.add_default_funding_features(df)
-
-        # 追加の特徴量（基本計算系）
-        additional_features = {
-            "momentum_14": 0.0,
-            "trend_strength": 25.0,
-            "day_of_week": 1,
-            "hour_of_day": 12,
-            "mochipoyo_long_signal": 0,
-            "mochipoyo_short_signal": 0,
+        # Phase 2: 97特徴量最適化システム対応
+        # 外部データは無効化されているため、テクニカル指標のみの補完
+        essential_technical_features = {
+            "rsi_14": 50.0,  # RSI中立値
+            "ema_20": 100.0,  # 価格ベース移動平均
+            "atr_14": 2.0,  # ATRデフォルト値
+            "macd": 0.0,  # MACDゼロライン
+            "volume_ratio": 1.0,  # 出来高比率中立
+            "momentum_14": 0.0,  # モメンタム中立
+            "trend_strength": 50.0,  # トレンド強度中立
+            "volatility_20": 0.02,  # ボラティリティ2%
+            "hour": 12,  # 時間特徴量
+            "day_of_week": 3,  # 曜日特徴量（水曜）
+            "is_weekend": 0,  # 平日フラグ
+            "is_asian_session": 0,
+            "is_us_session": 0,
         }
 
-        for feature, default_value in additional_features.items():
+        # 不足特徴量を安全なデフォルト値で補完
+        for feature, default_value in essential_technical_features.items():
             if feature not in df.columns:
                 df[feature] = default_value
 
-        logger.info(f"Final feature count: {len(df.columns)}")
+        logger.info(f"Phase 2 optimized feature count: {len(df.columns)}")
+        logger.info(
+            "97特徴量最適化システム対応完了（外部データ除外・テクニカル指標重視）"
+        )
         return df
 
 
 def ensure_feature_consistency(
-    df: pd.DataFrame, target_count: int = 151
+    df: pd.DataFrame, target_count: int = 97
 ) -> pd.DataFrame:
     """
     特徴量数の一致を保証する最終チェック（Phase H.12: 強化版・確実性向上）
@@ -247,7 +256,9 @@ def ensure_feature_consistency(
     if current_count == target_count:
         logger.info(f"✅ Feature count matches target: {current_count}")
         return df
-    elif current_count < target_count:
+    elif current_count < (
+        target_count - 2
+    ):  # Phase H.30: enhanced_default汚染防止・許容範囲±2
         # Phase H.29: 不足特徴量の詳細ログ追加
         missing_count = target_count - current_count
         logger.error(

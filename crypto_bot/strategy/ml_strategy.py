@@ -50,24 +50,46 @@ class MLStrategy(StrategyBase):
             "MLStrategy initialised with base threshold = %.4f", self.base_threshold
         )
 
-        # モデルの読み込み（MLModel or EnsembleModel）
+        # モデルの読み込み（TradingEnsembleClassifier, MLModel or EnsembleModel）
         try:
-            # まずEnsembleModelとして読み込みを試行
-            logger.info(f"Attempting to load ensemble model from: {model_path}")
-            self.model = EnsembleModel.load(model_path)
+            # まずTradingEnsembleClassifierとして直接読み込みを試行（Phase2.2: is_fitted修正）
+            import joblib
+
+            logger.info(
+                f"Attempting to load TradingEnsembleClassifier from: {model_path}"
+            )
+            self.model = joblib.load(model_path)
+            # Phase2.2: is_fittedフラグが設定されていない場合の修正
+            if (
+                hasattr(self.model, "fitted_base_models")
+                and self.model.fitted_base_models
+            ):
+                if not hasattr(self.model, "is_fitted") or not self.model.is_fitted:
+                    self.model.is_fitted = True
+                    logger.info(
+                        "✅ Set is_fitted=True for loaded TradingEnsembleClassifier"
+                    )
             self.is_ensemble = True
-            logger.info("Loaded ensemble model successfully")
+            logger.info("Loaded TradingEnsembleClassifier successfully")
         except Exception as e:
-            # 失敗した場合は通常のMLModelとして読み込み
-            logger.warning(f"Failed to load as ensemble model: {e}")
-            logger.info(f"Attempting to load as single model from: {model_path}")
+            # フォールバック: EnsembleModelとして読み込みを試行
+            logger.warning(f"Failed to load as TradingEnsembleClassifier: {e}")
             try:
-                self.model = MLModel.load(model_path)
-                self.is_ensemble = False
-                logger.info("Loaded single model successfully")
-            except Exception as e2:
-                logger.error(f"Failed to load model: {e2}")
-                raise RuntimeError(f"Could not load model from {model_path}: {e2}")
+                logger.info(f"Attempting to load ensemble model from: {model_path}")
+                self.model = EnsembleModel.load(model_path)
+                self.is_ensemble = True
+                logger.info("Loaded ensemble model successfully")
+            except Exception as e:
+                # 失敗した場合は通常のMLModelとして読み込み
+                logger.warning(f"Failed to load as ensemble model: {e}")
+                logger.info(f"Attempting to load as single model from: {model_path}")
+                try:
+                    self.model = MLModel.load(model_path)
+                    self.is_ensemble = False
+                    logger.info("Loaded single model successfully")
+                except Exception as e2:
+                    logger.error(f"Failed to load model: {e2}")
+                    raise RuntimeError(f"Could not load model from {model_path}: {e2}")
 
         self.feature_engineer = FeatureEngineer(self.config)
         self.scaler = StandardScaler()

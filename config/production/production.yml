@@ -1,515 +1,413 @@
-# 155特徴量本番環境設定（マルチタイムフレーム×アンサンブル学習）
-# 外部データ統合・品質監視・手数料最適化・2段階アンサンブル完全版
-
+backtest:
+  slippage_rate: 0.001
+  starting_balance: 10000.0
+bitbank:
+  day_trading:
+    auto_close_before_rollover: true
+    enabled: true
+    interest_rate: 0.0004
+    rollover_time: 00:00:00
+  fee_optimization:
+    enabled: true
+    maker_fee: -0.0002
+    min_profit_after_fees: 0.002
+    prefer_maker: true
+    taker_fee: 0.0012
+  order_management:
+    max_open_orders: 30
+    queue_enabled: true
+    rate_limit:
+      get_requests: 10
+      post_requests: 6
 data:
-  exchange: bitbank
-  symbol: BTC/JPY
-  timeframe: 1h  # ベースタイムフレーム（マルチタイムフレーム変換用）
+  adaptive_rate_limit: true
   api_key: ${BITBANK_API_KEY}
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 20000  # Phase G.1.1: 構造修正後最適設定（20秒間隔・確実なAPI安全性）
-    timeout: 60000   # タイムアウト60秒（API応答時間考慮）
-    verbose: false   # デバッグ用（本番ではfalse）
-
-  # Phase H.25: 外部API切り離し・データ取得最適化
-  limit: 200       # 400→200（外部API無効化により削減）
-  paginate: true   # ページネーション有効
-  per_page: 100    # 200→100（API負荷軽減・安定性向上）
-  since_hours: 72  # 96→72時間（データ範囲最適化）
-  weekend_data: true  # Phase G.1.1: 土日データ復活（ML精度向上・構造修正で安全性確保）
-  fetch_retries: 3    # Phase H.6.2: リトライ増加（2→3回、データ取得確実性向上）
-  adaptive_rate_limit: true  # 動的レート制限有効化
-  
-  # 土日ギャップ対応設定（動的since_hours拡張・品質向上対応）
-  weekend_extension_hours: 72  # 月曜日追加時間（48→72に拡大）
-  early_week_extension_hours: 36  # 火曜午前追加時間（24→36に拡大）
-  
-  # Phase H.26: ページネーション設定強化（200レコード確実取得）
-  max_consecutive_empty: 12  # 5→12（200レコード目標達成のため増加）
-  max_consecutive_no_new: 20  # 10→20（小バッチ対応・継続取得強化）
-  max_attempts: 25  # 15→25（十分な試行回数確保）
-  exponential_backoff: true  # 指数バックオフ有効化
-  min_delay_ms: 30000  # Phase H.6.2: API負荷軽減強化（20000→30000ms、30秒遅延）
-  max_delay_ms: 45000  # Phase H.6.2: 最大遅延延長（30000→45000ms、API保護強化）
-  
-  # マルチタイムフレーム対応データ設定（Phase H.12: 4h内部処理復活・API Error回避）
+    rateLimit: 20000
+    timeout: 60000
+    verbose: false
+  early_week_extension_hours: 36
+  exchange: bitbank
+  exponential_backoff: true
+  fetch_retries: 3
+  limit: 400
+  max_attempts: 25
+  max_consecutive_empty: 12
+  max_consecutive_no_new: 20
+  max_delay_ms: 45000
+  min_delay_ms: 30000
   multi_timeframe_data:
-    base_timeframe: "1h"  # データ取得ベース（Bitbank APIから1hのみ取得）
-    target_timeframes:    # Phase H.12: 4h内部処理復活・API直接取得は禁止維持
+    base_timeframe: 1h
+    target_timeframes:
       15m:
-        method: "interpolation"  # 1h→15m 補間
-        min_points: 10           # Phase H.9.1: 15→10に緩和（ATR計算成功優先）
+        method: interpolation
+        min_points: 5
       1h:
-        method: "direct"         # 直接使用
-        min_points: 10           # Phase H.9.1: 15→10に緩和（現実的最小値）
+        method: direct
+        min_points: 5
       4h:
-        method: "aggregation"    # Phase H.12: 1h→4h集約（内部処理のみ・API取得禁止）
-        min_points: 8            # Phase H.12: 4h×8=32時間分の最小データ要件
-        api_fetch: false         # Phase H.12: API Error 10000防止・内部処理専用
-
-strategy:
-  type: multi_timeframe_ensemble
-  name: multi_timeframe_ensemble
-  params:
-    model_path: /app/models/production/model.pkl  # 固定パス統一
-    threshold: 0.02  # Phase H.15: エントリー頻度最適化（月60-100回目標）
-    # 動的閾値調整パラメータ
-    atr_multiplier: 0.3  # Phase H.15: 0.5→0.3（影響抑制）
-    volatility_adjustment: true
-    threshold_bounds: [0.005, 0.10]  # Phase H.15: より狭い範囲で安定性向上
-    max_volatility_adj: 0.03  # Phase H.15: ボラティリティ調整上限（新規）
-    performance_adj_range: [-0.003, 0.005]  # Phase H.15: パフォーマンス調整範囲（新規）
-    # 戦略が期待するMLセクション全体を追加
-    ml:
-      feat_period: 14
-      lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
-      rolling_window: 10  # Phase H.9.3: 20→10削減・データ効率向上・即座取引開始対応
-      horizon: 5
-      target_type: classification
-      model_type: lgbm
-      ensemble:
-        enabled: true
-        method: trading_stacking
-        confidence_threshold: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
-        risk_adjustment: true
-        models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
-        model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-      # extra_featuresはml.extra_featuresで定義（重複削除）
-      # 外部データ設定
-      external_data:
-        enabled: false
-        cache_enabled: true
-        fallback_enabled: true
-
-# マルチタイムフレーム設定（Phase H.12: 4h内部処理復活・本来の3タイムフレーム戦略復旧）
-multi_timeframe:
-  timeframes: ["15m", "1h", "4h"]  # Phase H.12: 4h内部処理復活・本来設計通り
-  weights: [0.3, 0.5, 0.2]  # Phase H.12: 本来重み復活・15分足30%, 1時間足50%, 4時間足20%
-  data_sync_enabled: true
-  missing_data_tolerance: 0.1  # 10%まで欠損許容
-  timeframe_consensus_threshold: 0.6  # 60%以上の合意で信号発生
-  data_quality_threshold: 0.55  # Phase H.21.5: 0.6→0.55 実用的品質基準（Phase H.21修正効果考慮）
-  
-  # Phase H.5.4: 品質管理強化設定
-  quality_management:
-    enabled: true
-    adaptive_threshold: true      # 適応的品質閾値
-    min_threshold: 0.4           # 最小品質（緊急時）
-    target_threshold: 0.6        # 目標品質（通常時）  
-    max_threshold: 0.8           # 最高品質（理想時）
-    
-    # 品質ベース取引調整
-    low_quality_mode:             # 低品質時（0.4-0.5）
-      position_size_reduction: 0.5  # ポジションサイズ50%削減
-      confidence_boost: 0.1         # 信頼度閾値10%引き上げ
-      stop_loss_tightening: 0.8     # ストップロス20%厳格化
-      
-    medium_quality_mode:          # 中品質時（0.4-0.55）Phase H.21.6: 範囲調整
-      position_size_reduction: 0.8  # ポジションサイズ20%削減（緩和）
-      confidence_boost: 0.03        # 信頼度閾値3%引き上げ（緩和）
-      stop_loss_tightening: 0.95    # ストップロス5%厳格化（緩和）
-    
-    high_quality_mode:            # 高品質時（0.55+）Phase H.21.6: 閾値下げ・早期高品質判定
-      position_size_reduction: 1.0  # 標準ポジションサイズ
-      confidence_boost: 0.0         # 標準信頼度閾値
-      stop_loss_tightening: 1.0     # 標準ストップロス
-
-# 本番リスク設定
-risk:
-  risk_per_trade: 0.005
-  stop_atr_mult: 1.2
-  kelly_criterion:
-    enabled: true
-    max_fraction: 0.05
-
-  # Phase H.21.2: ATR期間最適化（100レコード安全活用・リスク管理精度向上）
-  atr_period: 20  # 7→20期間・100レコード安全活用・実用的精度向上
-
+        api_fetch: false
+        method: aggregation
+        min_points: 3
+  paginate: true
+  per_page: 200
+  since_hours: 1200
+  symbol: BTC/JPY
+  timeframe: 1h
+  weekend_data: true
+  weekend_extension_hours: 72
+dynamic_data_fetching:
+  asia_market_reduction: 12
+  enabled: true
+  europe_market_bonus: 12
+  high_liquidity_fast_fetch: true
+  high_volume_hours: 96
+  holiday_reduced_frequency: true
+  low_liquidity_throttling: true
+  low_volume_hours: 48
+  moderate_volume_hours: 72
+  us_market_peak_extension: 24
+  volume_based_batching:
+    high_volume_batch: 50
+    low_volume_batch: 10
+    moderate_volume_batch: 30
+  weekend_minimal_fetching: true
 live:
-  mode: live
-  trade_interval: 60
-  min_order_size: 0.0001
-  max_order_size: 0.0005
-  starting_balance: 10000.0  # 実際の残高取得失敗時のフォールバック
+  bitbank_settings:
+    max_retries: 3
+    min_btc_amount: 0.0001
+    retry_delay: 5
   margin_trading:
     enabled: true
+    force_margin_mode: true
     leverage: 1.0
-    position_type: "both"
-    force_margin_mode: true  # margin_mode=true強制適用
-    verify_margin_status: true  # margin状態確認強制
-  
-  # Bitbank固有設定
-  bitbank_settings:
-    min_btc_amount: 0.0001
-    max_retries: 3
-    retry_delay: 5
-
-# 155特徴量フル版ML設定（マルチタイムフレーム対応）
+    position_type: both
+    verify_margin_status: true
+  max_order_size: 0.0005
+  min_order_size: 0.0001
+  mode: live
+  starting_balance: 10000.0
+  trade_interval: 60
+logging:
+  file: /app/logs/bitbank_production.log
+  level: INFO
+  retention: 7
+  rotation: daily
 ml:
-  feat_period: 14
-  lags: [1,2,3]  # Phase H.9.3: [1,2,3,4,5]→[1,2,3]削減・データ消費抑制・効率向上
-  rolling_window: 10  # Phase H.9.3: 20→10削減・データ効率向上・即座取引開始対応
-  horizon: 5         # 🚨 修正: horizon明示的に設定
-  target_type: classification
-  model_type: lgbm
-  
-  # アンサンブル学習設定
+  confidence_threshold: 0.25
   ensemble:
+    confidence_threshold: 0.25
     enabled: true
     method: trading_stacking
-    confidence_threshold: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
+    model_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    models:
+    - lgbm
+    - xgb
+    - rf
     risk_adjustment: true
-    models: ["lgbm", "xgb", "rf"]  # LightGBM, XGBoost, RandomForest
-    model_weights: [0.5, 0.3, 0.2]  # 性能ベース重み
-    
-  # Phase H.25: 外部API特徴量一時削除・125特徴量での動作確保
-  # 削除対象: VIX(6), Fear&Greed(6), マクロ(8), Funding(7), 相関(3) = 計30特徴量
   extra_features:
-    # ラグ特徴量 (10個)
-    - close_lag_1
-    - close_lag_2
-    - close_lag_3
-    - close_lag_4
-    - close_lag_5
-    - volume_lag_1
-    - volume_lag_2
-    - volume_lag_3
-    - volume_lag_4
-    - volume_lag_5
-    
-    # リターン特徴量 (10個)
-    - returns_1
-    - returns_2
-    - returns_3
-    - returns_5
-    - returns_10
-    - log_returns_1
-    - log_returns_2
-    - log_returns_3
-    - log_returns_5
-    - log_returns_10
-    
-    # 移動平均 (12個)
-    - sma_5
-    - sma_10
-    - sma_20
-    - sma_50
-    - sma_100
-    - sma_200
-    - ema_5
-    - ema_10
-    - ema_20
-    - ema_50
-    - ema_100
-    - ema_200
-    
-    # 価格位置 (5個)
-    - price_position_20
-    - price_position_50
-    - price_vs_sma20
-    - bb_position
-    - intraday_position
-    
-    # ボリンジャーバンド (5個)
-    - bb_upper
-    - bb_middle
-    - bb_lower
-    - bb_width
-    - bb_squeeze
-    
-    # モメンタム指標 (10個)
-    - rsi_14
-    - rsi_7
-    - rsi_21
-    - rsi_oversold
-    - rsi_overbought
-    - macd
-    - macd_signal
-    - macd_hist
-    - macd_cross_up
-    - macd_cross_down
-    - stoch_k
-    - stoch_d
-    - stoch_oversold
-    - stoch_overbought
-    
-    # ボラティリティ (8個)
-    - atr_14
-    - atr_7
-    - atr_21
-    - volatility_20
-    - volatility_50
-    - high_low_ratio
-    - true_range
-    - volatility_ratio
-    
-    # 出来高指標 (10個)
-    - volume_sma_20
-    - volume_ratio
-    - volume_trend
-    - vwap
-    - vwap_distance
-    - obv
-    - obv_sma
-    - cmf
-    - mfi
-    - ad_line
-    
-    # トレンド指標 (8個)
-    - adx_14
-    - plus_di
-    - minus_di
-    - trend_strength
-    - trend_direction
-    - cci_20
-    - williams_r
-    - ultimate_oscillator
-    
-    # マーケット構造 (6個)
-    - support_distance
-    - resistance_distance
-    - support_strength
-    - volume_breakout
-    - price_breakout_up
-    - price_breakout_down
-    
-    # ローソク足パターン (4個)
-    - doji
-    - hammer
-    - engulfing
-    - pinbar
-    
-    # 統計的特徴量 (5個)
-    - skewness_20
-    - kurtosis_20
-    - zscore
-    - mean_reversion_20
-    - mean_reversion_50
-    
-    # 時系列特徴量 (6個)
-    - hour
-    - day_of_week
-    - is_weekend
-    - is_asian_session
-    - is_european_session
-    - is_us_session
-    
-    # Phase H.25: 外部データ特徴量一時削除（30個）
-    # VIX関連(6個), Fear&Greed(6個), マクロ(8個), Funding(7個), 相関(3個)
-    # bot基本動作確認後、段階的に再導入予定
-    
-    # 追加の技術指標 (10個)
-    - roc_10
-    - roc_20
-    - trix
-    - mass_index
-    - keltner_upper
-    - keltner_lower
-    - donchian_upper
-    - donchian_lower
-    - ichimoku_conv
-    - ichimoku_base
-    
-    # その他の派生特徴量 (7個)
-    - price_efficiency
-    - trend_consistency
-    - volume_price_correlation
-    - volatility_regime
-    - momentum_quality
-    - market_phase
-    - momentum_14
-    
-    
-  # VIX統合パラメータ（Phase H.15: エントリー頻度最適化）
-  vix_integration:
-    enabled: true
-    risk_off_threshold: 25
-    panic_threshold: 35
-    spike_multiplier: 2.0
-    vix_extreme_adj: 0.05  # Phase H.15: 極端な調整を0.15→0.05に抑制
-    vix_normal_range: [15, 25]  # 通常範囲定義
-  
-  # パフォーマンス向上パラメータ（Phase H.15）
+  - close_lag_1
+  - close_lag_3
+  - volume_lag_1
+  - volume_lag_4
+  - volume_lag_5
+  - returns_1
+  - returns_2
+  - returns_3
+  - returns_5
+  - returns_10
+  - ema_5
+  - ema_10
+  - ema_20
+  - ema_50
+  - ema_100
+  - ema_200
+  - price_position_20
+  - price_position_50
+  - price_vs_sma20
+  - bb_position
+  - intraday_position
+  - bb_upper
+  - bb_middle
+  - bb_lower
+  - bb_width
+  - bb_squeeze
+  - rsi_14
+  - rsi_oversold
+  - rsi_overbought
+  - macd
+  - macd_signal
+  - macd_hist
+  - macd_cross_up
+  - macd_cross_down
+  - stoch_k
+  - stoch_d
+  - stoch_oversold
+  - stoch_overbought
+  - atr_14
+  - volatility_20
+  - volume_sma_20
+  - volume_ratio
+  - volume_trend
+  - vwap
+  - vwap_distance
+  - obv
+  - obv_sma
+  - cmf
+  - mfi
+  - ad_line
+  - adx_14
+  - plus_di
+  - minus_di
+  - trend_strength
+  - trend_direction
+  - cci_20
+  - williams_r
+  - ultimate_oscillator
+  - momentum_14
+  - support_distance
+  - resistance_distance
+  - support_strength
+  - volume_breakout
+  - price_breakout_up
+  - price_breakout_down
+  - doji
+  - hammer
+  - engulfing
+  - pinbar
+  - zscore
+  - close_std_10
+  - hour
+  - day_of_week
+  - is_weekend
+  - is_asian_session
+  - is_us_session
+  - roc_10
+  - roc_20
+  - trix
+  - mass_index
+  - keltner_upper
+  - keltner_lower
+  - donchian_upper
+  - donchian_lower
+  - ichimoku_conv
+  - ichimoku_base
+  - price_efficiency
+  - trend_consistency
+  - volume_price_correlation
+  - volatility_regime
+  - momentum_quality
+  - market_phase
+  feat_period: 14
+  horizon: 5
+  lags:
+  - 1
+  - 2
+  - 3
+  model_type: lgbm
   performance_enhancements:
-    confidence_filter: 0.60  # Phase H.15: 0.65→0.60（より多くのシグナル通過）
-    partial_profit_levels: [0.3, 0.5]
+    confidence_filter: 0.4
+    partial_profit_levels:
+    - 0.3
+    - 0.5
     trailing_stop: true
-  
-  # Phase H.27: 外部データ完全無効化（125特徴量システム・エントリーシグナル生成復活）
-  external_data:
-    enabled: false
-    cache_enabled: true
-    fallback_enabled: true
-    # Phase H.27.1: include_in_features完全無効化・データ品質混乱解消
-    include_in_features: false  # 外部データ特徴量完全除外
-    
-    vix:
-      enabled: false  # Phase H.27.1: VIX完全無効化
-      symbol: "^VIX"
-      timeframe: "1d"
-      fallback_level: 20.0
-      sources: ["alpha_vantage", "polygon", "yahoo"]  # Phase H.23.3: 新規APIキー優先・Yahoo Finance最後化
-      quality_threshold: 0.35  # Phase H.23.2: 0.6→0.35 フォールバック品質実用化・API失敗時対応
-      fallback_quality_boost: 0.25  # Phase H.23.2: フォールバック品質ブースト追加
-      cache_hours: 24
-      
-    macro:
-      enabled: false  # Phase H.27.1: マクロデータ完全無効化
-      symbols:
-        dxy: "DX-Y.NYB"
-        us10y: "^TNX"
-        us2y: "^IRX"
-      fallback_values:
-        dxy: 103.0
-        us10y: 4.5
-        us2y: 4.8
-      sources: ["fred", "yahoo"]  # Phase H.23.3: 新規APIキー優先・Yahoo Finance最後化
-      quality_threshold: 0.40  # Phase H.23.2: 0.7→0.40 フォールバック品質実用化・API失敗時対応
-      fallback_quality_boost: 0.30  # Phase H.23.2: フォールバック品質ブースト追加
-      cache_hours: 6
-        
-    fear_greed:
-      enabled: false  # Phase H.27.1: Fear&Greed完全無効化
-      api_url: "https://api.alternative.me/fng/"
-      fallback_index: 50
-      sources: ["alternative_me"]  # Phase H.21.3: Alternative.me単体・API key不要・安定性重視
-      quality_threshold: 0.30  # Phase H.23.2: 0.4→0.30 フォールバック品質実用化・API失敗時対応
-      fallback_quality_boost: 0.35  # Phase H.23.2: フォールバック品質ブースト追加
-      cache_hours: 1
-      
-    funding:
-      enabled: false  # Phase H.27.1: Fundingデータ完全無効化
-      symbol: "BTC/USDT"
-      exchanges: ["binance"]  # トレンド判定・市況分析用
-      fallback_rate: 0.0001
-      oi_enabled: true  # Open Interest有効化
-      sources: ["binance", "bybit"]  # 取引所優先順位
-      quality_threshold: 0.35  # Phase H.23.2: 0.6→0.35 フォールバック品質実用化・API失敗時対応
-      fallback_quality_boost: 0.30  # Phase H.23.2: フォールバック品質ブースト追加
-      cache_hours: 0.5  # 30分キャッシュ
-
-# 外部データリトライ設定
-external_data_retry:
-  max_retries: 3
-  retry_delay: 2
-  exponential_backoff: true
-  circuit_breaker:
+  rolling_window: 10
+  target_type: classification
+multi_timeframe:
+  data_quality_threshold: 0.45
+  data_sync_enabled: true
+  missing_data_tolerance: 0.1
+  quality_management:
+    adaptive_threshold: true
     enabled: true
-    failure_threshold: 5
-    recovery_timeout: 300
-
-# 品質監視設定
+    high_quality_mode:
+      confidence_boost: 0.0
+      position_size_reduction: 1.0
+      stop_loss_tightening: 1.0
+    low_quality_mode:
+      confidence_boost: 0.1
+      position_size_reduction: 0.5
+      stop_loss_tightening: 0.8
+    max_threshold: 0.8
+    medium_quality_mode:
+      confidence_boost: 0.03
+      position_size_reduction: 0.8
+      stop_loss_tightening: 0.95
+    min_threshold: 0.4
+    target_threshold: 0.6
+  timeframe_consensus_threshold: 0.5
+  timeframes:
+  - 15m
+  - 1h
+  - 4h
+  weights:
+  - 0.3
+  - 0.5
+  - 0.2
 quality_monitoring:
+  default_threshold: 0.2
+  emergency_stop_threshold: 0.25
   enabled: true
-  default_threshold: 0.3       # 30%ルール
-  emergency_stop_threshold: 0.35 # Phase H.21.4: 0.5→0.35 緊急停止安全マージン確保
-  
-# バックテスト設定（ライブトレードでの初期設定用）
-backtest:
-  starting_balance: 10000.0
-  slippage_rate: 0.001
-
-# ログ設定
-logging:
-  level: INFO
-  file: /app/logs/bitbank_production.log
-  rotation: daily
-  retention: 7
-
-# Bitbank手数料最適化設定
-bitbank:
-  fee_optimization:
+risk:
+  atr_period: 20
+  kelly_criterion:
     enabled: true
-    maker_fee: -0.0002  # -0.02%
-    taker_fee: 0.0012   # 0.12%
-    prefer_maker: true
-    min_profit_after_fees: 0.002  # 0.2%
-    
-  order_management:
-    max_open_orders: 30  # 30件/ペア制限
-    rate_limit:
-      get_requests: 10   # 10回/秒
-      post_requests: 6   # 6回/秒
-    queue_enabled: true
-    
-  day_trading:
-    enabled: true
-    interest_rate: 0.0004  # 0.04%/日
-    auto_close_before_rollover: true
-    rollover_time: "00:00:00"
-
-# Phase H.5.1: 出来高重点取引戦略（アメリカ・ヨーロッパ時間対応）
+    max_fraction: 0.03
+  risk_per_trade: 0.01
+  stop_atr_mult: 1.2
+strategy:
+  confidence_threshold: 0.25
+  name: multi_timeframe_ensemble
+  params:
+    atr_multiplier: 0.7
+    max_volatility_adj: 0.07
+    ml:
+      extra_features:
+      - close_lag_1
+      - close_lag_3
+      - volume_lag_1
+      - volume_lag_4
+      - volume_lag_5
+      - returns_1
+      - returns_2
+      - returns_3
+      - returns_5
+      - returns_10
+      - ema_5
+      - ema_10
+      - ema_20
+      - ema_50
+      - ema_100
+      - ema_200
+      - price_position_20
+      - price_position_50
+      - price_vs_sma20
+      - bb_position
+      - intraday_position
+      - bb_upper
+      - bb_middle
+      - bb_lower
+      - bb_width
+      - bb_squeeze
+      - rsi_14
+      - rsi_oversold
+      - rsi_overbought
+      - macd
+      - macd_signal
+      - macd_hist
+      - macd_cross_up
+      - macd_cross_down
+      - stoch_k
+      - stoch_d
+      - stoch_oversold
+      - stoch_overbought
+      - atr_14
+      - volatility_20
+      - volume_sma_20
+      - volume_ratio
+      - volume_trend
+      - vwap
+      - vwap_distance
+      - obv
+      - obv_sma
+      - cmf
+      - mfi
+      - ad_line
+      - adx_14
+      - plus_di
+      - minus_di
+      - trend_strength
+      - trend_direction
+      - cci_20
+      - williams_r
+      - ultimate_oscillator
+      - momentum_14
+      - support_distance
+      - resistance_distance
+      - support_strength
+      - volume_breakout
+      - price_breakout_up
+      - price_breakout_down
+      - doji
+      - hammer
+      - engulfing
+      - pinbar
+      - zscore
+      - close_std_10
+      - hour
+      - day_of_week
+      - is_weekend
+      - is_asian_session
+      - is_us_session
+      - roc_10
+      - roc_20
+      - trix
+      - mass_index
+      - keltner_upper
+      - keltner_lower
+      - donchian_upper
+      - donchian_lower
+      - ichimoku_conv
+      - ichimoku_base
+      - price_efficiency
+      - trend_consistency
+      - volume_price_correlation
+      - volatility_regime
+      - momentum_quality
+      - market_phase
+      feat_period: 14
+      horizon: 5
+      lags:
+      - 1
+      - 2
+      - 3
+      model_type: lgbm
+      rolling_window: 10
+      target_type: classification
+    model_path: /app/models/production/model.pkl
+    performance_adj_range:
+    - -0.005
+    - 0.008
+    threshold: 0.002
+    threshold_bounds:
+    - 0.001
+    - 0.03
+    volatility_adjustment: true
+  type: multi_timeframe_ensemble
 trading_schedule:
   enabled: true
-  volume_based_trading: true    # 出来高ベーストレード
-  
-  # 高出来高時間帯（UTC基準）
-  peak_trading_hours: [13, 23]  # UTC 13-23時（アメリカ・ヨーロッパピーク）
-  # 日本時間換算: 22:00-08:00（翌日）
-  
-  # 中出来高時間帯
-  moderate_trading_hours: [8, 13] # UTC 8-13時（アジア・ヨーロッパ）
-  # 日本時間換算: 17:00-22:00
-  
-  # 低出来高時間帯（取引控えめ）
-  low_volume_hours: [1, 8]      # UTC 1-8時（深夜・早朝）
-  # 日本時間換算: 10:00-17:00
-  
-  weekend_monitoring: false     # 土日も通常取引（24時間フル稼働）
-  timezone: "UTC"              # UTC基準で統一管理
-  
-  # 出来高別取引戦略
-  volume_strategies:
-    high_volume:      # 高出来高時（アメリカ・ヨーロッパピーク）
-      aggressiveness: 1.0     # 積極的取引
-      position_size_mult: 1.2 # ポジションサイズ20%増
-      stop_loss_mult: 0.8     # ストップロス20%タイト
-      
-    moderate_volume:  # 中出来高時（アジア・ヨーロッパ）
-      aggressiveness: 0.7     # 標準的取引
-      position_size_mult: 1.0 # 標準ポジションサイズ
-      stop_loss_mult: 1.0     # 標準ストップロス
-      
-    low_volume:       # 低出来高時（深夜・早朝）
-      aggressiveness: 0.3     # 保守的取引
-      position_size_mult: 0.5 # ポジションサイズ50%削減
-      stop_loss_mult: 1.5     # ストップロス50%緩い
-  
-  # 取引停止期間（出来高・流動性考慮）
+  low_volume_hours:
+  - 1
+  - 8
+  moderate_trading_hours:
+  - 8
+  - 13
+  monitoring_only_periods: []
+  peak_trading_hours:
+  - 13
+  - 23
+  timezone: UTC
   trading_blackout:
-    weekend_full: false        # 土日取引有効化（24時間市場対応）
-    extreme_low_volume: true   # 極度低出来高時停止
-    major_holidays: true       # 主要祝日停止
-  
-  # 監視継続設定（土日取引有効化のため無効化）
-  monitoring_only_periods: []  # 土日取引有効化・24時間フル稼働
-
-# Phase H.5.2: 出来高ベース動的データ取得最適化
-dynamic_data_fetching:
-  enabled: true
-  
-  # 出来高時間帯別since_hours設定
-  high_volume_hours: 96         # 高出来高時は96時間（4日分・より多くのデータ）
-  moderate_volume_hours: 72     # 中出来高時は72時間（標準）
-  low_volume_hours: 48          # 低出来高時は48時間（最小限）
-  
-  # アメリカ市場重点設定
-  us_market_peak_extension: 24  # アメリカピーク時は24時間延長
-  europe_market_bonus: 12       # ヨーロッパ時間は12時間延長
-  asia_market_reduction: 12     # アジア時間は12時間短縮
-  
-  # 出来高ベースAPI最適化
-  volume_based_batching:
-    high_volume_batch: 50       # 高出来高時：大バッチで効率化
-    moderate_volume_batch: 30   # 中出来高時：標準バッチ
-    low_volume_batch: 10        # 低出来高時：小バッチで負荷軽減
-    
-  # 流動性考慮調整
-  high_liquidity_fast_fetch: true  # 高流動性時は高速取得
-  low_liquidity_throttling: true   # 低流動性時はスロットリング
-  
-  # 土日・祝日対応
-  weekend_minimal_fetching: true    # 土日は最小限データ取得
-  holiday_reduced_frequency: true   # 祝日は取得頻度削減
+    extreme_low_volume: true
+    major_holidays: true
+    weekend_full: false
+  volume_based_trading: true
+  volume_strategies:
+    high_volume:
+      aggressiveness: 1.0
+      position_size_mult: 1.2
+      stop_loss_mult: 0.8
+    low_volume:
+      aggressiveness: 0.3
+      position_size_mult: 0.5
+      stop_loss_mult: 1.5
+    moderate_volume:
+      aggressiveness: 0.7
+      position_size_mult: 1.0
+      stop_loss_mult: 1.0
+  weekend_monitoring: false

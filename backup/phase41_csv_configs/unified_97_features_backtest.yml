@@ -1,0 +1,273 @@
+# =============================================================================
+# 97特徴量最適化バックテスト設定（重複特徴量削除版）
+# Phase 2: 127→97特徴量最適化モデル対応・効率化検証版
+# CRITICAL修正: バックテスト0%勝率問題解決版
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# バックテスト基本設定
+# ----------------------------------------------------------------------
+backtest:
+  starting_balance: 10000.0    # 初期資金
+  slippage_rate: 0.001         # スリッページ0.1%
+  
+# ----------------------------------------------------------------------  
+# リスク管理設定（CRITICAL修正）
+# ----------------------------------------------------------------------
+risk:
+  risk_per_trade: 0.02         # 1取引あたり2%リスク
+  stop_atr_mult: 2.5           # ストップロス ATR×2.5
+  atr_period: 14               # ATR計算期間
+
+# ----------------------------------------------------------------------
+# データ取得設定（CSV版）
+# ----------------------------------------------------------------------
+data:
+  exchange: csv  
+  symbol: BTC/USD  
+  timeframe: 1h
+  
+  csv_path: data/btc_usd_2024_hourly.csv
+  since: "2024-01-01T00:00:00Z"
+  limit: 500   # 十分なデータ確保（RSI計算に必要）
+  
+  api_key: null
+  api_secret: null
+  ccxt_options: {}
+  
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      15m:
+        method: interpolation
+        min_points: 10
+      1h:
+        method: direct
+        min_points: 10
+      4h:
+        method: aggregation
+        min_points: 8
+
+# ----------------------------------------------------------------------
+# 戦略設定（97特徴量最適化版）
+# ----------------------------------------------------------------------
+strategy:
+  type: multi_timeframe_ensemble  # 本番設定と統一
+  name: multi_timeframe_ensemble
+  params:
+    model_path: models/production/model.pkl  # Phase 2: TradingEnsembleClassifier（LGBM+XGB+RF統合）
+    threshold: 0.01          # 本番設定と統一
+    atr_multiplier: 0.3      # 本番設定と統一
+    volatility_adjustment: true
+    threshold_bounds: [0.005, 0.1]  # 本番設定と統一
+    max_volatility_adj: 0.03
+    performance_adj_range: [-0.003, 0.005]
+    # ML学習パラメータ（strategy固有）
+    ml:
+      feat_period: 14
+      horizon: 5
+      lags: [1, 2, 3]
+      model_type: lgbm
+      rolling_window: 10
+      target_type: classification
+
+# ----------------------------------------------------------------------
+# ML設定（97特徴量対応）
+# ----------------------------------------------------------------------
+ml:
+  # 基本特徴量設定（本番設定に合わせて調整）
+  confidence_threshold: 0.50  # 本番設定と統一
+  feat_period: 14
+  lags: [1, 3]  # 過剰ラグ削減（2,4,5を除去）
+  rolling_window: 14
+  
+  # アンサンブル設定（本番と統一）
+  ensemble:
+    confidence_threshold: 0.5
+    enabled: true
+    method: trading_stacking
+    model_weights: [0.5, 0.3, 0.2]
+    models: ["lgbm", "xgb", "rf"]
+    risk_adjustment: true
+  
+  # Phase 2: 97特徴量最適化版（production.yml完全準拠）
+  # 基本OHLCV（5個）+ extra_features（92個）= 正確に97特徴量
+  extra_features:
+  # ラグ特徴量（最適化：重要な間隔のみ保持）
+  - close_lag_1
+  - close_lag_3
+  - volume_lag_1
+  - volume_lag_4
+  - volume_lag_5
+  # リターン特徴量（最適化：log_returns削除）
+  - returns_1
+  - returns_2
+  - returns_3
+  - returns_5
+  - returns_10
+  # 移動平均（最適化：EMAのみ保持、SMA削除）
+  - ema_5
+  - ema_10
+  - ema_20
+  - ema_50
+  - ema_100
+  - ema_200
+  # 価格位置
+  - price_position_20
+  - price_position_50
+  - price_vs_sma20
+  - bb_position
+  - intraday_position
+  # ボリンジャーバンド
+  - bb_upper
+  - bb_middle
+  - bb_lower
+  - bb_width
+  - bb_squeeze
+  # モメンタム指標（最適化：RSI_14のみ保持）
+  - rsi_14
+  - rsi_oversold
+  - rsi_overbought
+  - macd
+  - macd_signal
+  - macd_hist
+  - macd_cross_up
+  - macd_cross_down
+  - stoch_k
+  - stoch_d
+  - stoch_oversold
+  - stoch_overbought
+  # ボラティリティ（最適化：ATR_14とvolatility_20のみ保持）
+  - atr_14
+  - volatility_20
+  # 出来高指標
+  - volume_sma_20
+  - volume_ratio
+  - volume_trend
+  - vwap
+  - vwap_distance
+  - obv
+  - obv_sma
+  - cmf
+  - mfi
+  - ad_line
+  # トレンド指標
+  - adx_14
+  - plus_di
+  - minus_di
+  - trend_strength
+  - trend_direction
+  - cci_20
+  - williams_r
+  - ultimate_oscillator
+  - momentum_14
+  # マーケット構造
+  - support_distance
+  - resistance_distance
+  - support_strength
+  - volume_breakout
+  - price_breakout_up
+  - price_breakout_down
+  # ローソク足パターン
+  - doji
+  - hammer
+  - engulfing
+  - pinbar
+  # 統計的特徴量（最適化：zscore, close_std_10のみ保持）
+  - zscore
+  - close_std_10
+  # 時系列特徴量（最適化：is_european_session削除）
+  - hour
+  - day_of_week
+  - is_weekend
+  - is_asian_session
+  - is_us_session
+  # 追加の技術指標
+  - roc_10
+  - roc_20
+  - trix
+  - mass_index
+  - keltner_upper
+  - keltner_lower
+  - donchian_upper
+  - donchian_lower
+  - ichimoku_conv
+  - ichimoku_base
+  # その他の派生特徴量
+  - price_efficiency
+  - trend_consistency
+  - volume_price_correlation
+  - volatility_regime
+  - momentum_quality
+  - market_phase
+
+  # リターン計算（log_returns削除）
+  return_periods: [1, 2, 3, 5, 10]
+  log_returns: false  # 対数リターン無効化
+  
+  # ターゲット生成設定
+  target:
+    type: classification
+    method: threshold
+    buy_threshold: 0.005   # 0.5%
+    sell_threshold: -0.005
+    lookahead: 3
+    
+    # ラベルバランス調整
+    balance_data: true
+    balance_method: undersample
+
+# ----------------------------------------------------------------------
+# 外部データ設定（Phase 2では一時無効化）
+# ----------------------------------------------------------------------
+external_data:
+  enabled: false  # 97特徴量最適化では外部データ無効
+
+# ----------------------------------------------------------------------
+# バックテスト設定
+# ----------------------------------------------------------------------
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2024-06-30"    # 6ヶ月テスト
+  
+  initial_balance: 10000    # ¥10,000
+  commission: 0.0012        # bitbank手数料（0.12%）
+  
+  # ポジション管理
+  position_sizing:
+    method: kelly_criterion
+    max_position_size: 0.95
+    min_position_size: 0.01
+    risk_free_rate: 0.001
+  
+  # リスク管理
+  risk_management:
+    max_drawdown: 0.15      # 15%最大ドローダウン
+    stop_loss: 0.03         # 3%ストップロス
+    take_profit: 0.06       # 6%利確
+    trailing_stop: 0.02     # 2%トレーリングストップ
+
+# ----------------------------------------------------------------------
+# ログ・出力設定
+# ----------------------------------------------------------------------
+logging:
+  level: INFO
+  file: logs/97_features_backtest.log
+  
+output:
+  results_dir: results/97_features_backtest
+  save_trades: true
+  save_equity_curve: true
+  save_metrics: true
+  generate_report: true
+
+# ----------------------------------------------------------------------
+# Phase 2最適化情報
+# ----------------------------------------------------------------------
+optimization_info:
+  original_features: 127
+  optimized_features: 97
+  deleted_features: 30
+  efficiency_gain: "約24%の計算効率向上"
+  expected_improvement: "重複除去による予測精度向上"
+  validation_target: "同等以上の損益・勝率維持"

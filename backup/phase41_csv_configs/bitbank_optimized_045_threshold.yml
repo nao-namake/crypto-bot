@@ -1,0 +1,412 @@
+# =============================================================================
+# ファイル名: config/validation/bitbank_optimized_045_threshold.yml
+# 説明:
+# Phase 2最適化・confidence_threshold=0.45・方向性バイアス改善設定
+# - 125特徴量システム対応・エントリー頻度向上期待
+# - 2024年1年間CSV高速バックテスト対応
+# - 方向性バイアス（全SELL）改善・月60-100回取引目標
+# =============================================================================
+
+# ----------------------------------------------------------------------
+# データ取得設定（CSV版・本番production.yml基準）
+# ----------------------------------------------------------------------
+data:
+  exchange: csv  # CSV モードを指定
+  symbol: BTC/USD  # CSVファイルのシンボル（BitbankはBTC/JPYだがCSVはUSD）
+  timeframe: 1h
+  
+  # CSV ファイル指定
+  csv_path: /Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv
+  
+  # 学習用データ期間（短期テスト：1ヶ月）
+  since: "2024-01-01T00:00:00Z"
+  limit: 720  # 1ヶ月分（30日 × 24時間）
+  
+  # 本番同等データ設定（production.yml準拠）
+  paginate: true
+  per_page: 200    # 本番設定：200
+  since_hours: 96  # 本番設定：96時間
+  weekend_data: true
+  fetch_retries: 3
+  adaptive_rate_limit: true
+  
+  # データ取得効率化設定（本番同等）
+  max_consecutive_empty: 12
+  max_consecutive_no_new: 20
+  max_attempts: 25
+  exponential_backoff: true
+  min_delay_ms: 30000
+  max_delay_ms: 45000
+  
+  # マルチタイムフレーム対応データ設定（本番同等）
+  multi_timeframe_data:
+    base_timeframe: "1h"
+    target_timeframes:
+      15m:
+        method: "interpolation"
+        min_points: 10
+      1h:
+        method: "direct"
+        min_points: 10
+      4h:
+        method: "aggregation"
+        min_points: 8
+        api_fetch: false
+  
+  # API設定は無効化
+  api_key: null
+  api_secret: null
+  ccxt_options: {}
+
+# ----------------------------------------------------------------------
+# 品質監視設定（本番同等）
+# ----------------------------------------------------------------------
+quality_monitoring:
+  enabled: true
+  default_threshold: 0.3       # 30%ルール
+  emergency_stop_threshold: 0.35
+  target_threshold: 0.6
+  max_threshold: 0.8
+  
+  # 品質ベース取引調整（本番同等）
+  low_quality_mode:
+    position_size_reduction: 0.5
+    confidence_boost: 0.1
+    stop_loss_tightening: 0.8
+    
+  medium_quality_mode:
+    position_size_reduction: 0.8
+    confidence_boost: 0.03
+    stop_loss_tightening: 0.95
+  
+  high_quality_mode:
+    position_size_reduction: 1.0
+    confidence_boost: 0.0
+    stop_loss_tightening: 1.0
+
+# ----------------------------------------------------------------------
+# リスク管理（本番production.yml完全踏襲）
+# ----------------------------------------------------------------------
+risk:
+  risk_per_trade: 0.005        # 本番設定：0.5%
+  stop_atr_mult: 1.2          # 本番設定：1.2
+  kelly_criterion:
+    enabled: true             # 本番設定：有効
+    max_fraction: 0.05        # 本番設定：5%
+  
+  # ATR期間最適化（本番同等）
+  atr_period: 20              # 本番設定：20期間
+
+# ----------------------------------------------------------------------
+# バックテスト設定
+# ----------------------------------------------------------------------
+backtest:
+  starting_balance: 10000.0   # 1万円（少額テスト想定）
+  slippage_rate: 0.0012       # Bitbank実測値（0.12%）
+  commission_rate: 0.0012     # Bitbankテイカー手数料（0.12%）
+  maker_commission_rate: -0.0002  # Bitbankメイカーリベート（-0.02%）
+  trade_log_csv: "./results/trade_log_optimized_045_threshold.csv"
+  aggregate_out_prefix: "./results/aggregate_optimized_045"
+
+# ----------------------------------------------------------------------
+# ウォークフォワード分割（1ヶ月用最適化）
+# ----------------------------------------------------------------------
+walk_forward:
+  train_window: 168      # 1週間学習（168時間）
+  test_window: 24        # 1日テスト（24時間）
+  step: 12               # 12時間間隔でスライド
+
+# ----------------------------------------------------------------------
+# 機械学習（Phase 2最適化・0.45閾値）
+# ----------------------------------------------------------------------
+ml:
+  feat_period: 14              # 本番設定
+  lags: [1,2,3]               # 本番設定：効率向上
+  rolling_window: 10          # 本番設定：即座取引開始対応
+  horizon: 5                  # 本番設定
+  target_type: classification # 本番設定
+  model_type: lgbm           # 本番設定
+  
+  # アンサンブル学習設定（Phase 2最適化）
+  ensemble:
+    enabled: true
+    method: trading_stacking
+    confidence_threshold: 0.45    # Phase 2最適化：0.60→0.45
+    risk_adjustment: true
+    models: ["lgbm", "xgb", "rf"] # 本番設定：3モデル
+    model_weights: [0.5, 0.3, 0.2] # 本番設定：性能ベース重み
+    
+  # 外部データ設定（本番同等・完全無効化）
+  external_data:
+    enabled: false              # 本番設定：Phase H.27無効化
+    cache_enabled: true
+    fallback_enabled: true
+    include_in_features: false  # 本番設定：完全除外
+    
+    vix:
+      enabled: false            # 本番設定：無効化
+      symbol: "^VIX"
+      timeframe: "1d"
+      fallback_level: 20.0
+      
+    macro:
+      enabled: false            # 本番設定：無効化
+      symbols:
+        dxy: "DX-Y.NYB"
+        us10y: "^TNX"
+        us2y: "^IRX"
+      fallback_values:
+        dxy: 103.0
+        us10y: 4.5
+        us2y: 4.8
+        
+    funding:
+      enabled: false            # 本番設定：無効化
+      symbol: "BTC/USDT"
+      exchanges: ["binance"]
+      fallback_rate: 0.0001
+
+  # 125特徴量システム（本番production.yml完全踏襲）
+  extra_features:
+    # ラグ特徴量 (10個)
+    - close_lag_1
+    - close_lag_2
+    - close_lag_3
+    - close_lag_4
+    - close_lag_5
+    - volume_lag_1
+    - volume_lag_2
+    - volume_lag_3
+    - volume_lag_4
+    - volume_lag_5
+    
+    # リターン特徴量 (10個)
+    - returns_1
+    - returns_2
+    - returns_3
+    - returns_5
+    - returns_10
+    - log_returns_1
+    - log_returns_2
+    - log_returns_3
+    - log_returns_5
+    - log_returns_10
+    
+    # 移動平均 (12個)
+    - sma_5
+    - sma_10
+    - sma_20
+    - sma_50
+    - sma_100
+    - sma_200
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    
+    # 価格位置 (5個)
+    - price_position_20
+    - price_position_50
+    - price_vs_sma20
+    - bb_position
+    - intraday_position
+    
+    # ボリンジャーバンド (5個)
+    - bb_upper
+    - bb_middle
+    - bb_lower
+    - bb_width
+    - bb_squeeze
+    
+    # モメンタム指標 (14個) - 本番設定完全踏襲
+    - rsi_14
+    - rsi_7
+    - rsi_21
+    - rsi_oversold
+    - rsi_overbought
+    - macd
+    - macd_signal
+    - macd_hist
+    - macd_cross_up
+    - macd_cross_down
+    - stoch_k
+    - stoch_d
+    - stoch_oversold
+    - stoch_overbought
+    
+    # ボラティリティ (8個)
+    - atr_14
+    - atr_7
+    - atr_21
+    - volatility_20
+    - volatility_50
+    - high_low_ratio
+    - true_range
+    - volatility_ratio
+    
+    # 出来高指標 (10個)
+    - volume_sma_20
+    - volume_ratio
+    - volume_trend
+    - vwap
+    - vwap_distance
+    - obv
+    - obv_sma
+    - cmf
+    - mfi
+    - ad_line
+    
+    # トレンド指標 (8個)
+    - adx_14
+    - plus_di
+    - minus_di
+    - trend_strength
+    - trend_direction
+    - cci_20
+    - williams_r
+    - ultimate_oscillator
+    
+    # マーケット構造 (6個)
+    - support_distance
+    - resistance_distance
+    - support_strength
+    - volume_breakout
+    - price_breakout_up
+    - price_breakout_down
+    
+    # ローソク足パターン (4個)
+    - doji
+    - hammer
+    - engulfing
+    - pinbar
+    
+    # 統計的特徴量 (5個)
+    - skewness_20
+    - kurtosis_20
+    - zscore
+    - mean_reversion_20
+    - mean_reversion_50
+    
+    # 時系列特徴量 (6個)
+    - hour
+    - day_of_week
+    - is_weekend
+    - is_asian_session
+    - is_european_session
+    - is_us_session
+    
+    # 高度指標 (22個)
+    - momentum_14
+    - roc_14
+    - srsi_k
+    - srsi_d
+    - trix
+    - kst
+    - cmo
+    - ppo
+    - ppo_signal
+    - ppo_hist
+    - ift_rsi
+    - cti
+    - wt1
+    - wt2
+    - ui
+    - tci
+    - ap
+    - hlc3
+    - ohlc4
+    - typical_price
+    - weighted_close
+    - dpo
+
+# ----------------------------------------------------------------------
+# ライブトレード設定（バックテスト用調整）
+# ----------------------------------------------------------------------
+live:
+  mode: backtest  # バックテストモード
+  trade_interval: 60            # 本番設定：60秒
+  min_order_size: 0.0001       # 本番設定
+  max_order_size: 0.0005       # 本番設定
+  starting_balance: 10000.0    # 本番設定
+  
+  # 信用取引設定（本番同等）
+  margin_trading:
+    enabled: true              # 本番設定：有効
+    leverage: 1.0             # 本番設定：1倍
+    position_type: "both"     # 本番設定：両建て
+    force_margin_mode: true   # 本番設定
+    verify_margin_status: true # 本番設定
+  
+  # Bitbank固有設定（本番同等）
+  bitbank_settings:
+    min_btc_amount: 0.0001
+    max_retries: 3
+    retry_delay: 5
+
+# ----------------------------------------------------------------------
+# 戦略設定（Phase 2最適化）
+# ----------------------------------------------------------------------
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: models/production/model.pkl
+    threshold: 0.025           # Phase 2最適化：0.45 × 0.05 = 0.025
+    
+    # 動的閾値調整（Phase 2最適化）
+    atr_multiplier: 0.3        # より積極的（0.5→0.3）
+    volatility_adjustment: true
+    threshold_bounds: [0.01, 0.15]  # より低い上限（0.25→0.15）
+
+# ----------------------------------------------------------------------
+# 監視・レポート設定
+# ----------------------------------------------------------------------
+monitoring:
+  enabled: true
+  check_interval: 300  # 5分間隔
+  
+  metrics:
+    - total_return
+    - sharpe_ratio
+    - max_drawdown
+    - win_rate
+    - profit_factor
+    - calmar_ratio
+    - trade_count
+    - avg_trade_duration
+
+# 外部データリトライ設定（本番同等・無効化状態）
+external_data_retry:
+  max_retries: 3
+  retry_delay: 2
+  exponential_backoff: true
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 300
+
+# ----------------------------------------------------------------------
+# 🎯 Phase 2最適化・0.45閾値期待効果
+# ----------------------------------------------------------------------
+# この設定による特徴:
+# 
+# 📈 Phase 2最適化:
+# - confidence_threshold: 0.60 → 0.45（25%削減）
+# - strategy.threshold: 0.03 → 0.025（より積極的）
+# - atr_multiplier: 0.5 → 0.3（より積極的動的調整）
+# - threshold_bounds上限: 0.25 → 0.15
+# 
+# 🔍 期待効果:
+# - エントリー頻度向上: 8回/月 → 60-100回/月期待
+# - 方向性バイアス改善: 全SELL → BUY/SELLバランス改善期待
+# - 取引多様性向上: より多様な市場条件でエントリー
+# - 勝率維持: 52-58%範囲維持目標
+# 
+# 📊 検証項目:
+# - 取引頻度改善確認
+# - 方向性バイアス解消確認
+# - リスクリワード比1:1.2以上維持
+# - 最大ドローダウン20%以下確認
+# ----------------------------------------------------------------------

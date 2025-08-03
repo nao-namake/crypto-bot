@@ -1,0 +1,91 @@
+# =============================================================================
+# 97特徴量システム・現在モデル使用バックテスト設定
+# =============================================================================
+
+# データ取得設定（CSV版）
+data:
+  exchange: csv  
+  symbol: BTC/USD  
+  timeframe: 1h
+  csv_path: data/btc_usd_2024_hourly.csv
+  since: "2024-01-01T00:00:00Z"
+  limit: 200   # 短期データで迅速検証
+  api_key: null
+  api_secret: null
+
+# 戦略設定（現在のmodel.pkl使用）
+strategy:
+  type: single
+  name: ml
+  params:
+    model_path: models/production/model.pkl
+    threshold: 0.02  # 低閾値で取引機会確保
+    atr_multiplier: 0.3
+    volatility_adjustment: true
+    threshold_bounds: [0.01, 0.08]
+
+# ML設定（97特徴量最適化版）
+ml:
+  feat_period: 14
+  lags: [1, 3]  # 過剰ラグ削減
+  rolling_window: 14
+  
+  # 基本特徴量（実装済み）
+  extra_features:
+    - ema_20
+    - rsi_14
+    - macd
+    - cmf
+    - trend_strength
+    - volatility_regime
+    - momentum_quality
+    - market_phase
+    - day_of_week
+  
+  # リターン計算
+  return_periods: [1, 2, 3, 5, 10]
+  log_returns: false
+  
+  # ターゲット生成設定
+  target:
+    type: classification
+    method: threshold
+    buy_threshold: 0.005   # 0.5%
+    sell_threshold: -0.005
+    lookahead: 3
+
+# 外部データ設定（無効化）
+external_data:
+  enabled: false
+
+# バックテスト設定
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2024-03-31"    # 3ヶ月テスト
+  
+  initial_balance: 10000    # ¥10,000
+  commission: 0.0012        # bitbank手数料（0.12%）
+  
+  # ポジション管理
+  position_sizing:
+    method: kelly_criterion
+    max_position_size: 0.95
+    min_position_size: 0.01
+  
+  # リスク管理
+  risk_management:
+    max_drawdown: 0.15      # 15%最大ドローダウン
+    stop_loss: 0.03         # 3%ストップロス
+    take_profit: 0.06       # 6%利確
+
+# ログ・出力設定
+logging:
+  level: INFO
+  file: logs/simple_97_backtest.log
+  
+output:
+  results_dir: results/simple_97_backtest
+  save_trades: true
+  save_equity_curve: true
+  save_metrics: true
+  generate_report: true

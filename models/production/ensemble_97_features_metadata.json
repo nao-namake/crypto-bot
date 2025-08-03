@@ -1,0 +1,15 @@
+{
+  "ensemble_type": "97_features_optimized",
+  "models": {
+    "lgbm": 0.4701674277016743,
+    "xgb": 0.4820395738203957,
+    "rf": 0.478386605783866
+  },
+  "feature_count": 97,
+  "optimization_date": "2025-08-03T06:18:41.539026",
+  "performance_summary": {
+    "best_model": "xgb",
+    "avg_accuracy": 0.47686453576864535,
+    "avg_f1": 0.4038734430959339
+  }
+}

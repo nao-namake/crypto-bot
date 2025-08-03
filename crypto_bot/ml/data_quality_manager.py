@@ -16,7 +16,7 @@ class DataQualityManager:
     """
     外部データ品質管理クラス
 
-    - デフォルト補完率を30/101以下に制限
+    - デフォルト補完率を30/97以下に制限（Phase 2: 97特徴量最適化対応）
     - VIX、Fear&Greedなどの重要指標は実データ必須
     - APIエラー時の段階的フォールバック
     """
@@ -780,24 +780,24 @@ class DataQualityManager:
             self.config.get("ml", {}).get("external_data", {}).get("enabled", False)
         )
 
-        # Phase H.27.4: 125特徴量システム専用の大幅緩和基準
+        # Phase 2: 97特徴量システム専用の大幅緩和基準
         if not external_data_enabled:
-            # 125特徴量（外部API無効）システム用基準
+            # 97特徴量（外部API無効）システム用基準
             max_default_ratio = 0.30  # 30%以下（大幅緩和）
             min_quality_score = 50.0  # 50点以上（現実的）
-            min_real_features = 80  # 最低80個の実データ特徴量
+            min_real_features = 62  # 最低62個の実データ特徴量（97の64%）
         else:
-            # 155特徴量（外部API有効）システム用基準
+            # 97特徴量（外部API有効）システム用基準
             max_default_ratio = self.max_default_ratio  # 設定値使用
             min_quality_score = self.quality_config.get("min_quality_score", 70.0)
-            min_real_features = 120
+            min_real_features = 75  # 最低75個の実データ特徴量（97の77%）
 
         # Phase H.27.4: 基準1 - 実データ特徴量数チェック（新基準）
         real_data_count = quality_report.get("real_data_features", 0)
         if real_data_count < min_real_features:
             logger.warning(
                 f"Real data features too few: "
-                f"{real_data_count} < {min_real_features} (target for {'125' if not external_data_enabled else '155'}-feature system)"
+                f"{real_data_count} < {min_real_features} (target for 97-feature system)"
             )
             return False
 
@@ -829,7 +829,7 @@ class DataQualityManager:
             f"✅ Phase H.27.4 Quality check: real_features={real_data_count}, "
             f"default_ratio={quality_report['default_ratio']:.2f}, "
             f"quality_score={quality_report['quality_score']:.1f}, "
-            f"system={'125-feature (external_disabled)' if not external_data_enabled else '155-feature'}"
+            f"system='97-feature'"
         )
         return True  # Phase H.27.4: 実データ特徴量数以外は緩和し、基本的に成功とする
 

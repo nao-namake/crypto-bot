@@ -713,6 +713,110 @@ class MarketDataFetcher:
                 f"🔍 [PHASE-H6] Response type: {type(raw).__name__}, "
                 f"content: {len(raw) if raw else 0} records"
             )
+
+            # Phase 6.3: API応答タイムスタンプ検証機能追加
+            if raw and isinstance(raw, list) and len(raw) > 0:
+                current_time = pd.Timestamp.now(tz="UTC")
+                current_ts_ms = int(current_time.timestamp() * 1000)
+
+                # タイムスタンプ異常検出
+                anomalous_timestamps = []
+                valid_records = []
+
+                for i, record in enumerate(raw):
+                    if len(record) >= 6:  # OHLCV + timestamp
+                        timestamp_ms = record[0]
+                        timestamp_dt = pd.to_datetime(timestamp_ms, unit="ms", utc=True)
+
+                        # 異常チェック: 未来データ
+                        if timestamp_ms > current_ts_ms:
+                            anomalous_timestamps.append(
+                                {
+                                    "index": i,
+                                    "timestamp_ms": timestamp_ms,
+                                    "timestamp_dt": timestamp_dt,
+                                    "issue": "future_data",
+                                }
+                            )
+
+                        # 異常チェック: 極端に古いデータ（2年以上前）
+                        elif timestamp_ms < current_ts_ms - (
+                            2 * 365 * 24 * 60 * 60 * 1000
+                        ):
+                            anomalous_timestamps.append(
+                                {
+                                    "index": i,
+                                    "timestamp_ms": timestamp_ms,
+                                    "timestamp_dt": timestamp_dt,
+                                    "issue": "too_old",
+                                }
+                            )
+
+                        # 異常チェック: 無効なタイムスタンプ（負の値など）
+                        elif timestamp_ms <= 0:
+                            anomalous_timestamps.append(
+                                {
+                                    "index": i,
+                                    "timestamp_ms": timestamp_ms,
+                                    "timestamp_dt": "invalid",
+                                    "issue": "invalid_timestamp",
+                                }
+                            )
+                        else:
+                            valid_records.append(record)
+
+                # 異常タイムスタンプのログ出力
+                if anomalous_timestamps:
+                    logger.warning(
+                        "🚨 [PHASE-6.3] Anomalous timestamps detected in API response:"
+                    )
+                    logger.warning(
+                        f"   Total records: {len(raw)}, Anomalous: {len(anomalous_timestamps)}, Valid: {len(valid_records)}"
+                    )
+
+                    for anomaly in anomalous_timestamps[:3]:  # 最大3件まで詳細表示
+                        logger.warning(
+                            f"   [{anomaly['index']}] {anomaly['issue']}: "
+                            f"{anomaly['timestamp_ms']} -> {anomaly['timestamp_dt']}"
+                        )
+
+                    if len(anomalous_timestamps) > 3:
+                        logger.warning(
+                            f"   ... and {len(anomalous_timestamps) - 3} more anomalous records"
+                        )
+
+                    # 有効なレコードのみを使用
+                    raw = valid_records
+                    logger.info(
+                        f"✅ [PHASE-6.3] Using {len(valid_records)} valid records after timestamp filtering"
+                    )
+                else:
+                    logger.debug(
+                        f"✅ [PHASE-6.3] All {len(raw)} API response timestamps are valid"
+                    )
+
+                # タイムスタンプ順序性検証
+                if len(raw) > 1:
+                    timestamps = [record[0] for record in raw]
+                    is_sorted = all(
+                        timestamps[i] <= timestamps[i + 1]
+                        for i in range(len(timestamps) - 1)
+                    )
+                    if not is_sorted:
+                        logger.warning(
+                            "⚠️ [PHASE-6.3] API response timestamps are not in chronological order"
+                        )
+                        # タイムスタンプでソート
+                        raw.sort(key=lambda x: x[0])
+                        logger.info("✅ [PHASE-6.3] Records sorted by timestamp")
+                    else:
+                        logger.debug(
+                            "✅ [PHASE-6.3] API response timestamps are properly ordered"
+                        )
+            else:
+                logger.debug(
+                    "🔍 [PHASE-6.3] No data to validate or invalid response format"
+                )
             if (
                 sleep
                 and hasattr(self.exchange, "rateLimit")
@@ -745,6 +849,34 @@ class MarketDataFetcher:
         )
         df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
         df = df.set_index("datetime")
+
+        # Phase 6.1: 未来データフィルタリング機能追加（緩和版）
+        # 24時間の余裕を持たせて異常な未来データのみフィルタリング
+        current_time = pd.Timestamp.now(tz="UTC")
+        tolerance_hours = 24  # 24時間の余裕
+        future_threshold = current_time + pd.Timedelta(hours=tolerance_hours)
+        future_data_mask = df.index > future_threshold
+        if future_data_mask.any():
+            future_count = future_data_mask.sum()
+            logger.warning(
+                f"🚫 [PHASE-6.1] Future data detected and filtered: {future_count} records"
+            )
+            logger.warning(
+                f"   Current time: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            )
+            if future_count > 0:
+                future_samples = df[future_data_mask].head(3)
+                for idx, row in future_samples.iterrows():
+                    logger.warning(
+                        f"   Future timestamp: {idx.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                    )
+            # 未来データを除去
+            df = df[~future_data_mask]
+            logger.info(
+                f"✅ [PHASE-6.1] Remaining records after future data removal: {len(df)}"
+            )
+        else:
+            logger.debug(f"✅ [PHASE-6.1] No future data detected in {len(df)} records")
 
         if isinstance(since, datetime) or (isinstance(since, str) and since):
             df = df.iloc[1:]

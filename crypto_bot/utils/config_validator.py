@@ -238,60 +238,121 @@ class ConfigValidator:
             if not isinstance(features, list):
                 self.errors.append("ml.extra_features はリストである必要があります")
             else:
-                # 65特徴量システム対応 - 実装済み全特徴量リスト
+                # Phase 6.2: 97特徴量システム完全対応 - production.yml準拠特徴量リスト
                 valid_features = [
-                    # 基本テクニカル指標
-                    "rsi_14",
-                    "rsi_21",
-                    "rsi_9",  # RSI系
-                    "macd",  # MACD
-                    "rci_9",
-                    "rci_14",  # RCI系
-                    "volume_zscore",
-                    "volume_zscore_20",
-                    "volume_zscore_14",  # 出来高系
-                    # 移動平均系
-                    "sma_200",
-                    "sma_50",
-                    "sma_20",
-                    "sma_10",
-                    "sma_5",
-                    "ema_50",
+                    # 基本OHLCV + ラグ特徴量（production.yml準拠）
+                    "close_lag_1",
+                    "close_lag_3",
+                    "volume_lag_1",
+                    "volume_lag_4",
+                    "volume_lag_5",
+                    "returns_1",
+                    "returns_2",
+                    "returns_3",
+                    "returns_5",
+                    "returns_10",
+                    # EMA系移動平均（production.yml準拠）
+                    "ema_5",
+                    "ema_10",
                     "ema_20",
-                    "ema_12",
-                    "ema_26",
+                    "ema_50",
+                    "ema_100",
+                    "ema_200",
+                    # 価格ポジション・比較系
+                    "price_position_20",
+                    "price_position_50",
+                    "price_vs_sma20",
+                    "bb_position",
+                    "intraday_position",
+                    # ボリンジャーバンド系
+                    "bb_upper",
+                    "bb_middle",
+                    "bb_lower",
+                    "bb_width",
+                    "bb_squeeze",
+                    # RSI系オシレーター
+                    "rsi_14",
+                    "rsi_oversold",
+                    "rsi_overbought",
+                    # MACD系
+                    "macd",
+                    "macd_signal",
+                    "macd_hist",
+                    "macd_cross_up",
+                    "macd_cross_down",
+                    # ストキャスティクス
+                    "stoch_k",
+                    "stoch_d",
+                    "stoch_oversold",
+                    "stoch_overbought",
+                    # ボラティリティ系
+                    "atr_14",
+                    "volatility_20",
+                    # 出来高系指標
+                    "volume_sma_20",
+                    "volume_ratio",
+                    "volume_trend",
+                    "vwap",
+                    "vwap_distance",
+                    "obv",
+                    "obv_sma",
+                    "cmf",
+                    "mfi",
+                    "ad_line",
+                    # トレンド・方向性指標
+                    "adx_14",
+                    "plus_di",
+                    "minus_di",
+                    "trend_strength",
+                    "trend_direction",
                     # 高度テクニカル指標
-                    "stoch",  # ストキャスティクス
-                    "bb",
-                    "bollinger",  # ボリンジャーバンド
-                    "adx",  # ADX
-                    "willr",
-                    "williams",  # Williams %R
-                    "cmf",  # チャイキンマネーフロー
-                    "fisher",  # フィッシャートランスフォーム
-                    # マクロ経済統合特徴量（実装済み）
-                    "vix",  # VIX恐怖指数統合（6特徴量）
-                    "dxy",
-                    "macro",
-                    "treasury",  # DXY・金利統合（10特徴量）
-                    "fear_greed",
-                    "fg",  # Fear & Greed指数統合
-                    "funding",
-                    "oi",  # Funding Rate・OI統合（17特徴量）
-                    # 時間特徴量
-                    "day_of_week",
-                    "hour_of_day",
-                    # 独自シグナル
-                    "mochipoyo_long_signal",
-                    "mochipoyo_short_signal",
-                    # 追加可能な拡張特徴量（将来実装用）
+                    "cci_20",
+                    "williams_r",
+                    "ultimate_oscillator",
                     "momentum_14",
-                    "momentum_21",  # モメンタム系
-                    "trend_strength",  # トレンド強度
-                    "market_regime",  # 市場環境判定
-                    "volatility_regime",  # ボラティリティレジーム
-                    "correlation_spy",  # SPY相関
-                    "correlation_gold",  # 金相関
+                    # サポート・レジスタンス分析
+                    "support_distance",
+                    "resistance_distance",
+                    "support_strength",
+                    # ブレイクアウト検出
+                    "volume_breakout",
+                    "price_breakout_up",
+                    "price_breakout_down",
+                    # ローソク足パターン
+                    "doji",
+                    "hammer",
+                    "engulfing",
+                    "pinbar",
+                    # 統計系
+                    "zscore",
+                    "close_std_10",
+                    # 時間特徴量
+                    "hour",
+                    "day_of_week",
+                    "is_weekend",
+                    "is_asian_session",
+                    "is_us_session",
+                    # レート・オブ・チェンジ
+                    "roc_10",
+                    "roc_20",
+                    # 高度指標
+                    "trix",
+                    "mass_index",
+                    # ケルトナー・ドンチャン系
+                    "keltner_upper",
+                    "keltner_lower",
+                    "donchian_upper",
+                    "donchian_lower",
+                    # 一目均衡表
+                    "ichimoku_conv",
+                    "ichimoku_base",
+                    # 効率性・品質指標
+                    "price_efficiency",
+                    "trend_consistency",
+                    "volume_price_correlation",
+                    "volatility_regime",
+                    "momentum_quality",
+                    "market_phase",
                 ]
                 for feature in features:
                     if not isinstance(feature, str):
