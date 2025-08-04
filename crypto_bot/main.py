@@ -1197,9 +1197,9 @@ def live_bitbank(config_path: str, max_trades: int):
         import concurrent.futures
         import time
 
-        PREFETCH_TIMEOUT = 180  # 3分タイムアウト
+        PREFETCH_TIMEOUT = 120  # 2分タイムアウト（200レコード早期完了で短縮）
         MIN_REQUIRED_RECORDS = 200  # 最低必要レコード数
-        SUFFICIENT_RECORDS = 300  # 十分なレコード数（早期完了）
+        SUFFICIENT_RECORDS = 200  # 十分なレコード数（早期完了・200で確実に進行）
 
         logger.info(
             f"🔄 [INIT-PREFETCH] Starting data fetch with timeout protection ({PREFETCH_TIMEOUT}s)"
@@ -1218,7 +1218,7 @@ def live_bitbank(config_path: str, max_trades: int):
                     fetcher.get_price_df,
                     timeframe=base_timeframe,
                     since=since_time,
-                    limit=dd.get("limit", 500),  # メインループと同じ
+                    limit=SUFFICIENT_RECORDS,  # 200レコードで確実停止
                     paginate=dd.get("paginate", True),
                     per_page=dd.get("per_page", 100),
                     max_consecutive_empty=dd.get("max_consecutive_empty", None),
