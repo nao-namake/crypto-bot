@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @with_resilience("init_system", "init_5_fetch_price_data")
 def enhanced_init_5_fetch_price_data(
-    fetcher, dd: dict, max_retries: int = 5, timeout: int = 120, prefetch_data=None
+    fetcher, dd: dict, max_retries: int = 5, timeout: int = 90, prefetch_data=None
 ) -> Optional[pd.DataFrame]:
     """
     INIT-5段階: 初期価格データ取得（強化版・Phase H.13: プリフェッチデータ統合）
@@ -27,22 +27,26 @@ def enhanced_init_5_fetch_price_data(
         fetcher: データフェッチャー
         dd: データ設定辞書
         max_retries: 最大再試行回数
-        timeout: タイムアウト秒数（Phase H.7: 60→120秒延長）
+        timeout: タイムアウト秒数（Phase 12.2: 90秒統一）
         prefetch_data: プリフェッチデータ（Phase H.13: メインループ共有用）
 
     Returns:
         DataFrame: 価格データ（失敗時はNone）
     """
-    # Phase H.13: プリフェッチデータ優先使用（ATR計算データ最大化）
-    if prefetch_data is not None and not prefetch_data.empty:
+    # Phase 12.2: プリフェッチデータ優先使用（条件緩和・確実な活用）
+    if (
+        prefetch_data is not None
+        and not prefetch_data.empty
+        and len(prefetch_data) >= 50
+    ):
         logger.info(
-            "📊 [INIT-5] Phase H.13: Using prefetched data for optimal ATR calculation"
-        )
-        logger.info(
-            f"✅ [INIT-5] Prefetch data utilized: {len(prefetch_data)} records (vs previous 5 records)"
+            f"✅ [INIT-5] Using prefetch data: {len(prefetch_data)} records (sufficient for ATR)"
         )
         logger.info(
             f"📈 [INIT-5] Data range: {prefetch_data.index.min()} to {prefetch_data.index.max()}"
+        )
+        logger.info(
+            "🚀 [INIT-5] Phase 12.2: Prefetch data sufficient, skipping additional fetch"
         )
 
         # データ品質確認
@@ -71,7 +75,7 @@ def enhanced_init_5_fetch_price_data(
     )
     logger.info(f"⏰ [INIT-5] Timestamp: {pd.Timestamp.now()}")
     logger.info(
-        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase H.7延長)"
+        f"🔧 [INIT-5] Configuration: max_retries={max_retries}, timeout={timeout}s (Phase 12.2統一)"
     )
     logger.info("🛡️ [PHASE-H8.4] INIT-5 with enhanced error resilience")
 

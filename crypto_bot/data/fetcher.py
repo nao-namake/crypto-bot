@@ -91,6 +91,9 @@ class MarketDataFetcher:
                 )
                 raise
 
+        # Phase 12.2: 部分データ保存用（タイムアウト時の救済用）
+        self._last_partial_records = []
+
     @with_resilience("market_data_fetcher", "fetch_balance")
     def fetch_balance(self) -> dict:
         """
@@ -525,6 +528,15 @@ class MarketDataFetcher:
                             seen_ts.add(ts)
                             records.append(row)
                             new_records_count += 1
+
+                            # Phase 12.2: レコード追加直後のlimit確認（超過防止）
+                            if len(records) >= max_records:
+                                logger.info(
+                                    f"✅ [LIMIT-CHECK] Reached target {max_records} records, stopping batch processing"
+                                )
+                                added = True
+                                break
+
                             # Phase H.28.1: 安全なタイムスタンプ計算
                             # まず、現在のtsを検証
                             validated_ts = self._validate_timestamp_h28(
@@ -555,6 +567,9 @@ class MarketDataFetcher:
                     logger.info(
                         f"📈 [PHASE-H4] Progress: {len(records)}/{max_records} ({len(records)/max_records*100:.1f}%)"
                     )
+
+                    # Phase 12.2: 部分データ保存（タイムアウト時の救済用）
+                    self._last_partial_records = records.copy()
 
                     if not added:
                         consecutive_no_new += 1
@@ -966,6 +981,25 @@ class MarketDataFetcher:
             )
             return data1
 
+    def get_last_partial_data(self) -> Optional[pd.DataFrame]:
+        """
+        Phase 12.2: 最後に取得した部分データを返す（タイムアウト時の救済用）
+
+        Returns:
+            Optional[pd.DataFrame]: 部分データのDataFrame、なければNone
+        """
+        if hasattr(self, "_last_partial_records") and self._last_partial_records:
+            try:
+                df = self._convert_to_dataframe(self._last_partial_records)
+                logger.info(
+                    f"✅ [PARTIAL-DATA] Rescued {len(df)} records from partial data"
+                )
+                return df
+            except Exception as e:
+                logger.error(f"❌ [PARTIAL-DATA] Failed to convert partial data: {e}")
+                return None
+        return None
+
     def fetch_with_freshness_fallback(
         self,
         timeframe: str = "1h",
@@ -1127,10 +1161,10 @@ class MarketDataFetcher:
                 future_since = executor.submit(fetch_since_data)
                 future_latest = executor.submit(fetch_latest_data)
 
-                # 結果取得（タイムアウト付き）
+                # 結果取得（タイムアウト付き・Phase 12.2: 90秒統一）
                 try:
-                    data_since = future_since.result(timeout=60)
-                    data_latest = future_latest.result(timeout=60)
+                    data_since = future_since.result(timeout=90)
+                    data_latest = future_latest.result(timeout=90)
                 except concurrent.futures.TimeoutError:
                     logger.warning(
                         "⚠️ [PHASE-H8.1] Parallel fetch timeout, canceling futures"

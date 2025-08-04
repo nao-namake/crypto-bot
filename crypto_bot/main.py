@@ -1197,7 +1197,7 @@ def live_bitbank(config_path: str, max_trades: int):
         import concurrent.futures
         import time
 
-        PREFETCH_TIMEOUT = 120  # 2分タイムアウト（200レコード早期完了で短縮）
+        PREFETCH_TIMEOUT = 90  # 90秒タイムアウト（Phase 12.2: 確実な早期停止）
         MIN_REQUIRED_RECORDS = 200  # 最低必要レコード数
         SUFFICIENT_RECORDS = 200  # 十分なレコード数（早期完了・200で確実に進行）
 
@@ -1235,29 +1235,42 @@ def live_bitbank(config_path: str, max_trades: int):
                 f"⏱️ [INIT-PREFETCH] Data fetch timed out after {prefetch_elapsed:.1f}s"
             )
 
-            # タイムアウト時は部分データがあるかチェック
+            # Phase 12.2: タイムアウト時は部分データを救済
             try:
-                # 部分データ取得試行（より短期間・低limit）
-                logger.info("🔄 [INIT-PREFETCH] Attempting partial data fetch...")
-                partial_since = pd.Timestamp.now(tz="UTC") - pd.Timedelta(
-                    hours=168
-                )  # 7日間に短縮
-                init_prefetch_data = fetcher.get_price_df(
-                    timeframe=base_timeframe,
-                    since=partial_since,
-                    limit=200,  # 制限を下げる
-                    paginate=False,  # ページネーション無効
-                )
+                # 既に取得済みの部分データを救済（新たなAPI呼び出し不要）
+                logger.info("🔄 [INIT-PREFETCH] Attempting partial data rescue...")
+                init_prefetch_data = fetcher.get_last_partial_data()
+
                 if (
                     init_prefetch_data is not None
                     and len(init_prefetch_data) >= MIN_REQUIRED_RECORDS
                 ):
                     logger.info(
-                        f"✅ [INIT-PREFETCH] Partial data fetch successful: {len(init_prefetch_data)} records"
+                        f"✅ [INIT-PREFETCH] Partial data rescued: {len(init_prefetch_data)} records"
                     )
                 else:
-                    logger.warning("⚠️ [INIT-PREFETCH] Partial data fetch insufficient")
-                    init_prefetch_data = None
+                    logger.warning(
+                        "⚠️ [INIT-PREFETCH] No sufficient partial data available"
+                    )
+                    # フォールバック: 短期間・低limitでの再取得
+                    logger.info("🔄 [INIT-PREFETCH] Attempting fallback fetch...")
+                    partial_since = pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=168)
+                    init_prefetch_data = fetcher.get_price_df(
+                        timeframe=base_timeframe,
+                        since=partial_since,
+                        limit=200,
+                        paginate=False,
+                    )
+                    if (
+                        init_prefetch_data is not None
+                        and len(init_prefetch_data) >= MIN_REQUIRED_RECORDS
+                    ):
+                        logger.info(
+                            f"✅ [INIT-PREFETCH] Fallback fetch successful: {len(init_prefetch_data)} records"
+                        )
+                    else:
+                        logger.warning("⚠️ [INIT-PREFETCH] Fallback fetch insufficient")
+                        init_prefetch_data = None
             except Exception as partial_error:
                 logger.error(
                     f"❌ [INIT-PREFETCH] Partial data fetch failed: {partial_error}"
