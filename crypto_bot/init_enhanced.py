@@ -732,18 +732,89 @@ def enhanced_init_sequence(
 
                 if len(train_df) >= 50:
                     logger.info(
-                        f"🎯 [INIT-9] Training ensemble models with {len(train_df)} samples"
+                        f"🎯 [INIT-9] Training ensemble models with {len(train_df)} samples (with timeout protection)"
                     )
-                    strategy.fit_ensemble_models(train_df, y)
-                    logger.info("✅ [INIT-9] Ensemble models trained successfully")
 
-                    # モデル状態の確認
-                    if hasattr(strategy, "timeframe_processors"):
-                        for tf, processor in strategy.timeframe_processors.items():
-                            if processor:
-                                logger.info(
-                                    f"📊 [INIT-9] {tf} processor fitted: {processor.is_fitted}"
+                    # タイムアウト対応のfit_ensemble_models呼び出し
+                    training_start_time = pd.Timestamp.now()
+                    try:
+                        strategy.fit_ensemble_models(train_df, y)
+                        training_elapsed = (
+                            pd.Timestamp.now() - training_start_time
+                        ).total_seconds()
+                        logger.info(
+                            f"✅ [INIT-9] Ensemble models trained successfully in {training_elapsed:.1f}s"
+                        )
+
+                        # モデル状態の確認
+                        if hasattr(strategy, "timeframe_processors"):
+                            fitted_count = 0
+                            total_count = len(strategy.timeframe_processors)
+                            for tf, processor in strategy.timeframe_processors.items():
+                                if (
+                                    processor
+                                    and hasattr(processor, "is_fitted")
+                                    and processor.is_fitted
+                                ):
+                                    fitted_count += 1
+                                    logger.info(
+                                        f"📊 [INIT-9] {tf} processor fitted: {processor.is_fitted}"
+                                    )
+                                else:
+                                    logger.warning(
+                                        f"⚠️ [INIT-9] {tf} processor NOT fitted or unavailable"
+                                    )
+
+                            logger.info(
+                                f"📊 [INIT-9] Model training summary: {fitted_count}/{total_count} timeframes successfully fitted"
+                            )
+
+                            if fitted_count == 0:
+                                logger.error(
+                                    "❌ [INIT-9] CRITICAL: No timeframe models were fitted! Bot may not generate trading signals."
                                 )
+                            elif fitted_count < total_count:
+                                logger.warning(
+                                    f"⚠️ [INIT-9] WARNING: Only {fitted_count}/{total_count} timeframe models fitted. Trading performance may be suboptimal."
+                                )
+
+                    except TimeoutError as timeout_error:
+                        training_elapsed = (
+                            pd.Timestamp.now() - training_start_time
+                        ).total_seconds()
+                        logger.error(
+                            f"❌ [INIT-9] TIMEOUT: Ensemble training timed out after {training_elapsed:.1f}s"
+                        )
+                        logger.error(f"❌ [INIT-9] Timeout details: {timeout_error}")
+                        logger.info(
+                            "🔄 [INIT-9] Bot will continue with partial model training (degraded performance expected)"
+                        )
+
+                        # 部分的にフィットしたモデルの状況確認
+                        if hasattr(strategy, "timeframe_processors"):
+                            fitted_timeframes = []
+                            for tf, processor in strategy.timeframe_processors.items():
+                                if (
+                                    processor
+                                    and hasattr(processor, "is_fitted")
+                                    and processor.is_fitted
+                                ):
+                                    fitted_timeframes.append(tf)
+                            logger.info(
+                                f"📊 [INIT-9] Partially fitted timeframes: {fitted_timeframes}"
+                            )
+
+                    except Exception as model_error:
+                        training_elapsed = (
+                            pd.Timestamp.now() - training_start_time
+                        ).total_seconds()
+                        logger.error(
+                            f"❌ [INIT-9] Model training failed after {training_elapsed:.1f}s: {model_error}"
+                        )
+                        logger.error(
+                            f"❌ [INIT-9] Error type: {type(model_error).__name__}"
+                        )
+                        raise  # 元のexcept文で処理される
                 else:
                     logger.warning(
                         f"⚠️ [INIT-9] Insufficient data for training: {len(train_df)} records (need 50+)"

@@ -140,6 +140,10 @@ class FeatureOrderManager:
         logger.debug(f"✅ Feature order enforced: {len(ordered_df.columns)} features")
         return ordered_df
 
+    def ensure_column_order(self, df) -> pd.DataFrame:
+        """特徴量順序強制統一（ensure_column_order互換メソッド）"""
+        return self.ensure_feature_order(df)
+
     def get_batch_groups(self) -> Dict[str, List[str]]:
         """バッチ処理グループ取得"""
         return self.batch_opportunities or {}

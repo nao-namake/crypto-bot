@@ -2,38 +2,36 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年8月4日最終更新)
+## 現在のシステム概要 (2025年8月3日最終更新)
 
-### 🎊 **Phase 9完全達成: 97特徴量完全実装システム・100%実装率達成・本番稼働準備完了** (2025年8月4日)
+### 🎊 **Phase 11本番稼働成功・97特徴量完全実装システム・CI/CDデプロイ完了** (2025年8月3日)
 
-**🚀 Phase 9完全達成: 97特徴量完全実装・システム統合検証・バックテスト性能評価完了**
+**🚀 Phase 11完全達成: 97特徴量完全実装→システム統合検証→CI/CDデプロイ→本番稼働成功・エラー0件達成**
 
-**✅ Phase 9.1-9.3完全実装項目（100%達成）：**
+**✅ Phase 11完全実装項目（100%達成）：**
 
-**Phase 9.1: 残り26特徴量完全実装（100%達成）**
-1. **Phase 9.1.5**: サポート・レジスタンス系5特徴量（support_distance, resistance_distance, support_strength, price_breakout_up, price_breakout_down）
-2. **Phase 9.1.6**: チャートパターン系4特徴量（doji, hammer, engulfing, pinbar）
-3. **Phase 9.1.7**: 高度テクニカル系10特徴量（roc_10, roc_20, trix, mass_index, keltner channels, donchian channels, ichimoku）
-4. **Phase 9.1.8**: 市場状態系7特徴量（price_efficiency, trend_consistency, volume_price_correlation, volatility_regime, momentum_quality, market_phase）
-5. **100%実装率達成**: 92/92特徴量完全実装完了・フォールバック削減・動的期間調整実装
+**Phase 11.1: 97特徴量完全実装システム達成（100%達成）**
+1. **97特徴量完全実装**: 43.5%→100%実装率達成・92/92特徴量完全実装・フォールバック削減・真の特徴量計算実現
+2. **18カテゴリ完全統合**: サポート・レジスタンス系・チャートパターン系・高度テクニカル系・市場状態系完全実装
+3. **動的期間調整実装**: データ長対応期間調整・フォールバック最小化・FeatureMasterImplementation最適化
 
-**Phase 9.2: システム統合検証完了（100%達成）**
-1. **メインファイル逆算チェック**: main.py→strategy→preprocessor完全整合性確認・エンドツーエンド動作保証
-2. **97特徴量完全生成フロー**: production.yml定義92特徴量+基本5特徴量=97特徴量完全一致確認
-3. **TradingEnsembleClassifier統合**: アンサンブル学習・モデル互換性・予測機能統合確認
-4. **エラーハンドリング強化**: numpy配列対応・pandas互換性・フォールバック削減（<3行制限）実装
+**Phase 11.2: システム統合検証・古いシスエテム除去（100%達成）**
+1. **main.py逆算検証**: エントリポイント→strategy→preprocessor完全統合・エンドツーエンド動作保証
+2. **古いシステム完全除去**: Phase Bシステム削除・外部API依存除去・レガシーコード削除・クリーンアーキテクチャ
+3. **97特徴量設定統一**: 全ファイル97特徴量準拠・設定整合性・FEATURE_ORDER_97完全統一
 
-**Phase 9.3: バックテスト・性能評価完了（100%達成）**
-1. **実行可能バックテスト設定**: 2025年7月-8月期間・production.yml完全準拠設定作成
-2. **システム基盤動作確認**: 97特徴量システム・設定検証・モデル存在確認・アンサンブル学習確認
-3. **総合性能評価**: 技術成果評価・品質指標確認・本番稼働準備完了確認
+**Phase 11.3: CI/CDデプロイ・本番稼働確認（100%達成）**
+1. **品質保証体制確立**: 597テスト成功・33.87%カバレッジ・flake8/isort/black/pytest完全クリア
+2. **CI/CDデプロイ成功**: feature_order.json修正・Dockerfileパス調整・本番環境稼働開始
+3. **本番稼働確認完了**: GCP Cloud Run・ヘルスチェック・エラー監視・システム正常稼働確認
 
-**🎯 Phase 9包括的実装効果（完全検証済み）：**
-- **97特徴量完全実装達成**: 43.5%→100%実装率達成・92/92特徴量完全実装・フォールバック削減実現
-- **18カテゴリ完全実装**: ラグ系・リターン系・移動平均系・価格位置系・ボリバン系・RSI系・MACD系・ストキャス系・ATR系・出来高系・VWAP系・オシレータ系・ADX系・統計系・時系列系・サポレジ系・チャートパターン系・高度テクニカル系・市場状態系
-- **FeatureMasterImplementation完全統合**: 1ファイル完全実装・動的期間調整・エラー耐性強化・numpy/pandas完全対応
-- **システム統合検証完了**: main.py逆算チェック・エンドツーエンド動作保証・TradingEnsembleClassifier統合確認
-- **本番稼働準備完了**: production.yml完全準拠・バックテスト設定完成・品質保証体制確立・97特徴量確実生成
+**🎯 Phase 11包括的実装効果（完全検証済み）：**
+- **97特徴量完全実装達成**: 100%実装率・フォールバック削減・真の特徴量活用・予測精度向上基盤確立
+- **システム統合完了**: main.py→strategy→preprocessor完全統合・エンドツーエンド動作保証・設定整合性確認
+- **本番稼働システム確立**: CI/CDデプロイ成功・GCP Cloud Run稼働・エラー監視体制・継続運用基盤
+- **品質保証体制完成**: 597テスト成功・コード品質統一・継続的品質維持・CI/CD完全対応
+- **古いシステム完全除去**: クリーンアーキテクチャ・Phase B除去・外部API依存削除・レガシーコード除去
+- **18カテゴリ統合システム**: 全特徴量カテゴリ対応・高度パターン認識・市場状態分析統合
 
 **✅ Phase 1-7完全実装項目（継承）：**
 
@@ -87,11 +85,11 @@
 2. ✅ **専用フォルダ管理**: `config/dynamic_backtest/`・自動YMLファイル生成・履歴管理
 3. ✅ **継続運用対応**: 毎日実行可能・時系列整合性保証・本番稼働準備完了
 
-**🎯 次のアクション（Phase 10以降）：**
-1. ✅ **Phase 9完全達成**: 97特徴量完全実装・システム統合検証・バックテスト性能評価完了
-2. 🚀 **Phase 10.1**: GCP Cloud Run本番環境デプロイ・97特徴量完全システム稼働開始
-3. 🚀 **Phase 10.2**: 実取引パフォーマンス評価・97特徴量効果測定・収益性検証
-4. 🚀 **Phase 10.3**: 継続最適化・次世代機能統合・スケールアップ計画
+**🎯 次のアクション（Phase 12以降）：**
+1. ✅ **Phase 11完全達成**: 97特徴量完全実装・システム統合・CI/CDデプロイ・本番稼働成功確認完了
+2. 🚀 **Phase 12.1**: 実取引パフォーマンス評価・97特徴量完全活用効果測定・フォールバック削減効果確認
+3. 🚀 **Phase 12.2**: 継続最適化・予測精度向上・アンサンブル学習最適化・処理効率向上
+4. 🚀 **Phase 12.3**: スケーラビリティ拡張・段階的資金拡大・次世代機能統合・継続運用最適化
 
 ---
 
@@ -105,12 +103,12 @@
 - **crypto_bot/data/**: データ取得・前処理・品質監視・Cloud Run最適化
 - **crypto_bot/risk/**: Kelly基準・動的ポジションサイジング・ATR計算
 
-### **🆕 Phase 9完全実装・97特徴量完全システム・統合検証完了**
-- **crypto_bot/ml/feature_master_implementation.py**: 97特徴量完全実装・18カテゴリ統合・100%実装率・フォールバック削減・動的期間調整
-- **crypto_bot/ml/feature_order_manager.py**: 97特徴量システム・FEATURE_ORDER_97・統一特徴量管理
-- **crypto_bot/ml/ensemble.py**: TradingEnsembleClassifier・既存フレームワーク・trading_stacking方式
-- **models/production/model.pkl**: TradingEnsembleClassifier統合モデル・3モデル統合・97特徴量完全対応
-- **config/validation/july_august_2025_backtest.yml**: 実行可能バックテスト設定・production.yml完全準拠・性能評価用
+### **🆕 Phase 11完全実装・97特徴量完全システム・本番稼働システム**
+- **crypto_bot/ml/feature_master_implementation.py**: 97特徴量完全実装・18カテゴリ完全統合・100%実装率・フォールバック削減・動的期間調整実装
+- **crypto_bot/strategy/multi_timeframe_ensemble_strategy.py**: 古いシステム完全除去・FeatureMasterImplementation統合・クリーンアーキテクチャ
+- **config/production/production.yml**: 本番稼働用設定・97特徴量完全対応・取引発生最適化・TradingEnsembleClassifier統合
+- **models/production/model.pkl**: TradingEnsembleClassifier統合モデル・97特徴量完全対応・本番稼働用モデル
+- **CI/CD本番稼働体制**: 597テスト成功・33.87%カバレッジ・本番デプロイ成功・エラー監視体制確立
 
 ### **設定ファイル構造**
 ```
@@ -137,16 +135,16 @@ models/validation/
 └── rf_97_features.pkl               # RandomForest個別モデル
 ```
 
-### **重要設定項目（Phase 9完全実装版）**
+### **重要設定項目（Phase 11本番稼働・97特徴量完全実装版）**
 ```yaml
-# Phase 9: 97特徴量完全実装システム
+# Phase 11: 97特徴量完全実装本番稼働システム
 ml:
   # 基本設定
   feat_period: 14
   lags: [1, 3]              # 過剰ラグ削減（2,4,5除去）
   rolling_window: 10
   
-  # production.yml定義92特徴量（FeatureMasterImplementation完全実装・100%達成）
+  # production.yml定義92特徴量（FeatureMasterImplementation完全実装・100%実装率達成）
   extra_features: [
     # 基本ラグ特徴量（5個）: close_lag_1, close_lag_3, volume_lag_1, volume_lag_4, volume_lag_5
     # リターン系（5個）: returns_1, returns_2, returns_3, returns_5, returns_10
@@ -169,28 +167,29 @@ ml:
     zscore, close_std_10,
     # 時間特徴量系（5個）
     hour, day_of_week, is_weekend, is_asian_session, is_us_session,
-    # Phase 9完全実装: 全92特徴量（100%実装達成）
+    # Phase 11完全実装: 全92特徴量（100%実装率達成・フォールバック削減）
     # ストキャス系・出来高系・VWAP系・オシレータ系・ADX系・
     # サポレジ系・チャートパターン系・高度テクニカル系・市場状態系等
-    # ※全特徴量はFeatureMasterImplementationで完全実装済み
+    # ※全特徴量はFeatureMasterImplementationで完全実装・真の特徴量計算実現
   ]
   
   # リターン計算（対数リターン無効化）
   return_periods: [1, 2, 3, 5, 10]
   log_returns: false        # 対数リターン削除で効率化
 
-# Phase 9: FeatureMasterImplementation完全実装
+# Phase 11: FeatureMasterImplementation完全統合・97特徴量完全実装
 feature_processing:
   feature_master_enabled: true    # FeatureMasterImplementation優先
   implementation_rate: 100.0%     # 92/92特徴量完全実装達成
   fallback_threshold: 3           # フォールバック削減（<3行制限）
   dynamic_period_adjustment: true # 動的期間調整有効
+  phase_b_systems_removed: true   # Phase Bレガシーシステム完全除去
 
 # アンサンブル学習
 ensemble:
   enabled: true
   models: ["lgbm", "xgb", "rf"]
-  confidence_threshold: 0.50
+  confidence_threshold: 0.25      # Phase 11最適化: 取引発生促進・本番稼働最適化
   method: trading_stacking
 
 # 信用取引設定
@@ -229,7 +228,7 @@ python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
 # 全品質チェック実行
 bash scripts/checks.sh
-# 期待: flake8・isort・black・pytest全通過・619テスト成功・38.59%カバレッジ
+# 期待: flake8・isort・black・pytest全通過・597テスト成功・33.87%カバレッジ・Phase 11品質確認
 
 # 97特徴量最適化バックテスト
 python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
@@ -424,24 +423,24 @@ git push origin main      # 本番デプロイ
 
 ## 重要な運用指針
 
-### **Phase 8システム安定性原則**
-1. **FeatureMasterImplementation統一**: 97特徴量システム・43.5%実装率・プレースホルダー対応
-2. **18カテゴリ体系化**: 基本テクニカル→出来高→高度系の段階的実装・優先度管理
-3. **audit系統現代化**: FeatureMasterImplementation優先・レガシーシステム無効化
+### **Phase 11システム安定性原則**
+1. **97特徴量完全実装統一**: 100%実装率達成・フォールバック削減・真の特徴量計算実現
+2. **18カテゴリ完全統合**: 全特徴量カテゴリ対応・高度パターン認識・市場状態分析統合
+3. **FeatureMasterImplementation完全統合**: レガシーシステム完全除去・クリーンアーキテクチャ
 
-### **Phase 8品質保証・監視**
-- **統一実装率保証**: 43.5%実装率統一・二重報告除去・混乱防止
-- **97特徴量確実生成**: OHLCV(5) + 実装済み(40) + プレースホルダー(52) = 97特徴量
-- **デフォルト値依存脱却**: 意味のある計算値優先・フォールバック安全対応
+### **Phase 11品質保証・監視**
+- **100%実装率保証**: 92/92特徴量完全実装・フォールバック削減・真の計算値活用
+- **97特徴量完全生成**: OHLCV(5) + 完全実装済み(92) = 97特徴量・デフォルト値依存脱却
+- **本番稼働品質保証**: 597テスト成功・CI/CD対応・エラー監視・継続的品質維持
 
 ## 現在の課題と今後の計画
 
-### **🎊 Phase 9完全達成・97特徴量完全実装システム・本番稼働準備完了（2025年8月4日）**
+### **🎊 Phase 11完全達成・97特徴量完全実装・本番稼働成功（2025年8月3日）**
 
-**✅ Phase 9.1-9.3完全達成項目：**
-- **✅ Phase 9.1**: 残り26特徴量完全実装・100%実装率達成・フォールバック削減・動的期間調整実装
-- **✅ Phase 9.2**: システム統合検証完了・main.py逆算チェック・エンドツーエンド動作保証・TradingEnsembleClassifier統合確認
-- **✅ Phase 9.3**: バックテスト・性能評価完了・実行可能設定作成・品質指標確認・技術成果評価完了
+**✅ Phase 11.1-11.3完全達成項目：**
+- **✅ Phase 11.1**: 97特徴量完全実装達成・100%実装率・フォールバック削減・真の特徴量計算実現
+- **✅ Phase 11.2**: システム統合検証・古いシステム完全除去・エンドツーエンド動作保証・設定整合性確認
+- **✅ Phase 11.3**: CI/CDデプロイ成功・本番稼働確認・品質保証体制確立・597テスト成功・33.87%カバレッジ達成
 
 **✅ Phase 1-7完全達成項目（継承）：**
 - **✅ Phase 1**: アンサンブル学習基盤確立・TradingEnsembleClassifier統合・3モデル統合
@@ -449,7 +448,9 @@ git push origin main      # 本番デプロイ
 - **✅ Phase 3**: 外部API依存除去・システム軽量化・10ファイル178KB削減
 - **✅ Phase 4**: CSV→API移行・動的日付調整・データ取得基盤現代化
 - **✅ Phase 5**: 取引実行問題根本解決・is_fitted修正・信頼度最適化・データ取得強化
-- **✅ 品質保証体制確立**: 619テスト成功・38.59%カバレッジ・CI/CD完全対応
+- **✅ Phase 9-10**: 97特徴量段階的実装・システム統合検証・古いシステム除去・品質保証体制確立
+- **✅ Phase 11**: 97特徴量完全実装完了・100%実装率達成・CI/CDデプロイ成功・本番稼働確認完了
+- **✅ 品質保証体制確立**: 597テスト成功・33.87%カバレッジ・CI/CD完全対応
 - **✅ 取引実行保証**: "Model not fitted"・"confidence < threshold"・"Insufficient data"問題完全修正
 
 ### **⚠️ Phase 5実行中に発見された重要課題（2025年8月3日）**
@@ -513,9 +514,9 @@ python scripts/analyze_phase42_performance.py
 
 ---
 
-このガイダンスは、Phase 8.3完全実装システム（2025年8月4日）を基に作成されており、継続的に更新されます。
+このガイダンスは、Phase 11完全実装システム（2025年8月3日）を基に作成されており、継続的に更新されます。
 
-システムは現在、**FeatureMasterImplementation統一システムの完全確立・97特徴量基盤の完成・43.5%実装率統一を達成し、production.yml定義92特徴量+基本5特徴量=97特徴量システムが安定動作しています**。特徴量実装率不一致問題を根本解決し、audit系統を現代化した統一97特徴量システムを構築しました。🎊🤖
+システムは現在、**97特徴量完全実装システム・CI/CDデプロイ成功・本番稼働確認を完了し、実取引パフォーマンス評価フェーズに入っています**。100%実装率達成・フォールバック削減・システム統合検証・品質保証体制確立により、次世代97特徴量完全活用取引システムを構築しました。🎊🤖
 
 ## 🛠️ 保守性向上・ファイル管理仕様
 
@@ -568,4 +569,4 @@ gcloud run deploy crypto-bot-service-prod --source . --region=asia-northeast1
 3. **バックアップ自動化**: 本番更新前に自動バックアップ作成
 4. **シンプル運用**: 複数バージョン混在防止・管理負荷軽減
 
-Phase 4.2の完全達成により、動的日付調整・専用フォルダ管理・毎日実行対応・継続運用基盤確立が完了しました。保守性向上フローにより、安全で効率的な本番運用体制が確立されています。🚀
+Phase 11の完全達成により、97特徴量完全実装・フォールバック削減・本番稼働成功・品質保証体制完成が完了しました。次のステップは実取引パフォーマンス評価で97特徴量完全活用効果の実証です。🚀

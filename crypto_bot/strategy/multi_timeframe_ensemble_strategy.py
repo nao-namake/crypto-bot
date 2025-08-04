@@ -396,56 +396,149 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             self.multi_timeframe_fetcher = None
 
     def fit_ensemble_models(self, price_df: pd.DataFrame, y: pd.Series):
-        """全タイムフレームアンサンブルモデル学習"""
+        """全タイムフレームアンサンブルモデル学習（タイムアウト機能付き）"""
         if not self.timeframe_processors:
             logger.error("Timeframe processors not initialized")
             return
 
-        logger.info("🎯 Training multi-timeframe ensemble models")
+        logger.info(
+            "🎯 Training multi-timeframe ensemble models with timeout protection"
+        )
         logger.info(
             f"📊 Original data shape: {tuple(price_df.shape)}, label shape: {tuple(y.shape)}"
         )
 
-        for timeframe, processor in self.timeframe_processors.items():
-            if processor is None:
-                continue
+        import concurrent.futures
+        import signal
 
-            try:
-                # タイムフレーム別データ準備
-                tf_data = self._get_timeframe_data(price_df, timeframe)
-                if tf_data.empty:
-                    logger.warning(f"No data for {timeframe} training")
+        # タイムアウト設定（秒）
+        DATA_FETCH_TIMEOUT = 30  # データ取得タイムアウト
+        MODEL_TRAINING_TIMEOUT = 120  # モデル学習タイムアウト
+        TOTAL_TIMEOUT = 300  # 全体タイムアウト（5分）
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Training operation timed out")
+
+        # 全体タイムアウト設定
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(TOTAL_TIMEOUT)
+
+        try:
+            for timeframe, processor in self.timeframe_processors.items():
+                if processor is None:
+                    logger.warning(f"⚠️ {timeframe} processor not available, skipping")
                     continue
 
-                logger.info(f"📊 {timeframe} data shape: {tuple(tf_data.shape)}")
+                try:
+                    logger.info(f"🔄 Starting {timeframe} ensemble training...")
 
-                # タイムフレームに対応するラベルを生成
-                tf_labels = self._generate_timeframe_labels(
-                    tf_data, price_df, y, timeframe
-                )
+                    # タイムフレーム別データ準備（タイムアウト付き）
+                    tf_data = None
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=1
+                    ) as executor:
+                        future = executor.submit(
+                            self._get_timeframe_data, price_df, timeframe
+                        )
+                        try:
+                            tf_data = future.result(timeout=DATA_FETCH_TIMEOUT)
+                        except concurrent.futures.TimeoutError:
+                            logger.error(
+                                f"❌ {timeframe} data fetch timed out after {DATA_FETCH_TIMEOUT}s"
+                            )
+                            continue
 
-                if tf_labels is None or len(tf_labels) == 0:
-                    logger.warning(f"⚠️ Failed to generate labels for {timeframe}")
-                    continue
+                    if tf_data is None or tf_data.empty:
+                        logger.warning(f"⚠️ No data for {timeframe} training")
+                        continue
 
-                logger.info(f"📊 {timeframe} labels shape: {tuple(tf_labels.shape)}")
+                    logger.info(f"📊 {timeframe} data shape: {tuple(tf_data.shape)}")
 
-                # データとラベルの長さを確認
-                if len(tf_data) != len(tf_labels):
+                    # タイムフレームに対応するラベルを生成（タイムアウト付き）
+                    tf_labels = None
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=1
+                    ) as executor:
+                        future = executor.submit(
+                            self._generate_timeframe_labels,
+                            tf_data,
+                            price_df,
+                            y,
+                            timeframe,
+                        )
+                        try:
+                            tf_labels = future.result(timeout=DATA_FETCH_TIMEOUT)
+                        except concurrent.futures.TimeoutError:
+                            logger.error(
+                                f"❌ {timeframe} label generation timed out after {DATA_FETCH_TIMEOUT}s"
+                            )
+                            continue
+
+                    if tf_labels is None or len(tf_labels) == 0:
+                        logger.warning(f"⚠️ Failed to generate labels for {timeframe}")
+                        continue
+
+                    logger.info(
+                        f"📊 {timeframe} labels shape: {tuple(tf_labels.shape)}"
+                    )
+
+                    # データとラベルの長さを確認
+                    if len(tf_data) != len(tf_labels):
+                        logger.error(
+                            f"❌ {timeframe} data/label mismatch: data={len(tf_data)}, labels={len(tf_labels)}"
+                        )
+                        continue
+
+                    # アンサンブルモデル学習（タイムアウト付き）
+                    model_trained = False
+                    with concurrent.futures.ThreadPoolExecutor(
+                        max_workers=1
+                    ) as executor:
+                        future = executor.submit(processor.fit, tf_data, tf_labels)
+                        try:
+                            future.result(timeout=MODEL_TRAINING_TIMEOUT)
+                            model_trained = True
+                        except concurrent.futures.TimeoutError:
+                            logger.error(
+                                f"❌ {timeframe} model training timed out after {MODEL_TRAINING_TIMEOUT}s"
+                            )
+                            continue
+                        except Exception as training_error:
+                            logger.error(
+                                f"❌ {timeframe} model training failed: {training_error}"
+                            )
+                            continue
+
+                    if model_trained:
+                        logger.info(
+                            f"✅ {timeframe} ensemble model trained successfully"
+                        )
+                        logger.info(f"   - Processor fitted: {processor.is_fitted}")
+                    else:
+                        logger.warning(f"⚠️ {timeframe} model training failed silently")
+
+                except TimeoutError:
                     logger.error(
-                        f"❌ {timeframe} data/label mismatch: data={len(tf_data)}, labels={len(tf_labels)}"
+                        f"❌ {timeframe} training timed out - moving to next timeframe"
                     )
                     continue
+                except Exception as e:
+                    logger.error(f"❌ {timeframe} ensemble training failed: {e}")
+                    logger.error(f"   - Error type: {type(e).__name__}")
+                    logger.error(f"   - Error details: {str(e)}")
+                    continue
 
-                # アンサンブルモデル学習
-                processor.fit(tf_data, tf_labels)
-                logger.info(f"✅ {timeframe} ensemble model trained successfully")
-                logger.info(f"   - Processor fitted: {processor.is_fitted}")
-
-            except Exception as e:
-                logger.error(f"❌ {timeframe} ensemble training failed: {e}")
-                logger.error(f"   - Error type: {type(e).__name__}")
-                logger.error(f"   - Error details: {str(e)}")
+        except TimeoutError:
+            logger.error(
+                f"❌ Overall ensemble training timed out after {TOTAL_TIMEOUT}s"
+            )
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during ensemble training: {e}")
+        finally:
+            # タイムアウトハンドラーを復元
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+            logger.info("🏁 Ensemble training completed (with timeout protection)")
 
     def logic_signal(self, price_df: pd.DataFrame, position: Position) -> Signal:
         """
@@ -756,16 +849,41 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         self.strategy_stats["cache_misses"] += 1
 
         try:
-            # MultiTimeframeDataFetcher使用（優先）
+            # MultiTimeframeDataFetcher使用（優先）- タイムアウト付き
             if self.multi_timeframe_fetcher is not None:
-                multi_data = self.multi_timeframe_fetcher.get_multi_timeframe_data()
-                if timeframe in multi_data:
+                import concurrent.futures
+
+                # データフェッチタイムアウト（45秒）
+                FETCH_TIMEOUT = 45
+
+                multi_data = None
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        self.multi_timeframe_fetcher.get_multi_timeframe_data
+                    )
+                    try:
+                        multi_data = future.result(timeout=FETCH_TIMEOUT)
+                    except concurrent.futures.TimeoutError:
+                        logger.error(
+                            f"❌ MultiTimeframeDataFetcher timed out after {FETCH_TIMEOUT}s for {timeframe}"
+                        )
+                        multi_data = {}
+                    except Exception as fetch_error:
+                        logger.error(
+                            f"❌ MultiTimeframeDataFetcher failed for {timeframe}: {fetch_error}"
+                        )
+                        multi_data = {}
+
+                if multi_data and timeframe in multi_data:
                     tf_data = multi_data[timeframe]
                     logger.debug(
                         f"✅ {timeframe} data from fetcher: {len(tf_data)} records"
                     )
                 else:
-                    tf_data = pd.DataFrame()
+                    logger.warning(
+                        f"⚠️ No {timeframe} data from fetcher, using fallback"
+                    )
+                    tf_data = self._convert_timeframe_data(price_df, timeframe)
             else:
                 # フォールバック: 従来方式
                 tf_data = self._convert_timeframe_data(price_df, timeframe)

@@ -1193,28 +1193,89 @@ def live_bitbank(config_path: str, max_trades: int):
         logger.info(f"🔧 [INIT-PREFETCH] Base timeframe: {base_timeframe}")
         logger.info(f"⏰ [INIT-PREFETCH] Since: {since_time}")
 
-        # データプリフェッチ実行（メインループと同じパラメータ）
-        init_prefetch_data = fetcher.get_price_df(
-            timeframe=base_timeframe,
-            since=since_time,
-            limit=dd.get("limit", 500),  # メインループと同じ
-            paginate=dd.get("paginate", True),
-            per_page=dd.get("per_page", 100),
-            max_consecutive_empty=dd.get("max_consecutive_empty", None),
-            max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
-            max_attempts=dd.get("max_attempts", None),
-        )
+        # データプリフェッチ実行（タイムアウト機能付き・十分データ量早期完了対応）
+        import concurrent.futures
+        import time
+        
+        PREFETCH_TIMEOUT = 180  # 3分タイムアウト
+        MIN_REQUIRED_RECORDS = 200  # 最低必要レコード数
+        SUFFICIENT_RECORDS = 300   # 十分なレコード数（早期完了）
+        
+        logger.info(f"🔄 [INIT-PREFETCH] Starting data fetch with timeout protection ({PREFETCH_TIMEOUT}s)")
+        logger.info(f"📊 [INIT-PREFETCH] Early completion: {SUFFICIENT_RECORDS}+ records, minimum: {MIN_REQUIRED_RECORDS}")
+        
+        init_prefetch_data = None
+        prefetch_start_time = time.time()
+        
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                # データフェッチをサブスレッドで実行
+                future = executor.submit(
+                    fetcher.get_price_df,
+                    timeframe=base_timeframe,
+                    since=since_time,
+                    limit=dd.get("limit", 500),  # メインループと同じ
+                    paginate=dd.get("paginate", True),
+                    per_page=dd.get("per_page", 100),
+                    max_consecutive_empty=dd.get("max_consecutive_empty", None),
+                    max_consecutive_no_new=dd.get("max_consecutive_no_new", None),
+                    max_attempts=dd.get("max_attempts", None),
+                )
+                
+                # タイムアウト付きで結果取得
+                init_prefetch_data = future.result(timeout=PREFETCH_TIMEOUT)
+                
+        except concurrent.futures.TimeoutError:
+            prefetch_elapsed = time.time() - prefetch_start_time
+            logger.warning(f"⏱️ [INIT-PREFETCH] Data fetch timed out after {prefetch_elapsed:.1f}s")
+            
+            # タイムアウト時は部分データがあるかチェック
+            try:
+                # 部分データ取得試行（より短期間・低limit）
+                logger.info("🔄 [INIT-PREFETCH] Attempting partial data fetch...")
+                partial_since = pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=168)  # 7日間に短縮
+                init_prefetch_data = fetcher.get_price_df(
+                    timeframe=base_timeframe,
+                    since=partial_since,
+                    limit=200,  # 制限を下げる
+                    paginate=False,  # ページネーション無効
+                )
+                if init_prefetch_data is not None and len(init_prefetch_data) >= MIN_REQUIRED_RECORDS:
+                    logger.info(f"✅ [INIT-PREFETCH] Partial data fetch successful: {len(init_prefetch_data)} records")
+                else:
+                    logger.warning("⚠️ [INIT-PREFETCH] Partial data fetch insufficient")
+                    init_prefetch_data = None
+            except Exception as partial_error:
+                logger.error(f"❌ [INIT-PREFETCH] Partial data fetch failed: {partial_error}")
+                init_prefetch_data = None
+                
+        except Exception as fetch_error:
+            prefetch_elapsed = time.time() - prefetch_start_time
+            logger.error(f"❌ [INIT-PREFETCH] Data fetch failed after {prefetch_elapsed:.1f}s: {fetch_error}")
+            init_prefetch_data = None
 
+        # データ品質・十分性チェック
+        prefetch_elapsed = time.time() - prefetch_start_time
+        
         if init_prefetch_data is not None and not init_prefetch_data.empty:
-            logger.info(
-                f"✅ [INIT-PREFETCH] Successfully prefetched {len(init_prefetch_data)} records for INIT stages"
-            )
+            record_count = len(init_prefetch_data)
+            
+            if record_count >= SUFFICIENT_RECORDS:
+                logger.info(f"🎯 [INIT-PREFETCH] Excellent data fetch: {record_count} records in {prefetch_elapsed:.1f}s")
+                logger.info("✅ [INIT-PREFETCH] Sufficient data obtained - proceeding to next stage")
+            elif record_count >= MIN_REQUIRED_RECORDS:
+                logger.info(f"✅ [INIT-PREFETCH] Adequate data fetch: {record_count} records in {prefetch_elapsed:.1f}s")
+                logger.info("📊 [INIT-PREFETCH] Minimum requirements met - proceeding to next stage")
+            else:
+                logger.warning(f"⚠️ [INIT-PREFETCH] Limited data fetch: {record_count} records (< {MIN_REQUIRED_RECORDS} minimum)")
+                logger.warning("🔄 [INIT-PREFETCH] May impact model training quality - consider fallback")
+            
             logger.info(
                 f"📊 [INIT-PREFETCH] Data range: {init_prefetch_data.index.min()} to {init_prefetch_data.index.max()}"
             )
         else:
             logger.warning(
-                "⚠️ [INIT-PREFETCH] No data prefetched, INIT stages will use fallback"
+                f"⚠️ [INIT-PREFETCH] No data prefetched after {prefetch_elapsed:.1f}s, INIT stages will use fallback"
             )
 
     except Exception as e:
