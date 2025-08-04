@@ -301,8 +301,16 @@ def enhanced_init_5_fetch_price_data(
                 break
 
             except (FutureTimeoutError, TimeoutError) as e:
-                logger.error(f"⏰ [INIT-5] Timeout error: {e}")
-                raise
+                fetch_time = time.time() - start_time
+                logger.error(f"⏰ [INIT-5] Timeout error after {fetch_time:.2f}s: {e}")
+                # タイムアウト時は短めの待機でretryを継続
+                wait_time = min((attempt + 1) * 10, 40)
+                logger.info(
+                    f"⏳ [INIT-5] Timeout backoff: waiting {wait_time}s before retry..."
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(wait_time)
+                continue  # retry loop継続
 
         except Exception as e:
             fetch_time = time.time() - start_time
@@ -332,10 +340,20 @@ def enhanced_init_5_fetch_price_data(
                 time.sleep(wait_time)
             else:
                 logger.error(
-                    f"❌ [INIT-5] All {max_retries} attempts failed - "
-                    "data fetch completely failed. Consider increasing timeout or reducing API load."
+                    f"❌ [INIT-5] All {max_retries} attempts failed - attempting prefetch fallback"
                 )
-                initial_df = None
+                # prefetchデータがある場合はそれを使用
+                if prefetch_data is not None and not prefetch_data.empty:
+                    logger.warning(
+                        f"⚠️ [INIT-5] Using prefetch data as fallback: {len(prefetch_data)} records"
+                    )
+                    initial_df = prefetch_data.copy()
+                    break
+                else:
+                    logger.error(
+                        "❌ [INIT-5] No prefetch data available, initialization failed"
+                    )
+                    initial_df = None
 
     return initial_df
 
