@@ -1000,6 +1000,28 @@ class MarketDataFetcher:
                 return None
         return None
 
+    def _convert_to_dataframe(self, data) -> pd.DataFrame:
+        """
+        Phase 12.3: レコードリストをDataFrameに変換（部分データ救済用）
+
+        Args:
+            data: レコードリスト [[timestamp, open, high, low, close, volume], ...]
+
+        Returns:
+            pd.DataFrame: 変換されたDataFrame（index: datetime）
+        """
+        if not data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(
+            data, columns=["timestamp", "open", "high", "low", "close", "volume"]
+        )
+        df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+        df = df.set_index("datetime")
+
+        # OHLCVカラムのみを返す（timestampは除外）
+        return df[["open", "high", "low", "close", "volume"]]
+
     def fetch_with_freshness_fallback(
         self,
         timeframe: str = "1h",
