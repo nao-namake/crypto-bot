@@ -1,4 +1,5 @@
 # Dockerfile - Simplified Single Stage Build
+# Phase 12.2: Container Import Fixed - Rebuild 2025-08-04
 FROM python:3.11-slim-bullseye
 
 WORKDIR /app
