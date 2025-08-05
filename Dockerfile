@@ -1,5 +1,6 @@
 # Dockerfile - Ultra-Lightweight Production Build
-# Phase 12.2: Container Import Failed根本解決・超軽量化版
+# Phase 12.5: Environment Parity & Dependency Management System
+# 単一真実源dependencies・手動管理排除・環境統一実現
 
 FROM python:3.11-slim-bullseye
 
@@ -11,21 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 超軽量requirements（本番最小依存関係のみ）
+# Phase 12.5: 本番最小依存関係（単一真実源・手動管理排除）
+COPY requirements/base.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-    numpy==1.26.4 \
-    pandas==1.5.3 \
-    scikit-learn==1.3.2 \
-    joblib==1.3.2 \
-    requests==2.31.0 \
-    ccxt==4.4.94 \
-    python-dotenv==1.0.0 \
-    fastapi==0.104.1 \
-    uvicorn==0.24.0 \
-    PyYAML==6.0.0 \
-    tenacity==8.2.0 \
-    && rm -rf ~/.cache/pip
+    pip install --no-cache-dir -r /app/requirements.txt && \
+    rm -rf ~/.cache/pip
 
 # Phase 12.2修正済みアプリケーションコード（最小限）
 COPY crypto_bot/ /app/crypto_bot/
