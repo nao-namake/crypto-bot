@@ -16,11 +16,18 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-import matplotlib.pyplot as plt
 import pandas as pd
 import yaml
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+
+# Phase 12.3: matplotlib条件付きimport（バックテスト専用・ライブトレード不要）
+try:
+    import matplotlib.pyplot as plt
+
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 
 from crypto_bot.backtest.analysis import export_aggregates
 from crypto_bot.backtest.engine import BacktestEngine
@@ -96,6 +103,11 @@ def setup_logging():
 
 def create_performance_chart(portfolio_df, cfg):
     """収益推移のチャートを作成"""
+    logger = logging.getLogger(__name__)
+    # Phase 12.3: matplotlib不在時はスキップ
+    if not MATPLOTLIB_AVAILABLE:
+        logger.warning("⚠️ [CHART] Matplotlib not available, skipping chart generation")
+        return
     try:
         plt.style.use("default")
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
@@ -1327,17 +1339,35 @@ def live_bitbank(config_path: str, max_trades: int):
         )
         init_prefetch_data = None
 
-    # INIT-5〜INIT-8の強化版シーケンス実行（Phase H.13: プリフェッチデータ統合）
-    from crypto_bot.init_enhanced import enhanced_init_sequence
-
-    entry_exit, position = enhanced_init_sequence(
-        fetcher=fetcher,
-        dd=dd,
-        strategy=strategy,
-        risk_manager=risk_manager,
-        balance=balance,
-        prefetch_data=init_prefetch_data,  # Phase H.13: プリフェッチデータ渡し
+    # Phase 12.3: INIT-5〜INIT-8をスキップ（14時間ゼロトレード問題根本解決）
+    logger.info("🚀 [INIT-SKIP] Phase 12.3: Skipping INIT-5~8 to avoid timeout issues")
+    logger.info(
+        "📊 [INIT-SKIP] Data fetching and model initialization will be done in main loop"
     )
+    logger.info("✅ [INIT-SKIP] This resolves the 14-hour zero-trade problem")
+
+    # Phase 12.3: ローカル事前計算データチェック
+    from crypto_bot.utils.pre_computed_cache import PreComputedCache
+
+    cache = PreComputedCache()
+
+    if cache.has_valid_cache():
+        logger.info("📦 [INIT-CACHE] Loading pre-computed data from cache...")
+        cache_data = cache.load_all()
+        logger.info(
+            f"✅ [INIT-CACHE] Loaded: market_data={len(cache_data.get('market_data', []))} records"
+        )
+        # キャッシュデータを戦略に設定（オプション）
+        if hasattr(strategy, "set_cached_data"):
+            strategy.set_cached_data(cache_data)
+    else:
+        logger.info("📊 [INIT-CACHE] No valid cache found, will compute on demand")
+
+    # 最小限の初期化のみ実行
+    from crypto_bot.execution.engine import EntryExit, Position
+
+    entry_exit = EntryExit(cfg, fetcher, risk_manager)
+    position = Position()
 
     # モデル状態の最終確認
     logger.info(

@@ -53,6 +53,9 @@ results/
 model/
 *.pkl
 
+# Phase 12.3: Pre-computed cache
+cache/
+
 # データファイル
 data/
 *.csv
