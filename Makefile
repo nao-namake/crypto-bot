@@ -28,7 +28,7 @@ checks:
 deploy: pre-compute checks
 	@echo "📦 Preparing deployment..."
 	git add .
-	git commit -m "Phase 12.3: Deploy with pre-computed cache"
+	git commit -m "Phase 12.4: Deploy with pre-computed cache and CI integration"
 	git push origin main
 	@echo "🚀 Deployment initiated via CI/CD"
 

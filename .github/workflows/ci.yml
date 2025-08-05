@@ -66,6 +66,17 @@ jobs:
           bash scripts/checks.sh
         # scripts/checks.sh に書かれた flake8/isort/black/pytest＋coverage コマンドを一括実行
 
+      - name: Generate pre-computed cache
+        run: |
+          echo ">>> Phase 12.3: Generating pre-computed cache"
+          python scripts/pre_compute_data.py || echo "⚠️ Pre-computation failed but continuing"
+          if [ -d "cache" ]; then
+            echo "✅ Cache generated successfully: $(ls -la cache/)"
+          else
+            echo "⚠️ Cache directory not found"
+          fi
+        # Phase 12.3: 事前計算キャッシュ生成（失敗してもCIを停止しない）
+
       - name: Run Phase C1 integration tests
         run: |
           echo ">>> Running Phase C1 integration tests"

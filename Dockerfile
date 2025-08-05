@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     python-dotenv==1.0.0 \
     fastapi==0.104.1 \
     uvicorn==0.24.0 \
+    PyYAML==6.0.0 \
     && rm -rf ~/.cache/pip
 
 # Phase 12.2修正済みアプリケーションコード（最小限）
