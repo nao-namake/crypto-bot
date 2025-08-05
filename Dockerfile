@@ -1,48 +1,48 @@
-# Dockerfile - Simplified Single Stage Build
-# Phase 12.2: Container Import Fixed - Rebuild 2025-08-04
+# Dockerfile - Ultra-Lightweight Production Build
+# Phase 12.2: Container Import Failed根本解決・超軽量化版
+
 FROM python:3.11-slim-bullseye
 
 WORKDIR /app
 
-# システムパッケージのインストール
-RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential git ca-certificates libstdc++6 libgomp1 \
- && rm -rf /var/lib/apt/lists/*
+# 最小限のシステムパッケージのみ
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Pythonパッケージのアップグレード
-RUN pip install --upgrade pip
+# 超軽量requirements（本番最小依存関係のみ）
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    numpy==1.26.4 \
+    pandas==1.5.3 \
+    scikit-learn==1.3.2 \
+    joblib==1.3.2 \
+    requests==2.31.0 \
+    ccxt==4.4.94 \
+    python-dotenv==1.0.0 \
+    fastapi==0.104.1 \
+    uvicorn==0.24.0 \
+    && rm -rf ~/.cache/pip
 
-# 依存関係ファイルをコピー
-COPY requirements-dev.txt ./
-
-# 依存関係をインストール
-RUN pip install --no-cache-dir -r requirements-dev.txt \
- && rm -rf ~/.cache/pip
-
-# アプリケーションコードをコピー
+# Phase 12.2修正済みアプリケーションコード（最小限）
 COPY crypto_bot/ /app/crypto_bot/
-COPY scripts/ /app/scripts/
-COPY config/ /app/config/
-COPY models/ /app/models/
+COPY config/production/ /app/config/production/
 COPY config/core/feature_order.json /app/feature_order.json
-COPY .env.example /app/
+COPY models/production/model.pkl /app/models/production/model.pkl
+COPY docker/docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
 
 # 環境変数設定
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-# デフォルトは軽量モードで起動（高速初期化）
 ENV FEATURE_MODE=lite
 
 EXPOSE 8080
 
-# ヘルスチェック（初期化状況確認）
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+# 軽量ヘルスチェック
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-# Live Trading + API Server Mode (Phase H.28 Compatible)
-# 本番環境・CI環境ともにAPIサーバー統合実行
-# MODE環境変数でライブトレード統合制御
-COPY docker/docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
 CMD ["/app/docker-entrypoint.sh"]
