@@ -1,0 +1,80 @@
+# Dockerfile.optimized - マルチステージビルド最適化版
+# Phase 12.2 + Size Optimization - Container Import Failed根本解決
+
+# ===============================
+# Stage 1: Builder Stage
+# ===============================
+FROM python:3.11-alpine as builder
+
+WORKDIR /build
+
+# ビルド用依存関係インストール
+RUN apk add --no-cache \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev
+
+# 本番用requirements.txtを生成
+RUN echo "# Production requirements - Phase 12.2 Optimized" > requirements.txt && \
+    echo "numpy>=1.24.0,<2.0" >> requirements.txt && \
+    echo "pandas>=1.5.0,<2.0" >> requirements.txt && \
+    echo "scikit-learn>=1.3.0" >> requirements.txt && \
+    echo "joblib>=1.3.0" >> requirements.txt && \
+    echo "requests>=2.31.0" >> requirements.txt && \
+    echo "ccxt>=3.0.0" >> requirements.txt && \
+    echo "python-dotenv>=1.0.0" >> requirements.txt && \
+    echo "fastapi>=0.100.0" >> requirements.txt && \
+    echo "uvicorn>=0.23.0" >> requirements.txt && \
+    echo "pydantic>=2.0.0" >> requirements.txt && \
+    echo "aiofiles>=23.0.0" >> requirements.txt && \
+    echo "httpx>=0.24.0" >> requirements.txt && \
+    echo "python-multipart>=0.0.6" >> requirements.txt && \
+    echo "pandas-ta>=0.3.14b" >> requirements.txt && \
+    echo "lightgbm>=4.0.0" >> requirements.txt && \
+    echo "xgboost>=1.7.0" >> requirements.txt && \
+    echo "plotly>=5.15.0" >> requirements.txt && \
+    echo "kaleido>=0.2.1" >> requirements.txt
+
+# Python依存関係ビルド
+RUN pip install --no-cache-dir --prefix=/build/packages -r requirements.txt
+
+# ===============================
+# Stage 2: Runtime Stage
+# ===============================
+FROM python:3.11-alpine
+
+WORKDIR /app
+
+# 最小限のランタイム依存関係
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    libstdc++ \
+    && rm -rf /var/cache/apk/*
+
+# ビルドステージから依存関係コピー
+COPY --from=builder /build/packages /usr/local
+
+# アプリケーションコードをコピー（必要最小限）
+COPY crypto_bot/ /app/crypto_bot/
+COPY config/ /app/config/
+COPY models/ /app/models/
+COPY config/core/feature_order.json /app/feature_order.json
+COPY docker/docker-entrypoint.sh /app/
+RUN chmod +x /app/docker-entrypoint.sh
+
+# 環境変数設定
+ENV PORT=8080
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV FEATURE_MODE=lite
+
+EXPOSE 8080
+
+# 軽量ヘルスチェック
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["/app/docker-entrypoint.sh"]
