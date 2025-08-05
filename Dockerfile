@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     fastapi==0.104.1 \
     uvicorn==0.24.0 \
     PyYAML==6.0.0 \
+    tenacity==8.2.0 \
     && rm -rf ~/.cache/pip
 
 # Phase 12.2修正済みアプリケーションコード（最小限）
