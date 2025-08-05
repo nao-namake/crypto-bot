@@ -49,7 +49,7 @@ config/development/
 models/development/
 models/validation/
 models/archive/
-!models/production/model.pkl
+# models/production/ は含める（全体を除外しない）
 
 # Results & Data (完全除外)
 results/

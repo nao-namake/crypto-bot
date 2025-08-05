@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY crypto_bot/ /app/crypto_bot/
 COPY config/production/ /app/config/production/
 COPY config/core/feature_order.json /app/feature_order.json
-COPY models/production/model.pkl /app/models/production/model.pkl
+COPY models/production/ /app/models/production/
 COPY docker/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
