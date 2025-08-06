@@ -1364,7 +1364,7 @@ def live_bitbank(config_path: str, max_trades: int):
         logger.info("📊 [INIT-CACHE] No valid cache found, will compute on demand")
 
     # 最小限の初期化のみ実行
-    from crypto_bot.execution.engine import EntryExit, Position
+    from crypto_bot.execution.engine import EntryExit
 
     entry_exit = EntryExit(cfg, fetcher, risk_manager)
     position = Position()
@@ -2266,7 +2266,7 @@ def live_bitbank_simple(config_path: str, max_trades: int):
 
     # エントリー・エグジット初期化（シンプル版）
     logger.info("🎯 [SIMPLE-INIT] Initializing entry/exit system...")
-    from crypto_bot.execution.engine import EntryExit, Position
+    from crypto_bot.execution.engine import EntryExit
 
     entry_exit = EntryExit(
         strategy=strategy, risk_manager=risk_manager, atr_series=None

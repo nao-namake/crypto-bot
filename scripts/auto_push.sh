@@ -7,7 +7,7 @@
 #       bash scripts/auto_push.sh "feat: add new algo"
 #       bash scripts/auto_push.sh --install "chore: clean & format"
 #   - 引数:
-#       --install   : requirements-dev.txt を再インストールしてから実行
+#       --install   : requirements/dev.txt を再インストールしてから実行
 #       --help      : このヘルプを表示
 #       <commit msg>: コミットメッセージ（省略時は "chore: update"、複数単語可）
 # =============================================================================
@@ -48,7 +48,7 @@ fi
 if $install_deps; then
   echo "📦  Installing dev dependencies ..."
   python -m pip install --upgrade pip
-  pip install -r requirements-dev.txt
+  pip install -r requirements/dev.txt
   pip install -e .
 fi
 

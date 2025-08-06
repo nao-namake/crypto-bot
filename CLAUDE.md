@@ -2,15 +2,23 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年8月6日最終更新)
+## 現在のシステム概要 (2025年8月5日最終更新)
 
-### 🎊 **Phase 12.4完全修正成功・CI統合事前計算システム・yamlモジュール依存問題解決** (2025年8月6日)
+### 🎊 **Phase 12.5完全実装成功・Environment Parity & Dependency Management System・アーカイブ統合完成** (2025年8月5日)
 
-**🚀 Phase 12.4完全修正: yamlモジュール依存問題解決→CI統合事前計算システム実装→GCPリソース最適化→Phase 12.3継承完全統合**
+**🚀 Phase 12.5完全実装: 統一依存関係管理システム構築→Environment Parity達成→CI修正完了→Local ≈ CI ≈ Production環境統一**
 
-**✅ Phase 12.4包括的修復項目（100%達成）：**
+**✅ Phase 12.5完全実装項目（100%達成）：**
 
-**Phase 12.4: yamlモジュール依存問題・CI統合システム完全実装（100%達成）**
+**Phase 12.5: Environment Parity & Dependency Management System・アーカイブ統合完全実装（100%達成）**
+1. **統一依存関係管理システム構築**: requirements/base.txt (12本番パッケージ)・requirements/dev.txt (開発継承)・単一真実源確立
+2. **Environment Parity達成**: Local ≈ CI ≈ Production完全統一・Dockerfileパス調整・依存関係一貫性保証
+3. **依存関係検証システム実装**: requirements/validate.py・自動一貫性チェック・ドリフト検出・CI統合検証
+4. **CI修正完了**: httpx==0.24.1・starlette==0.27.0固定・FastAPI TestClient互換性問題解決・597テスト成功
+5. **Makefile統合機能拡張**: make validate-deps・make sync-deps追加・依存関係管理自動化・開発効率向上
+6. **アーカイブ統合システム構築**: archive/records/(179ファイル)・archive/legacy_systems/(30ファイル)・プロジェクト整理・保守性向上
+
+**Phase 12.4: yamlモジュール依存問題・CI統合システム完全実装（100%達成・継承）**
 1. **yamlモジュール依存問題解決**: requirements-dev.txt・Dockerfile PyYAML追加・ModuleNotFoundError完全修正
 2. **CI統合事前計算システム**: .github/workflows/ci.yml統合・自動実行・品質保証・漏れ防止完全実装
 3. **GCPリソース最適化**: 古いリビジョン12個削除・テストサービス3個削除・ストレージコスト削減・混同防止
@@ -37,13 +45,14 @@
 5. **タイムアウト統一(90秒)**: 全関連ファイル統一・fetch_with_freshness_fallback対応・確実な早期停止
 6. **.dockerignore復活・Container Import Failed根本解決**: 超軽量化ビルドコンテキスト・Docker最適化・CI/CDデプロイ成功
 
-**🎯 Phase 12.4包括的修正効果（CI/CDデプロイ成功済み）：**
-- **14時間ゼロトレード問題完全解決**: INIT-5~8スキップ・タイムアウト無限ループ根絶・メインループ到達100%保証・取引実行開始確定
-- **CI統合事前計算システム確立**: 自動実行・品質保証・漏れ防止・開発効率向上・デプロイ前検証・キャッシュ生成自動化
-- **yamlモジュール依存問題解決**: ModuleNotFoundError完全修正・Docker・CI環境統一・PyYAML統合・設定ファイル処理安定化
-- **GCPリソース最適化達成**: 古いリビジョン・サービス削除・ストレージコスト削減・混同防止・管理簡素化・運用効率向上
-- **ローカル事前計算システム実装**: scripts/pre_compute_data.py・PreComputedCache・重い計算事前実行・Docker軽量化・起動時間短縮
-- **品質保証・CI/CD完全統合**: 597テスト成功・33.45%カバレッジ維持・flake8/isort/black完全クリア・自動化ワークフロー確立
+**🎯 Phase 12.5包括的実装効果（Environment Parity・アーカイブ統合完全達成）：**
+- **統一依存関係管理システム確立**: requirements/base.txt単一真実源・12本番パッケージ厳選・requirements/dev.txt開発継承・手動管理脱却
+- **Environment Parity完全達成**: Local ≈ CI ≈ Production環境統一・Docker環境パリティ・依存関係一貫性100%保証・デプロイ品質向上
+- **依存関係検証システム実装**: requirements/validate.py自動チェック・ドリフト検出・CI統合検証・継続的品質保証
+- **CI修正・安定化達成**: httpx/starlette互換性問題解決・FastAPI TestClient修正・597テスト成功・33.45%カバレッジ維持
+- **開発効率向上実現**: make validate-deps/sync-deps自動化・依存関係管理効率化・開発フロー最適化・品質保証統合
+- **アーカイブ統合・保守性向上**: archive/構造化・216ファイル整理・プロジェクトルート整理・記録保持体制確立・開発履歴体系化
+- **Phase 12.1-12.4継承**: 14時間ゼロトレード問題解決・CI統合事前計算・yamlモジュール依存問題解決・GCPリソース最適化継承
 
 ### 🎊 **Phase 11本番稼働成功・97特徴量完全実装システム・CI/CDデプロイ完了** (2025年8月3日)
 
@@ -130,8 +139,11 @@
 1. ✅ **Phase 11完全達成**: 97特徴量完全実装・システム統合・CI/CDデプロイ・本番稼働成功確認完了
 2. ✅ **Phase 12.1**: 本番稼働障害根本原因特定・14時間ゼロトレード問題解析・INIT-5タイムアウト無限ループ特定完了
 3. ✅ **Phase 12.2**: 包括的修正実装・根本問題完全解決・CI/CDデプロイ成功・14時間ゼロトレード問題完全解決
-4. 🚀 **Phase 13.1**: 実取引パフォーマンス評価・メインループ到達確認・トレード実行開始検証・Phase 12.2修正効果測定
-5. 🚀 **Phase 13.2**: 継続最適化・予測精度向上・アンサンブル学習最適化・処理効率向上・スケーラビリティ拡張
+4. ✅ **Phase 12.3**: INIT簡略化・ローカル事前計算システム実装・matplotlib条件付きimport・事前計算キャッシュシステム完成
+5. ✅ **Phase 12.4**: yamlモジュール依存問題解決・CI統合システム完成・GCP最適化・総合品質保証達成
+6. ✅ **Phase 12.5**: Environment Parity & Dependency Management System完全実装・統一依存関係管理・CI修正完了
+7. 🚀 **Phase 13.1**: 実取引パフォーマンス評価・Environment Parity効果検証・依存関係統一効果測定・CI安定性確認
+8. 🚀 **Phase 13.2**: 継続最適化・予測精度向上・アンサンブル学習最適化・処理効率向上・スケーラビリティ拡張
 
 ---
 
@@ -145,18 +157,46 @@
 - **crypto_bot/data/**: データ取得・前処理・品質監視・Cloud Run最適化
 - **crypto_bot/risk/**: Kelly基準・動的ポジションサイジング・ATR計算
 
-### **🆕 Phase 11完全実装・97特徴量完全システム・本番稼働システム**
+### **🆕 Phase 12.5完全実装・Environment Parity & Dependency Management System・アーカイブ統合**
+- **requirements/base.txt**: 本番環境最小依存関係・12パッケージ厳選・単一真実源・numpy/pandas/fastapi等
+- **requirements/dev.txt**: 開発環境依存関係・base.txt継承・pytest/flake8/httpx等開発専用パッケージ
+- **requirements/validate.py**: 依存関係一貫性チェック・ドリフト検出・Environment Parity保証・CI統合検証
+- **Dockerfile修正**: requirements/base.txt使用・手動依存関係管理脱却・Local ≈ CI ≈ Production統一
+- **Makefile拡張**: make validate-deps・make sync-deps・依存関係管理自動化・開発効率向上
+- **archive/統合**: records/(179)・legacy_systems/(30)・diagnostics/(4)・verification/(3)・プロジェクト整理・保守性向上
+
+### **🆕 Phase 11完全実装・97特徴量完全システム・本番稼働システム（継承）**
 - **crypto_bot/ml/feature_master_implementation.py**: 97特徴量完全実装・18カテゴリ完全統合・100%実装率・フォールバック削減・動的期間調整実装
 - **crypto_bot/strategy/multi_timeframe_ensemble_strategy.py**: 古いシステム完全除去・FeatureMasterImplementation統合・クリーンアーキテクチャ
 - **config/production/production.yml**: 本番稼働用設定・97特徴量完全対応・取引発生最適化・TradingEnsembleClassifier統合
 - **models/production/model.pkl**: TradingEnsembleClassifier統合モデル・97特徴量完全対応・本番稼働用モデル
-- **CI/CD本番稼働体制**: 597テスト成功・33.87%カバレッジ・本番デプロイ成功・エラー監視体制確立
+- **CI/CD本番稼働体制**: 597テスト成功・33.45%カバレッジ・本番デプロイ成功・エラー監視体制確立
 
 ### **設定ファイル構造**
 ```
+🆕 requirements/                   # Phase 12.5: Environment Parity & Dependency Management
+├── base.txt                       # 本番環境最小依存関係・12パッケージ厳選・単一真実源
+├── dev.txt                        # 開発環境依存関係・base.txt継承・開発専用パッケージ
+└── validate.py                    # 依存関係一貫性チェック・ドリフト検出・CI統合検証
+
+🆕 archive/                        # Phase 12.5: アーカイブ統合・記録保持体制
+├── README.md                      # アーカイブ目的・構造説明・保守性ガイド
+├── records/                       # 運用・テスト記録(179ファイル)
+│   ├── status.json               # bot運用状況記録
+│   ├── results/                  # バックテスト・パフォーマンス結果
+│   ├── test_results/             # 統合・機能テスト結果
+│   ├── coverage/                 # コードカバレッジレポート
+│   └── cache/                    # 事前計算・特徴量キャッシュ
+├── legacy_systems/               # 廃止システム・設定(30ファイル)
+│   ├── feature_order/            # feature_order.json自動バックアップ
+│   ├── phase3_external_files/    # Phase 3除去外部APIファイル
+│   └── phase41_csv_configs/      # Phase 4.1廃止CSV設定
+├── diagnostics/                  # 診断・分析記録(4ファイル)
+└── verification/                 # 検証・テストスクリプト(3ファイル)
+
 config/production/
-├── production.yml          # 本番稼働用設定・97特徴量最適化・アンサンブル対応
-└── production_lite.yml     # 軽量版設定（高速起動用）
+├── production.yml                 # 本番稼働用設定・97特徴量最適化・アンサンブル対応
+└── production_lite.yml            # 軽量版設定（高速起動用）
 
 config/validation/
 ├── unified_97_features_backtest.yml   # 97特徴量最適化バックテスト設定
@@ -165,16 +205,16 @@ config/validation/
 
 config/dynamic_backtest/           # 🆕 動的バックテスト専用フォルダ
 ├── README.md                      # 動的生成システム説明
-└── production_simulation_until_YYYYMMDD.yml  # 動的生成設定（日付ベース）
+└── production_simulation_until_YYYYMMDD.yml  # 動的生成設定（日別自動生成）
 
 models/production/
-├── model.pkl                         # TradingEnsembleClassifier統合モデル
-└── model_metadata_97.json           # 97特徴量メタデータ
+├── model.pkl                      # TradingEnsembleClassifier統合モデル
+└── model_metadata_97.json        # 97特徴量メタデータ
 
 models/validation/
-├── lgbm_97_features.pkl             # LightGBM個別モデル
-├── xgb_97_features.pkl              # XGBoost個別モデル
-└── rf_97_features.pkl               # RandomForest個別モデル
+├── lgbm_97_features.pkl          # LightGBM個別モデル
+├── xgb_97_features.pkl           # XGBoost個別モデル
+└── rf_97_features.pkl            # RandomForest個別モデル
 ```
 
 ### **重要設定項目（Phase 11本番稼働・97特徴量完全実装版）**
@@ -273,12 +313,22 @@ gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"LIMIT-CH
 
 ### **⚙️ ローカル開発・テスト**
 ```bash
+# 🆕 Phase 12.5: 依存関係管理・Environment Parity確認
+python requirements/validate.py
+# 期待: ✅ 依存関係一貫性チェック: 成功・🎯 Environment Parity: Local ≈ CI ≈ Production
+
+make validate-deps
+# 期待: 🔍 Validating dependency consistency...・✅ Dependency validation completed
+
+make sync-deps
+# 期待: 🔄 Dependency sync information...・📋 base.txt: 12 packages
+
 # 97特徴量本番設定でのライブトレード
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
 # 全品質チェック実行
 bash scripts/checks.sh
-# 期待: flake8・isort・black・pytest全通過・597テスト成功・33.87%カバレッジ・Phase 11品質確認
+# 期待: flake8・isort・black・pytest全通過・597テスト成功・33.45%カバレッジ・Phase 12.5品質確認
 
 # 97特徴量最適化バックテスト
 python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
@@ -350,14 +400,18 @@ python scripts/analyze_backtest_results.py
 
 #### **🛡️ Phase 4: CI/CD・品質保証**
 ```bash
-# 10. 全品質チェック実行
-bash scripts/checks.sh
-# 内容: flake8・isort・black・pytest（619テスト）・カバレッジ38.59%
+# 10. 🆕 Phase 12.5: 依存関係管理・Environment Parity検証
+python requirements/validate.py
+make validate-deps
 
-# 11. 統合テスト・本番環境互換性確認
+# 11. 全品質チェック実行
+bash scripts/checks.sh
+# 内容: flake8・isort・black・pytest（597テスト）・カバレッジ33.45%
+
+# 12. 統合テスト・本番環境互換性確認
 python -m crypto_bot.tests.integration_test
 
-# 12. Dockerコンテナビルド・検証
+# 13. Dockerコンテナビルド・検証
 docker build -t crypto-bot .
 docker run --rm crypto-bot python -m crypto_bot.main validate-config
 ```

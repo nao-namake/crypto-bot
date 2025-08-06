@@ -138,7 +138,7 @@ fi
 # 必要なパッケージの確認
 log_info "必要なパッケージを確認しています..."
 pip install -q -e .
-pip install -q -r requirements-dev.txt
+pip install -q -r requirements/dev.txt
 
 # pytest オプションの設定
 PYTEST_ARGS="-v"

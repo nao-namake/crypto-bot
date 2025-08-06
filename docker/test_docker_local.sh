@@ -2,10 +2,11 @@
 # Local Docker test script
 
 echo "=== Docker Build Test ==="
-cd /Users/nao/Desktop/bot
+# docker/フォルダ統合後のパス調整（プロジェクトルートに移動）
+cd "$(dirname "$0")/.." || exit 1
 
-# Dockerビルドテスト
-docker build --no-cache -t crypto-bot-local-test .
+# Dockerビルドテスト（docker/Dockerfileを指定）
+docker build -f docker/Dockerfile --no-cache -t crypto-bot-local-test .
 
 # ビルドが成功したらイメージをテスト
 if [ $? -eq 0 ]; then

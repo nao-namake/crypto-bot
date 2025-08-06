@@ -10,5 +10,7 @@
 set -euo pipefail
 
 echo "=== Dockerイメージのビルド開始 ==="
-docker build -t crypto-bot:latest .
+# docker/フォルダ統合後のパス調整（プロジェクトルートから実行）
+cd "$(dirname "$0")/.." || exit 1
+docker build -f docker/Dockerfile -t crypto-bot:latest .
 echo "=== ビルド完了: イメージ名 = crypto-bot:latest ==="

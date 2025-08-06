@@ -106,7 +106,7 @@ jobs:
         run: |
           echo ">>> Phase 12.5: Testing production Docker build and import"
           echo "🐳 Building production Docker image..."
-          docker build -t crypto-bot-prod-test .
+          docker build -f docker/Dockerfile -t crypto-bot-prod-test .
           echo "📦 Testing production environment import..."
           docker run --rm crypto-bot-prod-test python -c "
           import crypto_bot
@@ -211,6 +211,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: docker/Dockerfile
           push: true
           load: false
           platforms: linux/amd64

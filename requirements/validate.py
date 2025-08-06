@@ -20,7 +20,7 @@ class DependencyValidator:
         self.requirements_dir = self.project_root / "requirements"
         self.base_file = self.requirements_dir / "base.txt"
         self.dev_file = self.requirements_dir / "dev.txt"
-        self.dockerfile = self.project_root / "Dockerfile"
+        self.dockerfile = self.project_root / "docker" / "Dockerfile"
     
     def parse_requirements(self, file_path: Path) -> Dict[str, str]:
         """requirements.txtファイルを解析してパッケージ辞書を返す"""
