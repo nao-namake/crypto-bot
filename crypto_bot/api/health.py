@@ -986,8 +986,23 @@ async def trigger_failover():
         raise HTTPException(status_code=503, detail="Failover failed")
 
 
+def start_api_server(host: str = "0.0.0.0", port: int = 8080):
+    """APIサーバーを起動する関数"""
+    if not FASTAPI_AVAILABLE:
+        logger.error("FastAPI not available, cannot start API server")
+        return
+    
+    logger.info(f"🌐 APIサーバーをバックグラウンド起動...")
+    uvicorn.run(
+        "crypto_bot.api.health:app", 
+        host=host, 
+        port=port, 
+        log_level="info",
+        access_log=False
+    )
+    logger.info(f"✅ APIサーバー起動完了 (PID: {os.getpid()})")
+
+
 if __name__ == "__main__":
     # 開発時の起動用
-    uvicorn.run(
-        "crypto_bot.api.health:app", host="0.0.0.0", port=8080, log_level="info"
-    )
+    start_api_server()
