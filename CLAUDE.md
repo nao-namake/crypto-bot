@@ -2,15 +2,35 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 現在のシステム概要 (2025年8月5日最終更新)
+## 現在のシステム概要 (2025年8月7日最終更新)
 
-### 🎊 **Phase 12.5完全実装成功・Environment Parity & Dependency Management System・アーカイブ統合完成** (2025年8月5日)
+### 🎊 **Phase 14完全達成・次世代アーキテクチャ完成・97特徴量完全実装システム統合完了** (2025年8月7日)
 
-**🚀 Phase 12.5完全実装: 統一依存関係管理システム構築→Environment Parity達成→CI修正完了→Local ≈ CI ≈ Production環境統一**
+**🚀 Phase 14完全達成: INIT-PREFETCH緊急修正→完全リファクタリング→95%コード削減→次世代モジュラー設計確立**
 
-**✅ Phase 12.5完全実装項目（100%達成）：**
+**✅ Phase 14完全実装項目（100%達成）：**
 
-**Phase 12.5: Environment Parity & Dependency Management System・アーカイブ統合完全実装（100%達成）**
+**Phase 14.1: 緊急修正・8時間取引停止問題根本解決（100%達成）**
+1. **INIT-PREFETCH完全削除**: 8時間取引停止問題根本解決・INIT-5~8完全スキップ継承・メインループ直行
+2. **UnboundLocalError修正**: Position変数スコープ問題修正・import重複解消・コード品質向上
+3. **Phase 3外部API依存除去対応**: 古いimport文完全削除・警告メッセージ完全解消・クリーンな起動実現
+
+**Phase 14.2: 完全リファクタリング・次世代アーキテクチャ確立（100%達成）**
+1. **main.py大幅削減**: 2,765行→130行（95%削減達成）・可読性劇的向上・保守性確立
+2. **モジュール分離完成**: utils/（9ファイル）・cli/（9ファイル）・機能別独立・責任分離設計
+3. **全CLIコマンド統合**: 18個コマンド完全移行・live-bitbank統合（--simpleフラグ）・コマンド重複解消
+4. **main_old.py依存完全除去**: 独立したmain.py・setup_logging統合・完全自立型エントリーポイント
+5. **バックアップ適切保存**: archive/legacy_systems/保存・開発履歴維持・README付き詳細説明
+
+**Phase 14.3: 品質保証・最終検証完了（100%達成）**
+1. **Import修正完了**: DataFetcher→MarketDataFetcher・動作エラー完全解消・型整合性確保
+2. **全コマンド動作確認**: 18個CLIコマンド正常動作・エラーゼロ・警告メッセージ完全解消
+3. **ドキュメント整備**: crypto_bot/README.md新規作成・構造説明・利用方法明記
+4. **97特徴量システム統合**: FeatureMasterImplementation完全対応・Phase 11成果継承
+
+**✅ Phase 12.5完全実装項目（継承・100%達成）：**
+
+**Phase 12.5: Environment Parity & Dependency Management System・アーカイブ統合完全実装（継承）**
 1. **統一依存関係管理システム構築**: requirements/base.txt (12本番パッケージ)・requirements/dev.txt (開発継承)・単一真実源確立
 2. **Environment Parity達成**: Local ≈ CI ≈ Production完全統一・Dockerfileパス調整・依存関係一貫性保証
 3. **依存関係検証システム実装**: requirements/validate.py・自動一貫性チェック・ドリフト検出・CI統合検証
@@ -45,7 +65,15 @@
 5. **タイムアウト統一(90秒)**: 全関連ファイル統一・fetch_with_freshness_fallback対応・確実な早期停止
 6. **.dockerignore復活・Container Import Failed根本解決**: 超軽量化ビルドコンテキスト・Docker最適化・CI/CDデプロイ成功
 
-**🎯 Phase 12.5包括的実装効果（Environment Parity・アーカイブ統合完全達成）：**
+**🎯 Phase 14包括的実装効果（次世代アーキテクチャ・完全リファクタリング達成）：**
+- **95%コード削減達成**: 2,765行→130行・可読性劇的向上・保守性確立・技術負債解消
+- **次世代モジュラー設計確立**: utils/・cli/分離・責任分離・単一責任原則・拡張性劇的向上
+- **全機能完全継承**: 18個CLIコマンド・97特徴量システム・INIT問題修正・機能ロスゼロ
+- **品質向上達成**: エラーゼロ・警告メッセージ完全解消・Import整合性・動作安定性確保
+- **開発効率向上**: モジュール独立性・テスト容易性・機能追加簡素化・チーム開発対応
+- **バックアップ完備**: 開発履歴保全・リスク管理・ロールバック可能・アーカイブ体系化
+
+**🎯 Phase 12.5包括的実装効果（継承・Environment Parity・アーカイブ統合達成）：**
 - **統一依存関係管理システム確立**: requirements/base.txt単一真実源・12本番パッケージ厳選・requirements/dev.txt開発継承・手動管理脱却
 - **Environment Parity完全達成**: Local ≈ CI ≈ Production環境統一・Docker環境パリティ・依存関係一貫性100%保証・デプロイ品質向上
 - **依存関係検証システム実装**: requirements/validate.py自動チェック・ドリフト検出・CI統合検証・継続的品質保証
@@ -135,15 +163,14 @@
 2. ✅ **専用フォルダ管理**: `config/dynamic_backtest/`・自動YMLファイル生成・履歴管理
 3. ✅ **継続運用対応**: 毎日実行可能・時系列整合性保証・本番稼働準備完了
 
-**🎯 次のアクション（Phase 13以降）：**
+**🎯 次のアクション（Phase 15以降）：**
 1. ✅ **Phase 11完全達成**: 97特徴量完全実装・システム統合・CI/CDデプロイ・本番稼働成功確認完了
-2. ✅ **Phase 12.1**: 本番稼働障害根本原因特定・14時間ゼロトレード問題解析・INIT-5タイムアウト無限ループ特定完了
-3. ✅ **Phase 12.2**: 包括的修正実装・根本問題完全解決・CI/CDデプロイ成功・14時間ゼロトレード問題完全解決
-4. ✅ **Phase 12.3**: INIT簡略化・ローカル事前計算システム実装・matplotlib条件付きimport・事前計算キャッシュシステム完成
-5. ✅ **Phase 12.4**: yamlモジュール依存問題解決・CI統合システム完成・GCP最適化・総合品質保証達成
-6. ✅ **Phase 12.5**: Environment Parity & Dependency Management System完全実装・統一依存関係管理・CI修正完了
-7. 🚀 **Phase 13.1**: 実取引パフォーマンス評価・Environment Parity効果検証・依存関係統一効果測定・CI安定性確認
-8. 🚀 **Phase 13.2**: 継続最適化・予測精度向上・アンサンブル学習最適化・処理効率向上・スケーラビリティ拡張
+2. ✅ **Phase 12.1-12.5完全達成**: 本番稼働障害根本解決・Environment Parity・依存関係統一・CI修正・アーカイブ統合完了
+3. ✅ **Phase 13完全達成**: INIT問題根本解決・UnboundLocalError修正・実取引パフォーマンス評価・システム安定性確認
+4. ✅ **Phase 14完全達成**: INIT-PREFETCH完全削除・完全リファクタリング・95%コード削減・次世代アーキテクチャ確立完了
+5. 🚀 **Phase 15.1**: 実取引パフォーマンス評価・97特徴量完全活用効果測定・次世代アーキテクチャ効果検証・予測精度向上確認
+6. 🚀 **Phase 15.2**: 継続最適化・アンサンブル学習最適化・処理効率向上・スケーラビリティ拡張・段階的資金拡大
+7. 🚀 **Phase 15.3**: 次世代機能統合・新特徴量追加・市場適応性向上・継続運用最適化・次世代取引システム完成
 
 ---
 
@@ -323,8 +350,12 @@ make validate-deps
 make sync-deps
 # 期待: 🔄 Dependency sync information...・📋 base.txt: 12 packages
 
-# 97特徴量本番設定でのライブトレード
+# 🆕 Phase 14: ライブトレード（統合版・--simpleフラグ対応）
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
+# 通常版: 統計システム・詳細ログ・APIヘルスチェック対応
+
+python -m crypto_bot.main live-bitbank --config config/production/production.yml --simple
+# シンプル版: 軽量・最小限初期化・ローカル動作最適化
 
 # 全品質チェック実行
 bash scripts/checks.sh

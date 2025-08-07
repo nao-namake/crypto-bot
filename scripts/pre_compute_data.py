@@ -56,10 +56,7 @@ def fetch_market_data(config):
 
     # 200レコード取得（INIT-5と同等）
     # Phase 12.3: 直接データ取得
-    data = fetcher.get_price_df(
-        timeframe=dd.get("timeframe", "1h"),
-        limit=200
-    )
+    data = fetcher.get_price_df(timeframe=dd.get("timeframe", "1h"), limit=200)
 
     logger.info(f"✅ Fetched {len(data)} records")
     return data

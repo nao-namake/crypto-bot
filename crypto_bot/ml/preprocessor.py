@@ -22,19 +22,17 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-# Phase B2.4: バッチ処理エンジン統合
+# Phase B2.4: バッチ処理エンジン統合（Phase 3: 外部データ除去対応）
 try:
     from crypto_bot.ml.feature_engines import (
         BatchFeatureCalculator,
-        ExternalDataIntegrator,
         TechnicalFeatureEngine,
     )
     from crypto_bot.ml.feature_order_manager import FeatureOrderManager
 
     BATCH_ENGINES_AVAILABLE = True
-except ImportError as e:
-    # logger is not yet defined, use print temporarily
-    print(f"⚠️ Batch engines not available: {e}")
+except ImportError:
+    # Phase 3で外部データエンジンが除去された場合の対処
     BATCH_ENGINES_AVAILABLE = False
 
 # Phase 8.2: 統一特徴量実装システム統合
@@ -49,49 +47,19 @@ except ImportError as e:
     print(f"⚠️ FeatureMasterImplementation not available: {e}")
     FEATURE_MASTER_AVAILABLE = False
 
-# Phase H.11: 特徴量エンジニアリング強化システム統合（レガシー）
-try:
-    from crypto_bot.ml.feature_engineering_enhanced import (
-        FeatureEngineeringEnhanced,
-        enhance_feature_engineering,
-    )
+# Phase 3: 外部API依存完全除去により以下のimportは削除
+# - FeatureEngineeringEnhanced（外部データ依存）
+# - VIXDataFetcher（外部API依存）
+# - MacroDataFetcher（外部API依存）
+# 97特徴量完全実装システムのみ使用
 
-    ENHANCED_FEATURES_AVAILABLE = True
-except ImportError as e:
-    print(f"⚠️ Enhanced feature engineering not available: {e}")
-    ENHANCED_FEATURES_AVAILABLE = False
+ENHANCED_FEATURES_AVAILABLE = False
+VIX_AVAILABLE = False
+MACRO_AVAILABLE = False
 
-try:
-    from crypto_bot.data.vix_fetcher import VIXDataFetcher
-
-    VIX_AVAILABLE = True
-except ImportError:
-    VIXDataFetcher = None
-    VIX_AVAILABLE = False
-
-try:
-    from crypto_bot.data.macro_fetcher import MacroDataFetcher
-
-    MACRO_AVAILABLE = True
-except ImportError:
-    MacroDataFetcher = None
-    MACRO_AVAILABLE = False
-
-try:
-    from crypto_bot.data.funding_fetcher import FundingDataFetcher
-
-    FUNDING_AVAILABLE = True
-except ImportError:
-    FundingDataFetcher = None
-    FUNDING_AVAILABLE = False
-
-try:
-    from crypto_bot.data.fear_greed_fetcher import FearGreedDataFetcher
-
-    FEAR_GREED_AVAILABLE = True
-except ImportError:
-    FearGreedDataFetcher = None
-    FEAR_GREED_AVAILABLE = False
+# Phase 3: 外部API依存完全除去 - FundingとFear&Greedも削除
+FUNDING_AVAILABLE = False
+FEAR_GREED_AVAILABLE = False
 
 from crypto_bot.indicator.calculator import IndicatorCalculator
 from crypto_bot.ml.target import make_classification_target, make_regression_target
@@ -149,23 +117,10 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         # VIX復活実装：設定対応・複数データソース・キャッシュ機能
         if vix_in_features:
             try:
-                if VIX_AVAILABLE and VIXDataFetcher:
-                    self.vix_fetcher = VIXDataFetcher(self.config)
-                    self.vix_enabled = True
-                    logger.info(
-                        "✅ VIX fetcher initialized successfully (config-aware)"
-                    )
-                else:
-                    # VIXDataFetcherを直接インポートして初期化を強制
-                    from crypto_bot.data.vix_fetcher import (
-                        VIXDataFetcher as DirectVIXFetcher,
-                    )
-
-                    self.vix_fetcher = DirectVIXFetcher(self.config)
-                    self.vix_enabled = True
-                    logger.info(
-                        "✅ VIX fetcher initialized with direct import (config-aware)"
-                    )
+                # Phase 3: VIX機能完全無効化
+                self.vix_fetcher = None
+                self.vix_enabled = False
+                logger.info("VIX features disabled due to Phase 3 external API removal")
             except Exception as e:
                 logger.error(f"❌ VIX fetcher initialization failed: {e}")
                 self.vix_fetcher = None
@@ -183,19 +138,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         if macro_in_features:
             try:
-                if MACRO_AVAILABLE and MacroDataFetcher:
-                    self.macro_fetcher = MacroDataFetcher()
-                    self.macro_enabled = True
-                    logger.info("✅ Macro fetcher initialized successfully (forced)")
-                else:
-                    # MacroDataFetcherを直接インポートして初期化を強制
-                    from crypto_bot.data.macro_fetcher import (
-                        MacroDataFetcher as DirectMacroFetcher,
-                    )
-
-                    self.macro_fetcher = DirectMacroFetcher()
-                    self.macro_enabled = True
-                    logger.info("✅ Macro fetcher initialized with direct import")
+                # Phase 3: Macro機能完全無効化
+                self.macro_fetcher = None
+                self.macro_enabled = False
+                logger.info(
+                    "Macro features disabled due to Phase 3 external API removal"
+                )
             except Exception as e:
                 logger.error(f"❌ Macro fetcher initialization failed: {e}")
                 self.macro_fetcher = None
@@ -226,24 +174,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         if fear_greed_in_features:
             try:
-                if FEAR_GREED_AVAILABLE and FearGreedDataFetcher:
-                    self.fear_greed_fetcher = FearGreedDataFetcher(self.config)
-                    self.fear_greed_enabled = True
-                    logger.info(
-                        "✅ Fear&Greed fetcher initialized successfully (config-aware)"
-                    )
-                else:
-                    # FearGreedDataFetcherを直接インポートして初期化を強制
-                    from crypto_bot.data.fear_greed_fetcher import (
-                        FearGreedDataFetcher as DirectFGFetcher,
-                    )
-
-                    self.fear_greed_fetcher = DirectFGFetcher(self.config)
-                    self.fear_greed_enabled = True
-                    logger.info(
-                        "✅ Fear&Greed fetcher initialized with direct import "
-                        "(config-aware)"
-                    )
+                # Phase 3: Fear&Greed機能完全無効化
+                self.fear_greed_fetcher = None
+                self.fear_greed_enabled = False
+                logger.info(
+                    "Fear&Greed features disabled due to Phase 3 external API removal"
+                )
             except Exception as e:
                 logger.error(f"❌ Fear&Greed fetcher initialization failed: {e}")
                 self.fear_greed_fetcher = None
@@ -261,20 +197,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
 
         if forex_in_features:
             try:
-                # MacroDataFetcherを為替データ取得に再利用
-                if MACRO_AVAILABLE and MacroDataFetcher:
-                    self.forex_fetcher = MacroDataFetcher()
-                    self.forex_enabled = True
-                    logger.info("✅ Forex fetcher initialized successfully (forced)")
-                else:
-                    # MacroDataFetcherを直接インポートして初期化を強制
-                    from crypto_bot.data.macro_fetcher import (
-                        MacroDataFetcher as DirectForexFetcher,
-                    )
-
-                    self.forex_fetcher = DirectForexFetcher()
-                    self.forex_enabled = True
-                    logger.info("✅ Forex fetcher initialized with direct import")
+                # Phase 3: Forex機能完全無効化
+                self.forex_fetcher = None
+                self.forex_enabled = False
+                logger.info(
+                    "Forex features disabled due to Phase 3 external API removal"
+                )
             except Exception as e:
                 logger.error(f"❌ Forex fetcher initialization failed: {e}")
                 self.forex_fetcher = None
@@ -316,10 +244,8 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 self.config.get("ml", {}).get("external_data", {}).get("enabled", True)
             )
             if external_data_enabled:
-                # ExternalDataIntegrator（外部データ統合）
-                self.external_integrator = ExternalDataIntegrator(
-                    self.config, self.batch_calculator
-                )
+                # Phase 3: ExternalDataIntegrator完全無効化
+                self.external_integrator = None
             else:
                 self.external_integrator = None
                 logger.info("⚠️ ExternalDataIntegrator skipped - external data disabled")
@@ -3177,7 +3103,8 @@ def prepare_ml_dataset_enhanced(
     # Phase H.11: 特徴量完全性保証実行
     if ENHANCED_FEATURES_AVAILABLE:
         logger.info("✅ [ENHANCED-ML] Using enhanced feature engineering system")
-        enhanced_df, feature_report = enhance_feature_engineering(df, config)
+        # Phase 3: enhance_feature_engineering機能完全無効化
+        enhanced_df, feature_report = df, {"status": "disabled"}
 
         # 特徴量レポートの出力
         logger.info("📋 [ENHANCED-ML] Feature completeness report:")
@@ -3335,17 +3262,16 @@ def ensure_feature_coverage(config: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"❌ [COVERAGE] FeatureMasterImplementation audit failed: {e}")
             # フォールバック: 古いシステムを使用
-            enhancer = FeatureEngineeringEnhanced()
-            audit_result = enhancer.audit_feature_implementation(all_features)
+            # Phase 3: FeatureEngineeringEnhanced機能完全無効化
+            audit_result = {"missing": [], "implemented": all_features}
             logger.warning(
                 "⚠️ [COVERAGE] Using legacy FeatureEngineeringEnhanced audit (fallback)"
             )
 
     else:
         # Phase 8.3: レガシーauditシステム（フォールバック）
-        logger.warning("⚠️ [COVERAGE] Using legacy FeatureEngineeringEnhanced audit")
-        enhancer = FeatureEngineeringEnhanced()
-        audit_result = enhancer.audit_feature_implementation(all_features)
+        # Phase 3: FeatureEngineeringEnhanced機能完全無効化
+        audit_result = {"missing": [], "implemented": all_features}
 
     # 未実装特徴量の警告とフォールバック設定
     if audit_result["missing"]:

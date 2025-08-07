@@ -49,6 +49,31 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def update_status(total_profit: float, trade_count: int, position):
+    """
+    現在の Bot 状態を JSON へ書き出して、外部モニター（Streamlit 等）から
+    参照できるようにするユーティリティ。
+
+    Parameters
+    ----------
+    total_profit : float
+        現在までの累積損益
+    trade_count : int
+        約定数（取引回数）
+    position : Any
+        現在ポジション（無い場合は None）
+    """
+    status = {
+        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_profit": total_profit,
+        "trade_count": trade_count,
+        "position": position or "",
+    }
+    with open("status.json", "w", encoding="utf-8") as f:
+        json.dump(status, f, ensure_ascii=False, indent=2)
+
+
 # 初期化状況を追跡するグローバル変数
 INIT_STATUS = {
     "phase": "starting",  # starting, basic, statistics, features, complete
