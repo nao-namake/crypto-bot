@@ -991,14 +991,14 @@ def start_api_server(host: str = "0.0.0.0", port: int = 8080):
     if not FASTAPI_AVAILABLE:
         logger.error("FastAPI not available, cannot start API server")
         return
-    
-    logger.info(f"🌐 APIサーバーをバックグラウンド起動...")
+
+    logger.info("🌐 APIサーバーをバックグラウンド起動...")
     uvicorn.run(
-        "crypto_bot.api.health:app", 
-        host=host, 
-        port=port, 
+        "crypto_bot.api.health:app",
+        host=host,
+        port=port,
         log_level="info",
-        access_log=False
+        access_log=False,
     )
     logger.info(f"✅ APIサーバー起動完了 (PID: {os.getpid()})")
 
