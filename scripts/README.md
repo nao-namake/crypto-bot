@@ -45,6 +45,11 @@ scripts/
 - `gcp_revision_manager.py` - GCPリビジョン管理
 - `pre_compute_data.py` - 事前計算データ生成
 
+### **デプロイメント・環境管理**
+- `verify_github_secrets.sh` - GitHub Secrets設定確認・CI/CDトラブルシューティング
+- `setup_gcp_secrets.sh` - GCP Secret Manager設定（オプション）
+- `cleanup_cloud_run_revisions.sh` - Cloud Runリビジョン競合解決
+
 ### **開発ツール**
 - `auto_push.sh` - 自動Git push（整形・テスト・プッシュ）
 - `convert_absolute_to_relative_paths.py` - 絶対パス→相対パス変換

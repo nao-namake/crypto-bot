@@ -416,3 +416,34 @@ class MarketDataFetcher:
             )
 
         return df[available_columns]
+
+    # Phase 16.3-C 緊急修正: 互換性レイヤー - get_price_df プロキシメソッド
+    def get_price_df(
+        self,
+        timeframe: str = "1h",
+        since: Optional[Union[int, float, str, datetime]] = None,
+        limit: Optional[int] = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """
+        データ処理プロキシメソッド（Phase 16.3-C 互換性レイヤー）
+
+        MarketDataFetcher.get_price_df() -> DataProcessor.get_price_df() への橋渡し
+
+        Args:
+            timeframe: タイムフレーム
+            since: 開始時刻
+            limit: 取得件数上限
+            **kwargs: DataProcessorへの追加パラメータ
+
+        Returns:
+            pd.DataFrame: 価格データ
+        """
+        logger.info("🔗 [COMPATIBILITY] Routing get_price_df to DataProcessor")
+
+        from .data_processor import DataProcessor
+
+        processor = DataProcessor(self)
+        return processor.get_price_df(
+            timeframe=timeframe, since=since, limit=limit, **kwargs
+        )
