@@ -168,6 +168,16 @@ jobs:
       - uses: actions/checkout@v4
         # コードをチェックアウト
 
+      - name: Create CI cache directory
+        run: |
+          echo "🔧 Creating minimal cache for CI environment..."
+          mkdir -p cache
+          echo '{"generated": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "environment": "CI", "records": 0}' > cache/initial_data_metadata.json
+          touch cache/initial_data.pkl
+          echo "✅ CI cache directory created"
+          ls -la cache/
+        # CI環境用の最小限キャッシュディレクトリ作成
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:

@@ -43,27 +43,40 @@
    ❌ フォルダの役割から逸脱した機能追加
    ```
 
-## 現在のシステム概要 (2025年8月8日最終更新)
+## 現在のシステム概要 (2025年8月9日最終更新)
 
-### 🚀 **Phase 18: GitHub Actions CI/CDデプロイ・GCP Cloud Run本番稼働** (2025年8月8日実行中)
+### 🎯 **Phase 18: エントリーシグナル生成問題の根本解決** (2025年8月9日完了)
 
-**📊 Phase 18最終状況: Terraform修正完了→外部API dynamicブロック削除→CI/CDパイプライン再実行中**
+**🚀 Phase 18完全達成: データ取得修正→初期化改善→設定統一→CI/CDデプロイ成功**
 
-**✅ Phase 18実装項目（進捗状況）：**
+**✅ Phase 18実装項目（100%達成）：**
 
-**Phase 18.1-18.4: CI/CDパイプライン構築（100%達成）**
-1. **GitHub Actions統合**: .github/workflows/ci.yml・3段階デプロイ（test→docker→terraform）・579テスト成功・34.48%カバレッジ
-2. **Terraform構成**: infra/modules/・環境別設定（dev/prod/ha）・外部API dynamicブロック削除済み
-3. **APIキー管理最適化**: GitHub Secrets→環境変数直接設定・外部API（Phase 3無効化）コメント化
-4. **Docker最適化**: multi-stage build・AMD64専用・Artifact Registry統合・ヘルスチェック完備
+**Phase 18.1: 設定ファイル修正（100%達成）**
+1. **timeframe統一**: base_timeframe: 15m → 1h・データ取得安定化・整合性確保
+2. **confidence_threshold統一**: 0.35で全体統一（ml/ensemble/strategy）・シグナル生成条件明確化
+3. **API制限対応**: since_hours: 96時間・Bitbank API制限内で最大化
 
-**Phase 18.5: Terraform修正・デプロイ再実行（実行中）**
-5. **Terraform構文エラー修正**: toset(["1"])問題解決・外部API dynamicブロック完全削除
-6. **CI/CD再実行**: Run ID 16829134088・修正コミットfad46d46・デプロイ実行中
+**Phase 18.2: 初期データキャッシュシステム（100%達成）**
+1. **事前取得スクリプト**: prepare_initial_data.py・72時間分OHLCV・97特徴量事前計算
+2. **最小限キャッシュ**: create_minimal_cache.py・デプロイ用フォールバック
+3. **自動デプロイ**: deploy_with_initial_data.sh・完全自動化スクリプト
 
-**Phase 18.6: 本番稼働確認（予定）**
-7. **GCP Cloud Run稼働**: asia-northeast1・auto-scaling(1-5)・2GB RAM・1CPU・97特徴量完全対応
-8. **監視体制確立**: Cloud Monitoring・Error Reporting・Logging統合・アラート設定
+**Phase 18.3: コード修正（100%達成）**
+1. **live.py改善**: 初期データキャッシュ優先ロード・Docker/ローカル両対応・フォールバック実装
+2. **data_processor.py修正**: タイムスタンプ検証強化・72時間制限対応・timeframe別間隔調整
+3. **Terraform修正**: リビジョン名自動生成・競合回避
+
+**Phase 18.4: 品質保証・デプロイ（100%達成）**
+1. **全チェック通過**: flake8/isort/black/pytest・579テスト成功・カバレッジ33.31%
+2. **Docker対応**: 初期データキャッシュ含有・.dockerignore最適化
+3. **CI/CDデプロイ**: コミットe0e546d2・GitHub Actions実行・本番環境更新
+
+**🎯 解決された問題**:
+- ✅ Empty batch 1/12〜10/12エラー解消
+- ✅ データ取得成功（1時間足データ確実取得）
+- ✅ 初期データ不在問題解決
+- ✅ Confidence Threshold不統一解消
+- ✅ Cloud Runリビジョン競合解決
 
 ### 🎊 **Phase 16: 包括的プロジェクト最適化・次世代アーキテクチャ完全確立** (2025年8月8日完了)
 

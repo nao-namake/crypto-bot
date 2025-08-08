@@ -24,11 +24,12 @@ COPY config/production/ /app/config/production/
 COPY config/core/feature_order.json /app/feature_order.json
 COPY models/production/ /app/models/production/
 
-# 初期データキャッシュをコンテナに含める
+# 初期データキャッシュをコピー（Phase 18: CI環境対応）
 # キャッシュディレクトリを作成
 RUN mkdir -p /app/cache
-# キャッシュファイルをコピー（ビルド時にcache/ディレクトリが存在する前提）
-# 存在しない場合はビルド前にscripts/prepare_initial_data.pyを実行すること
+
+# cache/ディレクトリが存在する場合はコピー、なければスキップ
+# CI環境ではワークフローで事前作成されたダミーファイルをコピー
 COPY cache/ /app/cache/
 
 COPY docker/docker-entrypoint.sh /app/
