@@ -16,6 +16,13 @@ resource "google_cloud_run_service" "service" {
   location = var.region
   project  = var.project_id
 
+  # Terraformタイムアウト設定（デプロイ時の長時間待機を回避）
+  timeouts {
+    create = "10m"
+    update = "10m"
+    delete = "10m"
+  }
+
   template {
     metadata {
       annotations = {
@@ -103,4 +110,7 @@ resource "google_cloud_run_service_iam_member" "all_users" {
   location = var.region
   role     = "roles/run.invoker"
   member   = "allUsers"
+  
+  # Cloud Runサービスが完全に作成されるまで待機
+  depends_on = [google_cloud_run_service.service]
 }
