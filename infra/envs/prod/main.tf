@@ -29,6 +29,7 @@ module "app" {
   mode                 = var.mode
   bitbank_api_key      = var.bitbank_api_key
   bitbank_api_secret   = var.bitbank_api_secret
+  # 外部APIキー（Phase 3で無効化済み - 現在未使用）
   alpha_vantage_api_key = var.alpha_vantage_api_key
   polygon_api_key      = var.polygon_api_key
   fred_api_key         = var.fred_api_key

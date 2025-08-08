@@ -62,31 +62,27 @@ resource "google_cloud_run_service" "service" {
           value = var.feature_mode
         }
         
-        # Phase H.22: External API Keys（オプション - 現在無効化中）
-        # 注: これらのAPIは現在無効化されているため、値が空でも問題なし
-        dynamic "env" {
-          for_each = var.alpha_vantage_api_key != "" ? toset(["1"]) : toset([])
-          content {
-            name  = "ALPHA_VANTAGE_API_KEY"
-            value = var.alpha_vantage_api_key
-          }
-        }
-        
-        dynamic "env" {
-          for_each = var.polygon_api_key != "" ? toset(["1"]) : toset([])
-          content {
-            name  = "POLYGON_API_KEY"
-            value = var.polygon_api_key
-          }
-        }
-        
-        dynamic "env" {
-          for_each = var.fred_api_key != "" ? toset(["1"]) : toset([])
-          content {
-            name  = "FRED_API_KEY"
-            value = var.fred_api_key
-          }
-        }
+        # Phase H.22: External API Keys（Phase 3で無効化済み）
+        # 注: これらの外部APIはPhase 3で除去され、現在使用されていません
+        # 将来的に必要になった場合の参考用にコメントとして保持
+        #
+        # # Alpha Vantage API (VIXデータ用 - 現在未使用)
+        # env {
+        #   name  = "ALPHA_VANTAGE_API_KEY"
+        #   value = var.alpha_vantage_api_key
+        # }
+        #
+        # # Polygon.io API (市場データ用 - 現在未使用)
+        # env {
+        #   name  = "POLYGON_API_KEY"
+        #   value = var.polygon_api_key
+        # }
+        #
+        # # FRED API (経済指標用 - 現在未使用)
+        # env {
+        #   name  = "FRED_API_KEY"
+        #   value = var.fred_api_key
+        # }
         
         ports {
           container_port = 8080
