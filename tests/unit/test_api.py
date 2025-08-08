@@ -8,7 +8,7 @@ try:
     import fastapi
     from fastapi.testclient import TestClient
 
-    from crypto_bot.api import app
+    from crypto_bot.api.legacy import app
 
     # Double check that app is actually a FastAPI instance, not DummyApp
     FASTAPI_AVAILABLE = hasattr(fastapi, "FastAPI") and not (
@@ -273,7 +273,7 @@ def test_app_instance():
     """Test FastAPI app instance"""
     from fastapi import FastAPI
 
-    from crypto_bot.api import app as api_app
+    from crypto_bot.api.legacy import app as api_app
 
     assert isinstance(api_app, FastAPI)
 

@@ -12,12 +12,12 @@ import click
 import pandas as pd
 
 from crypto_bot.api.health import update_init_status, update_status
-from crypto_bot.config import load_config
 from crypto_bot.data.fetcher import MarketDataFetcher
 from crypto_bot.execution.engine import EntryExit, Position
 from crypto_bot.execution.factory import create_exchange_client
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.strategy.factory import StrategyFactory
+from crypto_bot.utils.config import load_config
 from crypto_bot.utils.pre_computed_cache import PreComputedCache
 from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 

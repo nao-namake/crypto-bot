@@ -22,8 +22,8 @@ def get_app():
     except ImportError:
         # フォールバック: シンプルなAPI
         try:
-            from crypto_bot.api import FASTAPI_AVAILABLE
-            from crypto_bot.api import app as simple_app
+            from crypto_bot.api.legacy import FASTAPI_AVAILABLE
+            from crypto_bot.api.legacy import app as simple_app
 
             if not FASTAPI_AVAILABLE or simple_app is None:
                 raise ImportError("FastAPI not available in simple API")

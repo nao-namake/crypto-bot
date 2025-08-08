@@ -1,103 +1,190 @@
-# 設定ファイル構造ガイド
+# config/ - 設定管理システム・環境別構成管理
 
-このディレクトリは環境別・用途別に整理された設定ファイルを管理します。
+## 📋 概要
 
-## 📁 ディレクトリ構造
+**Multi-Environment Configuration Management System**  
+本フォルダは crypto-bot プロジェクトの全設定ファイル（34個）を環境別・用途別に体系管理する統合設定システムです。
+
+## 🎯 設計原則
+
+### **環境分離 (Environment Separation)**
+- **本番環境**: production/ - GCP Cloud Run稼働・リアルトレード設定
+- **開発環境**: development/ - ローカル開発・テスト用設定
+- **検証環境**: validation/ - バックテスト・昇格候補管理・実験用設定
+- **動的生成**: dynamic_backtest/ - 自動生成・日付ベース設定
+
+### **設定統一性 (Configuration Consistency)**
+```
+本番稼働 ← 昇格 ← バックテスト検証 ← 実験・開発
+production/  validation/     development/
+```
+
+## 📁 ディレクトリ構成
 
 ```
 config/
-├── production/         # 本番環境用設定
-├── development/        # 開発環境用設定
-├── validation/         # 検証・実験用設定
-└── README.md          # このファイル
+├── production/         # 本番環境用設定（1ファイル）
+├── development/        # 開発環境用設定（4ファイル）
+├── validation/         # 検証・バックテスト用設定（26ファイル）
+├── dynamic_backtest/   # 動的生成設定（2ファイル）
+├── core/              # システム基盤設定（4ファイル）
+├── api_versions.json  # API バージョン管理
+└── README.md          # 設定管理ガイド
 ```
 
-## 🚀 本番環境設定 (`production/`)
+## 🚀 本番環境設定 (`production/` - 1ファイル)
 
-**97特徴量最適化システム本番設定**
+**Phase 14.5対応・97特徴量最適化・GCPリソース最適化本番設定**
 
-### ✅ `production.yml` - **現在の本番設定**
-- **ML特徴量**: 97特徴量最適化システム（30重複特徴量削除版）
-- **外部データ**: 一時無効化（安定性重視）
-- **取引設定**: Bitbank信用取引・¥10,000スタート・レバレッジ1倍
-- **GCP対応**: Cloud Run・Docker環境完全対応
-- **品質監視**: 緊急停止・データ品質管理・エラー耐性システム
+### ✅ `production.yml` - **現在の本番稼働設定**
+```yaml
+# Phase 14.5: 97特徴量最適化・外部API無効化・GCP最適化対応
+backtest:
+  starting_balance: 10000.0  # ¥10,000スタート
+bitbank:
+  day_trading:
+    enabled: true            # 信用取引有効
+    interest_rate: 0.0004    # 建玉金利
+  fee_optimization:
+    maker_fee: -0.0002       # メイカー手数料（リベート）
+    prefer_maker: true       # メイカー優先戦略
+data:
+  exchange: bitbank
+  limit: 400               # データ取得レコード数
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+```
 
-### `production_lite.yml` - **軽量版**
-- **用途**: 高速起動・テスト用軽量設定
-- **特徴**: 最小限設定・デバッグ時使用
+**本番設定の特徴**:
+- **97特徴量システム**: 外部API依存除去・30重複特徴量削除・効率化達成
+- **GCP Cloud Run対応**: Docker環境・環境変数・リソース最適化
+- **Bitbank信用取引**: メイカー優先・手数料最適化・リスク管理統合
+- **品質監視**: データ品質・エラー耐性・緊急停止機構完備
 
-## 🔧 開発環境設定 (`development/`)
+## 🔧 開発環境設定 (`development/` - 4ファイル)
 
-**開発・テスト用設定**
+**ローカル開発・テスト・実験用設定**
 
-### `bitbank_config.yml`
-- **用途**: ローカル開発・検証用設定
-- **特徴**: production設定のコピー（必要に応じて調整可能）
-- **使用場面**: 新機能テスト・デバッグ作業
+### **主要設定ファイル**
+- **`default.yml`**: システム標準設定・新規作成時のベースライン・包括的設定テンプレート
+- **`bitbank_config.yml`**: Bitbank特化開発設定・production設定ベース・調整自由
+- **`local_trading.yml`**: ローカル環境取引テスト用・開発者向け実験設定
+- **`bitbank_10k_front_test.yml`**: フロントランニングテスト・特殊検証用
 
-## 🧪 検証・バックテスト用設定 (`validation/`)
+### **開発環境の特徴**
+```yaml
+# development/default.yml 例
+data:
+  # exchange: bybit          # Bybit設定（コメントアウト）
+  # symbol: BTC/USDT         # 非アクティブ設定
+  # api_key: ${BYBIT_TESTNET_API_KEY}  # テストネット対応
+```
 
-**GCP環境対応・本番昇格候補設定**
+**使用場面**:
+- **新機能開発**: ML戦略・特徴量追加・アルゴリズム実験
+- **ローカルテスト**: デバッグ・動作確認・設定調整
+- **プロトタイピング**: 新しいアイデア・手法の検証
 
-### 🎯 **97特徴量バックテスト設定**
-- **`unified_97_features_backtest.yml`**: 97特徴量最適化システム検証用
-- **`production_97_backtest.yml`**: 本番97特徴量設定のバックテスト版
-- **GCP環境整合**: production.ymlと設定構造完全一致
+## 🧪 検証・バックテスト用設定 (`validation/` - 26ファイル)
 
-### 📊 **比較検証用設定**
-- **`unified_127_features_backtest.yml`**: 127特徴量比較用（効率化効果測定）
-- **`bitbank_125features_production_backtest.yml`**: 125特徴量版検証
-- **`bitbank_124features_production_backtest.yml`**: 124特徴量版検証
+**本番昇格候補・バックテスト・実験用設定管理システム**
 
-### ⚡ **高速バックテスト設定**
-- **`bitbank_101features_csv_backtest.yml`**: CSV高速バックテスト・1年間
-- **`fast_production_validation_backtest.yml`**: 本番設定高速検証
-- **`quick_profit_test.yml`**: 収益性迅速検証
+### 🎯 **97特徴量システム検証設定**
+- **`unified_97_features_backtest.yml`**: 97特徴量最適化システム総合検証・本番昇格前最終テスト
+- **`simple_97_backtest.yml`**: 97特徴量軽量検証・迅速テスト用
+- **`production_97_backtest.yml`**: 本番production.yml設定のバックテスト版・完全一致検証
+
+### 📊 **特徴量比較・効果測定設定**
+- **`unified_127_features_backtest.yml`**: 127特徴量比較検証・効率化効果測定・Phase前後比較
+- **`bitbank_125features_production_backtest.yml`**: 125特徴量版・旧システム比較用
+- **`bitbank_124features_production_backtest.yml`**: 124特徴量版・段階的検証用
+- **`bitbank_101features_csv_backtest.yml`**: 101特徴量CSV高速テスト
+
+### ⚡ **高速検証・収益性テスト設定**
+- **`fast_production_validation_backtest.yml`**: 本番設定高速検証・迅速品質確認
+- **`quick_profit_test.yml`**: 収益性迅速検証・短期間パフォーマンステスト
+- **`profitable_validation_backtest.yml`**: 収益性重視・利益最大化設定
+- **`aggressive_trading_test.yml`**: アグレッシブ戦略・高頻度取引テスト
 
 ### 🎛️ **最適化・実験用設定**
-- **`ensemble_trading.yml`**: アンサンブル学習専用・trading_stacking
-- **`bitbank_optimized_045_threshold.yml`**: 閾値最適化版
-- **`profitable_validation_backtest.yml`**: 収益性重視設定
-- **`robust_model_backtest.yml`**: 堅牢性検証設定
+- **`ensemble_trading.yml`**: アンサンブル学習専用・TradingEnsembleClassifier・trading_stacking手法
+- **`bitbank_optimized_045_threshold.yml`**: 信頼度閾値最適化版・エントリー条件調整
+- **`robust_model_backtest.yml`**: 堅牢性検証・市場変動耐性テスト
+- **`improved_model_backtest.yml`**: モデル改善版・最新アルゴリズム検証
 
-### 📋 **参考・管理用**
-- **`api_versions.json`**: 各取引所APIバージョン管理
-- **`default.yml`**: システム標準設定・新規作成時ベースライン
+### 📅 **期間別・時系列検証設定**
+- **`7day_backtest_2024_12.yml`**: 短期7日間集中テスト・2024年12月データ
+- **`july_2025_performance_test.yml`**: 2025年7月パフォーマンステスト
+- **`production_simulation_2025.yml`**: 2025年本番シミュレーション設定
+- **`production_trading_enabled.yml`**: 本番取引有効化設定・実取引準備用
+
+### 🔧 **技術検証・統合テスト設定**
+- **`api_migration_validation.yml`**: API移行検証・外部データ統合テスト
+- **`bitbank_production_validation_backtest.yml`**: Bitbank本番環境検証・接続テスト
+- **`mtf_ensemble_test.yml`**: マルチタイムフレーム・アンサンブル統合テスト
+- **`production_validation_csv_backtest.yml`**: 本番CSV検証・データ整合性確認
+
+### 📋 **管理・リファレンス用**
+- **`api_versions.json`**: 各取引所APIバージョン管理・互換性追跡
+- **`jpy_backtest_config.yml`**: JPY建て統一設定・通貨ペア標準化
+- **`realistic_21_features_backtest.yml`**: 軽量21特徴量・現実的設定検証
 
 ## 🔄 設定ファイル使用方法
 
-### 🚀 本番稼働（97特徴量最適化システム）
+### 🚀 本番稼働（Phase 14.5・97特徴量最適化システム）
 ```bash
-# 97特徴量本番設定での稼働
+# Phase 14.5本番設定での稼働（97特徴量・GCP最適化）
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
-# GCP Cloud Run自動デプロイ
-gcloud run deploy crypto-bot-service-prod --source . --region=asia-northeast1
+# GCP Cloud Run自動デプロイ（CI/CD統合）
+gcloud run deploy crypto-bot-service-prod \
+  --source . \
+  --region=asia-northeast1 \
+  --set-env-vars="MODE=live,EXCHANGE=bitbank" \
+  --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest"
+
+# 本番環境ヘルスチェック
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
 ```
 
 ### 🧪 バックテスト・検証（昇格候補テスト）
 ```bash
-# 97特徴量バックテスト（本番昇格前検証）
+# Phase 14.5: 97特徴量システム総合検証
 python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
 
-# 効率化効果比較（127 vs 97特徴量）
+# 特徴量効率化効果比較（127 vs 97）
 python -m crypto_bot.main backtest --config config/validation/unified_127_features_backtest.yml
 
-# 高速収益性検証
+# アンサンブル学習検証（TradingEnsembleClassifier）
+python -m crypto_bot.main backtest --config config/validation/ensemble_trading.yml
+
+# 高速収益性検証・迅速品質確認
 python -m crypto_bot.main backtest --config config/validation/quick_profit_test.yml
 
-# アンサンブル学習検証
-python -m crypto_bot.main backtest --config config/validation/ensemble_trading.yml
+# 本番設定完全一致検証
+python -m crypto_bot.main backtest --config config/validation/production_97_backtest.yml
 ```
 
 ### 🔧 開発・ローカルテスト
 ```bash
-# 開発用設定でテスト
+# 標準開発設定でのテスト
+python -m crypto_bot.main live-bitbank --config config/development/default.yml
+
+# Bitbank特化開発設定
 python -m crypto_bot.main live-bitbank --config config/development/bitbank_config.yml
 
-# 軽量版でのテスト
-python -m crypto_bot.main live-bitbank --config config/production/production_lite.yml
+# ローカル取引テスト設定
+python -m crypto_bot.main live-bitbank --config config/development/local_trading.yml
+```
+
+### 📅 動的バックテスト（自動生成）
+```bash
+# Phase 4.2: 動的日付調整システム実行
+python scripts/phase42_adjusted_backtest.py
+# → config/dynamic_backtest/production_simulation_until_YYYYMMDD.yml 自動生成
+
+# 生成された動的設定でのバックテスト
+python -m crypto_bot.main backtest --config config/dynamic_backtest/production_simulation_until_20250807.yml
 ```
 
 ## 📋 設定昇格ワークフロー・今後の展開
@@ -108,34 +195,96 @@ python -m crypto_bot.main live-bitbank --config config/production/production_lit
 3. **昇格判定**: 優秀な結果確認後、`production/`にコピー・適用
 4. **本番移行**: GCP環境でのデプロイ・実稼働開始
 
-### 🚀 **Phase 4: 97特徴量システム本格運用**
-- ✅ **97特徴量モデル検証**: `models/validation/`の新モデルをバックテスト
-- 🔄 **最適モデル昇格**: 最高性能モデルを`models/production/model.pkl`に昇格
-- 🔄 **効率化効果実測**: 127→97特徴量の24%効率向上確認
 
-### 🔮 **Phase 5: 拡張機能統合**
-- **外部データ復旧**: VIX・Macro・Fear&Greed統合・外部データ有効化
-- **アンサンブル学習強化**: `ensemble_trading.yml`本番統合
-- **複数通貨ペア対応**: ETH/JPY・XRP/JPY拡張・ポートフォリオ分散
+## 📦 システム基盤設定 (`core/` - 4ファイル)
 
-## ⚠️ 重要事項
+**特徴量順序・システム基盤管理**
 
-### 🔐 **設定変更時の注意**
-1. **production設定**: GCP本番稼働中・変更は慎重に・必ずバックアップ作成
-2. **validation設定**: バックテスト検証用・昇格候補管理・自由に実験可能
-3. **development設定**: ローカル開発用・自由に変更・実験用途
+### **基盤管理ファイル**
+- **`feature_order.json`**: 97特徴量順序定義・ML学習・推論時の特徴量一致保証
+- **`feature_order.json.backup`**: バックアップファイル・重要度最高・復旧用
+- **`feature_order.checksum`**: 整合性チェックサム・データ破損検出
+- **`optimized_97_features.json`**: 最適化97特徴量定義・Phase 14.5対応
 
-### 🎯 **GCP環境整合性**
-- **production.yml**: GCP Cloud Run環境完全対応・Docker最適化済み
-- **validation/**: 本番環境と設定構造一致・昇格時の整合性確保
-- **GCP変数**: `${BITBANK_API_KEY}`・`${BITBANK_API_SECRET}`環境変数対応
+### **特徴量順序システム**
+```json
+{
+  "feature_order": [
+    "open", "high", "low", "close", "volume",  // OHLCV基本
+    "close_lag_1", "close_lag_3",             // ラグ特徴量
+    "returns_1", "returns_2", "returns_3",    // リターン系
+    "ema_5", "ema_10", "ema_20",              // EMA系
+    // ... 97特徴量完全定義
+  ]
+}
+```
 
-### 📁 **ファイル管理原則**
-- **追加**: 新規バックテスト設定は`validation/`に配置
-- **昇格**: 優秀な結果の設定を`production/`にコピー
-- **削除**: 本番稼働中設定の削除厳禁・validation/は実験自由
-- **バックアップ**: 本番設定変更前は必ずバックアップ作成
+## 🔄 動的設定システム (`dynamic_backtest/` - 2ファイル)
+
+**Phase 4.2: 動的日付調整システム・自動生成設定管理**
+
+### **自動生成システム**
+- **`README.md`**: 動的生成システム説明・運用ガイド
+- **`production_simulation_until_YYYYMMDD.yml`**: 日付ベース自動生成設定
+
+### **動的生成の特徴**
+```bash
+# 実行日ベースの自動設定生成
+# 例：2025年8月7日実行 → production_simulation_until_20250806.yml
+# - 前日（8月6日）まで自動データ取得
+# - 未来データ完全排除・時系列整合性保証
+# - 30日間バックテスト期間・継続運用対応
+```
+
+## 🎯 設定昇格ワークフロー・Phase 14.5対応
+
+### **設定昇格フロー（バックテスト→本番）**
+```mermaid
+graph TD
+    A[開発・実験] --> B[validation/で検証]
+    B --> C[バックテスト実行]
+    C --> D[性能評価・比較]
+    D --> E{本番より優秀?}
+    E -->|Yes| F[production/に昇格]
+    E -->|No| G[validation/で再調整]
+    F --> H[GCP本番デプロイ]
+    G --> B
+```
+
+1. **実験フェーズ**: `development/`での新設定開発・機能追加・アルゴリズム実験
+2. **検証フェーズ**: `validation/`での包括的バックテスト・性能測定・比較分析
+3. **評価フェーズ**: 収益性・勝率・シャープレシオ・ドローダウンを現行本番設定と比較
+4. **昇格判定**: 全指標で優秀な結果確認後、`production/production.yml`へ昇格適用
+5. **本番移行**: GCP Cloud Run環境での自動デプロイ・リアルトレード開始
+
+### **Phase 14.5新機能統合ロードマップ**
+- ✅ **97特徴量システム**: 外部API無効化・30重複特徴量削除・効率化達成
+- ✅ **GCPリソース最適化**: CPU/Memory削減・コスト50%削減・段階的実施
+- 🔄 **アンサンブル学習強化**: `ensemble_trading.yml`→本番統合準備
+- 🔄 **マルチタイムフレーム最適化**: 15m/1h/4h統合・予測精度向上
+- 🔮 **複数通貨ペア対応**: ETH/JPY・XRP/JPY拡張・ポートフォリオ分散
+
+## ⚠️ 重要事項・管理原則
+
+### 🔐 **設定変更時の注意事項**
+1. **production/**: GCP本番稼働中・変更は最大限慎重に・必ずバックアップ作成必須
+2. **validation/**: バックテスト検証用・昇格候補管理・実験自由・26ファイル管理
+3. **development/**: ローカル開発用・完全自由・新機能実験・プロトタイピング
+4. **core/**: システム基盤・feature_order.json変更は全システム影響・慎重対応必須
+
+### 🎯 **Phase 14.5環境整合性**
+- **production.yml**: GCP Cloud Run完全対応・Docker最適化・リソース最適化済み
+- **validation/**: 本番環境と設定構造完全一致・昇格時の整合性100%保証
+- **環境変数**: `${BITBANK_API_KEY}`・`${BITBANK_API_SECRET}`・GCP Secret Manager統合
+- **CI/CD統合**: GitHub Actions・Terraform・自動品質チェック・デプロイ統合
+
+### 📁 **ファイル管理・運用原則**
+- **新規追加**: バックテスト設定は`validation/`に配置・実験用途は`development/`
+- **昇格適用**: 検証済み優秀設定を`production/`にコピー・バックアップ後適用
+- **削除禁止**: 本番稼働中設定の削除は絶対禁止・`validation/`は実験自由
+- **バックアップ**: 本番設定変更前は必ず日付付きバックアップ作成・復旧保証
+- **履歴管理**: `dynamic_backtest/`は自動生成・過去設定は履歴として保持
 
 ---
 
-*97特徴量最適化システム対応・GCP環境整合・昇格ワークフロー確立（2025年8月2日更新）*
+**Phase 14.5: 97特徴量最適化・GCPリソース最適化・設定管理システム統合完了**により、crypto-botの設定管理は完全に体系化・自動化されました。34個の設定ファイルによる包括的環境管理システムを確立しています。🚀⚙️

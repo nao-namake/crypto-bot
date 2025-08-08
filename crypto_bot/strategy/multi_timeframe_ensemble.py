@@ -130,7 +130,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         if "data" not in tf_config:
             tf_config["data"] = {
                 "exchange": "csv",
-                "csv_path": ("/Users/nao/Desktop/bot/data/btc_usd_2024_hourly.csv"),
+                "csv_path": ("data/btc_usd_2024_hourly.csv"),
                 "symbol": "BTC/USDT",
             }
 

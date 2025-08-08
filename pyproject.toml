@@ -25,6 +25,36 @@ filterwarnings = [
   "ignore:'H' is deprecated and will be removed in a future version.*:FutureWarning"
 ]
 
+[tool.coverage.run]
+# カバレッジデータの保存場所
+data_file = ".coverage_data/.coverage"
+source = ["crypto_bot"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod"
+]
+
+[tool.coverage.html]
+directory = ".coverage_data/htmlcov"
+
+[tool.coverage.xml]
+output = ".coverage_data/coverage.xml"
+
 [project]
 name = "crypto-bot"
 version = "0.1.0"

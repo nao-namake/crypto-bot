@@ -1,101 +1,105 @@
-# Scripts ディレクトリ構造ガイド
+# scripts/ - 暗号通貨自動取引システム実行スクリプト集
 
-このディレクトリは用途別に整理されたスクリプトファイルを管理します。
+## 📋 概要
 
-## 📁 ディレクトリ構造
+**Cryptocurrency Trading Bot Scripts Collection**  
+crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
+
+## 🎯 ディレクトリ構造
 
 ```
 scripts/
-├── archive/           # 特定作業用・将来参考価値あり
-├── utilities/         # 汎用ユーティリティ・補助ツール
-├── README.md         # このファイル
-└── [メインスクリプト] # 日常的に使用するスクリプト
+├── core/                   # コア機能スクリプト
+├── utilities/              # 汎用ユーティリティ・補助ツール  
+├── archive/                # 過去の実装・参考用スクリプト
+├── deprecated/             # 不要・古いスクリプト（整理済み）
+└── [メインスクリプト]      # 日常的に使用するスクリプト
 ```
 
-## 🚀 メインスクリプト（日常使用）
+## 🚀 メインスクリプト（現在使用中）
 
-**現在使用中・重要なスクリプト**
-
-### `start_live_with_api_fixed.py`
-- **用途**: 本番ライブトレード起動スクリプト
-- **状況**: ✅ **現在稼働中** - Phase 2.2対応・API-onlyモード回避版
-- **機能**: ライブトレード + APIサーバー統合・Cloud Run対応
-- **実行**: Docker環境で自動実行
-
-### `auto_push.sh`
-- **用途**: 自動化されたGitプッシュワークフロー
-- **機能**: 依存インストール → コード整形 → Lint/Test → Git push
-- **使用法**: `bash scripts/auto_push.sh "feat: new feature"`
-- **オプション**: `--install` で依存関係再インストール
-
-### `checks.sh`
-- **用途**: 品質チェック（CI/CDで使用中）
-- **機能**: flake8・isort・black・pytest + カバレッジ
-- **実行**: `bash scripts/checks.sh`
-- **重要**: CI/CDパイプラインの中核
-
-### `build_docker.sh`
-- **用途**: 基本Dockerイメージビルド
-- **機能**: crypto-bot:latest イメージ作成
-- **実行**: `bash scripts/build_docker.sh`
-
-### テスト実行スクリプト群
-- `run_docker.sh` - Docker内でのコマンド実行
+### **品質管理・テスト**
+- `checks.sh` - 品質チェック統合実行（flake8・isort・black・pytest）
 - `run_all_local_tests.sh` - ローカル環境での包括的テスト
-- `run_e2e.sh` - E2Eテスト実行
+- `run_e2e.sh` - エンドツーエンドテスト
 - `run_pipeline.sh` - パイプライン実行
 - `run_production_tests.sh` - 本番環境テスト
+- `quick_health_check.sh` - クイックヘルスチェック
 
-## 📦 Archive フォルダ (`archive/`)
+### **モデル管理**
+- `create_proper_ensemble_model.py` - 97特徴量アンサンブルモデル作成（現行版）
+- `retrain_97_features_model.py` - 97特徴量モデル再学習
+- `validate_97_features_optimization.py` - 97特徴量システム検証
 
-**特定作業用・将来参考価値のあるスクリプト**
+### **統合システム（新規作成）**
+- `unified_backtest_system.py` - 統合バックテストシステム
+  - 標準・ハイブリッド・ウォークフォワード・軽量・閾値検証・JPY建て
+- `unified_optimization_system.py` - 統合最適化システム
+  - 特徴量選択・信頼度閾値・エントリー閾値・推奨事項生成
+- `unified_ensemble_system.py` - 統合アンサンブルシステム
+  - A/Bテスト・統計検証・統合計画・デモ実行
 
-### デプロイメント関連
-- `build_phase2_amd64.sh` - Phase 2専用AMD64ビルド・デプロイ
-- `build_complete_amd64.sh` - 完成版AMD64ビルド
-- `phase3_deploy.sh` - Phase 3デプロイメント
-- `phase3_deployment.py` - Phase 3デプロイメント（Python版）
+### **システム管理**
+- `system_health_check.py` - システム健全性チェック
+- `diagnose_cloud_run_apis.py` - Cloud Run API診断
+- `gcp_revision_manager.py` - GCPリビジョン管理
+- `pre_compute_data.py` - 事前計算データ生成
 
-### アンサンブル学習・分析システム
-- `ensemble_backtest_system.py` - アンサンブルバックテストシステム
-- `performance_comparison_system.py` - パフォーマンス比較システム
-- `production_integration_system.py` - 本番統合システム
-- `monitoring_alert_system.py` - 監視・アラートシステム
+### **開発ツール**
+- `auto_push.sh` - 自動Git push（整形・テスト・プッシュ）
+- `convert_absolute_to_relative_paths.py` - 絶対パス→相対パス変換
+- `cleanup_feature_backups.sh` - 特徴量バックアップ整理
 
-### 使用場面
-- 将来の機能拡張時の参考
-- 類似システム開発時のベースライン
-- 過去の実装手法の確認
+### **Phase関連**
+- `phase42_adjusted_backtest.py` - Phase 4.2動的日付調整バックテスト
+- `phase42_production_simulation.py` - Phase 4.2本番シミュレーション
 
-## 🔧 Utilities フォルダ (`utilities/`)
+### **データ分析**
+- `analyze_training_data.py` - 学習データ分析
+- `market_data_analysis.py` - 市場データ分析
+- `create_backtest_data.py` - バックテストデータ作成
+- `clean_historical_data.py` - 履歴データクリーニング
 
-**汎用ユーティリティ・補助ツール**
+### **テスト・検証**
+- `test_multi_timeframe.py` - マルチタイムフレームテスト
+- `test_quality_monitor.py` - 品質監視テスト
 
-### データ生成・テスト
+## 📁 core/ - コア機能
+
+```
+core/
+└── protect_feature_order.py    # feature_order.json保護システム
+```
+
+## 🔧 utilities/ - ユーティリティ
+
+### **環境・インフラ**
+- `check_gcp_env.sh` - GCP環境確認
+- `setup_secrets.sh` - シークレット設定
+- `monitor_deployment.sh` - デプロイメント監視
+- `verify_wif_hardening.sh` - WIF強化検証
+- `test_terraform_local.sh` - Terraformローカルテスト
+
+### **データ・テスト**
 - `generate_btc_csv_data.py` - BTCデータCSV生成
 - `test_bitbank_auth.py` - Bitbank API認証テスト
 - `emergency_shutdown.py` - 緊急停止ツール
 
-### インフラ・セットアップ
-- `check_gcp_env.sh` - GCP環境確認
-- `setup_secrets.sh` - シークレット設定
-- `monitor_deployment.sh` - デプロイメント監視
+### **診断・トラブルシューティング**
+- `troubleshoot_deployment.sh` - デプロイメント問題診断
 - `bigquery_log_queries.sql` - BigQueryログクエリ集
 
-### トラブルシューティング
-- `troubleshoot_deployment.sh` - デプロイメント問題診断
-- `verify_wif_hardening.sh` - WIF強化検証
-- `test_docker_local.sh` - ローカルDocker環境テスト
-- `test_terraform_local.sh` - ローカルTerraform環境テスト
+## 📦 archive/ - アーカイブ
 
-### 使用場面
-- 問題発生時の診断・修復
-- 新規環境セットアップ
-- データ生成・テスト用途
+過去の実装や参考用スクリプトを保管。将来の機能拡張時の参考資料として活用。
 
-## 🔄 使用方法
+## 🗑️ deprecated/ - 不要スクリプト
 
-### 日常的な開発作業
+整理により不要と判定されたスクリプト（63ファイル）を保管。古い特徴量システム（127/125/124）、デバッグ・修正系、統合前の個別スクリプトなど。
+
+## 🚀 使用方法
+
+### **日常的な開発作業**
 ```bash
 # 品質チェック実行
 bash scripts/checks.sh
@@ -103,57 +107,65 @@ bash scripts/checks.sh
 # 自動プッシュ（整形・テスト・プッシュ）
 bash scripts/auto_push.sh "feat: add new feature"
 
-# Dockerビルド
-bash scripts/build_docker.sh
-
 # 包括的ローカルテスト
 bash scripts/run_all_local_tests.sh
 ```
 
-### 本番デプロイメント
+### **モデル管理**
 ```bash
-# 本番ライブトレード起動（Docker環境で自動実行）
-python scripts/start_live_with_api_fixed.py
+# 97特徴量アンサンブルモデル作成
+python scripts/create_proper_ensemble_model.py
+
+# モデル再学習
+python scripts/retrain_97_features_model.py
 ```
 
-### ユーティリティ活用
+### **統合システム活用**
 ```bash
+# バックテスト実行
+python scripts/unified_backtest_system.py --mode standard --config production.yml
+python scripts/unified_backtest_system.py --mode walkforward --months 6
+
+# 最適化実行
+python scripts/unified_optimization_system.py --mode confidence --min 0.2 --max 0.5
+python scripts/unified_optimization_system.py --mode recommendations
+
+# アンサンブル検証
+python scripts/unified_ensemble_system.py --mode verify
+```
+
+### **システム診断**
+```bash
+# システムヘルスチェック
+python scripts/system_health_check.py
+
+# Cloud Run診断
+python scripts/diagnose_cloud_run_apis.py
+
 # GCP環境確認
 bash scripts/utilities/check_gcp_env.sh
-
-# Bitbank API認証テスト
-python scripts/utilities/test_bitbank_auth.py
-
-# CSV データ生成
-python scripts/utilities/generate_btc_csv_data.py
-```
-
-### アーカイブ活用
-```bash
-# アンサンブルバックテスト実行
-python scripts/archive/ensemble_backtest_system.py
-
-# パフォーマンス比較分析
-python scripts/archive/performance_comparison_system.py
 ```
 
 ## ⚠️ 重要事項
 
-### ファイル管理原則
-- **メインスクリプト**: 日常使用するもののみ・変更時は慎重に
-- **Archive**: 保存目的・直接変更は避ける
-- **Utilities**: 補助ツール・必要に応じて拡張可能
+### **ファイル管理原則**
+- **メインスクリプト**: 日常使用・最新版のみ維持
+- **統合システム**: 複数機能を1つに統合・保守性向上
+- **deprecated/**: 削除せず保管（履歴参照用）
+- **archive/**: 将来の参考資料として保持
 
-### セキュリティ注意事項
-- シークレット情報はファイルに直接記載しない
-- 本番環境での実行前は必ずテスト環境で検証
-- 緊急停止ツールの場所と使用方法を把握
+### **整理による効果**
+- **ファイル数削減**: 63ファイルをdeprecatedへ移動
+- **統合効率化**: バックテスト・最適化・アンサンブルを各1ファイルに
+- **明確な構造**: 用途別に整理・探しやすさ向上
+- **保守性向上**: 重複削除・責任明確化
 
-### 追加・削除時のガイドライン
-- **新規追加**: 適切なフォルダに配置・README更新
-- **削除**: 他のスクリプトからの依存関係確認
-- **移動**: 既存の呼び出し元の更新忘れに注意
+### **今後の追加ガイドライン**
+1. 新規スクリプトは適切なカテゴリに配置
+2. 類似機能は統合システムへ追加
+3. 一時的なデバッグスクリプトは作成後削除
+4. README.mdの更新を忘れずに
 
 ---
 
-*Scripts構造は2025年7月17日に整理・最適化されました*
+*Scripts構造は2025年8月7日に大規模整理・最適化されました*

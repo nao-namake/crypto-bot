@@ -1219,6 +1219,37 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
         },
     )
 
+    # Phase 16.1-B修正: 事前学習済みモデル自動読み込み機能追加
+    try:
+        from pathlib import Path
+
+        import joblib
+
+        # 事前学習済みアンサンブルモデル読み込み試行
+        production_model_path = Path("models/production/model.pkl")
+        if production_model_path.exists():
+            logger.info(
+                f"🔄 Loading pre-trained ensemble model from: {production_model_path}"
+            )
+            ensemble = joblib.load(production_model_path)
+
+            # 設定パラメータで更新
+            ensemble.confidence_threshold = confidence_threshold
+            if hasattr(ensemble, "risk_adjustment"):
+                ensemble.risk_adjustment = risk_adjustment
+
+            logger.info(
+                f"✅ Loaded pre-trained ensemble with {len(ensemble.base_models)} models"
+            )
+            return ensemble
+
+        else:
+            logger.warning(f"⚠️  Pre-trained model not found at {production_model_path}")
+
+    except Exception as e:
+        logger.warning(f"⚠️  Failed to load pre-trained model: {e}")
+
+    # フォールバック: 空のアンサンブルを作成（従来の動作）
     ensemble = TradingEnsembleClassifier(
         ensemble_method=ensemble_method,
         trading_metrics=trading_metrics,
@@ -1228,6 +1259,6 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
 
     logger.info(
         f"Created trading-optimized ensemble: {ensemble_method} "
-        f"with risk_adjustment={risk_adjustment}"
+        f"with risk_adjustment={risk_adjustment} (fallback mode)"
     )
     return ensemble

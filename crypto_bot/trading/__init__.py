@@ -1,1 +1,0 @@
-# Trading functionality module

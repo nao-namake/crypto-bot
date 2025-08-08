@@ -49,4 +49,4 @@ python3 -m pytest \
   --ignore=tests/integration
 
 echo
-echo "✅ all checks passed! Coverage report: ./htmlcov/index.html"
+echo "✅ all checks passed! Coverage report: ./.coverage_data/htmlcov/index.html"

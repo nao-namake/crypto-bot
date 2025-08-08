@@ -11,10 +11,9 @@ from unittest.mock import Mock, mock_open, patch
 import pandas as pd
 import pytest
 
-from crypto_bot.config import deep_merge, load_config
-
 # Phase 14: リファクタリング後のimport修正
 from crypto_bot.main import setup_logging
+from crypto_bot.utils.config import deep_merge, load_config
 from crypto_bot.utils.data import prepare_data
 from crypto_bot.utils.file import ensure_dir_for_file
 from crypto_bot.utils.model import save_model

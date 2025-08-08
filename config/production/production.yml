@@ -39,13 +39,13 @@ data:
   max_delay_ms: 45000
   min_delay_ms: 30000
   multi_timeframe_data:
-    base_timeframe: 1h
+    base_timeframe: 15m  # Phase 16.1-C修正: 400レコード取得のため15分足をベースに変更
     target_timeframes:
       15m:
-        method: interpolation
+        method: direct  # 15分足を直接取得
         min_points: 5
       1h:
-        method: direct
+        method: aggregation  # 15分足から1時間足を生成
         min_points: 5
       4h:
         api_fetch: false
@@ -53,11 +53,11 @@ data:
         min_points: 3
   paginate: true
   per_page: 200
-  since_hours: 1200
+  since_hours: 71  # Phase 16.1-C修正: 72時間制限内で最大化（71時間×4=284レコード）
   symbol: BTC/JPY
   timeframe: 1h
   weekend_data: true
-  weekend_extension_hours: 72
+  weekend_extension_hours: 120  # Phase 16.1-C修正: 週末拡張で400レコード確保（基本71h+拡張120h=191h×4=764レコード）
 dynamic_data_fetching:
   asia_market_reduction: 12
   enabled: true
@@ -411,3 +411,7 @@ trading_schedule:
       position_size_mult: 1.0
       stop_loss_mult: 1.0
   weekend_monitoring: false
+walk_forward:  # Phase 16.1-D修正: バックテスト実行に必要な設定追加
+  enabled: false
+  window_days: 30
+  step_days: 7

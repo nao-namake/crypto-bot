@@ -9,10 +9,10 @@ import click
 import pandas as pd
 
 from crypto_bot.backtest.engine import BacktestEngine
-from crypto_bot.config import load_config
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
+from crypto_bot.utils.config import load_config
 from crypto_bot.utils.config_state import set_current_config
 from crypto_bot.utils.file import ensure_dir_for_file
 

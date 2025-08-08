@@ -8,8 +8,8 @@ import sys
 
 import click
 
-from crypto_bot.config import load_config
 from crypto_bot.strategy.factory import StrategyFactory
+from crypto_bot.utils.config import load_config
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,159 @@
+{
+  "overall_status": "PASS",
+  "total_tests": 6,
+  "passed_tests": 6,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "duration_seconds": 1.237987,
+  "verification_timestamp": "2025-08-01T06:39:13.401625",
+  "test_results": {
+    "FeatureOrderManager": {
+      "status": "PASS",
+      "initial_features": 11,
+      "final_features": 125,
+      "target_features": 125,
+      "external_data_removed": true,
+      "basic_features_present": true,
+      "feature_sample": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "close_lag_1",
+        "close_lag_2",
+        "close_lag_3",
+        "close_lag_4",
+        "close_lag_5"
+      ],
+      "errors": []
+    },
+    "DataQualityManager": {
+      "status": "PASS",
+      "quality_passed": true,
+      "real_data_features": 125,
+      "default_features": 0,
+      "default_ratio": 0.0,
+      "quality_score": 100.0,
+      "real_data_sufficient": true,
+      "default_ratio_acceptable": true,
+      "quality_score_acceptable": true,
+      "critical_missing": [],
+      "errors": []
+    },
+    "FeatureConsistency": {
+      "status": "PASS",
+      "consistent_order": true,
+      "all_125_features": true,
+      "test_runs": 3,
+      "feature_counts": [
+        125,
+        125,
+        125
+      ],
+      "first_5_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "last_5_features": [
+        "volume_price_correlation",
+        "volatility_regime",
+        "momentum_quality",
+        "market_phase",
+        "momentum_14"
+      ],
+      "errors": []
+    },
+    "PreprocessorIntegration": {
+      "status": "PASS",
+      "external_data_enabled": false,
+      "vix_enabled": false,
+      "macro_enabled": false,
+      "expected_external": false,
+      "metadata_correct": true,
+      "processed_features": 125,
+      "metadata_keys": [
+        "external_data_enabled",
+        "vix_enabled",
+        "macro_enabled"
+      ],
+      "errors": []
+    },
+    "MLEnsemblePrediction": {
+      "status": "PASS",
+      "data_quality_passed": true,
+      "numeric_features": 125,
+      "has_nan_values": "0",
+      "has_inf_values": "0",
+      "predictions_count": 10,
+      "non_neutral_signals": 10,
+      "prediction_variance": 3.0814879110195774e-33,
+      "sample_predictions": [
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3
+      ],
+      "real_data_ratio": 1.0,
+      "errors": []
+    },
+    "EntrySignalGeneration": {
+      "status": "PASS",
+      "quality_passed": true,
+      "signals_generated": 50,
+      "signals_generated_successfully": true,
+      "signal_diversity": true,
+      "confidence_levels_vary": true,
+      "sample_signals": [
+        {
+          "type": "BUY",
+          "confidence": 0.2,
+          "index": 250,
+          "indicators": {
+            "rsi_14": 50.0,
+            "price_vs_sma20": 8580716.181439688,
+            "volume_ratio": 5916190.559831091,
+            "atr_14": 171614.32362879376,
+            "close": 9104007.281491306,
+            "volume": 4451862.084613869
+          }
+        },
+        {
+          "type": "SELL",
+          "confidence": 0.25,
+          "index": 251,
+          "indicators": {
+            "rsi_14": 50.0,
+            "price_vs_sma20": 8580716.181439688,
+            "volume_ratio": 5916190.559831091,
+            "atr_14": 171614.32362879376,
+            "close": 9271131.718479116,
+            "volume": 17934108.216613118
+          }
+        },
+        {
+          "type": "SELL",
+          "confidence": 0.35,
+          "index": 252,
+          "indicators": {
+            "rsi_14": 50.0,
+            "price_vs_sma20": 8580716.181439688,
+            "volume_ratio": 5916190.559831091,
+            "atr_14": 171614.32362879376,
+            "close": 9664627.511072934,
+            "volume": 4158866.750950086
+          }
+        }
+      ],
+      "real_data_features": 125,
+      "default_ratio": 0.0,
+      "quality_score": 100.0,
+      "data_sufficient_for_trading": true,
+      "errors": []
+    }
+  }
+}
