@@ -1,9 +1,12 @@
 ############################################
 # infra/modules/crypto_bot_app/secrets.tf
-# Secret Manager resources for API keys
+# Secret Manager resources for API keys (OPTIONAL)
+# 
+# Note: このファイルはSecret Managerを使用する場合のオプション設定です。
+# デフォルトではGitHub Secretsから環境変数として直接設定されます。
 ############################################
 
-# Bitbank API Key Secret
+# Bitbank API Key Secret (OPTIONAL - only if create_secrets = true)
 resource "google_secret_manager_secret" "bitbank_api_key" {
   count = var.create_secrets ? 1 : 0
   

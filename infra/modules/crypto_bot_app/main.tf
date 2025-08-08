@@ -46,22 +46,15 @@ resource "google_cloud_run_service" "service" {
           value = var.mode
         }
         
-        # Secret Manager参照 - 条件付き設定
-        # 注: Secret Managerが存在しない場合は環境変数から取得
-        dynamic "env" {
-          for_each = var.bitbank_api_key != "" ? [1] : []
-          content {
-            name  = "BITBANK_API_KEY"
-            value = var.bitbank_api_key
-          }
+        # Bitbank API認証情報（GitHub Secretsから取得）
+        env {
+          name  = "BITBANK_API_KEY"
+          value = var.bitbank_api_key
         }
         
-        dynamic "env" {
-          for_each = var.bitbank_api_secret != "" ? [1] : []
-          content {
-            name  = "BITBANK_API_SECRET"
-            value = var.bitbank_api_secret
-          }
+        env {
+          name  = "BITBANK_API_SECRET"
+          value = var.bitbank_api_secret
         }
         
         env {
@@ -69,10 +62,10 @@ resource "google_cloud_run_service" "service" {
           value = var.feature_mode
         }
         
-        # Phase H.22: External API Keys（オプション - Secret Manager経由）
-        # 注: これらのAPIは現在無効化されているため、設定は任意
+        # Phase H.22: External API Keys（オプション - 現在無効化中）
+        # 注: これらのAPIは現在無効化されているため、値が空でも問題なし
         dynamic "env" {
-          for_each = var.alpha_vantage_api_key != "" ? [1] : []
+          for_each = var.alpha_vantage_api_key != "" ? toset(["1"]) : toset([])
           content {
             name  = "ALPHA_VANTAGE_API_KEY"
             value = var.alpha_vantage_api_key
@@ -80,7 +73,7 @@ resource "google_cloud_run_service" "service" {
         }
         
         dynamic "env" {
-          for_each = var.polygon_api_key != "" ? [1] : []
+          for_each = var.polygon_api_key != "" ? toset(["1"]) : toset([])
           content {
             name  = "POLYGON_API_KEY"
             value = var.polygon_api_key
@@ -88,7 +81,7 @@ resource "google_cloud_run_service" "service" {
         }
         
         dynamic "env" {
-          for_each = var.fred_api_key != "" ? [1] : []
+          for_each = var.fred_api_key != "" ? toset(["1"]) : toset([])
           content {
             name  = "FRED_API_KEY"
             value = var.fred_api_key
