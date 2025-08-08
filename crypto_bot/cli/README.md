@@ -59,9 +59,14 @@ cli/
 - 結果のCSV出力・可視化
 - 集計レポート生成
 
-### **live.py**
+### **live.py** (Phase 18更新: 2025年8月9日)
 - `live_bitbank_command()` - Bitbankライブ取引
 - 環境変数からのAPI認証情報取得
+- **改善された初期化処理（Phase 18）**:
+  - 初期データキャッシュ優先ロード
+  - Docker環境とローカル環境の両対応
+  - キャッシュパス: `/app/cache/initial_data.pkl` または `cache/initial_data.pkl`
+  - フォールバック: 最小限のAPI取得（200レコード）
 - リアルタイム取引ループ実装
 - エラー処理・リトライ機能
 

@@ -493,28 +493,78 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
     # 口座残高の取得
     balance = get_account_balance(fetcher, cfg)
 
-    # Phase 14.1: INIT-5〜INIT-8を完全スキップ（8時間ゼロトレード問題根本解決）
-    # INIT-PREFETCHも含めて完全削除
-    logger.info(
-        "🚀 [INIT-SKIP] Phase 14.1: Skipping ALL INIT stages including PREFETCH"
-    )
-    logger.info("📊 [INIT-SKIP] Data fetching will be done in main loop only")
-    logger.info("✅ [INIT-SKIP] This resolves the 8-hour zero-trade problem")
+    # 改善版: 初期データキャッシュを優先し、なければ最小限のデータ取得
+    logger.info("🚀 [INIT-5] Starting improved initialization with cache support...")
 
-    # Phase 12.3: ローカル事前計算データチェック
+    # 初期データキャッシュのチェック
+    initial_data = None
+    cache_loaded = False
+
+    # 事前取得した初期データキャッシュをチェック
+    try:
+        import pickle
+        from pathlib import Path
+
+        # Docker内とローカルの両方で動作するようにパスをチェック
+        cache_paths = [
+            Path("/app/cache/initial_data.pkl"),  # Docker内
+            Path("cache/initial_data.pkl"),  # ローカル
+        ]
+
+        for cache_path in cache_paths:
+            if cache_path.exists():
+                logger.info(f"📦 [INIT-CACHE] Loading initial data from {cache_path}")
+                with open(cache_path, "rb") as f:
+                    cache_content = pickle.load(f)
+                    initial_data = cache_content.get("data")
+                    # metadata = cache_content.get("metadata", {})  # 使用されていないためコメントアウト
+
+                if initial_data is not None and not initial_data.empty:
+                    logger.info(
+                        f"✅ [INIT-CACHE] Loaded {len(initial_data)} records from cache"
+                    )
+                    logger.info(
+                        f"📈 [INIT-CACHE] Data range: {initial_data.index.min()} to {initial_data.index.max()}"
+                    )
+                    cache_loaded = True
+
+                    # 戦略に初期データを設定
+                    if hasattr(strategy, "set_initial_data"):
+                        strategy.set_initial_data(initial_data)
+                    break
+
+    except Exception as e:
+        logger.warning(f"⚠️ [INIT-CACHE] Failed to load cache: {e}")
+
+    # キャッシュがない場合は最小限のデータを取得
+    if not cache_loaded:
+        logger.info("📊 [INIT-5] No cache found, fetching minimal initial data...")
+        try:
+            # 最小限の200レコードのみ取得（タイムアウト対策）
+            initial_data = fetch_latest_data(fetcher, dd, symbol)
+            if initial_data is not None and len(initial_data) >= 100:
+                logger.info(
+                    f"✅ [INIT-5] Fetched {len(initial_data)} records successfully"
+                )
+            else:
+                logger.warning(
+                    "⚠️ [INIT-5] Insufficient initial data, will fetch in main loop"
+                )
+        except Exception as e:
+            logger.error(f"❌ [INIT-5] Failed to fetch initial data: {e}")
+            logger.info("🔄 [INIT-5] Will retry in main loop")
+
+    # Phase 12.3: PreComputedCacheもチェック（フォールバック）
     cache = PreComputedCache()
-
-    if cache.has_valid_cache():
-        logger.info("📦 [INIT-CACHE] Loading pre-computed data from cache...")
+    if not cache_loaded and cache.has_valid_cache():
+        logger.info("📦 [INIT-CACHE] Loading from PreComputedCache as fallback...")
         cache_data = cache.load_all()
-        logger.info(
-            f"✅ [INIT-CACHE] Loaded: market_data={len(cache_data.get('market_data', []))} records"
-        )
-        # キャッシュデータを戦略に設定（オプション）
-        if hasattr(strategy, "set_cached_data"):
-            strategy.set_cached_data(cache_data)
-    else:
-        logger.info("📊 [INIT-CACHE] No valid cache found, will compute on demand")
+        if cache_data:
+            logger.info(
+                f"✅ [INIT-CACHE] Loaded: {len(cache_data.get('market_data', []))} records"
+            )
+            if hasattr(strategy, "set_cached_data"):
+                strategy.set_cached_data(cache_data)
 
     # 最小限の初期化のみ実行
     entry_exit = EntryExit(cfg, fetcher, risk_manager)

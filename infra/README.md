@@ -77,7 +77,7 @@ module "gke" {
 
 ### `/modules` - 再利用可能モジュール
 
-#### **`crypto_bot_app/` - メインアプリケーション**
+#### **`crypto_bot_app/` - メインアプリケーション** (Phase 18更新: 2025年8月9日)
 ```terraform
 # Cloud Run service + 環境設定
 resource "google_cloud_run_service" "service" {
@@ -85,6 +85,15 @@ resource "google_cloud_run_service" "service" {
   location = var.region
   
   template {
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale" = "5"
+        "run.googleapis.com/cpu-throttling" = "false"
+        "run.googleapis.com/execution-environment" = "gen2"
+      }
+      # Phase 18: リビジョン名自動生成（競合回避）
+      # name = "${var.service_name}-${substr(replace(var.image_tag, ":", ""), 0, 6)}"
+    }
     spec {
       containers {
         image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"

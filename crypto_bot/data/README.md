@@ -63,11 +63,15 @@ data/
 - 認証・レート制限管理
 - エラーハンドリング・リトライ実装（588行）
 
-### **fetching/data_processor.py**  
+### **fetching/data_processor.py** (Phase 18更新: 2025年8月9日)
 - `DataProcessor`クラス - 基本データ処理
 - `DataPreprocessor`クラス - 高度前処理
 - 重複除去・欠損値補完・外れ値処理
 - タイムスタンプ正規化（444行）
+- **Phase 18改善**:
+  - タイムスタンプ検証強化（未来・過去の異常値修正）
+  - Bitbank API制限対応（72時間以内制限）
+  - timeframe別の取得間隔調整（15m/1h/4h対応）
 
 ### **fetching/oi_fetcher.py**
 - `OIDataFetcher`クラス - オープンインタレスト取得

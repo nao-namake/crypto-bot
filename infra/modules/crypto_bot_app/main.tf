@@ -23,8 +23,8 @@ resource "google_cloud_run_service" "service" {
         "run.googleapis.com/cpu-throttling" = "false"
         "run.googleapis.com/execution-environment" = "gen2"
       }
-      # リビジョン競合を回避するため、タイムスタンプを含むサフィックスを生成
-      name = "${var.service_name}-${substr(replace(var.image_tag, ":", ""), 0, 6)}"
+      # リビジョン競合を回避するため、自動生成させる（nameを指定しない）
+      # name = "${var.service_name}-${substr(replace(var.image_tag, ":", ""), 0, 6)}"
     }
     spec {
       containers {

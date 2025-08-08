@@ -39,16 +39,28 @@ scripts/
 - `unified_ensemble_system.py` - 統合アンサンブルシステム
   - A/Bテスト・統計検証・統合計画・デモ実行
 
-### **システム管理**
+### **システム管理** (Phase 18更新: 2025年8月9日)
 - `system_health_check.py` - システム健全性チェック
 - `diagnose_cloud_run_apis.py` - Cloud Run API診断
 - `gcp_revision_manager.py` - GCPリビジョン管理
 - `pre_compute_data.py` - 事前計算データ生成
+- **`prepare_initial_data.py`** - 初期データ事前取得（Phase 18新規）
+  - 72時間分のOHLCVデータ取得
+  - 97特徴量事前計算
+  - `cache/initial_data.pkl` として保存
+- **`create_minimal_cache.py`** - 最小限キャッシュ作成（Phase 18新規）
+  - デプロイ用の空キャッシュ生成
+  - CI/CD時のフォールバック用
 
-### **デプロイメント・環境管理**
+### **デプロイメント・環境管理** (Phase 18更新: 2025年8月9日)
 - `verify_github_secrets.sh` - GitHub Secrets設定確認・CI/CDトラブルシューティング
 - `setup_gcp_secrets.sh` - GCP Secret Manager設定（オプション）
 - `cleanup_cloud_run_revisions.sh` - Cloud Runリビジョン競合解決
+- **`deploy_with_initial_data.sh`** - 初期データ付きデプロイ（Phase 18新規）
+  - 初期データキャッシュ準備
+  - Dockerビルド・テスト
+  - Git commit/push
+  - CI/CD自動トリガー
 
 ### **開発ツール**
 - `auto_push.sh` - 自動Git push（整形・テスト・プッシュ）

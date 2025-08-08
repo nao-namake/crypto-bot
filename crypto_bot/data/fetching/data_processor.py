@@ -418,6 +418,28 @@ class DataProcessor:
             )
 
             try:
+                # タイムスタンプが未来になっていないか確認
+                current_ms = int(time.time() * 1000)
+                if last_since and last_since > current_ms:
+                    logger.warning(
+                        f"⚠️ [TIMESTAMP] Future timestamp detected: {last_since} > {current_ms}"
+                    )
+                    last_since = current_ms - (
+                        96 * 60 * 60 * 1000
+                    )  # 96時間前にリセット
+                    logger.info(f"🔧 [TIMESTAMP] Reset to: {last_since}")
+
+                # Bitbank API制限内に収める（72時間以内）
+                if last_since:
+                    max_age_ms = 72 * 60 * 60 * 1000  # 72時間
+                    min_since = current_ms - max_age_ms
+                    if last_since < min_since:
+                        logger.warning(
+                            f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
+                        )
+                        last_since = min_since
+                        logger.info(f"🔧 [TIMESTAMP] Adjusted to: {last_since}")
+
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page
                 )
@@ -485,9 +507,19 @@ class DataProcessor:
                     consecutive_no_new = 0
                     records.extend(batch)
 
-                    # 次の取得開始点を更新
+                    # 次の取得開始点を更新（timeframeに応じて調整）
                     if batch:
-                        last_since = int(batch[-1][0] + (60 * 60 * 1000))  # 1時間進める
+                        # timeframeに応じた間隔を設定
+                        if timeframe == "15m":
+                            interval_ms = 15 * 60 * 1000  # 15分
+                        elif timeframe == "1h":
+                            interval_ms = 60 * 60 * 1000  # 1時間
+                        elif timeframe == "4h":
+                            interval_ms = 4 * 60 * 60 * 1000  # 4時間
+                        else:
+                            interval_ms = 60 * 60 * 1000  # デフォルト1時間
+
+                        last_since = int(batch[-1][0] + interval_ms)
 
                 # Phase 12.2: 部分データ保存（タイムアウト時の救済用）
                 self.client_obj._last_partial_records = records.copy()

@@ -39,13 +39,13 @@ data:
   max_delay_ms: 45000
   min_delay_ms: 30000
   multi_timeframe_data:
-    base_timeframe: 15m  # Phase 16.1-C修正: 400レコード取得のため15分足をベースに変更
+    base_timeframe: 1h  # 1時間足をベースに統一（データ取得の安定性向上）
     target_timeframes:
       15m:
-        method: direct  # 15分足を直接取得
+        method: interpolation  # 1時間足から15分足を補間生成
         min_points: 5
       1h:
-        method: aggregation  # 15分足から1時間足を生成
+        method: direct  # 1時間足を直接取得（ベース）
         min_points: 5
       4h:
         api_fetch: false
@@ -53,11 +53,11 @@ data:
         min_points: 3
   paginate: true
   per_page: 200
-  since_hours: 71  # Phase 16.1-C修正: 72時間制限内で最大化（71時間×4=284レコード）
+  since_hours: 96  # Bitbank API制限内で最大化（96時間 = 4日分）
   symbol: BTC/JPY
   timeframe: 1h
   weekend_data: true
-  weekend_extension_hours: 120  # Phase 16.1-C修正: 週末拡張で400レコード確保（基本71h+拡張120h=191h×4=764レコード）
+  weekend_extension_hours: 72  # 週末拡張（3日分追加）
 dynamic_data_fetching:
   asia_market_reduction: 12
   enabled: true
@@ -96,9 +96,9 @@ logging:
   retention: 7
   rotation: daily
 ml:
-  confidence_threshold: 0.25
+  confidence_threshold: 0.35
   ensemble:
-    confidence_threshold: 0.25
+    confidence_threshold: 0.35
     enabled: true
     method: trading_stacking
     model_weights:
@@ -261,7 +261,7 @@ risk:
   risk_per_trade: 0.01
   stop_atr_mult: 1.2
 strategy:
-  confidence_threshold: 0.25
+  confidence_threshold: 0.35
   name: multi_timeframe_ensemble
   params:
     atr_multiplier: 0.7

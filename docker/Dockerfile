@@ -23,6 +23,14 @@ COPY crypto_bot/ /app/crypto_bot/
 COPY config/production/ /app/config/production/
 COPY config/core/feature_order.json /app/feature_order.json
 COPY models/production/ /app/models/production/
+
+# 初期データキャッシュをコンテナに含める
+# キャッシュディレクトリを作成
+RUN mkdir -p /app/cache
+# キャッシュファイルをコピー（ビルド時にcache/ディレクトリが存在する前提）
+# 存在しない場合はビルド前にscripts/prepare_initial_data.pyを実行すること
+COPY cache/ /app/cache/
+
 COPY docker/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
