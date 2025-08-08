@@ -33,6 +33,8 @@ module "app" {
   polygon_api_key      = var.polygon_api_key
   fred_api_key         = var.fred_api_key
   feature_mode         = var.feature_mode
+  create_secrets       = true  # Secret Manager秘密を作成
+  project_number       = var.project_number
 }
 
 module "monitoring" {

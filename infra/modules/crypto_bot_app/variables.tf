@@ -91,3 +91,18 @@ variable "feature_mode" {
     error_message = "feature_mode must be either 'lite' or 'full'."
   }
 }
+
+# --------------------------------------------------
+# Secret Manager configuration
+# --------------------------------------------------
+variable "create_secrets" {
+  type        = bool
+  description = "Whether to create Secret Manager secrets (set to true for first deployment)"
+  default     = false
+}
+
+variable "project_number" {
+  type        = string
+  description = "GCP project number (for service account references)"
+  default     = ""
+}

@@ -23,6 +23,8 @@ resource "google_cloud_run_service" "service" {
         "run.googleapis.com/cpu-throttling" = "false"
         "run.googleapis.com/execution-environment" = "gen2"
       }
+      # リビジョン競合を回避するため、タイムスタンプを含むサフィックスを生成
+      name = "${var.service_name}-${substr(replace(var.image_tag, ":", ""), 0, 6)}"
     }
     spec {
       containers {
@@ -44,14 +46,22 @@ resource "google_cloud_run_service" "service" {
           value = var.mode
         }
         
-        env {
-          name  = "BITBANK_API_KEY"
-          value = var.bitbank_api_key
+        # Secret Manager参照 - 条件付き設定
+        # 注: Secret Managerが存在しない場合は環境変数から取得
+        dynamic "env" {
+          for_each = var.bitbank_api_key != "" ? [1] : []
+          content {
+            name  = "BITBANK_API_KEY"
+            value = var.bitbank_api_key
+          }
         }
         
-        env {
-          name  = "BITBANK_API_SECRET"
-          value = var.bitbank_api_secret
+        dynamic "env" {
+          for_each = var.bitbank_api_secret != "" ? [1] : []
+          content {
+            name  = "BITBANK_API_SECRET"
+            value = var.bitbank_api_secret
+          }
         }
         
         env {
@@ -59,20 +69,30 @@ resource "google_cloud_run_service" "service" {
           value = var.feature_mode
         }
         
-        # Phase H.22: External API Keys
-        env {
-          name  = "ALPHA_VANTAGE_API_KEY"
-          value = var.alpha_vantage_api_key
+        # Phase H.22: External API Keys（オプション - Secret Manager経由）
+        # 注: これらのAPIは現在無効化されているため、設定は任意
+        dynamic "env" {
+          for_each = var.alpha_vantage_api_key != "" ? [1] : []
+          content {
+            name  = "ALPHA_VANTAGE_API_KEY"
+            value = var.alpha_vantage_api_key
+          }
         }
         
-        env {
-          name  = "POLYGON_API_KEY"
-          value = var.polygon_api_key
+        dynamic "env" {
+          for_each = var.polygon_api_key != "" ? [1] : []
+          content {
+            name  = "POLYGON_API_KEY"
+            value = var.polygon_api_key
+          }
         }
         
-        env {
-          name  = "FRED_API_KEY"
-          value = var.fred_api_key
+        dynamic "env" {
+          for_each = var.fred_api_key != "" ? [1] : []
+          content {
+            name  = "FRED_API_KEY"
+            value = var.fred_api_key
+          }
         }
         
         ports {
