@@ -7,9 +7,9 @@
 ## 📁 ディレクトリ構造
 
 ### 🐳 **Docker コアファイル**
-- **`Dockerfile`**: 本番用軽量コンテナ定義・Phase 12.5 Environment Parity対応
-- **`.dockerignore`**: 軽量ビルドコンテキスト・Container Import Failed対策・超軽量化設定
+- **`Dockerfile`**: 本番用軽量コンテナ定義・Phase 18 cache/ディレクトリ対応
 - **`docker-entrypoint.sh`**: Phase H.28統合エントリポイント・ライブトレード+APIサーバー統合制御
+- **注**: `.dockerignore`はプロジェクトルートに移動（Phase 18修正）
 
 ### 🛠️ **Docker 運用スクリプト**
 - **`build_docker.sh`**: Dockerイメージビルド自動化・crypto-bot:latest生成
@@ -174,6 +174,12 @@ docker build -t crypto-bot:latest .  # ビルドコンテキストエラー
 - **依存関係検証**: Phase 12.5環境パリティ検証自動実行
 
 ## 📋 **更新履歴**
+
+- **2025-08-09**: Phase 18 CI/CD修正・cache/ディレクトリ対応
+  - CI環境でのcache/ディレクトリ自動作成対応
+  - .dockerignoreプロジェクトルート移動（docker/から移動）
+  - Dockerfile改善：cache/ディレクトリ適切な処理
+  - CI/CDワークフロー更新：Docker build前のキャッシュ準備
 
 - **2025-08-06**: Docker統合ディレクトリ構築・Phase 12.5完全対応
   - 全Docker関連ファイル統合（6ファイル）・README.md新設
