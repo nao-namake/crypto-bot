@@ -23,9 +23,9 @@
 
 ### `/workflows` - GitHub Actions CI/CDパイプライン
 
-#### **`ci.yml` - メインCI/CDパイプライン**
+#### **`ci.yml` - メインCI/CDパイプライン (2025年8月10日更新)**
 ```yaml
-# Phase 14 CI/CD統合システム
+# CI/CD統合システム
 name: CI
 on:
   push:
@@ -37,12 +37,23 @@ jobs:
   # 品質保証・テスト
   test:
     - Cache pip dependencies          # requirements/フォルダ対応
-    - Install Phase 12.5 dependencies # 統一依存関係管理
+    - Install dependencies            # 統一依存関係管理
     - Run quality checks & tests      # scripts/checks.sh実行
-    - Generate pre-computed cache     # Phase 12.3事前計算
+    - Generate pre-computed cache     # 事前計算キャッシュ
+    - Prepare model files for CI      # モデルファイル準備
+    - Create CI cache directory       # 初期データキャッシュ作成
     - Validate production environment # 本番環境依存関係検証
     - Test production Docker build    # Environment Parity検証
     - Upload coverage to Codecov      # 品質指標追跡
+
+  # 本番デプロイ（mainブランチ）
+  terraform-deploy-prod:
+    - Prepare Production Data Cache   # 本番用データキャッシュ準備
+    - Terraform deployment            # インフラデプロイ
+    - Verify Production Deployment    # デプロイ後の自動検証
+      * Health check                 # ヘルスチェック
+      * Error log monitoring         # エラーログ監視
+      * Main loop verification       # メインループ動作確認
 ```
 
 #### **CI/CDフロー詳細**

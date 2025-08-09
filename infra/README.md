@@ -110,16 +110,15 @@ bitbank_api_key        = ""
 bitbank_api_secret     = ""
 ```
 
-#### **本番環境（prod/terraform.tfvars）**
+#### **本番環境（prod/terraform.tfvars）** (2025年8月10日更新)
 ```hcl
 project_id     = "my-crypto-bot-project"
 region         = "asia-northeast1"
 service_name   = "crypto-bot-service-prod"
 mode           = "live"
-# Phase 19+: static env vars - GitHub Secretsから確実設定
-# ローカル検証用ダミー値（CI/CDで実際値に上書き）
-bitbank_api_key        = "dummy_key_for_local_validation"
-bitbank_api_secret     = "dummy_secret_for_local_validation"
+# API認証情報はCI/CDのGitHub Secretsから取得
+# terraform.tfvarsで値を設定するとCI/CDの環境変数を上書きしてしまうため削除
+# bitbank_api_key と bitbank_api_secret はCI/CD時に自動設定
 ```
 
 ## 🔒 Phase 19+セキュリティ強化・高速化対応
@@ -237,14 +236,20 @@ mainブランチへのプッシュで本番環境、developブランチで開発
 
 ---
 
-## 🎊 **Phase 19+ CI/CD高速化完全達成**
+## 🎊 **CI/CD完全修正・Bot取引問題解決**
 
 ### **最新の達成実績（2025年8月10日）**
-- ✅ **Terraform処理時間**: 10分+α → 5分以内達成
-- ✅ **FEATURE_MODE完全削除**: 97特徴量固定により不要設定除去
-- ✅ **古いリビジョンクリーンアップ**: 14個→2個（競合解消）
-- ✅ **ローカル検証実績**: 9秒デプロイ成功・ヘルスチェック200 OK
-- ✅ **CI/CD最適化**: コミット58318042でGitHub Actions実行中
+- ✅ **8つの隠れたエラー修正完了**:
+  - API認証失敗（ダミー値問題）解決
+  - モデルファイル未発見問題解決
+  - タイムスタンプ異常ループ修正
+  - INIT-5ブロック問題解決
+  - インスタンス切り替え問題解決
+  - キャッシュロード失敗対応
+  - ポート競合解決
+  - データ取得非効率改善
+- ✅ **CI/CD YAML構文エラー修正**: インラインPythonコードを外部スクリプト化
+- ✅ **terraform.tfvars最適化**: ダミー値削除でGitHub Secrets優先
 
 ### **技術仕様確定**
 - **Terraformタイムアウト**: create/update/delete = 5m
