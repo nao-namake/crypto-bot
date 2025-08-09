@@ -418,27 +418,34 @@ class DataProcessor:
             )
 
             try:
-                # タイムスタンプが未来になっていないか確認
+                # タイムスタンプ検証と調整（修正版）
                 current_ms = int(time.time() * 1000)
-                if last_since and last_since > current_ms:
+                
+                # 初回の場合、安全なデフォルト値を設定
+                if last_since is None:
+                    # 24時間前から開始（安全な範囲）
+                    last_since = current_ms - (24 * 60 * 60 * 1000)
+                    logger.info(f"🔧 [TIMESTAMP] Initial timestamp set to 24h ago: {last_since}")
+                
+                # 未来のタイムスタンプチェック
+                elif last_since > current_ms:
                     logger.warning(
                         f"⚠️ [TIMESTAMP] Future timestamp detected: {last_since} > {current_ms}"
                     )
-                    last_since = current_ms - (
-                        96 * 60 * 60 * 1000
-                    )  # 96時間前にリセット
-                    logger.info(f"🔧 [TIMESTAMP] Reset to: {last_since}")
-
-                # Bitbank API制限内に収める（72時間以内）
-                if last_since:
-                    max_age_ms = 72 * 60 * 60 * 1000  # 72時間
+                    # 24時間前に安全にリセット
+                    last_since = current_ms - (24 * 60 * 60 * 1000)
+                    logger.info(f"🔧 [TIMESTAMP] Reset to 24h ago: {last_since}")
+                
+                # Bitbank API制限チェック（48時間以内に短縮）
+                else:
+                    max_age_ms = 48 * 60 * 60 * 1000  # 48時間（より安全な範囲）
                     min_since = current_ms - max_age_ms
                     if last_since < min_since:
                         logger.warning(
                             f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
                         )
                         last_since = min_since
-                        logger.info(f"🔧 [TIMESTAMP] Adjusted to: {last_since}")
+                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 48h ago: {last_since}")
 
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page
@@ -519,7 +526,16 @@ class DataProcessor:
                         else:
                             interval_ms = 60 * 60 * 1000  # デフォルト1時間
 
-                        last_since = int(batch[-1][0] + interval_ms)
+                        # 次のタイムスタンプを計算（安全性チェック付き）
+                        next_ts = int(batch[-1][0] + interval_ms)
+                        
+                        # 未来のタイムスタンプを防ぐ
+                        current_ms = int(time.time() * 1000)
+                        if next_ts > current_ms:
+                            logger.warning(f"⚠️ [TIMESTAMP] Next timestamp would be in future, using current time")
+                            last_since = current_ms
+                        else:
+                            last_since = next_ts
 
                 # Phase 12.2: 部分データ保存（タイムアウト時の救済用）
                 self.client_obj._last_partial_records = records.copy()

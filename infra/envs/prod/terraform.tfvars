@@ -11,6 +11,5 @@ mode                   = "live"                            # Bitbank実資金運
 # 重要: このファイルの設定はCI/CDのTF_VAR_modeより優先度が高い
 # 本番運用では必ず"live"にする
 
-# ローカル検証用ダミー値（CI/CDでは GitHub Secrets から上書きされる）
-bitbank_api_key        = "dummy_key_for_local_validation"
-bitbank_api_secret     = "dummy_secret_for_local_validation"
+# API認証情報はCI/CDのGitHub Secretsから取得
+# terraform.tfvarsで値を設定するとCI/CDの環境変数を上書きしてしまうため削除

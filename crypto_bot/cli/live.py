@@ -493,78 +493,35 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
     # 口座残高の取得
     balance = get_account_balance(fetcher, cfg)
 
-    # 改善版: 初期データキャッシュを優先し、なければ最小限のデータ取得
-    logger.info("🚀 [INIT-5] Starting improved initialization with cache support...")
-
-    # 初期データキャッシュのチェック
-    initial_data = None
-    cache_loaded = False
-
-    # 事前取得した初期データキャッシュをチェック
+    # 簡素化: 初期データキャッシュのみチェック、なければメインループで取得
+    logger.info("🚀 [INIT-COMPLETE] Initialization complete, starting main loop...")
+    
+    # キャッシュが存在する場合のみロード（オプション）
     try:
         import pickle
         from pathlib import Path
-
-        # Docker内とローカルの両方で動作するようにパスをチェック
+        
         cache_paths = [
             Path("/app/cache/initial_data.pkl"),  # Docker内
             Path("cache/initial_data.pkl"),  # ローカル
         ]
-
+        
         for cache_path in cache_paths:
             if cache_path.exists():
-                logger.info(f"📦 [INIT-CACHE] Loading initial data from {cache_path}")
-                with open(cache_path, "rb") as f:
-                    cache_content = pickle.load(f)
-                    initial_data = cache_content.get("data")
-                    # metadata = cache_content.get("metadata", {})  # 使用されていないためコメントアウト
-
-                if initial_data is not None and not initial_data.empty:
-                    logger.info(
-                        f"✅ [INIT-CACHE] Loaded {len(initial_data)} records from cache"
-                    )
-                    logger.info(
-                        f"📈 [INIT-CACHE] Data range: {initial_data.index.min()} to {initial_data.index.max()}"
-                    )
-                    cache_loaded = True
-
-                    # 戦略に初期データを設定
-                    if hasattr(strategy, "set_initial_data"):
-                        strategy.set_initial_data(initial_data)
-                    break
-
-    except Exception as e:
-        logger.warning(f"⚠️ [INIT-CACHE] Failed to load cache: {e}")
-
-    # キャッシュがない場合は最小限のデータを取得
-    if not cache_loaded:
-        logger.info("📊 [INIT-5] No cache found, fetching minimal initial data...")
-        try:
-            # 最小限の200レコードのみ取得（タイムアウト対策）
-            initial_data = fetch_latest_data(fetcher, dd, symbol)
-            if initial_data is not None and len(initial_data) >= 100:
-                logger.info(
-                    f"✅ [INIT-5] Fetched {len(initial_data)} records successfully"
-                )
-            else:
-                logger.warning(
-                    "⚠️ [INIT-5] Insufficient initial data, will fetch in main loop"
-                )
-        except Exception as e:
-            logger.error(f"❌ [INIT-5] Failed to fetch initial data: {e}")
-            logger.info("🔄 [INIT-5] Will retry in main loop")
-
-    # Phase 12.3: PreComputedCacheもチェック（フォールバック）
-    cache = PreComputedCache()
-    if not cache_loaded and cache.has_valid_cache():
-        logger.info("📦 [INIT-CACHE] Loading from PreComputedCache as fallback...")
-        cache_data = cache.load_all()
-        if cache_data:
-            logger.info(
-                f"✅ [INIT-CACHE] Loaded: {len(cache_data.get('market_data', []))} records"
-            )
-            if hasattr(strategy, "set_cached_data"):
-                strategy.set_cached_data(cache_data)
+                logger.info(f"📦 [CACHE] Found initial data cache at {cache_path}")
+                try:
+                    with open(cache_path, "rb") as f:
+                        cache_content = pickle.load(f)
+                        initial_data = cache_content.get("data")
+                        if initial_data is not None and not initial_data.empty:
+                            logger.info(f"✅ [CACHE] Loaded {len(initial_data)} records")
+                            if hasattr(strategy, "set_initial_data"):
+                                strategy.set_initial_data(initial_data)
+                            break
+                except Exception as e:
+                    logger.warning(f"⚠️ [CACHE] Could not load cache: {e}")
+    except Exception:
+        pass  # キャッシュロード失敗は無視してメインループで処理
 
     # 最小限の初期化のみ実行
     entry_exit = EntryExit(cfg, fetcher, risk_manager)
@@ -600,64 +557,8 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
     else:
         logger.info("ℹ️ [INIT-VERIFY] Strategy does not use ensemble models")
 
-    # Phase 8統計システム初期化（通常モードのみ）
+    # 統計システムは削除 - メインループで必要に応じて処理
     integration_service = None
-    if not simple:
-        logger.info("📊 [INIT-10] Initializing Phase 8 Statistics System...")
-        logger.info(f"⏰ [INIT-10] Timestamp: {pd.Timestamp.now()}")
-
-        try:
-            # TradingIntegrationService初期化（Cloud Run環境統一）
-            integration_service = TradingIntegrationService(
-                base_dir="/app",
-                initial_balance=balance,  # Phase G.2.4.1: Cloud Run環境パス統一
-            )
-
-            # MLStrategyとの統合
-            integration_service.integrate_with_ml_strategy(strategy)
-            logger.info(
-                "✅ [INIT-9] Phase 8 Statistics System initialized successfully"
-            )
-
-        except Exception as e:
-            logger.warning(f"⚠️ [INIT-9] Statistics System initialization failed: {e}")
-            logger.info(
-                "🔄 [INIT-9] Continuing with basic status.json fallback system..."
-            )
-
-            # Phase G.2.4.2: フォールバック - 基本的なstatus.json作成
-            try:
-                import json
-
-                basic_status = {
-                    "last_updated": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "system_status": "running",
-                    "total_profit": 0.0,
-                    "trade_count": 0,
-                    "position": "No active position",
-                    "status": "Statistics system fallback active",
-                }
-                with open("/app/status.json", "w", encoding="utf-8") as f:
-                    json.dump(basic_status, f, indent=2, ensure_ascii=False)
-                logger.info(
-                    "✅ [INIT-9] Basic status.json created successfully (fallback mode)"
-                )
-            except Exception as fallback_error:
-                logger.error(
-                    f"❌ [INIT-9] Fallback status.json creation failed: {fallback_error}"
-                )
-                logger.info("🔄 [INIT-9] Continuing without status file (minimal mode)")
-
-            integration_service = None  # フォールバックモードではNone
-    else:
-        logger.info("📊 [SIMPLE-INIT] Skipping statistics system (simple mode)")
-
-    # 初期化状況を更新（通常モードのみ）
-    if not simple:
-        try:
-            update_init_status("statistics", "statistics_system")
-        except Exception:
-            pass
 
     trade_done = 0
     complete_prefix = "[SIMPLE-COMPLETE]" if simple else "[INIT-COMPLETE]"
