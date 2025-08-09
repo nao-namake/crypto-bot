@@ -25,7 +25,7 @@
 
 #### **`ci.yml` - メインCI/CDパイプライン (2025年8月10日更新)**
 ```yaml
-# CI/CD統合システム
+# CI/CD統合システム - YAML構文エラー修正済み
 name: CI
 on:
   push:
@@ -40,20 +40,24 @@ jobs:
     - Install dependencies            # 統一依存関係管理
     - Run quality checks & tests      # scripts/checks.sh実行
     - Generate pre-computed cache     # 事前計算キャッシュ
-    - Prepare model files for CI      # モデルファイル準備
-    - Create CI cache directory       # 初期データキャッシュ作成
+    - Prepare model files for CI      # scripts/create_ci_model.py使用
+    - Create CI cache directory       # scripts/create_minimal_cache.py使用
     - Validate production environment # 本番環境依存関係検証
     - Test production Docker build    # Environment Parity検証
     - Upload coverage to Codecov      # 品質指標追跡
 
   # 本番デプロイ（mainブランチ）
   terraform-deploy-prod:
-    - Prepare Production Data Cache   # 本番用データキャッシュ準備
-    - Terraform deployment            # インフラデプロイ
+    - Prepare Production Data Cache   # scripts/prepare_initial_data.py使用
+    - Terraform deployment            # インフラデプロイ（API認証修正済み）
     - Verify Production Deployment    # デプロイ後の自動検証
       * Health check                 # ヘルスチェック
       * Error log monitoring         # エラーログ監視
       * Main loop verification       # メインループ動作確認
+
+# 修正ポイント：
+# - インラインPythonコードを外部スクリプト化（YAML構文エラー解決）
+# - terraform.tfvarsのダミー値削除（GitHub Secrets優先）
 ```
 
 #### **CI/CDフロー詳細**

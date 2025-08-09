@@ -18,8 +18,6 @@ from crypto_bot.execution.factory import create_exchange_client
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.strategy.factory import StrategyFactory
 from crypto_bot.utils.config import load_config
-from crypto_bot.utils.pre_computed_cache import PreComputedCache
-from crypto_bot.utils.trading_integration_service import TradingIntegrationService
 
 logger = logging.getLogger(__name__)
 
@@ -495,17 +493,17 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
 
     # 簡素化: 初期データキャッシュのみチェック、なければメインループで取得
     logger.info("🚀 [INIT-COMPLETE] Initialization complete, starting main loop...")
-    
+
     # キャッシュが存在する場合のみロード（オプション）
     try:
         import pickle
         from pathlib import Path
-        
+
         cache_paths = [
             Path("/app/cache/initial_data.pkl"),  # Docker内
             Path("cache/initial_data.pkl"),  # ローカル
         ]
-        
+
         for cache_path in cache_paths:
             if cache_path.exists():
                 logger.info(f"📦 [CACHE] Found initial data cache at {cache_path}")
@@ -514,7 +512,9 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                         cache_content = pickle.load(f)
                         initial_data = cache_content.get("data")
                         if initial_data is not None and not initial_data.empty:
-                            logger.info(f"✅ [CACHE] Loaded {len(initial_data)} records")
+                            logger.info(
+                                f"✅ [CACHE] Loaded {len(initial_data)} records"
+                            )
                             if hasattr(strategy, "set_initial_data"):
                                 strategy.set_initial_data(initial_data)
                             break

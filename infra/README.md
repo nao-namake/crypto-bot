@@ -129,10 +129,11 @@ mode           = "live"
 - **Provider Version非依存**: Google Provider v5.x/v6.x問わず安定動作
 - **確実性重視**: 空文字列でも正常動作、エラー要因除去
 
-### **APIキー管理**
+### **APIキー管理（2025年8月10日更新）**
 - **開発環境**: APIキー不要（Paper Mode）
-- **本番環境**: GitHub Secretsで管理
+- **本番環境**: GitHub Secretsのみで管理（terraform.tfvarsにダミー値を設定しない）
 - **ローカル**: .envファイルで管理（.gitignore必須）
+- **重要**: terraform.tfvarsにAPI認証情報を設定するとCI/CDの環境変数を上書きしてしまうため削除
 
 ### **認証**
 - **Workload Identity Federation**: キーファイルレスでGCPにアクセス
@@ -177,6 +178,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 #### **APIキーエラー（本番環境）**
 - GitHub Secretsに`BITBANK_API_KEY`と`BITBANK_API_SECRET`が設定されているか確認
 - CI/CDワークフローでこれらのシークレットが正しく参照されているか確認
+- **重要**: `infra/envs/prod/terraform.tfvars`にダミー値を設定しないこと（CI/CD環境変数を上書きしてしまう）
 
 ## 📝 メンテナンス
 

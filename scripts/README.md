@@ -49,10 +49,15 @@ scripts/
   - 97特徴量事前計算
   - `cache/initial_data.pkl` として保存
   - 本番デプロイ前に実行推奨
-- **`create_minimal_cache.py`** - 最小限キャッシュ作成（更新）
+- **`create_minimal_cache.py`** - 最小限キャッシュ作成（CI/CD対応）
   - CI環境用の72時間ダミーデータ生成
   - リアリスティックなBTC/JPY価格データ
   - API認証不要のフォールバック
+  - CI/CDパイプラインで使用
+- **`create_ci_model.py`** - CI用モデルファイル作成（新規追加）
+  - TradingEnsembleClassifier形式のダミーモデル
+  - 97特徴量対応
+  - CI/CDでのモデルファイル不在エラー解決
 
 ### **デプロイメント・環境管理** (2025年8月10日更新)
 - `verify_github_secrets.sh` - GitHub Secrets設定確認・CI/CDトラブルシューティング
@@ -186,6 +191,21 @@ bash scripts/utilities/check_gcp_env.sh
 3. 一時的なデバッグスクリプトは作成後削除
 4. README.mdの更新を忘れずに
 
+### **CI/CD関連スクリプト使用例**
+```bash
+# CI用モデル作成（ローカルテスト）
+python scripts/create_ci_model.py
+
+# CI用キャッシュ作成（ローカルテスト）
+python scripts/create_minimal_cache.py
+
+# 本番用初期データ準備
+export BITBANK_API_KEY="your-api-key"
+export BITBANK_API_SECRET="your-api-secret"
+python scripts/prepare_initial_data.py
+```
+
 ---
 
 *Scripts構造は2025年8月7日に大規模整理・最適化されました*
+*2025年8月10日：CI/CD対応スクリプト追加*
