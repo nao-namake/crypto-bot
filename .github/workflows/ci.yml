@@ -326,10 +326,6 @@ jobs:
             https://www.googleapis.com/auth/devstorage.read_write
             https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-
       - name: Set up gcloud for Development
         uses: google-github-actions/setup-gcloud@v2
 
@@ -399,9 +395,6 @@ jobs:
             https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
 
       - name: Set up gcloud for Production
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Set up gcloud for Production Deploy
         uses: google-github-actions/setup-gcloud@v2
 
       # ---------- Terraform ----------
