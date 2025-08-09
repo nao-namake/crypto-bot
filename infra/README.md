@@ -112,7 +112,6 @@ project_id     = "my-crypto-bot-project"
 region         = "asia-northeast1"
 service_name   = "crypto-bot-service-prod"
 mode           = "live"
-feature_mode   = "full"
 # Bitbank APIキーはGitHub Secretsから取得
 ```
 

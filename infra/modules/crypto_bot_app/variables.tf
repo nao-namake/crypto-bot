@@ -59,18 +59,7 @@ variable "bitbank_api_secret" {
 
 # External API Keys は Phase 3 で完全に削除されたため、設定不要
 
-# --------------------------------------------------
-# Feature Mode (lite/full) for system optimization  
-# --------------------------------------------------
-variable "feature_mode" {
-  type        = string
-  description = "特徴量モード: lite (3特徴量・高速) または full (126特徴量・完全版)"
-  default     = "lite"
-  validation {
-    condition     = contains(["lite", "full"], var.feature_mode)
-    error_message = "feature_mode must be either 'lite' or 'full'."
-  }
-}
+# 97特徴量固定のため、feature_mode変数は削除
 
 # --------------------------------------------------
 # Resource configuration for Cloud Run

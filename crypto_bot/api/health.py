@@ -849,7 +849,7 @@ async def initialization_status():
                 "errors": (
                     INIT_STATUS["errors"][-5:] if INIT_STATUS["errors"] else []
                 ),  # 最新5件のエラー
-                "feature_mode": os.getenv("FEATURE_MODE", "full"),
+                "feature_count": 97,  # 97特徴量固定
             },
             status_code=status_code,
         )

@@ -71,10 +71,7 @@ resource "google_cloud_run_service" "service" {
           }
         }
         
-        env {
-          name  = "FEATURE_MODE"
-          value = var.feature_mode
-        }
+        # 97特徴量固定のため、FEATURE_MODE環境変数は削除
         
         ports {
           container_port = 8080

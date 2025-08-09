@@ -8,6 +8,5 @@ project_number         = "11445303925"                     # gcloud projects des
 github_repo            = "nao-namake/crypto-bot"
 deployer_sa            = "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
 mode                   = "live"                            # Bitbank実資金運用モード
-feature_mode           = "full"                            # 97特徴量完全版
 # 重要: このファイルの設定はCI/CDのTF_VAR_modeより優先度が高い
 # 本番運用では必ず"live"にする

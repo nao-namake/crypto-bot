@@ -304,7 +304,6 @@ jobs:
       # Paper modeには実際のAPIキーは不要なので空文字列を設定
       TF_VAR_bitbank_api_key: ""
       TF_VAR_bitbank_api_secret: ""
-      TF_VAR_feature_mode: "lite"  # dev環境では軽量版
 
       # ----- Terraform variables -----
       TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -382,7 +381,6 @@ jobs:
       TF_VAR_image_tag: "${{ github.sha }}"
       TF_VAR_bitbank_api_key: ${{ secrets.BITBANK_API_KEY }}
       TF_VAR_bitbank_api_secret: ${{ secrets.BITBANK_API_SECRET }}
-      TF_VAR_feature_mode: "full"  # 97特徴量完全版
       TF_ENV_DIR: "infra/envs/prod"
     steps:
       - name: Checkout

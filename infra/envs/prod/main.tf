@@ -30,7 +30,6 @@ module "app" {
   mode                   = var.mode
   bitbank_api_key        = var.bitbank_api_key
   bitbank_api_secret     = var.bitbank_api_secret
-  feature_mode           = var.feature_mode
   cpu_limit              = var.cpu_limit
   memory_limit           = var.memory_limit
   cpu_request            = var.cpu_request
