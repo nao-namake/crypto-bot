@@ -54,21 +54,15 @@ resource "google_cloud_run_service" "service" {
         }
         
         # Bitbank API認証情報（GitHub Secretsから取得）
-        # Paper modeの場合は空でも動作するようにする
-        dynamic "env" {
-          for_each = var.bitbank_api_key != "" ? { "api_key" = "enabled" } : {}
-          content {
-            name  = "BITBANK_API_KEY"
-            value = var.bitbank_api_key
-          }
+        # Paper modeでも常に環境変数を設定（空の場合はdefault値）
+        env {
+          name  = "BITBANK_API_KEY"
+          value = var.bitbank_api_key
         }
         
-        dynamic "env" {
-          for_each = var.bitbank_api_secret != "" ? { "api_secret" = "enabled" } : {}
-          content {
-            name  = "BITBANK_API_SECRET"
-            value = var.bitbank_api_secret
-          }
+        env {
+          name  = "BITBANK_API_SECRET"
+          value = var.bitbank_api_secret
         }
         
         # 97特徴量固定のため、FEATURE_MODE環境変数は削除
