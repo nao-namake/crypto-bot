@@ -8,3 +8,4 @@ github_repo            = "nao-namake/crypto-bot"
 project_number         = "11445303925"            # gcloud projects describe で確認
 deployer_sa            = "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
 mode                   = "paper"
+feature_mode           = "lite"                   # 軽量版（開発環境用）

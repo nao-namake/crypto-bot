@@ -20,22 +20,23 @@ module "services" {
 }
 
 module "app" {
-  source               = "../../modules/crypto_bot_app"
-  project_id           = var.project_id
-  region               = var.region
-  service_name         = var.service_name
-  image_name           = var.image_name
-  image_tag            = var.image_tag
-  mode                 = var.mode
-  bitbank_api_key      = var.bitbank_api_key
-  bitbank_api_secret   = var.bitbank_api_secret
-  feature_mode         = var.feature_mode
-  cpu_limit            = var.cpu_limit
-  memory_limit         = var.memory_limit
-  cpu_request          = var.cpu_request
-  memory_request       = var.memory_request
-  create_secrets       = false  # GitHub Secretsから直接使用（Secret Manager不要）
-  project_number       = var.project_number
+  source                 = "../../modules/crypto_bot_app"
+  project_id             = var.project_id
+  region                 = var.region
+  artifact_registry_repo = var.artifact_registry_repo
+  service_name           = var.service_name
+  image_name             = var.image_name
+  image_tag              = var.image_tag
+  mode                   = var.mode
+  bitbank_api_key        = var.bitbank_api_key
+  bitbank_api_secret     = var.bitbank_api_secret
+  feature_mode           = var.feature_mode
+  cpu_limit              = var.cpu_limit
+  memory_limit           = var.memory_limit
+  cpu_request            = var.cpu_request
+  memory_request         = var.memory_request
+  create_secrets         = false  # GitHub Secretsから直接使用（Secret Manager不要）
+  project_number         = var.project_number
 }
 
 module "monitoring" {

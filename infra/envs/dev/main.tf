@@ -35,6 +35,8 @@ module "app" {
   memory_limit           = var.memory_limit
   cpu_request            = var.cpu_request
   memory_request         = var.memory_request
+  create_secrets         = false  # GitHub Secretsから直接使用（Secret Manager不要）
+  project_number         = var.project_number
 }
 
 module "monitoring" {
