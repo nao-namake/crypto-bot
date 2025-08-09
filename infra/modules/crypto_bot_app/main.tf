@@ -16,11 +16,11 @@ resource "google_cloud_run_service" "service" {
   location = var.region
   project  = var.project_id
 
-  # Terraformタイムアウト設定（デプロイ時の長時間待機を回避）
+  # Terraformタイムアウト設定（5分に短縮）
   timeouts {
-    create = "10m"
-    update = "10m"
-    delete = "10m"
+    create = "5m"
+    update = "5m"
+    delete = "5m"
   }
 
   template {
@@ -65,7 +65,6 @@ resource "google_cloud_run_service" "service" {
           value = var.bitbank_api_secret
         }
         
-        # 97特徴量固定のため、FEATURE_MODE環境変数は削除
         
         ports {
           container_port = 8080
