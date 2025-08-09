@@ -29,11 +29,11 @@ module "app" {
   mode                 = var.mode
   bitbank_api_key      = var.bitbank_api_key
   bitbank_api_secret   = var.bitbank_api_secret
-  # 外部APIキー（Phase 3で無効化済み - 現在未使用）
-  alpha_vantage_api_key = var.alpha_vantage_api_key
-  polygon_api_key      = var.polygon_api_key
-  fred_api_key         = var.fred_api_key
   feature_mode         = var.feature_mode
+  cpu_limit            = var.cpu_limit
+  memory_limit         = var.memory_limit
+  cpu_request          = var.cpu_request
+  memory_request       = var.memory_request
   create_secrets       = false  # GitHub Secretsから直接使用（Secret Manager不要）
   project_number       = var.project_number
 }

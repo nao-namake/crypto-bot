@@ -1,329 +1,222 @@
-# infra/ - Infrastructure as Code (IaC) システム
+# infra/ - Terraform Infrastructure Configuration
 
 ## 🏗️ 概要
 
-**Terraform-based Multi-Environment Infrastructure Management**  
-本フォルダは crypto-bot プロジェクトの全環境（開発・本番・HA構成・K8s等）のGCPインフラストラクチャを**Infrastructure as Code**で管理する統合基盤システムです。
+**個人開発向けシンプルなGCPインフラ管理**  
+crypto-bot プロジェクトのインフラをTerraformで管理します。個人開発に最適化したシンプルな構成で、開発環境（Paper Mode）と本番環境（Live Trading）の2環境のみを管理します。
 
-## 🎯 設計原則
+## 🎯 設計方針
 
-### **モジュラー設計 (Modular Architecture)**
-- **再利用可能モジュール**: 共通インフラをモジュール化・環境間で再利用
-- **環境分離**: dev/paper/prod/ha-prod/k8s-gke 完全分離
-- **設定外部化**: terraform.tfvars による環境固有設定
-
-### **スケーラブル・マルチ環境対応**
-```
-Single Region → Multi-Region → High Availability → Kubernetes
-    ↓              ↓              ↓                 ↓
-  dev/prod     ha-prod     Load Balancer        GKE Auto-scaling
-```
+### **シンプルで管理しやすい構成**
+- **2環境のみ**: dev（Paper Mode）とprod（Live Trading）
+- **必要最小限のモジュール**: Cloud Run、監視、認証のみ
+- **低コスト運用**: 個人開発に適したリソース設定
 
 ## 📁 ディレクトリ構成
 
-### `/envs` - 環境別設定
-
-#### **`dev/` - 開発環境**
-```terraform
-# 軽量・コスト最適化開発環境
-module "app" {
-  source = "../../modules/crypto_bot_app"
-  mode   = "paper"  # ペーパートレード
-  cpu    = "500m"   # 最小リソース
-  memory = "1Gi"
-}
+```
+infra/
+├── envs/
+│   ├── dev/    # 開発環境（Paper Mode）
+│   │   ├── main.tf          # 環境設定
+│   │   ├── variables.tf     # 変数定義
+│   │   ├── backend.tf       # Terraform状態管理
+│   │   └── terraform.tfvars # 環境固有の値
+│   │
+│   └── prod/   # 本番環境（Live Trading）
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── backend.tf
+│       └── terraform.tfvars
+│
+└── modules/
+    ├── crypto_bot_app/     # Cloud Runアプリケーション
+    ├── monitoring/         # 基本的な監視設定
+    ├── project_services/   # GCP API有効化
+    └── workload_identity/  # GitHub Actions認証
 ```
 
-#### **`prod/` - 本番環境**  
-```terraform
-# Phase 14 現在の本番稼働環境
-module "app" {
-  source = "../../modules/crypto_bot_app"
-  mode   = "live"   # リアルトレード
-  cpu    = "1000m"  # 1 CPU (Phase H.25 外部API無効化により削減)
-  memory = "2Gi"    # 2GB RAM (125特徴量対応)
-}
-```
+## 🚀 環境別設定
 
-#### **`paper/` - ペーパートレード環境**
-```terraform
-# 本番同等設定でのペーパートレード検証
-module "app" {
-  mode = "paper"
-  # 本番と同等のリソース・設定で安全検証
-}
-```
+### **dev環境（開発・テスト用）**
+- **用途**: 開発、テスト、Paper Modeでの動作確認
+- **リソース**: CPU 250m、Memory 512Mi（超最小構成）
+- **APIキー**: 不要（Paper Modeのため）
+- **コスト**: 約200円/月
 
-#### **`ha-prod/` - 高可用性本番環境**
-```terraform
-# マルチリージョン・ロードバランサー対応
-module "multi_region_app" {
-  primary_region         = "asia-northeast1"    # 東京
-  secondary_region       = "us-central1"        # バックアップ
-  enable_load_balancer   = true
-  enable_ssl             = true
-}
-```
-
-#### **`k8s-gke/` - Kubernetes環境**
-```terraform
-# GKE (Google Kubernetes Engine) 対応
-module "gke" {
-  cluster_name     = "${var.environment}-crypto-bot-gke"
-  node_count       = var.node_count
-  enable_spot_nodes = true  # コスト最適化
-}
-```
-
-### `/modules` - 再利用可能モジュール
-
-#### **`crypto_bot_app/` - メインアプリケーション** (Phase 18更新: 2025年8月9日)
-```terraform
-# Cloud Run service + 環境設定
-resource "google_cloud_run_service" "service" {
-  name     = var.service_name
-  location = var.region
-  
-  template {
-    metadata {
-      annotations = {
-        "autoscaling.knative.dev/maxScale" = "5"
-        "run.googleapis.com/cpu-throttling" = "false"
-        "run.googleapis.com/execution-environment" = "gen2"
-      }
-      # Phase 18: リビジョン名自動生成（競合回避）
-      # name = "${var.service_name}-${substr(replace(var.image_tag, ":", ""), 0, 6)}"
-    }
-    spec {
-      containers {
-        image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/${var.image_name}:${var.image_tag}"
-        
-        resources {
-          limits = {
-            cpu    = "1000m"  # Phase H.25: 外部API無効化により削減  
-            memory = "2Gi"    # 125特徴量対応
-          }
-        }
-        
-        # Phase 14 環境変数統合
-        env {
-          name  = "MODE"
-          value = var.mode
-        }
-        env {
-          name  = "FEATURE_MODE" 
-          value = var.feature_mode
-        }
-      }
-    }
-  }
-}
-```
-
-#### **`monitoring/` - 監視・アラート**
-```terraform
-# GCP Cloud Monitoring 統合
-resource "google_monitoring_alert_policy" "latency" {
-  display_name = "High request latency"
-  conditions {
-    display_name = "Latency > 3s"
-    # Phase 14 パフォーマンス監視
-  }
-}
-
-resource "google_monitoring_alert_policy" "pnl_loss" {
-  display_name = "Crypto Bot Loss Alert" 
-  conditions {
-    display_name = "PnL < -5000 JPY"  # 損失アラート
-  }
-}
-```
-
-#### **`workload_identity/` - セキュア認証**
-```terraform
-# GitHub Actions → GCP 認証 (Keyless)
-resource "google_iam_workload_identity_pool_provider" "provider" {
-  attribute_condition = "attribute.repository == \"${var.github_repo}\" && attribute.ref == \"refs/heads/main\""
-  
-  # Phase 14 CI/CD セキュリティ強化
-  oidc { issuer_uri = "https://token.actions.githubusercontent.com" }
-}
-
-# 最小権限の原則
-resource "google_project_iam_member" "deployer_sa_run_admin" {
-  role = "roles/run.admin"  # Cloud Run デプロイのみ
-}
-```
-
-#### **`project_services/` - API有効化**
-```terraform
-# 必要なGCP APIを自動有効化
-resource "google_project_service" "enabled" {
-  for_each = toset([
-    "run.googleapis.com",           # Cloud Run
-    "artifactregistry.googleapis.com", # Container Registry  
-    "monitoring.googleapis.com",    # Cloud Monitoring
-    "secretmanager.googleapis.com", # API Key管理
-  ])
-  service = each.value
-}
-```
-
-#### **その他モジュール**
-- **`multi_region_app/`**: マルチリージョン対応アプリ
-- **`multi_region_monitoring/`**: リージョン横断監視
-- **`gke/`**: Google Kubernetes Engine設定
-- **`eks/`**: Amazon EKS設定 (将来対応)
+### **prod環境（本番稼働用）**
+- **用途**: Bitbank実口座での自動取引
+- **リソース**: CPU 1000m、Memory 2Gi（環境変数で調整可能）
+- **APIキー**: Bitbank API必須
+- **コスト**: 約2,000円/月
 
 ## ⚙️ 使用方法
 
-### **基本的なデプロイフロー**
+### **初回セットアップ**
 
-#### **1. 環境選択・初期化**
+1. **GCPプロジェクトの準備**
 ```bash
-# 本番環境の場合
-cd infra/envs/prod/
+# プロジェクトIDを確認
+gcloud config get-value project
 
-# Terraform初期化
+# 必要なAPIを有効化（Terraformが自動で行うが、念のため）
+gcloud services enable run.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+```
+
+2. **Terraform初期化**
+```bash
+# 環境を選択（dev or prod）
+cd infra/envs/dev/  # または prod/
+
+# 初期化
 terraform init
 ```
 
-#### **2. 設定確認・計画**  
-```bash
-# 設定ファイル確認
-cat terraform.tfvars
+### **デプロイ手順**
 
-# デプロイ計画表示
+#### **開発環境へのデプロイ**
+```bash
+cd infra/envs/dev/
 terraform plan
-```
-
-#### **3. インフラ適用**
-```bash
-# 本番デプロイ実行
 terraform apply
-
-# 特定リソースのみ適用
-terraform apply -target=module.app
 ```
 
-### **環境別設定例**
+#### **本番環境へのデプロイ**
+```bash
+cd infra/envs/prod/
+terraform plan
+terraform apply
+```
 
-#### **terraform.tfvars (prod環境)**
+### **環境変数の設定**
+
+#### **開発環境（dev/terraform.tfvars）**
 ```hcl
-# Phase 14 本番環境設定
+project_id             = "my-crypto-bot-project"
+region                 = "asia-northeast1"
+artifact_registry_repo = "crypto-bot-repo"
+service_name           = "crypto-bot-dev"
+image_name             = "crypto-bot"
+mode                   = "paper"
+alert_email            = "your-email@example.com"
+github_repo            = "your-github-username/crypto-bot"
+project_number         = "123456789"
+deployer_sa            = "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
+# Bitbank APIキーは不要（Paper Modeのため）
+```
+
+#### **本番環境（prod/terraform.tfvars）**
+```hcl
 project_id     = "my-crypto-bot-project"
 region         = "asia-northeast1"
 service_name   = "crypto-bot-service-prod"
 mode           = "live"
 feature_mode   = "full"
-
-# API Keys (Secret Manager参照)
-bitbank_api_key    = "projects/my-crypto-bot-project/secrets/bitbank-api-key/versions/latest"
-bitbank_api_secret = "projects/my-crypto-bot-project/secrets/bitbank-api-secret/versions/latest"
+# Bitbank APIキーはGitHub Secretsから取得
 ```
 
-#### **terraform.tfvars (dev環境)**
-```hcl
-# 軽量開発環境設定
-project_id     = "my-crypto-bot-dev"
-region         = "asia-northeast1"
-service_name   = "crypto-bot-dev"
-mode           = "paper"
-feature_mode   = "lite"
+## 🔒 セキュリティ
+
+### **APIキー管理**
+- **開発環境**: APIキー不要（Paper Mode）
+- **本番環境**: GitHub Secretsで管理
+- **ローカル**: .envファイルで管理（.gitignore必須）
+
+### **認証**
+- **Workload Identity Federation**: キーファイルレスでGCPにアクセス
+- **最小権限の原則**: 必要最小限のIAM権限のみ付与
+
+## 📊 コスト最適化
+
+### **月額コスト目安**
+| 環境 | CPU | Memory | 推定コスト |
+|------|-----|--------|-----------|
+| dev  | 250m | 512Mi | ~200円/月  |
+| prod | 1000m | 2Gi  | ~2,000円/月 |
+| **合計** | - | - | **~2,200円/月** |
+
+### **コスト削減のヒント**
+1. 開発時以外はdev環境を停止
+2. 初期は最小リソースで運用し、必要に応じて増強
+3. Cloud Runの自動スケーリングを活用
+
+## 🛠️ トラブルシューティング
+
+### **よくある問題と解決方法**
+
+#### **Terraform apply失敗**
+```bash
+# 状態をリフレッシュ
+terraform refresh
+
+# 特定のリソースのみ再作成
+terraform apply -target=module.app
 ```
 
-## 🔒 セキュリティ・ベストプラクティス
+#### **Cloud Runデプロイエラー**
+```bash
+# サービスの状態確認
+gcloud run services list --region=asia-northeast1
 
-### **認証・認可**
-- ✅ **Workload Identity Federation**: キーファイル不要認証
-- ✅ **最小権限原則**: 必要最小限のIAM権限のみ付与
-- ✅ **Secret Manager**: API key等の機密情報管理
-
-### **ネットワークセキュリティ**
-```terraform
-# Cloud Run セキュリティ設定
-resource "google_cloud_run_service_iam_member" "all_users" {
-  role   = "roles/run.invoker"
-  member = "allUsers"  # パブリック公開 (ヘルスチェック用)
-}
-
-# VPC設定 (ha-prod環境)
-resource "google_compute_network" "vpc" {
-  name                    = "crypto-bot-vpc"
-  auto_create_subnetworks = false
-}
+# ログ確認
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 
-### **監査・コンプライアンス**
-- ✅ **Terraform State**: GCS remote backend で状態管理
-- ✅ **バージョン管理**: Git でインフラ変更履歴追跡
-- ✅ **承認フロー**: Pull Request でインフラ変更レビュー
+#### **APIキーエラー（本番環境）**
+- GitHub Secretsに`BITBANK_API_KEY`と`BITBANK_API_SECRET`が設定されているか確認
+- CI/CDワークフローでこれらのシークレットが正しく参照されているか確認
 
-## 📊 環境・構成比較
+## 📝 メンテナンス
 
-| 環境 | 用途 | CPU | Memory | Auto-scaling | HA | 監視 |
-|------|------|-----|--------|--------------|----|----- |
-| **dev** | 開発・テスト | 500m | 1Gi | ❌ | ❌ | 基本 |
-| **paper** | ペーパートレード | 1000m | 2Gi | ❌ | ❌ | 標準 |
-| **prod** | 本番稼働 | 1000m | 2Gi | ✅ | ❌ | 完全 |
-| **ha-prod** | HA本番 | 1000m | 2Gi | ✅ | ✅ | 完全+ |
-| **k8s-gke** | Kubernetes | 可変 | 可変 | ✅ | ✅ | 完全+ |
+### **リソースクリーンアップ**
+```bash
+# 環境全体を削除（注意！）
+terraform destroy
 
-## 🚀 Phase 14 統合効果
-
-### **従来の課題解決**
-- ❌ **Phase 13以前**: 手動インフラ管理・環境不整合
-- ❌ **Phase 13以前**: セキュリティ設定の属人化
-
-### **Phase 14で達成**
-- ✅ **Infrastructure as Code**: 全インフラをコード管理
-- ✅ **環境整合性**: 同一モジュール・異なる設定での環境構築
-- ✅ **自動CI/CD統合**: GitHub Actions でのインフラ自動デプロイ
-- ✅ **セキュリティ強化**: WIF・最小権限・監査ログ完備
-- ✅ **スケーラビリティ**: 単一リージョン→マルチリージョン対応
-
-### **運用コスト最適化**
+# 特定のリソースのみ削除
+terraform destroy -target=module.monitoring
 ```
-開発環境: ~¥500/月   (軽量設定)
-本番環境: ~¥3,650/月 (Phase 14最適化)
-HA環境:   ~¥7,300/月 (冗長化対応)
-```
-
-## 🛠️ メンテナンス・トラブルシューティング
 
 ### **状態管理**
 ```bash
-# Terraform状態確認
+# 現在の状態を確認
 terraform state list
 
-# 特定リソース状態表示
+# 状態の詳細表示
 terraform state show module.app.google_cloud_run_service.service
-
-# 状態同期  
-terraform refresh
 ```
 
-### **リソース管理**
-```bash
-# 未使用リソース特定
-terraform plan -destroy
+## 🔄 CI/CD統合
 
-# 特定リソース削除
-terraform destroy -target=module.monitoring
+GitHub Actionsワークフローが自動的に：
+1. コードのテスト・品質チェック
+2. Dockerイメージのビルド
+3. Artifact Registryへのプッシュ
+4. Terraformによるデプロイ
 
-# インフラ全削除 (注意)
-terraform destroy
-```
+mainブランチへのプッシュで本番環境、developブランチで開発環境へ自動デプロイされます。
 
-### **デバッグ・ログ**
-```bash  
-# Terraform詳細ログ
-TF_LOG=DEBUG terraform apply
+## 📌 注意事項
 
-# GCPリソース直接確認
-gcloud run services list --region=asia-northeast1
-```
+- **個人開発用の設定**: 高可用性やマルチリージョン対応は含まれていません
+- **段階的な資金投入**: まず1万円で少額運用、安定後に50万円まで増額
+- **監視の重要性**: 特に本番環境では定期的にログとメトリクスを確認
+
+## 🎯 個人開発最適化ポイント
+
+### **実装された最適化**
+1. **環境を2つに削減**: paper環境を削除し、dev/prodのみに
+2. **リソース設定を変数化**: 環境ごとにCPU/メモリを最適化
+3. **dev環境を超軽量化**: CPU 250m、Memory 512Mi（約200円/月）
+4. **不要な外部API削除**: Phase 3で削除済みのAPIキー参照を完全除去
+5. **HA環境の削除**: 個人開発に不要な高可用性設定を除去
+
+### **今後の簡素化候補**
+- dev環境も不要な場合は、prod環境のみの単一環境構成も可能
+- モニタリングアラートをさらに簡素化可能
 
 ---
 
-**Infrastructure as Code**により、crypto-botのインフラ管理は完全に自動化・標準化されました。**Phase 14 Modular Architecture**と統合し、開発から本番まで一貫したインフラ運用基盤を確立しています。🏗️🚀
+**最終更新: 2025年8月9日**  
+完全個人開発用に最適化したシンプルで低コストなインフラ構成です。

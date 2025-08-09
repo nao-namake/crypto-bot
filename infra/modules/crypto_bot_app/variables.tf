@@ -47,37 +47,17 @@ variable "bitbank_api_key" {
   type        = string
   description = "Bitbank の API キー (GitHub Secrets から渡される)"
   sensitive   = true
+  default     = ""  # dev環境（paper mode）では不要なので空でOK
 }
 
 variable "bitbank_api_secret" {
   type        = string
   description = "Bitbank の API シークレット (GitHub Secrets から渡される)"
   sensitive   = true
+  default     = ""  # dev環境（paper mode）では不要なので空でOK
 }
 
-# --------------------------------------------------
-# External API Keys (Phase H.22)
-# --------------------------------------------------
-variable "alpha_vantage_api_key" {
-  type        = string
-  description = "Alpha Vantage API キー (VIXデータ取得用)"
-  sensitive   = true
-  default     = ""
-}
-
-variable "polygon_api_key" {
-  type        = string
-  description = "Polygon.io API キー (市場データ取得用)"
-  sensitive   = true
-  default     = ""
-}
-
-variable "fred_api_key" {
-  type        = string
-  description = "FRED API キー (経済指標取得用)"
-  sensitive   = true
-  default     = ""
-}
+# External API Keys は Phase 3 で完全に削除されたため、設定不要
 
 # --------------------------------------------------
 # Feature Mode (lite/full) for system optimization  
@@ -90,6 +70,33 @@ variable "feature_mode" {
     condition     = contains(["lite", "full"], var.feature_mode)
     error_message = "feature_mode must be either 'lite' or 'full'."
   }
+}
+
+# --------------------------------------------------
+# Resource configuration for Cloud Run
+# --------------------------------------------------
+variable "cpu_limit" {
+  type        = string
+  description = "CPU limit for Cloud Run service (e.g., '1000m' for 1 CPU)"
+  default     = "1000m"
+}
+
+variable "memory_limit" {
+  type        = string
+  description = "Memory limit for Cloud Run service (e.g., '2Gi' for 2GB)"
+  default     = "2Gi"
+}
+
+variable "cpu_request" {
+  type        = string
+  description = "Minimum CPU request for Cloud Run service"
+  default     = "500m"
+}
+
+variable "memory_request" {
+  type        = string
+  description = "Minimum memory request for Cloud Run service"
+  default     = "1Gi"
 }
 
 # --------------------------------------------------

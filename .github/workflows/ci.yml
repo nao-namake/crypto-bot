@@ -301,6 +301,9 @@ jobs:
       TF_VAR_github_repo: "nao-namake/crypto-bot"
       TF_VAR_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
       TF_VAR_deployer_sa: ${{ secrets.GCP_DEPLOYER_SA }}
+      # Paper modeには実際のAPIキーは不要なので空文字列を設定
+      TF_VAR_bitbank_api_key: ""
+      TF_VAR_bitbank_api_secret: ""
 
       # ----- Terraform variables -----
       TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -378,10 +381,7 @@ jobs:
       TF_VAR_image_tag: "${{ github.sha }}"
       TF_VAR_bitbank_api_key: ${{ secrets.BITBANK_API_KEY }}
       TF_VAR_bitbank_api_secret: ${{ secrets.BITBANK_API_SECRET }}
-      TF_VAR_alpha_vantage_api_key: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-      TF_VAR_polygon_api_key: ${{ secrets.POLYGON_API_KEY }}
-      TF_VAR_fred_api_key: ${{ secrets.FRED_API_KEY }}
-      TF_VAR_feature_mode: "full"  # 151特徴量完全版: Phase B・C1・C2統合システム
+      TF_VAR_feature_mode: "full"  # 97特徴量完全版
       TF_ENV_DIR: "infra/envs/prod"
     steps:
       - name: Checkout
@@ -420,138 +420,3 @@ jobs:
       - name: Terraform Apply (Production)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # マルチリージョンHA環境デプロイ（タグ作成時のみ）
-  # ────────────────────────────────────────────────────────────────────────────
-  terraform-deploy-ha:
-    name: Deploy to HA Production
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
-    needs: [test, docker-build]
-    
-    env:
-      TF_ENV_DIR: infra/envs/ha-prod
-      
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
-          access_token_lifetime: 7200s
-          access_token_scopes: |
-            https://www.googleapis.com/auth/cloud-platform
-            https://www.googleapis.com/auth/devstorage.read_write
-            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
-
-      - name: Set up Cloud SDK for HA
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Set up Cloud SDK for HA Deploy
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Setup Terraform for HA
-        uses: hashicorp/setup-terraform@v3.1.1
-        with:
-          terraform_version: 1.8.5
-
-      - name: Extract tag version
-        id: tag
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Terraform Init (HA)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} init
-
-      - name: Create terraform.tfvars
-        run: |
-          cat > ${{ env.TF_ENV_DIR }}/terraform.tfvars << EOF
-          project_id              = "${{ vars.GCP_PROJECT_ID }}"
-          project_number          = "${{ vars.GCP_PROJECT_NUMBER }}"
-          primary_region          = "asia-northeast1"
-          secondary_region        = "us-central1"
-          enable_secondary_region = true
-          enable_load_balancer    = true
-          enable_ssl              = false
-          enable_public_access    = true
-          enable_uptime_check     = true
-          service_name            = "crypto-bot-ha"
-          image_name              = "crypto-bot"
-          image_tag               = "${{ steps.tag.outputs.VERSION }}"
-          mode                    = "live"
-          cpu_limit               = "2000m"
-          memory_limit            = "1Gi"
-          min_instances           = "2"
-          max_instances           = "20"
-          alert_emails            = ["admin@example.com"]
-          github_repo             = "${{ github.repository }}"
-          deployer_sa             = "github-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
-          latency_threshold_ms    = 3000
-          error_rate_threshold    = 1.0
-          loss_threshold          = -5000
-          EOF
-
-      - name: Terraform Plan (HA)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
-
-      - name: Terraform Apply (HA)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
-      
-      - name: Get Load Balancer IP
-        id: lb_ip
-        run: |
-          LB_IP=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw load_balancer_ip || echo "")
-          echo "IP=${LB_IP}" >> $GITHUB_OUTPUT
-      
-      - name: Wait for deployment
-        run: |
-          echo "Waiting for HA deployment to be ready..."
-          sleep 60  # Wait for deployment to propagate
-          
-      - name: Health check
-        run: |
-          PRIMARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw primary_service_url)
-          SECONDARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw secondary_service_url)
-          
-          echo "Testing primary region health..."
-          curl -f "${PRIMARY_URL}/healthz" || exit 1
-          
-          if [ -n "$SECONDARY_URL" ]; then
-            echo "Testing secondary region health..."
-            curl -f "${SECONDARY_URL}/healthz" || exit 1
-          fi
-          
-          if [ -n "${{ steps.lb_ip.outputs.IP }}" ]; then
-            echo "Testing load balancer health..."
-            curl -f "http://${{ steps.lb_ip.outputs.IP }}/healthz" || exit 1
-          fi
-          
-          echo "✅ HA deployment health check passed!"
-
-      - name: Post deployment summary
-        run: |
-          echo "### 🚀 HA Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** \`${{ steps.tag.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Primary Region:** asia-northeast1" >> $GITHUB_STEP_SUMMARY
-          echo "**Secondary Region:** us-central1" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          PRIMARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw primary_service_url)
-          SECONDARY_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw secondary_service_url)
-          DASHBOARD_URL=$(terraform -chdir=${{ env.TF_ENV_DIR }} output -raw dashboard_url)
-          
-          echo "**Endpoints:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Primary: ${PRIMARY_URL}" >> $GITHUB_STEP_SUMMARY
-          if [ -n "$SECONDARY_URL" ]; then
-            echo "- Secondary: ${SECONDARY_URL}" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ -n "${{ steps.lb_ip.outputs.IP }}" ]; then
-            echo "- Load Balancer: http://${{ steps.lb_ip.outputs.IP }}" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "- Monitoring Dashboard: ${DASHBOARD_URL}" >> $GITHUB_STEP_SUMMARY

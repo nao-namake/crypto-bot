@@ -45,39 +45,44 @@ variable "bitbank_api_secret" {
   sensitive   = true
 }
 
-# --------------------------------------------------
-# External API Keys (Phase H.22)
-# --------------------------------------------------
-variable "alpha_vantage_api_key" {
-  type        = string
-  description = "Alpha Vantage API キー (VIXデータ取得用)"
-  sensitive   = true
-  default     = ""
-}
-
-variable "polygon_api_key" {
-  type        = string
-  description = "Polygon.io API キー (市場データ取得用)"
-  sensitive   = true
-  default     = ""
-}
-
-variable "fred_api_key" {
-  type        = string
-  description = "FRED API キー (経済指標取得用)"
-  sensitive   = true
-  default     = ""
-}
+# External API Keys は Phase 3 で完全に削除されたため、設定不要
 
 # --------------------------------------------------
 # Feature Mode (lite/full) for system optimization  
 # --------------------------------------------------
 variable "feature_mode" {
   type        = string
-  description = "特徴量モード: lite (3特徴量・高速) または full (126特徴量・完全版)"
-  default     = "lite"
+  description = "特徴量モード: lite (3特徴量・高速) または full (97特徴量・完全版)"
+  default     = "full"  # 本番環境では完全版を使用
   validation {
     condition     = contains(["lite", "full"], var.feature_mode)
     error_message = "feature_mode must be either 'lite' or 'full'."
   }
+}
+
+# --------------------------------------------------
+# Resource configuration for production environment
+# --------------------------------------------------
+variable "cpu_limit" {
+  type        = string
+  description = "CPU limit for production environment"
+  default     = "1000m"  # 本番環境 1.0 CPU
+}
+
+variable "memory_limit" {
+  type        = string
+  description = "Memory limit for production environment"
+  default     = "2Gi"  # 本番環境 2GB RAM
+}
+
+variable "cpu_request" {
+  type        = string
+  description = "Minimum CPU for production environment"
+  default     = "500m"  # 最小要求 0.5 CPU
+}
+
+variable "memory_request" {
+  type        = string
+  description = "Minimum memory for production environment"
+  default     = "1Gi"  # 最小要求 1GB RAM
 }
