@@ -78,6 +78,14 @@ scripts/
   - CI/CD自動トリガー
   - 完全自動化デプロイスクリプト
 
+### **監視・統合ツール** (2025年8月11日追加 - Phase 2-2)
+- **`paper_trade_with_monitoring.sh`** - ペーパートレード＋シグナル監視統合
+  - Phase 2-1 + Phase 2-2の統合実行
+  - バックグラウンドでペーパートレード実行
+  - 1時間毎にシグナル監視
+  - 異常検出時のアラート
+  - 終了時の統合レポート生成
+
 ### **開発ツール**
 - `auto_push.sh` - 自動Git push（整形・テスト・プッシュ）
 - `convert_absolute_to_relative_paths.py` - 絶対パス→相対パス変換
@@ -122,6 +130,16 @@ core/
 - `troubleshoot_deployment.sh` - デプロイメント問題診断
 - `bigquery_log_queries.sql` - BigQueryログクエリ集
 
+### **監視・品質管理** (2025年8月11日追加 - Phase 2-2)
+- **`signal_monitor.py`** - シグナル生成監視システム
+  - 1時間以上シグナルなし検出
+  - 連続パターン異常検出（30回連続HOLD等）
+  - Confidence値異常検出
+  - HTML/JSONレポート生成
+- **`monitor_signals.sh`** - シグナル監視実行ラッパー
+  - cronで定期実行対応
+  - CI/CDパイプライン組み込み可能
+
 ## 📦 archive/ - アーカイブ
 
 過去の実装や参考用スクリプトを保管。将来の機能拡張時の参考資料として活用。
@@ -142,6 +160,12 @@ bash scripts/auto_push.sh "feat: add new feature"
 
 # 包括的ローカルテスト
 bash scripts/run_all_local_tests.sh
+
+# ペーパートレード＋監視統合実行（Phase 2-1 + 2-2）
+bash scripts/paper_trade_with_monitoring.sh --duration 24
+
+# シグナル監視のみ実行
+python scripts/utilities/signal_monitor.py --hours 24
 ```
 
 ### **モデル管理**

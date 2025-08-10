@@ -120,6 +120,9 @@ utils/
 - CSV形式での予測値・シグナル・価格継続記録
 - スレッドセーフなログ出力機能
 - デバッグ・分析効率向上、本番動作可視化対応
+- **Phase 2-2連携**: `scripts/utilities/signal_monitor.py`で監視対象
+  - 1時間毎の異常検知
+  - trading_signals.csvの健全性チェック
 
 ### **japanese_market.py**
 - 日本市場営業時間判定
