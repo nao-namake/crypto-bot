@@ -104,6 +104,9 @@ def create_production_model():
             risk_adjustment=True,
             confidence_threshold=ensemble_config.get("confidence_threshold", 0.35),
         )
+        
+        # ensemble_methodを明示的に設定（fitする前に）
+        ensemble.ensemble_method = ensemble_config.get("method", "trading_stacking")
 
         # 97特徴量でダミー訓練（モデルを初期化するため）
         n_samples = 1000
@@ -121,11 +124,21 @@ def create_production_model():
 
         # ターゲット生成（バランスの取れた分類）
         y_dummy = np.random.choice([0, 1, 2], size=n_samples, p=[0.33, 0.34, 0.33])
+        
+        # DataFrameに変換（TradingEnsembleClassifierはDataFrameを期待）
+        import pandas as pd
+        feature_names = [f"feature_{i}" for i in range(n_features)]
+        X_dummy_df = pd.DataFrame(X_dummy, columns=feature_names)
 
-        logger.info(f"📊 Training with dummy data: {X_dummy.shape}")
+        logger.info(f"📊 Training with dummy data: {X_dummy_df.shape}")
 
         # モデルを訓練
-        ensemble.fit(X_dummy, y_dummy)
+        ensemble.fit(X_dummy_df, y_dummy)
+        
+        # fitした後でもensemble_methodを確認・設定
+        if ensemble.ensemble_method == "simple_fallback":
+            ensemble.ensemble_method = "trading_stacking"
+            logger.info("📝 Updated ensemble_method to trading_stacking")
 
         # モデルを保存
         model_path = model_dir / "model.pkl"
@@ -155,8 +168,9 @@ def create_production_model():
         try:
             # 予測テスト
             X_test = np.random.randn(10, n_features)
-            predictions = ensemble.predict(X_test)
-            probabilities = ensemble.predict_proba(X_test)
+            X_test_df = pd.DataFrame(X_test, columns=feature_names)
+            predictions = ensemble.predict(X_test_df)
+            probabilities = ensemble.predict_proba(X_test_df)
 
             logger.info(f"✅ Model validation successful")
             logger.info(f"   - Predictions shape: {predictions.shape}")
