@@ -471,20 +471,22 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
 
     # 戦略の初期化
     strategy = initialize_strategy(cfg, config_path, fetcher)
-    
+
     # strategy型チェック（dictではなくオブジェクトであることを確認）
     if isinstance(strategy, dict):
-        logger.error("❌ Strategy initialization error: returned dict instead of object")
+        logger.error(
+            "❌ Strategy initialization error: returned dict instead of object"
+        )
         logger.error(f"Strategy type: {type(strategy)}")
         sys.exit(1)
-    
+
     # logic_signalメソッドの存在確認
-    if not hasattr(strategy, 'logic_signal'):
+    if not hasattr(strategy, "logic_signal"):
         logger.error("❌ Strategy initialization error: missing logic_signal method")
         logger.error(f"Strategy type: {type(strategy)}")
         logger.error(f"Available methods: {dir(strategy)}")
         sys.exit(1)
-    
+
     logger.info(f"✅ Strategy initialized successfully: {type(strategy).__name__}")
 
     # RiskManager初期化
@@ -699,9 +701,13 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
 
             try:
                 # strategy型の再確認（デバッグ用）
-                logger.debug(f"[DEBUG] Strategy type before entry: {type(strategy).__name__}")
-                logger.debug(f"[DEBUG] EntryExit.strategy type: {type(entry_exit.strategy).__name__}")
-                
+                logger.debug(
+                    f"[DEBUG] Strategy type before entry: {type(strategy).__name__}"
+                )
+                logger.debug(
+                    f"[DEBUG] EntryExit.strategy type: {type(entry_exit.strategy).__name__}"
+                )
+
                 entry_order = entry_exit.generate_entry_order(price_df, position)
                 logger.info(
                     f"✅ [ENTRY-JUDGE] Entry judgment completed - "
@@ -713,19 +719,25 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     logger.info(
                         f"🔍 [DEBUG] Entry order details: side={getattr(entry_order, 'side', 'N/A')}, price={getattr(entry_order, 'price', 'N/A')}, lot={getattr(entry_order, 'lot', 'N/A')}"
                     )
-                
+
                 # confidence情報の確認（strategy内部の閾値も確認）
-                if hasattr(strategy, 'confidence_threshold'):
-                    logger.debug(f"[DEBUG] Strategy confidence_threshold: {strategy.confidence_threshold}")
-                if hasattr(strategy, 'trading_confidence_threshold'):
-                    logger.debug(f"[DEBUG] Strategy trading_confidence_threshold: {strategy.trading_confidence_threshold}")
+                if hasattr(strategy, "confidence_threshold"):
+                    logger.debug(
+                        f"[DEBUG] Strategy confidence_threshold: {strategy.confidence_threshold}"
+                    )
+                if hasattr(strategy, "trading_confidence_threshold"):
+                    logger.debug(
+                        f"[DEBUG] Strategy trading_confidence_threshold: {strategy.trading_confidence_threshold}"
+                    )
 
             except AttributeError as attr_error:
                 logger.error(
                     f"❌ [ENTRY-JUDGE] AttributeError in entry generation: {attr_error}"
                 )
                 logger.error(f"[DEBUG] Strategy type: {type(strategy)}")
-                logger.error(f"[DEBUG] Strategy has logic_signal: {hasattr(strategy, 'logic_signal')}")
+                logger.error(
+                    f"[DEBUG] Strategy has logic_signal: {hasattr(strategy, 'logic_signal')}"
+                )
                 logger.info("🔄 [ENTRY-JUDGE] Continuing to next iteration...")
                 time.sleep(30)
                 continue
@@ -734,6 +746,7 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     f"❌ [ENTRY-JUDGE] Entry order generation failed: {entry_error}"
                 )
                 import traceback
+
                 logger.error(f"[DEBUG] Traceback: {traceback.format_exc()}")
                 logger.info("🔄 [ENTRY-JUDGE] Continuing to next iteration...")
                 time.sleep(30)

@@ -83,13 +83,17 @@ class TestMultiTimeframeEnsembleStrategy(unittest.TestCase):
         tf_15m_config = strategy._create_timeframe_config("15m")
         self.assertEqual(tf_15m_config["data"]["timeframe"], "15m")
         self.assertEqual(tf_15m_config["ml"]["feat_period"], 7)
-        self.assertEqual(tf_15m_config["ml"]["ensemble"]["confidence_threshold"], 0.6)
+        self.assertEqual(
+            tf_15m_config["ml"]["ensemble"]["confidence_threshold"], 0.65
+        )  # 親の値を継承
 
         # 4時間足設定
         tf_4h_config = strategy._create_timeframe_config("4h")
         self.assertEqual(tf_4h_config["data"]["timeframe"], "4h")
         self.assertEqual(tf_4h_config["ml"]["feat_period"], 21)
-        self.assertEqual(tf_4h_config["ml"]["ensemble"]["confidence_threshold"], 0.7)
+        self.assertEqual(
+            tf_4h_config["ml"]["ensemble"]["confidence_threshold"], 0.65
+        )  # 親の値を継承
 
     def test_full_feature_set_generation(self):
         """101特徴量フルセット生成テスト"""
