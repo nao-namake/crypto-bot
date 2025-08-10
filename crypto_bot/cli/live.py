@@ -15,6 +15,7 @@ from crypto_bot.api.health import update_init_status, update_status
 from crypto_bot.data.fetcher import MarketDataFetcher
 from crypto_bot.execution.engine import EntryExit, Position
 from crypto_bot.execution.factory import create_exchange_client
+from crypto_bot.execution.paper_trader import PaperTrader  # Phase 2-1: ペーパートレード
 from crypto_bot.risk.manager import RiskManager
 from crypto_bot.strategy.factory import StrategyFactory
 from crypto_bot.utils.config import load_config
@@ -282,9 +283,41 @@ def execute_bitbank_trade(
     dd: dict,
     integration_service=None,
     is_exit: bool = False,
+    paper_trader: Optional[PaperTrader] = None,  # Phase 2-1: ペーパートレード
+    signal_confidence: float = 0.0,  # Phase 2-1: 信頼度記録
 ) -> bool:
-    """Bitbank実取引を実行"""
+    """Bitbank実取引を実行（ペーパートレード対応）"""
     try:
+        # Phase 2-1: ペーパートレードモードの場合
+        if paper_trader is not None:
+            logger.info(
+                f"📝 [PAPER TRADE] Executing virtual {('EXIT' if is_exit else 'ENTRY')} order..."
+            )
+
+            # 仮想取引の実行
+            success = paper_trader.execute_virtual_trade(
+                order=order,
+                position=position,
+                is_exit=is_exit,
+                signal_confidence=signal_confidence,
+                notes=f"Symbol: {symbol}, Exchange: {exchange_id}",
+            )
+
+            if success:
+                logger.info(
+                    f"✅ [PAPER TRADE] Virtual {'EXIT' if is_exit else 'ENTRY'} order executed successfully"
+                )
+                # サマリー表示（10取引ごと）
+                if paper_trader.stats["total_trades"] % 10 == 0:
+                    paper_trader.print_summary()
+            else:
+                logger.warning(
+                    "⚠️ [PAPER TRADE] Virtual order not executed (no order exists)"
+                )
+
+            return success
+
+        # 以下、実取引の処理
         if exchange_id == "bitbank":
             # Bitbank実取引
             # 信用取引モード設定の取得
@@ -423,7 +456,15 @@ def execute_bitbank_trade(
     default=False,
     help="シンプルモード（統計システムなし、最小限の初期化）",
 )
-def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
+@click.option(
+    "--paper-trade",
+    is_flag=True,
+    default=False,
+    help="ペーパートレードモード（実取引を行わず仮想取引で検証）",  # Phase 2-1
+)
+def live_bitbank_command(
+    config_path: str, max_trades: int, simple: bool, paper_trade: bool
+):
     """
     Bitbank本番でのライブトレードを実行。
     97特徴量システムでBTC/JPYペアの実取引を行う。
@@ -438,10 +479,15 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
     symbol = cfg["data"].get("symbol", "BTC/JPY")
 
     init_prefix = "[SIMPLE-INIT]" if simple else "[INIT-1]"
+    mode_str = " (Paper Trade)" if paper_trade else (" (Simple Mode)" if simple else "")
     logger.info(
-        f"🚀 {init_prefix} Starting Bitbank live trading{' (Simple Mode)' if simple else ''} - "
+        f"🚀 {init_prefix} Starting Bitbank live trading{mode_str} - "
         f"Exchange: {exchange_id}, Symbol: {symbol}"
     )
+    if paper_trade:
+        logger.info(
+            f"📝 {init_prefix} PAPER TRADE MODE ENABLED - No real trades will be executed"
+        )
     if not simple:
         logger.info(f"⏰ {init_prefix} Timestamp: {pd.Timestamp.now()}")
 
@@ -507,6 +553,25 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
 
     # 口座残高の取得
     balance = get_account_balance(fetcher, cfg)
+
+    # Phase 2-1: ペーパートレーダーの初期化
+    paper_trader = None
+    if paper_trade:
+        logger.info(
+            f"📝 [INIT-4] Initializing Paper Trader with balance: {balance:.2f} JPY..."
+        )
+
+        # ペーパートレード設定の取得（もしあれば）
+        paper_config = cfg.get("paper_trade", {})
+        fee_rate = paper_config.get("fee_rate", 0.0012)  # Bitbank デフォルト手数料
+        log_dir = paper_config.get("log_dir", "logs/paper_trades")
+
+        paper_trader = PaperTrader(
+            initial_balance=balance, fee_rate=fee_rate, log_dir=log_dir
+        )
+        logger.info(
+            f"✅ [INIT-4] Paper Trader initialized - Fee rate: {fee_rate:.4f}, Log dir: {log_dir}"
+        )
 
     # 簡素化: 初期データキャッシュのみチェック、なければメインループで取得
     logger.info("🚀 [INIT-COMPLETE] Initialization complete, starting main loop...")
@@ -759,7 +824,16 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     f"{entry_order.lot} at {entry_order.price}"
                 )
 
-                # 実際のBitbank取引実行
+                # Confidence値の取得（戦略から）
+                signal_confidence = 0.0
+                if hasattr(strategy, "last_confidence"):
+                    signal_confidence = getattr(strategy, "last_confidence", 0.0)
+                elif hasattr(strategy, "last_prediction_confidence"):
+                    signal_confidence = getattr(
+                        strategy, "last_prediction_confidence", 0.0
+                    )
+
+                # 実際のBitbank取引実行（ペーパートレード対応）
                 if execute_bitbank_trade(
                     entry_order,
                     position,
@@ -770,6 +844,9 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     cfg,
                     dd,
                     integration_service,
+                    is_exit=False,
+                    paper_trader=paper_trader,  # Phase 2-1
+                    signal_confidence=signal_confidence,  # Phase 2-1
                 ):
                     # ポジション更新
                     position.exist = True
@@ -822,7 +899,7 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     f"{exit_order.lot} at {exit_order.price}"
                 )
 
-                # 実際のBitbank取引実行
+                # 実際のBitbank取引実行（ペーパートレード対応）
                 if execute_bitbank_trade(
                     exit_order,
                     position,
@@ -834,6 +911,8 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
                     dd,
                     integration_service,
                     is_exit=True,
+                    paper_trader=paper_trader,  # Phase 2-1
+                    signal_confidence=0.0,  # Phase 2-1（エグジット時は信頼度使用しない）
                 ):
                     # ポジション解消
                     position.exist = False
@@ -880,10 +959,23 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
 
     except KeyboardInterrupt:
         logger.info("🛑 [SHUTDOWN] Interrupted. Bye.")
+
+        # Phase 2-1: ペーパートレードサマリー表示
+        if paper_trader is not None:
+            logger.info("📊 [PAPER TRADE] Final Summary:")
+            paper_trader.print_summary()
+            logger.info(f"📁 [PAPER TRADE] Results saved to: {paper_trader.log_dir}")
+
     except Exception as e:
         logger.error(f"❌ [ERROR] Live trading error: {e}")
         logger.error(f"⏰ [ERROR] Error occurred at: {pd.Timestamp.now()}")
         import traceback
 
         logger.error(f"🔍 [ERROR] Traceback: {traceback.format_exc()}")
+
+        # Phase 2-1: エラー時もペーパートレードサマリー表示
+        if paper_trader is not None:
+            logger.info("📊 [PAPER TRADE] Summary before error:")
+            paper_trader.print_summary()
+
         raise

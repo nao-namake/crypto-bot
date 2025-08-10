@@ -5,6 +5,12 @@
 **Trade Execution & Exchange Integration System**  
 本フォルダは crypto-bot の取引実行機能を提供し、各取引所との統合、注文管理、手数料最適化、レート制限管理を担当します。
 
+**🆕 Phase 2-1 ペーパートレード追加（2025年8月10日）**:
+- **paper_trader.py**: 仮想取引実行システム
+- リアルデータでのリスクフリー検証
+- 取引結果のCSV/JSON記録
+- パフォーマンス統計追跡
+
 ## 🎯 主要機能
 
 ### **取引所統合**
@@ -39,6 +45,7 @@ execution/
 ├── base.py                                  # 取引所クライアント共通インターフェース
 ├── engine.py                                # 取引実行エンジン
 ├── factory.py                               # 取引所クライアントファクトリー
+├── paper_trader.py                          # ペーパートレード実行（Phase 2-1）
 ├── api_version_manager.py                   # APIバージョン管理
 ├── bitbank_client.py                        # Bitbank統合
 ├── bitbank_api_rate_limiter.py             # Bitbankレート制限
@@ -66,6 +73,14 @@ execution/
 - `Position`データクラス - ポジション管理
 - `ExecutionEngine`クラス - 実行エンジン本体
 - リトライ制御・エラーハンドリング
+
+### **paper_trader.py** (Phase 2-1追加)
+- `PaperTrader`クラス - ペーパートレード実行
+- `VirtualPosition`データクラス - 仮想ポジション管理
+- `VirtualTrade`データクラス - 仮想取引記録
+- リアルデータでの仮想取引実行
+- CSV/JSON形式での取引記録保存
+- P&L・勝率・ドローダウン計算
 
 ### **factory.py**
 - `create_exchange_client()` - クライアント生成
@@ -108,6 +123,30 @@ client = create_exchange_client(
     api_key=os.getenv("BITBANK_API_KEY"),
     api_secret=os.getenv("BITBANK_API_SECRET")
 )
+```
+
+### **ペーパートレード実行** (Phase 2-1)
+```python
+from crypto_bot.execution.paper_trader import PaperTrader
+
+# ペーパートレーダー初期化
+paper_trader = PaperTrader(
+    initial_balance=1000000.0,
+    fee_rate=0.0012,  # Bitbank手数料
+    log_dir="logs/paper_trades"
+)
+
+# 仮想取引実行
+success = paper_trader.execute_virtual_trade(
+    order=order,
+    position=position,
+    is_exit=False,
+    signal_confidence=0.75,
+    notes="Test trade"
+)
+
+# サマリー表示
+paper_trader.print_summary()
 ```
 
 ### **注文実行**

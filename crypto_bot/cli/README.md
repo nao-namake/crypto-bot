@@ -11,6 +11,7 @@
 - **live.py修正**: EntryExit初期化バグ修正（正しい引数: strategy, risk_manager, atr_series）
 - **ATR計算追加**: リスク管理用のATRシリーズ計算処理を追加
 - **エントリーシグナル生成問題の根本解決**: 初期化エラーによる取引停止問題を解消
+- **📝 Phase 2-1 ペーパートレードモード追加**: --paper-tradeフラグで仮想取引実行・リスクフリー検証
 
 ## 🎯 主要機能
 
@@ -79,6 +80,11 @@ cli/
 - リアルタイム取引ループ実装
 - エラー処理・リトライ機能
 - --simpleフラグ: 統計システムなしの軽量版実行
+- **📝 --paper-tradeフラグ**: ペーパートレードモード（Phase 2-1）
+  - 実取引を行わず仮想取引で検証
+  - 実際の市場データを使用
+  - 取引結果をCSV/JSONに記録
+  - P&L・勝率・ドローダウン追跡
 
 ### **model.py**
 - `retrain_command()` - モデル再訓練
@@ -131,6 +137,12 @@ python -m crypto_bot.main backtest --config config/production/production.yml
 
 # ライブ取引開始
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
+
+# ペーパートレード実行（Phase 2-1: リスクフリー検証）
+python -m crypto_bot.main live-bitbank --config config/production/production.yml --paper-trade
+
+# シンプルモード＋ペーパートレード
+python -m crypto_bot.main live-bitbank --config config/production/production.yml --simple --paper-trade
 
 # モデル訓練
 python -m crypto_bot.main train --config config/ml/train_config.yml
