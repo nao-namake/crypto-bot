@@ -145,7 +145,13 @@ BitbankでのBTC/JPY自動取引を行う高度なMLシステムです。Phase 1
 **運用最適化期（Phase 18-19+）**
 - エントリーシグナル問題解決・Terraform Infrastructure安定化・CI/CD高速化（5分以内達成）
 
-**🎊 CI/CD完全修正・8つの隠れたエラー根本解決（2025年8月10日）**
+**🎊 エントリーシグナル生成エラー修正・CI/CD完全修正（2025年8月10日）**
+
+**本日修正されたエントリーシグナル生成エラー**:
+1. **pandas import重複問題**: live.py内の重複importを削除 → スコープエラー解消
+2. **strategy型チェック追加**: dictではなくオブジェクトであることを検証 → AttributeError防止
+3. **confidence_threshold統一**: 全戦略で0.35に統一（0.6/0.65/0.7から修正） → 設定値の一貫性確保
+4. **logic_signalメソッド存在確認**: 戦略初期化時の検証強化 → エラーの早期発見
 
 **解決された8つの隠れたエラー**:
 1. **API認証失敗**: terraform.tfvarsのダミー値がGitHub Secretsを上書き → ダミー値削除で解決

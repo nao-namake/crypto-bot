@@ -26,8 +26,16 @@ scripts/
 - `run_production_tests.sh` - 本番環境テスト
 - `quick_health_check.sh` - クイックヘルスチェック
 
-### **モデル管理**
-- `create_proper_ensemble_model.py` - 97特徴量アンサンブルモデル作成（現行版）
+### **モデル管理** (2025年8月10日更新)
+- **`create_proper_ensemble_model.py`** - 97特徴量アンサンブルモデル作成（本番用）
+  - 3モデル統合（LGBM + XGBoost + RandomForest）
+  - trading_stackingメソッドによる高度な統合
+  - models/production/model.pkl として出力
+- **`create_production_model.py`** - CI/CD用モデル作成（更新）
+  - DataFrame対応追加
+  - confidence_threshold=0.35に統一
+  - フォールバック対応（simple_fallback）
+- `create_ci_model.py` - CI環境用モデル作成
 - `retrain_97_features_model.py` - 97特徴量モデル再学習
 - `validate_97_features_optimization.py` - 97特徴量システム検証
 

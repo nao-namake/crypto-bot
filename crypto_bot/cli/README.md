@@ -7,6 +7,11 @@
 
 **🔗 Phase 16.5-C依存**: 全7つのCLIモジュールが utils/config.py に依存（旧crypto_bot/config.py から移動）
 
+**🆕 2025年8月10日更新**: 
+- **live.py修正**: EntryExit初期化バグ修正（正しい引数: strategy, risk_manager, atr_series）
+- **ATR計算追加**: リスク管理用のATRシリーズ計算処理を追加
+- **エントリーシグナル生成問題の根本解決**: 初期化エラーによる取引停止問題を解消
+
 ## 🎯 主要機能
 
 ### **取引関連コマンド**
@@ -41,7 +46,7 @@
 cli/
 ├── __init__.py      # パッケージ初期化
 ├── backtest.py      # バックテストコマンド
-├── live.py          # ライブ取引コマンド
+├── live.py          # ライブ取引コマンド（2025/8/10修正: EntryExit初期化修正）
 ├── model.py         # モデル管理コマンド
 ├── online.py        # オンライン学習コマンド
 ├── optimize.py      # 最適化コマンド

@@ -6,7 +6,8 @@
 本フォルダは crypto-bot の機械学習モデル管理を担当し、開発→検証→本番への昇格ワークフローを提供します。
 
 **🎊 Phase 16.12更新**: 2025年8月8日  
-**管理体制**: 97特徴量システム・TradingEnsembleClassifier・本番稼働モデル完備
+**最終更新**: 2025年8月10日 - アンサンブルモデル強化・CI/CDテスト対応  
+**管理体制**: 97特徴量システム・TradingEnsembleClassifier・3モデル統合(LGBM+XGB+RF)
 
 ## 📁 ディレクトリ構造
 
@@ -14,9 +15,11 @@
 models/                                 # Phase 16.12現在（24ファイル）
 ├── README.md                           # 本ドキュメント
 │
-├── ✅ production/ - 本番稼働モデル（2ファイル）
-│   ├── model.pkl                       # TradingEnsembleClassifier本番モデル
-│   └── model_metadata.json            # 本番モデルメタデータ
+├── ✅ production/ - 本番稼働モデル（5ファイル）
+│   ├── model.pkl                       # TradingEnsembleClassifier本番モデル（3モデル統合）
+│   ├── model_metadata.json            # 本番モデルメタデータ
+│   ├── model.pkl.backup_*             # 各種バックアップ（自動生成）
+│   └── create_production_model.py使用  # CI/CDでの自動生成対応
 │
 ├── ✅ training/ - 訓練済み個別モデル（7ファイル）
 │   ├── lgbm_97_features.pkl           # LightGBM 97特徴量モデル
@@ -105,9 +108,15 @@ python scripts/retrain_97_features_model.py
 
 ### **Stage 2: アンサンブル統合**
 ```bash
-# TradingEnsembleClassifierによる統合
+# TradingEnsembleClassifierによる統合（3モデル統合）
 python scripts/create_proper_ensemble_model.py
-# 出力: models/training/model_trading_ensemble.pkl
+# 出力: models/production/model.pkl
+# 内容: LGBM + XGBoost + RandomForest の trading_stacking 統合
+
+# CI/CD環境用モデル作成
+python scripts/create_production_model.py
+# DataFrame対応・confidence_threshold=0.35
+# フォールバック対応（simple_fallback）
 ```
 
 ### **Stage 3: 検証・バックテスト**
@@ -171,10 +180,13 @@ gsutil cp models/production/model_backup_$(date +%Y%m%d).pkl gs://my-crypto-bot-
 
 ## 📊 現在のモデル体制（Phase 16.12）
 
-### **本番稼働モデル**
-- **TradingEnsembleClassifier**: LGBM + XGBoost + RandomForest統合
+### **本番稼働モデル（2025年8月10日更新）**
+- **TradingEnsembleClassifier**: LGBM + XGBoost + RandomForest 3モデル統合
+- **統合方式**: trading_stacking メソッド（高度な予測統合）
 - **97特徴量完全対応**: 100%実装率・フォールバック削減
-- **稼働状況**: Phase 16本番環境・Bitbank BTC/JPY実取引中
+- **confidence_threshold**: 0.35（production.yml準拠）
+- **CI/CD対応**: create_production_model.py でのフォールバック生成対応
+- **稼働状況**: Phase 18本番環境・Bitbank BTC/JPY実取引中
 
 ### **訓練済みモデル群**
 - **個別モデル性能**: LGBM(47.02%) / XGBoost(48.20%) / RandomForest(47.84%)

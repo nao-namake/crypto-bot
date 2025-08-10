@@ -179,7 +179,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
             tf_config["ml"]["ensemble"] = {
                 "enabled": True,
                 "method": "trading_stacking",
-                "confidence_threshold": 0.65,
+                "confidence_threshold": self.confidence_threshold,  # 親の値を継承（0.35）
                 "risk_adjustment": True,
             }
 
@@ -201,8 +201,7 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 "breakout_signal",
             ]
             tf_config["ml"]["feat_period"] = 7
-            # 15分足用アンサンブル設定
-            tf_config["ml"]["ensemble"]["confidence_threshold"] = 0.6  # より積極的
+            # 15分足用アンサンブル設定（親のconfidence_thresholdを継承）
 
         elif timeframe == "4h":
             # 4時間足: トレンド確認・長期特徴量
@@ -222,15 +221,13 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
                 "macro_regime",
             ]
             tf_config["ml"]["feat_period"] = 21
-            # 4時間足用アンサンブル設定
-            tf_config["ml"]["ensemble"]["confidence_threshold"] = 0.7  # より保守的
+            # 4時間足用アンサンブル設定（親のconfidence_thresholdを継承）
 
         else:  # 1h (デフォルト)
             # 1時間足: 101特徴量フルセット
             tf_config["ml"]["extra_features"] = self._get_full_feature_set()
             tf_config["ml"]["feat_period"] = 14
-            # 1時間足用アンサンブル設定（バランス型）
-            tf_config["ml"]["ensemble"]["confidence_threshold"] = 0.65
+            # 1時間足用アンサンブル設定（親のconfidence_thresholdを継承）
 
         return tf_config
 

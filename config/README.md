@@ -36,9 +36,10 @@ config/
 
 **Phase 18対応・エントリーシグナル生成問題修正・データ取得最適化**
 
-### ✅ `production.yml` - **現在の本番稼働設定** (2025年8月9日更新)
+### ✅ `production.yml` - **現在の本番稼働設定** (2025年8月10日最終更新)
 ```yaml
 # Phase 18: エントリーシグナル生成問題の根本解決
+# 2025年8月10日修正: confidence_threshold=0.35に統一
 backtest:
   starting_balance: 10000.0  # ¥10,000スタート
 bitbank:

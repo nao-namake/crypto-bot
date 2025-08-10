@@ -8,6 +8,12 @@
 **🎊 Phase 16.9最適化完了**: 2025年8月8日  
 **整理効果**: 22個→16個（27%削減）・6,901行除去・誤参照防止・保守性向上
 
+**🆕 2025年8月10日更新**:
+- **ensemble.py修正**: 
+  - create_trading_ensemble関数のconfidence_thresholdデフォルトを0.35に変更
+  - モデルファイル不在時のフォールバック対応（simple_fallback）
+  - CI/CD環境での動作保証
+
 ## 🎯 主要機能
 
 ### **特徴量エンジニアリング**
@@ -45,6 +51,7 @@ ml/                                   # Phase 16.9最適化後（16個・全て�
 ├── preprocessor.py                   # Phase 16.3-A互換性レイヤー（57行）
 ├── feature_master_implementation.py # Phase 16.3-B互換性レイヤー（30行）
 ├── ensemble.py                       # TradingEnsembleClassifier（1,259行・重要）
+                                      # 3モデル統合(LGBM+XGB+RF)・trading_stacking
 ├── model.py                          # MLModel統合（583行）
 ├── optimizer.py                      # ハイパーパラメータ最適化（374行）
 ├── target.py                         # ターゲット生成（69行）

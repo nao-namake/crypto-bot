@@ -116,7 +116,7 @@ class EnsembleMLStrategy(MLStrategy):
 
         # 取引特化型設定
         self.trading_confidence_threshold = ensemble_config.get(
-            "confidence_threshold", 0.65
+            "confidence_threshold", 0.35  # production.ymlのデフォルト値に合わせる
         )
         self.risk_adjustment_enabled = ensemble_config.get("risk_adjustment", True)
 
