@@ -14,6 +14,12 @@
   - 子戦略への設定伝播保証
   - production.ymlの0.35を確実に反映
 
+**🎊 ChatGPT提案採用（Phase 1完了）**:
+- **ensemble_ml_strategy.py強化**: 
+  - 構造化ログ機能追加（Phase 1-1）- 全シグナルをCSV記録
+  - アンサンブルモデル有効性チェック追加（Phase 1-2）
+  - 「Strategy does not use ensemble models」エラー防止対策
+
 ## 🎯 主要機能
 
 ### **戦略基盤**

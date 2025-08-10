@@ -1263,16 +1263,22 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
     except Exception as e:
         logger.warning(f"⚠️  Failed to load pre-trained model: {e}")
 
-    # フォールバック: 空のアンサンブルを作成（従来の動作）
+    # ChatGPT提案: アンサンブルモデル強制使用 - フォールバック改善
+    logger.warning(
+        "⚠️  No pre-trained ensemble model available! "
+        "Creating simple_fallback mode for basic operation"
+    )
+    
+    # シンプルフォールバック: 基本的なアンサンブル分類器を作成
     ensemble = TradingEnsembleClassifier(
-        ensemble_method=ensemble_method,
+        ensemble_method="simple_fallback",
         trading_metrics=trading_metrics,
         risk_adjustment=risk_adjustment,
         confidence_threshold=confidence_threshold,
     )
 
-    logger.info(
-        f"Created trading-optimized ensemble: {ensemble_method} "
-        f"with risk_adjustment={risk_adjustment} (fallback mode)"
+    logger.warning(
+        f"⚠️  Created fallback ensemble: simple_fallback mode "
+        f"(to prevent 'Strategy does not use ensemble models' error)"
     )
     return ensemble

@@ -16,6 +16,7 @@ import pandas as pd
 from crypto_bot.execution.engine import Position, Signal
 from crypto_bot.ml.ensemble import create_trading_ensemble
 from crypto_bot.strategy.ml_strategy import MLStrategy
+from crypto_bot.utils.signal_logger import SignalLogger
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,9 @@ class EnsembleMLStrategy(MLStrategy):
 
         # パフォーマンス追跡
         self.recent_signals = []
+        
+        # 構造化ログ記録（ChatGPT提案採用）
+        self.signal_logger = SignalLogger()
         self.max_signal_history = 50
         self.vix_data_cache = None
         self.vix_cache_time = None
@@ -187,6 +191,19 @@ class EnsembleMLStrategy(MLStrategy):
         if not self.ensemble_enabled:
             # フォールバック: 既存MLStrategy使用
             return super().logic_signal(price_df, position)
+        
+        # ChatGPT提案: アンサンブルモデル有効性チェック
+        if (not hasattr(self, 'ensemble_model') or 
+            self.ensemble_model is None or 
+            not hasattr(self.ensemble_model, 'base_models') or 
+            len(self.ensemble_model.base_models) == 0):
+            
+            logger.warning(
+                "⚠️  Ensemble model not available or empty! "
+                "Falling back to MLStrategy (prevents 'does not use ensemble models' error)"
+            )
+            self.ensemble_enabled = False
+            return super().logic_signal(price_df, position)
 
         # 市場コンテキスト生成
         market_context = self._generate_market_context(price_df)
@@ -242,6 +259,20 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "EXIT", probability, confidence, trading_info
                     )
+                    
+                    # 構造化ログ記録（ChatGPT提案）
+                    self.signal_logger.log_signal(
+                        price=current_price,
+                        prediction=prediction,
+                        probability=probability,
+                        confidence=confidence,
+                        threshold=exit_threshold,
+                        signal_type="EXIT",
+                        market_regime=trading_info.get("market_regime", "unknown"),
+                        position_exists=True,
+                        strategy_type="ensemble_ml"
+                    )
+                    
                     return signal
 
                 return Signal()  # ホールド
@@ -258,6 +289,20 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "ENTRY_LONG", probability, confidence, trading_info
                     )
+                    
+                    # 構造化ログ記録（ChatGPT提案）
+                    self.signal_logger.log_signal(
+                        price=current_price,
+                        prediction=prediction,
+                        probability=probability,
+                        confidence=confidence,
+                        threshold=self.trading_confidence_threshold,
+                        signal_type="BUY",
+                        market_regime=trading_info.get("market_regime", "unknown"),
+                        position_exists=False,
+                        strategy_type="ensemble_ml"
+                    )
+                    
                     return signal
 
                 elif (
@@ -273,6 +318,20 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "ENTRY_SHORT", probability, confidence, trading_info
                     )
+                    
+                    # 構造化ログ記録（ChatGPT提案）
+                    self.signal_logger.log_signal(
+                        price=current_price,
+                        prediction=prediction,
+                        probability=probability,
+                        confidence=confidence,
+                        threshold=(1.0 - dynamic_threshold),
+                        signal_type="SELL",
+                        market_regime=trading_info.get("market_regime", "unknown"),
+                        position_exists=False,
+                        strategy_type="ensemble_ml"
+                    )
+                    
                     return signal
 
                 # 中程度の信頼度でのシグナル（より保守的）
@@ -286,7 +345,34 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "WEAK_LONG", probability, confidence, trading_info
                     )
+                    
+                    # 構造化ログ記録（ChatGPT提案）
+                    self.signal_logger.log_signal(
+                        price=current_price,
+                        prediction=prediction,
+                        probability=probability,
+                        confidence=confidence,
+                        threshold=(0.5 + weak_threshold),
+                        signal_type="WEAK_BUY",
+                        market_regime=trading_info.get("market_regime", "unknown"),
+                        position_exists=False,
+                        strategy_type="ensemble_ml"
+                    )
+                    
                     return signal
+
+                # HOLD（ホールド）の場合もログ記録
+                self.signal_logger.log_signal(
+                    price=current_price,
+                    prediction=prediction,
+                    probability=probability,
+                    confidence=confidence,
+                    threshold=dynamic_threshold,
+                    signal_type="HOLD",
+                    market_regime=trading_info.get("market_regime", "unknown"),
+                    position_exists=False,
+                    strategy_type="ensemble_ml"
+                )
 
                 return Signal()  # ホールド
 

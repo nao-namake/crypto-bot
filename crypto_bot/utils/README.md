@@ -57,6 +57,7 @@ utils/
 ├── cloud_run_api_diagnostics.py    # Cloud Run診断
 ├── trading_integration_service.py  # 取引統合サービス
 ├── trading_statistics_manager.py   # 取引統計管理
+├── signal_logger.py                # 構造化シグナルログ（ChatGPT提案採用）
 └── system/                         # システム管理サブモジュール
     ├── __init__.py
     ├── logging_system.py           # システムログ管理
@@ -113,6 +114,12 @@ utils/
 - パフォーマンスメトリクス計算
 - 期間別集計
 - レポート生成
+
+### **signal_logger.py（ChatGPT提案採用・Phase 1-1実装）**
+- `SignalLogger`クラス - 構造化シグナルログ記録
+- CSV形式での予測値・シグナル・価格継続記録
+- スレッドセーフなログ出力機能
+- デバッグ・分析効率向上、本番動作可視化対応
 
 ### **japanese_market.py**
 - 日本市場営業時間判定

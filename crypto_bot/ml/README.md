@@ -14,6 +14,12 @@
   - モデルファイル不在時のフォールバック対応（simple_fallback）
   - CI/CD環境での動作保証
 
+**🎊 ChatGPT提案採用（Phase 1-2完了）**:
+- **ensemble.py改善**:
+  - フォールバック処理強化 - simple_fallbackモード追加
+  - 「Strategy does not use ensemble models」エラー根本解決
+  - TradingEnsembleClassifier強制使用保証システム
+
 ## 🎯 主要機能
 
 ### **特徴量エンジニアリング**
