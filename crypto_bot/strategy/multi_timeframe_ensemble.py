@@ -43,7 +43,31 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
         ensemble_config = config.get("ml", {}).get("ensemble", {})
         self.ensemble_enabled = ensemble_config.get("enabled", True)
         self.ensemble_method = ensemble_config.get("method", "trading_stacking")
-        self.confidence_threshold = ensemble_config.get("confidence_threshold", 0.65)
+
+        # confidence_thresholdを複数の場所から取得（優先順位順）
+        # 1. ml.ensemble.confidence_threshold
+        # 2. ml.confidence_threshold
+        # 3. strategy.confidence_threshold
+        # 4. デフォルト値 0.35
+        confidence_from_ensemble = ensemble_config.get("confidence_threshold")
+        confidence_from_ml = config.get("ml", {}).get("confidence_threshold")
+        confidence_from_strategy = config.get("strategy", {}).get(
+            "confidence_threshold"
+        )
+
+        # 優先順位に従って値を選択
+        if confidence_from_ensemble is not None:
+            self.confidence_threshold = confidence_from_ensemble
+        elif confidence_from_ml is not None:
+            self.confidence_threshold = confidence_from_ml
+        elif confidence_from_strategy is not None:
+            self.confidence_threshold = confidence_from_strategy
+        else:
+            self.confidence_threshold = 0.35  # production.ymlのデフォルト値に合わせる
+
+        logger.info(
+            f"📊 [CONFIG] Confidence threshold set to: {self.confidence_threshold}"
+        )
 
         # マルチタイムフレームデータフェッチャー初期化
         self.multi_timeframe_fetcher = None
@@ -125,6 +149,16 @@ class MultiTimeframeEnsembleStrategy(StrategyBase):
     def _create_timeframe_config(self, timeframe: str) -> Dict:
         """タイムフレーム別設定作成"""
         tf_config = self.config.copy()
+
+        # confidence_thresholdを確実に伝播
+        if "ml" not in tf_config:
+            tf_config["ml"] = {}
+        if "ensemble" not in tf_config["ml"]:
+            tf_config["ml"]["ensemble"] = {}
+
+        # 親のconfidence_thresholdを継承
+        tf_config["ml"]["ensemble"]["confidence_threshold"] = self.confidence_threshold
+        tf_config["ml"]["confidence_threshold"] = self.confidence_threshold
 
         # データ設定更新
         if "data" not in tf_config:

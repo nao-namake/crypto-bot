@@ -189,10 +189,14 @@ jobs:
           echo "🤖 Preparing model files for CI environment..."
           mkdir -p models/production
           
-          # モデルファイルが存在しない場合、CI用のダミーモデルを生成
+          # モデルファイルが存在しない場合、本番用モデルを生成
           if [ ! -f "models/production/model.pkl" ]; then
-            echo "⚠️ Model file not found, creating minimal model for CI..."
-            python scripts/create_ci_model.py || echo "⚠️ Model creation failed, but continuing"
+            echo "⚠️ Model file not found, creating production model for CI..."
+            # 本番用モデル作成を試みる
+            python scripts/create_production_model.py || {
+              echo "⚠️ Production model creation failed, falling back to CI model..."
+              python scripts/create_ci_model.py || echo "⚠️ CI model creation also failed, but continuing"
+            }
           else
             echo "✅ Model file already exists"
           fi

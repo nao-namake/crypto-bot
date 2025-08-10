@@ -524,7 +524,61 @@ def live_bitbank_command(config_path: str, max_trades: int, simple: bool):
         pass  # キャッシュロード失敗は無視してメインループで処理
 
     # 最小限の初期化のみ実行
-    entry_exit = EntryExit(cfg, fetcher, risk_manager)
+    # ATRシリーズを計算（EntryExitに必要）
+    from crypto_bot.indicator.calculator import IndicatorCalculator
+
+    # 初期データを取得してATR計算用に使用
+    logger.info("📊 [INIT-ATR] Calculating ATR series for risk management...")
+    initial_price_df = None
+    try:
+        # キャッシュから初期データを取得できる場合はそれを使用
+        if hasattr(strategy, "_initial_data") and strategy._initial_data is not None:
+            initial_price_df = strategy._initial_data
+            logger.info(
+                f"✅ [INIT-ATR] Using cached data for ATR: {len(initial_price_df)} records"
+            )
+        else:
+            # キャッシュがない場合は新規取得
+            logger.info("🔄 [INIT-ATR] Fetching initial data for ATR calculation...")
+            initial_price_df = fetch_latest_data(fetcher, dd, symbol)
+            if initial_price_df is not None and not initial_price_df.empty:
+                logger.info(
+                    f"✅ [INIT-ATR] Fetched {len(initial_price_df)} records for ATR"
+                )
+    except Exception as e:
+        logger.warning(f"⚠️ [INIT-ATR] Failed to get initial data for ATR: {e}")
+
+    # ATRシリーズを計算
+    atr_series = None
+    if initial_price_df is not None and not initial_price_df.empty:
+        try:
+            atr_period = risk_config.get("atr_period", 14)
+            atr_series = IndicatorCalculator.calculate_atr(
+                initial_price_df, period=atr_period
+            )
+            # ゼロ値を1.0で置換（ゼロ除算防止）
+            atr_series = atr_series.mask(lambda s: s == 0.0, 1.0)
+            logger.info(
+                f"✅ [INIT-ATR] ATR series calculated successfully (period={atr_period})"
+            )
+        except Exception as e:
+            logger.error(f"❌ [INIT-ATR] ATR calculation failed: {e}")
+            # フォールバック: 固定値のシリーズを作成
+            import pandas as pd
+
+            atr_series = pd.Series(
+                [1.0] * len(initial_price_df), index=initial_price_df.index
+            )
+            logger.warning("⚠️ [INIT-ATR] Using fallback ATR series (fixed value=1.0)")
+    else:
+        # データがない場合は空のシリーズを作成
+        import pandas as pd
+
+        atr_series = pd.Series(dtype=float)
+        logger.warning("⚠️ [INIT-ATR] No data available for ATR, using empty series")
+
+    # EntryExitを正しい引数で初期化
+    entry_exit = EntryExit(strategy, risk_manager, atr_series)
     position = Position()
 
     # モデル状態の最終確認

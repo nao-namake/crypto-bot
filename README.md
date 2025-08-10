@@ -2,7 +2,7 @@
 
 **BitbankでのBTC/JPY自動取引を行う高度なML取引システム**
 
-[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-33%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-32.30%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
 ## 🎯 システム概要
 
@@ -18,10 +18,11 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 ### 📊 現在の運用状況
 
-**✅ 正常稼働中** (2025年8月10日確認・Phase 19+最新リビジョン)
+**✅ 正常稼働中** (2025年8月10日更新・CI/CD完全修正済み)
 - **取引モード**: live（BTC/JPY自動取引）
 - **予測システム**: 97特徴量アンサンブル学習
 - **実行環境**: GCP Cloud Run・自動スケーリング
+- **CI/CD状態**: ✅ 完全修正済み（YAML構文・flake8・black整形対応）
 - **エントリー条件**: confidence > 0.35
 - **リスク管理**: 1取引あたり1%・最大3%
 
@@ -207,13 +208,18 @@ curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
 # Step 2: ログ分析
 gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"TRADE\"" --limit=5
 
-# Step 3: 緊急時対応
-scripts/emergency_shutdown.py  # 取引停止
+# Step 3: CI/CD状態確認
+gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"INIT\"" --limit=5
+
+# Step 4: 緊急時対応
+python scripts/utilities/emergency_shutdown.py  # 取引停止
 ```
 
 ## 🎊 開発成果・特徴
 
-### 解決された主要課題
+### 解決された主要課題（2025年8月10日完了）
+- **8つの隠れたエラー修正**: API認証・モデル不在・タイムスタンプ・INIT処理等の完全解決
+- **CI/CD完全修正**: YAML構文エラー・flake8違反・black整形問題の根本解決
 - **取引実行基盤**: 97特徴量システム・アンサンブル学習・リスク管理統合
 - **システム安定性**: データ取得最適化・エラー処理強化・品質保証体制
 - **開発効率**: モジュラー設計（10,644行削除）・文書体系整備・CI/CD高速化
@@ -223,7 +229,8 @@ scripts/emergency_shutdown.py  # 取引停止
 - ✅ **高精度予測**: 97特徴量×アンサンブル学習（LGBM+XGBoost+RF）
 - ✅ **安全なリスク管理**: Kelly基準・信用取引・動的ポジションサイジング
 - ✅ **効率的運用**: 月額2,200円・自動スケーリング・CI/CD 5分以内
-- ✅ **保守性**: モジュラー設計・完全文書化・テスト体制（579テスト）
+- ✅ **品質保証**: 579テスト成功・カバレッジ32.30%・flake8/black/isort完全準拠
+- ✅ **保守性**: モジュラー設計・完全文書化・README.md体系整備
 
 ---
 

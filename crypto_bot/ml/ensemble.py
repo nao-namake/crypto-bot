@@ -1206,7 +1206,21 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
 
     ensemble_method = ensemble_config.get("method", "trading_stacking")
     risk_adjustment = ensemble_config.get("risk_adjustment", True)
-    confidence_threshold = ensemble_config.get("confidence_threshold", 0.65)
+
+    # confidence_thresholdを複数の場所から取得（優先順位順）
+    confidence_from_ensemble = ensemble_config.get("confidence_threshold")
+    confidence_from_ml = config.get("ml", {}).get("confidence_threshold")
+    confidence_from_strategy = config.get("strategy", {}).get("confidence_threshold")
+
+    # 優先順位に従って値を選択（production.ymlのデフォルト値0.35に合わせる）
+    if confidence_from_ensemble is not None:
+        confidence_threshold = confidence_from_ensemble
+    elif confidence_from_ml is not None:
+        confidence_threshold = confidence_from_ml
+    elif confidence_from_strategy is not None:
+        confidence_threshold = confidence_from_strategy
+    else:
+        confidence_threshold = 0.35  # production.ymlのデフォルト値
 
     # 取引メトリクス重み設定
     trading_metrics = ensemble_config.get(
