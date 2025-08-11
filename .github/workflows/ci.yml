@@ -63,13 +63,13 @@ jobs:
       - name: Run quality checks & tests
         run: |
           echo ">>> Running full quality checks"
-          bash scripts/checks.sh
+          bash scripts/ci_tools/checks.sh
         # scripts/checks.sh に書かれた flake8/isort/black/pytest＋coverage コマンドを一括実行
 
       - name: Generate pre-computed cache
         run: |
           echo ">>> Phase 12.3: Generating pre-computed cache"
-          python scripts/pre_compute_data.py || echo "⚠️ Pre-computation failed but continuing"
+          python scripts/data_tools/pre_compute_data.py || echo "⚠️ Pre-computation failed but continuing"
           if [ -d "cache" ]; then
             echo "✅ Cache generated successfully: $(ls -la cache/)"
           else
@@ -175,7 +175,7 @@ jobs:
           
           # 最小限の初期データキャッシュを作成（CIではAPI認証できないため）
           # CI用のスクリプトを実行（エラーがあっても継続）
-          python scripts/create_minimal_cache.py || echo "⚠️ Cache creation failed, but continuing"
+          python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Cache creation failed, but continuing"
           
           # メタデータファイルも作成
           echo '{"generated": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "environment": "CI", "records": 300}' > cache/initial_data_metadata.json
@@ -193,9 +193,9 @@ jobs:
           if [ ! -f "models/production/model.pkl" ]; then
             echo "⚠️ Model file not found, creating production model for CI..."
             # 本番用モデル作成を試みる
-            python scripts/create_production_model.py || {
+            python scripts/model_tools/create_production_model.py || {
               echo "⚠️ Production model creation failed, falling back to CI model..."
-              python scripts/create_ci_model.py || echo "⚠️ CI model creation also failed, but continuing"
+              python scripts/model_tools/create_ci_model.py || echo "⚠️ CI model creation also failed, but continuing"
             }
           else
             echo "✅ Model file already exists"
@@ -445,13 +445,13 @@ jobs:
           # Try to fetch real data for production
           if [[ -n "$BITBANK_API_KEY" ]] && [[ -n "$BITBANK_API_SECRET" ]]; then
             echo "🔄 Fetching real market data for production cache..."
-            python scripts/prepare_initial_data.py || {
+            python scripts/data_tools/prepare_initial_data.py || {
               echo "⚠️ Failed to fetch real data, using minimal cache"
-              python scripts/create_minimal_cache.py || echo "⚠️ Minimal cache creation also failed"
+              python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Minimal cache creation also failed"
             }
           else
             echo "⚠️ API credentials not available, creating minimal cache..."
-            python scripts/create_minimal_cache.py || echo "⚠️ Minimal cache creation failed"
+            python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Minimal cache creation failed"
           fi
           
           # Verify cache was created
