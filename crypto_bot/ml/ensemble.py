@@ -1204,7 +1204,6 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
     """
     ensemble_config = config.get("ml", {}).get("ensemble", {})
 
-    ensemble_method = ensemble_config.get("method", "trading_stacking")
     risk_adjustment = ensemble_config.get("risk_adjustment", True)
 
     # confidence_thresholdを複数の場所から取得（優先順位順）
@@ -1268,7 +1267,7 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
         "⚠️  No pre-trained ensemble model available! "
         "Creating simple_fallback mode for basic operation"
     )
-    
+
     # シンプルフォールバック: 基本的なアンサンブル分類器を作成
     ensemble = TradingEnsembleClassifier(
         ensemble_method="simple_fallback",
@@ -1278,7 +1277,7 @@ def create_trading_ensemble(config: Dict[str, Any]) -> TradingEnsembleClassifier
     )
 
     logger.warning(
-        f"⚠️  Created fallback ensemble: simple_fallback mode "
-        f"(to prevent 'Strategy does not use ensemble models' error)"
+        "⚠️  Created fallback ensemble: simple_fallback mode "
+        "(to prevent 'Strategy does not use ensemble models' error)"
     )
     return ensemble

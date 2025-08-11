@@ -56,6 +56,7 @@ class EnsembleMLStrategy(MLStrategy):
             # 取引特化型アンサンブルモデル作成
             try:
                 self.ensemble_model = create_trading_ensemble(self.config)
+                self.model = self.ensemble_model  # MLStrategyとの互換性のため
                 self.is_ensemble = True
                 logger.info("Trading ensemble model created successfully")
             except Exception as e:
@@ -67,6 +68,15 @@ class EnsembleMLStrategy(MLStrategy):
             # フォールバック: 既存MLStrategy使用
             logger.info("Falling back to standard MLStrategy")
             super().__init__(model_path, threshold, config)
+            # vix_enabled属性を初期化（MLStrategyと同様）
+            vix_config = self.config.get("ml", {}).get("vix_integration", {})
+            self.vix_enabled = vix_config.get("enabled", True)
+            # strategy.params からパラメータ取得
+            strategy_params = self.config.get("strategy", {}).get("params", {})
+            self.atr_multiplier = strategy_params.get("atr_multiplier", 0.5)
+            self.volatility_adjustment = strategy_params.get(
+                "volatility_adjustment", True
+            )
             return
 
         # 基本設定（MLStrategyと同様）
@@ -105,9 +115,36 @@ class EnsembleMLStrategy(MLStrategy):
         self.scaler = StandardScaler()
         self.indicator_calc = IndicatorCalculator()
 
+        # MLStrategyと同じパラメータを初期化
+        # Dynamic threshold parameters
+        strategy_params = self.config.get("strategy", {}).get("params", {})
+        self.atr_multiplier = strategy_params.get("atr_multiplier", 0.5)
+        self.volatility_adjustment = strategy_params.get("volatility_adjustment", True)
+        self.threshold_bounds = strategy_params.get("threshold_bounds", [0.01, 0.25])
+        self.max_volatility_adj = strategy_params.get("max_volatility_adj", 0.1)
+        self.performance_adj_range = strategy_params.get(
+            "performance_adj_range", [-0.01, 0.01]
+        )
+
+        # VIX integration parameters
+        vix_config = self.config.get("ml", {}).get("vix_integration", {})
+        self.vix_enabled = vix_config.get("enabled", True)
+        self.vix_risk_off_threshold = vix_config.get("risk_off_threshold", 25)
+        self.vix_panic_threshold = vix_config.get("panic_threshold", 35)
+        self.vix_spike_multiplier = vix_config.get("spike_multiplier", 2.0)
+        self.vix_extreme_adj = vix_config.get("vix_extreme_adj", 0.05)
+
+        # Performance improvement parameters
+        perf_config = self.config.get("ml", {}).get("performance_enhancements", {})
+        self.confidence_filter = perf_config.get("confidence_filter", 0.60)
+        self.partial_profit_levels = perf_config.get(
+            "partial_profit_levels", [0.3, 0.5]
+        )
+        self.trailing_stop_enabled = perf_config.get("trailing_stop", True)
+
         # パフォーマンス追跡
         self.recent_signals = []
-        
+
         # 構造化ログ記録（ChatGPT提案採用）
         self.signal_logger = SignalLogger()
         self.max_signal_history = 50
@@ -124,7 +161,7 @@ class EnsembleMLStrategy(MLStrategy):
         )
         self.risk_adjustment_enabled = ensemble_config.get("risk_adjustment", True)
 
-        # 動的閾値設定
+        # 動的閾値設定（vix_enabledは既に_initialize_componentsで設定済み）
         dynamic_config = self.config.get("ml", {}).get("dynamic_threshold", {})
         self.dynamic_threshold_enabled = dynamic_config.get("enabled", True)
         self.vix_adjustment_enabled = dynamic_config.get("vix_adjustment", True)
@@ -191,13 +228,15 @@ class EnsembleMLStrategy(MLStrategy):
         if not self.ensemble_enabled:
             # フォールバック: 既存MLStrategy使用
             return super().logic_signal(price_df, position)
-        
+
         # ChatGPT提案: アンサンブルモデル有効性チェック
-        if (not hasattr(self, 'ensemble_model') or 
-            self.ensemble_model is None or 
-            not hasattr(self.ensemble_model, 'base_models') or 
-            len(self.ensemble_model.base_models) == 0):
-            
+        if (
+            not hasattr(self, "ensemble_model")
+            or self.ensemble_model is None
+            or not hasattr(self.ensemble_model, "base_models")
+            or len(self.ensemble_model.base_models) == 0
+        ):
+
             logger.warning(
                 "⚠️  Ensemble model not available or empty! "
                 "Falling back to MLStrategy (prevents 'does not use ensemble models' error)"
@@ -259,7 +298,7 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "EXIT", probability, confidence, trading_info
                     )
-                    
+
                     # 構造化ログ記録（ChatGPT提案）
                     self.signal_logger.log_signal(
                         price=current_price,
@@ -270,9 +309,9 @@ class EnsembleMLStrategy(MLStrategy):
                         signal_type="EXIT",
                         market_regime=trading_info.get("market_regime", "unknown"),
                         position_exists=True,
-                        strategy_type="ensemble_ml"
+                        strategy_type="ensemble_ml",
                     )
-                    
+
                     return signal
 
                 return Signal()  # ホールド
@@ -289,7 +328,7 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "ENTRY_LONG", probability, confidence, trading_info
                     )
-                    
+
                     # 構造化ログ記録（ChatGPT提案）
                     self.signal_logger.log_signal(
                         price=current_price,
@@ -300,9 +339,9 @@ class EnsembleMLStrategy(MLStrategy):
                         signal_type="BUY",
                         market_regime=trading_info.get("market_regime", "unknown"),
                         position_exists=False,
-                        strategy_type="ensemble_ml"
+                        strategy_type="ensemble_ml",
                     )
-                    
+
                     return signal
 
                 elif (
@@ -318,7 +357,7 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "ENTRY_SHORT", probability, confidence, trading_info
                     )
-                    
+
                     # 構造化ログ記録（ChatGPT提案）
                     self.signal_logger.log_signal(
                         price=current_price,
@@ -329,9 +368,9 @@ class EnsembleMLStrategy(MLStrategy):
                         signal_type="SELL",
                         market_regime=trading_info.get("market_regime", "unknown"),
                         position_exists=False,
-                        strategy_type="ensemble_ml"
+                        strategy_type="ensemble_ml",
                     )
-                    
+
                     return signal
 
                 # 中程度の信頼度でのシグナル（より保守的）
@@ -345,7 +384,7 @@ class EnsembleMLStrategy(MLStrategy):
                     self._update_signal_history(
                         "WEAK_LONG", probability, confidence, trading_info
                     )
-                    
+
                     # 構造化ログ記録（ChatGPT提案）
                     self.signal_logger.log_signal(
                         price=current_price,
@@ -356,9 +395,9 @@ class EnsembleMLStrategy(MLStrategy):
                         signal_type="WEAK_BUY",
                         market_regime=trading_info.get("market_regime", "unknown"),
                         position_exists=False,
-                        strategy_type="ensemble_ml"
+                        strategy_type="ensemble_ml",
                     )
-                    
+
                     return signal
 
                 # HOLD（ホールド）の場合もログ記録
@@ -371,7 +410,7 @@ class EnsembleMLStrategy(MLStrategy):
                     signal_type="HOLD",
                     market_regime=trading_info.get("market_regime", "unknown"),
                     position_exists=False,
-                    strategy_type="ensemble_ml"
+                    strategy_type="ensemble_ml",
                 )
 
                 return Signal()  # ホールド

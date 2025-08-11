@@ -96,6 +96,8 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         """アンサンブルシグナル生成テスト"""
         # モック設定
         mock_ensemble = MagicMock()
+        # base_models属性を追加（logic_signalでチェックされる）
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.return_value = (
             np.array([1]),  # predictions
             np.array([[0.3, 0.7]]),  # probabilities
@@ -106,6 +108,8 @@ class TestEnsembleMLStrategy(unittest.TestCase):
                 "risk_level": "low",
             },
         )
+        # MLStrategyのlogic_signalで使用されるpredict_probaもモック
+        mock_ensemble.predict_proba.return_value = np.array([[0.3, 0.7]])
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()
@@ -131,12 +135,16 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         """高信頼度ロングシグナルテスト"""
         # 高信頼度ロング予測のモック
         mock_ensemble = MagicMock()
+        # base_models属性を追加
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.return_value = (
             np.array([1]),  # ロング予測
             np.array([[0.2, 0.8]]),  # 高確率
             np.array([0.9]),  # 高信頼度
             {"dynamic_threshold": 0.6, "market_regime": "calm"},
         )
+        # predict_probaもモック
+        mock_ensemble.predict_proba.return_value = np.array([[0.2, 0.8]])
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()
@@ -160,12 +168,16 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         """低信頼度でシグナルなしテスト"""
         # 低信頼度予測のモック
         mock_ensemble = MagicMock()
+        # base_models属性を追加
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.return_value = (
             np.array([1]),
             np.array([[0.4, 0.6]]),  # 微妙な確率
             np.array([0.4]),  # 低信頼度
             {"dynamic_threshold": 0.6, "market_regime": "volatile"},
         )
+        # predict_probaもモック
+        mock_ensemble.predict_proba.return_value = np.array([[0.4, 0.6]])
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()
@@ -186,12 +198,16 @@ class TestEnsembleMLStrategy(unittest.TestCase):
         """エグジットシグナル生成テスト"""
         # 低確率予測（エグジット条件）
         mock_ensemble = MagicMock()
+        # base_models属性を追加
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.return_value = (
             np.array([0]),
             np.array([[0.8, 0.2]]),  # 低い正例確率
             np.array([0.7]),
             {"dynamic_threshold": 0.6, "market_regime": "crisis"},
         )
+        # predict_probaもモック（低い確率でSELLシグナル）
+        mock_ensemble.predict_proba.return_value = np.array([[0.8, 0.2]])
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()
@@ -250,12 +266,16 @@ class TestEnsembleMLStrategy(unittest.TestCase):
     def test_signal_history_tracking(self, mock_feature_engineer, mock_create_ensemble):
         """シグナル履歴追跡テスト"""
         mock_ensemble = MagicMock()
+        # base_models属性を追加
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.return_value = (
             np.array([1]),
             np.array([[0.3, 0.7]]),
             np.array([0.8]),
             {"dynamic_threshold": 0.6, "market_regime": "normal"},
         )
+        # predict_probaもモック
+        mock_ensemble.predict_proba.return_value = np.array([[0.3, 0.7]])
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()
@@ -394,7 +414,15 @@ class TestEnsembleMLStrategyIntegration(unittest.TestCase):
         ]
 
         mock_ensemble = MagicMock()
+        # base_models属性を追加
+        mock_ensemble.base_models = [MagicMock(), MagicMock(), MagicMock()]
         mock_ensemble.predict_with_trading_confidence.side_effect = predictions_sequence
+        # predict_probaもモック（side_effectで段階的に変更）
+        mock_ensemble.predict_proba.side_effect = [
+            np.array([[0.2, 0.8]]),  # エントリー
+            np.array([[0.4, 0.6]]),  # ホールド
+            np.array([[0.7, 0.3]]),  # エグジット
+        ]
         mock_create_ensemble.return_value = mock_ensemble
 
         mock_fe = MagicMock()

@@ -120,9 +120,27 @@ utils/
 - CSV形式での予測値・シグナル・価格継続記録
 - スレッドセーフなログ出力機能
 - デバッグ・分析効率向上、本番動作可視化対応
-- **Phase 2-2連携**: `scripts/utilities/signal_monitor.py`で監視対象
-  - 1時間毎の異常検知
-  - trading_signals.csvの健全性チェック
+
+**Phase 2-2連携詳細:**
+- **監視対象ファイル**: `logs/trading_signals.csv`
+- **監視ツール**: `scripts/utilities/signal_monitor.py`
+- **監視項目**:
+  - シグナル生成頻度（1時間以上なし → アラート）
+  - 連続パターン異常（30回連続HOLD等）
+  - Confidence値異常（常に0.0または1.0）
+  - 予測精度の低下
+- **統合実行**:
+  ```bash
+  # ペーパートレード＋シグナル監視の統合実行
+  bash scripts/paper_trade_with_monitoring.sh --duration 24
+  
+  # 監視のみ実行
+  python scripts/utilities/signal_monitor.py --hours 24
+  
+  # 統合CLI経由（推奨）
+  python scripts/bot_manager.py monitor --hours 24
+  ```
+- **レポート出力**: `logs/monitoring/signal_analysis_*.html`
 
 ### **japanese_market.py**
 - 日本市場営業時間判定

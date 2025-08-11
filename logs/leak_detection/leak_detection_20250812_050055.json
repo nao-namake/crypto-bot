@@ -1,0 +1,11 @@
+{
+  "total_files_scanned": 5,
+  "total_issues": 2,
+  "issues_by_severity": {
+    "HIGH": 2,
+    "MEDIUM": 0,
+    "LOW": 0,
+    "CRITICAL": 0
+  },
+  "issues": []
+}

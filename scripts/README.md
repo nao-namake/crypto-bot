@@ -5,47 +5,118 @@
 **Cryptocurrency Trading Bot Scripts Collection**  
 crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
 
-## 🎯 ディレクトリ構造
+## 🎯 ディレクトリ構造（2025年8月11日 体系的整理実施）
 
 ```
 scripts/
-├── core/                   # コア機能スクリプト
-├── utilities/              # 汎用ユーティリティ・補助ツール  
-├── archive/                # 過去の実装・参考用スクリプト
-├── deprecated/             # 不要・古いスクリプト（整理済み）
-└── [メインスクリプト]      # 日常的に使用するスクリプト
+├── bot_manager.py          # 🌟 統合管理CLI（すべての機能を1つで管理）
+├── ci_tools/               # 🚀 CI/CD前ツール（必須チェック）
+│   ├── checks.sh          # 品質チェック統合実行
+│   ├── validate_all.sh    # 3段階検証システム
+│   ├── pre_deploy_validation.py
+│   └── auto_push.sh       # 自動コミット＆プッシュ
+├── model_tools/            # 🤖 モデル管理
+│   ├── manage_models.py   # 統合モデル管理ツール
+│   ├── create_*.py        # モデル作成スクリプト
+│   └── retrain_*.py       # 再学習スクリプト
+├── system_tools/           # 🔧 システム管理
+│   ├── system_health_check.py
+│   ├── diagnose_cloud_run_apis.py
+│   └── gcp_revision_manager.py
+├── data_tools/             # 📊 データ準備・分析
+│   ├── prepare_initial_data.py
+│   ├── analyze_training_data.py
+│   └── create_backtest_data.py
+├── monitoring/             # 📡 監視・検証・修復
+│   ├── signal_monitor.py  # Phase 2-2
+│   ├── future_leak_detector.py # Phase 2-3
+│   ├── error_analyzer.py  # Phase 3
+│   └── analyze_and_fix.py # Phase 3統合
+├── core/                   # コア機能（既存維持）
+├── utilities/              # 環境設定・補助ツール
+├── archive/                # 過去の実装・参考用
+└── deprecated/             # 整理済み古いスクリプト
 ```
 
-## 🚀 メインスクリプト（現在使用中）
+## 🌟 統合管理CLI（bot_manager.py）🆕
 
-### **品質管理・テスト**
-- `checks.sh` - 品質チェック統合実行（flake8・isort・black・pytest）
-- `run_all_local_tests.sh` - ローカル環境での包括的テスト
-- `run_e2e.sh` - エンドツーエンドテスト
-- `run_pipeline.sh` - パイプライン実行
-- `run_production_tests.sh` - 本番環境テスト
-- `quick_health_check.sh` - クイックヘルスチェック
+**すべての検証・監視・修復機能を1つのCLIで管理！**
 
-### **モデル管理** (2025年8月10日更新)
-- **`create_proper_ensemble_model.py`** - 97特徴量アンサンブルモデル作成（本番用）
-  - 3モデル統合（LGBM + XGBoost + RandomForest）
-  - trading_stackingメソッドによる高度な統合
-  - models/production/model.pkl として出力
-- **`create_production_model.py`** - CI/CD用モデル作成（更新）
-  - DataFrame対応追加
-  - confidence_threshold=0.35に統一
-  - フォールバック対応（simple_fallback）
-- `create_ci_model.py` - CI環境用モデル作成
-- `retrain_97_features_model.py` - 97特徴量モデル再学習
-- `validate_97_features_optimization.py` - 97特徴量システム検証
+### **基本使用方法**
+```bash
+# ヘルプ表示
+python scripts/bot_manager.py --help
 
-### **統合システム（新規作成）**
-- `unified_backtest_system.py` - 統合バックテストシステム
-  - 標準・ハイブリッド・ウォークフォワード・軽量・閾値検証・JPY建て
-- `unified_optimization_system.py` - 統合最適化システム
-  - 特徴量選択・信頼度閾値・エントリー閾値・推奨事項生成
-- `unified_ensemble_system.py` - 統合アンサンブルシステム
-  - A/Bテスト・統計検証・統合計画・デモ実行
+# システム状態確認
+python scripts/bot_manager.py status
+
+# デプロイ前の完全チェック（推奨）
+python scripts/bot_manager.py full-check
+```
+
+### **主要コマンド**
+
+| コマンド | 説明 | 使用例 |
+|---------|------|--------|
+| `validate` | 3段階検証実行 | `bot_manager.py validate --mode quick` |
+| `monitor` | シグナル監視 | `bot_manager.py monitor --hours 24` |
+| `fix-errors` | エラー分析・修復 | `bot_manager.py fix-errors --auto-fix` |
+| `paper-trade` | ペーパートレード | `bot_manager.py paper-trade --hours 2` |
+| `leak-detect` | リーク検出 | `bot_manager.py leak-detect` |
+| `full-check` | 完全チェック | `bot_manager.py full-check` |
+| `status` | 状態確認 | `bot_manager.py status` |
+
+### **推奨ワークフロー**
+```bash
+# 1. 開発前の状態確認
+python scripts/bot_manager.py status
+
+# 2. コード変更後の高速チェック
+python scripts/bot_manager.py validate --mode quick
+
+# 3. コミット前の完全チェック
+python scripts/bot_manager.py full-check
+
+# 4. エラーがある場合は修復
+python scripts/bot_manager.py fix-errors --auto-fix
+
+# 5. 再度検証
+python scripts/bot_manager.py validate
+```
+
+## 📁 各フォルダの役割
+
+### **ci_tools/ - CI/CD前ツール**
+コミット前・デプロイ前の必須チェックツール
+- **主要ツール:** checks.sh, validate_all.sh
+- **用途:** 品質保証、検証、自動化
+- **詳細:** [ci_tools/README.md](ci_tools/README.md)
+
+### **model_tools/ - モデル管理**
+機械学習モデルの作成・再学習・管理
+- **主要ツール:** manage_models.py（統合管理）
+- **用途:** モデル作成、再学習、CI用モデル
+- **詳細:** [model_tools/README.md](model_tools/README.md)
+
+### **system_tools/ - システム管理**
+GCP Cloud Run、システムヘルスチェック
+- **主要ツール:** system_health_check.py
+- **用途:** 診断、監視、トラブルシューティング
+- **詳細:** [system_tools/README.md](system_tools/README.md)
+
+### **data_tools/ - データ準備**
+データの取得、分析、クリーニング
+- **主要ツール:** prepare_initial_data.py
+- **用途:** データ準備、バックテスト、分析
+- **詳細:** [data_tools/README.md](data_tools/README.md)
+
+### **monitoring/ - 監視・修復**
+Phase 2-3/Phase 3の高度な監視機能
+- **主要ツール:** signal_monitor.py, analyze_and_fix.py
+- **用途:** リアルタイム監視、エラー修復
+- **詳細:** [monitoring/README.md](monitoring/README.md)
+
+
 
 ### **システム管理** (2025年8月10日更新)
 - `system_health_check.py` - システム健全性チェック
@@ -78,13 +149,35 @@ scripts/
   - CI/CD自動トリガー
   - 完全自動化デプロイスクリプト
 
-### **監視・統合ツール** (2025年8月11日追加 - Phase 2-2)
+### **監視・統合ツール** (2025年8月11日追加 - Phase 2-2/2-3)
 - **`paper_trade_with_monitoring.sh`** - ペーパートレード＋シグナル監視統合
   - Phase 2-1 + Phase 2-2の統合実行
   - バックグラウンドでペーパートレード実行
   - 1時間毎にシグナル監視
   - 異常検出時のアラート
   - 終了時の統合レポート生成
+
+### **検証・品質保証** (2025年8月11日追加 - Phase 2-3)
+- **`validate_all.sh`** - 包括的3段階検証スクリプト
+  - Level 1: 静的解析（checks.sh）
+  - Level 2: 未来データリーク検出
+  - Level 3: 動的検証（ペーパートレード・監視）
+  - `--quick`: 高速モード（Level 1のみ）
+  - `--ci`: CI/CDモード（Level 1+2）
+- **`pre_deploy_validation.py`** - 本番デプロイ前統合検証
+  - 未来データリーク検出
+  - ペーパートレード実行
+  - シグナルモニタリング
+  - ユニットテスト実行
+  - HTMLレポート生成
+
+### **エラー分析・修復** (2025年8月11日追加 - Phase 3)
+- **`analyze_and_fix.py`** - エラー分析・修復統合スクリプト
+  - エラーログ収集・分析
+  - 修復提案生成
+  - インタラクティブ修復モード
+  - 自動修復（CRITICALエラー）
+  - 修復スクリプト生成
 
 ### **開発ツール**
 - `auto_push.sh` - 自動Git push（整形・テスト・プッシュ）
@@ -130,8 +223,8 @@ core/
 - `troubleshoot_deployment.sh` - デプロイメント問題診断
 - `bigquery_log_queries.sql` - BigQueryログクエリ集
 
-### **監視・品質管理** (2025年8月11日追加 - Phase 2-2)
-- **`signal_monitor.py`** - シグナル生成監視システム
+### **監視・品質管理** (2025年8月11日追加 - Phase 2-2/2-3/3)
+- **`signal_monitor.py`** - シグナル生成監視システム（Phase 2-2）
   - 1時間以上シグナルなし検出
   - 連続パターン異常検出（30回連続HOLD等）
   - Confidence値異常検出
@@ -139,6 +232,18 @@ core/
 - **`monitor_signals.sh`** - シグナル監視実行ラッパー
   - cronで定期実行対応
   - CI/CDパイプライン組み込み可能
+- **`future_leak_detector.py`** - 未来データリーク検出器（Phase 2-3）
+  - MLパイプラインの時系列整合性検証
+  - 危険なパターン検出（shift(-1)、center=True等）
+  - バックテストデータ分割チェック
+  - HTML/JSONレポート生成
+  - CI/CD統合対応（終了コードで判定）
+- **`error_analyzer.py`** - エラーログ分析器（Phase 3）
+  - GCP/ローカルログからエラーパターン抽出
+  - 既知パターンとのマッチング
+  - 修復提案の自動生成
+  - 成功率学習システム
+  - HTMLレポート生成
 
 ## 📦 archive/ - アーカイブ
 
@@ -152,14 +257,19 @@ core/
 
 ### **日常的な開発作業**
 ```bash
-# 品質チェック実行
+# 品質チェック実行（コミット前必須）
 bash scripts/checks.sh
+
+# 包括的検証（本番デプロイ前必須）
+bash scripts/validate_all.sh              # フル検証（〜10分）
+bash scripts/validate_all.sh --quick      # 高速版（〜1分）
+bash scripts/validate_all.sh --ci         # CI用（〜3分）
+
+# 未来データリーク検出のみ
+python scripts/utilities/future_leak_detector.py --project-root . --html
 
 # 自動プッシュ（整形・テスト・プッシュ）
 bash scripts/auto_push.sh "feat: add new feature"
-
-# 包括的ローカルテスト
-bash scripts/run_all_local_tests.sh
 
 # ペーパートレード＋監視統合実行（Phase 2-1 + 2-2）
 bash scripts/paper_trade_with_monitoring.sh --duration 24
@@ -241,3 +351,4 @@ python scripts/prepare_initial_data.py
 
 *Scripts構造は2025年8月7日に大規模整理・最適化されました*
 *2025年8月10日：CI/CD対応スクリプト追加*
+*2025年8月11日：Phase 2-3検証システム追加（未来データリーク検出・統合検証）*

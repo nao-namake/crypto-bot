@@ -18,11 +18,12 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 ### 📊 現在の運用状況
 
-**✅ 正常稼働中** (2025年8月10日更新・エントリーシグナル生成エラー修正済み)
+**✅ 正常稼働中** (2025年8月11日更新・Phase 2-3/Phase 3完全実装済み)
 - **取引モード**: live（BTC/JPY自動取引）
 - **予測システム**: 97特徴量アンサンブル学習
 - **実行環境**: GCP Cloud Run・自動スケーリング
-- **最新修正**: ✅ エントリーシグナル生成問題解決（pandas import/strategy型チェック/confidence_threshold統一）
+- **最新実装**: ✅ ChatGPT提案システム完全実装（Paper Trading・Signal Monitoring・Leak Detection・Error Auto-Fix）
+- **品質保証**: ✅ 605/605テスト成功・32.32%カバレッジ・flake8/black完全準拠
 - **エントリー条件**: confidence > 0.35（全戦略で統一済み）
 - **リスク管理**: 1取引あたり1%・最大3%
 
@@ -34,9 +35,80 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 **主要README.md**：`crypto_bot/*/README.md`, `scripts/README.md`, `tests/README.md`, `config/README.md`, `models/README.md`, `infra/README.md`
 
+## ✨ 最新機能（Phase 2-3実装 - 2025年8月11日）
+
+### **🌟 統合CLIで全機能を簡単管理**
+
+```bash
+# 統合CLIのヘルプを表示
+python scripts/bot_manager.py --help
+
+# すべての機能を1つのコマンドでチェック
+python scripts/bot_manager.py full-check
+```
+
+### **Phase 2-1: ペーパートレード機能**
+リアルデータでの仮想取引を実行し、リスクフリーで戦略を検証：
+```bash
+# 統合CLI経由（推奨）
+python scripts/bot_manager.py paper-trade --hours 2
+
+# 従来の方法
+python -m crypto_bot.main live-bitbank --paper-trade
+```
+
+### **Phase 2-2: シグナル監視システム**
+取引シグナルの異常パターンを自動検出：
+```bash
+# 統合CLI経由（推奨）
+python scripts/bot_manager.py monitor --hours 24
+
+# ペーパートレードと同時監視
+python scripts/bot_manager.py monitor --hours 24 --with-paper-trade
+
+# 従来の方法
+python scripts/utilities/signal_monitor.py --hours 24
+```
+
+### **Phase 2-3: 未来データリーク検出**
+MLパイプラインの時系列整合性を検証：
+```bash
+# 統合CLI経由（推奨）
+python scripts/bot_manager.py leak-detect
+
+# 従来の方法
+python scripts/utilities/future_leak_detector.py --project-root . --html
+```
+
+### **Phase 3: エラー分析・自動修復**
+エラーパターンを学習し、自動修復提案を生成：
+```bash
+# 統合CLI経由（推奨）
+python scripts/bot_manager.py fix-errors --auto-fix
+python scripts/bot_manager.py fix-errors --source gcp
+
+# 従来の方法
+python scripts/analyze_and_fix.py --source both --hours 24
+python scripts/analyze_and_fix.py --interactive
+python scripts/analyze_and_fix.py --auto-fix
+```
+
+### **📋 統合検証フロー**
+本番デプロイ前の包括的な3段階検証：
+```bash
+# フル検証（〜10分）
+bash scripts/validate_all.sh
+
+# 高速版（Level 1のみ、〜1分）  
+bash scripts/validate_all.sh --quick
+
+# CI用（Level 1+2、〜3分）
+bash scripts/validate_all.sh --ci
+```
+
 ## 🛠️ クイックスタート
 
-### ローカル開発環境
+### 🌟 統合CLIによる簡単管理（推奨）
 
 ```bash
 # リポジトリクローン
@@ -46,12 +118,27 @@ cd crypto-bot
 # 依存関係インストール
 pip install -r requirements/dev.txt
 
+# 統合CLIでシステム状態確認
+python scripts/bot_manager.py status
+
+# 開発ワークフロー（統合CLI使用）
+python scripts/bot_manager.py validate --mode quick  # 高速チェック
+python scripts/bot_manager.py full-check            # 完全検証
+python scripts/bot_manager.py fix-errors            # エラー修復
+```
+
+### 従来の開発環境（個別スクリプト）
+
+```bash
 # 依存関係チェック
 python requirements/validate.py
 make validate-deps
 
-# 品質チェック実行
+# 品質チェック実行（コミット前必須）
 bash scripts/checks.sh
+
+# 本番デプロイ前検証（デプロイ前必須）
+bash scripts/validate_all.sh
 ```
 
 ### バックテスト実行
@@ -183,6 +270,50 @@ cp models/validation/best_model.pkl models/production/model.pkl
 - **処理効率**: 97特徴量最適化で24%計算効率向上
 - **CI/CD高速化**: Terraform 5分以内処理達成
 - **予測精度**: アンサンブル学習による安定性向上
+
+## 🚀 デプロイ前の推奨チェックリスト
+
+### **必須確認項目**
+
+```bash
+# 1. 統合CLIで完全チェック実行
+python scripts/bot_manager.py full-check
+
+# すべてPASSしたら次へ進む
+```
+
+### **環境確認**
+
+- [ ] **GCP認証**: `gcloud auth list` で認証済みか確認
+- [ ] **プロジェクト設定**: `gcloud config get-value project` で正しいプロジェクトか確認
+- [ ] **Bitbank API**: 環境変数 `BITBANK_API_KEY` と `BITBANK_API_SECRET` が設定済みか
+- [ ] **本番設定**: `config/production/production.yml` の内容を最終確認
+- [ ] **モデルファイル**: `models/production/model.pkl` が存在するか確認
+
+### **最終デプロイコマンド**
+
+```bash
+# すべての確認が完了したら
+git add -A
+git commit -m "feat: your detailed commit message"
+git push origin main
+
+# CI/CDの進行状況を確認
+# GitHub Actions: https://github.com/your-repo/actions
+```
+
+### **デプロイ後の確認**
+
+```bash
+# ヘルスチェック
+curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
+
+# ログ確認
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
+
+# 取引状況確認
+gcloud logging read "textPayload:TRADE" --limit=5
+```
 
 ## 🚨 トラブルシューティング
 

@@ -12,11 +12,12 @@ ChatGPT提案採用: 予測値・シグナル・価格をCSV形式で継続記�
 
 import csv
 import logging
-import pandas as pd
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-import threading
+
+import pandas as pd
 
 # 既存ログシステムを使用
 logger = logging.getLogger(__name__)
@@ -28,33 +29,33 @@ class SignalLogger:
     def __init__(self, log_dir: str = "logs", filename: str = "trading_signals.csv"):
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(exist_ok=True)
-        
+
         self.csv_path = self.log_dir / filename
         self._lock = threading.Lock()
-        
+
         # CSVヘッダー定義
         self.headers = [
             "timestamp",
             "price",
             "prediction",
-            "probability", 
+            "probability",
             "confidence",
             "threshold",
             "signal_type",
             "market_regime",
             "position_exists",
-            "strategy_type"
+            "strategy_type",
         ]
-        
+
         self._initialize_csv()
-    
+
     def _initialize_csv(self) -> None:
         """CSVファイルを初期化（ヘッダー書き込み）"""
         if not self.csv_path.exists():
-            with open(self.csv_path, 'w', newline='', encoding='utf-8') as f:
+            with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(self.headers)
-    
+
     def log_signal(
         self,
         price: float,
@@ -66,11 +67,11 @@ class SignalLogger:
         market_regime: str = "unknown",
         position_exists: bool = False,
         strategy_type: str = "ensemble",
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
     ) -> None:
         """
         シグナル情報をCSVに記録
-        
+
         Parameters:
         -----------
         price : float
@@ -96,7 +97,7 @@ class SignalLogger:
         """
         if timestamp is None:
             timestamp = datetime.now()
-        
+
         row_data = [
             timestamp.isoformat(),
             price,
@@ -107,29 +108,30 @@ class SignalLogger:
             signal_type,
             market_regime,
             position_exists,
-            strategy_type
+            strategy_type,
         ]
-        
+
         # スレッドセーフな書き込み
         with self._lock:
             try:
-                with open(self.csv_path, 'a', newline='', encoding='utf-8') as f:
+                with open(self.csv_path, "a", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
                     writer.writerow(row_data)
             except Exception as e:
                 # ログ出力エラーはメインロジックに影響しないよう警告のみ
                 import logging
+
                 logging.getLogger(__name__).warning(f"Signal logging failed: {e}")
-    
+
     def get_recent_signals(self, hours: int = 1) -> pd.DataFrame:
         """
         直近N時間のシグナル記録を取得
-        
+
         Parameters:
         -----------
         hours : int
             取得時間範囲（時間）
-        
+
         Returns:
         --------
         pd.DataFrame
@@ -137,33 +139,36 @@ class SignalLogger:
         """
         if not self.csv_path.exists():
             return pd.DataFrame()
-        
+
         try:
             df = pd.read_csv(self.csv_path)
             if df.empty:
                 return df
-                
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
             cutoff = datetime.now() - pd.Timedelta(hours=hours)
-            recent_df = df[df['timestamp'] >= cutoff]
-            
+            recent_df = df[df["timestamp"] >= cutoff]
+
             return recent_df
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f"Failed to read signal log: {e}")
             return pd.DataFrame()
-    
-    def count_recent_signals(self, hours: int = 1, signal_type: Optional[str] = None) -> int:
+
+    def count_recent_signals(
+        self, hours: int = 1, signal_type: Optional[str] = None
+    ) -> int:
         """
         直近N時間のシグナル数をカウント
-        
+
         Parameters:
         -----------
         hours : int
             取得時間範囲（時間）
         signal_type : str, optional
             特定のシグナルタイプでフィルター
-        
+
         Returns:
         --------
         int
@@ -172,8 +177,8 @@ class SignalLogger:
         recent_df = self.get_recent_signals(hours)
         if recent_df.empty:
             return 0
-        
+
         if signal_type:
-            recent_df = recent_df[recent_df['signal_type'] == signal_type]
-        
+            recent_df = recent_df[recent_df["signal_type"] == signal_type]
+
         return len(recent_df)
