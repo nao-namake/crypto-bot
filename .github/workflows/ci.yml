@@ -248,6 +248,10 @@ jobs:
           fi
 
       # ---------- Build & push to Artifact Registry ----------
+      - name: Set build timestamp
+        id: timestamp
+        run: echo "BUILD_TIME=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+      
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v6
@@ -261,6 +265,7 @@ jobs:
           tags: |
             asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
             asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }}
+            asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ steps.timestamp.outputs.BUILD_TIME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |

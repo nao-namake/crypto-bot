@@ -30,6 +30,7 @@ pip-wheel-metadata/
 htmlcov/
 coverage.xml
 .coverage_data/
+test_reports/
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 仮想環境

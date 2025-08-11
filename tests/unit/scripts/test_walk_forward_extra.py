@@ -64,7 +64,7 @@ def test_main_smoke(monkeypatch, capsys):
     monkeypatch.setattr(yaml, "safe_load", lambda *_: dummy_cfg)
 
     # --- (b) MarketDataFetcher / Preprocessor をモック ---
-    dummy_df = pd.DataFrame(
+    _ = pd.DataFrame(
         {"close": np.arange(20)},
         index=pd.date_range("2024-01-01", periods=20, freq="H"),
     )

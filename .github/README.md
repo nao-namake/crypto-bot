@@ -5,6 +5,11 @@
 **GitHub Integration & CI/CD Automation System**  
 本フォルダは crypto-bot プロジェクトの GitHub 統合機能、CI/CD パイプライン、コード品質保証、プロジェクト管理テンプレートを統合管理するコミュニティ・開発基盤システムです。
 
+**🆕 2025年8月12日更新**:
+- **workflows/ci.yml**: タイムスタンプタグ追加（BUILD_TIME）でリビジョン管理改善
+- **workflows/README.md作成**: CI/CDパイプラインの詳細ドキュメント化
+- **日本時間対応**: デプロイ後のログ確認にJST表示ツール統合
+
 ## 🎯 設計原則
 
 ### **自動化ファースト (Automation First)**

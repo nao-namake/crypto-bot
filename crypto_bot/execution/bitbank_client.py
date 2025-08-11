@@ -50,6 +50,18 @@ class BitbankClient(ExchangeClient):
     def fetch_balance(self) -> dict:
         return self._exchange.fetch_balance()
 
+    def fetch_ticker(self, symbol: str) -> dict:
+        """
+        ティッカー情報を取得
+
+        Args:
+            symbol: 通貨ペア (例: 'BTC/JPY')
+
+        Returns:
+            dict: ティッカー情報（last, bid, ask, high, low等）
+        """
+        return self._exchange.fetch_ticker(symbol)
+
     def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None) -> list:
         """
         OHLCV データを取得（ページネーション対応のため生データを返す）

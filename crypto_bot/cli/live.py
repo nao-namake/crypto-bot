@@ -632,6 +632,8 @@ def live_bitbank_command(
 
     # ATRシリーズを計算
     atr_series = None
+    # データキャッシュ用変数（メインループで再利用）
+    cached_initial_data = None
     if initial_price_df is not None and not initial_price_df.empty:
         try:
             atr_period = risk_config.get("atr_period", 14)
@@ -642,6 +644,11 @@ def live_bitbank_command(
             atr_series = atr_series.mask(lambda s: s == 0.0, 1.0)
             logger.info(
                 f"✅ [INIT-ATR] ATR series calculated successfully (period={atr_period})"
+            )
+            # データをキャッシュ（メインループで再利用）
+            cached_initial_data = initial_price_df.copy()
+            logger.info(
+                f"📦 [INIT-ATR] Cached {len(cached_initial_data)} records for main loop reuse"
             )
         except Exception as e:
             logger.error(f"❌ [INIT-ATR] ATR calculation failed: {e}")
@@ -715,6 +722,9 @@ def live_bitbank_command(
         except Exception:
             pass
 
+    # メインループ初回フラグ
+    is_first_iteration = True
+
     try:
         while True:
             iter_prefix = "[SIMPLE-LOOP]" if simple else "[LOOP-ITER]"
@@ -722,11 +732,20 @@ def live_bitbank_command(
             if not simple:
                 logger.info(f"⏰ {iter_prefix} Timestamp: {pd.Timestamp.now()}")
 
-            # 最新データを取得
-            price_df = fetch_latest_data(fetcher, dd, symbol)
-            if price_df is None:
-                time.sleep(30)
-                continue
+            # 最新データを取得（初回でキャッシュがある場合は再利用）
+            if is_first_iteration and cached_initial_data is not None:
+                logger.info(
+                    f"📦 [DATA-REUSE] Using cached initial data ({len(cached_initial_data)} records) for first iteration"
+                )
+                price_df = cached_initial_data
+                is_first_iteration = False
+            else:
+                # 通常のデータ取得
+                price_df = fetch_latest_data(fetcher, dd, symbol)
+                if price_df is None:
+                    time.sleep(30)
+                    continue
+                is_first_iteration = False
 
             if price_df.empty:
                 logger.warning("No price data received, waiting...")

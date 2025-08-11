@@ -79,9 +79,118 @@ class OrderStatus(Enum):
     FAILED = "failed"
 
 
+class PositionSide(Enum):
+    """ポジション方向"""
+
+    LONG = "buy"
+    SHORT = "sell"
+
+
 # TODO Phase 16.2-A: OrderManager関連クラス統合
 # - 原本605行の統合実装
 # - 注文作成・監視・管理機能
+
+# ==============================================================================
+# BITBANK CORE EXECUTOR - MINIMAL IMPLEMENTATION
+# ==============================================================================
+
+from decimal import Decimal
+
+import ccxt
+
+
+class BitbankCoreExecutor:
+    """Bitbank Core Execution Engine - Phase 16.2-A最小実装"""
+
+    def __init__(self, config):
+        """初期化"""
+        self.config = config
+        self.exchange_config = config.get("exchange", {}).get("bitbank", {})
+        self.trading_config = config.get("trading", {})
+
+        # ccxtのBitbank取引所インスタンスを初期化
+        self.exchange = ccxt.bitbank(
+            {
+                "apiKey": self.exchange_config.get("api_key"),
+                "secret": self.exchange_config.get("secret"),
+                "sandbox": self.exchange_config.get("sandbox", False),
+            }
+        )
+
+    def _validate_order_size(self, size: Decimal) -> bool:
+        """注文サイズ検証"""
+        min_size = self.trading_config.get("min_order_size", Decimal("0.0001"))
+        max_size = self.trading_config.get("max_position_size", Decimal("1.0"))
+
+        return min_size <= size <= max_size
+
+    def place_order(
+        self,
+        order_type: OrderType,
+        side: PositionSide,
+        amount: Decimal,
+        price: Decimal = None,
+    ):
+        """注文発注"""
+        if not self._validate_order_size(amount):
+            raise ValueError(f"Invalid order size: {amount}")
+
+        try:
+            symbol = (
+                self.trading_config.get("symbol", "btc_jpy").replace("_", "/").upper()
+            )
+            float_amount = float(amount)
+
+            if order_type == OrderType.MARKET:
+                if side == PositionSide.LONG:
+                    return self.exchange.create_market_buy_order(symbol, float_amount)
+                else:
+                    return self.exchange.create_market_sell_order(symbol, float_amount)
+            elif order_type == OrderType.LIMIT:
+                if price is None:
+                    raise ValueError("Price required for limit orders")
+                float_price = float(price)
+                if side == PositionSide.LONG:
+                    return self.exchange.create_limit_buy_order(
+                        symbol, float_amount, float_price
+                    )
+                else:
+                    return self.exchange.create_limit_sell_order(
+                        symbol, float_amount, float_price
+                    )
+        except Exception as e:
+            logger.error(f"Order placement failed: {e}")
+            raise ValueError(f"Order placement failed: {e}")
+
+    def cancel_order(self, order_id: str):
+        """注文キャンセル"""
+        symbol = self.trading_config.get("symbol", "btc_jpy").replace("_", "/").upper()
+        return self.exchange.cancel_order(order_id, symbol)
+
+    def get_order_status(self, order_id: str):
+        """注文状況取得"""
+        symbol = self.trading_config.get("symbol", "btc_jpy").replace("_", "/").upper()
+        return self.exchange.fetch_order(order_id, symbol)
+
+    def get_balance(self):
+        """残高取得"""
+        return self.exchange.fetch_balance()
+
+    def _calculate_position_size(
+        self, balance_jpy: Decimal, btc_price: Decimal, risk_percent: Decimal
+    ) -> Decimal:
+        """ポジションサイズ計算"""
+        risk_amount = balance_jpy * risk_percent
+        position_size = risk_amount / btc_price
+        return position_size
+
+    def _risk_management_check(
+        self, position_size: Decimal, current_exposure: Decimal, max_exposure: Decimal
+    ) -> bool:
+        """リスク管理チェック"""
+        total_exposure = current_exposure + position_size
+        return total_exposure <= max_exposure
+
 
 # ==============================================================================
 # PLACEHOLDER: 統合作業継続中

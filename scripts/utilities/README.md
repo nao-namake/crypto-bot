@@ -5,6 +5,10 @@
 crypto-bot プロジェクトの補助ツール・診断ツール・監視ツールを管理するディレクトリです。  
 Phase 2-3およびPhase 3で実装された高度な検証・監視・修復機能を提供します。
 
+**🆕 2025年8月12日更新**: 
+- **gcp_log_viewer.py追加**: 日本時間（JST）でGCPログを表示するビューアー
+- **cleanup_old_revisions.sh追加**: Cloud Runの古いリビジョンを自動削除
+
 ## 🎯 ディレクトリ構造
 
 ```
@@ -13,6 +17,8 @@ utilities/
 ├── signal_monitor.py           # シグナル生成監視（Phase 2-2）
 ├── future_leak_detector.py     # 未来データリーク検出（Phase 2-3）
 ├── error_analyzer.py           # エラーパターン分析（Phase 3）
+├── gcp_log_viewer.py          # GCP日本時間ログビューアー（2025/8/12追加）
+├── cleanup_old_revisions.sh   # Cloud Runリビジョン管理（2025/8/12追加）
 ├── monitor_signals.sh          # シグナル監視ラッパー
 ├── check_gcp_env.sh           # GCP環境確認
 ├── setup_secrets.sh           # シークレット設定
@@ -23,7 +29,9 @@ utilities/
 ├── test_bitbank_auth.py       # Bitbank認証テスト
 ├── emergency_shutdown.py      # 緊急停止ツール
 ├── troubleshoot_deployment.sh # デプロイメント診断
-└── bigquery_log_queries.sql   # BigQueryクエリ集
+├── bigquery_log_queries.sql   # BigQueryクエリ集
+├── verify_github_secrets.sh   # GitHub Secrets検証
+└── setup_gcp_secrets.sh      # GCP Secrets設定
 ```
 
 ## 🚀 主要ツール詳細
@@ -201,6 +209,44 @@ python scripts/utilities/test_bitbank_auth.py
 # すべての取引を停止
 python scripts/utilities/emergency_shutdown.py --confirm
 ```
+
+### **🆕 gcp_log_viewer.py** (2025/8/12追加)
+GCPログを日本時間（JST）で表示するビューアー
+
+```bash
+# 過去1時間のログ（日本時間表示）
+python scripts/utilities/gcp_log_viewer.py --hours 1
+
+# エラーログのみ表示
+python scripts/utilities/gcp_log_viewer.py --severity ERROR
+
+# 特定キーワードで検索
+python scripts/utilities/gcp_log_viewer.py --search "TRADE"
+
+# リアルタイム監視
+python scripts/utilities/gcp_log_viewer.py --tail
+```
+
+**特徴:**
+- UTC→JST自動変換で時刻の混乱を防止
+- 最新リビジョンのログのみ自動選択
+- CI通過後の最新版のみを参照
+
+### **🆕 cleanup_old_revisions.sh** (2025/8/12追加)
+Cloud Runの古いリビジョンを自動削除
+
+```bash
+# 削除対象を確認（実際には削除しない）
+bash scripts/utilities/cleanup_old_revisions.sh --dry-run
+
+# 実際に削除実行
+bash scripts/utilities/cleanup_old_revisions.sh
+```
+
+**特徴:**
+- 最新3つのリビジョンのみ保持
+- 削除前に確認プロンプト表示
+- ログの混乱を防ぎ、最新版のみを確実に参照
 
 ## 🔍 診断・トラブルシューティング
 

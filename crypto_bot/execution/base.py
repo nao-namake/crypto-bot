@@ -20,6 +20,10 @@ class ExchangeClient(Protocol):
         """残高情報を取ってくる"""
         ...
 
+    def fetch_ticker(self, symbol: str) -> dict:
+        """ティッカー情報を取得"""
+        ...
+
     def fetch_ohlcv(
         self,
         symbol: str,

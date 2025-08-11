@@ -24,6 +24,7 @@ sys.path.insert(0, str(project_root))
 def create_production_model():
     """本番用モデル作成（create_production_model.py の機能）"""
     from scripts.create_production_model import main as create_prod
+
     print("📦 Creating production model...")
     return create_prod()
 
@@ -31,6 +32,7 @@ def create_production_model():
 def create_ci_model():
     """CI用モデル作成（create_ci_model.py の機能）"""
     from scripts.create_ci_model import main as create_ci
+
     print("🧪 Creating CI model...")
     return create_ci()
 
@@ -38,6 +40,7 @@ def create_ci_model():
 def create_ensemble_model():
     """アンサンブルモデル作成（create_proper_ensemble_model.py の機能）"""
     from scripts.create_proper_ensemble_model import main as create_ensemble
+
     print("🎯 Creating ensemble model...")
     return create_ensemble()
 
@@ -45,6 +48,7 @@ def create_ensemble_model():
 def retrain_97_features():
     """97特徴量モデル再学習（retrain_97_features_model.py の機能）"""
     from scripts.retrain_97_features_model import main as retrain
+
     print("♻️ Retraining 97 features model...")
     return retrain()
 
@@ -67,35 +71,32 @@ Examples:
   
   # 97特徴量モデル再学習
   python scripts/model_tools/manage_models.py retrain --features 97
-        """
+        """,
     )
-    
+
     subparsers = parser.add_subparsers(dest="command", help="実行するコマンド")
-    
+
     # create コマンド
     create_parser = subparsers.add_parser("create", help="モデル作成")
     create_parser.add_argument(
         "--type",
         choices=["production", "ci", "ensemble"],
         required=True,
-        help="作成するモデルのタイプ"
+        help="作成するモデルのタイプ",
     )
-    
+
     # retrain コマンド
     retrain_parser = subparsers.add_parser("retrain", help="モデル再学習")
     retrain_parser.add_argument(
-        "--features",
-        type=int,
-        default=97,
-        help="特徴量数（デフォルト: 97）"
+        "--features", type=int, default=97, help="特徴量数（デフォルト: 97）"
     )
-    
+
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         return 1
-    
+
     # コマンド実行
     try:
         if args.command == "create":
@@ -114,7 +115,7 @@ Examples:
     except Exception as e:
         print(f"❌ Error: {e}")
         return 1
-    
+
     return 0
 
 

@@ -221,7 +221,9 @@ class ErrorAnalyzer:
                         {
                             "timestamp": log.get("timestamp", ""),
                             "severity": log.get("severity", "ERROR"),
-                            "message": log.get("textPayload", log.get("jsonPayload", {})),
+                            "message": log.get(
+                                "textPayload", log.get("jsonPayload", {})
+                            ),
                             "resource": log.get("resource", {}),
                         }
                     )

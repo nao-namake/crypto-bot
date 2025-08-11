@@ -6,13 +6,14 @@ CI/CDおよび本番環境で使用するための実際のモデルファイル
 既存のローカルモデルがある場合はそれを使用し、ない場合は新規作成します。
 """
 
-import pickle
 import json
-import numpy as np
-from pathlib import Path
 import logging
+import pickle
 import sys
 from datetime import datetime
+from pathlib import Path
+
+import numpy as np
 
 # プロジェクトルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -104,7 +105,7 @@ def create_production_model():
             risk_adjustment=True,
             confidence_threshold=ensemble_config.get("confidence_threshold", 0.35),
         )
-        
+
         # ensemble_methodを明示的に設定（fitする前に）
         ensemble.ensemble_method = ensemble_config.get("method", "trading_stacking")
 
@@ -124,9 +125,10 @@ def create_production_model():
 
         # ターゲット生成（バランスの取れた分類）
         y_dummy = np.random.choice([0, 1, 2], size=n_samples, p=[0.33, 0.34, 0.33])
-        
+
         # DataFrameに変換（TradingEnsembleClassifierはDataFrameを期待）
         import pandas as pd
+
         feature_names = [f"feature_{i}" for i in range(n_features)]
         X_dummy_df = pd.DataFrame(X_dummy, columns=feature_names)
 
@@ -134,7 +136,7 @@ def create_production_model():
 
         # モデルを訓練
         ensemble.fit(X_dummy_df, y_dummy)
-        
+
         # fitした後でもensemble_methodを確認・設定
         if ensemble.ensemble_method == "simple_fallback":
             ensemble.ensemble_method = "trading_stacking"

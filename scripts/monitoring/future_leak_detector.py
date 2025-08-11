@@ -153,7 +153,10 @@ class FutureLeakDetector:
                             )
                         else:
                             validation_results["safe"].append(
-                                {"operation": operation, "reason": "Backward looking only"}
+                                {
+                                    "operation": operation,
+                                    "reason": "Backward looking only",
+                                }
                             )
 
                 elif "shift" in operation:
@@ -244,7 +247,9 @@ class FutureLeakDetector:
         """特徴量パイプライン全体を検証"""
         validation_report = {
             "timestamp": datetime.now().isoformat(),
-            "function_name": feature_function.__name__ if feature_function else "unknown",
+            "function_name": (
+                feature_function.__name__ if feature_function else "unknown"
+            ),
             "data_shape": sample_data.shape,
             "checks": [],
         }
@@ -257,9 +262,11 @@ class FutureLeakDetector:
                 {
                     "check": "timestamp_order",
                     "passed": is_sorted,
-                    "message": "Data is chronologically sorted"
-                    if is_sorted
-                    else "Data is NOT chronologically sorted",
+                    "message": (
+                        "Data is chronologically sorted"
+                        if is_sorted
+                        else "Data is NOT chronologically sorted"
+                    ),
                 }
             )
 
@@ -275,22 +282,22 @@ class FutureLeakDetector:
             # 3. 一貫性チェック
             # 前半のデータで生成した特徴量が、全データで生成した特徴量の前半と一致するか
             common_cols = set(features_half.columns) & set(features_full.columns)
-            
+
             inconsistent_features = []
             for col in common_cols:
                 if col in ["timestamp", "date", "index"]:
                     continue
-                    
+
                 half_values = features_half[col].dropna()
                 full_values = features_full[col].iloc[: len(features_half)].dropna()
-                
+
                 if len(half_values) > 0 and len(full_values) > 0:
                     # 値の比較（浮動小数点誤差を考慮）
                     if not np.allclose(
-                        half_values.values[:min(len(half_values), len(full_values))],
-                        full_values.values[:min(len(half_values), len(full_values))],
+                        half_values.values[: min(len(half_values), len(full_values))],
+                        full_values.values[: min(len(half_values), len(full_values))],
                         rtol=1e-5,
-                        equal_nan=True
+                        equal_nan=True,
                     ):
                         inconsistent_features.append(col)
 
@@ -298,9 +305,11 @@ class FutureLeakDetector:
                 {
                     "check": "feature_consistency",
                     "passed": len(inconsistent_features) == 0,
-                    "message": f"Features are consistent"
-                    if len(inconsistent_features) == 0
-                    else f"Inconsistent features found: {inconsistent_features}",
+                    "message": (
+                        f"Features are consistent"
+                        if len(inconsistent_features) == 0
+                        else f"Inconsistent features found: {inconsistent_features}"
+                    ),
                     "details": {
                         "total_features": len(common_cols),
                         "inconsistent_count": len(inconsistent_features),
@@ -549,7 +558,7 @@ def main():
     if args.file:
         # 特定ファイルの分析
         issues = detector.analyze_feature_code(args.file)
-        
+
         if issues:
             logger.warning(f"⚠️ Found {len(issues)} potential issues in {args.file}")
             for issue in issues:
@@ -567,7 +576,7 @@ def main():
 
         # レポート保存
         json_path = detector.save_json_report(scan_results)
-        
+
         if args.html:
             html_path = detector.generate_report(scan_results)
             logger.info(f"📊 HTML report: {html_path}")
@@ -577,7 +586,7 @@ def main():
         logger.info("📊 Scan Complete")
         logger.info(f"📁 Files scanned: {scan_results['total_files_scanned']}")
         logger.info(f"⚠️ Total issues: {scan_results['total_issues']}")
-        
+
         for severity, count in scan_results["issues_by_severity"].items():
             if count > 0:
                 logger.info(f"  {severity}: {count}")

@@ -1,13 +1,15 @@
-# 🚀 Crypto-Bot 運用・改善タスク管理 (2025年8月11日更新)
+# 🚀 Crypto-Bot 運用・改善タスク管理 (2025年8月12日更新)
 
-## 🎊 システム完成・本格運用フェーズ（2025年8月11日現在）
+## 🎊 システム完成・本格運用フェーズ（2025年8月12日現在）
 
 ### ✅ **開発完了事項**
 - **Phase 2-3/Phase 3**: ChatGPT提案システム完全実装済み
-- **統合CLI**: bot_manager.py による全機能統合管理
+- **統合CLI**: bot_manager.py による全機能統合管理（data-check機能追加）
 - **品質保証**: 605/605テスト成功・32.32%カバレッジ・CI/CD正常化
 - **97特徴量システム**: アンサンブル学習・本番稼働中
 - **GCP運用**: 月額2,200円・自動スケーリング・安定稼働
+- **🆕 データ取得効率化**: ATR初期化データのキャッシュ・再利用実装
+- **🆕 日本時間対応**: GCPログビューアー・リビジョン管理ツール追加
 
 ---
 
@@ -22,8 +24,10 @@
   - 月次・週次収益性レポート作成
 
 ☐ 統合CLIでの定期監視
+  - python scripts/bot_manager.py data-check（デプロイ前必須）🆕
   - python scripts/bot_manager.py monitor --hours 168（週次）
   - python scripts/bot_manager.py paper-trade --hours 24（日次確認）
+  - python scripts/utilities/gcp_log_viewer.py --tail（リアルタイム監視）🆕
   - 異常シグナル・エラーパターンの早期発見
 ```
 

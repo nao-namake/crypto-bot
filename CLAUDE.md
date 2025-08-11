@@ -10,15 +10,37 @@
 # 1. コード変更後、必ず実行
 bash scripts/ci_tools/checks.sh
 
-# 2. デプロイ前の包括的検証
+# 2. データ取得ロジックの事前検証（🆕 2025/8/12追加）
+python scripts/bot_manager.py data-check
+
+# 3. デプロイ前の包括的検証
 python scripts/bot_manager.py full-check
 
-# 3. エラーがあれば自動修復
+# 4. エラーがあれば自動修復
 python scripts/bot_manager.py fix-errors --auto-fix
 
-# 4. 問題なければコミット＆プッシュ
+# 5. 問題なければコミット＆プッシュ
 git add -A && git commit -m "your message" && git push origin main
 ```
+
+### **GCP稼働状況確認（重要）**
+
+**🆕 日本時間（JST）での確認方法**:
+```bash
+# CI通過後30分経過時の確認（最新リビジョンのみ自動選択）
+python scripts/utilities/gcp_log_viewer.py --hours 0.5
+
+# エラーログのみ確認
+python scripts/utilities/gcp_log_viewer.py --severity ERROR --hours 1
+
+# 古いリビジョンの削除（ログの混乱防止）
+bash scripts/utilities/cleanup_old_revisions.sh --dry-run
+```
+
+**注意事項**:
+- ✅ 最新のCI通過リビジョンのみを参照すること
+- ✅ 日本時間（JST）で時刻を確認すること
+- ❌ 古いリビジョンのログを見ないこと（混乱の元）
 
 ### **統合CLIツール（bot_manager.py）**
 
@@ -197,20 +219,22 @@ git push origin main  # CI/CD自動実行・5分以内完了
 **1. データ取得エラー**
 ```bash
 # 対処: config/production/production.yml の since_hours・limit 値調整
-# 確認: gcloud logging でProgress状況をチェック
+# 確認（日本時間）: python scripts/utilities/gcp_log_viewer.py --search "Progress" --hours 1
+# 旧方法（UTC）: gcloud logging でProgress状況をチェック
 ```
 
 **2. モデル予測エラー**
 ```bash
 # 症状: "No ensemble models are ready"
 # 対処: python scripts/model_tools/create_proper_ensemble_model.py
+# 確認: python scripts/utilities/gcp_log_viewer.py --search "model" --severity ERROR
 ```
 
 **3. 取引実行されない**
 ```bash
 # 症状: 予測はできるが取引なし
 # 原因: confidence < 0.35
-# 確認: gcloud logging でconfidence値確認
+# 確認（日本時間）: python scripts/utilities/gcp_log_viewer.py --search "confidence"
 ```
 
 ### **緊急時対応**

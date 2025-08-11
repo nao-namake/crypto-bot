@@ -4,6 +4,11 @@
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-32.30%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
+**🆕 2025年8月12日更新**:
+- **データ取得効率化**: ATR初期化データのメインループ再利用でAPI制限回避
+- **日本時間ログビューアー**: GCPログをJSTで表示する新ツール追加
+- **リビジョン管理強化**: CI/CDタイムスタンプタグ・古いリビジョン自動削除
+
 ## 🎯 システム概要
 
 crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システムです。97の高度な特徴量を使用し、3つのMLモデル（LightGBM、XGBoost、RandomForest）のアンサンブル学習で予測を行い、信用取引で自動売買を実行します。
@@ -308,10 +313,15 @@ git push origin main
 # ヘルスチェック
 curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
 
-# ログ確認
-gcloud logging read "resource.type=cloud_run_revision" --limit=10
+# 🆕 日本時間でログ確認（最新リビジョンのみ自動選択）
+python scripts/utilities/gcp_log_viewer.py --hours 0.5  # 過去30分
+python scripts/utilities/gcp_log_viewer.py --search "TRADE" --hours 1
 
-# 取引状況確認
+# 🆕 古いリビジョンの削除（ログの混乱防止）
+bash scripts/utilities/cleanup_old_revisions.sh --dry-run
+
+# 従来のログ確認方法（UTC表示）
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
 gcloud logging read "textPayload:TRADE" --limit=5
 ```
 

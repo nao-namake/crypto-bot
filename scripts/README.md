@@ -5,6 +5,11 @@
 **Cryptocurrency Trading Bot Scripts Collection**  
 crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
 
+**🆕 2025年8月12日更新**:
+- **bot_manager.py**: data_check()機能追加（データ取得ロジックの事前検証）
+- **utilities/gcp_log_viewer.py**: 日本時間（JST）でGCPログを表示する新ツール
+- **utilities/cleanup_old_revisions.sh**: Cloud Run古いリビジョン自動削除ツール
+
 ## 🎯 ディレクトリ構造（2025年8月11日 体系的整理実施）
 
 ```
@@ -63,6 +68,7 @@ python scripts/bot_manager.py full-check
 | `fix-errors` | エラー分析・修復 | `bot_manager.py fix-errors --auto-fix` |
 | `paper-trade` | ペーパートレード | `bot_manager.py paper-trade --hours 2` |
 | `leak-detect` | リーク検出 | `bot_manager.py leak-detect` |
+| `data-check` 🆕 | データ取得検証 | `bot_manager.py data-check` |
 | `full-check` | 完全チェック | `bot_manager.py full-check` |
 | `status` | 状態確認 | `bot_manager.py status` |
 
