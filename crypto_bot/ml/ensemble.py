@@ -379,10 +379,13 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         for i, model in enumerate(self.fitted_base_models):
             try:
                 # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if hasattr(model, '__class__') and 'DecisionTree' in model.__class__.__name__:
-                    if not hasattr(model, 'monotonic_cst'):
+                if (
+                    hasattr(model, "__class__")
+                    and "DecisionTree" in model.__class__.__name__
+                ):
+                    if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
-                
+
                 proba = model.predict_proba(X)
                 base_proba = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
 
@@ -423,10 +426,13 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         for i, (model, weight) in enumerate(zip(self.fitted_base_models, weights)):
             try:
                 # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if hasattr(model, '__class__') and 'DecisionTree' in model.__class__.__name__:
-                    if not hasattr(model, 'monotonic_cst'):
+                if (
+                    hasattr(model, "__class__")
+                    and "DecisionTree" in model.__class__.__name__
+                ):
+                    if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
-                
+
                 proba = model.predict_proba(X)
 
                 # リスク調整（極端な予測を抑制）
@@ -479,10 +485,13 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         ):
             try:
                 # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if hasattr(model, '__class__') and 'DecisionTree' in model.__class__.__name__:
-                    if not hasattr(model, 'monotonic_cst'):
+                if (
+                    hasattr(model, "__class__")
+                    and "DecisionTree" in model.__class__.__name__
+                ):
+                    if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
-                
+
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
             except Exception as e:
@@ -504,10 +513,13 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         for i, (model, weight) in enumerate(zip(self.fitted_base_models, weights)):
             try:
                 # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if hasattr(model, '__class__') and 'DecisionTree' in model.__class__.__name__:
-                    if not hasattr(model, 'monotonic_cst'):
+                if (
+                    hasattr(model, "__class__")
+                    and "DecisionTree" in model.__class__.__name__
+                ):
+                    if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
-                
+
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
                 total_weight += weight
@@ -673,10 +685,13 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         for model in self.fitted_base_models:
             try:
                 # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if hasattr(model, '__class__') and 'DecisionTree' in model.__class__.__name__:
-                    if not hasattr(model, 'monotonic_cst'):
+                if (
+                    hasattr(model, "__class__")
+                    and "DecisionTree" in model.__class__.__name__
+                ):
+                    if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
-                
+
                 proba = model.predict_proba(X)
                 individual_predictions.append(proba[:, 1])
             except Exception:

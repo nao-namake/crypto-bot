@@ -288,6 +288,27 @@ git push origin main  # CI/CD自動実行・5分以内完了
 # 確認（日本時間）: python scripts/utilities/gcp_log_viewer.py --search "confidence"
 ```
 
+**4. モデル互換性エラー（🆕 2025年8月13日追加）**
+```bash
+# 症状: "DecisionTreeClassifier' object has no attribute 'monotonic_cst'"
+# 原因: scikit-learnバージョン不整合
+# 対処: 
+python scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only
+# または ensemble.pyにパッチ適用済み
+```
+
+**5. 頻繁な再起動（SIGTERM）**
+```bash
+# 症状: 40-60分ごとにSignal 15で再起動
+# 原因: Cloud Run min-instances=0 のアイドルタイムアウト
+# 対処:
+gcloud run services update crypto-bot-service-prod \
+    --min-instances=1 \
+    --cpu-always-allocated \
+    --timeout=3600 \
+    --region=asia-northeast1
+```
+
 ### **緊急時対応**
 - **取引停止**: `python scripts/utilities/emergency_shutdown.py`
 - **システム再起動**: GitHub push（CI/CD自動再デプロイ）
@@ -314,11 +335,13 @@ git push origin main  # CI/CD自動実行・5分以内完了
 
 ## 🎯 達成成果サマリー
 
-### **完璧稼働状況確認システム完成（2025年8月12日）**
-- **隠れたエラー問題根絶**: 4段階チェック・過去10パターン検出システム
+### **完璧稼働状況確認システム完成（2025年8月13日更新）**
+- **隠れたエラー問題根絶**: 4段階チェック・過去12パターン検出システム
 - **毎回異なる手法問題解決**: 固定チェック手順で一貫した確認方法確立
 - **JST時刻統一**: UTC/JST混在問題完全解消・時刻混乱防止
 - **既存ツール統合**: 4つの監視スクリプト統合・重複排除完了
+- **🆕 モデル互換性監視**: monotonic_cst属性エラー自動検出・修復
+- **🆕 インスタンス再起動監視**: SIGTERM頻度検出・Cloud Run設定提案
 
 ### **Phase 2-3/Phase 3完全実装（2025年8月11日）**
 - **デプロイ前エラー根絶**: ChatGPT提案システム完全実装

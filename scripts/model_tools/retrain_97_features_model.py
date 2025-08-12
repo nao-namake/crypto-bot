@@ -50,7 +50,7 @@ class Model97FeatureRetrainer:
         self.feature_manager = FeatureOrderManager()
 
         # 97特徴量の確認
-        self.expected_features = self.feature_manager.FEATURE_ORDER_97
+        self.expected_features = self.feature_manager.feature_order_97
         logger.info(f"🎯 Target: {len(self.expected_features)} optimized features")
 
         # モデル設定

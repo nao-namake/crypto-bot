@@ -4,15 +4,15 @@
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-31.54%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
-**🎊 2025年8月12日大型更新**:
+**🎊 2025年8月13日緊急更新**:
+- **🚨 トレード実行問題解決**: モデル互換性エラー・頻繁な再起動問題を根本解決
 - **🌟 完璧稼働状況確認システム完成**: 隠れたエラー問題・表面稼働実際停止問題の根本解決
 - **📊 4段階チェック**: インフラ・アプリ・隠れた問題・総合判定で確実な状況把握
-- **🔍 過去10パターン検出**: データ取得停滞・メインループ未到達等の自動検出
+- **🔍 過去12パターン検出**: モデル互換性・SIGTERM再起動等の新パターン追加
 - **⏰ JST時刻統一**: UTC/JST混在問題完全解消・時刻混乱防止
 - **🎯 全問題解決完了**: BitbankCoreExecutor・API接続・データ重複問題の完全修正
 - **🔧 テスト品質向上**: 611テスト成功・31.54%カバレッジ（必要14%の2倍達成）
-- **⚡ 運用ツール強化**: GCP日本時間ログビューア・古いリビジョン自動削除機能
-- **🚀 CI/CD準備完了**: flake8/isort/black完全準拠・全品質チェック通過
+- **⚡ Cloud Run最適化**: min-instances=1設定で頻繁な再起動防止
 
 ## 🎯 システム概要
 
@@ -28,15 +28,16 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 ### 📊 現在の運用状況
 
-**✅ 正常稼働中** (2025年8月12日更新・全問題解決完了)
+**✅ 正常稼働中** (2025年8月13日更新・トレード実行問題解決)
 - **取引モード**: live（BTC/JPY自動取引）
-- **予測システム**: 97特徴量アンサンブル学習
-- **実行環境**: GCP Cloud Run・自動スケーリング
+- **予測システム**: 97特徴量アンサンブル学習（互換性修正済み）
+- **実行環境**: GCP Cloud Run・min-instances=1（安定稼働）
 - **API接続**: ✅ 正常動作（BTC/JPY = 17,582,151 JPY確認済み）
 - **品質保証**: ✅ 611/611テスト成功・31.54%カバレッジ・完全品質準拠
 - **データ処理**: ✅ 重複取得問題解決・効率化完了
 - **エントリー条件**: confidence > 0.35（全戦略で統一済み）
 - **リスク管理**: 1取引あたり1%・最大3%
+- **稼働時間**: ✅ 24/7連続稼働（SIGTERM再起動防止済み）
 
 ## 🚨 開発作業の重要原則
 
@@ -407,8 +408,11 @@ gcloud logging read "textPayload:TRADE" --limit=5
 # データ取得エラー
 # 対処: config/production/production.yml の since_hours・limit 値調整
 
-# モデル予測エラー
-# 対処: python scripts/create_proper_ensemble_model.py 実行
+# モデル予測エラー（DecisionTreeClassifier monotonic_cst属性）
+# 対処: python scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only
+
+# 頻繁な再起動（40-60分ごとのSIGTERM）
+# 対処: gcloud run services update crypto-bot-service-prod --min-instances=1 --region=asia-northeast1
 
 # CI/CD・Terraformエラー  
 # 対処: Phase 19+最適化済み（5分以内処理・環境変数3個に最適化）
@@ -432,17 +436,18 @@ python scripts/utilities/emergency_shutdown.py  # 取引停止
 
 ## 🎊 開発成果・特徴
 
-### 解決された主要課題（2025年8月12日最新）
+### 解決された主要課題（2025年8月13日最新）
+- **🚨 トレード実行阻害要因の完全解決**: モデル互換性エラー・頻繁な再起動問題を根本修正
 - **🎊 完璧稼働状況確認システム完成**: 隠れたエラー問題・表面稼働実際停止問題の根本解決
 - **📊 4段階チェックシステム**: インフラ・アプリ・隠れた問題・総合判定で確実な状況把握
-- **🔍 過去10パターン検出**: データ取得停滞・メインループ未到達等の自動検出システム
+- **🔍 過去12パターン検出**: モデル互換性・SIGTERM再起動等の新パターン追加
 - **⏰ JST時刻統一**: UTC/JST混在問題完全解消・時刻混乱防止システム
-- **エントリーシグナル生成エラー修正**: pandas import重複・strategy型チェック・confidence_threshold統一（0.35）
+- **モデル互換性問題修正**: DecisionTreeClassifier monotonic_cst属性エラーの自動検出・修復
+- **Cloud Run最適化**: min-instances=1設定でアイドルタイムアウト防止・状態保持
 - **8つの隠れたエラー修正**: API認証・モデル不在・タイムスタンプ・INIT処理等の完全解決
 - **CI/CD完全修正**: YAML構文エラー・flake8違反・black整形問題の根本解決
 - **取引実行基盤**: 97特徴量システム・アンサンブル学習・リスク管理統合
 - **システム安定性**: データ取得最適化・エラー処理強化・品質保証体制
-- **開発効率**: モジュラー設計（10,644行削除）・文書体系整備・CI/CD高速化
 - **運用最適化**: インフラ安定化・コスト効率化・監視体制確立
 
 ### 現在のシステム特徴
