@@ -4,10 +4,15 @@
 
 **📊 Phase 12.5 Docker統合完了**: 全Docker関連ファイル統合・Environment Parity強化・CI/CD最適化・プロジェクト整理完成
 
+**🎊 2025年8月13日 Phase 18データキャッシュ統合完成**:
+- **168時間データ事前取得**: CI/CDで自動生成・Docker image内包・瞬時起動
+- **data-cache-update.yml連携**: 毎日JST 11:00データ更新・トレード実行問題解決
+- **cache/initial_data_168h.pkl統合**: API制限回避・本番環境安定稼働
+
 ## 📁 ディレクトリ構造
 
 ### 🐳 **Docker コアファイル**
-- **`Dockerfile`**: 本番用軽量コンテナ定義・Phase 18 cache/ディレクトリ対応
+- **`Dockerfile`**: 本番用軽量コンテナ定義・Phase 18データキャッシュ統合対応
 - **`docker-entrypoint.sh`**: Phase H.28統合エントリポイント・ライブトレード+APIサーバー統合制御
 - **注**: `.dockerignore`はプロジェクトルートに移動（Phase 18修正）
 
@@ -84,7 +89,7 @@ gcloud logging read "resource.type=cloud_run_revision AND textPayload:\"Phase H.
 
 ## 🔧 **技術仕様**
 
-### **Dockerfile設計（Phase 12.5対応）**
+### **Dockerfile設計（Phase 18データキャッシュ統合対応）**
 ```dockerfile
 # 軽量Python 3.11ベース
 FROM python:3.11-slim-bullseye
@@ -96,6 +101,11 @@ COPY requirements/base.txt /app/requirements.txt
 COPY crypto_bot/ /app/crypto_bot/
 COPY config/production/ /app/config/production/
 COPY models/production/ /app/models/production/
+
+# Phase 18: 168時間データキャッシュ統合
+COPY cache/initial_data_168h.pkl /app/cache/ 2>/dev/null || mkdir -p /app/cache
+COPY cache/initial_features_168h.pkl /app/cache/ 2>/dev/null || true
+
 COPY docker/docker-entrypoint.sh /app/
 
 # Phase H.28統合エントリポイント
@@ -174,6 +184,12 @@ docker build -t crypto-bot:latest .  # ビルドコンテキストエラー
 - **依存関係検証**: Phase 12.5環境パリティ検証自動実行
 
 ## 📋 **更新履歴**
+
+- **2025-08-13**: Phase 18データキャッシュ統合システム完成
+  - **168時間データ事前取得**: data-cache-update.yml CI統合・毎日JST 11:00自動実行
+  - **Docker image内包**: cache/initial_data_168h.pkl・cache/initial_features_168h.pkl統合
+  - **トレード実行問題解決**: API制限回避・瞬時起動・confidence閾値最適化連携
+  - **完全無人運用**: GitHub Actions Scheduled Job・事前キャッシュ自動更新
 
 - **2025-08-09**: Phase 18 CI/CD修正・cache/ディレクトリ対応
   - CI環境でのcache/ディレクトリ自動作成対応

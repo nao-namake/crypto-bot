@@ -111,6 +111,14 @@ jobs:
           "
         # Phase 12.5: 本番環境依存関係検証・import失敗早期検出
 
+      - name: Prepare cache directory for Docker build
+        run: |
+          echo ">>> Phase 18: Preparing cache directory for Docker build"
+          mkdir -p cache
+          echo "# Cache directory for CI environment" > cache/README.md
+          echo "✅ Cache directory created for Docker build"
+        # Phase 18: CI環境でDockerビルド用のcache/ディレクトリを作成
+
       - name: Test production Docker environment
         run: |
           echo ">>> Phase 12.5: Testing production Docker build and import"

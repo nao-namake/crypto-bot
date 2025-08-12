@@ -4,23 +4,33 @@
 
 取引データの準備、分析、クリーニング、キャッシュ作成など、データ関連の操作を行うツールを集約したディレクトリです。
 
+**🎊 2025年8月13日 Phase 18更新**:
+- **168時間データ事前取得システム完成**: API制限回避・本番瞬時起動
+- **CI/CD統合自動化**: 毎日JST 11:00自動実行・完全無人運用
+- **Docker image内包**: 事前キャッシュで最速デプロイ
+
 ## 🎯 ツール一覧
 
-### **prepare_initial_data.py** ⭐ 重要
-初期データの事前取得
+### **prepare_initial_data.py** ⭐⭐⭐ 最重要（Phase 18対応）
+**168時間データ事前取得システム**
 
 ```bash
-# 環境変数設定後に実行
+# ローカル実行（手動）
 export BITBANK_API_KEY="your-key"
 export BITBANK_API_SECRET="your-secret"
 python scripts/data_tools/prepare_initial_data.py
+
+# CI/CD自動実行（推奨）
+# 毎日JST 11:00に自動実行・完全無人運用
 ```
 
-**機能:**
-- 72時間分のOHLCVデータ取得
-- 97特徴量事前計算
-- cache/initial_data.pkl として保存
-- 本番デプロイ前に実行推奨
+**Phase 18機能強化:**
+- **168時間分データ取得**: 1週間分の充実したデータセット
+- **API制限完全回避**: 本番環境でのAPI負荷軽減
+- **cache/initial_data_168h.pkl**: 168時間版キャッシュファイル
+- **cache/initial_features_168h.pkl**: 97特徴量事前計算キャッシュ
+- **CI/CD統合**: GitHub Actions Scheduled Job
+- **Docker内包**: 瞬時起動・デプロイ時間短縮
 
 ### **create_minimal_cache.py**
 CI/CD用最小限キャッシュ作成

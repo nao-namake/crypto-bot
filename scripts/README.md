@@ -5,13 +5,13 @@
 **Cryptocurrency Trading Bot Scripts Collection**  
 crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
 
-**🎊 2025年8月13日重大更新**:
-- **🚨 モデル互換性問題緊急対応**: monotonic_cst属性エラー・scikit-learnバージョン不整合の根本解決
-- **model_tools/retrain_97_features_model.py**: FeatureOrderManager属性修正・完全再学習実装
-- **model_tools/create_proper_ensemble_model.py**: バージョン整合モデル読み込みパス修正
-- **operational_status_checker.py**: 🆕 完璧稼働状況確認システム（4段階チェック・隠れたエラー検出）
-- **bot_manager.py**: デプロイ前包括チェック・data_check()機能追加
-- **status_config.json**: 隠れたエラーパターンDB・過去12パターン登録済み
+**🎊 2025年8月13日重大更新 - Phase 18完了**:
+- **🚨 トレード実行問題完全解決**: confidence閾値・SIGTERM・モデル互換性の包括的修正
+- **operational_status_checker.py強化**: 4新パターン検出追加・トレード実行阻害要因確実検出
+- **CI/CD統合自動化**: 168時間データ事前取得・毎日JST 11:00自動実行・完全無人運用
+- **data_tools/prepare_initial_data.py**: 168時間版対応・API制限回避・事前キャッシュ生成
+- **bot_manager.py**: デプロイ前包括チェック・隠れたエラー事前検出
+- **status_config.json**: 15パターン対応・トレード実行阻害要因パターンDB完成
 
 ## 🎯 ディレクトリ構造（2025年8月11日 体系的整理実施）
 
@@ -131,7 +131,7 @@ python scripts/operational_status_checker.py --save-report
 | **Phase 3** | 隠れた問題検出 | 30% | **過去10パターン**・パフォーマンス異常・未来リーク・設定整合性 |
 | **Phase 4** | 総合判定・レポート生成 | 15% | スコアリング・リスク評価・アクション提案・HTML生成 |
 
-### **隠れたエラーパターン（Phase 3で検出）**
+### **隠れたエラーパターン（Phase 3で検出・Phase 18強化）**
 1. **データ取得停滞**: 48/300で停止・Empty batch連続
 2. **表面稼働・実際停止**: ヘルス200だが数時間前からログなし  
 3. **メインループ未到達**: INIT段階で停止・メインループ到達せず
@@ -142,6 +142,11 @@ python scripts/operational_status_checker.py --save-report
 8. **CI/CD長時間スタック**: GitHub Actions数時間停止
 9. **メモリリーク**: 緩やかなメモリ使用量増加・パフォーマンス劣化
 10. **UTC/JST混在**: 時刻表示混乱による状況誤認
+11. **🆕 confidence値慢性的閾値未達**: エントリーシグナル生成されず（Phase 18追加）
+12. **🆕 データ取得量不足（50%未満）**: 予測精度悪影響（Phase 18追加）
+13. **🆕 アンサンブルモデル劣化**: フォールバック多用・予測品質低下（Phase 18追加）
+14. **🆕 頻繁なインスタンス再起動**: SIGTERM頻発・状態リセット（Phase 18追加）
+15. **🆕 モデル互換性エラー**: monotonic_cst属性・sklearn不整合（Phase 18追加）
 
 ### **推奨ワークフロー（デプロイ前）**
 ```bash

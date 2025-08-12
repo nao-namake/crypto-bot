@@ -34,12 +34,17 @@ config/
 
 ## 🚀 本番環境設定 (`production/` - 1ファイル)
 
-**Phase 18対応・エントリーシグナル生成問題修正・データ取得最適化**
+**Phase 18対応・トレード実行問題根本解決・confidence閾値最適化**
 
-### ✅ `production.yml` - **現在の本番稼働設定** (2025年8月10日最終更新)
+**🚨 重要変更（2025年8月13日）**:
+- **confidence_threshold**: 0.35 → **0.25**（即座エントリー可能）
+- **データ取得**: 168時間安定取得設定
+- **API制限**: 事前キャッシュで本番負荷軽減
+
+### ✅ `production.yml` - **現在の本番稼働設定** (2025年8月13日 Phase 18更新)
 ```yaml
-# Phase 18: エントリーシグナル生成問題の根本解決
-# 2025年8月10日修正: confidence_threshold=0.35に統一
+# Phase 18: トレード実行問題の根本解決
+# 2025年8月13日修正: confidence_threshold=0.25に引き下げ（即座エントリー可能）
 backtest:
   starting_balance: 10000.0  # ¥10,000スタート
 bitbank:
@@ -54,11 +59,11 @@ data:
   multi_timeframe_data:
     base_timeframe: 1h      # 1時間足に統一（Phase 18修正）
 ml:
-  confidence_threshold: 0.35 # 全体統一閾値（Phase 18修正）
+  confidence_threshold: 0.25 # Phase 18: トレード実行可能に調整
   ensemble:
-    confidence_threshold: 0.35 # アンサンブル閾値統一
+    confidence_threshold: 0.25 # アンサンブル閾値一致
 strategy:
-  confidence_threshold: 0.35 # 戦略閾値統一
+  confidence_threshold: 0.25 # 戦略閾値一致
 data:
   exchange: bitbank
   limit: 400               # データ取得レコード数
