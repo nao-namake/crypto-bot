@@ -345,7 +345,8 @@ class DataProcessor:
                 if since_ms is None:
                     # 検証失敗時は安全な開始点を使用
                     since_ms = self._calculate_safe_since_h28(
-                        raw_since_ms or (int(time.time() * 1000) - 167 * 60 * 60 * 1000),
+                        raw_since_ms
+                        or (int(time.time() * 1000) - 167 * 60 * 60 * 1000),
                         timeframe,
                     )
                     logger.warning(
@@ -447,7 +448,9 @@ class DataProcessor:
                             f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
                         )
                         last_since = min_since
-                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 168h ago: {last_since}")
+                        logger.info(
+                            f"🔧 [TIMESTAMP] Adjusted to 168h ago: {last_since}"
+                        )
 
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page

@@ -1,0 +1,211 @@
+{
+  "scan_time": "2025-08-12T12:09:43.263872",
+  "total_files_scanned": 10433,
+  "total_issues": 22,
+  "issues_by_severity": {
+    "CRITICAL": 0,
+    "HIGH": 0,
+    "MEDIUM": 22,
+    "LOW": 0
+  },
+  "issues": [
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/timeframe_ensemble.py",
+      "line": 9,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/ensemble.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/preprocessing/feature_engineer.py",
+      "line": 15,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/preprocessing/dataset_processor.py",
+      "line": 14,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/preprocessing/pipeline_builder.py",
+      "line": 15,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/ml/preprocessing/utils.py",
+      "line": 14,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/backtest/metrics.py",
+      "line": 13,
+      "code": "def split_walk_forward(",
+      "pattern": "forward",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: forward"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/ml_strategy.py",
+      "line": 12,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/ensemble_ml_strategy.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/registry.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/factory.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/simple_ma.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/composite.py",
+      "line": 8,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 9,
+      "code": "from __future__ import annotations",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 204,
+      "code": "recent_4h = data.tail(4)",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 212,
+      "code": "recent_12h = data.tail(12)",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 218,
+      "code": "short_trend = data[\"close\"].tail(4).pct_change().sum()",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 219,
+      "code": "medium_trend = data[\"close\"].tail(12).pct_change().sum()",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 220,
+      "code": "long_trend = data[\"close\"].tail(24).pct_change().sum()",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/aggressive_ml_strategy.py",
+      "line": 399,
+      "code": "recent_volatility = data[\"close\"].tail(20).pct_change().std()",
+      "pattern": "\\.tail\\(",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: \\.tail\\("
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/multi_timeframe_ensemble.py",
+      "line": 280,
+      "code": "\"futures_basis\",",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    },
+    {
+      "file": "/Users/nao/Desktop/bot/crypto_bot/strategy/multi_timeframe_ensemble.py",
+      "line": 338,
+      "code": "\"futures_rollover\",",
+      "pattern": "future",
+      "type": "needs_review",
+      "severity": "MEDIUM",
+      "message": "Potential future data leak: future"
+    }
+  ]
+}
