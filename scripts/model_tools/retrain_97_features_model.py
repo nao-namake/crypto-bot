@@ -8,6 +8,14 @@ Phase 2: 127→97特徴量最適化後のMLモデル再学習
 - feature_order.json整合性確保
 - 本番環境用モデル生成
 - 品質保証・性能検証
+- scikit-learn互換性問題の修正（monotonic_cst属性）
+
+使用方法:
+    # 通常の再学習
+    python scripts/model_tools/retrain_97_features_model.py
+    
+    # 互換性修正のみ
+    python scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only
 """
 
 import json

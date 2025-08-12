@@ -277,6 +277,51 @@
           "キャッシュクリーンアップ実装", 
           "インスタンス定期再起動"
         ]
+      },
+      {
+        "id": "model_compatibility_error",
+        "name": "モデル互換性エラー（monotonic_cst属性）",
+        "severity": "CRITICAL",
+        "detection": {
+          "log_patterns": [
+            "DecisionTreeClassifier.*has no attribute.*monotonic_cst",
+            "Trading prediction failed for base model",
+            "sklearn.*version.*mismatch"
+          ],
+          "conditions": [
+            "model_prediction_failures >= 1",
+            "no_trade_signals_generated == true"
+          ]
+        },
+        "description": "scikit-learnバージョン不整合によるモデル予測失敗、トレード不能",
+        "past_solutions": [
+          "scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only実行",
+          "モデル再学習でバージョン統一",
+          "crypto_bot/ml/ensemble.pyにパッチ適用"
+        ]
+      },
+      {
+        "id": "frequent_instance_restart",
+        "name": "頻繁なインスタンス再起動（SIGTERM）",
+        "severity": "HIGH",
+        "detection": {
+          "log_patterns": [
+            "Received signal 15",
+            "SIGTERM",
+            "Shutting down gracefully",
+            "Shutting down user disabled instance"
+          ],
+          "conditions": [
+            "restart_frequency_per_hour >= 1",
+            "min_instances_setting == 0"
+          ]
+        },
+        "description": "Cloud Runのmin-instances=0によるアイドルタイムアウト、状態リセット",
+        "past_solutions": [
+          "gcloud run services update --min-instances=1",
+          "CPU throttling無効化",
+          "タイムアウト延長（--timeout=3600）"
+        ]
       }
     ]
   },
