@@ -56,6 +56,8 @@ results/
 # 学習済みモデル
 model/
 *.pkl
+# 本番モデルは除外しない
+!models/production/model.pkl
 
 # Phase 12.3: Pre-computed cache
 cache/

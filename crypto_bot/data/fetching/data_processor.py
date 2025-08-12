@@ -438,16 +438,16 @@ class DataProcessor:
                     last_since = current_ms - (24 * 60 * 60 * 1000)
                     logger.info(f"🔧 [TIMESTAMP] Reset to 24h ago: {last_since}")
 
-                # Bitbank API制限チェック（48時間以内に短縮）
+                # Bitbank API制限チェック（72時間以内に短縮）
                 else:
-                    max_age_ms = 48 * 60 * 60 * 1000  # 48時間（より安全な範囲）
+                    max_age_ms = 72 * 60 * 60 * 1000  # 72時間（設定値と一致）
                     min_since = current_ms - max_age_ms
                     if last_since < min_since:
                         logger.warning(
                             f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
                         )
                         last_since = min_since
-                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 48h ago: {last_since}")
+                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 72h ago: {last_since}")
 
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page

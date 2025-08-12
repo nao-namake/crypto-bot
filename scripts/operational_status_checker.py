@@ -1355,13 +1355,25 @@ class OperationalStatusChecker:
                     with open(prod_config, 'r') as f:
                         config = yaml.safe_load(f)
                     
-                    # 重要設定の検証例
-                    trading = config.get("trading", {})
-                    if trading.get("confidence_threshold", 0) < 0.1:
+                    # 重要設定の検証
+                    # confidence_thresholdは複数箇所にある可能性があるため、全てチェック
+                    ml_config = config.get("ml", {})
+                    strategy_config = config.get("strategy", {})
+                    ensemble_config = ml_config.get("ensemble", {})
+                    
+                    # いずれかの場所から値を取得（優先順位: strategy > ensemble > ml）
+                    confidence_threshold = (
+                        strategy_config.get("confidence_threshold") or
+                        ensemble_config.get("confidence_threshold") or
+                        ml_config.get("confidence_threshold") or
+                        0
+                    )
+                    
+                    if confidence_threshold < 0.1:
                         issues.append({
                             "type": "low_confidence_threshold",
                             "severity": "MEDIUM",
-                            "message": f"Very low confidence threshold: {trading.get('confidence_threshold', 0)}"
+                            "message": f"Very low confidence threshold: {confidence_threshold}"
                         })
                 except Exception as e:
                     issues.append({
