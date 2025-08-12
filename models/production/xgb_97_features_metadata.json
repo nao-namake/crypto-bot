@@ -102,7 +102,7 @@
   ],
   "accuracy": 0.5015220700152208,
   "f1_score": 0.47902070537933866,
-  "training_date": "2025-08-13T05:12:54.812019",
+  "training_date": "2025-08-13T05:17:37.711311",
   "optimization_info": {
     "original_features": 127,
     "optimized_features": 97,

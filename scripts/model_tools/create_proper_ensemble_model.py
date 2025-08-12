@@ -35,11 +35,11 @@ def create_proper_ensemble_model():
     logger.info("🚀 Creating proper 97-feature ensemble model...")
 
     try:
-        # 個別モデル読み込み（Phase 16.1-A: models/training/へ移動済み）
+        # 個別モデル読み込み（バージョン整合済みモデル使用）
         model_paths = {
-            "lgbm": "models/training/lgbm_97_features.pkl",
-            "xgb": "models/training/xgb_97_features.pkl",
-            "rf": "models/training/rf_97_features.pkl",
+            "lgbm": "models/production/lgbm_97_features.pkl",
+            "xgb": "models/production/xgb_97_features.pkl",
+            "rf": "models/production/rf_97_features.pkl",
         }
 
         individual_models = []
