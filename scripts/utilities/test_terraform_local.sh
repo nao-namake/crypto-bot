@@ -2,7 +2,7 @@
 # Local Terraform test script
 
 echo "=== Terraform Validation Test ==="
-cd /Users/nao/Desktop/bot/infra/envs/dev
+cd /Users/nao/Desktop/bot/infra/envs/prod
 
 # 認証確認
 echo "Checking GCP authentication..."

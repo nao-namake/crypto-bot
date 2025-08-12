@@ -15,7 +15,7 @@ set -euo pipefail
 PROJECT_ID="my-crypto-bot-project"
 REGION="asia-northeast1"
 DEFAULT_DURATION_HOURS=48
-DEFAULT_SERVICE_NAME="crypto-bot-dev"
+DEFAULT_SERVICE_NAME="crypto-bot-service-prod"
 CHECK_INTERVAL=300 # 5 minutes
 
 # --- Arguments ---

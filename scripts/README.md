@@ -5,16 +5,19 @@
 **Cryptocurrency Trading Bot Scripts Collection**  
 crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
 
-**🆕 2025年8月12日更新**:
-- **bot_manager.py**: data_check()機能追加（データ取得ロジックの事前検証）
-- **utilities/gcp_log_viewer.py**: 日本時間（JST）でGCPログを表示する新ツール
-- **utilities/cleanup_old_revisions.sh**: Cloud Run古いリビジョン自動削除ツール
+**🎊 2025年8月12日大型更新**:
+- **operational_status_checker.py**: 🆕 完璧稼働状況確認システム（4段階チェック・隠れたエラー検出）
+- **bot_manager.py**: デプロイ前包括チェック・data_check()機能追加
+- **utilities/unified_status_checker.py**: JST統一時刻管理・GCPログ分析ツール  
+- **status_config.json**: 隠れたエラーパターンDB・過去10パターン登録済み
 
 ## 🎯 ディレクトリ構造（2025年8月11日 体系的整理実施）
 
 ```
 scripts/
-├── bot_manager.py          # 🌟 統合管理CLI（すべての機能を1つで管理）
+├── bot_manager.py          # 🌟 デプロイ前統合チェックCLI（品質・監視・修復）
+├── operational_status_checker.py  # 🎊 完璧稼働状況確認システム（運用中監視）
+├── status_config.json     # ⚙️ 隠れたエラーパターンDB・設定ファイル
 ├── ci_tools/               # 🚀 CI/CD前ツール（必須チェック）
 │   ├── checks.sh          # 品質チェック統合実行
 │   ├── validate_all.sh    # 3段階検証システム
@@ -43,9 +46,27 @@ scripts/
 └── deprecated/             # 整理済み古いスクリプト
 ```
 
-## 🌟 統合管理CLI（bot_manager.py）🆕
+## 🎯 推奨ワークフロー・使い分け
 
-**すべての検証・監視・修復機能を1つのCLIで管理！**
+### **🚀 デプロイ前（CI実行前）**
+```bash
+# デプロイ前の包括チェック - bot_manager.py使用
+python scripts/bot_manager.py full-check  # 品質・監視・修復の統合チェック
+python scripts/bot_manager.py status      # システム状態確認
+python scripts/bot_manager.py data-check  # データ取得ロジック事前検証
+```
+
+### **✅ CI通過後（運用中の稼働確認）**  
+```bash
+# 完璧稼働状況確認 - operational_status_checker.py使用
+python scripts/operational_status_checker.py              # 全4段階チェック実行
+python scripts/operational_status_checker.py --verbose    # 詳細ログ付き
+python scripts/operational_status_checker.py --phase phase3  # 隠れた問題検出のみ
+```
+
+## 🌟 統合管理CLI（bot_manager.py）
+
+**デプロイ前のすべての検証・監視・修復機能を1つのCLIで管理**
 
 ### **基本使用方法**
 ```bash
@@ -72,7 +93,55 @@ python scripts/bot_manager.py full-check
 | `full-check` | 完全チェック | `bot_manager.py full-check` |
 | `status` | 状態確認 | `bot_manager.py status` |
 
-### **推奨ワークフロー**
+## 🎊 完璧稼働状況確認システム（operational_status_checker.py）🆕
+
+**CI通過後の運用中システムを完璧に監視・隠れたエラーを確実に検出**
+
+### **特徴**
+- **4段階固定チェック**: インフラ・アプリ・隠れた問題・総合判定
+- **過去10パターンの隠れたエラー検出**: 48/300停滞・表面稼働実際停止等
+- **既存tool統合**: 4つの監視スクリプト統合・重複排除
+- **JST時刻統一**: UTC/JST混在問題を根本解決
+- **美しいHTMLレポート**: 問題分析・具体的アクション提案付き
+
+### **基本使用方法**
+```bash
+# 完璧稼働状況確認（全4段階）
+python scripts/operational_status_checker.py
+
+# 詳細ログ付き実行
+python scripts/operational_status_checker.py --verbose
+
+# 特定段階のみ実行
+python scripts/operational_status_checker.py --phase phase1  # インフラのみ
+python scripts/operational_status_checker.py --phase phase3  # 隠れた問題のみ
+
+# HTMLレポート生成確認
+python scripts/operational_status_checker.py --save-report
+```
+
+### **4段階チェック内容**
+
+| Phase | 内容 | 重み | 検出項目 |
+|-------|------|------|---------|
+| **Phase 1** | インフラ・基盤確認 | 25% | GCP Cloud Run・API接続・システムヘルス・リソース |
+| **Phase 2** | アプリケーション動作確認 | 30% | ログ分析・データ取得・シグナル生成・メインループ |
+| **Phase 3** | 隠れた問題検出 | 30% | **過去10パターン**・パフォーマンス異常・未来リーク・設定整合性 |
+| **Phase 4** | 総合判定・レポート生成 | 15% | スコアリング・リスク評価・アクション提案・HTML生成 |
+
+### **隠れたエラーパターン（Phase 3で検出）**
+1. **データ取得停滞**: 48/300で停止・Empty batch連続
+2. **表面稼働・実際停止**: ヘルス200だが数時間前からログなし  
+3. **メインループ未到達**: INIT段階で停止・メインループ到達せず
+4. **リビジョン切替失敗**: 新リビジョン作成されるが古いバージョンがACTIVE
+5. **無限リトライループ**: Attempt 15/20等の異常リトライ
+6. **モデル予測異常**: confidence固定値・連続HOLD過多
+7. **インポート・メソッド不在**: テスト実行時発覚の隠れたエラー
+8. **CI/CD長時間スタック**: GitHub Actions数時間停止
+9. **メモリリーク**: 緩やかなメモリ使用量増加・パフォーマンス劣化
+10. **UTC/JST混在**: 時刻表示混乱による状況誤認
+
+### **推奨ワークフロー（デプロイ前）**
 ```bash
 # 1. 開発前の状態確認
 python scripts/bot_manager.py status
@@ -144,7 +213,7 @@ Phase 2-3/Phase 3の高度な監視機能
   - 97特徴量対応
   - CI/CDでのモデルファイル不在エラー解決
 
-### **デプロイメント・環境管理** (2025年8月10日更新)
+### **デプロイメント・環境管理** (2025年8月12日更新)
 - `verify_github_secrets.sh` - GitHub Secrets設定確認・CI/CDトラブルシューティング
 - `setup_gcp_secrets.sh` - GCP Secret Manager設定（オプション）
 - `cleanup_cloud_run_revisions.sh` - Cloud Runリビジョン競合解決
@@ -154,6 +223,12 @@ Phase 2-3/Phase 3の高度な監視機能
   - Git commit/push
   - CI/CD自動トリガー
   - 完全自動化デプロイスクリプト
+- **`cleanup_gcp_resources.sh`** - GCPリソースクリーンアップ（新規追加）
+  - dev環境Cloud Runサービス削除
+  - 古いリビジョン削除（最新3つ以外）
+  - 古いDockerイメージ削除（最新10個以外）
+  - dev環境Terraform状態ファイル削除
+  - ドライランモード対応
 
 ### **監視・統合ツール** (2025年8月11日追加 - Phase 2-2/2-3)
 - **`paper_trade_with_monitoring.sh`** - ペーパートレード＋シグナル監視統合
@@ -261,6 +336,21 @@ core/
 
 ## 🚀 使用方法
 
+### **📋 完全ワークフロー（推奨）**
+```bash
+# === デプロイ前チェック（CI実行前） ===
+python scripts/bot_manager.py full-check        # 包括チェック（品質・監視・修復）
+python scripts/bot_manager.py data-check        # データ取得ロジック事前検証
+
+# Git push → CI実行 → デプロイ完了
+
+# === CI通過後の稼働確認（運用開始後） ===  
+python scripts/operational_status_checker.py   # 完璧稼働状況確認（4段階・隠れたエラー検出）
+
+# 問題検出時の詳細確認
+python scripts/operational_status_checker.py --verbose --phase phase3
+```
+
 ### **日常的な開発作業**
 ```bash
 # 品質チェック実行（コミット前必須）
@@ -282,6 +372,17 @@ bash scripts/paper_trade_with_monitoring.sh --duration 24
 
 # シグナル監視のみ実行
 python scripts/utilities/signal_monitor.py --hours 24
+```
+
+### **稼働確認専用ツール**
+```bash
+# 完璧稼働状況確認システム（運用中必須）
+python scripts/operational_status_checker.py              # 全チェック実行
+python scripts/operational_status_checker.py --phase phase3  # 隠れた問題のみ
+python scripts/operational_status_checker.py --verbose    # 詳細ログ付き
+
+# JST統一時刻でGCPログ確認
+python scripts/utilities/unified_status_checker.py --hours 2
 ```
 
 ### **モデル管理**
@@ -353,8 +454,25 @@ export BITBANK_API_SECRET="your-api-secret"
 python scripts/prepare_initial_data.py
 ```
 
+## 🎊 重要な変更・更新履歴
+
+### **2025年8月12日：完璧稼働状況確認システム完成**
+- **operational_status_checker.py**: 4段階チェックシステム（2,100行）
+- **status_config.json**: 過去10パターンの隠れたエラーDB 
+- **使い分け明確化**: デプロイ前=`bot_manager.py` / CI通過後=`operational_status_checker.py`
+- **表面稼働・実際停止問題**: 完全解決（ヘルス200+ログ古い→検出）
+- **UTC/JST混在問題**: JST統一・時刻混乱解消
+- **既存tool統合**: 重複排除・4つの監視スクリプト統合完了
+
+### **2025年8月11日：Phase 2-3検証システム**
+- 未来データリーク検出・統合検証システム追加
+
+### **2025年8月10日：CI/CD対応スクリプト**
+- CI/CDパイプライン完全対応・エラー解決済み
+
+### **2025年8月7日：大規模整理・最適化**
+- Scripts構造体系化・63ファイル整理・統合システム構築
+
 ---
 
-*Scripts構造は2025年8月7日に大規模整理・最適化されました*
-*2025年8月10日：CI/CD対応スクリプト追加*
-*2025年8月11日：Phase 2-3検証システム追加（未来データリーク検出・統合検証）*
+**🎯 現在のシステム状態**: 完璧稼働状況確認システム完成・隠れたエラー問題根本解決済み

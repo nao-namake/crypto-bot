@@ -11,11 +11,9 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
   workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -153,7 +151,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch')
     permissions:
@@ -306,80 +304,6 @@ jobs:
           echo "✅ Docker image tests passed successfully"
           echo "📋 Note: Live trading mode requires trained ML model (not available in CI)"
 
-
-  # ────────────────────────────────────────────────────────────────────────────
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Development Environment Deploy (develop branch and PRs)
-  # ────────────────────────────────────────────────────────────────────────────
-  terraform-deploy-dev:
-    name: Deploy to Development
-    needs: docker-build
-    runs-on: ubuntu-latest
-    if: |
-      (github.ref == 'refs/heads/develop' && github.event_name == 'push') ||
-      (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
-      (github.event_name == 'workflow_dispatch')
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      # Docker image pushed in the previous job
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/crypto-bot
-      # GCP project (secret)
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-
-      # Development environment specific settings
-      TF_VAR_artifact_registry_repo: "crypto-bot-repo"
-      TF_VAR_service_name: "crypto-bot-dev"
-      TF_VAR_image_name: "crypto-bot"
-      TF_VAR_mode: "paper"
-      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
-      TF_VAR_github_repo: "nao-namake/crypto-bot"
-      TF_VAR_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
-      TF_VAR_deployer_sa: ${{ secrets.GCP_DEPLOYER_SA }}
-      # Paper modeには実際のAPIキーは不要なので空文字列を設定
-      TF_VAR_bitbank_api_key: ""
-      TF_VAR_bitbank_api_secret: ""
-
-      # ----- Terraform variables -----
-      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
-      TF_VAR_region: "asia-northeast1"
-      TF_VAR_image_tag: "${{ github.sha }}"
-      TF_ENV_DIR: "infra/envs/dev"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ---------- Authenticate to GCP via Workload Identity Federation ----------
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
-          access_token_lifetime: 7200s
-          access_token_scopes: |
-            https://www.googleapis.com/auth/cloud-platform
-            https://www.googleapis.com/auth/devstorage.read_write
-            https://www.googleapis.com/auth/artifactregistry.repositories.uploadArtifacts
-
-      - name: Set up gcloud for Development
-        uses: google-github-actions/setup-gcloud@v2
-
-      # ---------- Terraform ----------
-      - name: Set up Terraform for Development
-        uses: hashicorp/setup-terraform@v3.1.1
-        with:
-          terraform_version: 1.8.5
-
-      - name: Terraform Init (Development)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
-
-      - name: Terraform Plan (Development)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
-
-      - name: Terraform Apply (Development)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
 
   # ────────────────────────────────────────────────────────────────────────────
   # Production Environment Deploy (main branch only)

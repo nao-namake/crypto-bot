@@ -25,7 +25,6 @@ crypto-botプロジェクトの自動化パイプラインを管理します。�
 
 **トリガー**:
 - mainブランチへのpush
-- developブランチへのpush
 - Pull Request
 - 手動実行（workflow_dispatch）
 

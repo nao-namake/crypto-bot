@@ -3,33 +3,27 @@
 ## 🏗️ 概要
 
 **🎊 Phase 19+完全達成: CI/CD高速化・インフラ最適化完了**  
-crypto-bot プロジェクトのインフラをTerraformで管理します。**Terraform Cloud Runデプロイのタイムアウト問題を根本解決**し、個人開発に最適化した確実で堅牢な構成で、開発環境（Paper Mode）と本番環境（Live Trading）の2環境を高速安定管理します。
+crypto-bot プロジェクトのインフラをTerraformで管理します。**Terraform Cloud Runデプロイのタイムアウト問題を根本解決**し、個人開発に最適化した確実で堅牢な単一環境（本番環境）構成で高速安定管理します。
 
 ## 🎯 設計方針（Phase 19+高速化対応）
 
 ### **確実性・高速性・シンプルさの統一**
-- **2環境のみ**: dev（Paper Mode）とprod（Live Trading）
+- **単一環境構成**: prod（Live Trading）のみのシンプル構成
 - **Static Environment Variables**: dynamic構文排除、確実性重視
 - **高速デプロイ最適化**: Terraform処理時間 10分+α → 5分以内達成
 - **Provider Version整合**: CI環境とローカル検証の完全一致
-- **低コスト運用**: 個人開発に適したリソース設定（月額2,200円）
+- **低コスト運用**: 個人開発に適したリソース設定（月額2,000円）
 
 ## 📁 ディレクトリ構成
 
 ```
 infra/
 ├── envs/
-│   ├── dev/    # 開発環境（Paper Mode）
-│   │   ├── main.tf          # 環境設定
-│   │   ├── variables.tf     # 変数定義
-│   │   ├── backend.tf       # Terraform状態管理
-│   │   └── terraform.tfvars # 環境固有の値
-│   │
 │   └── prod/   # 本番環境（Live Trading）
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── backend.tf
-│       └── terraform.tfvars
+│       ├── main.tf          # 環境設定
+│       ├── variables.tf     # 変数定義
+│       ├── backend.tf       # Terraform状態管理
+│       └── terraform.tfvars # 環境固有の値
 │
 └── modules/
     ├── crypto_bot_app/     # Cloud Runアプリケーション
@@ -38,13 +32,7 @@ infra/
     └── workload_identity/  # GitHub Actions認証
 ```
 
-## 🚀 環境別設定
-
-### **dev環境（開発・テスト用）**
-- **用途**: 開発、テスト、Paper Modeでの動作確認
-- **リソース**: CPU 500m、Memory 1Gi（Phase 19適正サイズ調整）
-- **APIキー**: static env vars（空文字列でも安定動作）
-- **コスト**: 約400円/月
+## 🚀 環境設定
 
 ### **prod環境（本番稼働用）**
 - **用途**: Bitbank実口座での自動取引

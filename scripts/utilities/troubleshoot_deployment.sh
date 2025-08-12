@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROJECT_ID="my-crypto-bot-project"
-SERVICE_NAME="crypto-bot-dev"
+SERVICE_NAME="crypto-bot-service-prod"
 REGION="asia-northeast1"
 REPO_OWNER="nao-namake"
 REPO_NAME="crypto-bot"
