@@ -106,9 +106,9 @@ class DataProcessor:
                 logger.error(f"   Valid range: {min_timestamp} - {max_timestamp}")
                 return None
 
-            # H.28.1-Stage4: 取引所API制限考慮（Bitbank: 72時間制限）
+            # H.28.1-Stage4: 取引所API制限考慮（Bitbank: 168時間制限）
             if self.exchange_id == "bitbank":
-                max_lookback_ms = 72 * 60 * 60 * 1000  # 72時間
+                max_lookback_ms = 168 * 60 * 60 * 1000  # 168時間（1週間）
                 oldest_allowed = current_time_ms - max_lookback_ms
 
                 if ts < oldest_allowed:
@@ -154,16 +154,16 @@ class DataProcessor:
         """
         current_time_ms = int(time.time() * 1000)
 
-        # Phase 16.1-C: Bitbank 72時間制限への対応
+        # Phase 16.1-C: Bitbank 168時間制限への対応
         if self.exchange_id == "bitbank":
-            # 71時間前を上限とする（1時間の安全マージン）
-            max_lookback_hours = 71
+            # 167時間前を上限とする（1時間の安全マージン）
+            max_lookback_hours = 167
             max_lookback_ms = max_lookback_hours * 60 * 60 * 1000
             earliest_allowed = current_time_ms - max_lookback_ms
 
             if base_timestamp < earliest_allowed:
                 logger.info(
-                    f"🔧 [Phase 16.1-C] Adjusting since for Bitbank 72h limit: "
+                    f"🔧 [Phase 16.1-C] Adjusting since for Bitbank 168h limit: "
                     f"{base_timestamp} -> {earliest_allowed} ({max_lookback_hours}h ago)"
                 )
                 return earliest_allowed
@@ -345,7 +345,7 @@ class DataProcessor:
                 if since_ms is None:
                     # 検証失敗時は安全な開始点を使用
                     since_ms = self._calculate_safe_since_h28(
-                        raw_since_ms or (int(time.time() * 1000) - 71 * 60 * 60 * 1000),
+                        raw_since_ms or (int(time.time() * 1000) - 167 * 60 * 60 * 1000),
                         timeframe,
                     )
                     logger.warning(
@@ -356,7 +356,7 @@ class DataProcessor:
                 logger.error(f"🚨 [H.28.1] Since calculation error: {e}")
                 # エラー時は安全な開始点を使用
                 since_ms = self._calculate_safe_since_h28(
-                    int(time.time() * 1000) - 71 * 60 * 60 * 1000, timeframe
+                    int(time.time() * 1000) - 167 * 60 * 60 * 1000, timeframe
                 )
                 logger.warning(
                     f"🔧 [H.28.1] Error fallback, using safe since: {since_ms}"
@@ -438,16 +438,16 @@ class DataProcessor:
                     last_since = current_ms - (24 * 60 * 60 * 1000)
                     logger.info(f"🔧 [TIMESTAMP] Reset to 24h ago: {last_since}")
 
-                # Bitbank API制限チェック（72時間以内に短縮）
+                # Bitbank API制限チェック（168時間以内に短縮）
                 else:
-                    max_age_ms = 72 * 60 * 60 * 1000  # 72時間（設定値と一致）
+                    max_age_ms = 168 * 60 * 60 * 1000  # 168時間（1週間、設定値と一致）
                     min_since = current_ms - max_age_ms
                     if last_since < min_since:
                         logger.warning(
                             f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
                         )
                         last_since = min_since
-                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 72h ago: {last_since}")
+                        logger.info(f"🔧 [TIMESTAMP] Adjusted to 168h ago: {last_since}")
 
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page

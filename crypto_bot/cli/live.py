@@ -171,7 +171,7 @@ def fetch_latest_data(fetcher, dd: dict, symbol: str) -> Optional[pd.DataFrame]:
             logger.info(f"🔍 [DEBUG] Using config since: {since_time}")
         else:
             # 動的since_hours計算（土日ギャップ・祝日対応）
-            base_hours = dd.get("since_hours", 48)
+            base_hours = dd.get("since_hours", 168)  # デフォルト1週間
 
             # 曜日判定（月曜日=0, 日曜日=6）
             current_day = current_time.dayofweek

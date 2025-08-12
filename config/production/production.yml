@@ -53,7 +53,7 @@ data:
         min_points: 3
   paginate: true
   per_page: 200
-  since_hours: 72  # 96から72に最適化（3日間のデータで十分）  # Bitbank API制限内で最大化（96時間 = 4日分）
+  since_hours: 168  # 72から168に拡張（1週間分のデータ取得）
   symbol: BTC/JPY
   timeframe: 1h
   weekend_data: true
