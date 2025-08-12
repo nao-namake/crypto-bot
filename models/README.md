@@ -178,26 +178,38 @@ gsutil cp gs://my-crypto-bot-models/model.pkl models/production/model.pkl
 gsutil cp models/production/model_backup_$(date +%Y%m%d).pkl gs://my-crypto-bot-models/backups/
 ```
 
-## 📊 現在のモデル体制（Phase 16.12）
+## 📊 現在のモデル体制（Phase 17 - 2025年8月13日完全更新）
 
-### **本番稼働モデル（2025年8月10日更新）**
+### **本番稼働モデル（2025年8月13日 - scikit-learn互換性完全解決）**
 - **TradingEnsembleClassifier**: LGBM + XGBoost + RandomForest 3モデル統合
 - **統合方式**: trading_stacking メソッド（高度な予測統合）
 - **97特徴量完全対応**: 100%実装率・フォールバック削減
 - **confidence_threshold**: 0.35（production.yml準拠）
-- **CI/CD対応**: create_production_model.py でのフォールバック生成対応
-- **稼働状況**: Phase 18本番環境・Bitbank BTC/JPY実取引中
+- **🆕 scikit-learn互換性**: バージョン1.3.2完全対応・警告排除
+- **🆕 monotonic_cst問題**: 完全解決・DecisionTreeClassifier互換性確保
+- **稼働状況**: Phase 17本番環境・Bitbank BTC/JPY実取引中
 
-### **訓練済みモデル群**
-- **個別モデル性能**: LGBM(47.02%) / XGBoost(48.20%) / RandomForest(47.84%)
+### **訓練済みモデル群（2025年8月13日再学習完了）**
+- **個別モデル性能（scikit-learn 1.3.2環境）**: 
+  - LGBM: 48.55% accuracy, 45.27% F1
+  - XGBoost: 50.15% accuracy, 47.90% F1
+  - RandomForest: 48.20% accuracy, 41.42% F1
 - **アンサンブル効果**: trading_stacking方式による精度向上
 - **完全メタデータ**: 訓練詳細・性能指標・パラメータ完備
+- **バージョン整合**: 全モデルscikit-learn 1.3.2統一・警告なし
+
+### **重大問題解決（2025年8月13日）**
+- **✅ DecisionTreeClassifier monotonic_cst属性エラー**: モデル再学習で完全解決
+- **✅ scikit-learn バージョン不整合**: 1.7.1→1.3.2統一で警告排除
+- **✅ RandomForest内部互換性**: DecisionTreeClassifier統合問題解決
+- **✅ 品質保証**: 611テスト成功・31.53%カバレッジ維持
 
 ### **継続改善体制**
 - **定期再訓練**: 週次・月次でのモデル性能評価
 - **A/Bテスト**: validation/での新モデル検証
 - **段階的昇格**: 安全な本番モデル更新プロセス
+- **バージョン管理**: scikit-learn互換性確保・定期チェック
 
 ---
 
-**Phase 16.12完了**: 97特徴量システム・TradingEnsembleClassifier・本番稼働体制が完全に整備されたモデル管理システムが確立されました。🎊
+**Phase 17完了**: DecisionTreeClassifier monotonic_cst互換性エラー・scikit-learnバージョン不整合問題を根本解決し、完全に安定したモデル管理システムが確立されました。🎊

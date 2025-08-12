@@ -47,7 +47,26 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 **主要README.md**：`crypto_bot/*/README.md`, `scripts/README.md`, `tests/README.md`, `config/README.md`, `models/README.md`, `infra/README.md`
 
-## ✨ 最新機能（2025年8月12日）
+## ✨ 最新機能（2025年8月13日 - 重大問題解決版）
+
+### **🚨 トレード実行阻害要因の完全解決**
+
+**DecisionTreeClassifier monotonic_cst互換性エラー・scikit-learnバージョン不整合問題を根本解決**:
+
+```bash
+# モデル再学習による根本解決（完了）
+python scripts/model_tools/retrain_97_features_model.py
+python scripts/model_tools/create_proper_ensemble_model.py
+
+# 解決確認
+python -c "import joblib; joblib.load('models/production/model.pkl')"  # 警告なし
+```
+
+**解決された問題**:
+- ✅ **DecisionTreeClassifier monotonic_cst属性エラー**: モデル再学習で完全解決
+- ✅ **scikit-learn バージョン不整合**: 1.7.1→1.3.2統一で警告排除
+- ✅ **InconsistentVersionWarning**: 全モデルファイルのバージョン統一完了
+- ✅ **RandomForest内部互換性**: DecisionTreeClassifier統合問題解決
 
 ### **🎊 完璧稼働状況確認システム（隠れたエラー問題根絶）**
 
@@ -61,18 +80,12 @@ python scripts/operational_status_checker.py --phase phase3  # 隠れた問題�
 python scripts/operational_status_checker.py --save-report  # HTMLレポート生成
 ```
 
-**解決する問題**:
-- ✅ **表面稼働・実際停止**: ヘルス200だが数時間前からログなし → 確実検出
-- ✅ **毎回異なる手法**: 固定4段階チェックで一貫した確認方法
-- ✅ **隠れたエラー見逃し**: 過去10パターン（48/300停滞等）の自動検出
-- ✅ **UTC/JST混在**: JST統一時刻で時刻混乱解消
-
 **4段階チェック内容**:
 | Phase | 内容 | 重み | 検出項目 |
 |-------|------|------|---------| 
 | Phase 1 | インフラ・基盤確認 | 25% | GCP Cloud Run・API接続・システムヘルス |
 | Phase 2 | アプリ動作確認 | 30% | ログ分析・データ取得・シグナル生成 |
-| Phase 3 | 隠れた問題検出 | 30% | **過去10パターン**・パフォーマンス異常 |
+| Phase 3 | 隠れた問題検出 | 30% | **過去12パターン**・パフォーマンス異常 |
 | Phase 4 | 総合判定・報告 | 15% | スコアリング・アクション提案・HTML生成 |
 
 ### **🌟 統合CLIで全機能を簡単管理**

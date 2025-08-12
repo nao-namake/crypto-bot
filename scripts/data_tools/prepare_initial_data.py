@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """
-初期データ事前取得スクリプト
-本番デプロイ前に初期データとして400レコードのOHLCVデータと97特徴量を事前計算してキャッシュ保存
+初期データ事前取得スクリプト（168時間版）
+本番デプロイ前に168時間分のOHLCVデータと97特徴量を事前計算してキャッシュ保存
+API制限回避・データ取得安定化のため、ローカル環境で事前取得
 
 使用方法:
-    python scripts/prepare_initial_data.py
+    export BITBANK_API_KEY="your-api-key"
+    export BITBANK_API_SECRET="your-api-secret"
+    python scripts/data_tools/prepare_initial_data.py
 
 出力:
-    cache/initial_data.pkl - 初期データキャッシュ
-    cache/initial_features.pkl - 97特徴量キャッシュ
+    cache/initial_data_168h.pkl - 168時間初期データキャッシュ
+    cache/initial_features_168h.pkl - 97特徴量キャッシュ
+    
+本番環境での利用:
+    - Docker imageに含めて配置
+    - 起動時の高速データロード
+    - API制限回避効果
 """
 
 import json
@@ -45,8 +53,8 @@ def load_config():
 
 
 def fetch_initial_data(config):
-    """初期データとして400レコードのOHLCVデータを取得"""
-    logger.info("🔄 Fetching initial OHLCV data (400 records)...")
+    """168時間分のOHLCVデータを取得"""
+    logger.info("🔄 Fetching 168-hour OHLCV data for production cache...")
 
     dd = config.get("data", {})
 
@@ -59,18 +67,18 @@ def fetch_initial_data(config):
         ccxt_options=dd.get("ccxt_options", {}),
     )
 
-    # 現在時刻から72時間前をsince_timeとして設定（Bitbank API制限内）
+    # 現在時刻から168時間前をsince_timeとして設定（1週間分データ）
     current_time = pd.Timestamp.now(tz="UTC")
-    since_time = current_time - pd.Timedelta(hours=72)  # 72時間に短縮
+    since_time = current_time - pd.Timedelta(hours=168)  # 168時間（1週間）
 
-    logger.info(f"📊 Fetching data from {since_time} to {current_time}")
+    logger.info(f"📊 Fetching 168-hour data from {since_time} to {current_time}")
 
     try:
-        # 300レコードを目標に取得（72時間分）
+        # 168レコードを目標に取得（168時間分）
         price_df = fetcher.get_price_df(
             timeframe="1h",
             since=since_time,
-            limit=300,
+            limit=200,  # 余裕を持って200に設定
             paginate=True,
             per_page=200,
             max_consecutive_empty=12,
@@ -185,14 +193,14 @@ def save_cache(data, features, config):
 
     # OHLCVデータの保存
     if data is not None:
-        data_cache_path = cache_dir / "initial_data.pkl"
+        data_cache_path = cache_dir / "initial_data_168h.pkl"
         with open(data_cache_path, "wb") as f:
             pickle.dump({"data": data, "metadata": metadata}, f)
         logger.info(f"💾 Saved OHLCV data to {data_cache_path}")
 
     # 特徴量データの保存
     if features is not None:
-        features_cache_path = cache_dir / "initial_features.pkl"
+        features_cache_path = cache_dir / "initial_features_168h.pkl"
         with open(features_cache_path, "wb") as f:
             pickle.dump({"features": features, "metadata": metadata}, f)
         logger.info(f"💾 Saved features to {features_cache_path}")
@@ -211,7 +219,7 @@ def verify_cache():
     cache_dir = Path("cache")
 
     # OHLCVデータの検証
-    data_cache_path = cache_dir / "initial_data.pkl"
+    data_cache_path = cache_dir / "initial_data_168h.pkl"
     if data_cache_path.exists():
         with open(data_cache_path, "rb") as f:
             cache_data = pickle.load(f)
@@ -221,7 +229,7 @@ def verify_cache():
         logger.warning("⚠️ OHLCV cache not found")
 
     # 特徴量データの検証
-    features_cache_path = cache_dir / "initial_features.pkl"
+    features_cache_path = cache_dir / "initial_features_168h.pkl"
     if features_cache_path.exists():
         with open(features_cache_path, "rb") as f:
             cache_data = pickle.load(f)

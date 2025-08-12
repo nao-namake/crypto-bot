@@ -8,11 +8,21 @@
 **🎊 Phase 16.9最適化完了**: 2025年8月8日  
 **整理効果**: 22個→16個（27%削減）・6,901行除去・誤参照防止・保守性向上
 
-**🆕 2025年8月10日更新**:
-- **ensemble.py修正**: 
-  - create_trading_ensemble関数のconfidence_thresholdデフォルトを0.35に変更
-  - モデルファイル不在時のフォールバック対応（simple_fallback）
-  - CI/CD環境での動作保証
+**🆕 2025年8月13日重大更新 - Phase 17完了**:
+- **🚨 DecisionTreeClassifier monotonic_cst互換性エラー完全解決**:
+  - ensemble.py内での自動パッチ適用（緊急対処）
+  - モデル再学習による根本的解決実装
+  - RandomForest内部DecisionTreeClassifier互換性確保
+  
+- **🔧 scikit-learnバージョン不整合問題根本解決**:
+  - バージョン1.7.1→1.3.2統一環境での完全再構築
+  - InconsistentVersionWarning完全排除
+  - 全アンサンブルモデルのバージョン整合性確保
+
+- **📊 ensemble.py大幅改善**:
+  - monotonic_cst属性チェック機能追加（5箇所）
+  - black自動フォーマット適用・コード品質向上
+  - predict_proba系メソッド全体での堅牢性確保
 
 **🎊 ChatGPT提案採用（Phase 1-2完了）**:
 - **ensemble.py改善**:

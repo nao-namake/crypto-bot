@@ -5,11 +5,13 @@
 **Cryptocurrency Trading Bot Scripts Collection**  
 crypto-bot プロジェクトの各種実行スクリプトを管理するディレクトリです。品質チェック、モデル学習、バックテスト、システム診断、デプロイメントなど、開発・運用に必要なツールを提供します。
 
-**🎊 2025年8月12日大型更新**:
+**🎊 2025年8月13日重大更新**:
+- **🚨 モデル互換性問題緊急対応**: monotonic_cst属性エラー・scikit-learnバージョン不整合の根本解決
+- **model_tools/retrain_97_features_model.py**: FeatureOrderManager属性修正・完全再学習実装
+- **model_tools/create_proper_ensemble_model.py**: バージョン整合モデル読み込みパス修正
 - **operational_status_checker.py**: 🆕 完璧稼働状況確認システム（4段階チェック・隠れたエラー検出）
 - **bot_manager.py**: デプロイ前包括チェック・data_check()機能追加
-- **utilities/unified_status_checker.py**: JST統一時刻管理・GCPログ分析ツール  
-- **status_config.json**: 隠れたエラーパターンDB・過去10パターン登録済み
+- **status_config.json**: 隠れたエラーパターンDB・過去12パターン登録済み
 
 ## 🎯 ディレクトリ構造（2025年8月11日 体系的整理実施）
 

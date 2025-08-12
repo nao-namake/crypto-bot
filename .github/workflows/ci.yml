@@ -45,6 +45,17 @@ jobs:
             ${{ runner.os }}-pip-
         # Phase 12.5: 統一依存関係管理・requirements/フォルダ対応
 
+      - name: Restore data cache (168-hour)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            cache/initial_data_168h.pkl
+            cache/initial_features_168h.pkl
+          key: data-cache-168h-${{ github.run_number }}-${{ github.sha }}
+          restore-keys: |
+            data-cache-168h-
+        # 事前取得された168時間データキャッシュを復元
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:

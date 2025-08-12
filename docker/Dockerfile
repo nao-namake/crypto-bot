@@ -28,6 +28,10 @@ COPY models/production/ /app/models/production/
 # キャッシュディレクトリを作成
 RUN mkdir -p /app/cache
 
+# 168時間事前取得データキャッシュをコピー
+COPY cache/initial_data_168h.pkl /app/cache/initial_data_168h.pkl
+COPY cache/initial_features_168h.pkl /app/cache/initial_features_168h.pkl
+
 # cache/ディレクトリが存在する場合はコピー、なければスキップ
 # CI環境ではワークフローで事前作成されたダミーファイルをコピー
 COPY cache/ /app/cache/

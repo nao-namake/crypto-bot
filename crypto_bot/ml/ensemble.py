@@ -386,6 +386,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                     if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
 
+                # RandomForest内部のDecisionTree要素にもパッチ適用
+                if hasattr(model, "estimators_"):
+                    for estimator in model.estimators_:
+                        if (
+                            hasattr(estimator, "__class__")
+                            and "DecisionTree" in estimator.__class__.__name__
+                        ):
+                            if not hasattr(estimator, "monotonic_cst"):
+                                estimator.monotonic_cst = None
+
                 proba = model.predict_proba(X)
                 base_proba = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
 
@@ -432,6 +442,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 ):
                     if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
+
+                # RandomForest内部のDecisionTree要素にもパッチ適用
+                if hasattr(model, "estimators_"):
+                    for estimator in model.estimators_:
+                        if (
+                            hasattr(estimator, "__class__")
+                            and "DecisionTree" in estimator.__class__.__name__
+                        ):
+                            if not hasattr(estimator, "monotonic_cst"):
+                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
 
@@ -492,6 +512,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                     if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
 
+                # RandomForest内部のDecisionTree要素にもパッチ適用
+                if hasattr(model, "estimators_"):
+                    for estimator in model.estimators_:
+                        if (
+                            hasattr(estimator, "__class__")
+                            and "DecisionTree" in estimator.__class__.__name__
+                        ):
+                            if not hasattr(estimator, "monotonic_cst"):
+                                estimator.monotonic_cst = None
+
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
             except Exception as e:
@@ -519,6 +549,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 ):
                     if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
+
+                # RandomForest内部のDecisionTree要素にもパッチ適用
+                if hasattr(model, "estimators_"):
+                    for estimator in model.estimators_:
+                        if (
+                            hasattr(estimator, "__class__")
+                            and "DecisionTree" in estimator.__class__.__name__
+                        ):
+                            if not hasattr(estimator, "monotonic_cst"):
+                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
@@ -691,6 +731,16 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 ):
                     if not hasattr(model, "monotonic_cst"):
                         model.monotonic_cst = None
+
+                # RandomForest内部のDecisionTree要素にもパッチ適用
+                if hasattr(model, "estimators_"):
+                    for estimator in model.estimators_:
+                        if (
+                            hasattr(estimator, "__class__")
+                            and "DecisionTree" in estimator.__class__.__name__
+                        ):
+                            if not hasattr(estimator, "monotonic_cst"):
+                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
                 individual_predictions.append(proba[:, 1])

@@ -25,19 +25,21 @@ data:
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 20000
-    timeout: 60000
+    rateLimit: 15000  # API制限緩和で安定化
+    timeout: 90000   # タイムアウト延長で大量データ取得対応
     verbose: false
+    retries: 5       # 内部リトライ追加
+    enableApiWaitTimeout: true
   early_week_extension_hours: 36
   exchange: bitbank
   exponential_backoff: true
   fetch_retries: 3
   limit: 150  # 168時間制限内で確実に取得可能な数に調整
-  max_attempts: 20  # 25から20に調整（効率化）
-  max_consecutive_empty: 3  # 早期終了で無限ループ防止
-  max_consecutive_no_new: 15  # 20から15に調整（効率化）
-  max_delay_ms: 45000
-  min_delay_ms: 30000
+  max_attempts: 25  # 168時間データ確実取得のため増加
+  max_consecutive_empty: 8  # 現在8回発生中のため上限拡大
+  max_consecutive_no_new: 20  # 168時間データ取得のため余裕設定
+  max_delay_ms: 60000  # API制限対応でbackoff延長
+  min_delay_ms: 20000  # 初期値を短縮して効率化
   multi_timeframe_data:
     base_timeframe: 1h  # 1時間足をベースに統一（データ取得の安定性向上）
     target_timeframes:
@@ -96,9 +98,9 @@ logging:
   retention: 7
   rotation: daily
 ml:
-  confidence_threshold: 0.35
+  confidence_threshold: 0.25
   ensemble:
-    confidence_threshold: 0.35
+    confidence_threshold: 0.25
     enabled: true
     method: trading_stacking
     model_weights:
@@ -261,7 +263,7 @@ risk:
   risk_per_trade: 0.01
   stop_atr_mult: 1.2
 strategy:
-  confidence_threshold: 0.35
+  confidence_threshold: 0.25
   name: multi_timeframe_ensemble
   params:
     atr_multiplier: 0.7

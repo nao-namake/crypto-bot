@@ -1,0 +1,292 @@
+{
+  "timestamp": "2025-08-13T05:33:50.546726",
+  "phases": {
+    "phase1": {
+      "phase_name": "インフラ・基盤確認",
+      "weight": 25,
+      "checks": {
+        "gcp_cloud_run_status": {
+          "status": "healthy",
+          "active_revision": "crypto-bot-service-prod-00042-sbs",
+          "latest_revision": "crypto-bot-service-prod-00042-sbs",
+          "revision_switch_ok": true,
+          "revision_age_hours": 0.09108036194444444,
+          "service_url": "https://crypto-bot-service-prod-lufv3saz7q-an.a.run.app",
+          "details": "Active: crypto-bot-service-prod-00042-sbs, Age: 0.1h"
+        },
+        "api_connectivity": {
+          "status": "healthy",
+          "checks": {
+            "basic_health": {
+              "status": "healthy",
+              "mode": "live",
+              "details": "HTTP 200, Mode: live"
+            },
+            "detailed_health": {
+              "status": "healthy",
+              "api_auth": true,
+              "margin_mode": true,
+              "trading_status": "warning",
+              "details": "Auth: True, Margin: True"
+            },
+            "response_time": 0.12137389183044434
+          },
+          "details": "Response time: 0.12s"
+        },
+        "system_health": {
+          "status": "degraded",
+          "error": "Health check script failed",
+          "return_code": 1,
+          "stderr": "",
+          "details": "Exit code: 1"
+        },
+        "resource_usage": {
+          "status": "unknown",
+          "memory": {
+            "status": "unknown",
+            "details": "No memory info available"
+          },
+          "cpu": {
+            "status": "unknown",
+            "details": "CPU metrics not available"
+          },
+          "details": "No memory info available"
+        }
+      },
+      "score": 67.5,
+      "status": "warning",
+      "issues": [
+        {
+          "check": "resource_usage",
+          "severity": "CRITICAL",
+          "message": "No memory info available",
+          "score": 0,
+          "phase": "phase1"
+        }
+      ]
+    },
+    "phase2": {
+      "phase_name": "アプリケーション動作確認",
+      "weight": 30,
+      "checks": {
+        "log_analysis": {
+          "status": "healthy",
+          "error_count": 0,
+          "details": "No significant errors detected"
+        },
+        "data_fetching_efficiency": {
+          "status": "healthy",
+          "issues": [],
+          "latest_progress": null,
+          "details": "Data fetching appears normal"
+        },
+        "signal_generation_health": {
+          "status": "healthy",
+          "health_score": 80,
+          "details": "Signal monitoring passed"
+        },
+        "main_loop_status": {
+          "status": "healthy",
+          "init_status": {
+            "INIT-5": "unknown",
+            "INIT-6": "unknown",
+            "INIT-7": "unknown",
+            "INIT-8": "unknown"
+          },
+          "main_loop_reached": "[\n  {\n    \"insertId\": \"689ba4df0003f7af9fd74308\",\n    \"labels\": {\n      \"instanceId\": \"0069c7a988846ddfdb7658a73b78dea4e470c9044ade897ab7f6db8e42844e28af55d29e97c665528aa58f81517484c0190540f30fefa94cc8a1c7f2f09f80931b6d4890734e5a2c6e9b00bf5dee4236f0\"\n    },\n    \"logName\": \"projects/my-crypto-bot-project/logs/run.googleapis.com%2Fstdout\",\n    \"receiveTimestamp\": \"2025-08-12T20:32:31.545878414Z\",\n    \"resource\": {\n      \"labels\": {\n        \"configuration_name\": \"crypto-bot-service-prod\",\n        \"location\": \"asia-northeast1\",\n        \"project_id\": \"my-crypto-bot-project\",\n        \"revision_name\": \"crypto-bot-service-prod-00042-sbs\",\n        \"service_name\": \"crypto-bot-service-prod\"\n      },\n      \"type\": \"cloud_run_revision\"\n    },\n    \"textPayload\": \"[2025-08-12 20:32:31] INFO     crypto_bot.cli.live : 📦 [INIT-ATR] Cached 168 records for main loop reuse\",\n    \"timestamp\": \"2025-08-12T20:32:31.260015Z\"\n  },\n  {\n    \"insertId\": \"689ba4df000360cc449a102e\",\n    \"labels\": {\n      \"instanceId\": \"0069c7a9886479dcf1681cc8d09c3ca8689cd5a08af4f0dd4410539253a21af67c2749015b8a73c7ce502c745b3cb8d78345b93dac6c297815460f5eed340ae905e9547fd7bccbaa847c0af77b82e7bd4ebd\"\n    },\n    \"logName\": \"projects/my-crypto-bot-project/logs/run.googleapis.com%2Fstdout\",\n    \"receiveTimestamp\": \"2025-08-12T20:32:31.549922649Z\",\n    \"resource\": {\n      \"labels\": {\n        \"configuration_name\": \"crypto-bot-service-prod\",\n        \"location\": \"asia-northeast1\",\n        \"project_id\": \"my-crypto-bot-project\",\n        \"revision_name\": \"crypto-bot-service-prod-00042-sbs\",\n        \"service_name\": \"crypto-bot-service-prod\"\n      },\n      \"type\": \"cloud_run_revision\"\n    },\n    \"textPayload\": \"[2025-08-12 20:32:31] INFO     crypto_bot.cli.live : 📦 [INIT-ATR] Cached 168 records for main loop reuse\",\n    \"timestamp\": \"2025-08-12T20:32:31.221388Z\"\n  }\n]",
+          "details": "Initialization and main loop normal"
+        }
+      },
+      "score": 100.0,
+      "status": "healthy",
+      "issues": []
+    },
+    "phase3": {
+      "phase_name": "隠れた問題検出",
+      "weight": 30,
+      "checks": {
+        "hidden_error_patterns": {
+          "status": "critical",
+          "patterns_detected": 3,
+          "critical_patterns": 2,
+          "high_patterns": 1,
+          "detected_patterns": [
+            {
+              "id": "data_fetch_stagnation",
+              "name": "データ取得停滞（48/300問題）",
+              "severity": "CRITICAL",
+              "description": "API制限または接続問題により48件で停滞、Empty batch連続発生",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Found 3 instances of 48/300 stagnation",
+                "latest_timestamp": "2025-08-12T03:15:17.585940Z"
+              },
+              "past_solutions": [
+                "API接続確認・認証情報チェック",
+                "レート制限回避・バックオフ調整",
+                "データキャッシュ機能実装"
+              ]
+            },
+            {
+              "id": "model_compatibility_error",
+              "name": "モデル互換性エラー（monotonic_cst属性）",
+              "severity": "CRITICAL",
+              "description": "scikit-learnバージョン不整合によるモデル予測失敗、トレード不能",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Trading prediction failed for base model' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only実行",
+                "モデル再学習でバージョン統一",
+                "crypto_bot/ml/ensemble.pyにパッチ適用"
+              ]
+            },
+            {
+              "id": "frequent_instance_restart",
+              "name": "頻繁なインスタンス再起動（SIGTERM）",
+              "severity": "HIGH",
+              "description": "Cloud Runのmin-instances=0によるアイドルタイムアウト、状態リセット",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Received signal 15' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "gcloud run services update --min-instances=1",
+                "CPU throttling無効化",
+                "タイムアウト延長（--timeout=3600）"
+              ]
+            }
+          ],
+          "details": "3 hidden patterns detected"
+        },
+        "performance_anomalies": {
+          "status": "healthy",
+          "anomalies": [],
+          "anomaly_count": 0,
+          "details": "No performance anomalies detected"
+        },
+        "future_data_leaks": {
+          "status": "healthy",
+          "leak_count": 0,
+          "details": "No future data leaks detected"
+        },
+        "config_integrity": {
+          "status": "healthy",
+          "issues": [],
+          "issue_count": 0,
+          "details": "Configuration integrity OK"
+        }
+      },
+      "score": 77.5,
+      "status": "warning",
+      "issues": [
+        {
+          "check": "hidden_error_patterns",
+          "severity": "CRITICAL",
+          "message": "3 hidden patterns detected",
+          "score": 10,
+          "phase": "phase3"
+        }
+      ]
+    },
+    "phase4": {
+      "phase_name": "総合判定・レポート生成",
+      "weight": 15,
+      "checks": {
+        "overall_scoring": {
+          "status": "healthy",
+          "overall_score": 82.5,
+          "overall_status": "healthy",
+          "phase_scores": {
+            "phase1": {
+              "score": 67.5,
+              "weight": 25,
+              "status": "warning",
+              "weighted_score": 1687.5
+            },
+            "phase2": {
+              "score": 100.0,
+              "weight": 30,
+              "status": "healthy",
+              "weighted_score": 3000.0
+            },
+            "phase3": {
+              "score": 77.5,
+              "weight": 30,
+              "status": "warning",
+              "weighted_score": 2325.0
+            }
+          },
+          "total_weight": 85,
+          "details": "Overall score: 82.5/100 (healthy)"
+        },
+        "risk_assessment": {
+          "status": "healthy",
+          "risk_level": "HIGH",
+          "total_issues": 2,
+          "critical_count": 2,
+          "high_count": 0,
+          "medium_count": 0,
+          "problem_categories": {
+            "Other": 1,
+            "Hidden Issues": 1
+          },
+          "critical_issues": [
+            {
+              "check": "resource_usage",
+              "severity": "CRITICAL",
+              "message": "No memory info available",
+              "score": 0,
+              "phase": "phase1"
+            },
+            {
+              "check": "hidden_error_patterns",
+              "severity": "CRITICAL",
+              "message": "3 hidden patterns detected",
+              "score": 10,
+              "phase": "phase3"
+            }
+          ],
+          "details": "Risk level: HIGH (2 total issues)"
+        },
+        "action_recommendations": {
+          "status": "healthy",
+          "urgent_actions": [
+            {
+              "action": "Review resource_usage issue",
+              "command": "Investigate: No memory info available...",
+              "category": "General",
+              "priority": "IMMEDIATE"
+            },
+            {
+              "action": "Address detected hidden error patterns",
+              "command": "Review specific pattern and apply past solutions",
+              "category": "Hidden Issues",
+              "priority": "IMMEDIATE"
+            }
+          ],
+          "recommendations": [],
+          "total_actions": 2,
+          "details": "2 urgent actions, 0 recommendations"
+        },
+        "report_generation": {
+          "status": "healthy",
+          "html_report_path": "logs/operational_reports/operational_status_20250813_053508.html",
+          "json_report_path": "logs/operational_reports/operational_status_20250813_053508.json",
+          "report_timestamp": "20250813_053508",
+          "details": "Detailed report generated: logs/operational_reports/operational_status_20250813_053508.html"
+        }
+      },
+      "score": 100.0,
+      "status": "healthy",
+      "issues": []
+    }
+  },
+  "overall_status": "healthy",
+  "overall_score": 85.125,
+  "critical_issues": [],
+  "recommendations": []
+}

@@ -322,6 +322,69 @@
           "CPU throttling無効化",
           "タイムアウト延長（--timeout=3600）"
         ]
+      },
+      {
+        "id": "confidence_below_threshold_chronic",
+        "name": "confidence値慢性的閾値未達",
+        "severity": "MEDIUM",
+        "detection": {
+          "log_patterns": [
+            "confidence=0\\.[0-2][0-9][0-9][0-9], threshold=0\\.[3-9]",
+            "Entry order details: side=None, price=None, lot=0\\.0"
+          ],
+          "conditions": [
+            "avg_confidence_last_10 < threshold",
+            "no_entry_signals_hours >= 2"
+          ]
+        },
+        "description": "予測confidenceが常に閾値を下回り、エントリーシグナル生成されず",
+        "past_solutions": [
+          "confidence_threshold引き下げ（0.35→0.25）",
+          "モデル性能改善・再学習",
+          "データ品質向上・取得量増加"
+        ]
+      },
+      {
+        "id": "data_fetch_insufficient_volume",
+        "name": "データ取得量不足（50%未満）",
+        "severity": "HIGH",
+        "detection": {
+          "log_patterns": [
+            "current=[0-9]{1,2}/150",
+            "current=1[0-2][0-9]/150"
+          ],
+          "conditions": [
+            "data_fetch_completion_rate < 0.5",
+            "data_fetch_attempts >= 10"
+          ]
+        },
+        "description": "目標データ量の50%未満しか取得できず、予測精度に悪影響",
+        "past_solutions": [
+          "API制限設定緩和（rateLimit引き下げ）",
+          "max_consecutive_empty上限拡大",
+          "backoff時間延長・リトライ増加"
+        ]
+      },
+      {
+        "id": "ensemble_model_degraded",
+        "name": "アンサンブルモデル劣化（フォールバック多用）",
+        "severity": "MEDIUM",
+        "detection": {
+          "log_patterns": [
+            "Base model [0-9] failed \\(using fallback\\)",
+            "Trading prediction failed for base model"
+          ],
+          "conditions": [
+            "model_fallback_rate > 0.3",
+            "base_model_failures >= 5"
+          ]
+        },
+        "description": "アンサンブル内の複数モデルが失敗、予測品質低下",
+        "past_solutions": [
+          "モデル互換性修正・再学習",
+          "sklearn version統一",
+          "ensemble.py パッチ強化"
+        ]
       }
     ]
   },

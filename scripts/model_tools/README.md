@@ -26,21 +26,25 @@ python scripts/model_tools/manage_models.py retrain --features 97
 
 ## 📦 個別ツール詳細
 
-### **create_proper_ensemble_model.py**
-97特徴量アンサンブルモデル作成（本番用）
+### **create_proper_ensemble_model.py** 🆕
+97特徴量アンサンブルモデル作成（2025年8月13日修正版）
 
 ```bash
 python scripts/model_tools/create_proper_ensemble_model.py
 ```
 
-**特徴:**
-- LightGBM (weight: 0.5)
-- XGBoost (weight: 0.3)
-- RandomForest (weight: 0.2)
-- TradingEnsembleClassifier形式
-- confidence_threshold: 0.35
+**🚨 重大修正 - バージョン整合対応**:
+- **モデル読み込みパス修正**: models/training/ → models/production/
+- **scikit-learn 1.3.2対応**: バージョン整合済み個別モデル使用
+- **InconsistentVersionWarning排除**: 完全なバージョン統一
 
-**出力:** `models/production/model.pkl`
+**特徴:**
+- LightGBM + XGBoost + RandomForest統合
+- TradingEnsembleClassifier形式
+- confidence_threshold: 0.5 (Phase 3緩和設定)
+- trading_stacking方式による高度統合
+
+**出力:** `models/production/model.pkl`（バージョン整合済み）
 
 ### **create_production_model.py**
 本番用モデル作成（DataFrame対応版）
@@ -66,18 +70,28 @@ python scripts/model_tools/create_ci_model.py
 - API認証なしでのモデルファイル生成
 - モデルファイル不在エラー回避
 
-### **retrain_97_features_model.py**
-97特徴量モデルの再学習
+### **retrain_97_features_model.py** 🆕
+97特徴量モデルの再学習（2025年8月13日完全修正）
 
 ```bash
 python scripts/model_tools/retrain_97_features_model.py
 ```
 
+**🚨 重大修正 - scikit-learn互換性完全対応**:
+- **FeatureOrderManager修正**: FEATURE_ORDER_97 → feature_order_97 属性変更対応
+- **バージョン整合**: scikit-learn 1.3.2環境での完全再学習
+- **InconsistentVersionWarning排除**: 全モデルファイルのバージョン統一
+
 **実行内容:**
-1. 最新データ取得
-2. 97特徴量生成
-3. アンサンブルモデル学習
-4. バックテスト評価
+1. 最新データ取得・97特徴量生成
+2. LGBM・XGBoost・RandomForest個別学習
+3. scikit-learn 1.3.2準拠のモデル保存
+4. メタデータ生成・バックテスト評価
+
+**Performance (2025年8月13日):**
+- LGBM: 48.55% accuracy, 45.27% F1
+- XGBoost: 50.15% accuracy, 47.90% F1
+- RandomForest: 48.20% accuracy, 41.42% F1
 5. モデル保存
 
 ## 🔄 モデル管理ワークフロー

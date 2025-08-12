@@ -1,0 +1,103 @@
+name: Update Data Cache (168-hour)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # UTC 02:00 毎日実行（JST 11:00）
+  workflow_dispatch:     # 手動実行も可能
+    inputs:
+      hours:
+        description: 'データ取得時間数 (default: 168)'
+        required: false
+        default: '168'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  update-cache:
+    runs-on: ubuntu-latest
+    name: 168時間データキャッシュ更新
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements/dev.txt
+
+    - name: Create cache directory
+      run: |
+        mkdir -p cache
+        mkdir -p logs
+
+    - name: Execute 168-hour data pre-fetch
+      env:
+        BITBANK_API_KEY: ${{ secrets.BITBANK_API_KEY }}
+        BITBANK_API_SECRET: ${{ secrets.BITBANK_API_SECRET }}
+      run: |
+        echo "🔄 Starting 168-hour data pre-fetch..."
+        python scripts/data_tools/prepare_initial_data.py
+        
+        # キャッシュファイル存在確認
+        if [ -f "cache/initial_data_168h.pkl" ]; then
+          echo "✅ Data cache created successfully"
+          ls -lh cache/initial_data_168h.pkl
+        else
+          echo "❌ Data cache creation failed"
+          exit 1
+        fi
+        
+        if [ -f "cache/initial_features_168h.pkl" ]; then
+          echo "✅ Features cache created successfully"
+          ls -lh cache/initial_features_168h.pkl
+        else
+          echo "❌ Features cache creation failed"
+          exit 1
+        fi
+
+    - name: Upload cache artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: data-cache-168h-${{ github.run_number }}
+        path: |
+          cache/initial_data_168h.pkl
+          cache/initial_features_168h.pkl
+        retention-days: 7
+
+    - name: Cache data files for CI/CD pipeline
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          cache/initial_data_168h.pkl
+          cache/initial_features_168h.pkl
+        key: data-cache-168h-${{ github.run_number }}-${{ github.sha }}
+
+    - name: Log cache statistics
+      run: |
+        echo "📊 Cache Statistics:"
+        echo "Data cache size: $(stat -f%z cache/initial_data_168h.pkl 2>/dev/null || stat -c%s cache/initial_data_168h.pkl) bytes"
+        echo "Features cache size: $(stat -f%z cache/initial_features_168h.pkl 2>/dev/null || stat -c%s cache/initial_features_168h.pkl) bytes"
+        echo "Generated at: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+
+    - name: Notify completion
+      if: success()
+      run: |
+        echo "🎊 168-hour data cache update completed successfully!"
+        echo "Cache artifacts uploaded and ready for CI/CD pipeline integration."
+
+    - name: Handle failure
+      if: failure()
+      run: |
+        echo "❌ Data cache update failed"
+        echo "Check logs for API connection or processing errors"
+        if [ -f "logs/prepare_data.log" ]; then
+          echo "=== Error Log ==="
+          cat logs/prepare_data.log
+        fi
