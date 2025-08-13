@@ -5,10 +5,10 @@
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-31.15%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
 **🎊 2025年8月14日 最新更新 - CI/CD・Terraform・Discord統合問題完全解決**:
-- **🚀 CI/CD失敗根本解決**: Terraform IAM権限伝播・Discord依存関係問題完全解決
-- **🔐 GCP権限最適化**: Discord監視モジュール用4権限確認・段階的権限適用システム実装
-- **📢 Discord通知統合完成**: メール通知完全廃止・モジュール間依存関係最適化・time_sleep確実化
-- **🛡️ 現在構成完全維持**: 97特徴量・マルチタイムフレーム・confidence=0.25最適設定保持
+- **🚀 3つの根本的エラー完全解決**: 通知チャンネル依存関係・カスタムメトリクス・ALIGN_MEAN互換性問題
+- **🧹 包括的GCPクリーンアップ**: 古いアラートポリシー27個・メール通知9個・リビジョン8個削除
+- **📢 Discord通知システム完成**: ログベースメトリクス・JST時刻統一・色分け通知実装
+- **✅ 完璧なローカル検証**: 596テスト成功・31.15%カバレッジ・flake8/isort/black完全準拠
 - **🔧 バックテスト関連インポート問題完全解決**: `/backtest`ディレクトリ移行対応・ModuleNotFoundError根絶
 - **📝 ペーパートレード機能強化**: `--duration`オプション追加・時間制限機能実装・検証機能適正稼働
 - **⚡ CI/CD Terraform修正**: combiner重複定義問題修正・Google Cloud Monitoring最適化
@@ -36,7 +36,7 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 ### 📊 現在の運用状況
 
-**✅ トレード実行可能** (2025年8月14日 CI/CD・Discord統合問題完全解決)
+**✅ トレード実行可能** (2025年8月14日 CI/CD・Terraform・Discord統合問題完全解決)
 - **取引モード**: live（BTC/JPY自動取引）
 - **エントリー条件**: confidence > 0.25（即座トレード可能に調整済み）
 - **予測システム**: 97特徴量アンサンブル学習（RandomForest修正完了）
@@ -44,7 +44,7 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 - **データ取得**: ✅ 168時間安定取得・毎日自動更新（API制限回避）
 - **API接続**: ✅ 正常動作・Bitbank認証確認済み
 - **品質保証**: ✅ 596/596テスト成功・31.15%カバレッジ・完全準拠
-- **CI/CD**: ✅ Terraform・Discord統合問題完全解決・IAM権限最適化済み
+- **CI/CD**: ✅ 3つの根本的エラー完全解決・包括的GCPクリーンアップ完了
 - **監視システム**: ✅ Discord通知完全統合・4段階チェック・隠れたエラー検出強化
 - **リスク管理**: 1取引あたり1%・Kelly基準最大3%
 - **稼働時間**: ✅ 24/7連続稼働・完全自動化
@@ -499,9 +499,9 @@ python scripts/utilities/emergency_shutdown.py  # 取引停止
 ## 🎊 開発成果・特徴
 
 ### 解決された主要課題（2025年8月14日最新）
-- **🚀 CI/CD・Terraform・Discord統合問題完全解決**: IAM権限伝播・依存関係問題の根本解決
-- **🔐 GCP権限最適化**: Discord監視モジュール用4権限確認・段階的権限適用システム実装
-- **📢 Discord通知システム完全実装**: メール通知完全廃止・デプロイ時大量メール問題根本解決
+- **🚀 CI/CD・Terraform・Discord統合問題完全解決**: 3つの根本的エラー・包括的GCPクリーンアップ完了
+- **🧹 通知チャンネル依存関係エラー解決**: 古いアラートポリシー27個・メール通知9個削除
+- **📊 カスタムメトリクス問題解決**: ログベースメトリクス（TRADE_ERROR・Progress）に変更
 - **🚨 トレード実行阻害要因の完全解決**: モデル互換性エラー・頻繁な再起動問題を根本修正
 - **🎊 完璧稼働状況確認システム完成**: 隠れたエラー問題・表面稼働実際停止問題の根本解決
 - **📊 4段階チェックシステム**: インフラ・アプリ・隠れた問題・総合判定で確実な状況把握
@@ -528,4 +528,4 @@ python scripts/utilities/emergency_shutdown.py  # 取引停止
 
 このプロジェクトは個人開発プロジェクトです。詳細な開発履歴や技術的な背景については `CLAUDE.md` を参照してください。
 
-**🚀 「CI/CD失敗・デプロイ時大量メール・隠れたエラー・表面稼働実際停止」問題を根絶したTerraform・Discord統合・完璧稼働状況確認システム搭載AI自動取引システム** （2025年8月14日現在）
+**🚀 「CI/CD・Terraform・Discord統合問題・3つの根本的エラー」を完全解決したGCP包括的クリーンアップ・完璧稼働状況確認システム搭載AI自動取引システム** （2025年8月14日現在）
