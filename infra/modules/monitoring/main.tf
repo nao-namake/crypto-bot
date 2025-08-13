@@ -114,7 +114,6 @@ resource "google_monitoring_alert_policy" "trade_execution_failure" {
 resource "google_monitoring_alert_policy" "system_down" {
   project                = var.project_id
   display_name           = "System Health Check Failure"
-  combiner               = "OR" 
   notification_channels  = [google_monitoring_notification_channel.discord.id]
 
   conditions {

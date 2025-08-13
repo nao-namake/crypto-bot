@@ -137,8 +137,12 @@ cli/
 
 ### **CLIコマンド実行例**
 ```bash
-# バックテスト実行
-python -m crypto_bot.main backtest --config config/production/production.yml
+# バックテスト実行（従来方式）
+python -m crypto_bot.main backtest --config backtest/configs/base_backtest_config.yml
+
+# 🆕 統合バックテストシステム（推奨 - 2025年8月13日完成）
+python backtest/scripts/run_backtest.py test_rsi_macd_ema     # 指標組み合わせテスト
+python backtest/scripts/run_backtest.py base_backtest_config  # 97特徴量フルテスト
 
 # ライブ取引開始
 python -m crypto_bot.main live-bitbank --config config/production/production.yml

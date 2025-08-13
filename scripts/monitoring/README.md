@@ -112,6 +112,30 @@ python scripts/monitoring/analyze_and_fix.py --generate-script
 - 自動修復（安全なもののみ）
 - 修復スクリプト生成
 
+### **ペーパートレード機能** (🆕 時間制限対応) ⭐ 重要
+リアルデータを使った時間制限付き仮想取引テスト
+
+```bash
+# bot_manager.py経由（推奨）
+python scripts/bot_manager.py paper-trade --hours 1        # 1時間テスト
+python scripts/bot_manager.py paper-trade --hours 2        # 2時間テスト
+
+# 直接実行（より詳細な制御）
+python -m crypto_bot.main live-bitbank --paper-trade --duration 3600 --config config/production/production.yml  # 1時間（3600秒）
+python -m crypto_bot.main live-bitbank --paper-trade --duration 600 --config config/production/production.yml   # 10分（600秒）
+```
+
+**🆕 新機能**:
+- **時間制限**: `--duration`（秒）または`--hours`（時間）で実行時間を指定
+- **自動終了**: 指定時間後に正常終了・ペーパートレードサマリー表示
+- **後方互換性**: `--duration 0`で従来の無限ループ動作
+
+**機能:**
+- 本番同等の環境での仮想取引実行
+- リアルタイム市場データ使用
+- 取引ログ・パフォーマンス統計記録
+- CSVファイル出力（`logs/paper_trades.csv`）
+
 ### **paper_trade_with_monitoring.sh**
 ペーパートレード＋監視の統合実行
 
@@ -150,8 +174,10 @@ python scripts/monitoring/analyze_and_fix.py --interactive
 # 1. 未来データリーク検出
 python scripts/monitoring/future_leak_detector.py --project-root ..
 
-# 2. ペーパートレードでテスト
-bash scripts/monitoring/paper_trade_with_monitoring.sh --duration 1
+# 2. ペーパートレードでテスト（🆕 時間制限機能）
+python scripts/bot_manager.py paper-trade --hours 1
+# または直接実行
+python -m crypto_bot.main live-bitbank --paper-trade --duration 3600 --config config/production/production.yml
 
 # 3. 統合チェック
 python scripts/bot_manager.py full-check

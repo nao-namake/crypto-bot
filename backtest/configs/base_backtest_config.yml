@@ -1,0 +1,213 @@
+# バックテスト基本設定 - production.ymlから継承
+# 97特徴量システムに対応し、指標組み合わせテストを可能にする
+
+# バックテスト固有設定
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+  performance_chart: /Users/nao/Desktop/bot/backtest/results/performance_chart.png
+  portfolio_csv: /Users/nao/Desktop/bot/backtest/results/portfolio_evolution.csv
+  trade_log_csv: /Users/nao/Desktop/bot/backtest/results/trade_log.csv
+
+# データ取得設定（production継承）
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  limit: 100
+  since_hours: 96
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 30000
+    timeout: 90000
+    verbose: false
+    retries: 3
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      15m:
+        method: interpolation
+        min_points: 5
+      1h:
+        method: direct
+        min_points: 5
+      4h:
+        method: aggregation
+        min_points: 3
+
+# ウォークフォワード分析設定
+walk_forward:
+  enabled: true
+  train_window: 1500  # 学習期間（時間数）
+  test_window: 250    # テスト期間（時間数）
+  step: 125           # 移動幅（時間数）
+
+# ML設定（production継承・特徴量選択可能）
+ml:
+  confidence_threshold: 0.25
+  ensemble:
+    enabled: true
+    method: trading_stacking
+    confidence_threshold: 0.25
+    model_weights: [0.5, 0.3, 0.2]
+    models: [lgbm, xgb, rf]
+    risk_adjustment: true
+  feat_period: 14
+  horizon: 5
+  lags: [1, 2, 3]
+  model_type: lgbm
+  rolling_window: 10
+  target_type: classification
+  
+  # 97特徴量フルセット（production.yml継承）
+  # NOTE: feature_subset設定で特定の特徴量組み合わせをテスト可能
+  extra_features:
+    - close_lag_1
+    - close_lag_3
+    - volume_lag_1
+    - volume_lag_4
+    - volume_lag_5
+    - returns_1
+    - returns_2
+    - returns_3
+    - returns_5
+    - returns_10
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    - ema_100
+    - ema_200
+    - price_position_20
+    - price_position_50
+    - price_vs_sma20
+    - bb_position
+    - intraday_position
+    - bb_upper
+    - bb_middle
+    - bb_lower
+    - bb_width
+    - bb_squeeze
+    - rsi_14
+    - rsi_oversold
+    - rsi_overbought
+    - macd
+    - macd_signal
+    - macd_hist
+    - macd_cross_up
+    - macd_cross_down
+    - stoch_k
+    - stoch_d
+    - stoch_oversold
+    - stoch_overbought
+    - atr_14
+    - volatility_20
+    - volume_sma_20
+    - volume_ratio
+    - volume_trend
+    - vwap
+    - vwap_distance
+    - obv
+    - obv_sma
+    - cmf
+    - mfi
+    - ad_line
+    - adx_14
+    - plus_di
+    - minus_di
+    - trend_strength
+    - trend_direction
+    - cci_20
+    - williams_r
+    - ultimate_oscillator
+    - momentum_14
+    - support_distance
+    - resistance_distance
+    - support_strength
+    - volume_breakout
+    - price_breakout_up
+    - price_breakout_down
+    - doji
+    - hammer
+    - engulfing
+    - pinbar
+    - zscore
+    - close_std_10
+    - hour
+    - day_of_week
+    - is_weekend
+    - is_asian_session
+    - is_us_session
+    - roc_10
+    - roc_20
+    - trix
+    - mass_index
+    - keltner_upper
+    - keltner_lower
+    - donchian_upper
+    - donchian_lower
+    - ichimoku_conv
+    - ichimoku_base
+    - price_efficiency
+    - trend_consistency
+    - volume_price_correlation
+    - volatility_regime
+    - momentum_quality
+    - market_phase
+
+  # 特徴量選択機能（指標組み合わせテスト用）
+  # 使用例: feature_subset を設定して特定の指標だけでテスト
+  # feature_subset:
+  #   - rsi_14
+  #   - macd
+  #   - ema_20
+  #   - volume_ratio
+
+# 戦略設定（production継承）
+strategy:
+  name: multi_timeframe_ensemble
+  type: multi_timeframe_ensemble
+  confidence_threshold: 0.25
+  params:
+    threshold: 0.002
+    atr_multiplier: 0.7
+    max_volatility_adj: 0.07
+    model_path: /Users/nao/Desktop/bot/models/production/model.pkl
+    volatility_adjustment: true
+    threshold_bounds: [0.001, 0.03]
+    performance_adj_range: [-0.005, 0.008]
+    ml:
+      extra_features: !include ml.extra_features
+      feat_period: 14
+      horizon: 5
+      lags: [1, 2, 3]
+      model_type: lgbm
+      rolling_window: 10
+      target_type: classification
+
+# リスク管理（production継承）
+risk:
+  risk_per_trade: 0.01
+  atr_period: 20
+  stop_atr_mult: 1.2
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.03
+
+# マルチタイムフレーム設定（production継承）
+multi_timeframe:
+  timeframes: [15m, 1h, 4h]
+  weights: [0.3, 0.5, 0.2]
+  timeframe_consensus_threshold: 0.5
+  data_quality_threshold: 0.45
+  missing_data_tolerance: 0.1
+  data_sync_enabled: true
+
+# ログ設定
+logging:
+  level: INFO
+  file: /Users/nao/Desktop/bot/backtest/results/backtest.log
+  retention: 7
+  rotation: daily

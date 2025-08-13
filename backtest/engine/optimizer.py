@@ -8,7 +8,8 @@ from typing import Optional
 
 import pandas as pd
 
-from crypto_bot.backtest.engine import BacktestEngine
+# Backtest engine import - 統合バックテストエンジン使用（相対インポート）
+from .engine import BacktestEngine
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 
 # from crypto_bot.strategy.bollinger import BollingerStrategy  # 完全削除

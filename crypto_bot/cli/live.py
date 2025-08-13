@@ -462,8 +462,14 @@ def execute_bitbank_trade(
     default=False,
     help="ペーパートレードモード（実取引を行わず仮想取引で検証）",  # Phase 2-1
 )
+@click.option(
+    "--duration",
+    type=int,
+    default=0,
+    help="実行時間（秒）。0=無限（デフォルト）。ペーパートレード用の時間制限",
+)
 def live_bitbank_command(
-    config_path: str, max_trades: int, simple: bool, paper_trade: bool
+    config_path: str, max_trades: int, simple: bool, paper_trade: bool, duration: int
 ):
     """
     Bitbank本番でのライブトレードを実行。
@@ -488,6 +494,10 @@ def live_bitbank_command(
         logger.info(
             f"📝 {init_prefix} PAPER TRADE MODE ENABLED - No real trades will be executed"
         )
+        if duration > 0:
+            logger.info(
+                f"⏱️ {init_prefix} Duration limit set: {duration} seconds ({duration/60:.1f} minutes)"
+            )
     if not simple:
         logger.info(f"⏰ {init_prefix} Timestamp: {pd.Timestamp.now()}")
 
@@ -724,9 +734,18 @@ def live_bitbank_command(
 
     # メインループ初回フラグ
     is_first_iteration = True
+    
+    # 時間制限の開始時刻を記録
+    loop_start_time = time.time()
 
     try:
         while True:
+            # 時間制限チェック
+            if duration > 0:
+                elapsed_time = time.time() - loop_start_time
+                if elapsed_time >= duration:
+                    logger.info(f"⏱️ Duration limit reached ({duration} seconds). Exiting...")
+                    break
             iter_prefix = "[SIMPLE-LOOP]" if simple else "[LOOP-ITER]"
             logger.info(f"🔄 {iter_prefix} Starting new trading iteration...")
             if not simple:
@@ -975,6 +994,15 @@ def live_bitbank_command(
             logger.info(f"⏰ [SLEEP] Sleep start: {pd.Timestamp.now()}")
             time.sleep(interval)
             logger.info(f"⏰ [SLEEP] Sleep end: {pd.Timestamp.now()}")
+
+        # 正常終了時の処理（時間制限またはmax-trades到達）
+        logger.info("✅ [NORMAL EXIT] Trading loop completed normally")
+        
+        # Phase 2-1: ペーパートレードサマリー表示（正常終了）
+        if paper_trader is not None:
+            logger.info("📊 [PAPER TRADE] Final Summary (Normal Exit):")
+            paper_trader.print_summary()
+            logger.info(f"📁 [PAPER TRADE] Results saved to: {paper_trader.log_dir}")
 
     except KeyboardInterrupt:
         logger.info("🛑 [SHUTDOWN] Interrupted. Bye.")

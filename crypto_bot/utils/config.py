@@ -44,14 +44,22 @@ def load_config(path: str) -> dict:
             config = yaml.safe_load(f) or {}
         logger.info(f"🔒 [CONFIG] Production mode: Using {path} only")
     else:
-        # 開発環境のみ default.yml とマージ
+        # 開発環境: default.yml があればマージ、なければ設定ファイルのみ使用
         default_path = base / "config" / "development" / "default.yml"
-        with open(default_path, "r") as f:
-            default_cfg = yaml.safe_load(f) or {}
-        with open(path, "r") as f:
-            user_cfg = yaml.safe_load(f) or {}
-        config = deep_merge(default_cfg, user_cfg)
-        logger.info("🔧 [CONFIG] Development mode: Merged default.yml")
+        
+        if default_path.exists():
+            # default.yml が存在する場合はマージ
+            with open(default_path, "r") as f:
+                default_cfg = yaml.safe_load(f) or {}
+            with open(path, "r") as f:
+                user_cfg = yaml.safe_load(f) or {}
+            config = deep_merge(default_cfg, user_cfg)
+            logger.info("🔧 [CONFIG] Development mode: Merged with default.yml")
+        else:
+            # default.yml が存在しない場合は設定ファイルのみ使用
+            with open(path, "r") as f:
+                config = yaml.safe_load(f) or {}
+            logger.info(f"🔧 [CONFIG] Development mode: Using {path} only (no default.yml)")
 
     # 環境変数の展開
     config = expand_env_vars_recursive(config)

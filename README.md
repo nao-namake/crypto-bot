@@ -4,7 +4,10 @@
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-31.54%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
-**🎊 2025年8月13日 Phase 19完成 - Discord通知システム**:
+**🎊 2025年8月14日 最新更新 - バックテスト・ペーパートレード問題完全解決**:
+- **🔧 バックテスト関連インポート問題完全解決**: `/backtest`ディレクトリ移行対応・ModuleNotFoundError根絶
+- **📝 ペーパートレード機能強化**: `--duration`オプション追加・時間制限機能実装・検証機能適正稼働
+- **⚡ CI/CD Terraform修正**: combiner重複定義問題修正・Google Cloud Monitoring最適化
 - **📢 Discord通知システム完全実装**: メール通知を完全廃止・デプロイ時大量メール問題根本解決
 - **🚨 トレード実行問題完全解決**: confidence閾値・SIGTERM・モデル互換性エラーを根本解決
 - **🤖 CI/CD統合自動化完成**: 168時間データ事前取得・毎日JST 11:00自動実行・完全無人運用
@@ -29,7 +32,7 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 ### 📊 現在の運用状況
 
-**✅ トレード実行可能** (2025年8月13日 Phase 18完成・全問題解決)
+**✅ トレード実行可能** (2025年8月14日 バックテスト・ペーパートレード問題完全解決)
 - **取引モード**: live（BTC/JPY自動取引）
 - **エントリー条件**: confidence > 0.25（即座トレード可能に調整済み）
 - **予測システム**: 97特徴量アンサンブル学習（RandomForest修正完了）
@@ -219,14 +222,18 @@ bash scripts/checks.sh
 bash scripts/validate_all.sh
 ```
 
-### バックテスト実行
+### バックテスト実行（🆕 統合システム - 2025年8月13日完成）
 
 ```bash
-# 97特徴量システムでバックテスト
-python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
+# 🚀 新システム: ワンコマンドバックテスト（推奨）
+python backtest/scripts/run_backtest.py test_rsi_macd_ema     # RSI+MACD+EMA組み合わせテスト
+python backtest/scripts/run_backtest.py base_backtest_config  # 97特徴量フルテスト
 
-# アンサンブル学習バックテスト
-python -m crypto_bot.main backtest --config config/validation/ensemble_trading.yml
+# 設定一覧確認
+python backtest/scripts/run_backtest.py --list-configs
+
+# 従来方式（互換性維持）
+python -m crypto_bot.main backtest --config backtest/configs/base_backtest_config.yml
 ```
 
 ### ライブトレード（本番）
@@ -251,6 +258,13 @@ crypto_bot/                    # メインアプリケーション
 ├── execution/                 # Bitbank取引実行
 ├── utils/                     # 共通ユーティリティ
 └── main.py                   # エントリーポイント（130行・95%削減達成）
+
+backtest/                     # 🆕 統合バックテストシステム（2025年8月13日完成）
+├── configs/                  # 設定ファイル（97特徴量組み合わせテスト対応）
+├── engine/                   # バックテストエンジン（旧crypto_bot/backtest統合）
+├── results/                  # すべての結果・ログ統一保存
+├── scripts/                  # ワンコマンド実行ヘルパー
+└── archive/                  # 古い設定・結果アーカイブ
 
 config/production/production.yml  # 本番設定（固定ファイル）
 models/production/model.pkl       # 本番モデル（固定ファイル）

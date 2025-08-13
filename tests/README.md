@@ -11,7 +11,7 @@ crypto-bot プロジェクトの包括的なテストスイートです。ユニ
 tests/
 ├── unit/                   # ユニットテスト（モジュール単位）
 │   ├── api/                # API機能（1ファイル）
-│   ├── backtest/           # バックテストエンジン（4ファイル）
+│   ├── backtest/           # バックテストエンジン（4ファイル）🔄統合システム移行中
 │   ├── data/               # データ取得・処理（2ファイル + 1サブディレクトリ）
 │   ├── drift_detection/    # ドリフト検出（3ファイル）
 │   ├── execution/          # 取引実行（5ファイル + 1サブディレクトリ）
@@ -47,11 +47,15 @@ tests/
 ### **api/** - API機能
 - `test_health.py` - ヘルスチェックAPI（8テスト）✅動作確認済み
 
-### **backtest/** - バックテストエンジン
-- `test_analysis.py` - バックテスト分析機能
-- `test_engine.py` - バックテストエンジン本体
-- `test_metrics.py` - パフォーマンス指標計算
-- `test_optimizer.py` - パラメータ最適化
+### **backtest/** - バックテストエンジン（🔄統合システム移行中）
+- `test_analysis.py` - バックテスト分析機能（→ evaluation.py統合済み）
+- `test_engine.py` - バックテストエンジン本体（→ backtest/engine/統合済み）
+- `test_metrics.py` - パフォーマンス指標計算（→ evaluation.py統合済み）
+- `test_optimizer.py` - パラメータ最適化（→ backtest/engine/統合済み）
+
+**🆕 2025年8月13日**: バックテストエンジンは `/backtest/engine/` に統合移行完了
+- 旧 `crypto_bot/backtest/` → 新 `backtest/engine/`
+- importパス修正により、テストは継続して使用可能
 
 ### **data/** - データ取得・処理
 - `test_fetcher.py` - マーケットデータ取得

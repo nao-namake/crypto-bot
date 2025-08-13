@@ -5,12 +5,17 @@ JPY建て拡張バックテストエンジン
 
 import logging
 import os
+import sys
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional
 
 import pandas as pd
 
-from ..utils.japanese_market import (
+# Japanese market utilities import - crypto_botから使用
+# プロジェクトルートからの相対パスでcrypto_bot.utilsディレクトリを追加
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
+from crypto_bot.utils.japanese_market import (
     JapaneseMarketCalendar,
     JPYBacktestEnhancer,
     JPYCalculator,

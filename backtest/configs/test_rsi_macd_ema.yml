@@ -1,0 +1,143 @@
+# RSI + MACD + EMA 組み合わせテスト設定
+# base_backtest_config.yml から継承し、特定の指標のみでテスト
+
+# バックテスト固有設定
+backtest:
+  starting_balance: 10000.0
+  slippage_rate: 0.001
+  performance_chart: /Users/nao/Desktop/bot/backtest/results/rsi_macd_ema_performance.png
+  portfolio_csv: /Users/nao/Desktop/bot/backtest/results/rsi_macd_ema_portfolio.csv
+  trade_log_csv: /Users/nao/Desktop/bot/backtest/results/rsi_macd_ema_trades.csv
+
+# データ取得設定（production継承）
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 1h
+  limit: 500  # テスト用に制限
+  since_hours: 96
+  api_key: ${BITBANK_API_KEY}
+  api_secret: ${BITBANK_API_SECRET}
+  ccxt_options:
+    enableRateLimit: true
+    rateLimit: 30000
+    timeout: 90000
+    verbose: false
+    retries: 3
+  multi_timeframe_data:
+    base_timeframe: 1h
+    target_timeframes:
+      1h:
+        method: direct
+        min_points: 5
+
+# ウォークフォワード分析設定（テスト用に軽量化）
+walk_forward:
+  enabled: true
+  train_window: 300   # 学習期間を短縮
+  test_window: 100    # テスト期間を短縮
+  step: 50            # 移動幅を短縮
+
+# ML設定 - RSI + MACD + EMA のみの特徴量
+ml:
+  confidence_threshold: 0.25
+  ensemble:
+    enabled: true
+    method: trading_stacking
+    confidence_threshold: 0.25
+    model_weights: [0.5, 0.3, 0.2]
+    models: [lgbm, xgb, rf]
+    risk_adjustment: true
+  feat_period: 14
+  horizon: 5
+  lags: [1, 2, 3]
+  model_type: lgbm
+  rolling_window: 10
+  target_type: classification
+  
+  # RSI + MACD + EMA 組み合わせ（97特徴量から選択）
+  extra_features:
+    # RSI系指標
+    - rsi_14
+    - rsi_oversold
+    - rsi_overbought
+    # MACD系指標
+    - macd
+    - macd_signal
+    - macd_hist
+    - macd_cross_up
+    - macd_cross_down
+    # EMA系指標
+    - ema_5
+    - ema_10
+    - ema_20
+    - ema_50
+    # 基本価格・ボリューム情報（最小限）
+    - close_lag_1
+    - returns_1
+    - volume_ratio
+    # ATR（リスク管理用）
+    - atr_14
+
+# 戦略設定（production継承）
+strategy:
+  name: rsi_macd_ema_test
+  type: multi_timeframe_ensemble
+  confidence_threshold: 0.25
+  params:
+    threshold: 0.002
+    atr_multiplier: 0.7
+    max_volatility_adj: 0.07
+    model_path: /Users/nao/Desktop/bot/models/production/model.pkl
+    volatility_adjustment: true
+    threshold_bounds: [0.001, 0.03]
+    performance_adj_range: [-0.005, 0.008]
+    ml:
+      extra_features: 
+        - rsi_14
+        - rsi_oversold
+        - rsi_overbought
+        - macd
+        - macd_signal
+        - macd_hist
+        - macd_cross_up
+        - macd_cross_down
+        - ema_5
+        - ema_10
+        - ema_20
+        - ema_50
+        - close_lag_1
+        - returns_1
+        - volume_ratio
+        - atr_14
+      feat_period: 14
+      horizon: 5
+      lags: [1, 2, 3]
+      model_type: lgbm
+      rolling_window: 10
+      target_type: classification
+
+# リスク管理（production継承）
+risk:
+  risk_per_trade: 0.01
+  atr_period: 20
+  stop_atr_mult: 1.2
+  kelly_criterion:
+    enabled: true
+    max_fraction: 0.03
+
+# マルチタイムフレーム設定（シンプル化）
+multi_timeframe:
+  timeframes: [1h]
+  weights: [1.0]
+  timeframe_consensus_threshold: 0.5
+  data_quality_threshold: 0.45
+  missing_data_tolerance: 0.1
+  data_sync_enabled: true
+
+# ログ設定
+logging:
+  level: INFO
+  file: /Users/nao/Desktop/bot/backtest/results/backtest_rsi_macd_ema.log
+  retention: 7
+  rotation: daily

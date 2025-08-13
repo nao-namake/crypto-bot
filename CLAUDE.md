@@ -167,6 +167,20 @@ bash scripts/utilities/cleanup_old_revisions.sh --dry-run
    - 古いリビジョン自動削除機能
    - データ検証強化システム
 
+5. ✅ **バックテスト関連インポート問題完全解決** (🆕 2025年8月14日)
+   - crypto_bot/cli/backtest.py・optimize.py インポート修正
+   - crypto_bot/scripts/walk_forward.py インポート修正
+   - backtest/engine/jpy_enhanced_engine.py・optimizer.py 修正
+   - `/backtest`ディレクトリ移行対応・ModuleNotFoundError根絶
+
+6. ✅ **ペーパートレード機能強化** (🆕 2025年8月14日)
+   - `--duration`オプション追加・時間制限機能実装
+   - 仮想取引検証機能の適正稼働確保・本番影響ゼロ運用
+
+7. ✅ **CI/CD Terraform修正** (🆕 2025年8月14日)
+   - monitoring/main.tf combiner重複定義問題修正
+   - Google Cloud Monitoring アラートポリシー最適化
+
 **品質保証完了**:
 - ✅ **611/611テスト成功**（42スキップ）
 - ✅ **31.54%カバレッジ**（必要14%の2倍以上達成）
@@ -200,6 +214,13 @@ crypto_bot/
 ├── execution/     # Bitbank API・取引実行
 ├── utils/         # 共通機能・ログ・設定管理
 └── main.py        # エントリーポイント
+
+backtest/          # 🆕 統合バックテストシステム（2025年8月13日完成）
+├── configs/       # バックテスト設定（97特徴量テスト対応）
+├── engine/        # バックテストエンジン（旧crypto_bot/backtest統合）
+├── results/       # すべての結果・ログ統一保存
+├── scripts/       # ワンコマンド実行ヘルパー
+└── archive/       # 古い設定・結果アーカイブ
 
 scripts/           # 開発・運用ツール（5カテゴリ整理済み）
 ├── bot_manager.py # 統合CLI（11個別スクリプトを統合）
@@ -241,8 +262,12 @@ bash scripts/ci_tools/checks.sh
 # ライブトレード（本番設定）
 python -m crypto_bot.main live-bitbank --config config/production/production.yml
 
-# バックテスト
-python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
+# バックテスト（🆕 統合システム）
+python backtest/scripts/run_backtest.py test_rsi_macd_ema     # 指標組み合わせテスト
+python backtest/scripts/run_backtest.py base_backtest_config  # 97特徴量フルテスト
+
+# 従来方式（互換性維持）
+python -m crypto_bot.main backtest --config backtest/configs/base_backtest_config.yml
 ```
 
 ### **デプロイ前検証**
@@ -348,6 +373,11 @@ gcloud run services update crypto-bot-service-prod \
 - `config/production/production.yml` - 本番設定
 - `models/production/model.pkl` - 本番モデル
 
+### **バックテストシステム（🆕 2025年8月13日統合）**
+- `backtest/configs/` - バックテスト設定ファイル（97特徴量組み合わせテスト用）
+- `backtest/results/` - すべてのバックテスト結果・ログ統一保存
+- `backtest/scripts/run_backtest.py` - ワンコマンドバックテスト実行
+
 ### **アーカイブ管理**
 - `archive/legacy_systems/` - 廃止システム
 - `archive/records/` - 運用記録・テスト結果
@@ -355,6 +385,8 @@ gcloud run services update crypto-bot-service-prod \
 
 ### **重要README所在地**
 - `/crypto_bot/[各サブフォルダ]/README.md` - 各モジュール仕様
+- `/backtest/README.md` - 🆕 統合バックテストシステム完全ガイド
+- `/backtest/configs/README.md` - 🆕 97特徴量組み合わせテスト設定方法
 - `/scripts/README.md` - スクリプト管理ガイド
 - `/scripts/[各サブフォルダ]/README.md` - 詳細使用方法
 - `/tests/README.md` - テスト構造・実行方法
@@ -362,6 +394,14 @@ gcloud run services update crypto-bot-service-prod \
 - `/models/README.md` - モデル管理・昇格フロー
 
 ## 🎯 達成成果サマリー
+
+### **統合バックテストシステム完成（2025年8月13日）**
+- **🎯 完全一元化**: 全バックテスト関連を `/backtest/` フォルダに集約・散らばり問題根絶
+- **⚡ ワンコマンド実行**: `python backtest/scripts/run_backtest.py test_name` で即座実行
+- **🔧 97特徴量組み合わせテスト**: production.yml継承・任意指標選択テスト対応
+- **📊 絶対パス統一**: 相対パス問題完全解決・実行場所に依存しない安定動作
+- **🧹 構造簡素化**: 6モジュール→4モジュール統合・metrics.py+analysis.py→evaluation.py統合
+- **📁 結果統一管理**: CSV・チャート・ログすべて `backtest/results/` 統一保存
 
 ### **Discord通知システム完全実装（2025年8月13日）**
 - **📢 メール通知完全廃止**: デプロイ時数十通メール問題の根本解決・私生活影響ゼロ

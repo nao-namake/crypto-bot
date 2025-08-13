@@ -403,7 +403,11 @@ python scripts/retrain_97_features_model.py
 
 ### **統合システム活用**
 ```bash
-# バックテスト実行
+# 🆕 統合バックテストシステム（推奨 - 2025年8月13日完成）
+python backtest/scripts/run_backtest.py test_rsi_macd_ema     # 指標組み合わせテスト
+python backtest/scripts/run_backtest.py base_backtest_config  # 97特徴量フルテスト
+
+# 従来システム（参考）
 python scripts/unified_backtest_system.py --mode standard --config production.yml
 python scripts/unified_backtest_system.py --mode walkforward --months 6
 

@@ -11,9 +11,25 @@ from dotenv import load_dotenv
 
 # TODO: export_aggregates function needs to be implemented or imported
 from crypto_bot.api.health import update_status
-from crypto_bot.backtest.engine import BacktestEngine
+# Backtest engine import - 統合バックテストエンジン使用
+import sys
+import os
+# プロジェクトルートからの相対パスでbacktestディレクトリを追加
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(project_root, 'backtest'))
+from engine import BacktestEngine
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
-from crypto_bot.scripts.walk_forward import split_walk_forward
+# Walk forward split function
+try:
+    from crypto_bot.scripts.walk_forward import split_walk_forward
+except ImportError:
+    # フォールバック: backtest evaluation moduleから使用
+    try:
+        from engine.evaluation import split_walk_forward, export_aggregates
+    except ImportError:
+        import sys
+        sys.path.append('/Users/nao/Desktop/bot/backtest')
+        from engine.evaluation import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory
 from crypto_bot.utils.config import load_config
 from crypto_bot.utils.file import ensure_dir_for_file
@@ -70,7 +86,7 @@ def create_performance_chart(portfolio_df: pd.DataFrame, cfg: dict):
 
         # グラフ保存
         chart_path = cfg["backtest"].get(
-            "performance_chart", "results/performance_chart.png"
+            "performance_chart", "/Users/nao/Desktop/bot/backtest/results/performance_chart.png"
         )
         ensure_dir_for_file(chart_path)
         plt.tight_layout()
@@ -90,7 +106,7 @@ def create_performance_chart(portfolio_df: pd.DataFrame, cfg: dict):
     "--stats-output",
     "-s",
     "stats_output",
-    default="results/backtest_results.csv",
+    default="/Users/nao/Desktop/bot/backtest/results/backtest_results.csv",
     type=click.Path(),
     help="Statistics CSV output path",
 )
@@ -282,7 +298,7 @@ def backtest_command(config_path: str, stats_output: str, show_trades: bool):
     if portfolio_values:
         portfolio_df = pd.DataFrame(portfolio_values)
         portfolio_csv = cfg["backtest"].get(
-            "portfolio_csv", "results/portfolio_evolution.csv"
+            "portfolio_csv", "/Users/nao/Desktop/bot/backtest/results/portfolio_evolution.csv"
         )
         ensure_dir_for_file(portfolio_csv)
         portfolio_df.to_csv(portfolio_csv, index=False)
@@ -293,7 +309,7 @@ def backtest_command(config_path: str, stats_output: str, show_trades: bool):
 
     if trade_logs:
         full_trade_df = pd.concat(trade_logs, ignore_index=True)
-        trade_log_csv = cfg["backtest"].get("trade_log_csv", "results/trade_log.csv")
+        trade_log_csv = cfg["backtest"].get("trade_log_csv", "/Users/nao/Desktop/bot/backtest/results/trade_log.csv")
         ensure_dir_for_file(trade_log_csv)
         full_trade_df.to_csv(trade_log_csv, index=False)
         click.echo(f"Trade log saved to {trade_log_csv!r}")
@@ -301,7 +317,7 @@ def backtest_command(config_path: str, stats_output: str, show_trades: bool):
         click.echo("No trades executed during backtest")
 
     # TODO: Implement export_aggregates functionality
-    # agg_prefix = cfg["backtest"].get("aggregate_out_prefix", "results/agg")
+    # agg_prefix = cfg["backtest"].get("aggregate_out_prefix", "/Users/nao/Desktop/bot/backtest/results/agg")
     # ensure_dir_for_file(agg_prefix + "_dummy")
     # export_aggregates(full_trade_df, agg_prefix)
     # if show_trades:

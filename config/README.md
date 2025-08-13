@@ -163,22 +163,28 @@ gcloud run deploy crypto-bot-service-prod \
 curl https://crypto-bot-service-prod-11445303925.asia-northeast1.run.app/health
 ```
 
-### 🧪 バックテスト・検証（昇格候補テスト）
+### 🧪 バックテスト・検証
+
+**🆕 統合バックテストシステム（推奨 - 2025年8月13日完成）**:
 ```bash
-# Phase 14.5: 97特徴量システム総合検証
-python -m crypto_bot.main backtest --config config/validation/unified_97_features_backtest.yml
+# 97特徴量から指標組み合わせテスト
+python backtest/scripts/run_backtest.py test_rsi_macd_ema     # RSI+MACD+EMA組み合わせ
+python backtest/scripts/run_backtest.py base_backtest_config  # 97特徴量フルテスト
 
-# 特徴量効率化効果比較（127 vs 97）
-python -m crypto_bot.main backtest --config config/validation/unified_127_features_backtest.yml
+# 設定一覧確認
+python backtest/scripts/run_backtest.py --list-configs
 
-# アンサンブル学習検証（TradingEnsembleClassifier）
-python -m crypto_bot.main backtest --config config/validation/ensemble_trading.yml
+# 結果確認
+ls -la backtest/results/
+```
 
-# 高速収益性検証・迅速品質確認
-python -m crypto_bot.main backtest --config config/validation/quick_profit_test.yml
+**従来システム（参考・アーカイブ済み）**:
+```bash
+# 従来の設定ファイルはbacktest/archive/に移動済み
+# 新しいテストはすべて backtest/configs/ で管理
 
-# 本番設定完全一致検証
-python -m crypto_bot.main backtest --config config/validation/production_97_backtest.yml
+# 従来方式での実行例（互換性維持）
+python -m crypto_bot.main backtest --config backtest/configs/base_backtest_config.yml
 ```
 
 ### 🔧 開発・ローカルテスト
