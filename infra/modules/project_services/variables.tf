@@ -11,6 +11,10 @@ variable "services" {
     "run.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
+    "cloudfunctions.googleapis.com",
+    "pubsub.googleapis.com",
+    "storage.googleapis.com",
+    "secretmanager.googleapis.com",
   ]
 }
 
