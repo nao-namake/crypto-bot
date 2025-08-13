@@ -12,6 +12,8 @@ resource "google_pubsub_topic" "alert_notifications" {
     service = "crypto-bot"
     purpose = "discord-alerts"
   }
+
+  depends_on = [var.discord_permissions_ready]  # IAM権限伝播完了まで待機
 }
 
 # Cloud Functionsは直接トリガーで受信するため、手動サブスクリプションは不要
@@ -27,4 +29,6 @@ resource "google_pubsub_topic" "alert_deadletter" {
     service = "crypto-bot"
     purpose = "deadletter"
   }
+
+  depends_on = [var.discord_permissions_ready]  # IAM権限伝播完了まで待機
 }

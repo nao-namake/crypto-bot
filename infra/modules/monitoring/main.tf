@@ -7,7 +7,10 @@ resource "google_monitoring_notification_channel" "discord" {
     topic = google_pubsub_topic.alert_notifications.id
   }
   
-  depends_on = [google_pubsub_topic.alert_notifications]
+  depends_on = [
+    google_pubsub_topic.alert_notifications,
+    var.discord_permissions_ready  # IAM権限伝播完了まで待機
+  ]
 }
 
 # 高レイテンシアラート（削除：頻発しがちで実用性低い）

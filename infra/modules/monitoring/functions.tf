@@ -8,6 +8,8 @@ resource "google_service_account" "webhook_notifier" {
   display_name = "Discord Webhook Notifier Service Account"
   description  = "Service account for Discord webhook notification function"
   project      = var.project_id
+
+  depends_on = [var.discord_permissions_ready]  # IAM権限伝播完了まで待機
 }
 
 # Service AccountにSecret Manager読み取り権限を付与
@@ -46,6 +48,8 @@ resource "google_storage_bucket" "function_source" {
     service = "crypto-bot"
     purpose = "cloud-functions"
   }
+
+  depends_on = [var.discord_permissions_ready]  # IAM権限伝播完了まで待機
 }
 
 # ソースコードをZipファイルとして作成

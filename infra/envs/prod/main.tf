@@ -5,6 +5,10 @@ terraform {
       # 5 系なら 5.0 以上 6.0 未満で許可（推奨）
       version = ">= 5.0.0, < 6.0.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.9.0"
+    }
   }
 }
 
@@ -39,10 +43,11 @@ module "app" {
 }
 
 module "monitoring" {
-  source              = "../../modules/monitoring"
-  project_id          = var.project_id
-  service_name        = var.service_name
-  discord_webhook_url = var.discord_webhook_url
+  source                     = "../../modules/monitoring"
+  project_id                 = var.project_id
+  service_name               = var.service_name
+  discord_webhook_url        = var.discord_webhook_url
+  discord_permissions_ready  = module.wif.discord_permissions_ready
 }
 
 module "wif" {

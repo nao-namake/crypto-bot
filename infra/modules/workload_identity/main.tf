@@ -152,3 +152,19 @@ resource "google_project_iam_member" "deployer_sa_wif_admin" {
   role    = "roles/iam.workloadIdentityPoolAdmin"
   member  = "serviceAccount:${var.deployer_sa}"
 }
+
+#######################################
+# IAM権限伝播確実化システム
+#######################################
+
+# Discord監視モジュール用権限の伝播待機
+resource "time_sleep" "wait_for_discord_permissions" {
+  depends_on = [
+    google_project_iam_member.deployer_sa_service_account_admin,
+    google_project_iam_member.deployer_sa_storage_admin,
+    google_project_iam_member.deployer_sa_pubsub_admin,
+    google_project_iam_member.deployer_sa_cloudfunctions_admin
+  ]
+
+  create_duration = "60s"  # IAM権限伝播のため60秒待機
+}
