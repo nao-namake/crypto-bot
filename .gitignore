@@ -129,3 +129,8 @@ backups/
 feature_order_backup_*.json
 config/core/feature_order.checksum
 scripts/verification_results_*.json
+
+# Terraform local state files
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+infra/**/.terraform.tfstate.lock.info

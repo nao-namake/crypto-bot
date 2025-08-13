@@ -411,13 +411,13 @@ jobs:
           fi
 
       - name: Terraform Init (Production)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade -lock-timeout=5m
 
       - name: Terraform Plan (Production)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} plan -input=false -lock-timeout=5m
 
       - name: Terraform Apply (Production)
-        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false
+        run: terraform -chdir=${{ env.TF_ENV_DIR }} apply -auto-approve -input=false -lock-timeout=5m
 
       # ---------- Post-deployment verification ----------
       - name: Verify Production Deployment
