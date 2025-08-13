@@ -86,7 +86,7 @@ resource "google_monitoring_alert_policy" "error_rate" {
   }
 }
 
-# 🆕 取引実行失敗アラート（最重要）
+# 🆕 取引実行失敗アラート（ログベース・最重要）
 resource "google_monitoring_alert_policy" "trade_execution_failure" {
   project                = var.project_id
   display_name           = "Trade Execution Failure Alert"
@@ -94,22 +94,22 @@ resource "google_monitoring_alert_policy" "trade_execution_failure" {
   notification_channels  = [google_monitoring_notification_channel.discord.id]
 
   conditions {
-    display_name = "連続取引失敗 > 5回"
+    display_name = "取引実行エラーログ検出"
     condition_threshold {
-      # カスタムメトリクス：連続失敗カウント
-      filter          = "metric.type=\"custom.googleapis.com/crypto_bot/trade_failures\" resource.type=\"global\""
+      # ログベースメトリクス：trade execution failed ログを検出
+      filter          = "resource.type=\"cloud_run_revision\" AND textPayload:\"TRADE_ERROR\" AND resource.labels.service_name=\"${var.service_name}\""
       comparison      = "COMPARISON_GT"
-      threshold_value = 5
-      duration        = "60s"
+      threshold_value = 3  # 5分間で3回エラーログがあればアラート
+      duration        = "300s"
       aggregations {
         alignment_period   = "60s"
-        per_series_aligner = "ALIGN_MAX"
+        per_series_aligner = "ALIGN_RATE"
       }
     }
   }
 
   documentation {
-    content = "🚨 **最重要**: 5回連続で取引実行が失敗しています。API認証・残高・システム状態を確認してください。"
+    content = "🚨 **最重要**: 取引実行エラーが検出されました。ログを確認してAPI認証・残高・システム状態をチェックしてください。"
   }
 }
 
@@ -170,7 +170,7 @@ resource "google_monitoring_alert_policy" "memory_usage" {
       duration        = "300s"
       aggregations {
         alignment_period   = "60s"
-        per_series_aligner = "ALIGN_MEAN"
+        per_series_aligner = "ALIGN_PERCENTILE_99"  # DISTRIBUTION型メトリクスと互換性のあるaligner
       }
     }
   }
@@ -180,7 +180,7 @@ resource "google_monitoring_alert_policy" "memory_usage" {
   }
 }
 
-# 🆕 データ取得停止アラート
+# 🆕 データ取得停止アラート（ログベース）
 resource "google_monitoring_alert_policy" "data_fetch_failure" {
   project                = var.project_id
   display_name           = "Market Data Fetch Failure"
@@ -188,21 +188,21 @@ resource "google_monitoring_alert_policy" "data_fetch_failure" {
   notification_channels  = [google_monitoring_notification_channel.discord.id]
 
   conditions {
-    display_name = "データ取得停止 > 10分"
+    display_name = "データ取得ログが10分間なし"
     condition_threshold {
-      # カスタムメトリクス：最後のデータ取得からの経過時間
-      filter          = "metric.type=\"custom.googleapis.com/crypto_bot/data_fetch_interval\" resource.type=\"global\""
-      comparison      = "COMPARISON_GT"
-      threshold_value = 600  # 10分
-      duration        = "180s"
+      # ログベースメトリクス：データ取得成功ログの不在を検出
+      filter          = "resource.type=\"cloud_run_revision\" AND (textPayload:\"Progress\" OR textPayload:\"Data fetched\") AND resource.labels.service_name=\"${var.service_name}\""
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1  # 10分間で1回もデータ取得ログがなければアラート
+      duration        = "600s"  # 10分
       aggregations {
-        alignment_period   = "60s" 
-        per_series_aligner = "ALIGN_MAX"
+        alignment_period   = "300s"  # 5分間隔でチェック
+        per_series_aligner = "ALIGN_RATE"
       }
     }
   }
 
   documentation {
-    content = "🚨 **データ取得停止**: 10分以上市場データが取得されていません。Bitbank API・ネットワーク接続を確認してください。"
+    content = "🚨 **データ取得停止**: 10分以上市場データ取得ログが確認できません。Bitbank API・ネットワーク接続・システム状態を確認してください。"
   }
 }
