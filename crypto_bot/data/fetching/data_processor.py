@@ -213,7 +213,7 @@ class DataProcessor:
 
         # 連続して長時間空データが続く場合
         consecutive_empty = error_context.get("consecutive_empty", 0)
-        if consecutive_empty >= 15:  # 15回連続空データ
+        if consecutive_empty >= 5:  # 15回→5回に削減（早期終了）
             return True, f"Too many consecutive empty responses ({consecutive_empty})"
 
         # タイムスタンプに明らかな異常がある場合
@@ -422,35 +422,15 @@ class DataProcessor:
                 # タイムスタンプ検証と調整（修正版）
                 current_ms = int(time.time() * 1000)
 
-                # 初回の場合、安全なデフォルト値を設定
-                if last_since is None:
-                    # 24時間前から開始（安全な範囲）
-                    last_since = current_ms - (24 * 60 * 60 * 1000)
-                    logger.info(
-                        f"🔧 [TIMESTAMP] Initial timestamp set to 24h ago: {last_since}"
-                    )
-
-                # 未来のタイムスタンプチェック
-                elif last_since > current_ms:
-                    logger.warning(
-                        f"⚠️ [TIMESTAMP] Future timestamp detected: {last_since} > {current_ms}"
-                    )
-                    # 24時間前に安全にリセット
-                    last_since = current_ms - (24 * 60 * 60 * 1000)
-                    logger.info(f"🔧 [TIMESTAMP] Reset to 24h ago: {last_since}")
-
-                # Bitbank API制限チェック（168時間以内に短縮）
-                else:
-                    max_age_ms = 168 * 60 * 60 * 1000  # 168時間（1週間、設定値と一致）
-                    min_since = current_ms - max_age_ms
-                    if last_since < min_since:
-                        logger.warning(
-                            f"⚠️ [TIMESTAMP] Too old timestamp: {last_since} < {min_since}"
-                        )
-                        last_since = min_since
-                        logger.info(
-                            f"🔧 [TIMESTAMP] Adjusted to 168h ago: {last_since}"
-                        )
+                # 簡素化されたタイムスタンプ処理：確実に96時間前から開始
+                if (
+                    last_since is None
+                    or last_since > current_ms
+                    or last_since < current_ms - (96 * 60 * 60 * 1000)
+                ):
+                    # 96時間前に固定（Bitbank APIの安定範囲）
+                    last_since = current_ms - (96 * 60 * 60 * 1000)
+                    logger.info(f"🔧 [TIMESTAMP-SIMPLE] Set to 96h ago: {last_since}")
 
                 batch = self.client.fetch_ohlcv(
                     self.symbol, timeframe, last_since, per_page

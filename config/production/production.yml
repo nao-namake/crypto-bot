@@ -25,19 +25,19 @@ data:
   api_secret: ${BITBANK_API_SECRET}
   ccxt_options:
     enableRateLimit: true
-    rateLimit: 15000  # API制限緩和で安定化
+    rateLimit: 30000  # 15000→30000（レート制限緩和で安定化）
     timeout: 90000   # タイムアウト延長で大量データ取得対応
     verbose: false
-    retries: 5       # 内部リトライ追加
+    retries: 3       # 5→3に削減（過度なリトライ防止）
     enableApiWaitTimeout: true
   early_week_extension_hours: 36
   exchange: bitbank
   exponential_backoff: true
   fetch_retries: 3
-  limit: 150  # 168時間制限内で確実に取得可能な数に調整
-  max_attempts: 25  # 168時間データ確実取得のため増加
-  max_consecutive_empty: 8  # 現在8回発生中のため上限拡大
-  max_consecutive_no_new: 20  # 168時間データ取得のため余裕設定
+  limit: 100  # 150→100に削減（確実な取得）
+  max_attempts: 20  # 25→20に削減（効率化）
+  max_consecutive_empty: 5  # 8→5に削減（コードと整合性）
+  max_consecutive_no_new: 15  # 20→15に削減（効率化）
   max_delay_ms: 60000  # API制限対応でbackoff延長
   min_delay_ms: 20000  # 初期値を短縮して効率化
   multi_timeframe_data:
@@ -55,7 +55,7 @@ data:
         min_points: 3
   paginate: true
   per_page: 200
-  since_hours: 168  # 72から168に拡張（1週間分のデータ取得）
+  since_hours: 96   # 168→96に短縮（Bitbank API安定範囲）
   symbol: BTC/JPY
   timeframe: 1h
   weekend_data: true

@@ -3,7 +3,7 @@ region                 = "asia-northeast1"
 artifact_registry_repo = "crypto-bot-repo"
 service_name           = "crypto-bot-service-prod"
 image_name             = "crypto-bot"
-alert_email            = "s00198532@gmail.com"
+# Discord Webhook URLはGitHub Secretsから環境変数として取得（TF_VAR_discord_webhook_url）
 project_number         = "11445303925"                     # gcloud projects describe で確認済み
 github_repo            = "nao-namake/crypto-bot"
 deployer_sa            = "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"

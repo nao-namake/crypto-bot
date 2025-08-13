@@ -26,6 +26,7 @@ resource "google_cloud_run_service" "service" {
   template {
     metadata {
       annotations = {
+        "autoscaling.knative.dev/minScale" = "1"  # SIGTERM頻発対策
         "autoscaling.knative.dev/maxScale" = "5"
         "run.googleapis.com/cpu-throttling" = "false"
         "run.googleapis.com/execution-environment" = "gen2"

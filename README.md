@@ -4,10 +4,11 @@
 
 [![GitHub Actions](https://img.shields.io/github/actions/workflow/status/nao-namake/crypto-bot/ci.yml)](https://github.com/nao-namake/crypto-bot/actions) [![Coverage](https://img.shields.io/badge/coverage-31.54%25-yellow)](https://github.com/nao-namake/crypto-bot) [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![GCP](https://img.shields.io/badge/platform-GCP%20Cloud%20Run-green)](https://cloud.google.com)
 
-**🎊 2025年8月13日 Phase 18完成**:
+**🎊 2025年8月13日 Phase 19完成 - Discord通知システム**:
+- **📢 Discord通知システム完全実装**: メール通知を完全廃止・デプロイ時大量メール問題根本解決
 - **🚨 トレード実行問題完全解決**: confidence閾値・SIGTERM・モデル互換性エラーを根本解決
 - **🤖 CI/CD統合自動化完成**: 168時間データ事前取得・毎日JST 11:00自動実行・完全無人運用
-- **📊 監視システム強化**: 4新パターン検出追加・トレード実行阻害要因の確実検出
+- **📊 監視システム強化**: Discord通知・6種アラート最適化・私生活影響ゼロ
 - **⚡ 即座トレード可能**: confidence_threshold 0.35→0.25で現在の予測値でもエントリー
 - **🛡️ SIGTERM解決**: min-instances=1設定で頻繁な再起動完全防止
 - **🔧 モデル互換性修正**: RandomForest内部パッチでアンサンブル予測復活
@@ -48,7 +49,32 @@ crypto-botは、機械学習を活用したBitbank BTC/JPY自動取引システ�
 
 **主要README.md**：`crypto_bot/*/README.md`, `scripts/README.md`, `tests/README.md`, `config/README.md`, `models/README.md`, `infra/README.md`
 
-## ✨ 最新機能（2025年8月13日 - 重大問題解決版）
+## ✨ 最新機能（2025年8月13日 - Discord通知システム完成版）
+
+### **📢 Discord通知システム完全実装**
+
+**メール通知完全廃止・デプロイ時大量メール問題の根本解決**:
+
+```bash
+# Discord通知テスト（新機能）
+python scripts/monitoring/discord_notification_test.py --type direct
+
+# アラート種別別テスト
+python scripts/monitoring/discord_notification_test.py --type loss
+python scripts/monitoring/discord_notification_test.py --type trade_failure
+```
+
+**解決された問題**:
+- ✅ **デプロイ時大量メール**: 数十通 → ゼロ通（完全廃止）
+- ✅ **私生活への影響**: メール通知による生活の中断を完全排除
+- ✅ **通知の視認性**: Discord埋め込み・色分け表示で重要度明確化
+- ✅ **不要アラート削除**: 高レイテンシアラート削除で騒音問題解決
+
+**Discord通知システム構成**:
+- **Cloud Functions**: `webhook-notifier` (Discord送信)
+- **Pub/Sub**: アラート配信システム
+- **6種アラート**: PnL損失・エラー率・取引失敗・システム停止・メモリ・データ停止
+- **JST時刻統一**: 日本時間での統一表示
 
 ### **🚨 トレード実行阻害要因の完全解決**
 
@@ -386,14 +412,17 @@ git push origin main
 
 ### **デプロイ後の確認**
 
-**🎊 推奨: 完璧稼働状況確認システム（2025年8月12日完成）**
+**🎊 推奨: 完璧稼働状況確認システム（2025年8月13日Discord対応）**
 ```bash
-# CI通過後30分経過時の完璧稼働状況確認
+# 1. Discord通知システム動作確認（🆕 必須）
+python scripts/monitoring/discord_notification_test.py --type direct
+
+# 2. CI通過後30分経過時の完璧稼働状況確認
 python scripts/operational_status_checker.py              # 全4段階チェック
 python scripts/operational_status_checker.py --verbose    # 詳細ログ付き  
 python scripts/operational_status_checker.py --phase phase3  # 隠れた問題のみ検出
 
-# 問題検出時の詳細調査
+# 3. 問題検出時の詳細調査
 python scripts/operational_status_checker.py --save-report  # HTMLレポート生成
 ```
 
@@ -451,6 +480,7 @@ python scripts/utilities/emergency_shutdown.py  # 取引停止
 ## 🎊 開発成果・特徴
 
 ### 解決された主要課題（2025年8月13日最新）
+- **📢 Discord通知システム完全実装**: メール通知完全廃止・デプロイ時大量メール問題根本解決
 - **🚨 トレード実行阻害要因の完全解決**: モデル互換性エラー・頻繁な再起動問題を根本修正
 - **🎊 完璧稼働状況確認システム完成**: 隠れたエラー問題・表面稼働実際停止問題の根本解決
 - **📊 4段階チェックシステム**: インフラ・アプリ・隠れた問題・総合判定で確実な状況把握
@@ -477,4 +507,4 @@ python scripts/utilities/emergency_shutdown.py  # 取引停止
 
 このプロジェクトは個人開発プロジェクトです。詳細な開発履歴や技術的な背景については `CLAUDE.md` を参照してください。
 
-**🚀 「隠れたエラー・表面稼働実際停止」問題を根絶した完璧稼働状況確認システム搭載AI自動取引システム** （2025年8月12日現在）
+**🚀 「デプロイ時大量メール・隠れたエラー・表面稼働実際停止」問題を根絶したDiscord通知・完璧稼働状況確認システム搭載AI自動取引システム** （2025年8月13日現在）

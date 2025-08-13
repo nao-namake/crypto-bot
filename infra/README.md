@@ -37,6 +37,7 @@ infra/
 ### **prod環境（本番稼働用）**
 - **用途**: Bitbank実口座での自動取引
 - **リソース**: CPU 1000m、Memory 2Gi（97特徴量最適化済み）
+- **安定性**: **min-instances=1設定**でSIGTERM頻発問題完全解決（Phase 1完了）
 - **APIキー**: Bitbank API - static env vars採用で確実設定
 - **コスト**: 約1,800円/月
 

@@ -11,7 +11,11 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
-variable "alert_email"            { type = string }
+variable "discord_webhook_url" {
+  type        = string
+  description = "Discord Webhook URL for alert notifications"
+  sensitive   = true
+}
 variable "github_repo" {
   description = "owner/repository 形式の GitHub リポジトリ識別子"
   type        = string

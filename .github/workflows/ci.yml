@@ -346,7 +346,7 @@ jobs:
       TF_VAR_service_name: "crypto-bot-service-prod"
       TF_VAR_image_name: "crypto-bot"
       TF_VAR_mode: "live"
-      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
       TF_VAR_github_repo: "nao-namake/crypto-bot"
       TF_VAR_project_number: ${{ secrets.GCP_PROJECT_NUMBER }}
       TF_VAR_deployer_sa: ${{ secrets.GCP_DEPLOYER_SA }}

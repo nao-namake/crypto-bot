@@ -114,6 +114,174 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         self.voting_weights = None
         self.last_X_ = None
 
+        # Phase 4: 初期化時にmonotonic_cst属性パッチを適用
+        self._apply_monotonic_cst_patches()
+
+    def _apply_monotonic_cst_patches(self):
+        """
+        Phase 4: 包括的なmonotonic_cst属性パッチ適用システム
+
+        scikit-learn バージョン互換性問題を根本解決:
+        - DecisionTreeClassifier系の monotonic_cst 属性エラー完全対策
+        - RandomForest内部の estimators_ パッチ
+        - CalibratedClassifierCV 内部モデルパッチ
+        - ネストした構造への再帰的パッチ適用
+        """
+        try:
+            logger.info("🔧 [Phase 4] Applying comprehensive monotonic_cst patches...")
+
+            # ベースモデルにパッチを適用
+            patched_count = 0
+            for i, model in enumerate(self.base_models):
+                try:
+                    patches_applied = self._patch_model_recursive(
+                        model, f"base_model_{i}"
+                    )
+                    patched_count += patches_applied
+                    logger.debug(
+                        f"   Base model {i+1}: {patches_applied} patches applied"
+                    )
+                except Exception as e:
+                    logger.warning(f"   Base model {i+1} patch failed: {e}")
+
+            # メタモデルにパッチを適用
+            if self.meta_model:
+                try:
+                    meta_patches = self._patch_model_recursive(
+                        self.meta_model, "meta_model"
+                    )
+                    patched_count += meta_patches
+                    logger.debug(f"   Meta model: {meta_patches} patches applied")
+                except Exception as e:
+                    logger.warning(f"   Meta model patch failed: {e}")
+
+            logger.info(
+                f"✅ [Phase 4] Monotonic_cst patches complete: {patched_count} total patches applied"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [Phase 4] Monotonic_cst patching failed: {e}")
+
+    def _patch_model_recursive(self, model, model_name: str, depth: int = 0) -> int:
+        """
+        モデルに対する再帰的パッチ適用
+
+        Args:
+            model: パッチ対象モデル
+            model_name: モデル名（ログ用）
+            depth: 再帰深度（無限ループ防止）
+
+        Returns:
+            int: 適用されたパッチ数
+        """
+        if depth > 5:  # 無限再帰防止
+            return 0
+
+        patches_applied = 0
+
+        try:
+            # 直接的なDecisionTreeClassifierパッチ
+            if (
+                hasattr(model, "__class__")
+                and "DecisionTree" in model.__class__.__name__
+            ):
+                if not hasattr(model, "monotonic_cst"):
+                    model.monotonic_cst = None
+                    patches_applied += 1
+                    logger.debug(f"      Patched DecisionTree: {model_name}")
+
+            # RandomForestClassifier内部のestimators_パッチ
+            if hasattr(model, "estimators_") and model.estimators_:
+                for i, estimator in enumerate(model.estimators_):
+                    sub_patches = self._patch_model_recursive(
+                        estimator, f"{model_name}.estimators_[{i}]", depth + 1
+                    )
+                    patches_applied += sub_patches
+
+            # CalibratedClassifierCV内部のbase_estimatorパッチ
+            if hasattr(model, "base_estimator") and model.base_estimator:
+                sub_patches = self._patch_model_recursive(
+                    model.base_estimator, f"{model_name}.base_estimator", depth + 1
+                )
+                patches_applied += sub_patches
+
+            # CalibratedClassifierCV内部のcalibrated_classifiers_パッチ
+            if (
+                hasattr(model, "calibrated_classifiers_")
+                and model.calibrated_classifiers_
+            ):
+                for i, cal_clf in enumerate(model.calibrated_classifiers_):
+                    if hasattr(cal_clf, "base_estimator"):
+                        sub_patches = self._patch_model_recursive(
+                            cal_clf.base_estimator,
+                            f"{model_name}.calibrated_classifiers_[{i}].base_estimator",
+                            depth + 1,
+                        )
+                        patches_applied += sub_patches
+
+            # AdaBoostClassifier内部のbase_estimator_パッチ
+            if hasattr(model, "base_estimator_") and model.base_estimator_:
+                sub_patches = self._patch_model_recursive(
+                    model.base_estimator_, f"{model_name}.base_estimator_", depth + 1
+                )
+                patches_applied += sub_patches
+
+            # VotingClassifier内部のestimators_パッチ
+            if hasattr(model, "estimators_") and isinstance(model.estimators_, list):
+                for i, (name, estimator) in enumerate(model.estimators_):
+                    sub_patches = self._patch_model_recursive(
+                        estimator, f"{model_name}.estimators_[{i}]", depth + 1
+                    )
+                    patches_applied += sub_patches
+
+        except Exception as e:
+            logger.warning(f"      Patch error for {model_name}: {e}")
+
+        return patches_applied
+
+    def _apply_fitted_model_patches(self):
+        """
+        Phase 4: 学習済みモデルに対するパッチ再適用
+
+        学習後にfitted_base_modelsがCalibratedClassifierCV等でラップされた場合に
+        再度パッチを適用して完全な互換性を保証
+        """
+        try:
+            logger.info("🔧 [Phase 4] Applying patches to fitted models...")
+
+            total_patches = 0
+            for i, fitted_model in enumerate(self.fitted_base_models):
+                try:
+                    patches_applied = self._patch_model_recursive(
+                        fitted_model, f"fitted_model_{i}"
+                    )
+                    total_patches += patches_applied
+                    logger.debug(
+                        f"   Fitted model {i+1}: {patches_applied} patches applied"
+                    )
+                except Exception as e:
+                    logger.warning(f"   Fitted model {i+1} patch failed: {e}")
+
+            # メタモデルが学習済みの場合もパッチ
+            if hasattr(self, "fitted_meta_model") and self.fitted_meta_model:
+                try:
+                    meta_patches = self._patch_model_recursive(
+                        self.fitted_meta_model, "fitted_meta_model"
+                    )
+                    total_patches += meta_patches
+                    logger.debug(
+                        f"   Fitted meta model: {meta_patches} patches applied"
+                    )
+                except Exception as e:
+                    logger.warning(f"   Fitted meta model patch failed: {e}")
+
+            logger.info(
+                f"✅ [Phase 4] Fitted model patches complete: {total_patches} total patches applied"
+            )
+
+        except Exception as e:
+            logger.error(f"❌ [Phase 4] Fitted model patching failed: {e}")
+
     def _create_default_base_models(self) -> List[BaseEstimator]:
         """デフォルトベースモデルの作成"""
         return [
@@ -226,6 +394,9 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
             # Phase H.26: 学習完了フラグ設定
             self.is_fitted = True
+
+            # Phase 4: 学習後にfitted modelsにもパッチを再適用
+            self._apply_fitted_model_patches()
 
             logger.info(
                 f"✅ Ensemble training completed successfully ({successful_models}/{len(self.base_models)} models)"
@@ -378,24 +549,6 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         for i, model in enumerate(self.fitted_base_models):
             try:
-                # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if (
-                    hasattr(model, "__class__")
-                    and "DecisionTree" in model.__class__.__name__
-                ):
-                    if not hasattr(model, "monotonic_cst"):
-                        model.monotonic_cst = None
-
-                # RandomForest内部のDecisionTree要素にもパッチ適用
-                if hasattr(model, "estimators_"):
-                    for estimator in model.estimators_:
-                        if (
-                            hasattr(estimator, "__class__")
-                            and "DecisionTree" in estimator.__class__.__name__
-                        ):
-                            if not hasattr(estimator, "monotonic_cst"):
-                                estimator.monotonic_cst = None
-
                 proba = model.predict_proba(X)
                 base_proba = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
 
@@ -435,23 +588,6 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         for i, (model, weight) in enumerate(zip(self.fitted_base_models, weights)):
             try:
-                # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if (
-                    hasattr(model, "__class__")
-                    and "DecisionTree" in model.__class__.__name__
-                ):
-                    if not hasattr(model, "monotonic_cst"):
-                        model.monotonic_cst = None
-
-                # RandomForest内部のDecisionTree要素にもパッチ適用
-                if hasattr(model, "estimators_"):
-                    for estimator in model.estimators_:
-                        if (
-                            hasattr(estimator, "__class__")
-                            and "DecisionTree" in estimator.__class__.__name__
-                        ):
-                            if not hasattr(estimator, "monotonic_cst"):
-                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
 
@@ -504,23 +640,6 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
             zip(self.fitted_base_models, performance_weights)
         ):
             try:
-                # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if (
-                    hasattr(model, "__class__")
-                    and "DecisionTree" in model.__class__.__name__
-                ):
-                    if not hasattr(model, "monotonic_cst"):
-                        model.monotonic_cst = None
-
-                # RandomForest内部のDecisionTree要素にもパッチ適用
-                if hasattr(model, "estimators_"):
-                    for estimator in model.estimators_:
-                        if (
-                            hasattr(estimator, "__class__")
-                            and "DecisionTree" in estimator.__class__.__name__
-                        ):
-                            if not hasattr(estimator, "monotonic_cst"):
-                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
@@ -542,23 +661,6 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         for i, (model, weight) in enumerate(zip(self.fitted_base_models, weights)):
             try:
-                # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if (
-                    hasattr(model, "__class__")
-                    and "DecisionTree" in model.__class__.__name__
-                ):
-                    if not hasattr(model, "monotonic_cst"):
-                        model.monotonic_cst = None
-
-                # RandomForest内部のDecisionTree要素にもパッチ適用
-                if hasattr(model, "estimators_"):
-                    for estimator in model.estimators_:
-                        if (
-                            hasattr(estimator, "__class__")
-                            and "DecisionTree" in estimator.__class__.__name__
-                        ):
-                            if not hasattr(estimator, "monotonic_cst"):
-                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
                 weighted_proba += proba * weight
@@ -724,23 +826,6 @@ class TradingEnsembleClassifier(BaseEstimator, ClassifierMixin):
         individual_predictions = []
         for model in self.fitted_base_models:
             try:
-                # DecisionTreeClassifierのmonotonic_cst属性エラーを回避
-                if (
-                    hasattr(model, "__class__")
-                    and "DecisionTree" in model.__class__.__name__
-                ):
-                    if not hasattr(model, "monotonic_cst"):
-                        model.monotonic_cst = None
-
-                # RandomForest内部のDecisionTree要素にもパッチ適用
-                if hasattr(model, "estimators_"):
-                    for estimator in model.estimators_:
-                        if (
-                            hasattr(estimator, "__class__")
-                            and "DecisionTree" in estimator.__class__.__name__
-                        ):
-                            if not hasattr(estimator, "monotonic_cst"):
-                                estimator.monotonic_cst = None
 
                 proba = model.predict_proba(X)
                 individual_predictions.append(proba[:, 1])

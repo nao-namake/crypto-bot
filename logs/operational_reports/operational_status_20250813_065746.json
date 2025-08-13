@@ -1,0 +1,131 @@
+{
+  "timestamp": "2025-08-13T06:57:16.158447",
+  "phases": {
+    "phase3": {
+      "phase_name": "隠れた問題検出",
+      "weight": 30,
+      "checks": {
+        "hidden_error_patterns": {
+          "status": "critical",
+          "patterns_detected": 5,
+          "critical_patterns": 2,
+          "high_patterns": 1,
+          "detected_patterns": [
+            {
+              "id": "data_fetch_stagnation",
+              "name": "データ取得停滞（48/300問題）",
+              "severity": "CRITICAL",
+              "description": "API制限または接続問題により48件で停滞、Empty batch連続発生",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Found 3 instances of 48/300 stagnation",
+                "latest_timestamp": "2025-08-12T03:15:17.585940Z"
+              },
+              "past_solutions": [
+                "API接続確認・認証情報チェック",
+                "レート制限回避・バックオフ調整",
+                "データキャッシュ機能実装"
+              ]
+            },
+            {
+              "id": "model_compatibility_error",
+              "name": "モデル互換性エラー（monotonic_cst属性）",
+              "severity": "CRITICAL",
+              "description": "scikit-learnバージョン不整合によるモデル予測失敗、トレード不能",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Trading prediction failed for base model' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only実行",
+                "モデル再学習でバージョン統一",
+                "crypto_bot/ml/ensemble.pyにパッチ適用"
+              ]
+            },
+            {
+              "id": "frequent_instance_restart",
+              "name": "頻繁なインスタンス再起動（SIGTERM）",
+              "severity": "HIGH",
+              "description": "Cloud Runのmin-instances=0によるアイドルタイムアウト、状態リセット",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Received signal 15' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "gcloud run services update --min-instances=1",
+                "CPU throttling無効化",
+                "タイムアウト延長（--timeout=3600）"
+              ]
+            },
+            {
+              "id": "confidence_below_threshold_chronic",
+              "name": "confidence値慢性的閾値未達",
+              "severity": "MEDIUM",
+              "description": "予測confidenceが常に閾値を下回り、エントリーシグナル生成されず",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Entry order details: side=None, price=None, lot=0\\.0' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "confidence_threshold引き下げ（0.35→0.25）",
+                "モデル性能改善・再学習",
+                "データ品質向上・取得量増加"
+              ]
+            },
+            {
+              "id": "ensemble_model_degraded",
+              "name": "アンサンブルモデル劣化（フォールバック多用）",
+              "severity": "MEDIUM",
+              "description": "アンサンブル内の複数モデルが失敗、予測品質低下",
+              "detection_details": {
+                "detected": true,
+                "evidence": "Pattern 'Trading prediction failed for base model' found in logs",
+                "matches": 2
+              },
+              "past_solutions": [
+                "モデル互換性修正・再学習",
+                "sklearn version統一",
+                "ensemble.py パッチ強化"
+              ]
+            }
+          ],
+          "details": "5 hidden patterns detected"
+        },
+        "performance_anomalies": {
+          "status": "healthy",
+          "anomalies": [],
+          "anomaly_count": 0,
+          "details": "No performance anomalies detected"
+        },
+        "future_data_leaks": {
+          "status": "healthy",
+          "leak_count": 0,
+          "details": "No future data leaks detected"
+        },
+        "config_integrity": {
+          "status": "healthy",
+          "issues": [],
+          "issue_count": 0,
+          "details": "Configuration integrity OK"
+        }
+      },
+      "score": 77.5,
+      "status": "warning",
+      "issues": [
+        {
+          "check": "hidden_error_patterns",
+          "severity": "CRITICAL",
+          "message": "5 hidden patterns detected",
+          "score": 10
+        }
+      ]
+    }
+  },
+  "overall_status": "warning",
+  "overall_score": 77.5,
+  "critical_issues": [],
+  "recommendations": []
+}

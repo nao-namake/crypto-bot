@@ -1,11 +1,39 @@
-# scripts/monitoring/ - 監視・検証・修復ツール
+# scripts/monitoring/ - 監視・検証・修復・Discord通知ツール
 
 ## 📋 概要
 
-Phase 2-3およびPhase 3で実装された高度な監視・検証・エラー修復機能を集約したディレクトリです。  
-リアルタイム監視から事後分析まで、システムの健全性を保つツールを提供します。
+Phase 2-3・Phase 3・Discord通知システムで実装された高度な監視・検証・エラー修復・通知機能を集約したディレクトリです。  
+リアルタイム監視から事後分析、Discord通知テストまで、システムの健全性と通知システムを保つツールを提供します。
+
+## 🎊 2025年8月13日 Discord通知システム完成
+
+メール通知を完全廃止し、Discord通知システムに移行完了。デプロイ時の大量メール通知問題を根本解決。
 
 ## 🎯 ツール一覧
+
+### **discord_notification_test.py** (Discord通知システム) 🆕 ⭐ 最重要
+Discord通知システムのテスト・動作確認
+
+```bash
+# Discord直接テスト（最簡単）
+python scripts/monitoring/discord_notification_test.py --type direct
+
+# 各アラート種別テスト
+python scripts/monitoring/discord_notification_test.py --type loss         # 損失アラート
+python scripts/monitoring/discord_notification_test.py --type error        # エラー率アラート  
+python scripts/monitoring/discord_notification_test.py --type trade_failure # 取引失敗アラート
+python scripts/monitoring/discord_notification_test.py --type system_down  # システム停止アラート
+python scripts/monitoring/discord_notification_test.py --type memory       # メモリ異常アラート
+python scripts/monitoring/discord_notification_test.py --type data_fetch   # データ停止アラート
+```
+
+**テスト対象:**
+- Discord Webhook URL接続確認
+- GCP Pub/Sub → Cloud Functions → Discord完全フロー
+- 6種類のアラート種別（色分け・メッセージ形式）
+- JST時刻表示・エラーハンドリング
+
+**出力:** Discordチャンネルにテストメッセージ送信・コンソールに送信結果表示
 
 ### **signal_monitor.py** (Phase 2-2) ⭐ 重要
 シグナル生成の健全性監視
@@ -103,13 +131,16 @@ bash scripts/monitoring/paper_trade_with_monitoring.sh --duration 24
 ### **日常監視（推奨：毎日）**
 
 ```bash
-# 1. シグナル監視
+# 1. Discord通知テスト（🆕 最重要）
+python scripts/monitoring/discord_notification_test.py --type direct
+
+# 2. シグナル監視
 python scripts/monitoring/signal_monitor.py --hours 24
 
-# 2. エラーチェック
+# 3. エラーチェック
 python scripts/monitoring/error_analyzer.py --source both --hours 24
 
-# 3. 問題があれば修復
+# 4. 問題があれば修復
 python scripts/monitoring/analyze_and_fix.py --interactive
 ```
 
@@ -124,6 +155,23 @@ bash scripts/monitoring/paper_trade_with_monitoring.sh --duration 1
 
 # 3. 統合チェック
 python scripts/bot_manager.py full-check
+```
+
+### **デプロイ後の確認（🆕 Discord通知システム）**
+
+```bash
+# 1. Discord通知システム動作確認（必須）
+python scripts/monitoring/discord_notification_test.py --type direct
+
+# 2. 各アラート種別テスト
+python scripts/monitoring/discord_notification_test.py --type loss
+python scripts/monitoring/discord_notification_test.py --type trade_failure
+
+# 3. Cloud Functions状態確認
+gcloud functions describe webhook-notifier --region=asia-northeast1
+
+# 4. 完璧稼働状況確認システム
+python scripts/operational_status_checker.py --verbose
 ```
 
 ### **トラブル発生時**
@@ -211,4 +259,4 @@ python scripts/bot_manager.py fix-errors --auto-fix
 
 ---
 
-*最終更新: 2025年8月11日 - Phase 2-3/Phase 3 実装・フォルダ整理*
+*最終更新: 2025年8月13日 - Discord通知システム実装・メール通知廃止・アラート最適化*
