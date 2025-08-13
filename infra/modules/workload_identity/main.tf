@@ -86,6 +86,27 @@ resource "google_project_iam_member" "deployer_sa_storage_object_admin" {
   member  = "serviceAccount:${var.deployer_sa}"
 }
 
+# Storage Admin - for creating storage buckets (required for Cloud Functions source)
+resource "google_project_iam_member" "deployer_sa_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Pub/Sub Admin - for creating topics and subscriptions (required for Discord notifications)
+resource "google_project_iam_member" "deployer_sa_pubsub_admin" {
+  project = var.project_id
+  role    = "roles/pubsub.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Cloud Functions Admin - for creating Cloud Functions (required for Discord webhook)
+resource "google_project_iam_member" "deployer_sa_cloudfunctions_admin" {
+  project = var.project_id
+  role    = "roles/cloudfunctions.admin"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
 #######################################
 # Limited IAM permissions for Terraform operations
 #######################################
@@ -101,6 +122,13 @@ resource "google_project_iam_member" "deployer_sa_iam_service_account_user" {
 resource "google_project_iam_member" "deployer_sa_security_reviewer" {
   project = var.project_id
   role    = "roles/iam.securityReviewer"
+  member  = "serviceAccount:${var.deployer_sa}"
+}
+
+# Service Account Admin - for creating service accounts (required for Discord webhook function)
+resource "google_project_iam_member" "deployer_sa_service_account_admin" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountAdmin"
   member  = "serviceAccount:${var.deployer_sa}"
 }
 
