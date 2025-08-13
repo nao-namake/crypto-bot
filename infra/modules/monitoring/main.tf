@@ -96,8 +96,8 @@ resource "google_monitoring_alert_policy" "trade_execution_failure" {
   conditions {
     display_name = "取引実行エラーログ検出"
     condition_threshold {
-      # ログベースメトリクス：trade execution failed ログを検出
-      filter          = "resource.type=\"cloud_run_revision\" AND textPayload:\"TRADE_ERROR\" AND resource.labels.service_name=\"${var.service_name}\""
+      # ログベースメトリクスを参照
+      filter          = "metric.type=\"logging.googleapis.com/user/${google_logging_metric.trade_errors.name}\" resource.type=\"cloud_run_revision\""
       comparison      = "COMPARISON_GT"
       threshold_value = 3  # 5分間で3回エラーログがあればアラート
       duration        = "300s"
@@ -111,6 +111,8 @@ resource "google_monitoring_alert_policy" "trade_execution_failure" {
   documentation {
     content = "🚨 **最重要**: 取引実行エラーが検出されました。ログを確認してAPI認証・残高・システム状態をチェックしてください。"
   }
+
+  depends_on = [google_logging_metric.trade_errors]
 }
 
 # 🆕 システム停止アラート
@@ -190,8 +192,8 @@ resource "google_monitoring_alert_policy" "data_fetch_failure" {
   conditions {
     display_name = "データ取得ログが10分間なし"
     condition_threshold {
-      # ログベースメトリクス：データ取得成功ログの不在を検出
-      filter          = "resource.type=\"cloud_run_revision\" AND (textPayload:\"Progress\" OR textPayload:\"Data fetched\") AND resource.labels.service_name=\"${var.service_name}\""
+      # ログベースメトリクスを参照
+      filter          = "metric.type=\"logging.googleapis.com/user/${google_logging_metric.data_fetch_success.name}\" resource.type=\"cloud_run_revision\""
       comparison      = "COMPARISON_LT"
       threshold_value = 1  # 10分間で1回もデータ取得ログがなければアラート
       duration        = "600s"  # 10分
@@ -205,4 +207,6 @@ resource "google_monitoring_alert_policy" "data_fetch_failure" {
   documentation {
     content = "🚨 **データ取得停止**: 10分以上市場データ取得ログが確認できません。Bitbank API・ネットワーク接続・システム状態を確認してください。"
   }
+
+  depends_on = [google_logging_metric.data_fetch_success]
 }
