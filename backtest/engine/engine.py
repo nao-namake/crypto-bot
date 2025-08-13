@@ -251,7 +251,7 @@ class BacktestEngine:
 
     def statistics(self) -> dict:
         """主要指標をdictで返す（CAGR・DD・シャープ比）"""
-        from crypto_bot.backtest.metrics import cagr, max_drawdown, sharpe_ratio
+        from .evaluation import cagr, max_drawdown, sharpe_ratio
 
         eq = self.get_equity_curve()
         if eq.empty:

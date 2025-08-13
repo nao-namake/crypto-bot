@@ -3,18 +3,22 @@ Optimization related CLI commands
 """
 
 import logging
+import os
+
+# Backtest engine import - 統合バックテストエンジン使用
+import sys
 from typing import Any, Dict, List
 
 import click
 import pandas as pd
 
-# Backtest engine import - 統合バックテストエンジン使用
-import sys
-import os
 # プロジェクトルートからの相対パスでbacktestディレクトリを追加
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(project_root, 'backtest'))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.insert(0, os.path.join(project_root, "backtest"))
 from engine import BacktestEngine
+
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.scripts.walk_forward import split_walk_forward
 from crypto_bot.strategy.factory import StrategyFactory

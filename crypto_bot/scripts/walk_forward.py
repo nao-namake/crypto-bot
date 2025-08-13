@@ -14,8 +14,8 @@
 # =============================================================================
 
 import argparse
-import sys
 import os
+import sys
 from pathlib import Path
 from typing import Callable, List, Tuple
 
@@ -24,9 +24,12 @@ import yaml
 
 # Backtest engine import - 統合バックテストエンジン使用
 # プロジェクトルートからの相対パスでbacktestディレクトリを追加
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(project_root, 'backtest'))
+project_root = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+sys.path.insert(0, os.path.join(project_root, "backtest"))
 from engine import BacktestEngine
+
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.strategy.base import StrategyBase
 from crypto_bot.strategy.ml_strategy import MLStrategy

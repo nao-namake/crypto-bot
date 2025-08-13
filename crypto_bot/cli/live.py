@@ -734,7 +734,6 @@ def live_bitbank_command(
 
     # メインループ初回フラグ
     is_first_iteration = True
-    
     # 時間制限の開始時刻を記録
     loop_start_time = time.time()
 
@@ -744,7 +743,9 @@ def live_bitbank_command(
             if duration > 0:
                 elapsed_time = time.time() - loop_start_time
                 if elapsed_time >= duration:
-                    logger.info(f"⏱️ Duration limit reached ({duration} seconds). Exiting...")
+                    logger.info(
+                        f"⏱️ Duration limit reached ({duration} seconds). Exiting..."
+                    )
                     break
             iter_prefix = "[SIMPLE-LOOP]" if simple else "[LOOP-ITER]"
             logger.info(f"🔄 {iter_prefix} Starting new trading iteration...")
@@ -997,7 +998,6 @@ def live_bitbank_command(
 
         # 正常終了時の処理（時間制限またはmax-trades到達）
         logger.info("✅ [NORMAL EXIT] Trading loop completed normally")
-        
         # Phase 2-1: ペーパートレードサマリー表示（正常終了）
         if paper_trader is not None:
             logger.info("📊 [PAPER TRADE] Final Summary (Normal Exit):")
