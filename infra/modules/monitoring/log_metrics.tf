@@ -14,11 +14,6 @@ resource "google_logging_metric" "trade_errors" {
     value_type   = "INT64"
     unit         = "1"
     display_name = "Trade Execution Errors"
-    labels {
-      key         = "service_name"
-      value_type  = "STRING"
-      description = "Cloud Run service name"
-    }
   }
 }
 
@@ -33,10 +28,5 @@ resource "google_logging_metric" "data_fetch_success" {
     value_type   = "INT64"
     unit         = "1"
     display_name = "Data Fetch Success"
-    labels {
-      key         = "service_name"
-      value_type  = "STRING"
-      description = "Cloud Run service name"
-    }
   }
 }
