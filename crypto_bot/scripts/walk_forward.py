@@ -22,13 +22,21 @@ from typing import Callable, List, Tuple
 import pandas as pd
 import yaml
 
-# Backtest engine import - 統合バックテストエンジン使用
+# Backtest engine import - 統合バックテストエンジン使用（開発環境のみ）
 # プロジェクトルートからの相対パスでbacktestディレクトリを追加
 project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-sys.path.insert(0, os.path.join(project_root, "backtest"))
-from engine.backtest_engine import BacktestEngine
+
+# 開発環境でのみBacktestEngineをインポート
+BacktestEngine = None
+try:
+    if os.path.exists(os.path.join(project_root, "backtest")):
+        sys.path.insert(0, os.path.join(project_root, "backtest"))
+        from engine.backtest_engine import BacktestEngine
+except ImportError:
+    # 本番環境ではBacktestEngineが不要
+    BacktestEngine = None
 
 from crypto_bot.data.fetcher import DataPreprocessor, MarketDataFetcher
 from crypto_bot.strategy.base import StrategyBase
@@ -75,6 +83,9 @@ def walk_forward_test(
     ウォークフォワードで複数の学習+テスト窓をスライドし、
     各テスト期間でバックテスト→結果をDataFrameで返します。
     """
+    if BacktestEngine is None:
+        raise ImportError("BacktestEngine is not available in production environment")
+
     results = []
     splits = split_walk_forward(df, train_window, test_window, step)
 

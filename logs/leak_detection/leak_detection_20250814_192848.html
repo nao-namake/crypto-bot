@@ -1,0 +1,98 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Future Data Leak Detection Report</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .header { background-color: #2c3e50; color: white; padding: 25px; border-radius: 8px; }
+        .status { font-size: 36px; color: red; font-weight: bold; margin: 20px 0; }
+        .section { background-color: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .issue { padding: 15px; margin: 10px 0; border-left: 4px solid; background-color: #f9f9f9; }
+        .CRITICAL { border-color: #e74c3c; background-color: #ffe6e6; }
+        .HIGH { border-color: #e67e22; background-color: #fff4e6; }
+        .MEDIUM { border-color: #f39c12; background-color: #fffae6; }
+        .LOW { border-color: #3498db; background-color: #e6f3ff; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #34495e; color: white; }
+        .code { font-family: 'Courier New', monospace; background-color: #2c3e50; color: #ecf0f1; padding: 3px 6px; border-radius: 3px; }
+        .recommendation { background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .metric { display: inline-block; padding: 10px 20px; margin: 10px; background-color: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔍 Future Data Leak Detection Report</h1>
+        <p>Generated: 2025-08-14 19:28:48</p>
+        <div class="status">CRITICAL ISSUES FOUND</div>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Scan Summary</h2>
+        <div>
+            <span class="metric">📁 Files Scanned: 10</span>
+            <span class="metric">⚠️ Total Issues: 3</span>
+            <span class="metric">🔴 Critical: 1</span>
+            <span class="metric">🟠 High: 1</span>
+            <span class="metric">🟡 Medium: 1</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>⚠️ Issues Found</h2>
+
+        <div class="issue HIGH">
+            <strong>HIGH</strong>: Future data leak detected
+            <br>📁 File: test.py
+            <br>📍 Line 10: <span class="code">df.shift(-1)</span>
+        </div>
+
+    </div>
+    
+    <div class="section">
+        <h2>💡 Recommendations</h2>
+        <div class="recommendation">
+            <h3>Best Practices to Prevent Future Data Leaks:</h3>
+            <ul>
+                <li>✅ Always use <code>shift(1)</code> or higher for past data, never negative values</li>
+                <li>✅ Use <code>rolling(window)</code> without <code>center=True</code></li>
+                <li>✅ When using <code>iloc</code>, ensure indices reference past data only</li>
+                <li>✅ Split train/test data chronologically with no overlap</li>
+                <li>✅ Validate feature consistency: features computed on partial data should match when computed on full data</li>
+                <li>✅ Add timestamp checks in production to ensure no future data access</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>📈 Common Patterns Detected</h2>
+        <table>
+            <tr>
+                <th>Pattern</th>
+                <th>Risk Level</th>
+                <th>Example</th>
+                <th>Safe Alternative</th>
+            </tr>
+            <tr>
+                <td>Future Shift</td>
+                <td style="color: red;">HIGH</td>
+                <td><code>df.shift(-1)</code></td>
+                <td><code>df.shift(1)</code></td>
+            </tr>
+            <tr>
+                <td>Center Rolling</td>
+                <td style="color: orange;">MEDIUM</td>
+                <td><code>df.rolling(5, center=True)</code></td>
+                <td><code>df.rolling(5)</code></td>
+            </tr>
+            <tr>
+                <td>Future Indexing</td>
+                <td style="color: red;">HIGH</td>
+                <td><code>df.iloc[i:i+10]</code></td>
+                <td><code>df.iloc[max(0,i-10):i]</code></td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

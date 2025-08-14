@@ -58,9 +58,12 @@ backtest_command = None
 optimize_backtest_command = None
 try:
     # backtest/ディレクトリ存在チェック（開発環境判定）
-    if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), "backtest")):
+    if os.path.exists(
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "backtest")
+    ):
         from crypto_bot.cli.backtest import backtest_command
         from crypto_bot.cli.optimize import optimize_backtest_command
+
         logger.info("💡 Development environment: backtest commands loaded")
     else:
         logger.info("🚀 Production environment: backtest commands skipped")
