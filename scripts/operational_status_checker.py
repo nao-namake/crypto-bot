@@ -28,7 +28,7 @@ import re
 import requests
 
 # プロジェクトルート設定
-PROJECT_ROOT = Path(__file__).parent.paren
+PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 # ログ設定

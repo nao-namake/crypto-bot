@@ -10,8 +10,8 @@
                 "gcp_cloud_run_status",
                 "api_connectivity",
                 "system_health",
-                "resource_usage"
-            ]
+                "resource_usage",
+            ],
         },
         "phase2": {
             "name": "アプリケーション動作確認",
@@ -20,8 +20,8 @@
                 "log_analysis",
                 "data_fetching_efficiency",
                 "signal_generation_health",
-                "main_loop_status"
-            ]
+                "main_loop_status",
+            ],
         },
         "phase3": {
             "name": "隠れた問題検出",
@@ -30,8 +30,8 @@
                 "hidden_error_patterns",
                 "performance_anomalies",
                 "future_data_leaks",
-                "config_integrity"
-            ]
+                "config_integrity",
+            ],
         },
         "phase4": {
             "name": "総合判定・レポート",
@@ -40,9 +40,9 @@
                 "overall_scoring",
                 "risk_assessment",
                 "action_recommendations",
-                "report_generation"
-            ]
-        }
+                "report_generation",
+            ],
+        },
     },
     "thresholds": {
         "critical_score": 70,
@@ -56,7 +56,7 @@
         "max_empty_batch_ratio": 0.5,
         "max_data_fetch_attempts": 15,
         "max_api_error_rate": 0.1,
-        "max_memory_usage_percent": 90
+        "max_memory_usage_percent": 90,
     },
     "hidden_error_patterns": {
         "description": "過去に発生した見つけにくいエラーパターン",
@@ -69,19 +69,19 @@
                     "log_patterns": [
                         "current=48/300",
                         "⚠️ Empty batch [0-9]+/8",
-                        "🔄 Attempt [1-9][0-9]+/20.*current=48/300"
+                        "🔄 Attempt [1-9][0-9]+/20.*current=48/300",
                     ],
                     "conditions": [
                         "empty_batch_count >= 8",
-                        "fetch_progress_stalled >= 1800"
-                    ]
+                        "fetch_progress_stalled >= 1800",
+                    ],
                 },
                 "description": "API制限または接続問題により48件で停滞、Empty batch連続発生",
                 "past_solutions": [
                     "API接続確認・認証情報チェック",
                     "レート制限回避・バックオフ調整",
-                    "データキャッシュ機能実装"
-                ]
+                    "データキャッシュ機能実装",
+                ],
             },
             {
                 "id": "ci_workflow_stuck",
@@ -90,19 +90,19 @@
                 "detection": {
                     "github_patterns": [
                         "in_progress.*[5-9] hour",
-                        "Run quality checks.*in_progress.*>3600"
+                        "Run quality checks.*in_progress.*>3600",
                     ],
                     "conditions": [
                         "ci_duration_seconds > 3600",
-                        "ci_status == 'in_progress'"
-                    ]
+                        "ci_status == 'in_progress'",
+                    ],
                 },
                 "description": "GitHub Actionsが数時間スタック、新デプロイ未実行",
                 "past_solutions": [
                     "スタックCIのキャンセル・再実行",
                     "テスト環境でのローカル検証",
-                    "CI/CDタイムアウト設定の見直し"
-                ]
+                    "CI/CDタイムアウト設定の見直し",
+                ],
             },
             {
                 "id": "surface_healthy_actually_stopped",
@@ -113,15 +113,15 @@
                     "conditions": [
                         "health_timestamp_age_hours >= 4",
                         "latest_log_age_hours >= 2",
-                        "no_recent_activity == true"
-                    ]
+                        "no_recent_activity == true",
+                    ],
                 },
                 "description": "ヘルスチェックは200だが、実際は数時間前から停止",
                 "past_solutions": [
                     "Cloud Run強制再起動",
                     "リビジョン切替確認",
-                    "アプリケーションレベル診断"
-                ]
+                    "アプリケーションレベル診断",
+                ],
             },
             {
                 "id": "timezone_confusion",
@@ -129,14 +129,14 @@
                 "severity": "MEDIUM",
                 "detection": {
                     "patterns": ["mixed_timezone_display", "time_interpretation_error"],
-                    "conditions": ["timezone_consistency_check == false"]
+                    "conditions": ["timezone_consistency_check == false"],
                 },
                 "description": "UTC・JST時刻混在により状況判断を誤る",
                 "past_solutions": [
                     "全時刻表示をJST統一",
                     "統合時刻管理ツール使用",
-                    "時刻変換自動化"
-                ]
+                    "時刻変換自動化",
+                ],
             },
             {
                 "id": "import_error_hidden",
@@ -146,16 +146,16 @@
                     "log_patterns": [
                         "ImportError.*BitbankCoreExecutor",
                         "AttributeError.*fetch_ticker",
-                        "cannot import name.*from"
+                        "cannot import name.*from",
                     ],
-                    "test_patterns": ["test.*failed.*import", "ModuleNotFoundError"]
+                    "test_patterns": ["test.*failed.*import", "ModuleNotFoundError"],
                 },
                 "description": "テスト実行時やランタイムで発覚するインポート・メソッドエラー",
                 "past_solutions": [
                     "不足クラス・メソッドの実装",
                     "インポートパス修正",
-                    "型定義統合"
-                ]
+                    "型定義統合",
+                ],
             },
             {
                 "id": "module_not_found_critical",
@@ -166,25 +166,25 @@
                         "ModuleNotFoundError: No module named 'engine",
                         "from engine\\.[a-zA-Z_]+ import.*ModuleNotFoundError",
                         "backtest_engine import.*failed",
-                        "crypto_bot\\.cli\\.backtest.*line [0-9]+.*ModuleNotFoundError"
+                        "crypto_bot\\.cli\\.backtest.*line [0-9]+.*ModuleNotFoundError",
                     ],
                     "test_patterns": [
                         "tests/unit/main/test_main_cli\\.py.*FAILED.*ModuleNotFoundError",
                         "crypto_bot/main\\.py.*line [0-9]+.*ModuleNotFoundError",
-                        "E   ModuleNotFoundError: No module named 'engine"
+                        "E   ModuleNotFoundError: No module named 'engine",
                     ],
                     "ci_patterns": [
                         "CI.*failed.*ModuleNotFoundError",
-                        "pytest.*FAILED.*engine\\.backtest_engine"
-                    ]
+                        "pytest.*FAILED.*engine\\.backtest_engine",
+                    ],
                 },
                 "description": "バックテスト関連モジュール不在による完全起動阻害、CI/CD全面失敗",
                 "past_solutions": [
                     "本番環境からバックテスト機能完全除去",
                     "条件付きインポート実装（backtest/存在判定）",
                     "Dockerfileからbacktest/コピー除去",
-                    "crypto_bot/main.py インポート分岐追加"
-                ]
+                    "crypto_bot/main.py インポート分岐追加",
+                ],
             },
             {
                 "id": "main_loop_not_reached",
@@ -193,19 +193,19 @@
                 "detection": {
                     "log_patterns": [
                         "INIT-[1-5].*で停止",
-                        "ATR calculation.*完了後停止"
+                        "ATR calculation.*完了後停止",
                     ],
                     "conditions": [
                         "main_loop_entries == 0",
-                        "init_phase_stuck >= 1800"
-                    ]
+                        "init_phase_stuck >= 1800",
+                    ],
                 },
                 "description": "INIT段階で停止、メインループに到達しない",
                 "past_solutions": [
                     "初期化処理の簡素化",
                     "INIT段階エラーハンドリング強化",
-                    "タイムアウト設定適正化"
-                ]
+                    "タイムアウト設定適正化",
+                ],
             },
             {
                 "id": "revision_switch_failure",
@@ -214,19 +214,19 @@
                 "detection": {
                     "gcp_patterns": [
                         "新リビジョン作成.*トラフィック0%",
-                        "ACTIVE.*古い作成時刻"
+                        "ACTIVE.*古い作成時刻",
                     ],
                     "conditions": [
                         "active_revision_age_hours >= 24",
-                        "latest_revision_traffic_percent < 50"
-                    ]
+                        "latest_revision_traffic_percent < 50",
+                    ],
                 },
                 "description": "新リビジョン作成されるが、古いバージョンがACTIVE継続",
                 "past_solutions": [
                     "トラフィック手動切替",
                     "古リビジョン削除・クリーンアップ",
-                    "デプロイプロセス見直し"
-                ]
+                    "デプロイプロセス見直し",
+                ],
             },
             {
                 "id": "infinite_retry_loop",
@@ -235,19 +235,19 @@
                 "detection": {
                     "log_patterns": [
                         "🔄 Attempt [1-9][0-9]+/20",
-                        "Smart backoff.*[3-9][0-9]\\.[0-9]+s"
+                        "Smart backoff.*[3-9][0-9]\\.[0-9]+s",
                     ],
                     "conditions": [
                         "retry_attempts >= 15",
-                        "backoff_duration_seconds >= 30"
-                    ]
+                        "backoff_duration_seconds >= 30",
+                    ],
                 },
                 "description": "リトライ回数異常増加、バックオフ時間延長",
                 "past_solutions": [
                     "リトライロジック見直し",
                     "タイムスタンプ検証強化",
-                    "異常検出・早期脱出実装"
-                ]
+                    "異常検出・早期脱出実装",
+                ],
             },
             {
                 "id": "model_prediction_anomaly",
@@ -255,21 +255,21 @@
                 "severity": "MEDIUM",
                 "detection": {
                     "signal_patterns": [
-                        "confidence.*0\\.0{3}",
-                        "confidence.*1\\.0{3}",
-                        "連続[3-9][0-9].*HOLD"
+                        "confidence.*0\\.0{3,}",
+                        "confidence.*1\\.0{3,}",
+                        "連続[3-9][0-9].*HOLD",
                     ],
                     "conditions": [
                         "confidence_variance < 0.01",
-                        "consecutive_holds >= 30"
-                    ]
+                        "consecutive_holds >= 30",
+                    ],
                 },
                 "description": "予測confidenceが固定値・モデル予測異常",
                 "past_solutions": [
                     "モデル再学習・検証",
                     "特徴量整合性チェック",
-                    "予測パイプライン診断"
-                ]
+                    "予測パイプライン診断",
+                ],
             },
             {
                 "id": "memory_leak_gradual",
@@ -278,19 +278,19 @@
                 "detection": {
                     "resource_patterns": [
                         "memory.*usage.*increasing",
-                        "response.*time.*degradation"
+                        "response.*time.*degradation",
                     ],
                     "conditions": [
                         "memory_growth_rate_mb_per_hour >= 10",
-                        "response_time_trend_increasing == true"
-                    ]
+                        "response_time_trend_increasing == true",
+                    ],
                 },
                 "description": "時間とともにメモリ使用量増加、レスポンス劣化",
                 "past_solutions": [
                     "メモリプロファイリング実行",
                     "キャッシュクリーンアップ実装",
-                    "インスタンス定期再起動"
-                ]
+                    "インスタンス定期再起動",
+                ],
             },
             {
                 "id": "model_compatibility_error",
@@ -300,19 +300,19 @@
                     "log_patterns": [
                         "DecisionTreeClassifier.*has no attribute.*monotonic_cst",
                         "Trading prediction failed for base model",
-                        "sklearn.*version.*mismatch"
+                        "sklearn.*version.*mismatch",
                     ],
                     "conditions": [
                         "model_prediction_failures >= 1",
-                        "no_trade_signals_generated == true"
-                    ]
+                        "no_trade_signals_generated == true",
+                    ],
                 },
                 "description": "scikit-learnバージョン不整合によるモデル予測失敗、トレード不能",
                 "past_solutions": [
                     "scripts/model_tools/retrain_97_features_model.py --fix-compatibility-only実行",
                     "モデル再学習でバージョン統一",
-                    "crypto_bot/ml/ensemble.pyにパッチ適用"
-                ]
+                    "crypto_bot/ml/ensemble.pyにパッチ適用",
+                ],
             },
             {
                 "id": "frequent_instance_restart",
@@ -323,19 +323,19 @@
                         "Received signal 15",
                         "SIGTERM",
                         "Shutting down gracefully",
-                        "Shutting down user disabled instance"
+                        "Shutting down user disabled instance",
                     ],
                     "conditions": [
                         "restart_frequency_per_hour >= 1",
-                        "min_instances_setting == 0"
-                    ]
+                        "min_instances_setting == 0",
+                    ],
                 },
                 "description": "Cloud Runのmin-instances=0によるアイドルタイムアウト、状態リセット",
                 "past_solutions": [
                     "gcloud run services update --min-instances=1",
                     "CPU throttling無効化",
-                    "タイムアウト延長（--timeout=3600）"
-                ]
+                    "タイムアウト延長（--timeout=3600）",
+                ],
             },
             {
                 "id": "confidence_below_threshold_chronic",
@@ -344,19 +344,19 @@
                 "detection": {
                     "log_patterns": [
                         "confidence=0\\.[0-2][0-9][0-9][0-9], threshold=0\\.[3-9]",
-                        "Entry order details: side=None, price=None, lot=0\\.0"
+                        "Entry order details: side=None, price=None, lot=0\\.0",
                     ],
                     "conditions": [
                         "avg_confidence_last_10 < threshold",
-                        "no_entry_signals_hours >= 2"
-                    ]
+                        "no_entry_signals_hours >= 2",
+                    ],
                 },
                 "description": "予測confidenceが常に閾値を下回り、エントリーシグナル生成されず",
                 "past_solutions": [
                     "confidence_threshold引き下げ（0.35→0.25）",
                     "モデル性能改善・再学習",
-                    "データ品質向上・取得量増加"
-                ]
+                    "データ品質向上・取得量増加",
+                ],
             },
             {
                 "id": "data_fetch_insufficient_volume",
@@ -365,19 +365,19 @@
                 "detection": {
                     "log_patterns": [
                         "current=[0-9]{1,2}/150",
-                        "current=1[0-2][0-9]/150"
+                        "current=1[0-2][0-9]/150",
                     ],
                     "conditions": [
                         "data_fetch_completion_rate < 0.5",
-                        "data_fetch_attempts >= 10"
-                    ]
+                        "data_fetch_attempts >= 10",
+                    ],
                 },
                 "description": "目標データ量の50%未満しか取得できず、予測精度に悪影響",
                 "past_solutions": [
                     "API制限設定緩和（rateLimit引き下げ）",
                     "max_consecutive_empty上限拡大",
-                    "backoff時間延長・リトライ増加"
-                ]
+                    "backoff時間延長・リトライ増加",
+                ],
             },
             {
                 "id": "ensemble_model_degraded",
@@ -386,40 +386,40 @@
                 "detection": {
                     "log_patterns": [
                         "Base model [0-9] failed \\(using fallback\\)",
-                        "Trading prediction failed for base model"
+                        "Trading prediction failed for base model",
                     ],
                     "conditions": [
                         "model_fallback_rate > 0.3",
-                        "base_model_failures >= 5"
-                    ]
+                        "base_model_failures >= 5",
+                    ],
                 },
                 "description": "アンサンブル内の複数モデルが失敗、予測品質低下",
                 "past_solutions": [
                     "モデル互換性修正・再学習",
                     "sklearn version統一",
-                    "ensemble.py パッチ強化"
-                ]
-            }
-        ]
+                    "ensemble.py パッチ強化",
+                ],
+            },
+        ],
     },
     "detection_rules": {
         "data_quality": {
             "empty_batch_threshold": 5,
             "stalled_progress_seconds": 1800,
-            "api_error_rate_threshold": 0.2
+            "api_error_rate_threshold": 0.2,
         },
         "system_health": {
             "max_memory_usage": 0.9,
             "max_cpu_usage": 0.8,
             "max_response_time": 10.0,
-            "min_uptime_hours": 1.0
+            "min_uptime_hours": 1.0,
         },
         "trading_signals": {
             "max_silence_hours": 2.0,
             "min_signal_diversity": 0.1,
             "confidence_range": [0.05, 0.95],
-            "max_consecutive_same": 50
-        }
+            "max_consecutive_same": 50,
+        },
     },
     "reporting": {
         "output_formats": ["console", "html", "json"],
@@ -428,9 +428,9 @@
             "infrastructure": 0.25,
             "application": 0.30,
             "hidden_issues": 0.30,
-            "overall_health": 0.15
+            "overall_health": 0.15,
         },
-        "action_priority_levels": ["IMMEDIATE", "HIGH", "MEDIUM", "LOW", "INFO"]
+        "action_priority_levels": ["IMMEDIATE", "HIGH", "MEDIUM", "LOW", "INFO"],
     },
     "integration": {
         "existing_tools": {
@@ -438,13 +438,13 @@
             "error_analyzer": "scripts/monitoring/error_analyzer.py",
             "system_health": "scripts/system_tools/system_health_check.py",
             "leak_detector": "scripts/monitoring/future_leak_detector.py",
-            "gcp_log_viewer": "scripts/utilities/unified_status_checker.py"
+            "gcp_log_viewer": "scripts/utilities/unified_status_checker.py",
         },
         "log_sources": {
             "gcp_logs": "gcloud logging read",
             "local_logs": "logs/",
             "signal_csv": "logs/trading_signals.csv",
-            "health_endpoint": "/health"
-        }
-    }
+            "health_endpoint": "/health",
+        },
+    },
 }
