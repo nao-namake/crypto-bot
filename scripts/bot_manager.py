@@ -192,6 +192,108 @@ class BotManager:
 
         return returncode
 
+    def terraform_check(self) -> int:
+        """
+        Terraform設定の検証
+        
+        チェック内容:
+        - terraform.tfの構文検証
+        - terraform validate実行
+        - terraform plan実行（ダミー変数使用）
+        """
+        print("\n" + "=" * 60)
+        print("🏗️ Terraform Configuration Check")
+        print("=" * 60)
+        
+        infra_dir = self.project_root / "infra" / "envs" / "prod"
+        
+        if not infra_dir.exists():
+            print("⚠️ Terraformディレクトリが存在しません: infra/envs/prod/")
+            return 1
+        
+        checks_passed = []
+        checks_failed = []
+        
+        # 1. Terraform初期化確認
+        print("\n▶️ 1. Terraform初期化確認")
+        print("-" * 40)
+        terraform_dir = infra_dir / ".terraform"
+        if terraform_dir.exists():
+            print("✅ Terraform初期化済み")
+            checks_passed.append("Terraform初期化")
+        else:
+            print("⚠️ Terraform未初期化 - 'terraform init'を実行してください")
+            cmd = ["terraform", "-chdir=" + str(infra_dir), "init", "-upgrade"]
+            returncode, output = self.run_command(cmd, capture=True)
+            if returncode == 0:
+                checks_passed.append("Terraform初期化")
+            else:
+                checks_failed.append("Terraform初期化")
+        
+        # 2. Terraform validate
+        print("\n▶️ 2. Terraform構文検証")
+        print("-" * 40)
+        cmd = ["terraform", "-chdir=" + str(infra_dir), "validate"]
+        returncode, output = self.run_command(cmd, capture=True)
+        
+        if returncode == 0:
+            print("✅ Terraform構文検証成功")
+            checks_passed.append("Terraform validate")
+        else:
+            print("❌ Terraform構文エラー")
+            print(output)
+            checks_failed.append("Terraform validate")
+        
+        # 3. Terraform plan（ダミー変数使用）
+        print("\n▶️ 3. Terraform plan（基本チェック）")
+        print("-" * 40)
+        print("📌 ダミー変数で基本的な設定エラーをチェック...")
+        
+        cmd = [
+            "terraform", 
+            f"-chdir={infra_dir}",
+            "plan",
+            "-input=false",
+            "-var=discord_webhook_url=https://discord.com/dummy",
+            "-var=bitbank_api_key=dummy",
+            "-var=bitbank_api_secret=dummy"
+        ]
+        
+        returncode, output = self.run_command(cmd, capture=True)
+        
+        # エラーチェック（label extractorsやリソース定義エラーなど）
+        if "Error:" in output:
+            print("❌ Terraform planでエラー検出")
+            # エラー部分のみ抽出して表示
+            error_lines = []
+            for line in output.split('\n'):
+                if 'Error:' in line or '│' in line:
+                    error_lines.append(line)
+            if error_lines:
+                print("\n".join(error_lines[:20]))  # 最初の20行のみ表示
+            checks_failed.append("Terraform plan")
+        else:
+            print("✅ Terraform plan基本チェック成功")
+            checks_passed.append("Terraform plan")
+        
+        # 結果サマリー
+        print("\n" + "=" * 60)
+        print("📊 Terraformチェック結果")
+        print("-" * 40)
+        print(f"✅ 成功: {len(checks_passed)} 項目")
+        for check in checks_passed:
+            print(f"   • {check}")
+        
+        if checks_failed:
+            print(f"❌ 失敗: {len(checks_failed)} 項目")
+            for check in checks_failed:
+                print(f"   • {check}")
+            print("\n💡 ヒント: エラーを修正してから再度実行してください")
+            return 1
+        else:
+            print("\n✅ すべてのTerraformチェックに合格しました")
+            return 0
+
     def leak_detection(self, html: bool = True) -> int:
         """
         未来データリーク検出
@@ -361,9 +463,13 @@ else:
             print(f"✅ すべてのチェックに合格: {len(checks_passed)}項目")
             return 0
 
-    def full_check(self) -> int:
+    def full_check(self, with_paper_trade: bool = False, paper_trade_hours: int = 1) -> int:
         """
         フルチェック（デプロイ前の完全検証）
+        
+        Args:
+            with_paper_trade: ペーパートレードを実行するか（最後に実行）
+            paper_trade_hours: ペーパートレードの実行時間
         """
         print("\n" + "=" * 60)
         print("🎯 Full Pre-deployment Check")
@@ -371,17 +477,18 @@ else:
         print(f"開始時刻: {datetime.now()}")
         print("=" * 60)
 
+        # 基本ステップ（ペーパートレード以外）
         steps = [
-            ("1/6 データ取得チェック", lambda: self.data_check()),
-            ("2/6 品質チェック", lambda: self.validate("quick")),
-            ("3/6 未来データリーク検出", lambda: self.leak_detection()),
-            ("4/6 シグナル監視", lambda: self.monitor(hours=1)),
-            (
-                "5/6 エラー分析",
-                lambda: self.fix_errors(auto_fix=False, interactive=False),
-            ),
-            ("6/6 完全検証", lambda: self.validate("full")),
+            ("1/7 データ取得チェック", lambda: self.data_check()),
+            ("2/7 品質チェック（高速）", lambda: self.validate("quick")),
+            ("3/7 Terraform検証", lambda: self.terraform_check()),
+            ("4/7 未来データリーク検出", lambda: self.leak_detection()),
+            ("5/7 エラー分析", lambda: self.fix_errors(auto_fix=False, interactive=False)),
+            ("6/7 完全検証", lambda: self.validate("full")),
         ]
+        
+        # シグナル監視は短時間で
+        steps.insert(4, ("4.5/7 シグナル監視（短時間）", lambda: self.monitor(hours=0.5)))
 
         failed_steps = []
 
@@ -392,6 +499,16 @@ else:
             if returncode != 0:
                 failed_steps.append(step_name)
                 print(f"⚠️ {step_name} で問題が検出されました")
+        
+        # ペーパートレードは最後に実行（オプショナル）
+        if with_paper_trade:
+            print(f"\n▶️ 7/7 ペーパートレード（{paper_trade_hours}時間）")
+            print("-" * 40)
+            print("⚠️ 注意: ペーパートレードは時間がかかるため最後に実行します")
+            returncode = self.paper_trade(paper_trade_hours)
+            if returncode != 0:
+                failed_steps.append("ペーパートレード")
+                print(f"⚠️ ペーパートレードで問題が検出されました")
 
         print("\n" + "=" * 60)
         print("📊 Full Check Results")
@@ -458,8 +575,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # デプロイ前の完全チェック
+  # デプロイ前の完全チェック（基本）
   python scripts/bot_manager.py full-check
+  
+  # デプロイ前の完全チェック（ペーパートレード付き）
+  python scripts/bot_manager.py full-check --with-paper-trade --paper-trade-hours 2
+  
+  # Terraform設定検証
+  python scripts/bot_manager.py terraform
   
   # 高速検証のみ
   python scripts/bot_manager.py validate --mode quick
@@ -524,9 +647,23 @@ Examples:
 
     # data-check コマンド
     subparsers.add_parser("data-check", help="データ取得ロジックの事前検証")
+    
+    # terraform コマンド
+    subparsers.add_parser("terraform", help="Terraform設定の検証")
 
     # full-check コマンド
-    subparsers.add_parser("full-check", help="デプロイ前の完全チェック")
+    full_parser = subparsers.add_parser("full-check", help="デプロイ前の完全チェック")
+    full_parser.add_argument(
+        "--with-paper-trade",
+        action="store_true",
+        help="ペーパートレードも実行（最後に実行、時間がかかります）"
+    )
+    full_parser.add_argument(
+        "--paper-trade-hours",
+        type=int,
+        default=1,
+        help="ペーパートレード実行時間（デフォルト: 1時間）"
+    )
 
     # status コマンド
     subparsers.add_parser("status", help="システム状態確認")
@@ -555,8 +692,13 @@ Examples:
         return manager.leak_detection(not args.no_html)
     elif args.command == "data-check":
         return manager.data_check()
+    elif args.command == "terraform":
+        return manager.terraform_check()
     elif args.command == "full-check":
-        return manager.full_check()
+        return manager.full_check(
+            with_paper_trade=args.with_paper_trade,
+            paper_trade_hours=args.paper_trade_hours
+        )
     elif args.command == "status":
         manager.show_status()
         return 0

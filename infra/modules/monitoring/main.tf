@@ -112,7 +112,7 @@ resource "google_monitoring_alert_policy" "trade_execution_failure" {
     content = "🚨 **最重要**: 取引実行エラーが検出されました。ログを確認してAPI認証・残高・システム状態をチェックしてください。"
   }
 
-  depends_on = [google_logging_metric.trade_errors]
+  depends_on = [time_sleep.wait_for_metrics_propagation]
 }
 
 # 🆕 システム停止アラート
@@ -208,5 +208,5 @@ resource "google_monitoring_alert_policy" "data_fetch_failure" {
     content = "🚨 **データ取得停止**: 10分以上市場データ取得ログが確認できません。Bitbank API・ネットワーク接続・システム状態を確認してください。"
   }
 
-  depends_on = [google_logging_metric.data_fetch_success]
+  depends_on = [time_sleep.wait_for_metrics_propagation]
 }

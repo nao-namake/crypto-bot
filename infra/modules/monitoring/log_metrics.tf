@@ -30,3 +30,17 @@ resource "google_logging_metric" "data_fetch_success" {
     display_name = "Data Fetch Success"
   }
 }
+
+# =============================================================================
+# メトリクス伝播待機
+# Google Cloudでメトリクスが利用可能になるまで最大10分かかるため待機
+# =============================================================================
+
+resource "time_sleep" "wait_for_metrics_propagation" {
+  depends_on = [
+    google_logging_metric.trade_errors,
+    google_logging_metric.data_fetch_success
+  ]
+  
+  create_duration = "60s"  # 初期値60秒、必要に応じて調整可能
+}
