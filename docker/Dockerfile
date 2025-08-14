@@ -24,6 +24,9 @@ COPY config/production/ /app/config/production/
 COPY config/core/feature_order.json /app/feature_order.json
 COPY models/production/ /app/models/production/
 
+# backtest/ ディレクトリをコピー（CLI backtest_commandのため）
+COPY backtest/ /app/backtest/
+
 # 初期データキャッシュをコピー（Phase 18: CI環境対応）
 # キャッシュディレクトリを作成
 RUN mkdir -p /app/cache
