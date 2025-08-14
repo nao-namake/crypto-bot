@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Import CLI commands
 import click
 
-from crypto_bot.cli.backtest import backtest_command
+# 本番環境で必要なコマンドのみインポート
 from crypto_bot.cli.live import live_bitbank_command
 from crypto_bot.cli.model import retrain_command, validate_model_command
 from crypto_bot.cli.online import (
@@ -52,7 +52,22 @@ from crypto_bot.cli.online import (
     online_train_command,
     retrain_schedule_command,
 )
-from crypto_bot.cli.optimize import optimize_backtest_command
+
+# 開発環境でのみバックテスト機能をインポート（本番環境では不要）
+backtest_command = None
+optimize_backtest_command = None
+try:
+    # backtest/ディレクトリ存在チェック（開発環境判定）
+    if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), "backtest")):
+        from crypto_bot.cli.backtest import backtest_command
+        from crypto_bot.cli.optimize import optimize_backtest_command
+        logger.info("💡 Development environment: backtest commands loaded")
+    else:
+        logger.info("🚀 Production environment: backtest commands skipped")
+except ImportError as e:
+    logger.warning(f"⚠️ Backtest commands unavailable: {e}")
+    backtest_command = None
+    optimize_backtest_command = None
 from crypto_bot.cli.stats import stats_command
 from crypto_bot.cli.strategy import list_strategies_command, strategy_info_command
 from crypto_bot.cli.train import (
@@ -78,7 +93,10 @@ def cli():
 
 
 # Add commands to CLI group
-cli.add_command(backtest_command, name="backtest")
+# バックテストコマンドは開発環境でのみ追加
+if backtest_command:
+    cli.add_command(backtest_command, name="backtest")
+
 cli.add_command(live_bitbank_command, name="live-bitbank")
 cli.add_command(train_command, name="train")
 cli.add_command(optimize_ml_command, name="optimize-ml")
@@ -88,7 +106,11 @@ cli.add_command(online_train_command, name="online-train")
 cli.add_command(online_status_command, name="online-status")
 cli.add_command(drift_monitor_command, name="drift-monitor")
 cli.add_command(retrain_schedule_command, name="retrain-schedule")
-cli.add_command(optimize_backtest_command, name="optimize-backtest")
+
+# 最適化バックテストコマンドは開発環境でのみ追加
+if optimize_backtest_command:
+    cli.add_command(optimize_backtest_command, name="optimize-backtest")
+
 cli.add_command(list_strategies_command, name="list-strategies")
 cli.add_command(strategy_info_command, name="strategy-info")
 cli.add_command(validate_config_command, name="validate-config")
