@@ -188,17 +188,8 @@ jobs:
       - name: Create CI cache directory with minimal data
         run: |
           echo "🔧 Creating cache directory with minimal initial data for CI..."
-          mkdir -p cache
-          
-          # 最小限の初期データキャッシュを作成（CIではAPI認証できないため）
-          # CI用のスクリプトを実行（エラーがあっても継続）
-          python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Cache creation failed, but continuing"
-          
-          # メタデータファイルも作成
-          echo '{"generated": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'", "environment": "CI", "records": 300}' > cache/initial_data_metadata.json
-          
-          echo "✅ CI cache directory created with initial data"
-          ls -la cache/
+          # Use lightweight bash script that doesn't require Python dependencies
+          bash scripts/data_tools/create_ci_cache.sh
         # CI環境用の初期データキャッシュ作成
 
       - name: Prepare model files for CI
@@ -383,32 +374,22 @@ jobs:
         with:
           terraform_version: 1.8.5
 
-      - name: Prepare Production Data Cache
-        env:
-          BITBANK_API_KEY: ${{ secrets.BITBANK_API_KEY }}
-          BITBANK_API_SECRET: ${{ secrets.BITBANK_API_SECRET }}
+      - name: Clear Terraform state lock if exists
         run: |
-          echo "📊 Preparing production data cache..."
-          
-          # Try to fetch real data for production
-          if [[ -n "$BITBANK_API_KEY" ]] && [[ -n "$BITBANK_API_SECRET" ]]; then
-            echo "🔄 Fetching real market data for production cache..."
-            python scripts/data_tools/prepare_initial_data.py || {
-              echo "⚠️ Failed to fetch real data, using minimal cache"
-              python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Minimal cache creation also failed"
-            }
+          echo "🔒 Checking for existing Terraform state lock..."
+          if gsutil ls gs://my-crypto-bot-terraform-state/prod/default.tflock 2>/dev/null; then
+            echo "⚠️ Found existing lock file, removing it..."
+            gsutil rm gs://my-crypto-bot-terraform-state/prod/default.tflock || echo "Failed to remove lock, but continuing"
           else
-            echo "⚠️ API credentials not available, creating minimal cache..."
-            python scripts/data_tools/create_minimal_cache.py || echo "⚠️ Minimal cache creation failed"
+            echo "✅ No existing lock file found"
           fi
-          
-          # Verify cache was created
-          if [ -f "cache/initial_data.pkl" ]; then
-            echo "✅ Production cache prepared successfully"
-            ls -la cache/
-          else
-            echo "⚠️ Cache file not found, deployment may have issues"
-          fi
+
+      - name: Prepare Production Data Cache
+        run: |
+          echo "📊 Preparing production data cache for CI environment..."
+          # Use lightweight bash script that doesn't require Python dependencies
+          bash scripts/data_tools/create_ci_cache.sh
+          echo "✅ Cache preparation complete"
 
       - name: Terraform Init (Production)
         run: terraform -chdir=${{ env.TF_ENV_DIR }} init -upgrade -lock-timeout=5m
