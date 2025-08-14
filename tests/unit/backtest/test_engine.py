@@ -17,7 +17,7 @@ project_root = os.path.dirname(
 )
 sys.path.insert(0, os.path.join(project_root, "backtest"))
 try:
-    from engine import BacktestEngine
+    from engine.backtest_engine import BacktestEngine
     from engine.engine import TradeRecord
 except ImportError:
     # フォールバック: 旧パスを維持

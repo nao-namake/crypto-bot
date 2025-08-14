@@ -1,17 +1,22 @@
-# Monitoring Module - Discord通知システム
+# Monitoring Module - Google Logging Metrics伝播待機システム
 
-crypto-botのためのCloud Monitoring・アラート・Discord通知システムのTerraform設定モジュールです。
+crypto-botのためのCloud Monitoring・アラート・Discord通知システムのTerraform設定モジュールです。**Phase 20: Google Logging Metrics伝播待機システム実装完了**
 
 ## 📋 概要
 
 **目的**: 重要なシステム異常のDiscord通知・メール通知完全廃止  
 **対象**: Cloud Run `crypto-bot-service-prod` の監視  
 **通知先**: Discord Webhook（埋め込みメッセージ形式）  
-**設計原則**: 重要アラートのみ・私生活影響ゼロ
+**設計原則**: 重要アラートのみ・私生活影響ゼロ・Google Cloud仕様完全対応
 
-## 🎯 2025年8月13日実装完了
+## 🎯 2025年8月14日 Phase 20完成 - Google Logging Metrics伝播待機システム実装完了
 
-### **✅ 解決した問題**
+### **🆕 Phase 20で解決した問題**
+- **🚀 CI/CD 404エラー**: Google Logging Metrics「Cannot find metric」根本解決
+- **⏰ メトリクス伝播待機**: `time_sleep`リソース60秒待機でGoogle Cloud仕様対応
+- **📊 技術負債回避**: 標準的手法・作成時のみ動作・将来調整可能
+
+### **✅ 前Phase完了実績**
 - **❌ デプロイ時大量メール**: 数十通 → ゼロ通
 - **❌ 不要なアラート**: 高レイテンシアラート削除
 - **✅ Discord管理**: チャンネル単位での整理  
@@ -33,6 +38,7 @@ crypto-botのためのCloud Monitoring・アラート・Discord通知システ�
 ```
 monitoring/
 ├── main.tf          # アラートポリシー・通知チャンネル
+├── log_metrics.tf   # 🆕 Google Logging Metrics・time_sleep伝播待機
 ├── pubsub.tf        # Pub/Subトピック・デッドレター
 ├── functions.tf     # Cloud Functions・IAM・Secret Manager
 ├── logging_sink.tf  # BigQueryログシンク（既存）
@@ -59,6 +65,11 @@ monitoring/
 - `google_cloudfunctions_function.webhook_notifier` - Discord送信Function
 - `google_service_account.webhook_notifier` - 実行用サービスアカウント
 - `google_storage_bucket.function_source` - ソースコード保存バケット
+
+### **🆕 Google Logging Metrics・伝播待機**
+- `google_logging_metric.trade_errors` - 取引エラーログメトリクス
+- `google_logging_metric.data_fetch_success` - データ取得成功ログメトリクス  
+- `time_sleep.wait_for_metrics_propagation` - 60秒待機システム
 
 ### **Secret Manager**
 - `google_secret_manager_secret.discord_webhook_url` - WebhookURL保存
@@ -205,4 +216,4 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 
 ---
 
-**🎊 「デプロイするたびに数十通メール」問題を根本解決したDiscord通知システム**（2025年8月13日完成）
+**🎊 Phase 20完成 - Google Logging Metrics伝播待機システム実装完了・CI/CDエラー根絶達成**（2025年8月14日完成）
