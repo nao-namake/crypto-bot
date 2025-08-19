@@ -1,0 +1,239 @@
+# Phase 9-3: 50%資金投入設定 - production_50percent.yaml
+# 10%テスト成功後の段階的拡大設定（資金の50%でバランス型運用）
+
+# システム基本設定
+system:
+  name: "crypto-bot-phase9-50percent"
+  version: "9.2.0"
+  mode: "live"
+  debug: false
+  log_level: "INFO"
+
+# 取引所設定（本番と同一）
+exchange:
+  name: "bitbank"
+  symbol: "BTC/JPY"
+  leverage: 1.0  # まだ保守的なレバレッジ
+  
+  # API設定（環境変数から取得）
+  api_key: "${BITBANK_API_KEY}"
+  api_secret: "${BITBANK_API_SECRET}"
+  sandbox: false
+  
+  # API制限（本番と同一）
+  rate_limit: 30000
+  timeout: 90000
+  enable_rate_limit: true
+  retries: 3
+
+# データ設定（本番と同一）
+data:
+  timeframes: ["15m", "1h", "4h"]
+  since_hours: 96
+  limit: 100
+  
+  cache:
+    enabled: true
+    ttl_minutes: 5
+    max_size: 1000
+    disk_cache: true
+    retention_days: 90
+
+# 特徴量設定（本番と同一）
+features:
+  mode: "optimized"
+  
+  basic:
+    - "close"
+    - "volume" 
+    - "returns_1"
+  
+  technical:
+    - "rsi_14"
+    - "macd"
+    - "atr_14"
+    - "bb_position"
+    - "ema_20"
+    - "ema_50"
+  
+  anomaly:
+    - "zscore"
+    - "volume_ratio"
+    - "market_stress"
+
+# 戦略設定（バランス調整）
+strategies:
+  enabled:
+    - "atr_based"
+    - "mochipoy_alert"
+    - "multi_timeframe"
+    - "fibonacci_retracement"
+  
+  # バランス型重み設定（10%テスト結果を反映）
+  weights:
+    atr_based: 0.35             # 10%テストで安定したパフォーマンス
+    mochipoy_alert: 0.3         # 短期効率の実証済み
+    multi_timeframe: 0.25       # トレンド追従の信頼性
+    fibonacci_retracement: 0.1  # 依然として保守的
+  
+  consensus:
+    required_agreement: 0.65    # 65%合意（10%の70%→65%・わずかに緩和）
+    confidence_threshold: 0.45  # 信頼度閾値（10%の50%→45%・わずかに緩和）
+
+# 機械学習設定（バランス調整）
+ml:
+  ensemble_enabled: true
+  confidence_threshold: 0.55   # 55%（10%の60%→55%・わずかに緩和）
+  
+  models:
+    - "lgbm"
+    - "xgb"
+    - "rf"
+  
+  model_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+  
+  prediction:
+    lookback_periods: 100
+    retrain_frequency: "weekly"
+
+# リスク管理設定（50%資金用・バランス型）
+risk:
+  # Kelly基準（バランス調整）
+  kelly_criterion:
+    max_position_ratio: 0.03    # 最大3%（10%の2%→3%・段階的拡大）
+    safety_factor: 0.6          # Kelly値の60%使用（10%の50%→60%・拡大）
+    min_trades_for_kelly: 25    # 25取引必要（10%の30→25・わずかに緩和）
+  
+  # Phase 9-3: 50%資金用設定
+  risk_per_trade: 0.008         # 1取引あたり0.8%（10%の0.5%→0.8%・拡大）
+  kelly_max_fraction: 0.03      # Kelly基準最大3%（10%の2%→3%）
+  max_drawdown: 0.15           # 最大ドローダウン15%（10%の10%→15%・拡大）
+  stop_loss_atr_multiplier: 1.1 # 1.1×ATR損切り（10%の1.0→1.1・わずかに緩和）
+  consecutive_loss_limit: 4    # 連続4損失で18時間停止（10%の3回12時間→4回18時間）
+  
+  # ドローダウン管理（バランス調整）
+  drawdown_manager:
+    max_drawdown_ratio: 0.15    # 15%上限（10%の10%→15%）
+    consecutive_loss_limit: 4   # 連続4損失で停止
+    cooldown_hours: 18          # 18時間クールダウン（10%の12時間→18時間）
+  
+  # 異常検知（本番と同一）
+  anomaly_detector:
+    spread_warning_threshold: 0.003
+    spread_critical_threshold: 0.005
+    api_latency_warning: 1.0
+    api_latency_critical: 3.0
+  
+  # 統合判定閾値（バランス調整）
+  risk_thresholds:
+    min_ml_confidence: 0.55        # 最小ML信頼度55%（10%の60%→55%・緩和）
+    risk_threshold_deny: 0.75      # 75%以上でDENY（10%の70%→75%・わずかに厳格化）
+    risk_threshold_conditional: 0.55 # 55%以上で条件付き（10%の50%→55%・わずかに厳格化）
+
+# 注文実行設定（50%資金用・効率向上）
+execution:
+  mode: "live"
+  
+  order:
+    default_type: "limit"         # 指値注文優先
+    slippage_tolerance: 0.0008   # 0.08%スリッページ許容（10%の0.05%→0.08%・効率性向上）
+    max_retry: 4                 # 4回リトライ（10%の5回→4回・効率性重視）
+    retry_delay: 1.5             # 1.5秒間隔（10%の2秒→1.5秒・効率性向上）
+  
+  latency:
+    target_ms: 900               # 900ms以内（10%の800ms→900ms・わずかに緩和）
+    warning_ms: 450              # 450ms警告（10%の400ms→450ms）
+    critical_ms: 1800            # 1.8秒クリティカル（10%の1.5秒→1.8秒）
+
+# 50%資金投入専用設定
+production:
+  min_order_size: 0.0001        # 最小注文サイズ維持
+  max_order_size: 0.0005        # 最大注文サイズ（10%の0.0002→0.0005・拡大）
+  trade_interval: 90            # 取引間隔1.5分（10%の120秒→90秒・頻度向上）
+  margin_trading: true
+  force_margin_mode: true
+  
+  # 50%資金用バランス設定
+  daily_trade_limit: 15         # 1日最大15回取引（10%の10回→15回・拡大）
+  max_daily_loss: 0.03          # 1日最大3%損失（10%の2%→3%・拡大）
+  emergency_stop_loss: 0.08     # 緊急停止8%損失（10%の5%→8%・拡大）
+
+# ログ設定（バランス調整）
+logging:
+  level: "INFO"
+  file_enabled: true
+  discord_enabled: true
+  retention_days: 45            # 45日保存（10%の60日→45日・効率性向上）
+  
+  file:
+    enabled: true
+    path: "logs/production_50percent"
+    rotation: "daily"
+    retention_days: 45
+    max_size_mb: 150            # 150MB（10%の200MB→150MB・効率性向上）
+  
+  discord:
+    enabled: true
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    
+    levels:
+      critical: true
+      warning: true
+      info: false               # 情報レベル無効化（10%のtrue→false・効率性重視）
+
+# 監視・ヘルスチェック（効率化）
+monitoring:
+  health_check:
+    enabled: true
+    interval_seconds: 20        # 20秒間隔（10%の15秒→20秒・効率性向上）
+    timeout_seconds: 4          # 4秒タイムアウト（10%の3秒→4秒）
+    
+  performance:
+    enabled: true
+    metrics_interval: 180       # 3分間隔（10%の2分→3分・効率性向上）
+
+# GCP Cloud Run設定（リソース拡大）
+cloud_run:
+  memory: "1.5Gi"               # 1.5GB（10%の1GB→1.5GB・リソース拡大）
+  cpu: 1
+  
+  min_instances: 1
+  max_instances: 1
+  concurrency: 1
+  
+  timeout_seconds: 2400         # 40分タイムアウト（10%の30分→40分・拡大）
+
+# Phase 9-3: 50%資金投入段階の目標指標
+targets:
+  # 成功指標（バランス型）
+  monthly_profit_target: 12000  # 月間12,000円利益目標（全体17,000円の約70%）
+  max_monthly_trades: 300       # 月間最大300回（10%の200回→300回・拡大）
+  target_win_rate: 0.58         # 勝率58%目標（10%の60%→58%・現実的調整）
+  target_sharpe_ratio: 1.1      # シャープレシオ1.1目標（10%の1.2→1.1・現実的調整）
+  
+  # 検証期間
+  evaluation_period_days: 21    # 21日間検証（10%の14日→21日・長期検証）
+  min_trades_for_evaluation: 100 # 最低100取引必要（10%の50→100・データ充実）
+
+# セキュリティ設定（維持）
+security:
+  api_key_rotation_days: 30
+  max_api_calls_per_hour: 1500  # 時間あたりAPI呼び出し制限（10%の1000→1500・拡大）
+  emergency_contacts:
+    - "email@example.com"
+
+# Phase 9-3: 50%段階での条件
+upgrade_conditions:
+  # 100%移行条件
+  required_performance:
+    min_profit_7days: 3000      # 7日間で3,000円以上利益
+    max_drawdown_7days: 0.10    # 7日間最大ドローダウン10%以内
+    min_trades_7days: 25        # 7日間で最低25取引
+    win_rate_7days: 0.55        # 7日間勝率55%以上
+  
+  # 自動判定
+  auto_evaluation: true         # 自動評価有効
+  evaluation_frequency_hours: 168 # 7日（168時間）ごとに評価

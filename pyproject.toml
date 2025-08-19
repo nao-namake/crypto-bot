@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crypto-bot"
+version = "2.0.0"
+description = "AI-powered cryptocurrency trading bot"
+authors = [{name = "Crypto Bot Team", email = "team@crypto-bot.local"}]
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# pytestキャッシュを .cache/pytest に統合
+cache_dir = ".cache/pytest"
+# テストファイル名のパターン
+python_files = ["test_*.py", "*_e2e.py"]
+# asyncio 用のデフォルト fixture loop scope を function に固定
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+# pandas の 'H' deprecated 警告を抑制
+filterwarnings = [
+    "ignore:'H' is deprecated and will be removed in a future version.*:FutureWarning"
+]
+
+[tool.coverage.run]
+# カバレッジファイルを .cache/coverage に統合
+data_file = ".cache/coverage/.coverage"
+source = ["src"]
+parallel = false
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/env/*",
+    "*/.cache/*",
+    "*/_legacy_v1/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+fail_under = 50
+precision = 2
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+# HTMLレポートも .cache/coverage に統合
+directory = ".cache/coverage/htmlcov"
+title = "Crypto Bot Coverage Report"
+
+[tool.coverage.xml]
+# XMLレポートも .cache/coverage に統合
+output = ".cache/coverage/coverage.xml"
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  _legacy_v1
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["_legacy_v1/*"]

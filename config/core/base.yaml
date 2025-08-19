@@ -1,0 +1,88 @@
+# 基本設定ファイル - Phase 11対応全環境共通設定
+# レガシーの420行設定から重要項目のみを抽出・Phase 11機能統合・本番運用対応
+
+# 動作モード
+mode: paper  # paper（仮想取引）, live（実取引）
+
+# 取引所設定
+exchange:
+  name: bitbank
+  symbol: BTC/JPY
+  rate_limit_ms: 30000  # API制限（30秒）
+  timeout_ms: 90000     # タイムアウト（90秒）
+  retries: 3            # リトライ回数
+
+# 機械学習設定
+ml:
+  confidence_threshold: 0.35  # エントリー判定閾値
+  ensemble_enabled: true      # アンサンブル有効
+  models:                     # 使用モデル
+    - lgbm
+    - xgb
+    - rf
+  model_weights:              # モデル重み
+    - 0.5
+    - 0.3
+    - 0.2
+
+# リスク管理設定
+risk:
+  risk_per_trade: 0.01        # 1取引あたりリスク（1%）
+  kelly_max_fraction: 0.03    # Kelly基準最大（3%）
+  max_drawdown: 0.20          # 最大ドローダウン（20%）
+  stop_loss_atr_multiplier: 1.2  # 損切りATR倍率
+  consecutive_loss_limit: 5   # 連続損失限界
+
+# データ取得設定
+data:
+  timeframes:                 # 取得時間軸
+    - 15m
+    - 1h
+    - 4h
+  since_hours: 96            # 取得期間（4日分）
+  limit: 100                 # 1回あたり取得数
+  cache_enabled: true        # キャッシュ有効
+
+# ログ設定
+logging:
+  level: INFO                # ログレベル
+  file_enabled: true         # ファイル出力
+  discord_enabled: true      # Discord通知
+  retention_days: 7          # 保持期間
+
+# Phase 11: 本番運用設定
+production:
+  min_order_size: 0.0001     # 最小注文サイズ
+  max_order_size: 0.001      # 最大注文サイズ
+  margin_trading: true       # マージン取引有効
+  trade_interval: 60         # 取引間隔（秒）
+
+# Phase 11: 監視システム設定
+monitoring:
+  health_check:
+    enabled: true            # ヘルスチェック有効
+    interval_seconds: 30     # チェック間隔
+    timeout_seconds: 5       # タイムアウト
+  performance:
+    enabled: true            # パフォーマンス監視有効
+    metrics_interval: 300    # メトリクス収集間隔
+
+# Phase 11: CI/CD統合設定
+cicd:
+  environment_variables:
+    MODE: "paper"            # デフォルトモード
+    LOG_LEVEL: "INFO"        # デフォルトログレベル
+    PYTHONPATH: "/app"       # Pythonパス
+  deployment:
+    strategy: "gradual"      # 段階的デプロイ
+    health_check_timeout: 300 # ヘルスチェック待機時間
+    rollback_on_failure: true # 失敗時自動ロールバック
+
+# Phase 11: セキュリティ設定
+security:
+  authentication:
+    workload_identity: true  # Workload Identity使用
+    token_refresh_minutes: 55 # トークン更新間隔
+  secret_management:
+    provider: "gcp_secret_manager" # Secret Manager使用
+    auto_rotation: true      # 自動ローテーション

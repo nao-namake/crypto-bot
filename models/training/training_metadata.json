@@ -1,0 +1,53 @@
+{
+  "created_at": "2025-08-17T12:27:30.430664",
+  "feature_names": [
+    "close",
+    "volume",
+    "returns_1",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "atr_14",
+    "bb_position",
+    "ema_20",
+    "ema_50",
+    "zscore",
+    "volume_ratio"
+  ],
+  "training_samples": 4320,
+  "model_metrics": {
+    "lightgbm": {
+      "accuracy": 0.9523148148148148,
+      "f1_score": 0.9518248799064761,
+      "precision": 0.9545223459705662,
+      "recall": 0.9523148148148148,
+      "cv_f1_mean": 0.530882464662718,
+      "cv_f1_std": 0.02102252544657708
+    },
+    "xgboost": {
+      "accuracy": 0.9965277777777778,
+      "f1_score": 0.9965251361577554,
+      "precision": 0.9965476569126378,
+      "recall": 0.9965277777777778,
+      "cv_f1_mean": 0.5242615919806886,
+      "cv_f1_std": 0.0179348499643435
+    },
+    "random_forest": {
+      "accuracy": 0.8328703703703704,
+      "f1_score": 0.820761437169073,
+      "precision": 0.8691395596076992,
+      "recall": 0.8328703703703704,
+      "cv_f1_mean": 0.48650815462348646,
+      "cv_f1_std": 0.020208762064546245
+    }
+  },
+  "model_files": {
+    "lightgbm": "models/training/lightgbm_model.pkl",
+    "xgboost": "models/training/xgboost_model.pkl",
+    "random_forest": "models/training/random_forest_model.pkl",
+    "production_ensemble": "models/production/production_ensemble.pkl"
+  },
+  "config_path": "config/core/base.yaml",
+  "phase": "Phase 9",
+  "notes": "個別モデル学習結果・training用保存"
+}

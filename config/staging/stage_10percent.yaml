@@ -1,0 +1,348 @@
+# Phase 11: 段階的本番移行設定（10%段階）
+# 🎯 本番環境と同一設定・金額のみスケール戦略
+# 成功時は金額を10倍にするだけで本番移行可能
+
+# システム基本設定（本番同一）
+system:
+  name: "crypto-bot-phase11-stage-10percent"
+  version: "11.0.0"
+  mode: "live"
+  debug: false
+  log_level: "INFO"
+  deployment_stage: "10_percent"
+
+# 取引所設定（本番同一）
+exchange:
+  name: "bitbank"
+  symbol: "BTC/JPY"
+  leverage: 1.0
+  
+  # API設定（環境変数から取得）
+  api_key: "${BITBANK_API_KEY}"
+  api_secret: "${BITBANK_API_SECRET}"
+  sandbox: false
+  
+  # API制限（本番同一）
+  rate_limit: 30000
+  timeout: 90000
+  enable_rate_limit: true
+  retries: 3
+
+# データ設定（本番同一）
+data:
+  timeframes: ["15m", "1h", "4h"]
+  since_hours: 96
+  limit: 100
+  
+  cache:
+    enabled: true
+    ttl_minutes: 5
+    max_size: 1000
+    disk_cache: true
+    retention_days: 90
+
+# 特徴量設定（本番同一）
+features:
+  mode: "optimized"
+  
+  basic:
+    - "close"
+    - "volume" 
+    - "returns_1"
+  
+  technical:
+    - "rsi_14"
+    - "macd"
+    - "atr_14"
+    - "bb_position"
+    - "ema_20"
+    - "ema_50"
+  
+  anomaly:
+    - "zscore"
+    - "volume_ratio"
+    - "market_stress"
+
+# 戦略設定（本番同一）
+strategies:
+  enabled:
+    - "atr_based"
+    - "mochipoy_alert"
+    - "multi_timeframe"
+    - "fibonacci_retracement"
+  
+  # 本番同一重み設定
+  weights:
+    atr_based: 0.35
+    mochipoy_alert: 0.3
+    multi_timeframe: 0.25
+    fibonacci_retracement: 0.1
+  
+  consensus:
+    required_agreement: 0.6
+    confidence_threshold: 0.5
+
+# 機械学習設定（本番同一）
+ml:
+  ensemble_enabled: true
+  confidence_threshold: 0.5
+  
+  models:
+    - "lgbm"
+    - "xgb" 
+    - "rf"
+  
+  model_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+  
+  prediction:
+    lookback_periods: 100
+    retrain_frequency: "weekly"
+
+# リスク管理設定（本番同一）
+risk:
+  # Kelly基準（本番同一）
+  kelly_criterion:
+    max_position_ratio: 0.05
+    safety_factor: 0.7
+    min_trades_for_kelly: 20
+  
+  # 基本リスク設定（本番同一）
+  risk_per_trade: 0.01
+  kelly_max_fraction: 0.05
+  max_drawdown: 0.20
+  stop_loss_atr_multiplier: 1.2
+  consecutive_loss_limit: 5
+  
+  # ドローダウン管理（本番同一）
+  drawdown_manager:
+    max_drawdown_ratio: 0.20
+    consecutive_loss_limit: 5
+    cooldown_hours: 24
+  
+  # 異常検知（本番同一）
+  anomaly_detector:
+    spread_warning_threshold: 0.003
+    spread_critical_threshold: 0.005
+    api_latency_warning: 1.0
+    api_latency_critical: 3.0
+  
+  # 統合判定閾値（本番同一）
+  risk_thresholds:
+    min_ml_confidence: 0.5
+    risk_threshold_deny: 0.8
+    risk_threshold_conditional: 0.6
+
+# 注文実行設定（本番同一）
+execution:
+  mode: "live"
+  
+  order:
+    default_type: "limit"
+    slippage_tolerance: 0.001
+    max_retry: 3
+    retry_delay: 1.0
+  
+  latency:
+    target_ms: 1000
+    warning_ms: 500
+    critical_ms: 2000
+
+# 🎯 唯一の差分: 資金スケール設定
+production:
+  # 10%段階用資金設定（1万円想定）
+  min_order_size: 0.0001          # 最小注文サイズ（本番同一）
+  max_order_size: 0.0001          # 💰 10%: 0.0001 BTC（約1,000円）本番時は0.001 BTC（約10,000円）
+  trade_interval: 60              # 取引間隔（本番同一）
+  margin_trading: true
+  force_margin_mode: true
+  
+  # 取引制限（本番同一比率・金額のみスケール）
+  daily_trade_limit: 20           # 1日最大20回取引（本番同一）
+  max_daily_loss: 0.02           # 1日最大2%損失（本番同一）
+  emergency_stop_loss: 0.05      # 緊急停止5%損失（本番同一）
+
+# ログ設定（本番同一）
+logging:
+  level: "INFO"
+  file_enabled: true
+  discord_enabled: true
+  retention_days: 30
+  
+  file:
+    enabled: true
+    path: "logs/production_10percent"
+    rotation: "daily"
+    retention_days: 30
+    max_size_mb: 100
+  
+  discord:
+    enabled: true
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    
+    levels:
+      critical: true
+      warning: true
+      info: false
+
+# 監視設定（本番同一）
+monitoring:
+  health_check:
+    enabled: true
+    interval_seconds: 30
+    timeout_seconds: 5
+    endpoints:
+      - "/health"
+      - "/api/status"
+      - "/metrics"
+    
+  performance:
+    enabled: true
+    metrics_interval: 300
+    collection:
+      - "response_time"
+      - "memory_usage"
+      - "cpu_usage"
+      - "error_rate"
+  
+  # 統合監視（本番同一）
+  integrated_monitoring:
+    enabled: true
+    bot_manager_checks: true
+    alert_thresholds:
+      consecutive_failures: 3
+      error_rate_threshold: 5
+      response_time_warning: 1000
+      response_time_critical: 3000
+  
+  # 自動復旧システム（本番同一）
+  auto_recovery:
+    enabled: true
+    max_restart_attempts: 3
+    cooldown_minutes: 10
+    escalation_after_failures: 5
+
+# Cloud Run設定（本番同一）
+cloud_run:
+  memory: "2Gi"
+  cpu: 1
+  
+  # スケーリング設定
+  min_instances: 1
+  max_instances: 2
+  concurrency: 1
+  
+  timeout_seconds: 3600
+  
+  # サービス設定
+  service:
+    name: "crypto-bot-stage-10percent"
+    region: "asia-northeast1"
+    platform: "managed"
+  
+  labels:
+    stage: "10-percent"
+    phase: "phase-11"
+    environment: "staging"
+    managed-by: "ci-cd"
+
+# CI/CD統合設定（本番同一）
+cicd:
+  environment_variables:
+    MODE: "live"
+    DEPLOYMENT_STAGE: "10_percent"
+    LOG_LEVEL: "INFO"
+    PYTHONPATH: "/app"
+    BITBANK_TESTNET: "false"
+  
+  secrets:
+    bitbank_api_key: "bitbank-api-key:latest"
+    bitbank_api_secret: "bitbank-api-secret:latest"
+    discord_webhook: "discord-webhook:latest"
+  
+  deployment:
+    strategy: "gradual"
+    health_check_timeout: 300
+    rollback_on_failure: true
+  
+  quality_gates:
+    required_tests_pass: true
+    flake8_max_errors: 100
+    coverage_threshold: 80
+
+# セキュリティ設定（本番同一）
+security:
+  authentication:
+    workload_identity: true
+    service_account: "crypto-bot-runner@my-crypto-bot-project.iam.gserviceaccount.com"
+    token_refresh_minutes: 55
+  
+  secret_management:
+    provider: "gcp_secret_manager"
+    auto_rotation: true
+    rotation_schedule: "0 2 * * 0"
+    backup_strategy: "multiple_versions"
+  
+  api_security:
+    rate_limiting: true
+    max_calls_per_hour: 1000
+    ip_allowlist_enabled: false
+    request_logging: true
+    anomaly_detection: true
+  
+  incident_response:
+    auto_circuit_breaker: true
+    emergency_shutdown: true
+    notification_channels:
+      - "discord"
+      - "gcp_monitoring"
+    escalation_after_minutes: 15
+
+# 🎯 段階的移行成功指標（本番同一基準）
+targets:
+  stage_success_criteria:
+    min_uptime_percentage: 99.0
+    max_error_rate: 5.0
+    target_win_rate: 0.55
+    min_evaluation_trades: 100
+    evaluation_period_days: 30
+  
+  # 💰 10%資金用利益目標（金額のみスケール）
+  financial_targets:
+    daily_profit_target: 100      # 💰 10%: 100円、本番: 1,000円（10倍）
+    monthly_profit_target: 2000   # 💰 10%: 2,000円、本番: 20,000円（10倍）
+    max_daily_loss: 200           # 💰 10%: 200円、本番: 2,000円（10倍）
+    target_sharpe_ratio: 1.0
+  
+  # 取引制限（本番同一）
+  trading_limits:
+    max_daily_trades: 20
+    max_monthly_trades: 400
+    trade_interval_minutes: 1
+  
+  # 次段階移行条件（本番同一）
+  graduation_criteria:
+    consecutive_profitable_days: 14
+    cumulative_profit_minimum: 3000   # 💰 10%: 3,000円、本番: 30,000円（10倍）
+    zero_critical_errors: true
+    stable_performance_days: 30
+
+# 💡 本番移行ガイド
+migration_guide:
+  scaling_instructions: |
+    10%段階テスト成功後の本番移行手順：
+    
+    1. max_order_size: 0.0001 → 0.001 BTC（10倍）
+    2. daily_profit_target: 100 → 1,000円（10倍）
+    3. monthly_profit_target: 2,000 → 20,000円（10倍）
+    4. max_daily_loss: 200 → 2,000円（10倍）
+    5. cumulative_profit_minimum: 3,000 → 30,000円（10倍）
+    
+    その他の設定は一切変更不要。
+    金額のみのスケールアップで本番移行完了。
+  
+  risk_note: |
+    この設定により、10%段階で成功したアルゴリズムと
+    リスク管理が、本番でも同様に機能することを保証。

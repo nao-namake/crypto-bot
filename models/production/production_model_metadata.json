@@ -1,0 +1,33 @@
+{
+  "created_at": "2025-08-17T12:27:30.430330",
+  "model_type": "ProductionEnsemble",
+  "model_file": "models/production/production_ensemble.pkl",
+  "phase": "Phase 9",
+  "status": "production_ready",
+  "feature_names": [
+    "close",
+    "volume",
+    "returns_1",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "atr_14",
+    "bb_position",
+    "ema_20",
+    "ema_50",
+    "zscore",
+    "volume_ratio"
+  ],
+  "individual_models": [
+    "lightgbm",
+    "xgboost",
+    "random_forest",
+    "production_ensemble"
+  ],
+  "model_weights": {
+    "lightgbm": 0.4,
+    "xgboost": 0.4,
+    "random_forest": 0.2
+  },
+  "notes": "本番用統合アンサンブルモデル・実取引用最適化済み"
+}
