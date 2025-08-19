@@ -56,9 +56,7 @@ except ImportError as e:
 class NewSystemMLModelCreator:
     """新システム用MLモデル作成・学習システム."""
 
-    def __init__(
-        self, config_path: str = "config/core/base.yaml", verbose: bool = False
-    ):
+    def __init__(self, config_path: str = "config/core/base.yaml", verbose: bool = False):
         """初期化."""
         self.config_path = config_path
         self.verbose = verbose
@@ -104,9 +102,7 @@ class NewSystemMLModelCreator:
             "volume_ratio",
         ]
 
-        self.logger.info(
-            f"🎯 対象特徴量: {len(self.expected_features)}個（新システム最適化済み）"
-        )
+        self.logger.info(f"🎯 対象特徴量: {len(self.expected_features)}個（新システム最適化済み）")
 
         # MLモデル設定
         self.models = {
@@ -134,9 +130,7 @@ class NewSystemMLModelCreator:
             ),
         }
 
-    def prepare_training_data(
-        self, days: int = 180
-    ) -> Tuple[pd.DataFrame, pd.Series]:
+    def prepare_training_data(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
         """学習用データ準備（新システム対応）."""
         self.logger.info(f"📊 学習データ準備開始（過去{days}日分）")
 
@@ -153,9 +147,7 @@ class NewSystemMLModelCreator:
             df = self.data_pipeline.fetch_ohlcv(request)
 
             if df is None or len(df) < 100:
-                self.logger.warning(
-                    "❌ 実データ取得失敗、サンプルデータを生成"
-                )
+                self.logger.warning("❌ 実データ取得失敗、サンプルデータを生成")
                 df = self._generate_sample_data(days * 24)
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
@@ -197,9 +189,7 @@ class NewSystemMLModelCreator:
         for i in range(samples):
             # ランダムウォーク（時間帯による変動幅調整）
             hour = dates[i].hour
-            volatility = (
-                0.015 if 8 <= hour <= 20 else 0.008
-            )  # 日中高ボラティリティ
+            volatility = 0.015 if 8 <= hour <= 20 else 0.008  # 日中高ボラティリティ
             change = np.random.normal(0, volatility)
             current_price *= 1 + change
             prices.append(current_price)
@@ -209,25 +199,17 @@ class NewSystemMLModelCreator:
             {
                 "timestamp": dates,
                 "open": prices,
-                "high": [
-                    p * (1 + abs(np.random.normal(0, 0.005))) for p in prices
-                ],
-                "low": [
-                    p * (1 - abs(np.random.normal(0, 0.005))) for p in prices
-                ],
+                "high": [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+                "low": [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
                 "close": prices,
-                "volume": np.random.lognormal(
-                    8, 1, samples
-                ),  # リアルな出来高分布
+                "volume": np.random.lognormal(8, 1, samples),  # リアルな出来高分布
             }
         )
 
         df.set_index("timestamp", inplace=True)
         return df
 
-    def _ensure_feature_consistency(
-        self, features_df: pd.DataFrame
-    ) -> pd.DataFrame:
+    def _ensure_feature_consistency(self, features_df: pd.DataFrame) -> pd.DataFrame:
         """12特徴量への整合性確保."""
         # 不足特徴量の0埋め
         for feature in self.expected_features:
@@ -239,9 +221,7 @@ class NewSystemMLModelCreator:
         features_df = features_df[self.expected_features]
 
         if len(features_df.columns) != 12:
-            self.logger.warning(
-                f"⚠️ 特徴量数不一致: {len(features_df.columns)} != 12"
-            )
+            self.logger.warning(f"⚠️ 特徴量数不一致: {len(features_df.columns)} != 12")
 
         return features_df
 
@@ -254,9 +234,7 @@ class NewSystemMLModelCreator:
         target = (price_change > 0.003).astype(int)
 
         buy_ratio = target.mean()
-        self.logger.info(
-            f"📊 ターゲット分布: BUY {buy_ratio:.1%}, HOLD/SELL {1 - buy_ratio:.1%}"
-        )
+        self.logger.info(f"📊 ターゲット分布: BUY {buy_ratio:.1%}, HOLD/SELL {1 - buy_ratio:.1%}")
 
         return target
 
@@ -275,9 +253,7 @@ class NewSystemMLModelCreator:
 
         removed_samples = len(features_df) - len(features_clean)
         if removed_samples > 0:
-            self.logger.info(
-                f"🧹 データクリーニング: {removed_samples}サンプル除去"
-            )
+            self.logger.info(f"🧹 データクリーニング: {removed_samples}サンプル除去")
 
         return features_clean, target_clean
 
@@ -330,9 +306,7 @@ class NewSystemMLModelCreator:
                 metrics = {
                     "accuracy": accuracy_score(target, y_pred),
                     "f1_score": f1_score(target, y_pred, average="weighted"),
-                    "precision": precision_score(
-                        target, y_pred, average="weighted"
-                    ),
+                    "precision": precision_score(target, y_pred, average="weighted"),
                     "recall": recall_score(target, y_pred, average="weighted"),
                     "cv_f1_mean": np.mean(cv_scores),
                     "cv_f1_std": np.std(cv_scores),
@@ -369,9 +343,7 @@ class NewSystemMLModelCreator:
     def _create_ensemble(self, models: Dict) -> ProductionEnsemble:
         """アンサンブルモデル作成（ProductionEnsembleクラス使用）."""
         try:
-            self.logger.info(
-                "🔧 ProductionEnsembleアンサンブルモデル作成中..."
-            )
+            self.logger.info("🔧 ProductionEnsembleアンサンブルモデル作成中...")
             ensemble_model = ProductionEnsemble(models)
             self.logger.info("✅ ProductionEnsembleアンサンブルモデル作成完了")
             return ensemble_model
@@ -390,9 +362,7 @@ class NewSystemMLModelCreator:
             try:
                 if model_name == "production_ensemble":
                     # 本番用統合モデルはproductionフォルダに保存
-                    model_file = (
-                        self.production_dir / "production_ensemble.pkl"
-                    )
+                    model_file = self.production_dir / "production_ensemble.pkl"
                     with open(model_file, "wb") as f:
                         pickle.dump(model, f)
 
@@ -403,9 +373,7 @@ class NewSystemMLModelCreator:
                         "model_file": str(model_file),
                         "phase": "Phase 9",
                         "status": "production_ready",
-                        "feature_names": training_results.get(
-                            "feature_names", []
-                        ),
+                        "feature_names": training_results.get("feature_names", []),
                         "individual_models": list(model.models.keys()),
                         "model_weights": model.weights,
                         "notes": "本番用統合アンサンブルモデル・実取引用最適化済み",
@@ -414,9 +382,7 @@ class NewSystemMLModelCreator:
                     production_metadata_file = (
                         self.production_dir / "production_model_metadata.json"
                     )
-                    with open(
-                        production_metadata_file, "w", encoding="utf-8"
-                    ) as f:
+                    with open(production_metadata_file, "w", encoding="utf-8") as f:
                         json.dump(
                             production_metadata,
                             f,
@@ -498,9 +464,7 @@ class NewSystemMLModelCreator:
                         if probabilities.shape == (5, 2):
                             self.logger.info("✅ predict_proba 確認成功")
                         else:
-                            self.logger.error(
-                                f"❌ predict_proba 形状不正: {probabilities.shape}"
-                            )
+                            self.logger.error(f"❌ predict_proba 形状不正: {probabilities.shape}")
                             validation_passed = False
 
                     # get_model_info メソッド確認
@@ -577,16 +541,12 @@ def main():
         default=180,
         help="学習データ期間（日数、デフォルト: 180日）",
     )
-    parser.add_argument(
-        "--config", default="config/core/base.yaml", help="設定ファイルパス"
-    )
+    parser.add_argument("--config", default="config/core/base.yaml", help="設定ファイルパス")
 
     args = parser.parse_args()
 
     # モデル作成実行
-    creator = NewSystemMLModelCreator(
-        config_path=args.config, verbose=args.verbose
-    )
+    creator = NewSystemMLModelCreator(config_path=args.config, verbose=args.verbose)
 
     success = creator.run(dry_run=args.dry_run, days=args.days)
 

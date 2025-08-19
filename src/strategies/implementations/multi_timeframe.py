@@ -68,9 +68,7 @@ class MultiTimeframeStrategy(StrategyBase):
             tf_15m_signal = self._analyze_15m_entry(df)
 
             # 2層統合判定
-            signal_decision = self._make_2tf_decision(
-                tf_4h_signal, tf_15m_signal
-            )
+            signal_decision = self._make_2tf_decision(tf_4h_signal, tf_15m_signal)
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
@@ -82,9 +80,7 @@ class MultiTimeframeStrategy(StrategyBase):
 
         except Exception as e:
             self.logger.error(f"[MultiTimeframe] 分析エラー: {e}")
-            raise StrategyError(
-                f"マルチタイムフレーム分析失敗: {e}", strategy_name=self.name
-            )
+            raise StrategyError(f"マルチタイムフレーム分析失敗: {e}", strategy_name=self.name)
 
     def _analyze_4h_trend(self, df: pd.DataFrame) -> int:
         """4時間足トレンド分析 - シンプル版."""
@@ -146,9 +142,7 @@ class MultiTimeframeStrategy(StrategyBase):
                 # ゴールデンクロス・デッドクロス
                 if prev_price <= prev_ema20 and current_price > current_ema20:
                     ema_cross_signal = 1  # ゴールデンクロス
-                elif (
-                    prev_price >= prev_ema20 and current_price < current_ema20
-                ):
+                elif prev_price >= prev_ema20 and current_price < current_ema20:
                     ema_cross_signal = -1  # デッドクロス
 
             # RSI補完判定
@@ -165,15 +159,9 @@ class MultiTimeframeStrategy(StrategyBase):
                 recent_low = df["low"].iloc[-lookback:].min()
 
                 # 押し目買い・戻り売り確認
-                if (
-                    ema_cross_signal == 1
-                    and current_price > recent_low * 1.005
-                ):
+                if ema_cross_signal == 1 and current_price > recent_low * 1.005:
                     pullback_signal = 1
-                elif (
-                    ema_cross_signal == -1
-                    and current_price < recent_high * 0.995
-                ):
+                elif ema_cross_signal == -1 and current_price < recent_high * 0.995:
                     pullback_signal = -1
 
             # 統合判定（2つ以上一致でエントリー）
@@ -192,9 +180,7 @@ class MultiTimeframeStrategy(StrategyBase):
             self.logger.error(f"15分足エントリー分析エラー: {e}")
             return 0
 
-    def _make_2tf_decision(
-        self, tf_4h_signal: int, tf_15m_signal: int
-    ) -> Dict[str, Any]:
+    def _make_2tf_decision(self, tf_4h_signal: int, tf_15m_signal: int) -> Dict[str, Any]:
         """2層統合判定 - シンプル版."""
         try:
             require_agreement = self.config["require_timeframe_agreement"]
@@ -204,25 +190,13 @@ class MultiTimeframeStrategy(StrategyBase):
 
             # 時間軸一致確認
             if require_agreement:
-                if (
-                    tf_4h_signal != 0
-                    and tf_15m_signal != 0
-                    and tf_4h_signal == tf_15m_signal
-                ):
+                if tf_4h_signal != 0 and tf_15m_signal != 0 and tf_4h_signal == tf_15m_signal:
                     # 両方一致
-                    action = (
-                        EntryAction.BUY
-                        if tf_4h_signal > 0
-                        else EntryAction.SELL
-                    )
+                    action = EntryAction.BUY if tf_4h_signal > 0 else EntryAction.SELL
                     confidence = tf_4h_weight + tf_15m_weight  # 最大1.0
                 elif tf_4h_signal != 0 and tf_15m_signal == 0:
                     # 4時間足のみ（重み減額）
-                    action = (
-                        EntryAction.BUY
-                        if tf_4h_signal > 0
-                        else EntryAction.SELL
-                    )
+                    action = EntryAction.BUY if tf_4h_signal > 0 else EntryAction.SELL
                     confidence = tf_4h_weight * 0.7
                 else:
                     # 不一致またはシグナルなし
@@ -230,16 +204,10 @@ class MultiTimeframeStrategy(StrategyBase):
                     confidence = 0.5
             else:
                 # 重み付け判定
-                weighted_score = (
-                    tf_4h_signal * tf_4h_weight + tf_15m_signal * tf_15m_weight
-                )
+                weighted_score = tf_4h_signal * tf_4h_weight + tf_15m_signal * tf_15m_weight
 
                 if abs(weighted_score) >= min_confidence:
-                    action = (
-                        EntryAction.BUY
-                        if weighted_score > 0
-                        else EntryAction.SELL
-                    )
+                    action = EntryAction.BUY if weighted_score > 0 else EntryAction.SELL
                     confidence = min(abs(weighted_score), 1.0)
                 else:
                     action = EntryAction.HOLD

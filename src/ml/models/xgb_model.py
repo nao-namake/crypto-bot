@@ -72,9 +72,7 @@ class XGBModel(BaseMLModel):
 
             estimator = XGBClassifier(**clean_params)
 
-            self.logger.info(
-                f"✅ XGBoost estimator created with {len(clean_params)} parameters"
-            )
+            self.logger.info(f"✅ XGBoost estimator created with {len(clean_params)} parameters")
             return estimator
 
         except Exception as e:
@@ -104,9 +102,7 @@ class XGBModel(BaseMLModel):
         for param in deprecated_params:
             if param in clean_params:
                 del clean_params[param]
-                self.logger.warning(
-                    f"Removed deprecated XGBoost parameter: {param}"
-                )
+                self.logger.warning(f"Removed deprecated XGBoost parameter: {param}")
 
         # パラメータ名の正規化
         if "silent" in clean_params:

@@ -82,9 +82,7 @@ class ATRBasedStrategy(StrategyBase):
 
         except Exception as e:
             self.logger.error(f"[ATRBased] 分析エラー: {e}")
-            raise StrategyError(
-                f"ATRベース分析失敗: {e}", strategy_name=self.name
-            )
+            raise StrategyError(f"ATRベース分析失敗: {e}", strategy_name=self.name)
 
     def _analyze_bb_position(self, df: pd.DataFrame) -> Dict[str, Any]:
         """ボリンジャーバンド位置分析."""
@@ -94,14 +92,10 @@ class ATRBasedStrategy(StrategyBase):
             # BB位置によるシグナル判定（逆張り）
             if current_bb_pos >= self.config["bb_overbought"]:
                 signal = -1  # 売りシグナル（過買い）
-                strength = min(
-                    (current_bb_pos - self.config["bb_overbought"]) / 0.2, 1.0
-                )
+                strength = min((current_bb_pos - self.config["bb_overbought"]) / 0.2, 1.0)
             elif current_bb_pos <= self.config["bb_oversold"]:
                 signal = 1  # 買いシグナル（過売り）
-                strength = min(
-                    (self.config["bb_oversold"] - current_bb_pos) / 0.2, 1.0
-                )
+                strength = min((self.config["bb_oversold"] - current_bb_pos) / 0.2, 1.0)
             else:
                 signal = 0  # ニュートラル
                 strength = 0.0
@@ -133,14 +127,10 @@ class ATRBasedStrategy(StrategyBase):
             # RSI逆張りシグナル
             if current_rsi >= self.config["rsi_overbought"]:
                 signal = -1  # 売りシグナル
-                strength = min(
-                    (current_rsi - self.config["rsi_overbought"]) / 30, 1.0
-                )
+                strength = min((current_rsi - self.config["rsi_overbought"]) / 30, 1.0)
             elif current_rsi <= self.config["rsi_oversold"]:
                 signal = 1  # 買いシグナル
-                strength = min(
-                    (self.config["rsi_oversold"] - current_rsi) / 30, 1.0
-                )
+                strength = min((self.config["rsi_oversold"] - current_rsi) / 30, 1.0)
             else:
                 signal = 0
                 strength = 0.0
@@ -173,9 +163,7 @@ class ATRBasedStrategy(StrategyBase):
 
             # 過去20期間の平均ATR比率と比較
             if len(df) >= 20:
-                historical_atr = (
-                    df["atr_14"].iloc[-20:] / df["close"].iloc[-20:]
-                )
+                historical_atr = df["atr_14"].iloc[-20:] / df["close"].iloc[-20:]
                 avg_atr_ratio = historical_atr.mean()
                 volatility_multiplier = atr_ratio / (avg_atr_ratio + 1e-8)
             else:
@@ -252,31 +240,23 @@ class ATRBasedStrategy(StrategyBase):
             if bb_signal != 0 and rsi_signal != 0:
                 if bb_signal == rsi_signal:
                     # 両方一致
-                    action = (
-                        EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                    )
+                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
                     confidence = min(
                         bb_analysis["confidence"] + rsi_analysis["confidence"],
                         1.0,
                     )
-                    strength = (
-                        bb_analysis["strength"] + rsi_analysis["strength"]
-                    ) / 2
+                    strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
                 else:
                     # 不一致はホールド
                     return self._create_hold_decision("シグナル不一致")
             elif bb_signal != 0:
                 # BBシグナルのみ
                 action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                confidence = (
-                    bb_analysis["confidence"] * 0.7
-                )  # 単一シグナルなので減額
+                confidence = bb_analysis["confidence"] * 0.7  # 単一シグナルなので減額
                 strength = bb_analysis["strength"]
             elif rsi_signal != 0:
                 # RSIシグナルのみ
-                action = (
-                    EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                )
+                action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
                 confidence = rsi_analysis["confidence"] * 0.7
                 strength = rsi_analysis["strength"]
             else:

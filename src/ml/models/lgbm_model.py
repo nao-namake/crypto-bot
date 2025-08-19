@@ -78,9 +78,7 @@ class LGBMModel(BaseMLModel):
 
             estimator = LGBMClassifier(**clean_params)
 
-            self.logger.info(
-                f"✅ LightGBM estimator created with {len(clean_params)} parameters"
-            )
+            self.logger.info(f"✅ LightGBM estimator created with {len(clean_params)} parameters")
             return estimator
 
         except Exception as e:

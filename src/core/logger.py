@@ -50,12 +50,8 @@ class JSONFormatter(logging.Formatter):
         # 例外情報を追加
         if record.exc_info:
             log_data["exception"] = {
-                "type": (
-                    record.exc_info[0].__name__ if record.exc_info[0] else None
-                ),
-                "message": (
-                    str(record.exc_info[1]) if record.exc_info[1] else None
-                ),
+                "type": (record.exc_info[0].__name__ if record.exc_info[0] else None),
+                "message": (str(record.exc_info[1]) if record.exc_info[1] else None),
                 "traceback": traceback.format_exception(*record.exc_info),
             }
 
@@ -145,9 +141,7 @@ class CryptoBotLogger:
             )
 
         # ログレベル設定
-        log_level = getattr(
-            logging, logging_config.level.upper(), logging.INFO
-        )
+        log_level = getattr(logging, logging_config.level.upper(), logging.INFO)
         self.logger.setLevel(log_level)
 
         # コンソールハンドラー
@@ -215,9 +209,7 @@ class CryptoBotLogger:
         # Discord通知
         if discord_notify and self._discord_notifier:
             try:
-                severity = (
-                    get_error_severity(error) if error else ErrorSeverity.LOW
-                )
+                severity = get_error_severity(error) if error else ErrorSeverity.LOW
                 self._discord_notifier.send_notification(
                     message=message,
                     severity=severity,
@@ -239,9 +231,7 @@ class CryptoBotLogger:
         discord_notify: bool = False,
     ):
         """情報ログ."""
-        self._log_with_context(
-            logging.INFO, message, extra_data, discord_notify=discord_notify
-        )
+        self._log_with_context(logging.INFO, message, extra_data, discord_notify=discord_notify)
 
     def warning(
         self,
@@ -250,9 +240,7 @@ class CryptoBotLogger:
         discord_notify: bool = True,
     ):
         """警告ログ."""
-        self._log_with_context(
-            logging.WARNING, message, extra_data, discord_notify=discord_notify
-        )
+        self._log_with_context(logging.WARNING, message, extra_data, discord_notify=discord_notify)
 
     def error(
         self,
@@ -277,9 +265,7 @@ class CryptoBotLogger:
         extra_data: Optional[Dict[str, Any]] = None,
     ):
         """クリティカルログ（必ずDiscord通知）."""
-        self._log_with_context(
-            logging.CRITICAL, message, extra_data, error, discord_notify=True
-        )
+        self._log_with_context(logging.CRITICAL, message, extra_data, error, discord_notify=True)
 
     def log_trade(
         self,

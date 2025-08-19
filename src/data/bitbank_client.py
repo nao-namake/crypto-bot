@@ -41,9 +41,7 @@ class BitbankClient:
 
         # レバレッジ検証
         if not (1.0 <= leverage <= 2.0):
-            raise ValueError(
-                f"レバレッジは1.0-2.0の範囲で設定してください: {leverage}"
-            )
+            raise ValueError(f"レバレッジは1.0-2.0の範囲で設定してください: {leverage}")
 
         self.leverage = leverage
 
@@ -60,9 +58,7 @@ class BitbankClient:
                 }
             )
 
-            self.logger.info(
-                f"Bitbank信用取引クライアント初期化完了（レバレッジ: {leverage}x）"
-            )
+            self.logger.info(f"Bitbank信用取引クライアント初期化完了（レバレッジ: {leverage}x）")
 
         except Exception as e:
             raise ExchangeAPIError(
@@ -111,9 +107,7 @@ class BitbankClient:
             DataFetchError: データ取得失敗時.
         """
         try:
-            self.logger.debug(
-                f"OHLCV データ取得開始: {symbol} {timeframe} limit={limit}"
-            )
+            self.logger.debug(f"OHLCV データ取得開始: {symbol} {timeframe} limit={limit}")
 
             ohlcv = self.exchange.fetch_ohlcv(
                 symbol=symbol, timeframe=timeframe, since=since, limit=limit
@@ -210,9 +204,7 @@ class BitbankClient:
             return balance
 
         except ccxt.AuthenticationError as e:
-            raise ExchangeAPIError(
-                f"認証エラー: {e}", context={"operation": "fetch_balance"}
-            )
+            raise ExchangeAPIError(f"認証エラー: {e}", context={"operation": "fetch_balance"})
         except Exception as e:
             raise ExchangeAPIError(
                 f"残高取得に失敗しました: {e}",
@@ -252,9 +244,7 @@ class BitbankClient:
 
             # パラメータ検証
             if side not in ["buy", "sell"]:
-                raise ExchangeAPIError(
-                    f"無効な売買方向: {side}", context={"side": side}
-                )
+                raise ExchangeAPIError(f"無効な売買方向: {side}", context={"side": side})
 
             if order_type not in ["market", "limit"]:
                 raise ExchangeAPIError(
@@ -263,9 +253,7 @@ class BitbankClient:
                 )
 
             if amount <= 0:
-                raise ExchangeAPIError(
-                    f"無効な注文量: {amount}", context={"amount": amount}
-                )
+                raise ExchangeAPIError(f"無効な注文量: {amount}", context={"amount": amount})
 
             if order_type == "limit" and (price is None or price <= 0):
                 raise ExchangeAPIError(
@@ -377,9 +365,7 @@ class BitbankClient:
                 },
             )
 
-    def cancel_order(
-        self, order_id: str, symbol: str = "BTC/JPY"
-    ) -> Dict[str, Any]:
+    def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文キャンセル
 
@@ -425,9 +411,7 @@ class BitbankClient:
                 context={"operation": "cancel_order", "order_id": order_id},
             )
 
-    def fetch_order(
-        self, order_id: str, symbol: str = "BTC/JPY"
-    ) -> Dict[str, Any]:
+    def fetch_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文状況確認
 
@@ -501,9 +485,7 @@ class BitbankClient:
             positions = self.exchange.fetch_positions([symbol])
 
             # 有効なポジションのみフィルタ
-            active_positions = [
-                pos for pos in positions if pos["contracts"] > 0
-            ]
+            active_positions = [pos for pos in positions if pos["contracts"] > 0]
 
             self.logger.debug(
                 f"ポジション情報取得成功: {len(active_positions)}件",
@@ -621,13 +603,9 @@ class BitbankClient:
             "authenticated": bool(self.api_key and self.api_secret),
             "margin_mode": True,
             "leverage": self.leverage,
-            "exchange_id": (
-                self.exchange.id if hasattr(self, "exchange") else None
-            ),
+            "exchange_id": (self.exchange.id if hasattr(self, "exchange") else None),
             "rate_limit": (
-                getattr(self.exchange, "rateLimit", None)
-                if hasattr(self, "exchange")
-                else None
+                getattr(self.exchange, "rateLimit", None) if hasattr(self, "exchange") else None
             ),
         }
 
@@ -636,9 +614,7 @@ class BitbankClient:
 _bitbank_client: Optional[BitbankClient] = None
 
 
-def get_bitbank_client(
-    force_recreate: bool = False, leverage: float = 1.0
-) -> BitbankClient:
+def get_bitbank_client(force_recreate: bool = False, leverage: float = 1.0) -> BitbankClient:
     """グローバルクライアント取得."""
     global _bitbank_client
 
@@ -654,6 +630,4 @@ def create_margin_client(
     leverage: float = 1.0,
 ) -> BitbankClient:
     """新しい信用取引クライアント作成."""
-    return BitbankClient(
-        api_key=api_key, api_secret=api_secret, leverage=leverage
-    )
+    return BitbankClient(api_key=api_key, api_secret=api_secret, leverage=leverage)

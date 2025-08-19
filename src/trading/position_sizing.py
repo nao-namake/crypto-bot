@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-
 from ..core.logger import get_logger
 
 
@@ -107,13 +106,9 @@ class KellyCriterion:
         )
 
         self.trade_history.append(trade_result)
-        self.logger.debug(
-            f"取引結果追加: P&L={profit_loss:.2f}, 勝利={trade_result.is_win}"
-        )
+        self.logger.debug(f"取引結果追加: P&L={profit_loss:.2f}, 勝利={trade_result.is_win}")
 
-    def calculate_kelly_fraction(
-        self, win_rate: float, avg_win: float, avg_loss: float
-    ) -> float:
+    def calculate_kelly_fraction(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
         """
         Kelly公式による最適ポジション比率計算
 
@@ -127,9 +122,7 @@ class KellyCriterion:
         """
         try:
             if avg_loss <= 0 or win_rate <= 0 or win_rate >= 1:
-                self.logger.warning(
-                    f"無効なパラメータ: win_rate={win_rate}, avg_loss={avg_loss}"
-                )
+                self.logger.warning(f"無効なパラメータ: win_rate={win_rate}, avg_loss={avg_loss}")
                 return 0.0
 
             # Kelly公式: f = (bp - q) / b
@@ -146,9 +139,7 @@ class KellyCriterion:
             # 理論上100%を超える場合は100%にクリップ
             kelly_f = min(1.0, kelly_f)
 
-            self.logger.debug(
-                f"Kelly計算: b={b:.3f}, p={p:.3f}, q={q:.3f}, f={kelly_f:.3f}"
-            )
+            self.logger.debug(f"Kelly計算: b={b:.3f}, p={p:.3f}, q={q:.3f}, f={kelly_f:.3f}")
 
             return kelly_f
 
@@ -173,17 +164,13 @@ class KellyCriterion:
             # 期間フィルタ
             cutoff_date = datetime.now() - timedelta(days=lookback_days)
             filtered_trades = [
-                trade
-                for trade in self.trade_history
-                if trade.timestamp >= cutoff_date
+                trade for trade in self.trade_history if trade.timestamp >= cutoff_date
             ]
 
             # 戦略フィルタ
             if strategy_filter:
                 filtered_trades = [
-                    trade
-                    for trade in filtered_trades
-                    if trade.strategy == strategy_filter
+                    trade for trade in filtered_trades if trade.strategy == strategy_filter
                 ]
 
             # 最小取引数チェック
@@ -194,14 +181,8 @@ class KellyCriterion:
                 return None
 
             # 統計計算
-            wins = [
-                trade.profit_loss for trade in filtered_trades if trade.is_win
-            ]
-            losses = [
-                abs(trade.profit_loss)
-                for trade in filtered_trades
-                if not trade.is_win
-            ]
+            wins = [trade.profit_loss for trade in filtered_trades if trade.is_win]
+            losses = [abs(trade.profit_loss) for trade in filtered_trades if not trade.is_win]
 
             if not wins or not losses:
                 self.logger.warning("勝ち取引または負け取引がありません")
@@ -212,9 +193,7 @@ class KellyCriterion:
             avg_loss = sum(losses) / len(losses)
 
             # Kelly値計算
-            kelly_fraction = self.calculate_kelly_fraction(
-                win_rate, avg_win, avg_loss
-            )
+            kelly_fraction = self.calculate_kelly_fraction(win_rate, avg_win, avg_loss)
 
             # 安全係数適用
             safety_adjusted = kelly_fraction * self.safety_factor
@@ -223,9 +202,7 @@ class KellyCriterion:
             recommended_size = min(safety_adjusted, self.max_position_ratio)
 
             # 信頼度計算（サンプルサイズベース）
-            confidence_level = min(
-                1.0, len(filtered_trades) / (self.min_trades_for_kelly * 2)
-            )
+            confidence_level = min(1.0, len(filtered_trades) / (self.min_trades_for_kelly * 2))
 
             result = KellyCalculationResult(
                 kelly_fraction=kelly_fraction,
@@ -268,27 +245,19 @@ class KellyCriterion:
         """
         try:
             # 履歴ベースのKelly値取得
-            kelly_result = self.calculate_from_history(
-                strategy_filter=strategy_name
-            )
+            kelly_result = self.calculate_from_history(strategy_filter=strategy_name)
 
             if kelly_result is None:
                 # 履歴データ不足の場合は保守的なサイズ
                 conservative_size = 0.01 * ml_confidence  # 1% * 信頼度
-                self.logger.warning(
-                    f"Kelly履歴不足、保守的サイズ使用: {conservative_size:.3f}"
-                )
+                self.logger.warning(f"Kelly履歴不足、保守的サイズ使用: {conservative_size:.3f}")
                 return min(conservative_size, self.max_position_ratio)
 
             # ML信頼度による調整
-            confidence_adjusted_size = (
-                kelly_result.recommended_position_size * ml_confidence
-            )
+            confidence_adjusted_size = kelly_result.recommended_position_size * ml_confidence
 
             # データ信頼度による調整
-            data_confidence_adjusted = (
-                confidence_adjusted_size * kelly_result.confidence_level
-            )
+            data_confidence_adjusted = confidence_adjusted_size * kelly_result.confidence_level
 
             # 最終制限適用
             final_size = min(data_confidence_adjusted, self.max_position_ratio)
@@ -335,17 +304,11 @@ class KellyCriterion:
             if balance <= 0:
                 raise ValueError(f"残高は正値である必要があります: {balance}")
             if entry_price <= 0:
-                raise ValueError(
-                    f"エントリー価格は正値である必要があります: {entry_price}"
-                )
+                raise ValueError(f"エントリー価格は正値である必要があります: {entry_price}")
             if atr_value < 0:
-                raise ValueError(
-                    f"ATR値は非負値である必要があります: {atr_value}"
-                )
+                raise ValueError(f"ATR値は非負値である必要があります: {atr_value}")
             if not 0 < target_volatility <= 1.0:
-                raise ValueError(
-                    f"目標ボラティリティは0-1.0の範囲: {target_volatility}"
-                )
+                raise ValueError(f"目標ボラティリティは0-1.0の範囲: {target_volatility}")
 
             # 1) ベースKellyサイズ計算
             base_kelly_size = self.calculate_optimal_size(
@@ -484,22 +447,16 @@ class KellyCriterion:
             issues = []
 
             if not (0.001 <= self.max_position_ratio <= 0.1):
-                issues.append(
-                    f"max_position_ratio範囲外: {self.max_position_ratio}"
-                )
+                issues.append(f"max_position_ratio範囲外: {self.max_position_ratio}")
 
             if not (0.1 <= self.safety_factor <= 1.0):
                 issues.append(f"safety_factor範囲外: {self.safety_factor}")
 
             if not (5 <= self.min_trades_for_kelly <= 100):
-                issues.append(
-                    f"min_trades_for_kelly範囲外: {self.min_trades_for_kelly}"
-                )
+                issues.append(f"min_trades_for_kelly範囲外: {self.min_trades_for_kelly}")
 
             if issues:
-                self.logger.warning(
-                    f"Kelly パラメータ問題: {', '.join(issues)}"
-                )
+                self.logger.warning(f"Kelly パラメータ問題: {', '.join(issues)}")
                 return False
 
             return True

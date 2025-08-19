@@ -40,7 +40,7 @@ class UnifiedBotManager(BaseAnalyzer):
     def __init__(self):
         """初期化処理"""
         super().__init__(output_dir="logs/management")
-        
+
         self.project_root = Path(__file__).parent.parent.parent
         self.scripts_dir = self.project_root / "scripts"
         self.src_dir = self.project_root / "src"
@@ -58,7 +58,7 @@ class UnifiedBotManager(BaseAnalyzer):
             self.models_dir / "production",
             self.models_dir / "training",
         ]
-        
+
         # CI前チェック結果格納
         self.check_results = {
             "timestamp": datetime.now().isoformat(),
@@ -74,15 +74,16 @@ class UnifiedBotManager(BaseAnalyzer):
         """コマンド実行ラッパー（base_analyzer.pyの機能を活用）"""
         if show_output:
             print(f"📍 実行: {' '.join(command)}")
-        
+
         # gcloudコマンドの場合はbase_analyzer.pyの機能を使用
         if command[0] == "gcloud":
             returncode, stdout, stderr = self.run_gcloud_command(command, show_output=show_output)
             return returncode, stdout + stderr
-        
+
         # その他のコマンドは従来通り
         try:
             import subprocess
+
             if capture:
                 result = subprocess.run(
                     command, capture_output=True, text=True, cwd=self.project_root, timeout=300
@@ -228,17 +229,19 @@ class UnifiedBotManager(BaseAnalyzer):
         品質チェック実行（checks.sh実行）.
 
         Args:
-            mode: "full" (checks.sh), "light" (checks_light.sh)
+            mode: "full" (checks.sh), "light" (checks.sh --light)
         """
         print("\n" + "=" * 60)
         print("🔍 新システム品質チェック")
         print("=" * 60)
 
         if mode == "light":
-            check_script = self.scripts_dir / "checks_light.sh"
+            check_script = self.scripts_dir / "quality" / "checks.sh"
+            light_mode = True
             print("📝 軽量品質チェック実行")
         else:
-            check_script = self.scripts_dir / "checks.sh"
+            check_script = self.scripts_dir / "quality" / "checks.sh"
+            light_mode = False
             print("📝 完全品質チェック実行")
 
         if not check_script.exists():
@@ -504,21 +507,22 @@ except Exception as e:
         print("\n" + "=" * 60)
         print("🔍 本番運用診断実行（ops_monitor.py委譲）")
         print("=" * 60)
-        
+
         operational_script = self.scripts_dir / "management" / "ops_monitor.py"
-        
+
         if not operational_script.exists():
             print(f"❌ ops_monitor.pyが見つかりません: {operational_script}")
             return 1
-        
+
         print(f"📍 実行: python {operational_script}")
-        
+
         try:
             import subprocess
+
             result = subprocess.run(
                 ["python", str(operational_script), "--verbose"],
                 cwd=self.project_root,
-                timeout=600  # 10分タイムアウト
+                timeout=600,  # 10分タイムアウト
             )
             return result.returncode
         except subprocess.TimeoutExpired:
@@ -600,12 +604,12 @@ except Exception as e:
         # 1. GCP認証確認（base_analyzer.pyを活用）
         print("\n▶️ 1. GCP認証状態確認")
         print("-" * 40)
-        
+
         # 認証確認
         returncode, stdout, stderr = self.run_gcloud_command(
             ["gcloud", "auth", "list", "--filter=status:ACTIVE", "--format=value(account)"]
         )
-        
+
         if returncode == 0 and stdout.strip():
             print(f"✅ GCP認証済み: {stdout.strip()}")
             checks_passed.append("GCP認証")
@@ -616,14 +620,14 @@ except Exception as e:
         # 2. Cloud Runサービス状態確認（base_analyzer.pyを活用）
         print("\n▶️ 2. Cloud Runサービス状態確認")
         print("-" * 40)
-        
+
         service_health = self.check_service_endpoint()
-        
+
         if service_health.get("service_status") == "UP":
             print("✅ Cloud Runサービス: READY")
             print(f"📍 サービスURL: {service_health.get('url', '')}")
             checks_passed.append("Cloud Runサービス")
-            
+
             if service_health.get("endpoint_status") == "OK":
                 print("✅ ヘルスエンドポイント応答OK")
                 checks_passed.append("ヘルスエンドポイント")
@@ -640,8 +644,10 @@ except Exception as e:
 
         secrets = ["bitbank-api-key", "bitbank-api-secret", "discord-webhook"]
         for secret_name in secrets:
-            returncode, _, _ = self.run_gcloud_command(["gcloud", "secrets", "describe", secret_name])
-            
+            returncode, _, _ = self.run_gcloud_command(
+                ["gcloud", "secrets", "describe", secret_name]
+            )
+
             if returncode == 0:
                 print(f"✅ シークレット: {secret_name}")
                 checks_passed.append(f"シークレット:{secret_name}")
@@ -691,13 +697,13 @@ except Exception as e:
         print("📡 Phase 11本番環境24時間監視")
         print("=" * 60)
 
-        import time
         import threading
+        import time
         from datetime import timedelta
-        
+
         start_time = datetime.now()
         end_time = start_time + timedelta(hours=duration_hours)  # Phase 11バグ修正: timedelta使用
-        
+
         print(f"📅 監視開始: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"📅 監視終了: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"⏰ 監視時間: {duration_hours}時間")
@@ -711,12 +717,12 @@ except Exception as e:
             while datetime.now() < end_time:
                 total_checks += 1
                 current_time = datetime.now().strftime("%H:%M:%S")
-                
+
                 print(f"\n🔍 [{current_time}] ヘルスチェック実行中... ({total_checks}回目)")
-                
+
                 # ヘルスチェック実行（静音モード）
                 health_result = self._silent_health_check()
-                
+
                 if health_result == 0:
                     print(f"✅ [{current_time}] 正常稼働中")
                     consecutive_failures = 0
@@ -724,11 +730,11 @@ except Exception as e:
                     failed_checks += 1
                     consecutive_failures += 1
                     print(f"❌ [{current_time}] 異常検知 (連続{consecutive_failures}回)")
-                    
+
                     # 3回連続失敗でアラート
                     if consecutive_failures >= 3:
                         self._send_critical_alert(consecutive_failures, total_checks)
-                        
+
                         # 5回連続失敗で監視一時停止（過度な通知防止）
                         if consecutive_failures >= 5:
                             print("🚨 連続5回失敗 - 30分間監視一時停止")
@@ -737,18 +743,22 @@ except Exception as e:
 
                 # 統計表示
                 success_rate = ((total_checks - failed_checks) / total_checks) * 100
-                print(f"📊 成功率: {success_rate:.1f}% ({total_checks - failed_checks}/{total_checks})")
+                print(
+                    f"📊 成功率: {success_rate:.1f}% ({total_checks - failed_checks}/{total_checks})"
+                )
 
                 # 5分間待機
                 time.sleep(300)
 
         except KeyboardInterrupt:
             print("\n⚠️ 監視を中断しました")
-            
+
         # 監視完了サマリー
         monitoring_duration = datetime.now() - start_time
-        success_rate = ((total_checks - failed_checks) / total_checks) * 100 if total_checks > 0 else 0
-        
+        success_rate = (
+            ((total_checks - failed_checks) / total_checks) * 100 if total_checks > 0 else 0
+        )
+
         print("\n" + "=" * 60)
         print("📊 24時間監視結果")
         print("-" * 40)
@@ -757,7 +767,7 @@ except Exception as e:
         print(f"✅ 成功回数: {total_checks - failed_checks}")
         print(f"❌ 失敗回数: {failed_checks}")
         print(f"📊 成功率: {success_rate:.1f}%")
-        
+
         if success_rate >= 95:
             print("🎉 優秀な稼働率です！")
             return 0
@@ -772,38 +782,49 @@ except Exception as e:
         """サイレントヘルスチェック（ログ出力抑制版）."""
         # Cloud Runサービス状態のみチェック（最重要）
         cmd = [
-            "gcloud", "run", "services", "describe", "crypto-bot-service",
-            "--region=asia-northeast1", "--format=value(status.conditions[0].status)"
+            "gcloud",
+            "run",
+            "services",
+            "describe",
+            "crypto-bot-service",
+            "--region=asia-northeast1",
+            "--format=value(status.conditions[0].status)",
         ]
         returncode, output = self.run_command(cmd, capture=True, show_output=False)
-        
+
         if returncode != 0 or "True" not in output:
             return 1
 
         # サービスURL応答確認
         cmd = [
-            "gcloud", "run", "services", "describe", "crypto-bot-service",
-            "--region=asia-northeast1", "--format=value(status.url)"
+            "gcloud",
+            "run",
+            "services",
+            "describe",
+            "crypto-bot-service",
+            "--region=asia-northeast1",
+            "--format=value(status.url)",
         ]
         returncode, service_url = self.run_command(cmd, capture=True, show_output=False)
-        
+
         if returncode == 0 and service_url.strip():
             service_url = service_url.strip()
-            import urllib.request
             import urllib.error
+            import urllib.request
+
             try:
                 with urllib.request.urlopen(f"{service_url}/health", timeout=10) as response:
                     return 0 if response.status == 200 else 1
             except:
                 return 1
-        
+
         return 1
 
     def _send_critical_alert(self, consecutive_failures: int, total_checks: int):
         """クリティカルアラート送信."""
         print(f"🚨 CRITICAL: {consecutive_failures}回連続失敗検知")
         print("📧 運用チームに通知を送信中...")
-        
+
         # Discord通知機能は実装済みの前提で、ここでは通知ログのみ
         # 実際の環境では Discord Webhook や メール通知を実装
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -814,83 +835,83 @@ except Exception as e:
 📊 総チェック: {total_checks}回
 🔍 対象: crypto-bot-service (asia-northeast1)
         """.strip()
-        
+
         print(alert_message)
 
     # ===== base_analyzer.py抽象メソッド実装 =====
-    
+
     def run_analysis(self, **kwargs) -> Dict:
         """分析実行（base_analyzer.py要求）"""
         return {
             "timestamp": datetime.now().isoformat(),
             "analysis_type": "unified_management",
-            "check_results": self.check_results
+            "check_results": self.check_results,
         }
-    
+
     def generate_report(self, analysis_result: Dict) -> str:
         """レポート生成（base_analyzer.py要求）"""
         return f"統合管理レポート: {analysis_result['timestamp']}"
-    
+
     # ===== ops_monitor.py機能統合（base_analyzer.py活用版） =====
-    
+
     def _run_phase1_infrastructure_checks(self) -> Dict:
         """Phase 1: インフラ・基盤確認（base_analyzer.py活用版）"""
         print("   📊 プロジェクト構造・GCP状態確認...")
-        
+
         # 1. ディレクトリ構造確認
         missing_dirs = []
         for req_dir in self.required_dirs:
             if not req_dir.exists():
                 missing_dirs.append(str(req_dir.relative_to(self.project_root)))
-        
+
         # 2. GCPサービス状態確認（base_analyzer.py活用）
         service_health = self.check_service_health()
         gcp_healthy = service_health.get("service_status") == "UP"
-        
+
         # スコア計算
         structure_score = 100 if not missing_dirs else max(40, 100 - len(missing_dirs) * 15)
         gcp_score = 100 if gcp_healthy else 30
-        
+
         overall_score = (structure_score + gcp_score) / 2
-        
+
         if missing_dirs:
             print(f"   ⚠️ 不足ディレクトリ: {len(missing_dirs)}個")
             for missing in missing_dirs[:3]:  # 最初の3個のみ表示
                 print(f"      - {missing}")
         else:
             print("   ✅ プロジェクト構造: OK")
-        
+
         if gcp_healthy:
             print("   ✅ GCPサービス: 稼働中")
         else:
             print(f"   ❌ GCPサービス: {service_health.get('service_status')}")
-        
+
         self.operational_results["phases"]["phase1"] = {"score": overall_score}
         return {"score": overall_score}
-    
+
     def _run_phase2_application_checks(self) -> Dict:
         """Phase 2: アプリケーション動作確認（base_analyzer.py活用版）"""
         print("   🔍 アプリケーション・ログ確認...")
-        
+
         scores = []
-        
+
         # 1. 基本インポート確認（軽量版）
         import_tests = [
             "from src.core.config import load_config",
             "from src.data.data_pipeline import DataPipeline",
-            "from src.ml.production.ensemble import ProductionEnsemble"
+            "from src.ml.production.ensemble import ProductionEnsemble",
         ]
-        
+
         import_failures = 0
         for test in import_tests:
             cmd = ["python3", "-c", test + "; print('OK')"]
             returncode, _ = self.run_command(cmd, capture=True, show_output=False)
             if returncode != 0:
                 import_failures += 1
-        
+
         import_score = max(20, 100 - import_failures * 30)
         scores.append(import_score)
-        
+
         # 2. Cloud Runログ確認（base_analyzer.py活用）
         log_success, logs = self.fetch_trading_logs(hours=6)  # 過去6時間
         if log_success:
@@ -900,25 +921,25 @@ except Exception as e:
         else:
             log_score = 40
             print("   ⚠️ ログ取得失敗")
-        
+
         scores.append(log_score)
-        
+
         overall_score = sum(scores) / len(scores)
-        
+
         if import_failures == 0:
             print("   ✅ 基本インポート: OK")
         else:
             print(f"   ❌ インポートエラー: {import_failures}件")
-        
+
         self.operational_results["phases"]["phase2"] = {"score": overall_score}
         return {"score": overall_score}
-    
+
     def _run_phase3_hidden_issues_detection(self) -> Dict:
         """Phase 3: 隠れた問題検出（base_analyzer.py活用版）"""
         print("   🔍 エラーログ・異常パターン分析...")
-        
+
         scores = []
-        
+
         # 1. エラーログ分析（base_analyzer.py活用）
         error_success, error_logs = self.fetch_error_logs(hours=24)
         if error_success:
@@ -935,9 +956,9 @@ except Exception as e:
         else:
             error_score = 30
             print("   ❌ エラーログ取得失敗")
-        
+
         scores.append(error_score)
-        
+
         # 2. 本番用モデル確認
         production_model = self.models_dir / "production" / "production_ensemble.pkl"
         if production_model.exists():
@@ -954,20 +975,20 @@ except Exception as e:
         else:
             model_score = 20
             print("   ❌ 本番用モデル: 未作成")
-        
+
         scores.append(model_score)
-        
+
         overall_score = sum(scores) / len(scores)
-        
+
         self.operational_results["phases"]["phase3"] = {"score": overall_score}
         return {"score": overall_score}
-    
+
     def _run_phase4_overall_assessment(self) -> Dict:
         """Phase 4: 総合判定（base_analyzer.py活用版）"""
         phases = self.operational_results["phases"]
         scores = [phase.get("score", 0) for phase in phases.values()]
         overall_score = sum(scores) / len(scores) if scores else 0
-        
+
         if overall_score >= 90:
             overall_status = "excellent"
         elif overall_score >= 70:
@@ -976,10 +997,10 @@ except Exception as e:
             overall_status = "warning"
         else:
             overall_status = "critical"
-        
+
         self.operational_results["overall_score"] = overall_score
         self.operational_results["overall_status"] = overall_status
-        
+
         print(f"   📊 総合スコア計算: {overall_score:.1f}/100")
         return {"score": overall_score, "status": overall_status}
 
@@ -1047,10 +1068,7 @@ Examples:
     # monitor コマンド
     monitor_parser = subparsers.add_parser("monitor", help="24時間本番監視")
     monitor_parser.add_argument(
-        "--hours",
-        type=int,
-        default=24,
-        help="監視時間（時間、デフォルト: 24時間）"
+        "--hours", type=int, default=24, help="監視時間（時間、デフォルト: 24時間）"
     )
 
     args = parser.parse_args()
@@ -1059,9 +1077,7 @@ Examples:
 
     if not args.command:
         parser.print_help()
-        print(
-            "\n💡 推奨: まずは 'python scripts/management/dev_check.py phase-check' で状況を確認"
-        )
+        print("\n💡 推奨: まずは 'python scripts/management/dev_check.py phase-check' で状況を確認")
         print("🔧 Phase 12統合機能:")
         print("   - operational: 本番運用診断（ops_monitor.py委譲）")
         print("   - health-check: GCP本番環境ヘルスチェック")
@@ -1091,8 +1107,6 @@ Examples:
     else:
         parser.print_help()
         return 1
-
-
 
 
 if __name__ == "__main__":

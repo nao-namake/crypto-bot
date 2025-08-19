@@ -85,9 +85,7 @@ class LiveTradingTester:
 
             # 接続テスト
             if not self.bitbank_client.test_connection():
-                self.logger.error(
-                    "Bitbank API接続テスト失敗", discord_notify=True
-                )
+                self.logger.error("Bitbank API接続テスト失敗", discord_notify=True)
                 return False
 
             # 残高確認
@@ -164,12 +162,8 @@ class LiveTradingTester:
             )
 
             # 買い注文実行
-            self.logger.info(
-                f"買い注文実行: 0.0001 BTC @ ¥{current_price:,.0f}"
-            )
-            buy_result = await self.order_executor.execute_trade(
-                test_evaluation
-            )
+            self.logger.info(f"買い注文実行: 0.0001 BTC @ ¥{current_price:,.0f}")
+            buy_result = await self.order_executor.execute_trade(test_evaluation)
 
             if not buy_result.success:
                 self.logger.error(f"買い注文失敗: {buy_result.error_message}")
@@ -192,9 +186,7 @@ class LiveTradingTester:
             )
 
             self.logger.info("売り注文実行: 0.0001 BTC")
-            sell_result = await self.order_executor.execute_trade(
-                test_evaluation_sell
-            )
+            sell_result = await self.order_executor.execute_trade(test_evaluation_sell)
 
             if not sell_result.success:
                 self.logger.error(f"売り注文失敗: {sell_result.error_message}")
@@ -220,9 +212,7 @@ class LiveTradingTester:
             return True
 
         except Exception as e:
-            self.logger.error(
-                f"単発注文テストエラー: {e}", discord_notify=True
-            )
+            self.logger.error(f"単発注文テストエラー: {e}", discord_notify=True)
             return False
 
     async def run_continuous_test(self, duration_hours: int = 4) -> bool:
@@ -277,9 +267,7 @@ class LiveTradingTester:
             return success_count > 0
 
         except Exception as e:
-            self.logger.error(
-                f"連続取引テストエラー: {e}", discord_notify=True
-            )
+            self.logger.error(f"連続取引テストエラー: {e}", discord_notify=True)
             return False
 
     async def run_24h_monitoring_test(self) -> bool:
@@ -321,18 +309,14 @@ class LiveTradingTester:
                     self.logger.info("ユーザーによる中断要求")
                     break
                 except Exception as e:
-                    self.logger.error(
-                        f"監視テストエラー（{hour + 1}時間目）: {e}"
-                    )
+                    self.logger.error(f"監視テストエラー（{hour + 1}時間目）: {e}")
                     await asyncio.sleep(60)
 
             self.logger.info("✅ 24時間監視テスト完了", discord_notify=True)
             return True
 
         except Exception as e:
-            self.logger.error(
-                f"24時間監視テストエラー: {e}", discord_notify=True
-            )
+            self.logger.error(f"24時間監視テストエラー: {e}", discord_notify=True)
             return False
 
     def save_test_results(self):
@@ -346,9 +330,7 @@ class LiveTradingTester:
             timestamp = self.start_time.strftime("%Y%m%d_%H%M%S")
             results_file = results_dir / f"live_trading_test_{timestamp}.json"
 
-            duration_minutes = (
-                datetime.now() - self.start_time
-            ).total_seconds() / 60
+            duration_minutes = (datetime.now() - self.start_time).total_seconds() / 60
             test_summary = {
                 "start_time": self.start_time.isoformat(),
                 "end_time": datetime.now().isoformat(),

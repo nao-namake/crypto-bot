@@ -110,13 +110,9 @@ class BacktestReporter:
 
             # 4. Discord通知送信
             if self.discord_notifier:
-                await self._send_discord_summary(
-                    test_name, performance_metrics, generated_files
-                )
+                await self._send_discord_summary(test_name, performance_metrics, generated_files)
 
-            self.logger.info(
-                f"レポート生成完了: {len(generated_files)}ファイル"
-            )
+            self.logger.info(f"レポート生成完了: {len(generated_files)}ファイル")
             return generated_files
 
         except Exception as e:
@@ -136,9 +132,7 @@ class BacktestReporter:
 
         # 1. 取引記録CSV
         if trade_records:
-            trades_file = (
-                self.output_dir / "csv" / f"{base_filename}_trades.csv"
-            )
+            trades_file = self.output_dir / "csv" / f"{base_filename}_trades.csv"
 
             with open(trades_file, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -169,9 +163,7 @@ class BacktestReporter:
                 for trade in trade_records:
                     duration_hours = 0.0
                     if trade.exit_time and trade.entry_time:
-                        duration_hours = (
-                            trade.exit_time - trade.entry_time
-                        ).total_seconds() / 3600
+                        duration_hours = (trade.exit_time - trade.entry_time).total_seconds() / 3600
 
                     writer.writerow(
                         [
@@ -202,9 +194,7 @@ class BacktestReporter:
 
         # 2. エクイティカーブCSV
         if equity_curve:
-            equity_file = (
-                self.output_dir / "csv" / f"{base_filename}_equity.csv"
-            )
+            equity_file = self.output_dir / "csv" / f"{base_filename}_equity.csv"
 
             with open(equity_file, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -326,9 +316,7 @@ class BacktestReporter:
             "detailed_stats": {
                 "trade_distribution": performance_metrics.trade_distribution,
                 "monthly_returns": performance_metrics.monthly_returns,
-                "drawdown_periods_count": len(
-                    performance_metrics.drawdown_periods
-                ),
+                "drawdown_periods_count": len(performance_metrics.drawdown_periods),
             },
         }
 
@@ -466,19 +454,13 @@ class BacktestReporter:
         """
 
         # 最新10件の取引記録
-        recent_trades = sorted(
-            trade_records, key=lambda x: x.entry_time, reverse=True
-        )[:10]
+        recent_trades = sorted(trade_records, key=lambda x: x.entry_time, reverse=True)[:10]
         for trade in recent_trades:
             duration_hours = 0.0
             if trade.exit_time and trade.entry_time:
-                duration_hours = (
-                    trade.exit_time - trade.entry_time
-                ).total_seconds() / 3600
+                duration_hours = (trade.exit_time - trade.entry_time).total_seconds() / 3600
 
-            profit_class = (
-                "trade-profit" if trade.profit_jpy >= 0 else "trade-loss"
-            )
+            profit_class = "trade-profit" if trade.profit_jpy >= 0 else "trade-loss"
 
             html_content += f"""
                     <tr>
@@ -534,12 +516,8 @@ class BacktestReporter:
 
         try:
             # 基本情報
-            win_rate_emoji = (
-                "📈" if performance_metrics.win_rate >= 0.55 else "📉"
-            )
-            return_emoji = (
-                "🟢" if performance_metrics.total_return >= 0 else "🔴"
-            )
+            win_rate_emoji = "📈" if performance_metrics.win_rate >= 0.55 else "📉"
+            return_emoji = "🟢" if performance_metrics.total_return >= 0 else "🔴"
 
             message = f"""
 🚀 **バックテストレポート完了**
@@ -573,9 +551,7 @@ class BacktestReporter:
             raise ValueError("比較には最低2つのテスト結果が必要です")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        comparison_file = (
-            self.output_dir / "html" / f"{comparison_name}_{timestamp}.html"
-        )
+        comparison_file = self.output_dir / "html" / f"{comparison_name}_{timestamp}.html"
 
         # 比較HTMLテンプレート（簡略版）
         html_content = f"""
@@ -654,11 +630,7 @@ class BacktestReporter:
                 if format_args and format_args[0] == "%":
                     formatted_value = f"{value:.2%}"
                 else:
-                    formatted_value = (
-                        f"{value:.3f}"
-                        if isinstance(value, float)
-                        else str(value)
-                    )
+                    formatted_value = f"{value:.3f}" if isinstance(value, float) else str(value)
 
                 html_content += f"<td{css_class}>{formatted_value}</td>"
 

@@ -82,13 +82,9 @@ class DataPipeline:
         cache_time = self._cache_timestamps[cache_key]
         now = datetime.now()
 
-        return (now - cache_time).total_seconds() < (
-            self.cache_duration_minutes * 60
-        )
+        return (now - cache_time).total_seconds() < (self.cache_duration_minutes * 60)
 
-    def _validate_ohlcv_data(
-        self, data: List[List[Union[int, float]]]
-    ) -> bool:
+    def _validate_ohlcv_data(self, data: List[List[Union[int, float]]]) -> bool:
         """OHLCV データの品質チェック."""
         if not data:
             return False
@@ -114,9 +110,7 @@ class DataPipeline:
 
         return True
 
-    def _convert_to_dataframe(
-        self, ohlcv_data: List[List[Union[int, float]]]
-    ) -> pd.DataFrame:
+    def _convert_to_dataframe(self, ohlcv_data: List[List[Union[int, float]]]) -> pd.DataFrame:
         """OHLCV データをDataFrameに変換."""
         columns = ["timestamp", "open", "high", "low", "close", "volume"]
 
@@ -135,9 +129,7 @@ class DataPipeline:
 
         return df
 
-    def fetch_ohlcv(
-        self, request: DataRequest, use_cache: bool = True
-    ) -> pd.DataFrame:
+    def fetch_ohlcv(self, request: DataRequest, use_cache: bool = True) -> pd.DataFrame:
         """
         OHLCV データを取得
 
@@ -189,9 +181,7 @@ class DataPipeline:
                     f"データ取得成功: {request.symbol} {request.timeframe.value}",
                     extra_data={
                         "rows": len(df),
-                        "latest_timestamp": (
-                            df.index[-1].isoformat() if len(df) > 0 else None
-                        ),
+                        "latest_timestamp": (df.index[-1].isoformat() if len(df) > 0 else None),
                         "attempt": attempt + 1,
                     },
                 )
@@ -199,9 +189,7 @@ class DataPipeline:
                 return df
 
             except Exception as e:
-                self.logger.warning(
-                    f"データ取得失敗 (試行 {attempt + 1}/{self.max_retries}): {e}"
-                )
+                self.logger.warning(f"データ取得失敗 (試行 {attempt + 1}/{self.max_retries}): {e}")
 
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay)
@@ -227,18 +215,14 @@ class DataPipeline:
         results = {}
 
         for timeframe in TimeFrame:
-            request = DataRequest(
-                symbol=symbol, timeframe=timeframe, limit=limit
-            )
+            request = DataRequest(symbol=symbol, timeframe=timeframe, limit=limit)
 
             try:
                 df = self.fetch_ohlcv(request)
                 results[timeframe.value] = df
 
             except Exception as e:
-                self.logger.error(
-                    f"マルチタイムフレーム取得失敗: {timeframe.value}", error=e
-                )
+                self.logger.error(f"マルチタイムフレーム取得失敗: {timeframe.value}", error=e)
                 # 失敗したタイムフレームは空のDataFrameで代替
                 results[timeframe.value] = pd.DataFrame()
 
@@ -266,20 +250,14 @@ class DataPipeline:
 
         for timeframe in TimeFrame:
             try:
-                request = DataRequest(
-                    symbol=symbol, timeframe=timeframe, limit=1
-                )
+                request = DataRequest(symbol=symbol, timeframe=timeframe, limit=1)
                 df = self.fetch_ohlcv(request)
 
                 if len(df) > 0:
-                    latest_prices[timeframe.value] = float(
-                        df["close"].iloc[-1]
-                    )
+                    latest_prices[timeframe.value] = float(df["close"].iloc[-1])
 
             except Exception as e:
-                self.logger.warning(
-                    f"最新価格取得失敗: {timeframe.value} - {e}"
-                )
+                self.logger.warning(f"最新価格取得失敗: {timeframe.value} - {e}")
 
         return latest_prices
 
@@ -295,9 +273,7 @@ class DataPipeline:
 
         cache_info = {
             "total_cached_items": len(self._cache),
-            "cache_size_mb": sum(
-                df.memory_usage(deep=True).sum() for df in self._cache.values()
-            )
+            "cache_size_mb": sum(df.memory_usage(deep=True).sum() for df in self._cache.values())
             / 1024
             / 1024,
             "items": [],

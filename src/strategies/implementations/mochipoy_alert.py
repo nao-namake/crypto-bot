@@ -64,9 +64,7 @@ class MochipoyAlertStrategy(StrategyBase):
             rci_signal = self._analyze_rci_reversal(df)
 
             # 多数決によるシンプル統合判定
-            signal_decision = self._make_simple_decision(
-                ema_signal, macd_signal, rci_signal
-            )
+            signal_decision = self._make_simple_decision(ema_signal, macd_signal, rci_signal)
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
@@ -78,9 +76,7 @@ class MochipoyAlertStrategy(StrategyBase):
 
         except Exception as e:
             self.logger.error(f"[MochipoyAlert] 分析エラー: {e}")
-            raise StrategyError(
-                f"もちぽよアラート分析失敗: {e}", strategy_name=self.name
-            )
+            raise StrategyError(f"もちぽよアラート分析失敗: {e}", strategy_name=self.name)
 
     def _analyze_ema_trend(self, df: pd.DataFrame) -> int:
         """EMAトレンド分析 - シンプルバージョン."""
@@ -150,9 +146,7 @@ class MochipoyAlertStrategy(StrategyBase):
 
                 # 価格順位と時間順位
                 price_ranks = window.rank(method="min", ascending=False)
-                time_ranks = pd.Series(
-                    range(len(window), 0, -1), index=window.index
-                )
+                time_ranks = pd.Series(range(len(window), 0, -1), index=window.index)
 
                 # 順位相関係数計算
                 n = len(window)

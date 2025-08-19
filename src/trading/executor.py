@@ -83,14 +83,10 @@ class VirtualPosition:
 
         if self.side == "buy":
             # ロングポジション: (現在価格 - エントリー価格) * 数量
-            self.unrealized_pnl = (
-                current_price - self.entry_price
-            ) * self.amount
+            self.unrealized_pnl = (current_price - self.entry_price) * self.amount
         elif self.side == "sell":
             # ショートポジション: (エントリー価格 - 現在価格) * 数量
-            self.unrealized_pnl = (
-                self.entry_price - current_price
-            ) * self.amount
+            self.unrealized_pnl = (self.entry_price - current_price) * self.amount
 
         return self.unrealized_pnl
 
@@ -136,7 +132,7 @@ class ExecutionResult:
     paper_balance_before: Optional[float] = None
     paper_balance_after: Optional[float] = None
     paper_pnl: Optional[float] = None
-    
+
     # Phase 11追加: レイテンシー監視・デバッグ情報
     execution_time_ms: Optional[float] = None
     notes: Optional[str] = None
@@ -211,15 +207,12 @@ class OrderExecutor:
         self._initialize_logging()
 
         self.logger.info(
-            f"OrderExecutor初期化完了 - モード: {mode.value}, "
-            f"初期残高: ¥{initial_balance:,.0f}"
+            f"OrderExecutor初期化完了 - モード: {mode.value}, " f"初期残高: ¥{initial_balance:,.0f}"
         )
 
     def _initialize_logging(self):
         """ログファイル初期化（レガシーから継承）."""
-        self.trades_csv = (
-            self.log_dir / f"trades_{datetime.now().strftime('%Y%m%d')}.csv"
-        )
+        self.trades_csv = self.log_dir / f"trades_{datetime.now().strftime('%Y%m%d')}.csv"
         self.stats_json = self.log_dir / "trading_statistics.json"
 
         # CSVヘッダー作成
@@ -245,9 +238,7 @@ class OrderExecutor:
                     ]
                 )
 
-    async def execute_trade(
-        self, evaluation: TradeEvaluation
-    ) -> ExecutionResult:
+    async def execute_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
         取引実行メイン処理
 
@@ -285,15 +276,12 @@ class OrderExecutor:
             # 実行時間ログ（レイテンシー監視）
             execution_time = time.time() - start_time
             self.logger.info(
-                f"取引実行完了 - 成功: {result.success}, "
-                f"実行時間: {execution_time:.3f}秒"
+                f"取引実行完了 - 成功: {result.success}, " f"実行時間: {execution_time:.3f}秒"
             )
 
             # レイテンシー目標チェック
             if execution_time > 1.0:
-                self.logger.warning(
-                    f"レイテンシー目標超過: {execution_time:.3f}秒 > 1.0秒"
-                )
+                self.logger.warning(f"レイテンシー目標超過: {execution_time:.3f}秒 > 1.0秒")
 
             # 取引記録・統計更新
             await self._record_trade(result)
@@ -302,13 +290,9 @@ class OrderExecutor:
 
         except Exception as e:
             self.logger.error(f"取引実行エラー: {e}", discord_notify=True)
-            return ExecutionResult(
-                success=False, mode=self.mode, error_message=str(e)
-            )
+            return ExecutionResult(success=False, mode=self.mode, error_message=str(e))
 
-    async def _execute_paper_trade(
-        self, evaluation: TradeEvaluation
-    ) -> ExecutionResult:
+    async def _execute_paper_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
         ペーパートレード実行（レガシーから継承・改良）
 
@@ -327,10 +311,7 @@ class OrderExecutor:
 
             # 残高チェック
             required_balance = trade_amount_jpy + fee
-            if (
-                evaluation.side == "buy"
-                and self.current_balance < required_balance
-            ):
+            if evaluation.side == "buy" and self.current_balance < required_balance:
                 raise ExchangeAPIError(
                     f"残高不足: 必要額 ¥{required_balance:,.0f} > 残高 ¥{self.current_balance:,.0f}"
                 )
@@ -340,10 +321,7 @@ class OrderExecutor:
             # ポジション管理
             if evaluation.side == "buy":
                 # 買い注文（ロング）
-                if (
-                    self.virtual_position.exist
-                    and self.virtual_position.side == "sell"
-                ):
+                if self.virtual_position.exist and self.virtual_position.side == "sell":
                     # ショートポジション決済
                     pnl = self._close_position(current_price)
                 else:
@@ -363,10 +341,7 @@ class OrderExecutor:
 
             else:  # sell
                 # 売り注文（ショート）
-                if (
-                    self.virtual_position.exist
-                    and self.virtual_position.side == "buy"
-                ):
+                if self.virtual_position.exist and self.virtual_position.side == "buy":
                     # ロングポジション決済
                     pnl = self._close_position(current_price)
                 else:
@@ -411,13 +386,9 @@ class OrderExecutor:
 
         except Exception as e:
             self.logger.error(f"ペーパートレード実行エラー: {e}")
-            return ExecutionResult(
-                success=False, mode=self.mode, error_message=str(e)
-            )
+            return ExecutionResult(success=False, mode=self.mode, error_message=str(e))
 
-    async def _execute_live_trade(
-        self, evaluation: TradeEvaluation
-    ) -> ExecutionResult:
+    async def _execute_live_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
         実取引実行（Phase 11実装・CI/CD統合・24時間監視対応）
 
@@ -455,18 +426,14 @@ class OrderExecutor:
                     leverage=1.0,  # 保守的なレバレッジから開始
                 )
 
-                self.logger.info(
-                    "実取引用BitbankClient初期化完了", discord_notify=True
-                )
+                self.logger.info("実取引用BitbankClient初期化完了", discord_notify=True)
 
             # 現在価格・残高取得
             current_price = await self._get_current_price()
             if current_price is None:
                 raise ExchangeAPIError("現在価格取得失敗")
 
-            balance_info = await asyncio.to_thread(
-                self._bitbank_client.fetch_balance
-            )
+            balance_info = await asyncio.to_thread(self._bitbank_client.fetch_balance)
             available_jpy = balance_info.get("JPY", {}).get("free", 0)
 
             # 残高チェック（売買方向別）
@@ -522,16 +489,12 @@ class OrderExecutor:
                 )
 
                 # 注文約定確認（最大30秒待機）
-                filled_order = await self._wait_for_order_fill(
-                    order["id"], timeout=30
-                )
+                filled_order = await self._wait_for_order_fill(order["id"], timeout=30)
 
                 if filled_order and filled_order["status"] == "closed":
                     # 約定成功
                     filled_price = filled_order.get("average", current_price)
-                    filled_amount = filled_order.get(
-                        "filled", evaluation.position_size
-                    )
+                    filled_amount = filled_order.get("filled", evaluation.position_size)
                     actual_fee = filled_order.get("fee", {}).get("cost", 0)
 
                     self.logger.info(
@@ -549,8 +512,10 @@ class OrderExecutor:
                     updated_balance_info = await asyncio.to_thread(
                         self._bitbank_client.fetch_balance
                     )
-                    updated_balance_jpy = updated_balance_info.get("JPY", {}).get("free", available_jpy)
-                    
+                    updated_balance_jpy = updated_balance_info.get("JPY", {}).get(
+                        "free", available_jpy
+                    )
+
                     # Phase 11: 実取引でのポジション管理追加
                     # LIVEモードでも統計とPnL計算のためVirtualPositionを活用
                     if evaluation.side == "buy":
@@ -614,16 +579,10 @@ class OrderExecutor:
 
                     # 約定していない注文をキャンセル
                     try:
-                        await asyncio.to_thread(
-                            self._bitbank_client.cancel_order, order["id"]
-                        )
-                        self.logger.info(
-                            f"未約定注文キャンセル成功: {order['id']}"
-                        )
+                        await asyncio.to_thread(self._bitbank_client.cancel_order, order["id"])
+                        self.logger.info(f"未約定注文キャンセル成功: {order['id']}")
                     except Exception as cancel_error:
-                        self.logger.error(
-                            f"注文キャンセル失敗: {cancel_error}"
-                        )
+                        self.logger.error(f"注文キャンセル失敗: {cancel_error}")
 
                     return ExecutionResult(
                         success=False,
@@ -645,9 +604,7 @@ class OrderExecutor:
                 )
 
         except Exception as e:
-            self.logger.error(
-                f"実取引実行エラー: {e}", error=e, discord_notify=True
-            )
+            self.logger.error(f"実取引実行エラー: {e}", error=e, discord_notify=True)
             return ExecutionResult(
                 success=False,
                 mode=self.mode,
@@ -671,9 +628,7 @@ class OrderExecutor:
 
         while (time.time() - start_time) < timeout:
             try:
-                order = await asyncio.to_thread(
-                    self._bitbank_client.fetch_order, order_id
-                )
+                order = await asyncio.to_thread(self._bitbank_client.fetch_order, order_id)
 
                 if order["status"] in ["closed", "canceled"]:
                     return order
@@ -695,9 +650,7 @@ class OrderExecutor:
             if self._bitbank_client is None:
                 self._bitbank_client = BitbankClient()
 
-            ticker = await asyncio.to_thread(
-                self._bitbank_client.exchange.fetch_ticker, "BTC/JPY"
-            )
+            ticker = await asyncio.to_thread(self._bitbank_client.exchange.fetch_ticker, "BTC/JPY")
             return float(ticker["last"])
 
         except Exception as e:
@@ -763,8 +716,7 @@ class OrderExecutor:
                 # 勝率計算
                 if self.statistics.total_trades > 0:
                     self.statistics.win_rate = (
-                        self.statistics.winning_trades
-                        / self.statistics.total_trades
+                        self.statistics.winning_trades / self.statistics.total_trades
                     )
 
             # 統計JSON保存
@@ -778,9 +730,7 @@ class OrderExecutor:
                     "total_fees": self.statistics.total_fees,
                     "current_balance": self.statistics.current_balance,
                     "initial_balance": self.initial_balance,
-                    "return_rate": (
-                        self.current_balance - self.initial_balance
-                    )
+                    "return_rate": (self.current_balance - self.initial_balance)
                     / self.initial_balance,
                     "last_update": self.statistics.last_update.isoformat(),
                 }
@@ -795,18 +745,13 @@ class OrderExecutor:
             "mode": self.mode.value,
             "statistics": self.statistics,
             "virtual_position": (
-                self.virtual_position
-                if self.mode == ExecutionMode.PAPER
-                else None
+                self.virtual_position if self.mode == ExecutionMode.PAPER else None
             ),
             "current_balance": self.current_balance,
             "initial_balance": self.initial_balance,
-            "return_rate": (self.current_balance - self.initial_balance)
-            / self.initial_balance,
+            "return_rate": (self.current_balance - self.initial_balance) / self.initial_balance,
             "unrealized_pnl": (
-                self.virtual_position.unrealized_pnl
-                if self.virtual_position.exist
-                else 0.0
+                self.virtual_position.unrealized_pnl if self.virtual_position.exist else 0.0
             ),
         }
 
@@ -824,18 +769,12 @@ class OrderExecutor:
             if current_price is None:
                 return None
 
-            stop_reason = self.virtual_position.check_stop_conditions(
-                current_price
-            )
+            stop_reason = self.virtual_position.check_stop_conditions(current_price)
             if stop_reason:
-                self.logger.info(
-                    f"自動決済条件検出: {stop_reason} @ ¥{current_price:,.0f}"
-                )
+                self.logger.info(f"自動決済条件検出: {stop_reason} @ ¥{current_price:,.0f}")
 
                 # 反対売買で決済
-                opposite_side = (
-                    "sell" if self.virtual_position.side == "buy" else "buy"
-                )
+                opposite_side = "sell" if self.virtual_position.side == "buy" else "buy"
 
                 # ダミーの評価結果作成（自動決済用）
                 dummy_evaluation = TradeEvaluation(
@@ -878,9 +817,5 @@ def create_order_executor(
     Returns:
         OrderExecutor インスタンス
     """
-    execution_mode = (
-        ExecutionMode.PAPER if mode.lower() == "paper" else ExecutionMode.LIVE
-    )
-    return OrderExecutor(
-        mode=execution_mode, initial_balance=initial_balance, **kwargs
-    )
+    execution_mode = ExecutionMode.PAPER if mode.lower() == "paper" else ExecutionMode.LIVE
+    return OrderExecutor(mode=execution_mode, initial_balance=initial_balance, **kwargs)

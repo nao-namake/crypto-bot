@@ -44,9 +44,7 @@ class ModelManager:
         # メタデータの初期化
         self.metadata = self._load_metadata()
 
-        self.logger.info(
-            f"✅ ModelManager initialized with base path: {self.base_path}"
-        )
+        self.logger.info(f"✅ ModelManager initialized with base path: {self.base_path}")
 
     def save_model(
         self,
@@ -118,9 +116,7 @@ class ModelManager:
             version_path = Path(self.metadata[version_name]["file_path"])
 
             if not version_path.exists():
-                raise FileNotFoundError(
-                    f"Model files not found: {version_path}"
-                )
+                raise FileNotFoundError(f"Model files not found: {version_path}")
 
             model = EnsembleModel.load(version_path)
 
@@ -142,9 +138,7 @@ class ModelManager:
             raise ValueError("No models found")
 
         # 最新の作成日時を基準に選択
-        latest_version = max(
-            self.metadata.keys(), key=lambda v: self.metadata[v]["created_at"]
-        )
+        latest_version = max(self.metadata.keys(), key=lambda v: self.metadata[v]["created_at"])
 
         model = self.load_model(latest_version)
         return latest_version, model
@@ -166,15 +160,9 @@ class ModelManager:
                 "created_at": metadata["created_at"],
                 "description": metadata.get("description", ""),
                 "n_models": metadata.get("model_info", {}).get("n_models", 0),
-                "is_fitted": metadata.get("model_info", {}).get(
-                    "is_fitted", False
-                ),
-                "accuracy": metadata.get("performance_metrics", {}).get(
-                    "accuracy", None
-                ),
-                "f1_score": metadata.get("performance_metrics", {}).get(
-                    "f1_score", None
-                ),
+                "is_fitted": metadata.get("model_info", {}).get("is_fitted", False),
+                "accuracy": metadata.get("performance_metrics", {}).get("accuracy", None),
+                "f1_score": metadata.get("performance_metrics", {}).get("f1_score", None),
             }
             model_list.append(entry)
 
@@ -215,9 +203,7 @@ class ModelManager:
             self.logger.error(f"Failed to delete model {version_name}: {e}")
             return False
 
-    def compare_models(
-        self, version_names: List[str], metrics: List[str] = None
-    ) -> pd.DataFrame:
+    def compare_models(self, version_names: List[str], metrics: List[str] = None) -> pd.DataFrame:
         """
         複数モデルの性能比較
 
@@ -235,15 +221,11 @@ class ModelManager:
 
         for version_name in version_names:
             if version_name not in self.metadata:
-                self.logger.warning(
-                    f"Version {version_name} not found, skipping"
-                )
+                self.logger.warning(f"Version {version_name} not found, skipping")
                 continue
 
             entry = {"version_name": version_name}
-            performance = self.metadata[version_name].get(
-                "performance_metrics", {}
-            )
+            performance = self.metadata[version_name].get("performance_metrics", {})
 
             for metric in metrics:
                 entry[metric] = performance.get(metric, None)
@@ -252,9 +234,7 @@ class ModelManager:
             model_info = self.metadata[version_name].get("model_info", {})
             entry["created_at"] = self.metadata[version_name]["created_at"]
             entry["n_models"] = model_info.get("n_models", 0)
-            entry["confidence_threshold"] = model_info.get(
-                "confidence_threshold", 0
-            )
+            entry["confidence_threshold"] = model_info.get("confidence_threshold", 0)
 
             comparison_data.append(entry)
 
@@ -295,11 +275,7 @@ class ModelManager:
             for metric in metrics_a.keys():
                 if metric in metrics_b:
                     diff = metrics_b[metric] - metrics_a[metric]
-                    improvement = (
-                        (diff / metrics_a[metric] * 100)
-                        if metrics_a[metric] != 0
-                        else 0
-                    )
+                    improvement = (diff / metrics_a[metric] * 100) if metrics_a[metric] != 0 else 0
                     comparison[metric] = {
                         "model_a": metrics_a[metric],
                         "model_b": metrics_b[metric],
@@ -309,8 +285,7 @@ class ModelManager:
 
             # テスト結果の記録
             test_result = {
-                "test_name": test_name
-                or f"AB_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                "test_name": test_name or f"AB_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                 "conducted_at": datetime.now().isoformat(),
                 "model_a_version": model_a_version,
                 "model_b_version": model_b_version,
@@ -322,9 +297,7 @@ class ModelManager:
             # テスト履歴の保存
             self._save_ab_test_result(test_result)
 
-            self.logger.info(
-                f"✅ A/B test completed: {model_a_version} vs {model_b_version}"
-            )
+            self.logger.info(f"✅ A/B test completed: {model_a_version} vs {model_b_version}")
             return test_result
 
         except Exception as e:
@@ -413,9 +386,7 @@ class ModelManager:
                 "valid_models": model_count,
                 "total_size_mb": total_size / (1024 * 1024),
                 "avg_size_mb": (
-                    (total_size / model_count / (1024 * 1024))
-                    if model_count > 0
-                    else 0
+                    (total_size / model_count / (1024 * 1024)) if model_count > 0 else 0
                 ),
                 "base_path": str(self.base_path),
             }

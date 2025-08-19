@@ -48,9 +48,7 @@ class VotingSystem:
         self.weights = weights or {}
         self.logger = get_logger()
 
-        self.logger.info(
-            f"✅ VotingSystem initialized with method: {method.value}"
-        )
+        self.logger.info(f"✅ VotingSystem initialized with method: {method.value}")
 
     def vote(
         self,
@@ -81,9 +79,7 @@ class VotingSystem:
             self.logger.error(f"Voting failed: {e}")
             raise DataProcessingError(f"Voting process failed: {e}")
 
-    def _soft_voting(
-        self, probabilities: Dict[str, np.ndarray]
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _soft_voting(self, probabilities: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         """
         ソフト投票（確率ベース）
 
@@ -105,14 +101,10 @@ class VotingSystem:
         # 信頼度（最大確率）を計算
         confidence = np.max(avg_probabilities, axis=1)
 
-        self.logger.debug(
-            f"Soft voting completed: {len(predictions)} predictions"
-        )
+        self.logger.debug(f"Soft voting completed: {len(predictions)} predictions")
         return predictions, confidence
 
-    def _hard_voting(
-        self, predictions: Dict[str, np.ndarray]
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _hard_voting(self, predictions: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         """
         ハード投票（多数決）
 
@@ -150,9 +142,7 @@ class VotingSystem:
             final_predictions.append(final_pred)
             vote_agreement.append(agreement)
 
-        self.logger.debug(
-            f"Hard voting completed: {len(final_predictions)} predictions"
-        )
+        self.logger.debug(f"Hard voting completed: {len(final_predictions)} predictions")
         return np.array(final_predictions), np.array(vote_agreement)
 
     def _weighted_voting(
@@ -189,9 +179,7 @@ class VotingSystem:
         Returns:
             Tuple[np.ndarray, np.ndarray]: (予測クラス, 重み付け信頼度).
         """
-        weighted_avg = self._average_probabilities(
-            probabilities, use_weights=True
-        )
+        weighted_avg = self._average_probabilities(probabilities, use_weights=True)
 
         predictions = np.argmax(weighted_avg, axis=1)
         confidence = np.max(weighted_avg, axis=1)
@@ -222,9 +210,7 @@ class VotingSystem:
         n_samples, n_classes = prob_arrays[0].shape
         for prob in prob_arrays[1:]:
             if prob.shape != (n_samples, n_classes):
-                raise ValueError(
-                    "All probability arrays must have the same shape"
-                )
+                raise ValueError("All probability arrays must have the same shape")
 
         if use_weights and self.weights:
             # 重み付け平均
@@ -236,11 +222,7 @@ class VotingSystem:
                 weighted_sum += weight * prob
                 total_weight += weight
 
-            return (
-                weighted_sum / total_weight
-                if total_weight > 0
-                else weighted_sum
-            )
+            return weighted_sum / total_weight if total_weight > 0 else weighted_sum
         else:
             # 単純平均
             return np.mean(prob_arrays, axis=0)
@@ -260,9 +242,7 @@ class VotingSystem:
         majority_idx = np.argmax(counts)
         return unique_votes[majority_idx]
 
-    def _weighted_hard_vote(
-        self, votes: np.ndarray, model_names: List[str]
-    ) -> int:
+    def _weighted_hard_vote(self, votes: np.ndarray, model_names: List[str]) -> int:
         """
         重み付けハード投票
 
@@ -303,16 +283,11 @@ class VotingSystem:
         # 重みの正規化
         total_weight = sum(self.weights.values())
         if total_weight > 0:
-            self.weights = {
-                name: weight / total_weight
-                for name, weight in self.weights.items()
-            }
+            self.weights = {name: weight / total_weight for name, weight in self.weights.items()}
 
         self.logger.info(f"Weights updated: {old_weights} -> {self.weights}")
 
-    def get_voting_statistics(
-        self, predictions: Dict[str, np.ndarray]
-    ) -> Dict[str, float]:
+    def get_voting_statistics(self, predictions: Dict[str, np.ndarray]) -> Dict[str, float]:
         """
         投票統計の取得
 
@@ -335,15 +310,11 @@ class VotingSystem:
             for i in range(n_models):
                 for j in range(i + 1, n_models):
                     model_pair = f"{model_names[i]}-{model_names[j]}"
-                    agreement = np.mean(
-                        prediction_matrix[:, i] == prediction_matrix[:, j]
-                    )
+                    agreement = np.mean(prediction_matrix[:, i] == prediction_matrix[:, j])
                     agreement_rates[model_pair] = agreement
 
             # 全体の一致率
-            unanimous_votes = np.sum(
-                np.all(prediction_matrix == prediction_matrix[:, [0]], axis=1)
-            )
+            unanimous_votes = np.sum(np.all(prediction_matrix == prediction_matrix[:, [0]], axis=1))
             unanimity_rate = unanimous_votes / n_samples
 
             # 多数決の信頼度
@@ -365,9 +336,7 @@ class VotingSystem:
                 **agreement_rates,
             }
 
-            self.logger.debug(
-                f"Voting statistics calculated: {len(statistics)} metrics"
-            )
+            self.logger.debug(f"Voting statistics calculated: {len(statistics)} metrics")
             return statistics
 
         except Exception as e:
@@ -397,9 +366,7 @@ class VotingSystem:
             n_samples, n_models = prediction_matrix.shape
 
             # 不一致サンプルを特定
-            disagreement_mask = ~np.all(
-                prediction_matrix == prediction_matrix[:, [0]], axis=1
-            )
+            disagreement_mask = ~np.all(prediction_matrix == prediction_matrix[:, [0]], axis=1)
             disagreement_indices = np.where(disagreement_mask)[0]
 
             # 低信頼度サンプルの特定（多数決での信頼度が低い）

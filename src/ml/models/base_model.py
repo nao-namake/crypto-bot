@@ -81,9 +81,7 @@ class BaseMLModel(ABC):
             self.estimator.fit(X, y)
             self.is_fitted = True
 
-            self.logger.info(
-                f"✅ {self.model_name} training completed successfully"
-            )
+            self.logger.info(f"✅ {self.model_name} training completed successfully")
             return self
 
         except Exception as e:
@@ -101,9 +99,7 @@ class BaseMLModel(ABC):
             np.ndarray: 予測クラス.
         """
         if not self.is_fitted:
-            raise ValueError(
-                f"{self.model_name} is not fitted. Call fit() first."
-            )
+            raise ValueError(f"{self.model_name} is not fitted. Call fit() first.")
 
         try:
             X_aligned = self._align_features(X)
@@ -125,9 +121,7 @@ class BaseMLModel(ABC):
             np.ndarray: 予測確率（各クラスの確率）.
         """
         if not self.is_fitted:
-            raise ValueError(
-                f"{self.model_name} is not fitted. Call fit() first."
-            )
+            raise ValueError(f"{self.model_name} is not fitted. Call fit() first.")
 
         try:
             X_aligned = self._align_features(X)
@@ -144,9 +138,7 @@ class BaseMLModel(ABC):
                 return probabilities
 
         except Exception as e:
-            self.logger.error(
-                f"Probability prediction failed for {self.model_name}: {e}"
-            )
+            self.logger.error(f"Probability prediction failed for {self.model_name}: {e}")
             raise DataProcessingError(f"Probability prediction failed: {e}")
 
     def get_feature_importance(self) -> Optional[pd.DataFrame]:
@@ -157,9 +149,7 @@ class BaseMLModel(ABC):
             pd.DataFrame: 特徴量重要度（重要度順にソート）.
         """
         if not self.is_fitted:
-            self.logger.warning(
-                f"{self.model_name} is not fitted. Cannot get feature importance."
-            )
+            self.logger.warning(f"{self.model_name} is not fitted. Cannot get feature importance.")
             return None
 
         if not self.feature_names:
@@ -181,9 +171,7 @@ class BaseMLModel(ABC):
             return importance_df
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to get feature importance for {self.model_name}: {e}"
-            )
+            self.logger.error(f"Failed to get feature importance for {self.model_name}: {e}")
             return None
 
     def save(self, filepath: Union[str, Path]) -> None:
@@ -250,9 +238,7 @@ class BaseMLModel(ABC):
             raise ValueError("Training data is empty")
 
         if len(X) != len(y):
-            raise ValueError(
-                f"Feature and target length mismatch: {len(X)} vs {len(y)}"
-            )
+            raise ValueError(f"Feature and target length mismatch: {len(X)} vs {len(y)}")
 
         if len(X) < 10:
             raise ValueError(f"Insufficient training data: {len(X)} samples")
@@ -262,14 +248,10 @@ class BaseMLModel(ABC):
         y_nan_ratio = y.isna().sum() / len(y)
 
         if x_nan_ratio > 0.5:
-            raise ValueError(
-                f"Too many NaN values in features: {x_nan_ratio:.2%}"
-            )
+            raise ValueError(f"Too many NaN values in features: {x_nan_ratio:.2%}")
 
         if y_nan_ratio > 0.3:
-            raise ValueError(
-                f"Too many NaN values in target: {y_nan_ratio:.2%}"
-            )
+            raise ValueError(f"Too many NaN values in target: {y_nan_ratio:.2%}")
 
     def _align_features(self, X: pd.DataFrame) -> pd.DataFrame:
         """特徴量の整合性確保."""
@@ -280,18 +262,14 @@ class BaseMLModel(ABC):
             # 不足する特徴量を0で補完
             missing_features = set(self.feature_names) - set(X.columns)
             if missing_features:
-                self.logger.warning(
-                    f"Adding missing features with zeros: {len(missing_features)}"
-                )
+                self.logger.warning(f"Adding missing features with zeros: {len(missing_features)}")
                 for feature in missing_features:
                     X[feature] = 0.0
 
             # 余分な特徴量を削除
             extra_features = set(X.columns) - set(self.feature_names)
             if extra_features:
-                self.logger.warning(
-                    f"Removing extra features: {len(extra_features)}"
-                )
+                self.logger.warning(f"Removing extra features: {len(extra_features)}")
                 X = X.drop(columns=extra_features)
 
             # 順序を合わせる

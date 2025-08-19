@@ -59,9 +59,7 @@ class EnsembleModel:
         # デフォルト重みの設定（均等重み）
         if weights is None:
             num_models = len(self.models)
-            self.weights = {
-                name: 1.0 / num_models for name in self.models.keys()
-            }
+            self.weights = {name: 1.0 / num_models for name in self.models.keys()}
         else:
             self.weights = weights
 
@@ -74,9 +72,7 @@ class EnsembleModel:
         self.classes_ = None
         self.model_performance = {}
 
-        self.logger.info(
-            f"✅ EnsembleModel initialized with {len(self.models)} models"
-        )
+        self.logger.info(f"✅ EnsembleModel initialized with {len(self.models)} models")
         self.logger.info(f"Models: {list(self.models.keys())}")
         self.logger.info(f"Weights: {self.weights}")
 
@@ -96,16 +92,11 @@ class EnsembleModel:
         """重みの正規化（合計が1になるように調整）."""
         total_weight = sum(self.weights.values())
         if total_weight > 0:
-            self.weights = {
-                name: weight / total_weight
-                for name, weight in self.weights.items()
-            }
+            self.weights = {name: weight / total_weight for name, weight in self.weights.items()}
         else:
             # 全重みが0の場合は均等重みに戻す
             num_models = len(self.weights)
-            self.weights = {
-                name: 1.0 / num_models for name in self.weights.keys()
-            }
+            self.weights = {name: 1.0 / num_models for name in self.weights.keys()}
 
         self.logger.debug(f"Normalized weights: {self.weights}")
 
@@ -121,9 +112,7 @@ class EnsembleModel:
             EnsembleModel: 学習済みアンサンブルモデル.
         """
         try:
-            self.logger.info(
-                f"Starting ensemble training with {len(X)} samples"
-            )
+            self.logger.info(f"Starting ensemble training with {len(X)} samples")
 
             # データの妥当性チェック
             self._validate_training_data(X, y)
@@ -148,25 +137,19 @@ class EnsembleModel:
                     "is_fitted": model.is_fitted,
                 }
 
-                self.logger.info(
-                    f"✅ {model_name} training completed in {training_time:.2f}s"
-                )
+                self.logger.info(f"✅ {model_name} training completed in {training_time:.2f}s")
 
             total_time = time.time() - start_time
             self.is_fitted = True
 
-            self.logger.info(
-                f"🎉 Ensemble training completed in {total_time:.2f}s"
-            )
+            self.logger.info(f"🎉 Ensemble training completed in {total_time:.2f}s")
             return self
 
         except Exception as e:
             self.logger.error(f"❌ Ensemble training failed: {e}")
             raise DataProcessingError(f"Ensemble training failed: {e}")
 
-    def predict(
-        self, X: pd.DataFrame, use_confidence: bool = True
-    ) -> np.ndarray:
+    def predict(self, X: pd.DataFrame, use_confidence: bool = True) -> np.ndarray:
         """
         アンサンブル予測の実行
 
@@ -217,9 +200,7 @@ class EnsembleModel:
             # 各モデルの予測確率を重み付けして統合
             for model_name, model in self.models.items():
                 if not model.is_fitted:
-                    self.logger.warning(
-                        f"{model_name} is not fitted, skipping..."
-                    )
+                    self.logger.warning(f"{model_name} is not fitted, skipping...")
                     continue
 
                 # モデルの確率予測を取得
@@ -247,9 +228,7 @@ class EnsembleModel:
             self.logger.error(f"Ensemble probability prediction failed: {e}")
             raise DataProcessingError(f"Probability prediction failed: {e}")
 
-    def _apply_confidence_threshold(
-        self, probabilities: np.ndarray
-    ) -> np.ndarray:
+    def _apply_confidence_threshold(self, probabilities: np.ndarray) -> np.ndarray:
         """
         confidence閾値を適用した予測
 
@@ -285,22 +264,14 @@ class EnsembleModel:
         try:
             # アンサンブル予測
             y_pred = self.predict(X, use_confidence=False)  # 閾値なしで評価
-            y_pred_conf = self.predict(
-                X, use_confidence=True
-            )  # 閾値ありで評価
+            y_pred_conf = self.predict(X, use_confidence=True)  # 閾値ありで評価
 
             # 基本メトリクス（閾値なし）
             metrics = {
                 "accuracy": accuracy_score(y, y_pred),
-                "precision": precision_score(
-                    y, y_pred, average="weighted", zero_division=0
-                ),
-                "recall": recall_score(
-                    y, y_pred, average="weighted", zero_division=0
-                ),
-                "f1_score": f1_score(
-                    y, y_pred, average="weighted", zero_division=0
-                ),
+                "precision": precision_score(y, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y, y_pred, average="weighted", zero_division=0),
+                "f1_score": f1_score(y, y_pred, average="weighted", zero_division=0),
             }
 
             # confidence閾値適用時のメトリクス
@@ -312,9 +283,7 @@ class EnsembleModel:
                 metrics.update(
                     {
                         "confidence_coverage": valid_mask.sum() / len(y),
-                        "confidence_accuracy": accuracy_score(
-                            y_valid, y_pred_valid
-                        ),
+                        "confidence_accuracy": accuracy_score(y_valid, y_pred_valid),
                         "confidence_precision": precision_score(
                             y_valid,
                             y_pred_valid,
@@ -325,9 +294,7 @@ class EnsembleModel:
                 )
 
             self.logger.info(f"📊 Ensemble evaluation completed")
-            self.logger.info(
-                f"Accuracy: {metrics['accuracy']:.3f}, F1: {metrics['f1_score']:.3f}"
-            )
+            self.logger.info(f"Accuracy: {metrics['accuracy']:.3f}, F1: {metrics['f1_score']:.3f}")
 
             return metrics
 
@@ -354,9 +321,7 @@ class EnsembleModel:
                 importance_df = model.get_feature_importance()
                 if importance_df is not None:
                     weight = self.weights.get(model_name, 0.0)
-                    importance_sum += (
-                        importance_df["importance"].values * weight
-                    )
+                    importance_sum += importance_df["importance"].values * weight
                     total_weight += weight
 
             if total_weight == 0:
@@ -373,9 +338,7 @@ class EnsembleModel:
             return ensemble_importance
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to get ensemble feature importance: {e}"
-            )
+            self.logger.error(f"Failed to get ensemble feature importance: {e}")
             return None
 
     def save(self, filepath: Union[str, Path]) -> None:
@@ -476,21 +439,15 @@ class EnsembleModel:
             raise ValueError("Training data is empty")
 
         if len(X) != len(y):
-            raise ValueError(
-                f"Feature and target length mismatch: {len(X)} vs {len(y)}"
-            )
+            raise ValueError(f"Feature and target length mismatch: {len(X)} vs {len(y)}")
 
         if len(X) < 50:  # アンサンブルには多めのデータが必要
-            raise ValueError(
-                f"Insufficient training data for ensemble: {len(X)} samples"
-            )
+            raise ValueError(f"Insufficient training data for ensemble: {len(X)} samples")
 
         # クラス数チェック
         n_classes = len(np.unique(y))
         if n_classes < 2:
-            raise ValueError(
-                f"Need at least 2 classes for classification, got {n_classes}"
-            )
+            raise ValueError(f"Need at least 2 classes for classification, got {n_classes}")
 
     def get_model_info(self) -> Dict[str, any]:
         """アンサンブルモデルの情報を取得."""
@@ -503,8 +460,6 @@ class EnsembleModel:
             "is_fitted": self.is_fitted,
             "n_features": len(self.feature_names) if self.feature_names else 0,
             "feature_names": self.feature_names,
-            "classes": (
-                self.classes_.tolist() if self.classes_ is not None else None
-            ),
+            "classes": (self.classes_.tolist() if self.classes_ is not None else None),
             "model_performance": self.model_performance,
         }

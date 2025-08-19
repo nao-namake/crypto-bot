@@ -78,9 +78,7 @@ class ProductionEnsemble:
 
         # 入力形状検証
         if X.shape[1] != self.n_features_:
-            raise ValueError(
-                f"特徴量数不一致: {X.shape[1]} != {self.n_features_}"
-            )
+            raise ValueError(f"特徴量数不一致: {X.shape[1]} != {self.n_features_}")
 
         predictions = {}
 
@@ -90,9 +88,7 @@ class ProductionEnsemble:
                 pred = model.predict(X)
                 predictions[name] = pred
             else:
-                raise ValueError(
-                    f"モデル {name} にpredictメソッドがありません"
-                )
+                raise ValueError(f"モデル {name} にpredictメソッドがありません")
 
         # 重み付け平均計算
         ensemble_pred = np.zeros(len(X))
@@ -121,9 +117,7 @@ class ProductionEnsemble:
 
         # 入力形状検証
         if X.shape[1] != self.n_features_:
-            raise ValueError(
-                f"特徴量数不一致: {X.shape[1]} != {self.n_features_}"
-            )
+            raise ValueError(f"特徴量数不一致: {X.shape[1]} != {self.n_features_}")
 
         probabilities = {}
 
@@ -132,9 +126,7 @@ class ProductionEnsemble:
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X)
                 # クラス1の確率を取得
-                probabilities[name] = (
-                    proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
-                )
+                probabilities[name] = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
             elif hasattr(model, "predict"):
                 # predict_probaがない場合はpredictの結果を使用
                 probabilities[name] = model.predict(X).astype(float)
@@ -185,10 +177,7 @@ class ProductionEnsemble:
         # 重みの正規化
         total_weight = sum(self.weights.values())
         if total_weight > 0:
-            self.weights = {
-                name: weight / total_weight
-                for name, weight in self.weights.items()
-            }
+            self.weights = {name: weight / total_weight for name, weight in self.weights.items()}
 
         print(f"重み更新: {old_weights} -> {self.weights}")
 
@@ -226,9 +215,7 @@ class ProductionEnsemble:
             validation_result.update(
                 {
                     "accuracy": float(accuracy_score(y_true, predictions)),
-                    "f1_score": float(
-                        f1_score(y_true, predictions, average="weighted")
-                    ),
+                    "f1_score": float(f1_score(y_true, predictions, average="weighted")),
                 }
             )
 

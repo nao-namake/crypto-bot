@@ -56,9 +56,7 @@ class DiscordNotifier:
         self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
 
         if not self.webhook_url:
-            print(
-                "⚠️ DISCORD_WEBHOOK_URL環境変数が設定されていません。Discord通知は無効です。"
-            )
+            print("⚠️ DISCORD_WEBHOOK_URL環境変数が設定されていません。Discord通知は無効です。")
             self.enabled = False
         else:
             self.enabled = True
@@ -67,9 +65,7 @@ class DiscordNotifier:
         self._last_notification_time = {}
         self._min_interval_seconds = 60  # 同じメッセージは60秒間隔
 
-    def _should_send_notification(
-        self, message: str, level: NotificationLevel
-    ) -> bool:
+    def _should_send_notification(self, message: str, level: NotificationLevel) -> bool:
         """
         レート制限チェック
 
@@ -79,9 +75,7 @@ class DiscordNotifier:
         key = f"{level.value}_{hash(message)}"
 
         if key in self._last_notification_time:
-            time_diff = (
-                now - self._last_notification_time[key]
-            ).total_seconds()
+            time_diff = (now - self._last_notification_time[key]).total_seconds()
             if time_diff < self._min_interval_seconds:
                 return False
 
@@ -108,11 +102,7 @@ class DiscordNotifier:
             Discord埋め込み辞書.
         """
         # 日本時間での時刻表示
-        jst_time = (
-            datetime.now(timezone.utc)
-            .astimezone()
-            .strftime("%Y-%m-%d %H:%M:%S JST")
-        )
+        jst_time = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S JST")
 
         embed = {
             "title": f"{self.EMOJIS[level]} {title}",
@@ -148,16 +138,12 @@ class DiscordNotifier:
         }
 
         try:
-            response = requests.post(
-                self.webhook_url, json=payload, timeout=10
-            )
+            response = requests.post(self.webhook_url, json=payload, timeout=10)
 
             if response.status_code in [200, 204]:
                 return True
             else:
-                print(
-                    f"Discord通知送信失敗: {response.status_code} - {response.text}"
-                )
+                print(f"Discord通知送信失敗: {response.status_code} - {response.text}")
                 return False
 
         except requests.exceptions.RequestException as e:
@@ -298,9 +284,7 @@ class DiscordNotifier:
         ]
 
         if order_id:
-            fields.append(
-                {"name": "注文ID", "value": order_id, "inline": True}
-            )
+            fields.append({"name": "注文ID", "value": order_id, "inline": True})
 
         embed = self._create_embed(title, message, level, fields)
         return self._send_webhook([embed])
@@ -334,9 +318,7 @@ class DiscordNotifier:
             title = "📉 パフォーマンスレポート"
             pnl_emoji = "📉"
 
-        message = (
-            f"{pnl_emoji} 損益: {total_pnl:+,.0f} JPY | 勝率: {win_rate:.1%}"
-        )
+        message = f"{pnl_emoji} 損益: {total_pnl:+,.0f} JPY | 勝率: {win_rate:.1%}"
 
         fields = [
             {
@@ -352,9 +334,7 @@ class DiscordNotifier:
         embed = self._create_embed(title, message, level, fields)
         return self._send_webhook([embed])
 
-    def send_system_notification(
-        self, message: str, system_status: str = "normal"
-    ) -> bool:
+    def send_system_notification(self, message: str, system_status: str = "normal") -> bool:
         """
         システム状態通知を送信
 

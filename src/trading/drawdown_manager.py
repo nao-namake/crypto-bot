@@ -123,9 +123,7 @@ class DrawdownManager:
             # 新しいピークかチェック
             if initial_balance > self.peak_balance:
                 self.peak_balance = initial_balance
-                self.logger.info(
-                    f"新しいピーク残高更新: {self.peak_balance:.2f}"
-                )
+                self.logger.info(f"新しいピーク残高更新: {self.peak_balance:.2f}")
 
             # 新セッション開始
             if self.current_session is None:
@@ -227,17 +225,12 @@ class DrawdownManager:
             if is_profitable:
                 # 利益の場合は連続損失リセット
                 if self.consecutive_losses > 0:
-                    self.logger.info(
-                        f"利益により連続損失リセット: {self.consecutive_losses} -> 0"
-                    )
+                    self.logger.info(f"利益により連続損失リセット: {self.consecutive_losses} -> 0")
                     self.consecutive_losses = 0
                     self.last_loss_time = None
 
                     # 一時停止状態の場合は解除チェック
-                    if (
-                        self.trading_status
-                        == TradingStatus.PAUSED_CONSECUTIVE_LOSS
-                    ):
+                    if self.trading_status == TradingStatus.PAUSED_CONSECUTIVE_LOSS:
                         self._resume_trading("利益による連続損失解除")
             else:
                 # 損失の場合は連続損失カウント
@@ -317,10 +310,7 @@ class DrawdownManager:
 
             # 連続損失チェック
             if self.consecutive_losses >= self.consecutive_loss_limit:
-                if (
-                    self.trading_status
-                    != TradingStatus.PAUSED_CONSECUTIVE_LOSS
-                ):
+                if self.trading_status != TradingStatus.PAUSED_CONSECUTIVE_LOSS:
                     self._pause_trading_consecutive_loss()
                 return False
 
@@ -345,8 +335,7 @@ class DrawdownManager:
             max_historical_drawdown = 0.0
             if self.drawdown_history:
                 max_historical_drawdown = max(
-                    snapshot.drawdown_ratio
-                    for snapshot in self.drawdown_history
+                    snapshot.drawdown_ratio for snapshot in self.drawdown_history
                 )
 
             # セッション統計
@@ -355,8 +344,7 @@ class DrawdownManager:
                 win_rate = 0.0
                 if self.current_session.total_trades > 0:
                     win_rate = (
-                        self.current_session.profitable_trades
-                        / self.current_session.total_trades
+                        self.current_session.profitable_trades / self.current_session.total_trades
                     )
 
                 session_stats = {
@@ -378,13 +366,9 @@ class DrawdownManager:
                 "trading_status": self.trading_status.value,
                 "trading_allowed": trading_allowed,
                 "last_loss_time": (
-                    self.last_loss_time.isoformat()
-                    if self.last_loss_time
-                    else None
+                    self.last_loss_time.isoformat() if self.last_loss_time else None
                 ),
-                "pause_until": (
-                    self.pause_until.isoformat() if self.pause_until else None
-                ),
+                "pause_until": (self.pause_until.isoformat() if self.pause_until else None),
                 "session_statistics": session_stats,
             }
 
@@ -437,16 +421,12 @@ class DrawdownManager:
 
         # セッション終了
         if self.current_session:
-            self._end_current_session(
-                f"ドローダウン制限: {current_drawdown:.1%}"
-            )
+            self._end_current_session(f"ドローダウン制限: {current_drawdown:.1%}")
 
     def _pause_trading_consecutive_loss(self) -> None:
         """連続損失による取引停止."""
         self.trading_status = TradingStatus.PAUSED_CONSECUTIVE_LOSS
-        self.pause_until = datetime.now() + timedelta(
-            hours=self.cooldown_hours
-        )
+        self.pause_until = datetime.now() + timedelta(hours=self.cooldown_hours)
 
         self.logger.critical(
             f"連続損失制限到達！{self.cooldown_hours}時間停止: "
@@ -456,8 +436,7 @@ class DrawdownManager:
         # セッション終了
         if self.current_session:
             self._end_current_session(
-                f"連続損失: {self.consecutive_losses}回, "
-                f"{self.cooldown_hours}時間停止"
+                f"連続損失: {self.consecutive_losses}回, " f"{self.cooldown_hours}時間停止"
             )
 
     def _resume_trading(self, reason: str) -> None:
@@ -510,19 +489,11 @@ class DrawdownManager:
                 "peak_balance": self.peak_balance,
                 "consecutive_losses": self.consecutive_losses,
                 "last_loss_time": (
-                    self.last_loss_time.isoformat()
-                    if self.last_loss_time
-                    else None
+                    self.last_loss_time.isoformat() if self.last_loss_time else None
                 ),
                 "trading_status": self.trading_status.value,
-                "pause_until": (
-                    self.pause_until.isoformat() if self.pause_until else None
-                ),
-                "current_session": (
-                    asdict(self.current_session)
-                    if self.current_session
-                    else None
-                ),
+                "pause_until": (self.pause_until.isoformat() if self.pause_until else None),
+                "current_session": (asdict(self.current_session) if self.current_session else None),
             }
 
             with open(self.persistence_file, "w", encoding="utf-8") as f:
@@ -535,9 +506,7 @@ class DrawdownManager:
         """ファイルから状態を復元."""
         try:
             if not self.persistence_file.exists():
-                self.logger.info(
-                    "ドローダウン状態ファイルが存在しません（初回起動）"
-                )
+                self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
                 return
 
             with open(self.persistence_file, "r", encoding="utf-8") as f:
@@ -548,9 +517,7 @@ class DrawdownManager:
             self.consecutive_losses = state.get("consecutive_losses", 0)
 
             if state.get("last_loss_time"):
-                self.last_loss_time = datetime.fromisoformat(
-                    state["last_loss_time"]
-                )
+                self.last_loss_time = datetime.fromisoformat(state["last_loss_time"])
 
             if state.get("trading_status"):
                 self.trading_status = TradingStatus(state["trading_status"])
@@ -561,9 +528,7 @@ class DrawdownManager:
             if state.get("current_session"):
                 session_data = state["current_session"]
                 self.current_session = TradingSession(
-                    start_time=datetime.fromisoformat(
-                        session_data["start_time"]
-                    ),
+                    start_time=datetime.fromisoformat(session_data["start_time"]),
                     end_time=(
                         datetime.fromisoformat(session_data["end_time"])
                         if session_data.get("end_time")

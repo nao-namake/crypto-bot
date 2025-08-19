@@ -61,9 +61,7 @@ class ExchangeAPIError(CryptoBotError):
         super().__init__(message, **kwargs)
         self.api_endpoint = api_endpoint
         self.status_code = status_code
-        self.context.update(
-            {"api_endpoint": api_endpoint, "status_code": status_code}
-        )
+        self.context.update({"api_endpoint": api_endpoint, "status_code": status_code})
 
 
 class TradingError(CryptoBotError):
@@ -95,9 +93,7 @@ class MLModelError(CryptoBotError):
         super().__init__(message, **kwargs)
         self.model_name = model_name
         self.feature_count = feature_count
-        self.context.update(
-            {"model_name": model_name, "feature_count": feature_count}
-        )
+        self.context.update({"model_name": model_name, "feature_count": feature_count})
 
 
 class RiskManagementError(CryptoBotError):
@@ -113,9 +109,7 @@ class RiskManagementError(CryptoBotError):
         super().__init__(message, **kwargs)
         self.risk_level = risk_level
         self.position_size = position_size
-        self.context.update(
-            {"risk_level": risk_level, "position_size": position_size}
-        )
+        self.context.update({"risk_level": risk_level, "position_size": position_size})
 
 
 class StrategyError(CryptoBotError):
@@ -131,17 +125,13 @@ class StrategyError(CryptoBotError):
         super().__init__(message, **kwargs)
         self.strategy_name = strategy_name
         self.confidence = confidence
-        self.context.update(
-            {"strategy_name": strategy_name, "confidence": confidence}
-        )
+        self.context.update({"strategy_name": strategy_name, "confidence": confidence})
 
 
 class NotificationError(CryptoBotError):
     """通知システムエラー."""
 
-    def __init__(
-        self, message: str, notification_type: Optional[str] = None, **kwargs
-    ):
+    def __init__(self, message: str, notification_type: Optional[str] = None, **kwargs):
         super().__init__(message, **kwargs)
         self.notification_type = notification_type
         self.context.update({"notification_type": notification_type})
@@ -196,9 +186,7 @@ class DataProcessingError(CryptoBotError):
         super().__init__(message, **kwargs)
         self.data_type = data_type
         self.processing_stage = processing_stage
-        self.context.update(
-            {"data_type": data_type, "processing_stage": processing_stage}
-        )
+        self.context.update({"data_type": data_type, "processing_stage": processing_stage})
 
 
 class DataQualityError(DataProcessingError):

@@ -78,9 +78,7 @@ class RFModel(BaseMLModel):
             return estimator
 
         except Exception as e:
-            self.logger.error(
-                f"❌ Failed to create RandomForest estimator: {e}"
-            )
+            self.logger.error(f"❌ Failed to create RandomForest estimator: {e}")
             raise
 
     def _clean_rf_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -122,16 +120,12 @@ class RFModel(BaseMLModel):
                 "log2",
                 "auto",
             ]:
-                self.logger.warning(
-                    f"Invalid max_features: {max_features}, using 'sqrt'"
-                )
+                self.logger.warning(f"Invalid max_features: {max_features}, using 'sqrt'")
                 clean_params["max_features"] = "sqrt"
 
         # n_estimators の最小値チェック
         if "n_estimators" in clean_params and clean_params["n_estimators"] < 1:
-            self.logger.warning(
-                f"n_estimators too small: {clean_params['n_estimators']}, using 10"
-            )
+            self.logger.warning(f"n_estimators too small: {clean_params['n_estimators']}, using 10")
             clean_params["n_estimators"] = 10
 
         return clean_params

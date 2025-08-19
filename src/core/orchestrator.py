@@ -30,9 +30,7 @@ from .logger import StructuredLogger
 class DataServiceProtocol(Protocol):
     """データ層サービスインターフェース."""
 
-    async def get_latest_market_data(
-        self, symbol: str, timeframes: list
-    ) -> Optional[Dict]: ...
+    async def get_latest_market_data(self, symbol: str, timeframes: list) -> Optional[Dict]: ...
 
 
 class FeatureServiceProtocol(Protocol):
@@ -44,9 +42,7 @@ class FeatureServiceProtocol(Protocol):
 class StrategyServiceProtocol(Protocol):
     """戦略評価サービスインターフェース."""
 
-    async def evaluate_strategies(
-        self, market_data: Dict, features: Dict
-    ) -> list: ...
+    async def evaluate_strategies(self, market_data: Dict, features: Dict) -> list: ...
 
 
 class MLServiceProtocol(Protocol):
@@ -136,9 +132,7 @@ class TradingOrchestrator:
             await self._health_check()
 
             self._initialized = True
-            self.logger.info(
-                "🎉 TradingOrchestrator初期化確認完了", discord_notify=True
-            )
+            self.logger.info("🎉 TradingOrchestrator初期化確認完了", discord_notify=True)
             return True
 
         except Exception as e:
@@ -167,9 +161,7 @@ class TradingOrchestrator:
         if not self._initialized:
             raise CryptoBotError("TradingOrchestratorが初期化されていません")
 
-        self.logger.info(
-            f"TradingOrchestrator実行開始 - モード: {mode.upper()}"
-        )
+        self.logger.info(f"TradingOrchestrator実行開始 - モード: {mode.upper()}")
 
         try:
             if mode == "backtest":
@@ -209,9 +201,7 @@ class TradingOrchestrator:
                 return
 
             # Phase 3: 特徴量生成
-            features = await self.feature_service.generate_features(
-                market_data
-            )
+            features = await self.feature_service.generate_features(market_data)
 
             # Phase 4: 戦略評価
             strategy_signals = await self.strategy_service.evaluate_strategies(
@@ -222,21 +212,14 @@ class TradingOrchestrator:
             ml_prediction = await self.ml_service.predict(features)
 
             # Phase 6: リスク管理・統合判定
-            trade_evaluation = (
-                await self.risk_service.evaluate_trade_opportunity(
-                    ml_prediction, strategy_signals, market_data
-                )
+            trade_evaluation = await self.risk_service.evaluate_trade_opportunity(
+                ml_prediction, strategy_signals, market_data
             )
 
             # Phase 7: 注文実行（承認された取引のみ）
             execution_result = None
-            if (
-                str(getattr(trade_evaluation, "decision", "")).lower()
-                == "approved"
-            ):
-                execution_result = await self.execution_service.execute_trade(
-                    trade_evaluation
-                )
+            if str(getattr(trade_evaluation, "decision", "")).lower() == "approved":
+                execution_result = await self.execution_service.execute_trade(trade_evaluation)
                 await self._log_execution_result(execution_result, cycle_id)
             else:
                 await self._log_trade_decision(trade_evaluation, cycle_id)
@@ -244,9 +227,7 @@ class TradingOrchestrator:
             # ストップ条件チェック（既存ポジションの自動決済）
             stop_result = await self.execution_service.check_stop_conditions()
             if stop_result:
-                await self._log_execution_result(
-                    stop_result, cycle_id, is_stop=True
-                )
+                await self._log_execution_result(stop_result, cycle_id, is_stop=True)
 
         except Exception as e:
             self.logger.error(
@@ -268,14 +249,10 @@ class TradingOrchestrator:
         self.logger.info(
             f"{decision_label} - サイクル: {cycle_id}, "
             f"リスクスコア: {getattr(evaluation, 'risk_score', 0):.3f}",
-            discord_notify=(
-                str(decision_str).lower() in ["approved", "denied"]
-            ),
+            discord_notify=(str(decision_str).lower() in ["approved", "denied"]),
         )
 
-    async def _log_execution_result(
-        self, execution_result, cycle_id: str, is_stop: bool = False
-    ):
+    async def _log_execution_result(self, execution_result, cycle_id: str, is_stop: bool = False):
         """注文実行結果ログ出力（Phase 7追加）."""
         if execution_result is None:
             return
@@ -300,17 +277,10 @@ class TradingOrchestrator:
                     hasattr(execution_result, "paper_pnl")
                     and execution_result.paper_pnl is not None
                 ):
-                    pnl_emoji = (
-                        "💰" if execution_result.paper_pnl > 0 else "💸"
-                    )
-                    log_message += (
-                        f", PnL: {pnl_emoji}¥{execution_result.paper_pnl:,.0f}"
-                    )
+                    pnl_emoji = "💰" if execution_result.paper_pnl > 0 else "💸"
+                    log_message += f", PnL: {pnl_emoji}¥{execution_result.paper_pnl:,.0f}"
 
-                if (
-                    hasattr(execution_result, "fee")
-                    and execution_result.fee is not None
-                ):
+                if hasattr(execution_result, "fee") and execution_result.fee is not None:
                     log_message += f", 手数料: ¥{execution_result.fee:,.0f}"
 
                 # 成功した取引は必ずDiscord通知
@@ -318,10 +288,7 @@ class TradingOrchestrator:
 
                 # 統計情報ログ（定期的）
                 stats = self.execution_service.get_trading_statistics()
-                if (
-                    stats.get("statistics", {}).get("total_trades", 0) % 10
-                    == 0
-                ):  # 10回毎
+                if stats.get("statistics", {}).get("total_trades", 0) % 10 == 0:  # 10回毎
                     await self._log_trading_statistics(stats)
 
             else:
@@ -435,14 +402,10 @@ async def create_trading_orchestrator(
 
         # Phase 2: データサービス
         bitbank_client = BitbankClient()
-        data_service = DataPipeline(
-            bitbank_client=bitbank_client, cache_enabled=True
-        )
+        data_service = DataPipeline(bitbank_client=bitbank_client, cache_enabled=True)
 
         # Phase 3: 特徴量サービス（統合アダプター）
-        feature_service = _FeatureServiceAdapter(
-            TechnicalIndicators(), MarketAnomalyDetector()
-        )
+        feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector())
 
         # Phase 4: 戦略サービス
         strategies = [
@@ -458,9 +421,7 @@ async def create_trading_orchestrator(
         await ml_service.load_models()
 
         # Phase 6: リスクサービス
-        risk_service = create_risk_manager(
-            config=DEFAULT_RISK_CONFIG, initial_balance=1000000
-        )
+        risk_service = create_risk_manager(config=DEFAULT_RISK_CONFIG, initial_balance=1000000)
 
         # Phase 7: 注文実行サービス
         from ..trading.executor import create_order_executor
@@ -505,10 +466,6 @@ class _FeatureServiceAdapter:
     async def generate_features(self, market_data: Dict) -> Dict:
         """特徴量生成統合処理."""
         features = {}
-        features.update(
-            self.technical_indicators.generate_all_features(market_data)
-        )
-        features.update(
-            self.anomaly_detector.generate_all_features(market_data)
-        )
+        features.update(self.technical_indicators.generate_all_features(market_data))
+        features.update(self.anomaly_detector.generate_all_features(market_data))
         return features

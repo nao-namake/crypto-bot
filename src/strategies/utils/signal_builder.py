@@ -71,27 +71,20 @@ class SignalBuilder:
                     )
 
                 # ストップロス・テイクプロフィット計算
-                stop_loss, take_profit = (
-                    RiskManager.calculate_stop_loss_take_profit(
-                        action, current_price, current_atr, config
-                    )
+                stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+                    action, current_price, current_atr, config
                 )
 
                 # ポジションサイズ計算
-                position_size = RiskManager.calculate_position_size(
-                    confidence, config
-                )
+                position_size = RiskManager.calculate_position_size(confidence, config)
 
                 # リスク比率計算
-                risk_ratio = RiskManager.calculate_risk_ratio(
-                    current_price, stop_loss
-                )
+                risk_ratio = RiskManager.calculate_risk_ratio(current_price, stop_loss)
 
             # メタデータ作成
             metadata = {
                 "strategy_type": strategy_type,
-                "risk_calculated": action
-                in [EntryAction.BUY, EntryAction.SELL],
+                "risk_calculated": action in [EntryAction.BUY, EntryAction.SELL],
                 "decision_metadata": decision.get("metadata", {}),
             }
 

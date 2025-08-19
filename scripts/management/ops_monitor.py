@@ -39,9 +39,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(
-            PROJECT_ROOT / "logs" / "operational_status.log", encoding="utf-8"
-        ),
+        logging.FileHandler(PROJECT_ROOT / "logs" / "operational_status.log", encoding="utf-8"),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -219,8 +217,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 return {
                     "status": "critical",
                     "failed_imports": failed_imports,
-                    "success_rate": (len(import_tests) - len(failed_imports))
-                    / len(import_tests),
+                    "success_rate": (len(import_tests) - len(failed_imports)) / len(import_tests),
                     "details": f"{len(failed_imports)} import failures detected",
                 }
 
@@ -275,9 +272,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 import numpy as np
 
                 test_features = np.random.random((1, 12))  # 12特徴量
-                _ = model.predict(
-                    test_features
-                )  # predictions - テスト実行のみ
+                _ = model.predict(test_features)  # predictions - テスト実行のみ
 
                 return {
                     "status": "healthy",
@@ -329,9 +324,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 # 成功時の解析
                 output = result.stdout
                 passed_match = re.search(r"(\d+) passed", output)
-                passed_count = (
-                    int(passed_match.group(1)) if passed_match else 0
-                )
+                passed_count = int(passed_match.group(1)) if passed_match else 0
 
                 return {
                     "status": "healthy",
@@ -344,9 +337,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 # 失敗時の解析
                 output = result.stdout + result.stderr
                 failed_match = re.search(r"(\d+) failed", output)
-                failed_count = (
-                    int(failed_match.group(1)) if failed_match else 0
-                )
+                failed_count = int(failed_match.group(1)) if failed_match else 0
 
                 if failed_count <= 5:  # 軽微な失敗
                     status = "warning"
@@ -427,9 +418,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 )
 
         # Phase 1総合スコア
-        phase1_results["score"] = (
-            sum(check_scores) / len(check_scores) if check_scores else 0
-        )
+        phase1_results["score"] = sum(check_scores) / len(check_scores) if check_scores else 0
 
         # Phase 1ステータス判定
         if phase1_results["score"] >= 80:
@@ -533,9 +522,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
             # 戦略インスタンス化確認
             strategies_count = (
-                len(strategy_manager.strategies)
-                if hasattr(strategy_manager, "strategies")
-                else 0
+                len(strategy_manager.strategies) if hasattr(strategy_manager, "strategies") else 0
             )
 
             return {
@@ -602,9 +589,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
     def run_phase2_application_checks(self) -> Dict[str, Any]:
         """Phase 2: アプリケーション動作確認を実行."""
-        logger.info(
-            "🚀 === Phase 2: アプリケーション動作確認（新システム） ==="
-        )
+        logger.info("🚀 === Phase 2: アプリケーション動作確認（新システム） ===")
 
         phase2_results = {
             "phase_name": "アプリケーション動作確認",
@@ -656,9 +641,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 )
 
         # Phase 2総合スコア
-        phase2_results["score"] = (
-            sum(check_scores) / len(check_scores) if check_scores else 0
-        )
+        phase2_results["score"] = sum(check_scores) / len(check_scores) if check_scores else 0
 
         # Phase 2ステータス判定
         if phase2_results["score"] >= 80:
@@ -731,21 +714,11 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                             }
                         )
                 except Exception as e:
-                    logger.warning(
-                        f"Pattern check failed for {pattern['id']}: {e}"
-                    )
+                    logger.warning(f"Pattern check failed for {pattern['id']}: {e}")
 
             if detected_patterns:
-                critical_count = len(
-                    [
-                        p
-                        for p in detected_patterns
-                        if p["severity"] == "CRITICAL"
-                    ]
-                )
-                high_count = len(
-                    [p for p in detected_patterns if p["severity"] == "HIGH"]
-                )
+                critical_count = len([p for p in detected_patterns if p["severity"] == "CRITICAL"])
+                high_count = len([p for p in detected_patterns if p["severity"] == "HIGH"])
 
                 if critical_count > 0:
                     status = "critical"
@@ -832,14 +805,8 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                     }
 
                 # 確率値の異常チェック
-                prob_values = (
-                    probabilities[:, 1]
-                    if probabilities.shape[1] > 1
-                    else probabilities
-                )
-                if all(p < 0.1 for p in prob_values) or all(
-                    p > 0.9 for p in prob_values
-                ):
+                prob_values = probabilities[:, 1] if probabilities.shape[1] > 1 else probabilities
+                if all(p < 0.1 for p in prob_values) or all(p > 0.9 for p in prob_values):
                     return {
                         "detected": True,
                         "anomaly_type": "extreme_probabilities",
@@ -881,9 +848,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             if result.returncode != 0:
                 output = result.stdout + result.stderr
                 failed_match = re.search(r"(\d+) failed", output)
-                failed_count = (
-                    int(failed_match.group(1)) if failed_match else 0
-                )
+                failed_count = int(failed_match.group(1)) if failed_match else 0
 
                 if failed_count >= 10:  # 10個以上の失敗
                     return {
@@ -974,9 +939,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 if dir_path.exists():
                     file_count = len(list(dir_path.rglob("*.py")))
                     if file_count == 0:
-                        integrity_issues.append(
-                            f"{dir_name}: No Python files found"
-                        )
+                        integrity_issues.append(f"{dir_name}: No Python files found")
                 else:
                     integrity_issues.append(f"{dir_name}: Directory missing")
 
@@ -1048,11 +1011,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
             # 重大な問題を記録
             if score < 70:
-                severity = (
-                    "CRITICAL"
-                    if score <= 20
-                    else "HIGH" if score <= 50 else "MEDIUM"
-                )
+                severity = "CRITICAL" if score <= 20 else "HIGH" if score <= 50 else "MEDIUM"
                 phase3_results["issues"].append(
                     {
                         "check": check_name,
@@ -1066,9 +1025,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 )
 
         # Phase 3総合スコア
-        phase3_results["score"] = (
-            sum(check_scores) / len(check_scores) if check_scores else 0
-        )
+        phase3_results["score"] = sum(check_scores) / len(check_scores) if check_scores else 0
 
         # Phase 3ステータス判定
         if phase3_results["score"] >= 80:
@@ -1113,9 +1070,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                     total_score += score * weight
                     total_weight += weight
 
-            overall_score = (
-                total_score / total_weight if total_weight > 0 else 0
-            )
+            overall_score = total_score / total_weight if total_weight > 0 else 0
 
             # 総合ステータス判定
             if overall_score >= 90:
@@ -1191,8 +1146,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 "status": "healthy",
                 "urgent_actions": unique_urgent,
                 "recommendations": unique_recommendations,
-                "total_actions": len(unique_urgent)
-                + len(unique_recommendations),
+                "total_actions": len(unique_urgent) + len(unique_recommendations),
                 "details": (
                     f"{len(unique_urgent)} urgent actions, "
                     f"{len(unique_recommendations)} recommendations"
@@ -1203,14 +1157,10 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             return {
                 "status": "error",
                 "error": str(e),
-                "details": (
-                    f"Recommendation generation failed: {type(e).__name__}"
-                ),
+                "details": (f"Recommendation generation failed: {type(e).__name__}"),
             }
 
-    def _generate_actions_for_issue(
-        self, check: str, severity: str, message: str
-    ) -> List[Dict]:
+    def _generate_actions_for_issue(self, check: str, severity: str, message: str) -> List[Dict]:
         """問題に対する具体的アクション生成."""
         actions = []
 
@@ -1298,11 +1248,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 if phase_name != "phase4":
                     phase_issues = phase_data.get("issues", [])
                     phase_critical = len(
-                        [
-                            i
-                            for i in phase_issues
-                            if i.get("severity") == "CRITICAL"
-                        ]
+                        [i for i in phase_issues if i.get("severity") == "CRITICAL"]
                     )
 
                     summary["phase_summary"][phase_name] = {
@@ -1320,9 +1266,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
             # Phase 4結果から推奨事項数取得
             phase4_data = self.results["phases"].get("phase4", {})
-            recommendations_data = phase4_data.get("checks", {}).get(
-                "recommendations", {}
-            )
+            recommendations_data = phase4_data.get("checks", {}).get("recommendations", {})
             urgent_count = len(recommendations_data.get("urgent_actions", []))
             rec_count = len(recommendations_data.get("recommendations", []))
             summary["recommendations_count"] = urgent_count + rec_count
@@ -1330,9 +1274,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             # ファイル保存
             report_path = self.report_dir / f"summary_report_{timestamp}.json"
             with open(report_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    summary, f, indent=2, ensure_ascii=False, default=str
-                )
+                json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
 
             return {
                 "status": "healthy",
@@ -1399,9 +1341,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 )
 
         # Phase 4総合スコア
-        phase4_results["score"] = (
-            sum(check_scores) / len(check_scores) if check_scores else 0
-        )
+        phase4_results["score"] = sum(check_scores) / len(check_scores) if check_scores else 0
 
         # Phase 4ステータス判定
         if phase4_results["score"] >= 90:
@@ -1420,14 +1360,10 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
     # ===== メイン実行・レポート生成 =====
 
-    def run_comprehensive_check(
-        self, target_phases: List[str] = None
-    ) -> Dict[str, Any]:
+    def run_comprehensive_check(self, target_phases: List[str] = None) -> Dict[str, Any]:
         """包括的稼働状況確認を実行（新システム版）."""
         logger.info("🎯 === 新システム稼働状況確認開始 ===")
-        logger.info(
-            f"📅 実行時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}"
-        )
+        logger.info(f"📅 実行時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}")
         logger.info(f"🎨 システム: {self.results['system_version']}")
 
         # Phase 1実行
@@ -1489,23 +1425,17 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         if all_issues:
             print(f"\n⚠️ 検出された問題 ({len(all_issues)}件):")
             for issue in all_issues[:10]:  # 最初の10件
-                print(
-                    f"  🔸 [{issue['severity']}] {issue['check']}: {issue['message']}"
-                )
+                print(f"  🔸 [{issue['severity']}] {issue['check']}: {issue['message']}")
         else:
             print("\n✅ 重大な問題は検出されませんでした")
 
         # 推奨事項表示
         phase4_data = self.results["phases"].get("phase4", {})
-        recommendations_data = phase4_data.get("checks", {}).get(
-            "recommendations", {}
-        )
+        recommendations_data = phase4_data.get("checks", {}).get("recommendations", {})
         urgent_actions = recommendations_data.get("urgent_actions", [])
 
         if urgent_actions:
-            print(
-                f"\n🚨 緊急対応が必要なアクション ({len(urgent_actions)}件):"
-            )
+            print(f"\n🚨 緊急対応が必要なアクション ({len(urgent_actions)}件):")
             for action in urgent_actions[:5]:
                 print(f"  ⚡ {action.get('action', 'Unknown action')}")
                 print(f"     {action.get('command', '')}")
@@ -1516,14 +1446,12 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         json_path = self.report_dir / f"operational_status_{timestamp}.json"
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(
-                self.results, f, indent=2, ensure_ascii=False, default=str
-            )
+            json.dump(self.results, f, indent=2, ensure_ascii=False, default=str)
 
         logger.info(f"📁 詳細レポート保存: {json_path}")
 
     # ===== BaseAnalyzer抽象メソッド実装 =====
-    
+
     def run_analysis(self, target_phases: List[str] = None) -> Dict:
         """運用診断分析実行（BaseAnalyzer要求）"""
         results = self.run_comprehensive_check(target_phases)
@@ -1535,9 +1463,9 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             "phases_count": len(results.get("phases", {})),
             "critical_issues": len(results.get("critical_issues", [])),
             "recommendations": len(results.get("recommendations", [])),
-            "results": results
+            "results": results,
         }
-    
+
     def generate_report(self, analysis_result: Dict) -> str:
         """運用診断レポート生成（BaseAnalyzer要求）"""
         results = analysis_result.get("results", {})
@@ -1556,15 +1484,9 @@ def main():
     """メイン実行関数."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="crypto-bot 新システム稼働状況確認システム"
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="詳細ログ出力"
-    )
-    parser.add_argument(
-        "--save-report", "-s", action="store_true", help="レポートファイル保存"
-    )
+    parser = argparse.ArgumentParser(description="crypto-bot 新システム稼働状況確認システム")
+    parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログ出力")
+    parser.add_argument("--save-report", "-s", action="store_true", help="レポートファイル保存")
     parser.add_argument(
         "--phase",
         choices=["phase1", "phase2", "phase3", "phase4"],
@@ -1590,6 +1512,7 @@ def main():
         sys.exit(1)  # Warning issues
     else:
         sys.exit(0)  # Success
+
 
 if __name__ == "__main__":
     main()

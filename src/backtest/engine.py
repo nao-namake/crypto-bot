@@ -71,9 +71,7 @@ class TradeRecord:
         """取引メトリクス計算."""
         duration_hours = 0.0
         if self.exit_time and self.entry_time:
-            duration_hours = (
-                self.exit_time - self.entry_time
-            ).total_seconds() / 3600
+            duration_hours = (self.exit_time - self.entry_time).total_seconds() / 3600
 
         return {
             "profit_jpy": self.profit_jpy,
@@ -182,22 +180,16 @@ class BacktestEngine:
 
         try:
             # 1. データ取得（エラーハンドリング強化）
-            data = await self._load_data(
-                start_date, end_date, symbol, timeframes
-            )
+            data = await self._load_data(start_date, end_date, symbol, timeframes)
             if data.empty:
                 raise CryptoBotError(
                     f"バックテスト用データが不足しています: {symbol} {start_date}-{end_date}"
                 )
 
             if len(data) < 200:
-                self.logger.warning(
-                    f"データが不足しています: {len(data)}件（推奨200件以上）"
-                )
+                self.logger.warning(f"データが不足しています: {len(data)}件（推奨200件以上）")
 
-            self.logger.info(
-                f"バックテスト開始: {len(data):,}件のデータで実行"
-            )
+            self.logger.info(f"バックテスト開始: {len(data):,}件のデータで実行")
 
             # 2. バックテスト実行
             await self._execute_backtest(data)
@@ -218,12 +210,8 @@ class BacktestEngine:
         except CryptoBotError:
             raise  # カスタム例外はそのまま再送出
         except Exception as e:
-            self.logger.error(
-                f"バックテスト予期せぬエラー: {type(e).__name__}: {e}"
-            )
-            raise CryptoBotError(
-                f"バックテスト実行中にエラーが発生しました: {e}"
-            )
+            self.logger.error(f"バックテスト予期せぬエラー: {type(e).__name__}: {e}")
+            raise CryptoBotError(f"バックテスト実行中にエラーが発生しました: {e}")
 
     async def _load_data(
         self,
@@ -247,25 +235,18 @@ class BacktestEngine:
                 )
                 if not tf_data.empty:
                     data_dict[timeframe] = tf_data
-                    self.logger.debug(
-                        f"タイムフレーム {timeframe}: {len(tf_data)}件取得"
-                    )
+                    self.logger.debug(f"タイムフレーム {timeframe}: {len(tf_data)}件取得")
                 else:
                     failed_timeframes.append(timeframe)
-                    self.logger.warning(
-                        f"タイムフレーム {timeframe}: データが空"
-                    )
+                    self.logger.warning(f"タイムフレーム {timeframe}: データが空")
             except Exception as e:
                 failed_timeframes.append(timeframe)
-                self.logger.error(
-                    f"タイムフレーム {timeframe} データ取得エラー: {e}"
-                )
+                self.logger.error(f"タイムフレーム {timeframe} データ取得エラー: {e}")
 
         # メインタイムフレーム検証
         if "15m" not in data_dict or data_dict["15m"].empty:
             raise CryptoBotError(
-                f"メインタイムフレーム（15m）データが取得できません. "
-                f"失敗: {failed_timeframes}"
+                f"メインタイムフレーム（15m）データが取得できません. " f"失敗: {failed_timeframes}"
             )
 
         main_data = data_dict["15m"]
@@ -276,9 +257,7 @@ class BacktestEngine:
         ].copy()
 
         if filtered_data.empty:
-            raise CryptoBotError(
-                f"指定期間のデータがありません: {start_date} - {end_date}"
-            )
+            raise CryptoBotError(f"指定期間のデータがありません: {start_date} - {end_date}")
 
         return filtered_data
 
@@ -319,29 +298,19 @@ class BacktestEngine:
             return
 
         # 含み損益更新
-        self.position.unrealized_pnl = self.position.calculate_pnl(
-            current_price
-        )
+        self.position.unrealized_pnl = self.position.calculate_pnl(current_price)
 
         # ストップロス・テイクプロフィット判定
-        if (
-            self.position.stop_loss
-            and current_price <= self.position.stop_loss
-        ):
+        if self.position.stop_loss and current_price <= self.position.stop_loss:
             await self._close_position(current_price, "stop_loss")
-        elif (
-            self.position.take_profit
-            and current_price >= self.position.take_profit
-        ):
+        elif self.position.take_profit and current_price >= self.position.take_profit:
             await self._close_position(current_price, "take_profit")
 
     async def _evaluate_entry(self, current_price: float):
         """エントリー判定."""
         try:
             # 戦略シグナル取得（エラーハンドリング強化）
-            strategy_signals = await self.strategy_manager.generate_signals(
-                self.current_data
-            )
+            strategy_signals = await self.strategy_manager.generate_signals(self.current_data)
 
             # ML予測取得
             ml_prediction = await self.model_manager.predict(self.current_data)
@@ -356,9 +325,7 @@ class BacktestEngine:
                 return
 
             # 最も強いシグナルを選択
-            valid_signals = [
-                s for s in strategy_signals if s.action in ["buy", "sell"]
-            ]
+            valid_signals = [s for s in strategy_signals if s.action in ["buy", "sell"]]
             if not valid_signals:
                 self.logger.debug("有効なシグナルなし")
                 return
@@ -374,9 +341,7 @@ class BacktestEngine:
                 self.logger.warning("リスク評価の作成に失敗")
                 return
 
-            risk_result = self.risk_manager.evaluate_trade_opportunity(
-                evaluation
-            )
+            risk_result = self.risk_manager.evaluate_trade_opportunity(evaluation)
 
             if risk_result.decision == RiskDecision.APPROVED:
                 await self._open_position(
@@ -386,9 +351,7 @@ class BacktestEngine:
                     signal_info=best_signal,
                 )
             else:
-                self.logger.debug(
-                    f"リスク管理により取引拒否: {risk_result.decision}"
-                )
+                self.logger.debug(f"リスク管理により取引拒否: {risk_result.decision}")
 
         except Exception as e:
             self.logger.error(
@@ -411,9 +374,7 @@ class BacktestEngine:
                 return
 
             # 戦略シグナルベースの手仕舞い判定
-            strategy_signals = await self.strategy_manager.generate_signals(
-                self.current_data
-            )
+            strategy_signals = await self.strategy_manager.generate_signals(self.current_data)
 
             if strategy_signals:
                 for signal in strategy_signals:
@@ -427,9 +388,7 @@ class BacktestEngine:
                         and signal.action == "buy"
                         and signal.confidence > 0.6
                     ):
-                        await self._close_position(
-                            current_price, "strategy_signal"
-                        )
+                        await self._close_position(current_price, "strategy_signal")
                         return
 
             # 损益ベースの手仕舞い判定（利食5%で強制手仕舞い）
@@ -457,9 +416,7 @@ class BacktestEngine:
                 return None
 
             # ポジションサイズ計算（一元化・二重制限解消）
-            max_btc_amount = (
-                self.current_balance * self.max_position_ratio / current_price
-            )
+            max_btc_amount = self.current_balance * self.max_position_ratio / current_price
 
             # 最小取引単位を考慮（通常 0.0001 BTC）
             min_trade_amount = 0.0001
@@ -514,9 +471,7 @@ class BacktestEngine:
 
         # スリッページ・手数料計算
         slippage = price * self.slippage_rate
-        execution_price = (
-            price + slippage if side == "buy" else price - slippage
-        )
+        execution_price = price + slippage if side == "buy" else price - slippage
         commission = execution_price * amount * self.commission_rate
 
         # ポジション設定
@@ -532,9 +487,7 @@ class BacktestEngine:
         cost = execution_price * amount + commission
         self.current_balance -= cost
 
-        self.logger.info(
-            f"ポジションオープン: {side} {amount:.6f}BTC @ ¥{execution_price:,.0f}"
-        )
+        self.logger.info(f"ポジションオープン: {side} {amount:.6f}BTC @ ¥{execution_price:,.0f}")
 
     async def _close_position(self, price: float, reason: str = "manual"):
         """ポジションクローズ."""
@@ -543,29 +496,17 @@ class BacktestEngine:
 
         # スリッページ・手数料計算
         slippage = price * self.slippage_rate
-        execution_price = (
-            price - slippage
-            if self.position.side == "buy"
-            else price + slippage
-        )
-        commission = (
-            execution_price * self.position.amount * self.commission_rate
-        )
+        execution_price = price - slippage if self.position.side == "buy" else price + slippage
+        commission = execution_price * self.position.amount * self.commission_rate
 
         # 損益計算
         if self.position.side == "buy":
-            profit_jpy = (
-                execution_price - self.position.entry_price
-            ) * self.position.amount
+            profit_jpy = (execution_price - self.position.entry_price) * self.position.amount
         else:
-            profit_jpy = (
-                self.position.entry_price - execution_price
-            ) * self.position.amount
+            profit_jpy = (self.position.entry_price - execution_price) * self.position.amount
 
         profit_jpy -= commission
-        profit_rate = profit_jpy / (
-            self.position.entry_price * self.position.amount
-        )
+        profit_rate = profit_jpy / (self.position.entry_price * self.position.amount)
 
         # 取引記録作成
         trade_record = TradeRecord(
@@ -606,9 +547,7 @@ class BacktestEngine:
                 equity += position_value
             else:
                 # ショートポジションの場合の計算
-                equity += (
-                    self.position.entry_price - current_price
-                ) * self.position.amount
+                equity += (self.position.entry_price - current_price) * self.position.amount
 
         return equity
 
@@ -640,8 +579,7 @@ class BacktestEngine:
             "win_rate": win_rate,
             "max_drawdown": max_drawdown,
             "final_balance": self.current_balance,
-            "return_rate": (self.current_balance - self.initial_balance)
-            / self.initial_balance,
+            "return_rate": (self.current_balance - self.initial_balance) / self.initial_balance,
             "trade_records": self.trade_records,
             "equity_curve": self.equity_curve,
         }

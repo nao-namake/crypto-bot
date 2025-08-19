@@ -175,9 +175,7 @@ class StrategyBase(ABC):
 
         except Exception as e:
             self.logger.error(f"[{self.name}] シグナル生成エラー: {e}")
-            raise StrategyError(
-                f"戦略シグナル生成失敗: {e}", strategy_name=self.name
-            )
+            raise StrategyError(f"戦略シグナル生成失敗: {e}", strategy_name=self.name)
 
     def _validate_input_data(self, df: pd.DataFrame):
         """入力データの検証."""
@@ -186,9 +184,7 @@ class StrategyBase(ABC):
 
         # 必要特徴量の存在確認
         required_features = self.get_required_features()
-        missing_features = [
-            f for f in required_features if f not in df.columns
-        ]
+        missing_features = [f for f in required_features if f not in df.columns]
 
         if missing_features:
             raise StrategyError(
@@ -251,9 +247,7 @@ class StrategyBase(ABC):
             "avg_confidence": total_confidence / len(self.signal_history),
             "success_rate": self.get_success_rate(),
             "last_signal_time": (
-                self.last_signal.timestamp.isoformat()
-                if self.last_signal
-                else None
+                self.last_signal.timestamp.isoformat() if self.last_signal else None
             ),
         }
 

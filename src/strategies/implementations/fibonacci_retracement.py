@@ -67,9 +67,7 @@ class FibonacciRetracementStrategy(StrategyBase):
             reversal_analysis = self._check_reversal_signals(df, fib_analysis)
 
             # 統合判定
-            signal_decision = self._make_simple_decision(
-                fib_analysis, reversal_analysis
-            )
+            signal_decision = self._make_simple_decision(fib_analysis, reversal_analysis)
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
@@ -81,9 +79,7 @@ class FibonacciRetracementStrategy(StrategyBase):
 
         except Exception as e:
             self.logger.error(f"[FibonacciRetracement] 分析エラー: {e}")
-            raise StrategyError(
-                f"フィボナッチ分析失敗: {e}", strategy_name=self.name
-            )
+            raise StrategyError(f"フィボナッチ分析失敗: {e}", strategy_name=self.name)
 
     def _find_recent_swing(self, df: pd.DataFrame) -> Dict[str, Any]:
         """直近スイング検出 - 成績重視版."""
@@ -134,8 +130,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "strength": strength,
                 "trend": trend,
                 "swing_position": swing_position,
-                "valid": price_range
-                > current_price * 0.01,  # 最低1%の価格幅要求
+                "valid": price_range > current_price * 0.01,  # 最低1%の価格幅要求
                 "analysis": f"スイング: 高値{swing_high:.0f} 安値{swing_low:.0f} (強度{strength:.1%} トレンド{'上昇' if trend==1 else '下降' if trend==-1 else '横ばい'})",
             }
 
@@ -150,9 +145,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "analysis": "エラー",
             }
 
-    def _calculate_fib_levels(
-        self, df: pd.DataFrame, swing_analysis: Dict
-    ) -> Dict[str, Any]:
+    def _calculate_fib_levels(self, df: pd.DataFrame, swing_analysis: Dict) -> Dict[str, Any]:
         """フィボナッチレベル計算 - 成績重視版."""
         try:
             if not swing_analysis["valid"]:
@@ -207,9 +200,7 @@ class FibonacciRetracementStrategy(StrategyBase):
             nearest_level = fib_levels[0] if fib_levels else None
 
             # 接近中レベル（複数監視）
-            approaching_levels = [
-                level for level in fib_levels if level["is_near"]
-            ]
+            approaching_levels = [level for level in fib_levels if level["is_near"]]
 
             # 接近判定
             is_near_level = len(approaching_levels) > 0
@@ -221,9 +212,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                     near_info += "★"
                 if approaching_levels:
                     near_info += (
-                        f" +{len(approaching_levels)-1}接近"
-                        if len(approaching_levels) > 1
-                        else ""
+                        f" +{len(approaching_levels)-1}接近" if len(approaching_levels) > 1 else ""
                     )
                 analysis = f"フィボ: {near_info} {'接近中' if is_near_level else f'距離{nearest_level['distance']:.1%}'}"
             else:
@@ -234,11 +223,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "nearest_level": nearest_level,
                 "approaching_levels": approaching_levels,
                 "is_near_level": is_near_level,
-                "level_distance": (
-                    nearest_level["distance"]
-                    if nearest_level
-                    else float("inf")
-                ),
+                "level_distance": (nearest_level["distance"] if nearest_level else float("inf")),
                 "trend_direction": trend,
                 "analysis": analysis,
             }
@@ -254,9 +239,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "analysis": "エラー",
             }
 
-    def _check_reversal_signals(
-        self, df: pd.DataFrame, fib_analysis: Dict
-    ) -> Dict[str, Any]:
+    def _check_reversal_signals(self, df: pd.DataFrame, fib_analysis: Dict) -> Dict[str, Any]:
         """反転シグナル確認 - 成績重視版."""
         try:
             if not fib_analysis["is_near_level"]:
@@ -283,9 +266,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                     rsi_strength = (rsi_oversold - current_rsi) / rsi_oversold
                 elif current_rsi >= rsi_overbought:
                     rsi_signal = -1  # 過買いから反転
-                    rsi_strength = (current_rsi - rsi_overbought) / (
-                        100 - rsi_overbought
-                    )
+                    rsi_strength = (current_rsi - rsi_overbought) / (100 - rsi_overbought)
 
             # ローソク足パターン確認（強化版）
             candle_signal = self._check_enhanced_candle_pattern(df)
@@ -296,14 +277,10 @@ class FibonacciRetracementStrategy(StrategyBase):
             # レベル強度ボーナス
             level_bonus = 0.0
             strong_levels_nearby = [
-                level
-                for level in approaching_levels
-                if level.get("is_strong", False)
+                level for level in approaching_levels if level.get("is_strong", False)
             ]
             if strong_levels_nearby:
-                level_bonus = 0.2 * len(
-                    strong_levels_nearby
-                )  # 強力レベル1つにつき20%ボーナス
+                level_bonus = 0.2 * len(strong_levels_nearby)  # 強力レベル1つにつき20%ボーナス
 
             # 統合シグナル（重み付け評価）
             signals = [rsi_signal, candle_signal, volume_signal]
@@ -318,18 +295,10 @@ class FibonacciRetracementStrategy(StrategyBase):
 
             if buy_votes >= 1 and sell_votes == 0:
                 reversal_signal = 1
-                confidence = (
-                    0.3
-                    + sum(s for s in signal_strengths if s > 0)
-                    + level_bonus
-                )
+                confidence = 0.3 + sum(s for s in signal_strengths if s > 0) + level_bonus
             elif sell_votes >= 1 and buy_votes == 0:
                 reversal_signal = -1
-                confidence = (
-                    0.3
-                    + sum(s for s in signal_strengths if s > 0)
-                    + level_bonus
-                )
+                confidence = 0.3 + sum(s for s in signal_strengths if s > 0) + level_bonus
             else:
                 reversal_signal = 0
                 confidence = 0.0
@@ -361,9 +330,7 @@ class FibonacciRetracementStrategy(StrategyBase):
             if len(df) < 3:
                 return 0
 
-            current = (
-                df[["open", "high", "low", "close"]].iloc[-1].astype(float)
-            )
+            current = df[["open", "high", "low", "close"]].iloc[-1].astype(float)
             prev = df[["open", "high", "low", "close"]].iloc[-2].astype(float)
             prev2 = df[["open", "high", "low", "close"]].iloc[-3].astype(float)
 
@@ -377,12 +344,8 @@ class FibonacciRetracementStrategy(StrategyBase):
             total_range = current["high"] - current["low"]
 
             if total_range > 0:
-                upper_wick = current["high"] - max(
-                    current["open"], current["close"]
-                )
-                lower_wick = (
-                    min(current["open"], current["close"]) - current["low"]
-                )
+                upper_wick = current["high"] - max(current["open"], current["close"])
+                lower_wick = min(current["open"], current["close"]) - current["low"]
 
                 # 強いピンバー（ヒゲが実体の2倍以上）
                 if lower_wick > body_size * 2 and lower_wick > upper_wick:
@@ -426,34 +389,22 @@ class FibonacciRetracementStrategy(StrategyBase):
             if len(df) < 1:
                 return 0
 
-            current = (
-                df[["open", "high", "low", "close"]].iloc[-1].astype(float)
-            )
+            current = df[["open", "high", "low", "close"]].iloc[-1].astype(float)
 
             # ハンマー・シューティングスター検出
             body_size = abs(current["close"] - current["open"])
             total_range = current["high"] - current["low"]
 
             if total_range > 0:
-                upper_wick = current["high"] - max(
-                    current["open"], current["close"]
-                )
-                lower_wick = (
-                    min(current["open"], current["close"]) - current["low"]
-                )
+                upper_wick = current["high"] - max(current["open"], current["close"])
+                lower_wick = min(current["open"], current["close"]) - current["low"]
 
                 # ハンマー（長い下ヒゲ）
-                if (
-                    lower_wick >= total_range * 0.6
-                    and body_size < total_range * 0.3
-                ):
+                if lower_wick >= total_range * 0.6 and body_size < total_range * 0.3:
                     return 1  # 買いシグナル
 
                 # シューティングスター（長い上ヒゲ）
-                elif (
-                    upper_wick >= total_range * 0.6
-                    and body_size < total_range * 0.3
-                ):
+                elif upper_wick >= total_range * 0.6 and body_size < total_range * 0.3:
                     return -1  # 売りシグナル
 
             return 0
@@ -481,9 +432,7 @@ class FibonacciRetracementStrategy(StrategyBase):
             self.logger.error(f"出来高確認エラー: {e}")
             return 0
 
-    def _make_simple_decision(
-        self, fib_analysis: Dict, reversal_analysis: Dict
-    ) -> Dict[str, Any]:
+    def _make_simple_decision(self, fib_analysis: Dict, reversal_analysis: Dict) -> Dict[str, Any]:
         """統合判定 - 成績重視版."""
         try:
             min_confidence = self.config["min_confidence"]
@@ -512,17 +461,13 @@ class FibonacciRetracementStrategy(StrategyBase):
 
                 # 距離ボーナス（近いほど高い）
                 distance = nearest_level.get("distance", 1.0)
-                proximity_bonus = max(
-                    0, 0.1 * (1 - distance / 0.01)
-                )  # 1%以内で最大10%
+                proximity_bonus = max(0, 0.1 * (1 - distance / 0.01))  # 1%以内で最大10%
                 level_bonus += proximity_bonus
 
             # 複数レベル接近ボーナス
             approaching_count = len(fib_analysis.get("approaching_levels", []))
             if approaching_count > 1:
-                level_bonus += 0.05 * (
-                    approaching_count - 1
-                )  # 追加レベルごとに5%
+                level_bonus += 0.05 * (approaching_count - 1)  # 追加レベルごとに5%
 
             # トレンド整合性ボーナス
             trend_direction = fib_analysis.get("trend_direction", 0)
@@ -538,11 +483,7 @@ class FibonacciRetracementStrategy(StrategyBase):
 
             # アクション決定
             if reversal_signal != 0 and final_confidence >= min_confidence:
-                action = (
-                    EntryAction.BUY
-                    if reversal_signal > 0
-                    else EntryAction.SELL
-                )
+                action = EntryAction.BUY if reversal_signal > 0 else EntryAction.SELL
                 confidence = final_confidence
                 strength = base_confidence + (level_bonus + trend_bonus) * 0.5
             else:

@@ -54,30 +54,22 @@ class AnomalyDetector:
 
             # 必要列チェック
             required_cols = ["open", "high", "low", "close", "volume"]
-            missing_cols = [
-                col for col in required_cols if col not in df.columns
-            ]
+            missing_cols = [col for col in required_cols if col not in df.columns]
             if missing_cols:
                 raise DataProcessingError(f"必要列が不足: {missing_cols}")
 
             result_df = df.copy()
 
             # 市場ストレス度統合指標
-            result_df["market_stress"] = self._calculate_market_stress(
-                result_df
-            )
+            result_df["market_stress"] = self._calculate_market_stress(result_df)
             self.computed_features.add("market_stress")
 
             # NaN値処理
             for feature in self.computed_features:
                 if feature in result_df.columns:
-                    result_df[feature] = (
-                        result_df[feature].ffill().bfill().fillna(0)
-                    )
+                    result_df[feature] = result_df[feature].ffill().bfill().fillna(0)
 
-            self.logger.info(
-                f"異常検知指標生成完了: {len(self.computed_features)}個"
-            )
+            self.logger.info(f"異常検知指標生成完了: {len(self.computed_features)}個")
             return result_df
 
         except Exception as e:
@@ -88,19 +80,13 @@ class AnomalyDetector:
         """市場ストレス度指標計算."""
         try:
             # 価格ギャップ（前日比で大きな価格変動）
-            price_gap = np.abs(df["open"] - df["close"].shift(1)) / df[
-                "close"
-            ].shift(1)
+            price_gap = np.abs(df["open"] - df["close"].shift(1)) / df["close"].shift(1)
 
             # 日中変動率（High-Low range）
             intraday_range = (df["high"] - df["low"]) / df["close"]
 
             # 出来高スパイク（平均の何倍か）
-            volume_avg = (
-                df["volume"]
-                .rolling(window=self.lookback_period, min_periods=1)
-                .mean()
-            )
+            volume_avg = df["volume"].rolling(window=self.lookback_period, min_periods=1).mean()
             volume_spike = df["volume"] / (volume_avg + 1e-8)
 
             # 重み付け合成（価格変動重視）
@@ -141,7 +127,5 @@ class AnomalyDetector:
             "total_features": len(self.computed_features),
             "computed_features": sorted(list(self.computed_features)),
             "parameters": {"lookback_period": self.lookback_period},
-            "feature_descriptions": {
-                "market_stress": "市場ストレス度（複合指標）"
-            },
+            "feature_descriptions": {"market_stress": "市場ストレス度（複合指標）"},
         }

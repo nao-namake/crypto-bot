@@ -93,9 +93,7 @@ class Config:
         """YAMLファイルから設定を読み込み."""
         config_file = Path(config_path)
         if not config_file.exists():
-            raise FileNotFoundError(
-                f"設定ファイルが見つかりません: {config_path}"
-            )
+            raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
 
         with open(config_file, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
@@ -140,10 +138,7 @@ class Config:
             errors.append("max_drawdownは0.1-0.5の範囲で設定してください")
 
         # ML設定チェック
-        if (
-            self.ml.confidence_threshold <= 0
-            or self.ml.confidence_threshold > 1
-        ):
+        if self.ml.confidence_threshold <= 0 or self.ml.confidence_threshold > 1:
             errors.append("confidence_thresholdは0-1の範囲で設定してください")
 
         if len(self.ml.models) != len(self.ml.model_weights):
@@ -209,9 +204,7 @@ class ConfigManager:
     def get_config(self) -> Config:
         """現在の設定を取得."""
         if self._config is None:
-            raise RuntimeError(
-                "設定が読み込まれていません。load_config()を先に実行してください"
-            )
+            raise RuntimeError("設定が読み込まれていません。load_config()を先に実行してください")
         return self._config
 
     def reload_config(self) -> Config:

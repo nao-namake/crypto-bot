@@ -28,71 +28,69 @@ sys.path.append(str(Path(__file__).parent.parent / "analytics"))
 from base_analyzer import BaseAnalyzer
 
 # ログ設定
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 class TradingDashboard(BaseAnalyzer):
     """取引成果ダッシュボードメインクラス（Phase 12-2版・base_analyzer.py活用）"""
-    
+
     def __init__(
-        self, 
-        data_dir: str = "logs", 
+        self,
+        data_dir: str = "logs",
         output_dir: str = "dashboard",
         project_id: str = "my-crypto-bot-project",
         service_name: str = "crypto-bot-service",
-        region: str = "asia-northeast1"
+        region: str = "asia-northeast1",
     ):
         # base_analyzer.py初期化
         super().__init__(project_id, service_name, region)
-        
+
         self.data_dir = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
-        
+
         # データ格納
         self.trading_data = []
         self.daily_stats = []
         self.ab_test_results = []
         self.performance_metrics = {}
-        
+
         logger.info("TradingDashboard初期化完了（base_analyzer.py活用版）")
 
     def load_data_collection_results(self) -> bool:
         """データ収集結果を読み込み"""
         logger.info("データ収集結果読み込み開始")
-        
+
         try:
             # 最新のデータ収集結果を検索
             data_collection_dir = self.data_dir / "data_collection"
             if not data_collection_dir.exists():
                 logger.warning("データ収集ディレクトリが見つかりません")
                 return False
-            
+
             # 取引データCSV
             trade_files = list(data_collection_dir.glob("trades_*.csv"))
             if trade_files:
                 latest_trade_file = max(trade_files, key=lambda f: f.stat().st_mtime)
                 try:
                     df = pd.read_csv(latest_trade_file)
-                    self.trading_data = df.to_dict('records')
+                    self.trading_data = df.to_dict("records")
                     logger.info(f"取引データ読み込み: {len(self.trading_data)}件")
                 except Exception as e:
                     logger.warning(f"取引データ読み込み失敗: {e}")
-            
+
             # 日次統計CSV
             stats_files = list(data_collection_dir.glob("daily_stats_*.csv"))
             if stats_files:
                 latest_stats_file = max(stats_files, key=lambda f: f.stat().st_mtime)
                 try:
                     df = pd.read_csv(latest_stats_file)
-                    self.daily_stats = df.to_dict('records')
+                    self.daily_stats = df.to_dict("records")
                     logger.info(f"日次統計読み込み: {len(self.daily_stats)}件")
                 except Exception as e:
                     logger.warning(f"日次統計読み込み失敗: {e}")
-            
+
             # パフォーマンス指標JSON
             perf_files = list(data_collection_dir.glob("performance_metrics_*.json"))
             if perf_files:
@@ -103,9 +101,9 @@ class TradingDashboard(BaseAnalyzer):
                     logger.info("パフォーマンス指標読み込み完了")
                 except Exception as e:
                     logger.warning(f"パフォーマンス指標読み込み失敗: {e}")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"データ読み込みエラー: {e}")
             return False
@@ -113,13 +111,13 @@ class TradingDashboard(BaseAnalyzer):
     def load_ab_test_results(self) -> bool:
         """A/Bテスト結果を読み込み"""
         logger.info("A/Bテスト結果読み込み開始")
-        
+
         try:
             ab_testing_dir = self.data_dir / "ab_testing"
             if not ab_testing_dir.exists():
                 logger.warning("A/Bテストディレクトリが見つかりません")
                 return False
-            
+
             ab_test_files = list(ab_testing_dir.glob("ab_test_*.json"))
             for file in ab_test_files:
                 try:
@@ -128,10 +126,10 @@ class TradingDashboard(BaseAnalyzer):
                         self.ab_test_results.append(result)
                 except Exception as e:
                     logger.warning(f"A/Bテスト結果読み込み失敗 {file}: {e}")
-            
+
             logger.info(f"A/Bテスト結果読み込み: {len(self.ab_test_results)}件")
             return True
-            
+
         except Exception as e:
             logger.error(f"A/Bテスト結果読み込みエラー: {e}")
             return False
@@ -139,7 +137,7 @@ class TradingDashboard(BaseAnalyzer):
     def generate_trading_summary(self) -> Dict:
         """取引サマリー生成"""
         logger.info("取引サマリー生成")
-        
+
         summary = {
             "last_updated": datetime.now().isoformat(),
             "data_period": "Unknown",
@@ -149,57 +147,57 @@ class TradingDashboard(BaseAnalyzer):
             "high_confidence_signals": 0,
             "signal_frequency_per_hour": 0.0,
             "daily_stats_available": len(self.daily_stats),
-            "trading_days": 0
+            "trading_days": 0,
         }
-        
+
         if self.trading_data:
             summary["total_signals"] = len(self.trading_data)
-            
+
             # シグナル分布
             for trade in self.trading_data:
                 side = trade.get("side", "unknown")
                 if side in summary["signal_breakdown"]:
                     summary["signal_breakdown"][side] += 1
-            
+
             # 信頼度分析
-            confidences = [float(trade.get("signal_confidence", 0)) for trade in self.trading_data if trade.get("signal_confidence")]
+            confidences = [
+                float(trade.get("signal_confidence", 0))
+                for trade in self.trading_data
+                if trade.get("signal_confidence")
+            ]
             if confidences:
                 summary["avg_confidence"] = sum(confidences) / len(confidences)
                 summary["high_confidence_signals"] = len([c for c in confidences if c > 0.7])
-        
+
         # パフォーマンス指標から追加情報
         if self.performance_metrics:
             perf = self.performance_metrics.get("performance_metrics", {})
             summary["signal_frequency_per_hour"] = perf.get("signals_per_hour", 0.0)
             summary["data_period"] = f"{perf.get('analysis_period_hours', 0)}時間"
-        
+
         # 日次統計から取引日数
         summary["trading_days"] = len(self.daily_stats)
-        
+
         return summary
 
     def generate_daily_stats_chart_data(self) -> Dict:
         """日次統計チャートデータ生成"""
         if not self.daily_stats:
             return {"dates": [], "signals": [], "frequencies": []}
-        
+
         # 日付順ソート
         sorted_stats = sorted(self.daily_stats, key=lambda x: x.get("date", ""))
-        
+
         dates = [stat.get("date", "") for stat in sorted_stats]
         signals = [stat.get("total_signals", 0) for stat in sorted_stats]
         frequencies = [stat.get("signal_frequency", 0.0) for stat in sorted_stats]
-        
-        return {
-            "dates": dates,
-            "signals": signals,
-            "frequencies": frequencies
-        }
+
+        return {"dates": dates, "signals": signals, "frequencies": frequencies}
 
     def generate_ab_test_summary(self) -> List[Dict]:
         """A/Bテストサマリー生成"""
         summaries = []
-        
+
         for result in self.ab_test_results:
             try:
                 summary = {
@@ -210,23 +208,23 @@ class TradingDashboard(BaseAnalyzer):
                     "practical_significance": result.get("practical_significance", False),
                     "variant_a_signals": result.get("variant_a", {}).get("total_signals", 0),
                     "variant_b_signals": result.get("variant_b", {}).get("total_signals", 0),
-                    "recommendation": result.get("recommendation", "")
+                    "recommendation": result.get("recommendation", ""),
                 }
                 summaries.append(summary)
             except Exception as e:
                 logger.warning(f"A/Bテスト結果解析失敗: {e}")
-        
+
         return summaries
 
     def generate_html_dashboard(self) -> str:
         """HTMLダッシュボード生成"""
         logger.info("HTMLダッシュボード生成開始")
-        
+
         # データ準備
         trading_summary = self.generate_trading_summary()
         chart_data = self.generate_daily_stats_chart_data()
         ab_test_summaries = self.generate_ab_test_summary()
-        
+
         # HTMLテンプレート
         html_content = f"""
 <!DOCTYPE html>
@@ -467,14 +465,14 @@ class TradingDashboard(BaseAnalyzer):
 </body>
 </html>
 """
-        
+
         # HTMLファイル保存
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         html_file = self.output_dir / f"trading_dashboard_{timestamp}.html"
-        
-        with open(html_file, 'w', encoding='utf-8') as f:
+
+        with open(html_file, "w", encoding="utf-8") as f:
             f.write(html_content)
-        
+
         logger.info(f"HTMLダッシュボード生成完了: {html_file}")
         return str(html_file)
 
@@ -482,14 +480,19 @@ class TradingDashboard(BaseAnalyzer):
         """A/BテストHTML部分生成"""
         if not ab_test_summaries:
             return "<p>A/Bテスト結果がありません。</p>"
-        
+
         html_parts = []
-        
+
         for i, test in enumerate(ab_test_summaries, 1):
-            winner_class = "winner" if test['winner'] != "No significant difference" else ""
-            improvement_text = f"{test['improvement_percentage']:+.1f}%" if test['improvement_percentage'] != 0 else "0%"
-            
-            html_parts.append(f"""
+            winner_class = "winner" if test["winner"] != "No significant difference" else ""
+            improvement_text = (
+                f"{test['improvement_percentage']:+.1f}%"
+                if test["improvement_percentage"] != 0
+                else "0%"
+            )
+
+            html_parts.append(
+                f"""
             <div class="ab-test-item">
                 <h4>テスト {i}: {test['test_name']}</h4>
                 <p><strong>勝者:</strong> <span class="{winner_class}">{test['winner']}</span></p>
@@ -499,8 +502,9 @@ class TradingDashboard(BaseAnalyzer):
                    <strong>バリアントB:</strong> {test['variant_b_signals']}シグナル</p>
                 <p><strong>推奨:</strong> {test['recommendation']}</p>
             </div>
-            """)
-        
+            """
+            )
+
         return "".join(html_parts)
 
     def generate_discord_notification(self, summary: Dict) -> str:
@@ -528,52 +532,54 @@ class TradingDashboard(BaseAnalyzer):
     def run_dashboard_generation(self) -> Tuple[str, str]:
         """ダッシュボード生成実行"""
         logger.info("Phase 12-2ダッシュボード生成開始")
-        
+
         try:
             # データ読み込み
             self.load_data_collection_results()
             self.load_ab_test_results()
-            
+
             # サマリー生成
             summary = self.generate_trading_summary()
-            
+
             # HTMLダッシュボード生成
             html_file = self.generate_html_dashboard()
-            
+
             # Discord通知メッセージ生成
             discord_message = self.generate_discord_notification(summary)
-            
+
             logger.info("ダッシュボード生成完了")
             return html_file, discord_message
-            
+
         except Exception as e:
             logger.error(f"ダッシュボード生成エラー: {e}")
             raise
-    
+
     # ===== base_analyzer.py抽象メソッド実装 =====
-    
+
     def run_analysis(self, **kwargs) -> Dict:
         """ダッシュボード分析実行（base_analyzer.py要求）"""
         try:
             html_file, discord_message = self.run_dashboard_generation()
             summary = self.generate_trading_summary()
-            
+
             return {
                 "timestamp": datetime.now().isoformat(),
                 "analysis_type": "dashboard_generation",
                 "html_file": html_file,
-                "discord_message": discord_message[:200] + "..." if len(discord_message) > 200 else discord_message,
+                "discord_message": (
+                    discord_message[:200] + "..." if len(discord_message) > 200 else discord_message
+                ),
                 "trading_summary": summary,
-                "success": True
+                "success": True,
             }
         except Exception as e:
             return {
                 "timestamp": datetime.now().isoformat(),
                 "analysis_type": "dashboard_generation",
                 "error": str(e),
-                "success": False
+                "success": False,
             }
-    
+
     def generate_report(self, analysis_result: Dict) -> str:
         """ダッシュボードレポート生成（base_analyzer.py要求）"""
         if analysis_result.get("success"):
@@ -594,36 +600,30 @@ HTMLファイル: {analysis_result.get('html_file', '')}
 def main():
     """メイン処理"""
     parser = argparse.ArgumentParser(description="Phase 12-2 取引成果ダッシュボード")
-    parser.add_argument("--data-dir", default="logs",
-                       help="データディレクトリ")
-    parser.add_argument("--output-dir", default="dashboard",
-                       help="出力ディレクトリ")
-    parser.add_argument("--discord", action="store_true",
-                       help="Discord通知メッセージ表示")
-    
+    parser.add_argument("--data-dir", default="logs", help="データディレクトリ")
+    parser.add_argument("--output-dir", default="dashboard", help="出力ディレクトリ")
+    parser.add_argument("--discord", action="store_true", help="Discord通知メッセージ表示")
+
     args = parser.parse_args()
-    
+
     try:
-        dashboard = TradingDashboard(
-            data_dir=args.data_dir,
-            output_dir=args.output_dir
-        )
-        
+        dashboard = TradingDashboard(data_dir=args.data_dir, output_dir=args.output_dir)
+
         html_file, discord_message = dashboard.run_dashboard_generation()
-        
+
         print("=" * 60)
         print("🎉 Phase 12-2 ダッシュボード生成完了！")
         print("=" * 60)
         print(f"📋 HTMLダッシュボード: {html_file}")
         print(f"📁 出力ディレクトリ: {args.output_dir}")
-        
+
         if args.discord:
             print("\\n📢 Discord通知メッセージ:")
             print("-" * 40)
             print(discord_message)
-        
+
         print("\\n🚀 ダッシュボードをブラウザで開いて確認してください！")
-        
+
     except Exception as e:
         logger.error(f"ダッシュボード生成失敗: {e}")
         sys.exit(1)

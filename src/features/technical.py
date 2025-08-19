@@ -52,9 +52,7 @@ class TechnicalIndicators:
 
             # 必要列チェック
             required_cols = ["close", "volume", "high", "low"]
-            missing_cols = [
-                col for col in required_cols if col not in df.columns
-            ]
+            missing_cols = [col for col in required_cols if col not in df.columns]
             if missing_cols:
                 raise DataProcessingError(f"必要列が不足: {missing_cols}")
 
@@ -75,22 +73,14 @@ class TechnicalIndicators:
             result_df["atr_14"] = self._calculate_atr(result_df)
             self.computed_features.add("atr_14")
 
-            result_df["bb_position"] = self._calculate_bb_position(
-                result_df["close"]
-            )
+            result_df["bb_position"] = self._calculate_bb_position(result_df["close"])
             self.computed_features.add("bb_position")
 
-            result_df["ema_20"] = (
-                result_df["close"].ewm(span=20, adjust=False).mean()
-            )
-            result_df["ema_50"] = (
-                result_df["close"].ewm(span=50, adjust=False).mean()
-            )
+            result_df["ema_20"] = result_df["close"].ewm(span=20, adjust=False).mean()
+            result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
             self.computed_features.update(["ema_20", "ema_50"])
 
-            result_df["volume_ratio"] = self._calculate_volume_ratio(
-                result_df["volume"]
-            )
+            result_df["volume_ratio"] = self._calculate_volume_ratio(result_df["volume"])
             self.computed_features.add("volume_ratio")
 
             result_df["zscore"] = self._calculate_zscore(result_df["close"])
@@ -99,13 +89,9 @@ class TechnicalIndicators:
             # NaN値処理
             for feature in self.computed_features:
                 if feature in result_df.columns:
-                    result_df[feature] = (
-                        result_df[feature].ffill().bfill().fillna(0)
-                    )
+                    result_df[feature] = result_df[feature].ffill().bfill().fillna(0)
 
-            self.logger.info(
-                f"テクニカル指標生成完了: {len(self.computed_features)}個"
-            )
+            self.logger.info(f"テクニカル指標生成完了: {len(self.computed_features)}個")
             return result_df
 
         except Exception as e:
@@ -115,16 +101,8 @@ class TechnicalIndicators:
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
         """RSI計算."""
         delta = close.diff()
-        gain = (
-            (delta.where(delta > 0, 0))
-            .rolling(window=period, min_periods=1)
-            .mean()
-        )
-        loss = (
-            (-delta.where(delta < 0, 0))
-            .rolling(window=period, min_periods=1)
-            .mean()
-        )
+        gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=1).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
         rs = gain / (loss + 1e-8)
         return 100 - (100 / (1 + rs))
 
@@ -144,9 +122,7 @@ class TechnicalIndicators:
         true_range = np.maximum(high_low, np.maximum(high_close, low_close))
         return true_range.rolling(window=period, min_periods=1).mean()
 
-    def _calculate_bb_position(
-        self, close: pd.Series, period: int = 20
-    ) -> pd.Series:
+    def _calculate_bb_position(self, close: pd.Series, period: int = 20) -> pd.Series:
         """ボリンジャーバンド位置計算."""
         bb_middle = close.rolling(window=period, min_periods=1).mean()
         bb_std_dev = close.rolling(window=period, min_periods=1).std()
@@ -154,16 +130,12 @@ class TechnicalIndicators:
         bb_lower = bb_middle - (bb_std_dev * 2)
         return (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
 
-    def _calculate_volume_ratio(
-        self, volume: pd.Series, period: int = 20
-    ) -> pd.Series:
+    def _calculate_volume_ratio(self, volume: pd.Series, period: int = 20) -> pd.Series:
         """出来高比率計算."""
         volume_ma = volume.rolling(window=period, min_periods=1).mean()
         return volume / (volume_ma + 1e-8)
 
-    def _calculate_zscore(
-        self, close: pd.Series, period: int = 20
-    ) -> pd.Series:
+    def _calculate_zscore(self, close: pd.Series, period: int = 20) -> pd.Series:
         """Z-Score計算."""
         rolling_mean = close.rolling(window=period, min_periods=1).mean()
         rolling_std = close.rolling(window=period, min_periods=1).std()

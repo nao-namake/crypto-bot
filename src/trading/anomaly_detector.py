@@ -181,9 +181,7 @@ class TradingAnomalyDetector:
                 should_pause_trading=True,
             )
 
-    def check_api_latency_anomaly(
-        self, response_time_ms: float
-    ) -> Optional[AnomalyAlert]:
+    def check_api_latency_anomaly(self, response_time_ms: float) -> Optional[AnomalyAlert]:
         """
         API遅延異常検知
 
@@ -275,9 +273,7 @@ class TradingAnomalyDetector:
             if len(returns) < 5:
                 return None
 
-            current_return = (
-                current_price - price_history.iloc[-1]
-            ) / price_history.iloc[-1]
+            current_return = (current_price - price_history.iloc[-1]) / price_history.iloc[-1]
 
             mean_return = returns.mean()
             std_return = returns.std()
@@ -436,9 +432,7 @@ class TradingAnomalyDetector:
 
             # 履歴サイズ制限
             if len(self.market_conditions) > self.lookback_period * 2:
-                self.market_conditions = self.market_conditions[
-                    -self.lookback_period :
-                ]
+                self.market_conditions = self.market_conditions[-self.lookback_period :]
 
             # 1. スプレッド異常検知
             spread_alert = self.check_spread_anomaly(bid, ask, last_price)
@@ -469,18 +463,12 @@ class TradingAnomalyDetector:
             # Phase 3異常検知との連携（市場データがある場合）
             if market_data is not None:
                 try:
-                    market_features = (
-                        self.market_anomaly_detector.generate_all_features(
-                            market_data
-                        )
+                    market_features = self.market_anomaly_detector.generate_all_features(
+                        market_data
                     )
                     if "market_stress" in market_features.columns:
-                        latest_stress = market_features["market_stress"].iloc[
-                            -1
-                        ]
-                        if (
-                            not pd.isna(latest_stress) and latest_stress > 2.0
-                        ):  # 2σ以上
+                        latest_stress = market_features["market_stress"].iloc[-1]
+                        if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2σ以上
                             alerts.append(
                                 AnomalyAlert(
                                     timestamp=datetime.now(),
@@ -493,9 +481,7 @@ class TradingAnomalyDetector:
                                 )
                             )
                 except Exception as market_error:
-                    self.logger.warning(
-                        f"Phase 3異常検知連携エラー: {market_error}"
-                    )
+                    self.logger.warning(f"Phase 3異常検知連携エラー: {market_error}")
 
             # アラート履歴に追加
             self.anomaly_history.extend(alerts)
@@ -506,24 +492,16 @@ class TradingAnomalyDetector:
 
             # ログ出力
             if alerts:
-                critical_alerts = [
-                    a for a in alerts if a.level == AnomalyLevel.CRITICAL
-                ]
-                warning_alerts = [
-                    a for a in alerts if a.level == AnomalyLevel.WARNING
-                ]
+                critical_alerts = [a for a in alerts if a.level == AnomalyLevel.CRITICAL]
+                warning_alerts = [a for a in alerts if a.level == AnomalyLevel.WARNING]
 
                 if critical_alerts:
-                    self.logger.critical(
-                        f"重大異常検出: {len(critical_alerts)}件"
-                    )
+                    self.logger.critical(f"重大異常検出: {len(critical_alerts)}件")
                     for alert in critical_alerts:
                         self.logger.critical(f"  - {alert.message}")
 
                 if warning_alerts:
-                    self.logger.warning(
-                        f"警告レベル異常: {len(warning_alerts)}件"
-                    )
+                    self.logger.warning(f"警告レベル異常: {len(warning_alerts)}件")
                     for alert in warning_alerts:
                         self.logger.warning(f"  - {alert.message}")
 
@@ -555,8 +533,7 @@ class TradingAnomalyDetector:
             recent_critical_alerts = [
                 alert
                 for alert in self.anomaly_history
-                if alert.timestamp >= recent_time
-                and alert.should_pause_trading
+                if alert.timestamp >= recent_time and alert.should_pause_trading
             ]
 
             if recent_critical_alerts:
@@ -588,25 +565,17 @@ class TradingAnomalyDetector:
 
             # 直近24時間の統計
             recent_time = datetime.now() - timedelta(hours=24)
-            recent_alerts = [
-                a for a in self.anomaly_history if a.timestamp >= recent_time
-            ]
+            recent_alerts = [a for a in self.anomaly_history if a.timestamp >= recent_time]
 
-            critical_count = len(
-                [a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL]
-            )
-            warning_count = len(
-                [a for a in recent_alerts if a.level == AnomalyLevel.WARNING]
-            )
+            critical_count = len([a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL])
+            warning_count = len([a for a in recent_alerts if a.level == AnomalyLevel.WARNING])
 
             should_pause, pause_reasons = self.should_pause_trading()
 
             # 異常タイプ別統計
             alert_types = {}
             for alert in recent_alerts:
-                alert_types[alert.anomaly_type] = (
-                    alert_types.get(alert.anomaly_type, 0) + 1
-                )
+                alert_types[alert.anomaly_type] = alert_types.get(alert.anomaly_type, 0) + 1
 
             return {
                 "total_alerts": len(self.anomaly_history),

@@ -116,9 +116,7 @@ class StrategyManager:
             self.logger.error(f"市場分析エラー: {e}")
             raise StrategyError(f"統合分析失敗: {e}")
 
-    def _collect_all_signals(
-        self, df: pd.DataFrame
-    ) -> Dict[str, StrategySignal]:
+    def _collect_all_signals(self, df: pd.DataFrame) -> Dict[str, StrategySignal]:
         """全戦略からシグナルを収集."""
         signals = {}
         errors = []
@@ -197,12 +195,8 @@ class StrategyManager:
         sell_signals = signal_groups.get("sell", [])
 
         # 各グループの重み付け信頼度計算
-        buy_weighted_confidence = self._calculate_weighted_confidence(
-            buy_signals
-        )
-        sell_weighted_confidence = self._calculate_weighted_confidence(
-            sell_signals
-        )
+        buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
+        sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
 
         self.logger.debug(
             f"コンフリクト解決: BUY={buy_weighted_confidence:.3f} vs SELL={sell_weighted_confidence:.3f}"
@@ -210,14 +204,9 @@ class StrategyManager:
 
         # 差が小さい場合はホールド
         min_conflict_threshold = self.config.get("min_conflict_threshold", 0.1)
-        if (
-            abs(buy_weighted_confidence - sell_weighted_confidence)
-            < min_conflict_threshold
-        ):
+        if abs(buy_weighted_confidence - sell_weighted_confidence) < min_conflict_threshold:
             self.logger.info("コンフリクト解決: 差が小さいためホールド選択")
-            return self._create_hold_signal(
-                df, reason="信頼度差が小さいためコンフリクト回避"
-            )
+            return self._create_hold_signal(df, reason="信頼度差が小さいためコンフリクト回避")
 
         # より高い信頼度のグループを選択
         if buy_weighted_confidence > sell_weighted_confidence:
@@ -229,9 +218,7 @@ class StrategyManager:
             action = "sell"
             confidence = sell_weighted_confidence
 
-        self.logger.info(
-            f"コンフリクト解決: {action.upper()}選択 (信頼度: {confidence:.3f})"
-        )
+        self.logger.info(f"コンフリクト解決: {action.upper()}選択 (信頼度: {confidence:.3f})")
 
         # 勝利グループから最も信頼度の高いシグナルをベースに統合
         best_signal = max(winning_group, key=lambda x: x[1].confidence)[1]
@@ -264,28 +251,20 @@ class StrategyManager:
     ) -> StrategySignal:
         """一貫したシグナルの統合."""
         # 最も多いアクションを選択
-        action_counts = {
-            action: len(signals) for action, signals in signal_groups.items()
-        }
+        action_counts = {action: len(signals) for action, signals in signal_groups.items()}
         dominant_action = max(action_counts, key=action_counts.get)
 
         if dominant_action == "hold":
-            return self._create_hold_signal(
-                df, reason=f"{action_counts['hold']}戦略がホールド推奨"
-            )
+            return self._create_hold_signal(df, reason=f"{action_counts['hold']}戦略がホールド推奨")
 
         # 同じアクションのシグナルを統合
         same_action_signals = signal_groups[dominant_action]
 
         # 重み付け信頼度計算
-        weighted_confidence = self._calculate_weighted_confidence(
-            same_action_signals
-        )
+        weighted_confidence = self._calculate_weighted_confidence(same_action_signals)
 
         # 最も信頼度の高いシグナルをベースとして使用
-        best_signal = max(same_action_signals, key=lambda x: x[1].confidence)[
-            1
-        ]
+        best_signal = max(same_action_signals, key=lambda x: x[1].confidence)[1]
 
         # 統合シグナル生成
         return StrategySignal(
@@ -303,16 +282,12 @@ class StrategyManager:
             reason=f"{len(same_action_signals)}戦略の統合結果",
             metadata={
                 "contributing_strategies": [s[0] for s in same_action_signals],
-                "individual_confidences": [
-                    s[1].confidence for s in same_action_signals
-                ],
+                "individual_confidences": [s[1].confidence for s in same_action_signals],
                 "integration_method": "weighted_average",
             },
         )
 
-    def _calculate_weighted_confidence(
-        self, signals: List[Tuple[str, StrategySignal]]
-    ) -> float:
+    def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
         """重み付け信頼度計算."""
         if not signals:
             return 0.0
@@ -327,19 +302,11 @@ class StrategyManager:
             total_weighted_confidence += weighted_confidence
             total_weight += weight
 
-        return (
-            total_weighted_confidence / total_weight
-            if total_weight > 0
-            else 0.0
-        )
+        return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
 
-    def _create_hold_signal(
-        self, df: pd.DataFrame, reason: str = "条件不適合"
-    ) -> StrategySignal:
+    def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合") -> StrategySignal:
         """ホールドシグナル生成."""
-        current_price = (
-            float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
-        )
+        current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
 
         return StrategySignal(
             strategy_name="StrategyManager",
@@ -380,9 +347,7 @@ class StrategyManager:
         """マネージャー統計情報取得 - 簡素化版."""
         return {
             "total_strategies": len(self.strategies),
-            "enabled_strategies": sum(
-                1 for s in self.strategies.values() if s.is_enabled
-            ),
+            "enabled_strategies": sum(1 for s in self.strategies.values() if s.is_enabled),
             "total_decisions": self.total_decisions,
             "signal_conflicts": self.signal_conflicts,
             "strategy_weights": self.strategy_weights.copy(),

@@ -7,7 +7,6 @@
 
 from typing import Any, Dict, Optional, Tuple
 
-
 from ...core.logger import get_logger
 from .constants import DEFAULT_RISK_PARAMS, EntryAction
 
@@ -53,15 +52,11 @@ class RiskManager:
             take_profit_ratio = config.get(
                 "take_profit_ratio", DEFAULT_RISK_PARAMS["take_profit_ratio"]
             )
-            min_atr = config.get(
-                "min_atr_threshold", DEFAULT_RISK_PARAMS["min_atr_threshold"]
-            )
+            min_atr = config.get("min_atr_threshold", DEFAULT_RISK_PARAMS["min_atr_threshold"])
 
             # ATR最小値チェック（ゼロ除算回避）
             if current_atr < min_atr:
-                logger.warning(
-                    f"ATR値が小さすぎます: {current_atr:.6f} < {min_atr}"
-                )
+                logger.warning(f"ATR値が小さすぎます: {current_atr:.6f} < {min_atr}")
                 current_atr = min_atr
 
             # ストップロス距離計算
@@ -70,14 +65,10 @@ class RiskManager:
             # BUY/SELL別の計算
             if action == EntryAction.BUY:
                 stop_loss = current_price - stop_loss_distance
-                take_profit = current_price + (
-                    stop_loss_distance * take_profit_ratio
-                )
+                take_profit = current_price + (stop_loss_distance * take_profit_ratio)
             else:  # SELL
                 stop_loss = current_price + stop_loss_distance
-                take_profit = current_price - (
-                    stop_loss_distance * take_profit_ratio
-                )
+                take_profit = current_price - (stop_loss_distance * take_profit_ratio)
 
             # 値の妥当性確認
             if stop_loss <= 0 or take_profit <= 0:
@@ -93,9 +84,7 @@ class RiskManager:
             return None, None
 
     @staticmethod
-    def calculate_position_size(
-        confidence: float, config: Dict[str, Any]
-    ) -> float:
+    def calculate_position_size(confidence: float, config: Dict[str, Any]) -> float:
         """
         ポジションサイズ計算
 
@@ -110,12 +99,8 @@ class RiskManager:
 
         try:
             # パラメータ取得
-            base_size = config.get(
-                "position_size_base", DEFAULT_RISK_PARAMS["position_size_base"]
-            )
-            max_size = config.get(
-                "max_position_size", DEFAULT_RISK_PARAMS["max_position_size"]
-            )
+            base_size = config.get("position_size_base", DEFAULT_RISK_PARAMS["position_size_base"])
+            max_size = config.get("max_position_size", DEFAULT_RISK_PARAMS["max_position_size"])
 
             # 信頼度による調整
             position_size = base_size * max(0.0, min(1.0, confidence))
@@ -130,9 +115,7 @@ class RiskManager:
             return 0.0
 
     @staticmethod
-    def calculate_risk_ratio(
-        current_price: float, stop_loss: Optional[float]
-    ) -> Optional[float]:
+    def calculate_risk_ratio(current_price: float, stop_loss: Optional[float]) -> Optional[float]:
         """
         リスク比率計算
 
@@ -174,9 +157,7 @@ class RiskManager:
 
             # 範囲チェック
             if not (0.5 <= stop_loss_multiplier <= 5.0):
-                logger.warning(
-                    f"stop_loss_atr_multiplier範囲外: {stop_loss_multiplier}"
-                )
+                logger.warning(f"stop_loss_atr_multiplier範囲外: {stop_loss_multiplier}")
                 return False
 
             if not (1.0 <= take_profit_ratio <= 10.0):
@@ -184,9 +165,7 @@ class RiskManager:
                 return False
 
             if not (0.001 <= position_size_base <= 0.1):
-                logger.warning(
-                    f"position_size_base範囲外: {position_size_base}"
-                )
+                logger.warning(f"position_size_base範囲外: {position_size_base}")
                 return False
 
             return True

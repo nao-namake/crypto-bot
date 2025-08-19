@@ -78,9 +78,7 @@ __all__ = [
 # バージョン情報
 __version__ = "11.0.0"
 __phase__ = "Phase 11"
-__description__ = (
-    "統合リスク管理層 + 実行層（段階的リスクプロファイル機能拡張・CI/CD統合・24時間監視・段階的デプロイ対応）"
-)
+__description__ = "統合リスク管理層 + 実行層（段階的リスクプロファイル機能拡張・CI/CD統合・24時間監視・段階的デプロイ対応）"
 
 # Phase 11拡張: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・24時間監視・段階的デプロイ対応）
 RISK_PROFILES = {
@@ -194,8 +192,7 @@ def get_risk_profile_config(profile_name: str = "balanced") -> dict:
     """
     if profile_name not in RISK_PROFILES:
         raise ValueError(
-            f"無効なリスクプロファイル: {profile_name}. "
-            f"利用可能: {list(RISK_PROFILES.keys())}"
+            f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}"
         )
 
     # デフォルト設定をベースに、プロファイル設定で上書き
@@ -220,6 +217,4 @@ def list_risk_profiles() -> dict:
     Returns:
         dict: プロファイル名: 説明 の辞書.
     """
-    return {
-        name: profile["description"] for name, profile in RISK_PROFILES.items()
-    }
+    return {name: profile["description"] for name, profile in RISK_PROFILES.items()}

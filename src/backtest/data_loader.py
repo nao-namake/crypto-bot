@@ -85,9 +85,7 @@ class DataLoader:
         if timeframes is None:
             timeframes = ["15m", "1h", "4h"]
 
-        self.logger.info(
-            f"過去データ取得開始: {symbol} {months}ヶ月 {timeframes}"
-        )
+        self.logger.info(f"過去データ取得開始: {symbol} {months}ヶ月 {timeframes}")
 
         # データ取得期間計算
         end_date = datetime.now()
@@ -107,25 +105,17 @@ class DataLoader:
                         continue
 
                 # データ取得
-                raw_data = await self._fetch_timeframe_data(
-                    symbol, timeframe, start_date, end_date
-                )
+                raw_data = await self._fetch_timeframe_data(symbol, timeframe, start_date, end_date)
 
                 # データ品質チェック
-                cleaned_data = await self._validate_and_clean_data(
-                    raw_data, timeframe
-                )
+                cleaned_data = await self._validate_and_clean_data(raw_data, timeframe)
 
                 # キャッシュ保存
-                await self._save_to_cache(
-                    symbol, timeframe, cleaned_data, start_date, end_date
-                )
+                await self._save_to_cache(symbol, timeframe, cleaned_data, start_date, end_date)
 
                 data_dict[timeframe] = cleaned_data
 
-                self.logger.info(
-                    f"{timeframe}データ取得完了: {len(cleaned_data)}件"
-                )
+                self.logger.info(f"{timeframe}データ取得完了: {len(cleaned_data)}件")
 
             except Exception as e:
                 self.logger.error(f"{timeframe}データ取得エラー: {e}")
@@ -153,9 +143,7 @@ class DataLoader:
         chunk_days = 30  # 30日ずつ取得
 
         while current_date < end_date:
-            chunk_end = min(
-                current_date + timedelta(days=chunk_days), end_date
-            )
+            chunk_end = min(current_date + timedelta(days=chunk_days), end_date)
 
             try:
                 chunk_data = await self.data_pipeline.fetch_historical_data(
@@ -168,8 +156,7 @@ class DataLoader:
                 if not chunk_data.empty:
                     # 期間フィルタリング
                     chunk_data = chunk_data[
-                        (chunk_data.index >= current_date)
-                        & (chunk_data.index < chunk_end)
+                        (chunk_data.index >= current_date) & (chunk_data.index < chunk_end)
                     ]
                     all_data.append(chunk_data)
 
@@ -189,9 +176,7 @@ class DataLoader:
         else:
             return pd.DataFrame()
 
-    async def _validate_and_clean_data(
-        self, data: pd.DataFrame, timeframe: str
-    ) -> pd.DataFrame:
+    async def _validate_and_clean_data(self, data: pd.DataFrame, timeframe: str) -> pd.DataFrame:
         """データ品質チェック・クリーニング."""
         if data.empty:
             raise DataQualityError(f"{timeframe}: データが空です")
@@ -200,9 +185,7 @@ class DataLoader:
 
         # 1. 必須カラム確認
         required_columns = ["open", "high", "low", "close", "volume"]
-        missing_columns = [
-            col for col in required_columns if col not in data.columns
-        ]
+        missing_columns = [col for col in required_columns if col not in data.columns]
         if missing_columns:
             raise DataQualityError(f"必須カラム不足: {missing_columns}")
 
@@ -221,9 +204,7 @@ class DataLoader:
         data = self._validate_price_consistency(data)
 
         # 6. 出来高フィルタリング
-        data = data[
-            data["volume"] >= self.quality_thresholds["volume_threshold"]
-        ]
+        data = data[data["volume"] >= self.quality_thresholds["volume_threshold"]]
 
         # 7. 時系列ソート・重複除去
         data = data.sort_index().drop_duplicates()
@@ -282,9 +263,7 @@ class DataLoader:
 
         return data[valid_mask]
 
-    async def _interpolate_missing_data(
-        self, data: pd.DataFrame, timeframe: str
-    ) -> pd.DataFrame:
+    async def _interpolate_missing_data(self, data: pd.DataFrame, timeframe: str) -> pd.DataFrame:
         """欠損データ補完."""
 
         # タイムフレーム別の期待間隔
@@ -305,9 +284,7 @@ class DataLoader:
         # 期待される時系列インデックス生成
         start_time = data.index.min()
         end_time = data.index.max()
-        expected_index = pd.date_range(
-            start=start_time, end=end_time, freq=interval
-        )
+        expected_index = pd.date_range(start=start_time, end=end_time, freq=interval)
 
         # 欠損期間特定
         missing_periods = expected_index.difference(data.index)
@@ -329,9 +306,7 @@ class DataLoader:
 
         return data
 
-    async def _validate_integrated_data(
-        self, data_dict: Dict[str, pd.DataFrame]
-    ):
+    async def _validate_integrated_data(self, data_dict: Dict[str, pd.DataFrame]):
         """統合データ品質チェック."""
 
         # 各タイムフレームの期間一致チェック
@@ -346,9 +321,7 @@ class DataLoader:
             max_end = min(end for _, end in date_ranges.values())
 
             if min_start >= max_end:
-                raise DataQualityError(
-                    "タイムフレーム間で重複期間がありません"
-                )
+                raise DataQualityError("タイムフレーム間で重複期間がありません")
 
             overlap_days = (max_end - min_start).days
             self.logger.info(f"統合データ重複期間: {overlap_days}日")
@@ -367,9 +340,7 @@ class DataLoader:
         try:
             cached_data = await self.data_cache.get(cache_key)
             if cached_data is not None and not cached_data.empty:
-                self.logger.info(
-                    f"{timeframe}キャッシュヒット: {len(cached_data)}件"
-                )
+                self.logger.info(f"{timeframe}キャッシュヒット: {len(cached_data)}件")
                 return cached_data
         except Exception as e:
             self.logger.debug(f"キャッシュ読み込みエラー: {e}")
@@ -389,9 +360,7 @@ class DataLoader:
         cache_key = f"backtest_{symbol}_{timeframe}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
 
         try:
-            await self.data_cache.set(
-                cache_key, data, ttl_hours=24 * 7
-            )  # 1週間保持
+            await self.data_cache.set(cache_key, data, ttl_hours=24 * 7)  # 1週間保持
 
             # ファイル保存も実行
             file_path = self.data_dir / f"{cache_key}.csv"
@@ -417,9 +386,7 @@ class DataLoader:
             }
         }
 
-    async def get_data_summary(
-        self, data_dict: Dict[str, pd.DataFrame]
-    ) -> Dict[str, Any]:
+    async def get_data_summary(self, data_dict: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
         """データサマリー生成."""
 
         summary = {

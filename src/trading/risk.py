@@ -131,21 +131,15 @@ class IntegratedRiskManager:
 
         self.logger.info("統合リスク管理システム初期化完了")
 
-    def _initialize_components(
-        self, config: Dict[str, Any], initial_balance: float
-    ) -> None:
+    def _initialize_components(self, config: Dict[str, Any], initial_balance: float) -> None:
         """リスクコンポーネント初期化."""
         try:
             # Kelly基準ポジションサイジング
             kelly_config = config.get("kelly_criterion", {})
             self.kelly = KellyCriterion(
-                max_position_ratio=kelly_config.get(
-                    "max_position_ratio", 0.03
-                ),
+                max_position_ratio=kelly_config.get("max_position_ratio", 0.03),
                 safety_factor=kelly_config.get("safety_factor", 0.5),
-                min_trades_for_kelly=kelly_config.get(
-                    "min_trades_for_kelly", 20
-                ),
+                min_trades_for_kelly=kelly_config.get("min_trades_for_kelly", 20),
             )
 
             # ポジションサイズ統合器
@@ -154,12 +148,8 @@ class IntegratedRiskManager:
             # ドローダウン管理
             drawdown_config = config.get("drawdown_manager", {})
             self.drawdown_manager = DrawdownManager(
-                max_drawdown_ratio=drawdown_config.get(
-                    "max_drawdown_ratio", 0.20
-                ),
-                consecutive_loss_limit=drawdown_config.get(
-                    "consecutive_loss_limit", 5
-                ),
+                max_drawdown_ratio=drawdown_config.get("max_drawdown_ratio", 0.20),
+                consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
                 cooldown_hours=drawdown_config.get("cooldown_hours", 24),
             )
             self.drawdown_manager.initialize_balance(initial_balance)
@@ -167,18 +157,10 @@ class IntegratedRiskManager:
             # 異常検知
             anomaly_config = config.get("anomaly_detector", {})
             self.anomaly_detector = TradingAnomalyDetector(
-                spread_warning_threshold=anomaly_config.get(
-                    "spread_warning_threshold", 0.003
-                ),
-                spread_critical_threshold=anomaly_config.get(
-                    "spread_critical_threshold", 0.005
-                ),
-                api_latency_warning_ms=anomaly_config.get(
-                    "api_latency_warning_ms", 1000
-                ),
-                api_latency_critical_ms=anomaly_config.get(
-                    "api_latency_critical_ms", 3000
-                ),
+                spread_warning_threshold=anomaly_config.get("spread_warning_threshold", 0.003),
+                spread_critical_threshold=anomaly_config.get("spread_critical_threshold", 0.005),
+                api_latency_warning_ms=anomaly_config.get("api_latency_warning_ms", 1000),
+                api_latency_critical_ms=anomaly_config.get("api_latency_critical_ms", 3000),
                 price_spike_zscore_threshold=anomaly_config.get(
                     "price_spike_zscore_threshold", 3.0
                 ),
@@ -231,12 +213,8 @@ class IntegratedRiskManager:
             # 1. ドローダウン制限チェック
             trading_allowed = self.drawdown_manager.check_trading_allowed()
             if not trading_allowed:
-                drawdown_stats = (
-                    self.drawdown_manager.get_drawdown_statistics()
-                )
-                denial_reasons.append(
-                    f"ドローダウン制限: {drawdown_stats['trading_status']}"
-                )
+                drawdown_stats = self.drawdown_manager.get_drawdown_statistics()
+                denial_reasons.append(f"ドローダウン制限: {drawdown_stats['trading_status']}")
 
             # 2. 異常検知
             anomaly_alerts = self.anomaly_detector.comprehensive_anomaly_check(
@@ -248,12 +226,8 @@ class IntegratedRiskManager:
                 market_data=market_data,
             )
 
-            critical_anomalies = [
-                a for a in anomaly_alerts if a.level == AnomalyLevel.CRITICAL
-            ]
-            warning_anomalies = [
-                a for a in anomaly_alerts if a.level == AnomalyLevel.WARNING
-            ]
+            critical_anomalies = [a for a in anomaly_alerts if a.level == AnomalyLevel.CRITICAL]
+            warning_anomalies = [a for a in anomaly_alerts if a.level == AnomalyLevel.WARNING]
 
             if critical_anomalies:
                 denial_reasons.extend([a.message for a in critical_anomalies])
@@ -287,15 +261,11 @@ class IntegratedRiskManager:
             if trading_allowed and not critical_anomalies:
                 try:
                     # 統合ポジションサイズ計算
-                    strategy_confidence = strategy_signal.get(
-                        "confidence", 0.5
-                    )
+                    strategy_confidence = strategy_signal.get("confidence", 0.5)
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
                         risk_manager_confidence=strategy_confidence,
-                        strategy_name=strategy_signal.get(
-                            "strategy_name", "unknown"
-                        ),
+                        strategy_name=strategy_signal.get("strategy_name", "unknown"),
                         config=self.config,
                     )
 
@@ -319,9 +289,7 @@ class IntegratedRiskManager:
                 anomaly_alerts=anomaly_alerts,
                 drawdown_ratio=self.drawdown_manager.calculate_current_drawdown(),
                 consecutive_losses=self.drawdown_manager.consecutive_losses,
-                market_volatility=self._estimate_market_volatility(
-                    market_data
-                ),
+                market_volatility=self._estimate_market_volatility(market_data),
             )
 
             # 6. 最終判定
@@ -353,9 +321,7 @@ class IntegratedRiskManager:
                 decision=decision,
                 side=trade_side,
                 risk_score=risk_score,
-                position_size=(
-                    position_size if decision == RiskDecision.APPROVED else 0.0
-                ),
+                position_size=(position_size if decision == RiskDecision.APPROVED else 0.0),
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 confidence_level=ml_confidence,
@@ -378,9 +344,7 @@ class IntegratedRiskManager:
 
             # 11. Discord通知（必要に応じて）
             if self.enable_discord_notifications:
-                asyncio.create_task(
-                    self._send_discord_notifications(evaluation)
-                )
+                asyncio.create_task(self._send_discord_notifications(evaluation))
 
             # 12. ログ出力
             self._log_evaluation_result(evaluation)
@@ -434,9 +398,7 @@ class IntegratedRiskManager:
                 profit_loss=profit_loss, strategy=strategy_name
             )
 
-            self.logger.info(
-                f"取引結果記録完了: P&L={profit_loss:.2f}, 戦略={strategy_name}"
-            )
+            self.logger.info(f"取引結果記録完了: P&L={profit_loss:.2f}, 戦略={strategy_name}")
 
         except Exception as e:
             self.logger.error(f"取引結果記録エラー: {e}")
@@ -460,15 +422,9 @@ class IntegratedRiskManager:
             risk_components.append(("ml_confidence", ml_risk, 0.3))
 
             # 異常検知リスク
-            critical_count = len(
-                [a for a in anomaly_alerts if a.level == AnomalyLevel.CRITICAL]
-            )
-            warning_count = len(
-                [a for a in anomaly_alerts if a.level == AnomalyLevel.WARNING]
-            )
-            anomaly_risk = min(
-                1.0, (critical_count * 0.5 + warning_count * 0.2)
-            )
+            critical_count = len([a for a in anomaly_alerts if a.level == AnomalyLevel.CRITICAL])
+            warning_count = len([a for a in anomaly_alerts if a.level == AnomalyLevel.WARNING])
+            anomaly_risk = min(1.0, (critical_count * 0.5 + warning_count * 0.2))
             risk_components.append(("anomaly", anomaly_risk, 0.25))
 
             # ドローダウンリスク
@@ -477,25 +433,17 @@ class IntegratedRiskManager:
 
             # 連続損失リスク
             consecutive_risk = consecutive_losses / 5.0  # 5回で最大リスク
-            risk_components.append(
-                ("consecutive_losses", consecutive_risk, 0.1)
-            )
+            risk_components.append(("consecutive_losses", consecutive_risk, 0.1))
 
             # 市場ボラティリティリスク
-            volatility_risk = min(
-                1.0, market_volatility / 0.05
-            )  # 5%で最大リスク
+            volatility_risk = min(1.0, market_volatility / 0.05)  # 5%で最大リスク
             risk_components.append(("volatility", volatility_risk, 0.1))
 
             # 重み付き平均
-            total_risk = sum(
-                score * weight for _, score, weight in risk_components
-            )
+            total_risk = sum(score * weight for _, score, weight in risk_components)
             total_risk = min(1.0, max(0.0, total_risk))
 
-            self.logger.debug(
-                f"リスクスコア構成: {risk_components}, 総合={total_risk:.3f}"
-            )
+            self.logger.debug(f"リスクスコア構成: {risk_components}, 総合={total_risk:.3f}")
 
             return total_risk
 
@@ -535,9 +483,7 @@ class IntegratedRiskManager:
 
             # リスクスコアベースの判定
             risk_threshold_deny = self.config.get("risk_threshold_deny", 0.8)
-            risk_threshold_conditional = self.config.get(
-                "risk_threshold_conditional", 0.6
-            )
+            risk_threshold_conditional = self.config.get("risk_threshold_conditional", 0.6)
 
             if risk_score >= risk_threshold_deny:
                 return RiskDecision.DENIED
@@ -555,12 +501,8 @@ class IntegratedRiskManager:
         try:
             self.risk_metrics.total_evaluations += 1
             self.risk_metrics.last_evaluation = evaluation.evaluation_timestamp
-            self.risk_metrics.current_drawdown = (
-                self.drawdown_manager.calculate_current_drawdown()
-            )
-            self.risk_metrics.consecutive_losses = (
-                self.drawdown_manager.consecutive_losses
-            )
+            self.risk_metrics.current_drawdown = self.drawdown_manager.calculate_current_drawdown()
+            self.risk_metrics.consecutive_losses = self.drawdown_manager.consecutive_losses
             self.risk_metrics.trading_status = evaluation.drawdown_status
 
             if evaluation.decision == RiskDecision.APPROVED:
@@ -586,16 +528,11 @@ class IntegratedRiskManager:
         except Exception as e:
             self.logger.error(f"統計更新エラー: {e}")
 
-    async def _send_discord_notifications(
-        self, evaluation: TradeEvaluation
-    ) -> None:
+    async def _send_discord_notifications(self, evaluation: TradeEvaluation) -> None:
         """Discord通知送信."""
         try:
             # 重大異常時のみ通知（実装は Phase 1のDiscord通知システムを活用）
-            if (
-                evaluation.decision == RiskDecision.DENIED
-                and evaluation.denial_reasons
-            ):
+            if evaluation.decision == RiskDecision.DENIED and evaluation.denial_reasons:
                 message = f"🚨 **取引拒否**\n"
                 message += f"リスクスコア: {evaluation.risk_score:.1%}\n"
                 message += f"理由: {', '.join(evaluation.denial_reasons[:3])}"
@@ -647,18 +584,14 @@ class IntegratedRiskManager:
                     [
                         e
                         for e in self.evaluation_history
-                        if e.evaluation_timestamp
-                        >= datetime.now() - timedelta(hours=24)
+                        if e.evaluation_timestamp >= datetime.now() - timedelta(hours=24)
                     ]
                 ),
                 "approval_rate": (
-                    self.risk_metrics.approved_trades
-                    / max(1, self.risk_metrics.total_evaluations)
+                    self.risk_metrics.approved_trades / max(1, self.risk_metrics.total_evaluations)
                 ),
                 "system_status": (
-                    "active"
-                    if drawdown_stats.get("trading_allowed", False)
-                    else "paused"
+                    "active" if drawdown_stats.get("trading_allowed", False) else "paused"
                 ),
             }
 

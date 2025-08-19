@@ -114,14 +114,10 @@ class BacktestEvaluator:
         basic_stats = self._calculate_basic_stats(trade_records)
 
         # リターン分析
-        return_metrics = self._calculate_return_metrics(
-            equity_curve, initial_balance
-        )
+        return_metrics = self._calculate_return_metrics(equity_curve, initial_balance)
 
         # リスク分析
-        risk_metrics = self._calculate_risk_metrics(
-            trade_records, equity_curve, initial_balance
-        )
+        risk_metrics = self._calculate_risk_metrics(trade_records, equity_curve, initial_balance)
 
         # 取引分析
         trade_metrics = self._calculate_trade_metrics(trade_records)
@@ -169,9 +165,7 @@ class BacktestEvaluator:
         )
         return metrics
 
-    def _calculate_basic_stats(
-        self, trade_records: List[TradeRecord]
-    ) -> Dict[str, Any]:
+    def _calculate_basic_stats(self, trade_records: List[TradeRecord]) -> Dict[str, Any]:
         """基本統計計算."""
         profits = [trade.profit_jpy for trade in trade_records]
         winning_profits = [p for p in profits if p > 0]
@@ -183,16 +177,12 @@ class BacktestEvaluator:
         total_trades = len(trade_records)
 
         win_rate = total_wins / total_trades if total_trades > 0 else 0.0
-        average_profit = (
-            total_profit / total_trades if total_trades > 0 else 0.0
-        )
+        average_profit = total_profit / total_trades if total_trades > 0 else 0.0
 
         # プロフィットファクター計算
         gross_profit = sum(winning_profits) if winning_profits else 0.0
         gross_loss = abs(sum(losing_profits)) if losing_profits else 0.0
-        profit_factor = (
-            gross_profit / gross_loss if gross_loss > 0 else float("inf")
-        )
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
         return {
             "total_trades": total_trades,
@@ -257,29 +247,17 @@ class BacktestEvaluator:
 
         # ボラティリティ計算
         returns = self._calculate_daily_returns(equity_curve)
-        volatility = (
-            np.std(returns) * np.sqrt(252) if returns else 0.0
-        )  # 年率化
+        volatility = np.std(returns) * np.sqrt(252) if returns else 0.0  # 年率化
 
         # シャープレシオ計算
         avg_return = np.mean(returns) * 252 if returns else 0.0  # 年率化
-        sharpe_ratio = (
-            (avg_return - self.risk_free_rate) / volatility
-            if volatility > 0
-            else 0.0
-        )
+        sharpe_ratio = (avg_return - self.risk_free_rate) / volatility if volatility > 0 else 0.0
 
         # ソルティーノ比率計算
         negative_returns = [r for r in returns if r < 0]
-        downside_std = (
-            np.std(negative_returns) * np.sqrt(252)
-            if negative_returns
-            else 0.0
-        )
+        downside_std = np.std(negative_returns) * np.sqrt(252) if negative_returns else 0.0
         sortino_ratio = (
-            (avg_return - self.risk_free_rate) / downside_std
-            if downside_std > 0
-            else 0.0
+            (avg_return - self.risk_free_rate) / downside_std if downside_std > 0 else 0.0
         )
 
         return {
@@ -291,9 +269,7 @@ class BacktestEvaluator:
             "sortino_ratio": sortino_ratio,
         }
 
-    def _calculate_trade_metrics(
-        self, trade_records: List[TradeRecord]
-    ) -> Dict[str, Any]:
+    def _calculate_trade_metrics(self, trade_records: List[TradeRecord]) -> Dict[str, Any]:
         """取引指標計算."""
         if not trade_records:
             return {
@@ -307,9 +283,7 @@ class BacktestEvaluator:
         durations = []
         for trade in trade_records:
             if trade.exit_time and trade.entry_time:
-                duration = (
-                    trade.exit_time - trade.entry_time
-                ).total_seconds() / 3600
+                duration = (trade.exit_time - trade.entry_time).total_seconds() / 3600
                 durations.append(duration)
 
         average_duration = np.mean(durations) if durations else 0.0
@@ -353,9 +327,7 @@ class BacktestEvaluator:
 
                     # ドローダウン期間中の最小値を正しく取得
                     start_idx = next(
-                        idx
-                        for idx, ts in enumerate(timestamps)
-                        if ts >= current_dd_start
+                        idx for idx, ts in enumerate(timestamps) if ts >= current_dd_start
                     )
                     min_equity_in_period = min(equity_values[start_idx:i])
 
@@ -387,9 +359,7 @@ class BacktestEvaluator:
             dd_duration = (final_timestamp - current_dd_start).days
 
             # current_dd_start以降の最小値を正しく取得
-            start_idx = next(
-                i for i, ts in enumerate(timestamps) if ts >= current_dd_start
-            )
+            start_idx = next(i for i, ts in enumerate(timestamps) if ts >= current_dd_start)
             min_equity_in_period = min(equity_values[start_idx:])
 
             drawdown_periods.append(
@@ -407,9 +377,7 @@ class BacktestEvaluator:
             "periods": drawdown_periods,
         }
 
-    def _calculate_daily_returns(
-        self, equity_curve: List[Tuple[datetime, float]]
-    ) -> List[float]:
+    def _calculate_daily_returns(self, equity_curve: List[Tuple[datetime, float]]) -> List[float]:
         """日次リターン計算."""
         if len(equity_curve) < 2:
             return []
@@ -425,9 +393,7 @@ class BacktestEvaluator:
 
         return returns
 
-    def _calculate_monthly_returns(
-        self, equity_curve: List[Tuple[datetime, float]]
-    ) -> List[float]:
+    def _calculate_monthly_returns(self, equity_curve: List[Tuple[datetime, float]]) -> List[float]:
         """月次リターン計算."""
         if len(equity_curve) < 2:
             return []
@@ -453,9 +419,7 @@ class BacktestEvaluator:
 
         return monthly_returns
 
-    def _calculate_consecutive_stats(
-        self, trade_records: List[TradeRecord]
-    ) -> Dict[str, int]:
+    def _calculate_consecutive_stats(self, trade_records: List[TradeRecord]) -> Dict[str, int]:
         """連続勝敗統計計算."""
         max_wins = 0
         max_losses = 0
@@ -474,9 +438,7 @@ class BacktestEvaluator:
 
         return {"max_wins": max_wins, "max_losses": max_losses}
 
-    def _calculate_trade_distribution(
-        self, trade_records: List[TradeRecord]
-    ) -> Dict[str, Any]:
+    def _calculate_trade_distribution(self, trade_records: List[TradeRecord]) -> Dict[str, Any]:
         """取引分布統計計算."""
         profits = [trade.profit_jpy for trade in trade_records]
 
@@ -493,9 +455,7 @@ class BacktestEvaluator:
             "percentile_75": np.percentile(profits, 75),
         }
 
-    def _calculate_period_info(
-        self, equity_curve: List[Tuple[datetime, float]]
-    ) -> Dict[str, Any]:
+    def _calculate_period_info(self, equity_curve: List[Tuple[datetime, float]]) -> Dict[str, Any]:
         """期間情報計算."""
         if not equity_curve:
             return {
@@ -563,9 +523,7 @@ def split_walk_forward(
 
     while start + train_window + test_window <= length:
         train_df = df.iloc[start : start + train_window]
-        test_df = df.iloc[
-            start + train_window : start + train_window + test_window
-        ]
+        test_df = df.iloc[start + train_window : start + train_window + test_window]
         splits.append((train_df, test_df))
         start += step
 

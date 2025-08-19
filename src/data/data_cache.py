@@ -71,9 +71,7 @@ class LRUCache:
                 return value
             return None
 
-    def put(
-        self, key: str, value: Any, metadata: Optional[CacheMetadata] = None
-    ):
+    def put(self, key: str, value: Any, metadata: Optional[CacheMetadata] = None):
         """データ保存."""
         with self._lock:
             # 既存エントリを削除
@@ -170,9 +168,7 @@ class DataCache:
         # 最後のクリーンアップ時刻
         self._last_cleanup = datetime.now()
 
-        self.logger.info(
-            f"データキャッシュ初期化: {cache_dir} (保持期間: {retention_days}日)"
-        )
+        self.logger.info(f"データキャッシュ初期化: {cache_dir} (保持期間: {retention_days}日)")
 
     def _generate_cache_key(
         self,
@@ -228,9 +224,7 @@ class DataCache:
             metadata = CacheMetadata(
                 key=metadata_dict["key"],
                 created_at=datetime.fromisoformat(metadata_dict["created_at"]),
-                last_accessed=datetime.fromisoformat(
-                    metadata_dict["last_accessed"]
-                ),
+                last_accessed=datetime.fromisoformat(metadata_dict["last_accessed"]),
                 size_bytes=metadata_dict["size_bytes"],
                 data_type=metadata_dict["data_type"],
                 timeframe=metadata_dict["timeframe"],
@@ -389,9 +383,7 @@ class DataCache:
         now = datetime.now()
 
         # クリーンアップ間隔チェック
-        if (now - self._last_cleanup).total_seconds() < (
-            self.cleanup_interval_hours * 3600
-        ):
+        if (now - self._last_cleanup).total_seconds() < (self.cleanup_interval_hours * 3600):
             return
 
         self.logger.info("期限切れキャッシュのクリーンアップ開始")
@@ -413,16 +405,12 @@ class DataCache:
         for file_path in self.cache_dir.glob("*.pkl.gz"):
             try:
                 # ファイルの更新時刻をチェック
-                file_age = now - datetime.fromtimestamp(
-                    file_path.stat().st_mtime
-                )
+                file_age = now - datetime.fromtimestamp(file_path.stat().st_mtime)
                 if file_age.days > self.retention_days:
                     file_path.unlink()
                     cleaned_count += 1
             except Exception as e:
-                self.logger.error(
-                    f"ファイルクリーンアップエラー: {file_path} - {e}"
-                )
+                self.logger.error(f"ファイルクリーンアップエラー: {file_path} - {e}")
 
         self._last_cleanup = now
         self.logger.info(f"クリーンアップ完了: {cleaned_count}件削除")
@@ -444,16 +432,10 @@ class DataCache:
     def get_cache_stats(self) -> Dict[str, Any]:
         """キャッシュ統計取得."""
         # ディスク使用量計算
-        disk_size = sum(
-            file_path.stat().st_size
-            for file_path in self.cache_dir.glob("*.pkl.gz")
-        )
+        disk_size = sum(file_path.stat().st_size for file_path in self.cache_dir.glob("*.pkl.gz"))
 
         # メモリ使用量計算
-        memory_size = sum(
-            metadata.size_bytes
-            for metadata in self.memory_cache._metadata.values()
-        )
+        memory_size = sum(metadata.size_bytes for metadata in self.memory_cache._metadata.values())
 
         hit_rate = 0
         total_requests = self.stats["cache_hits"] + self.stats["cache_misses"]
