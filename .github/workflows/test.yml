@@ -38,23 +38,23 @@ jobs:
         pip install -r requirements.txt
         # レガシーパターン：完全な依存関係インストール
     
-    # レガシーchecks.sh Step 1: flake8
+    # レガシーchecks.sh Step 1: flake8 (レガシーシステム除外)
     - name: ">>> flake8"
       run: |
-        echo ">>> flake8 (レガシーパターン継承)"
-        python -m flake8 src/ tests/unit/ --max-line-length=100 --ignore=E203,W503
+        echo ">>> flake8 (レガシーパターン継承・_legacy_v1除外)"
+        python -m flake8 src/ tests/unit/ scripts/ --max-line-length=100 --ignore=E203,W503 --exclude=_legacy_v1
     
-    # レガシーchecks.sh Step 2: isort check
+    # レガシーchecks.sh Step 2: isort check (レガシーシステム除外)
     - name: ">>> isort (check only)"
       run: |
-        echo ">>> isort (check only)"
-        python -m isort --check-only src/ tests/unit/ || echo "⚠️ import順要改善"
+        echo ">>> isort (check only・_legacy_v1除外)"
+        python -m isort --check-only src/ tests/unit/ scripts/ --skip _legacy_v1 || echo "⚠️ import順要改善"
     
-    # レガシーchecks.sh Step 3: black check  
+    # レガシーchecks.sh Step 3: black check (レガシーシステム除外)
     - name: ">>> black (check only)"
       run: |
-        echo ">>> black (check only)"
-        python -m black --check src/ tests/unit/ || echo "⚠️ フォーマット要改善"
+        echo ">>> black (check only・_legacy_v1除外)"
+        python -m black --check src/ tests/unit/ scripts/ --exclude "_legacy_v1" || echo "⚠️ フォーマット要改善"
     
     # レガシーchecks.sh Step 4: pytest with coverage
     - name: ">>> pytest (with coverage)"
@@ -145,19 +145,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 black isort
     
-    # Python構文チェック
+    # Python構文チェック (レガシーシステム除外)
     - name: Lint with flake8
       run: |
-        # 新規実装ファイルの構文チェック
-        flake8 src/trading/executor.py --max-line-length=100 --ignore=E203,W503
-        flake8 src/core/orchestrator.py --max-line-length=100 --ignore=E203,W503
+        # 新システム全体の構文チェック (レガシー除外)
+        flake8 src/ scripts/ --max-line-length=100 --ignore=E203,W503 --exclude=_legacy_v1
     
-    # コードフォーマットチェック（将来の改善用）
+    # コードフォーマットチェック（将来の改善用・レガシーシステム除外）
     - name: Check code formatting
       run: |
-        echo "📝 コードフォーマットチェック（情報のみ）"
-        black --check --diff src/trading/executor.py || echo "⚠️  フォーマット要改善"
-        black --check --diff src/core/orchestrator.py || echo "⚠️  フォーマット要改善"
+        echo "📝 コードフォーマットチェック（情報のみ・_legacy_v1除外）"
+        black --check --diff src/ scripts/ --exclude "_legacy_v1" || echo "⚠️  フォーマット要改善"
 
   integration:
     name: Integration Test

@@ -92,29 +92,82 @@ logs/
 results/
 */results/
 
-# 学習済みモデル
-model/
+# ──────────────────────────────────────────────────────────────────────────────
+# 学習済みモデル・ML関連（Phase 17新システム対応）
+# ──────────────────────────────────────────────────────────────────────────────
+# 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# 本番モデルは除外しない
-!models/production/model.pkl
+*.model
+*.joblib
+*.h5
+*.pt
+*.pth
+*.onnx
+
+# 学習ログ・実験結果
+mlruns/
+wandb/
+tensorboard_logs/
+training_logs/
+model_artifacts/
+
+# ただし、管理対象のモデルファイルは保持
+!models/production/*.pkl          # 本番用モデル（管理対象）
+!models/training/*.pkl            # 学習用モデル（管理対象）
+!models/**/*.pkl                  # その他管理対象モデル
+
+# モデル評価・実験の一時結果
+model_evaluation_*.json
+experiment_*.csv
+hyperparameter_*.json
 
 # ──────────────────────────────────────────────────────────────────────────────
-# データファイル
+# データファイル（Phase 17新システム対応）
 # ──────────────────────────────────────────────────────────────────────────────
+# 動的データ・ダウンロードファイル
 data/
+raw_data/
+downloaded_data/
+cache_data/
 *.csv
-# ただし src/data/ 内のソースコードは除外対象外
-!src/data/
-!src/data/*.py
+*.parquet
+*.feather
+*.hdf5
+
+# バックテスト関連データ（動的生成）
+src/backtest/data/*.csv           # 履歴データキャッシュ
+src/backtest/data/*.json          # 結果データ
+backtest_results/
+historical_data/
+
+# ただし、ソースコード・設定ファイルは保持
+!src/data/                        # src/data/ ディレクトリ自体は保持
+!src/data/*.py                    # データ処理ソースコード
+!src/backtest/data/README.md      # バックテストデータ説明
+!config/**/*.csv                  # 設定用CSVファイル
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 一時生成ファイル（プロジェクト直下を避ける）
+# 実行時生成ファイル（Phase 17新システム対応）
 # ──────────────────────────────────────────────────────────────────────────────
+# 取引・リスク管理関連
 drawdown_state.json
-coverage.xml
+risk_state.json
+trading_state.json
+position_*.json
+
+# 監視・ログ関連
 status.json
+health_check.json
 *.monitoring_*.log
 pipeline_log/
+performance_*.json
+
+# 分析・レポート関連（scripts/analytics/）
+logs/performance_analysis/
+logs/operational_reports/
+logs/monitoring_reports/
+analysis_report_*.md
+analysis_report_*.json
 
 # ──────────────────────────────────────────────────────────────────────────────
 # バックアップ・一時ファイル
@@ -163,6 +216,18 @@ docker-compose.override.yml
 archive/
 
 # ──────────────────────────────────────────────────────────────────────────────
-# レガシーシステム（参考用として保持）
+# レガシーシステム（参考用アーカイブ・Phase 17完了）
 # ──────────────────────────────────────────────────────────────────────────────
-# _legacy_v1/ はgit管理対象として残す
+# 注意: _legacy_v1/ は既にコミット済みアーカイブです
+# 新規開発では _legacy_v1/ 内のコードを参照・コピーしないでください
+# 
+# 将来の誤参照防止のため、今後の変更は無視対象:
+_legacy_v1/
+
+# レガシーシステム関連の一時ファイル・生成物
+**/legacy_*
+**/old_*
+**/backup_*
+_old/
+_backup/
+legacy/
