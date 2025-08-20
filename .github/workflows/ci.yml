@@ -197,20 +197,20 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Create Artifact Registry repository if not exists
+      - name: Verify Artifact Registry repository exists
         run: |
-          # レポジトリ存在確認・作成
-          if ! gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
+          # レポジトリ存在確認（作成権限不要）
+          echo "🔍 Artifact Registryレポジトリ存在確認..."
+          if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
               --location=${{ env.REGION }} \
               --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
-            echo "📦 Artifact Registryレポジトリ作成中..."
-            gcloud artifacts repositories create ${{ env.REPOSITORY }} \
-              --repository-format=docker \
-              --location=${{ env.REGION }} \
-              --project=${{ env.PROJECT_ID }} \
-              --description="Crypto Bot Docker Repository"
-          else
             echo "✅ Artifact Registryレポジトリ確認済み"
+          else
+            echo "⚠️ Artifact Registryレポジトリが見つかりません"
+            echo "手動で以下のコマンドを実行してレポジトリを作成してください："
+            echo "gcloud artifacts repositories create ${{ env.REPOSITORY }} --repository-format=docker --location=${{ env.REGION }} --project=${{ env.PROJECT_ID }}"
+            echo "または、GCPコンソールでArtifact Registryレポジトリを作成してください"
+            echo "🔄 レポジトリが既に存在すると仮定してCI継続します"
           fi
 
       - name: Build and Push Docker Image
