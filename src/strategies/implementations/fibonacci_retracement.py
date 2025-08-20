@@ -214,7 +214,10 @@ class FibonacciRetracementStrategy(StrategyBase):
                     near_info += (
                         f" +{len(approaching_levels)-1}接近" if len(approaching_levels) > 1 else ""
                     )
-                analysis = f"フィボ: {near_info} {'接近中' if is_near_level else f'距離{nearest_level['distance']:.1%}'}"
+                distance_str = (
+                    f'距離{nearest_level["distance"]:.1%}' if not is_near_level else "接近中"
+                )
+                analysis = f"フィボ: {near_info} {distance_str}"
             else:
                 analysis = "フィボ: レベル無し"
 
