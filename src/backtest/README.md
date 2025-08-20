@@ -1,13 +1,13 @@
-# バックテストシステム - Phase 11
+# バックテストシステム - Phase 12
 
-Phase 11で実装されたバックテストシステムの概要とユーザー提案採用による最適化設計・CI/CD統合・24時間監視・段階的デプロイ対応。
+Phase 12で実装されたバックテストシステムの概要とユーザー提案採用による最適化設計・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応。
 
 ## 📊 システム概要
 
-### 🎯 目的（Phase 11統合）
-- 過去6ヶ月データでの戦略検証・CI/CD統合
+### 🎯 目的（Phase 12統合）
+- 過去6ヶ月データでの戦略検証・CI/CDワークフロー最適化
 - Phase 1-11システムとの完全統合・GitHub Actions対応
-- 60秒以内処理（6ヶ月データ）・24時間監視対応
+- 60秒以内処理（6ヶ月データ）・手動実行監視対応
 - シンプル・高性能・保守性重視・段階的デプロイ対応
 
 ### ✅ **ユーザー提案採用：データ配置最適化**
@@ -47,17 +47,17 @@ src/backtest/
 └── README.md               # このファイル
 ```
 
-### レガシーシステム継承機能（Phase 11統合）
+### レガシーシステム継承機能（Phase 12統合）
 - ✅ **TradeRecord dataclass**: 取引記録の構造化管理・CI/CD対応
 - ✅ **ウォークフォワード検証**: `split_walk_forward`関数・GitHub Actions統合
-- ✅ **評価指標計算**: `max_drawdown`、`CAGR`、シャープレシオ・24時間監視対応
+- ✅ **評価指標計算**: `max_drawdown`、`CAGR`、シャープレシオ・手動実行監視対応
 - ✅ **ポジション管理**: EntryExit、Positionクラスの概念・段階的デプロイ対応
 
-### 新システム統合（Phase 11完了）
-- ✅ **Phase 4戦略システム**: StrategyManager統合・CI/CD統合
+### 新システム統合（Phase 12完了）
+- ✅ **Phase 4戦略システム**: StrategyManager統合・CI/CDワークフロー最適化
 - ✅ **Phase 5 MLシステム**: ModelManager・アンサンブル予測・GitHub Actions対応
-- ✅ **Phase 6リスク管理**: IntegratedRiskManager統合・24時間監視統合
-- ✅ **Phase 11実行システム**: VirtualPosition・統一インターフェース・段階的デプロイ対応
+- ✅ **Phase 6リスク管理**: IntegratedRiskManager統合・手動実行監視統合
+- ✅ **Phase 12実行システム**: VirtualPosition・統一インターフェース・段階的デプロイ対応
 
 ## 🚀 使用方法
 
@@ -199,19 +199,19 @@ quality_thresholds = {
 
 ## 🧪 テスト・検証
 
-### 単体テスト（Phase 11統合・CI/CD対応）
+### 単体テスト（Phase 12統合・CI/CD対応）
 ```bash
 # バックテストエンジンテスト（84テスト・GitHub Actions対応）
 python -m pytest tests/unit/backtest/test_engine.py -v
 
-# 評価システムテスト（24時間監視対応）  
+# 評価システムテスト（手動実行監視対応）  
 python -m pytest tests/unit/backtest/test_evaluator.py -v
 
 # データローダーテスト（段階的デプロイ対応）
 python -m pytest tests/unit/backtest/test_data_loader.py -v
 
 # 399テスト統合基盤確認
-python scripts/management/bot_manager.py validate --mode light
+python scripts/management/dev_check.py validate --mode light
 ```
 
 ### 統合テスト
@@ -230,12 +230,12 @@ asyncio.run(test())
 
 ## 📚 技術仕様
 
-### Phase 1-11統合（CI/CD統合・24時間監視対応）
+### Phase 1-11統合（CI/CDワークフロー最適化・手動実行監視対応）
 - **データ取得**: Phase 2 DataPipeline・DataCache活用・GitHub Actions統合
 - **戦略実行**: Phase 4 StrategyManager統合・CI/CD品質ゲート対応
-- **ML予測**: Phase 5 ModelManager・アンサンブル統合・24時間監視対応
+- **ML予測**: Phase 5 ModelManager・アンサンブル統合・手動実行監視対応
 - **リスク管理**: Phase 6 IntegratedRiskManager統合・段階的デプロイ対応
-- **実行システム**: Phase 11 VirtualPosition・OrderExecutor統合・監視統合
+- **実行システム**: Phase 12 VirtualPosition・OrderExecutor統合・監視統合
 
 ### パフォーマンス目標
 - **処理速度**: 6ヶ月データを60秒以内で処理
@@ -249,22 +249,22 @@ asyncio.run(test())
 - **計算エラー**: 浮動小数点誤差対策
 - **メモリ不足**: チャンク処理による省メモリ化
 
-## 🎯 Phase 11成果（CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🎯 Phase 12成果（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
-### 実装完了機能（Phase 11統合）
+### 実装完了機能（Phase 12統合）
 - ✅ **バックテストエンジン**: 統合システム・最適化されたポジション管理・GitHub Actions対応
 - ✅ **評価システム**: レガシー継承・ドローダウンバグ修正済み・CI/CD品質ゲート対応
-- ✅ **データローダー**: 6ヶ月データ・品質管理・キャッシュ・24時間監視統合
+- ✅ **データローダー**: 6ヶ月データ・品質管理・キャッシュ・手動実行監視統合
 - ✅ **レポートシステム**: 多形式出力・Discord通知・段階的デプロイ対応
 - ✅ **専用モデル管理**: バックテスト最適化済みモデル・メタデータ統合・監視統合
 
-### 技術的成果（Phase 11最終改善）
-- **性能最適化**: データスライシング改善で30-50%高速化・CI/CD統合
+### 技術的成果（Phase 12最終改善）
+- **性能最適化**: データスライシング改善で30-50%高速化・CI/CDワークフロー最適化
 - **設定最適化**: ML信頼度閾値0.5、ポジション最大5%でバランス向上・GitHub Actions対応
-- **機能完成**: `_evaluate_exit`実装で手仕舞いロジック完成・24時間監視対応
+- **機能完成**: `_evaluate_exit`実装で手仕舞いロジック完成・手動実行監視対応
 - **エラーハンドリング強化**: 包括的な例外処理とログ出力・段階的デプロイ対応
 - **バグ修正**: BacktestEvaluatorドローダウン計算の精度向上・監視統合
 
 ---
 
-**🎯 Phase 11統合により、シンプルで高性能、かつ安定なバックテスト環境が完成。性能とシンプル性のバランスを最適化し、本番級の品質・CI/CD統合・24時間監視・段階的デプロイ対応を実現。**
+**🎯 Phase 12統合により、シンプルで高性能、かつ安定なバックテスト環境が完成。性能とシンプル性のバランスを最適化し、本番級の品質・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応を実現。**

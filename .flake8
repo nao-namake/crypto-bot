@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203,W503,E501,E402,F401,F841,F541,F811,E722,E712,E704,E225,E226,E228,W291,W293,D100,D101,D102,D103,D104,D105,D107,D200,D202,D204,D205,D300,D302,D400,D403
+
+exclude = .git,__pycache__,.venv,venv,env,build,dist,.cache,_legacy_v1,logs,results,.pytest_cache,htmlcov,*.egg-info
+per-file-ignores = tests/*:F401,F811,E712

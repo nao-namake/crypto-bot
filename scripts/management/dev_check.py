@@ -68,8 +68,12 @@ class UnifiedBotManager(BaseAnalyzer):
             "overall_score": 0,
         }
 
+        # レポート出力ディレクトリ
+        self.report_dir = self.project_root / "logs" / "dev_check_reports"
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+
     def run_command(
-        self, command: List[str], capture: bool = False, show_output: bool = True
+        self, command: List[str], capture: bool = False, show_output: bool = True, env: dict = None
     ) -> Tuple[int, str]:
         """コマンド実行ラッパー（base_analyzer.pyの機能を活用）"""
         if show_output:
@@ -80,17 +84,31 @@ class UnifiedBotManager(BaseAnalyzer):
             returncode, stdout, stderr = self.run_gcloud_command(command, show_output=show_output)
             return returncode, stdout + stderr
 
+        # 環境変数の準備
+        import os
+
+        current_env = os.environ.copy()
+        if env:
+            current_env.update(env)
+
         # その他のコマンドは従来通り
         try:
             import subprocess
 
             if capture:
                 result = subprocess.run(
-                    command, capture_output=True, text=True, cwd=self.project_root, timeout=300
+                    command,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.project_root,
+                    timeout=300,
+                    env=current_env,
                 )
                 return result.returncode, result.stdout + result.stderr
             else:
-                result = subprocess.run(command, cwd=self.project_root, timeout=300)
+                result = subprocess.run(
+                    command, cwd=self.project_root, timeout=300, env=current_env
+                )
                 return result.returncode, ""
         except subprocess.TimeoutExpired:
             print(f"⏰ タイムアウト: {' '.join(command)}")
@@ -270,7 +288,7 @@ class UnifiedBotManager(BaseAnalyzer):
         print("🤖 MLモデル管理")
         print("=" * 60)
 
-        create_script = self.scripts_dir / "create_ml_models.py"
+        create_script = self.scripts_dir / "ml" / "create_ml_models.py"
 
         if not create_script.exists():
             print(f"❌ MLモデル作成スクリプトが見つかりません: {create_script}")
@@ -285,7 +303,9 @@ class UnifiedBotManager(BaseAnalyzer):
         if verbose:
             cmd.append("--verbose")
 
-        returncode, _ = self.run_command(cmd)
+        # PYTHONPATHを設定してモジュールインポート問題を解決
+        env_vars = {"PYTHONPATH": str(self.project_root)}
+        returncode, _ = self.run_command(cmd, env=env_vars)
 
         if returncode == 0:
             if dry_run:
@@ -349,7 +369,7 @@ try:
     print('✅ DataRequest作成成功')
 except Exception as e:
     print(f'❌ DataPipeline エラー: {e}')
-    sys.exit(1).
+    sys.exit(1)
 """,
         ]
 
@@ -392,7 +412,7 @@ try:
     print(f'✅ 特徴量生成成功: {len(features.columns)}個')
 except Exception as e:
     print(f'❌ TechnicalIndicators エラー: {e}')
-    sys.exit(1).
+    sys.exit(1)
 """,
         ]
 
@@ -421,13 +441,13 @@ try:
     print('✅ Config読み込み成功')
 
     # 基本設定確認
-    if 'logging' in config:
+    if hasattr(config, 'logging'):
         print('✅ ログ設定存在')
-    if 'data' in config:
+    if hasattr(config, 'data'):
         print('✅ データ設定存在')
 except Exception as e:
     print(f'❌ Config エラー: {e}')
-    sys.exit(1).
+    sys.exit(1)
 """,
         ]
 
@@ -567,9 +587,9 @@ except Exception as e:
         important_files = {
             "MLモデル": self.models_dir / "production" / "production_ensemble.pkl",
             "モデルメタデータ": self.models_dir / "production" / "production_model_metadata.json",
-            "品質チェック": self.scripts_dir / "checks.sh",
-            "MLモデル作成": self.scripts_dir / "create_ml_models.py",
-            "Bot統合管理": self.scripts_dir / "dev_check.py",
+            "品質チェック": self.scripts_dir / "quality" / "checks.sh",
+            "MLモデル作成": self.scripts_dir / "ml" / "create_ml_models.py",
+            "Bot統合管理": self.scripts_dir / "management" / "dev_check.py",
             "設定ファイル": self.config_dir / "core" / "base.yaml",
         }
 
@@ -591,6 +611,11 @@ except Exception as e:
             print("  Phase2テスト: ❌ 未作成")
 
         print("\n" + "=" * 60)
+
+    def status_check(self) -> int:
+        """新システムの現在状態をチェックして結果を返す."""
+        self.show_status()
+        return 0
 
     def health_check(self) -> int:
         """GCP本番環境ヘルスチェック（base_analyzer.py活用版）"""
@@ -692,9 +717,9 @@ except Exception as e:
             return 0
 
     def monitor_production(self, duration_hours: int = 24) -> int:
-        """Phase 11: 24時間本番監視システム."""
+        """Phase 12: 24時間本番監視システム."""
         print("\n" + "=" * 60)
-        print("📡 Phase 11本番環境24時間監視")
+        print("📡 Phase 12本番環境手動実行監視")
         print("=" * 60)
 
         import threading
@@ -702,7 +727,7 @@ except Exception as e:
         from datetime import timedelta
 
         start_time = datetime.now()
-        end_time = start_time + timedelta(hours=duration_hours)  # Phase 11バグ修正: timedelta使用
+        end_time = start_time + timedelta(hours=duration_hours)  # Phase 12バグ修正: timedelta使用
 
         print(f"📅 監視開始: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"📅 監視終了: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -760,7 +785,7 @@ except Exception as e:
         )
 
         print("\n" + "=" * 60)
-        print("📊 24時間監視結果")
+        print("📊 手動実行監視結果")
         print("-" * 40)
         print(f"📅 監視期間: {monitoring_duration}")
         print(f"🔍 総チェック回数: {total_checks}")
@@ -851,6 +876,247 @@ except Exception as e:
     def generate_report(self, analysis_result: Dict) -> str:
         """レポート生成（base_analyzer.py要求）"""
         return f"統合管理レポート: {analysis_result['timestamp']}"
+
+    def save_report_to_file(self, command: str, result_code: int, details: Dict = None) -> str:
+        """
+        実行結果をマークダウンファイルに保存
+
+        Args:
+            command: 実行したコマンド
+            result_code: 実行結果コード（0=成功、1=失敗）
+            details: 詳細情報
+
+        Returns:
+            str: 保存されたファイルパス
+        """
+        timestamp = datetime.now()
+        filename = f"dev_check_{command}_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+        filepath = self.report_dir / filename
+
+        # 基本情報
+        status = "✅ SUCCESS" if result_code == 0 else "❌ FAILED"
+        details = details or {}
+
+        # マークダウンレポート生成
+        report_content = f"""# dev_check.py 実行レポート
+
+## 📊 実行サマリー
+- **コマンド**: `{command}`
+- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **実行結果**: {status}
+- **終了コード**: {result_code}
+
+## 🎯 システム情報
+- **プロジェクトルート**: `{self.project_root}`
+- **Phase**: 12（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
+- **実行環境**: dev_check.py統合管理CLI
+
+## 📋 実行詳細
+
+"""
+
+        # コマンド別詳細情報追加
+        if command == "phase-check":
+            report_content += self._generate_phase_check_details(details)
+        elif command == "validate":
+            report_content += self._generate_validate_details(details)
+        elif command == "full-check":
+            report_content += self._generate_full_check_details(details)
+        elif command == "ml-models":
+            report_content += self._generate_ml_models_details(details)
+        elif command == "data-check":
+            report_content += self._generate_data_check_details(details)
+        elif command == "health-check":
+            report_content += self._generate_health_check_details(details)
+        else:
+            report_content += f"### {command} 実行結果\n\n"
+            if details:
+                for key, value in details.items():
+                    report_content += f"- **{key}**: {value}\n"
+
+        # 推奨アクション追加
+        report_content += self._generate_recommendations(command, result_code, details)
+
+        # フッター
+        report_content += f"""
+
+---
+*このレポートは dev_check.py により自動生成されました*  
+*生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
+        # ファイル保存
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(report_content)
+
+        return str(filepath)
+
+    def _generate_phase_check_details(self, details: Dict) -> str:
+        """Phase check詳細レポート生成"""
+        content = "### Phase実装状況確認結果\n\n"
+
+        if details and "phase_status" in details:
+            phase_status = details["phase_status"]
+            for phase, status in phase_status.items():
+                emoji = "✅" if status == "完了" else "⚠️" if status == "部分的" else "❌"
+                content += f"- **{phase}**: {emoji} {status}\n"
+
+        content += "\n### 確認項目\n"
+        content += "- システムディレクトリ構造\n"
+        content += "- 設定ファイル存在確認\n"
+        content += "- MLモデル状態確認\n"
+        content += "- 依存関係確認\n\n"
+
+        return content
+
+    def _generate_validate_details(self, details: Dict) -> str:
+        """Validate詳細レポート生成"""
+        content = "### 品質チェック結果\n\n"
+
+        if details and "checks" in details:
+            checks = details["checks"]
+            for check_name, result in checks.items():
+                emoji = "✅" if result.get("passed", False) else "❌"
+                content += f"- **{check_name}**: {emoji} {result.get('message', 'チェック実行')}\n"
+
+        content += "\n### チェック項目\n"
+        content += "- **flake8**: コードスタイルチェック\n"
+        content += "- **isort**: インポート順序チェック\n"
+        content += "- **black**: コードフォーマットチェック\n"
+        content += "- **pytest**: テスト実行（316テスト）\n\n"
+
+        return content
+
+    def _generate_full_check_details(self, details: Dict) -> str:
+        """Full check詳細レポート生成"""
+        content = "### 統合品質チェック結果\n\n"
+
+        if details and "test_results" in details:
+            test_results = details["test_results"]
+            content += f"- **実行テスト数**: {test_results.get('total_tests', 'N/A')}\n"
+            content += f"- **合格テスト数**: {test_results.get('passed_tests', 'N/A')}\n"
+            content += f"- **成功率**: {test_results.get('success_rate', 'N/A')}%\n"
+
+        content += "\n### フルチェック項目\n"
+        content += "1. **ディレクトリ構造確認**\n"
+        content += "2. **MLモデル整合性チェック**\n"
+        content += "3. **コードスタイルチェック（flake8）**\n"
+        content += "4. **インポート順序チェック（isort）**\n"
+        content += "5. **コードフォーマットチェック（black）**\n"
+        content += "6. **全テスト実行（pytest 316テスト）**\n\n"
+
+        return content
+
+    def _generate_ml_models_details(self, details: Dict) -> str:
+        """ML models詳細レポート生成"""
+        content = "### MLモデル作成・検証結果\n\n"
+
+        if details and "models" in details:
+            models = details["models"]
+            for model_name, info in models.items():
+                emoji = "✅" if info.get("created", False) else "❌"
+                content += f"- **{model_name}**: {emoji} {info.get('status', '未確認')}\n"
+
+        content += "\n### 対象モデル\n"
+        content += "- **ProductionEnsemble**: 本番用統合モデル\n"
+        content += "- **LightGBM**: 個別モデル（重み: 0.4）\n"
+        content += "- **XGBoost**: 個別モデル（重み: 0.4）\n"
+        content += "- **RandomForest**: 個別モデル（重み: 0.2）\n\n"
+
+        return content
+
+    def _generate_data_check_details(self, details: Dict) -> str:
+        """Data check詳細レポート生成"""
+        content = "### データ層動作確認結果\n\n"
+
+        if details and "components" in details:
+            components = details["components"]
+            for comp_name, status in components.items():
+                emoji = "✅" if status else "❌"
+                content += f"- **{comp_name}**: {emoji}\n"
+
+        content += "\n### 確認対象\n"
+        content += "- **BitbankClient**: API接続確認\n"
+        content += "- **DataPipeline**: データ取得パイプライン\n"
+        content += "- **TechnicalIndicators**: テクニカル指標生成\n"
+        content += "- **MarketAnomalyDetector**: 異常検知システム\n"
+        content += "- **StrategyManager**: 戦略システム統合\n\n"
+
+        return content
+
+    def _generate_health_check_details(self, details: Dict) -> str:
+        """Health check詳細レポート生成"""
+        content = "### GCP本番環境ヘルスチェック結果\n\n"
+
+        if details and "health_status" in details:
+            health = details["health_status"]
+            for service, status in health.items():
+                emoji = "✅" if status == "正常" else "⚠️" if status == "注意" else "❌"
+                content += f"- **{service}**: {emoji} {status}\n"
+
+        content += "\n### ヘルスチェック項目\n"
+        content += "- **GCP認証状態**: gcloud認証確認\n"
+        content += "- **Secret Manager**: API キー・シークレット確認\n"
+        content += "- **Cloud Run サービス**: 本番環境稼働状況\n"
+        content += "- **本番用モデル**: ProductionEnsembleファイル確認\n\n"
+
+        return content
+
+    def _generate_recommendations(self, command: str, result_code: int, details: Dict) -> str:
+        """推奨アクションの生成"""
+        content = "## 🔧 推奨アクション\n\n"
+
+        if result_code == 0:
+            content += "### ✅ 成功時の次のステップ\n\n"
+            if command == "phase-check":
+                content += (
+                    "1. `python scripts/management/dev_check.py validate` で品質チェック実行\n"
+                )
+                content += (
+                    "2. `python scripts/management/dev_check.py full-check` で統合チェック実行\n"
+                )
+            elif command == "validate":
+                content += "1. `python scripts/management/dev_check.py ml-models` でMLモデル確認\n"
+                content += (
+                    "2. `python scripts/management/dev_check.py health-check` で本番環境確認\n"
+                )
+            elif command == "full-check":
+                content += "1. GitHub にプッシュしてCI/CD実行\n"
+                content += "2. `python scripts/management/dev_check.py health-check` で本番確認\n"
+            else:
+                content += "1. 他の dev_check.py コマンドで包括的チェック実行\n"
+                content += "2. 本番環境デプロイの準備\n"
+        else:
+            content += "### ❌ 失敗時の対処方法\n\n"
+            content += "#### 一般的な対処手順\n"
+            content += "1. **エラーメッセージ確認**: 上記の詳細情報でエラー内容を特定\n"
+            content += "2. **依存関係確認**: `pip install -r requirements.txt` で必要パッケージをインストール\n"
+            content += "3. **権限確認**: ファイル・ディレクトリアクセス権限をチェック\n"
+            content += "4. **設定確認**: config/core/base.yaml など設定ファイルをチェック\n\n"
+
+            if command in ["health-check", "monitor"]:
+                content += "#### GCP関連エラーの場合\n"
+                content += "1. `gcloud auth login` で認証実行\n"
+                content += "2. `bash scripts/deployment/setup_gcp_secrets.sh --check` で設定確認\n"
+                content += "3. GCPプロジェクト・権限設定の確認\n\n"
+
+            if command in ["validate", "full-check"]:
+                content += "#### テスト・品質チェックエラーの場合\n"
+                content += "1. `bash scripts/quality/checks_light.sh` で軽量チェック実行\n"
+                content += "2. 個別テスト実行: `python -m pytest tests/unit/strategies/ -v`\n"
+                content += "3. コードフォーマット実行: `python -m black src/`\n\n"
+
+        content += "### 🆘 追加サポート\n\n"
+        content += (
+            "このレポートを他のAIツールに共有して、具体的な修正方法を相談することができます。\n\n"
+        )
+        content += "**共有時のポイント**:\n"
+        content += "- 実行したコマンドと結果コード\n"
+        content += "- エラーメッセージ（ある場合）\n"
+        content += "- システム環境情報\n"
+        content += "- 期待する結果\n\n"
+
+        return content
 
     # ===== ops_monitor.py機能統合（base_analyzer.py活用版） =====
 
@@ -1071,6 +1337,11 @@ Examples:
         "--hours", type=int, default=24, help="監視時間（時間、デフォルト: 24時間）"
     )
 
+    # レポート機能追加（全コマンド共通オプション）
+    parser.add_argument(
+        "--no-report", action="store_true", help="レポートファイルの自動生成を無効化"
+    )
+
     args = parser.parse_args()
 
     manager = UnifiedBotManager()
@@ -1082,31 +1353,66 @@ Examples:
         print("   - operational: 本番運用診断（ops_monitor.py委譲）")
         print("   - health-check: GCP本番環境ヘルスチェック")
         print("   - monitor: 24時間本番監視")
+        print("\n📄 レポート機能:")
+        print("   - 実行結果を自動的にマークダウンファイルに保存")
+        print("   - 他のAIツールとの情報共有に最適")
+        print("   - --no-report オプションでレポート生成を無効化可能")
         return 0
 
-    # コマンド実行
-    if args.command == "phase-check":
-        return manager.phase_check()
-    elif args.command == "validate":
-        return manager.validate(args.mode)
-    elif args.command == "ml-models":
-        return manager.ml_models(args.dry_run, args.verbose)
-    elif args.command == "data-check":
-        return manager.data_check()
-    elif args.command == "full-check":
-        return manager.full_check()
-    elif args.command == "status":
-        manager.show_status()
-        return 0
-    elif args.command == "operational":
-        return manager.operational()
-    elif args.command == "health-check":
-        return manager.health_check()
-    elif args.command == "monitor":
-        return manager.monitor_production(args.hours)
-    else:
-        parser.print_help()
-        return 1
+    # コマンド実行（レポート出力機能統合）
+    result_code = 0
+    details = {}
+
+    try:
+        if args.command == "phase-check":
+            result_code = manager.phase_check()
+        elif args.command == "validate":
+            result_code = manager.validate(args.mode)
+            details = {"mode": args.mode}
+        elif args.command == "ml-models":
+            result_code = manager.ml_models(args.dry_run, args.verbose)
+            details = {"dry_run": args.dry_run, "verbose": args.verbose}
+        elif args.command == "data-check":
+            result_code = manager.data_check()
+        elif args.command == "full-check":
+            result_code = manager.full_check()
+        elif args.command == "status":
+            manager.show_status()
+            result_code = 0
+        elif args.command == "operational":
+            result_code = manager.operational()
+        elif args.command == "health-check":
+            result_code = manager.health_check()
+        elif args.command == "monitor":
+            result_code = manager.monitor_production(args.hours)
+            details = {"duration_hours": args.hours}
+        else:
+            parser.print_help()
+            result_code = 1
+
+        # レポート出力（statusコマンド以外、--no-reportが指定されていない場合）
+        if args.command and args.command != "status" and not getattr(args, "no_report", False):
+            try:
+                report_path = manager.save_report_to_file(args.command, result_code, details)
+                print(f"\n📄 実行レポートを保存しました: {report_path}")
+                print("💡 このファイルを他のAIに共有して、詳細な分析や修正方法を相談できます")
+            except Exception as e:
+                print(f"⚠️ レポート保存エラー: {e}")
+
+    except Exception as e:
+        print(f"❌ コマンド実行エラー: {e}")
+        result_code = 1
+
+        # エラー時もレポート保存
+        if args.command and args.command != "status" and not getattr(args, "no_report", False):
+            try:
+                details["error"] = str(e)
+                report_path = manager.save_report_to_file(args.command, result_code, details)
+                print(f"📄 エラーレポートを保存しました: {report_path}")
+            except Exception:
+                pass  # レポート保存でエラーが起きても無視
+
+    return result_code
 
 
 if __name__ == "__main__":

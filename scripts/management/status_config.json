@@ -96,7 +96,7 @@
                 },
                 "description": "ProductionEnsemble予測システム障害",
                 "solutions": [
-                    "scripts/management/bot_manager.py ml-models実行",
+                    "scripts/management/dev_check.py ml-models実行",
                     "models/production/ディレクトリ確認",
                     "pickle互換性チェック"
                 ]
@@ -118,7 +118,7 @@
                 },
                 "description": "289テスト品質保証体制の劣化",
                 "solutions": [
-                    "scripts/management/bot_manager.py validate実行",
+                    "scripts/management/dev_check.py validate実行",
                     "個別テスト確認: pytest tests/unit/ -v",
                     "依存関係更新確認"
                 ]
@@ -190,12 +190,12 @@
         }
     },
     "new_system_integration": {
-        "bot_manager_commands": {
-            "phase_check": "scripts/management/bot_manager.py phase-check",
-            "validate": "scripts/management/bot_manager.py validate",
-            "ml_models": "scripts/management/bot_manager.py ml-models",
-            "full_check": "scripts/management/bot_manager.py full-check",
-            "status": "scripts/management/bot_manager.py status"
+        "dev_check_commands": {
+            "phase_check": "scripts/management/dev_check.py phase-check",
+            "validate": "scripts/management/dev_check.py validate",
+            "ml_models": "scripts/management/dev_check.py ml-models",
+            "full_check": "scripts/management/dev_check.py full-check",
+            "status": "scripts/management/dev_check.py status"
         },
         "important_paths": {
             "core_system": "src/core/",
@@ -211,7 +211,7 @@
             "src/core/config.py",
             "src/data/data_pipeline.py",
             "src/ml/ensemble/ensemble_model.py",
-            "scripts/management/bot_manager.py",
+            "scripts/management/dev_check.py",
             "models/production/production_ensemble.pkl"
         ]
     },
@@ -231,7 +231,7 @@
     "phase10_features": {
         "description": "Phase 10完了機能との統合",
         "features": [
-            "統合管理CLI（bot_manager.py）連携",
+            "統合管理CLI（dev_check.py）連携",
             "289テスト品質保証体制確認",
             "ProductionEnsemble動作検証",
             "12特徴量最適化システム確認",

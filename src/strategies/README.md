@@ -1,28 +1,28 @@
 # strategies/ - 取引戦略システム
 
-**Phase 11完了**: 4戦略統合・42%コード削減・共通処理統合・113テスト100%合格・399テスト基盤での包括的品質保証・CI/CD統合・24時間監視・段階的デプロイ対応による高効率戦略システム
+**Phase 12完了**: 4戦略統合・42%コード削減・共通処理統合・113テスト100%合格・399テスト基盤での包括的品質保証・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応による高効率戦略システム
 
 ## 📁 ディレクトリ構成
 
 ```
 strategies/
-├── base/                        # 戦略基盤システム ✅ Phase 11 CI/CD統合
+├── base/                        # 戦略基盤システム ✅ Phase 12 CI/CDワークフロー最適化
 │   ├── strategy_base.py         # 抽象基底クラス・統一インターフェース・GitHub Actions対応
-│   └── strategy_manager.py      # 戦略統合管理・重み付け判定・24時間監視対応
+│   └── strategy_manager.py      # 戦略統合管理・重み付け判定・手動実行監視対応
 ├── implementations/             # 戦略実装群 ✅ 段階的デプロイ対応
 │   ├── atr_based.py            # ATRベース戦略（38%削減・CI/CD監視）
 │   ├── mochipoy_alert.py       # もちぽよアラート（49%削減・GitHub Actions対応）
-│   ├── multi_timeframe.py      # マルチタイムフレーム（53%削減・24時間監視統合）
+│   ├── multi_timeframe.py      # マルチタイムフレーム（53%削減・手動実行監視統合）
 │   └── fibonacci_retracement.py # フィボナッチ戦略（31%削減・段階的デプロイ対応）
-└── utils/                       # 共通処理モジュール ✅ Phase 11統合監視
+└── utils/                       # 共通処理モジュール ✅ Phase 12統合監視
     ├── constants.py            # 定数・型システム・列挙型・CI/CD品質ゲート対応
     ├── risk_manager.py         # リスク管理計算・ATRベースSL・GitHub Actions統合
     └── signal_builder.py       # シグナル生成統合・エラーハンドリング・監視統合
 ```
 
-## 🎯 Phase 11達成成果
+## 🎯 Phase 12達成成果
 
-### コード削減実績（CI/CD統合・24時間監視対応）
+### コード削減実績（CI/CDワークフロー最適化・手動実行監視対応）
 - **42%削減**: 1,098行削除・保守性大幅向上・GitHub Actions統合
 - **重複排除**: 共通処理utils/への統合完了・段階的デプロイ対応
 - **設計パターン**: Strategy・Template Method・Observer適用・CI/CD品質ゲート対応
@@ -38,9 +38,9 @@ STRATEGY_CODE_REDUCTION = {
 }
 ```
 
-### 品質保証完了（Phase 11統合）
-- **113テスト全成功**: 100%合格率・0.44秒高速実行・CI/CD統合・GitHub Actions対応
-- **包括的カバレッジ**: 個別戦略・統合テスト・共通モジュール・24時間監視対応
+### 品質保証完了（Phase 12統合）
+- **113テスト全成功**: 100%合格率・0.44秒高速実行・CI/CDワークフロー最適化・GitHub Actions対応
+- **包括的カバレッジ**: 個別戦略・統合テスト・共通モジュール・手動実行監視対応
 - **実用性確認**: 特徴量エンジニアリング統合・ML層連携・段階的デプロイ対応
 
 ## 📂 アーキテクチャ概要
@@ -194,20 +194,20 @@ class ATRBasedStrategy(StrategyBase):
 
 ## 🧪 テスト状況
 
-### Phase 11完了テスト（100%合格・CI/CD統合）
+### Phase 12完了テスト（100%合格・CI/CDワークフロー最適化）
 ```bash
 # 戦略システム全体テスト（113テスト・0.44秒・GitHub Actions対応）
 python -m pytest tests/unit/strategies/ -v
 
-# 期待結果（Phase 11完了）: 
-# ✅ 個別戦略テスト: 62/62 成功（24時間監視対応）
+# 期待結果（Phase 12完了）: 
+# ✅ 個別戦略テスト: 62/62 成功（手動実行監視対応）
 # ✅ 共通モジュールテスト: 33/33 成功（段階的デプロイ対応） 
-# ✅ 統合テスト: 18/18 成功（CI/CD統合）
-# 🎯 合格率: 113/113 (100.0%) 🎉 Phase 11品質保証
+# ✅ 統合テスト: 18/18 成功（CI/CDワークフロー最適化）
+# 🎯 合格率: 113/113 (100.0%) 🎉 Phase 12品質保証
 
 # 399テスト統合基盤確認（統合管理）
-python scripts/management/bot_manager.py validate --mode light
-python scripts/management/bot_manager.py health-check
+python scripts/management/dev_check.py validate --mode light
+python scripts/management/dev_check.py health-check
 ```
 
 ### テスト内訳
@@ -352,4 +352,4 @@ strategy_output = {
 
 ---
 
-**Phase 11完了**: *42%削減・設計パターン適用・100%テスト成功・CI/CD統合・24時間監視・段階的デプロイ対応による高効率戦略システム実装完了*
+**Phase 12完了**: *42%削減・設計パターン適用・100%テスト成功・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応による高効率戦略システム実装完了*

@@ -190,7 +190,7 @@ class DataProcessingError(CryptoBotError):
 
 
 class DataQualityError(DataProcessingError):
-    """データ品質エラー（Phase 11 バックテスト用・CI/CD統合対応）."""
+    """データ品質エラー（Phase 12 バックテスト用・CI/CD統合対応）."""
 
     def __init__(
         self,

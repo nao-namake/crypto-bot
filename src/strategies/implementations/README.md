@@ -1,6 +1,6 @@
 # Strategy Implementations - 取引戦略実装群
 
-Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で**保守性と安定性を向上**させた4つの取引戦略実装・GitHub Actions統合。
+Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応で**保守性と安定性を向上**させた4つの取引戦略実装・GitHub Actions統合。
 
 ## 📁 フォルダの目的
 
@@ -14,8 +14,8 @@ Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で**
 ## 🎯 実装された戦略
 
 ### 1. ATR Based Strategy (`atr_based.py`)
-**戦略タイプ**: ボラティリティ追従型・Phase 11対応  
-**コード削減**: 566行 → 348行（38%削減・CI/CD統合）
+**戦略タイプ**: ボラティリティ追従型・Phase 12対応  
+**コード削減**: 566行 → 348行（38%削減・CI/CDワークフロー最適化）
 
 ```python
 # 主要ロジック
@@ -29,7 +29,7 @@ Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で**
 - **順張り追従**: 高ボラティリティ時の方向性追従
 - **成績重視**: volatility_20エラー修正で安定化
 
-**適用市場**: 高ボラティリティ相場・トレンド発生時・24時間監視対応
+**適用市場**: 高ボラティリティ相場・トレンド発生時・手動実行監視対応
 
 ### 2. MochiPoy Alert Strategy (`mochipoy_alert.py`)
 **戦略タイプ**: 複合指標・多数決型・GitHub Actions対応  
@@ -50,7 +50,7 @@ Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で**
 **適用市場**: 横ばい相場・複数指標の合意形成時・CI/CD品質ゲート対応
 
 ### 3. Multi Timeframe Strategy (`multi_timeframe.py`)
-**戦略タイプ**: マルチタイムフレーム分析型・24時間監視統合  
+**戦略タイプ**: マルチタイムフレーム分析型・手動実行監視統合  
 **コード削減**: 668行 → 313行（53%削減・監視統合）
 
 ```python
@@ -85,7 +85,7 @@ Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で**
 
 **適用市場**: レンジ相場・調整局面・サポート/レジスタンス明確時・監視統合
 
-## 🔄 Phase 11リファクタリング効果（CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🔄 Phase 12リファクタリング効果（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### Before（リファクタリング前）
 ```python
@@ -109,7 +109,7 @@ class MochiPoyAlertStrategy:
 
 ### After（リファクタリング後）
 ```python
-# 統一された実装（Phase 11・CI/CD統合）
+# 統一された実装（Phase 12・CI/CDワークフロー最適化）
 class ATRBasedStrategy:  # GitHub Actions対応
     def _create_signal(self, decision, current_price, df):
         return SignalBuilder.create_signal_with_risk_management(
@@ -119,7 +119,7 @@ class ATRBasedStrategy:  # GitHub Actions対応
             df=df,
             config=self.config,
             strategy_type=StrategyType.ATR_BASED
-        )  # 共通処理で1行実装・24時間監視対応
+        )  # 共通処理で1行実装・手動実行監視対応
 
 class MochiPoyAlertStrategy:  # 段階的デプロイ対応
     def _create_signal(self, decision, current_price, df):
@@ -205,22 +205,22 @@ class StrategySignal:
 各戦略の品質確保のため包括的テストを実装：
 
 ```bash
-# 全戦略テスト実行（Phase 11・CI/CD統合・GitHub Actions対応）
+# 全戦略テスト実行（Phase 12・CI/CDワークフロー最適化・GitHub Actions対応）
 python -m pytest tests/unit/strategies/implementations/ -v
 
-# 特定戦略テスト（24時間監視対応）
+# 特定戦略テスト（手動実行監視対応）
 python -m pytest tests/unit/strategies/implementations/test_atr_based.py -v
 python -m pytest tests/unit/strategies/implementations/test_mochipoy_alert.py -v
 python -m pytest tests/unit/strategies/implementations/test_multi_timeframe.py -v
 python -m pytest tests/unit/strategies/implementations/test_fibonacci_retracement.py -v
 
 # 399テスト統合基盤確認（段階的デプロイ対応）
-python scripts/management/bot_manager.py validate --mode light
+python scripts/management/dev_check.py validate --mode light
 ```
 
-### テスト構成（Phase 11・CI/CD統合）
+### テスト構成（Phase 12・CI/CDワークフロー最適化）
 - **ATRBased**: 15テスト（ボラティリティ分析・エントリー判定等・GitHub Actions対応）
-- **MochiPoyAlert**: 15テスト（RCI分析・多数決システム等・24時間監視対応）
+- **MochiPoyAlert**: 15テスト（RCI分析・多数決システム等・手動実行監視対応）
 - **MultiTimeframe**: 15テスト（時間軸統合・トレンド整合性等・段階的デプロイ対応）
 - **FibonacciRetracement**: 17テスト（スイング検出・フィボレベル等・CI/CD品質ゲート対応）
 
@@ -264,14 +264,14 @@ fibonacci_retracement:
   min_confidence: 0.4
 ```
 
-## 🚀 戦略マネージャー統合（Phase 11・CI/CD統合・24時間監視対応）
+## 🚀 戦略マネージャー統合（Phase 12・CI/CDワークフロー最適化・手動実行監視対応）
 
 ```python
 from src.strategies.base.strategy_manager import StrategyManager  # GitHub Actions統合
 from src.strategies.implementations import *
 
 # 戦略マネージャーに複数戦略登録（段階的デプロイ対応）
-manager = StrategyManager()  # 24時間監視統合
+manager = StrategyManager()  # 手動実行監視統合
 manager.register_strategy(ATRBasedStrategy(), weight=0.3)  # CI/CD品質ゲート対応
 manager.register_strategy(MochiPoyAlertStrategy(), weight=0.25)
 manager.register_strategy(MultiTimeframeStrategy(), weight=0.25) 
@@ -281,22 +281,22 @@ manager.register_strategy(FibonacciRetracementStrategy(), weight=0.2)
 combined_signal = manager.analyze_market(market_data)  # GitHub Actions統合
 ```
 
-## 🔮 Phase 12での機能拡張予定（CI/CD統合基盤活用）
+## 🔮 Phase 12での機能拡張予定（CI/CDワークフロー最適化基盤活用）
 
 ### 追加予定機能（GitHub Actions基盤）
 - **高度な時間軸分析**: 日足・週足の長期トレンド統合・CI/CD品質ゲート対応
-- **アダプティブパラメータ**: 市場状況に応じた動的調整・24時間監視統合
+- **アダプティブパラメータ**: 市場状況に応じた動的調整・手動実行監視統合
 - **パフォーマンス追跡**: 戦略別成績・最適化履歴・段階的デプロイ対応
 - **A/Bテストフレームワーク**: 戦略改良の効果測定・監視統合
 
-### 互換性維持（Phase 11基盤）
+### 互換性維持（Phase 12基盤）
 - **既存設定継続使用**: 現在の設定ファイルはそのまま利用可能・GitHub Actions統合
 - **段階的機能追加**: オプション機能として追加、既存動作に影響なし・CI/CD品質ゲート対応
-- **後方互換API**: 既存の戦略呼び出し方法は変更なし・24時間監視統合
+- **後方互換API**: 既存の戦略呼び出し方法は変更なし・手動実行監視統合
 
 ---
 
-**Phase 11完了日**: 2025年8月18日・CI/CD統合・24時間監視・段階的デプロイ対応  
+**Phase 12完了日**: 2025年8月18日・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応  
 **設計方針**: 保守性と安定性の向上（シンプル化は手段）・GitHub Actions統合  
 **総削減量**: 1,098行（42%削減・監視統合）  
 **テスト品質**: 62戦略テスト全成功・CI/CD品質ゲート対応  

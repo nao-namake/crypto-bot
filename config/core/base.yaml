@@ -1,5 +1,5 @@
-# 基本設定ファイル - Phase 11対応全環境共通設定
-# レガシーの420行設定から重要項目のみを抽出・Phase 11機能統合・本番運用対応
+# 基本設定ファイル - Phase 12対応全環境共通設定
+# レガシーの420行設定から重要項目のみを抽出・Phase 12機能統合最適化・本番運用対応
 
 # 動作モード
 mode: paper  # paper（仮想取引）, live（実取引）
@@ -50,24 +50,25 @@ logging:
   discord_enabled: true      # Discord通知
   retention_days: 7          # 保持期間
 
-# Phase 11: 本番運用設定
+# Phase 12: 本番運用設定
 production:
   min_order_size: 0.0001     # 最小注文サイズ
   max_order_size: 0.001      # 最大注文サイズ
   margin_trading: true       # マージン取引有効
   trade_interval: 60         # 取引間隔（秒）
 
-# Phase 11: 監視システム設定
+# Phase 12: 監視システム設定最適化
 monitoring:
   health_check:
     enabled: true            # ヘルスチェック有効
     interval_seconds: 30     # チェック間隔
     timeout_seconds: 5       # タイムアウト
+    manual_execution: true   # 手動実行対応
   performance:
     enabled: true            # パフォーマンス監視有効
     metrics_interval: 300    # メトリクス収集間隔
 
-# Phase 11: CI/CD統合設定
+# Phase 12: CI/CDワークフロー統合設定
 cicd:
   environment_variables:
     MODE: "paper"            # デフォルトモード
@@ -77,8 +78,9 @@ cicd:
     strategy: "gradual"      # 段階的デプロイ
     health_check_timeout: 300 # ヘルスチェック待機時間
     rollback_on_failure: true # 失敗時自動ロールバック
+    workflow_optimization: true # ワークフロー最適化
 
-# Phase 11: セキュリティ設定
+# Phase 12: セキュリティ設定
 security:
   authentication:
     workload_identity: true  # Workload Identity使用

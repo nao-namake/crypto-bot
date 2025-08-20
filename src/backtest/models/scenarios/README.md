@@ -1,33 +1,33 @@
 # src/backtest/models/scenarios/ - バックテストシナリオ定義
 
-**Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応**: バックテスト実行のためのシナリオ設定・パラメータ定義・テストケース管理ディレクトリです。様々な市場環境・戦略設定での包括的テスト・GitHub Actions統合を提供します。
+**Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応**: バックテスト実行のためのシナリオ設定・パラメータ定義・テストケース管理ディレクトリです。様々な市場環境・戦略設定での包括的テスト・GitHub Actions統合を提供します。
 
 ## 📁 ディレクトリ構成
 
 ```
 scenarios/
-├── market_conditions/    # 市場環境別シナリオ ✅ Phase 11完了・CI/CD統合
+├── market_conditions/    # 市場環境別シナリオ ✅ Phase 12完了・CI/CDワークフロー最適化
 │   ├── bull_market.json       # 強気相場シナリオ
 │   ├── bear_market.json       # 弱気相場シナリオ
 │   ├── sideways_market.json   # 横ばい相場シナリオ
 │   └── high_volatility.json   # 高ボラティリティシナリオ
-├── strategy_tests/       # 戦略別テストシナリオ ✅ Phase 11完了・GitHub Actions対応
+├── strategy_tests/       # 戦略別テストシナリオ ✅ Phase 12完了・GitHub Actions対応
 │   ├── atr_based_scenarios.json         # ATRベース戦略
 │   ├── fibonacci_scenarios.json         # フィボナッチ戦略
 │   ├── mochipoy_alert_scenarios.json    # もちぽよアラート戦略
 │   └── multi_timeframe_scenarios.json   # マルチタイムフレーム戦略
-├── risk_management/      # リスク管理テストシナリオ ✅ Phase 11完了・24時間監視対応
+├── risk_management/      # リスク管理テストシナリオ ✅ Phase 12完了・手動実行監視対応
 │   ├── kelly_criterion_tests.json       # Kelly基準テスト
 │   ├── drawdown_scenarios.json          # ドローダウンシナリオ
 │   └── position_sizing_tests.json       # ポジションサイジングテスト
-├── performance_tests/    # パフォーマンステストシナリオ ✅ Phase 11完了・段階的デプロイ対応
+├── performance_tests/    # パフォーマンステストシナリオ ✅ Phase 12完了・段階的デプロイ対応
 │   ├── speed_benchmarks.json            # 処理速度ベンチマーク
 │   ├── memory_usage_tests.json          # メモリ使用量テスト
 │   └── stress_tests.json                # ストレステスト
 └── README.md            # このファイル
 ```
 
-## 🎯 シナリオ設計原則（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🎯 シナリオ設計原則（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 包括的テストカバレッジ（GitHub Actions対応）
 
@@ -43,7 +43,7 @@ scenarios/
 - ✅ **パラメータ感度**: 設定値変更による影響
 - ✅ **実用性評価**: 実際の取引条件での検証
 
-## 📊 市場環境別シナリオ詳細（Phase 11・CI/CD統合・監視統合）
+## 📊 市場環境別シナリオ詳細（Phase 12・CI/CDワークフロー最適化・監視統合）
 
 ### bull_market.json - 強気相場シナリオ（GitHub Actions対応）
 
@@ -77,7 +77,7 @@ scenarios/
 - **マルチタイムフレーム**: 上位時間軸との整合性
 - **フィボナッチ**: 押し目買いの効果
 
-### bear_market.json - 弱気相場シナリオ（24時間監視対応）
+### bear_market.json - 弱気相場シナリオ（手動実行監視対応）
 
 **期間・条件**:
 ```json
@@ -131,7 +131,7 @@ scenarios/
 }
 ```
 
-## 🎯 戦略別テストシナリオ（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🎯 戦略別テストシナリオ（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### atr_based_scenarios.json - ATRベース戦略テスト（GitHub Actions対応）
 
@@ -191,7 +191,7 @@ scenarios/
 }
 ```
 
-## 🛡️ リスク管理テストシナリオ（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🛡️ リスク管理テストシナリオ（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### kelly_criterion_tests.json - Kelly基準テスト（GitHub Actions統合）
 
@@ -221,7 +221,7 @@ scenarios/
 }
 ```
 
-### drawdown_scenarios.json - ドローダウンシナリオ（24時間監視対応）
+### drawdown_scenarios.json - ドローダウンシナリオ（手動実行監視対応）
 
 **連続損失制御テスト**:
 ```json
@@ -249,7 +249,7 @@ scenarios/
 }
 ```
 
-## 🚀 パフォーマンステストシナリオ（Phase 11・CI/CD統合・段階的デプロイ対応）
+## 🚀 パフォーマンステストシナリオ（Phase 12・CI/CDワークフロー最適化・段階的デプロイ対応）
 
 ### speed_benchmarks.json - 処理速度ベンチマーク（GitHub Actions対応）
 
@@ -304,7 +304,7 @@ scenarios/
 }
 ```
 
-## 🔧 シナリオ実行・管理（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🔧 シナリオ実行・管理（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 実行コマンド（GitHub Actions対応）
 
@@ -335,7 +335,7 @@ python -m src.backtest.reporter performance-summary --format=json
 python -m src.backtest.reporter risk-analysis --discord-notify
 ```
 
-## 📈 品質保証・継続的改善（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 📈 品質保証・継続的改善（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### シナリオ検証（GitHub Actions統合）
 
@@ -371,4 +371,4 @@ jobs:
 
 ---
 
-**Phase 11完了**: 包括的なバックテストシナリオ管理システムを実現。市場環境・戦略・リスク管理・パフォーマンスの全方位テスト・CI/CD統合・24時間監視・段階的デプロイ対応・GitHub Actions統合により、堅牢で実用的なトレーディングシステムの品質保証を提供
+**Phase 12完了**: 包括的なバックテストシナリオ管理システムを実現。市場環境・戦略・リスク管理・パフォーマンスの全方位テスト・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応・GitHub Actions統合により、堅牢で実用的なトレーディングシステムの品質保証を提供

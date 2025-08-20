@@ -37,7 +37,7 @@ def generate_report(self, analysis_result: Dict) -> str:
 
 #### 活用スクリプト一覧
 
-**1. scripts/management/bot_manager.py** (BaseAnalyzer継承)
+**1. scripts/management/dev_check.py** (BaseAnalyzer継承)
 - 統合システム管理・6機能統合（phase-check、validate、ml-models等）
 - 重複コード削除：約150行 → base_analyzer.py活用
 
@@ -233,9 +233,9 @@ python scripts/analytics/performance_analyzer.py \
 #### **統合コマンド実行例**
 
 ```bash
-# 1. システム管理（bot_manager.py）
-python scripts/management/bot_manager.py phase-check    # システム状態確認
-python scripts/management/bot_manager.py full-check     # 6段階統合チェック
+# 1. システム管理（dev_check.py）
+python scripts/management/dev_check.py phase-check    # システム状態確認
+python scripts/management/dev_check.py full-check     # 6段階統合チェック
 
 # 2. 実データ収集（trading_data_collector.py）
 python scripts/data_collection/trading_data_collector.py --hours 24  # 24時間データ収集
@@ -251,7 +251,7 @@ python scripts/dashboard/trading_dashboard.py --discord  # Discord通知付き
 
 ```mermaid
 graph TD
-    A[base_analyzer.py] --> B[bot_manager.py]
+    A[base_analyzer.py] --> B[dev_check.py]
     A --> C[trading_data_collector.py] 
     A --> D[simple_ab_test.py]
     A --> E[trading_dashboard.py]
@@ -270,7 +270,7 @@ graph TD
 ### **統合活用シナリオ**
 
 **日次運用フロー**:
-1. **システムチェック**: `bot_manager.py full-check` でシステム健全性確認
+1. **システムチェック**: `dev_check.py full-check` でシステム健全性確認
 2. **データ収集**: `trading_data_collector.py` で取引統計収集
 3. **A/Bテスト**: `simple_ab_test.py` で新旧モデル比較
 4. **レポート生成**: `trading_dashboard.py` で可視化ダッシュボード

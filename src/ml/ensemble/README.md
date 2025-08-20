@@ -1,6 +1,6 @@
 # Ensemble - アンサンブル統合システム
 
-**Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応**: ソフト投票と重み付け投票によるモデル統合システム完成・GitHub Actions統合
+**Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応**: ソフト投票と重み付け投票によるモデル統合システム完成・GitHub Actions統合
 
 ## 📂 ディレクトリ構造
 
@@ -13,11 +13,11 @@ ensemble/
 
 ## 🎯 役割と責任
 
-### ensemble_model.py - アンサンブル統合クラス（Phase 11・CI/CD統合）
+### ensemble_model.py - アンサンブル統合クラス（Phase 12・CI/CDワークフロー最適化）
 **役割**: 複数MLモデルの統合管理と予測統合・GitHub Actions対応
 
 **主要機能**:
-- 3モデル（LightGBM, XGBoost, RandomForest）の統合・24時間監視対応
+- 3モデル（LightGBM, XGBoost, RandomForest）の統合・手動実行監視対応
 - ソフト投票による確率ベース統合・段階的デプロイ対応
 - 信頼度閾値による低信頼度予測の除外・CI/CD品質ゲート対応
 - 重み付け投票による性能最適化・監視統合
@@ -42,7 +42,7 @@ class EnsembleModel:
 - `evaluate()`: 包括的評価メトリクス
 - `get_feature_importance()`: 統合特徴量重要度
 
-### voting.py - 投票システム（Phase 11・CI/CD統合）
+### voting.py - 投票システム（Phase 12・CI/CDワークフロー最適化）
 **役割**: 複数モデルの予測を統合する投票メカニズム・GitHub Actions対応
 
 **投票方式**:
@@ -54,7 +54,7 @@ class VotingMethod(Enum):
 ```
 
 **主要機能**:
-- **ソフト投票**: 各モデルの確率を平均化・24時間監視対応
+- **ソフト投票**: 各モデルの確率を平均化・手動実行監視対応
 - **ハード投票**: 多数決による決定・段階的デプロイ対応
 - **重み付け**: モデル性能に応じた重み適用・CI/CD品質ゲート対応
 - **投票統計**: 全会一致率・ペア一致率等の分析・監視統合
@@ -78,7 +78,7 @@ def analyze_disagreement(predictions, confidence_threshold):
     """
 ```
 
-## 📜 実装ルール（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 📜 実装ルール（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 1. アンサンブル構成ルール（GitHub Actions対応）
 
@@ -96,7 +96,7 @@ custom_models = {
 ensemble = EnsembleModel(models=custom_models)
 ```
 
-### 2. 重み管理ルール（24時間監視対応）
+### 2. 重み管理ルール（手動実行監視対応）
 
 **重み正規化**:
 ```python
@@ -145,7 +145,7 @@ if not all(pred.shape == predictions[0].shape for pred in predictions):
     raise ValueError("All predictions must have same shape")
 ```
 
-## 🔧 使用パターン（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🔧 使用パターン（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 1. 基本的なアンサンブル（GitHub Actions対応）
 ```python
@@ -155,7 +155,7 @@ ensemble.fit(X_train, y_train)
 predictions = ensemble.predict(X_test)
 ```
 
-### 2. カスタム重み付けアンサンブル（24時間監視対応）
+### 2. カスタム重み付けアンサンブル（手動実行監視対応）
 ```python
 # 性能ベースの重み設定
 weights = {'lgbm': 0.5, 'xgb': 0.3, 'rf': 0.2}
@@ -183,7 +183,7 @@ stats = voting_system.get_voting_statistics(predictions)
 print(f"全会一致率: {stats['unanimity_rate']:.2%}")
 ```
 
-## 📊 パフォーマンス最適化（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 📊 パフォーマンス最適化（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 1. 重み最適化戦略（GitHub Actions対応）
 
@@ -200,7 +200,7 @@ total_score = sum(performances.values())
 weights = {name: score/total_score for name, score in performances.items()}
 ```
 
-### 2. 信頼度閾値最適化（24時間監視対応）
+### 2. 信頼度閾値最適化（手動実行監視対応）
 
 ```python
 # 閾値スキャン
@@ -230,14 +230,14 @@ import gc
 gc.collect()
 ```
 
-## ⚠️ 注意事項（Phase 11・CI/CD統合・監視統合）
+## ⚠️ 注意事項（Phase 12・CI/CDワークフロー最適化・監視統合）
 
 ### 1. 計算コスト（GitHub Actions対応）
 - 3モデル学習により学習時間は3倍
 - 予測時も3モデル実行のオーバーヘッド
 - メモリ使用量も3倍
 
-### 2. 過学習リスク（24時間監視対応）
+### 2. 過学習リスク（手動実行監視対応）
 - 個別モデルが全て過学習すると改善なし
 - 交差検証による適切な評価が必要
 
@@ -245,7 +245,7 @@ gc.collect()
 - 似たモデルばかりでは多様性なし
 - 異なる特性のモデル組み合わせが重要
 
-## 🎯 ベストプラクティス（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🎯 ベストプラクティス（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 1. モデル選択（GitHub Actions対応）
 ```python
@@ -257,7 +257,7 @@ models = {
 }
 ```
 
-### 2. 評価戦略（24時間監視対応）
+### 2. 評価戦略（手動実行監視対応）
 ```python
 # 時系列分割での評価
 from sklearn.model_selection import TimeSeriesSplit
@@ -281,15 +281,15 @@ if performance_degradation_detected():
     production_ensemble.fit(recent_data)
 ```
 
-## 🔮 拡張計画（Phase 11基盤活用・CI/CD統合）
+## 🔮 拡張計画（Phase 12基盤活用・CI/CDワークフロー最適化）
 
 ### Phase 12での改善予定（GitHub Actions基盤）
 1. **スタッキング実装**: メタ学習器による高度な統合・CI/CD品質ゲート対応
-2. **動的重み調整**: オンラインでの重み最適化・24時間監視統合
+2. **動的重み調整**: オンラインでの重み最適化・手動実行監視統合
 3. **モデル自動選択**: 性能基準での動的モデル追加/削除・段階的デプロイ対応
 4. **並列化強化**: 分散学習・予測の実装・監視統合
 
 ---
 
 **作成日**: 2025年Phase 5実装
-**最終更新**: Phase 11完了（2025年8月18日）・CI/CD統合・24時間監視・段階的デプロイ対応・GitHub Actions統合
+**最終更新**: Phase 12完了（2025年8月18日）・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応・GitHub Actions統合

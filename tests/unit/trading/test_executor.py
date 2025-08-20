@@ -368,7 +368,7 @@ class TestOrderExecutor:
         result = await live_executor.execute_trade(sample_evaluation)
 
         assert result.success is False
-        assert "未実装" in result.error_message
+        assert "実取引" in result.error_message
 
 
 class TestFactoryFunction:

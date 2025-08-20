@@ -2,7 +2,7 @@
 
 **バックテスト関連の統合完了**: ユーザーリクエストに応じて、バックテスト関連の全コンポーネントを `/src/backtest/` ディレクトリに統合しました。
 
-**Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応**: バックテストエンジン専用・最適化済みモデルの管理ディレクトリ・GitHub Actions統合
+**Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応**: バックテストエンジン専用・最適化済みモデルの管理ディレクトリ・GitHub Actions統合
 
 ## 📁 ディレクトリ構成
 
@@ -25,9 +25,9 @@ src/backtest/models/
 
 ## 🎯 役割・目的
 
-### **バックテストエンジン統合（Phase 11・CI/CD統合）**
-- **目的**: Phase 11バックテストエンジン専用モデル・高速処理対応・GitHub Actions統合
-- **最適化**: データスライシング・メモリ効率・予測速度向上・24時間監視対応
+### **バックテストエンジン統合（Phase 12・CI/CDワークフロー最適化）**
+- **目的**: Phase 12バックテストエンジン専用モデル・高速処理対応・GitHub Actions統合
+- **最適化**: データスライシング・メモリ効率・予測速度向上・手動実行監視対応
 - **検証**: 複数市場環境・リスクシナリオでの包括的性能評価・段階的デプロイ対応
 
 ### **統合によるメリット**
@@ -35,17 +35,17 @@ src/backtest/models/
 - **依存関係の簡素化**: 他モジュールからの独立性向上
 - **保守性向上**: バックテスト機能の追加・削除・変更が容易
 
-### **Phase 11最適化成果（CI/CD統合・24時間監視・段階的デプロイ対応）**
+### **Phase 12最適化成果（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）**
 - **処理速度**: 30-50%高速化（200行ウィンドウスライシング）・GitHub Actions対応
 - **メモリ効率**: 20-30%使用量削減・監視統合
 - **設定最適化**: ML信頼度0.5・Kelly基準0.05・過度な保守性解消・CI/CD品質ゲート対応
 
 ## 📄 保存予定ファイル詳細
 
-### `bt_ensemble_model.pkl` - バックテスト最適化アンサンブルモデル（Phase 11・CI/CD統合）
+### `bt_ensemble_model.pkl` - バックテスト最適化アンサンブルモデル（Phase 12・CI/CDワークフロー最適化）
 **目的**: バックテストエンジン専用・高性能アンサンブルモデル・GitHub Actions対応
 
-**Phase 11最適化内容**:
+**Phase 12最適化内容**:
 - **ML信頼度閾値**: 0.25 → 0.5（適切な精度確保）
 - **Kelly基準**: 0.03 → 0.05（過度な保守性解消）
 - **重み最適化**: [0.5, 0.3, 0.2] → バックテスト結果最適化
@@ -56,7 +56,7 @@ src/backtest/models/
 - 大量データ処理・高速予測
 - メモリ効率的な実装
 
-### `bt_lgbm_model.pkl` / `bt_xgb_model.pkl` / `bt_rf_model.pkl`（24時間監視対応）
+### `bt_lgbm_model.pkl` / `bt_xgb_model.pkl` / `bt_rf_model.pkl`（手動実行監視対応）
 **目的**: バックテスト個別モデル・詳細分析・デバッグ用・段階的デプロイ対応
 
 **最適化ポイント**:
@@ -100,9 +100,9 @@ XGB_BACKTEST_CONFIG = {
 ```json
 {
   "backtest_info": {
-    "version": "phase11_backtest_v1.0",
+    "version": "phase12_backtest_v1.0",
     "created_at": "2025-08-17T15:00:00Z",
-    "engine_version": "phase11_optimized",
+    "engine_version": "phase12_optimized",
     "data_period": "2024-01-01_to_2025-07-31",
     "total_trades": 1247,
     "backtest_duration": "18.5_months"
@@ -175,15 +175,15 @@ XGB_BACKTEST_CONFIG = {
 }
 ```
 
-### `optimization_log.json` - Phase 11最適化履歴（GitHub Actions統合）
-**目的**: 最適化プロセス・設定変更・性能改善の詳細記録・CI/CD統合
+### `optimization_log.json` - Phase 12最適化履歴（GitHub Actions統合）
+**目的**: 最適化プロセス・設定変更・性能改善の詳細記録・CI/CDワークフロー最適化
 
 **想定構造**:
 ```json
 {
   "optimization_sessions": [
     {
-      "session_id": "phase11_opt_001",
+      "session_id": "phase12_opt_001",
       "date": "2025-08-17T10:00:00Z",
       "objective": "ml_confidence_optimization",
       "parameters_tested": {
@@ -200,7 +200,7 @@ XGB_BACKTEST_CONFIG = {
       "improvement": "13.9%_sharpe_increase"
     },
     {
-      "session_id": "phase11_opt_002", 
+      "session_id": "phase12_opt_002", 
       "date": "2025-08-17T14:00:00Z",
       "objective": "kelly_criterion_optimization",
       "parameters_tested": {
@@ -225,7 +225,7 @@ XGB_BACKTEST_CONFIG = {
       "max_drawdown": 0.165,
       "processing_time": "45.2s"
     },
-    "phase11_optimized": {
+    "phase12_optimized": {
       "sharpe_ratio": 1.23,
       "total_return": 0.247,
       "max_drawdown": 0.182,
@@ -240,7 +240,7 @@ XGB_BACKTEST_CONFIG = {
 }
 ```
 
-### `performance_history.json` - バックテスト性能履歴（24時間監視対応）
+### `performance_history.json` - バックテスト性能履歴（手動実行監視対応）
 **目的**: 時系列での性能推移・季節性・市場環境別分析・段階的デプロイ対応
 
 **想定構造**:
@@ -278,14 +278,14 @@ XGB_BACKTEST_CONFIG = {
 }
 ```
 
-## 🔧 バックテストモデル管理（Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🔧 バックテストモデル管理（Phase 12・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### **モデル最適化実行（GitHub Actions対応）**
 ```python
 def optimize_backtest_model():
     """バックテストモデル最適化実行"""
     
-    print("🚀 Phase 11バックテストモデル最適化開始")
+    print("🚀 Phase 12バックテストモデル最適化開始")
     
     # 最適化パラメータ設定
     optimization_params = {
@@ -402,13 +402,13 @@ def run_scenario_tests():
     return scenario_results
 ```
 
-## 📊 パフォーマンス分析（Phase 11・CI/CD統合・監視統合）
+## 📊 パフォーマンス分析（Phase 12・CI/CDワークフロー最適化・監視統合）
 
 ### **最適化効果測定（GitHub Actions対応）**
 ```bash
-# Phase 11最適化効果確認
+# Phase 12最適化効果確認
 analyze_optimization_impact() {
-    echo "=== Phase 11最適化効果分析 ==="
+    echo "=== Phase 12最適化効果分析 ==="
     
     if [ -f "src/backtest/models/bt_metadata.json" ]; then
         # 最適化前後比較
@@ -428,7 +428,7 @@ analyze_optimization_impact() {
 }
 ```
 
-### **市場環境別分析（24時間監視対応）**
+### **市場環境別分析（手動実行監視対応）**
 ```python
 def analyze_market_conditions():
     """市場環境別性能分析"""
@@ -456,7 +456,7 @@ def analyze_market_conditions():
             print("  評価: 🔴 要改善")
 ```
 
-## 🚨 バックテストモデル品質管理（Phase 11・CI/CD統合・段階的デプロイ対応）
+## 🚨 バックテストモデル品質管理（Phase 12・CI/CDワークフロー最適化・段階的デプロイ対応）
 
 ### **モデル整合性チェック（GitHub Actions統合）**
 ```bash
@@ -526,18 +526,18 @@ def detect_performance_degradation():
     return len(alerts) == 0
 ```
 
-## 🔮 Phase 12拡張計画（Phase 11基盤活用・CI/CD統合）
+## 🔮 Phase 12拡張計画（Phase 12基盤活用・CI/CDワークフロー最適化）
 
 ### **リアルタイムバックテスト（GitHub Actions基盤）**
 - **ストリーミングテスト**: リアルタイムデータでの継続的検証
 - **適応的最適化**: 市場変化に応じた自動パラメータ調整
 - **早期警告**: 性能劣化の予測的検知
 
-### **高度なシナリオ分析（24時間監視統合）**
+### **高度なシナリオ分析（手動実行監視統合）**
 - **モンテカルロ**: 確率的シナリオ・リスク分析・段階的デプロイ対応
 - **ストレステスト**: 極端市場環境・ブラックスワン対応・CI/CD品質ゲート対応
 - **感度分析**: パラメータ変更影響・ロバスト性評価・監視統合
 
 ---
 
-**🎯 Phase 11最適化とバックテスト統合・CI/CD統合・24時間監視・段階的デプロイ対応・GitHub Actions統合により、高速・高精度・包括的なバックテストモデル管理システムを実現**
+**🎯 Phase 12最適化とバックテスト統合・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応・GitHub Actions統合により、高速・高精度・包括的なバックテストモデル管理システムを実現**

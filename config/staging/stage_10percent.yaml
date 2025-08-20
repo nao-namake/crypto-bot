@@ -1,11 +1,11 @@
-# Phase 11: 段階的本番移行設定（10%段階）
+# Phase 12: 段階的本番移行設定（10%段階）
 # 🎯 本番環境と同一設定・金額のみスケール戦略
 # 成功時は金額を10倍にするだけで本番移行可能
 
 # システム基本設定（本番同一）
 system:
-  name: "crypto-bot-phase11-stage-10percent"
-  version: "11.0.0"
+  name: "crypto-bot-phase12-stage-10percent"
+  version: "12.0.0"
   mode: "live"
   debug: false
   log_level: "INFO"
@@ -210,7 +210,7 @@ monitoring:
   # 統合監視（本番同一）
   integrated_monitoring:
     enabled: true
-    bot_manager_checks: true
+    dev_check_checks: true
     alert_thresholds:
       consecutive_failures: 3
       error_rate_threshold: 5
@@ -244,7 +244,7 @@ cloud_run:
   
   labels:
     stage: "10-percent"
-    phase: "phase-11"
+    phase: "phase-12"
     environment: "staging"
     managed-by: "ci-cd"
 

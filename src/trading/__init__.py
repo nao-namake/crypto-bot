@@ -10,7 +10,7 @@ Trading Layer - Phase 6リスク管理層
 - DrawdownManager: ドローダウン管理・連続損失制御
 - TradingAnomalyDetector: 取引実行用異常検知
 
-Phase 11完了: 2025年8月18日.
+Phase 12完了: 2025年8月18日.
 """
 
 # 異常検知
@@ -77,10 +77,10 @@ __all__ = [
 
 # バージョン情報
 __version__ = "11.0.0"
-__phase__ = "Phase 11"
-__description__ = "統合リスク管理層 + 実行層（段階的リスクプロファイル機能拡張・CI/CD統合・24時間監視・段階的デプロイ対応）"
+__phase__ = "Phase 12"
+__description__ = "統合リスク管理層 + 実行層（段階的リスクプロファイル機能拡張・CI/CD統合・手動実行監視・段階的デプロイ対応）"
 
-# Phase 11拡張: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・24時間監視・段階的デプロイ対応）
+# Phase 12拡張: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
 RISK_PROFILES = {
     "conservative": {
         "kelly_criterion": {
@@ -106,7 +106,7 @@ RISK_PROFILES = {
             "risk_threshold_deny": 0.8,
             "risk_threshold_conditional": 0.6,
         },
-        "description": "バランス型リスク管理（標準・Phase 11デフォルト・CI/CD統合・24時間監視対応）",
+        "description": "バランス型リスク管理（標準・Phase 12デフォルト・CI/CD統合・手動実行監視対応）",
     },
     "aggressive": {
         "kelly_criterion": {
@@ -123,10 +123,10 @@ RISK_PROFILES = {
     },
 }
 
-# より実践的なデフォルト設定（Phase 11バランス型プロファイル採用・CI/CD統合・24時間監視・段階的デプロイ対応）
+# より実践的なデフォルト設定（Phase 12バランス型プロファイル採用・CI/CD統合・手動実行監視・段階的デプロイ対応）
 DEFAULT_RISK_CONFIG = {
     "kelly_criterion": {
-        "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 11バランス調整・24時間監視対応）
+        "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 12バランス調整・手動実行監視対応）
         "safety_factor": 0.7,  # Kelly値の70%使用（60%→70%・効率向上）
         "min_trades_for_kelly": 20,  # Kelly適用最小取引数
     },
@@ -144,7 +144,7 @@ DEFAULT_RISK_CONFIG = {
         "volume_spike_zscore_threshold": 3.0,  # 3σ出来高スパイク
     },
     "risk_thresholds": {
-        "min_ml_confidence": 0.30,  # 最小ML信頼度30%（35%→30%・Phase 11調整・CI/CD統合）
+        "min_ml_confidence": 0.30,  # 最小ML信頼度30%（35%→30%・Phase 12調整・CI/CD統合）
         "risk_threshold_deny": 0.8,  # 80%以上で拒否
         "risk_threshold_conditional": 0.6,  # 60%以上で条件付き
     },
@@ -157,7 +157,7 @@ def create_risk_manager(
     risk_profile: str = "balanced",
 ) -> IntegratedRiskManager:
     """
-    統合リスク管理器の作成（Phase 11拡張: リスクプロファイル対応・CI/CD統合・24時間監視・段階的デプロイ対応）
+    統合リスク管理器の作成（Phase 12拡張: リスクプロファイル対応・CI/CD統合・手動実行監視・段階的デプロイ対応）
 
     Args:
         config: リスク管理設定。Noneの場合はプロファイル使用
@@ -179,7 +179,7 @@ def create_risk_manager(
 
 def get_risk_profile_config(profile_name: str = "balanced") -> dict:
     """
-    リスクプロファイル設定を取得（Phase 11新機能・CI/CD統合・24時間監視・段階的デプロイ対応）
+    リスクプロファイル設定を取得（Phase 12新機能・CI/CD統合・手動実行監視・段階的デプロイ対応）
 
     Args:
         profile_name: プロファイル名 ("conservative", "balanced", "aggressive")

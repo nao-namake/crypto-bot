@@ -1,5 +1,5 @@
 """
-本番用アンサンブルモデル - Phase 11実装・CI/CD統合・24時間監視・段階的デプロイ対応
+本番用アンサンブルモデル - Phase 12実装・CI/CD統合・手動実行監視・段階的デプロイ対応
 
 個別MLモデル（LightGBM・XGBoost・RandomForest）を統合し、
 実取引で使用する本番用アンサンブルモデルを提供。
@@ -7,7 +7,7 @@
 特徴:
 - 重み付け投票による予測統合・GitHub Actions対応
 - pickle対応（独立モジュール）・CI/CD品質ゲート対応
-- 12特徴量最適化システム対応・24時間監視対応・段階的デプロイ対応.
+- 12特徴量最適化システム対応・手動実行監視対応・段階的デプロイ対応.
 """
 
 from typing import Any, Dict, List
@@ -160,7 +160,7 @@ class ProductionEnsemble:
             "weights": self.weights.copy(),
             "n_features": self.n_features_,
             "feature_names": self.feature_names.copy(),
-            "phase": "Phase 11",
+            "phase": "Phase 12",
             "status": "production_ready",
         }
 

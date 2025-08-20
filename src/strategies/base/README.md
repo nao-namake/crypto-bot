@@ -1,6 +1,6 @@
 # Strategy Base - 戦略基盤システム
 
-Phase 11完了・CI/CD統合・24時間監視・段階的デプロイ対応で設計された、すべての戦略実装の**基盤となるアーキテクチャ**・GitHub Actions対応。
+Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応で設計された、すべての戦略実装の**基盤となるアーキテクチャ**・GitHub Actions対応。
 
 ## 📁 フォルダの目的
 
@@ -89,7 +89,7 @@ class StrategyManager:
 - **コンフリクト解決**: 相反シグナルの自動解決
 - **パフォーマンス監視**: 戦略別成績追跡
 
-## 🔄 Phase 11での改善点（CI/CD統合・24時間監視・段階的デプロイ対応）
+## 🔄 Phase 12での改善点（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
 
 ### 戦略基底クラスの強化（GitHub Actions対応）
 ```python
@@ -107,10 +107,10 @@ class ATRBasedStrategy:
 ```
 
 ```python
-# After: 統一された基盤クラス（Phase 11・CI/CD統合）
+# After: 統一された基盤クラス（Phase 12・CI/CDワークフロー最適化）
 class ATRBasedStrategy(StrategyBase):  # 基底クラス継承・GitHub Actions対応
     def analyze(self, df):
-        # 共通の前処理・後処理は基底クラスが担当・24時間監視対応
+        # 共通の前処理・後処理は基底クラスが担当・手動実行監視対応
         # 戦略固有ロジックのみ実装・段階的デプロイ対応
         pass
 ```
@@ -124,8 +124,8 @@ class StrategyManager:
         # 詳細な履歴管理・統計処理
         # 200行以上の処理
 
-# After: シンプルで効果的な統合（351行・9%削減・Phase 11対応）
-class StrategyManager:  # CI/CD統合・24時間監視・段階的デプロイ対応
+# After: シンプルで効果的な統合（351行・9%削減・Phase 12対応）
+class StrategyManager:  # CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応
     def analyze_market(self, df):
         # シンプルな重み付け統合・GitHub Actions対応
         # 効率的なコンフリクト解決・監視統合
@@ -223,33 +223,33 @@ print(f"判定理由: {combined_signal.reason}")
 
 ## 🧪 テスト体系
 
-### StrategyBase テスト（Phase 11統合・CI/CD対応）
+### StrategyBase テスト（Phase 12統合・CI/CD対応）
 ```bash
 # 基底クラスの統合テスト（GitHub Actions統合）
 python -m pytest tests/unit/strategies/base/test_strategy_base.py -v
 
-# 具体的なテスト項目（24時間監視対応）
+# 具体的なテスト項目（手動実行監視対応）
 - 抽象メソッドの強制実装・CI/CD品質ゲート対応
 - 入力データ検証・段階的デプロイ対応
 - シグナル履歴管理・監視統合
 - パフォーマンス追跡・GitHub Actions対応
-- エラーハンドリング・24時間監視統合
+- エラーハンドリング・手動実行監視統合
 ```
 
-### StrategyManager テスト（Phase 11対応）
+### StrategyManager テスト（Phase 12対応）
 ```bash
-# 戦略マネージャーテスト（18テスト・CI/CD統合）
+# 戦略マネージャーテスト（18テスト・CI/CDワークフロー最適化）
 python -m pytest tests/unit/strategies/test_strategy_manager.py -v
 
 # 主要テスト項目（GitHub Actions対応）
-- 戦略登録・解除・24時間監視対応
+- 戦略登録・解除・手動実行監視対応
 - 重み付け統合・段階的デプロイ対応
 - コンフリクト解決・CI/CD品質ゲート対応
 - パフォーマンス集計・監視統合
 - エラー時の処理・GitHub Actions統合
 
 # 399テスト統合基盤確認
-python scripts/management/bot_manager.py validate --mode light
+python scripts/management/dev_check.py validate --mode light
 ```
 
 ## 📋 設計パターン
@@ -288,7 +288,7 @@ class StrategyBase:
 
 ## 🔮 拡張設計
 
-### Phase 12での機能追加予定（CI/CD統合基盤活用）
+### Phase 12での機能追加予定（CI/CDワークフロー最適化基盤活用）
 ```python
 # 予定される拡張インターフェース（GitHub Actions基盤）
 class StrategyBase(ABC):
@@ -311,9 +311,9 @@ class StrategyBase(ABC):
         pass
 ```
 
-### A/Bテストフレームワーク（Phase 11基盤活用）
+### A/Bテストフレームワーク（Phase 12基盤活用）
 ```python
-# 戦略改良の効果測定（CI/CD統合・24時間監視対応）
+# 戦略改良の効果測定（CI/CDワークフロー最適化・手動実行監視対応）
 class StrategyManager:
     def enable_ab_testing(self, strategy_a, strategy_b, traffic_split=0.5):
         """A/Bテスト実行機能・GitHub Actions統合"""
@@ -366,7 +366,7 @@ manager.update_config(new_config)
 
 ---
 
-**Phase 11完了日**: 2025年8月18日・CI/CD統合・24時間監視・段階的デプロイ対応  
+**Phase 12完了日**: 2025年8月18日・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応  
 **設計方針**: 統一インターフェース・拡張性・保守性重視・GitHub Actions統合  
 **基底クラス機能**: 入力検証・パフォーマンス追跡・エラーハンドリング・監視統合  
 **マネージャー機能**: 戦略統合・コンフリクト解決・重み付け・CI/CD品質ゲート対応  

@@ -1,5 +1,5 @@
 """
-注文実行システム - Phase 11・CI/CD統合・24時間監視・段階的デプロイ対応
+注文実行システム - Phase 12・CI/CD統合・手動実行監視・段階的デプロイ対応
 
 レガシーシステムの良いところを取り入れつつ、シンプルな実装を実現。
 段階的に機能を拡張し、ペーパートレードから実取引まで対応。
@@ -12,9 +12,9 @@
 
 新システムでの改善:
 - ccxt直接利用によるシンプル化
-- Phase 11リスク管理との統合・CI/CD対応
+- Phase 12リスク管理との統合・CI/CD対応
 - Protocol（インターフェース）準拠・GitHub Actions統合
-- 1秒以内レイテンシー目標・24時間監視対応.
+- 1秒以内レイテンシー目標・手動実行監視対応.
 """
 
 import asyncio
@@ -133,7 +133,7 @@ class ExecutionResult:
     paper_balance_after: Optional[float] = None
     paper_pnl: Optional[float] = None
 
-    # Phase 11追加: レイテンシー監視・デバッグ情報
+    # Phase 12追加: レイテンシー監視・デバッグ情報
     execution_time_ms: Optional[float] = None
     notes: Optional[str] = None
 
@@ -160,15 +160,15 @@ class TradingStatistics:
 
 class OrderExecutor:
     """
-    注文実行システム - Phase 11メイン実装・CI/CD統合・24時間監視・段階的デプロイ対応
+    注文実行システム - Phase 12メイン実装・CI/CD統合・手動実行監視・段階的デプロイ対応
 
     レガシーシステムの良い機能を継承しつつ、
     シンプルで高速な注文実行を実現。
 
     特徴:
     - ペーパートレード→実取引の段階的移行・CI/CD統合
-    - レイテンシー1秒以内（ccxt直接利用）・24時間監視
-    - Phase 11リスク管理との完全統合・GitHub Actions対応
+    - レイテンシー1秒以内（ccxt直接利用）・手動実行監視
+    - Phase 12リスク管理との完全統合・GitHub Actions対応
     - 包括的なログ・統計機能・段階的デプロイ対応.
     """
 
@@ -242,11 +242,11 @@ class OrderExecutor:
         """
         取引実行メイン処理
 
-        Phase 11のリスク管理評価結果を受けて、実際の注文実行を行う。
-        ペーパートレード・実取引両対応・CI/CD統合・24時間監視・段階的デプロイ対応。
+        Phase 12のリスク管理評価結果を受けて、実際の注文実行を行う。
+        ペーパートレード・実取引両対応・CI/CD統合・手動実行監視・段階的デプロイ対応。
 
         Args:
-            evaluation: Phase 11リスク管理評価結果
+            evaluation: Phase 12リスク管理評価結果
 
         Returns:
             注文実行結果.
@@ -390,18 +390,18 @@ class OrderExecutor:
 
     async def _execute_live_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
-        実取引実行（Phase 11実装・CI/CD統合・24時間監視対応）
+        実取引実行（Phase 12実装・CI/CD統合・手動実行監視対応）
 
         BitbankClientを使用した実際の信用取引注文実行。
         レガシーシステムの実証済み機能を活用した安全な実装。
 
         Args:
-            evaluation: Phase 11リスク管理評価結果
+            evaluation: Phase 12リスク管理評価結果
 
         Returns:
             実取引実行結果.
         """
-        start_time = time.time()  # Phase 11バグ修正: start_time変数定義追加
+        start_time = time.time()  # Phase 12バグ修正: start_time変数定義追加
         try:
             # BitbankClient初期化（認証キー必須）
             if self._bitbank_client is None:
@@ -465,7 +465,7 @@ class OrderExecutor:
             )
 
             # 実際の注文実行
-            order_type = "market"  # Phase 11は成行注文から開始（確実性重視・段階的デプロイ対応）
+            order_type = "market"  # Phase 12は成行注文から開始（確実性重視・段階的デプロイ対応）
 
             try:
                 order = await asyncio.to_thread(
@@ -516,7 +516,7 @@ class OrderExecutor:
                         "free", available_jpy
                     )
 
-                    # Phase 11: 実取引でのポジション管理追加
+                    # Phase 12: 実取引でのポジション管理追加
                     # LIVEモードでも統計とPnL計算のためVirtualPositionを活用
                     if evaluation.side == "buy":
                         if self.virtual_position.exist and self.virtual_position.side == "sell":

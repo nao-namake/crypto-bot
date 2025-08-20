@@ -1,6 +1,6 @@
 # Deployment Scripts
 
-デプロイ・Docker・本番環境系スクリプト集（Phase 12 CI/CD統合・24時間監視・実データ収集対応）
+デプロイ・Docker・本番環境系スクリプト集（Phase 12 CI/CD統合・手動実行監視・実データ収集対応）
 
 ## 📂 スクリプト一覧
 
@@ -39,13 +39,13 @@ bash scripts/deployment/setup_gcp_secrets.sh --help
 ### docker-entrypoint.sh
 **Docker統合エントリポイント（Phase 12対応・CI/CD統合・監視統合）**
 
-新システム用の軽量Dockerエントリポイント。本番環境でのコンテナ起動・プロセス管理・ヘルスチェック・CI/CD統合・24時間監視を担当。
+新システム用の軽量Dockerエントリポイント。本番環境でのコンテナ起動・プロセス管理・ヘルスチェック・CI/CD統合・手動実行監視を担当。
 
 #### 主要機能
 - **統合エントリポイント**: main.py統合システムの起動制御・GitHub Actions対応
 - **環境変数管理**: MODE・EXCHANGE・LOG_LEVEL等の設定・段階的デプロイ対応
 - **プロセス監視**: PID管理・グレースフルシャットダウン・CI/CD統合
-- **ヘルスチェック**: 基本的な動作確認・API接続テスト・24時間監視統合
+- **ヘルスチェック**: 基本的な動作確認・API接続テスト・手動実行監視統合
 - **データ収集**: 取引統計・パフォーマンス指標・実データ保存（Phase 12追加）
 
 #### 使用例
@@ -72,11 +72,11 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 GCP Cloud Runへの本番環境デプロイを自動化。品質チェック・Docker Build・デプロイ・動作確認・CI/CD統合・段階的リリース・実データ収集システム統合を実行。
 
 #### 主要機能
-- **事前品質チェック**: checks.sh実行・286テスト確認・CI/CD品質ゲート
+- **事前品質チェック**: checks.sh実行・438テスト確認・CI/CD品質ゲート
 - **Docker Build**: 最適化イメージ作成・レジストリプッシュ・セキュリティスキャン
 - **段階的デプロイ**: 10%→50%→100%トラフィック分割・カナリアリリース
 - **Cloud Run デプロイ**: サービス更新・環境変数設定・Workload Identity統合・MIN_INSTANCES=1（安定性重視）
-- **デプロイ後確認**: ヘルスチェック・基本動作確認・24時間監視開始・実データ収集開始
+- **デプロイ後確認**: ヘルスチェック・基本動作確認・手動実行監視開始・実データ収集開始
 
 #### 使用例
 ```bash
@@ -93,7 +93,7 @@ bash scripts/deployment/deploy_production.sh --canary
 git push origin main  # 自動CI/CDパイプライン実行
 
 # 統合管理CLI経由確認（推奨）
-python scripts/management/bot_manager.py health-check
+python scripts/management/dev_check.py health-check
 
 # パフォーマンス分析（Phase 12追加）
 python scripts/analytics/performance_analyzer.py --period 24h --format markdown
@@ -105,9 +105,9 @@ python scripts/analytics/performance_analyzer.py --period 24h --format markdown
 - **品質ファースト**: デプロイ前の完全品質チェック必須・CI/CD品質ゲート
 - **ゼロダウンタイム**: ローリングアップデート・グレースフルシャットダウン・段階的デプロイ
 - **回復性**: ロールバック機能・障害時復旧手順・自動ロールバック
-- **監視統合**: デプロイ後の自動ヘルスチェック・24時間監視・パフォーマンス追跡
+- **監視統合**: デプロイ後の自動ヘルスチェック・手動実行監視・パフォーマンス追跡
 
-### セキュリティ（Phase 11強化）
+### セキュリティ（Phase 12強化）
 - **シークレット管理**: GCP Secret Manager統合・Workload Identity・自動ローテーション
 - **最小権限**: 必要最小限のIAM権限設定・監査ログ・アクセス制御
 - **ネットワーク**: VPC・ファイアウォール設定・トラフィック暗号化
@@ -220,19 +220,19 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=50
 
 ## 📊 運用管理
 
-### デプロイフロー（Phase 11 CI/CD統合）
+### デプロイフロー（Phase 12 CI/CD統合）
 ```bash
 # 推奨デプロイフロー（CI/CD統合・段階的デプロイ）
-1. python scripts/management/bot_manager.py full-check  # 事前品質確認
-2. git add . && git commit -m "deploy: Phase 11 update"
+1. python scripts/management/dev_check.py full-check  # 事前品質確認
+2. git add . && git commit -m "deploy: Phase 12 update"
 3. git push origin main                                  # GitHub Actions自動実行
-4. python scripts/management/bot_manager.py health-check # 本番環境確認
-5. python scripts/management/bot_manager.py monitor --hours 24 # 24時間監視開始
+4. python scripts/management/dev_check.py health-check # 本番環境確認
+5. python scripts/management/dev_check.py monitor --hours 24 # 手動実行監視開始
 
 # 手動デプロイフロー（緊急時）
-1. python scripts/management/bot_manager.py full-check  # 事前品質確認
+1. python scripts/management/dev_check.py full-check  # 事前品質確認
 2. bash scripts/deployment/deploy_production.sh --canary # 段階的デプロイ
-3. python scripts/management/bot_manager.py status     # デプロイ後確認
+3. python scripts/management/dev_check.py status     # デプロイ後確認
 ```
 
 ### ロールバック手順
@@ -284,11 +284,11 @@ COPY --from=builder /app /app
 ## 🎯 Phase 12実装済み機能
 
 **CI/CD統合**:
-- ✅ **GitHub Actions CI/CD**: 自動品質チェック・段階的デプロイ・24時間監視
+- ✅ **GitHub Actions CI/CD**: 自動品質チェック・段階的デプロイ・手動実行監視
 - ✅ **段階的デプロイ**: paper → stage-10 → stage-50 → live（10%→50%→100%）
 - ✅ **品質ゲート**: 398テスト・flake8・コード整形・包括的チェック
 
-**24時間監視**:
+**手動実行監視**:
 - ✅ **自動監視**: 15分間隔ヘルスチェック・エラー分析・パフォーマンス追跡
 - ✅ **アラート**: Discord通知・クリティカル状況即座対応
 - ✅ **レポート生成**: パフォーマンス分析・統計サマリー・改善提案

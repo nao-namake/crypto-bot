@@ -1,6 +1,6 @@
 # config/production/ - 本番環境設定ディレクトリ
 
-**Phase 11完了**: 100%本番運用設定・CI/CD統合・自動デプロイ・24時間監視・セキュリティ強化対応完了
+**Phase 12完了**: 100%本番運用設定・CI/CDワークフロー最適化・自動デプロイ・手動実行監視・セキュリティ強化対応完了
 
 ## 📁 ファイル構成
 
@@ -18,14 +18,14 @@ production/
 Development → Validation → Staging (10%→50%) → Production (100%)
 ```
 
-**Phase 11本番移行条件**:
-- ✅ 開発環境での全機能テスト完了（286テスト99.7%成功）
-- ✅ CI/CD品質チェック成功（自動デプロイ対応）
+**Phase 12本番移行条件**:
+- ✅ 開発環境での全機能テスト完了（450テスト・68.13%カバレッジ）
+- ✅ CI/CDワークフロー最適化成功（自動デプロイ対応）
 - ✅ 検証環境での7日間運用成功
 - ✅ 10%段階での14日間運用成功（勝率60%・利益5,000円以上）
 - ✅ 50%段階での21日間運用成功（勝率58%・利益12,000円以上）
 - ✅ Workload Identity・Secret Manager統合確認
-- ✅ 24時間監視システム・bot_manager統合確認
+- ✅ 手動実行監視システム・dev_check統合確認
 
 ## 🔧 production.yaml - 100%本番運用設定
 
@@ -39,10 +39,10 @@ Development → Validation → Staging (10%→50%) → Production (100%)
 
 ### 核心パラメータ
 ```yaml
-# システム設定（Phase 11対応）
+# システム設定（Phase 12対応）
 system:
   name: "crypto-bot-production"
-  version: "11.0.0"                # Phase 11最新
+  version: "12.0.0"                # Phase 12最新
   mode: "live"
   debug: false
   log_level: "INFO"
@@ -111,28 +111,28 @@ targets:
 
 ## 🚀 デプロイメント
 
-### Phase 11本番デプロイ手順
+### Phase 12本番デプロイ手順
 ```bash
-# 1. Phase 11事前チェック（包括的確認）
-echo "Phase 11前段階成功確認:"
-echo "  ✅ 開発環境テスト完了（286テスト99.7%成功）"
-echo "  ✅ CI/CD品質チェック成功（GitHub Actions）"
+# 1. Phase 12事前チェック（包括的確認）
+echo "Phase 12前段階成功確認:"
+echo "  ✅ 開発環境テスト完了（450テスト・68.13%カバレッジ）"
+echo "  ✅ CI/CDワークフロー最適化成功（GitHub Actions）"
 echo "  ✅ 検証環境成功（7日間）"
 echo "  ✅ 10%段階成功（14日間・勝率60%・利益5,000円）"
 echo "  ✅ 50%段階成功（21日間・勝率58%・利益12,000円）"
 
-# 2. Phase 11統合確認
-python scripts/management/bot_manager.py full-check
-python scripts/management/bot_manager.py validate --mode light
+# 2. Phase 12統合確認
+python scripts/management/dev_check.py full-check
+python scripts/management/dev_check.py validate --mode light
 
-# 3. 設定検証（Phase 11対応）
+# 3. 設定検証（Phase 12対応）
 python3 -c "
 from src.core.config import Config
 config = Config.load_from_file('config/production/production.yaml')
 assert config.validate()
 assert config.system.mode == 'live'
-assert config.system.version.startswith('11.')
-print('✅ Phase 11本番設定検証OK')
+assert config.system.version.startswith('12.')
+print('✅ Phase 12本番設定検証OK')
 "
 
 # 4. CI/CD経由自動デプロイ（推奨）
@@ -141,12 +141,12 @@ git push origin main  # GitHub Actions CI/CD実行
 # 5. 手動デプロイ（必要時のみ）
 bash scripts/deployment/deploy_production.sh --stage production
 
-# 6. Phase 11本番サービス確認
+# 6. Phase 12本番サービス確認
 curl https://crypto-bot-service-prod-xxx.run.app/health
-python scripts/management/bot_manager.py health-check
+python scripts/management/dev_check.py health-check
 
-# 7. 24時間監視開始
-python scripts/management/bot_manager.py monitor --hours 24 &
+# 7. 手動実行監視開始
+gh workflow run monitoring.yml --field check_type=full
 ```
 
 ### GCP Cloud Run設定
@@ -162,7 +162,7 @@ cloud_run:
 
 ## 📊 監視・運用
 
-### 24時間監視体制
+### 手動実行監視体制
 ```bash
 # リアルタイム監視
 gcloud logging tail "resource.type=cloud_run_revision AND resource.labels.service_name=crypto-bot-service-prod"

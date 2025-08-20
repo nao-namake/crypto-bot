@@ -1,6 +1,6 @@
-# Phase 12 デプロイメントログ
+# CI/CD設定・デプロイメントガイド
 
-CI/CD統合・24時間監視・段階的デプロイ対応の実行記録
+Phase 12 CI/CDパイプライン構築・24時間監視・段階的デプロイ対応の包括的ガイド
 
 ## 📋 概要
 
@@ -12,6 +12,76 @@ Phase 12では、レガシーシステムの良い部分を継承・改良し、
 - **deploy_production.sh** → 段階的デプロイ機能
 - **error_analyzer.py** → パフォーマンス分析ツール
 
+## 🛠️ 初期設定手順
+
+### Step 1: GCP環境確認
+
+```bash
+# プロジェクト情報確認
+gcloud config get-value project
+# → my-crypto-bot-project
+
+# プロジェクト番号取得
+gcloud projects list --filter="project_id:my-crypto-bot-project" --format="value(project_number)"
+
+# Workload Identity Pool確認
+gcloud iam workload-identity-pools list --location=global
+
+# サービスアカウント確認
+gcloud iam service-accounts list --filter="displayName:GitHub Actions"
+```
+
+### Step 2: GitHub Secrets設定
+
+| Name | Value | 説明 |
+|------|-------|------|
+| `GCP_WIF_PROVIDER` | `projects/{PROJECT_NUMBER}/locations/global/workloadIdentityPools/{POOL_ID}/providers/{PROVIDER_ID}` | Workload Identity プロバイダー |
+| `GCP_SERVICE_ACCOUNT` | `github-actions-sa@my-crypto-bot-project.iam.gserviceaccount.com` | GitHub Actions用サービスアカウント |
+| `GCP_PROJECT` | `my-crypto-bot-project` | GCPプロジェクトID |
+| `DEPLOY_MODE` | `paper` | 初期デプロイモード（段階的にliveに変更） |
+
+**設定方法**:
+1. GitHubリポジトリページに移動
+2. Settings → Secrets and variables → Actions
+3. 上記のSecretsを追加
+
+### Step 3: GCP Secret Manager設定
+
+```bash
+# Bitbank API認証情報設定
+echo "YOUR_BITBANK_API_KEY" | gcloud secrets create bitbank-api-key --data-file=-
+echo "YOUR_BITBANK_API_SECRET" | gcloud secrets create bitbank-api-secret --data-file=-
+
+# Discord Webhook URL設定
+echo "YOUR_DISCORD_WEBHOOK_URL" | gcloud secrets create discord-webhook --data-file=-
+
+# Secret確認
+gcloud secrets list
+```
+
+### Step 4: IAM権限設定
+
+```bash
+# GitHub ActionsサービスアカウントにSecret Manager権限付与
+for secret in bitbank-api-key bitbank-api-secret discord-webhook; do
+  gcloud secrets add-iam-policy-binding $secret \
+    --member="serviceAccount:github-actions-sa@my-crypto-bot-project.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+### Step 5: 設定確認テスト
+
+```bash
+# テストコミット・プッシュでCI/CD実行
+git add .
+git commit -m "feat: Phase 12 CI/CD初回稼働テスト"
+git push origin main
+
+# GitHub Actionsタブで実行状況確認
+# https://github.com/USERNAME/REPOSITORY/actions
+```
+
 ## 🚀 デプロイメント履歴
 
 ### Phase 12.1 - CI/CDパイプライン基盤構築
@@ -19,11 +89,11 @@ Phase 12では、レガシーシステムの良い部分を継承・改良し、
 #### 2025-08-18 基盤構築完了
 
 **実装内容**:
-- ✅ GitHub Secrets設定ガイド作成 (`docs/github_secrets_setup.md`)
-- ✅ GCP Secret Manager自動設定スクリプト改良 (`scripts/deployment/setup_gcp_secrets.sh`)
+- ✅ GitHub Secrets設定ガイド統合
+- ✅ GCP Secret Manager自動設定スクリプト改良
 - ✅ 24時間監視ワークフロー作成 (`.github/workflows/monitoring.yml`)
 - ✅ CI/CD段階的デプロイ対応 (`.github/workflows/ci.yml`)
-- ✅ パフォーマンス分析ツール作成 (`scripts/analytics/performance_analyzer.py`)
+- ✅ パフォーマンス分析ツール作成
 
 **レガシー改良箇所**:
 ```diff
@@ -37,7 +107,7 @@ Phase 12では、レガシーシステムの良い部分を継承・改良し、
 - **GitHub Actions**: 15分間隔24時間監視
 - **段階的デプロイ**: paper → stage-10 → stage-50 → live
 - **トラフィック分割**: 10% → 50% → 100%移行
-- **品質保証**: 398/399テスト・flake8・コード整形統合
+- **品質保証**: 316テスト・68.13%カバレッジ・flake8・コード整形統合
 
 ## 📊 段階的デプロイメント戦略
 
@@ -103,37 +173,14 @@ Phase 12では、レガシーシステムの良い部分を継承・改良し、
 - **Warning**: エラー率 > 5/時間・応答時間 > 3秒
 - **Info**: 取引活動・定期レポート
 
-## 🔧 使用方法
+## 🔧 運用方法
 
-### 1. GitHub Secrets設定
-
-```bash
-# 設定ガイド参照
-cat docs/github_secrets_setup.md
-
-# 必要なSecrets:
-# - GCP_WIF_PROVIDER
-# - GCP_SERVICE_ACCOUNT  
-# - GCP_PROJECT
-# - DEPLOY_MODE (paper/stage-10/stage-50/live)
-```
-
-### 2. GCP Secret Manager設定
-
-```bash
-# 対話式設定
-bash scripts/deployment/setup_gcp_secrets.sh --interactive
-
-# 設定確認
-bash scripts/deployment/setup_gcp_secrets.sh --check
-```
-
-### 3. CI/CDパイプライン実行
+### 1. CI/CDパイプライン実行
 
 ```bash
 # GitHub Actionsトリガー
 git add -A
-git commit -m "feat: Phase 12 CI/CD初回稼働"
+git commit -m "feat: Phase 12 機能追加"
 git push origin main
 
 # ワークフロー確認
@@ -141,7 +188,7 @@ gh run list --limit 5
 gh run view --log
 ```
 
-### 4. 段階的デプロイ実行
+### 2. 段階的デプロイ実行
 
 ```bash
 # 1. ペーパートレード確認
@@ -157,7 +204,7 @@ gh run view --log
 # GitHub Secrets: DEPLOY_MODE=live
 ```
 
-### 5. パフォーマンス分析
+### 3. パフォーマンス分析
 
 ```bash
 # 24時間分析
@@ -167,11 +214,26 @@ python scripts/analytics/performance_analyzer.py --period 24h --format markdown
 python scripts/analytics/performance_analyzer.py --period 7d --format json
 ```
 
+### 4. 監視・確認コマンド
+
+```bash
+# GitHub Actions監視
+gh run list --limit 5
+gh run view --log
+
+# GCP デプロイ確認
+gcloud run services list --region=asia-northeast1
+gcloud run services describe crypto-bot-service --region=asia-northeast1
+
+# ログ確認
+gcloud logging read "resource.type=\"cloud_run_revision\"" --limit=20
+```
+
 ## 📈 期待される効果
 
 ### CI/CD統合効果
 - **デプロイ時間**: 手動30分 → 自動5分
-- **品質保証**: 手動チェック → 自動398テスト
+- **品質保証**: 手動チェック → 自動316テスト
 - **リスク軽減**: 一括デプロイ → 段階的移行
 
 ### 24時間監視効果  
@@ -221,7 +283,12 @@ gh run view --log
 # - テスト失敗
 ```
 
-#### 2. デプロイ失敗
+#### 2. 認証エラー
+- **Workload Identity設定確認**: GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
+- **権限エラー**: IAM権限設定確認
+- **Secret未設定**: Secret Manager・GitHub Secrets確認
+
+#### 3. デプロイ失敗
 ```bash
 # Cloud Run確認
 gcloud run services list --region=asia-northeast1
@@ -248,10 +315,16 @@ gcloud run services update-traffic SERVICE_NAME --to-revisions=PREVIOUS_REVISION
 
 ## 📋 チェックリスト
 
+### 初期設定
+- [ ] GCP Workload Identity Pool作成済み
+- [ ] GitHub Actions用サービスアカウント作成済み
+- [ ] 必要なGCP API有効化済み
+- [ ] GitHub Repository Secrets設定完了
+- [ ] GCP Secret Manager認証情報設定完了
+- [ ] IAM権限設定完了
+
 ### デプロイ前確認
-- [ ] GitHub Secrets設定完了
-- [ ] GCP Secret Manager設定完了
-- [ ] ローカルテスト実行済み（398/399テスト合格）
+- [ ] ローカルテスト実行済み（316テスト・68.13%カバレッジ）
 - [ ] コード品質チェック済み（flake8エラー < 50）
 - [ ] MLモデル確認済み
 
@@ -272,7 +345,7 @@ gcloud run services update-traffic SERVICE_NAME --to-revisions=PREVIOUS_REVISION
 
 ### CI/CD指標
 - **ビルド成功率**: > 95%
-- **テスト合格率**: > 99%（398/399）
+- **テスト合格率**: 68.13%カバレッジ（316テスト）
 - **デプロイ成功率**: > 95%
 - **デプロイ時間**: < 5分
 

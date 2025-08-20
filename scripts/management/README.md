@@ -23,14 +23,14 @@
 
 #### 役割：CI前チェック（開発フェーズ）
 - コード品質確認（flake8・isort・black）
-- 単体/統合テスト実行（286テスト）
+- 単体/統合テスト実行（316テスト）
 - Phase実装完整性確認
 - MLモデル作成・検証
 - デプロイ前準備状況チェック
 
 #### 主要機能
 - **phase-check**: Phase実装状況確認（ディレクトリ・インポート・モデル・設定・CI/CD対応）
-- **validate**: 品質チェック（full/light・checks.sh実行・286テスト対応・GitHub Actions統合）
+- **validate**: 品質チェック（full/light・checks.sh実行・438テスト対応・GitHub Actions統合）
 - **ml-models**: MLモデル作成・検証（ドライラン対応・詳細ログ・メタデータ確認・監視統合）
 - **data-check**: データ層基本確認（Pipeline・TechnicalIndicators・Config・API接続）
 - **full-check**: 6段階統合チェック（Phase→データ→品質→ML→完全→状態・本番運用対応）

@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-
 from src.trading.drawdown_manager import (
     DrawdownManager,
     DrawdownSnapshot,

@@ -173,7 +173,7 @@ setup_service_account() {
         log "INFO" "サービスアカウント作成中: $sa_name"
         gcloud iam service-accounts create "$sa_name" \
             --display-name="Crypto Bot Service Account" \
-            --description="Phase 11本番運用用サービスアカウント"
+            --description="Phase 12本番運用用サービスアカウント"
     else
         log "INFO" "サービスアカウント確認済み: $sa_email"
     fi
@@ -218,7 +218,7 @@ setup_workload_identity() {
         gcloud iam workload-identity-pools create "$pool_id" \
             --location="global" \
             --display-name="GitHub Actions Pool" \
-            --description="Phase 11 GitHub Actions用Workload Identity Pool"
+            --description="Phase 12 GitHub Actions用Workload Identity Pool"
     else
         log "INFO" "Workload Identity Pool確認済み: $pool_id"
     fi
@@ -269,9 +269,9 @@ setup_workload_identity() {
 # ========================================
 
 main() {
-    log "INFO" "Phase 11 GCP Secret Manager設定開始"
+    log "INFO" "Phase 12 GCP Secret Manager設定開始"
     echo -e "${BLUE}================================${NC}"
-    echo -e "${BLUE}Phase 11: GCP認証設定セットアップ${NC}"
+    echo -e "${BLUE}Phase 12: GCP認証設定セットアップ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo ""
     
@@ -348,7 +348,7 @@ main() {
     echo "2. GitHub ActionsでCI/CDパイプラインを実行"
     echo "3. Cloud Runサービスの動作確認"
     echo ""
-    log "INFO" "Phase 11 GCP Secret Manager設定完了"
+    log "INFO" "Phase 12 GCP Secret Manager設定完了"
 }
 
 # スクリプト実行

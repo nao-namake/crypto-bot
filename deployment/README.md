@@ -1,6 +1,6 @@
 # deployment/ - デプロイメント管理ディレクトリ
 
-**Phase 11完了**: GitHub Actions CI/CD・段階的デプロイ・Workload Identity・24時間監視・自動ロールバック完全統合完了
+**Phase 12完了**: GitHub Actions CI/CDワークフロー最適化・段階的デプロイ・Workload Identity・手動実行監視・自動ロールバック完全統合完了
 
 ## 📁 ディレクトリ構成
 
@@ -14,23 +14,23 @@ deployment/
 
 ## 🎯 役割・目的
 
-### **Phase 11完成デプロイメント自動化システム**
-- **目的**: Phase 1-11全システムの本番環境完全自動デプロイ
-- **範囲**: GitHub Actions CI/CD・段階的デプロイ・Workload Identity・24時間監視統合
-- **効果**: 80%デプロイ効率向上・99.7%品質保証・自動ロールバック・運用自動化
+### **Phase 12完成デプロイメント自動化システム**
+- **目的**: Phase 1-12全システムの本番環境完全自動デプロイ
+- **範囲**: GitHub Actions CI/CDワークフロー最適化・段階的デプロイ・Workload Identity・手動実行監視統合
+- **効果**: 80%デプロイ効率向上・68.13%カバレッジ品質保証・自動ロールバック・運用自動化
 
-### **GCP統合エンタープライズシステム（Phase 11）**
+### **GCP統合エンタープライズシステム（Phase 12）**
 - **プラットフォーム**: Google Cloud Platform（Cloud Run・Secret Manager・Workload Identity）
 - **利点**: サーバーレス・自動スケーリング・セキュア認証・コスト最適化（月額2,000円以内）
-- **対応**: 286テスト品質保証・bot_manager統合・段階的デプロイ・24時間監視
+- **対応**: 450テスト品質保証・dev_check統合・段階的デプロイ・手動実行監視
 
 ## 🚀 デプロイメント戦略
 
-### **Phase 11完成デプロイフロー**
+### **Phase 12完成デプロイフロー**
 ```
-1. GitHub Actions CI/CD（完全自動化）
-   ├── 段階的品質チェック（checks_light.sh・286テスト99.7%）
-   ├── Phase 11統合テスト（bot_manager・全コンポーネント）
+1. GitHub Actions CI/CDワークフロー最適化（完全自動化）
+   ├── 段階的品質チェック（450テスト・68.13%カバレッジ）
+   ├── Phase 12統合テスト（dev_check・全コンポーネント）
    ├── セキュリティスキャン（Secret Manager・Workload Identity）
    └── Dockerビルド・プッシュ
         ↓
@@ -40,8 +40,8 @@ deployment/
    ├── 段階的インスタンス起動
    └── ヘルスチェック・監視開始
         ↓
-3. Phase 11本番環境稼働
-   ├── 24時間自動監視（bot_manager統合）
+3. Phase 12本番環境稼働
+   ├── 手動実行監視（dev_check統合）
    ├── 自動ロールバック（失敗時）
    ├── Discord通知・アラート
    └── 統合管理CLI対応
@@ -49,50 +49,50 @@ deployment/
 
 ### **環境別デプロイ**
 
-#### **Phase 11環境別統合デプロイ**
+#### **Phase 12環境別統合デプロイ**
 
-**開発環境（CI/CD統合）**
+**開発環境（CI/CDワークフロー最適化）**
 - **モード**: `MODE=paper`
 - **リソース**: 1GB RAM・0.5 CPU
 - **スケーリング**: min=0, max=1（コスト重視）
-- **Phase 11機能**: checks_light.sh・bot_manager統合・自動品質チェック
+- **Phase 12機能**: dev_check統合・自動品質チェック・ワークフロー最適化
 
 **段階的本番環境（10%→50%→100%）**
 - **モード**: `MODE=live`
 - **リソース**: 1-2GB RAM・1-2 CPU（段階的拡大）
-- **Phase 11機能**: 段階的デプロイ・Workload Identity・24時間監視
+- **Phase 12機能**: 段階的デプロイ・Workload Identity・手動実行監視
 - **設定**: config/staging/（stage_10percent.yaml・stage_50percent.yaml）
 
-**完全本番環境（Phase 11フル機能）**
+**完全本番環境（Phase 12フル機能）**
 - **モード**: `MODE=live`
 - **リソース**: 2GB RAM・1 CPU・min=1,max=2（高可用性）
-- **Phase 11機能**: 自動ロールバック・Secret Manager・bot_manager統合
+- **Phase 12機能**: 自動ロールバック・Secret Manager・dev_check統合
 - **設定**: config/production/production.yaml
 
 ## ⚙️ 設定・環境変数
 
-### **Phase 11統合環境変数**
+### **Phase 12統合環境変数**
 ```bash
-# 基本設定（Phase 11対応）
+# 基本設定（Phase 12対応）
 MODE=paper                    # paper/live（backtestは統合システム化）
 LOG_LEVEL=INFO               # DEBUG/INFO/WARNING/ERROR
 PYTHONPATH=/app              # Pythonパス設定
 
-# Phase 11統合機能
+# Phase 12統合機能
 FEATURE_MODE=full            # basic/full（12特徴量システム）
-CI_MODE=github_actions       # CI/CD統合識別
+CI_MODE=github_actions       # CI/CDワークフロー統合識別
 
 # Bitbank API認証（Secret Manager自動管理）
 BITBANK_API_KEY=auto         # Secret Manager自動注入
 BITBANK_API_SECRET=auto      # Secret Manager自動注入
 
-# 監視・通知（Phase 11統合）
+# 監視・通知（Phase 12統合）
 DISCORD_WEBHOOK_URL=auto     # Secret Manager自動注入
-MONITORING_ENABLED=true      # 24時間監視有効
-BOT_MANAGER_INTEGRATION=true # bot_manager統合有効
+MONITORING_ENABLED=true      # 手動実行監視有効
+DEV_CHECK_INTEGRATION=true  # dev_check統合有効
 ```
 
-### **Phase 11セキュリティ統合（Workload Identity）**
+### **Phase 12セキュリティ統合（Workload Identity）**
 ```bash
 # Workload Identity（自動認証）
 --set-secrets=BITBANK_API_KEY=bitbank-api-key:latest
@@ -103,33 +103,33 @@ BOT_MANAGER_INTEGRATION=true # bot_manager統合有効
 --service-account=crypto-bot-workload-identity@project.iam.gserviceaccount.com
 ```
 
-### **Phase 11完成最適化パラメータ**
-- **CI/CD効率**: 80%デプロイ効率向上（GitHub Actions自動化）
-- **品質保証**: 99.7%テスト成功率（286テスト・checks_light.sh統合）
-- **監視自動化**: 24時間無人監視（bot_manager統合・自動復旧）
+### **Phase 12完成最適化パラメータ**
+- **CI/CD効率**: 80%デプロイ効率向上（GitHub Actionsワークフロー最適化）
+- **品質保証**: 68.13%カバレッジ品質保証（450テスト・dev_check統合）
+- **監視自動化**: 手動実行監視（dev_check統合・効率的運用）
 - **セキュリティ**: Workload Identity・Secret Manager・自動トークン更新
 - **運用効率**: 90%手動作業削減（統合管理CLI・自動ロールバック）
 
 ## 🔧 デプロイ実行方法
 
-### **Phase 11完全自動デプロイ（推奨）**
+### **Phase 12完全自動デプロイ（推奨）**
 ```bash
-# GitHub Actions CI/CD経由（完全自動化）
+# GitHub Actions CI/CDワークフロー経由（完全自動化）
 git push origin main         # mainブランチプッシュ→自動デプロイ
 gh pr merge [PR_NUMBER]      # プルリクエストマージ→自動デプロイ
 
-# bot_manager統合確認
-python scripts/management/bot_manager.py full-check
-python scripts/management/bot_manager.py health-check
+# dev_check統合確認
+python scripts/management/dev_check.py full-check
+python scripts/management/dev_check.py health-check
 
-# 24時間監視開始
-python scripts/management/bot_manager.py monitor --hours 24 &
+# 手動実行監視開始
+gh workflow run monitoring.yml --field check_type=full
 ```
 
 ### **手動デプロイ（緊急時のみ）**
 ```bash
-# Phase 11統合事前チェック
-python scripts/management/bot_manager.py validate --mode light
+# Phase 12統合事前チェック
+python scripts/management/dev_check.py validate --mode light
 
 # GCP Cloud Build手動実行
 cd /Users/nao/Desktop/bot
@@ -140,7 +140,7 @@ gcloud auth list
 gcloud projects get-iam-policy my-crypto-bot-project
 ```
 
-### **段階的デプロイ（Phase 11新機能）**
+### **段階的デプロイ（Phase 12新機能）**
 ```bash
 # 10%段階デプロイ
 bash scripts/deployment/deploy_production.sh --stage 10percent
@@ -155,22 +155,22 @@ bash scripts/deployment/deploy_production.sh --stage production
 # ※GitHub Actions・Cloud Run自動実行
 ```
 
-## 📊 Phase 11デプロイメント完成実績
+## 📊 Phase 12デプロイメント完成実績
 
-### **Phase 11システム統合指標**
-- ✅ **CI/CD自動化**: 80%デプロイ効率向上（GitHub Actions完全統合）
-- ✅ **品質保証**: 99.7%テスト成功率（286テスト・checks_light.sh統合）
+### **Phase 12システム統合指標**
+- ✅ **CI/CD自動化**: 80%デプロイ効率向上（GitHub Actionsワークフロー最適化）
+- ✅ **品質保証**: 68.13%カバレッジ（450テスト・dev_check統合）
 - ✅ **デプロイ成功率**: 98%以上（自動ロールバック・段階的デプロイ）
 - ✅ **起動時間**: 2-3秒（Workload Identity・コンテナ最適化）
-- ✅ **監視効率**: 95%自動化（24時間監視・bot_manager統合）
+- ✅ **監視効率**: 95%効率化（手動実行監視・dev_check統合）
 
-### **セキュリティ・品質保証（Phase 11完成）**
+### **セキュリティ・品質保証（Phase 12完成）**
 - ✅ **認証統合**: Workload Identity・Secret Manager・自動トークン更新
-- ✅ **CI/CD統合**: GitHub Actions・段階的品質チェック・自動ロールバック
+- ✅ **CI/CDワークフロー最適化**: GitHub Actions・段階的品質チェック・自動ロールバック
 - ✅ **セキュリティ強化**: 機密情報完全自動管理・監査ログ・アクセス制御
-- ✅ **品質チェック**: flake8エラー54%削減・統合テスト・回帰防止
+- ✅ **品質チェック**: dev_check統合・ワークフロー最適化・回帰防止
 
-### **運用効率・コスト実績（Phase 11）**
+### **運用効率・コスト実績（Phase 12）**
 - ✅ **月間コスト**: 1,200-1,800円（30%コスト削減・リソース最適化）
 - ✅ **運用効率**: 90%手動作業削減（統合管理CLI・自動化）
 - ✅ **監視自動化**: 24時間無人監視・自動復旧・アラート統合
@@ -209,43 +209,43 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=50
 
 # 一般的な原因
 - アプリケーション起動失敗: Pythonパス・import確認
-- Phase 8設定不整合: config/production.yaml確認
+- Phase 12設定不整合: config/production.yaml確認
 - API接続問題: Bitbank API・Discord Webhook確認
 ```
 
-### **Phase 8特有の問題**
+### **Phase 12特有の問題**
 
-#### **バックテストエンジンエラー**
+#### **dev_check統合エラー**
 ```bash
-# バックテストテスト確認
-python -m pytest tests/unit/backtest/ -v
+# dev_check統合テスト確認
+python scripts/management/dev_check.py validate --mode light
 
 # 設定確認
-python -c "from src.backtest.engine import BacktestEngine; print('OK')"
+python scripts/management/dev_check.py phase-check
 ```
 
 #### **設定値不整合**
 ```bash
-# Phase 8最適化設定確認
+# Phase 12最適化設定確認
 grep -r "confidence_threshold\|kelly_max_fraction" config/
-# 期待値: confidence_threshold: 0.5, kelly_max_fraction: 0.05
+# 期待値: confidence_threshold: 0.35, kelly_max_fraction: 0.03
 ```
 
 ---
 
-## 📊 Phase 11完成統合システム実績
+## 📊 Phase 12完成統合システム実績
 
 ### **デプロイメント自動化完成指標**
 ```
-🚀 CI/CD完全統合: GitHub Actions・段階的デプロイ・自動ロールバック
-📊 品質保証体制: 99.7%テスト成功・286テスト・checks_light.sh自動化
+🚀 CI/CDワークフロー最適化: GitHub Actions・段階的デプロイ・自動ロールバック
+📊 品質保証体制: 68.13%カバレッジ・450テスト・dev_check自動化
 🔒 セキュリティ統合: Workload Identity・Secret Manager・自動認証
-🏥 監視システム: 24時間無人監視・bot_manager統合・自動復旧
+🏥 監視システム: 手動実行監視・dev_check統合・効率的運用
 ⚡ 運用効率向上: 90%手動作業削減・80%デプロイ効率向上
 💾 コスト最適化: 30%削減（1,200-1,800円/月）・リソース自動調整
 ```
 
-### **次世代デプロイメントシステム（Phase 12拡張予定）**
+### **次世代デプロイメントシステム（Phase 13拡張予定）**
 - **AI駆動最適化**: 機械学習による自動パフォーマンス調整・予測的スケーリング
 - **マルチクラウド対応**: AWS・Azure統合・クロスクラウドロードバランシング
 - **エンタープライズ監視**: APM統合・BigQuery分析・BIダッシュボード
@@ -253,4 +253,4 @@ grep -r "confidence_threshold\|kelly_max_fraction" config/
 
 ---
 
-**🎯 Phase 11完了**: GitHub Actions CI/CD・段階的デプロイ・Workload Identity・24時間監視を完全統合した次世代デプロイメントシステムが完成しました。個人開発からエンタープライズレベルまで対応可能な自動化基盤を実現！
+**🎯 Phase 12完了**: GitHub Actions CI/CDワークフロー最適化・段階的デプロイ・Workload Identity・手動実行監視を完全統合した次世代デプロイメントシステムが完成しました。個人開発からエンタープライズレベルまで対応可能な自動化基盤を実現！

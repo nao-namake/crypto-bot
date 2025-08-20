@@ -271,9 +271,9 @@ class LiveTradingTester:
             return False
 
     async def run_24h_monitoring_test(self) -> bool:
-        """24時間監視テスト."""
+        """手動実行監視テスト."""
         try:
-            self.logger.info("⏰ 24時間監視テスト開始", discord_notify=True)
+            self.logger.info("⏰ 手動実行監視テスト開始", discord_notify=True)
 
             # 1時間ごとに健康状態チェック
             for hour in range(24):
@@ -312,11 +312,11 @@ class LiveTradingTester:
                     self.logger.error(f"監視テストエラー（{hour + 1}時間目）: {e}")
                     await asyncio.sleep(60)
 
-            self.logger.info("✅ 24時間監視テスト完了", discord_notify=True)
+            self.logger.info("✅ 手動実行監視テスト完了", discord_notify=True)
             return True
 
         except Exception as e:
-            self.logger.error(f"24時間監視テストエラー: {e}", discord_notify=True)
+            self.logger.error(f"手動実行監視テストエラー: {e}", discord_notify=True)
             return False
 
     def save_test_results(self):

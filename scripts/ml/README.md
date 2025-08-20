@@ -5,16 +5,16 @@
 ## 📂 スクリプト一覧
 
 ### create_ml_models.py
-**新システム用MLモデル作成スクリプト（Phase 11対応・CI/CD統合・監視統合）**
+**新システム用MLモデル作成スクリプト（Phase 12対応・CI/CD統合・監視統合）**
 
-12特徴量最適化システム用の機械学習モデル学習・作成・検証・CI/CD統合・24時間監視を行う包括的なMLスクリプト。
+12特徴量最適化システム用の機械学習モデル学習・作成・検証・CI/CD統合・手動実行監視を行う包括的なMLスクリプト。
 
 #### 主要機能
 - **3モデル学習**: LightGBM・XGBoost・RandomForest の個別学習・CI/CD自動実行
 - **アンサンブル統合**: ProductionEnsemble クラスによる重み付け統合・GitHub Actions対応
 - **本番用モデル生成**: models/production/ への統合モデル保存・段階的デプロイ対応
 - **品質保証**: モデル検証・予測テスト・メタデータ生成・CI/CD品質ゲート
-- **監視統合**: 24時間監視・パフォーマンス追跡・自動アラート・Discord通知
+- **監視統合**: 手動実行監視・パフォーマンス追跡・自動アラート・Discord通知
 
 #### 学習対象
 ```python
@@ -43,8 +43,8 @@ python scripts/ml/create_ml_models.py --days 360
 # 設定ファイル指定（環境別設定・段階的デプロイ）
 python scripts/ml/create_ml_models.py --config config/ml/custom.yaml
 
-# 統合管理CLI経由実行（推奨・Phase 11対応）
-python scripts/management/bot_manager.py ml-models
+# 統合管理CLI経由実行（推奨・Phase 12対応）
+python scripts/management/dev_check.py ml-models
 ```
 
 #### 期待結果
@@ -54,7 +54,7 @@ python scripts/management/bot_manager.py ml-models
 - XGBoost: F1 score 0.997（高い精度・段階的デプロイ対応）
 - RandomForest: F1 score 0.821（安定性重視・監視統合）
 - ProductionEnsemble: 重み付け統合（0.4/0.4/0.2）・本番運用対応
-🏥 24時間監視統合: パフォーマンス追跡・自動アラート・Discord通知
+🏥 手動実行監視統合: パフォーマンス追跡・自動アラート・Discord通知
 🚀 CI/CD統合: GitHub Actions・品質ゲート・段階的デプロイ
 ```
 
@@ -65,7 +65,7 @@ python scripts/management/bot_manager.py ml-models
 - **TimeSeriesSplit**: 時系列データ対応クロスバリデーション・本番環境対応
 - **アンサンブル統合**: 重み付け投票による予測統合・段階的デプロイ対応
 - **本番対応**: pickle対応・ProductionEnsemble・メタデータ管理・GitHub Actions統合
-- **監視統合**: 24時間監視・パフォーマンス追跡・Model Drift Detection・自動アラート
+- **監視統合**: 手動実行監視・パフォーマンス追跡・Model Drift Detection・自動アラート
 
 ### モデル構成
 ```python
@@ -114,7 +114,7 @@ models/
 {
   "created_at": "2025-08-17T10:30:00",
   "model_type": "ProductionEnsemble",
-  "phase": "Phase 11",
+  "phase": "Phase 12",
   "status": "production_ready",
   "feature_names": ["close", "volume", ...],
   "individual_models": ["lightgbm", "xgboost", "random_forest"],
@@ -230,7 +230,7 @@ Phase 12以降の拡張予定:
 
 ## 💡 Best Practices
 
-### 開発時の推奨フロー（Phase 11 CI/CD統合対応）
+### 開発時の推奨フロー（Phase 12 CI/CD統合対応）
 ```bash
 # 1. ドライランで確認（CI/CD事前チェック）
 python scripts/ml/create_ml_models.py --dry-run
@@ -241,17 +241,17 @@ python scripts/ml/create_ml_models.py --days 30
 # 3. 本格学習実行（監視統合・Discord通知）
 python scripts/ml/create_ml_models.py --verbose
 
-# 4. 統合管理CLI経由検証（推奨・Phase 11対応）
-python scripts/management/bot_manager.py ml-models
+# 4. 統合管理CLI経由検証（推奨・Phase 12対応）
+python scripts/management/dev_check.py ml-models
 
 # 5. CI/CDパイプライン統合（GitHub Actions）
-git add models/ && git commit -m "update: ML models Phase 11"
+git add models/ && git commit -m "update: ML models Phase 12"
 git push origin main  # GitHub Actions自動実行
 ```
 
-### 品質管理（Phase 11 CI/CD・監視統合）
+### 品質管理（Phase 12 CI/CD・監視統合）
 - **定期再学習**: 月1回・新データでモデル更新・CI/CD自動実行・無人運用
-- **性能監視**: F1スコア・精度・再現率の追跡・24時間監視・drift detection
+- **性能監視**: F1スコア・精度・再現率の追跡・手動実行監視・drift detection
 - **バックアップ**: 過去モデルのバージョン管理・Git LFS・安全な復旧
 - **検証**: 本番投入前の十分なテスト実行・段階的デプロイ・品質ゲート
 - **セキュリティ**: Workload Identity・Secret Manager・監査ログ・コンプライアンス

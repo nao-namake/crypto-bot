@@ -59,6 +59,10 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         self.report_dir = PROJECT_ROOT / "logs" / "operational_reports"
         self.report_dir.mkdir(exist_ok=True, parents=True)
 
+        # マークダウンレポート保存用ディレクトリ
+        self.markdown_report_dir = PROJECT_ROOT / "logs" / "ops_monitor_reports"
+        self.markdown_report_dir.mkdir(exist_ok=True, parents=True)
+
         # 実行結果保存
         self.results = {
             "timestamp": datetime.now().isoformat(),
@@ -1366,26 +1370,49 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         logger.info(f"📅 実行時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S JST')}")
         logger.info(f"🎨 システム: {self.results['system_version']}")
 
-        # Phase 1実行
-        if not target_phases or "phase1" in target_phases:
-            self.run_phase1_infrastructure_checks()
+        analysis_type = "comprehensive"
+        if target_phases:
+            analysis_type = "-".join(target_phases)
 
-        # Phase 2実行
-        if not target_phases or "phase2" in target_phases:
-            self.run_phase2_application_checks()
+        try:
+            # Phase 1実行
+            if not target_phases or "phase1" in target_phases:
+                self.run_phase1_infrastructure_checks()
 
-        # Phase 3実行
-        if not target_phases or "phase3" in target_phases:
-            self.run_phase3_hidden_issues_detection()
+            # Phase 2実行
+            if not target_phases or "phase2" in target_phases:
+                self.run_phase2_application_checks()
 
-        # Phase 4実行
-        if not target_phases or "phase4" in target_phases:
-            self.run_phase4_overall_assessment()
+            # Phase 3実行
+            if not target_phases or "phase3" in target_phases:
+                self.run_phase3_hidden_issues_detection()
 
-        self._generate_final_console_report()
+            # Phase 4実行
+            if not target_phases or "phase4" in target_phases:
+                self.run_phase4_overall_assessment()
 
-        logger.info("🎊 === 新システム稼働状況確認完了 ===")
-        return self.results
+            self._generate_final_console_report()
+
+            # 結果コード決定
+            overall_status = self.results.get("overall_status", "unknown")
+            if overall_status == "critical":
+                result_code = 2
+            elif overall_status in ["warning", "degraded"]:
+                result_code = 1
+            else:
+                result_code = 0
+
+            # マークダウンレポート自動保存
+            self.save_report_to_file(analysis_type, result_code)
+
+            logger.info("🎊 === 新システム稼働状況確認完了 ===")
+            return self.results
+
+        except Exception as e:
+            logger.error(f"運用診断エラー: {e}")
+            # エラー時もレポート保存
+            self.save_report_to_file(analysis_type, 3, {"error": str(e)})
+            raise
 
     def _generate_final_console_report(self):
         """最終コンソールレポートを生成."""
@@ -1450,6 +1477,211 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         logger.info(f"📁 詳細レポート保存: {json_path}")
 
+    def save_report_to_file(
+        self, analysis_type: str, result_code: int, details: Dict = None
+    ) -> str:
+        """
+        実行結果をマークダウンファイルに保存
+
+        Args:
+            analysis_type: 実行した分析タイプ（operational, phase1, etc.）
+            result_code: 実行結果コード（0=成功、1=警告、2=重大）
+            details: 詳細情報
+
+        Returns:
+            str: 保存されたファイルパス
+        """
+        timestamp = datetime.now()
+        filename = f"ops_monitor_{analysis_type}_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+        filepath = self.markdown_report_dir / filename
+
+        # 実行結果の判定
+        if result_code == 0:
+            status = "✅ SUCCESS"
+        elif result_code == 1:
+            status = "⚠️ WARNING"
+        elif result_code == 2:
+            status = "❌ CRITICAL"
+        else:
+            status = f"🔶 CODE_{result_code}"
+
+        # システム情報収集
+        overall_score = self.results.get("overall_score", 0)
+        overall_status = self.results.get("overall_status", "unknown")
+        phases_completed = len(self.results.get("phases", {}))
+
+        # 詳細分析結果
+        phase_summary = []
+        all_issues = []
+        urgent_actions = []
+
+        for phase_name, phase_data in self.results.get("phases", {}).items():
+            score = phase_data.get("score", 0)
+            phase_status = phase_data.get("status", "unknown")
+            issues = phase_data.get("issues", [])
+
+            phase_summary.append(
+                f"- **{phase_data.get('phase_name', phase_name)}**: {score:.1f}/100 ({phase_status})"
+            )
+            all_issues.extend(issues)
+
+        # 緊急アクション収集
+        phase4_data = self.results.get("phases", {}).get("phase4", {})
+        recommendations_data = phase4_data.get("checks", {}).get("recommendations", {})
+        urgent_actions = recommendations_data.get("urgent_actions", [])
+        general_recommendations = recommendations_data.get("recommendations", [])
+
+        # マークダウンコンテンツ生成
+        report_content = f"""# ops_monitor.py 実行レポート
+
+## 📊 実行サマリー
+- **分析タイプ**: `{analysis_type}`
+- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **実行結果**: {status}
+- **終了コード**: {result_code}
+
+## 🎯 システム情報
+- **プロジェクトルート**: `{PROJECT_ROOT}`
+- **Phase**: 12（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
+- **実行環境**: ops_monitor.py運用診断システム
+
+## 📋 総合結果
+- **総合スコア**: {overall_score:.1f}/100
+- **総合状態**: {overall_status}
+- **完了フェーズ数**: {phases_completed}
+- **検出問題数**: {len(all_issues)}
+
+### フェーズ別結果
+{chr(10).join(phase_summary) if phase_summary else "- フェーズ情報なし"}
+
+## 🚨 検出された問題
+"""
+
+        if all_issues:
+            critical_issues = [i for i in all_issues if i.get("severity") == "CRITICAL"]
+            high_issues = [i for i in all_issues if i.get("severity") == "HIGH"]
+            medium_issues = [i for i in all_issues if i.get("severity") == "MEDIUM"]
+
+            report_content += f"""
+### 重大問題 ({len(critical_issues)}件)
+"""
+            for issue in critical_issues[:5]:
+                report_content += (
+                    f"- **{issue.get('check', 'Unknown')}**: {issue.get('message', 'No details')}\n"
+                )
+
+            if high_issues:
+                report_content += f"""
+### 高優先度問題 ({len(high_issues)}件)
+"""
+                for issue in high_issues[:3]:
+                    report_content += f"- **{issue.get('check', 'Unknown')}**: {issue.get('message', 'No details')}\n"
+
+            if medium_issues:
+                report_content += f"""
+### 中優先度問題 ({len(medium_issues)}件)
+"""
+                for issue in medium_issues[:2]:
+                    report_content += f"- **{issue.get('check', 'Unknown')}**: {issue.get('message', 'No details')}\n"
+        else:
+            report_content += """
+✅ **問題は検出されませんでした**
+"""
+
+        # 推奨アクション
+        report_content += f"""
+
+## 🔧 推奨アクション
+"""
+
+        if result_code == 0:  # 成功時
+            report_content += f"""
+### ✅ 正常稼働時の次のステップ
+
+1. システム状態の定期監視を継続
+2. `python scripts/management/dev_check.py health-check` で品質確認
+3. パフォーマンスメトリクスの継続収集
+"""
+        elif result_code == 1:  # 警告時
+            report_content += f"""
+### ⚠️ 警告事項への対応
+
+1. 検出された問題の詳細確認
+2. `python scripts/management/dev_check.py validate` で品質チェック
+3. 問題の重要度に応じた対応スケジューリング
+"""
+        elif result_code == 2:  # 重大問題時
+            report_content += f"""
+### 🚨 緊急対応が必要
+
+1. **即座の対応が必要な問題があります**
+2. システム停止を検討してください
+3. 問題解決まで新規デプロイを停止
+"""
+
+        if urgent_actions:
+            report_content += f"""
+### 🚨 緊急アクション ({len(urgent_actions)}件)
+"""
+            for action in urgent_actions[:3]:
+                action_text = action.get("action", "Unknown action")
+                command = action.get("command", "")
+                category = action.get("category", "General")
+                report_content += f"- **[{category}]** {action_text}\n"
+                if command and not command.startswith("Review:"):
+                    report_content += f"  ```bash\n  {command}\n  ```\n"
+
+        if general_recommendations:
+            report_content += f"""
+### 💡 一般的な推奨事項 ({len(general_recommendations)}件)
+"""
+            for rec in general_recommendations[:3]:
+                action_text = rec.get("action", "Unknown action")
+                category = rec.get("category", "General")
+                report_content += f"- **[{category}]** {action_text}\n"
+
+        # フッター
+        report_content += f"""
+
+### 🆘 追加サポート
+
+このレポートを他のAIツールに共有して、具体的な修正方法を相談することができます。
+
+**共有時のポイント**:
+- 実行した分析タイプと結果コード
+- 総合スコアと状態
+- 重大問題の詳細
+- システム環境情報
+
+## 📊 詳細データ
+
+**実行パラメータ**:
+- 分析対象: 新システム全体
+- 実行フェーズ: {phases_completed}フェーズ
+- 総チェック項目: {sum(len(p.get('checks', {})) for p in self.results.get('phases', {}).values())}項目
+
+**レポートメタ情報**:
+- 自動生成: ops_monitor.py
+- BaseAnalyzer継承: ✅
+- Cloud Run連携: ✅
+
+---
+*このレポートは ops_monitor.py により自動生成されました*  
+*生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
+        # ファイルに書き込み
+        try:
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            logger.info(f"📁 Markdown report saved: {filepath}")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"Failed to save markdown report: {e}")
+            return ""
+
     # ===== BaseAnalyzer抽象メソッド実装 =====
 
     def run_analysis(self, target_phases: List[str] = None) -> Dict:
@@ -1487,6 +1719,7 @@ def main():
     parser = argparse.ArgumentParser(description="crypto-bot 新システム稼働状況確認システム")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログ出力")
     parser.add_argument("--save-report", "-s", action="store_true", help="レポートファイル保存")
+    parser.add_argument("--no-report", action="store_true", help="マークダウンレポート生成を無効化")
     parser.add_argument(
         "--phase",
         choices=["phase1", "phase2", "phase3", "phase4"],
@@ -1501,6 +1734,14 @@ def main():
 
     # システム実行
     checker = NewSystemOperationalStatusChecker(config_path=args.config)
+
+    # no-reportオプションでレポート機能を無効化
+    if args.no_report:
+        # save_report_to_fileメソッドを無効化
+        def no_save_report(*args, **kwargs):
+            return ""
+
+        checker.save_report_to_file = no_save_report
 
     target_phases = [args.phase] if args.phase else None
     results = checker.run_comprehensive_check(target_phases)

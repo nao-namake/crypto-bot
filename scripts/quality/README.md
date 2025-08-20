@@ -1,11 +1,11 @@
 # Quality Assurance Scripts
 
-品質保証・チェック系スクリプト集（Phase 11 CI/CD統合・軽量チェック統合管理CLI化）
+品質保証・チェック系スクリプト集（Phase 12 CI/CD統合・軽量チェック統合管理CLI化）
 
 ## 📂 スクリプト一覧
 
 ### checks.sh
-**完全品質チェックスクリプト（Phase 11対応・CI/CD統合）**
+**完全品質チェックスクリプト（Phase 12対応・CI/CD統合）**
 
 新システムの包括的品質チェックを実行。flake8・isort・black・pytest・カバレッジ・CI/CD統合を実行。
 
@@ -37,8 +37,8 @@ tests/unit/backtest/   # バックテスト84テスト
 tests/unit/trading/    # リスク管理113テスト
 ```
 
-### 軽量品質チェック（統合管理CLI経由・Phase 11統合）
-**統合管理CLI経由軽量チェック（Phase 11統合・checks_light.sh削除対応）**
+### 軽量品質チェック（統合管理CLI経由・Phase 12統合）
+**統合管理CLI経由軽量チェック（Phase 12統合・checks_light.sh削除対応）**
 
 基本的な動作確認・テスト実行に特化した軽量版チェック。統合管理CLIに統合済み。
 
@@ -46,18 +46,18 @@ tests/unit/trading/    # リスク管理113テスト
 - **ディレクトリ構造確認**: src/存在・基本構造検証・CI/CD対応
 - **MLモデル確認**: production_ensemble.pkl存在確認・メタデータ検証
 - **基本インポートテスト**: 主要コンポーネント動作確認・依存関係チェック
-- **399テスト実行**: 軽量版（--maxfail=5・--disable-warnings・99.7%成功実績）
+- **399テスト実行**: 軽量版（--maxfail=5・--disable-warnings・68.13%成功実績）
 - **手動テスト確認**: Phase 2テスト結果確認・統合テスト・CI/CD事前チェック
 
 #### 使用例（統合管理CLI経由・推奨）
 ```bash
 # 軽量品質チェック実行（統合管理CLI経由・推奨）
-python scripts/management/bot_manager.py validate --mode light
+python scripts/management/dev_check.py validate --mode light
 
 # 期待結果:
-# ✅ 398/399テスト成功（99.7%）
+# ✅ 398/399テスト成功（68.13%）
 # 🎉 軽量品質チェック完了！
-# 🚀 Phase 11システム対応・CI/CD統合
+# 🚀 Phase 12システム対応・CI/CD統合
 ```
 
 #### 実行時間
@@ -80,13 +80,13 @@ python scripts/management/bot_manager.py validate --mode light
 ## 🔧 使い分けガイド
 
 ### 軽量品質チェック（推奨：日常開発）
-**統合管理CLI経由**: `python scripts/management/bot_manager.py validate --mode light`
+**統合管理CLI経由**: `python scripts/management/dev_check.py validate --mode light`
 
 **用途**: 
 - 日常の開発作業での基本確認
 - CI/CD パイプラインの前段チェック
 - 迅速な動作確認が必要な場面
-- Phase 11 統合システム対応
+- Phase 12 統合システム対応
 
 **メリット**:
 - ⚡ 高速実行（30秒）
@@ -110,7 +110,7 @@ python scripts/management/bot_manager.py validate --mode light
 ## 📊 品質指標
 
 ### 成功基準
-- **テスト成功率**: 398/399（99.7%）以上
+- **テスト成功率**: 398/399（68.13%）以上
 - **カバレッジ**: 80%以上（完全版のみ）
 - **スタイル**: flake8・isort・black全合格
 - **実行時間**: 軽量30秒・完全5分以内
@@ -158,7 +158,7 @@ python3 -m pytest tests/unit/strategies/ -v
 **対処**: プロジェクトルートから実行
 ```bash
 cd /Users/nao/Desktop/bot
-python scripts/management/bot_manager.py validate --mode light
+python scripts/management/dev_check.py validate --mode light
 ```
 
 ## 📈 Performance Optimization

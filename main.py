@@ -1,15 +1,15 @@
 """
 暗号資産取引Bot - エントリーポイント
 
-Phase 1-11統合版・CI/CD統合・24時間監視・段階的デプロイ対応の薄いエントリーポイント。
+Phase 1-12統合版・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応の薄いエントリーポイント。
 具体的なビジネスロジックはTradingOrchestratorに委譲し、
 ここでは引数解析と基本設定のみを担当。
 
 設計原則:
 - エントリーポイント特化（60行以内）
 - ビジネスロジックはsrc/core/orchestrator.pyに委譲・GitHub Actions対応
-- テスト不要なレベルまで薄く設計・CI/CD品質ゲート対応
-- 保守性とシンプルさの両立・24時間監視・段階的デプロイ対応
+- テスト不要なレベルまで薄く設計・CI/CDワークフロー最適化対応
+- 保守性とシンプルさの両立・手動実行監視・段階的デプロイ対応
 """
 
 import argparse
@@ -33,13 +33,13 @@ except ImportError as e:
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 1-11統合版・CI/CD統合・24時間監視・段階的デプロイ対応",
+        description="暗号資産取引Bot - Phase 1-12統合版・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
   python main.py --mode paper              # ペーパートレード（デフォルト）
   python main.py --mode live               # ライブトレード
-  python main.py --mode backtest           # バックテスト（Phase 11完了・CI/CD統合対応）
+  python main.py --mode backtest           # バックテスト（Phase 12完了・CI/CDワークフロー最適化対応）
   python main.py --config config/prod.yaml # 本番設定使用
         """,
     )
@@ -72,7 +72,7 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(f"🚀 暗号資産取引Bot v11.0・CI/CD統合・24時間監視・段階的デプロイ対応 起動 - モード: {args.mode.upper()}")
+        logger.info(f"🚀 暗号資産取引Bot v12.0・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応 起動 - モード: {args.mode.upper()}")
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)

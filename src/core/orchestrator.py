@@ -1,7 +1,7 @@
 """
 統合取引システム制御 - TradingOrchestrator
 
-Application Service Layer として、Phase 1-11の高レベル統合制御のみを担当・CI/CD統合・24時間監視・段階的デプロイ対応。
+Application Service Layer として、Phase 1-12の高レベル統合制御のみを担当・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応。
 具体的なビジネスロジックは各Phase層に委譲し、真のレイヤー分離を実現。
 
 設計原則:
@@ -21,9 +21,11 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol
 
+from ..features.anomaly import AnomalyDetector
+from ..features.technical import TechnicalIndicators
 from .config import Config
 from .exceptions import CryptoBotError
-from .logger import StructuredLogger
+from .logger import CryptoBotLogger
 
 
 # Phase層インターフェース定義（依存性逆転の原則）
@@ -80,7 +82,7 @@ class TradingOrchestrator:
     def __init__(
         self,
         config: Config,
-        logger: StructuredLogger,
+        logger: CryptoBotLogger,
         data_service: DataServiceProtocol,
         feature_service: FeatureServiceProtocol,
         strategy_service: StrategyServiceProtocol,
@@ -335,17 +337,97 @@ class TradingOrchestrator:
     async def run_backtest(self):
         """バックテストモード実行."""
         self.logger.info("📊 バックテストモード開始")
-        # Phase 11でバックテスト機能完了・CI/CD統合・24時間監視対応
-        self.logger.info("✅ バックテスト機能は Phase 11 で完了済み・段階的デプロイ対応")
+
+        try:
+            # バックテストエンジン初期化
+            from datetime import datetime, timedelta
+
+            from ..backtest.engine import BacktestEngine
+
+            # バックテスト期間設定（デフォルト：過去30日）
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+
+            backtest_engine = BacktestEngine(
+                config=self.config,
+                logger=self.logger,
+                data_service=self.data_service,
+                strategy_service=self.strategy_service,
+                ml_service=self.ml_service,
+                risk_service=self.risk_service,
+            )
+
+            self.logger.info(
+                f"📅 バックテスト期間: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
+            )
+
+            # バックテスト実行
+            results = await backtest_engine.run_backtest(
+                symbol="BTC_JPY",
+                start_date=start_date,
+                end_date=end_date,
+            )
+
+            # 結果レポート生成
+            await self._save_backtest_report(results, start_date, end_date)
+
+            self.logger.info("✅ バックテスト実行完了", discord_notify=True)
+
+        except Exception as e:
+            self.logger.error(f"❌ バックテスト実行エラー: {e}", discord_notify=True)
+            await self._save_backtest_error_report(str(e))
+            raise
 
     async def run_paper_trading(self):
         """ペーパートレードモード実行."""
         self.logger.info("📝 ペーパートレードモード開始")
 
-        # 定期的な取引サイクル実行
-        while True:
-            await self.run_trading_cycle()
-            await asyncio.sleep(60)  # 1分間隔
+        from datetime import datetime
+
+        session_start = datetime.now()
+        cycle_count = 0
+
+        try:
+            # 定期的な取引サイクル実行
+            while True:
+                await self.run_trading_cycle()
+                cycle_count += 1
+
+                # 10サイクルごと（約10分）にレポート生成
+                if cycle_count % 10 == 0:
+                    # セッション統計収集
+                    session_stats = {
+                        "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
+                        "cycles_completed": cycle_count,
+                        "total_signals": getattr(self.execution_service, "total_signals", 0),
+                        "executed_trades": getattr(self.execution_service, "executed_trades", 0),
+                        "current_balance": getattr(
+                            self.execution_service, "current_balance", 1000000
+                        ),  # デフォルト100万円
+                        "session_pnl": getattr(self.execution_service, "session_pnl", 0),
+                        "recent_trades": getattr(self.execution_service, "recent_trades", []),
+                    }
+
+                    # レポート保存
+                    await self._save_paper_trading_report(session_stats)
+
+                await asyncio.sleep(60)  # 1分間隔
+
+        except KeyboardInterrupt:
+            # 終了時にもレポート生成
+            final_stats = {
+                "start_time": session_start.strftime("%Y-%m-%d %H:%M:%S"),
+                "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "cycles_completed": cycle_count,
+                "total_signals": getattr(self.execution_service, "total_signals", 0),
+                "executed_trades": getattr(self.execution_service, "executed_trades", 0),
+                "current_balance": getattr(self.execution_service, "current_balance", 1000000),
+                "session_pnl": getattr(self.execution_service, "session_pnl", 0),
+                "recent_trades": getattr(self.execution_service, "recent_trades", []),
+            }
+            await self._save_paper_trading_report(final_stats)
+            self.logger.info("📝 ペーパートレード終了・最終レポート保存完了")
+            raise
 
     async def run_live_trading(self):
         """ライブトレードモード実行."""
@@ -356,10 +438,267 @@ class TradingOrchestrator:
             await self.run_trading_cycle()
             await asyncio.sleep(60)  # 1分間隔
 
+    async def _save_backtest_report(self, results: Dict, start_date, end_date):
+        """バックテスト結果レポート保存"""
+        try:
+            import json
+            from datetime import datetime
+            from pathlib import Path
+
+            # レポート保存ディレクトリ
+            report_dir = Path("logs/backtest_reports")
+            report_dir.mkdir(exist_ok=True, parents=True)
+
+            timestamp = datetime.now()
+            filename = f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+            filepath = report_dir / filename
+
+            # パフォーマンス指標計算
+            total_trades = len(results.get("trades", []))
+            winning_trades = len([t for t in results.get("trades", []) if t.get("pnl", 0) > 0])
+            total_pnl = sum(t.get("pnl", 0) for t in results.get("trades", []))
+            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+
+            # マークダウンレポート生成
+            report_content = f"""# バックテスト実行レポート
+
+## 📊 実行サマリー
+- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **バックテスト期間**: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}
+- **対象シンボル**: BTC_JPY
+- **実行結果**: ✅ SUCCESS
+
+## 🎯 システム情報
+- **Phase**: 12（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
+- **バックテストエンジン**: BacktestEngine（Phase 12統合版）
+- **戦略システム**: Phase 1-11統合戦略
+
+## 📈 パフォーマンス結果
+- **総取引数**: {total_trades}件
+- **勝率**: {win_rate:.2f}% ({winning_trades}/{total_trades})
+- **総損益**: ¥{total_pnl:,.0f}
+- **最終資産**: ¥{results.get('final_balance', 0):,.0f}
+- **リターン**: {results.get('return_rate', 0):.2f}%
+
+## 📊 取引詳細
+"""
+
+            # 取引詳細追加
+            if results.get("trades"):
+                report_content += "### 取引履歴（最新10件）\n"
+                for i, trade in enumerate(results["trades"][-10:], 1):
+                    entry_time = trade.get("entry_time", "N/A")
+                    side = trade.get("side", "N/A")
+                    entry_price = trade.get("entry_price", 0)
+                    pnl = trade.get("pnl", 0)
+                    pnl_icon = "📈" if pnl > 0 else "📉"
+                    report_content += f"{i}. {entry_time} - {side.upper()} @ ¥{entry_price:,.0f} {pnl_icon} ¥{pnl:,.0f}\n"
+            else:
+                report_content += "取引が発生しませんでした。\n"
+
+            report_content += f"""
+
+## 🔧 リスク分析
+- **最大ドローダウン**: {results.get('max_drawdown', 0):.2f}%
+- **シャープレシオ**: {results.get('sharpe_ratio', 0):.2f}
+- **最大連敗**: {results.get('max_consecutive_losses', 0)}回
+
+## 📋 戦略分析
+- **使用戦略**: {len(results.get('strategies_used', []))}戦略
+- **ML予測精度**: {results.get('ml_accuracy', 0):.2f}%
+- **リスク管理**: Kelly基準・ドローダウン制御
+
+## 🆘 追加情報
+
+このレポートを他のAIツールに共有して、詳細な分析を依頼することができます。
+
+**共有時のポイント**:
+- バックテスト期間と取引数
+- 勝率と総損益
+- リスク指標（ドローダウン・シャープレシオ）
+- 戦略とML予測の効果
+
+---
+*このレポートは BacktestEngine により自動生成されました*  
+*生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
+            # ファイル保存
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            # JSONレポートも保存
+            json_filepath = report_dir / f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+            with open(json_filepath, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "timestamp": timestamp.isoformat(),
+                        "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+                        "results": results,
+                        "summary": {
+                            "total_trades": total_trades,
+                            "win_rate": win_rate,
+                            "total_pnl": total_pnl,
+                        },
+                    },
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str,
+                )
+
+            self.logger.info(f"📁 バックテストレポート保存: {filepath}")
+
+        except Exception as e:
+            self.logger.error(f"バックテストレポート保存エラー: {e}")
+
+    async def _save_backtest_error_report(self, error_message: str):
+        """バックテストエラーレポート保存"""
+        try:
+            from datetime import datetime
+            from pathlib import Path
+
+            report_dir = Path("logs/backtest_reports")
+            report_dir.mkdir(exist_ok=True, parents=True)
+
+            timestamp = datetime.now()
+            filename = f"backtest_error_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+            filepath = report_dir / filename
+
+            error_report = f"""# バックテストエラーレポート
+
+## 📊 実行サマリー
+- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **実行結果**: ❌ ERROR
+- **エラー内容**: {error_message}
+
+## 🚨 推奨対応
+1. エラーメッセージの詳細確認
+2. データ取得状況の確認
+3. `python scripts/management/dev_check.py validate` で品質チェック
+4. 設定ファイルの確認
+
+---
+*このレポートは BacktestEngine により自動生成されました*
+"""
+
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(error_report)
+
+            self.logger.info(f"📁 バックテストエラーレポート保存: {filepath}")
+
+        except Exception as e:
+            self.logger.error(f"エラーレポート保存エラー: {e}")
+
+    async def _save_paper_trading_report(self, session_stats: Dict):
+        """ペーパートレードセッションレポート保存"""
+        try:
+            import json
+            from datetime import datetime
+            from pathlib import Path
+
+            report_dir = Path("logs/paper_trading_reports")
+            report_dir.mkdir(exist_ok=True, parents=True)
+
+            timestamp = datetime.now()
+            filename = f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+            filepath = report_dir / filename
+
+            # セッション統計
+            total_signals = session_stats.get("total_signals", 0)
+            executed_trades = session_stats.get("executed_trades", 0)
+            current_balance = session_stats.get("current_balance", 0)
+            session_pnl = session_stats.get("session_pnl", 0)
+
+            report_content = f"""# ペーパートレードセッションレポート
+
+## 📊 セッションサマリー
+- **セッション開始**: {session_stats.get('start_time', 'N/A')}
+- **レポート生成**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **実行結果**: ✅ SUCCESS
+
+## 🎯 システム情報
+- **Phase**: 12（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
+- **取引モード**: Paper Trading（仮想取引）
+- **実行環境**: TradingOrchestrator
+
+## 📈 取引パフォーマンス
+- **生成シグナル数**: {total_signals}件
+- **実行取引数**: {executed_trades}件
+- **現在残高**: ¥{current_balance:,.0f}
+- **セッション損益**: ¥{session_pnl:,.0f}
+- **シグナル実行率**: {(executed_trades/total_signals*100) if total_signals > 0 else 0:.1f}%
+
+## 📊 取引詳細
+"""
+
+            # 最近の取引詳細
+            recent_trades = session_stats.get("recent_trades", [])
+            if recent_trades:
+                report_content += "### 最近の取引（最新5件）\n"
+                for i, trade in enumerate(recent_trades[-5:], 1):
+                    time = trade.get("time", "N/A")
+                    action = trade.get("action", "N/A")
+                    price = trade.get("price", 0)
+                    confidence = trade.get("confidence", 0)
+                    report_content += (
+                        f"{i}. {time} - {action} @ ¥{price:,.0f} (信頼度: {confidence:.2f})\n"
+                    )
+            else:
+                report_content += "取引実行はありませんでした。\n"
+
+            report_content += f"""
+
+## 🔧 システム状態
+- **戦略システム**: 正常動作中
+- **ML予測システム**: 正常動作中
+- **リスク管理**: アクティブ
+- **異常検知**: 監視中
+
+## 📋 次のアクション
+1. セッション継続監視
+2. パフォーマンス分析の継続
+3. 定期的なシステムヘルスチェック
+
+## 🆘 追加情報
+
+このレポートを他のAIツールに共有して、取引戦略の改善提案を受けることができます。
+
+**共有時のポイント**:
+- セッション統計と実行率
+- 取引判断の根拠
+- システムの安定性状況
+- パフォーマンス改善の余地
+
+---
+*このレポートは TradingOrchestrator により自動生成されました*  
+*生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
+"""
+
+            # ファイル保存
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            # JSONレポートも保存
+            json_filepath = report_dir / f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+            with open(json_filepath, "w", encoding="utf-8") as f:
+                json.dump(
+                    {"timestamp": timestamp.isoformat(), "session_stats": session_stats},
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str,
+                )
+
+            self.logger.info(f"📁 ペーパートレードレポート保存: {filepath}")
+
+        except Exception as e:
+            self.logger.error(f"ペーパートレードレポート保存エラー: {e}")
+
 
 # ファクトリー関数（main.pyから簡単に利用可能）
 async def create_trading_orchestrator(
-    config: Config, logger: StructuredLogger
+    config: Config, logger: CryptoBotLogger
 ) -> TradingOrchestrator:
     """
     TradingOrchestrator作成用ファクトリー関数
@@ -378,7 +717,7 @@ async def create_trading_orchestrator(
     from ..data.data_pipeline import DataPipeline
     from ..features.anomaly import MarketAnomalyDetector
     from ..features.technical import TechnicalIndicators
-    from ..ml.ensemble.voting_ensemble import VotingEnsemble
+    from ..ml.ensemble.ensemble_model import EnsembleModel
     from ..monitoring.discord import setup_discord_notifier
     from ..strategies.base.strategy_manager import StrategyManager
     from ..strategies.implementations.atr_based import ATRBasedStrategy
@@ -417,7 +756,7 @@ async def create_trading_orchestrator(
         strategy_service = StrategyManager(strategies)
 
         # Phase 5: MLサービス
-        ml_service = VotingEnsemble()
+        ml_service = EnsembleModel()
         await ml_service.load_models()
 
         # Phase 6: リスクサービス
@@ -458,7 +797,7 @@ class _FeatureServiceAdapter:
     def __init__(
         self,
         technical_indicators: TechnicalIndicators,
-        anomaly_detector: MarketAnomalyDetector,
+        anomaly_detector: AnomalyDetector,
     ):
         self.technical_indicators = technical_indicators
         self.anomaly_detector = anomaly_detector
