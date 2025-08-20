@@ -201,11 +201,13 @@ jobs:
         run: |
           # レポジトリ存在確認・作成
           if ! gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
-              --location=${{ env.REGION }} >/dev/null 2>&1; then
+              --location=${{ env.REGION }} \
+              --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
             echo "📦 Artifact Registryレポジトリ作成中..."
             gcloud artifacts repositories create ${{ env.REPOSITORY }} \
               --repository-format=docker \
               --location=${{ env.REGION }} \
+              --project=${{ env.PROJECT_ID }} \
               --description="Crypto Bot Docker Repository"
           else
             echo "✅ Artifact Registryレポジトリ確認済み"
