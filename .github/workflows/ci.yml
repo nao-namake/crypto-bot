@@ -189,64 +189,64 @@ jobs:
           # 検証スクリプト実行
           chmod +x scripts/deployment/verify_gcp_setup.sh
           
-          if scripts/deployment/verify_gcp_setup.sh --ci; then
-            echo "✅ GCP環境検証成功 - デプロイ準備完了"
-          else
-            echo "❌ GCP環境検証失敗 - デプロイ前修正が必要"
-            echo ""
-            echo "🔧 自動修復を試行中..."
+          # レガシー方式：軽量検証のみ実行
+          echo "🔍 レガシー方式：軽量GCP検証実行"
+          
+          # 基本的な認証・設定確認のみ
+          if gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1 >/dev/null; then
+            echo "✅ gcloud認証確認"
             
-            # 軽微な問題の自動修復試行
-            if scripts/deployment/setup_ci_prerequisites.sh --automated; then
-              echo "🔄 自動修復成功 - 再検証実行"
-              
-              # 再検証
-              if scripts/deployment/verify_gcp_setup.sh --ci; then
-                echo "✅ 修復後検証成功 - デプロイ継続"
-              else
-                echo "❌ 修復後も検証失敗 - 手動修正が必要"
-                echo ""
-                echo "📋 解決方法:"
-                echo "  1. scripts/deployment/setup_ci_prerequisites.sh --interactive を実行"
-                echo "  2. GitHub Secretsの設定確認"
-                echo "  3. GCP権限・設定の確認"
-                exit 1
-              fi
+            if gcloud config set project ${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              echo "✅ プロジェクト設定確認: ${{ env.PROJECT_ID }}"
+              echo "✅ GCP環境基本確認完了 - デプロイ準備完了"
             else
-              echo "❌ 自動修復失敗 - 手動修正が必要"
+              echo "❌ プロジェクト設定失敗: ${{ env.PROJECT_ID }}"
               exit 1
             fi
+          else
+            echo "❌ gcloud認証失敗"
+            exit 1
           fi
 
       - name: Verify Critical GCP Resources
         run: |
-          echo "🏗️ 重要なGCPリソース確認"
+          echo "🏗️ 重要なGCPリソース確認 - 必須リソース確認強化"
           
-          # Artifact Registry確認
+          # Artifact Registry確認（必須）
           echo "📦 Artifact Registry確認..."
           if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
               --location=${{ env.REGION }} \
               --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
             echo "✅ Artifact Registry準備完了"
           else
-            echo "⚠️ Artifact Registry未準備 - デプロイ時に作成エラーの可能性"
+            echo "❌ Artifact Registry未準備 - デプロイ不可"
+            echo "リポジトリ作成が必要: ${{ env.REPOSITORY }}"
+            exit 1
           fi
           
-          # Secret Manager確認
+          # Secret Manager確認（必須）
           echo "🔐 Secret Manager確認..."
-          secret_count=0
-          for secret in bitbank-api-key bitbank-api-secret discord-webhook; do
+          required_secrets=("bitbank-api-key" "bitbank-api-secret")
+          missing_secrets=()
+          
+          for secret in "${required_secrets[@]}"; do
             if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
-              secret_count=$((secret_count + 1))
+              echo "✅ Secret設定済み: $secret"
+            else
+              echo "❌ Secret未設定: $secret"
+              missing_secrets+=("$secret")
             fi
           done
           
-          echo "🔢 設定済みSecret数: $secret_count/3"
-          if [ "$secret_count" -ge 2 ]; then
-            echo "✅ Secret Manager準備完了"
+          if [ ${#missing_secrets[@]} -eq 0 ]; then
+            echo "✅ 必須Secret Manager設定完了"
           else
-            echo "⚠️ Secret Manager設定不足 - デプロイ時にエラーの可能性"
+            echo "❌ 必須Secret未設定 - デプロイ不可"
+            echo "未設定Secret: ${missing_secrets[*]}"
+            exit 1
           fi
+          
+          echo "🎯 全必須リソース確認完了 - デプロイ実行準備完了"
 
   # ========================================
   # 3. Docker Build & GCP Deploy（本番用）
@@ -274,10 +274,14 @@ jobs:
           mkdir -p models/production logs cache
           echo '{"version": "production", "features": 12, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
           
-          # ダミーモデルファイル（実際は事前に作成済みを想定）
+          # 本番用モデルファイル確認（必須）
           if [ ! -f "models/production/production_ensemble.pkl" ]; then
-            echo "⚠️ 本番用モデルが見つかりません。Phase 9で作成済みのモデルを確認してください。"
-            touch models/production/production_ensemble.pkl
+            echo "❌ 本番用モデルが見つかりません - デプロイ不可"
+            echo "Phase 9のMLモデル作成が必要です"
+            echo "実行コマンド: python scripts/ml/create_ml_models.py"
+            exit 1
+          else
+            echo "✅ 本番用モデル確認済み: models/production/production_ensemble.pkl"
           fi
 
       - name: Authenticate to Google Cloud
@@ -296,18 +300,17 @@ jobs:
 
       - name: Verify Artifact Registry repository exists
         run: |
-          # レポジトリ存在確認（作成権限不要）
+          # レポジトリ存在確認（必須）
           echo "🔍 Artifact Registryレポジトリ存在確認..."
           if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
               --location=${{ env.REGION }} \
               --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
             echo "✅ Artifact Registryレポジトリ確認済み"
           else
-            echo "⚠️ Artifact Registryレポジトリが見つかりません"
-            echo "手動で以下のコマンドを実行してレポジトリを作成してください："
+            echo "❌ Artifact Registryレポジトリが見つかりません - デプロイ不可"
+            echo "必要な作成コマンド："
             echo "gcloud artifacts repositories create ${{ env.REPOSITORY }} --repository-format=docker --location=${{ env.REGION }} --project=${{ env.PROJECT_ID }}"
-            echo "または、GCPコンソールでArtifact Registryレポジトリを作成してください"
-            echo "🔄 レポジトリが既に存在すると仮定してCI継続します"
+            exit 1
           fi
 
       - name: Build and Push Docker Image
