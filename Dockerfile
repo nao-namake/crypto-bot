@@ -33,7 +33,7 @@ RUN mkdir -p /app/cache /app/logs/trading \
     && chmod -R 755 /app/cache /app/logs
 
 # docker-entrypoint.sh（レガシー統合機能継承）
-COPY scripts/docker-entrypoint.sh /app/
+COPY scripts/deployment/docker-entrypoint.sh /app/
 RUN chmod +x /app/docker-entrypoint.sh
 
 # 非rootユーザー（セキュリティ強化）
