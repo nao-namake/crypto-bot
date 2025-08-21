@@ -98,7 +98,7 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     
     # ライブトレードをフォアグラウンドで実行
     echo "🔄 ライブトレード起動..."
-    python3 main.py --mode live --config config/production.yaml &
+    python3 main.py --mode live --config config/production/production.yaml &
     TRADING_PID=$!
     echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
     
