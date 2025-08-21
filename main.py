@@ -51,7 +51,7 @@ def parse_arguments():
         help="動作モード (default: paper)",
     )
     parser.add_argument(
-        "--config", default="config/base.yaml", help="設定ファイルパス (default: config/base.yaml)"
+        "--config", default="config/core/base.yaml", help="設定ファイルパス (default: config/core/base.yaml)"
     )
 
     return parser.parse_args()

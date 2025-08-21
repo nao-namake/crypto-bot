@@ -35,7 +35,7 @@ class DataLoader:
     キャッシュ機能により高速なバックテスト実行をサポート。.
     """
 
-    def __init__(self, config_path: str = "config/base.yaml"):
+    def __init__(self, config_path: str = "config/core/base.yaml"):
         self.logger = get_logger(__name__)
 
         # 設定読み込み

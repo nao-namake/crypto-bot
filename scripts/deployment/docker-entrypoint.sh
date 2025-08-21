@@ -43,7 +43,7 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
                 
                 # 簡易動作確認
                 executor = create_order_executor(mode='paper')
-                config = load_config('config/base.yaml')
+                config = load_config('config/core/base.yaml')
                 
                 health_data = {
                     "status": "healthy",
@@ -89,7 +89,7 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     
     # ヘルスチェックサーバーをバックグラウンド起動
     echo "🌐 ヘルスチェックサーバーをバックグラウンド起動..."
-    python /app/health_server.py &
+    python3 /app/health_server.py &
     HEALTH_PID=$!
     echo "✅ ヘルスチェックサーバー起動完了 (PID: $HEALTH_PID)"
     
@@ -98,7 +98,7 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     
     # ライブトレードをフォアグラウンドで実行
     echo "🔄 ライブトレード起動..."
-    python main.py --mode live --config config/production.yaml &
+    python3 main.py --mode live --config config/production.yaml &
     TRADING_PID=$!
     echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
     
@@ -107,7 +107,7 @@ elif [ "$MODE" = "paper" ]; then
     
     # ヘルスチェックサーバーをバックグラウンド起動
     echo "🌐 ヘルスチェックサーバーをバックグラウンド起動..."
-    python /app/health_server.py &
+    python3 /app/health_server.py &
     HEALTH_PID=$!
     echo "✅ ヘルスチェックサーバー起動完了 (PID: $HEALTH_PID)"
     
@@ -116,7 +116,7 @@ elif [ "$MODE" = "paper" ]; then
     
     # ペーパートレードをフォアグラウンドで実行
     echo "🔄 ペーパートレード起動..."
-    python main.py --mode paper --config config/base.yaml &
+    python3 main.py --mode paper --config config/core/base.yaml &
     TRADING_PID=$!
     echo "✅ ペーパートレード起動完了 (PID: $TRADING_PID)"
     
