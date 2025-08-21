@@ -462,19 +462,19 @@ jobs:
               "stage-10")
                 echo "🔄 10%トラフィック移行"
                 gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-latest=10 \
+                  --to-revisions=LATEST=10 \
                   --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
                 ;;
               "stage-50")
                 echo "🔄 50%トラフィック移行"
                 gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-latest=50 \
+                  --to-revisions=LATEST=50 \
                   --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
                 ;;
               "live")
                 echo "🔄 100%トラフィック移行"
                 gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-latest=100 \
+                  --to-latest \
                   --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
                 ;;
             esac
@@ -482,7 +482,7 @@ jobs:
             echo "📋 ペーパートレードモード：トラフィック配分なし"
             # ペーパートレードは100%新リビジョン
             gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-              --to-latest=100 \
+              --to-latest \
               --region=${{ env.REGION }}
           fi
           
