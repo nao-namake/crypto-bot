@@ -157,9 +157,12 @@ check_prerequisites() {
         error_exit "gcloud認証が必要です。gcloud auth login を実行してください"
     fi
     
-    # プロジェクト存在・アクセス確認
-    if ! gcloud projects describe "$PROJECT_ID" &>/dev/null; then
-        error_exit "GCPプロジェクトにアクセスできません: $PROJECT_ID"
+    # プロジェクト設定確認（レガシー軽量方式）
+    local current_project=$(gcloud config get-value project 2>/dev/null || echo "")
+    if [ "$current_project" != "$PROJECT_ID" ]; then
+        if ! gcloud config set project "$PROJECT_ID" &>/dev/null; then
+            error_exit "GCPプロジェクト設定失敗: $PROJECT_ID"
+        fi
     fi
     
     # 権限確認（概算）

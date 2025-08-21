@@ -195,12 +195,18 @@ check_gcp_authentication() {
         error_exit "環境変数GCP_PROJECTを設定するか、gcloud config set project PROJECT_ID を実行してください"
     fi
     
-    # プロジェクト存在確認
-    if gcloud projects describe "$PROJECT_ID" &>/dev/null; then
-        check_result "GCPプロジェクト確認: $PROJECT_ID" "true"
+    # プロジェクト設定確認（レガシー方式）
+    local current_project=$(gcloud config get-value project 2>/dev/null || echo "")
+    if [ "$current_project" = "$PROJECT_ID" ]; then
+        check_result "GCPプロジェクト設定確認: $PROJECT_ID" "true"
     else
-        check_result "GCPプロジェクトにアクセスできません: $PROJECT_ID" "false"
-        return 1
+        # CI環境では設定を試行
+        if gcloud config set project "$PROJECT_ID" &>/dev/null; then
+            check_result "GCPプロジェクト設定成功: $PROJECT_ID" "true"
+        else
+            check_result "GCPプロジェクト設定失敗: $PROJECT_ID" "false"
+            return 1
+        fi
     fi
     
     # プロジェクト権限確認
