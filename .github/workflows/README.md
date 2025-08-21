@@ -2,13 +2,17 @@
 
 Phase 12 CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応のワークフロー集
 
+**最新修正**: CI/CD稼働確実性向上・スキップ問題根本解決・必須リソース確認強化（2025年8月21日）
+
 ## 📂 ワークフロー一覧
 
 ### **🚀 ci.yml - CI/CDパイプライン**
 
-**CI/CDワークフロー最適化・段階的デプロイ・品質保証システム（Phase 12対応・レガシー改良版）**
+**CI/CDワークフロー最適化・段階的デプロイ・品質保証システム（Phase 12対応・稼働確実性向上版）**
 
 本格的なCI/CDパイプライン。品質チェック・Docker Build・GCP Cloud Run段階的デプロイ・コスト最適化・レガシー知見活用を統合実行。
+
+**稼働確実性向上**: スキップ問題根絶・必須リソース確認強化・レガシー軽量検証採用。
 
 #### 主要機能
 
@@ -17,6 +21,12 @@ Phase 12 CI/CDワークフロー最適化・手動実行監視・段階的デプ
 - **テスト実行**: 450テスト・戦略層・ML層・取引層・バックテスト層・データ層
 - **コード品質**: flake8・black・isort・構文チェック・docstring統一
 - **システム統合**: phase-check・data-check・インポートテスト
+
+**GCP環境事前確認（gcp-environment-check）**: **★2025年8月21日新設★**
+- **レガシー軽量検証**: `gcloud config set project`による軽量プロジェクト設定確認
+- **必須リソース確認強化**: Artifact Registry・Secret Manager存在確認（exit 1で停止）
+- **スキップ問題根絶**: ⚠️警告で継続 → ❌エラーで停止・確実稼働保証
+- **本番用モデル確認**: `models/production/production_ensemble.pkl`存在確認（必須）
 
 **Docker Build & Deploy（build-deploy）**:
 - **認証**: GCP Workload Identity・セキュアな認証・権限最小化
