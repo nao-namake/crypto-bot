@@ -69,6 +69,21 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps(error_data, indent=2).encode())
+        elif self.path == '/':
+            # 基本動作確認エンドポイント
+            basic_info = {
+                "service": "crypto-bot-service-prod",
+                "version": "Phase 12 完了",
+                "status": "operational",
+                "timestamp": datetime.now().isoformat(),
+                "mode": os.environ.get('MODE', 'paper'),
+                "health_endpoint": "/health"
+            }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(basic_info, indent=2).encode())
         else:
             self.send_response(404)
             self.end_headers()
