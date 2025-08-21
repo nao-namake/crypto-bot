@@ -81,7 +81,12 @@ class NewSystemMLModelCreator:
         self.production_dir.mkdir(parents=True, exist_ok=True)
 
         # データパイプライン初期化
-        self.data_pipeline = DataPipeline()
+        try:
+            self.data_pipeline = DataPipeline()
+            self.logger.info("✅ データパイプライン初期化完了")
+        except Exception as e:
+            self.logger.error(f"❌ データパイプライン初期化失敗: {e}")
+            raise
 
         # 特徴量エンジン初期化
         self.technical_indicators = TechnicalIndicators()
@@ -324,12 +329,15 @@ class NewSystemMLModelCreator:
                 self.logger.error(f"❌ {model_name} 学習エラー: {e}")
                 results[model_name] = {"error": str(e)}
 
-        # アンサンブルモデル作成
+        # アンサンブルモデル作成（individual_modelsのみを使用・循環参照防止）
         if len(trained_models) >= 2:
             try:
-                ensemble_model = self._create_ensemble(trained_models)
+                # ProductionEnsemble自体を含まないように個別モデルのみ渡す
+                individual_models_only = {k: v for k, v in trained_models.items() 
+                                        if k != "production_ensemble"}
+                ensemble_model = self._create_ensemble(individual_models_only)
                 trained_models["production_ensemble"] = ensemble_model
-                self.logger.info("✅ アンサンブルモデル作成完了")
+                self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
             except Exception as e:
                 self.logger.error(f"❌ アンサンブル作成エラー: {e}")
 
@@ -374,9 +382,9 @@ class NewSystemMLModelCreator:
                         "phase": "Phase 9",
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
-                        "individual_models": list(model.models.keys()),
+                        "individual_models": [k for k in model.models.keys() if k != "production_ensemble"],
                         "model_weights": model.weights,
-                        "notes": "本番用統合アンサンブルモデル・実取引用最適化済み",
+                        "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正",
                     }
 
                     production_metadata_file = (

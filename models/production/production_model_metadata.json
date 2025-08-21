@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-08-21T12:52:06.761587",
+  "created_at": "2025-08-21T22:40:56.823457",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "phase": "Phase 9",
@@ -21,13 +21,12 @@
   "individual_models": [
     "lightgbm",
     "xgboost",
-    "random_forest",
-    "production_ensemble"
+    "random_forest"
   ],
   "model_weights": {
     "lightgbm": 0.4,
     "xgboost": 0.4,
     "random_forest": 0.2
   },
-  "notes": "本番用統合アンサンブルモデル・実取引用最適化済み"
+  "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正"
 }
