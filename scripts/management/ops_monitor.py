@@ -307,7 +307,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         try:
             # 軽量テスト実行（タイムアウト付き）
             cmd = [
-                "python",
+                "python3",
                 "-m",
                 "pytest",
                 "tests/unit/",
@@ -446,11 +446,11 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         logger.info("🔍 Checking data pipeline health...")
 
         try:
-            # DataPipeline基本動作確認
-            from src.core.config import Config
+            # DataPipeline基本動作確認（Phase 12対応）
+            from src.core.config import load_config
             from src.data.data_pipeline import DataPipeline
 
-            config = Config()
+            config = load_config('config/core/base.yaml')
             _ = DataPipeline(config)  # pipeline - インスタンス化テストのみ
 
             # 基本的な接続テスト（軽量）
@@ -517,11 +517,11 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         logger.info("🔍 Checking strategy system health...")
 
         try:
-            # StrategyManager基本動作確認
-            from src.core.config import Config
+            # StrategyManager基本動作確認（Phase 12対応）
+            from src.core.config import load_config
             from src.strategies.base.strategy_manager import StrategyManager
 
-            config = Config()
+            config = load_config('config/core/base.yaml')
             strategy_manager = StrategyManager(config)
 
             # 戦略インスタンス化確認
@@ -548,12 +548,12 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         logger.info("🔍 Checking trading risk system...")
 
         try:
-            # RiskManager基本動作確認
-            from src.core.config import Config
-            from src.trading.risk import RiskManager
+            # IntegratedRiskManager基本動作確認（Phase 12対応）
+            from src.core.config import load_config
+            from src.trading.risk import IntegratedRiskManager
 
-            config = Config()
-            risk_manager = RiskManager(config)
+            config = load_config('config/core/base.yaml')
+            risk_manager = IntegratedRiskManager(config)
 
             # Kelly基準テスト（ダミーデータ）
             test_data = {
@@ -833,7 +833,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         try:
             # 簡易テスト実行で失敗率確認
             cmd = [
-                "python",
+                "python3",
                 "-m",
                 "pytest",
                 "tests/unit/",
