@@ -30,11 +30,11 @@ set -euo pipefail
 # 設定・定数定義（Phase 12 + レガシー改良）
 # ========================================
 
-# GCPプロジェクト設定（環境変数優先、フォールバック）
-PROJECT_ID="${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || echo "")}"
-REGION="${GCP_REGION:-asia-northeast1}"
-REPOSITORY="${ARTIFACT_REPOSITORY:-crypto-bot-repo}"
-SERVICE_NAME="${CLOUD_RUN_SERVICE:-crypto-bot-service}"
+# GCPプロジェクト設定（環境変数優先、フォールバック・GitHub Actions対応）
+PROJECT_ID="${PROJECT_ID:-${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || echo "")}}"
+REGION="${REGION:-${GCP_REGION:-asia-northeast1}}"
+REPOSITORY="${REPOSITORY:-${ARTIFACT_REPOSITORY:-crypto-bot-repo}}"
+SERVICE_NAME="${SERVICE_NAME:-${CLOUD_RUN_SERVICE:-crypto-bot-service}}"
 
 # GitHub Actions統合設定
 GITHUB_SA_NAME="github-actions-sa"
