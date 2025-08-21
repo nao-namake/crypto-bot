@@ -235,6 +235,20 @@ bash scripts/quality/checks_light.sh
 python3 --version  # 3.11.x推奨
 ```
 
+**5. Docker環境クリーンアップ（月次推奨）**
+```bash
+# Docker Desktop手動削除
+# 1. Docker Desktop → Builds → Build History全削除
+# 2. Docker Desktop → Images → 古いイメージ削除
+
+# コマンドラインクリーンアップ
+docker system prune -a -f --volumes    # 全要素削除
+docker buildx prune -a -f               # Build キャッシュ削除
+docker builder prune -a -f              # Builder削除
+
+# 期待結果: 25GB→数GB削減・Docker Desktop Build History 0個
+```
+
 ## 📋 重要ファイル（Phase 12最終版）
 
 ### **必須ファイル**
@@ -247,6 +261,7 @@ python3 --version  # 3.11.x推奨
 - **logs/**: 自動レポート（4種類・定期クリーンアップ対象）
 - **scripts/deployment/**: GCP CI/CD・自動診断
 - **scripts/quality/**: 品質チェック（400+テスト）
+- **Docker環境**: 定期クリーンアップ必須（Build History・キャッシュ・古いイメージ）
 
 ### **レガシー参考**
 - **_legacy_v1/**: 旧システム（参考のみ・コピペ禁止）
@@ -257,10 +272,10 @@ python3 --version  # 3.11.x推奨
 
 **🚀 個人向けAI自動取引システム完全版**:
 - **技術的完成**: 400+テスト・CI/CD統合・本番運用準備
-- **運用効率化**: GCP337個リソース削除・月額最適化・定期クリーンアップ体制
+- **運用効率化**: GCP337個リソース削除・Docker環境23.9GB削除・月額最適化・定期クリーンアップ体制
 - **品質保証**: 99.7%テスト成功・統合分析・24時間監視対応
-- **保守性向上**: 31個README・統一インターフェース・トラブルシューティング完備
+- **保守性向上**: 31個README・統一インターフェース・トラブルシューティング完備・Docker履歴管理
 
 **🎯 月額2,000円以内・高品質・個人開発最適化を達成した究極のAI自動取引システム**
 
-*GCPリソース定期削除・品質保証継続・実用性重視を基盤とした持続可能なシステム運用体制確立*
+*GCP・Docker定期クリーンアップ・品質保証継続・実用性重視を基盤とした持続可能なシステム運用体制確立*
