@@ -1,8 +1,8 @@
 # Deployment Scripts
 
-デプロイ・Docker・本番環境系スクリプト集（Phase 12 CI/CD統合・手動実行監視・実データ収集対応・CI/CD完全成功）
+デプロイ・Docker・本番環境系スクリプト集（Phase 12 CI/CD全8回修正完了・Secret Manager統合・稼働確実性達成）
 
-**CI/CD完全成功**: 全根本原因解決完了・Workload Identity・本番用モデル・Dockerfile修正（2025年8月21日）
+**CI/CD全8回修正完了**: 全根本原因解決・Secret Manager名前統合・構文修正・本番運用準備（2025年8月21日）
 
 ## 📂 スクリプト一覧
 
