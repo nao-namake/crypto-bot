@@ -174,8 +174,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
           access_token_lifetime: 1800s
 
       - name: Set up Cloud SDK
@@ -192,11 +192,18 @@ jobs:
           # レガシー方式：認証確認強化版（権限反映ラグ対応）
           echo "🔍 レガシー方式：軽量GCP検証実行"
           
-          # 1. 認証状態詳細確認
+          # 1. 認証状態詳細確認（Service Account偽装確認）
           echo "🔐 認証状態確認..."
           ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1)
           if [ -n "$ACTIVE_ACCOUNT" ]; then
             echo "✅ gcloud認証確認: $ACTIVE_ACCOUNT"
+            # Service Account偽装確認
+            if [[ "$ACTIVE_ACCOUNT" == *"github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"* ]]; then
+              echo "✅ Service Account偽装成功: github-deployer"
+            else
+              echo "⚠️ Service Account偽装未確認: $ACTIVE_ACCOUNT"
+              echo "デバッグ: Workload Identity Poolから Service Account への偽装確認中..."
+            fi
           else
             echo "❌ gcloud認証失敗"
             exit 1
@@ -321,8 +328,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
           access_token_lifetime: 3600s
 
       - name: Set up Cloud SDK
