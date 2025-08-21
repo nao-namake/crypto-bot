@@ -34,10 +34,10 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || echo "")}}"
 REGION="${REGION:-${GCP_REGION:-asia-northeast1}}"
 REPOSITORY="${REPOSITORY:-${ARTIFACT_REPOSITORY:-crypto-bot-repo}}"
-SERVICE_NAME="${SERVICE_NAME:-${CLOUD_RUN_SERVICE:-crypto-bot-service}}"
+SERVICE_NAME="${SERVICE_NAME:-${CLOUD_RUN_SERVICE:-crypto-bot-service-prod}}"
 
 # GitHub Actions統合設定
-GITHUB_SA="github-actions-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+GITHUB_SA="github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 WIF_POOL_ID="github-pool"
 WIF_PROVIDER_ID="github-provider"
 
@@ -170,6 +170,20 @@ check_gcp_authentication() {
     if gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1 &> /dev/null; then
         local active_account=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1)
         check_result "gcloud認証済み (アカウント: $active_account)" "true"
+        
+        # GitHub Actions環境特有の Workload Identity 権限チェック追加
+        if [[ "$active_account" == *"principal://"* ]]; then
+            log "INFO" "GitHub Actions Workload Identity検出 - 詳細権限確認中"
+            
+            # GitHub Actions環境での実際のプロジェクトアクセス確認
+            if ! gcloud projects describe "$PROJECT_ID" >/dev/null 2>&1; then
+                check_result "GitHub Actions Workload Identity権限不足（プロジェクトアクセス不可）" "false"
+                log "ERROR" "解決方法: GitHub Actions用サービスアカウント($GITHUB_SA)にWorkload Identity User権限の確認が必要"
+                return 1
+            else
+                check_result "GitHub Actions Workload Identity権限確認" "true"
+            fi
+        fi
     else
         check_result "gcloud認証が必要です。gcloud auth login を実行してください" "false"
         return 1
