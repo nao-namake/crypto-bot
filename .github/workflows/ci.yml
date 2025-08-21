@@ -189,51 +189,85 @@ jobs:
           # 検証スクリプト実行
           chmod +x scripts/deployment/verify_gcp_setup.sh
           
-          # レガシー方式：軽量検証のみ実行
+          # レガシー方式：認証確認強化版（権限反映ラグ対応）
           echo "🔍 レガシー方式：軽量GCP検証実行"
           
-          # 基本的な認証・設定確認のみ
-          if gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1 >/dev/null; then
-            echo "✅ gcloud認証確認"
-            
-            if gcloud config set project ${{ env.PROJECT_ID }} >/dev/null 2>&1; then
-              echo "✅ プロジェクト設定確認: ${{ env.PROJECT_ID }}"
-              echo "✅ GCP環境基本確認完了 - デプロイ準備完了"
-            else
-              echo "❌ プロジェクト設定失敗: ${{ env.PROJECT_ID }}"
-              exit 1
-            fi
+          # 1. 認証状態詳細確認
+          echo "🔐 認証状態確認..."
+          ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1)
+          if [ -n "$ACTIVE_ACCOUNT" ]; then
+            echo "✅ gcloud認証確認: $ACTIVE_ACCOUNT"
           else
             echo "❌ gcloud認証失敗"
             exit 1
           fi
-
-      - name: Verify Critical GCP Resources
-        run: |
-          echo "🏗️ 重要なGCPリソース確認 - 必須リソース確認強化"
           
-          # Artifact Registry確認（必須）
-          echo "📦 Artifact Registry確認..."
-          if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
-              --location=${{ env.REGION }} \
-              --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
-            echo "✅ Artifact Registry準備完了"
+          # 2. プロジェクト設定確実化
+          echo "🏗️ プロジェクト設定確実化..."
+          if gcloud config set project ${{ env.PROJECT_ID }}; then
+            # 設定確認
+            CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
+            if [ "$CURRENT_PROJECT" = "${{ env.PROJECT_ID }}" ]; then
+              echo "✅ プロジェクト設定確認: ${{ env.PROJECT_ID }}"
+            else
+              echo "❌ プロジェクト設定不一致: expected=${{ env.PROJECT_ID }}, actual=$CURRENT_PROJECT"
+              exit 1
+            fi
           else
-            echo "❌ Artifact Registry未準備 - デプロイ不可"
-            echo "リポジトリ作成が必要: ${{ env.REPOSITORY }}"
+            echo "❌ プロジェクト設定失敗: ${{ env.PROJECT_ID }}"
             exit 1
           fi
           
-          # Secret Manager確認（必須）
+          # 3. 権限反映待機（認証ラグ対応）
+          echo "⏳ 権限反映待機（3秒）..."
+          sleep 3
+          
+          echo "✅ GCP環境基本確認完了 - リソース確認へ移行"
+
+      - name: Verify Critical GCP Resources
+        run: |
+          echo "🏗️ 重要なGCPリソース確認 - 必須リソース確認強化（権限反映ラグ対応版）"
+          
+          # 認証状態再確認
+          echo "🔐 認証状態再確認..."
+          CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
+          if [ "$CURRENT_PROJECT" != "${{ env.PROJECT_ID }}" ]; then
+            echo "❌ プロジェクト設定異常: $CURRENT_PROJECT"
+            exit 1
+          fi
+          echo "✅ プロジェクト設定正常: $CURRENT_PROJECT"
+          
+          # Artifact Registry確認（必須・エラーハンドリング強化）
+          echo "📦 Artifact Registry確認..."
+          if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
+              --location=${{ env.REGION }} \
+              --project=${{ env.PROJECT_ID }} 2>/tmp/artifact_error.log; then
+            echo "✅ Artifact Registry準備完了"
+          else
+            echo "❌ Artifact Registry確認失敗"
+            echo "エラー詳細:"
+            cat /tmp/artifact_error.log
+            echo ""
+            echo "デバッグ情報:"
+            echo "- プロジェクト: ${{ env.PROJECT_ID }}"
+            echo "- リージョン: ${{ env.REGION }}"
+            echo "- リポジトリ: ${{ env.REPOSITORY }}"
+            echo "- 認証アカウント: $(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n1)"
+            exit 1
+          fi
+          
+          # Secret Manager確認（必須・詳細エラー）
           echo "🔐 Secret Manager確認..."
           required_secrets=("bitbank-api-key" "bitbank-api-secret")
           missing_secrets=()
           
           for secret in "${required_secrets[@]}"; do
-            if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+            if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} 2>/tmp/secret_error_${secret}.log; then
               echo "✅ Secret設定済み: $secret"
             else
               echo "❌ Secret未設定: $secret"
+              echo "エラー詳細:"
+              cat /tmp/secret_error_${secret}.log
               missing_secrets+=("$secret")
             fi
           done
