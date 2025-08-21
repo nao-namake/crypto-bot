@@ -450,7 +450,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             from src.core.config import load_config
             from src.data.data_pipeline import DataPipeline
 
-            config = load_config('config/core/base.yaml')
+            config = load_config("config/core/base.yaml")
             _ = DataPipeline(config)  # pipeline - インスタンス化テストのみ
 
             # 基本的な接続テスト（軽量）
@@ -521,7 +521,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             from src.core.config import load_config
             from src.strategies.base.strategy_manager import StrategyManager
 
-            config = load_config('config/core/base.yaml')
+            config = load_config("config/core/base.yaml")
             strategy_manager = StrategyManager(config)
 
             # 戦略インスタンス化確認
@@ -552,7 +552,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             from src.core.config import load_config
             from src.trading.risk import IntegratedRiskManager
 
-            config = load_config('config/core/base.yaml')
+            config = load_config("config/core/base.yaml")
             risk_manager = IntegratedRiskManager(config)
 
             # Kelly基準テスト（ダミーデータ）

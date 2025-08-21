@@ -295,7 +295,7 @@ class NewSystemMLModelCreator:
                         target.iloc[val_idx],
                     )
 
-                    # モデル学習
+                    # モデル学習（DataFrameのまま渡してsklearn警告回避）
                     model.fit(X_train, y_train)
 
                     # 予測・評価
@@ -303,7 +303,10 @@ class NewSystemMLModelCreator:
                     score = f1_score(y_val, y_pred, average="weighted")
                     cv_scores.append(score)
 
-                # 全データで最終モデル学習
+                # 全データで最終モデル学習（DataFrameのまま渡してsklearn警告回避）
+                # featuresがDataFrameであることを確実にする
+                if not isinstance(features, pd.DataFrame):
+                    features = pd.DataFrame(features, columns=self.expected_features)
                 model.fit(features, target)
 
                 # 評価指標計算
@@ -333,8 +336,9 @@ class NewSystemMLModelCreator:
         if len(trained_models) >= 2:
             try:
                 # ProductionEnsemble自体を含まないように個別モデルのみ渡す
-                individual_models_only = {k: v for k, v in trained_models.items() 
-                                        if k != "production_ensemble"}
+                individual_models_only = {
+                    k: v for k, v in trained_models.items() if k != "production_ensemble"
+                }
                 ensemble_model = self._create_ensemble(individual_models_only)
                 trained_models["production_ensemble"] = ensemble_model
                 self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
@@ -382,7 +386,9 @@ class NewSystemMLModelCreator:
                         "phase": "Phase 9",
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
-                        "individual_models": [k for k in model.models.keys() if k != "production_ensemble"],
+                        "individual_models": [
+                            k for k in model.models.keys() if k != "production_ensemble"
+                        ],
                         "model_weights": model.weights,
                         "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正",
                     }
@@ -451,8 +457,11 @@ class NewSystemMLModelCreator:
                     validation_passed = False
                     continue
 
-                # サンプル予測テスト
-                sample_features = np.random.random((5, 12))  # 12特徴量
+                # サンプル予測テスト（DataFrameでsklearn警告回避）
+                sample_features_array = np.random.random((5, 12))  # 12特徴量
+                sample_features = pd.DataFrame(
+                    sample_features_array, columns=self.expected_features
+                )
                 prediction = model.predict(sample_features)
 
                 if len(prediction) == 5:

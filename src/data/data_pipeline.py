@@ -303,13 +303,13 @@ class DataPipeline:
     ) -> pd.DataFrame:
         """
         バックテスト用の過去データ取得（非同期版）
-        
+
         Args:
             symbol: 通貨ペア
             timeframe: 時間軸
-            since: 開始日時  
+            since: 開始日時
             limit: 取得数制限
-            
+
         Returns:
             pd.DataFrame: 過去データ
         """
@@ -323,9 +323,9 @@ class DataPipeline:
                 "4h": TimeFrame.H4,
                 "1d": TimeFrame.D1,
             }
-            
+
             tf_enum = timeframe_map.get(timeframe.lower(), TimeFrame.H1)
-            
+
             # DataRequestを作成して既存のfetch_ohlcvを使用
             request = DataRequest(
                 symbol=symbol,
@@ -333,13 +333,13 @@ class DataPipeline:
                 limit=limit,
                 since=since,
             )
-            
+
             # 同期メソッドを非同期コンテキストで実行
             data = self.fetch_ohlcv(request, use_cache=True)
-            
+
             self.logger.info(f"Historical data fetched: {len(data)} rows for {symbol} {timeframe}")
             return data
-            
+
         except Exception as e:
             self.logger.error(f"Historical data fetch error: {e}")
             # 空のDataFrameを返す（エラー対応）

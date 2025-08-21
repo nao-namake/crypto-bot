@@ -73,25 +73,36 @@ class ProductionEnsemble:
         Returns:
             np.ndarray: 予測クラス（0 or 1）.
         """
+        # pandas DataFrameの場合は特徴量名を設定
         if hasattr(X, "values"):
-            X = X.values
+            X_array = X.values
+        else:
+            X_array = X
 
         # 入力形状検証
-        if X.shape[1] != self.n_features_:
-            raise ValueError(f"特徴量数不一致: {X.shape[1]} != {self.n_features_}")
+        if X_array.shape[1] != self.n_features_:
+            raise ValueError(f"特徴量数不一致: {X_array.shape[1]} != {self.n_features_}")
+
+        # sklearn警告回避のため特徴量名付きDataFrameを作成
+        import pandas as pd
+
+        if not isinstance(X, pd.DataFrame):
+            X_with_names = pd.DataFrame(X_array, columns=self.feature_names)
+        else:
+            X_with_names = X
 
         predictions = {}
 
-        # 各モデルから予測取得
+        # 各モデルから予測取得（特徴量名付きで）
         for name, model in self.models.items():
             if hasattr(model, "predict"):
-                pred = model.predict(X)
+                pred = model.predict(X_with_names)
                 predictions[name] = pred
             else:
                 raise ValueError(f"モデル {name} にpredictメソッドがありません")
 
         # 重み付け平均計算
-        ensemble_pred = np.zeros(len(X))
+        ensemble_pred = np.zeros(len(X_array))
         total_weight = 0
 
         for name, pred in predictions.items():
@@ -112,24 +123,35 @@ class ProductionEnsemble:
         Returns:
             np.ndarray: 予測確率 [[P(class=0), P(class=1)], ...].
         """
+        # pandas DataFrameの場合は特徴量名を設定
         if hasattr(X, "values"):
-            X = X.values
+            X_array = X.values
+        else:
+            X_array = X
 
         # 入力形状検証
-        if X.shape[1] != self.n_features_:
-            raise ValueError(f"特徴量数不一致: {X.shape[1]} != {self.n_features_}")
+        if X_array.shape[1] != self.n_features_:
+            raise ValueError(f"特徴量数不一致: {X_array.shape[1]} != {self.n_features_}")
+
+        # sklearn警告回避のため特徴量名付きDataFrameを作成
+        import pandas as pd
+
+        if not isinstance(X, pd.DataFrame):
+            X_with_names = pd.DataFrame(X_array, columns=self.feature_names)
+        else:
+            X_with_names = X
 
         probabilities = {}
 
-        # 各モデルから確率取得
+        # 各モデルから確率取得（特徴量名付きで）
         for name, model in self.models.items():
             if hasattr(model, "predict_proba"):
-                proba = model.predict_proba(X)
+                proba = model.predict_proba(X_with_names)
                 # クラス1の確率を取得
                 probabilities[name] = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
             elif hasattr(model, "predict"):
                 # predict_probaがない場合はpredictの結果を使用
-                probabilities[name] = model.predict(X).astype(float)
+                probabilities[name] = model.predict(X_with_names).astype(float)
             else:
                 raise ValueError(f"モデル {name} に予測メソッドがありません")
 
