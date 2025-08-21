@@ -268,36 +268,236 @@ gcloud logging read "resource.type=\"cloud_run_revision\"" --limit=20
 2. **コスト vs 安定性のバランス重要**
 3. **min-instances=1で約1,800円/月実績**
 
-## 🚨 トラブルシューティング
+## 🚨 トラブルシューティング（Phase 12強化版）
 
-### CI/CD失敗時
+### Phase 12新機能: 自動診断・修復システム
 
-#### 1. GitHub Actions失敗
+#### 🔍 GCP環境事前検証（新機能）
+
 ```bash
-# ログ確認
-gh run view --log
+# 包括的環境検証
+bash scripts/deployment/verify_gcp_setup.sh --full
 
-# よくある原因:
-# - GitHub Secrets未設定
-# - GCP認証失敗
-# - テスト失敗
+# CI/CD実行前検証
+bash scripts/deployment/verify_gcp_setup.sh --ci
+
+# 軽量日常チェック
+bash scripts/deployment/verify_gcp_setup.sh --quick
 ```
 
-#### 2. 認証エラー
-- **Workload Identity設定確認**: GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
-- **権限エラー**: IAM権限設定確認
-- **Secret未設定**: Secret Manager・GitHub Secrets確認
+#### 🔧 自動修復システム（新機能）
 
-#### 3. デプロイ失敗
 ```bash
-# Cloud Run確認
+# 完全対話式セットアップ（推奨）
+bash scripts/deployment/setup_ci_prerequisites.sh --interactive
+
+# 自動修復（非対話）
+bash scripts/deployment/setup_ci_prerequisites.sh --automated
+
+# 問題修復専用
+bash scripts/deployment/setup_ci_prerequisites.sh --repair
+```
+
+### エラー診断フローチャート（Phase 12統合版）
+
+```mermaid
+graph TD
+    A[CI/CD失敗] --> B[GitHub Actions ログ確認]
+    B --> C{エラー種別}
+    
+    C -->|GCP認証エラー| D[GCP環境検証実行]
+    C -->|権限エラー| E[IAM権限確認]
+    C -->|リソースエラー| F[GCPリソース確認]
+    C -->|テストエラー| G[品質チェック確認]
+    C -->|その他| H[詳細ログ分析]
+    
+    D --> I[verify_gcp_setup.sh --ci]
+    I --> J{検証結果}
+    J -->|成功| K[GitHub Secrets確認]
+    J -->|失敗| L[自動修復実行]
+    
+    L --> M[setup_ci_prerequisites.sh --repair]
+    M --> N{修復結果}
+    N -->|成功| O[再実行]
+    N -->|失敗| P[手動修正]
+    
+    E --> Q[IAM権限チェック]
+    F --> R[Artifact Registry・Secret Manager確認]
+    G --> S[ローカル品質チェック]
+    H --> T[サポート要求]
+    
+    K --> U[CI/CD再実行]
+    O --> U
+    P --> V[ドキュメント参照・専門家相談]
+    Q --> U
+    R --> U
+    S --> U
+    T --> V
+```
+
+### CI/CD失敗時の詳細対応
+
+#### 1. GitHub Actions失敗
+
+**Phase 12強化診断**:
+```bash
+# 1. 基本ログ確認
+gh run view --log
+
+# 2. GCP環境事前検証
+bash scripts/deployment/verify_gcp_setup.sh --ci
+
+# 3. 自動修復試行
+bash scripts/deployment/setup_ci_prerequisites.sh --automated
+
+# 4. 再検証
+bash scripts/deployment/verify_gcp_setup.sh --ci
+```
+
+**よくある原因と解決方法**:
+- ❌ **GitHub Secrets未設定** → [GCP事前設定ガイド](./GCP事前設定ガイド.md)参照
+- ❌ **GCP認証失敗** → Workload Identity設定確認
+- ❌ **テスト失敗** → ローカル品質チェック実行
+- ❌ **権限エラー** → IAM権限設定確認
+
+#### 2. GCP認証エラー詳細対応
+
+**段階的診断**:
+```bash
+# Step 1: 基本認証確認
+gcloud auth list
+gcloud config get-value project
+
+# Step 2: Workload Identity確認
+gcloud iam workload-identity-pools list --location=global
+gcloud iam workload-identity-pools providers list \
+  --workload-identity-pool=github-pool \
+  --location=global
+
+# Step 3: サービスアカウント確認
+gcloud iam service-accounts list \
+  --filter="displayName:GitHub Actions"
+
+# Step 4: 権限確認
+gcloud projects get-iam-policy my-crypto-bot-project \
+  --flatten="bindings[].members" \
+  --filter="bindings.members:*github-actions-sa*"
+```
+
+**自動修復**:
+```bash
+# Workload Identity自動再設定
+bash scripts/deployment/setup_ci_prerequisites.sh --repair
+```
+
+#### 3. デプロイ失敗詳細対応
+
+**Phase 12強化診断**:
+```bash
+# 1. Cloud Run状態確認
 gcloud run services list --region=asia-northeast1
 
-# ログ確認
-gcloud logging read "resource.type=\"cloud_run_revision\"" --limit=20
+# 2. 最新リビジョン詳細確認
+gcloud run services describe crypto-bot-service \
+  --region=asia-northeast1 \
+  --format="export"
 
-# ロールバック
-gcloud run services update-traffic SERVICE_NAME --to-revisions=PREVIOUS_REVISION=100
+# 3. エラーログ確認
+gcloud logging read \
+  "resource.type=\"cloud_run_revision\" AND severity>=ERROR" \
+  --limit=50 \
+  --format="table(timestamp,severity,textPayload)"
+
+# 4. Artifact Registry確認
+gcloud artifacts repositories describe crypto-bot-repo \
+  --location=asia-northeast1
+
+# 5. Secret Manager確認
+gcloud secrets list --filter="labels.managed-by:crypto-bot"
+```
+
+**段階的復旧**:
+```bash
+# 1. ロールバック（緊急時）
+PREV_REVISION=$(gcloud run revisions list \
+  --service=crypto-bot-service \
+  --region=asia-northeast1 \
+  --format="value(metadata.name)" \
+  --limit=2 | tail -n1)
+
+gcloud run services update-traffic crypto-bot-service \
+  --to-revisions=$PREV_REVISION=100 \
+  --region=asia-northeast1
+
+# 2. 問題修復後の再デプロイ
+git commit --amend -m "fix: デプロイ問題修復"
+git push --force origin main
+```
+
+#### 4. リソース不足・権限エラー
+
+**Artifact Registry権限エラー**:
+```bash
+# 問題: PERMISSION_DENIED: Permission 'artifactregistry.repositories.create' denied
+
+# 解決1: 既存リポジトリ確認
+gcloud artifacts repositories describe crypto-bot-repo \
+  --location=asia-northeast1
+
+# 解決2: 手動リポジトリ作成
+gcloud artifacts repositories create crypto-bot-repo \
+  --repository-format=docker \
+  --location=asia-northeast1 \
+  --description="Phase 12: crypto-bot Docker images"
+
+# 解決3: 権限付与（プロジェクトオーナーに依頼）
+gcloud projects add-iam-policy-binding my-crypto-bot-project \
+  --member="user:YOUR_EMAIL" \
+  --role="roles/artifactregistry.admin"
+```
+
+**Secret Manager権限エラー**:
+```bash
+# Secret作成権限確認
+gcloud secrets list
+
+# 権限不足の場合、必要な権限付与
+gcloud projects add-iam-policy-binding my-crypto-bot-project \
+  --member="user:YOUR_EMAIL" \
+  --role="roles/secretmanager.admin"
+```
+
+#### 5. CI/CD環境特有のエラー
+
+**Docker Build失敗**:
+```bash
+# ローカルでのDocker Build確認
+docker build -t test-crypto-bot .
+
+# 依存関係問題の場合
+pip install -r requirements.txt
+python -m pytest tests/unit/ -v
+```
+
+**テスト失敗（品質チェック）**:
+```bash
+# ローカル品質チェック実行
+bash scripts/quality/checks.sh
+
+# 個別テスト実行
+python -m pytest tests/unit/strategies/ -v
+python -m pytest tests/unit/ml/ -v
+python -m pytest tests/unit/trading/ -v
+```
+
+### Phase 12新機能: 自動診断レポート
+
+```bash
+# 包括的診断レポート生成
+bash scripts/deployment/verify_gcp_setup.sh --full > gcp_diagnosis_$(date +%Y%m%d).log
+
+# 診断結果の確認
+cat gcp_diagnosis_$(date +%Y%m%d).log | grep -E "(✅|❌|⚠️)"
 ```
 
 ### 監視アラート対応

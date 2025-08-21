@@ -224,7 +224,7 @@ python scripts/management/dev_check.py ml-models
 🏥 手動実行監視統合: ヘルスチェック・パフォーマンス監視・自動復旧・Discord通知
 🚀 CI/CDワークフロー最適化: GitHub Actions最適化・品質チェック・段階的デプロイ・自動ロールバック
 🔒 セキュリティ統合: Workload Identity・Secret Manager・監査ログ・コンプライアンス
-📊 品質保証: 450テスト68.13%カバレッジ・checks_light.sh・統合チェック自動化
+📊 品質保証: 450テスト68.13%カバレッジ・checks.sh・統合チェック自動化
 ⚡ 運用効率: 95%自動化・dev_check統合・手動実行運用・予兆対応
 ```
 

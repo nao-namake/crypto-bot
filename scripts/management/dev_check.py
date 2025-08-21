@@ -1102,7 +1102,7 @@ except Exception as e:
 
             if command in ["validate", "full-check"]:
                 content += "#### テスト・品質チェックエラーの場合\n"
-                content += "1. `bash scripts/quality/checks_light.sh` で軽量チェック実行\n"
+                content += "1. `bash scripts/quality/checks.sh` で品質チェック実行\n"
                 content += "2. 個別テスト実行: `python -m pytest tests/unit/strategies/ -v`\n"
                 content += "3. コードフォーマット実行: `python -m black src/`\n\n"
 

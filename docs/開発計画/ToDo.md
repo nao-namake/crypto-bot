@@ -66,7 +66,7 @@
 │   │   └── dev_check.py             # 統合管理CLI（6機能統合）✅
 │   ├── quality/          # 品質保証・チェック系 [README.md]  
 │   │   ├── checks.sh               # 完全品質チェック ✅
-│   │   └── checks_light.sh         # 軽量品質チェック ✅
+│   │   └── checks.sh         # 軽量品質チェック ✅
 │   ├── analytics/        # 統合分析基盤（Phase 12新設）[README.md] ✅
 │   │   └── base_analyzer.py        # 共通Cloud Runログ取得・重複500行削除 ✅
 │   ├── data_collection/  # 実データ収集システム（Phase 12新設）[README.md] ✅

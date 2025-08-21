@@ -152,11 +152,108 @@ jobs:
           "
 
   # ========================================
-  # 2. Docker Build & GCP Deploy（本番用）
+  # 2. GCP環境検証（Phase 12新機能）
+  # ========================================
+  gcp-environment-check:
+    name: GCP Environment Verification
+    needs: quality-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    # mainブランチプッシュ時のみ実行（デプロイ前検証）
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          access_token_lifetime: 1800s
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Run GCP Environment Pre-Check
+        run: |
+          echo "🔍 Phase 12: GCP環境事前検証開始"
+          echo "デプロイ前にGCP環境の準備状況を確認します"
+          
+          # 検証スクリプト実行
+          chmod +x scripts/deployment/verify_gcp_setup.sh
+          
+          if scripts/deployment/verify_gcp_setup.sh --ci; then
+            echo "✅ GCP環境検証成功 - デプロイ準備完了"
+          else
+            echo "❌ GCP環境検証失敗 - デプロイ前修正が必要"
+            echo ""
+            echo "🔧 自動修復を試行中..."
+            
+            # 軽微な問題の自動修復試行
+            if scripts/deployment/setup_ci_prerequisites.sh --automated; then
+              echo "🔄 自動修復成功 - 再検証実行"
+              
+              # 再検証
+              if scripts/deployment/verify_gcp_setup.sh --ci; then
+                echo "✅ 修復後検証成功 - デプロイ継続"
+              else
+                echo "❌ 修復後も検証失敗 - 手動修正が必要"
+                echo ""
+                echo "📋 解決方法:"
+                echo "  1. scripts/deployment/setup_ci_prerequisites.sh --interactive を実行"
+                echo "  2. GitHub Secretsの設定確認"
+                echo "  3. GCP権限・設定の確認"
+                exit 1
+              fi
+            else
+              echo "❌ 自動修復失敗 - 手動修正が必要"
+              exit 1
+            fi
+          fi
+
+      - name: Verify Critical GCP Resources
+        run: |
+          echo "🏗️ 重要なGCPリソース確認"
+          
+          # Artifact Registry確認
+          echo "📦 Artifact Registry確認..."
+          if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
+              --location=${{ env.REGION }} \
+              --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+            echo "✅ Artifact Registry準備完了"
+          else
+            echo "⚠️ Artifact Registry未準備 - デプロイ時に作成エラーの可能性"
+          fi
+          
+          # Secret Manager確認
+          echo "🔐 Secret Manager確認..."
+          secret_count=0
+          for secret in bitbank-api-key bitbank-api-secret discord-webhook; do
+            if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} >/dev/null 2>&1; then
+              secret_count=$((secret_count + 1))
+            fi
+          done
+          
+          echo "🔢 設定済みSecret数: $secret_count/3"
+          if [ "$secret_count" -ge 2 ]; then
+            echo "✅ Secret Manager準備完了"
+          else
+            echo "⚠️ Secret Manager設定不足 - デプロイ時にエラーの可能性"
+          fi
+
+  # ========================================
+  # 3. Docker Build & GCP Deploy（本番用）
   # ========================================
   build-deploy:
     name: Build & Deploy to GCP
-    needs: quality-check
+    needs: [quality-check, gcp-environment-check]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     

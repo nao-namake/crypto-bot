@@ -154,7 +154,7 @@ python scripts/management/dev_check.py health-check   # 本番環境ヘルスチ
 scripts/
 ├── dev_check.py            # 665行・統合管理
 ├── checks.sh              # 品質チェック  
-├── checks_light.sh         # 軽量品質チェック（削除済み）
+├── checks.sh         # 軽量品質チェック（削除済み）
 ├── create_ml_models.py     # MLモデル作成
 ├── deploy_production.sh    # 本番デプロイ
 ├── docker-entrypoint.sh    # Docker統合
@@ -175,7 +175,7 @@ scripts/
 - **✅ CI/CD統合**: GitHub Actions・品質ゲート・自動デプロイ・段階的リリース
 - **✅ 監視システム統合**: 手動実行監視・ヘルスチェック・自動復旧・Discord通知
 - **✅ セキュリティ強化**: Workload Identity・Secret Manager・監査ログ・コンプライアンス
-- **✅ 運用効率化**: 軽量チェック統合管理CLI化・checks_light.sh削除・機能集約
+- **✅ 運用効率化**: 軽量チェック統合管理CLI化・checks.sh削除・機能集約
 - **✅ 機能別分類**: 5カテゴリー・明確な責任分離・CI/CD対応
 - **✅ ドキュメント充実**: 6個README・包括的使用方法・Phase 12対応・トラブルシューティング
 

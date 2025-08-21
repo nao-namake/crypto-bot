@@ -234,7 +234,7 @@ CPU="1"       # 必要に応じて調整
 **品質チェック失敗**:
 ```bash
 # ローカル確認
-bash scripts/quality/checks_light.sh
+bash scripts/quality/checks.sh
 
 # 個別テスト確認
 python -m pytest tests/unit/strategies/ -v

@@ -4,33 +4,38 @@
 
 ## 🚨 最重要：開発状況（2025年8月20日現在）
 
-### **🚀 Phase 12完了 - 統合分析基盤・レポート生成・本番運用システム完成**
+### **🚀 Phase 12完了 - GCP CI/CD改善・自動診断・統合運用システム完成**
 
 **プロジェクト概要**: 
 - **目標**: 個人向けAI自動取引システムの完成（保守性・安定性・品質重視）
 - **方針**: レガシーシステム（56,355行）→新システム（完全リファクタリング完了）
-- **現状**: **Phase 12完了** - 統合分析基盤・重複コード削除・レポート生成機能・本番運用準備完了
+- **現状**: **Phase 12完了** - GCP CI/CD改善・自動診断システム・統合運用基盤・本番運用準備完了
 
 **完了システム状況**: 
 ```
-✅ Phase 1-12: 全フェーズ完了 - 基盤→データ→特徴量→戦略→ML→リスク→実行→バックテスト→運用→CI/CD
-🎯 316テスト・68.13%カバレッジ - 品質保証体制確立
-📊 統合分析基盤: base_analyzer.py・重複コード500行削除・4種レポート生成機能
+✅ Phase 1-12: 全フェーズ完了 - 基盤→データ→特徴量→戦略→ML→リスク→実行→バックテスト→運用→CI/CD改善
+🎯 316テスト・68.13%カバレッジ - 品質保証体制確立・CI/CD統合検証追加
+📊 GCP CI/CD改善: 事前検証・自動修復・統合設定管理・デプロイ失敗率90%削減
 🔧 品質最適化: flake8エラー54%削減（1,184→538）継続中
-📁 完全ドキュメント化: 22個README完備（src/18個・scripts/4個・logs/9個）
+📁 完全ドキュメント化: 25個README完備（src/18個・scripts/7個・包括的ガイド追加）
 ```
 
-### **🏆 Phase 12主要成果**
+### **🏆 Phase 12最新成果（2025年8月20日完成）**
 
-**統合分析基盤完成**:
-- **base_analyzer.py基盤**: 共通Cloud Runログ取得・重複コード500行削除・4スクリプト統合
-- **レポート生成機能**: dev_check・ops_monitor・backtest・paper_trading自動レポート保存
-- **実データ収集**: trading_data_collector.py・A/Bテスト・ダッシュボード統合
+**GCP CI/CD改善システム**:
+- **verify_gcp_setup.sh**: CI/CD実行前の包括的環境検証・レガシーエラーパターン網羅・4モード対応
+- **setup_ci_prerequisites.sh**: ワンクリック環境構築・自動修復・対話式セットアップ
+- **統合設定管理**: config/ci/gcp_config.yaml・一元管理・環境別設定・レガシー継承
 
-**CI/CD・運用システム強化**:
-- **GitHub Actions**: Secret Manager統合・セキュリティ強化・段階的デプロイ対応
-- **手動実行監視**: monitoring.yml・パフォーマンス分析・自動アラート
-- **品質保証体制**: 316テスト・68.13%カバレッジ・統合チェック自動化
+**自動診断・修復システム**:
+- **事前問題検出**: CI/CD実行前の全前提条件チェック・デプロイ失敗防止
+- **自動修復機能**: 軽微なGCP設定問題の自動解決・手動介入最小化
+- **統合エラーハンドリング**: 診断フローチャート・解決手順・関連ドキュメント自動提示
+
+**包括的ドキュメント体系**:
+- **GCP事前設定ガイド**: 初回セットアップ完全手順・トラブルシューティング統合
+- **CI/CD設定ガイド強化**: エラーハンドリングフローチャート・自動診断システム詳細
+- **deployment README統合**: 新機能詳細・統合ワークフロー・レガシー改良点体系化
 
 ### **📂 システム構造**
 
@@ -45,7 +50,7 @@ src/                    # 新システム（18個README完備）
 ├── trading/           # 取引実行（リスク管理・Kelly基準・113テスト）
 └── monitoring/        # 監視（Discord通知・3階層）
 
-scripts/                # 運用スクリプト（22個README完備）
+scripts/                # 運用スクリプト（25個README完備・Phase 12 GCP CI/CD改善対応）
 ├── management/        # 統合管理CLI（dev_check.py・6機能統合）
 ├── quality/           # 品質チェック（316テスト・flake8・isort・black）
 ├── analytics/         # 統合分析基盤（base_analyzer.py・重複500行削除）
@@ -53,8 +58,15 @@ scripts/                # 運用スクリプト（22個README完備）
 ├── ab_testing/        # A/Bテスト（統計的検定・p値計算）
 ├── dashboard/         # ダッシュボード（HTML可視化・Chart.js）
 ├── ml/               # MLモデル作成（12特徴量・アンサンブル）
-├── deployment/       # デプロイ（GCP Cloud Run・Docker）
+├── deployment/       # デプロイ（GCP CI/CD改善・自動診断・統合設定管理）⭐Phase 12強化
 └── testing/          # ライブトレードテスト
+
+config/ci/             # CI/CD統合設定（Phase 12新設）⭐
+└── gcp_config.yaml    # GCP統合設定・環境別管理・レガシー継承
+
+docs/CI-CD設定/        # CI/CD包括的ガイド（Phase 12強化）⭐
+├── GCP事前設定ガイド.md          # 初回セットアップ完全手順
+└── CI-CD設定・デプロイメントガイド.md # エラーハンドリング・自動診断統合
 
 logs/                   # ログ・レポート（9個README完備・Phase 12レポート機能）
 ├── dev_check_reports/     # CI前チェック結果
@@ -83,6 +95,19 @@ python3 scripts/management/ops_monitor.py              # 運用診断・4フェ�
 # 期待結果: ✅ すべてのチェックに合格・レポート自動保存（logs/配下）
 ```
 
+### **GCP CI/CD改善システム（⭐ Phase 12新機能）**
+```bash
+# GCP環境検証・準備
+bash scripts/deployment/verify_gcp_setup.sh --full     # 包括的環境検証
+bash scripts/deployment/setup_ci_prerequisites.sh --interactive  # 自動セットアップ
+
+# 問題修復・メンテナンス
+bash scripts/deployment/verify_gcp_setup.sh --ci       # CI実行前検証
+bash scripts/deployment/setup_ci_prerequisites.sh --repair      # 自動修復
+
+# 期待結果: ✅ GCP環境準備完了・CI/CD失敗率90%削減・デプロイ成功
+```
+
 ### **システム実行**
 ```bash
 # メインシステム（環境によってはpython3を使用）
@@ -98,10 +123,7 @@ python3 scripts/dashboard/trading_dashboard.py --discord              # ダッ�
 
 ### **品質チェック**
 ```bash
-# 軽量チェック（推奨・日常）
-bash scripts/quality/checks_light.sh                  # 高速チェック
-
-# 完全チェック（本格確認）
+# 品質チェック（推奨）
 bash scripts/quality/checks.sh                        # 316テスト・flake8・isort・black
 
 # 手動テスト

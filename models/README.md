@@ -321,7 +321,7 @@ python scripts/ml/create_ml_models.py --verbose
 🏥 手動実行監視統合: ヘルスチェック・自動復旧・Discord通知・dev_check統合
 🚀 CI/CDワークフロー最適化: GitHub Actions・品質チェック・自動ロールバック・Workload Identity
 🔒 セキュリティ統合: Secret Manager・監査ログ・コンプライアンス・脅威検知
-📊 品質保証: 438テスト68.13%・checks_light.sh・統合チェック自動化
+📊 品質保証: 438テスト68.13%・checks.sh・統合チェック自動化
 ⚡ 運用効率: 90%手動作業削減・統合CLI・自動化・予兆対応
 ```
 
