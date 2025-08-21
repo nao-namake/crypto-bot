@@ -119,6 +119,23 @@
 ### 📋 Phase 13: ML性能向上・継続的改善（Week 13-14）
 **状況**: 📋 Phase 12完了後の計画
 
+#### **🚨 発見された問題（要修正・CI優先後対応）**
+- [ ] **MLモデル無限ループ問題**:
+  - [ ] ProductionEnsemble検証でmaximum recursion depth exceeded発生
+  - [ ] production_ensemble.predict()内での循環参照問題調査・修正
+  - [ ] 本番取引システムへの影響度確認・予防策実装
+  - [ ] MLモデル検証プロセス改善・安全性確保
+- [ ] **BacktestEngine設定問題**:
+  - [ ] run_backtest()の非同期実行・引数不一致問題修正
+  - [ ] DataPipeline.fetch_historical_data()メソッド不足修正
+  - [ ] バックテスト実行時の設定ファイル参照問題解決
+  - [ ] 統合バックテストシステムの動作確認・修正
+- [ ] **DataPipeline統合問題**:
+  - [ ] fetch_historical_data()メソッドの実装不足調査
+  - [ ] 本番データ取得システムへの影響度確認
+  - [ ] バックテスト・本番システム間のデータ取得統一化
+  - [ ] データパイプライン包括的テスト・検証強化
+
 #### **13-1: 実運用データに基づくML性能向上**
 - [ ] **Model Drift Detection実装**:
   - [ ] 実運用データでの予測精度劣化検知・concept drift検出
