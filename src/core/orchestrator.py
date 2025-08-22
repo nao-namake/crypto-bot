@@ -21,7 +21,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol
 
-from ..features.anomaly import AnomalyDetector
+from ..features.anomaly import MarketAnomalyDetector
 from ..features.technical import TechnicalIndicators
 from .config import Config
 from .exceptions import CryptoBotError
@@ -797,7 +797,7 @@ class _FeatureServiceAdapter:
     def __init__(
         self,
         technical_indicators: TechnicalIndicators,
-        anomaly_detector: AnomalyDetector,
+        anomaly_detector: MarketAnomalyDetector,
     ):
         self.technical_indicators = technical_indicators
         self.anomaly_detector = anomaly_detector

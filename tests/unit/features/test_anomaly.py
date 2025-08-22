@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from src.core.exceptions import DataProcessingError
-from src.features.anomaly import AnomalyDetector
+from src.features.anomaly import MarketAnomalyDetector as AnomalyDetector
 
 
 class TestAnomalyDetector:
