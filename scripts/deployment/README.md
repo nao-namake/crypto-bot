@@ -1,12 +1,12 @@
 # Deployment Scripts
 
-デプロイ・Docker・本番環境系スクリプト集（Phase 12 CI/CD全8回修正完了・Secret Manager統合・稼働確実性達成）
+デプロイ・Docker・本番環境系スクリプト集（Phase 13品質保証完成・sklearn警告解消・306テスト100%成功）
 
-**CI/CD全8回修正完了**: 全根本原因解決・Secret Manager名前統合・構文修正・本番運用準備（2025年8月21日）
+**Phase 13完了**: sklearn警告解消・306テスト100%成功・品質保証完成・安定性向上・本番運用品質確立（2025年8月22日）
 
 ## 📂 スクリプト一覧
 
-### verify_gcp_setup.sh（⭐ Phase 12新機能・稼働確実性向上版）
+### verify_gcp_setup.sh（⭐ Phase 13対応・品質保証完成版）
 **GCP環境事前検証スクリプト（CI/CD失敗防止・自動診断・スキップ問題根絶）**
 
 CI/CD実行前にGCP環境の準備状況を包括的にチェックし、問題を事前に検出。レガシーシステムで遭遇した全てのエラーパターンを分析し、予防的診断を実現。
@@ -47,7 +47,7 @@ bash scripts/deployment/verify_gcp_setup.sh --fix
 - **自動修復機能**: 軽微な問題の自動解決・手動介入最小化
 - **統合レポート**: 問題原因・解決手順・関連ドキュメントへの導線提供
 
-### setup_ci_prerequisites.sh（⭐ Phase 12新機能）
+### setup_ci_prerequisites.sh（⭐ Phase 13対応）
 **CI/CD前提条件自動セットアップスクリプト（ワンクリック環境構築）**
 
 verify_gcp_setup.shで検出された問題を自動的に解決し、CI/CD実行環境を完全自動構築。初回セットアップから問題修復まで、全て自動化。
@@ -88,7 +88,7 @@ bash scripts/deployment/setup_ci_prerequisites.sh --verify-only
 - **認証エラー**: Docker認証・gcloud設定の自動修復
 
 ### setup_gcp_secrets.sh
-**GCP Secret Manager自動設定スクリプト（Phase 12対応・レガシー改良版）**
+**GCP Secret Manager自動設定スクリプト（Phase 13対応・品質保証完成）**
 
 Bitbank API認証情報・Discord Webhook等のシークレット管理をGCP Secret Managerで自動化。GitHub Actions CI/CDパイプライン・Workload Identity統合・セキュリティ最適化を実現。
 
@@ -113,14 +113,14 @@ bash scripts/deployment/setup_gcp_secrets.sh --setup-ci
 bash scripts/deployment/setup_gcp_secrets.sh --help
 ```
 
-#### Phase 12改良点
+#### Phase 13改良点
 - **レガシー知見活用**: 過去のエラーパターン・解決策を統合
 - **GitHub Actions統合**: Workload Identity自動設定・シームレス認証
 - **セキュリティ向上**: 最小権限・監査ログ・自動ローテーション対応
 - **運用効率化**: 一括設定・エラーハンドリング・トラブルシューティング
 
 ### docker-entrypoint.sh
-**Docker統合エントリポイント（Phase 12対応・CI/CD統合・監視統合）**
+**Docker統合エントリポイント（Phase 13対応・sklearn警告解消・306テスト100%成功）**
 
 新システム用の軽量Dockerエントリポイント。本番環境でのコンテナ起動・プロセス管理・ヘルスチェック・CI/CD統合・手動実行監視を担当。
 
@@ -255,7 +255,7 @@ gcloud secrets create bitbank-api-secret --data-file=-
 **対処**: 品質問題修正後再実行
 ```bash
 # 品質チェック単体実行
-bash scripts/quality/checks.sh
+bash scripts/testing/checks.sh
 
 # 問題修正後デプロイ
 bash scripts/deployment/deploy_production.sh
@@ -366,7 +366,7 @@ COPY --from=builder /app /app
 
 ## 📋 統合設定管理（Phase 12新機能）
 
-### config/ci/gcp_config.yaml
+### config/gcp/gcp_config.yaml
 **GCP CI/CD統合設定ファイル（一元管理・レガシー改良版）**
 
 全てのGCP関連設定を統合管理し、環境別・ステージ別の設定を一元化。レガシーシステムのベストプラクティスを継承しつつ、保守性を大幅向上。

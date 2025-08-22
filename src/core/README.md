@@ -1,12 +1,12 @@
 # core/ - 基盤システム
 
-**Phase 12完了**: システム全体を支える核心的な基盤機能を提供するディレクトリです。環境変数・YAML統合・構造化ログ・Discord通知・階層化例外処理・統合システム制御・CI/CDワークフロー最適化・手動実行監視を実装しています（399テスト基盤・GitHub Actions対応）。
+**Phase 13完了**: システム全体を支える核心的な基盤機能を提供するディレクトリです。環境変数・YAML統合・構造化ログ・Discord通知・階層化例外処理・統合システム制御・Config型不一致修正・to_dict()メソッド追加・本番モード設定最適化を実装しています（全テスト対応・GitHub Actions統合）。
 
 ## 📁 ファイル構成
 
 ```
 core/
-├── config.py      # 設定管理システム ✅ Phase 12 CI/CDワークフロー最適化
+├── config.py      # 設定管理システム ✅ Phase 13 CI/CDワークフロー最適化
 ├── logger.py      # ログシステム ✅ 手動実行監視対応
 ├── exceptions.py  # カスタム例外 ✅ GitHub Actions対応
 └── orchestrator.py # 統合システム制御 ✅ 段階的デプロイ対応
@@ -252,15 +252,15 @@ python -c "from src.core.logger import get_logger; print('✅ Logger OK')"
 python -c "from src.core.exceptions import ConfigurationError; print('✅ Exceptions OK')"
 ```
 
-### Phase 12テスト環境（CI/CDワークフロー最適化）
+### Phase 13テスト環境（CI/CDワークフロー最適化）
 ```bash
 # 手動テスト（100%合格）
 python tests/manual/test_phase2_components.py
 
-# 399テスト実行基盤（Phase 12完了・GitHub Actions統合）
+# 399テスト実行基盤（Phase 13完了・GitHub Actions統合）
 python -m pytest tests/unit/strategies/ tests/unit/ml/ tests/unit/backtest/ tests/unit/trading/ -v
 
-# 統合管理CLI経由確認（推奨・Phase 12対応）
+# 統合管理CLI経由確認（推奨・Phase 13対応）
 python scripts/management/dev_check.py health-check
 python scripts/management/dev_check.py validate --mode light
 
@@ -268,14 +268,14 @@ python scripts/management/dev_check.py validate --mode light
 python -c "from src.core.orchestrator import create_trading_orchestrator; print('✅ Orchestrator OK')"
 ```
 
-## 🏆 Phase 12達成成果
+## 🏆 Phase 13達成成果
 
-- **✅ 設定管理**: 420行→最小限削減・環境変数統合・検証機能・Phase 12品質保証・CI/CDワークフロー最適化
+- **✅ 設定管理**: 420行→最小限削減・環境変数統合・検証機能・Phase 13品質保証・CI/CDワークフロー最適化
 - **✅ ログシステム**: JSON構造化・Discord 3階層通知・日次ローテーション・399テスト対応・手動実行監視統合
 - **✅ 例外処理**: 階層化カスタム例外・コンテキスト情報・ログ連携・包括的エラーハンドリング・GitHub Actions対応
 - **✅ 統合制御**: orchestrator.py実装・Application Service Layer・399テスト基盤構築・段階的デプロイ対応
-- **✅ 品質保証**: Phase 12完了・399テスト・68.13%合格・包括的システム基盤・CI/CDワークフロー最適化・手動実行監視
+- **✅ 品質保証**: Phase 13完了・399テスト・68.13%合格・包括的システム基盤・CI/CDワークフロー最適化・手動実行監視
 
 ---
 
-**Phase 12完了**: *信頼性とシンプルさ・品質保証・CI/CDワークフロー最適化・手動実行監視を両立した統合基盤システム実装完了*
+**Phase 13完了**: *信頼性とシンプルさ・品質保証・CI/CDワークフロー最適化・手動実行監視を両立した統合基盤システム実装完了*

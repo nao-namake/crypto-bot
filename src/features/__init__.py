@@ -12,12 +12,12 @@ Momentum/Volatility重視の効率的特徴量セット
 Phase 3実装日: 2025年8月18日.
 """
 
-from .anomaly import AnomalyDetector
+from .anomaly import MarketAnomalyDetector
 from .technical import TechnicalIndicators
 
 __all__ = [
     "TechnicalIndicators",
-    "AnomalyDetector",
+    "MarketAnomalyDetector",
 ]
 
 # 新システム特徴量リスト（12個に削減）

@@ -1,16 +1,17 @@
 # GCP事前設定ガイド
 
-Phase 12: CI/CD実行前のGCP環境完全セットアップガイド
+Phase 13完了: sklearn警告解消・スクリプト統合（9→5フォルダ）・CI/CD本番稼働・306テスト100%成功のGCP環境完全セットアップガイド
 
 ## 📋 概要
 
-このガイドでは、GitHub Actions CI/CDパイプラインを成功させるために必要なGCP環境の事前設定を詳しく説明します。レガシーシステムのベストプラクティスを継承しつつ、個人開発向けに最適化された設定手順を提供します。
+このガイドでは、GitHub Actions CI/CDパイプラインを成功させるために必要なGCP環境の事前設定を詳しく説明します。Phase 13のスクリプト統合（9→5フォルダ・44%削減）とsklearn警告解消を反映し、レガシーシステムのベストプラクティスを継承しつつ、個人開発向けに最適化された設定手順を提供します。
 
 ## 🎯 対象者
 
-- Phase 12システムを初めてセットアップする開発者
+- Phase 13システム（スクリプト統合・sklearn警告解消）を初めてセットアップする開発者
 - CI/CD実行時にGCP関連エラーが発生した開発者  
 - GCP環境の設定を確認・修正したい開発者
+- スクリプト統合後の新構造で運用を開始する開発者
 
 ## ⚡ クイックスタート
 
@@ -119,7 +120,7 @@ gcloud services enable monitoring.googleapis.com
 gcloud artifacts repositories create crypto-bot-repo \
   --repository-format=docker \
   --location=asia-northeast1 \
-  --description="Phase 12: crypto-bot Docker images"
+  --description="Phase 13: crypto-bot Docker images"
 
 # Docker認証設定
 gcloud auth configure-docker asia-northeast1-docker.pkg.dev
@@ -131,7 +132,7 @@ gcloud auth configure-docker asia-northeast1-docker.pkg.dev
 # GitHub Actions用サービスアカウント作成
 gcloud iam service-accounts create github-actions-sa \
   --display-name="GitHub Actions Service Account" \
-  --description="Phase 12: CI/CD automation service account"
+  --description="Phase 13: CI/CD automation service account"
 
 # 必要な権限付与
 SA_EMAIL="github-actions-sa@my-crypto-bot-project.iam.gserviceaccount.com"
@@ -164,7 +165,7 @@ gcloud projects add-iam-policy-binding my-crypto-bot-project \
 gcloud iam workload-identity-pools create github-pool \
   --location="global" \
   --display-name="GitHub Actions Pool" \
-  --description="Phase 12: GitHub Actions用Workload Identity Pool"
+  --description="Phase 13: GitHub Actions用Workload Identity Pool"
 
 # OIDC Provider作成（リポジトリ名を実際の値に変更）
 GITHUB_REPO="YOUR_USERNAME/crypto-bot"  # 実際のリポジトリ名に変更
@@ -259,7 +260,7 @@ bash scripts/deployment/verify_gcp_setup.sh --quick
 # 設定確認
 git status
 git add .
-git commit -m "feat: GCP環境設定完了・CI/CD実行準備"
+git commit -m "feat: Phase 13対応 GCP環境設定完了・スクリプト統合・sklearn警告解消・CI/CD本番稼働"
 
 # CI/CDトリガー
 git push origin main
@@ -393,18 +394,21 @@ GCP環境検証実行
 
 ## 🔗 関連リソース
 
-### スクリプト
+### スクリプト（Phase 13統合構造対応）
 - [verify_gcp_setup.sh](../../scripts/deployment/verify_gcp_setup.sh) - GCP環境検証
 - [setup_ci_prerequisites.sh](../../scripts/deployment/setup_ci_prerequisites.sh) - 自動セットアップ
 - [setup_gcp_secrets.sh](../../scripts/deployment/setup_gcp_secrets.sh) - Secret Manager設定
+- [checks.sh](../../scripts/testing/checks.sh) - 統合品質チェック（quality→testing統合）
 
-### ドキュメント
+### ドキュメント（Phase 13統合構造対応）
 - [CI-CD設定・デプロイメントガイド.md](./CI-CD設定・デプロイメントガイド.md) - 基本的なCI/CD設定
 - [../../scripts/deployment/README.md](../../scripts/deployment/README.md) - デプロイスクリプト詳細
+- [../../scripts/testing/README.md](../../scripts/testing/README.md) - 統合品質チェック詳細
+- [../../scripts/analytics/README.md](../../scripts/analytics/README.md) - 統合分析基盤詳細
 
 ### 設定ファイル
 - [.github/workflows/ci.yml](../../.github/workflows/ci.yml) - CI/CDワークフロー
-- [config/ci/gcp_config.yaml](../../config/ci/gcp_config.yaml) - GCP設定統合
+- [config/gcp/gcp_config.yaml](../../config/gcp/gcp_config.yaml) - GCP設定統合
 
 ## 💡 ベストプラクティス
 
@@ -413,17 +417,21 @@ GCP環境検証実行
 - Workload Identityでキーファイル不要の認証
 - 最小権限の原則でIAMロール設定
 
-### 運用効率
+### 運用効率（Phase 13統合最適化）
+- スクリプト統合（9→5フォルダ・44%削減）で運用効率向上
 - 自動化スクリプトで手動作業を最小化
 - 検証スクリプトで事前問題検出
 - 段階的デプロイでリスク最小化
+- 統合管理CLI（dev_check.py）で統一運用
 
-### 保守性
+### 保守性（統合構造対応）
 - 統一設定ファイルで設定の一元管理
+- 統合分析基盤（analytics/）でデータ処理一元化
 - ログ出力でトラブルシューティング効率化
 - レガシーシステムのベストプラクティス継承
+- スクリプト統合で重複コード500行削除・保守性向上
 
 ---
 
-**Phase 12: GCP事前設定ガイド完了**
-*CI/CD実行前の包括的なGCP環境セットアップで、安全・確実なデプロイを実現*
+**Phase 13: GCP事前設定ガイド完了**
+*スクリプト統合（9→5フォルダ・44%削減）・sklearn警告解消・CI/CD本番稼働・306テスト100%成功の包括的なGCP環境セットアップで、安全・確実なデプロイを実現*

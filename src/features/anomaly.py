@@ -19,7 +19,7 @@ from ..core.exceptions import DataProcessingError
 from ..core.logger import get_logger
 
 
-class AnomalyDetector:
+class MarketAnomalyDetector:
     """
     異常検知指標計算クラス
 

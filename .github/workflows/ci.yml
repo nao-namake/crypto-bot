@@ -63,7 +63,7 @@ jobs:
           
           # Phase 12改善: 段階的品質チェックシステム（レガシー改良）
           echo "📋 段階1: 統合品質チェック実行"
-          if bash scripts/quality/checks.sh; then
+          if bash scripts/testing/checks.sh; then
             echo "✅ 統合品質チェック成功"
           else
             echo "⚠️ 統合品質チェック失敗 - 詳細診断開始"
@@ -378,8 +378,8 @@ jobs:
           echo "🚀 Phase 12段階的デプロイ開始: ${IMAGE_TAG}"
           echo "統合品質保証システム・68.13%カバレッジ対応版"
           
-          # デプロイモード判定（レガシー改良）
-          DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'paper' }}"
+          # デプロイモード判定（レガシー改良・本番モードデフォルト）
+          DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
           echo "📊 デプロイモード: $DEPLOY_MODE"
           
           # 段階的デプロイ設定（レガシーdeploy_production.sh改良）
@@ -421,14 +421,14 @@ jobs:
               echo "📋 段階3：100%本番モード（取引継続性重視）"
               ;;
             *)
-              SERVICE_SUFFIX=""
+              SERVICE_SUFFIX="-prod"
               MEMORY="1Gi"
               CPU="1"
-              MIN_INSTANCES="0"
-              MAX_INSTANCES="1"
-              TIMEOUT="1800"
-              echo "📋 デフォルト：ペーパートレードモード"
-              DEPLOY_MODE="paper"
+              MIN_INSTANCES="1"
+              MAX_INSTANCES="2"
+              TIMEOUT="3600"
+              echo "📋 デフォルト：本番モード（live）"
+              DEPLOY_MODE="live"
               ;;
           esac
           

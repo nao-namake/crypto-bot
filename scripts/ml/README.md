@@ -5,9 +5,9 @@
 ## 📂 スクリプト一覧
 
 ### create_ml_models.py
-**新システム用MLモデル作成スクリプト（Phase 12対応・CI/CD統合・監視統合）**
+**新システム用MLモデル作成スクリプト（Phase 13対応・sklearn警告解消・306テスト100%成功）**
 
-12特徴量最適化システム用の機械学習モデル学習・作成・検証・CI/CD統合・手動実行監視を行う包括的なMLスクリプト。
+12特徴量最適化システム用の機械学習モデル学習・作成・検証・Phase 13品質保証完成・sklearn警告解消対応を行う包括的なMLスクリプト。
 
 #### 主要機能
 - **3モデル学習**: LightGBM・XGBoost・RandomForest の個別学習・CI/CD自動実行
@@ -43,7 +43,7 @@ python scripts/ml/create_ml_models.py --days 360
 # 設定ファイル指定（環境別設定・段階的デプロイ）
 python scripts/ml/create_ml_models.py --config config/ml/custom.yaml
 
-# 統合管理CLI経由実行（推奨・Phase 12対応）
+# 統合管理CLI経由実行（推奨・Phase 13対応）
 python scripts/management/dev_check.py ml-models
 ```
 
@@ -114,7 +114,7 @@ models/
 {
   "created_at": "2025-08-17T10:30:00",
   "model_type": "ProductionEnsemble",
-  "phase": "Phase 12",
+  "phase": "Phase 13",
   "status": "production_ready",
   "feature_names": ["close", "volume", ...],
   "individual_models": ["lightgbm", "xgboost", "random_forest"],
@@ -219,7 +219,7 @@ pip install lightgbm[gpu]
 
 ## 🔮 Future Enhancements
 
-Phase 12以降の拡張予定:
+Phase 13以降の拡張予定:
 - **AutoML**: Optuna統合ハイパーパラメータ自動調整・実験管理・パラメータ最適化
 - **Model Drift**: リアルタイム性能劣化検知・自動再学習・統計的検定・drift score
 - **A/B Testing**: 複数モデル性能比較システム・カナリアリリース・最適重み調整

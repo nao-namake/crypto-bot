@@ -38,12 +38,14 @@ pip-wheel-metadata/
 .pytest_cache/
 .mypy_cache/
 .pytype/
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
 .coverage_data/
 test_reports/
+
+# カバレッジレポート（coverage-reports/で管理）
+coverage-reports/.coverage.*     # 一時カバレッジファイル
+coverage-reports/htmlcov/        # HTMLレポート（サイズ大・動的生成）
+.coverage                        # ルートの一時カバレッジファイル
+coverage.xml                     # XML形式レポート
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 仮想環境

@@ -51,17 +51,16 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
     def __init__(self, config_path: str = None):
         """初期化処理（BaseAnalyzer継承版）."""
         # BaseAnalyzer初期化
-        super().__init__(output_dir="logs/operational_status")
+        super().__init__(output_dir="logs/reports/ci_checks/ops_monitor")
         self.config_path = config_path or str(
             PROJECT_ROOT / "scripts" / "management" / "status_config.json"
         )
         self.config = self.load_config()
-        self.report_dir = PROJECT_ROOT / "logs" / "operational_reports"
+        # レポート保存用ディレクトリ（統合）
+        self.report_dir = PROJECT_ROOT / "logs" / "reports" / "ci_checks" / "ops_monitor"
         self.report_dir.mkdir(exist_ok=True, parents=True)
-
-        # マークダウンレポート保存用ディレクトリ
-        self.markdown_report_dir = PROJECT_ROOT / "logs" / "ops_monitor_reports"
-        self.markdown_report_dir.mkdir(exist_ok=True, parents=True)
+        # マークダウンレポートも同じディレクトリに統合
+        self.markdown_report_dir = self.report_dir
 
         # 実行結果保存
         self.results = {
@@ -553,7 +552,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             from src.trading.risk import IntegratedRiskManager
 
             config = load_config("config/core/base.yaml")
-            risk_manager = IntegratedRiskManager(config)
+            risk_manager = IntegratedRiskManager(config.to_dict())
 
             # Kelly基準テスト（ダミーデータ）
             test_data = {

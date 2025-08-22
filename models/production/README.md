@@ -1,45 +1,43 @@
 # models/production/ - 本番環境用モデルディレクトリ
 
-**Phase 12完了**: CI/CD全8回修正完了・Secret Manager統合・ProductionEnsemble本番運用システム完成・稼働確実性達成
-
-**CI/CD全8回修正完了**: 本番用モデルGit追跡・Secret Manager名前統合・CI/CDデプロイ成功保証（2025年8月21日）
+**Phase 13完了**: sklearn警告解消・設定最適化・306テスト100%成功・CI/D本番稼働・ProductionEnsemble統合モデル完成（2025年8月22日）
 
 ## 📁 実装完了ファイル構成
 
 ```
 models/production/
-├── production_ensemble.pkl         # ProductionEnsemble統合モデル（Phase 12対応）
-├── production_model_metadata.json  # 本番用メタデータ・CI/CD・監視・セキュリティ統合
-├── model_metadata.json             # レガシー互換メタデータ
+├── production_ensemble.pkl         # ProductionEnsemble統合モデル（Phase 13対応）
+├── production_model_metadata.json  # 本番用メタデータ・306テスト実績・sklearn警告解消
+├── model_metadata.json             # レガシー互換メタデータ（削除候補）
 └── README.md                        # このファイル
 ```
 
-## 🎯 役割・目的（Phase 12完了）
+## 🎯 役割・目的（Phase 13完了）
 
-### **手動実行監視・CI/CDワークフロー最適化ProductionEnsemble**
-- **目的**: CI/CDワークフロー最適化・手動実行監視・dev_check統合・Workload Identity・Secret Manager統合の実取引用モデル
-- **Phase 12成果**: GitHub Actions最適化・段階的デプロイ・自動ロールバック・450テスト68.13%カバレッジ
-- **監視統合**: dev_check統合・ヘルスチェック・自動復旧・Discord通知・セキュリティ監査
+### **sklearn警告解消・設定最適化・CI/CD本番稼働ProductionEnsemble**
+- **目的**: sklearn警告完全解消・設定最適化・CI/CD本番稼働対応の実取引用モデル
+- **Phase 13成果**: 306テスト100%成功・GitHub Actions本番稼働・品質保証完成
+- **統合管理**: logs/reports/統合・ビジュアルナビゲーション・最新レポートリンク対応
 
-### **Phase 12強化ProductionEnsemble統合**
-- **production_ensemble.pkl**: 3モデル統合・CI/CDワークフロー最適化・手動実行監視対応
-- **セキュリティ統合**: Workload Identity認証・Secret Manager・監査ログ・コンプライアンス
-- **運用自動化**: GitHub Actions最適化・段階的リリース・品質チェック・自動復旧
+### **Phase 13最新ProductionEnsemble統合**
+- **production_ensemble.pkl**: 3モデル統合・sklearn警告解消・CI/CD本番稼働対応
+- **統合管理**: logs/reports/統合・ビジュアルナビゲーション・最新レポートリンク
+- **品質保証**: 306テスト100%・coverage-reports/58.88%・CI/CD本番稼働
 
-## 📄 実装完了ファイル詳細（Phase 12対応）
+## 📄 実装完了ファイル詳細（Phase 13対応）
 
 ### `production_ensemble.pkl` - ProductionEnsemble統合モデル
-**目的**: 本番取引で使用するメインモデル（Phase 12強化版）
+**目的**: 本番取引で使用するメインモデル（Phase 13最新版）
 
-**Phase 12統合構成**:
-- **LightGBM**: 40%重み（F1スコア0.952・高いCV性能・CI/CDワークフロー統合）
-- **XGBoost**: 40%重み（F1スコア0.997・高精度・段階的デプロイ対応）
-- **RandomForest**: 20%重み（F1スコア0.821・安定性重視・手動実行監視統合）
+**Phase 13統合構成**:
+- **LightGBM**: 40%重み（F1スコア0.941・sklearn警告解消・統合管理対応）
+- **XGBoost**: 40%重み（F1スコア0.992・高精度維持・CI/D本番稼働対応）
+- **RandomForest**: 20%重み（F1スコア0.699・安定性重視・設定最適化対応）
 
-**Phase 12完了実績**:
-- **CI/CDワークフロー最適化**: GitHub Actions最適化・品質チェック・段階的リリース
-- **手動実行監視**: ヘルスチェック・パフォーマンス監視・自動復旧・Discord通知
-- **セキュリティ統合**: Workload Identity・Secret Manager・監査ログ・コンプライアンス
+**Phase 13完了実績**:
+- **sklearn警告解消**: 全deprecation warning解消・最新ライブラリ対応・互換性確保
+- **CI/CD本番稼働**: GitHub Actions本番稼働・306テスト100%・品質保証完成
+- **統合管理**: logs/reports/統合・ビジュアルナビゲーション・最新レポートリンク対応
 
 **使用例**:
 ```python
@@ -63,12 +61,12 @@ print(f"重み: {info['weights']}")  # {'lightgbm': 0.4, 'xgboost': 0.4, 'random
 ### `production_model_metadata.json` - 本番用メタデータ
 **目的**: ProductionEnsemble性能・バージョン・設定情報管理
 
-**実装済みデータ構造**:
+**Phase 13対応データ構造**:
 ```json
 {
-  "created_at": "2025-08-20T10:30:00",
+  "created_at": "2025-08-22T07:00:00",
   "model_type": "ProductionEnsemble",
-  "phase": "Phase 12",
+  "phase": "Phase 13",
   "status": "production_ready",
   "n_features": 12,
   "feature_names": [
@@ -82,55 +80,60 @@ print(f"重み: {info['weights']}")  # {'lightgbm': 0.4, 'xgboost': 0.4, 'random
     "random_forest": 0.2
   },
   "performance_metrics": {
-    "lightgbm_f1": 0.952,
-    "xgboost_f1": 0.997,
-    "random_forest_f1": 0.821,
+    "lightgbm_f1": 0.941,
+    "xgboost_f1": 0.992,
+    "random_forest_f1": 0.699,
     "ensemble_expected_f1": "0.85以上"
   },
-  "phase12_completion": {
-    "cicd_integration": "GitHub Actions CI/CDワークフロー最適化・段階的デプロイ",
-    "monitoring_system": "手動実行監視・ヘルスチェック・自動復旧",
-    "security_integration": "Workload Identity・Secret Manager・監査ログ",
-    "deployment_strategy": "段階的リリース・自動ロールバック・品質チェック",
-    "dev_check_integration": "統合CLI・full-check・validate統合",
-    "test_coverage": "450テスト68.13%カバレッジ"
+  "phase13_completion": {
+    "sklearn_warnings": "全deprecation warning解消完了",
+    "config_optimization": "config/gcp/・config/deployment/統合",
+    "logs_integration": "logs/reports/統合・ビジュアルナビゲーション",
+    "test_coverage": "306テスト100%成功・coverage-reports/58.88%",
+    "cicd_production": "GitHub Actions本番稼働・品質保証完成"
   }
 }
 ```
 
-### `model_metadata.json` - レガシー互換メタデータ  
-**目的**: 既存システムとの互換性確保・段階的移行サポート
+### `model_metadata.json` - レガシー互換メタデータ（削除候補）
+**現状**: Phase 9時代のメタデータファイル・production/内に配置不適切
+**問題点**:
+- 個別モデルパスがproduction/を指している（実際はtraining/に存在）
+- Phase情報が古い（Phase 9のまま）
+- production_model_metadata.jsonと重複機能
 
-## 🔧 本番環境運用（Phase 12統合）
+**推奨対処**: 削除・production_model_metadata.jsonに完全統合済み
 
-### **統合管理CLI運用（Phase 12完全統合・推奨）**
+## 🔧 本番環境運用（Phase 13統合）
+
+### **統合管理CLI運用（Phase 13完全統合・推奨）**
 ```bash
-# 🚀 統合管理CLI - Phase 12完全統合（推奨）
+# 🚀 統合管理CLI - Phase 13完全統合（推奨）
 python scripts/management/dev_check.py full-check     # 6段階統合チェック
-python scripts/management/dev_check.py ml-models      # MLモデル作成・検証・監視統合
+python scripts/management/dev_check.py ml-models      # MLモデル作成・検証
 python scripts/management/dev_check.py validate --mode light  # 軽量品質チェック
 python scripts/management/dev_check.py status         # システム状態確認
 
-# Phase 12期待結果:
+# Phase 13期待結果:
 # 🤖 MLモデル作成成功！
-# ✅ ProductionEnsemble: 動作正常・CI/CDワークフロー統合
-# 🏥 手動実行監視: ヘルスチェック・自動復旧・Discord通知
-# 🚀 CI/CDワークフロー最適化: GitHub Actions・段階的デプロイ・品質チェック
-# 🔒 セキュリティ統合: Workload Identity・Secret Manager・監査ログ
+# ✅ ProductionEnsemble: 動作正常・sklearn警告解消・CI/CD本番稼働対応
+# 📊 統合管理: logs/reports/統合・ビジュアルナビゲーション・最新レポートリンク
+# 🔧 設定最適化: config/gcp/・config/deployment/統合・不要ファイル削除
+# ✅ sklearn警告解消: 全deprecation warning解消・最新ライブラリ対応
 ```
 
-### **Phase 12品質基準（達成済み）**
+### **Phase 13品質基準（達成済み）**
 ```python
-# Phase 12完了実績（2025年8月20日）
-PHASE12_ACHIEVEMENTS = {
-    'lightgbm_f1': 0.952,       # F1スコア95.2%・CI/CDワークフロー統合
-    'xgboost_f1': 0.997,        # F1スコア68.13%・段階的デプロイ対応
-    'random_forest_f1': 0.821,  # F1スコア82.1%・手動実行監視統合
-    'cicd_integration': 'GitHub Actions CI/CDワークフロー最適化・段階的デプロイ・自動ロールバック',
-    'monitoring_system': '手動実行監視・ヘルスチェック・自動復旧・Discord通知',
-    'security_integration': 'Workload Identity・Secret Manager・監査ログ',
-    'test_coverage': '450テスト68.13%カバレッジ',
-    'dev_check_integration': 'full-check・validate・ml-models統合',
+# Phase 13完了実績（2025年8月22日）
+PHASE13_ACHIEVEMENTS = {
+    'lightgbm_f1': 0.941,       # F1スコア94.1%・sklearn警告解消・統合管理対応
+    'xgboost_f1': 0.992,        # F1スコア99.2%・高精度維持・CI/CD本番稼働対応
+    'random_forest_f1': 0.699,  # F1スコア69.9%・安定性重視・設定最適化対応
+    'sklearn_warnings': '全deprecation warning解消完了',
+    'config_optimization': 'config/gcp/・config/deployment/統合',
+    'logs_integration': 'logs/reports/統合・ビジュアルナビゲーション',
+    'test_coverage': '306テスト100%成功・coverage-reports/58.88%',
+    'cicd_production': 'GitHub Actions本番稼働・品質保証完成',
     'production_ready': True
 }
 ```
@@ -138,7 +141,7 @@ PHASE12_ACHIEVEMENTS = {
 ### **ProductionEnsembleヘルスチェック**
 ```python
 def production_ensemble_health_check():
-    """ProductionEnsembleヘルスチェック（Phase 12統合版）"""
+    """ProductionEnsembleヘルスチェック（Phase 13統合版）"""
     try:
         # ProductionEnsemble読み込みテスト
         with open('models/production/production_ensemble.pkl', 'rb') as f:
@@ -155,20 +158,27 @@ def production_ensemble_health_check():
         assert info['type'] == 'ProductionEnsemble', "モデルタイプエラー"
         assert len(info['individual_models']) == 3, "個別モデル数エラー"
         
-        return {"status": "healthy", "phase": "Phase 12", "cicd_workflow_optimized": True, "manual_monitoring_enabled": True, "timestamp": datetime.now()}
+        return {
+            "status": "healthy", 
+            "phase": "Phase 13", 
+            "sklearn_warnings": "解消完了",
+            "cicd_production": True,
+            "logs_integration": True,
+            "timestamp": datetime.now()
+        }
         
     except Exception as e:
         return {"status": "unhealthy", "error": str(e), "timestamp": datetime.now()}
 ```
 
-## 🚨 トラブルシューティング（Phase 12対応）
+## 🚨 トラブルシューティング（Phase 13対応）
 
 ### **ProductionEnsemble読み込みエラー**
 ```bash
-❌ 症状: pickle読み込み失敗・ProductionEnsemble不正
-❌ 原因: ファイル不存在・権限問題・バージョン不一致
+❌ 症状: pickle読み込み失敗・ProductionEnsemble不正・sklearn警告
+❌ 原因: ファイル不存在・権限問題・sklearn deprecation warning
 
-✅ 対処: 統合管理CLIで確認・再作成
+✅ 対処: 統合管理CLIで確認・再作成（sklearn警告解消版）
 python scripts/management/dev_check.py ml-models --dry-run
 python scripts/management/dev_check.py ml-models  # 再作成
 ```
@@ -187,49 +197,83 @@ print('✅ 特徴量システム正常')
 "
 ```
 
-### **統合管理CLI実行エラー**
+### **レガシーメタデータファイル問題**
 ```bash
-❌ 症状: ModuleNotFoundError: No module named 'src'
-❌ 原因: 実行パス問題
+❌ 症状: model_metadata.json読み込み失敗・パス不整合
+❌ 原因: Phase 9レガシーファイル・production/不適切配置
 
-✅ 対処: プロジェクトルートから実行
-cd /Users/nao/Desktop/bot
-python scripts/management/dev_check.py ml-models
+✅ 対処: レガシーファイル削除・production_model_metadata.json使用
+# 削除推奨
+rm models/production/model_metadata.json
+# 最新メタデータ確認
+cat models/production/production_model_metadata.json
 ```
 
-## 🚀 Phase 12以降拡張計画
+## 🔧 ファイル管理ルール（Phase 13確立）
 
-### **機械学習高度化（Phase 12）**
+### **production/ディレクトリ管理ルール**
+1. **必須ファイル**:
+   - `production_ensemble.pkl`: メインの本番用統合モデル（7.4MB）
+   - `production_model_metadata.json`: 本番用メタデータ（Phase 13最新）
+   - `README.md`: 本番環境用ドキュメント
+
+2. **削除対象ファイル**:
+   - `model_metadata.json`: Phase 9レガシー・パス不整合・重複機能
+
+3. **命名規則**:
+   - 本番用ファイルは`production_`プレフィックス必須
+   - メタデータは`.json`拡張子・Phase情報記録必須
+   - レガシーファイルは明確に識別・削除候補マーク
+
+### **品質保証ルール**
+1. **モデルファイル**:
+   - sklearn警告解消確認済みモデルのみ保存
+   - F1スコア0.85以上のアンサンブル性能維持
+   - 12特徴量対応確認済み
+
+2. **メタデータ管理**:
+   - Phase情報・実行時刻・性能指標・sklearn警告状況記録必須
+   - production_model_metadata.jsonを最新状態維持
+   - レガシーファイルとの混在回避
+
+3. **バージョン管理**:
+   - Git LFS対象（.pklファイル）
+   - 通常Git管理（.jsonファイル、README.md）
+   - Phase更新時の一括更新実施
+
+## 🚀 Phase 14以降拡張計画
+
+### **機械学習高度化（Phase 14）**
 - **AutoML統合**: ハイパーパラメータ自動調整・特徴量自動選択・Optuna統合
 - **Model Drift Detection**: リアルタイム性能劣化検知・自動再学習・監視アラート統合
 - **Advanced Ensemble**: Neural Network・CatBoost追加・動的重み調整・Deep Learning統合
 - **Online Learning**: incremental update・リアルタイム市場適応・ストリーミング学習
 
-### **MLOps・運用強化（Phase 13）**
+### **MLOps・運用強化（Phase 15）**
 - **MLflow統合**: Model Registry・実験管理・バージョン管理・ライフサイクル自動化
 - **A/B Testing**: 複数ProductionEnsemble並行運用・カナリアリリース・性能比較
 - **GPU対応**: 高速学習・大規模データ処理・CUDA最適化・分散学習
 - **監視ダッシュボード**: Web UI・リアルタイムメトリクス・Grafana統合
 
-### **セキュリティ・コンプライアンス強化（Phase 14）**
+### **セキュリティ・コンプライアンス強化（Phase 16）**
 - **セキュリティMLOps**: モデル暗号化・Differential Privacy・Federated Learning
 - **エッジデプロイ**: モバイル・IoT対応・軽量化・TensorFlow Lite統合
 - **コンプライアンス**: GDPR・金融規制対応・監査ログ・説明可能AI・責任あるAI
 
 ---
 
-## 📊 Phase 12完成 本番環境ProductionEnsemble統合実績
+## 📊 Phase 13完成 本番環境ProductionEnsemble統合実績
 
-### **手動実行監視・CI/CDワークフロー最適化ProductionEnsemble運用**
+### **sklearn警告解消・設定最適化・CI/D本番稼働ProductionEnsemble運用**
 ```
-🤖 ProductionEnsemble: 重み付け統合・CI/CDワークフロー最適化・段階的リリース・監視統合
-🏥 手動実行監視統合: ヘルスチェック・パフォーマンス監視・自動復旧・Discord通知
-🚀 CI/CDワークフロー最適化: GitHub Actions最適化・品質チェック・段階的デプロイ・自動ロールバック
-🔒 セキュリティ統合: Workload Identity・Secret Manager・監査ログ・コンプライアンス
-📊 品質保証: 450テスト68.13%カバレッジ・checks.sh・統合チェック自動化
-⚡ 運用効率: 95%自動化・dev_check統合・手動実行運用・予兆対応
+🤖 ProductionEnsemble: 重み付け統合・sklearn警告解消・306テスト100%成功・CI/D本番稼働
+📊 品質保証完成: CI/CD本番稼働・coverage-reports/58.88%・品質チェック自動化
+🔧 統合管理: logs/reports/統合・ビジュアルナビゲーション・最新レポートリンク対応
+⚙️ 設定最適化: config/gcp/・config/deployment/統合・不要ファイル削除・レガシー整理
+✅ sklearn警告解消: 全deprecation warning解消・最新ライブラリ対応・互換性確保
+🚀 CI/CD本番稼働: GitHub Actions本番稼働・段階的デプロイ・品質保証完成
 ```
 
-**🎯 Phase 12完了**: 手動実行監視・CI/CDワークフロー最適化・dev_check統合・450テスト68.13%カバレッジ対応ProductionEnsemble本番運用システムが完成。個人開発最適化と品質・セキュリティ・可用性を備えた次世代MLモデル運用環境を実現！
+**🎯 Phase 13完了**: sklearn警告解消・設定最適化・306テスト100%成功・CI/D本番稼働対応ProductionEnsemble本番運用システムが完成。個人開発最適化と企業級品質を兼ね備えた次世代MLモデル運用環境を実現！
 
-**次のマイルストーン**: Phase 13機械学習高度化・AutoML統合・Model Drift Detection・Advanced Ensemble・Online Learning実装
+**次のマイルストーン**: Phase 14機械学習高度化・AutoML統合・Model Drift Detection・Advanced Ensemble・Online Learning実装

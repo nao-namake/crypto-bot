@@ -1,37 +1,31 @@
 # Scripts Directory
 
-運用スクリプト集（Phase 12-2最適化完了）
+運用スクリプト集（Phase 13統合完了）
 
-**Phase 12-2完了**: BaseAnalyzer統合基盤・CI前/CI後役割分離・約520行重複コード削除・最適化された機能別フォルダ構成・統合管理システム・統合品質保証（2025年8月19日）
+**Phase 13完了**: sklearn警告解消・306テスト100%成功・品質保証完成・9フォルダ→5フォルダ統合・統合分析基盤・重複コード削除・最適化された機能別フォルダ構成（2025年8月22日）
 
-## 📂 フォルダ構成（Phase 12-2最適化完了）
+## 📂 フォルダ構成（Phase 13統合完了・9→5フォルダ統合）
 
 ```
 scripts/
-├── management/     # CI前/CI後チェック管理系 [README.md]
-│   ├── dev_check.py               # CI前チェック統合管理CLI（Phase 12対応・開発フェーズ特化）
-│   └── ops_monitor.py              # CI後チェック本番運用監視（BaseAnalyzer継承・約120行削除）
-├── analytics/      # パフォーマンス分析・BaseAnalyzer統合基盤 [README.md]
-│   ├── base_analyzer.py             # 統合共通基盤クラス（約520行重複コード削除達成）
-│   └── performance_analyzer.py      # システムパフォーマンス分析（BaseAnalyzer継承・約100行削除）
-├── dashboard/      # HTMLダッシュボード・可視化 [README.md]
-│   └── trading_dashboard.py         # 取引成果ダッシュボード（BaseAnalyzer継承完了）
-├── data_collection/ # 実データ収集・統計分析 [README.md]
-│   └── trading_data_collector.py    # 実データ収集（BaseAnalyzer継承完了）
-├── ab_testing/     # A/Bテスト・統計検定 [README.md]
-│   └── simple_ab_test.py            # A/Bテスト実行（BaseAnalyzer継承完了）
-├── quality/        # 品質保証・チェック系 [README.md]  
-│   └── checks.sh                   # 完全品質チェック（438テスト・80%カバレッジ・CI/CD統合）
+├── analytics/      # 統合分析基盤・データ収集・ダッシュボード [README.md]
+│   ├── base_analyzer.py             # 共通基盤クラス（500行重複コード削除達成）
+│   ├── performance_analyzer.py      # システムパフォーマンス分析
+│   ├── data_collector.py            # 実データ収集（旧trading_data_collector.py）
+│   └── dashboard.py                 # HTMLダッシュボード（旧trading_dashboard.py）
+├── management/     # 統合管理・開発支援系 [README.md]
+│   └── dev_check.py               # 統合管理CLI（665行・6機能統合・Phase 13対応）
+├── testing/        # 統合テスト・品質チェック系 [README.md]
+│   ├── checks.sh                   # 統合品質チェック（306テスト・sklearn警告解消）
+│   └── test_live_trading.py         # ライブトレードテスト（本番前検証）
 ├── ml/            # 機械学習・モデル系 [README.md]
-│   └── create_ml_models.py         # MLモデル作成（12特徴量・Phase 12アンサンブル統合）
-├── deployment/    # デプロイ・Docker系 [README.md]
-│   ├── deploy_production.sh        # 本番デプロイ（GCP Cloud Run・CI/CD統合・段階的デプロイ）
-│   └── docker-entrypoint.sh        # Docker統合エントリポイント（lightweight・ヘルスチェック）
-└── testing/       # テスト・検証系 [README.md]
-    └── test_live_trading.py         # ライブトレードテスト（本番前検証・CI/CD統合）
+│   └── create_ml_models.py         # MLモデル作成（12特徴量・アンサンブル統合）
+└── deployment/    # デプロイ・Docker系 [README.md]
+    ├── deploy_production.sh        # 本番デプロイ（GCP Cloud Run・段階的デプロイ）
+    └── docker-entrypoint.sh        # Docker統合エントリポイント
 ```
 
-## 🎯 推奨使用フロー（Phase 12-2対応）
+## 🎯 推奨使用フロー（Phase 13統合対応）
 
 ### 日常開発・品質確認
 ```bash
@@ -45,7 +39,7 @@ python scripts/management/dev_check.py validate --mode light
 
 # 期待結果:
 # ✅ すべてのチェックに合格しました！
-# 🚀 Phase 12-2システム最適化完了・BaseAnalyzer統合基盤適用
+# 🚀 Phase 13システム統合完了・306テスト100%成功・sklearn警告解消
 ```
 
 ### MLモデル開発・管理
@@ -68,7 +62,7 @@ python scripts/ml/create_ml_models.py --days 360        # 学習期間指定
 ### 本番デプロイ準備・実行
 ```bash
 # 📋 デプロイ前準備
-bash scripts/quality/checks.sh                          # 完全品質チェック
+bash scripts/testing/checks.sh                          # 完全品質チェック
 python scripts/testing/test_live_trading.py --paper-trade  # ライブトレードテスト
 
 # 🚀 本番デプロイ実行（Phase 12 CI/CD統合）
@@ -94,7 +88,7 @@ python scripts/management/dev_check.py health-check   # 本番環境ヘルスチ
 
 **推奨用途**: 日常の統合管理・品質確認・システム状態把握
 
-### 📁 quality/ - 品質保証系
+### 📁 testing/ - テスト・品質保証系
 **主要スクリプト**: `checks.sh`（完全版・Phase 12 CI/CD統合）
 
 **checks.sh（完全版）**:
@@ -163,12 +157,12 @@ scripts/
 
 📂 整理後（Phase 12）:
 scripts/
-├── management/    [README.md] # 統合管理系（1スクリプト・CI/CD統合）
-├── quality/       [README.md] # 品質保証系（1スクリプト・CI/CD統合）
+├── management/    [README.md] # 統合管理系（2スクリプト・CI/CD統合）
+├── analytics/     [README.md] # 統合分析基盤（4スクリプト・Phase 13新設）
 ├── ml/           [README.md] # 機械学習系（1スクリプト・監視統合）
-├── deployment/   [README.md] # デプロイ系（2スクリプト・段階的デプロイ）
-├── testing/      [README.md] # テスト系（1スクリプト・CI/CD統合）
-└── README.md              # Phase 12版（本ファイル）
+├── deployment/   [README.md] # デプロイ系（6スクリプト・段階的デプロイ）
+├── testing/      [README.md] # テスト・品質保証系（2スクリプト・CI/CD統合）
+└── README.md              # Phase 13版（本ファイル）
 ```
 
 ### Phase 12整理効果
@@ -200,7 +194,7 @@ python scripts/management/dev_check.py phase-check
 **対処**: 軽量モードで原因特定
 ```bash
 python scripts/management/dev_check.py validate --mode light
-bash scripts/quality/checks.sh  # 完全チェック
+bash scripts/testing/checks.sh  # 完全チェック
 ```
 
 **3. MLモデル作成失敗**

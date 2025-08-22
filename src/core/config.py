@@ -156,6 +156,58 @@ class Config:
 
         return True
 
+    def to_dict(self) -> Dict[str, Any]:
+        """設定をDict形式で返す（IntegratedRiskManager等での利用）."""
+        return {
+            "mode": self.mode,
+            "exchange": {
+                "name": self.exchange.name,
+                "symbol": self.exchange.symbol,
+                "rate_limit_ms": self.exchange.rate_limit_ms,
+                "timeout_ms": self.exchange.timeout_ms,
+                "retries": self.exchange.retries,
+            },
+            "ml": {
+                "confidence_threshold": self.ml.confidence_threshold,
+                "ensemble_enabled": self.ml.ensemble_enabled,
+                "models": self.ml.models,
+                "model_weights": self.ml.model_weights,
+            },
+            "risk": {
+                "risk_per_trade": self.risk.risk_per_trade,
+                "kelly_max_fraction": self.risk.kelly_max_fraction,
+                "max_drawdown": self.risk.max_drawdown,
+                "stop_loss_atr_multiplier": self.risk.stop_loss_atr_multiplier,
+                "consecutive_loss_limit": self.risk.consecutive_loss_limit,
+            },
+            "data": {
+                "timeframes": self.data.timeframes,
+                "since_hours": self.data.since_hours,
+                "limit": self.data.limit,
+                "cache_enabled": self.data.cache_enabled,
+            },
+            "logging": {
+                "level": self.logging.level,
+                "file_enabled": self.logging.file_enabled,
+                "discord_enabled": self.logging.discord_enabled,
+                "retention_days": self.logging.retention_days,
+            },
+            # リスク管理で使用される設定項目
+            "kelly_criterion": {
+                "max_position_ratio": self.risk.kelly_max_fraction,
+                "safety_factor": 0.5,  # デフォルト値
+                "min_trades_for_kelly": 20,  # デフォルト値
+            },
+            "drawdown_manager": {
+                "max_drawdown_ratio": self.risk.max_drawdown,
+                "consecutive_loss_limit": self.risk.consecutive_loss_limit,
+                "cooldown_hours": 24,  # デフォルト値
+            },
+            "anomaly_detector": {
+                "lookback_period": 20,  # デフォルト値
+            }
+        }
+
     def get_summary(self) -> Dict[str, Any]:
         """設定のサマリーを取得（機密情報除外）."""
         return {

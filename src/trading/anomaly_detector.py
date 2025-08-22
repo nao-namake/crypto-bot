@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from ..core.logger import get_logger
-from ..features.anomaly import AnomalyDetector as MarketAnomalyDetector
+from ..features.anomaly import MarketAnomalyDetector
 
 
 class AnomalyLevel(Enum):

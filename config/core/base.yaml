@@ -2,7 +2,7 @@
 # レガシーの420行設定から重要項目のみを抽出・Phase 12機能統合最適化・本番運用対応
 
 # 動作モード
-mode: paper  # paper（仮想取引）, live（実取引）
+mode: live  # paper（仮想取引）, live（実取引）
 
 # 取引所設定
 exchange:
@@ -71,7 +71,7 @@ monitoring:
 # Phase 12: CI/CDワークフロー統合設定
 cicd:
   environment_variables:
-    MODE: "paper"            # デフォルトモード
+    MODE: "live"             # デフォルトモード（本番運用）
     LOG_LEVEL: "INFO"        # デフォルトログレベル
     PYTHONPATH: "/app"       # Pythonパス
   deployment:

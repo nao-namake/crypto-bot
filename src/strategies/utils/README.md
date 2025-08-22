@@ -1,6 +1,6 @@
 # Strategies Utils - 戦略共通処理モジュール
 
-Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応で実装された、4つの戦略間の重複処理を統合する共通モジュール群・GitHub Actions統合。
+Phase 13完了・本番運用移行・システム最適化・CI/CD準備完了で実装された、4つの戦略間の重複処理を統合する共通モジュール群・GitHub Actions統合。
 
 ## 📁 フォルダの目的
 
@@ -17,10 +17,10 @@ Phase 12完了・CI/CDワークフロー最適化・手動実行監視・段階�
 **目的**: 戦略間で共通使用される定数の統一管理
 
 ```python
-from ..utils import EntryAction, StrategyType, DEFAULT_RISK_PARAMS  # Phase 12対応
+from ..utils import EntryAction, StrategyType, DEFAULT_RISK_PARAMS  # Phase 13対応
 
 # 全戦略で統一された定数使用（CI/CDワークフロー最適化）
-action = EntryAction.BUY  # GitHub Actions対応
+action = EntryAction.BUY  # 本番運用対応
 strategy_type = StrategyType.ATR_BASED  # 手動実行監視対応
 risk_params = DEFAULT_RISK_PARAMS  # 段階的デプロイ対応
 ```
@@ -34,7 +34,7 @@ risk_params = DEFAULT_RISK_PARAMS  # 段階的デプロイ対応
 **目的**: リスク管理計算の統一化・重複排除
 
 ```python
-from ..utils import RiskManager  # Phase 12統合・GitHub Actions対応
+from ..utils import RiskManager  # Phase 13統合・本番運用対応
 
 # ストップロス・利確価格の統一計算（CI/CDワークフロー最適化）
 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
@@ -60,9 +60,9 @@ position_size = RiskManager.calculate_position_size(
 **目的**: シグナル生成プロセスの統一化・リスク管理統合
 
 ```python
-from ..utils import SignalBuilder  # Phase 12・CI/CDワークフロー最適化・手動実行監視対応
+from ..utils import SignalBuilder  # Phase 13・CI/CDワークフロー最適化・手動実行監視対応
 
-# リスク管理統合済みシグナル生成（GitHub Actions対応）
+# リスク管理統合済みシグナル生成（本番運用対応）
 signal = SignalBuilder.create_signal_with_risk_management(
     strategy_name="ATRBased",
     decision=decision_dict,
@@ -89,8 +89,8 @@ hold_signal = SignalBuilder.create_hold_signal(
 **目的**: 統一インポートポイント・依存関係の明確化
 
 ```python
-# すべての共通機能を1行でインポート可能（Phase 12統合）
-from ..utils import (  # CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応
+# すべての共通機能を1行でインポート可能（Phase 13統合）
+from ..utils import (  # 本番運用移行・システム最適化・CI/CD準備完了
     EntryAction, StrategyType, DEFAULT_RISK_PARAMS,
     RiskManager, SignalBuilder  # GitHub Actions統合・監視統合
 )
@@ -121,8 +121,8 @@ class MochiPoyAlertStrategy:
 
 ### After（Phase 3-4後）
 ```python
-# 統一されたシンプルな実装（Phase 12・CI/CDワークフロー最適化）
-class ATRBasedStrategy:  # GitHub Actions対応・手動実行監視統合
+# 統一されたシンプルな実装（Phase 13・CI/CDワークフロー最適化）
+class ATRBasedStrategy:  # 本番運用対応・手動実行監視統合
     def _create_signal(self, decision, price, df):
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
@@ -168,7 +168,7 @@ class ATRBasedStrategy:  # GitHub Actions対応・手動実行監視統合
 共通モジュールの品質確保のため包括的テストを実装：
 
 ```bash
-# 共通モジュールのテスト実行（Phase 12・CI/CDワークフロー最適化・GitHub Actions対応）
+# 共通モジュールのテスト実行（Phase 13・CI/CDワークフロー最適化・本番運用対応）
 python -m pytest tests/unit/strategies/utils/ -v
 
 # カバレッジ確認（手動実行監視対応）
@@ -178,8 +178,8 @@ python -m pytest tests/unit/strategies/utils/ --cov=src.strategies.utils
 python scripts/management/dev_check.py validate --mode light
 ```
 
-### テスト対象（Phase 12・CI/CDワークフロー最適化）
-- **constants.py**: 定数の正確性・型整合性・GitHub Actions対応
+### テスト対象（Phase 13・CI/CDワークフロー最適化）
+- **constants.py**: 定数の正確性・型整合性・本番運用対応
 - **risk_manager.py**: 計算精度・エッジケース処理・手動実行監視対応
 - **signal_builder.py**: シグナル生成・エラーハンドリング・段階的デプロイ対応
 
@@ -187,10 +187,10 @@ python scripts/management/dev_check.py validate --mode light
 
 ### 新戦略での利用
 ```python
-from ..base.strategy_base import StrategyBase  # Phase 12統合
+from ..base.strategy_base import StrategyBase  # Phase 13統合
 from ..utils import EntryAction, RiskManager, SignalBuilder, StrategyType  # CI/CDワークフロー最適化
 
-class NewStrategy(StrategyBase):  # GitHub Actions対応・手動実行監視統合
+class NewStrategy(StrategyBase):  # 本番運用対応・手動実行監視統合
     def analyze(self, df):
         # 戦略固有の分析ロジック（段階的デプロイ対応）
         decision = self._analyze_market(df)  # CI/CD品質ゲート対応
@@ -213,19 +213,19 @@ class NewStrategy(StrategyBase):  # GitHub Actions対応・手動実行監視統
 
 ## 📝 今後の拡張
 
-### Phase 12での機能追加予定（CI/CDワークフロー最適化基盤活用）
+### Phase 13での機能追加予定（CI/CDワークフロー最適化基盤活用）
 - **高度なリスク管理**: ドローダウン制御・ポートフォリオバランス・GitHub Actions統合
 - **パフォーマンス追跡**: 戦略別成績管理・統計情報・手動実行監視統合
 - **動的設定**: ランタイムでの設定変更・A/Bテスト・段階的デプロイ対応
 
-### 互換性維持方針（Phase 12基盤）
+### 互換性維持方針（Phase 13基盤）
 - **インターフェース固定**: 既存メソッドシグネチャは変更しない・CI/CDワークフロー最適化
-- **オプショナル機能**: 新機能は既存動作に影響しない・GitHub Actions対応
+- **オプショナル機能**: 新機能は既存動作に影響しない・本番運用対応
 - **段階的導入**: 戦略ごとに選択的適用可能・手動実行監視統合
 
 ---
 
-**Phase 12完了日**: 2025年8月18日・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応  
+**Phase 13完了日**: 2025年8月18日・本番運用移行・システム最適化・CI/CD準備完了  
 **設計方針**: シンプル化が目的ではなく、保守性と安定性向上が目的・GitHub Actions統合  
 **重複削減**: ~300行 → 統一化完了・監視統合  
 **テスト品質**: 113テスト全成功達成・399テスト統合基盤対応・CI/CD品質ゲート対応

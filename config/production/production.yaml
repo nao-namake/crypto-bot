@@ -1,32 +1,74 @@
-# Phase 8本番環境設定 - production.yaml
-# レガシーシステム実証済み設定 + Phase 8バックテスト最適化統合
+# ========================================
+# 本番運用設定ファイル (production.yaml)
+# ========================================
+# 
+# Phase 13完成版: ライブモード本番運用最適化設定
+# 作成日: 2025年8月22日
+# 目的: 実取引環境での安全・確実・効率的な運用
+#
+# 重要: 本設定ファイルはライブモード専用です
+#       ペーパートレードには base.yaml を使用してください
+#
+# ========================================
+# 基本設定（本番運用）
+# ========================================
 
-# システム基本設定
-system:
-  name: "crypto-bot-phase8-production"
-  version: "8.0.0"
-  mode: "live"  # 本番は実取引モード
-  debug: false
-  log_level: "INFO"
+# 本番モード（実取引）
+mode: live  # 🚨 本番モード: 実際の資金での取引
 
-# 取引所設定（Bitbank信用取引特化・レガシー最適化継承）
+# 取引所設定（本番用）
 exchange:
-  name: "bitbank"
+  name: bitbank
   symbol: "BTC/JPY"
-  leverage: 1.0  # 保守的レバレッジ
   
-  # API設定（環境変数から取得）
-  api_key: "${BITBANK_API_KEY}"
-  api_secret: "${BITBANK_API_SECRET}"
-  sandbox: false  # 本番環境
+  # API制限（本番用厳格設定）
+  rate_limit_ms: 35000      # 35秒間隔（本番安全マージン）
+  timeout_ms: 120000        # 2分タイムアウト（本番安全性）
+  retries: 5                # リトライ回数増加（本番信頼性）
   
-  # API制限・タイムアウト（レガシー実証済み値）
-  rate_limit: 30000     # 30秒制限（安定性重視）
-  timeout: 90000        # 90秒タイムアウト（大量データ対応）
-  enable_rate_limit: true
-  retries: 3            # リトライ回数（適度に抑制）
+  # 本番用セキュリティ強化
+  ssl_verify: true          # SSL証明書検証必須
+  api_version: "v1"         # APIバージョン固定
 
-# データ設定（レガシー最適化継承）
+# ========================================
+# 機械学習設定（本番最適化）
+# ========================================
+ml:
+  # 本番用信頼度閾値（保守的）
+  confidence_threshold: 0.40  # 40%（本番では保守的な判定）
+  
+  # アンサンブルモデル設定
+  ensemble_enabled: true
+  models: ["lgbm", "xgb", "rf"]
+  model_weights: [0.5, 0.3, 0.2]  # LightGBM重視（実績ベース）
+  
+  # 本番用モデル管理
+  model_path: "/app/models/production/production_ensemble.pkl"
+  model_update_check: true     # モデル更新チェック有効
+  fallback_enabled: true       # フォールバック機能有効
+
+# ========================================
+# リスク管理設定（本番用厳格管理）
+# ========================================
+risk:
+  # 基本リスク設定（保守的）
+  risk_per_trade: 0.008        # 0.8%（本番は保守的）
+  kelly_max_fraction: 0.025    # Kelly基準最大2.5%
+  max_drawdown: 0.15           # 最大ドローダウン15%（厳格）
+  consecutive_loss_limit: 4     # 連続損失3回で一時停止
+  
+  # ストップロス設定
+  stop_loss_atr_multiplier: 1.0  # ATRの1.0倍（厳格）
+  take_profit_ratio: 2.0         # リスクリワード比1:2
+  
+  # 本番用追加保護機能
+  daily_loss_limit: 0.05         # 日次損失限度5%
+  weekly_loss_limit: 0.10        # 週次損失限度10%
+  emergency_stop_enabled: true   # 緊急停止機能有効
+
+# ========================================
+# データ取得設定（本番用）
+# ========================================
 data:
   # タイムフレーム（レガシー実証済み）
   timeframes: ["15m", "1h", "4h"]

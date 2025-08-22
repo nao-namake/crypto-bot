@@ -39,7 +39,7 @@ class UnifiedBotManager(BaseAnalyzer):
 
     def __init__(self):
         """初期化処理"""
-        super().__init__(output_dir="logs/management")
+        super().__init__(output_dir="logs/reports/ci_checks/dev_check")
 
         self.project_root = Path(__file__).parent.parent.parent
         self.scripts_dir = self.project_root / "scripts"
@@ -69,7 +69,7 @@ class UnifiedBotManager(BaseAnalyzer):
         }
 
         # レポート出力ディレクトリ
-        self.report_dir = self.project_root / "logs" / "dev_check_reports"
+        self.report_dir = self.project_root / "logs" / "reports" / "ci_checks" / "dev_check"
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
     def run_command(
@@ -202,7 +202,7 @@ class UnifiedBotManager(BaseAnalyzer):
 
         phase10_checks = [
             (self.scripts_dir / "ml" / "create_ml_models.py", "MLモデル作成スクリプト"),
-            (self.scripts_dir / "quality" / "checks.sh", "品質チェックスクリプト"),
+            (self.scripts_dir / "testing" / "checks.sh", "品質チェックスクリプト"),
             (self.scripts_dir / "deployment" / "docker-entrypoint.sh", "Docker entrypoint"),
             (
                 self.scripts_dir / "management" / "ops_monitor.py",
@@ -254,11 +254,11 @@ class UnifiedBotManager(BaseAnalyzer):
         print("=" * 60)
 
         if mode == "light":
-            check_script = self.scripts_dir / "quality" / "checks.sh"
+            check_script = self.scripts_dir / "testing" / "checks.sh"
             light_mode = True
             print("📝 軽量品質チェック実行")
         else:
-            check_script = self.scripts_dir / "quality" / "checks.sh"
+            check_script = self.scripts_dir / "testing" / "checks.sh"
             light_mode = False
             print("📝 完全品質チェック実行")
 
@@ -587,7 +587,7 @@ except Exception as e:
         important_files = {
             "MLモデル": self.models_dir / "production" / "production_ensemble.pkl",
             "モデルメタデータ": self.models_dir / "production" / "production_model_metadata.json",
-            "品質チェック": self.scripts_dir / "quality" / "checks.sh",
+            "品質チェック": self.scripts_dir / "testing" / "checks.sh",
             "MLモデル作成": self.scripts_dir / "ml" / "create_ml_models.py",
             "Bot統合管理": self.scripts_dir / "management" / "dev_check.py",
             "設定ファイル": self.config_dir / "core" / "base.yaml",
@@ -1102,7 +1102,7 @@ except Exception as e:
 
             if command in ["validate", "full-check"]:
                 content += "#### テスト・品質チェックエラーの場合\n"
-                content += "1. `bash scripts/quality/checks.sh` で品質チェック実行\n"
+                content += "1. `bash scripts/testing/checks.sh` で品質チェック実行\n"
                 content += "2. 個別テスト実行: `python -m pytest tests/unit/strategies/ -v`\n"
                 content += "3. コードフォーマット実行: `python -m black src/`\n\n"
 
