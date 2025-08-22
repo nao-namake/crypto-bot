@@ -205,7 +205,7 @@ class Config:
             },
             "anomaly_detector": {
                 "lookback_period": 20,  # デフォルト値
-            }
+            },
         }
 
     def get_summary(self) -> Dict[str, Any]:

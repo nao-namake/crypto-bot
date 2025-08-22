@@ -1,5 +1,5 @@
-# Phase 12: 統合品質保証CI/CDパイプライン
-# 68.13%カバレッジ達成・316テスト実装・Phase 12統合管理システム完成
+# Phase 13: 統合品質保証CI/CDパイプライン
+# 306テスト実装・Phase 13統合管理システム完成・ライブモード対応
 
 name: CI/CD Pipeline
 
@@ -56,12 +56,12 @@ jobs:
           echo '{"version": "ci-test", "features": 12, "created": "2025-08-17"}' > models/production/model_metadata.json
           touch models/production/production_ensemble.pkl
 
-      - name: Phase 12統合品質チェック
+      - name: Phase 13統合品質チェック
         run: |
-          echo "🔍 Phase 12統合品質保証システムによる品質チェック実行"
-          echo "68.13%カバレッジ・316テスト・統合管理システム対応"
+          echo "🔍 Phase 13統合品質保証システムによる品質チェック実行"
+          echo "306テスト・統合管理システム対応・ライブモード統合"
           
-          # Phase 12改善: 段階的品質チェックシステム（レガシー改良）
+          # Phase 13改善: 段階的品質チェックシステム（レガシー改良）
           echo "📋 段階1: 統合品質チェック実行"
           if bash scripts/testing/checks.sh; then
             echo "✅ 統合品質チェック成功"
@@ -136,7 +136,7 @@ jobs:
         run: |
           echo "🔧 システム統合確認"
           
-          # Phase 12統合確認（統合管理CLI活用）
+          # Phase 13統合確認（統合管理CLI活用）
           python scripts/management/dev_check.py phase-check || echo "⚠️ Phase確認で問題検出"
           python scripts/management/dev_check.py data-check || echo "⚠️ データ層確認で問題検出"
           
@@ -146,13 +146,13 @@ jobs:
               from src.core.orchestrator import create_trading_orchestrator
               from src.trading.executor import OrderExecutor, ExecutionMode
               from src.ml.production.ensemble import ProductionEnsemble
-              print('✅ Phase 12重要モジュールインポート成功')
+              print('✅ Phase 13重要モジュールインポート成功')
           except Exception as e:
               print(f'⚠️ インポートエラー: {e}')
           "
 
   # ========================================
-  # 2. GCP環境検証（Phase 12新機能）
+  # 2. GCP環境検証（Phase 13新機能）
   # ========================================
   gcp-environment-check:
     name: GCP Environment Verification
@@ -183,7 +183,7 @@ jobs:
 
       - name: Run GCP Environment Pre-Check
         run: |
-          echo "🔍 Phase 12: GCP環境事前検証開始"
+          echo "🔍 Phase 13: GCP環境事前検証開始"
           echo "デプロイ前にGCP環境の準備状況を確認します"
           
           # 検証スクリプト実行
@@ -318,7 +318,7 @@ jobs:
           # 本番用モデルファイル確認（必須）
           if [ ! -f "models/production/production_ensemble.pkl" ]; then
             echo "❌ 本番用モデルが見つかりません - デプロイ不可"
-            echo "Phase 9のMLモデル作成が必要です"
+            echo "Phase 13のMLモデル作成が必要です"
             echo "実行コマンド: python scripts/ml/create_ml_models.py"
             exit 1
           else
@@ -375,8 +375,8 @@ jobs:
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
           
-          echo "🚀 Phase 12段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "統合品質保証システム・68.13%カバレッジ対応版"
+          echo "🚀 Phase 13段階的デプロイ開始: ${IMAGE_TAG}"
+          echo "統合品質保証システム・306テスト・ライブモード対応版"
           
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
@@ -435,7 +435,16 @@ jobs:
           FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
           echo "📍 デプロイサービス名: $FULL_SERVICE_NAME"
           
-          # Cloud Runデプロイ実行（Phase 12段階的対応）
+          # Cloud Runデプロイ実行（Phase 13段階的対応・--no-traffic問題修正）
+          echo "🔍 サービス存在確認: $FULL_SERVICE_NAME"
+          if gcloud run services describe "$FULL_SERVICE_NAME" --region=${{ env.REGION }} >/dev/null 2>&1; then
+            echo "✅ 既存サービス更新（--no-traffic使用可能）"
+            TRAFFIC_FLAG="--no-traffic"
+          else
+            echo "🆕 新規サービス作成（--no-traffic不可）"
+            TRAFFIC_FLAG=""
+          fi
+          
           gcloud run deploy "$FULL_SERVICE_NAME" \
             --image="${IMAGE_TAG}" \
             --region=${{ env.REGION }} \
@@ -450,8 +459,8 @@ jobs:
             --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,DEPLOY_STAGE=$DEPLOY_MODE" \
             --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest" \
             --port=8080 \
-            --revision-suffix="phase12-$(date +%m%d-%H%M)" \
-            --no-traffic
+            --revision-suffix="phase13-$(date +%m%d-%H%M)" \
+            $TRAFFIC_FLAG
           
           # 段階的トラフィック配分（レガシー改良）
           if [ "$DEPLOY_MODE" != "paper" ]; then
