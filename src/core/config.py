@@ -24,6 +24,8 @@ class ExchangeConfig:
     rate_limit_ms: int = 30000
     timeout_ms: int = 90000
     retries: int = 3
+    ssl_verify: bool = True
+    api_version: str = "v1"
 
 
 @dataclass
@@ -34,12 +36,18 @@ class MLConfig:
     ensemble_enabled: bool = True
     models: list = None
     model_weights: list = None
+    model_path: Optional[str] = None
+    model_update_check: bool = False
+    fallback_enabled: bool = True
+    prediction: Optional[Dict] = None
 
     def __post_init__(self):
         if self.models is None:
             self.models = ["lgbm", "xgb", "rf"]
         if self.model_weights is None:
             self.model_weights = [0.5, 0.3, 0.2]
+        if self.prediction is None:
+            self.prediction = {"lookback_periods": 100, "retrain_frequency": "weekly"}
 
 
 @dataclass
@@ -51,6 +59,38 @@ class RiskConfig:
     max_drawdown: float = 0.20  # 最大ドローダウン20%
     stop_loss_atr_multiplier: float = 1.2
     consecutive_loss_limit: int = 5  # 連続損失限界
+    take_profit_ratio: float = 2.0
+    daily_loss_limit: float = 0.05
+    weekly_loss_limit: float = 0.10
+    emergency_stop_enabled: bool = True
+    kelly_criterion: Optional[Dict] = None
+    drawdown_manager: Optional[Dict] = None
+    anomaly_detector: Optional[Dict] = None
+    risk_thresholds: Optional[Dict] = None
+
+    def __post_init__(self):
+        if self.kelly_criterion is None:
+            self.kelly_criterion = {
+                "max_position_ratio": 0.05,
+                "safety_factor": 0.7,
+                "min_trades_for_kelly": 20
+            }
+        if self.drawdown_manager is None:
+            self.drawdown_manager = {
+                "max_drawdown_ratio": 0.20,
+                "consecutive_loss_limit": 5,
+                "cooldown_hours": 24
+            }
+        if self.anomaly_detector is None:
+            self.anomaly_detector = {
+                "lookback_period": 20,  # デフォルト値
+            }
+        if self.risk_thresholds is None:
+            self.risk_thresholds = {
+                "min_ml_confidence": 0.5,
+                "risk_threshold_deny": 0.8,
+                "risk_threshold_conditional": 0.6
+            }
 
 
 @dataclass
@@ -61,10 +101,19 @@ class DataConfig:
     since_hours: int = 96  # 4日分
     limit: int = 100
     cache_enabled: bool = True
+    cache: Optional[Dict] = None
 
     def __post_init__(self):
         if self.timeframes is None:
             self.timeframes = ["15m", "1h", "4h"]
+        if self.cache is None:
+            self.cache = {
+                "enabled": True,
+                "ttl_minutes": 5,
+                "max_size": 1000,
+                "disk_cache": True,
+                "retention_days": 90
+            }
 
 
 @dataclass
@@ -75,6 +124,28 @@ class LoggingConfig:
     file_enabled: bool = True
     discord_enabled: bool = True
     retention_days: int = 7
+    file: Optional[Dict] = None
+    discord: Optional[Dict] = None
+
+    def __post_init__(self):
+        if self.file is None:
+            self.file = {
+                "enabled": True,
+                "path": "logs/production",
+                "rotation": "daily",
+                "retention_days": 30,
+                "max_size_mb": 100
+            }
+        if self.discord is None:
+            self.discord = {
+                "enabled": True,
+                "webhook_url": "${DISCORD_WEBHOOK_URL}",
+                "levels": {
+                    "critical": True,
+                    "warning": True,
+                    "info": False
+                }
+            }
 
 
 @dataclass
@@ -98,9 +169,14 @@ class Config:
         with open(config_file, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
-        # 環境変数から機密情報を取得
+        # 環境変数から機密情報を取得（YAMLの機密情報は除外）
+        exchange_data = config_data.get("exchange", {}).copy()
+        # YAMLファイルからapi_key/api_secretを除外（環境変数を優先）
+        exchange_data.pop("api_key", None)
+        exchange_data.pop("api_secret", None)
+        
         exchange_config = ExchangeConfig(
-            **config_data.get("exchange", {}),
+            **exchange_data,
             api_key=os.getenv("BITBANK_API_KEY"),
             api_secret=os.getenv("BITBANK_API_SECRET"),
         )

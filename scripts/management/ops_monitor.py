@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class NewSystemOperationalStatusChecker(BaseAnalyzer):
-    """新システム稼働状況確認システム（Phase 12-3版・BaseAnalyzer継承）."""
+    """GCP Cloud Run実稼働確認システム（bitbank信用取引bot監視専用）."""
 
     def __init__(self, config_path: str = None):
         """初期化処理（BaseAnalyzer継承版）."""
@@ -85,6 +85,13 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             "models": PROJECT_ROOT / "models",
             "tests": PROJECT_ROOT / "tests",
         }
+        
+        # GCP Cloud Run実稼働確認用設定（古いサービス削除済み）
+        self.cloud_run_services = [
+            "crypto-bot-service-prod-prod"  # CI/CDデプロイ済み本番サービス
+        ]
+        self.project_id = "my-crypto-bot-project"
+        self.region = "asia-northeast1"
 
     def load_config(self) -> Dict:
         """設定ファイルを読み込み（新システム用）."""
@@ -367,6 +374,218 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 "details": f"Test system check failed: {type(e).__name__}",
             }
 
+    def check_cloud_run_deployment(self) -> Dict[str, Any]:
+        """GCP Cloud Run デプロイ状況確認."""
+        logger.info("🔍 Checking GCP Cloud Run deployment status...")
+
+        try:
+            import subprocess
+            
+            deployment_status = {
+                "services_checked": 0,
+                "services_running": 0,
+                "services_details": [],
+                "failed_services": [],
+            }
+
+            for service_name in self.cloud_run_services:
+                try:
+                    # Cloud Run サービス詳細取得
+                    cmd = [
+                        "gcloud", "run", "services", "describe", service_name,
+                        "--region", self.region,
+                        "--format", "json"
+                    ]
+                    
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True, timeout=30
+                    )
+                    
+                    deployment_status["services_checked"] += 1
+                    
+                    if result.returncode == 0:
+                        import json
+                        service_data = json.loads(result.stdout)
+                        
+                        # サービス状態確認
+                        status = service_data.get("status", {})
+                        conditions = status.get("conditions", [])
+                        
+                        # Ready状態チェック
+                        ready_condition = next(
+                            (c for c in conditions if c.get("type") == "Ready"), 
+                            {}
+                        )
+                        
+                        is_ready = ready_condition.get("status") == "True"
+                        url = status.get("url", "")
+                        
+                        service_info = {
+                            "name": service_name,
+                            "ready": is_ready,
+                            "url": url,
+                            "last_ready_time": ready_condition.get("lastTransitionTime", ""),
+                            "revision": status.get("latestCreatedRevisionName", ""),
+                        }
+                        
+                        deployment_status["services_details"].append(service_info)
+                        
+                        if is_ready:
+                            deployment_status["services_running"] += 1
+                        else:
+                            deployment_status["failed_services"].append({
+                                "name": service_name,
+                                "reason": ready_condition.get("reason", "Unknown"),
+                                "message": ready_condition.get("message", "No details")
+                            })
+                    
+                    else:
+                        # サービスが存在しない場合
+                        deployment_status["failed_services"].append({
+                            "name": service_name,
+                            "reason": "NotFound",
+                            "message": f"Service not found: {result.stderr[:100]}"
+                        })
+                        
+                except subprocess.TimeoutExpired:
+                    deployment_status["failed_services"].append({
+                        "name": service_name,
+                        "reason": "Timeout",
+                        "message": "gcloud command timeout"
+                    })
+                    
+                except Exception as service_error:
+                    deployment_status["failed_services"].append({
+                        "name": service_name,
+                        "reason": "Error",
+                        "message": str(service_error)[:100]
+                    })
+
+            # 結果判定
+            if deployment_status["services_running"] == len(self.cloud_run_services):
+                return {
+                    "status": "healthy",
+                    "services_running": deployment_status["services_running"],
+                    "total_services": len(self.cloud_run_services),
+                    "services_details": deployment_status["services_details"],
+                    "details": f"All {deployment_status['services_running']} Cloud Run services are running",
+                }
+            elif deployment_status["services_running"] > 0:
+                return {
+                    "status": "warning",
+                    "services_running": deployment_status["services_running"],
+                    "total_services": len(self.cloud_run_services),
+                    "failed_services": deployment_status["failed_services"],
+                    "details": f"Partial deployment: {deployment_status['services_running']}/{len(self.cloud_run_services)} services running",
+                }
+            else:
+                return {
+                    "status": "critical",
+                    "services_running": 0,
+                    "total_services": len(self.cloud_run_services),
+                    "failed_services": deployment_status["failed_services"],
+                    "details": "No Cloud Run services are running",
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "details": f"Cloud Run deployment check failed: {type(e).__name__}",
+            }
+
+    def check_gcp_api_connectivity(self) -> Dict[str, Any]:
+        """GCP API接続確認・シークレット検証."""
+        logger.info("🔍 Checking GCP API connectivity and secrets...")
+
+        try:
+            import subprocess
+            
+            connectivity_status = {
+                "gcloud_auth": False,
+                "project_access": False,
+                "secrets_available": False,
+                "bitbank_api_key": False,
+                "bitbank_api_secret": False,
+            }
+
+            # 1. gcloud認証確認
+            try:
+                cmd = ["gcloud", "auth", "list", "--format", "json"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                
+                if result.returncode == 0:
+                    import json
+                    auth_data = json.loads(result.stdout)
+                    connectivity_status["gcloud_auth"] = len(auth_data) > 0
+                    
+            except Exception:
+                pass
+
+            # 2. プロジェクトアクセス確認
+            try:
+                cmd = ["gcloud", "projects", "describe", self.project_id, "--format", "json"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                connectivity_status["project_access"] = result.returncode == 0
+                
+            except Exception:
+                pass
+
+            # 3. Secret Manager接続確認
+            try:
+                cmd = ["gcloud", "secrets", "list", "--project", self.project_id, "--format", "json"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                
+                if result.returncode == 0:
+                    connectivity_status["secrets_available"] = True
+                    
+                    # Bitbank APIキー確認
+                    import json
+                    secrets_data = json.loads(result.stdout)
+                    secret_names = [s.get("name", "").split("/")[-1] for s in secrets_data]
+                    
+                    # APIキー・シークレット存在確認
+                    api_key_patterns = ["bitbank-api-key", "bitbank_api_key"]
+                    api_secret_patterns = ["bitbank-api-secret", "bitbank_api_secret"]
+                    
+                    connectivity_status["bitbank_api_key"] = any(
+                        pattern in secret_names for pattern in api_key_patterns
+                    )
+                    connectivity_status["bitbank_api_secret"] = any(
+                        pattern in secret_names for pattern in api_secret_patterns
+                    )
+                    
+            except Exception:
+                pass
+
+            # 結果判定
+            total_checks = len(connectivity_status)
+            successful_checks = sum(1 for v in connectivity_status.values() if v)
+            success_rate = successful_checks / total_checks
+
+            if success_rate >= 0.8:
+                status = "healthy"
+            elif success_rate >= 0.6:
+                status = "warning"
+            else:
+                status = "critical"
+
+            return {
+                "status": status,
+                "success_rate": success_rate,
+                "successful_checks": successful_checks,
+                "total_checks": total_checks,
+                "connectivity_details": connectivity_status,
+                "details": f"GCP connectivity: {successful_checks}/{total_checks} checks passed",
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "details": f"GCP API connectivity check failed: {type(e).__name__}",
+            }
+
     def run_phase1_infrastructure_checks(self) -> Dict[str, Any]:
         """Phase 1: インフラ・基盤確認を実行."""
         logger.info("🚀 === Phase 1: インフラ・基盤確認（新システム） ===")
@@ -386,6 +605,8 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             "system_imports": self.check_system_imports(),
             "ml_models_availability": self.check_ml_models_availability(),
             "test_system_health": self.check_test_system_health(),
+            "cloud_run_deployment": self.check_cloud_run_deployment(),
+            "gcp_api_connectivity": self.check_gcp_api_connectivity(),
         }
 
         phase1_results["checks"] = checks
@@ -445,21 +666,38 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         logger.info("🔍 Checking data pipeline health...")
 
         try:
-            # DataPipeline基本動作確認（Phase 12対応）
+            # DataPipeline基本動作確認（本番環境対応）
             from src.core.config import load_config
             from src.data.data_pipeline import DataPipeline
 
-            config = load_config("config/core/base.yaml")
+            # 本番環境の設定ファイルを優先的にテスト
+            config_files = [
+                "config/production/production.yaml",  # 本番設定
+                "config/core/base.yaml"               # フォールバック
+            ]
+            
+            config = None
+            config_file_used = None
+            
+            for config_file in config_files:
+                try:
+                    config = load_config(config_file)
+                    config_file_used = config_file
+                    break
+                except Exception:
+                    continue
+            
+            if config is None:
+                raise ValueError("利用可能な設定ファイルがありません")
+            
             _ = DataPipeline(config)  # pipeline - インスタンス化テストのみ
-
-            # 基本的な接続テスト（軽量）
-            # 注意: 実際のAPI呼び出しは避け、クラスのインスタンス化のみ
 
             return {
                 "status": "healthy",
                 "pipeline_initialized": True,
                 "config_loaded": True,
-                "details": "Data pipeline components operational",
+                "config_file": config_file_used,
+                "details": f"Data pipeline operational with {config_file_used}",
             }
 
         except Exception as e:
@@ -590,6 +828,232 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 "details": f"Risk system check failed: {type(e).__name__}",
             }
 
+    def check_cloud_run_live_status(self) -> Dict[str, Any]:
+        """Cloud Run実稼働状況・ログ確認."""
+        logger.info("🔍 Checking Cloud Run live status and logs...")
+
+        try:
+            import subprocess
+            
+            live_status = {
+                "services_responding": 0,
+                "total_services": len(self.cloud_run_services),
+                "services_details": [],
+                "recent_logs": [],
+                "error_patterns": [],
+            }
+
+            for service_name in self.cloud_run_services:
+                try:
+                    # 最新のログ取得（過去30分）
+                    log_cmd = [
+                        "gcloud", "logging", "read",
+                        f'resource.type="cloud_run_revision" AND resource.labels.service_name="{service_name}"',
+                        "--limit", "50",
+                        "--format", "json",
+                        "--freshness", "30m"
+                    ]
+                    
+                    log_result = subprocess.run(
+                        log_cmd, capture_output=True, text=True, timeout=30
+                    )
+                    
+                    service_status = {
+                        "name": service_name,
+                        "logs_available": False,
+                        "recent_activity": False,
+                        "error_count": 0,
+                        "last_log_time": "",
+                        "status_summary": "unknown",
+                    }
+                    
+                    if log_result.returncode == 0 and log_result.stdout.strip():
+                        import json
+                        logs = json.loads(log_result.stdout)
+                        
+                        service_status["logs_available"] = len(logs) > 0
+                        
+                        if logs:
+                            service_status["recent_activity"] = True
+                            
+                            # 最新ログ時刻
+                            latest_log = logs[0]
+                            service_status["last_log_time"] = latest_log.get("timestamp", "")
+                            
+                            # エラーパターン検出
+                            error_patterns = ["ERROR", "Exception", "Failed", "Timeout", "abort"]
+                            error_logs = []
+                            
+                            for log_entry in logs[:20]:  # 最新20件をチェック
+                                log_text = str(log_entry.get("textPayload", ""))
+                                for pattern in error_patterns:
+                                    if pattern.lower() in log_text.lower():
+                                        error_logs.append({
+                                            "timestamp": log_entry.get("timestamp", ""),
+                                            "message": log_text[:200],
+                                            "pattern": pattern
+                                        })
+                                        service_status["error_count"] += 1
+                                        break
+                            
+                            # ステータス判定
+                            if service_status["error_count"] == 0:
+                                service_status["status_summary"] = "healthy"
+                                live_status["services_responding"] += 1
+                            elif service_status["error_count"] <= 2:
+                                service_status["status_summary"] = "warning"
+                            else:
+                                service_status["status_summary"] = "critical"
+                            
+                            live_status["error_patterns"].extend(error_logs[:3])
+                    
+                    live_status["services_details"].append(service_status)
+                    
+                except subprocess.TimeoutExpired:
+                    live_status["services_details"].append({
+                        "name": service_name,
+                        "status_summary": "timeout",
+                        "error_count": 1,
+                    })
+                    
+                except Exception as service_error:
+                    live_status["services_details"].append({
+                        "name": service_name,
+                        "status_summary": "error",
+                        "error_count": 1,
+                        "error_message": str(service_error)[:100],
+                    })
+
+            # 総合判定
+            response_rate = live_status["services_responding"] / live_status["total_services"]
+            total_errors = sum(s.get("error_count", 0) for s in live_status["services_details"])
+
+            if response_rate >= 1.0 and total_errors == 0:
+                status = "healthy"
+            elif response_rate >= 0.5 and total_errors <= 3:
+                status = "warning"
+            else:
+                status = "critical"
+
+            return {
+                "status": status,
+                "services_responding": live_status["services_responding"],
+                "total_services": live_status["total_services"],
+                "response_rate": response_rate,
+                "total_errors": total_errors,
+                "services_details": live_status["services_details"],
+                "error_patterns": live_status["error_patterns"][:5],
+                "details": f"Live status: {live_status['services_responding']}/{live_status['total_services']} services responding, {total_errors} errors",
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "details": f"Cloud Run live status check failed: {type(e).__name__}",
+            }
+
+    def check_bitbank_trading_verification(self) -> Dict[str, Any]:
+        """Bitbank取引システム実動作確認."""
+        logger.info("🔍 Checking Bitbank trading system verification...")
+
+        try:
+            import subprocess
+            
+            trading_status = {
+                "api_connectivity": False,
+                "trading_activity": False,
+                "balance_check": False,
+                "recent_trades": [],
+                "system_health": "unknown",
+            }
+
+            # Cloud Runログから取引関連ログを確認
+            try:
+                for service_name in self.cloud_run_services:
+                    # 取引関連ログ検索
+                    log_cmd = [
+                        "gcloud", "logging", "read",
+                        f'resource.type="cloud_run_revision" AND resource.labels.service_name="{service_name}" AND (textPayload:"balance" OR textPayload:"order" OR textPayload:"position" OR textPayload:"bitbank")',
+                        "--limit", "20",
+                        "--format", "json",
+                        "--freshness", "2h"
+                    ]
+                    
+                    log_result = subprocess.run(
+                        log_cmd, capture_output=True, text=True, timeout=30
+                    )
+                    
+                    if log_result.returncode == 0 and log_result.stdout.strip():
+                        import json
+                        logs = json.loads(log_result.stdout)
+                        
+                        for log_entry in logs:
+                            log_text = str(log_entry.get("textPayload", "")).lower()
+                            timestamp = log_entry.get("timestamp", "")
+                            
+                            # API接続確認
+                            if any(keyword in log_text for keyword in ["bitbank", "api", "connection"]):
+                                trading_status["api_connectivity"] = True
+                            
+                            # 残高確認ログ
+                            if any(keyword in log_text for keyword in ["balance", "残高", "1万円", "10000"]):
+                                trading_status["balance_check"] = True
+                                trading_status["recent_trades"].append({
+                                    "type": "balance_check",
+                                    "timestamp": timestamp,
+                                    "message": log_text[:100]
+                                })
+                            
+                            # 取引活動確認
+                            if any(keyword in log_text for keyword in ["order", "position", "buy", "sell", "取引"]):
+                                trading_status["trading_activity"] = True
+                                trading_status["recent_trades"].append({
+                                    "type": "trading_activity",
+                                    "timestamp": timestamp,
+                                    "message": log_text[:100]
+                                })
+
+            except Exception:
+                pass
+
+            # システム健全性判定
+            health_score = 0
+            if trading_status["api_connectivity"]:
+                health_score += 40
+            if trading_status["balance_check"]:
+                health_score += 30
+            if trading_status["trading_activity"]:
+                health_score += 30
+
+            if health_score >= 70:
+                trading_status["system_health"] = "healthy"
+                status = "healthy"
+            elif health_score >= 40:
+                trading_status["system_health"] = "warning"
+                status = "warning"
+            else:
+                trading_status["system_health"] = "critical"
+                status = "critical"
+
+            return {
+                "status": status,
+                "health_score": health_score,
+                "api_connectivity": trading_status["api_connectivity"],
+                "balance_check": trading_status["balance_check"],
+                "trading_activity": trading_status["trading_activity"],
+                "recent_trades_count": len(trading_status["recent_trades"]),
+                "recent_trades": trading_status["recent_trades"][:3],
+                "details": f"Bitbank trading health: {health_score}/100 ({trading_status['system_health']})",
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "details": f"Bitbank trading verification failed: {type(e).__name__}",
+            }
+
     def run_phase2_application_checks(self) -> Dict[str, Any]:
         """Phase 2: アプリケーション動作確認を実行."""
         logger.info("🚀 === Phase 2: アプリケーション動作確認（新システム） ===")
@@ -609,6 +1073,8 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             "ml_prediction_system": self.check_ml_prediction_system(),
             "strategy_system_health": self.check_strategy_system_health(),
             "trading_risk_system": self.check_trading_risk_system(),
+            "cloud_run_live_status": self.check_cloud_run_live_status(),
+            "bitbank_trading_verification": self.check_bitbank_trading_verification(),
         }
 
         phase2_results["checks"] = checks

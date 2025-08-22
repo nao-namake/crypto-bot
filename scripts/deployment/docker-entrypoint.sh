@@ -41,9 +41,14 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
                 from src.trading.executor import create_order_executor
                 from src.core.config import load_config
                 
-                # 簡易動作確認
-                executor = create_order_executor(mode='paper')
-                config = load_config('config/core/base.yaml')
+                # 簡易動作確認（環境に応じた設定ファイル使用）
+                mode = os.environ.get('MODE', 'paper')
+                if mode == 'live':
+                    config = load_config('config/production/production.yaml')
+                    executor = create_order_executor(mode='live')
+                else:
+                    config = load_config('config/core/base.yaml')
+                    executor = create_order_executor(mode='paper')
                 
                 health_data = {
                     "status": "healthy",

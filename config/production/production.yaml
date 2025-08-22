@@ -34,8 +34,8 @@ exchange:
 # 機械学習設定（本番最適化）
 # ========================================
 ml:
-  # 本番用信頼度閾値（保守的）
-  confidence_threshold: 0.40  # 40%（本番では保守的な判定）
+  # 本番用信頼度閾値（Phase 8最適化）
+  confidence_threshold: 0.5   # 50%（Phase 8最適化: 0.25→0.5・適切な精度確保）
   
   # アンサンブルモデル設定
   ensemble_enabled: true
@@ -46,6 +46,11 @@ ml:
   model_path: "/app/models/production/production_ensemble.pkl"
   model_update_check: true     # モデル更新チェック有効
   fallback_enabled: true       # フォールバック機能有効
+  
+  # 予測設定
+  prediction:
+    lookback_periods: 100
+    retrain_frequency: "weekly"
 
 # ========================================
 # リスク管理設定（本番用厳格管理）
@@ -128,26 +133,7 @@ strategies:
     required_agreement: 0.6  # 60%以上の合意で実行
     confidence_threshold: 0.4
 
-# 機械学習設定（Phase 8バックテスト最適化）
-ml:
-  ensemble_enabled: true      # アンサンブル有効
-  confidence_threshold: 0.5   # Phase 8最適化（0.25→0.5・適切な精度確保）
-  
-  # アンサンブル設定（レガシー実績ベース）
-  models:
-    - "lgbm"     # 実績のある3モデル
-    - "xgb"
-    - "rf"
-  
-  model_weights:  # 最適化済み重み
-    - 0.5         # LightGBM
-    - 0.3         # XGBoost
-    - 0.2         # RandomForest
-  
-  # 予測設定
-  prediction:
-    lookback_periods: 100
-    retrain_frequency: "weekly"
+# 機械学習設定は上記で統合済み（重複削除）
 
 # リスク管理設定（Phase 6完全版・レガシー実証値活用）
 risk:
