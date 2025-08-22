@@ -14,7 +14,7 @@ env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
   REPOSITORY: crypto-bot-repo
-  SERVICE_NAME: crypto-bot-service-prod  # 実際のCloud Runサービス名に合わせる
+  SERVICE_NAME: crypto-bot-service-prod-prod  # 実際のCloud Runサービス名に合わせる
 
 jobs:
   # ========================================

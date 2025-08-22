@@ -77,7 +77,7 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
         elif self.path == '/':
             # 基本動作確認エンドポイント
             basic_info = {
-                "service": "crypto-bot-service-prod",
+                "service": "crypto-bot-service-prod-prod",
                 "version": "Phase 12 完了",
                 "status": "operational",
                 "timestamp": datetime.now().isoformat(),

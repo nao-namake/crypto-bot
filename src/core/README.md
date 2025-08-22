@@ -1,6 +1,12 @@
 # core/ - 基盤システム
 
-**Phase 13完了**: システム全体を支える核心的な基盤機能を提供するディレクトリです。環境変数・YAML統合・構造化ログ・Discord通知・階層化例外処理・統合システム制御・Config型不一致修正・to_dict()メソッド追加・本番モード設定最適化を実装しています（全テスト対応・GitHub Actions統合）。
+**Phase 13完了**: システム全体を支える核心的な基盤機能を提供するディレクトリです。環境変数・YAML統合・構造化ログ・Discord通知・階層化例外処理・統合システム制御・Config型不一致修正・to_dict()メソッド追加・本番モード設定最適化・API設定重複エラー完全修正を実装しています（全テスト対応・GitHub Actions統合・Cloud Run本番運用対応）。
+
+**最新修正（2025年8月23日）**: 
+- ✅ **config.py API設定重複エラー完全修正**: ExchangeConfig YAML/環境変数競合解決・api_key重複問題解決
+- ✅ **統合設定システム強化**: dataclass全フィールド対応・MLConfig/RiskConfig/DataConfig/LoggingConfig拡張完了
+- ✅ **環境変数優先設計**: YAMLファイルapi_key/api_secret除外処理・セキュリティ強化・本番運用対応
+- ✅ **型安全性確保**: Optional型活用・デフォルト値統一・__post_init__メソッド活用・設定検証強化
 
 ## 📁 ファイル構成
 

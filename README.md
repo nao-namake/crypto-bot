@@ -1,29 +1,29 @@
 # Crypto-Bot - 🚀 AI自動取引システム
 
-**個人向けAI自動取引システム（Phase 13完了・本番運用移行・システム最適化・CI/CD準備完了）**
+**個人向けAI自動取引システム（Phase 13完了・本番運用対応・重要エラー修正・GCPサービス統合完了）**
 
 [![Python](https://img.shields.io/badge/python-3.11-blue)](https://python.org) [![Phase](https://img.shields.io/badge/phase-13%20完了-brightgreen)](CLAUDE.md) [![Tests](https://img.shields.io/badge/tests-306%20passed%20100%25-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.88%25-orange)](coverage-reports/) [![Scripts](https://img.shields.io/badge/scripts-9→5フォルダ統合-blue)](scripts/) [![Logs](https://img.shields.io/badge/logs-統合完了-blue)](logs/reports/) [![Models](https://img.shields.io/badge/models-整理完了-green)](models/) [![CI/CD](https://img.shields.io/badge/CI%2FCD-本番稼働中-brightgreen)](.github/workflows/)
 
 ## 🎯 システム概要
 
-個人向けAI自動取引システムです。レガシーシステム（56,355行）から保守性の高い新システム（Phase 13完了）への全面リファクタリングにより、本番モード（live）完全移行・システム最適化・GCP環境整備・CI/CD本番運用準備完了を実現しました。
+個人向けAI自動取引システムです。レガシーシステム（56,355行）から保守性の高い新システム（Phase 13完了）への全面リファクタリングにより、本番運用対応・重要エラー修正・GCPサービス統合・CI/CD安定稼働を実現しました。
 
-### 🏆 Phase 13完了成果（2025年8月22日）
+### 🏆 Phase 13最新成果（2025年8月23日重要修正）
 
-**本番運用システム完全移行**:
-- **ライブモード移行**: base.yaml・Dockerfile・CI/CD・Cloud Run全環境本番モード化
-- **GCP環境最適化**: Cloud Run本番稼働・古いリソース削除・設定最適化・認証強化
-- **本番設定完成**: production.yaml刷新・セキュリティ強化・パフォーマンス最適化
+**本番運用対応・重要エラー修正完了**:
+- **API設定重複エラー解決**: config.py ExchangeConfig YAML/環境変数競合完全修正・Cloud Run起動成功
+- **GCPサービス統合**: 重複サービス削除（crypto-bot-service-prod/crypto-bot-service-prod-prod統合）
+- **設定ファイル統一**: production.yaml重複セクション削除・docker-entrypoint.sh環境別動的選択
 
-**システム統合・エラー完全解決**:
-- **インポートエラー解決**: MarketAnomalyDetector統一・__init__.py修正・全参照更新
-- **Config型修正**: to_dict()メソッド追加・IntegratedRiskManager対応・型安全性確保
-- **パス整合性確保**: quality/→testing/移行・スクリプトパス統一・参照修正完了
+**運用監視システム強化**:
+- **ops_monitor.py本番対応**: BaseAnalyzer活用・正確なサービス監視・実稼働確認精度向上
+- **設定システム統合**: 環境変数優先設計・YAMLファイルapi_key/api_secret除外・セキュリティ強化
+- **型安全性確保**: dataclass全フィールド対応・Optional型活用・__post_init__メソッド活用
 
-**構造最適化・品質保証完成**:
-- **src/構造確認**: 重複なし・適切設計確認・個人開発最適化済み
-- **GCPリソースクリーンアップ**: 古いリビジョン・イメージ削除・ログ整理・環境整備
-- **全システム検証**: パス整合性・動作確認・本番運用準備100%完了
+**GCP統合最適化・コスト効率化**:
+- **リソース効率化**: 古いサービス・イメージ削除・監視対象一元化・運用コスト削減
+- **CI/CD安定化**: GitHub Actions統合・自動デプロイ・品質ゲート・エラー完全解決
+- **本番運用準備**: 1万円少額運用開始・段階的スケールアップ・月間17,000円収益目標
 
 ### 📊 システム完成状況
 

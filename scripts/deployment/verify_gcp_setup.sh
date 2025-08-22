@@ -34,7 +34,7 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || echo "")}}"
 REGION="${REGION:-${GCP_REGION:-asia-northeast1}}"
 REPOSITORY="${REPOSITORY:-${ARTIFACT_REPOSITORY:-crypto-bot-repo}}"
-SERVICE_NAME="${SERVICE_NAME:-${CLOUD_RUN_SERVICE:-crypto-bot-service-prod}}"
+SERVICE_NAME="${SERVICE_NAME:-${CLOUD_RUN_SERVICE:-crypto-bot-service-prod-prod}}"
 
 # GitHub Actions統合設定
 GITHUB_SA="github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
