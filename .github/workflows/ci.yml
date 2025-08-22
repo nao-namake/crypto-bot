@@ -456,7 +456,7 @@ jobs:
             --concurrency=1 \
             --timeout="$TIMEOUT" \
             --allow-unauthenticated \
-            --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,DEPLOY_STAGE=$DEPLOY_MODE" \
+            --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
             --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest" \
             --port=8080 \
             --revision-suffix="phase13-$(date +%m%d-%H%M)" \
