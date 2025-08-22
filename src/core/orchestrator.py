@@ -725,7 +725,7 @@ async def create_trading_orchestrator(
         FibonacciRetracementStrategy,
     )
     from ..strategies.implementations.mochipoy_alert import (
-        MochiPoyAlertStrategy,
+        MochipoyAlertStrategy,
     )
     from ..strategies.implementations.multi_timeframe import (
         MultiTimeframeStrategy,
@@ -749,7 +749,7 @@ async def create_trading_orchestrator(
         # Phase 4: 戦略サービス
         strategies = [
             ATRBasedStrategy(),
-            MochiPoyAlertStrategy(),
+            MochipoyAlertStrategy(),
             MultiTimeframeStrategy(),
             FibonacciRetracementStrategy(),
         ]
