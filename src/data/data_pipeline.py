@@ -129,7 +129,7 @@ class DataPipeline:
 
         return df
 
-    def fetch_ohlcv(self, request: DataRequest, use_cache: bool = True) -> pd.DataFrame:
+    async def fetch_ohlcv(self, request: DataRequest, use_cache: bool = True) -> pd.DataFrame:
         """
         OHLCV データを取得
 
@@ -156,7 +156,7 @@ class DataPipeline:
                 )
 
                 # APIからデータ取得
-                ohlcv_data = self.client.fetch_ohlcv(
+                ohlcv_data = await self.client.fetch_ohlcv(
                     symbol=request.symbol,
                     timeframe=request.timeframe.value,
                     since=request.since,
@@ -205,7 +205,7 @@ class DataPipeline:
                         context={"max_retries_exceeded": True},
                     )
 
-    def fetch_multi_timeframe(
+    async def fetch_multi_timeframe(
         self, symbol: str = "BTC/JPY", limit: int = 1000
     ) -> Dict[str, pd.DataFrame]:
         """
@@ -224,7 +224,7 @@ class DataPipeline:
             request = DataRequest(symbol=symbol, timeframe=timeframe, limit=limit)
 
             try:
-                df = self.fetch_ohlcv(request)
+                df = await self.fetch_ohlcv(request)
                 
                 # 型安全性チェック - DataFrameの保証
                 if isinstance(df, pd.DataFrame):
@@ -258,7 +258,7 @@ class DataPipeline:
 
         return results
 
-    def get_latest_prices(self, symbol: str = "BTC/JPY") -> Dict[str, float]:
+    async def get_latest_prices(self, symbol: str = "BTC/JPY") -> Dict[str, float]:
         """
         最新価格情報を全タイムフレームから取得
 
@@ -273,7 +273,7 @@ class DataPipeline:
         for timeframe in TimeFrame:
             try:
                 request = DataRequest(symbol=symbol, timeframe=timeframe, limit=1)
-                df = self.fetch_ohlcv(request)
+                df = await self.fetch_ohlcv(request)
 
                 if len(df) > 0:
                     latest_prices[timeframe.value] = float(df["close"].iloc[-1])
@@ -356,8 +356,8 @@ class DataPipeline:
                 since=since,
             )
 
-            # 同期メソッドを非同期コンテキストで実行
-            data = self.fetch_ohlcv(request, use_cache=True)
+            # 非同期メソッドを実行
+            data = await self.fetch_ohlcv(request, use_cache=True)
 
             self.logger.info(f"Historical data fetched: {len(data)} rows for {symbol} {timeframe}")
             return data

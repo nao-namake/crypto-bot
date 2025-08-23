@@ -85,7 +85,7 @@ class BitbankClient:
             self.logger.error("Bitbank API接続テスト失敗", error=e)
             return False
 
-    def fetch_ohlcv(
+    async def fetch_ohlcv(
         self,
         symbol: str = "BTC/JPY",
         timeframe: str = "1h",
@@ -117,15 +117,8 @@ class BitbankClient:
             current_year = datetime.now().year
             
             try:
-                # 非同期メソッドを同期的に実行
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    ohlcv = loop.run_until_complete(
-                        self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
-                    )
-                finally:
-                    loop.close()
+                # 既存のイベントループ内で直接awaitを使用
+                ohlcv = await self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
                 
                 # limitが指定されている場合は最新データに制限
                 if limit and len(ohlcv) > limit:

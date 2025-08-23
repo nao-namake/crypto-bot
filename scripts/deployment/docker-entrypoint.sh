@@ -78,7 +78,7 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # 基本動作確認エンドポイント
             basic_info = {
                 "service": "crypto-bot-service-prod",
-                "version": "Phase 12 完了",
+                "version": "Phase 13 完了",
                 "status": "operational",
                 "timestamp": datetime.now().isoformat(),
                 "mode": os.environ.get('MODE', 'paper'),

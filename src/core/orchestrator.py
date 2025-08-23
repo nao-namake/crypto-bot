@@ -35,7 +35,7 @@ from .logger import CryptoBotLogger
 class DataServiceProtocol(Protocol):
     """データ層サービスインターフェース."""
 
-    def fetch_multi_timeframe(self, symbol: str, limit: int) -> Optional[Dict]: ...
+    async def fetch_multi_timeframe(self, symbol: str, limit: int) -> Optional[Dict]: ...
 
 
 class FeatureServiceProtocol(Protocol):
@@ -200,7 +200,7 @@ class TradingOrchestrator:
 
         try:
             # Phase 2: データ取得
-            market_data = self.data_service.fetch_multi_timeframe(symbol="BTC/JPY", limit=100)
+            market_data = await self.data_service.fetch_multi_timeframe(symbol="BTC/JPY", limit=100)
             if market_data is None:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
