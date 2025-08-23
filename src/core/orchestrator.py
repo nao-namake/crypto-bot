@@ -47,20 +47,22 @@ class FeatureServiceProtocol(Protocol):
 class StrategyServiceProtocol(Protocol):
     """戦略評価サービスインターフェース."""
 
-    async def evaluate_strategies(self, market_data: Dict, features: Dict) -> list: ...
+    def analyze_market(self, df: pd.DataFrame) -> Any: ...
+    
+    def _create_hold_signal(self, df: pd.DataFrame, reason: str) -> Any: ...
 
 
 class MLServiceProtocol(Protocol):
     """ML予測サービスインターフェース."""
 
-    async def predict(self, features: Dict) -> Dict: ...
+    def predict(self, X: pd.DataFrame, use_confidence: bool = True) -> Any: ...
 
 
 class RiskServiceProtocol(Protocol):
     """リスク管理サービスインターフェース."""
 
-    async def evaluate_trade_opportunity(
-        self, ml_prediction: Dict, strategy_signals: list, market_data: Dict
+    def evaluate_trade_opportunity(
+        self, ml_prediction: Dict, strategy_signals: Any, market_data: Dict
     ) -> Any: ...
 
 
@@ -218,18 +220,30 @@ class TradingOrchestrator:
             main_features = features.get("1h", pd.DataFrame())
 
             # Phase 4: 戦略評価
-            strategy_signals = await self.strategy_service.evaluate_strategies(
-                market_data, main_features
-            )
+            if not main_features.empty:
+                strategy_signals = self.strategy_service.analyze_market(main_features)
+            else:
+                # 空のDataFrameの場合はHOLDシグナル
+                strategy_signals = self.strategy_service._create_hold_signal(
+                    pd.DataFrame(), "データ不足"
+                )
 
             # Phase 5: ML予測
             if not main_features.empty:
-                ml_prediction = await self.ml_service.predict(main_features)
+                ml_predictions_array = self.ml_service.predict(main_features)
+                # 最新の予測値を使用
+                if len(ml_predictions_array) > 0:
+                    ml_prediction = {
+                        "prediction": int(ml_predictions_array[-1]), 
+                        "confidence": 0.5  # 基本的な信頼度
+                    }
+                else:
+                    ml_prediction = {"prediction": 0, "confidence": 0.0}
             else:
                 ml_prediction = {"prediction": 0, "confidence": 0.0}
 
             # Phase 6: リスク管理・統合判定
-            trade_evaluation = await self.risk_service.evaluate_trade_opportunity(
+            trade_evaluation = self.risk_service.evaluate_trade_opportunity(
                 ml_prediction, strategy_signals, market_data
             )
 
@@ -762,13 +776,16 @@ async def create_trading_orchestrator(
         feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector())
 
         # Phase 4: 戦略サービス
+        strategy_service = StrategyManager()
         strategies = [
             ATRBasedStrategy(),
             MochipoyAlertStrategy(),
             MultiTimeframeStrategy(),
             FibonacciRetracementStrategy(),
         ]
-        strategy_service = StrategyManager(strategies)
+        # 戦略を個別に登録
+        for strategy in strategies:
+            strategy_service.register_strategy(strategy, weight=1.0)
 
         # Phase 5: MLサービス
         ml_service = EnsembleModel()
