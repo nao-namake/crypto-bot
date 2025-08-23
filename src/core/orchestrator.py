@@ -21,6 +21,8 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol
 
+import pandas as pd
+
 from ..features.anomaly import MarketAnomalyDetector
 from ..features.technical import TechnicalIndicators
 from ..data.data_pipeline import DataRequest, TimeFrame
@@ -33,7 +35,7 @@ from .logger import CryptoBotLogger
 class DataServiceProtocol(Protocol):
     """データ層サービスインターフェース."""
 
-    def fetch_multi_timeframe(self, requests: list) -> Optional[Dict]: ...
+    def fetch_multi_timeframe(self, symbol: str, limit: int) -> Optional[Dict]: ...
 
 
 class FeatureServiceProtocol(Protocol):
@@ -196,26 +198,35 @@ class TradingOrchestrator:
 
         try:
             # Phase 2: データ取得
-            requests = [
-                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.M15, limit=100),
-                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.H1, limit=100),
-                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.H4, limit=100),
-            ]
-            market_data = self.data_service.fetch_multi_timeframe(requests)
+            market_data = self.data_service.fetch_multi_timeframe(
+                symbol="BTC/JPY", limit=100
+            )
             if market_data is None:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
 
             # Phase 3: 特徴量生成
-            features = await self.feature_service.generate_features(market_data)
+            # market_dataは辞書形式 {timeframe: DataFrame} なので、各DataFrameに対して特徴量を生成
+            features = {}
+            for timeframe, df in market_data.items():
+                if not df.empty:
+                    features[timeframe] = await self.feature_service.generate_features(df)
+                else:
+                    features[timeframe] = pd.DataFrame()
+            
+            # メインの特徴量データとして1時間足を使用
+            main_features = features.get("1h", pd.DataFrame())
 
             # Phase 4: 戦略評価
             strategy_signals = await self.strategy_service.evaluate_strategies(
-                market_data, features
+                market_data, main_features
             )
 
             # Phase 5: ML予測
-            ml_prediction = await self.ml_service.predict(features)
+            if not main_features.empty:
+                ml_prediction = await self.ml_service.predict(main_features)
+            else:
+                ml_prediction = {"prediction": 0, "confidence": 0.0}
 
             # Phase 6: リスク管理・統合判定
             trade_evaluation = await self.risk_service.evaluate_trade_opportunity(
