@@ -43,6 +43,51 @@ data:
   limit: 100                 # 1回あたり取得数
   cache_enabled: true        # キャッシュ有効
 
+# 特徴量設定（Phase 3最適化版）
+features:
+  mode: "optimized"          # 12個厳選特徴量
+  
+  # 基本特徴量
+  basic:
+    - "close"
+    - "volume" 
+    - "returns_1"
+  
+  # テクニカル指標
+  technical:
+    - "rsi_14"
+    - "macd"
+    - "atr_14"
+    - "bb_position"
+    - "ema_20"
+    - "ema_50"
+  
+  # 異常検知
+  anomaly:
+    - "zscore"
+    - "volume_ratio"
+    - "market_stress"
+
+# 戦略設定（Phase 4統合版）
+strategies:
+  enabled:
+    - "atr_based"
+    - "mochipoy_alert"
+    - "multi_timeframe"
+    - "fibonacci_retracement"
+  
+  # 戦略重み（実績ベース）
+  weights:
+    atr_based: 0.3
+    mochipoy_alert: 0.3
+    multi_timeframe: 0.25
+    fibonacci_retracement: 0.15
+  
+  # 統合判定
+  consensus:
+    required_agreement: 0.6  # 60%以上の合意で実行
+    confidence_threshold: 0.4
+
 # ログ設定
 logging:
   level: INFO                # ログレベル

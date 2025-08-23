@@ -108,7 +108,7 @@ class DiscordNotifier:
             "title": f"{self.EMOJIS[level]} {title}",
             "description": message,
             "color": self.COLORS[level],
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
             "footer": {"text": f"Crypto-Bot • {jst_time}"},
         }
 
