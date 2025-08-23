@@ -757,7 +757,7 @@ async def create_trading_orchestrator(
 
         # Phase 5: MLサービス
         ml_service = EnsembleModel()
-        await ml_service.load_models()
+        # 注: EnsembleModelは__init__でモデルを自動作成するため、load_models()は不要
 
         # Phase 6: リスクサービス
         risk_service = create_risk_manager(config=DEFAULT_RISK_CONFIG, initial_balance=1000000)
