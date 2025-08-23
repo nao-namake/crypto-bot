@@ -14,7 +14,7 @@ env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
   REPOSITORY: crypto-bot-repo
-  SERVICE_NAME: crypto-bot-service-prod-prod  # 実際のCloud Runサービス名に合わせる
+  SERVICE_NAME: crypto-bot-service  # ベースサービス名（サフィックスで環境別分離）
 
 jobs:
   # ========================================
@@ -501,8 +501,20 @@ jobs:
         run: |
           echo "🏥 デプロイ後ヘルスチェック実行"
           
+          # デプロイモードに応じたサービス名決定
+          DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
+          case "$DEPLOY_MODE" in
+            "paper") SERVICE_SUFFIX="" ;;
+            "stage-10") SERVICE_SUFFIX="-stage10" ;;
+            "stage-50") SERVICE_SUFFIX="-stage50" ;;
+            "live"|*) SERVICE_SUFFIX="-prod" ;;
+          esac
+          
+          FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
+          echo "📍 ヘルスチェック対象: $FULL_SERVICE_NAME"
+          
           # サービスURL取得
-          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+          SERVICE_URL=$(gcloud run services describe "$FULL_SERVICE_NAME" \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
           

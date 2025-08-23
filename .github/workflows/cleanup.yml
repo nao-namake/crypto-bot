@@ -1,0 +1,178 @@
+# GCP リソースクリーンアップワークフロー
+# 古いリソースを定期的に削除し、コストと混乱を防止
+
+name: GCP Resource Cleanup
+
+on:
+  # 手動実行（推奨）
+  workflow_dispatch:
+    inputs:
+      cleanup_level:
+        description: 'クリーンアップレベル'
+        required: true
+        default: 'safe'
+        type: choice
+        options:
+        - safe      # 安全な削除のみ（古いイメージ・サービス）
+        - moderate  # 中程度削除（ログ・ビルド履歴含む）
+        - aggressive # 積極的削除（要注意）
+      
+  # 月次自動実行（第1日曜日 JST 2:00 AM）
+  schedule:
+    - cron: '0 17 * * 0'  # UTC 17:00 = JST 02:00（日曜日）
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  REGION: asia-northeast1
+  REPOSITORY: crypto-bot-repo
+
+jobs:
+  cleanup-gcp-resources:
+    name: GCP Resource Cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    # mainブランチのみ実行（安全性確保）
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
+          access_token_lifetime: 1800s
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: 🧹 Safe Cleanup - Artifact Registry古いイメージ削除
+        run: |
+          echo "🐳 Artifact Registry古いDockerイメージクリーンアップ"
+          
+          # 現在のイメージ一覧取得（最新5個を保持）
+          IMAGES=$(gcloud artifacts docker images list \
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
+            --sort-by=~CREATE_TIME \
+            --format="value(version)" \
+            --limit=100)
+          
+          # 削除対象イメージを特定（最新5個以外）
+          DELETE_IMAGES=$(echo "$IMAGES" | tail -n +6)
+          
+          if [ -n "$DELETE_IMAGES" ]; then
+            echo "🗑️ 削除対象イメージ数: $(echo "$DELETE_IMAGES" | wc -l)"
+            
+            for IMAGE_VERSION in $DELETE_IMAGES; do
+              if [[ "$IMAGE_VERSION" != *"latest"* ]]; then
+                echo "削除中: crypto-bot:$IMAGE_VERSION"
+                gcloud artifacts docker images delete \
+                  ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:$IMAGE_VERSION \
+                  --quiet --delete-tags || echo "⚠️ 削除失敗: $IMAGE_VERSION"
+              fi
+            done
+            
+            echo "✅ 古いDockerイメージ削除完了"
+          else
+            echo "📋 削除対象イメージなし（最新5個のみ存在）"
+          fi
+
+      - name: 🧹 Safe Cleanup - 古いCloud Runリビジョン削除
+        if: github.event.inputs.cleanup_level == 'moderate' || github.event.inputs.cleanup_level == 'aggressive' || github.event_name == 'schedule'
+        run: |
+          echo "☁️ Cloud Run古いリビジョンクリーンアップ"
+          
+          # 現在のサービス一覧
+          SERVICES=$(gcloud run services list --region=${{ env.REGION }} --format="value(metadata.name)")
+          
+          for SERVICE in $SERVICES; do
+            if [[ "$SERVICE" == *"crypto-bot-service"* ]]; then
+              echo "🔍 サービス確認: $SERVICE"
+              
+              # 古いリビジョン取得（最新3個以外）
+              OLD_REVISIONS=$(gcloud run revisions list \
+                --service="$SERVICE" \
+                --region=${{ env.REGION }} \
+                --format="value(metadata.name)" \
+                --sort-by=~metadata.creationTimestamp \
+                | tail -n +4)
+              
+              if [ -n "$OLD_REVISIONS" ]; then
+                echo "🗑️ 古いリビジョン削除開始"
+                for REVISION in $OLD_REVISIONS; do
+                  echo "削除中: $REVISION"
+                  gcloud run revisions delete "$REVISION" \
+                    --region=${{ env.REGION }} \
+                    --quiet || echo "⚠️ 削除失敗: $REVISION"
+                done
+              else
+                echo "📋 削除対象リビジョンなし"
+              fi
+            fi
+          done
+
+      - name: 🧹 Moderate Cleanup - Cloud Build履歴クリーンアップ
+        if: github.event.inputs.cleanup_level == 'moderate' || github.event.inputs.cleanup_level == 'aggressive'
+        run: |
+          echo "🏗️ Cloud Build履歴クリーンアップ"
+          
+          # 30日以上古いビルドを取得
+          OLD_BUILDS=$(gcloud builds list \
+            --filter="createTime<-P30D" \
+            --format="value(id)" \
+            --limit=50)
+          
+          if [ -n "$OLD_BUILDS" ]; then
+            echo "🗑️ 30日以上古いビルド削除"
+            for BUILD_ID in $OLD_BUILDS; do
+              echo "削除中: Build $BUILD_ID"
+              gcloud builds delete "$BUILD_ID" --quiet || echo "⚠️ 削除失敗: $BUILD_ID"
+            done
+          else
+            echo "📋 削除対象ビルドなし"
+          fi
+
+      - name: 📊 クリーンアップサマリー生成
+        if: always()
+        run: |
+          echo "📊 === GCPリソースクリーンアップサマリー ==="
+          echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "クリーンアップレベル: ${{ github.event.inputs.cleanup_level || 'scheduled-safe' }}"
+          
+          echo ""
+          echo "🐳 現在のDockerイメージ数:"
+          gcloud artifacts docker images list \
+            ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
+            --format="table(version,createTime)" \
+            --limit=10 || echo "⚠️ イメージ一覧取得失敗"
+          
+          echo ""
+          echo "☁️ 現在のCloud Runサービス:"
+          gcloud run services list --region=${{ env.REGION }} \
+            --format="table(metadata.name,status.url,status.conditions[0].lastTransitionTime)" \
+            || echo "⚠️ サービス一覧取得失敗"
+          
+          echo ""
+          echo "✅ GCPリソースクリーンアップ完了"
+
+      - name: 🚨 Aggressive Cleanup警告
+        if: github.event.inputs.cleanup_level == 'aggressive'
+        run: |
+          echo "⚠️ ========================================="
+          echo "⚠️ 警告: Aggressiveクリーンアップが実行されました"
+          echo "⚠️ 大量のリソースが削除された可能性があります"
+          echo "⚠️ 本番環境への影響を確認してください"
+          echo "⚠️ ========================================="
+
+# 注意事項:
+# 1. このワークフローは手動実行を推奨します
+# 2. aggressive レベルは慎重に使用してください
+# 3. 本番環境に影響する可能性があります
+# 4. 定期実行は月1回の安全な削除のみです

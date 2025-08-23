@@ -59,7 +59,7 @@ python3 scripts/management/dev_check.py operational    # 運用診断（修正�
 
 # 【3. Cloud Run稼働確認】
 gcloud logging read "resource.type=cloud_run_revision" --limit=10  # 最新ログ確認
-gcloud run services describe crypto-bot-service-prod-prod --region=asia-northeast1  # サービス状態
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1  # サービス状態
 
 # 【4. エラー状況確認】
 gcloud logging read "severity>=WARNING" --limit=5      # 警告・エラーログ確認

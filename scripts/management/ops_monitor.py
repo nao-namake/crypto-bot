@@ -87,7 +87,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         }
 
         # GCP Cloud Run実稼働確認用設定（古いサービス削除済み）
-        self.cloud_run_services = ["crypto-bot-service-prod-prod"]  # CI/CDデプロイ済み本番サービス
+        self.cloud_run_services = ["crypto-bot-service-prod"]  # 統一されたサービス名
         self.project_id = "my-crypto-bot-project"
         self.region = "asia-northeast1"
 
