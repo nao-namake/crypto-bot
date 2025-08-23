@@ -741,7 +741,7 @@ async def create_trading_orchestrator(
 
         # Phase 2: データサービス
         bitbank_client = BitbankClient()
-        data_service = DataPipeline(bitbank_client=bitbank_client, cache_enabled=True)
+        data_service = DataPipeline(client=bitbank_client)
 
         # Phase 3: 特徴量サービス（統合アダプター）
         feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector())

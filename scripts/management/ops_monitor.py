@@ -705,7 +705,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             if config is None:
                 raise ValueError("利用可能な設定ファイルがありません")
             
-            _ = DataPipeline(config)  # pipeline - インスタンス化テストのみ
+            _ = DataPipeline()  # pipeline - インスタンス化テストのみ（デフォルトクライアント使用）
 
             return {
                 "status": "healthy",
