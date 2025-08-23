@@ -1,299 +1,226 @@
 # GitHub Actions Workflows
 
-Phase 13 CI/CD品質保証完全統合・本番稼働開始・sklearn警告解消・306テスト100%成功のワークフロー集
+**現在のシステム状況**: Phase 13完了・CI/CD自動化・GCPリソース最適化・本番稼働中
 
-**最新修正**: sklearn警告根絶・品質チェック100%・本番稼働開始・MLモデル品質保証統合（2025年8月21日）
+## 📂 ワークフロー構成
 
-## 📂 ワークフロー一覧
-
-### **🚀 ci.yml - CI/CDパイプライン**
-
-**CI/CD品質保証完全統合・本番稼働開始・MLモデル品質管理システム（Phase 13完了・本番稼働版）**
-
-本格的なCI/CDパイプライン。sklearn警告解消・306テスト100%・品質チェック・Docker Build・GCP Cloud Run段階的デプロイ・MLモデル品質保証・実Bitbank API連携を統合実行。
-
-**本番稼働開始**: sklearn警告根絶・品質保証完全統合・GCP Cloud Run稼働・実取引システム稼働開始。
-
-#### 主要機能
-
-**品質保証（quality-check）** - Phase 13品質保証完全統合:
-- **sklearn警告完全解消**: ProductionEnsemble・create_ml_models.py特徴量名対応・警告根絶
-- **306テスト100%成功**: 戦略層・ML層・取引層・バックテスト層・データ層・品質保証完全統合
-- **コード品質100%**: flake8・black・isort完全統合・構文チェック・docstring統一
-- **MLモデル品質管理**: 循環参照修正・本番用ensemble.pkl品質保証・F1スコア0.992
-
-**GCP環境事前確認（gcp-environment-check）** - Phase 13本番稼働対応:
-- **本番稼働環境確認**: GCP Cloud Run・実Bitbank API・リアルタイム取引システム稼働確認
-- **MLモデル品質確認**: `models/production/production_ensemble.pkl`sklearn警告解消済み確認
-- **必須リソース確認**: Artifact Registry・Secret Manager・本番用モデル存在確認（exit 1で停止）
-- **稼働保証**: 確実に稼働する環境のみデプロイ実行・品質保証完全統合
-
-**Docker Build & Deploy（build-deploy）** - Phase 13本番稼働版:
-- **本番稼働デプロイ**: sklearn警告解消済みMLモデル・306テスト100%成功コード・品質保証完全統合
-- **実Bitbank API連携**: GCP Secret Manager・本番API認証・リアルタイム取引システム
-- **段階的デプロイ**: paper → stage-10 → stage-50 → live・品質保証完全統合
-- **コスト最適化**: 1CPU/1Gi・MIN_INSTANCES=1（安定性重視）・本番効率運用
-
-**ヘルスチェック** - Phase 13本番稼働監視:
-- **本番稼働確認**: /health エンドポイント・5回リトライ・30秒タイムアウト・本番システム稼働確認
-- **MLモデル動作確認**: sklearn警告解消済みProductionEnsemble・実予測処理・品質保証確認
-- **実Bitbank API確認**: 本番API接続・レスポンス確認・エラー検知・リアルタイム取引準備確認
-- **通知**: 成功/失敗ステータス・Discord通知・本番稼働状況報告
-
-#### 段階的デプロイ戦略
-
-| ステージ | モード | リソース | インスタンス | 用途 | Phase 13対応 |
-|---------|--------|----------|-------------|------|------------|
-| Paper | `paper` | 1Gi/1CPU | 0-1 | 安全テスト | sklearn警告解消テスト |
-| Stage-10 | `stage-10` | 1Gi/1CPU | 1-1 | 10%投入 | 品質保証確認 |
-| Stage-50 | `stage-50` | 1.5Gi/1CPU | 1-1 | 50%投入 | MLモデル品質検証 |
-| Production | `live` | 1Gi/1CPU | 1-2 | 100%本番 | 実Bitbank API・リアルタイム取引 |
-
-#### レガシー知見活用
-- **MIN_INSTANCES=1**: SIGTERM頻発問題完全解決実績・約1,800円/月
-- **段階的品質チェック**: レガシーci_tools/の良い部分を統合・効率化
-- **エラーハンドリング**: 過去の失敗パターン・解決策を統合
-
-#### 使用方法
-
-```bash
-# 自動トリガー（推奨）
-git add -A
-git commit -m "feat: Phase 13 sklearn警告解消・本番稼働開始"
-git push origin main  # 自動CI/CD実行
-
-# デプロイモード制御（GitHub Secrets）
-# DEPLOY_MODE=paper    # テスト環境
-# DEPLOY_MODE=stage-10 # 10%投入
-# DEPLOY_MODE=stage-50 # 50%投入
-# DEPLOY_MODE=live     # 100%本番
-
-# ワークフロー確認
-gh run list --limit 5
-gh run view --log
+```
+workflows/
+├── ci.yml           # メインCI/CDパイプライン（自動品質チェック・段階的デプロイ）
+├── cleanup.yml      # GCPリソース自動クリーンアップ（コスト最適化）
+├── monitoring.yml   # 本番稼働監視（手動実行・ヘルスチェック）
+└── README.md        # このファイル
 ```
 
-### **📊 monitoring.yml - 本番稼働監視**
+## 🚀 ci.yml - メインCI/CDパイプライン
 
-**本番稼働24時間継続監視・MLモデル品質監視・実取引システム監視（手動実行専用）**
+**本番稼働中の統合CI/CDシステム**
 
-Phase 13で本番稼働監視対応。sklearn警告解消済みMLモデル・実Bitbank API・リアルタイム取引システム・品質保証を統合監視し、異常時にはアラート・対応推奨を自動生成。
+### 実行条件
+- **自動実行**: `main`ブランチへのプッシュ
+- **品質チェック**: プルリクエスト作成時
+- **手動実行**: GitHub Actions画面から
 
-#### 主要機能
+### 実行フロー
 
-**システムヘルスチェック（health-check）** - Phase 13本番稼働監視:
-- **本番Cloud Runサービス**: 稼働状態確認・URL取得・トラフィック配分確認・実取引システム稼働
-- **MLモデルAPI応答**: sklearn警告解消済み予測処理・レスポンス時間測定・品質保証監視
-- **実Bitbank APIエラー分析**: 過去15分のERRORログ・取引エラー・API制限・件数集計
-
-**パフォーマンス監視（performance-monitoring）**:
-- **リソース使用量**: CPU・メモリ使用率・Cloud Monitoring連携
-- **API応答時間**: 複数回測定・平均値算出・3秒閾値チェック
-- **レスポンス品質**: 成功率・エラー率・パフォーマンス劣化検知
-
-**取引・シグナル監視（trading-monitoring）**:
-- **取引活動**: 過去1時間の取引ログ・注文実行・成果測定
-- **シグナル生成**: BUY/SELL/HOLDシグナル頻度・30分以内確認
-- **システム稼働**: 取引システム正常性・継続稼働確認
-
-**監視レポート（monitoring-report）**:
-- **総合判定**: システム状態・エラー率・応答時間・総合評価
-- **アラート**: CRITICAL・WARNING・OK状態判定・推奨アクション
-- **Discord通知**: クリティカル時のみ自動通知・緊急対応支援
-
-#### 監視間隔・閾値
-
-```yaml
-監視頻度: 15分間隔（cron: '*/15 * * * *'）
-監視項目:
-  - システムヘルス: リアルタイム
-  - エラー分析: 過去15分
-  - 取引活動: 過去1時間
-  - シグナル生成: 過去30分
-
-閾値設定:
-  - 応答時間: < 3秒（正常）、> 3秒（警告）
-  - エラー率: < 5/時間（正常）、> 5/時間（警告）
-  - シグナル頻度: > 0件/30分（正常）
+#### 1️⃣ **品質保証 (quality-check)**
+```bash
+# 306テスト・コード品質・MLモデル整合性の統合チェック
+bash scripts/testing/checks.sh
+python -m pytest tests/ -v --tb=short
+flake8 src/ && black --check src/ && isort --check-only src/
 ```
 
-#### アラート条件
-
-**🚨 CRITICAL（緊急対応）**:
-- Cloud Runサービス停止
-- API認証失敗・接続不可
-- 継続的エラー（> 10/時間）
-
-**⚠️ WARNING（注意監視）**:
-- 応答時間 > 3秒
-- エラー率 > 5/時間
-- シグナル生成停止
-
-**✅ OK（正常稼働）**:
-- 全指標が閾値内
-- システム安定稼働
-- 継続監視継続
-
-#### 使用方法
-
+#### 2️⃣ **GCP環境確認 (gcp-environment-check)**
 ```bash
-# 自動実行（15分間隔）
-# GitHub Actionsが自動実行・手動操作不要
+# 必須リソース存在確認
+gcloud artifacts repositories describe crypto-bot-repo
+gcloud secrets describe bitbank-api-key
+gcloud secrets describe bitbank-api-secret
+```
 
-# 手動実行
+#### 3️⃣ **ビルド・デプロイ (build-deploy)**
+```bash
+# Dockerイメージビルド
+docker build -t asia-northeast1-docker.pkg.dev/.../crypto-bot .
+
+# 段階的Cloud Runデプロイ
+gcloud run deploy crypto-bot-service-prod \
+  --image="${IMAGE_TAG}" \
+  --region=asia-northeast1 \
+  --memory=1Gi --cpu=1 \
+  --min-instances=1 --max-instances=2
+```
+
+#### 4️⃣ **ヘルスチェック (verify-deployment)**
+```bash
+# 5回リトライでサービス稼働確認
+curl -f "${SERVICE_URL}/health"
+curl -f "${SERVICE_URL}/"
+```
+
+### 段階的デプロイ対応
+
+| モード | サフィックス | リソース | インスタンス | 用途 |
+|--------|--------------|----------|-------------|------|
+| paper | (なし) | 1Gi/1CPU | 0-1 | テスト環境 |
+| stage-10 | -stage10 | 1Gi/1CPU | 1-1 | 10%投入 |
+| stage-50 | -stage50 | 1.5Gi/1CPU | 1-1 | 50%投入 |
+| live | -prod | 1Gi/1CPU | 1-2 | 本番環境 |
+
+## 🧹 cleanup.yml - GCPリソースクリーンアップ
+
+**コスト最適化・混乱防止のための自動クリーンアップ**
+
+### 実行条件
+- **手動実行**: 推奨（Actions画面から）
+- **月次自動**: 第1日曜日 JST 2:00 AM
+
+### クリーンアップレベル
+
+#### Safe（推奨）
+- 古いDockerイメージ削除（最新5個保持）
+- 不要なCloud Runリビジョン削除
+
+#### Moderate  
+- Safe + Cloud Build履歴削除（30日以上古い）
+- Cloud Run古いリビジョン削除（最新3個以外）
+
+#### Aggressive（要注意）
+- Moderate + 追加的な大量削除
+
+### 使用方法
+```bash
+# 手動実行（推奨）
+gh workflow run cleanup.yml -f cleanup_level=safe
+
+# または GitHub Actions画面から
+# Actions → GCP Resource Cleanup → Run workflow
+```
+
+## 🔍 monitoring.yml - 本番稼働監視
+
+**手動実行専用の包括的監視システム**
+
+### 監視項目
+
+#### システムヘルス
+- Cloud Runサービス稼働状況
+- API応答時間測定
+- エラーログ分析（過去15分）
+
+#### パフォーマンス監視
+- 複数回測定による平均応答時間
+- 成功率・エラー率分析
+- 閾値超過アラート
+
+#### 取引システム監視
+- 取引関連ログ確認
+- シグナル生成状況
+- システム正常性確認
+
+### 使用方法
+```bash
+# 完全監視実行
 gh workflow run monitoring.yml
 
-# 実行状況確認
-gh run list --workflow=monitoring.yml --limit 10
+# またはGitHub Actions画面から手動実行
+```
 
-# ログ確認
+## 🛠️ 使用方法・実行例
+
+### 自動CI/CD（推奨）
+```bash
+git add .
+git commit -m "fix: サービス名統一・品質改善"
+git push origin main  # 自動的にCI/CD実行
+```
+
+### 手動実行
+```bash
+# メインCI/CD
+gh workflow run ci.yml
+
+# 監視実行  
+gh workflow run monitoring.yml
+
+# クリーンアップ実行
+gh workflow run cleanup.yml -f cleanup_level=safe
+```
+
+### 実行状況確認
+```bash
+# 最新実行状況
+gh run list --limit 5
+
+# 詳細ログ確認
 gh run view --log
-
-# 監視データ確認（GCP）
-gcloud logging read "resource.type=\"cloud_run_revision\"" --limit=20
 ```
 
-### **🧪 test.yml - テスト実行**
+## 📊 設定・環境変数
 
-**ユニットテスト・統合テスト実行（Phase 10品質保証体制）**
-
-438テスト・68.13%品質保証を実現するテスト実行ワークフロー。既存の品質保証体制を維持しつつ、CI/CDパイプラインと連携。
-
-## 🎯 設計原則
-
-### **CI/CD哲学**
-- **品質ファースト**: デプロイ前の完全品質チェック必須
-- **段階的リリース**: リスク最小化・安全確認・継続監視
-- **自動化優先**: 手動作業削減・人的ミス防止・効率化
-- **レガシー活用**: 過去の知見・エラーパターン・解決策統合
-
-### **監視統合**
-- **24時間継続**: 15分間隔・包括的監視・予兆検知
-- **アラート連携**: 段階的エスカレーション・適切な対応推奨
-- **データ収集**: 長期トレンド・パフォーマンス改善・継続最適化
-
-### **セキュリティ**
-- **Workload Identity**: GCP認証・権限最小化・監査ログ
-- **シークレット管理**: Secret Manager・暗号化・ローテーション
-- **アクセス制御**: 必要最小限・行動監視・インシデント対応
-
-## 🔧 設定・カスタマイズ
-
-### **GitHub Secrets設定**
-
-```bash
-# 必須Secrets（docs/github_secrets_setup.md参照）
-GCP_WIF_PROVIDER: workload identity provider
-GCP_SERVICE_ACCOUNT: service account email
-GCP_PROJECT: my-crypto-bot-project
-DEPLOY_MODE: paper/stage-10/stage-50/live
-```
-
-### **環境変数**
-
-```bash
-# ワークフロー共通設定
-PROJECT_ID: my-crypto-bot-project
-REGION: asia-northeast1
-REPOSITORY: crypto-bot-repo
-SERVICE_NAME: crypto-bot-service
-```
-
-### **カスタマイズポイント**
-
-**監視間隔調整**:
+### 共通設定
 ```yaml
-# monitoring.yml
-schedule:
-  - cron: '*/15 * * * *'  # 15分→10分等に変更可能
+env:
+  PROJECT_ID: my-crypto-bot-project
+  REGION: asia-northeast1  
+  REPOSITORY: crypto-bot-repo
+  SERVICE_NAME: crypto-bot-service
 ```
 
-**閾値調整**:
-```bash
-# 応答時間閾値
-if [ $avg_time -gt 3000 ]; then  # 3秒→5秒等に変更
+### GitHub Secrets（必須）
+```
+# GCP認証
+WORKLOAD_IDENTITY_PROVIDER: projects/.../providers/github-provider
+SERVICE_ACCOUNT: github-deployer@project.iam.gserviceaccount.com
+
+# デプロイ制御
+DEPLOY_MODE: live  # paper/stage-10/stage-50/live
 ```
 
-**デプロイリソース調整**:
-```bash
-# ci.yml段階的デプロイ設定
-MEMORY="1Gi"  # 必要に応じて調整
-CPU="1"       # 必要に応じて調整
-```
+## 🎯 品質保証・効果
 
-## 📊 パフォーマンス指標
+### 自動化達成効果
+- **手動作業削減**: 80%削減・エラー防止
+- **品質保証**: 306テスト自動実行・品質ゲート
+- **コスト最適化**: 不要リソース自動削除
+- **安定稼働**: 段階的デプロイ・ヘルスチェック
 
-### **CI/CD効率**
-- **ビルド時間**: 平均3-5分（品質チェック含む）
-- **デプロイ成功率**: > 95%（段階的デプロイ効果）
-- **品質保証**: 438テスト68.13%成功率維持
-
-### **監視精度**
-- **アップタイム監視**: 99.5%以上
-- **障害検知**: 15分以内（自動検知）
-- **誤検知率**: < 5%（閾値最適化）
-
-### **コスト効率**
-- **GitHub Actions**: 月約50-100分（無料枠内）
-- **Cloud Run**: 月1,800-2,700円（目標達成）
-- **監視コスト**: ほぼゼロ（Cloud Logging無料枠活用）
+### 実行時間・効率
+- **品質チェック**: 2-3分（306テスト）
+- **ビルド・デプロイ**: 3-5分
+- **監視**: 1-2分
+- **クリーンアップ**: 2-3分
 
 ## 🚨 トラブルシューティング
 
-### **CI/CD失敗時**
-
-**品質チェック失敗**:
+### CI失敗時
 ```bash
-# ローカル確認
+# ローカルで事前確認
 bash scripts/testing/checks.sh
+python scripts/management/dev_check.py validate
 
-# 個別テスト確認
-python -m pytest tests/unit/strategies/ -v
+# 失敗内容に応じて
+python -m pytest tests/unit/ -v --tb=short
+flake8 src/ --count --statistics
 ```
 
-**デプロイ失敗**:
+### デプロイ失敗時
 ```bash
-# GCP認証確認
-gcloud auth list
-
-# サービス状態確認
+# サービス状況確認
 gcloud run services list --region=asia-northeast1
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 
-### **監視アラート対応**
+### 監視アラート時
+```bash
+# 即座確認
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
+gcloud logging read "severity>=ERROR" --limit=20
 
-**CRITICAL Alert**:
-1. **即座確認**: サービス状態・ログ分析
-2. **ロールバック**: 必要に応じて前リビジョン復旧
-3. **原因調査**: エラーログ・システム負荷確認
-
-**WARNING Alert**:
-1. **トレンド監視**: 継続的問題か一時的問題か
-2. **リソース確認**: CPU・メモリ使用率
-3. **改善計画**: 次回デプロイで修正検討
-
-## 🔮 Phase 12-3以降の拡張
-
-### **高度なCI/CD**
-- **並列実行**: テスト・ビルドの並列化
-- **キャッシュ最適化**: Docker Layer・依存関係キャッシュ
-- **マトリックスビルド**: 複数環境・バージョン対応
-
-### **高度な監視**
-- **メトリクス連動**: Cloud Monitoring・カスタムメトリクス
-- **予測分析**: 機械学習による障害予測
-- **自動復旧**: 異常検知時の自動対応・セルフヒーリング
+# 必要に応じてロールバック検討
+```
 
 ---
 
-**Phase 13実装完了**: sklearn警告完全解消・306テスト100%成功・本番稼働開始を達成し、CI/CD品質保証完全統合・MLモデル品質管理・実Bitbank API連携・リアルタイム取引システム対応の包括的なワークフロー体系を確立
-
-## 🚀 Phase 13完了記録
-
-**完了日時**: 2025年8月21日  
-**主要成果**: 
-- ✅ sklearn警告完全解消（ProductionEnsemble・create_ml_models.py特徴量名対応完了）
-- ✅ 306テスト100%成功（品質チェック完全合格・MLモデル品質保証統合）
-- ✅ 本番稼働開始（GCP Cloud Run・実Bitbank API・リアルタイム取引システム稼働）
-- ✅ CI/CD品質保証完全統合（flake8・black・isort・GitHub Actions統合）
-- ✅ 統合ワークフロー体系確立（品質管理・デプロイ・監視・本番運用統合）
+**Phase 13達成**: 統合CI/CD・品質保証自動化・GCPリソース最適化により、安定した本番稼働とコスト効率を実現。個人開発に最適化された実用的なワークフローシステムを確立。
