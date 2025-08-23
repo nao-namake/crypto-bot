@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional, Protocol
 
 from ..features.anomaly import MarketAnomalyDetector
 from ..features.technical import TechnicalIndicators
+from ..data.data_pipeline import DataRequest, TimeFrame
 from .config import Config
 from .exceptions import CryptoBotError
 from .logger import CryptoBotLogger
@@ -32,7 +33,7 @@ from .logger import CryptoBotLogger
 class DataServiceProtocol(Protocol):
     """データ層サービスインターフェース."""
 
-    async def get_latest_market_data(self, symbol: str, timeframes: list) -> Optional[Dict]: ...
+    def fetch_multi_timeframe(self, requests: list) -> Optional[Dict]: ...
 
 
 class FeatureServiceProtocol(Protocol):
@@ -195,9 +196,12 @@ class TradingOrchestrator:
 
         try:
             # Phase 2: データ取得
-            market_data = await self.data_service.get_latest_market_data(
-                symbol="btc_jpy", timeframes=["15m", "1h", "4h"]
-            )
+            requests = [
+                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.M15, limit=100),
+                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.H1, limit=100),
+                DataRequest(symbol="BTC/JPY", timeframe=TimeFrame.H4, limit=100),
+            ]
+            market_data = self.data_service.fetch_multi_timeframe(requests)
             if market_data is None:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
