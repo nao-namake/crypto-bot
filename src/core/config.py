@@ -73,13 +73,13 @@ class RiskConfig:
             self.kelly_criterion = {
                 "max_position_ratio": 0.05,
                 "safety_factor": 0.7,
-                "min_trades_for_kelly": 20
+                "min_trades_for_kelly": 20,
             }
         if self.drawdown_manager is None:
             self.drawdown_manager = {
                 "max_drawdown_ratio": 0.20,
                 "consecutive_loss_limit": 5,
-                "cooldown_hours": 24
+                "cooldown_hours": 24,
             }
         if self.anomaly_detector is None:
             self.anomaly_detector = {
@@ -89,7 +89,7 @@ class RiskConfig:
             self.risk_thresholds = {
                 "min_ml_confidence": 0.5,
                 "risk_threshold_deny": 0.8,
-                "risk_threshold_conditional": 0.6
+                "risk_threshold_conditional": 0.6,
             }
 
 
@@ -112,7 +112,7 @@ class DataConfig:
                 "ttl_minutes": 5,
                 "max_size": 1000,
                 "disk_cache": True,
-                "retention_days": 90
+                "retention_days": 90,
             }
 
 
@@ -134,17 +134,13 @@ class LoggingConfig:
                 "path": "logs/production",
                 "rotation": "daily",
                 "retention_days": 30,
-                "max_size_mb": 100
+                "max_size_mb": 100,
             }
         if self.discord is None:
             self.discord = {
                 "enabled": True,
                 "webhook_url": "${DISCORD_WEBHOOK_URL}",
-                "levels": {
-                    "critical": True,
-                    "warning": True,
-                    "info": False
-                }
+                "levels": {"critical": True, "warning": True, "info": False},
             }
 
 
@@ -174,7 +170,7 @@ class Config:
         # YAMLファイルからapi_key/api_secretを除外（環境変数を優先）
         exchange_data.pop("api_key", None)
         exchange_data.pop("api_secret", None)
-        
+
         exchange_config = ExchangeConfig(
             **exchange_data,
             api_key=os.getenv("BITBANK_API_KEY"),

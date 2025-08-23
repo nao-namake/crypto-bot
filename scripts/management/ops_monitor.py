@@ -85,11 +85,9 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             "models": PROJECT_ROOT / "models",
             "tests": PROJECT_ROOT / "tests",
         }
-        
+
         # GCP Cloud Run実稼働確認用設定（古いサービス削除済み）
-        self.cloud_run_services = [
-            "crypto-bot-service-prod-prod"  # CI/CDデプロイ済み本番サービス
-        ]
+        self.cloud_run_services = ["crypto-bot-service-prod-prod"]  # CI/CDデプロイ済み本番サービス
         self.project_id = "my-crypto-bot-project"
         self.region = "asia-northeast1"
 
@@ -380,7 +378,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             import subprocess
-            
+
             deployment_status = {
                 "services_checked": 0,
                 "services_running": 0,
@@ -392,34 +390,38 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 try:
                     # Cloud Run サービス詳細取得
                     cmd = [
-                        "gcloud", "run", "services", "describe", service_name,
-                        "--region", self.region,
-                        "--format", "json"
+                        "gcloud",
+                        "run",
+                        "services",
+                        "describe",
+                        service_name,
+                        "--region",
+                        self.region,
+                        "--format",
+                        "json",
                     ]
-                    
-                    result = subprocess.run(
-                        cmd, capture_output=True, text=True, timeout=30
-                    )
-                    
+
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
                     deployment_status["services_checked"] += 1
-                    
+
                     if result.returncode == 0:
                         import json
+
                         service_data = json.loads(result.stdout)
-                        
+
                         # サービス状態確認
                         status = service_data.get("status", {})
                         conditions = status.get("conditions", [])
-                        
+
                         # Ready状態チェック
                         ready_condition = next(
-                            (c for c in conditions if c.get("type") == "Ready"), 
-                            {}
+                            (c for c in conditions if c.get("type") == "Ready"), {}
                         )
-                        
+
                         is_ready = ready_condition.get("status") == "True"
                         url = status.get("url", "")
-                        
+
                         service_info = {
                             "name": service_name,
                             "ready": is_ready,
@@ -427,39 +429,47 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                             "last_ready_time": ready_condition.get("lastTransitionTime", ""),
                             "revision": status.get("latestCreatedRevisionName", ""),
                         }
-                        
+
                         deployment_status["services_details"].append(service_info)
-                        
+
                         if is_ready:
                             deployment_status["services_running"] += 1
                         else:
-                            deployment_status["failed_services"].append({
-                                "name": service_name,
-                                "reason": ready_condition.get("reason", "Unknown"),
-                                "message": ready_condition.get("message", "No details")
-                            })
-                    
+                            deployment_status["failed_services"].append(
+                                {
+                                    "name": service_name,
+                                    "reason": ready_condition.get("reason", "Unknown"),
+                                    "message": ready_condition.get("message", "No details"),
+                                }
+                            )
+
                     else:
                         # サービスが存在しない場合
-                        deployment_status["failed_services"].append({
-                            "name": service_name,
-                            "reason": "NotFound",
-                            "message": f"Service not found: {result.stderr[:100]}"
-                        })
-                        
+                        deployment_status["failed_services"].append(
+                            {
+                                "name": service_name,
+                                "reason": "NotFound",
+                                "message": f"Service not found: {result.stderr[:100]}",
+                            }
+                        )
+
                 except subprocess.TimeoutExpired:
-                    deployment_status["failed_services"].append({
-                        "name": service_name,
-                        "reason": "Timeout",
-                        "message": "gcloud command timeout"
-                    })
-                    
+                    deployment_status["failed_services"].append(
+                        {
+                            "name": service_name,
+                            "reason": "Timeout",
+                            "message": "gcloud command timeout",
+                        }
+                    )
+
                 except Exception as service_error:
-                    deployment_status["failed_services"].append({
-                        "name": service_name,
-                        "reason": "Error",
-                        "message": str(service_error)[:100]
-                    })
+                    deployment_status["failed_services"].append(
+                        {
+                            "name": service_name,
+                            "reason": "Error",
+                            "message": str(service_error)[:100],
+                        }
+                    )
 
             # 結果判定
             if deployment_status["services_running"] == len(self.cloud_run_services):
@@ -500,7 +510,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             import subprocess
-            
+
             connectivity_status = {
                 "gcloud_auth": False,
                 "project_access": False,
@@ -513,12 +523,13 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             try:
                 cmd = ["gcloud", "auth", "list", "--format", "json"]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-                
+
                 if result.returncode == 0:
                     import json
+
                     auth_data = json.loads(result.stdout)
                     connectivity_status["gcloud_auth"] = len(auth_data) > 0
-                    
+
             except Exception:
                 pass
 
@@ -527,34 +538,43 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 cmd = ["gcloud", "projects", "describe", self.project_id, "--format", "json"]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
                 connectivity_status["project_access"] = result.returncode == 0
-                
+
             except Exception:
                 pass
 
             # 3. Secret Manager接続確認
             try:
-                cmd = ["gcloud", "secrets", "list", "--project", self.project_id, "--format", "json"]
+                cmd = [
+                    "gcloud",
+                    "secrets",
+                    "list",
+                    "--project",
+                    self.project_id,
+                    "--format",
+                    "json",
+                ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-                
+
                 if result.returncode == 0:
                     connectivity_status["secrets_available"] = True
-                    
+
                     # Bitbank APIキー確認
                     import json
+
                     secrets_data = json.loads(result.stdout)
                     secret_names = [s.get("name", "").split("/")[-1] for s in secrets_data]
-                    
+
                     # APIキー・シークレット存在確認
                     api_key_patterns = ["bitbank-api-key", "bitbank_api_key"]
                     api_secret_patterns = ["bitbank-api-secret", "bitbank_api_secret"]
-                    
+
                     connectivity_status["bitbank_api_key"] = any(
                         pattern in secret_names for pattern in api_key_patterns
                     )
                     connectivity_status["bitbank_api_secret"] = any(
                         pattern in secret_names for pattern in api_secret_patterns
                     )
-                    
+
             except Exception:
                 pass
 
@@ -673,38 +693,42 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             # 本番環境の設定ファイルを優先的にテスト
             config_files = [
                 "config/production/production.yaml",  # 本番設定
-                "config/core/base.yaml"               # フォールバック
+                "config/core/base.yaml",  # フォールバック
             ]
-            
+
             config = None
             config_file_used = None
-            
+
             for config_file in config_files:
                 try:
                     # テスト環境では.envファイルから環境変数を読み込み
                     import os
                     from pathlib import Path
-                    
+
                     if not os.getenv("BITBANK_API_KEY"):
                         # .env.exampleファイルから環境変数を読み込み
                         env_example_path = Path("config/.env.example")
                         if env_example_path.exists():
-                            with open(env_example_path, 'r') as f:
+                            with open(env_example_path, "r") as f:
                                 for line in f:
-                                    if line.startswith('BITBANK_API_KEY='):
-                                        os.environ["BITBANK_API_KEY"] = line.split('=', 1)[1].strip()
-                                    elif line.startswith('BITBANK_API_SECRET='):
-                                        os.environ["BITBANK_API_SECRET"] = line.split('=', 1)[1].strip()
-                    
+                                    if line.startswith("BITBANK_API_KEY="):
+                                        os.environ["BITBANK_API_KEY"] = line.split("=", 1)[
+                                            1
+                                        ].strip()
+                                    elif line.startswith("BITBANK_API_SECRET="):
+                                        os.environ["BITBANK_API_SECRET"] = line.split("=", 1)[
+                                            1
+                                        ].strip()
+
                     config = load_config(config_file)
                     config_file_used = config_file
                     break
                 except Exception:
                     continue
-            
+
             if config is None:
                 raise ValueError("利用可能な設定ファイルがありません")
-            
+
             _ = DataPipeline()  # pipeline - インスタンス化テストのみ（デフォルトクライアント使用）
 
             return {
@@ -730,30 +754,32 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
             # 本番用学習済みモデル読み込みテスト
             import pickle
             from pathlib import Path
+
             import numpy as np
-            
+
             model_path = Path("models/production/production_ensemble.pkl")
             if model_path.exists():
                 # 学習済みモデル読み込み
-                with open(model_path, 'rb') as f:
+                with open(model_path, "rb") as f:
                     ensemble = pickle.load(f)
-                
+
                 # 12特徴量でのテスト予測
                 test_features = np.random.random((5, 12))
-                
+
                 # 予測実行テスト
                 predictions = ensemble.predict(test_features)
                 probabilities = ensemble.predict_proba(test_features)
             else:
                 # フォールバック: 未学習モデルでの基本確認
                 from src.ml.ensemble.ensemble_model import EnsembleModel
+
                 ensemble = EnsembleModel()
-                
+
                 # 学習なしでも基本機能確認
                 test_features = np.random.random((5, 12))
-                
+
                 # 基本メソッド存在確認
-                if hasattr(ensemble, 'predict') and hasattr(ensemble, 'predict_proba'):
+                if hasattr(ensemble, "predict") and hasattr(ensemble, "predict_proba"):
                     predictions = [0] * 5  # ダミー予測
                     probabilities = np.random.random((5, 2))  # ダミー確率
                 else:
@@ -788,14 +814,17 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             # StrategyManager基本動作確認（Phase 12対応）
+            import os
+
             from src.core.config import load_config
             from src.strategies.base.strategy_manager import StrategyManager
-            import os
-            
+
             # テスト環境では環境変数を一時設定
             if not os.getenv("BITBANK_API_KEY"):
                 os.environ["BITBANK_API_KEY"] = "e87e0d93-207f-46a9-b5de-885631bd8c23"
-                os.environ["BITBANK_API_SECRET"] = "d59c1fffd5c67a0c4091eb1723c6e5106772d67a52d47e36e5fc5afe7bcd6e8e"
+                os.environ["BITBANK_API_SECRET"] = (
+                    "d59c1fffd5c67a0c4091eb1723c6e5106772d67a52d47e36e5fc5afe7bcd6e8e"
+                )
 
             config = load_config("config/core/base.yaml")
             strategy_manager = StrategyManager(config)
@@ -825,14 +854,17 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             # IntegratedRiskManager基本動作確認（Phase 12対応）
+            import os
+
             from src.core.config import load_config
             from src.trading.risk import IntegratedRiskManager
-            import os
-            
+
             # テスト環境では環境変数を一時設定
             if not os.getenv("BITBANK_API_KEY"):
                 os.environ["BITBANK_API_KEY"] = "e87e0d93-207f-46a9-b5de-885631bd8c23"
-                os.environ["BITBANK_API_SECRET"] = "d59c1fffd5c67a0c4091eb1723c6e5106772d67a52d47e36e5fc5afe7bcd6e8e"
+                os.environ["BITBANK_API_SECRET"] = (
+                    "d59c1fffd5c67a0c4091eb1723c6e5106772d67a52d47e36e5fc5afe7bcd6e8e"
+                )
 
             config = load_config("config/core/base.yaml")
             risk_manager = IntegratedRiskManager(config.to_dict())
@@ -880,7 +912,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             import subprocess
-            
+
             live_status = {
                 "services_responding": 0,
                 "total_services": len(self.cloud_run_services),
@@ -893,17 +925,20 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 try:
                     # 最新のログ取得（過去30分）
                     log_cmd = [
-                        "gcloud", "logging", "read",
+                        "gcloud",
+                        "logging",
+                        "read",
                         f'resource.type="cloud_run_revision" AND resource.labels.service_name="{service_name}"',
-                        "--limit", "50",
-                        "--format", "json",
-                        "--freshness", "30m"
+                        "--limit",
+                        "50",
+                        "--format",
+                        "json",
+                        "--freshness",
+                        "30m",
                     ]
-                    
-                    log_result = subprocess.run(
-                        log_cmd, capture_output=True, text=True, timeout=30
-                    )
-                    
+
+                    log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=30)
+
                     service_status = {
                         "name": service_name,
                         "logs_available": False,
@@ -912,36 +947,39 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                         "last_log_time": "",
                         "status_summary": "unknown",
                     }
-                    
+
                     if log_result.returncode == 0 and log_result.stdout.strip():
                         import json
+
                         logs = json.loads(log_result.stdout)
-                        
+
                         service_status["logs_available"] = len(logs) > 0
-                        
+
                         if logs:
                             service_status["recent_activity"] = True
-                            
+
                             # 最新ログ時刻
                             latest_log = logs[0]
                             service_status["last_log_time"] = latest_log.get("timestamp", "")
-                            
+
                             # エラーパターン検出
                             error_patterns = ["ERROR", "Exception", "Failed", "Timeout", "abort"]
                             error_logs = []
-                            
+
                             for log_entry in logs[:20]:  # 最新20件をチェック
                                 log_text = str(log_entry.get("textPayload", ""))
                                 for pattern in error_patterns:
                                     if pattern.lower() in log_text.lower():
-                                        error_logs.append({
-                                            "timestamp": log_entry.get("timestamp", ""),
-                                            "message": log_text[:200],
-                                            "pattern": pattern
-                                        })
+                                        error_logs.append(
+                                            {
+                                                "timestamp": log_entry.get("timestamp", ""),
+                                                "message": log_text[:200],
+                                                "pattern": pattern,
+                                            }
+                                        )
                                         service_status["error_count"] += 1
                                         break
-                            
+
                             # ステータス判定
                             if service_status["error_count"] == 0:
                                 service_status["status_summary"] = "healthy"
@@ -950,25 +988,29 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                                 service_status["status_summary"] = "warning"
                             else:
                                 service_status["status_summary"] = "critical"
-                            
+
                             live_status["error_patterns"].extend(error_logs[:3])
-                    
+
                     live_status["services_details"].append(service_status)
-                    
+
                 except subprocess.TimeoutExpired:
-                    live_status["services_details"].append({
-                        "name": service_name,
-                        "status_summary": "timeout",
-                        "error_count": 1,
-                    })
-                    
+                    live_status["services_details"].append(
+                        {
+                            "name": service_name,
+                            "status_summary": "timeout",
+                            "error_count": 1,
+                        }
+                    )
+
                 except Exception as service_error:
-                    live_status["services_details"].append({
-                        "name": service_name,
-                        "status_summary": "error",
-                        "error_count": 1,
-                        "error_message": str(service_error)[:100],
-                    })
+                    live_status["services_details"].append(
+                        {
+                            "name": service_name,
+                            "status_summary": "error",
+                            "error_count": 1,
+                            "error_message": str(service_error)[:100],
+                        }
+                    )
 
             # 総合判定
             response_rate = live_status["services_responding"] / live_status["total_services"]
@@ -1005,7 +1047,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
         try:
             import subprocess
-            
+
             trading_status = {
                 "api_connectivity": False,
                 "trading_activity": False,
@@ -1019,46 +1061,62 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 for service_name in self.cloud_run_services:
                     # 取引関連ログ検索
                     log_cmd = [
-                        "gcloud", "logging", "read",
+                        "gcloud",
+                        "logging",
+                        "read",
                         f'resource.type="cloud_run_revision" AND resource.labels.service_name="{service_name}" AND (textPayload:"balance" OR textPayload:"order" OR textPayload:"position" OR textPayload:"bitbank")',
-                        "--limit", "20",
-                        "--format", "json",
-                        "--freshness", "2h"
+                        "--limit",
+                        "20",
+                        "--format",
+                        "json",
+                        "--freshness",
+                        "2h",
                     ]
-                    
-                    log_result = subprocess.run(
-                        log_cmd, capture_output=True, text=True, timeout=30
-                    )
-                    
+
+                    log_result = subprocess.run(log_cmd, capture_output=True, text=True, timeout=30)
+
                     if log_result.returncode == 0 and log_result.stdout.strip():
                         import json
+
                         logs = json.loads(log_result.stdout)
-                        
+
                         for log_entry in logs:
                             log_text = str(log_entry.get("textPayload", "")).lower()
                             timestamp = log_entry.get("timestamp", "")
-                            
+
                             # API接続確認
-                            if any(keyword in log_text for keyword in ["bitbank", "api", "connection"]):
+                            if any(
+                                keyword in log_text for keyword in ["bitbank", "api", "connection"]
+                            ):
                                 trading_status["api_connectivity"] = True
-                            
+
                             # 残高確認ログ
-                            if any(keyword in log_text for keyword in ["balance", "残高", "1万円", "10000"]):
+                            if any(
+                                keyword in log_text
+                                for keyword in ["balance", "残高", "1万円", "10000"]
+                            ):
                                 trading_status["balance_check"] = True
-                                trading_status["recent_trades"].append({
-                                    "type": "balance_check",
-                                    "timestamp": timestamp,
-                                    "message": log_text[:100]
-                                })
-                            
+                                trading_status["recent_trades"].append(
+                                    {
+                                        "type": "balance_check",
+                                        "timestamp": timestamp,
+                                        "message": log_text[:100],
+                                    }
+                                )
+
                             # 取引活動確認
-                            if any(keyword in log_text for keyword in ["order", "position", "buy", "sell", "取引"]):
+                            if any(
+                                keyword in log_text
+                                for keyword in ["order", "position", "buy", "sell", "取引"]
+                            ):
                                 trading_status["trading_activity"] = True
-                                trading_status["recent_trades"].append({
-                                    "type": "trading_activity",
-                                    "timestamp": timestamp,
-                                    "message": log_text[:100]
-                                })
+                                trading_status["recent_trades"].append(
+                                    {
+                                        "type": "trading_activity",
+                                        "timestamp": timestamp,
+                                        "message": log_text[:100],
+                                    }
+                                )
 
             except Exception:
                 pass
@@ -1300,14 +1358,15 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
         """MLモデル失敗パターン検出."""
         try:
             # 訓練済みMLモデルの基本動作テスト
-            import numpy as np
             import pickle
             from pathlib import Path
+
+            import numpy as np
 
             # 訓練済みモデルを読み込み
             model_path = Path("models/production/production_ensemble.pkl")
             if model_path.exists():
-                with open(model_path, 'rb') as f:
+                with open(model_path, "rb") as f:
                     ensemble = pickle.load(f)
             else:
                 # モデルファイルが存在しない場合
@@ -1325,7 +1384,9 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
                 # 予測値の異常パターンチェック（緩和）
                 unique_predictions = len(set(predictions))
-                if unique_predictions == 1 and len(predictions) > 10:  # 10件以上で全て同じ場合のみ異常
+                if (
+                    unique_predictions == 1 and len(predictions) > 10
+                ):  # 10件以上で全て同じ場合のみ異常
                     return {
                         "detected": True,
                         "anomaly_type": "static_predictions",
@@ -1472,7 +1533,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                         integrity_issues.append(f"{dir_name}: No Python files found")
                 else:
                     integrity_issues.append(f"{dir_name}: Directory missing")
-            
+
             # models, configディレクトリは存在のみチェック
             for dir_name in other_dirs:
                 dir_path = PROJECT_ROOT / dir_name

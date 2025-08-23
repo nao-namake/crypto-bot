@@ -23,9 +23,9 @@ from typing import Any, Dict, Optional, Protocol
 
 import pandas as pd
 
+from ..data.data_pipeline import DataRequest, TimeFrame
 from ..features.anomaly import MarketAnomalyDetector
 from ..features.technical import TechnicalIndicators
-from ..data.data_pipeline import DataRequest, TimeFrame
 from .config import Config
 from .exceptions import CryptoBotError
 from .logger import CryptoBotLogger
@@ -48,7 +48,7 @@ class StrategyServiceProtocol(Protocol):
     """戦略評価サービスインターフェース."""
 
     def analyze_market(self, df: pd.DataFrame) -> Any: ...
-    
+
     def _create_hold_signal(self, df: pd.DataFrame, reason: str) -> Any: ...
 
 
@@ -200,9 +200,7 @@ class TradingOrchestrator:
 
         try:
             # Phase 2: データ取得
-            market_data = self.data_service.fetch_multi_timeframe(
-                symbol="BTC/JPY", limit=100
-            )
+            market_data = self.data_service.fetch_multi_timeframe(symbol="BTC/JPY", limit=100)
             if market_data is None:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
@@ -215,7 +213,7 @@ class TradingOrchestrator:
                     features[timeframe] = await self.feature_service.generate_features(df)
                 else:
                     features[timeframe] = pd.DataFrame()
-            
+
             # メインの特徴量データとして1時間足を使用
             main_features = features.get("1h", pd.DataFrame())
 
@@ -234,8 +232,8 @@ class TradingOrchestrator:
                 # 最新の予測値を使用
                 if len(ml_predictions_array) > 0:
                     ml_prediction = {
-                        "prediction": int(ml_predictions_array[-1]), 
-                        "confidence": 0.5  # 基本的な信頼度
+                        "prediction": int(ml_predictions_array[-1]),
+                        "confidence": 0.5,  # 基本的な信頼度
                     }
                 else:
                     ml_prediction = {"prediction": 0, "confidence": 0.0}
