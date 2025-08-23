@@ -173,6 +173,11 @@ class DataPipeline:
                 # DataFrameに変換
                 df = self._convert_to_dataframe(ohlcv_data)
 
+                # 型安全性チェック - DataFrameの保証
+                if not isinstance(df, pd.DataFrame):
+                    self.logger.error(f"データ変換エラー: 期待された型はDataFrame、実際の型は{type(df)}")
+                    return pd.DataFrame()  # 空のDataFrameを返して型安全性を保証
+
                 # キャッシュに保存
                 self._cache[cache_key] = df.copy()
                 self._cache_timestamps[cache_key] = datetime.now()
@@ -183,6 +188,7 @@ class DataPipeline:
                         "rows": len(df),
                         "latest_timestamp": (df.index[-1].isoformat() if len(df) > 0 else None),
                         "attempt": attempt + 1,
+                        "type_safe": isinstance(df, pd.DataFrame),
                     },
                 )
 
@@ -203,14 +209,14 @@ class DataPipeline:
         self, symbol: str = "BTC/JPY", limit: int = 1000
     ) -> Dict[str, pd.DataFrame]:
         """
-        マルチタイムフレーム データを一括取得
+        マルチタイムフレーム データを一括取得（型安全性強化）
 
         Args:
             symbol: 通貨ペア
             limit: 各タイムフレームの取得件数
 
         Returns:
-            タイムフレーム別データ辞書.
+            タイムフレーム別データ辞書（すべてDataFrame型保証）.
         """
         results = {}
 
@@ -219,18 +225,34 @@ class DataPipeline:
 
             try:
                 df = self.fetch_ohlcv(request)
-                results[timeframe.value] = df
+                
+                # 型安全性チェック - DataFrameの保証
+                if isinstance(df, pd.DataFrame):
+                    results[timeframe.value] = df
+                else:
+                    self.logger.warning(
+                        f"予期しない型が返却されました: {type(df)}, DataFrameに変換します"
+                    )
+                    # dictやその他の型の場合は空のDataFrameに変換
+                    results[timeframe.value] = pd.DataFrame()
 
             except Exception as e:
                 self.logger.error(f"マルチタイムフレーム取得失敗: {timeframe.value}", error=e)
-                # 失敗したタイムフレームは空のDataFrameで代替
+                # 失敗したタイムフレームは必ず空のDataFrameで代替（型保証）
                 results[timeframe.value] = pd.DataFrame()
+
+        # 最終的な型確認 - すべてがDataFrameであることを保証
+        for tf, data in results.items():
+            if not isinstance(data, pd.DataFrame):
+                self.logger.error(f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正")
+                results[tf] = pd.DataFrame()
 
         self.logger.info(
             f"マルチタイムフレーム取得完了: {symbol}",
             extra_data={
                 "timeframes": list(results.keys()),
                 "total_rows": sum(len(df) for df in results.values()),
+                "all_dataframes": all(isinstance(df, pd.DataFrame) for df in results.values()),
             },
         )
 

@@ -205,10 +205,18 @@ class TradingOrchestrator:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
 
-            # Phase 3: 特徴量生成
+            # Phase 3: 特徴量生成（型安全性強化）
             # market_dataは辞書形式 {timeframe: DataFrame} なので、各DataFrameに対して特徴量を生成
             features = {}
             for timeframe, df in market_data.items():
+                # 型安全性チェック - DataFrameの保証
+                if not isinstance(df, pd.DataFrame):
+                    self.logger.error(
+                        f"市場データの型エラー: {timeframe} = {type(df)}, DataFrameを期待"
+                    )
+                    features[timeframe] = pd.DataFrame()  # 空のDataFrameで代替
+                    continue
+                
                 if not df.empty:
                     features[timeframe] = await self.feature_service.generate_features(df)
                 else:

@@ -9,6 +9,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Union
 
+import aiohttp
 import ccxt
 
 from ..core.config import get_config
@@ -92,7 +93,7 @@ class BitbankClient:
         limit: int = 100,
     ) -> List[List[Union[int, float]]]:
         """
-        OHLCV データ取得
+        OHLCV データ取得（4時間足は直接API実装を使用）
 
         Args:
             symbol: 通貨ペア
@@ -106,6 +107,37 @@ class BitbankClient:
         Raises:
             DataFetchError: データ取得失敗時.
         """
+        # 4時間足の場合は直接API実装を使用（ccxt制約回避）
+        if timeframe == "4h":
+            self.logger.debug(f"4時間足検出: 直接API実装を使用")
+            import asyncio
+            from datetime import datetime
+            
+            # 現在年を取得
+            current_year = datetime.now().year
+            
+            try:
+                # 非同期メソッドを同期的に実行
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    ohlcv = loop.run_until_complete(
+                        self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
+                    )
+                finally:
+                    loop.close()
+                
+                # limitが指定されている場合は最新データに制限
+                if limit and len(ohlcv) > limit:
+                    ohlcv = ohlcv[-limit:]
+                
+                return ohlcv
+                
+            except Exception as e:
+                self.logger.warning(f"直接API取得失敗、ccxtでリトライ: {e}")
+                # フォールバックとしてccxtを試行（エラーになる可能性が高いが）
+                # ここはそのままccxt呼び出しを継続
+        
         try:
             self.logger.debug(f"OHLCV データ取得開始: {symbol} {timeframe} limit={limit}")
 
@@ -144,6 +176,91 @@ class BitbankClient:
             raise DataFetchError(
                 f"OHLCV データ取得に失敗しました: {e}",
                 context={"symbol": symbol, "timeframe": timeframe},
+            )
+
+    async def fetch_ohlcv_4h_direct(
+        self,
+        symbol: str = "BTC/JPY",
+        year: int = 2025,
+    ) -> List[List[Union[int, float]]]:
+        """
+        4時間足データを直接API実装で取得（ccxt制約回避）
+
+        Args:
+            symbol: 通貨ペア
+            year: 取得年（YYYY形式）
+
+        Returns:
+            OHLCV データリスト [[timestamp, open, high, low, close, volume], ...]
+
+        Raises:
+            DataFetchError: データ取得失敗時
+        """
+        try:
+            self.logger.debug(f"4時間足直接API取得開始: {symbol} {year}")
+
+            # Bitbank Public APIの正しい形式
+            pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
+            url = f"https://public.bitbank.cc/{pair}/candlestick/4hour/{year}"
+
+            async with aiohttp.ClientSession() as session:
+                timeout = aiohttp.ClientTimeout(total=10.0)
+                async with session.get(url, timeout=timeout) as response:
+                    data = await response.json()
+
+                    if data.get("success") == 1:
+                        candlestick_data = data["data"]["candlestick"][0]["ohlcv"]
+                        
+                        if not candlestick_data:
+                            raise DataFetchError(
+                                f"4時間足データが空です: {symbol} {year}",
+                                context={"symbol": symbol, "year": year}
+                            )
+
+                        # データ形式をccxtと統一（timestampをミリ秒に変換）
+                        ohlcv_data = []
+                        for item in candlestick_data:
+                            # Bitbank形式: [open, high, low, close, volume, timestamp_ms]
+                            # ccxt形式: [timestamp_ms, open, high, low, close, volume]
+                            if len(item) >= 6:
+                                timestamp_ms = item[5]
+                                ohlcv_data.append([
+                                    timestamp_ms,
+                                    float(item[0]),  # open
+                                    float(item[1]),  # high
+                                    float(item[2]),  # low
+                                    float(item[3]),  # close
+                                    float(item[4])   # volume
+                                ])
+
+                        self.logger.info(
+                            f"4時間足直接API取得成功: {len(ohlcv_data)}件",
+                            extra_data={
+                                "symbol": symbol,
+                                "year": year,
+                                "count": len(ohlcv_data),
+                                "method": "direct_api"
+                            }
+                        )
+
+                        return ohlcv_data
+
+                    else:
+                        error_code = data.get("data", {}).get("code", "unknown")
+                        raise DataFetchError(
+                            f"Bitbank API エラー: {error_code}",
+                            context={"symbol": symbol, "year": year, "error_code": error_code}
+                        )
+
+        except aiohttp.ClientError as e:
+            raise DataFetchError(
+                f"ネットワークエラー（4時間足）: {e}",
+                context={"symbol": symbol, "year": year}
+            )
+        except Exception as e:
+            raise DataFetchError(
+                f"4時間足データ取得失敗: {e}",
+                context={"symbol": symbol, "year": year}
             )
 
     def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
