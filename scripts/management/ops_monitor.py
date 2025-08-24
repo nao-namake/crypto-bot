@@ -692,7 +692,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
             # 本番環境の設定ファイルを優先的にテスト
             config_files = [
-                "config/production/production.yaml",  # 本番設定
+                "config/environments/live/production.yaml",  # 本番設定
                 "config/core/base.yaml",  # フォールバック
             ]
 

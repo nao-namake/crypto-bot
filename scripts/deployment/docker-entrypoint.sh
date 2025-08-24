@@ -44,7 +44,7 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
                 # 簡易動作確認（環境に応じた設定ファイル使用）
                 mode = os.environ.get('MODE', 'paper')
                 if mode == 'live':
-                    config = load_config('config/production/production.yaml')
+                    config = load_config('config/environments/live/production.yaml')
                     executor = create_order_executor(mode='live')
                 else:
                     config = load_config('config/core/base.yaml')
@@ -118,7 +118,7 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     
     # ライブトレードをフォアグラウンドで実行
     echo "🔄 ライブトレード起動..."
-    python3 main.py --mode live --config config/production/production.yaml &
+    python3 main.py --mode live --config config/environments/live/production.yaml &
     TRADING_PID=$!
     echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
     

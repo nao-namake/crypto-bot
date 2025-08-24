@@ -46,7 +46,7 @@ except ImportError as e:
 class LiveTradingTester:
     """実取引テスト実行クラス."""
 
-    def __init__(self, config_path: str = "config/production.yaml"):
+    def __init__(self, config_path: str = "config/environments/live/production.yaml"):
         """初期化."""
         self.config = load_config(config_path)
         self.logger = setup_logging("live_trading_test")
@@ -375,8 +375,8 @@ async def main():
     )
     parser.add_argument(
         "--config",
-        default="config/production.yaml",
-        help="設定ファイル (default: config/production.yaml)",
+        default="config/environments/live/production.yaml",
+        help="設定ファイル (default: config/environments/live/production.yaml)",
     )
 
     args = parser.parse_args()

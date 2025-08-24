@@ -18,27 +18,23 @@ config/
 │   ├── base.yaml                     # 全環境共通基本設定
 │   └── feature_order.json            # 特徴量定義（97→12個削減記録）
 │
-├── development/                      # 🛠️ 開発・テスト環境
-│   ├── README.md                     # 開発環境ガイド
-│   ├── local.yaml                    # ローカル開発（ペーパートレード）
-│   └── testing.yaml                  # 実取引テスト設定
+├── environments/                     # 🎯 環境別設定（統合最適化）
+│   ├── paper/                       # ペーパートレード専用
+│   │   ├── README.md                # ペーパートレードガイド
+│   │   └── local.yaml               # ローカル開発設定
+│   │
+│   └── live/                        # 実取引設定（段階的統合）
+│       ├── README.md                # 実取引環境ガイド
+│       ├── testing.yaml             # 最小単位実取引テスト
+│       ├── validation.yaml          # 1万円実資金検証
+│       ├── stage_10.yaml            # 10%資金投入段階
+│       ├── stage_50.yaml            # 50%資金投入段階
+│       └── production.yaml          # 100%本番運用
 │
-├── staging/                          # 🎯 段階的デプロイメント
-│   ├── README.md                     # 段階的デプロイガイド
-│   ├── stage_10percent.yaml          # 10%資金投入段階
-│   └── stage_50percent.yaml          # 50%資金投入段階
-│
-├── production/                       # 🚀 本番環境（100%運用のみ）
-│   ├── README.md                     # 本番運用ガイド
-│   └── production.yaml               # 100%本番運用設定
-│
-├── validation/                       # 🧪 検証環境
-│   ├── README.md                     # 検証環境ガイド（1万円実資金対応）
-│   └── phase9_validation.yaml        # 本番移行前検証設定
-│
-└── deployment/                       # 🚀 デプロイメント自動化
-    ├── README.md                     # デプロイメントガイド
-    └── cloudbuild.yaml               # GCP Cloud Build設定
+└── infrastructure/                   # 🔧 インフラストラクチャ統合
+    ├── README.md                     # インフラガイド
+    ├── gcp_config.yaml               # GCP統合設定
+    └── cloudbuild.yaml               # Cloud Build設定
 ```
 
 ## 🎯 Phase 13完成システム成果
@@ -119,7 +115,7 @@ python scripts/management/dev_check.py full-check
 python scripts/management/dev_check.py validate --mode light
 
 # 1万円実資金での検証
-python scripts/testing/test_live_trading.py --config config/validation/phase9_validation.yaml
+python scripts/testing/test_live_trading.py --config config/environments/live/validation.yaml
 
 # 7日間目標
 # - 取引: 30回以上
@@ -134,8 +130,8 @@ python scripts/testing/test_live_trading.py --config config/validation/phase9_va
 git push origin main  # GitHub Actions実行
 
 # 手動デプロイ（必要時）
-bash scripts/deployment/deploy_production.sh --stage 10percent  # 10%段階
-bash scripts/deployment/deploy_production.sh --stage 50percent  # 50%段階
+bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml  # 10%段階
+bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_50.yaml  # 50%段階
 
 # 手動実行監視開始（手動実行）
 gh workflow run monitoring.yml --field check_type=full
@@ -147,7 +143,7 @@ gh workflow run monitoring.yml --field check_type=full
 git push origin main  # 自動品質チェック→自動デプロイ
 
 # 手動本番デプロイ（必要時）
-bash scripts/deployment/deploy_production.sh --stage production
+bash scripts/deployment/deploy_production.sh --config config/environments/live/production.yaml
 
 # dev_check統合確認
 python scripts/management/dev_check.py phase-check
@@ -207,9 +203,9 @@ echo 'your_webhook_url' | gcloud secrets create discord-webhook-url --data-file=
 from src.core.config import Config
 
 # 環境別設定読み込み
-validation_config = Config.load_from_file('config/validation/phase9_validation.yaml')
-stage10_config = Config.load_from_file('config/staging/stage_10percent.yaml')
-production_config = Config.load_from_file('config/production/production.yaml')
+validation_config = Config.load_from_file('config/environments/live/validation.yaml')
+stage10_config = Config.load_from_file('config/environments/live/stage_10.yaml')
+production_config = Config.load_from_file('config/environments/live/production.yaml')
 
 # 設定検証
 configs = [validation_config, stage10_config, production_config]
@@ -221,16 +217,16 @@ for i, config in enumerate(configs, 1):
 ### 段階別デプロイメント
 ```bash
 # 1. 1万円検証実行
-python scripts/test_live_trading.py --mode continuous --duration 4 --config config/validation/phase9_validation.yaml
+python scripts/testing/test_live_trading.py --mode continuous --duration 4 --config config/environments/live/validation.yaml
 
 # 2. 検証成功後、段階的デプロイ
-bash scripts/deploy_production.sh --stage 10percent
+bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml
 
 # 3. 段階成功後、次段階
-bash scripts/deploy_production.sh --stage 50percent
+bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_50.yaml
 
 # 4. 最終本番デプロイ
-bash scripts/deploy_production.sh --stage production
+bash scripts/deployment/deploy_production.sh --config config/environments/live/production.yaml
 ```
 
 ## 🔧 設定検証・テスト
@@ -242,12 +238,12 @@ from src.core.config import Config
 
 configs = [
     'config/core/base.yaml',
-    'config/development/local.yaml',
-    'config/development/testing.yaml',
-    'config/validation/phase9_validation.yaml',
-    'config/staging/stage_10percent.yaml',
-    'config/staging/stage_50percent.yaml',
-    'config/production/production.yaml'
+    'config/environments/paper/local.yaml',
+    'config/environments/live/testing.yaml',
+    'config/environments/live/validation.yaml',
+    'config/environments/live/stage_10.yaml',
+    'config/environments/live/stage_50.yaml',
+    'config/environments/live/production.yaml'
 ]
 
 print('=== 全設定検証結果 ===')
@@ -282,7 +278,7 @@ for config_path in configs:
 gcloud run services update SERVICE_NAME --min-instances=0 --max-instances=0 --region=asia-northeast1
 
 # 段階ダウングレード
-bash scripts/deploy_production.sh --stage 10percent  # 50%→10%
+bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml  # 50%→10%
 ```
 
 ## 📈 成功の道筋

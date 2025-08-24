@@ -75,7 +75,7 @@ set_stage_config() {
     case "${stage}" in
         "10percent")
             SERVICE_NAME="${SERVICE_NAME_PREFIX}-10percent"
-            CONFIG_FILE="config/staging/stage_10percent.yaml"
+            CONFIG_FILE="config/environments/live/stage_10.yaml"
             MEMORY="1Gi"
             CPU="1"
             MIN_INSTANCES="1"
@@ -85,7 +85,7 @@ set_stage_config() {
             ;;
         "50percent")
             SERVICE_NAME="${SERVICE_NAME_PREFIX}-50percent"
-            CONFIG_FILE="config/staging/stage_50percent.yaml"
+            CONFIG_FILE="config/environments/live/stage_50.yaml"
             MEMORY="1.5Gi"
             CPU="1"
             MIN_INSTANCES="1"
@@ -95,7 +95,7 @@ set_stage_config() {
             ;;
         "production"|"100percent")
             SERVICE_NAME="${SERVICE_NAME_PREFIX}-prod"
-            CONFIG_FILE="config/production/production.yaml"
+            CONFIG_FILE="config/environments/live/production.yaml"
             MEMORY="2Gi"
             CPU="2"
             MIN_INSTANCES="1"
