@@ -18,6 +18,7 @@ Application Service Layer として、Phase 1-12の高レベル統合制御の�
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import Any, Dict, Optional, Protocol
 
@@ -233,10 +234,10 @@ class TradingOrchestrator:
 
             # Phase 4: 戦略評価
             if not main_features.empty:
-                strategy_signals = self.strategy_service.analyze_market(main_features)
+                strategy_signal = self.strategy_service.analyze_market(main_features)
             else:
                 # 空のDataFrameの場合はHOLDシグナル
-                strategy_signals = self.strategy_service._create_hold_signal(
+                strategy_signal = self.strategy_service._create_hold_signal(
                     pd.DataFrame(), "データ不足"
                 )
 
@@ -254,9 +255,61 @@ class TradingOrchestrator:
             else:
                 ml_prediction = {"prediction": 0, "confidence": 0.0}
 
+            # Phase 6: 追加情報取得（リスク管理のため）
+            try:
+                # 現在の残高取得
+                balance_info = self.data_service.client.fetch_balance()
+                current_balance = balance_info.get("JPY", {}).get("total", 0.0)
+
+                # 現在のティッカー情報取得（bid/ask価格）
+                import time
+
+                start_time = time.time()
+                ticker_info = self.data_service.client.fetch_ticker("BTC/JPY")
+                api_latency_ms = (time.time() - start_time) * 1000
+
+                bid = ticker_info.get("bid", 0.0)
+                ask = ticker_info.get("ask", 0.0)
+
+                self.logger.debug(
+                    f"取引情報取得 - 残高: ¥{current_balance:,.0f}, bid: ¥{bid:,.0f}, ask: ¥{ask:,.0f}, API遅延: {api_latency_ms:.1f}ms"
+                )
+
+            except Exception as e:
+                # フォールバック値を使用
+                self.logger.warning(f"取引情報取得エラー - フォールバック値使用: {e}")
+                current_balance = 1000000.0  # デフォルト残高
+
+                # 安全にmarket_dataから価格を取得
+                try:
+                    if (
+                        isinstance(market_data, dict)
+                        and "4h" in market_data
+                        and not market_data["4h"].empty
+                    ):
+                        close_price = market_data["4h"]["close"].iloc[-1]
+                        bid = close_price * 0.999  # close価格の0.1%下
+                        ask = close_price * 1.001  # close価格の0.1%上
+                    else:
+                        # デフォルト価格（BTC/JPY概算）
+                        bid = 9000000.0  # 9,000,000円
+                        ask = 9010000.0  # 9,010,000円
+                except (KeyError, IndexError, TypeError) as price_error:
+                    self.logger.warning(f"価格フォールバック処理エラー: {price_error}")
+                    bid = 9000000.0  # デフォルト価格
+                    ask = 9010000.0  # デフォルト価格
+
+                api_latency_ms = 100.0  # デフォルト遅延値
+
             # Phase 6: リスク管理・統合判定
             trade_evaluation = self.risk_service.evaluate_trade_opportunity(
-                ml_prediction, strategy_signals, market_data
+                ml_prediction=ml_prediction,
+                strategy_signal=strategy_signal,  # 変数名統一
+                market_data=main_features,  # DataFrameのみ渡す（型整合性確保）
+                current_balance=current_balance,
+                bid=bid,
+                ask=ask,
+                api_latency_ms=api_latency_ms,
             )
 
             # Phase 7: 注文実行（承認された取引のみ）

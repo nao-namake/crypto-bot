@@ -149,7 +149,7 @@ class TestDiscordNotifier:
         mock_response.status_code = 200
         mock_post.return_value = mock_response
 
-        embeds = [{"title": "Test", "description": "Test message"}]
+        embeds = [{"title": "Test", "description": "Test message", "color": 0x00FF00}]
         result = notifier_with_url._send_webhook(embeds)
 
         assert result is True
@@ -166,7 +166,7 @@ class TestDiscordNotifier:
         mock_response.text = "Bad Request"
         mock_post.return_value = mock_response
 
-        embeds = [{"title": "Test", "description": "Test message"}]
+        embeds = [{"title": "Test", "description": "Test message", "color": 0x00FF00}]
         result = notifier_with_url._send_webhook(embeds)
 
         assert result is False
@@ -176,14 +176,14 @@ class TestDiscordNotifier:
         """Webhook送信例外テスト"""
         mock_post.side_effect = requests.exceptions.RequestException("Connection error")
 
-        embeds = [{"title": "Test", "description": "Test message"}]
+        embeds = [{"title": "Test", "description": "Test message", "color": 0x00FF00}]
         result = notifier_with_url._send_webhook(embeds)
 
         assert result is False
 
     def test_send_webhook_disabled(self, notifier_without_url):
         """無効状態Webhook送信テスト"""
-        embeds = [{"title": "Test", "description": "Test message"}]
+        embeds = [{"title": "Test", "description": "Test message", "color": 0x00FF00}]
         result = notifier_without_url._send_webhook(embeds)
 
         assert result is False

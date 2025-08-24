@@ -275,9 +275,28 @@ class DiscordNotifier:
                         )
                         continue
 
+                    # 不正な値の除去（Discord API エラー防止）
+                    cleaned_embed = {}
+                    for key, value in embed.items():
+                        # 文字列や数値以外の不正な値を除去
+                        if key in ["title", "description"] and not isinstance(value, str):
+                            self.logger.warning(
+                                f"⚠️ embed[{i}].{key}を文字列に変換: {type(value)} -> str"
+                            )
+                            cleaned_embed[key] = str(value)
+                        elif key == "color" and not isinstance(value, int):
+                            self.logger.warning(
+                                f"⚠️ embed[{i}].{key}を整数に変換: {type(value)} -> int"
+                            )
+                            cleaned_embed[key] = int(value) if str(value).isdigit() else 0x3498DB
+                        elif isinstance(value, (str, int, bool, dict, list)):
+                            cleaned_embed[key] = value
+                        else:
+                            self.logger.warning(f"⚠️ embed[{i}].{key}の不正値を除去: {type(value)}")
+
                     # 構造検証
-                    self._validate_embed_structure(embed)
-                    validated_embeds.append(embed)
+                    self._validate_embed_structure(cleaned_embed)
+                    validated_embeds.append(cleaned_embed)
 
                 except Exception as e:
                     self.logger.error(f"❌ embed[{i}]検証失敗: {e} - embed: {embed}")
@@ -336,6 +355,10 @@ class DiscordNotifier:
 
                 json_payload = json.dumps(payload)
                 self.logger.debug(f"🔍 JSON serialization確認: {len(json_payload)}文字")
+                # デバッグ: 実際の送信ペイロードをログ出力（embed構造問題調査）
+                self.logger.debug(
+                    f"🔍 送信ペイロード詳細: {json.dumps(payload, indent=2, ensure_ascii=False)}"
+                )
             except (TypeError, ValueError) as json_err:
                 self.logger.error(f"❌ JSON serialization失敗: {json_err}")
                 self.logger.error(f"🔍 問題のpayload: {payload}")

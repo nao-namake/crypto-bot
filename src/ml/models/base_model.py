@@ -234,7 +234,11 @@ class BaseMLModel(ABC):
 
     def _validate_training_data(self, X: pd.DataFrame, y: pd.Series) -> None:
         """学習データの妥当性チェック."""
-        if X.empty or y.empty:
+        # pandas/numpyの両方に対応したemptyチェック
+        x_empty = X.empty if hasattr(X, "empty") else (len(X) == 0)
+        y_empty = y.empty if hasattr(y, "empty") else (len(y) == 0)
+
+        if x_empty or y_empty:
             raise ValueError("Training data is empty")
 
         if len(X) != len(y):
@@ -243,9 +247,20 @@ class BaseMLModel(ABC):
         if len(X) < 10:
             raise ValueError(f"Insufficient training data: {len(X)} samples")
 
-        # NaN値チェック
-        x_nan_ratio = X.isna().sum().sum() / (len(X) * len(X.columns))
-        y_nan_ratio = y.isna().sum() / len(y)
+        # NaN値チェック（pandas/numpyの両方に対応）
+        if hasattr(X, "isna"):
+            x_nan_ratio = X.isna().sum().sum() / (len(X) * len(X.columns))
+        else:
+            import numpy as np
+
+            x_nan_ratio = np.isnan(X).sum() / X.size
+
+        if hasattr(y, "isna"):
+            y_nan_ratio = y.isna().sum() / len(y)
+        else:
+            import numpy as np
+
+            y_nan_ratio = np.isnan(y).sum() / len(y)
 
         if x_nan_ratio > 0.5:
             raise ValueError(f"Too many NaN values in features: {x_nan_ratio:.2%}")
