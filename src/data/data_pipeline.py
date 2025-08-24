@@ -1,14 +1,16 @@
 """
 データ取得パイプライン - マルチタイムフレーム対応
 
-1時間足、15分足、4時間足のデータを効率的に取得・管理する
+15分足と4時間足のデータを効率的に取得・管理する
 シンプルで高速なデータパイプライン実装。
 
 主な特徴:
-- マルチタイムフレーム対応（15m, 1h, 4h）
+- マルチタイムフレーム対応（15m, 4h）2軸構成
 - 効率的なデータキャッシング
 - エラーハンドリングと自動リトライ
-- データ品質チェック機能.
+- データ品質チェック機能
+
+Phase 13改善実装日: 2025年8月24日.
 """
 
 import time
@@ -28,7 +30,6 @@ class TimeFrame(Enum):
     """サポートするタイムフレーム."""
 
     M15 = "15m"  # 15分足
-    H1 = "1h"  # 1時間足
     H4 = "4h"  # 4時間足
 
 
@@ -37,7 +38,7 @@ class DataRequest:
     """データ取得リクエスト."""
 
     symbol: str = "BTC/JPY"
-    timeframe: TimeFrame = TimeFrame.H1
+    timeframe: TimeFrame = TimeFrame.H4
     limit: int = 1000
     since: Optional[int] = None
 
@@ -241,10 +242,13 @@ class DataPipeline:
                 # 失敗したタイムフレームは必ず空のDataFrameで代替（型保証）
                 results[timeframe.value] = pd.DataFrame()
 
-        # 最終的な型確認 - すべてがDataFrameであることを保証
+        # 最終的な型確認 - すべてがDataFrameであることを保証（強化版）
         for tf, data in results.items():
             if not isinstance(data, pd.DataFrame):
-                self.logger.error(f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正")
+                self.logger.error(f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正. 詳細: {str(data)[:100] if data else 'None'}")
+                results[tf] = pd.DataFrame()
+            elif not hasattr(data, 'empty'):
+                self.logger.error(f"DataFrame属性不整合: {tf}, 空のDataFrameで修正")
                 results[tf] = pd.DataFrame()
 
         self.logger.info(

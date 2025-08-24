@@ -34,8 +34,8 @@ exchange:
 # 機械学習設定（本番最適化）
 # ========================================
 ml:
-  # 本番用信頼度閾値（Phase 8最適化）
-  confidence_threshold: 0.5   # 50%（Phase 8最適化: 0.25→0.5・適切な精度確保）
+  # 本番用信頼度閾値（収益性重視・月400-500回取引最適化）
+  confidence_threshold: 0.65   # 65%（収益機会拡大・高品質シグナル確保のバランス）
   
   # アンサンブルモデル設定
   ensemble_enabled: true
@@ -75,8 +75,8 @@ risk:
 # データ取得設定（本番用）
 # ========================================
 data:
-  # タイムフレーム（レガシー実証済み）
-  timeframes: ["15m", "1h", "4h"]
+  # タイムフレーム（2軸構成・Phase 13最適化）
+  timeframes: ["15m", "4h"]
   since_hours: 96       # 4日分（Bitbank安定範囲）
   limit: 100           # 確実な取得数
   
@@ -190,7 +190,7 @@ execution:
 production:
   min_order_size: 0.0001     # 最小注文サイズ
   max_order_size: 0.001      # 最大注文サイズ（0.0005→0.001・収益性向上）
-  trade_interval: 60         # 取引間隔（秒）
+  trade_interval: 180        # 取引間隔（秒）・収益性重視（3分間隔）
   margin_trading: true       # 信用取引有効
   force_margin_mode: true    # 信用取引強制
 

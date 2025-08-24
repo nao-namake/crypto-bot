@@ -29,9 +29,9 @@ COPY models/ /app/models/
 COPY main.py /app/
 COPY tests/manual/ /app/tests/manual/
 
-# ログ・キャッシュディレクトリ（レガシーパターン）
-RUN mkdir -p /app/cache /app/logs/trading \
-    && chmod -R 755 /app/cache /app/logs
+# ログ・統合キャッシュディレクトリ（Phase 13統合パターン）
+RUN mkdir -p /app/.cache/pycache /app/.cache/coverage /app/.cache/pytest /app/cache /app/logs/trading \
+    && chmod -R 755 /app/.cache /app/cache /app/logs
 
 # docker-entrypoint.sh（レガシー統合機能継承）
 COPY scripts/deployment/docker-entrypoint.sh /app/
@@ -42,13 +42,16 @@ RUN useradd --create-home --shell /bin/bash cryptobot \
     && chown -R cryptobot:cryptobot /app
 USER cryptobot
 
-# 環境変数（レガシー＋新システム統合）
+# 環境変数（レガシー＋新システム統合・キャッシュ統合対応）
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 ENV MODE=live
 ENV LOG_LEVEL=INFO
 ENV FEATURE_MODE=full
+ENV PYTHONPYCACHEPREFIX=/app/.cache/pycache
+ENV PYTEST_CACHE_DIR=/app/.cache/pytest
+ENV COVERAGE_FILE=/app/.cache/coverage/.coverage
 
 EXPOSE 8080
 

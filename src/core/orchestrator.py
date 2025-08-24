@@ -209,21 +209,27 @@ class TradingOrchestrator:
             # market_dataは辞書形式 {timeframe: DataFrame} なので、各DataFrameに対して特徴量を生成
             features = {}
             for timeframe, df in market_data.items():
-                # 型安全性チェック - DataFrameの保証
+                # 型安全性チェック - DataFrameの保証（強化版）
                 if not isinstance(df, pd.DataFrame):
                     self.logger.error(
-                        f"市場データの型エラー: {timeframe} = {type(df)}, DataFrameを期待"
+                        f"市場データの型エラー: {timeframe} = {type(df)}, DataFrameを期待. 詳細: {str(df)[:100] if df else 'None'}"
                     )
                     features[timeframe] = pd.DataFrame()  # 空のDataFrameで代替
                     continue
                 
-                if not df.empty:
-                    features[timeframe] = await self.feature_service.generate_features(df)
-                else:
-                    features[timeframe] = pd.DataFrame()
+                # DataFrameの有効性チェック（強化版）
+                try:
+                    if hasattr(df, 'empty') and not df.empty:
+                        features[timeframe] = await self.feature_service.generate_features(df)
+                    else:
+                        self.logger.warning(f"空のDataFrame検出: {timeframe}")
+                        features[timeframe] = pd.DataFrame()
+                except Exception as e:
+                    self.logger.error(f"特徴量生成エラー: {timeframe}, エラー: {e}")
+                    features[timeframe] = pd.DataFrame()  # エラー時も安全な代替値
 
-            # メインの特徴量データとして1時間足を使用
-            main_features = features.get("1h", pd.DataFrame())
+            # メインの特徴量データとして4時間足を使用
+            main_features = features.get("4h", pd.DataFrame())
 
             # Phase 4: 戦略評価
             if not main_features.empty:
@@ -468,10 +474,10 @@ class TradingOrchestrator:
         """ライブトレードモード実行."""
         self.logger.info("🚨 ライブトレードモード開始", discord_notify=True)
 
-        # 定期的な取引サイクル実行
+        # 定期的な取引サイクル実行（月100-200回最適化）
         while True:
             await self.run_trading_cycle()
-            await asyncio.sleep(60)  # 1分間隔
+            await asyncio.sleep(180)  # 3分間隔（収益性重視）
 
     async def _save_backtest_report(self, results: Dict, start_date, end_date):
         """バックテスト結果レポート保存"""
@@ -842,7 +848,25 @@ class _FeatureServiceAdapter:
 
     async def generate_features(self, market_data: Dict) -> Dict:
         """特徴量生成統合処理."""
-        features = {}
-        features.update(self.technical_indicators.generate_all_features(market_data))
-        features.update(self.anomaly_detector.generate_all_features(market_data))
-        return features
+        # DataFrameに変換（dictでもDataFrameでも対応）
+        if isinstance(market_data, pd.DataFrame):
+            result_df = market_data.copy()
+        elif isinstance(market_data, dict):
+            # dictの場合はDataFrameに変換
+            try:
+                result_df = pd.DataFrame(market_data)
+            except Exception as e:
+                raise ValueError(f"Failed to convert dict to DataFrame: {e}")
+        else:
+            raise ValueError(f"Unsupported market_data type: {type(market_data)}")
+        
+        # 基本特徴量を生成
+        if 'close' in result_df.columns:
+            result_df["returns_1"] = result_df["close"].pct_change(1)
+            result_df["returns_1"] = result_df["returns_1"].fillna(0)
+        
+        # テクニカル指標と異常検知指標を生成
+        result_df = self.technical_indicators.generate_all_features(result_df)
+        result_df = self.anomaly_detector.generate_all_features(result_df)
+        
+        return result_df

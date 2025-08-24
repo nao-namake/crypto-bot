@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Python bytecode
+# Python bytecode（.cache/pycache に統合済み）
 # ──────────────────────────────────────────────────────────────────────────────
-__pycache__/
+__pycache__/          # 旧形式（PYTHONPYCACHEPREFIX で .cache/pycache に統合）
 *.py[cod]
 *.pyo
 *$py.class

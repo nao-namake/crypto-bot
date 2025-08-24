@@ -1,17 +1,15 @@
 """
-テクニカル指標実装 - 8個の厳選指標
+テクニカル指標実装 - 6個の厳選指標
 
 レガシーシステムの97特徴量から、実用性重視で
-8個の高効果テクニカル指標を実装。
+6個の高効果テクニカル指標を実装。
 
 実装指標:
-- Momentum系（2個）: returns_1, RSI
-- Volatility系（2個）: ATR, BB position
-- トレンド系（2個）: EMA20, EMA50
-- Volume系（1個）: volume_ratio
-- 基本データ（1個）: zscore
+- Momentum系（2個）: rsi_14, macd
+- Volatility系（2個）: atr_14, bb_position
+- トレンド系（2個）: ema_20, ema_50
 
-Phase 3改善実装日: 2025年8月18日.
+Phase 13改善実装日: 2025年8月24日.
 """
 
 from typing import Any, Dict, Optional
@@ -58,17 +56,13 @@ class TechnicalIndicators:
 
             result_df = df.copy()
 
-            # 各指標生成
-            result_df["returns_1"] = result_df["close"].pct_change(1)
-            self.computed_features.add("returns_1")
-
+            # 各指標生成（6個の技術指標のみ）
             result_df["rsi_14"] = self._calculate_rsi(result_df["close"])
             self.computed_features.add("rsi_14")
 
-            macd_line, macd_signal = self._calculate_macd(result_df["close"])
+            macd_line, _ = self._calculate_macd(result_df["close"])
             result_df["macd"] = macd_line
-            result_df["macd_signal"] = macd_signal
-            self.computed_features.update(["macd", "macd_signal"])
+            self.computed_features.add("macd")
 
             result_df["atr_14"] = self._calculate_atr(result_df)
             self.computed_features.add("atr_14")
@@ -79,12 +73,6 @@ class TechnicalIndicators:
             result_df["ema_20"] = result_df["close"].ewm(span=20, adjust=False).mean()
             result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
             self.computed_features.update(["ema_20", "ema_50"])
-
-            result_df["volume_ratio"] = self._calculate_volume_ratio(result_df["volume"])
-            self.computed_features.add("volume_ratio")
-
-            result_df["zscore"] = self._calculate_zscore(result_df["close"])
-            self.computed_features.add("zscore")
 
             # NaN値処理
             for feature in self.computed_features:
@@ -130,16 +118,6 @@ class TechnicalIndicators:
         bb_lower = bb_middle - (bb_std_dev * 2)
         return (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
 
-    def _calculate_volume_ratio(self, volume: pd.Series, period: int = 20) -> pd.Series:
-        """出来高比率計算."""
-        volume_ma = volume.rolling(window=period, min_periods=1).mean()
-        return volume / (volume_ma + 1e-8)
-
-    def _calculate_zscore(self, close: pd.Series, period: int = 20) -> pd.Series:
-        """Z-Score計算."""
-        rolling_mean = close.rolling(window=period, min_periods=1).mean()
-        rolling_std = close.rolling(window=period, min_periods=1).std()
-        return (close - rolling_mean) / (rolling_std + 1e-8)
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得."""
@@ -147,10 +125,8 @@ class TechnicalIndicators:
             "total_features": len(self.computed_features),
             "computed_features": sorted(list(self.computed_features)),
             "categories": {
-                "momentum": ["returns_1", "rsi_14", "macd", "macd_signal"],
+                "momentum": ["rsi_14", "macd"],
                 "volatility": ["atr_14", "bb_position"],
                 "trend": ["ema_20", "ema_50"],
-                "volume": ["volume_ratio"],
-                "basic": ["zscore"],
             },
         }

@@ -35,9 +35,8 @@ risk:
 
 # データ取得設定
 data:
-  timeframes:                 # 取得時間軸
+  timeframes:                 # 取得時間軸（2軸構成）
     - 15m
-    - 1h
     - 4h
   since_hours: 96            # 取得期間（4日分）
   limit: 100                 # 1回あたり取得数

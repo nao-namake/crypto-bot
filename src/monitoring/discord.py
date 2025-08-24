@@ -55,30 +55,50 @@ class DiscordNotifier:
             webhook_url: Discord WebhookのURL（環境変数から取得も可能）.
         """
         self.logger = get_logger("discord")
-        self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
         
-        # 詳細デバッグ情報をloggerで出力（Cloud Run対応）
+        # 強化された環境変数取得（Cloud Run Secret Manager対応）
         env_webhook = os.getenv("DISCORD_WEBHOOK_URL")
-        self.logger.info(f"🔍 Discord初期化デバッグ: webhook_url引数={webhook_url is not None}, 環境変数={env_webhook is not None}")
+        self.webhook_url = webhook_url or env_webhook
+        
+        # 詳細デバッグ情報をloggerで出力（Cloud Run対応・401エラー解決用）
+        self.logger.info(f"🔍 Discord初期化デバッグ: webhook_url引数={webhook_url is not None}")
+        self.logger.info(f"🔍 環境変数チェック: DISCORD_WEBHOOK_URL={env_webhook is not None}")
+        
+        # 環境変数の全リスト確認（Discord関連のみ）
+        discord_env_vars = {k: v for k, v in os.environ.items() if 'DISCORD' in k.upper()}
+        self.logger.info(f"🔍 Discord関連環境変数: {list(discord_env_vars.keys())}")
         
         if env_webhook:
-            self.logger.info(f"🔗 環境変数URL長: {len(env_webhook)} 文字")
-            self.logger.info(f"🔗 URL開始: {env_webhook[:60]}...")
-            # URL末尾も確認（トークン部分の有無チェック）
-            self.logger.info(f"🔗 URL末尾: ...{env_webhook[-30:]}")
-            # 改行文字やスペースの確認
-            url_repr = repr(env_webhook)
-            self.logger.info(f"🔗 URL詳細repr: {url_repr[:100]}...")
+            # URL形式の基本検証
+            cleaned_url = env_webhook.strip()
+            if cleaned_url != env_webhook:
+                self.logger.warning(f"⚠️ URL前後に空白文字検出・自動除去: '{env_webhook}' -> '{cleaned_url}'")
+                self.webhook_url = cleaned_url
+                
+            self.logger.info(f"🔗 環境変数URL長: {len(self.webhook_url)} 文字")
+            
+            # Discord webhook URL形式の検証
+            if not self.webhook_url.startswith('https://discord.com/api/webhooks/'):
+                self.logger.error(f"❌ 不正なwebhook URL形式: {self.webhook_url[:50]}...")
+            else:
+                self.logger.info("✅ Discord webhook URL形式確認済み")
+                
+            # URLの構造確認（401エラー解決用）
+            url_parts = self.webhook_url.split('/')
+            if len(url_parts) >= 7:
+                webhook_id = url_parts[-2] if len(url_parts) > 6 else "不明"
+                webhook_token_present = len(url_parts[-1]) > 10 if len(url_parts) > 6 else False
+                self.logger.info(f"🔗 Webhook ID: {webhook_id[:8]}...")
+                self.logger.info(f"🔗 Token存在: {webhook_token_present}")
+            
         else:
-            self.logger.warning("⚠️ DISCORD_WEBHOOK_URL環境変数が見つかりません")
+            self.logger.error("❌ DISCORD_WEBHOOK_URL環境変数が見つかりません")
         
         if not self.webhook_url:
-            self.logger.error("❌ DISCORD_WEBHOOK_URL環境変数が設定されていません。Discord通知は無効です。")
+            self.logger.error("❌ Discord webhook URLが設定されていません。Discord通知は無効です。")
             self.enabled = False
         else:
             self.logger.info(f"✅ Discord通知有効化: URL長={len(self.webhook_url)} 文字")
-            # 最終的に使用されるURLの詳細確認
-            self.logger.info(f"🎯 最終使用URL: {self.webhook_url[:60]}...{self.webhook_url[-30:]}")
             self.enabled = True
 
         # レート制限管理
@@ -158,33 +178,65 @@ class DiscordNotifier:
         }
 
         try:
-            # 送信前の詳細デバッグ（logger使用）
+            # 送信前の詳細デバッグ（401エラー解決強化版）
             self.logger.info(f"🚀 Discord送信開始: URL長={len(self.webhook_url)}, タイムアウト=10秒")
             self.logger.info(f"📤 送信ペイロード: {len(embeds)}個の埋め込み")
             
-            # 実際の送信URL確認（セキュリティ考慮で一部マスク）
-            masked_url = f"{self.webhook_url[:60]}...{self.webhook_url[-20:]}"
-            self.logger.info(f"🔗 送信URL: {masked_url}")
+            # URL構造の最終確認（401エラー解決用）
+            url_parts = self.webhook_url.split('/')
+            if len(url_parts) >= 7:
+                self.logger.info(f"🔗 URL構造: .../{url_parts[-3]}/{url_parts[-2][:8]}.../[TOKEN]")
             
-            response = requests.post(self.webhook_url, json=payload, timeout=10)
+            # リクエストヘッダー設定（401エラー対策）
+            headers = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Crypto-Bot/1.0'
+            }
             
-            # 応答の詳細ログ出力
+            self.logger.info(f"📡 リクエストヘッダー: {headers}")
+            
+            response = requests.post(
+                self.webhook_url, 
+                json=payload, 
+                headers=headers,
+                timeout=10
+            )
+            
+            # 応答の詳細ログ出力（401エラー解決用）
             self.logger.info(f"📡 Discord応答: status={response.status_code}")
             self.logger.info(f"📡 応答ヘッダー: {dict(response.headers)}")
 
             if response.status_code in [200, 204]:
                 self.logger.info("✅ Discord通知送信成功")
                 return True
+            elif response.status_code == 401:
+                # 401エラーの詳細解析
+                self.logger.error("🚨 Discord 401 Unauthorized エラー - Webhook認証失敗")
+                self.logger.error(f"🔍 応答内容: {response.text}")
+                
+                # URL形式の再確認
+                if not self.webhook_url.startswith('https://discord.com/api/webhooks/'):
+                    self.logger.error("❌ 無効なWebhook URL形式")
+                elif len(url_parts) < 7:
+                    self.logger.error("❌ Webhook URLにトークンが不足")
+                else:
+                    self.logger.error("❌ Webhook IDまたはトークンが無効")
+                
+                self.logger.error("💡 解決方法: Discord側でWebhook URLを再生成してください")
+                return False
             else:
                 self.logger.error(f"❌ Discord通知送信失敗: {response.status_code} - {response.text}")
-                self.logger.error(f"🔗 使用URL詳細: {masked_url}")
-                # レスポンスの詳細も確認
                 self.logger.error(f"🔍 応答詳細: {response.text[:500]}")
                 return False
 
+        except requests.exceptions.Timeout:
+            self.logger.error("⏰ Discord通知送信タイムアウト（10秒）")
+            return False
+        except requests.exceptions.ConnectionError:
+            self.logger.error("🌐 Discord通知送信接続エラー - ネットワーク確認必要")
+            return False
         except requests.exceptions.RequestException as e:
             self.logger.error(f"🚨 Discord通知送信例外エラー: {type(e).__name__}: {e}")
-            self.logger.error(f"🔗 エラー時使用URL: {masked_url if 'masked_url' in locals() else 'URL取得失敗'}")
             return False
 
     def send_notification(

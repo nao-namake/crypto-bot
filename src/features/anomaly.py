@@ -1,13 +1,15 @@
 """
-異常検知指標実装 - 1個の統合指標
+異常検知指標実装 - 3個の統合指標
 
 市場異常・価格効率性・異常値検出による
 高精度な取引シグナル補強機能。
 
 実装指標:
+- zscore: 価格Z-Score（標準化価格位置）
+- volume_ratio: 出来高比率（平均出来高対比）
 - market_stress: 市場ストレス度（統合指標）
 
-Phase 3改善実装日: 2025年8月18日.
+Phase 13改善実装日: 2025年8月24日.
 """
 
 from typing import Any, Dict, Optional
@@ -60,7 +62,13 @@ class MarketAnomalyDetector:
 
             result_df = df.copy()
 
-            # 市場ストレス度統合指標
+            # 3つの異常検知指標を生成
+            result_df["zscore"] = self._calculate_zscore(result_df["close"])
+            self.computed_features.add("zscore")
+
+            result_df["volume_ratio"] = self._calculate_volume_ratio(result_df["volume"])
+            self.computed_features.add("volume_ratio")
+
             result_df["market_stress"] = self._calculate_market_stress(result_df)
             self.computed_features.add("market_stress")
 
@@ -121,11 +129,34 @@ class MarketAnomalyDetector:
         except Exception:
             return pd.Series(np.zeros(len(series)), index=series.index)
 
+    def _calculate_zscore(self, close: pd.Series, period: int = 20) -> pd.Series:
+        """Z-Score計算."""
+        try:
+            rolling_mean = close.rolling(window=period, min_periods=1).mean()
+            rolling_std = close.rolling(window=period, min_periods=1).std()
+            return (close - rolling_mean) / (rolling_std + 1e-8)
+        except Exception as e:
+            self.logger.error(f"Z-Score計算エラー: {e}")
+            return pd.Series(np.zeros(len(close)), index=close.index)
+
+    def _calculate_volume_ratio(self, volume: pd.Series, period: int = 20) -> pd.Series:
+        """出来高比率計算."""
+        try:
+            volume_avg = volume.rolling(window=period, min_periods=1).mean()
+            return volume / (volume_avg + 1e-8)
+        except Exception as e:
+            self.logger.error(f"出来高比率計算エラー: {e}")
+            return pd.Series(np.zeros(len(volume)), index=volume.index)
+
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得."""
         return {
             "total_features": len(self.computed_features),
             "computed_features": sorted(list(self.computed_features)),
             "parameters": {"lookback_period": self.lookback_period},
-            "feature_descriptions": {"market_stress": "市場ストレス度（複合指標）"},
+            "feature_descriptions": {
+                "zscore": "価格Z-Score（標準化価格位置）",
+                "volume_ratio": "出来高比率（平均出来高対比）",
+                "market_stress": "市場ストレス度（複合指標）"
+            },
         }
