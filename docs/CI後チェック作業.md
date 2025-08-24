@@ -84,13 +84,21 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 # モデル読み込み状況
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"モデル読み込み" OR textPayload:"ProductionEnsemble") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=5
 
+# ⚠️ MLモデル学習状態確認（重要・今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"is not fitted" OR textPayload:"Call fit() first" OR textPayload:"EnsembleModel is not fitted") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=10
+
 # 予測・シグナル生成確認
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"予測実行" OR textPayload:"シグナル生成" OR textPayload:"信頼度") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
+
+# ML予測実行成功確認（今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"予測結果" AND NOT textPayload:"エラー") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5
 ```
 
 ### 🎯 確認ポイント
 - [ ] ProductionEnsemble（統合モデル）正常読み込み
+- [ ] **🚨 MLモデル学習済み状態（fitted）である（今回見逃し防止）**
 - [ ] 12特徴量での予測実行成功
+- [ ] **🚨 ML予測が実際に実行され結果を出力している（今回見逃し防止）**
 - [ ] シグナル生成・信頼度計算正常動作
 - [ ] sklearn警告・非推奨API使用なし
 
@@ -103,12 +111,20 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 # エントリーシグナル確認
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"エントリーシグナル" OR textPayload:"BUY" OR textPayload:"SELL") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-6h")' --limit=5
 
+# ⚠️ 実際のBUY/SELLシグナル確認（hold固定検出・今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"統合シグナル生成: buy" OR textPayload:"統合シグナル生成: sell") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=5
+
+# ⚠️ holdシグナル固定状態確認（今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"統合シグナル生成: hold" AND textPayload:"0.500" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
+
 # リスク管理・Kelly基準確認
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"Kelly" OR textPayload:"リスク管理" OR textPaylog:"ポジションサイズ") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=5
 ```
 
 ### 🎯 確認ポイント
 - [ ] エントリーシグナル検出・判定ロジック正常動作
+- [ ] **🚨 実際にBUY/SELLシグナルが生成されている（今回見逃し防止）**
+- [ ] **🚨 holdシグナル固定状態でない（信頼度0.500固定でない）（今回見逃し防止）**
 - [ ] Kelly基準ポジションサイズ計算実行
 - [ ] リスク管理パラメータ適正設定
 - [ ] 取引実行準備状態（MODE=live確認）
@@ -178,20 +194,58 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 
 ---
 
+## 🔄 8.5. システム継続稼働確認（今回見逃し防止）
+
+### ✅ システム停止検出・取引サイクル完了確認
+```bash
+# ⚠️ 最新ログ時刻確認（システム停止検出・今回見逃し防止）
+echo "現在時刻: $(TZ='Asia/Tokyo' date)"
+echo "最新ログ:"
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-10m")' --limit=1 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)"
+
+# 取引サイクル正常完了確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"取引サイクル完了" OR textPayload:"サイクル正常終了") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5
+
+# ⚠️ 取引サイクルエラー確認（今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"取引サイクルエラー" OR textPayload:"EnsembleModel is not fitted") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=10
+
+# 統合シグナル生成頻度確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"統合シグナル生成" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
+```
+
+### 🎯 確認ポイント
+- [ ] **🚨 最新ログが10分以内（システム停止していない）（今回見逃し防止）**
+- [ ] **🚨 取引サイクルがエラーなく正常完了している（今回見逃し防止）**
+- [ ] **🚨 「EnsembleModel is not fitted」エラーが発生していない（今回見逃し防止）**
+- [ ] 統合シグナル生成が定期的に実行されている（1時間に複数回）
+- [ ] 取引サイクルが継続的に動作している
+
+---
+
 ## 🎯 9. 総合判定・次回アクション
 
 ### ✅ 最終チェックリスト
 - [ ] **基盤**: Cloud Run最新版正常稼働・JST時刻表示
 - [ ] **データ**: マルチタイムフレーム取得・12特徴量生成成功
-- [ ] **ML**: モデル読み込み・予測・シグナル生成正常
-- [ ] **取引**: エントリー準備・リスク管理・Kelly基準動作
+- [ ] **ML**: モデル読み込み・**🚨fitted状態・予測実行成功**（今回見逃し防止）
+- [ ] **取引**: エントリー準備・**🚨BUY/SELLシグナル生成・hold固定でない**（今回見逃し防止）
 - [ ] **通知**: Discord webhook 401エラー解決・通知成功
-- [ ] **安定性**: 過去頻出問題ゼロ・継続稼働確認
+- [ ] **継続稼働**: **🚨最新ログ10分以内・システム停止なし・取引サイクルエラーなし**（今回見逃し防止）
+- [ ] **安定性**: 過去頻出問題ゼロ・**EnsembleModel fitted エラーなし**
 
 ### 📋 問題発見時の対応
-1. **Critical問題**: 即座に根本原因分析・緊急修正実施
+1. **🚨Critical問題**: 即座に根本原因分析・緊急修正実施
+   - **MLモデル未学習**: MLモデル再作成・デプロイ
+   - **システム停止**: サービス再起動・根本原因分析
+   - **hold固定**: 戦略・ML予測システム修復
 2. **Warning問題**: 監視強化・次回CI前に修正予定
 3. **Info確認事項**: 将来改善・最適化候補として記録
+
+### 🚨 今回見逃し防止の教訓
+- **表面的な稼働確認だけでは不十分**
+- **実際のエントリーシグナル生成まで確認必要**
+- **MLモデルの学習状態まで詳細チェック必要**
+- **最新ログ時刻でシステム停止を早期検出**
 
 ### 🚀 正常時の次回アクション
 - 実取引開始判断（全チェック✅の場合）
@@ -206,8 +260,15 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 ## 🕒 チェック実施時刻: [JST時刻記載]
 
 ### ✅ 正常確認項目
-- [ ] 項目1: 詳細
-- [ ] 項目2: 詳細
+- [ ] Cloud Run稼働: 詳細
+- [ ] データ取得・特徴量生成: 詳細
+- [ ] Discord通知: 詳細
+
+### 🚨 今回見逃し防止チェック結果
+- [ ] **MLモデル学習状態**: ✅fitted / 🚨not fitted
+- [ ] **BUY/SELLシグナル生成**: ✅生成中 / 🚨hold固定
+- [ ] **最新ログ時刻**: [最新ログ時刻] - ✅10分以内 / 🚨停止検出
+- [ ] **取引サイクルエラー**: ✅なし / 🚨EnsembleModel エラー
 
 ### ⚠️ 要注意項目
 - [ ] 項目: 詳細・対応予定
@@ -218,5 +279,6 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 ### 🎯 総合判定
 - **稼働状況**: ✅正常 / ⚠️注意 / 🚨問題
 - **取引準備**: ✅準備完了 / ⚠️要調整 / 🚨未完了
+- **実トレード可否**: ✅可能 / 🚨システム修復必要
 - **次回アクション**: [具体的アクション記載]
 ```

@@ -55,45 +55,47 @@ class DiscordNotifier:
             webhook_url: Discord WebhookのURL（環境変数から取得も可能）.
         """
         self.logger = get_logger("discord")
-        
+
         # 強化された環境変数取得（Cloud Run Secret Manager対応）
         env_webhook = os.getenv("DISCORD_WEBHOOK_URL")
         self.webhook_url = webhook_url or env_webhook
-        
+
         # 詳細デバッグ情報をloggerで出力（Cloud Run対応・401エラー解決用）
         self.logger.info(f"🔍 Discord初期化デバッグ: webhook_url引数={webhook_url is not None}")
         self.logger.info(f"🔍 環境変数チェック: DISCORD_WEBHOOK_URL={env_webhook is not None}")
-        
+
         # 環境変数の全リスト確認（Discord関連のみ）
-        discord_env_vars = {k: v for k, v in os.environ.items() if 'DISCORD' in k.upper()}
+        discord_env_vars = {k: v for k, v in os.environ.items() if "DISCORD" in k.upper()}
         self.logger.info(f"🔍 Discord関連環境変数: {list(discord_env_vars.keys())}")
-        
+
         if env_webhook:
             # URL形式の基本検証
             cleaned_url = env_webhook.strip()
             if cleaned_url != env_webhook:
-                self.logger.warning(f"⚠️ URL前後に空白文字検出・自動除去: '{env_webhook}' -> '{cleaned_url}'")
+                self.logger.warning(
+                    f"⚠️ URL前後に空白文字検出・自動除去: '{env_webhook}' -> '{cleaned_url}'"
+                )
                 self.webhook_url = cleaned_url
-                
+
             self.logger.info(f"🔗 環境変数URL長: {len(self.webhook_url)} 文字")
-            
+
             # Discord webhook URL形式の検証
-            if not self.webhook_url.startswith('https://discord.com/api/webhooks/'):
+            if not self.webhook_url.startswith("https://discord.com/api/webhooks/"):
                 self.logger.error(f"❌ 不正なwebhook URL形式: {self.webhook_url[:50]}...")
             else:
                 self.logger.info("✅ Discord webhook URL形式確認済み")
-                
+
             # URLの構造確認（401エラー解決用）
-            url_parts = self.webhook_url.split('/')
+            url_parts = self.webhook_url.split("/")
             if len(url_parts) >= 7:
                 webhook_id = url_parts[-2] if len(url_parts) > 6 else "不明"
                 webhook_token_present = len(url_parts[-1]) > 10 if len(url_parts) > 6 else False
                 self.logger.info(f"🔗 Webhook ID: {webhook_id[:8]}...")
                 self.logger.info(f"🔗 Token存在: {webhook_token_present}")
-            
+
         else:
             self.logger.error("❌ DISCORD_WEBHOOK_URL環境変数が見つかりません")
-        
+
         if not self.webhook_url:
             self.logger.error("❌ Discord webhook URLが設定されていません。Discord通知は無効です。")
             self.enabled = False
@@ -141,22 +143,159 @@ class DiscordNotifier:
         Returns:
             Discord埋め込み辞書.
         """
-        # 日本時間での時刻表示
-        jst_time = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S JST")
+        try:
+            # 入力値検証
+            if not isinstance(title, str) or not title.strip():
+                title = "通知"
+                self.logger.warning("⚠️ 無効なタイトル - デフォルト値使用")
 
-        embed = {
-            "title": f"{self.EMOJIS[level]} {title}",
-            "description": message,
-            "color": self.COLORS[level],
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-            "footer": {"text": f"Crypto-Bot • {jst_time}"},
-        }
+            if not isinstance(message, str) or not message.strip():
+                message = "メッセージ内容なし"
+                self.logger.warning("⚠️ 無効なメッセージ - デフォルト値使用")
 
-        # 追加フィールド
-        if fields:
-            embed["fields"] = fields
+            # フィールド検証
+            validated_fields = []
+            if fields:
+                if isinstance(fields, list):
+                    for field in fields:
+                        if isinstance(field, dict) and "name" in field and "value" in field:
+                            # フィールド値を文字列に変換
+                            validated_field = {
+                                "name": str(field["name"])[:256],  # Discord制限: 256文字
+                                "value": str(field["value"])[:1024],  # Discord制限: 1024文字
+                                "inline": field.get("inline", False),
+                            }
+                            validated_fields.append(validated_field)
+                        else:
+                            self.logger.warning(f"⚠️ 無効なフィールド構造をスキップ: {field}")
+                else:
+                    self.logger.warning("⚠️ fieldsはlist型である必要があります")
 
-        return embed
+            # 日本時間での時刻表示
+            jst_time = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S JST")
+
+            # embed構造作成
+            embed = {
+                "title": f"{self.EMOJIS[level]} {str(title)[:256]}",  # Discord制限: 256文字
+                "description": str(message)[:4096],  # Discord制限: 4096文字
+                "color": self.COLORS[level],
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "footer": {"text": f"Crypto-Bot • {jst_time}"[:2048]},  # Discord制限: 2048文字
+            }
+
+            # 検証済みフィールドを追加（最大25個制限）
+            if validated_fields:
+                embed["fields"] = validated_fields[:25]  # Discord制限: 25フィールド
+
+            # embed構造の最終検証
+            self._validate_embed_structure(embed)
+
+            return embed
+
+        except Exception as e:
+            # embed作成エラー時の安全なフォールバック
+            self.logger.error(f"❌ embed作成エラー: {e}")
+            fallback_embed = {
+                "title": "🚨 システム通知",
+                "description": "通知システムでエラーが発生しました",
+                "color": self.COLORS[NotificationLevel.CRITICAL],
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "footer": {"text": "Crypto-Bot • Error Recovery"},
+            }
+            return fallback_embed
+
+    def _validate_embed_structure(self, embed: Dict[str, Any]) -> None:
+        """
+        embed構造の検証
+
+        Args:
+            embed: 検証するembed辞書
+
+        Raises:
+            ValueError: embed構造が無効な場合
+        """
+        # 必須フィールドの確認
+        required_fields = ["title", "description", "color"]
+        for field in required_fields:
+            if field not in embed:
+                raise ValueError(f"必須フィールドが不足: {field}")
+
+        # データ型の確認
+        if not isinstance(embed["title"], str):
+            raise ValueError("titleは文字列である必要があります")
+
+        if not isinstance(embed["description"], str):
+            raise ValueError("descriptionは文字列である必要があります")
+
+        if not isinstance(embed["color"], int):
+            raise ValueError("colorは整数である必要があります")
+
+        # fieldsが存在する場合の検証
+        if "fields" in embed:
+            if not isinstance(embed["fields"], list):
+                raise ValueError("fieldsはリスト型である必要があります")
+
+            for i, field in enumerate(embed["fields"]):
+                if not isinstance(field, dict):
+                    raise ValueError(f"field[{i}]は辞書型である必要があります")
+
+                if "name" not in field or "value" not in field:
+                    raise ValueError(f"field[{i}]にnameまたはvalueが不足")
+
+        self.logger.debug(f"✅ embed構造検証完了: {len(embed)}フィールド")
+
+    def _validate_embeds_before_send(self, embeds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        送信前のembedリスト検証（根本的バグ修正）
+
+        Args:
+            embeds: 検証するembedリスト
+
+        Returns:
+            検証済みembedリスト
+        """
+        try:
+            # 基本型チェック
+            if not isinstance(embeds, list):
+                self.logger.error(f"❌ embedsは配列である必要があります: {type(embeds)}")
+                return []
+
+            if len(embeds) == 0:
+                self.logger.warning("⚠️ 空のembedリスト")
+                return []
+
+            # 各embedの検証
+            validated_embeds = []
+            for i, embed in enumerate(embeds):
+                try:
+                    # 辞書型確認
+                    if not isinstance(embed, dict):
+                        self.logger.error(
+                            f"❌ embed[{i}]は辞書型である必要があります: {type(embed)} - {embed}"
+                        )
+                        continue
+
+                    # 構造検証
+                    self._validate_embed_structure(embed)
+                    validated_embeds.append(embed)
+
+                except Exception as e:
+                    self.logger.error(f"❌ embed[{i}]検証失敗: {e} - embed: {embed}")
+                    continue
+
+            # Discord制限（最大10個のembed）
+            if len(validated_embeds) > 10:
+                self.logger.warning(
+                    f"⚠️ embed数がDiscord制限超過: {len(validated_embeds)} -> 10個に制限"
+                )
+                validated_embeds = validated_embeds[:10]
+
+            self.logger.debug(f"✅ embed検証完了: {len(validated_embeds)}/{len(embeds)}個が有効")
+            return validated_embeds
+
+        except Exception as e:
+            self.logger.error(f"❌ embeds検証で予期しないエラー: {e}")
+            return []
 
     def _send_webhook(self, embeds: List[Dict[str, Any]]) -> bool:
         """
@@ -169,39 +308,51 @@ class DiscordNotifier:
             送信成功の可否.
         """
         if not self.enabled:
+            self.logger.warning("📵 Discord通知が無効 - 送信スキップ")
+            return False
+
+        # embeds検証（根本的バグ修正）
+        validated_embeds = self._validate_embeds_before_send(embeds)
+        if not validated_embeds:
+            self.logger.error("❌ 有効なembedが存在しないため送信中止")
             return False
 
         payload = {
-            "embeds": embeds,
+            "embeds": validated_embeds,
             "username": "Crypto-Bot",
             "avatar_url": None,  # アバターURL（必要に応じて設定）
         }
 
         try:
             # 送信前の詳細デバッグ（401エラー解決強化版）
-            self.logger.info(f"🚀 Discord送信開始: URL長={len(self.webhook_url)}, タイムアウト=10秒")
-            self.logger.info(f"📤 送信ペイロード: {len(embeds)}個の埋め込み")
-            
+            self.logger.info(
+                f"🚀 Discord送信開始: URL長={len(self.webhook_url)}, タイムアウト=10秒"
+            )
+            self.logger.info(f"📤 送信ペイロード: {len(validated_embeds)}個の検証済み埋め込み")
+
+            # JSON serialization の事前確認（"embeds": ["0"]エラー防止）
+            try:
+                import json
+
+                json_payload = json.dumps(payload)
+                self.logger.debug(f"🔍 JSON serialization確認: {len(json_payload)}文字")
+            except (TypeError, ValueError) as json_err:
+                self.logger.error(f"❌ JSON serialization失敗: {json_err}")
+                self.logger.error(f"🔍 問題のpayload: {payload}")
+                return False
+
             # URL構造の最終確認（401エラー解決用）
-            url_parts = self.webhook_url.split('/')
+            url_parts = self.webhook_url.split("/")
             if len(url_parts) >= 7:
                 self.logger.info(f"🔗 URL構造: .../{url_parts[-3]}/{url_parts[-2][:8]}.../[TOKEN]")
-            
+
             # リクエストヘッダー設定（401エラー対策）
-            headers = {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Crypto-Bot/1.0'
-            }
-            
+            headers = {"Content-Type": "application/json", "User-Agent": "Crypto-Bot/1.0"}
+
             self.logger.info(f"📡 リクエストヘッダー: {headers}")
-            
-            response = requests.post(
-                self.webhook_url, 
-                json=payload, 
-                headers=headers,
-                timeout=10
-            )
-            
+
+            response = requests.post(self.webhook_url, json=payload, headers=headers, timeout=10)
+
             # 応答の詳細ログ出力（401エラー解決用）
             self.logger.info(f"📡 Discord応答: status={response.status_code}")
             self.logger.info(f"📡 応答ヘッダー: {dict(response.headers)}")
@@ -213,19 +364,21 @@ class DiscordNotifier:
                 # 401エラーの詳細解析
                 self.logger.error("🚨 Discord 401 Unauthorized エラー - Webhook認証失敗")
                 self.logger.error(f"🔍 応答内容: {response.text}")
-                
+
                 # URL形式の再確認
-                if not self.webhook_url.startswith('https://discord.com/api/webhooks/'):
+                if not self.webhook_url.startswith("https://discord.com/api/webhooks/"):
                     self.logger.error("❌ 無効なWebhook URL形式")
                 elif len(url_parts) < 7:
                     self.logger.error("❌ Webhook URLにトークンが不足")
                 else:
                     self.logger.error("❌ Webhook IDまたはトークンが無効")
-                
+
                 self.logger.error("💡 解決方法: Discord側でWebhook URLを再生成してください")
                 return False
             else:
-                self.logger.error(f"❌ Discord通知送信失敗: {response.status_code} - {response.text}")
+                self.logger.error(
+                    f"❌ Discord通知送信失敗: {response.status_code} - {response.text}"
+                )
                 self.logger.error(f"🔍 応答詳細: {response.text[:500]}")
                 return False
 

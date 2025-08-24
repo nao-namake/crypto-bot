@@ -16,6 +16,51 @@ echo "  CI: ${CI:-false}"
 # Phase 7: 基本ヘルスチェックサーバー起動（レガシーパターン継承）
 echo "🌐 ヘルスチェックサーバー起動準備..."
 
+# Phase 7: 起動時MLモデルチェック（根本的バグ解決）
+echo "🤖 起動時MLモデル検証実行..."
+python3 -c "
+import sys
+import os
+sys.path.insert(0, '/app')
+
+try:
+    from src.core.ml_adapter import MLServiceAdapter
+    from src.core.logger import get_logger
+    
+    logger = get_logger('startup_check')
+    logger.info('🔍 MLモデル検証開始')
+    
+    # MLServiceAdapterを初期化してモデル読み込み確認
+    adapter = MLServiceAdapter(logger)
+    
+    if adapter.is_fitted:
+        model_info = adapter.get_model_info()
+        print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
+        logger.info(f'✅ 起動時モデル検証成功: {model_info}')
+        
+        # 基本的な予測テスト（12特徴量対応）
+        import numpy as np
+        test_features = np.random.random((1, 12))
+        prediction = adapter.predict(test_features)
+        probability = adapter.predict_proba(test_features)
+        
+        print(f'✅ 予測テスト成功: prediction={prediction[0]}, confidence={probability[0][1]:.3f}')
+        logger.info('✅ 起動時予測テスト成功')
+    else:
+        print('❌ MLモデル初期化失敗 - ダミーモードで起動')
+        logger.warning('⚠️ 起動時モデル検証失敗 - ダミーモード稼働')
+        
+except Exception as e:
+    print(f'❌ MLモデル検証エラー: {e}')
+    print('⚠️ モデル問題により稼働継続 - 運用中に修復される可能性があります')
+    import traceback
+    traceback.print_exc()
+"
+
+if [ $? -ne 0 ]; then
+    echo "⚠️ MLモデル検証で問題検出 - 稼働継続（運用中修復対応）"
+fi
+
 # Phase 7簡易ヘルスチェックサーバー作成
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3

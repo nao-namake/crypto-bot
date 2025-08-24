@@ -157,6 +157,6 @@ class MarketAnomalyDetector:
             "feature_descriptions": {
                 "zscore": "価格Z-Score（標準化価格位置）",
                 "volume_ratio": "出来高比率（平均出来高対比）",
-                "market_stress": "市場ストレス度（複合指標）"
+                "market_stress": "市場ストレス度（複合指標）",
             },
         }

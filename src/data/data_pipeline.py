@@ -176,7 +176,9 @@ class DataPipeline:
 
                 # 型安全性チェック - DataFrameの保証
                 if not isinstance(df, pd.DataFrame):
-                    self.logger.error(f"データ変換エラー: 期待された型はDataFrame、実際の型は{type(df)}")
+                    self.logger.error(
+                        f"データ変換エラー: 期待された型はDataFrame、実際の型は{type(df)}"
+                    )
                     return pd.DataFrame()  # 空のDataFrameを返して型安全性を保証
 
                 # キャッシュに保存
@@ -226,7 +228,7 @@ class DataPipeline:
 
             try:
                 df = await self.fetch_ohlcv(request)
-                
+
                 # 型安全性チェック - DataFrameの保証
                 if isinstance(df, pd.DataFrame):
                     results[timeframe.value] = df
@@ -245,9 +247,11 @@ class DataPipeline:
         # 最終的な型確認 - すべてがDataFrameであることを保証（強化版）
         for tf, data in results.items():
             if not isinstance(data, pd.DataFrame):
-                self.logger.error(f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正. 詳細: {str(data)[:100] if data else 'None'}")
+                self.logger.error(
+                    f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正. 詳細: {str(data)[:100] if data else 'None'}"
+                )
                 results[tf] = pd.DataFrame()
-            elif not hasattr(data, 'empty'):
+            elif not hasattr(data, "empty"):
                 self.logger.error(f"DataFrame属性不整合: {tf}, 空のDataFrameで修正")
                 results[tf] = pd.DataFrame()
 

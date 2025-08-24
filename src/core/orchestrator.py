@@ -216,10 +216,10 @@ class TradingOrchestrator:
                     )
                     features[timeframe] = pd.DataFrame()  # 空のDataFrameで代替
                     continue
-                
+
                 # DataFrameの有効性チェック（強化版）
                 try:
-                    if hasattr(df, 'empty') and not df.empty:
+                    if hasattr(df, "empty") and not df.empty:
                         features[timeframe] = await self.feature_service.generate_features(df)
                     else:
                         self.logger.warning(f"空のDataFrame検出: {timeframe}")
@@ -272,11 +272,69 @@ class TradingOrchestrator:
             if stop_result:
                 await self._log_execution_result(stop_result, cycle_id, is_stop=True)
 
+        except ValueError as e:
+            if "not fitted" in str(e) or "EnsembleModel is not fitted" in str(e):
+                self.logger.error(f"🚨 MLモデル未学習エラー検出 - ID: {cycle_id}, エラー: {e}")
+                # 自動復旧試行
+                await self._recover_ml_service()
+                return  # このサイクルはスキップ
+            else:
+                self.logger.error(
+                    f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}", discord_notify=True
+                )
+                self._record_cycle_error(cycle_id, e)
+                return  # このサイクルはスキップ、次のサイクルへ
         except Exception as e:
             self.logger.error(
-                f"取引サイクルエラー - ID: {cycle_id}, エラー: {e}",
-                discord_notify=True,
+                f"取引サイクルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=True
             )
+            # エラーを記録するが、プログラムは継続
+            self._record_cycle_error(cycle_id, e)
+            return  # このサイクルはスキップ、次のサイクルへ
+
+    async def _recover_ml_service(self):
+        """MLサービス自動復旧"""
+        self.logger.info("🔧 MLサービス自動復旧開始")
+        try:
+            # モデル再読み込み試行
+            if hasattr(self.ml_service, "reload_model"):
+                success = self.ml_service.reload_model()
+                if success:
+                    self.logger.info("✅ MLサービス復旧成功")
+                else:
+                    self.logger.error("❌ MLサービス復旧失敗", discord_notify=True)
+                    await self._schedule_system_restart()
+            else:
+                # MLServiceAdapterで再初期化
+                from .ml_adapter import MLServiceAdapter
+
+                self.ml_service = MLServiceAdapter(self.logger)
+                self.logger.info("✅ MLサービス再初期化完了")
+        except Exception as e:
+            self.logger.error(f"❌ MLサービス復旧エラー: {e}", discord_notify=True)
+            await self._schedule_system_restart()
+
+    def _record_cycle_error(self, cycle_id: str, error: Exception):
+        """取引サイクルエラー記録"""
+        try:
+            error_info = {
+                "cycle_id": cycle_id,
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+                "timestamp": datetime.now().isoformat(),
+            }
+            # エラー情報をログに記録（詳細解析用）
+            self.logger.info(f"サイクルエラー記録: {error_info}")
+        except Exception as e:
+            self.logger.error(f"エラー記録失敗: {e}")
+
+    async def _schedule_system_restart(self):
+        """システム再起動スケジュール"""
+        self.logger.error("🚨 重大なエラーのためシステム再起動を推奨", discord_notify=True)
+        # 実際の再起動は環境に依存するため、ログのみ記録
+        self.logger.error(
+            "💡 手動でのシステム再起動またはコンテナ再起動を実行してください", discord_notify=True
+        )
 
     async def _log_trade_decision(self, evaluation, cycle_id: str):
         """取引判定ログ出力（高レベルサマリーのみ）."""
@@ -799,9 +857,11 @@ async def create_trading_orchestrator(
         for strategy in strategies:
             strategy_service.register_strategy(strategy, weight=1.0)
 
-        # Phase 5: MLサービス
-        ml_service = EnsembleModel()
-        # 注: EnsembleModelは__init__でモデルを自動作成するため、load_models()は不要
+        # Phase 5: MLサービス（根本問題解決版）
+        from .ml_adapter import MLServiceAdapter
+
+        ml_service = MLServiceAdapter(logger)
+        logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
         # Phase 6: リスクサービス
         risk_service = create_risk_manager(config=DEFAULT_RISK_CONFIG, initial_balance=1000000)
@@ -859,14 +919,14 @@ class _FeatureServiceAdapter:
                 raise ValueError(f"Failed to convert dict to DataFrame: {e}")
         else:
             raise ValueError(f"Unsupported market_data type: {type(market_data)}")
-        
+
         # 基本特徴量を生成
-        if 'close' in result_df.columns:
+        if "close" in result_df.columns:
             result_df["returns_1"] = result_df["close"].pct_change(1)
             result_df["returns_1"] = result_df["returns_1"].fillna(0)
-        
+
         # テクニカル指標と異常検知指標を生成
         result_df = self.technical_indicators.generate_all_features(result_df)
         result_df = self.anomaly_detector.generate_all_features(result_df)
-        
+
         return result_df

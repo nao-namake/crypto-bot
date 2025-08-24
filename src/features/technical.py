@@ -118,7 +118,6 @@ class TechnicalIndicators:
         bb_lower = bb_middle - (bb_std_dev * 2)
         return (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
 
-
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得."""
         return {
