@@ -195,8 +195,13 @@ def get_risk_profile_config(profile_name: str = "balanced") -> dict:
             f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}"
         )
 
-    # デフォルト設定をベースに、プロファイル設定で上書き
-    config = DEFAULT_RISK_CONFIG.copy()
+    # デフォルト設定をベースに、プロファイル設定で上書き（深いコピーで元の設定を保護）
+    config = {
+        "kelly_criterion": DEFAULT_RISK_CONFIG["kelly_criterion"].copy(),
+        "drawdown_manager": DEFAULT_RISK_CONFIG["drawdown_manager"].copy(),
+        "anomaly_detector": DEFAULT_RISK_CONFIG["anomaly_detector"].copy(),
+        "risk_thresholds": DEFAULT_RISK_CONFIG["risk_thresholds"].copy(),
+    }
     profile_config = RISK_PROFILES[profile_name]
 
     # Kelly基準設定を上書き
