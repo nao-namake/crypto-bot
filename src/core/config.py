@@ -156,14 +156,49 @@ class Config:
     mode: str = "paper"  # paper, live
 
     @classmethod
-    def load_from_file(cls, config_path: str) -> "Config":
-        """YAMLファイルから設定を読み込み."""
+    def load_from_file(cls, config_path: str, cmdline_mode: Optional[str] = None) -> "Config":
+        """
+        YAMLファイルから設定を読み込み（モード設定一元化・3層優先順位）
+        
+        モード設定の優先順位:
+        1. コマンドライン引数（最優先）
+        2. 環境変数 MODE
+        3. YAMLファイル（デフォルト）
+        
+        Args:
+            config_path: 設定ファイルパス
+            cmdline_mode: コマンドライン引数で指定されたモード（main.pyから渡される）
+            
+        Returns:
+            設定済みConfigオブジェクト
+        """
         config_file = Path(config_path)
         if not config_file.exists():
             raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
 
         with open(config_file, "r", encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
+
+        # 🎯 モード設定一元化: 3層優先順位の実装
+        mode = "paper"  # デフォルト
+        
+        # レイヤー3: YAMLファイル（最低優先）
+        if "mode" in config_data and config_data["mode"]:
+            mode = config_data["mode"]
+            
+        # レイヤー2: 環境変数（中優先）
+        env_mode = os.getenv("MODE")
+        if env_mode:
+            mode = env_mode.lower()
+            
+        # レイヤー1: コマンドライン引数（最優先）
+        if cmdline_mode:
+            mode = cmdline_mode.lower()
+            
+        # モード検証
+        valid_modes = ["paper", "live", "backtest"]
+        if mode not in valid_modes:
+            raise ValueError(f"無効なモード: {mode}. 有効な値: {valid_modes}")
 
         # 環境変数から機密情報を取得（YAMLの機密情報は除外）
         exchange_data = config_data.get("exchange", {}).copy()
@@ -188,7 +223,7 @@ class Config:
             risk=risk_config,
             data=data_config,
             logging=logging_config,
-            mode=config_data.get("mode", "paper"),
+            mode=mode,
         )
 
     def validate(self) -> bool:
@@ -315,9 +350,9 @@ class ConfigManager:
         self._config: Optional[Config] = None
         self._config_path: Optional[str] = None
 
-    def load_config(self, config_path: str) -> Config:
-        """設定ファイルを読み込み."""
-        self._config = Config.load_from_file(config_path)
+    def load_config(self, config_path: str, cmdline_mode: Optional[str] = None) -> Config:
+        """設定ファイルを読み込み（モード設定一元化対応）."""
+        self._config = Config.load_from_file(config_path, cmdline_mode=cmdline_mode)
         self._config_path = config_path
 
         if not self._config.validate():
@@ -347,6 +382,6 @@ def get_config() -> Config:
     return config_manager.get_config()
 
 
-def load_config(config_path: str) -> Config:
-    """設定を読み込み."""
-    return config_manager.load_config(config_path)
+def load_config(config_path: str, cmdline_mode: Optional[str] = None) -> Config:
+    """設定を読み込み（モード設定一元化対応）."""
+    return config_manager.load_config(config_path, cmdline_mode=cmdline_mode)

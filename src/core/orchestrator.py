@@ -159,17 +159,17 @@ class TradingOrchestrator:
             self.logger.error(f"ヘルスチェック失敗: {e}")
             raise
 
-    async def run(self, mode: str = "paper"):
+    async def run(self):
         """
-        TradingOrchestrator実行
+        TradingOrchestrator実行（モード設定一元化対応）
 
-        Args:
-            mode: 動作モード (backtest/paper/live).
+        実行モードはconfig.modeから自動取得します。
         """
         if not self._initialized:
             raise CryptoBotError("TradingOrchestratorが初期化されていません")
 
-        self.logger.info(f"TradingOrchestrator実行開始 - モード: {mode.upper()}")
+        mode = self.config.mode
+        self.logger.info(f"TradingOrchestrator実行開始 - モード: {mode.upper()}（Configから取得）")
 
         try:
             if mode == "backtest":
@@ -947,9 +947,9 @@ async def create_trading_orchestrator(
         # Phase 7: 注文実行サービス
         from ..trading.executor import create_order_executor
 
-        # 環境変数から実行モードを動的取得（CRITICAL FIX: ハードコード削除）
-        execution_mode = os.getenv("MODE", "paper").lower()
-        logger.info(f"🎯 実行モード環境変数取得: MODE={execution_mode}")
+        # Config統一化: 実行モードをconfig.modeから取得（モード設定一元化）
+        execution_mode = config.mode
+        logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
         execution_service = create_order_executor(
             mode=execution_mode,

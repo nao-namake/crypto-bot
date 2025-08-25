@@ -62,9 +62,9 @@ async def main():
     # 1. 引数解析
     args = parse_arguments()
 
-    # 2. 基本設定読み込み
+    # 2. 基本設定読み込み（モード設定一元化対応）
     try:
-        config = load_config(args.config)
+        config = load_config(args.config, cmdline_mode=args.mode)
         logger = setup_logging("crypto_bot")
     except Exception as e:
         print(f"❌ 基本設定エラー: {e}")
@@ -72,7 +72,7 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(f"🚀 暗号資産取引Bot v13.0・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応 起動 - モード: {args.mode.upper()}")
+        logger.info(f"🚀 暗号資産取引Bot v13.0・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応 起動 - モード: {config.mode.upper()}")
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)
@@ -82,8 +82,8 @@ async def main():
             logger.error("システム初期化失敗")
             sys.exit(1)
 
-        # 実行
-        await orchestrator.run(args.mode)
+        # 実行（モードはConfigから自動取得）
+        await orchestrator.run()
 
     except KeyboardInterrupt:
         logger.info("ユーザーによる終了要求を受信")
