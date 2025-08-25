@@ -184,7 +184,8 @@ class TradingOrchestrator:
         except KeyboardInterrupt:
             self.logger.info("ユーザーによる終了要求を受信")
         except Exception as e:
-            self.logger.error(f"実行エラー: {e}", discord_notify=True)
+            # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
+            self.logger.error(f"実行エラー: {e}", discord_notify=False)
             raise
 
         self.logger.info("TradingOrchestrator実行終了")
@@ -332,14 +333,16 @@ class TradingOrchestrator:
                 await self._recover_ml_service()
                 return  # このサイクルはスキップ
             else:
+                # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
                 self.logger.error(
-                    f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}", discord_notify=True
+                    f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
                 )
                 self._record_cycle_error(cycle_id, e)
                 return  # このサイクルはスキップ、次のサイクルへ
         except Exception as e:
+            # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
             self.logger.error(
-                f"取引サイクルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=True
+                f"取引サイクルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
             )
             # エラーを記録するが、プログラムは継続
             self._record_cycle_error(cycle_id, e)
@@ -355,7 +358,8 @@ class TradingOrchestrator:
                 if success:
                     self.logger.info("✅ MLサービス復旧成功")
                 else:
-                    self.logger.error("❌ MLサービス復旧失敗", discord_notify=True)
+                    # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
+                    self.logger.error("❌ MLサービス復旧失敗", discord_notify=False)
                     await self._schedule_system_restart()
             else:
                 # MLServiceAdapterで再初期化
@@ -364,7 +368,8 @@ class TradingOrchestrator:
                 self.ml_service = MLServiceAdapter(self.logger)
                 self.logger.info("✅ MLサービス再初期化完了")
         except Exception as e:
-            self.logger.error(f"❌ MLサービス復旧エラー: {e}", discord_notify=True)
+            # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
+            self.logger.error(f"❌ MLサービス復旧エラー: {e}", discord_notify=False)
             await self._schedule_system_restart()
 
     def _record_cycle_error(self, cycle_id: str, error: Exception):
@@ -383,10 +388,11 @@ class TradingOrchestrator:
 
     async def _schedule_system_restart(self):
         """システム再起動スケジュール"""
-        self.logger.error("🚨 重大なエラーのためシステム再起動を推奨", discord_notify=True)
+        # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
+        self.logger.error("🚨 重大なエラーのためシステム再起動を推奨", discord_notify=False)
         # 実際の再起動は環境に依存するため、ログのみ記録
         self.logger.error(
-            "💡 手動でのシステム再起動またはコンテナ再起動を実行してください", discord_notify=True
+            "💡 手動でのシステム再起動またはコンテナ再起動を実行してください", discord_notify=False
         )
 
     async def _log_trade_decision(self, evaluation, cycle_id: str):
@@ -526,7 +532,8 @@ class TradingOrchestrator:
             self.logger.info("✅ バックテスト実行完了", discord_notify=True)
 
         except Exception as e:
-            self.logger.error(f"❌ バックテスト実行エラー: {e}", discord_notify=True)
+            # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
+            self.logger.error(f"❌ バックテスト実行エラー: {e}", discord_notify=False)
             await self._save_backtest_error_report(str(e))
             raise
 

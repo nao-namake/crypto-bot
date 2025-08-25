@@ -161,11 +161,19 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     # ヘルスチェックサーバー起動確認
     sleep 5
     
-    # ライブトレードをフォアグラウンドで実行
+    # ライブトレードをバックグラウンドで実行
     echo "🔄 ライブトレード起動..."
     python3 main.py --mode live --config config/environments/live/production.yaml &
     TRADING_PID=$!
     echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
+    
+    # 🚨 CRITICAL FIX: 起動エラーチェック追加
+    sleep 3
+    if ! kill -0 $TRADING_PID 2>/dev/null; then
+        echo "❌ ライブトレードプロセス起動直後に失敗"
+        kill $HEALTH_PID 2>/dev/null
+        exit 1
+    fi
     
 elif [ "$MODE" = "paper" ]; then
     echo "📝 ペーパートレード + ヘルスチェック統合モード"
@@ -179,11 +187,19 @@ elif [ "$MODE" = "paper" ]; then
     # ヘルスチェックサーバー起動確認
     sleep 5
     
-    # ペーパートレードをフォアグラウンドで実行
+    # ペーパートレードをバックグラウンドで実行
     echo "🔄 ペーパートレード起動..."
     python3 main.py --mode paper --config config/core/base.yaml &
     TRADING_PID=$!
     echo "✅ ペーパートレード起動完了 (PID: $TRADING_PID)"
+    
+    # 🚨 CRITICAL FIX: 起動エラーチェック追加
+    sleep 3
+    if ! kill -0 $TRADING_PID 2>/dev/null; then
+        echo "❌ ペーパートレードプロセス起動直後に失敗"
+        kill $HEALTH_PID 2>/dev/null
+        exit 1
+    fi
     
 else
     echo "🧪 テスト・開発モード（シンプル起動）"
@@ -199,30 +215,33 @@ if [ -n "$HEALTH_PID" ] && [ -n "$TRADING_PID" ]; then
     # シグナルハンドリング設定
     trap 'echo "🛑 シグナル受信、プロセス停止..."; kill $HEALTH_PID $TRADING_PID 2>/dev/null; exit' SIGTERM SIGINT
     
-    # プロセス監視ループ（レガシーパターン継承）
+    # 🚨 CRITICAL FIX: プロセス監視ループ強化（早期エラー検出）
+    cycle_count=0
     while true; do
+        cycle_count=$((cycle_count + 1))
+        
         # ヘルスチェックサーバーの生存確認
         if ! kill -0 $HEALTH_PID 2>/dev/null; then
-            echo "❌ ヘルスチェックサーバーが停止しました"
+            echo "❌ [$(date)] ヘルスチェックサーバーが停止しました (サイクル: $cycle_count)"
             kill $TRADING_PID 2>/dev/null
             exit 1
         fi
         
         # トレーディングプロセスの生存確認
         if ! kill -0 $TRADING_PID 2>/dev/null; then
-            echo "❌ トレーディングプロセスが停止しました"
+            echo "❌ [$(date)] トレーディングプロセスが停止しました (サイクル: $cycle_count)"
             kill $HEALTH_PID 2>/dev/null
             exit 1
         fi
         
-        # 30秒間隔で監視（リソース効率化）
-        sleep 30
+        # 10秒間隔で監視（早期エラー検出優先）
+        sleep 10
         
-        # 定期ログ出力（24時間に1回）
-        if [ $(($(date +%s) % 86400)) -lt 30 ]; then
-            echo "📊 Phase 7システム稼働中 - $(date)"
-            echo "  ヘルスチェックPID: $HEALTH_PID"
-            echo "  トレーディングPID: $TRADING_PID"
+        # 定期ログ出力（1時間に1回 = 360サイクル）
+        if [ $((cycle_count % 360)) -eq 0 ]; then
+            echo "📊 システム稼働中 - $(date) [サイクル: $cycle_count]"
+            echo "  ヘルスチェックPID: $HEALTH_PID (生存確認済み)"
+            echo "  トレーディングPID: $TRADING_PID (生存確認済み)"
         fi
     done
 fi

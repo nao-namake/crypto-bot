@@ -56,6 +56,12 @@ class DiscordNotifier:
         """
         self.logger = get_logger("discord")
 
+        # 🚨 CRITICAL FIX: 起動時安全性確保（Rate Limit回避・安定起動確保）
+        import time
+
+        self._startup_time = time.time()
+        self._startup_grace_period = 30  # 30秒間は通知を抑制
+
         # 強化された環境変数取得（Cloud Run Secret Manager対応）
         env_webhook = os.getenv("DISCORD_WEBHOOK_URL")
         self.webhook_url = webhook_url or env_webhook
@@ -349,6 +355,19 @@ class DiscordNotifier:
             self.logger.warning("📵 Discord通知が無効 - 送信スキップ")
             return False
 
+        # 🚨 CRITICAL FIX: 起動時安全性確保（30秒間の通知抑制）
+        import time
+
+        if time.time() - self._startup_time < self._startup_grace_period:
+            import sys
+
+            elapsed = int(time.time() - self._startup_time)
+            remaining = self._startup_grace_period - elapsed
+            sys.stderr.write(
+                f"🔕 [STARTUP-SAFE] Discord通知抑制中 (起動後{elapsed}秒, 残り{remaining}秒)\n"
+            )
+            return False
+
         # embeds検証（根本的バグ修正）
         validated_embeds = self._validate_embeds_before_send(embeds)
         if not validated_embeds:
@@ -374,13 +393,30 @@ class DiscordNotifier:
 
                 json_payload = json.dumps(payload)
                 self.logger.debug(f"🔍 JSON serialization確認: {len(json_payload)}文字")
-                # デバッグ: 実際の送信ペイロードをログ出力（embed構造問題調査）
-                self.logger.debug(
-                    f"🔍 送信ペイロード詳細: {json.dumps(payload, indent=2, ensure_ascii=False)}"
-                )
+                # デバッグ: 実際の送信ペイロード概要をログ出力（無限再帰防止）
+                payload_debug = {
+                    "embeds_count": len(payload.get("embeds", [])),
+                    "total_chars": len(json_payload),
+                    "username": payload.get("username"),
+                }
+                self.logger.debug(f"🔍 送信ペイロード概要: {payload_debug}")
             except (TypeError, ValueError) as json_err:
-                self.logger.error(f"❌ JSON serialization失敗: {json_err}")
-                self.logger.error(f"🔍 問題のpayload: {payload}")
+                # 🚨 CRITICAL FIX: 完全無限再帰防止 - Discord通知を一切発生させない
+                import sys
+
+                sys.stderr.write(f"❌ [DISCORD-SAFE] JSON serialization失敗: {json_err}\n")
+
+                # payload情報は最小限・標準エラー出力のみ
+                payload_error_info = {
+                    "embeds_count": (
+                        len(payload.get("embeds", []))
+                        if isinstance(payload.get("embeds"), list)
+                        else "不正"
+                    ),
+                    "payload_type": type(payload).__name__,
+                    "has_username": "username" in payload,
+                }
+                sys.stderr.write(f"🔍 [DISCORD-SAFE] 問題のpayload概要: {payload_error_info}\n")
                 return False
 
             # URL構造の最終確認（401エラー解決用）
@@ -403,53 +439,90 @@ class DiscordNotifier:
                 self.logger.info("✅ Discord通知送信成功")
                 return True
             elif response.status_code == 401:
-                # 401エラーの詳細解析
-                self.logger.error("🚨 Discord 401 Unauthorized エラー - Webhook認証失敗")
-                self.logger.error(f"🔍 応答内容: {response.text}")
+                # 🚨 CRITICAL FIX: 401エラーも標準エラー出力のみ（再帰防止）
+                import sys
+
+                sys.stderr.write(
+                    "🚨 [DISCORD-SAFE] Discord 401 Unauthorized エラー - Webhook認証失敗\n"
+                )
+                sys.stderr.write(f"🔍 [DISCORD-SAFE] 応答内容: {response.text}\n")
 
                 # URL形式の再確認
                 if not self.webhook_url.startswith("https://discord.com/api/webhooks/"):
-                    self.logger.error("❌ 無効なWebhook URL形式")
+                    sys.stderr.write("❌ [DISCORD-SAFE] 無効なWebhook URL形式\n")
                 elif len(url_parts) < 7:
-                    self.logger.error("❌ Webhook URLにトークンが不足")
+                    sys.stderr.write("❌ [DISCORD-SAFE] Webhook URLにトークンが不足\n")
                 else:
-                    self.logger.error("❌ Webhook IDまたはトークンが無効")
+                    sys.stderr.write("❌ [DISCORD-SAFE] Webhook IDまたはトークンが無効\n")
 
-                self.logger.error("💡 解決方法: Discord側でWebhook URLを再生成してください")
+                sys.stderr.write(
+                    "💡 [DISCORD-SAFE] 解決方法: Discord側でWebhook URLを再生成してください\n"
+                )
                 return False
             else:
                 # エラーレスポンスの詳細分析
                 error_text = response.text
 
-                # 特に400エラーの場合は詳細ログ
+                # 特に400エラーの場合は詳細ログ（完全無限再帰防止版）
                 if response.status_code == 400:
-                    self.logger.error(f"🚨 Discord 400 Bad Request エラー - payload構造問題")
-                    self.logger.error(f"🔍 エラー応答: {error_text}")
-                    self.logger.error(
-                        f"🔍 送信したpayload: {json.dumps(payload, indent=2, ensure_ascii=False)}"
-                    )
+                    # 🚨 CRITICAL FIX: Discord関連エラーは標準エラー出力のみ（再帰完全防止）
+                    import sys
 
-                    # 具体的な400エラーパターンを分析
+                    sys.stderr.write(
+                        f"🚨 [DISCORD-SAFE] Discord 400 Bad Request エラー - payload構造問題\n"
+                    )
+                    sys.stderr.write(f"🔍 [DISCORD-SAFE] エラー応答: {error_text}\n")
+
+                    payload_summary = {
+                        "embeds_count": len(payload.get("embeds", [])),
+                        "username": payload.get("username"),
+                        "first_embed_title": (
+                            payload.get("embeds", [{}])[0].get("title", "不明")[:50]
+                            if payload.get("embeds")
+                            else None
+                        ),
+                    }
+                    sys.stderr.write(f"🔍 [DISCORD-SAFE] 送信payload概要: {payload_summary}\n")
+
+                    # 具体的な400エラーパターンを分析（標準エラー出力のみ）
                     if '"embeds"' in error_text:
-                        self.logger.error("📝 embeds構造に問題がある可能性があります")
+                        sys.stderr.write(
+                            "📝 [DISCORD-SAFE] embeds構造に問題がある可能性があります\n"
+                        )
                     if '"0"' in error_text:
-                        self.logger.error("📝 embedが文字列化されている可能性があります")
+                        sys.stderr.write(
+                            "📝 [DISCORD-SAFE] embedが文字列化されている可能性があります\n"
+                        )
                 else:
-                    self.logger.error(
-                        f"❌ Discord通知送信失敗: {response.status_code} - {error_text}"
+                    # 🚨 CRITICAL FIX: Discord関連エラーは標準エラー出力のみ
+                    import sys
+
+                    sys.stderr.write(
+                        f"❌ [DISCORD-SAFE] Discord通知送信失敗: {response.status_code} - {error_text}\n"
                     )
 
-                self.logger.error(f"🔍 応答詳細: {error_text[:500]}")
+                sys.stderr.write(f"🔍 [DISCORD-SAFE] 応答詳細: {error_text[:500]}\n")
                 return False
 
         except requests.exceptions.Timeout:
-            self.logger.error("⏰ Discord通知送信タイムアウト（10秒）")
+            # 🚨 CRITICAL FIX: Discord関連エラーは標準エラー出力のみ
+            import sys
+
+            sys.stderr.write("⏰ [DISCORD-SAFE] Discord通知送信タイムアウト（10秒）\n")
             return False
         except requests.exceptions.ConnectionError:
-            self.logger.error("🌐 Discord通知送信接続エラー - ネットワーク確認必要")
+            # 🚨 CRITICAL FIX: Discord関連エラーは標準エラー出力のみ
+            import sys
+
+            sys.stderr.write("🌐 [DISCORD-SAFE] Discord通知送信接続エラー - ネットワーク確認必要\n")
             return False
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"🚨 Discord通知送信例外エラー: {type(e).__name__}: {e}")
+            # 🚨 CRITICAL FIX: Discord関連エラーは標準エラー出力のみ
+            import sys
+
+            sys.stderr.write(
+                f"🚨 [DISCORD-SAFE] Discord通知送信例外エラー: {type(e).__name__}: {e}\n"
+            )
             return False
 
     def send_notification(
