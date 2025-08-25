@@ -210,15 +210,31 @@ class CryptoBotLogger:
         if discord_notify and self._discord_notifier:
             try:
                 severity = get_error_severity(error) if error else ErrorSeverity.LOW
-                self._discord_notifier.send_notification(
+
+                # Discord通知デバッグログ強化
+                self.logger.debug(
+                    f"🔔 Discord通知準備: severity={severity}, message長={len(message)}"
+                )
+                self.logger.debug(
+                    f"📤 extra_data: {extra_data is not None}, error: {error is not None}"
+                )
+
+                result = self._discord_notifier.send_notification(
                     message=message,
                     severity=severity,
                     extra_data=extra_data,
                     error=error,
                 )
+
+                if result:
+                    self.logger.debug("✅ Discord通知送信成功")
+                else:
+                    self.logger.debug("⚠️ Discord通知送信失敗（エラーなし）")
+
             except Exception as e:
                 # 通知エラーは無限ループを避けるため別途ログ
-                self.logger.error(f"Discord通知送信に失敗: {e}")
+                self.logger.error(f"❌ Discord通知送信に失敗: {type(e).__name__}: {e}")
+                self.logger.error(f"🔍 通知失敗詳細 - message: {message[:100]}...")
 
     def debug(self, message: str, extra_data: Optional[Dict[str, Any]] = None):
         """デバッグログ."""

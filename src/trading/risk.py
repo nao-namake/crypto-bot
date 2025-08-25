@@ -203,6 +203,21 @@ class IntegratedRiskManager:
             denial_reasons = []
             evaluation_timestamp = datetime.now()
 
+            # StrategySignalオブジェクト型チェック・互換性確保
+            if hasattr(strategy_signal, "__dict__"):
+                # StrategySignalオブジェクトの場合（正常）
+                self.logger.debug(f"🔍 StrategySignal型: {type(strategy_signal).__name__}")
+            elif isinstance(strategy_signal, dict):
+                # 辞書の場合は警告ログ
+                self.logger.warning(
+                    "⚠️ strategy_signalが辞書型です。StrategySignalオブジェクトが期待されます。"
+                )
+                self.logger.debug(f"🔍 辞書内容: {strategy_signal}")
+            else:
+                # その他の型の場合はエラー
+                self.logger.error(f"❌ strategy_signalの型が不正: {type(strategy_signal)}")
+                denial_reasons.append(f"不正なstrategy_signal型: {type(strategy_signal)}")
+
             # 残高更新
             self.drawdown_manager.update_balance(current_balance)
 
@@ -239,9 +254,18 @@ class IntegratedRiskManager:
             min_ml_confidence = self.config.get("min_ml_confidence", 0.25)
 
             # 取引方向（side）の決定
+            # StrategySignalオブジェクトの属性アクセス修正（辞書型互換性付き）
+            if isinstance(strategy_signal, dict):
+                # 辞書型の場合（後方互換性）
+                strategy_action = strategy_signal.get("action") or strategy_signal.get("side")
+            else:
+                # StrategySignalオブジェクトの場合（正常）
+                strategy_action = getattr(strategy_signal, "action", None) or getattr(
+                    strategy_signal, "side", None
+                )
+
             trade_side = (
-                strategy_signal.get("action")
-                or strategy_signal.get("side")
+                strategy_action
                 or ml_prediction.get("action")
                 or ml_prediction.get("side")
                 or "buy"  # デフォルト
@@ -260,12 +284,19 @@ class IntegratedRiskManager:
 
             if trading_allowed and not critical_anomalies:
                 try:
-                    # 統合ポジションサイズ計算
-                    strategy_confidence = strategy_signal.get("confidence", 0.5)
+                    # 統合ポジションサイズ計算（辞書型互換性付き）
+                    if isinstance(strategy_signal, dict):
+                        strategy_confidence = strategy_signal.get("confidence", 0.5)
+                    else:
+                        strategy_confidence = getattr(strategy_signal, "confidence", 0.5)
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
                         risk_manager_confidence=strategy_confidence,
-                        strategy_name=strategy_signal.get("strategy_name", "unknown"),
+                        strategy_name=(
+                            strategy_signal.get("strategy_name", "unknown")
+                            if isinstance(strategy_signal, dict)
+                            else getattr(strategy_signal, "strategy_name", "unknown")
+                        ),
                         config=self.config,
                     )
 
@@ -274,9 +305,13 @@ class IntegratedRiskManager:
                     if kelly_result:
                         kelly_recommendation = kelly_result.kelly_fraction
 
-                    # ストップロス・テイクプロフィット
-                    stop_loss = strategy_signal.get("stop_loss")
-                    take_profit = strategy_signal.get("take_profit")
+                    # ストップロス・テイクプロフィット（辞書型互換性付き）
+                    if isinstance(strategy_signal, dict):
+                        stop_loss = strategy_signal.get("stop_loss")
+                        take_profit = strategy_signal.get("take_profit")
+                    else:
+                        stop_loss = getattr(strategy_signal, "stop_loss", None)
+                        take_profit = getattr(strategy_signal, "take_profit", None)
 
                 except Exception as e:
                     self.logger.error(f"ポジションサイジング計算エラー: {e}")

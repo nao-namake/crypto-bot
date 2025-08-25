@@ -887,9 +887,27 @@ async def create_trading_orchestrator(
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")
 
     try:
-        # Discord通知システム初期化
-        discord_notifier = setup_discord_notifier()
+        # Discord通知システム初期化（Secret Manager環境変数取得）
+        import os
+
+        webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+        logger.info(f"🔍 Discord環境変数取得: webhook_url存在={webhook_url is not None}")
+        if webhook_url:
+            logger.info(f"🔗 Discord URL長: {len(webhook_url)} 文字")
+
+        discord_notifier = setup_discord_notifier(webhook_url=webhook_url)
         logger.set_discord_notifier(discord_notifier)
+
+        # Discord接続テストの実行
+        if discord_notifier.enabled:
+            logger.info("🧪 Discord接続テスト実行中...")
+            test_result = discord_notifier.test_connection()
+            if test_result:
+                logger.info("✅ Discord接続テスト成功")
+            else:
+                logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
+        else:
+            logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
 
         # Phase 2: データサービス
         bitbank_client = BitbankClient()

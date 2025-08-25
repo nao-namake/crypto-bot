@@ -98,10 +98,19 @@ class DiscordNotifier:
 
         if not self.webhook_url:
             self.logger.error("❌ Discord webhook URLが設定されていません。Discord通知は無効です。")
+            self.logger.error("💡 確認事項: GCP Secret Manager設定, DISCORD_WEBHOOK_URL環境変数")
             self.enabled = False
         else:
             self.logger.info(f"✅ Discord通知有効化: URL長={len(self.webhook_url)} 文字")
-            self.enabled = True
+
+            # URL妥当性の最終チェック
+            if self.webhook_url.startswith("https://discord.com/api/webhooks/"):
+                self.logger.info("✅ Discord webhook URL形式確認済み")
+                self.enabled = True
+            else:
+                self.logger.error(f"❌ 無効なwebhook URL形式: {self.webhook_url[:50]}...")
+                self.logger.error("💡 正しい形式: https://discord.com/api/webhooks/ID/TOKEN")
+                self.enabled = False
 
         # レート制限管理
         self._last_notification_time = {}
@@ -257,12 +266,22 @@ class DiscordNotifier:
         try:
             # 基本型チェック
             if not isinstance(embeds, list):
-                self.logger.error(f"❌ embedsは配列である必要があります: {type(embeds)}")
+                self.logger.error(
+                    f"❌ embedsは配列である必要があります: {type(embeds)} - 値: {embeds}"
+                )
+                # 特に文字列の場合は詳細ログ
+                if isinstance(embeds, str):
+                    self.logger.error(f"🔍 文字列embed検出 - 内容: '{embeds[:100]}'...")
                 return []
 
             if len(embeds) == 0:
                 self.logger.warning("⚠️ 空のembedリスト")
                 return []
+
+            # embedsリスト内容の詳細デバッグ
+            self.logger.debug(
+                f"🔍 embeds検証開始: {len(embeds)}個のembed, 最初のembed型: {type(embeds[0])}"
+            )
 
             # 各embedの検証
             validated_embeds = []
@@ -399,10 +418,28 @@ class DiscordNotifier:
                 self.logger.error("💡 解決方法: Discord側でWebhook URLを再生成してください")
                 return False
             else:
-                self.logger.error(
-                    f"❌ Discord通知送信失敗: {response.status_code} - {response.text}"
-                )
-                self.logger.error(f"🔍 応答詳細: {response.text[:500]}")
+                # エラーレスポンスの詳細分析
+                error_text = response.text
+
+                # 特に400エラーの場合は詳細ログ
+                if response.status_code == 400:
+                    self.logger.error(f"🚨 Discord 400 Bad Request エラー - payload構造問題")
+                    self.logger.error(f"🔍 エラー応答: {error_text}")
+                    self.logger.error(
+                        f"🔍 送信したpayload: {json.dumps(payload, indent=2, ensure_ascii=False)}"
+                    )
+
+                    # 具体的な400エラーパターンを分析
+                    if '"embeds"' in error_text:
+                        self.logger.error("📝 embeds構造に問題がある可能性があります")
+                    if '"0"' in error_text:
+                        self.logger.error("📝 embedが文字列化されている可能性があります")
+                else:
+                    self.logger.error(
+                        f"❌ Discord通知送信失敗: {response.status_code} - {error_text}"
+                    )
+
+                self.logger.error(f"🔍 応答詳細: {error_text[:500]}")
                 return False
 
         except requests.exceptions.Timeout:
