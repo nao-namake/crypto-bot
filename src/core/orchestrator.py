@@ -947,9 +947,13 @@ async def create_trading_orchestrator(
         # Phase 7: 注文実行サービス
         from ..trading.executor import create_order_executor
 
+        # 環境変数から実行モードを動的取得（CRITICAL FIX: ハードコード削除）
+        execution_mode = os.getenv("MODE", "paper").lower()
+        logger.info(f"🎯 実行モード環境変数取得: MODE={execution_mode}")
+
         execution_service = create_order_executor(
-            mode="paper",
-            initial_balance=1000000,  # デフォルトはペーパートレード
+            mode=execution_mode,
+            initial_balance=1000000,  # 初期残高（ペーパー・ライブ共通）
         )
 
         # TradingOrchestrator組み立て
