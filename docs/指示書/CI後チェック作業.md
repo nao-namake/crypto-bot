@@ -60,20 +60,46 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"マルチタイムフレーム取得完了" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5
 ```
 
-### ✅ 特徴量生成状況（重要）
+### ✅ 特徴量生成状況（重要・12特徴量必須確認）
+
+#### 📋 必要特徴量12個リスト（Phase 13.6対応）
+```
+🎯 基本特徴量（3個）: close, volume, returns_1
+🎯 テクニカル指標（6個）: rsi_14, macd, atr_14, bb_position, ema_20, ema_50  
+🎯 異常検知指標（3個）: zscore, volume_ratio, market_stress
+```
+
+#### 🔍 特徴量生成確認コマンド
 ```bash
-# 12特徴量生成確認
+# 🚨 Phase 13.6修正: 統合特徴量生成ログ確認（12個完全確認）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"特徴量生成完了 - 総数:" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
+
+# 個別特徴量グループ確認（従来）
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"テクニカル指標生成完了" OR textPayload:"異常検知指標生成完了") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
+
+# 🚨 特徴量不足検出ログ確認（新機能）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"特徴量不足検出:" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5
 
 # フォールバック・エラー確認
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"フォールバック" OR textPayload:"特徴量生成エラー") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10
 ```
 
-### 🎯 確認ポイント
+### 🎯 確認ポイント（Phase 13.6強化版）
 - [ ] 15分足・1時間足・4時間足すべて正常取得
-- [ ] テクニカル指標10個 + 異常検知1個 = 計11個以上生成
+- [ ] **🚨 12特徴量完全生成確認**: 「特徴量生成完了 - 総数: 12/12個」ログ存在
+- [ ] **🚨 不足特徴量ゼロ確認**: 「特徴量不足検出」ログが存在しない
+- [ ] **🚨 基本特徴量3個含む**: close, volume, returns_1 が生成されている
+- [ ] **🚨 テクニカル指標6個**: rsi_14, macd, atr_14, bb_position, ema_20, ema_50 が生成
+- [ ] **🚨 異常検知指標3個**: zscore, volume_ratio, market_stress が生成
 - [ ] フォールバック使用が異常に多くない（全体の10%以下）
 - [ ] データ品質チェック通過・型安全性確保
+
+### ⚠️ 特徴量不足発見時の対応（Phase 13.6追加）
+**9個生成の場合**: 基本特徴量3個（close, volume, returns_1）が不足
+**6個生成の場合**: テクニカル指標のみ、基本特徴量・異常検知指標が不足  
+**3個生成の場合**: 異常検知指標のみ、基本特徴量・テクニカル指標が不足
+
+→ 不足特徴量を特定し、該当する特徴量生成コードを即座に確認・修正
 
 ---
 
@@ -94,13 +120,23 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"予測結果" AND NOT textPayload:"エラー") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5
 ```
 
-### 🎯 確認ポイント
+### 🎯 確認ポイント（Phase 13.6強化版）
 - [ ] ProductionEnsemble（統合モデル）正常読み込み
 - [ ] **🚨 MLモデル学習済み状態（fitted）である（今回見逃し防止）**
-- [ ] 12特徴量での予測実行成功
+- [ ] **🚨 12特徴量完全セットでの予測実行成功（Phase 13.6対応）**
+  - 基本特徴量3個 + テクニカル指標6個 + 異常検知指標3個 = 計12個
 - [ ] **🚨 ML予測が実際に実行され結果を出力している（今回見逃し防止）**
 - [ ] シグナル生成・信頼度計算正常動作
 - [ ] sklearn警告・非推奨API使用なし
+
+### 📋 12特徴量予測確認（Phase 13.6追加）
+```bash
+# 🚨 12特徴量での予測確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"12特徴量完全生成成功" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5
+
+# ML予測実行時の特徴量数確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"予測実行" AND textPayload:"特徴量") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5
+```
 
 ---
 
@@ -313,10 +349,11 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 
 ## 🎯 9. 総合判定・次回アクション
 
-### ✅ 最終チェックリスト
+### ✅ 最終チェックリスト（Phase 13.6強化版）
 - [ ] **基盤**: Cloud Run最新版正常稼働・JST時刻表示
-- [ ] **データ**: マルチタイムフレーム取得・12特徴量生成成功
-- [ ] **ML**: モデル読み込み・**🚨fitted状態・予測実行成功**（今回見逃し防止）
+- [ ] **データ**: マルチタイムフレーム取得・**🚨12特徴量完全生成（12/12個）**（Phase 13.6対応）
+  - 基本特徴量3個（close, volume, returns_1）+ テクニカル指標6個 + 異常検知指標3個
+- [ ] **ML**: モデル読み込み・**🚨fitted状態・12特徴量セット予測実行成功**（今回見逃し防止）
 - [ ] **取引**: エントリー準備・**🚨BUY/SELLシグナル生成・hold固定でない**（今回見逃し防止）
 - [ ] **通知**: Discord webhook 401エラー解決・通知成功
 - [ ] **継続稼働**: **🚨最新ログ10分以内・システム停止なし・取引サイクルエラーなし**（今回見逃し防止）

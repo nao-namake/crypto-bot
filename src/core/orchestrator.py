@@ -983,7 +983,7 @@ class _FeatureServiceAdapter:
         self.anomaly_detector = anomaly_detector
 
     async def generate_features(self, market_data: Dict) -> Dict:
-        """特徴量生成統合処理."""
+        """特徴量生成統合処理（12特徴量確認機能付き）."""
         # DataFrameに変換（dictでもDataFrameでも対応）
         if isinstance(market_data, pd.DataFrame):
             result_df = market_data.copy()
@@ -996,13 +996,55 @@ class _FeatureServiceAdapter:
         else:
             raise ValueError(f"Unsupported market_data type: {type(market_data)}")
 
-        # 基本特徴量を生成
+        # 🎯 Phase 13.6 FIX: 12特徴量生成確認機能追加
+        self.logger.info("特徴量生成開始 - 12特徴量システム")
+        
+        # 🔹 基本特徴量を生成（3個）
+        basic_features_generated = []
+        if "close" in result_df.columns:
+            basic_features_generated.append("close")
+        if "volume" in result_df.columns:
+            basic_features_generated.append("volume")
         if "close" in result_df.columns:
             result_df["returns_1"] = result_df["close"].pct_change(1)
             result_df["returns_1"] = result_df["returns_1"].fillna(0)
+            basic_features_generated.append("returns_1")
 
-        # テクニカル指標と異常検知指標を生成
+        # 🔹 テクニカル指標と異常検知指標を生成
         result_df = self.technical_indicators.generate_all_features(result_df)
         result_df = self.anomaly_detector.generate_all_features(result_df)
+
+        # 🎯 12特徴量完全確認・検証
+        expected_features = [
+            # 基本特徴量（3個）
+            "close", "volume", "returns_1",
+            # テクニカル指標（6個）
+            "rsi_14", "macd", "atr_14", "bb_position", "ema_20", "ema_50",
+            # 異常検知指標（3個）
+            "zscore", "volume_ratio", "market_stress"
+        ]
+        
+        generated_features = [col for col in expected_features if col in result_df.columns]
+        missing_features = [col for col in expected_features if col not in result_df.columns]
+        
+        # 🚨 CRITICAL: 統合ログ出力
+        self.logger.info(
+            f"特徴量生成完了 - 総数: {len(generated_features)}/12個",
+            extra_data={
+                "basic_features": basic_features_generated,
+                "technical_features": len([f for f in ["rsi_14", "macd", "atr_14", "bb_position", "ema_20", "ema_50"] if f in result_df.columns]),
+                "anomaly_features": len([f for f in ["zscore", "volume_ratio", "market_stress"] if f in result_df.columns]),
+                "generated_features": generated_features,
+                "missing_features": missing_features,
+                "total_expected": 12,
+                "success": len(generated_features) == 12
+            }
+        )
+        
+        # ⚠️ 不足特徴量の警告
+        if missing_features:
+            self.logger.warning(f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)")
+        else:
+            self.logger.info("✅ 12特徴量完全生成成功")
 
         return result_df
