@@ -13,11 +13,12 @@
 Phase 13改善実装日: 2025年8月24日.
 """
 
+import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -232,7 +233,6 @@ class DataPipeline:
                 # 🚨 CRITICAL FIX: 厳密な返り値チェック
                 if df is None:
                     raise ValueError(f"fetch_ohlcvがNoneを返しました: {timeframe.value}")
-                
                 # 型安全性チェック - DataFrameの保証
                 if isinstance(df, pd.DataFrame):
                     results[timeframe.value] = df
@@ -257,15 +257,20 @@ class DataPipeline:
                 self.logger.error(f"タイムアウト: {timeframe.value} - {e}")
                 results[timeframe.value] = pd.DataFrame()
             except Exception as e:
-                self.logger.error(f"マルチタイムフレーム取得失敗: {timeframe.value} - {type(e).__name__}: {e}")
+                error_msg = (
+                    f"マルチタイムフレーム取得失敗: {timeframe.value} - " f"{type(e).__name__}: {e}"
+                )
+                self.logger.error(error_msg)
                 # 失敗したタイムフレームは必ず空のDataFrameで代替（型保証）
                 results[timeframe.value] = pd.DataFrame()
 
         # 最終的な型確認 - すべてがDataFrameであることを保証（強化版）
         for tf, data in results.items():
             if not isinstance(data, pd.DataFrame):
+                data_detail = str(data)[:100] if data else "None"
                 self.logger.error(
-                    f"型不整合検出: {tf} = {type(data)}, 空のDataFrameで修正. 詳細: {str(data)[:100] if data else 'None'}"
+                    f"型不整合検出: {tf} = {type(data)}, "
+                    f"空のDataFrameで修正. 詳細: {data_detail}"
                 )
                 results[tf] = pd.DataFrame()
             elif not hasattr(data, "empty"):

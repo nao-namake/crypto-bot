@@ -13,7 +13,7 @@ MLモデル未学習エラーを根本的に解決するアダプター。
 
 import pickle
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 import numpy as np
 import pandas as pd
@@ -107,28 +107,29 @@ class MLServiceAdapter:
         try:
             # 🚨 CRITICAL FIX: 古いimportパス互換性レイヤー
             import sys
-            
+
             # pickle化されたモデル内の古いimportパスをリダイレクト
             class ModuleRedirect:
                 def __getattr__(self, name):
-                    if name == 'ProductionEnsemble':
+                    if name == "ProductionEnsemble":
                         from ..ml.ensemble.production_ensemble import ProductionEnsemble
+
                         return ProductionEnsemble
                     raise AttributeError(f"Module {name} not found")
-            
+
             # 一時的に古いパスをリダイレクト
-            old_module = sys.modules.get('src.ml.production')
-            sys.modules['src.ml.production'] = ModuleRedirect()
-            
+            old_module = sys.modules.get("src.ml.production")
+            sys.modules["src.ml.production"] = ModuleRedirect()
+
             try:
                 with open(model_path, "rb") as f:
                     self.model = pickle.load(f)
             finally:
                 # リダイレクト後片付け
                 if old_module is None:
-                    sys.modules.pop('src.ml.production', None)
+                    sys.modules.pop("src.ml.production", None)
                 else:
-                    sys.modules['src.ml.production'] = old_module
+                    sys.modules["src.ml.production"] = old_module
 
             # モデルの妥当性チェック
             if hasattr(self.model, "predict") and hasattr(self.model, "predict_proba"):
@@ -136,9 +137,10 @@ class MLServiceAdapter:
                 self.is_fitted = getattr(self.model, "is_fitted", True)
 
                 self.logger.info("✅ ProductionEnsemble読み込み成功")
-                self.logger.info(
-                    f"モデル詳細: {self.model.get_model_info() if hasattr(self.model, 'get_model_info') else 'N/A'}"
+                model_info = (
+                    self.model.get_model_info() if hasattr(self.model, "get_model_info") else "N/A"
                 )
+                self.logger.info(f"モデル詳細: {model_info}")
                 return True
             else:
                 self.logger.error("ProductionEnsembleに必須メソッドが不足")

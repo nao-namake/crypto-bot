@@ -247,7 +247,7 @@ class DrawdownManager:
                     self._pause_trading_consecutive_loss()
 
             # 残高更新（仮想的な更新、実際の残高は外部から設定）
-            estimated_balance = self.current_balance + profit_loss
+            # estimated_balance = self.current_balance + profit_loss  # unused
 
             self.logger.info(
                 f"取引結果記録: P&L={profit_loss:.2f}, "

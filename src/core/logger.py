@@ -13,9 +13,8 @@ import traceback
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
-from .config import get_config
 from .exceptions import CryptoBotError, ErrorSeverity, get_error_severity
 
 
@@ -131,7 +130,8 @@ class CryptoBotLogger:
         """ログハンドラーのセットアップ（循環参照回避版）."""
         try:
             # 🚨 CRITICAL FIX: 循環参照を防ぐため遅延インポート
-            from .config import get_config
+            from .config import get_config  # noqa: F401
+
             config = get_config()
             logging_config = config.logging
         except (ImportError, AttributeError, FileNotFoundError, KeyError, RecursionError) as e:
@@ -196,7 +196,6 @@ class CryptoBotLogger:
         discord_notify: bool = False,
     ):
         """コンテキスト付きログ出力."""
-
         # ログレコード作成
         extra = {}
         if extra_data:

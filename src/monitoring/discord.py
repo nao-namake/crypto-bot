@@ -12,8 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from ..core.config import get_config
-from ..core.exceptions import CryptoBotError, ErrorSeverity, NotificationError
+from ..core.exceptions import CryptoBotError, ErrorSeverity
 from ..core.logger import get_logger
 
 
@@ -417,6 +416,7 @@ class DiscordNotifier:
         # JSON serialization事前テスト
         try:
             import json
+
             test_payload = {"embeds": safe_embeds}
             json.dumps(test_payload)  # シリアライゼーションテスト
         except (TypeError, ValueError) as json_err:
@@ -541,7 +541,7 @@ class DiscordNotifier:
                     import sys
 
                     sys.stderr.write(
-                        f"🚨 [DISCORD-SAFE] Discord 400 Bad Request エラー - payload構造問題\n"
+                        "🚨 [DISCORD-SAFE] Discord 400 Bad Request エラー - payload構造問題\n"
                     )
                     sys.stderr.write(f"🔍 [DISCORD-SAFE] エラー応答: {error_text}\n")
 
@@ -651,7 +651,8 @@ class DiscordNotifier:
                 fields.append(
                     {
                         "name": "エラー詳細",
-                        "value": f"種別: {error_info['error_type']}\\nコード: {error_info.get('error_code', 'N/A')}",
+                        "value": f"種別: {error_info['error_type']}\\n"
+                        f"コード: {error_info.get('error_code', 'N/A')}",
                         "inline": True,
                     }
                 )
