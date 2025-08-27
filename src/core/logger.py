@@ -128,14 +128,19 @@ class CryptoBotLogger:
         self._discord_notifier = None
 
     def _setup_handlers(self):
-        """ログハンドラーのセットアップ."""
+        """ログハンドラーのセットアップ（循環参照回避版）."""
         try:
+            # 🚨 CRITICAL FIX: 循環参照を防ぐため遅延インポート
+            from .config import get_config
             config = get_config()
             logging_config = config.logging
-        except (ImportError, AttributeError, FileNotFoundError, KeyError):
-            # 設定が読み込まれていない場合のデフォルト
+        except (ImportError, AttributeError, FileNotFoundError, KeyError, RecursionError) as e:
+            # 循環参照エラーや設定エラー時はデフォルト設定使用
+            if isinstance(e, RecursionError):
+                # 循環参照の場合は追加ログを出力しない（さらなる循環を防ぐ）
+                pass
             logging_config = type(
-                "obj",
+                "DefaultLoggingConfig",
                 (object,),
                 {"level": "INFO", "file_enabled": True, "retention_days": 7},
             )

@@ -399,26 +399,29 @@ class DiscordNotifier:
             self.logger.error("❌ 有効なembedが存在しないため送信中止")
             return False
 
-        # 🚨 CRITICAL FIX: embedsが確実に辞書のリストであることを保証
+        # 🚨 CRITICAL FIX: embedsが確実に辞書のリストであることを保証（簡潔化）
         safe_embeds = []
         for i, embed in enumerate(validated_embeds):
             if isinstance(embed, dict):
-                # 辞書の各値を安全な型に変換
-                safe_embed = {}
-                for key, value in embed.items():
-                    if isinstance(value, (str, int, bool, type(None))):
-                        safe_embed[key] = value
-                    elif isinstance(value, dict):
-                        safe_embed[key] = value
-                    elif isinstance(value, list):
-                        safe_embed[key] = value
-                    else:
-                        # 安全でない型は文字列に変換
-                        safe_embed[key] = str(value)
-                safe_embeds.append(safe_embed)
+                # 既に検証済みのembedは安全にそのまま使用
+                safe_embeds.append(embed)
             else:
                 self.logger.error(f"❌ embed[{i}]が辞書型ではありません: {type(embed)}")
                 continue
+
+        # 🚨 CRITICAL FIX: payload構造の最終検証
+        if not safe_embeds:
+            self.logger.error("❌ safe_embeds が空のため送信中止")
+            return False
+
+        # JSON serialization事前テスト
+        try:
+            import json
+            test_payload = {"embeds": safe_embeds}
+            json.dumps(test_payload)  # シリアライゼーションテスト
+        except (TypeError, ValueError) as json_err:
+            self.logger.error(f"❌ JSON serialization事前テスト失敗: {json_err}")
+            return False
 
         payload = {
             "embeds": safe_embeds,

@@ -365,4 +365,111 @@ echo -n "d59c1fffd5c67a0c4091eb1723c6e5106772d67a52d47e36e5fc5afe7bcd6e8e" | gcl
 
 **🎉 Phase 13.6完了**: スクリプト統合（9→5フォルダ・44%削減）・重複コード500行削除・base_analyzer.py統合分析基盤確立・sklearn警告解消・logs統合・models整理・400テスト100%成功・CI/CD本番稼働・品質保証完成・緊急対応完了（Discord通知・API認証・CI修正）により、56,355行レガジーシステムから新システムへの全面リファクタリング・統合最適化・緊急対応を完遂し、堅牢で保守性と運用効率を大幅向上させた個人向けAI自動取引システムを完成
 
+---
+
+## 🚨 緊急タスク（2025年8月27日発覚 - CI後チェック結果）
+
+**発覚日**: 2025年8月27日 16:30 JST  
+**発覚経緯**: CI後チェック作業実施中にCloud Runログから重大エラーを複数発見  
+**影響度**: 高（本番システムが問題を抱えたまま稼働中）  
+**対応優先度**: 最高（24時間以内対応必要）
+
+### 🚨 **発見されたクリティカル問題**
+
+#### **❌ 1. Discord通知システム完全停止（最優先修正）**
+**エラー内容**: 
+```
+🚨 [DISCORD-SAFE] Discord 400 Bad Request エラー - payload構造問題
+🔍 [DISCORD-SAFE] エラー応答: {"embeds": ["0"]}
+📝 [DISCORD-SAFE] embedが文字列化されている可能性があります
+```
+**影響**: 24時間監視・アラート機能が完全停止  
+**原因**: embed辞書オブジェクトが文字列に変換される問題  
+**現状**: 新リビジョン `crypto-bot-service-prod-phase13-0827-0717` でも修正されていない  
+**修正必要箇所**: `src/monitoring/discord.py` の embed作成・送信処理
+
+#### **❌ 2. MLモデル読み込み失敗（高優先修正）**
+**エラー内容**: 
+```
+ProductionEnsemble読み込みエラー: No module named 'src.ml.production'
+MLサービス初期化完了: DummyModel
+💡 本番運用前にMLモデルの再作成が必要です
+```
+**影響**: DummyModelにフォールバック（予測精度低下・信頼度固定0.5）  
+**原因**: ProductionEnsembleのモジュールパス変更（`src.ml.production` → `src.ml.ensemble`）  
+**現状**: デプロイ版は古いパス参照のまま  
+**修正必要箇所**: `src/core/ml_adapter.py` のimportパス修正
+
+#### **⚠️ 3. 極端なドローダウン状態（中優先調査）**
+**エラー内容**: 
+```
+ドローダウン制限到達！取引停止: 99.0% >= 20.0%
+取引拒否: リスクスコア=100.0%, 理由=ドローダウン制限: paused_drawdown
+```
+**影響**: 新リビジョン起動直後から全取引が拒否されている状態  
+**比較**: 旧リビジョンはリスクスコア17.5%で正常稼働していた  
+**原因**: ドローダウン状態の引き継ぎ問題またはDrawdownManager計算エラーの可能性  
+**修正必要箇所**: ドローダウン状態ファイル確認・DrawdownManager初期化処理
+
+#### **🚨 4. Logger初期化エラー（新発見・最新リビジョン高優先修正）**
+**エラー内容**: 
+```
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+  File "/app/src/core/logger.py", line 371, in get_logger
+    _logger_instance = CryptoBotLogger(name)
+```
+**発生時刻**: 2025年8月27日 07:18:19 JST  
+**影響**: 最新リビジョン `crypto-bot-service-prod-phase13-0827-0717` で発生・システム初期化時エラー  
+**現状**: 最新デプロイ版でLogger初期化が失敗している可能性  
+**原因**: CryptoBotLoggerクラスの初期化処理またはDiscord通知システムとの統合問題  
+**修正必要箇所**: `src/core/logger.py:371` のLogger初期化処理・依存関係確認
+
+#### **⚠️ 5. 非同期処理チェーンエラー（新発見・中優先調査）**
+**エラー内容**: 
+```
+Traceback (most recent call last):
+  File "/app/src/data/data_pipeline.py", line 230, in fetch_multi_timeframe
+    df = await self.fetch_ohlcv(request)
+  File "/app/src/data/data_pipeline.py", line 160, in fetch_ohlcv
+    ohlcv_data = await self.client.fetch_ohlcv(
+```
+**発生時間帯**: 2025年8月27日 00:48～00:57 JST (旧リビジョン)  
+**影響**: マルチタイムフレームデータ取得での非同期処理エラー・データパイプライン不安定  
+**現状**: OHLCVデータ取得エラーの根本原因が非同期処理チェーンにある可能性  
+**原因**: fetch_multi_timeframe → fetch_ohlcv の非同期呼び出しチェーンでエラー発生  
+**修正必要箇所**: `src/data/data_pipeline.py` の非同期処理エラーハンドリング強化
+
+### 📋 **緊急対応計画**
+
+#### **Phase A: 最優先修正（24時間以内）**
+- [ ] **Discord通知修正**: embed構造の根本的な文字列化問題を解決
+  - [ ] `_validate_embeds_before_send()` メソッドのデバッグ・修正
+  - [ ] `create_safe_embeds()` ロジックの文字列変換原因特定・除去
+  - [ ] 本番環境での動作テスト・Discord通知機能復旧確認
+- [ ] **MLモジュールパス修正**: ProductionEnsemble import エラーを解決  
+  - [ ] `src/core/ml_adapter.py` のimportパスを修正（`src.ml.production` → `src.ml.ensemble.production_ensemble`）
+  - [ ] 関連スクリプトのimportパス一括修正・整合性確保
+  - [ ] MLモデル読み込み動作確認・予測精度復旧
+
+#### **Phase B: 中優先調査（3日以内）**
+- [ ] **ドローダウン状態調査**: 99%異常ドローダウンの原因分析
+  - [ ] DrawdownManagerのファイル読み書き処理確認
+  - [ ] 新リビジョン起動時の初期化ロジック検証  
+  - [ ] ドローダウン計算式・状態管理の妥当性確認
+  - [ ] 必要に応じてドローダウン状態のリセット実施
+
+#### **Phase C: 検証・監視強化（1週間以内）**  
+- [ ] **修正後検証**: 上記修正の効果確認・継続監視
+- [ ] **CI後チェック体制**: 類似問題の早期発見・防止システム強化
+- [ ] **本番監視強化**: Cloud Runログの定期確認・アラート強化
+
+### 🎯 **期待される修正効果**
+- **Discord通知復旧**: 24時間監視機能完全復活・異常検知対応力回復
+- **ML予測精度向上**: DummyModel → ProductionEnsemble復旧・取引判定改善  
+- **取引再開**: ドローダウン問題解決により正常な取引実行再開
+- **システム安定化**: 本番環境での継続的で安定した自動取引システム運用確立
+
+---
+
 **🚀 Phase 14準備完了**: 緊急対応完了・本番システム安定化基盤確立・GitHub Actions CI/CD正常化により、運用品質向上・監視機能強化・パフォーマンス最適化フェーズへ移行準備完了

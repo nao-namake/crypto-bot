@@ -97,7 +97,7 @@ class MLServiceAdapter:
         self._load_dummy_model()
 
     def _load_production_ensemble(self) -> bool:
-        """ProductionEnsemble読み込み"""
+        """ProductionEnsemble読み込み（互換性レイヤー付き）"""
         model_path = Path("models/production/production_ensemble.pkl")
 
         if not model_path.exists():
@@ -105,8 +105,30 @@ class MLServiceAdapter:
             return False
 
         try:
-            with open(model_path, "rb") as f:
-                self.model = pickle.load(f)
+            # 🚨 CRITICAL FIX: 古いimportパス互換性レイヤー
+            import sys
+            
+            # pickle化されたモデル内の古いimportパスをリダイレクト
+            class ModuleRedirect:
+                def __getattr__(self, name):
+                    if name == 'ProductionEnsemble':
+                        from ..ml.ensemble.production_ensemble import ProductionEnsemble
+                        return ProductionEnsemble
+                    raise AttributeError(f"Module {name} not found")
+            
+            # 一時的に古いパスをリダイレクト
+            old_module = sys.modules.get('src.ml.production')
+            sys.modules['src.ml.production'] = ModuleRedirect()
+            
+            try:
+                with open(model_path, "rb") as f:
+                    self.model = pickle.load(f)
+            finally:
+                # リダイレクト後片付け
+                if old_module is None:
+                    sys.modules.pop('src.ml.production', None)
+                else:
+                    sys.modules['src.ml.production'] = old_module
 
             # モデルの妥当性チェック
             if hasattr(self.model, "predict") and hasattr(self.model, "predict_proba"):

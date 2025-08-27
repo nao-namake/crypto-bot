@@ -229,18 +229,35 @@ class DataPipeline:
             try:
                 df = await self.fetch_ohlcv(request)
 
+                # 🚨 CRITICAL FIX: 厳密な返り値チェック
+                if df is None:
+                    raise ValueError(f"fetch_ohlcvがNoneを返しました: {timeframe.value}")
+                
                 # 型安全性チェック - DataFrameの保証
                 if isinstance(df, pd.DataFrame):
                     results[timeframe.value] = df
+                elif isinstance(df, dict):
+                    # 辞書型の場合はDataFrameに変換を試行
+                    try:
+                        results[timeframe.value] = pd.DataFrame(df)
+                        self.logger.warning(f"辞書からDataFrameに変換: {timeframe.value}")
+                    except Exception:
+                        results[timeframe.value] = pd.DataFrame()
                 else:
                     self.logger.warning(
-                        f"予期しない型が返却されました: {type(df)}, DataFrameに変換します"
+                        f"予期しない型が返却されました: {type(df)}, 空DataFrameで代替"
                     )
-                    # dictやその他の型の場合は空のDataFrameに変換
                     results[timeframe.value] = pd.DataFrame()
 
+            except asyncio.CancelledError:
+                # 🚨 CRITICAL FIX: 非同期キャンセルは再発生させる
+                self.logger.info(f"非同期処理キャンセル: {timeframe.value}")
+                raise
+            except asyncio.TimeoutError as e:
+                self.logger.error(f"タイムアウト: {timeframe.value} - {e}")
+                results[timeframe.value] = pd.DataFrame()
             except Exception as e:
-                self.logger.error(f"マルチタイムフレーム取得失敗: {timeframe.value}", error=e)
+                self.logger.error(f"マルチタイムフレーム取得失敗: {timeframe.value} - {type(e).__name__}: {e}")
                 # 失敗したタイムフレームは必ず空のDataFrameで代替（型保証）
                 results[timeframe.value] = pd.DataFrame()
 

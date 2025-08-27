@@ -165,6 +165,15 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 
 # 取引サイクルエラー
 TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"取引サイクルエラー" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5
+
+# ⚠️ Logger初期化エラー確認（新発見エラー対応・2025年8月27日追加）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"CryptoBotLogger" OR textPayload:"logger.py") AND severity=ERROR AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=10
+
+# ⚠️ 非同期処理チェーンエラー確認（新発見エラー対応・2025年8月27日追加）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"data_pipeline.py" AND textPayload:"fetch_multi_timeframe") AND severity=ERROR AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=10
+
+# ⚠️ トレースバック・スタックエラー全般確認（新発見エラー対応・2025年8月27日追加）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"Traceback" OR textPayload:"File \"/app/src/") AND severity=ERROR AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=15
 ```
 
 ### 🎯 確認ポイント

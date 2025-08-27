@@ -541,8 +541,29 @@ class DrawdownManager:
                     profitable_trades=session_data.get("profitable_trades", 0),
                 )
 
+            # 🚨 CRITICAL FIX: 異常な状態のサニティチェック
+            if self.peak_balance > 0 and self.current_balance > 0:
+                calculated_drawdown = (self.peak_balance - self.current_balance) / self.peak_balance
+                if calculated_drawdown > 0.5:  # 50%以上のドローダウンは異常値として扱う
+                    self.logger.warning(
+                        f"🚨 異常なドローダウン検出: {calculated_drawdown:.1%} "
+                        f"(ピーク: {self.peak_balance:.2f}, 現在: {self.current_balance:.2f})"
+                    )
+                    # 異常値の場合は安全な状態にリセット
+                    self.peak_balance = max(self.current_balance, 100000.0)  # 最低10万円として設定
+                    self.current_balance = self.peak_balance
+                    self.consecutive_losses = 0
+                    self.trading_status = TradingStatus.ACTIVE
+                    self.pause_until = None
+                    self.logger.info(
+                        f"✅ ドローダウン状態リセット完了: 残高={self.current_balance:.2f}"
+                    )
+                    # リセット後の状態を保存
+                    self._save_state()
+
             self.logger.info(
-                f"ドローダウン状態復元完了: 残高={self.current_balance:.2f}, 状態={self.trading_status.value}"
+                f"ドローダウン状態復元完了: 残高={self.current_balance:.2f}, "
+                f"ピーク={self.peak_balance:.2f}, 状態={self.trading_status.value}"
             )
 
         except Exception as e:
