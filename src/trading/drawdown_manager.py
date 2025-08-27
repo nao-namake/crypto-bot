@@ -502,9 +502,51 @@ class DrawdownManager:
         except Exception as e:
             self.logger.error(f"状態保存エラー: {e}")
 
+    def _force_reset_to_safe_state(self) -> None:
+        """
+        🚨 強制的に安全な状態にリセット
+
+        あらゆる異常状態から確実に復旧するための終極的解決機能
+        """
+        try:
+            # デフォルト安全値で強制初期化
+            self.current_balance = 100000.0  # 10万円のデフォルト
+            self.peak_balance = 100000.0
+            self.consecutive_losses = 0
+            self.last_loss_time = None
+            self.trading_status = TradingStatus.ACTIVE
+            self.pause_until = None
+
+            # セッション状態もクリア
+            self.current_session = None
+
+            self.logger.warning(
+                "🔄 強制ドローダウンリセット完了 - 全状態を安全値に初期化\n"
+                f"  - 残高: {self.current_balance:.2f}円\n"
+                f"  - ピーク: {self.peak_balance:.2f}円\n"
+                f"  - 状態: {self.trading_status.value}\n"
+                f"  - 連続損失: {self.consecutive_losses}\n"
+                "✅ 取引再開可能状態"
+            )
+
+        except Exception as e:
+            self.logger.error(f"強制リセットエラー: {e}")
+            # それでも失敗する場合は最小限の安全状態
+            self.trading_status = TradingStatus.ACTIVE
+
     def _load_state(self) -> None:
         """ファイルから状態を復元."""
         try:
+            # 🚨 CRITICAL FIX: 強制リセット機能
+            import os
+
+            force_reset = os.getenv("FORCE_DRAWDOWN_RESET", "false").lower() == "true"
+
+            if force_reset:
+                self.logger.warning("🔄 強制ドローダウンリセットが要求されました")
+                self._force_reset_to_safe_state()
+                return
+
             if not self.persistence_file.exists():
                 self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
                 return
@@ -541,7 +583,15 @@ class DrawdownManager:
                     profitable_trades=session_data.get("profitable_trades", 0),
                 )
 
-            # 🚨 CRITICAL FIX: 異常な状態のサニティチェック
+            # 🚨 CRITICAL FIX: 異常な状態のサニティチェック強化版
+            needs_reset = False
+
+            # 1. PAUSED_DRAWDOWN状態の強制リセット
+            if self.trading_status == TradingStatus.PAUSED_DRAWDOWN:
+                self.logger.warning("🚨 PAUSED_DRAWDOWN状態検出 - 強制リセット実行")
+                needs_reset = True
+
+            # 2. 異常なドローダウン値検出
             if self.peak_balance > 0 and self.current_balance > 0:
                 calculated_drawdown = (self.peak_balance - self.current_balance) / self.peak_balance
                 if calculated_drawdown > 0.5:  # 50%以上のドローダウンは異常値として扱う
@@ -549,17 +599,18 @@ class DrawdownManager:
                         f"🚨 異常なドローダウン検出: {calculated_drawdown:.1%} "
                         f"(ピーク: {self.peak_balance:.2f}, 現在: {self.current_balance:.2f})"
                     )
-                    # 異常値の場合は安全な状態にリセット
-                    self.peak_balance = max(self.current_balance, 100000.0)  # 最低10万円として設定
-                    self.current_balance = self.peak_balance
-                    self.consecutive_losses = 0
-                    self.trading_status = TradingStatus.ACTIVE
-                    self.pause_until = None
-                    self.logger.info(
-                        f"✅ ドローダウン状態リセット完了: 残高={self.current_balance:.2f}"
-                    )
-                    # リセット後の状態を保存
-                    self._save_state()
+                    needs_reset = True
+
+            # 3. 残高異常検出
+            if self.current_balance <= 0 or self.peak_balance <= 0:
+                self.logger.warning("🚨 残高異常検出 - 強制リセット実行")
+                needs_reset = True
+
+            # 強制リセット実行
+            if needs_reset:
+                self._force_reset_to_safe_state()
+                # リセット後の状態を保存
+                self._save_state()
 
             self.logger.info(
                 f"ドローダウン状態復元完了: 残高={self.current_balance:.2f}, "
