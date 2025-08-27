@@ -18,6 +18,24 @@ from src.ml.ensemble.ensemble_model import EnsembleModel
 from src.ml.models import LGBMModel, RFModel, XGBModel
 
 
+@pytest.fixture(scope="session", autouse=True)
+def init_config():
+    """テスト用設定初期化"""
+    try:
+        from src.core.config import load_config
+        load_config("config/core/base.yaml")
+    except Exception:
+        from src.core.config import config_manager
+        config_manager._config = {
+            'trading': {'mode': 'paper'},
+            'features': {'selected': ['close', 'rsi_14', 'atr_14']},
+            'strategies': {'default_config': {}},
+            'ml': {'models': {}},
+            'data': {'timeframes': ['15m', '1h', '4h']},
+            'monitoring': {'enabled': False}
+        }
+
+
 class TestEnsembleModel:
     """アンサンブルモデルのテストクラス."""
 
