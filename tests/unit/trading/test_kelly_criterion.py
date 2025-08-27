@@ -95,7 +95,7 @@ class TestKellyCriterion:
         assert result is None
 
         # データ不足の場合（min_trades_for_kellyより少ない）
-        for i in range(3):
+        for _i in range(3):
             self.kelly.add_trade_result(100.0, "test")
 
         result = self.kelly.calculate_from_history()
@@ -238,11 +238,11 @@ class TestKellyCriterion:
     def test_strategy_filtering(self):
         """戦略別フィルタリングテスト."""
         # 複数戦略の取引追加（勝ち負け両方を含む）
-        for i in range(4):
+        for _i in range(4):
             self.kelly.add_trade_result(100, "strategy_a")  # 勝ち取引
         self.kelly.add_trade_result(-50, "strategy_a")  # 負け取引を1つ追加
 
-        for i in range(3):
+        for _i in range(3):
             self.kelly.add_trade_result(-50, "strategy_b")
 
         # strategy_aのみでKelly計算（勝ち負け混在）
@@ -300,7 +300,7 @@ def test_kelly_with_real_data(sample_trade_data):
     """実際の取引データでのKellyテスト."""
     kelly = KellyCriterion(min_trades_for_kelly=3)
 
-    for profit_loss, is_win, strategy, confidence in sample_trade_data:
+    for profit_loss, _is_win, strategy, confidence in sample_trade_data:
         kelly.add_trade_result(profit_loss, strategy, confidence)
 
     result = kelly.calculate_from_history()

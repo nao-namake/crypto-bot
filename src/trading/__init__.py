@@ -14,20 +14,10 @@ Phase 12完了: 2025年8月18日.
 """
 
 # 異常検知
-from .anomaly_detector import (
-    AnomalyAlert,
-    AnomalyLevel,
-    MarketCondition,
-    TradingAnomalyDetector,
-)
+from .anomaly_detector import AnomalyAlert, AnomalyLevel, MarketCondition, TradingAnomalyDetector
 
 # ドローダウン管理
-from .drawdown_manager import (
-    DrawdownManager,
-    DrawdownSnapshot,
-    TradingSession,
-    TradingStatus,
-)
+from .drawdown_manager import DrawdownManager, DrawdownSnapshot, TradingSession, TradingStatus
 
 # Kelly基準ポジションサイジング
 from .position_sizing import (
@@ -38,12 +28,7 @@ from .position_sizing import (
 )
 
 # 統合API
-from .risk import (
-    IntegratedRiskManager,
-    RiskDecision,
-    RiskMetrics,
-    TradeEvaluation,
-)
+from .risk import IntegratedRiskManager, RiskDecision, RiskMetrics, TradeEvaluation
 
 # パブリックAPI
 __all__ = [

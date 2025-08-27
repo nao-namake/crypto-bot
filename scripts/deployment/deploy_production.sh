@@ -1,14 +1,13 @@
 #!/bin/bash
 
-# Phase 9-4: GCP Cloud Run本番デプロイメントスクリプト
+# Phase 13: GCP Cloud Run本番デプロイメントスクリプト（統合版）
 # 
-# 段階的デプロイメント対応（10%→50%→100%資金投入）
+# モード設定一元化対応・production.yaml統一デプロイ
 # 環境変数設定・ヘルスチェック・Discord通知・監視体制の自動構築
 #
 # 使用方法:
-#   bash scripts/deploy_production.sh --stage 10percent  # 10%資金投入段階
-#   bash scripts/deploy_production.sh --stage 50percent  # 50%資金投入段階  
-#   bash scripts/deploy_production.sh --stage production # 100%本番運用
+#   bash scripts/deploy_production.sh               # production.yaml使用  
+#   bash scripts/deploy_production.sh --config production.yaml # 本番運用
 #
 # 実行前チェック:
 #   1. gcloud CLI認証済み（gcloud auth login）
@@ -70,34 +69,13 @@ error_exit() {
 # ========================================
 
 set_stage_config() {
-    local stage="$1"
+    local stage="${1:-production}"
     
-    case "${stage}" in
-        "10percent")
-            SERVICE_NAME="${SERVICE_NAME_PREFIX}-10percent"
-            CONFIG_FILE="config/environments/live/stage_10.yaml"
-            MEMORY="1Gi"
-            CPU="1"
-            MIN_INSTANCES="1"
-            MAX_INSTANCES="1"
-            TIMEOUT="1800"  # 30分
-            MAX_DAILY_TRADES="10"
-            ;;
-        "50percent")
-            SERVICE_NAME="${SERVICE_NAME_PREFIX}-50percent"
-            CONFIG_FILE="config/environments/live/stage_50.yaml"
-            MEMORY="1.5Gi"
-            CPU="1"
-            MIN_INSTANCES="1"
-            MAX_INSTANCES="1"
-            TIMEOUT="2400"  # 40分
-            MAX_DAILY_TRADES="15"
-            ;;
-        "production"|"100percent")
-            SERVICE_NAME="${SERVICE_NAME_PREFIX}-prod"
-            CONFIG_FILE="config/environments/live/production.yaml"
-            MEMORY="2Gi"
-            CPU="2"
+    # Phase 13統合: production.yaml統一
+    SERVICE_NAME="${SERVICE_NAME_PREFIX}-prod"
+    CONFIG_FILE="config/production/production.yaml"
+    MEMORY="1Gi"
+    CPU="1"
             MIN_INSTANCES="1"
             MAX_INSTANCES="2"
             TIMEOUT="3600"  # 60分

@@ -28,17 +28,9 @@ import pandas as pd
 
 from ..core.exceptions import RiskManagementError
 from ..core.logger import get_logger
-from .anomaly_detector import (
-    AnomalyAlert,
-    AnomalyLevel,
-    TradingAnomalyDetector,
-)
+from .anomaly_detector import AnomalyAlert, AnomalyLevel, TradingAnomalyDetector
 from .drawdown_manager import DrawdownManager, TradingStatus
-from .position_sizing import (
-    KellyCriterion,
-    PositionSizeIntegrator,
-    TradeResult,
-)
+from .position_sizing import KellyCriterion, PositionSizeIntegrator, TradeResult
 
 
 class RiskDecision(Enum):

@@ -262,7 +262,7 @@ class TestEnsembleModel:
         ensemble = EnsembleModel(models=models)
 
         # 一部のモデルが失敗してもエラーが伝播することを確認
-        with pytest.raises(Exception):
+        with pytest.raises(DataProcessingError):
             ensemble.fit(X, y)
 
     def test_confidence_threshold_application(self, ensemble_model, sample_data):

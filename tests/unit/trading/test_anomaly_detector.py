@@ -364,7 +364,7 @@ class TestTradingAnomalyDetector:
     def test_history_size_limit(self):
         """履歴サイズ制限テスト."""
         # 制限を超える数のアラート生成（テスト実行時間短縮のため100回に削減）
-        for i in range(100):
+        for _i in range(100):
             self.detector.comprehensive_anomaly_check(
                 bid=50000, ask=50300, last_price=50150, volume=1000, api_latency_ms=500
             )
@@ -431,7 +431,7 @@ def test_anomaly_detection_performance():
     start_time = time.time()
 
     # 100回の異常検知実行
-    for i in range(100):
+    for _i in range(100):
         detector.comprehensive_anomaly_check(
             bid=50000, ask=50100, last_price=50050, volume=1000, api_latency_ms=500
         )

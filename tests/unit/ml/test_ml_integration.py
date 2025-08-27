@@ -230,7 +230,7 @@ class TestMLIntegration:
             assert "importance" in ensemble_importance.columns
 
             # 各モデルの個別重要度も確認
-            for model_name, model in ensemble.models.items():
+            for _model_name, model in ensemble.models.items():
                 model_importance = model.get_feature_importance()
                 if model_importance is not None:
                     assert len(model_importance) == len(X.columns)

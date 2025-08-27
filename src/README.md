@@ -9,7 +9,9 @@ src/
 ├── core/              # 基盤システム ✅ Phase 13統合完了
 │   ├── config.py      # 設定管理（環境変数・YAML統合・CI/CD対応）
 │   ├── logger.py      # ログシステム（Discord通知統合・手動実行監視）
-│   └── exceptions.py  # カスタム例外・階層化エラー処理・GitHub Actions対応
+│   ├── exceptions.py  # カスタム例外・階層化エラー処理・GitHub Actions対応
+│   ├── orchestrator.py # 統合制御（Application Service Layer・依存性注入）
+│   └── ml_adapter.py  # MLサービス統合（優先順位読み込み・フォールバック）
 ├── data/              # データ層 ✅ Phase 2完了
 │   ├── bitbank_client.py  # Bitbank API（ccxt・信用取引専用）
 │   ├── data_pipeline.py   # マルチタイムフレーム（15m/1h/4h）
@@ -32,15 +34,14 @@ src/
 │       └── signal_builder.py # シグナル生成統合
 ├── ml/                # 機械学習層 ✅ Phase 5完了
 │   ├── models/        # 個別モデル（LightGBM・XGBoost・RandomForest）
-│   ├── ensemble/      # アンサンブル統合・重み付け投票・モデル管理
+│   ├── ensemble/      # アンサンブル統合（EnsembleModel・ProductionEnsemble）
+│   ├── model_manager.py # モデル管理・統合インターフェース
 │   └── __init__.py    # ML層統合インターフェース
 ├── backtest/          # バックテストシステム ✅ Phase 8完了
 │   ├── engine.py      # バックテストエンジン・ポジション管理
 │   ├── evaluator.py   # 統計指標・パフォーマンス評価
-│   ├── data_loader.py # データローダー・品質管理
-│   ├── reporter.py    # レポート生成・多形式出力
-│   ├── data/          # 履歴データ・キャッシュ
-│   └── models/        # バックテスト専用モデル
+│   ├── data_loader.py # データローダー・品質管理（直接データ管理）
+│   └── reporter.py    # レポート生成・多形式出力
 ├── trading/           # 取引実行層 ✅ Phase 13完了
 │   ├── executor.py    # 注文実行ロジック・レイテンシー最適化・CI/CDワークフロー最適化
 │   ├── risk.py        # Kelly基準・ドローダウン管理・手動実行監視

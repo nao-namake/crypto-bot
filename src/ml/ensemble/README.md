@@ -6,9 +6,10 @@
 
 ```
 ensemble/
-├── __init__.py          # アンサンブルエクスポート統合
-├── ensemble_model.py    # メインアンサンブルクラス
-└── voting.py           # 投票システム実装
+├── __init__.py              # アンサンブルエクスポート統合
+├── ensemble_model.py        # 開発用アンサンブルクラス
+├── production_ensemble.py   # 本番用アンサンブル（統合後）
+└── voting.py               # 投票システム実装
 ```
 
 ## 🎯 役割と責任
@@ -41,6 +42,40 @@ class EnsembleModel:
 - `predict_proba()`: 確率予測
 - `evaluate()`: 包括的評価メトリクス
 - `get_feature_importance()`: 統合特徴量重要度
+
+### production_ensemble.py - 本番用アンサンブル（Phase 13統合・根本問題解決）🆕
+**役割**: 本番運用に特化した軽量アンサンブルモデル・MLServiceAdapter統合対応
+
+**主要機能**:
+- pickle対応による永続化・シリアル化対応
+- 12特徴量最適化システム対応
+- 重み付け投票（LightGBM 0.4・XGBoost 0.4・RandomForest 0.2）
+- 軽量実装（開発用EnsembleModelより高速）
+- ml_adapter.pyによる自動読み込み対応
+
+**コア実装**:
+```python
+class ProductionEnsemble:
+    def __init__(self, individual_models: Dict[str, Any]):
+        """本番用アンサンブル初期化"""
+        self.models = individual_models
+        self.weights = {"lightgbm": 0.4, "xgboost": 0.4, "random_forest": 0.2}
+        self.is_fitted = True
+        self.n_features_ = 12  # 12特徴量システム対応
+```
+
+**重要メソッド**:
+- `predict()`: 重み付け投票による高速予測
+- `predict_proba()`: 確率予測（本番運用最適化）
+- `get_model_info()`: モデル情報・メタデータ取得
+- `validate_features()`: 12特徴量検証
+
+**開発用EnsembleModelとの違い**:
+- **本番特化**: 実行速度とメモリ効率優先
+- **軽量設計**: 不要な開発用機能を除外
+- **pickle対応**: 永続化・デプロイメント対応
+- **統合連携**: ml_adapter.pyによる自動管理
+- **固定重み**: 学習済み最適重みを使用（動的調整なし）
 
 ### voting.py - 投票システム（Phase 13・CI/CDワークフロー最適化）
 **役割**: 複数モデルの予測を統合する投票メカニズム・GitHub Actions対応

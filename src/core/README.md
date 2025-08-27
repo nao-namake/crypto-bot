@@ -16,7 +16,8 @@ core/
 ├── config.py      # 設定管理システム ✅ Phase 13 CI/CDワークフロー最適化
 ├── logger.py      # ログシステム ✅ 手動実行監視対応
 ├── exceptions.py  # カスタム例外 ✅ GitHub Actions対応
-└── orchestrator.py # 統合システム制御 ✅ 段階的デプロイ対応
+├── orchestrator.py # 統合システム制御 ✅ 段階的デプロイ対応
+└── ml_adapter.py  # MLサービス統合 ✅ 根本問題解決対応
 ```
 
 ## 🔧 各モジュール詳細
@@ -182,6 +183,52 @@ if await orchestrator.initialize():
 - `create_trading_orchestrator()`: 依存性組み立て自動化
 - main.pyからの利用を簡潔化
 - 各Phase層の初期化詳細を隠蔽
+
+### ml_adapter.py - MLサービス統合アダプター 🆕
+
+**目的**: MLモデル未学習エラーの根本的解決とサービス統合
+
+**主要クラス**:
+- `MLServiceAdapter`: ML予測サービス統合アダプター
+- `DummyModel`: 最終フォールバック用安全モデル  
+
+**優先順位付きモデル読み込み**:
+1. **ProductionEnsemble**（最優先）: `models/production/production_ensemble.pkl`
+2. **個別モデル再構築**（代替）: `models/training/` から自動再構築
+3. **ダミーモデル**（最終安全網）: 常にholdシグナル（信頼度0.5）
+
+**使用例**:
+```python
+from src.core.ml_adapter import MLServiceAdapter
+
+# 自動モデル読み込み（優先順位適用）
+ml_service = MLServiceAdapter(logger)
+
+# 統一インターフェース
+predictions = ml_service.predict(features_df, use_confidence=True)
+
+# モデル情報確認
+print(ml_service.get_model_info())  
+# {'model_type': 'ProductionEnsemble', 'is_fitted': True}
+```
+
+**根本問題解決機能**:
+- **完全停止防止**: 全モデル読み込み失敗でもダミーモデルで継続稼働
+- **自動復旧**: 個別モデルからの自動再構築機能  
+- **統一インターフェース**: ProductionEnsemble・EnsembleModelの差異を吸収
+- **エラー記録**: 詳細なログ出力で問題特定を支援
+
+**設計原則**:
+- **フォールバック階層**: 3段階の安全ネット構造
+- **統合インターフェース**: 既存コードへの影響最小化
+- **自動復旧機能**: 運用中の手動介入不要
+- **透明性確保**: モデル状態の可視化
+
+**メリット**:
+1. **システム継続稼働**: MLモデルエラーでの完全停止を防止
+2. **運用負荷軽減**: 自動復旧により手動対応を削減
+3. **開発効率向上**: 統一インターフェースで開発・テスト簡素化
+4. **信頼性向上**: 複数の安全ネットによる堅牢な動作保証
 
 ## 🎯 設計方針
 

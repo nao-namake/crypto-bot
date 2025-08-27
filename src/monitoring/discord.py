@@ -278,7 +278,14 @@ class DiscordNotifier:
                 # 特に文字列の場合は詳細ログ
                 if isinstance(embeds, str):
                     self.logger.error(f"🔍 文字列embed検出 - 内容: '{embeds[:100]}'...")
-                return []
+                elif isinstance(embeds, (int, float)):
+                    self.logger.error(f"🔍 数値embed検出 - 値: {embeds}")
+                # 🚨 CRITICAL FIX: 単一embedが渡された場合はリストに変換
+                elif isinstance(embeds, dict):
+                    self.logger.warning(f"⚠️ 単一embed辞書を配列に変換: {type(embeds)}")
+                    embeds = [embeds]
+                else:
+                    return []
 
             if len(embeds) == 0:
                 self.logger.warning("⚠️ 空のembedリスト")
@@ -293,8 +300,14 @@ class DiscordNotifier:
             validated_embeds = []
             for i, embed in enumerate(embeds):
                 try:
-                    # 辞書型確認
-                    if not isinstance(embed, dict):
+                    # 🚨 CRITICAL FIX: 文字列・数値embed検出と変換
+                    if isinstance(embed, str):
+                        self.logger.error(f"❌ embed[{i}]が文字列です: '{embed[:50]}'...")
+                        continue
+                    elif isinstance(embed, (int, float)):
+                        self.logger.error(f"❌ embed[{i}]が数値です: {embed}")
+                        continue
+                    elif not isinstance(embed, dict):
                         self.logger.error(
                             f"❌ embed[{i}]は辞書型である必要があります: {type(embed)} - {embed}"
                         )
@@ -303,6 +316,13 @@ class DiscordNotifier:
                     # 不正な値の除去（Discord API エラー防止）
                     cleaned_embed = {}
                     for key, value in embed.items():
+                        # 🚨 CRITICAL FIX: キーが文字列でない場合はスキップ
+                        if not isinstance(key, str):
+                            self.logger.warning(
+                                f"⚠️ embed[{i}]の非文字列キーをスキップ: {key} ({type(key)})"
+                            )
+                            continue
+
                         # 文字列や数値以外の不正な値を除去
                         if key in ["title", "description"] and not isinstance(value, str):
                             self.logger.warning(
@@ -316,8 +336,13 @@ class DiscordNotifier:
                             cleaned_embed[key] = int(value) if str(value).isdigit() else 0x3498DB
                         elif isinstance(value, (str, int, bool, dict, list)):
                             cleaned_embed[key] = value
+                        elif value is None:
+                            # None値はスキップ
+                            continue
                         else:
                             self.logger.warning(f"⚠️ embed[{i}].{key}の不正値を除去: {type(value)}")
+                            # 不正な値は文字列に変換して保持
+                            cleaned_embed[key] = str(value)
 
                     # 構造検証
                     self._validate_embed_structure(cleaned_embed)
@@ -374,8 +399,29 @@ class DiscordNotifier:
             self.logger.error("❌ 有効なembedが存在しないため送信中止")
             return False
 
+        # 🚨 CRITICAL FIX: embedsが確実に辞書のリストであることを保証
+        safe_embeds = []
+        for i, embed in enumerate(validated_embeds):
+            if isinstance(embed, dict):
+                # 辞書の各値を安全な型に変換
+                safe_embed = {}
+                for key, value in embed.items():
+                    if isinstance(value, (str, int, bool, type(None))):
+                        safe_embed[key] = value
+                    elif isinstance(value, dict):
+                        safe_embed[key] = value
+                    elif isinstance(value, list):
+                        safe_embed[key] = value
+                    else:
+                        # 安全でない型は文字列に変換
+                        safe_embed[key] = str(value)
+                safe_embeds.append(safe_embed)
+            else:
+                self.logger.error(f"❌ embed[{i}]が辞書型ではありません: {type(embed)}")
+                continue
+
         payload = {
-            "embeds": validated_embeds,
+            "embeds": safe_embeds,
             "username": "Crypto-Bot",
             "avatar_url": None,  # アバターURL（必要に応じて設定）
         }
@@ -387,17 +433,40 @@ class DiscordNotifier:
             )
             self.logger.info(f"📤 送信ペイロード: {len(validated_embeds)}個の検証済み埋め込み")
 
-            # JSON serialization の事前確認（"embeds": ["0"]エラー防止）
+            # 🚨 CRITICAL FIX: JSON serialization の事前確認強化（"embeds": ["0"]エラー防止）
             try:
                 import json
 
+                # embedsの詳細構造チェック
+                embeds_debug_info = []
+                for i, embed in enumerate(payload.get("embeds", [])):
+                    embed_info = {
+                        "index": i,
+                        "type": type(embed).__name__,
+                        "is_dict": isinstance(embed, dict),
+                        "has_title": "title" in embed if isinstance(embed, dict) else False,
+                        "title": (
+                            embed.get("title", "N/A")[:50]
+                            if isinstance(embed, dict)
+                            else str(embed)[:50]
+                        ),
+                    }
+                    embeds_debug_info.append(embed_info)
+
+                self.logger.debug(f"🔍 embeds詳細構造: {embeds_debug_info}")
+
                 json_payload = json.dumps(payload)
                 self.logger.debug(f"🔍 JSON serialization確認: {len(json_payload)}文字")
+
+                # JSONの最初の500文字をデバッグ出力
+                self.logger.debug(f"🔍 JSON内容サンプル: {json_payload[:500]}...")
+
                 # デバッグ: 実際の送信ペイロード概要をログ出力（無限再帰防止）
                 payload_debug = {
                     "embeds_count": len(payload.get("embeds", [])),
                     "total_chars": len(json_payload),
                     "username": payload.get("username"),
+                    "embeds_types": [type(e).__name__ for e in payload.get("embeds", [])],
                 }
                 self.logger.debug(f"🔍 送信ペイロード概要: {payload_debug}")
             except (TypeError, ValueError) as json_err:

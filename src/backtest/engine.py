@@ -162,7 +162,7 @@ class BacktestEngine:
         start_date: datetime,
         end_date: datetime,
         symbol: str = "BTC/JPY",
-        timeframes: List[str] = ["15m", "1h", "4h"],
+        timeframes: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         バックテスト実行
@@ -176,6 +176,9 @@ class BacktestEngine:
         Returns:
             バックテスト結果辞書.
         """
+        if timeframes is None:
+            timeframes = ["15m", "1h", "4h"]
+
         self.logger.info(f"バックテスト開始: {start_date} - {end_date}")
 
         try:

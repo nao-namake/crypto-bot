@@ -155,7 +155,7 @@ class MLServiceAdapter:
 
             if len(individual_models) > 0:
                 # ProductionEnsembleを再構築
-                from ..ml.production.ensemble import ProductionEnsemble
+                from ..ml.ensemble.production_ensemble import ProductionEnsemble
 
                 self.model = ProductionEnsemble(individual_models)
                 self.model_type = "ReconstructedEnsemble"

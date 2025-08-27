@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from src.ml.production.ensemble import ProductionEnsemble
+from src.ml.ensemble.production_ensemble import ProductionEnsemble
 
 
 class TestProductionEnsemble:

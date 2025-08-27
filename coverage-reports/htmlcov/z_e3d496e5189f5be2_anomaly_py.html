@@ -4,7 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Coverage for src/features/anomaly.py: 36.11%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
-    <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
+    <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
 </head>
 <body class="pyfile">
@@ -64,8 +64,8 @@
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_e3d496e5189f5be2_technical_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-08-24 19:55 +0900
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
+            created at 2025-08-27 13:01 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -181,10 +181,10 @@
     <p class="pln"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">            <span class="com"># &#37325;&#12415;&#20184;&#12369;&#21512;&#25104;&#65288;&#20385;&#26684;&#22793;&#21205;&#37325;&#35222;&#65289;</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">            <span class="nam">market_stress</span> <span class="op">=</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">                <span class="num">0.4</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">price_gap</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">                <span class="op">+</span> <span class="num">0.3</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">intraday_range</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">                <span class="op">+</span> <span class="num">0.3</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">volume_spike</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">                <span class="num">0.4</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">price_gap</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">                <span class="op">+</span> <span class="num">0.3</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">intraday_range</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">                <span class="op">+</span> <span class="num">0.3</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_normalize</span><span class="op">(</span><span class="nam">volume_spike</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">            <span class="key">return</span> <span class="nam">market_stress</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -233,15 +233,15 @@
     <p class="run"><span class="n"><a id="t151" href="#t151">151</a></span><span class="t">    <span class="key">def</span> <span class="nam">get_feature_info</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">Any</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t152" href="#t152">152</a></span><span class="t">        <span class="str">"""&#29305;&#24500;&#37327;&#24773;&#22577;&#21462;&#24471;."""</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t153" href="#t153">153</a></span><span class="t">        <span class="key">return</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">            <span class="str">"total_features"</span><span class="op">:</span> <span class="nam">len</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">computed_features</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">            <span class="str">"computed_features"</span><span class="op">:</span> <span class="nam">sorted</span><span class="op">(</span><span class="nam">list</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">computed_features</span><span class="op">)</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t">            <span class="str">"parameters"</span><span class="op">:</span> <span class="op">{</span><span class="str">"lookback_period"</span><span class="op">:</span> <span class="nam">self</span><span class="op">.</span><span class="nam">lookback_period</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">            <span class="str">"feature_descriptions"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">                <span class="str">"zscore"</span><span class="op">:</span> <span class="str">"&#20385;&#26684;Z-Score&#65288;&#27161;&#28310;&#21270;&#20385;&#26684;&#20301;&#32622;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">                <span class="str">"volume_ratio"</span><span class="op">:</span> <span class="str">"&#20986;&#26469;&#39640;&#27604;&#29575;&#65288;&#24179;&#22343;&#20986;&#26469;&#39640;&#23550;&#27604;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">                <span class="str">"market_stress"</span><span class="op">:</span> <span class="str">"&#24066;&#22580;&#12473;&#12488;&#12524;&#12473;&#24230;&#65288;&#35079;&#21512;&#25351;&#27161;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">            <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t154" href="#t154">154</a></span><span class="t">            <span class="str">"total_features"</span><span class="op">:</span> <span class="nam">len</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">computed_features</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t155" href="#t155">155</a></span><span class="t">            <span class="str">"computed_features"</span><span class="op">:</span> <span class="nam">sorted</span><span class="op">(</span><span class="nam">list</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">computed_features</span><span class="op">)</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t">            <span class="str">"parameters"</span><span class="op">:</span> <span class="op">{</span><span class="str">"lookback_period"</span><span class="op">:</span> <span class="nam">self</span><span class="op">.</span><span class="nam">lookback_period</span><span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">            <span class="str">"feature_descriptions"</span><span class="op">:</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">                <span class="str">"zscore"</span><span class="op">:</span> <span class="str">"&#20385;&#26684;Z-Score&#65288;&#27161;&#28310;&#21270;&#20385;&#26684;&#20301;&#32622;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">                <span class="str">"volume_ratio"</span><span class="op">:</span> <span class="str">"&#20986;&#26469;&#39640;&#27604;&#29575;&#65288;&#24179;&#22343;&#20986;&#26469;&#39640;&#23550;&#27604;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">                <span class="str">"market_stress"</span><span class="op">:</span> <span class="str">"&#24066;&#22580;&#12473;&#12488;&#12524;&#12473;&#24230;&#65288;&#35079;&#21512;&#25351;&#27161;&#65289;"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">            <span class="op">}</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -250,8 +250,8 @@
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_e3d496e5189f5be2_technical_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
-            <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-08-24 19:55 +0900
+            <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
+            created at 2025-08-27 13:01 +0900
         </p>
     </div>
 </footer>

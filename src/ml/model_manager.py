@@ -373,7 +373,7 @@ class ModelManager:
             total_size = 0
             model_count = 0
 
-            for version_name, metadata in self.metadata.items():
+            for _version_name, metadata in self.metadata.items():
                 version_path = Path(metadata["file_path"])
                 if version_path.exists():
                     for file_path in version_path.rglob("*"):

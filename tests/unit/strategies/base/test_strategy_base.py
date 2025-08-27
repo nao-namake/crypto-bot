@@ -13,8 +13,26 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.core.config import load_config
 from src.core.exceptions import CryptoBotError
 from src.strategies.base.strategy_base import StrategyBase, StrategySignal
+
+
+@pytest.fixture(scope="session", autouse=True)
+def init_config():
+    """テスト用設定初期化"""
+    try:
+        load_config("config/core/base.yaml")
+    except Exception:
+        # テスト環境で設定ファイルが見つからない場合はダミー設定
+        from src.core.config import config_manager
+
+        config_manager._config = {
+            "system": {"name": "crypto_bot", "version": "1.0.0"},
+            "exchange": {"name": "bitbank", "trading": {"enabled": False}},
+            "discord": {"notifications": {"enabled": False}},
+            "logging": {"level": "INFO", "file": "/tmp/test.log"},
+        }
 
 
 class ConcreteStrategy(StrategyBase):

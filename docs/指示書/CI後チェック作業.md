@@ -222,6 +222,86 @@ TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND reso
 
 ---
 
+## 🔍 9.5. 隠れたエラー連鎖パターン検出（今回追加・重要）
+
+### ✅ IntegratedRiskManager引数エラー確認（新発見エラー）
+```bash
+# ⚠️ IntegratedRiskManager引数不足エラー確認（今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"IntegratedRiskManager.evaluate_trade_opportunity() missing" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=10 --project=my-crypto-bot-project
+
+# 引数不足の詳細エラーメッセージ確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"missing 3 required positional arguments" OR textPayload:"current_balance" OR textPayload:"bid" OR textPayload:"ask") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=15 --project=my-crypto-bot-project
+
+# 取引サイクルエラー発生頻度確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"取引サイクルエラー" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=10 --project=my-crypto-bot-project
+```
+
+### ✅ Discord通知embed構造エラー確認（継続問題）
+```bash
+# ⚠️ Discord embed構造エラー確認（今回見逃し防止）
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"Discord通知送信失敗" OR textPayload:"400") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=20 --project=my-crypto-bot-project
+
+# 不正embed構造「["0"]」パターン確認
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"{\"embeds\": [\"0\"]}" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=15 --project=my-crypto-bot-project
+
+# Discord通知成功・失敗比率確認
+echo "Discord通知成功件数:"
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"Discord送信成功" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=20 --project=my-crypto-bot-project | wc -l
+echo "Discord通知失敗件数:"
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"Discord通知送信失敗" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=20 --project=my-crypto-bot-project | wc -l
+```
+
+### ✅ エラー連鎖パターン分析（新発見・重要）
+```bash
+# ⚠️ エラー連鎖タイミング分析（今回見逃し防止）
+echo "=== エラー連鎖パターン確認 ==="
+echo "1. 取引サイクルエラー発生："
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"取引サイクルエラー" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)" --project=my-crypto-bot-project
+
+echo -e "\n2. 直後のサイクルエラー記録："
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"サイクルエラー記録" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)" --project=my-crypto-bot-project
+
+echo -e "\n3. 連鎖するDiscord通知エラー："
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"Discord通知送信失敗" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-30m")' --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)" --project=my-crypto-bot-project
+
+# 連鎖間隔確認（通常1-3分以内で連鎖発生）
+echo -e "\n⚠️ エラー連鎖が7-8分間隔で定期発生している場合は根本的問題"
+```
+
+### ✅ 取引実行阻害要因確認（新発見・クリティカル）
+```bash
+# ⚠️ 取引実行が実際に阻害されているか確認（今回見逃し防止）
+echo "=== 取引実行阻害状況確認 ==="
+echo "1. ML予測成功後の取引評価失敗確認："
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"ML予測成功" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h"))' --limit=5 --project=my-crypto-bot-project
+
+echo -e "\n2. 同時刻帯のリスク評価エラー："
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND textPayload:"IntegratedRiskManager" AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-1h")' --limit=5 --project=my-crypto-bot-project
+
+echo -e "\n3. 実際のBUY/SELL実行確認（期待：定期的な実行）:"
+TZ='Asia/Tokyo' gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="crypto-bot-service-prod" AND (textPayload:"注文実行" OR textPayload:"取引実行") AND timestamp>=date("%Y-%m-%d %H:%M:%S", "-2h")' --limit=5 --project=my-crypto-bot-project
+```
+
+### 🎯 隠れたエラー検出確認ポイント（今回追加）
+- [ ] **🚨 IntegratedRiskManager引数エラー**: 取引実行を完全阻害する重要エラー
+- [ ] **🚨 Discord embed構造エラー**: 監視・通知機能停止の原因
+- [ ] **🚨 エラー連鎖パターン**: 1つのエラーが複数の障害を引き起こす連鎖反応
+- [ ] **🚨 表面稼働vs実機能停止**: システム稼働中でも核心機能が停止している状況
+- [ ] **🚨 定期エラー発生**: 7-8分間隔の定期エラーは根本的設計問題
+
+### 📋 隠れたエラー発見時の対応（今回追加）
+1. **IntegratedRiskManager引数エラー**: 
+   - 即座にorchestrator.pyのevaluate_trade_opportunity呼び出し修正
+   - ticker情報・残高取得処理の追加
+2. **Discord embed構造エラー**:
+   - discord.py内のembed生成処理の根本修正
+   - logger.pyのDiscord通知呼び出し処理確認
+3. **エラー連鎖対策**:
+   - 各エラーの独立性確保・互いに影響しない設計
+   - 通知エラーが取引実行に影響しない分離
+
+---
+
 ## 🎯 9. 総合判定・次回アクション
 
 ### ✅ 最終チェックリスト

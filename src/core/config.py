@@ -159,16 +159,16 @@ class Config:
     def load_from_file(cls, config_path: str, cmdline_mode: Optional[str] = None) -> "Config":
         """
         YAMLファイルから設定を読み込み（モード設定一元化・3層優先順位）
-        
+
         モード設定の優先順位:
         1. コマンドライン引数（最優先）
         2. 環境変数 MODE
         3. YAMLファイル（デフォルト）
-        
+
         Args:
             config_path: 設定ファイルパス
             cmdline_mode: コマンドライン引数で指定されたモード（main.pyから渡される）
-            
+
         Returns:
             設定済みConfigオブジェクト
         """
@@ -181,20 +181,20 @@ class Config:
 
         # 🎯 モード設定一元化: 3層優先順位の実装
         mode = "paper"  # デフォルト
-        
+
         # レイヤー3: YAMLファイル（最低優先）
         if "mode" in config_data and config_data["mode"]:
             mode = config_data["mode"]
-            
+
         # レイヤー2: 環境変数（中優先）
         env_mode = os.getenv("MODE")
         if env_mode:
             mode = env_mode.lower()
-            
+
         # レイヤー1: コマンドライン引数（最優先）
         if cmdline_mode:
             mode = cmdline_mode.lower()
-            
+
         # モード検証
         valid_modes = ["paper", "live", "backtest"]
         if mode not in valid_modes:

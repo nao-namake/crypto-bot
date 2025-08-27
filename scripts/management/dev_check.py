@@ -840,7 +840,7 @@ except Exception as e:
             try:
                 with urllib.request.urlopen(f"{service_url}/health", timeout=10) as response:
                     return 0 if response.status == 200 else 1
-            except:
+            except (urllib.error.URLError, OSError):
                 return 1
 
         return 1
@@ -1026,7 +1026,7 @@ except Exception as e:
         return content
 
     def _generate_data_check_details(self, details: Dict) -> str:
-        """Data check詳細レポート生成"""
+        """Generate detailed data check report"""
         content = "### データ層動作確認結果\n\n"
 
         if details and "components" in details:

@@ -132,7 +132,7 @@ class CryptoBotLogger:
         try:
             config = get_config()
             logging_config = config.logging
-        except:
+        except (ImportError, AttributeError, FileNotFoundError, KeyError):
             # 設定が読み込まれていない場合のデフォルト
             logging_config = type(
                 "obj",

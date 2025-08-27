@@ -1,189 +1,176 @@
-# coverage-reports/ - テストカバレッジレポートディレクトリ
+# coverage-reports/ - テストカバレッジレポート管理
 
-**Phase 13対応**: テストカバレッジ分析・品質保証・CI/CD品質チェック統合・306テスト100%成功対応のカバレッジレポート管理
+**Phase 13完了**: フォルダ構造最適化・品質保証統合・CI/CD完全自動化により、継続的品質改善システムが確立
 
-## 📁 ディレクトリ構造
+## 🎯 役割・責任
+
+テストカバレッジの測定・分析・継続的改善を担当します。src/全モジュールの品質可視化により、テスト漏れ防止・コード品質向上・安全なリファクタリングを支援し、Phase 13の306テスト100%成功基盤を維持します。
+
+## 📂 ファイル構成
 
 ```
 coverage-reports/
-├── README.md           # このファイル
-├── .coverage          # カバレッジデータ（自動生成）
-└── htmlcov/           # HTMLカバレッジレポート（自動生成）
-    ├── index.html     # メインカバレッジレポート
-    ├── *.html         # 各モジュール詳細レポート
-    ├── *.css          # スタイルファイル
-    └── *.js           # インタラクティブ機能
+├── README.md           # このファイル（Phase 13完了版）
+└── htmlcov/           # HTMLカバレッジレポート（最新：8/25更新）
+    ├── index.html     # メインカバレッジダッシュボード
+    ├── status.json    # カバレッジメタデータ・統計
+    ├── class_index.html    # クラス別カバレッジ
+    ├── function_index.html # 関数別カバレッジ
+    ├── *.css, *.js    # UI/UX・インタラクティブ機能
+    └── z_*.html       # 各モジュール詳細レポート（48ファイル）
 ```
 
-## 🎯 役割・目的
+## 🔧 主要機能・実装
 
-### **テストカバレッジ管理（Phase 13完了）**
-- **目的**: src/配下のコード品質・テストカバレッジ可視化・品質保証統合
-- **範囲**: 全Python テストファイル・ユニットテスト・統合テスト・回帰テスト
-- **効果**: 品質保証・テスト漏れ防止・コード品質向上・CI/CD統合
+### **カバレッジ測定システム（Phase 13最新版）**
 
-### **Phase 13完了成果**
-- **306テスト100%成功**: 品質保証完全統合・回帰防止体制確立
-- **コードカバレッジ**: 58.88%（継続改善中）
-- **品質保証統合**: CI/CD・GitHub Actions・自動品質チェック連携
+**現在の品質状況**:
+- **全体カバレッジ**: 55.04% (3,110/5,650行)
+- **テスト対象ファイル**: 48モジュール（src/全域）
+- **高品質モジュール**: 15ファイル（90%以上）
+- **改善対象モジュール**: 17ファイル（70%未満）
 
-## 🔧 使用方法
+**モジュール別カバレッジ分析**:
+```python
+# 高カバレッジ（90%以上・品質優秀）
+- src/ml/production/ensemble.py: 100%（sklearn警告解消完了）
+- src/strategies/base/strategy_manager.py: 97.3%
+- src/ml/ensemble/voting.py: 93.0%
+- src/strategies/utils/signal_builder.py: 89.6%
 
-### **カバレッジレポート生成**
+# 中カバレッジ（70-89%・継続改善）
+- src/trading/anomaly_detector.py: 87.2%
+- src/ml/model_manager.py: 87.0%
+- src/strategies/implementations/multi_timeframe.py: 85.7%
+
+# 要改善（70%未満・優先対応）
+- src/backtest/data_loader.py: 14.0%
+- src/backtest/engine.py: 25.6%
+- src/data/bitbank_client.py: 17.8%
+```
+
+### **CI/CD品質ゲート統合**
+
+**GitHub Actions自動実行**:
+- 全テスト実行時のカバレッジ自動測定
+- HTML レポート自動生成・更新
+- 品質低下時の自動アラート
+
+## 📝 使用方法・例
+
+### **基本的なカバレッジ測定**
+
+**全体カバレッジ実行**:
 ```bash
-# 基本カバレッジ実行
-COVERAGE_FILE=coverage-reports/.coverage python3 -m pytest tests/ --cov=src --cov-report=html:coverage-reports/htmlcov --cov-report=term
+# 推奨：統合管理CLI経由
+python3 scripts/management/dev_check.py validate
 
-# 特定モジュールのカバレッジ
-COVERAGE_FILE=coverage-reports/.coverage python3 -m pytest tests/unit/ml/ --cov=src/ml --cov-report=html:coverage-reports/htmlcov
+# 直接実行
+python3 -m pytest tests/ --cov=src --cov-report=html:coverage-reports/htmlcov --cov-report=term
+```
 
-# カバレッジレポート閲覧
+**特定モジュールの詳細分析**:
+```bash
+# 低カバレッジモジュールの改善
+python3 -m pytest tests/unit/backtest/ --cov=src/backtest --cov-report=term -v
+
+# 高品質モジュールの維持確認  
+python3 -m pytest tests/unit/ml/ --cov=src/ml --cov-report=term -v
+```
+
+### **レポート閲覧・分析**
+
+**HTMLダッシュボード**:
+```bash
+# メインダッシュボード表示
 open coverage-reports/htmlcov/index.html
+
+# 統計データ確認
+cat coverage-reports/htmlcov/status.json | python3 -m json.tool
 ```
 
-### **CI/CD統合実行**
+**CI/CD自動実行確認**:
 ```bash
-# GitHub Actions経由（自動実行）
-git push origin main  # ci.ymlで自動カバレッジ実行
+# GitHub Actions経由（自動）
+git push origin main  # 自動カバレッジ測定・レポート更新
 
-# 品質チェック統合（手動実行）
-python scripts/management/dev_check.py validate --mode light
-```
-
-### **品質目標（Phase 13基準）**
-```yaml
-カバレッジ目標:
-  現在: 58.88%
-  短期目標: 70%（6ヶ月）
-  長期目標: 85%（12ヶ月）
-  最重要: 80%（本番稼働品質）
-
-重点モジュール:
-  - src/ml/: MLモデル品質管理・sklearn警告解消
-  - src/strategies/: 取引戦略・リスク管理
-  - src/trading/: 注文実行・リアルタイム処理
-  - src/core/: システム基盤・設定管理
-```
-
-## 📊 カバレッジ分析
-
-### **現在のカバレッジ状況（Phase 13）**
-
-#### **高カバレッジモジュール（✅ 優秀）**
-- `src/ml/production/ensemble.py`: 100% （sklearn警告解消完了）
-- `src/strategies/base/strategy_manager.py`: 97%
-- `src/ml/ensemble/voting.py`: 93%
-- `src/strategies/utils/signal_builder.py`: 90%
-
-#### **中カバレッジモジュール（📈 改善中）**
-- `src/strategies/implementations/mochipoy_alert.py`: 85%
-- `src/strategies/implementations/multi_timeframe.py`: 86%
-- `src/trading/anomaly_detector.py`: 87%
-- `src/ml/model_manager.py`: 87%
-
-#### **低カバレッジモジュール（🔴 要改善）**
-- `src/backtest/data_loader.py`: 14%
-- `src/backtest/engine.py`: 26%
-- `src/core/orchestrator.py`: 0%（除外設定あり）
-- `src/data/bitbank_client.py`: 21%
-
-### **改善優先度（Phase 13対応）**
-1. **最優先**: backtest/（バックテスト品質向上）
-2. **高優先**: data/（データ層品質向上）
-3. **中優先**: features/（特徴量エンジニアリング）
-4. **継続**: ml/・strategies/（高品質維持）
-
-## 🚨 管理ルール
-
-### **✅ 保持すべきファイル**
-- `htmlcov/`: 最新のHTMLレポート（ブラウザ閲覧用）
-- `.coverage`: 最新のカバレッジデータ（追加分析用）
-- `status.json`: カバレッジメタデータ（CI/CD連携用）
-
-### **🗑️ 削除対象ファイル**
-- **7日以上前のレポート**: 古いhtmlcov/フォルダ
-- **一時ファイル**: .coverage.tmp, .coverage.*（一時ファイル）
-- **重複データ**: 同じ日付の複数レポート
-
-### **🔄 自動管理（Phase 13統合）**
-```bash
-# 自動クリーンアップ（週1回実行推奨）
-find coverage-reports/ -name "htmlcov_*" -mtime +7 -exec rm -rf {} \; 2>/dev/null
-find coverage-reports/ -name ".coverage.*" -mtime +7 -delete 2>/dev/null
-
-# 最新レポート保持確認
+# 最新レポート確認
 ls -la coverage-reports/htmlcov/index.html
 ```
 
-## 📈 カバレッジ向上戦略
+## ⚠️ 注意事項・制約
 
-### **Phase 13品質保証統合アプローチ**
+### **カバレッジ測定の制約**
 
-#### **1. 段階的改善**
-```bash
-# Step 1: 低カバレッジモジュール特定
-grep -A5 "n_missing.*[5-9][0-9]" coverage-reports/htmlcov/status.json
+**測定対象**:
+- **対象**: src/全モジュール（48ファイル）
+- **除外**: tests/, scripts/, _legacy_v1/, config/
+- **特別扱い**: src/core/orchestrator.py（32行除外設定）
 
-# Step 2: 該当モジュールのテスト強化
-python3 -m pytest tests/unit/backtest/ --cov=src/backtest --cov-report=term
+**データ更新頻度**:
+- **自動更新**: GitHub Actions実行時
+- **手動更新**: pytest --cov実行時
+- **レポート世代**: htmlcov/内は最新のみ保持
 
-# Step 3: 新テスト追加・品質向上
-# tests/unit/backtest/test_*.py ファイル拡充
-```
+### **品質目標・運用制約**
 
-#### **2. CI/CD品質ゲート統合**
+**カバレッジ目標（Phase 13基準）**:
 ```yaml
-# .github/workflows/ci.yml 品質基準
-quality_gates:
-  minimum_coverage: 60%    # 現在: 58.88%
-  target_coverage: 70%     # 短期目標
-  critical_modules: 80%    # ml/, strategies/, trading/
+現在状況: 55.04% (3,110/5,650行)
+短期目標: 65% (6ヶ月以内・実現可能)
+中期目標: 75% (12ヶ月以内・品質向上)
+長期目標: 85% (18ヶ月以内・理想品質)
+
+重点改善エリア:
+- backtest/: 現在25% → 目標70%
+- data/: 現在35% → 目標80%
+- features/: 現在50% → 目標75%
 ```
 
-#### **3. 継続監視（Phase 13対応）**
-```bash
-# 定期実行（月1回）
-python3 -c "
-import json
-with open('coverage-reports/htmlcov/status.json') as f:
-    data = json.load(f)
-print(f'Overall Coverage: {data.get(\"totals\", {}).get(\"percent_covered\", 0):.1f}%')
-print('Phase 13 Quality Goal: 70%')
-"
+**運用上の制約**:
+- **レポートサイズ**: htmlcov/は約10MB（Git除外推奨）
+- **測定時間**: 全テスト実行で約30-60秒
+- **並列実行制限**: 大規模テスト時のリソース消費
+
+## 🔗 関連ファイル・依存関係
+
+### **重要な外部依存**
+
+**テスト実行システム**:
+- **`scripts/management/dev_check.py`**: 統合品質チェック・カバレッジ実行
+- **`.github/workflows/ci.yml`**: CI/CD自動カバレッジ測定
+- **`tests/`**: 全テストファイル（306テスト対応）
+- **`pytest.ini`** または **`pyproject.toml`**: pytest設定
+
+**品質保証統合**:
+- **`scripts/testing/checks.sh`**: 品質チェックスクリプト
+- **`src/`**: カバレッジ測定対象（48モジュール）
+- **GitHub Actions**: 自動品質ゲート・レポート更新
+
+### **生成されるレポートファイル**
+
+**HTMLレポート**:
+- **`htmlcov/index.html`**: メインダッシュボード（ブラウザ表示）
+- **`htmlcov/status.json`**: 統計メタデータ（自動化処理用）
+- **`htmlcov/z_*.html`**: 各モジュール詳細レポート（48ファイル）
+
+**データファイル**:
+- **`.coverage`**: バイナリカバレッジデータ（Python coverage内部）
+- **`class_index.html`**, **`function_index.html`**: 詳細分析ページ
+
+### **Phase 13統合システム**
+
+**統合管理CLI連携**:
+- dev_check.py経由での自動実行
+- 品質チェック統合・レポート保存
+- CI前後チェックシステム統合
+
+**品質保証フロー**:
 ```
-
-## 🔒 セキュリティ・プライバシー
-
-### **機密情報管理**
-- **✅ 安全**: ソースコード構造・テスト結果のみ
-- **❌ 含まない**: API キー・認証情報・個人データ
-- **🔒 注意**: 外部共有時はパス情報に注意
-
-### **Gitignore 管理**
-```gitignore
-# coverage-reports/ 内容
-coverage-reports/.coverage.*     # 一時ファイルは除外
-coverage-reports/htmlcov/       # HTMLレポートは除外（サイズ大）
-```
-
-## 🚀 Phase 13統合効果
-
-### **品質保証効果**
-```
-📊 テスト品質: 306テスト100%成功（Phase 13達成）
-🎯 カバレッジ監視: 自動化・CI/CD統合・品質ゲート
-🔄 継続改善: 月次レビュー・段階的向上・目標設定
-🏥 品質保証: 回帰防止・エラー検知・安定性向上
-```
-
-### **開発効率向上**
-```
-⚡ テスト効率: 可視化・優先順位・効果測定
-🔧 品質向上: 問題特定・改善計画・継続監視  
-📈 生産性: テスト漏れ防止・品質保証・安心開発
-💾 保守性: 構造理解・影響分析・安全なリファクタリング
+テスト実行 → カバレッジ測定 → HTMLレポート生成 → 
+品質評価 → CI/CDゲート → 継続改善サイクル
 ```
 
 ---
 
-**重要**: このディレクトリはテストカバレッジの品質保証に重要です。Phase 13の306テスト100%成功を基盤として、継続的な品質向上を目指してください。定期的なクリーンアップと分析により、コード品質の継続的改善を実現します。
+**重要**: Phase 13完了により、カバレッジ測定が品質保証システムに完全統合されました。現在の55.04%から段階的な向上により、安全で高品質なソフトウェア開発を支援します。定期的なレポート確認と改善により、継続的品質向上を実現してください。

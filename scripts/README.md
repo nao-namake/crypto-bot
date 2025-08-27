@@ -1,253 +1,136 @@
-# Scripts Directory
+# scripts/ - 運用スクリプト・ツール管理ディレクトリ
 
-運用スクリプト集（Phase 13統合完了）
+**Phase 13対応**: 機能別フォルダ構成・統合管理・開発支援・分析・デプロイメント自動化ツール集（2025年8月26日現在）
 
-**Phase 13完了**: sklearn警告解消・306テスト100%成功・品質保証完成・9フォルダ→5フォルダ統合・統合分析基盤・重複コード削除・最適化された機能別フォルダ構成（2025年8月22日）
-
-## 📂 フォルダ構成（Phase 13統合完了・9→5フォルダ統合）
+## 📂 ディレクトリ構成
 
 ```
 scripts/
-├── analytics/      # 統合分析基盤・データ収集・ダッシュボード [README.md]
-│   ├── base_analyzer.py             # 共通基盤クラス（500行重複コード削除達成）
+├── analytics/      # 統合分析・データ収集・ダッシュボード [詳細: README.md]
+│   ├── base_analyzer.py             # 共通基盤クラス・Cloud Run統合
+│   ├── data_collector.py            # 実データ収集・統計分析
 │   ├── performance_analyzer.py      # システムパフォーマンス分析
-│   ├── data_collector.py            # 実データ収集（旧trading_data_collector.py）
-│   └── dashboard.py                 # HTMLダッシュボード（旧trading_dashboard.py）
-├── management/     # 統合管理・開発支援系 [README.md]
-│   └── dev_check.py               # 統合管理CLI（665行・6機能統合・Phase 13対応）
-├── testing/        # 統合テスト・品質チェック系 [README.md]
-│   ├── checks.sh                   # 統合品質チェック（306テスト・sklearn警告解消）
-│   └── test_live_trading.py         # ライブトレードテスト（本番前検証）
-├── ml/            # 機械学習・モデル系 [README.md]
-│   └── create_ml_models.py         # MLモデル作成（12特徴量・アンサンブル統合）
-└── deployment/    # デプロイ・Docker系 [README.md]
-    ├── deploy_production.sh        # 本番デプロイ（GCP Cloud Run・段階的デプロイ）
-    └── docker-entrypoint.sh        # Docker統合エントリポイント
+│   └── dashboard.py                 # HTMLダッシュボード・可視化
+├── management/     # 統合管理・開発支援・監視 [詳細: README.md]
+│   ├── dev_check.py                 # 統合開発管理CLI（多機能）
+│   └── ops_monitor.py               # 運用監視・ヘルスチェック
+├── ml/            # 機械学習・モデル管理 [詳細: README.md]
+│   └── create_ml_models.py          # MLモデル作成・アンサンブル構築
+├── deployment/    # デプロイメント・インフラ [詳細: README.md]
+│   ├── deploy_production.sh         # GCP Cloud Run本番デプロイ
+│   ├── docker-entrypoint.sh         # Dockerエントリポイント
+│   ├── setup_ci_prerequisites.sh    # CI/CD前提条件セットアップ
+│   ├── setup_gcp_secrets.sh         # GCP Secret Manager設定
+│   └── verify_gcp_setup.sh          # GCP環境検証
+└── testing/       # テスト・品質保証 [詳細: README.md]
+    ├── checks.sh                    # 統合品質チェック
+    └── test_live_trading.py          # ライブトレード統合テスト
 ```
 
-## 🎯 推奨使用フロー（Phase 13統合対応）
+## 🎯 役割・責任
 
-### 日常開発・品質確認
+システム開発・運用・監視・デプロイメントに必要なスクリプト・ツールを機能別に整理・管理するディレクトリです。開発から本番運用まで一貫した自動化・品質保証・効率化を提供します。
+
+**主要機能**:
+- 統合開発管理・品質チェック自動化
+- データ分析・パフォーマンス監視・可視化
+- 機械学習モデル管理・自動学習
+- GCPデプロイメント・インフラ管理
+- テスト・品質保証・CI/CD統合
+
+## 📝 使用方法・例
+
+### **日常開発フロー**
 ```bash
-# 🚀 統合管理CLI（推奨・最も簡単）
-python scripts/management/dev_check.py full-check     # 6段階統合チェック
-python scripts/management/dev_check.py phase-check    # Phase実装状況確認
-python scripts/management/dev_check.py status         # システム状態確認
+# 開発状況確認
+python scripts/management/dev_check.py full-check
 
-# ⚡ 軽量品質チェック（高速確認・統合管理CLI経由推奨）
-python scripts/management/dev_check.py validate --mode light
+# 品質チェック
+python scripts/management/dev_check.py validate
 
-# 期待結果:
-# ✅ すべてのチェックに合格しました！
-# 🚀 Phase 13システム統合完了・306テスト100%成功・sklearn警告解消
+# MLモデル作成・更新
+python scripts/management/dev_check.py ml-models
 ```
 
-### MLモデル開発・管理
+### **分析・監視フロー**
 ```bash
-# 🤖 MLモデル管理（統合管理CLI経由・推奨）
-python scripts/management/dev_check.py ml-models      # モデル作成・検証
-python scripts/management/dev_check.py ml-models --dry-run  # ドライラン
+# データ収集・分析
+python scripts/analytics/data_collector.py --hours 24
 
-# 🔧 直接実行（詳細制御が必要な場合）
-python scripts/ml/create_ml_models.py --verbose         # 詳細ログ
-python scripts/ml/create_ml_models.py --days 360        # 学習期間指定
+# パフォーマンス分析
+python scripts/analytics/performance_analyzer.py
 
-# 期待結果:
-# 🤖 MLモデル作成成功！
-# - LightGBM: F1 score 0.952
-# - XGBoost: F1 score 0.997  
-# - RandomForest: F1 score 0.821
+# ダッシュボード生成
+python scripts/analytics/dashboard.py --discord
 ```
 
-### 本番デプロイ準備・実行
+### **デプロイメントフロー**
 ```bash
-# 📋 デプロイ前準備
-bash scripts/testing/checks.sh                          # 完全品質チェック
-python scripts/testing/test_live_trading.py --paper-trade  # ライブトレードテスト
+# デプロイ前チェック
+bash scripts/testing/checks.sh
 
-# 🚀 本番デプロイ実行（Phase 12 CI/CD統合）
-bash scripts/deployment/deploy_production.sh            # GCP Cloud Run デプロイ
+# 本番デプロイ
+bash scripts/deployment/deploy_production.sh
 
-# 📊 デプロイ後確認
-python scripts/management/dev_check.py status         # システム状態確認
-python scripts/management/dev_check.py health-check   # 本番環境ヘルスチェック
+# デプロイ後確認
+python scripts/management/ops_monitor.py
 ```
 
-## 🎯 機能別詳細ガイド
+## ⚠️ 注意事項・制約
 
-### 📁 management/ - 統合管理系
-**主要スクリプト**: `dev_check.py`（665行・6機能統合）
+### **実行環境の制約**
+1. **プロジェクトルート**: 必ず`/Users/nao/Desktop/bot`から実行
+2. **Python環境**: Python 3.8以上・必要なライブラリインストール済み
+3. **GCP認証**: 一部スクリプトでgcloud auth設定が必要
 
-**コア機能**:
-- **phase-check**: Phase実装状況確認（ディレクトリ・インポート・モデル・設定）
-- **validate**: 品質チェック（full/light・checks.sh実行・438テスト対応）
-- **ml-models**: MLモデル作成・検証（ドライラン対応・詳細ログ・メタデータ確認）
-- **data-check**: データ層基本確認（Pipeline・TechnicalIndicators・Config）
-- **full-check**: 6段階統合チェック（Phase→データ→品質→ML→完全→状態）
-- **status**: システム状態確認（コンポーネント・重要ファイル・手動テスト）
+### **権限・セキュリティ**
+1. **実行権限**: シェルスクリプトは実行権限必須（chmod +x）
+2. **API認証**: Bitbank API・Discord Webhook等の環境変数設定
+3. **GCP権限**: Cloud Run・Secret Manager・Artifact Registry権限
 
-**推奨用途**: 日常の統合管理・品質確認・システム状態把握
+### **リソース使用上の注意**
+1. **メモリ使用量**: 機械学習系スクリプトは200MB-2GB使用
+2. **実行時間**: 分析・MLモデル作成は数分～数十分要する場合あり
+3. **並列実行**: 同時実行は推奨されません（リソース競合防止）
 
-### 📁 testing/ - テスト・品質保証系
-**主要スクリプト**: `checks.sh`（完全版・Phase 12 CI/CD統合）
+## 🔗 関連ファイル・依存関係
 
-**checks.sh（完全版）**:
-- **対象**: flake8・isort・black・pytest・カバレッジ・CI/CD統合
-- **実行時間**: 2-5分
-- **用途**: デプロイ前・Phase完了時の完全品質保証・GitHub Actions統合
-- **Phase 12統合**: CI/CDパイプライン・段階的デプロイ・品質ゲート
+### **システム統合**
+- **`src/`**: 新システム実装・スクリプトから利用
+- **`config/`**: 設定ファイル・環境別設定
+- **`models/`**: 機械学習モデル・メタデータ管理
 
-**軽量品質チェック**:
-- **統合管理CLI経由推奨**: `python scripts/management/dev_check.py validate --mode light`
-- **対象**: 基本構造・インポート・438テスト・68.13%成功実績
-- **実行時間**: 30秒
-- **用途**: 日常開発・迅速な品質確認・CI/CD事前チェック
+### **出力・レポート**
+- **`logs/reports/`**: スクリプト実行結果・分析レポート
+- **`coverage-reports/`**: テストカバレッジ結果
+- **`logs/deployment/`**: デプロイ関連ログ
 
-**推奨用途**: 開発時の品質管理・デプロイ前チェック・CI/CD統合・継続的品質保証
+### **外部依存**
+- **GCP Cloud Run・Artifact Registry**: デプロイメント基盤
+- **Discord API**: 通知・レポート配信
+- **GitHub Actions**: CI/CD統合・自動実行
 
-### 📁 ml/ - 機械学習系
-**主要スクリプト**: `create_ml_models.py`（545行・包括的ML学習システム）
+### **🗑️ 不要スクリプト特定・削除提案**
 
-**機能詳細**:
-- **12特徴量最適化**: 97個→12個への極限削減・過学習防止
-- **3モデル学習**: LightGBM・XGBoost・RandomForest個別学習
-- **アンサンブル統合**: ProductionEnsemble・重み付け投票（0.4/0.4/0.2）
-- **本番対応**: models/production/・pickle対応・メタデータ管理
+現在のscripts/構成を分析した結果、以下の最適化提案があります：
 
-**推奨用途**: 定期的なモデル再学習・性能向上・本番モデル更新
+#### **重複機能・統合候補**
+1. **ops_monitor.py（91KB）**: dev_check.pyと機能重複の可能性
+   - 両方とも監視・ヘルスチェック機能を持つ
+   - **提案**: 機能統合またはops_monitor.pyの軽量化
 
-### 📁 deployment/ - デプロイ系
-**主要スクリプト**: `deploy_production.sh`・`docker-entrypoint.sh`
+#### **使用頻度・保守性の検討**
+1. **deployment/スクリプト群**: 5個のシェルスクリプト
+   - setup_ci_prerequisites.sh（25KB）
+   - verify_gcp_setup.sh（26KB）  
+   - setup_gcp_secrets.sh（13KB）
+   - **提案**: 実際の使用頻度確認・統合検討
 
-**deploy_production.sh**:
-- **機能**: GCP Cloud Run自動デプロイ・品質チェック統合
-- **安全性**: 段階的デプロイ・ロールバック機能・ヘルスチェック
-
-**docker-entrypoint.sh**:
-- **機能**: Docker統合エントリポイント・プロセス監視・グレースフルシャットダウン
-- **軽量性**: Ultra-lightweight・最小リソース使用
-
-**推奨用途**: 本番環境デプロイ・Docker環境構築・運用自動化
-
-### 📁 testing/ - テスト系
-**主要スクリプト**: `test_live_trading.py`
-
-**機能詳細**:
-- **エンドツーエンドテスト**: データ取得→特徴量→予測→リスク管理→注文
-- **パフォーマンステスト**: レイテンシー・メモリ使用量・処理時間測定
-- **異常系テスト**: ネットワーク断・APIエラー・例外処理検証
-- **安全性**: ペーパートレード・最小取引単位・リスク制限
-
-**推奨用途**: 本番前検証・性能測定・統合動作確認
-
-## 📊 Phase 12整理成果
-
-### 整理前後の比較
-```
-📂 整理前（Phase 9）:
-scripts/
-├── dev_check.py            # 665行・統合管理
-├── checks.sh              # 品質チェック  
-├── checks.sh         # 軽量品質チェック（削除済み）
-├── create_ml_models.py     # MLモデル作成
-├── deploy_production.sh    # 本番デプロイ
-├── docker-entrypoint.sh    # Docker統合
-├── test_live_trading.py    # ライブトレードテスト
-└── README.md              # Phase 9版
-
-📂 整理後（Phase 12）:
-scripts/
-├── management/    [README.md] # 統合管理系（2スクリプト・CI/CD統合）
-├── analytics/     [README.md] # 統合分析基盤（4スクリプト・Phase 13新設）
-├── ml/           [README.md] # 機械学習系（1スクリプト・監視統合）
-├── deployment/   [README.md] # デプロイ系（6スクリプト・段階的デプロイ）
-├── testing/      [README.md] # テスト・品質保証系（2スクリプト・CI/CD統合）
-└── README.md              # Phase 13版（本ファイル）
-```
-
-### Phase 12整理効果
-- **✅ CI/CD統合**: GitHub Actions・品質ゲート・自動デプロイ・段階的リリース
-- **✅ 監視システム統合**: 手動実行監視・ヘルスチェック・自動復旧・Discord通知
-- **✅ セキュリティ強化**: Workload Identity・Secret Manager・監査ログ・コンプライアンス
-- **✅ 運用効率化**: 軽量チェック統合管理CLI化・checks.sh削除・機能集約
-- **✅ 機能別分類**: 5カテゴリー・明確な責任分離・CI/CD対応
-- **✅ ドキュメント充実**: 6個README・包括的使用方法・Phase 12対応・トラブルシューティング
-
-## 🔧 トラブルシューティング
-
-### よくあるエラー
-
-**1. 統合管理CLI実行エラー**
-```bash
-❌ ModuleNotFoundError: No module named 'src'
-```
-**対処**: プロジェクトルートから実行
-```bash
-cd /Users/nao/Desktop/bot
-python scripts/management/dev_check.py phase-check
-```
-
-**2. 品質チェック失敗**
-```bash
-❌ テスト実行失敗
-```
-**対処**: 軽量モードで原因特定
-```bash
-python scripts/management/dev_check.py validate --mode light
-bash scripts/testing/checks.sh  # 完全チェック
-```
-
-**3. MLモデル作成失敗**
-```bash
-❌ 特徴量数不一致: 10 != 12
-```
-**対処**: データ確認・ドライラン実行
-```bash
-python scripts/management/dev_check.py data-check
-python scripts/management/dev_check.py ml-models --dry-run
-```
-
-**4. デプロイエラー**
-```bash
-❌ GCP認証エラー
-```
-**対処**: 認証確認・権限設定
-```bash
-gcloud auth list
-gcloud auth configure-docker asia-northeast1-docker.pkg.dev
-```
-
-## 📈 Performance & Usage
-
-### 実行時間目安
-- **統合管理CLI**: full-check 2-5分・phase-check 30秒・validate --mode light 30秒
-- **品質チェック**: checks.sh 2-5分（CI/CD統合）
-- **MLモデル作成**: 10-30分（データサイズ依存・監視統合）
-- **デプロイ**: 5-10分（Docker Build含む・段階的デプロイ）
-- **ライブトレードテスト**: 1-24時間（モード依存・CI/CD統合）
-
-### リソース使用量
-- **メモリ使用量**: 200MB-2GB（機能依存）
-- **ディスク使用量**: 一時ファイル100MB-1GB
-- **ネットワーク**: API通信・Docker Registry・GCP通信
-
-## 🔮 Future Enhancements
-
-Phase 12以降の拡張予定:
-- **scripts/monitoring/**: リアルタイム監視・アラート系スクリプト・手動実行監視拡張
-- **scripts/maintenance/**: 定期メンテナンス・クリーンアップ系・自動化運用
-- **scripts/analytics/**: 取引分析・レポート生成系・AI分析・パフォーマンス可視化
-- **scripts/backup/**: バックアップ・復旧系スクリプト・災害復旧・データ保護
-- **scripts/security/**: セキュリティ監査・脆弱性スキャン・コンプライアンス
-
-**Phase 12整理原則の継続**:
-- 機能別フォルダ分類の維持・CI/CD対応
-- フォルダごとREADME充実・監視統合対応
-- 統合管理CLIへの機能統合・ヘルスチェック・monitoring
-- トラブルシューティングガイド更新・セキュリティ対応
+#### **現状維持推奨**
+- すべてのスクリプトが最近更新されており活発に使用
+- 機能別分類が明確で保守性が高い
+- 削除よりも統合・最適化が適切
 
 ---
 
-**🎉 Phase 12完了成果**: *CI/CD統合・手動実行監視・セキュリティ強化・スクリプト機能別整理・統合管理システム・品質保証自動化・包括的ドキュメント化* 🚀
-
-**運用効率**: CI/CD統合・統合管理CLI・手動実行監視導入により、本番運用から緊急対応まで1コマンドで実行可能・運用効率大幅向上・無人運用対応
+**🎯 Phase 13対応完了**: 機能別フォルダ構成・統合管理・開発支援・分析・デプロイメント自動化による効率的なスクリプト管理環境を確立。開発から本番運用まで一貫した品質保証・自動化ツール集を実現。

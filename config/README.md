@@ -1,326 +1,158 @@
 # config/ - 設定管理ディレクトリ
 
-**Phase 13完了**: sklearn警告解消・306テスト100%成功・本番稼働開始・CI/CD品質保証完全統合・MLモデル品質管理の包括的設定管理システム完成。1万円実資金検証から本番運用まで、Phase 1-13全システム統合完了。
+**Phase 13完了**: モード設定一元化・セキュリティ強化・CI/CD完全自動化により、包括的設定管理システムが確立。ペーパートレード安全性から本番運用まで、3層優先制御による統合設定管理を実現。
 
-## 📁 ディレクトリ構成（整理完了）
+## 🎯 役割・責任
+
+システム全体の設定を一元管理し、開発環境から本番運用まで、安全性・保守性・運用効率性を重視した設定管理を担当します。Phase 13で確立されたモード設定一元化システムにより、シンプルで安全な環境制御を提供します。
+
+## 📁 ディレクトリ構成（Phase 13最終版）
 
 ```
 config/
-├── README.md                          # このファイル（メイン設定ガイド）
-├── .env.example                      # 環境変数テンプレート
+├── README.md                          # このファイル（Phase 13完了版）
+├── .env.example                      # 環境変数テンプレート（セキュア）
 │
-├── gcp/                              # 🔧 GCP CI/CD統合設定
-│   ├── README.md                     # GCP CI/CD設定ガイド
-│   └── gcp_config.yaml               # GCP統合設定（380行）
+├── core/                             # 🏗️ コア設定（基盤システム）
+│   ├── README.md                     # コア設定ガイド（Phase 13完了版）
+│   ├── base.yaml                     # 基本設定・モード一元化対応
+│   └── feature_order.json            # 特徴量定義（12個厳選版）
 │
-├── core/                             # 🏗️ コア設定・定義
-│   ├── README.md                     # コア設定ガイド
-│   ├── base.yaml                     # 全環境共通基本設定
-│   └── feature_order.json            # 特徴量定義（97→12個削減記録）
+├── production/                       # 🎯 本番運用設定（統合最適化）
+│   ├── README.md                    # 本番運用ガイド（Phase 13完了版）
+│   └── production.yaml              # 本番運用設定
 │
-├── environments/                     # 🎯 環境別設定（統合最適化）
-│   ├── paper/                       # ペーパートレード専用
-│   │   ├── README.md                # ペーパートレードガイド
-│   │   └── local.yaml               # ローカル開発設定
-│   │
-│   └── live/                        # 実取引設定（段階的統合）
-│       ├── README.md                # 実取引環境ガイド
-│       ├── testing.yaml             # 最小単位実取引テスト
-│       ├── validation.yaml          # 1万円実資金検証
-│       ├── stage_10.yaml            # 10%資金投入段階
-│       ├── stage_50.yaml            # 50%資金投入段階
-│       └── production.yaml          # 100%本番運用
-│
-└── infrastructure/                   # 🔧 インフラストラクチャ統合
-    ├── README.md                     # インフラガイド
-    ├── gcp_config.yaml               # GCP統合設定
+└── infrastructure/                   # 🔧 インフラストラクチャ
+    ├── README.md                     # インフラガイド（Phase 13完了版）
+    ├── gcp_config.yaml               # GCP統合設定（更新推奨）
     └── cloudbuild.yaml               # Cloud Build設定
 ```
 
-## 🎯 Phase 13完成システム成果
+**✅ 最適化完了（Phase 13統合）**:
+- `environments/` フォルダ廃止 → `production/` に統合（フォルダ階層最適化）
+- `paper/` 削除 → `base.yaml` のモード一元化で代替
+- `stage_*.yaml`, `testing.yaml`, `validation.yaml` 削除 → Phase 9レガシー除去
 
-### ✅ sklearn警告完全解消・MLモデル品質管理
-- **sklearn警告解消**: ProductionEnsemble・create_ml_models.py特徴量名対応・警告根絶完了
-- **306テスト100%成功**: 戦略層・ML層・取引層・バックテスト層・品質保証完全統合
-- **MLモデル品質管理**: 循環参照修正・本番用ensemble.pkl品質保証・F1スコア0.992達成
-- **本番稼働開始**: GCP Cloud Run・実Bitbank API・リアルタイム取引システム稼働
+## 🔧 主要機能・実装
 
-### ✅ CI/CD品質保証完全統合・運用強化
-- **GitHub Actions統合**: ci.yml・monitoring.yml完全統合・品質ゲート・自動デプロイ
-- **dev_check統合**: 統合管理CLI・6機能（phase-check/validate/ml-models/data-check/full-check/status）
-- **Workload Identity**: GCP統合認証・Secret Manager・トークン自動更新完了
-- **段階的デプロイ**: paper→stage-10→stage-50→live自動デプロイ・失敗時自動ロールバック
+### **モード設定一元化システム（Phase 13完成版）**
 
-### ✅ 実運用・収益対応・本番稼働
-- **本番稼働開始**: 実Bitbank API連携・リアルタイム取引システム・24時間稼働体制
-- **1万円実資金対応**: validation/ でBitbank 1万円を使った現実的検証・品質保証統合
-- **段階的リスク管理**: 1万円検証→10%→50%→100%の段階的拡大・MLモデル品質保証
-- **収益目標対応**: 月間17,000円収益・月額2,000円コストの現実的設定・本番運用実績
+**3層優先順位制御**:
+1. **コマンドライン引数**（最優先）: `--mode live`
+2. **環境変数**（中優先）: `MODE=live`
+3. **YAMLファイル**（デフォルト）: `mode: paper`（安全デフォルト）
 
-## 🔧 環境別設定概要
+**デフォルト安全設計**:
+- **config/core/base.yaml**: `mode: paper`で安全デフォルト
+- **config/production/production.yaml**: 明示的`mode: live`
+- **環境変数制御**: Cloud Runで自動`MODE=live`設定
 
-### 📂 gcp/ - GCP CI/CD統合設定
-**目的**: Google Cloud Platform全体のCI/CD設定一元管理
+### **セキュリティ強化システム**
 
-**内容**:
-- `gcp_config.yaml`: GCP統合設定（380行）・プロジェクト・IAM・Workload Identity・Secret Manager
+**API認証情報管理**:
+- **config/.env.example**: プレースホルダー形式（YOUR_BITBANK_API_KEY_HERE）
+- **環境変数**: `BITBANK_API_KEY`, `BITBANK_API_SECRET`
+- **GCP Secret Manager**: 本番運用での機密情報安全管理
 
-### 📂 core/ - コア設定
-**目的**: 全環境共通の基本定義
+**設定ファイル保護**:
+- **YAMLファイル**: API認証情報記載禁止
+- **環境変数優先**: 機密情報の設定ファイル除外
+- **テンプレート提供**: 安全な開発環境セットアップ支援
 
-**内容**:
-- `base.yaml`: システム基本設定・取引所設定・12個厳選特徴量定義
-- `feature_order.json`: Phase 3完了記録（97→12個/87.6%削減）
+## 📝 使用方法・例
 
-### 📂 development/ - 開発環境
-**目的**: 安全な開発・テスト環境
+### **基本的な設定利用**
 
-**内容**:
-- `local.yaml`: ペーパートレード・DEBUG ログ・最小リスク設定
-- `testing.yaml`: 実取引テスト・最小単位・緊急停止機能
-
-### 📂 validation/ - 検証環境
-**目的**: 1万円実資金での最終検証
-
-**特徴**:
-- **実資金**: Bitbank 1万円での検証
-- **保守的設定**: 0.5%リスク・最大800円損失
-- **現実的目標**: 7日間で500-2,000円利益（5-20%）
-
-### 📂 staging/ - 段階的デプロイメント
-**目的**: 段階的資金投入による安全な本番移行
-
-**内容**:
-- `stage_10percent.yaml`: 10%段階・保守的（14日間・勝率60%・利益5,000円目標）
-- `stage_50percent.yaml`: 50%段階・バランス型（21日間・勝率58%・利益12,000円目標）
-
-### 📂 production/ - 本番環境
-**目的**: 100%本番運用のみ（段階的設定は staging/ に分離）
-
-**内容**:
-- `production.yaml`: フル本番運用・月間17,000円収益目標
-
-### 📂 deployment/ - デプロイメント自動化
-**目的**: GCP Cloud Build実行設定・CI/CDパイプライン実行
-
-**内容**:
-- `cloudbuild.yaml`: Cloud Build設定・ビルド・テスト・デプロイ手順定義
-
-## 💰 1万円実資金から本番運用への道筋
-
-### Phase 13統合: 1万円検証（validation/）
+**ペーパートレード（開発・テスト）**:
 ```bash
-# Phase 13 sklearn警告解消・品質保証完全統合確認
-python scripts/management/dev_check.py full-check
-python scripts/management/dev_check.py validate --mode light
+# デフォルト（自動的にpaper）
+python3 main.py
 
-# 1万円実資金での検証
-python scripts/testing/test_live_trading.py --config config/environments/live/validation.yaml
+# 明示的にpaper指定
+python3 main.py --mode paper
 
-# 7日間目標
-# - 取引: 30回以上
-# - 勝率: 55%以上  
-# - 利益: 500円以上（5%）
-# - 損失上限: 800円（8%）
+# 環境変数での指定
+export MODE=paper && python3 main.py
 ```
 
-### Phase 13段階的拡大（staging/）
+**本番運用**:
 ```bash
-# CI/CD経由自動デプロイ（推奨）
-git push origin main  # GitHub Actions実行
+# 環境変数での本番指定（推奨）
+export MODE=live
+python3 main.py
 
-# 手動デプロイ（必要時）
-bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml  # 10%段階
-bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_50.yaml  # 50%段階
+# コマンドラインでの本番指定
+python3 main.py --mode live
 
-# 手動実行監視開始（手動実行）
-gh workflow run monitoring.yml --field check_type=full
+# 本番設定ファイル直接指定
+python3 main.py --config config/production/production.yaml
 ```
 
-### Phase 13完了: 本番運用（production/）
+### **CI/CDでの自動デプロイ**
 ```bash
-# CI/CD経由本番デプロイ（推奨）
-git push origin main  # 自動品質チェック→自動デプロイ
+# GitHub Actions自動デプロイ
+git push origin main  # 自動的にMODE=liveでデプロイ
 
-# 手動本番デプロイ（必要時）
-bash scripts/deployment/deploy_production.sh --config config/environments/live/production.yaml
-
-# dev_check統合確認
-python scripts/management/dev_check.py phase-check
-python scripts/management/dev_check.py data-check
+# デプロイ状況確認
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
 ```
 
-## 🔒 機密情報管理
-
-### 環境変数設定
-```bash
-# 1万円検証用
-export BITBANK_API_KEY="your_api_key"
-export BITBANK_API_SECRET="your_api_secret"
-export DISCORD_WEBHOOK_URL="your_webhook_url"
-
-# 設定確認
-python3 -c "
-import os
-print('✅ API Key:', 'Set' if os.getenv('BITBANK_API_KEY') else 'Not Set')
-print('✅ API Secret:', 'Set' if os.getenv('BITBANK_API_SECRET') else 'Not Set')
-print('✅ Discord:', 'Set' if os.getenv('DISCORD_WEBHOOK_URL') else 'Not Set')
-"
-```
-
-### GCP Secret Manager（本番用）
-```bash
-# 本番環境用シークレット作成
-echo 'your_api_key' | gcloud secrets create bitbank-api-key --data-file=-
-echo 'your_api_secret' | gcloud secrets create bitbank-api-secret --data-file=-
-echo 'your_webhook_url' | gcloud secrets create discord-webhook-url --data-file=-
-```
-
-## 📊 段階別パラメータ比較
-
-### リスク管理（資金比率別）
-| パラメータ | 1万円検証 | 10%段階 | 50%段階 | 100%本番 |
-|-----------|-----------|---------|---------|----------|
-| 資金用途 | 実資金検証 | 保守的投入 | バランス型 | フル投資 |
-| risk_per_trade | 0.5% | 0.5% | 0.8% | 1.0% |
-| max_drawdown | 8% | 10% | 15% | 20% |
-| daily_trade_limit | 20 | 10 | 15 | 25 |
-| max_order_size | 0.0003 | 0.0002 | 0.0005 | 0.001 |
-| emergency_stop | 500円 | 5% | 8% | 15% |
-
-### 収益目標
-| 段階 | 期間 | 取引数 | 勝率目標 | 利益目標 | 用途 |
-|------|------|--------|----------|----------|------|
-| 1万円検証 | 7日 | 30回 | 55% | 500円 | 動作確認 |
-| 10%段階 | 14日 | 50回 | 60% | 5,000円 | 保守的運用 |
-| 50%段階 | 21日 | 100回 | 58% | 12,000円 | バランス運用 |
-| 100%本番 | 30日 | 200回 | 55% | 17,000円 | フル運用 |
-
-## 🎯 設定の使用方法
-
-### Python での設定読み込み
+### **設定の確認・検証**
 ```python
-from src.core.config import Config
+from src.core.config import load_config
 
-# 環境別設定読み込み
-validation_config = Config.load_from_file('config/environments/live/validation.yaml')
-stage10_config = Config.load_from_file('config/environments/live/stage_10.yaml')
-production_config = Config.load_from_file('config/environments/live/production.yaml')
-
-# 設定検証
-configs = [validation_config, stage10_config, production_config]
-for i, config in enumerate(configs, 1):
-    assert config.validate(), f"Config {i} validation failed"
-    print(f'✅ Config {i}: risk={config.risk.risk_per_trade*100}%')
+# 設定読み込み・確認
+config = load_config('config/core/base.yaml')
+print(f"モード: {config.mode}")  # paper（デフォルト）
+print(f"信頼度閾値: {config.ml.confidence_threshold}")  # 0.35
 ```
 
-### 段階別デプロイメント
-```bash
-# 1. 1万円検証実行
-python scripts/testing/test_live_trading.py --mode continuous --duration 4 --config config/environments/live/validation.yaml
+## ⚠️ 注意事項・制約
 
-# 2. 検証成功後、段階的デプロイ
-bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml
+### **モード設定の重要事項**
+- **デフォルト安全**: 未指定時は自動的に`mode: paper`（仮想取引）
+- **本番運用注意**: `MODE=live`または`--mode live`指定時のみ実取引
+- **設定優先順位**: コマンドライン > 環境変数 > YAMLファイル
+- **確認必須**: 本番運用前の設定モード確認
 
-# 3. 段階成功後、次段階
-bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_50.yaml
+### **セキュリティ制約**
+- **API認証情報**: YAMLファイルへの記載禁止
+- **環境変数使用**: 機密情報は環境変数またはGCP Secret Manager管理
+- **config/.env.example**: プレースホルダー形式での安全なテンプレート提供
+- **設定分離**: 開発環境と本番環境の完全分離
 
-# 4. 最終本番デプロイ
-bash scripts/deployment/deploy_production.sh --config config/environments/live/production.yaml
-```
+### **運用制約**
+- **取引時間**: Bitbank営業時間内での運用
+- **API制限**: 適切なレート制限遵守
+- **リソース制限**: Cloud Runメモリ・CPU制約考慮
+- **コスト管理**: GCP料金・取引手数料の監視
 
-## 🔧 設定検証・テスト
+### **Phase 13での変更点**
+- **段階的デプロイ廃止**: stage_*.yaml, testing.yaml, validation.yaml不要化
+- **モード一元化**: 3層優先制御による単純化
+- **セキュリティ強化**: API認証情報の設定ファイル除外
+- **設定統合**: production.yamlへの機能集約・保守性向上
 
-### 全設定の一括検証
-```bash
-python3 -c "
-from src.core.config import Config
+## 🔗 関連ファイル・依存関係
 
-configs = [
-    'config/core/base.yaml',
-    'config/environments/paper/local.yaml',
-    'config/environments/live/testing.yaml',
-    'config/environments/live/validation.yaml',
-    'config/environments/live/stage_10.yaml',
-    'config/environments/live/stage_50.yaml',
-    'config/environments/live/production.yaml'
-]
+### **重要な外部依存**
+- **`src/core/config.py`**: モード設定一元化システム・設定読み込み
+- **`main.py`**: エントリーポイント・モード制御・コマンドライン処理
+- **`.github/workflows/ci.yml`**: CI/CD自動デプロイ・環境変数設定
+- **`scripts/management/dev_check.py`**: 設定検証・品質チェック
 
-print('=== 全設定検証結果 ===')
-for config_path in configs:
-    try:
-        config = Config.load_from_file(config_path)
-        if config.validate():
-            print(f'✅ {config_path}')
-        else:
-            print(f'❌ {config_path}')
-    except Exception as e:
-        print(f'🚫 {config_path}: {e}')
-"
-```
+### **GCP連携**
+- **Secret Manager**: `bitbank-api-key`, `bitbank-api-secret`, `discord-webhook-url`
+- **Cloud Run**: `crypto-bot-service-prod`本番サービス
+- **Workload Identity**: GitHub Actions自動認証
+- **Cloud Logging**: 設定・デプロイログ監視
 
-## 🚨 運用時注意事項
-
-### 1万円検証時の注意
-- **資金確認**: Bitbank残高10,000円以上
-- **小額取引**: 0.0001-0.0003 BTC範囲厳守
-- **損失制限**: 500円損失で即座に停止
-- **記録重視**: 全取引の詳細記録・分析
-
-### 段階移行の判断基準
-1. **検証→10%**: 勝率55%・利益500円・エラーなし
-2. **10%→50%**: 勝率60%・利益5,000円・安定運用14日
-3. **50%→100%**: 勝率58%・利益12,000円・安定運用21日
-
-### 緊急時対応
-```bash
-# 即座停止（全段階共通）
-gcloud run services update SERVICE_NAME --min-instances=0 --max-instances=0 --region=asia-northeast1
-
-# 段階ダウングレード
-bash scripts/deployment/deploy_production.sh --config config/environments/live/stage_10.yaml  # 50%→10%
-```
-
-## 📈 成功の道筋
-
-### 短期目標（1ヶ月）
-- ✅ 1万円検証成功（7日間・500円利益）
-- ✅ 10%段階運用開始（保守的設定）
-- ✅ 安定した収益確認
-
-### 中期目標（3ヶ月）
-- ✅ 50%段階移行・バランス運用
-- ✅ 月間10,000円以上安定収益
-- ✅ システム信頼性確立
-
-### 長期目標（6ヶ月-1年）
-- ✅ 100%本番運用・月間17,000円収益達成
-- ✅ 年間180,000円純利益達成
-- ✅ 完全自動運用システム確立
+### **設定システム統合**
+- **config/core/base.yaml**: 全環境共通基本設定・デフォルト値
+- **config/production/**: 本番運用設定
+- **config/infrastructure/**: GCPインフラ・CI/CD設定
+- **config/.env.example**: 環境変数テンプレート
 
 ---
 
----
-
-## 📊 Phase 13完成統計
-
-### **統合システム実績**
-```
-🎯 sklearn警告完全解消: ProductionEnsemble・create_ml_models.py特徴量名対応・警告根絶
-📊 306テスト100%成功: 戦略層・ML層・取引層・バックテスト層・品質保証完全統合
-🚀 本番稼働開始: GCP Cloud Run・実Bitbank API・リアルタイム取引システム24時間稼働
-🤖 CI/CD品質保証統合: GitHub Actions・自動デプロイ・品質ゲート・MLモデル品質管理
-🔒 セキュリティ強化: Workload Identity・Secret Manager・自動認証・本番運用対応
-📁 設定管理完成: 8環境×包括的README・Phase 13対応完了・deployment統合
-```
-
-### **運用効率向上効果**
-```
-⚡ 開発効率: 85%向上（CI/CD最適化・統合チェック・ワークフロー統合）
-🔧 デプロイ効率: 95%向上（手動→自動・段階的デプロイ・重複削除）
-📈 品質安定性: 68.13%カバレッジ（450テスト・継続的品質保証）
-💾 運用コスト: 40%削減（リソース最適化・ワークフロー統合）
-🎯 監視効率: 98%向上（手動実行・dev_check統合・効率化）
-```
-
-**Phase 13完了**: sklearn警告解消・306テスト100%成功・本番稼働開始により、1万円実資金から月間17,000円収益まで、CI/CD品質保証完全統合・MLモデル品質管理・リアルタイム取引システムを完備した最適化設定管理システムが完成しました。
+**重要**: Phase 13完了により、段階的デプロイメントからモード設定一元化への移行が完了しました。3層優先制御（CLI > 環境変数 > YAML）による安全で効率的な設定管理システムを提供し、ペーパートレードから本番運用まで一貫した設定体験を実現しています。

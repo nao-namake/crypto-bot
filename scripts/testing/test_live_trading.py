@@ -32,11 +32,7 @@ try:
     from src.core.logger import setup_logging
     from src.data.bitbank_client import BitbankClient
     from src.trading.executor import ExecutionMode, OrderExecutor
-    from src.trading.risk import (
-        IntegratedRiskManager,
-        RiskDecision,
-        TradeEvaluation,
-    )
+    from src.trading.risk import IntegratedRiskManager, RiskDecision, TradeEvaluation
 except ImportError as e:
     print(f"❌ 必要なモジュールのインポートに失敗: {e}")
     print("プロジェクトルートから実行してください。")
@@ -46,7 +42,7 @@ except ImportError as e:
 class LiveTradingTester:
     """実取引テスト実行クラス."""
 
-    def __init__(self, config_path: str = "config/environments/live/production.yaml"):
+    def __init__(self, config_path: str = "config/production/production.yaml"):
         """初期化."""
         self.config = load_config(config_path)
         self.logger = setup_logging("live_trading_test")
@@ -375,8 +371,8 @@ async def main():
     )
     parser.add_argument(
         "--config",
-        default="config/environments/live/production.yaml",
-        help="設定ファイル (default: config/environments/live/production.yaml)",
+        default="config/production/production.yaml",
+        help="設定ファイル (default: config/production/production.yaml)",
     )
 
     args = parser.parse_args()

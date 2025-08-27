@@ -880,15 +880,9 @@ async def create_trading_orchestrator(
     from ..monitoring.discord import setup_discord_notifier
     from ..strategies.base.strategy_manager import StrategyManager
     from ..strategies.implementations.atr_based import ATRBasedStrategy
-    from ..strategies.implementations.fibonacci_retracement import (
-        FibonacciRetracementStrategy,
-    )
-    from ..strategies.implementations.mochipoy_alert import (
-        MochipoyAlertStrategy,
-    )
-    from ..strategies.implementations.multi_timeframe import (
-        MultiTimeframeStrategy,
-    )
+    from ..strategies.implementations.fibonacci_retracement import FibonacciRetracementStrategy
+    from ..strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
+    from ..strategies.implementations.multi_timeframe import MultiTimeframeStrategy
     from ..trading import DEFAULT_RISK_CONFIG, create_risk_manager
 
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")

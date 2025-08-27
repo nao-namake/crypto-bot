@@ -99,7 +99,7 @@ class TestRFModel:
         # fitは例外を投げるため、try-except で確認
         try:
             rf_model.fit(invalid_features, targets)
-            assert False, "Expected exception for invalid features"
+            raise AssertionError("Expected exception for invalid features")
         except Exception:
             assert rf_model.is_fitted is False
         assert rf_model.is_fitted is False
@@ -111,7 +111,7 @@ class TestRFModel:
         # fitは例外を投げるため、try-except で確認
         try:
             rf_model.fit(sample_features, invalid_targets)
-            assert False, "Expected exception for mismatched shapes"
+            raise AssertionError("Expected exception for mismatched shapes")
         except Exception:
             assert rf_model.is_fitted is False
         assert rf_model.is_fitted is False
@@ -126,7 +126,7 @@ class TestRFModel:
         # NaN値を含むデータでは例外が発生する
         try:
             rf_model.fit(features_with_nan, targets)
-            assert False, "Expected exception for NaN values"
+            raise AssertionError("Expected exception for NaN values")
         except Exception:
             assert rf_model.is_fitted is False
         assert rf_model.is_fitted is False
@@ -158,7 +158,7 @@ class TestRFModel:
         # 学習前の予測は例外を発生させる
         try:
             rf_model.predict(sample_features.iloc[:10])
-            assert False, "Expected ValueError for unfitted model"
+            raise AssertionError("Expected ValueError for unfitted model")
         except ValueError as e:
             assert "is not fitted" in str(e)
 
@@ -203,7 +203,7 @@ class TestRFModel:
         # 学習前のpredict_probaは例外を発生させる
         try:
             rf_model.predict_proba(sample_features.iloc[:5])
-            assert False, "Expected ValueError for unfitted model"
+            raise AssertionError("Expected ValueError for unfitted model")
         except ValueError as e:
             assert "is not fitted" in str(e)
 
@@ -249,7 +249,7 @@ class TestRFModel:
         # データ不足では学習時に例外が発生する
         try:
             rf_model.fit(small_features, small_targets)
-            assert False, "Expected exception for insufficient data"
+            raise AssertionError("Expected exception for insufficient data")
         except Exception:
             assert not rf_model.is_fitted
 
@@ -294,7 +294,7 @@ class TestRFModel:
         with patch("joblib.load", side_effect=FileNotFoundError()):
             try:
                 rf_model.__class__.load("/tmp/nonexistent.pkl")
-                assert False, "Expected DataProcessingError"
+                raise AssertionError("Expected DataProcessingError")
             except Exception:
                 # 例外が発生することを確認
                 pass
@@ -304,7 +304,7 @@ class TestRFModel:
         with patch("joblib.load", side_effect=Exception("Invalid format")):
             try:
                 rf_model.__class__.load("/tmp/invalid.pkl")
-                assert False, "Expected DataProcessingError"
+                raise AssertionError("Expected DataProcessingError")
             except Exception:
                 # 例外が発生することを確認
                 pass

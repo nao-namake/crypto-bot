@@ -44,7 +44,7 @@ class TestDrawdownManager:
         """各テスト後のクリーンアップ."""
         try:
             Path(self.temp_file.name).unlink()
-        except:
+        except OSError:
             pass
 
     def test_drawdown_manager_initialization(self):
@@ -162,7 +162,7 @@ class TestDrawdownManager:
         self.manager.initialize_balance(1000000)
 
         # 5回連続損失
-        for i in range(5):
+        for _i in range(5):
             self.manager.record_trade_result(-20000, "test")
 
         assert self.manager.consecutive_losses == 5
@@ -177,7 +177,7 @@ class TestDrawdownManager:
         self.manager.initialize_balance(1000000)
 
         # 連続損失で停止
-        for i in range(5):
+        for _i in range(5):
             self.manager.record_trade_result(-20000, "test")
 
         # 停止期間中は取引不可

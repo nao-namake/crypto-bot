@@ -28,10 +28,8 @@ src/ml/
 ├── ensemble/                   # アンサンブルシステム [README.md]
 │   ├── __init__.py            # アンサンブル統合エクスポート
 │   ├── ensemble_model.py      # 開発用アンサンブルクラス
+│   ├── production_ensemble.py  # ProductionEnsemble（pickle対応・統合）
 │   └── voting.py              # 投票システム実装
-├── production/                 # 本番用システム [README.md] ✅ Phase 13統合
-│   ├── __init__.py            # 本番用エクスポート
-│   └── ensemble.py            # ProductionEnsemble（pickle対応）
 ├── model_manager.py           # モデル管理・バージョニング
 └── __init__.py                # ML層統合エクスポート
 ```
@@ -64,6 +62,9 @@ python scripts/ml/create_ml_models.py --days 360        # 学習期間指定
 import pickle
 with open('models/production/production_ensemble.pkl', 'rb') as f:
     production_model = pickle.load(f)
+
+# または統合後のクラスを直接使用
+from src.ml.ensemble.production_ensemble import ProductionEnsemble
 
 # 12特徴量での予測
 import numpy as np

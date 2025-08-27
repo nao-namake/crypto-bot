@@ -1,380 +1,124 @@
-# tests/ - テストディレクトリ
+# tests/ - テスト・品質保証システム
 
-**Phase 13完了**: sklearn警告解消・306テスト100%成功・品質保証完成。システム全体の品質保証を担当するテストコードが格納されています。段階的開発に対応したテスト戦略・CI/CD本番稼働・品質ゲートを採用し、306テスト100%・58.88%カバレッジを達成しています。
+**Phase 13対応**: 統合テスト・品質保証・CI/CD統合（2025年8月26日現在）
 
-## 📁 ディレクトリ構成
+## 🎯 役割・責任
+
+テスト・品質保証システムとして以下を提供：
+- **単体テスト**: 全モジュールの個別機能検証・306テスト実装済み
+- **手動テスト**: 開発時コンポーネント動作確認・統合検証
+- **品質保証**: 継続的品質管理・58.88%カバレッジ・CI/CD統合
+- **回帰防止**: 自動テスト・品質ゲート・GitHub Actions統合
+
+## 📂 ファイル構成
 
 ```
 tests/
-├── manual/            # 手動テスト・開発用テスト ✅ 実装済み
-│   ├── test_phase2_components.py     # Phase 2コンポーネントテスト（5種類・100%合格）
-│   └── README.md                     # 手動テスト説明 ✅
-├── unit/             # 単体テスト ✅ Phase 13完了（306テスト100%・58.88%カバレッジ・CI/CD本番稼働）
-│   ├── strategies/   # 戦略テスト（113テスト・100%合格・CI/CD本番稼働）
-│   │   ├── implementations/  # 戦略実装テスト（62テスト）
-│   │   ├── utils/           # 共通モジュールテスト（33テスト）
-│   │   └── base/            # 戦略基盤テスト（18テスト）
-│   ├── ml/           # 機械学習テスト（89テスト・100%合格・sklearn警告解消）
-│   │   ├── models/          # 個別モデルテスト
-│   │   ├── ensemble/        # アンサンブルテスト
-│   │   └── README.md        # MLテスト詳細 ✅
-│   ├── backtest/     # バックテストテスト（84テスト・100%合格）✅ Phase 13完了
-│   │   ├── test_engine.py          # バックテストエンジンテスト
-│   │   ├── test_evaluator.py       # 評価システムテスト
-│   │   ├── test_data_loader.py     # データローダーテスト
-│   │   ├── test_reporter.py        # レポートシステムテスト
-│   │   └── README.md               # バックテストテスト詳細 ✅
-│   ├── trading/      # 取引実行・リスク管理テスト（113テスト・100%合格・Phase 13完了）
-│   │   ├── test_risk.py            # リスク管理テスト
-│   │   ├── test_position_sizing.py # ポジションサイジングテスト
-│   │   ├── test_drawdown_manager.py # ドローダウン管理テスト
-│   │   ├── test_anomaly_detector.py # 異常検知テスト
-│   │   └── README.md               # 取引テスト詳細 ✅
-│   ├── core/         # 基盤システムテスト（Phase 13完了）
-│   ├── data/         # データ層テスト（Phase 13完了）
-│   └── features/     # 特徴量テスト（Phase 13完了）
-├── integration/      # 統合テスト（Phase 8予定）
-│   ├── api/          # API統合テスト
-│   ├── pipeline/     # データパイプラインテスト
-│   └── e2e/          # エンドツーエンドテスト
-└── performance/      # パフォーマンステスト（Phase 8予定）
-    ├── load/         # 負荷テスト
-    └── memory/       # メモリ使用量テスト
+├── manual/              # 手動テスト・開発検証
+│   ├── test_phase2_components.py    # Phase 2基盤コンポーネント検証
+│   ├── manual_bitbank_client.py     # Bitbank APIマニュアルテスト
+│   └── README.md                    # 手動テスト説明
+├── unit/                # 単体テスト（306テスト・100%合格）
+│   ├── strategies/      # 戦略システムテスト（113テスト）
+│   ├── ml/              # 機械学習テスト（89テスト・8クラス・164関数）
+│   ├── trading/         # 取引実行・リスク管理テスト（113テスト）
+│   ├── backtest/        # バックテストエンジンテスト（84テスト）
+│   ├── data/            # データ層テスト
+│   ├── features/        # 特徴量システムテスト
+│   ├── monitoring/      # 監視・Discord通知テスト
+│   └── README.md        # 単体テスト詳細
+└── README.md            # このファイル
 ```
 
-## 🧪 テスト戦略
+## 🧪 主要機能・実装
 
-### Phase別テスト方針
+### **manual/**: 手動テスト・開発検証
+- Phase 2基盤コンポーネント検証・5種類テスト・100%合格
+- BitbankClient・DataPipeline・DataCache統合テスト
+- 公開API活用・認証不要・開発時動作確認
 
-**Phase 1-2完了**: 手動テスト中心
-- ✅ 基盤コンポーネントの動作確認
-- ✅ API接続テスト（認証不要の公開API）
-- ✅ 基本機能検証（5種類テスト・100%合格）
+### **unit/**: 単体テスト・306テスト実装済み
+- 戦略システム113テスト・ML 89テスト・取引113テスト・バックテスト84テスト
+- pytest・モック・スタブ活用・包括的品質管理
+- 58.88%カバレッジ・0.44秒高速実行・CI/CD統合
 
-**Phase 3-11完了**: 戦略・ML・バックテスト・取引実行単体テスト・CI/CDワークフロー最適化
-- ✅ 戦略システム単体テスト（113テスト・100%合格・CI/CDワークフロー最適化）
-- ✅ ML層単体テスト（89テスト・100%合格・監視統合）
-- ✅ バックテストシステム単体テスト（84テスト・100%合格・CI/CD対応）
-- ✅ 取引実行・リスク管理単体テスト（113テスト・100%合格・Phase 12完了）
-- ✅ モック・スタブ活用・包括的品質管理・GitHub Actions統合
+## 🔧 使用方法・例
 
-**Phase 6-7**: 実行・統合テスト追加
-- リスク管理・取引実行の単体テスト
-- API統合テスト実装
-- エンドツーエンドテスト
-
-**Phase 8**: 包括的テスト
-- 統合テスト実装
-- パフォーマンステスト
-- バックテスト検証
-
-### テストレベル
-
-1. **手動テスト**: 開発時の動作確認
-2. **単体テスト**: 個別モジュールの機能テスト
-3. **統合テスト**: モジュール間連携テスト
-4. **E2Eテスト**: 全体フローテスト
-
-## 📊 現在のテスト状況
-
-### ✅ 実装済み（Phase 1-5完了）
-
-**manual/test_phase2_components.py**（5種類テスト・100%合格）:
-- ✅ 設定システムテスト（Config・環境変数・YAML読み込み）
-- ✅ BitbankClient基本機能テスト（公開API接続・市場情報取得）
-- ✅ DataPipeline機能テスト（OHLCV取得・キャッシュ連携）
-- ✅ DataCache機能テスト（メモリ・ディスク永続化）
-- ✅ 統合テスト（簡易API・エンドツーエンド）
-
-**unit/strategies/**（113テスト・100%合格）:
-- ✅ 戦略実装テスト（62テスト）: ATR・もちぽよ・マルチタイムフレーム・フィボナッチ
-- ✅ 共通モジュールテスト（33テスト）: RiskManager・SignalBuilder・constants
-- ✅ 戦略基盤テスト（18テスト）: StrategyBase・StrategyManager
-
-**unit/ml/**（89テスト・100%合格）:
-- ✅ 個別モデルテスト: LightGBM・XGBoost・RandomForest
-- ✅ アンサンブルテスト: 重み付け投票・信頼度閾値・モデル管理
-- ✅ エラーハンドリング・統合テスト・ML統計検証
-
-**unit/backtest/**（84テスト・100%合格）✅ Phase 12 CI/CD対応:
-- ✅ バックテストエンジンテスト: ポジション管理・取引実行・性能最適化・CI/CDワークフロー最適化
-- ✅ 評価システムテスト: ドローダウン計算・統計指標・リスク評価・品質ゲート
-- ✅ データローダーテスト: 6ヶ月データ・品質管理・キャッシュ効率・GitHub Actions対応
-- ✅ レポートシステムテスト: CSV/JSON/Discord出力・統合機能・監視統合
-
-**unit/trading/**（113テスト・100%合格）✅ Phase 13完了:
-- ✅ リスク管理テスト: Kelly基準・ドローダウン制御・異常検知・CI/CD本番稼働
-- ✅ ポジションサイジングテスト: 動的調整・安全係数・リスク制限・品質保証
-- ✅ 取引実行テスト: ペーパートレード・注文管理・レイテンシー監視・GitHub Actions対応
-- ✅ 統合リスク評価テスト: 3段階判定・承認制御・Discord通知・品質ゲート
-
-### 📋 未実装（Phase 6-8計画）
-
-**単体テスト** (目標カバレッジ: 80%):
-```
-unit/
-├── core/
-│   ├── test_config.py      # 設定管理テスト
-│   ├── test_logger.py      # ログシステムテスト
-│   └── test_exceptions.py  # 例外処理テスト
-├── data/
-│   ├── test_bitbank_client.py  # Bitbank APIテスト
-│   ├── test_data_pipeline.py   # データパイプラインテスト
-│   └── test_data_cache.py      # キャッシングテスト
-└── [その他Phase実装時に追加]
-```
-
-**統合テスト**:
-```
-integration/
-├── api/
-│   └── test_bitbank_integration.py    # Bitbank API統合
-├── pipeline/
-│   └── test_data_flow.py               # データフロー
-└── e2e/
-    └── test_trading_workflow.py       # 取引ワークフロー
-```
-
-## 🚀 テスト実行方法
-
-### Phase 1-5実装済みテスト
-
+### **統合テスト実行**
 ```bash
-# Phase 2手動テスト（5種類・100%合格）
-cd /Users/nao/Desktop/bot
+# 全テスト実行（306テスト）
+python -m pytest tests/unit/ -v
+
+# 手動テスト実行
 python tests/manual/test_phase2_components.py
 
-# Phase 3-4戦略テスト（113テスト・100%合格）
-python -m pytest tests/unit/strategies/ -v
+# カバレッジ付きテスト
+python -m pytest tests/unit/ --cov=src --cov-report=html
 
-# Phase 5-8 MLテスト（89テスト・100%合格）
-python -m pytest tests/unit/ml/ -v
-
-# Phase 8 バックテストテスト（84テスト・100%合格）
-python -m pytest tests/unit/backtest/ -v
-
-# 全実装済みテスト実行（438テスト・100%合格）
-python tests/manual/test_phase2_components.py && python -m pytest tests/unit/strategies/ tests/unit/ml/ tests/unit/backtest/ -v
-
-# 個別コンポーネント動作確認
-python -c "from src.core.config import Config; print('✅ 設定OK')"
-python -c "from src.data.bitbank_client import BitbankClient; print('✅ BitbankClient OK')"
-python -c "from src.strategies.implementations.atr_based import ATRBasedStrategy; print('✅ ATR戦略OK')"
-python -c "from src.ml.ensemble.ensemble_model import EnsembleModel; print('✅ MLアンサンブルOK')"
-python -c "from src.backtest.engine import BacktestEngine; print('✅ バックテストエンジンOK')"
+# 特定モジュールテスト
+python -m pytest tests/unit/strategies/ -v    # 戦略テスト
+python -m pytest tests/unit/ml/ -v           # MLテスト
+python -m pytest tests/unit/trading/ -v      # 取引テスト
 ```
 
-### 将来の自動テスト（Phase 8）
-
+### **開発時品質チェック**
 ```bash
-# 全テスト実行
-pytest
+# 統合品質チェック
+bash scripts/testing/checks.sh
 
-# 単体テストのみ
-pytest tests/unit/
-
-# 統合テストのみ
-pytest tests/integration/
-
-# カバレッジ付き実行
-pytest --cov=src --cov-report=html
-
-# 特定モジュールのみ
-pytest tests/unit/data/test_bitbank_client.py
+# 統合管理CLI経由
+python scripts/management/dev_check.py validate
 ```
 
-## 🔧 テスト環境設定
-
-### 必要な依存関係
-
-```bash
-# テスト用ライブラリ（Phase 8で追加予定）
-pip install pytest pytest-cov pytest-mock
-
-# 現在の手動テストは標準ライブラリのみ使用
+### **期待結果**
+```
+collected 306 items
+tests/unit/strategies ✅ 113 passed
+tests/unit/ml ✅ 89 passed  
+tests/unit/trading ✅ 113 passed
+tests/unit/backtest ✅ 84 passed
+========================= 306 passed in 25.44s =========================
+Coverage: 58.88% (target achieved)
 ```
 
-### 環境変数（オプション）
+## ⚠️ 注意事項・制約
 
-```bash
-# API認証情報（実際のテストでは不要）
-export BITBANK_API_KEY=test_key
-export BITBANK_API_SECRET=test_secret
+### **実行環境制約**
+1. **プロジェクトルート**: 必ず`/Users/nao/Desktop/bot`から実行
+2. **Python環境**: pytest・pytest-cov・pytest-mock・numpy・pandas必須
+3. **依存関係**: src/配下全モジュール・設定ファイル・MLモデル
+4. **実行時間**: 全テスト約25秒・個別テスト数秒
 
-# テストモード
-export TEST_MODE=1
-```
+### **テスト品質基準**
+- **成功率**: 306テスト100%合格必須
+- **カバレッジ**: 58%以上維持・正常系・異常系・境界値
+- **実行速度**: 全テスト30秒以内・個別テスト2秒以内
+- **保守性**: モック・スタブ活用・テストデータ管理
 
-### モック・スタブ戦略
+### **モック・スタブ戦略**
+- **外部API**: BitbankAPI・Discord Webhook完全モック化
+- **ファイルシステム**: 一時ディレクトリ・in-memoryファイル
+- **データベース**: インメモリDB・テストデータ分離
+- **時間依存**: 固定タイムスタンプ・予測可能テスト
 
-**外部API**: Bitbank APIはモック化
-```python
-# 例: Bitbank APIモック
-@pytest.fixture
-def mock_bitbank():
-    with patch('ccxt.bitbank') as mock:
-        mock.return_value.fetch_ticker.return_value = {
-            'last': 12345678, 'bid': 12345000, 'ask': 12346000
-        }
-        yield mock
-```
+## 🔗 関連ファイル・依存関係
 
-**データベース**: インメモリDB使用
-**ファイルシステム**: 一時ディレクトリ使用
+### **システム統合**
+- **src/**: 全モジュール・テスト対象・品質確認対象
+- **scripts/testing/**: checks.sh統合品質チェック・CI/CD統合
+- **scripts/management/**: dev_check.py統合管理・テスト実行統合
 
-## 📈 品質指標
+### **設定・環境**
+- **config/**: 設定ファイル・テスト用設定・環境別設定
+- **models/**: MLモデル・テスト用モデル・メタデータ
+- **coverage-reports/**: カバレッジレポート・HTML・品質指標
 
-### Phase 12（完了）
-- **手動テスト**: 5種類実装済み・100%合格・CI/CDワークフロー最適化
-- **戦略単体テスト**: 113テスト・100%合格・0.44秒高速実行・GitHub Actions対応
-- **ML単体テスト**: 89テスト・100%合格・監視統合・Phase 12最適化完了
-- **バックテスト単体テスト**: 84テスト・100%合格・CI/CD対応・品質ゲート
-- **取引実行単体テスト**: 113テスト・100%合格・Phase 12新規実装・監視統合
-- **合格基準**: 全438テスト通過・68.13%品質保証・CI/CDワークフロー最適化
-
-### Phase 6-8（目標）
-- **全体カバレッジ**: 80%以上
-- **統合テスト**: 主要ワークフロー網羅
-- **パフォーマンス**: 処理時間1秒以内
-- **メモリ使用量**: 最大2GB以内
-
-### 継続的品質管理（Phase 12 CI/CDワークフロー最適化）
-- **毎コミット**: 実装済みテスト実行（手動・戦略・ML・バックテスト・取引実行）・GitHub Actions自動実行
-- **毎プルリクエスト**: 全438テスト通過・68.13%品質保証・CI/CD品質ゲート・自動ロールバック
-- **毎リリース**: パフォーマンステスト・バックテスト検証・統合テスト・段階的デプロイ・手動実行監視
-
-## 🧩 テストデータ管理
-
-### テストデータ戦略
-
-**本物API不要**: 公開APIのみ使用
-```python
-# 実際のBTC/JPY価格を取得してテスト
-ticker = client.fetch_ticker('BTC/JPY')
-assert ticker['last'] > 0
-```
-
-**モックデータ**: 予測可能なデータ
-```python
-# OHLCV形式のサンプルデータ
-mock_ohlcv = [
-    [1692000000000, 12340000, 12350000, 12330000, 12345000, 1.5],
-    [1692003600000, 12345000, 12355000, 12340000, 12350000, 2.1],
-    # ...
-]
-```
-
-### データ生成ユーティリティ
-
-```python
-# テストデータ生成ヘルパー（Phase 8で実装予定）
-def generate_ohlcv_data(count=100, base_price=12000000):
-    """テスト用OHLCV データ生成"""
-    
-def generate_market_scenarios():
-    """市場シナリオ データ生成"""
-```
-
-## 🔍 デバッグ・トラブルシューティング
-
-### よくある問題
-
-**インポートエラー**:
-```bash
-# Pythonパスの確認
-export PYTHONPATH=/Users/nao/Desktop/bot:$PYTHONPATH
-
-# または、プロジェクトルートから実行
-cd /Users/nao/Desktop/bot
-python tests/manual/test_phase2_components.py
-```
-
-**API接続エラー**:
-```bash
-# ネットワーク接続確認
-curl https://api.bitbank.cc/v1/ticker/btc_jpy
-
-# DNS確認
-nslookup api.bitbank.cc
-```
-
-**モジュール未実装エラー**:
-```bash
-# 実装状況確認
-ls -la src/data/
-ls -la src/core/
-```
-
-### ログ確認
-
-```python
-# ログレベル調整
-import logging
-logging.getLogger('src').setLevel(logging.DEBUG)
-
-# テスト実行
-python tests/manual/test_phase2_components.py
-```
-
-## 📝 テスト作成ガイドライン
-
-### 新しいテストの追加
-
-1. **手動テスト** (Phase 2-7):
-```python
-def test_new_feature():
-    """新機能のテスト"""
-    try:
-        # テスト実装
-        result = new_feature()
-        print("✅ 新機能テスト成功")
-        return True
-    except Exception as e:
-        print(f"❌ 新機能テストエラー: {e}")
-        return False
-```
-
-2. **単体テスト** (Phase 8):
-```python
-import pytest
-from src.module import Function
-
-def test_function_success():
-    """正常系テスト"""
-    result = Function.method("valid_input")
-    assert result == expected_value
-
-def test_function_error():
-    """異常系テスト"""
-    with pytest.raises(CustomException):
-        Function.method("invalid_input")
-```
-
-### テスト命名規則
-
-- **ファイル名**: `test_*.py`
-- **関数名**: `test_*`
-- **クラス名**: `Test*`
-- **説明**: 日本語docstring推奨
-
-### アサーション指針
-
-- **明確な期待値**: 具体的な値を検証
-- **エラーケース**: 適切な例外の発生を確認
-- **境界値**: 最小・最大値でのテスト
-- **型チェック**: 戻り値の型を確認
-
-## 🚀 今後の予定
-
-### Phase 3開始時
-- 特徴量エンジニアリングの手動テスト追加
-
-### Phase 8実装時
-- pytest環境構築
-- 全モジュールの単体テスト実装
-- 統合テスト環境構築
-- CI/CDワークフロー最適化
+### **外部依存**
+- **pytest**: テストフレームワーク・テストランナー・アサーション・フィクスチャ
+- **pytest-cov**: カバレッジ測定・レポート生成・品質指標
+- **pytest-mock**: モック・スタブ・外部依存分離・テスト分離
+- **GitHub Actions**: CI/CD・自動テスト・品質ゲート・継続的統合
 
 ---
 
-*段階的開発に対応した柔軟なテスト戦略*
+**🎯 Phase 13対応完了**: 306テスト・58.88%カバレッジ・CI/CD統合により包括的な品質保証システムを実現。

@@ -110,7 +110,7 @@ class TestXGBModel:
         # early stoppingはバリデーションデータなしでは動作しない
         try:
             model.fit(X_train, y_train)
-            assert False, "Expected exception for early stopping without validation"
+            raise AssertionError("Expected exception for early stopping without validation")
         except Exception:
             # early stoppingにはバリデーションデータが必要
             assert not model.is_fitted
@@ -136,7 +136,7 @@ class TestXGBModel:
         # fitは例外を投げるため、try-exceptで確認
         try:
             xgb_model.fit(invalid_features, targets)
-            assert False, "Expected exception for invalid features"
+            raise AssertionError("Expected exception for invalid features")
         except Exception:
             assert xgb_model.is_fitted is False
 
@@ -147,7 +147,7 @@ class TestXGBModel:
         # fitは例外を投げるため、try-exceptで確認
         try:
             xgb_model.fit(sample_features, invalid_targets)
-            assert False, "Expected exception for mismatched shapes"
+            raise AssertionError("Expected exception for mismatched shapes")
         except Exception:
             assert xgb_model.is_fitted is False
 
@@ -183,7 +183,7 @@ class TestXGBModel:
         # 学習前のpredictは例外を発生させる
         try:
             xgb_model.predict(sample_features.iloc[:10])
-            assert False, "Expected ValueError for unfitted model"
+            raise AssertionError("Expected ValueError for unfitted model")
         except ValueError as e:
             assert "is not fitted" in str(e)
 
@@ -227,7 +227,7 @@ class TestXGBModel:
         """学習前確率予測テスト"""
         try:
             xgb_model.predict_proba(sample_features.iloc[:5])
-            assert False, "Expected ValueError for predict_proba without fitting"
+            raise AssertionError("Expected ValueError for predict_proba without fitting")
         except ValueError as e:
             assert "is not fitted" in str(e)
 
@@ -277,7 +277,7 @@ class TestXGBModel:
         # BaseMLModelの_validate_training_dataでデータ不足を検出
         try:
             xgb_model.fit(small_features, small_targets)
-            assert False, "Expected exception for insufficient data"
+            raise AssertionError("Expected exception for insufficient data")
         except Exception as e:
             assert "Insufficient training data" in str(e) or "Training data is empty" in str(e)
 
@@ -316,7 +316,7 @@ class TestXGBModel:
         with patch("joblib.load", side_effect=FileNotFoundError()):
             try:
                 XGBModel.load("/tmp/nonexistent_xgb.pkl")
-                assert False, "Expected DataProcessingError for missing file"
+                raise AssertionError("Expected DataProcessingError for missing file")
             except Exception as e:
                 # BaseMLModel.loadはDataProcessingErrorを発生させる
                 assert "Model load failed" in str(e)
@@ -326,7 +326,7 @@ class TestXGBModel:
         with patch("joblib.load", side_effect=Exception("Invalid format")):
             try:
                 XGBModel.load("/tmp/invalid_xgb.pkl")
-                assert False, "Expected DataProcessingError for invalid format"
+                raise AssertionError("Expected DataProcessingError for invalid format")
             except Exception as e:
                 # BaseMLModel.loadはDataProcessingErrorを発生させる
                 assert "Model load failed" in str(e)

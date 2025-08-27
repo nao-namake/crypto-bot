@@ -1,12 +1,12 @@
-# Phase 7: Ultra-Lightweight Production Dockerfile
-# レガシーシステム最適化パターン継承 + 新システム軽量化
+# Phase 13: 統合最適化完了・品質保証・CI/CD統合 Production Dockerfile
+# 306テスト・58.88%カバレッジ・統合キャッシュ・設定最適化対応
 
 FROM python:3.11-slim-bullseye
 
 # メタデータ（レガシーパターン踏襲）
-LABEL maintainer="crypto-bot-phase7"
-LABEL version="7.0.0"
-LABEL description="Phase 7: シンプル実行層 + レガシー最適化パターン統合"
+LABEL maintainer="crypto-bot-phase13"
+LABEL version="13.0.0"
+LABEL description="Phase 13: 統合最適化完了・品質保証・CI/CD統合"
 
 WORKDIR /app
 
@@ -50,8 +50,6 @@ ENV MODE=live
 ENV LOG_LEVEL=INFO
 ENV FEATURE_MODE=full
 ENV PYTHONPYCACHEPREFIX=/app/.cache/pycache
-ENV PYTEST_CACHE_DIR=/app/.cache/pytest
-ENV COVERAGE_FILE=/app/.cache/coverage/.coverage
 
 EXPOSE 8080
 

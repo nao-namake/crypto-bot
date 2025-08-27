@@ -248,7 +248,7 @@ class TestIntegratedRiskManager:
         market_data = self.create_sample_market_data()
 
         # 複数回の評価実行
-        for i in range(5):
+        for _i in range(5):
             ml_prediction = {"confidence": 0.7, "action": "buy"}
             strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
@@ -494,7 +494,7 @@ def test_integrated_risk_manager_performance():
     start_time = time.time()
 
     # 50回の評価実行
-    for i in range(50):
+    for _i in range(50):
         ml_prediction = {"confidence": 0.7, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 

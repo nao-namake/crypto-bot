@@ -1,16 +1,16 @@
 # CI/CD設定・デプロイメントガイド
 
-Phase 13 CI/CDパイプライン構築・スクリプト統合・品質保証完成・24時間監視・段階的デプロイ対応の包括的ガイド
+Phase 13完了 CI/CDパイプライン本番稼働・config構造最適化・モード統一・24時間監視・完全自動化対応の包括的ガイド
 
 ## 📋 概要
 
-Phase 13では、スクリプト統合（9→5フォルダ）・品質保証完成・統合分析基盤確立を完了し、安定したCI/CDパイプラインの本番運用を継続します。
+Phase 13完了により、config構造最適化・モード統一・CI/CD完全自動化を達成し、安定したパイプラインで本番運用を継続します。
 
-### Phase 13スクリプト統合成果
-- **analytics/統合基盤** → dashboard/data_collection/ab_testing統合・base_analyzer.py基盤
-- **testing/品質統合** → quality統合・checks.sh+test_live_trading.py一元化
-- **9→5フォルダ統合** → 44%削減・重複コード500行削除
-- **統一インターフェース** → BaseAnalyzer継承・保守性向上
+### Phase 13完了成果
+- **config構造最適化** → `environments/` → `production/` 統合・モード一元化
+- **設定管理統一** → 3層優先順位（コマンドライン > 環境変数 > YAML）
+- **CI/CD完全自動化** → 306テスト100%・品質保証完成
+- **統合管理システム** → logs/reports/統合・運用効率化
 
 ## 🛠️ 初期設定手順
 
@@ -38,7 +38,7 @@ gcloud iam service-accounts list --filter="displayName:GitHub Actions"
 | `GCP_WIF_PROVIDER` | `projects/{PROJECT_NUMBER}/locations/global/workloadIdentityPools/{POOL_ID}/providers/{PROVIDER_ID}` | Workload Identity プロバイダー |
 | `GCP_SERVICE_ACCOUNT` | `github-actions-sa@my-crypto-bot-project.iam.gserviceaccount.com` | GitHub Actions用サービスアカウント |
 | `GCP_PROJECT` | `my-crypto-bot-project` | GCPプロジェクトID |
-| `DEPLOY_MODE` | `paper` | 初期デプロイモード（段階的にliveに変更） |
+| `DEPLOY_MODE` | `paper` | デプロイモード（paper/live 制御） |
 
 **設定方法**:
 1. GitHubリポジトリページに移動
@@ -75,7 +75,7 @@ done
 ```bash
 # テストコミット・プッシュでCI/CD実行
 git add .
-git commit -m "feat: Phase 12 CI/CD初回稼働テスト"
+git commit -m "feat: Phase 13 config最適化・CI/CD稼働テスト"
 git push origin main
 
 # GitHub Actionsタブで実行状況確認
@@ -84,41 +84,39 @@ git push origin main
 
 ## 🚀 デプロイメント履歴
 
-### Phase 13 - スクリプト統合・CI/CD品質保証完成
+### Phase 13完了 - config構造最適化・モード統一・CI/CD完全自動化
 
-#### 2025-08-22 統合最適化完了
+#### 2025-08-26 config構造最適化完了
 
 **実装内容**:
-- ✅ scripts/統合（9→5フォルダ、44%削減）
-- ✅ 統合分析基盤（analytics/統合・base_analyzer.py基盤）
-- ✅ 品質チェック統合（testing/統合・checks.sh+test_live_trading.py）
-- ✅ 重複コード500行削除（base_analyzer.py継承・保守性向上）
-- ✅ 306テスト100%成功・sklearn警告解消・品質保証完成
+- ✅ config構造最適化（`environments/` → `production/` 統合）
+- ✅ モード統一（paper/live環境変数制御・3層優先順位）
+- ✅ 不要ファイル削除（stage_*.yaml、testing.yaml、validation.yaml）
+- ✅ 306テスト100%成功・CI/CD完全自動化・品質保証完成
+- ✅ 統合管理システム（logs/reports/統合・運用効率化）
 
-**Phase 13統合成果**:
+**Phase 13最適化成果**:
 ```diff
-+ dashboard/data_collection/ab_testing/ → analytics/統合基盤
-+ quality/ → testing/統合（checks.sh+test_live_trading.py）
-+ 500行重複コード → base_analyzer.py基盤統合
-+ 9フォルダ → 5フォルダ44%削減・保守性向上
++ config/environments/live/ → config/production/ 統合
++ config/environments/paper/ → 削除（モード統一）
++ stage_*.yaml → 削除（モード制御統一）
++ モード設定一元化 → base.yaml + 環境変数制御
 ```
 
 **技術仕様**:
 - **GitHub Actions**: 15分間隔24時間監視
-- **段階的デプロイ**: paper → stage-10 → stage-50 → live
-- **トラフィック分割**: 10% → 50% → 100%移行
-- **品質保証**: 306テスト100%・58.88%カバレッジ・sklearn警告解消・flake8・コード整形統合・統合testing/チェック
+- **モード統一制御**: paper ↔ live 環境変数切替
+- **設定ファイル統一**: config/production/production.yaml
+- **品質保証**: 306テスト100%・58.88%カバレッジ・CI/CD完全自動化・品質保証完成
 
-## 📊 段階的デプロイメント戦略
+## 📊 モード統一デプロイメント戦略
 
-### デプロイステージ定義（コスト最適化版）
+### デプロイモード定義（統一最適化版）
 
-| ステージ | モード | リソース | 最小/最大インスタンス | タイムアウト | 用途 |
-|---------|--------|----------|---------------------|------------|------|
-| Paper | `paper` | 1Gi/1CPU | 0-1 | 30分 | 安全テスト |
-| Stage-10 | `stage-10` | 1Gi/1CPU | 1-1 | 30分 | 10%投入 |
-| Stage-50 | `stage-50` | 1.5Gi/1CPU | 1-1 | 40分 | 50%投入 |
-| Production | `live` | 1Gi/1CPU | 1-2 | 60分 | 100%本番 |
+| モード | 環境変数MODE | リソース | 最小/最大インスタンス | タイムアウト | 用途 |
+|-------|-------------|----------|---------------------|------------|------|
+| Paper | `paper` | 1Gi/1CPU | 0-1 | 30分 | ペーパートレード |
+| Production | `live` | 1Gi/1CPU | 1-2 | 60分 | 本番取引 |
 
 **⚖️ 安定性優先のバランス設定**:
 - **CPU統一**: 全ステージ1CPU（個人開発に最適）
@@ -136,14 +134,17 @@ git push origin main
 - **高負荷時**: 月約$20-30 (3,000-4,500円)
 - **目標**: 月額2,000円前後・安定性確保
 
-### トラフィック移行戦略
+### モード切替戦略
 
 ```yaml
-段階的移行:
-  paper: 100% 新リビジョン（テスト専用）
-  stage-10: 10% 新リビジョン + 90% 旧リビジョン
-  stage-50: 50% 新リビジョン + 50% 旧リビジョン  
-  live: 100% 新リビジョン（完全移行）
+モード統一制御:
+  paper: ペーパートレード（環境変数MODE=paper）
+  live: 本番取引（環境変数MODE=live）
+  
+切替方法:
+  - GitHub Secrets DEPLOY_MODE変更
+  - 環境変数MODE自動設定
+  - 同一コード・設定で動作
 ```
 
 ## 🏥 24時間監視体制
@@ -180,7 +181,7 @@ git push origin main
 ```bash
 # GitHub Actionsトリガー
 git add -A
-git commit -m "feat: Phase 13 スクリプト統合・品質保証完成"
+git commit -m "feat: Phase 13 config最適化・モード統一完成"
 git push origin main
 
 # ワークフロー確認
@@ -188,20 +189,17 @@ gh run list --limit 5
 gh run view --log
 ```
 
-### 2. 段階的デプロイ実行
+### 2. モード切替実行
 
 ```bash
 # 1. ペーパートレード確認
 # GitHub Secrets: DEPLOY_MODE=paper
 
-# 2. 10%段階移行  
-# GitHub Secrets: DEPLOY_MODE=stage-10
-
-# 3. 50%段階移行
-# GitHub Secrets: DEPLOY_MODE=stage-50
-
-# 4. 100%本番移行
+# 2. 本番切替
 # GitHub Secrets: DEPLOY_MODE=live
+# → 環境変数MODE=liveで自動設定
+
+# 設定ファイルは統一: config/production/production.yaml
 ```
 
 ### 3. 統合分析基盤・パフォーマンス分析（Phase 13新機能）
@@ -567,4 +565,4 @@ cat gcp_diagnosis_$(date +%Y%m%d).log | grep -E "(✅|❌|⚠️)"
 
 ---
 
-**Phase 12実装完了**: レガシーシステムの良い部分を継承・改良し、CI/CD統合・24時間監視・段階的デプロイ対応の包括的な本番運用体制を確立
+**Phase 13完了**: config構造最適化・モード統一・CI/CD完全自動化により、シンプルで保守性の高い本番運用体制を確立
