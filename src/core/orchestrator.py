@@ -915,7 +915,9 @@ async def create_trading_orchestrator(
         data_service = DataPipeline(client=bitbank_client)
 
         # Phase 3: 特徴量サービス（統合アダプター）
-        feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector(), logger)
+        feature_service = _FeatureServiceAdapter(
+            TechnicalIndicators(), MarketAnomalyDetector(), logger
+        )
 
         # Phase 4: 戦略サービス
         strategy_service = StrategyManager()

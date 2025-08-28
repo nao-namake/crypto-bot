@@ -5,6 +5,7 @@ Discord通知システム - 3階層通知でシンプル化
 Critical/Warning/Infoの3階層で効率的な通知を実現。.
 """
 
+import logging
 import os
 from datetime import datetime, timezone
 from enum import Enum
@@ -13,7 +14,6 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from ..core.exceptions import CryptoBotError, ErrorSeverity
-import logging
 
 
 class NotificationLevel(Enum):
@@ -504,13 +504,14 @@ class DiscordNotifier:
 
             # 🚨 CRITICAL FIX: JSON serialization を明示的に制御
             import json
-            json_data = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
-            
+
+            json_data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
             # 最終的なJSON文字列の検証
             if '"embeds":["' in json_data or '"embeds":[0' in json_data:
                 self.logger.error(f"❌ embed文字列化検出: {json_data[:200]}...")
                 return False
-            
+
             headers["Content-Type"] = "application/json; charset=utf-8"
             response = requests.post(self.webhook_url, data=json_data, headers=headers, timeout=10)
 

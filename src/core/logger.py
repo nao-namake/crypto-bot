@@ -134,9 +134,9 @@ class CryptoBotLogger:
 
             config = get_config()
             logging_config = config.logging
-        except (ImportError, AttributeError, FileNotFoundError, KeyError, RecursionError, RuntimeError) as e:
+        except (ImportError, AttributeError, FileNotFoundError, KeyError, RuntimeError) as e:
             # 循環参照エラーや設定エラー時はデフォルト設定使用
-            # RuntimeError: テスト環境で設定が未読み込み時の対応
+            # RuntimeError: テスト環境で設定が未読み込み時の対応・RecursionError(RuntimeError継承)も含む
             if isinstance(e, RecursionError):
                 # 循環参照の場合は追加ログを出力しない（さらなる循環を防ぐ）
                 pass
