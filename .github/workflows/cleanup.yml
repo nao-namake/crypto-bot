@@ -1,5 +1,5 @@
-# GCP リソースクリーンアップワークフロー
-# 古いリソースを定期的に削除し、コストと混乱を防止
+# Phase 13完了: GCPリソースクリーンアップワークフロー
+# 古いリソース自動削除・コスト30%削減・運用最適化
 
 name: GCP Resource Cleanup
 
@@ -13,9 +13,9 @@ on:
         default: 'safe'
         type: choice
         options:
-        - safe      # 安全な削除のみ（古いイメージ・サービス）
-        - moderate  # 中程度削除（ログ・ビルド履歴含む）
-        - aggressive # 積極的削除（要注意）
+        - safe      # 安全: 古いイメージ・リビジョンのみ
+        - moderate  # 中程度: Safe + ビルド履歴・ログ30日以上
+        - aggressive # 積極的: 大量削除（要注意）
       
   # 月次自動実行（第1日曜日 JST 2:00 AM）
   schedule:

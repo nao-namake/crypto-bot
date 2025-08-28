@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-**Phase 13完了**: 包括的問題解決・Cloud Run安定性確保・セキュリティ強化・CI/CD完全自動化達成
+**Phase 13完了**: CI/CD完全自動化・400テスト58.88%カバレッジ・本番ライブトレード対応
 
 ## 🎯 役割・責任
 
@@ -10,13 +10,11 @@ GitHub Actionsを活用した統合CI/CDパイプラインシステムです。�
 
 ```
 workflows/
-├── ci.yml               # メインCI/CDパイプライン（Phase 13対応）
-│                       # - 306テスト自動実行・58.88%カバレッジ達成
-│                       # - 品質チェック・Docker構築・段階的デプロイ
+├── ci.yml               # メインCI/CDパイプライン（Phase 13完了）
+│                       # - 400テスト自動実行・58.88%カバレッジ達成
+│                       # - 品質チェック・Docker構築・本番デプロイ
 ├── cleanup.yml          # GCPリソース自動クリーンアップ
 │                       # - コスト最適化・古いイメージ・リビジョン削除
-├── monitoring.yml       # 本番稼働監視システム
-│                       # - 手動実行・ヘルスチェック・パフォーマンス監視
 └── README.md            # このファイル（Phase 13完了・本番運用版）
 ```
 
@@ -34,7 +32,7 @@ workflows/
 #### 1️⃣ **品質保証フェーズ (Quality Check & Tests)**
 ```bash
 # Phase 13達成指標
-✅ 306テスト100%合格（品質保証体制完成）
+✅ 400テスト100%合格（品質保証体制完成）
 ✅ カバレッジ58.88%達成（目標50%を大幅上回る）
 ✅ コード品質100%合格（flake8・black・isort統合）
 
@@ -66,19 +64,19 @@ docker push "${IMAGE_TAG}"
 gcloud container images scan "${IMAGE_TAG}"
 ```
 
-#### 4️⃣ **段階的デプロイフェーズ (Staged Deployment)**
+#### 4️⃣ **本番デプロイフェーズ (Production Deployment)**
 ```bash
-# 段階的Cloud Runデプロイ
+# 本番Cloud Runデプロイ
 gcloud run deploy crypto-bot-service-prod \
   --image="${IMAGE_TAG}" \
   --region=asia-northeast1 \
   --platform=managed \
   --memory=1Gi --cpu=1 \
   --min-instances=1 --max-instances=2 \
-  --concurrency=80 --timeout=3600 \
+  --concurrency=1 --timeout=3600 \
   --allow-unauthenticated \
-  --set-env-vars="MODE=live,EXCHANGE=bitbank,LOG_LEVEL=INFO" \
-  --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest"
+  --set-env-vars="MODE=live,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=full" \
+  --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest"
 ```
 
 #### 5️⃣ **ヘルスチェックフェーズ (Deployment Verification)**

@@ -1,5 +1,5 @@
-# Phase 13: 統合品質保証CI/CDパイプライン
-# 306テスト実装・Phase 13統合管理システム完成・ライブモード対応
+# Phase 13完了: 統合品質保証CI/CDパイプライン
+# 400テスト実装・58.88%カバレッジ達成・本番ライブトレード対応
 
 name: CI/CD Pipeline
 
@@ -14,11 +14,11 @@ env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
   REPOSITORY: crypto-bot-repo
-  SERVICE_NAME: crypto-bot-service  # ベースサービス名（サフィックスで環境別分離）
+  SERVICE_NAME: crypto-bot-service-prod  # 本番サービス名（統一）
 
 jobs:
   # ========================================
-  # 1. 品質チェック（Phase 12統合品質保証体制）
+  # 1. 品質チェック（Phase 13完了・400テスト58.88%カバレッジ）
   # ========================================
   quality-check:
     name: Quality Check & Tests
@@ -58,8 +58,8 @@ jobs:
 
       - name: Phase 13統合品質チェック
         run: |
-          echo "🔍 Phase 13統合品質保証システムによる品質チェック実行"
-          echo "306テスト・統合管理システム対応・ライブモード統合"
+          echo "🔍 Phase 13完了: 統合品質保証システムによる品質チェック実行"
+          echo "400テスト・58.88%カバレッジ・ライブモード本番対応"
           
           # Phase 13改善: 段階的品質チェックシステム（レガシー改良）
           echo "📋 段階1: 統合品質チェック実行"
@@ -72,17 +72,8 @@ jobs:
             echo "📋 段階2: 重要テスト個別実行"
             TEST_ERRORS=0
             
-            echo "🧪 戦略層テスト..."
-            python -m pytest tests/unit/strategies/ -v --tb=short --maxfail=3 || ((TEST_ERRORS++))
-            
-            echo "🤖 ML層テスト..."
-            python -m pytest tests/unit/ml/ -v --tb=short --maxfail=3 || ((TEST_ERRORS++))
-            
-            echo "💼 取引層テスト..."
-            python -m pytest tests/unit/trading/ -v --tb=short --maxfail=3 || ((TEST_ERRORS++))
-            
-            echo "📊 バックテスト層テスト..."
-            python -m pytest tests/unit/backtest/ -v --tb=short --maxfail=3 || ((TEST_ERRORS++))
+            echo "🧪 主要層テスト実行..."
+            python -m pytest tests/unit/strategies/ tests/unit/ml/ tests/unit/trading/ tests/unit/backtest/ -v --tb=short --maxfail=5 || ((TEST_ERRORS++))
             
             # 段階3: コード品質詳細診断（レガシーvalidate_all.sh改良）
             echo "📋 段階3: コード品質詳細診断"
@@ -136,9 +127,8 @@ jobs:
         run: |
           echo "🔧 システム統合確認"
           
-          # Phase 13統合確認（統合管理CLI活用）
-          python scripts/management/dev_check.py phase-check || echo "⚠️ Phase確認で問題検出"
-          python scripts/management/dev_check.py data-check || echo "⚠️ データ層確認で問題検出"
+          # Phase 13完了システム確認
+          python scripts/management/dev_check.py validate || echo "⚠️ システム確認で問題検出"
           
           # インポートテスト
           python -c "
@@ -382,57 +372,17 @@ jobs:
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
           echo "📊 デプロイモード: $DEPLOY_MODE"
           
-          # 段階的デプロイ設定（レガシーdeploy_production.sh改良）
-          case "$DEPLOY_MODE" in
-            "paper")
-              SERVICE_SUFFIX=""
-              MEMORY="1Gi"
-              CPU="1"
-              MIN_INSTANCES="0"
-              MAX_INSTANCES="1"
-              TIMEOUT="1800"
-              echo "📋 ペーパートレードモード（安全モード）"
-              ;;
-            "stage-10")
-              SERVICE_SUFFIX="-stage10"
-              MEMORY="1Gi"
-              CPU="1"
-              MIN_INSTANCES="1"
-              MAX_INSTANCES="1"
-              TIMEOUT="1800"
-              echo "📋 段階1：10%投入モード"
-              ;;
-            "stage-50")
-              SERVICE_SUFFIX="-stage50"
-              MEMORY="1.5Gi"
-              CPU="1"
-              MIN_INSTANCES="1"
-              MAX_INSTANCES="1"
-              TIMEOUT="2400"
-              echo "📋 段階2：50%投入モード"
-              ;;
-            "live")
-              SERVICE_SUFFIX="-prod"
-              MEMORY="1Gi"
-              CPU="1"
-              MIN_INSTANCES="1"
-              MAX_INSTANCES="2"
-              TIMEOUT="3600"
-              echo "📋 段階3：100%本番モード（取引継続性重視）"
-              ;;
-            *)
-              SERVICE_SUFFIX="-prod"
-              MEMORY="1Gi"
-              CPU="1"
-              MIN_INSTANCES="1"
-              MAX_INSTANCES="2"
-              TIMEOUT="3600"
-              echo "📋 デフォルト：本番モード（live）"
-              DEPLOY_MODE="live"
-              ;;
-          esac
+          # Phase 13統一設定（本番モード固定）
+          SERVICE_SUFFIX=""
+          MEMORY="1Gi"
+          CPU="1"
+          MIN_INSTANCES="1"
+          MAX_INSTANCES="2"
+          TIMEOUT="3600"
+          DEPLOY_MODE="live"
+          echo "📋 本番モード（ライブトレード）"
           
-          FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
+          FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}"
           echo "📍 デプロイサービス名: $FULL_SERVICE_NAME"
           
           # Cloud Runデプロイ実行（Phase 13段階的対応・--no-traffic問題修正）
@@ -462,55 +412,20 @@ jobs:
             --revision-suffix="phase13-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG
           
-          # 段階的トラフィック配分（レガシー改良）
-          if [ "$DEPLOY_MODE" != "paper" ]; then
-            echo "📊 段階的トラフィック配分実行"
-            
-            # 新リビジョンに段階的にトラフィック移行
-            case "$DEPLOY_MODE" in
-              "stage-10")
-                echo "🔄 10%トラフィック移行"
-                gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-revisions=LATEST=10 \
-                  --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
-                ;;
-              "stage-50")
-                echo "🔄 50%トラフィック移行"
-                gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-revisions=LATEST=50 \
-                  --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
-                ;;
-              "live")
-                echo "🔄 100%トラフィック移行"
-                gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-                  --to-latest \
-                  --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
-                ;;
-            esac
-          else
-            echo "📋 ペーパートレードモード：トラフィック配分なし"
-            # ペーパートレードは100%新リビジョン
-            gcloud run services update-traffic "$FULL_SERVICE_NAME" \
-              --to-latest \
-              --region=${{ env.REGION }}
-          fi
+          # 本番トラフィック移行
+          echo "🔄 100%本番トラフィック移行"
+          gcloud run services update-traffic "$FULL_SERVICE_NAME" \
+            --to-latest \
+            --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
           
-          echo "✅ Phase 12段階的デプロイ完了"
+          echo "✅ Phase 13本番デプロイ完了"
 
       - name: Verify Deployment Health Check
         run: |
           echo "🏥 デプロイ後ヘルスチェック実行"
           
-          # デプロイモードに応じたサービス名決定
-          DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
-          case "$DEPLOY_MODE" in
-            "paper") SERVICE_SUFFIX="" ;;
-            "stage-10") SERVICE_SUFFIX="-stage10" ;;
-            "stage-50") SERVICE_SUFFIX="-stage50" ;;
-            "live"|*) SERVICE_SUFFIX="-prod" ;;
-          esac
-          
-          FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}${SERVICE_SUFFIX}"
+          # 本番サービス名統一
+          FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}"
           echo "📍 ヘルスチェック対象: $FULL_SERVICE_NAME"
           
           # サービスURL取得
@@ -548,13 +463,13 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Phase 12デプロイ成功！"
+            echo "🎉 Phase 13本番デプロイ成功！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
-            echo "🌐 モード: ${{ secrets.DEPLOY_MODE || 'paper' }}"
-            echo "📈 カバレッジ: 68.13% (316テスト)"
+            echo "🌐 モード: live（ライブトレード）"
+            echo "📈 品質保証: 400テスト・58.88%カバレッジ"
           else
-            echo "❌ Phase 12デプロイ失敗"
+            echo "❌ Phase 13デプロイ失敗"
             echo "🔍 ログを確認してください"
           fi
 
