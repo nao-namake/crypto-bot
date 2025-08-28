@@ -147,7 +147,7 @@ class UnifiedBotManager(BaseAnalyzer):
             "from src.data.data_pipeline import DataPipeline",
             "from src.features.technical import TechnicalIndicators",
             "from src.strategies.base.strategy_base import StrategyBase",
-            "from src.ml.production.ensemble import ProductionEnsemble",
+            "from src.ml.ensemble.production_ensemble import ProductionEnsemble",
         ]
 
         for test in import_tests:
@@ -1165,7 +1165,7 @@ except Exception as e:
         import_tests = [
             "from src.core.config import load_config",
             "from src.data.data_pipeline import DataPipeline",
-            "from src.ml.production.ensemble import ProductionEnsemble",
+            "from src.ml.ensemble.production_ensemble import ProductionEnsemble",
         ]
 
         import_failures = 0

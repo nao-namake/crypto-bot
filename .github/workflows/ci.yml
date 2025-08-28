@@ -145,7 +145,7 @@ jobs:
           try:
               from src.core.orchestrator import create_trading_orchestrator
               from src.trading.executor import OrderExecutor, ExecutionMode
-              from src.ml.production.ensemble import ProductionEnsemble
+              from src.ml.ensemble.production_ensemble import ProductionEnsemble
               print('✅ Phase 13重要モジュールインポート成功')
           except Exception as e:
               print(f'⚠️ インポートエラー: {e}')

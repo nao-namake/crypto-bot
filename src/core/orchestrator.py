@@ -915,7 +915,7 @@ async def create_trading_orchestrator(
         data_service = DataPipeline(client=bitbank_client)
 
         # Phase 3: 特徴量サービス（統合アダプター）
-        feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector())
+        feature_service = _FeatureServiceAdapter(TechnicalIndicators(), MarketAnomalyDetector(), logger)
 
         # Phase 4: 戦略サービス
         strategy_service = StrategyManager()
@@ -978,9 +978,11 @@ class _FeatureServiceAdapter:
         self,
         technical_indicators: TechnicalIndicators,
         anomaly_detector: MarketAnomalyDetector,
+        logger: CryptoBotLogger,
     ):
         self.technical_indicators = technical_indicators
         self.anomaly_detector = anomaly_detector
+        self.logger = logger
 
     async def generate_features(self, market_data: Dict) -> Dict:
         """特徴量生成統合処理（12特徴量確認機能付き）."""

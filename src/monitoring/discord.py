@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from ..core.exceptions import CryptoBotError, ErrorSeverity
-from ..core.logger import get_logger
+import logging
 
 
 class NotificationLevel(Enum):
@@ -53,7 +53,8 @@ class DiscordNotifier:
         Args:
             webhook_url: Discord WebhookのURL（環境変数から取得も可能）.
         """
-        self.logger = get_logger("discord")
+        # 🚨 CRITICAL FIX: 循環参照防止のため標準loggingを使用
+        self.logger = logging.getLogger(f"crypto_bot.discord.{id(self)}")
 
         # 🚨 CRITICAL FIX: 起動時安全性確保（Rate Limit回避・安定起動確保）
         import time
@@ -501,7 +502,17 @@ class DiscordNotifier:
 
             self.logger.info(f"📡 リクエストヘッダー: {headers}")
 
-            response = requests.post(self.webhook_url, json=payload, headers=headers, timeout=10)
+            # 🚨 CRITICAL FIX: JSON serialization を明示的に制御
+            import json
+            json_data = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+            
+            # 最終的なJSON文字列の検証
+            if '"embeds":["' in json_data or '"embeds":[0' in json_data:
+                self.logger.error(f"❌ embed文字列化検出: {json_data[:200]}...")
+                return False
+            
+            headers["Content-Type"] = "application/json; charset=utf-8"
+            response = requests.post(self.webhook_url, data=json_data, headers=headers, timeout=10)
 
             # 応答の詳細ログ出力（401エラー解決用）
             self.logger.info(f"📡 Discord応答: status={response.status_code}")
