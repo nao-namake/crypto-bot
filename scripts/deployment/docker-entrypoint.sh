@@ -1,10 +1,10 @@
 #!/bin/bash
-# Phase 7 Docker統合エントリポイント
-# レガシーシステム高度制御機能継承 + 新システムシンプル化
+# Phase 13 Docker統合エントリポイント
+# 607テスト・54%カバレッジ・統合最適化完了
 
 set -e
 
-echo "🚀 Phase 7 Docker統合エントリポイント開始"
+echo "🚀 Phase 13 Docker統合エントリポイント開始"
 echo "📊 環境変数確認:"
 echo "  MODE: ${MODE:-paper}"
 echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO}"
@@ -13,14 +13,13 @@ echo "  PYTHONPATH: ${PYTHONPATH:-/app}"
 echo "  PORT: ${PORT:-8080}"
 echo "  CI: ${CI:-false}"
 
-# Phase 7: 基本ヘルスチェックサーバー起動（レガシーパターン継承）
+# Phase 13: 基本ヘルスチェックサーバー起動（統合最適化）
 echo "🌐 ヘルスチェックサーバー起動準備..."
 
-# Phase 7: 起動時MLモデルチェック（根本的バグ解決）
+# Phase 13: 起動時MLモデルチェック（607テスト対応・簡素化）
 echo "🤖 起動時MLモデル検証実行..."
 python3 -c "
 import sys
-import os
 sys.path.insert(0, '/app')
 
 try:
@@ -28,45 +27,38 @@ try:
     from src.core.logger import get_logger
     
     logger = get_logger('startup_check')
-    logger.info('🔍 MLモデル検証開始')
-    
-    # MLServiceAdapterを初期化してモデル読み込み確認
     adapter = MLServiceAdapter(logger)
     
     if adapter.is_fitted:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
-        logger.info(f'✅ 起動時モデル検証成功: {model_info}')
         
-        # 基本的な予測テスト（12特徴量対応）
+        # 簡易予測テスト（12特徴量）
         import numpy as np
         test_features = np.random.random((1, 12))
         prediction = adapter.predict(test_features)
-        probability = adapter.predict_proba(test_features)
         
-        print(f'✅ 予測テスト成功: prediction={prediction[0]}, confidence={probability[0][1]:.3f}')
-        logger.info('✅ 起動時予測テスト成功')
+        print(f'✅ 予測テスト成功: prediction={prediction[0]}')
+        logger.info('✅ 起動時モデル検証成功')
     else:
-        print('❌ MLモデル初期化失敗 - ダミーモードで起動')
-        logger.warning('⚠️ 起動時モデル検証失敗 - ダミーモード稼働')
+        print('⚠️ MLモデル未学習 - ダミーモードで継続')
+        logger.warning('⚠️ ダミーモード稼働')
         
 except Exception as e:
-    print(f'❌ MLモデル検証エラー: {e}')
-    print('⚠️ モデル問題により稼働継続 - 運用中に修復される可能性があります')
-    import traceback
-    traceback.print_exc()
+    print(f'⚠️ MLモデル検証エラー: {str(e)[:100]}...')
+    print('⚠️ エラーが発生しましたが稼働を継続します')
 "
 
 if [ $? -ne 0 ]; then
     echo "⚠️ MLモデル検証で問題検出 - 稼働継続（運用中修復対応）"
 fi
 
-# Phase 7簡易ヘルスチェックサーバー作成
+# Phase 13簡易ヘルスチェックサーバー作成
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3
 """
-Phase 7 簡易ヘルスチェックサーバー
-レガシーパターン継承・軽量実装
+Phase 13 簡易ヘルスチェックサーバー
+607テスト・54%カバレッジ・統合最適化対応
 """
 import json
 import http.server
@@ -81,27 +73,25 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             try:
-                # Phase 7基本ヘルスチェック
+                # Phase 13基本ヘルスチェック
                 sys.path.insert(0, '/app')
                 from src.trading.executor import create_order_executor
                 from src.core.config import load_config
                 
-                # 簡易動作確認（環境に応じた設定ファイル使用）
+                # 動的設定ファイル解決（環境に応じた最適化）
                 mode = os.environ.get('MODE', 'paper')
-                if mode == 'live':
-                    config = load_config('config/production/production.yaml')
-                    executor = create_order_executor(mode='live')
-                else:
-                    config = load_config('config/core/base.yaml')
-                    executor = create_order_executor(mode='paper')
+                config_file = f'config/production/production.yaml' if mode == 'live' else 'config/core/base.yaml'
+                
+                config = load_config(config_file)
+                executor = create_order_executor(mode=mode)
                 
                 health_data = {
                     "status": "healthy",
-                    "phase": "7",
-                    "mode": os.environ.get('MODE', 'paper'),
+                    "phase": "13",
+                    "mode": mode,
                     "timestamp": datetime.now().isoformat(),
                     "executor": "operational",
-                    "config": "loaded"
+                    "config": f"loaded({config_file})"
                 }
                 
                 self.send_response(200)

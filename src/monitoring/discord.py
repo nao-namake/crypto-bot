@@ -459,16 +459,16 @@ class DiscordNotifier:
 
                 self.logger.debug(f"🔍 embeds詳細構造: {embeds_debug_info}")
 
-                json_payload = json.dumps(payload)
-                self.logger.debug(f"🔍 JSON serialization確認: {len(json_payload)}文字")
+                test_json_payload = json.dumps(payload)
+                self.logger.debug(f"🔍 JSON serialization確認: {len(test_json_payload)}文字")
 
                 # JSONの最初の500文字をデバッグ出力
-                self.logger.debug(f"🔍 JSON内容サンプル: {json_payload[:500]}...")
+                self.logger.debug(f"🔍 JSON内容サンプル: {test_json_payload[:500]}...")
 
                 # デバッグ: 実際の送信ペイロード概要をログ出力（無限再帰防止）
                 payload_debug = {
                     "embeds_count": len(payload.get("embeds", [])),
-                    "total_chars": len(json_payload),
+                    "total_chars": len(test_json_payload),
                     "username": payload.get("username"),
                     "embeds_types": [type(e).__name__ for e in payload.get("embeds", [])],
                 }

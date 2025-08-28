@@ -1,12 +1,12 @@
 # Phase 13: 統合最適化完了・品質保証・CI/CD統合 Production Dockerfile
-# 306テスト・58.88%カバレッジ・統合キャッシュ・設定最適化対応
+# 607テスト・54%カバレッジ・統合キャッシュ・設定最適化対応
 
 FROM python:3.11-slim-bullseye
 
-# メタデータ（レガシーパターン踏襲）
+# メタデータ（Phase 13完了）
 LABEL maintainer="crypto-bot-phase13"
 LABEL version="13.0.0"
-LABEL description="Phase 13: 統合最適化完了・品質保証・CI/CD統合"
+LABEL description="Phase 13完了: 統合最適化・54%カバレッジ・607テスト・CI/CD統合"
 
 WORKDIR /app
 
@@ -46,7 +46,6 @@ USER cryptobot
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-ENV MODE=live
 ENV LOG_LEVEL=INFO
 ENV FEATURE_MODE=full
 ENV PYTHONPYCACHEPREFIX=/app/.cache/pycache

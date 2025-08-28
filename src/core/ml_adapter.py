@@ -98,7 +98,13 @@ class MLServiceAdapter:
 
     def _load_production_ensemble(self) -> bool:
         """ProductionEnsemble読み込み（互換性レイヤー付き）"""
-        model_path = Path("models/production/production_ensemble.pkl")
+        import os
+        
+        # Cloud Run環境とローカル環境の両方に対応
+        # Docker環境では/app、ローカルでは現在のディレクトリ
+        base_path = os.environ.get("PYTHONPATH", ".").replace("/app", "") if os.environ.get("PYTHONPATH") == "/app" else "."
+        base_path = "/app" if os.path.exists("/app/models") else "."
+        model_path = Path(base_path) / "models/production/production_ensemble.pkl"
 
         if not model_path.exists():
             self.logger.warning(f"ProductionEnsemble未発見: {model_path}")
@@ -112,7 +118,7 @@ class MLServiceAdapter:
             class ModuleRedirect:
                 def __getattr__(self, name):
                     if name == "ProductionEnsemble":
-                        from ..ml.ensemble.production_ensemble import ProductionEnsemble
+                        from src.ml.ensemble.production_ensemble import ProductionEnsemble
 
                         return ProductionEnsemble
                     raise AttributeError(f"Module {name} not found")
@@ -152,7 +158,12 @@ class MLServiceAdapter:
 
     def _load_from_individual_models(self) -> bool:
         """個別モデルからProductionEnsemble再構築"""
-        training_path = Path("models/training")
+        import os
+        
+        # Cloud Run環境とローカル環境の両方に対応
+        # Docker環境では/app、ローカルでは現在のディレクトリ
+        base_path = "/app" if os.path.exists("/app/models") else "."
+        training_path = Path(base_path) / "models/training"
 
         if not training_path.exists():
             self.logger.warning(f"個別モデルディレクトリ未発見: {training_path}")

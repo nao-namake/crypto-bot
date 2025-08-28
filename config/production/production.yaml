@@ -53,23 +53,9 @@ ml:
     retrain_frequency: "weekly"
 
 # ========================================
-# リスク管理設定（本番用厳格管理）
+# リスク管理設定（Phase 13統合版・重複削除済み）
 # ========================================
-risk:
-  # 基本リスク設定（保守的）
-  risk_per_trade: 0.008        # 0.8%（本番は保守的）
-  kelly_max_fraction: 0.025    # Kelly基準最大2.5%
-  max_drawdown: 0.15           # 最大ドローダウン15%（厳格）
-  consecutive_loss_limit: 4     # 連続損失3回で一時停止
-  
-  # ストップロス設定
-  stop_loss_atr_multiplier: 1.0  # ATRの1.0倍（厳格）
-  take_profit_ratio: 2.0         # リスクリワード比1:2
-  
-  # 本番用追加保護機能
-  daily_loss_limit: 0.05         # 日次損失限度5%
-  weekly_loss_limit: 0.10        # 週次損失限度10%
-  emergency_stop_enabled: true   # 緊急停止機能有効
+# 注意: リスク設定は下記の「Phase 6完全版」セクションに統合されています
 
 # ========================================
 # データ取得設定（本番用）
@@ -135,7 +121,7 @@ strategies:
 
 # 機械学習設定は上記で統合済み（重複削除）
 
-# リスク管理設定（Phase 6完全版・レガシー実証値活用）
+# リスク管理設定（Phase 13完全版・607テスト対応・実証値活用）
 risk:
   # Kelly基準ポジションサイジング（Phase 8バックテスト最適化）
   kelly_criterion:
@@ -233,10 +219,10 @@ monitoring:
     enabled: true
     metrics_interval: 300  # 5分間隔
 
-# GCP Cloud Run最適化
+# GCP Cloud Run最適化（Phase 13: 1Gi最適化・コスト削減）
 cloud_run:
-  # リソース設定
-  memory: "2Gi"
+  # リソース設定（実証済み: 1Gi十分・ML モデル8.2MB）
+  memory: "1Gi"
   cpu: 1
   
   # スケーリング

@@ -5,7 +5,7 @@ set -euo pipefail
 # ファイル名: scripts/checks.sh
 # 説明:
 # 新システムの品質チェックを一括実行するシェルスクリプトです。
-# Phase 9対応版：12特徴量最適化システム・286テスト対応
+# Phase 13完了版：12特徴量最適化システム・607テスト対応
 #
 # - flake8: コードスタイルチェック（PEP8違反検出）
 # - isort: import順チェック（自動修正せず、--check-only）
@@ -20,7 +20,7 @@ set -euo pipefail
 # スクリプト開始時刻記録
 START_TIME=$(date +%s)
 
-echo "🚀 新システム品質チェック開始 (Phase 9対応)"
+echo "🚀 新システム品質チェック開始 (Phase 13完了)"
 echo "================================================="
 
 # カバレッジ最低ライン（実用性重視・50%目標設定）
@@ -79,9 +79,9 @@ python3 -m black --check --diff src/ tests/ scripts/ \
 
 echo "✅ blackチェック完了"
 
-# Phase 12: 新システム306テスト実行
-echo ">>> 🧪 pytest: 新システム306テスト実行"
-echo "対象テスト: 戦略113 + ML89 + バックテスト84 + 取引113 + その他 = 合計306テスト"
+# Phase 13: 新システム607テスト実行
+echo ">>> 🧪 pytest: 新システム607テスト実行"
+echo "対象テスト: strategies + ml + backtest + trading + 全層 = 合計607テスト"
 
 python3 -m pytest \
   tests/unit/strategies/ tests/unit/ml/ tests/unit/backtest/ tests/unit/trading/ \
@@ -97,7 +97,7 @@ python3 -m pytest \
     exit 1
 }
 
-echo "✅ 306テスト実行完了"
+echo "✅ 607テスト実行完了"
 
 # 手動テスト確認（Phase 9追加）
 echo ">>> 🔧 手動テスト: データ層基盤確認"
@@ -120,7 +120,7 @@ echo "📊 チェック結果:"
 echo "  - flake8: ✅ PASS"
 echo "  - isort: ✅ PASS"  
 echo "  - black: ✅ PASS"
-echo "  - pytest: ✅ PASS (306テスト・${COV_FAIL_UNDER}%カバレッジ目標)"
+echo "  - pytest: ✅ PASS (607テスト・${COV_FAIL_UNDER}%カバレッジ目標)"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: coverage-reports/htmlcov/index.html"
