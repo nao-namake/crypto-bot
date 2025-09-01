@@ -18,17 +18,13 @@ env:
 
 jobs:
   # ========================================
-  # Phase 17: 並列化品質チェック（テスト高速化・リソース最適化）
+  # 品質チェック（checks.sh統合版）
   # ========================================
   
-  # 1. 静的品質チェック（並列実行）
-  static-analysis:
-    name: Static Analysis
+  quality-check:
+    name: Quality Check (checks.sh)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      matrix:
-        check: [flake8, black, isort, mypy]
     
     steps:
       - name: Checkout code
@@ -40,315 +36,27 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
-
-      - name: Install dependencies
-        run: |
-          echo "Installing dependencies for ${{ matrix.check }}..."
-          python -m pip install --upgrade pip
-          pip install flake8 black isort mypy
-          echo "Dependencies installed successfully"
-
-      - name: Run ${{ matrix.check }}
-        run: |
-          echo "Running ${{ matrix.check }} check..."
-          case "${{ matrix.check }}" in
-            flake8) 
-              echo "Starting flake8..."
-              flake8 src/ --version
-              flake8 src/ 
-              ;;
-            black) 
-              echo "Starting black..."
-              black --version
-              black --check src/ 
-              ;;
-            isort) 
-              echo "Starting isort..."
-              isort --version
-              isort --check-only src/ 
-              ;;
-            mypy) 
-              echo "Starting mypy..."
-              mkdir -p .cache/mypy 
-              mypy --version
-              echo "Running mypy (failures allowed for gradual typing adoption)..."
-              mypy src/ --cache-dir .cache/mypy || echo "⚠️ MyPy found issues but continuing CI (gradual typing adoption)"
-              ;;
-          esac
-          echo "${{ matrix.check }} completed successfully"
-  
-  # 2. テスト並列実行（カテゴリ別分割）
-  test-matrix:
-    name: Test Suite (${{ matrix.category }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        category: 
-          - core
-          - strategies
-          - ml
-          - trading
-          - backtest
-          - features
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'requirements.txt'
-
-      - name: Cache test dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            .cache/pytest
-            models/production
-          key: test-${{ runner.os }}-${{ hashFiles('requirements.txt', 'tests/**/*.py') }}
-          restore-keys: |
-            test-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov
 
       - name: Setup test environment
         run: |
-          mkdir -p models/production .cache/pytest
+          mkdir -p models/production
           echo '{"version": "ci-test", "features": 12}' > models/production/model_metadata.json
           touch models/production/production_ensemble.pkl
 
-      - name: Run tests for ${{ matrix.category }}
-        run: |
-          case "${{ matrix.category }}" in
-            core) python -m pytest tests/unit/core/ -v --cov=src/core --cov-report=xml:coverage-core.xml ;;
-            strategies) python -m pytest tests/unit/strategies/ -v --cov=src/strategies --cov-report=xml:coverage-strategies.xml ;;
-            ml) python -m pytest tests/unit/ml/ -v --cov=src/ml --cov-report=xml:coverage-ml.xml ;;
-            trading) python -m pytest tests/unit/trading/ -v --cov=src/trading --cov-report=xml:coverage-trading.xml ;;
-            backtest) python -m pytest tests/unit/backtest/ -v --cov=src/backtest --cov-report=xml:coverage-backtest.xml ;;
-            features) python -m pytest tests/unit/features/ -v --cov=src/features --cov-report=xml:coverage-features.xml ;;
-          esac
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.category }}
-          path: coverage-*.xml
-          retention-days: 1
-  
-  # 3. 統合品質チェック（依存性あり）
-  integration-check:
-    name: Integration & Coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [static-analysis, test-matrix]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Enhanced cache system
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            .cache/pytest
-            .cache/mypy
-            node_modules
-          key: integration-${{ runner.os }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
-          restore-keys: |
-            integration-${{ runner.os }}-
-
-      - name: Download coverage artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-cov coverage[toml] pyyaml
-
-      - name: Combine coverage reports
-        run: |
-          echo "📊 カバレッジレポート統合開始"
-          
-          # カバレッジファイルの確認
-          echo "📋 ダウンロードされたカバレッジファイル:"
-          find . -name "coverage-*.xml" -type f | head -10
-          
-          if [ $(find . -name "coverage-*.xml" -type f | wc -l) -eq 0 ]; then
-            echo "⚠️ カバレッジファイルが見つかりません - 並列テスト実行を確認してください"
-            echo "デバッグ: 現在のディレクトリ内容"
-            ls -la
-          else
-            # 統合カバレッジレポート生成
-            echo "📊 統合カバレッジレポート生成中..."
-            coverage combine coverage-*.xml 2>/dev/null || true
-            
-            # カバレッジサマリー表示
-            if [ -f ".coverage" ]; then
-              coverage report --show-missing
-              coverage_percentage=$(coverage report --format=total)
-              echo "✅ 最終カバレッジ: ${coverage_percentage}%"
-              
-              # Phase 17品質基準チェック
-              if (( $(echo "$coverage_percentage >= 50" | bc -l) )); then
-                echo "✅ カバレッジ品質基準達成: ${coverage_percentage}% >= 50%"
-              else
-                echo "⚠️ カバレッジ改善推奨: ${coverage_percentage}% < 50%"
-              fi
-            else
-              echo "⚠️ 統合カバレッジデータ生成に問題があります"
-            fi
-          fi
-
-      - name: Create models directory for tests
-        run: |
-          mkdir -p models/production
-          # テスト用ダミーモデル作成
-          echo '{"version": "ci-test", "features": 12, "created": "2025-08-17"}' > models/production/model_metadata.json
-          touch models/production/production_ensemble.pkl
-
-      - name: Phase 16-B設定一元化検証
-        run: |
-          echo "🔧 Phase 16-B完成機能: 160個ハードコード値統合・thresholds.yaml設定検証"
-          if [ -f "config/core/thresholds.yaml" ]; then
-            echo "✅ thresholds.yaml確認済み（160個ハードコード値統合）"
-            python -c "import yaml; yaml.safe_load(open('config/core/thresholds.yaml'))"
-            echo "✅ thresholds.yaml構文検証成功"
-            
-            # 設定項目数確認（160個設定統合確認）
-            config_count=$(grep -c ":" config/core/thresholds.yaml | head -1)
-            echo "✅ thresholds.yaml設定項目数: $config_count 項目（Phase 16-B統合結果）"
-          else
-            echo "❌ thresholds.yaml未存在 - Phase 16-B必須設定"
-            exit 1
-          fi
-          
-          echo "📝 MyPy設定確認"
-          if grep -q "cache_dir.*mypy" pyproject.toml; then
-            echo "✅ MyPyキャッシュ統合設定確認済み"
-          else
-            echo "⚠️ MyPy設定未確認"
-          fi
-
-      - name: Phase 16-B統合品質チェック
-        run: |
-          echo "🔍 Phase 16-B完了: 設定一元化・保守性向上システムによる品質チェック実行"
-          echo "620テスト100%成功・50%+カバレッジ・160個ハードコード値統合・品質保証完成"
-          
-          # Phase 16-B改善: 段階的品質チェックシステム（設定一元化・保守性向上対応）
-          echo "📋 段階1: 統合品質チェック実行"
-          if bash scripts/testing/checks.sh; then
-            echo "✅ 統合品質チェック成功"
-          else
-            echo "⚠️ 統合品質チェック失敗 - 詳細診断開始"
-            
-            # 段階2: 重要テスト個別実行（レガシーrun_production_tests.sh改良）
-            echo "📋 段階2: 重要テスト個別実行"
-            TEST_ERRORS=0
-            
-            echo "🧪 主要層テスト実行..."
-            python -m pytest tests/unit/strategies/ tests/unit/ml/ tests/unit/trading/ tests/unit/backtest/ -v --tb=short --maxfail=5 || ((TEST_ERRORS++))
-            
-            # 段階3: コード品質詳細診断（レガシーvalidate_all.sh改良）
-            echo "📋 段階3: コード品質詳細診断"
-            
-            echo "🔍 flake8品質チェック..."
-            flake8_errors=$(flake8 src/ --count --statistics 2>&1 | tail -1 | grep -o '^[0-9]*' || echo "0")
-            echo "flake8エラー数: $flake8_errors"
-            
-            echo "📝 コード整形チェック..."
-            if ! black --check src/ --quiet; then
-              echo "⚠️ コード整形が必要"
-            else
-              echo "✅ コード整形OK"
-            fi
-            
-            echo "📦 インポート順序チェック..."
-            if ! isort --check-only src/ --quiet; then
-              echo "⚠️ インポート順序修正が必要"
-            else
-              echo "✅ インポート順序OK"
-            fi
-            
-            echo "🔍 型チェック（Phase 16-A統合機能）..."
-            mkdir -p .cache/mypy  # キャッシュディレクトリ作成
-            mypy_errors=$(mypy src/ --config-file pyproject.toml --cache-dir .cache/mypy 2>&1 | grep -c "error:" || echo "0")
-            echo "mypy型エラー数: $mypy_errors"
-            if [ "$mypy_errors" -eq 0 ]; then
-              echo "✅ MyPy統合型チェックOK"
-            else
-              echo "⚠️ 型チェック改善推奨（$mypy_errors エラー）"
-            fi
-            
-            # 結果判定（レガシー改良版）
-            if [ $TEST_ERRORS -eq 0 ]; then
-              echo "✅ 重要テストは全て成功 - CI継続可能"
-              if [ "$flake8_errors" -lt 50 ]; then
-                echo "✅ コード品質も許容範囲内"
-                exit 0
-              else
-                echo "⚠️ コード品質改善推奨だがCI継続"
-                exit 0
-              fi
-            else
-              echo "❌ $TEST_ERRORS 個のテストセットで失敗 - CI停止"
-              exit 1
-            fi
-          fi
-
-      - name: Test critical components
-        run: |
-          echo "🧪 重要コンポーネントテスト実行"
-          
-          # Phase 12の重要テストのみ実行（高速化）
-          python -m pytest tests/unit/trading/test_executor.py -v --tb=short
-          python -m pytest tests/unit/strategies/implementations/test_atr_based.py -v --tb=short
-          python -m pytest tests/unit/ml/test_ensemble_model.py -v --tb=short
-          
-          echo "✅ 重要コンポーネントテスト完了"
-
-      - name: Validate system integration
-        run: |
-          echo "🔧 システム統合確認"
-          
-          # Phase 16-A完了システム確認
-          python scripts/management/dev_check.py validate || echo "⚠️ システム確認で問題検出"
-          
-          # インポートテスト
-          python -c "
-          try:
-              from src.core.orchestrator import create_trading_orchestrator
-              from src.trading.executor import OrderExecutor, ExecutionMode
-              from src.ml.ensemble import ProductionEnsemble
-              print('✅ Phase 16-A重要モジュールインポート成功')
-          except Exception as e:
-              print(f'⚠️ インポートエラー: {e}')
-          "
+      - name: Run quality checks (checks.sh)
+        run: bash scripts/testing/checks.sh
 
   # ========================================
-  # 2. GCP環境検証（Phase 16-B対応）
+  # GCP環境検証（Phase 16-B対応）
   # ========================================
   gcp-environment-check:
     name: GCP Environment Verification
-    needs: integration-check
+    needs: quality-check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     
@@ -486,7 +194,7 @@ jobs:
   # ========================================
   build-deploy:
     name: Build & Deploy to GCP
-    needs: [integration-check, gcp-environment-check]
+    needs: [quality-check, gcp-environment-check]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     
