@@ -212,22 +212,7 @@ jobs:
             echo "✅ thresholds.yaml構文検証成功"
             
             # 設定項目数確認（160個設定統合確認）
-            config_count=$(python -c "
-import yaml
-with open('config/core/thresholds.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-    
-def count_items(d, prefix=''):
-    count = 0
-    for k, v in d.items():
-        if isinstance(v, dict):
-            count += count_items(v, f'{prefix}.{k}' if prefix else k)
-        else:
-            count += 1
-    return count
-
-print(count_items(config))
-")
+            config_count=$(grep -c ":" config/core/thresholds.yaml | head -1)
             echo "✅ thresholds.yaml設定項目数: $config_count 項目（Phase 16-B統合結果）"
           else
             echo "❌ thresholds.yaml未存在 - Phase 16-B必須設定"
