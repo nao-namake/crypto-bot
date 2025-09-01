@@ -209,10 +209,12 @@ class TestMLServiceAdapterExceptionHandling:
         # predictメソッドのないオブジェクトをロード
         invalid_model = {"not_a_model": True}
 
-        with patch("pathlib.Path") as mock_path:
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
             mock_path_instance = MagicMock()
             mock_path_instance.exists.return_value = True
             mock_path.return_value = mock_path_instance
+            # / 演算子をサポート
+            mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
             with patch("builtins.open", mock_open()):
                 with patch("pickle.load", return_value=invalid_model):
@@ -229,18 +231,20 @@ class TestMLServiceAdapterExceptionHandling:
 
     def test_individual_models_directory_not_found(self, mock_logger):
         """個別モデルディレクトリ未発見"""
-        with patch("pathlib.Path") as mock_path:
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
             # production_ensemble.pklが存在しない
             mock_path_instance = mock_path.return_value
             mock_path_instance.exists.side_effect = lambda: False
+            # / 演算子をサポート
+            mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
             adapter = MLServiceAdapter(mock_logger)
 
             assert (
-                adapter.model_type == "ReconstructedEnsemble"
-            )  # 個別モデルが存在するため再構築される
-            # ReconstructedEnsembleの場合はwarningではなくinfoメッセージが出る
-            mock_logger.info.assert_called()  # infoログが呼ばれることを確認
+                adapter.model_type == "DummyModel"
+            )  # パスが存在しない場合はDummyModelにフォールバック
+            # DummyModelの場合はwarningメッセージが出る
+            mock_logger.warning.assert_called()  # warningログが呼ばれることを確認
 
     def test_individual_models_file_io_error(self, mock_logger, temp_models_dir):
         """個別モデルファイルI/Oエラー"""
@@ -249,10 +253,13 @@ class TestMLServiceAdapterExceptionHandling:
         lightgbm_file = training_dir / "lightgbm_model.pkl"
         lightgbm_file.touch()  # 空ファイル作成
 
-        with patch("pathlib.Path") as mock_path:
-            mock_path.return_value.exists.side_effect = lambda path_str=None: (
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
+            mock_path_instance = mock_path.return_value
+            mock_path_instance.exists.side_effect = lambda path_str=None: (
                 False if "production_ensemble.pkl" in str(path_str) else training_dir.exists()
             )
+            # / 演算子をサポート
+            mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
             with patch("builtins.open", side_effect=OSError("ファイル読み込みエラー")):
                 adapter = MLServiceAdapter(mock_logger)
@@ -645,8 +652,11 @@ def test_model_loading_error_scenarios(error_type, error_message, expected_model
     """モデル読み込みの各種エラーシナリオ（パラメータ化テスト）"""
     mock_logger = MagicMock()
 
-    with patch("pathlib.Path") as mock_path:
-        mock_path.return_value.exists.return_value = True
+    with patch("src.core.orchestration.ml_loader.Path") as mock_path:
+        mock_path_instance = mock_path.return_value
+        mock_path_instance.exists.return_value = True
+        # / 演算子をサポート
+        mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
         with patch("builtins.open", mock_open()):
             with patch("pickle.load", side_effect=error_type(error_message)):
@@ -670,9 +680,11 @@ class TestMLServiceAdapterIntegration:
         with patch("os.path.exists") as mock_exists:
             mock_exists.side_effect = lambda path: path == "/app/models"
 
-            with patch("pathlib.Path") as mock_path:
+            with patch("src.core.orchestration.ml_loader.Path") as mock_path:
                 mock_path_instance = mock_path.return_value
                 mock_path_instance.exists.return_value = False  # production_ensemble.pklなし
+                # / 演算子をサポート
+                mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
                 adapter = MLServiceAdapter(mock_logger)
 
