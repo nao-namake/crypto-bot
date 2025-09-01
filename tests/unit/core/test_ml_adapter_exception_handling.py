@@ -149,9 +149,13 @@ class TestMLServiceAdapterExceptionHandling:
         production_file = temp_models_dir / "production" / "production_ensemble.pkl"
         production_file.touch()  # 空ファイル作成
 
-        with patch("pathlib.Path") as mock_path:
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
             with patch("builtins.open", side_effect=OSError("ディスク読み込みエラー")):
-                mock_path.return_value.exists.return_value = True
+                mock_path_instance = Mock()
+                mock_path_instance.exists.return_value = True
+                mock_path.return_value = mock_path_instance
+                # / 演算子をサポート
+                mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
                 adapter = MLServiceAdapter(mock_logger)
 
@@ -167,11 +171,13 @@ class TestMLServiceAdapterExceptionHandling:
         with open(production_file, "wb") as f:
             f.write(b"invalid_pickle_data")  # 無効なpickleデータ
 
-        with patch("pathlib.Path") as mock_path:
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
             # Pathオブジェクトのモック設定
             mock_path_instance = MagicMock()
             mock_path_instance.exists.return_value = True  # ファイルが存在することをシミュレート
             mock_path.return_value = mock_path_instance
+            # / 演算子をサポート
+            mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
             # pickle.loadでUnpicklingErrorを発生させる
             import pickle
@@ -184,8 +190,12 @@ class TestMLServiceAdapterExceptionHandling:
 
     def test_production_ensemble_import_error(self, mock_logger):
         """ProductionEnsemble ImportError（モジュール未発見）"""
-        with patch("pathlib.Path") as mock_path:
-            mock_path.return_value.exists.return_value = True
+        with patch("src.core.orchestration.ml_loader.Path") as mock_path:
+            mock_path_instance = Mock()
+            mock_path_instance.exists.return_value = True
+            mock_path.return_value = mock_path_instance
+            # / 演算子をサポート
+            mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
 
             with patch("builtins.open", mock_open()):
                 with patch("pickle.load", side_effect=ImportError("モジュールが見つかりません")):
