@@ -48,12 +48,31 @@ jobs:
 
       - name: Run ${{ matrix.check }}
         run: |
+          echo "Running ${{ matrix.check }} check..."
           case "${{ matrix.check }}" in
-            flake8) flake8 src/ ;;
-            black) black --check src/ ;;
-            isort) isort --check-only src/ ;;
-            mypy) mkdir -p .cache/mypy && mypy src/ --cache-dir .cache/mypy ;;
+            flake8) 
+              echo "Starting flake8..."
+              flake8 src/ --version
+              flake8 src/ 
+              ;;
+            black) 
+              echo "Starting black..."
+              black --version
+              black --check src/ 
+              ;;
+            isort) 
+              echo "Starting isort..."
+              isort --version
+              isort --check-only src/ 
+              ;;
+            mypy) 
+              echo "Starting mypy..."
+              mkdir -p .cache/mypy 
+              mypy --version
+              mypy src/ --cache-dir .cache/mypy 
+              ;;
           esac
+          echo "${{ matrix.check }} completed successfully"
   
   # 2. テスト並列実行（カテゴリ別分割）
   test-matrix:
