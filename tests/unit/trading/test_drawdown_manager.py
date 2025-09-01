@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.trading.drawdown_manager import (
+from src.trading.risk_monitor import (
     DrawdownManager,
     DrawdownSnapshot,
     TradingSession,
@@ -185,7 +185,7 @@ class TestDrawdownManager:
 
         # 時間経過をシミュレート（25時間後）
         future_time = datetime.now() + timedelta(hours=25)
-        with patch("src.trading.drawdown_manager.datetime") as mock_datetime:
+        with patch("src.trading.risk_monitor.datetime") as mock_datetime:
             mock_datetime.now.return_value = future_time
 
             # 実装では時間経過後も連続損失カウンターが残るため、

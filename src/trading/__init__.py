@@ -13,22 +13,29 @@ Trading Layer - Phase 6リスク管理層
 Phase 12完了: 2025年8月18日.
 """
 
-# 異常検知
-from .anomaly_detector import AnomalyAlert, AnomalyLevel, MarketCondition, TradingAnomalyDetector
-
-# ドローダウン管理
-from .drawdown_manager import DrawdownManager, DrawdownSnapshot, TradingSession, TradingStatus
-
-# Kelly基準ポジションサイジング
-from .position_sizing import (
+# Phase 18統合: リスク管理（統合API + Kelly基準ポジションサイジング）
+from .risk_manager import (
+    IntegratedRiskManager,
     KellyCalculationResult,
     KellyCriterion,
     PositionSizeIntegrator,
+    RiskDecision,
+    RiskMetrics,
+    TradeEvaluation,
     TradeResult,
 )
 
-# 統合API
-from .risk import IntegratedRiskManager, RiskDecision, RiskMetrics, TradeEvaluation
+# Phase 18統合: リスク監視（異常検知 + ドローダウン管理）
+from .risk_monitor import (
+    AnomalyAlert,
+    AnomalyLevel,
+    DrawdownManager,
+    DrawdownSnapshot,
+    MarketCondition,
+    TradingAnomalyDetector,
+    TradingSession,
+    TradingStatus,
+)
 
 # パブリックAPI
 __all__ = [

@@ -14,7 +14,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 
 from src.core.exceptions import CryptoBotError
-from src.ml.models.rf_model import RFModel
+from src.ml.models import RFModel
 
 
 class TestRFModel:

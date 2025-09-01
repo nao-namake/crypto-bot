@@ -17,7 +17,7 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
 from src.strategies.implementations.multi_timeframe import MultiTimeframeStrategy
-from src.strategies.utils.constants import EntryAction
+from src.strategies.utils import EntryAction
 
 
 class TestMultiTimeframeStrategy(unittest.TestCase):

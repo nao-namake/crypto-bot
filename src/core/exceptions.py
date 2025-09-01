@@ -20,7 +20,7 @@ class CryptoBotError(Exception):
         message: str,
         error_code: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         super().__init__(message)
         self.error_code = error_code
         self.context = context or {}
@@ -56,8 +56,8 @@ class ExchangeAPIError(CryptoBotError):
         message: str,
         api_endpoint: Optional[str] = None,
         status_code: Optional[int] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, **kwargs)
         self.api_endpoint = api_endpoint
         self.status_code = status_code
@@ -72,8 +72,8 @@ class TradingError(CryptoBotError):
         message: str,
         order_id: Optional[str] = None,
         symbol: Optional[str] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, **kwargs)
         self.order_id = order_id
         self.symbol = symbol
@@ -88,8 +88,8 @@ class MLModelError(CryptoBotError):
         message: str,
         model_name: Optional[str] = None,
         feature_count: Optional[int] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, **kwargs)
         self.model_name = model_name
         self.feature_count = feature_count
@@ -104,8 +104,8 @@ class RiskManagementError(CryptoBotError):
         message: str,
         risk_level: Optional[str] = None,
         position_size: Optional[float] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, **kwargs)
         self.risk_level = risk_level
         self.position_size = position_size
@@ -120,8 +120,8 @@ class StrategyError(CryptoBotError):
         message: str,
         strategy_name: Optional[str] = None,
         confidence: Optional[float] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, **kwargs)
         self.strategy_name = strategy_name
         self.confidence = confidence
@@ -131,10 +131,81 @@ class StrategyError(CryptoBotError):
 class NotificationError(CryptoBotError):
     """通知システムエラー."""
 
-    def __init__(self, message: str, notification_type: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, notification_type: Optional[str] = None, **kwargs) -> None:
         super().__init__(message, **kwargs)
         self.notification_type = notification_type
         self.context.update({"notification_type": notification_type})
+
+
+class DataProcessingError(CryptoBotError):
+    """データ処理エラー."""
+
+    def __init__(
+        self,
+        message: str,
+        data_type: Optional[str] = None,
+        processing_stage: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.data_type = data_type
+        self.processing_stage = processing_stage
+        self.context.update({"data_type": data_type, "processing_stage": processing_stage})
+
+
+# Phase 14-A追加: ML・API・ファイルI/O関連の具体的例外
+class ModelLoadError(MLModelError):
+    """モデルファイル読み込みエラー"""
+
+    pass
+
+
+class ModelPredictionError(MLModelError):
+    """ML予測実行エラー"""
+
+    pass
+
+
+class APITimeoutError(ExchangeAPIError):
+    """API通信タイムアウトエラー"""
+
+    pass
+
+
+class APIAuthenticationError(ExchangeAPIError):
+    """API認証エラー"""
+
+    pass
+
+
+class FileIOError(DataProcessingError):
+    """ファイル入出力エラー"""
+
+    def __init__(
+        self,
+        message: str,
+        file_path: Optional[str] = None,
+        operation: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, data_type="file", **kwargs)
+        self.file_path = file_path
+        self.operation = operation
+        self.context.update({"file_path": file_path, "operation": operation})
+
+
+class HealthCheckError(CryptoBotError):
+    """システムヘルスチェックエラー"""
+
+    def __init__(
+        self,
+        message: str,
+        service_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.service_name = service_name
+        self.context.update({"service_name": service_name})
 
 
 # 緊急停止が必要なクリティカルエラー
@@ -173,22 +244,6 @@ class ValidationError(CryptoBotError):
     pass
 
 
-class DataProcessingError(CryptoBotError):
-    """データ処理エラー."""
-
-    def __init__(
-        self,
-        message: str,
-        data_type: Optional[str] = None,
-        processing_stage: Optional[str] = None,
-        **kwargs,
-    ):
-        super().__init__(message, **kwargs)
-        self.data_type = data_type
-        self.processing_stage = processing_stage
-        self.context.update({"data_type": data_type, "processing_stage": processing_stage})
-
-
 class DataQualityError(DataProcessingError):
     """データ品質エラー（Phase 12 バックテスト用・CI/CD統合対応）."""
 
@@ -198,8 +253,8 @@ class DataQualityError(DataProcessingError):
         quality_check: Optional[str] = None,
         expected_value: Optional[Any] = None,
         actual_value: Optional[Any] = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(message, data_type="quality_check", **kwargs)
         self.quality_check = quality_check
         self.expected_value = expected_value
@@ -239,6 +294,13 @@ ERROR_SEVERITY_MAP = {
     RateLimitError: ErrorSeverity.LOW,
     ValidationError: ErrorSeverity.LOW,
     DataProcessingError: ErrorSeverity.MEDIUM,
+    # Phase 14-A追加
+    ModelLoadError: ErrorSeverity.HIGH,
+    ModelPredictionError: ErrorSeverity.MEDIUM,
+    APITimeoutError: ErrorSeverity.MEDIUM,
+    APIAuthenticationError: ErrorSeverity.HIGH,
+    FileIOError: ErrorSeverity.MEDIUM,
+    HealthCheckError: ErrorSeverity.MEDIUM,
 }
 
 

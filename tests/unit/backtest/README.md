@@ -324,7 +324,7 @@ def test_strategy_integration():
 def test_ml_integration():
     """ML層統合テスト"""
     # アンサンブルモデル予測結果のバックテスト活用
-    from src.ml.ensemble.ensemble_model import EnsembleModel
+    from src.ml.ensemble import EnsembleModel
     model = EnsembleModel()
     # ML予測とバックテスト評価の統合確認
 ```

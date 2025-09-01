@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 
 import pandas as pd
 
-from src.trading.anomaly_detector import (
+from src.trading.risk_monitor import (
     AnomalyAlert,
     AnomalyLevel,
     MarketCondition,
@@ -294,7 +294,7 @@ class TestTradingAnomalyDetector:
         old_time = datetime.now() - timedelta(minutes=10)
 
         # タイムスタンプを偽装して古いアラート追加
-        with patch("src.trading.anomaly_detector.datetime") as mock_datetime:
+        with patch("src.trading.risk_monitor.datetime") as mock_datetime:
             mock_datetime.now.return_value = old_time
 
             self.detector.comprehensive_anomaly_check(

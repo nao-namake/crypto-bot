@@ -1,23 +1,27 @@
 # trading/ - 取引実行・リスク管理層
 
-**Phase 13完了**: 実取引システム・本番運用移行・Config型修正・全テスト対応・システム最適化・CI/CD準備完了（2025年8月22日）
+**Phase 18完了**: ファイル統合・保守性向上・6→3ファイル削減（50%削減）・後方互換性維持・システム最適化完了（2025年8月30日）
 
-## 📁 実装済みディレクトリ構造
+## 📁 Phase 18統合済みディレクトリ構造
 
 ```
 trading/
-├── __init__.py              # 取引層統合エクスポート ✅ Phase 13 CI/CDワークフロー最適化
-├── risk.py                  # 統合リスク管理システム ✅ 手動実行監視対応
-├── position_sizing.py       # Kelly基準ポジションサイジング ✅ GitHub Actions対応
-├── drawdown_manager.py      # ドローダウン管理・連続損失制御 ✅ 段階的デプロイ対応
-├── anomaly_detector.py      # 取引実行用異常検知 ✅ CI/CD品質ゲート対応
-└── executor.py              # 注文実行システム（Phase 13）✅ 監視統合
+├── __init__.py              # 取引層統合エクスポート ✅ Phase 18統合対応
+├── risk_monitor.py          # リスク監視（異常検知+ドローダウン統合）✅ Phase 18新統合
+├── risk_manager.py          # リスク管理（統合API+Kelly基準統合）✅ Phase 18新統合  
+└── executor.py              # 注文実行システム（Phase 13継承）✅ Phase 18継承
 ```
 
-## 🎯 Phase 13実装完了機能（113テスト・100%合格・CI/CDワークフロー最適化・手動実行監視対応）
+### Phase 18統合成果
+- **ファイル数削減**: 6ファイル → 3ファイル（50%削減）
+- **保守性向上**: 関連機能統合・重複コード削除・統一インターフェース
+- **後方互換性**: __init__.py再エクスポートで既存コード影響なし
+- **統合最適化**: risk_monitor.py（1,241行）・risk_manager.py（1,283行）
 
-### ✅ 統合リスク管理システム（risk.py）
-**役割**: 全リスク要素を統合した取引評価・判定（Phase 13最適化済み・CI/CDワークフロー最適化・手動実行監視対応）
+## 🎯 Phase 18統合完了機能（113テスト・100%合格・ファイル統合最適化・保守性向上）
+
+### ✅ 統合リスク管理システム（risk_manager.py）
+**役割**: 全リスク要素を統合した取引評価・判定（Phase 18統合済み・保守性向上・Kelly基準統合）
 
 **実装機能**:
 - **統合リスク評価**: Kelly基準・ドローダウン・異常検知の総合判定
@@ -53,8 +57,8 @@ print(f"ポジションサイズ: {evaluation.position_size}")
 print(f"リスクスコア: {evaluation.risk_score}")
 ```
 
-### ✅ Kelly基準ポジションサイジング（position_sizing.py）
-**役割**: 数学的最適ポジションサイズ計算・動的調整
+### ✅ Kelly基準ポジションサイジング（risk_manager.py統合）
+**役割**: 数学的最適ポジションサイズ計算・動的調整（Phase 18統合済み）
 
 **実装機能**:
 - **Kelly基準計算**: 勝率・平均損益に基づく最適ポジションサイズ
@@ -85,8 +89,8 @@ position_size, stop_loss = kelly.calculate_dynamic_position_size(
 kelly.add_trade_result(profit_loss=50000, strategy="test", confidence=0.8)
 ```
 
-### ✅ ドローダウン管理（drawdown_manager.py）
-**役割**: 最大ドローダウン制御・連続損失監視・自動停止・**強制リセット機能**
+### ✅ ドローダウン管理（risk_monitor.py統合）
+**役割**: 最大ドローダウン制御・連続損失監視・自動停止・**強制リセット機能**（Phase 18統合済み）
 
 **実装機能**:
 - **リアルタイムドローダウン監視**: ピーク追跡・20%制限
@@ -116,8 +120,8 @@ dd_manager.record_trade_result(profit_loss=-30000, strategy="test")
 print(f"連続損失: {dd_manager.consecutive_losses}回")
 ```
 
-### ✅ 取引実行用異常検知（anomaly_detector.py）
-**役割**: 取引実行時の市場異常・API異常の検知
+### ✅ 取引実行用異常検知（risk_monitor.py統合）
+**役割**: 取引実行時の市場異常・API異常の検知（Phase 18統合済み）
 
 **実装機能**:
 - **スプレッド異常検知**: 0.3%警告・0.5%重大レベル

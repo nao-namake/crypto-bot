@@ -1,6 +1,6 @@
 # models/ - 機械学習モデル管理ディレクトリ
 
-**Phase 13対応**: ProductionEnsemble統合モデル・個別学習モデル・メタデータ管理システム完成（2025年8月26日現在）
+**Phase 16-B完了**: 設定一元化・保守性向上完成・160個ハードコード値統合・620テスト100%成功・50%+カバレッジ達成に対応したProductionEnsemble統合モデル・個別学習モデル・メタデータ管理システム完成（2025年8月30日現在）
 
 ## 📂 ディレクトリ構成
 
@@ -25,6 +25,7 @@ models/
 - ProductionEnsemble統合モデルの本番運用管理
 - 個別モデル（LightGBM・XGBoost・RandomForest）の学習・保存
 - モデル性能指標・メタデータの体系的管理
+- 設定一元化システム連携（thresholds.yaml・8個ヘルパー関数統合）
 
 **システム構成**:
 - **production/**: 実取引で使用するProductionEnsembleモデル
@@ -118,9 +119,11 @@ print(f"重み設定: {info['weights']}")
 - **`src/features/`**: 特徴量生成システム・12特徴量定義
 - **`scripts/ml/create_ml_models.py`**: モデル学習・作成・更新スクリプト
 
-### **設定・管理**
+### **設定・管理（Phase 16-B設定一元化対応）**
 - **`config/core/base.yaml`**: 基本設定・学習パラメータ
+- **`config/core/thresholds.yaml`**: 160個ハードコード値統合・ML関連閾値管理
 - **`config/core/feature_order.json`**: 特徴量順序定義
+- **`src/core/config.py`**: 8個ヘルパー関数・動的設定アクセス
 - **`logs/reports/`**: モデル性能・学習結果レポート
 
 ### **外部依存**
@@ -131,4 +134,4 @@ print(f"重み設定: {info['weights']}")
 
 ---
 
-**🎯 Phase 13対応完了**: ProductionEnsemble統合モデル・個別学習モデル・メタデータ管理システムを確立。学習から本番運用まで一貫した品質保証された機械学習パイプラインを実現。
+**🎯 Phase 16-B完了**: 設定一元化・保守性向上完成・160個ハードコード値統合・8個ヘルパー関数・620テスト100%成功・50%+カバレッジ達成に対応したProductionEnsemble統合モデル・個別学習モデル・メタデータ管理システムを確立。thresholds.yaml中央管理と連携した学習から本番運用まで一貫した品質保証された機械学習パイプラインを実現。

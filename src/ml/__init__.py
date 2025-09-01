@@ -23,7 +23,7 @@ Phase 12実装完了: CI/CD統合・手動実行監視・段階的デプロイ�
     version = manager.save_model(ensemble, description="Phase 12 ensemble")
 """
 
-from .ensemble import EnsembleModel, VotingMethod, VotingSystem
+from .ensemble import EnsembleModel, ProductionEnsemble, VotingMethod, VotingSystem
 from .model_manager import ModelManager
 from .models import BaseMLModel, LGBMModel, RFModel, XGBModel
 

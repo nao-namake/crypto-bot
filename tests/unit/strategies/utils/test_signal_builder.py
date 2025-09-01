@@ -17,8 +17,7 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
 from src.strategies.base.strategy_base import StrategySignal
-from src.strategies.utils.constants import EntryAction, StrategyType
-from src.strategies.utils.signal_builder import SignalBuilder
+from src.strategies.utils import EntryAction, SignalBuilder, StrategyType
 
 
 class TestSignalBuilder(unittest.TestCase):
@@ -307,7 +306,7 @@ class TestSignalBuilder(unittest.TestCase):
             self.assertIsNotNone(signal.stop_loss)
             self.assertIsNotNone(signal.take_profit)
 
-    @patch("src.strategies.utils.signal_builder.get_logger")
+    @patch("src.strategies.utils.strategy_utils.get_logger")
     def test_logging_integration(self, mock_get_logger):
         """ログ統合テスト."""
         mock_logger = MagicMock()

@@ -56,7 +56,7 @@ class StrategyManager:
 
         self.logger.info("戦略マネージャー初期化完了")
 
-    def register_strategy(self, strategy: StrategyBase, weight: float = 1.0):
+    def register_strategy(self, strategy: StrategyBase, weight: float = 1.0) -> None:
         """
         戦略を登録
 
@@ -75,7 +75,7 @@ class StrategyManager:
 
         self.logger.info(f"戦略登録: {strategy.name} (重み: {weight})")
 
-    def unregister_strategy(self, strategy_name: str):
+    def unregister_strategy(self, strategy_name: str) -> None:
         """戦略の登録解除."""
         if strategy_name in self.strategies:
             del self.strategies[strategy_name]
@@ -322,7 +322,7 @@ class StrategyManager:
         self,
         strategy_signals: Dict[str, StrategySignal],
         final_signal: StrategySignal,
-    ):
+    ) -> None:
         """決定記録 - 簡素化版."""
         self.total_decisions += 1
         self.last_combined_signal = final_signal
@@ -353,7 +353,7 @@ class StrategyManager:
             "strategy_weights": self.strategy_weights.copy(),
         }
 
-    def update_strategy_weights(self, new_weights: Dict[str, float]):
+    def update_strategy_weights(self, new_weights: Dict[str, float]) -> None:
         """戦略重み更新."""
         for name, weight in new_weights.items():
             if name not in self.strategies:
@@ -366,7 +366,7 @@ class StrategyManager:
             self.strategy_weights[name] = weight
             self.logger.info(f"重み更新: {name}={weight}")
 
-    def reset_stats(self):
+    def reset_stats(self) -> None:
         """統計情報リセット - 簡素化版."""
         self.last_combined_signal = None
         self.signal_conflicts = 0

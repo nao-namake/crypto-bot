@@ -20,20 +20,17 @@ __all__ = [
     "StrategyBase",
     "StrategySignal",
     "StrategyManager",
+    "EntryAction",
+    "StrategyType",
+    "SignalStrength",
 ]
 
 
-# 戦略タイプ定義
-class StrategyType:
-    """戦略タイプ定数."""
-
-    MOCHIPOY_ALERT = "mochipoy_alert"  # もちぽよアラート戦略
-    ATR_BASED = "atr_based"  # ATRベース戦略
-    MULTI_TIMEFRAME = "multi_timeframe"  # マルチタイムフレーム戦略
-    FIBONACCI_RETRACEMENT = "fibonacci"  # フィボナッチリトレースメント戦略
+# Phase 18統合：重複定数をutilsから再エクスポート
+from .utils import EntryAction, StrategyType
 
 
-# シグナル強度定義
+# シグナル強度定義（戦略システム固有のため保持）
 class SignalStrength:
     """シグナル強度定数."""
 
@@ -41,13 +38,3 @@ class SignalStrength:
     MEDIUM = 0.5  # 中程度のシグナル
     STRONG = 0.7  # 強いシグナル
     VERY_STRONG = 0.9  # 非常に強いシグナル
-
-
-# エントリーアクション定義
-class EntryAction:
-    """エントリーアクション定数."""
-
-    BUY = "buy"  # 買いエントリー
-    SELL = "sell"  # 売りエントリー
-    HOLD = "hold"  # ホールド（エントリーなし）
-    CLOSE = "close"  # ポジションクローズ

@@ -13,8 +13,7 @@ from unittest.mock import patch
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
-from src.strategies.utils.constants import EntryAction
-from src.strategies.utils.risk_manager import RiskManager
+from src.strategies.utils import EntryAction, RiskManager
 
 
 class TestRiskManager(unittest.TestCase):

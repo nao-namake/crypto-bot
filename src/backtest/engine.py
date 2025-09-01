@@ -29,7 +29,7 @@ from ..data.data_pipeline import DataPipeline
 from ..ml.model_manager import ModelManager
 from ..strategies.base.strategy_manager import StrategyManager
 from ..trading.executor import OrderSide, VirtualPosition
-from ..trading.risk import IntegratedRiskManager, RiskDecision, TradeEvaluation
+from ..trading.risk_manager import IntegratedRiskManager, RiskDecision, TradeEvaluation
 
 
 @dataclass

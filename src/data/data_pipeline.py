@@ -16,15 +16,20 @@ Phase 13改善実装日: 2025年8月24日.
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from pathlib import Path
+
+# 循環インポート回避のため、型ヒントでのみ使用
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import pandas as pd
 
 from ..core.exceptions import DataFetchError
 from ..core.logger import get_logger
-from .bitbank_client import BitbankClient, get_bitbank_client
+
+if TYPE_CHECKING:
+    from .bitbank_client import BitbankClient, get_bitbank_client
 
 
 class TimeFrame(Enum):
@@ -51,7 +56,7 @@ class DataPipeline:
     効率的なデータ取得・キャッシング・品質管理を提供.
     """
 
-    def __init__(self, client: Optional[BitbankClient] = None):
+    def __init__(self, client: Optional["BitbankClient"] = None) -> None:
         """
         データパイプライン初期化
 
@@ -59,7 +64,12 @@ class DataPipeline:
             client: Bitbankクライアント（Noneの場合はグローバルクライアント使用）.
         """
         self.logger = get_logger()
-        self.client = client or get_bitbank_client()
+        if client is None:
+            from .bitbank_client import get_bitbank_client
+
+            self.client = get_bitbank_client()
+        else:
+            self.client = client
 
         # データキャッシュ（メモリ）
         self._cache: Dict[str, pd.DataFrame] = {}
@@ -71,6 +81,21 @@ class DataPipeline:
         self.retry_delay = 1.0  # リトライ間隔（秒）
 
         self.logger.info("データパイプライン初期化完了")
+
+        # Phase 18統合: バックテスト機能統合
+        self.backtest_data_dir = Path(__file__).parent / "historical"
+        self.backtest_data_dir.mkdir(parents=True, exist_ok=True)
+
+        # バックテスト用データ品質設定
+        self.backtest_quality_thresholds = {
+            "min_data_points": 1000,  # 最小データ数
+            "max_gap_hours": 2,  # 最大データ欠損時間
+            "volume_threshold": 1000,  # 最小出来高
+            "price_change_limit": 0.2,  # 20%以上の価格変動制限
+        }
+
+        # バックテスト用長期キャッシュ設定
+        self.backtest_cache_duration_hours = 24 * 7  # 1週間
 
     def _generate_cache_key(self, request: DataRequest) -> str:
         """キャッシュキー生成."""
@@ -313,7 +338,7 @@ class DataPipeline:
 
         return latest_prices
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """キャッシュクリア."""
         self._cache.clear()
         self._cache_timestamps.clear()
@@ -350,7 +375,7 @@ class DataPipeline:
         self,
         symbol: str = "BTC/JPY",
         timeframe: str = "1h",
-        since: datetime = None,
+        since: Optional[datetime] = None,
         limit: int = 1000,
     ) -> pd.DataFrame:
         """
@@ -366,17 +391,13 @@ class DataPipeline:
             pd.DataFrame: 過去データ
         """
         try:
-            # timeframeをTimeFrameエナムに変換
+            # timeframeをTimeFrameエナムに変換（現在サポートする2軸のみ）
             timeframe_map = {
-                "1m": TimeFrame.M1,
-                "5m": TimeFrame.M5,
                 "15m": TimeFrame.M15,
-                "1h": TimeFrame.H1,
                 "4h": TimeFrame.H4,
-                "1d": TimeFrame.D1,
             }
 
-            tf_enum = timeframe_map.get(timeframe.lower(), TimeFrame.H1)
+            tf_enum = timeframe_map.get(timeframe.lower(), TimeFrame.H4)  # デフォルトは4時間足
 
             # DataRequestを作成して既存のfetch_ohlcvを使用
             request = DataRequest(
@@ -434,3 +455,306 @@ def fetch_market_data(
     request = DataRequest(symbol=symbol, timeframe=timeframe_enum, limit=limit)
 
     return pipeline.fetch_ohlcv(request)
+
+
+# Phase 18統合: DataLoader機能統合（バックテスト専用）
+
+
+class BacktestDataLoader:
+    """
+    バックテスト用データローダー（Phase 18統合版）
+
+    DataLoaderからの統合機能。DataPipelineを基盤として、
+    バックテスト専用の長期データ取得・高品質データ管理を提供。
+    """
+
+    def __init__(self, data_pipeline: Optional[DataPipeline] = None):
+        """バックテストデータローダー初期化"""
+        self.logger = get_logger(__name__)
+        self.data_pipeline = data_pipeline or get_data_pipeline()
+
+        # バックテスト専用データディレクトリ
+        self.data_dir = Path(__file__).parent / "historical"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        # データ品質設定（DataLoaderから統合）
+        self.quality_thresholds = {
+            "min_data_points": 1000,  # 最小データ数
+            "max_gap_hours": 2,  # 最大データ欠損時間
+            "volume_threshold": 1000,  # 最小出来高
+            "price_change_limit": 0.2,  # 20%以上の価格変動制限
+        }
+
+        self.logger.info("BacktestDataLoader初期化完了（Phase 18統合版）")
+
+    async def load_historical_data(
+        self,
+        symbol: str = "BTC/JPY",
+        months: int = 6,
+        timeframes: List[str] = None,
+        force_refresh: bool = False,
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        過去データ取得（DataLoaderから統合）
+
+        Args:
+            symbol: 通貨ペア
+            months: 取得月数
+            timeframes: 対象タイムフレーム
+            force_refresh: 強制再取得フラグ
+
+        Returns:
+            タイムフレーム別データ辞書
+        """
+        if timeframes is None:
+            timeframes = ["15m", "1h", "4h"]
+
+        self.logger.info(f"過去データ取得開始（統合版）: {symbol} {months}ヶ月 {timeframes}")
+
+        # データ取得期間計算
+        from datetime import datetime, timedelta
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 30)
+
+        data_dict = {}
+
+        for timeframe in timeframes:
+            try:
+                # キャッシュ確認（長期キャッシュ）
+                if not force_refresh:
+                    cached_data = await self._load_from_backtest_cache(
+                        symbol, timeframe, start_date, end_date
+                    )
+                    if cached_data is not None:
+                        data_dict[timeframe] = cached_data
+                        continue
+
+                # データ取得（DataPipelineを使用）
+                raw_data = await self._fetch_timeframe_data_integrated(
+                    symbol, timeframe, start_date, end_date
+                )
+
+                # データ品質チェック（統合版）
+                cleaned_data = await self._validate_and_clean_data_integrated(raw_data, timeframe)
+
+                # バックテスト専用キャッシュ保存
+                await self._save_to_backtest_cache(
+                    symbol, timeframe, cleaned_data, start_date, end_date
+                )
+
+                data_dict[timeframe] = cleaned_data
+
+                self.logger.info(f"{timeframe}データ取得完了（統合版）: {len(cleaned_data)}件")
+
+            except Exception as e:
+                self.logger.error(f"{timeframe}データ取得エラー（統合版）: {e}")
+                data_dict[timeframe] = pd.DataFrame()
+
+        # 統合データ品質チェック
+        await self._validate_integrated_data(data_dict)
+
+        self.logger.info(f"過去データ取得完了（統合版）: {len(data_dict)}タイムフレーム")
+        return data_dict
+
+    async def _fetch_timeframe_data_integrated(
+        self, symbol: str, timeframe: str, start_date: datetime, end_date: datetime
+    ) -> pd.DataFrame:
+        """DataPipeline統合データ取得"""
+        all_data = []
+        current_date = start_date
+        chunk_days = 30
+
+        while current_date < end_date:
+            chunk_end = min(current_date + timedelta(days=chunk_days), end_date)
+
+            try:
+                # DataPipelineを使用してデータ取得
+                chunk_data = await self.data_pipeline.fetch_historical_data(
+                    symbol=symbol, timeframe=timeframe, since=current_date, limit=2000
+                )
+
+                if not chunk_data.empty:
+                    # 期間フィルタリング
+                    chunk_data = chunk_data[
+                        (chunk_data.index >= current_date) & (chunk_data.index < chunk_end)
+                    ]
+                    all_data.append(chunk_data)
+
+                # レート制限対応
+                await asyncio.sleep(1.0)
+
+            except Exception as e:
+                self.logger.warning(f"チャンクデータ取得エラー（統合版）: {e}")
+
+            current_date = chunk_end
+
+        # データ統合
+        if all_data:
+            combined_data = pd.concat(all_data, ignore_index=False)
+            combined_data = combined_data.sort_index().drop_duplicates()
+            return combined_data
+        else:
+            return pd.DataFrame()
+
+    async def _validate_and_clean_data_integrated(
+        self, data: pd.DataFrame, timeframe: str
+    ) -> pd.DataFrame:
+        """データ品質チェック・クリーニング（統合版）"""
+        if data.empty:
+            from ..core.exceptions import DataQualityError
+
+            raise DataQualityError(f"{timeframe}: データが空です（統合版）")
+
+        original_length = len(data)
+
+        # 基本的なデータクリーニング（DataLoaderから統合）
+        required_columns = ["open", "high", "low", "close", "volume"]
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            from ..core.exceptions import DataQualityError
+
+            raise DataQualityError(f"必須カラム不足（統合版）: {missing_columns}")
+
+        # 数値データ検証
+        for col in required_columns:
+            data[col] = pd.to_numeric(data[col], errors="coerce")
+
+        # NaN値除去
+        data = data.dropna(subset=required_columns)
+
+        # 異常値検出・除去
+        data = self._remove_outliers_integrated(data)
+
+        # 価格整合性チェック
+        data = self._validate_price_consistency_integrated(data)
+
+        # 出来高フィルタリング
+        data = data[data["volume"] >= self.quality_thresholds["volume_threshold"]]
+
+        # データ十分性チェック
+        final_length = len(data)
+        if final_length < self.quality_thresholds["min_data_points"]:
+            from ..core.exceptions import DataQualityError
+
+            raise DataQualityError(
+                f"{timeframe}: データ不足（統合版） {final_length}/{self.quality_thresholds['min_data_points']}"
+            )
+
+        self.logger.info(
+            f"{timeframe}データクリーニング完了（統合版）: "
+            f"{original_length}→{final_length}件 ({final_length/original_length:.1%})"
+        )
+
+        return data
+
+    def _remove_outliers_integrated(self, data: pd.DataFrame) -> pd.DataFrame:
+        """異常値除去（統合版）"""
+        price_changes = data["close"].pct_change().abs()
+        change_limit = self.quality_thresholds["price_change_limit"]
+
+        valid_mask = price_changes <= change_limit
+        valid_mask.iloc[0] = True  # 最初の行は保持
+
+        outlier_count = (~valid_mask).sum()
+        if outlier_count > 0:
+            self.logger.warning(f"異常値除去（統合版）: {outlier_count}件")
+
+        return data[valid_mask]
+
+    def _validate_price_consistency_integrated(self, data: pd.DataFrame) -> pd.DataFrame:
+        """価格整合性チェック（統合版）"""
+        valid_mask = (
+            (data["high"] >= data["low"])
+            & (data["high"] >= data["open"])
+            & (data["high"] >= data["close"])
+            & (data["low"] <= data["open"])
+            & (data["low"] <= data["close"])
+            & (data["open"] > 0)
+            & (data["high"] > 0)
+            & (data["low"] > 0)
+            & (data["close"] > 0)
+        )
+
+        invalid_count = (~valid_mask).sum()
+        if invalid_count > 0:
+            self.logger.warning(f"価格整合性エラー除去（統合版）: {invalid_count}件")
+
+        return data[valid_mask]
+
+    async def _load_from_backtest_cache(
+        self, symbol: str, timeframe: str, start_date: datetime, end_date: datetime
+    ) -> Optional[pd.DataFrame]:
+        """バックテスト用長期キャッシュ読み込み"""
+        cache_key = f"backtest_{symbol}_{timeframe}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        file_path = self.data_dir / f"{cache_key}.csv"
+
+        try:
+            if file_path.exists():
+                # ファイル更新時刻チェック（1週間キャッシュ）
+                import os
+
+                file_age_hours = (datetime.now().timestamp() - os.path.getmtime(file_path)) / 3600
+
+                if file_age_hours < 24 * 7:  # 1週間以内
+                    cached_data = pd.read_csv(file_path, index_col=0, parse_dates=True)
+                    self.logger.info(
+                        f"{timeframe}バックテストキャッシュヒット: {len(cached_data)}件"
+                    )
+                    return cached_data
+
+        except Exception as e:
+            self.logger.debug(f"バックテストキャッシュ読み込みエラー: {e}")
+
+        return None
+
+    async def _save_to_backtest_cache(
+        self,
+        symbol: str,
+        timeframe: str,
+        data: pd.DataFrame,
+        start_date: datetime,
+        end_date: datetime,
+    ):
+        """バックテスト用長期キャッシュ保存"""
+        cache_key = f"backtest_{symbol}_{timeframe}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        file_path = self.data_dir / f"{cache_key}.csv"
+
+        try:
+            data.to_csv(file_path)
+            self.logger.debug(f"{timeframe}バックテストキャッシュ保存完了: {len(data)}件")
+        except Exception as e:
+            self.logger.warning(f"バックテストキャッシュ保存エラー: {e}")
+
+    async def _validate_integrated_data(self, data_dict: Dict[str, pd.DataFrame]):
+        """統合データ品質チェック（統合版）"""
+        date_ranges = {}
+        for timeframe, df in data_dict.items():
+            if not df.empty:
+                date_ranges[timeframe] = (df.index.min(), df.index.max())
+
+        if len(date_ranges) > 1:
+            min_start = max(start for start, _ in date_ranges.values())
+            max_end = min(end for _, end in date_ranges.values())
+
+            if min_start >= max_end:
+                from ..core.exceptions import DataQualityError
+
+                raise DataQualityError("タイムフレーム間で重複期間がありません（統合版）")
+
+            overlap_days = (max_end - min_start).days
+            self.logger.info(f"統合データ重複期間（統合版）: {overlap_days}日")
+
+
+# バックテストデータローダー取得用グローバル関数
+_backtest_data_loader: Optional[BacktestDataLoader] = None
+
+
+def get_backtest_data_loader() -> BacktestDataLoader:
+    """グローバルバックテストデータローダー取得"""
+    global _backtest_data_loader
+
+    if _backtest_data_loader is None:
+        _backtest_data_loader = BacktestDataLoader()
+
+    return _backtest_data_loader

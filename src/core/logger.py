@@ -15,6 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .config import get_file_config
 from .exceptions import CryptoBotError, ErrorSeverity, get_error_severity
 
 
@@ -123,10 +124,10 @@ class CryptoBotLogger:
 
         self._setup_handlers()
 
-        # Discord通知は後で初期化（循環インポート回避）
-        self._discord_notifier = None
+        # Discord通知マネージャー（Phase 15新実装）
+        self._discord_manager = None
 
-    def _setup_handlers(self):
+    def _setup_handlers(self) -> None:
         """ログハンドラーのセットアップ（循環参照回避版）."""
         try:
             # 🚨 CRITICAL FIX: 循環参照を防ぐため遅延インポート
@@ -140,11 +141,14 @@ class CryptoBotLogger:
             if isinstance(e, RecursionError):
                 # 循環参照の場合は追加ログを出力しない（さらなる循環を防ぐ）
                 pass
-            logging_config = type(
-                "DefaultLoggingConfig",
-                (object,),
-                {"level": "INFO", "file_enabled": True, "retention_days": 7},
-            )
+            # デフォルト設定オブジェクトを作成（型安全）
+
+            class DefaultLoggingConfig:
+                level: str = "INFO"
+                file_enabled: bool = True
+                retention_days: int = 7
+
+            logging_config = DefaultLoggingConfig()
 
         # ログレベル設定
         log_level = getattr(logging, logging_config.level.upper(), logging.INFO)
@@ -157,26 +161,33 @@ class CryptoBotLogger:
         if logging_config.file_enabled:
             self._setup_file_handler(logging_config.retention_days)
 
-    def _setup_console_handler(self):
+    def _setup_console_handler(self) -> None:
         """コンソールハンドラーのセットアップ."""
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(ColorFormatter())
         self.logger.addHandler(console_handler)
 
-    def _setup_file_handler(self, retention_days: int = 7):
+    def _setup_file_handler(self, retention_days: Optional[int] = None) -> None:
         """ファイルハンドラーのセットアップ."""
+        # 設定ファイルからパラメータ取得
+        if retention_days is None:
+            retention_days = get_file_config("logging.retention_days", 7)
+
         log_dir = Path("logs")
         log_dir.mkdir(exist_ok=True)
 
         log_file = log_dir / f"{self.name}.log"
 
         # ローテーションハンドラー（日次、保持期間設定）
+        # 設定ファイルからローテーション設定取得
+        backup_count = get_file_config("logging.backup_count", retention_days)
+
         file_handler = logging.handlers.TimedRotatingFileHandler(
             filename=str(log_file),
             when="midnight",
             interval=1,
-            backupCount=retention_days,
+            backupCount=backup_count,
             encoding="utf-8",
         )
 
@@ -184,9 +195,21 @@ class CryptoBotLogger:
         file_handler.setFormatter(JSONFormatter())
         self.logger.addHandler(file_handler)
 
-    def set_discord_notifier(self, notifier):
-        """Discord通知システムを設定（後から設定）."""
-        self._discord_notifier = notifier
+    def set_discord_manager(self, manager: Any) -> None:
+        """Discord通知マネージャーを設定（Phase 15新実装）."""
+        self._discord_manager = manager
+
+    # 旧インターフェース互換性維持
+    def set_discord_notifier(self, notifier: Any) -> None:
+        """Discord通知システムを設定（レガシー互換性）."""
+        # 新しいDiscordManagerを使用
+        if hasattr(notifier, "send_simple_message"):
+            self._discord_manager = notifier
+        else:
+            # 旧システムの場合は警告
+            self.logger.warning(
+                "⚠️ 旧Discord通知システムが渡されました - 新システムに移行してください"
+            )
 
     def _log_with_context(
         self,
@@ -195,7 +218,7 @@ class CryptoBotLogger:
         extra_data: Optional[Dict[str, Any]] = None,
         error: Optional[Exception] = None,
         discord_notify: bool = False,
-    ):
+    ) -> None:
         """コンテキスト付きログ出力."""
         # ログレコード作成
         extra = {}
@@ -211,37 +234,45 @@ class CryptoBotLogger:
         else:
             self.logger.log(level, message, extra=extra)
 
-        # Discord通知
-        if discord_notify and self._discord_notifier:
+        # Discord通知（Phase 15簡素化実装）
+        if discord_notify and self._discord_manager:
             try:
-                severity = get_error_severity(error) if error else ErrorSeverity.LOW
+                # ログレベルに応じた重要度設定
+                level_map = {
+                    logging.DEBUG: "info",
+                    logging.INFO: "info",
+                    logging.WARNING: "warning",
+                    logging.ERROR: "critical",
+                    logging.CRITICAL: "critical",
+                }
 
-                # Discord通知デバッグログ強化
-                self.logger.debug(
-                    f"🔔 Discord通知準備: severity={severity}, message長={len(message)}"
-                )
-                self.logger.debug(
-                    f"📤 extra_data: {extra_data is not None}, error: {error is not None}"
-                )
+                discord_level = level_map.get(level, "info")
 
-                result = self._discord_notifier.send_notification(
-                    message=message,
-                    severity=severity,
-                    extra_data=extra_data,
-                    error=error,
-                )
+                # エラー情報がある場合はエラー通知として送信
+                if error:
+                    error_data = {
+                        "type": type(error).__name__,
+                        "message": str(error),
+                        "component": (
+                            extra_data.get("component", "システム") if extra_data else "システム"
+                        ),
+                        "severity": discord_level,
+                    }
+                    result = self._discord_manager.send_error_notification(error_data)
+                else:
+                    # 通常メッセージとして送信
+                    result = self._discord_manager.send_simple_message(message, discord_level)
 
                 if result:
                     self.logger.debug("✅ Discord通知送信成功")
                 else:
-                    self.logger.debug("⚠️ Discord通知送信失敗（エラーなし）")
+                    self.logger.debug("⚠️ Discord通知送信失敗（Rate limit等）")
 
             except Exception as e:
                 # 通知エラーは無限ループを避けるため別途ログ
                 self.logger.error(f"❌ Discord通知送信に失敗: {type(e).__name__}: {e}")
-                self.logger.error(f"🔍 通知失敗詳細 - message: {message[:100]}...")
 
-    def debug(self, message: str, extra_data: Optional[Dict[str, Any]] = None):
+    def debug(self, message: str, extra_data: Optional[Dict[str, Any]] = None) -> None:
         """デバッグログ."""
         self._log_with_context(logging.DEBUG, message, extra_data)
 
@@ -250,7 +281,7 @@ class CryptoBotLogger:
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
         discord_notify: bool = False,
-    ):
+    ) -> None:
         """情報ログ."""
         self._log_with_context(logging.INFO, message, extra_data, discord_notify=discord_notify)
 
@@ -259,7 +290,7 @@ class CryptoBotLogger:
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
         discord_notify: bool = True,
-    ):
+    ) -> None:
         """警告ログ."""
         self._log_with_context(logging.WARNING, message, extra_data, discord_notify=discord_notify)
 
@@ -269,7 +300,7 @@ class CryptoBotLogger:
         error: Optional[Exception] = None,
         extra_data: Optional[Dict[str, Any]] = None,
         discord_notify: bool = True,
-    ):
+    ) -> None:
         """エラーログ."""
         self._log_with_context(
             logging.ERROR,
@@ -284,7 +315,7 @@ class CryptoBotLogger:
         message: str,
         error: Optional[Exception] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """クリティカルログ（必ずDiscord通知）."""
         self._log_with_context(logging.CRITICAL, message, extra_data, error, discord_notify=True)
 

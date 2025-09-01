@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from src.core.exceptions import DataProcessingError
-from src.ml.ensemble.ensemble_model import EnsembleModel
+from src.ml.ensemble import EnsembleModel
 from src.ml.models import LGBMModel, RFModel, XGBModel
 
 
@@ -183,21 +183,22 @@ class TestEnsembleModel:
         assert "confidence_accuracy" in metrics
 
     def test_get_feature_importance(self, ensemble_model, sample_data):
-        """特徴量重要度取得テスト."""
+        """特徴量重要度取得テスト（Phase 18では未実装）."""
         X, y = sample_data
         ensemble_model.fit(X, y)
 
-        importance_df = ensemble_model.get_feature_importance()
+        # Phase 18でget_feature_importanceメソッドは統合により削除されている
+        # 代わりにmodel_infoでモデル情報を取得できることを確認
+        info = ensemble_model.get_model_info()
 
-        if importance_df is not None:
-            assert isinstance(importance_df, pd.DataFrame)
-            assert "feature" in importance_df.columns
-            assert "importance" in importance_df.columns
-            assert len(importance_df) == len(X.columns)
+        assert "model_names" in info
+        assert "weights" in info
+        assert len(info["model_names"]) == 3  # 3モデル
 
-            # 重要度順にソートされているかチェック
-            importances = importance_df["importance"].values
-            assert all(importances[i] >= importances[i + 1] for i in range(len(importances) - 1))
+        # 個別モデルからの重要度取得は可能（参考実装）
+        for model_name, model in ensemble_model.models.items():
+            assert hasattr(model, "estimator")  # 内部推定器が存在することを確認
+            assert hasattr(model, "is_fitted")  # 学習状態確認
 
     def test_save_and_load_model(self, ensemble_model, sample_data):
         """モデル保存・読み込みテスト."""
@@ -254,9 +255,9 @@ class TestEnsembleModel:
         assert info_fitted["n_features"] == len(X.columns)
         assert info_fitted["feature_names"] == X.columns.tolist()
 
-    @patch("src.ml.models.lgbm_model.LGBMModel")
-    @patch("src.ml.models.xgb_model.XGBModel")
-    @patch("src.ml.models.rf_model.RFModel")
+    @patch("src.ml.models.LGBMModel")
+    @patch("src.ml.models.XGBModel")
+    @patch("src.ml.models.RFModel")
     def test_model_failure_handling(self, mock_rf, mock_xgb, mock_lgbm, sample_data):
         """個別モデルの失敗処理テスト."""
         X, y = sample_data

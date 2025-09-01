@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from ..core.logger import get_logger
-from ..monitoring.discord import DiscordNotifier
+from ..monitoring.discord_notifier import DiscordManager
 from .engine import TradeRecord
 from .evaluator import PerformanceMetrics
 
@@ -48,10 +48,10 @@ class BacktestReporter:
 
         # Discord通知（オプション）
         try:
-            self.discord_notifier = DiscordNotifier()
+            self.discord_manager = DiscordManager()
         except Exception as e:
             self.logger.debug(f"Discord通知無効: {e}")
-            self.discord_notifier = None
+            self.discord_manager = None
 
         self.logger.info(f"BacktestReporter初期化完了: {self.output_dir}")
 
@@ -109,7 +109,7 @@ class BacktestReporter:
             generated_files["html"] = html_file
 
             # 4. Discord通知送信
-            if self.discord_notifier:
+            if self.discord_manager:
                 await self._send_discord_summary(test_name, performance_metrics, generated_files)
 
             self.logger.info(f"レポート生成完了: {len(generated_files)}ファイル")
@@ -511,7 +511,7 @@ class BacktestReporter:
     ):
         """Discord通知サマリー送信."""
 
-        if not self.discord_notifier:
+        if not self.discord_manager:
             return
 
         try:
@@ -535,7 +535,7 @@ class BacktestReporter:
 **📁 生成ファイル数:** {len(generated_files)}個.
             """.strip()
 
-            await self.discord_notifier.send_info(message)
+            self.discord_manager.send_simple_message(message, "info")
 
         except Exception as e:
             self.logger.warning(f"Discord通知送信エラー: {e}")
@@ -650,3 +650,277 @@ class BacktestReporter:
 
         self.logger.info(f"比較レポート生成完了: {comparison_file}")
         return str(comparison_file)
+
+    # Phase 18統合機能: core_reporter.pyとbacktest_report_writer.pyからの統合
+
+    async def generate_backtest_report(
+        self, results: Dict, start_date: datetime, end_date: datetime
+    ) -> Path:
+        """
+        バックテスト結果の包括的レポート生成（Phase 18統合版）
+
+        core_reporter.pyから統合された機能
+
+        Args:
+            results: バックテスト結果データ
+            start_date: バックテスト開始日
+            end_date: バックテスト終了日
+
+        Returns:
+            保存されたレポートファイルパス
+        """
+        try:
+            # 統一レポートディレクトリ（Phase 18統合）
+            backtest_report_dir = Path("logs/backtest_reports")
+            backtest_report_dir.mkdir(exist_ok=True, parents=True)
+
+            timestamp = datetime.now()
+            filename = f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+            filepath = backtest_report_dir / filename
+
+            # パフォーマンス指標計算
+            performance_stats = self._calculate_performance_stats(results)
+
+            # マークダウンレポート生成
+            report_content = self._generate_markdown_report(
+                results, start_date, end_date, timestamp, performance_stats
+            )
+
+            # ファイル保存
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            # JSONレポートも保存
+            await self._save_json_report(
+                results, start_date, end_date, timestamp, performance_stats, backtest_report_dir
+            )
+
+            self.logger.info(f"📁 バックテストレポート保存: {filepath}")
+            return filepath
+
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            self.logger.error(f"バックテストレポートファイルエラー: {e}")
+            raise
+        except (ValueError, TypeError, AttributeError) as e:
+            self.logger.error(f"バックテストレポートデータ処理エラー: {e}")
+            raise
+
+    async def save_error_report(self, error_message: str, context: Dict = None) -> Path:
+        """
+        バックテストエラーレポート保存（Phase 18統合版）
+
+        core_reporter.pyから統合された機能
+
+        Args:
+            error_message: エラーメッセージ
+            context: エラーコンテキスト情報
+
+        Returns:
+            保存されたエラーレポートファイルパス
+        """
+        try:
+            backtest_report_dir = Path("logs/backtest_reports")
+            backtest_report_dir.mkdir(exist_ok=True, parents=True)
+
+            timestamp = datetime.now()
+            filename = f"backtest_error_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
+            filepath = backtest_report_dir / filename
+
+            # エラーレポート内容生成
+            report_content = f"""# バックテストエラーレポート
+
+## 🚨 エラー情報
+- **発生時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **エラーメッセージ**: {error_message}
+- **Phase**: 18（統合バックテストシステム）
+
+## 📋 実行コンテキスト
+"""
+
+            if context:
+                for key, value in context.items():
+                    report_content += f"- **{key}**: {value}\n"
+            else:
+                report_content += "- コンテキスト情報なし\n"
+
+            report_content += f"""
+
+## 🔧 トラブルシューティング
+1. データ品質チェック
+2. 設定ファイル確認
+3. MLモデル状態確認
+4. システムリソース確認
+
+## 📊 システム情報
+- **バックテストエンジン**: BacktestEngine（Phase 18統合版）
+- **レポーター**: BacktestReporter（統合版）
+- **エラーハンドリング**: 3階層例外システム
+
+---
+*自動生成レポート - Phase 18統合バックテストシステム*
+"""
+
+            # ファイル保存
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            self.logger.info(f"📁 エラーレポート保存: {filepath}")
+            return filepath
+
+        except Exception as e:
+            self.logger.error(f"エラーレポート保存失敗: {e}")
+            raise
+
+    def _calculate_performance_stats(self, results: Dict) -> Dict:
+        """パフォーマンス統計計算（統合版）"""
+        stats = {}
+
+        trades = results.get("trades", [])
+        total_trades = len(trades)
+
+        if total_trades > 0:
+            winning_trades = len([t for t in trades if t.get("pnl", 0) > 0])
+            total_pnl = sum(t.get("pnl", 0) for t in trades)
+
+            stats.update(
+                {
+                    "total_trades": total_trades,
+                    "winning_trades": winning_trades,
+                    "win_rate": (winning_trades / total_trades * 100) if total_trades > 0 else 0,
+                    "total_pnl": total_pnl,
+                    "avg_pnl_per_trade": total_pnl / total_trades if total_trades > 0 else 0,
+                }
+            )
+        else:
+            stats = {
+                "total_trades": 0,
+                "winning_trades": 0,
+                "win_rate": 0,
+                "total_pnl": 0,
+                "avg_pnl_per_trade": 0,
+            }
+
+        # 基本的なリスク指標
+        stats.update(
+            {
+                "max_drawdown": results.get("max_drawdown", 0),
+                "sharpe_ratio": results.get("sharpe_ratio", 0),
+                "final_balance": results.get("final_balance", 0),
+                "return_rate": results.get("return_rate", 0),
+            }
+        )
+
+        return stats
+
+    def _generate_markdown_report(
+        self,
+        results: Dict,
+        start_date: datetime,
+        end_date: datetime,
+        timestamp: datetime,
+        performance_stats: Dict,
+    ) -> str:
+        """マークダウンレポート生成（統合版）"""
+
+        report_content = f"""# バックテスト実行レポート
+
+## 📊 実行サマリー
+- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
+- **バックテスト期間**: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}
+- **対象シンボル**: BTC_JPY
+- **実行結果**: ✅ SUCCESS
+
+## 🎯 システム情報
+- **Phase**: 18（統合バックテストシステム）
+- **バックテストエンジン**: BacktestEngine（Phase 18統合版）
+- **戦略システム**: Phase 1-18統合戦略
+
+## 📈 パフォーマンス結果
+- **総取引数**: {performance_stats['total_trades']}件
+- **勝率**: {performance_stats['win_rate']:.2f}% ({performance_stats['winning_trades']}/{performance_stats['total_trades']})
+- **総損益**: ¥{performance_stats['total_pnl']:,.0f}
+- **最終資産**: ¥{performance_stats['final_balance']:,.0f}
+- **リターン**: {performance_stats['return_rate']:.2f}%
+
+## 📊 取引詳細
+"""
+
+        # 取引詳細追加
+        if results.get("trades"):
+            report_content += "### 取引履歴（最新10件）\n"
+            for i, trade in enumerate(results["trades"][-10:], 1):
+                entry_time = trade.get("entry_time", "N/A")
+                side = trade.get("side", "N/A")
+                entry_price = trade.get("entry_price", 0)
+                pnl = trade.get("pnl", 0)
+                pnl_icon = "📈" if pnl > 0 else "📉"
+                report_content += f"{i}. {entry_time} - {side.upper()} @ ¥{entry_price:,.0f} {pnl_icon} ¥{pnl:,.0f}\n"
+        else:
+            report_content += "取引が発生しませんでした。\n"
+
+        report_content += f"""
+
+## 🔧 リスク分析
+- **最大ドローダウン**: {performance_stats['max_drawdown']:.2f}%
+- **シャープレシオ**: {performance_stats['sharpe_ratio']:.2f}%
+- **平均取引損益**: ¥{performance_stats['avg_pnl_per_trade']:,.0f}
+
+## 📋 戦略分析
+- **使用戦略**: {len(results.get('strategies_used', []))}戦略
+- **ML予測精度**: {results.get('ml_accuracy', 0):.2f}%
+- **リスク管理**: Kelly基準・ドローダウン制御
+
+## 🆘 追加情報
+
+このレポートを他のAIツールに共有して、詳細な分析を依頼することができます。
+
+**共有時のポイント**:
+- バックテスト期間と取引数
+- 勝率と総損益
+- リスク指標（ドローダウン・シャープレシオ）
+- 戦略とML予測の効果
+
+---
+*Phase 18統合バックテストシステム - 自動生成レポート*
+"""
+
+        return report_content
+
+    async def _save_json_report(
+        self,
+        results: Dict,
+        start_date: datetime,
+        end_date: datetime,
+        timestamp: datetime,
+        performance_stats: Dict,
+        report_dir: Path,
+    ):
+        """JSONレポート保存（統合版）"""
+        try:
+            json_filename = f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+            json_filepath = report_dir / json_filename
+
+            json_data = {
+                "report_info": {
+                    "generated_at": timestamp.isoformat(),
+                    "backtest_period": {
+                        "start": start_date.isoformat(),
+                        "end": end_date.isoformat(),
+                    },
+                    "phase": "18_integrated_system",
+                },
+                "performance_stats": performance_stats,
+                "raw_results": results,
+                "metadata": {"reporter_version": "Phase18_Integrated", "format_version": "2.0"},
+            }
+
+            with open(json_filepath, "w", encoding="utf-8") as f:
+                import json
+
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+
+            self.logger.info(f"📁 JSONレポート保存: {json_filepath}")
+
+        except Exception as e:
+            self.logger.error(f"JSONレポート保存エラー: {e}")
+            # JSON保存エラーは致命的ではないため、例外を再発生させない

@@ -13,7 +13,7 @@ import pytest
 import xgboost as xgb
 
 from src.core.exceptions import CryptoBotError
-from src.ml.models.xgb_model import XGBModel
+from src.ml.models import XGBModel
 
 
 class TestXGBModel:

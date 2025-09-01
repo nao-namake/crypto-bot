@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../"))
 from src.core.exceptions import StrategyError
 from src.strategies.base.strategy_base import StrategyBase, StrategySignal
 from src.strategies.base.strategy_manager import StrategyManager
-from src.strategies.utils.constants import EntryAction
+from src.strategies.utils import EntryAction
 
 
 class MockStrategy(StrategyBase):

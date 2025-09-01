@@ -26,12 +26,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 
+# 循環インポート回避のため、型ヒントでのみ使用
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+from ..core.config import get_threshold
 from ..core.exceptions import CryptoBotError, ExchangeAPIError
 from ..core.logger import get_logger
-from ..data.bitbank_client import BitbankClient
-from .risk import RiskDecision, TradeEvaluation
+
+if TYPE_CHECKING:
+    from ..data.bitbank_client import BitbankClient
+
+from .risk_manager import RiskDecision, TradeEvaluation
 
 
 class ExecutionMode(Enum):
@@ -175,8 +181,8 @@ class OrderExecutor:
     def __init__(
         self,
         mode: ExecutionMode = ExecutionMode.PAPER,
-        initial_balance: float = 1000000.0,  # 100万円
-        fee_rate: float = 0.0012,  # Bitbank maker手数料
+        initial_balance: Optional[float] = None,  # thresholds.yamlから取得
+        fee_rate: Optional[float] = None,  # thresholds.yamlから取得
         log_dir: str = "logs/trading",
     ):
         """
@@ -184,13 +190,20 @@ class OrderExecutor:
 
         Args:
             mode: 実行モード（paper/live）
-            initial_balance: 初期残高（ペーパートレード用）
-            fee_rate: 取引手数料率
+            initial_balance: 初期残高（Noneの場合、thresholds.yamlから取得）
+            fee_rate: 取引手数料率（Noneの場合、thresholds.yamlから取得）
             log_dir: ログ出力ディレクトリ.
         """
         self.mode = mode
-        self.fee_rate = fee_rate
         self.logger = get_logger()
+
+        # Phase 16-B: 設定ファイルから動的取得（1万円運用対応）
+        if initial_balance is None:
+            initial_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+        if fee_rate is None:
+            fee_rate = get_threshold("trading.fee_rate", 0.0012)
+
+        self.fee_rate = fee_rate
 
         # ペーパートレード用状態管理
         self.initial_balance = initial_balance
@@ -199,7 +212,7 @@ class OrderExecutor:
         self.statistics = TradingStatistics(current_balance=initial_balance)
 
         # 実取引用BitbankClient（必要時に初期化）
-        self._bitbank_client: Optional[BitbankClient] = None
+        self._bitbank_client: Optional["BitbankClient"] = None
 
         # ログ・記録管理
         self.log_dir = Path(log_dir)
@@ -420,6 +433,8 @@ class OrderExecutor:
                         },
                     )
 
+                from ..data.bitbank_client import BitbankClient
+
                 self._bitbank_client = BitbankClient(
                     api_key=api_key,
                     api_secret=api_secret,
@@ -488,8 +503,9 @@ class OrderExecutor:
                     discord_notify=True,
                 )
 
-                # 注文約定確認（最大30秒待機）
-                filled_order = await self._wait_for_order_fill(order["id"], timeout=30)
+                # 注文約定確認（設定ファイルから取得）
+                order_timeout = get_threshold("performance.order_wait_timeout", 30)
+                filled_order = await self._wait_for_order_fill(order["id"], timeout=order_timeout)
 
                 if filled_order and filled_order["status"] == "closed":
                     # 約定成功
@@ -612,8 +628,17 @@ class OrderExecutor:
             )
 
     async def _wait_for_order_fill(
-        self, order_id: str, timeout: int = 30
+        self, order_id: str, timeout: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
+        """
+        注文約定待機
+
+        Args:
+            order_id: 注文ID
+            timeout: タイムアウト秒数（None時は設定ファイルから取得）
+        """
+        if timeout is None:
+            timeout = get_threshold("performance.order_wait_timeout", 30)
         """
         注文約定待機
 
@@ -648,6 +673,8 @@ class OrderExecutor:
         try:
             # BitbankClientを使用して現在価格取得
             if self._bitbank_client is None:
+                from ..data.bitbank_client import BitbankClient
+
                 self._bitbank_client = BitbankClient()
 
             ticker = await asyncio.to_thread(self._bitbank_client.exchange.fetch_ticker, "BTC/JPY")
@@ -804,7 +831,7 @@ class OrderExecutor:
 
 # ファクトリー関数（orchestrator.pyからの利用用）
 def create_order_executor(
-    mode: str = "paper", initial_balance: float = 1000000.0, **kwargs
+    mode: str = "paper", initial_balance: Optional[float] = None, **kwargs
 ) -> OrderExecutor:
     """
     OrderExecutor作成用ファクトリー関数

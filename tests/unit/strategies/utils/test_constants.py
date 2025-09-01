@@ -12,7 +12,7 @@ import unittest
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
-from src.strategies.utils.constants import DEFAULT_RISK_PARAMS, EntryAction, StrategyType
+from src.strategies.utils import DEFAULT_RISK_PARAMS, EntryAction, StrategyType
 
 
 class TestConstants(unittest.TestCase):

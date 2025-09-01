@@ -218,10 +218,10 @@ class ATRBasedStrategy(StrategyBase):
 
     def _make_decision(
         self,
-        bb_analysis: Dict,
-        rsi_analysis: Dict,
-        atr_analysis: Dict,
-        stress_analysis: Dict,
+        bb_analysis: Dict[str, Any],
+        rsi_analysis: Dict[str, Any],
+        atr_analysis: Dict[str, Any],
+        stress_analysis: Dict[str, Any],
     ) -> Dict[str, Any]:
         """統合判定."""
         try:
@@ -291,7 +291,7 @@ class ATRBasedStrategy(StrategyBase):
         }
 
     def _create_signal(
-        self, decision: Dict, current_price: float, df: pd.DataFrame
+        self, decision: Dict[str, Any], current_price: float, df: pd.DataFrame
     ) -> StrategySignal:
         """シグナル作成 - 共通モジュール利用."""
         return SignalBuilder.create_signal_with_risk_management(

@@ -18,7 +18,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
 from src.strategies.implementations.atr_based import ATRBasedStrategy
-from src.strategies.utils.constants import EntryAction
+from src.strategies.utils import EntryAction
 
 
 @pytest.fixture(scope="session", autouse=True)

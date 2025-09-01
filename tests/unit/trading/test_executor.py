@@ -29,7 +29,7 @@ from src.trading.executor import (
     VirtualPosition,
     create_order_executor,
 )
-from src.trading.risk import RiskDecision, TradeEvaluation
+from src.trading.risk_manager import RiskDecision, TradeEvaluation
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -408,11 +408,11 @@ class TestFactoryFunction:
         assert executor.initial_balance == 1000000.0
 
     def test_create_order_executor_default_mode(self):
-        """デフォルトモード作成テスト."""
+        """デフォルトモード作成テスト（Phase 16-B: 1万円統一対応）."""
         executor = create_order_executor()
 
         assert executor.mode == ExecutionMode.PAPER
-        assert executor.initial_balance == 1000000.0
+        assert executor.initial_balance == 10000.0  # Phase 16-B: thresholds.yamlから動的取得
 
 
 class TestExecutionResult:

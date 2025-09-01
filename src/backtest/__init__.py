@@ -22,7 +22,8 @@ Phase 12新システム改善:
 - シンプルな設定管理・段階的デプロイ対応.
 """
 
-from .data_loader import DataLoader
+# Phase 18統合: DataLoaderはdata_pipeline.pyのBacktestDataLoaderに統合
+from ..data.data_pipeline import BacktestDataLoader
 from .engine import BacktestEngine, TradeRecord
 from .evaluator import BacktestEvaluator, PerformanceMetrics
 from .reporter import BacktestReporter
@@ -32,10 +33,10 @@ __all__ = [
     "TradeRecord",
     "BacktestEvaluator",
     "PerformanceMetrics",
-    "DataLoader",
+    "BacktestDataLoader",  # Phase 18統合版
     "BacktestReporter",
 ]
 
-__version__ = "11.0.0"
-__phase__ = "Phase 12"
-__description__ = "バックテスト・テスト強化システム（レガシー統合・6ヶ月データ検証・CI/CD統合・手動実行監視・段階的デプロイ対応）"
+__version__ = "18.0.0"
+__phase__ = "Phase 18"
+__description__ = "統合バックテストシステム（重複削除・コード統合・reporter統合・DataLoader統合・BacktestRunner削除・1500行削減達成）"

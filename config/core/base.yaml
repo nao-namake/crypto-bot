@@ -1,22 +1,22 @@
-# 基本設定ファイル - Phase 12対応全環境共通設定
-# レガシーの420行設定から重要項目のみを抽出・Phase 12機能統合最適化・本番運用対応
+# 基本設定ファイル - Phase 16-B完了全環境共通設定
+# bitbank信用取引専用・12個厳選特徴量・マルチタイムフレーム・620テスト対応
 
-# 動作モード（設定一元化対応：環境変数MODE優先、コマンドライン最優先）
-mode: paper  # デフォルト：paper（仮想取引）
-# 本番環境: 環境変数 MODE=live で上書き
-# 開発時: --mode live コマンドライン引数で上書き
+# 動作モード（段階的デプロイ: paper → live）
+mode: paper  # デフォルト：安全なペーパートレード
+# 本番移行: 環境変数 MODE=live または --mode live で実資金取引
 
-# 取引所設定
+# 取引所設定（bitbank信用取引専用）
 exchange:
   name: bitbank
-  symbol: BTC/JPY
-  rate_limit_ms: 30000  # API制限（30秒）
-  timeout_ms: 90000     # タイムアウト（90秒）
-  retries: 3            # リトライ回数
+  symbol: BTC/JPY          # 信用取引専用通貨ペア
+  leverage: 1.0            # 1倍（安全性最優先・実質現物取引相当）
+  rate_limit_ms: 35000     # API制限（35秒・安全マージン）
+  timeout_ms: 120000       # タイムアウト（2分・本番安全性）
+  retries: 5               # リトライ回数増加（本番信頼性）
 
 # 機械学習設定
 ml:
-  confidence_threshold: 0.35  # エントリー判定閾値
+  confidence_threshold: 0.65  # 65%（収益性重視・高品質シグナル）
   ensemble_enabled: true      # アンサンブル有効
   models:                     # 使用モデル
     - lgbm
@@ -114,23 +114,7 @@ monitoring:
     enabled: true            # パフォーマンス監視有効
     metrics_interval: 300    # メトリクス収集間隔
 
-# Phase 12: CI/CDワークフロー統合設定
-cicd:
-  environment_variables:
-    MODE: "live"             # デフォルトモード（本番運用）
-    LOG_LEVEL: "INFO"        # デフォルトログレベル
-    PYTHONPATH: "/app"       # Pythonパス
-  deployment:
-    strategy: "gradual"      # 段階的デプロイ
-    health_check_timeout: 300 # ヘルスチェック待機時間
-    rollback_on_failure: true # 失敗時自動ロールバック
-    workflow_optimization: true # ワークフロー最適化
-
-# Phase 12: セキュリティ設定
+# Phase 16-B: セキュリティ設定（GCP統合）
 security:
-  authentication:
-    workload_identity: true  # Workload Identity使用
-    token_refresh_minutes: 55 # トークン更新間隔
-  secret_management:
-    provider: "gcp_secret_manager" # Secret Manager使用
-    auto_rotation: true      # 自動ローテーション
+  secret_management: "gcp_secret_manager"  # GCP Secret Manager使用
+  workload_identity: true                  # Workload Identity認証

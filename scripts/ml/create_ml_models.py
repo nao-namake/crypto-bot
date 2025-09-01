@@ -41,7 +41,7 @@ try:
     from src.core.logger import get_logger
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.technical import TechnicalIndicators
-    from src.ml.ensemble.production_ensemble import ProductionEnsemble
+    from src.ml.ensemble import ProductionEnsemble
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
     print("プロジェクトルートから実行してください。")

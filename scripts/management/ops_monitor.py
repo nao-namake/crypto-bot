@@ -771,7 +771,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
                 probabilities = ensemble.predict_proba(test_features)
             else:
                 # フォールバック: 未学習モデルでの基本確認
-                from src.ml.ensemble.ensemble_model import EnsembleModel
+                from src.ml.ensemble import EnsembleModel
 
                 ensemble = EnsembleModel()
 

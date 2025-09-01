@@ -1,31 +1,31 @@
 """
-モデル管理システム - Phase 12実装・CI/CD統合・手動実行監視・段階的デプロイ対応
+モデル管理システム - Phase 18リファクタリング
 
-機械学習モデルのライフサイクル管理。
-バージョン管理、パフォーマンス記録、A/Bテスト機能を提供。
+機械学習モデルのライフサイクル管理（簡素化版）。
+バージョン管理、保存・読み込み、基本的な評価機能を提供。
 
-シンプルで実用的な実装を重視。.
+重複機能を削除し、実用性を重視した実装。
 """
 
 import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import pandas as pd
 
 from ..core.exceptions import DataProcessingError
 from ..core.logger import get_logger
-from .ensemble.ensemble_model import EnsembleModel
+from .ensemble import EnsembleModel
 
 
 class ModelManager:
     """
-    モデル管理システム
+    モデル管理システム（簡素化版）
 
     アンサンブルモデルのバージョン管理、保存・読み込み、
-    パフォーマンス追跡、A/Bテスト機能を統合管理。.
+    基本的な評価機能を提供。
     """
 
     def __init__(self, base_path: Union[str, Path] = "models"):
@@ -33,7 +33,7 @@ class ModelManager:
         モデル管理システムの初期化
 
         Args:
-            base_path: モデル保存のベースディレクトリ.
+            base_path: モデル保存のベースディレクトリ
         """
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
@@ -180,7 +180,7 @@ class ModelManager:
             version_name: 削除するバージョン名
 
         Returns:
-            bool: 削除成功フラグ.
+            bool: 削除成功フラグ
         """
         try:
             if version_name not in self.metadata:
@@ -203,128 +203,6 @@ class ModelManager:
             self.logger.error(f"Failed to delete model {version_name}: {e}")
             return False
 
-    def compare_models(self, version_names: List[str], metrics: List[str] = None) -> pd.DataFrame:
-        """
-        複数モデルの性能比較
-
-        Args:
-            version_names: 比較するバージョン名リスト
-            metrics: 比較するメトリクス名リスト
-
-        Returns:
-            pd.DataFrame: 比較結果.
-        """
-        if metrics is None:
-            metrics = ["accuracy", "precision", "recall", "f1_score"]
-
-        comparison_data = []
-
-        for version_name in version_names:
-            if version_name not in self.metadata:
-                self.logger.warning(f"Version {version_name} not found, skipping")
-                continue
-
-            entry = {"version_name": version_name}
-            performance = self.metadata[version_name].get("performance_metrics", {})
-
-            for metric in metrics:
-                entry[metric] = performance.get(metric, None)
-
-            # 追加情報
-            model_info = self.metadata[version_name].get("model_info", {})
-            entry["created_at"] = self.metadata[version_name]["created_at"]
-            entry["n_models"] = model_info.get("n_models", 0)
-            entry["confidence_threshold"] = model_info.get("confidence_threshold", 0)
-
-            comparison_data.append(entry)
-
-        return pd.DataFrame(comparison_data)
-
-    def run_ab_test(
-        self,
-        model_a_version: str,
-        model_b_version: str,
-        test_data: pd.DataFrame,
-        test_labels: pd.Series,
-        test_name: str = "",
-    ) -> Dict[str, any]:
-        """
-        A/Bテストの実行
-
-        Args:
-            model_a_version: モデルAのバージョン名
-            model_b_version: モデルBのバージョン名
-            test_data: テストデータ
-            test_labels: テストラベル
-            test_name: テスト名
-
-        Returns:
-            Dict[str, any]: A/Bテスト結果.
-        """
-        try:
-            # モデルの読み込み
-            model_a = self.load_model(model_a_version)
-            model_b = self.load_model(model_b_version)
-
-            # 評価の実行
-            metrics_a = model_a.evaluate(test_data, test_labels)
-            metrics_b = model_b.evaluate(test_data, test_labels)
-
-            # 結果の比較
-            comparison = {}
-            for metric in metrics_a.keys():
-                if metric in metrics_b:
-                    diff = metrics_b[metric] - metrics_a[metric]
-                    improvement = (diff / metrics_a[metric] * 100) if metrics_a[metric] != 0 else 0
-                    comparison[metric] = {
-                        "model_a": metrics_a[metric],
-                        "model_b": metrics_b[metric],
-                        "difference": diff,
-                        "improvement_pct": improvement,
-                    }
-
-            # テスト結果の記録
-            test_result = {
-                "test_name": test_name or f"AB_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "conducted_at": datetime.now().isoformat(),
-                "model_a_version": model_a_version,
-                "model_b_version": model_b_version,
-                "test_samples": len(test_data),
-                "metrics_comparison": comparison,
-                "winner": self._determine_winner(comparison),
-            }
-
-            # テスト履歴の保存
-            self._save_ab_test_result(test_result)
-
-            self.logger.info(f"✅ A/B test completed: {model_a_version} vs {model_b_version}")
-            return test_result
-
-        except Exception as e:
-            self.logger.error(f"A/B test failed: {e}")
-            raise DataProcessingError(f"A/B test failed: {e}")
-
-    def _determine_winner(self, comparison: Dict[str, Dict]) -> str:
-        """A/Bテストの勝者決定."""
-        # 主要メトリクスでの勝利数をカウント
-        key_metrics = ["accuracy", "f1_score", "precision", "recall"]
-        a_wins = 0
-        b_wins = 0
-
-        for metric in key_metrics:
-            if metric in comparison:
-                if comparison[metric]["difference"] > 0:
-                    b_wins += 1
-                elif comparison[metric]["difference"] < 0:
-                    a_wins += 1
-
-        if b_wins > a_wins:
-            return "model_b"
-        elif a_wins > b_wins:
-            return "model_a"
-        else:
-            return "tie"
-
     def _load_metadata(self) -> Dict:
         """メタデータの読み込み."""
         try:
@@ -343,29 +221,6 @@ class ModelManager:
                 json.dump(self.metadata, f, indent=2, ensure_ascii=False)
         except Exception as e:
             self.logger.error(f"Failed to save metadata: {e}")
-
-    def _save_ab_test_result(self, test_result: Dict) -> None:
-        """A/Bテスト結果の保存."""
-        try:
-            ab_test_file = self.base_path / "ab_test_history.json"
-
-            # 既存履歴の読み込み
-            if ab_test_file.exists():
-                with open(ab_test_file, "r", encoding="utf-8") as f:
-                    history = json.load(f)
-            else:
-                history = []
-
-            # 新しい結果を追加
-            history.append(test_result)
-
-            # 履歴の保存（最新50件のみ保持）
-            history = history[-50:]
-            with open(ab_test_file, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=2, ensure_ascii=False)
-
-        except Exception as e:
-            self.logger.error(f"Failed to save A/B test result: {e}")
 
     def get_storage_info(self) -> Dict[str, any]:
         """ストレージ使用量情報の取得."""

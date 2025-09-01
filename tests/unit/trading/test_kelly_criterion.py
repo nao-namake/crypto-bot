@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.trading.position_sizing import (
+from src.trading.risk_manager import (
     KellyCalculationResult,
     KellyCriterion,
     PositionSizeIntegrator,
@@ -270,7 +270,7 @@ class TestPositionSizeIntegrator:
         config = {"position_size_base": 0.02, "max_position_size": 0.05}
 
         # 実際のインポートパスでRiskManagerをモック
-        with patch("src.strategies.utils.risk_manager.RiskManager") as mock_risk_manager_class:
+        with patch("src.strategies.utils.strategy_utils.RiskManager") as mock_risk_manager_class:
             # calculate_position_sizeをクラスメソッドとしてモック
             mock_risk_manager_class.calculate_position_size.return_value = 0.025
 

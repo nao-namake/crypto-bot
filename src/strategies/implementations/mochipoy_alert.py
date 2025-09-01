@@ -212,7 +212,7 @@ class MochipoyAlertStrategy(StrategyBase):
             }
 
     def _create_signal(
-        self, decision: Dict, current_price: float, df: pd.DataFrame
+        self, decision: Dict[str, Any], current_price: float, df: pd.DataFrame
     ) -> StrategySignal:
         """シグナル作成 - 共通モジュール利用."""
         # 戦略固有メタデータを追加

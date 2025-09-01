@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 import pandas as pd
 
 from src.backtest.engine import BacktestEngine, TradeRecord
-from src.trading.risk import RiskDecision
+from src.trading.risk_manager import RiskDecision
 
 
 class TestBacktestEngine:

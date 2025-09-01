@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from src.core.exceptions import DataProcessingError
-from src.features.anomaly import MarketAnomalyDetector as AnomalyDetector
+from src.features import MarketAnomalyDetector as AnomalyDetector
 
 
 class TestAnomalyDetector:
@@ -78,7 +78,8 @@ class TestAnomalyDetector:
     def test_init_default(self, detector):
         """デフォルト初期化テスト"""
         assert isinstance(detector, AnomalyDetector)
-        assert detector.lookback_period == 20  # デフォルト値
+        # 設定ファイルから取得されるデフォルト値（100）を確認
+        assert detector.lookback_period == 100  # spike_detection.lookback_period設定値
         assert hasattr(detector, "logger")
         assert hasattr(detector, "computed_features")
         assert len(detector.computed_features) == 0
@@ -90,9 +91,9 @@ class TestAnomalyDetector:
         assert detector.lookback_period == 30
         assert isinstance(detector, AnomalyDetector)
 
-    def test_generate_all_features_basic(self, detector, sample_ohlcv_data):
+    def test_generate_features_basic(self, detector, sample_ohlcv_data):
         """基本異常検知特徴量生成テスト"""
-        result_df = detector.generate_all_features(sample_ohlcv_data)
+        result_df = detector.generate_features_sync(sample_ohlcv_data)
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
@@ -102,11 +103,11 @@ class TestAnomalyDetector:
 
         # computed_features にセットされている
         assert "market_stress" in detector.computed_features
-        assert len(detector.computed_features) == 1
+        assert len(detector.computed_features) == 3
 
-    def test_generate_all_features_data_validation(self, detector, sample_ohlcv_data):
+    def test_generate_features_data_validation(self, detector, sample_ohlcv_data):
         """特徴量データ妥当性テスト"""
-        result_df = detector.generate_all_features(sample_ohlcv_data)
+        result_df = detector.generate_features_sync(sample_ohlcv_data)
 
         # market_stress: 0-1の範囲内（正規化済み）
         market_stress = result_df["market_stress"].dropna()
@@ -117,9 +118,9 @@ class TestAnomalyDetector:
         assert not result_df["market_stress"].isnull().any()
         assert not np.isinf(result_df["market_stress"]).any()
 
-    def test_generate_all_features_stressed_market(self, detector, stressed_market_data):
+    def test_generate_features_stressed_market(self, detector, stressed_market_data):
         """ストレス市場での特徴量生成テスト"""
-        result_df = detector.generate_all_features(stressed_market_data)
+        result_df = detector.generate_features_sync(stressed_market_data)
 
         assert isinstance(result_df, pd.DataFrame)
         assert "market_stress" in result_df.columns
@@ -131,7 +132,7 @@ class TestAnomalyDetector:
             # ストレス市場では平均値が0.3以上程度期待
             assert mean_stress >= 0.0  # 少なくとも非負
 
-    def test_generate_all_features_missing_columns(self, detector):
+    def test_generate_features_missing_columns(self, detector):
         """必要列不足テスト"""
         incomplete_df = pd.DataFrame(
             {
@@ -142,21 +143,21 @@ class TestAnomalyDetector:
         )
 
         with pytest.raises(DataProcessingError, match="必要列が不足"):
-            detector.generate_all_features(incomplete_df)
+            detector.generate_features_sync(incomplete_df)
 
-    def test_generate_all_features_empty_data(self, detector):
+    def test_generate_features_empty_data(self, detector):
         """空データテスト"""
         empty_df = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
         try:
-            result_df = detector.generate_all_features(empty_df)
+            result_df = detector.generate_features_sync(empty_df)
             assert isinstance(result_df, pd.DataFrame)
             assert len(result_df) == 0
         except (DataProcessingError, ValueError):
             # 空データでエラーは許容される
             pass
 
-    def test_generate_all_features_single_row(self, detector):
+    def test_generate_features_single_row(self, detector):
         """単一行データテスト"""
         single_row_df = pd.DataFrame(
             {
@@ -168,7 +169,7 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(single_row_df)
+        result_df = detector.generate_features_sync(single_row_df)
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == 1
@@ -184,10 +185,10 @@ class TestAnomalyDetector:
         assert info_before["total_features"] == 0
         assert len(info_before["computed_features"]) == 0
         assert "parameters" in info_before
-        assert info_before["parameters"]["lookback_period"] == 20
+        assert info_before["parameters"]["lookback_period"] == 100
 
         # 特徴量生成後
-        detector.generate_all_features(sample_ohlcv_data)
+        detector.generate_features_sync(sample_ohlcv_data)
         info_after = detector.get_feature_info()
 
         assert info_after["total_features"] == 3  # 実際は3個の異常検知特徴量が生成される
@@ -207,7 +208,7 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(data_with_nan)
+        result_df = detector.generate_features_sync(data_with_nan)
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(data_with_nan)
@@ -228,7 +229,7 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(constant_df)
+        result_df = detector.generate_features_sync(constant_df)
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == 50
@@ -251,7 +252,7 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(extreme_df)
+        result_df = detector.generate_features_sync(extreme_df)
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == 5
@@ -272,7 +273,7 @@ class TestAnomalyDetector:
         for period in lookback_periods:
             detector = AnomalyDetector(lookback_period=period)
 
-            result_df = detector.generate_all_features(sample_ohlcv_data)
+            result_df = detector.generate_features_sync(sample_ohlcv_data)
 
             assert isinstance(result_df, pd.DataFrame)
             assert "market_stress" in result_df.columns
@@ -305,7 +306,7 @@ class TestAnomalyDetector:
 
         start_time = time.time()
 
-        result_df = detector.generate_all_features(large_df)
+        result_df = detector.generate_features_sync(large_df)
 
         elapsed_time = time.time() - start_time
 
@@ -327,13 +328,13 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(int_df)
+        result_df = detector.generate_features_sync(int_df)
         assert isinstance(result_df, pd.DataFrame)
         assert "market_stress" in result_df.columns
 
         # 浮動小数点データ
         float_df = int_df.astype(float)
-        result_df_float = detector.generate_all_features(float_df)
+        result_df_float = detector.generate_features_sync(float_df)
         assert isinstance(result_df_float, pd.DataFrame)
 
     def test_edge_cases_zero_volume(self, detector):
@@ -348,7 +349,7 @@ class TestAnomalyDetector:
             }
         )
 
-        result_df = detector.generate_all_features(zero_volume_df)
+        result_df = detector.generate_features_sync(zero_volume_df)
 
         assert isinstance(result_df, pd.DataFrame)
         assert "market_stress" in result_df.columns
@@ -369,7 +370,7 @@ class TestAnomalyDetector:
         )
 
         try:
-            result_df = detector.generate_all_features(negative_df)
+            result_df = detector.generate_features_sync(negative_df)
             assert isinstance(result_df, pd.DataFrame)
             # 異常値でも処理される
         except (ValueError, DataProcessingError):
@@ -529,7 +530,7 @@ class TestAnomalyDetectorIntegration:
         )
 
         # 異常検知実行
-        result_df = detector.generate_all_features(market_data)
+        result_df = detector.generate_features_sync(market_data)
 
         assert isinstance(result_df, pd.DataFrame)
         assert "market_stress" in result_df.columns
@@ -559,8 +560,8 @@ class TestAnomalyDetectorIntegration:
             }
         )
 
-        short_result = short_detector.generate_all_features(test_data)
-        long_result = long_detector.generate_all_features(test_data)
+        short_result = short_detector.generate_features_sync(test_data)
+        long_result = long_detector.generate_features_sync(test_data)
 
         assert isinstance(short_result, pd.DataFrame)
         assert isinstance(long_result, pd.DataFrame)

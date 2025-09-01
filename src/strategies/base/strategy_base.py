@@ -177,7 +177,7 @@ class StrategyBase(ABC):
             self.logger.error(f"[{self.name}] シグナル生成エラー: {e}")
             raise StrategyError(f"戦略シグナル生成失敗: {e}", strategy_name=self.name)
 
-    def _validate_input_data(self, df: pd.DataFrame):
+    def _validate_input_data(self, df: pd.DataFrame) -> None:
         """入力データの検証."""
         if df.empty:
             raise StrategyError("データが空です", strategy_name=self.name)
@@ -200,7 +200,7 @@ class StrategyBase(ABC):
                 strategy_name=self.name,
             )
 
-    def _post_process_signal(self, signal: StrategySignal):
+    def _post_process_signal(self, signal: StrategySignal) -> None:
         """シグナル後処理."""
         # シグナル履歴に追加
         self.signal_history.append(signal)
@@ -213,7 +213,7 @@ class StrategyBase(ABC):
         if len(self.signal_history) > max_history:
             self.signal_history = self.signal_history[-max_history:]
 
-    def update_performance(self, signal_success: bool):
+    def update_performance(self, signal_success: bool) -> None:
         """パフォーマンス更新."""
         if signal_success:
             self.successful_signals += 1
@@ -233,8 +233,8 @@ class StrategyBase(ABC):
             return {"total": 0, "by_action": {}, "avg_confidence": 0.0}
 
         # アクション別カウント
-        action_counts = {}
-        total_confidence = 0
+        action_counts: Dict[str, int] = {}
+        total_confidence: float = 0.0
 
         for signal in self.signal_history:
             action = signal.action

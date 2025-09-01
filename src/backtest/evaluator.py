@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from ..core.config import get_backtest_config
 from ..core.logger import get_logger
 from .engine import TradeRecord
 
@@ -84,8 +85,11 @@ class BacktestEvaluator:
     レガシーシステムの評価ロジックを継承・改良。.
     """
 
-    def __init__(self, risk_free_rate: float = 0.001):  # 0.1%
+    def __init__(self, risk_free_rate: Optional[float] = None):
         self.logger = get_logger(__name__)
+        # リスクフリーレート設定（Phase 16-B：設定ファイル参照）
+        if risk_free_rate is None:
+            risk_free_rate = get_backtest_config("risk_free_rate", 0.001)
         self.risk_free_rate = risk_free_rate
 
     def evaluate_performance(

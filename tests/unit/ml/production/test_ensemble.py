@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from src.ml.ensemble.production_ensemble import ProductionEnsemble
+from src.ml.ensemble import ProductionEnsemble
 
 
 class TestProductionEnsemble:
@@ -114,7 +114,7 @@ class TestProductionEnsemble:
         assert "lightgbm" in info["individual_models"]
         assert info["n_features"] == 12
         assert len(info["feature_names"]) == 12
-        assert info["phase"] == "Phase 12"
+        assert info["phase"] == "Phase 18"
         assert info["status"] == "production_ready"
         assert "weights" in info
 

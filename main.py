@@ -7,7 +7,7 @@ Phase 1-13統合版・CI/CDワークフロー最適化・手動実行監視・�
 
 設計原則:
 - エントリーポイント特化（60行以内）
-- ビジネスロジックはsrc/core/orchestrator.pyに委譲・GitHub Actions対応
+- ビジネスロジックはsrc/core/orchestration/に委譲・GitHub Actions対応
 - テスト不要なレベルまで薄く設計・CI/CDワークフロー最適化対応
 - 保守性とシンプルさの両立・手動実行監視・段階的デプロイ対応
 """
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 try:
     from src.core.config import load_config
     from src.core.logger import setup_logging
-    from src.core.orchestrator import create_trading_orchestrator
+    from src.core.orchestration import create_trading_orchestrator
 except ImportError as e:
     print(f"❌ 必要なモジュールのインポートに失敗: {e}")
     print("srcディレクトリの構造を確認してください。")

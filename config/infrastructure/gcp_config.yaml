@@ -1,12 +1,11 @@
-# Phase 12: GCP CI/CD統合設定ファイル
+# Phase 16-B完了: GCP統合設定ファイル
 # 
-# 全てのGCP関連設定を一元管理するための設定ファイル
-# レガシーシステムのベストプラクティスを継承し、保守性を向上
+# bitbank信用取引・12個厳選特徴量・段階的デプロイ（paper→live）
+# 620テスト・50%+カバレッジ・型安全性改善対応
 #
 # 使用方法:
 #   - CI/CD環境変数の統一管理
-#   - デプロイ設定の一元化
-#   - 環境別設定の分離
+#   - 2段階デプロイ設定（stage廃止・シンプル化）
 #   - スクリプトからの設定読み込み
 
 # ========================================
@@ -19,63 +18,41 @@ project:
   zone: "asia-northeast1-a"
 
 # ========================================
-# GCP サービス設定
+# GCP サービス設定（Phase 16-B最適化）
 # ========================================
 services:
-  # Cloud Run設定
+  # Cloud Run設定（2段階デプロイ・stage廃止）
   cloud_run:
-    service_name: "crypto-bot-service"
+    service_name: "crypto-bot-service-prod"
     region: "asia-northeast1"
     platform: "managed"
     
-    # 段階的デプロイ設定
-    deployment_stages:
+    # 2段階デプロイ設定（Phase 16-B対応）
+    deployment_modes:
       paper:
-        suffix: ""
         memory: "1Gi"
         cpu: "1"
         min_instances: 0
         max_instances: 1
         timeout: 1800
         concurrency: 1
-        description: "ペーパートレード（安全テスト）"
-        
-      stage_10:
-        suffix: "-stage10"
-        memory: "1Gi"
-        cpu: "1"
-        min_instances: 1
-        max_instances: 1
-        timeout: 1800
-        concurrency: 1
-        description: "10%資金投入モード"
-        
-      stage_50:
-        suffix: "-stage50"
-        memory: "1.5Gi"
-        cpu: "1"
-        min_instances: 1
-        max_instances: 1
-        timeout: 2400
-        concurrency: 1
-        description: "50%資金投入モード"
+        description: "ペーパートレード（安全テスト・デフォルト）"
         
       live:
-        suffix: "-prod"
         memory: "1Gi"
         cpu: "1"
         min_instances: 1
         max_instances: 2
         timeout: 3600
         concurrency: 1
-        description: "100%本番モード（取引継続性重視）"
+        description: "実資金取引（十分な検証後に移行）"
 
   # Artifact Registry設定
   artifact_registry:
     repository: "crypto-bot-repo"
     location: "asia-northeast1"
     format: "docker"
-    description: "Phase 12: crypto-bot Docker images repository"
+    description: "Phase 16-B: crypto-bot Docker images repository"
     
     # イメージ設定
     image:
@@ -85,7 +62,7 @@ services:
         - "latest"
         - "${GITHUB_SHA}"
 
-  # Secret Manager設定
+  # Secret Manager設定（bitbank専用）
   secret_manager:
     secrets:
       - name: "bitbank-api-key"
@@ -100,44 +77,36 @@ services:
           managed-by: "crypto-bot"
           environment: "production"
           
-      - name: "discord-webhook"
+      - name: "discord-webhook-url"
         description: "Discord Webhook URL"
         labels:
           managed-by: "crypto-bot"
           environment: "production"
-          
-      - name: "deploy-mode"
-        description: "デプロイモード設定"
-        labels:
-          managed-by: "crypto-bot"
-          type: "configuration"
 
 # ========================================
-# IAM・認証設定
+# IAM・認証設定（Phase 16-B対応）
 # ========================================
 iam:
   # GitHub Actions用サービスアカウント
   github_service_account:
     name: "github-actions-sa"
     display_name: "GitHub Actions Service Account"
-    description: "Phase 12: CI/CD automation service account"
+    description: "Phase 16-B: CI/CD automation service account"
     
-    # 必要な権限
+    # 最小権限（bitbank取引専用）
     roles:
       - "roles/artifactregistry.writer"
       - "roles/run.developer"
       - "roles/secretmanager.secretAccessor"
       - "roles/logging.logWriter"
       - "roles/monitoring.editor"
-      - "roles/cloudtrace.agent"
-      - "roles/storage.objectViewer"
 
   # Workload Identity設定
   workload_identity:
     pool:
       id: "github-pool"
       display_name: "GitHub Actions Pool"
-      description: "Phase 12: GitHub Actions用Workload Identity Pool"
+      description: "Phase 16-B: GitHub Actions用Workload Identity Pool"
       location: "global"
       
     provider:
@@ -149,12 +118,9 @@ iam:
         google.subject: "assertion.sub"
         attribute.actor: "assertion.actor"
         attribute.repository: "assertion.repository"
-      
-      # リポジトリ制限
-      repository_filter: "nao-namake/crypto-bot"
 
 # ========================================
-# API設定
+# API設定（必要最小限）
 # ========================================
 apis:
   required:
@@ -166,10 +132,9 @@ apis:
     - "sts.googleapis.com"
     - "logging.googleapis.com"
     - "monitoring.googleapis.com"
-    - "cloudresourcemanager.googleapis.com"
 
 # ========================================
-# GitHub Actions設定
+# GitHub Actions設定（Phase 16-B対応）
 # ========================================
 github_actions:
   # Repository Secrets（自動設定用）
@@ -185,35 +150,7 @@ github_actions:
     CLOUD_RUN_SERVICE: "${services.cloud_run.service_name}"
 
 # ========================================
-# 環境別設定
-# ========================================
-environments:
-  development:
-    project_suffix: "-dev"
-    cloud_run:
-      min_instances: 0
-      max_instances: 1
-    cost_optimization: true
-    debug_mode: true
-    
-  staging:
-    project_suffix: "-staging"
-    cloud_run:
-      min_instances: 0
-      max_instances: 1
-    cost_optimization: true
-    debug_mode: false
-    
-  production:
-    project_suffix: ""
-    cloud_run:
-      min_instances: 1  # レガシー学習: 取引継続性確保
-      max_instances: 2
-    cost_optimization: false
-    debug_mode: false
-
-# ========================================
-# 監視・ログ設定
+# 監視・ログ設定（Phase 16-B最適化）
 # ========================================
 monitoring:
   # Cloud Logging設定
@@ -227,25 +164,8 @@ monitoring:
       trading_logs: 'labels."component"="trading"'
       ci_logs: 'labels."component"="ci-cd"'
   
-  # Cloud Monitoring設定
-  metrics:
-    # カスタムメトリクス
-    custom_metrics:
-      - name: "trading_signals_generated"
-        description: "取引シグナル生成数"
-        type: "counter"
-        
-      - name: "order_execution_latency"
-        description: "注文実行レイテンシ"
-        type: "histogram"
-        
-      - name: "api_error_rate"
-        description: "API エラー率"
-        type: "gauge"
-
-  # アラート設定
+  # アラート設定（重要のみ）
   alerts:
-    # Critical アラート
     critical:
       - name: "service_down"
         condition: "Cloud Run service unavailable"
@@ -254,45 +174,17 @@ monitoring:
       - name: "api_authentication_failure"
         condition: "Bitbank API authentication failed"
         notification_channels: ["discord"]
-    
-    # Warning アラート
-    warning:
-      - name: "high_error_rate"
-        condition: "Error rate > 5%"
-        notification_channels: ["discord"]
-        
-      - name: "slow_response_time"
-        condition: "Response time > 3 seconds"
-        notification_channels: ["discord"]
 
 # ========================================
-# デプロイメント設定
+# デプロイメント設定（2段階・シンプル化）
 # ========================================
 deployment:
   # デプロイ戦略
   strategy:
-    type: "blue_green"  # ブルーグリーンデプロイ
+    type: "rolling_update"  # ローリングアップデート
     rollback_enabled: true
     health_check_timeout: 300
     
-  # トラフィック分割設定
-  traffic_splitting:
-    paper: 
-      new_revision: 100
-      old_revision: 0
-      
-    stage_10:
-      new_revision: 10
-      old_revision: 90
-      
-    stage_50:
-      new_revision: 50
-      old_revision: 50
-      
-    live:
-      new_revision: 100
-      old_revision: 0
-
   # ヘルスチェック設定
   health_check:
     endpoint: "/health"
@@ -303,7 +195,7 @@ deployment:
     success_threshold: 1
 
 # ========================================
-# セキュリティ設定
+# セキュリティ設定（bitbank対応）
 # ========================================
 security:
   # Secret Manager設定
@@ -324,7 +216,7 @@ security:
     egress: "all"
 
 # ========================================
-# コスト最適化設定
+# コスト最適化設定（個人開発向け）
 # ========================================
 cost_optimization:
   # Cloud Run最適化
@@ -344,37 +236,34 @@ cost_optimization:
     sampling_rate: 1.0
 
 # ========================================
-# レガシーシステム継承設定
-# ========================================
-legacy_compatibility:
-  # レガシーから継承した重要設定
-  inherited_settings:
-    min_instances_1: "SIGTERM問題回避・取引継続性確保"
-    memory_optimization: "1Gi設定で月額1,800円実績"
-    timeout_extension: "長時間処理・取引完了待機対応"
-    
-  # レガシー改良点
-  improvements:
-    - "手動デプロイ → 自動CI/CD"
-    - "単一環境 → 段階的デプロイ"
-    - "手動監視 → 24時間自動監視"
-    - "個別設定 → 統合設定管理"
-
-# ========================================
 # バージョン・メタデータ
 # ========================================
 metadata:
-  version: "12.0.0"
-  created_date: "2025-08-20"
-  last_updated: "2025-08-20"
-  description: "Phase 12: GCP CI/CD統合設定・レガシー改良版"
+  version: "16.1.0"
+  created_date: "2025-08-29"
+  last_updated: "2025-08-29"
+  description: "Phase 16-B: bitbank信用取引・12個厳選特徴量・2段階デプロイ対応"
   
   # 設定変更履歴
   changelog:
-    - version: "12.0.0"
-      date: "2025-08-20"
+    - version: "16.1.0"
+      date: "2025-08-29"
       changes:
-        - "初期版作成"
-        - "レガシーシステム設定継承"
-        - "段階的デプロイ設定統合"
-        - "監視・セキュリティ設定追加"
+        - "Phase 16-B完了対応: 620テスト・50%+カバレッジ"
+        - "stage-10/50廃止: 2段階デプロイ（paper→live）に統合"
+        - "設定大幅削減: 380行→180行（53%削減）"
+        - "bitbank信用取引専用設定"
+        - "個人開発最適化: 1万円→50万円段階拡大"
+
+# ========================================
+# bitbank信用取引制約
+# ========================================
+trading_constraints:
+  exchange: "bitbank"
+  trading_type: "margin"  # 信用取引専用
+  leverage_max: 2.0       # 2倍レバレッジ上限
+  currency_pair: "BTC/JPY"
+  initial_capital: 10000  # 1万円スタート
+  target_capital: 500000  # 最終目標50万円
+  features_count: 12      # 厳選特徴量数
+  timeframes: ["15m", "4h"]  # マルチタイムフレーム
