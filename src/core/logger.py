@@ -10,13 +10,16 @@ import logging
 import logging.handlers
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .config import get_file_config
 from .exceptions import CryptoBotError, ErrorSeverity, get_error_severity
+
+# タイムゾーン設定（日本の取引システム用）
+JST = timezone(timedelta(hours=9))  # 日本標準時
 
 
 class LogLevel(Enum):
@@ -38,7 +41,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(JST).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

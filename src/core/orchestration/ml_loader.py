@@ -63,28 +63,39 @@ class MLModelLoader:
             return False
 
         try:
-            # 古いimportパス互換性レイヤー
-            class ModuleRedirect:
-                def __getattr__(self, name):
-                    if name == "ProductionEnsemble":
-                        from src.ml.ensemble import ProductionEnsemble
+            # Phase 18対応: 古いPickleファイル互換性レイヤー（完全版）
+            class EnsembleModule:
+                """ensemble サブモジュールのエミュレート"""
+                def __init__(self):
+                    from src.ml.ensemble import ProductionEnsemble
+                    self.ProductionEnsemble = ProductionEnsemble
 
-                        return ProductionEnsemble
-                    raise AttributeError(f"Module {name} not found")
+            class ProductionModule:
+                """src.ml.production モジュールのエミュレート"""
+                def __init__(self):
+                    self.ensemble = EnsembleModule()
 
-            # 一時的に古いパスをリダイレクト
-            old_module = sys.modules.get("src.ml.production")
-            sys.modules["src.ml.production"] = ModuleRedirect()
+            # 階層的モジュールリダイレクト設定
+            old_production = sys.modules.get("src.ml.production")
+            old_ensemble = sys.modules.get("src.ml.production.ensemble")
+            
+            sys.modules["src.ml.production"] = ProductionModule()
+            sys.modules["src.ml.production.ensemble"] = EnsembleModule()
 
             try:
                 with open(model_path, "rb") as f:
                     self.model = pickle.load(f)
             finally:
-                # リダイレクト後片付け
-                if old_module is None:
+                # リダイレクト後片付け（階層的）
+                if old_production is None:
                     sys.modules.pop("src.ml.production", None)
                 else:
-                    sys.modules["src.ml.production"] = old_module
+                    sys.modules["src.ml.production"] = old_production
+                    
+                if old_ensemble is None:
+                    sys.modules.pop("src.ml.production.ensemble", None)
+                else:
+                    sys.modules["src.ml.production.ensemble"] = old_ensemble
 
             # モデルの妥当性チェック
             if hasattr(self.model, "predict") and hasattr(self.model, "predict_proba"):

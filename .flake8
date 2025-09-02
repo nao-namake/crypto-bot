@@ -1,6 +1,40 @@
 [flake8]
 max-line-length = 100
-extend-ignore = E203,W503,E501,E402,F401,F841,F541,F811,E722,E712,E704,E225,E226,E228,W291,W293,D100,D101,D102,D103,D104,D105,D107,D200,D202,D204,D205,D300,D302,D400,D403
+target-version = py313
 
-exclude = .git,__pycache__,.venv,venv,env,build,dist,.cache,_legacy_v1,logs,results,.pytest_cache,htmlcov,*.egg-info
-per-file-ignores = tests/*:F401,F811,E712
+# Phase 18対応: 品質基準を654テスト100%・企業級品質に最適化
+# 基本的なコード品質エラーは修正対象とし、実用性とのバランスを取る
+extend-ignore = 
+    # Import関連（実用性重視）
+    E402,    # module level import not at top of file
+    F401,    # imported but unused（テストファイルで頻発）
+    # フォーマット関連（blackで自動修正）
+    E203,    # whitespace before ':'
+    W503,    # line break before binary operator
+    E501,    # line too long（blackで管理）
+    # Docstring関連（段階的改善）
+    D100,D101,D102,D103,D104,D105,D107,  # Missing docstrings
+    D200,D202,D204,D205,D300,D302,D400,D403,  # Docstring formatting
+
+# 除外ディレクトリ
+exclude = 
+    .git,
+    __pycache__,
+    .venv,venv,env,
+    build,dist,
+    .cache,
+    _legacy_v1,
+    logs,results,
+    .pytest_cache,
+    htmlcov,
+    *.egg-info,
+    coverage-reports
+
+# ファイル固有設定
+per-file-ignores = 
+    # テストファイルは import・unused variable を緩和
+    tests/*:F401,F811,E712,F841
+    # __init__.py は unused import を許可
+    __init__.py:F401
+    # 設定ファイルは長い行を許可
+    */config*.py:E501

@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, '/app')
 
 try:
-    from src.core.ml_adapter import MLServiceAdapter
+    from src.core.orchestration.ml_adapter import MLServiceAdapter
     from src.core.logger import get_logger
     
     logger = get_logger('startup_check')
@@ -44,9 +44,16 @@ try:
         print('⚠️ MLモデル未学習 - ダミーモードで継続')
         logger.warning('⚠️ ダミーモード稼働')
         
+except ImportError as e:
+    print(f'❌ Phase 18リファクタリング後のimportエラー: {str(e)}')
+    print(f'⚠️ MLモジュール読み込み失敗 - ダミーモードで継続')
+    logger.error(f'Phase 18 import修正後もエラー: {e}')
 except Exception as e:
     print(f'⚠️ MLモデル検証エラー: {str(e)[:100]}...')
+    print(f'⚠️ エラー詳細: {type(e).__name__}')
     print('⚠️ エラーが発生しましたが稼働を継続します')
+    import traceback
+    print(f'📊 スタックトレース: {traceback.format_exc()[:200]}...')
 "
 
 if [ $? -ne 0 ]; then

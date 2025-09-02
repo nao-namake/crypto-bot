@@ -354,8 +354,7 @@ async def create_trading_orchestrator(
     from ...data.bitbank_client import BitbankClient
     from ...data.data_pipeline import DataPipeline
 
-    # Phase 18統合: feature_generator.py統合により削除
-    from ...ml.ensemble.ensemble_model import EnsembleModel
+    # Phase 18統合: feature_generator.py統合により削除・EnsembleModel → MLServiceAdapter移行完了
     from ...monitoring.discord_notifier import DiscordManager
     from ...strategies.base.strategy_manager import StrategyManager
     from ...strategies.implementations.atr_based import ATRBasedStrategy

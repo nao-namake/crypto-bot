@@ -84,7 +84,7 @@ class FeatureGenerator:
         )
         self.computed_features = set()
 
-    async def generate_features(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_features(self, market_data: Dict[str, Any]) -> pd.DataFrame:
         """
         統合特徴量生成処理（12特徴量確認機能付き）
 
@@ -92,7 +92,7 @@ class FeatureGenerator:
             market_data: 市場データ（DataFrame または dict）
 
         Returns:
-            12特徴量を含む辞書データ
+            12特徴量を含むDataFrame
         """
         try:
             # DataFrameに変換
@@ -119,21 +119,39 @@ class FeatureGenerator:
             # 🎯 12特徴量完全確認・検証
             self._validate_feature_generation(result_df)
 
-            # DataFrameを辞書形式に変換して返す
-            return result_df.to_dict("records")
+            # DataFrameをそのまま返す（戦略で使用するため）
+            return result_df
 
         except Exception as e:
             self.logger.error(f"統合特徴量生成エラー: {e}")
             raise DataProcessingError(f"特徴量生成失敗: {e}")
 
     def _convert_to_dataframe(self, market_data: Dict[str, Any]) -> pd.DataFrame:
-        """市場データをDataFrameに変換"""
+        """市場データをDataFrameに変換（タイムフレーム辞書対応）"""
         if isinstance(market_data, pd.DataFrame):
             return market_data.copy()
         elif isinstance(market_data, dict):
             try:
+                # タイムフレーム辞書の場合（マルチタイムフレームデータ）
+                # 実際に使用されるタイムフレーム: 4h（メイン）, 15m（サブ）
+                timeframe_keys = ['4h', '15m']  # 優先順位順
+                for tf in timeframe_keys:
+                    if tf in market_data and isinstance(market_data[tf], pd.DataFrame):
+                        self.logger.info(f"タイムフレーム辞書からメイン時系列取得: {tf}")
+                        return market_data[tf].copy()
+                
+                # 通常の辞書データの場合（OHLCV形式等）
+                # 全ての値がスカラーかリストかをチェック
+                if all(isinstance(v, (int, float, str)) or 
+                      (isinstance(v, list) and len(v) > 0) for v in market_data.values()):
+                    return pd.DataFrame(market_data)
+                
+                # その他の構造の辞書
+                self.logger.warning(f"複雑な辞書構造を検出: keys={list(market_data.keys())}")
                 return pd.DataFrame(market_data)
+                
             except (ValueError, KeyError, TypeError) as e:
+                self.logger.error(f"市場データ変換エラー - 構造: {type(market_data)}, キー: {list(market_data.keys()) if hasattr(market_data, 'keys') else 'N/A'}")
                 raise DataProcessingError(f"Dict→DataFrame変換データ構造エラー: {e}")
             except (MemoryError, OverflowError) as e:
                 raise DataProcessingError(f"Dict→DataFrame変換サイズエラー: {e}")
@@ -162,7 +180,7 @@ class FeatureGenerator:
 
         # returns_1を計算
         if "close" in result_df.columns:
-            result_df["returns_1"] = result_df["close"].pct_change(1)
+            result_df["returns_1"] = result_df["close"].pct_change(1, fill_method=None)
             result_df["returns_1"] = result_df["returns_1"].fillna(0)
             basic_features.append("returns_1")
 
