@@ -8,13 +8,12 @@ version = "2.0.0"
 description = "AI-powered cryptocurrency trading bot"
 authors = [{name = "Crypto Bot Team", email = "team@crypto-bot.local"}]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
+    "Intended Audience :: Developers", 
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [project.optional-dependencies]
@@ -94,7 +93,7 @@ output = ".cache/coverage/coverage.xml"
 
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312"]
+target-version = ["py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -115,7 +114,7 @@ skip_glob = ["_legacy_v1/*"]
 # MyPy設定（キャッシュ一元管理・CI対応緩和版）
 [tool.mypy]
 cache_dir = ".cache/mypy"
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = false
 warn_unused_configs = false
 disallow_untyped_defs = false

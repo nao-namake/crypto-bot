@@ -275,17 +275,34 @@ class TestMLServiceAdapterExceptionHandling:
         with open(lightgbm_file, "wb") as f:
             f.write(b"corrupted_data")
 
-        with patch("pathlib.Path") as mock_path:
-            mock_path.return_value.exists.side_effect = lambda path_str=None: (
-                False if "production_ensemble.pkl" in str(path_str) else True
-            )
+        # pathlib.Path.exists()をmockして個別モデル読み込みでエラーを発生させる
+        with patch("src.core.orchestration.ml_loader.Path") as MockPath:
 
-            with patch("builtins.open", mock_open()):
-                with patch("pickle.load", side_effect=pickle.UnpicklingError("破損データ")):
-                    adapter = MLServiceAdapter(mock_logger)
+            def mock_path_constructor(path_str):
+                mock_instance = Mock()
+                # production_ensemble.pklは存在しない、trainingディレクトリとlightgbm_model.pklは存在する
+                if "production_ensemble.pkl" in str(path_str):
+                    mock_instance.exists.return_value = False
+                elif "training" in str(path_str) or "lightgbm_model.pkl" in str(path_str):
+                    mock_instance.exists.return_value = True
+                else:
+                    mock_instance.exists.return_value = False
+                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
+                    f"{path_str}/{other}"
+                )
+                return mock_instance
 
-                    assert adapter.model_type == "DummyModel"
-                    mock_logger.error.assert_called()
+            MockPath.side_effect = mock_path_constructor
+
+            # os.path.existsも同時にmock（_load_production_ensembleの107行目で使用）
+            with patch("os.path.exists", return_value=False):  # /app/modelsは存在しない前提
+                with patch("builtins.open", mock_open()):
+                    with patch("pickle.load", side_effect=pickle.UnpicklingError("破損データ")):
+                        adapter = MLServiceAdapter(mock_logger)
+
+                        assert adapter.model_type == "DummyModel"
+                        # 個別モデル再構築エラーのログが出力されることを確認
+                        mock_logger.error.assert_called()
 
     def test_individual_models_production_ensemble_construction_error(
         self, mock_logger, temp_models_dir
@@ -300,20 +317,37 @@ class TestMLServiceAdapterExceptionHandling:
         with open(lightgbm_file, "wb") as f:
             pickle.dump(dummy_model, f)
 
-        with patch("pathlib.Path") as mock_path:
-            mock_path.return_value.exists.side_effect = lambda path_str=None: (
-                False if "production_ensemble.pkl" in str(path_str) else True
-            )
+        # pathlib.Path.exists()をmockして個別モデル読み込みを成功させる
+        with patch("src.core.orchestration.ml_loader.Path") as MockPath:
 
-            # ProductionEnsemble構築時にAttributeErrorを発生
-            with patch(
-                "src.ml.ensemble.ProductionEnsemble",
-                side_effect=AttributeError("構築エラー"),
-            ):
-                adapter = MLServiceAdapter(mock_logger)
+            def mock_path_constructor(path_str):
+                mock_instance = Mock()
+                # production_ensemble.pklは存在しない、trainingディレクトリとlightgbm_model.pklは存在する
+                if "production_ensemble.pkl" in str(path_str):
+                    mock_instance.exists.return_value = False
+                elif "training" in str(path_str) or "lightgbm_model.pkl" in str(path_str):
+                    mock_instance.exists.return_value = True
+                else:
+                    mock_instance.exists.return_value = False
+                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
+                    f"{path_str}/{other}"
+                )
+                return mock_instance
 
-                assert adapter.model_type == "DummyModel"
-                mock_logger.error.assert_called()
+            MockPath.side_effect = mock_path_constructor
+
+            # os.path.existsも同時にmock（_load_production_ensembleの107行目で使用）
+            with patch("os.path.exists", return_value=False):  # /app/modelsは存在しない前提
+                # ProductionEnsemble構築時にAttributeErrorを発生
+                with patch(
+                    "src.ml.ensemble.ProductionEnsemble",
+                    side_effect=AttributeError("構築エラー"),
+                ):
+                    adapter = MLServiceAdapter(mock_logger)
+
+                    assert adapter.model_type == "DummyModel"
+                    # 個別モデル再構築エラーのログが出力されることを確認
+                    mock_logger.error.assert_called()
 
 
 class TestMLServiceAdapterPredictionErrors:

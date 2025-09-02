@@ -1,7 +1,7 @@
 # Phase 13: 統合最適化完了・品質保証・CI/CD統合 Production Dockerfile
 # 607テスト・54%カバレッジ・統合キャッシュ・設定最適化対応
 
-FROM python:3.11-slim-bullseye
+FROM python:3.13-slim-bullseye
 
 # メタデータ（Phase 13完了）
 LABEL maintainer="crypto-bot-phase13"
