@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-08-23T07:12:24.412468",
+  "created_at": "2025-09-04T05:57:55.212425",
   "feature_names": [
     "close",
     "volume",
@@ -11,34 +11,34 @@
     "bb_position",
     "ema_20",
     "ema_50",
-    "zscore",
-    "volume_ratio"
+    "volume_ratio",
+    "zscore"
   ],
-  "training_samples": 4320,
+  "training_samples": 1080,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.9581018518518518,
-      "f1_score": 0.9577512501573271,
-      "precision": 0.9595950093740663,
-      "recall": 0.9581018518518518,
-      "cv_f1_mean": 0.5266076441125623,
-      "cv_f1_std": 0.010672165897303946
+      "accuracy": 0.937962962962963,
+      "f1_score": 0.9373879952179727,
+      "precision": 0.9394404186795492,
+      "recall": 0.937962962962963,
+      "cv_f1_mean": 0.5172504618163675,
+      "cv_f1_std": 0.05379598365007286
     },
     "xgboost": {
-      "accuracy": 0.9953703703703703,
-      "f1_score": 0.9953655775983146,
-      "precision": 0.9954055632979998,
-      "recall": 0.9953703703703703,
-      "cv_f1_mean": 0.5167699501773803,
-      "cv_f1_std": 0.009812902079985149
+      "accuracy": 0.9916666666666667,
+      "f1_score": 0.9916546749027567,
+      "precision": 0.9917301099122718,
+      "recall": 0.9916666666666667,
+      "cv_f1_mean": 0.5228847626906779,
+      "cv_f1_std": 0.03599226081703108
     },
     "random_forest": {
-      "accuracy": 0.7805555555555556,
-      "f1_score": 0.7553019996485831,
-      "precision": 0.8390083044550591,
-      "recall": 0.7805555555555556,
-      "cv_f1_mean": 0.49847541988483446,
-      "cv_f1_std": 0.0066855348244923354
+      "accuracy": 0.924074074074074,
+      "f1_score": 0.9223117745598527,
+      "precision": 0.9325678338638775,
+      "recall": 0.924074074074074,
+      "cv_f1_mean": 0.5060078535919214,
+      "cv_f1_std": 0.05567438524446698
     }
   },
   "model_files": {
@@ -48,6 +48,6 @@
     "production_ensemble": "models/production/production_ensemble.pkl"
   },
   "config_path": "config/core/base.yaml",
-  "phase": "Phase 9",
-  "notes": "個別モデル学習結果・training用保存"
+  "phase": "Phase 19",
+  "notes": "Phase 19統合・12特徴量最適化・個別モデル学習結果"
 }

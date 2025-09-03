@@ -1,8 +1,9 @@
 {
-  "created_at": "2025-08-23T07:12:24.411981",
+  "created_at": "2025-09-04T05:57:55.211797",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
-  "phase": "Phase 9",
+  "version": "1.0.0",
+  "phase": "Phase 19",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -15,8 +16,8 @@
     "bb_position",
     "ema_20",
     "ema_50",
-    "zscore",
-    "volume_ratio"
+    "volume_ratio",
+    "zscore"
   ],
   "individual_models": [
     "lightgbm",
@@ -28,5 +29,41 @@
     "xgboost": 0.4,
     "random_forest": 0.2
   },
-  "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正"
+  "performance_metrics": {
+    "lightgbm": {
+      "accuracy": 0.937962962962963,
+      "f1_score": 0.9373879952179727,
+      "precision": 0.9394404186795492,
+      "recall": 0.937962962962963,
+      "cv_f1_mean": 0.5172504618163675,
+      "cv_f1_std": 0.05379598365007286
+    },
+    "xgboost": {
+      "accuracy": 0.9916666666666667,
+      "f1_score": 0.9916546749027567,
+      "precision": 0.9917301099122718,
+      "recall": 0.9916666666666667,
+      "cv_f1_mean": 0.5228847626906779,
+      "cv_f1_std": 0.03599226081703108
+    },
+    "random_forest": {
+      "accuracy": 0.924074074074074,
+      "f1_score": 0.9223117745598527,
+      "precision": 0.9325678338638775,
+      "recall": 0.924074074074074,
+      "cv_f1_mean": 0.5060078535919214,
+      "cv_f1_std": 0.05567438524446698
+    }
+  },
+  "training_info": {
+    "samples": 1080,
+    "feature_count": 12,
+    "training_duration_seconds": 0
+  },
+  "git_info": {
+    "commit": "0892cf1cf125952b2bf60df7646e261ebc85876d",
+    "commit_short": "0892cf1c",
+    "branch": "main"
+  },
+  "notes": "Phase 19統合・12特徴量最適化・特徴量定義一元化対応"
 }
