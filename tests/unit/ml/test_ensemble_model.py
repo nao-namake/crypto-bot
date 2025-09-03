@@ -46,7 +46,10 @@ class TestEnsembleModel:
         """テスト用サンプルデータ."""
         np.random.seed(42)
         n_samples = 100
-        n_features = 12
+        # Phase 19: 特徴量数をfeature_managerから取得（ハードコード削除）
+        from src.core.config.feature_manager import get_feature_count
+
+        n_features = get_feature_count()
 
         X = pd.DataFrame(
             np.random.randn(n_samples, n_features),

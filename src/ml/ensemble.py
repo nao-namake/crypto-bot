@@ -597,23 +597,11 @@ class ProductionEnsemble:
         }
 
         self.is_fitted = True
-        self.n_features_ = 12  # 新システム12特徴量
+        # Phase 19: 特徴量定義一元化対応
+        from ..core.config.feature_manager import get_feature_count, get_feature_names
 
-        # 新システム特徴量定義
-        self.feature_names = [
-            "close",
-            "volume",
-            "returns_1",
-            "rsi_14",
-            "macd",
-            "macd_signal",
-            "atr_14",
-            "bb_position",
-            "ema_20",
-            "ema_50",
-            "zscore",
-            "volume_ratio",
-        ]
+        self.n_features_ = get_feature_count()
+        self.feature_names = get_feature_names()
 
         # モデル数検証
         if len(self.models) == 0:

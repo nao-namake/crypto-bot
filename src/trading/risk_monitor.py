@@ -524,20 +524,20 @@ class TradingAnomalyDetector:
                     market_features = self.market_anomaly_detector.generate_all_features(
                         market_data
                     )
-                    if "market_stress" in market_features.columns:
-                        latest_stress = market_features["market_stress"].iloc[-1]
-                        if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2σ以上
-                            alerts.append(
-                                AnomalyAlert(
-                                    timestamp=datetime.now(),
-                                    anomaly_type="market_stress",
-                                    level=AnomalyLevel.WARNING,
-                                    value=latest_stress,
-                                    threshold=2.0,
-                                    message=f"市場ストレス検出: {latest_stress:.2f}σ",
-                                    should_pause_trading=False,
-                                )
-                            )
+                    # Phase 19: market_stress削除（12特徴量統一）
+                    # if "market_stress" in market_features.columns:
+                    #     latest_stress = market_features["market_stress"].iloc[-1]
+                    #     if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2σ以上
+                    #         alerts.append(
+                    #             AnomalyAlert(
+                    #                 timestamp=datetime.now(),
+                    #                 anomaly_type="market_stress",
+                    #                 level=AnomalyLevel.WARNING,
+                    #                 value=latest_stress,
+                    #                 threshold=2.0,
+                    #                 message=f"市場ストレス検出: {latest_stress:.2f}σ",
+                    #                 should_pause_trading=False,
+                    #             )
                 except Exception as market_error:
                     self.logger.warning(f"Phase 3異常検知連携エラー: {market_error}")
 

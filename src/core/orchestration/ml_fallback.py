@@ -22,7 +22,10 @@ class DummyModel:
     def __init__(self) -> None:
         self.is_fitted = True
         self.model_name = "DummyModel"
-        self.n_features_ = 12  # Phase 18で厳選された12特徴量に対応
+        # Phase 19: 特徴量定義一元化対応
+        from ..config.feature_manager import get_feature_count
+
+        self.n_features_ = get_feature_count()
 
     def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
         """常にholdシグナル（0）を返す予測."""

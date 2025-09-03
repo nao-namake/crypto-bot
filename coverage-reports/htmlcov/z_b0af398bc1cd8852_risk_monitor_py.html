@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/trading/risk_monitor.py: 86.22%</title>
+    <title>Coverage for src/trading/risk_monitor.py: 86.10%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/trading/risk_monitor.py</b>:
-            <span class="pc_cov">86.22%</span>
+            <span class="pc_cov">86.10%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">450 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">388<span class="text"> run</span></button>
+            <span class="text">446 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">384<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">62<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-09-03 20:16 +0900
+            created at 2025-09-04 05:44 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -606,20 +606,20 @@
     <p class="run"><span class="n"><a id="t524" href="#t524">524</a></span><span class="t">                    <span class="nam">market_features</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">market_anomaly_detector</span><span class="op">.</span><span class="nam">generate_all_features</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t525" href="#t525">525</a></span><span class="t">                        <span class="nam">market_data</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t526" href="#t526">526</a></span><span class="t">                    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">                    <span class="key">if</span> <span class="str">"market_stress"</span> <span class="key">in</span> <span class="nam">market_features</span><span class="op">.</span><span class="nam">columns</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">                        <span class="nam">latest_stress</span> <span class="op">=</span> <span class="nam">market_features</span><span class="op">[</span><span class="str">"market_stress"</span><span class="op">]</span><span class="op">.</span><span class="nam">iloc</span><span class="op">[</span><span class="op">-</span><span class="num">1</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">                        <span class="key">if</span> <span class="key">not</span> <span class="nam">pd</span><span class="op">.</span><span class="nam">isna</span><span class="op">(</span><span class="nam">latest_stress</span><span class="op">)</span> <span class="key">and</span> <span class="nam">latest_stress</span> <span class="op">></span> <span class="num">2.0</span><span class="op">:</span>  <span class="com"># 2&#963;&#20197;&#19978;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                            <span class="nam">alerts</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">                                <span class="nam">AnomalyAlert</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">                                    <span class="nam">timestamp</span><span class="op">=</span><span class="nam">datetime</span><span class="op">.</span><span class="nam">now</span><span class="op">(</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">                                    <span class="nam">anomaly_type</span><span class="op">=</span><span class="str">"market_stress"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">                                    <span class="nam">level</span><span class="op">=</span><span class="nam">AnomalyLevel</span><span class="op">.</span><span class="nam">WARNING</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">                                    <span class="nam">value</span><span class="op">=</span><span class="nam">latest_stress</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">                                    <span class="nam">threshold</span><span class="op">=</span><span class="num">2.0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">                                    <span class="nam">message</span><span class="op">=</span><span class="fst">f"</span><span class="fst">&#24066;&#22580;&#12473;&#12488;&#12524;&#12473;&#26908;&#20986;: </span><span class="op">{</span><span class="nam">latest_stress</span><span class="op">:</span><span class="fst">.2f</span><span class="op">}</span><span class="fst">&#963;</span><span class="fst">"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">                                    <span class="nam">should_pause_trading</span><span class="op">=</span><span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">                                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t">                            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">                    <span class="com"># Phase 19: market_stress&#21066;&#38500;&#65288;12&#29305;&#24500;&#37327;&#32113;&#19968;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">                    <span class="com"># if "market_stress" in market_features.columns:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">                    <span class="com">#     latest_stress = market_features["market_stress"].iloc[-1]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                    <span class="com">#     if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2&#963;&#20197;&#19978;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">                    <span class="com">#         alerts.append(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">                    <span class="com">#             AnomalyAlert(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">                    <span class="com">#                 timestamp=datetime.now(),</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">                    <span class="com">#                 anomaly_type="market_stress",</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">                    <span class="com">#                 level=AnomalyLevel.WARNING,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">                    <span class="com">#                 value=latest_stress,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">                    <span class="com">#                 threshold=2.0,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">                    <span class="com">#                 message=f"&#24066;&#22580;&#12473;&#12488;&#12524;&#12473;&#26908;&#20986;: {latest_stress:.2f}&#963;",</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">                    <span class="com">#                 should_pause_trading=False,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t">                    <span class="com">#             )</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t">                <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">market_error</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t542" href="#t542">542</a></span><span class="t">                    <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Phase 3&#30064;&#24120;&#26908;&#30693;&#36899;&#25658;&#12456;&#12521;&#12540;: </span><span class="op">{</span><span class="nam">market_error</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t543" href="#t543">543</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -1331,7 +1331,7 @@
             <a class="nav" href="index.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.1">coverage.py v7.9.1</a>,
-            created at 2025-09-03 20:16 +0900
+            created at 2025-09-04 05:44 +0900
         </p>
     </div>
 </footer>

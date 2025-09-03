@@ -65,12 +65,11 @@ class ATRBasedStrategy(StrategyBase):
             bb_analysis = self._analyze_bb_position(df)
             rsi_analysis = self._analyze_rsi_momentum(df)
             atr_analysis = self._analyze_atr_volatility(df)
-            stress_analysis = self._analyze_market_stress(df)
+            # Phase 19: market_stress削除（12特徴量統一）
+            # stress_analysis = self._analyze_market_stress(df)
 
-            # 統合判定
-            signal_decision = self._make_decision(
-                bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-            )
+            # 統合判定（market_stress無し）
+            signal_decision = self._make_decision(bb_analysis, rsi_analysis, atr_analysis, None)
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
@@ -221,12 +220,12 @@ class ATRBasedStrategy(StrategyBase):
         bb_analysis: Dict[str, Any],
         rsi_analysis: Dict[str, Any],
         atr_analysis: Dict[str, Any],
-        stress_analysis: Dict[str, Any],
+        stress_analysis: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """統合判定."""
         try:
-            # フィルター確認
-            if not stress_analysis["filter_ok"]:
+            # フィルター確認（Phase 19: market_stress無効化）
+            if stress_analysis and not stress_analysis["filter_ok"]:
                 return self._create_hold_decision("市場ストレス高")
 
             if atr_analysis["regime"] == "low":
@@ -312,5 +311,5 @@ class ATRBasedStrategy(StrategyBase):
             "atr_14",  # メイン指標
             "bb_position",  # ボリンジャーバンド位置
             "rsi_14",  # RSI
-            "market_stress",  # 市場ストレス
+            # Phase 19: market_stress削除（12特徴量統一）
         ]

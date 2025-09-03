@@ -87,8 +87,8 @@ class DiscordClient:
         webhook_id = parts[0]
         webhook_token = parts[1]
 
-        # IDは18桁の数字、トークンは最低3文字以上
-        if not (webhook_id.isdigit() and len(webhook_id) == 18):
+        # IDは18-19桁の数字、トークンは最低3文字以上
+        if not (webhook_id.isdigit() and 18 <= len(webhook_id) <= 19):
             return False
         if len(webhook_token) < 3:
             return False

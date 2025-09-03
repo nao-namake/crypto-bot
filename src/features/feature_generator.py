@@ -21,40 +21,17 @@ import numpy as np
 import pandas as pd
 
 from ..core.config import get_anomaly_config
+
+# Phase 19: 特徴量定義一元化（feature_managerから取得）
+from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
 
-# 特徴量リスト定義（12個厳選）
-OPTIMIZED_FEATURES = [
-    # 基本データ（3個）
-    "close",
-    "volume",
-    "returns_1",
-    # Momentum系（2個）
-    "rsi_14",
-    "macd",
-    # Volatility系（2個）
-    "atr_14",
-    "bb_position",
-    # トレンド系（2個）
-    "ema_20",
-    "ema_50",
-    # Volume系（1個）
-    "volume_ratio",
-    # 異常検知（2個）
-    "zscore",
-    "market_stress",
-]
+# 特徴量リスト（一元化対応）
+OPTIMIZED_FEATURES = get_feature_names()
 
-# 特徴量カテゴリ分類
-FEATURE_CATEGORIES = {
-    "basic": ["close", "volume", "returns_1"],
-    "momentum": ["rsi_14", "macd"],
-    "volatility": ["atr_14", "bb_position"],
-    "trend": ["ema_20", "ema_50"],
-    "volume": ["volume_ratio"],
-    "anomaly": ["zscore", "market_stress"],
-}
+# 特徴量カテゴリ（一元化対応）
+FEATURE_CATEGORIES = get_feature_categories()
 
 
 class FeatureGenerator:
@@ -200,10 +177,12 @@ class FeatureGenerator:
         result_df["rsi_14"] = self._calculate_rsi(result_df["close"])
         self.computed_features.add("rsi_14")
 
-        # MACD
-        macd_line, _ = self._calculate_macd(result_df["close"])
+        # MACD（ラインとシグナル両方生成）
+        macd_line, macd_signal = self._calculate_macd(result_df["close"])
         result_df["macd"] = macd_line
+        result_df["macd_signal"] = macd_signal
         self.computed_features.add("macd")
+        self.computed_features.add("macd_signal")
 
         # ATR 14期間
         result_df["atr_14"] = self._calculate_atr(result_df)
@@ -233,11 +212,7 @@ class FeatureGenerator:
         result_df["volume_ratio"] = self._calculate_volume_ratio(result_df["volume"])
         self.computed_features.add("volume_ratio")
 
-        # 市場ストレス度（統合異常指標）
-        result_df["market_stress"] = self._calculate_market_stress(result_df)
-        self.computed_features.add("market_stress")
-
-        self.logger.debug(f"異常検知指標生成完了: 3個")
+        self.logger.debug(f"異常検知指標生成完了: 2個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -295,35 +270,9 @@ class FeatureGenerator:
             self.logger.error(f"出来高比率計算エラー: {e}")
             return pd.Series(np.zeros(len(volume)), index=volume.index)
 
-    def _calculate_market_stress(self, df: pd.DataFrame) -> pd.Series:
-        """市場ストレス度指標計算（統合異常指標）"""
-        try:
-            # 価格ギャップ（前日比で大きな価格変動）
-            price_gap = np.abs(df["open"] - df["close"].shift(1)) / df["close"].shift(1)
-
-            # 日中変動率（High-Low range）
-            intraday_range = (df["high"] - df["low"]) / df["close"]
-
-            # 出来高スパイク（平均の何倍か）
-            volume_avg = df["volume"].rolling(window=self.lookback_period, min_periods=1).mean()
-            volume_spike = df["volume"] / (volume_avg + 1e-8)
-
-            # 重み付け合成（設定ファイルから取得）
-            price_weight = get_anomaly_config("market_stress.price_gap_weight", 0.4)
-            intraday_weight = get_anomaly_config("market_stress.intraday_range_weight", 0.3)
-            volume_weight = get_anomaly_config("market_stress.volume_spike_weight", 0.3)
-
-            market_stress = (
-                price_weight * self._normalize(price_gap)
-                + intraday_weight * self._normalize(intraday_range)
-                + volume_weight * self._normalize(volume_spike)
-            )
-
-            return market_stress
-
-        except Exception as e:
-            self.logger.error(f"市場ストレス度指標エラー: {e}")
-            return pd.Series(np.zeros(len(df)), index=df.index)
+    # Phase 19: market_stress特徴量削除（12特徴量統一）
+    # def _calculate_market_stress(self, df: pd.DataFrame) -> pd.Series:
+    #     """市場ストレス度指標計算（統合異常指標）"""
 
     def _normalize(self, series: pd.Series) -> pd.Series:
         """0-1範囲に正規化"""
@@ -359,7 +308,7 @@ class FeatureGenerator:
 
         # 🚨 統合ログ出力
         self.logger.info(
-            f"特徴量生成完了 - 総数: {len(generated_features)}/12個",
+            f"特徴量生成完了 - 総数: {len(generated_features)}/{len(OPTIMIZED_FEATURES)}個",
             extra_data={
                 "basic_features": len(
                     [f for f in ["close", "volume", "returns_1"] if f in df.columns]
@@ -371,13 +320,11 @@ class FeatureGenerator:
                         if f in df.columns
                     ]
                 ),
-                "anomaly_features": len(
-                    [f for f in ["zscore", "volume_ratio", "market_stress"] if f in df.columns]
-                ),
+                "anomaly_features": len([f for f in ["zscore", "volume_ratio"] if f in df.columns]),
                 "generated_features": generated_features,
                 "missing_features": missing_features,
-                "total_expected": 12,
-                "success": len(generated_features) == 12,
+                "total_expected": len(OPTIMIZED_FEATURES),
+                "success": len(generated_features) == len(OPTIMIZED_FEATURES),
             },
         )
 
@@ -436,25 +383,11 @@ class FeatureGenerator:
             else:
                 result_df["zscore"] = 0.0
 
-        # 市場ストレス (market_stress) - 統合指標
-        stress_values = []
-        for i in range(len(df)):
-            volume_stress = (
-                result_df.loc[i, "volume_ratio"] if "volume_ratio" in result_df.columns else 1.0
-            )
-            price_stress = abs(result_df.loc[i, "zscore"]) if "zscore" in result_df.columns else 0.0
+        # Phase 19: market_stress削除（12特徴量統一）
+        # 市場ストレス (market_stress) - 統合指標 - 削除済み
 
-            # 正規化 (0-1) - より敏感に調整
-            volume_stress = min(volume_stress / 3.0, 1.0)  # 3倍以上で1.0に変更
-            price_stress = min(price_stress / 2.0, 1.0)  # 2σ以上で1.0に変更
-
-            market_stress = (volume_stress + price_stress) / 2.0
-            stress_values.append(market_stress)
-
-        result_df["market_stress"] = stress_values
-
-        # computed_featuresを更新
-        self.computed_features.update(["volume_ratio", "zscore", "market_stress"])
+        # computed_featuresを更新（market_stress除外）
+        self.computed_features.update(["volume_ratio", "zscore"])
 
         return result_df
 
@@ -472,13 +405,13 @@ class FeatureGenerator:
                 "returns_1": "1期間リターン（短期モメンタム）",
                 "rsi_14": "RSI（オーバーボート・ソールド判定）",
                 "macd": "MACD（トレンド転換シグナル）",
+                "macd_signal": "MACDシグナル（エントリータイミング）",
                 "atr_14": "ATR（ボラティリティ測定）",
                 "bb_position": "ボリンジャーバンド位置（価格位置）",
                 "ema_20": "EMA短期（短期トレンド）",
                 "ema_50": "EMA中期（中期トレンド）",
                 "volume_ratio": "出来高比率（出来高異常検知）",
                 "zscore": "価格Z-Score（標準化価格位置）",
-                "market_stress": "市場ストレス度（統合異常指標）",
             },
         }
 

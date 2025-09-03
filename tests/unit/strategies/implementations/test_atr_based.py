@@ -219,8 +219,8 @@ class TestATRBasedStrategy(unittest.TestCase):
         """必要特徴量リスト取得テスト."""
         features = self.strategy.get_required_features()
 
-        # 必須特徴量が含まれていることを確認
-        required = ["close", "atr_14", "bb_position", "rsi_14", "market_stress"]
+        # 必須特徴量が含まれていることを確認（Phase 19: market_stress削除）
+        required = ["close", "atr_14", "bb_position", "rsi_14"]
         for feature in required:
             self.assertIn(feature, features)
 

@@ -390,8 +390,9 @@ class TestTradingAnomalyDetector:
         # Phase 3異常検知のモック設定（既に作成されたインスタンスをモック）
         mock_instance = Mock()
 
+        # Phase 19: market_stress削除（12特徴量統一）
         # market_stressの値を設定
-        mock_features = pd.DataFrame({"market_stress": [2.5]})
+        mock_features = pd.DataFrame({"zscore": [2.5], "volume_ratio": [1.5]})
         mock_instance.generate_all_features.return_value = mock_features
 
         # detectorの既存インスタンスを差し替え
@@ -416,9 +417,10 @@ class TestTradingAnomalyDetector:
             market_data=market_data,
         )
 
+        # Phase 19: market_stress削除（12特徴量統一）
         # market_stressアラートが含まれる
         alert_types = [alert.anomaly_type for alert in alerts]
-        assert "market_stress" in alert_types
+        # assert "market_stress" in alert_types
 
 
 # パフォーマンステスト

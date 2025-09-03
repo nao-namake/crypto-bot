@@ -14,24 +14,42 @@
       ]
     },
     
-    "technical": {
-      "description": "テクニカル指標（6個）",
+    "momentum": {
+      "description": "モメンタム指標（3個）",
       "features": [
         "rsi_14",
         "macd",
+        "macd_signal"
+      ]
+    },
+    
+    "volatility": {
+      "description": "ボラティリティ指標（2個）",
+      "features": [
         "atr_14", 
-        "bb_position",
+        "bb_position"
+      ]
+    },
+    
+    "trend": {
+      "description": "トレンド指標（2個）",
+      "features": [
         "ema_20",
         "ema_50"
       ]
     },
     
-    "anomaly": {
-      "description": "異常検知指標（3個）",
+    "volume": {
+      "description": "出来高指標（1個）",
       "features": [
-        "zscore",
-        "volume_ratio",
-        "market_stress"
+        "volume_ratio"
+      ]
+    },
+    
+    "anomaly": {
+      "description": "異常検知指標（1個）",
+      "features": [
+        "zscore"
       ]
     }
   },
@@ -64,6 +82,12 @@
     "macd": {
       "type": "momentum",
       "description": "MACD指標",
+      "range": "float",
+      "importance": "high"
+    },
+    "macd_signal": {
+      "type": "momentum",
+      "description": "MACDシグナル",
       "range": "float",
       "importance": "high"
     },
@@ -102,12 +126,6 @@
       "description": "出来高比率",
       "range": "positive_float",
       "importance": "medium"
-    },
-    "market_stress": {
-      "type": "anomaly",
-      "description": "マーケットストレス指標",
-      "range": "0-1",
-      "importance": "low"
     }
   },
   

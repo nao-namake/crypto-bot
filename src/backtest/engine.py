@@ -26,7 +26,9 @@ import pandas as pd
 from ..core.exceptions import CryptoBotError
 from ..core.logger import get_logger
 from ..data.data_pipeline import DataPipeline
-from ..ml.model_manager import ModelManager
+
+# Phase 19: 循環インポート修正 - 遅延インポート
+# from ..ml.model_manager import ModelManager
 from ..strategies.base.strategy_manager import StrategyManager
 from ..trading.executor import OrderSide, VirtualPosition
 from ..trading.risk_manager import IntegratedRiskManager, RiskDecision, TradeEvaluation
@@ -110,6 +112,9 @@ class BacktestEngine:
         # システム統合
         self.data_pipeline = DataPipeline()
         self.strategy_manager = StrategyManager()
+        # Phase 19: 循環インポート修正 - 遅延インポート
+        from ..ml.model_manager import ModelManager
+
         self.model_manager = ModelManager()
         # 最適化されたリスク管理設定（Phase 8改善）
         default_risk_config = {

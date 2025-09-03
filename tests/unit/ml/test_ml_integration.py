@@ -26,20 +26,20 @@ class TestMLIntegration:
         n_samples = 200
         n_features = 12
 
-        # より現実的な特徴量名
+        # Phase 19: 12特徴量統一（market_stress削除）
         feature_names = [
             "close",
             "volume",
             "returns_1",
             "rsi_14",
             "macd",
+            "macd_signal",
             "atr_14",
             "bb_position",
             "ema_20",
             "ema_50",
             "zscore",
             "volume_ratio",
-            "market_stress",
         ]
 
         X = pd.DataFrame(np.random.randn(n_samples, n_features), columns=feature_names)

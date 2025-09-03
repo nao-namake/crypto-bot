@@ -128,11 +128,12 @@ class TestFeatureGenerator:
             if len(bb_valid) > 0:
                 assert all(-5 <= x <= 5 for x in bb_valid), "BB position値が異常範囲"
 
+        # Phase 19: market_stress削除（12特徴量統一）
         # market_stress: 0-1の範囲
-        if "market_stress" in result_df.columns:
-            stress_valid = result_df["market_stress"].dropna()
-            if len(stress_valid) > 0:
-                assert all(0 <= x <= 1 for x in stress_valid), "market_stress値が0-1範囲外"
+        # if "market_stress" in result_df.columns:
+        #     stress_valid = result_df["market_stress"].dropna()
+        #     if len(stress_valid) > 0:
+        #         assert all(0 <= x <= 1 for x in stress_valid), "market_stress値が0-1範囲外"
 
         # volume_ratio: 正の値
         if "volume_ratio" in result_df.columns:
