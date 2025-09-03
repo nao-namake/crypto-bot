@@ -66,19 +66,22 @@ class MLModelLoader:
             # Phase 18対応: 古いPickleファイル互換性レイヤー（完全版）
             class EnsembleModule:
                 """ensemble サブモジュールのエミュレート"""
+
                 def __init__(self):
                     from src.ml.ensemble import ProductionEnsemble
+
                     self.ProductionEnsemble = ProductionEnsemble
 
             class ProductionModule:
                 """src.ml.production モジュールのエミュレート"""
+
                 def __init__(self):
                     self.ensemble = EnsembleModule()
 
             # 階層的モジュールリダイレクト設定
             old_production = sys.modules.get("src.ml.production")
             old_ensemble = sys.modules.get("src.ml.production.ensemble")
-            
+
             sys.modules["src.ml.production"] = ProductionModule()
             sys.modules["src.ml.production.ensemble"] = EnsembleModule()
 
@@ -91,7 +94,7 @@ class MLModelLoader:
                     sys.modules.pop("src.ml.production", None)
                 else:
                     sys.modules["src.ml.production"] = old_production
-                    
+
                 if old_ensemble is None:
                     sys.modules.pop("src.ml.production.ensemble", None)
                 else:

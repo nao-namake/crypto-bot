@@ -2259,7 +2259,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 - Cloud Run連携: ✅
 
 ---
-*このレポートは ops_monitor.py により自動生成されました*  
+*このレポートは ops_monitor.py により自動生成されました*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 

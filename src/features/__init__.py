@@ -16,11 +16,7 @@ Phase 18統合実装日: 2025年8月30日.
 from .feature_generator import FeatureServiceAdapter  # 後方互換性エイリアス
 from .feature_generator import MarketAnomalyDetector  # 後方互換性エイリアス
 from .feature_generator import TechnicalIndicators  # 後方互換性エイリアス
-from .feature_generator import (
-    FEATURE_CATEGORIES,
-    OPTIMIZED_FEATURES,
-    FeatureGenerator,
-)
+from .feature_generator import FEATURE_CATEGORIES, OPTIMIZED_FEATURES, FeatureGenerator
 
 __all__ = [
     "FeatureGenerator",  # Phase 18統合クラス

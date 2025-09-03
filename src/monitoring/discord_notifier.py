@@ -375,7 +375,7 @@ class DiscordFormatter:
         fields = [
             {
                 "name": "⏱️ 稼働時間",
-                "value": f"{uptime//3600}時間{(uptime%3600)//60}分",
+                "value": f"{uptime // 3600}時間{(uptime % 3600) // 60}分",
                 "inline": True,
             },
             {"name": "📈 本日取引数", "value": f"{trades_today}回", "inline": True},

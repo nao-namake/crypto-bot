@@ -173,7 +173,7 @@ class PaperTradingReporter(BaseReporter):
 - パフォーマンス改善の余地
 
 ---
-*このレポートは PaperTradingReporter により自動生成されました（Phase 14-B分離版）*  
+*このレポートは PaperTradingReporter により自動生成されました（Phase 14-B分離版）*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
@@ -255,7 +255,7 @@ class PaperTradingReporter(BaseReporter):
 4. リスク管理システムの確認
 
 ---
-*このエラーレポートは PaperTradingReporter により自動生成されました*  
+*このエラーレポートは PaperTradingReporter により自動生成されました*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 

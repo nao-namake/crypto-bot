@@ -643,7 +643,7 @@ class BacktestDataLoader:
 
         self.logger.info(
             f"{timeframe}データクリーニング完了（統合版）: "
-            f"{original_length}→{final_length}件 ({final_length/original_length:.1%})"
+            f"{original_length}→{final_length}件 ({final_length / original_length:.1%})"
         )
 
         return data

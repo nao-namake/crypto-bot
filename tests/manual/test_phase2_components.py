@@ -239,7 +239,7 @@ def main():
         if result:
             passed += 1
 
-    print(f"\n🎯 合格率: {passed}/{total} ({passed/total*100:.1f}%)")
+    print(f"\n🎯 合格率: {passed}/{total} ({passed / total * 100:.1f}%)")
 
     if passed == total:
         print("🎉 Phase 2 コンポーネント実装完了！")

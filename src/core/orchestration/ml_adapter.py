@@ -284,7 +284,7 @@ class EnhancedMLServiceAdapter(MLServiceAdapter):
                 error=None,
             )
 
-            self.logger.debug(f"🎯 予測成功: {self.model_type} ({prediction_time*1000:.1f}ms)")
+            self.logger.debug(f"🎯 予測成功: {self.model_type} ({prediction_time * 1000:.1f}ms)")
             return result
 
         except Exception as e:
@@ -313,7 +313,7 @@ class EnhancedMLServiceAdapter(MLServiceAdapter):
             else:
                 # ダミーモデルまたはproba未対応の場合
                 return get_threshold("ml.prediction_fallback_confidence", 0.5)
-        except:
+        except Exception:
             return 0.5
 
     def _graceful_degradation_predict(

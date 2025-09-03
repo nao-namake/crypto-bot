@@ -35,10 +35,7 @@ from ..monitoring.discord_notifier import DiscordManager
 from .risk_monitor import DrawdownManager, TradingAnomalyDetector, TradingStatus
 
 if TYPE_CHECKING:
-    from .risk_monitor import (
-        AnomalyAlert,
-        AnomalyLevel,
-    )
+    from .risk_monitor import AnomalyAlert, AnomalyLevel
 
 
 # === データクラス定義 ===
@@ -399,7 +396,7 @@ class KellyCriterion:
                 safety_ratio = get_position_config("dynamic_sizing.stop_loss_safety_ratio", 0.99)
                 self.logger.warning(
                     f"計算されたストップロス価格が負値: {stop_loss_price:.2f}, "
-                    f"エントリー価格の{(1-safety_ratio)*100:.1f}%下に設定"
+                    f"エントリー価格の{(1 - safety_ratio) * 100:.1f}%下に設定"
                 )
                 stop_loss_price = entry_price * safety_ratio
 

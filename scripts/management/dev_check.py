@@ -941,7 +941,7 @@ except Exception as e:
         report_content += f"""
 
 ---
-*このレポートは dev_check.py により自動生成されました*  
+*このレポートは dev_check.py により自動生成されました*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 

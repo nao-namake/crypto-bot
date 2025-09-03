@@ -336,7 +336,7 @@ def test_large_trade_history():
 
     for i in range(1000):
         profit_loss = 1000 if i % 3 == 0 else -500  # 勝率33%
-        manager.record_trade_result(profit_loss, f"strategy_{i%5}")
+        manager.record_trade_result(profit_loss, f"strategy_{i % 5}")
 
     end_time = time.time()
 

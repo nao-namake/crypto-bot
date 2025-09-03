@@ -134,24 +134,28 @@ class FeatureGenerator:
             try:
                 # タイムフレーム辞書の場合（マルチタイムフレームデータ）
                 # 実際に使用されるタイムフレーム: 4h（メイン）, 15m（サブ）
-                timeframe_keys = ['4h', '15m']  # 優先順位順
+                timeframe_keys = ["4h", "15m"]  # 優先順位順
                 for tf in timeframe_keys:
                     if tf in market_data and isinstance(market_data[tf], pd.DataFrame):
                         self.logger.info(f"タイムフレーム辞書からメイン時系列取得: {tf}")
                         return market_data[tf].copy()
-                
+
                 # 通常の辞書データの場合（OHLCV形式等）
                 # 全ての値がスカラーかリストかをチェック
-                if all(isinstance(v, (int, float, str)) or 
-                      (isinstance(v, list) and len(v) > 0) for v in market_data.values()):
+                if all(
+                    isinstance(v, (int, float, str)) or (isinstance(v, list) and len(v) > 0)
+                    for v in market_data.values()
+                ):
                     return pd.DataFrame(market_data)
-                
+
                 # その他の構造の辞書
                 self.logger.warning(f"複雑な辞書構造を検出: keys={list(market_data.keys())}")
                 return pd.DataFrame(market_data)
-                
+
             except (ValueError, KeyError, TypeError) as e:
-                self.logger.error(f"市場データ変換エラー - 構造: {type(market_data)}, キー: {list(market_data.keys()) if hasattr(market_data, 'keys') else 'N/A'}")
+                self.logger.error(
+                    f"市場データ変換エラー - 構造: {type(market_data)}, キー: {list(market_data.keys()) if hasattr(market_data, 'keys') else 'N/A'}"
+                )
                 raise DataProcessingError(f"Dict→DataFrame変換データ構造エラー: {e}")
             except (MemoryError, OverflowError) as e:
                 raise DataProcessingError(f"Dict→DataFrame変換サイズエラー: {e}")

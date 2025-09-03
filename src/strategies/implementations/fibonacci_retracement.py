@@ -131,7 +131,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "trend": trend,
                 "swing_position": swing_position,
                 "valid": price_range > current_price * 0.01,  # 最低1%の価格幅要求
-                "analysis": f"スイング: 高値{swing_high:.0f} 安値{swing_low:.0f} (強度{strength:.1%} トレンド{'上昇' if trend==1 else '下降' if trend==-1 else '横ばい'})",
+                "analysis": f"スイング: 高値{swing_high:.0f} 安値{swing_low:.0f} (強度{strength:.1%} トレンド{'上昇' if trend == 1 else '下降' if trend == -1 else '横ばい'})",
             }
 
         except Exception as e:
@@ -212,7 +212,9 @@ class FibonacciRetracementStrategy(StrategyBase):
                     near_info += "★"
                 if approaching_levels:
                     near_info += (
-                        f" +{len(approaching_levels)-1}接近" if len(approaching_levels) > 1 else ""
+                        f" +{len(approaching_levels) - 1}接近"
+                        if len(approaching_levels) > 1
+                        else ""
                     )
                 distance_str = (
                     f'距離{nearest_level["distance"]:.1%}' if not is_near_level else "接近中"
@@ -316,7 +318,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 "level_bonus": level_bonus,
                 "confidence": confidence,
                 "strong_levels_count": len(strong_levels_nearby),
-                "analysis": f"反転: {['売り', 'なし', '買い'][reversal_signal+1]} (RSI:{rsi_signal}, ローソク:{candle_signal}, 出来高:{volume_signal}) レベル強度+{level_bonus:.1f}",
+                "analysis": f"反転: {['売り', 'なし', '買い'][reversal_signal + 1]} (RSI:{rsi_signal}, ローソク:{candle_signal}, 出来高:{volume_signal}) レベル強度+{level_bonus:.1f}",
             }
 
         except Exception as e:

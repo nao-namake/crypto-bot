@@ -290,7 +290,7 @@ class TestMLIntegration:
             metrics = ensemble.evaluate(X, y)
 
             version = manager.save_model(
-                ensemble, description=f"Model version {i+1}", performance_metrics=metrics
+                ensemble, description=f"Model version {i + 1}", performance_metrics=metrics
             )
             versions.append(version)
 

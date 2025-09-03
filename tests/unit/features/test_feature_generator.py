@@ -14,12 +14,13 @@ FeatureGeneratorクラスに統合されました。12特徴量生成システ�
 """
 
 import asyncio
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.core.exceptions import DataProcessingError
-from src.features.feature_generator import FeatureGenerator, OPTIMIZED_FEATURES
+from src.features.feature_generator import OPTIMIZED_FEATURES, FeatureGenerator
 
 
 class TestFeatureGenerator:
@@ -45,21 +46,14 @@ class TestFeatureGenerator:
         lows = [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices]
         volumes = np.random.lognormal(7, 0.3, n_periods)  # 対数正規分布
 
-        return pd.DataFrame({
-            "open": prices, 
-            "high": highs, 
-            "low": lows, 
-            "close": prices, 
-            "volume": volumes
-        })
+        return pd.DataFrame(
+            {"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes}
+        )
 
     @pytest.fixture
     def multitime_data(self, sample_ohlcv_data):
         """マルチタイムフレームデータ作成"""
-        return {
-            '4h': sample_ohlcv_data,
-            '15m': sample_ohlcv_data[:50].copy()  # 短いデータセット
-        }
+        return {"4h": sample_ohlcv_data, "15m": sample_ohlcv_data[:50].copy()}  # 短いデータセット
 
     @pytest.fixture
     def generator(self):
@@ -103,9 +97,9 @@ class TestFeatureGenerator:
 
         # 戻り値がDataFrameかチェック
         assert isinstance(result_df, pd.DataFrame)
-        
+
         # 4hタイムフレームのデータが使われているはず
-        assert len(result_df) == len(multitime_data['4h'])
+        assert len(result_df) == len(multitime_data["4h"])
 
         # 12特徴量すべてが存在するかチェック
         for feature in OPTIMIZED_FEATURES:
@@ -155,11 +149,13 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_missing_columns_error(self, generator):
         """必要列不足エラーテスト"""
-        incomplete_df = pd.DataFrame({
-            "close": [100, 101, 102, 103, 104],
-            "volume": [1000, 1100, 1200, 1300, 1400],
-            # open, high, low が不足
-        })
+        incomplete_df = pd.DataFrame(
+            {
+                "close": [100, 101, 102, 103, 104],
+                "volume": [1000, 1100, 1200, 1300, 1400],
+                # open, high, low が不足
+            }
+        )
 
         with pytest.raises(DataProcessingError, match="必要列が不足"):
             await generator.generate_features(incomplete_df)
@@ -180,13 +176,15 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_single_row_data(self, generator):
         """単一行データテスト"""
-        single_row_df = pd.DataFrame({
-            "open": [5000000],
-            "high": [5050000],
-            "low": [4950000],
-            "close": [5000000],
-            "volume": [1000],
-        })
+        single_row_df = pd.DataFrame(
+            {
+                "open": [5000000],
+                "high": [5050000],
+                "low": [4950000],
+                "close": [5000000],
+                "volume": [1000],
+            }
+        )
 
         result_df = await generator.generate_features(single_row_df)
 
@@ -224,13 +222,15 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_nan_data_handling(self, generator):
         """NaN値含むデータ処理テスト"""
-        data_with_nan = pd.DataFrame({
-            "open": [5000000, np.nan, 5100000, 4900000, 5050000],
-            "high": [5050000, 5150000, np.nan, 4950000, 5100000],
-            "low": [4950000, 4950000, 4950000, np.nan, 4900000],
-            "close": [5000000, 5100000, 5000000, 4900000, np.nan],
-            "volume": [1000, 1100, np.nan, 900, 1050],
-        })
+        data_with_nan = pd.DataFrame(
+            {
+                "open": [5000000, np.nan, 5100000, 4900000, 5050000],
+                "high": [5050000, 5150000, np.nan, 4950000, 5100000],
+                "low": [4950000, 4950000, 4950000, np.nan, 4900000],
+                "close": [5000000, 5100000, 5000000, 4900000, np.nan],
+                "volume": [1000, 1100, np.nan, 900, 1050],
+            }
+        )
 
         result_df = await generator.generate_features(data_with_nan)
 
@@ -246,13 +246,15 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_extreme_values_handling(self, generator):
         """極端値処理テスト"""
-        extreme_df = pd.DataFrame({
-            "open": [1, 1000000, 1, 1000000, 1],
-            "high": [2, 1100000, 2, 1100000, 2],
-            "low": [0.5, 900000, 0.5, 900000, 0.5],
-            "close": [1, 1000000, 1, 1000000, 1],
-            "volume": [1, 1000000000, 1, 1000000000, 1],
-        })
+        extreme_df = pd.DataFrame(
+            {
+                "open": [1, 1000000, 1, 1000000, 1],
+                "high": [2, 1100000, 2, 1100000, 2],
+                "low": [0.5, 900000, 0.5, 900000, 0.5],
+                "close": [1, 1000000, 1, 1000000, 1],
+                "volume": [1, 1000000000, 1, 1000000000, 1],
+            }
+        )
 
         result_df = await generator.generate_features(extreme_df)
 
@@ -278,15 +280,18 @@ class TestFeatureGenerator:
         for ret in returns[:-1]:
             prices.append(max(prices[-1] * (1 + ret), 1))
 
-        large_df = pd.DataFrame({
-            "open": prices,
-            "high": [p * 1.02 for p in prices],
-            "low": [p * 0.98 for p in prices],
-            "close": prices,
-            "volume": np.random.lognormal(7, 0.5, n_large),
-        })
+        large_df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": [p * 1.02 for p in prices],
+                "low": [p * 0.98 for p in prices],
+                "close": prices,
+                "volume": np.random.lognormal(7, 0.5, n_large),
+            }
+        )
 
         import time
+
         start_time = time.time()
 
         result_df = await generator.generate_features(large_df)
@@ -308,7 +313,7 @@ class TestFeatureGenerator:
 
         # 各カテゴリの特徴量が適切に定義されているかチェック
         expected_categories = ["basic", "momentum", "volatility", "trend", "volume", "anomaly"]
-        
+
         for category in expected_categories:
             assert category in FEATURE_CATEGORIES, f"カテゴリ{category}が不足"
             assert len(FEATURE_CATEGORIES[category]) > 0, f"カテゴリ{category}が空"
@@ -317,7 +322,7 @@ class TestFeatureGenerator:
         all_categorized_features = []
         for features in FEATURE_CATEGORIES.values():
             all_categorized_features.extend(features)
-        
+
         for feature in OPTIMIZED_FEATURES:
             assert feature in all_categorized_features, f"特徴量{feature}がカテゴリ未分類"
 
@@ -326,20 +331,24 @@ class TestFeatureGenerator:
         """マルチタイムフレーム優先順位テスト"""
         # 4hと15mの両方を含むデータ
         multitime_data = {
-            '15m': pd.DataFrame({
-                "open": [100] * 10,
-                "high": [105] * 10,
-                "low": [95] * 10,
-                "close": [103] * 10,
-                "volume": [1000] * 10,
-            }),
-            '4h': pd.DataFrame({
-                "open": [200] * 20,  # 異なる価格
-                "high": [205] * 20,
-                "low": [195] * 20,
-                "close": [203] * 20,
-                "volume": [2000] * 20,
-            })
+            "15m": pd.DataFrame(
+                {
+                    "open": [100] * 10,
+                    "high": [105] * 10,
+                    "low": [95] * 10,
+                    "close": [103] * 10,
+                    "volume": [1000] * 10,
+                }
+            ),
+            "4h": pd.DataFrame(
+                {
+                    "open": [200] * 20,  # 異なる価格
+                    "high": [205] * 20,
+                    "low": [195] * 20,
+                    "close": [203] * 20,
+                    "volume": [2000] * 20,
+                }
+            ),
         }
 
         result_df = await generator.generate_features(multitime_data)
@@ -347,24 +356,21 @@ class TestFeatureGenerator:
         # 4hタイムフレームが優先されているはず（価格=200番台）
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == 20  # 4hデータの長さ
-        assert result_df['close'].iloc[0] == 203  # 4hデータの価格
+        assert result_df["close"].iloc[0] == 203  # 4hデータの価格
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_concurrent_generation(self, generator, sample_ohlcv_data):
         """並行特徴量生成テスト"""
         # 同じデータで複数回並行実行
-        tasks = [
-            generator.generate_features(sample_ohlcv_data)
-            for _ in range(3)
-        ]
-        
+        tasks = [generator.generate_features(sample_ohlcv_data) for _ in range(3)]
+
         results = await asyncio.gather(*tasks)
-        
+
         # すべての結果が正常
         for result in results:
             assert isinstance(result, pd.DataFrame)
             assert len(result) == len(sample_ohlcv_data)
-            
+
             for feature in OPTIMIZED_FEATURES:
                 assert feature in result.columns, f"並行実行で特徴量{feature}が不足"
 
@@ -385,13 +391,15 @@ class TestFeatureGeneratorPrivateMethods:
     def sample_data(self):
         """サンプルデータ"""
         np.random.seed(123)
-        return pd.DataFrame({
-            "open": [100, 101, 102, 103, 104],
-            "high": [105, 106, 107, 108, 109],
-            "low": [95, 96, 97, 98, 99],
-            "close": [103, 104, 105, 106, 107],
-            "volume": [1000, 1100, 1200, 1300, 1400],
-        })
+        return pd.DataFrame(
+            {
+                "open": [100, 101, 102, 103, 104],
+                "high": [105, 106, 107, 108, 109],
+                "low": [95, 96, 97, 98, 99],
+                "close": [103, 104, 105, 106, 107],
+                "volume": [1000, 1100, 1200, 1300, 1400],
+            }
+        )
 
     def test_convert_to_dataframe_dict_input(self, generator):
         """辞書→DataFrame変換テスト"""
@@ -402,22 +410,19 @@ class TestFeatureGeneratorPrivateMethods:
             "close": [103, 104],
             "volume": [1000, 1100],
         }
-        
+
         result = generator._convert_to_dataframe(dict_input)
-        
+
         assert isinstance(result, pd.DataFrame)
         assert len(result) == 2
         assert list(result.columns) == ["open", "high", "low", "close", "volume"]
 
     def test_convert_to_dataframe_multitime_input(self, generator, sample_data):
         """マルチタイムフレーム→DataFrame変換テスト"""
-        multitime_input = {
-            '4h': sample_data,
-            '15m': sample_data[:3]
-        }
-        
+        multitime_input = {"4h": sample_data, "15m": sample_data[:3]}
+
         result = generator._convert_to_dataframe(multitime_input)
-        
+
         # 4hが優先されるはず
         assert isinstance(result, pd.DataFrame)
         assert len(result) == len(sample_data)
@@ -430,32 +435,36 @@ class TestFeatureGeneratorPrivateMethods:
 
     def test_validate_required_columns_failure(self, generator):
         """必要列存在確認失敗テスト"""
-        incomplete_df = pd.DataFrame({
-            "close": [100, 101],
-            "volume": [1000, 1100],
-            # open, high, low が不足
-        })
-        
+        incomplete_df = pd.DataFrame(
+            {
+                "close": [100, 101],
+                "volume": [1000, 1100],
+                # open, high, low が不足
+            }
+        )
+
         with pytest.raises(DataProcessingError, match="必要列が不足"):
             generator._validate_required_columns(incomplete_df)
 
     def test_handle_nan_values_integration(self, generator):
         """NaN値処理統合テスト（実際の特徴量生成時）"""
         # 完全なOHLCVデータでのNaN処理テスト
-        data_with_complete_ohlcv = pd.DataFrame({
-            "open": [100, 101, 102, 103, 104],
-            "high": [105, 106, 107, 108, 109],
-            "low": [95, 96, 97, 98, 99],
-            "close": [103, 104, 105, 106, 107],
-            "volume": [1000, 1100, 1200, 1300, 1400],
-        })
-        
+        data_with_complete_ohlcv = pd.DataFrame(
+            {
+                "open": [100, 101, 102, 103, 104],
+                "high": [105, 106, 107, 108, 109],
+                "low": [95, 96, 97, 98, 99],
+                "close": [103, 104, 105, 106, 107],
+                "volume": [1000, 1100, 1200, 1300, 1400],
+            }
+        )
+
         # _handle_nan_valuesメソッドは統合プロセス内で動作する
         result = generator._handle_nan_values(data_with_complete_ohlcv)
-        
+
         assert isinstance(result, pd.DataFrame)
         assert len(result) == len(data_with_complete_ohlcv)
-        
+
         # 完全なデータではNaN値が残存しないことを確認
         assert not result.isnull().any().any(), "完全データでNaN値が残存"
         assert not np.isinf(result).any().any(), "完全データで無限値が存在"
@@ -465,13 +474,13 @@ class TestFeatureGeneratorPrivateMethods:
         """特徴量生成検証統合テスト（実際の生成プロセス経由）"""
         # 実際の特徴量生成プロセスを経由
         result_df = await generator.generate_features(sample_data)
-        
+
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
-        
+
         # 計算された特徴量数が12になるはず
         assert len(generator.computed_features) == 12
-        
+
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in OPTIMIZED_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"

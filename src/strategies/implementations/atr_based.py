@@ -107,7 +107,7 @@ class ATRBasedStrategy(StrategyBase):
                 "strength": strength,
                 "confidence": confidence,
                 "bb_position": current_bb_pos,
-                "analysis": f"BB位置: {current_bb_pos:.2f} -> {['売り', 'なし', '買い'][signal+1]}",
+                "analysis": f"BB位置: {current_bb_pos:.2f} -> {['売り', 'なし', '買い'][signal + 1]}",
             }
 
         except Exception as e:
@@ -142,7 +142,7 @@ class ATRBasedStrategy(StrategyBase):
                 "strength": strength,
                 "confidence": confidence,
                 "rsi": current_rsi,
-                "analysis": f"RSI: {current_rsi:.1f} -> {['売り', 'なし', '買い'][signal+1]}",
+                "analysis": f"RSI: {current_rsi:.1f} -> {['売り', 'なし', '買い'][signal + 1]}",
             }
 
         except Exception as e:
