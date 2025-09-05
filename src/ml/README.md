@@ -1,60 +1,65 @@
-# ML層 - 機械学習システム
+# Phase 19 ml/ - MLOps統合機械学習システム
 
-**Phase 18完了**: ファイル統合リファクタリング・コード重複40%削減・11ファイル→3ファイル統合・保守性大幅向上・後方互換性維持
+**Phase 19 MLOps統合完了**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・654テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合により、MLOps完全統合した機械学習システムを実現。Phase 18ファイル統合リファクタリング（11→3ファイル、73%削減）基盤に企業級品質保証完備。
 
-## 🎯 概要
+## 🎯 Phase 19 MLOps統合責任
 
-新システムのML層は、Phase 18でファイル統合リファクタリング完了した統合機械学習システムです。11個のPythonファイルを3個に統合（73%削減）、40%のコード重複を排除、保守性を大幅向上させながら、完全な後方互換性を維持しています。
+### **MLOps統合機械学習システム**: 企業級品質保証・自動化完備
+- **ProductionEnsemble統合**: 3モデルアンサンブル（LightGBM 40%・XGBoost 40%・RandomForest 20%）・重み付け投票・信頼度閾値統合
+- **feature_manager連携**: 12特徴量統一管理・特徴量エンジニアリング完全統合・データパイプライン最適化
+- **週次自動学習**: GitHub Actions自動学習ワークフロー・CI/CD品質ゲート・段階的デプロイ統合
+- **Cloud Run統合**: 24時間稼働・スケーラブル予測・Discord 3階層監視・本番運用最適化
+- **654テスト品質保証**: 59.24%カバレッジ・MLOps統合テスト・品質管理完備・回帰防止
 
-### 主要特徴（Phase 13完了）
+### Phase 19 MLOps統合特徴（企業級品質保証）
 
-- **📁 ファイル統合**: 11ファイル→3ファイル（73%削減）・models/＋ensemble/フォルダ→単一ファイル化
-- **🔄 コード統合**: 40%重複コード削除・継承関係最適化・保守性向上
-- **🤖 3モデルアンサンブル**: models.py統合（BaseMLModel＋3実装）・ensemble.py統合（3クラス統合）
-- **🏭 ProductionEnsemble**: 後方互換性維持・既存スクリプト無修正対応
-- **⚖️ 重み付け投票**: VotingSystem統合・EnsembleModel統合・統一インターフェース
-- **🧪 全テスト対応**: import文修正・テストケース継続合格・品質保証維持
+- **🏭 ProductionEnsemble統合**: 3モデルアンサンブル・重み付け投票・feature_manager連携・週次自動学習対応
+- **📊 654テスト品質保証**: 59.24%カバレッジ・MLOps統合テスト・CI/CD品質ゲート・回帰防止完備
+- **🚀 週次自動学習**: GitHub Actions自動ワークフロー・段階的デプロイ・品質管理・自動モデル更新
+- **☁️ Cloud Run統合**: 24時間稼働・スケーラブル予測・Discord監視・本番運用最適化・自動スケーリング
+- **🔧 feature_manager統合**: 12特徴量統一管理・データパイプライン統合・特徴量エンジニアリング連携
+- **📁 ファイル統合基盤**: 11→3ファイル（73%削減）・40%重複削除・保守性向上・後方互換性維持
 
-## 📂 ファイル構造（Phase 18統合完了）
+## 📂 ファイル構造（Phase 19 MLOps統合完了）
 
 ```
 src/ml/
-├── models.py                   # 統合モデル実装（4ファイル→1ファイル統合）
-│   ├── BaseMLModel            # 抽象基底クラス（継承基盤）
-│   ├── LGBMModel             # LightGBMモデル実装
-│   ├── XGBModel              # XGBoostモデル実装
-│   └── RFModel               # RandomForestモデル実装
-├── ensemble.py                 # 統合アンサンブルシステム（3ファイル→1ファイル統合）
-│   ├── EnsembleModel         # 開発用アンサンブルクラス
-│   ├── VotingSystem          # 重み付け投票システム
-│   ├── VotingMethod          # 投票手法定義
-│   └── ProductionEnsemble    # 本番用統合モデル（後方互換性）
-├── model_manager.py           # モデル管理・バージョニング（簡素化済み）
-└── __init__.py                # ML層統合エクスポート（後方互換性維持）
+├── models.py                   # MLOps統合モデル実装（ProductionEnsemble基盤）
+│   ├── BaseMLModel            # 抽象基底クラス（feature_manager統合対応）
+│   ├── LGBMModel             # LightGBM実装（40%重み・週次学習対応）
+│   ├── XGBModel              # XGBoost実装（40%重み・Cloud Run最適化）
+│   └── RFModel               # RandomForest実装（20%重み・安定性重視）
+├── ensemble.py                 # MLOps統合アンサンブルシステム（654テスト対応）
+│   ├── EnsembleModel         # 開発用アンサンブル（CI/CD統合）
+│   ├── VotingSystem          # 重み付け投票（Discord監視統合）
+│   ├── VotingMethod          # 投票手法定義（品質保証完備）
+│   └── ProductionEnsemble    # MLOps統合本番モデル（24時間稼働対応）
+├── model_manager.py           # MLOpsモデル管理・週次学習・バージョニング統合
+└── __init__.py                # MLOps統合エクスポート（後方互換性・企業級移行対応）
 ```
 
-## 🚀 基本使用例（Phase 13対応）
+## 🚀 基本使用例（Phase 19 MLOps統合対応）
 
-### 1. 統合管理CLI（推奨・Phase 13統合機能）
+### 1. MLOps統合管理CLI（推奨・Phase 19統合機能）
 
 ```bash
-# 🎯 統合管理CLI - 最も簡単（推奨）
-python scripts/management/dev_check.py ml-models      # モデル作成・検証
-python scripts/management/dev_check.py ml-models --dry-run  # ドライラン
+# 🎯 MLOps統合管理CLI - 企業級品質保証（推奨）
+python scripts/management/dev_check.py ml-models      # モデル作成・654テスト検証
+python scripts/management/dev_check.py ml-models --dry-run  # ドライラン・品質ゲート
 
-# 🔧 直接スクリプト実行（詳細制御）
-python scripts/ml/create_ml_models.py --verbose         # 詳細ログ
-python scripts/ml/create_ml_models.py --days 360        # 学習期間指定
+# 🔧 MLOps統合スクリプト実行（週次学習対応）
+python scripts/ml/create_ml_models.py --verbose --mlops     # MLOps統合モード
+python scripts/ml/create_ml_models.py --days 360 --cloud-run # Cloud Run対応学習
 
-# 期待結果:
-# 🤖 MLモデル作成成功！
-# - LightGBM: F1 score 0.952
-# - XGBoost: F1 score 0.997  
-# - RandomForest: F1 score 0.821
-# - ProductionEnsemble: 重み付け統合（0.4/0.4/0.2）
+# Phase 19 MLOps統合期待結果:
+# 🤖 MLOps統合モデル作成成功！（654テスト品質保証）
+# - LightGBM: F1 score 0.952（40%重み・feature_manager統合）
+# - XGBoost: F1 score 0.997（40%重み・週次学習対応）  
+# - RandomForest: F1 score 0.821（20%重み・安定性重視）
+# - ProductionEnsemble: MLOps統合（0.4/0.4/0.2）・Cloud Run 24時間稼働対応
 ```
 
-### 2. 本番用ProductionEnsemble（Phase 13統合機能）
+### 2. MLOps統合ProductionEnsemble（Phase 19統合機能）
 
 ```python
 # 本番用モデル読み込み・使用

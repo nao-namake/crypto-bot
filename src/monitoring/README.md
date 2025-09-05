@@ -12,7 +12,7 @@ monitoring/
 └── discord_manager.py       # Phase 15: 通知制御・Rate Limit（制御層）
 ```
 
-## 🏗️ Phase 15 アーキテクチャ設計
+## 🏗️ Phase 19 MLOps統合アーキテクチャ設計
 
 ### **3層分離アーキテクチャ**
 ```python

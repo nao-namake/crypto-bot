@@ -34,7 +34,7 @@ class BacktestReporter:
     分析・共有・記録保持を支援する。.
     """
 
-    def __init__(self, output_dir: str = "reports/backtest"):
+    def __init__(self, output_dir: str = "logs/backtest_reports"):
         self.logger = get_logger(__name__)
 
         # 出力ディレクトリ設定

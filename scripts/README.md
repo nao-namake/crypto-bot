@@ -1,136 +1,167 @@
-# scripts/ - 運用スクリプト・ツール管理ディレクトリ
+# scripts/ - Phase 19統合運用スクリプト・ツール管理システム
 
-**Phase 13対応**: 機能別フォルダ構成・統合管理・開発支援・分析・デプロイメント自動化ツール集（2025年8月26日現在）
+**Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤完成・654テスト100%・59.24%カバレッジ達成に対応した運用・開発・分析・デプロイメント統合自動化ツール集（2025年9月4日現在）
 
 ## 📂 ディレクトリ構成
 
 ```
 scripts/
-├── analytics/      # 統合分析・データ収集・ダッシュボード [詳細: README.md]
-│   ├── base_analyzer.py             # 共通基盤クラス・Cloud Run統合
-│   ├── data_collector.py            # 実データ収集・統計分析
-│   ├── performance_analyzer.py      # システムパフォーマンス分析
-│   └── dashboard.py                 # HTMLダッシュボード・可視化
-├── management/     # 統合管理・開発支援・監視 [詳細: README.md]
-│   ├── dev_check.py                 # 統合開発管理CLI（多機能）
-│   └── ops_monitor.py               # 運用監視・ヘルスチェック
-├── ml/            # 機械学習・モデル管理 [詳細: README.md]
-│   └── create_ml_models.py          # MLモデル作成・アンサンブル構築
-├── deployment/    # デプロイメント・インフラ [詳細: README.md]
-│   ├── deploy_production.sh         # GCP Cloud Run本番デプロイ
-│   ├── docker-entrypoint.sh         # Dockerエントリポイント
-│   ├── setup_ci_prerequisites.sh    # CI/CD前提条件セットアップ
-│   ├── setup_gcp_secrets.sh         # GCP Secret Manager設定
-│   └── verify_gcp_setup.sh          # GCP環境検証
-└── testing/       # テスト・品質保証 [詳細: README.md]
-    ├── checks.sh                    # 統合品質チェック
-    └── test_live_trading.py          # ライブトレード統合テスト
+├── analytics/          # 統合分析・データ収集・ダッシュボード [詳細: README.md]
+│   ├── base_analyzer.py             # 共通基盤クラス・Cloud Run統合・Phase 19対応
+│   ├── data_collector.py            # 実データ収集・MLOps統計分析・654テスト統合
+│   ├── performance_analyzer.py      # システムパフォーマンス・feature_manager統合分析
+│   └── dashboard.py                 # HTMLダッシュボード・Phase 19可視化・週次学習監視
+├── management/         # 統合管理・開発支援・監視 [詳細: README.md]
+│   ├── dev_check.py                 # Phase 19統合開発管理CLI（多機能・MLOps対応）
+│   ├── ops_monitor.py               # 24時間運用監視・Cloud Run・Discord統合
+│   └── status_config.json           # システム状態設定・Phase 19対応
+├── ml/                 # 機械学習・モデル管理 [詳細: README.md]
+│   └── create_ml_models.py          # MLOps統合・ProductionEnsemble・週次学習対応
+├── deployment/         # デプロイメント・インフラ [詳細: README.md]
+│   ├── deploy_production.sh         # GCP Cloud Run・段階的デプロイ・品質ゲート統合
+│   ├── docker-entrypoint.sh         # Docker・MLOps・feature_manager統合エントリポイント
+│   ├── setup_ci_prerequisites.sh    # CI/CD・654テスト・GitHub Actions統合
+│   ├── setup_gcp_secrets.sh         # GCP Secret Manager・MLOps認証統合
+│   └── verify_gcp_setup.sh          # GCP環境・Cloud Run・週次学習環境検証
+└── testing/            # テスト・品質保証 [詳細: README.md]
+    ├── checks.sh                    # 654テスト統合品質チェック・59.24%カバレッジ
+    └── test_live_trading.py          # Phase 19対応ライブトレード統合テスト
 ```
 
 ## 🎯 役割・責任
 
-システム開発・運用・監視・デプロイメントに必要なスクリプト・ツールを機能別に整理・管理するディレクトリです。開発から本番運用まで一貫した自動化・品質保証・効率化を提供します。
+**Phase 19 MLOps基盤**におけるシステム開発・運用・監視・デプロイメントの全工程を支援する統合ツール集を提供。feature_manager.py統一管理・ProductionEnsemble・週次自動再学習・654テスト品質保証による一貫した自動化・効率化・品質保証システムを担当します。
 
 **主要機能**:
-- 統合開発管理・品質チェック自動化
-- データ分析・パフォーマンス監視・可視化
-- 機械学習モデル管理・自動学習
-- GCPデプロイメント・インフラ管理
-- テスト・品質保証・CI/CD統合
+- **MLOps統合管理**: feature_manager.py・ProductionEnsemble・週次自動再学習統合対応
+- **654テスト品質保証**: 統合品質チェック・59.24%カバレッジ・CI/CD品質ゲート
+- **24時間運用監視**: Cloud Run監視・Discord通知・自動復旧・ヘルスチェック
+- **段階的デプロイ**: paper→stage-10→stage-50→live・品質ゲート・自動ロールバック
+- **統合分析**: データ収集・パフォーマンス分析・ダッシュボード・可視化
 
-## 📝 使用方法・例
+## 🔧 主要機能・実装（Phase 19統合）
 
-### **日常開発フロー**
+### **management/ - 統合管理・開発支援（核心機能）**
+
+**Phase 19統合対応**:
+- **`dev_check.py`**: 654テスト・59.24%カバレッジ・MLOps診断・feature_manager検証
+- **`ops_monitor.py`**: Cloud Run 24時間監視・Discord統合・週次学習監視・自動復旧
+- Phase 19 MLOps基盤・ProductionEnsemble・統合品質保証・CI/CD統合
+
+### **testing/ - 品質保証・テスト（Phase 19基盤）**
+
+**654テスト統合**:
+- **`checks.sh`**: 654テスト実行・59.24%カバレッジ測定・品質ゲート統合
+- **`test_live_trading.py`**: Phase 19対応実取引テスト・段階的デプロイ検証
+- CI/CD・GitHub Actions・品質保証・回帰防止・継続的品質向上
+
+### **ml/ - MLOps・モデル管理（Phase 19核心）**
+
+**週次自動再学習統合**:
+- **`create_ml_models.py`**: ProductionEnsemble・feature_manager統合・自動学習
+- LightGBM・XGBoost・RandomForest・3モデル統合・重み最適化
+- GitHub Actions・週次学習・バージョン管理・品質評価
+
+### **deployment/ - インフラ・デプロイ（Phase 19対応）**
+
+**段階的デプロイ統合**:
+- **`deploy_production.sh`**: 段階的デプロイ・品質ゲート・Cloud Run統合
+- **Docker統合**: feature_manager・ProductionEnsemble・MLOpsコンテナ化
+- GCP・Secret Manager・CI/CD・自動化・監視・復旧統合
+
+### **analytics/ - 分析・監視（Phase 19統合）**
+
+**統合分析基盤**:
+- **`base_analyzer.py`**: Phase 19共通基盤・Cloud Run・Discord統合
+- **分析統合**: パフォーマンス・データ収集・ダッシュボード・可視化
+- MLOps監視・feature_manager統計・週次学習効果分析
+
+## 📝 使用方法・例（Phase 19対応）
+
+### **日常開発・運用（推奨ワークフロー）**
+
 ```bash
-# 開発状況確認
-python scripts/management/dev_check.py full-check
+# Phase 19統合品質チェック（開発時必須）
+bash scripts/testing/checks.sh                         # 654テスト・30秒完了
 
-# 品質チェック
-python scripts/management/dev_check.py validate
+# MLOps統合開発管理（多機能CLI）
+python3 scripts/management/dev_check.py full-check     # 統合診断・MLOps確認
+python3 scripts/management/dev_check.py ml-models      # ProductionEnsemble作成
 
-# MLモデル作成・更新
-python scripts/management/dev_check.py ml-models
+# 24時間運用監視
+python3 scripts/management/ops_monitor.py              # Cloud Run・Discord監視
+
+# MLOps・週次学習
+python3 scripts/ml/create_ml_models.py --verbose       # モデル作成・詳細ログ
 ```
 
-### **分析・監視フロー**
+### **デプロイメント・インフラ（本番運用）**
+
 ```bash
-# データ収集・分析
-python scripts/analytics/data_collector.py --hours 24
+# GCP環境構築・検証
+bash scripts/deployment/setup_ci_prerequisites.sh      # CI/CD環境構築
+bash scripts/deployment/verify_gcp_setup.sh           # 環境検証・健全性確認
 
-# パフォーマンス分析
-python scripts/analytics/performance_analyzer.py
-
-# ダッシュボード生成
-python scripts/analytics/dashboard.py --discord
+# 段階的本番デプロイ
+bash scripts/deployment/deploy_production.sh          # paper→stage→live
 ```
 
-### **デプロイメントフロー**
-```bash
-# デプロイ前チェック
-bash scripts/testing/checks.sh
+### **分析・監視・ダッシュボード**
 
-# 本番デプロイ
-bash scripts/deployment/deploy_production.sh
+```python
+# Phase 19統合分析実行
+from scripts.analytics.performance_analyzer import PerformanceAnalyzer
+from scripts.analytics.data_collector import DataCollector
 
-# デプロイ後確認
-python scripts/management/ops_monitor.py
+# MLOps統合データ収集・分析
+collector = DataCollector()
+analyzer = PerformanceAnalyzer()
+
+# feature_manager・ProductionEnsemble統合分析
+collector.collect_mlops_data()                         # MLOps統計収集
+analyzer.analyze_system_performance()                  # 総合性能分析
 ```
 
-## ⚠️ 注意事項・制約
+## ⚠️ 注意事項・制約（Phase 19運用）
 
-### **実行環境の制約**
-1. **プロジェクトルート**: 必ず`/Users/nao/Desktop/bot`から実行
-2. **Python環境**: Python 3.8以上・必要なライブラリインストール済み
-3. **GCP認証**: 一部スクリプトでgcloud auth設定が必要
+### **Phase 19運用制約**
 
-### **権限・セキュリティ**
-1. **実行権限**: シェルスクリプトは実行権限必須（chmod +x）
-2. **API認証**: Bitbank API・Discord Webhook等の環境変数設定
-3. **GCP権限**: Cloud Run・Secret Manager・Artifact Registry権限
+1. **MLOps統合**: feature_manager.py・ProductionEnsemble・週次学習との整合性必須
+2. **654テスト品質**: 全スクリプト実行前後でテスト成功・カバレッジ維持必須
+3. **CI/CD統合**: GitHub Actions・品質ゲート・段階的デプロイ遵守
+4. **24時間監視**: Cloud Run・Discord通知・自動復旧機能依存
 
-### **リソース使用上の注意**
-1. **メモリ使用量**: 機械学習系スクリプトは200MB-2GB使用
-2. **実行時間**: 分析・MLモデル作成は数分～数十分要する場合あり
-3. **並列実行**: 同時実行は推奨されません（リソース競合防止）
+### **実行環境要件**
 
-## 🔗 関連ファイル・依存関係
+1. **Python環境**: Python 3.13・依存関係・仮想環境推奨
+2. **GCP統合**: 認証・権限・Cloud Run・Secret Manager設定必須
+3. **GitHub統合**: Actions・Workflows・OIDC・Workload Identity設定
+4. **Discord統合**: Webhook・通知設定・アラート機能設定
 
-### **システム統合**
-- **`src/`**: 新システム実装・スクリプトから利用
-- **`config/`**: 設定ファイル・環境別設定
-- **`models/`**: 機械学習モデル・メタデータ管理
+### **セキュリティ・権限**
 
-### **出力・レポート**
-- **`logs/reports/`**: スクリプト実行結果・分析レポート
-- **`coverage-reports/`**: テストカバレッジ結果
-- **`logs/deployment/`**: デプロイ関連ログ
+1. **認証管理**: GCP・GitHub・Discord・APIキー・Secret Manager統合
+2. **権限制御**: 最小権限・実行権限・アクセス制御・監査ログ
+3. **機密情報**: 環境変数・設定ファイル・ログマスキング・暗号化
 
-### **外部依存**
-- **GCP Cloud Run・Artifact Registry**: デプロイメント基盤
-- **Discord API**: 通知・レポート配信
-- **GitHub Actions**: CI/CD統合・自動実行
+## 🔗 関連ファイル・依存関係（Phase 19統合）
 
-### **🗑️ 不要スクリプト特定・削除提案**
+### **Phase 19 MLOps基盤統合**
+- **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量・スクリプト統合
+- **`src/ml/ensemble.py`**: ProductionEnsemble・モデル管理・学習統合
+- **`.github/workflows/`**: 週次自動再学習・CI/CD・品質ゲート統合
+- **`config/core/`**: 設定管理・閾値・パラメータ・スクリプト設定
 
-現在のscripts/構成を分析した結果、以下の最適化提案があります：
+### **品質保証・監視システム**
+- **`tests/unit/`**: 654テスト・品質保証・スクリプト動作検証
+- **`logs/`**: システムログ・レポート・分析結果・監視データ
+- **`src/monitoring/discord_notifier.py`**: Discord通知・アラート・統合
 
-#### **重複機能・統合候補**
-1. **ops_monitor.py（91KB）**: dev_check.pyと機能重複の可能性
-   - 両方とも監視・ヘルスチェック機能を持つ
-   - **提案**: 機能統合またはops_monitor.pyの軽量化
-
-#### **使用頻度・保守性の検討**
-1. **deployment/スクリプト群**: 5個のシェルスクリプト
-   - setup_ci_prerequisites.sh（25KB）
-   - verify_gcp_setup.sh（26KB）  
-   - setup_gcp_secrets.sh（13KB）
-   - **提案**: 実際の使用頻度確認・統合検討
-
-#### **現状維持推奨**
-- すべてのスクリプトが最近更新されており活発に使用
-- 機能別分類が明確で保守性が高い
-- 削除よりも統合・最適化が適切
+### **インフラ・デプロイ統合**
+- **`Dockerfile`**: コンテナ化・エントリポイント・MLOps統合
+- **GCP Cloud Run**: 本番環境・24時間稼働・自動スケーリング
+- **Secret Manager**: 認証・API キー・セキュリティ統合
 
 ---
 
-**🎯 Phase 13対応完了**: 機能別フォルダ構成・統合管理・開発支援・分析・デプロイメント自動化による効率的なスクリプト管理環境を確立。開発から本番運用まで一貫した品質保証・自動化ツール集を実現。
+**🎯 Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤・654テスト100%・59.24%カバレッジ統合による開発から本番運用まで一貫した品質保証・自動化・監視・デプロイメントの統合ツールシステムを実現

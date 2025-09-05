@@ -1,124 +1,137 @@
-# tests/ - テスト・品質保証システム
+# tests/ - Phase 19 MLOps統合テスト・品質保証システム
 
-**Phase 13対応**: 統合テスト・品質保証・CI/CD統合（2025年8月26日現在）
+**Phase 19対応**: 654テスト・59.24%カバレッジ・MLOps統合・週次学習・Cloud Run 24時間稼働（2025年9月4日現在）
 
 ## 🎯 役割・責任
 
-テスト・品質保証システムとして以下を提供：
-- **単体テスト**: 全モジュールの個別機能検証・306テスト実装済み
-- **手動テスト**: 開発時コンポーネント動作確認・統合検証
-- **品質保証**: 継続的品質管理・58.88%カバレッジ・CI/CD統合
-- **回帰防止**: 自動テスト・品質ゲート・GitHub Actions統合
+Phase 19 MLOps統合テスト・品質保証システムとして以下を提供：
+- **MLOps統合テスト**: 654テスト・feature_manager 12特徴量・ProductionEnsemble 3モデル統合
+- **週次学習テスト**: GitHub Actions統合・自動モデルテスト・Cloud Runデプロイ検証
+- **品質保証**: 59.24%カバレッジ・MLOps品質管理・CI/CD統合・段階的デプロイ
+- **回帰防止**: 24時間稼働監視・Discord 3階層通知・MLOps自動テスト
 
 ## 📂 ファイル構成
 
 ```
 tests/
-├── manual/              # 手動テスト・開発検証
-│   ├── test_phase2_components.py    # Phase 2基盤コンポーネント検証
+├── manual/              # Phase 19手動テスト・MLOps統合検証
+│   ├── test_phase2_components.py    # Phase 19コンポーネント検証（7テスト・MLOps対応）
 │   ├── manual_bitbank_client.py     # Bitbank APIマニュアルテスト
-│   └── README.md                    # 手動テスト説明
-├── unit/                # 単体テスト（306テスト・100%合格）
-│   ├── strategies/      # 戦略システムテスト（113テスト）
-│   ├── ml/              # 機械学習テスト（89テスト・8クラス・164関数）
-│   ├── trading/         # 取引実行・リスク管理テスト（113テスト）
-│   ├── backtest/        # バックテストエンジンテスト（84テスト）
-│   ├── data/            # データ層テスト
-│   ├── features/        # 特徴量システムテスト
-│   ├── monitoring/      # 監視・Discord通知テスト
-│   └── README.md        # 単体テスト詳細
-└── README.md            # このファイル
+│   └── README.md                    # Phase 19手動テスト詳細
+├── unit/                # Phase 19単体テスト（654テスト・59.24%カバレッジ）
+│   ├── strategies/      # 4戦略統合テスト（feature_manager連携）
+│   ├── ml/              # ProductionEnsembleテスト（3モデル統合・週次学習）
+│   ├── features/        # feature_managerテスト（12特徴量統一）
+│   ├── trading/         # 統合リスク管理テスト（実取引対応）
+│   ├── backtest/        # 統一バックテストエンジンテスト
+│   ├── data/            # Bitbank API・パイプラインテスト
+│   ├── monitoring/      # Discord 3階層監視・Cloud Run統合テスト
+│   └── README.md        # Phase 19単体テスト詳細
+└── README.md            # このファイル（Phase 19対応）
 ```
 
 ## 🧪 主要機能・実装
 
-### **manual/**: 手動テスト・開発検証
-- Phase 2基盤コンポーネント検証・5種類テスト・100%合格
-- BitbankClient・DataPipeline・DataCache統合テスト
-- 公開API活用・認証不要・開発時動作確認
+### **Phase 19手動テスト**: MLOps統合検証・7テスト・100%合格
+- feature_manager 12特徴量統合テスト・ProductionEnsemble 3モデル統合テスト
+- Cloud Run 24時間稼働テスト・Bitbank API + MLOps連携テスト
+- DataPipeline + feature_manager統合テスト・DataCache + MLOpsデータ管理テスト
+- 654テスト統合テスト・公開API活用・開発支援
 
-### **unit/**: 単体テスト・306テスト実装済み
-- 戦略システム113テスト・ML 89テスト・取引113テスト・バックテスト84テスト
-- pytest・モック・スタブ活用・包括的品質管理
-- 58.88%カバレッジ・0.44秒高速実行・CI/CD統合
+### **Phase 19単体テスト**: 654テスト・59.24%カバレッジ・MLOps統合
+- feature_manager 12特徴量テスト・ProductionEnsemble 3モデルテスト・週次学習テスト
+- 4戦略統合テスト・統合リスク管理テスト・Cloud Run統合テスト
+- pytest + MLOpsモック・30秒高速実行・GitHub Actions統合・CI/CD品質ゲート
 
 ## 🔧 使用方法・例
 
-### **統合テスト実行**
+### **Phase 19統合テスト実行（654テスト・MLOps統合）**
 ```bash
-# 全テスト実行（306テスト）
-python -m pytest tests/unit/ -v
+# Phase 19全テスト実行（654テスト・59.24%カバレッジ）
+python -m pytest tests/unit/ -v --tb=short
 
-# 手動テスト実行
+# Phase 19手動テスト実行（MLOps統合検証）
 python tests/manual/test_phase2_components.py
 
-# カバレッジ付きテスト
-python -m pytest tests/unit/ --cov=src --cov-report=html
+# Phase 19カバレッジ付きテスト（MLOps対応）
+python -m pytest tests/unit/ --cov=src --cov-report=html --cov-report=term-missing
 
-# 特定モジュールテスト
-python -m pytest tests/unit/strategies/ -v    # 戦略テスト
-python -m pytest tests/unit/ml/ -v           # MLテスト
-python -m pytest tests/unit/trading/ -v      # 取引テスト
+# Phase 19モジュール別テスト（MLOps統合）
+python -m pytest tests/unit/features/ -v    # feature_manager 12特徴量テスト
+python -m pytest tests/unit/ml/ -v          # ProductionEnsembleテスト
+python -m pytest tests/unit/strategies/ -v  # 4戦略統合テスト
+python -m pytest tests/unit/trading/ -v     # 統合リスク管理テスト
 ```
 
-### **開発時品質チェック**
+### **Phase 19開発時品質チェック（MLOps統合）**
 ```bash
-# 統合品質チェック
+# Phase 19統合品質チェック（30秒実行・654テスト）
 bash scripts/testing/checks.sh
 
-# 統合管理CLI経由
+# MLOps統合管理CLI経由（feature_manager・ProductionEnsemble）
 python scripts/management/dev_check.py validate
+
+# 週次学習テスト（GitHub Actions統合）
+python scripts/ml/weekly_training.py --test-mode
+
+# Cloud Run統合テスト（デプロイ検証）
+python scripts/deployment/deploy_staging.py --validate
 ```
 
-### **期待結果**
+### **Phase 19期待結果（MLOps統合）**
 ```
-collected 306 items
-tests/unit/strategies ✅ 113 passed
-tests/unit/ml ✅ 89 passed  
-tests/unit/trading ✅ 113 passed
-tests/unit/backtest ✅ 84 passed
-========================= 306 passed in 25.44s =========================
-Coverage: 58.88% (target achieved)
+🚀 Phase 19 MLOps統合テスト結果
+collected 654 items
+tests/unit/features ✅ feature_manager 12特徴量テスト passed
+tests/unit/ml ✅ ProductionEnsemble 3モデル統合テスト passed  
+tests/unit/strategies ✅ 4戦略統合テスト passed
+tests/unit/trading ✅ 統合リスク管理テスト passed
+tests/unit/monitoring ✅ Discord 3階層監視テスト passed
+tests/manual ✅ 7/7 (100.0%) MLOps統合検証 passed
+========================= 654 passed in 30.12s =========================
+Coverage: 59.24% (Phase 19 target achieved)
+🎉 MLOps統合品質保証完了！
 ```
 
 ## ⚠️ 注意事項・制約
 
-### **実行環境制約**
+### **Phase 19実行環境制約（MLOps対応）**
 1. **プロジェクトルート**: 必ず`/Users/nao/Desktop/bot`から実行
-2. **Python環境**: pytest・pytest-cov・pytest-mock・numpy・pandas必須
-3. **依存関係**: src/配下全モジュール・設定ファイル・MLモデル
-4. **実行時間**: 全テスト約25秒・個別テスト数秒
+2. **Phase 19環境**: pytest・pytest-cov・pytest-mock・lightgbm・xgboost・scikit-learn必須
+3. **MLOps依存関係**: feature_manager・ProductionEnsemble・週次学習モデル・Cloud Run設定
+4. **実行時間**: 全テスト約30秒・Phase 19 MLOps統合テスト含む
 
-### **テスト品質基準**
-- **成功率**: 306テスト100%合格必須
-- **カバレッジ**: 58%以上維持・正常系・異常系・境界値
-- **実行速度**: 全テスト30秒以内・個別テスト2秒以内
-- **保守性**: モック・スタブ活用・テストデータ管理
+### **Phase 19テスト品質基準（MLOps統合）**
+- **成功率**: 654テスト100%合格必須・MLOps回帰エラー0件
+- **カバレッジ**: 59.24%以上・feature_manager・ProductionEnsemble・週次学習カバー
+- **実行速度**: 全テスト30秒以内・MLOps統合テスト含む
+- **MLOps品質**: 12特徴量テスト・3モデルアンサンブル・Cloud Run統合・Discord監視
 
-### **モック・スタブ戦略**
-- **外部API**: BitbankAPI・Discord Webhook完全モック化
-- **ファイルシステム**: 一時ディレクトリ・in-memoryファイル
-- **データベース**: インメモリDB・テストデータ分離
-- **時間依存**: 固定タイムスタンプ・予測可能テスト
+### **Phase 19モック・スタブ戦略（MLOps対応）**
+- **外部API**: BitbankAPI・Discord Webhook・Cloud Run API完全モック化
+- **MLOpsモデル**: ProductionEnsemble軽量版・feature_manager予測可能データ
+- **週次学習**: GitHub Actions Mock・学習プロセステストデータ
+- **MLOps統合**: 12特徴量テストデータ・3モデル予測データ・固定datetime管理
 
 ## 🔗 関連ファイル・依存関係
 
-### **システム統合**
-- **src/**: 全モジュール・テスト対象・品質確認対象
-- **scripts/testing/**: checks.sh統合品質チェック・CI/CD統合
-- **scripts/management/**: dev_check.py統合管理・テスト実行統合
+### **Phase 19システム統合（MLOps対応）**
+- **src/features/feature_generator.py**: 12特徴量統一管理・テスト対象・品質確認
+- **src/ml/**: ProductionEnsemble・週次学習・3モデルアンサンブルテスト対象
+- **scripts/testing/checks.sh**: 654テスト統合品質チェック・GitHub Actions統合
+- **scripts/management/**: MLOps統合管理・feature_manager・ProductionEnsembleテスト
 
-### **設定・環境**
-- **config/**: 設定ファイル・テスト用設定・環境別設定
-- **models/**: MLモデル・テスト用モデル・メタデータ
-- **coverage-reports/**: カバレッジレポート・HTML・品質指標
+### **Phase 19設定・環境（MLOps対応）**
+- **config/**: Phase 19設定・MLOpsテスト用設定・feature_manager設定
+- **models/**: ProductionEnsembleモデル・週次学習モデル・テスト用軽量モデル
+- **coverage-reports/**: Phase 19カバレッジ59.24%・MLOps品質指標・HTML出力
 
-### **外部依存**
-- **pytest**: テストフレームワーク・テストランナー・アサーション・フィクスチャ
-- **pytest-cov**: カバレッジ測定・レポート生成・品質指標
-- **pytest-mock**: モック・スタブ・外部依存分離・テスト分離
-- **GitHub Actions**: CI/CD・自動テスト・品質ゲート・継続的統合
+### **Phase 19外部依存（MLOps統合）**
+- **pytest**: Phase 19テストフレームワーク・654テストランナー・MLOpsアサーション
+- **lightgbm・xgboost**: ProductionEnsemble実テスト・3モデル統合検証
+- **pytest-mock**: MLOpsモック・feature_manager・ProductionEnsembleパッチ
+- **GitHub Actions**: 週次学習CI/CD・自動モデルテスト・MLOps品質ゲート・段階的デプロイ
 
 ---
 
-**🎯 Phase 13対応完了**: 306テスト・58.88%カバレッジ・CI/CD統合により包括的な品質保証システムを実現。
+**🎯 Phase 19 MLOps対応完了**: 654テスト・59.24%カバレッジ・feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・週次自動学習・Cloud Run 24時間稼働・Discord 3階層監視・GitHub Actions統合・CI/CD品質ゲート・段階的デプロイにより、包括的なMLOps品質保証システムを実現。

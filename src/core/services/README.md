@@ -1,6 +1,6 @@
-# core/services/ - サービス層システム
+# Phase 19 core/services/ - MLOps統合サービス層システム
 
-**Phase 14-B リファクタリング**: orchestrator.pyから分離したサービス機能の統合管理モジュールです。ヘルスチェック・エラー記録・取引サイクル管理を担当し、システムの安定稼働を支援します。
+**Phase 19 MLOps統合完了**: feature_manager 12特徴量監視・ProductionEnsemble 3モデル健全性監視・週次学習サイクル管理・Cloud Run 24時間稼働監視・Discord 3階層アラート統合により、MLOps完全統合サービス層システムを実現。
 
 ## 🎯 目的・責任
 

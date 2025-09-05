@@ -1,6 +1,6 @@
-# src/core/config - 設定システム管理
+# Phase 19 src/core/config - MLOps統合設定システム管理
 
-Phase 17で実装されたハードコーディング完全排除設定システム。YAML連携により動的設定管理を実現。
+Phase 19 MLOps統合設定システム。feature_manager 12特徴量設定・ProductionEnsemble 3モデル設定・週次学習設定・Cloud Run設定・654テスト設定のMLOps完全統合を実現。
 
 ## 📂 フォルダ構成
 
@@ -19,10 +19,10 @@ src/core/config/
 - **3層優先順位**: コマンドライン > 環境変数 > YAMLファイル
 - **動的設定変更**: YAML編集のみで再デプロイ不要
 
-### **設定の階層化**
-- **基本設定**: `config/core/base.yaml` - 全環境共通設定
-- **動的閾値**: `config/core/thresholds.yaml` - 運用時調整可能パラメータ
-- **環境別設定**: `config/production/` - 本番固有設定
+### **Phase 19 MLOps設定の階層化**
+- **MLOps基本設定**: `config/core/base.yaml` - feature_manager + ProductionEnsemble設定
+- **週次学習設定**: `config/core/thresholds.yaml` - GitHub Actions週次学習パラメータ
+- **本番MLOps設定**: `config/production/` - Cloud Run 24時間稼働・本番環境設定
 
 ## 🏗 設計原則
 
@@ -150,12 +150,12 @@ def test_threshold_access():
 - 新しい設定追加時は必ず`validate()`メソッド拡張
 - 不正値の早期検出とエラーメッセージ改善
 
-## 🔄 Phase 17完了成果
+## 🔄 Phase 19 MLOps統合完了成果
 
-- **7ファイル→3ファイル**: ファイル数43%削減
-- **ハードコーディング完全排除**: 160個→0個
-- **保守性向上**: YAML変更のみで設定調整
-- **テスト品質**: 618/620成功（99.7%）、カバレッジ53.57%
+- **MLOps設定統合**: feature_manager + ProductionEnsemble + 週次学習設定一元化
+- **654テスト品質保証**: 59.24%カバレッジ・MLOps統合テスト完備
+- **Cloud Run統合**: 24時間稼働設定・Discord 3階層監視設定
+- **GitHub Actions統合**: 週次学習・CI/CD品質ゲート・段階的デプロイ設定
 
 ---
-*Phase 17完了: 2025年8月31日*
+*Phase 19 MLOps統合完了: 2025年9月4日*

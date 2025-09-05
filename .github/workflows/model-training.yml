@@ -1,0 +1,165 @@
+name: ML Model Training
+
+on:
+  workflow_dispatch:
+    inputs:
+      training_days:
+        description: '学習データ期間（日数）'
+        required: true
+        default: '180'
+        type: choice
+        options:
+          - '180'
+          - '365'
+          - '90'
+      dry_run:
+        description: 'ドライラン実行（テスト用）'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: '0 18 * * 0'
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  REGION: asia-northeast1
+  SERVICE_NAME: crypto-bot-service-prod
+
+jobs:
+  model-training:
+    name: ML Model Training & Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Pre-training Environment Setup
+        run: |
+          echo "🚀 Phase 19モデル学習環境セットアップ開始"
+          mkdir -p models/{production,training,archive} logs cache
+          git config --global user.name "GitHub Actions ML Training"
+          git config --global user.email "actions@github.com"
+          echo "✅ 環境セットアップ完了"
+
+      - name: Execute ML Model Training
+        run: |
+          TRAINING_DAYS=${{ github.event.inputs.training_days || '180' }}
+          DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}
+          
+          echo "🎯 Phase 19モデル学習実行開始"
+          echo "📊 学習期間: ${TRAINING_DAYS}日"
+          
+          if [ "$DRY_RUN" = "true" ]; then
+            python3 scripts/ml/create_ml_models.py --verbose --dry-run --days "$TRAINING_DAYS"
+          else
+            python3 scripts/ml/create_ml_models.py --verbose --days "$TRAINING_DAYS"
+          fi
+
+      - name: Model Validation
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          echo "🔍 モデル品質検証開始"
+          
+          if [ ! -f "models/production/production_ensemble.pkl" ] || [ ! -f "models/production/production_model_metadata.json" ]; then
+            echo "❌ モデルファイル不存在"
+            exit 1
+          fi
+          
+          FEATURE_COUNT=$(python3 -c "import json; print(len(json.load(open('models/production/production_model_metadata.json'))['feature_names']))")
+          
+          if [ "$FEATURE_COUNT" != "12" ]; then
+            echo "❌ 特徴量数不正: $FEATURE_COUNT != 12"
+            exit 1
+          fi
+          
+          echo "✅ モデル品質検証完了: 12特徴量確認"
+
+      - name: Commit New Models
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          echo "📝 Phase 19自動バージョン管理・モデルコミット"
+          
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "📋 モデル変更なし - コミットスキップ"
+          else
+            MODEL_VERSION=$(python3 -c "import json; print(json.load(open('models/production/production_model_metadata.json')).get('phase', 'Phase 19'))" 2>/dev/null || echo "Phase 19")
+            
+            git add models/production/ models/training/
+            if ls models/archive/*.pkl 1> /dev/null 2>&1; then
+              git add models/archive/
+            fi
+            
+            git commit -m "feat: ${MODEL_VERSION}モデル自動更新・定期学習実行" \
+              -m "" \
+              -m "- 12特徴量統一モデル再学習完了" \
+              -m "- 自動バージョン管理・アーカイブ実行" \
+              -m "- Git情報追跡・メタデータ更新" \
+              -m "- 学習期間: ${{ github.event.inputs.training_days || '180' }}日" \
+              -m "" \
+              -m "🤖 Generated with [Claude Code](https://claude.ai/code)" \
+              -m "" \
+              -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+            
+            echo "✅ モデル自動コミット完了"
+          fi
+
+      - name: Push Updated Models
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          echo "🚀 更新モデル・メタデータプッシュ"
+          git push origin main
+          echo "✅ モデル更新プッシュ完了"
+
+      - name: Trigger Production Deployment
+        if: github.event.inputs.dry_run != 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: model-updated
+
+      - name: Training Summary Report
+        if: always()
+        run: |
+          echo "📊 === Phase 19モデル学習サマリー ==="
+          echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "実行タイプ: ${{ github.event_name }}"
+          echo "学習期間: ${{ github.event.inputs.training_days || '180' }}日"
+          echo "ドライラン: ${{ github.event.inputs.dry_run || 'false' }}"
+          
+          if [ -f "models/production/production_model_metadata.json" ]; then
+            echo ""
+            echo "🎯 新モデル詳細:"
+            echo "Phase: $(python3 -c "import json; print(json.load(open('models/production/production_model_metadata.json'))['phase'])" 2>/dev/null || echo "Phase 19")"
+            echo "特徴量数: $(python3 -c "import json; print(len(json.load(open('models/production/production_model_metadata.json'))['feature_names']))" 2>/dev/null || echo "12")"
+          fi
+          
+          echo ""
+          echo "📈 Phase 19品質保証: 12特徴量統一・特徴量定義一元化対応"
+          echo "✅ モデル定期学習${{ job.status == 'success' && '完了' || '失敗' }}"
+
+      - name: Training Failure Alert
+        if: failure()
+        run: |
+          echo "🚨 警告: モデル学習が失敗しました"
+          echo "🚨 既存モデルが継続使用されます"
+          echo "🚨 手動確認・修正が必要です"

@@ -1,166 +1,147 @@
-# models/production/ - 本番環境用モデルディレクトリ
+# models/production_backup_20250904_055257/ - 本番モデルバックアップ
 
-**Phase 13対応**: ProductionEnsemble統合モデル・本番用メタデータ・高品質機械学習モデル完成（2025年8月26日現在）
+**バックアップ作成日**: 2025年9月4日 05:52:57  
+**Phase 19対応**: ProductionEnsembleバックアップ・MLOps基盤・安全性確保・ロールバック対応
 
-## 📂 ファイル構成
+## 📂 バックアップ構成
 
 ```
-models/production/
-├── production_ensemble.pkl         # ProductionEnsemble統合モデル（実取引用・最適化済み）
-├── production_model_metadata.json  # 本番用メタデータ・モデル情報・性能指標
+models/production_backup_20250904_055257/
+├── production_ensemble.pkl         # ProductionEnsemble統合モデル（バックアップ版）
+├── production_model_metadata.json  # 本番用メタデータ（バックアップ版）
 └── README.md                        # このファイル
 ```
 
 ## 🎯 役割・責任
 
-本番環境で使用する機械学習モデルとその関連情報を管理するディレクトリです。実取引で直接使用されるProductionEnsembleモデルの保存・管理・メタデータ維持を担当しています。
+**Phase 19 MLOps基盤**における本番モデルの定期バックアップディレクトリです。緊急時のロールバック・災害復旧・システム安全性確保を目的とした、ProductionEnsembleとメタデータの完全バックアップを管理します。
 
 **主要機能**:
-- ProductionEnsemble統合モデルの保存・管理
-- 本番用モデルメタデータの維持
-- 実取引での予測実行基盤提供
+- **本番モデルバックアップ**: ProductionEnsemble完全コピー・状態保持
+- **メタデータバックアップ**: 性能指標・設定情報・バージョン管理情報
+- **ロールバック基盤**: 緊急時・問題発生時の安全な復旧機能
+- **履歴保存**: 特定時点のモデル状態・性能記録・設定保持
+- **災害復旧**: システム障害・データ損失時の完全復旧対応
 
-## 🔧 主要機能・実装
+## 🔧 バックアップ内容・実装
 
-### `production_ensemble.pkl` - ProductionEnsemble統合モデル
+### `production_ensemble.pkl` - バックアップモデル
 
-**目的**: 実取引で使用するアンサンブル機械学習モデル
+**目的**: 2025年9月4日 05:52:57時点のProductionEnsembleバックアップ
 
-**構成**:
-- **LightGBM**: 40%重み付け（高速・効率的予測）
-- **XGBoost**: 40%重み付け（高精度予測）
-- **RandomForest**: 20%重み付け（安定性確保）
+**Phase 19バックアップ特徴**:
+- **完全性**: 本番モデルの完全コピー・状態完全保持
+- **整合性**: メタデータとの完全一致・バージョン整合性
+- **ロールバック**: 緊急時の即座復旧・安全性確保
+- **バージョン管理**: Git統合・ハッシュ値・変更追跡
 
-**特徴**:
-- 12特徴量対応（テクニカル指標・市場データ）
-- アンサンブル学習による予測精度向上
-- 本番環境最適化済み
+### `production_model_metadata.json` - バックアップメタデータ
 
-**使用例**:
-```python
-import pickle
-import numpy as np
+**目的**: バックアップ時点のProductionEnsemble詳細情報・性能指標・設定完全保存
 
-# ProductionEnsemble読み込み
-with open('models/production/production_ensemble.pkl', 'rb') as f:
-    production_model = pickle.load(f)
+**バックアップ情報**:
+- **作成時刻**: 2025年9月4日 05:52:57時点状態
+- **モデル性能**: F1スコア・精度・リコール・バックアップ時点記録
+- **設定情報**: 重み・特徴量・パラメータ・完全保存
+- **バージョン**: Git統合・コミットハッシュ・変更履歴
 
-# 12特徴量での予測
-sample_features = np.random.random((5, 12))  # 12特徴量必須
-predictions = production_model.predict(sample_features)
-probabilities = production_model.predict_proba(sample_features)
+## 📝 バックアップ使用方法
 
-# モデル情報確認
-info = production_model.get_model_info()
-print(f"重み: {info['weights']}")  # {'lightgbm': 0.4, 'xgboost': 0.4, 'random_forest': 0.2}
+### **緊急時ロールバック**
+
+```bash
+# 現在のproductionをバックアップから復旧
+cp models/production_backup_20250904_055257/production_ensemble.pkl models/production/
+cp models/production_backup_20250904_055257/production_model_metadata.json models/production/
+
+# ロールバック後の動作確認
+python3 scripts/management/dev_check.py ml-models --dry-run
 ```
 
-### `production_model_metadata.json` - 本番用メタデータ
+### **バックアップ内容確認**
 
-**目的**: ProductionEnsembleの詳細情報・性能指標・設定情報を管理
-
-**実際のデータ構造**:
-```json
-{
-  "created_at": "2025-08-23T07:12:24.411981",
-  "model_type": "ProductionEnsemble", 
-  "model_file": "models/production/production_ensemble.pkl",
-  "phase": "Phase 9",
-  "status": "production_ready",
-  "feature_names": [
-    "close", "volume", "returns_1", "rsi_14", "macd", "macd_signal",
-    "atr_14", "bb_position", "ema_20", "ema_50", "zscore", "volume_ratio"
-  ],
-  "individual_models": ["lightgbm", "xgboost", "random_forest"],
-  "model_weights": {
-    "lightgbm": 0.4,
-    "xgboost": 0.4,
-    "random_forest": 0.2
-  },
-  "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正"
-}
-```
-
-**記録内容**:
-- モデル作成日時・ファイルパス
-- 12特徴量の詳細リスト
-- 個別モデルの重み付け設定
-- 本番運用に関するメモ・最適化情報
-
-## 📝 使用方法・例
-
-### **基本的なモデル読み込み・予測**
 ```python
+# バックアップモデルの確認
 import pickle
-import numpy as np
 import json
 
-# ProductionEnsembleの読み込み
-with open('models/production/production_ensemble.pkl', 'rb') as f:
-    model = pickle.load(f)
+# バックアップモデル読み込み
+with open('models/production_backup_20250904_055257/production_ensemble.pkl', 'rb') as f:
+    backup_model = pickle.load(f)
 
-# メタデータの確認
-with open('models/production/production_model_metadata.json', 'r') as f:
-    metadata = json.load(f)
-    print(f"モデルタイプ: {metadata['model_type']}")
-    print(f"特徴量数: {len(metadata['feature_names'])}")
+# バックアップメタデータ確認
+with open('models/production_backup_20250904_055257/production_model_metadata.json', 'r') as f:
+    backup_metadata = json.load(f)
 
-# 予測実行（12特徴量必須）
-sample_features = np.random.random((1, 12))
-prediction = model.predict(sample_features)
-probabilities = model.predict_proba(sample_features)
-
-print(f"予測結果: {prediction}")
-print(f"予測確率: {probabilities}")
+print(f"バックアップ日時: {backup_metadata.get('created_at')}")
+print(f"Phase: {backup_metadata.get('phase')}")
+print(f"性能: {backup_metadata.get('performance_metrics', {})}")
 ```
 
-### **モデル情報確認**
+### **バックアップ検証**
+
 ```python
-# モデルの詳細情報取得
-model_info = model.get_model_info()
-print("=== ProductionEnsemble情報 ===")
-print(f"モデル数: {len(model_info['individual_models'])}")
-print(f"重み設定: {model_info['weights']}")
-print(f"特徴量数: {model_info['n_features']}")
+# バックアップモデルのテスト実行
+def test_backup_model():
+    import numpy as np
+    
+    # バックアップモデル読み込み
+    with open('models/production_backup_20250904_055257/production_ensemble.pkl', 'rb') as f:
+        model = pickle.load(f)
+    
+    # テストデータでの予測確認
+    test_features = np.random.random((3, 12))
+    predictions = model.predict(test_features)
+    probabilities = model.predict_proba(test_features)
+    
+    print(f"✅ バックアップモデル正常動作確認")
+    print(f"予測結果: {predictions}")
+    return True
+
+test_backup_model()
 ```
 
-## ⚠️ 注意事項・制約
+## ⚠️ バックアップ使用時注意事項
 
-### **モデル使用時の制約**
-1. **特徴量数**: 必ず12特徴量でなければ予測エラー
-2. **データ型**: numpy配列形式（shape: (n_samples, 12)）
-3. **特徴量順序**: metadata.jsonのfeature_names順序と一致必須
+### **ロールバック時の確認事項**
 
-### **ファイル管理上の制約**
-1. **ファイルサイズ**: production_ensemble.pklは大容量（約7MB）
-2. **Git LFS**: .pklファイルはGit LFS管理対象
-3. **権限**: 本番環境では読み取り専用アクセス推奨
+1. **互換性確認**: 現在の feature_manager.py との整合性
+2. **性能確認**: バックアップ時点の性能が要件満足
+3. **設定確認**: 12特徴量・重み設定・パラメータ確認
+4. **テスト実行**: ロールバック後の動作・予測精度確認
 
-### **運用時の注意点**
-1. **メモリ使用量**: モデル読み込み時に約50-100MB使用
-2. **予測速度**: 1回の予測で約10-50ms（環境依存）
-3. **バージョン管理**: モデル更新時はメタデータも同時更新必須
+### **バックアップファイル管理**
 
-## 🔗 関連ファイル・依存関係
+1. **保存期間**: 通常90日間保存・重要版は長期保存
+2. **容量管理**: 各バックアップ約10-15MB・定期クリーンアップ
+3. **アクセス権限**: 読み取り専用・管理者のみ変更可能
+4. **整合性**: モデルとメタデータの対応関係確認必須
 
-### **学習モデル関連**
-- **`models/training/`**: 個別モデル（LightGBM・XGBoost・RandomForest）
-- **`models/training/training_metadata.json`**: 個別モデルの性能指標・学習情報
+### **災害復旧時の手順**
 
-### **システム統合**
-- **`src/ml/`**: 機械学習モジュール・ProductionEnsemble実装
-- **`src/features/`**: 特徴量生成システム・12特徴量定義
-- **`scripts/ml/create_ml_models.py`**: モデル作成・更新スクリプト
+1. **バックアップ検証**: ファイル完全性・動作確認
+2. **段階的復旧**: テスト→ステージング→本番順序
+3. **性能確認**: 復旧後の予測精度・システム動作確認
+4. **監視強化**: 復旧後24-48時間の集中監視
 
-### **設定・管理**
-- **`config/core/feature_order.json`**: 特徴量順序定義
-- **`logs/reports/`**: モデル性能・運用レポート管理
+## 🔗 関連バックアップ・復旧システム
 
-### **外部依存**
-- **scikit-learn**: 機械学習ライブラリ基盤
-- **pandas・numpy**: データ処理・数値計算
-- **pickle**: モデルシリアライゼーション
+### **MLOps バックアップ体系**
+- **`models/production/`**: 現在の本番モデル・リアルタイム運用
+- **`models/archive/`**: 長期アーカイブ・履歴管理・比較分析
+- **`models/production_backup_*/`**: 定期バックアップ・緊急時復旧
+- **`models/training/`**: 再学習・再構築・フォールバック基盤
+
+### **復旧・運用管理**
+- **`scripts/management/dev_check.py`**: システム診断・復旧確認
+- **`.github/workflows/`**: 自動バックアップ・週次更新・品質ゲート
+- **`logs/reports/`**: バックアップ履歴・復旧レポート・品質分析
+
+### **設定・監視統合**
+- **`config/core/base.yaml`**: バックアップ設定・復旧パラメータ
+- **`src/monitoring/discord_notifier.py`**: バックアップ通知・復旧アラート
+- **`tests/unit/ml/`**: バックアップ検証・復旧テスト
 
 ---
 
-**🎯 Phase 13対応完了**: ProductionEnsemble統合モデル・本番用メタデータ管理・実取引対応の高品質機械学習システムを確立。アンサンブル学習による予測精度向上と運用安定性を両立したモデル管理環境を実現。
+**🎯 バックアップ目的**: Phase 19 MLOps基盤における2025年9月4日 05:52:57時点のProductionEnsemble完全バックアップ。緊急時ロールバック・災害復旧・システム安全性確保のため、モデル・メタデータ・設定情報の完全保存を実現

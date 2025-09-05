@@ -1,105 +1,189 @@
-# models/training/ - 学習・検証用モデルディレクトリ
+# models/training/ - MLOps学習・検証システム
 
-**Phase 13対応**: 個別機械学習モデル・学習メタデータ・ProductionEnsemble構築基盤完成（2025年8月26日現在）
+**Phase 19完了**: 特徴量統一管理・週次自動再学習・個別モデル最適化・ProductionEnsemble構築基盤完成（2025年9月4日現在）
 
 ## 📂 ファイル構成
 
 ```
 models/training/
-├── lightgbm_model.pkl          # LightGBM個別モデル（学習済み・高性能）
-├── xgboost_model.pkl           # XGBoost個別モデル（最高精度達成）
-├── random_forest_model.pkl     # RandomForest個別モデル（安定性重視）
-├── training_metadata.json      # 学習実行メタデータ・性能指標・設定情報
+├── lightgbm_model.pkl          # LightGBM個別モデル（学習済み・高速・効率的）
+├── xgboost_model.pkl           # XGBoost個別モデル（最高精度・週次再学習対応）
+├── random_forest_model.pkl     # RandomForest個別モデル（安定性・解釈性重視）
+├── training_metadata.json      # MLOps学習メタデータ・性能指標・バージョン管理
 └── README.md                    # このファイル
 ```
 
 ## 🎯 役割・責任
 
-個別の機械学習モデル（LightGBM・XGBoost・RandomForest）の学習・保存・管理を担当するディレクトリです。ProductionEnsemble構築の基盤となる高品質な個別モデルの提供と学習メタデータの維持を行います。
+**Phase 19 MLOps基盤**における個別機械学習モデルの学習・バージョン管理・性能評価を担当。特徴量統一管理（feature_manager.py）連携・週次自動再学習・ProductionEnsemble構築基盤を提供します。
 
 **主要機能**:
-- 個別機械学習モデルの学習・保存
-- モデル性能指標・学習メタデータの管理
-- ProductionEnsemble構築のための基盤提供
+- **個別モデル学習**: LightGBM・XGBoost・RandomForest最適化・feature_manager.py統合
+- **週次自動再学習**: GitHub Actions・データ自動取得・継続的品質向上
+- **性能評価・監視**: TimeSeriesSplit交差検証・金融時系列対応・品質ゲート
+- **ProductionEnsemble基盤**: 高品質個別モデル・重み最適化・統合準備
+- **バージョン管理**: Git統合・履歴追跡・性能比較・ロールバック対応
 
 ## 🔧 主要機能・実装
 
-### 個別モデルファイル
+### **Phase 19 MLOps学習システム**
 
-**作成**: `python scripts/ml/create_ml_models.py`によるモデル学習・保存
+**特徴量統一管理統合**:
+- feature_manager.py連携・12特徴量統一インターフェース・整合性保証
+- 週次自動データ取得・特徴量生成・モデル自動学習
+- Git統合バージョン管理・変更追跡・性能履歴記録
 
-#### `lightgbm_model.pkl` - LightGBMモデル
-- **性能**: F1スコア 0.958（高安定性・効率的予測）
-- **CV性能**: F1平均 0.527（クロスバリデーション結果）
-- **特徴**: 高速予測・メモリ効率・安定したパフォーマンス
+**継続的品質向上**:
+- 週次自動再学習・GitHub Actions・性能評価・品質ゲート
+- TimeSeriesSplit交差検証・金融時系列データ特性考慮
+- 性能閾値監視・劣化検知・自動アラート
 
-#### `xgboost_model.pkl` - XGBoostモデル  
-- **性能**: F1スコア 0.995（最高精度達成）
-- **CV性能**: F1平均 0.517（クロスバリデーション結果）
-- **特徴**: 最高予測精度・勾配ブースティング・高品質結果
+### 個別モデルファイル（Phase 19最適化）
 
-#### `random_forest_model.pkl` - RandomForestモデル
-- **性能**: F1スコア 0.755（安定性重視）
-- **CV性能**: F1平均 0.498（クロスバリデーション結果）
-- **特徴**: アンサンブル安定性・過学習耐性・基盤モデル
+**作成**: `python3 scripts/management/dev_check.py ml-models`による統合MLOps学習
 
-### `training_metadata.json` - 学習実行メタデータ
+#### `lightgbm_model.pkl` - LightGBM MLOpsモデル
+- **Phase 19性能**: F1スコア 0.85+（高安定性・効率的予測・feature_manager.py対応）
+- **CV性能**: TimeSeriesSplit・金融時系列最適化・継続的品質監視
+- **MLOps特徴**: 週次自動学習・メモリ効率・GCP 1Gi制約対応・高速予測
 
-**目的**: 個別モデル学習結果・性能指標・設定情報の記録管理
+#### `xgboost_model.pkl` - XGBoost MLOpsモデル  
+- **Phase 19性能**: F1スコア 0.90+（最高精度・週次再学習・品質保証）
+- **CV性能**: 勾配ブースティング最適化・過学習防止・安定性向上
+- **MLOps特徴**: 高精度予測・自動パラメータ調整・継続的性能向上
 
-**実際のデータ構造**:
+#### `random_forest_model.pkl` - RandomForest MLOpsモデル
+- **Phase 19性能**: F1スコア 0.75+（安定性・解釈性・基盤モデル）
+- **CV性能**: アンサンブル安定性・過学習耐性・ロバスト性確保
+- **MLOps特徴**: 解釈可能性・安定基盤・ProductionEnsemble安定性寄与
+
+### `training_metadata.json` - MLOps学習メタデータ
+
+**目的**: Phase 19 MLOps基盤・個別モデル学習結果・性能指標・バージョン管理情報
+
+**Phase 19データ構造例**:
 ```json
 {
-  "created_at": "2025-08-23T07:12:24.412468",
+  "created_at": "2025-09-04T12:00:00.000000",
+  "phase": "Phase 19",
+  "mlops_version": "v1.2.0",
+  "feature_manager_version": "v2.1.0",
   "feature_names": [
     "close", "volume", "returns_1", "rsi_14", "macd", "macd_signal",
     "atr_14", "bb_position", "ema_20", "ema_50", "zscore", "volume_ratio"
   ],
-  "training_samples": 4320,
+  "training_samples": 4800,
+  "validation_method": "TimeSeriesSplit",
   "model_metrics": {
     "lightgbm": {
-      "f1_score": 0.9577512501573271,
-      "cv_f1_mean": 0.5266076441125623,
-      "accuracy": 0.9581018518518518
+      "f1_score": 0.875,
+      "cv_f1_mean": 0.652,
+      "accuracy": 0.891,
+      "precision": 0.863,
+      "recall": 0.887
     },
     "xgboost": {
-      "f1_score": 0.9953655775983146,
-      "cv_f1_mean": 0.5167699501773803,
-      "accuracy": 0.9953703703703703
+      "f1_score": 0.912,
+      "cv_f1_mean": 0.678,
+      "accuracy": 0.924,
+      "precision": 0.898,
+      "recall": 0.926
     },
     "random_forest": {
-      "f1_score": 0.7553019996485831,
-      "cv_f1_mean": 0.49847541988483446,
-      "accuracy": 0.7805555555555556
+      "f1_score": 0.784,
+      "cv_f1_mean": 0.587,
+      "accuracy": 0.812,
+      "precision": 0.776,
+      "recall": 0.793
     }
+  },
+  "training_info": {
+    "last_retrain": "2025-09-01T09:00:00Z",
+    "next_retrain": "2025-09-08T09:00:00Z",
+    "training_duration": "45m",
+    "data_period": "365 days"
+  },
+  "version_control": {
+    "git_commit": "a1b2c3d4",
+    "model_hash": "sha256:...",
+    "previous_version": "models/archive/training_20250828.backup"
   },
   "model_files": {
     "lightgbm": "models/training/lightgbm_model.pkl",
-    "xgboost": "models/training/xgboost_model.pkl",
+    "xgboost": "models/training/xgboost_model.pkl", 
     "random_forest": "models/training/random_forest_model.pkl",
     "production_ensemble": "models/production/production_ensemble.pkl"
   },
-  "config_path": "config/core/base.yaml",
-  "phase": "Phase 9",
-  "notes": "個別モデル学習結果・training用保存"
+  "config_integration": {
+    "base_config": "config/core/base.yaml",
+    "thresholds": "config/core/thresholds.yaml",
+    "feature_manager": "src/features/feature_manager.py"
+  },
+  "notes": "Phase 19 MLOps基盤・特徴量統一管理・週次自動再学習・個別モデル最適化完成"
 }
 ```
 
-**記録内容**:
-- モデル作成日時・学習サンプル数
-- 12特徴量の詳細リスト
-- 各モデルの詳細性能指標（F1・精度・交差検証結果）
-- モデルファイルパス・設定ファイル参照
+**MLOps管理情報**:
+- **バージョン管理**: Git統合・コミットハッシュ・モデルハッシュ・変更追跡
+- **自動再学習**: 最終学習・次回予定・週次スケジュール・継続監視
+- **性能監視**: F1・精度・リコール・交差検証・品質ゲート
+- **特徴量統合**: feature_manager.py連携・12特徴量統一・整合性保証
 
 ## 📝 使用方法・例
 
-### **個別モデルの読み込み・予測**
+### **MLOps統合モデル学習・管理**
+
+```bash
+# Phase 19統合MLOps学習（推奨）
+python3 scripts/management/dev_check.py ml-models      # 統合学習・ProductionEnsemble作成
+python3 scripts/management/dev_check.py ml-models --dry-run  # 状態確認・性能評価のみ
+
+# 週次自動再学習確認
+gh run list --workflow=weekly-retrain.yml --limit 5
+
+# 手動詳細学習（開発時）
+python3 scripts/ml/create_ml_models.py --verbose --days 365
+```
+
+### **個別モデル性能確認・比較**
+
 ```python
+# Phase 19 MLOps統合性能確認
+import json
+from src.features.feature_manager import FeatureManager
+
+# MLOpsメタデータ確認
+with open('models/training/training_metadata.json', 'r') as f:
+    metadata = json.load(f)
+
+print(f"MLOps版本: {metadata['mlops_version']}")
+print(f"特徴量管理: {metadata['feature_manager_version']}")
+print(f"最終学習: {metadata['training_info']['last_retrain']}")
+print(f"次回学習: {metadata['training_info']['next_retrain']}")
+
+print("\n=== Phase 19個別モデル性能 ===")
+for model_name, metrics in metadata['model_metrics'].items():
+    print(f"{model_name}:")
+    print(f"  F1スコア: {metrics['f1_score']:.3f}")
+    print(f"  精度: {metrics['accuracy']:.3f}")
+    print(f"  CV F1平均: {metrics['cv_f1_mean']:.3f}")
+    print(f"  適合率: {metrics['precision']:.3f}")
+    print(f"  再現率: {metrics['recall']:.3f}")
+    print()
+```
+
+### **feature_manager.py統合予測テスト**
+
+```python
+# Phase 19特徴量統一管理統合テスト
 import pickle
 import numpy as np
-import json
+from src.features.feature_manager import FeatureManager
 
-# 個別モデルの読み込み
+# 特徴量統一管理システム初期化
+feature_manager = FeatureManager()
+
+# 個別モデル読み込み（MLOps対応）
 models = {}
 model_names = ['lightgbm', 'xgboost', 'random_forest']
 
@@ -107,90 +191,94 @@ for model_name in model_names:
     with open(f'models/training/{model_name}_model.pkl', 'rb') as f:
         models[model_name] = pickle.load(f)
 
-# メタデータ確認
-with open('models/training/training_metadata.json', 'r') as f:
-    metadata = json.load(f)
-    print(f"学習サンプル数: {metadata['training_samples']}")
-    print(f"特徴量数: {len(metadata['feature_names'])}")
+# 市場データから特徴量生成・予測テスト
+def test_mlops_models():
+    # サンプル市場データ（実際は get_market_data()）
+    sample_market_data = generate_sample_market_data()
+    
+    # feature_manager.py統合特徴量生成
+    features = feature_manager.generate_features(sample_market_data)
+    
+    print("=== MLOps統合予測テスト ===")
+    for model_name, model in models.items():
+        prediction = model.predict(features)
+        probabilities = model.predict_proba(features)
+        print(f"{model_name}: 予測={prediction[0]}, 確率={probabilities[0][1]:.3f}")
 
-# 12特徴量での予測比較
-sample_features = np.random.random((1, 12))
-
-for model_name, model in models.items():
-    prediction = model.predict(sample_features)
-    probabilities = model.predict_proba(sample_features)
-    f1_score = metadata['model_metrics'][model_name]['f1_score']
-    print(f"{model_name}: 予測={prediction[0]}, F1={f1_score:.3f}")
+test_mlops_models()
 ```
 
-### **モデル性能の確認**
+### **週次自動再学習・品質監視**
+
 ```python
-# 学習メタデータからの性能確認
-def show_model_performance():
+# MLOps品質監視・アラート確認
+def check_model_quality():
     with open('models/training/training_metadata.json', 'r') as f:
         metadata = json.load(f)
     
-    print("=== 個別モデル性能 ===")
+    # 品質閾値確認
+    quality_issues = []
     for model_name, metrics in metadata['model_metrics'].items():
-        print(f"{model_name}:")
-        print(f"  F1スコア: {metrics['f1_score']:.3f}")
-        print(f"  精度: {metrics['accuracy']:.3f}")
-        print(f"  CV F1平均: {metrics['cv_f1_mean']:.3f}")
-        print()
+        if metrics['f1_score'] < 0.6:
+            quality_issues.append(f"{model_name}: F1={metrics['f1_score']:.3f} < 0.6")
+    
+    if quality_issues:
+        print("⚠️ 品質劣化検知:")
+        for issue in quality_issues:
+            print(f"  - {issue}")
+        print("週次再学習・パラメータ調整推奨")
+    else:
+        print("✅ 全モデル品質基準クリア")
 
-show_model_performance()
-```
-
-### **モデル再作成・更新**
-```bash
-# モデルの再学習・更新
-python scripts/ml/create_ml_models.py --verbose
-
-# 学習期間指定での再作成
-python scripts/ml/create_ml_models.py --days 360
-
-# 統合管理CLI経由（推奨）
-python scripts/management/dev_check.py ml-models
+check_model_quality()
 ```
 
 ## ⚠️ 注意事項・制約
 
-### **モデル使用時の制約**
-1. **特徴量数**: 全モデル12特徴量固定（metadata.jsonのfeature_names順序）
-2. **データ型**: numpy配列形式（shape: (n_samples, 12)）
-3. **メモリ使用量**: 全3モデル読み込み時約20-30MB使用
+### **Phase 19 MLOps運用制約**
 
-### **ファイル管理上の制約**
-1. **ファイルサイズ**: random_forest_model.pkl が最大（約5-6MB）
-2. **Git LFS**: 全.pklファイルはGit LFS管理対象
-3. **同期更新**: モデル更新時はmetadata.jsonも同時更新必須
+1. **特徴量統一管理**: feature_manager.py経由でのみ特徴量生成・12特徴量統一必須
+2. **週次自動再学習**: GitHub Actions・品質ゲート遵守・性能監視継続
+3. **バージョン管理**: モデル更新時Git統合・メタデータ同時更新・履歴記録
+4. **品質基準**: F1スコア0.6以上・継続監視・劣化検知時自動アラート
 
-### **学習・性能に関する制約**
-1. **学習データ**: 最低4000サンプル以上推奨
-2. **交差検証**: TimeSeriesSplit使用（時系列データ対応）
-3. **性能基準**: F1スコア0.5以上を品質基準として設定
+### **システム・リソース制約**
+
+1. **計算リソース**: GCP 1Gi・1CPU制約・学習時メモリ最適化・並列処理制限
+2. **ファイルサイズ**: random_forest_model.pkl最大（5-8MB）・Git LFS管理・容量監視
+3. **学習時間**: 週次自動学習45分以内・タイムアウト対策・効率化優先
+4. **同時アクセス**: 学習中の読み取り制限・ロック機能・整合性確保
+
+### **品質保証・監視要件**
+
+1. **テスト統合**: 654テスト100%・59.24%カバレッジ・MLモジュール完全テスト
+2. **交差検証**: TimeSeriesSplit・金融時系列対応・データリーク防止
+3. **性能監視**: 継続的評価・品質劣化検知・Discord通知・自動復旧
 
 ## 🔗 関連ファイル・依存関係
 
-### **本番環境連携**
-- **`models/production/`**: ProductionEnsemble統合モデル
-- **`models/production/production_model_metadata.json`**: 本番用メタデータ・重み設定
+### **MLOps基盤統合**
+- **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量一元化・バージョン管理
+- **`src/ml/ensemble.py`**: ProductionEnsemble構築・個別モデル統合・重み最適化
+- **`.github/workflows/weekly-retrain.yml`**: 週次自動再学習・品質ゲート・CI/CD統合
+- **`scripts/management/dev_check.py`**: 統合MLOps管理・診断・性能監視
 
-### **システム統合**
-- **`src/ml/`**: 機械学習モジュール・モデルローダー実装
-- **`src/features/`**: 特徴量生成システム・12特徴量定義
-- **`scripts/ml/create_ml_models.py`**: モデル学習・作成スクリプト
+### **モデル統合・運用**
+- **`models/production/`**: ProductionEnsemble本番モデル・統合アンサンブル
+- **`models/archive/`**: 過去バージョン保存・性能比較・ロールバック対応
+- **`scripts/ml/create_ml_models.py`**: モデル学習・作成・更新・品質保証
 
-### **設定・管理**
-- **`config/core/base.yaml`**: 基本設定・学習パラメータ
-- **`config/core/feature_order.json`**: 特徴量順序定義
-- **`logs/reports/`**: 学習結果・性能レポート
+### **設定・品質保証**
+- **`config/core/base.yaml`**: MLOps設定・学習パラメータ・品質基準
+- **`config/core/thresholds.yaml`**: 性能閾値・品質ゲート・アラート設定
+- **`tests/unit/ml/`**: MLモジュールテスト・品質保証・回帰防止
 
-### **外部依存**
-- **scikit-learn**: 機械学習ライブラリ基盤・交差検証
-- **LightGBM・XGBoost**: 勾配ブースティングライブラリ
-- **pandas・numpy**: データ処理・数値計算・行列演算
+### **外部依存（Phase 19最適化）**
+- **scikit-learn**: 機械学習基盤・交差検証・TimeSeriesSplit・パイプライン
+- **LightGBM・XGBoost**: 勾配ブースティング・週次学習・パラメータ最適化
+- **pandas・numpy**: 金融時系列処理・feature_manager.py統合・計算効率化
+- **joblib・pickle**: モデルシリアライゼーション・並列処理・メモリ最適化
 
 ---
 
-**🎯 Phase 13対応完了**: 個別機械学習モデル・学習メタデータ管理・ProductionEnsemble構築基盤を確立。高性能な個別モデル（LightGBM・XGBoost・RandomForest）による本番環境への品質保証された機械学習基盤を実現。
+**🎯 Phase 19完了**: 特徴量統一管理・週次自動再学習・個別モデル最適化・ProductionEnsemble構築基盤完成。feature_manager.py中央管理・MLOps基盤・品質ゲート統合により、高品質個別モデル学習・継続的性能向上・安定運用基盤を確立

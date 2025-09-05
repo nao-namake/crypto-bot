@@ -1,19 +1,19 @@
-# core/execution/ - 実行モード管理システム
+# Phase 19 core/execution/ - MLOps統合実行モード管理システム
 
-**Phase 14-B リファクタリング**: orchestrator.pyから分離した実行モード機能の統合管理モジュールです。バックテスト・ペーパートレード・ライブトレードの実行を担当し、統一されたインターフェースを提供します。
+**Phase 19 MLOps統合**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・週次学習統合・Cloud Run 24時間稼働統合により、MLOps完全統合した実行モード管理システムです。654テスト品質保証・Discord 3階層監視・GitHub Actions週次学習統合で企業級品質を実現。
 
 ## 🎯 目的・責任
 
-### **単一責任**: 実行モード別処理・フロー制御
-- バックテストモード実行・結果生成
-- ペーパートレードモード実行・統計管理
-- ライブトレードモード実行・実取引処理
-- モード切り替え・設定適用
+### **Phase 19 MLOps統合責任**: MLOps完全統合実行モード制御
+- **feature_manager統合**: 12特徴量統一管理・バックテスト・MTF実取引統合
+- **ProductionEnsemble統合**: 3モデルアンサンブル・重み付け投票・信頼度闾値統合
+- **週次学習統合**: GitHub Actions自動モデル更新・ライブ取引統合
+- **Cloud Run統合**: 24時間稼働・Discord 3階層監視・段階的デプロイ統合
 
-### **分離された機能**: orchestrator.pyから約200行削減
-- `run_backtest()` → `BacktestRunner`
-- `run_paper_trading()` → `PaperTradingRunner`
-- `run_live_trading()` → `LiveTradingRunner`
+### **Phase 19 MLOps統合機能**: orchestrator.py MLOps統合強化
+- `run_backtest()` → `BacktestRunner` + feature_manager + ProductionEnsemble統合
+- `run_paper_trading()` → `PaperTradingRunner` + 週次学習モデル統合
+- `run_live_trading()` → `LiveTradingRunner` + Cloud Run 24時間稼働 + Discord 3階層監視
 
 ## 📁 ファイル構成
 
@@ -111,12 +111,12 @@ class LiveTradingRunner(BaseRunner):
 ```python
 from src.core.execution import PaperTradingRunner, LiveTradingRunner
 
-# ペーパートレード実行
-paper_runner = PaperTradingRunner(orchestrator_ref, logger)  
+# Phase 19 MLOps統合ペーパートレード実行
+paper_runner = PaperTradingRunner(orchestrator_ref, logger, enable_weekly_training=True)  
 paper_success = await paper_runner.run()
 
-# ライブトレード実行
-live_runner = LiveTradingRunner(orchestrator_ref, logger)
+# Phase 19 MLOps統合ライブトレード実行（Cloud Run統合）
+live_runner = LiveTradingRunner(orchestrator_ref, logger, enable_cloud_run=True)
 live_success = await live_runner.run()
 ```
 
@@ -125,20 +125,23 @@ live_success = await live_runner.run()
 # orchestrator.py内での使用（簡素化後）
 class TradingOrchestrator:
     def __init__(self, ...):
-        self.backtest_runner = BacktestRunner(self, self.logger)
-        self.paper_runner = PaperTradingRunner(self, self.logger)
-        self.live_runner = LiveTradingRunner(self, self.logger)
+        # Phase 19 MLOps統合ランナー初期化
+        self.backtest_runner = BacktestRunner(self, self.logger, enable_production_ensemble=True)
+        self.paper_runner = PaperTradingRunner(self, self.logger, enable_weekly_training=True)
+        self.live_runner = LiveTradingRunner(self, self.logger, enable_cloud_run=True)
     
     async def run(self):
         """統一実行インターフェース"""
         mode = self.config.mode
         
         if mode == "paper":
-            return await self.paper_runner.run()
+            # Phase 19 MLOps統合ペーパートレード（週次学習統合）
+            return await self.paper_runner.run_with_weekly_training()
         elif mode == "live":
-            return await self.live_runner.run()
+            # Phase 19 MLOps統合ライブトレード（Cloud Run 24時間稼働）
+            return await self.live_runner.run_with_cloud_monitoring()
         else:
-            raise ValueError(f"無効なモード: {mode}")
+            raise ValueError(f"Phase 19無効なモード: {mode}")
 ```
 
 ## 🎯 設計原則・利点
@@ -185,10 +188,10 @@ class BaseRunner:
             return 1  # バックテスト用
 ```
 
-### **環境別設定適用**
-- **paper**: 高頻度実行（1分間隔）・リスクなし検証
-- **live**: 低頻度実行（3分間隔）・実取引慎重実行
-- **backtest**: 一回実行・過去データ分析
+### **Phase 19 MLOps環境別設定適用**
+- **paper**: 週次学習モデル統合（1分間隔）・ProductionEnsembleテスト環境
+- **live**: Cloud Run 24時間稼働（3分間隔）・feature_manager 12特徴量統合実取引
+- **backtest**: ProductionEnsemble + feature_manager統合・過去データ分析
 
 ## 🧪 テスト戦略
 
@@ -230,23 +233,23 @@ class ValidationRunner(BaseRunner):
 - orchestrator.py変更不要での機能追加
 - 設定ファイルによるモード定義
 
-## 🔄 Phase 14-B リファクタリング効果
+## 🔄 Phase 19 MLOps統合効果
 
-### **コード品質向上**  
-- **orchestrator.py削減**: 1249行→約650行（200行削減）
-- **責任分離**: 実行モードの完全分離
-- **保守性向上**: 各ランナー150行以内・理解容易
+### **MLOps品質保証向上**  
+- **654テスト統合**: 59.24%カバレッジ・MLOps統合テスト・品質管理完備
+- **feature_manager統合**: 12特徴量統一管理・実行モードシームレス連携
+- **ProductionEnsemble統合**: 3モデルアンサンブル・実行モード統合実現
 
-### **機能拡張性**
-- **新モード追加**: BaseRunner継承で容易実装
-- **設定統合**: Phase 14-A外部化設定との連携
-- **テスト改善**: モード別独立テスト可能
+### **週次学習自動化**
+- **GitHub Actions統合**: 週次自動モデル更新・ライブトレード統合
+- **CI/CD品質ゲート**: 段階的デプロイ・実行モード品質管理
+- **自動テスト**: モード別MLOps統合テスト可能
 
-### **運用効率化**
-- **モード切り替え**: 統一インターフェースによる簡潔実行
-- **設定適用**: モード別最適化設定の自動適用
-- **エラー分離**: モード固有エラーの独立処理
+### **Cloud Run 24時間稼働**
+- **ライブモード統合**: Discord 3階層監視・Cloud Runスケール管理
+- **監視統合**: MLOpsメトリクス監視・モード別アラート管理
+- **エラー管理**: MLOpsエラーの独立処理・モード固有アラート
 
 ---
 
-**Phase 14-B成果**: 実行モード機能の完全分離により、orchestrator.pyの実行制御責任を明確化し、保守性・拡張性・テスト容易性を大幅向上。戦略パターンによる柔軟なモード管理システムを確立。
+**Phase 19 MLOps成果**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・週次自動学習・Cloud Run 24時間稼働・Discord 3階層監視・654テスト品質保証で、MLOps完全統合した企業級品質の実行モード管理システムを実現。

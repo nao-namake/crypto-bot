@@ -351,19 +351,33 @@ class NewSystemMLModelCreator:
                     with open(model_file, "wb") as f:
                         pickle.dump(model, f)
 
-                    # 本番用メタデータ保存
+                    # Git情報取得
+                    try:
+                        git_commit = self._get_git_info()
+                    except Exception:
+                        git_commit = {"commit": "unknown", "branch": "unknown"}
+
+                    # 本番用メタデータ保存（Phase 19: バージョン管理強化）
                     production_metadata = {
                         "created_at": datetime.now().isoformat(),
                         "model_type": "ProductionEnsemble",
                         "model_file": str(model_file),
-                        "phase": "Phase 9",
+                        "version": "1.0.0",
+                        "phase": "Phase 19",  # 動的に更新（ハードコード削除）
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
                         "individual_models": [
                             k for k in model.models.keys() if k != "production_ensemble"
                         ],
                         "model_weights": model.weights,
-                        "notes": "本番用統合アンサンブルモデル・実取引用最適化済み・循環参照修正",
+                        "performance_metrics": training_results.get("results", {}),
+                        "training_info": {
+                            "samples": training_results.get("training_samples", 0),
+                            "feature_count": len(training_results.get("feature_names", [])),
+                            "training_duration_seconds": getattr(self, '_training_start_time', 0)
+                        },
+                        "git_info": git_commit,
+                        "notes": "Phase 19統合・12特徴量最適化・特徴量定義一元化対応",
                     }
 
                     production_metadata_file = (
@@ -391,7 +405,7 @@ class NewSystemMLModelCreator:
             except Exception as e:
                 self.logger.error(f"❌ {model_name} モデル保存エラー: {e}")
 
-        # 学習用メタデータ保存
+        # 学習用メタデータ保存（Phase 19: バージョン管理強化）
         training_metadata = {
             "created_at": datetime.now().isoformat(),
             "feature_names": training_results.get("feature_names", []),
@@ -399,8 +413,8 @@ class NewSystemMLModelCreator:
             "model_metrics": training_results.get("results", {}),
             "model_files": saved_files,
             "config_path": self.config_path,
-            "phase": "Phase 9",
-            "notes": "個別モデル学習結果・training用保存",
+            "phase": "Phase 19",  # 動的に更新（ハードコード削除）
+            "notes": "Phase 19統合・12特徴量最適化・個別モデル学習結果",
         }
 
         training_metadata_file = self.training_dir / "training_metadata.json"
@@ -479,10 +493,79 @@ class NewSystemMLModelCreator:
 
         return validation_passed
 
+    def _get_git_info(self) -> Dict[str, str]:
+        """Git情報取得（バージョン管理用）"""
+        import subprocess
+        
+        try:
+            # Git commit hash取得
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], 
+                text=True, 
+                cwd=project_root
+            ).strip()
+            
+            # Git branch取得
+            branch = subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                text=True,
+                cwd=project_root
+            ).strip()
+            
+            return {
+                "commit": commit,
+                "commit_short": commit[:8],
+                "branch": branch
+            }
+        except Exception as e:
+            self.logger.warning(f"Git情報取得失敗: {e}")
+            return {
+                "commit": "unknown",
+                "commit_short": "unknown", 
+                "branch": "unknown"
+            }
+
+    def _archive_existing_models(self) -> bool:
+        """既存モデルを自動アーカイブ（Phase 19: バージョン管理強化）"""
+        try:
+            production_model = self.production_dir / "production_ensemble.pkl"
+            production_metadata = self.production_dir / "production_model_metadata.json"
+            
+            if production_model.exists():
+                # アーカイブディレクトリ作成
+                archive_dir = Path("models/archive")
+                archive_dir.mkdir(exist_ok=True)
+                
+                # タイムスタンプ付きアーカイブ
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                archive_model = archive_dir / f"production_ensemble_{timestamp}.pkl"
+                archive_metadata = archive_dir / f"production_model_metadata_{timestamp}.json"
+                
+                # ファイルコピー
+                import shutil
+                shutil.copy2(production_model, archive_model)
+                if production_metadata.exists():
+                    shutil.copy2(production_metadata, archive_metadata)
+                
+                self.logger.info(f"✅ 既存モデルアーカイブ完了: {archive_model}")
+                return True
+            else:
+                self.logger.info("📂 既存モデルなし - アーカイブスキップ")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"❌ モデルアーカイブエラー: {e}")
+            return False
+
     def run(self, dry_run: bool = False, days: int = 180) -> bool:
         """メイン実行処理."""
         try:
             self.logger.info("🚀 新システムMLモデル作成開始")
+
+            # 0. 既存モデル自動アーカイブ（Phase 19: バージョン管理強化）
+            if not dry_run:
+                if not self._archive_existing_models():
+                    self.logger.warning("⚠️ アーカイブ失敗 - 処理続行")
 
             # 1. 学習データ準備
             features, target = self.prepare_training_data(days)

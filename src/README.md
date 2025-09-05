@@ -1,24 +1,35 @@
-# src/ - システム実装ディレクトリ
+# Phase 19 src/ - MLOps統合システム実装ディレクトリ
 
-**Phase 18統合システム完成**: システムの核心機能を実装するメインディレクトリです。重複完全排除・コード統合・統一レポーター・統合データパイプライン・25%コード削減により、企業級保守性と効率性を実現しています（865行削減・統合品質システム・統一インターフェース完成）。
+**Phase 19 MLOps統合完了**: feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合により、MLOps完全統合したシステム実装ディレクトリを実現。Phase 18統合システム完成（重複完全排除・コード統合・統一レポーター・統合データパイプライン・25%コード削減・865行削減・統合品質システム・統一インターフェース完成）基盤に企業級品質保証完備。
 
-## 📁 ディレクトリ構成
+## 🎯 Phase 19 MLOps統合責任
+
+### **MLOps統合システム実装**: 企業級品質保証・自動化完備
+- **feature_manager統合**: 12特徴量統一管理・全システム層統合・ProductionEnsemble連携・データパイプライン最適化
+- **ProductionEnsemble統合**: 3モデルアンサンブル・重み付け投票・信頼度闾値・ML層統合・戦略層連携
+- **654テスト品質保証**: 59.24%カバレッジ・MLOps統合テスト・全システム層品質管理・回帰防止完備
+- **週次自動学習**: GitHub Actions自動ワークフロー・CI/CD品質ゲート・段階的デプロイ・自動モデル更新
+- **Cloud Run 24時間稼働**: スケーラブル実行・Discord 3階層監視・本番運用最適化・自動スケーリング・監視統合
+
+## 📁 MLOps統合ディレクトリ構成
 
 ```
 src/
-├── core/              # 基盤システム ✅ Phase 13統合完了
-│   ├── config.py      # 設定管理（環境変数・YAML統合・CI/CD対応）
-│   ├── logger.py      # ログシステム（Discord通知統合・手動実行監視）
-│   ├── exceptions.py  # カスタム例外・階層化エラー処理・GitHub Actions対応
-│   ├── orchestrator.py # 統合制御（Application Service Layer・依存性注入）
-│   └── ml_adapter.py  # MLサービス統合（優先順位読み込み・フォールバック）
+├── core/              # MLOps統合基盤システム ✅ Phase 19 MLOps統合完了
+│   ├── orchestration/     # MLOps統合制御システム
+│   │   ├── orchestrator.py    # 統合制御（feature_manager・ProductionEnsemble連携）
+│   │   ├── ml_adapter.py      # MLOpsサービス統合（優先順位読み込み・フォールバック）
+│   │   └── ml_loader.py       # MLOpsモデル読み込み専門（ProductionEnsemble優先）
+│   ├── config.py      # MLOps設定管理（環境変数・YAML統合・CI/CD対応）
+│   ├── logger.py      # MLOpsログシステム（Discord通知統合・Cloud Run監視）
+│   ├── exceptions.py  # MLOpsカスタム例外・階層化エラー処理・GitHub Actions対応
+│   └── protocols.py   # MLOps Protocol分離・型安全性・インターフェース統一
 ├── data/              # 統合データ層 ✅ Phase 18統合完成  
 │   ├── bitbank_client.py  # Bitbank API（ccxt・信用取引専用）(743行) ✅ 維持
 │   ├── data_pipeline.py   # 🌟統合データパイプライン（マルチTF・BacktestDataLoader統合）(742行) ⭐統合強化
 │   └── data_cache.py      # キャッシング（LRU+ディスク・3ヶ月保存）(469行) ✅ 維持
-├── features/          # 特徴量エンジニアリング ✅ Phase 3完了
-│   ├── technical.py   # テクニカル指標（12個厳選・47%削減）
-│   └── anomaly.py     # 異常検知（Zスコア・56%削減）
+├── features/          # MLOps統合特徴量エンジニアリング ✅ Phase 19 MLOps統合完了
+│   └── feature_generator.py # feature_manager 12特徴量統一管理（ProductionEnsemble連携・週次学習対応）
 ├── strategies/        # 取引戦略システム ✅ Phase 3-4完了
 │   ├── base/          # 戦略基盤システム
 │   │   ├── strategy_base.py     # 抽象基底クラス
@@ -32,11 +43,11 @@ src/
 │       ├── constants.py     # 定数・型システム
 │       ├── risk_manager.py  # リスク管理計算
 │       └── signal_builder.py # シグナル生成統合
-├── ml/                # 機械学習層 ✅ Phase 5完了
-│   ├── models/        # 個別モデル（LightGBM・XGBoost・RandomForest）
-│   ├── ensemble/      # アンサンブル統合（EnsembleModel・ProductionEnsemble）
-│   ├── model_manager.py # モデル管理・統合インターフェース
-│   └── __init__.py    # ML層統合インターフェース
+├── ml/                # MLOps統合機械学習層 ✅ Phase 19 MLOps統合完了
+│   ├── models.py      # MLOps統合モデル実装（ProductionEnsemble基盤・feature_manager連携）
+│   ├── ensemble.py    # MLOps統合アンサンブル（654テスト対応・週次学習統合）
+│   ├── model_manager.py # MLOpsモデル管理・週次学習・バージョニング統合
+│   └── __init__.py    # MLOps統合エクスポート（後方互換性・企業級移行対応）
 ├── backtest/          # 統合バックテストシステム ✅ Phase 18統合完成
 │   ├── engine.py      # バックテストエンジン・ポジション管理 (605行) ✅ 維持
 │   ├── evaluator.py   # 統計指標・パフォーマンス評価 (535行) ✅ 維持  
@@ -47,8 +58,8 @@ src/
 │   ├── position_sizing.py # ポジションサイジング・動的調整・段階的デプロイ対応
 │   ├── anomaly_detector.py # 取引異常検知・スプレッド監視・GitHub Actions対応
 │   └── drawdown_manager.py # ドローダウン制御・自動停止・監視統合
-└── monitoring/        # 監視層 ✅ Phase 1完了
-    └── discord.py     # Discord通知（Critical/Warning/Info）
+└── monitoring/        # MLOps統合監視層 ✅ Phase 19 MLOps統合完了
+    └── discord_notifier.py # MLOps統合Discord通知（Discord 3階層アラート・Cloud Run監視統合）
 ```
 
 ## 🎯 設計原則

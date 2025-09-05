@@ -1,12 +1,12 @@
-# Phase 13: 統合最適化完了・品質保証・CI/CD統合 Production Dockerfile
-# 607テスト・54%カバレッジ・統合キャッシュ・設定最適化対応
+# Phase 19: 特徴量定義一元化・バージョン管理システム改良完了 Production Dockerfile
+# 654テスト・59%カバレッジ・特徴量統一管理・MLOps基盤完成対応
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 13完了）
-LABEL maintainer="crypto-bot-phase13"
-LABEL version="13.0.0"
-LABEL description="Phase 13完了: 統合最適化・54%カバレッジ・607テスト・CI/CD統合"
+# メタデータ（Phase 19完了）
+LABEL maintainer="crypto-bot-phase19"
+LABEL version="19.0.0"
+LABEL description="Phase 19完了: 特徴量定義一元化・バージョン管理システム改良・定期再学習CI・MLOps基盤"
 
 WORKDIR /app
 

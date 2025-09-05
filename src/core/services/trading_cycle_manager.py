@@ -152,7 +152,19 @@ class TradingCycleManager:
         """Phase 5: ML予測"""
         try:
             if not main_features.empty:
-                ml_predictions_array = self.orchestrator.ml_service.predict(main_features)
+                # Phase 19: 12特徴量のみを選択してML予測（特徴量数不一致修正）
+                from ...core.config.feature_manager import get_feature_names
+                features_to_use = get_feature_names()
+
+                # 利用可能な特徴量のみを選択
+                available_features = [col for col in features_to_use if col in main_features.columns]
+                if len(available_features) != len(features_to_use):
+                    self.logger.warning(f"特徴量不足検出: {len(available_features)}/{len(features_to_use)}個")
+
+                main_features_for_ml = main_features[available_features]
+                self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
+
+                ml_predictions_array = self.orchestrator.ml_service.predict(main_features_for_ml)
                 # 最新の予測値を使用
                 if len(ml_predictions_array) > 0:
                     return {
