@@ -259,7 +259,10 @@ class TradingOrchestrator:
             )
 
             results = await self.backtest_engine.run_backtest(
-                symbol="BTC_JPY", start_date=start_date, end_date=end_date
+                symbol="BTC/JPY",
+                start_date=start_date,
+                end_date=end_date,
+                timeframes=["15m", "4h"],  # 設定通り15分足と4時間足
             )
 
             # 結果処理・レポート生成
@@ -293,12 +296,11 @@ class TradingOrchestrator:
         try:
             # バックテストエンジン作成
             self.backtest_engine = BacktestEngine(
-                config=self.config,
-                logger=self.logger,
-                data_service=self.data_service,
-                strategy_service=self.strategy_service,
-                ml_service=self.ml_service,
-                risk_service=self.risk_service,
+                initial_balance=10000.0,  # 設定から取得
+                slippage_rate=0.0005,
+                commission_rate=0.0012,
+                max_position_ratio=0.05,
+                risk_profile="balanced",
             )
 
             self.logger.info("🔧 BacktestEngine初期化完了")

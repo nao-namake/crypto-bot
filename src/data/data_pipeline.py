@@ -400,11 +400,16 @@ class DataPipeline:
             tf_enum = timeframe_map.get(timeframe.lower(), TimeFrame.H4)  # デフォルトは4時間足
 
             # DataRequestを作成して既存のfetch_ohlcvを使用
+            # datetimeをタイムスタンプ（ミリ秒）に変換
+            since_timestamp = None
+            if since is not None:
+                since_timestamp = int(since.timestamp() * 1000)
+
             request = DataRequest(
                 symbol=symbol,
                 timeframe=tf_enum,
                 limit=limit,
-                since=since,
+                since=since_timestamp,
             )
 
             # 非同期メソッドを実行
