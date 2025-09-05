@@ -374,7 +374,7 @@ class NewSystemMLModelCreator:
                         "training_info": {
                             "samples": training_results.get("training_samples", 0),
                             "feature_count": len(training_results.get("feature_names", [])),
-                            "training_duration_seconds": getattr(self, '_training_start_time', 0)
+                            "training_duration_seconds": getattr(self, "_training_start_time", 0),
                         },
                         "git_info": git_commit,
                         "notes": "Phase 19統合・12特徴量最適化・特徴量定義一元化対応",
@@ -494,65 +494,54 @@ class NewSystemMLModelCreator:
         return validation_passed
 
     def _get_git_info(self) -> Dict[str, str]:
-        """Git情報取得（バージョン管理用）"""
+        """Git情報取得（バージョン管理用）."""
         import subprocess
-        
+
         try:
             # Git commit hash取得
             commit = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], 
-                text=True, 
-                cwd=project_root
+                ["git", "rev-parse", "HEAD"], text=True, cwd=project_root
             ).strip()
-            
+
             # Git branch取得
             branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                text=True,
-                cwd=project_root
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True, cwd=project_root
             ).strip()
-            
-            return {
-                "commit": commit,
-                "commit_short": commit[:8],
-                "branch": branch
-            }
+
+            return {"commit": commit, "commit_short": commit[:8], "branch": branch}
         except Exception as e:
             self.logger.warning(f"Git情報取得失敗: {e}")
-            return {
-                "commit": "unknown",
-                "commit_short": "unknown", 
-                "branch": "unknown"
-            }
+            return {"commit": "unknown", "commit_short": "unknown", "branch": "unknown"}
 
     def _archive_existing_models(self) -> bool:
-        """既存モデルを自動アーカイブ（Phase 19: バージョン管理強化）"""
+        """既存モデルを自動アーカイブ（Phase 19: バージョン管理強化）."""
         try:
             production_model = self.production_dir / "production_ensemble.pkl"
             production_metadata = self.production_dir / "production_model_metadata.json"
-            
+
             if production_model.exists():
                 # アーカイブディレクトリ作成
                 archive_dir = Path("models/archive")
                 archive_dir.mkdir(exist_ok=True)
-                
+
                 # タイムスタンプ付きアーカイブ
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 archive_model = archive_dir / f"production_ensemble_{timestamp}.pkl"
                 archive_metadata = archive_dir / f"production_model_metadata_{timestamp}.json"
-                
+
                 # ファイルコピー
                 import shutil
+
                 shutil.copy2(production_model, archive_model)
                 if production_metadata.exists():
                     shutil.copy2(production_metadata, archive_metadata)
-                
+
                 self.logger.info(f"✅ 既存モデルアーカイブ完了: {archive_model}")
                 return True
             else:
                 self.logger.info("📂 既存モデルなし - アーカイブスキップ")
                 return True
-                
+
         except Exception as e:
             self.logger.error(f"❌ モデルアーカイブエラー: {e}")
             return False
