@@ -707,7 +707,7 @@ class NewSystemOperationalStatusChecker(BaseAnalyzer):
 
                     if not os.getenv("BITBANK_API_KEY"):
                         # .env.exampleファイルから環境変数を読み込み
-                        env_example_path = Path("config/.env.example")
+                        env_example_path = Path("config/secrets/.env.example")
                         if env_example_path.exists():
                             with open(env_example_path, "r") as f:
                                 for line in f:

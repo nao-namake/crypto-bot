@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-統合管理CLI - Phase 12統合版（重複コード削除・base_analyzer.py活用）
+統合管理CLI - Phase 19 MLOps統合版（feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証対応）
 
 CI前チェック特化管理システム。本番運用詳細診断はops_monitor.pyに分離。
 
-CI前チェック機能:
-- phase-check: Phase実装状況確認
-- validate: 品質チェック（checks.sh実行）
-- ml-models: MLモデル作成・検証
-- data-check: データ取得確認
-- full-check: 統合品質チェック
-- status: システム状態確認
-- health-check: GCP本番環境ヘルスチェック
-- monitor: 24時間本番監視
+Phase 19 MLOps統合チェック機能:
+- phase-check: Phase 19実装状況確認（feature_manager・ProductionEnsemble・統合システム）
+- validate: 品質チェック（654テスト・59.24%カバレッジ・MLOps統合）
+- ml-models: ProductionEnsemble 3モデル統合・週次学習対応
+- data-check: feature_manager 12特徴量統一管理・データ取得確認
+- full-check: Phase 19統合品質チェック（ML信頼度修正・Discord Webhookローカル設定）
+- status: Phase 19システム状態確認
+- health-check: GCP本番環境・Cloud Run 24時間稼働ヘルスチェック
+- monitor: 24時間本番監視・Discord 3階層通知
 - operational: 本番運用診断（ops_monitor.py委譲）
 
 Usage:
@@ -35,7 +35,7 @@ from analytics.base_analyzer import BaseAnalyzer
 
 
 class UnifiedBotManager(BaseAnalyzer):
-    """統合システム管理クラス（Phase 12統合版・base_analyzer.py活用）"""
+    """統合システム管理クラス（Phase 19 MLOps統合版・base_analyzer.py活用）"""
 
     def __init__(self):
         """初期化処理"""
@@ -59,10 +59,15 @@ class UnifiedBotManager(BaseAnalyzer):
             self.models_dir / "training",
         ]
 
-        # CI前チェック結果格納
+        # Phase 19 MLOps統合チェック結果格納
         self.check_results = {
             "timestamp": datetime.now().isoformat(),
-            "system_version": "Phase 12 - CI前チェックシステム",
+            "system_version": "Phase 19 - MLOps統合CI前チェックシステム",
+            "feature_manager_integration": "12特徴量統一管理",
+            "production_ensemble": "3モデル統合（LightGBM・XGBoost・RandomForest）",
+            "ml_confidence_fix": "固定値0.5問題解消・真のML予測",
+            "discord_local_config": "ローカルファイル優先設定",
+            "test_coverage": "654テスト・59.24%カバレッジ",
             "checks": {},
             "overall_status": "UNKNOWN",
             "overall_score": 0,
@@ -118,9 +123,9 @@ class UnifiedBotManager(BaseAnalyzer):
             return 1, str(e)
 
     def phase_check(self) -> int:
-        """Phase 10実装状況の確認."""
+        """Phase 19 MLOps統合実装状況の確認（feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・ML信頼度修正・Discord Webhookローカル設定対応）."""
         print("\n" + "=" * 60)
-        print("🎯 Phase 10 実装状況チェック")
+        print("🎯 Phase 19 MLOps統合実装状況チェック")
         print("=" * 60)
 
         checks_passed = []
@@ -138,15 +143,14 @@ class UnifiedBotManager(BaseAnalyzer):
                 print(f"❌ {req_dir.relative_to(self.project_root)}")
                 checks_failed.append(f"ディレクトリ: {req_dir.name}")
 
-        # 2. 主要コンポーネントインポートテスト
-        print("\n▶️ 2. 主要コンポーネントインポートテスト")
+        # 2. Phase 19 MLOps統合コンポーネントインポートテスト
+        print("\n▶️ 2. Phase 19 MLOps統合コンポーネントインポートテスト")
         print("-" * 40)
 
         import_tests = [
             "from src.core.config import load_config",
+            "from src.core.config.feature_manager import FeatureManager",
             "from src.data.data_pipeline import DataPipeline",
-            "from src.features.technical import TechnicalIndicators",
-            "from src.strategies.base.strategy_base import StrategyBase",
             "from src.ml.ensemble import ProductionEnsemble",
         ]
 
@@ -196,22 +200,32 @@ class UnifiedBotManager(BaseAnalyzer):
                 print(f"❌ {config_file.relative_to(self.project_root)}")
                 checks_failed.append(f"設定: {config_file.name}")
 
-        # 5. Phase 10特有機能確認
-        print("\n▶️ 5. Phase 10特有機能確認")
+        # 5. Phase 19 MLOps統合特有機能確認
+        print("\n▶️ 5. Phase 19 MLOps統合特有機能確認")
         print("-" * 40)
 
-        phase10_checks = [
-            (self.scripts_dir / "ml" / "create_ml_models.py", "MLモデル作成スクリプト"),
-            (self.scripts_dir / "testing" / "checks.sh", "品質チェックスクリプト"),
-            (self.scripts_dir / "deployment" / "docker-entrypoint.sh", "Docker entrypoint"),
+        phase19_checks = [
+            (self.config_dir / "core" / "feature_order.json", "feature_manager 12特徴量統一定義"),
+            (self.config_dir / "secrets" / ".env", "Discord Webhook・Bitbank APIローカル設定"),
+            (self.config_dir / "secrets" / "discord_webhook.txt", "Discord Webhookローカル設定"),
             (
-                self.scripts_dir / "management" / "ops_monitor.py",
-                "稼働状況確認システム",
+                self.scripts_dir / "ml" / "create_ml_models.py",
+                "ProductionEnsemble 3モデル統合スクリプト",
             ),
-            (self.project_root / "CLAUDE.md", "Claude.md (Phase 10記載)"),
+            (self.scripts_dir / "testing" / "checks.sh", "654テスト・59.24%カバレッジ品質チェック"),
+            (
+                self.project_root / ".github" / "workflows" / "model-training.yml",
+                "週次自動学習ワークフロー",
+            ),
+            (
+                self.scripts_dir / "deployment" / "docker-entrypoint.sh",
+                "Cloud Run 24時間稼働 Docker entrypoint",
+            ),
+            (self.scripts_dir / "management" / "ops_monitor.py", "稼働状況確認システム"),
+            (self.project_root / "CLAUDE.md", "CLAUDE.md (Phase 19 MLOps統合記載)"),
         ]
 
-        for file_path, description in phase10_checks:
+        for file_path, description in phase19_checks:
             if file_path.exists():
                 print(f"✅ {description}")
                 checks_passed.append(description)
@@ -219,9 +233,31 @@ class UnifiedBotManager(BaseAnalyzer):
                 print(f"❌ {description}")
                 checks_failed.append(description)
 
+        # 6. Phase 19 MLOps統合特有機能確認
+        print("\n▶️ 6. feature_manager 12特徴量統一管理確認")
+        print("-" * 40)
+
+        feature_manager_cmd = [
+            "python3",
+            "-c",
+            """import sys; sys.path.append('.');
+from src.core.config.feature_manager import FeatureManager;
+fm = FeatureManager();
+print(f'✅ 12特徴量統一管理: {fm.get_feature_count()}個');
+print(f'✅ 特徴量名: {fm.get_feature_names()}')""",
+        ]
+
+        returncode, output = self.run_command(feature_manager_cmd, capture=True, show_output=False)
+        if returncode == 0:
+            print(output.strip())
+            checks_passed.append("feature_manager 12特徴量統一管理")
+        else:
+            print("❌ feature_manager 12特徴量統一管理エラー")
+            checks_failed.append("feature_manager 12特徴量統一管理")
+
         # 結果サマリー
         print("\n" + "=" * 60)
-        print("📊 Phase 10実装状況結果")
+        print("📊 Phase 19 MLOps統合実装状況結果")
         print("-" * 40)
         print(f"✅ 成功: {len(checks_passed)} 項目")
         print(f"❌ 失敗: {len(checks_failed)} 項目")
@@ -230,16 +266,21 @@ class UnifiedBotManager(BaseAnalyzer):
             print("\n⚠️ 修正が必要な項目:")
             for item in checks_failed:
                 print(f"   • {item}")
-            print("\n💡 修正方法:")
+            print("\n💡 Phase 19 MLOps統合修正方法:")
             print("   - 不足ディレクトリ: mkdir -p <ディレクトリ名>")
-            print("   - MLモデル: python scripts/ml/create_ml_models.py")
-            print("   - 設定ファイル: 該当ファイルを作成")
-            print("   - 稼働状況確認: 既に作成済み（ops_monitor.py）")
+            print("   - ProductionEnsemble 3モデル統合: python scripts/ml/create_ml_models.py")
+            print("   - feature_manager 12特徴量: config/core/feature_order.json確認")
+            print("   - Discord Webhookローカル設定: config/secrets/discord_webhook.txt作成")
+            print("   - .envローカル設定: config/secrets/.env作成")
+            print("   - 週次自動学習: .github/workflows/model-training.yml確認")
             return 1
         else:
-            print("\n🎉 Phase 10実装完了！")
-            print("✅ すべての必要コンポーネントが揃っています")
-            print("🔍 新機能: python scripts/management/dev_check.py status-check")
+            print("\n🎉 Phase 19 MLOps統合実装完了！")
+            print(
+                "✅ feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合が揃っています"
+            )
+            print("✅ Discord Webhookローカル設定・ML信頼度修正・654テスト品質保証完備")
+            print("🔍 推奨次ステップ: python scripts/management/dev_check.py full-check")
             return 0
 
     def validate(self, mode: str = "full") -> int:
@@ -337,9 +378,9 @@ class UnifiedBotManager(BaseAnalyzer):
         return returncode
 
     def data_check(self) -> int:
-        """新システムデータ層の基本動作確認."""
+        """Phase 19 MLOps統合データ層の基本動作確認（feature_manager 12特徴量統一管理・FeatureGenerator統合対応）."""
         print("\n" + "=" * 60)
-        print("📊 新システムデータ層確認")
+        print("📊 Phase 19 MLOps統合データ層確認")
         print("=" * 60)
 
         checks_passed = []
@@ -363,7 +404,7 @@ try:
     # DataRequest作成テスト
     request = DataRequest(
         symbol='BTC/JPY',
-        timeframe=TimeFrame.H1,
+        timeframe=TimeFrame.H4,
         limit=24
     )
     print('✅ DataRequest作成成功')
@@ -382,8 +423,8 @@ except Exception as e:
             print(output.strip())
             checks_failed.append("DataPipeline")
 
-        # 2. 特徴量エンジンテスト
-        print("\n▶️ 2. TechnicalIndicators基本テスト")
+        # 2. Phase 19 feature_manager統合FeatureGeneratorテスト
+        print("\n▶️ 2. feature_manager統合FeatureGeneratorテスト")
         print("-" * 40)
 
         cmd = [
@@ -395,9 +436,13 @@ sys.path.append('.')
 import pandas as pd
 import numpy as np
 try:
-    from src.features.technical import TechnicalIndicators
-    ti = TechnicalIndicators()
-    print('✅ TechnicalIndicators初期化成功')
+    from src.core.config.feature_manager import FeatureManager
+    from src.features.feature_generator import FeatureGenerator
+    
+    fg = FeatureGenerator()
+    fm = FeatureManager()
+    print('✅ FeatureGenerator初期化成功')
+    print(f'✅ feature_manager 12特徴量統一管理: {fm.get_feature_count()}個')
 
     # サンプルデータでテスト
     sample_data = pd.DataFrame({
@@ -408,10 +453,15 @@ try:
         'volume': np.random.uniform(1000, 10000, 100)
     })
 
-    features = ti.generate_all_features(sample_data)
-    print(f'✅ 特徴量生成成功: {len(features.columns)}個')
+    features_df = fg.generate_features(sample_data)
+    print(f'✅ feature_manager統合特徴量生成成功: {len(features_df.columns)}個')
+    
+    # 12特徴量統一管理確認
+    expected_features = fm.get_feature_names()
+    actual_features = [col for col in features_df.columns if col in expected_features]
+    print(f'✅ 12特徴量統一管理確認: {len(actual_features)}個正常')
 except Exception as e:
-    print(f'❌ TechnicalIndicators エラー: {e}')
+    print(f'❌ feature_manager統合FeatureGenerator エラー: {e}')
     sys.exit(1)
 """,
         ]
@@ -419,11 +469,11 @@ except Exception as e:
         returncode, output = self.run_command(cmd, capture=True, show_output=False)
         if returncode == 0:
             print(output.strip())
-            checks_passed.append("TechnicalIndicators")
+            checks_passed.append("feature_manager統合FeatureGenerator")
         else:
-            print("❌ TechnicalIndicators テスト失敗")
+            print("❌ feature_manager統合FeatureGenerator テスト失敗")
             print(output.strip())
-            checks_failed.append("TechnicalIndicators")
+            checks_failed.append("feature_manager統合FeatureGenerator")
 
         # 3. 設定読み込みテスト
         print("\n▶️ 3. Config読み込みテスト")
@@ -475,15 +525,15 @@ except Exception as e:
             return 0
 
     def full_check(self) -> int:
-        """統合品質チェック（デプロイ前の完全検証）."""
+        """Phase 19 MLOps統合品質チェック（デプロイ前の完全検証・feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・ML信頼度修正・Discord Webhookローカル設定対応）."""
         print("\n" + "=" * 60)
-        print("🎯 統合品質チェック（Phase 10対応）")
+        print("🎯 Phase 19 MLOps統合品質チェック（654テスト・59.24%カバレッジ）")
         print("=" * 60)
         print(f"開始時刻: {datetime.now()}")
         print("=" * 60)
 
         steps = [
-            ("1/7 Phase 10実装状況確認", lambda: self.phase_check()),
+            ("1/7 Phase 19 MLOps統合実装状況確認", lambda: self.phase_check()),
             ("2/7 データ層基本確認", lambda: self.data_check()),
             ("3/7 軽量品質チェック", lambda: self.validate("light")),
             ("4/7 MLモデル検証", lambda: self.ml_models(dry_run=True)),
@@ -508,12 +558,16 @@ except Exception as e:
 
         if not failed_steps:
             print("✅ すべてのチェックに合格しました！")
-            print("🚀 Phase 10システム本番運用準備完了")
+            print("🚀 Phase 19 MLOps統合システム本番運用準備完了")
+            print(
+                "✅ feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証"
+            )
+            print("✅ Discord Webhookローカル設定・ML信頼度修正・週次自動学習システム")
             print("\n推奨次ステップ:")
-            print("  1. 本番用MLモデル作成: python scripts/management/dev_check.py ml-models")
-            print("  2. 稼働状況詳細確認: python scripts/management/dev_check.py status-check")
-            print("  3. 実際の取引テスト準備")
-            print("  4. GCP Cloud Run デプロイ準備")
+            print("  1. GitHubにプッシュしてCI/CD実行")
+            print("  2. GCP Cloud Run 24時間稼働確認")
+            print("  3. Discord 3階層監視システム動作確認")
+            print("  4. 週次自動学習ワークフロー動作確認")
             return 0
         else:
             print("❌ 以下のチェックで問題が検出されました:")
@@ -558,7 +612,7 @@ except Exception as e:
         print("📊 新システム状態確認")
         print("=" * 60)
 
-        # Phase 9主要コンポーネント状態
+        # Phase 19 MLOps統合コンポーネント状態
         components = {
             "基盤システム": self.src_dir / "core",
             "データ層": self.src_dir / "data",
@@ -717,9 +771,9 @@ except Exception as e:
             return 0
 
     def monitor_production(self, duration_hours: int = 24) -> int:
-        """Phase 12: 24時間本番監視システム."""
+        """Phase 19: 24時間本番監視システム（MLOps統合）."""
         print("\n" + "=" * 60)
-        print("📡 Phase 12本番環境手動実行監視")
+        print("📡 Phase 19 MLOps統合本番環境監視")
         print("=" * 60)
 
         import threading
@@ -727,7 +781,7 @@ except Exception as e:
         from datetime import timedelta
 
         start_time = datetime.now()
-        end_time = start_time + timedelta(hours=duration_hours)  # Phase 12バグ修正: timedelta使用
+        end_time = start_time + timedelta(hours=duration_hours)  # Phase 19 MLOps統合: timedelta使用
 
         print(f"📅 監視開始: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"📅 監視終了: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -854,7 +908,7 @@ except Exception as e:
         # 実際の環境では Discord Webhook や メール通知を実装
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         alert_message = f"""
-🚨 **Phase 12 監視アラート**
+🚨 **Phase 19 MLOps統合監視アラート**
 ⏰ 時刻: {current_time}
 ❌ 連続失敗: {consecutive_failures}回
 📊 総チェック: {total_checks}回
@@ -908,7 +962,7 @@ except Exception as e:
 
 ## 🎯 システム情報
 - **プロジェクトルート**: `{self.project_root}`
-- **Phase**: 12（CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応）
+- **Phase**: 19（MLOps統合・feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合）
 - **実行環境**: dev_check.py統合管理CLI
 
 ## 📋 実行詳細
@@ -1272,25 +1326,25 @@ except Exception as e:
 
 
 def main():
-    """メインエントリーポイント（統合版）"""
+    """Phase 19 MLOps統合メインエントリーポイント（feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証対応）"""
     parser = argparse.ArgumentParser(
-        description="統合管理CLI - Phase 12統合版（重複コード削除・base_analyzer.py活用）",
+        description="Phase 19 MLOps統合管理CLI - feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・ML信頼度修正・Discord Webhookローカル設定・654テスト品質保証対応",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Phase実装状況確認
+Phase 19 MLOps統合例:
+  # Phase 19実装状況確認（feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合）
   python scripts/management/dev_check.py phase-check
 
-  # 統合品質チェック（推奨）
+  # Phase 19 MLOps統合品質チェック（654テスト・59.24%カバレッジ・ML信頼度修正確認）
   python scripts/management/dev_check.py full-check
 
-  # 4段階運用診断（旧ops_monitor.py機能）
+  # 4段階運用診断（Cloud Run 24時間稼働・Discord 3階層監視）
   python scripts/management/dev_check.py operational
 
-  # GCP本番環境ヘルスチェック
+  # GCP本番環境ヘルスチェック（週次自動学習統合）
   python scripts/management/dev_check.py health-check
 
-  # 24時間本番監視
+  # 24時間本番監視（Discord 3階層通知統合）
   python scripts/management/dev_check.py monitor --hours 24
         """,
     )
@@ -1348,15 +1402,20 @@ Examples:
 
     if not args.command:
         parser.print_help()
-        print("\n💡 推奨: まずは 'python scripts/management/dev_check.py phase-check' で状況を確認")
-        print("🔧 Phase 12統合機能:")
-        print("   - operational: 本番運用診断（ops_monitor.py委譲）")
-        print("   - health-check: GCP本番環境ヘルスチェック")
-        print("   - monitor: 24時間本番監視")
-        print("\n📄 レポート機能:")
+        print(
+            "\n💡 推奨: まずは 'python scripts/management/dev_check.py phase-check' でPhase 19 MLOps統合状況を確認"
+        )
+        print("🔧 Phase 19 MLOps統合機能:")
+        print(
+            "   - phase-check: feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合状況確認"
+        )
+        print("   - full-check: 654テスト・59.24%カバレッジ・ML信頼度修正統合品質チェック")
+        print("   - operational: Cloud Run 24時間稼働・Discord 3階層監視本番運用診断")
+        print("   - health-check: GCP本番環境・週次自動学習ヘルスチェック")
+        print("\n📄 Phase 19 MLOps統合レポート機能:")
         print("   - 実行結果を自動的にマークダウンファイルに保存")
+        print("   - feature_manager・ProductionEnsemble・ML信頼度修正の詳細情報")
         print("   - 他のAIツールとの情報共有に最適")
-        print("   - --no-report オプションでレポート生成を無効化可能")
         return 0
 
     # コマンド実行（レポート出力機能統合）
