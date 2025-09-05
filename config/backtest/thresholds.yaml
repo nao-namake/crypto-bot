@@ -27,11 +27,11 @@ data:
   min_data_points: 50               # 最小データ点数（50期間未満は処理停止）
   max_missing_ratio: 0.05           # 欠損値比率上限（5%まで許容）
 
-# 取引・価格関連動的設定（Phase 16-B拡張版）
+# 取引・価格関連動的設定（バックテスト専用版）
 trading:
-  # 個人開発向けデフォルト設定（1万円スタート）
-  initial_balance_jpy: 10000.0      # 初期残高（1万円・個人開発リアル設定）
-  default_balance_jpy: 10000.0      # 後方互換性維持
+  # バックテスト用設定（十分なポジションサイズでテスト）
+  initial_balance_jpy: 1000000.0    # 初期残高（100万円・バックテスト用現実的設定）
+  default_balance_jpy: 1000000.0    # 後方互換性維持
   fee_rate: 0.0012                  # Bitbank maker手数料
   minimum_live_balance: 10000       # ライブトレード最小残高
   

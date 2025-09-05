@@ -169,12 +169,22 @@ class TradingCycleManager:
                 main_features_for_ml = main_features[available_features]
                 self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
 
+                # ML予測と信頼度を同時取得
                 ml_predictions_array = self.orchestrator.ml_service.predict(main_features_for_ml)
-                # 最新の予測値を使用
-                if len(ml_predictions_array) > 0:
+                ml_probabilities = self.orchestrator.ml_service.predict_proba(main_features_for_ml)
+
+                # 最新の予測値と実際の信頼度を使用
+                if len(ml_predictions_array) > 0 and len(ml_probabilities) > 0:
+                    prediction = int(ml_predictions_array[-1])
+                    # 最大確率を信頼度として使用（実際MLモデルの出力）
+                    import numpy as np
+                    confidence = float(np.max(ml_probabilities[-1]))
+
+                    self.logger.debug(f"ML予測完了: prediction={prediction}, confidence={confidence:.3f}")
+
                     return {
-                        "prediction": int(ml_predictions_array[-1]),
-                        "confidence": get_threshold("ml.default_confidence", 0.5),
+                        "prediction": prediction,
+                        "confidence": confidence,
                     }
                 else:
                     return {

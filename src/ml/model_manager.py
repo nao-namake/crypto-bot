@@ -43,6 +43,10 @@ class ModelManager:
 
         # メタデータの初期化
         self.metadata = self._load_metadata()
+        
+        # 現在読み込まれているモデル
+        self.current_model: Optional[EnsembleModel] = None
+        self.current_version: Optional[str] = None
 
         self.logger.info(f"✅ ModelManager initialized with base path: {self.base_path}")
 
@@ -119,6 +123,10 @@ class ModelManager:
                 raise FileNotFoundError(f"Model files not found: {version_path}")
 
             model = EnsembleModel.load(version_path)
+            
+            # 現在のモデルとして保存
+            self.current_model = model
+            self.current_version = version_name
 
             self.logger.info(f"✅ Model loaded: {version_name}")
             return model
@@ -142,6 +150,57 @@ class ModelManager:
 
         model = self.load_model(latest_version)
         return latest_version, model
+
+    async def predict(self, X: pd.DataFrame) -> Dict[str, Union[int, float]]:
+        """
+        現在読み込まれているモデルで予測実行
+
+        Args:
+            X: 特徴量データ
+
+        Returns:
+            Dict[str, Union[int, float]]: 予測結果
+        """
+        if self.current_model is None:
+            # モデルが読み込まれていない場合は最新モデルを読み込み
+            self.logger.info("モデル未読み込み - 最新モデルを読み込みます")
+            try:
+                self.get_latest_model()
+            except Exception as e:
+                self.logger.warning(f"モデル読み込み失敗: {e}")
+                # フォールバック: ダミー予測を返す
+                return {"prediction": 0, "confidence": 0.5, "action": "hold"}
+
+        if self.current_model is None:
+            # それでもモデルが読み込めない場合はフォールバック
+            self.logger.warning("モデルが利用できません - ダミー予測を返します")
+            return {"prediction": 0, "confidence": 0.5, "action": "hold"}
+
+        try:
+            # 予測実行
+            predictions = self.current_model.predict(X)
+            probabilities = self.current_model.predict_proba(X)
+            
+            # 結果の整形
+            if len(predictions) > 0:
+                prediction = int(predictions[-1])  # 最新の予測
+                confidence = float(probabilities[-1].max()) if len(probabilities) > 0 else 0.5
+                action = "buy" if prediction == 1 else "sell" if prediction == 0 else "hold"
+            else:
+                prediction = 0
+                confidence = 0.5
+                action = "hold"
+
+            return {
+                "prediction": prediction,
+                "confidence": confidence,
+                "action": action
+            }
+
+        except Exception as e:
+            self.logger.error(f"予測実行エラー: {e}")
+            # エラー時はフォールバック
+            return {"prediction": 0, "confidence": 0.5, "action": "hold"}
 
     def list_models(self) -> pd.DataFrame:
         """

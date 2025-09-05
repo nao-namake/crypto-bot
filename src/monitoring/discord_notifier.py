@@ -206,6 +206,15 @@ class DiscordClient:
             elif response.status_code == 400:
                 self.logger.error(f"❌ Discord API形式エラー (400): {response.text}")
                 return False
+            elif response.status_code == 401:
+                import hashlib
+                self.logger.error(f"❌ Discord Webhook無効 (401): URLが無効または削除されています")
+                self.logger.error(f"   使用URL長: {len(self.webhook_url)}文字")
+                self.logger.error(f"   URLハッシュ: {hashlib.md5(self.webhook_url.encode()).hexdigest()[:8]}")
+                self.logger.error(f"   エラー詳細: {response.text}")
+                self.enabled = False  # 自動無効化で連続エラー防止
+                self.logger.warning("⚠️ Discord通知を自動無効化しました")
+                return False
             elif response.status_code == 429:
                 self.logger.warning("⚠️ Discord Rate Limit - 送信抑制")
                 return False

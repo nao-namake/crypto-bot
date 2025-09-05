@@ -121,21 +121,27 @@ class StrategyManager:
         signals = {}
         errors = []
 
+        self.logger.debug(f"戦略シグナル収集開始: {len(self.strategies)}戦略登録済み")
         for name, strategy in self.strategies.items():
+            self.logger.debug(f"戦略チェック: {name}, is_enabled={strategy.is_enabled}")
             if not strategy.is_enabled:
                 self.logger.debug(f"戦略スキップ（無効）: {name}")
                 continue
 
             try:
+                self.logger.debug(f"[{name}] シグナル生成開始 - データシェイプ: {df.shape}")
+                self.logger.debug(f"[{name}] 利用可能な列: {list(df.columns)}")
+                
                 signal = strategy.generate_signal(df)
                 signals[name] = signal
-                self.logger.debug(
-                    f"[{name}] シグナル取得: {signal.action} ({signal.confidence:.3f})"
+                self.logger.info(
+                    f"[{name}] シグナル取得成功: {signal.action} ({signal.confidence:.3f})"
                 )
 
             except Exception as e:
-                error_msg = f"[{name}] シグナル生成エラー: {e}"
+                error_msg = f"[{name}] シグナル生成エラー: {type(e).__name__}: {e}"
                 self.logger.error(error_msg)
+                self.logger.error(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
                 errors.append(error_msg)
 
         if not signals and errors:

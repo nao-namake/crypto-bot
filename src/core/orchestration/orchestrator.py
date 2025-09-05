@@ -296,7 +296,7 @@ class TradingOrchestrator:
         try:
             # バックテストエンジン作成
             self.backtest_engine = BacktestEngine(
-                initial_balance=10000.0,  # 設定から取得
+                initial_balance=1000000.0,  # 100万円（現実的なポジションサイズ）
                 slippage_rate=0.0005,
                 commission_rate=0.0012,
                 max_position_ratio=0.05,
@@ -368,11 +368,25 @@ async def create_trading_orchestrator(
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")
 
     try:
-        # Discord通知システム初期化（Secret Manager環境変数取得）
+        # Discord通知システム初期化（ローカルファイル優先）
         import os
+        from pathlib import Path
 
-        webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-        logger.info(f"🔍 Discord環境変数取得: webhook_url存在={webhook_url is not None}")
+        # ローカル設定優先で読み込み
+        webhook_path = Path("config/secrets/discord_webhook.txt")
+        if webhook_path.exists():
+            try:
+                webhook_url = webhook_path.read_text().strip()
+                logger.info(f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）")
+            except Exception as e:
+                logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
+                webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+                logger.info(f"🌐 環境変数からフォールバック")
+        else:
+            webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+            logger.info(f"🌐 Discord Webhook URLを環境変数から読み込み")
+
+        logger.info(f"🔍 Discord Webhook URL取得結果: 存在={webhook_url is not None}")
         if webhook_url:
             logger.info(f"🔗 Discord URL長: {len(webhook_url)} 文字")
 
