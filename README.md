@@ -1,33 +1,36 @@
 # 🚀 Crypto-Bot - AI自動取引システム
 
-**個人向けAI自動取引システム（2025年9月 Phase 19完了・MLOps基盤確立）**
+**個人向け攻撃的AI自動取引システム（2025年9月 Phase 19+攻撃的設定完成・MLOps基盤確立）**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Status](https://img.shields.io/badge/status-Phase%2019%20Complete-success)](CLAUDE.md) [![Tests](https://img.shields.io/badge/tests-654%20passed%20100%25-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-59.24%25-green)](coverage-reports/) [![Quality](https://img.shields.io/badge/Quality%20Gate-PASS-success)](scripts/testing/checks.sh) [![MLOps](https://img.shields.io/badge/MLOps-Automated-blue)](.github/workflows/model-training.yml)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Status](https://img.shields.io/badge/status-Phase%2019%2B%20Aggressive%20Complete-success)](CLAUDE.md) [![Tests](https://img.shields.io/badge/tests-625%20passed%20100%25-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.64%25-green)](coverage-reports/) [![Quality](https://img.shields.io/badge/Quality%20Gate-PASS-success)](scripts/testing/checks.sh) [![MLOps](https://img.shields.io/badge/MLOps-Automated-blue)](.github/workflows/model-training.yml) [![Trading](https://img.shields.io/badge/trading-100--200%2Fmonth-orange)](config/core/thresholds.yaml)
 
 ---
 
 ## 🎯 システム概要
 
-**Phase 19完了・特徴量定義一元化・バージョン管理システム改良・定期再学習CI完成**により、12特徴量統一管理・Git情報追跡・週次自動学習を実現したMLOps基盤確立の実用的AI自動取引システムです。
+**Phase 19+攻撃的設定完成・特徴量定義一元化・攻撃的戦略ロジック実装・Dynamic Confidence完成**により、12特徴量統一管理・Git情報追跡・週次自動学習・**月100-200取引対応攻撃的戦略システム**を実現したMLOps基盤確立の実用的攻撃的AI自動取引システムです。
 
-### **✅ 現在の状況（Phase 19完了）**
-- **MLOps基盤**: 特徴量統一管理・Git追跡・自動アーカイブ・週次再学習**完全確立**
-- **品質保証**: 654テスト100%成功・59.24%カバレッジ・回帰防止完備
-- **本番運用**: Cloud Run 24時間稼働・Discord監視・自動取引継続
+### **✅ 現在の状況（Phase 19+攻撃的設定完成）**
+- **攻撃的MLOps基盤**: 特徴量統一管理・攻撃的戦略ロジック・Dynamic Confidence・Git追跡・自動アーカイブ・週次再学習**完全確立**
+- **攻撃的取引システム**: **月100-200取引対応**・ATRBased不一致取引・MochipoyAlert 1票取引・1万円運用最適化
+- **品質保証**: 625テスト100%成功・58.64%カバレッジ・攻撃的設定対応・回帰防止完備
+- **本番運用**: Cloud Run 24時間攻撃的稼働・Discord監視・攻撃的自動取引継続
 - **開発環境**: Python 3.13・JST対応・3段階CI/CD統合
 
 ## 🌟 主要特徴
 
-### **🤖 AI取引システム・MLOps基盤**
+### **🤖 攻撃的AI取引システム・MLOps基盤**
 - **12特徴量統一管理**: feature_manager.py一元管理・feature_order.json単一真実源
-- **4戦略統合**: ATR・もちぽよアラート・MTF・フィボナッチ戦略・12特徴量対応
+- **4攻撃的戦略統合**: ATR不一致取引・もちぽよ1票取引・MTF攻撃的・フィボナッチ戦略・12特徴量対応
+- **Dynamic Confidence**: HOLD固定0.5問題解決・市場ボラティリティ連動・0.1-0.8動的変動
+- **攻撃的設定システム**: 月100-200取引対応・信頼度攻撃化・リスク管理攻撃化・ポジション拡大
 - **ProductionEnsemble**: 3モデル統合・Git情報追跡・自動アーカイブ対応
 - **週次自動学習**: model-training.yml・手動実行対応・品質検証統合
 
-### **🔧 品質保証・CI/CD統合体制**
-- **654テスト100%成功**: 全機能・エラーケース・統合テスト完備
-- **59.24%カバレッジ**: 継続監視・新機能での向上・企業級品質
-- **3段階CI/CD**: ci.yml（品質・デプロイ）・model-training.yml（週次学習）・cleanup.yml（月次掃除）
+### **🔧 攻撃的品質保証・CI/CD統合体制**
+- **625テスト100%成功**: 全機能・攻撃的設定対応・エラーケース・統合テスト完備
+- **58.64%カバレッジ**: 継続監視・新機能での向上・企業級品質
+- **3段階CI/CD**: ci.yml（攻撃的品質・デプロイ）・model-training.yml（週次学習）・cleanup.yml（月次掃除）
 - **バージョン管理**: Git追跡・詳細メタデータ・自動アーカイブ・品質担保
 
 ### **⚡ 運用効率・MLOps自動化**
