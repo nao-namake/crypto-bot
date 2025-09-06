@@ -111,22 +111,9 @@ TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND re
 
 ---
 
-## 🚨 セクション7: 過去頻出問題確認
+## 📈 セクション7: パフォーマンス・安定性確認
 ```bash
-echo "=== セクション7: 過去頻出問題確認 ==="
-echo "ImportError・取引サイクルエラー確認:"
-TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"ImportError\" OR textPayload:\"取引サイクルエラー\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
-echo "Logger初期化・非同期エラー確認:"
-TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"CryptoBotLogger\" OR textPayload:\"event loop\" OR textPayload:\"Traceback\") AND severity=ERROR AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
-```
-
-**確認ポイント**: ImportErrorなし・Logger初期化成功・非同期エラーなし
-
----
-
-## 📈 セクション8: パフォーマンス・安定性確認
-```bash
-echo "=== セクション8: パフォーマンス・安定性確認 ==="
+echo "=== セクション7: パフォーマンス・安定性確認 ==="
 echo "取引サイクル実行頻度確認:"
 TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"取引サイクル開始\" OR textPayload:\"Phase.*システム稼働中\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
 echo "システム停止検出・最新ログ確認:"
@@ -138,9 +125,13 @@ TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND re
 
 ---
 
-## 🔍 セクション9: 隠れたエラー連鎖パターン検出
+## 🔍 セクション8: 過去頻出問題・エラー連鎖パターン検出（統合版）
 ```bash
-echo "=== セクション9: 隠れたエラー連鎖パターン検出 ==="
+echo "=== セクション8: 過去頻出問題・エラー連鎖パターン検出 ==="
+echo "ImportError・取引サイクルエラー確認:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"ImportError\" OR textPayload:\"取引サイクルエラー\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
+echo "Logger初期化・非同期エラー確認:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"CryptoBotLogger\" OR textPayload:\"event loop\" OR textPayload:\"Traceback\") AND severity=ERROR AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
 echo "IntegratedRiskManager引数不足エラー確認:"
 TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"IntegratedRiskManager.evaluate_trade_opportunity() missing\" OR textPayload:\"missing 3 required positional arguments\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
 echo "不正embed構造パターン確認:"
@@ -152,7 +143,7 @@ echo "Discord通知エラー連鎖（最新5件）:"
 TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"Discord通知送信失敗\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)"
 ```
 
-**確認ポイント**: IntegratedRiskManagerエラーなし・embed構造正常・エラー連鎖なし
+**確認ポイント**: ImportErrorなし・Logger正常・IntegratedRiskManagerエラーなし・embed構造正常・エラー連鎖なし
 
 ---
 
@@ -185,9 +176,8 @@ EOL
 - [ ] セクション4: ML → ProductionEnsemble正常・予測成功
 - [ ] セクション5: 取引 → BUY/SELLシグナル生成・hold固定でない
 - [ ] セクション6: 通知 → Discord成功・embed構造正常
-- [ ] セクション7: 頻出問題 → ImportErrorなし・Logger正常
-- [ ] セクション8: パフォーマンス → サイクル実行・最新ログあり
-- [ ] セクション9: 隠れたエラー → 連鎖エラーなし・引数エラーなし
+- [ ] セクション7: パフォーマンス → サイクル実行・最新ログあり
+- [ ] セクション8: 統合エラー検出 → ImportError・Logger・連鎖エラーなし
 
 **総合判定**:
 - **✅ 全正常**: 実取引開始可能
@@ -203,6 +193,6 @@ EOL
 3. **バッチ修正**: 優先度順に関連問題をまとめて修正
 4. **修正確認**: 重要セクション（3,4,5）の部分再チェック
 5. **CI/CD実行**: 修正後のCI実行・デプロイ確認
-6. **クイック再チェック**: セクション1,3,8のみ再実行で安定稼働確認
+6. **クイック再チェック**: セクション1,3,7のみ再実行で安定稼働確認
 
-この構造なら9つのセクションを確実に順次実行し、全エラーを把握後にまとめて対応できます。
+この構造なら8つのセクションを確実に順次実行し、全エラーを把握後にまとめて対応できます。

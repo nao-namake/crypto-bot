@@ -493,7 +493,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 strength = base_confidence + (level_bonus + trend_bonus) * 0.5
             else:
                 action = EntryAction.HOLD
-                confidence = 0.5
+                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
                 strength = 0.0
 
             # 分析テキスト作成

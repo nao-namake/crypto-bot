@@ -201,7 +201,7 @@ class MultiTimeframeStrategy(StrategyBase):
                 else:
                     # 不一致またはシグナルなし
                     action = EntryAction.HOLD
-                    confidence = 0.5
+                    confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
             else:
                 # 重み付け判定
                 weighted_score = tf_4h_signal * tf_4h_weight + tf_15m_signal * tf_15m_weight
@@ -211,12 +211,12 @@ class MultiTimeframeStrategy(StrategyBase):
                     confidence = min(abs(weighted_score), 1.0)
                 else:
                     action = EntryAction.HOLD
-                    confidence = 0.5
+                    confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
 
             # 最小信頼度チェック
             if confidence < min_confidence:
                 action = EntryAction.HOLD
-                confidence = 0.5
+                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
 
             return {
                 "action": action,

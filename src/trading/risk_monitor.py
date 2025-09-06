@@ -521,7 +521,7 @@ class TradingAnomalyDetector:
             # Phase 3異常検知との連携（市場データがある場合）
             if market_data is not None:
                 try:
-                    market_features = self.market_anomaly_detector.generate_all_features(
+                    market_features = self.market_anomaly_detector.generate_features_sync(
                         market_data
                     )
                     # Phase 19: market_stress削除（12特徴量統一）

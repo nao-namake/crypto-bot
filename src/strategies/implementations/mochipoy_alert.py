@@ -199,7 +199,7 @@ class MochipoyAlertStrategy(StrategyBase):
             # 最低信頼度チェック
             if confidence < self.config["min_confidence"]:
                 action = EntryAction.HOLD
-                confidence = 0.5
+                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
 
             return {
                 "action": action,

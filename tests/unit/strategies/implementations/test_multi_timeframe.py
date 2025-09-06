@@ -163,7 +163,7 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         # 4時間足のみの場合、信頼度が減額される
         # confidence = 0.6 * 0.7 = 0.42 < min_confidence(0.5) なのでHOLD
         self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], 0.5)  # HOLDのデフォルト信頼度
+        self.assertEqual(decision["confidence"], 0.3)  # 攻撃的設定対応
 
     def test_make_2tf_decision_no_agreement_mode(self):
         """2層統合判定 - 一致不要モードテスト."""

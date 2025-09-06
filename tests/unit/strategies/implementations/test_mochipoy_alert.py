@@ -139,7 +139,7 @@ class TestMochipoyAlertStrategy(unittest.TestCase):
         decision = self.strategy._make_simple_decision(ema_signal=1, macd_signal=-1, rci_signal=0)
 
         self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], 0.5)
+        self.assertEqual(decision["confidence"], 0.3)  # 攻撃的設定対応
 
     def test_analyze_full_integration(self):
         """統合分析テスト."""
