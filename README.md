@@ -65,7 +65,7 @@ python3 main.py --mode backtest
 bash scripts/testing/checks.sh                    # 654テスト・約30秒
 
 # システム状態確認
-python3 scripts/management/dev_check.py validate  # 設定・整合性チェック
+python3 scripts/testing/dev_check.py validate  # 設定・整合性チェック
 
 # 本番環境確認
 gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
@@ -145,7 +145,7 @@ git push origin main                         # CI/CD自動実行
 
 ### **📞 サポート・問題解決**
 - **システム状態確認**: `bash scripts/testing/checks.sh`
-- **設定問題**: `python3 scripts/management/dev_check.py validate`
+- **設定問題**: `python3 scripts/testing/dev_check.py validate`
 - **本番環境**: `gcloud run services describe crypto-bot-service-prod`
 - **詳細ガイド**: [CLAUDE.md](CLAUDE.md)のトラブルシューティング参照
 

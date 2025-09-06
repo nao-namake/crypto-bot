@@ -11,10 +11,6 @@ scripts/
 │   ├── data_collector.py            # 実データ収集・MLOps統計分析・654テスト統合
 │   ├── performance_analyzer.py      # システムパフォーマンス・feature_manager統合分析
 │   └── dashboard.py                 # HTMLダッシュボード・Phase 19可視化・週次学習監視
-├── management/         # 統合管理・開発支援・監視 [詳細: README.md]
-│   ├── dev_check.py                 # Phase 19統合開発管理CLI（多機能・MLOps対応）
-│   ├── ops_monitor.py               # 24時間運用監視・Cloud Run・Discord統合
-│   └── status_config.json           # システム状態設定・Phase 19対応
 ├── ml/                 # 機械学習・モデル管理 [詳細: README.md]
 │   └── create_ml_models.py          # MLOps統合・ProductionEnsemble・週次学習対応
 ├── deployment/         # デプロイメント・インフラ [詳細: README.md]
@@ -23,9 +19,9 @@ scripts/
 │   ├── setup_ci_prerequisites.sh    # CI/CD・654テスト・GitHub Actions統合
 │   ├── setup_gcp_secrets.sh         # GCP Secret Manager・MLOps認証統合
 │   └── verify_gcp_setup.sh          # GCP環境・Cloud Run・週次学習環境検証
-└── testing/            # テスト・品質保証 [詳細: README.md]
+└── testing/            # テスト・品質保証・統合開発管理 [詳細: README.md]
     ├── checks.sh                    # 654テスト統合品質チェック・59.24%カバレッジ
-    └── test_live_trading.py          # Phase 19対応ライブトレード統合テスト
+    └── dev_check.py                 # Phase 19統合開発管理CLI（多機能・MLOps対応）
 ```
 
 ## 🎯 役割・責任
@@ -41,19 +37,12 @@ scripts/
 
 ## 🔧 主要機能・実装（Phase 19統合）
 
-### **management/ - 統合管理・開発支援（核心機能）**
+### **testing/ - 品質保証・統合開発管理（核心機能）**
 
 **Phase 19統合対応**:
-- **`dev_check.py`**: 654テスト・59.24%カバレッジ・MLOps診断・feature_manager検証
-- **`ops_monitor.py`**: Cloud Run 24時間監視・Discord統合・週次学習監視・自動復旧
-- Phase 19 MLOps基盤・ProductionEnsemble・統合品質保証・CI/CD統合
-
-### **testing/ - 品質保証・テスト（Phase 19基盤）**
-
-**654テスト統合**:
-- **`checks.sh`**: 654テスト実行・59.24%カバレッジ測定・品質ゲート統合
-- **`test_live_trading.py`**: Phase 19対応実取引テスト・段階的デプロイ検証
-- CI/CD・GitHub Actions・品質保証・回帰防止・継続的品質向上
+- **`checks.sh`**: 654テスト実行・59.24%カバレッジ測定・品質ゲート・CI/CD統合
+- **`dev_check.py`**: 統合開発管理・MLOps診断・システム状態確認・包括的品質チェック
+- Phase 19 MLOps基盤・ProductionEnsemble・統合品質保証・継続的品質向上
 
 ### **ml/ - MLOps・モデル管理（Phase 19核心）**
 
@@ -85,8 +74,8 @@ scripts/
 bash scripts/testing/checks.sh                         # 654テスト・30秒完了
 
 # MLOps統合開発管理（多機能CLI）
-python3 scripts/management/dev_check.py full-check     # 統合診断・MLOps確認
-python3 scripts/management/dev_check.py ml-models      # ProductionEnsemble作成
+python3 scripts/testing/dev_check.py full-check     # 統合診断・MLOps確認
+python3 scripts/testing/dev_check.py ml-models      # ProductionEnsemble作成
 
 # 24時間運用監視
 python3 scripts/management/ops_monitor.py              # Cloud Run・Discord監視

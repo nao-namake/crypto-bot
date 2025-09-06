@@ -153,7 +153,7 @@ python3 scripts/analytics/dashboard.py --hours 720 --discord --monthly-report
 - **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量・分析統計統合
 - **`src/ml/ensemble.py`**: ProductionEnsemble・モデル管理・性能分析統合
 - **`.github/workflows/`**: 週次自動再学習・CI/CD・品質ゲート・分析連携
-- **`scripts/management/dev_check.py`**: 統合品質チェック・MLOps診断・分析連携
+- **`scripts/testing/dev_check.py`**: 統合品質チェック・MLOps診断・分析連携
 
 ### **品質保証・監視システム**
 - **`scripts/testing/checks.sh`**: 654テスト・カバレッジ・品質分析データソース

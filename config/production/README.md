@@ -139,7 +139,7 @@ print(f"特徴量一覧: {fm.get_feature_names()}")  # 12特徴量統一定義
 ### **安全性チェック（Phase 19統合）**
 ```bash
 # 本番前チェックリスト（654テスト・特徴量統一管理対応）
-python3 scripts/management/dev_check.py validate
+python3 scripts/testing/dev_check.py validate
 python3 scripts/testing/checks.sh
 
 # Phase 19品質チェック（MLOps・特徴量統一管理対応）

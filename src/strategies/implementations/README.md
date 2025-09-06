@@ -221,7 +221,7 @@ python -m pytest tests/unit/strategies/implementations/test_multi_timeframe.py -
 python -m pytest tests/unit/strategies/implementations/test_fibonacci_retracement.py -v
 
 # 399テスト統合基盤確認（段階的デプロイ対応）
-python scripts/management/dev_check.py validate --mode light
+python scripts/testing/dev_check.py validate --mode light
 ```
 
 ### テスト構成（Phase 13・CI/CDワークフロー最適化）

@@ -692,7 +692,12 @@ class BacktestReporter:
 
             # JSONレポートも保存
             await self._save_json_report(
-                results, start_date, end_date, timestamp, performance_stats, backtest_report_dir
+                results,
+                start_date,
+                end_date,
+                timestamp,
+                performance_stats,
+                backtest_report_dir,
             )
 
             self.logger.info(f"📁 バックテストレポート保存: {filepath}")
@@ -786,9 +791,9 @@ class BacktestReporter:
                 {
                     "total_trades": total_trades,
                     "winning_trades": winning_trades,
-                    "win_rate": (winning_trades / total_trades * 100) if total_trades > 0 else 0,
+                    "win_rate": ((winning_trades / total_trades * 100) if total_trades > 0 else 0),
                     "total_pnl": total_pnl,
-                    "avg_pnl_per_trade": total_pnl / total_trades if total_trades > 0 else 0,
+                    "avg_pnl_per_trade": (total_pnl / total_trades if total_trades > 0 else 0),
                 }
             )
         else:
@@ -911,7 +916,10 @@ class BacktestReporter:
                 },
                 "performance_stats": performance_stats,
                 "raw_results": results,
-                "metadata": {"reporter_version": "Phase18_Integrated", "format_version": "2.0"},
+                "metadata": {
+                    "reporter_version": "Phase18_Integrated",
+                    "format_version": "2.0",
+                },
             }
 
             with open(json_filepath, "w", encoding="utf-8") as f:

@@ -505,7 +505,9 @@ class NewSystemMLModelCreator:
 
             # Git branch取得
             branch = subprocess.check_output(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True, cwd=project_root
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                text=True,
+                cwd=project_root,
             ).strip()
 
             return {"commit": commit, "commit_short": commit[:8], "branch": branch}

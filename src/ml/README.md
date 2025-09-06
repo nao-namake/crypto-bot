@@ -44,8 +44,8 @@ src/ml/
 
 ```bash
 # 🎯 MLOps統合管理CLI - 企業級品質保証（推奨）
-python scripts/management/dev_check.py ml-models      # モデル作成・654テスト検証
-python scripts/management/dev_check.py ml-models --dry-run  # ドライラン・品質ゲート
+python scripts/testing/dev_check.py ml-models      # モデル作成・654テスト検証
+python scripts/testing/dev_check.py ml-models --dry-run  # ドライラン・品質ゲート
 
 # 🔧 MLOps統合スクリプト実行（週次学習対応）
 python scripts/ml/create_ml_models.py --verbose --mlops     # MLOps統合モード
@@ -186,8 +186,8 @@ python -m pytest tests/unit/ml/test_model_manager.py -v      # モデル管理
 python -m pytest tests/unit/ml/test_ml_integration.py -v     # 統合テスト
 
 # 統合管理CLI経由テスト（Phase 13対応）
-python scripts/management/dev_check.py ml-models --dry-run
-python scripts/management/dev_check.py health-check
+python scripts/testing/dev_check.py ml-models --dry-run
+python scripts/testing/dev_check.py health-check
 ```
 
 ### テスト分類（Phase 18統合対応）
@@ -204,7 +204,7 @@ python scripts/management/dev_check.py health-check
 
 ```bash
 # 設定ファイル指定
-python scripts/management/dev_check.py ml-models --config config/ml/custom.yaml
+python scripts/testing/dev_check.py ml-models --config config/ml/custom.yaml
 
 # 学習期間調整
 python scripts/ml/create_ml_models.py --days 180  # デフォルト
@@ -349,11 +349,11 @@ risk_assessment = risk_manager.evaluate_ml_signals(ml_predictions, ml_probabilit
 
 ```bash
 # Phase 13統合ワークフロー（CI/CDワークフロー最適化・手動実行監視対応）
-python scripts/management/dev_check.py phase-check    # 実装状況確認
-python scripts/management/dev_check.py data-check     # データ層確認
-python scripts/management/dev_check.py ml-models      # MLモデル管理
-python scripts/management/dev_check.py health-check   # ヘルスチェック
-python scripts/management/dev_check.py full-check     # 統合チェック
+python scripts/testing/dev_check.py phase-check    # 実装状況確認
+python scripts/testing/dev_check.py data-check     # データ層確認
+python scripts/testing/dev_check.py ml-models      # MLモデル管理
+python scripts/testing/dev_check.py health-check   # ヘルスチェック
+python scripts/testing/dev_check.py full-check     # 統合チェック
 ```
 
 ## 📈 今後の拡張計画（Phase 13以降）

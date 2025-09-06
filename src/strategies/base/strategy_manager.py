@@ -131,7 +131,7 @@ class StrategyManager:
             try:
                 self.logger.debug(f"[{name}] シグナル生成開始 - データシェイプ: {df.shape}")
                 self.logger.debug(f"[{name}] 利用可能な列: {list(df.columns)}")
-                
+
                 signal = strategy.generate_signal(df)
                 signals[name] = signal
                 self.logger.info(

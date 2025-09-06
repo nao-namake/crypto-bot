@@ -725,7 +725,10 @@ class ProductionEnsemble:
         validation_result = {
             "n_samples": len(X),
             "prediction_range": [int(predictions.min()), int(predictions.max())],
-            "probability_range": [float(probabilities.min()), float(probabilities.max())],
+            "probability_range": [
+                float(probabilities.min()),
+                float(probabilities.max()),
+            ],
             "buy_ratio": float(predictions.mean()),
             "avg_confidence": float(probabilities.max(axis=1).mean()),
         }

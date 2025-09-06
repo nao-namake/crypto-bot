@@ -186,5 +186,5 @@ class MLModelLoader:
             "model_type": self.model_type,
             "is_fitted": self.is_fitted,
             "has_predict": hasattr(self.model, "predict") if self.model else False,
-            "has_predict_proba": hasattr(self.model, "predict_proba") if self.model else False,
+            "has_predict_proba": (hasattr(self.model, "predict_proba") if self.model else False),
         }

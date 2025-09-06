@@ -27,11 +27,11 @@ data:
   min_data_points: 50               # 最小データ点数（50期間未満は処理停止）
   max_missing_ratio: 0.05           # 欠損値比率上限（5%まで許容）
 
-# 取引・価格関連動的設定（バックテスト専用版）
+# 取引・価格関連動的設定（バックテスト専用版・50万円対応）
 trading:
-  # バックテスト用設定（十分なポジションサイズでテスト）
-  initial_balance_jpy: 1000000.0    # 初期残高（100万円・バックテスト用現実的設定）
-  default_balance_jpy: 1000000.0    # 後方互換性維持
+  # バックテスト用設定（50万円・本番想定設定）
+  initial_balance_jpy: 500000.0    # 初期残高（50万円・本番対応設定）
+  default_balance_jpy: 500000.0    # 後方互換性維持
   fee_rate: 0.0012                  # Bitbank maker手数料
   minimum_live_balance: 10000       # ライブトレード最小残高
   
@@ -166,7 +166,7 @@ execution:
   live_mode_interval_seconds: 180   # ライブトレード実行間隔（3分・収益性重視）
   
   # バックテスト設定
-  backtest_period_days: 180         # バックテスト期間（6ヶ月・充分なデータ量確保）
+  backtest_period_days: 90          # バックテスト期間（90日・本番想定期間）
 
 # ポジション管理詳細設定（Phase 16-B新規）
 position_management:
@@ -190,7 +190,7 @@ position_management:
     cooldown_hours: 24             # 24時間クールダウン
     persistence_file: ".cache/data/drawdown_state.json"
     recovery_threshold: 0.02       # 2%回復で復帰
-    default_balance: 10000.0       # デフォルト残高（1万円・個人運用統一）
+    default_balance: 500000.0      # デフォルト残高（50万円・バックテスト統一）
   
   # 動的サイジング
   dynamic_sizing:

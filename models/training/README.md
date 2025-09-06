@@ -40,7 +40,7 @@ models/training/
 
 ### 個別モデルファイル（Phase 19最適化）
 
-**作成**: `python3 scripts/management/dev_check.py ml-models`による統合MLOps学習
+**作成**: `python3 scripts/testing/dev_check.py ml-models`による統合MLOps学習
 
 #### `lightgbm_model.pkl` - LightGBM MLOpsモデル
 - **Phase 19性能**: F1スコア 0.85+（高安定性・効率的予測・feature_manager.py対応）
@@ -135,8 +135,8 @@ models/training/
 
 ```bash
 # Phase 19統合MLOps学習（推奨）
-python3 scripts/management/dev_check.py ml-models      # 統合学習・ProductionEnsemble作成
-python3 scripts/management/dev_check.py ml-models --dry-run  # 状態確認・性能評価のみ
+python3 scripts/testing/dev_check.py ml-models      # 統合学習・ProductionEnsemble作成
+python3 scripts/testing/dev_check.py ml-models --dry-run  # 状態確認・性能評価のみ
 
 # 週次自動再学習確認
 gh run list --workflow=weekly-retrain.yml --limit 5
@@ -261,7 +261,7 @@ check_model_quality()
 - **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量一元化・バージョン管理
 - **`src/ml/ensemble.py`**: ProductionEnsemble構築・個別モデル統合・重み最適化
 - **`.github/workflows/weekly-retrain.yml`**: 週次自動再学習・品質ゲート・CI/CD統合
-- **`scripts/management/dev_check.py`**: 統合MLOps管理・診断・性能監視
+- **`scripts/testing/dev_check.py`**: 統合MLOps管理・診断・性能監視
 
 ### **モデル統合・運用**
 - **`models/production/`**: ProductionEnsemble本番モデル・統合アンサンブル

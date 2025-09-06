@@ -10,4 +10,9 @@ from .system_recovery import SystemRecoveryService
 from .trading_cycle_manager import TradingCycleManager
 from .trading_logger import TradingLoggerService
 
-__all__ = ["HealthChecker", "SystemRecoveryService", "TradingLoggerService", "TradingCycleManager"]
+__all__ = [
+    "HealthChecker",
+    "SystemRecoveryService",
+    "TradingLoggerService",
+    "TradingCycleManager",
+]

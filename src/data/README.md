@@ -246,8 +246,8 @@ python tests/manual/test_phase2_components.py
 # ✅ DataCache: PASS（CI/CDワークフロー最適化）
 
 # 399テスト実行基盤（Phase 13統合管理）
-python scripts/management/dev_check.py data-check
-python scripts/management/dev_check.py health-check
+python scripts/testing/dev_check.py data-check
+python scripts/testing/dev_check.py health-check
 ```
 
 ### 個別コンポーネント確認
@@ -383,7 +383,7 @@ pipeline = DataPipeline();
 print('✅ Data pipeline async handling fixed')"
 
 # 統合システム確認
-python scripts/management/dev_check.py validate
+python scripts/testing/dev_check.py validate
 # 期待結果: ✅ Data systems: PASS
 ```
 

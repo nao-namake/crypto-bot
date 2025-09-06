@@ -137,8 +137,8 @@ python -m pytest tests/unit/strategies/ -v
 # 特徴量エンジニアリングも戦略テスト内で検証完了・段階的デプロイ対応
 
 # 399テスト統合基盤確認（Phase 13統合管理）
-python scripts/management/dev_check.py validate --mode light
-python scripts/management/dev_check.py health-check
+python scripts/testing/dev_check.py validate --mode light
+python scripts/testing/dev_check.py health-check
 ```
 
 ### 個別コンポーネント確認

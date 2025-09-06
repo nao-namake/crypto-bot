@@ -175,7 +175,9 @@ class LiveTradingRunner(BaseRunner):
             }
 
             self.logger.info(
-                "📊 ライブトレード進捗統計", extra_data=progress_stats, discord_notify=True
+                "📊 ライブトレード進捗統計",
+                extra_data=progress_stats,
+                discord_notify=True,
             )
 
         except Exception as e:
@@ -193,7 +195,9 @@ class LiveTradingRunner(BaseRunner):
             }
 
             self.logger.info(
-                "📋 ライブトレード最終サマリー", extra_data=final_summary, discord_notify=True
+                "📋 ライブトレード最終サマリー",
+                extra_data=final_summary,
+                discord_notify=True,
             )
 
         except Exception as e:

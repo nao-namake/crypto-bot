@@ -74,7 +74,7 @@ models/               # MLOps統合モデル・バージョン管理
 bash scripts/testing/checks.sh                         # 654テスト・カバレッジ・約30秒
 
 # 軽量システム確認
-python3 scripts/management/dev_check.py validate       # 設定・整合性チェック
+python3 scripts/testing/dev_check.py validate       # 設定・整合性チェック
 
 # 期待結果: ✅ 654テスト100%成功・59.24%カバレッジ・品質保証通過
 ```
@@ -163,7 +163,7 @@ python3 -m pytest tests/ -v                      # 個別テスト実行
 python3 -c "import sys; sys.path.insert(0, '.'); from src.core.logger import CryptoBotLogger"
 
 # 設定エラー時  
-python3 scripts/management/dev_check.py validate  # 設定整合性確認
+python3 scripts/testing/dev_check.py validate  # 設定整合性確認
 ```
 
 ### **本番環境問題**

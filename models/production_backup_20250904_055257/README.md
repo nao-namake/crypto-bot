@@ -55,7 +55,7 @@ cp models/production_backup_20250904_055257/production_ensemble.pkl models/produ
 cp models/production_backup_20250904_055257/production_model_metadata.json models/production/
 
 # ロールバック後の動作確認
-python3 scripts/management/dev_check.py ml-models --dry-run
+python3 scripts/testing/dev_check.py ml-models --dry-run
 ```
 
 ### **バックアップ内容確認**
@@ -133,7 +133,7 @@ test_backup_model()
 - **`models/training/`**: 再学習・再構築・フォールバック基盤
 
 ### **復旧・運用管理**
-- **`scripts/management/dev_check.py`**: システム診断・復旧確認
+- **`scripts/testing/dev_check.py`**: システム診断・復旧確認
 - **`.github/workflows/`**: 自動バックアップ・週次更新・品質ゲート
 - **`logs/reports/`**: バックアップ履歴・復旧レポート・品質分析
 

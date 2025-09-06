@@ -1115,7 +1115,7 @@ class IntegratedRiskManager:
                     "type": "RiskManagementDenial",
                     "message": "取引がリスク管理により拒否されました",
                     "component": "IntegratedRiskManager",
-                    "severity": "warning" if evaluation.risk_score < 0.8 else "critical",
+                    "severity": ("warning" if evaluation.risk_score < 0.8 else "critical"),
                     "details": {
                         "risk_score": f"{evaluation.risk_score:.1%}",
                         "denial_reasons": evaluation.denial_reasons[:3],

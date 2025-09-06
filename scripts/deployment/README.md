@@ -205,7 +205,7 @@ run_phase19_diagnosis()
 - **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量・デプロイ統合・起動時検証
 - **`src/ml/ensemble.py`**: ProductionEnsemble・モデル管理・学習統合・デプロイ連携
 - **`.github/workflows/`**: 週次自動再学習・CI/CD・品質ゲート・自動デプロイ統合
-- **`scripts/management/dev_check.py`**: 統合開発管理・MLOps診断・デプロイ前確認
+- **`scripts/testing/dev_check.py`**: 統合開発管理・MLOps診断・デプロイ前確認
 
 ### **品質保証・テストシステム**
 - **`scripts/testing/checks.sh`**: 654テスト・59.24%カバレッジ・品質ゲート・デプロイ前必須

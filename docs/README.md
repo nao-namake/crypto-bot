@@ -118,10 +118,10 @@ Phase 19完了システムの要件定義・機能仕様・アーキテクチャ
 ```bash
 # 1. システム状態確認（毎日推奨）
 bash scripts/testing/checks.sh                           # 654テスト・30秒完了
-python3 scripts/management/dev_check.py full-check       # MLOps・品質診断
+python3 scripts/testing/dev_check.py full-check       # MLOps・品質診断
 
 # 2. 特徴量・MLOpsシステム確認（週1回）
-python3 scripts/management/dev_check.py ml-models --dry-run    # モデル状態確認
+python3 scripts/testing/dev_check.py ml-models --dry-run    # モデル状態確認
 gh run list --workflow=weekly-retrain.yml --limit 5           # 週次再学習状況
 
 # 3. 本番環境監視確認
@@ -159,7 +159,7 @@ gh run view --log
 ```bash
 # 1. 即座状況確認（5分以内）
 gcloud run services describe crypto-bot-service-prod
-python3 scripts/management/dev_check.py full-check
+python3 scripts/testing/dev_check.py full-check
 
 # 2. エラーログ分析
 gcloud logging read 'severity>=ERROR' --limit=20

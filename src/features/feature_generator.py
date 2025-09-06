@@ -316,7 +316,14 @@ class FeatureGenerator:
                 "technical_features": len(
                     [
                         f
-                        for f in ["rsi_14", "macd", "atr_14", "bb_position", "ema_20", "ema_50"]
+                        for f in [
+                            "rsi_14",
+                            "macd",
+                            "atr_14",
+                            "bb_position",
+                            "ema_20",
+                            "ema_50",
+                        ]
                         if f in df.columns
                     ]
                 ),

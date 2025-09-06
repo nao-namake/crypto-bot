@@ -95,8 +95,8 @@ models/
 
 ```bash
 # Phase 19統合管理（推奨）
-python3 scripts/management/dev_check.py ml-models      # モデル作成・更新
-python3 scripts/management/dev_check.py ml-models --dry-run  # 状態確認のみ
+python3 scripts/testing/dev_check.py ml-models      # モデル作成・更新
+python3 scripts/testing/dev_check.py ml-models --dry-run  # 状態確認のみ
 
 # 週次自動再学習確認
 gh run list --workflow=weekly-retrain.yml --limit 5
@@ -180,7 +180,7 @@ ls -la models/production_backup_*/
 
 ### **品質保証・監視**
 - **`tests/unit/ml/`**: MLモジュール単体テスト・品質保証
-- **`scripts/management/dev_check.py`**: 統合システム診断・MLOps管理
+- **`scripts/testing/dev_check.py`**: 統合システム診断・MLOps管理
 - **`logs/reports/`**: 学習結果・性能レポート・履歴分析
 
 ### **外部依存（Phase 19最適化）**

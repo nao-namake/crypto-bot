@@ -178,9 +178,12 @@ class TradingCycleManager:
                     prediction = int(ml_predictions_array[-1])
                     # 最大確率を信頼度として使用（実際MLモデルの出力）
                     import numpy as np
+
                     confidence = float(np.max(ml_probabilities[-1]))
 
-                    self.logger.debug(f"ML予測完了: prediction={prediction}, confidence={confidence:.3f}")
+                    self.logger.debug(
+                        f"ML予測完了: prediction={prediction}, confidence={confidence:.3f}"
+                    )
 
                     return {
                         "prediction": prediction,
@@ -293,7 +296,11 @@ class TradingCycleManager:
             return type(
                 "TradeEvaluation",
                 (),
-                {"decision": "denied", "risk_score": 1.0, "reason": f"リスク評価エラー: {e}"},
+                {
+                    "decision": "denied",
+                    "risk_score": 1.0,
+                    "reason": f"リスク評価エラー: {e}",
+                },
             )()
 
     async def _execute_approved_trades(self, trade_evaluation, cycle_id):
@@ -335,7 +342,8 @@ class TradingCycleManager:
         else:
             # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
             self.logger.error(
-                f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
+                f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}",
+                discord_notify=False,
             )
             self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
             return  # このサイクルはスキップ、次のサイクルへ
@@ -352,7 +360,8 @@ class TradingCycleManager:
         """ConnectionError/TimeoutError処理"""
         # 外部サービス接続エラー
         self.logger.error(
-            f"外部サービス接続エラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
+            f"外部サービス接続エラー - ID: {cycle_id}, エラー: {e}",
+            discord_notify=False,
         )
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
@@ -361,7 +370,8 @@ class TradingCycleManager:
         """AttributeError/TypeError処理"""
         # オブジェクト・型エラー
         self.logger.error(
-            f"オブジェクト・型エラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
+            f"オブジェクト・型エラー - ID: {cycle_id}, エラー: {e}",
+            discord_notify=False,
         )
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
@@ -379,7 +389,8 @@ class TradingCycleManager:
         """予期しないエラー処理"""
         # 予期しないエラーは再送出
         self.logger.critical(
-            f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}", discord_notify=False
+            f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}",
+            discord_notify=False,
         )
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")

@@ -209,8 +209,8 @@ python -m pytest tests/unit/strategies/ -v
 # 🎯 合格率: 133/133 (100.0%) 🎉 Phase 18品質保証・後方互換性完全確認
 
 # 全システム統合基盤確認（統合管理）
-python scripts/management/dev_check.py validate --mode light
-python scripts/management/dev_check.py health-check
+python scripts/testing/dev_check.py validate --mode light
+python scripts/testing/dev_check.py health-check
 ```
 
 ### テスト内訳（Phase 18統合後）

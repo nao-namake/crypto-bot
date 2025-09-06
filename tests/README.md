@@ -69,7 +69,7 @@ python -m pytest tests/unit/trading/ -v     # 統合リスク管理テスト
 bash scripts/testing/checks.sh
 
 # MLOps統合管理CLI経由（feature_manager・ProductionEnsemble）
-python scripts/management/dev_check.py validate
+python scripts/testing/dev_check.py validate
 
 # 週次学習テスト（GitHub Actions統合）
 python scripts/ml/weekly_training.py --test-mode

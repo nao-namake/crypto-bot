@@ -43,7 +43,7 @@ class ModelManager:
 
         # メタデータの初期化
         self.metadata = self._load_metadata()
-        
+
         # 現在読み込まれているモデル
         self.current_model: Optional[EnsembleModel] = None
         self.current_version: Optional[str] = None
@@ -123,7 +123,7 @@ class ModelManager:
                 raise FileNotFoundError(f"Model files not found: {version_path}")
 
             model = EnsembleModel.load(version_path)
-            
+
             # 現在のモデルとして保存
             self.current_model = model
             self.current_version = version_name
@@ -180,7 +180,7 @@ class ModelManager:
             # 予測実行
             predictions = self.current_model.predict(X)
             probabilities = self.current_model.predict_proba(X)
-            
+
             # 結果の整形
             if len(predictions) > 0:
                 prediction = int(predictions[-1])  # 最新の予測
@@ -194,7 +194,7 @@ class ModelManager:
             return {
                 "prediction": prediction,
                 "confidence": confidence,
-                "action": action
+                "action": action,
             }
 
         except Exception as e:

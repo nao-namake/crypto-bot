@@ -137,7 +137,11 @@ class DiscordClient:
         return self._send_webhook(payload)
 
     def send_embed(
-        self, title: str, description: str, fields: Optional[list] = None, level: str = "info"
+        self,
+        title: str,
+        description: str,
+        fields: Optional[list] = None,
+        level: str = "info",
     ) -> bool:
         """
         埋め込み形式メッセージ送信
@@ -196,7 +200,10 @@ class DiscordClient:
             headers = {"Content-Type": "application/json"}
             timeout_seconds = get_monitoring_config("discord.timeout", 10)
             response = requests.post(
-                self.webhook_url, data=json_str, headers=headers, timeout=timeout_seconds
+                self.webhook_url,
+                data=json_str,
+                headers=headers,
+                timeout=timeout_seconds,
             )
 
             # レスポンス処理
@@ -208,9 +215,12 @@ class DiscordClient:
                 return False
             elif response.status_code == 401:
                 import hashlib
+
                 self.logger.error(f"❌ Discord Webhook無効 (401): URLが無効または削除されています")
                 self.logger.error(f"   使用URL長: {len(self.webhook_url)}文字")
-                self.logger.error(f"   URLハッシュ: {hashlib.md5(self.webhook_url.encode()).hexdigest()[:8]}")
+                self.logger.error(
+                    f"   URLハッシュ: {hashlib.md5(self.webhook_url.encode()).hexdigest()[:8]}"
+                )
                 self.logger.error(f"   エラー詳細: {response.text}")
                 self.enabled = False  # 自動無効化で連続エラー防止
                 self.logger.warning("⚠️ Discord通知を自動無効化しました")
@@ -393,7 +403,11 @@ class DiscordFormatter:
         # 残高情報追加
         if current_balance is not None:
             fields.append(
-                {"name": "💰 現在残高", "value": f"¥{current_balance:,.0f}", "inline": True}
+                {
+                    "name": "💰 現在残高",
+                    "value": f"¥{current_balance:,.0f}",
+                    "inline": True,
+                }
             )
 
         return {
@@ -475,8 +489,16 @@ class DiscordFormatter:
                 {"name": "🔢 総取引数", "value": f"{total_trades}回", "inline": True},
                 {"name": "🏆 勝ち取引", "value": f"{winning_trades}回", "inline": True},
                 {"name": "📈 勝率", "value": f"{win_rate:.1f}%", "inline": True},
-                {"name": "💰 現在残高", "value": f"¥{current_balance:,.0f}", "inline": True},
-                {"name": "📊 リターン率", "value": f"{return_rate:+.2f}%", "inline": True},
+                {
+                    "name": "💰 現在残高",
+                    "value": f"¥{current_balance:,.0f}",
+                    "inline": True,
+                },
+                {
+                    "name": "📊 リターン率",
+                    "value": f"{return_rate:+.2f}%",
+                    "inline": True,
+                },
             ],
         }
 

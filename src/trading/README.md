@@ -302,8 +302,8 @@ python -m pytest tests/unit/trading/ -v
 # 合計: 113/113 (100%) 合格 🎉 Phase 13完了
 
 # 399テスト統合基盤確認
-python scripts/management/dev_check.py validate --mode light
-python scripts/management/dev_check.py health-check
+python scripts/testing/dev_check.py validate --mode light
+python scripts/testing/dev_check.py health-check
 ```
 
 ### テストカバレッジ範囲
@@ -612,7 +612,7 @@ python -c "from src.trading.risk import IntegratedRiskManager;
 print('✅ Risk management system recovered')"
 
 # 統合システム確認
-python scripts/management/dev_check.py validate
+python scripts/testing/dev_check.py validate
 # 期待結果: ✅ Trading systems: PASS
 ```
 

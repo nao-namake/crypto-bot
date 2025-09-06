@@ -51,7 +51,7 @@ python3 scripts/ml/create_ml_models.py --mlops --phase19
 # ✅ メタデータ管理・バージョン管理・models/production/保存
 
 # 統合管理CLI経由（日常運用推奨）
-python3 scripts/management/dev_check.py ml-models --verbose
+python3 scripts/testing/dev_check.py ml-models --verbose
 
 # 期待結果:
 # ✅ 学習環境検証・feature_manager統合・ProductionEnsemble作成
@@ -157,7 +157,7 @@ print(f"✅ 性能向上: {training_result['quality_gates']['performance_improve
 - **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量・DataFrame出力・ML学習統合
 - **`src/ml/ensemble.py`**: ProductionEnsemble・3モデル統合・重み最適化・予測エンジン
 - **`.github/workflows/weekly_retrain.yml`**: 週次自動再学習・CI/CD統合・自動デプロイ・Discord通知
-- **`scripts/management/dev_check.py`**: MLOps統合管理・ml-modelsコマンド・学習環境検証
+- **`scripts/testing/dev_check.py`**: MLOps統合管理・ml-modelsコマンド・学習環境検証
 
 ### **品質保証・テストシステム**
 - **`scripts/testing/checks.sh`**: 654テスト実行・59.24%カバレッジ・MLモデル品質ゲート

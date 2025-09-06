@@ -107,7 +107,10 @@ class MLServiceAdapter:
 
     def get_model_info(self) -> Dict[str, Any]:
         """モデル情報取得 - ローダーから情報を取得"""
-        base_info = {"adapter_type": "MLServiceAdapter", "adapter_version": "Phase18_Optimized"}
+        base_info = {
+            "adapter_type": "MLServiceAdapter",
+            "adapter_version": "Phase18_Optimized",
+        }
 
         # ローダーからモデル情報を取得
         loader_info = self.loader.get_model_info()
@@ -154,7 +157,11 @@ class ModelVersionManager:
         self.active_models = {}
 
     def register_model(
-        self, model_id: str, version: str, model_path: str, metadata: Dict[str, Any] = None
+        self,
+        model_id: str,
+        version: str,
+        model_path: str,
+        metadata: Dict[str, Any] = None,
     ) -> None:
         """
         モデルを版数管理システムに登録
@@ -247,7 +254,11 @@ class EnhancedMLServiceAdapter(MLServiceAdapter):
 
     def __init__(self, logger: CryptoBotLogger):
         self.version_manager = ModelVersionManager(logger)
-        self.fallback_strategies = ["production_ensemble", "individual_models", "dummy_model"]
+        self.fallback_strategies = [
+            "production_ensemble",
+            "individual_models",
+            "dummy_model",
+        ]
         self.current_strategy = None
         self.retry_count = 0
         self.max_retries = get_threshold("ml.max_retries", 3)

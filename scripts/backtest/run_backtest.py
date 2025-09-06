@@ -34,14 +34,14 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  python scripts/backtest/run_backtest.py                           # デフォルト30日間
+  python scripts/backtest/run_backtest.py                           # デフォルト90日間・50万円
   python scripts/backtest/run_backtest.py --days 60                 # 60日間
   python scripts/backtest/run_backtest.py --symbol ETH/JPY          # ETH/JPY対象
   python scripts/backtest/run_backtest.py --config custom.yaml      # カスタム設定
   python scripts/backtest/run_backtest.py --verbose                 # 詳細ログ
         """,
     )
-    
+
     parser.add_argument(
         "--config",
         default="config/backtest/base.yaml",
@@ -50,8 +50,8 @@ def parse_arguments():
     parser.add_argument(
         "--days",
         type=int,
-        default=30,
-        help="バックテスト期間（日数）(default: 30)",
+        default=90,
+        help="バックテスト期間（日数）(default: 90)",
     )
     parser.add_argument(
         "--symbol",
@@ -61,15 +61,15 @@ def parse_arguments():
     parser.add_argument(
         "--initial-balance",
         type=float,
-        default=1000000.0,
-        help="初期残高（円）(default: 1000000.0)",
+        default=500000.0,
+        help="初期残高（円）(default: 500000.0)",
     )
     parser.add_argument(
         "--verbose",
         action="store_true",
         help="詳細ログを表示",
     )
-    
+
     return parser.parse_args()
 
 
@@ -81,7 +81,7 @@ async def run_backtest(args):
         print(f"📅 バックテスト期間: {args.days}日間")
         print(f"💱 対象シンボル: {args.symbol}")
         print(f"💰 初期残高: ¥{args.initial_balance:,.0f}")
-        
+
         # 1. 設定読み込み
         try:
             config = load_config(args.config, cmdline_mode="backtest")
@@ -89,16 +89,17 @@ async def run_backtest(args):
         except Exception as e:
             print(f"❌ 設定読み込みエラー: {e}")
             return False
-            
+
         # 2. ロガー初期化
         logger = setup_logging("backtest")
         if args.verbose:
             # 詳細ログモードの場合はDEBUGレベルに設定
             import logging
+
             logging.getLogger().setLevel(logging.DEBUG)
-            
+
         logger.info(f"🔧 バックテストエンジン初期化開始")
-        
+
         # 3. BacktestEngine初期化
         engine = BacktestEngine(
             initial_balance=args.initial_balance,
@@ -107,43 +108,42 @@ async def run_backtest(args):
             max_position_ratio=0.05,  # 5%
             risk_profile="balanced",
         )
-        
+
         logger.info(f"✅ BacktestEngine初期化完了")
-        
+
         # 4. バックテスト期間設定
         end_date = datetime.now()
         start_date = end_date - timedelta(days=args.days)
-        
+
         print(f"\n📊 バックテスト実行中...")
         print(f"   期間: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
         print(f"   対象: {args.symbol}")
-        
+
         # 5. バックテスト実行
         results = await engine.run_backtest(
-            start_date=start_date,
-            end_date=end_date,
-            symbol=args.symbol
+            start_date=start_date, end_date=end_date, symbol=args.symbol
         )
-        
+
         # 6. 結果表示
         print_backtest_results(results, args)
-        
+
         return True
-        
+
     except Exception as e:
         print(f"❌ バックテスト実行エラー: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return False
 
 
 def print_backtest_results(results, args):
     """バックテスト結果の詳細表示."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"🎯 バックテスト結果サマリー")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     # 基本統計
     total_trades = results.get("total_trades", 0)
     total_profit = results.get("total_profit", 0.0)
@@ -151,18 +151,18 @@ def print_backtest_results(results, args):
     max_drawdown = results.get("max_drawdown", 0.0) * 100
     final_balance = results.get("final_balance", args.initial_balance)
     return_rate = results.get("return_rate", 0.0) * 100
-    
+
     print(f"📈 トレード統計:")
     print(f"   総取引数: {total_trades}回")
     print(f"   勝率: {win_rate:.1f}%")
     print(f"   総損益: ¥{total_profit:+,.0f}")
-    
+
     print(f"\n💰 資産統計:")
     print(f"   初期残高: ¥{args.initial_balance:,.0f}")
     print(f"   最終残高: ¥{final_balance:,.0f}")
     print(f"   リターン: {return_rate:+.2f}%")
     print(f"   最大ドローダウン: {max_drawdown:.2f}%")
-    
+
     # パフォーマンス評価
     print(f"\n📊 パフォーマンス評価:")
     if total_trades == 0:
@@ -175,18 +175,18 @@ def print_backtest_results(results, args):
     else:
         avg_profit_per_trade = total_profit / total_trades if total_trades > 0 else 0
         print(f"   平均利益/取引: ¥{avg_profit_per_trade:+,.0f}")
-        
+
         # 評価ランク
         if return_rate > 10:
             rank = "🏆 優秀"
         elif return_rate > 5:
-            rank = "🥈 良好"  
+            rank = "🥈 良好"
         elif return_rate > 0:
             rank = "🥉 普通"
         else:
             rank = "❌ 要改善"
         print(f"   総合評価: {rank}")
-    
+
     # 取引履歴表示（最初の5件）
     trade_records = results.get("trade_records", [])
     if trade_records and len(trade_records) > 0:
@@ -194,34 +194,34 @@ def print_backtest_results(results, args):
         for i, trade in enumerate(trade_records[:5]):
             entry_time = trade.entry_time.strftime("%m/%d %H:%M")
             exit_time = trade.exit_time.strftime("%m/%d %H:%M") if trade.exit_time else "未決済"
-            profit = f"¥{trade.profit_jpy:+,.0f}" if hasattr(trade, 'profit_jpy') else "N/A"
-            print(f"   {i+1}. {entry_time} -> {exit_time} | {trade.side.upper()} | {profit}")
-    
-    print(f"{'='*60}")
+            profit = f"¥{trade.profit_jpy:+,.0f}" if hasattr(trade, "profit_jpy") else "N/A"
+            print(f"   {i + 1}. {entry_time} -> {exit_time} | {trade.side.upper()} | {profit}")
+
+    print(f"{'=' * 60}")
 
 
 def main():
     """メイン実行関数."""
     args = parse_arguments()
-    
+
     try:
         # 非同期実行
         success = asyncio.run(run_backtest(args))
-        
+
         if success:
             print(f"\n✅ バックテスト実行完了")
             exit_code = 0
         else:
             print(f"\n❌ バックテスト実行失敗")
             exit_code = 1
-            
+
     except KeyboardInterrupt:
         print(f"\n⏹️  ユーザーによって中断されました")
         exit_code = 2
     except Exception as e:
         print(f"\n💥 予期せぬエラー: {e}")
         exit_code = 3
-    
+
     sys.exit(exit_code)
 
 

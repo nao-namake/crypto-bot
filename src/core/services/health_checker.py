@@ -168,4 +168,8 @@ class HealthChecker:
 
         except Exception as e:
             self.logger.error(f"❌ ヘルスサマリー取得エラー: {e}")
-            return {"all_services_initialized": False, "error": str(e), "timestamp": "N/A"}
+            return {
+                "all_services_initialized": False,
+                "error": str(e),
+                "timestamp": "N/A",
+            }

@@ -51,7 +51,11 @@ from .market_data import (
 )
 
 # 統合制御システム
-from .orchestration import MLServiceAdapter, TradingOrchestrator, create_trading_orchestrator
+from .orchestration import (
+    MLServiceAdapter,
+    TradingOrchestrator,
+    create_trading_orchestrator,
+)
 
 # プロトコル定義
 from .protocols import (

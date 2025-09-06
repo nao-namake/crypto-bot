@@ -524,7 +524,11 @@ class RFModel(BaseMLModel):
         # パラメータ検証
         if "max_features" in clean_params:
             max_features = clean_params["max_features"]
-            if isinstance(max_features, str) and max_features not in ["sqrt", "log2", "auto"]:
+            if isinstance(max_features, str) and max_features not in [
+                "sqrt",
+                "log2",
+                "auto",
+            ]:
                 self.logger.warning(f"Invalid max_features: {max_features}, using 'sqrt'")
                 clean_params["max_features"] = "sqrt"
 

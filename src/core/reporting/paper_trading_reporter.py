@@ -98,7 +98,10 @@ class PaperTradingReporter(BaseReporter):
         }
 
     def _generate_markdown_report(
-        self, session_stats: Dict, timestamp: datetime, performance_stats: Dict[str, Any]
+        self,
+        session_stats: Dict,
+        timestamp: datetime,
+        performance_stats: Dict[str, Any],
     ) -> str:
         """
         マークダウンレポート生成
@@ -305,7 +308,11 @@ class PaperTradingReporter(BaseReporter):
                     "value": f"¥{performance_stats['session_pnl']:,.0f}",
                     "inline": True,
                 },
-                {"name": "📅 継続時間", "value": f"{session_duration_hours}時間", "inline": True},
+                {
+                    "name": "📅 継続時間",
+                    "value": f"{session_duration_hours}時間",
+                    "inline": True,
+                },
                 {
                     "name": "⚡ 実行率",
                     "value": f"{performance_stats['execution_rate']:.1f}%",

@@ -35,13 +35,13 @@ risk:
   stop_loss_atr_multiplier: 1.2  # 損切りATR倍率
   consecutive_loss_limit: 5   # 連続損失限界
 
-# データ取得設定
+# データ取得設定（90日間バックテスト対応）
 data:
   timeframes:                 # 取得時間軸（2軸構成）
     - 15m
     - 4h
-  since_hours: 96            # 取得期間（4日分）
-  limit: 100                 # 1回あたり取得数
+  since_hours: 2160          # 取得期間（90日分・2160時間）
+  limit: 2000                # 1回あたり取得数（Bitbank API上限）
   cache_enabled: true        # キャッシュ有効
 
 # 特徴量設定（Phase 3最適化版）
@@ -96,12 +96,13 @@ logging:
   discord_enabled: true      # Discord通知
   retention_days: 7          # 保持期間
 
-# Phase 12: 本番運用設定
+# Phase 12: 本番運用設定（50万円対応）
 production:
   min_order_size: 0.0001     # 最小注文サイズ
-  max_order_size: 0.001      # 最大注文サイズ
+  max_order_size: 0.002      # 最大注文サイズ（50万円対応・従来0.001の2倍）
   margin_trading: true       # マージン取引有効
   trade_interval: 60         # 取引間隔（秒）
+  initial_balance: 500000    # 初期残高（50万円）
 
 # Phase 12: 監視システム設定最適化
 monitoring:

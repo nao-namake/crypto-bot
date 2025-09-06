@@ -239,8 +239,8 @@ jobs:
       - name: Run Strategy Tests with CI/CD Production
         run: |
           python -m pytest tests/unit/strategies/ -v --cov
-          python scripts/management/dev_check.py validate --mode light
-          python scripts/management/dev_check.py health-check
+          python scripts/testing/dev_check.py validate --mode light
+          python scripts/testing/dev_check.py health-check
 ```
 
 ## 🐛 トラブルシューティング

@@ -254,7 +254,7 @@ python -m pytest tests/unit/strategies/test_strategy_manager.py -v
 - エラー時の処理・GitHub Actions統合
 
 # 399テスト統合基盤確認
-python scripts/management/dev_check.py validate --mode light
+python scripts/testing/dev_check.py validate --mode light
 ```
 
 ## 📋 設計パターン

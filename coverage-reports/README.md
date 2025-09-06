@@ -81,7 +81,7 @@ coverage-reports/
 bash scripts/testing/checks.sh
 
 # 統合管理CLI経由
-python3 scripts/management/dev_check.py validate
+python3 scripts/testing/dev_check.py validate
 
 # 直接実行（654テスト・59.24%カバレッジ）
 python3 -m pytest tests/ --cov=src --cov-report=html:coverage-reports/htmlcov --cov-report=term
@@ -200,7 +200,7 @@ Phase 19重点達成エリア:
 
 **テスト実行システム**:
 - **`scripts/testing/checks.sh`**: 統合品質チェック・654テスト・30秒高速実行
-- **`scripts/management/dev_check.py`**: 統合品質診断・カバレッジ実行
+- **`scripts/testing/dev_check.py`**: 統合品質診断・カバレッジ実行
 - **`.github/workflows/ci.yml`**: CI/CD自動カバレッジ測定・MLOps統合
 - **`tests/`**: 654テストファイル・100%成功・特徴量統一管理対応
 

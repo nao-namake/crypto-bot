@@ -71,7 +71,11 @@ class BaseAnalyzer(ABC):
     # ===== 共通Cloud Runログ取得機能 =====
 
     def fetch_cloud_run_logs(
-        self, hours: int = 24, service_suffix: str = "", log_filter: str = "", limit: int = 500
+        self,
+        hours: int = 24,
+        service_suffix: str = "",
+        log_filter: str = "",
+        limit: int = 500,
     ) -> Tuple[bool, List[Dict]]:
         """Cloud Runログ取得の共通機能"""
         target_service = f"{self.service_name}{service_suffix}"
@@ -122,7 +126,10 @@ class BaseAnalyzer(ABC):
         """エラーログ専用取得"""
         error_filter = "severity >= ERROR"
         return self.fetch_cloud_run_logs(
-            hours=hours, service_suffix=service_suffix, log_filter=error_filter, limit=100
+            hours=hours,
+            service_suffix=service_suffix,
+            log_filter=error_filter,
+            limit=100,
         )
 
     def fetch_trading_logs(
@@ -137,7 +144,10 @@ class BaseAnalyzer(ABC):
             f'textPayload~"SELL" OR textPayload~"HOLD")'
         )
         return self.fetch_cloud_run_logs(
-            hours=hours, service_suffix=service_suffix, log_filter=trading_filter, limit=300
+            hours=hours,
+            service_suffix=service_suffix,
+            log_filter=trading_filter,
+            limit=300,
         )
 
     # ===== 共通Cloud Runサービス状態確認 =====
@@ -218,7 +228,11 @@ class BaseAnalyzer(ABC):
             with urllib.request.urlopen(f"{service_url}/health", timeout=10) as response:
                 if response.status == 200:
                     logger.info("✅ エンドポイント応答OK")
-                    return {**health_data, "endpoint_status": "OK", "endpoint_response_code": 200}
+                    return {
+                        **health_data,
+                        "endpoint_status": "OK",
+                        "endpoint_response_code": 200,
+                    }
                 else:
                     logger.warning(f"⚠️ エンドポイント応答異常: {response.status}")
                     return {
@@ -229,10 +243,18 @@ class BaseAnalyzer(ABC):
 
         except urllib.error.URLError as e:
             logger.error(f"❌ エンドポイント接続失敗: {e}")
-            return {**health_data, "endpoint_status": "CONNECTION_ERROR", "endpoint_error": str(e)}
+            return {
+                **health_data,
+                "endpoint_status": "CONNECTION_ERROR",
+                "endpoint_error": str(e),
+            }
         except Exception as e:
             logger.error(f"❌ エンドポイントチェックエラー: {e}")
-            return {**health_data, "endpoint_status": "UNKNOWN_ERROR", "endpoint_error": str(e)}
+            return {
+                **health_data,
+                "endpoint_status": "UNKNOWN_ERROR",
+                "endpoint_error": str(e),
+            }
 
     # ===== 共通データファイル読み込み機能 =====
 
@@ -459,7 +481,7 @@ class CloudRunAnalyzer(BaseAnalyzer):
         error_success, error_logs = self.fetch_error_logs(hours)
         error_analysis = {
             "total_errors": len(error_logs) if error_success else 0,
-            "error_rate_per_hour": len(error_logs) / hours if error_success and hours > 0 else 0,
+            "error_rate_per_hour": (len(error_logs) / hours if error_success and hours > 0 else 0),
         }
 
         return {

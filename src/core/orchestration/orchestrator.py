@@ -360,7 +360,9 @@ async def create_trading_orchestrator(
     from ...monitoring.discord_notifier import DiscordManager
     from ...strategies.base.strategy_manager import StrategyManager
     from ...strategies.implementations.atr_based import ATRBasedStrategy
-    from ...strategies.implementations.fibonacci_retracement import FibonacciRetracementStrategy
+    from ...strategies.implementations.fibonacci_retracement import (
+        FibonacciRetracementStrategy,
+    )
     from ...strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
     from ...strategies.implementations.multi_timeframe import MultiTimeframeStrategy
     from ...trading import DEFAULT_RISK_CONFIG, create_risk_manager
@@ -377,7 +379,9 @@ async def create_trading_orchestrator(
         if webhook_path.exists():
             try:
                 webhook_url = webhook_path.read_text().strip()
-                logger.info(f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）")
+                logger.info(
+                    f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）"
+                )
             except Exception as e:
                 logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
                 webhook_url = os.getenv("DISCORD_WEBHOOK_URL")

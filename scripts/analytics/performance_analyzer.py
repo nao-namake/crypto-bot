@@ -146,7 +146,11 @@ class PerformanceAnalyzer(BaseAnalyzer):
                         logger.info(f"  {category}: {count}")
 
             else:
-                error_data = {"total_errors": 0, "error": "ログ取得失敗", "analysis_failed": True}
+                error_data = {
+                    "total_errors": 0,
+                    "error": "ログ取得失敗",
+                    "analysis_failed": True,
+                }
                 logger.error("❌ エラーログ取得失敗")
 
         except Exception as e:
@@ -212,7 +216,7 @@ class PerformanceAnalyzer(BaseAnalyzer):
                     "order_success_rate": round(success_rate, 2),
                     "order_breakdown": order_counts,
                     "analysis_period_hours": hours,
-                    "latest_activity": signal_timestamps[-1] if signal_timestamps else None,
+                    "latest_activity": (signal_timestamps[-1] if signal_timestamps else None),
                 }
 
                 logger.info(f"📊 総シグナル数: {trading_data['total_signals']}")
@@ -228,7 +232,11 @@ class PerformanceAnalyzer(BaseAnalyzer):
                 logger.error("❌ 取引ログ取得失敗")
 
         except Exception as e:
-            trading_data = {"total_signals": 0, "error": str(e), "analysis_failed": True}
+            trading_data = {
+                "total_signals": 0,
+                "error": str(e),
+                "analysis_failed": True,
+            }
             logger.error(f"❌ 取引パフォーマンス分析失敗: {e}")
 
         self.analysis_results["trading_performance"] = trading_data

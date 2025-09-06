@@ -96,7 +96,7 @@ class BacktestEngine:
 
     def __init__(
         self,
-        initial_balance: float = 1000000.0,  # 100万円
+        initial_balance: float = 500000.0,  # 50万円（本番想定）
         slippage_rate: float = 0.0005,  # 0.05%
         commission_rate: float = 0.0012,  # 0.12%（Bitbank手数料）
         max_position_ratio: float = 0.05,  # 最大5%（Kelly基準と統一）
@@ -114,15 +114,23 @@ class BacktestEngine:
         self.data_pipeline = DataPipeline()
         self.feature_generator = FeatureGenerator()
         self.strategy_manager = StrategyManager()
-        
+
         # 戦略登録（本番と同じ戦略を使用）
         self._register_strategies()
-        
-        self.logger.info("BacktestEngineコンポーネント初期化完了")
-        # Phase 19: 循環インポート修正 - 遅延インポート
-        from ..ml.model_manager import ModelManager
 
-        self.model_manager = ModelManager()
+        self.logger.info("BacktestEngineコンポーネント初期化完了")
+        # Phase 19: 循環インポート修正 - 遅延インポート（エラーハンドリング強化）
+        try:
+            from ..ml.model_manager import ModelManager
+
+            self.model_manager = ModelManager()
+            self.logger.info("✅ ModelManager初期化完了")
+        except ImportError as e:
+            self.logger.error(f"ModelManager import failed: {e}")
+            raise CryptoBotError(f"MLモジュールのインポートに失敗しました: {e}")
+        except Exception as e:
+            self.logger.error(f"ModelManager initialization failed: {e}")
+            raise CryptoBotError(f"MLモジュールの初期化に失敗しました: {e}")
         # 最適化されたリスク管理設定（Phase 8改善）
         default_risk_config = {
             "kelly_criterion": {
@@ -196,21 +204,25 @@ class BacktestEngine:
         try:
             # 1. データ取得（マルチタイムフレーム対応）
             multi_data = await self._load_data(start_date, end_date, symbol, timeframes)
-            self.logger.debug(f"データ取得結果: {[(k, len(v) if hasattr(v, '__len__') and not v.empty else 'empty') for k, v in multi_data.items()]}")
-            
+            self.logger.debug(
+                f"データ取得結果: {[(k, len(v) if hasattr(v, '__len__') and not v.empty else 'empty') for k, v in multi_data.items()]}"
+            )
+
             # データ検証（空かどうかの適切なチェック）
-            if (not multi_data or 
-                "4h" not in multi_data or 
-                multi_data["4h"].empty):
+            if not multi_data or "4h" not in multi_data or multi_data["4h"].empty:
                 raise CryptoBotError(
                     f"バックテスト用データが不足しています: {symbol} {start_date}-{end_date}"
                 )
 
             main_data_count = len(multi_data["4h"])
-            if main_data_count < 200:
-                self.logger.warning(f"データが不足しています: {main_data_count}件（推奨200件以上）")
+            if main_data_count < 50:
+                self.logger.warning(f"データが不足しています: {main_data_count}件（最小50件必要）")
+            elif main_data_count < 200:
+                self.logger.info(f"データ量は十分です: {main_data_count}件（推奨200件以上）")
 
-            self.logger.info(f"バックテスト開始: メイン({main_data_count:,}件)、マルチタイムフレーム({len(multi_data)}軸)で実行")
+            self.logger.info(
+                f"バックテスト開始: メイン({main_data_count:,}件)、マルチタイムフレーム({len(multi_data)}軸)で実行"
+            )
 
             # 2. バックテスト実行（マルチタイムフレーム対応）
             await self._execute_backtest(multi_data)
@@ -280,9 +292,7 @@ class BacktestEngine:
         filtered_data_dict = {}
         for timeframe, data in data_dict.items():
             if not data.empty:
-                filtered_data = data[
-                    (data.index >= start_date) & (data.index <= end_date)
-                ].copy()
+                filtered_data = data[(data.index >= start_date) & (data.index <= end_date)].copy()
                 if not filtered_data.empty:
                     filtered_data_dict[timeframe] = filtered_data
                     self.logger.info(f"{timeframe}: {len(filtered_data)}件（期間フィルタ後）")
@@ -300,24 +310,26 @@ class BacktestEngine:
     async def _execute_backtest(self, multi_data: Dict[str, pd.DataFrame]):
         """バックテスト実行ループ（マルチタイムフレーム対応版）."""
         self.logger.info("_execute_backtest開始")
-        self.logger.debug(f"受信データ: {[(k, len(v) if not v.empty else 0) for k, v in multi_data.items()]}")
-        
+        self.logger.debug(
+            f"受信データ: {[(k, len(v) if not v.empty else 0) for k, v in multi_data.items()]}"
+        )
+
         lookback_window = 200  # ウィンドウサイズ（固定）
-        
+
         # メインタイムフレーム（4時間足）でループ実行
         main_data = multi_data["4h"]
         self.logger.info(f"メインデータ (4h): {len(main_data)}件でバックテスト実行開始")
-        
+
         for i, (timestamp, row) in enumerate(main_data.iterrows()):
             self.current_timestamp = timestamp
 
-            # 十分なデータが蓄積されるまで待機
-            if i < 100:
+            # 十分なデータが蓄積されるまで待機（50件から開始）
+            if i < 50:
                 continue
 
             # マルチタイムフレームウィンドウデータ作成
             start_idx = max(0, i - lookback_window)
-            
+
             # 各タイムフレームのウィンドウデータを作成
             current_multi_data = {}
             for timeframe, tf_data in multi_data.items():
@@ -326,7 +338,9 @@ class BacktestEngine:
                     available_data = tf_data[tf_data.index <= timestamp]
                     if len(available_data) > 0:
                         # 適切なウィンドウサイズで切り取り
-                        window_data = available_data.iloc[max(0, len(available_data) - lookback_window):].copy()
+                        window_data = available_data.iloc[
+                            max(0, len(available_data) - lookback_window) :
+                        ].copy()
                         current_multi_data[timeframe] = window_data
                     else:
                         current_multi_data[timeframe] = pd.DataFrame()
@@ -336,21 +350,29 @@ class BacktestEngine:
             # 特徴量生成（本番と同様のマルチタイムフレーム処理）
             try:
                 # マルチタイムフレームデータが有効かチェック
-                has_valid_data = any(not df.empty if hasattr(df, 'empty') else len(df) > 0 
-                                   for df in current_multi_data.values())
-                
-                self.logger.debug(f"Step {i}: has_valid_data={has_valid_data}, multi_data_keys={list(current_multi_data.keys())}")
-                
+                has_valid_data = any(
+                    not df.empty if hasattr(df, "empty") else len(df) > 0
+                    for df in current_multi_data.values()
+                )
+
+                self.logger.debug(
+                    f"Step {i}: has_valid_data={has_valid_data}, multi_data_keys={list(current_multi_data.keys())}"
+                )
+
                 if current_multi_data and has_valid_data:
                     self.logger.debug(f"Using multi-timeframe feature generation")
-                    self.current_data = await self.feature_generator.generate_features(current_multi_data)
+                    self.current_data = await self.feature_generator.generate_features(
+                        current_multi_data
+                    )
                 else:
                     # フォールバック: 4時間足のみで特徴量生成
                     self.logger.debug(f"Using fallback single-timeframe feature generation")
                     raw_data = main_data.iloc[start_idx : i + 1].copy()
                     self.current_data = self.feature_generator.generate_features_sync(raw_data)
-                    
-                self.logger.debug(f"Features generated successfully, shape: {self.current_data.shape}")
+
+                self.logger.debug(
+                    f"Features generated successfully, shape: {self.current_data.shape}"
+                )
             except Exception as e:
                 self.logger.error(f"Feature generation error at step {i}: {e}")
                 raise
@@ -388,12 +410,16 @@ class BacktestEngine:
     async def _evaluate_entry(self, current_price: float):
         """エントリー判定."""
         try:
-            self.logger.debug(f"エントリー判定開始 - 価格: ¥{current_price:,.0f}, データ形状: {self.current_data.shape}")
-            
+            self.logger.debug(
+                f"エントリー判定開始 - 価格: ¥{current_price:,.0f}, データ形状: {self.current_data.shape}"
+            )
+
             # 戦略シグナル取得（エラーハンドリング強化）
             strategy_signal = self.strategy_manager.analyze_market(self.current_data)
-            self.logger.debug(f"戦略シグナル取得: {strategy_signal.action if strategy_signal else 'None'} "
-                            f"(信頼度: {strategy_signal.confidence if strategy_signal else 0:.3f})")
+            self.logger.debug(
+                f"戦略シグナル取得: {strategy_signal.action if strategy_signal else 'None'} "
+                f"(信頼度: {strategy_signal.confidence if strategy_signal else 0:.3f})"
+            )
 
             # ML予測取得
             ml_prediction = await self.model_manager.predict(self.current_data)
@@ -416,7 +442,9 @@ class BacktestEngine:
             best_signal = strategy_signal
 
             # リスク評価
-            self.logger.debug(f"リスク評価開始 - シグナル: {best_signal.action}, ML信頼度: {ml_prediction.get('confidence', 0):.3f}")
+            self.logger.debug(
+                f"リスク評価開始 - シグナル: {best_signal.action}, ML信頼度: {ml_prediction.get('confidence', 0):.3f}"
+            )
             evaluation = await self._create_trade_evaluation(
                 best_signal, ml_prediction, current_price
             )
@@ -425,11 +453,44 @@ class BacktestEngine:
                 self.logger.warning("リスク評価の作成に失敗")
                 return
 
-            risk_result = self.risk_manager.evaluate_trade_opportunity(evaluation)
-            self.logger.debug(f"リスク管理判定: {risk_result.decision} (理由: {getattr(risk_result, 'reason', 'N/A')})")
+            # IntegratedRiskManager正しい呼び出し形式に変更
+            try:
+                # bid/ask価格作成（スプレッド0.1%想定）
+                bid_price = current_price * 0.999
+                ask_price = current_price * 1.001
+
+                # 戦略シグナルを辞書形式に変換
+                strategy_signal_dict = {
+                    "action": (
+                        best_signal.action.value
+                        if hasattr(best_signal.action, "value")
+                        else str(best_signal.action)
+                    ),
+                    "confidence": best_signal.confidence,
+                    "reasoning": getattr(best_signal, "reasoning", "バックテスト戦略シグナル"),
+                }
+
+                # 正しい引数でリスク管理評価実行
+                risk_result = self.risk_manager.evaluate_trade_opportunity(
+                    ml_prediction=ml_prediction,
+                    strategy_signal=strategy_signal_dict,
+                    market_data=self.current_data,
+                    current_balance=self.current_balance,
+                    bid=bid_price,
+                    ask=ask_price,
+                )
+            except Exception as risk_error:
+                self.logger.error(f"リスク管理評価エラー: {risk_error}")
+                self.logger.warning("リスク管理評価失敗 - エントリー見送り")
+                return
+            self.logger.debug(
+                f"リスク管理判定: {risk_result.decision} (理由: {getattr(risk_result, 'reason', 'N/A')})"
+            )
 
             if risk_result.decision == RiskDecision.APPROVED:
-                self.logger.info(f"🎯 取引実行: {best_signal.action.upper()} @ ¥{current_price:,.0f}")
+                self.logger.info(
+                    f"🎯 取引実行: {best_signal.action.upper()} @ ¥{current_price:,.0f}"
+                )
                 await self._open_position(
                     side=best_signal.action,
                     price=current_price,
@@ -688,46 +749,57 @@ class BacktestEngine:
         try:
             self.logger.debug("🔧 戦略登録開始")
             from ..strategies.implementations.atr_based import ATRBasedStrategy
-            from ..strategies.implementations.fibonacci_retracement import FibonacciRetracementStrategy
-            from ..strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
-            from ..strategies.implementations.multi_timeframe import MultiTimeframeStrategy
-            
+            from ..strategies.implementations.fibonacci_retracement import (
+                FibonacciRetracementStrategy,
+            )
+            from ..strategies.implementations.mochipoy_alert import (
+                MochipoyAlertStrategy,
+            )
+            from ..strategies.implementations.multi_timeframe import (
+                MultiTimeframeStrategy,
+            )
+
             # 戦略重み（config/backtest/base.yamlの設定に合わせる）
             strategy_weights = {
                 "atr_based": 0.3,
-                "mochipoy_alert": 0.3, 
+                "mochipoy_alert": 0.3,
                 "multi_timeframe": 0.25,
                 "fibonacci_retracement": 0.15,
             }
-            
+
             strategies = [
                 (ATRBasedStrategy(), strategy_weights["atr_based"]),
                 (MochipoyAlertStrategy(), strategy_weights["mochipoy_alert"]),
                 (MultiTimeframeStrategy(), strategy_weights["multi_timeframe"]),
-                (FibonacciRetracementStrategy(), strategy_weights["fibonacci_retracement"]),
+                (
+                    FibonacciRetracementStrategy(),
+                    strategy_weights["fibonacci_retracement"],
+                ),
             ]
-            
+
             registered_count = 0
             for strategy, weight in strategies:
                 try:
                     self.strategy_manager.register_strategy(strategy, weight)
-                    self.logger.info(f"✅ 戦略登録: {strategy.name} (重み: {weight}, 有効: {strategy.is_enabled})")
-                    
+                    self.logger.info(
+                        f"✅ 戦略登録: {strategy.name} (重み: {weight}, 有効: {strategy.is_enabled})"
+                    )
+
                     # 必要特徴量の確認
                     required_features = strategy.get_required_features()
                     self.logger.debug(f"   必要特徴量: {required_features}")
                     registered_count += 1
-                    
+
                 except Exception as strategy_error:
                     self.logger.error(f"❌ 戦略登録失敗 {strategy.name}: {strategy_error}")
                     continue
-                    
+
             self.logger.info(f"🎯 戦略登録完了: {registered_count}/{len(strategies)}戦略")
-            
+
             # 戦略マネージャーの状態確認
             manager_stats = self.strategy_manager.get_manager_stats()
             self.logger.info(f"📊 戦略マネージャー状態: {manager_stats}")
-                
+
         except ImportError as e:
             self.logger.error(f"戦略インポートエラー: {e}")
             raise CryptoBotError(f"戦略インポートに失敗しました: {e}")

@@ -169,7 +169,7 @@ check_model_version()
 gh run list --workflow=weekly-retrain.yml --limit 5
 
 # 手動再学習実行（緊急時）
-python3 scripts/management/dev_check.py ml-models
+python3 scripts/testing/dev_check.py ml-models
 
 # モデル性能確認
 python3 -c "
@@ -208,7 +208,7 @@ print(f'バージョン: {model.get_model_info().get(\"version\", \"N/A\")}')
 - **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量一元化・バージョン管理
 - **`src/ml/ensemble.py`**: ProductionEnsemble実装・MLOps機能統合
 - **`.github/workflows/weekly-retrain.yml`**: 週次自動再学習・品質ゲート統合
-- **`scripts/management/dev_check.py`**: MLOpsシステム診断・統合管理
+- **`scripts/testing/dev_check.py`**: MLOpsシステム診断・統合管理
 
 ### **モデル管理・履歴**
 - **`models/training/`**: 個別学習モデル・検証・基盤提供

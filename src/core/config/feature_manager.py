@@ -81,7 +81,14 @@ class FeatureManager:
             categories = config["feature_categories"]
 
             # 順序保証のためのカテゴリ順序
-            category_order = ["basic", "momentum", "volatility", "trend", "volume", "anomaly"]
+            category_order = [
+                "basic",
+                "momentum",
+                "volatility",
+                "trend",
+                "volume",
+                "anomaly",
+            ]
 
             for category in category_order:
                 if category in categories and "features" in categories[category]:

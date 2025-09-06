@@ -214,7 +214,7 @@ gcloud logging read "textPayload:特徴量 OR textPayload:feature" --limit=10 --
 gcloud logging read "textPayload:ProductionEnsemble OR textPayload:モデル" --limit=10 --format="value(timestamp,textPayload)"
 
 # パフォーマンス分析（Phase 19対応）
-python3 scripts/management/dev_check.py validate              # 654テスト・59.24%カバレッジ確認
+python3 scripts/testing/dev_check.py validate              # 654テスト・59.24%カバレッジ確認
 python3 -c "
 from src.core.config.feature_manager import FeatureManager
 print('Phase 19品質確認完了')
