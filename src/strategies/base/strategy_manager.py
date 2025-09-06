@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from ...core.config import get_threshold
 from ...core.exceptions import StrategyError
 from ...core.logger import get_logger
 from .strategy_base import StrategyBase, StrategySignal
@@ -311,17 +312,43 @@ class StrategyManager:
         return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
 
     def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合") -> StrategySignal:
-        """ホールドシグナル生成."""
+        """ホールドシグナル生成 - 動的confidence実装."""
         current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
+
+        # 動的confidence計算（攻撃的設定・市場状況反映）
+        base_confidence = get_threshold("ml.dynamic_confidence.base_hold", 0.3)
+
+        # 市場ボラティリティに応じた調整
+        try:
+            if len(df) >= 20 and "close" in df.columns:
+                # 過去20期間のボラティリティ計算
+                returns = df["close"].pct_change().tail(20)
+                volatility = returns.std()
+
+                # ボラティリティが高い = 取引機会多い = HOLD信頼度下げる（攻撃的）
+                if volatility > 0.02:  # 高ボラティリティ
+                    confidence = base_confidence * 0.8  # さらに下げる
+                elif volatility < 0.005:  # 低ボラティリティ
+                    confidence = base_confidence * 1.2  # 少し上げる
+                else:
+                    confidence = base_confidence
+            else:
+                confidence = base_confidence
+        except Exception:
+            # エラー時はフォールバック値
+            confidence = get_threshold("ml.dynamic_confidence.error_fallback", 0.2)
+
+        # 信頼度を0.1-0.8の範囲にクランプ
+        confidence = max(0.1, min(0.8, confidence))
 
         return StrategySignal(
             strategy_name="StrategyManager",
             timestamp=datetime.now(),
             action="hold",
-            confidence=0.5,  # ニュートラル
+            confidence=confidence,  # 動的confidence
             strength=0.0,
             current_price=current_price,
-            reason=reason,
+            reason=f"{reason} (動的confidence: {confidence:.3f})",
         )
 
     def _record_decision(

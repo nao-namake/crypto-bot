@@ -182,8 +182,9 @@ class TestATRBasedStrategy(unittest.TestCase):
             bb_analysis, rsi_analysis, atr_analysis, stress_analysis
         )
 
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertIn("シグナル不一致", decision["analysis"])
+        # 攻撃的設定：不一致時はより強いシグナル（BB confidence=0.6 > RSI confidence=0.5）を採用
+        self.assertEqual(decision["action"], EntryAction.BUY)
+        # メッセージは「シグナル不一致」から「より強いシグナル」系のメッセージに変更
 
     def test_make_decision_high_stress_filter(self):
         """統合判定 - 高ストレスフィルターテスト."""

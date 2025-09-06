@@ -11,6 +11,13 @@ ml:
   # フォールバック・エラーハンドリング
   default_confidence: 0.5           # ダミーモデル・フォールバック時の信頼度
   prediction_fallback_confidence: 0.0  # 予測失敗時のフォールバック信頼度
+  # 動的confidence設定（攻撃的設定・月100-200取引対応）
+  dynamic_confidence:
+    base_hold: 0.3                  # HOLDシグナル基本信頼度（従来0.5から0.3に）
+    error_fallback: 0.2             # エラー時フォールバック信頼度
+    neutral_default: 0.35           # ニュートラル状態デフォルト信頼度
+    ml_fallback: 0.3                # ML予測失敗時の信頼度
+    strategy_fallback: 0.25         # 戦略判定失敗時の信頼度
   emergency_stop_on_dummy: true     # ダミーモデル時の緊急停止
   allow_dummy_fallback: false       # ダミーフォールバック許可（安全性重視）
   max_model_failures: 3            # モデル失敗上限（この回数で停止）
@@ -47,32 +54,32 @@ trading:
     bid: 15900000.0                 # フォールバックbid価格（1590万円）
     ask: 16100000.0                 # フォールバックask価格（1610万円）
   
-  # ポジションサイジング・リスク管理
+  # ポジションサイジング・リスク管理（攻めた設定）
   position_sizing:
-    max_position_ratio: 0.03        # Kelly基準最大3%
+    max_position_ratio: 0.05        # Kelly基準最大5%（攻めた設定）
     stop_loss_atr_multiplier: 1.2   # ATRベースストップロス倍率
     take_profit_ratio: 2.0          # テイクプロフィット比率
     stop_loss_rate: 0.02            # ストップロス率（2%）
     take_profit_rate: 0.04          # テイクプロフィット率（4%）
   
-  # 信頼度階層設定（1万円運用最適化）
+  # 信頼度階層設定（攻めた設定・月100-200回取引対応）
   confidence_levels:
-    very_high: 0.8                  # 超高信頼度（エントリー推奨）
-    high: 0.65                      # 高信頼度（本番取引閾値）
-    medium: 0.5                     # 中信頼度（様子見）
-    low: 0.35                       # 低信頼度（見送り推奨）
-    min_ml: 0.25                    # ML最小信頼度
+    very_high: 0.60                 # 超高信頼度（大幅緩和）
+    high: 0.45                      # 高信頼度（取引機会増加）
+    medium: 0.35                    # 中信頼度（積極的取引）
+    low: 0.25                       # 低信頼度（緩和）
+    min_ml: 0.15                    # ML最小信頼度（大幅緩和）
   
   # 異常検知設定
   anomaly:
     spread_warning_threshold: 0.003   # スプレッド警告閾値（0.3%）
     spread_critical_threshold: 0.005  # スプレッド重大閾値（0.5%）
     
-  # リスク閾値
+  # リスク閾値（攻めた設定）
   risk_thresholds:
-    deny: 0.8                       # 拒否閾値
-    conditional: 0.6                # 条件付き閾値
-    min_ml_confidence: 0.25         # ML最小信頼度
+    deny: 0.95                      # 拒否閾値（ほぼ拒否しない）
+    conditional: 0.7                # 条件付き閾値（緩和）
+    min_ml_confidence: 0.15         # ML最小信頼度（大幅緩和）
 
 # API・パフォーマンス関連閾値（Phase 16-B拡張版）
 performance:

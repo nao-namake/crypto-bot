@@ -235,10 +235,10 @@ class ATRBasedStrategy(StrategyBase):
             bb_signal = bb_analysis["signal"]
             rsi_signal = rsi_analysis["signal"]
 
-            # 一致度確認
+            # シグナル統合（攻撃的設定：不一致でもより強いシグナル採用）
             if bb_signal != 0 and rsi_signal != 0:
                 if bb_signal == rsi_signal:
-                    # 両方一致
+                    # 両方一致 - 最高信頼度
                     action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
                     confidence = min(
                         bb_analysis["confidence"] + rsi_analysis["confidence"],
@@ -246,8 +246,15 @@ class ATRBasedStrategy(StrategyBase):
                     )
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
                 else:
-                    # 不一致はホールド
-                    return self._create_hold_decision("シグナル不一致")
+                    # 不一致時はより強いシグナルを採用（攻撃的設定）
+                    if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
+                        action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
+                        confidence = bb_analysis["confidence"] * 0.8  # 不一致ペナルティ
+                        strength = bb_analysis["strength"]
+                    else:
+                        action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
+                        confidence = rsi_analysis["confidence"] * 0.8  # 不一致ペナルティ
+                        strength = rsi_analysis["strength"]
             elif bb_signal != 0:
                 # BBシグナルのみ
                 action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL

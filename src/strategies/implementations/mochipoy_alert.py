@@ -174,16 +174,27 @@ class MochipoyAlertStrategy(StrategyBase):
             sell_votes = signals.count(-1)
             hold_votes = signals.count(0)
 
-            # 多数決によるアクション決定
+            # 攻撃的投票判定（1票でも取引・月100-200取引対応）
             if buy_votes >= 2:
+                # 2票以上の強い賛成 - 高信頼度
                 action = EntryAction.BUY
-                confidence = 0.6 + (buy_votes - 2) * 0.2  # 2票:0.6, 3票:0.8
+                confidence = 0.7 + (buy_votes - 2) * 0.2  # 2票:0.7, 3票:0.9
             elif sell_votes >= 2:
+                # 2票以上の強い反対 - 高信頼度
                 action = EntryAction.SELL
-                confidence = 0.6 + (sell_votes - 2) * 0.2
+                confidence = 0.7 + (sell_votes - 2) * 0.2
+            elif buy_votes == 1 and sell_votes == 0:
+                # 1票のBUY（他はHOLD） - 攻撃的取引
+                action = EntryAction.BUY
+                confidence = 0.4  # 低めだが取引実行
+            elif sell_votes == 1 and buy_votes == 0:
+                # 1票のSELL（他はHOLD） - 攻撃的取引
+                action = EntryAction.SELL
+                confidence = 0.4  # 低めだが取引実行
             else:
+                # 意見が割れるか全てHOLD
                 action = EntryAction.HOLD
-                confidence = 0.5
+                confidence = 0.3  # 動的confidence対応
 
             # 最低信頼度チェック
             if confidence < self.config["min_confidence"]:

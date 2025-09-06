@@ -290,7 +290,8 @@ class TestStrategyManager(unittest.TestCase):
         result = self.manager.analyze_market(self.test_df)
 
         self.assertEqual(result.action, EntryAction.HOLD)
-        self.assertEqual(result.confidence, 0.5)
+        # 動的confidence: base_hold=0.3にボラティリティ調整適用で約0.36になる
+        self.assertAlmostEqual(result.confidence, 0.36, places=2)
 
     def test_analyze_market_disabled_strategy(self):
         """市場分析テスト - 無効な戦略."""

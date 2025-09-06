@@ -161,9 +161,9 @@ class TestIntegratedRiskManager:
             api_latency_ms=500,
         )
 
-        assert evaluation.decision == RiskDecision.DENIED
-        assert "ML信頼度不足" in str(evaluation.denial_reasons)
-        assert evaluation.position_size == 0.0
+        # 攻撃的設定：min_ml_confidence=0.15に緩和されたため、confidence=0.15でもAPPROVED
+        assert evaluation.decision == RiskDecision.APPROVED
+        assert evaluation.position_size > 0.0  # ポジションサイズが設定される
 
     def test_evaluate_trade_opportunity_drawdown_limit(self):
         """ドローダウン制限による拒否テスト."""
@@ -354,7 +354,8 @@ class TestIntegratedRiskManager:
                 api_latency_ms=500,
             )
 
-            assert evaluation.decision == RiskDecision.CONDITIONAL
+            # 攻撃的設定：conditional_threshold=0.7に緩和されたため、risk_score=0.65でもAPPROVED
+            assert evaluation.decision == RiskDecision.APPROVED
             assert evaluation.risk_score == 0.65
 
     def test_error_handling_in_evaluation(self):
@@ -449,25 +450,25 @@ class TestIntegratedRiskManager:
         )
         assert decision == RiskDecision.DENIED
 
-        # 拒否ケース3: 高リスクスコア
+        # 攻撃的設定：拒否閾値0.95に変更されたため、risk_score=0.85はCONDITIONAL
         decision = self.risk_manager._make_final_decision(
             trading_allowed=True,
             critical_anomalies=[],
             ml_confidence=0.8,
-            risk_score=0.85,  # 拒否閾値0.8超
-            denial_reasons=[],
-        )
-        assert decision == RiskDecision.DENIED
-
-        # 条件付きケース
-        decision = self.risk_manager._make_final_decision(
-            trading_allowed=True,
-            critical_anomalies=[],
-            ml_confidence=0.8,
-            risk_score=0.65,  # 条件付き閾値内
+            risk_score=0.85,  # 攻撃的設定：拒否閾値0.95未満
             denial_reasons=[],
         )
         assert decision == RiskDecision.CONDITIONAL
+
+        # 攻撃的設定：条件付き閾値0.7に緩和されたため、risk_score=0.65はAPPROVED
+        decision = self.risk_manager._make_final_decision(
+            trading_allowed=True,
+            critical_anomalies=[],
+            ml_confidence=0.8,
+            risk_score=0.65,  # 攻撃的設定：条件付き閾値0.7未満
+            denial_reasons=[],
+        )
+        assert decision == RiskDecision.APPROVED
 
         # 承認ケース
         decision = self.risk_manager._make_final_decision(
