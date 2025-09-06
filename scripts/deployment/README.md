@@ -1,46 +1,46 @@
-# scripts/deployment/ - Phase 19インフラ・デプロイメント・統合管理システム
+# scripts/deployment/ - Phase 19+攻撃的設定完成インフラ・デプロイメント・統合管理システム
 
-**Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤完成・654テスト100%・59.24%カバレッジ達成に対応したGCP Cloud Run・Docker統合・段階的デプロイ・品質ゲート統合システム（2025年9月4日現在）
+**Phase 19+攻撃的設定完成**: 625テスト100%・58.64%カバレッジ・攻撃的戦略ロジック・Dynamic Confidence・月100-200取引対応・シンプルヘルスチェック・Cloud Run安定稼働を実現したGCP Cloud Run・Docker統合・段階的デプロイ・品質ゲート統合システム（2025年9月6日現在）
 
 ## 📂 ファイル構成
 
 ```
 deployment/
-├── deploy_production.sh         # Phase 19対応段階的デプロイ・品質ゲート・Cloud Run統合
-├── docker-entrypoint.sh         # MLOps統合エントリポイント・feature_manager・ProductionEnsemble対応
-├── setup_ci_prerequisites.sh    # CI/CD・654テスト・GitHub Actions・週次学習環境構築
-├── setup_gcp_secrets.sh         # GCP Secret Manager・MLOps認証・統合管理
-├── verify_gcp_setup.sh          # Phase 19環境検証・MLOps基盤・品質保証確認
+├── deploy_production.sh         # Phase 19+攻撃的設定デプロイ・625テスト品質ゲート・Cloud Run統合
+├── docker-entrypoint.sh         # シンプルヘルスチェック・攻撃的設定対応・Cloud Run最適化エントリポイント
+├── setup_ci_prerequisites.sh    # CI/CD・625テスト・GitHub Actions・週次学習環境構築
+├── setup_gcp_secrets.sh         # GCP Secret Manager・攻撃的戦略認証・統合管理
+├── verify_gcp_setup.sh          # Phase 19+環境検証・攻撃的設定基盤・品質保証確認
 └── README.md                    # このファイル
 ```
 
 ## 🎯 役割・責任
 
-**Phase 19 MLOps基盤**におけるインフラ・デプロイメント・統合管理の核心システムを担当。feature_manager.py統一管理・ProductionEnsemble・週次自動再学習・654テスト品質保証を統合した企業級段階的デプロイ・品質ゲート・24時間運用監視システムを提供します。
+**Phase 19+攻撃的設定完成MLOps基盤**におけるインフラ・デプロイメント・統合管理の核心システムを担当。feature_manager.py統一管理・ProductionEnsemble・攻撃的戦略ロジック・Dynamic Confidence・625テスト品質保証を統合した企業級段階的デプロイ・シンプルヘルスチェック・24時間安定運用監視システムを提供します。
 
 **主要機能**:
-- **段階的MLOpsデプロイ**: paper→stage-10→stage-50→live・品質ゲート・自動ロールバック
-- **654テスト品質ゲート**: 全デプロイ前後でテスト成功・59.24%カバレッジ確認必須
-- **週次学習統合**: GitHub Actions自動再学習・モデル更新・デプロイ連携
-- **Cloud Run統合**: 24時間稼働・自動スケーリング・Discord監視・ヘルスチェック
+- **攻撃的設定デプロイ**: 月100-200取引対応・Dynamic Confidence・攻撃的戦略ロジック統合デプロイ
+- **625テスト品質ゲート**: 全デプロイ前後でテスト成功・58.64%カバレッジ確認・攻撃的設定対応
+- **シンプルヘルスチェック**: importエラー回避・Cloud Run安定稼働・8時間連続稼働実績
+- **攻撃的運用統合**: ATR不一致取引・Mochipoy1票取引・24時間自動スケーリング・Discord監視
 
 ## 🔧 主要機能・実装（Phase 19統合）
 
 ### **deploy_production.sh - 段階的MLOpsデプロイ（核心機能）**
 
-**Phase 19段階的デプロイ統合**:
-- **654テスト品質ゲート**: デプロイ前後でchecks.sh実行・100%成功・59.24%カバレッジ確認
+**Phase 19+攻撃的設定デプロイ統合**:
+- **625テスト品質ゲート**: デプロイ前後でchecks.sh実行・100%成功・58.64%カバレッジ確認
 - **段階的リリース**: paper→stage-10→stage-50→live・各段階品質確認・自動プロモーション
 - **MLOps統合**: feature_manager.py・ProductionEnsemble・週次学習モデル統合デプロイ
 - **Cloud Run統合**: サービス更新・環境変数・ヘルスチェック・Discord監視・自動復旧
 
-### **docker-entrypoint.sh - MLOps統合エントリポイント（Phase 19対応）**
+### **docker-entrypoint.sh - MLOps統合エントリポイント（Phase 19+攻撃的設定対応）**
 
-**統合システム起動機能**:
-- **feature_manager統合**: 12特徴量生成・DataFrame出力・起動時検証・統合確認
-- **ProductionEnsemble**: 3モデル統合・予測テスト・起動時学習済み確認・フォールバック対応
-- **システム統合**: main.py統合システム・環境変数・プロセス監視・グレースフルシャットダウン
-- **654テスト統合**: 起動時テスト実行・品質確認・エラーハンドリング・Discord通知
+**Cloud Run最適化システム起動機能**:
+- **シンプルヘルスチェック**: importエラー回避・Cloud Run安定稼働・軽量JSON応答・625テスト対応
+- **MLOps統合起動**: feature_manager検証・ProductionEnsemble確認・攻撃的設定統合
+- **デュアルプロセス**: ヘルスチェックサーバー・取引システム同時稼働・プロセス監視強化
+- **攻撃的運用対応**: 月100-200取引対応・Dynamic Confidence・24時間安定稼働
 
 ### **verify_gcp_setup.sh - Phase 19環境検証**
 
@@ -65,6 +65,26 @@ deployment/
 - **取引認証**: Bitbank API・Discord Webhook・リアルタイム通知・セキュア管理
 - **CI/CD認証**: GitHub Actions・自動デプロイ・週次学習・権限管理
 - **セキュリティ強化**: 暗号化・アクセス制御・監査ログ・最小権限原則
+
+### **Discord Webhook設定（Phase 19+循環インポート解決版）**
+
+**ローカルファイル優先システム実装**:
+- **優先順位**: `config/secrets/discord_webhook.txt` > 環境変数 > GCP Secret Manager
+- **Cloud Run対応**: Secret Manager依存を回避・環境変数として直接設定
+- **セキュリティ**: ローカルファイルは`.gitignore`で保護・権限600推奨
+
+**設定方法**:
+```bash
+# 1. ローカルファイル作成（推奨）
+mkdir -p config/secrets
+echo "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL" > config/secrets/discord_webhook.txt
+chmod 600 config/secrets/discord_webhook.txt
+
+# 2. デプロイ実行（自動的にファイル読み込み）
+bash scripts/deployment/deploy_production.sh
+
+# 期待結果: ✅ ローカルファイルからDiscord URL読み込み・環境変数設定・Cloud Run通知復活
+```
 
 ## 📝 使用方法・例（Phase 19推奨ワークフロー）
 
@@ -230,4 +250,4 @@ run_phase19_diagnosis()
 
 ---
 
-**🎯 Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤・654テスト100%・59.24%カバレッジ統合による企業級段階的デプロイ・品質ゲート・24時間運用監視・自動復旧システムを実現
+**🎯 Phase 19+攻撃的設定完成**: 特徴量統一管理・攻撃的戦略ロジック・Dynamic Confidence・シンプルヘルスチェック・625テスト100%・58.64%カバレッジ統合による企業級段階的デプロイ・品質ゲート・月100-200取引対応・24時間安定運用監視・自動復旧システムを実現

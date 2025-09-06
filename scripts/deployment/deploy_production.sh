@@ -135,9 +135,17 @@ pre_deployment_checks() {
         log_info "gcloud secrets managerに保存された値を使用します"
     fi
     
-    if [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
-        log_warn "環境変数 DISCORD_WEBHOOK_URL が設定されていません"
-        log_info "gcloud secrets managerに保存された値を使用します"
+    # Discord Webhook URL優先順位設定
+    LOCAL_DISCORD_FILE="config/secrets/discord_webhook.txt"
+    
+    if [[ -f "${LOCAL_DISCORD_FILE}" ]]; then
+        DISCORD_WEBHOOK_URL=$(cat "${LOCAL_DISCORD_FILE}")
+        log_info "✅ ローカルファイルからDiscord Webhook URL読み込み: ${LOCAL_DISCORD_FILE}"
+    elif [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
+        log_warn "⚠️ ローカルファイル・環境変数ともに未設定"
+        log_info "GCP Secret Managerの値を使用します"
+    else
+        log_info "✅ 環境変数からDiscord Webhook URL使用"
     fi
     
     log_success "✅ 事前チェック完了"
@@ -291,8 +299,8 @@ deploy_cloud_run() {
         --timeout="${TIMEOUT}"
         --concurrency=1
         --allow-unauthenticated
-        --set-env-vars="MODE=live,EXCHANGE=bitbank,LOG_LEVEL=INFO,CONFIG_FILE=${CONFIG_FILE},MAX_DAILY_TRADES=${MAX_DAILY_TRADES}"
-        --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest"
+        --set-env-vars="MODE=live,EXCHANGE=bitbank,LOG_LEVEL=INFO,CONFIG_FILE=${CONFIG_FILE},MAX_DAILY_TRADES=${MAX_DAILY_TRADES},DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}"
+        --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest"
         --revision-suffix="${stage}-$(date +%H%M%S)"
         --quiet
     )

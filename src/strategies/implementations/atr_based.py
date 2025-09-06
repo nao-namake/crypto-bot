@@ -34,7 +34,10 @@ class ATRBasedStrategy(StrategyBase):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """戦略初期化."""
-        # デフォルト設定
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        # デフォルト設定（thresholds.yaml統合）
         default_config = {
             # シグナル設定
             "bb_overbought": 0.8,  # BB上限（80%位置）
@@ -49,6 +52,10 @@ class ATRBasedStrategy(StrategyBase):
             # フィルター設定
             "market_stress_threshold": 0.7,  # 市場ストレス閾値
             "min_atr_ratio": 0.5,  # 最小ATR比率（低ボラ回避）
+            # Phase 19+攻撃的設定対応（thresholds.yaml統合）
+            "normal_volatility_strength": get_threshold(
+                "strategies.atr_based.normal_volatility_strength", 0.3
+            ),
         }
 
         merged_config = {**default_config, **(config or {})}
@@ -177,7 +184,7 @@ class ATRBasedStrategy(StrategyBase):
                 strength = min((volatility_multiplier - 1.5) / 0.5, 1.0)
             else:
                 regime = "normal"  # 通常ボラ
-                strength = 0.5
+                strength = self.config["normal_volatility_strength"]  # thresholds.yaml設定使用
 
             return {
                 "regime": regime,

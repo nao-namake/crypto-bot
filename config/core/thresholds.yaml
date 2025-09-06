@@ -22,6 +22,31 @@ ml:
   allow_dummy_fallback: false       # ダミーフォールバック許可（安全性重視）
   max_model_failures: 3            # モデル失敗上限（この回数で停止）
 
+# 戦略固有設定（Phase 19+攻撃的設定対応）
+strategies:
+  # ATRBased戦略設定
+  atr_based:
+    strength_fallback: 0.3          # ボラティリティ分析失敗時の強度（攻撃的設定）
+    normal_volatility_strength: 0.3 # 通常ボラティリティ時の強度（攻撃的設定）
+    high_volatility_strength: 0.5  # 高ボラティリティ時の強度
+    low_volatility_strength: 0.2   # 低ボラティリティ時の強度
+  
+  # FibonacciRetracement戦略設定  
+  fibonacci_retracement:
+    no_signal_confidence: 0.3       # 反転シグナルなし時の信頼度（攻撃的設定）
+    base_signal_confidence: 0.3     # ベースシグナル信頼度（攻撃的設定）
+    level_bonus_max: 0.4           # レベルボーナス最大値
+  
+  # MochipoyAlert戦略設定（確認用）
+  mochipoy_alert:
+    hold_confidence: 0.3           # HOLD信頼度（攻撃的設定）
+    weak_signal_confidence: 0.4    # 弱いシグナル信頼度
+  
+  # MultiTimeframe戦略設定（確認用）
+  multi_timeframe:
+    hold_confidence: 0.3           # HOLD信頼度（攻撃的設定）
+    trend_conflict_confidence: 0.3 # トレンド不一致時信頼度
+
 # データ取得・処理関連閾値
 data:
   # タイムフレーム別データ取得件数（テクニカル指標計算最適化）

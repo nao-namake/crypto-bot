@@ -34,7 +34,10 @@ class FibonacciRetracementStrategy(StrategyBase):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """戦略初期化."""
-        # デフォルト設定（シンプル化）
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        # デフォルト設定（シンプル化・thresholds.yaml統合）
         default_config = {
             # スイング検出設定
             "lookback_periods": 20,  # 高値・安値検索期間
@@ -49,6 +52,10 @@ class FibonacciRetracementStrategy(StrategyBase):
             "stop_loss_atr_multiplier": 2.0,
             "take_profit_ratio": 2.5,
             "position_size_base": 0.02,  # 2%
+            # Phase 19+攻撃的設定対応（thresholds.yaml統合）
+            "no_signal_confidence": get_threshold(
+                "strategies.fibonacci_retracement.no_signal_confidence", 0.3
+            ),
         }
 
         merged_config = {**default_config, **(config or {})}
@@ -306,7 +313,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 confidence = 0.3 + sum(s for s in signal_strengths if s > 0) + level_bonus
             else:
                 reversal_signal = 0
-                confidence = 0.0
+                confidence = self.config["no_signal_confidence"]  # thresholds.yaml設定使用
 
             confidence = min(confidence, 1.0)  # 上限1.0
 

@@ -7,10 +7,41 @@
 ### **攻撃的戦略ロジック実装群**: 月100-200取引対応・企業級品質保証完備
 - **攻撃的戦略統合**: ATR不一致取引・Mochipoy1票取引・攻撃的閾値設定・12特徴量最適化
 - **Dynamic Confidence**: HOLD固定0.5問題解決・市場ボラティリティ連動・0.1-0.8動的変動
-- **625テスト品質保証**: 4戦略攻撃的ロジック・統合テスト・MLOps連携テスト・58.64%カバレッジ
+- **HOLD信頼度攻撃化**: 全戦略HOLD信頼度0.5→0.3修正（攻撃的設定・Dynamic Confidence有効化）
+- **626テスト品質保証**: 4戦略攻撃的ロジック・統合テスト・MLOps連携テスト・59.12%カバレッジ
 - **攻撃的運用統合**: 月100-200取引対応・信頼度攻撃化・ポジション拡大・24時間自動取引
-- **Cloud Run攻撃化**: 8時間連続稼働実績・攻撃的戦略実行・Discord監視・安定運用確立
+- **Cloud Run攻撃化**: 17時間ダウンタイム問題解決・攻撃的戦略実行・Discord監視・安定運用確立
 - **攻撃的ポートフォリオ**: 4戦略攻撃化・保守的設定排除・積極的取引機会創出
+
+## 🔧 最新修正履歴（2025年9月7日）
+- **4戦略統一管理システム実装**: thresholds.yaml統合・循環インポート解決・設定一元化完成
+- **全戦略HOLD信頼度攻撃化**: fibonacci_retracement.py, mochipoy_alert.py, multi_timeframe.py の HOLD信頼度0.5→0.3修正（攻撃的設定・月100-200取引対応・Dynamic Confidence有効化）
+
+### **4戦略統一管理システム（Phase 19+循環インポート解決版）**
+
+**✅ 一括設定管理実現**:
+- **設定ファイル**: `/Users/nao/Desktop/bot/config/core/thresholds.yaml`
+- **4戦略統合**: ATRBased・FibonacciRetracement・MochipoyAlert・MultiTimeframe
+- **循環インポート解決**: 遅延インポート実装・戦略初期化時設定読み込み
+
+**設定構造**:
+```yaml
+# 4戦略統一管理（一括調整可能）
+strategies:
+  atr_based:
+    normal_volatility_strength: 0.3  # 通常ボラティリティ強度（攻撃的）
+  fibonacci_retracement:
+    no_signal_confidence: 0.3        # 反転シグナルなし信頼度（攻撃的）
+  mochipoy_alert:
+    hold_confidence: 0.3             # HOLD信頼度（攻撃的）
+  multi_timeframe:
+    hold_confidence: 0.3             # HOLD信頼度（攻撃的）
+```
+
+**使用方法**:
+1. **thresholds.yamlの値変更** → 4戦略すべてに反映
+2. **攻撃性調整**: 0.3→0.2（より攻撃的）・0.3→0.4（より保守的）
+3. **即座反映**: 再起動で設定適用・デプロイ不要
 
 ### リファクタリング方針
 - **シンプル化が目的ではない**: 保守性と安定性の向上が目的

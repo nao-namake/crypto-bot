@@ -30,7 +30,7 @@ from ..features.feature_generator import FeatureGenerator
 
 # Phase 19: 循環インポート修正 - 遅延インポート
 # from ..ml.model_manager import ModelManager
-from ..strategies.base.strategy_manager import StrategyManager
+# from ..strategies.base.strategy_manager import StrategyManager  # 遅延インポートで解決
 from ..trading.executor import OrderSide, VirtualPosition
 from ..trading.risk_manager import IntegratedRiskManager, RiskDecision, TradeEvaluation
 
@@ -113,6 +113,9 @@ class BacktestEngine:
         # システム統合
         self.data_pipeline = DataPipeline()
         self.feature_generator = FeatureGenerator()
+        # 循環インポート回避のため遅延インポート
+        from ..strategies.base.strategy_manager import StrategyManager
+
         self.strategy_manager = StrategyManager()
 
         # 戦略登録（本番と同じ戦略を使用）

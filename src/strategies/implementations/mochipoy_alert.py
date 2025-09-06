@@ -34,7 +34,10 @@ class MochipoyAlertStrategy(StrategyBase):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """戦略初期化."""
-        # デフォルト設定（シンプル化）
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        # デフォルト設定（シンプル化・thresholds.yaml統合）
         default_config = {
             # RCI設定
             "rci_period": 14,
@@ -46,6 +49,8 @@ class MochipoyAlertStrategy(StrategyBase):
             "stop_loss_atr_multiplier": 2.0,
             "take_profit_ratio": 2.0,
             "position_size_base": 0.02,  # 2%
+            # Phase 19+攻撃的設定対応（thresholds.yaml統合）
+            "hold_confidence": get_threshold("strategies.mochipoy_alert.hold_confidence", 0.3),
         }
 
         merged_config = {**default_config, **(config or {})}
@@ -194,12 +199,12 @@ class MochipoyAlertStrategy(StrategyBase):
             else:
                 # 意見が割れるか全てHOLD
                 action = EntryAction.HOLD
-                confidence = 0.3  # 動的confidence対応
+                confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
 
             # 最低信頼度チェック
             if confidence < self.config["min_confidence"]:
                 action = EntryAction.HOLD
-                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
+                confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
 
             return {
                 "action": action,

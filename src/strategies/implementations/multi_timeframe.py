@@ -33,7 +33,10 @@ class MultiTimeframeStrategy(StrategyBase):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """戦略初期化."""
-        # デフォルト設定（シンプル化）
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        # デフォルト設定（シンプル化・thresholds.yaml統合）
         default_config = {
             # 4時間足分析設定
             "tf_4h_lookback": 16,  # 4時間×16 = 約2.7日
@@ -51,6 +54,8 @@ class MultiTimeframeStrategy(StrategyBase):
             "stop_loss_atr_multiplier": 2.0,
             "take_profit_ratio": 3.0,
             "position_size_base": 0.025,
+            # Phase 19+攻撃的設定対応（thresholds.yaml統合）
+            "hold_confidence": get_threshold("strategies.multi_timeframe.hold_confidence", 0.3),
         }
 
         merged_config = {**default_config, **(config or {})}
@@ -201,7 +206,7 @@ class MultiTimeframeStrategy(StrategyBase):
                 else:
                     # 不一致またはシグナルなし
                     action = EntryAction.HOLD
-                    confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
+                    confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
             else:
                 # 重み付け判定
                 weighted_score = tf_4h_signal * tf_4h_weight + tf_15m_signal * tf_15m_weight
@@ -211,12 +216,12 @@ class MultiTimeframeStrategy(StrategyBase):
                     confidence = min(abs(weighted_score), 1.0)
                 else:
                     action = EntryAction.HOLD
-                    confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
+                    confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
 
             # 最小信頼度チェック
             if confidence < min_confidence:
                 action = EntryAction.HOLD
-                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
+                confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
 
             return {
                 "action": action,
