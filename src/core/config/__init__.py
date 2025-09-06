@@ -202,7 +202,11 @@ class Config:
     @staticmethod
     def _create_ml_config(config_data: dict) -> MLConfig:
         """機械学習設定を作成（デフォルト値補完付き）"""
-        ml_data = config_data.get("ml", {})
+        ml_data = config_data.get("ml", {}).copy()  # コピーして元データを保護
+
+        # dynamic_confidenceはMLConfigに渡さない（get_thresholdで直接アクセスするため）
+        if "dynamic_confidence" in ml_data:
+            del ml_data["dynamic_confidence"]
         defaults = {
             "confidence_threshold": 0.65,
             "ensemble_enabled": True,
