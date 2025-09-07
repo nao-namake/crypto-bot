@@ -94,6 +94,91 @@ class StrategyManager:
 - **コンフリクト解決**: 相反シグナルの自動解決
 - **パフォーマンス監視**: 戦略別成績追跡
 
+## 🎯 StrategyManager詳細解明（2025年9月7日完了）
+
+### **競合解決メカニズム** (`src/strategies/base/strategy_manager.py`)
+
+**競合検知ロジック**（`_has_signal_conflict:183`）:
+```python
+def _has_signal_conflict(self, signal_groups):
+    has_buy = "buy" in signal_groups and len(signal_groups["buy"]) > 0
+    has_sell = "sell" in signal_groups and len(signal_groups["sell"]) > 0
+    return has_buy and has_sell  # BUYとSELLが同時にある場合のみ競合
+```
+
+**ケース別処理**:
+
+**1. SELL 2 + HOLD 2 → 競合なし**
+```python
+# _integrate_consistent_signals で処理（strategy_manager.py:253）
+action_counts = {"sell": 2, "hold": 2}
+dominant_action = max(action_counts, key=action_counts.get)  # → "sell"
+# 結果: SELL選択（積極的アクション優先）
+```
+
+**2. SELL 2 + BUY 2 → 競合あり**
+```python
+# _resolve_signal_conflict で処理（strategy_manager.py:191）
+buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
+sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
+
+if abs(buy_weighted_confidence - sell_weighted_confidence) < 0.1:
+    return self._create_hold_signal(df, reason="信頼度差が小さいためコンフリクト回避")
+else:
+    return winner_group_signal  # 高信頼度グループが勝利
+```
+
+### **重み付け信頼度計算**（`_calculate_weighted_confidence:297`）
+
+```python
+def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
+    total_weighted_confidence = 0.0
+    total_weight = 0.0
+    
+    for strategy_name, signal in signals:
+        weight = self.strategy_weights.get(strategy_name, 1.0)
+        weighted_confidence = signal.confidence * weight
+        
+        total_weighted_confidence += weighted_confidence
+        total_weight += weight
+    
+    return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
+```
+
+### **統合シグナル生成フロー**
+
+```
+1. 全戦略並行実行 → 個別StrategySignal生成
+                ↓
+2. アクション別グループ化 → {"buy": [...], "sell": [...], "hold": [...]}
+                ↓  
+3. 競合検知 → BUY vs SELL同時存在チェック
+                ↓
+4-A. 競合なし → _integrate_consistent_signals（多数決＋重み付け）
+4-B. 競合あり → _resolve_signal_conflict（重み付け信頼度比較）
+                ↓
+5. 最終統合シグナル生成 → StrategySignal(strategy_name="StrategyManager")
+```
+
+### **Dynamic Confidence実装**（`_create_hold_signal:314`）
+
+```python
+# 動的confidence計算（攻撃的設定・市場状況反映）
+base_confidence = get_threshold("ml.dynamic_confidence.base_hold", 0.3)
+
+# 市場ボラティリティに応じた調整
+if volatility > 0.02:  # 高ボラティリティ
+    confidence = base_confidence * 0.8  # さらに下げる（攻撃的）
+elif volatility < 0.005:  # 低ボラティリティ  
+    confidence = base_confidence * 1.2  # 少し上げる
+```
+
+**💡 重要発見**:
+- StrategyManagerは統合シグナル生成のみ担当
+- 実際の取引実行判定はIntegratedRiskManagerが別途実施
+- 競合回避システムで安全性を最優先
+- Dynamic Confidenceで市場状況を反映
+
 ## 🔄 Phase 19 MLOps統合改善点（企業級品質保証・自動化完備）
 
 ### 戦略基底クラスの強化（GitHub Actions対応）

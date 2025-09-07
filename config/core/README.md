@@ -114,15 +114,16 @@ class FeatureManager:
         """特徴量整合性検証"""
 ```
 
-### **thresholds.yaml - 攻撃的設定一元化システム（Phase 19+攻撃的設定完成）**
+### **thresholds.yaml - 攻撃的設定一元化システム（Phase 19+攻撃的設定完成・ハードコード問題解決）**
 
-**🎯 攻撃的閾値最適化・Dynamic Confidence・月100-200取引対応**:
+**🎯 攻撃的閾値最適化・Dynamic Confidence・月100-200取引対応・戦略設定統一化**:
 
 **攻撃的設定変更の成果（Phase 19+攻撃的設定完成）**:
 - **攻撃的閾値**: high 0.65→0.45・very_high 0.8→0.60・積極的取引機会創出
 - **Dynamic Confidence**: HOLD固定0.5→市場ボラティリティ連動0.1-0.8変動・base_hold 0.3
 - **月100-200取引対応**: 保守的設定排除・取引頻度最適化・機会損失防止
 - **攻撃的戦略統合**: ATR不一致取引・Mochipoy1票取引・攻撃的ポジションサイジング
+- **🔧 ハードコード問題解決**: 戦略内固定値完全排除・設定値一元管理・フォールバック防止統合
 
 **8個ヘルパー関数（Phase 19拡張）**:
 ```python
@@ -154,12 +155,14 @@ ml:
     error_fallback: 0.2      # エラー時フォールバック
     neutral_default: 0.35    # 中性時デフォルト
 
-# 4戦略統一管理（Phase 19+循環インポート解決版）
+# 4戦略統一管理（Phase 19+循環インポート解決版・ハードコード問題解決完了）
 strategies:
   atr_based:
     normal_volatility_strength: 0.3  # 通常ボラティリティ時強度（攻撃的）
+    hold_confidence: 0.3             # HOLD決定時信頼度（旧：ハードコード0.5）
   fibonacci_retracement:
     no_signal_confidence: 0.3        # 反転シグナルなし時信頼度（攻撃的）
+    no_level_confidence: 0.3         # フィボレベル接近なし時信頼度（旧：ハードコード0.0）
   mochipoy_alert:
     hold_confidence: 0.3             # HOLD信頼度（攻撃的）
   multi_timeframe:
@@ -300,6 +303,19 @@ emergency_stop = get_threshold("ml.emergency_stop_on_dummy", True)
 if emergency_stop and model_type == "DummyModel":
     logger.critical("🚨 ダミーモデル検出により緊急停止")
     sys.exit(1)
+
+# 7. ハードコード問題解決システム（戦略設定統一管理）
+# 戦略内での設定値取得（フォールバック防止）
+from ...core.config.threshold_manager import get_threshold
+
+# ATRBased戦略のHOLD信頼度設定
+hold_confidence = get_threshold("strategies.atr_based.hold_confidence", 0.3)
+
+# FibonacciRetracement戦略の設定
+no_level_confidence = get_threshold("strategies.fibonacci_retracement.no_level_confidence", 0.3)
+no_signal_confidence = get_threshold("strategies.fibonacci_retracement.no_signal_confidence", 0.3)
+
+# 戦略設定統一管理により、ハードコード値完全排除・フォールバック防止実現
 ```
 
 ## ⚠️ 注意事項・制約

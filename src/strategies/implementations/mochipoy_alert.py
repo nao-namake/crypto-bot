@@ -59,23 +59,37 @@ class MochipoyAlertStrategy(StrategyBase):
     def analyze(self, df: pd.DataFrame) -> StrategySignal:
         """市場分析とシグナル生成."""
         try:
+            self.logger.info(
+                f"[MochipoyAlert] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
+            )
             self.logger.debug("[MochipoyAlert] 分析開始")
 
             current_price = float(df["close"].iloc[-1])
 
             # 3指標のシンプル分析
             ema_signal = self._analyze_ema_trend(df)
+            ema_result = {1: "上昇", -1: "下降", 0: "横ばい"}.get(ema_signal, "不明")
+            self.logger.info(f"[MochipoyAlert] EMA分析結果: {ema_result} (signal: {ema_signal})")
+
             macd_signal = self._analyze_macd_momentum(df)
+            macd_result = {1: "買い", -1: "売り", 0: "ホールド"}.get(macd_signal, "不明")
+            self.logger.info(f"[MochipoyAlert] MACD分析結果: {macd_result} (signal: {macd_signal})")
+
             rci_signal = self._analyze_rci_reversal(df)
+            rci_result = {1: "買い", -1: "売り", 0: "ホールド"}.get(rci_signal, "不明")
+            self.logger.info(f"[MochipoyAlert] RCI分析結果: {rci_result} (signal: {rci_signal})")
 
             # 多数決によるシンプル統合判定
             signal_decision = self._make_simple_decision(ema_signal, macd_signal, rci_signal)
+            self.logger.info(
+                f"[MochipoyAlert] 最終判定: {signal_decision.get('action')} (confidence: {signal_decision.get('confidence', 0):.3f})"
+            )
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
 
-            self.logger.debug(
-                f"[MochipoyAlert] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
+            self.logger.info(
+                f"[MochipoyAlert] シグナル生成完了: {signal.action} (信頼度: {signal.confidence:.3f}, 強度: {signal.strength:.3f})"
             )
             return signal
 

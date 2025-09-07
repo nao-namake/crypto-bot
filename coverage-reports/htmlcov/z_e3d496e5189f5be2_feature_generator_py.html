@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/features/feature_generator.py: 73.44%</title>
+    <title>Coverage for src/features/feature_generator.py: 76.04%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/features/feature_generator.py</b>:
-            <span class="pc_cov">73.44%</span>
+            <span class="pc_cov">76.04%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">192 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">141<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">51<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">146<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">46<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_fe95c6d4fcf504b4___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-06 11:19 +0900
+            created at 2025-09-07 05:32 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -438,12 +438,12 @@
     <p class="pln"><span class="n"><a id="t356" href="#t356">356</a></span><span class="t"><span class="str">            &#29305;&#24500;&#37327;&#36861;&#21152;&#12373;&#12428;&#12383;&#12487;&#12540;&#12479;&#12501;&#12524;&#12540;&#12512;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t357" href="#t357">357</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t358" href="#t358">358</a></span><span class="t">        <span class="com"># &#24517;&#35201;&#21015;&#12398;&#12481;&#12455;&#12483;&#12463;&#65288;OHLCV&#20840;&#12390;&#24517;&#35201;&#65289;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">        <span class="nam">required_columns</span> <span class="op">=</span> <span class="op">[</span><span class="str">"open"</span><span class="op">,</span> <span class="str">"high"</span><span class="op">,</span> <span class="str">"low"</span><span class="op">,</span> <span class="str">"close"</span><span class="op">,</span> <span class="str">"volume"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">        <span class="nam">missing_columns</span> <span class="op">=</span> <span class="op">[</span><span class="nam">col</span> <span class="key">for</span> <span class="nam">col</span> <span class="key">in</span> <span class="nam">required_columns</span> <span class="key">if</span> <span class="nam">col</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">df</span><span class="op">.</span><span class="nam">columns</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t361" href="#t361">361</a></span><span class="t">        <span class="key">if</span> <span class="nam">missing_columns</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">            <span class="key">from</span> <span class="nam">src</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">exceptions</span> <span class="key">import</span> <span class="nam">DataProcessingError</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t359" href="#t359">359</a></span><span class="t">        <span class="nam">required_columns</span> <span class="op">=</span> <span class="op">[</span><span class="str">"open"</span><span class="op">,</span> <span class="str">"high"</span><span class="op">,</span> <span class="str">"low"</span><span class="op">,</span> <span class="str">"close"</span><span class="op">,</span> <span class="str">"volume"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t360" href="#t360">360</a></span><span class="t">        <span class="nam">missing_columns</span> <span class="op">=</span> <span class="op">[</span><span class="nam">col</span> <span class="key">for</span> <span class="nam">col</span> <span class="key">in</span> <span class="nam">required_columns</span> <span class="key">if</span> <span class="nam">col</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">df</span><span class="op">.</span><span class="nam">columns</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t361" href="#t361">361</a></span><span class="t">        <span class="key">if</span> <span class="nam">missing_columns</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">            <span class="key">from</span> <span class="nam">src</span><span class="op">.</span><span class="nam">core</span><span class="op">.</span><span class="nam">exceptions</span> <span class="key">import</span> <span class="nam">DataProcessingError</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t363" href="#t363">363</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t364" href="#t364">364</a></span><span class="t">            <span class="key">raise</span> <span class="nam">DataProcessingError</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#24517;&#35201;&#21015;&#12364;&#19981;&#36275;: </span><span class="op">{</span><span class="nam">missing_columns</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t364" href="#t364">364</a></span><span class="t">            <span class="key">raise</span> <span class="nam">DataProcessingError</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#24517;&#35201;&#21015;&#12364;&#19981;&#36275;: </span><span class="op">{</span><span class="nam">missing_columns</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t365" href="#t365">365</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t366" href="#t366">366</a></span><span class="t">        <span class="com"># &#31777;&#26131;&#29256;&#65306;market_stress&#29305;&#24500;&#37327;&#12398;&#12415;&#29983;&#25104;</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t367" href="#t367">367</a></span><span class="t">        <span class="nam">result_df</span> <span class="op">=</span> <span class="nam">df</span><span class="op">.</span><span class="nam">copy</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -528,7 +528,7 @@
             <a class="nav" href="z_fe95c6d4fcf504b4___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-06 11:19 +0900
+            created at 2025-09-07 05:32 +0900
         </p>
     </div>
 </footer>

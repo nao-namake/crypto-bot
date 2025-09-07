@@ -64,22 +64,41 @@ class MultiTimeframeStrategy(StrategyBase):
     def analyze(self, df: pd.DataFrame) -> StrategySignal:
         """マルチタイムフレーム分析とシグナル生成."""
         try:
+            self.logger.info(
+                f"[MultiTimeframe] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
+            )
             self.logger.debug("[MultiTimeframe] 分析開始")
 
             current_price = float(df["close"].iloc[-1])
 
             # 2軸分析（シンプル化）
             tf_4h_signal = self._analyze_4h_trend(df)
+            tf_4h_result = {1: "上昇トレンド", -1: "下降トレンド", 0: "横ばい"}.get(
+                tf_4h_signal, "不明"
+            )
+            self.logger.info(
+                f"[MultiTimeframe] 4Hトレンド分析結果: {tf_4h_result} (signal: {tf_4h_signal})"
+            )
+
             tf_15m_signal = self._analyze_15m_entry(df)
+            tf_15m_result = {1: "買いエントリー", -1: "売りエントリー", 0: "エントリーなし"}.get(
+                tf_15m_signal, "不明"
+            )
+            self.logger.info(
+                f"[MultiTimeframe] 15Mエントリー分析結果: {tf_15m_result} (signal: {tf_15m_signal})"
+            )
 
             # 2層統合判定
             signal_decision = self._make_2tf_decision(tf_4h_signal, tf_15m_signal)
+            self.logger.info(
+                f"[MultiTimeframe] 最終判定: {signal_decision.get('action')} (confidence: {signal_decision.get('confidence', 0):.3f})"
+            )
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
 
-            self.logger.debug(
-                f"[MultiTimeframe] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
+            self.logger.info(
+                f"[MultiTimeframe] シグナル生成完了: {signal.action} (信頼度: {signal.confidence:.3f}, 強度: {signal.strength:.3f})"
             )
             return signal
 

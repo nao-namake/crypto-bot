@@ -23,6 +23,7 @@ deployment/
 - **625テスト品質ゲート**: 全デプロイ前後でテスト成功・58.64%カバレッジ確認・攻撃的設定対応
 - **シンプルヘルスチェック**: importエラー回避・Cloud Run安定稼働・8時間連続稼働実績
 - **攻撃的運用統合**: ATR不一致取引・Mochipoy1票取引・24時間自動スケーリング・Discord監視
+- **🔧 ハードコード問題解決統合**: 戦略設定統一管理・フォールバック防止・設定値検証・動的診断
 
 ## 🔧 主要機能・実装（Phase 19統合）
 
@@ -184,6 +185,28 @@ def run_phase19_diagnosis():
         "--region=asia-northeast1"
     ], capture_output=True)
     print(f"Cloud Run: {'✅ 稼働中' if result.returncode == 0 else '❌ 停止'}")
+    
+    # ハードコード問題解決確認（新機能）
+    print("\n=== ハードコード問題解決確認 ===")
+    
+    try:
+        from src.core.config.threshold_manager import get_threshold
+        
+        # 戦略設定値確認
+        atr_hold = get_threshold("strategies.atr_based.hold_confidence", "ERROR")
+        fib_no_level = get_threshold("strategies.fibonacci_retracement.no_level_confidence", "ERROR")
+        fib_no_signal = get_threshold("strategies.fibonacci_retracement.no_signal_confidence", "ERROR")
+        
+        print(f"ATR hold_confidence: {'✅' if atr_hold != 'ERROR' else '❌'} {atr_hold}")
+        print(f"Fib no_level_confidence: {'✅' if fib_no_level != 'ERROR' else '❌'} {fib_no_level}")
+        print(f"Fib no_signal_confidence: {'✅' if fib_no_signal != 'ERROR' else '❌'} {fib_no_signal}")
+        
+        # 設定値検証
+        all_ok = all([v != "ERROR" for v in [atr_hold, fib_no_level, fib_no_signal]])
+        print(f"戦略設定統一化: {'✅ 完了' if all_ok else '❌ 設定エラー'}")
+        
+    except Exception as e:
+        print(f"設定検証エラー: ❌ {e}")
 
 # 診断実行
 run_phase19_diagnosis()

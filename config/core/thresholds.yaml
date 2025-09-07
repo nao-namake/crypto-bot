@@ -30,12 +30,14 @@ strategies:
     normal_volatility_strength: 0.3 # 通常ボラティリティ時の強度（攻撃的設定）
     high_volatility_strength: 0.5  # 高ボラティリティ時の強度
     low_volatility_strength: 0.2   # 低ボラティリティ時の強度
+    hold_confidence: 0.3            # HOLD決定時の信頼度（攻撃的設定）
   
   # FibonacciRetracement戦略設定  
   fibonacci_retracement:
     no_signal_confidence: 0.3       # 反転シグナルなし時の信頼度（攻撃的設定）
     base_signal_confidence: 0.3     # ベースシグナル信頼度（攻撃的設定）
     level_bonus_max: 0.4           # レベルボーナス最大値
+    no_level_confidence: 0.3       # フィボレベル接近なし時の信頼度（攻撃的設定）
   
   # MochipoyAlert戦略設定（確認用）
   mochipoy_alert:

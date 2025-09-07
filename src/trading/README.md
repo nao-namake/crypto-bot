@@ -7,10 +7,14 @@
 ```
 trading/
 ├── __init__.py              # 取引層統合エクスポート ✅ Phase 18統合対応
-├── risk_monitor.py          # リスク監視（異常検知+ドローダウン統合）✅ Phase 18新統合
+├── risk_monitor.py          # リスク監視（異常検知+ドローダウン統合）✅ Phase 18新統合・メソッド名修正
 ├── risk_manager.py          # リスク管理（統合API+Kelly基準統合）✅ Phase 18新統合  
 └── executor.py              # 注文実行システム（Phase 13継承）✅ Phase 18継承
 ```
+
+## 🔧 最新修正履歴（2025年9月7日）
+- **risk_monitor.py**: generate_all_features → generate_features_sync 修正（Phase3異常検知連携エラー根本解決・Container exit(1)問題解決）
+- **🎯 信頼度閾値システム完全解明**: IntegratedRiskManager→OrderExecutorの3段階取引実行条件・競合解決メカニズム詳細分析完成
 
 ### Phase 18統合成果
 - **ファイル数削減**: 6ファイル → 3ファイル（50%削減）
@@ -55,6 +59,85 @@ evaluation = risk_manager.evaluate_trade_opportunity(
 print(f"判定: {evaluation.decision}")
 print(f"ポジションサイズ: {evaluation.position_size}")
 print(f"リスクスコア: {evaluation.risk_score}")
+
+## 🎯 信頼度閾値システム詳細解明（2025年9月7日完了）
+
+### **3段階取引実行条件** (`src/trading/risk_manager.py`)
+
+**ML信頼度閾値**（`evaluate_trade_opportunity:787-812`）:
+```python
+ml_confidence = ml_prediction.get("confidence", 0.0)
+min_ml_confidence = get_threshold("trading.risk_thresholds.min_ml_confidence", 0.25)
+
+if ml_confidence < min_ml_confidence:
+    denial_reasons.append("ML信頼度不足")  # 自動拒否
+```
+
+**リスクスコア3段階判定**（`_make_final_decision:1043-1070`）:
+```python
+risk_threshold_deny = get_threshold("trading.risk_thresholds.deny", 0.8)         # 80%以上→拒否
+risk_threshold_conditional = get_threshold("trading.risk_thresholds.conditional", 0.6)  # 60-80%→条件付き
+
+if risk_score >= 0.8:
+    return RiskDecision.DENIED
+elif risk_score >= 0.6:
+    return RiskDecision.CONDITIONAL  
+else:
+    return RiskDecision.APPROVED  # 60%未満→承認
+```
+
+### **OrderExecutor最終実行判定** (`src/trading/executor.py`)
+
+**承認取引のみ実行**（`execute_trade:276`）:
+```python
+if evaluation.decision != RiskDecision.APPROVED:
+    return ExecutionResult(
+        success=False,
+        error_message=f"取引が承認されていません: {evaluation.decision.value}"
+    )
+
+# APPROVEDのみが実際の取引実行に進む
+```
+
+### **完全な取引判定フロー**
+
+```
+【StrategyManager】4戦略統合シグナル → 重み付け信頼度計算
+                    ↓
+【ML予測統合】ProductionEnsemble → 3モデルアンサンブル予測
+                    ↓
+【IntegratedRiskManager】包括的評価:
+├── ML信頼度: ≥ 0.25 必須（未満は自動拒否）
+├── リスクスコア算出: 0.0-1.0
+│   ├── < 0.6: APPROVED（承認）
+│   ├── 0.6-0.8: CONDITIONAL（条件付き）
+│   └── ≥ 0.8: DENIED（拒否）
+└── Kelly基準ポジションサイジング
+                    ↓
+【OrderExecutor】最終実行:
+├── APPROVED → 実際の注文実行（Paper/Live）
+└── CONDITIONAL/DENIED → 実行拒否・統計記録
+```
+
+### **リスクスコア算出詳細**（`_calculate_risk_score:979-1025`）
+
+```python
+# 重み付けリスクコンポーネント
+risk_components = [
+    ("ml_confidence", 1.0 - ml_confidence, 0.3),     # ML信頼度リスク(30%)
+    ("anomaly", anomaly_risk, 0.25),                 # 異常検知リスク(25%)
+    ("drawdown", drawdown_ratio / 0.20, 0.25),       # ドローダウンリスク(25%)
+    ("consecutive_losses", consecutive_losses / 5.0, 0.1),  # 連続損失リスク(10%)
+    ("volatility", market_volatility / 0.05, 0.1)    # ボラティリティリスク(10%)
+]
+
+total_risk = sum(score * weight for _, score, weight in risk_components)
+```
+
+**💡 重要発見**:
+- **実際の取引実行条件**: ML≥0.25 & リスクスコア<0.6 の両方を満たす必要
+- **厳格な多段階フィルター**: 戦略レベル→ML信頼度→リスク管理→実行判定の4段階
+- **安全性最優先設計**: 複数のフェイルセーフ機能で資金保全を重視
 ```
 
 ### ✅ Kelly基準ポジションサイジング（risk_manager.py統合）

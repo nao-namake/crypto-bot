@@ -64,23 +64,40 @@ class FibonacciRetracementStrategy(StrategyBase):
     def analyze(self, df: pd.DataFrame) -> StrategySignal:
         """フィボナッチ分析とシグナル生成."""
         try:
+            self.logger.info(
+                f"[FibonacciRetracement] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
+            )
             self.logger.debug("[FibonacciRetracement] 分析開始")
 
             current_price = float(df["close"].iloc[-1])
 
             # シンプル分析
             swing_analysis = self._find_recent_swing(df)
+            self.logger.info(
+                f"[FibonacciRetracement] スイング分析結果: {swing_analysis.get('analysis', 'N/A')}"
+            )
+
             fib_analysis = self._calculate_fib_levels(df, swing_analysis)
+            self.logger.info(
+                f"[FibonacciRetracement] フィボ分析結果: {fib_analysis.get('analysis', 'N/A')}"
+            )
+
             reversal_analysis = self._check_reversal_signals(df, fib_analysis)
+            self.logger.info(
+                f"[FibonacciRetracement] 反転分析結果: {reversal_analysis.get('analysis', 'N/A')}"
+            )
 
             # 統合判定
             signal_decision = self._make_simple_decision(fib_analysis, reversal_analysis)
+            self.logger.info(
+                f"[FibonacciRetracement] 最終判定: {signal_decision.get('action')} (confidence: {signal_decision.get('confidence', 0):.3f})"
+            )
 
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
 
-            self.logger.debug(
-                f"[FibonacciRetracement] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
+            self.logger.info(
+                f"[FibonacciRetracement] シグナル生成完了: {signal.action} (信頼度: {signal.confidence:.3f}, 強度: {signal.strength:.3f})"
             )
             return signal
 
@@ -451,11 +468,17 @@ class FibonacciRetracementStrategy(StrategyBase):
 
             # 基本条件チェック
             if not fib_analysis["is_near_level"]:
+                # 循環インポート回避のため遅延インポート
+                from ...core.config.threshold_manager import get_threshold
+
+                no_level_confidence = get_threshold(
+                    "strategies.fibonacci_retracement.no_level_confidence", 0.3
+                )
                 return {
                     "action": EntryAction.HOLD,
-                    "confidence": 0.0,
+                    "confidence": no_level_confidence,
                     "strength": 0.0,
-                    "analysis": "フィボレベル接近なし",
+                    "analysis": f"フィボレベル接近なし [confidence={no_level_confidence}]",
                 }
 
             reversal_signal = reversal_analysis["reversal_signal"]
@@ -500,7 +523,7 @@ class FibonacciRetracementStrategy(StrategyBase):
                 strength = base_confidence + (level_bonus + trend_bonus) * 0.5
             else:
                 action = EntryAction.HOLD
-                confidence = 0.3  # 低信頼度HOLD（攻撃的設定）
+                confidence = self.config["no_signal_confidence"]  # thresholds.yaml設定使用
                 strength = 0.0
 
             # 分析テキスト作成

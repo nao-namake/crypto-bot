@@ -64,6 +64,9 @@ class ATRBasedStrategy(StrategyBase):
     def analyze(self, df: pd.DataFrame) -> StrategySignal:
         """市場分析とシグナル生成."""
         try:
+            self.logger.info(
+                f"[ATRBased] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
+            )
             self.logger.debug("[ATRBased] 分析開始")
 
             current_price = float(df["close"].iloc[-1])
@@ -296,11 +299,15 @@ class ATRBasedStrategy(StrategyBase):
 
     def _create_hold_decision(self, reason: str) -> Dict[str, Any]:
         """ホールド決定作成."""
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        hold_confidence = get_threshold("strategies.atr_based.hold_confidence", 0.5)
         return {
             "action": EntryAction.HOLD,
-            "confidence": 0.5,
+            "confidence": hold_confidence,
             "strength": 0.0,
-            "analysis": f"ATR逆張り: hold ({reason})",
+            "analysis": f"ATR逆張り: hold ({reason}) [confidence={hold_confidence}]",
         }
 
     def _create_signal(
