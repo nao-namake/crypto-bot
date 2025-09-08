@@ -2,93 +2,65 @@
 
 このファイルは、Claude Code (claude.ai/code) がこのリポジトリで作業する際のガイダンスを提供します。
 
-## 🚨 最重要：現在の開発状況（2025年9月7日現在）
+## 🚨 現在の状況
 
-### **✅ Phase 19.1完了・4戦略統合システム詳細解明完成**
+### **システム状態**
+- **AI自動取引システム**: 完全稼働中・Cloud Run 24時間運用・bitbank信用取引対応
+- **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
+- **取引頻度**: 月100-200回・高頻度取引・BTC/JPY専用
+- **テスト品質**: 625テスト100%成功・58.64%カバレッジ維持
+- **統合システム**: 12特徴量→4戦略→ML予測→リスク管理→取引実行の完全自動化
+- **ドキュメント**: 全README更新完了・実用的構成に最適化
 
-**現在の状況**: 
-- **Phase 19.1完了**: 4戦略統合システム詳細解明・競合解決メカニズム・信頼度閾値システム・取引判定フロー完全理解
-- **Phase 19+攻撃的設定完成**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・**攻撃的戦略ロジック実装**・**Dynamic Confidence完成**・週次自動学習・Cloud Run 24時間稼働統合
-- **攻撃的取引システム完成**: **月100-200取引対応**・1万円運用最適化・戦略攻撃化・取引機会最大化・リスク管理攻撃化
-- **全README更新完成**: 攻撃的設定対応更新・4戦略統合システム詳細分析反映・Phase 19+攻撃的設定反映・企業級品質保証ドキュメント体系確立
-- **625テスト品質保証**: 100%通過・58.64%カバレッジ維持・攻撃的設定対応・CI/CD完全統合・回帰防止完備
+### **主要仕様（要件定義より）**
+- **戦略**: 4戦略統合（ATR・フィボナッチ・もちぽよ・マルチタイムフレーム）
+- **ML**: 3モデルアンサンブル（LightGBM 50%・XGBoost 30%・RandomForest 20%）
+- **時間軸**: 4時間足（トレンド）+ 15分足（エントリー）
+- **インフラ**: GCP Cloud Run・1Gi・1CPU・月額2,000円以内
 
-**🎯 最新システム状態（Phase 19+攻撃的設定完成）**:
-```
-🏆 攻撃的MLOps統合システム: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・攻撃的戦略ロジック・企業級品質保証完備
-🏆 攻撃的取引システム: 月100-200取引対応・ATRBased不一致取引・MochipoyAlert 1票取引・Dynamic Confidence完成
-🏆 週次自動学習: GitHub Actions週次学習ワークフロー・CI/CD品質ゲート・段階的デプロイ・自動モデル更新
-🏆 Cloud Run統合: 24時間稼働・スケーラブル実行・Discord 3階層監視・攻撃的運用最適化・自動スケーリング
-🏆 625テスト品質保証: 58.64%カバレッジ・攻撃的設定対応テスト・品質管理完備・回帰防止・継続監視
-🏆 ドキュメント統合: 全README攻撃的設定対応・Phase 19+統一・企業級ドキュメント体系確立
-```
-
-**重要**: Phase 19+攻撃的設定完成・全README更新完成・企業級品質保証・**月100-200取引実用的攻撃的AI自動取引システム稼働中**
-
-## 📂 システム構造（2025年9月6日 Phase 19+攻撃的設定完成版）
+## 📂 システム構造
 
 ```
-src/                    # 攻撃的MLOps統合メインシステム（625テスト100%・Phase 19+攻撃的設定完成）
-├── core/              # MLOps統合基盤システム
-│   ├── orchestration/       # 統合制御・MLアダプター
-│   │   ├── orchestrator.py      # システム統合制御（534行・Protocol分離）
-│   │   ├── ml_adapter.py        # MLサービス統合（660行・フォールバック対応）
-│   │   └── ml_loader.py         # MLOpsモデル読み込み（ProductionEnsemble優先・週次学習対応）
-│   ├── config/             # MLOps統合設定システム・特徴量管理
-│   │   └── feature_manager.py   # feature_manager 12特徴量統一管理・ProductionEnsemble連携★MLOps統合
-│   ├── logger.py          # JST対応ログ・構造化出力・Discord統合
-│   ├── exceptions.py      # カスタム例外・階層化エラー処理
-│   └── protocols.py       # Protocol分離・型安全性
-│   
-├── features/          # MLOps統合特徴量システム（Phase 19 MLOps統合完成）
-│   └── feature_generator.py   # feature_manager統合FeatureGenerator（12特徴量統一・ProductionEnsemble連携・週次学習対応）
-│   
-├── strategies/        # 攻撃的MLOps統合取引戦略（4戦略・攻撃的ロジック・Dynamic Confidence・feature_manager連携・ProductionEnsemble統合・週次学習対応）
-├── ml/                # MLOps統合機械学習（ProductionEnsemble 3モデル統合・週次自動学習・625テスト品質保証）
-├── data/              # データ層（Bitbank API・パイプライン・キャッシュ）
-├── backtest/          # バックテスト（統一レポーター・効率化完了）
-├── trading/           # 取引実行（リスク管理・Kelly基準）
-└── monitoring/        # MLOps統合監視（Discord 3階層監視・Cloud Run 24時間稼働監視・週次学習監視）
+src/                        # メイン実装
+├── core/                   # 基盤システム
+│   ├── orchestration/          # システム統合制御
+│   ├── config/                 # 設定管理・特徴量管理
+│   ├── execution/              # 取引実行制御  
+│   ├── reporting/              # レポーティング
+│   └── services/               # システムサービス
+├── data/                   # データ層（Bitbank API・キャッシュ）
+├── features/               # 12特徴量生成システム
+├── strategies/             # 4戦略統合システム → [詳細](src/strategies/README.md)
+├── ml/                     # ProductionEnsemble・3モデル統合
+├── trading/                # リスク管理・取引実行 → [詳細](src/trading/README.md)
+├── backtest/               # バックテストシステム
+└── monitoring/             # Discord 3階層監視
 
-scripts/               # 攻撃的MLOps統合スクリプト群
-├── testing/checks.sh       # 攻撃的MLOps統合品質チェック（625テスト・58.64%カバレッジ・攻撃的設定対応・30秒実行）
-└── ml/create_ml_models.py  # MLOps統合モデル学習（ProductionEnsemble・週次学習・Git追跡・自動アーカイブ）★MLOps統合
-
-.github/workflows/     # 攻撃的MLOps統合CI/CD自動化
-├── ci.yml            # 攻撃的MLOps品質チェック・本番デプロイ（毎回プッシュ・625テスト・攻撃的設定品質ゲート）
-├── cleanup.yml       # MLOps統合GCPリソースクリーンアップ（月次・Cloud Run最適化）
-└── model-training.yml # MLOps統合週次自動学習（ProductionEnsemble更新・段階的デプロイ）★MLOps統合
-
-config/               # MLOps統合階層化設定・特徴量定義
-├── core/feature_order.json  # feature_manager 12特徴量統一定義・MLOps全システム参照★MLOps統合KEY
-└── ...               # MLOps環境別設定・YAML統合・Cloud Run対応
-
-models/               # MLOps統合モデル・バージョン管理
-├── production/       # ProductionEnsemble本番モデル（3モデル統合・Git情報・週次更新対応）
-├── training/         # MLOps学習用個別モデル（週次自動学習・品質検証）
-└── archive/          # MLOps自動アーカイブ・履歴保持・品質トレーサビリティ★MLOps統合
+scripts/testing/checks.sh   # 品質チェック（開発必須）
+config/core/unified.yaml    # 統合設定ファイル
+models/production/          # 本番MLモデル（週次更新）
 ```
 
-## 🔧 開発ワークフロー（2025年9月最新版）
+## 🔧 開発ワークフロー
 
-### **1. 品質チェック（開発時必須・攻撃的設定対応）**
+### **1. 品質チェック（開発時必須）**
 ```bash
 # メイン品質チェック - 開発前後に必ず実行
-bash scripts/testing/checks.sh                         # 625テスト・攻撃的設定対応・カバレッジ・約30秒
+bash scripts/testing/checks.sh                         # 625テスト・カバレッジ・約30秒
 
-# 軽量システム確認
-python3 scripts/testing/dev_check.py validate       # 設定・整合性チェック
+# 軽量確認
+python3 scripts/testing/dev_check.py validate         # 設定整合性チェック
 
-# 期待結果: ✅ 625テスト100%成功・58.64%カバレッジ・攻撃的設定品質保証通過
+# 期待結果: ✅ 625テスト100%成功・58.64%カバレッジ通過
 ```
 
-### **2. 攻撃的システム実行**
+### **2. システム実行**
 ```bash
-# 攻撃的本番システム実行
-python3 main.py --mode paper    # ペーパートレード（攻撃的設定）
-python3 main.py --mode live     # ライブトレード（攻撃的本番・月100-200取引）
+# 本番システム実行
+python3 main.py --mode paper    # ペーパートレード
+python3 main.py --mode live     # ライブトレード
 
-# 期待結果: 12特徴量生成→4攻撃的戦略実行→Dynamic Confidence→攻撃的取引判断→BUY/SELLシグナル生成
+# 期待結果: 12特徴量生成→4戦略実行→ML予測→リスク評価→BUY/SELL判定
 ```
 
 ### **3. 本番環境確認**
@@ -114,11 +86,11 @@ from src.features.feature_generator import FeatureGenerator
 python3 scripts/deployment/docker-entrypoint.sh verify
 ```
 
-## 🎯 開発原則・方針（2025年9月版）
+## 🎯 開発原則
 
 ### **1. 品質保証必須**
-- **テスト実行**: 開発前後に`checks.sh`必須実行・654テスト100%維持
-- **カバレッジ**: 59.24%以上維持・新機能は必ずテスト追加
+- **テスト実行**: 開発前後に`checks.sh`必須実行・625テスト100%維持
+- **カバレッジ**: 58.64%以上維持・新機能は必ずテスト追加
 - **CI/CD**: GitHub Actions自動品質ゲート・失敗時は修正必須
 
 ### **2. システム理解必須**
@@ -138,21 +110,21 @@ python3 scripts/deployment/docker-entrypoint.sh verify
 
 ## 🚨 重要な技術ポイント
 
-### **Phase 19 MLOps統合システム基盤**
-- **feature_manager統合**: 12特徴量統一管理・feature_order.json単一真実源・ProductionEnsemble連携・全システム統合
-- **ProductionEnsemble統合**: 3モデルアンサンブル（LightGBM 40%・XGBoost 40%・RandomForest 20%）・重み付け投票・feature_manager連携
-- **週次自動学習**: GitHub Actionsワークフロー・model-training.yml・自動モデル更新・CI/CD品質ゲート・段階的デプロイ
-- **Cloud Run 24時間稼働**: スケーラブル実行・Discord 3階層監視（Critical/Warning/Info）・自動スケーリング・本番運用最適化
+### **統合システム基盤**
+- **feature_manager**: 12特徴量統一管理・config/core/feature_order.json参照
+- **ProductionEnsemble**: 3モデルアンサンブル（LightGBM・XGBoost・RandomForest）
+- **週次自動学習**: GitHub Actionsワークフロー・model-training.yml
+- **Cloud Run 24時間稼働**: 自動スケーリング・Discord 3階層監視
 
-### **本番運用中システム**
+### **本番運用システム**
 - **24時間稼働**: Cloud Run自動スケーリング・ヘルスチェック
 - **Discord監視**: 3階層通知（Critical/Warning/Info）・運用アラート
 - **データ取得**: Bitbank API・4h/15m足・キャッシュ最適化
 
-### **654テスト品質保証・MLOps統合CI/CD**
-- **654テスト100%成功**: 全モジュール・MLOps統合テスト・エラーケース・回帰防止・統合テスト完備
-- **59.24%カバレッジ**: MLOps統合テスト・品質管理完備・継続監視・新機能での向上必須
-- **MLOps統合CI/CD**: ci.yml（品質・デプロイ・654テスト）・model-training.yml（週次学習・ProductionEnsemble更新）・cleanup.yml（月次クリーンアップ・Cloud Run最適化）
+### **品質保証・CI/CD**
+- **625テスト**: 全モジュールテスト・エラーケース・回帰防止
+- **58.64%カバレッジ**: 継続監視・新機能での向上必須
+- **CI/CD統合**: 品質ゲート・週次学習・月次クリーンアップ
 
 ## 📋 トラブルシューティング
 
@@ -166,7 +138,7 @@ python3 -m pytest tests/ -v                      # 個別テスト実行
 python3 -c "import sys; sys.path.insert(0, '.'); from src.core.logger import CryptoBotLogger"
 
 # 設定エラー時  
-python3 scripts/testing/dev_check.py validate  # 設定整合性確認
+python3 scripts/testing/dev_check.py validate    # 設定整合性確認
 ```
 
 ### **本番環境問題**
@@ -180,22 +152,22 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 # Discord通知確認（運用チャンネル）
 ```
 
-### **Phase 19 MLOps統合機能別デバッグ**
-- **feature_manager統合**: 12特徴量統一管理・ProductionEnsemble連携・DataFrame形式確認・特徴量順序整合性確認
-- **4戦略MLOps統合**: feature_manager連携シグナル生成・ProductionEnsemble統合判定・週次学習対応確認
-- **ProductionEnsemble統合**: 3モデルアンサンブル読み込み・Git情報確認・MLOps予測実行確認・週次更新対応
-- **MLOps統合取引**: リスク管理・Kelly基準・Cloud Runポジションサイジング・Discord監視確認
-- **MLOps統合CI/CD**: model-training.yml週次自動学習・手動実行・段階的デプロイ・654テスト品質検証
+### **機能別デバッグ**
+- **特徴量システム**: 12特徴量統一管理・DataFrame形式確認・順序整合性確認
+- **4戦略統合**: シグナル生成・重み付け統合・競合解決確認
+- **ML予測**: 3モデルアンサンブル読み込み・予測実行確認
+- **リスク管理**: Kelly基準・ドローダウン管理・3段階判定確認
+- **CI/CD**: 週次自動学習・品質ゲート・段階的デプロイ確認
 
 ## 🔄 次回作業時の確認事項
 
 ### **必須確認**
-1. **品質チェック**: `bash scripts/testing/checks.sh`で625テスト・攻撃的設定確認
-2. **本番稼働**: Cloud Run・Discord通知・攻撃的取引ログ確認
-3. **システム状態**: FeatureGenerator→攻撃的戦略フロー→Dynamic Confidence正常動作確認
+1. **品質チェック**: `bash scripts/testing/checks.sh`でテスト・設定確認
+2. **本番稼働**: Cloud Run・Discord通知・取引ログ確認
+3. **システム状態**: FeatureGenerator→戦略フロー→リスク管理正常動作確認
 
 ### **開発開始前**
-1. **最新状況把握**: docs/開発計画/ToDo.md確認
+1. **最新状況把握**: システム状況・エラー状況確認
 2. **品質基準**: テスト・カバレッジ・コード品質確認
 3. **設定整合性**: config整合性・環境変数確認
 
@@ -204,8 +176,22 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 2. **品質維持**: flake8・black・isort・型注釈確認
 3. **動作確認**: 実際のデータフローでの動作確認
 
+## 📚 詳細ドキュメント
+
+### **システム実装**
+- **[システム全体](src/README.md)**: レイヤードアーキテクチャ・データフロー・使用方法
+- **[戦略システム](src/strategies/README.md)**: 4戦略統合・競合解決・重み付け判定
+- **[取引システム](src/trading/README.md)**: リスク管理・Kelly基準・異常検知・注文実行
+
+### **プロジェクト仕様書 → [docs/](docs/)**
+**必読**: 以下の仕様書で要件・設計・運用手順を必ず確認してください
+
+- **[要件定義](docs/開発計画/要件定義.md)**: システム概要・機能要件・技術仕様・期待成果
+- **[開発履歴](docs/開発計画/開発履歴.md)**: Phase 1-19完了履歴・技術変遷・実装成果
+- **[運用マニュアル](docs/運用手順/)**: 本番運用・監視・トラブル対応手順
+- **[CI/CD設定](docs/CI-CD設定/)**: GitHub Actions・デプロイ・品質ゲート設定
+- **[指示書](docs/指示書/)**: 各種作業指示・チェックリスト
+
 ---
 
-**🎯 Phase 19+攻撃的設定完成・全README更新完成**: feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・**攻撃的戦略ロジック実装**・**Dynamic Confidence完成**・625テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合・全README攻撃的設定対応更新により、**月100-200取引対応のMLOps完全統合攻撃的取引システム**・企業級品質保証・統一ドキュメント体系を実現。625テスト100%・58.64%カバレッジ・本番24時間攻撃的稼働継続・MLOps統合攻撃的基盤確立した**実用的攻撃的AI自動取引システムが稼働中** 🚀
-
-**最終更新**: 2025年9月6日 - Phase 19+攻撃的設定完成・全README攻撃的設定対応更新完成・統一ドキュメント体系確立・MLOps統合攻撃的基盤確立
+**AI自動取引システム**: 12特徴量統合・4戦略統合・ProductionEnsemble 3モデル・Kelly基準リスク管理・Discord 3階層監視による完全自動化システムが24時間稼働中。625テスト品質保証・58.64%カバレッジ・CI/CD統合により企業級品質を実現。 🚀

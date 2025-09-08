@@ -1,9 +1,14 @@
 # Phase 16-B完了: GCP Cloud Build完成設定
 # 620テスト・50%+カバレッジ・型安全性改善・統合テスト強化対応
+#
+# 🔧 2025-09-07 修正: 実環境整合性対応
+# - 存在しないサービスアカウント指定削除（crypto-bot-workload-identity@...）
+# - デフォルトCompute Engine SA使用（実環境で適切な権限設定済み）
+# - CI/CD デプロイ問題解決対応
 
 steps:
   # 1. Phase 12統合テスト実行（完全品質保証）
-  - name: 'python:3.11-slim'
+  - name: 'python:3.13-slim'
     id: 'run-phase12-tests'
     entrypoint: 'bash'
     args:
@@ -17,7 +22,7 @@ steps:
         
         # Phase 16-B品質チェック実行
         echo "📋 統合品質チェック実行"
-        if python scripts/testing/checks.sh; then
+        if bash scripts/testing/checks.sh; then
           echo "✅ 620テスト品質チェック成功"
         else
           echo "❌ 品質チェック失敗 - ビルド停止"
@@ -73,7 +78,8 @@ steps:
       - '--allow-unauthenticated'
       - '--set-env-vars=MODE=paper,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=optimized'
       - '--set-secrets=BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest'
-      - '--service-account=crypto-bot-workload-identity@$PROJECT_ID.iam.gserviceaccount.com'
+      # サービスアカウント指定削除（デフォルトCompute Engine SAを使用）
+      # 実際の環境: 11445303925-compute@developer.gserviceaccount.com が適切な権限を保有
     timeout: '300s'
 
   # 5. Phase 16-B統合デプロイ確認・型安全性監視開始

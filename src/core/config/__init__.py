@@ -10,13 +10,7 @@ from typing import Optional
 
 import yaml
 
-from .config_classes import (
-    DataConfig,
-    ExchangeConfig,
-    LoggingConfig,
-    MLConfig,
-    RiskConfig,
-)
+from .config_classes import DataConfig, ExchangeConfig, LoggingConfig, MLConfig, RiskConfig
 
 # threshold_manager関数をインポートして再エクスポート
 from .threshold_manager import (

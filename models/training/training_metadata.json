@@ -47,7 +47,7 @@
     "random_forest": "models/training/random_forest_model.pkl",
     "production_ensemble": "models/production/production_ensemble.pkl"
   },
-  "config_path": "config/core/base.yaml",
+  "config_path": "config/core/unified.yaml",
   "phase": "Phase 19",
   "notes": "Phase 19統合・12特徴量最適化・個別モデル学習結果"
 }

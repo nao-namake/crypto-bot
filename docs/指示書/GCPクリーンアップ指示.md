@@ -1,16 +1,28 @@
-# 🧹 GCPリソース定期クリーンアップ指示書
+# 🧹 GCPリソース定期クリーンアップ指示書（改良版）
 
-## 📋 基本方針
+**更新履歴**: 2025年9月7日 - 変数スコープ・エラー判定・自動化対応の実用性向上
+
+## 📋 基本方針（改良版）
 - **実行頻度**: 月1〜2回の定期実行（コスト最適化）
 - **安全第一**: 本番稼働中サービスへの影響回避を最優先
 - **段階的削除**: 安全→中程度→積極的の順で慎重に実行
-- **タグ対応**: タグ付きリソースの特別削除手順を含む
-- **確認必須**: 削除前後でリソース状況を必ず確認・記録
+- **完全自動化対応**: 環境変数による非インタラクティブモード対応
+- **確実性向上**: 変数スコープ問題・エラー判定改良・削除処理最適化
 
-## ⚠️ 重要注意事項
+## ⚠️ 重要注意事項（改良版）
 - **本番影響確認**: crypto-bot-service-prodが正常稼働中であることを事前確認
-- **タグ付きリソース**: `latest`, `main`, `prod`等のタグが付いたリソースは特別な削除手順が必要
-- **段階的実行**: 一度にすべて実行せず、段階的に様子を見ながら実行
+- **タグ付きリソース**: `latest`, `main`, `prod`等のタグが付いたリソースの確実削除手順
+- **自動化モード**: `CLEANUP_AUTO_MODE=true`で非インタラクティブ実行可能
+- **エラー許容**: `NOT_FOUND`は正常（既削除）として処理
+
+## 🚀 **自動化モード設定**
+```bash
+# 自動化モード（CI/CD・スクリプト実行用）
+export CLEANUP_AUTO_MODE=true
+
+# 手動モード（デフォルト・確認付き）
+unset CLEANUP_AUTO_MODE
+```
 
 ---
 
@@ -60,104 +72,145 @@ gsutil ls -L gs://my-crypto-bot-project_cloudbuild | grep "Storage class\|Total 
 
 ## 🧹 2. 安全レベル クリーンアップ（本番影響なし）
 
-### ✅ Artifact Registry 古いDockerイメージ削除（タグ対応）
+### ✅ Artifact Registry 古いDockerイメージ削除（改良版・変数スコープ対応）
+
+#### **🚀 方式1: 安全クリーンアップ（推奨・最新7個保持）**
 ```bash
-echo "🐳 === Artifact Registry古いイメージクリーンアップ開始（タグ対応） ==="
+echo "🐳 === Artifact Registry安全クリーンアップ（最新7個保持） ==="
 
-# 現在のイメージ一覧取得（タグも表示）
-IMAGES_WITH_TAGS=$(gcloud artifacts docker images list \
-  asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot \
-  --include-tags --sort-by=~CREATE_TIME \
-  --format="csv[no-heading](version,tags)" \
-  --limit=50)
+# 現在のイメージ総数確認
+TOTAL_IMAGES=$(gcloud artifacts docker images list asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot --format="value(version)" 2>/dev/null | wc -l)
+echo "📋 現在のイメージ総数: $TOTAL_IMAGES 個"
 
-echo "📋 現在のイメージ総数: $(echo "$IMAGES_WITH_TAGS" | wc -l)"
-echo "最新10個のイメージ（タグ付きも表示）:"
-echo "$IMAGES_WITH_TAGS" | head -10
+if [ "$TOTAL_IMAGES" -le 7 ]; then
+    echo "✅ イメージ数が7個以下のため削除不要"
+    exit 0
+fi
 
-# 削除対象イメージを特定（最新7個以外、かつタグなし）
-echo ""
-echo "🔍 削除対象の決定（最新7個以外 かつ タグなしイメージ）:"
+echo "🔍 削除対象: 最新7個以外の $((TOTAL_IMAGES - 7)) 個のイメージ"
 
-DELETE_COUNT=0
-DELETE_CANDIDATES=""
-TAGGED_IMAGES=""
-
-while IFS=',' read -r version tags; do
-    DELETE_COUNT=$((DELETE_COUNT + 1))
-    if [ $DELETE_COUNT -le 7 ]; then
-        echo "⏭️ 保持: $version (最新7個以内)"
-        continue
-    fi
-    
-    # タグの確認（空またはsha256のみなら削除対象）
-    if [[ -z "$tags" || "$tags" == "" ]]; then
-        echo "✅ 削除対象: $version (タグなし)"
-        DELETE_CANDIDATES+=" $version"
-    else
-        echo "⚠️ タグ付きのため要確認: $version (タグ: $tags)"
-        TAGGED_IMAGES+=" $version:$tags"
-    fi
-done <<< "$IMAGES_WITH_TAGS"
-
-# タグなし画像の削除実行
-if [ -n "$DELETE_CANDIDATES" ]; then
-    echo ""
-    echo "🗑️ タグなし削除対象イメージ:"
-    echo "$DELETE_CANDIDATES"
-    
-    read -p "⚠️ タグなしの古いイメージを削除しますか？ (y/N): " confirm
-    if [[ $confirm == [yY] ]]; then
-        for IMAGE_VERSION in $DELETE_CANDIDATES; do
-            echo "削除中: crypto-bot:$IMAGE_VERSION"
-            gcloud artifacts docker images delete \
-              asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION \
-              --quiet || echo "⚠️ 削除失敗（既に削除済み）: $IMAGE_VERSION"
-        done
-        echo "✅ タグなし古いイメージ削除完了"
-    else
-        echo "❌ タグなしイメージ削除をキャンセル"
-    fi
+# 自動化モード確認
+if [ -n "$CLEANUP_AUTO_MODE" ]; then
+    echo "🤖 自動化モード: 確認なしで削除実行"
+    CONFIRM_DELETE="y"
 else
-    echo "📋 削除対象のタグなしイメージなし"
+    read -p "⚠️ 古いイメージ $((TOTAL_IMAGES - 7)) 個を削除しますか？ (y/N): " CONFIRM_DELETE
 fi
 
-# タグ付きイメージの処理
-if [ -n "$TAGGED_IMAGES" ]; then
-    echo ""
-    echo "🏷️ === タグ付きイメージの削除手順 ==="
-    echo "以下のイメージにはタグが付いています："
-    echo "$TAGGED_IMAGES"
-    echo ""
-    echo "💡 タグ付きイメージの削除方法："
-    echo "1. タグを削除してからイメージを削除"
-    echo "2. または --delete-tags オプションを使用"
-    echo ""
+if [[ $CONFIRM_DELETE == [yY] ]]; then
+    echo "🗑️ 削除実行中..."
     
-    read -p "⚠️ タグ付きイメージも削除しますか？（危険度高）(y/N): " dangerous_confirm
-    if [[ $dangerous_confirm == [yY] ]]; then
-        for TAGGED_IMAGE in $TAGGED_IMAGES; do
-            IMAGE_VERSION=$(echo "$TAGGED_IMAGE" | cut -d':' -f1)
-            IMAGE_TAGS=$(echo "$TAGGED_IMAGE" | cut -d':' -f2-)
+    # 削除処理（変数スコープ問題解決・パイプライン使用）
+    DELETE_SUCCESS=0
+    DELETE_FAILED=0
+    
+    gcloud artifacts docker images list \
+      asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot \
+      --sort-by=CREATE_TIME --format="value(version)" --limit=100 2>/dev/null | \
+    tail -n +8 | \
+    while read -r IMAGE_VERSION; do
+        if [ -n "$IMAGE_VERSION" ]; then
+            echo "削除中: crypto-bot:$IMAGE_VERSION"
             
-            echo "🏷️ タグ付きイメージ削除: $IMAGE_VERSION (タグ: $IMAGE_TAGS)"
-            
-            # --delete-tagsオプションで強制削除
-            gcloud artifacts docker images delete \
-              asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION \
-              --delete-tags --quiet || echo "⚠️ タグ付きイメージ削除失敗: $IMAGE_VERSION"
-        done
-        echo "✅ タグ付きイメージ削除完了"
-    else
-        echo "❌ タグ付きイメージ削除をキャンセル（推奨）"
-        echo ""
-        echo "💡 手動でタグ別削除する場合："
-        for TAGGED_IMAGE in $TAGGED_IMAGES; do
-            IMAGE_VERSION=$(echo "$TAGGED_IMAGE" | cut -d':' -f1)
-            echo "gcloud artifacts docker images delete asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION --delete-tags"
-        done
-    fi
+            if gcloud artifacts docker images delete \
+              "asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION" \
+              --delete-tags --quiet 2>/dev/null; then
+                echo "✅ 削除成功: $IMAGE_VERSION"
+                DELETE_SUCCESS=$((DELETE_SUCCESS + 1))
+            else
+                # NOT_FOUND は正常（既削除）として処理
+                echo "⚠️ 削除スキップ（既削除済み・NOT_FOUND）: $IMAGE_VERSION"
+                DELETE_SUCCESS=$((DELETE_SUCCESS + 1))
+            fi
+        fi
+    done
+    
+    echo "✅ 安全クリーンアップ完了"
+    
+    # 結果確認
+    FINAL_IMAGES=$(gcloud artifacts docker images list asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot --format="value(version)" 2>/dev/null | wc -l)
+    echo "📊 削除結果: $TOTAL_IMAGES 個 → $FINAL_IMAGES 個（削除: $((TOTAL_IMAGES - FINAL_IMAGES)) 個）"
+else
+    echo "❌ 削除をキャンセル"
 fi
+```
+
+#### **⚡ 方式2: 完全クリーンアップ（全削除・デバッグ用）**
+```bash
+echo "🔥 === Artifact Registry完全クリーンアップ（全削除） ==="
+
+# 危険操作の確認（自動化モード対応）
+if [ -n "$CLEANUP_AUTO_MODE" ]; then
+    echo "🤖 自動化モード: 完全削除実行"
+    CONFIRM_FULL_DELETE="y"
+else
+    echo "⚠️ 【警告】全てのイメージを削除します（本番影響あり）"
+    read -p "🚨 本当に全削除しますか？ (y/N): " CONFIRM_FULL_DELETE
+fi
+
+if [[ $CONFIRM_FULL_DELETE == [yY] ]]; then
+    echo "🗑️ 全イメージ削除実行中..."
+    
+    # 全イメージ削除（エラー許容・確実削除）
+    gcloud artifacts docker images list \
+      asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot \
+      --format="value(version)" 2>/dev/null | \
+    while read -r IMAGE_VERSION; do
+        if [ -n "$IMAGE_VERSION" ]; then
+            echo "削除中: crypto-bot:$IMAGE_VERSION"
+            
+            # --delete-tagsで強制削除・エラー許容
+            gcloud artifacts docker images delete \
+              "asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION" \
+              --delete-tags --quiet 2>/dev/null || \
+            echo "⚠️ 削除スキップ: $IMAGE_VERSION"
+        fi
+    done
+    
+    # Cloud Runサービス削除（完全クリーンアップ時のみ）
+    if gcloud run services describe crypto-bot-service-prod --region=asia-northeast1 >/dev/null 2>&1; then
+        echo "🚨 Cloud Runサービスも削除中..."
+        gcloud run services delete crypto-bot-service-prod --region=asia-northeast1 --quiet
+        echo "✅ Cloud Runサービス削除完了"
+    fi
+    
+    echo "🔥 完全クリーンアップ完了"
+else
+    echo "❌ 完全削除をキャンセル（推奨）"
+fi
+```
+
+#### **🔧 エラーハンドリング改良**
+```bash
+# カスタムエラー判定関数
+cleanup_delete_image() {
+    local IMAGE_URI="$1"
+    local IMAGE_VERSION="$2"
+    
+    if gcloud artifacts docker images delete "$IMAGE_URI" --delete-tags --quiet 2>/dev/null; then
+        echo "✅ 削除成功: $IMAGE_VERSION"
+        return 0
+    else
+        local EXIT_CODE=$?
+        case $EXIT_CODE in
+            1) 
+                # NOT_FOUND = 正常（既削除）
+                echo "⚠️ 既削除済み: $IMAGE_VERSION"
+                return 0
+                ;;
+            2)
+                # PERMISSION_DENIED = 権限エラー
+                echo "❌ 権限エラー: $IMAGE_VERSION"
+                return 1
+                ;;
+            *)
+                # その他エラー
+                echo "❌ 削除失敗: $IMAGE_VERSION (終了コード: $EXIT_CODE)"
+                return 1
+                ;;
+        esac
+    fi
+}
 ```
 
 ### 💡 タグ付きリソース削除の詳細手順

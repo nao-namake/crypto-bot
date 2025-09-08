@@ -51,7 +51,7 @@ except ImportError as e:
 class NewSystemMLModelCreator:
     """新システム用MLモデル作成・学習システム."""
 
-    def __init__(self, config_path: str = "config/core/base.yaml", verbose: bool = False):
+    def __init__(self, config_path: str = "config/core/unified.yaml", verbose: bool = False):
         """初期化."""
         self.config_path = config_path
         self.verbose = verbose
@@ -605,7 +605,7 @@ def main():
         default=180,
         help="学習データ期間（日数、デフォルト: 180日）",
     )
-    parser.add_argument("--config", default="config/core/base.yaml", help="設定ファイルパス")
+    parser.add_argument("--config", default="config/core/unified.yaml", help="設定ファイルパス")
 
     args = parser.parse_args()
 

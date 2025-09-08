@@ -1,164 +1,320 @@
-# src - MLOps統合システム実装ディレクトリ
+# src/ - AI自動取引システム実装
 
-## 🎯 役割・責任
+AI自動取引システムのメイン実装ディレクトリ。データ取得・特徴量生成・戦略実行・機械学習・リスク管理・取引実行を統合したレイヤードアーキテクチャシステム。
 
-MLOps完全統合したAI自動取引システムのメイン実装を提供する。Phase 19 MLOps統合により、feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合を実現し、企業級品質保証を完備した実用的システムを構築。
-
-## 📂 ファイル構成
+## 📂 システム構成
 
 ```
 src/
-├── core/                       # MLOps統合基盤システム
-│   ├── orchestration/              # 統合制御システム
-│   │   ├── orchestrator.py             # システム統合制御・ML/戦略連携
-│   │   ├── ml_adapter.py               # MLサービス統合・ProductionEnsemble連携
-│   │   └── ml_loader.py                # モデル読み込み・週次学習対応
-│   ├── config/                     # 設定管理システム
-│   │   └── feature_manager.py          # 12特徴量統一管理・統合基盤
-│   ├── config.py                   # 設定読み込み・環境変数管理
-│   ├── logger.py                   # JST対応ログ・Discord通知統合
-│   ├── exceptions.py               # カスタム例外・階層化エラー処理
-│   └── protocols.py                # Protocol分離・型安全性
-├── data/                       # データ層
-│   ├── bitbank_client.py           # Bitbank API・ccxt統合・信用取引対応
-│   ├── data_pipeline.py            # データ取得・多時間軸・キャッシュ統合
-│   └── data_cache.py               # LRU+ディスクキャッシュ・3ヶ月保存
-├── features/                   # 特徴量エンジニアリング
-│   └── feature_generator.py       # 12特徴量生成・feature_manager連携
-├── strategies/                 # 戦略システム
-│   ├── base/                       # 戦略基盤
-│   │   ├── strategy_base.py            # 戦略抽象基底クラス
-│   │   └── strategy_manager.py         # 戦略統合管理・重み付け
-│   ├── implementations/            # 戦略実装群（4戦略）
-│   │   ├── atr_based.py                # ATRベース戦略・ボラティリティ逆張り
-│   │   ├── mochipoy_alert.py           # もちぽよアラート・感情分析取引
-│   │   ├── multi_timeframe.py          # 多時間軸・トレンド追従
-│   │   └── fibonacci_retracement.py    # フィボナッチ・サポレジ戦略
-│   └── utils/                      # 戦略共通処理
-│       ├── constants.py                # 定数・型システム・列挙型
-│       ├── risk_manager.py             # リスク管理計算・ATR損切り
-│       └── signal_builder.py           # シグナル生成統合・エラーハンドリング
-├── ml/                         # 機械学習層（Phase 19 MLOps統合）
-│   ├── models.py                   # MLモデル実装・ProductionEnsemble基盤
-│   ├── ensemble.py                 # アンサンブル・3モデル統合・重み付け投票
-│   ├── model_manager.py            # モデル管理・週次学習・バージョニング
-│   └── __init__.py                 # MLOps統合エクスポート・後方互換性
-├── backtest/                   # バックテストシステム（独立実行環境）
-│   ├── engine.py                   # BacktestEngine・メイン実行・本番分離
-│   ├── evaluator.py                # 性能評価・統計分析・指標計算
-│   └── reporter.py                 # 統合レポーター・多形式出力・可視化
-├── trading/                    # 取引実行層
-│   ├── executor.py                 # 注文実行・レイテンシー最適化
-│   ├── risk.py                     # Kelly基準・ドローダウン管理・20%制限
-│   ├── position_sizing.py          # 動的ポジションサイジング・ATR考慮
-│   ├── anomaly_detector.py         # 異常検知・スプレッド監視・価格スパイク
-│   └── drawdown_manager.py         # ドローダウン制御・自動停止・クールダウン
-└── monitoring/                 # 監視層
-    └── discord_notifier.py     # Discord 3階層通知・Cloud Run監視統合
+├── __init__.py                     # パッケージ初期化
+├── core/                          # コア基盤システム
+│   ├── orchestration/                 # システム統合制御
+│   ├── config/                        # 設定管理・特徴量管理
+│   ├── execution/                     # 取引実行制御
+│   ├── reporting/                     # レポーティング
+│   ├── services/                      # システムサービス
+│   ├── config.py                      # 設定読み込み
+│   ├── logger.py                      # ログ管理・Discord通知
+│   ├── exceptions.py                  # カスタム例外
+│   ├── protocols.py                   # インターフェース定義
+│   └── market_data.py                 # 市場データ管理
+├── data/                          # データ層
+│   ├── bitbank_client.py              # Bitbank API統合
+│   ├── data_pipeline.py               # データ取得・処理パイプライン
+│   └── data_cache.py                  # データキャッシュシステム
+├── features/                      # 特徴量システム
+│   └── feature_generator.py          # 12特徴量生成・統合管理
+├── strategies/                    # 戦略システム → [詳細](strategies/README.md)
+│   ├── base/                          # 戦略基盤・統合管理
+│   ├── implementations/               # 4戦略実装（ATR・フィボ・もちぽよ・MTF）
+│   └── utils/                         # 戦略共通処理
+├── ml/                           # 機械学習システム
+│   ├── models.py                      # MLモデル実装
+│   ├── ensemble.py                    # アンサンブルモデル・3モデル統合
+│   ├── model_manager.py               # モデル管理・バージョニング
+│   └── __init__.py                    # ML統合エクスポート
+├── trading/                      # 取引実行・リスク管理層 → [詳細](trading/README.md)
+│   ├── risk_manager.py                # 統合リスク管理・Kelly基準
+│   ├── risk_monitor.py                # 異常検知・ドローダウン管理
+│   ├── executor.py                    # 注文実行・統計管理
+│   └── __init__.py                    # 取引統合エクスポート
+├── backtest/                     # バックテストシステム
+│   ├── engine.py                      # バックテストエンジン
+│   ├── evaluator.py                   # 性能評価・統計分析
+│   └── reporter.py                    # レポート生成・可視化
+└── monitoring/                   # 監視システム
+    └── discord_notifier.py           # Discord通知・3階層監視
 ```
 
-## 🔧 主要機能・実装
+## 🔧 システムアーキテクチャ
 
-### **MLOps統合基盤 (core/)**
-- **feature_manager統合** - 12特徴量統一管理・全システム連携・ProductionEnsemble対応
-- **orchestrator統合制御** - ML/戦略/取引システム統合制御・エラーハンドリング
-- **設定統一管理** - 環境変数・YAML・階層化設定・CI/CD対応
-- **ログ監視統合** - JST対応・Discord通知・構造化出力・Cloud Run監視
+### **レイヤード設計**
 
-### **データ統合システム (data/)**
-- **Bitbank API統合** - ccxt・信用取引・レート制限・リトライ機能
-- **多時間軸データ** - 15m/4h足・キャッシュ統合・品質管理・異常値検出
-- **バックテスト分離** - 本番データ影響なし・独立キャッシュ・長期保存
+```
+📊 monitoring/     ← 監視・通知層
+    ↕️
+🎯 trading/        ← 取引実行・リスク管理層
+    ↕️
+📈 strategies/     ← 戦略判定・シグナル生成層
+    ↕️
+🤖 ml/            ← 機械学習・予測層
+    ↕️
+⚙️  features/      ← 特徴量エンジニアリング層
+    ↕️
+📡 data/           ← データ取得・処理層
+    ↕️
+🏗️  core/          ← 基盤・統合制御層
+```
 
-### **AI機械学習統合 (ml/)**
-- **ProductionEnsemble** - 3モデル統合（LightGBM/XGBoost/RandomForest）・重み付け投票
-- **週次自動学習** - GitHub Actions・CI/CD品質ゲート・段階的デプロイ・モデル更新
-- **信頼度管理** - 65%閾値・フォールバック対応・ダミーモデル検知
+### **データフロー**
 
-### **戦略統合システム (strategies/)**
-- **4戦略統合** - ATRベース/もちぽよアラート/多時間軸/フィボナッチ
-- **統合判定システム** - 重み付け・合意形成・コンフリクト解決・信頼度評価
-- **リスク管理統合** - Kelly基準・ATR損切り・ポジションサイジング
+```
+1. 【data/】Bitbank API → 市場データ取得（4h/15m足）
+        ↓
+2. 【features/】12特徴量生成 → 技術指標・統計指標
+        ↓
+3. 【ml/】ProductionEnsemble → 3モデル予測統合
+        ↓
+4. 【strategies/】4戦略実行 → シグナル統合・重み付け
+        ↓
+5. 【trading/】リスク評価 → 3段階判定（APPROVED/CONDITIONAL/DENIED）
+        ↓
+6. 【trading/】注文実行 → ペーパートレード・実取引
+        ↓
+7. 【monitoring/】Discord通知 → 実行結果・異常通知
+```
 
-## 📝 使用方法・例
+## 🔧 主要コンポーネント
 
-### **基本システム初期化**
+### **1. core/ - コア基盤システム**
+**目的**: システム全体の基盤・統合制御・設定管理
+
+**主要モジュール**:
+- `orchestrator.py`: システム統合制御・取引サイクル管理
+- `feature_manager.py`: 12特徴量統一定義・システム連携
+- `logger.py`: JST対応ログ・構造化出力・Discord統合
+- `config.py`: 設定読み込み・環境変数管理・階層化設定
+
+### **2. data/ - データ層**
+**目的**: 市場データ取得・処理・キャッシュ管理
+
+**主要モジュール**:
+- `bitbank_client.py`: Bitbank API統合・ccxt利用・レート制限対応
+- `data_pipeline.py`: データ取得パイプライン・多時間軸・品質管理
+- `data_cache.py`: LRUキャッシュ・ディスクキャッシュ・3ヶ月保存
+
+### **3. features/ - 特徴量システム**
+**目的**: 技術指標・統計指標の生成・統合管理
+
+**主要モジュール**:
+- `feature_generator.py`: 12特徴量生成・feature_manager連携・全システム統合
+
+**生成特徴量**:
+RSI・MACD・ボリンジャーバンド・ATR・EMA・SMA・RCI・移動平均乖離率・価格変化率・出来高指標・ボラティリティ・モメンタム
+
+### **4. strategies/ - 戦略システム** → **[詳細ドキュメント](strategies/README.md)**
+**目的**: 4戦略統合・シグナル生成・重み付け統合・競合解決
+
+**戦略実装**:
+- **ATRベース戦略**: ボラティリティ分析・ボリンジャーバンド・RSI統合
+- **フィボナッチ戦略**: リトレースメントレベル・サポレジ分析
+- **もちぽよアラート戦略**: 複合指標・EMA・MACD・RCI統合
+- **マルチタイムフレーム戦略**: 4時間足トレンド・15分足タイミング統合
+
+### **5. ml/ - 機械学習システム**
+**目的**: 機械学習予測・アンサンブルモデル・モデル管理
+
+**主要モジュール**:
+- `models.py`: 個別MLモデル実装・LightGBM・XGBoost・RandomForest
+- `ensemble.py`: ProductionEnsemble・3モデル統合・重み付け投票
+- `model_manager.py`: モデル管理・バージョニング・週次学習対応
+
+### **6. trading/ - 取引実行・リスク管理層** → **[詳細ドキュメント](trading/README.md)**
+**目的**: リスク管理・異常検知・ドローダウン管理・注文実行
+
+**統合機能**:
+- **統合リスク管理**: ML信頼度・ドローダウン・異常検知の総合判定
+- **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算
+- **3段階判定システム**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
+- **注文実行**: ペーパートレード・実取引・レイテンシー監視
+
+### **7. backtest/ - バックテストシステム**
+**目的**: 戦略検証・性能評価・独立実行環境
+
+**主要モジュール**:
+- `engine.py`: バックテストエンジン・仮想取引・手数料計算
+- `evaluator.py`: 性能評価・統計分析・リスク指標計算
+- `reporter.py`: レポート生成・可視化・CSV・HTML出力
+
+### **8. monitoring/ - 監視システム**
+**目的**: リアルタイム監視・Discord通知・運用管理
+
+**主要モジュール**:
+- `discord_notifier.py`: 3階層通知（Critical/Warning/Info）・Cloud Run監視統合
+
+## 🚀 使用方法
+
+### **基本システム実行**
 ```python
-from src.core.orchestration import Orchestrator
+# メインシステム実行（main.py経由）
+python main.py --mode paper    # ペーパートレード
+python main.py --mode live     # ライブトレード
+
+# システム統合実行（直接実行）
+from src.core.orchestration.orchestrator import Orchestrator
 from src.core.config import load_config
 
-# 設定読み込み・システム初期化
-config = load_config("config/production/base.yaml")
+config = load_config("config/core/unified.yaml")
 orchestrator = Orchestrator(config)
-
-# システム統合実行
 await orchestrator.run_trading_cycle()
 ```
 
 ### **バックテスト実行**
 ```python
-# バックテスト専用設定で実行
-from src.backtest import BacktestEngine
+from src.backtest.engine import BacktestEngine
 
+# バックテストエンジン作成
 engine = BacktestEngine(
     initial_balance=1000000,
     slippage_rate=0.0005,
     commission_rate=0.0012
 )
 
-# 独立環境でバックテスト
+# バックテスト実行
 results = await engine.run_backtest(
     start_date=datetime(2024, 8, 1),
     end_date=datetime(2024, 9, 1),
     symbol="BTC/JPY"
 )
+
+# 結果分析
+evaluator = BacktestEvaluator(results)
+report = evaluator.generate_report()
 ```
 
-### **スクリプト実行**
+### **個別コンポーネント使用**
+
+**特徴量生成**:
+```python
+from src.features.feature_generator import FeatureGenerator
+
+generator = FeatureGenerator()
+features_df = await generator.generate_features_sync(market_data_df)
+```
+
+**戦略実行**:
+```python
+from src.strategies.base.strategy_manager import StrategyManager
+
+manager = StrategyManager()
+# 戦略登録・実行（詳細はstrategies/README.md参照）
+```
+
+**取引実行**:
+```python
+from src.trading import IntegratedRiskManager, create_order_executor
+
+# リスク管理・取引実行（詳細はtrading/README.md参照）
+```
+
+## 🧪 テスト・品質保証
+
+### **テスト実行**
 ```bash
-# メインシステム実行
-python main.py --mode paper    # ペーパートレード
-python main.py --mode live     # ライブトレード
+# 全体品質チェック（推奨）
+bash scripts/testing/checks.sh
 
-# バックテスト実行
-python scripts/backtest/run_backtest.py --days 30 --verbose
+# 個別システムテスト
+python -m pytest tests/unit/core/ -v
+python -m pytest tests/unit/strategies/ -v
+python -m pytest tests/unit/trading/ -v
+python -m pytest tests/unit/ml/ -v
+
+# カバレッジ確認
+python -m pytest tests/ --cov=src --cov-report=html
 ```
 
-## ⚠️ 注意事項・制約
+### **品質指標**
+- **テスト成功率**: 625テスト100%成功
+- **コードカバレッジ**: 58.64%以上維持
+- **実行時間**: システム全体テスト30秒以内
 
-### **システム環境要件**
-- **Python 3.8+** - async/await・型ヒント・dataclass対応必須
-- **メモリ要件** - 本番：1GB、バックテスト：2GB以上推奨
-- **API制限** - Bitbank 35秒間隔・レート制限対応・接続制限管理
+### **継続的品質保証**
+- **GitHub Actions**: CI/CD自動品質チェック・失敗時マージ阻止
+- **pre-commit hooks**: コード品質・フォーマット自動チェック
+- **品質ゲート**: flake8・black・isort・pytest自動実行
 
-### **本番運用制約**
-- **信用取引専用** - Bitbank信用取引・レバレッジ1.0-2.0倍対応
-- **リスク管理** - Kelly基準・最大20%DD・連続損失5回制限
-- **監視必須** - Discord 3階層通知・Cloud Run監視・ヘルスチェック
+## ⚙️ 設定システム
 
-### **開発・テスト制約**
-- **654テスト必須** - scripts/testing/checks.sh実行・59.24%カバレッジ維持
-- **品質ゲート** - CI/CD自動チェック・失敗時はマージ不可
-- **設定分離** - 本番/バックテスト完全分離・影響回避
+### **設定ファイル階層**
+```
+config/
+├── core/
+│   ├── unified.yaml              # 統合設定・本番運用
+│   └── feature_order.json       # 12特徴量定義・システム連携KEY
+├── backtest/
+│   └── backtest.yaml             # バックテスト専用設定
+└── infrastructure/
+    ├── gcp_config.yaml           # GCP Cloud Run設定
+    └── cloudbuild.yaml           # CI/CD設定
+```
 
-## 🔗 関連ファイル・依存関係
+### **環境変数**
+```bash
+# API認証
+BITBANK_API_KEY=your_api_key
+BITBANK_API_SECRET=your_api_secret
 
-### **設定・実行基盤**
-- **`config/production/base.yaml`** - 本番設定・ML・戦略・監視統合設定
-- **`config/backtest/`** - バックテスト専用設定・完全分離環境
-- **`scripts/backtest/run_backtest.py`** - バックテスト実行スクリプト・CLI対応
+# Discord通知
+DISCORD_WEBHOOK_URL=your_webhook_url
 
-### **MLOps統合基盤**
-- **`models/production/`** - ProductionEnsemble 3モデル・週次更新対応
-- **`config/core/feature_order.json`** - 12特徴量定義・統合基盤・全システム参照
-- **`.github/workflows/model-training.yml`** - 週次自動学習・CI/CD品質ゲート
+# システム制御
+TRADING_MODE=paper  # paper/live
+LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
+```
 
-### **品質保証・監視**
-- **`scripts/testing/checks.sh`** - 654テスト・品質チェック・開発必須
-- **`tests/`** - 単体・統合テスト・59.24%カバレッジ・回帰防止
-- **`.github/workflows/ci.yml`** - CI/CD自動化・品質ゲート・デプロイ管理
+## 📈 パフォーマンス指標
 
-### **運用・ログ**
-- **`logs/`** - システムログ・バックテストレポート・監視データ
-- **Cloud Run** - 24時間本番稼働・自動スケーリング・監視統合
-- **Discord** - 3階層通知・運用アラート・パフォーマンス報告
+### **実行パフォーマンス**
+- **取引サイクル**: 12特徴量生成→4戦略→ML予測→リスク評価→実行（2秒以内）
+- **データ取得**: Bitbank API・35秒間隔・レート制限遵守
+- **メモリ使用量**: 通常運用500MB・バックテスト時1GB以下
+
+### **品質指標**
+- **システム統合**: レイヤード設計・疎結合・エラー分離
+- **フォールバック**: MLモデル未使用時ダミーモデル自動切替
+- **状態管理**: 取引状況・ドローダウン・統計の永続化
+
+## ⚠️ 重要事項
+
+### **システム要件**
+- **Python**: 3.8以上・async/await・型ヒント対応
+- **メモリ**: 本番運用1GB・バックテスト2GB推奨
+- **ディスク**: キャッシュ・ログ・モデル用に5GB以上
+
+### **運用制約**
+- **API制限**: Bitbank 35秒間隔・接続数制限・レート制限対応
+- **リスク管理**: Kelly基準・20%ドローダウン制限・連続5損失停止
+- **監視必須**: Discord 3階層通知・Cloud Run監視・ヘルスチェック
+
+### **開発制約**
+- **テスト必須**: scripts/testing/checks.sh実行・カバレッジ58.64%維持
+- **品質ゲート**: CI/CD自動チェック・失敗時開発停止
+- **設定分離**: 本番・バックテスト・開発環境完全分離
+
+### **依存関係**
+- **外部ライブラリ**: pandas・numpy・ccxt・lightgbm・xgboost・scikit-learn
+- **API依存**: Bitbank API・Discord Webhook
+- **インフラ**: GCP Cloud Run・GitHub Actions・Docker
+
+---
+
+## 🔗 詳細ドキュメント
+
+- **[戦略システム詳細](strategies/README.md)**: 4戦略実装・統合管理・使用方法
+- **[取引実行システム詳細](trading/README.md)**: リスク管理・異常検知・注文実行
+- **[プロジェクト全体概要](../README.md)**: システム全体・運用手順・開発履歴
+
+---
+
+**AI自動取引システム**: レイヤードアーキテクチャによる統合システム。データ取得→特徴量生成→戦略実行→機械学習→リスク管理→取引実行の完全自動化。ペーパートレードから実取引まで対応し、包括的な品質保証とリスク管理を実現。

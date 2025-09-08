@@ -20,6 +20,19 @@ from pathlib import Path
 # srcディレクトリをPythonパスに追加
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+# .env環境変数の読み込み（優先順位: .env > 環境変数）
+try:
+    from dotenv import load_dotenv
+    # config/secrets/.envファイルを読み込み（Discord Webhook URL等）
+    env_path = Path(__file__).parent / "config/secrets/.env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ 環境変数読み込み: {env_path}")
+    else:
+        print("⚠️ .envファイルが見つかりません（オプション）")
+except ImportError:
+    print("⚠️ python-dotenvが利用できません（オプション）")
+
 try:
     from src.core.config import load_config
     from src.core.logger import setup_logging
@@ -40,7 +53,7 @@ def parse_arguments():
   python main.py --mode paper              # ペーパートレード（デフォルト）
   python main.py --mode live               # ライブトレード
   python main.py --mode backtest           # バックテスト（Phase 19完了・特徴量統一管理対応）
-  python main.py --config config/prod.yaml # 本番設定使用
+  python main.py --config config/core/unified.yaml # 統一設定使用
         """,
     )
 
@@ -51,7 +64,7 @@ def parse_arguments():
         help="動作モード (default: paper)",
     )
     parser.add_argument(
-        "--config", default="config/core/base.yaml", help="設定ファイルパス (default: config/core/base.yaml)"
+        "--config", default="config/core/unified.yaml", help="設定ファイルパス (default: config/core/unified.yaml)"
     )
 
     return parser.parse_args()

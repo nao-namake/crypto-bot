@@ -17,11 +17,20 @@ import logging
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from ..core.config import get_monitoring_config
+
+# dotenv がある場合は読み込み
+try:
+    from dotenv import load_dotenv
+
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
 
 
 class DiscordClient:
@@ -37,12 +46,12 @@ class DiscordClient:
         Discord通知クライアント初期化
 
         Args:
-            webhook_url: Discord WebhookのURL（環境変数から自動取得も可能）
+            webhook_url: Discord WebhookのURL（自動取得も可能）
         """
         self.logger = logging.getLogger(f"crypto_bot.discord_client")
 
-        # Webhook URL取得（優先順位: 引数 > 環境変数 > None）
-        self.webhook_url = webhook_url or os.getenv("DISCORD_WEBHOOK_URL")
+        # Webhook URL取得（優先順位付き）
+        self.webhook_url = self._get_webhook_url(webhook_url)
 
         if not self.webhook_url:
             self.logger.warning("⚠️ Discord WebhookURL未設定 - 通知は無効化されます")
@@ -57,6 +66,69 @@ class DiscordClient:
 
         self.enabled = True
         self.logger.info("✅ Discord通知クライアント初期化完了")
+
+    def _get_webhook_url(self, webhook_url: Optional[str] = None) -> Optional[str]:
+        """
+        優先順位付きでWebhook URLを取得
+
+        優先順位:
+        1. 引数で渡されたURL
+        2. .envファイル
+        3. 環境変数
+        4. discord_webhook.txt（後方互換性）
+
+        Args:
+            webhook_url: 引数で渡されたURL
+
+        Returns:
+            Webhook URL（見つからない場合はNone）
+        """
+        # 1. 引数（最優先）
+        if webhook_url:
+            self.logger.info("🔗 Discord Webhook URLを引数から取得")
+            return webhook_url
+
+        # 2. .envファイル
+        env_path = Path("config/secrets/.env")
+        if env_path.exists() and DOTENV_AVAILABLE:
+            try:
+                # .envファイルを読み込み
+                load_dotenv(env_path)
+                env_url = os.getenv("DISCORD_WEBHOOK_URL")
+                if env_url and env_url.strip():
+                    self.logger.info(
+                        f"📁 Discord Webhook URLを.envファイルから読み込み（{len(env_url)}文字）"
+                    )
+                    return env_url.strip()
+            except Exception as e:
+                self.logger.warning(f"⚠️ .envファイル読み込み失敗: {e}")
+
+        # 3. 環境変数
+        env_url = os.getenv("DISCORD_WEBHOOK_URL")
+        if env_url and env_url.strip():
+            self.logger.info("🌐 Discord Webhook URLを環境変数から取得")
+            return env_url.strip()
+
+        # 4. discord_webhook.txt（後方互換性）
+        txt_path = Path("config/secrets/discord_webhook.txt")
+        if txt_path.exists():
+            try:
+                txt_url = txt_path.read_text().strip()
+                if txt_url:
+                    self.logger.info(
+                        f"📄 Discord Webhook URLをtxtファイルから読み込み（{len(txt_url)}文字）"
+                    )
+                    return txt_url
+            except Exception as e:
+                self.logger.warning(f"⚠️ txtファイル読み込み失敗: {e}")
+
+        # すべて失敗
+        self.logger.error("❌ Discord Webhook URLが見つかりません")
+        self.logger.error(
+            "   設定ファイル: config/secrets/.env または config/secrets/discord_webhook.txt"
+        )
+        self.logger.error("   環境変数: DISCORD_WEBHOOK_URL")
+        return None
 
     def _validate_webhook_url(self, url: str) -> bool:
         """

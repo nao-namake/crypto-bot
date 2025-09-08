@@ -509,7 +509,7 @@ import sys
 sys.path.append('.')
 try:
     from src.core.config import load_config
-    config = load_config('config/core/base.yaml')
+    config = load_config('config/core/unified.yaml')
     print('✅ Config読み込み成功')
 
     # 基本設定確認
@@ -1170,7 +1170,7 @@ except Exception as e:
             content += "1. **エラーメッセージ確認**: 上記の詳細情報でエラー内容を特定\n"
             content += "2. **依存関係確認**: `pip install -r requirements.txt` で必要パッケージをインストール\n"
             content += "3. **権限確認**: ファイル・ディレクトリアクセス権限をチェック\n"
-            content += "4. **設定確認**: config/core/base.yaml など設定ファイルをチェック\n\n"
+            content += "4. **設定確認**: config/core/unified.yaml など設定ファイルをチェック\n\n"
 
             if command in ["health-check", "monitor"]:
                 content += "#### GCP関連エラーの場合\n"

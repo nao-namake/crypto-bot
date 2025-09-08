@@ -1,171 +1,222 @@
-# tests/unit/ - Phase 19単体テストシステム
-
-**Phase 19対応**: 654テスト・59.24%カバレッジ・MLOps統合・feature_manager・ProductionEnsemble品質保証（2025年9月4日現在）
+# tests/unit/ - 単体テストシステム
 
 ## 🎯 役割・責任
 
-Phase 19 MLOps統合単体テストシステムとして以下を提供：
-- **MLOps統合テスト**: feature_manager・ProductionEnsemble・週次学習・統合システム
-- **品質保証**: 654テスト・59.24%カバレッジ・正常系・異常系・境界値・MLOps連携
-- **CI/CD統合**: GitHub Actions・自動品質ゲート・週次学習テスト・段階的デプロイ
-- **MLOps品質管理**: 12特徴量テスト・3モデルアンサンブル・Cloud Run統合・Discord監視
+システム全体の単体テストを管理し、コード品質の保証、回帰防止、継続的品質向上を支援します。機械学習モデル、取引戦略、データ処理、監視システムまで、包括的なテストカバレッジでシステムの信頼性を確保します。
 
-## 📂 ファイル構成
+## 📂 ディレクトリ構成
 
 ```
-unit/
-├── strategies/          # 戦略システムテスト（Phase 19統合・4戦略・100%合格）
-│   ├── implementations/ # 戦略実装テスト（ATR・もちぽよ・MTF・フィボナッチ）
-│   ├── base/           # 戦略基盤テスト（戦略マネージャー・統合制御）
-│   ├── utils/          # 共通ユーティリティテスト（シグナル統合・多数決）
-│   ├── test_strategy_manager.py  # 戦略管理テスト
-│   └── README.md       # 戦略テスト詳細
-├── ml/                  # Phase 19 MLOpsテスト（ProductionEnsemble・週次学習）
-│   ├── models/         # 個別モデルテスト（LightGBM・XGBoost・RF）
-│   ├── production/     # ProductionEnsembleテスト（3モデル統合）
-│   ├── test_ensemble_model.py    # アンサンブル統合テスト
-│   ├── test_ml_integration.py    # MLOps統合テスト
-│   ├── test_model_manager.py     # モデル管理・週次学習テスト
-│   ├── test_voting_system.py     # 重み付け投票テスト
-│   └── README.md       # MLOpsテスト詳細
-├── trading/             # 取引実行・統合リスク管理テスト（Phase 19対応）
-│   ├── test_executor.py           # 実取引・ペーパートレードテスト
-│   ├── test_integrated_risk_manager.py  # 統合リスク管理テスト
-│   ├── test_kelly_criterion.py   # Kelly基準・ポジションサイジングテスト
-│   ├── test_anomaly_detector.py  # 異常検知・アラートテスト
-│   ├── test_drawdown_manager.py  # ドローダウン管理テスト
-│   └── README.md       # 取引テスト詳細
-├── features/            # Phase 19特徴量システムテスト（feature_manager統合）
-│   ├── test_feature_generator.py # 12特徴量統一生成テスト
-│   ├── test_technical.py         # テクニカル指標テスト
-│   └── test_anomaly.py           # 異常検知特徴量テスト
-├── backtest/            # バックテストエンジンテスト（統一レポーター）
-│   ├── test_engine.py  # バックテストエンジンテスト
-│   └── README.md       # バックテストテスト詳細
-├── data/                # データ層テスト（Bitbank API・パイプライン）
-│   ├── test_bitbank_client.py    # BitbankAPIテスト
-│   └── test_data_cache.py        # データキャッシュテスト
-├── monitoring/          # Phase 19監視テスト（Discord・Cloud Run統合）
-│   └── test_discord.py           # Discord通知・MLOps監視テスト
-└── README.md            # このファイル（Phase 19対応）
+tests/unit/
+├── README.md                    # このファイル
+├── backtest/                    # バックテストエンジンテスト
+│   └── test_engine.py              # バックテストエンジン・性能評価テスト
+├── core/                        # コアシステムテスト
+│   ├── services/                   # コアサービステスト
+│   │   ├── test_health_checker.py      # ヘルスチェック機能テスト
+│   │   └── test_trading_logger.py      # 取引ログシステムテスト
+│   ├── test_config_thresholds.py       # 設定・閾値管理テスト
+│   └── test_ml_adapter_exception_handling.py  # ML統合・例外処理テスト
+├── data/                        # データ層テスト
+│   ├── test_bitbank_client.py.disabled # Bitbank APIクライアントテスト（無効）
+│   └── test_data_cache.py           # データキャッシュ・管理テスト
+├── features/                    # 特徴量システムテスト
+│   ├── test_anomaly.py.deprecated      # 異常検知特徴量テスト（非推奨）
+│   ├── test_feature_generator.py       # 特徴量生成・管理テスト
+│   └── test_technical.py.deprecated    # テクニカル指標テスト（非推奨）
+├── ml/                          # 機械学習システムテスト
+│   ├── models/                     # 個別モデルテスト
+│   │   ├── test_rf_model.py            # RandomForest モデルテスト
+│   │   └── test_xgb_model.py           # XGBoost モデルテスト
+│   ├── production/                 # 本番モデルテスト
+│   │   └── test_ensemble.py            # ProductionEnsemble テスト
+│   ├── test_ensemble_model.py          # アンサンブルモデル統合テスト
+│   ├── test_ml_integration.py          # ML統合・パイプラインテスト
+│   ├── test_model_manager.py           # モデル管理・バージョン管理テスト
+│   └── test_voting_system.py           # 投票システム・重み付けテスト
+├── monitoring/                  # 監視システムテスト
+│   ├── test_discord_client.py          # Discord クライアントテスト
+│   ├── test_discord_formatter.py       # Discord フォーマッターテスト
+│   └── test_discord_manager.py         # Discord 管理システムテスト
+├── strategies/                  # 取引戦略システムテスト
+│   ├── base/                       # 戦略基盤テスト
+│   │   └── test_strategy_base.py       # 戦略基盤クラステスト
+│   ├── implementations/            # 戦略実装テスト
+│   │   ├── test_atr_based.py           # ATR戦略テスト
+│   │   ├── test_fibonacci_retracement.py # フィボナッチ戦略テスト
+│   │   ├── test_mochipoy_alert.py      # もちぽよアラート戦略テスト
+│   │   └── test_multi_timeframe.py     # マルチタイムフレーム戦略テスト
+│   ├── utils/                      # 戦略ユーティリティテスト
+│   │   ├── test_constants.py           # 戦略定数テスト
+│   │   ├── test_risk_manager.py        # リスク管理テスト
+│   │   └── test_signal_builder.py      # シグナル構築テスト
+│   └── test_strategy_manager.py        # 戦略管理システムテスト
+└── trading/                     # 取引システムテスト
+    ├── test_anomaly_detector.py        # 異常検知システムテスト
+    ├── test_drawdown_manager.py        # ドローダウン管理テスト
+    ├── test_executor.py                # 取引実行エンジンテスト
+    ├── test_init.py                    # 取引システム初期化テスト
+    ├── test_integrated_risk_manager.py # 統合リスク管理テスト
+    └── test_kelly_criterion.py         # Kelly基準・ポジションサイジングテスト
 ```
 
-## ✅ 主要機能・実装
+## 📋 主要テストカテゴリの役割
 
-### **Phase 19統合戦略テスト**: 4戦略・feature_manager連携・高速実行
-- ATRベース・フィボナッチ・もちぽよアラート・マルチタイムフレーム戦略統合
-- feature_manager 12特徴量統一管理・DataFrame出力・戦略シームレス連携
-- 戦略基盤・戦略管理・シグナル統合・多数決システム・リスク管理統合
+### **ml/ - 機械学習システムテスト**
+機械学習モデルの品質保証と統合テストを担当します。
+- **個別モデルテスト**: RandomForest・XGBoost の学習・予測・性能評価
+- **ProductionEnsemble**: 3モデル統合・重み付け投票・本番運用テスト
+- **統合テスト**: 特徴量→モデル→予測のエンドツーエンドテスト
+- **モデル管理**: バージョン管理・メタデータ・学習履歴・品質評価
+- 8テストファイル・機械学習パイプライン全体をカバー
 
-### **Phase 19 MLOpsテスト**: ProductionEnsemble・週次学習・3モデル統合
-- ProductionEnsemble（LightGBM 40%・XGBoost 40%・RandomForest 20%）
-- 週次自動学習・GitHub Actions統合・モデルバージョン管理・デプロイ自動化
-- 重み付け投票・信頼度閾値・予測精度評価・MLOps品質管理・Cloud Run統合
+### **strategies/ - 取引戦略システムテスト**
+4つの取引戦略の動作確認と戦略管理システムのテストです。
+- **戦略実装**: ATR・フィボナッチ・もちぽよアラート・マルチタイムフレーム
+- **戦略基盤**: 共通基盤クラス・戦略インターフェース・統合制御
+- **ユーティリティ**: シグナル構築・リスク管理・定数管理
+- **戦略管理**: 複数戦略の統合・競合解決・信頼度評価
+- 8テストファイル・戦略システム全体をカバー
 
-### **統合取引・リスク管理テスト**: Phase 19実取引対応・MLOps連携
-- 統合リスク管理・Kelly基準・実取引・ペーパートレード・ポジションサイジング
-- レイテンシー監視・Discord 3階層通知・安全係数・Cloud Run統合・MLOps連携
-- 異常検知・ドローダウン管理・3段階リスク判定・feature_manager統合評価
+### **trading/ - 取引システムテスト**
+実際の取引実行とリスク管理システムの品質保証です。
+- **取引実行**: 実取引・ペーパートレード・注文管理・レイテンシー監視
+- **リスク管理**: Kelly基準・ポジションサイジング・統合リスク評価
+- **異常検知**: 市場異常・システム異常・アラート・自動停止
+- **ドローダウン管理**: 損失制限・安全係数・復旧判定
+- 6テストファイル・取引システム全体をカバー
 
-### **Phase 19特徴量システムテスト**: feature_manager統合・12特徴量・DataFrame統一
-- feature_manager 12特徴量統一生成・テクニカル指標・異常検知特徴量
-- マルチタイムフレーム（4h/15m）統合・DataFrame標準出力・戦略シームレス連携
-- Phase 19互換性・テスト完全カバー・品質保証・パフォーマンス最適化
+### **monitoring/ - 監視システムテスト**
+Discord通知とシステム監視の品質保証です。
+- **Discord統合**: クライアント・フォーマッター・管理システム
+- **通知機能**: Critical/Warning/Info 3階層通知・アラート・レポート
+- **監視連携**: Cloud Run・システムヘルス・パフォーマンス監視
+- 3テストファイル・監視システム全体をカバー
 
-### **Phase 19バックテスト・監視統合**: 統一レポーター・Discord監視・Cloud Run
-- 統一バックテストエンジン・性能評価・CSV/JSON出力・Phase 19互換性
-- Discord 3階層監視・Cloud Run統合・MLOps監視・週次学習監視・品質管理
+### **features/ - 特徴量システムテスト**
+特徴量生成とデータ処理の品質保証です。
+- **特徴量生成**: 12特徴量・テクニカル指標・異常検知特徴量
+- **データ品質**: 欠損値処理・異常値検知・データ整合性
+- **パフォーマンス**: 生成速度・メモリ効率・スケーラビリティ
+- 1アクティブテストファイル・特徴量システムをカバー
 
-## 🔧 使用方法・例
+### **core/ - コアシステムテスト**
+システム基盤とサービスの品質保証です。
+- **設定管理**: 閾値・パラメータ・環境変数・設定検証
+- **ML統合**: 機械学習アダプター・例外処理・フォールバック
+- **ヘルスチェック**: システム監視・サービス状態・復旧処理
+- 4テストファイル・システム基盤をカバー
 
-### **Phase 19全テスト実行（654テスト・59.24%カバレッジ）**
+## 📝 使用方法・例
+
+### **全テスト実行**
 ```bash
-# Phase 19統合テスト実行（654テスト・MLOps対応）
+# 全単体テスト実行（推奨）
 python -m pytest tests/unit/ -v --tb=short
 
-# Phase 19カバレッジ付き実行（59.24%目標）
+# カバレッジ付き実行
 python -m pytest tests/unit/ --cov=src --cov-report=html --cov-report=term-missing
 
-# Phase 19高速並列実行（MLOps統合テスト）
+# 並列実行（高速化）
 python -m pytest tests/unit/ -n auto --maxfail=5
 
-# 品質保証統合チェック（30秒実行）
+# 品質チェック統合実行
 bash scripts/testing/checks.sh
 ```
 
-### **Phase 19モジュール別テスト（MLOps統合）**
+### **カテゴリ別テスト実行**
 ```bash
-# Phase 19戦略統合テスト（feature_manager連携）
-python -m pytest tests/unit/strategies/ -v --tb=short
-
-# Phase 19 MLOpsテスト（ProductionEnsemble・週次学習）
+# 機械学習システムテスト
 python -m pytest tests/unit/ml/ -v --tb=short
 
-# Phase 19特徴量システムテスト（12特徴量統合）
-python -m pytest tests/unit/features/ -v --tb=short
+# 取引戦略システムテスト
+python -m pytest tests/unit/strategies/ -v --tb=short
 
-# Phase 19統合取引テスト（実取引対応）
+# 取引システムテスト
 python -m pytest tests/unit/trading/ -v --tb=short
 
-# Phase 19バックテスト・監視統合テスト
-python -m pytest tests/unit/backtest/ tests/unit/monitoring/ -v
+# 監視システムテスト
+python -m pytest tests/unit/monitoring/ -v --tb=short
+
+# 特徴量システムテスト
+python -m pytest tests/unit/features/ -v --tb=short
 ```
 
-### **Phase 19詳細MLOpsテスト**
+### **個別テスト実行**
 ```bash
-# ProductionEnsembleテスト（3モデル統合）
-python -m pytest tests/unit/ml/production/test_production_ensemble.py::TestProductionEnsemble -v
+# ProductionEnsemble テスト
+python -m pytest tests/unit/ml/production/test_ensemble.py -v
 
-# feature_manager統合テスト（12特徴量）
-python -m pytest tests/unit/features/test_feature_generator.py::TestFeatureGenerator::test_generate_features -v
+# 特徴量生成テスト
+python -m pytest tests/unit/features/test_feature_generator.py -v
 
-# Phase 19戦略統合テスト（feature_manager連携）
-python -m pytest tests/unit/strategies/implementations/test_atr_based.py::TestATRBasedStrategy::test_phase19_integration -v
+# 取引実行エンジンテスト
+python -m pytest tests/unit/trading/test_executor.py -v
 
-# MLOps統合失敗時詳細表示
-python -m pytest tests/unit/ -v --tb=short --maxfail=3 -x
+# Discord通知テスト
+python -m pytest tests/unit/monitoring/test_discord_manager.py -v
+```
+
+### **テスト結果分析**
+```bash
+# 失敗したテストの詳細表示
+python -m pytest tests/unit/ -v --tb=long --maxfail=3
+
+# 特定のテストメソッド実行
+python -m pytest tests/unit/ml/test_ensemble_model.py::TestEnsembleModel::test_predict -v
+
+# カバレッジレポート確認
+open coverage-reports/htmlcov/index.html
 ```
 
 ## ⚠️ 注意事項・制約
 
-### **Phase 19実行環境制約（MLOps対応）**
-1. **プロジェクトルート**: 必ず`/Users/nao/Desktop/bot`から実行
-2. **Phase 19環境**: pytest・pytest-cov・pytest-mock・lightgbm・xgboost・scikit-learn必須
-3. **MLOps依存関係**: feature_manager・ProductionEnsemble・週次学習モデル・Cloud Run設定
-4. **実行時間**: 全テスト約30秒・Phase 19 MLOps統合テスト含む
+### **実行環境要件**
+- **Python環境**: Python 3.8以上・pytest・pytest-cov・pytest-mock必須
+- **実行場所**: プロジェクトルートディレクトリ（/Users/nao/Desktop/bot）から実行
+- **依存関係**: 機械学習ライブラリ（scikit-learn・lightgbm・xgboost）完全インストール
+- **実行時間**: 全テスト約30-60秒・個別カテゴリ5-15秒
 
-### **Phase 19テスト品質基準（MLOps統合）**
-- **成功率**: 654テスト100%合格必須・MLOps回帰エラー0件
-- **カバレッジ**: 59.24%以上・feature_manager・ProductionEnsemble・週次学習カバー
-- **実行速度**: 全テスト30秒以内・MLOps統合テスト含む・個別モジュール5秒以内
-- **MLOps品質**: 12特徴量テスト・3モデルアンサンブル・Cloud Run統合・Discord監視
+### **テスト品質基準**
+- **成功率**: 全テスト100%成功・回帰エラー0件・継続的品質維持
+- **カバレッジ**: 50%以上維持・新機能追加時のテスト追加必須
+- **実行速度**: 高速実行・CI/CD統合・開発効率重視
+- **品質保証**: 正常系・異常系・境界値・統合テストの完全カバー
 
-### **Phase 19モック・テストデータ戦略（MLOps対応）**
-- **外部API**: BitbankAPI・Discord Webhook・Cloud Run API完全モック化
-- **MLOpsモデル**: ProductionEnsemble軽量版・feature_manager予測可能データ
-- **週次学習**: GitHub Actions Mock・学習プロセステストデータ
-- **MLOps統合**: 12特徴量テストデータ・3モデル予測データ・固定datetime管理
+### **モック・テストデータ戦略**
+- **外部API**: Bitbank API・Discord Webhook・Cloud Run API 完全モック化
+- **機械学習**: ProductionEnsemble軽量版・予測可能テストデータ
+- **時間依存**: 固定datetime・タイムゾーン・市場時間の一貫性
+- **リソース**: メモリ効率・テスト分離・クリーンアップ・状態管理
+
+### **CI/CD統合制約**
+- **自動実行**: GitHub Actions・品質ゲート・自動品質チェック
+- **段階的実行**: プルリクエスト・マージ前・デプロイ前の自動実行
+- **失敗時対応**: 自動通知・詳細レポート・問題特定・修正ガイド
+- **品質維持**: 継続的監視・パフォーマンス追跡・品質指標管理
 
 ## 🔗 関連ファイル・依存関係
 
-### **Phase 19テスト対象システム（MLOps統合）**
-- **src/features/feature_generator.py**: 12特徴量統一管理・DataFrame出力・戦略連携
-- **src/ml/**: ProductionEnsemble・週次学習・3モデルアンサンブル・MLOps統合
-- **src/strategies/**: 4戦略・feature_manager連携・統合シグナル生成
-- **src/trading/**: 統合リスク管理・実取引・Cloud Run統合・Discord監視
+### **テスト対象システム**
+- `src/features/feature_generator.py`: 特徴量生成・12特徴量・データ前処理
+- `src/ml/ensemble.py`: ProductionEnsemble・3モデル統合・予測エンジン
+- `src/strategies/`: 4戦略・戦略管理・シグナル生成・リスク管理
+- `src/trading/`: 取引実行・リスク管理・異常検知・ドローダウン管理
+- `src/monitoring/`: Discord通知・システム監視・アラート・ヘルスチェック
 
-### **Phase 19テスト基盤・環境（MLOps対応）**
-- **pytest.ini**: Phase 19 pytest設定・MLOpsテストパス・カバレッジ59.24%設定
-- **conftest.py**: Phase 19フィクスチャ・feature_manager・ProductionEnsemble設定
-- **scripts/testing/checks.sh**: 654テスト統合実行・品質保証・30秒チェック
-- **coverage-reports/**: Phase 19カバレッジ・MLOps品質指標・HTML出力
+### **テスト基盤・環境**
+- `pytest.ini`: pytest設定・テストパス・カバレッジ設定・実行オプション
+- `conftest.py`: フィクスチャ・モック・テストデータ・環境設定
+- `scripts/testing/checks.sh`: 品質チェック・テスト実行・統合確認
+- `coverage-reports/`: カバレッジレポート・品質指標・HTML出力
 
-### **Phase 19外部依存（MLOps統合）**
-- **pytest**: Phase 19テストフレームワーク・654テストランナー・アサーション
-- **pytest-mock**: MLOpsモック・feature_manager・ProductionEnsembleパッチ
-- **lightgbm・xgboost**: ProductionEnsemble実テスト・3モデル統合検証
-- **pandas・numpy**: 12特徴量DataFrame・テストデータ生成・MLOps数値計算
+### **外部依存・ライブラリ**
+- **pytest**: テストフレームワーク・アサーション・テストランナー
+- **pytest-mock**: モック機能・外部API・システム依存のテスト分離
+- **pytest-cov**: カバレッジ測定・品質指標・レポート生成
+- **機械学習**: scikit-learn・lightgbm・xgboost・pandas・numpy
 
----
-
-**🎯 Phase 19 MLOps対応完了**: 654テスト・59.24%カバレッジ・feature_manager 12特徴量・ProductionEnsemble 3モデル統合・週次自動学習・Cloud Run 24時間稼働・Discord監視統合により、包括的なMLOps品質保証システムを実現。
+### **品質保証・CI/CD**
+- `.github/workflows/`: CI/CDパイプライン・自動テスト・品質ゲート
+- `scripts/testing/dev_check.py`: 統合管理・品質確認・システム診断
+- Discord通知・Cloud Run監視・GitHub Actions統合・自動品質管理

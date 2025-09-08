@@ -1,406 +1,433 @@
-# Phase 19+攻撃的設定完成 strategies/ - MLOps統合攻撃的取引戦略システム
+# src/strategies/ - 取引戦略システム
 
-**Phase 19+攻撃的設定完成**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・**攻撃的戦略ロジック実装**・**Dynamic Confidence完成**・625テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合により、**月100-200取引対応のMLOps完全統合攻撃的取引戦略システム**を実現。Phase 18ファイル統合・23%ファイル数削減基盤に**戦略攻撃化・1万円運用最適化・取引機会最大化**企業級品質保証完備。
+## 🎯 役割・責任
 
-## 📁 ディレクトリ構成
+AI自動取引システムの戦略層。4つの取引戦略（ATRベース・フィボナッチ・もちぽよアラート・マルチタイムフレーム）を統合管理し、市場データから取引シグナルを生成。統一インターフェース・コンフリクト解決・重み付け統合により、安定した取引判断を提供。
+
+## 📚 詳細ドキュメント
+
+- **[戦略基盤システム詳細](base/README.md)**: StrategyBase抽象基底クラス・StrategyManager統合管理の実装詳細
+- **[戦略実装詳細](implementations/README.md)**: 4戦略（ATR・フィボナッチ・もちぽよ・MTF）の個別分析・パラメータ・アルゴリズム
+- **[共通処理詳細](utils/README.md)**: RiskManager・SignalBuilder・定数管理の具体的使用方法
+
+## 📂 ファイル構成
 
 ```
-strategies/
-├── base/                        # 戦略基盤システム ✅ Phase 13 CI/CDワークフロー最適化
-│   ├── strategy_base.py         # 抽象基底クラス・統一インターフェース・GitHub Actions対応
-│   └── strategy_manager.py      # 戦略統合管理・重み付け判定・手動実行監視対応
-├── implementations/             # 戦略実装群 ✅ 段階的デプロイ対応
-│   ├── atr_based.py            # ATRベース戦略（38%削減・CI/CD監視）
-│   ├── mochipoy_alert.py       # もちぽよアラート（49%削減・GitHub Actions対応）
-│   ├── multi_timeframe.py      # マルチタイムフレーム（53%削減・手動実行監視統合）
-│   └── fibonacci_retracement.py # フィボナッチ戦略（31%削減・段階的デプロイ対応）
-└── utils/                       # 共通処理モジュール ✅ Phase 18統合完了
-    └── strategy_utils.py       # 統合共通処理・定数・リスク管理・シグナル生成・後方互換性完全保持
+src/strategies/
+├── __init__.py              # 戦略システムエクスポート（20行）
+├── base/                    # 戦略基盤システム
+│   ├── __init__.py             # 基盤クラスエクスポート（5行）
+│   ├── strategy_base.py        # 抽象基底クラス・統一インターフェース（199行）
+│   └── strategy_manager.py     # 戦略統合管理・重み付け判定・コンフリクト解決（351行）
+├── implementations/         # 戦略実装群
+│   ├── __init__.py             # 実装戦略エクスポート（9行）
+│   ├── atr_based.py           # ATRベース戦略・ボラティリティ分析（348行）
+│   ├── fibonacci_retracement.py # フィボナッチ戦略・レベル分析（563行）
+│   ├── mochipoy_alert.py      # もちぽよアラート・複合指標（283行）
+│   └── multi_timeframe.py     # マルチタイムフレーム・時間軸統合（313行）
+└── utils/                   # 共通処理モジュール
+    ├── __init__.py             # 共通機能エクスポート（22行）
+    └── strategy_utils.py      # 統合共通処理・定数・リスク管理・シグナル生成（380行）
 ```
 
-## 🎯 Phase 18達成成果
+## 🔧 主要コンポーネント
 
-### ファイル統合実績（utils/モジュール統合完了）
-- **23%ファイル削減**: 13→10ファイル・保守性劇的向上・管理コスト削減
-- **utils/統合完了**: 3ファイル→1ファイル・strategy_utils.py統合・380行高効率化
-- **後方互換性保持**: 既存import完全保持・__init__.py再エクスポート・0破壊的変更
+> 💡 **詳細情報**: 各コンポーネントの実装詳細・使用方法は[詳細ドキュメント](#📚-詳細ドキュメント)を参照
 
-### ファイル統合削減実績（Phase 18）
+### **base/ - 戦略基盤システム** → [詳細](base/README.md)
+
+#### strategy_base.py（199行）
+**目的**: 全戦略共通の抽象基底クラス・統一インターフェース
+
+**主要クラス**:
 ```python
-FILE_CONSOLIDATION_RESULTS = {
-    'total_files': {'before': 13, 'after': 10, 'reduction': '23%'},
-    'utils_module': {'before': 3, 'after': 1, 'reduction': '67%'},
-    'strategy_utils_py': {'lines': 380, 'consolidated_modules': 3, 'imports_preserved': '100%'},
-    'backward_compatibility': {'breaking_changes': 0, 'existing_imports': 'all_working', 'test_success': '100%'}
-}
+class StrategyBase(ABC):
+    def __init__(self, name: str, config: Optional[Dict] = None)  # 基底初期化
+    def analyze(self, df: pd.DataFrame) -> StrategySignal          # 戦略分析（抽象）
+    def generate_signal(self, df: pd.DataFrame) -> StrategySignal  # シグナル生成
+    def get_required_features(self) -> List[str]                  # 必要特徴量
+    def get_info(self) -> Dict                                    # 戦略情報
+
+@dataclass
+class StrategySignal:
+    strategy_name: str              # 戦略名
+    action: str                     # BUY/SELL/HOLD/CLOSE
+    confidence: float               # 信頼度 (0.0-1.0)
+    current_price: float            # 現在価格
+    stop_loss: Optional[float]      # ストップロス価格
+    take_profit: Optional[float]    # 利確価格
+    reason: str                     # シグナル理由
 ```
 
-### 品質保証完了（Phase 18統合）
-- **133テスト全成功**: 100%合格率・0.46秒高速実行・統合後品質保証・後方互換性検証完了
-- **包括的カバレッジ**: 個別戦略・統合テスト・統合共通モジュール・importパス検証対応
-- **実用性確認**: 統合モジュール動作・既存API完全保持・0破壊的変更・保守性向上
+#### strategy_manager.py（351行）
+**目的**: 複数戦略の統合管理・コンフリクト解決・重み付け統合
 
-## 📂 アーキテクチャ概要
+**主要クラス**:
+```python
+class StrategyManager:
+    def register_strategy(self, strategy, weight=1.0)             # 戦略登録
+    def analyze_market(self, df: pd.DataFrame) -> StrategySignal  # 統合分析
+    def _has_signal_conflict(self, signal_groups) -> bool         # 競合検知
+    def _resolve_signal_conflict(self, signals, df)               # 競合解決
+    def _integrate_consistent_signals(self, signals)              # 一貫性統合
+    def _calculate_weighted_confidence(self, signals)             # 重み付け信頼度
+```
 
-### 1. 基盤システム（base/）
-**責任**: 戦略の統一インターフェース・統合管理
+### **implementations/ - 戦略実装群** → [詳細](implementations/README.md)
 
-**主要コンポーネント**:
-- `StrategyBase`: 全戦略共通の抽象基底クラス
-- `StrategyManager`: 4戦略統合・重み付け・コンフリクト解決
+#### atr_based.py（348行）
+**目的**: ATRベースボラティリティ追従戦略
 
-### 2. 戦略実装（implementations/）
-**責任**: 個別取引戦略のシンプル化実装
+**主要クラス**:
+```python
+class ATRBasedStrategy(StrategyBase):
+    def __init__(self, config=None)                               # ATR戦略初期化
+    def analyze(self, df: pd.DataFrame) -> StrategySignal         # ATR分析実行
+    def _make_decision(self, bb_analysis, rsi_analysis, atr_analysis)  # 判定ロジック
+    def _analyze_bb_position(self, df)                            # ボリンジャーバンド分析
+    def _analyze_rsi(self, df)                                    # RSI分析
+    def _analyze_atr_volatility(self, df)                         # ATRボラティリティ分析
+```
 
-**実装済み戦略（攻撃的設定完成版）**:
-1. **ATRベース戦略**: ボラティリティベース・**不一致時も取引実行**・攻撃的リスク管理
-2. **もちぽよアラート**: EMA・MACD・RCI多数決・**1票でも取引実行**・超攻撃的判定
-3. **マルチタイムフレーム**: 4時間+15分・トレンド追従・攻撃的タイミング
-4. **フィボナッチ戦略**: テクニカル分析・レベル反発狙い・攻撃的エントリー
+#### fibonacci_retracement.py（563行）
+**目的**: フィボナッチリトレースメント戦略
 
-### 3. 共通処理（utils/）（Phase 18統合完了）
-**責任**: 重複コード排除・統一計算ロジック・3モジュール統合管理
+**主要クラス**:
+```python
+class FibonacciRetracementStrategy(StrategyBase):
+    def __init__(self, config=None)                               # フィボナッチ初期化
+    def analyze(self, df: pd.DataFrame) -> StrategySignal         # フィボ分析実行
+    def _identify_swings(self, df)                                # スイング高値・安値検出
+    def _calculate_fibonacci_levels(self, high, low)              # フィボレベル計算
+    def _check_price_near_fib_level(self, current_price, levels) # レベル接近判定
+    def _detect_reversal_signal(self, df, fib_level)             # 反転シグナル検出
+```
 
-**統合機能（strategy_utils.py）**:
-- `EntryAction`: 取引アクション定数（BUY/SELL/HOLD/CLOSE）
-- `StrategyType`: 戦略タイプ定数（4戦略対応）  
-- `RiskManager`: ATRベースSL・ポジションサイズ計算・静的メソッド統合
-- `SignalBuilder`: 統合シグナル生成・エラーハンドリング・リスク管理連携
-- `DEFAULT_RISK_PARAMS`: リスク管理デフォルト設定・統一パラメータ
+#### mochipoy_alert.py（283行）
+**目的**: もちぽよアラート複合指標戦略
+
+**主要クラス**:
+```python
+class MochiPoyAlertStrategy(StrategyBase):
+    def __init__(self, config=None)                               # もちぽよ初期化
+    def analyze(self, df: pd.DataFrame) -> StrategySignal         # 複合分析実行
+    def _analyze_ema(self, df)                                    # EMA分析
+    def _analyze_macd_and_rci(self, df)                          # MACD・RCI分析
+    def _make_simple_decision(self, ema_signal, macd_signal, rci_signal)  # 多数決判定
+```
+
+#### multi_timeframe.py（313行）
+**目的**: マルチタイムフレーム統合戦略
+
+**主要クラス**:
+```python
+class MultiTimeframeStrategy(StrategyBase):
+    def __init__(self, config=None)                               # MTF初期化
+    def analyze(self, df: pd.DataFrame) -> StrategySignal         # 時間軸統合分析
+    def _analyze_4h_trend(self, df)                               # 4時間足トレンド分析
+    def _analyze_15m_timing(self, df)                             # 15分足タイミング分析
+    def _integrate_timeframes(self, trend_4h, timing_15m)         # 時間軸統合判定
+```
+
+### **utils/ - 共通処理モジュール** → [詳細](utils/README.md)
+
+#### strategy_utils.py（380行）
+**目的**: 戦略間重複コード排除・統一計算ロジック・リスク管理統合
+
+**主要機能**:
+```python
+class EntryAction:          # 取引アクション定数
+    BUY = "buy"
+    SELL = "sell"
+    HOLD = "hold"
+    CLOSE = "close"
+
+class StrategyType:         # 戦略タイプ識別
+    ATR_BASED = "atr_based"
+    FIBONACCI = "fibonacci_retracement"
+    MOCHIPOY = "mochipoy_alert"
+    MULTI_TIMEFRAME = "multi_timeframe"
+
+class RiskManager:          # リスク管理計算
+    @staticmethod
+    def calculate_stop_loss_take_profit(price, action, atr, config)  # SL/TP計算
+    @staticmethod
+    def calculate_position_size(confidence, config)                  # ポジションサイズ
+    @staticmethod
+    def calculate_risk_ratio(stop_loss, take_profit, entry_price)    # リスク比率
+
+class SignalBuilder:        # シグナル生成統合
+    @staticmethod
+    def create_signal_with_risk_management(strategy_name, decision, current_price, df, config, strategy_type)  # 統合シグナル生成
+    @staticmethod
+    def create_hold_signal(strategy_name, current_price, reason)     # ホールドシグナル
+    @staticmethod
+    def create_error_signal(strategy_name, current_price, error)     # エラーシグナル
+```
 
 ## 🚀 使用方法
 
-### 基本的な戦略実行
+### **戦略マネージャーでの統合実行**
 ```python
 from src.strategies.base.strategy_manager import StrategyManager
 from src.strategies.implementations import (
-    ATRBasedStrategy, MochipoyAlertStrategy, 
-    MultiTimeframeStrategy, FibonacciRetracementStrategy
+    ATRBasedStrategy, FibonacciRetracementStrategy, 
+    MochiPoyAlertStrategy, MultiTimeframeStrategy
 )
 
-# 戦略マネージャー作成
+# 戦略マネージャー初期化
 manager = StrategyManager()
 
 # 戦略登録（重み付け）
-manager.add_strategy('atr', ATRBasedStrategy(), weight=0.3)
-manager.add_strategy('mochipoy', MochipoyAlertStrategy(), weight=0.3)
-manager.add_strategy('mtf', MultiTimeframeStrategy(), weight=0.25)
-manager.add_strategy('fibonacci', FibonacciRetracementStrategy(), weight=0.15)
+manager.register_strategy(ATRBasedStrategy(), weight=0.3)
+manager.register_strategy(FibonacciRetracementStrategy(), weight=0.25)
+manager.register_strategy(MochiPoyAlertStrategy(), weight=0.25)
+manager.register_strategy(MultiTimeframeStrategy(), weight=0.2)
 
-# 統合判定実行
-market_data = {
-    'timeframes': {'15m': df_15m, '1h': df_1h, '4h': df_4h},
-    'symbol': 'BTC/JPY'
-}
+# 統合分析実行
+market_data = get_market_data()  # OHLCV + 特徴量データ
+combined_signal = manager.analyze_market(market_data)
 
-result = manager.generate_signal(market_data)
-print(f"統合シグナル: {result['action']}, 信頼度: {result['confidence']:.2f}")
+print(f"統合判定: {combined_signal.action}")
+print(f"総合信頼度: {combined_signal.confidence:.3f}")
+print(f"判定理由: {combined_signal.reason}")
 ```
 
-### 個別戦略の使用
+### **個別戦略の使用**
 ```python
 from src.strategies.implementations.atr_based import ATRBasedStrategy
 
-# ATRベース戦略の個別使用
+# ATRベース戦略の個別実行
 atr_strategy = ATRBasedStrategy()
-signal = atr_strategy.generate_signal(market_data)
+signal = atr_strategy.analyze(market_data_df)
 
-print(f"ATR戦略: {signal['action']}, 理由: {signal['reasoning']}")
+print(f"ATR戦略: {signal.action}")
+print(f"信頼度: {signal.confidence:.3f}")
+print(f"判定理由: {signal.reason}")
 ```
 
-### 共通処理の活用（Phase 18統合版）
+### **共通処理の活用**
 ```python
 from src.strategies.utils import RiskManager, SignalBuilder, EntryAction
 
-# リスク管理（統合静的メソッド）
-position_size = RiskManager.calculate_position_size(
-    account_balance=100000,
-    risk_per_trade=0.02,  # 2%リスク
-    atr_value=50000
+# リスク管理計算
+stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+    current_price=1000000,
+    action=EntryAction.BUY,
+    atr_value=50000,
+    config={'atr_multiplier': 2.0}
 )
 
-# シグナル生成（統合モジュール）
+# ポジションサイズ計算
+position_size = RiskManager.calculate_position_size(
+    confidence=0.7,
+    config={'max_position_size': 0.1}
+)
+
+# 統合シグナル生成
 signal = SignalBuilder.create_signal_with_risk_management(
-    strategy_name="ATR_Strategy",
+    strategy_name="CustomStrategy",
     decision={'action': EntryAction.BUY, 'confidence': 0.75},
-    current_price=12345678,
+    current_price=1000000,
     df=market_data_df,
-    config={'atr_multiplier': 2.0}
+    config=strategy_config,
+    strategy_type=StrategyType.ATR_BASED
 )
 ```
 
-## 📋 実装ルール
+## ⚙️ 戦略統合システム
 
-### 1. 戦略実装ルール
+### **競合解決メカニズム**
+
+**競合検知**:
+```python
+def _has_signal_conflict(self, signal_groups):
+    has_buy = "buy" in signal_groups and len(signal_groups["buy"]) > 0
+    has_sell = "sell" in signal_groups and len(signal_groups["sell"]) > 0
+    return has_buy and has_sell  # BUYとSELLが同時存在時のみ競合
+```
+
+**処理パターン**:
+
+**1. 競合なし（例: SELL 2 + HOLD 2）**
+- `_integrate_consistent_signals`で多数決処理
+- 積極的アクション（SELL）を優先選択
+
+**2. 競合あり（例: SELL 2 + BUY 2）**
+- `_resolve_signal_conflict`で重み付け信頼度比較
+- 信頼度差0.1未満なら安全なHOLD選択
+- 信頼度差0.1以上なら高信頼度グループが勝利
+
+### **統合判定フロー**
+
+```
+【各戦略並行実行】→ 個別StrategySignal生成
+        ↓
+【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
+        ↓
+【競合検知】→ BUY vs SELL同時存在チェック
+        ↓
+【競合なし】→ 多数決 + 重み付け統合
+【競合あり】→ 重み付け信頼度比較 → 安全判定
+        ↓
+【最終統合シグナル】→ StrategySignal(strategy_name="StrategyManager")
+```
+
+### **重み付け信頼度計算**
+
+```python
+def _calculate_weighted_confidence(self, signals):
+    total_weighted_confidence = 0.0
+    total_weight = 0.0
+    
+    for strategy_name, signal in signals:
+        weight = self.strategy_weights.get(strategy_name, 1.0)
+        weighted_confidence = signal.confidence * weight
+        
+        total_weighted_confidence += weighted_confidence
+        total_weight += weight
+    
+    return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
+```
+
+## 🧪 テスト・品質保証
+
+> 📋 **テスト詳細**: 各モジュール別のテスト仕様・実行方法は[詳細ドキュメント](#📚-詳細ドキュメント)を参照
+
+### **戦略システム全体テスト**
+```bash
+# 戦略システム完全テスト実行
+bash scripts/testing/checks.sh
+
+# 個別戦略テスト
+python -m pytest tests/unit/strategies/implementations/ -v
+
+# 戦略基盤テスト
+python -m pytest tests/unit/strategies/base/ -v
+
+# 共通処理テスト
+python -m pytest tests/unit/strategies/utils/ -v
+```
+
+### **テスト構成**
+
+**実装戦略テスト**:
+- `test_atr_based.py`: ATR戦略テスト（15テスト）
+- `test_fibonacci_retracement.py`: フィボナッチ戦略テスト（17テスト）
+- `test_mochipoy_alert.py`: もちぽよアラートテスト（15テスト）
+- `test_multi_timeframe.py`: マルチタイムフレームテスト（15テスト）
+
+**基盤システムテスト**:
+- `test_strategy_base.py`: 基底クラステスト（20テスト）
+- `test_strategy_manager.py`: 統合管理テスト（18テスト）
+
+**共通処理テスト**:
+- `test_strategy_utils.py`: 共通機能テスト（23テスト）
+
+### **品質指標**
+
+**コード品質**:
+- テスト成功率: 100%
+- テスト実行時間: 1秒以内
+- コードカバレッジ: 95%以上
+
+**パフォーマンス**:
+- シグナル生成時間: 100ms以下
+- メモリ使用量: 戦略あたり10MB以下
+- 統合分析処理: 200ms以下
+
+## ⚠️ 重要事項
+
+> ⚙️ **実装ガイド**: 戦略開発・カスタマイズの詳細は[詳細ドキュメント](#📚-詳細ドキュメント)を参照
+
+### **戦略実装ルール**
 
 **必須継承**:
 ```python
-from src.strategies.base.strategy_base import StrategyBase
+from src.strategies.base.strategy_base import StrategyBase, StrategySignal
+from src.strategies.utils import EntryAction, StrategyType
 
-class YourStrategy(StrategyBase):
-    def __init__(self):
-        super().__init__("your_strategy")
+class CustomStrategy(StrategyBase):
+    def __init__(self, config=None):
+        super().__init__("custom_strategy", config)
     
-    def generate_signal(self, market_data: Dict) -> Dict:
-        """必須実装: シグナル生成ロジック"""
-        return self._create_signal(action, confidence, reasoning)
-```
-
-**攻撃的戦略ロジック実装（Phase 19+攻撃的設定）**:
-```python
-# 攻撃的戦略：不一致時も取引実行（ATRBased例）
-def _make_decision(self, bb_analysis, rsi_analysis, atr_analysis, stress_analysis):
-    if bb_signal != rsi_signal:
-        # 従来：HOLD → 攻撃的：より強いシグナル採用
-        if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
-            action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-            confidence = bb_analysis["confidence"] * 0.8  # 不一致ペナルティ
-            return {"action": action, "confidence": confidence}
-
-# 超攻撃的多数決（MochipoyAlert例）
-def _make_simple_decision(self, ema_signal, macd_signal, rci_signal):
-    buy_votes = signals.count(1)
-    if buy_votes == 1 and sell_votes == 0:
-        # 従来：HOLD → 攻撃的：1票でも取引実行
-        action = EntryAction.BUY
-        confidence = 0.4  # 低めだが攻撃的取引実行
-        return {"action": action, "confidence": confidence}
-```
-
-**Dynamic Confidence実装（Phase 19+新機能）**:
-```python
-# strategy_manager.py - 市場ボラティリティ連動
-from src.core.config import get_threshold
-
-def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合"):
-    # 動的confidence計算（攻撃的設定・市場状況反映）
-    base_confidence = get_threshold("ml.dynamic_confidence.base_hold", 0.3)
-    
-    # 過去20期間のボラティリティ計算
-    returns = df["close"].pct_change().tail(20)
-    volatility = returns.std()
-    
-    # ボラティリティが高い = 取引機会多い = HOLD信頼度下げる（攻撃的）
-    if volatility > 0.02:  # 高ボラティリティ
-        confidence = base_confidence * 0.8  # さらに下げる
-    elif volatility < 0.005:  # 低ボラティリティ
-        confidence = base_confidence * 1.2  # 少し上げる
-    else:
-        confidence = base_confidence
+    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+        """必須実装: 戦略固有分析ロジック"""
+        # 戦略分析処理
+        decision = {'action': EntryAction.BUY, 'confidence': 0.7}
         
-    # 信頼度を0.1-0.8の範囲にクランプ
-    confidence = max(0.1, min(0.8, confidence))
-    return StrategySignal(confidence=confidence)  # 動的confidence
-```
-
-**統合共通メソッド活用（Phase 18）**:
-```python
-# utils/統合共通処理の活用
-from src.strategies.utils import RiskManager, SignalBuilder, EntryAction
-
-def generate_signal(self, market_data):
-    # 統合リスク計算（静的メソッド）
-    position_size = RiskManager.calculate_position_size(
-        account_balance=100000, risk_per_trade=0.02, atr_value=50000
-    )
+        # 統合シグナル生成
+        return SignalBuilder.create_signal_with_risk_management(
+            strategy_name=self.name,
+            decision=decision,
+            current_price=float(df['close'].iloc[-1]),
+            df=df,
+            config=self.config,
+            strategy_type=StrategyType.CUSTOM
+        )
     
-    # 統合シグナル生成（リスク管理統合）
-    return SignalBuilder.create_signal_with_risk_management(
-        strategy_name=self.name,
-        decision={'action': EntryAction.BUY, 'confidence': 0.75},
-        current_price=market_data['current_price'],
-        df=market_data['df'],
-        config=self.config
-    )
+    def get_required_features(self) -> List[str]:
+        """必須実装: 必要特徴量リスト"""
+        return ['close', 'volume', 'rsi_14', 'atr_14']
 ```
 
-### 2. エラーハンドリング統一
-
+**エラーハンドリング**:
 ```python
 from src.core.exceptions import StrategyError
 
-def generate_signal(self, market_data):
+def analyze(self, df: pd.DataFrame) -> StrategySignal:
     try:
         # 戦略ロジック
-        result = self._analyze_market(market_data)
-        return result
+        return self._perform_analysis(df)
     except Exception as e:
         raise StrategyError(
-            f"{self.name}戦略でエラー発生",
-            context={'market_data_keys': list(market_data.keys())}
+            f"{self.name}戦略分析エラー",
+            context={'df_shape': df.shape}
         ) from e
 ```
 
-### 3. 設定管理
+### **設定管理**
 
+**戦略固有設定**:
 ```python
-# 戦略固有設定の外部化
 class ATRBasedStrategy(StrategyBase):
-    def __init__(self, atr_period=14, multiplier=2.0):
-        super().__init__("atr_based")
-        self.atr_period = atr_period
-        self.multiplier = multiplier
-```
-
-## 🧪 テスト状況
-
-### Phase 19+攻撃的設定完成テスト（100%合格・攻撃的ロジック品質保証）
-```bash
-# 戦略システム全体テスト（625テスト・攻撃的設定対応・品質保証）
-bash scripts/testing/checks.sh
-
-# 期待結果（Phase 19+攻撃的設定完成）: 
-# ✅ 攻撃的戦略テスト: 完全動作確認（ATRBased不一致取引・MochipoyAlert 1票取引）
-# ✅ Dynamic Confidenceテスト: 市場ボラティリティ連動・0.1-0.8動的変動
-# ✅ 統合テスト: 戦略マネージャー攻撃的ロジック連携・HOLD動的信頼度
-# 🎯 合格率: 625/625 (100.0%) 🎉 攻撃的設定品質保証・58.64%カバレッジ
-
-# 攻撃的設定動作確認
-python3 main.py --mode paper  # 攻撃的取引・Dynamic Confidence確認
-```
-
-### テスト内訳（Phase 18統合後）
-```python
-TEST_BREAKDOWN_PHASE18 = {
-    'implementations': {
-        'atr_based': 15,      # ATR戦略テスト
-        'mochipoy': 15,       # もちぽよテスト
-        'multi_timeframe': 15, # MTFテスト
-        'fibonacci': 17       # フィボナッチテスト
-    },
-    'utils_integrated': {
-        'constants': 6,       # 統合定数テスト
-        'risk_manager': 11,   # 統合リスク管理テスト
-        'signal_builder': 13, # 統合シグナル生成テスト（ログ統合含む）
-        'strategy_utils': 23  # 統合テスト（constants+risk_manager+signal_builder）
-    },
-    'integration': {
-        'strategy_base': 20,  # 基底クラステスト
-        'strategy_manager': 18 # 統合テスト
-    }
-}
-```
-
-## 🏗️ 設計原則適用
-
-### Strategy Pattern実装
-```python
-# 戦略の切り替え可能設計
-class StrategyManager:
-    def __init__(self):
-        self.strategies = {}  # 戦略辞書
-    
-    def add_strategy(self, name, strategy, weight):
-        """戦略の動的追加"""
-        self.strategies[name] = {
-            'instance': strategy,
-            'weight': weight
+    def __init__(self, config=None):
+        default_config = {
+            'atr_period': 14,
+            'volatility_threshold': 1.2,
+            'stop_loss_multiplier': 2.0
         }
+        merged_config = {**default_config, **(config or {})}
+        super().__init__("atr_based", merged_config)
 ```
 
-### Template Method Pattern適用
-```python
-# 共通処理の統一化
-class StrategyBase:
-    def generate_signal(self, market_data):
-        """テンプレートメソッド"""
-        # 1. データ検証（共通）
-        self._validate_data(market_data)
-        
-        # 2. 戦略固有分析（個別実装）
-        analysis = self._analyze_market(market_data)
-        
-        # 3. シグナル生成（共通）
-        return self._create_signal(analysis)
-```
+### **依存関係**
 
-### Observer Pattern準備
-```python
-# 将来のイベント通知システム準備
-class StrategyManager:
-    def __init__(self):
-        self.observers = []  # Phase 6で監視システム統合予定
-    
-    def notify_signal_generated(self, signal):
-        """シグナル生成時の通知（Phase 6予定）"""
-        for observer in self.observers:
-            observer.on_signal_generated(signal)
-```
+**外部ライブラリ**:
+- pandas: データ処理
+- numpy: 数値計算
+- dataclasses: データ構造
+- typing: 型注釈
 
-## 📊 性能最適化成果
+**内部依存**:
+- src.core.exceptions: カスタム例外
+- src.core.logger: ログ管理
+- src.core.config: 設定管理
 
-### 実行速度向上
-- **テスト実行**: 0.44秒（113テスト）
-- **シグナル生成**: 平均50ms以内
-- **共通処理**: 重複計算排除により3倍高速化
-
-### メモリ効率向上  
-- **コード削減**: 42%削減によるメモリ使用量削減
-- **共通処理**: オブジェクト再利用による効率化
-- **重複排除**: 同一処理の統合による最適化
-
-## 🔗 フェーズ間連携
-
-### Phase 2（データ層）からの入力
-```python
-# データ層からの統一入力形式
-market_data = {
-    'timeframes': {
-        '15m': df_15m,  # 15分足データ
-        '1h': df_1h,    # 1時間足データ  
-        '4h': df_4h     # 4時間足データ
-    },
-    'symbol': 'BTC/JPY',
-    'timestamp': '2025-08-16 10:30:00'
-}
-```
-
-### Phase 3（特徴量）との統合
-```python
-# 12個厳選特徴量の活用
-from src.features.technical import TechnicalIndicators
-
-# 戦略内での特徴量生成
-tech_indicators = TechnicalIndicators()
-features = tech_indicators.generate_features(market_data['timeframes']['1h'])
-
-# 厳選特徴量の活用
-rsi = features['rsi_14']
-macd = features['macd']
-atr = features['atr_14']
-```
-
-### Phase 5（ML層）への出力
-```python
-# ML層への統一出力形式
-strategy_output = {
-    'signals': [
-        {'strategy': 'atr', 'action': 1, 'confidence': 0.8},
-        {'strategy': 'mochipoy', 'action': 1, 'confidence': 0.6},
-        {'strategy': 'mtf', 'action': 0, 'confidence': 0.7},
-        {'strategy': 'fibonacci', 'action': -1, 'confidence': 0.3}
-    ],
-    'aggregate': {
-        'action': 1,           # 1=買い, 0=売り, -1=様子見  
-        'confidence': 0.65,    # 総合信頼度
-        'consensus': 0.75      # 戦略間合意度
-    }
-}
-```
-
-## 🔮 拡張計画
-
-### Stage 2での改善予定
-1. **戦略追加**: RSI・MACD・ボリンジャーバンド特化戦略
-2. **動的重み調整**: パフォーマンスベース重み最適化  
-3. **詳細機能復活**: レガシーから詳細ロジック段階的復活
-4. **パフォーマンス監視**: 戦略別成績追跡システム
-
-### Phase 6-7連携準備
-- **リスク管理統合**: Phase 6 Kelly基準との連携
-- **注文実行統合**: Phase 7 実行システムとの連携
-- **監視システム**: パフォーマンス追跡・アラート
+### **制限事項**
+- 各戦略は12特徴量データを前提とした設計
+- 統合シグナルは最大4戦略での重み付け統合
+- リスク管理機能は共通処理に依存
 
 ---
 
-**Phase 19+攻撃的設定完成**: *攻撃的戦略ロジック実装・Dynamic Confidence完成・月100-200取引対応・625テスト100%成功・58.64%カバレッジ・戦略攻撃化・取引機会最大化・1万円運用最適化による超攻撃的戦略システム完成*
+## 🔗 関連ドキュメント
+
+- **[システム全体概要](../../../README.md)**: プロジェクト全体アーキテクチャ
+- **[特徴量システム](../features/README.md)**: 12特徴量生成・統合管理
+- **[MLシステム](../ml/README.md)**: ProductionEnsemble・機械学習統合
+- **[取引実行システム](../trading/README.md)**: リスク管理・取引実行
+
+---
+
+**取引戦略システム**: 4つの戦略（ATRベース・フィボナッチ・もちぽよアラート・マルチタイムフレーム）を統合管理する戦略層。統一インターフェース・競合解決システム・重み付け統合により、安定した取引シグナル生成を実現。

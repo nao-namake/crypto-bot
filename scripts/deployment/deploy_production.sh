@@ -2,12 +2,12 @@
 
 # Phase 19: GCP Cloud Run本番デプロイメントスクリプト（統合版）
 # 
-# モード設定一元化対応・production.yaml統一デプロイ
+# モード設定一元化対応・unified.yaml統一デプロイ
 # 環境変数設定・ヘルスチェック・Discord通知・監視体制の自動構築
 #
 # 使用方法:
-#   bash scripts/deploy_production.sh               # production.yaml使用  
-#   bash scripts/deploy_production.sh --config production.yaml # 本番運用
+#   bash scripts/deploy_production.sh               # unified.yaml使用  
+#   bash scripts/deploy_production.sh --config config/core/unified.yaml # 本番運用
 #
 # 実行前チェック:
 #   1. gcloud CLI認証済み（gcloud auth login）
@@ -71,9 +71,9 @@ error_exit() {
 set_stage_config() {
     local stage="${1:-production}"
     
-    # Phase 19統合: production.yaml統一
+    # Phase 19統合: unified.yaml統一
     SERVICE_NAME="${SERVICE_NAME_PREFIX}-prod"
-    CONFIG_FILE="config/production/production.yaml"
+    CONFIG_FILE="config/core/unified.yaml"
     MEMORY="1Gi"
     CPU="1"
             MIN_INSTANCES="1"

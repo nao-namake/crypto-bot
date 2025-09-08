@@ -87,19 +87,31 @@ services:
 # IAM・認証設定（Phase 16-B対応）
 # ========================================
 iam:
-  # GitHub Actions用サービスアカウント
+  # GitHub Actions用サービスアカウント（実環境に合わせて修正）
   github_service_account:
-    name: "github-actions-sa"
-    display_name: "GitHub Actions Service Account"
-    description: "Phase 16-B: CI/CD automation service account"
+    name: "github-deployer"
+    display_name: "github-deployer"
+    description: "実際に存在するCI/CD automation service account"
     
-    # 最小権限（bitbank取引専用）
+    # 実際に付与されている権限（admin権限多数・実環境反映）
     roles:
-      - "roles/artifactregistry.writer"
-      - "roles/run.developer"
-      - "roles/secretmanager.secretAccessor"
-      - "roles/logging.logWriter"
-      - "roles/monitoring.editor"
+      - "roles/artifactregistry.admin"
+      - "roles/bigquery.admin"
+      - "roles/cloudfunctions.admin"
+      - "roles/iam.securityReviewer"
+      - "roles/iam.serviceAccountAdmin"
+      - "roles/iam.serviceAccountUser"
+      - "roles/iam.workloadIdentityPoolAdmin"
+      - "roles/logging.admin"
+      - "roles/monitoring.admin"
+      - "roles/pubsub.admin"
+      - "roles/resourcemanager.projectIamAdmin"
+      - "roles/run.admin"
+      - "roles/secretmanager.admin"
+      - "roles/serviceusage.serviceUsageAdmin"
+      - "roles/storage.admin"
+      - "roles/storage.objectAdmin"
+      - "roles/viewer"
 
   # Workload Identity設定
   workload_identity:
@@ -137,17 +149,17 @@ apis:
 # GitHub Actions設定（Phase 16-B対応）
 # ========================================
 github_actions:
-  # Repository Secrets（自動設定用）
+  # Repository Secrets（実環境に合わせて修正）
   secrets:
-    GCP_PROJECT_ID: "${project.id}"
-    GCP_WIF_PROVIDER: "projects/${project.id}/locations/global/workloadIdentityPools/${iam.workload_identity.pool.id}/providers/${iam.workload_identity.provider.id}"
-    GCP_SERVICE_ACCOUNT: "${iam.github_service_account.name}@${project.id}.iam.gserviceaccount.com"
+    GCP_PROJECT_ID: "my-crypto-bot-project"
+    GCP_WIF_PROVIDER: "projects/my-crypto-bot-project/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+    GCP_SERVICE_ACCOUNT: "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
     
   # Repository Variables
   variables:
-    GCP_REGION: "${project.region}"
-    ARTIFACT_REPOSITORY: "${services.artifact_registry.repository}"
-    CLOUD_RUN_SERVICE: "${services.cloud_run.service_name}"
+    GCP_REGION: "asia-northeast1"
+    ARTIFACT_REPOSITORY: "crypto-bot-repo"
+    CLOUD_RUN_SERVICE: "crypto-bot-service-prod"
 
 # ========================================
 # 監視・ログ設定（Phase 16-B最適化）
@@ -239,13 +251,21 @@ cost_optimization:
 # バージョン・メタデータ
 # ========================================
 metadata:
-  version: "16.1.0"
+  version: "16.2.0"
   created_date: "2025-08-29"
-  last_updated: "2025-08-29"
-  description: "Phase 16-B: bitbank信用取引・12個厳選特徴量・2段階デプロイ対応"
+  last_updated: "2025-09-07"
+  description: "実環境整合性修正版: 実際のGCP環境設定に合わせた設定ファイル最適化"
   
   # 設定変更履歴
   changelog:
+    - version: "16.2.0"
+      date: "2025-09-07"
+      changes:
+        - "🔧 実環境整合性修正: github-actions-sa → github-deployer（実際のSA）"
+        - "✅ 実権限反映: admin権限多数の実際の権限構成を反映"
+        - "🚨 CI/CD修正: 存在しないSA指定問題解決"
+        - "📊 設定vs実環境乖離解消: 2ヶ月停止していたデプロイ問題解決"
+        - "🎯 実用性向上: 実際に動作する設定に統一"
     - version: "16.1.0"
       date: "2025-08-29"
       changes:

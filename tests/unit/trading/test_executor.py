@@ -36,7 +36,7 @@ from src.trading.risk_manager import RiskDecision, TradeEvaluation
 def init_config():
     """テスト用設定初期化"""
     try:
-        load_config("config/core/base.yaml")
+        load_config("config/core/unified.yaml")
     except Exception:
         # テスト環境で設定ファイルが見つからない場合はダミー設定
         from src.core.config import config_manager

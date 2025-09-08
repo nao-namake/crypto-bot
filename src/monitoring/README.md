@@ -1,79 +1,203 @@
-# monitoring/ - システム監視・通知層
-
-**Phase 19 MLOps統合版・根本修正完了**: Discord Webhookローカル設定化・401エラー処理強化・3層アーキテクチャ（Phase 15統合）・JSON API 50109エラー根絶により、安定通知・企業級品質保証・MLOps統合運用監視システムを実現
+# src/monitoring/ - システム監視・通知層
 
 ## 🎯 役割・責任
 
-システム全体の監視・通知を担当し、Discord通知・取引シグナル・システム状態・エラー処理を一元管理。Phase 19 MLOps統合により、週次自動学習監視・Cloud Run 24時間稼働監視・Discord 3階層監視システムを統合し、安定運用・即座な問題発見・効率的な運用管理を実現します。
+AI自動取引システムのDiscord通知システム。取引シグナル、システム状態、エラー情報をDiscordチャンネルにリアルタイム通知。3層アーキテクチャによる高い保守性と401エラー・Rate Limitに対応した堅牢な通知機能を提供。
 
 ## 📂 ファイル構成
 
 ```
 src/monitoring/
-├── __init__.py                # 統合エクスポート・再エクスポート設定
-└── discord_notifier.py        # Discord通知システム統合（Phase 18統合完了）
-    ├── DiscordClient          # Discord Webhook送信・基盤層（200行未満）
-    ├── DiscordFormatter       # メッセージフォーマット・表現層（200行未満）
-    └── DiscordManager         # 通知制御・Rate Limit・制御層（200行未満）
+├── __init__.py           # 監視システムエクスポート（15行）
+└── discord_notifier.py   # Discord通知統合システム（763行）
+    ├── DiscordClient     # Discord Webhook送信・基盤層
+    ├── DiscordFormatter  # メッセージフォーマット・表現層
+    └── DiscordManager    # 通知制御・Rate Limit・制御層
 ```
 
-**統合成果（Phase 18完了）**:
-- **ファイル数削減**: 4→2ファイル（50%削減）・管理の大幅簡素化
-- **統合効果**: 742行・3クラス統合・内部import削除・後方互換性完全維持
-- **責任分離維持**: 各クラスの機能・インターフェース完全保持
+## 🔧 主要コンポーネント
 
-## 🔧 主要機能・実装
+### **discord_notifier.py（763行）**
 
-### **Discord通知システム（Phase 19根本修正完了）**
+**目的**: Discord通知の統合システム（3クラス統合）
 
-**ローカルファイル優先設定**:
+**主要クラス**:
 ```python
-# orchestrator.pyでのローカル優先読み込み（Phase 19実装）
-webhook_path = Path("config/secrets/discord_webhook.txt")
-if webhook_path.exists():
-    try:
-        webhook_url = webhook_path.read_text().strip()
-        logger.info(f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）")
-    except Exception as e:
-        logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
-        webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+class DiscordClient:
+    def __init__(self, webhook_url: Optional[str] = None)  # 優先順位付きURL取得
+    def send_message(self, message, level) -> bool        # シンプルメッセージ送信
+    def send_embed(self, title, description) -> bool      # 埋め込み形式送信
+    def _validate_webhook_url(self, url) -> bool          # URL形式検証
+    
+class DiscordFormatter:
+    @staticmethod
+    def format_trading_signal(signal_data) -> Dict        # 取引シグナル形式
+    @staticmethod
+    def format_system_status(status_data) -> Dict         # システム状態形式
+    @staticmethod
+    def format_error_notification(error_data) -> Dict     # エラー通知形式
+    
+class DiscordManager:
+    def __init__(self, webhook_url: Optional[str] = None) # 通知管理初期化
+    def send_simple_message(self, message, level) -> bool # シンプル送信
+    def send_trading_signal(self, signal_data) -> bool    # 取引シグナル送信
+    def send_system_status(self, status_data) -> bool     # システム状態送信
+    def send_error_notification(self, error_data) -> bool # エラー通知送信
+```
+
+## 🚀 使用方法
+
+### **基本的な通知送信**
+```python
+from src.monitoring import DiscordManager
+
+# 初期化（WebhookURLは自動取得）
+manager = DiscordManager()
+
+# シンプルメッセージ送信
+manager.send_simple_message("システム起動完了", "info")
+manager.send_simple_message("警告: API制限に近づいています", "warning")
+manager.send_simple_message("緊急: システム停止", "critical")
+```
+
+### **取引シグナル通知**
+```python
+# 取引シグナルデータ準備
+signal_data = {
+    "action": "buy",           # buy/sell/hold
+    "confidence": 0.75,        # 信頼度 (0-1)
+    "price": 1000000,          # 価格
+    "symbol": "BTC/JPY",       # 通貨ペア
+    "features_used": 12,       # 使用特徴量数
+    "model": "ProductionEnsemble"
+}
+
+# 取引シグナル送信
+manager.send_trading_signal(signal_data)
+```
+
+### **システム状態通知**
+```python
+# システム状態データ
+status_data = {
+    "status": "healthy",       # healthy/warning/error
+    "uptime": 7200,           # 稼働時間（秒）
+    "trades_today": 5,        # 本日の取引数
+    "current_balance": 1050000, # 現在残高
+    "last_trade_time": "2025-09-08 14:30:00"
+}
+
+# システム状態送信
+manager.send_system_status(status_data)
+```
+
+### **エラー通知**
+```python
+# エラーデータ
+error_data = {
+    "error_type": "MLModelError",
+    "message": "ProductionEnsemble読み込み失敗",
+    "traceback": "...",        # スタックトレース
+    "timestamp": "2025-09-08 14:35:00"
+}
+
+# エラー通知送信
+manager.send_error_notification(error_data)
+```
+
+## ⚙️ 設定・Webhook URL管理
+
+### **優先順位付きWebhook URL取得**
+
+Discord Webhook URLは以下の優先順位で自動取得されます：
+
+1. **引数**（最優先）: `DiscordManager(webhook_url="https://...")`
+2. **`.env`ファイル**（推奨）: `config/secrets/.env`
+3. **環境変数**: `DISCORD_WEBHOOK_URL`
+4. **txtファイル**（後方互換性）: `config/secrets/discord_webhook.txt`
+
+### **.env ファイル設定（推奨方法）**
+
+`config/secrets/.env`:
+```bash
+# Discord通知設定
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+
+# その他の環境変数
+BITBANK_API_KEY=your_api_key
+BITBANK_API_SECRET=your_api_secret
+```
+
+**使用方法**:
+```python
+# main.py等で.envファイルを読み込み
+from dotenv import load_dotenv
+load_dotenv('config/secrets/.env')
+
+# 自動的に環境変数が設定される
+manager = DiscordManager()  # DISCORD_WEBHOOK_URLが自動取得される
+```
+
+### **txtファイル設定（後方互換性）**
+
+`config/secrets/discord_webhook.txt`:
+```
+https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
+```
+
+### **Webhook URL取得確認**
+
+```python
+# URL取得状況の確認
+manager = DiscordManager()
+if manager.enabled:
+    print("✅ Discord通知が有効です")
 else:
-    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    logger.info(f"🌐 環境変数からフォールバック")
+    print("❌ Discord通知が無効です - Webhook URLを確認してください")
 ```
 
-**401エラー専用処理強化**:
+## 🛡️ エラーハンドリング・制限対応
+
+### **401エラー（認証失敗）対応**
+
 ```python
-# discord_notifier.py実装（Phase 19強化版）
-elif response.status_code == 401:
-    import hashlib
-    self.logger.error(f"❌ Discord Webhook無効 (401): URLが無効または削除されています")
-    self.logger.error(f"   使用URL長: {len(self.webhook_url)}文字")
-    self.logger.error(f"   URLハッシュ: {hashlib.md5(self.webhook_url.encode()).hexdigest()[:8]}")
-    self.logger.error(f"   エラー詳細: {response.text}")
-    self.enabled = False  # 自動無効化で連続エラー防止
-    self.logger.warning("⚠️ Discord通知を自動無効化しました")
-    return False
+# 401エラー発生時の自動処理
+# - URLハッシュをログ出力（セキュリティ考慮）
+# - 通知システムを自動無効化
+# - 連続エラーを防止
 ```
 
-### **3層分離アーキテクチャ（Phase 15完成）**
-
-**制御層 - DiscordManager**:
-```python
-# 通知制御・Rate Limit・起動時抑制
-manager = DiscordManager(webhook_url="https://discord.com/...")
-result = manager.send_simple_message("通知メッセージ", "info")
-result = manager.send_trading_signal(signal_data)
+**ログ例**:
+```
+❌ Discord Webhook無効 (401): URLが無効または削除されています
+   使用URL長: 121文字
+   URLハッシュ: a1b2c3d4
+⚠️ Discord通知を自動無効化しました
 ```
 
-**表現層 - DiscordFormatter**:
-```python
-# メッセージ構造化・埋め込み生成・色設定
-embed_data = DiscordFormatter.format_trading_signal({
-    "action": "buy", "confidence": 0.85, "price": 1000000
-})
+### **Rate Limit対応**
 
-# 色設定
+- **最小送信間隔**: 2秒（設定で変更可能）
+- **起動時抑制**: 30秒間（システム安定化のため）
+- **429エラー**: 自動的に送信抑制
+
+```python
+# Rate Limit設定
+manager._min_interval = 3        # 最小送信間隔を3秒に変更
+manager._startup_grace_period = 60  # 起動時抑制を60秒に変更
+```
+
+### **JSON形式エラー（50109）対応**
+
+- **事前検証**: JSON送信前に形式チェック
+- **文字エンコーディング**: UTF-8対応
+- **特殊文字処理**: Discord API準拠の処理
+
+## 🎨 メッセージフォーマット
+
+### **レベル別色設定**
+
+```python
 LEVEL_COLORS = {
     "info": 0x3498DB,      # 青色（情報）
     "warning": 0xF39C12,   # 黄色（警告）
@@ -81,153 +205,43 @@ LEVEL_COLORS = {
 }
 ```
 
-**基盤層 - DiscordClient**:
+### **絵文字設定**
+
 ```python
-# Webhook送信・JSON検証・エラー処理
-client = DiscordClient(webhook_url="https://discord.com/...")
-success = client.send_embed(title="通知", description="内容", level="info")
-
-# JSON API 50109エラー根絶
-def _send_webhook(self, payload: Dict[str, Any]) -> bool:
-    try:
-        json_str = json.dumps(payload, ensure_ascii=False)  # ✅ 事前検証
-    except (TypeError, ValueError) as e:
-        self.logger.error(f"❌ JSON形式エラー: {e}")
-        return False
-```
-
-### **MLOps統合監視（Phase 19実装）**
-
-**週次自動学習監視**:
-```python
-# model-training.yml ワークフローの監視対応
-manager.send_system_status({
-    "status": "training_started",
-    "model_type": "ProductionEnsemble",
-    "scheduled_time": "毎週日曜日 2:00 UTC"
-})
-```
-
-**Cloud Run 24時間稼働監視**:
-```python
-# Cloud Run監視・スケーリング状態通知
-manager.send_system_status({
-    "status": "healthy",
-    "service": "crypto-bot-service-prod",
-    "uptime": 86400,
-    "region": "asia-northeast1"
-})
-```
-
-## 📝 使用方法・例
-
-### **基本的な使用方法（Phase 19更新版）**
-
-**初期化・基本メッセージ**:
-```python
-from src.monitoring import DiscordManager
-
-# 初期化（config/secrets/discord_webhook.txtから自動読み込み）
-manager = DiscordManager()
-
-# シンプルメッセージ送信
-manager.send_simple_message("システム起動完了", "info")
-```
-
-**取引シグナル通知（ML信頼度修正対応）**:
-```python
-# 実際のML予測確率を反映（Phase 19修正）
-signal_data = {
-    "action": "buy",
-    "confidence": 0.734,  # 実際のProductionEnsemble予測確率
-    "price": 1000000,
-    "symbol": "BTC/JPY",
-    "features_used": 12,  # feature_manager統合対応
-    "model": "ProductionEnsemble"
+LEVEL_EMOJIS = {
+    "info": "ℹ️",
+    "warning": "⚠️", 
+    "critical": "🚨",
 }
-manager.send_trading_signal(signal_data)
 ```
 
-**システム状態通知（MLOps統合）**:
-```python
-# MLOps統合システム状態
-status_data = {
-    "status": "healthy",
-    "uptime": 7200,
-    "trades_today": 3,
-    "current_balance": 1050000,
-    "ml_model": "ProductionEnsemble",
-    "features_count": 12,
-    "last_training": "2025-09-01"
-}
-manager.send_system_status(status_data)
-```
+## ⚠️ 重要事項
 
-### **logger.py統合使用（Phase 19対応）**:
-```python
-from src.core.logger import setup_logging
-from src.monitoring import DiscordManager
+### **セキュリティ**
 
-# ログシステムとDiscord統合
-logger = setup_logging("crypto_bot")
-discord_manager = DiscordManager()
-logger.set_discord_manager(discord_manager)
-
-# Discord通知付きログ（Phase 19 MLOps統合）
-logger.info("MLモデル初期化成功", discord_notify=True)
-logger.warning("feature_manager 12特徴量生成完了", discord_notify=True)
-logger.error("ProductionEnsemble読み込み失敗", discord_notify=True)
-```
-
-## ⚠️ 注意事項・制約
-
-### **Discord Webhook設定（Phase 19重要変更）**
-
-**優先順位（Phase 19実装）**:
-1. **ローカルファイル**（最優先）: `config/secrets/discord_webhook.txt`
-2. **環境変数**（フォールバック）: `DISCORD_WEBHOOK_URL`
-3. **GCP Secret Manager**（従来方式）: `discord-webhook-url`
-
-**設定注意事項**:
-- **機密性**: `config/secrets/`は`.gitignore`で保護済み
-- **URL形式**: `https://discord.com/api/webhooks/ID/TOKEN`形式必須
-- **文字数**: 通常120-130文字程度
+- **機密保護**: `config/secrets/`は`.gitignore`で保護済み
 - **権限設定**: `chmod 600 config/secrets/discord_webhook.txt`推奨
+- **URLハッシュ**: 401エラー時はハッシュのみログ出力
 
-### **Rate Limiting・起動時抑制**
-```python
-# 自動Rate Limit制御
-manager._min_interval = 2        # 最小送信間隔（2秒）
-manager._startup_grace_period = 30  # 起動時抑制期間（30秒）
-```
+### **URL形式要件**
 
-### **エラー処理制約（Phase 19強化）**
-- **401エラー**: 自動無効化・連続エラー防止・URLハッシュ出力
-- **JSON形式エラー**: 事前検証・50109エラー根絶
-- **Rate Limit違反**: 自動制御・2秒間隔保証
+- **形式**: `https://discord.com/api/webhooks/ID/TOKEN`
+- **ID**: 18-19桁の数字
+- **TOKEN**: 3文字以上の文字列
+- **文字数**: 通常120-130文字程度
 
-## 🔗 関連ファイル・依存関係
+### **パフォーマンス**
 
-### **重要な外部依存（Phase 19統合）**
-- **`src/core/orchestration/orchestrator.py`**: Discord Webhookローカル読み込み実装・MLOps統合制御
-- **`src/core/logger.py`**: JST対応ログ・構造化出力・Discord通知統合
-- **`src/core/services/trading_cycle_manager.py`**: ML信頼度修正・真の予測実装・Discord通知連携
-- **`config/secrets/discord_webhook.txt`**: ローカルWebhook URL設定・機密情報
-- **`.gitignore`**: `config/secrets/`機密情報保護設定
+- **非同期対応**: すべての送信処理は非ブロッキング
+- **タイムアウト**: HTTP送信タイムアウト設定済み
+- **メモリ効率**: 軽量設計でメモリ使用量最小化
 
-### **MLOps統合連携**
-- **feature_manager統合**: 12特徴量統一管理・ProductionEnsemble連携・通知データ統合
-- **週次自動学習**: GitHub Actions・model-training.yml・学習進捗通知
-- **Cloud Run統合**: 24時間稼働・スケーリング・ヘルスチェック通知
-- **GCP Secret Manager**: フォールバック設定・従来方式継続サポート
+### **依存関係**
 
-### **品質保証連携（Phase 19統合）**
-- **654テスト**: monitoring関連49テスト・100%合格・回帰防止
-- **CI/CD統合**: ci.yml・品質チェック・デプロイ監視
-- **ログ監視**: Cloud Logging・Discord通知・エラー監視
+- **外部ライブラリ**: requests（HTTP送信）、python-dotenv（.env読み込み）
+- **内部依存**: src.core.config（設定管理）
+- **設定ファイル**: config/secrets/.env、config/secrets/discord_webhook.txt
 
 ---
 
-**🎯 Phase 19 MLOps統合・根本修正完了**: Discord Webhookローカル設定化・401エラー処理強化・3層アーキテクチャ統合・JSON API 50109エラー根絶・週次自動学習監視・Cloud Run 24時間稼働監視により、安定通知・企業級品質保証・MLOps統合運用監視システムを実現**
-
-**重要**: Phase 19根本修正により、Discord通知の安定性・MLOps統合監視・設定管理の柔軟性が大幅向上。monitoring/システム監視層は、ローカルファイル優先設定・3層アーキテクチャ・強化エラー処理・MLOps統合により、ペーパートレードから本番運用まで一貫した高品質監視体験を実現しています。
+**システム監視・通知層**: 3層アーキテクチャによる堅牢なDiscord通知システム。優先順位付きWebhook URL取得、401エラー・Rate Limit対応、JSON形式エラー防止機能を備えた高信頼性通知システム。

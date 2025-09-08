@@ -1,6 +1,6 @@
-# Phase 19 strategies/utils/ - MLOps統合戦略共通処理モジュール
+# strategies/utils/ - 戦略共通処理モジュール
 
-**Phase 19 MLOps統合完了**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・654テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合により、MLOps完全統合した戦略共通処理モジュール群を実現。Phase 13完了・本番運用移行・システム最適化・CI/CD準備完了・4戦略重複処理統合・GitHub Actions統合基盤に企業級品質保証完備。
+4つの戦略（ATRBased、MochiPoyAlert、MultiTimeframe、FibonacciRetracement）で共通使用される処理をまとめた共通処理モジュール群。
 
 ## 📁 フォルダの目的
 
@@ -11,127 +11,113 @@
 - **リスク管理の重複**: 約300行の重複コード → 1箇所に集約
 - **シグナル生成の散在**: 各戦略でバラバラな実装 → 標準化
 
-## 🔧 含まれるモジュール
+## 📂 ファイル構成
 
-### 1. constants.py
-**目的**: 戦略間で共通使用される定数の統一管理
-
-```python
-from ..utils import EntryAction, StrategyType, DEFAULT_RISK_PARAMS  # Phase 13対応
-
-# 全戦略で統一された定数使用（CI/CDワークフロー最適化）
-action = EntryAction.BUY  # 本番運用対応
-strategy_type = StrategyType.ATR_BASED  # 手動実行監視対応
-risk_params = DEFAULT_RISK_PARAMS  # 段階的デプロイ対応
+```
+src/strategies/utils/
+├── __init__.py            # エクスポート管理・共通インポートポイント（27行）
+└── strategy_utils.py      # 戦略共通処理・リスク管理・シグナル生成（380行）
 ```
 
-**提供クラス・定数**:
-- `EntryAction`: BUY, SELL, HOLD, CLOSE定数
-- `StrategyType`: 戦略タイプ識別子
-- `DEFAULT_RISK_PARAMS`: デフォルトリスク管理パラメータ
+## 🔧 含まれるモジュール
 
-### 2. risk_manager.py
-**目的**: リスク管理計算の統一化・重複排除
+### 1. strategy_utils.py
+**目的**: 戦略間で共通使用される処理の統一管理
+
+**提供クラス・機能**:
+- `EntryAction`: BUY, SELL, HOLD, CLOSE定数
+- `StrategyType`: 戦略タイプ識別子（ATR_BASED、FIBONACCI等）
+- `DEFAULT_RISK_PARAMS`: デフォルトリスク管理パラメータ
+- `RiskManager`: リスク管理計算（ストップロス・利確・ポジションサイズ）
+- `SignalBuilder`: シグナル生成・エラーハンドリング
 
 ```python
-from ..utils import RiskManager  # Phase 13統合・本番運用対応
+from ..utils import EntryAction, StrategyType, DEFAULT_RISK_PARAMS
 
-# ストップロス・利確価格の統一計算（CI/CDワークフロー最適化）
+# 全戦略で統一された定数使用
+action = EntryAction.BUY
+strategy_type = StrategyType.ATR_BASED
+risk_params = DEFAULT_RISK_PARAMS
+```
+
+**リスク管理機能**:
+```python
+from ..utils import RiskManager
+
+# ストップロス・利確価格の統一計算
 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
     current_price=price,
     action=EntryAction.BUY,
     atr_value=atr,
-    config=config  # 手動実行監視対応
+    config=config
 )
 
-# ポジションサイズの統一計算（段階的デプロイ対応）
+# ポジションサイズの統一計算
 position_size = RiskManager.calculate_position_size(
     confidence=0.7,
-    config=config  # 監視統合
+    config=config
 )
 ```
 
-**提供メソッド**:
-- `calculate_stop_loss_take_profit()`: SL/TP価格計算
-- `calculate_position_size()`: 信頼度ベースのポジションサイズ計算
-- `calculate_risk_ratio()`: リスク比率計算
-
-### 3. signal_builder.py
-**目的**: シグナル生成プロセスの統一化・リスク管理統合
-
+**シグナル生成機能**:
 ```python
-from ..utils import SignalBuilder  # Phase 13・CI/CDワークフロー最適化・手動実行監視対応
+from ..utils import SignalBuilder
 
-# リスク管理統合済みシグナル生成（本番運用対応）
+# リスク管理統合済みシグナル生成
 signal = SignalBuilder.create_signal_with_risk_management(
     strategy_name="ATRBased",
     decision=decision_dict,
     current_price=price,
     df=market_data,
-    config=config,  # 段階的デプロイ対応
-    strategy_type=StrategyType.ATR_BASED  # 監視統合
+    config=config,
+    strategy_type=StrategyType.ATR_BASED
 )
 
-# 標準ホールドシグナル（CI/CD品質ゲート対応）
+# 標準ホールドシグナル
 hold_signal = SignalBuilder.create_hold_signal(
     strategy_name="Strategy",
     current_price=price,
-    reason="条件不適合"  # 手動実行監視統合
+    reason="条件不適合"
 )
 ```
 
-**提供メソッド**:
-- `create_signal_with_risk_management()`: 完全統合シグナル生成
-- `create_hold_signal()`: 標準ホールドシグナル
-- `create_error_signal()`: エラーハンドリングシグナル
-
-### 4. __init__.py
+### 2. __init__.py
 **目的**: 統一インポートポイント・依存関係の明確化
 
 ```python
-# すべての共通機能を1行でインポート可能（Phase 13統合）
-from ..utils import (  # 本番運用移行・システム最適化・CI/CD準備完了
+# すべての共通機能を1行でインポート可能
+from ..utils import (
     EntryAction, StrategyType, DEFAULT_RISK_PARAMS,
-    RiskManager, SignalBuilder  # GitHub Actions統合・監視統合
+    RiskManager, SignalBuilder
 )
 ```
 
-## 🔄 リファクタリング前後比較
+## 🔄 リファクタリング効果
 
-### Before（Phase 3-4前）
+### 重複排除の実装例
 ```python
-# 各戦略で個別実装（重複）
+# Before: 各戦略で個別実装（重複）
 class ATRBasedStrategy:
     def _create_signal(self, decision, price, df):
-        # ATRベースのSL/TP計算（50行）
+        # ATRベースのSL/TP計算（50行の重複コード）
         atr_value = float(df['atr_14'].iloc[-1])
         if decision['action'] == 'buy':
             stop_loss = price - (atr_value * 2.0)
             take_profit = price + (atr_value * 2.5)
         # ... 重複するリスク管理ロジック
 
-class MochiPoyAlertStrategy:
-    def _create_signal(self, decision, price, df):
-        # 同じSL/TP計算の重複実装（50行）
-        atr_value = float(df['atr_14'].iloc[-1])
-        if decision['action'] == 'buy':
-            stop_loss = price - (atr_value * 2.0)
-            # ... 同じロジックの繰り返し
-```
-
-### After（Phase 3-4後）
-```python
-# 統一されたシンプルな実装（Phase 13・CI/CDワークフロー最適化）
-class ATRBasedStrategy:  # 本番運用対応・手動実行監視統合
+# After: 統一されたシンプルな実装
+class ATRBasedStrategy:
     def _create_signal(self, decision, price, df):
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,
             current_price=price,
             df=df,
-            config=self.config,  # 段階的デプロイ対応
-            strategy_type=StrategyType.ATR_BASED  # CI/CD品質ゲート対応
-        )  # 1行で完了・監視統合
+            config=self.config,
+            strategy_type=StrategyType.ATR_BASED
+        )  # 1行で完了
+```
 
 ## ⚠️ 重要な設計原則
 
@@ -168,41 +154,41 @@ class ATRBasedStrategy:  # 本番運用対応・手動実行監視統合
 共通モジュールの品質確保のため包括的テストを実装：
 
 ```bash
-# 共通モジュールのテスト実行（Phase 13・CI/CDワークフロー最適化・本番運用対応）
+# 共通モジュールのテスト実行
 python -m pytest tests/unit/strategies/utils/ -v
 
-# カバレッジ確認（手動実行監視対応）
+# カバレッジ確認
 python -m pytest tests/unit/strategies/utils/ --cov=src.strategies.utils
 
-# 399テスト統合基盤確認（段階的デプロイ対応）
+# システム全体のテスト確認
 python scripts/testing/dev_check.py validate --mode light
 ```
 
-### テスト対象（Phase 13・CI/CDワークフロー最適化）
-- **constants.py**: 定数の正確性・型整合性・本番運用対応
-- **risk_manager.py**: 計算精度・エッジケース処理・手動実行監視対応
-- **signal_builder.py**: シグナル生成・エラーハンドリング・段階的デプロイ対応
+### テスト対象
+- **strategy_utils.py**: 定数・リスク管理・シグナル生成の正確性
+- **RiskManager**: 計算精度・エッジケース処理
+- **SignalBuilder**: シグナル生成・エラーハンドリング
 
 ## 🔧 使用方法
 
 ### 新戦略での利用
 ```python
-from ..base.strategy_base import StrategyBase  # Phase 13統合
-from ..utils import EntryAction, RiskManager, SignalBuilder, StrategyType  # CI/CDワークフロー最適化
+from ..base.strategy_base import StrategyBase
+from ..utils import EntryAction, RiskManager, SignalBuilder, StrategyType
 
-class NewStrategy(StrategyBase):  # 本番運用対応・手動実行監視統合
+class NewStrategy(StrategyBase):
     def analyze(self, df):
-        # 戦略固有の分析ロジック（段階的デプロイ対応）
-        decision = self._analyze_market(df)  # CI/CD品質ゲート対応
+        # 戦略固有の分析ロジック
+        decision = self._analyze_market(df)
         
-        # 共通処理でシグナル生成（監視統合）
+        # 共通処理でシグナル生成
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,
             current_price=float(df['close'].iloc[-1]),
             df=df,
-            config=self.config,  # GitHub Actions統合
-            strategy_type=StrategyType.CUSTOM  # 手動実行監視対応
+            config=self.config,
+            strategy_type=StrategyType.CUSTOM
         )
 ```
 
@@ -213,19 +199,18 @@ class NewStrategy(StrategyBase):  # 本番運用対応・手動実行監視統�
 
 ## 📝 今後の拡張
 
-### Phase 13での機能追加予定（CI/CDワークフロー最適化基盤活用）
-- **高度なリスク管理**: ドローダウン制御・ポートフォリオバランス・GitHub Actions統合
-- **パフォーマンス追跡**: 戦略別成績管理・統計情報・手動実行監視統合
-- **動的設定**: ランタイムでの設定変更・A/Bテスト・段階的デプロイ対応
+### 機能追加予定
+- **高度なリスク管理**: ドローダウン制御・ポートフォリオバランス
+- **パフォーマンス追跡**: 戦略別成績管理・統計情報
+- **動的設定**: ランタイムでの設定変更・A/Bテスト
 
-### 互換性維持方針（Phase 13基盤）
-- **インターフェース固定**: 既存メソッドシグネチャは変更しない・CI/CDワークフロー最適化
-- **オプショナル機能**: 新機能は既存動作に影響しない・本番運用対応
-- **段階的導入**: 戦略ごとに選択的適用可能・手動実行監視統合
+### 互換性維持方針
+- **インターフェース固定**: 既存メソッドシグネチャは変更しない
+- **オプショナル機能**: 新機能は既存動作に影響しない
+- **段階的導入**: 戦略ごとに選択的適用可能
 
 ---
 
-**Phase 13完了日**: 2025年8月18日・本番運用移行・システム最適化・CI/CD準備完了  
-**設計方針**: シンプル化が目的ではなく、保守性と安定性向上が目的・GitHub Actions統合  
-**重複削減**: ~300行 → 統一化完了・監視統合  
-**テスト品質**: 113テスト全成功達成・399テスト統合基盤対応・CI/CD品質ゲート対応
+**設計方針**: シンプル化が目的ではなく、保守性と安定性向上が目的  
+**重複削減**: ~300行 → 統一化完了  
+**テスト品質**: 共通処理の包括的テスト実装完了

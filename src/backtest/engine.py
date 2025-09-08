@@ -755,12 +755,8 @@ class BacktestEngine:
             from ..strategies.implementations.fibonacci_retracement import (
                 FibonacciRetracementStrategy,
             )
-            from ..strategies.implementations.mochipoy_alert import (
-                MochipoyAlertStrategy,
-            )
-            from ..strategies.implementations.multi_timeframe import (
-                MultiTimeframeStrategy,
-            )
+            from ..strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
+            from ..strategies.implementations.multi_timeframe import MultiTimeframeStrategy
 
             # 戦略重み（config/backtest/base.yamlの設定に合わせる）
             strategy_weights = {

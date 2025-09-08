@@ -1,194 +1,188 @@
-# models/ - MLOpsモデル管理システム
+# models/ - 機械学習モデル管理ディレクトリ
 
-**Phase 19完了**: 特徴量統一管理・週次自動再学習・バージョン管理統合・ProductionEnsemble最適化・654テスト100%・59.24%カバレッジ達成に対応したMLOps基盤完成（2025年9月4日現在）
+## 🎯 役割・責任
+
+機械学習モデルの学習、管理、バージョン制御、本番運用を統合管理するメインディレクトリです。個別モデルの学習から本番用アンサンブルモデルの構築、過去バージョンの保管、定期バックアップまでを一元的に管理し、安定した機械学習システムの運用を支援します。
 
 ## 📂 ディレクトリ構成
 
 ```
 models/
-├── production/                      # 本番環境用モデル [詳細: README.md]
-│   ├── production_ensemble.pkl     # ProductionEnsemble統合モデル（実取引用）
-│   └── production_model_metadata.json  # 本番用メタデータ・性能指標
-├── training/                        # 学習・検証用モデル [詳細: README.md]
-│   ├── lightgbm_model.pkl          # LightGBM個別モデル（高性能）
-│   ├── xgboost_model.pkl           # XGBoost個別モデル（最高精度）
-│   ├── random_forest_model.pkl     # RandomForest個別モデル（安定性）
-│   └── training_metadata.json      # 学習メタデータ・性能記録
-├── production_backup_*/             # 本番モデルバックアップ（日時付き）
-├── archive/                         # アーカイブモデル [詳細: README.md]
-│   ├── production_ensemble_*.pkl   # 過去バージョンモデル
-│   └── production_model_metadata_*.json  # 過去バージョンメタデータ
-└── README.md                        # このファイル
+├── README.md                         # このファイル
+├── production/                       # 本番環境用モデル
+│   ├── production_ensemble.pkl      # 本番用アンサンブルモデル
+│   └── production_model_metadata.json # 本番モデルメタデータ
+├── training/                         # 学習・検証用モデル
+│   ├── lightgbm_model.pkl           # LightGBM個別モデル
+│   ├── xgboost_model.pkl            # XGBoost個別モデル
+│   ├── random_forest_model.pkl      # RandomForest個別モデル
+│   └── training_metadata.json       # 学習結果メタデータ
+├── archive/                          # 過去バージョン保管
+│   ├── production_ensemble_*.pkl    # アーカイブモデル
+│   └── production_model_metadata_*.json # アーカイブメタデータ
+└── production_backup_YYYYMMDD_HHMMSS/ # 定期バックアップ
+    ├── production_ensemble.pkl      # バックアップモデル
+    └── production_model_metadata.json # バックアップメタデータ
 ```
 
-## 🎯 役割・責任
+## 📋 主要ディレクトリの役割
 
-**Phase 19 MLOps基盤**として、機械学習モデルの学習・バージョン管理・自動再学習・本番運用を統合管理するディレクトリです。特徴量統一管理（feature_manager.py）連携により、一貫した品質保証されたMLパイプラインを提供します。
+### **production/**
+本番環境で実際に使用される機械学習モデルを管理します。
+- **production_ensemble.pkl**: 複数のアルゴリズムを統合したアンサンブルモデル
+- **production_model_metadata.json**: モデルの性能指標、設定情報、バージョン管理データ
+- 実際の取引判断で使用される高品質な予測エンジン
+- 約5-10MBのファイルサイズ
+- バージョン管理とGit統合による厳密な管理
 
-**主要機能**:
-- **週次自動再学習**: GitHub Actions統合・自動モデル更新・性能評価
-- **特徴量統一管理**: feature_manager.py連携・12特徴量一元化・バージョン管理
-- **ProductionEnsemble**: 3モデル統合・高精度予測・本番最適化
-- **バージョン管理**: Git統合・モデル履歴追跡・ロールバック対応
-- **品質ゲート**: 自動テスト・性能閾値・段階的デプロイ
+### **training/**
+個別の機械学習アルゴリズムの学習と検証を管理します。
+- **lightgbm_model.pkl**: 高速で軽量なLightGBMモデル（約382KB）
+- **xgboost_model.pkl**: 高精度予測のXGBoostモデル（約537KB）
+- **random_forest_model.pkl**: 安定性重視のRandomForestモデル（約4.3MB）
+- **training_metadata.json**: 各モデルの性能指標と学習情報
+- 本番用アンサンブルモデルの構成要素を提供
 
-**システム構成**:
-- **production/**: 本番環境ProductionEnsembleモデル・メタデータ
-- **training/**: 個別学習モデル・検証・基盤提供
-- **archive/**: 過去バージョン保存・履歴管理・ロールバック用
-- **production_backup_*/**: 定期バックアップ・安全性確保
+### **archive/**
+過去バージョンのモデルとメタデータを長期保管します。
+- タイムスタンプ付きファイル名での履歴管理
+- 緊急時のロールバック対応
+- モデルの進化履歴と性能比較分析
+- 重要なマイルストーンバージョンの永続保存
 
-## 🔧 主要機能・実装
-
-### **MLOps基盤（Phase 19完成）**
-
-**週次自動再学習システム**:
-- GitHub Actions週次実行・自動データ取得・モデル更新
-- feature_manager.py連携・12特徴量統一管理・整合性保証
-- 性能評価・品質ゲート・自動デプロイ統合
-
-**バージョン管理・追跡**:
-- Git統合・モデル定義追跡・変更履歴管理
-- archive/での過去バージョン保存・ロールバック対応
-- production_backup_*/での定期バックアップ・安全性確保
-
-### **production/ - 本番環境用モデル**
-
-実取引で使用する本番用モデルを管理。詳細は `models/production/README.md` 参照。
-
-**主要ファイル**:
-- **`production_ensemble.pkl`**: ProductionEnsemble統合モデル（約7MB）
-- **`production_model_metadata.json`**: 本番用メタデータ・性能指標・重み設定
-
-**特徴（Phase 19最適化）**:
-- 3モデル統合（LightGBM 40%・XGBoost 40%・RandomForest 20%）
-- feature_manager.py 12特徴量統一管理対応
-- 週次自動再学習・性能継続監視・品質保証
-
-### **training/ - 学習・検証用モデル**
-
-個別モデルの学習・性能評価を管理。詳細は `models/training/README.md` 参照。
-
-**主要ファイル**:
-- **`lightgbm_model.pkl`**: LightGBM個別モデル（高性能・高速）
-- **`xgboost_model.pkl`**: XGBoost個別モデル（最高精度）  
-- **`random_forest_model.pkl`**: RandomForest個別モデル（安定性・解釈性）
-- **`training_metadata.json`**: 学習メタデータ・性能記録・設定情報
-
-**特徴（Phase 19対応）**:
-- feature_manager.py統合・12特徴量統一インターフェース
-- TimeSeriesSplit交差検証・金融時系列対応
-- 週次自動学習・継続的品質向上
-
-### **archive/ - アーカイブ管理**
-
-過去バージョンモデル・履歴管理・ロールバック対応。詳細は `models/archive/README.md` 参照。
-
-**機能**:
-- 過去バージョン自動保存・履歴追跡
-- 緊急時ロールバック・安定版復旧
-- 性能比較・モデル進化分析
+### **production_backup_YYYYMMDD_HHMMSS/**
+定期的な本番モデルのバックアップを管理します。
+- 日時付きディレクトリ名での整理
+- 完全なモデル状態の保存
+- 短期的な復旧とロールバック対応
+- システム障害時の迅速な復元
 
 ## 📝 使用方法・例
 
-### **MLOpsシステム操作**
-
+### **統合モデル管理システム**
 ```bash
-# Phase 19統合管理（推奨）
-python3 scripts/testing/dev_check.py ml-models      # モデル作成・更新
-python3 scripts/testing/dev_check.py ml-models --dry-run  # 状態確認のみ
+# 全モデルの学習・更新・検証
+python3 scripts/testing/dev_check.py ml-models
 
-# 週次自動再学習確認
+# モデル状態確認（実行なし）
+python3 scripts/testing/dev_check.py ml-models --dry-run
+
+# 詳細学習スクリプト実行
+python3 scripts/ml/create_ml_models.py --verbose --days 365
+
+# 自動学習ワークフロー状況確認
 gh run list --workflow=weekly-retrain.yml --limit 5
-
-# 手動学習実行
-python3 scripts/ml/create_ml_models.py --verbose
 ```
 
-### **ProductionEnsembleの使用**
-
+### **本番モデルの使用**
 ```python
-# Phase 19対応使用例
 from src.ml.ensemble import ProductionEnsemble
 from src.features.feature_manager import FeatureManager
 
-# 特徴量統一管理連携
+# システム初期化
 feature_manager = FeatureManager()
 model = ProductionEnsemble()
 
-# データ準備（feature_manager統合）
-raw_data = get_market_data()  # 市場データ取得
-features = feature_manager.generate_features(raw_data)  # 12特徴量生成
+# 市場データから特徴量生成
+raw_market_data = get_market_data()
+features = feature_manager.generate_features(raw_market_data)
 
-# 予測実行
+# アンサンブル予測実行
 prediction = model.predict(features)
 probabilities = model.predict_proba(features)
 
 # モデル情報確認
-info = model.get_model_info()
+model_info = model.get_model_info()
 print(f"特徴量数: {len(feature_manager.get_feature_names())}")
-print(f"モデル重み: {info['weights']}")
+print(f"モデル構成: {model_info['weights']}")
 ```
 
-### **バージョン管理・履歴確認**
-
+### **バージョン管理・履歴管理**
 ```bash
 # アーカイブ履歴確認
 ls -la models/archive/
 
-# 過去バージョンへのロールバック
-cp models/archive/production_ensemble_20250901.pkl models/production/production_ensemble.pkl
+# 特定バージョンへのロールバック
+cp models/archive/production_ensemble_20250904_055752.pkl models/production/production_ensemble.pkl
+cp models/archive/production_model_metadata_20250904_055752.json models/production/production_model_metadata.json
 
-# バックアップ確認
+# バックアップ状況確認
 ls -la models/production_backup_*/
+
+# 緊急時復旧テスト
+python3 scripts/testing/dev_check.py ml-models --dry-run
+```
+
+### **個別モデル性能比較**
+```python
+import json
+
+# 学習結果メタデータ確認
+with open('models/training/training_metadata.json', 'r') as f:
+    training_data = json.load(f)
+
+# 本番モデルメタデータ確認
+with open('models/production/production_model_metadata.json', 'r') as f:
+    production_data = json.load(f)
+
+print("=== 個別モデル性能比較 ===")
+for model_name, metrics in training_data['model_metrics'].items():
+    print(f"{model_name}:")
+    print(f"  F1スコア: {metrics['f1_score']:.3f}")
+    print(f"  精度: {metrics['accuracy']:.3f}")
+
+print(f"\n本番アンサンブル性能:")
+prod_metrics = production_data['performance_metrics']
+print(f"  F1スコア: {prod_metrics['f1_score']:.3f}")
+print(f"  精度: {prod_metrics['accuracy']:.3f}")
 ```
 
 ## ⚠️ 注意事項・制約
 
-### **Phase 19 MLOps運用制約**
+### **ファイル管理要件**
+- **統一インターフェース**: feature_managerシステムとの統合必須
+- **バージョン管理**: Git情報とモデルハッシュによる厳密な追跡
+- **品質基準**: F1スコア0.6以上の性能維持
+- **定期バックアップ**: 自動バックアップシステムによる安全性確保
 
-1. **特徴量統一管理**: feature_manager.py経由でのみ特徴量生成・12特徴量固定
-2. **週次再学習**: GitHub Actions実行・手動介入時は品質ゲート遵守
-3. **バージョン管理**: モデル更新時は必ずGit統合・履歴記録
-4. **性能監視**: 継続的性能評価・閾値下回り時は自動アラート
-
-### **システム制約**
-
-1. **メモリ使用量**: ProductionEnsemble読み込み時約100-150MB使用
-2. **ファイルサイズ**: 各.pklファイルは5-10MB程度・Git LFS管理
-3. **学習データ**: 最低4000サンプル以上・金融時系列データ特性考慮
-4. **計算リソース**: GCP 1Gi・1CPU制約下での学習・予測最適化
+### **システムリソース制約**
+- **メモリ使用量**: アンサンブルモデル読み込み時に100-150MB使用
+- **ファイルサイズ**: 各モデルファイルは数百KB〜数MBの容量
+- **学習時間**: 自動学習は45分以内での完了が目標
+- **計算リソース**: GCP 1Gi・1CPUの制約下での最適化
 
 ### **品質保証要件**
-
-1. **テスト**: 654テスト100%・59.24%カバレッジ・MLモジュール完全テスト
-2. **性能基準**: F1スコア0.6以上・精度継続監視・品質劣化検知
-3. **自動化**: CI/CD統合・品質ゲート・段階的デプロイ
+- **継続監視**: 定期的な性能評価と品質チェック
+- **テスト統合**: 単体テスト・統合テスト・回帰テストの完備
+- **交差検証**: TimeSeriesSplitによる金融時系列データ対応
+- **自動化**: CI/CDパイプラインによる品質ゲート
 
 ## 🔗 関連ファイル・依存関係
 
-### **MLOps基盤統合**
-- **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量一元化
-- **`src/ml/ensemble.py`**: ProductionEnsemble実装・アンサンブル統合
-- **`.github/workflows/weekly-retrain.yml`**: 週次自動再学習・GitHub Actions
-- **`scripts/ml/create_ml_models.py`**: モデル学習・作成・更新統合スクリプト
+### **機械学習システム**
+- `src/features/feature_manager.py`: 特徴量生成・管理システム
+- `src/ml/ensemble.py`: ProductionEnsemble実装クラス
+- `scripts/ml/create_ml_models.py`: モデル学習・作成スクリプト
 
-### **設定・管理（Phase 19統合）**
-- **`config/core/base.yaml`**: 基本設定・学習パラメータ・MLOps設定
-- **`config/core/thresholds.yaml`**: ML関連閾値・性能基準・品質ゲート設定
-- **`src/core/config.py`**: 動的設定アクセス・環境別設定管理
+### **システム管理・CI/CD**
+- `.github/workflows/`: 自動学習・デプロイワークフロー
+- `scripts/testing/dev_check.py`: 統合システム診断・管理
+- `logs/`: モデル学習・運用ログ記録
 
-### **品質保証・監視**
-- **`tests/unit/ml/`**: MLモジュール単体テスト・品質保証
-- **`scripts/testing/dev_check.py`**: 統合システム診断・MLOps管理
-- **`logs/reports/`**: 学習結果・性能レポート・履歴分析
+### **設定・品質保証**
+- `config/core/unified.yaml`: 統一設定ファイル（システム基本設定・学習パラメータ・全環境対応）
+- `config/core/thresholds.yaml`: 性能閾値・品質基準設定
+- `tests/unit/ml/`: 機械学習モジュールテスト
 
-### **外部依存（Phase 19最適化）**
-- **scikit-learn**: 機械学習基盤・アンサンブル学習
-- **LightGBM・XGBoost**: 勾配ブースティング・高性能予測
-- **pandas・numpy**: 金融時系列データ処理・特徴量計算
-- **pickle**: モデルシリアライゼーション・バージョン管理
+### **外部ライブラリ依存**
+- **scikit-learn**: 機械学習フレームワーク・アンサンブル学習
+- **LightGBM, XGBoost**: 勾配ブースティングライブラリ
+- **pandas, numpy**: データ処理・特徴量エンジニアリング
+- **pickle, joblib**: モデルシリアライゼーション・並列処理
 
----
-
-**🎯 Phase 19完了**: 特徴量統一管理・週次自動再学習・バージョン管理統合・654テスト100%・59.24%カバレッジ達成によるMLOps基盤完成。feature_manager.py中央管理・GitHub Actions自動化・Git統合により、学習から本番運用まで一貫した品質保証されたMLパイプラインを確立
+### **データフロー**
+1. **学習**: training/で個別モデル学習
+2. **統合**: production/でアンサンブルモデル構築
+3. **バックアップ**: production_backup_*/で定期保存
+4. **アーカイブ**: archive/で長期履歴管理
+5. **運用**: 本番システムでの予測実行

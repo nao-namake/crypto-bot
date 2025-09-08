@@ -37,7 +37,17 @@ class TestDiscordClient:
 
     def test_init_without_url(self):
         """WebhookURL未設定時の初期化"""
-        with patch.dict("os.environ", {}, clear=True):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("pathlib.Path.exists") as mock_exists,
+            patch("os.getenv") as mock_getenv,
+        ):
+
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
+
             client = DiscordClient()
 
             assert client.webhook_url is None
@@ -52,9 +62,16 @@ class TestDiscordClient:
             "",
         ]
 
-        for invalid_url in invalid_urls:
-            client = DiscordClient(webhook_url=invalid_url)
-            assert client.enabled is False
+        with patch("pathlib.Path.exists") as mock_exists, patch("os.getenv") as mock_getenv:
+
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
+
+            for invalid_url in invalid_urls:
+                client = DiscordClient(webhook_url=invalid_url)
+                assert client.enabled is False
 
     def test_validate_webhook_url_valid(self):
         """WebhookURL検証 - 有効なURL"""
@@ -112,11 +129,18 @@ class TestDiscordClient:
     @patch("requests.post")
     def test_send_message_disabled_client(self, mock_post):
         """無効化されたクライアントでのメッセージ送信"""
-        client = DiscordClient()  # WebhookURL未設定
-        result = client.send_message("テストメッセージ")
+        with patch("pathlib.Path.exists") as mock_exists, patch("os.getenv") as mock_getenv:
 
-        assert result is False
-        mock_post.assert_not_called()
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
+
+            client = DiscordClient()  # WebhookURL未設定
+            result = client.send_message("テストメッセージ")
+
+            assert result is False
+            mock_post.assert_not_called()
 
     @patch("requests.post")
     def test_send_message_400_error(self, mock_post):
@@ -242,10 +266,17 @@ class TestDiscordClient:
 
     def test_test_connection_disabled(self):
         """接続テスト - 無効化クライアント"""
-        client = DiscordClient()  # 無効化状態
-        result = client.test_connection()
+        with patch("pathlib.Path.exists") as mock_exists, patch("os.getenv") as mock_getenv:
 
-        assert result is False
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
+
+            client = DiscordClient()  # 無効化状態
+            result = client.test_connection()
+
+            assert result is False
 
     @patch("requests.post")
     def test_send_message_level_variations(self, mock_post):
@@ -330,40 +361,57 @@ class TestDiscordClient:
     @patch("requests.post")
     def test_webhook_url_validation_comprehensive(self, mock_post):
         """Webhook URL検証包括テスト"""
-        # 有効なURL形式の詳細テスト
-        valid_urls = [
-            "https://discord.com/api/webhooks/123456789012345678/abcdefg",
-            "https://discord.com/api/webhooks/999999999999999999/XYZ123abc456DEF789ghi012JKL345mno678PQR901stu234VWX567yzA890BCD",
-            "https://discord.com/api/webhooks/100000000000000000/a" * 68,  # 最大長
-        ]
+        with patch("pathlib.Path.exists") as mock_exists, patch("os.getenv") as mock_getenv:
 
-        for url in valid_urls:
-            client = DiscordClient(webhook_url=url)
-            assert client.enabled is True
-            assert client.webhook_url == url
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
 
-        # 無効なURL形式の詳細テスト
-        invalid_urls = [
-            "http://discord.com/api/webhooks/123456789012345678/abcdefg",  # HTTPS必須
-            "https://example.com/api/webhooks/123456789012345678/abcdefg",  # 間違いドメイン
-            "https://discord.com/webhooks/123456789012345678/abcdefg",  # /api/ 不足
-            "https://discord.com/api/webhooks/12345/abcdefg",  # ID短すぎ
-            "https://discord.com/api/webhooks/123456789012345678/ab",  # トークン短すぎ
-            "https://discord.com/api/webhooks/abc/xyz",  # 数値でない
-            "",  # 空文字
-        ]
+            # 有効なURL形式の詳細テスト
+            valid_urls = [
+                "https://discord.com/api/webhooks/123456789012345678/abcdefg",
+                "https://discord.com/api/webhooks/999999999999999999/XYZ123abc456DEF789ghi012JKL345mno678PQR901stu234VWX567yzA890BCD",
+                "https://discord.com/api/webhooks/100000000000000000/a" * 68,  # 最大長
+            ]
 
-        for url in invalid_urls:
-            client = DiscordClient(webhook_url=url)
-            assert client.enabled is False
+            for url in valid_urls:
+                client = DiscordClient(webhook_url=url)
+                assert client.enabled is True
+                assert client.webhook_url == url
 
-    @patch.dict("os.environ", {}, clear=True)
+            # 無効なURL形式の詳細テスト
+            invalid_urls = [
+                "http://discord.com/api/webhooks/123456789012345678/abcdefg",  # HTTPS必須
+                "https://example.com/api/webhooks/123456789012345678/abcdefg",  # 間違いドメイン
+                "https://discord.com/webhooks/123456789012345678/abcdefg",  # /api/ 不足
+                "https://discord.com/api/webhooks/12345/abcdefg",  # ID短すぎ
+                "https://discord.com/api/webhooks/123456789012345678/ab",  # トークン短すぎ
+                "https://discord.com/api/webhooks/abc/xyz",  # 数値でない
+                "",  # 空文字
+            ]
+
+            for url in invalid_urls:
+                client = DiscordClient(webhook_url=url)
+                assert client.enabled is False
+
     def test_environment_variable_loading(self):
         """環境変数読み込みテスト"""
-        # 環境変数未設定
-        client = DiscordClient()
-        assert client.enabled is False
-        assert client.webhook_url is None
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("pathlib.Path.exists") as mock_exists,
+            patch("os.getenv") as mock_getenv,
+        ):
+
+            # .envファイル・txtファイルは存在しない
+            mock_exists.return_value = False
+            # 環境変数も設定されていない
+            mock_getenv.return_value = None
+
+            # 環境変数未設定
+            client = DiscordClient()
+            assert client.enabled is False
+            assert client.webhook_url is None
 
     @patch.dict(
         "os.environ",

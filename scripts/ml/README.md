@@ -1,187 +1,157 @@
-# scripts/ml/ - Phase 19 MLOps機械学習・週次自動再学習・モデル管理システム
+# scripts/ml/ - 機械学習モデル学習・管理スクリプト
 
-**Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤完成・654テスト100%・59.24%カバレッジ達成に対応したProductionEnsemble・週次自動再学習・feature_manager.py統合・GitHub Actions連携MLOpsシステム（2025年9月4日現在）
+## 🎯 役割・責任
+
+機械学習モデルの学習、管理、品質保証を担当するスクリプトディレクトリです。個別モデルの学習からアンサンブルモデルの構築、性能評価、バージョン管理までを一元的に管理し、安定した機械学習システムの運用を支援します。特徴量生成から予測モデルの構築まで、包括的な機械学習パイプラインを提供します。
 
 ## 📂 ファイル構成
 
 ```
-ml/
-├── create_ml_models.py    # Phase 19 MLOps・ProductionEnsemble・feature_manager統合・GitHub Actions連携
-└── README.md              # このファイル
+scripts/ml/
+├── README.md              # このファイル
+└── create_ml_models.py    # 機械学習モデル学習・構築メインスクリプト
 ```
 
-## 🎯 役割・責任
+## 📋 主要ファイル・フォルダの役割
 
-**Phase 19 MLOps基盤**における機械学習・週次自動再学習・モデル管理の核心システムを担当。feature_manager.py 12特徴量統一管理・ProductionEnsemble 3モデル統合・GitHub Actions週次自動再学習・654テスト品質保証を統合した企業級MLOpsシステムを提供します。
+### **create_ml_models.py**
+機械学習モデルの学習・構築・管理を担当するメインスクリプトです。
+- **個別モデル学習**: LightGBM・XGBoost・RandomForest の3つのアルゴリズム学習
+- **アンサンブル構築**: ProductionEnsemble作成・重み付け投票・モデル統合
+- **特徴量統合**: feature_manager連携・12特徴量生成・データパイプライン統合
+- **ハイパーパラメータ最適化**: TimeSeriesSplit・GridSearchCV・金融時系列最適化
+- **品質保証**: モデル検証・予測テスト・性能評価・品質ゲート
+- **バージョン管理**: メタデータ管理・モデル保存・履歴追跡・自動アーカイブ
+- **CI/CD統合**: GitHub Actions連携・自動学習・週次再学習・Discord通知
+- 約25.7KBの実装ファイル
 
-**主要機能**:
-- **週次自動再学習**: GitHub Actions統合・ProductionEnsemble更新・品質ゲート・自動デプロイ
-- **MLOps統合**: feature_manager.py 12特徴量・3モデル統合（LightGBM 40%・XGBoost 40%・RandomForest 20%）
-- **654テスト品質保証**: モデル検証・予測テスト・CI/CD統合・59.24%カバレッジ確認
-- **バージョン管理**: メタデータ管理・モデル版数管理・性能追跡・自動ロールバック
+### **主要機能と特徴**
+- **統合学習システム**: 特徴量生成→モデル学習→アンサンブル構築の完全自動化
+- **金融特化最適化**: 時系列データ対応・過学習防止・クロスバリデーション
+- **品質管理**: F1スコア・精度・再現率による性能評価・品質閾値管理
+- **自動化対応**: コマンドライン引数・設定ファイル・ログ出力・エラーハンドリング
+- **スケーラブル**: 大量データ処理・メモリ効率・並列処理・クラウド対応
 
-## 🔧 主要機能・実装（Phase 19 MLOps統合）
+## 📝 使用方法・例
 
-### **create_ml_models.py - 週次自動再学習システム（核心機能）**
-
-**Phase 19 MLOps統合機能**:
-- **feature_manager.py統合**: 12特徴量統一管理・DataFrame出力・マルチタイムフレーム対応
-- **ProductionEnsemble構築**: 3モデル統合・LightGBM 40%・XGBoost 40%・RandomForest 20%・重み最適化
-- **654テスト統合**: モデル検証・予測テスト・品質ゲート・自動テスト実行
-- **週次自動再学習**: GitHub Actions統合・毎週日学習・自動デプロイ・性能評価
-
-**技術統合詳細**:
-- **ハイパーパラメータ最適化**: TimeSeriesSplit・GridSearchCV・Bayesian最適化・金融時系列特化
-- **sklearn警告解消**: Phase 19対応・互換性確認・Deprecation対応・パフォーマンス最適化
-- **メタデータ管理**: models/production/・models/training/・JSON統合・バージョン管理・性能追跡
-- **CI/CD統合**: GitHub Actions・Workflow・Secret Manager・Cloud Run自動デプロイ・Discord通知
-
-## 📝 使用方法・例（Phase 19 MLOpsワークフロー）
-
-### **週次自動再学習実行（GitHub Actions統合）**
-
+### **基本的なモデル学習**
 ```bash
-# Phase 19 MLOps統合実行（推奨・本畫連携）
-python3 scripts/ml/create_ml_models.py --mlops --phase19
+# デフォルト設定での学習（推奨）
+python3 scripts/ml/create_ml_models.py
 
-# 期待結果:
-# ✅ feature_manager 12特徴量統合・データパイプライン統合
-# ✅ ProductionEnsemble 3モデル統合・LightGBM 40%・XGBoost 40%・RandomForest 20%
-# ✅ 654テスト実行・品質ゲート通過・59.24%カバレッジ確認
-# ✅ メタデータ管理・バージョン管理・models/production/保存
+# 期間指定での学習（365日間）
+python3 scripts/ml/create_ml_models.py --days 365
 
-# 統合管理CLI経由（日常運用推奨）
-python3 scripts/testing/dev_check.py ml-models --verbose
-
-# 期待結果:
-# ✅ 学習環境検証・feature_manager統合・ProductionEnsemble作成
-# ✅ 自動テスト実行・CI/CD統合・品質確認・Discord通知
+# 詳細ログ表示での学習
+python3 scripts/ml/create_ml_models.py --verbose
 ```
 
-### **個別機能テスト（開発・デバッグ用）**
-
+### **統合管理システム経由実行**
 ```bash
-# ドライラン（シミュレーション・事前確認）
-python3 scripts/ml/create_ml_models.py --dry-run --verbose
+# 統合管理CLI経由（推奨）
+python3 scripts/testing/dev_check.py ml-models
 
-# feature_manager統合テスト（特徴量生成確認）
+# ドライラン（実行前確認）
+python3 scripts/testing/dev_check.py ml-models --dry-run
+
+# テスト統合実行
+python3 scripts/testing/dev_check.py ml-models --test
+```
+
+### **カスタム設定での学習**
+```bash
+# カスタム期間・詳細ログ
+python3 scripts/ml/create_ml_models.py --days 180 --verbose
+
+# 特徴量生成テスト
 python3 scripts/ml/create_ml_models.py --test-features --days 30
 
-# ProductionEnsemble個別テスト（モデル統合確認）
-python3 scripts/ml/create_ml_models.py --test-ensemble --verbose
+# アンサンブルモデルテスト
+python3 scripts/ml/create_ml_models.py --test-ensemble
 
-# 学習期間指定（カスタム学習）
-python3 scripts/ml/create_ml_models.py --days 180 --custom-training
-
-# GitHub Actionsシミュレーション（CI/CDテスト）
-python3 scripts/ml/create_ml_models.py --simulate-github-actions
+# GitHub Actions シミュレーション
+python3 scripts/ml/create_ml_models.py --simulate-ci
 ```
 
-### **週次自動再学習結果例（Phase 19成功パターン）**
-
+### **学習結果確認**
 ```python
-# GitHub Actions週次学習結果例
-training_result = {
-    "timestamp": "2025-09-04T12:00:00Z",
-    "phase": "Phase 19",
-    "feature_manager": {
-        "features_count": 12,
-        "data_quality": "excellent",
-        "missing_data": 0.0,
-        "generation_time_ms": 245
-    },
-    "models": {
-        "lightgbm": {"f1_score": 0.87, "accuracy": 0.89, "weight": 0.40},
-        "xgboost": {"f1_score": 0.85, "accuracy": 0.88, "weight": 0.40}, 
-        "randomforest": {"f1_score": 0.81, "accuracy": 0.84, "weight": 0.20}
-    },
-    "production_ensemble": {
-        "combined_f1": 0.89,
-        "combined_accuracy": 0.91,
-        "model_path": "models/production/production_ensemble_20250904.pkl",
-        "metadata_path": "models/production/ensemble_metadata_20250904.json"
-    },
-    "quality_gates": {
-        "tests_passed": "654/654",
-        "coverage": "59.24%",
-        "deployment_ready": True,
-        "performance_improvement": "+2.1%"
-    }
-}
+import json
+import pickle
 
-print(f"✅ Phase 19週次学習成功: {training_result['production_ensemble']['combined_f1']}")
-print(f"✅ 品質ゲート通過: {training_result['quality_gates']['tests_passed']}")
-print(f"✅ 性能向上: {training_result['quality_gates']['performance_improvement']}")
+# メタデータ確認
+with open('models/training/training_metadata.json', 'r') as f:
+    metadata = json.load(f)
+
+print("=== 学習結果 ===")
+for model_name, metrics in metadata['model_metrics'].items():
+    print(f"{model_name}:")
+    print(f"  F1スコア: {metrics['f1_score']:.3f}")
+    print(f"  精度: {metrics['accuracy']:.3f}")
+
+# ProductionEnsemble確認
+with open('models/production/production_model_metadata.json', 'r') as f:
+    prod_data = json.load(f)
+
+print(f"\nProductionEnsemble性能:")
+print(f"  F1スコア: {prod_data['performance_metrics']['f1_score']:.3f}")
+print(f"  精度: {prod_data['performance_metrics']['accuracy']:.3f}")
 ```
 
-## ⚠️ 注意事項・制約（Phase 19 MLOps制約）
+## ⚠️ 注意事項・制約
 
-### **Phase 19 MLOps統合制約**
+### **実行環境要件**
+- **Python環境**: Python 3.8以上・機械学習ライブラリ完全インストール
+- **実行場所**: プロジェクトルートディレクトリからの実行必須
+- **メモリ要件**: 最低2GB RAM・大規模学習時は4GB以上推奨
+- **計算時間**: 10-30分（データ量・モデル複雑度による）
 
-1. **feature_manager.py統合**: 12特徴量統一管理・データパイプライン統合必須
-2. **654テスト品質**: 全モデル学習前後でテスト成功・59.24%カバレッジ確認必須
-3. **週次自動再学習**: GitHub Actions・CI/CD統合・自動デプロイシステム統合
-4. **ProductionEnsemble統合**: 3モデル統合・重み最適化・バージョン管理必須
+### **データ要件**
+- **最低データ量**: 2000サンプル以上の市場データ・時系列順序維持
+- **特徴量品質**: feature_manager生成12特徴量・欠損値処理済み
+- **ラベル品質**: buy/sell/holdバランス・クラス不均衡対応・検証データ分離
+- **データ新鮮性**: 定期的なデータ更新・市場変動対応・学習データ更新
 
-### **実行環境・機能要件**
+### **品質保証要件**
+- **性能閾値**: F1スコア0.6以上・精度維持・過学習防止
+- **交差検証**: TimeSeriesSplit・金融時系列データ対応・リーク防止
+- **テスト統合**: 単体テスト・統合テスト・品質ゲート通過
+- **監視**: 学習ログ・性能追跡・異常検知・アラート通知
 
-1. **Python環境**: Python 3.13・MLOps依存関係完全・プロジェクトルートから実行必須
-2. **ライブラリ**: scikit-learn・lightgbm・xgboost・pandas・numpy・Phase 19互換バージョン
-3. **リソース**: 最低2GB RAM・MLOps統合・週次学習用計算リソース確保
-4. **実行時間**: 10-30分（feature_manager統合・654テスト・3モデル統合含む）
+### **システム統合制約**
+- **特徴量統合**: feature_manager.pyとの完全統合・データパイプライン統合
+- **モデル統合**: ProductionEnsemble・アンサンブル学習・重み最適化
+- **CI/CD統合**: GitHub Actions・自動学習・品質ゲート・デプロイ連携
+- **ストレージ**: モデルファイル・メタデータ・ログの適切な管理
 
-### **MLOpsデータ要件**
+## 🔗 関連ファイル・依存関係
 
-- **特徴量feature_manager**: 12特徴量完全セット・DataFrame形式・欠損値ゼロ必須
-- **最低データ量**: 2000サンプル以上（MLOps品質保証用）・時系列データ順序正しい
-- **データ品質**: feature_manager事前処理済み・異常値検知・金融時系列特化
-- **ラベル品質**: buy/sell/holdバランス確認・クラス不均衡対応・検証用データ分離
+### **機械学習システム**
+- `src/features/feature_generator.py`: 特徴量生成・12特徴量管理・データ前処理
+- `src/ml/ensemble.py`: ProductionEnsemble・アンサンブル学習・予測エンジン
+- `models/`: モデル保存・バージョン管理・アーカイブシステム
 
-### **出力・バージョン管理（Phase 19統合）**
+### **品質保証・テスト**
+- `scripts/testing/checks.sh`: 品質チェック・テスト実行・カバレッジ確認
+- `scripts/testing/dev_check.py`: 統合管理・ml-modelsコマンド・開発支援
+- `tests/unit/ml/`: 機械学習テスト・モデル検証・品質保証
 
-1. **models/production/**: ProductionEnsemble・feature_manager統合メタデータ・バージョン管理
-2. **models/training/**: 3モデル個別保存・学習ログ・ハイパーパラメータ・性能指標
-3. **logs/ml_training/**: 週次学習ログ・GitHub Actionsログ・CI/CD統合ログ
-4. **バックアップ**: 前回モデル保持・ロールバック用・性能比較・安全性確保
+### **設定・データ管理**
+- `config/core/`: 機械学習設定・アルゴリズムパラメータ・学習設定
+- `data/`: 市場データ・学習データ・前処理データ・キャッシュ
+- `logs/`: 学習ログ・性能メトリクス・エラーログ・履歴管理
 
-### **CI/CD・GitHub Actions統合制約**
+### **CI/CD・自動化**
+- `.github/workflows/`: 自動学習ワークフロー・週次再学習・CI/CDパイプライン
+- `scripts/deployment/`: デプロイメント・Cloud Run・本番環境統合
+- GCP Secret Manager・Cloud Run・GitHub Actions統合
 
-1. **週次学習スケジュール**: 毎週日 UTC 00:00実行・自動デプロイ・品質ゲート
-2. **Secret Manager統合**: 認証情報・APIキー・セキュア管理・Workload Identity
-3. **Discord通知**: 学翕結果・エラー通知・性能メトリクス・アラート統合
-4. **品質管理**: 学習後654テスト必須・カバレッジ維持・性能改善確認
+### **外部ライブラリ依存**
+- **scikit-learn**: 機械学習フレームワーク・交差検証・評価指標
+- **LightGBM・XGBoost**: 勾配ブースティング・高性能学習・GPU対応
+- **pandas・numpy**: データ処理・数値計算・特徴量エンジニアリング
+- **joblib・pickle**: モデルシリアライゼーション・並列処理・最適化
 
-## 🔗 関連ファイル・依存関係（Phase 19 MLOps統合）
-
-### **Phase 19 MLOps基盤統合**
-- **`src/features/feature_manager.py`**: 特徴量統一管理・12特徴量・DataFrame出力・ML学習統合
-- **`src/ml/ensemble.py`**: ProductionEnsemble・3モデル統合・重み最適化・予測エンジン
-- **`.github/workflows/weekly_retrain.yml`**: 週次自動再学習・CI/CD統合・自動デプロイ・Discord通知
-- **`scripts/testing/dev_check.py`**: MLOps統合管理・ml-modelsコマンド・学習環境検証
-
-### **品質保証・テストシステム**
-- **`scripts/testing/checks.sh`**: 654テスト実行・59.24%カバレッジ・MLモデル品質ゲート
-- **`tests/unit/ml/`**: MLモデルテスト・アンサンブルテスト・feature_manager統合テスト
-- **`tests/unit/features/`**: 特徴量テスト・12特徴量検証・データ品質テスト
-
-### **データ・設定・モデル管理**
-- **`models/production/`**: ProductionEnsemble保存・メタデータJSON・Phase 19バージョン管理
-- **`models/training/`**: 個別モデル・学習ログ・TimeSeriesSplit・ハイパーパラメータ管理
-- **`config/core/`**: ML設定・feature_manager設定・アンサンブルパラメータ・週次学習設定
-- **`data/processed/`**: 前処理済みデータ・feature_manager出力・学習用データセット
-
-### **インフラ・監視・通知統合**
-- **GCP Cloud Run**: MLOpsモデルサービング・自動スケーリング・24時間稼働環境
-- **GCP Secret Manager**: MLモデル認証・APIキー・GitHub Actions統合認証
-- **`src/monitoring/discord_notifier.py`**: 学習結果通知・モデル性能アラート・エラー通知
-- **`logs/ml_training/`**: 週次学習ログ・CI/CDログ・性能メトリクス履歴
-
-### **外部依存・ライブラリ・Phase 19統合**
-- **scikit-learn 1.3+**: 機械学習アルゴリズム・TimeSeriesSplit・評価指標・Phase 19互換
-- **LightGBM 4.0+・XGBoost 2.0+**: 勾配ブースティング・高性能学習・GPU対応
-- **pandas 2.0+・numpy 1.24+**: データ処理・feature_manager統合・数値計算最適化
-- **GitHub Actions**: CI/CD・週次学習システム・Workload Identity・自動デプロイ統合
-
----
-
-**🎯 Phase 19完了**: 特徴量統一管理・週次自動再学習・MLOps基盤・654テスト100%・59.24%カバレッジ統合によるProductionEnsemble・企業級機械学習システム・GitHub Actions週次自動再学習・24時間MLOps運用環境を実現
+### **監視・通知システム**
+- `src/monitoring/discord_notifier.py`: 学習結果通知・アラート・レポート
+- Cloud Run監視・ヘルスチェック・性能メトリクス・運用監視
+- `scripts/analytics/`: 学習分析・性能評価・ダッシュボード・レポート生成
