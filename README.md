@@ -2,7 +2,7 @@
 
 **bitbank信用取引専用のAI自動取引システム**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.64%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.64%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run)
 
 ---
 
@@ -41,7 +41,7 @@
 
 ### **📋 前提条件**
 ```bash
-# Python 3.11以降
+# Python 3.12（MLライブラリ互換性最適化）
 python3 --version
 
 # 依存関係インストール
