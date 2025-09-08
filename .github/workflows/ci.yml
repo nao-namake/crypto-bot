@@ -9,6 +9,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  repository_dispatch:
+    types: [model-updated]
 
 env:
   PROJECT_ID: my-crypto-bot-project
