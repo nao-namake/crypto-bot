@@ -55,8 +55,10 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.name, "MultiTimeframe")
         self.assertEqual(self.strategy.config["tf_4h_lookback"], 16)
         self.assertEqual(self.strategy.config["tf_15m_lookback"], 4)
-        self.assertEqual(self.strategy.config["require_timeframe_agreement"], True)
-        self.assertEqual(self.strategy.config["min_confidence"], 0.5)
+        self.assertEqual(
+            self.strategy.config["require_timeframe_agreement"], False
+        )  # 攻撃的設定：重み付け判定優先
+        self.assertEqual(self.strategy.config["min_confidence"], 0.4)  # 攻撃的設定：閾値引き下げ
         self.assertEqual(self.strategy.config["tf_4h_weight"], 0.6)
         self.assertEqual(self.strategy.config["tf_15m_weight"], 0.4)
 
@@ -151,7 +153,8 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         # 時間軸が不一致
         decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=-1)
 
-        # require_agreementがTrueなのでHOLD
+        # 攻撃的設定：重み付け判定で不一致でも取引（require_timeframe_agreement=False）
+        # weighted_score = 1 * 0.6 + (-1) * 0.4 = 0.2 < min_confidence(0.4) なのでHOLD
         self.assertEqual(decision["action"], EntryAction.HOLD)
         self.assertFalse(decision.get("agreement", True))
 
@@ -160,10 +163,10 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         # 4時間足のみシグナルあり
         decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=0)
 
-        # 4時間足のみの場合、信頼度が減額される
-        # confidence = 0.6 * 0.7 = 0.42 < min_confidence(0.5) なのでHOLD
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], 0.3)  # 攻撃的設定対応
+        # 攻撃的設定：重み付け判定モード（require_timeframe_agreement=False）
+        # weighted_score = 1 * 0.6 + 0 * 0.4 = 0.6 >= min_confidence(0.4) なのでBUY
+        self.assertEqual(decision["action"], EntryAction.BUY)
+        self.assertEqual(decision["confidence"], 0.6)  # 重み付けスコア
 
     def test_make_2tf_decision_no_agreement_mode(self):
         """2層統合判定 - 一致不要モードテスト."""

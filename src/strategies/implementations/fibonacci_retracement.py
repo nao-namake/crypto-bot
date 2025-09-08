@@ -324,10 +324,14 @@ class FibonacciRetracementStrategy(StrategyBase):
 
             if buy_votes >= 1 and sell_votes == 0:
                 reversal_signal = 1
-                confidence = 0.3 + sum(s for s in signal_strengths if s > 0) + level_bonus
+                confidence = 0.3 + sum(
+                    s for s in signal_strengths if s > 0
+                )  # level_bonus除去（二重加算防止）
             elif sell_votes >= 1 and buy_votes == 0:
                 reversal_signal = -1
-                confidence = 0.3 + sum(s for s in signal_strengths if s > 0) + level_bonus
+                confidence = 0.3 + sum(
+                    s for s in signal_strengths if s > 0
+                )  # level_bonus除去（二重加算防止）
             else:
                 reversal_signal = 0
                 confidence = self.config["no_signal_confidence"]  # thresholds.yaml設定使用

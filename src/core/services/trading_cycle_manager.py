@@ -170,6 +170,7 @@ class TradingCycleManager:
                 self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
 
                 # ML予測と信頼度を同時取得
+                self.logger.info("🤖 ML予測実行開始: ProductionEnsemble予測中")
                 ml_predictions_array = self.orchestrator.ml_service.predict(main_features_for_ml)
                 ml_probabilities = self.orchestrator.ml_service.predict_proba(main_features_for_ml)
 
@@ -181,8 +182,8 @@ class TradingCycleManager:
 
                     confidence = float(np.max(ml_probabilities[-1]))
 
-                    self.logger.debug(
-                        f"ML予測完了: prediction={prediction}, confidence={confidence:.3f}"
+                    self.logger.info(
+                        f"✅ ML予測完了: prediction={['売り', '保持', '買い'][prediction + 1]}, confidence={confidence:.3f}"
                     )
 
                     return {

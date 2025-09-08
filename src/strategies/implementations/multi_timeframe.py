@@ -45,9 +45,9 @@ class MultiTimeframeStrategy(StrategyBase):
             "tf_15m_lookback": 4,  # 15分×4 = 1時間相当
             "rsi_overbought": 70,
             "rsi_oversold": 30,
-            # 統合判定設定
-            "require_timeframe_agreement": True,
-            "min_confidence": 0.5,
+            # 統合判定設定（攻撃的設定：重み付け判定優先）
+            "require_timeframe_agreement": False,
+            "min_confidence": 0.4,
             "tf_4h_weight": 0.6,  # 4時間足重視
             "tf_15m_weight": 0.4,
             # リスク管理

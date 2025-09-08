@@ -294,8 +294,8 @@ class DiscordClient:
                     f"   URLハッシュ: {hashlib.md5(self.webhook_url.encode()).hexdigest()[:8]}"
                 )
                 self.logger.error(f"   エラー詳細: {response.text}")
-                self.enabled = False  # 自動無効化で連続エラー防止
-                self.logger.warning("⚠️ Discord通知を自動無効化しました")
+                # self.enabled = False  # 自動無効化を一時停止（WebhookURL修正後の再試行を許可）
+                self.logger.warning("⚠️ Discord通知エラー（継続試行します）")
                 return False
             elif response.status_code == 429:
                 self.logger.warning("⚠️ Discord Rate Limit - 送信抑制")
