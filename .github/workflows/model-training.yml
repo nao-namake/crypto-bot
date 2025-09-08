@@ -29,7 +29,7 @@ jobs:
   model-training:
     name: ML Model Training & Deployment
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
@@ -41,17 +41,22 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Python 3.13
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.12'
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
 
       - name: Install dependencies
         run: |
+          echo "🔧 Python環境情報"
+          python --version
+          pip --version
+          echo "🔧 依存関係インストール開始"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --verbose -r requirements.txt
+          echo "✅ 依存関係インストール完了"
 
       - name: Pre-training Environment Setup
         run: |
