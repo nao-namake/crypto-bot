@@ -77,18 +77,6 @@ strategies:
     trend_conflict_confidence: 0.3 # トレンド不一致時信頼度
 
 # データ取得・処理関連閾値
-data:
-  # タイムフレーム別データ取得件数（テクニカル指標計算最適化）
-  fetch_limits:
-    "15m": 100                      # 15分足: 100件 = 25時間（推奨）
-    "1h": 100                       # 1時間足: 100件 = 約4日間（推奨）
-    "4h": 80                        # 4時間足: 80件 = 約13日間（最適化）
-  
-  # データ品質チェック
-  min_data_points: 50               # 最小データ点数（50期間未満は処理停止）
-  max_missing_ratio: 0.05           # 欠損値比率上限（5%まで許容）
-
-# 取引・価格関連動的設定（Phase 16-B拡張版）
 trading:
   # 個人開発向けデフォルト設定（1万円スタート）
   initial_balance_jpy: 10000.0      # 初期残高（1万円・個人開発リアル設定）
@@ -147,35 +135,6 @@ performance:
   discord_timeout: 10               # Discord通知タイムアウト
 
 # システム監視関連閾値（Phase 16-B完全版）
-monitoring:
-  # エラー発生閾値
-  max_consecutive_errors: 5         # 連続エラー上限（この回数でシステム停止）
-  error_rate_threshold: 0.1         # エラー率閾値（10%でアラート）
-  consecutive_loss_limit: 5         # 連続損失限界
-  
-  # ヘルスチェック関連
-  health_check:
-    interval_seconds: 60.0          # ヘルスチェック間隔
-    cpu_check_interval: 1           # CPU使用率チェック間隔（秒）
-    memory_threshold_percent: 85    # メモリ使用量閾値（%）
-    cpu_threshold_percent: 80       # CPU使用率閾値（%）
-  
-  # Discord通知設定
-  discord:
-    min_interval: 2                 # 最小送信間隔（秒）
-    startup_grace_period: 30        # 起動時通知抑制期間（秒）
-    rate_limit_interval: 2          # レート制限間隔
-    timeout: 10                     # HTTPタイムアウト（秒）
-    max_retries: 3                  # 最大再試行回数
-    backoff_seconds: 1              # 再試行間隔（秒）
-    
-    # 信頼度別色分け閾値（Phase 16-B新規）
-    confidence_thresholds:
-      high: 0.8                     # 高信頼度閾値（緑色）
-      medium: 0.6                   # 中信頼度閾値（黄色）
-      low: 0.0                      # 低信頼度（オレンジ色）
-
-# 異常検知詳細設定（Phase 16-B新規）
 execution:
   # 実行間隔設定（Orchestrator）
   paper_mode_interval_seconds: 60   # ペーパートレード実行間隔（1分）
