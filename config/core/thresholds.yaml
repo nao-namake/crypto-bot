@@ -13,7 +13,7 @@ ml:
   prediction_fallback_confidence: 0.0  # 予測失敗時のフォールバック信頼度
   # 動的confidence設定（攻撃的設定・月100-200取引対応）
   dynamic_confidence:
-    base_hold: 0.3                  # HOLDシグナル基本信頼度（従来0.5から0.3に）
+    base_hold: 0.2                  # HOLDシグナル基本信頼度（従来0.5から0.2に・攻撃的設定）
     error_fallback: 0.2             # エラー時フォールバック信頼度
     neutral_default: 0.35           # ニュートラル状態デフォルト信頼度
     ml_fallback: 0.3                # ML予測失敗時の信頼度
@@ -22,31 +22,58 @@ ml:
   allow_dummy_fallback: false       # ダミーフォールバック許可（安全性重視）
   max_model_failures: 3            # モデル失敗上限（この回数で停止）
 
-# 戦略固有設定（Phase 19+攻撃的設定対応）
+# 戦略固有設定（Phase 19+攻撃的設定対応・月100-200回取引最適化）
 strategies:
-  # ATRBased戦略設定
+  # ATRBased戦略設定（逆張り戦略・レンジ相場対応強化）
   atr_based:
+    # シグナル閾値（取引機会拡大）
+    bb_overbought: 0.7              # BB上限70%（従来80%から緩和）
+    bb_oversold: 0.3                # BB下限30%（従来20%から緩和）
+    rsi_overbought: 65              # RSI過買い65（従来70から緩和）
+    rsi_oversold: 35                # RSI過売り35（従来30から緩和）
+    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
+    # ボラティリティ設定
     strength_fallback: 0.3          # ボラティリティ分析失敗時の強度（攻撃的設定）
-    normal_volatility_strength: 0.3 # 通常ボラティリティ時の強度（攻撃的設定）
+    normal_volatility_strength: 0.4 # 通常ボラティリティ時の強度（強化）
     high_volatility_strength: 0.5  # 高ボラティリティ時の強度
     low_volatility_strength: 0.2   # 低ボラティリティ時の強度
-    hold_confidence: 0.3            # HOLD決定時の信頼度（攻撃的設定）
+    hold_confidence: 0.25           # HOLD決定時の信頼度（若干引き上げ）
   
-  # FibonacciRetracement戦略設定  
-  fibonacci_retracement:
-    no_signal_confidence: 0.3       # 反転シグナルなし時の信頼度（攻撃的設定）
-    base_signal_confidence: 0.3     # ベースシグナル信頼度（攻撃的設定）
-    level_bonus_max: 0.4           # レベルボーナス最大値
-    no_level_confidence: 0.3       # フィボレベル接近なし時の信頼度（攻撃的設定）
+  # DonchianChannel戦略設定（ブレイクアウト・中央域モメンタム対応）
+  donchian_channel:
+    breakout_threshold: 0.002       # ブレイクアウト判定閾値（0.2%）
+    reversal_threshold: 0.05        # リバーサル判定閾値（5%位置）
+    # 中央域判定（取引機会拡大）
+    middle_zone_min: 0.4            # 中央域下限40%（従来30%から狭める）
+    middle_zone_max: 0.6            # 中央域上限60%（従来70%から狭める）
+    # 弱シグナル閾値（新規追加）
+    weak_signal_min: 0.25           # 弱シグナル下限（25-40%でbuy検討）
+    weak_signal_max: 0.75           # 弱シグナル上限（60-75%でsell検討）
+    weak_signal_confidence: 0.35    # 弱シグナル信頼度
+    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
+    hold_confidence: 0.25           # HOLD信頼度（若干引き上げ）
+  
+  # ADXTrendStrength戦略設定（レンジ相場DI差分シグナル対応）
+  adx_trend:
+    strong_trend_threshold: 25      # 強トレンド判定閾値
+    weak_trend_threshold: 15        # 弱トレンド判定閾値15（従来20から緩和）
+    moderate_trend_min: 15          # 中程度トレンド下限
+    moderate_trend_max: 25          # 中程度トレンド上限
+    # DI関連設定（取引機会拡大）
+    di_crossover_threshold: 0.5     # DIクロスオーバー判定閾値
+    weak_di_threshold: 1.0          # 弱いDI差分閾値（新規追加）
+    di_weak_signal_confidence: 0.35 # 弱いDI差分シグナル信頼度
+    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
+    hold_confidence: 0.25           # HOLD信頼度（若干引き上げ）
   
   # MochipoyAlert戦略設定（確認用）
   mochipoy_alert:
-    hold_confidence: 0.3           # HOLD信頼度（攻撃的設定）
+    hold_confidence: 0.2           # HOLD信頼度（攻撃的設定・取引機会拡大）
     weak_signal_confidence: 0.4    # 弱いシグナル信頼度
   
   # MultiTimeframe戦略設定（確認用）
   multi_timeframe:
-    hold_confidence: 0.3           # HOLD信頼度（攻撃的設定）
+    hold_confidence: 0.2           # HOLD信頼度（攻撃的設定・取引機会拡大）
     trend_conflict_confidence: 0.3 # トレンド不一致時信頼度
 
 # データ取得・処理関連閾値
@@ -149,51 +176,6 @@ monitoring:
       low: 0.0                      # 低信頼度（オレンジ色）
 
 # 異常検知詳細設定（Phase 16-B新規）
-anomaly_detection:
-  # スプレッド関連
-  spread:
-    warning_threshold: 0.003        # 0.3%警告閾値
-    critical_threshold: 0.005       # 0.5%重大閾値
-  
-  # API遅延関連
-  api_latency:
-    warning_ms: 1000               # 1秒警告
-    critical_ms: 3000              # 3秒重大
-  
-  # スパイク検知
-  spike_detection:
-    price_zscore_threshold: 3.0    # 価格スパイク3σ
-    volume_zscore_threshold: 3.0   # 出来高スパイク3σ
-    lookback_period: 100           # 振り返り期間
-  
-  # その他検知設定
-  detection:
-    threshold: 0.001               # 一般的な検知閾値
-    min_observations: 20           # 最小観測数（出来高・価格履歴用）
-    min_return_samples: 5          # 最小リターンサンプル数（価格変化率計算用）
-    zero_volatility_threshold: 0.001  # ゼロボラティリティ時の変動閾値（0.1%）
-    market_stress_threshold: 2.0   # マーケットストレス閾値（2σ）
-    recent_alert_minutes: 5        # 直近アラート判定期間（分）
-  
-  # マーケットストレス指標設定
-  market_stress:
-    price_gap_weight: 0.4          # 価格ギャップ重み（40%）
-    intraday_range_weight: 0.3     # 日中変動範囲重み（30%）
-    volume_spike_weight: 0.3       # 出来高スパイク重み（30%）
-  
-  # 正規化設定
-  normalization:
-    outlier_clip_quantile: 0.95    # 外れ値クリップ分位点（95%）
-  
-  # Z-Score設定
-  zscore:
-    calculation_period: 20         # Z-Score計算期間
-  
-  # 出来高比率設定
-  volume_ratio:
-    calculation_period: 20         # 出来高比率計算期間
-
-# 取引・実行関連閾値（Phase 16-B拡張版）
 execution:
   # 実行間隔設定（Orchestrator）
   paper_mode_interval_seconds: 60   # ペーパートレード実行間隔（1分）
@@ -203,40 +185,6 @@ execution:
   backtest_period_days: 180         # バックテスト期間（6ヶ月・充分なデータ量確保）
 
 # ポジション管理詳細設定（Phase 16-B新規）
-position_management:
-  # Kelly基準設定
-  kelly_criterion:
-    max_position_ratio: 0.03       # 最大ポジション比率3%
-    safety_factor: 0.5             # 安全係数50%
-    min_trades: 20                 # Kelly計算最小取引数
-    min_win_rate: 0.4              # 最小勝率40%
-    lookback_days: 30              # Kelly計算参照日数
-  
-  # デフォルト・フォールバック設定
-  default_confidence: 0.5          # デフォルト信頼度
-  conservative_base_size: 0.01     # 保守的ベースサイズ（1%）
-  fallback_size: 0.01              # フォールバック時のポジションサイズ（1%）
-  
-  # ドローダウン管理
-  drawdown:
-    max_ratio: 0.20                # 最大ドローダウン20%
-    consecutive_loss_limit: 5      # 連続5損失で停止
-    cooldown_hours: 24             # 24時間クールダウン
-    persistence_file: ".cache/data/drawdown_state.json"
-    recovery_threshold: 0.02       # 2%回復で復帰
-    default_balance: 10000.0       # デフォルト残高（1万円・個人運用統一）
-  
-  # 動的サイジング
-  dynamic_sizing:
-    base_ratio: 0.01               # ベース比率1%
-    confidence_multiplier: 2.0     # 信頼度乗数
-    volatility_adjustment: true    # ボラティリティ調整
-    target_volatility: 0.01        # 目標ボラティリティ（1%）
-    max_scale: 3.0                 # 最大スケール倍率
-    stop_atr_multiplier: 2.0       # ATR倍率（ストップロス用）
-    stop_loss_safety_ratio: 0.99   # ストップロス安全比率（99%）
-
-# バックテスト専用設定（Phase 16-B完全版）
 backtest:
   # 評価設定
   risk_free_rate: 0.001            # リスクフリーレート（0.1%・年利）
@@ -281,69 +229,3 @@ backtest:
     bootstrap_samples: 1000        # ブートストラップサンプル数
 
 # データ取得詳細設定（Phase 16-B新規）
-data_fetching:
-  # 取得件数設定
-  limits:
-    default: 100                   # デフォルト取得件数
-    cycle: 100                     # サイクル取得件数
-    small: 50                      # 少量取得
-    medium: 500                    # 中量取得
-    large: 2000                    # 大量取得（Bitbank上限）
-    extra_large: 10000             # 超大量取得
-  
-  # タイムフレーム設定
-  timeframes:
-    default: ["15m", "1h", "4h"]   # デフォルト
-    extended: ["5m", "15m", "30m", "1h", "4h", "1d"]  # 拡張版
-    minimal: ["1h", "4h"]          # 最小版
-    full: ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"]
-  
-  # API関連
-  api:
-    retry_count: 3                 # リトライ回数
-    retry_delay_ms: 1000           # リトライ遅延
-    timeout_seconds: 30            # タイムアウト
-    rate_limit_delay_ms: 500       # レート制限遅延
-  
-  # キャッシュ設定
-  cache:
-    enabled: true                  # キャッシュ有効
-    ttl_minutes: 5                 # TTL 5分
-    max_entries: 1000              # 最大エントリ数
-    memory_limit_mb: 50            # メモリ制限
-
-# ファイルI/O・ログ関連設定（Phase 16-B拡張版）
-file_io:
-  # レポート保存設定
-  reports:
-    directory: "logs/reports"      # レポート保存ディレクトリ
-    max_files: 100                 # 最大レポートファイル数
-    max_size_mb: 10                # 最大ファイルサイズ
-    compression: true              # 圧縮有効
-  
-  # ログ設定
-  logging:
-    retention_days: 7              # ログ保持日数
-    rotation: "daily"              # ローテーション頻度
-    max_size_mb: 100              # 最大サイズ
-    backup_count: 5               # バックアップファイル数
-  
-  # バックアップ設定
-  backup:
-    retention_days: 30             # バックアップ保持日数
-    directory: ".cache/backup"     # バックアップディレクトリ
-    compression_level: 6           # 圧縮レベル
-    
-  # 一時ファイル設定
-  temp:
-    directory: ".cache/temp"       # 一時ディレクトリ
-    cleanup_hours: 24              # クリーンアップ間隔
-    max_size_mb: 1000             # 最大サイズ
-
-# ========================================
-# 使用方法:
-# 
-# from src.core.config import get_threshold
-# confidence = get_threshold("ml.default_confidence", 0.5)
-# interval = get_threshold("execution.paper_mode_interval_seconds", 60)
-# ========================================
