@@ -1,190 +1,88 @@
-# ========================================
-# Phase 16-B完了: 閾値設定システム
-# ========================================
-# 
-# 運用時調整可能な閾値・数値パラメータ管理
-# base.yamlと重複しない動的設定値のみ定義
-# ========================================
-
-# ML関連動的閾値（base.yamlと重複しない設定のみ）
-ml:
-  # フォールバック・エラーハンドリング
-  default_confidence: 0.5           # ダミーモデル・フォールバック時の信頼度
-  prediction_fallback_confidence: 0.0  # 予測失敗時のフォールバック信頼度
-  # 動的confidence設定（攻撃的設定・月100-200取引対応）
-  dynamic_confidence:
-    base_hold: 0.2                  # HOLDシグナル基本信頼度（従来0.5から0.2に・攻撃的設定）
-    error_fallback: 0.2             # エラー時フォールバック信頼度
-    neutral_default: 0.35           # ニュートラル状態デフォルト信頼度
-    ml_fallback: 0.3                # ML予測失敗時の信頼度
-    strategy_fallback: 0.25         # 戦略判定失敗時の信頼度
-  emergency_stop_on_dummy: true     # ダミーモデル時の緊急停止
-  allow_dummy_fallback: false       # ダミーフォールバック許可（安全性重視）
-  max_model_failures: 3            # モデル失敗上限（この回数で停止）
-
-# 戦略固有設定（Phase 19+攻撃的設定対応・月100-200回取引最適化）
-strategies:
-  # ATRBased戦略設定（逆張り戦略・レンジ相場対応強化）
-  atr_based:
-    # シグナル閾値（取引機会拡大）
-    bb_overbought: 0.7              # BB上限70%（従来80%から緩和）
-    bb_oversold: 0.3                # BB下限30%（従来20%から緩和）
-    rsi_overbought: 65              # RSI過買い65（従来70から緩和）
-    rsi_oversold: 35                # RSI過売り35（従来30から緩和）
-    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
-    # ボラティリティ設定
-    strength_fallback: 0.3          # ボラティリティ分析失敗時の強度（攻撃的設定）
-    normal_volatility_strength: 0.4 # 通常ボラティリティ時の強度（強化）
-    high_volatility_strength: 0.5  # 高ボラティリティ時の強度
-    low_volatility_strength: 0.2   # 低ボラティリティ時の強度
-    hold_confidence: 0.25           # HOLD決定時の信頼度（若干引き上げ）
-  
-  # DonchianChannel戦略設定（ブレイクアウト・中央域モメンタム対応）
-  donchian_channel:
-    breakout_threshold: 0.002       # ブレイクアウト判定閾値（0.2%）
-    reversal_threshold: 0.05        # リバーサル判定閾値（5%位置）
-    # 中央域判定（取引機会拡大）
-    middle_zone_min: 0.4            # 中央域下限40%（従来30%から狭める）
-    middle_zone_max: 0.6            # 中央域上限60%（従来70%から狭める）
-    # 弱シグナル閾値（新規追加）
-    weak_signal_min: 0.25           # 弱シグナル下限（25-40%でbuy検討）
-    weak_signal_max: 0.75           # 弱シグナル上限（60-75%でsell検討）
-    weak_signal_confidence: 0.35    # 弱シグナル信頼度
-    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
-    hold_confidence: 0.25           # HOLD信頼度（若干引き上げ）
-  
-  # ADXTrendStrength戦略設定（レンジ相場DI差分シグナル対応）
-  adx_trend:
-    strong_trend_threshold: 25      # 強トレンド判定閾値
-    weak_trend_threshold: 15        # 弱トレンド判定閾値15（従来20から緩和）
-    moderate_trend_min: 15          # 中程度トレンド下限
-    moderate_trend_max: 25          # 中程度トレンド上限
-    # DI関連設定（取引機会拡大）
-    di_crossover_threshold: 0.5     # DIクロスオーバー判定閾値
-    weak_di_threshold: 1.0          # 弱いDI差分閾値（新規追加）
-    di_weak_signal_confidence: 0.35 # 弱いDI差分シグナル信頼度
-    min_confidence: 0.3             # 最小信頼度30%（従来40%から緩和）
-    hold_confidence: 0.25           # HOLD信頼度（若干引き上げ）
-  
-  # MochipoyAlert戦略設定（確認用）
-  mochipoy_alert:
-    hold_confidence: 0.2           # HOLD信頼度（攻撃的設定・取引機会拡大）
-    weak_signal_confidence: 0.4    # 弱いシグナル信頼度
-  
-  # MultiTimeframe戦略設定（確認用）
-  multi_timeframe:
-    hold_confidence: 0.2           # HOLD信頼度（攻撃的設定・取引機会拡大）
-    trend_conflict_confidence: 0.3 # トレンド不一致時信頼度
-
-# データ取得・処理関連閾値
-trading:
-  # 個人開発向けデフォルト設定（1万円スタート）
-  initial_balance_jpy: 10000.0      # 初期残高（1万円・個人開発リアル設定）
-  default_balance_jpy: 10000.0      # 後方互換性維持
-  fee_rate: 0.0012                  # Bitbank maker手数料
-  minimum_live_balance: 10000       # ライブトレード最小残高
-  
-  # 価格スプレッド設定
-  bid_spread_ratio: 0.999           # bid価格 = close × 0.999（0.1%下）
-  ask_spread_ratio: 1.001           # ask価格 = close × 1.001（0.1%上）
-  
-  # フォールバック価格（BTC/JPY想定・2025年8月30日現在価格反映）
-  fallback_btc_jpy: 16000000.0      # フォールバック価格（1600万円・現在相場）
-  fallback_prices:
-    default_bid: 15900000.0         # デフォルトbid価格（1590万円）
-    default_ask: 16100000.0         # デフォルトask価格（1610万円）
-    bid: 15900000.0                 # フォールバックbid価格（1590万円）
-    ask: 16100000.0                 # フォールバックask価格（1610万円）
-  
-  # ポジションサイジング・リスク管理（攻めた設定）
-  position_sizing:
-    max_position_ratio: 0.05        # Kelly基準最大5%（攻めた設定）
-    stop_loss_atr_multiplier: 1.2   # ATRベースストップロス倍率
-    take_profit_ratio: 2.0          # テイクプロフィット比率
-    stop_loss_rate: 0.02            # ストップロス率（2%）
-    take_profit_rate: 0.04          # テイクプロフィット率（4%）
-  
-  # 信頼度階層設定（攻めた設定・月100-200回取引対応）
-  confidence_levels:
-    very_high: 0.60                 # 超高信頼度（大幅緩和）
-    high: 0.45                      # 高信頼度（取引機会増加）
-    medium: 0.35                    # 中信頼度（積極的取引）
-    low: 0.25                       # 低信頼度（緩和）
-    min_ml: 0.15                    # ML最小信頼度（大幅緩和）
-  
-  # 異常検知設定
-  anomaly:
-    spread_warning_threshold: 0.003   # スプレッド警告閾値（0.3%）
-    spread_critical_threshold: 0.005  # スプレッド重大閾値（0.5%）
-    
-  # リスク閾値（攻めた設定）
-  risk_thresholds:
-    deny: 0.95                      # 拒否閾値（ほぼ拒否しない）
-    conditional: 0.7                # 条件付き閾値（緩和）
-    min_ml_confidence: 0.15         # ML最小信頼度（大幅緩和）
-
-# API・パフォーマンス関連閾値（Phase 16-B拡張版）
-performance:
-  # API遅延設定
-  default_latency_ms: 100.0         # デフォルトAPI遅延（ミリ秒）
-  
-  # タイムアウト設定
-  api_timeout_seconds: 30.0         # API呼び出しタイムアウト
-  cycle_timeout_seconds: 300.0      # 取引サイクルタイムアウト
-  order_wait_timeout: 30            # 注文約定待機タイムアウト
-  discord_timeout: 10               # Discord通知タイムアウト
-
-# システム監視関連閾値（Phase 16-B完全版）
 execution:
-  # 実行間隔設定（Orchestrator）
-  paper_mode_interval_seconds: 60   # ペーパートレード実行間隔（1分）
-  live_mode_interval_seconds: 180   # ライブトレード実行間隔（3分・収益性重視）
-  
-  # バックテスト設定
-  backtest_period_days: 180         # バックテスト期間（6ヶ月・充分なデータ量確保）
-
-# ポジション管理詳細設定（Phase 16-B新規）
-backtest:
-  # 評価設定
-  risk_free_rate: 0.001            # リスクフリーレート（0.1%・年利）
-  
-  # 損益設定
-  stop_loss:
-    default_rate: 0.02             # デフォルト2%損切り
-    atr_multiplier: 1.2            # ATR倍率
-    max_rate: 0.05                 # 最大5%損切り
-    min_rate: 0.005                # 最小0.5%損切り
-  
-  take_profit:
-    default_rate: 0.04             # デフォルト4%利確
-    risk_reward_ratio: 2.0         # リスクリワード比2:1
-    max_rate: 0.10                 # 最大10%利確
-    min_rate: 0.01                 # 最小1%利確
-  
-  # ポジション設定
-  position:
-    max_ratio: 0.05                # バックテスト最大5%
-    default_ratio: 0.02            # デフォルト2%
-    min_ratio: 0.005               # 最小0.5%
-  
-  # データ取得・処理
-  data:
-    bitbank_limit: 2000            # Bitbank API制限
-    large_limit: 10000             # 大量データ取得
-    small_limit: 100               # 少量データ取得
-    fillna_limit: 5                # 欠損値補完期間
-    min_data_points: 50            # 最小データ点数
-  
-  # タイムフレーム設定
-  timeframes:
-    default: ["15m", "1h", "4h"]   # デフォルト
-    extended: ["5m", "15m", "30m", "1h", "4h", "1d"]  # 拡張版
-    minimal: ["1h", "4h"]          # 最小版
-  
-  # 分析設定
-  analysis:
-    min_trades: 20                 # Kelly基準最小取引数
-    confidence_interval: 0.95      # 95%信頼区間
-    bootstrap_samples: 1000        # ブートストラップサンプル数
-
-# データ取得詳細設定（Phase 16-B新規）
+  backtest_period_days: 180
+  live_mode_interval_seconds: 180
+  paper_mode_interval_seconds: 60
+ml:
+  allow_dummy_fallback: false
+  default_confidence: 0.5
+  dynamic_confidence:
+    base_hold: 0.2
+    error_fallback: 0.2
+    ml_fallback: 0.3
+    neutral_default: 0.35
+    strategy_fallback: 0.25
+  emergency_stop_on_dummy: true
+  max_model_failures: 3
+  prediction_fallback_confidence: 0.0
+performance:
+  default_latency_ms: 100.0
+strategies:
+  adx_trend:
+    di_crossover_threshold: 0.5
+    di_weak_signal_confidence: 0.35
+    hold_confidence: 0.25
+    min_confidence: 0.3
+    moderate_trend_max: 25
+    moderate_trend_min: 15
+    strong_trend_threshold: 25
+    weak_di_threshold: 1.0
+    weak_trend_threshold: 15
+  atr_based:
+    bb_overbought: 0.7
+    bb_oversold: 0.3
+    high_volatility_strength: 0.5
+    hold_confidence: 0.25
+    low_volatility_strength: 0.2
+    min_confidence: 0.3
+    normal_volatility_strength: 0.4
+    rsi_overbought: 65
+    rsi_oversold: 35
+    strength_fallback: 0.3
+  donchian_channel:
+    breakout_threshold: 0.002
+    hold_confidence: 0.25
+    middle_zone_max: 0.6
+    middle_zone_min: 0.4
+    min_confidence: 0.3
+    reversal_threshold: 0.05
+    weak_signal_confidence: 0.35
+    weak_signal_max: 0.75
+    weak_signal_min: 0.25
+  mochipoy_alert:
+    hold_confidence: 0.2
+    weak_signal_confidence: 0.4
+  multi_timeframe:
+    hold_confidence: 0.2
+    trend_conflict_confidence: 0.3
+trading:
+  anomaly:
+    spread_critical_threshold: 0.005
+    spread_warning_threshold: 0.003
+  ask_spread_ratio: 1.001
+  bid_spread_ratio: 0.999
+  confidence_levels:
+    high: 0.45
+    low: 0.25
+    medium: 0.35
+    min_ml: 0.15
+    very_high: 0.6
+  default_balance_jpy: 10000.0
+  fallback_btc_jpy: 16000000.0
+  fallback_prices:
+    ask: 16100000.0
+    bid: 15900000.0
+    default_ask: 16100000.0
+    default_bid: 15900000.0
+  fee_rate: 0.0012
+  initial_balance_jpy: 10000.0
+  minimum_live_balance: 10000
+  position_sizing:
+    max_position_ratio: 0.05
+    stop_loss_atr_multiplier: 1.2
+    stop_loss_rate: 0.02
+    take_profit_rate: 0.04
+    take_profit_ratio: 2.0
+  risk_thresholds:
+    conditional: 0.7
+    deny: 0.95
+    min_ml_confidence: 0.15
