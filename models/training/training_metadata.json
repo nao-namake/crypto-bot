@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-09-11T17:10:29.411437",
+  "created_at": "2025-09-14T19:02:11.637149",
   "feature_names": [
     "close",
     "volume",
@@ -20,28 +20,28 @@
   "training_samples": 1080,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.8861111111111111,
-      "f1_score": 0.8838662183839849,
-      "precision": 0.8900919540229885,
-      "recall": 0.8861111111111111,
-      "cv_f1_mean": 0.4965701667227566,
-      "cv_f1_std": 0.042054866300830065
+      "accuracy": 1.0,
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "cv_f1_mean": 0.515409811594783,
+      "cv_f1_std": 0.04277443427879274
     },
     "xgboost": {
-      "accuracy": 0.9675925925925926,
-      "f1_score": 0.9673730877187773,
-      "precision": 0.968647748138696,
-      "recall": 0.9675925925925926,
-      "cv_f1_mean": 0.5145364373686379,
-      "cv_f1_std": 0.04321521770829551
+      "accuracy": 1.0,
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "cv_f1_mean": 0.5317842474724208,
+      "cv_f1_std": 0.04528751843890064
     },
     "random_forest": {
-      "accuracy": 0.9037037037037037,
-      "f1_score": 0.9005556313005071,
-      "precision": 0.9169158604514805,
-      "recall": 0.9037037037037037,
-      "cv_f1_mean": 0.5290472847124464,
-      "cv_f1_std": 0.037493082204709934
+      "accuracy": 0.9740740740740741,
+      "f1_score": 0.9739067377798859,
+      "precision": 0.975140044596726,
+      "recall": 0.9740740740740741,
+      "cv_f1_mean": 0.5105695086369382,
+      "cv_f1_std": 0.05462172465378326
     }
   },
   "model_files": {
@@ -51,6 +51,6 @@
     "production_ensemble": "models/production/production_ensemble.pkl"
   },
   "config_path": "config/core/unified.yaml",
-  "phase": "Phase 19",
-  "notes": "Phase 19統合・15特徴量最適化・個別モデル学習結果"
+  "phase": "Phase 22",
+  "notes": "Phase 22統合・15特徴量最適化・個別モデル学習結果"
 }

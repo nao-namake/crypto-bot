@@ -1,9 +1,9 @@
 {
-  "created_at": "2025-09-11T17:10:29.410750",
+  "created_at": "2025-09-14T19:02:11.636287",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "version": "1.0.0",
-  "phase": "Phase 19",
+  "phase": "Phase 22",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -34,28 +34,28 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.8861111111111111,
-      "f1_score": 0.8838662183839849,
-      "precision": 0.8900919540229885,
-      "recall": 0.8861111111111111,
-      "cv_f1_mean": 0.4965701667227566,
-      "cv_f1_std": 0.042054866300830065
+      "accuracy": 1.0,
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "cv_f1_mean": 0.515409811594783,
+      "cv_f1_std": 0.04277443427879274
     },
     "xgboost": {
-      "accuracy": 0.9675925925925926,
-      "f1_score": 0.9673730877187773,
-      "precision": 0.968647748138696,
-      "recall": 0.9675925925925926,
-      "cv_f1_mean": 0.5145364373686379,
-      "cv_f1_std": 0.04321521770829551
+      "accuracy": 1.0,
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "cv_f1_mean": 0.5317842474724208,
+      "cv_f1_std": 0.04528751843890064
     },
     "random_forest": {
-      "accuracy": 0.9037037037037037,
-      "f1_score": 0.9005556313005071,
-      "precision": 0.9169158604514805,
-      "recall": 0.9037037037037037,
-      "cv_f1_mean": 0.5290472847124464,
-      "cv_f1_std": 0.037493082204709934
+      "accuracy": 0.9740740740740741,
+      "f1_score": 0.9739067377798859,
+      "precision": 0.975140044596726,
+      "recall": 0.9740740740740741,
+      "cv_f1_mean": 0.5105695086369382,
+      "cv_f1_std": 0.05462172465378326
     }
   },
   "training_info": {
@@ -64,9 +64,9 @@
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "6aff36fe7021ac8937277ed5ad6eb8331f2a4346",
-    "commit_short": "6aff36fe",
+    "commit": "d6c712245f3b87d9cad28edd3af0880df18d1880",
+    "commit_short": "d6c71224",
     "branch": "main"
   },
-  "notes": "Phase 19統合・15特徴量最適化・特徴量定義一元化対応"
+  "notes": "Phase 22統合・15特徴量最適化・特徴量定義一元化対応"
 }

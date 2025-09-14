@@ -16,6 +16,7 @@ Phase 22対応: 15特徴量最適化システム用モデル学習
 """
 
 import argparse
+import asyncio
 import json
 import logging
 import pickle
@@ -131,7 +132,7 @@ class NewSystemMLModelCreator:
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
             # 特徴量エンジニアリング（Phase 22: async/await修正）
-            features_df = self.feature_generator.generate_features_sync(df)
+            features_df = asyncio.run(self.feature_generator.generate_features(df))
 
             # 15特徴量への整合性確保
             features_df = self._ensure_feature_consistency(features_df)

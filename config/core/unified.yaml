@@ -37,7 +37,7 @@ exchange:
 ml:
   confidence_threshold: 0.35
   ensemble_enabled: true
-  model_list:
+  models:
   - lgbm
   - xgb
   - rf
@@ -48,11 +48,6 @@ ml:
   model_path: /app/models/production/production_ensemble.pkl
   model_update_check: true
   fallback_enabled: true
-  max_retries: 3
-  model_files:
-    lightgbm: lightgbm_model.pkl
-    xgboost: xgboost_model.pkl
-    random_forest: random_forest_model.pkl
   prediction:
     lookback_periods: 100
     retrain_frequency: weekly

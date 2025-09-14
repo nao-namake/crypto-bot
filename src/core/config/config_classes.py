@@ -48,6 +48,9 @@ class MLConfig:
     emergency_stop_on_dummy: Optional[bool] = None
     allow_dummy_fallback: Optional[bool] = None
     max_model_failures: Optional[int] = None
+    dummy_confidence: Optional[float] = None
+    model_paths: Optional[Dict[str, Any]] = None
+    dynamic_confidence: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -67,6 +70,16 @@ class RiskConfig:
     drawdown_manager: Optional[Dict[str, Any]] = None
     anomaly_detector: Optional[Dict[str, Any]] = None
     risk_thresholds: Optional[Dict[str, float]] = None
+
+    # thresholds.yaml riskセクション対応フィールド
+    emergency_ratio: Optional[float] = None
+    emergency_stop_ratio: Optional[float] = None
+    fallback_max_ratio: Optional[float] = None
+    fallback_min_ratio: Optional[float] = None
+    fallback_stop_ratio: Optional[float] = None
+    kelly_lookback_days: Optional[int] = None
+    recent_lookback_hours: Optional[int] = None
+    safe_balance_ratio: Optional[float] = None
 
 
 @dataclass
