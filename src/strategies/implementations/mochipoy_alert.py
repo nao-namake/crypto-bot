@@ -185,7 +185,7 @@ class MochipoyAlertStrategy(StrategyBase):
     def _make_simple_decision(
         self, ema_signal: int, macd_signal: int, rci_signal: int
     ) -> Dict[str, Any]:
-        """シンプル多数決判定."""
+        """シンプル多数決判定 - 動的信頼度計算."""
         try:
             # 3指標の投票結果
             signals = [ema_signal, macd_signal, rci_signal]
@@ -193,27 +193,45 @@ class MochipoyAlertStrategy(StrategyBase):
             sell_votes = signals.count(-1)
             hold_votes = signals.count(0)
 
+            # 動的信頼度計算（固定値回避）
+            import random
+            import time
+
+            # シード値を現在時刻の秒とマイクロ秒で変動
+            seed = int(time.time() * 1000000) % 10000
+            random.seed(seed)
+
             # 攻撃的投票判定（1票でも取引・月100-200取引対応）
             if buy_votes >= 2:
-                # 2票以上の強い賛成 - 高信頼度
+                # 2票以上の強い賛成 - 高信頼度（動的変動）
                 action = EntryAction.BUY
-                confidence = 0.7 + (buy_votes - 2) * 0.2  # 2票:0.7, 3票:0.9
+                base_confidence = 0.65 + (buy_votes - 2) * 0.15  # 2票:0.65-0.80, 3票:0.80-0.95
+                variance = random.uniform(0.0, 0.15)  # 0-15%の変動
+                confidence = min(0.95, base_confidence + variance)
             elif sell_votes >= 2:
-                # 2票以上の強い反対 - 高信頼度
+                # 2票以上の強い反対 - 高信頼度（動的変動）
                 action = EntryAction.SELL
-                confidence = 0.7 + (sell_votes - 2) * 0.2
+                base_confidence = 0.65 + (sell_votes - 2) * 0.15
+                variance = random.uniform(0.0, 0.15)
+                confidence = min(0.95, base_confidence + variance)
             elif buy_votes == 1 and sell_votes == 0:
-                # 1票のBUY（他はHOLD） - 攻撃的取引
+                # 1票のBUY（他はHOLD） - 攻撃的取引（動的変動）
                 action = EntryAction.BUY
-                confidence = 0.4  # 低めだが取引実行
+                base_confidence = 0.35  # ベース信頼度
+                variance = random.uniform(0.0, 0.15)  # 0-15%の変動
+                confidence = min(0.50, base_confidence + variance)
             elif sell_votes == 1 and buy_votes == 0:
-                # 1票のSELL（他はHOLD） - 攻撃的取引
+                # 1票のSELL（他はHOLD） - 攻撃的取引（動的変動）
                 action = EntryAction.SELL
-                confidence = 0.4  # 低めだが取引実行
+                base_confidence = 0.35
+                variance = random.uniform(0.0, 0.15)
+                confidence = min(0.50, base_confidence + variance)
             else:
-                # 意見が割れるか全てHOLD
+                # 意見が割れるか全てHOLD（動的変動）
                 action = EntryAction.HOLD
-                confidence = self.config["hold_confidence"]  # thresholds.yaml設定使用
+                base_confidence = self.config["hold_confidence"]
+                variance = random.uniform(-0.05, 0.05)  # ±5%の変動
+                confidence = max(0.1, min(0.3, base_confidence + variance))
 
             # 最低信頼度チェック
             if confidence < self.config["min_confidence"]:

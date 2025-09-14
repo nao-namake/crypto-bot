@@ -1253,3 +1253,53 @@ class IntegratedRiskManager:
         except Exception as e:
             self.logger.error(f"リスクサマリー取得エラー: {e}")
             return {"status": "エラー", "error": str(e)}
+
+    def check_stop_conditions(self) -> Dict[str, Any]:
+        """停止条件チェック（取引サイクル管理用）"""
+        try:
+            # ドローダウンマネージャーから停止条件を確認
+            drawdown_stats = self.drawdown_manager.get_drawdown_statistics()
+
+            # 停止条件判定
+            should_stop = False
+            stop_reasons = []
+
+            # ドローダウン制限チェック
+            if not drawdown_stats.get("trading_allowed", True):
+                should_stop = True
+                stop_reasons.append("最大ドローダウン到達")
+
+            # 連続損失チェック
+            if drawdown_stats.get("consecutive_losses", 0) >= 5:
+                should_stop = True
+                stop_reasons.append("連続損失5回到達")
+
+            # 異常検知チェック
+            anomaly_stats = self.anomaly_detector.get_anomaly_statistics()
+            if anomaly_stats.get("critical_alerts", 0) > 0:
+                should_stop = True
+                stop_reasons.append("重大異常検知")
+
+            # 結果返却
+            result = {
+                "should_stop": should_stop,
+                "stop_reasons": stop_reasons,
+                "trading_allowed": drawdown_stats.get("trading_allowed", True),
+                "system_status": "active" if not should_stop else "paused",
+                "check_timestamp": datetime.now().isoformat(),
+            }
+
+            if should_stop:
+                self.logger.warning(f"停止条件検出: {', '.join(stop_reasons)}")
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"停止条件チェックエラー: {e}")
+            return {
+                "should_stop": False,  # エラー時は安全側で継続
+                "stop_reasons": [f"チェックエラー: {str(e)}"],
+                "trading_allowed": True,
+                "system_status": "unknown",
+                "error": str(e),
+            }

@@ -64,10 +64,19 @@ class TradingLoggerService:
             return
 
         try:
-            success_emoji = "✅" if execution_result.success else "❌"
+            # execution_resultの型を確認してアクセス方法を決定
+            if hasattr(execution_result, "success"):
+                success = execution_result.success
+            elif isinstance(execution_result, dict):
+                success = execution_result.get("success", False)
+            else:
+                self.logger.warning(f"予期しない実行結果型: {type(execution_result)}")
+                success = False
+
+            success_emoji = "✅" if success else "❌"
             stop_prefix = "🛑 自動決済: " if is_stop else ""
 
-            if execution_result.success:
+            if success:
                 # 成功時の詳細ログ
                 await self._log_successful_execution(
                     execution_result, cycle_id, stop_prefix, success_emoji

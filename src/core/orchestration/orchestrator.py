@@ -380,8 +380,8 @@ async def create_trading_orchestrator(
         ml_service = MLServiceAdapter(logger)
         logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
-        # Phase 6: リスクサービス（Phase 16-B: thresholds.yamlから取得）
-        initial_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+        # Phase 6: リスクサービス（BitbankAPI実残高取得対応）
+        initial_balance = await _get_actual_balance(config, logger)
         risk_service = create_risk_manager(
             config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance
         )
@@ -396,7 +396,7 @@ async def create_trading_orchestrator(
 
         execution_service = create_risk_manager(
             config=None,  # デフォルト設定使用
-            initial_balance=initial_balance,  # Phase 16-B: thresholds.yamlから動的取得（1万円）
+            initial_balance=initial_balance,  # BitbankAPI実残高取得済み
         )
 
         # TradingOrchestrator組み立て
@@ -430,6 +430,49 @@ async def create_trading_orchestrator(
         # 予期しないエラー
         logger.critical(f"❌ TradingOrchestrator組み立て予期しないエラー: {e}")
         raise CryptoBotError(f"TradingOrchestrator組み立てで予期しないエラー: {e}")
+
+
+# BitbankAPI実残高取得関数
+async def _get_actual_balance(config, logger) -> float:
+    """BitbankAPIから実際の残高を取得（フォールバック対応）"""
+    try:
+        from ...core.exceptions import ExchangeAPIError
+        from ...data.bitbank_client import BitbankClient
+
+        logger.info("🏦 BitbankAPI実残高取得開始")
+
+        # BitbankClientで実際の残高を取得（Cloud Run環境デバッグ強化）
+        bitbank_client = BitbankClient()
+        logger.info("🔐 BitbankClient初期化完了、残高取得API呼び出し実行")
+
+        balance_data = bitbank_client.fetch_balance()
+        logger.info(f"📊 Bitbank残高データ受信: キー={list(balance_data.keys())}")
+
+        # JPY残高（自由残高）を取得
+        jpy_balance = balance_data.get("JPY", {}).get("free", 0.0)
+        total_balance = balance_data.get("JPY", {}).get("total", 0.0)
+        logger.info(f"💴 JPY残高詳細: 自由残高={jpy_balance}, 総残高={total_balance}")
+
+        if jpy_balance <= 0:
+            logger.warning(f"⚠️ Bitbank残高が0円以下（{jpy_balance}円）、フォールバック値使用")
+            fallback_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+            logger.info(f"💰 フォールバック残高: {fallback_balance}円")
+            return fallback_balance
+
+        logger.info(f"✅ Bitbank実残高取得成功: {jpy_balance:,.0f}円")
+        return jpy_balance
+
+    except ExchangeAPIError as e:
+        logger.error(f"❌ BitbankAPI認証エラー: {e}")
+        fallback_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+        logger.warning(f"💰 認証エラーのためフォールバック残高使用: {fallback_balance}円")
+        return fallback_balance
+
+    except Exception as e:
+        logger.error(f"❌ 残高取得予期しないエラー: {e}")
+        fallback_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+        logger.warning(f"💰 エラーのためフォールバック残高使用: {fallback_balance}円")
+        return fallback_balance
 
 
 # 内部アダプタークラス（Protocol準拠）

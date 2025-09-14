@@ -105,9 +105,25 @@ class DiscordClient:
             except Exception as e:
                 self.logger.warning(f"⚠️ .envファイル読み込み失敗: {e}")
 
-        # 3. 環境変数（Cloud Run対応・制御文字完全除去）
+        # 3. 環境変数（Cloud Run対応・制御文字完全除去・強化デバッグ）
         env_url = os.getenv("DISCORD_WEBHOOK_URL")
+        self.logger.info(
+            f"🌍 環境変数DISCORD_WEBHOOK_URL取得: 存在={bool(env_url)}, 型={type(env_url)}"
+        )
+
         if env_url and env_url.strip():
+            # Cloud Run環境でのデバッグ強化：詳細分析
+            self.logger.info(
+                f"🔍 元環境変数詳細: 長さ={len(env_url)}, 最初50文字={env_url[:50]}..."
+            )
+
+            # 制御文字・改行文字の詳細検出
+            import re
+
+            control_chars = re.findall(r"[\x00-\x1f\x7f-\x9f]", env_url)
+            if control_chars:
+                self.logger.warning(f"⚠️ 制御文字検出: {[hex(ord(c)) for c in control_chars]}")
+
             # Cloud Runでの制御文字・改行文字完全除去
             cleaned_url = env_url.strip().rstrip("\n\r").strip("\"'")
 
@@ -123,8 +139,16 @@ class DiscordClient:
                 cleaned_hash = hashlib.md5(cleaned_url.encode()).hexdigest()[:8]
                 self.logger.info(f"   元ハッシュ: {original_hash} -> 清浄後: {cleaned_hash}")
 
+            # URL形式の詳細検証（Cloud Run専用）
+            if cleaned_url.startswith("https://discord.com/api/webhooks/"):
+                self.logger.info("✅ DiscordWebhook URL形式確認: 正常")
+            else:
+                self.logger.error(f"❌ DiscordWebhook URL形式エラー: {cleaned_url[:50]}...")
+
             self.logger.info("🌐 Discord Webhook URLを環境変数から取得（Cloud Run対応済み）")
             return cleaned_url
+        else:
+            self.logger.error("❌ 環境変数DISCORD_WEBHOOK_URLが空またはNone")
 
         # 4. discord_webhook.txt（後方互換性）
         txt_path = Path("config/secrets/discord_webhook.txt")
@@ -287,15 +311,32 @@ class DiscordClient:
                 self.logger.error(f"❌ JSON形式エラー: {e}")
                 return False
 
-            # HTTP送信
+            # HTTP送信（Cloud Run環境デバッグ強化）
             headers = {"Content-Type": "application/json"}
             timeout_seconds = get_monitoring_config("discord.timeout", 10)
+
+            # Cloud Run環境での送信前デバッグ
+            self.logger.info(
+                f"🚀 Discord送信開始: URL長={len(self.webhook_url)}, ペイロード={len(json_str)}文字"
+            )
+            self.logger.debug(f"🔗 送信先URL（最初50文字）: {self.webhook_url[:50]}...")
+
             response = requests.post(
                 self.webhook_url,
                 data=json_str,
                 headers=headers,
                 timeout=timeout_seconds,
             )
+
+            # Cloud Run環境での送信後デバッグ
+            try:
+                elapsed_time = response.elapsed.total_seconds()
+                self.logger.info(
+                    f"📨 Discord応答: ステータス={response.status_code}, 時間={elapsed_time:.3f}秒"
+                )
+            except (AttributeError, TypeError):
+                # テスト環境でのMockオブジェクト対応
+                self.logger.info(f"📨 Discord応答: ステータス={response.status_code}")
 
             # レスポンス処理
             if response.status_code == 204:

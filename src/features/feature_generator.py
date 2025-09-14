@@ -313,8 +313,8 @@ class FeatureGenerator:
             channel_position = (close - donchian_low) / (channel_width + 1e-8)
 
             # NaN値を適切な値で補完
-            donchian_high = donchian_high.fillna(method="bfill").fillna(high.iloc[0])
-            donchian_low = donchian_low.fillna(method="bfill").fillna(low.iloc[0])
+            donchian_high = donchian_high.bfill().fillna(high.iloc[0])
+            donchian_low = donchian_low.bfill().fillna(low.iloc[0])
             channel_position = channel_position.fillna(0.5)  # 中央値で補完
 
             return donchian_high, donchian_low, channel_position
@@ -370,9 +370,9 @@ class FeatureGenerator:
             adx = dx.rolling(window=period, min_periods=1).mean()
 
             # NaN値補完
-            adx = adx.fillna(method="bfill").fillna(0)
-            plus_di = plus_di.fillna(method="bfill").fillna(0)
-            minus_di = minus_di.fillna(method="bfill").fillna(0)
+            adx = adx.bfill().fillna(0)
+            plus_di = plus_di.bfill().fillna(0)
+            minus_di = minus_di.bfill().fillna(0)
 
             return adx, plus_di, minus_di
 
