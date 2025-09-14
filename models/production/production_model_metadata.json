@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-09-04T05:57:55.211797",
+  "created_at": "2025-09-11T17:10:29.410750",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "version": "1.0.0",
@@ -8,16 +8,19 @@
   "feature_names": [
     "close",
     "volume",
-    "returns_1",
     "rsi_14",
     "macd",
-    "macd_signal",
     "atr_14",
     "bb_position",
     "ema_20",
     "ema_50",
     "volume_ratio",
-    "zscore"
+    "donchian_high_20",
+    "donchian_low_20",
+    "channel_position",
+    "adx_14",
+    "plus_di_14",
+    "minus_di_14"
   ],
   "individual_models": [
     "lightgbm",
@@ -31,39 +34,39 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.937962962962963,
-      "f1_score": 0.9373879952179727,
-      "precision": 0.9394404186795492,
-      "recall": 0.937962962962963,
-      "cv_f1_mean": 0.5172504618163675,
-      "cv_f1_std": 0.05379598365007286
+      "accuracy": 0.8861111111111111,
+      "f1_score": 0.8838662183839849,
+      "precision": 0.8900919540229885,
+      "recall": 0.8861111111111111,
+      "cv_f1_mean": 0.4965701667227566,
+      "cv_f1_std": 0.042054866300830065
     },
     "xgboost": {
-      "accuracy": 0.9916666666666667,
-      "f1_score": 0.9916546749027567,
-      "precision": 0.9917301099122718,
-      "recall": 0.9916666666666667,
-      "cv_f1_mean": 0.5228847626906779,
-      "cv_f1_std": 0.03599226081703108
+      "accuracy": 0.9675925925925926,
+      "f1_score": 0.9673730877187773,
+      "precision": 0.968647748138696,
+      "recall": 0.9675925925925926,
+      "cv_f1_mean": 0.5145364373686379,
+      "cv_f1_std": 0.04321521770829551
     },
     "random_forest": {
-      "accuracy": 0.924074074074074,
-      "f1_score": 0.9223117745598527,
-      "precision": 0.9325678338638775,
-      "recall": 0.924074074074074,
-      "cv_f1_mean": 0.5060078535919214,
-      "cv_f1_std": 0.05567438524446698
+      "accuracy": 0.9037037037037037,
+      "f1_score": 0.9005556313005071,
+      "precision": 0.9169158604514805,
+      "recall": 0.9037037037037037,
+      "cv_f1_mean": 0.5290472847124464,
+      "cv_f1_std": 0.037493082204709934
     }
   },
   "training_info": {
     "samples": 1080,
-    "feature_count": 12,
+    "feature_count": 15,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "0892cf1cf125952b2bf60df7646e261ebc85876d",
-    "commit_short": "0892cf1c",
+    "commit": "6aff36fe7021ac8937277ed5ad6eb8331f2a4346",
+    "commit_short": "6aff36fe",
     "branch": "main"
   },
-  "notes": "Phase 19統合・12特徴量最適化・特徴量定義一元化対応"
+  "notes": "Phase 19統合・15特徴量最適化・特徴量定義一元化対応"
 }

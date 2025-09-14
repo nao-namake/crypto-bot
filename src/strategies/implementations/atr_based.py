@@ -1,15 +1,12 @@
 """
 ATRベース戦略実装 - シンプル逆張り戦略
-
 ATRとボリンジャーバンドを使用したシンプルな逆張り戦略。
 過度な価格変動時の平均回帰を狙う。
-
 戦略ロジック:
 1. ATRで市場ボラティリティを測定
 2. ボリンジャーバンド位置で過買い・過売り判定
 3. RSIで追加確認
 4. 市場ストレスで異常状況フィルター
-
 Phase 4改善実装日: 2025年8月18日.
 """
 
@@ -27,7 +24,6 @@ from ..utils import EntryAction, SignalBuilder, StrategyType
 class ATRBasedStrategy(StrategyBase):
     """
     ATRベース戦略
-
     シンプルなボラティリティベース逆張り戦略。
     平均回帰理論に基づく。.
     """
@@ -37,14 +33,14 @@ class ATRBasedStrategy(StrategyBase):
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
-        # デフォルト設定（thresholds.yaml統合）
+        # デフォルト設定（thresholds.yaml統合・動的設定対応）
         default_config = {
-            # シグナル設定
-            "bb_overbought": 0.8,  # BB上限（80%位置）
-            "bb_oversold": 0.2,  # BB下限（20%位置）
-            "rsi_overbought": 70,  # RSI過買い
-            "rsi_oversold": 30,  # RSI過売り
-            "min_confidence": 0.4,  # 最小信頼度
+            # シグナル設定（thresholds.yamlから動的取得）
+            "bb_overbought": get_threshold("strategies.atr_based.bb_overbought", 0.7),
+            "bb_oversold": get_threshold("strategies.atr_based.bb_oversold", 0.3),
+            "rsi_overbought": get_threshold("strategies.atr_based.rsi_overbought", 65),
+            "rsi_oversold": get_threshold("strategies.atr_based.rsi_oversold", 35),
+            "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
             # リスク管理
             "stop_loss_atr_multiplier": 1.5,
             "take_profit_ratio": 2.0,
@@ -57,7 +53,6 @@ class ATRBasedStrategy(StrategyBase):
                 "strategies.atr_based.normal_volatility_strength", 0.3
             ),
         }
-
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="ATRBased", config=merged_config)
 
@@ -68,27 +63,21 @@ class ATRBasedStrategy(StrategyBase):
                 f"[ATRBased] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
             )
             self.logger.debug("[ATRBased] 分析開始")
-
             current_price = float(df["close"].iloc[-1])
-
             # 各指標分析
             bb_analysis = self._analyze_bb_position(df)
             rsi_analysis = self._analyze_rsi_momentum(df)
             atr_analysis = self._analyze_atr_volatility(df)
-            # Phase 19: market_stress削除（12特徴量統一）
+            # Phase 22: market_stress削除（15特徴量統一）
             # stress_analysis = self._analyze_market_stress(df)
-
             # 統合判定（market_stress無し）
             signal_decision = self._make_decision(bb_analysis, rsi_analysis, atr_analysis, None)
-
             # シグナル生成
             signal = self._create_signal(signal_decision, current_price, df)
-
             self.logger.debug(
                 f"[ATRBased] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
             )
             return signal
-
         except Exception as e:
             self.logger.error(f"[ATRBased] 分析エラー: {e}")
             raise StrategyError(f"ATRベース分析失敗: {e}", strategy_name=self.name)
@@ -97,7 +86,6 @@ class ATRBasedStrategy(StrategyBase):
         """ボリンジャーバンド位置分析."""
         try:
             current_bb_pos = float(df["bb_position"].iloc[-1])
-
             # BB位置によるシグナル判定（逆張り）
             if current_bb_pos >= self.config["bb_overbought"]:
                 signal = -1  # 売りシグナル（過買い）
@@ -108,9 +96,14 @@ class ATRBasedStrategy(StrategyBase):
             else:
                 signal = 0  # ニュートラル
                 strength = 0.0
+            # 設定から信頼度パラメータを取得
+            from ...core.config import get_threshold
 
-            confidence = 0.3 + strength * 0.4 if abs(signal) > 0 else 0.0
-
+            base_confidence = get_threshold("strategies.atr_based.base_confidence", 0.3)
+            confidence_multiplier = get_threshold("strategies.atr_based.confidence_multiplier", 0.4)
+            confidence = (
+                base_confidence + strength * confidence_multiplier if abs(signal) > 0 else 0.0
+            )
             return {
                 "signal": signal,
                 "strength": strength,
@@ -118,7 +111,6 @@ class ATRBasedStrategy(StrategyBase):
                 "bb_position": current_bb_pos,
                 "analysis": f"BB位置: {current_bb_pos:.2f} -> {['売り', 'なし', '買い'][signal + 1]}",
             }
-
         except Exception as e:
             self.logger.error(f"BB位置分析エラー: {e}")
             return {
@@ -132,7 +124,6 @@ class ATRBasedStrategy(StrategyBase):
         """RSIモメンタム分析."""
         try:
             current_rsi = float(df["rsi_14"].iloc[-1])
-
             # RSI逆張りシグナル
             if current_rsi >= self.config["rsi_overbought"]:
                 signal = -1  # 売りシグナル
@@ -143,9 +134,7 @@ class ATRBasedStrategy(StrategyBase):
             else:
                 signal = 0
                 strength = 0.0
-
             confidence = 0.2 + strength * 0.3 if abs(signal) > 0 else 0.0
-
             return {
                 "signal": signal,
                 "strength": strength,
@@ -153,7 +142,6 @@ class ATRBasedStrategy(StrategyBase):
                 "rsi": current_rsi,
                 "analysis": f"RSI: {current_rsi:.1f} -> {['売り', 'なし', '買い'][signal + 1]}",
             }
-
         except Exception as e:
             self.logger.error(f"RSI分析エラー: {e}")
             return {
@@ -169,7 +157,6 @@ class ATRBasedStrategy(StrategyBase):
             current_atr = float(df["atr_14"].iloc[-1])
             current_price = float(df["close"].iloc[-1])
             atr_ratio = current_atr / current_price
-
             # 過去20期間の平均ATR比率と比較
             if len(df) >= 20:
                 historical_atr = df["atr_14"].iloc[-20:] / df["close"].iloc[-20:]
@@ -177,7 +164,6 @@ class ATRBasedStrategy(StrategyBase):
                 volatility_multiplier = atr_ratio / (avg_atr_ratio + 1e-8)
             else:
                 volatility_multiplier = 1.0
-
             # ボラティリティ状態判定
             if volatility_multiplier < self.config["min_atr_ratio"]:
                 regime = "low"  # 低ボラ（取引回避）
@@ -188,7 +174,6 @@ class ATRBasedStrategy(StrategyBase):
             else:
                 regime = "normal"  # 通常ボラ
                 strength = self.config["normal_volatility_strength"]  # thresholds.yaml設定使用
-
             return {
                 "regime": regime,
                 "strength": strength,
@@ -196,7 +181,6 @@ class ATRBasedStrategy(StrategyBase):
                 "volatility_multiplier": volatility_multiplier,
                 "analysis": f"ボラティリティ: {regime} (倍率: {volatility_multiplier:.2f})",
             }
-
         except Exception as e:
             self.logger.error(f"ATR分析エラー: {e}")
             return {"regime": "normal", "strength": 0.0, "analysis": "エラー"}
@@ -205,7 +189,6 @@ class ATRBasedStrategy(StrategyBase):
         """市場ストレス分析."""
         try:
             current_stress = float(df["market_stress"].iloc[-1])
-
             # ストレス状態判定
             if current_stress >= self.config["market_stress_threshold"]:
                 state = "high"  # 高ストレス（取引回避）
@@ -213,14 +196,12 @@ class ATRBasedStrategy(StrategyBase):
             else:
                 state = "normal"  # 通常（取引可能）
                 filter_ok = True
-
             return {
                 "state": state,
                 "level": current_stress,
                 "filter_ok": filter_ok,
                 "analysis": f"市場ストレス: {state} ({current_stress:.2f})",
             }
-
         except Exception as e:
             self.logger.error(f"市場ストレス分析エラー: {e}")
             return {"state": "normal", "filter_ok": True, "analysis": "エラー"}
@@ -232,20 +213,17 @@ class ATRBasedStrategy(StrategyBase):
         atr_analysis: Dict[str, Any],
         stress_analysis: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
-        """統合判定."""
+        """統合判定（動的信頼度計算・早期リターン回避）."""
         try:
             # フィルター確認（Phase 19: market_stress無効化）
             if stress_analysis and not stress_analysis["filter_ok"]:
                 return self._create_hold_decision("市場ストレス高")
-
-            if atr_analysis["regime"] == "low":
-                return self._create_hold_decision("低ボラティリティ")
-
-            # シグナル統合
+            # 低ボラティリティでも動的信頼度を計算（早期リターン回避）
+            volatility_penalty = 0.8 if atr_analysis["regime"] == "low" else 1.0
+            # シグナル統合（すべてのケースで動的計算実行）
             bb_signal = bb_analysis["signal"]
             rsi_signal = rsi_analysis["signal"]
-
-            # シグナル統合（攻撃的設定：不一致でもより強いシグナル採用）
+            # ケース1: 両方にシグナルがある
             if bb_signal != 0 and rsi_signal != 0:
                 if bb_signal == rsi_signal:
                     # 両方一致 - 最高信頼度
@@ -255,44 +233,76 @@ class ATRBasedStrategy(StrategyBase):
                         1.0,
                     )
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
+                    reason = f"BB+RSI一致シグナル ({bb_analysis['bb_position']:.2f}, RSI:{rsi_analysis['rsi']:.1f})"
                 else:
-                    # 不一致時はより強いシグナルを採用（攻撃的設定）
+                    # 不一致時はより強いシグナルを採用
                     if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
                         action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
                         confidence = bb_analysis["confidence"] * 0.8  # 不一致ペナルティ
                         strength = bb_analysis["strength"]
+                        reason = f"BB優勢シグナル ({bb_analysis['bb_position']:.2f})"
                     else:
                         action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                        confidence = rsi_analysis["confidence"] * 0.8  # 不一致ペナルティ
+                        confidence = rsi_analysis["confidence"] * 0.8
                         strength = rsi_analysis["strength"]
+                        reason = f"RSI優勢シグナル ({rsi_analysis['rsi']:.1f})"
+            # ケース2: BBシグナルのみ
             elif bb_signal != 0:
-                # BBシグナルのみ
                 action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                confidence = bb_analysis["confidence"] * 0.7  # 単一シグナルなので減額
+                confidence = bb_analysis["confidence"] * 0.7  # 単一シグナル減額
                 strength = bb_analysis["strength"]
+                reason = f"BB単独シグナル ({bb_analysis['bb_position']:.2f})"
+            # ケース3: RSIシグナルのみ
             elif rsi_signal != 0:
-                # RSIシグナルのみ
                 action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
                 confidence = rsi_analysis["confidence"] * 0.7
                 strength = rsi_analysis["strength"]
+                reason = f"RSI単独シグナル ({rsi_analysis['rsi']:.1f})"
+            # ケース4: 明確なシグナルなし - 微弱な動的信頼度を計算
             else:
-                return self._create_hold_decision("シグナルなし")
-
+                # ニュートラル状態でも市場状況に基づく微弱なシグナルを生成
+                bb_pos = bb_analysis["bb_position"]
+                rsi_val = rsi_analysis["rsi"]
+                # 中央値からの乖離に基づく微弱シグナル
+                bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
+                rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
+                total_deviation = (bb_deviation + rsi_deviation) / 2
+                if total_deviation > 0.1:  # 10%以上の乖離で微弱シグナル
+                    # より乖離の大きい指標を採用
+                    if bb_deviation > rsi_deviation:
+                        action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
+                        base_confidence = 0.25 + total_deviation * 0.3
+                    else:
+                        action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
+                        base_confidence = 0.25 + total_deviation * 0.3
+                    confidence = base_confidence
+                    strength = total_deviation
+                    reason = f"微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
+                else:
+                    return self._create_hold_decision(
+                        f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
+                    )
+            # ボラティリティ調整適用
+            confidence *= volatility_penalty
             # 高ボラティリティボーナス
             if atr_analysis["regime"] == "high":
                 confidence = min(confidence * 1.2, 1.0)
-
-            # 最小信頼度チェック
+            # 最小信頼度チェック（緩和済み）
             if confidence < self.config["min_confidence"]:
-                return self._create_hold_decision("信頼度不足")
-
+                # 完全拒否ではなく、動的に調整された信頼度を記録
+                adjusted_confidence = max(confidence, self.config["min_confidence"] * 0.8)
+                return {
+                    "action": EntryAction.HOLD,
+                    "confidence": adjusted_confidence,
+                    "strength": strength if "strength" in locals() else 0.0,
+                    "analysis": f"ATR動的HOLD: {reason} (調整信頼度: {adjusted_confidence:.3f})",
+                }
             return {
                 "action": action,
                 "confidence": confidence,
                 "strength": strength,
-                "analysis": f"ATR逆張り: {action} (信頼度: {confidence:.3f})",
+                "analysis": f"ATR動的判定: {action} (信頼度: {confidence:.3f}, {reason})",
             }
-
         except Exception as e:
             self.logger.error(f"統合判定エラー: {e}")
             return self._create_hold_decision("判定エラー")
@@ -332,5 +342,5 @@ class ATRBasedStrategy(StrategyBase):
             "atr_14",  # メイン指標
             "bb_position",  # ボリンジャーバンド位置
             "rsi_14",  # RSI
-            # Phase 19: market_stress削除（12特徴量統一）
+            # Phase 22: market_stress削除（15特徴量統一）
         ]

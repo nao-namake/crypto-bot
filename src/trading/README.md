@@ -1,21 +1,22 @@
-# src/trading/ - 取引実行・リスク管理層
+# src/trading/ - 統合取引管理層
 
-AI自動取引システムの取引実行層。統合リスク管理・Kelly基準ポジションサイジング・ドローダウン管理・異常検知・注文実行を統合管理し、安全で効率的な取引実行を提供。
+AI自動取引システムの統合取引管理層。統合リスク管理・Kelly基準ポジションサイジング・ドローダウン管理・異常検知・取引実行結果管理を統合し、安全で効率的な取引制御を提供。
 
 ## 📂 ファイル構成
 
 ```
 src/trading/
-├── __init__.py              # 取引層エクスポート・公開API管理（230行）
-├── executor.py              # 注文実行システム・ペーパートレード・実取引・統計管理（1000行）
-├── risk_manager.py          # 統合リスク管理・Kelly基準ポジションサイジング（1400行）
-└── risk_monitor.py          # 異常検知・ドローダウン管理統合システム（1400行）
+├── __init__.py              # 取引層エクスポート・公開API管理（Phase 21対応）
+├── risk_manager.py          # 統合リスク管理・Kelly基準・取引実行結果管理
+├── risk_monitor.py          # 異常検知・ドローダウン管理統合システム
+└── archive/                 # アーカイブファイル
+    └── executor.py.bak      # 旧executor.py（Phase 21でアーカイブ）
 ```
 
 ## 🔧 主要コンポーネント
 
-### **1. risk_manager.py（1400行）**
-**目的**: 統合リスク管理・Kelly基準ポジションサイジング
+### **1. risk_manager.py**
+**目的**: 統合リスク管理・Kelly基準ポジションサイジング・取引実行結果管理（Phase 21統合）
 
 **主要クラス**:
 ```python
@@ -34,6 +35,13 @@ class TradeEvaluation:
     position_size: float                # 推奨ポジションサイズ
     risk_score: float                   # リスクスコア(0.0-1.0)
     recommended_action: str             # BUY/SELL/HOLD
+
+@dataclass  
+class ExecutionResult:                  # Phase 21: executor.pyから移行
+    success: bool                       # 実行成功/失敗
+    mode: ExecutionMode                 # PAPER/LIVE
+    order_id: Optional[str]             # 注文ID
+    status: OrderStatus                 # 注文状態
 ```
 
 **実装機能**:
@@ -41,10 +49,11 @@ class TradeEvaluation:
 - **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算
 - **3段階判定システム**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
 - **リスクスコア算出**: ML信頼度・異常・ドローダウン・連続損失・ボラティリティの重み付け統合
+- **取引実行結果管理**: 注文実行結果の統合処理・ペーパートレード/ライブ取引対応（Phase 21統合）
 
 **使用例**:
 ```python
-from src.trading import IntegratedRiskManager, RiskDecision
+from src.trading import IntegratedRiskManager, ExecutionResult, ExecutionMode, OrderStatus
 
 # リスク管理器の作成
 risk_manager = IntegratedRiskManager(
@@ -64,10 +73,20 @@ evaluation = risk_manager.evaluate_trade_opportunity(
 print(f"判定: {evaluation.decision}")
 print(f"ポジションサイズ: {evaluation.position_size}")
 print(f"リスクスコア: {evaluation.risk_score:.3f}")
+
+# 取引実行結果の作成（Phase 21統合機能）
+execution_result = ExecutionResult(
+    success=True,
+    mode=ExecutionMode.PAPER,
+    order_id="12345",
+    status=OrderStatus.FILLED,
+    amount=0.01,
+    price=50000.0
+)
 ```
 
-### **2. risk_monitor.py（1400行）**
-**目的**: 異常検知・ドローダウン管理統合システム
+### **2. risk_monitor.py**
+**目的**: 異常検知・ドローダウン管理統合システム（Phase 21継続）
 
 **主要クラス**:
 ```python

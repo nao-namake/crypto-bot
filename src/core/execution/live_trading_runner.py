@@ -1,5 +1,5 @@
 """
-ライブトレードランナー - Phase 14-B リファクタリング
+ライブトレードランナー - Phase 22 ハードコード排除・統合最適化
 
 orchestrator.pyから分離したライブトレード実行機能。
 ライブトレードモードの専用処理・実取引管理を担当。
@@ -276,22 +276,3 @@ class LiveTradingRunner(BaseRunner):
 
         except Exception as e:
             self.logger.error(f"❌ ライブトレード最終統計保存エラー: {e}")
-
-    def get_live_summary(self):
-        """ライブトレードサマリー取得"""
-        if not self.session_start:
-            return None
-
-        duration_hours = (datetime.now() - self.session_start).total_seconds() / 3600
-
-        return {
-            "session_start": self.session_start.strftime("%Y-%m-%d %H:%M:%S"),
-            "duration_hours": round(duration_hours, 2),
-            "cycles_completed": self.cycle_count,
-            "trades_executed": self.trade_count,
-            "current_balance": getattr(self.orchestrator.execution_service, "current_balance", 0),
-            "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
-            "avg_cycles_per_hour": (
-                round(self.cycle_count / duration_hours, 2) if duration_hours > 0 else 0
-            ),
-        }

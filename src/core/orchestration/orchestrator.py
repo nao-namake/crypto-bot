@@ -32,13 +32,12 @@ from ...features.feature_generator import FeatureGenerator
 
 if TYPE_CHECKING:
     from ...strategies.base.strategy_base import StrategySignal
+    from ...trading.risk_manager import ExecutionResult, TradeEvaluation
 
-from ...backtest.engine import BacktestEngine
-from ...backtest.reporter import BacktestReporter
-from ...trading.executor import ExecutionResult
-from ...trading.risk_manager import TradeEvaluation
+# Phase 22: BacktestEngine廃止、新システムはBacktestRunnerを使用
+# BacktestReporter は遅延インポートで循環インポート回避
 
-# from ...features.core_adapter import FeatureServiceAdapter  # Phase 18統合: feature_generator.pyに統合済み
+# from ...features.core_adapter import FeatureServiceAdapter  # Phase 22統合: feature_generator.pyに統合済み
 from ..config import Config, get_threshold
 from ..exceptions import (
     CryptoBotError,
@@ -47,16 +46,8 @@ from ..exceptions import (
     HealthCheckError,
     ModelLoadError,
 )
-from ..execution import LiveTradingRunner, PaperTradingRunner
+from ..execution import BacktestRunner, LiveTradingRunner, PaperTradingRunner
 from ..logger import CryptoBotLogger
-from ..protocols import (
-    DataServiceProtocol,
-    ExecutionServiceProtocol,
-    FeatureServiceProtocol,
-    MLServiceProtocol,
-    RiskServiceProtocol,
-    StrategyServiceProtocol,
-)
 
 # BacktestReportWriter削除: reporter.pyに統合済み
 from ..reporting.paper_trading_reporter import PaperTradingReporter
@@ -65,6 +56,14 @@ from ..services import (
     SystemRecoveryService,
     TradingCycleManager,
     TradingLoggerService,
+)
+from .protocols import (
+    DataServiceProtocol,
+    ExecutionServiceProtocol,
+    FeatureServiceProtocol,
+    MLServiceProtocol,
+    RiskServiceProtocol,
+    StrategyServiceProtocol,
 )
 
 # Phase層インターフェース定義は protocols.py に移動
@@ -113,16 +112,18 @@ class TradingOrchestrator:
         self.risk_service = risk_service
         self.execution_service = execution_service
 
-        # Phase 18 統合システム: バックテストレポーター初期化
+        # Phase 22: バックテストレポーター初期化（遅延インポート）
+        from ...backtest.reporter import BacktestReporter
+
         self.backtest_reporter = BacktestReporter()
         self.paper_trading_reporter = PaperTradingReporter(logger)
 
-        # Phase 18 統合システム: BacktestEngine直接管理
-        self.backtest_engine = None  # バックテスト実行時に初期化
+        # Phase 22: 新バックテストシステム（本番同一ロジック）
+        self.backtest_runner = BacktestRunner(self, logger)
         self.paper_trading_runner = PaperTradingRunner(self, logger)
         self.live_trading_runner = LiveTradingRunner(self, logger)
 
-        # Phase 14-B リファクタリング: サービス層初期化（分離済み）
+        # Phase 22 リファクタリング: サービス層初期化（分離済み）
         self.health_checker = HealthChecker(self, logger)
         self.system_recovery = SystemRecoveryService(self, logger)
         self.trading_logger = TradingLoggerService(self, logger)
@@ -184,7 +185,7 @@ class TradingOrchestrator:
         self.logger.info(f"TradingOrchestrator実行開始 - モード: {mode.upper()}（Configから取得）")
 
         try:
-            # Phase 18 統合システム: BacktestEngine直接実行
+            # Phase 22 統合システム: BacktestEngine直接実行
             if mode == "backtest":
                 await self._run_backtest_mode()
             elif mode == "paper":
@@ -234,107 +235,53 @@ class TradingOrchestrator:
 
     async def _run_backtest_mode(self) -> None:
         """
-        バックテストモード実行（Phase 18統合版）
+        バックテストモード実行（Phase 22・本番同一ロジック）
 
-        BacktestRunnerを除去し、BacktestEngineを直接使用
+        Phase 22改良:
+        - BacktestEngineを廃止し、BacktestRunnerを使用
+        - 本番と同じtrading_cycle_managerで取引判定
+        - CSVデータから時系列で順次処理
         """
         try:
-            self.logger.info("📊 バックテストモード開始（Phase 18統合版）")
+            self.logger.info("📊 バックテストモード開始（Phase 22・本番同一ロジック）")
 
-            # バックテストエンジン初期化
-            await self._setup_backtest_engine()
+            # データサービスをバックテストモードに設定
+            self.data_service.set_backtest_mode(True)
 
-            # バックテスト実行
-            from datetime import datetime, timedelta
+            # バックテスト実行（BacktestRunnerに委譲）
+            success = await self.backtest_runner.run()
 
-            from ..config import get_threshold
-
-            # バックテスト期間設定（外部化）
-            backtest_days = get_threshold("execution.backtest_period_days", 30)
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=backtest_days)
-
-            self.logger.info(
-                f"📅 バックテスト期間: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}"
-            )
-
-            results = await self.backtest_engine.run_backtest(
-                symbol="BTC/JPY",
-                start_date=start_date,
-                end_date=end_date,
-                timeframes=["15m", "4h"],  # 設定通り15分足と4時間足
-            )
-
-            # 結果処理・レポート生成
-            await self._process_backtest_results(results, start_date, end_date)
-
-            self.logger.info("✅ バックテスト実行完了", discord_notify=True)
+            if success:
+                self.logger.info("✅ オーケストレーターバックテスト制御完了", discord_notify=True)
+            else:
+                self.logger.warning("⚠️ バックテスト実行で問題が発生しました", discord_notify=False)
 
         except (FileNotFoundError, OSError) as e:
             # データファイル・I/Oエラー
             self.logger.error(f"❌ バックテストデータI/Oエラー: {e}", discord_notify=False)
-            await self._save_backtest_error_report(str(e))
             raise DataProcessingError(f"バックテスト用データ読み込みエラー: {e}")
         except (ValueError, KeyError) as e:
             # データ形式・設定値エラー
             self.logger.error(f"❌ バックテストデータ形式エラー: {e}", discord_notify=False)
-            await self._save_backtest_error_report(str(e))
             raise DataProcessingError(f"バックテストデータ処理エラー: {e}")
         except (ImportError, ModuleNotFoundError) as e:
             # モジュール・ライブラリエラー
             self.logger.error(f"❌ バックテストモジュールエラー: {e}", discord_notify=False)
-            await self._save_backtest_error_report(str(e))
             raise HealthCheckError(f"バックテスト依存モジュールエラー: {e}")
         except Exception as e:
             # その他の予期しないエラー
             self.logger.error(f"❌ バックテスト予期しないエラー: {e}", discord_notify=True)
-            await self._save_backtest_error_report(str(e))
             raise
+        finally:
+            # バックテストモード解除・クリーンアップ
+            self.data_service.set_backtest_mode(False)
+            self.data_service.clear_backtest_data()
 
-    async def _setup_backtest_engine(self):
-        """バックテストエンジン初期化"""
-        try:
-            # バックテストエンジン作成
-            self.backtest_engine = BacktestEngine(
-                initial_balance=1000000.0,  # 100万円（現実的なポジションサイズ）
-                slippage_rate=0.0005,
-                commission_rate=0.0012,
-                max_position_ratio=0.05,
-                risk_profile="balanced",
-            )
 
-            self.logger.info("🔧 BacktestEngine初期化完了")
+# Phase 22: _setup_backtest_engine削除（BacktestRunnerが処理を担当）
 
-        except Exception as e:
-            self.logger.error(f"❌ バックテストエンジン初期化エラー: {e}")
-            raise
-
-    async def _process_backtest_results(self, results, start_date, end_date):
-        """結果処理・レポート生成"""
-        try:
-            if not results:
-                self.logger.warning("⚠️ バックテスト結果が空です")
-                return
-
-            # 結果レポート生成（Phase 18統合版）
-            await self.backtest_reporter.generate_backtest_report(results, start_date, end_date)
-
-        except Exception as e:
-            self.logger.error(f"❌ バックテスト結果処理エラー: {e}")
-            raise
-
-    async def _save_backtest_error_report(self, error_message: str):
-        """エラーレポート保存"""
-        try:
-            context = {
-                "engine_initialized": self.backtest_engine is not None,
-                "phase": "18_integrated_system",
-            }
-
-            await self.backtest_reporter.save_error_report(error_message, context)
-
-        except Exception as e:
-            self.logger.error(f"❌ バックテストエラーレポート保存失敗: {e}")
+# Phase 22: _process_backtest_results と _save_backtest_error_report削除
+# BacktestRunnerとBacktestReporterが直接連携して処理
 
 
 async def create_trading_orchestrator(
@@ -353,14 +300,14 @@ async def create_trading_orchestrator(
     Returns:
         初期化済みTradingOrchestrator.
     """
+    # Phase 22統合: feature_generator.py統合により削除・EnsembleModel → MLServiceAdapter移行完了
+    from ...core.reporting.discord_notifier import DiscordManager
     from ...data.bitbank_client import BitbankClient
     from ...data.data_pipeline import DataPipeline
-
-    # Phase 18統合: feature_generator.py統合により削除・EnsembleModel → MLServiceAdapter移行完了
-    from ...monitoring.discord_notifier import DiscordManager
     from ...strategies.base.strategy_manager import StrategyManager
+    from ...strategies.implementations.adx_trend import ADXTrendStrengthStrategy
     from ...strategies.implementations.atr_based import ATRBasedStrategy
-    from ...strategies.implementations.fibonacci_retracement import FibonacciRetracementStrategy
+    from ...strategies.implementations.donchian_channel import DonchianChannelStrategy
     from ...strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
     from ...strategies.implementations.multi_timeframe import MultiTimeframeStrategy
     from ...trading import DEFAULT_RISK_CONFIG, create_risk_manager
@@ -383,10 +330,10 @@ async def create_trading_orchestrator(
             except Exception as e:
                 logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
                 webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-                logger.info(f"🌐 環境変数からフォールバック")
+                logger.info("🌐 環境変数からフォールバック")
         else:
             webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-            logger.info(f"🌐 Discord Webhook URLを環境変数から読み込み")
+            logger.info("🌐 Discord Webhook URLを環境変数から読み込み")
 
         logger.info(f"🔍 Discord Webhook URL取得結果: 存在={webhook_url is not None}")
         if webhook_url:
@@ -411,7 +358,7 @@ async def create_trading_orchestrator(
         data_service = DataPipeline(client=bitbank_client)
 
         # Phase 3: 特徴量サービス（統合アダプター）
-        # Phase 18統合: FeatureGenerator統合クラスを使用
+        # Phase 22統合: FeatureGenerator統合クラスを使用
         feature_service = FeatureGenerator()
 
         # Phase 4: 戦略サービス
@@ -420,7 +367,8 @@ async def create_trading_orchestrator(
             ATRBasedStrategy(),
             MochipoyAlertStrategy(),
             MultiTimeframeStrategy(),
-            FibonacciRetracementStrategy(),
+            DonchianChannelStrategy(),
+            ADXTrendStrengthStrategy(),
         ]
         # 戦略を個別に登録
         for strategy in strategies:
@@ -433,8 +381,6 @@ async def create_trading_orchestrator(
         logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
         # Phase 6: リスクサービス（Phase 16-B: thresholds.yamlから取得）
-        from ..config import get_threshold
-
         initial_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
         risk_service = create_risk_manager(
             config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance
@@ -486,4 +432,4 @@ async def create_trading_orchestrator(
 
 
 # 内部アダプタークラス（Protocol準拠）
-# Phase 18統合: FeatureServiceAdapterは features/feature_generator.py に統合済み
+# Phase 22統合: FeatureServiceAdapterは features/feature_generator.py に統合済み

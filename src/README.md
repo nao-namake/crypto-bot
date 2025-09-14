@@ -23,10 +23,10 @@ src/
 │   ├── data_pipeline.py               # データ取得・処理パイプライン
 │   └── data_cache.py                  # データキャッシュシステム
 ├── features/                      # 特徴量システム
-│   └── feature_generator.py          # 12特徴量生成・統合管理
+│   └── feature_generator.py          # 15特徴量生成・統合管理
 ├── strategies/                    # 戦略システム → [詳細](strategies/README.md)
 │   ├── base/                          # 戦略基盤・統合管理
-│   ├── implementations/               # 4戦略実装（ATR・フィボ・もちぽよ・MTF）
+│   ├── implementations/               # 5戦略実装（ATR・もちぽよ・MTF・Donchian・ADX）
 │   └── utils/                         # 戦略共通処理
 ├── ml/                           # 機械学習システム
 │   ├── models.py                      # MLモデル実装
@@ -71,11 +71,11 @@ src/
 ```
 1. 【data/】Bitbank API → 市場データ取得（4h/15m足）
         ↓
-2. 【features/】12特徴量生成 → 技術指標・統計指標
+2. 【features/】15特徴量生成 → 技術指標・統計指標
         ↓
 3. 【ml/】ProductionEnsemble → 3モデル予測統合
         ↓
-4. 【strategies/】4戦略実行 → シグナル統合・重み付け
+4. 【strategies/】5戦略実行 → シグナル統合・重み付け
         ↓
 5. 【trading/】リスク評価 → 3段階判定（APPROVED/CONDITIONAL/DENIED）
         ↓
@@ -91,7 +91,7 @@ src/
 
 **主要モジュール**:
 - `orchestrator.py`: システム統合制御・取引サイクル管理
-- `feature_manager.py`: 12特徴量統一定義・システム連携
+- `feature_manager.py`: 15特徴量統一定義・システム連携
 - `logger.py`: JST対応ログ・構造化出力・Discord統合
 - `config.py`: 設定読み込み・環境変数管理・階層化設定
 
@@ -107,19 +107,26 @@ src/
 **目的**: 技術指標・統計指標の生成・統合管理
 
 **主要モジュール**:
-- `feature_generator.py`: 12特徴量生成・feature_manager連携・全システム統合
+- `feature_generator.py`: 15特徴量生成・feature_manager連携・全システム統合
 
-**生成特徴量**:
-RSI・MACD・ボリンジャーバンド・ATR・EMA・SMA・RCI・移動平均乖離率・価格変化率・出来高指標・ボラティリティ・モメンタム
+**生成特徴量（15特徴量・7カテゴリ）**:
+- **基本**: close・volume
+- **モメンタム**: RSI・MACD
+- **ボラティリティ**: ATR・ボリンジャーバンド位置
+- **トレンド**: EMA_20・EMA_50
+- **出来高**: 出来高比率
+- **ブレイクアウト**: Donchianチャネル高値・低値・位置
+- **レジーム**: ADX・+DI・-DI
 
 ### **4. strategies/ - 戦略システム** → **[詳細ドキュメント](strategies/README.md)**
-**目的**: 4戦略統合・シグナル生成・重み付け統合・競合解決
+**目的**: 5戦略統合・シグナル生成・重み付け統合・競合解決
 
 **戦略実装**:
-- **ATRベース戦略**: ボラティリティ分析・ボリンジャーバンド・RSI統合
-- **フィボナッチ戦略**: リトレースメントレベル・サポレジ分析
-- **もちぽよアラート戦略**: 複合指標・EMA・MACD・RCI統合
-- **マルチタイムフレーム戦略**: 4時間足トレンド・15分足タイミング統合
+- **ATRBasedStrategy**: ボラティリティ分析・ボリンジャーバンド・RSI統合
+- **MochiPoyAlertStrategy**: 複合指標・EMA・MACD・RCI統合
+- **MultiTimeframeStrategy**: 4時間足トレンド・15分足タイミング統合
+- **DonchianChannelStrategy**: ブレイクアウト戦略・チャネル上下限突破
+- **ADXTrendStrengthStrategy**: トレンド強度分析・方向性指標統合
 
 ### **5. ml/ - 機械学習システム**
 **目的**: 機械学習予測・アンサンブルモデル・モデル管理
@@ -251,7 +258,7 @@ python -m pytest tests/ --cov=src --cov-report=html
 config/
 ├── core/
 │   ├── unified.yaml              # 統合設定・本番運用
-│   └── feature_order.json       # 12特徴量定義・システム連携KEY
+│   └── feature_order.json       # 15特徴量定義・システム連携KEY
 ├── backtest/
 │   └── backtest.yaml             # バックテスト専用設定
 └── infrastructure/
@@ -276,7 +283,7 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 ## 📈 パフォーマンス指標
 
 ### **実行パフォーマンス**
-- **取引サイクル**: 12特徴量生成→4戦略→ML予測→リスク評価→実行（2秒以内）
+- **取引サイクル**: 15特徴量生成→5戦略→ML予測→リスク評価→実行（2秒以内）
 - **データ取得**: Bitbank API・35秒間隔・レート制限遵守
 - **メモリ使用量**: 通常運用500MB・バックテスト時1GB以下
 
@@ -287,20 +294,23 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ## ⚠️ 重要事項
 
-### **システム要件**
-- **Python**: 3.8以上・async/await・型ヒント対応
+### **システム要件 (Phase 22最適化後)**
+- **Python**: 3.12推奨（MLライブラリ互換性最適化済み）・async/await・型ヒント対応
 - **メモリ**: 本番運用1GB・バックテスト2GB推奨
 - **ディスク**: キャッシュ・ログ・モデル用に5GB以上
+- **コード品質**: Phase 22最適化で企業級品質を実現
 
 ### **運用制約**
 - **API制限**: Bitbank 35秒間隔・接続数制限・レート制限対応
 - **リスク管理**: Kelly基準・20%ドローダウン制限・連続5損失停止
 - **監視必須**: Discord 3階層通知・Cloud Run監視・ヘルスチェック
 
-### **開発制約**
+### **開発制約 (Phase 22最適化後)**
 - **テスト必須**: scripts/testing/checks.sh実行・カバレッジ58.64%維持
 - **品質ゲート**: CI/CD自動チェック・失敗時開発停止
+- **コード品質**: flake8・black・isort通過必須
 - **設定分離**: 本番・バックテスト・開発環境完全分離
+- **Phase 22品質**: 未使用コード削除・構造最適化完了
 
 ### **依存関係**
 - **外部ライブラリ**: pandas・numpy・ccxt・lightgbm・xgboost・scikit-learn
@@ -311,10 +321,12 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ## 🔗 詳細ドキュメント
 
-- **[戦略システム詳細](strategies/README.md)**: 4戦略実装・統合管理・使用方法
+- **[戦略システム詳細](strategies/README.md)**: 5戦略実装・統合管理・使用方法
 - **[取引実行システム詳細](trading/README.md)**: リスク管理・異常検知・注文実行
 - **[プロジェクト全体概要](../README.md)**: システム全体・運用手順・開発履歴
 
 ---
 
-**AI自動取引システム**: レイヤードアーキテクチャによる統合システム。データ取得→特徴量生成→戦略実行→機械学習→リスク管理→取引実行の完全自動化。ペーパートレードから実取引まで対応し、包括的な品質保証とリスク管理を実現。
+**AI自動取引システム (Phase 22最適化完了)**: レイヤードアーキテクチャによる統合システム。データ取得→特徴量生成→戦略実行→機械学習→リスク管理→取引実行の完全自動化。ペーパートレードから実取引まで対応し、包括的な品質保証とリスク管理を実現。
+
+**Phase 22成果**: 未使用コード削除(423行)・構造最適化・保守性向上により企業級コード品質を実現。

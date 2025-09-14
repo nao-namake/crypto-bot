@@ -1,5 +1,5 @@
 """
-ペーパートレードレポーター - Phase 14-B リファクタリング
+ペーパートレードレポーター - Phase 22 リファクタリング
 
 orchestrator.pyから分離したペーパートレードレポート生成機能。
 ペーパートレードセッションの統計・レポート作成を担当。
@@ -24,7 +24,11 @@ class PaperTradingReporter(BaseReporter):
             logger: ログシステム
         """
         super().__init__(logger)
-        self.paper_report_dir = Path("logs/paper_trading_reports")
+        # 設定ファイルからパスを取得
+        from ..config import get_threshold
+
+        paper_dir = get_threshold("reporting.paper_trading_dir", "logs/paper_trading_reports")
+        self.paper_report_dir = Path(paper_dir)
         self.paper_report_dir.mkdir(exist_ok=True, parents=True)
 
     async def generate_session_report(self, session_stats: Dict) -> Path:
@@ -122,7 +126,7 @@ class PaperTradingReporter(BaseReporter):
 - **実行結果**: ✅ SUCCESS
 
 ## 🎯 システム情報
-- **Phase**: 14-B（リファクタリング・責任分離対応）
+- **Phase**: 22（リファクタリング・責任分離対応）
 - **レポーター**: PaperTradingReporter（分離済み）
 - **取引モード**: Paper Trading（仮想取引）
 - **実行環境**: TradingOrchestrator
@@ -176,7 +180,7 @@ class PaperTradingReporter(BaseReporter):
 - パフォーマンス改善の余地
 
 ---
-*このレポートは PaperTradingReporter により自動生成されました（Phase 14-B分離版）*
+*このレポートは PaperTradingReporter により自動生成されました（Phase 22分離版）*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
@@ -198,7 +202,7 @@ class PaperTradingReporter(BaseReporter):
             "timestamp": timestamp.isoformat(),
             "session_stats": session_stats,
             "system_info": {
-                "phase": "14-B",
+                "phase": "22",
                 "reporter": "PaperTradingReporter",
                 "separation_status": "completed",
             },
@@ -232,7 +236,7 @@ class PaperTradingReporter(BaseReporter):
 - **エラーメッセージ**: {error_message}
 
 ## 🎯 システム情報
-- **Phase**: 14-B（PaperTradingReporter分離版）
+- **Phase**: 22（PaperTradingReporter分離版）
 - **レポーター**: PaperTradingReporter
 - **エラー種別**: ペーパートレードセッションエラー
 
@@ -289,7 +293,7 @@ class PaperTradingReporter(BaseReporter):
 
         embed = {
             "title": "📊 ペーパートレードセッション報告",
-            "description": f"ペーパートレードセッションが完了しました（Phase 14-B分離版）",
+            "description": "ペーパートレードセッションが完了しました（Phase 22分離版）",
             "color": color,
             "timestamp": datetime.now().isoformat(),
             "fields": [

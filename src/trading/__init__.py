@@ -1,23 +1,26 @@
 """
-Trading Layer - Phase 6リスク管理層
+Trading Layer - Phase 22統合取引管理層
 
-統合リスク管理システム・Kelly基準ポジションサイジング・
-ドローダウン管理・異常検知の包括的取引制御機能。
+統合リスク管理・監視・取引実行結果処理の包括的取引制御機能。
 
 主要コンポーネント:
 - IntegratedRiskManager: 統合リスク管理API
 - KellyCriterion: Kelly基準ポジションサイジング
 - DrawdownManager: ドローダウン管理・連続損失制御
 - TradingAnomalyDetector: 取引実行用異常検知
+- ExecutionResult: 取引実行結果統合管理（executor.pyから移行）
 
-Phase 12完了: 2025年8月18日.
+Phase 22完了: 2025年9月14日.
 """
 
-# Phase 18統合: リスク管理（統合API + Kelly基準ポジションサイジング）
-from .risk_manager import (
+# Phase 22統合: リスク管理（統合API + Kelly基準ポジションサイジング + 取引実行結果）
+from .risk_manager import (  # Phase 22: executor.pyから移行
+    ExecutionMode,
+    ExecutionResult,
     IntegratedRiskManager,
     KellyCalculationResult,
     KellyCriterion,
+    OrderStatus,
     PositionSizeIntegrator,
     RiskDecision,
     RiskMetrics,
@@ -25,7 +28,7 @@ from .risk_manager import (
     TradeResult,
 )
 
-# Phase 18統合: リスク監視（異常検知 + ドローダウン管理）
+# Phase 22統合: リスク監視（異常検知 + ドローダウン管理）
 from .risk_monitor import (
     AnomalyAlert,
     AnomalyLevel,
@@ -59,6 +62,10 @@ __all__ = [
     "AnomalyAlert",
     "AnomalyLevel",
     "MarketCondition",
+    # Phase 22: 取引実行結果（executor.pyから移行）
+    "ExecutionResult",
+    "ExecutionMode",
+    "OrderStatus",
     # Phase 7拡張: リスクプロファイル機能
     "RISK_PROFILES",
     "DEFAULT_RISK_CONFIG",
@@ -68,9 +75,9 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "11.0.0"
-__phase__ = "Phase 12"
-__description__ = "統合リスク管理層 + 実行層（段階的リスクプロファイル機能拡張・CI/CD統合・手動実行監視・段階的デプロイ対応）"
+__version__ = "22.0.0"
+__phase__ = "Phase 22"
+__description__ = "統合取引管理層（リスク管理・監視・実行結果処理統合）"
 
 # Phase 12拡張: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
 RISK_PROFILES = {

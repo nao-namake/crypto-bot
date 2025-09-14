@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-統合管理CLI - Phase 19 MLOps統合版（feature_manager 12特徴量統一管理・ProductionEnsemble 3モデル統合・654テスト品質保証対応）
+統合管理CLI - Phase 22 MLOps統合版（feature_manager 15特徴量統一管理・ProductionEnsemble 3モデル統合・625テスト品質保証対応）
 
 CI前チェック特化管理システム。本番運用詳細診断はops_monitor.pyに分離。
 
-Phase 19 MLOps統合チェック機能:
-- phase-check: Phase 19実装状況確認（feature_manager・ProductionEnsemble・統合システム）
-- validate: 品質チェック（654テスト・59.24%カバレッジ・MLOps統合）
+Phase 22 MLOps統合チェック機能:
+- phase-check: Phase 22実装状況確認（feature_manager・ProductionEnsemble・統合システム）
+- validate: 品質チェック（625テスト・58.64%カバレッジ・MLOps統合）
 - ml-models: ProductionEnsemble 3モデル統合・週次学習対応
-- data-check: feature_manager 12特徴量統一管理・データ取得確認
-- full-check: Phase 19統合品質チェック（ML信頼度修正・Discord Webhookローカル設定）
-- status: Phase 19システム状態確認
+- data-check: feature_manager 15特徴量統一管理・データ取得確認
+- full-check: Phase 22統合品質チェック（ML信頼度修正・Discord Webhookローカル設定）
+- status: Phase 22システム状態確認
 - health-check: GCP本番環境・Cloud Run 24時間稼働ヘルスチェック
 - monitor: 24時間本番監視・Discord 3階層通知
 - operational: 本番運用診断（ops_monitor.py委譲）
@@ -35,7 +35,7 @@ from analytics.base_analyzer import BaseAnalyzer
 
 
 class UnifiedBotManager(BaseAnalyzer):
-    """統合システム管理クラス（Phase 19 MLOps統合版・base_analyzer.py活用）"""
+    """統合システム管理クラス（Phase 22 MLOps統合版・base_analyzer.py活用）"""
 
     def __init__(self):
         """初期化処理"""

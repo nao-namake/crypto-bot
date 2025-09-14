@@ -14,6 +14,11 @@ ml:
   emergency_stop_on_dummy: true
   max_model_failures: 3
   prediction_fallback_confidence: 0.0
+  dummy_confidence: 0.5
+  model_paths:
+    base_path: /app
+    local_path: .
+    training_path: models/training
 performance:
   default_latency_ms: 100.0
 strategies:
@@ -38,6 +43,8 @@ strategies:
     rsi_overbought: 65
     rsi_oversold: 35
     strength_fallback: 0.3
+    base_confidence: 0.3
+    confidence_multiplier: 0.4
   donchian_channel:
     breakout_threshold: 0.002
     hold_confidence: 0.25
@@ -86,3 +93,54 @@ trading:
     conditional: 0.7
     deny: 0.95
     min_ml_confidence: 0.15
+  initial_balance: 1000000
+  stats_log_interval: 10
+ensemble:
+  confidence_threshold: 0.35
+  max_nan_ratio_features: 0.5
+  max_nan_ratio_target: 0.3
+  min_training_samples: 50
+models:
+  lgbm:
+    num_leaves: 31
+    learning_rate: 0.05
+    n_estimators: 100
+    feature_fraction: 0.9
+    bagging_fraction: 0.8
+    bagging_freq: 5
+    max_depth: -1
+    min_child_samples: 20
+    reg_alpha: 0.0
+    reg_lambda: 0.0
+  min_training_samples: 10
+  rf:
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 5
+    min_samples_leaf: 2
+    max_features: sqrt
+    bootstrap: true
+    oob_score: true
+    class_weight: balanced
+  xgb:
+    max_depth: 6
+    learning_rate: 0.05
+    n_estimators: 100
+    min_child_weight: 1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    alpha: 0
+    lambda: 1
+    gamma: 0
+reporting:
+  base_dir: logs/reports
+  paper_trading_dir: logs/paper_trading_reports
+risk:
+  emergency_ratio: 0.005
+  emergency_stop_ratio: 0.98
+  fallback_max_ratio: 0.1
+  fallback_min_ratio: 0.01
+  fallback_stop_ratio: 0.95
+  kelly_lookback_days: 30
+  recent_lookback_hours: 24
+  safe_balance_ratio: 0.3

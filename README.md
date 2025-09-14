@@ -1,8 +1,8 @@
-# 🚀 Crypto-Bot - AI自動取引システム (Phase 22ハードコード値一元化完了)
+# 🚀 Crypto-Bot - AI自動取引システム (Phase 22設定最適化完了)
 
 **bitbank信用取引専用のAI自動取引システム**
 
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-620%20implemented-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.64%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Phase 22](https://img.shields.io/badge/Phase%2022-Configuration%20Unified-brightgreen)](docs/)
+[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.64%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Phase 22](https://img.shields.io/badge/Phase%2022-Configuration%20Unified-brightgreen)](docs/)
 
 ---
 
@@ -10,15 +10,15 @@
 
 **AI自動取引システム**は、bitbank信用取引専用のBTC/JPY自動取引ボットです。5つの取引戦略と機械学習を組み合わせ、15の技術指標を統合分析することで、24時間自動取引を実現します。
 
-**Phase 22最適化完了**: ハードコード値一元化・thresholds.yaml最適化（192→72キー、87.8%削減）・未使用コード削除・企業級品質を実現し、backtest/paper/live の統合実行環境で本番同一ロジックが動作します。
+**Phase 22最適化完了**: 設定最適化完了・26キー重複問題解決・unified.yaml最適化（14.3KB→3.9KB、72.7%削減）・thresholds.yaml最適化（376→147行、60.9%削除）・真のシステム性能発揮を実現し、backtest/paper/live の統合実行環境で本番同一ロジックが動作します。
 
 ### **主要仕様**
 - **対象市場**: bitbank信用取引・BTC/JPY専用
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・高頻度取引
 - **稼働体制**: 24時間自動取引・Cloud Run稼働
-- **品質保証**: 620テスト中415成功・58.64%カバレッジ・CI/CD統合・Phase 22最適化品質
-- **Phase 22最適化**: ハードコード値一元化・thresholds.yaml最適化（87.8%削減）・構造最適化・企業級品質実現・統合実行環境
+- **品質保証**: 625テスト100%成功・58.64%カバレッジ・CI/CD統合・Phase 22最適化品質
+- **Phase 22最適化**: 設定最適化完了・26キー重複問題解決・unified.yaml/thresholds.yaml最適化・真のシステム性能発揮・統合実行環境
 
 ## 🌟 主要機能
 
@@ -92,7 +92,7 @@ ls -t src/backtest/logs/backtest_*.json | head -1 | xargs cat | jq '.execution_s
 ### **🔍 動作確認**
 ```bash
 # 品質チェック（開発時推奨）
-bash scripts/testing/checks.sh                    # 620テスト（415成功）・約30秒
+bash scripts/testing/checks.sh                    # 625テスト100%成功・約30秒
 
 # システム状態確認
 python3 scripts/testing/dev_check.py validate     # 設定・整合性チェック

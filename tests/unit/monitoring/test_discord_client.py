@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
-from src.monitoring.discord_notifier import DiscordClient
+from src.core.reporting.discord_notifier import DiscordClient
 
 
 class TestDiscordClient:

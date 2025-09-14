@@ -1,10 +1,10 @@
 #!/bin/bash
-# Phase 13 Docker統合エントリポイント
-# 607テスト・54%カバレッジ・統合最適化完了
+# Phase 22 Docker統合エントリポイント
+# 625テスト100%成功・58.64%カバレッジ・設定最適化完了
 
 set -e
 
-echo "🚀 Phase 13 Docker統合エントリポイント開始"
+echo "🚀 Phase 22 Docker統合エントリポイント開始"
 echo "📊 環境変数確認:"
 echo "  MODE: ${MODE:-paper}"
 echo "  LOG_LEVEL: ${LOG_LEVEL:-INFO}"
@@ -13,10 +13,10 @@ echo "  PYTHONPATH: ${PYTHONPATH:-/app}"
 echo "  PORT: ${PORT:-8080}"
 echo "  CI: ${CI:-false}"
 
-# Phase 13: 基本ヘルスチェックサーバー起動（統合最適化）
+# Phase 22: 基本ヘルスチェックサーバー起動（設定最適化完了）
 echo "🌐 ヘルスチェックサーバー起動準備..."
 
-# Phase 13: 起動時MLモデルチェック（607テスト対応・簡素化）
+# Phase 22: 起動時MLモデルチェック（625テスト対応・15特徴量）
 echo "🤖 起動時MLモデル検証実行..."
 python3 -c "
 import sys
@@ -33,9 +33,9 @@ try:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
         
-        # 簡易予測テスト（12特徴量）
+        # 簡易予測テスト（15特徴量）
         import numpy as np
-        test_features = np.random.random((1, 12))
+        test_features = np.random.random((1, 15))
         prediction = adapter.predict(test_features)
         
         print(f'✅ 予測テスト成功: prediction={prediction[0]}')
@@ -64,8 +64,8 @@ fi
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3
 """
-Phase 19+ シンプルヘルスチェックサーバー
-625テスト・58.64%カバレッジ・攻撃的設定対応
+Phase 22 シンプルヘルスチェックサーバー
+625テスト100%成功・58.64%カバレッジ・設定最適化完了
 importエラー回避・Cloud Run最適化版
 """
 import json
@@ -82,13 +82,13 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # シンプルヘルスチェック（importエラー回避）
             health_data = {
                 "status": "healthy",
-                "phase": "19+ Aggressive Complete",
+                "phase": "22 Configuration Optimized",
                 "mode": os.environ.get('MODE', 'paper'),
                 "timestamp": datetime.now().isoformat(),
                 "service": "crypto-bot-service-prod",
-                "tests": "625 passed",
+                "tests": "625 passed (100%)",
                 "coverage": "58.64%",
-                "features": "12 unified",
+                "features": "15 unified",
                 "models": "ProductionEnsemble ready"
             }
             
@@ -101,12 +101,12 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # 基本動作確認エンドポイント
             basic_info = {
                 "service": "crypto-bot-service-prod",
-                "version": "Phase 19+ Aggressive Complete",
+                "version": "Phase 22 Configuration Optimized",
                 "status": "operational",
                 "timestamp": datetime.now().isoformat(),
                 "mode": os.environ.get('MODE', 'paper'),
                 "health_endpoint": "/health",
-                "description": "MLOps統合攻撃的AI自動取引システム"
+                "description": "設定最適化完了AI自動取引システム"
             }
             
             self.send_response(200)

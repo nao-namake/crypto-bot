@@ -1,5 +1,5 @@
 """
-基底レポートクラス - Phase 14-B リファクタリング
+基底レポートクラス - Phase 22 リファクタリング
 
 レポート生成の共通機能・インターフェースを提供。
 orchestrator.pyから分離したレポート機能の基盤。
@@ -24,7 +24,11 @@ class BaseReporter:
             logger: ログシステム
         """
         self.logger = logger
-        self.report_base_dir = Path("logs/reports")
+        # 設定ファイルからパスを取得
+        from ..config import get_threshold
+
+        base_dir = get_threshold("reporting.base_dir", "logs/reports")
+        self.report_base_dir = Path(base_dir)
         self.report_base_dir.mkdir(parents=True, exist_ok=True)
 
     async def save_report(self, data: Dict, report_type: str, file_prefix: str = "") -> Path:
@@ -169,7 +173,7 @@ class BaseReporter:
             "timestamp": datetime.now().isoformat(),
             "error_message": error_message,
             "context": context or {},
-            "system_info": {"module": "BaseReporter", "phase": "14-B"},
+            "system_info": {"module": "BaseReporter", "phase": "22"},
         }
 
         return await self.save_report(error_data, "errors", "error")

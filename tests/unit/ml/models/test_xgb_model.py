@@ -60,9 +60,11 @@ class TestXGBModel:
         """デフォルトパラメータ初期化テスト"""
         model = XGBModel()
 
-        assert model.model_params["n_estimators"] == 100
-        assert model.model_params["max_depth"] == 6
-        assert model.model_params["learning_rate"] == 0.05  # デフォルト値は0.05
+        assert model.model_params["objective"] == "binary:logistic"
+        assert model.model_params["verbosity"] == 0
+        assert model.model_params["eval_metric"] == "logloss"
+        assert model.model_params["use_label_encoder"] is False
+        assert model.model_params["tree_method"] == "hist"
         assert model.model_params["random_state"] == 42  # 環境変数から設定
         # early_stopping_roundsはデフォルトで設定されない
 

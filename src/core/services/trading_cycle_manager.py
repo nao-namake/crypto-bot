@@ -1,5 +1,5 @@
 """
-取引サイクルマネージャー - Phase 14-B リファクタリング
+取引サイクルマネージャー - Phase 22 リファクタリング
 
 orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行の
@@ -128,8 +128,11 @@ class TradingCycleManager:
                 self.logger.critical(f"特徴量生成予期しないエラー: {timeframe}, エラー: {e}")
                 features[timeframe] = pd.DataFrame()
 
-        # メインの特徴量データとして4時間足を使用
-        main_features = features.get("4h", pd.DataFrame())
+        # 設定からメインタイムフレームを取得
+        from ..config import get_data_config
+
+        main_timeframe = get_data_config("timeframes", ["4h", "15m"])[0]  # 最初の要素がメイン
+        main_features = features.get(main_timeframe, pd.DataFrame())
         return features, main_features
 
     async def _evaluate_strategy(self, main_features):
@@ -152,7 +155,7 @@ class TradingCycleManager:
         """Phase 5: ML予測"""
         try:
             if not main_features.empty:
-                # Phase 19: 12特徴量のみを選択してML予測（特徴量数不一致修正）
+                # Phase 22: 15特徴量のみを選択してML予測（特徴量数不一致修正）
                 from ...core.config.feature_manager import get_feature_names
 
                 features_to_use = get_feature_names()
@@ -253,12 +256,17 @@ class TradingCycleManager:
 
         # 安全にmarket_dataから価格を取得
         try:
+            # 設定からメインタイムフレームを取得
+            from ..config import get_data_config
+
+            main_timeframe = get_data_config("timeframes", ["4h", "15m"])[0]  # 最初の要素がメイン
+
             if (
                 isinstance(market_data, dict)
-                and "4h" in market_data
-                and not market_data["4h"].empty
+                and main_timeframe in market_data
+                and not market_data[main_timeframe].empty
             ):
-                close_price = market_data["4h"]["close"].iloc[-1]
+                close_price = market_data[main_timeframe]["close"].iloc[-1]
                 bid = close_price * get_threshold("trading.bid_spread_ratio", 0.999)
                 ask = close_price * get_threshold("trading.ask_spread_ratio", 1.001)
             else:

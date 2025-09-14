@@ -39,12 +39,60 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """12特徴量サンプルデータ作成"""
+        """15特徴量サンプルデータ作成"""
         return np.array(
             [
-                [100.0, 1000.0, 0.01, 50.0, 0.05, 0.02, 1.2, 0.5, 98.0, 95.0, 0.1, 1.1],
-                [101.0, 1100.0, 0.02, 55.0, 0.06, 0.03, 1.3, 0.4, 99.0, 96.0, 0.2, 1.2],
-                [99.0, 950.0, -0.01, 45.0, 0.04, 0.01, 1.1, 0.6, 97.0, 94.0, -0.1, 0.9],
+                [
+                    100.0,
+                    1000.0,
+                    50.0,
+                    0.05,
+                    0.02,
+                    1.2,
+                    0.5,
+                    98.0,
+                    95.0,
+                    1.1,
+                    4510000.0,
+                    4490000.0,
+                    0.45,
+                    25.0,
+                    15.0,
+                ],
+                [
+                    101.0,
+                    1100.0,
+                    55.0,
+                    0.06,
+                    0.03,
+                    1.3,
+                    0.4,
+                    99.0,
+                    96.0,
+                    1.2,
+                    4520000.0,
+                    4500000.0,
+                    0.55,
+                    30.0,
+                    20.0,
+                ],
+                [
+                    99.0,
+                    950.0,
+                    45.0,
+                    0.04,
+                    0.01,
+                    1.1,
+                    0.6,
+                    97.0,
+                    94.0,
+                    0.9,
+                    4500000.0,
+                    4480000.0,
+                    0.35,
+                    20.0,
+                    10.0,
+                ],
             ]
         )
 
@@ -61,9 +109,9 @@ class TestProductionEnsemble:
         assert "lightgbm" in ensemble.models
         assert "xgboost" in ensemble.models
         assert "random_forest" in ensemble.models
-        assert ensemble.n_features_ == 12
+        assert ensemble.n_features_ == 15
         assert ensemble.is_fitted is True
-        assert len(ensemble.feature_names) == 12
+        assert len(ensemble.feature_names) == 15
         assert "close" in ensemble.feature_names
         assert "rsi_14" in ensemble.feature_names
 
@@ -112,9 +160,9 @@ class TestProductionEnsemble:
         assert info["type"] == "ProductionEnsemble"
         assert len(info["individual_models"]) == 3
         assert "lightgbm" in info["individual_models"]
-        assert info["n_features"] == 12
-        assert len(info["feature_names"]) == 12
-        assert info["phase"] == "Phase 18"
+        assert info["n_features"] == 15
+        assert len(info["feature_names"]) == 15
+        assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
 
@@ -211,7 +259,7 @@ class TestProductionEnsemble:
 
         assert "ProductionEnsemble" in repr_str
         assert "models=3" in repr_str
-        assert "features=12" in repr_str
+        assert "features=15" in repr_str
         assert "weights=" in repr_str
 
     def test_pandas_dataframe_input(self, mock_models):
@@ -226,21 +274,24 @@ class TestProductionEnsemble:
 
             ensemble = ProductionEnsemble(mock_models)
 
-            # DataFrame形式のデータ
+            # DataFrame形式のデータ (15特徴量)
             df_data = pd.DataFrame(
                 {
                     "close": [100.0, 101.0],
                     "volume": [1000.0, 1100.0],
-                    "returns_1": [0.01, 0.02],
                     "rsi_14": [50.0, 55.0],
                     "macd": [0.05, 0.06],
-                    "macd_signal": [0.02, 0.03],
                     "atr_14": [1.2, 1.3],
                     "bb_position": [0.5, 0.4],
                     "ema_20": [98.0, 99.0],
                     "ema_50": [95.0, 96.0],
-                    "zscore": [0.1, 0.2],
                     "volume_ratio": [1.1, 1.2],
+                    "donchian_high_20": [102.0, 103.0],
+                    "donchian_low_20": [98.0, 99.0],
+                    "channel_position": [0.6, 0.7],
+                    "adx_14": [25.0, 30.0],
+                    "plus_di_14": [20.0, 25.0],
+                    "minus_di_14": [15.0, 20.0],
                 }
             )
 
@@ -303,12 +354,60 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """12特徴量サンプルデータ作成"""
+        """15特徴量サンプルデータ作成"""
         return np.array(
             [
-                [100.0, 1000.0, 0.01, 50.0, 0.05, 0.02, 1.2, 0.5, 98.0, 95.0, 0.1, 1.1],
-                [101.0, 1100.0, 0.02, 55.0, 0.06, 0.03, 1.3, 0.4, 99.0, 96.0, 0.2, 1.2],
-                [99.0, 950.0, -0.01, 45.0, 0.04, 0.01, 1.1, 0.6, 97.0, 94.0, -0.1, 0.9],
+                [
+                    100.0,
+                    1000.0,
+                    50.0,
+                    0.05,
+                    0.02,
+                    1.2,
+                    0.5,
+                    98.0,
+                    95.0,
+                    1.1,
+                    4510000.0,
+                    4490000.0,
+                    0.45,
+                    25.0,
+                    15.0,
+                ],
+                [
+                    101.0,
+                    1100.0,
+                    55.0,
+                    0.06,
+                    0.03,
+                    1.3,
+                    0.4,
+                    99.0,
+                    96.0,
+                    1.2,
+                    4520000.0,
+                    4500000.0,
+                    0.55,
+                    30.0,
+                    20.0,
+                ],
+                [
+                    99.0,
+                    950.0,
+                    45.0,
+                    0.04,
+                    0.01,
+                    1.1,
+                    0.6,
+                    97.0,
+                    94.0,
+                    0.9,
+                    4500000.0,
+                    4480000.0,
+                    0.35,
+                    20.0,
+                    10.0,
+                ],
             ]
         )
 
@@ -320,8 +419,8 @@ class TestProductionEnsembleEdgeCases:
 
         ensemble = ProductionEnsemble({"single": mock_single})
 
-        # 12特徴量データ
-        data = np.random.random((2, 12))
+        # 15特徴量データ
+        data = np.random.random((2, 15))
         predictions = ensemble.predict(data)
         probabilities = ensemble.predict_proba(data)
 
@@ -347,8 +446,8 @@ class TestProductionEnsembleEdgeCases:
         """大規模データセット性能テスト"""
         ensemble = ProductionEnsemble(mock_models)
 
-        # 1000サンプルの大きなデータセット
-        large_data = np.random.random((1000, 12))
+        # 1000サンプルの大きなデータセット (15特徴量)
+        large_data = np.random.random((1000, 15))
 
         # モックの戻り値を大きなサイズに調整
         for model in mock_models.values():

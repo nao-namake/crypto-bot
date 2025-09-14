@@ -73,10 +73,18 @@ class BitbankClient:
     def test_connection(self) -> bool:
         """API接続テスト."""
         try:
-            # 公開API（認証不要）でテスト
-            ticker = self.exchange.fetch_ticker("BTC/JPY")
+            # 公開API（認証不要）でテスト（設定から取得）
+            try:
+                from ..core.config import get_config
+
+                config = get_config()
+                symbol = config.exchange.symbol
+            except Exception:
+                symbol = "BTC/JPY"  # フォールバック
+
+            ticker = self.exchange.fetch_ticker(symbol)
             self.logger.info(
-                f"Bitbank API接続テスト成功 - BTC/JPY価格: ¥{ticker['last']:,.0f}",
+                f"Bitbank API接続テスト成功 - {symbol}価格: ¥{ticker['last']:,.0f}",
                 extra_data={"price": ticker["last"]},
             )
             return True
@@ -87,7 +95,7 @@ class BitbankClient:
 
     async def fetch_ohlcv(
         self,
-        symbol: str = "BTC/JPY",
+        symbol: str = None,
         timeframe: str = "1h",
         since: Optional[int] = None,
         limit: int = 100,
@@ -96,7 +104,7 @@ class BitbankClient:
         OHLCV データ取得（4時間足は直接API実装を使用）
 
         Args:
-            symbol: 通貨ペア
+            symbol: 通貨ペア（Noneの場合は設定から取得）
             timeframe: タイムフレーム（1m, 5m, 15m, 30m, 1h, 4h, 8h, 12h, 1d, 1w）
             since: 開始時刻（ミリ秒）
             limit: 取得件数
@@ -107,9 +115,19 @@ class BitbankClient:
         Raises:
             DataFetchError: データ取得失敗時.
         """
+        # symbolが未指定の場合は設定から取得
+        if symbol is None:
+            try:
+                from ..core.config import get_config
+
+                config = get_config()
+                symbol = config.exchange.symbol
+            except Exception:
+                symbol = "BTC/JPY"  # フォールバック
+
         # 4時間足の場合は直接API実装を使用（ccxt制約回避）
         if timeframe == "4h":
-            self.logger.debug(f"4時間足検出: 直接API実装を使用")
+            self.logger.debug("4時間足検出: 直接API実装を使用")
             import asyncio
             from datetime import datetime
 
@@ -196,7 +214,15 @@ class BitbankClient:
             pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
             url = f"https://public.bitbank.cc/{pair}/candlestick/4hour/{year}"
 
-            async with aiohttp.ClientSession() as session:
+            # SSL証明書検証を無効化（macOSのPython証明書問題対応）
+            import ssl
+
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(connector=connector) as session:
                 timeout = aiohttp.ClientTimeout(total=10.0)
                 async with session.get(url, timeout=timeout) as response:
                     data = await response.json()
@@ -505,7 +531,7 @@ class BitbankClient:
 
             return cancel_result
 
-        except ccxt.OrderNotFound as e:
+        except ccxt.OrderNotFound:
             raise ExchangeAPIError(
                 f"注文が見つかりません: {order_id}",
                 context={"operation": "cancel_order", "order_id": order_id},
@@ -556,7 +582,7 @@ class BitbankClient:
 
             return order
 
-        except ccxt.OrderNotFound as e:
+        except ccxt.OrderNotFound:
             raise ExchangeAPIError(
                 f"注文が見つかりません: {order_id}",
                 context={"operation": "fetch_order", "order_id": order_id},

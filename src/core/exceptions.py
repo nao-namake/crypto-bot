@@ -80,22 +80,6 @@ class TradingError(CryptoBotError):
         self.context.update({"order_id": order_id, "symbol": symbol})
 
 
-class MLModelError(CryptoBotError):
-    """機械学習モデルエラー."""
-
-    def __init__(
-        self,
-        message: str,
-        model_name: Optional[str] = None,
-        feature_count: Optional[int] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(message, **kwargs)
-        self.model_name = model_name
-        self.feature_count = feature_count
-        self.context.update({"model_name": model_name, "feature_count": feature_count})
-
-
 class RiskManagementError(CryptoBotError):
     """リスク管理エラー."""
 
@@ -110,31 +94,6 @@ class RiskManagementError(CryptoBotError):
         self.risk_level = risk_level
         self.position_size = position_size
         self.context.update({"risk_level": risk_level, "position_size": position_size})
-
-
-class StrategyError(CryptoBotError):
-    """戦略実行エラー."""
-
-    def __init__(
-        self,
-        message: str,
-        strategy_name: Optional[str] = None,
-        confidence: Optional[float] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(message, **kwargs)
-        self.strategy_name = strategy_name
-        self.confidence = confidence
-        self.context.update({"strategy_name": strategy_name, "confidence": confidence})
-
-
-class NotificationError(CryptoBotError):
-    """通知システムエラー."""
-
-    def __init__(self, message: str, notification_type: Optional[str] = None, **kwargs) -> None:
-        super().__init__(message, **kwargs)
-        self.notification_type = notification_type
-        self.context.update({"notification_type": notification_type})
 
 
 class DataProcessingError(CryptoBotError):
@@ -153,29 +112,33 @@ class DataProcessingError(CryptoBotError):
         self.context.update({"data_type": data_type, "processing_stage": processing_stage})
 
 
-# Phase 14-A追加: ML・API・ファイルI/O関連の具体的例外
-class ModelLoadError(MLModelError):
+# Phase 22スリム化後の例外定義: ML・API・ファイルI/O関連の具体的例外
+class ModelLoadError(CryptoBotError):
     """モデルファイル読み込みエラー"""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        model_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.model_name = model_name
+        self.context.update({"model_name": model_name})
 
 
-class ModelPredictionError(MLModelError):
+class ModelPredictionError(CryptoBotError):
     """ML予測実行エラー"""
 
-    pass
-
-
-class APITimeoutError(ExchangeAPIError):
-    """API通信タイムアウトエラー"""
-
-    pass
-
-
-class APIAuthenticationError(ExchangeAPIError):
-    """API認証エラー"""
-
-    pass
+    def __init__(
+        self,
+        message: str,
+        model_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.model_name = model_name
+        self.context.update({"model_name": model_name})
 
 
 class FileIOError(DataProcessingError):
@@ -208,44 +171,8 @@ class HealthCheckError(CryptoBotError):
         self.context.update({"service_name": service_name})
 
 
-# 緊急停止が必要なクリティカルエラー
-class CriticalError(CryptoBotError):
-    """
-    緊急停止が必要なクリティカルエラー
-
-    このエラーが発生した場合は、取引を即座に停止し、
-    管理者への緊急通知を行う必要がある.
-    """
-
-    pass
-
-
-class InsufficientFundsError(TradingError):
-    """資金不足エラー."""
-
-    pass
-
-
-class ConnectionError(ExchangeAPIError):
-    """接続エラー."""
-
-    pass
-
-
-class RateLimitError(ExchangeAPIError):
-    """レート制限エラー."""
-
-    pass
-
-
-class ValidationError(CryptoBotError):
-    """入力値検証エラー."""
-
-    pass
-
-
 class DataQualityError(DataProcessingError):
-    """データ品質エラー（Phase 12 バックテスト用・CI/CD統合対応）."""
+    """データ品質エラー（Phase 22 バックテスト用・CI/CD統合対応）."""
 
     def __init__(
         self,
@@ -268,6 +195,20 @@ class DataQualityError(DataProcessingError):
         )
 
 
+class StrategyError(CryptoBotError):
+    """戦略システムエラー（Phase 22で必要性確認・再追加）."""
+
+    def __init__(
+        self,
+        message: str,
+        strategy_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.strategy_name = strategy_name
+        self.context.update({"strategy_name": strategy_name})
+
+
 # エラー重要度レベル
 class ErrorSeverity:
     """エラー重要度定義."""
@@ -284,23 +225,15 @@ ERROR_SEVERITY_MAP = {
     DataFetchError: ErrorSeverity.MEDIUM,
     ExchangeAPIError: ErrorSeverity.MEDIUM,
     TradingError: ErrorSeverity.HIGH,
-    MLModelError: ErrorSeverity.MEDIUM,
     RiskManagementError: ErrorSeverity.HIGH,
-    StrategyError: ErrorSeverity.MEDIUM,
-    NotificationError: ErrorSeverity.LOW,
-    CriticalError: ErrorSeverity.CRITICAL,
-    InsufficientFundsError: ErrorSeverity.HIGH,
-    ConnectionError: ErrorSeverity.MEDIUM,
-    RateLimitError: ErrorSeverity.LOW,
-    ValidationError: ErrorSeverity.LOW,
     DataProcessingError: ErrorSeverity.MEDIUM,
-    # Phase 14-A追加
+    # Phase 22スリム化: 実際に使用されている例外のみ
     ModelLoadError: ErrorSeverity.HIGH,
     ModelPredictionError: ErrorSeverity.MEDIUM,
-    APITimeoutError: ErrorSeverity.MEDIUM,
-    APIAuthenticationError: ErrorSeverity.HIGH,
     FileIOError: ErrorSeverity.MEDIUM,
     HealthCheckError: ErrorSeverity.MEDIUM,
+    DataQualityError: ErrorSeverity.MEDIUM,
+    StrategyError: ErrorSeverity.HIGH,  # Phase 22で再追加・戦略システム重要度高
 }
 
 

@@ -18,23 +18,23 @@ scripts/testing/
 ### **checks.sh**
 システム全体の品質チェックとテスト実行を管理するメインスクリプトです。
 - **テスト実行**: pytest による全テストスイート実行・単体/統合テスト
-- **カバレッジ測定**: coverage による網羅率測定・HTML/JSON/Term出力
+- **カバレッジ測定**: coverage による網羅率測定（Phase 22: 58.64%達成・55%目標）・HTML/JSON/Term出力
 - **コードスタイル**: flake8・black・isort によるPEP8準拠チェック
 - **ディレクトリ構造確認**: プロジェクト構造・ファイル存在確認
 - **品質ゲート**: 品質基準チェック・CI/CD統合・デプロイ前確認
 - **レポート生成**: coverage-reports/への詳細レポート出力
-- 約4.3KBの実装ファイル・約30秒で完了
+- 約4.3KBの実装ファイル（Phase 22最適化・625テスト・15特徴量）・約30秒で完了
 
 ### **dev_check.py**
 開発・運用における統合管理とシステム診断を担当するCLIツールです。
-- **統合品質チェック**: テスト・カバレッジ・コード品質の一括確認
-- **機械学習検証**: モデル学習・ProductionEnsemble作成・性能評価
+- **統合品質チェック**: 625テスト・58.64%カバレッジ・コード品質のPhase 22最適化一括確認
+- **機械学習検証**: モデル学習・ProductionEnsemble作成（Phase 22・15特徴量統合）・性能評価
 - **システム診断**: 設定確認・依存関係確認・環境検証
-- **データ検証**: 市場データ取得・特徴量生成・データ品質確認
+- **データ検証**: 市場データ取得・15特徴量生成（feature_manager統合）・データ品質確認
 - **本番環境監視**: Cloud Run・GCP・Discord通知・ヘルスチェック
 - **自動レポート**: Markdown形式・logs/reports/ci_checks/への保存
 - **多機能CLI**: validate・ml-models・status・health-check等のサブコマンド
-- 約62.3KBの大規模実装ファイル
+- 約62.3KBの大規模実装ファイル（Phase 22 MLOps統合版・625テスト・15特徴量）
 
 ### **主要機能と特徴**
 - **継続的品質保証**: 開発サイクルでの品質維持・回帰防止・自動化
@@ -50,10 +50,11 @@ scripts/testing/
 # 基本的な品質チェック（開発時必須）
 bash scripts/testing/checks.sh
 
-# 期待結果:
-# ✅ 全テスト成功
-# ✅ カバレッジ基準達成
-# ✅ コードスタイル準拠
+# 期待結果（Phase 22標準）:
+# ✅ 625テスト100%成功
+# ✅ 58.64%カバレッジ達成（目樇55%クリア）
+# ✅ コードスタイル準拠（flake8・black・isort）
+# ✅ 15特徴量統合システム正常動作
 # ✅ 約30秒で完了
 
 # カバレッジレポート確認
@@ -62,7 +63,7 @@ open coverage-reports/htmlcov/index.html
 
 ### **統合開発管理CLI**
 ```bash
-# 包括的品質チェック（推奨）
+# Phase 22統合品質チェック（推奨）
 python3 scripts/testing/dev_check.py full-check
 
 # 個別機能チェック
@@ -87,16 +88,19 @@ else
 fi
 
 # デプロイ前最終確認
-python3 scripts/testing/dev_check.py full-check --production
+python3 scripts/testing/dev_check.py full-check
 ```
 
 ### **機械学習モデル管理**
 ```bash
-# モデル学習・検証
+# 15特徴量統合MLモデル学習・検証
 python3 scripts/testing/dev_check.py ml-models --verbose
 
 # ドライラン（実行前確認）
 python3 scripts/testing/dev_check.py ml-models --dry-run
+
+# Phase 22統合ProductionEnsemble作成
+python3 scripts/ml/create_ml_models.py --verbose
 
 # 期待結果:
 # ✅ 特徴量生成確認

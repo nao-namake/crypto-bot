@@ -1,5 +1,5 @@
 """
-ペーパートレードランナー - Phase 14-B リファクタリング
+ペーパートレードランナー - Phase 22 ハードコード排除・統合最適化
 
 orchestrator.pyから分離したペーパートレード実行機能。
 ペーパートレードモードの専用処理・セッション管理を担当。
@@ -66,8 +66,9 @@ class PaperTradingRunner(BaseRunner):
                 await self._execute_trading_cycle()
                 self.cycle_count += 1
 
-                # 10サイクルごと（約10分）にレポート生成
-                if self.cycle_count % 10 == 0:
+                # 定期レポート生成（Phase 22: ハードコード排除）
+                report_interval = get_threshold("execution.paper_report_interval", 10)
+                if self.cycle_count % report_interval == 0:
                     await self._generate_periodic_report()
 
                 # ペーパートレード実行間隔（外部化）
@@ -93,7 +94,7 @@ class PaperTradingRunner(BaseRunner):
             # セッション統計収集
             session_stats = self._collect_session_stats()
 
-            # レポート保存（Phase 14-B分離済み）
+            # レポート保存（Phase 22 ハードコード排除対応）
             await self.orchestrator.paper_trading_reporter.generate_session_report(session_stats)
 
         except Exception as e:
@@ -112,7 +113,9 @@ class PaperTradingRunner(BaseRunner):
                     self.orchestrator.execution_service, "executed_trades", 0
                 ),
                 "current_balance": getattr(
-                    self.orchestrator.execution_service, "current_balance", 1000000
+                    self.orchestrator.execution_service,
+                    "current_balance",
+                    get_threshold("execution.default_balance_jpy", 1000000),
                 ),
                 "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
                 "recent_trades": getattr(self.orchestrator.execution_service, "recent_trades", []),
@@ -132,8 +135,10 @@ class PaperTradingRunner(BaseRunner):
             "total_signals": getattr(self.orchestrator.execution_service, "total_signals", 0),
             "executed_trades": getattr(self.orchestrator.execution_service, "executed_trades", 0),
             "current_balance": getattr(
-                self.orchestrator.execution_service, "current_balance", 1000000
-            ),  # デフォルト100万円
+                self.orchestrator.execution_service,
+                "current_balance",
+                get_threshold("execution.default_balance_jpy", 1000000),
+            ),  # デフォルト値を設定から取得
             "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
             "recent_trades": getattr(self.orchestrator.execution_service, "recent_trades", []),
         }
@@ -195,22 +200,3 @@ class PaperTradingRunner(BaseRunner):
 
         except Exception as e:
             self.logger.error(f"❌ ペーパートレード最終統計保存エラー: {e}")
-
-    def get_session_summary(self):
-        """セッションサマリー取得"""
-        if not self.session_start:
-            return None
-
-        duration = (datetime.now() - self.session_start).total_seconds() / 3600  # 時間
-
-        return {
-            "session_start": self.session_start.strftime("%Y-%m-%d %H:%M:%S"),
-            "duration_hours": round(duration, 2),
-            "cycles_completed": self.cycle_count,
-            "total_signals": getattr(self.orchestrator.execution_service, "total_signals", 0),
-            "executed_trades": getattr(self.orchestrator.execution_service, "executed_trades", 0),
-            "current_balance": getattr(
-                self.orchestrator.execution_service, "current_balance", 1000000
-            ),
-            "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
-        }

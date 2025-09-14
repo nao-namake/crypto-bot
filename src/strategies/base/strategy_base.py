@@ -1,14 +1,13 @@
 """
 戦略ベースクラス実装 - すべての戦略の基盤
 
-レガシーシステムの複雑な継承構造を排除し、
 シンプルで理解しやすい戦略実装を提供。
 
 主要コンポーネント:
 - StrategySignal: 戦略シグナルデータクラス
 - StrategyBase: 全戦略の基底クラス
 
-Phase 4実装日: 2025年8月18日.
+Phase 21完了: 2025年9月12日.
 """
 
 from abc import ABC, abstractmethod

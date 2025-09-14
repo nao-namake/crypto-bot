@@ -1,15 +1,16 @@
 """
-取引リスク監視統合システム - Phase 18統合版
+取引リスク監視統合システム - Phase 22統合版
 
-anomaly_detector.py と drawdown_manager.py を統合し、
+異常検知とドローダウン管理を統合し、
 取引実行時のリスク監視機能を一元化。
 
-統合効果:
-- ファイル数削減: 2→1（監視系機能の統合）
-- 共通処理の統一: logger、config、エラーハンドリング
-- 管理簡素化: 関連監視機能の一元化
+統合機能:
+- 異常検知システム（スプレッド、API遅延、価格スパイク）
+- ドローダウン管理（連続損失、最大ドローダウン制御）
+- 取引状況監視（ACTIVE/PAUSED状態管理）
+- リスク状態の永続化・復元
 
-Phase 18統合実装日: 2025年8月30日.
+Phase 22統合: 2025年9月14日.
 """
 
 import json
@@ -159,7 +160,7 @@ class TradingAnomalyDetector:
         self.market_conditions: List[MarketCondition] = []
         self.anomaly_history: List[AnomalyAlert] = []
 
-        # Phase 18統合: FeatureGenerator統合クラスを使用
+        # Phase 22統合: FeatureGenerator統合クラスを使用
         self.market_anomaly_detector = FeatureGenerator(lookback_period)
 
         self.logger = get_logger()
@@ -518,28 +519,26 @@ class TradingAnomalyDetector:
                 if volume_alert:
                     alerts.append(volume_alert)
 
-            # Phase 3異常検知との連携（市場データがある場合）
-            if market_data is not None:
-                try:
-                    market_features = self.market_anomaly_detector.generate_features_sync(
-                        market_data
-                    )
-                    # Phase 19: market_stress削除（12特徴量統一）
-                    # if "market_stress" in market_features.columns:
-                    #     latest_stress = market_features["market_stress"].iloc[-1]
-                    #     if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2σ以上
-                    #         alerts.append(
-                    #             AnomalyAlert(
-                    #                 timestamp=datetime.now(),
-                    #                 anomaly_type="market_stress",
-                    #                 level=AnomalyLevel.WARNING,
-                    #                 value=latest_stress,
-                    #                 threshold=2.0,
-                    #                 message=f"市場ストレス検出: {latest_stress:.2f}σ",
-                    #                 should_pause_trading=False,
-                    #             )
-                except Exception as market_error:
-                    self.logger.warning(f"Phase 3異常検知連携エラー: {market_error}")
+            # Phase 3異常検知との連携（Phase 19で削除済み）
+            # if market_data is not None:
+            #     try:
+            #         # Phase 22: market_stress削除（15特徴量統一）により特徴量生成を無効化
+            #         market_features = self.market_anomaly_detector.generate_features_sync(market_data)
+            #         if "market_stress" in market_features.columns:
+            #             latest_stress = market_features["market_stress"].iloc[-1]
+            #             if not pd.isna(latest_stress) and latest_stress > 2.0:  # 2σ以上
+            #                 alerts.append(
+            #                     AnomalyAlert(
+            #                         timestamp=datetime.now(),
+            #                         anomaly_type="market_stress",
+            #                         level=AnomalyLevel.WARNING,
+            #                         value=latest_stress,
+            #                         threshold=2.0,
+            #                         message=f"市場ストレス検出: {latest_stress:.2f}σ",
+            #                         should_pause_trading=False,
+            #                     )
+            #     except Exception as market_error:
+            #         self.logger.warning(f"Phase 3異常検知連携エラー: {market_error}")
 
             # アラート履歴に追加
             self.anomaly_history.extend(alerts)

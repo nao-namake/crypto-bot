@@ -1,10 +1,10 @@
 """
-特徴量管理システム - Phase 19
+特徴量管理システム - Phase 22 ハードコード排除継続
 
 特徴量定義の一元化により、ハードコーディング排除と保守性向上を実現。
 config/core/feature_order.jsonを真の情報源として全システムが統一的に参照。
 
-Phase 19完了: 2025年9月4日
+Phase 22最適化: 2025年9月13日
 """
 
 import json
@@ -55,14 +55,17 @@ class FeatureManager:
     def _get_default_feature_config(self) -> Dict:
         """デフォルト特徴量設定（フォールバック）"""
         return {
-            "total_features": 12,
+            "total_features": 15,
             "feature_categories": {
-                "basic": {"features": ["close", "volume", "returns_1"]},
-                "momentum": {"features": ["rsi_14", "macd", "macd_signal"]},
+                "basic": {"features": ["close", "volume"]},
+                "momentum": {"features": ["rsi_14", "macd"]},
                 "volatility": {"features": ["atr_14", "bb_position"]},
                 "trend": {"features": ["ema_20", "ema_50"]},
                 "volume": {"features": ["volume_ratio"]},
-                "anomaly": {"features": ["zscore"]},
+                "breakout": {
+                    "features": ["donchian_high_20", "donchian_low_20", "channel_position"]
+                },
+                "regime": {"features": ["adx_14", "plus_di_14", "minus_di_14"]},
             },
         }
 
@@ -87,7 +90,8 @@ class FeatureManager:
                 "volatility",
                 "trend",
                 "volume",
-                "anomaly",
+                "breakout",
+                "regime",
             ]
 
             for category in category_order:
@@ -100,16 +104,19 @@ class FeatureManager:
         return [
             "close",
             "volume",
-            "returns_1",
             "rsi_14",
             "macd",
-            "macd_signal",
             "atr_14",
             "bb_position",
             "ema_20",
             "ema_50",
             "volume_ratio",
-            "zscore",
+            "donchian_high_20",
+            "donchian_low_20",
+            "channel_position",
+            "adx_14",
+            "plus_di_14",
+            "minus_di_14",
         ]
 
     def get_feature_count(self) -> int:
@@ -145,12 +152,13 @@ class FeatureManager:
 
         # デフォルトカテゴリ
         return {
-            "basic": ["close", "volume", "returns_1"],
-            "momentum": ["rsi_14", "macd", "macd_signal"],
+            "basic": ["close", "volume"],
+            "momentum": ["rsi_14", "macd"],
             "volatility": ["atr_14", "bb_position"],
             "trend": ["ema_20", "ema_50"],
             "volume": ["volume_ratio"],
-            "anomaly": ["zscore"],
+            "breakout": ["donchian_high_20", "donchian_low_20", "channel_position"],
+            "regime": ["adx_14", "plus_di_14", "minus_di_14"],
         }
 
     def validate_features(self, features: List[str]) -> bool:

@@ -1,14 +1,14 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 18統合版
+戦略共通ユーティリティ統合モジュール - Phase 21統合版
 
-以下の3つのファイルを統合し、保守性を向上：
-- constants.py: 戦略共通定数定義
-- risk_manager.py: リスク管理計算
-- signal_builder.py: シグナル生成処理
+戦略関連のユーティリティ機能を統合管理：
+- 戦略定数：EntryAction、StrategyType統一
+- リスク管理：戦略レベルリスク評価
+- シグナル生成：統一的なシグナル構築
 
-統合により関連機能を一元化し、管理しやすい構造に改善。
+統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 18統合実装日: 2025年8月30日
+Phase 21完了: 2025年9月12日.
 """
 
 from datetime import datetime
@@ -36,7 +36,9 @@ class StrategyType:
 
     MOCHIPOY_ALERT = "mochipoy_alert"
     ATR_BASED = "atr_based"
-    FIBONACCI_RETRACEMENT = "fibonacci"
+    BOLLINGER_BANDS = "bollinger_bands"
+    DONCHIAN_CHANNEL = "donchian_channel"
+    ADX_TREND = "adx_trend"
     MULTI_TIMEFRAME = "multi_timeframe"
 
 

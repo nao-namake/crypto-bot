@@ -57,11 +57,11 @@ class TestRFModel:
         """デフォルトパラメータ初期化テスト"""
         model = RFModel()
 
-        assert model.model_params["n_estimators"] == 100
-        assert model.model_params["max_depth"] == 10  # デフォルトは10
+        assert model.model_params["n_jobs"] == -1
+        assert model.model_params["criterion"] == "gini"
         assert model.model_params["random_state"] == 42  # 環境変数から設定
-        assert model.model_params["min_samples_split"] == 5  # デフォルトは5
-        assert model.model_params["min_samples_leaf"] == 2  # デフォルトは2
+        assert model.model_params["warm_start"] is False
+        assert model.model_params["ccp_alpha"] == 0.0
 
     def test_initialization_with_custom_params(self):
         """カスタムパラメータ初期化テスト"""

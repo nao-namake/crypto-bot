@@ -1,10 +1,11 @@
 """
-取引ログサービス - Phase 14-B リファクタリング
+取引ログサービス - Phase 22 リファクタリング
 
 orchestrator.pyから分離した取引関連ログ機能。
 取引決定・実行結果・統計情報のログ出力を担当。
 """
 
+from ..config import get_threshold
 from ..logger import CryptoBotLogger
 
 
@@ -146,9 +147,10 @@ class TradingLoggerService:
             ):
                 stats = self.orchestrator.execution_service.get_trading_statistics()
 
-                # 10回毎に統計出力
+                # 設定された間隔で統計出力
+                stats_interval = get_threshold("trading.stats_log_interval", 10)
                 total_trades = stats.get("statistics", {}).get("total_trades", 0)
-                if total_trades % 10 == 0 and total_trades > 0:
+                if total_trades % stats_interval == 0 and total_trades > 0:
                     await self.log_trading_statistics(stats)
 
         except Exception as e:
@@ -168,7 +170,6 @@ class TradingLoggerService:
             winning_trades = statistics.get("winning_trades", 0)
             win_rate = statistics.get("win_rate", 0) * 100
             current_balance = stats.get("current_balance", 0)
-            initial_balance = stats.get("initial_balance", 1000000)
             return_rate = stats.get("return_rate", 0) * 100
 
             stats_message = (
@@ -216,7 +217,7 @@ class TradingLoggerService:
                 "current_balance": stats.get("current_balance", 0),
                 "return_rate_percent": stats.get("return_rate", 0) * 100,
                 "profit_loss": stats.get("current_balance", 0)
-                - stats.get("initial_balance", 1000000),
+                - stats.get("initial_balance", get_threshold("trading.initial_balance", 1000000)),
             }
 
         except Exception as e:

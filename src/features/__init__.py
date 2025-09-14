@@ -1,28 +1,22 @@
 """
-特徴量エンジニアリング - Phase 18統合版
+特徴量エンジニアリング - Phase 21統合版
 
-97特徴量から12特徴量への極限最適化システム
+97特徴量から15特徴量への極限最適化システム
 統合により3ファイル→1ファイルへ削減（67%削減）
 
 主要コンポーネント:
-- TechnicalIndicators: テクニカル指標（6個）
-- MarketAnomalyDetector: 異常検知指標（3個）
-- 合計12個の厳選された特徴量
+- 基本データ（2個）、モメンタム（2個）、ボラティリティ（2個）
+- トレンド（2個）、出来高（1個）、ブレイクアウト（3個）、レジーム（3個）
+- 合計15個の厳選された特徴量
 
-Phase 18統合実装日: 2025年8月30日.
+Phase 21統合実装日: 2025年9月12日.
 """
 
-# Phase 18統合: feature_generatorから再export（後方互換性維持）
-from .feature_generator import FeatureServiceAdapter  # 後方互換性エイリアス
-from .feature_generator import MarketAnomalyDetector  # 後方互換性エイリアス
-from .feature_generator import TechnicalIndicators  # 後方互換性エイリアス
+# Phase 21統合: feature_generatorからエクスポート
 from .feature_generator import FEATURE_CATEGORIES, OPTIMIZED_FEATURES, FeatureGenerator
 
 __all__ = [
-    "FeatureGenerator",  # Phase 18統合クラス
-    "TechnicalIndicators",  # 後方互換性エイリアス
-    "MarketAnomalyDetector",  # 後方互換性エイリアス
-    "FeatureServiceAdapter",  # 後方互換性エイリアス
+    "FeatureGenerator",  # Phase 21統合クラス
     "OPTIMIZED_FEATURES",
     "FEATURE_CATEGORIES",
 ]

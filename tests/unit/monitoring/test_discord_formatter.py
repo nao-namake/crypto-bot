@@ -7,7 +7,7 @@ Discord通知フォーマッターのテスト - Phase 15新実装
 
 import pytest
 
-from src.monitoring.discord_notifier import DiscordFormatter
+from src.core.reporting.discord_notifier import DiscordFormatter
 
 
 class TestDiscordFormatter:

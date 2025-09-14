@@ -35,7 +35,13 @@ class TestConstants(unittest.TestCase):
     def test_strategy_type_constants(self):
         """StrategyTypeクラステスト."""
         # 全ての戦略タイプが存在することを確認
-        expected_types = ["MOCHIPOY_ALERT", "ATR_BASED", "FIBONACCI_RETRACEMENT", "MULTI_TIMEFRAME"]
+        expected_types = [
+            "MOCHIPOY_ALERT",
+            "ATR_BASED",
+            "BOLLINGER_BANDS",
+            "DONCHIAN_CHANNEL",
+            "ADX_TREND",
+        ]
 
         for strategy_type in expected_types:
             self.assertTrue(hasattr(StrategyType, strategy_type))
@@ -81,7 +87,7 @@ class TestConstants(unittest.TestCase):
         strategy_values = [
             StrategyType.MOCHIPOY_ALERT,
             StrategyType.ATR_BASED,
-            StrategyType.FIBONACCI_RETRACEMENT,
+            StrategyType.DONCHIAN_CHANNEL,
             StrategyType.MULTI_TIMEFRAME,
         ]
 

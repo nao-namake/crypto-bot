@@ -1,6 +1,6 @@
 """
-統合設定管理システム - Phase 17 config階層化
-環境変数とYAMLファイルの統合管理・設定一元化
+統合設定管理システム - Phase 22 ハードコード排除・設定完全一元化
+環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 """
 
 import os
@@ -170,20 +170,12 @@ class Config:
 
     @staticmethod
     def _create_exchange_config(config_data: dict, exchange_data: dict) -> ExchangeConfig:
-        """取引所設定を作成（デフォルト値補完付き）"""
-        defaults = {
-            "name": "bitbank",
-            "symbol": "BTC/JPY",
-            "leverage": 1.0,
-            "rate_limit_ms": 35000,
-            "timeout_ms": 120000,
-            "retries": 5,
-            "ssl_verify": True,
-            "api_version": "v1",
-        }
+        """取引所設定を作成（unified.yamlからデフォルト値取得）"""
+        # unified.yamlからデフォルト値を取得
+        exchange_defaults = config_data.get("exchange", {})
 
         # デフォルト値とマージ
-        for key, default_value in defaults.items():
+        for key, default_value in exchange_defaults.items():
             if key not in exchange_data or exchange_data[key] is None:
                 exchange_data[key] = default_value
 
@@ -195,119 +187,85 @@ class Config:
 
     @staticmethod
     def _create_ml_config(config_data: dict) -> MLConfig:
-        """機械学習設定を作成（デフォルト値補完付き）"""
+        """機械学習設定を作成（unified.yamlからデフォルト値取得）"""
         ml_data = config_data.get("ml", {}).copy()  # コピーして元データを保護
 
-        # dynamic_confidenceはMLConfigに渡さない（get_thresholdで直接アクセスするため）
-        if "dynamic_confidence" in ml_data:
-            del ml_data["dynamic_confidence"]
-        defaults = {
-            "confidence_threshold": 0.65,
-            "ensemble_enabled": True,
-            "models": ["lgbm", "xgb", "rf"],
-            "model_weights": [0.5, 0.3, 0.2],
-            "model_path": None,
-            "model_update_check": False,
-            "fallback_enabled": True,
-            "prediction": {"lookback_periods": 100, "retrain_frequency": "weekly"},
-        }
+        # unified.yamlからデフォルト値を取得
+        ml_defaults = config_data.get("ml", {})
 
-        for key, default_value in defaults.items():
+        for key, default_value in ml_defaults.items():
             if key not in ml_data or ml_data[key] is None:
                 ml_data[key] = default_value
+
+        # MLConfigにない項目を除外（dynamic_confidence等）
+        excluded_fields = {"dynamic_confidence"}
+        ml_data = {k: v for k, v in ml_data.items() if k not in excluded_fields}
 
         return MLConfig(**ml_data)
 
     @staticmethod
     def _create_risk_config(config_data: dict) -> RiskConfig:
-        """リスク管理設定を作成（デフォルト値補完付き）"""
-        risk_data = config_data.get("risk", {})
-        defaults = {
-            "risk_per_trade": 0.01,
-            "kelly_max_fraction": 0.03,
-            "max_drawdown": 0.20,
-            "stop_loss_atr_multiplier": 1.2,
-            "consecutive_loss_limit": 5,
-            "take_profit_ratio": 2.0,
-            "daily_loss_limit": 0.05,
-            "weekly_loss_limit": 0.10,
-            "emergency_stop_enabled": True,
-            "kelly_criterion": {
-                "max_position_ratio": 0.05,
-                "safety_factor": 0.7,
-                "min_trades_for_kelly": 20,
-            },
-            "drawdown_manager": {
-                "max_drawdown_ratio": 0.20,
-                "consecutive_loss_limit": 5,
-                "cooldown_hours": 24,
-            },
-            "anomaly_detector": {
-                "lookback_period": 20,
-            },
-            "risk_thresholds": {
-                "min_ml_confidence": 0.5,
-                "risk_threshold_deny": 0.8,
-                "risk_threshold_conditional": 0.6,
-            },
-        }
+        """リスク管理設定を作成（unified.yamlからデフォルト値取得）"""
+        risk_data = config_data.get("risk", {}).copy()  # コピーして元データを保護
 
-        for key, default_value in defaults.items():
-            if key not in risk_data or risk_data[key] is None:
-                risk_data[key] = default_value
+        # unified.yamlからデフォルト値を取得
+        risk_defaults = config_data.get("risk", {})
+
+        def deep_merge(base: dict, defaults: dict) -> dict:
+            """深いマージ（デフォルト値で補完）"""
+            for key, default_value in defaults.items():
+                if key not in base or base[key] is None:
+                    base[key] = default_value
+                elif isinstance(base[key], dict) and isinstance(default_value, dict):
+                    deep_merge(base[key], default_value)
+            return base
+
+        # デフォルト値で補完
+        risk_data = deep_merge(risk_data, risk_defaults)
 
         return RiskConfig(**risk_data)
 
     @staticmethod
     def _create_data_config(config_data: dict) -> DataConfig:
-        """データ取得設定を作成（デフォルト値補完付き）"""
-        data_data = config_data.get("data", {})
-        defaults = {
-            "timeframes": ["15m", "1h", "4h"],
-            "since_hours": 96,
-            "limit": 100,
-            "cache_enabled": True,
-            "cache": {
-                "enabled": True,
-                "ttl_minutes": 5,
-                "max_size": 1000,
-                "disk_cache": True,
-                "retention_days": 90,
-            },
-        }
+        """データ取得設定を作成（unified.yamlからデフォルト値取得）"""
+        data_data = config_data.get("data", {}).copy()  # コピーして元データを保護
 
-        for key, default_value in defaults.items():
-            if key not in data_data or data_data[key] is None:
-                data_data[key] = default_value
+        # unified.yamlからデフォルト値を取得
+        data_defaults = config_data.get("data", {})
+
+        def deep_merge(base: dict, defaults: dict) -> dict:
+            """深いマージ（デフォルト値で補完）"""
+            for key, default_value in defaults.items():
+                if key not in base or base[key] is None:
+                    base[key] = default_value
+                elif isinstance(base[key], dict) and isinstance(default_value, dict):
+                    deep_merge(base[key], default_value)
+            return base
+
+        # デフォルト値で補完
+        data_data = deep_merge(data_data, data_defaults)
 
         return DataConfig(**data_data)
 
     @staticmethod
     def _create_logging_config(config_data: dict) -> LoggingConfig:
-        """ログ設定を作成（デフォルト値補完付き）"""
-        logging_data = config_data.get("logging", {})
-        defaults = {
-            "level": "INFO",
-            "file_enabled": True,
-            "discord_enabled": True,
-            "retention_days": 7,
-            "file": {
-                "enabled": True,
-                "path": "logs/production",
-                "rotation": "daily",
-                "retention_days": 30,
-                "max_size_mb": 100,
-            },
-            "discord": {
-                "enabled": True,
-                "webhook_url": "${DISCORD_WEBHOOK_URL}",
-                "levels": {"critical": True, "warning": True, "info": False},
-            },
-        }
+        """ログ設定を作成（unified.yamlからデフォルト値取得）"""
+        logging_data = config_data.get("logging", {}).copy()  # コピーして元データを保護
 
-        for key, default_value in defaults.items():
-            if key not in logging_data or logging_data[key] is None:
-                logging_data[key] = default_value
+        # unified.yamlからデフォルト値を取得
+        logging_defaults = config_data.get("logging", {})
+
+        def deep_merge(base: dict, defaults: dict) -> dict:
+            """深いマージ（デフォルト値で補完）"""
+            for key, default_value in defaults.items():
+                if key not in base or base[key] is None:
+                    base[key] = default_value
+                elif isinstance(base[key], dict) and isinstance(default_value, dict):
+                    deep_merge(base[key], default_value)
+            return base
+
+        # デフォルト値で補完
+        logging_data = deep_merge(logging_data, logging_defaults)
 
         return LoggingConfig(**logging_data)
 

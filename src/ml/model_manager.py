@@ -1,10 +1,12 @@
 """
-モデル管理システム - Phase 18リファクタリング
+モデル管理システム - Phase 22リファクタリング
 
 機械学習モデルのライフサイクル管理（簡素化版）。
 バージョン管理、保存・読み込み、基本的な評価機能を提供。
 
 重複機能を削除し、実用性を重視した実装。
+
+Phase 22統合実装日: 2025年9月12日.
 """
 
 import json
@@ -187,8 +189,10 @@ class ModelManager:
                 confidence = float(probabilities[-1].max()) if len(probabilities) > 0 else 0.5
                 action = "buy" if prediction == 1 else "sell" if prediction == 0 else "hold"
             else:
+                from ..core.config import get_threshold
+
                 prediction = 0
-                confidence = 0.5
+                confidence = get_threshold("ml.default_confidence", 0.5)
                 action = "hold"
 
             return {

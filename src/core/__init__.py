@@ -1,8 +1,13 @@
 """
 core/ - 基盤システム
 
-Phase 18完了: システム全体を支える核心的な基盤機能を提供するディレクトリです。
+Phase 22完了: システム全体を支える核心的な基盤機能を提供するディレクトリです。
 責任分離・コード最適化・保守性向上を実現した企業級個人向けAI自動取引システムの基盤を提供します。
+
+Phase 22最適化:
+- 未使用ファイル削除（market_data.py）
+- 例外クラススリム化（未使用例外削除）
+- プロトコル再配置（protocols.py → orchestration/）
 """
 
 # 設定管理
@@ -34,6 +39,7 @@ from .exceptions import (
     ModelLoadError,
     ModelPredictionError,
     RiskManagementError,
+    StrategyError,
     TradingError,
     get_error_severity,
 )
@@ -41,29 +47,10 @@ from .exceptions import (
 # ログシステム
 from .logger import CryptoBotLogger, JSONFormatter, LogLevel, get_logger, setup_logging
 
-# 市場データ構造
-from .market_data import (
-    BasicMarketData,
-    EnrichedMarketData,
-    MarketDataBase,
-    OHLCVRecord,
-    create_market_data,
-)
-
 # 統合制御システム
 from .orchestration import MLServiceAdapter, TradingOrchestrator, create_trading_orchestrator
 
-# プロトコル定義
-from .protocols import (
-    DataServiceProtocol,
-    ExecutionServiceProtocol,
-    FeatureServiceProtocol,
-    MLServiceProtocol,
-    RiskServiceProtocol,
-    StrategyServiceProtocol,
-)
-
-# Phase 18 エクスポート定義
+# Phase 22 エクスポート定義
 __all__ = [
     # 設定管理
     "Config",
@@ -92,6 +79,7 @@ __all__ = [
     "ExchangeAPIError",
     "TradingError",
     "RiskManagementError",
+    "StrategyError",
     "ModelLoadError",
     "ModelPredictionError",
     "FileIOError",
@@ -102,22 +90,9 @@ __all__ = [
     "TradingOrchestrator",
     "create_trading_orchestrator",
     "MLServiceAdapter",
-    # プロトコル
-    "DataServiceProtocol",
-    "FeatureServiceProtocol",
-    "StrategyServiceProtocol",
-    "MLServiceProtocol",
-    "RiskServiceProtocol",
-    "ExecutionServiceProtocol",
-    # 市場データ
-    "OHLCVRecord",
-    "MarketDataBase",
-    "BasicMarketData",
-    "EnrichedMarketData",
-    "create_market_data",
 ]
 
-# Phase 18完了メタ情報
-__version__ = "18.0"
-__author__ = "CryptoBot Phase 18 Refactoring"
-__description__ = "統合基盤システム - 責任分離・最適化・保守性向上完成"
+# Phase 22完了メタ情報
+__version__ = "22.0"
+__author__ = "CryptoBot Phase 22 Core Optimization"
+__description__ = "統合基盤システム - 未使用コード削除・構造最適化・保守性向上完成"

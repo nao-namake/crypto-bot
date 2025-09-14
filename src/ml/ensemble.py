@@ -1,8 +1,10 @@
 """
-統合アンサンブルシステム - Phase 18リファクタリング
+統合アンサンブルシステム - Phase 22リファクタリング
 
 EnsembleModel、VotingSystem、ProductionEnsemble機能を1つのファイルに統合。
 重複コードを排除し、保守性とコードの可読性を向上。
+
+Phase 22統合実装日: 2025年9月12日.
 """
 
 import time
@@ -148,7 +150,6 @@ class VotingSystem:
         if not probabilities:
             raise ValueError("No probabilities provided")
 
-        model_names = list(probabilities.keys())
         prob_arrays = list(probabilities.values())
 
         # 形状確認
@@ -208,7 +209,7 @@ class EnsembleModel:
         self,
         models: Optional[Dict[str, BaseMLModel]] = None,
         weights: Optional[Dict[str, float]] = None,
-        confidence_threshold: float = 0.35,
+        confidence_threshold: Optional[float] = None,
     ):
         """
         アンサンブルモデルの初期化
@@ -218,7 +219,11 @@ class EnsembleModel:
             weights: モデル重み（デフォルト: 均等重み）
             confidence_threshold: 予測信頼度閾値
         """
-        self.confidence_threshold = confidence_threshold
+        # confidence_thresholdを設定ファイルから取得
+        if confidence_threshold is None:
+            self.confidence_threshold = get_threshold("ensemble.confidence_threshold", 0.35)
+        else:
+            self.confidence_threshold = confidence_threshold
         self.logger = get_logger()
 
         # デフォルトモデルの作成
@@ -451,7 +456,7 @@ class EnsembleModel:
                     }
                 )
 
-            self.logger.info(f"📊 Ensemble evaluation completed")
+            self.logger.info("📊 Ensemble evaluation completed")
             self.logger.info(f"Accuracy: {metrics['accuracy']:.3f}, F1: {metrics['f1_score']:.3f}")
 
             return metrics
@@ -547,8 +552,11 @@ class EnsembleModel:
         if len(X) != len(y):
             raise ValueError(f"Feature and target length mismatch: {len(X)} vs {len(y)}")
 
-        if len(X) < 50:  # アンサンブルには多めのデータが必要
-            raise ValueError(f"Insufficient training data for ensemble: {len(X)} samples")
+        min_samples = get_threshold("ensemble.min_training_samples", 50)
+        if len(X) < min_samples:  # アンサンブルには多めのデータが必要
+            raise ValueError(
+                f"Insufficient training data for ensemble: {len(X)} samples (minimum: {min_samples})"
+            )
 
         # クラス数チェック
         n_classes = len(np.unique(y))
@@ -573,10 +581,15 @@ class EnsembleModel:
 
 class ProductionEnsemble:
     """
-    本番用アンサンブルモデル（後方互換性のためのラッパー）
+    本番用アンサンブルモデル（後方互換性維持）
 
-    既存のscripts/ml/create_ml_models.pyとの互換性を維持しつつ、
-    内部ではEnsembleModelを使用。
+    現在の目的：
+    - scripts/ml/create_ml_models.pyとの互換性を維持
+    - 本番環境での安定動作を保証
+
+    将来の統合計画：
+    - 新設計EnsembleModelへの段階的移行を想定
+    - Phase 23以降で統合予定
     """
 
     def __init__(self, individual_models: Dict[str, Any]):
@@ -589,15 +602,21 @@ class ProductionEnsemble:
         self.models = individual_models
         self.model_names = list(individual_models.keys())
 
-        # デフォルト重み（性能に基づく）
-        self.weights = {
-            "lightgbm": 0.4,
-            "xgboost": 0.4,
-            "random_forest": 0.2,
-        }
+        # デフォルト重み（設定ファイルから取得）
+        from ..core.config import get_threshold
+
+        default_weights = get_threshold(
+            "ensemble.weights",
+            {
+                "lightgbm": 0.4,
+                "xgboost": 0.4,
+                "random_forest": 0.2,
+            },
+        )
+        self.weights = default_weights
 
         self.is_fitted = True
-        # Phase 19: 特徴量定義一元化対応
+        # Phase 22: 特徴量定義一元化対応
         from ..core.config.feature_manager import get_feature_count, get_feature_names
 
         self.n_features_ = get_feature_count()
@@ -701,7 +720,7 @@ class ProductionEnsemble:
             "weights": self.weights.copy(),
             "n_features": self.n_features_,
             "feature_names": self.feature_names.copy(),
-            "phase": "Phase 18",
+            "phase": "Phase 22",
             "status": "production_ready",
         }
 

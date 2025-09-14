@@ -2,11 +2,11 @@
 """
 新システム用MLモデル作成スクリプト.
 
-Phase 9対応: 12特徴量最適化システム用モデル学習
+Phase 22対応: 15特徴量最適化システム用モデル学習
 レガシーシステムのretrain_97_features_model.pyを参考に新システム構造で実装
 
 機能:
-- 12特徴量での LightGBM・XGBoost・RandomForest アンサンブル学習
+- 15特徴量での LightGBM・XGBoost・RandomForest アンサンブル学習
 - 新システム src/ 構造に対応
 - models/production/ にモデル保存
 - 実取引前の品質保証・性能検証
@@ -86,7 +86,7 @@ class NewSystemMLModelCreator:
         # 特徴量エンジン初期化
         self.feature_generator = FeatureGenerator()
 
-        # Phase 19: 特徴量定義一元化対応（feature_managerから取得）
+        # Phase 22: 特徴量定義一元化対応（feature_managerから取得）
         from src.core.config.feature_manager import get_feature_names
 
         self.expected_features = get_feature_names()
@@ -130,10 +130,10 @@ class NewSystemMLModelCreator:
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # 特徴量エンジニアリング（Phase 19: async/await修正）
+            # 特徴量エンジニアリング（Phase 22: async/await修正）
             features_df = self.feature_generator.generate_features_sync(df)
 
-            # 12特徴量への整合性確保
+            # 15特徴量への整合性確保
             features_df = self._ensure_feature_consistency(features_df)
 
             # ターゲット生成（価格変動による分類）
@@ -188,18 +188,18 @@ class NewSystemMLModelCreator:
         return df
 
     def _ensure_feature_consistency(self, features_df: pd.DataFrame) -> pd.DataFrame:
-        """12特徴量への整合性確保."""
+        """15特徴量への整合性確保."""
         # 不足特徴量の0埋め
         for feature in self.expected_features:
             if feature not in features_df.columns:
                 features_df[feature] = 0.0
                 self.logger.warning(f"⚠️ 不足特徴量を0埋め: {feature}")
 
-        # 12特徴量のみ選択
+        # 15特徴量のみ選択
         features_df = features_df[self.expected_features]
 
-        if len(features_df.columns) != 12:
-            self.logger.warning(f"⚠️ 特徴量数不一致: {len(features_df.columns)} != 12")
+        if len(features_df.columns) != 15:
+            self.logger.warning(f"⚠️ 特徴量数不一致: {len(features_df.columns)} != 15")
 
         return features_df
 
@@ -357,13 +357,13 @@ class NewSystemMLModelCreator:
                     except Exception:
                         git_commit = {"commit": "unknown", "branch": "unknown"}
 
-                    # 本番用メタデータ保存（Phase 19: バージョン管理強化）
+                    # 本番用メタデータ保存（Phase 22: バージョン管理強化）
                     production_metadata = {
                         "created_at": datetime.now().isoformat(),
                         "model_type": "ProductionEnsemble",
                         "model_file": str(model_file),
                         "version": "1.0.0",
-                        "phase": "Phase 19",  # 動的に更新（ハードコード削除）
+                        "phase": "Phase 22",  # 動的に更新（ハードコード削除）
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
                         "individual_models": [
@@ -377,7 +377,7 @@ class NewSystemMLModelCreator:
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
                         },
                         "git_info": git_commit,
-                        "notes": "Phase 19統合・12特徴量最適化・特徴量定義一元化対応",
+                        "notes": "Phase 22統合・15特徴量最適化・特徴量定義一元化対応",
                     }
 
                     production_metadata_file = (
@@ -405,7 +405,7 @@ class NewSystemMLModelCreator:
             except Exception as e:
                 self.logger.error(f"❌ {model_name} モデル保存エラー: {e}")
 
-        # 学習用メタデータ保存（Phase 19: バージョン管理強化）
+        # 学習用メタデータ保存（Phase 22: バージョン管理強化）
         training_metadata = {
             "created_at": datetime.now().isoformat(),
             "feature_names": training_results.get("feature_names", []),
@@ -413,8 +413,8 @@ class NewSystemMLModelCreator:
             "model_metrics": training_results.get("results", {}),
             "model_files": saved_files,
             "config_path": self.config_path,
-            "phase": "Phase 19",  # 動的に更新（ハードコード削除）
-            "notes": "Phase 19統合・12特徴量最適化・個別モデル学習結果",
+            "phase": "Phase 22",  # 動的に更新（ハードコード削除）
+            "notes": "Phase 22統合・15特徴量最適化・個別モデル学習結果",
         }
 
         training_metadata_file = self.training_dir / "training_metadata.json"
@@ -445,7 +445,7 @@ class NewSystemMLModelCreator:
                     continue
 
                 # サンプル予測テスト（DataFrameでsklearn警告回避）
-                sample_features_array = np.random.random((5, 12))  # 12特徴量
+                sample_features_array = np.random.random((5, 15))  # 15特徴量
                 sample_features = pd.DataFrame(
                     sample_features_array, columns=self.expected_features
                 )
@@ -474,7 +474,7 @@ class NewSystemMLModelCreator:
                     # get_model_info メソッド確認
                     if hasattr(model, "get_model_info"):
                         info = model.get_model_info()
-                        if info.get("n_features") == 12:
+                        if info.get("n_features") == 15:
                             self.logger.info("✅ get_model_info 確認成功")
                         else:
                             self.logger.error("❌ get_model_info 特徴量数不正")
@@ -516,7 +516,7 @@ class NewSystemMLModelCreator:
             return {"commit": "unknown", "commit_short": "unknown", "branch": "unknown"}
 
     def _archive_existing_models(self) -> bool:
-        """既存モデルを自動アーカイブ（Phase 19: バージョン管理強化）."""
+        """既存モデルを自動アーカイブ（Phase 22: バージョン管理強化）."""
         try:
             production_model = self.production_dir / "production_ensemble.pkl"
             production_metadata = self.production_dir / "production_model_metadata.json"
@@ -553,7 +553,7 @@ class NewSystemMLModelCreator:
         try:
             self.logger.info("🚀 新システムMLモデル作成開始")
 
-            # 0. 既存モデル自動アーカイブ（Phase 19: バージョン管理強化）
+            # 0. 既存モデル自動アーカイブ（Phase 22: バージョン管理強化）
             if not dry_run:
                 if not self._archive_existing_models():
                     self.logger.warning("⚠️ アーカイブ失敗 - 処理続行")

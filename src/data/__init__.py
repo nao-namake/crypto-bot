@@ -1,10 +1,12 @@
 """
-���d - 4���֗h�(��
+データ層 - Phase 21統合版
 
-����Ư��gn4����#_��Л:
-- Bitbank�(�API��
-- �������������֗
-- �����÷����.
+AI自動取引システムのデータ層。
+主要コンポーネント:
+- Bitbank API接続
+- マルチタイムフレーム対応
+- 高速キャッシング
+- データ品質保証.
 """
 
 from .bitbank_client import BitbankClient, create_margin_client, get_bitbank_client

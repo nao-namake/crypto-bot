@@ -1,9 +1,10 @@
 """
 統合リスク管理・ポジションサイジングシステム
 
-Phase 18ファイル統合により、以下の機能を統合管理：
-- 統合リスク管理システム (旧 risk.py)
-- Kelly基準ポジションサイジング (旧 position_sizing.py)
+Phase 22統合取引管理システムの中核機能：
+- 統合リスク管理システム
+- Kelly基準ポジションサイジング
+- 取引実行結果管理（executor.pyから移行）
 
 設計思想:
 - 資金保全を最優先
@@ -16,6 +17,7 @@ Phase 18ファイル統合により、以下の機能を統合管理：
 - Kelly基準による動的ポジションサイジング
 - Discord通知連携・実時間リスク監視
 - 複数レベルフォールバック機能
+- 取引実行結果処理統合
 """
 
 import asyncio
@@ -31,7 +33,7 @@ import pandas as pd
 from ..core.config import get_position_config, get_threshold
 from ..core.exceptions import RiskManagementError
 from ..core.logger import get_logger
-from ..monitoring.discord_notifier import DiscordManager
+from ..core.reporting.discord_notifier import DiscordManager
 from .risk_monitor import DrawdownManager, TradingAnomalyDetector, TradingStatus
 
 if TYPE_CHECKING:
@@ -47,6 +49,23 @@ class RiskDecision(Enum):
     APPROVED = "approved"
     DENIED = "denied"
     CONDITIONAL = "conditional"
+
+
+class ExecutionMode(Enum):
+    """実行モード."""
+
+    PAPER = "paper"  # ペーパートレード
+    LIVE = "live"  # 実取引
+
+
+class OrderStatus(Enum):
+    """注文状態."""
+
+    PENDING = "pending"
+    SUBMITTED = "submitted"
+    FILLED = "filled"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
 
 
 @dataclass
@@ -93,6 +112,35 @@ class TradeEvaluation:
     drawdown_status: str
     anomaly_alerts: List[str]
     market_conditions: Dict[str, Any]
+
+
+@dataclass
+class ExecutionResult:
+    """注文実行結果."""
+
+    success: bool
+    mode: ExecutionMode
+    order_id: Optional[str] = None
+    side: Optional[str] = None
+    amount: Optional[float] = None
+    price: Optional[float] = None
+    filled_amount: Optional[float] = None
+    filled_price: Optional[float] = None
+    fee: Optional[float] = None
+    status: OrderStatus = OrderStatus.PENDING
+    timestamp: datetime = None
+    error_message: Optional[str] = None
+    # ペーパートレード用追加情報
+    paper_balance_before: Optional[float] = None
+    paper_balance_after: Optional[float] = None
+    paper_pnl: Optional[float] = None
+    # レイテンシー監視・デバッグ情報
+    execution_time_ms: Optional[float] = None
+    notes: Optional[str] = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
 
 
 @dataclass
@@ -220,7 +268,7 @@ class KellyCriterion:
             return 0.0
 
     def calculate_from_history(
-        self, lookback_days: int = 30, strategy_filter: Optional[str] = None
+        self, lookback_days: Optional[int] = None, strategy_filter: Optional[str] = None
     ) -> Optional[KellyCalculationResult]:
         """
         取引履歴からKelly値を計算
@@ -233,6 +281,10 @@ class KellyCriterion:
             Kelly計算結果（データ不足の場合はNone）
         """
         try:
+            # 設定からデフォルト値を取得
+            if lookback_days is None:
+                lookback_days = get_threshold("risk.kelly_lookback_days", 30)
+
             # 期間フィルタ
             cutoff_date = datetime.now() - timedelta(days=lookback_days)
             filtered_trades = [
@@ -420,9 +472,10 @@ class KellyCriterion:
             dynamic_position_size = base_kelly_size * scale
 
             # 5) 安全制限適用
-            # 口座の30%以内に制限
+            # 設定から安全制限比率を取得
+            safe_balance_ratio = get_threshold("risk.safe_balance_ratio", 0.3)
             max_safe_position = min(
-                balance * 0.3 / entry_price,  # 口座の30%
+                balance * safe_balance_ratio / entry_price,  # 設定化された安全制限
                 balance * self.max_position_ratio,  # Kelly最大制限
             )
 
@@ -451,11 +504,14 @@ class KellyCriterion:
         """
         try:
             # レベル1: 最小安全サイズ
-            safe_position = balance * 0.01 / entry_price  # 口座の1%
-            safe_stop = entry_price * 0.95  # 5%下のストップ
+            fallback_min_ratio = get_threshold("risk.fallback_min_ratio", 0.01)
+            fallback_stop_ratio = get_threshold("risk.fallback_stop_ratio", 0.95)
+            safe_position = balance * fallback_min_ratio / entry_price  # 設定化された最小比率
+            safe_stop = entry_price * fallback_stop_ratio  # 設定化されたストップ比率
 
             # レベル2: 最大制限チェック
-            max_safe = balance * 0.1 / entry_price  # 最大10%
+            fallback_max_ratio = get_threshold("risk.fallback_max_ratio", 0.1)
+            max_safe = balance * fallback_max_ratio / entry_price  # 設定化された最大比率
             final_position = min(safe_position, max_safe)
 
             self.logger.warning(
@@ -468,8 +524,10 @@ class KellyCriterion:
         except Exception as fallback_error:
             self.logger.critical(f"フォールバック計算も失敗: {fallback_error}")
             # 最終安全値
-            emergency_position = balance * 0.005 / entry_price  # 0.5%
-            emergency_stop = entry_price * 0.98  # 2%下
+            emergency_ratio = get_threshold("risk.emergency_ratio", 0.005)
+            emergency_stop_ratio = get_threshold("risk.emergency_stop_ratio", 0.98)
+            emergency_position = balance * emergency_ratio / entry_price  # 設定化された緊急比率
+            emergency_stop = entry_price * emergency_stop_ratio  # 設定化された緊急ストップ比率
             return emergency_position, emergency_stop
 
     def get_kelly_statistics(self) -> Dict:
@@ -1089,7 +1147,8 @@ class IntegratedRiskManager:
                 self.risk_metrics.kelly_fraction = kelly_result.kelly_fraction
 
             # 24時間以内の異常数
-            recent_time = datetime.now() - timedelta(hours=24)
+            lookback_hours = get_threshold("risk.recent_lookback_hours", 24)
+            recent_time = datetime.now() - timedelta(hours=lookback_hours)
             self.risk_metrics.anomaly_count_24h = len(
                 [
                     alert
@@ -1128,9 +1187,9 @@ class IntegratedRiskManager:
                 try:
                     success = self.discord_manager.send_error_notification(error_data)
                     if success:
-                        self.logger.info(f"✅ リスク管理Discord通知送信完了")
+                        self.logger.info("✅ リスク管理Discord通知送信完了")
                     else:
-                        self.logger.warning(f"⚠️ Discord通知送信失敗（Rate limit等）")
+                        self.logger.warning("⚠️ Discord通知送信失敗（Rate limit等）")
                 except Exception as discord_error:
                     self.logger.error(f"❌ Discord通知送信エラー: {discord_error}")
 

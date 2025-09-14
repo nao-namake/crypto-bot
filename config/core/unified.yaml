@@ -1,21 +1,20 @@
 # ========================================
-# 統一設定ファイル (unified.yaml)
+# 統一設定ファイル (unified.yaml) - Phase 22最適化完了
 # ========================================
 # 
-# Phase 19 MLOps統合対応・全環境統一設定・v16.3.0
-# 作成日: 2025年9月7日
-# 目的: base.yaml + production.yamlの統合・メンテナンス性向上・設定一元化
+# Phase 22システム最適化・設定一元化・v16.4.0
+# 作成日: 2025年9月7日 | 最終更新: Phase 22完了
+# 目的: 基本設定の統一管理・動的閾値はthresholds.yamlで管理
 #
 # 重要: 1つの設定ファイルで全環境をサポート
 #       モード制御: コマンドライン引数 > 環境変数MODE > YAML内mode
+#       動的閾値: thresholds.yamlで管理（get_threshold使用）
 #
 # 使用方法:
 #   開発: python main.py --config config/core/unified.yaml --mode paper
 #   本番: python main.py --config config/core/unified.yaml --mode live
 #   環境変数: MODE=live python main.py --config config/core/unified.yaml
 #
-# ========================================
-# 基本設定（全環境共通）
 # ========================================
 
 # 動作モード（デフォルト: ペーパートレード・安全性優先）
@@ -24,244 +23,266 @@ mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 # 取引所設定（bitbank信用取引専用）
 exchange:
   name: bitbank
-  symbol: "BTC/JPY"          # 信用取引専用通貨ペア
-  leverage: 1.0              # 1倍（安全性最優先・実質現物取引相当）
-  
-  # API制限（全環境共通）
-  rate_limit_ms: 35000       # 35秒間隔（安全マージン）
-  timeout_ms: 120000         # 2分タイムアウト（安全性）
-  retries: 5                 # リトライ回数増加（信頼性）
-  
-  # セキュリティ設定
-  ssl_verify: true           # SSL証明書検証必須
-  api_version: "v1"          # APIバージョン固定
+  symbol: BTC/JPY
+  leverage: 1.0
+  rate_limit_ms: 35000
+  timeout_ms: 120000
+  retries: 5
+  ssl_verify: true
+  api_version: v1
 
 # ========================================
-# 機械学習設定（Phase 19 MLOps統合）
+# 機械学習設定（Phase 22最適化）
 # ========================================
 ml:
-  # 統一信頼度閾値（収益性重視・高品質シグナル確保）
-  confidence_threshold: 0.65    # 65%（収益機会拡大・高品質シグナル確保のバランス）
-  
-  # ProductionEnsembleモデル設定
+  confidence_threshold: 0.35
   ensemble_enabled: true
-  models: ["lgbm", "xgb", "rf"]
-  model_weights: [0.5, 0.3, 0.2]  # LightGBM重視（実績ベース）
-  
-  # モデル管理（Phase 19 MLOps対応）
-  model_path: "/app/models/production/production_ensemble.pkl"
-  model_update_check: true      # モデル更新チェック有効
-  fallback_enabled: true        # フォールバック機能有効
-  
-  # 予測設定（品質保証）
+  model_list:
+  - lgbm
+  - xgb
+  - rf
+  model_weights:
+  - 0.5
+  - 0.3
+  - 0.2
+  model_path: /app/models/production/production_ensemble.pkl
+  model_update_check: true
+  fallback_enabled: true
+  max_retries: 3
+  model_files:
+    lightgbm: lightgbm_model.pkl
+    xgboost: xgboost_model.pkl
+    random_forest: random_forest_model.pkl
   prediction:
     lookback_periods: 100
-    retrain_frequency: "weekly"
+    retrain_frequency: weekly
 
 # ========================================
 # データ取得設定（マルチタイムフレーム統一）
 # ========================================
 data:
-  # タイムフレーム（2軸構成・MLOps最適化）
-  timeframes: ["15m", "4h"]
-  since_hours: 96            # 4日分（Bitbank安定範囲）
-  limit: 100                 # 確実な取得数
-  
-  # キャッシュ設定（統一）
+  timeframes:
+  - 4h
+  - 15m
+  since_hours: 96
+  limit: 100
+  cache_enabled: true
   cache:
     enabled: true
-    ttl_minutes: 5           # 5分間キャッシュ
-    max_size: 1000           # 最大1000エントリ
+    ttl_minutes: 5
+    max_size: 1000
     disk_cache: true
-    retention_days: 90       # 90日保存
+    retention_days: 90
 
-# 特徴量設定（Phase 19・12個厳選システム統一）
+# ========================================
+# 特徴量設定（15特徴量統一システム）
+# ========================================
 features:
-  mode: "optimized"  # 12個厳選特徴量
-  
-  # 基本特徴量（3個）
+  mode: optimized
   basic:
-    - "close"
-    - "volume" 
-    - "returns_1"
-  
-  # テクニカル指標（6個）
-  technical:
-    - "rsi_14"
-    - "macd"
-    - "atr_14"
-    - "bb_position"
-    - "ema_20"
-    - "ema_50"
-  
-  # 異常検知（3個）
-  anomaly:
-    - "zscore"
-    - "volume_ratio"
-    - "market_stress"
+  - close
+  - volume
+  momentum:
+  - rsi_14
+  - macd
+  volatility:
+  - atr_14
+  - bb_position
+  trend:
+  - ema_20
+  - ema_50
+  volume:
+  - volume_ratio
+  breakout:
+  - donchian_high_20
+  - donchian_low_20
+  - channel_position
+  regime:
+  - adx_14
+  - plus_di_14
+  - minus_di_14
 
-# 戦略設定（Phase 19統合版）
+# ========================================
+# 戦略設定（5戦略統合）
+# ========================================
 strategies:
   enabled:
-    - "atr_based"
-    - "mochipoy_alert"
-    - "multi_timeframe"
-    - "fibonacci_retracement"
-  
-  # 戦略重み（実績ベース）
+  - atr_based
+  - mochipoy_alert
+  - multi_timeframe
+  - donchian_channel
+  - adx_trend
   weights:
-    atr_based: 0.3
-    mochipoy_alert: 0.3
-    multi_timeframe: 0.25
-    fibonacci_retracement: 0.15
-  
-  # 統合判定
+    atr_based: 0.25
+    mochipoy_alert: 0.25
+    multi_timeframe: 0.2
+    donchian_channel: 0.15
+    adx_trend: 0.15
   consensus:
-    required_agreement: 0.6     # 60%以上の合意で実行
-    confidence_threshold: 0.4
+    required_agreement: 0.4
+    confidence_threshold: 0.3
 
 # ========================================
-# リスク管理設定（統一・個人開発最適化）
+# リスク管理設定（Kelly基準・個人開発最適化）
 # ========================================
 risk:
-  # Kelly基準ポジションサイジング（統一）
   kelly_criterion:
-    max_position_ratio: 0.03    # 最大3%（個人開発安全性重視）
-    safety_factor: 0.7          # Kelly値の70%使用
+    max_position_ratio: 0.03
+    safety_factor: 0.7
     min_trades_for_kelly: 20
-  
-  # 基本リスク設定
-  risk_per_trade: 0.01          # 1取引あたり1%（安全・統一）
-  kelly_max_fraction: 0.03      # Kelly基準最大3%（個人開発適正）
-  max_drawdown: 0.20            # 最大ドローダウン20%
-  stop_loss_atr_multiplier: 1.2  # 1.2×ATR損切り（実証値）
-  consecutive_loss_limit: 5     # 連続5損失で24時間停止
-  
-  # ドローダウン管理
+  risk_per_trade: 0.01
+  kelly_max_fraction: 0.03
+  max_drawdown: 0.2
+  stop_loss_atr_multiplier: 1.2
+  consecutive_loss_limit: 5
+  take_profit_ratio: 2.0
+  daily_loss_limit: 0.05
+  weekly_loss_limit: 0.1
+  emergency_stop_enabled: true
   drawdown_manager:
-    max_drawdown_ratio: 0.20    # 20%上限
-    consecutive_loss_limit: 5   # 連続5損失で停止
-    cooldown_hours: 24          # 24時間クールダウン
-  
-  # 異常検知（統一）
+    max_drawdown_ratio: 0.2
+    consecutive_loss_limit: 5
+    cooldown_hours: 24
   anomaly_detector:
-    spread_warning_threshold: 0.003   # 0.3%
-    spread_critical_threshold: 0.005  # 0.5%
-    api_latency_warning: 1.0          # 1秒
-    api_latency_critical: 3.0         # 3秒
-  
-  # 統合判定閾値
+    lookback_period: 20
+    spread_warning_threshold: 0.003
+    spread_critical_threshold: 0.005
+    api_latency_warning: 1.0
+    api_latency_critical: 3.0
   risk_thresholds:
-    min_ml_confidence: 0.5          # 最小ML信頼度50%
-    risk_threshold_deny: 0.8        # 80%以上でDENY
-    risk_threshold_conditional: 0.6  # 60%以上で条件付き
+    min_ml_confidence: 0.15
+    risk_threshold_deny: 0.95
+    risk_threshold_conditional: 0.7
 
 # ========================================
-# 注文実行設定（統一）
+# 注文実行設定
 # ========================================
 execution:
-  mode: "paper"  # デフォルト（環境変数・CLIで上書き）
-  
-  # 注文設定（実証済み値）
+  mode: paper
   order:
-    default_type: "limit"       # 指値注文優先
-    slippage_tolerance: 0.001   # 0.1%スリッページ許容
+    default_type: limit
+    slippage_tolerance: 0.001
     max_retry: 3
-    retry_delay: 1.0            # 1秒間隔
-  
-  # レイテンシー目標
+    retry_delay: 1.0
   latency:
-    target_ms: 1000             # 1秒以内
-    warning_ms: 500             # 500ms警告
-    critical_ms: 2000           # 2秒クリティカル
+    target_ms: 1000
+    warning_ms: 500
+    critical_ms: 2000
 
 # ========================================
-# 🚨 本番専用設定（MODE=live時のみ有効）
+# 本番運用設定（MODE=live時有効）
 # ========================================
 production:
-  min_order_size: 0.0001        # 最小注文サイズ
-  max_order_size: 0.001         # 最大注文サイズ（個人開発適正）
-  trade_interval: 180           # 取引間隔（秒）・収益性重視（3分間隔）
-  margin_trading: true          # 信用取引有効
-  force_margin_mode: true       # 信用取引強制
+  min_order_size: 0.0001
+  max_order_size: 0.001
+  trade_interval: 180
+  margin_trading: true
+  force_margin_mode: true
 
 # ========================================
 # ログ設定（環境別対応）
 # ========================================
 logging:
-  level: "INFO"                 # 情報レベル
-  file_enabled: true            # ファイル記録
-  discord_enabled: true         # Discord監視
-  retention_days: 30            # 保持期間（本番長期・開発短期）
-  
-  # ファイルログ
+  level: INFO
+  file_enabled: true
+  discord_enabled: true
+  retention_days: 7
   file:
     enabled: true
-    path: "logs/production"
-    rotation: "daily"
+    path: logs/production
+    rotation: daily
     retention_days: 30
     max_size_mb: 100
-  
-  # Discord通知（統一）
   discord:
     enabled: true
-    webhook_url: "${DISCORD_WEBHOOK_URL}"
-    
-    # 通知レベル設定
+    webhook_url: ${DISCORD_WEBHOOK_URL}
     levels:
-      critical: true            # 取引停止、重大エラー
-      warning: true             # API遅延、異常値
-      info: false               # 通常取引（本番では無効化）
+      critical: true
+      warning: true
+      info: false
 
 # ========================================
-# 監視・ヘルスチェック（統一強化）
+# 監視・ヘルスチェック
 # ========================================
 monitoring:
-  # ヘルスチェック
   health_check:
     enabled: true
     interval_seconds: 30
     timeout_seconds: 5
-    manual_execution: true      # 手動実行対応
-    
-  # パフォーマンス監視
+    manual_execution: true
   performance:
     enabled: true
-    metrics_interval: 300       # 5分間隔
+    metrics_interval: 300
 
 # ========================================
-# GCP Cloud Run最適化（統一）
+# GCP Cloud Run最適化
 # ========================================
 cloud_run:
-  # リソース設定（実証済み: 1Gi十分・MLモデル軽量）
-  memory: "1Gi"
+  memory: 1Gi
   cpu: 1
-  
-  # スケーリング
-  min_instances: 1              # 本番は常時稼働
-  max_instances: 2              # 負荷分散対応
-  concurrency: 1                # 取引整合性確保
-  
-  # タイムアウト
-  timeout_seconds: 3600         # 1時間
+  min_instances: 1
+  max_instances: 2
+  concurrency: 1
+  timeout_seconds: 3600
 
 # ========================================
-# セキュリティ設定（GCP統合）
+# セキュリティ設定
 # ========================================
 security:
-  secret_management: "gcp_secret_manager"  # GCP Secret Manager使用
-  workload_identity: true                  # Workload Identity認証
+  secret_management: gcp_secret_manager
+  workload_identity: true
 
 # ========================================
-# 制約・制限事項（個人開発）
+# 取引制約・制限事項（個人開発）
 # ========================================
 trading_constraints:
-  exchange: "bitbank"
-  trading_type: "margin"        # 信用取引専用
-  leverage_max: 2.0             # 2倍レバレッジ上限（bitbank仕様）
-  leverage_actual: 1.0          # 実際使用（安全性重視）
-  currency_pair: "BTC/JPY"
-  initial_capital: 10000        # 1万円スタート
-  target_capital: 500000        # 最終目標50万円
-  features_count: 12            # 厳選特徴量数
-  timeframes: ["15m", "4h"]     # マルチタイムフレーム
+  exchange: bitbank
+  trading_type: margin
+  leverage_max: 2.0
+  leverage_actual: 1.0
+  currency_pair: BTC/JPY
+  initial_capital: 10000
+  target_capital: 500000
+  features_count: 15
+  timeframes:
+  - 4h
+  - 15m
+
+# ========================================
+# アンサンブル設定（重み配分）
+# ========================================
+ensemble:
+  weights:
+    lightgbm: 0.4
+    xgboost: 0.4
+    random_forest: 0.2
+
+# ========================================
+# レポート設定
+# ========================================
+reporting:
+  error_dir: logs/reports/errors
+  max_report_size_mb: 10
+  retention_days: 30
+  max_files_per_type: 100
+  json_enabled: true
+  markdown_enabled: true
+  timestamp_format: '%Y%m%d_%H%M%S'
+
+# ========================================
+# Discord通知設定
+# ========================================
+discord:
+  max_retries: 3
+  timeout_seconds: 10
+  rate_limit_delay: 1.0
+  max_message_length: 2000
+  embed_color:
+    success: 65280
+    warning: 16776960
+    error: 16711680
+    info: 39423
+  notification_levels:
+    critical: true
+    warning: true
+    info: false

@@ -1,20 +1,22 @@
 """
-戦略実装 - Phase 4具体的戦略実装
+戦略実装 - Phase 21統合戦略実装層
 
-4つの取引戦略の具体的実装を提供。
+5つの取引戦略の具体的実装を提供。
 各戦略は独立して動作し、StrategyManagerによって統合される。
 
 実装戦略:
 1. MochipoyAlertStrategy: EMA, MACD, RCI組み合わせ戦略
 2. ATRBasedStrategy: ボラティリティベース逆張り戦略
 3. MultiTimeframeStrategy: 4時間足→15分足フィルタリング戦略
-4. FibonacciRetracementStrategy: フィボナッチレベル反転戦略
+4. DonchianChannelStrategy: ブレイクアウト・反転戦略
+5. ADXTrendStrengthStrategy: トレンド強度・方向性分析戦略
 
-Phase 4実装日: 2025年8月18日.
+Phase 21完了: 2025年9月12日.
 """
 
+from .adx_trend import ADXTrendStrengthStrategy
 from .atr_based import ATRBasedStrategy
-from .fibonacci_retracement import FibonacciRetracementStrategy
+from .donchian_channel import DonchianChannelStrategy
 from .mochipoy_alert import MochipoyAlertStrategy
 from .multi_timeframe import MultiTimeframeStrategy
 
@@ -22,5 +24,6 @@ __all__ = [
     "MochipoyAlertStrategy",
     "ATRBasedStrategy",
     "MultiTimeframeStrategy",
-    "FibonacciRetracementStrategy",
+    "DonchianChannelStrategy",
+    "ADXTrendStrengthStrategy",
 ]

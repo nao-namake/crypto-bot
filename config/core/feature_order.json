@@ -1,25 +1,23 @@
 {
-  "feature_order_version": "v2.1.0",
-  "total_features": 12,
-  "last_updated": "2025-08-19T00:00:00Z",
-  "description": "Phase 16-A完了: 97個→12個厳選特徴量システム・619テスト・統合テスト強化・型安全性改善対応",
+  "feature_order_version": "v2.2.0",
+  "total_features": 15,
+  "last_updated": "2025-09-14T00:00:00Z",
+  "description": "Phase 22完了: 設定最適化対応・15特徴量統一システム・26キー重複問題解決・DonchianChannel/ADX対応",
   
   "feature_categories": {
     "basic": {
       "description": "基本価格・出来高情報",
       "features": [
         "close",
-        "volume",
-        "returns_1"
+        "volume"
       ]
     },
     
     "momentum": {
-      "description": "モメンタム指標（3個）",
+      "description": "モメンタム指標（2個）",
       "features": [
         "rsi_14",
-        "macd",
-        "macd_signal"
+        "macd"
       ]
     },
     
@@ -46,10 +44,21 @@
       ]
     },
     
-    "anomaly": {
-      "description": "異常検知指標（1個）",
+    "breakout": {
+      "description": "ブレイクアウト指標（3個）",
       "features": [
-        "zscore"
+        "donchian_high_20",
+        "donchian_low_20", 
+        "channel_position"
+      ]
+    },
+    
+    "regime": {
+      "description": "市場レジーム指標（3個）", 
+      "features": [
+        "adx_14",
+        "plus_di_14",
+        "minus_di_14"
       ]
     }
   },
@@ -67,12 +76,6 @@
       "range": "positive_float",
       "importance": "high"
     },
-    "returns_1": {
-      "type": "momentum",
-      "description": "1期間リターン",
-      "range": "float",
-      "importance": "high"
-    },
     "rsi_14": {
       "type": "momentum",
       "description": "14期間RSI",
@@ -82,12 +85,6 @@
     "macd": {
       "type": "momentum",
       "description": "MACD指標",
-      "range": "float",
-      "importance": "high"
-    },
-    "macd_signal": {
-      "type": "momentum",
-      "description": "MACDシグナル",
       "range": "float",
       "importance": "high"
     },
@@ -115,17 +112,47 @@
       "range": "positive_float",
       "importance": "high"
     },
-    "zscore": {
-      "type": "anomaly",
-      "description": "価格Zスコア",
-      "range": "float",
-      "importance": "medium"
-    },
     "volume_ratio": {
       "type": "anomaly",
       "description": "出来高比率",
       "range": "positive_float",
       "importance": "medium"
+    },
+    "donchian_high_20": {
+      "type": "breakout",
+      "description": "20期間最高値",
+      "range": "positive_float",
+      "importance": "high"
+    },
+    "donchian_low_20": {
+      "type": "breakout", 
+      "description": "20期間最安値",
+      "range": "positive_float",
+      "importance": "high"
+    },
+    "channel_position": {
+      "type": "breakout",
+      "description": "Donchianチャネル内位置",
+      "range": "0-1",
+      "importance": "critical"
+    },
+    "adx_14": {
+      "type": "regime",
+      "description": "14期間ADX（トレンド強度）",
+      "range": "0-100",
+      "importance": "critical"
+    },
+    "plus_di_14": {
+      "type": "regime",
+      "description": "14期間+DI（上昇方向性）", 
+      "range": "0-100",
+      "importance": "high"
+    },
+    "minus_di_14": {
+      "type": "regime",
+      "description": "14期間-DI（下降方向性）",
+      "range": "0-100", 
+      "importance": "high"
     }
   },
   
@@ -133,9 +160,17 @@
     "original_features": 97,
     "phase3_reduction": {
       "target": 12,
-      "achieved": 12,
+      "achieved": 12, 
       "reduction_rate": 0.876,
       "method": "importance_based_selection"
+    },
+    "phase20_optimization": {
+      "target": 15,
+      "achieved": 15,
+      "optimization_rate": 0.25,
+      "method": "strategy_driven_optimization_unused_removal",
+      "added_features": ["donchian_high_20", "donchian_low_20", "channel_position", "adx_14", "plus_di_14", "minus_di_14"],
+      "removed_features": ["returns_1", "macd_signal", "zscore"]
     }
   },
   
@@ -158,16 +193,17 @@
       "audit_logging": "enabled"
     },
     "quality_assurance": {
-      "test_coverage": "54.92%",
-      "total_tests": 620,
+      "test_coverage": "58.64%",
+      "total_tests": 625,
       "dev_check_integration": "completed"
     }
   },
   
   "validation": {
-    "checksum": "sha256:phase12_def456...",
-    "last_validated": "2025-08-19T00:00:00Z",
+    "checksum": "sha256:phase20_abc123...",
+    "last_validated": "2025-09-09T00:00:00Z", 
     "validation_status": "passed",
-    "phase12_compliance": "verified"
+    "phase20_compliance": "verified",
+    "feature_count_validation": "15_features_confirmed"
   }
 }

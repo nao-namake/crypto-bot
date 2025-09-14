@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Phase 12-2: 共通分析基盤クラス（重複コード統合版）
+Phase 12-2: 共通分析基盤クラス（Phase 22最適化完了）
 
-スクリプト統合により約500行の重複コードを削減。
-Cloud Runログ取得・gcloudコマンド実行・データ読み込み機能を統合。
+Cloud Runログ取得・gcloudコマンド実行・データ読み込み機能の統合基盤クラス。
+dev_check.pyから使用され、システム分析・監視機能の共通基盤を提供。
 
-重複解決対象:
-- trading_data_collector.py: Cloud Runログ取得（136-184行）
-- performance_analyzer.py: gcloudコマンド・サービス状態確認（64-200行）
-- simple_ab_test.py: ログ取得・データ解析（106-151行）
-- trading_dashboard.py: データファイル読み込み（48-122行）
+主な機能:
+- Cloud Runサービス状態確認・ログ取得
+- gcloudコマンド実行ラッパー
+- ログ解析・シグナル頻度分析
+- CSV/JSONファイル読み込み・保存機能
 """
 
 import json
 import logging
 import subprocess
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -26,7 +25,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-class BaseAnalyzer(ABC):
+class BaseAnalyzer:
     """分析スクリプト共通基盤クラス"""
 
     def __init__(
@@ -443,93 +442,3 @@ class BaseAnalyzer(ABC):
 
         logger.info(f"CSVデータ保存完了: {file_path} ({len(data)}行)")
         return str(file_path)
-
-    # ===== 抽象メソッド（各スクリプトで実装） =====
-
-    @abstractmethod
-    def run_analysis(self, **kwargs) -> Dict:
-        """分析実行（各スクリプトで実装必須）"""
-        pass
-
-    @abstractmethod
-    def generate_report(self, analysis_result: Dict) -> str:
-        """レポート生成（各スクリプトで実装必須）"""
-        pass
-
-
-class CloudRunAnalyzer(BaseAnalyzer):
-    """Cloud Run特化分析クラス（例示・拡張用）"""
-
-    def run_analysis(self, hours: int = 24, include_health_check: bool = True) -> Dict:
-        """Cloud Run包括分析"""
-        logger.info(f"Cloud Run包括分析開始（{hours}時間）")
-
-        # サービス状態確認
-        health_data = {}
-        if include_health_check:
-            health_data = self.check_service_endpoint()
-
-        # ログ分析
-        success, logs = self.fetch_trading_logs(hours)
-
-        if success:
-            signal_analysis = self.analyze_signal_frequency(logs, hours)
-        else:
-            signal_analysis = {"total_signals": 0, "error": "ログ取得失敗"}
-
-        # エラー分析
-        error_success, error_logs = self.fetch_error_logs(hours)
-        error_analysis = {
-            "total_errors": len(error_logs) if error_success else 0,
-            "error_rate_per_hour": (len(error_logs) / hours if error_success and hours > 0 else 0),
-        }
-
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "analysis_period_hours": hours,
-            "service_health": health_data,
-            "signal_analysis": signal_analysis,
-            "error_analysis": error_analysis,
-        }
-
-    def generate_report(self, analysis_result: Dict) -> str:
-        """分析レポート生成"""
-        report = []
-        report.append("=" * 60)
-        report.append("Cloud Run分析レポート")
-        report.append("=" * 60)
-        report.append(f"実行日時: {analysis_result['timestamp']}")
-        report.append(f"分析期間: {analysis_result['analysis_period_hours']}時間")
-        report.append("")
-
-        # サービス状態
-        health = analysis_result.get("service_health", {})
-        report.append("🏥 サービス状態:")
-        report.append(f"  状態: {health.get('service_status', 'UNKNOWN')}")
-        report.append(f"  URL: {health.get('url', 'Unknown')}")
-        report.append("")
-
-        # シグナル分析
-        signal = analysis_result.get("signal_analysis", {})
-        report.append("📊 シグナル分析:")
-        report.append(f"  総数: {signal.get('total_signals', 0)}")
-        report.append(f"  頻度: {signal.get('signal_frequency_per_hour', 0)}/時間")
-        report.append(f"  平均信頼度: {signal.get('avg_confidence', 0)}")
-        report.append("")
-
-        # エラー分析
-        error = analysis_result.get("error_analysis", {})
-        report.append("🔍 エラー分析:")
-        report.append(f"  総エラー数: {error.get('total_errors', 0)}")
-        report.append(f"  エラー率: {error.get('error_rate_per_hour', 0)}/時間")
-        report.append("=" * 60)
-
-        return "\n".join(report)
-
-
-if __name__ == "__main__":
-    # 使用例
-    analyzer = CloudRunAnalyzer()
-    result = analyzer.run_analysis(hours=24)
-    report = analyzer.generate_report(result)
-    print(report)

@@ -2,7 +2,7 @@
 
 ## 🎯 役割・責任
 
-AI自動取引システムの機械学習層。12特徴量を入力として、3つの機械学習モデル（LightGBM、XGBoost、RandomForest）によるアンサンブル予測を提供。買い/売り/ホールドの取引シグナルを高精度で生成。
+AI自動取引システムの機械学習層。15特徴量を入力として、3つの機械学習モデル（LightGBM、XGBoost、RandomForest）によるアンサンブル予測を提供。買い/売り/ホールドの取引シグナルを高精度で生成。
 
 ## 📂 ファイル構成
 
@@ -119,7 +119,7 @@ manager = ModelManager()
 # モデル保存
 model_id = manager.save_model(
     ensemble, 
-    description="12特徴量アンサンブルモデル v1.0"
+    description="15特徴量アンサンブルモデル v1.0"
 )
 
 # モデル読み込み
@@ -138,7 +138,7 @@ for model in models:
 from src.ml import EnsembleModel
 import pandas as pd
 
-# 12特徴量データ準備
+# 15特徴量データ準備
 X_train = pd.DataFrame({
     'close': [...], 'volume': [...], 'returns_1': [...],
     'rsi_14': [...], 'macd': [...], 'macd_signal': [...],
@@ -165,7 +165,7 @@ with open('models/production/production_ensemble.pkl', 'rb') as f:
     production_model = pickle.load(f)
 
 # 本番予測実行
-sample_features = np.random.random((5, 12))  # 12特徴量必須
+sample_features = np.random.random((5, 15))  # 15特徴量必須
 predictions = production_model.predict(sample_features)
 probabilities = production_model.predict_proba(sample_features)
 
@@ -215,16 +215,18 @@ weights = {
 - **多数決投票**: 3モデルの多数決
 - **合意制投票**: 全モデル一致時のみ取引
 
-### **12特徴量対応**
+### **15特徴量対応**
 
 **必須特徴量**（順序固定）:
 ```python
 expected_features = [
-    'close', 'volume', 'returns_1',           # 基本データ（3個）
-    'rsi_14', 'macd', 'macd_signal',          # モメンタム（3個）
+    'close', 'volume',                        # 基本データ（2個）
+    'rsi_14', 'macd',                         # モメンタム（2個）
     'atr_14', 'bb_position',                  # ボラティリティ（2個）
     'ema_20', 'ema_50',                       # トレンド（2個）
-    'zscore', 'volume_ratio'                  # 異常検知（2個）
+    'volume_ratio',                           # 出来高（1個）
+    'donchian_high_20', 'donchian_low_20', 'channel_position',  # ブレイクアウト（3個）
+    'adx_14', 'plus_di_14', 'minus_di_14'     # 市場レジーム（3個）
 ]
 ```
 
@@ -260,7 +262,7 @@ ensemble = EnsembleModel(
 ## ⚠️ 重要事項
 
 ### **データ要件**
-- **特徴量数**: 12個固定（変更不可）
+- **特徴量数**: 15個固定（変更不可）
 - **特徴量順序**: expected_features順序厳守
 - **データ型**: pandas DataFrame または numpy array
 - **最小学習サンプル**: 100以上推奨
@@ -278,8 +280,8 @@ ensemble = EnsembleModel(
 ### **依存関係**
 - **外部ライブラリ**: scikit-learn、lightgbm、xgboost、joblib
 - **内部依存**: src.core.logger、src.core.exceptions
-- **特徴量**: src.features（12特徴量生成）
+- **特徴量**: src.features（15特徴量生成）
 
 ---
 
-**機械学習システム**: 12特徴量を入力とした3モデルアンサンブルにより、高精度な取引シグナル予測を提供する統合機械学習システム。
+**機械学習システム**: 15特徴量を入力とした3モデルアンサンブルにより、高精度な取引シグナル予測を提供する統合機械学習システム。

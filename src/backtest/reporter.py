@@ -1,934 +1,151 @@
 """
-バックテストレポートシステム - Phase 12・CI/CD統合・手動実行監視・段階的デプロイ対応
+バックテストレポートシステム - Phase 21・本番同一ロジック対応
 
-包括的なバックテスト結果のレポート生成機能。
-CSV・HTML・Discord通知による多形式出力をサポート。
+Phase 21改良:
+- BacktestEngineとの依存関係を廃止
+- 本番と同じ取引ロジック結果のレポート生成
+- シンプルで保守しやすいレポート機能
+- CSVデータと統合したバックテスト結果出力
 
 主要機能:
-- CSV形式詳細レポート・GitHub Actions対応
-- HTML可視化レポート・CI/CD品質ゲート対応
-- Discord通知サマリー・手動実行監視対応
-- 比較分析レポート・段階的デプロイ対応
-- パフォーマンス統計出力・CI/CD統合.
+- JSON形式レポート生成
+- 進捗レポート（時系列バックテスト用）
+- エラーレポート（デバッグ用）
+- 簡易統計レポート
 """
 
-import csv
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-import pandas as pd
+from typing import Any, Dict, Optional
 
 from ..core.logger import get_logger
-from ..monitoring.discord_notifier import DiscordManager
-from .engine import TradeRecord
-from .evaluator import PerformanceMetrics
 
 
 class BacktestReporter:
     """
-    バックテストレポート生成システム
+    バックテストレポート生成システム（Phase 21）
 
-    バックテスト結果を様々な形式で出力し、
-    分析・共有・記録保持を支援する。.
+    本番同一ロジックバックテスト用のシンプルなレポート機能。
     """
 
-    def __init__(self, output_dir: str = "logs/backtest_reports"):
+    def __init__(self, output_dir: Optional[str] = None):
         self.logger = get_logger(__name__)
 
-        # 出力ディレクトリ設定
-        self.output_dir = Path(output_dir)
+        # 出力ディレクトリ設定（Phase 21: バックテスト統合フォルダ）
+        if output_dir is None:
+            # src/backtest/logs/ 配下に保存（集約済み）
+            base_dir = Path(__file__).parent / "logs"
+        else:
+            base_dir = Path(output_dir)
+        self.output_dir = base_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        # サブディレクトリ作成
-        (self.output_dir / "csv").mkdir(exist_ok=True)
-        (self.output_dir / "html").mkdir(exist_ok=True)
-        (self.output_dir / "json").mkdir(exist_ok=True)
-
-        # Discord通知（オプション）
-        try:
-            self.discord_manager = DiscordManager()
-        except Exception as e:
-            self.logger.debug(f"Discord通知無効: {e}")
-            self.discord_manager = None
 
         self.logger.info(f"BacktestReporter初期化完了: {self.output_dir}")
 
-    async def generate_full_report(
-        self,
-        test_name: str,
-        trade_records: List[TradeRecord],
-        performance_metrics: PerformanceMetrics,
-        equity_curve: List[tuple],
-        market_data: Optional[pd.DataFrame] = None,
-        strategy_info: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, str]:
+    async def generate_backtest_report(
+        self, final_stats: Dict[str, Any], start_date: datetime, end_date: datetime
+    ) -> str:
         """
-        包括的レポート生成
+        バックテストレポート生成（Phase 21）
 
         Args:
-            test_name: テスト名
-            trade_records: 取引記録
-            performance_metrics: パフォーマンス指標
-            equity_curve: エクイティカーブ
-            market_data: 市場データ（オプション）
-            strategy_info: 戦略情報（オプション）
+            final_stats: バックテスト統計データ
+            start_date: バックテスト開始日
+            end_date: バックテスト終了日
 
         Returns:
-            生成されたファイルパスの辞書.
+            生成されたレポートファイルパス
         """
-        self.logger.info(f"包括的レポート生成開始: {test_name}")
+        self.logger.info("バックテストレポート生成開始")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_filename = f"{test_name}_{timestamp}"
-
-        generated_files = {}
+        filename = f"backtest_{timestamp}.json"
+        filepath = self.output_dir / filename
 
         try:
-            # 1. CSVレポート生成
-            csv_files = await self._generate_csv_reports(
-                base_filename, trade_records, performance_metrics, equity_curve
-            )
-            generated_files.update(csv_files)
+            # レポートデータ構築
+            report_data = {
+                "backtest_info": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "duration_days": (end_date - start_date).days,
+                    "generated_at": datetime.now().isoformat(),
+                    "phase": "Phase_21_同一ロジック",
+                },
+                "execution_stats": final_stats,
+                "system_info": {
+                    "runner_type": "BacktestRunner",
+                    "data_source": "CSV",
+                    "logic_type": "本番同一ロジック",
+                },
+            }
 
-            # 2. JSONサマリー生成
-            json_file = await self._generate_json_summary(
-                base_filename, performance_metrics, strategy_info
-            )
-            generated_files["json"] = json_file
+            # JSONファイル保存
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(report_data, f, ensure_ascii=False, indent=2)
 
-            # 3. HTMLレポート生成
-            html_file = await self._generate_html_report(
-                base_filename,
-                trade_records,
-                performance_metrics,
-                equity_curve,
-                market_data,
-            )
-            generated_files["html"] = html_file
-
-            # 4. Discord通知送信
-            if self.discord_manager:
-                await self._send_discord_summary(test_name, performance_metrics, generated_files)
-
-            self.logger.info(f"レポート生成完了: {len(generated_files)}ファイル")
-            return generated_files
+            self.logger.info(f"バックテストレポート生成完了: {filepath}")
+            return str(filepath)
 
         except Exception as e:
             self.logger.error(f"レポート生成エラー: {e}")
             raise
 
-    async def _generate_csv_reports(
-        self,
-        base_filename: str,
-        trade_records: List[TradeRecord],
-        performance_metrics: PerformanceMetrics,
-        equity_curve: List[tuple],
-    ) -> Dict[str, str]:
-        """CSV形式レポート生成."""
-
-        csv_files = {}
-
-        # 1. 取引記録CSV
-        if trade_records:
-            trades_file = self.output_dir / "csv" / f"{base_filename}_trades.csv"
-
-            with open(trades_file, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-
-                # ヘッダー
-                writer.writerow(
-                    [
-                        "Entry Time",
-                        "Exit Time",
-                        "Side",
-                        "Entry Price",
-                        "Exit Price",
-                        "Amount",
-                        "Profit JPY",
-                        "Profit Rate",
-                        "Duration Hours",
-                        "Slippage",
-                        "Commission",
-                        "Stop Loss",
-                        "Take Profit",
-                        "Strategy Signal",
-                        "ML Confidence",
-                        "Risk Score",
-                    ]
-                )
-
-                # データ行
-                for trade in trade_records:
-                    duration_hours = 0.0
-                    if trade.exit_time and trade.entry_time:
-                        duration_hours = (trade.exit_time - trade.entry_time).total_seconds() / 3600
-
-                    writer.writerow(
-                        [
-                            trade.entry_time.strftime("%Y-%m-%d %H:%M:%S"),
-                            (
-                                trade.exit_time.strftime("%Y-%m-%d %H:%M:%S")
-                                if trade.exit_time
-                                else ""
-                            ),
-                            trade.side,
-                            trade.entry_price,
-                            trade.exit_price or "",
-                            trade.amount,
-                            trade.profit_jpy,
-                            f"{trade.profit_rate:.4f}",
-                            f"{duration_hours:.2f}",
-                            trade.slippage,
-                            trade.commission,
-                            trade.stop_loss or "",
-                            trade.take_profit or "",
-                            trade.strategy_signal,
-                            f"{trade.ml_confidence:.3f}",
-                            f"{trade.risk_score:.3f}",
-                        ]
-                    )
-
-            csv_files["trades"] = str(trades_file)
-
-        # 2. エクイティカーブCSV
-        if equity_curve:
-            equity_file = self.output_dir / "csv" / f"{base_filename}_equity.csv"
-
-            with open(equity_file, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Timestamp", "Equity"])
-
-                for timestamp, equity in equity_curve:
-                    writer.writerow(
-                        [
-                            timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                            f"{equity:.2f}",
-                        ]
-                    )
-
-            csv_files["equity"] = str(equity_file)
-
-        # 3. パフォーマンスサマリーCSV
-        summary_file = self.output_dir / "csv" / f"{base_filename}_summary.csv"
-
-        with open(summary_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Metric", "Value"])
-
-            metrics_data = [
-                ("Total Trades", performance_metrics.total_trades),
-                ("Win Rate", f"{performance_metrics.win_rate:.2%}"),
-                ("Total Return", f"{performance_metrics.total_return:.2%}"),
-                (
-                    "Annualized Return",
-                    f"{performance_metrics.annualized_return:.2%}",
-                ),
-                ("CAGR", f"{performance_metrics.cagr:.2%}"),
-                ("Max Drawdown", f"{performance_metrics.max_drawdown:.2%}"),
-                ("Sharpe Ratio", f"{performance_metrics.sharpe_ratio:.3f}"),
-                ("Sortino Ratio", f"{performance_metrics.sortino_ratio:.3f}"),
-                ("Profit Factor", f"{performance_metrics.profit_factor:.3f}"),
-                (
-                    "Average Trade Duration",
-                    f"{performance_metrics.average_trade_duration:.1f} hours",
-                ),
-                (
-                    "Max Consecutive Wins",
-                    performance_metrics.max_consecutive_wins,
-                ),
-                (
-                    "Max Consecutive Losses",
-                    performance_metrics.max_consecutive_losses,
-                ),
-                (
-                    "Analysis Period",
-                    f"{performance_metrics.analysis_period_days} days",
-                ),
-                (
-                    "Start Date",
-                    performance_metrics.start_date.strftime("%Y-%m-%d"),
-                ),
-                (
-                    "End Date",
-                    performance_metrics.end_date.strftime("%Y-%m-%d"),
-                ),
-            ]
-
-            for metric, value in metrics_data:
-                writer.writerow([metric, value])
-
-        csv_files["summary"] = str(summary_file)
-
-        return csv_files
-
-    async def _generate_json_summary(
-        self,
-        base_filename: str,
-        performance_metrics: PerformanceMetrics,
-        strategy_info: Optional[Dict[str, Any]],
-    ) -> str:
-        """JSON形式サマリー生成."""
-
-        json_file = self.output_dir / "json" / f"{base_filename}_summary.json"
-
-        # メトリクスをJSONシリアライズ可能な形式に変換
-        summary_data = {
-            "test_info": {
-                "test_name": base_filename,
-                "generated_at": datetime.now().isoformat(),
-                "strategy_info": strategy_info or {},
-            },
-            "performance": {
-                "basic_stats": {
-                    "total_trades": performance_metrics.total_trades,
-                    "winning_trades": performance_metrics.winning_trades,
-                    "losing_trades": performance_metrics.losing_trades,
-                    "win_rate": performance_metrics.win_rate,
-                },
-                "returns": {
-                    "total_return": performance_metrics.total_return,
-                    "annualized_return": performance_metrics.annualized_return,
-                    "cagr": performance_metrics.cagr,
-                    "total_profit": performance_metrics.total_profit,
-                    "average_profit": performance_metrics.average_profit,
-                },
-                "risk_metrics": {
-                    "max_drawdown": performance_metrics.max_drawdown,
-                    "max_drawdown_duration": performance_metrics.max_drawdown_duration,
-                    "volatility": performance_metrics.volatility,
-                    "sharpe_ratio": performance_metrics.sharpe_ratio,
-                    "sortino_ratio": performance_metrics.sortino_ratio,
-                },
-                "trade_metrics": {
-                    "profit_factor": performance_metrics.profit_factor,
-                    "average_trade_duration": performance_metrics.average_trade_duration,
-                    "max_consecutive_wins": performance_metrics.max_consecutive_wins,
-                    "max_consecutive_losses": performance_metrics.max_consecutive_losses,
-                },
-            },
-            "analysis_period": {
-                "start_date": performance_metrics.start_date.isoformat(),
-                "end_date": performance_metrics.end_date.isoformat(),
-                "period_days": performance_metrics.analysis_period_days,
-            },
-            "detailed_stats": {
-                "trade_distribution": performance_metrics.trade_distribution,
-                "monthly_returns": performance_metrics.monthly_returns,
-                "drawdown_periods_count": len(performance_metrics.drawdown_periods),
-            },
-        }
-
-        with open(json_file, "w", encoding="utf-8") as f:
-            json.dump(summary_data, f, indent=2, ensure_ascii=False)
-
-        return str(json_file)
-
-    async def _generate_html_report(
-        self,
-        base_filename: str,
-        trade_records: List[TradeRecord],
-        performance_metrics: PerformanceMetrics,
-        equity_curve: List[tuple],
-        market_data: Optional[pd.DataFrame],
-    ) -> str:
-        """HTML形式レポート生成."""
-
-        html_file = self.output_dir / "html" / f"{base_filename}_report.html"
-
-        # HTMLテンプレート（シンプル版）
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バックテストレポート - {base_filename}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }}
-        .header {{ text-align: center; margin-bottom: 30px; }}
-        .metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .metric-card {{ background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff; }}
-        .metric-title {{ font-weight: bold; color: #333; margin-bottom: 5px; }}
-        .metric-value {{ font-size: 1.5em; color: #007bff; }}
-        .positive {{ color: #28a745; }}
-        .negative {{ color: #dc3545; }}
-        .section {{ margin-bottom: 30px; }}
-        .section-title {{ font-size: 1.3em; font-weight: bold; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #007bff; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-        th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }}
-        th {{ background-color: #f8f9fa; font-weight: bold; }}
-        .trade-profit {{ color: #28a745; }}
-        .trade-loss {{ color: #dc3545; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 バックテストレポート</h1>
-            <h2>{base_filename}</h2>
-            <p>生成日時: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}</p>
-        </div>
-
-        <div class="section">
-            <div class="section-title">📊 パフォーマンス概要</div>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-title">総取引数</div>
-                    <div class="metric-value">{performance_metrics.total_trades:,}回</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">勝率</div>
-                    <div class="metric-value {'positive' if performance_metrics.win_rate >= 0.5 else 'negative'}">{performance_metrics.win_rate:.1%}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">総リターン</div>
-                    <div class="metric-value {'positive' if performance_metrics.total_return >= 0 else 'negative'}">{performance_metrics.total_return:.2%}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">年率リターン</div>
-                    <div class="metric-value {'positive' if performance_metrics.cagr >= 0 else 'negative'}">{performance_metrics.cagr:.2%}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">最大ドローダウン</div>
-                    <div class="metric-value negative">{performance_metrics.max_drawdown:.2%}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">シャープレシオ</div>
-                    <div class="metric-value {'positive' if performance_metrics.sharpe_ratio >= 1.0 else 'negative'}">{performance_metrics.sharpe_ratio:.3f}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">プロフィットファクター</div>
-                    <div class="metric-value {'positive' if performance_metrics.profit_factor >= 1.0 else 'negative'}">{performance_metrics.profit_factor:.3f}</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">分析期間</div>
-                    <div class="metric-value">{performance_metrics.analysis_period_days}日</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">📈 取引詳細</div>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-title">勝ち取引</div>
-                    <div class="metric-value positive">{performance_metrics.winning_trades}回</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">負け取引</div>
-                    <div class="metric-value negative">{performance_metrics.losing_trades}回</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">平均取引時間</div>
-                    <div class="metric-value">{performance_metrics.average_trade_duration:.1f}時間</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">最大連勝</div>
-                    <div class="metric-value positive">{performance_metrics.max_consecutive_wins}回</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-title">最大連敗</div>
-                    <div class="metric-value negative">{performance_metrics.max_consecutive_losses}回</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">📋 最近の取引記録（最新10件）</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>エントリー時刻</th>
-                        <th>方向</th>
-                        <th>エントリー価格</th>
-                        <th>エグジット価格</th>
-                        <th>損益</th>
-                        <th>損益率</th>
-                        <th>取引時間</th>
-                    </tr>
-                </thead>
-                <tbody>
+    async def save_progress_report(self, progress_stats: Dict[str, Any]) -> str:
         """
-
-        # 最新10件の取引記録
-        recent_trades = sorted(trade_records, key=lambda x: x.entry_time, reverse=True)[:10]
-        for trade in recent_trades:
-            duration_hours = 0.0
-            if trade.exit_time and trade.entry_time:
-                duration_hours = (trade.exit_time - trade.entry_time).total_seconds() / 3600
-
-            profit_class = "trade-profit" if trade.profit_jpy >= 0 else "trade-loss"
-
-            html_content += f"""
-                    <tr>
-                        <td>{trade.entry_time.strftime('%m/%d %H:%M')}</td>
-                        <td>{trade.side.upper()}</td>
-                        <td>¥{trade.entry_price:,.0f}</td>
-                        <td>¥{trade.exit_price:,.0f}</td>
-                        <td class="{profit_class}">¥{trade.profit_jpy:,.0f}</td>
-                        <td class="{profit_class}">{trade.profit_rate:.2%}</td>
-                        <td>{duration_hours:.1f}h</td>
-                    </tr>
-            """
-
-        html_content += """
-                </tbody>
-            </table>
-        </div>
-
-        <div class="section">
-            <div class="section-title">📅 分析期間情報</div>
-            <p><strong>開始日:</strong> {start_date}</p>
-            <p><strong>終了日:</strong> {end_date}</p>
-            <p><strong>分析期間:</strong> {period_days}日間</p>
-        </div>
-
-        <div style="text-align: center; margin-top: 40px; color: #666; font-size: 0.9em;">
-            <p>🤖 Generated by Crypto Bot Phase 12 Backtest System・CI/CD統合・手動実行監視・段階的デプロイ対応</p>
-        </div>
-    </div>
-</body>
-</html>
-        """.format(
-            start_date=performance_metrics.start_date.strftime("%Y年%m月%d日"),
-            end_date=performance_metrics.end_date.strftime("%Y年%m月%d日"),
-            period_days=performance_metrics.analysis_period_days,
-        )
-
-        with open(html_file, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        return str(html_file)
-
-    async def _send_discord_summary(
-        self,
-        test_name: str,
-        performance_metrics: PerformanceMetrics,
-        generated_files: Dict[str, str],
-    ):
-        """Discord通知サマリー送信."""
-
-        if not self.discord_manager:
-            return
-
-        try:
-            # 基本情報
-            win_rate_emoji = "📈" if performance_metrics.win_rate >= 0.55 else "📉"
-            return_emoji = "🟢" if performance_metrics.total_return >= 0 else "🔴"
-
-            message = f"""
-🚀 **バックテストレポート完了**
-
-**📊 テスト名:** `{test_name}`
-**📅 期間:** {performance_metrics.analysis_period_days}日間 ({performance_metrics.start_date.strftime('%Y/%m/%d')} - {performance_metrics.end_date.strftime('%Y/%m/%d')})
-
-**💯 主要指標:**
-{win_rate_emoji} **勝率:** {performance_metrics.win_rate:.1%} ({performance_metrics.winning_trades}/{performance_metrics.total_trades}勝)
-{return_emoji} **総リターン:** {performance_metrics.total_return:.2%}
-📊 **年率リターン (CAGR):** {performance_metrics.cagr:.2%}
-⚠️ **最大ドローダウン:** {performance_metrics.max_drawdown:.2%}
-⚡ **シャープレシオ:** {performance_metrics.sharpe_ratio:.3f}
-
-**📁 生成ファイル数:** {len(generated_files)}個.
-            """.strip()
-
-            self.discord_manager.send_simple_message(message, "info")
-
-        except Exception as e:
-            self.logger.warning(f"Discord通知送信エラー: {e}")
-
-    async def compare_backtests(
-        self,
-        test_results: List[Dict[str, Any]],
-        comparison_name: str = "backtest_comparison",
-    ) -> str:
-        """複数バックテスト結果の比較レポート生成."""
-
-        if len(test_results) < 2:
-            raise ValueError("比較には最低2つのテスト結果が必要です")
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        comparison_file = self.output_dir / "html" / f"{comparison_name}_{timestamp}.html"
-
-        # 比較HTMLテンプレート（簡略版）
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>バックテスト比較レポート</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; }}
-        .comparison-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        .comparison-table th, .comparison-table td {{ padding: 10px; text-align: center; border: 1px solid #ddd; }}
-        .comparison-table th {{ background-color: #f8f9fa; }}
-        .best-value {{ background-color: #d4edda; font-weight: bold; }}
-    </style>
-</head>
-<body>
-    <h1>📊 バックテスト比較レポート</h1>
-    <p>生成日時: {datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')}</p>
-
-    <table class="comparison-table">
-        <thead>
-            <tr>
-                <th>指標</th>
-        """
-
-        # テスト名ヘッダー
-        for i, result in enumerate(test_results):
-            test_name = result.get("test_name", f"Test {i + 1}")
-            html_content += f"<th>{test_name}</th>"
-
-        html_content += """
-            </tr>
-        </thead>
-        <tbody>.
-        """
-
-        # 比較指標
-        comparison_metrics = [
-            ("総取引数", "total_trades", False),
-            ("勝率", "win_rate", True, "%"),
-            ("総リターン", "total_return", True, "%"),
-            ("年率リターン", "cagr", True, "%"),
-            ("最大ドローダウン", "max_drawdown", False, "%"),  # 低い方が良い
-            ("シャープレシオ", "sharpe_ratio", True),
-            ("プロフィットファクター", "profit_factor", True),
-        ]
-
-        for (
-            metric_name,
-            metric_key,
-            higher_is_better,
-            *format_args,
-        ) in comparison_metrics:
-            html_content += f"<tr><td><strong>{metric_name}</strong></td>"
-
-            values = []
-            for result in test_results:
-                metrics = result.get("performance_metrics")
-                if metrics and hasattr(metrics, metric_key):
-                    values.append(getattr(metrics, metric_key))
-                else:
-                    values.append(0.0)
-
-            # 最良値を特定
-            if higher_is_better:
-                best_value = max(values) if values else 0.0
-            else:
-                best_value = min(values) if values else 0.0
-
-            # 値を表示
-            for value in values:
-                is_best = (value == best_value) and (len(set(values)) > 1)
-                css_class = ' class="best-value"' if is_best else ""
-
-                if format_args and format_args[0] == "%":
-                    formatted_value = f"{value:.2%}"
-                else:
-                    formatted_value = f"{value:.3f}" if isinstance(value, float) else str(value)
-
-                html_content += f"<td{css_class}>{formatted_value}</td>"
-
-            html_content += "</tr>"
-
-        html_content += """
-        </tbody>
-    </table>
-
-    <p><em>🟢 緑色のセルは最良値を示しています</em></p>
-</body>
-</html>.
-        """
-
-        with open(comparison_file, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        self.logger.info(f"比較レポート生成完了: {comparison_file}")
-        return str(comparison_file)
-
-    # Phase 18統合機能: core_reporter.pyとbacktest_report_writer.pyからの統合
-
-    async def generate_backtest_report(
-        self, results: Dict, start_date: datetime, end_date: datetime
-    ) -> Path:
-        """
-        バックテスト結果の包括的レポート生成（Phase 18統合版）
-
-        core_reporter.pyから統合された機能
+        進捗レポート保存（時系列バックテスト用）
 
         Args:
-            results: バックテスト結果データ
-            start_date: バックテスト開始日
-            end_date: バックテスト終了日
+            progress_stats: 進捗統計データ
 
         Returns:
-            保存されたレポートファイルパス
+            保存されたファイルパス
         """
         try:
-            # 統一レポートディレクトリ（Phase 18統合）
-            backtest_report_dir = Path("logs/backtest_reports")
-            backtest_report_dir.mkdir(exist_ok=True, parents=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"progress_{timestamp}.json"
+            filepath = self.output_dir / filename
 
-            timestamp = datetime.now()
-            filename = f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
-            filepath = backtest_report_dir / filename
-
-            # パフォーマンス指標計算
-            performance_stats = self._calculate_performance_stats(results)
-
-            # マークダウンレポート生成
-            report_content = self._generate_markdown_report(
-                results, start_date, end_date, timestamp, performance_stats
-            )
-
-            # ファイル保存
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write(report_content)
+                json.dump(progress_stats, f, ensure_ascii=False, indent=2, default=str)
 
-            # JSONレポートも保存
-            await self._save_json_report(
-                results,
-                start_date,
-                end_date,
-                timestamp,
-                performance_stats,
-                backtest_report_dir,
-            )
+            self.logger.debug(f"進捗レポート保存: {filepath}")
+            return str(filepath)
 
-            self.logger.info(f"📁 バックテストレポート保存: {filepath}")
-            return filepath
-
-        except (FileNotFoundError, PermissionError, OSError) as e:
-            self.logger.error(f"バックテストレポートファイルエラー: {e}")
-            raise
-        except (ValueError, TypeError, AttributeError) as e:
-            self.logger.error(f"バックテストレポートデータ処理エラー: {e}")
+        except Exception as e:
+            self.logger.warning(f"進捗レポート保存エラー: {e}")
             raise
 
-    async def save_error_report(self, error_message: str, context: Dict = None) -> Path:
+    async def save_error_report(self, error_message: str, context: Dict[str, Any]) -> str:
         """
-        バックテストエラーレポート保存（Phase 18統合版）
-
-        core_reporter.pyから統合された機能
+        エラーレポート保存
 
         Args:
             error_message: エラーメッセージ
-            context: エラーコンテキスト情報
+            context: エラーコンテキスト
 
         Returns:
-            保存されたエラーレポートファイルパス
+            保存されたファイルパス
         """
         try:
-            backtest_report_dir = Path("logs/backtest_reports")
-            backtest_report_dir.mkdir(exist_ok=True, parents=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"error_{timestamp}.json"
+            filepath = self.output_dir / filename
 
-            timestamp = datetime.now()
-            filename = f"backtest_error_{timestamp.strftime('%Y%m%d_%H%M%S')}.md"
-            filepath = backtest_report_dir / filename
+            error_data = {
+                "error_message": error_message,
+                "context": context,
+                "timestamp": datetime.now().isoformat(),
+                "phase": "Phase_21_BacktestSystem",
+            }
 
-            # エラーレポート内容生成
-            report_content = f"""# バックテストエラーレポート
-
-## 🚨 エラー情報
-- **発生時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
-- **エラーメッセージ**: {error_message}
-- **Phase**: 18（統合バックテストシステム）
-
-## 📋 実行コンテキスト
-"""
-
-            if context:
-                for key, value in context.items():
-                    report_content += f"- **{key}**: {value}\n"
-            else:
-                report_content += "- コンテキスト情報なし\n"
-
-            report_content += f"""
-
-## 🔧 トラブルシューティング
-1. データ品質チェック
-2. 設定ファイル確認
-3. MLモデル状態確認
-4. システムリソース確認
-
-## 📊 システム情報
-- **バックテストエンジン**: BacktestEngine（Phase 18統合版）
-- **レポーター**: BacktestReporter（統合版）
-- **エラーハンドリング**: 3階層例外システム
-
----
-*自動生成レポート - Phase 18統合バックテストシステム*
-"""
-
-            # ファイル保存
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write(report_content)
+                json.dump(error_data, f, ensure_ascii=False, indent=2, default=str)
 
-            self.logger.info(f"📁 エラーレポート保存: {filepath}")
-            return filepath
+            self.logger.info(f"エラーレポート保存: {filepath}")
+            return str(filepath)
 
         except Exception as e:
             self.logger.error(f"エラーレポート保存失敗: {e}")
             raise
-
-    def _calculate_performance_stats(self, results: Dict) -> Dict:
-        """パフォーマンス統計計算（統合版）"""
-        stats = {}
-
-        trades = results.get("trades", [])
-        total_trades = len(trades)
-
-        if total_trades > 0:
-            winning_trades = len([t for t in trades if t.get("pnl", 0) > 0])
-            total_pnl = sum(t.get("pnl", 0) for t in trades)
-
-            stats.update(
-                {
-                    "total_trades": total_trades,
-                    "winning_trades": winning_trades,
-                    "win_rate": ((winning_trades / total_trades * 100) if total_trades > 0 else 0),
-                    "total_pnl": total_pnl,
-                    "avg_pnl_per_trade": (total_pnl / total_trades if total_trades > 0 else 0),
-                }
-            )
-        else:
-            stats = {
-                "total_trades": 0,
-                "winning_trades": 0,
-                "win_rate": 0,
-                "total_pnl": 0,
-                "avg_pnl_per_trade": 0,
-            }
-
-        # 基本的なリスク指標
-        stats.update(
-            {
-                "max_drawdown": results.get("max_drawdown", 0),
-                "sharpe_ratio": results.get("sharpe_ratio", 0),
-                "final_balance": results.get("final_balance", 0),
-                "return_rate": results.get("return_rate", 0),
-            }
-        )
-
-        return stats
-
-    def _generate_markdown_report(
-        self,
-        results: Dict,
-        start_date: datetime,
-        end_date: datetime,
-        timestamp: datetime,
-        performance_stats: Dict,
-    ) -> str:
-        """マークダウンレポート生成（統合版）"""
-
-        report_content = f"""# バックテスト実行レポート
-
-## 📊 実行サマリー
-- **実行時刻**: {timestamp.strftime('%Y年%m月%d日 %H:%M:%S')}
-- **バックテスト期間**: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}
-- **対象シンボル**: BTC_JPY
-- **実行結果**: ✅ SUCCESS
-
-## 🎯 システム情報
-- **Phase**: 18（統合バックテストシステム）
-- **バックテストエンジン**: BacktestEngine（Phase 18統合版）
-- **戦略システム**: Phase 1-18統合戦略
-
-## 📈 パフォーマンス結果
-- **総取引数**: {performance_stats['total_trades']}件
-- **勝率**: {performance_stats['win_rate']:.2f}% ({performance_stats['winning_trades']}/{performance_stats['total_trades']})
-- **総損益**: ¥{performance_stats['total_pnl']:,.0f}
-- **最終資産**: ¥{performance_stats['final_balance']:,.0f}
-- **リターン**: {performance_stats['return_rate']:.2f}%
-
-## 📊 取引詳細
-"""
-
-        # 取引詳細追加
-        if results.get("trades"):
-            report_content += "### 取引履歴（最新10件）\n"
-            for i, trade in enumerate(results["trades"][-10:], 1):
-                entry_time = trade.get("entry_time", "N/A")
-                side = trade.get("side", "N/A")
-                entry_price = trade.get("entry_price", 0)
-                pnl = trade.get("pnl", 0)
-                pnl_icon = "📈" if pnl > 0 else "📉"
-                report_content += f"{i}. {entry_time} - {side.upper()} @ ¥{entry_price:,.0f} {pnl_icon} ¥{pnl:,.0f}\n"
-        else:
-            report_content += "取引が発生しませんでした。\n"
-
-        report_content += f"""
-
-## 🔧 リスク分析
-- **最大ドローダウン**: {performance_stats['max_drawdown']:.2f}%
-- **シャープレシオ**: {performance_stats['sharpe_ratio']:.2f}%
-- **平均取引損益**: ¥{performance_stats['avg_pnl_per_trade']:,.0f}
-
-## 📋 戦略分析
-- **使用戦略**: {len(results.get('strategies_used', []))}戦略
-- **ML予測精度**: {results.get('ml_accuracy', 0):.2f}%
-- **リスク管理**: Kelly基準・ドローダウン制御
-
-## 🆘 追加情報
-
-このレポートを他のAIツールに共有して、詳細な分析を依頼することができます。
-
-**共有時のポイント**:
-- バックテスト期間と取引数
-- 勝率と総損益
-- リスク指標（ドローダウン・シャープレシオ）
-- 戦略とML予測の効果
-
----
-*Phase 18統合バックテストシステム - 自動生成レポート*
-"""
-
-        return report_content
-
-    async def _save_json_report(
-        self,
-        results: Dict,
-        start_date: datetime,
-        end_date: datetime,
-        timestamp: datetime,
-        performance_stats: Dict,
-        report_dir: Path,
-    ):
-        """JSONレポート保存（統合版）"""
-        try:
-            json_filename = f"backtest_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
-            json_filepath = report_dir / json_filename
-
-            json_data = {
-                "report_info": {
-                    "generated_at": timestamp.isoformat(),
-                    "backtest_period": {
-                        "start": start_date.isoformat(),
-                        "end": end_date.isoformat(),
-                    },
-                    "phase": "18_integrated_system",
-                },
-                "performance_stats": performance_stats,
-                "raw_results": results,
-                "metadata": {
-                    "reporter_version": "Phase18_Integrated",
-                    "format_version": "2.0",
-                },
-            }
-
-            with open(json_filepath, "w", encoding="utf-8") as f:
-                import json
-
-                json.dump(json_data, f, ensure_ascii=False, indent=2)
-
-            self.logger.info(f"📁 JSONレポート保存: {json_filepath}")
-
-        except Exception as e:
-            self.logger.error(f"JSONレポート保存エラー: {e}")
-            # JSON保存エラーは致命的ではないため、例外を再発生させない

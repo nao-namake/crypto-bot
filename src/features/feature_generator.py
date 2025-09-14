@@ -1,10 +1,10 @@
 """
-特徴量生成統合システム - Phase 18統合版
+特徴量生成統合システム - Phase 21統合版
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
 
-97特徴量から12特徴量への極限最適化システム実装。
+97特徴量から15特徴量への最適化システム実装（5戦略対応）。
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
@@ -12,7 +12,7 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 18統合実装日: 2025年8月31日.
+Phase 21統合実装日: 2025年9月12日.
 """
 
 from typing import Any, Dict, List, Optional
@@ -22,7 +22,7 @@ import pandas as pd
 
 from ..core.config import get_anomaly_config
 
-# Phase 19: 特徴量定義一元化（feature_managerから取得）
+# Phase 21: 特徴量定義一元化（feature_managerから取得）
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
@@ -36,16 +36,18 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 19統合版
+    統合特徴量生成クラス - Phase 21統合版
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、12特徴量生成を効率的に提供。
+    1つのクラスに統合し、15特徴量生成を効率的に提供。
 
     主要機能:
-    - テクニカル指標生成（6個）
-    - 異常検知指標生成（3個）
-    - 基本特徴量生成（3個）
-    - 統合品質管理と12特徴量確認
+    - テクニカル指標生成（9個）
+    - 異常検知指標生成（1個）
+    - 基本特徴量生成（2個）
+    - ブレイクアウト指標生成（3個）
+    - レジーム指標生成（3個）
+    - 統合品質管理と15特徴量確認
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -63,19 +65,19 @@ class FeatureGenerator:
 
     async def generate_features(self, market_data: Dict[str, Any]) -> pd.DataFrame:
         """
-        統合特徴量生成処理（12特徴量確認機能付き）
+        統合特徴量生成処理（15特徴量確認機能付き）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
 
         Returns:
-            12特徴量を含むDataFrame
+            15特徴量を含むDataFrame
         """
         try:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            self.logger.info("特徴量生成開始 - 12特徴量システム")
+            self.logger.info("特徴量生成開始 - 15特徴量システム")
             self.computed_features.clear()
 
             # 必要列チェック
@@ -93,7 +95,7 @@ class FeatureGenerator:
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
 
-            # 🎯 12特徴量完全確認・検証
+            # 🎯 15特徴量完全確認・検証
             self._validate_feature_generation(result_df)
 
             # DataFrameをそのまま返す（戦略で使用するため）
@@ -110,8 +112,10 @@ class FeatureGenerator:
         elif isinstance(market_data, dict):
             try:
                 # タイムフレーム辞書の場合（マルチタイムフレームデータ）
-                # 実際に使用されるタイムフレーム: 4h（メイン）, 15m（サブ）
-                timeframe_keys = ["4h", "15m"]  # 優先順位順
+                # 設定から優先順位付きタイムフレームを取得
+                from ..core.config import get_data_config
+
+                timeframe_keys = get_data_config("timeframes", ["4h", "15m"])  # 設定化対応
                 for tf in timeframe_keys:
                     if tf in market_data and isinstance(market_data[tf], pd.DataFrame):
                         self.logger.info(f"タイムフレーム辞書からメイン時系列取得: {tf}")
@@ -159,12 +163,6 @@ class FeatureGenerator:
         if "volume" in result_df.columns:
             basic_features.append("volume")
 
-        # returns_1を計算
-        if "close" in result_df.columns:
-            result_df["returns_1"] = result_df["close"].pct_change(1, fill_method=None)
-            result_df["returns_1"] = result_df["returns_1"].fillna(0)
-            basic_features.append("returns_1")
-
         self.computed_features.update(basic_features)
         self.logger.debug(f"基本特徴量生成完了: {len(basic_features)}個")
         return result_df
@@ -177,12 +175,10 @@ class FeatureGenerator:
         result_df["rsi_14"] = self._calculate_rsi(result_df["close"])
         self.computed_features.add("rsi_14")
 
-        # MACD（ラインとシグナル両方生成）
-        macd_line, macd_signal = self._calculate_macd(result_df["close"])
+        # MACD（ラインのみ生成）
+        macd_line, _ = self._calculate_macd(result_df["close"])
         result_df["macd"] = macd_line
-        result_df["macd_signal"] = macd_signal
         self.computed_features.add("macd")
-        self.computed_features.add("macd_signal")
 
         # ATR 14期間
         result_df["atr_14"] = self._calculate_atr(result_df)
@@ -197,22 +193,32 @@ class FeatureGenerator:
         result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
         self.computed_features.update(["ema_20", "ema_50"])
 
-        self.logger.debug(f"テクニカル指標生成完了: 6個")
+        # Donchian Channel指標（3個）
+        donchian_high, donchian_low, channel_position = self._calculate_donchian_channel(result_df)
+        result_df["donchian_high_20"] = donchian_high
+        result_df["donchian_low_20"] = donchian_low
+        result_df["channel_position"] = channel_position
+        self.computed_features.update(["donchian_high_20", "donchian_low_20", "channel_position"])
+
+        # ADX指標（3個）
+        adx, plus_di, minus_di = self._calculate_adx_indicators(result_df)
+        result_df["adx_14"] = adx
+        result_df["plus_di_14"] = plus_di
+        result_df["minus_di_14"] = minus_di
+        self.computed_features.update(["adx_14", "plus_di_14", "minus_di_14"])
+
+        self.logger.debug("テクニカル指標生成完了: 11個")
         return result_df
 
     def _generate_anomaly_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """異常検知指標生成（3個）"""
+        """異常検知指標生成（1個）"""
         result_df = df.copy()
-
-        # Z-Score
-        result_df["zscore"] = self._calculate_zscore(result_df["close"])
-        self.computed_features.add("zscore")
 
         # 出来高比率
         result_df["volume_ratio"] = self._calculate_volume_ratio(result_df["volume"])
         self.computed_features.add("volume_ratio")
 
-        self.logger.debug(f"異常検知指標生成完了: 2個")
+        self.logger.debug("異常検知指標生成完了: 2個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -247,18 +253,6 @@ class FeatureGenerator:
         bb_lower = bb_middle - (bb_std_dev * 2)
         return (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
 
-    def _calculate_zscore(self, close: pd.Series, period: Optional[int] = None) -> pd.Series:
-        """Z-Score計算"""
-        try:
-            if period is None:
-                period = get_anomaly_config("zscore.calculation_period", 20)
-            rolling_mean = close.rolling(window=period, min_periods=1).mean()
-            rolling_std = close.rolling(window=period, min_periods=1).std()
-            return (close - rolling_mean) / (rolling_std + 1e-8)
-        except Exception as e:
-            self.logger.error(f"Z-Score計算エラー: {e}")
-            return pd.Series(np.zeros(len(close)), index=close.index)
-
     def _calculate_volume_ratio(self, volume: pd.Series, period: Optional[int] = None) -> pd.Series:
         """出来高比率計算"""
         try:
@@ -270,7 +264,7 @@ class FeatureGenerator:
             self.logger.error(f"出来高比率計算エラー: {e}")
             return pd.Series(np.zeros(len(volume)), index=volume.index)
 
-    # Phase 19: market_stress特徴量削除（12特徴量統一）
+    # Phase 22: market_stress特徴量削除（15特徴量統一）
     # def _calculate_market_stress(self, df: pd.DataFrame) -> pd.Series:
     #     """市場ストレス度指標計算（統合異常指標）"""
 
@@ -294,6 +288,100 @@ class FeatureGenerator:
         except Exception:
             return pd.Series(np.zeros(len(series)), index=series.index)
 
+    def _calculate_donchian_channel(self, df: pd.DataFrame, period: int = 20) -> tuple:
+        """
+        Donchian Channel計算
+
+        Args:
+            df: OHLCV DataFrame
+            period: 計算期間（デフォルト: 20）
+
+        Returns:
+            (donchian_high, donchian_low, channel_position)
+        """
+        try:
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            # 20期間の最高値・最安値
+            donchian_high = high.rolling(window=period, min_periods=1).max()
+            donchian_low = low.rolling(window=period, min_periods=1).min()
+
+            # チャネル内位置計算（0-1）
+            channel_width = donchian_high - donchian_low
+            channel_position = (close - donchian_low) / (channel_width + 1e-8)
+
+            # NaN値を適切な値で補完
+            donchian_high = donchian_high.fillna(method="bfill").fillna(high.iloc[0])
+            donchian_low = donchian_low.fillna(method="bfill").fillna(low.iloc[0])
+            channel_position = channel_position.fillna(0.5)  # 中央値で補完
+
+            return donchian_high, donchian_low, channel_position
+
+        except Exception as e:
+            self.logger.error(f"Donchian Channel計算エラー: {e}")
+            # エラー時のフォールバック
+            zeros = pd.Series(np.zeros(len(df)), index=df.index)
+            half_ones = pd.Series(np.full(len(df), 0.5), index=df.index)
+            return zeros, zeros, half_ones
+
+    def _calculate_adx_indicators(self, df: pd.DataFrame, period: int = 14) -> tuple:
+        """
+        ADX指標計算（ADX、+DI、-DI）
+
+        Args:
+            df: OHLCV DataFrame
+            period: 計算期間（デフォルト: 14）
+
+        Returns:
+            (adx, plus_di, minus_di)
+        """
+        try:
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+
+            # True Range計算
+            tr1 = high - low
+            tr2 = np.abs(high - close.shift(1))
+            tr3 = np.abs(low - close.shift(1))
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+            # Directional Movement計算
+            plus_dm = (high - high.shift(1)).where((high - high.shift(1)) > (low.shift(1) - low), 0)
+            minus_dm = (low.shift(1) - low).where((low.shift(1) - low) > (high - high.shift(1)), 0)
+            plus_dm = plus_dm.where(plus_dm > 0, 0)
+            minus_dm = minus_dm.where(minus_dm > 0, 0)
+
+            # Smoothed True Range と Directional Movement
+            atr = tr.rolling(window=period, min_periods=1).mean()
+            plus_dm_smooth = plus_dm.rolling(window=period, min_periods=1).mean()
+            minus_dm_smooth = minus_dm.rolling(window=period, min_periods=1).mean()
+
+            # Directional Indicators
+            plus_di = 100 * plus_dm_smooth / (atr + 1e-8)
+            minus_di = 100 * minus_dm_smooth / (atr + 1e-8)
+
+            # Directional Index
+            dx = 100 * np.abs(plus_di - minus_di) / (plus_di + minus_di + 1e-8)
+
+            # ADX (Average Directional Index)
+            adx = dx.rolling(window=period, min_periods=1).mean()
+
+            # NaN値補完
+            adx = adx.fillna(method="bfill").fillna(0)
+            plus_di = plus_di.fillna(method="bfill").fillna(0)
+            minus_di = minus_di.fillna(method="bfill").fillna(0)
+
+            return adx, plus_di, minus_di
+
+        except Exception as e:
+            self.logger.error(f"ADX指標計算エラー: {e}")
+            # エラー時のフォールバック
+            zeros = pd.Series(np.zeros(len(df)), index=df.index)
+            return zeros, zeros, zeros
+
     def _handle_nan_values(self, df: pd.DataFrame) -> pd.DataFrame:
         """NaN値処理（統合版）"""
         for feature in self.computed_features:
@@ -302,7 +390,7 @@ class FeatureGenerator:
         return df
 
     def _validate_feature_generation(self, df: pd.DataFrame) -> None:
-        """12特徴量完全確認・検証"""
+        """15特徴量完全確認・検証"""
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
 
@@ -310,9 +398,7 @@ class FeatureGenerator:
         self.logger.info(
             f"特徴量生成完了 - 総数: {len(generated_features)}/{len(OPTIMIZED_FEATURES)}個",
             extra_data={
-                "basic_features": len(
-                    [f for f in ["close", "volume", "returns_1"] if f in df.columns]
-                ),
+                "basic_features": len([f for f in ["close", "volume"] if f in df.columns]),
                 "technical_features": len(
                     [
                         f
@@ -327,7 +413,7 @@ class FeatureGenerator:
                         if f in df.columns
                     ]
                 ),
-                "anomaly_features": len([f for f in ["zscore", "volume_ratio"] if f in df.columns]),
+                "anomaly_features": len([f for f in ["volume_ratio"] if f in df.columns]),
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": len(OPTIMIZED_FEATURES),
@@ -341,62 +427,7 @@ class FeatureGenerator:
                 f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
         else:
-            self.logger.info("✅ 12特徴量完全生成成功")
-
-    def generate_features_sync(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        同期特徴量生成（後方互換性用）
-
-        Phase 18統合により、テストとの互換性のため同期版を提供。
-        DataFrame入力・DataFrame出力で、異常検知特徴量のみ生成。
-
-        Args:
-            df: OHLCVデータフレーム
-        Returns:
-            特徴量追加されたデータフレーム
-        """
-        # 必要列のチェック（OHLCV全て必要）
-        required_columns = ["open", "high", "low", "close", "volume"]
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            from src.core.exceptions import DataProcessingError
-
-            raise DataProcessingError(f"必要列が不足: {missing_columns}")
-
-        # 簡易版：market_stress特徴量のみ生成
-        result_df = df.copy()
-
-        # 効果的なlookback_periodを決定（最小3、最大はデータ長の80%）
-        effective_lookback = min(self.lookback_period, max(3, int(len(df) * 0.8)))
-
-        # 出来高異常検知 (volume_ratio)
-        if "volume" in df.columns:
-            if len(df) >= 2:
-                rolling_mean = df["volume"].rolling(window=effective_lookback, min_periods=1).mean()
-                volume_ratio = df["volume"] / rolling_mean.fillna(df["volume"].mean())
-                result_df["volume_ratio"] = volume_ratio.fillna(1.0)
-            else:
-                result_df["volume_ratio"] = 1.0
-
-        # 価格Z-Score (zscore)
-        if "close" in df.columns:
-            if len(df) >= 2:
-                rolling_mean = df["close"].rolling(window=effective_lookback, min_periods=1).mean()
-                rolling_std = df["close"].rolling(window=effective_lookback, min_periods=1).std()
-                zscore = (df["close"] - rolling_mean) / rolling_std.fillna(
-                    1.0
-                )  # std=0の場合は1.0で除算
-                result_df["zscore"] = zscore.fillna(0.0)
-            else:
-                result_df["zscore"] = 0.0
-
-        # Phase 19: market_stress削除（12特徴量統一）
-        # 市場ストレス (market_stress) - 統合指標 - 削除済み
-
-        # computed_featuresを更新（market_stress除外）
-        self.computed_features.update(["volume_ratio", "zscore"])
-
-        return result_df
+            self.logger.info("✅ 15特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""
@@ -409,31 +440,26 @@ class FeatureGenerator:
             "feature_descriptions": {
                 "close": "終値（基準価格）",
                 "volume": "出来高（市場活動度）",
-                "returns_1": "1期間リターン（短期モメンタム）",
                 "rsi_14": "RSI（オーバーボート・ソールド判定）",
                 "macd": "MACD（トレンド転換シグナル）",
-                "macd_signal": "MACDシグナル（エントリータイミング）",
                 "atr_14": "ATR（ボラティリティ測定）",
                 "bb_position": "ボリンジャーバンド位置（価格位置）",
                 "ema_20": "EMA短期（短期トレンド）",
                 "ema_50": "EMA中期（中期トレンド）",
+                "donchian_high_20": "Donchian Channel上限（20期間最高値）",
+                "donchian_low_20": "Donchian Channel下限（20期間最安値）",
+                "channel_position": "チャネル内位置（0-1正規化位置）",
+                "adx_14": "ADX（トレンド強度指標）",
+                "plus_di_14": "+DI（上昇トレンド方向性）",
+                "minus_di_14": "-DI（下降トレンド方向性）",
                 "volume_ratio": "出来高比率（出来高異常検知）",
-                "zscore": "価格Z-Score（標準化価格位置）",
             },
         }
 
 
-# 後方互換性のためのエイリアス
-TechnicalIndicators = FeatureGenerator
-MarketAnomalyDetector = FeatureGenerator
-FeatureServiceAdapter = FeatureGenerator
-
 # エクスポートリスト
 __all__ = [
     "FeatureGenerator",
-    "TechnicalIndicators",
-    "MarketAnomalyDetector",
-    "FeatureServiceAdapter",
     "OPTIMIZED_FEATURES",
     "FEATURE_CATEGORIES",
 ]

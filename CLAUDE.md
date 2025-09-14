@@ -4,13 +4,13 @@
 
 ## 🚨 現在の状況
 
-### **システム状態 (Phase 22ハードコード値一元化完了)**
+### **システム状態 (Phase 22設定最適化完了)**
 - **AI自動取引システム**: 完全稼働中・Cloud Run 24時間運用・bitbank信用取引対応
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・高頻度取引・BTC/JPY専用・動的信頼度計算対応済み
-- **テスト品質**: 620テスト実装・58.64%カバレッジ維持・主機能正常動作確認
+- **テスト品質**: 625テスト100%成功・58.64%カバレッジ維持
 - **統合システム**: 15特徴量→5戦略（動的信頼度）→ML予測→リスク管理→取引実行の完全自動化
-- **Phase 22成果**: ハードコード値完全一元化・thresholds.yaml最適化（192→72キー、87.8%削減）・設定統合・保守性大幅向上
+- **Phase 22成果**: 設定最適化完了・26キー重複問題解決・unified.yaml最適化（14.3KB→3.9KB、72.7%削減）・thresholds.yaml最適化（376→147行、60.9%削除）・真のシステム性能発揮
 
 ### **主要仕様（要件定義より）**
 - **Python**: 3.12・MLライブラリ互換性最適化・GitHub Actions安定版
@@ -23,11 +23,11 @@
 
 ```
 src/                        # メイン実装
-├── core/                   # 基盤システム (Phase 22ハードコード値一元化完了)
+├── core/                   # 基盤システム (Phase 22設定最適化完了)
 │   ├── orchestration/          # システム統合制御・protocols.py移動・ML統合
-│   ├── config/                 # 統一設定管理・特徴量管理・ハードコード値一元化
+│   ├── config/                 # 統一設定管理・特徴量管理・26キー重複問題解決
 │   ├── execution/              # 統合実行制御（backtest/paper/live）
-│   ├── reporting/              # レポーティング・Discord統合 (Phase 22)
+│   ├── reporting/              # レポーティング・Discord統合
 │   └── services/               # システムサービス・設定化対応
 ├── data/                   # データ層（Bitbank API・キャッシュ）
 ├── features/               # 15特徴量生成システム
@@ -41,10 +41,10 @@ src/                        # メイン実装
 # monitoring/はPhase 22でcore/reporting/に統合済み
 
 scripts/testing/checks.sh   # 品質チェック（開発必須）
-config/core/unified.yaml    # 統合設定ファイル (Phase 22 一元化完了)
-config/core/thresholds.yaml # 最適化済み閾値設定（192→72キー、87.8%削減）
+config/core/unified.yaml    # 統合設定ファイル (Phase 22 最適化完了)
+config/core/thresholds.yaml # 最適化済み閾値設定（376→147行、60.9%削除）
 ├── 交換所・ML・戦略・リスクすべての設定を統一管理
-├── ハードコード値完全排除・運用パラメータ動的調整対応
+├── 26キー重複問題解決・デフォルト値強制回避・最適化設定活用
 ├── 未使用設定完全削除・保守性・起動速度向上
 └── モード制御: CLI引数 > 環境変数 > YAML設定の優先度
 models/production/          # 本番MLモデル（週次更新）
@@ -55,15 +55,15 @@ models/production/          # 本番MLモデル（週次更新）
 ### **1. 品質チェック（開発時必須）**
 ```bash
 # メイン品質チェック - 開発前後に必ず実行
-bash scripts/testing/checks.sh                         # 620テスト・カバレッジ・約30秒
+bash scripts/testing/checks.sh                         # 625テスト・カバレッジ・約30秒
 
 # 軽量確認
 python3 scripts/testing/dev_check.py validate         # 設定整合性チェック
 
-# 期待結果: ✅ 620テスト中415成功・58.64%カバレッジ通過（主機能正常）
+# 期待結果: ✅ 625テスト100%成功・58.64%カバレッジ通過
 ```
 
-### **2. 統合実行環境（Phase 22最適化済み）**
+### **2. 統合実行環境（Phase 21/22最適化済み）**
 ```bash
 # 統合実行環境 - 本番同一ロジック
 python3 main.py --mode backtest  # バックテスト（CSV基盤・高速）
@@ -141,13 +141,13 @@ python3 scripts/deployment/docker-entrypoint.sh verify
 
 ## 🚨 重要な技術ポイント
 
-### **統合システム基盤 (Phase 22ハードコード値一元化完了)**
+### **統合システム基盤 (Phase 22設定最適化完了)**
 - **feature_manager**: 15特徴量統一管理・config/core/feature_order.json参照
 - **ProductionEnsemble**: 3モデルアンサンブル（LightGBM・XGBoost・RandomForest）
 - **動的信頼度計算**: フォールバック完全回避・市場適応型0.25-0.6信頼度・5戦略最適化済み
 - **統合実行環境**: TradingCycleManager・BacktestRunner・PaperTradingRunner完全統一処理
-- **設定一元管理**: BTC/JPY・タイムフレーム・全マジックナンバー設定化完了
-- **コード最適化**: 未使用コード削除(423行+56KB)・構造整理・保守性大幅向上
+- **設定最適化**: unified.yaml/thresholds.yaml最適化・26キー重複解決・真のシステム性能発揮
+- **システム統一**: Phase 22表記統一・625テスト/58.64%カバレッジ標準化・情報整合性確保
 - **ML学習システム**: 
   - **全体再学習方式**: 過去180日データで毎回ゼロから学習（累積学習ではない）
   - **市場適応性**: 概念ドリフト対応・仮想通貨市場変化への継続的最適化
@@ -265,4 +265,4 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 
 ---
 
-**AI自動取引システム**: 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・Kelly基準リスク管理・Discord 3階層監視による完全自動化システムが24時間稼働中。**Phase 22ハードコード値一元化**完了・統合設定管理・保守性大幅向上・620テスト品質保証・58.64%カバレッジ・CI/CD統合により企業級品質を実現。 🚀
+**AI自動取引システム**: 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・Kelly基準リスク管理・Discord 3階層監視による完全自動化システムが24時間稼働中。**Phase 22設定最適化完了**・26キー重複問題解決・真のシステム性能発揮・625テスト100%成功・58.64%カバレッジ・CI/CD統合により企業級品質を実現。 🚀

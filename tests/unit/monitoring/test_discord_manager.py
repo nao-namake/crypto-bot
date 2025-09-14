@@ -10,13 +10,13 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from src.monitoring.discord_notifier import DiscordManager
+from src.core.reporting.discord_notifier import DiscordManager
 
 
 class TestDiscordManager:
     """DiscordManager単体テスト"""
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_init_with_enabled_client(self, mock_client_class):
         """有効なクライアントでの初期化"""
         mock_client = Mock()
@@ -33,7 +33,7 @@ class TestDiscordManager:
             "https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz1234567890"
         )
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_init_with_disabled_client(self, mock_client_class):
         """無効なクライアントでの初期化"""
         mock_client = Mock()
@@ -44,7 +44,7 @@ class TestDiscordManager:
 
         assert manager.enabled is False
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_send_simple_message_success(self, mock_client_class):
         """シンプルメッセージ送信成功"""
         mock_client = Mock()
@@ -64,7 +64,7 @@ class TestDiscordManager:
         assert result is True
         mock_client.send_message.assert_called_once_with("テストメッセージ", "info")
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_send_simple_message_disabled(self, mock_client_class):
         """無効化されたマネージャーでのメッセージ送信"""
         mock_client = Mock()
@@ -77,7 +77,7 @@ class TestDiscordManager:
         assert result is False
         mock_client.send_message.assert_not_called()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_send_simple_message_startup_suppression(self, mock_client_class):
         """起動時抑制のテスト"""
         mock_client = Mock()
@@ -94,7 +94,7 @@ class TestDiscordManager:
         assert result is False
         mock_client.send_message.assert_not_called()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     @patch("time.time")
     def test_send_simple_message_rate_limit(self, mock_time, mock_client_class):
         """Rate Limit制御のテスト"""
@@ -126,8 +126,8 @@ class TestDiscordManager:
         # 送信回数確認
         assert mock_client.send_message.call_count == 2
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_send_trading_signal_success(self, mock_formatter_class, mock_client_class):
         """取引シグナル通知送信成功"""
         # Mock設定
@@ -162,8 +162,8 @@ class TestDiscordManager:
             level="info",
         )
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_send_trade_execution_success_and_failure(
         self, mock_formatter_class, mock_client_class
     ):
@@ -249,8 +249,8 @@ class TestDiscordManager:
                 last_call = mock_client.send_embed.call_args
                 assert last_call.kwargs["level"] == expected_level
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_send_error_notification_ignores_startup_suppression(
         self, mock_formatter_class, mock_client_class
     ):
@@ -279,7 +279,7 @@ class TestDiscordManager:
         assert result is True
         mock_client.send_embed.assert_called_once()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_test_connection_success(self, mock_client_class):
         """接続テスト成功"""
         mock_client = Mock()
@@ -295,7 +295,7 @@ class TestDiscordManager:
         assert result is True
         mock_client.test_connection.assert_called_once()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_test_connection_disabled(self, mock_client_class):
         """接続テスト - 無効化されたマネージャー"""
         mock_client = Mock()
@@ -308,7 +308,7 @@ class TestDiscordManager:
         assert result is False
         mock_client.test_connection.assert_not_called()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_get_status(self, mock_client_class):
         """ステータス取得"""
         mock_client = Mock()
@@ -328,7 +328,7 @@ class TestDiscordManager:
         assert status["last_send_ago"] == 50  # 100 - 50
         assert "startup_grace_remaining" in status
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_should_send_conditions(self, mock_client_class):
         """_should_send の各条件テスト"""
         mock_client = Mock()
@@ -357,7 +357,7 @@ class TestDiscordManager:
         with patch("time.time", return_value=102):  # 4秒後
             assert manager._should_send() is True
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     @patch("time.time")
     def test_update_last_send_time(self, mock_time, mock_client_class):
         """最終送信時刻の更新"""
@@ -373,8 +373,8 @@ class TestDiscordManager:
 
         assert manager._last_send_time == 150
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_send_statistics_summary(self, mock_formatter_class, mock_client_class):
         """統計サマリー通知テスト"""
         mock_client = Mock()
@@ -402,7 +402,7 @@ class TestDiscordManager:
         mock_formatter.format_statistics_summary.assert_called_once_with(stats_data)
         mock_client.send_embed.assert_called_once()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_rate_limit_edge_cases(self, mock_client_class):
         """Rate Limit境界値テスト"""
         mock_client = Mock()
@@ -427,8 +427,8 @@ class TestDiscordManager:
             result = manager.send_simple_message("間隔不足テスト")
             assert result is False
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_emergency_notification_bypass(self, mock_formatter_class, mock_client_class):
         """緊急通知による制限バイパステスト"""
         mock_client = Mock()
@@ -454,7 +454,7 @@ class TestDiscordManager:
         assert result is True
         mock_client.send_embed.assert_called_once()
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_graceful_degradation(self, mock_client_class):
         """優雅な機能低下テスト"""
         # クライアント作成時エラー
@@ -470,7 +470,7 @@ class TestDiscordManager:
             # 例外処理されていることを確認
             pass
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     @patch("time.time")
     def test_startup_grace_period_calculation(self, mock_time, mock_client_class):
         """起動猶予期間計算テスト"""
@@ -494,8 +494,8 @@ class TestDiscordManager:
         status = manager.get_status()
         assert status["startup_grace_remaining"] <= 0
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
-    @patch("src.monitoring.discord_notifier.DiscordFormatter")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordFormatter")
     def test_formatting_error_handling(self, mock_formatter_class, mock_client_class):
         """フォーマッターエラー処理テスト"""
         mock_client = Mock()
@@ -525,7 +525,7 @@ class TestDiscordManager:
             # 例外ハンドリングがない場合は例外が発生
             assert str(e) == "フォーマットエラー"
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_multiple_webhook_urls(self, mock_client_class):
         """複数WebhookURL処理テスト"""
 
@@ -559,7 +559,7 @@ class TestDiscordManager:
                 result = manager.send_simple_message(f"メッセージ{i}")
                 assert result is True
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_concurrent_send_simulation(self, mock_client_class):
         """並行送信シミュレーションテスト"""
         mock_client = Mock()
@@ -588,7 +588,7 @@ class TestDiscordManager:
         assert success_count < len(send_times)
         assert success_count >= 2  # 最低限の送信は成功
 
-    @patch("src.monitoring.discord_notifier.DiscordClient")
+    @patch("src.core.reporting.discord_notifier.DiscordClient")
     def test_status_information_completeness(self, mock_client_class):
         """ステータス情報完全性テスト"""
         mock_client = Mock()

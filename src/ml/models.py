@@ -1,8 +1,10 @@
 """
-統合MLモデル実装 - Phase 18リファクタリング
+統合MLモデル実装 - Phase 22リファクタリング
 
 BaseMLModel基底クラスと個別モデル（LightGBM、XGBoost、RandomForest）を統合。
 重複コードを排除し、保守性とコードの可読性を向上。
+
+Phase 22統合実装日: 2025年9月12日.
 """
 
 import os
@@ -18,6 +20,7 @@ from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 
+from ..core.config import get_threshold
 from ..core.exceptions import DataProcessingError
 from ..core.logger import get_logger
 
@@ -188,8 +191,11 @@ class BaseMLModel(ABC):
         if len(X) != len(y):
             raise ValueError(f"Feature and target length mismatch: {len(X)} vs {len(y)}")
 
-        if len(X) < 10:
-            raise ValueError(f"Insufficient training data: {len(X)} samples")
+        min_samples = get_threshold("models.min_training_samples", 10)
+        if len(X) < min_samples:
+            raise ValueError(
+                f"Insufficient training data: {len(X)} samples (minimum: {min_samples})"
+            )
 
         # NaN値チェック（NumPy配列とPandas両方に対応）
         if hasattr(X, "isna"):
@@ -210,10 +216,17 @@ class BaseMLModel(ABC):
 
             y_nan_ratio = np.isnan(y).sum() / len(y) if len(y) > 0 else 0
 
-        if x_nan_ratio > 0.5:
-            raise ValueError(f"Too many NaN values in features: {x_nan_ratio:.2%}")
-        if y_nan_ratio > 0.3:
-            raise ValueError(f"Too many NaN values in target: {y_nan_ratio:.2%}")
+        max_nan_features = get_threshold("ensemble.max_nan_ratio_features", 0.5)
+        max_nan_target = get_threshold("ensemble.max_nan_ratio_target", 0.3)
+
+        if x_nan_ratio > max_nan_features:
+            raise ValueError(
+                f"Too many NaN values in features: {x_nan_ratio:.2%} (max: {max_nan_features:.2%})"
+            )
+        if y_nan_ratio > max_nan_target:
+            raise ValueError(
+                f"Too many NaN values in target: {y_nan_ratio:.2%} (max: {max_nan_target:.2%})"
+            )
 
     def _align_features(self, X: pd.DataFrame) -> pd.DataFrame:
         """特徴量の整合性確保"""
@@ -268,21 +281,13 @@ class LGBMModel(BaseMLModel):
 
     def __init__(self, **kwargs):
         """LightGBMモデルの初期化"""
-        # デフォルトパラメータ（取引最適化済み）
+        # デフォルトパラメータ（設定ファイルから取得）
+        config_params = get_threshold("models.lgbm", {})
         default_params = {
             "objective": "binary",
             "boosting_type": "gbdt",
-            "num_leaves": 31,
-            "learning_rate": 0.05,
-            "feature_fraction": 0.9,
-            "bagging_fraction": 0.8,
-            "bagging_freq": 5,
             "verbose": -1,
-            "n_estimators": 100,
-            "max_depth": -1,
-            "min_child_samples": 20,
-            "reg_alpha": 0.0,
-            "reg_lambda": 0.0,
+            **config_params,  # 設定ファイルの値で上書き
         }
 
         merged_params = {**default_params, **kwargs}
@@ -366,23 +371,16 @@ class XGBModel(BaseMLModel):
 
     def __init__(self, **kwargs):
         """XGBoostモデルの初期化"""
-        # デフォルトパラメータ（取引最適化済み）
+        # デフォルトパラメータ（設定ファイルから取得）
+        config_params = get_threshold("models.xgb", {})
         default_params = {
             "objective": "binary:logistic",
-            "learning_rate": 0.05,
-            "max_depth": 6,
-            "min_child_weight": 1,
-            "subsample": 0.8,
-            "colsample_bytree": 0.8,
-            "n_estimators": 100,
             "verbosity": 0,
             "eval_metric": "logloss",
             "use_label_encoder": False,
-            "alpha": 0,
-            "lambda": 1,
-            "gamma": 0,
             "tree_method": "hist",
             "grow_policy": "depthwise",
+            **config_params,  # 設定ファイルの値で上書き
         }
 
         merged_params = {**default_params, **kwargs}
@@ -460,16 +458,9 @@ class RFModel(BaseMLModel):
 
     def __init__(self, **kwargs):
         """RandomForestモデルの初期化"""
-        # デフォルトパラメータ（取引最適化済み）
+        # デフォルトパラメータ（設定ファイルから取得）
+        config_params = get_threshold("models.rf", {})
         default_params = {
-            "n_estimators": 100,
-            "max_depth": 10,
-            "min_samples_split": 5,
-            "min_samples_leaf": 2,
-            "max_features": "sqrt",
-            "bootstrap": True,
-            "oob_score": True,
-            "class_weight": "balanced",
             "n_jobs": -1,
             "warm_start": False,
             "max_samples": None,
@@ -478,6 +469,7 @@ class RFModel(BaseMLModel):
             "max_leaf_nodes": None,
             "min_impurity_decrease": 0.0,
             "ccp_alpha": 0.0,
+            **config_params,  # 設定ファイルの値で上書き
         }
 
         merged_params = {**default_params, **kwargs}

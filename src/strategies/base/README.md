@@ -1,20 +1,14 @@
-# Phase 19 strategies/base/ - MLOps統合戦略基盤システム
+# src/strategies/base/ - 戦略基盤システム
 
-**Phase 19 MLOps統合完了**: feature_manager 12特徴量統合・ProductionEnsemble 3モデル統合・654テスト品質保証・週次自動学習・Cloud Run 24時間稼働統合により、MLOps完全統合した戦略基盤アーキテクチャを実現。Phase 13完了・本番運用移行・システム最適化・CI/CD準備完了基盤に企業級品質保証完備。
+## 🎯 役割・責任
 
-## 🎯 Phase 19 MLOps統合責任
-
-### **MLOps統合戦略基盤システム**: 企業級品質保証・自動化完備
-- **feature_manager統合基盤**: 12特徴量統一管理・戦略基底クラス統合・ProductionEnsemble連携基盤
-- **654テスト品質保証**: 59.24%カバレッジ・MLOps統合テスト・戦略基盤品質管理・回帰防止完備
-- **週次学習統合基盤**: GitHub Actions自動学習ワークフロー・戦略基盤CI/CD・品質ゲート管理
-- **Cloud Run統合基盤**: 24時間稼働・戦略基盤スケーラブル実行・Discord 3階層監視・本番運用最適化
-- **戦略システム統合**: 統一インターフェース・MLOps連携・一貫性・保守性・拡張性確保・企業級アーキテクチャ
+全戦略が継承する抽象基底クラスと複数戦略の統合管理を提供します。5つの戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）の統一インターフェース・競合解決システム・重み付け統合により、一貫性のある戦略アーキテクチャを実現します。15特徴量統一システムとの連携により、全システムでの整合性を保証します。
 
 ### 設計原則
 - **統一インターフェース**: 全戦略が共通の規約に従う
 - **抽象化**: 戦略固有ロジックと共通処理の明確な分離
 - **拡張性**: 新戦略の追加が容易な設計
+- **15特徴量統一**: feature_order.json単一真実源との連携
 
 ## 🎯 含まれるコンポーネント
 
@@ -94,11 +88,11 @@ class StrategyManager:
 - **コンフリクト解決**: 相反シグナルの自動解決
 - **パフォーマンス監視**: 戦略別成績追跡
 
-## 🎯 StrategyManager詳細解明（2025年9月7日完了）
+## 🎯 StrategyManager詳細システム
 
-### **競合解決メカニズム** (`src/strategies/base/strategy_manager.py`)
+### **競合解決メカニズム**
 
-**競合検知ロジック**（`_has_signal_conflict:183`）:
+**競合検知ロジック**:
 ```python
 def _has_signal_conflict(self, signal_groups):
     has_buy = "buy" in signal_groups and len(signal_groups["buy"]) > 0
@@ -108,17 +102,17 @@ def _has_signal_conflict(self, signal_groups):
 
 **ケース別処理**:
 
-**1. SELL 2 + HOLD 2 → 競合なし**
+**1. SELL 3 + HOLD 2 → 競合なし**
 ```python
-# _integrate_consistent_signals で処理（strategy_manager.py:253）
-action_counts = {"sell": 2, "hold": 2}
+# _integrate_consistent_signals で処理
+action_counts = {"sell": 3, "hold": 2}
 dominant_action = max(action_counts, key=action_counts.get)  # → "sell"
 # 結果: SELL選択（積極的アクション優先）
 ```
 
-**2. SELL 2 + BUY 2 → 競合あり**
+**2. SELL 3 + BUY 2 → 競合あり**
 ```python
-# _resolve_signal_conflict で処理（strategy_manager.py:191）
+# _resolve_signal_conflict で処理
 buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
 sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
 
@@ -128,7 +122,7 @@ else:
     return winner_group_signal  # 高信頼度グループが勝利
 ```
 
-### **重み付け信頼度計算**（`_calculate_weighted_confidence:297`）
+### **重み付け信頼度計算**
 
 ```python
 def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
@@ -148,40 +142,40 @@ def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal
 ### **統合シグナル生成フロー**
 
 ```
-1. 全戦略並行実行 → 個別StrategySignal生成
-                ↓
-2. アクション別グループ化 → {"buy": [...], "sell": [...], "hold": [...]}
-                ↓  
-3. 競合検知 → BUY vs SELL同時存在チェック
-                ↓
+【各戦略並行実行】→ 個別StrategySignal生成（5戦略）
+        ↓
+【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
+        ↓  
+【競合検知】→ BUY vs SELL同時存在チェック
+        ↓
 4-A. 競合なし → _integrate_consistent_signals（多数決＋重み付け）
 4-B. 競合あり → _resolve_signal_conflict（重み付け信頼度比較）
-                ↓
-5. 最終統合シグナル生成 → StrategySignal(strategy_name="StrategyManager")
+        ↓
+【最終統合シグナル生成】→ StrategySignal(strategy_name="StrategyManager")
 ```
 
-### **Dynamic Confidence実装**（`_create_hold_signal:314`）
+### **動的信頼度実装**
 
 ```python
-# 動的confidence計算（攻撃的設定・市場状況反映）
+# 動的confidence計算（市場状況反映）
 base_confidence = get_threshold("ml.dynamic_confidence.base_hold", 0.3)
 
 # 市場ボラティリティに応じた調整
 if volatility > 0.02:  # 高ボラティリティ
-    confidence = base_confidence * 0.8  # さらに下げる（攻撃的）
+    confidence = base_confidence * 0.8  # 信頼度を下げる
 elif volatility < 0.005:  # 低ボラティリティ  
-    confidence = base_confidence * 1.2  # 少し上げる
+    confidence = base_confidence * 1.2  # 信頼度を上げる
 ```
 
-**💡 重要発見**:
+**💡 重要ポイント**:
 - StrategyManagerは統合シグナル生成のみ担当
-- 実際の取引実行判定はIntegratedRiskManagerが別途実施
+- 実際の取引実行判定はリスクマネージャーが別途実施
 - 競合回避システムで安全性を最優先
-- Dynamic Confidenceで市場状況を反映
+- 動的信頼度で市場状況を反映
 
-## 🔄 Phase 19 MLOps統合改善点（企業級品質保証・自動化完備）
+## 🔄 戦略基盤システム改善済み
 
-### 戦略基底クラスの強化（GitHub Actions対応）
+### 戦略基底クラスの強化
 ```python
 # Before: 各戦略で個別の基盤実装
 class ATRBasedStrategy:
@@ -197,29 +191,29 @@ class ATRBasedStrategy:
 ```
 
 ```python
-# After: 統一された基盤クラス（Phase 13・CI/CDワークフロー最適化）
-class ATRBasedStrategy(StrategyBase):  # 基底クラス継承・GitHub Actions対応
+# After: 統一された基盤クラス
+class ATRBasedStrategy(StrategyBase):  # 基底クラス継承
     def analyze(self, df):
-        # 共通の前処理・後処理は基底クラスが担当・手動実行監視対応
-        # 戦略固有ロジックのみ実装・段階的デプロイ対応
+        # 共通の前処理・後処理は基底クラスが担当
+        # 戦略固有ロジックのみ実装
         pass
 ```
 
 ### 戦略マネージャーの簡素化
 ```python
-# Before: 複雑な統合ロジック（387行）
+# Before: 複雑な統合ロジック
 class StrategyManager:
     def analyze_market(self, df):
         # 複雑な重み計算・コンフリクト解決
         # 詳細な履歴管理・統計処理
         # 200行以上の処理
 
-# After: シンプルで効果的な統合（351行・9%削減・Phase 13対応）
-class StrategyManager:  # 本番運用移行・システム最適化・CI/CD準備完了
+# After: シンプルで効果的な統合
+class StrategyManager:  # 本番運用移行・システム最適化
     def analyze_market(self, df):
-        # シンプルな重み付け統合・GitHub Actions対応
-        # 効率的なコンフリクト解決・監視統合
-        # 必要十分な統計管理・品質ゲート対応
+        # シンプルな重み付け統合
+        # 効率的なコンフリクト解決
+        # 必要十分な統計管理
 ```
 
 ## 📊 アーキテクチャ図
@@ -242,14 +236,14 @@ class StrategyManager:  # 本番運用移行・システム最適化・CI/CD準�
         └─────────┬────────┘   └──────┬─────────┘
                   │                   │
         ┌─────────▼────────┐   ┌──────▼─────────┐
-        │   ATRBased       │   │  MochiPoyAlert │
+        │   ATRBased       │   │  MochipoyAlert │
         │   Strategy       │   │   Strategy     │
         └──────────────────┘   └────────────────┘
         
-        ┌──────────────────┐   ┌────────────────┐
-        │  MultiTimeframe  │   │  Fibonacci     │
-        │    Strategy      │   │  Retracement   │
-        └──────────────────┘   └────────────────┘
+        ┌──────────────────┐   ┌────────────────┐   ┌──────────────────┐
+        │  MultiTimeframe  │   │ DonchianChannel│   │ ADXTrendStrength │
+        │    Strategy      │   │   Strategy     │   │    Strategy      │
+        └──────────────────┘   └────────────────┘   └──────────────────┘
 ```
 
 ## 🔧 使用方法
@@ -283,7 +277,7 @@ class CustomStrategy(StrategyBase):
         )
     
     def get_required_features(self) -> List[str]:
-        return ['close', 'volume', 'rsi_14', 'atr_14']
+        return ['close', 'volume', 'rsi_14', 'atr_14', 'macd', 'bb_position', 'ema_20', 'ema_50', 'volume_ratio', 'donchian_high_20', 'donchian_low_20', 'channel_position', 'adx_14', 'plus_di_14', 'minus_di_14']
 ```
 
 ### 戦略マネージャーでの統合
@@ -296,14 +290,15 @@ manager = StrategyManager(config={
     'min_conflict_threshold': 0.1  # コンフリクト解決閾値
 })
 
-# 戦略登録（重み付け）
-manager.register_strategy(ATRBasedStrategy(), weight=0.3)
+# 5戦略登録（重み付け）
+manager.register_strategy(ATRBasedStrategy(), weight=0.25)
 manager.register_strategy(MochiPoyAlertStrategy(), weight=0.25)
-manager.register_strategy(MultiTimeframeStrategy(), weight=0.25)
-manager.register_strategy(FibonacciRetracementStrategy(), weight=0.2)
+manager.register_strategy(MultiTimeframeStrategy(), weight=0.20)
+manager.register_strategy(DonchianChannelStrategy(), weight=0.15)
+manager.register_strategy(ADXTrendStrengthStrategy(), weight=0.15)
 
 # 統合分析実行
-market_data = get_market_data()  # OHLCV + 特徴量データ
+market_data = get_market_data()  # OHLCV + 15特徴量データ
 combined_signal = manager.analyze_market(market_data)
 
 print(f"統合判定: {combined_signal.action}")
@@ -313,32 +308,32 @@ print(f"判定理由: {combined_signal.reason}")
 
 ## 🧪 テスト体系
 
-### StrategyBase テスト（Phase 13統合・CI/CD対応）
+### StrategyBase テスト
 ```bash
-# 基底クラスの統合テスト（GitHub Actions統合）
+# 基底クラスの統合テスト
 python -m pytest tests/unit/strategies/base/test_strategy_base.py -v
 
-# 具体的なテスト項目（手動実行監視対応）
-- 抽象メソッドの強制実装・CI/CD品質ゲート対応
-- 入力データ検証・段階的デプロイ対応
-- シグナル履歴管理・監視統合
-- パフォーマンス追跡・GitHub Actions対応
-- エラーハンドリング・手動実行監視統合
+# 具体的なテスト項目
+- 抽象メソッドの強制実装
+- 入力データ検証
+- シグナル履歴管理
+- パフォーマンス追跡
+- エラーハンドリング
 ```
 
-### StrategyManager テスト（Phase 13対応）
+### StrategyManager テスト
 ```bash
-# 戦略マネージャーテスト（18テスト・CI/CDワークフロー最適化）
+# 戦略マネージャーテスト（18テスト）
 python -m pytest tests/unit/strategies/test_strategy_manager.py -v
 
-# 主要テスト項目（GitHub Actions対応）
-- 戦略登録・解除・手動実行監視対応
-- 重み付け統合・段階的デプロイ対応
-- コンフリクト解決・CI/CD品質ゲート対応
-- パフォーマンス集計・監視統合
-- エラー時の処理・GitHub Actions統合
+# 主要テスト項目
+- 戦略登録・解除
+- 重み付け統合
+- コンフリクト解決
+- パフォーマンス集計
+- エラー時の処理
 
-# 399テスト統合基盤確認
+# 統合基盤確認
 python scripts/testing/dev_check.py validate --mode light
 ```
 
@@ -350,8 +345,8 @@ python scripts/testing/dev_check.py validate --mode light
 def execute_trading_strategy(market_data, strategy_type="atr_based"):
     if strategy_type == "atr_based":
         strategy = ATRBasedStrategy()
-    elif strategy_type == "fibonacci":
-        strategy = FibonacciRetracementStrategy()
+    elif strategy_type == "donchian_channel":
+        strategy = DonchianChannelStrategy()
     
     return strategy.analyze(market_data)
 ```
@@ -378,16 +373,16 @@ class StrategyBase:
 
 ## 🔮 拡張設計
 
-### Phase 13での機能追加予定（CI/CDワークフロー最適化基盤活用）
+### 機能追加予定
 ```python
-# 予定される拡張インターフェース（GitHub Actions基盤）
+# 予定される拡張インターフェース
 class StrategyBase(ABC):
     # 現在実装済み
     @abstractmethod
     def analyze(self, df: pd.DataFrame) -> StrategySignal:
         pass
     
-    # Stage 2追加予定
+    # 追加予定
     def optimize_parameters(self, historical_data):
         """パラメータ自動最適化"""
         pass
@@ -401,16 +396,16 @@ class StrategyBase(ABC):
         pass
 ```
 
-### A/Bテストフレームワーク（Phase 13基盤活用）
+### A/Bテストフレームワーク
 ```python
-# 戦略改良の効果測定（CI/CDワークフロー最適化・手動実行監視対応）
+# 戦略改良の効果測定
 class StrategyManager:
     def enable_ab_testing(self, strategy_a, strategy_b, traffic_split=0.5):
-        """A/Bテスト実行機能・GitHub Actions統合"""
+        """A/Bテスト実行機能"""
         pass
     
     def get_ab_test_results(self):
-        """A/Bテスト結果分析・段階的デプロイ対応"""
+        """A/Bテスト結果分析"""
         pass
 ```
 
@@ -456,4 +451,4 @@ manager.update_config(new_config)
 
 ---
 
-**戦略基盤システム**: 全戦略が継承する抽象基底クラスと複数戦略の統合管理を提供。統一インターフェース・競合解決システム・重み付け統合により、一貫性のある戦略アーキテクチャを実現。
+**戦略基盤システム**: 5つの戦略が継承する抽象基底クラスと複数戦略の統合管理を提供。統一インターフェース・競合解決システム・重み付け統合により、15特徴量統一システムと連携した一貫性のある戦略アーキテクチャを実現。

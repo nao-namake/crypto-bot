@@ -1,5 +1,5 @@
 """
-MLサービス モデル読み込み機能 - Phase 18 分割
+MLサービス モデル読み込み機能 - Phase 22 分割
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
@@ -55,15 +55,25 @@ class MLModelLoader:
         import os
 
         # Cloud Run環境とローカル環境の両方に対応
-        base_path = "/app" if os.path.exists("/app/models") else "."
-        model_path = Path(base_path) / "models/production/production_ensemble.pkl"
+        from ..config import get_threshold
+
+        cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
+        local_base_path = get_threshold("ml.model_paths.local_path", ".")
+        base_path = (
+            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        )
+
+        ensemble_path = get_threshold(
+            "ml.model_paths.production_ensemble", "models/production/production_ensemble.pkl"
+        )
+        model_path = Path(base_path) / ensemble_path
 
         if not model_path.exists():
             self.logger.warning(f"ProductionEnsemble未発見: {model_path}")
             return False
 
         try:
-            # Phase 18対応: 古いPickleファイル互換性レイヤー（完全版）
+            # Phase 22対応: 古いPickleファイル互換性レイヤー（完全版）
             class EnsembleModule:
                 """ensemble サブモジュールのエミュレート"""
 
@@ -118,8 +128,16 @@ class MLModelLoader:
         """個別モデルからProductionEnsemble再構築"""
         import os
 
-        base_path = "/app" if os.path.exists("/app/models") else "."
-        training_path = Path(base_path) / "models/training"
+        from ..config import get_threshold
+
+        cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
+        local_base_path = get_threshold("ml.model_paths.local_path", ".")
+        base_path = (
+            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        )
+
+        training_path_str = get_threshold("ml.model_paths.training_path", "models/training")
+        training_path = Path(base_path) / training_path_str
 
         if not training_path.exists():
             self.logger.warning(f"個別モデルディレクトリ未発見: {training_path}")
@@ -127,11 +145,14 @@ class MLModelLoader:
 
         try:
             individual_models = {}
-            model_files = {
-                "lightgbm": "lightgbm_model.pkl",
-                "xgboost": "xgboost_model.pkl",
-                "random_forest": "random_forest_model.pkl",
-            }
+            model_files = get_threshold(
+                "ml.model_files",
+                {
+                    "lightgbm": "lightgbm_model.pkl",
+                    "xgboost": "xgboost_model.pkl",
+                    "random_forest": "random_forest_model.pkl",
+                },
+            )
 
             for model_name, filename in model_files.items():
                 model_file = training_path / filename

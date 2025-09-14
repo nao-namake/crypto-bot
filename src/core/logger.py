@@ -127,7 +127,7 @@ class CryptoBotLogger:
 
         self._setup_handlers()
 
-        # Discord通知マネージャー（Phase 15新実装）
+        # Discord通知マネージャー（Phase 22統合）
         self._discord_manager = None
 
     def _setup_handlers(self) -> None:
@@ -205,7 +205,7 @@ class CryptoBotLogger:
         self.logger.addHandler(file_handler)
 
     def set_discord_manager(self, manager: Any) -> None:
-        """Discord通知マネージャーを設定（Phase 15新実装）."""
+        """Discord通知マネージャーを設定（Phase 22統合）."""
         self._discord_manager = manager
 
     # 旧インターフェース互換性維持
@@ -243,7 +243,7 @@ class CryptoBotLogger:
         else:
             self.logger.log(level, message, extra=extra)
 
-        # Discord通知（Phase 15簡素化実装）
+        # Discord通知（Phase 22統合）
         if discord_notify and self._discord_manager:
             try:
                 # ログレベルに応じた重要度設定
@@ -273,9 +273,9 @@ class CryptoBotLogger:
                     result = self._discord_manager.send_simple_message(message, discord_level)
 
                 if result:
-                    self.logger.debug("✅ Discord通知送信成功")
+                    self.logger.debug("✅ ログからDiscord通知送信成功")
                 else:
-                    self.logger.debug("⚠️ Discord通知送信失敗（Rate limit等）")
+                    self.logger.debug("⚠️ ログからDiscord通知送信失敗（Rate limit等）")
 
             except Exception as e:
                 # 通知エラーは無限ループを避けるため別途ログ
@@ -365,9 +365,19 @@ class CryptoBotLogger:
         strategy: str,
         signal: str,
         confidence: float,
-        symbol: str = "BTC/JPY",
+        symbol: str = None,
     ):
         """シグナルログ（専用メソッド）."""
+        # symbolが未指定の場合は設定から取得
+        if symbol is None:
+            try:
+                from .config import get_config
+
+                config = get_config()
+                symbol = config.exchange.symbol
+            except Exception:
+                symbol = "BTC/JPY"  # フォールバック
+
         signal_data = {
             "strategy": strategy,
             "signal": signal,

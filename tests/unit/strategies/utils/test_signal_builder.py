@@ -128,7 +128,7 @@ class TestSignalBuilder(unittest.TestCase):
             current_price=self.current_price,
             df=self.test_df,
             config=self.basic_config,
-            strategy_type=StrategyType.FIBONACCI_RETRACEMENT,
+            strategy_type=StrategyType.DONCHIAN_CHANNEL,
         )
 
         # ホールドシグナルの確認
@@ -139,7 +139,7 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertIsNone(signal.risk_ratio)
 
         # メタデータの確認
-        self.assertEqual(signal.metadata["strategy_type"], StrategyType.FIBONACCI_RETRACEMENT)
+        self.assertEqual(signal.metadata["strategy_type"], StrategyType.DONCHIAN_CHANNEL)
         self.assertFalse(signal.metadata["risk_calculated"])
 
     def test_create_signal_with_decision_metadata(self):
@@ -288,7 +288,7 @@ class TestSignalBuilder(unittest.TestCase):
         strategy_types = [
             StrategyType.MOCHIPOY_ALERT,
             StrategyType.ATR_BASED,
-            StrategyType.FIBONACCI_RETRACEMENT,
+            StrategyType.DONCHIAN_CHANNEL,
             StrategyType.MULTI_TIMEFRAME,
         ]
 

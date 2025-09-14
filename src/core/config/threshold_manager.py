@@ -1,6 +1,6 @@
 """
-閾値設定管理システム - Phase 17 config階層化
-thresholds.yaml統合管理・8個専用アクセス関数実装
+閾値設定管理システム - Phase 22 ハードコード排除完了
+thresholds.yaml統合管理・8個専用アクセス関数実装・フォールバック値削除
 """
 
 import copy
@@ -25,27 +25,13 @@ def load_thresholds() -> Dict[str, Any]:
     try:
         if thresholds_path.exists():
             with open(thresholds_path, "r", encoding="utf-8") as f:
-                _thresholds_cache = yaml.safe_load(f)
+                _thresholds_cache = yaml.safe_load(f) or {}
         else:
-            # デフォルト閾値設定
-            _thresholds_cache = {
-                "ml": {
-                    "default_confidence": 0.5,
-                    "prediction_fallback_confidence": 0.0,
-                },
-                "trading": {
-                    "default_balance_jpy": 1000000.0,
-                    "bid_spread_ratio": 0.999,
-                    "ask_spread_ratio": 1.001,
-                },
-                "performance": {
-                    "default_latency_ms": 100.0,
-                    "api_timeout_seconds": 30.0,
-                },
-            }
+            print(f"⚠️ 閾値設定ファイルが存在しません: {thresholds_path}")
+            _thresholds_cache = {}
     except Exception as e:
-        print(f"⚠️ 閾値設定読み込みエラー（デフォルト値使用）: {e}")
-        _thresholds_cache = {"ml": {"default_confidence": 0.5}}
+        print(f"⚠️ 閾値設定読み込みエラー: {e}")
+        _thresholds_cache = {}
 
     return _thresholds_cache
 
@@ -95,7 +81,7 @@ def get_all_thresholds() -> Dict[str, Any]:
 
 
 # ========================================
-# Phase 16-B: 専用アクセス関数（可読性・保守性向上）
+# Phase 22: 専用アクセス関数（可読性・保守性向上・ハードコード排除）
 # ========================================
 
 

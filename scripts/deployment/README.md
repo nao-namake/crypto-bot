@@ -11,8 +11,7 @@ scripts/deployment/
 ├── README.md                    # このファイル
 ├── deploy_production.sh         # 本番環境デプロイメント・Cloud Run管理
 ├── docker-entrypoint.sh         # Dockerコンテナエントリーポイント・起動制御
-├── setup_ci_prerequisites.sh    # CI/CD環境構築・GitHub Actions設定
-├── setup_gcp_secrets.sh         # GCP Secret Manager・認証管理
+├── setup_gcp_environment.sh     # 統合GCP環境構築・認証管理・GitHub Actions設定
 └── verify_gcp_setup.sh          # GCP環境検証・設定確認
 ```
 
@@ -26,7 +25,7 @@ GCP Cloud Run への本番デプロイメントを管理するメインスクリ
 - **品質ゲート**: デプロイ前後のテスト実行・品質確認・ロールバック機能
 - **Discord通知**: デプロイ状況の通知・成功/失敗レポート送信
 - **ヘルスチェック**: サービス起動確認・応答性テスト・安定性検証
-- 約19.5KBの実装ファイル
+- 約20KBの実装ファイル
 
 ### **docker-entrypoint.sh**
 Docker コンテナの起動制御とプロセス管理を担当します。
@@ -38,25 +37,16 @@ Docker コンテナの起動制御とプロセス管理を担当します。
 - **Cloud Run最適化**: メモリ効率・起動時間短縮・スケーリング対応
 - 約8.7KBの実装ファイル
 
-### **setup_ci_prerequisites.sh**
-CI/CD 環境の構築と GitHub Actions との統合を管理します。
-- **GCP環境構築**: Cloud Run・Artifact Registry・Secret Manager サービス設定
-- **GitHub Actions統合**: OIDC 設定・Workload Identity 構築・権限管理
-- **サービスアカウント**: CI/CD 用サービスアカウント・IAM ロール設定
-- **対話式設定**: ユーザー入力による設定確認・自動修復機能
-- **環境検証**: 設定完了後の動作確認・接続テスト・権限確認
-- **レポート生成**: 設定結果レポート・問題診断・修復手順提示
-- 約25.4KBの実装ファイル
-
-### **setup_gcp_secrets.sh**
-GCP Secret Manager を使用した認証情報の管理を担当します。
-- **API認証**: Bitbank API キー・シークレットの安全な保存
-- **Discord統合**: Webhook URL の設定・通知システム認証
-- **セキュリティ設定**: アクセス制御・権限管理・暗号化設定
-- **対話式入力**: 認証情報の安全な入力・確認・検証
-- **権限管理**: サービスアカウント権限・最小権限原則・監査ログ
-- **統合テスト**: 設定後の接続確認・認証テスト・動作検証
-- 約13.1KBの実装ファイル
+### **setup_gcp_environment.sh**
+統合GCP環境構築スクリプト - CI/CD環境構築とSecret Manager認証管理を統合した包括的な環境セットアップツールです。
+- **統合環境構築**: Cloud Run・Artifact Registry・Secret Manager・IAM設定を一元管理
+- **GitHub Actions統合**: OIDC設定・Workload Identity構築・CI/CD用サービスアカウント設定
+- **認証情報管理**: Bitbank API・Discord Webhook・その他認証情報の安全な設定
+- **モード選択**: `--full`（完全構築）、`--apis-only`（API有効化のみ）、`--secrets-only`（認証情報のみ）、`--verify`（検証のみ）
+- **対話式設定**: 安全な入力・確認・設定検証・自動修復機能
+- **環境検証**: 設定完了後の包括的動作確認・接続テスト・権限確認
+- **レポート生成**: 詳細な設定結果レポート・問題診断・修復手順提示
+- 約25KBの実装ファイル
 
 ### **verify_gcp_setup.sh**
 GCP 環境の設定状況を包括的に検証・診断します。
@@ -66,7 +56,7 @@ GCP 環境の設定状況を包括的に検証・診断します。
 - **GitHub Actions確認**: OIDC 設定・Workload Identity・CI/CD 権限
 - **ネットワーク検証**: API 接続・外部サービス通信・レスポンス確認
 - **問題診断**: 設定不備検出・修復提案・詳細レポート生成
-- 約26.6KBの実装ファイル
+- 約27KBの実装ファイル
 
 ## 📝 使用方法・例
 
@@ -87,17 +77,26 @@ bash scripts/deployment/verify_gcp_setup.sh --cloud-run-check
 
 ### **初回環境構築**
 ```bash
-# 1. GCP サービス・CI/CD環境構築
-bash scripts/deployment/setup_ci_prerequisites.sh --interactive
+# 1. 統合GCP環境構築（完全セットアップ）
+bash scripts/deployment/setup_gcp_environment.sh --full
 
-# 2. 認証情報設定
-bash scripts/deployment/setup_gcp_secrets.sh --interactive
-
-# 3. 環境設定検証
+# 2. 環境設定検証
 bash scripts/deployment/verify_gcp_setup.sh --full --final-check
 
-# 4. 初回デプロイ実行
+# 3. 初回デプロイ実行
 bash scripts/deployment/deploy_production.sh --first-deploy
+```
+
+### **段階的環境構築**
+```bash
+# APIs有効化のみ（初期準備）
+bash scripts/deployment/setup_gcp_environment.sh --apis-only
+
+# 認証情報設定のみ
+bash scripts/deployment/setup_gcp_environment.sh --secrets-only
+
+# 設定検証のみ
+bash scripts/deployment/setup_gcp_environment.sh --verify
 ```
 
 ### **Docker コンテナ管理**

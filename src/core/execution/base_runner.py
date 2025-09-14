@@ -1,5 +1,5 @@
 """
-基底ランナークラス - Phase 14-B リファクタリング
+基底ランナークラス - Phase 22 ハードコード排除・統合最適化
 
 実行モードの共通機能・インターフェースを提供。
 orchestrator.pyから分離した実行モード機能の基盤。
@@ -104,7 +104,7 @@ class BaseRunner(ABC):
     async def _setup_mode_configuration(self) -> bool:
         """モード設定セットアップ（共通処理）"""
         try:
-            # Phase 14-A外部化設定適用
+            # Phase 22 設定外部化・ハードコード排除
             self.execution_interval = self.get_mode_interval()
             self.logger.info(f"⚙️ {self.mode_name}モード実行間隔: {self.execution_interval}秒")
 
@@ -115,7 +115,7 @@ class BaseRunner(ABC):
             return False
 
     def get_mode_interval(self) -> int:
-        """モード別実行間隔取得（Phase 14-A外部化設定）"""
+        """モード別実行間隔取得（Phase 22 設定外部化・ハードコード排除）"""
         if self.config.mode == "paper":
             return get_threshold("execution.paper_mode_interval_seconds", 60)
         elif self.config.mode == "live":
@@ -151,15 +151,6 @@ class BaseRunner(ABC):
         """キーボード割り込み処理（共通処理）"""
         self.logger.info(f"⚠️ {self.mode_name}モード: キーボード割り込みを検出")
         await self.cleanup_mode()
-
-    def get_mode_status(self) -> Dict[str, Any]:
-        """モード状態取得（共通処理）"""
-        return {
-            "mode_name": self.mode_name,
-            "is_running": self.is_running,
-            "execution_interval": getattr(self, "execution_interval", 0),
-            "config_mode": self.config.mode,
-        }
 
     async def run_with_error_handling(self) -> bool:
         """
