@@ -386,15 +386,16 @@ async def create_trading_orchestrator(
             config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance
         )
 
-        # Phase 7: 注文実行サービス
-        from ...trading.executor import create_order_executor
+        # Phase 22統合: 実行サービス（risk_manager統合）
+        # executor.pyから移行されたexecution機能をrisk_manager経由で使用
+        from ...trading import create_risk_manager
 
         # Config統一化: 実行モードをconfig.modeから取得（モード設定一元化）
         execution_mode = config.mode
         logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
-        execution_service = create_order_executor(
-            mode=execution_mode,
+        execution_service = create_risk_manager(
+            config=None,  # デフォルト設定使用
             initial_balance=initial_balance,  # Phase 16-B: thresholds.yamlから動的取得（1万円）
         )
 
