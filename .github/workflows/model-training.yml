@@ -92,12 +92,12 @@ jobs:
           
           FEATURE_COUNT=$(python3 -c "import json; print(len(json.load(open('models/production/production_model_metadata.json'))['feature_names']))")
           
-          if [ "$FEATURE_COUNT" != "12" ]; then
-            echo "❌ 特徴量数不正: $FEATURE_COUNT != 12"
+          if [ "$FEATURE_COUNT" != "15" ]; then
+            echo "❌ 特徴量数不正: $FEATURE_COUNT != 15"
             exit 1
           fi
           
-          echo "✅ モデル品質検証完了: 12特徴量確認"
+          echo "✅ モデル品質検証完了: 15特徴量確認"
 
       - name: Commit New Models
         if: github.event.inputs.dry_run != 'true'
@@ -116,7 +116,7 @@ jobs:
             
             git commit -m "feat: ${MODEL_VERSION}モデル自動更新・定期学習実行" \
               -m "" \
-              -m "- 12特徴量統一モデル再学習完了" \
+              -m "- 15特徴量統一モデル再学習完了" \
               -m "- 自動バージョン管理・アーカイブ実行" \
               -m "- Git情報追跡・メタデータ更新" \
               -m "- 学習期間: ${{ github.event.inputs.training_days || '180' }}日" \

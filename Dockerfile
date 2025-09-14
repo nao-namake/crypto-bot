@@ -1,12 +1,12 @@
-# Phase 19: 特徴量定義一元化・バージョン管理システム改良完了 Production Dockerfile
-# 654テスト・59%カバレッジ・特徴量統一管理・MLOps基盤完成対応
+# Phase 22: 設定最適化完了・統一システム最適化 Production Dockerfile
+# 625テスト・58.64%カバレッジ・15特徴量統一システム・設定最適化完了対応
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 19完了）
-LABEL maintainer="crypto-bot-phase19"
-LABEL version="19.0.0"
-LABEL description="Phase 19完了: 特徴量定義一元化・バージョン管理システム改良・定期再学習CI・MLOps基盤"
+# メタデータ（Phase 22完了）
+LABEL maintainer="crypto-bot-phase22"
+LABEL version="22.0.0"
+LABEL description="Phase 22完了: 設定最適化完了・26キー重複問題解決・15特徴量統一システム・真のシステム性能発揮"
 
 WORKDIR /app
 
