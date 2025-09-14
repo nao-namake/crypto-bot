@@ -96,18 +96,35 @@ class DiscordClient:
                 load_dotenv(env_path)
                 env_url = os.getenv("DISCORD_WEBHOOK_URL")
                 if env_url and env_url.strip():
+                    # 制御文字・改行文字完全除去
+                    cleaned_url = env_url.strip().rstrip("\n\r").strip("\"'")
                     self.logger.info(
-                        f"📁 Discord Webhook URLを.envファイルから読み込み（{len(env_url)}文字）"
+                        f"📁 Discord Webhook URLを.envファイルから読み込み（{len(cleaned_url)}文字）"
                     )
-                    return env_url.strip()
+                    return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ .envファイル読み込み失敗: {e}")
 
-        # 3. 環境変数
+        # 3. 環境変数（Cloud Run対応・制御文字完全除去）
         env_url = os.getenv("DISCORD_WEBHOOK_URL")
         if env_url and env_url.strip():
-            self.logger.info("🌐 Discord Webhook URLを環境変数から取得")
-            return env_url.strip()
+            # Cloud Runでの制御文字・改行文字完全除去
+            cleaned_url = env_url.strip().rstrip("\n\r").strip("\"'")
+
+            # デバッグ情報（文字数変化の追跡）
+            if len(cleaned_url) != len(env_url.strip()):
+                self.logger.warning(
+                    f"🔧 環境変数URL清浄化: {len(env_url)}文字 -> {len(cleaned_url)}文字"
+                )
+                # ハッシュ値で検証
+                import hashlib
+
+                original_hash = hashlib.md5(env_url.encode()).hexdigest()[:8]
+                cleaned_hash = hashlib.md5(cleaned_url.encode()).hexdigest()[:8]
+                self.logger.info(f"   元ハッシュ: {original_hash} -> 清浄後: {cleaned_hash}")
+
+            self.logger.info("🌐 Discord Webhook URLを環境変数から取得（Cloud Run対応済み）")
+            return cleaned_url
 
         # 4. discord_webhook.txt（後方互換性）
         txt_path = Path("config/secrets/discord_webhook.txt")
@@ -115,10 +132,12 @@ class DiscordClient:
             try:
                 txt_url = txt_path.read_text().strip()
                 if txt_url:
+                    # 制御文字・改行文字完全除去
+                    cleaned_url = txt_url.strip().rstrip("\n\r").strip("\"'")
                     self.logger.info(
-                        f"📄 Discord Webhook URLをtxtファイルから読み込み（{len(txt_url)}文字）"
+                        f"📄 Discord Webhook URLをtxtファイルから読み込み（{len(cleaned_url)}文字）"
                     )
-                    return txt_url
+                    return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ txtファイル読み込み失敗: {e}")
 
