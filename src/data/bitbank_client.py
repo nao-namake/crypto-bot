@@ -36,9 +36,28 @@ class BitbankClient:
         """
         self.logger = get_logger()
 
-        # API認証情報
+        # API認証情報（Cloud Run環境デバッグ強化）
         self.api_key = api_key or os.getenv("BITBANK_API_KEY")
         self.api_secret = api_secret or os.getenv("BITBANK_API_SECRET")
+
+        # Cloud Run環境変数読み込み状況をデバッグ
+        import hashlib
+
+        if self.api_key:
+            key_hash = hashlib.md5(self.api_key.encode()).hexdigest()[:8]
+            self.logger.info(
+                f"🔑 BITBANK_API_KEY読み込み確認: 存在={bool(self.api_key)}, 長さ={len(self.api_key)}, ハッシュ={key_hash}"
+            )
+        else:
+            self.logger.error("❌ BITBANK_API_KEY読み込み失敗: 環境変数が空またはNone")
+
+        if self.api_secret:
+            secret_hash = hashlib.md5(self.api_secret.encode()).hexdigest()[:8]
+            self.logger.info(
+                f"🔐 BITBANK_API_SECRET読み込み確認: 存在={bool(self.api_secret)}, 長さ={len(self.api_secret)}, ハッシュ={secret_hash}"
+            )
+        else:
+            self.logger.error("❌ BITBANK_API_SECRET読み込み失敗: 環境変数が空またはNone")
 
         # レバレッジ検証
         if not (1.0 <= leverage <= 2.0):

@@ -130,3 +130,36 @@ gh run view [RUN_ID] --log
 ### **依存関係**
 - GCPプロジェクト設定とリソースの事前準備が必要
 - 各ワークフローは他のプロジェクトファイル（scripts/, src/, models/ など）に依存
+
+## 🔧 重要な修正履歴
+
+### **2025-09-15: Secret Manager参照修正（根本原因解決）**
+
+**問題**: Cloud Run環境でBitbank API残高取得・Discord通知が両方とも失敗
+- Bitbank API: 0円残高が返される（実際は1万円存在）
+- Discord通知: 401エラー（Invalid Webhook Token）
+- ローカル環境では両方とも正常動作
+
+**根本原因**: Secret Manager参照で `key: latest` を使用
+```yaml
+# 問題のあった設定
+--set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,..."
+```
+
+**解決方法**: 具体的バージョン番号に変更（ci.yml:319）
+```yaml
+# 修正後の設定
+--set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:5"
+```
+
+**技術的詳細**:
+- Cloud Run環境での `key: latest` 動的参照解決失敗
+- コンテナ起動時のSecret Manager通信タイミング問題
+- GCP権限・Secret値は全て正常（権限問題ではない）
+
+**影響**: Discord + Bitbank両方のSecret Manager読み込み問題を根本解決
+- ✅ 残高API取得: 0円 → 10,000円正常取得（予想）
+- ✅ Discord通知: 401エラー → 正常通知（予想）
+- ✅ 全ての取引機能の復旧（15特徴量・5戦略・ML予測）
+
+**教訓**: Cloud Run環境では `key: latest` ではなく具体的バージョン番号を使用

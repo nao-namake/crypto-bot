@@ -53,7 +53,7 @@ echo "経過時間: $((TIME_DIFF / 3600))時間 $((TIME_DIFF % 3600 / 60))分"
 ---
 
 ## 🎯 **チェック優先順位**
-- **最優先**: Secret Manager・API認証・動的計算確認
+- **最優先**: Secret Manager・API認証・残高取得・動的計算確認
 - **高優先**: ML予測実行・戦略分析詳細・取引機能
 - **中優先**: 従来の基盤システム・ログ確認
 
@@ -94,9 +94,15 @@ gcloud run services describe crypto-bot-service-prod --region=asia-northeast1 --
 
 echo "4. Secret取得エラー確認:"
 TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"permission\" OR textPayload:\"Secret\" OR textPayload:\"401\" OR textPayload:\"403\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
+
+echo "5. Bitbank残高取得確認（新項目・重要）:"
+echo "   API認証情報読み込み確認:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"BITBANK_API_KEY読み込み\" OR textPayload:\"BITBANK_API_SECRET読み込み\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=5
+echo "   残高取得成功・失敗確認:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"残高\" OR textPayload:\"balance\" OR textPayload:\"残高不足\" OR textPayload:\"0円\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
 ```
 
-**🚨 致命的問題**: IAM権限欠如 = 全機能停止
+**🚨 致命的問題**: IAM権限欠如 = 全機能停止・残高0円取得 = 全取引機能停止
 
 ---
 
@@ -229,6 +235,7 @@ echo "ML予測実行回数: $ML_PREDICTION"
 
 ### 🚨 **致命的問題（即座修正必須）**
 - **Secret Manager IAM権限なし** → 全機能停止
+- **Bitbank残高0円取得** → 全取引機能停止
 - **フォールバック値20回以上/時間** → 動的計算停止
 - **ML予測実行0回** → ML機能完全停止
 - **BUY/SELLシグナル0回** → エントリー機能停止
@@ -284,6 +291,7 @@ EOL
 
 **段階1（緊急度チェック）**:
 - [ ] **Secret Manager IAM権限** → 全てのシークレットアクセス可能
+- [ ] **Bitbank残高取得** → 10,000円正常取得（0円は致命的）
 - [ ] **フォールバック値検出** → 0.3固定使用が20回未満/時間
 - [ ] **動的計算実行** → 戦略分析詳細ログ存在
 - [ ] **ML予測実行** → 予測ログ存在
@@ -369,9 +377,10 @@ EOL
 ```bash
 # 4時間毎実行推奨
 1. Secret Manager IAM権限状態
-2. フォールバック値使用率（20回以上/時間で警告）
-3. ML予測実行回数（0回で致命的警告）
-4. BUY/SELLシグナル生成状況（hold固定状態検出）
+2. Bitbank残高取得状況（0円で致命的警告）
+3. フォールバック値使用率（20回以上/時間で警告）
+4. ML予測実行回数（0回で致命的警告）
+5. BUY/SELLシグナル生成状況（hold固定状態検出）
 ```
 
 #### **アラート改良**

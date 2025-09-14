@@ -159,6 +159,29 @@ discord:
 
 ## 🛡️ エラーハンドリング・制限対応
 
+### **Cloud Run環境変数制御文字対応**
+
+**問題**: Cloud RunのSecret Manager統合時に環境変数に制御文字・改行文字が追加される
+
+**症状**:
+```
+ローカル: 121文字のURL → 正常動作
+Cloud Run: 122文字のURL → 401エラー（Invalid Webhook Token）
+```
+
+**解決策**: 全URL読み込みポイントで制御文字完全除去
+```python
+# 環境変数読み込み時の強化処理（実装済み）
+cleaned_url = env_url.strip().rstrip('\n\r').strip('"\'')
+
+# デバッグ情報出力
+if len(cleaned_url) != len(env_url.strip()):
+    logger.warning(f"🔧 環境変数URL清浄化: {len(env_url)}文字 -> {len(cleaned_url)}文字")
+    original_hash = hashlib.md5(env_url.encode()).hexdigest()[:8]
+    cleaned_hash = hashlib.md5(cleaned_url.encode()).hexdigest()[:8]
+    logger.info(f"   元ハッシュ: {original_hash} -> 清浄後: {cleaned_hash}")
+```
+
 ### **401エラー（認証失敗）対応**
 
 ```python

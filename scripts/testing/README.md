@@ -17,24 +17,26 @@ scripts/testing/
 
 ### **checks.sh**
 システム全体の品質チェックとテスト実行を管理するメインスクリプトです。
+- **隠れた致命的障害検出**: dev_check.py critical統合・executorエラー等の事前検出（1.2秒追加）
 - **テスト実行**: pytest による全テストスイート実行・単体/統合テスト
-- **カバレッジ測定**: coverage による網羅率測定（Phase 22: 58.64%達成・55%目標）・HTML/JSON/Term出力
+- **カバレッジ測定**: coverage による網羅率測定（Phase 22: 64.74%達成・55%目標大幅超過）・HTML/JSON/Term出力
 - **コードスタイル**: flake8・black・isort によるPEP8準拠チェック
 - **ディレクトリ構造確認**: プロジェクト構造・ファイル存在確認
 - **品質ゲート**: 品質基準チェック・CI/CD統合・デプロイ前確認
 - **レポート生成**: coverage-reports/への詳細レポート出力
-- 約4.3KBの実装ファイル（Phase 22最適化・625テスト・15特徴量）・約30秒で完了
+- 約4.3KBの実装ファイル（Phase 22最適化・620テスト→625テスト・15特徴量）・約30秒で完了
 
 ### **dev_check.py**
 開発・運用における統合管理とシステム診断を担当するCLIツールです。
-- **統合品質チェック**: 625テスト・58.64%カバレッジ・コード品質のPhase 22最適化一括確認
+- **統合品質チェック**: 625テスト・64.74%カバレッジ・コード品質のPhase 22最適化一括確認
+- **隠れた致命的障害検出**: executorエラー等の表面的には正常だが実機能停止する障害を事前検出
 - **機械学習検証**: モデル学習・ProductionEnsemble作成（Phase 22・15特徴量統合）・性能評価
-- **システム診断**: 設定確認・依存関係確認・環境検証
+- **システム診断**: 設定確認・依存関係確認・環境検証・初期化フロー検証
 - **データ検証**: 市場データ取得・15特徴量生成（feature_manager統合）・データ品質確認
 - **本番環境監視**: Cloud Run・GCP・Discord通知・ヘルスチェック
 - **自動レポート**: Markdown形式・logs/reports/ci_checks/への保存
-- **多機能CLI**: validate・ml-models・status・health-check等のサブコマンド
-- 約62.3KBの大規模実装ファイル（Phase 22 MLOps統合版・625テスト・15特徴量）
+- **多機能CLI**: check・critical・ml-models・status・monitor等のサブコマンド
+- 約33KBの最適化実装ファイル（1502行→653行、56%削減・Phase 22統合版）
 
 ### **主要機能と特徴**
 - **継続的品質保証**: 開発サイクルでの品質維持・回帰防止・自動化
@@ -51,11 +53,12 @@ scripts/testing/
 bash scripts/testing/checks.sh
 
 # 期待結果（Phase 22標準）:
+# ✅ 隠れた致命的障害検出完了（1.2秒）
 # ✅ 625テスト100%成功
-# ✅ 58.64%カバレッジ達成（目樇55%クリア）
+# ✅ 64.74%カバレッジ達成（目標55%大幅超過）
 # ✅ コードスタイル準拠（flake8・black・isort）
 # ✅ 15特徴量統合システム正常動作
-# ✅ 約30秒で完了
+# ✅ 約30秒で完了（隠れ障害検出統合後）
 
 # カバレッジレポート確認
 open coverage-reports/htmlcov/index.html
@@ -64,16 +67,15 @@ open coverage-reports/htmlcov/index.html
 ### **統合開発管理CLI**
 ```bash
 # Phase 22統合品質チェック（推奨）
-python3 scripts/testing/dev_check.py full-check
+python3 scripts/testing/dev_check.py check
+
+# 隠れた致命的障害検出（CI統合済み）
+python3 scripts/testing/dev_check.py critical       # executorエラー等の事前検出
 
 # 個別機能チェック
-python3 scripts/testing/dev_check.py validate       # 基本品質チェック
-python3 scripts/testing/dev_check.py ml-models      # 機械学習モデル作成
-python3 scripts/testing/dev_check.py data-check     # データ取得・確認
-python3 scripts/testing/dev_check.py status         # システム状態確認
-
-# 本番環境監視
-python3 scripts/testing/dev_check.py health-check   # Cloud Run・GCP確認
+python3 scripts/testing/dev_check.py ml-models      # 機械学習モデル作成・検証
+python3 scripts/testing/dev_check.py status         # システム状態・設定確認
+python3 scripts/testing/dev_check.py monitor        # 本番環境監視・ヘルスチェック
 ```
 
 ### **CI/CD統合使用**
