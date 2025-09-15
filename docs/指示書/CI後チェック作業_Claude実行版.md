@@ -1,16 +1,18 @@
-# 🚀 CI完了後チェック指示書（隠れた不具合検出強化版）
+# 🚀 CI完了後チェック指示書（継続稼働・隠れ不具合検出統合版）
 
-## 🚨 **重要**: 表面稼働・実機能停止の検出に特化
+## 🚨 **重要**: 表面稼働・実機能停止 + 時間経過不具合の検出に特化
 
 **過去の教訓**: システムが「正常稼働」を装いながら、実機能が完全停止していた事例が頻発
 - Secret Manager IAM権限欠如 → API認証失敗 → 全機能停止
 - フォールバック値固定使用 → 動的計算停止 → エントリーシグナル皆無
 - 表面的ログ出力継続 → 実質機能停止の隠蔽
+- **NEW**: 初期成功→時間経過で失敗（残高0円化→システム停止）パターン
 
-## 📋 **新基本方針**: 3段階深度チェック
-1. **🚨 緊急度チェック**: 致命的隠れ不具合を最優先検出
-2. **🔍 実機能チェック**: プロセス稼働ではなく実際の機能動作確認
-3. **📊 詳細分析チェック**: 従来の表面的ログ確認
+## 📋 **新基本方針**: 4段階時間軸チェック
+1. **⚡ 段階0: 即時チェック（デプロイ直後）**: 基本システム起動確認
+2. **🚨 段階1: 緊急度チェック（5分後）**: 致命的隠れ不具合を最優先検出
+3. **🔍 段階2: 実機能チェック（15分後）**: プロセス稼働ではなく実際の機能動作確認
+4. **📊 段階3: 継続稼働チェック（1時間後）**: 時間経過による不具合検出
 
 ---
 
@@ -56,6 +58,7 @@ echo "経過時間: $((TIME_DIFF / 3600))時間 $((TIME_DIFF % 3600 / 60))分"
 - **最優先**: Secret Manager・API認証・残高取得・動的計算確認
 - **高優先**: ML予測実行・戦略分析詳細・取引機能
 - **中優先**: 従来の基盤システム・ログ確認
+- **NEW 最重要**: 残高再取得機能・システム継続稼働・時間経過安定性
 
 ---
 
@@ -183,9 +186,53 @@ TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND re
 
 ---
 
-# 📊 **段階3: 詳細分析チェック（従来の表面的ログ確認・簡素化版）**
+# 📊 **段階3: 継続稼働チェック（時間経過による不具合検出・新実装）**
 
-## 📈 セクション3: 基本システム稼働・時系列確認
+## ⏰ セクション3-1: 時間経過安定性確認（NEW - 最重要）
+
+```bash
+echo "=== セクション3-1: 時間経過安定性確認（残高0円化対策） ==="
+DEPLOY_TIME="YYYY-MM-DDTHH:MM:SS.000000Z"  # デプロイ時刻を設定
+
+echo "1. 残高再取得機能動作確認（NEW）:"
+echo "   残高0円→再取得成功ログ:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"残高再取得成功\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)"
+
+echo "   残高再取得失敗→フォールバック使用ログ:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"フォールバック使用\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=5 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)"
+
+echo ""
+echo "2. システム継続稼働確認（停止・再起動パターン検出）:"
+echo "   Container exit(1)検出:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"Container called exit(1)\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=10
+
+echo "   トレーディングプロセス停止回数:"
+STOP_COUNT=$(TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"トレーディングプロセスが停止しました\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=20 --format="value(textPayload)" | wc -l)
+echo "停止回数: $STOP_COUNT 回"
+[ $STOP_COUNT -gt 3 ] && echo "⚠️ 頻繁な停止発生（不安定）" || echo "✅ システム安定稼働"
+
+echo ""
+echo "3. 残高安定性パターン分析（NEW）:"
+echo "   残高推移確認（10,000円→0円→復旧パターン）:"
+TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND (textPayload:\"残高\" OR textPayload:\"balance\") AND timestamp>=\"$DEPLOY_TIME\"" --limit=15 --format="value(timestamp.date(tz='Asia/Tokyo'),textPayload)"
+
+echo ""
+echo "4. 取引サイクル継続実行確認（NEW）:"
+CYCLE_COUNT=$(TZ='Asia/Tokyo' gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND textPayload:\"取引サイクル\" AND timestamp>=\"$DEPLOY_TIME\"" --limit=50 --format="value(textPayload)" | wc -l)
+echo "取引サイクル実行回数: $CYCLE_COUNT 回"
+[ $CYCLE_COUNT -eq 0 ] && echo "🚨 取引サイクル完全停止" || echo "✅ 取引サイクル実行確認"
+```
+
+**🚨 継続稼働判定基準**:
+- **残高再取得動作**: 0円検出→再取得試行→成功/フォールバック
+- **システム停止回数**: 3回以下が正常範囲
+- **取引サイクル継続**: 1時間で最低1回実行必須
+
+---
+
+# 📊 **段階4: 詳細分析チェック（従来の表面的ログ確認・簡素化版）**
+
+## 📈 セクション4: 基本システム稼働・時系列確認
 ```bash
 echo "=== セクション3: 基本システム稼働・時系列確認 ==="
 
@@ -306,10 +353,11 @@ EOL
 - [ ] **基本稼働** → サイクル実行・最新ログ存在
 - [ ] **エラー監視** → 重大エラーなし
 
-### **総合判定（改良版）**:
-- **✅ 実取引開始可能**: 段階1-2全て正常
-- **⚠️ 条件付き稼働**: 段階1正常・段階2一部問題
-- **🚨 緊急修正必要**: 段階1に致命的問題
+### **総合判定（継続稼働強化版）**:
+- **✅ 実取引開始可能**: 段階1-3全て正常・継続稼働確認済み
+- **⚠️ 条件付き稼働**: 段階1-2正常・段階3一部問題（監視強化で稼働継続）
+- **🚨 緊急修正必要**: 段階1に致命的問題 OR 段階3で完全停止
+- **🆕 NEW継続稼働判定**: 残高再取得動作・システム停止3回以下・取引サイクル継続実行
 
 ---
 
