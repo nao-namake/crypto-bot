@@ -268,16 +268,33 @@ reporting:
 # Discord通知設定
 # ========================================
 discord:
+  # 基本設定
   max_retries: 3
   timeout_seconds: 10
-  rate_limit_delay: 1.0
   max_message_length: 2000
   embed_color:
     success: 65280
     warning: 16776960
     error: 16711680
     info: 39423
+
+  # バッチ処理設定（通知負荷軽減）
+  batch_notifications: true
+  batch_interval_minutes: 60
+  daily_summary_hour: 18  # JST 18:00に日次サマリー送信
+
+  # レート制限強化
+  rate_limit:
+    min_interval_seconds: 5      # 最小間隔を5秒に拡大
+    max_per_hour: 12            # 1時間最大12通知
+    burst_limit: 3              # 短時間バースト制限
+
+  # 通知レベル最適化
   notification_levels:
-    critical: true
-    warning: true
-    info: false
+    critical: immediate          # 即時通知（残高異常等）
+    warning: batch              # バッチ集約（1時間毎）
+    info: daily                 # 日次サマリーのみ
+
+  # 起動時設定
+  startup_grace_period: 30      # 起動後30秒は通知抑制
+  min_interval: 2               # 従来設定（後方互換）

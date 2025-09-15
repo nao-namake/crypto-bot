@@ -51,7 +51,8 @@ core/
 - `cloud_run`: GCP Cloud Run最適化
 - `security`: セキュリティ設定
 - `trading_constraints`: 取引制約・制限事項（個人開発）
-- `ensemble/reporting/discord`: **Phase 22で整理・最適化されたセクション**
+- `discord`: **Discord通知設定（最適化強化版・通知負荷軽減対応）** 🆕
+- `ensemble/reporting`: **Phase 22で整理・最適化されたセクション**
 
 ### **feature_order.json**  
 **機械学習システムの特徴量定義における単一真実源**です。全システム（Generator・Manager・ML・Backtest）がこのファイルを参照し、特徴量の統一性を保証します。
@@ -149,12 +150,37 @@ confidence_threshold = get_ml_config('confidence_threshold', 0.65)
 initial_balance = get_trading_config('default_balance_jpy', 10000.0)
 discord_timeout = get_monitoring_config('discord.timeout_seconds', 30)
 hold_confidence = get_threshold("strategies.atr_based.hold_confidence", 0.3)
+
+# 🆕 Discord通知最適化設定取得
+batch_enabled = get_monitoring_config('discord.batch_notifications', False)
+batch_interval = get_monitoring_config('discord.batch_interval_minutes', 60)
+rate_limit_max = get_monitoring_config('discord.rate_limit.max_per_hour', 12)
+notification_level = get_monitoring_config('discord.notification_levels.warning', 'batch')
+```
+
+### **🆕 Discord通知最適化設定の活用**
+```python
+from src.core.reporting.discord_notifier import EnhancedDiscordManager
+
+# バッチ処理対応Discord管理システム（推奨）
+manager = EnhancedDiscordManager()
+
+# 設定に基づく自動通知制御
+# - critical: 即時送信
+# - warning: 1時間バッチ集約
+# - info: 日次サマリー
+manager.send_simple_message("重要な残高異常", "critical")  # → 即時送信
+manager.send_simple_message("API制限警告", "warning")     # → バッチ集約
+manager.send_simple_message("取引完了", "info")          # → 日次サマリー
+
+# 定期的なバッチ処理実行
+manager.process_pending_notifications()
 ```
 
 ## ⚠️ 注意事項・制約
 
 ### **設定ファイル編集時の注意** 🚨**Phase 22最適化後**
-- **unified.yaml**: **Phase 22で72.7%最適化完了**・デフォルト`mode: paper`（安全）・信頼度35%設定維持
+- **unified.yaml**: **Phase 22で72.7%最適化完了** + **Discord通知最適化強化版**・デフォルト`mode: paper`（安全）・信頼度35%設定維持・バッチ処理対応
 - **feature_order.json**: **変更厳禁**。全システムの単一真実源のため、変更時は全システムへの影響を考慮
 - **thresholds.yaml**: **Phase 22で重複26キー統合完了**・閾値変更は取引頻度・リスクに大きく影響・**デフォルト値強制問題解決済み**
 

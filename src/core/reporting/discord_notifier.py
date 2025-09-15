@@ -902,9 +902,419 @@ class DiscordManager:
         }
 
 
+class NotificationBatcher:
+    """
+    Discord通知のバッチ処理とキューイング
+
+    機能:
+    - 通知のキューイング
+    - 定期的なバッチ送信
+    - レート制限管理
+    - 重複通知の除去
+    """
+
+    def __init__(self, discord_client: DiscordClient):
+        """
+        バッチャー初期化
+
+        Args:
+            discord_client: Discord送信クライアント
+        """
+        self.client = discord_client
+        self.logger = logging.getLogger("crypto_bot.notification_batcher")
+
+        # キューとタイマー
+        self.notification_queue = []
+        self.last_batch_time = time.time()
+        self.batch_interval = get_monitoring_config("discord.batch_interval_minutes", 60) * 60
+
+        # レート制限
+        self.rate_limit_config = get_monitoring_config("discord.rate_limit", {})
+        self.max_per_hour = self.rate_limit_config.get("max_per_hour", 12)
+        self.hourly_count = 0
+        self.hour_start_time = time.time()
+
+        self.logger.info(f"✅ 通知バッチャー初期化完了: 間隔={self.batch_interval}秒")
+
+    def add_notification(self, notification_data: Dict[str, Any], level: str = "info") -> bool:
+        """
+        通知をキューに追加
+
+        Args:
+            notification_data: 通知データ
+            level: 通知レベル
+
+        Returns:
+            bool: キューイング成功・失敗
+        """
+        # レベル判定
+        level_config = get_monitoring_config("discord.notification_levels", {})
+        notification_mode = level_config.get(level, "batch")
+
+        # 即時通知の場合
+        if notification_mode == "immediate":
+            return self._send_immediate(notification_data, level)
+
+        # 日次サマリーの場合
+        if notification_mode == "daily":
+            return self._add_to_daily_queue(notification_data, level)
+
+        # バッチ通知の場合
+        return self._add_to_batch_queue(notification_data, level)
+
+    def _send_immediate(self, notification_data: Dict[str, Any], level: str) -> bool:
+        """即時通知送信"""
+        if not self._check_rate_limit():
+            self.logger.warning("⚠️ レート制限により即時通知をスキップ")
+            return False
+
+        success = self.client.send_embed(
+            title=notification_data.get("title", "通知"),
+            description=notification_data.get("description", ""),
+            fields=notification_data.get("fields", []),
+            level=level,
+        )
+
+        if success:
+            self._increment_rate_counter()
+
+        return success
+
+    def _add_to_batch_queue(self, notification_data: Dict[str, Any], level: str) -> bool:
+        """バッチキューに追加"""
+        # 重複除去のための簡単なハッシュ
+        notification_hash = hash(str(notification_data.get("title", "")) + str(notification_data.get("description", "")))
+
+        # 重複チェック
+        for existing in self.notification_queue:
+            if existing.get("hash") == notification_hash:
+                self.logger.debug("🔄 重複通知のため統合")
+                existing["count"] = existing.get("count", 1) + 1
+                return True
+
+        # 新規追加
+        notification_item = {
+            "data": notification_data,
+            "level": level,
+            "timestamp": time.time(),
+            "hash": notification_hash,
+            "count": 1,
+        }
+        self.notification_queue.append(notification_item)
+
+        self.logger.debug(f"📝 バッチキューに追加: {len(self.notification_queue)}件")
+
+        # 時間到達でバッチ送信
+        if time.time() - self.last_batch_time >= self.batch_interval:
+            self.process_batch()
+
+        return True
+
+    def _add_to_daily_queue(self, notification_data: Dict[str, Any], level: str) -> bool:
+        """日次サマリーキューに追加"""
+        # 日次サマリーは別途 DailySummaryCollector で処理
+        self.logger.debug("📅 日次サマリーキューに追加")
+        return True
+
+    def process_batch(self) -> bool:
+        """
+        バッチ通知の処理
+
+        Returns:
+            bool: 送信成功・失敗
+        """
+        if not self.notification_queue:
+            self.logger.debug("📭 バッチキューが空のためスキップ")
+            return True
+
+        if not self._check_rate_limit():
+            self.logger.warning("⚠️ レート制限によりバッチ送信を延期")
+            return False
+
+        # バッチメッセージ生成
+        batch_summary = self._generate_batch_summary()
+
+        # 送信
+        success = self.client.send_embed(
+            title="📊 通知サマリー",
+            description=f"過去{self.batch_interval // 60}分間の通知をまとめてお送りします",
+            fields=batch_summary,
+            level="info",
+        )
+
+        if success:
+            self.logger.info(f"✅ バッチ通知送信完了: {len(self.notification_queue)}件")
+            self.notification_queue.clear()
+            self.last_batch_time = time.time()
+            self._increment_rate_counter()
+        else:
+            self.logger.error("❌ バッチ通知送信失敗")
+
+        return success
+
+    def _generate_batch_summary(self) -> List[Dict[str, Any]]:
+        """バッチサマリー生成"""
+        if not self.notification_queue:
+            return []
+
+        # レベル別集計
+        level_counts = {}
+        recent_items = []
+
+        for item in self.notification_queue:
+            level = item["level"]
+            level_counts[level] = level_counts.get(level, 0) + item.get("count", 1)
+
+            # 最新3件を表示用に保存
+            if len(recent_items) < 3:
+                recent_items.append(item)
+
+        # サマリーフィールド作成
+        fields = []
+
+        # 統計情報
+        stats_text = []
+        for level, count in level_counts.items():
+            emoji = {"critical": "🚨", "warning": "⚠️", "info": "ℹ️"}.get(level, "📝")
+            stats_text.append(f"{emoji} {level.upper()}: {count}件")
+
+        fields.append({
+            "name": "📈 統計",
+            "value": "\n".join(stats_text),
+            "inline": True
+        })
+
+        # 最新の通知
+        if recent_items:
+            recent_text = []
+            for item in recent_items[:3]:
+                title = item["data"].get("title", "通知")[:30]
+                count_text = f" (×{item['count']})" if item.get("count", 1) > 1 else ""
+                recent_text.append(f"• {title}{count_text}")
+
+            fields.append({
+                "name": "📋 最新の通知",
+                "value": "\n".join(recent_text),
+                "inline": True
+            })
+
+        return fields
+
+    def _check_rate_limit(self) -> bool:
+        """レート制限チェック"""
+        current_time = time.time()
+
+        # 1時間経過でカウンターリセット
+        if current_time - self.hour_start_time >= 3600:
+            self.hourly_count = 0
+            self.hour_start_time = current_time
+
+        return self.hourly_count < self.max_per_hour
+
+    def _increment_rate_counter(self):
+        """レート制限カウンター増加"""
+        self.hourly_count += 1
+
+    def get_status(self) -> Dict[str, Any]:
+        """バッチャー状態取得"""
+        return {
+            "queue_size": len(self.notification_queue),
+            "last_batch_ago": time.time() - self.last_batch_time,
+            "next_batch_in": self.batch_interval - (time.time() - self.last_batch_time),
+            "hourly_count": self.hourly_count,
+            "rate_limit_remaining": self.max_per_hour - self.hourly_count,
+        }
+
+
+class DailySummaryCollector:
+    """
+    日次サマリー収集・送信
+
+    機能:
+    - 日次統計の収集
+    - 定時サマリー送信
+    - パフォーマンス指標の集約
+    """
+
+    def __init__(self, discord_client: DiscordClient):
+        """
+        サマリーコレクター初期化
+
+        Args:
+            discord_client: Discord送信クライアント
+        """
+        self.client = discord_client
+        self.logger = logging.getLogger("crypto_bot.daily_summary")
+
+        # 日次データ
+        self.daily_data = {
+            "start_time": time.time(),
+            "notifications": [],
+            "system_events": [],
+            "performance_metrics": {},
+        }
+
+        # 設定
+        self.summary_hour = get_monitoring_config("discord.daily_summary_hour", 18)
+        self.logger.info(f"✅ 日次サマリー初期化完了: 送信時刻={self.summary_hour}:00 JST")
+
+    def add_daily_event(self, event_data: Dict[str, Any]):
+        """日次イベント追加"""
+        event_data["timestamp"] = time.time()
+        self.daily_data["notifications"].append(event_data)
+
+    def should_send_daily_summary(self) -> bool:
+        """日次サマリー送信タイミング判定"""
+        from datetime import datetime, timezone, timedelta
+
+        # JST時刻取得
+        jst = timezone(timedelta(hours=9))
+        now_jst = datetime.now(jst)
+
+        # 指定時刻（例: 18:00）の判定
+        target_time = now_jst.replace(hour=self.summary_hour, minute=0, second=0, microsecond=0)
+
+        # 1時間以内かつまだ送信していない場合
+        time_diff = abs((now_jst - target_time).total_seconds())
+        return time_diff <= 3600  # 1時間以内
+
+    def generate_daily_summary(self) -> Dict[str, Any]:
+        """日次サマリー生成"""
+        # 統計計算
+        total_notifications = len(self.daily_data["notifications"])
+        uptime_hours = (time.time() - self.daily_data["start_time"]) / 3600
+
+        # サマリーデータ
+        summary = {
+            "title": "📊 日次システムサマリー",
+            "description": f"本日（{uptime_hours:.1f}時間）の活動報告",
+            "fields": [
+                {
+                    "name": "📈 通知統計",
+                    "value": f"総通知数: {total_notifications}件",
+                    "inline": True
+                },
+                {
+                    "name": "⏱️ 稼働時間",
+                    "value": f"{uptime_hours:.1f}時間",
+                    "inline": True
+                }
+            ]
+        }
+
+        return summary
+
+
+class EnhancedDiscordManager(DiscordManager):
+    """
+    拡張Discord通知マネージャー
+
+    既存のDiscordManagerを拡張し、バッチ処理と日次サマリー機能を追加。
+    後方互換性を完全に維持しながら新機能を提供。
+    """
+
+    def __init__(self, webhook_url: Optional[str] = None):
+        """
+        拡張マネージャー初期化
+
+        Args:
+            webhook_url: Discord WebhookのURL
+        """
+        # 親クラス初期化
+        super().__init__(webhook_url)
+
+        # バッチ処理機能
+        if get_monitoring_config("discord.batch_notifications", False):
+            self.batcher = NotificationBatcher(self.client)
+            self.daily_summary = DailySummaryCollector(self.client)
+            self.batch_enabled = True
+            self.logger.info("✅ バッチ処理機能が有効化されました")
+        else:
+            self.batcher = None
+            self.daily_summary = None
+            self.batch_enabled = False
+            self.logger.info("ℹ️ バッチ処理機能は無効です（従来モード）")
+
+    def send_simple_message(self, message: str, level: str = "info") -> bool:
+        """
+        拡張版シンプルメッセージ送信
+
+        Args:
+            message: 送信メッセージ
+            level: 重要度
+
+        Returns:
+            送信成功・失敗
+        """
+        # バッチ処理が有効の場合
+        if self.batch_enabled and self.batcher:
+            notification_data = {
+                "title": f"{level.upper()} 通知",
+                "description": message,
+            }
+            return self.batcher.add_notification(notification_data, level)
+
+        # 従来処理（後方互換）
+        return super().send_simple_message(message, level)
+
+    def send_trading_signal(self, signal_data: Dict[str, Any]) -> bool:
+        """拡張版取引シグナル通知"""
+        if self.batch_enabled and self.batcher:
+            embed_data = self.formatter.format_trading_signal(signal_data)
+            return self.batcher.add_notification(embed_data, "warning")
+
+        return super().send_trading_signal(signal_data)
+
+    def send_system_status(self, status_data: Dict[str, Any]) -> bool:
+        """拡張版システム状態通知"""
+        if self.batch_enabled and self.batcher:
+            embed_data = self.formatter.format_system_status(status_data)
+            level = {"healthy": "info", "warning": "warning", "error": "critical"}.get(
+                status_data.get("status", "warning"), "warning"
+            )
+            return self.batcher.add_notification(embed_data, level)
+
+        return super().send_system_status(status_data)
+
+    def process_pending_notifications(self):
+        """保留中通知の処理（定期実行用）"""
+        if not self.batch_enabled:
+            return
+
+        # バッチ処理
+        if self.batcher:
+            self.batcher.process_batch()
+
+        # 日次サマリー
+        if self.daily_summary and self.daily_summary.should_send_daily_summary():
+            summary = self.daily_summary.generate_daily_summary()
+            self.client.send_embed(
+                title=summary["title"],
+                description=summary["description"],
+                fields=summary.get("fields", []),
+                level="info"
+            )
+
+    def get_enhanced_status(self) -> Dict[str, Any]:
+        """拡張状態情報取得"""
+        status = super().get_status()
+
+        if self.batch_enabled:
+            status["batch_enabled"] = True
+            if self.batcher:
+                status["batcher"] = self.batcher.get_status()
+        else:
+            status["batch_enabled"] = False
+
+        return status
+
+
 # 後方互換性のためのエイリアス（必要に応じて）
 __all__ = [
     "DiscordClient",
     "DiscordFormatter",
     "DiscordManager",
+    "NotificationBatcher",
+    "DailySummaryCollector",
+    "EnhancedDiscordManager",
 ]

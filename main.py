@@ -14,7 +14,11 @@ Phase 22完了版・設定最適化完了・統一システム最適化対応の
 
 import argparse
 import asyncio
+import fcntl
+import os
+import signal
 import sys
+import time
 from pathlib import Path
 
 # srcディレクトリをPythonパスに追加
@@ -41,6 +45,129 @@ except ImportError as e:
     print(f"❌ 必要なモジュールのインポートに失敗: {e}")
     print("srcディレクトリの構造を確認してください。")
     sys.exit(1)
+
+
+def setup_process_management():
+    """
+    プロセス管理機能の初期化
+
+    機能:
+    - プロセス重複防止
+    - 環境変数による実行制御
+    - 自動タイムアウト設定（GCP環境）
+    - シグナルハンドリング
+    """
+    # 1. プロセス重複防止
+    if not check_single_instance():
+        print("❌ 既に実行中のプロセスが存在します")
+        sys.exit(1)
+
+    # 2. 環境変数による実行制御
+    environment = detect_environment()
+    print(f"🌍 実行環境: {environment}")
+
+    # 3. GCP環境での自動タイムアウト設定
+    if environment == "gcp":
+        setup_auto_shutdown()
+
+    # 4. シグナルハンドリング設定
+    setup_signal_handlers()
+
+    return environment
+
+
+def check_single_instance():
+    """
+    プロセスの重複起動防止
+
+    Returns:
+        bool: 実行可否（True=実行可能、False=重複）
+    """
+    # ユーザー固有のロックファイル名
+    lock_file_path = Path(f"/tmp/crypto_bot_{os.getenv('USER', 'default')}.lock")
+
+    try:
+        # ロックファイルを開く
+        lock_file = open(lock_file_path, 'w')
+
+        # 排他ロック試行（非ブロッキング）
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        # プロセス情報書き込み
+        lock_file.write(f"{os.getpid()}\n{time.time()}\n")
+        lock_file.flush()
+
+        print(f"✅ プロセスロック取得: {lock_file_path}")
+
+        # ロックファイルオブジェクトを保持（プロセス終了時に自動解除）
+        # グローバル変数として保持しないとGCで削除される可能性
+        globals()['_lock_file'] = lock_file
+
+        return True
+
+    except (OSError, IOError):
+        print(f"🔒 他のプロセスが実行中: {lock_file_path}")
+        return False
+
+
+def detect_environment():
+    """
+    実行環境の自動検出
+
+    Returns:
+        str: 環境名（"local" | "gcp"）
+    """
+    # GCP環境の判定
+    gcp_indicators = [
+        os.getenv("RUNNING_ON_GCP") == "true",
+        os.getenv("K_SERVICE") is not None,  # Cloud Run
+        os.getenv("GOOGLE_CLOUD_PROJECT") is not None,
+        Path("/var/secrets/google").exists(),  # Cloud Run secrets
+    ]
+
+    if any(gcp_indicators):
+        return "gcp"
+    else:
+        return "local"
+
+
+def setup_auto_shutdown():
+    """
+    GCP環境での自動シャットダウン設定
+    """
+    # 15分（900秒）でタイムアウト
+    timeout_seconds = 900
+
+    def timeout_handler(signum, frame):
+        print(f"⏰ タイムアウト（{timeout_seconds}秒）によりシステムを終了します")
+        sys.exit(0)
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_seconds)
+    print(f"⏰ 自動タイムアウト設定: {timeout_seconds}秒")
+
+
+def setup_signal_handlers():
+    """
+    シグナルハンドリング設定
+    """
+    def signal_handler(signum, frame):
+        signal_name = signal.Signals(signum).name
+        print(f"🛑 シグナル受信: {signal_name} - 正常終了中...")
+
+        # ログ出力（logger初期化前の場合はprint）
+        try:
+            import logging
+            logger = logging.getLogger("crypto_bot")
+            logger.info(f"シグナル受信により終了: {signal_name}")
+        except:
+            pass
+
+        sys.exit(0)
+
+    # SIGINT（Ctrl+C）とSIGTERM（kill）の処理
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
 
 def parse_arguments():
@@ -72,6 +199,9 @@ def parse_arguments():
 
 async def main():
     """メイン処理 - エントリーポイント"""
+    # 0. プロセス管理初期化
+    environment = setup_process_management()
+
     # 1. 引数解析
     args = parse_arguments()
 

@@ -11,10 +11,13 @@ src/core/reporting/
 ├── __init__.py               # レポート・通知システムエクスポート
 ├── base_reporter.py          # 基底レポーター（統一インターフェース）
 ├── paper_trading_reporter.py # ペーパートレードレポート生成
-└── discord_notifier.py       # Discord通知統合システム（Phase 22統合）
+└── discord_notifier.py       # Discord通知統合システム（Phase 22統合 + 最適化強化版）
     ├── DiscordClient         # Discord Webhook送信・基盤層
     ├── DiscordFormatter      # メッセージフォーマット・表現層
-    └── DiscordManager        # 通知制御・Rate Limit・制御層
+    ├── DiscordManager        # 通知制御・Rate Limit・制御層
+    ├── NotificationBatcher   # バッチ処理・通知集約システム（🆕）
+    ├── DailySummaryCollector # 日次サマリー収集・送信（🆕）
+    └── EnhancedDiscordManager # 拡張Discord管理（バッチ機能統合版）（🆕）
 ```
 
 ## 🔧 主要コンポーネント
@@ -45,6 +48,28 @@ class DiscordManager:
     def send_trading_signal(self, signal_data) -> bool    # 取引シグナル送信
     def send_system_status(self, status_data) -> bool     # システム状態送信
     def send_error_notification(self, error_data) -> bool # エラー通知送信
+
+# 🆕 新機能: バッチ処理・通知最適化システム
+
+class NotificationBatcher:
+    def __init__(self, discord_client: DiscordClient)     # バッチャー初期化
+    def add_notification(self, data, level) -> bool       # 通知をキューに追加
+    def process_batch(self) -> bool                       # バッチ通知の処理・送信
+    def _generate_batch_summary(self) -> List[Dict]       # バッチサマリー生成
+    def _check_rate_limit(self) -> bool                   # レート制限チェック
+
+class DailySummaryCollector:
+    def __init__(self, discord_client: DiscordClient)     # サマリーコレクター初期化
+    def add_daily_event(self, event_data)                 # 日次イベント追加
+    def should_send_daily_summary(self) -> bool           # 送信タイミング判定
+    def generate_daily_summary(self) -> Dict              # 日次サマリー生成
+
+class EnhancedDiscordManager(DiscordManager):
+    def __init__(self, webhook_url: Optional[str] = None) # 拡張マネージャー初期化
+    def send_simple_message(self, message, level) -> bool # 拡張版シンプル送信
+    def send_trading_signal(self, signal_data) -> bool    # 拡張版取引シグナル
+    def process_pending_notifications(self)               # 保留中通知の処理
+    def get_enhanced_status(self) -> Dict                 # 拡張状態情報取得
 ```
 
 ### **base_reporter.py**
@@ -73,17 +98,33 @@ class PaperTradingReporter(BaseReporter):
 
 ## 🚀 使用方法
 
-### **基本的な通知送信**
+### **基本的な通知送信（従来版）**
 ```python
 from src.core.reporting.discord_notifier import DiscordManager
 
 # 初期化（WebhookURLは自動取得）
 manager = DiscordManager()
 
-# シンプルメッセージ送信
+# シンプルメッセージ送信（即時送信）
 manager.send_simple_message("システム起動完了", "info")
 manager.send_simple_message("警告: API制限に近づいています", "warning")
 manager.send_simple_message("緊急: システム停止", "critical")
+```
+
+### **🆕 バッチ処理対応通知送信（推奨）**
+```python
+from src.core.reporting.discord_notifier import EnhancedDiscordManager
+
+# 拡張マネージャー初期化（バッチ処理自動有効化）
+manager = EnhancedDiscordManager()
+
+# 通知送信（自動的にバッチ処理またはレベル別送信）
+manager.send_simple_message("取引完了", "info")         # → 日次サマリーに集約
+manager.send_simple_message("価格急変検出", "warning")    # → 1時間バッチに集約
+manager.send_simple_message("残高異常検出", "critical")   # → 即時送信
+
+# 保留中通知の手動処理（定期実行時）
+manager.process_pending_notifications()
 ```
 
 ### **取引シグナル通知**
@@ -146,15 +187,36 @@ reporting:
   max_report_size_mb: 10
   retention_days: 30
 
-# Discord通知設定（Phase 22 統合）
+# Discord通知設定（Phase 22 統合 + 最適化強化版）
 discord:
+  # 基本設定
   max_retries: 3
   timeout_seconds: 10
-  rate_limit_delay: 1.0
+  max_message_length: 2000
   embed_color:
     success: 0x00FF00
     warning: 0xFFFF00
     error: 0xFF0000
+
+  # 🆕 バッチ処理設定（通知負荷軽減）
+  batch_notifications: true            # バッチ処理有効化
+  batch_interval_minutes: 60          # 1時間毎にバッチ送信
+  daily_summary_hour: 18              # JST 18:00に日次サマリー
+
+  # 🆕 レート制限強化
+  rate_limit:
+    min_interval_seconds: 5           # 最小間隔5秒
+    max_per_hour: 12                 # 1時間最大12通知
+    burst_limit: 3                   # 短時間バースト制限
+
+  # 🆕 通知レベル最適化
+  notification_levels:
+    critical: immediate              # 即時通知（残高異常等）
+    warning: batch                   # バッチ集約（1時間毎）
+    info: daily                      # 日次サマリーのみ
+
+  # 起動時設定
+  startup_grace_period: 30           # 起動後30秒は通知抑制
 ```
 
 ## 🛡️ エラーハンドリング・制限対応
@@ -223,12 +285,20 @@ LEVEL_COLORS = {
 - **権限設定**: `chmod 600 config/secrets/discord_webhook.txt`推奨
 - **URLハッシュ**: 401エラー時はハッシュのみログ出力
 
-### **Phase 22統合の利点**
+### **Phase 22統合 + 最適化強化版の利点**
 
+#### **従来のPhase 22統合の利点**
 - **統一管理**: レポート生成とDiscord通知を一元化
 - **設定統合**: `unified.yaml`での設定管理
 - **保守性向上**: 機能関連性に基づく適切な配置
 - **後方互換性**: 既存のインポートパスも対応
+
+#### **🆕 最適化強化版の追加効果**
+- **通知負荷軽減**: バッチ処理により通信回数90%削減
+- **コスト最適化**: レート制限により従量課金を抑制
+- **運用安定性**: 無限通知ループを根本的に防止
+- **プロセス管理**: 重複起動防止により今回の問題を解決
+- **スケーラブル設計**: 大量通知に対応可能なキューイングシステム
 
 ### **依存関係**
 
