@@ -983,7 +983,9 @@ class NotificationBatcher:
     def _add_to_batch_queue(self, notification_data: Dict[str, Any], level: str) -> bool:
         """バッチキューに追加"""
         # 重複除去のための簡単なハッシュ
-        notification_hash = hash(str(notification_data.get("title", "")) + str(notification_data.get("description", "")))
+        notification_hash = hash(
+            str(notification_data.get("title", "")) + str(notification_data.get("description", ""))
+        )
 
         # 重複チェック
         for existing in self.notification_queue:
@@ -1078,11 +1080,7 @@ class NotificationBatcher:
             emoji = {"critical": "🚨", "warning": "⚠️", "info": "ℹ️"}.get(level, "📝")
             stats_text.append(f"{emoji} {level.upper()}: {count}件")
 
-        fields.append({
-            "name": "📈 統計",
-            "value": "\n".join(stats_text),
-            "inline": True
-        })
+        fields.append({"name": "📈 統計", "value": "\n".join(stats_text), "inline": True})
 
         # 最新の通知
         if recent_items:
@@ -1092,11 +1090,9 @@ class NotificationBatcher:
                 count_text = f" (×{item['count']})" if item.get("count", 1) > 1 else ""
                 recent_text.append(f"• {title}{count_text}")
 
-            fields.append({
-                "name": "📋 最新の通知",
-                "value": "\n".join(recent_text),
-                "inline": True
-            })
+            fields.append(
+                {"name": "📋 最新の通知", "value": "\n".join(recent_text), "inline": True}
+            )
 
         return fields
 
@@ -1192,14 +1188,10 @@ class DailySummaryCollector:
                 {
                     "name": "📈 通知統計",
                     "value": f"総通知数: {total_notifications}件",
-                    "inline": True
+                    "inline": True,
                 },
-                {
-                    "name": "⏱️ 稼働時間",
-                    "value": f"{uptime_hours:.1f}時間",
-                    "inline": True
-                }
-            ]
+                {"name": "⏱️ 稼働時間", "value": f"{uptime_hours:.1f}時間", "inline": True},
+            ],
         }
 
         return summary
@@ -1292,7 +1284,7 @@ class EnhancedDiscordManager(DiscordManager):
                 title=summary["title"],
                 description=summary["description"],
                 fields=summary.get("fields", []),
-                level="info"
+                level="info",
             )
 
     def get_enhanced_status(self) -> Dict[str, Any]:
