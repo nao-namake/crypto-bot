@@ -514,8 +514,8 @@ class TradingAnomalyDetector:
             # 4. 出来高スパイク検知（市場データがある場合）
             if market_data is not None and len(market_data) > 10:
                 volume_alert = self.check_volume_anomaly(
-                    volume, market_data["volume"].iloc[:-1]  # 最新値を除く
-                )
+                    volume, market_data["volume"].iloc[:-1]
+                )  # 最新値を除く
                 if volume_alert:
                     alerts.append(volume_alert)
 

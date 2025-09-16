@@ -251,8 +251,8 @@ class TestTradingAnomalyDetector:
         """市場データ付き包括的異常検知テスト."""
         # サンプル市場データ作成
         market_data = pd.DataFrame(
-            {"close": [50000] * 15 + [52000], "volume": [1000] * 16}  # 最後だけ大きく変動
-        )
+            {"close": [50000] * 15 + [52000], "volume": [1000] * 16}
+        )  # 最後だけ大きく変動
 
         alerts = self.detector.comprehensive_anomaly_check(
             bid=51900,

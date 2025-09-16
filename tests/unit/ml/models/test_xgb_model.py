@@ -44,8 +44,8 @@ class TestXGBModel:
     def xgb_model(self):
         """XGBModelインスタンス"""
         return XGBModel(
-            n_estimators=10, max_depth=3, learning_rate=0.1, random_state=42  # テスト用に小さい値
-        )
+            n_estimators=10, max_depth=3, learning_rate=0.1, random_state=42
+        )  # テスト用に小さい値
 
     def test_model_initialization(self, xgb_model):
         """モデル初期化テスト"""

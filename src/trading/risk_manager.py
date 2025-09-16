@@ -180,21 +180,28 @@ class KellyCriterion:
 
     def __init__(
         self,
-        max_position_ratio: float = 0.03,
-        safety_factor: float = 0.5,
-        min_trades_for_kelly: int = 20,
+        max_position_ratio: float = None,
+        safety_factor: float = None,
+        min_trades_for_kelly: int = None,
     ):
         """
-        Kelly基準計算器初期化
+        Kelly基準計算器初期化（設定ファイルから動的取得）
 
         Args:
-            max_position_ratio: 最大ポジション比率（デフォルト3%）
-            safety_factor: 安全係数（デフォルト50%）
-            min_trades_for_kelly: Kelly計算に必要な最小取引数
+            max_position_ratio: 最大ポジション比率（Noneの場合は設定ファイルから取得）
+            safety_factor: 安全係数（Noneの場合は設定ファイルから取得）
+            min_trades_for_kelly: Kelly計算に必要な最小取引数（Noneの場合は設定ファイルから取得）
         """
-        self.max_position_ratio = max_position_ratio
-        self.safety_factor = safety_factor
-        self.min_trades_for_kelly = min_trades_for_kelly
+        # 設定ファイルから動的取得（ハードコード排除）
+        self.max_position_ratio = max_position_ratio or get_threshold(
+            "risk.kelly_max_fraction", 0.03
+        )
+        self.safety_factor = safety_factor or get_threshold(
+            "risk.kelly_criterion.safety_factor", 0.7
+        )
+        self.min_trades_for_kelly = min_trades_for_kelly or get_threshold(
+            "trading.kelly_min_trades", 5
+        )
         self.trade_history: List[TradeResult] = []
         self.logger = get_logger()
 
@@ -372,8 +379,18 @@ class KellyCriterion:
             kelly_result = self.calculate_from_history(strategy_filter=strategy_name)
 
             if kelly_result is None:
-                # 履歴データ不足の場合は保守的なサイズ
-                conservative_size = 0.01 * ml_confidence  # 1% * 信頼度
+                # 履歴データ不足の場合は設定値から保守的なサイズを取得
+                base_initial_size = get_threshold("trading.initial_position_size", 0.01)
+                conservative_size = base_initial_size * ml_confidence
+
+                # 🚨 Silent failure対策: max_order_size制限チェック
+                max_order_size = get_threshold("production.max_order_size", 0.02)
+                if conservative_size > max_order_size:
+                    self.logger.error(
+                        f"🚨 ポジションサイズ制限超過検出: 計算値={conservative_size:.4f} > "
+                        f"max_order_size={max_order_size:.4f} - Silent failure発生可能性"
+                    )
+
                 self.logger.warning(f"Kelly履歴不足、保守的サイズ使用: {conservative_size:.3f}")
                 return min(conservative_size, self.max_position_ratio)
 
@@ -386,6 +403,15 @@ class KellyCriterion:
             # 最終制限適用
             final_size = min(data_confidence_adjusted, self.max_position_ratio)
 
+            # 🚨 Silent failure対策: max_order_size制限チェック（Kelly履歴がある場合も）
+            max_order_size = get_threshold("production.max_order_size", 0.02)
+            if final_size > max_order_size:
+                self.logger.error(
+                    f"🚨 Kelly計算済みポジションサイズ制限超過: 計算値={final_size:.4f} > "
+                    f"max_order_size={max_order_size:.4f} - Silent failure発生可能性"
+                )
+                final_size = min(final_size, max_order_size)
+
             self.logger.debug(
                 f"最適サイズ計算: Kelly推奨={kelly_result.recommended_position_size:.3f}, "
                 f"ML信頼度={ml_confidence:.3f}, 最終={final_size:.3f}"
@@ -395,7 +421,9 @@ class KellyCriterion:
 
         except Exception as e:
             self.logger.error(f"最適サイズ計算エラー: {e}")
-            return 0.01  # フォールバック値
+            # フォールバック値も設定から取得
+            fallback_size = get_threshold("trading.initial_position_size", 0.01)
+            return fallback_size
 
     def calculate_dynamic_position_size(
         self,
@@ -727,12 +755,12 @@ class IntegratedRiskManager:
     def _initialize_components(self, config: Dict[str, Any], initial_balance: float) -> None:
         """リスクコンポーネント初期化"""
         try:
-            # Kelly基準ポジションサイジング
+            # Kelly基準ポジションサイジング（設定ファイルから動的取得）
             kelly_config = config.get("kelly_criterion", {})
             self.kelly = KellyCriterion(
-                max_position_ratio=kelly_config.get("max_position_ratio", 0.03),
-                safety_factor=kelly_config.get("safety_factor", 0.5),
-                min_trades_for_kelly=kelly_config.get("min_trades_for_kelly", 20),
+                max_position_ratio=kelly_config.get("max_position_ratio"),
+                safety_factor=kelly_config.get("safety_factor"),
+                min_trades_for_kelly=kelly_config.get("min_trades_for_kelly"),
             )
 
             # ポジションサイズ統合器

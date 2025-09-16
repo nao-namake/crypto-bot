@@ -94,8 +94,6 @@ class BitbankClient:
         try:
             # 公開API（認証不要）でテスト（設定から取得）
             try:
-                from ..core.config import get_config
-
                 config = get_config()
                 symbol = config.exchange.symbol
             except Exception:
@@ -137,8 +135,6 @@ class BitbankClient:
         # symbolが未指定の場合は設定から取得
         if symbol is None:
             try:
-                from ..core.config import get_config
-
                 config = get_config()
                 symbol = config.exchange.symbol
             except Exception:

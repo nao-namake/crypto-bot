@@ -133,8 +133,8 @@ class HistoricalDataCollector:
                 cutoff_date = datetime.now() - timedelta(days=days)
                 cutoff_timestamp = int(cutoff_date.timestamp() * 1000)
                 filtered_data = [
-                    row for row in all_data if row[0] >= cutoff_timestamp  # timestampでフィルタ
-                ]
+                    row for row in all_data if row[0] >= cutoff_timestamp
+                ]  # timestampでフィルタ
 
             return sorted(filtered_data, key=lambda x: x[0])  # 時系列順にソート
 

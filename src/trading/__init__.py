@@ -98,7 +98,7 @@ RISK_PROFILES = {
         "kelly_criterion": {
             "max_position_ratio": 0.10,
             "safety_factor": 0.7,
-            "min_trades_for_kelly": 20,
+            "min_trades_for_kelly": 5,
         },
         "risk_thresholds": {
             "min_ml_confidence": 0.30,
@@ -127,7 +127,7 @@ DEFAULT_RISK_CONFIG = {
     "kelly_criterion": {
         "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 12バランス調整・手動実行監視対応）
         "safety_factor": 0.7,  # Kelly値の70%使用（60%→70%・効率向上）
-        "min_trades_for_kelly": 20,  # Kelly適用最小取引数
+        "min_trades_for_kelly": 5,  # Kelly適用最小取引数（20→5に緩和）
     },
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,  # 最大ドローダウン20%

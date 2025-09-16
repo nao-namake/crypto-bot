@@ -110,7 +110,7 @@ class TestTradingInitUtilities:
         kelly_config = DEFAULT_RISK_CONFIG["kelly_criterion"]
         assert kelly_config["max_position_ratio"] == 0.10
         assert kelly_config["safety_factor"] == 0.7
-        assert kelly_config["min_trades_for_kelly"] == 20
+        assert kelly_config["min_trades_for_kelly"] == 5
 
         # ドローダウン管理設定確認
         drawdown_config = DEFAULT_RISK_CONFIG["drawdown_manager"]

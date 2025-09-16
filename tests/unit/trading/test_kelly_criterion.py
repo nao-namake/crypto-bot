@@ -225,14 +225,14 @@ class TestKellyCriterion:
         """エラーハンドリングテスト."""
         # 無効な勝率でのKelly計算
         kelly_invalid = self.kelly.calculate_kelly_fraction(
-            win_rate=1.5, avg_win=1.0, avg_loss=1.0  # 無効（100%超）
-        )
+            win_rate=1.5, avg_win=1.0, avg_loss=1.0
+        )  # 無効（100%超）
         assert kelly_invalid == 0.0
 
         # 無効な損失値
         kelly_invalid2 = self.kelly.calculate_kelly_fraction(
-            win_rate=0.6, avg_win=1.0, avg_loss=0  # 無効（ゼロ除算）
-        )
+            win_rate=0.6, avg_win=1.0, avg_loss=0
+        )  # 無効（ゼロ除算）
         assert kelly_invalid2 == 0.0
 
     def test_strategy_filtering(self):

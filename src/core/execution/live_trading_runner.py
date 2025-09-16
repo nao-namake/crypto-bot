@@ -138,7 +138,7 @@ class LiveTradingRunner(BaseRunner):
                         self.logger.info(f"✅ 残高再取得成功: {jpy_balance:,.0f}円")
                     else:
                         # フォールバック値使用
-                        fallback = get_threshold("trading.initial_balance_jpy", 10000.0)
+                        fallback = get_threshold("trading.initial_balance_jpy")
                         if hasattr(self.orchestrator.execution_service, "current_balance"):
                             self.orchestrator.execution_service.current_balance = fallback
                         balance = fallback
@@ -147,7 +147,7 @@ class LiveTradingRunner(BaseRunner):
                 except Exception as re_error:
                     self.logger.error(f"❌ 残高再取得失敗: {re_error}")
                     # エラー時もフォールバック使用
-                    fallback = get_threshold("trading.initial_balance_jpy", 10000.0)
+                    fallback = get_threshold("trading.initial_balance_jpy")
                     if hasattr(self.orchestrator.execution_service, "current_balance"):
                         self.orchestrator.execution_service.current_balance = fallback
                     balance = fallback

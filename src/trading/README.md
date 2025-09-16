@@ -326,7 +326,7 @@ custom_config = {
     "kelly_criterion": {
         "max_position_ratio": 0.03,     # 最大3%
         "safety_factor": 0.5,           # Kelly値の50%使用
-        "min_trades_for_kelly": 20      # 20取引以上で適用
+        "min_trades_for_kelly": 5       # 5取引以上で適用（20→5に緩和）
     },
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,     # 20%制限

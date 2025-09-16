@@ -55,8 +55,6 @@ class MLModelLoader:
         import os
 
         # Cloud Run環境とローカル環境の両方に対応
-        from ..config import get_threshold
-
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")
         base_path = (
@@ -127,8 +125,6 @@ class MLModelLoader:
     def _load_from_individual_models(self) -> bool:
         """個別モデルからProductionEnsemble再構築"""
         import os
-
-        from ..config import get_threshold
 
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")

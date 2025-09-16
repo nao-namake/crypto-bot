@@ -124,7 +124,7 @@ risk:
   kelly_criterion:
     max_position_ratio: 0.03
     safety_factor: 0.7
-    min_trades_for_kelly: 20
+    min_trades_for_kelly: 5  # 20→5に緩和（初期取引開始のため）
   risk_per_trade: 0.01
   kelly_max_fraction: 0.03
   max_drawdown: 0.2
@@ -168,8 +168,8 @@ execution:
 # 本番運用設定（MODE=live時有効）
 # ========================================
 production:
-  min_order_size: 0.0001
-  max_order_size: 0.001
+  min_order_size: 0.0001  # Bitbank最小取引単位（0.0001 BTC = 約1,700円）
+  max_order_size: 0.0005  # 1万円運用に適合（約8,500円相当、安全な上限設定）
   trade_interval: 180
   margin_trading: true
   force_margin_mode: true

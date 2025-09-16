@@ -351,8 +351,8 @@ def test_large_trade_history():
 def test_realistic_trading_scenario():
     """現実的な取引シナリオテスト."""
     manager = DrawdownManager(
-        max_drawdown_ratio=0.15, consecutive_loss_limit=3  # 15%制限  # 3回制限
-    )
+        max_drawdown_ratio=0.15, consecutive_loss_limit=3
+    )  # 15%制限  # 3回制限
 
     # 初期資金100万円
     manager.initialize_balance(1000000)

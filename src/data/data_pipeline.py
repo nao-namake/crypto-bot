@@ -29,7 +29,7 @@ from ..core.exceptions import DataFetchError
 from ..core.logger import get_logger
 
 if TYPE_CHECKING:
-    from .bitbank_client import BitbankClient, get_bitbank_client
+    from .bitbank_client import BitbankClient
 
 
 class TimeFrame(Enum):
