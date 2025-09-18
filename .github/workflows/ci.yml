@@ -1,5 +1,5 @@
-# Phase 16-B完了: 設定一元化・保守性向上CI/CDパイプライン
-# 620テスト100%成功・50%+カバレッジ達成・160個ハードコード値統合・品質保証完成
+# 統一設定管理体系確立完了: 設定不整合完全解消CI/CDパイプライン
+# 625テスト100%成功・64.74%カバレッジ達成・Kelly基準最適化・統一設定管理完成
 
 name: CI/CD Pipeline
 
@@ -85,7 +85,7 @@ jobs:
 
       - name: Run GCP Environment Pre-Check
         run: |
-          echo "🔍 Phase 16-B: GCP環境事前検証開始"
+          echo "🔍 統一設定管理体系: GCP環境事前検証開始"
           echo "デプロイ前にGCP環境の準備状況を確認します"
           
           # 検証スクリプト実行
@@ -189,7 +189,7 @@ jobs:
             exit 1
           fi
           
-          echo "🎯 全必須リソース確認完了 - デプロイ実行準備完了"
+          echo "🎯 統一設定管理体系: 全必須リソース確認完了 - デプロイ実行準備完了"
 
   # ========================================
   # 3. Docker Build & GCP Deploy（本番用）
@@ -274,8 +274,8 @@ jobs:
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
           
-          echo "🚀 Phase 16-B段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "設定一元化・保守性向上システム・620テスト100%成功・160個ハードコード値統合完成版"
+          echo "🚀 統一設定管理体系段階的デプロイ開始: ${IMAGE_TAG}"
+          echo "設定不整合完全解消システム・625テスト100%成功・Kelly基準最適化・統一設定管理完成版"
           
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
@@ -318,7 +318,7 @@ jobs:
             --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
             --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:5" \
             --port=8080 \
-            --revision-suffix="phase16b-$(date +%m%d-%H%M)" \
+            --revision-suffix="unified-system-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG
           
           # 本番トラフィック移行
@@ -327,7 +327,7 @@ jobs:
             --to-latest \
             --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
           
-          echo "✅ Phase 16-B本番デプロイ完了・設定一元化システム稼働開始"
+          echo "✅ 統一設定管理体系本番デプロイ完了・設定不整合完全解消システム稼働開始"
 
       - name: Verify Deployment Health Check
         run: |
@@ -372,13 +372,13 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Phase 16-B本番デプロイ成功・設定一元化完成！"
+            echo "🎉 統一設定管理体系本番デプロイ成功・設定不整合完全解消完成！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: 620テスト100%成功・50%+カバレッジ・160個ハードコード値統合完成"
+            echo "📈 品質保証: 625テスト100%成功・64.74%カバレッジ・統一設定管理体系完成"
           else
-            echo "❌ Phase 16-Bデプロイ失敗"
+            echo "❌ 統一設定管理体系デプロイ失敗"
             echo "🔍 ログを確認してください"
           fi
 

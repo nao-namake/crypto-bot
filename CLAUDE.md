@@ -8,12 +8,14 @@
 - **AI自動取引システム**: 完全稼働中・Cloud Run 24時間運用・bitbank信用取引対応
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・3分間隔実行（高頻度取引）・BTC/JPY専用
-- **テスト品質**: 620テスト100%成功・64.74%カバレッジ維持
-- **統合システム**: 15特徴量→5戦略（動的信頼度）→ML予測→リスク管理→取引実行の完全自動化
+- **テスト品質**: 625テスト100%成功・64.74%カバレッジ維持・CI/CD品質ゲート通過
+- **統一設定管理体系**: 15特徴量→5戦略（動的信頼度）→ML予測→リスク管理→取引実行の完全自動化・設定不整合完全解消
+- **Kelly基準最適化**: 2025/09/16完了（20→5取引緩和・ハードコード排除・設定統合）
 - **Secret Manager**: 2025/09/15修正完了（key:latest問題解決・具体的バージョン使用）
+- **GCPリソース最適化**: 2025/09/17完了（9月16日以前古いイメージ削除・容量最適化）
 
 ### **主要仕様**
-- **Python**: 3.12・MLライブラリ互換性最適化・GitHub Actions安定版
+- **Python**: 3.13・MLライブラリ互換性最適化・GitHub Actions安定版
 - **戦略**: 5戦略統合（ATR・MochiPoy・MultiTimeframe・DonchianChannel・ADX）・動的信頼度計算
 - **ML**: 3モデルアンサンブル（LightGBM 50%・XGBoost 30%・RandomForest 20%）
 - **時間軸**: 4時間足（トレンド）+ 15分足（エントリー）
@@ -47,9 +49,9 @@ models/production/          # 本番MLモデル（週次更新）
 ### **1. 品質チェック（開発時必須）**
 ```bash
 # メイン品質チェック - 開発前後に必ず実行
-bash scripts/testing/checks.sh                         # 620テスト・カバレッジ・約30秒
+bash scripts/testing/checks.sh                         # 625テスト・カバレッジ・約30秒
 
-# 期待結果: ✅ 620テスト100%成功・64.74%カバレッジ通過
+# 期待結果: ✅ 625テスト100%成功・64.74%カバレッジ通過
 ```
 
 ### **2. システム実行**
@@ -76,7 +78,7 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 ## 🎯 開発原則
 
 ### **1. 品質保証必須**
-- **テスト実行**: 開発前後に`checks.sh`必須実行・620テスト100%維持
+- **テスト実行**: 開発前後に`checks.sh`必須実行・625テスト100%維持
 - **カバレッジ**: 64.74%以上維持・新機能は必ずテスト追加
 - **CI/CD**: GitHub Actions自動品質ゲート・失敗時は修正必須
 
@@ -101,10 +103,15 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 - **feature_manager**: 15特徴量統一管理・config/core/feature_order.json参照
 - **ProductionEnsemble**: 3モデルアンサンブル（LightGBM・XGBoost・RandomForest）
 - **動的信頼度計算**: フォールバック回避・市場適応型0.25-0.6信頼度
-- **ML学習システム**: 
+- **Kelly基準最適化完了（2025/09/16）**:
+  - **最小取引数緩和**: 20→5取引で実用性向上・取引機会拡大
+  - **ハードコード排除**: get_threshold()による動的設定取得・運用中調整対応
+  - **設定統合**: config/core/thresholds.yaml統一管理・initial_position_size追加
+  - **Bitbank仕様対応**: 最小取引単位0.0001BTC・max_order_size調整（0.001→0.0005BTC）
+- **ML学習システム**:
   - **全体再学習方式**: 過去180日データで毎回ゼロから学習
   - **週次自動学習**: 毎週日曜18:00(JST) GitHub Actionsワークフロー
-  - **安全更新**: models/archive/自動バックアップ・620テスト品質ゲート
+  - **安全更新**: models/archive/自動バックアップ・625テスト品質ゲート
 
 ### **Secret Manager管理（重要）**
 - **修正済み**: 2025/09/15にkey:latest問題解決
@@ -118,6 +125,10 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 - **24時間稼働**: Cloud Run自動スケーリング・ヘルスチェック
 - **Discord監視**: 3階層通知（Critical/Warning/Info）・運用アラート
 - **データ取得**: Bitbank API・4h/15m足・キャッシュ最適化・残高取得正常化済み
+- **GCPリソース最適化完了（2025/09/17）**:
+  - **古いイメージ削除**: 9月16日以前の13個のDockerイメージクリーンアップ
+  - **容量最適化**: cloud-run-source-deploy・crypto-bot-repo・gcf-artifacts最適化
+  - **コスト削減**: 不要リソース削除・ガベージコレクション実行
 
 ## 📋 トラブルシューティング
 
@@ -159,4 +170,4 @@ gcloud logging read "textPayload:\"BITBANK_API_KEY\" OR textPayload:\"残高\"" 
 
 ---
 
-**AI自動取引システム**: 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・Kelly基準リスク管理・Discord 3階層監視による完全自動化システムが24時間稼働中。620テスト品質保証・64.74%カバレッジ・CI/CD統合により企業級品質を実現。 🚀
+**AI自動取引システム**: 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・Kelly基準最適化リスク管理・Discord 3階層監視による完全自動化システムが24時間稼働中。625テスト品質保証・64.74%カバレッジ・統一設定管理体系・CI/CD統合・GCPリソース最適化により企業級品質を実現。 🚀

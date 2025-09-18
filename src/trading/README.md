@@ -26,6 +26,7 @@ class IntegratedRiskManager:
     def _make_final_decision(risk_score)                                         # 最終判定
 
 class KellyCriterion:
+    def __init__(max_position_ratio=None, safety_factor=None, min_trades_for_kelly=None)  # 2025/09/16: 動的設定対応
     def calculate_dynamic_position_size(balance, entry_price, atr_value)         # 動的ポジションサイズ
     def add_trade_result(profit_loss, strategy, confidence)                      # 取引結果記録
     
@@ -46,7 +47,8 @@ class ExecutionResult:                  # Phase 21: executor.pyから移行
 
 **実装機能**:
 - **統合リスク評価**: ML信頼度・ドローダウン・異常検知の総合判定
-- **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算
+- **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算・**2025/09/16ハードコード排除完了**
+- **動的設定取得**: get_threshold()による設定ファイル（thresholds.yaml）からの値取得・運用中変更対応
 - **3段階判定システム**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
 - **リスクスコア算出**: ML信頼度・異常・ドローダウン・連続損失・ボラティリティの重み付け統合
 - **取引実行結果管理**: 注文実行結果の統合処理・ペーパートレード/ライブ取引対応（Phase 21統合）
@@ -326,7 +328,7 @@ custom_config = {
     "kelly_criterion": {
         "max_position_ratio": 0.03,     # 最大3%
         "safety_factor": 0.5,           # Kelly値の50%使用
-        "min_trades_for_kelly": 5       # 5取引以上で適用（20→5に緩和）
+        "min_trades_for_kelly": 5       # 5取引以上で適用（2025/09/16: 20→5に緩和・実用性向上）
     },
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,     # 20%制限

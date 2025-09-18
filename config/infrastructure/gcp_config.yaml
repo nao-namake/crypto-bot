@@ -41,8 +41,8 @@ services:
         max_instances: 1
         timeout: 1800
         concurrency: 1
-        description: "ペーパートレード（安全テスト・デフォルト）"
-        
+        description: "ペーパートレード（開発・テスト用）"
+
       live:
         memory: "1Gi"
         cpu: "1"
@@ -50,7 +50,7 @@ services:
         max_instances: 2
         timeout: 3600
         concurrency: 1
-        description: "実資金取引（十分な検証後に移行）"
+        description: "実資金取引（CI/CDデプロイ時のデフォルト）"
 
   # Artifact Registry設定
   artifact_registry:
@@ -71,18 +71,21 @@ services:
   secret_manager:
     secrets:
       - name: "bitbank-api-key"
+        version: "3"  # CI/CDで使用中の具体的バージョン
         description: "Bitbank API キー"
         labels:
           managed-by: "crypto-bot"
           environment: "production"
-          
+
       - name: "bitbank-api-secret"
+        version: "3"  # CI/CDで使用中の具体的バージョン
         description: "Bitbank API シークレット"
         labels:
           managed-by: "crypto-bot"
           environment: "production"
-          
+
       - name: "discord-webhook-url"
+        version: "5"  # CI/CDで使用中の具体的バージョン
         description: "Discord Webhook URL"
         labels:
           managed-by: "crypto-bot"
@@ -157,8 +160,16 @@ github_actions:
   # Repository Secrets（実環境に合わせて修正）
   secrets:
     GCP_PROJECT_ID: "my-crypto-bot-project"
-    GCP_WIF_PROVIDER: "projects/my-crypto-bot-project/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+    GCP_WIF_PROVIDER: "projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
     GCP_SERVICE_ACCOUNT: "github-deployer@my-crypto-bot-project.iam.gserviceaccount.com"
+
+  # デプロイ環境変数（CI/CDで実際に使用）
+  environment_variables:
+    MODE: "live"  # CI/CDは常にライブモード
+    LOG_LEVEL: "INFO"
+    PYTHONPATH: "/app"
+    FEATURE_MODE: "full"
+    DEPLOY_STAGE: "live"
     
   # Repository Variables
   variables:
@@ -219,6 +230,7 @@ security:
   secret_management:
     replication_policy: "automatic"
     automatic_rotation: false
+    version_strategy: "explicit"  # :latestではなく具体的バージョン使用
     
   # Workload Identity設定
   workload_identity:

@@ -1,17 +1,18 @@
-# config/infrastructure/ - インフラストラクチャ設定（v22.0.0 Phase 22設定最適化完了版）
+# config/infrastructure/ - インフラストラクチャ設定（v23.0.0 統一設定管理体系確立完了版）
 
-**最終更新**: 2025年9月14日 - Phase 22設定最適化完了・26キー重複問題解決・真のシステム性能発揮
+**最終更新**: 2025年9月18日 - 統一設定管理体系確立・設定不整合完全解消・CI/CD統一化
 
-## 🚀 Phase 22 最適化成果（2025年9月14日完了）
+## 🚀 統一設定管理体系確立完了（2025年9月18日）
 
-**🎯 目標**: インフラ設定ファイル最新化・設定最適化成果反映
+**🎯 目標**: 設定不整合完全解消・GitHub Actions統一・CI/CD安定化
 
 **✅ 実現成果**:
-- **設定統合**: 26キー重複問題完全解決・デフォルト値強制問題解決
-- **ファイル最適化**: unified.yaml 72.7%削減・thresholds.yaml 60.9%削減
-- **テスト品質**: 625テスト100%成功・58.64%カバレッジ達成
-- **システム性能**: 真のシステム性能発揮・最適化設定活用
-- **インフラ同期**: cloudbuild.yaml・gcp_config.yaml・Dockerfile全て最新化
+- **統一設定管理体系確立**: cloudbuild.yaml削除・GitHub Actions一元化・設定不整合完全解消
+- **Secret Manager最適化**: :latest廃止→具体的バージョン（:3,:5）・セキュリティ向上
+- **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC・実用性大幅向上
+- **Phase 22設定統合**: 26キー重複問題完全解決・ファイル最適化（unified.yaml 72.7%削減）
+- **テスト品質**: 625テスト100%成功・64.74%カバレッジ達成・CI/CD品質保証
+- **CI/CD統一**: GitHub Actionsで統一・Cloud Build廃止・デプロイ安定化
 
 ## 🚨 **重要: 実環境整合性修正について**
 
@@ -28,80 +29,70 @@ Google Cloud Platform（GCP）を基盤としたインフラストラクチャ�
 
 ```
 infrastructure/
-├── README.md               # このファイル（v16.2.0対応・実環境情報）
-├── gcp_config.yaml        # GCP統合設定（v16.2.0・実環境整合版）
-└── cloudbuild.yaml        # Cloud Build実行定義（修正版・Python 3.12対応）
+├── README.md               # このファイル（v23.0.0・統一設定管理体系対応）
+└── gcp_config.yaml        # GCP統合設定（v23.0.0・Secret Manager最適化・実環境同期版）
+
+【削除完了】
+└── cloudbuild.yaml        # [2025/09/18削除] → GitHub Actions統一化により不要
 ```
 
-## 📋 各ファイルの役割（v16.2.0対応）
+## 📋 各ファイルの役割（v23.0.0統一設定管理体系対応）
 
-### **gcp_config.yaml（v16.2.0・実環境整合版）**
-GCPプロジェクト全体の設定を**実際の環境構成に合わせて**定義します。
+### **gcp_config.yaml（v23.0.0・統一設定管理体系対応版）**
+GCPプロジェクト全体の設定を**実際のGitHub Actions CI/CD環境と完全同期**させて定義します。
 
-**🔧 重要な修正内容**:
-- **サービスアカウント**: `github-actions-sa` → `github-deployer`（実在SA）
-- **実権限反映**: admin権限多数の実際の権限構成を正確記録
-- **変数具体化**: テンプレート変数 → 実値（例: `asia-northeast1`）
+**🔧 統一設定管理体系対応修正内容**:
+- **Secret Manager最適化**: `:latest` → 具体的バージョン（`:3`、`:5`）・セキュリティ向上
+- **CI/CD統一**: GitHub Actions環境変数との完全同期・`MODE=live`統一設定
+- **サービスアカウント**: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`（実在SA）
+- **Workload Identity**: 項目番号11445303925で実際のCI/CDと同期
 
 **主要設定内容**:
 - プロジェクト基本情報（ID: `my-crypto-bot-project`、リージョン: `asia-northeast1`）
-- Cloud Runサービス設定（`crypto-bot-service-prod`）
-- Secret Manager設定（3シークレット・IAM権限確認済み）
-- **実際のWorkload Identity設定**: `github-pool`/`github-provider`
-- 監視・ログ設定
-- **実環境セキュリティポリシー**
+- Cloud Runサービス設定（`crypto-bot-service-prod`・MODE=live統一）
+- **Secret Manager統一設定**: bitbank-api-key:3、bitbank-api-secret:3、discord-webhook-url:5
+- **GitHub Actions統合**: Workload Identity Pool（`github-pool`/`github-provider`）
+- **環境変数統一**: MODE=live・LOG_LEVEL=INFO・PYTHONPATH=/app・CI/CD統一設定
+- 監視・ログ設定（GitHub Actions統合）
 
-### **cloudbuild.yaml（修正版・Python 3.12対応）**
-Cloud Buildでのビルド・デプロイ処理を定義します。
+### **【削除完了】cloudbuild.yaml（2025/09/18削除）**
+**統一設定管理体系確立により削除されました**:
+- **削除理由**: GitHub Actionsが実際のCI/CDツール・Cloud Build未使用・設定不整合の原因
+- **影響**: なし（GitHub Actions（`.github/workflows/ci.yml`）が実際のCI/CDを担当）
+- **代替**: GitHub ActionsワークフローがDockerビルド・Artifact Registry・Cloud Runデプロイを統一実行
 
-**🔧 重要な修正内容**:
-- **テスト実行コマンド**: `python scripts/testing/checks.sh` → `bash scripts/testing/checks.sh`
-- **Python version**: 3.11 → 3.12（MLライブラリ互換性最適化・DockerfileおよびGitHub Actionsとの統一）
-- **サービスアカウント**: 存在しない`crypto-bot-workload-identity@...`を削除
+## 📝 使用方法・例（統一設定管理体系対応）
 
-**主要機能**:
-- **625テスト実行（完全品質保証・Phase 22対応）**
-- Dockerイメージビルド（Python 3.13）
-- Artifact Registryへのプッシュ
-- **実際のデフォルトCompute Engine SA使用**でのCloud Runデプロイ
-- 環境変数・シークレット設定（実証済み権限構成）
-
-## 📝 使用方法・例（実環境対応）
-
-### **自動デプロイ（GitHub Actions・復旧版）**
+### **自動デプロイ（GitHub Actions統一版）**
 ```bash
-# コードをプッシュすると自動実行（2ヶ月停止から復旧）
+# コードをプッシュすると統一設定管理体系で自動実行
 git add .
-git commit -m "インフラ設定更新"
+git commit -m "統一設定管理体系対応"
 git push origin main
-# → GitHub Actionsが自動でCloud Build実行（復旧済み）
+# → GitHub Actionsが625テスト→Dockerビルド→Cloud Run自動デプロイ（MODE=live）
 ```
 
-### **手動デプロイ確認（実際のサービス名）**
+### **サービス状況確認（統一設定対応）**
 ```bash
-# サービス状況確認（実際のサービス名使用）
+# サービス状況確認（crypto-bot-service-prod）
 gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
 
-# ビルド履歴確認（最新のCI/CD実行状況）
-gcloud builds list --limit=5
+# GitHub Actions実行履歴確認（実際のCI/CD）
+gh run list --limit=5
 
-# ログ確認（実際のサービス）
+# ログ確認（実際のサービス・MODE=live）
 gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=crypto-bot-service-prod" --limit=10
 ```
 
-### **実環境Secret Manager管理**
+### **Secret Manager統一管理（具体的バージョン対応）**
 ```bash
-# シークレット一覧確認（実際の3シークレット）
-gcloud secrets list
+# Secret Manager具体的バージョン確認
+gcloud secrets versions list bitbank-api-key  # 最新バージョン:3使用
+gcloud secrets versions list discord-webhook-url  # 最新バージョン:5使用
 
-# IAM権限確認（重要: 実際のサービスアカウント権限）
-SERVICE_ACCOUNT="11445303925-compute@developer.gserviceaccount.com"
-for SECRET in bitbank-api-key bitbank-api-secret discord-webhook-url; do
-  gcloud secrets get-iam-policy $SECRET --format="value(bindings[].members)" | grep -q "$SERVICE_ACCOUNT" && echo "✅ $SECRET: 権限あり" || echo "❌ $SECRET: 権限なし"
-done
-
-# シークレット更新
+# 新バージョン作成時（CI/CDも同時更新必要）
 gcloud secrets versions add bitbank-api-key --data-file=api_key.txt
+# ⚠️ 重要: ci.ymlの--set-secrets設定も新バージョンに更新必要
 ```
 
 ### **実際のサービスアカウント確認**
@@ -192,9 +183,17 @@ TZ='Asia/Tokyo' gcloud run revisions list --service=crypto-bot-service-prod --re
 
 ## 📈 バージョン履歴・修正記録
 
+### **v23.0.0（2025-09-18）- 統一設定管理体系確立完了版** ✨
+- 🎯 **統一設定管理体系確立**: 設定不整合完全解消・CI/CD一元化・GitHub Actions統一
+- 🔐 **Secret Manager最適化**: :latest廃止→具体的バージョン（:3,:5）・セキュリティ大幅向上
+- 📊 **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC・実用性大幅向上・取引開始促進
+- 🗑️ **cloudbuild.yaml削除**: GitHub Actions統一によりCloud Build設定削除・設定不整合完全解消
+- 🔧 **gcp_config.yaml統一**: GitHub Actions CI/CD環境と完全同期・MODE=live統一設定
+- 🧪 **テスト品質**: 625テスト100%成功・64.74%カバレッジ達成・CI/CD品質保証統合
+
 ### **v22.0.0（2025-09-14）- Phase 22設定最適化完了版** 🚀
 - 🎯 **Phase 22完了**: 26キー重複問題完全解決・設定最適化完了
-- 📁 **ファイル最適化**: unified.yaml 72.7%削減・thresholds.yaml 60.9%削減  
+- 📁 **ファイル最適化**: unified.yaml 72.7%削減・thresholds.yaml 60.9%削減
 - 🧪 **テスト統一**: 620/654テスト → 625テスト・58.64%カバレッジ統一
 - ⚡ **性能向上**: デフォルト値強制問題解決・真のシステム性能発揮
 - 🔧 **インフラ統一**: cloudbuild.yaml・gcp_config.yaml・Dockerfile全て最新化
@@ -218,23 +217,22 @@ TZ='Asia/Tokyo' gcloud run revisions list --service=crypto-bot-service-prod --re
 
 ## 🎯 **重要事項まとめ**
 
-### **✅ Phase 22完了事項**
-- **設定最適化完了**: 26キー重複問題完全解決・デフォルト値強制問題解決
+### **✅ 統一設定管理体系確立完了事項（v23.0.0）**
+- **設定不整合完全解消**: cloudbuild.yaml削除・GitHub Actions統一・CI/CD一元化
+- **Secret Manager最適化**: :latest廃止→具体的バージョン（:3,:5）・セキュリティ大幅向上
+- **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC・実用性大幅向上
+- **CI/CD統一**: GitHub Actions完全統一・MODE=live自動設定・デプロイ安定化
+- **テスト品質保証**: 625テスト100%成功・64.74%カバレッジ・CI/CD品質ゲート統合
+
+### **✅ Phase 22設定最適化統合事項**
+- **設定最適化統合**: 26キー重複問題完全解決・デフォルト値強制問題解決
 - **ファイル軽量化**: unified.yaml 72.7%削減・thresholds.yaml 60.9%削減
-- **テスト統一**: 625テスト100%成功・58.64%カバレッジ達成
-- **インフラ統一**: cloudbuild.yaml・gcp_config.yaml・Dockerfile全て最新化
 - **システム性能**: 真のシステム性能発揮・最適化設定活用
 
-### **✅ v16.2.0修正完了事項**
-- CI/CDパイプライン復旧（2ヶ月停止 → 正常動作）
-- 実環境との完全整合性確保
-- 設定ファイル間の統一性確保
-- Python 3.13統一・MLライブラリ互換性最適化・テストコマンド修正
+### **🔍 統一設定管理環境確認済み事項**
+- GitHub Actions CI/CD統一稼働・Cloud Build廃止完了
+- Secret Manager具体的バージョン（:3,:5）稼働・:latest廃止
+- Workload Identity Pool（11445303925）稼働・GitHub Actions認証統合
+- MODE=live環境変数統一・gcp_config.yaml同期完了
 
-### **🔍 実環境確認済み事項**
-- Secret Manager IAM権限設定済み
-- Workload Identity Pool稼働中
-- デフォルトCompute Engine SA適切権限保有
-- GitHub Actions認証設定済み
-
-**Phase 22設定最適化により、AI自動取引botの最高性能発揮・安定稼働・自動デプロイ・24時間監視が実現されています。**
+**統一設定管理体系確立により、AI自動取引botの設定不整合完全解消・CI/CD安定化・セキュリティ向上・24時間安定稼働が実現されています。**

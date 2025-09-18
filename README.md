@@ -2,7 +2,7 @@
 
 **bitbank信用取引専用のAI自動取引システム**
 
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-620%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.74%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Secret Manager](https://img.shields.io/badge/Secret%20Manager-Fixed-brightgreen)](docs/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.74%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Unified Config](https://img.shields.io/badge/Config%20System-Unified-brightgreen)](config/) [![GCP Optimized](https://img.shields.io/badge/GCP%20Resources-Optimized-blue)](docs/)
 
 ---
 
@@ -15,7 +15,9 @@
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・3分間隔実行（高頻度取引）
 - **稼働体制**: 24時間自動取引・Cloud Run稼働
-- **品質保証**: 620テスト100%成功・64.74%カバレッジ・CI/CD統合
+- **品質保証**: 625テスト100%成功・64.74%カバレッジ・CI/CD統合
+- **Kelly基準最適化**: 2025/09/16完了（20→5取引緩和・ハードコード排除）
+- **GCPリソース最適化**: 2025/09/17完了（古いイメージ削除・容量最適化）
 - **Secret Manager**: 2025/09/15修正完了（key:latest問題解決）
 
 ## 🌟 主要機能
@@ -27,7 +29,9 @@
 - **15特徴量分析**: RSI・MACD・ボリンジャーバンド・ATR・EMA・Donchianチャネル・ADX等の統合技術分析
 
 ### **📊 リスク管理システム**
-- **Kelly基準**: 数学的最適ポジションサイズ計算
+- **Kelly基準最適化（2025/09/16完了）**: 数学的最適ポジションサイズ計算・20→5取引緩和で実用性向上
+- **動的設定管理**: ハードコード完全排除・get_threshold()による運用中調整対応
+- **Bitbank仕様対応**: 最小取引単位0.0001BTC・max_order_size最適化（0.001→0.0005BTC）
 - **ドローダウン制御**: 20%制限・連続損失5回で自動停止
 - **3段階判定**: APPROVED・CONDITIONAL・DENIED の安全判定
 - **異常検知**: スプレッド・価格スパイク・API遅延の自動検知
@@ -35,13 +39,14 @@
 ### **🔧 運用監視システム**
 - **24時間稼働**: Google Cloud Run・自動スケーリング
 - **Discord監視**: 3階層通知（Critical/Warning/Info）・リアルタイムアラート
+- **GCPリソース最適化（2025/09/17完了）**: 古いDockerイメージ削除・容量最適化・コスト削減
 - **品質保証**: 自動テスト・コードカバレッジ・継続的品質監視
 - **週次学習**: 過去180日データで毎回ゼロから再学習・市場変化に継続的適応
 
 ## 🚀 クイックスタート
 
 ### **前提条件**
-- Python 3.12以上
+- Python 3.13以上
 - bitbankアカウント・API認証情報
 - Discord Webhook URL（通知用）
 - Google Cloud Platform アカウント（本番環境）
@@ -104,7 +109,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ## 🛠️ 技術スタック
 
 ### **言語・フレームワーク**
-- **Python 3.12**: メイン開発言語・MLライブラリ互換性最適化
+- **Python 3.13**: メイン開発言語・MLライブラリ互換性最適化
 - **ccxt**: bitbank API統合・信用取引対応
 - **pandas/numpy**: データ処理・数値計算
 - **scikit-learn/XGBoost/LightGBM**: 機械学習モデル
@@ -117,7 +122,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ### **CI/CD・品質管理**
 - **GitHub Actions**: 自動テスト・品質チェック・デプロイ
-- **pytest**: テストフレームワーク・620テスト
+- **pytest**: テストフレームワーク・625テスト
 - **coverage**: コードカバレッジ測定・64.74%達成
 - **flake8/black/isort**: コード品質・スタイル統一
 
@@ -129,10 +134,12 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 - **稼働率**: 99%以上（24時間365日）
 
 ### **システム性能**
-- **テスト成功率**: 100%（620テスト）
+- **テスト成功率**: 100%（625テスト）
 - **コードカバレッジ**: 64.74%
+- **Kelly基準最適化**: 20→5取引緩和で実用性向上・取引機会拡大
 - **実行時間**: 品質チェック約30秒
 - **API応答時間**: 平均3秒以下
+- **GCPリソース効率**: 古いイメージ削除・ストレージ最適化
 
 ## 🔧 設定・カスタマイズ
 
@@ -186,4 +193,4 @@ config/
 
 ---
 
-**⚡ 高頻度AI自動取引システム** - 15特徴量・5戦略・3MLモデルによる本格的BTC取引ボット 🚀
+**⚡ 高頻度AI自動取引システム** - 15特徴量・5戦略・3MLモデル・Kelly基準最適化・GCPリソース最適化による企業級BTC取引ボット 🚀
