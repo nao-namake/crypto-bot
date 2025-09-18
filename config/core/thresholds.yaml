@@ -75,8 +75,9 @@ trading:
     very_high: 0.6
   default_balance_jpy: 10000.0
   fallback_btc_jpy: 16000000.0
-  # Kelly基準初期取引設定（2025/09/16追加・Bitbank最小取引単位0.0001BTC対応）
-  initial_position_size: 0.0002  # Kelly履歴不足時の初期固定サイズ（約3,400円相当、1万円運用最適化）
+  # Kelly基準初期取引設定（2025/09/19更新・Silent Failure修正対応）
+  min_trade_size: 0.0001        # Bitbank最小取引単位（Silent Failure対策・確実な取引実行）
+  initial_position_size: 0.0001  # Kelly履歴不足時の初期固定サイズ（最小取引単位・Silent Failure修正）
   kelly_min_trades: 5           # Kelly計算最小取引数（20→5に緩和）
   fallback_prices:
     ask: 16100000.0

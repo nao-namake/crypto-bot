@@ -379,20 +379,46 @@ class KellyCriterion:
             kelly_result = self.calculate_from_history(strategy_filter=strategy_name)
 
             if kelly_result is None:
-                # 履歴データ不足の場合は設定値から保守的なサイズを取得
-                base_initial_size = get_threshold("trading.initial_position_size", 0.01)
-                conservative_size = base_initial_size * ml_confidence
+                # 🚀 Silent failure修正: Kelly履歴不足時は固定で最小取引単位使用
+                # 最初の5取引は最小ロット（0.0001 BTC）で確実に取引実行
+                min_trade_size = get_threshold("trading.min_trade_size", 0.0001)  # Bitbank最小単位
+                trade_history_count = len(self.trade_history)
 
-                # 🚨 Silent failure対策: max_order_size制限チェック
-                max_order_size = get_threshold("production.max_order_size", 0.02)
-                if conservative_size > max_order_size:
-                    self.logger.error(
-                        f"🚨 ポジションサイズ制限超過検出: 計算値={conservative_size:.4f} > "
-                        f"max_order_size={max_order_size:.4f} - Silent failure発生可能性"
+                if trade_history_count < self.min_trades_for_kelly:
+                    # 最初の5取引は固定サイズ（Kelly適用前）
+                    fixed_initial_size = min_trade_size
+
+                    # max_order_size制限チェック
+                    max_order_size = get_threshold("production.max_order_size", 0.02)
+                    if fixed_initial_size > max_order_size:
+                        fixed_initial_size = max_order_size
+                        self.logger.warning(
+                            f"⚠️ 初期固定サイズをmax_order_size制限: {fixed_initial_size:.6f} BTC"
+                        )
+
+                    self.logger.info(
+                        f"🚀 Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
+                        f"、初期固定サイズ使用: {fixed_initial_size:.6f} BTC"
                     )
+                    return fixed_initial_size
+                else:
+                    # 取引履歴があるがKelly計算エラーの場合
+                    base_initial_size = get_threshold("trading.initial_position_size", 0.01)
+                    conservative_size = max(base_initial_size * ml_confidence, min_trade_size)
 
-                self.logger.warning(f"Kelly履歴不足、保守的サイズ使用: {conservative_size:.3f}")
-                return min(conservative_size, self.max_position_ratio)
+                    # max_order_size制限チェック
+                    max_order_size = get_threshold("production.max_order_size", 0.02)
+                    if conservative_size > max_order_size:
+                        self.logger.error(
+                            f"🚨 ポジションサイズ制限超過検出: 計算値={conservative_size:.6f} > "
+                            f"max_order_size={max_order_size:.6f} - 制限値適用"
+                        )
+                        conservative_size = max_order_size
+
+                    self.logger.warning(
+                        f"Kelly計算エラー、保守的サイズ使用: {conservative_size:.6f}"
+                    )
+                    return min(conservative_size, self.max_position_ratio)
 
             # ML信頼度による調整
             confidence_adjusted_size = kelly_result.recommended_position_size * ml_confidence
@@ -678,9 +704,9 @@ class PositionSizeIntegrator:
             # より保守的な値を採用
             integrated_size = min(kelly_size, risk_manager_size)
 
-            self.logger.debug(
-                f"統合ポジションサイズ: Kelly={kelly_size:.3f}, "
-                f"RiskManager={risk_manager_size:.3f}, 採用={integrated_size:.3f}"
+            self.logger.info(
+                f"📊 統合ポジションサイズ計算: Kelly={kelly_size:.6f}, "
+                f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC"
             )
 
             return integrated_size

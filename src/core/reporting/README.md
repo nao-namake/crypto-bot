@@ -244,6 +244,11 @@ if len(cleaned_url) != len(env_url.strip()):
     logger.info(f"   元ハッシュ: {original_hash} -> 清浄後: {cleaned_hash}")
 ```
 
+**2025-09-19 追加修正**: Secret Manager version 6作成による根本解決
+- **問題特定**: version 5が122文字（+1文字）で401エラー発生
+- **解決**: 正確な121文字URLでversion 6作成・CI/CD更新
+- **結果**: GCP Secret Manager discord-webhook-url:6 使用で問題完全解決
+
 ### **401エラー（認証失敗）対応**
 
 ```python

@@ -10,7 +10,7 @@
 - **取引頻度**: 月100-200回・3分間隔実行（高頻度取引）・BTC/JPY専用
 - **テスト品質**: 625テスト100%成功・64.74%カバレッジ維持・CI/CD品質ゲート通過
 - **統一設定管理体系**: 15特徴量→5戦略（動的信頼度）→ML予測→リスク管理→取引実行の完全自動化・設定不整合完全解消
-- **Kelly基準最適化**: 2025/09/16完了（20→5取引緩和・ハードコード排除・設定統合）
+- **Kelly基準Silent Failure修正**: 2025/09/19完了（取引ブロック問題根本解決・初期固定サイズ実装）
 - **Secret Manager**: 2025/09/15修正完了（key:latest問題解決・具体的バージョン使用）
 - **GCPリソース最適化**: 2025/09/17完了（9月16日以前古いイメージ削除・容量最適化）
 
@@ -103,11 +103,12 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 - **feature_manager**: 15特徴量統一管理・config/core/feature_order.json参照
 - **ProductionEnsemble**: 3モデルアンサンブル（LightGBM・XGBoost・RandomForest）
 - **動的信頼度計算**: フォールバック回避・市場適応型0.25-0.6信頼度
-- **Kelly基準最適化完了（2025/09/16）**:
+- **Kelly基準Silent Failure修正完了（2025/09/19）**:
+  - **根本問題解決**: Kelly履歴不足時のポジションサイズ0問題を完全修正
+  - **初期固定サイズ実装**: 最初の5取引は0.0001 BTC固定で確実実行保証
   - **最小取引数緩和**: 20→5取引で実用性向上・取引機会拡大
-  - **ハードコード排除**: get_threshold()による動的設定取得・運用中調整対応
-  - **設定統合**: config/core/thresholds.yaml統一管理・initial_position_size追加
-  - **Bitbank仕様対応**: 最小取引単位0.0001BTC・max_order_size調整（0.001→0.0005BTC）
+  - **設定最適化**: config/core/thresholds.yaml統一管理・min_trade_size追加
+  - **実行保証**: "botがエントリーシグナル時に確実に取引する"要求完全達成
 - **ML学習システム**:
   - **全体再学習方式**: 過去180日データで毎回ゼロから学習
   - **週次自動学習**: 毎週日曜18:00(JST) GitHub Actionsワークフロー

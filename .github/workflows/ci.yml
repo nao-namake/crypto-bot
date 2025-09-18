@@ -316,7 +316,7 @@ jobs:
             --timeout="$TIMEOUT" \
             --allow-unauthenticated \
             --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
-            --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:5" \
+            --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6" \
             --port=8080 \
             --revision-suffix="unified-system-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG

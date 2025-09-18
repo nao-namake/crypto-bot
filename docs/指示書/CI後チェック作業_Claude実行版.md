@@ -851,3 +851,91 @@ show_logs_with_jst() {
 - ✅ **自動化**: 時刻計算・CI状況確認の完全自動化
 
 **最終更新**: 2025年9月17日 06:50 JST - 最新CI確認アプローチ完全統合・Kelly基準修正効果確認・Discord通知状況確認追加完了
+
+---
+
+## 🚨 **Silent Failure修正・Discord Webhook修復手順（2025/09/19追加）**
+
+### **Silent Failure問題の対応**
+
+#### **確認方法**
+```bash
+# Kelly基準による初期取引ブロック確認
+echo "Kelly履歴不足による取引ブロック確認:"
+show_logs_with_jst "textPayload:\"Kelly計算に必要な取引数不足\" AND timestamp>=\"$DEPLOY_TIME\"" 10
+
+# ポジションサイズ0問題確認
+echo "ポジションサイズ0問題確認:"
+show_logs_with_jst "textPayload:\"保守的サイズ使用: 0.000\" AND timestamp>=\"$DEPLOY_TIME\"" 10
+
+# ML信頼度による保持判定確認
+echo "ML保持判定確認:"
+show_logs_with_jst "textPayload:\"prediction=保持\" AND timestamp>=\"$DEPLOY_TIME\"" 5
+```
+
+#### **修正効果確認**
+```bash
+# 修正後の初期固定サイズ使用確認
+echo "修正後の初期固定サイズ使用確認:"
+show_logs_with_jst "textPayload:\"初期固定サイズ使用\" AND timestamp>=\"$DEPLOY_TIME\"" 5
+
+# 統合ポジションサイズ計算ログ確認
+echo "統合ポジションサイズ計算確認:"
+show_logs_with_jst "textPayload:\"統合ポジションサイズ計算\" AND timestamp>=\"$DEPLOY_TIME\"" 5
+
+# 実際の取引実行確認
+echo "取引実行確認:"
+show_logs_with_jst "(textPayload:\"取引実行\" OR textPayload:\"order_executed\") AND timestamp>=\"$DEPLOY_TIME\"" 10
+```
+
+### **Discord Webhook修復手順**
+
+#### **1. Webhook無効化確認**
+```bash
+# Discord Webhook エラー確認
+echo "Discord Webhook エラー確認:"
+show_logs_with_jst "(textPayload:\"Invalid Webhook Token\" OR textPayload:\"code: 50027\" OR textPayload:\"401\") AND timestamp>=\"$DEPLOY_TIME\"" 10
+```
+
+#### **2. 新しいWebhook URL取得・設定**
+```bash
+# 手順1: Discordで新しいWebhook URLを作成
+echo "Discord Webhook修復手順:"
+echo "1. Discordサーバーの設定 → 連携サービス → ウェブフック"
+echo "2. 既存のCrypto-Bot Webhook削除または新規作成"
+echo "3. 新しいWebhook URLをコピー"
+
+# 手順2: Secret Manager更新
+echo "新しいWebhook URLを入力してSecret Manager更新:"
+read -p "新しいDiscord Webhook URL: " NEW_WEBHOOK_URL
+echo "$NEW_WEBHOOK_URL" | gcloud secrets versions add discord-webhook-url --data-file=-
+
+# 手順3: ci.ymlのSecret Manager バージョン更新確認
+CURRENT_DISCORD_VERSION=$(gcloud secrets versions list discord-webhook-url --limit=1 --format="value(name)")
+echo "最新Discord Secret バージョン: $CURRENT_DISCORD_VERSION"
+echo "⚠️ 確認: .github/workflows/ci.yml の discord-webhook-url バージョンを $CURRENT_DISCORD_VERSION に更新"
+
+# 手順4: Cloud Run再デプロイ（新しいSecret適用）
+echo "Cloud Run再デプロイ（新Secret適用）:"
+gcloud run services update crypto-bot-service-prod --region=asia-northeast1 --set-env-vars="WEBHOOK_FIX_TIMESTAMP=$(date +%s)"
+```
+
+#### **3. 修復確認**
+```bash
+# 15分後にDiscord通知テスト確認
+echo "15分後にDiscord通知成功を確認:"
+sleep 900  # 15分待機
+show_logs_with_jst "textPayload:\"Discord通知送信成功\" AND timestamp>=\"$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%S%z')\"" 5
+```
+
+### **Silent Failure修正チェックリスト**
+- [ ] **Kelly基準警告**: 「Kelly計算に必要な取引数不足」ログ存在（正常）
+- [ ] **初期固定サイズ**: 「初期固定サイズ使用: 0.000100 BTC」ログ存在
+- [ ] **統合ポジションサイズ**: 「統合ポジションサイズ計算」ログ存在
+- [ ] **取引実行開始**: 「取引実行」または「order_executed」ログ存在
+- [ ] **Discord通知復旧**: Webhook エラー（401/50027）消失
+
+### **判定基準**
+- **✅ 修正成功**: 初期固定サイズ使用ログ存在・取引実行ログ存在・Webhook エラー消失
+- **⚠️ 部分修正**: 固定サイズ使用確認・取引実行は要時間・Webhook修復済み
+- **❌ 修正失敗**: 0.000サイズ継続・取引実行なし・Webhook エラー継続

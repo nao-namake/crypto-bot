@@ -316,6 +316,20 @@ python -m pytest tests/unit/trading/ --cov=src.trading
 
 ## ⚙️ 設定システム
 
+### **🎯 Kelly Criterion Silent Failure修正（2025/09/19完了）**
+**問題**: Kelly基準がmin_trades_for_kelly不足時にポジションサイズ0で取引ブロック
+**解決**: 初期取引固定サイズ実装により確実な取引実行を保証
+
+**修正内容**:
+- `min_trades_for_kelly`: 20→5取引に緩和（実用性向上）
+- **初期固定サイズ**: 0.0001 BTC（Bitbank最小単位・確実実行）
+- **Kelly適用前**: 最初の5取引は固定サイズで確実実行
+- **Kelly適用後**: 6取引目以降は数学的最適サイズ計算
+
+**修正ファイル**:
+- `src/trading/risk_manager.py:268-278`: Kelly履歴不足時の固定サイズ実装
+- `config/core/thresholds.yaml:79-81`: 最小取引設定の更新
+
 ### **デフォルト設定**
 ```python
 from src.trading import DEFAULT_RISK_CONFIG, create_risk_manager
@@ -328,7 +342,9 @@ custom_config = {
     "kelly_criterion": {
         "max_position_ratio": 0.03,     # 最大3%
         "safety_factor": 0.5,           # Kelly値の50%使用
-        "min_trades_for_kelly": 5       # 5取引以上で適用（2025/09/16: 20→5に緩和・実用性向上）
+        "min_trades_for_kelly": 5,      # 5取引以上で適用（2025/09/19: Silent Failure修正）
+        "initial_position_size": 0.0001, # Kelly履歴不足時固定サイズ（Silent Failure修正）
+        "min_trade_size": 0.0001        # Bitbank最小取引単位（確実実行保証）
     },
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,     # 20%制限

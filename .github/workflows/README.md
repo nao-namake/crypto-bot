@@ -125,7 +125,7 @@ gh run view [RUN_ID] --log
 ### **権限・セキュリティ（統一設定管理体系対応）**
 - **Workload Identity**: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
 - **Service Account**: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`
-- **Secret Manager**: 具体的バージョン（bitbank-api-key:3, bitbank-api-secret:3, discord-webhook-url:5）
+- **Secret Manager**: 具体的バージョン（bitbank-api-key:3, bitbank-api-secret:3, discord-webhook-url:6）
 - **実行制限**: mainブランチでの実行に制限（安全性確保）
 
 ### **依存関係**
@@ -163,10 +163,34 @@ gh run view [RUN_ID] --log
 **解決方法**: 具体的バージョン番号に変更（ci.yml:319）
 ```yaml
 # 修正後の設定
---set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:5"
+--set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6"
 ```
 
 **教訓**: Cloud Run環境では `key: latest` ではなく具体的バージョン番号を使用
+
+### **2025-09-19: Discord Webhook 401エラー修正**
+
+**問題**: GCP Secret Manager version 5の Discord Webhook URL が122文字（余分な文字）で401エラー発生
+
+**症状**:
+- ローカル環境: 121文字のURL → 正常動作
+- Cloud Run環境: 122文字のURL → 401エラー「Invalid Webhook Token」
+
+**解決方法**: 正確な121文字URLでSecret Manager version 6作成
+```bash
+# 新バージョン作成
+echo -n "正確な121文字URL" | gcloud secrets versions add discord-webhook-url --data-file=-
+
+# CI/CD設定更新（ci.yml:319）
+DISCORD_WEBHOOK_URL=discord-webhook-url:6  # version 5 → 6
+```
+
+**確認結果**:
+- ✅ Secret Manager version 6: 121文字（正確）
+- ✅ Webhook テスト: HTTP 204 成功
+- ✅ CI/CD設定更新: discord-webhook-url:6
+
+**教訓**: Secret Managerの文字数精度が重要、テスト環境での文字数検証必須
 
 ---
 

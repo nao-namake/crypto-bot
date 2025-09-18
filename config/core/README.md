@@ -90,9 +90,10 @@ core/
   - `donchian_channel`: 中央域40-60%・弱シグナル範囲・動的HOLD信頼度
   - `adx_trend`: 弱トレンド15・DI差分1.0・レンジ相場対応
 - `ml`: 動的信頼度基準・フォールバック値・**model_paths設定統合**
-- `trading`: 信頼度階層設定・リスク閾値・**Kelly基準最適化完了（2025/09/18統一設定管理体系対応）**
+- `trading`: 信頼度階層設定・リスク閾値・**Kelly基準Silent Failure修正完了（2025/09/19）**
   - `kelly_min_trades`: 5（20→5に緩和・取引開始促進・実用性大幅向上）
-  - `initial_position_size`: 0.0002 BTC（Kelly履歴不足時の固定サイズ・Bitbank最小取引単位0.0001対応）
+  - `initial_position_size`: 0.0001 BTC（**Silent Failure修正・確実実行保証**）
+  - `min_trade_size`: 0.0001 BTC（**Bitbank最小取引単位・Silent Failure根本修正**）
   - `fallback_btc_jpy`: 16000000.0（価格フォールバック・1BTC=1700万円対応）
 - `ensemble/models`: アンサンブル設定・個別モデルパラメータ（**26キー移行分含む**）
 - `reporting/risk`: レポート設定・リスク管理パラメータ
