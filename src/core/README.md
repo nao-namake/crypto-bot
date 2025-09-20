@@ -72,7 +72,7 @@ confidence = get_threshold('ml.default_confidence', 0.5)
 **目的**: 高レベルシステム統合制御・MLサービス統合・取引サイクル管理
 
 **主要ファイル**:
-- `orchestrator.py`: 実行モード制御を含むメインシステム統合制御・取引サイクル実行
+- `orchestrator.py`: 実行モード制御を含むメインシステム統合制御・取引サイクル実行（2025/09/20修正: execution_service統合）
 - `protocols.py`: サービスプロトコル定義（Phase 22で移動・組織改善）
 - `ml_adapter.py`: エラーハンドリング付き統一MLサービスインターフェース
 - `ml_loader.py`: 優先度ベースMLモデル読み込み（ProductionEnsemble > 個別 > ダミー）
@@ -127,7 +127,7 @@ report_path = await reporter.generate_session_report(session_stats)
 **主要ファイル**:
 - `health_checker.py`: 包括的システムヘルス監視
 - `system_recovery.py`: エラー復旧・システム再起動機能
-- `trading_cycle_manager.py`: 取引サイクル実行・ログ記録
+- `trading_cycle_manager.py`: 取引サイクル実行・ログ記録（2025/09/20修正: エラーハンドリング強化）
 - `trading_logger.py`: 専門取引ログサービス
 
 **使用方法**:
@@ -238,6 +238,12 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 ```
 
 ## ⚠️ 重要事項 (Phase 22最適化)
+
+### **2025/09/20修正: Silent Failure問題解決**
+- **orchestrator.py**: execution_service設定修正（RiskManager → ExecutionService）
+- **trading_cycle_manager.py**: AttributeErrorの詳細ログ追加・エラー可視性向上
+- **ExecutionService統合**: 実際の取引実行機能を実装・BitbankClient.create_order呼び出し
+- **システム復旧**: 0取引/24時間問題を根本解決・取引実行確保
 
 ### **Phase 22最適化成果**
 - **コード削減**: 423行の完全未使用コード削除（market_data.py）

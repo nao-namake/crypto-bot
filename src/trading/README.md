@@ -7,6 +7,7 @@ AI自動取引システムの統合取引管理層。統合リスク管理・Kel
 ```
 src/trading/
 ├── __init__.py              # 取引層エクスポート・公開API管理（Phase 21対応）
+├── execution_service.py     # 取引実行サービス・ExecutionServiceProtocol実装（2025/09/20追加）
 ├── risk_manager.py          # 統合リスク管理・Kelly基準・取引実行結果管理
 ├── risk_monitor.py          # 異常検知・ドローダウン管理統合システム
 └── archive/                 # アーカイブファイル
@@ -87,7 +88,53 @@ execution_result = ExecutionResult(
 )
 ```
 
-### **2. risk_monitor.py**
+### **2. execution_service.py（2025/09/20新規追加）**
+**目的**: 取引実行サービス・ExecutionServiceProtocol実装・ライブ/ペーパーモード対応
+
+**主要クラス**:
+```python
+class ExecutionService:
+    def __init__(mode="paper", bitbank_client=None)                            # 実行モード設定
+    async def execute_trade(evaluation: TradeEvaluation) -> ExecutionResult    # 取引実行メイン処理
+    async def check_stop_conditions() -> Optional[ExecutionResult]             # ストップ条件チェック
+    def get_trading_statistics() -> Dict[str, Union[int, float, str]]          # 取引統計情報取得
+    def update_balance(new_balance: float) -> None                             # 残高更新
+    def get_position_summary() -> Dict[str, Any]                               # ポジションサマリー取得
+```
+
+**実装機能**:
+- **ライブトレード実行**: BitbankClient.create_orderを使用した実際の注文実行
+- **ペーパートレード実行**: 仮想ポジション管理・リスクフリー検証・統計追跡
+- **バックテスト実行**: 簡易実行・パフォーマンステスト用
+- **エラーハンドリング**: 適切なExecutionResult返却・詳細エラーログ
+- **統計管理**: 実行取引数・セッション損益・残高・ポジション管理
+
+**使用例**:
+```python
+from src.trading.execution_service import ExecutionService
+
+# ペーパートレード実行器作成
+execution_service = ExecutionService(mode="paper")
+execution_service.update_balance(1000000)
+
+# ライブトレード実行器作成
+execution_service = ExecutionService(
+    mode="live",
+    bitbank_client=bitbank_client
+)
+
+# 取引実行
+result = await execution_service.execute_trade(evaluation)
+print(f"実行結果: {result.success}")
+print(f"注文ID: {result.order_id}")
+
+# 統計取得
+stats = execution_service.get_trading_statistics()
+print(f"実行取引数: {stats['executed_trades']}")
+print(f"セッション損益: {stats['session_pnl']}")
+```
+
+### **3. risk_monitor.py**
 **目的**: 異常検知・ドローダウン管理統合システム（Phase 21継続）
 
 **主要クラス**:
@@ -137,55 +184,6 @@ if not allowed:
     print(f"取引停止: ドローダウン{drawdown:.1%}")
 ```
 
-### **3. executor.py（1000行）**
-**目的**: 注文実行システム・ペーパートレード・実取引・統計管理
-
-**主要クラス**:
-```python
-class OrderExecutor:
-    def execute_evaluation(evaluation)                                          # リスク評価結果の実行
-    def execute_trade(action, position_size, current_price)                     # 取引実行
-    def get_statistics()                                                        # 統計取得
-    def _execute_paper_trade(action, position_size, stop_loss)                  # ペーパートレード
-
-class VirtualPosition:
-    def open_position(action, size, entry_price, stop_loss)                     # ポジション開始
-    def close_position(exit_price)                                              # ポジション決済
-    def update_position(current_price)                                          # ポジション更新
-
-@dataclass
-class ExecutionResult:
-    success: bool                       # 実行成功
-    order_id: Optional[str]             # 注文ID
-    execution_time_ms: float            # 実行時間
-    error_message: Optional[str]        # エラーメッセージ
-```
-
-**実装機能**:
-- **ペーパートレード**: 仮想ポジション管理・リスクフリー検証・統計追跡
-- **実取引モード**: Bitbank API統合・成行注文・30秒約定監視・自動キャンセル
-- **レイテンシー監視**: 1秒目標・500ms警告・パフォーマンス追跡
-- **統計管理**: 勝率・損益・シャープレシオ・CSV出力
-
-**使用例**:
-```python
-from src.trading import create_order_executor
-
-# ペーパートレード実行器作成
-executor = create_order_executor(mode='paper', initial_balance=1000000)
-
-# リスク評価結果の実行
-if evaluation.decision == RiskDecision.APPROVED:
-    result = executor.execute_evaluation(evaluation)
-    print(f"注文実行: {result.order_id}")
-    print(f"実行時間: {result.execution_time_ms}ms")
-
-# 統計確認
-stats = executor.get_statistics()
-print(f"総損益: {stats.total_pnl:,.0f}円")
-print(f"勝率: {stats.win_rate:.1%}")
-```
-
 ### **4. __init__.py（230行）**
 **目的**: 取引層エクスポート・公開API管理
 
@@ -208,12 +206,7 @@ from .risk_monitor import (
 )
 
 # 実行システム
-from .executor import (
-    OrderExecutor,
-    create_order_executor,
-    ExecutionResult,
-    VirtualPosition
-)
+from .execution_service import ExecutionService
 ```
 
 ## 🚀 使用方法
@@ -221,8 +214,8 @@ from .executor import (
 ### **統合取引実行フロー**
 ```python
 from src.trading import (
-    IntegratedRiskManager, 
-    create_order_executor, 
+    IntegratedRiskManager,
+    ExecutionService,
     RiskDecision
 )
 
@@ -232,30 +225,33 @@ risk_manager = IntegratedRiskManager(
     initial_balance=1000000
 )
 
-# 2. 注文実行器の作成
-executor = create_order_executor(
+# 2. 取引実行サービスの作成
+execution_service = ExecutionService(
     mode='paper',  # or 'live'
-    initial_balance=1000000
+    bitbank_client=bitbank_client if mode == 'live' else None
 )
+execution_service.update_balance(1000000)
 
 # 3. 取引機会の評価
 evaluation = risk_manager.evaluate_trade_opportunity(
     ml_prediction=ml_prediction,
     strategy_signal=strategy_signal,
     market_data=market_data,
-    current_balance=executor.current_balance
+    current_balance=1000000
 )
 
 # 4. 承認された取引のみ実行
 if evaluation.decision == RiskDecision.APPROVED:
-    result = executor.execute_evaluation(evaluation)
+    result = await execution_service.execute_trade(evaluation)
     print(f"取引実行: {result.success}")
+    print(f"注文ID: {result.order_id}")
 elif evaluation.decision == RiskDecision.CONDITIONAL:
     # 条件付き実行（監視強化）
-    result = executor.execute_evaluation(evaluation, enhanced_monitoring=True)
+    result = await execution_service.execute_trade(evaluation)
+    print(f"条件付き実行: {result.success}")
 else:
     # 取引拒否
-    print(f"取引拒否: {evaluation.denial_reasons}")
+    print(f"取引拒否: リスクスコア={evaluation.risk_score:.3f}")
 ```
 
 ### **個別コンポーネントの使用**

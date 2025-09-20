@@ -317,18 +317,40 @@ class TradingCycleManager:
         try:
             execution_result = None
             if str(getattr(trade_evaluation, "decision", "")).lower() == "approved":
+                self.logger.debug(
+                    f"取引実行開始 - サイクル: {cycle_id}, アクション: {getattr(trade_evaluation, 'action', 'unknown')}"
+                )
+
                 execution_result = await self.orchestrator.execution_service.execute_trade(
                     trade_evaluation
                 )
+
+                self.logger.info(
+                    f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
+                )
+
                 await self.orchestrator.trading_logger.log_execution_result(
                     execution_result, cycle_id
                 )
             else:
+                self.logger.debug(
+                    f"取引未承認 - サイクル: {cycle_id}, 決定: {getattr(trade_evaluation, 'decision', 'unknown')}"
+                )
                 await self.orchestrator.trading_logger.log_trade_decision(
                     trade_evaluation, cycle_id
                 )
+        except AttributeError as e:
+            # ExecutionServiceにexecute_tradeメソッドがない場合の詳細エラー
+            self.logger.error(f"❌ ExecutionServiceメソッドエラー - サイクル: {cycle_id}: {e}")
+            self.logger.error(f"ExecutionService型: {type(self.orchestrator.execution_service)}")
+            self.logger.error(f"利用可能メソッド: {dir(self.orchestrator.execution_service)}")
         except Exception as e:
-            self.logger.error(f"取引実行エラー: {e}")
+            # その他のエラーの詳細情報
+            self.logger.error(f"❌ 取引実行エラー - サイクル: {cycle_id}: {type(e).__name__}: {e}")
+            if hasattr(e, "__traceback__"):
+                import traceback
+
+                self.logger.error(f"スタックトレース: {traceback.format_exc()}")
 
     async def _check_stop_conditions(self, cycle_id):
         """Phase 8b: ストップ条件チェック（既存ポジションの自動決済）"""

@@ -394,10 +394,13 @@ async def create_trading_orchestrator(
         execution_mode = config.mode
         logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
-        execution_service = create_risk_manager(
-            config=None,  # デフォルト設定使用
-            initial_balance=initial_balance,  # BitbankAPI実残高取得済み
+        # Phase 7: 取引実行サービス（新規実装）
+        from ...trading.execution_service import ExecutionService
+
+        execution_service = ExecutionService(
+            mode=execution_mode, bitbank_client=bitbank_client if execution_mode == "live" else None
         )
+        execution_service.update_balance(initial_balance)
 
         # TradingOrchestrator組み立て
         orchestrator = TradingOrchestrator(
