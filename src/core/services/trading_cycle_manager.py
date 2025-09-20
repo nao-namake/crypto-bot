@@ -355,7 +355,7 @@ class TradingCycleManager:
     async def _check_stop_conditions(self, cycle_id):
         """Phase 8b: ストップ条件チェック（既存ポジションの自動決済）"""
         try:
-            stop_result = self.orchestrator.execution_service.check_stop_conditions()
+            stop_result = await self.orchestrator.execution_service.check_stop_conditions()
             if stop_result:
                 await self.orchestrator.trading_logger.log_execution_result(
                     stop_result, cycle_id, is_stop=True
