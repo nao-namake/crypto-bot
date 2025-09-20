@@ -135,10 +135,21 @@ class TradingLoggerService:
     ):
         """失敗時実行ログ"""
         try:
+            # 辞書型とオブジェクト型の両方に対応（エラー詳細強化）
+            if isinstance(execution_result, dict):
+                error_detail = execution_result.get("error_message", "不明")
+                result_type = "辞書型"
+            else:
+                error_detail = getattr(execution_result, "error_message", "不明") or "不明"
+                result_type = f"オブジェクト型({type(execution_result).__name__})"
+
+            # デバッグ用ログ（今回の修正で問題解決確認用）
+            self.logger.debug(f"実行結果型: {result_type}, エラー詳細: {error_detail}")
+
             error_message = (
                 f"{stop_prefix}{success_emoji} 注文実行失敗 - "
                 f"サイクル: {cycle_id}, "
-                f"エラー: {execution_result.error_message or '不明'}"
+                f"エラー: {error_detail}"
             )
 
             # 実行失敗はWarningレベル・Discord通知

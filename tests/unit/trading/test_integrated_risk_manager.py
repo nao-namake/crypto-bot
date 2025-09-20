@@ -354,8 +354,8 @@ class TestIntegratedRiskManager:
                 api_latency_ms=500,
             )
 
-            # 攻撃的設定：conditional_threshold=0.7に緩和されたため、risk_score=0.65でもAPPROVED
-            assert evaluation.decision == RiskDecision.APPROVED
+            # conditional_threshold=0.6に変更されたため、risk_score=0.65はCONDITIONAL
+            assert evaluation.decision == RiskDecision.CONDITIONAL
             assert evaluation.risk_score == 0.65
 
     def test_error_handling_in_evaluation(self):
@@ -450,25 +450,25 @@ class TestIntegratedRiskManager:
         )
         assert decision == RiskDecision.DENIED
 
-        # 攻撃的設定：拒否閾値0.95に変更されたため、risk_score=0.85はCONDITIONAL
+        # 拒否閾値0.8に変更されたため、risk_score=0.85はDENIED
         decision = self.risk_manager._make_final_decision(
             trading_allowed=True,
             critical_anomalies=[],
             ml_confidence=0.8,
-            risk_score=0.85,  # 攻撃的設定：拒否閾値0.95未満
+            risk_score=0.85,  # 拒否閾値0.8以上
+            denial_reasons=[],
+        )
+        assert decision == RiskDecision.DENIED
+
+        # 条件付き閾値0.6に変更されたため、risk_score=0.65はCONDITIONAL
+        decision = self.risk_manager._make_final_decision(
+            trading_allowed=True,
+            critical_anomalies=[],
+            ml_confidence=0.8,
+            risk_score=0.65,  # 条件付き閾値0.6以上
             denial_reasons=[],
         )
         assert decision == RiskDecision.CONDITIONAL
-
-        # 攻撃的設定：条件付き閾値0.7に緩和されたため、risk_score=0.65はAPPROVED
-        decision = self.risk_manager._make_final_decision(
-            trading_allowed=True,
-            critical_anomalies=[],
-            ml_confidence=0.8,
-            risk_score=0.65,  # 攻撃的設定：条件付き閾値0.7未満
-            denial_reasons=[],
-        )
-        assert decision == RiskDecision.APPROVED
 
         # 承認ケース
         decision = self.risk_manager._make_final_decision(

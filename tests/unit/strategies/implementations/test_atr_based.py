@@ -74,7 +74,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.name, "ATRBased")
         self.assertEqual(self.strategy.config["bb_overbought"], 0.7)
         self.assertEqual(self.strategy.config["bb_oversold"], 0.3)
-        self.assertEqual(self.strategy.config["min_confidence"], 0.3)
+        self.assertEqual(self.strategy.config["min_confidence"], 0.25)
         self.assertEqual(self.strategy.config["position_size_base"], 0.015)  # 逆張りなので控えめ
 
     def test_analyze_bb_position_overbought(self):

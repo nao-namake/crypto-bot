@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/trading/risk_manager.py: 74.66%</title>
+    <title>Coverage for src/trading/risk_manager.py: 75.05%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/trading/risk_manager.py</b>:
-            <span class="pc_cov">74.66%</span>
+            <span class="pc_cov">75.05%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">513 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">383<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">130<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">385<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">128<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b0af398bc1cd8852_risk_monitor_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-19 05:28 +0900
+            created at 2025-09-20 16:15 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1253,7 +1253,7 @@
     <p class="run"><span class="n"><a id="t1171" href="#t1171">1171</a></span><span class="t">            <span class="nam">risk_threshold_conditional</span> <span class="op">=</span> <span class="nam">get_threshold</span><span class="op">(</span><span class="str">"trading.risk_thresholds.conditional"</span><span class="op">,</span> <span class="num">0.6</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1172" href="#t1172">1172</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1173" href="#t1173">1173</a></span><span class="t">            <span class="key">if</span> <span class="nam">risk_score</span> <span class="op">>=</span> <span class="nam">risk_threshold_deny</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1174" href="#t1174">1174</a></span><span class="t">                <span class="key">return</span> <span class="nam">RiskDecision</span><span class="op">.</span><span class="nam">DENIED</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1174" href="#t1174">1174</a></span><span class="t">                <span class="key">return</span> <span class="nam">RiskDecision</span><span class="op">.</span><span class="nam">DENIED</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1175" href="#t1175">1175</a></span><span class="t">            <span class="key">elif</span> <span class="nam">risk_score</span> <span class="op">>=</span> <span class="nam">risk_threshold_conditional</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1176" href="#t1176">1176</a></span><span class="t">                <span class="key">return</span> <span class="nam">RiskDecision</span><span class="op">.</span><span class="nam">CONDITIONAL</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1177" href="#t1177">1177</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -1347,10 +1347,10 @@
     <p class="run run2"><span class="n"><a id="t1265" href="#t1265">1265</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">&#29702;&#30001;=</span><span class="op">{</span><span class="str">', '</span><span class="op">.</span><span class="nam">join</span><span class="op">(</span><span class="nam">evaluation</span><span class="op">.</span><span class="nam">denial_reasons</span><span class="op">[</span><span class="op">:</span><span class="num">2</span><span class="op">]</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1266" href="#t1266">1266</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1267" href="#t1267">1267</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>  <span class="com"># CONDITIONAL</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t1268" href="#t1268">1268</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1269" href="#t1269">1269</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">&#26465;&#20214;&#20184;&#12365;&#25215;&#35469;: &#12522;&#12473;&#12463;&#12473;&#12467;&#12450;=</span><span class="op">{</span><span class="nam">evaluation</span><span class="op">.</span><span class="nam">risk_score</span><span class="op">:</span><span class="fst">.1%</span><span class="op">}</span><span class="fst">, </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1270" href="#t1270">1270</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">&#35686;&#21578;=</span><span class="op">{</span><span class="nam">len</span><span class="op">(</span><span class="nam">evaluation</span><span class="op">.</span><span class="nam">warnings</span><span class="op">)</span><span class="op">}</span><span class="fst">&#20214;</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1271" href="#t1271">1271</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1268" href="#t1268">1268</a></span><span class="t">                <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1269" href="#t1269">1269</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">&#26465;&#20214;&#20184;&#12365;&#25215;&#35469;: &#12522;&#12473;&#12463;&#12473;&#12467;&#12450;=</span><span class="op">{</span><span class="nam">evaluation</span><span class="op">.</span><span class="nam">risk_score</span><span class="op">:</span><span class="fst">.1%</span><span class="op">}</span><span class="fst">, </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1270" href="#t1270">1270</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">&#35686;&#21578;=</span><span class="op">{</span><span class="nam">len</span><span class="op">(</span><span class="nam">evaluation</span><span class="op">.</span><span class="nam">warnings</span><span class="op">)</span><span class="op">}</span><span class="fst">&#20214;</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t1271" href="#t1271">1271</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1272" href="#t1272">1272</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1273" href="#t1273">1273</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1274" href="#t1274">1274</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">error</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#35413;&#20385;&#32080;&#26524;&#12525;&#12464;&#12456;&#12521;&#12540;: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1448,7 +1448,7 @@
             <a class="nav" href="z_b0af398bc1cd8852_risk_monitor_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-19 05:28 +0900
+            created at 2025-09-20 16:15 +0900
         </p>
     </div>
 </footer>

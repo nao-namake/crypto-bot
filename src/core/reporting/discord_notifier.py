@@ -304,11 +304,12 @@ class DiscordClient:
             送信成功・失敗
         """
         try:
-            # JSON形式検証（50109エラー防止）
+            # JSON形式検証（50109エラー防止・ASCII文字のみ使用）
             try:
-                json_str = json.dumps(payload, ensure_ascii=False)
+                json_str = json.dumps(payload, ensure_ascii=True)
+                self.logger.debug(f"🔧 JSON送信データ（{len(json_str)}文字）: {json_str[:200]}...")
             except (TypeError, ValueError) as e:
-                self.logger.error(f"❌ JSON形式エラー: {e}")
+                self.logger.error(f"❌ JSON形式エラー: {e}, payload: {payload}")
                 return False
 
             # HTTP送信（Cloud Run環境デバッグ強化）
