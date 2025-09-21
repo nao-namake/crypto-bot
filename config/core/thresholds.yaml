@@ -25,7 +25,7 @@ strategies:
   adx_trend:
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
-    hold_confidence: 0.2  # 0.25→0.2 MochipoyAlert/MultiTimeframeと同水準
+    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
     moderate_trend_max: 25
     moderate_trend_min: 15
@@ -36,7 +36,7 @@ strategies:
     bb_overbought: 0.7
     bb_oversold: 0.3
     high_volatility_strength: 0.5
-    hold_confidence: 0.2  # 0.25→0.2 MochipoyAlert/MultiTimeframeと同水準
+    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     low_volatility_strength: 0.2
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
     normal_volatility_strength: 0.4
@@ -47,7 +47,7 @@ strategies:
     confidence_multiplier: 0.4
   donchian_channel:
     breakout_threshold: 0.002
-    hold_confidence: 0.2  # 0.25→0.2 MochipoyAlert/MultiTimeframeと同水準
+    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     middle_zone_max: 0.6
     middle_zone_min: 0.4
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
@@ -56,10 +56,10 @@ strategies:
     weak_signal_max: 0.75
     weak_signal_min: 0.25
   mochipoy_alert:
-    hold_confidence: 0.2
+    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     weak_signal_confidence: 0.4
   multi_timeframe:
-    hold_confidence: 0.2
+    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     trend_conflict_confidence: 0.3
 trading:
   anomaly:
@@ -69,9 +69,9 @@ trading:
   bid_spread_ratio: 0.999
   confidence_levels:
     high: 0.45
-    low: 0.25
-    medium: 0.35
-    min_ml: 0.15
+    low: 0.2     # 0.25→0.2 低信頼度でも取引・月100-200回対応
+    medium: 0.3  # 0.35→0.3 中信頼度も下げる
+    min_ml: 0.12 # 0.15→0.12 最小信頼度を下げる
     very_high: 0.6
   default_balance_jpy: 10000.0
   fallback_btc_jpy: 16000000.0
@@ -94,13 +94,13 @@ trading:
     take_profit_rate: 0.04
     take_profit_ratio: 2.0
   risk_thresholds:
-    conditional: 0.6  # 0.7→0.6 条件付き承認しやすく
-    deny: 0.8  # 0.95→0.8 拒否閾値を下げて適度なリスク管理
-    min_ml_confidence: 0.15  # そのまま維持
+    conditional: 0.65  # 0.6→0.65 条件付き承認をさらに拡大・月100-200回対応
+    deny: 0.85  # 0.8→0.85 リスク許容度を適度に上げる・取引機会増加
+    min_ml_confidence: 0.12  # 0.15→0.12 最小信頼度を下げて取引機会増加
   initial_balance: 1000000
   stats_log_interval: 10
 ensemble:
-  confidence_threshold: 0.35
+  confidence_threshold: 0.3  # 0.35→0.3 ML ensemble信頼度を下げて取引機会増加・月100-200回対応
   max_nan_ratio_features: 0.5
   max_nan_ratio_target: 0.3
   min_training_samples: 50

@@ -62,7 +62,7 @@ class TestEnsembleModel:
     @pytest.fixture
     def ensemble_model(self):
         """テスト用アンサンブルモデル."""
-        return EnsembleModel(confidence_threshold=0.35)
+        return EnsembleModel(confidence_threshold=0.3)  # 月100-200回最適化に合わせて0.35→0.3に変更
 
     def test_ensemble_model_initialization(self):
         """アンサンブルモデルの初期化テスト."""
@@ -73,7 +73,7 @@ class TestEnsembleModel:
         assert "xgb" in ensemble.models
         assert "rf" in ensemble.models
 
-        assert ensemble.confidence_threshold == 0.35
+        assert ensemble.confidence_threshold == 0.3  # 月100-200回最適化に合わせて0.35→0.3に変更
         assert not ensemble.is_fitted
         assert ensemble.feature_names is None
 

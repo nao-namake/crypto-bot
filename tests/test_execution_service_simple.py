@@ -4,19 +4,21 @@ ExecutionService統合テスト（循環import回避版）
 ExecutionResult型エラーの再発防止のための最小限テスト。
 """
 
-import pytest
-import sys
 import os
+import sys
 from unittest.mock import Mock
 
+import pytest
+
 # プロジェクトルートをPythonパスに追加
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 def test_execution_service_import():
     """ExecutionServiceが正常にimportできることを確認"""
     try:
         from src.trading.execution_service import ExecutionService
+
         assert ExecutionService is not None
     except ImportError as e:
         pytest.fail(f"ExecutionServiceのimportに失敗: {e}")
@@ -40,7 +42,7 @@ def test_execution_service_initialization():
 
 def test_execution_result_field_names():
     """ExecutionResultが正しいフィールド名を持つことを確認"""
-    from src.trading.risk_manager import ExecutionResult, ExecutionMode, OrderStatus
+    from src.trading.risk_manager import ExecutionMode, ExecutionResult, OrderStatus
 
     # 正しいフィールド名でExecutionResultを作成できることを確認
     try:
@@ -54,7 +56,7 @@ def test_execution_result_field_names():
             filled_amount=0.0001,
             filled_price=5000000.0,
             fee=0.0,
-            status=OrderStatus.FILLED
+            status=OrderStatus.FILLED,
         )
 
         # フィールドアクセス確認
@@ -74,7 +76,7 @@ def test_execution_result_field_names():
 
 def test_wrong_field_names_raise_error():
     """間違ったフィールド名でTypeErrorが発生することを確認"""
-    from src.trading.risk_manager import ExecutionResult, ExecutionMode
+    from src.trading.risk_manager import ExecutionMode, ExecutionResult
 
     # 間違ったフィールド名（修正前）を使用するとエラーになることを確認
     with pytest.raises(TypeError, match="unexpected keyword argument"):
@@ -82,7 +84,7 @@ def test_wrong_field_names_raise_error():
             success=True,
             mode=ExecutionMode.PAPER,
             executed_price=5000000.0,  # 間違ったフィールド名
-            executed_amount=0.0001,    # 間違ったフィールド名
+            executed_amount=0.0001,  # 間違ったフィールド名
         )
 
     with pytest.raises(TypeError, match="unexpected keyword argument"):
@@ -102,7 +104,7 @@ def test_wrong_field_names_raise_error():
 
 def test_required_fields():
     """必須フィールドのテスト"""
-    from src.trading.risk_manager import ExecutionResult, ExecutionMode
+    from src.trading.risk_manager import ExecutionMode, ExecutionResult
 
     # success と mode は必須フィールド
     with pytest.raises(TypeError):
@@ -113,10 +115,7 @@ def test_required_fields():
         ExecutionResult(success=True)
 
     # 最小限の必須フィールドで正常作成
-    result = ExecutionResult(
-        success=True,
-        mode=ExecutionMode.PAPER
-    )
+    result = ExecutionResult(success=True, mode=ExecutionMode.PAPER)
     assert result.success == True
     assert result.mode == ExecutionMode.PAPER
 
