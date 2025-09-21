@@ -120,6 +120,7 @@ training_logs/
 model_artifacts/
 
 # ただし、管理対象のモデルファイルは保持
+!models/archive/                  # モデルアーカイブディレクトリ（管理対象）
 !models/production/*.pkl          # 本番用モデル（管理対象）
 !models/training/*.pkl            # 学習用モデル（管理対象）
 !models/**/*.pkl                  # その他管理対象モデル
