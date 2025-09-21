@@ -15,7 +15,7 @@ from ..core.config import get_threshold
 from ..core.exceptions import CryptoBotError
 from ..core.logger import get_logger
 from ..data.bitbank_client import BitbankClient
-from .risk_manager import ExecutionResult, TradeEvaluation, ExecutionMode, OrderStatus
+from .risk_manager import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
 
 
 class ExecutionService:
