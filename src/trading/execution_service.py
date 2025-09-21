@@ -15,7 +15,7 @@ from ..core.config import get_threshold
 from ..core.exceptions import CryptoBotError
 from ..core.logger import get_logger
 from ..data.bitbank_client import BitbankClient
-from .risk_manager import ExecutionResult, TradeEvaluation
+from .risk_manager import ExecutionResult, TradeEvaluation, ExecutionMode, OrderStatus
 
 
 class ExecutionService:
@@ -76,13 +76,14 @@ class ExecutionService:
             self.logger.error(f"❌ 取引実行エラー: {e}")
             return ExecutionResult(
                 success=False,
+                mode=ExecutionMode.LIVE if self.mode == "live" else ExecutionMode.PAPER,
                 order_id=None,
-                executed_price=0.0,
-                executed_amount=0.0,
-                timestamp=datetime.now(),
+                price=0.0,
+                amount=0.0,
                 error_message=str(e),
-                trade_type=getattr(evaluation, "action", "unknown"),
-                commission=0.0,
+                side=getattr(evaluation, "side", "unknown"),
+                fee=0.0,
+                status=OrderStatus.FAILED,
             )
 
     async def _execute_live_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
@@ -107,13 +108,16 @@ class ExecutionService:
             # 実行結果作成
             result = ExecutionResult(
                 success=True,
+                mode=ExecutionMode.LIVE,
                 order_id=order_result.get("id"),
-                executed_price=float(order_result.get("price", 0)),
-                executed_amount=float(order_result.get("amount", 0)),
-                timestamp=datetime.now(),
+                price=float(order_result.get("price", 0)),
+                amount=float(order_result.get("amount", 0)),
+                filled_price=float(order_result.get("price", 0)),
+                filled_amount=float(order_result.get("amount", 0)),
                 error_message=None,
-                trade_type=side,
-                commission=float(order_result.get("fee", 0)),
+                side=side,
+                fee=float(order_result.get("fee", 0)),
+                status=OrderStatus.FILLED,
             )
 
             # 統計更新
@@ -139,13 +143,16 @@ class ExecutionService:
 
             result = ExecutionResult(
                 success=True,
+                mode=ExecutionMode.PAPER,
                 order_id=virtual_order_id,
-                executed_price=price,
-                executed_amount=amount,
-                timestamp=datetime.now(),
+                price=price,
+                amount=amount,
+                filled_price=price,
+                filled_amount=amount,
                 error_message=None,
-                trade_type=side,
-                commission=0.0,  # ペーパーは手数料なし
+                side=side,
+                fee=0.0,  # ペーパーは手数料なし
+                status=OrderStatus.FILLED,
             )
 
             # 仮想ポジション記録
@@ -178,13 +185,16 @@ class ExecutionService:
 
             result = ExecutionResult(
                 success=True,
+                mode=ExecutionMode.PAPER,  # バックテストはペーパーモード扱い
                 order_id=f"backtest_{self.executed_trades + 1}",
-                executed_price=price,
-                executed_amount=amount,
-                timestamp=datetime.now(),
+                price=price,
+                amount=amount,
+                filled_price=price,
+                filled_amount=amount,
                 error_message=None,
-                trade_type=side,
-                commission=0.0,
+                side=side,
+                fee=0.0,
+                status=OrderStatus.FILLED,
             )
 
             self.executed_trades += 1
