@@ -751,9 +751,10 @@ class IntegratedRiskManager:
         self.enable_discord_notifications = enable_discord_notifications
         self.logger = get_logger()
 
-        # 初期残高設定（Phase 16-B：設定ファイル参照）
+        # 初期残高設定（統一設定管理体系：unified.yamlから取得）
         if initial_balance is None:
-            initial_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+            drawdown_config = config.get("drawdown_manager", {}) if config else {}
+            initial_balance = drawdown_config.get("initial_balance", 10000.0)
         self.initial_balance = initial_balance
 
         # Discord通知システム初期化（Phase 15新実装）
@@ -798,12 +799,13 @@ class IntegratedRiskManager:
             # ポジションサイズ統合器
             self.position_integrator = PositionSizeIntegrator(self.kelly)
 
-            # ドローダウン管理
+            # ドローダウン管理（統一設定管理体系対応）
             drawdown_config = config.get("drawdown_manager", {})
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=drawdown_config.get("max_drawdown_ratio", 0.20),
                 consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
                 cooldown_hours=drawdown_config.get("cooldown_hours", 24),
+                config=drawdown_config,  # persistence設定を含む
             )
             self.drawdown_manager.initialize_balance(initial_balance)
 
@@ -917,12 +919,20 @@ class IntegratedRiskManager:
                     strategy_signal, "side", None
                 )
 
-            trade_side = (
+            # side属性を"buy"/"sell"のみに正規化（holdシグナル対応）
+            raw_side = (
                 strategy_action
                 or ml_prediction.get("action")
                 or ml_prediction.get("side")
                 or "buy"  # デフォルト
             )
+
+            # holdの場合は実取引しないため、適切なside値を設定
+            if raw_side.lower() in ["hold", "none", ""]:
+                # 最後の有効取引方向を使用、または中立値として"none"
+                trade_side = "none"  # ExecutionServiceでガードされるため、実際には使用されない
+            else:
+                trade_side = raw_side
 
             if ml_confidence < min_ml_confidence:
                 denial_reasons.append(

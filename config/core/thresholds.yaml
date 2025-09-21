@@ -85,7 +85,7 @@ trading:
     default_ask: 16100000.0
     default_bid: 15900000.0
   fee_rate: 0.0012
-  initial_balance_jpy: 11000.0
+  initial_balance_jpy: 10000.0  # unified.yamlに統一・フォールバック値は11000.0
   minimum_live_balance: 10000
   position_sizing:
     max_position_ratio: 0.05

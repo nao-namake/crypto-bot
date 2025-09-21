@@ -24,6 +24,7 @@ import pandas as pd
 
 from ..core.config import get_anomaly_config, get_position_config
 from ..core.logger import get_logger
+from ..core.state.drawdown_persistence import create_persistence, DrawdownPersistence
 from ..features.feature_generator import FeatureGenerator
 
 # === 異常検知システム関連 ===
@@ -677,7 +678,8 @@ class DrawdownManager:
         max_drawdown_ratio: float = 0.20,
         consecutive_loss_limit: int = 5,
         cooldown_hours: int = 24,
-        persistence_file: str = ".cache/data/drawdown_state.json",
+        persistence: Optional[DrawdownPersistence] = None,
+        config: Optional[Dict] = None,
     ):
         """
         ドローダウン管理器初期化
@@ -686,14 +688,28 @@ class DrawdownManager:
             max_drawdown_ratio: 最大ドローダウン率（0.20 = 20%）
             consecutive_loss_limit: 連続損失制限回数
             cooldown_hours: 停止期間（時間）
-            persistence_file: 状態永続化ファイル名.
+            persistence: 永続化実装（None時は設定から自動作成）
+            config: 設定辞書（persistence設定含む）
         """
         self.max_drawdown_ratio = max_drawdown_ratio
         self.consecutive_loss_limit = consecutive_loss_limit
         self.cooldown_hours = cooldown_hours
-        self.persistence_file = Path(persistence_file)
-        # 親ディレクトリを確実に作成
-        self.persistence_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # 永続化システム初期化
+        if persistence is not None:
+            self.persistence = persistence
+        else:
+            # 設定から永続化システム作成
+            persistence_config = config.get("persistence", {}) if config else {}
+            local_path = persistence_config.get("local_path", "src/core/state/drawdown_state.json")
+            gcs_bucket = persistence_config.get("gcs_bucket")
+            gcs_path = persistence_config.get("gcs_path", "drawdown/state.json")
+
+            self.persistence = create_persistence(
+                local_path=local_path,
+                gcs_bucket=gcs_bucket,
+                gcs_path=gcs_path
+            )
 
         # 状態管理
         self.current_balance = 0.0
@@ -1085,7 +1101,7 @@ class DrawdownManager:
             self.current_session = None
 
     def _save_state(self) -> None:
-        """状態をファイルに保存."""
+        """状態を永続化システムに保存."""
         try:
             state = {
                 "current_balance": self.current_balance,
@@ -1099,8 +1115,15 @@ class DrawdownManager:
                 "current_session": (asdict(self.current_session) if self.current_session else None),
             }
 
-            with open(self.persistence_file, "w", encoding="utf-8") as f:
-                json.dump(state, f, ensure_ascii=False, indent=2, default=str)
+            # 非同期メソッドを同期的に実行
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                success = loop.run_until_complete(self.persistence.save_state(state))
+                if not success:
+                    self.logger.warning("ドローダウン状態保存に失敗しました")
+            finally:
+                loop.close()
 
         except Exception as e:
             self.logger.error(f"状態保存エラー: {e}")
@@ -1139,7 +1162,7 @@ class DrawdownManager:
             self.trading_status = TradingStatus.ACTIVE
 
     def _load_state(self) -> None:
-        """ファイルから状態を復元."""
+        """永続化システムから状態を復元."""
         try:
             # 🚨 CRITICAL FIX: 強制リセット機能
             import os
@@ -1151,12 +1174,16 @@ class DrawdownManager:
                 self._force_reset_to_safe_state()
                 return
 
-            if not self.persistence_file.exists():
-                self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
-                return
-
-            with open(self.persistence_file, "r", encoding="utf-8") as f:
-                state = json.load(f)
+            # 非同期メソッドを同期的に実行
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                state = loop.run_until_complete(self.persistence.load_state())
+                if state is None:
+                    self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
+                    return
+            finally:
+                loop.close()
 
             self.current_balance = state.get("current_balance", 0.0)
             self.peak_balance = state.get("peak_balance", 0.0)

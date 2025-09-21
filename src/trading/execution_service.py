@@ -46,7 +46,10 @@ class ExecutionService:
 
         # ペーパートレード用
         self.virtual_positions = []
-        self.virtual_balance = get_threshold("trading.initial_balance_jpy", 10000.0)
+        # 統一設定管理体系: unified.yamlから初期残高取得
+        from ..core.config import get_unified_config
+        drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
+        self.virtual_balance = drawdown_config.get("initial_balance", 10000.0)
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
@@ -64,6 +67,21 @@ class ExecutionService:
             self.logger.info(
                 f"🚀 取引実行開始 - モード: {self.mode}, アクション: {evaluation.side}"
             )
+
+            # holdシグナルの場合は取引実行しない（根本解決）
+            if getattr(evaluation, "side", "").lower() in ["hold", "none", ""]:
+                self.logger.info(f"📤 holdシグナルのため取引スキップ - side: {evaluation.side}")
+                return ExecutionResult(
+                    success=True,  # holdは正常な状態なので成功扱い
+                    mode=ExecutionMode.LIVE if self.mode == "live" else ExecutionMode.PAPER,
+                    order_id=None,
+                    price=0.0,
+                    amount=0.0,
+                    error_message=None,
+                    side=evaluation.side,
+                    fee=0.0,
+                    status=OrderStatus.CANCELLED,  # スキップ状態（holdのため）
+                )
 
             if self.mode == "live":
                 return await self._execute_live_trade(evaluation)
@@ -92,10 +110,10 @@ class ExecutionService:
             if not self.bitbank_client:
                 raise CryptoBotError("ライブトレードにはBitbankClientが必要です")
 
-            # 注文パラメータ作成
-            symbol = "BTC/JPY"
+            # 注文パラメータ作成（設定ファイル化）
+            symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
             side = evaluation.side  # "buy" or "sell"
-            order_type = "market"  # 成行注文
+            order_type = get_threshold("trading_constraints.default_order_type", "market")
             amount = float(evaluation.position_size)
 
             self.logger.info(f"💰 Bitbank注文実行: {side} {amount} BTC")

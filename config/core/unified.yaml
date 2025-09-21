@@ -138,6 +138,12 @@ risk:
     max_drawdown_ratio: 0.2
     consecutive_loss_limit: 8  # 5→8（連続損失許容を増加・取引機会拡大）
     cooldown_hours: 6          # 24→6（停止時間を大幅短縮・月100-200回対応）
+    initial_balance: 10000.0   # 実際の初期残高（円）- API取得成功時ベース
+    fallback_balance: 11000.0  # フォールバック残高（円）- API失敗時判別用
+    persistence:
+      local_path: "src/core/state/drawdown_state.json"  # ローカル状態ファイルパス
+      gcs_bucket: "crypto-bot-state"                    # Cloud Storageバケット名
+      gcs_path: "drawdown/state.json"                   # Cloud Storageオブジェクトパス
   anomaly_detector:
     lookback_period: 20
     spread_warning_threshold: 0.003
@@ -236,6 +242,7 @@ trading_constraints:
   leverage_max: 2.0
   leverage_actual: 1.0
   currency_pair: BTC/JPY
+  default_order_type: market
   initial_capital: 10000
   target_capital: 500000
   features_count: 15

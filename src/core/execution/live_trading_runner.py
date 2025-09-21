@@ -137,8 +137,10 @@ class LiveTradingRunner(BaseRunner):
                         balance = jpy_balance
                         self.logger.info(f"✅ 残高再取得成功: {jpy_balance:,.0f}円")
                     else:
-                        # フォールバック値使用
-                        fallback = get_threshold("trading.initial_balance_jpy")
+                        # 統一設定管理体系: unified.yamlからフォールバック残高取得
+                        from ...config import get_unified_config
+                        drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
+                        fallback = drawdown_config.get("fallback_balance", 11000.0)
                         if hasattr(self.orchestrator.execution_service, "current_balance"):
                             self.orchestrator.execution_service.current_balance = fallback
                         balance = fallback
@@ -146,8 +148,10 @@ class LiveTradingRunner(BaseRunner):
 
                 except Exception as re_error:
                     self.logger.error(f"❌ 残高再取得失敗: {re_error}")
-                    # エラー時もフォールバック使用
-                    fallback = get_threshold("trading.initial_balance_jpy")
+                    # 統一設定管理体系: unified.yamlからフォールバック残高取得
+                    from ...config import get_unified_config
+                    drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
+                    fallback = drawdown_config.get("fallback_balance", 11000.0)
                     if hasattr(self.orchestrator.execution_service, "current_balance"):
                         self.orchestrator.execution_service.current_balance = fallback
                     balance = fallback
