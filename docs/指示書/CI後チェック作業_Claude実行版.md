@@ -16,6 +16,8 @@
 - 🔍 **隠れ不具合の検出**: Secret Manager権限・Silent Failure・非同期処理問題
 - ⚡ **迅速な対応**: 致命的問題の早期発見と即座修正
 - 🍎 **macOS完全対応**: すべてのコマンドがmacOS環境で正常動作
+- 📊 **包括的チェック**: 問題発見時も継続実行・全問題点を収集してまとめて対応
+- 🎯 **要件定義準拠**: 5戦略・3モデル・15特徴量・Kelly基準・2軸時間足の完全検証
 
 ---
 
@@ -126,12 +128,15 @@ elif [ $SIGNAL_COUNT -gt 0 ] && [ $ORDER_COUNT -eq 0 ]; then
 else
     # macOS対応: Python3で成功率計算
     SUCCESS_RATE=$(python3 -c "print(int(($ORDER_COUNT / $SIGNAL_COUNT) * 100))" 2>/dev/null || echo "0")
-    if [ $SUCCESS_RATE -ge 20 ]; then
+    if [ $SUCCESS_RATE -ge 40 ]; then
         echo "✅ 取引実行: 正常 (成功率: ${SUCCESS_RATE}%)"
         NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
-    else
-        echo "⚠️ 部分的Silent Failure (成功率: ${SUCCESS_RATE}%)"
+    elif [ $SUCCESS_RATE -ge 20 ]; then
+        echo "⚠️ 取引実行: 低成功率 (${SUCCESS_RATE}% - 要件定義40%基準未達)"
         WARNING_ISSUES=$((WARNING_ISSUES + 1))
+    else
+        echo "❌ 部分的Silent Failure (成功率: ${SUCCESS_RATE}% - 深刻な実行問題)"
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
     fi
 fi
 
@@ -244,6 +249,75 @@ else
     echo "❌ フォールバック使用: 異常多用 ($FALLBACK_CONFIDENCE_COUNT回・動的計算停止疑い)"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 fi
+
+# 6. 5戦略動的信頼度統合確認（最適化版・macOS対応）
+echo ""
+echo "🎯 5戦略動的信頼度確認"
+
+# 戦略統合チェック関数（macOS最適化）
+check_strategy_confidence() {
+    local strategies=("ATRBased" "MochipoyAlert" "MultiTimeframe" "DonchianChannel" "ADXTrendStrength")
+    local active_strategies=0
+
+    echo "   戦略稼働状況:"
+    for strategy in "${strategies[@]}"; do
+        local count=$(count_logs_since_deploy "textPayload:\"\\[$strategy\\]\"" 15)
+        echo "     $strategy: $count回"
+        [ $count -gt 0 ] && active_strategies=$((active_strategies + 1))
+    done
+
+    local dynamic_count=$(count_logs_since_deploy "textPayload:\"信頼度: 0.[3-6][0-9]\"" 30)
+    echo "   動的信頼度計算: $dynamic_count回"
+
+    if [ $active_strategies -eq 5 ] && [ $dynamic_count -gt 10 ]; then
+        echo "✅ 5戦略動的信頼度: 全戦略正常稼働（動的計算$dynamic_count回）"
+        NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    elif [ $active_strategies -ge 3 ] && [ $dynamic_count -gt 5 ]; then
+        echo "⚠️ 5戦略動的信頼度: ${active_strategies}/5戦略稼働（動的計算制限的）"
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+    else
+        echo "❌ 5戦略動的信頼度: ${active_strategies}/5戦略稼働（動的計算$dynamic_count回・停止疑い）"
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+    fi
+}
+
+check_strategy_confidence
+
+# 7. 3モデルアンサンブル統合確認（最適化版・macOS対応）
+echo ""
+echo "🤖 3モデルアンサンブル詳細確認"
+
+# ML統合チェック関数（macOS最適化）
+check_ml_ensemble() {
+    local models=("LightGBM" "XGBoost" "RandomForest")
+    local weights=("50%" "30%" "20%")
+    local active_models=0
+
+    echo "   モデル稼働状況:"
+    for i in "${!models[@]}"; do
+        local model=${models[i]}
+        local weight=${weights[i]}
+        local count=$(count_logs_since_deploy "textPayload:\"$model\"" 15)
+        echo "     $model($weight): $count回"
+        [ $count -gt 0 ] && active_models=$((active_models + 1))
+    done
+
+    local weight_count=$(count_logs_since_deploy "textPayload:\"50%\" OR textPayload:\"30%\" OR textPayload:\"20%\"" 10)
+    echo "   重み付け確認: $weight_count回"
+
+    if [ $active_models -eq 3 ]; then
+        echo "✅ 3モデルアンサンブル: 全モデル稼働完了"
+        NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    elif [ $active_models -gt 0 ]; then
+        echo "⚠️ 3モデルアンサンブル: ${active_models}/3モデル稼働（一部停止）"
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+    else
+        echo "❌ 3モデルアンサンブル: 全モデル停止"
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+    fi
+}
+
+check_ml_ensemble
 ```
 
 ### C. 最終判定（改良版）
@@ -279,9 +353,108 @@ fi
 TOTAL_SCORE=$((NORMAL_CHECKS * 10 - WARNING_ISSUES * 3 - CRITICAL_ISSUES * 20))
 echo "🏆 総合スコア: $TOTAL_SCORE点"
 
-# 改良版最終判定
+# 最終判定 + 視覚的プロセスフロー診断（macOS最適化版）
 echo ""
 echo "🎯 最終判定結果"
+
+# プロセスフロー状態の可視化（要求機能 - 統合・最適化版）
+echo ""
+echo "📊 AI自動取引プロセスフロー視覚的診断"
+echo "=============================================================="
+
+# プロセス状態確認関数（macOS最適化）
+check_process_status() {
+    local pattern="$1"
+    local count_threshold="${2:-0}"
+    [ $(count_logs_since_deploy "$pattern" 10) -gt $count_threshold ] && echo "✅" || echo "❌"
+}
+
+# 9段階プロセス状態確認（macOS互換版）
+DATA_4H_STATUS=$(check_process_status "textPayload:\"4h足\" OR textPayload:\"4時間足\"")
+DATA_15M_STATUS=$(check_process_status "textPayload:\"15m足\" OR textPayload:\"15分足\"")
+FEATURE_STATUS=$(check_process_status "textPayload:\"15特徴量\" OR textPayload:\"特徴量生成完了\"")
+STRATEGY_STATUS=$(check_process_status "textPayload:\"ATRBased\" OR textPayload:\"MochipoyAlert\"")
+ML_STATUS=$(check_process_status "textPayload:\"LightGBM\" OR textPayload:\"XGBoost\"")
+SIGNAL_STATUS=$(check_process_status "textPayload:\"統合シグナル生成\"")
+RISK_STATUS=$(check_process_status "textPayload:\"リスク評価\" OR textPayload:\"TradeEvaluation\"")
+APPROVED_STATUS=$(check_process_status "textPayload:\"APPROVED\" OR textPayload:\"取引承認\"")
+EXECUTION_STATUS=$(check_process_status "textPayload:\"ExecutionService\"")
+BITBANK_STATUS=$(check_process_status "textPayload:\"create_order\" OR textPayload:\"Bitbank注文\"")
+
+# 視覚的フロー表示（macOS互換版）
+echo "🔄 AI自動取引プロセスフロー状態:"
+echo ""
+cat << EOF
+① データ取得           $DATA_4H_STATUS $DATA_15M_STATUS
+   4時間足・15分足
+            ↓
+② 特徴量生成          $FEATURE_STATUS
+   15特徴量統合計算
+            ↓
+③ 5戦略実行           $STRATEGY_STATUS
+   BUY/SELL/HOLD判定
+            ↓
+④ ML予測              $ML_STATUS
+   3モデルアンサンブル
+            ↓
+⑤ 統合シグナル生成    $SIGNAL_STATUS
+   戦略+ML統合
+            ↓
+⑥ リスク評価          $RISK_STATUS
+   Kelly基準・3段階判定
+            ↓
+⑦ 取引承認判定        $APPROVED_STATUS
+   APPROVED/DENIED
+            ↓
+⑧ ExecutionService    $EXECUTION_STATUS
+   取引実行サービス
+            ↓
+⑨ Bitbank注文実行     $BITBANK_STATUS
+   実際のAPI注文
+EOF
+
+# プロセス断絶ポイント特定（macOS互換版）
+echo ""
+echo "🔍 プロセス断絶ポイント分析:"
+
+# 効率的な断絶ポイント特定（macOS互換）
+FAILURE_FOUND=false
+
+if [ "$DATA_4H_STATUS" = "❌" ] || [ "$DATA_15M_STATUS" = "❌" ]; then
+    echo "   🚨 【データ取得段階】API接続・認証問題 → Secret Manager・bitbank API確認"
+    FAILURE_FOUND=true
+elif [ "$FEATURE_STATUS" = "❌" ]; then
+    echo "   🚨 【特徴量生成段階】データ処理問題 → FeatureGenerator・pandas/numpy確認"
+    FAILURE_FOUND=true
+elif [ "$STRATEGY_STATUS" = "❌" ]; then
+    echo "   🚨 【5戦略実行段階】戦略ロジック問題 → 動的信頼度・フォールバック確認"
+    FAILURE_FOUND=true
+elif [ "$ML_STATUS" = "❌" ]; then
+    echo "   🚨 【ML予測段階】モデル問題 → ProductionEnsemble・モデルファイル確認"
+    FAILURE_FOUND=true
+elif [ "$SIGNAL_STATUS" = "❌" ]; then
+    echo "   🚨 【統合シグナル生成段階】統合処理問題 → orchestrator.py確認"
+    FAILURE_FOUND=true
+elif [ "$RISK_STATUS" = "❌" ]; then
+    echo "   🚨 【リスク評価段階】Kelly基準問題 → RiskManager・ドローダウン管理確認"
+    FAILURE_FOUND=true
+elif [ "$APPROVED_STATUS" = "❌" ]; then
+    echo "   🚨 【取引承認段階】全てDENIED → 信頼度閾値・リスクスコア確認"
+    FAILURE_FOUND=true
+elif [ "$EXECUTION_STATUS" = "❌" ]; then
+    echo "   🚨 【ExecutionService段階】Silent Failure → async/await・AttributeError確認"
+    FAILURE_FOUND=true
+elif [ "$BITBANK_STATUS" = "❌" ]; then
+    echo "   🚨 【Bitbank注文段階】API注文問題 → create_order・認証・パラメータ確認"
+    FAILURE_FOUND=true
+fi
+
+# 全プロセス正常チェック
+if [ "$FAILURE_FOUND" = false ]; then
+    echo "   ✅ 【全プロセス正常】- データ取得→特徴量→戦略→ML→統合→リスク→承認→実行→注文の完全フロー稼働"
+fi
+
+echo "=============================================================="
 
 if [ "$FATAL_ISSUES" = "true" ]; then
     echo "💀 即座対応必須 - 致命的システム障害検出"
@@ -350,11 +523,11 @@ case $RESULT_CODE in
 esac
 ```
 
-### 📊 判定基準（詳細版）
-- **終了コード 0**: 🟢 完全正常 - 24時間自動取引システム安定稼働
+### 📊 判定基準（詳細版・要件定義対応強化）
+- **終了コード 0**: 🟢 完全正常 - 24時間自動取引システム安定稼働（5戦略・3モデル・15特徴量・Kelly基準全て正常）
 - **終了コード 1**: 💀 即座対応必須 - Secret Manager・Silent Failure・Discord監視停止
-- **終了コード 2**: 🟠 要注意 - ML予測停止・Container問題・API接続問題
-- **終了コード 3**: 🟡 監視継続 - フォールバック多用・パフォーマンス低下
+- **終了コード 2**: 🟠 要注意 - ML予測停止・Container問題・API接続問題・取引成功率40%未達
+- **終了コード 3**: 🟡 監視継続 - フォールバック多用・パフォーマンス低下・5戦略一部停止
 
 ---
 
@@ -522,6 +695,88 @@ if [ $SIGNAL_DETAIL_COUNT -gt 0 ] && [ $ORDER_DETAIL_COUNT -gt 0 ]; then
     fi
 else
     echo "   ❌ ExecutionService修正効果未確認"
+fi
+
+# 8. エントリーシグナル→実行完全フロー確認（要件定義対応・全ステップ検証・macOS対応）
+echo ""
+echo "8. エントリーシグナル→実行完全フロー確認:"
+echo "   ① データ取得（4h足・15m足）:"
+DATA_4H_COUNT=$(count_logs_since_deploy "textPayload:\"4h足\" OR textPayload:\"4時間足\"" 20)
+DATA_15M_COUNT=$(count_logs_since_deploy "textPayload:\"15m足\" OR textPayload:\"15分足\"" 20)
+echo "      4時間足データ: $DATA_4H_COUNT回"
+echo "      15分足データ: $DATA_15M_COUNT回"
+
+echo "   ② 特徴量生成（15特徴量完全）:"
+FEATURE_GEN_COUNT=$(count_logs_since_deploy "textPayload:\"15特徴量\" OR textPayload:\"特徴量生成完了\"" 20)
+echo "      15特徴量生成: $FEATURE_GEN_COUNT回"
+
+echo "   ③ 5戦略実行（ATR・MochiPoy・MultiTimeframe・Donchian・ADX）:"
+STRATEGY_ATR_COUNT=$(count_logs_since_deploy "textPayload:\"ATRBased\"" 15)
+STRATEGY_MOCHI_COUNT=$(count_logs_since_deploy "textPayload:\"MochipoyAlert\"" 15)
+STRATEGY_MULTI_COUNT=$(count_logs_since_deploy "textPayload:\"MultiTimeframe\"" 15)
+STRATEGY_DON_COUNT=$(count_logs_since_deploy "textPayload:\"DonchianChannel\"" 15)
+STRATEGY_ADX_COUNT=$(count_logs_since_deploy "textPayload:\"ADXTrendStrength\"" 15)
+STRATEGY_TOTAL=$((STRATEGY_ATR_COUNT + STRATEGY_MOCHI_COUNT + STRATEGY_MULTI_COUNT + STRATEGY_DON_COUNT + STRATEGY_ADX_COUNT))
+echo "      5戦略実行合計: $STRATEGY_TOTAL回 (ATR:$STRATEGY_ATR_COUNT, MochiPoy:$STRATEGY_MOCHI_COUNT, Multi:$STRATEGY_MULTI_COUNT, Donchian:$STRATEGY_DON_COUNT, ADX:$STRATEGY_ADX_COUNT)"
+
+echo "   ④ ML予測（3モデルアンサンブル）:"
+ML_PREDICT_COUNT=$(count_logs_since_deploy "textPayload:\"ML予測\" OR textPayload:\"ProductionEnsemble\"" 20)
+ENSEMBLE_COUNT=$(count_logs_since_deploy "textPayload:\"LightGBM\" OR textPayload:\"XGBoost\" OR textPayload:\"RandomForest\"" 20)
+echo "      ML予測実行: $ML_PREDICT_COUNT回"
+echo "      アンサンブル: $ENSEMBLE_COUNT回"
+
+echo "   ⑤ リスク評価（Kelly基準・3段階判定）:"
+RISK_EVAL_COUNT=$(count_logs_since_deploy "textPayload:\"リスク評価\" OR textPayload:\"TradeEvaluation\"" 20)
+KELLY_EVAL_COUNT=$(count_logs_since_deploy "textPayload:\"Kelly\" OR textPayload:\"kelly_fraction\"" 15)
+echo "      リスク評価: $RISK_EVAL_COUNT回"
+echo "      Kelly基準: $KELLY_EVAL_COUNT回"
+
+echo "   ⑥ 取引承認（APPROVED判定）:"
+APPROVED_COUNT=$(count_logs_since_deploy "textPayload:\"APPROVED\" OR textPayload:\"取引承認\"" 20)
+CONDITIONAL_COUNT=$(count_logs_since_deploy "textPayload:\"CONDITIONAL\"" 10)
+DENIED_COUNT=$(count_logs_since_deploy "textPayload:\"DENIED\"" 10)
+echo "      承認(APPROVED): $APPROVED_COUNT回"
+echo "      条件付き(CONDITIONAL): $CONDITIONAL_COUNT回"
+echo "      拒否(DENIED): $DENIED_COUNT回"
+
+echo "   ⑦ 実行（ExecutionService・Bitbank注文）:"
+EXECUTION_COUNT=$(count_logs_since_deploy "textPayload:\"ExecutionService\" OR textPayload:\"注文実行\"" 20)
+BITBANK_ORDER_COUNT=$(count_logs_since_deploy "textPayload:\"create_order\" OR textPayload:\"Bitbank注文\"" 15)
+echo "      ExecutionService: $EXECUTION_COUNT回"
+echo "      Bitbank注文: $BITBANK_ORDER_COUNT回"
+
+# フロー完全性判定（macOS対応・要件定義準拠）
+FLOW_COMPLETENESS=0
+if [ $DATA_4H_COUNT -gt 0 ] && [ $DATA_15M_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $FEATURE_GEN_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $STRATEGY_TOTAL -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $ML_PREDICT_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $RISK_EVAL_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $APPROVED_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+if [ $EXECUTION_COUNT -gt 0 ]; then
+    FLOW_COMPLETENESS=$((FLOW_COMPLETENESS + 1))
+fi
+
+echo ""
+echo "   📊 フロー完全性評価:"
+if [ $FLOW_COMPLETENESS -eq 7 ]; then
+    echo "   ✅ 完全フロー: 全7ステップ正常実行 (要件定義完全準拠)"
+elif [ $FLOW_COMPLETENESS -ge 5 ]; then
+    echo "   ⚠️ 部分フロー: $FLOW_COMPLETENESS/7ステップ実行 (一部ステップで問題)"
+else
+    echo "   ❌ フロー断絶: $FLOW_COMPLETENESS/7ステップのみ実行 (重大なフロー問題)"
 fi
 ```
 
@@ -702,6 +957,25 @@ if [ $TOTAL_STRATEGY_EXECUTIONS -gt 0 ]; then
     fi
 fi
 
+# 4.5. 5戦略動的信頼度詳細分析（要件定義対応強化・macOS対応）
+echo ""
+echo "4.5 5戦略動的信頼度詳細分析:"
+declare -a strategies=("ATRBased" "MochipoyAlert" "MultiTimeframe" "DonchianChannel" "ADXTrendStrength")
+for strategy in "${strategies[@]}"; do
+    echo "   $strategy 信頼度分布:"
+    show_logs_since_deploy "textPayload:\"[$strategy]\" AND textPayload:\"信頼度:\"" 5
+
+    # 動的信頼度範囲確認（0.25-0.6が正常範囲・macOS対応）
+    STRATEGY_DYNAMIC_COUNT=$(count_logs_since_deploy "textPayload:\"[$strategy]\" AND textPayload:\"信頼度: 0.[25-6]\"" 15)
+    STRATEGY_FALLBACK_COUNT=$(count_logs_since_deploy "textPayload:\"[$strategy]\" AND textPayload:\"信頼度: 0.200\"" 15)
+
+    if [ $STRATEGY_DYNAMIC_COUNT -gt $STRATEGY_FALLBACK_COUNT ]; then
+        echo "     ✅ $strategy: 動的信頼度正常 (動的:$STRATEGY_DYNAMIC_COUNT回 > フォールバック:$STRATEGY_FALLBACK_COUNT回)"
+    else
+        echo "     ❌ $strategy: フォールバック値多用 (動的:$STRATEGY_DYNAMIC_COUNT回 ≤ フォールバック:$STRATEGY_FALLBACK_COUNT回)"
+    fi
+done
+
 # 5. MLモデルファイル・ロード問題確認
 echo ""
 echo "5. MLモデルファイル・ロード問題確認:"
@@ -725,6 +999,50 @@ show_logs_since_deploy "textPayload:\"特徴量\" AND (textPayload:\"エラー\"
 
 echo "   15特徴量完全生成確認:"
 show_logs_since_deploy "textPayload:\"15特徴量完全生成成功\"" 5
+
+# 6.5. 15特徴量完全生成詳細確認（要件定義対応強化・macOS対応）
+echo ""
+echo "6.5 15特徴量完全生成詳細確認:"
+declare -a features=("close" "volume" "rsi_14" "macd" "atr_14" "bb_position" "ema_20" "ema_50" "volume_ratio" "donchian_high_20" "donchian_low_20" "channel_position" "adx_14" "plus_di_14" "minus_di_14")
+
+MISSING_FEATURES=0
+echo "   個別特徴量生成確認:"
+for feature in "${features[@]}"; do
+    feature_count=$(count_logs_since_deploy "textPayload:\"$feature\"" 5)
+    if [ $feature_count -eq 0 ]; then
+        echo "     ⚠️ $feature: 生成確認できず"
+        MISSING_FEATURES=$((MISSING_FEATURES + 1))
+    else
+        echo "     ✅ $feature: $feature_count回確認"
+    fi
+done
+
+if [ $MISSING_FEATURES -eq 0 ]; then
+    echo "   ✅ 15特徴量: 全て生成確認（7カテゴリ完全対応）"
+else
+    echo "   ❌ 特徴量生成: $MISSING_FEATURES個の特徴量未確認（要件定義15特徴量未達）"
+fi
+
+# 6.7. Kelly基準動作詳細確認（要件定義対応強化・macOS対応）
+echo ""
+echo "6.7 Kelly基準動作詳細確認:"
+KELLY_CALCULATION_COUNT=$(count_logs_since_deploy "textPayload:\"Kelly基準\" OR textPayload:\"kelly_fraction\"" 15)
+POSITION_SIZE_DYNAMIC=$(count_logs_since_deploy "textPayload:\"position_size\" AND NOT textPayload:\"0.0001\"" 15)
+INITIAL_SIZE_COUNT=$(count_logs_since_deploy "textPayload:\"初期固定サイズ\" OR textPayload:\"0.0001 BTC\"" 15)
+KELLY_MIN_TRADES=$(count_logs_since_deploy "textPayload:\"Kelly.*5.*取引\" OR textPayload:\"最小取引数.*5\"" 10)
+
+echo "   Kelly計算実行: $KELLY_CALCULATION_COUNT回"
+echo "   動的ポジションサイズ: $POSITION_SIZE_DYNAMIC回"
+echo "   初期固定サイズ使用: $INITIAL_SIZE_COUNT回（最初の5取引）"
+echo "   Kelly最小取引数確認: $KELLY_MIN_TRADES回"
+
+if [ $KELLY_CALCULATION_COUNT -gt 0 ] && [ $POSITION_SIZE_DYNAMIC -gt 0 ]; then
+    echo "   ✅ Kelly基準: 正常動作（動的サイジング確認・要件定義準拠）"
+elif [ $INITIAL_SIZE_COUNT -gt 0 ]; then
+    echo "   ⚠️ Kelly基準: 初期段階（固定サイズ・5取引未達成）"
+else
+    echo "   ❌ Kelly基準: 動作異常（固定サイズのみ・要件定義未達）"
+fi
 
 # 7. ML予測→戦略統合→シグナル生成フロー確認
 echo ""
@@ -1286,10 +1604,12 @@ bash ai_trading_diagnosis_macos.sh
 ---
 
 **最終更新**: 2025年9月21日
-**バージョン**: macOS完全対応版 v2.0
-**ファイルサイズ**: 約800行（元1300行から40%圧縮）
+**バージョン**: 要件定義対応強化版 v3.0（macOS完全対応）
+**ファイルサイズ**: 約1,400行（機能強化により400行拡張）
 **対応環境**: macOS Sonoma以降・Python3完全対応・GNU依存関係排除完了
 
+🎯 **要件定義完全対応**: 5戦略・3モデルアンサンブル・15特徴量・Kelly基準・2軸時間足の包括的検証
 🍎 **macOS専用最適化**: すべてのコマンドがmacOS環境で確実動作・Date計算Python3化・wc -lエラー完全回避
 🚀 **3層診断構造**: クイック診断5分→詳細診断15分→緊急対応1分の効率的ワークフロー
 🔍 **隠れ不具合対応**: Silent Failure・async/await・Container問題の根本原因特定と即座修正
+📊 **強化された基準**: 取引成功率40%基準・7ステップ完全フロー検証・問題点継続収集方式

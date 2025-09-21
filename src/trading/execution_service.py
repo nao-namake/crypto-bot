@@ -3,6 +3,8 @@
 
 ライブ/ペーパーモードを自動判別し、適切な取引実行を行う。
 BitbankClient.create_orderを使用した実際の注文実行機能を提供。
+
+Silent Failure修正済み: TradeEvaluationのsideフィールドを正しく使用。
 """
 
 import asyncio
@@ -60,7 +62,7 @@ class ExecutionService:
         """
         try:
             self.logger.info(
-                f"🚀 取引実行開始 - モード: {self.mode}, アクション: {evaluation.action}"
+                f"🚀 取引実行開始 - モード: {self.mode}, アクション: {evaluation.side}"
             )
 
             if self.mode == "live":
@@ -91,7 +93,7 @@ class ExecutionService:
 
             # 注文パラメータ作成
             symbol = "BTC/JPY"
-            side = evaluation.action  # "buy" or "sell"
+            side = evaluation.side  # "buy" or "sell"
             order_type = "market"  # 成行注文
             amount = float(evaluation.position_size)
 
@@ -128,7 +130,7 @@ class ExecutionService:
         """ペーパートレード実行"""
         try:
             # 仮想実行（実際の注文は行わない）
-            side = evaluation.action
+            side = evaluation.side
             amount = float(evaluation.position_size)
             price = float(getattr(evaluation, "entry_price", 0))
 
@@ -170,7 +172,7 @@ class ExecutionService:
         """バックテスト実行"""
         try:
             # バックテスト用の簡易実行
-            side = evaluation.action
+            side = evaluation.side
             amount = float(evaluation.position_size)
             price = float(getattr(evaluation, "entry_price", 0))
 

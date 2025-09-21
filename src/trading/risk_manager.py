@@ -113,6 +113,12 @@ class TradeEvaluation:
     anomaly_alerts: List[str]
     market_conditions: Dict[str, Any]
 
+    # 後方互換性のためのactionプロパティ（Silent Failure修正）
+    @property
+    def action(self) -> str:
+        """後方互換性のため、sideフィールドをactionとしてもアクセス可能にする"""
+        return self.side
+
 
 @dataclass
 class ExecutionResult:

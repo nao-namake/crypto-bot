@@ -11,6 +11,8 @@ from datetime import datetime
 
 import pandas as pd
 
+# Silent Failure修正: RiskDecision Enum インポート追加
+from ...trading.risk_manager import RiskDecision
 from ..config import get_threshold
 from ..exceptions import CryptoBotError, ModelLoadError
 from ..logger import CryptoBotLogger
@@ -313,12 +315,13 @@ class TradingCycleManager:
             )()
 
     async def _execute_approved_trades(self, trade_evaluation, cycle_id):
-        """Phase 8a: 承認された取引の実行"""
+        """Phase 8a: 承認された取引の実行（Silent Failure修正済み）"""
         try:
             execution_result = None
-            if str(getattr(trade_evaluation, "decision", "")).lower() == "approved":
+            # Enum比較を正しく実装（str変換問題解決）
+            if getattr(trade_evaluation, "decision", None) == RiskDecision.APPROVED:
                 self.logger.debug(
-                    f"取引実行開始 - サイクル: {cycle_id}, アクション: {getattr(trade_evaluation, 'action', 'unknown')}"
+                    f"取引実行開始 - サイクル: {cycle_id}, アクション: {getattr(trade_evaluation, 'side', 'unknown')}"
                 )
 
                 execution_result = await self.orchestrator.execution_service.execute_trade(
