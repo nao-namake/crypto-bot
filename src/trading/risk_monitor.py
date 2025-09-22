@@ -1113,16 +1113,27 @@ class DrawdownManager:
                 "current_session": (asdict(self.current_session) if self.current_session else None),
             }
 
-            # 非同期メソッドを同期的に実行
+            # 非同期メソッドを安全に実行（イベントループ競合回避）
             import asyncio
 
-            loop = asyncio.new_event_loop()
             try:
-                success = loop.run_until_complete(self.persistence.save_state(state))
+                # 現在のイベントループが実行中かチェック
+                current_loop = asyncio.get_running_loop()
+                # 実行中の場合は、threadで実行して競合回避
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        lambda: asyncio.run(self.persistence.save_state(state))
+                    )
+                    success = future.result(timeout=5.0)
+                    if not success:
+                        self.logger.warning("ドローダウン状態保存に失敗しました")
+            except RuntimeError:
+                # イベントループが実行されていない場合は直接実行
+                success = asyncio.run(self.persistence.save_state(state))
                 if not success:
                     self.logger.warning("ドローダウン状態保存に失敗しました")
-            finally:
-                loop.close()
 
         except Exception as e:
             self.logger.error(f"状態保存エラー: {e}")
@@ -1173,17 +1184,27 @@ class DrawdownManager:
                 self._force_reset_to_safe_state()
                 return
 
-            # 非同期メソッドを同期的に実行
+            # 非同期メソッドを安全に実行（イベントループ競合回避）
             import asyncio
 
-            loop = asyncio.new_event_loop()
             try:
-                state = loop.run_until_complete(self.persistence.load_state())
+                # 現在のイベントループが実行中かチェック
+                current_loop = asyncio.get_running_loop()
+                # 実行中の場合は、threadで実行して競合回避
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(lambda: asyncio.run(self.persistence.load_state()))
+                    state = future.result(timeout=5.0)
+                    if state is None:
+                        self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
+                        return
+            except RuntimeError:
+                # イベントループが実行されていない場合は直接実行
+                state = asyncio.run(self.persistence.load_state())
                 if state is None:
                     self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
                     return
-            finally:
-                loop.close()
 
             self.current_balance = state.get("current_balance", 0.0)
             self.peak_balance = state.get("peak_balance", 0.0)

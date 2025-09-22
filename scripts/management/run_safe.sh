@@ -239,8 +239,8 @@ setup_environment() {
 
     log_info "🌍 実行環境設定: $environment (OS: $OS_TYPE)"
 
-    # 共通環境変数
-    export PYTHONPATH="$PROJECT_ROOT"
+    # 共通環境変数（Python import問題対応）
+    export PYTHONPATH="$PROJECT_ROOT:$PROJECT_ROOT/src:${PYTHONPATH:-}"
     export PYTHONUNBUFFERED=1
 
     # 環境別設定
@@ -293,6 +293,15 @@ run_bot() {
     # プロジェクトディレクトリに移動
     cd "$PROJECT_ROOT"
 
+    # ペーパーモード時のドローダウン自動リセット
+    if [ "$mode" = "paper" ]; then
+        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/drawdown_state.json"
+        if [ -f "$DRAWDOWN_FILE" ]; then
+            log_info "🔄 ドローダウン状態リセット（ペーパーモード）"
+            rm -f "$DRAWDOWN_FILE"
+        fi
+    fi
+
     log_info "🚀 暗号資産取引Bot起動開始"
     log_info "   環境: $environment"
     log_info "   モード: $mode"
@@ -316,10 +325,11 @@ run_bot() {
 
     # プロセスグループ設定でBot実行
     # OS別のプロセス実行方法
+    log_info "🔍 OS判定デバッグ: OS_TYPE=$OS_TYPE, IS_MACOS=$IS_MACOS"
     if [ "$IS_MACOS" = true ]; then
-        # macOS: setsidが存在しないため、代替方法でプロセス分離
-        log_info "macOSモード: nohupを使用してプロセス実行"
-        if nohup python3 main.py --mode "$mode" </dev/null >/dev/null 2>&1; then
+        # macOS: ヘルパースクリプト経由で実行（import問題対応）
+        log_info "macOSモード: ヘルパースクリプト経由でプロセス実行"
+        if "${SCRIPT_DIR}/run_python.sh" --mode "$mode"; then
             log_info "✅ Bot正常終了"
             result=0
         else
@@ -329,7 +339,7 @@ run_bot() {
     else
         # Linux: setsidを使用
         log_info "Linuxモード: setsidを使用してプロセス実行"
-        if setsid python3 main.py --mode "$mode"; then
+        if setsid "${SCRIPT_DIR}/run_python.sh" --mode "$mode"; then
             log_info "✅ Bot正常終了"
             result=0
         else

@@ -38,10 +38,10 @@ except ImportError:
     print("⚠️ python-dotenvが利用できません（オプション）")
 
 try:
-    from core.config import load_config
-    from core.logger import setup_logging
-    from core.orchestration import create_trading_orchestrator
-    from core.shutdown import GracefulShutdownManager
+    from src.core.config import load_config
+    from src.core.logger import setup_logging
+    from src.core.orchestration import create_trading_orchestrator
+    from src.core.shutdown import GracefulShutdownManager
 except ImportError as e:
     print(f"❌ 必要なモジュールのインポートに失敗: {e}")
     print("srcディレクトリの構造を確認してください。")
