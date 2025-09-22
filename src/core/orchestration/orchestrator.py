@@ -460,6 +460,7 @@ async def _get_actual_balance(config, logger) -> float:
             logger.warning(f"⚠️ Bitbank残高が0円以下（{jpy_balance}円）、フォールバック値使用")
             # 統一設定管理体系: unified.yamlからフォールバック残高取得
             from ...config import get_unified_config
+
             drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
             fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
             logger.info(f"💰 フォールバック残高: {fallback_balance}円")
@@ -472,6 +473,7 @@ async def _get_actual_balance(config, logger) -> float:
         logger.error(f"❌ BitbankAPI認証エラー: {e}")
         # 統一設定管理体系: unified.yamlからフォールバック残高取得
         from ...config import get_unified_config
+
         drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
         fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
         logger.warning(f"💰 認証エラーのためフォールバック残高使用: {fallback_balance}円")
@@ -481,6 +483,7 @@ async def _get_actual_balance(config, logger) -> float:
         logger.error(f"❌ 残高取得予期しないエラー: {e}")
         # 統一設定管理体系: unified.yamlからフォールバック残高取得
         from ...config import get_unified_config
+
         drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
         fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
         logger.warning(f"💰 エラーのためフォールバック残高使用: {fallback_balance}円")

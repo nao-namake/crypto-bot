@@ -312,9 +312,11 @@ class DevCheck:
         """基本インポート確認"""
         test_code = """
 import sys
-sys.path.append('.')
+from pathlib import Path
+project_root = Path.cwd()
+sys.path.insert(0, str(project_root / "src"))
 try:
-    from src.core.config import load_config
+    from core.config import load_config
     print("✅ 基本インポート成功")
 except ImportError as e:
     print(f"❌ インポートエラー: {e}")
@@ -327,11 +329,13 @@ except ImportError as e:
         """全インポート確認"""
         test_code = """
 import sys
-sys.path.append('.')
+from pathlib import Path
+project_root = Path.cwd()
+sys.path.insert(0, str(project_root / "src"))
 try:
-    from src.core.orchestration.orchestrator import TradingOrchestrator
-    from src.core.config import load_config
-    from src.features.feature_generator import FeatureGenerator
+    from core.orchestration.orchestrator import TradingOrchestrator
+    from core.config import load_config
+    from features.feature_generator import FeatureGenerator
     print("✅ 主要インポート成功")
 except ImportError as e:
     print(f"❌ インポートエラー: {e}")
@@ -380,12 +384,15 @@ except ImportError as e:
         # main.pyと同じ手順での初期化テスト
         test_code = """
 import sys, os, asyncio
-sys.path.append('.')
+from pathlib import Path
+# main.pyと同じ方法でsrcディレクトリをPythonパスに追加
+project_root = Path.cwd()
+sys.path.insert(0, str(project_root / "src"))
 os.environ['DRY_RUN'] = 'true'
 try:
-    from src.core.config import load_config
-    from src.core.logger import setup_logging
-    from src.core.orchestration import create_trading_orchestrator
+    from core.config import load_config
+    from core.logger import setup_logging
+    from core.orchestration import create_trading_orchestrator
 
     config = load_config('config/core/unified.yaml', cmdline_mode='paper')
     logger = setup_logging("crypto_bot_test")

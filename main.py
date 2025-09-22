@@ -38,9 +38,10 @@ except ImportError:
     print("⚠️ python-dotenvが利用できません（オプション）")
 
 try:
-    from src.core.config import load_config
-    from src.core.logger import setup_logging
-    from src.core.orchestration import create_trading_orchestrator
+    from core.config import load_config
+    from core.logger import setup_logging
+    from core.orchestration import create_trading_orchestrator
+    from core.shutdown import GracefulShutdownManager
 except ImportError as e:
     print(f"❌ 必要なモジュールのインポートに失敗: {e}")
     print("srcディレクトリの構造を確認してください。")
@@ -149,20 +150,13 @@ def setup_auto_shutdown():
 
 def setup_signal_handlers():
     """
-    シグナルハンドリング設定
+    シグナルハンドリング設定（基本設定のみ）
+
+    Note: Graceful shutdown処理はGracefulShutdownManagerに委譲
     """
     def signal_handler(signum, frame):
         signal_name = signal.Signals(signum).name
         print(f"🛑 シグナル受信: {signal_name} - 正常終了中...")
-
-        # ログ出力（logger初期化前の場合はprint）
-        try:
-            import logging
-            logger = logging.getLogger("crypto_bot")
-            logger.info(f"シグナル受信により終了: {signal_name}")
-        except:
-            pass
-
         sys.exit(0)
 
     # SIGINT（Ctrl+C）とSIGTERM（kill）の処理
@@ -198,7 +192,7 @@ def parse_arguments():
 
 
 async def main():
-    """メイン処理 - エントリーポイント"""
+    """メイン処理 - エントリーポイント（GracefulShutdownManager使用）"""
     # 0. プロセス管理初期化
     environment = setup_process_management()
 
@@ -225,8 +219,13 @@ async def main():
             logger.error("システム初期化失敗")
             sys.exit(1)
 
-        # 実行（モードはConfigから自動取得）
-        await orchestrator.run()
+        # GracefulShutdownManager初期化・シグナルハンドリング設定
+        shutdown_manager = GracefulShutdownManager(logger)
+        shutdown_manager.initialize(orchestrator)
+
+        # メイン処理とshutdown監視を並行実行
+        main_task = asyncio.create_task(orchestrator.run())
+        await shutdown_manager.shutdown_with_main_task(main_task)
 
     except KeyboardInterrupt:
         logger.info("ユーザーによる終了要求を受信")

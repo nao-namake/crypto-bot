@@ -114,6 +114,7 @@ class LocalFilePersistence(DrawdownPersistence):
 
             # 既存ファイルをコピー
             import shutil
+
             shutil.copy2(self.file_path, backup_path)
 
             self.logger.info(f"ドローダウン状態バックアップ作成: {backup_path}")
@@ -139,6 +140,7 @@ class CloudStoragePersistence(DrawdownPersistence):
         if self._storage_client is None:
             try:
                 from google.cloud import storage
+
                 self._storage_client = storage.Client()
                 self._bucket = self._storage_client.bucket(self.bucket_name)
                 self.logger.info(f"Cloud Storage初期化成功: {self.bucket_name}")
@@ -181,14 +183,18 @@ class CloudStoragePersistence(DrawdownPersistence):
             blob = self._bucket.blob(self.object_path)
 
             if not blob.exists():
-                self.logger.info(f"Cloud Storageに状態ファイルが存在しません: gs://{self.bucket_name}/{self.object_path}")
+                self.logger.info(
+                    f"Cloud Storageに状態ファイルが存在しません: gs://{self.bucket_name}/{self.object_path}"
+                )
                 return None
 
             # ダウンロードして解析
             json_data = blob.download_as_text()
             state = json.loads(json_data)
 
-            self.logger.debug(f"Cloud Storage読み込み成功: gs://{self.bucket_name}/{self.object_path}")
+            self.logger.debug(
+                f"Cloud Storage読み込み成功: gs://{self.bucket_name}/{self.object_path}"
+            )
             return state
 
         except Exception as e:
@@ -215,11 +221,12 @@ class CloudStoragePersistence(DrawdownPersistence):
             # オブジェクトをコピー
             source_blob.reload()  # メタデータ取得
             backup_blob.upload_from_string(
-                source_blob.download_as_text(),
-                content_type="application/json"
+                source_blob.download_as_text(), content_type="application/json"
             )
 
-            self.logger.info(f"Cloud Storageバックアップ作成: gs://{self.bucket_name}/{backup_path}")
+            self.logger.info(
+                f"Cloud Storageバックアップ作成: gs://{self.bucket_name}/{backup_path}"
+            )
             return True
 
         except Exception as e:
@@ -230,7 +237,7 @@ class CloudStoragePersistence(DrawdownPersistence):
 def create_persistence(
     local_path: str = "src/core/state/drawdown_state.json",
     gcs_bucket: str = None,
-    gcs_path: str = "drawdown/state.json"
+    gcs_path: str = "drawdown/state.json",
 ) -> DrawdownPersistence:
     """
     環境に応じて適切な永続化実装を作成

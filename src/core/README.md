@@ -34,6 +34,10 @@ src/core/
 │   ├── paper_trading_runner.py    # ペーパートレード実行
 │   └── live_trading_runner.py     # ライブトレード実行
 │
+├── shutdown/                      # プロセス管理・graceful shutdown
+│   ├── __init__.py                # shutdown管理エクスポート
+│   └── graceful_shutdown_manager.py # graceful shutdown管理サービス
+│
 ├── reporting/                     # レポート生成
 │   ├── __init__.py                # レポートエクスポート
 │   ├── base_reporter.py           # 基底レポート機能
@@ -102,6 +106,39 @@ from src.core.execution import PaperTradingRunner, LiveTradingRunner
 
 paper_runner = PaperTradingRunner(orchestrator_ref, logger)
 success = await paper_runner.run()
+```
+
+### **プロセス管理・Graceful Shutdown (shutdown/)**
+
+**目的**: main.py軽量化方針に従い、graceful shutdown処理を専用サービスとして分離・Discord通知停止問題解決
+
+**主要ファイル**:
+- `graceful_shutdown_manager.py`: シグナルハンドリング・オーケストレーターとランナーの正常終了・タイムアウト管理・shutdown_eventによる協調的終了
+
+**機能**:
+- **シグナルハンドリング**: SIGINT/SIGTERM受信時の適切な処理
+- **協調的終了**: shutdown_eventによるメインタスクとの連携
+- **タイムアウト管理**: 30秒タイムアウト付きクリーンアップ
+- **並行クリーンアップ**: 各ランナーの並行cleanup処理
+- **エラーハンドリング**: 適切なログ出力・例外処理
+
+**設計原則**:
+- **Single Responsibility**: shutdown処理のみ担当
+- **依存性注入**: orchestratorを外部から受け取り
+- **main.py軽量化**: ビジネスロジックをmain.pyから分離
+- **統一設定管理体系**: thresholds.yaml準拠
+
+**使用方法**:
+```python
+from src.core.shutdown import GracefulShutdownManager
+
+# GracefulShutdownManager初期化・シグナルハンドリング設定
+shutdown_manager = GracefulShutdownManager(logger)
+shutdown_manager.initialize(orchestrator)
+
+# メイン処理とshutdown監視を並行実行
+main_task = asyncio.create_task(orchestrator.run())
+await shutdown_manager.shutdown_with_main_task(main_task)
 ```
 
 ### **レポート生成 (reporting/)**
@@ -184,6 +221,30 @@ if await orchestrator.initialize():
     await orchestrator.run()
 ```
 
+### **Graceful Shutdown管理（main.py軽量化対応）**
+```python
+from src.core.shutdown import GracefulShutdownManager
+
+# main.py での使用例
+async def main():
+    # 基本設定
+    config = load_config('config/core/unified.yaml', cmdline_mode='paper')
+    logger = setup_logging("crypto_bot")
+
+    # オーケストレーター初期化
+    orchestrator = await create_trading_orchestrator(config, logger)
+    await orchestrator.initialize()
+
+    # GracefulShutdownManager初期化（main.py軽量化）
+    shutdown_manager = GracefulShutdownManager(logger)
+    shutdown_manager.initialize(orchestrator)
+
+    # メイン処理とshutdown監視を並行実行
+    # SIGINT/SIGTERM受信時の適切な終了処理を自動化
+    main_task = asyncio.create_task(orchestrator.run())
+    await shutdown_manager.shutdown_with_main_task(main_task)
+```
+
 ### **特徴量管理**
 ```python
 from src.core.config.feature_manager import FeatureManager
@@ -244,6 +305,14 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 - **trading_cycle_manager.py**: AttributeErrorの詳細ログ追加・エラー可視性向上
 - **ExecutionService統合**: 実際の取引実行機能を実装・BitbankClient.create_order呼び出し
 - **システム復旧**: 0取引/24時間問題を根本解決・取引実行確保
+
+### **2025/09/21追加: Graceful Shutdown管理システム**
+- **shutdown/ モジュール新規追加**: main.py軽量化方針に従いshutdown処理を専用サービスとして分離
+- **GracefulShutdownManager実装**: シグナルハンドリング・協調的終了・タイムアウト管理・並行クリーンアップ
+- **Discord通知停止問題解決**: force_stop.shと連携した確実なプロセス停止機能
+- **main.py軽量化**: 247行→240行に削減・「120行以内」原則への回復・ビジネスロジック分離
+- **設計原則準拠**: Single Responsibility・依存性注入・エラーハンドリング・統一設定管理体系対応
+- **run_safe.sh改善**: プロセスグループ管理・setsid使用・PGID対応終了処理
 
 ### **Phase 22最適化成果**
 - **コード削減**: 423行の完全未使用コード削除（market_data.py）

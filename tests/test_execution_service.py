@@ -355,3 +355,109 @@ class TestExecutionService:
         # 統計が正しく更新されていることを確認
         assert paper_service.executed_trades == 3
         assert len(paper_service.virtual_positions) == 3
+
+    @pytest.mark.asyncio
+    async def test_hold_signal_handling_paper_mode(self):
+        """holdシグナル処理テスト - ペーパーモード"""
+        from src.trading.execution_service import ExecutionService
+        from src.trading.risk_manager import ExecutionMode as RealExecutionMode
+        from src.trading.risk_manager import OrderStatus as RealOrderStatus
+
+        # ペーパーモードのExecutionService
+        paper_service = ExecutionService(mode="paper")
+
+        # holdシグナルのTradeEvaluation
+        hold_evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="hold",  # holdシグナル
+            position_size=0.001,
+            confidence=0.6,
+            risk_score=0.3,
+            expected_return=0.05,
+            stop_loss=9500000.0,
+            take_profit=10500000.0,
+            max_drawdown=0.1,
+            kelly_fraction=0.05,
+            reasoning="holdシグナルテスト",
+        )
+
+        # holdシグナルの実行
+        result = await paper_service.execute_trade(hold_evaluation)
+
+        # holdシグナルは成功扱いでスキップされることを確認
+        assert result.success == True
+        assert result.mode == RealExecutionMode.PAPER
+        assert result.order_id is None
+        assert result.price == 0.0
+        assert result.amount == 0.0
+        assert result.side == "hold"
+        assert result.status == RealOrderStatus.CANCELLED  # スキップ状態
+
+    @pytest.mark.asyncio
+    async def test_hold_signal_handling_live_mode(self):
+        """holdシグナル処理テスト - ライブモード"""
+        from src.trading.execution_service import ExecutionService
+        from src.trading.risk_manager import ExecutionMode as RealExecutionMode
+        from src.trading.risk_manager import OrderStatus as RealOrderStatus
+
+        # ライブモードのExecutionService（BitbankClientなし）
+        live_service = ExecutionService(mode="live")
+
+        # holdシグナルのTradeEvaluation
+        hold_evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="hold",  # holdシグナル
+            position_size=0.001,
+            confidence=0.6,
+            risk_score=0.3,
+            expected_return=0.05,
+            stop_loss=9500000.0,
+            take_profit=10500000.0,
+            max_drawdown=0.1,
+            kelly_fraction=0.05,
+            reasoning="holdシグナルテスト",
+        )
+
+        # holdシグナルの実行
+        result = await live_service.execute_trade(hold_evaluation)
+
+        # holdシグナルは成功扱いでスキップされることを確認
+        assert result.success == True
+        assert result.mode == RealExecutionMode.LIVE
+        assert result.order_id is None
+        assert result.price == 0.0
+        assert result.amount == 0.0
+        assert result.side == "hold"
+        assert result.status == RealOrderStatus.CANCELLED  # スキップ状態
+
+    @pytest.mark.asyncio
+    async def test_various_hold_signals(self):
+        """様々なholdシグナルのバリエーションテスト"""
+        from src.trading.execution_service import ExecutionService
+
+        paper_service = ExecutionService(mode="paper")
+
+        # 様々なholdシグナルのパターン
+        hold_patterns = ["hold", "HOLD", "Hold", "none", "NONE", ""]
+
+        for hold_pattern in hold_patterns:
+            hold_evaluation = TradeEvaluation(
+                decision=RiskDecision.APPROVED,
+                side=hold_pattern,
+                position_size=0.001,
+                confidence=0.6,
+                risk_score=0.3,
+                expected_return=0.05,
+                stop_loss=9500000.0,
+                take_profit=10500000.0,
+                max_drawdown=0.1,
+                kelly_fraction=0.05,
+                reasoning=f"holdシグナルテスト({hold_pattern})",
+            )
+
+            result = await paper_service.execute_trade(hold_evaluation)
+
+            # 全てのholdパターンが正しく処理されることを確認
+            assert result.success == True
+            assert result.order_id is None
+            assert result.side == hold_pattern

@@ -32,6 +32,13 @@ DEFAULT_ENVIRONMENT="local"
 DEFAULT_MODE="paper"
 DEFAULT_TIMEOUT=14400  # 4時間
 
+# OS判定
+OS_TYPE="$(uname -s)"
+IS_MACOS=false
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+    IS_MACOS=true
+fi
+
 # カラー出力
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -90,6 +97,22 @@ check_process_status() {
             local elapsed_min=$((elapsed / 60))
 
             log_info "✅ プロセス実行中: PID=$pid, 経過時間=${elapsed_min}分"
+
+            # 子プロセス確認
+            local children
+            children=$(pgrep -P "$pid" 2>/dev/null || true)
+            if [ -n "$children" ]; then
+                log_info "   └─ 子プロセス: $children"
+            fi
+
+            # PIDファイル情報表示
+            if [ -f "$PID_FILE" ]; then
+                local mode=$(sed -n '3p' "$PID_FILE" 2>/dev/null || echo "")
+                if [ -n "$mode" ]; then
+                    log_info "   └─ 動作モード: $mode"
+                fi
+            fi
+
             return 0
         else
             log_warn "⚠️ ロックファイルが存在しますが、プロセスは実行されていません"
@@ -139,8 +162,25 @@ stop_process() {
         if [ -n "$pid" ]; then
             log_info "🛑 プロセス停止中: PID=$pid"
 
-            # SIGTERM送信
-            if kill -TERM "$pid" 2>/dev/null; then
+            # プロセスグループID取得
+            local pgid
+            pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || echo "")
+
+            # プロセスグループ全体に対してSIGTERM送信（OS別処理）
+            if [ -n "$pgid" ] && [ "$pgid" != "$pid" ]; then
+                log_info "🔄 プロセスグループ停止: PGID=$pgid (OS: $OS_TYPE)"
+                if [ "$IS_MACOS" = true ]; then
+                    # macOS: プロセスグループ停止（互換性考慮）
+                    kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+                else
+                    # Linux: 標準的なプロセスグループ停止
+                    kill -TERM -"$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+                fi
+            else
+                kill -TERM "$pid" 2>/dev/null
+            fi
+
+            if [ $? -eq 0 ]; then
                 log_info "⏳ 正常終了を待機中..."
 
                 # 30秒待機
@@ -153,9 +193,21 @@ stop_process() {
                     sleep 1
                 done
 
-                # SIGKILL送信
-                log_warn "⚠️ 強制終了実行"
-                if kill -KILL "$pid" 2>/dev/null; then
+                # プロセスグループ全体に対してSIGKILL送信（OS別処理）
+                log_warn "⚠️ 強制終了実行 (OS: $OS_TYPE)"
+                if [ -n "$pgid" ] && [ "$pgid" != "$pid" ]; then
+                    if [ "$IS_MACOS" = true ]; then
+                        # macOS: プロセスグループ強制終了（互換性考慮）
+                        kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+                    else
+                        # Linux: 標準的なプロセスグループ強制終了
+                        kill -KILL -"$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+                    fi
+                else
+                    kill -KILL "$pid" 2>/dev/null
+                fi
+
+                if [ $? -eq 0 ]; then
                     log_info "✅ プロセス強制終了"
                 else
                     log_error "❌ プロセス終了失敗"
@@ -185,7 +237,7 @@ setup_environment() {
     local environment="$1"
     local mode="$2"
 
-    log_info "🌍 実行環境設定: $environment"
+    log_info "🌍 実行環境設定: $environment (OS: $OS_TYPE)"
 
     # 共通環境変数
     export PYTHONPATH="$PROJECT_ROOT"
@@ -247,8 +299,10 @@ run_bot() {
     log_info "   タイムアウト: ${timeout}秒"
     log_info "   PID: $$"
 
-    # PIDファイル作成
+    # PIDファイル作成（親プロセス情報記録）
     echo "$$" > "$PID_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S')" >> "$PID_FILE"
+    echo "$mode" >> "$PID_FILE"
 
     # タイムアウト設定（GCP環境のみ）
     if [ "$environment" = "gcp" ]; then
@@ -260,13 +314,28 @@ run_bot() {
         timeout_pid=$!
     fi
 
-    # Bot実行
-    if python3 main.py --mode "$mode"; then
-        log_info "✅ Bot正常終了"
-        result=0
+    # プロセスグループ設定でBot実行
+    # OS別のプロセス実行方法
+    if [ "$IS_MACOS" = true ]; then
+        # macOS: setsidが存在しないため、代替方法でプロセス分離
+        log_info "macOSモード: nohupを使用してプロセス実行"
+        if nohup python3 main.py --mode "$mode" </dev/null >/dev/null 2>&1; then
+            log_info "✅ Bot正常終了"
+            result=0
+        else
+            log_error "❌ Bot異常終了"
+            result=1
+        fi
     else
-        log_error "❌ Bot異常終了"
-        result=1
+        # Linux: setsidを使用
+        log_info "Linuxモード: setsidを使用してプロセス実行"
+        if setsid python3 main.py --mode "$mode"; then
+            log_info "✅ Bot正常終了"
+            result=0
+        else
+            log_error "❌ Bot異常終了"
+            result=1
+        fi
     fi
 
     # タイムアウトプロセス終了
@@ -327,6 +396,11 @@ main() {
             echo -e "${YELLOW}🛑 プロセス停止実行${NC}"
             echo ""
             stop_process
+
+            # force_stop.shでの完全停止も提案
+            echo ""
+            echo -e "${BLUE}💡 より確実な停止には以下を実行:${NC}"
+            echo "    bash scripts/management/force_stop.sh"
             echo ""
             ;;
 

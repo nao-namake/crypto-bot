@@ -11,8 +11,7 @@ from datetime import datetime
 
 import pandas as pd
 
-# Silent Failure修正: RiskDecision Enum インポート追加
-from ...trading.risk_manager import RiskDecision
+# Silent Failure修正: RiskDecision Enum は動的インポートで回避
 from ..config import get_threshold
 from ..exceptions import CryptoBotError, ModelLoadError
 from ..logger import CryptoBotLogger
@@ -318,8 +317,12 @@ class TradingCycleManager:
         """Phase 8a: 承認された取引の実行（Silent Failure修正済み）"""
         try:
             execution_result = None
-            # Enum比較を正しく実装（str変換問題解決）
-            if getattr(trade_evaluation, "decision", None) == RiskDecision.APPROVED:
+            # Enum比較を正しく実装（str変換問題解決・循環import回避）
+            decision_value = getattr(trade_evaluation, "decision", None)
+            # RiskDecision.APPROVEDの値は"approved"なので文字列比較で回避
+            if decision_value == "approved" or (
+                hasattr(decision_value, "value") and decision_value.value == "approved"
+            ):
                 self.logger.debug(
                     f"取引実行開始 - サイクル: {cycle_id}, アクション: {getattr(trade_evaluation, 'side', 'unknown')}"
                 )
@@ -336,9 +339,19 @@ class TradingCycleManager:
                     execution_result, cycle_id
                 )
             else:
-                self.logger.debug(
-                    f"取引未承認 - サイクル: {cycle_id}, 決定: {getattr(trade_evaluation, 'decision', 'unknown')}"
-                )
+                # holdシグナルや取引拒否の詳細説明
+                decision = getattr(trade_evaluation, "decision", "unknown")
+                side = getattr(trade_evaluation, "side", "unknown")
+                reason = getattr(trade_evaluation, "denial_reasons", ["理由不明"])
+
+                if side.lower() in ["hold", "none"]:
+                    self.logger.info(
+                        f"📤 holdシグナル処理 - サイクル: {cycle_id}, アクション: {side}, 判定: {decision}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"取引未承認 - サイクル: {cycle_id}, 決定: {decision}, アクション: {side}, 理由: {reason}"
+                    )
                 await self.orchestrator.trading_logger.log_trade_decision(
                     trade_evaluation, cycle_id
                 )

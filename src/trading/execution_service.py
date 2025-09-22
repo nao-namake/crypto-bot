@@ -48,6 +48,7 @@ class ExecutionService:
         self.virtual_positions = []
         # 統一設定管理体系: unified.yamlから初期残高取得
         from ..core.config import get_unified_config
+
         drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
         self.virtual_balance = drawdown_config.get("initial_balance", 10000.0)
 

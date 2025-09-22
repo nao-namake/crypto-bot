@@ -24,7 +24,7 @@ import pandas as pd
 
 from ..core.config import get_anomaly_config, get_position_config
 from ..core.logger import get_logger
-from ..core.state.drawdown_persistence import create_persistence, DrawdownPersistence
+from ..core.state.drawdown_persistence import DrawdownPersistence, create_persistence
 from ..features.feature_generator import FeatureGenerator
 
 # === 異常検知システム関連 ===
@@ -706,9 +706,7 @@ class DrawdownManager:
             gcs_path = persistence_config.get("gcs_path", "drawdown/state.json")
 
             self.persistence = create_persistence(
-                local_path=local_path,
-                gcs_bucket=gcs_bucket,
-                gcs_path=gcs_path
+                local_path=local_path, gcs_bucket=gcs_bucket, gcs_path=gcs_path
             )
 
         # 状態管理
@@ -1117,6 +1115,7 @@ class DrawdownManager:
 
             # 非同期メソッドを同期的に実行
             import asyncio
+
             loop = asyncio.new_event_loop()
             try:
                 success = loop.run_until_complete(self.persistence.save_state(state))
@@ -1176,6 +1175,7 @@ class DrawdownManager:
 
             # 非同期メソッドを同期的に実行
             import asyncio
+
             loop = asyncio.new_event_loop()
             try:
                 state = loop.run_until_complete(self.persistence.load_state())
