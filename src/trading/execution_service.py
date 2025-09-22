@@ -47,10 +47,10 @@ class ExecutionService:
         # ペーパートレード用
         self.virtual_positions = []
         # 統一設定管理体系: unified.yamlから初期残高取得
-        from ..core.config import get_unified_config
+        from ..core.config import load_config
 
-        drawdown_config = get_unified_config().get("risk", {}).get("drawdown_manager", {})
-        self.virtual_balance = drawdown_config.get("initial_balance", 10000.0)
+        config = load_config("config/core/unified.yaml")
+        self.virtual_balance = getattr(config.risk, "initial_balance", 10000.0)
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 

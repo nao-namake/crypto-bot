@@ -33,11 +33,15 @@ class TestDrawdownManager:
         self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
         self.temp_file.close()
 
+        from src.core.state.drawdown_persistence import LocalFilePersistence
+
+        persistence = LocalFilePersistence(self.temp_file.name)
+
         self.manager = DrawdownManager(
             max_drawdown_ratio=0.20,
             consecutive_loss_limit=5,
             cooldown_hours=24,
-            persistence_file=self.temp_file.name,
+            persistence=persistence,
         )
 
     def teardown_method(self):
@@ -270,7 +274,10 @@ class TestDrawdownManager:
         assert Path(self.temp_file.name).exists()
 
         # 新しいマネージャーで状態復元
-        manager2 = DrawdownManager(persistence_file=self.temp_file.name)
+        from src.core.state.drawdown_persistence import LocalFilePersistence
+
+        persistence2 = LocalFilePersistence(self.temp_file.name)
+        manager2 = DrawdownManager(persistence=persistence2)
 
         # 状態復元確認
         assert manager2.current_balance == 1100000
@@ -313,7 +320,10 @@ class TestDrawdownManager:
         import tempfile
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp_file:
-            new_manager = DrawdownManager(persistence_file=temp_file.name)
+            from src.core.state.drawdown_persistence import LocalFilePersistence
+
+            persistence = LocalFilePersistence(temp_file.name)
+            new_manager = DrawdownManager(persistence=persistence)
 
         # エラーが発生してもシステムが停止しない
         drawdown = new_manager.calculate_current_drawdown()
