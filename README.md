@@ -2,7 +2,7 @@
 
 **bitbank信用取引専用のAI自動取引システム**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.74%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Unified Config](https://img.shields.io/badge/Config%20System-Unified-brightgreen)](config/) [![GCP Optimized](https://img.shields.io/badge/GCP%20Resources-Optimized-blue)](docs/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-639%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.95%25-green)](coverage-reports/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Unified Config](https://img.shields.io/badge/Config%20System-Unified-brightgreen)](config/) [![GCP Optimized](https://img.shields.io/badge/GCP%20Resources-Optimized-blue)](docs/)
 
 ---
 
@@ -15,9 +15,10 @@
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・3分間隔実行（高頻度取引）
 - **稼働体制**: 24時間自動取引・Cloud Run稼働
-- **品質保証**: 625テスト100%成功・64.74%カバレッジ・CI/CD統合
+- **品質保証**: 639テスト100%成功・64.95%カバレッジ・CI/CD統合
 - **ExecutionService実装**: 2025/09/20完了（Silent Failure根本解決・取引実行確保・BitbankClient.create_order統合）
 - **Kelly基準Silent Failure修正**: 2025/09/19完了（取引ブロック問題根本解決・初期固定サイズ実装）
+- **Phase 23完了**: 2025/09/24完了（モード別初期残高一元管理・Claude Codeバックグラウンド誤認識問題完全解決）
 - **Discord Webhook修正**: 2025/09/19完了（GCP version 6適用・401エラー解決）
 - **GCPリソース最適化**: 2025/09/17完了（古いイメージ削除・容量最適化）
 - **Secret Manager**: 2025/09/15修正完了（key:latest問題解決）
@@ -46,6 +47,12 @@
 - **品質保証**: 自動テスト・コードカバレッジ・継続的品質監視
 - **週次学習**: 過去180日データで毎回ゼロから再学習・市場変化に継続的適応
 
+### **🔧 Phase 23最新機能（2025/09/24完了）**
+- **モード別初期残高一元管理**: 1万円→10万円・50万円への変更が`unified.yaml` 1箇所のみで完結
+- **Claude Code完全対応**: バックグラウンド誤認識問題完全解決・フォアグラウンド実行デフォルト化
+- **スクリプト統合**: 3スクリプト→2スクリプトに集約・管理負荷軽減
+- **タイムアウト機能**: macOS対応14400秒タイムアウト・性能影響ゼロ
+
 ## 🚀 クイックスタート
 
 ### **前提条件**
@@ -71,22 +78,25 @@ cp config/secrets/.env.example config/secrets/.env
 bash scripts/testing/checks.sh
 ```
 
-### **2. 実行**
+### **2. 実行（推奨）**
 ```bash
-# ペーパートレード（推奨・初回）
-python3 main.py --mode paper
+# 統合実行スクリプト使用（推奨・Claude Code完全対応）
+bash scripts/management/run_safe.sh local paper  # フォアグラウンド実行
+bash scripts/management/run_safe.sh local live   # ライブトレード
 
-# ライブトレード（実資金）
-python3 main.py --mode live
+# 実行状況確認（実プロセス確認・Claude Code誤認識回避）
+bash scripts/management/bot_manager.sh check
 
-# バックテスト
-python3 main.py --mode backtest
+# 停止
+bash scripts/management/run_safe.sh stop
 ```
+
+**⚠️ Claude Code使用時の注意**: バックグラウンド実行は誤認識の原因となるため、デフォルトのフォアグラウンド実行を使用してください。
 
 ### **3. 監視・確認**
 ```bash
-# システム状態確認
-python3 scripts/testing/dev_check.py status
+# 実プロセス状況確認（Claude Code誤認識回避）
+bash scripts/management/bot_manager.sh check
 
 # 本番環境ログ確認（GCP）
 gcloud logging read "resource.type=cloud_run_revision" --limit=10
@@ -137,8 +147,8 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 - **稼働率**: 99%以上（24時間365日）
 
 ### **システム性能**
-- **テスト成功率**: 100%（625テスト）
-- **コードカバレッジ**: 64.74%
+- **テスト成功率**: 100%（639テスト）
+- **コードカバレッジ**: 64.95%
 - **Kelly基準最適化**: 20→5取引緩和で実用性向上・取引機会拡大
 - **実行時間**: 品質チェック約30秒
 - **API応答時間**: 平均3秒以下
@@ -150,7 +160,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 config/
 ├── core/
-│   ├── unified.yaml         # 統合設定ファイル
+│   ├── unified.yaml         # 統合設定ファイル（Phase 23残高一元管理）
 │   ├── thresholds.yaml      # 閾値・パラメータ設定
 │   └── feature_order.json   # 特徴量定義・順序管理
 └── secrets/
@@ -161,6 +171,20 @@ config/
 - **paper**: ペーパートレード（実資金なし）
 - **live**: ライブトレード（実資金使用）
 - **backtest**: 過去データでのバックテスト
+
+### **初期残高設定（Phase 23一元管理）**
+**1万円→10万円・50万円への変更が`config/core/unified.yaml` 1箇所のみで完結**
+
+```yaml
+# config/core/unified.yaml
+mode_balances:
+  paper:
+    initial_balance: 10000.0    # 1万円 → 10万円なら 100000.0
+  live:
+    initial_balance: 10000.0
+  backtest:
+    initial_balance: 10000.0
+```
 
 ### **戦略・ML調整**
 - 各戦略の重み調整: `config/core/unified.yaml`

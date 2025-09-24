@@ -20,6 +20,22 @@
 # 動作モード（デフォルト: ペーパートレード・安全性優先）
 mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 
+# ========================================
+# モード別初期残高設定（一元管理・Phase 23追加）
+# ========================================
+# 用途: 将来的な残高変更（10万円、50万円等）時に一箇所修正で完結
+# 参照: ExecutionService、IntegratedRiskManager、DrawdownManager
+mode_balances:
+  paper:
+    initial_balance: 10000.0      # ペーパートレード初期残高
+    description: "ペーパートレード用初期残高（実験・検証用）"
+  live:
+    initial_balance: 10000.0      # ライブトレード初期残高（実際のAPI残高取得に基づく）
+    description: "ライブトレード用初期残高（本番運用・API取得ベース）"
+  backtest:
+    initial_balance: 10000.0      # バックテスト初期残高
+    description: "バックテスト用初期残高（過去データ検証用）"
+
 # 取引所設定（bitbank信用取引専用）
 exchange:
   name: bitbank

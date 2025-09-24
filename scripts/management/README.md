@@ -1,6 +1,6 @@
 # scripts/management/ - Bot管理スクリプト
 
-**最終更新**: 2025年9月23日 - macOS完全対応・インポートエラー修正・Python実行安定化
+**最終更新**: 2025年9月24日 - Claude Codeバックグラウンド誤認識問題完全解決・スクリプト統合化
 
 ## 🎯 概要
 
@@ -11,9 +11,8 @@
 ```
 scripts/management/
 ├── README.md         # このファイル（管理スクリプト説明）
-├── run_safe.sh       # 安全実行スクリプト（通常使用・macOS完全対応）
-├── run_python.sh     # Python実行ヘルパー（run_safe.shから使用）
-└── bot_manager.sh    # 統合管理スクリプト（状況確認・プロセス停止・誤認防止）
+├── run_safe.sh       # 統合実行スクリプト（タイムアウト・Claude Code対応）
+└── bot_manager.sh    # 統合管理スクリプト（状況確認・プロセス停止・Claude Code誤認識検出）
 ```
 
 ## 🚀 run_safe.sh - 安全実行スクリプト
@@ -23,18 +22,21 @@ scripts/management/
 | 機能 | 説明 | 効果 |
 |------|------|------|
 | **プロセス重複防止** | PIDファイル・ロックファイル使用 | Discord通知無限ループ問題を根本防止 |
-| **macOS完全対応** | OS別実行制御・ヘルパースクリプト | macOS環境での安定動作確保 |
-| **インポートエラー修正** | PYTHONPATH最適化・相対インポート解決 | `No module named 'src.config'`エラー完全解決 |
+| **Claude Code完全対応** | フォアグラウンド実行デフォルト | バックグラウンド誤認識問題完全解決 |
+| **タイムアウト管理** | macOS対応タイムアウト実装（4時間） | 無制限実行防止・性能影響ゼロ |
+| **スクリプト統合** | 3スクリプト→1スクリプトに統合 | 管理負荷軽減・保守性向上 |
 | **環境自動判定** | ローカル/GCP環境の自動切り替え | 実行環境の混乱を防止 |
-| **タイムアウト管理** | GCP環境で15分自動終了 | 無制限実行によるコスト増加防止 |
 | **詳細プロセス監視** | 実行状況・子プロセス・動作モード表示 | 運用効率向上 |
 
 ### **使用方法**
 
 #### **1. 基本実行**
 ```bash
-# ローカル環境でペーパートレード（推奨）
+# ローカル環境でペーパートレード（推奨・フォアグラウンド実行）
 bash scripts/management/run_safe.sh local paper
+
+# バックグラウンド実行（非推奨：Claude Code誤認識の原因）
+bash scripts/management/run_safe.sh local paper --background
 
 # ローカル環境でライブトレード
 bash scripts/management/run_safe.sh local live
@@ -75,7 +77,7 @@ $ bash scripts/management/run_safe.sh status
 
 ### **主要機能**
 
-check_status.sh + force_stop.sh の統合版で、Claude Codeバックグラウンドプロセス誤認防止と完全停止機能を一元化した統合管理スクリプトです。
+統合管理スクリプトで、**Claude Codeバックグラウンドプロセス誤認識問題を完全解決**したbot管理システムです。
 
 | 機能 | 説明 | 効果 |
 |------|------|------|
@@ -130,13 +132,31 @@ $ bash scripts/management/bot_manager.sh check
 ✅ システム完全停止状態
    → 新規実行可能
 
-💡 Claude Codeでバックグラウンドプロセス表示が出る場合:
-   これは表示上の残存記録で、実際のプロセスではありません
-   上記確認で「システム完全停止状態」なら安全です
+🔍 Claude Code利用時の注意事項
+========================================
 
-📈 推奨コマンド:
-bash scripts/management/run_safe.sh local paper   # ペーパートレード
-bash scripts/management/run_safe.sh status        # 状況確認
+⚠️ バックグラウンドプロセス誤認識問題:
+   Claude Codeが'running'と表示しても、実際にはプロセスが
+   終了している場合があります。これはClaude Codeの
+   内部トラッキングシステムの制限事項です。
+
+✅ 確実な確認方法:
+   上記の「1. 実際のプロセス確認」で「✅ 実行中のプロセスなし」
+   と表示されていれば、実際には停止しています。
+
+🔧 回避策:
+   バックグラウンド実行を避けるため、以下のコマンドを使用：
+
+📈 推奨実行方法:
+   bash scripts/management/run_safe.sh local paper
+   → デフォルトでフォアグラウンド実行（誤認識なし）
+
+   bash scripts/management/run_safe.sh status
+   → 実行状況確認
+
+⚠️ 非推奨:
+   bash scripts/management/run_safe.sh local paper --background
+   → バックグラウンド実行（Claude Code誤認識の原因）
 ```
 
 **停止実行の例：**
@@ -193,35 +213,35 @@ $ bash scripts/management/bot_manager.sh stop --dry-run
 **🎯 完全解決手順:**
 ```bash
 # Step 1: 強制停止実行
-bash scripts/management/force_stop.sh
+bash scripts/management/bot_manager.sh stop
 
 # Step 2: 停止確認
 bash scripts/management/run_safe.sh status
 
 # Step 3: 必要に応じて再実行
-bash scripts/management/force_stop.sh --verbose
+bash scripts/management/bot_manager.sh stop --verbose
 ```
 
 ### **よくある問題と解決方法**
 
 #### **1. 「既にプロセスが実行中です」エラー**
 ```bash
-# 解決: force_stop.sh で完全停止
-bash scripts/management/force_stop.sh
+# 解決: bot_manager.sh で完全停止
+bash scripts/management/bot_manager.sh stop
 ```
 
 #### **2. プロセスが見つからない**
 ```bash
 # 原因: 検索パターンの問題
-# 解決: force_stop.sh の詳細検索を使用
-bash scripts/management/force_stop.sh --verbose
+# 解決: bot_manager.sh の詳細検索を使用
+bash scripts/management/bot_manager.sh stop --verbose
 ```
 
 #### **3. 子プロセスが残る**
 ```bash
 # 原因: プロセスグループ管理不備
-# 解決: force_stop.sh のプロセスグループ停止
-bash scripts/management/force_stop.sh
+# 解決: bot_manager.sh のプロセスグループ停止
+bash scripts/management/bot_manager.sh stop
 ```
 
 ### **ログ確認方法**
@@ -276,7 +296,7 @@ bash scripts/management/bot_manager.sh stop
 #### **3. Discord通知無限ループ問題**
 - **問題**: run_safe.sh で停止してもDiscord通知が継続
 - **原因**: 子プロセス・プロセスグループ管理不備
-- **解決**: force_stop.sh による完全停止機能
+- **解決**: bot_manager.sh による完全停止機能
 
 ### **定量的効果**
 | 指標 | 改善前 | 改善後 | 効果 |
@@ -290,12 +310,12 @@ bash scripts/management/bot_manager.sh stop
 
 ## 🔄 技術仕様
 
-### **force_stop.sh 技術詳細**
+### **bot_manager.sh 技術詳細**
 - **言語**: Bash 4.0+ 対応
 - **プラットフォーム**: macOS・Linux 完全対応
 - **プロセス検出**: 3段階検索アルゴリズム
 - **停止方式**: SIGTERM(10s) → SIGKILL(5s)
-- **ファイル**: 625行・包括的エラーハンドリング
+- **統合機能**: プロセス確認・完全停止・誤認防止を一元化
 
 ### **run_safe.sh 改修詳細（2025-09-23更新）**
 - **macOS完全対応**: OS判定による実行方式切り替え
@@ -305,14 +325,22 @@ bash scripts/management/bot_manager.sh stop
 - **プロセスグループ**: OS別実行制御（Linux: setsid、macOS: 直接実行）
 - **停止改善**: プロセスグループ単位停止
 - **情報表示**: 子プロセス・モード詳細表示
-- **連携**: force_stop.sh 提案機能
+- **連携**: bot_manager.sh 統合機能
 
-### **run_python.sh 技術詳細**
-- **目的**: macOS環境でのPython実行安定化
-- **機能**: PYTHONPATH設定・main.py実行
-- **使用**: run_safe.shから自動呼び出し
-- **サイズ**: 19行・軽量設計
+### **スクリプト統合詳細（2025-09-24完了）**
+- **目的**: スクリプト数削減・保守性向上
+- **統合内容**: timeout_wrapper.py + run_python.sh → run_safe.sh
+- **効果**: 3スクリプト→2スクリプトに削減
+- **機能維持**: タイムアウト・Claude Code対応機能完全保持
 
 ---
 
-**🎯 重要**: Discord通知が止まらない問題は **force_stop.sh により完全解決** されました。今後は run_safe.sh による通常運用 + 緊急時の force_stop.sh 使用を推奨します。
+**🎯 重要**:
+- **Discord通知無限ループ問題**: bot_manager.sh により完全解決
+- **Claude Codeバックグラウンド誤認識問題**: run_safe.sh フォアグラウンドデフォルトで完全解決
+- **スクリプト統合**: 3スクリプト→2スクリプトに削減・保守性向上
+
+**推奨運用方法**:
+1. **通常実行**: `bash scripts/management/run_safe.sh local paper` (フォアグラウンド・デフォルト)
+2. **状況確認**: `bash scripts/management/bot_manager.sh check` (実プロセス確認)
+3. **緊急停止**: `bash scripts/management/bot_manager.sh stop` (Discord通知ループ解決)

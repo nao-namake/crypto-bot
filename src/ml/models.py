@@ -461,7 +461,7 @@ class RFModel(BaseMLModel):
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.rf", {})
         default_params = {
-            "n_jobs": -1,
+            "n_jobs": 1,  # Python 3.13 Parallel処理エラー回避のため単一スレッド化
             "warm_start": False,
             "max_samples": None,
             "criterion": "gini",

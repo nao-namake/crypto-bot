@@ -680,6 +680,7 @@ class DrawdownManager:
         cooldown_hours: int = 24,
         persistence: Optional[DrawdownPersistence] = None,
         config: Optional[Dict] = None,
+        mode: str = "live",  # 新規: 実行モード（paper/live/backtest）
     ):
         """
         ドローダウン管理器初期化
@@ -695,18 +696,25 @@ class DrawdownManager:
         self.consecutive_loss_limit = consecutive_loss_limit
         self.cooldown_hours = cooldown_hours
 
-        # 永続化システム初期化
+        # モード保持（ペーパーモード判定用）
+        self.mode = mode
+
+        # 永続化システム初期化（モード別分離対応）
         if persistence is not None:
             self.persistence = persistence
         else:
             # 設定から永続化システム作成
             persistence_config = config.get("persistence", {}) if config else {}
-            local_path = persistence_config.get("local_path", "src/core/state/drawdown_state.json")
+            local_path = persistence_config.get(
+                "local_path"
+            )  # Noneの場合はcreate_persistenceがモード別パスを生成
             gcs_bucket = persistence_config.get("gcs_bucket")
-            gcs_path = persistence_config.get("gcs_path", "drawdown/state.json")
+            gcs_path = persistence_config.get(
+                "gcs_path"
+            )  # Noneの場合はcreate_persistenceがモード別パスを生成
 
             self.persistence = create_persistence(
-                local_path=local_path, gcs_bucket=gcs_bucket, gcs_path=gcs_path
+                mode=mode, local_path=local_path, gcs_bucket=gcs_bucket, gcs_path=gcs_path
             )
 
         # 状態管理
@@ -1221,19 +1229,27 @@ class DrawdownManager:
 
             if state.get("current_session"):
                 session_data = state["current_session"]
-                self.current_session = TradingSession(
-                    start_time=datetime.fromisoformat(session_data["start_time"]),
-                    end_time=(
-                        datetime.fromisoformat(session_data["end_time"])
-                        if session_data.get("end_time")
-                        else None
-                    ),
-                    reason=session_data.get("reason", ""),
-                    initial_balance=session_data.get("initial_balance", 0.0),
-                    final_balance=session_data.get("final_balance"),
-                    total_trades=session_data.get("total_trades", 0),
-                    profitable_trades=session_data.get("profitable_trades", 0),
-                )
+                # 型チェック：dictであることを確認（後方互換性）
+                if isinstance(session_data, dict):
+                    self.current_session = TradingSession(
+                        start_time=datetime.fromisoformat(session_data["start_time"]),
+                        end_time=(
+                            datetime.fromisoformat(session_data["end_time"])
+                            if session_data.get("end_time")
+                            else None
+                        ),
+                        reason=session_data.get("reason", ""),
+                        initial_balance=session_data.get("initial_balance", 0.0),
+                        final_balance=session_data.get("final_balance"),
+                        total_trades=session_data.get("total_trades", 0),
+                        profitable_trades=session_data.get("profitable_trades", 0),
+                    )
+                else:
+                    # 古い形式（文字列など）の場合は新セッション開始
+                    self.logger.warning(
+                        f"古い形式のcurrent_session検出、新セッション開始: {type(session_data)}"
+                    )
+                    self.current_session = None
 
             # 🚨 CRITICAL FIX: 異常な状態のサニティチェック強化版
             needs_reset = False

@@ -57,7 +57,9 @@ class TestRFModel:
         """デフォルトパラメータ初期化テスト"""
         model = RFModel()
 
-        assert model.model_params["n_jobs"] == -1
+        assert (
+            model.model_params["n_jobs"] == 1
+        )  # Python 3.13 Parallel処理エラー回避のため単一スレッド化
         assert model.model_params["criterion"] == "gini"
         assert model.model_params["random_state"] == 42  # 環境変数から設定
         assert model.model_params["warm_start"] is False

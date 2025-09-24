@@ -412,11 +412,14 @@ class BitbankClient:
                     context={"price": price},
                 )
 
-            # 信用取引用パラメータ（レガシーから継承・実証済み設定）
+            # 信用取引用パラメータ（bitbank API仕様対応・2025/09/23更新）
             params = {
                 "margin": True,  # 信用取引有効
                 "marginType": "isolated",  # 分離マージン
                 "leverage": self.leverage,  # レバレッジ倍率
+                "position_side": (
+                    "long" if side.lower() == "buy" else "short"
+                ),  # bitbank信用取引必須パラメータ
             }
 
             # ショート注文の場合の特別な処理（レガシーから継承）

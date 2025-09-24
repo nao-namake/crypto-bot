@@ -24,18 +24,34 @@ from pathlib import Path
 # srcディレクトリをPythonパスに追加
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# .env環境変数の読み込み（優先順位: .env > 環境変数）
-try:
-    from dotenv import load_dotenv
-    # config/secrets/.envファイルを読み込み（Discord Webhook URL等）
-    env_path = Path(__file__).parent / "config/secrets/.env"
-    if env_path.exists():
-        load_dotenv(env_path)
-        print(f"✅ 環境変数読み込み: {env_path}")
-    else:
-        print("⚠️ .envファイルが見つかりません（オプション）")
-except ImportError:
-    print("⚠️ python-dotenvが利用できません（オプション）")
+# .env環境変数の読み込み（python-dotenv不要版）
+env_path = Path(__file__).parent / "config/secrets/.env"
+if env_path.exists():
+    print(f"✅ 環境変数読み込み: {env_path}")
+
+    # .envファイルから直接読み込んで環境変数に設定
+    try:
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line_no, line in enumerate(f, 1):
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    try:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+                    except ValueError:
+                        print(f"⚠️ 環境変数解析エラー (行{line_no}): {line}")
+    except Exception as e:
+        print(f"❌ .envファイル読み込みエラー: {e}")
+
+    # 重要な環境変数の設定確認
+    required_vars = ['BITBANK_API_KEY', 'BITBANK_API_SECRET', 'DISCORD_WEBHOOK_URL']
+    for var in required_vars:
+        if var in os.environ and os.environ[var]:
+            print(f"✅ {var}: 設定済み（{len(os.environ[var])}文字）")
+        else:
+            print(f"⚠️ {var}: 未設定または空")
+else:
+    print("⚠️ .envファイルが見つかりません（オプション）")
 
 try:
     from src.core.config import load_config

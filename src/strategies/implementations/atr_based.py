@@ -271,10 +271,10 @@ class ATRBasedStrategy(StrategyBase):
                     # より乖離の大きい指標を採用
                     if bb_deviation > rsi_deviation:
                         action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
-                        base_confidence = 0.25 + total_deviation * 0.3
+                        base_confidence = 0.15 + total_deviation * 0.2  # 基準値と係数を下げる
                     else:
                         action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
-                        base_confidence = 0.25 + total_deviation * 0.3
+                        base_confidence = 0.15 + total_deviation * 0.2  # 基準値と係数を下げる
                     confidence = base_confidence
                     strength = total_deviation
                     reason = f"微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
@@ -284,9 +284,9 @@ class ATRBasedStrategy(StrategyBase):
                     )
             # ボラティリティ調整適用
             confidence *= volatility_penalty
-            # 高ボラティリティボーナス
+            # 高ボラティリティボーナス（制限を緩やかに）
             if atr_analysis["regime"] == "high":
-                confidence = min(confidence * 1.2, 1.0)
+                confidence = min(confidence * 1.05, 0.8)  # ボーナス制限と上限を下げる
             # 最小信頼度チェック（緩和済み）
             if confidence < self.config["min_confidence"]:
                 # 完全拒否ではなく、動的に調整された信頼度を記録

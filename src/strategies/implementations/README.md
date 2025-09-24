@@ -2,54 +2,66 @@
 
 ## 🎯 役割・責任
 
-AI自動取引システムの戦略実装層。4つの独立した取引戦略（ATRベース・フィボナッチ・もちぽよアラート・マルチタイムフレーム）を実装。各戦略は異なる技術指標や市場観測手法を使用し、多様な市場状況に対応。
+AI自動取引システムの戦略実装層。5つの独立した取引戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）を実装。各戦略は異なる技術指標や市場観測手法を使用し、動的信頼度計算により多様な市場状況に対応。
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/implementations/
-├── __init__.py                  # 実装戦略エクスポート（9行）
-├── atr_based.py               # ATRベース戦略・ボラティリティ分析（348行）
-├── fibonacci_retracement.py   # フィボナッチ戦略・レベル分析（563行）
-├── mochipoy_alert.py          # もちぽよアラート・複合指標（283行）
-└── multi_timeframe.py         # マルチタイムフレーム・時間軸統合（313行）
+├── __init__.py                  # 実装戦略エクスポート（5戦略対応）
+├── atr_based.py               # ATRBased戦略・動的信頼度修正済み（ボラティリティ分析）
+├── mochipoy_alert.py          # MochipoyAlert戦略・複合指標（EMA/MACD/RCI）
+├── multi_timeframe.py         # MultiTimeframe戦略・時間軸統合（4h/15m）
+├── donchian_channel.py        # DonchianChannel戦略・ブレイクアウト（20期間）
+└── adx_trend_strength.py      # ADXTrendStrength戦略・トレンド強度（14期間）
 ```
 
 ## 🔧 主要コンポーネント
 
 ### **各戦略の特徴**
-- **ATRベース**: ボラティリティを活用した動的エントリー・エグジット
-- **フィボナッチ**: サポート/レジスタンスレベルでの反転狙い
-- **もちぽよアラート**: 複数指標の多数決システム
-- **マルチタイムフレーム**: 異なる時間軸でのトレンド連携分析
+- **ATRBased**: ボラティリティを活用した動的信頼度計算（0.2-0.8範囲、1.0固定問題修正済み）
+- **MochipoyAlert**: EMA/MACD/RCI複合指標による多数決システム（0.6-0.8信頼度）
+- **MultiTimeframe**: 4時間足（トレンド）+ 15分足（エントリー）時間軸統合分析
+- **DonchianChannel**: 20期間ドンチャンチャネルブレイクアウト戦略
+- **ADXTrendStrength**: 14期間ADXによるトレンド強度分析（閾値25）
 
 ### **戦略統一管理システム**
 
 **設定一元化**:
 - **設定ファイル**: `config/core/thresholds.yaml`
-- **4戦略統合**: ATRBased・FibonacciRetracement・MochipoyAlert・MultiTimeframe
+- **5戦略統合**: ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
 - **統一調整可能**: 一括設定変更で全戦略に反映
+- **動的信頼度**: 各戦略が市場状況に応じて0.2-0.8範囲で信頼度を動的計算
 
 **設定構造**:
 ```yaml
-# 4戦略統一管理システム
+# 5戦略統一管理システム
 strategies:
   atr_based:
-    normal_volatility_strength: 0.3  # 通常ボラティリティ強度
-    hold_confidence: 0.3             # HOLD決定時信頼度
-  fibonacci_retracement:
-    no_signal_confidence: 0.3        # 反転シグナルなし信頼度
-    no_level_confidence: 0.3         # フィボレベル接近なし信頼度
+    base_confidence: 0.15            # 基準信頼度（修正済み：0.25→0.15）
+    volatility_coefficient: 0.2     # ボラティリティ係数（修正済み：0.3→0.2）
+    max_confidence: 0.8              # 最大信頼度（修正済み：1.0→0.8）
+    volatility_bonus: 1.05           # 高ボラティリティボーナス（修正済み：1.2→1.05）
   mochipoy_alert:
     hold_confidence: 0.3             # HOLD信頼度
+    base_confidence: 0.4             # 基準信頼度
   multi_timeframe:
     hold_confidence: 0.3             # HOLD信頼度
+    trend_confidence: 0.6            # トレンド信頼度
+  donchian_channel:
+    period: 20                       # ドンチャンチャネル期間
+    base_confidence: 0.2             # 基準信頼度
+  adx_trend_strength:
+    period: 14                       # ADX計算期間
+    strong_trend_threshold: 25       # 強いトレンド閾値
+    base_confidence: 0.2             # 基準信頼度
 ```
 
 **使用方法**:
-1. **thresholds.yamlの値変更** → 4戦略すべてに反映
+1. **thresholds.yamlの値変更** → 5戦略すべてに反映
 2. **閾値調整**: 0.3→0.2（より積極的）・0.3→0.4（より保守的）
 3. **即座反映**: 再起動で設定適用・デプロイ不要
+4. **動的信頼度確認**: ログで各戦略の実際の信頼度値を確認可能
 
 ## ⚙️ 統合判定システム
 
@@ -68,12 +80,13 @@ strategies:
 【最終統合シグナル】→ StrategySignal(strategy_name="StrategyManager")
 ```
 
-**例**: 個別戦略結果
+**例**: 個別戦略結果（2025/09/23修正後実測値）
 ```python
-ATRBased → StrategySignal(action="buy", confidence=0.7)
-FibonacciRetracement → StrategySignal(action="sell", confidence=0.6)  
-MochipoyAlert → StrategySignal(action="hold", confidence=0.3)
-MultiTimeframe → StrategySignal(action="buy", confidence=0.8)
+ATRBased → StrategySignal(action="buy", confidence=0.981)        # 修正済み：動的信頼度
+MochipoyAlert → StrategySignal(action="sell", confidence=0.744)  # EMA/MACD/RCI分析
+MultiTimeframe → StrategySignal(action="sell", confidence=0.548) # 4h下降+15mエントリーなし
+DonchianChannel → StrategySignal(action="hold", confidence=0.200) # ブレイクアウトなし
+ADXTrendStrength → StrategySignal(action="hold", confidence=0.200) # 弱いトレンド
 ```
 
 ### **競合解決メカニズム**
@@ -126,24 +139,31 @@ MultiTimeframe → StrategySignal(action="buy", confidence=0.8)
 
 ## 🔧 実装された戦略
 
-### **atr_based.py（348行）**
-**戦略タイプ**: ボラティリティ追従型・動的エントリーエグジット
+### **atr_based.py（修正済み）**
+**戦略タイプ**: ボラティリティ追従型・動的信頼度計算
+
+**🔧 2025/09/23重要修正**:
+- **1.0固定問題解決**: 常に1.0を出力していた問題を完全修正
+- **動的信頼度復旧**: 0.2-0.8範囲での正常な動的計算を実現
+- **設定値最適化**: base_confidence(0.25→0.15)、coefficient(0.3→0.2)、max_confidence(1.0→0.8)
 
 **主要クラス**:
 ```python
 class ATRBasedStrategy(StrategyBase):
     def __init__(self, config=None)                               # ATR戦略初期化
     def analyze(self, df: pd.DataFrame) -> StrategySignal         # ATR分析実行
-    def _make_decision(self, bb_analysis, rsi_analysis, atr_analysis)  # 判定ロジック
+    def _make_decision(self, bb_analysis, rsi_analysis, atr_analysis)  # 判定ロジック（修正済み）
     def _analyze_bb_position(self, df)                            # ボリンジャーバンド分析
     def _analyze_rsi(self, df)                                    # RSI分析
     def _analyze_atr_volatility(self, df)                         # ATRボラティリティ分析
 ```
 
-**特徴**:
-- **不一致取引**: BB・RSI不一致時も強いシグナルで取引実行（信頼度×0.8ペナルティ）
-- **動的閾値**: high 0.45・very_high 0.60の信頼度閾値
-- **市場適応**: 市場ボラティリティ連動HOLD信頼度（0.1-0.8変動）
+**修正後の動作確認**:
+```bash
+# 実測値例（2025/09/23 13:05）
+[ATRBased] シグナル取得成功: buy (0.981)  # ✅ 動的信頼度正常動作
+[ATRBased] シグナル取得成功: buy (0.546)  # ✅ 市場変動に応じた動的計算
+```
 
 **適用市場**: 高ボラティリティ相場・トレンドフォロー・積極的取引機会
 

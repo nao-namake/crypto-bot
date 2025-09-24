@@ -380,10 +380,10 @@ async def create_trading_orchestrator(
         ml_service = MLServiceAdapter(logger)
         logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
-        # Phase 6: リスクサービス（BitbankAPI実残高取得対応）
+        # Phase 6: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
         initial_balance = await _get_actual_balance(config, logger)
         risk_service = create_risk_manager(
-            config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance
+            config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance, mode=config.mode
         )
 
         # Phase 22統合: 実行サービス（risk_manager統合）
@@ -397,9 +397,7 @@ async def create_trading_orchestrator(
         # Phase 7: 取引実行サービス（新規実装）
         from ...trading.execution_service import ExecutionService
 
-        execution_service = ExecutionService(
-            mode=execution_mode, bitbank_client=bitbank_client if execution_mode == "live" else None
-        )
+        execution_service = ExecutionService(mode=execution_mode, bitbank_client=bitbank_client)
         execution_service.update_balance(initial_balance)
 
         # TradingOrchestrator組み立て
@@ -437,12 +435,32 @@ async def create_trading_orchestrator(
 
 # BitbankAPI実残高取得関数
 async def _get_actual_balance(config, logger) -> float:
-    """BitbankAPIから実際の残高を取得（フォールバック対応）"""
+    """残高取得（モード別一元管理対応・Phase 23）"""
+
+    # モード別初期残高をunified.yamlから取得（Phase 23一元管理）
+    def _get_mode_balance(mode: str) -> float:
+        """mode_balancesから該当モードの初期残高を取得"""
+        from ..config import load_config
+
+        unified_config = load_config("config/core/unified.yaml")
+        mode_balances = getattr(unified_config, "mode_balances", {})
+        mode_balance_config = mode_balances.get(mode, {})
+        return mode_balance_config.get("initial_balance", 10000.0)
+
+    # ペーパーモード時は即座にmode_balances残高を使用（API呼び出し回避）
+    current_mode = getattr(config, "mode", "paper").lower()  # 大文字小文字統一
+    if current_mode == "paper":
+        logger.info("📝 ペーパーモード: API呼び出しをスキップ、mode_balances残高使用")
+        mode_balance = _get_mode_balance(current_mode)
+        logger.info(f"💰 ペーパーモード残高（mode_balances）: {mode_balance}円")
+        return mode_balance
+
+    # ライブモード時のみAPI呼び出し実行
     try:
         from ...core.exceptions import ExchangeAPIError
         from ...data.bitbank_client import BitbankClient
 
-        logger.info("🏦 BitbankAPI実残高取得開始")
+        logger.info("🏦 BitbankAPI実残高取得開始（ライブモード）")
 
         # BitbankClientで実際の残高を取得（Cloud Run環境デバッグ強化）
         bitbank_client = BitbankClient()
@@ -457,14 +475,10 @@ async def _get_actual_balance(config, logger) -> float:
         logger.info(f"💴 JPY残高詳細: 自由残高={jpy_balance}, 総残高={total_balance}")
 
         if jpy_balance <= 0:
-            logger.warning(f"⚠️ Bitbank残高が0円以下（{jpy_balance}円）、フォールバック値使用")
-            # 統一設定管理体系: unified.yamlからフォールバック残高取得
-            from ..config import load_config
-
-            config = load_config("config/core/unified.yaml")
-            drawdown_config = getattr(config.risk, "drawdown_manager", {})
-            fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
-            logger.info(f"💰 フォールバック残高: {fallback_balance}円")
+            logger.warning(f"⚠️ Bitbank残高が0円以下（{jpy_balance}円）、mode_balances値使用")
+            # Phase 23一元管理: mode_balancesからフォールバック残高取得
+            fallback_balance = _get_mode_balance(current_mode)
+            logger.info(f"💰 フォールバック残高（mode_balances）: {fallback_balance}円")
             return fallback_balance
 
         logger.info(f"✅ Bitbank実残高取得成功: {jpy_balance:,.0f}円")
@@ -472,24 +486,16 @@ async def _get_actual_balance(config, logger) -> float:
 
     except ExchangeAPIError as e:
         logger.error(f"❌ BitbankAPI認証エラー: {e}")
-        # 統一設定管理体系: unified.yamlからフォールバック残高取得
-        from ..config import load_config
-
-        config = load_config("config/core/unified.yaml")
-        drawdown_config = getattr(config.risk, "drawdown_manager", {})
-        fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
-        logger.warning(f"💰 認証エラーのためフォールバック残高使用: {fallback_balance}円")
+        # Phase 23一元管理: mode_balancesからフォールバック残高取得
+        fallback_balance = _get_mode_balance(current_mode)
+        logger.warning(f"💰 認証エラーのためmode_balances残高使用: {fallback_balance}円")
         return fallback_balance
 
     except Exception as e:
         logger.error(f"❌ 残高取得予期しないエラー: {e}")
-        # 統一設定管理体系: unified.yamlからフォールバック残高取得
-        from ..config import load_config
-
-        config = load_config("config/core/unified.yaml")
-        drawdown_config = getattr(config.risk, "drawdown_manager", {})
-        fallback_balance = drawdown_config.get("fallback_balance", 11000.0)
-        logger.warning(f"💰 エラーのためフォールバック残高使用: {fallback_balance}円")
+        # Phase 23一元管理: mode_balancesからフォールバック残高取得
+        fallback_balance = _get_mode_balance(current_mode)
+        logger.warning(f"💰 エラーのためmode_balances残高使用: {fallback_balance}円")
         return fallback_balance
 
 

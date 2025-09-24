@@ -31,6 +31,7 @@ PID_FILE="/tmp/crypto_bot_${USER}.pid"
 DEFAULT_ENVIRONMENT="local"
 DEFAULT_MODE="paper"
 DEFAULT_TIMEOUT=14400  # 4時間
+BACKGROUND_MODE=false  # デフォルト: フォアグラウンド実行
 
 # OS判定
 OS_TYPE="$(uname -s)"
@@ -69,17 +70,24 @@ show_usage() {
     echo "  environment  実行環境 (local|gcp) [default: local]"
     echo "  mode         動作モード (paper|live|backtest) [default: paper]"
     echo ""
+    echo "オプション:"
+    echo "  --background バックグラウンド実行（非推奨：Claude Code誤認識の原因）"
+    echo ""
     echo "特別コマンド:"
     echo "  status       実行状況確認"
     echo "  stop         強制停止"
     echo "  cleanup      ロックファイル削除"
     echo ""
     echo "例:"
-    echo "  $0 local paper       # ローカルペーパートレード"
-    echo "  $0 local live        # ローカルライブトレード"
-    echo "  $0 gcp live          # GCP環境ライブトレード"
-    echo "  $0 status            # 実行状況確認"
-    echo "  $0 stop              # 強制停止"
+    echo "  $0 local paper              # フォアグラウンド実行（推奨）"
+    echo "  $0 local paper --background # バックグラウンド実行（非推奨）"
+    echo "  $0 local live               # ローカルライブトレード"
+    echo "  $0 gcp live                 # GCP環境ライブトレード"
+    echo "  $0 status                   # 実行状況確認"
+    echo "  $0 stop                     # 強制停止"
+    echo ""
+    echo "⚠️ 注意: Claude Codeで実行時は --background を使用しないでください"
+    echo "   バックグラウンドプロセスが終了後も'running'として誤認識される問題があります"
 }
 
 # ========================================
@@ -295,7 +303,7 @@ run_bot() {
 
     # ペーパーモード時のドローダウン自動リセット
     if [ "$mode" = "paper" ]; then
-        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/drawdown_state.json"
+        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/paper/drawdown_state.json"
         if [ -f "$DRAWDOWN_FILE" ]; then
             log_info "🔄 ドローダウン状態リセット（ペーパーモード）"
             rm -f "$DRAWDOWN_FILE"
@@ -306,51 +314,60 @@ run_bot() {
     log_info "   環境: $environment"
     log_info "   モード: $mode"
     log_info "   タイムアウト: ${timeout}秒"
+    log_info "   実行方式: $([ "$BACKGROUND_MODE" = true ] && echo "バックグラウンド" || echo "フォアグラウンド")"
     log_info "   PID: $$"
+
+    # バックグラウンドモード時の警告
+    if [ "$BACKGROUND_MODE" = true ]; then
+        log_warn "⚠️ バックグラウンド実行モード: Claude Code使用時は非推奨"
+        log_warn "   プロセス終了後も'running'として誤認識される可能性があります"
+    fi
 
     # PIDファイル作成（親プロセス情報記録）
     echo "$$" > "$PID_FILE"
     echo "$(date '+%Y-%m-%d %H:%M:%S')" >> "$PID_FILE"
     echo "$mode" >> "$PID_FILE"
 
-    # タイムアウト設定（GCP環境のみ）
-    if [ "$environment" = "gcp" ]; then
+    # 実行結果変数
+    local result=0
+
+    # バックグラウンド vs フォアグラウンド実行
+    if [ "$BACKGROUND_MODE" = true ]; then
+        # バックグラウンド実行（従来の方式・非推奨）
+        log_warn "🔄 バックグラウンド実行開始（非推奨モード）"
+
+        # Python直接実行（バックグラウンド）
+        python3 "$PROJECT_ROOT/main.py" --mode "$mode" &
+        local bg_pid=$!
+        log_info "✅ バックグラウンドプロセス起動: PID=$bg_pid"
+        result=0
+    else
+        # フォアグラウンド実行（推奨・タイムアウト付き）
+        log_info "🔄 フォアグラウンド実行開始（タイムアウト: ${timeout}秒）"
+
+        # タイムアウト監視プロセス開始
         (
             sleep "$timeout"
-            log_warn "⏰ タイムアウト（${timeout}秒）により終了"
-            kill -TERM $$ 2>/dev/null || true
+            if kill -0 $$ 2>/dev/null; then
+                log_error "[TIMEOUT] ❌ タイムアウト（${timeout}秒超過）- プロセス強制終了"
+                kill -TERM $$ 2>/dev/null || true
+            fi
         ) &
-        timeout_pid=$!
-    fi
+        local timeout_pid=$!
 
-    # プロセスグループ設定でBot実行
-    # OS別のプロセス実行方法
-    log_info "🔍 OS判定デバッグ: OS_TYPE=$OS_TYPE, IS_MACOS=$IS_MACOS"
-    if [ "$IS_MACOS" = true ]; then
-        # macOS: ヘルパースクリプト経由で実行（import問題対応）
-        log_info "macOSモード: ヘルパースクリプト経由でプロセス実行"
-        if "${SCRIPT_DIR}/run_python.sh" --mode "$mode"; then
+        # Python直接実行（フォアグラウンド）
+        if python3 "$PROJECT_ROOT/main.py" --mode "$mode"; then
             log_info "✅ Bot正常終了"
             result=0
         else
-            log_error "❌ Bot異常終了"
-            result=1
+            result=$?
+            log_error "❌ Bot異常終了: 終了コード=$result"
         fi
-    else
-        # Linux: setsidを使用
-        log_info "Linuxモード: setsidを使用してプロセス実行"
-        if setsid "${SCRIPT_DIR}/run_python.sh" --mode "$mode"; then
-            log_info "✅ Bot正常終了"
-            result=0
-        else
-            log_error "❌ Bot異常終了"
-            result=1
-        fi
-    fi
 
-    # タイムアウトプロセス終了
-    if [ "$environment" = "gcp" ] && [ -n "${timeout_pid:-}" ]; then
-        kill "$timeout_pid" 2>/dev/null || true
+        # タイムアウト監視プロセス終了
+        if kill -0 "$timeout_pid" 2>/dev/null; then
+            kill "$timeout_pid" 2>/dev/null || true
+        fi
     fi
 
     # トラップ解除とクリーンアップ
@@ -388,7 +405,22 @@ run_with_monitoring() {
 # ========================================
 
 main() {
-    local command="${1:-}"
+    # --backgroundオプション解析
+    for arg in "$@"; do
+        if [ "$arg" = "--background" ]; then
+            BACKGROUND_MODE=true
+        fi
+    done
+
+    # 引数から--backgroundを除外
+    local args=()
+    for arg in "$@"; do
+        if [ "$arg" != "--background" ]; then
+            args+=("$arg")
+        fi
+    done
+
+    local command="${args[0]:-}"
 
     case "$command" in
         "status")
@@ -435,8 +467,8 @@ main() {
 
         *)
             # 通常実行
-            local environment="${1:-$DEFAULT_ENVIRONMENT}"
-            local mode="${2:-$DEFAULT_MODE}"
+            local environment="${args[0]:-$DEFAULT_ENVIRONMENT}"
+            local mode="${args[1]:-$DEFAULT_MODE}"
 
             # 引数検証
             if [[ ! "$environment" =~ ^(local|gcp)$ ]]; then
@@ -470,7 +502,6 @@ main() {
                 echo ""
                 exit 1
             fi
-            ;;
     esac
 }
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/core/state/drawdown_persistence.py: 37.30%</title>
+    <title>Coverage for src/core/state/drawdown_persistence.py: 39.23%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/core/state/drawdown_persistence.py</b>:
-            <span class="pc_cov">37.30%</span>
+            <span class="pc_cov">39.23%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">126 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">47<span class="text"> run</span></button>
+            <span class="text">130 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">51<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">79<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">33<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e5ccf62099f28249___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-23 05:45 +0900
+            created at 2025-09-24 04:56 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -317,36 +317,44 @@
     <p class="pln"><span class="n"><a id="t235" href="#t235">235</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t236" href="#t236">236</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t237" href="#t237">237</a></span><span class="t"><span class="key">def</span> <span class="nam">create_persistence</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t238" href="#t238">238</a></span><span class="t">    <span class="nam">local_path</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="str">"src/core/state/drawdown_state.json"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">    <span class="nam">gcs_bucket</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">    <span class="nam">gcs_path</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="str">"drawdown/state.json"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t241" href="#t241">241</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">DrawdownPersistence</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t242" href="#t242">242</a></span><span class="t">    <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t243" href="#t243">243</a></span><span class="t"><span class="str">    &#29872;&#22659;&#12395;&#24540;&#12376;&#12390;&#36969;&#20999;&#12394;&#27704;&#32154;&#21270;&#23455;&#35013;&#12434;&#20316;&#25104;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t244" href="#t244">244</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t245" href="#t245">245</a></span><span class="t"><span class="str">    Args:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t246" href="#t246">246</a></span><span class="t"><span class="str">        local_path: &#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#12497;&#12473;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t247" href="#t247">247</a></span><span class="t"><span class="str">        gcs_bucket: Cloud Storage&#12496;&#12465;&#12483;&#12488;&#21517;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t248" href="#t248">248</a></span><span class="t"><span class="str">        gcs_path: Cloud Storage&#12458;&#12502;&#12472;&#12455;&#12463;&#12488;&#12497;&#12473;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t249" href="#t249">249</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t250" href="#t250">250</a></span><span class="t"><span class="str">    Returns:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t251" href="#t251">251</a></span><span class="t"><span class="str">        DrawdownPersistence&#23455;&#35013;&#12452;&#12531;&#12473;&#12479;&#12531;&#12473;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t252" href="#t252">252</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t253" href="#t253">253</a></span><span class="t">    <span class="nam">logger</span> <span class="op">=</span> <span class="nam">get_logger</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t254" href="#t254">254</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t255" href="#t255">255</a></span><span class="t">    <span class="com"># GCP&#29872;&#22659;&#21028;&#23450;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t256" href="#t256">256</a></span><span class="t">    <span class="nam">is_gcp</span> <span class="op">=</span> <span class="nam">os</span><span class="op">.</span><span class="nam">getenv</span><span class="op">(</span><span class="str">"RUNNING_ON_GCP"</span><span class="op">,</span> <span class="str">"false"</span><span class="op">)</span><span class="op">.</span><span class="nam">lower</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="str">"true"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">    <span class="key">if</span> <span class="nam">is_gcp</span> <span class="key">and</span> <span class="nam">gcs_bucket</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">            <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Cloud Storage&#27704;&#32154;&#21270;&#12434;&#36984;&#25246;: gs://</span><span class="op">{</span><span class="nam">gcs_bucket</span><span class="op">}</span><span class="fst">/</span><span class="op">{</span><span class="nam">gcs_path</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">            <span class="key">return</span> <span class="nam">CloudStoragePersistence</span><span class="op">(</span><span class="nam">gcs_bucket</span><span class="op">,</span> <span class="nam">gcs_path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">            <span class="nam">logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Cloud Storage&#21021;&#26399;&#21270;&#22833;&#25943;&#12289;&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#12395;&#12501;&#12457;&#12540;&#12523;&#12496;&#12483;&#12463;: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">    <span class="com"># &#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#27704;&#32154;&#21270;&#65288;&#12487;&#12501;&#12457;&#12523;&#12488;&#65289;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">    <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#27704;&#32154;&#21270;&#12434;&#36984;&#25246;: </span><span class="op">{</span><span class="nam">local_path</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">    <span class="key">return</span> <span class="nam">LocalFilePersistence</span><span class="op">(</span><span class="nam">local_path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t238" href="#t238">238</a></span><span class="t">    <span class="nam">mode</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="str">"paper"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">    <span class="nam">local_path</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">    <span class="nam">gcs_bucket</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t241" href="#t241">241</a></span><span class="t">    <span class="nam">gcs_path</span><span class="op">:</span> <span class="nam">str</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t242" href="#t242">242</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">DrawdownPersistence</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t243" href="#t243">243</a></span><span class="t">    <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t244" href="#t244">244</a></span><span class="t"><span class="str">    &#29872;&#22659;&#12395;&#24540;&#12376;&#12390;&#36969;&#20999;&#12394;&#27704;&#32154;&#21270;&#23455;&#35013;&#12434;&#20316;&#25104;&#65288;&#12514;&#12540;&#12489;&#21029;&#20998;&#38626;&#23550;&#24540;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t245" href="#t245">245</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t246" href="#t246">246</a></span><span class="t"><span class="str">    Args:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t247" href="#t247">247</a></span><span class="t"><span class="str">        mode: &#23455;&#34892;&#12514;&#12540;&#12489;&#65288;"paper"/"live"/"backtest"&#65289;- &#29366;&#24907;&#12501;&#12449;&#12452;&#12523;&#20998;&#38626;&#29992;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t248" href="#t248">248</a></span><span class="t"><span class="str">        local_path: &#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#12497;&#12473;&#65288;None&#12398;&#22580;&#21512;&#12399;&#12514;&#12540;&#12489;&#21029;&#12487;&#12501;&#12457;&#12523;&#12488;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t249" href="#t249">249</a></span><span class="t"><span class="str">        gcs_bucket: Cloud Storage&#12496;&#12465;&#12483;&#12488;&#21517;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t250" href="#t250">250</a></span><span class="t"><span class="str">        gcs_path: Cloud Storage&#12458;&#12502;&#12472;&#12455;&#12463;&#12488;&#12497;&#12473;&#65288;None&#12398;&#22580;&#21512;&#12399;&#12514;&#12540;&#12489;&#21029;&#12487;&#12501;&#12457;&#12523;&#12488;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t251" href="#t251">251</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t252" href="#t252">252</a></span><span class="t"><span class="str">    Returns:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t253" href="#t253">253</a></span><span class="t"><span class="str">        DrawdownPersistence&#23455;&#35013;&#12452;&#12531;&#12473;&#12479;&#12531;&#12473;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t254" href="#t254">254</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t255" href="#t255">255</a></span><span class="t">    <span class="nam">logger</span> <span class="op">=</span> <span class="nam">get_logger</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t256" href="#t256">256</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">    <span class="com"># &#12514;&#12540;&#12489;&#21029;&#12487;&#12501;&#12457;&#12523;&#12488;&#12497;&#12473;&#35373;&#23450;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">    <span class="key">if</span> <span class="nam">local_path</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">        <span class="nam">local_path</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">src/core/state/</span><span class="op">{</span><span class="nam">mode</span><span class="op">}</span><span class="fst">/drawdown_state.json</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">    <span class="key">if</span> <span class="nam">gcs_path</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">        <span class="nam">gcs_path</span> <span class="op">=</span> <span class="fst">f"</span><span class="fst">drawdown/</span><span class="op">{</span><span class="nam">mode</span><span class="op">}</span><span class="fst">/state.json</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t262" href="#t262">262</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t263" href="#t263">263</a></span><span class="t">    <span class="com"># GCP&#29872;&#22659;&#21028;&#23450;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">    <span class="nam">is_gcp</span> <span class="op">=</span> <span class="nam">os</span><span class="op">.</span><span class="nam">getenv</span><span class="op">(</span><span class="str">"RUNNING_ON_GCP"</span><span class="op">,</span> <span class="str">"false"</span><span class="op">)</span><span class="op">.</span><span class="nam">lower</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="str">"true"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">    <span class="key">if</span> <span class="nam">is_gcp</span> <span class="key">and</span> <span class="nam">gcs_bucket</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">            <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Cloud Storage&#27704;&#32154;&#21270;&#12434;&#36984;&#25246;&#65288;</span><span class="op">{</span><span class="nam">mode</span><span class="op">}</span><span class="fst">&#12514;&#12540;&#12489;&#65289;: gs://</span><span class="op">{</span><span class="nam">gcs_bucket</span><span class="op">}</span><span class="fst">/</span><span class="op">{</span><span class="nam">gcs_path</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">            <span class="key">return</span> <span class="nam">CloudStoragePersistence</span><span class="op">(</span><span class="nam">gcs_bucket</span><span class="op">,</span> <span class="nam">gcs_path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t">            <span class="nam">logger</span><span class="op">.</span><span class="nam">warning</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Cloud Storage&#21021;&#26399;&#21270;&#22833;&#25943;&#12289;&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#12395;&#12501;&#12457;&#12540;&#12523;&#12496;&#12483;&#12463;: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t272" href="#t272">272</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t273" href="#t273">273</a></span><span class="t">    <span class="com"># &#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#27704;&#32154;&#21270;&#65288;&#12487;&#12501;&#12457;&#12523;&#12488;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t274" href="#t274">274</a></span><span class="t">    <span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#27704;&#32154;&#21270;&#12434;&#36984;&#25246;&#65288;</span><span class="op">{</span><span class="nam">mode</span><span class="op">}</span><span class="fst">&#12514;&#12540;&#12489;&#65289;: </span><span class="op">{</span><span class="nam">local_path</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t275" href="#t275">275</a></span><span class="t">    <span class="key">return</span> <span class="nam">LocalFilePersistence</span><span class="op">(</span><span class="nam">local_path</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -356,7 +364,7 @@
             <a class="nav" href="z_e5ccf62099f28249___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-09-23 05:45 +0900
+            created at 2025-09-24 04:56 +0900
         </p>
     </div>
 </footer>

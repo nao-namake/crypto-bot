@@ -235,33 +235,41 @@ class CloudStoragePersistence(DrawdownPersistence):
 
 
 def create_persistence(
-    local_path: str = "src/core/state/drawdown_state.json",
+    mode: str = "paper",
+    local_path: str = None,
     gcs_bucket: str = None,
-    gcs_path: str = "drawdown/state.json",
+    gcs_path: str = None,
 ) -> DrawdownPersistence:
     """
-    環境に応じて適切な永続化実装を作成
+    環境に応じて適切な永続化実装を作成（モード別分離対応）
 
     Args:
-        local_path: ローカルファイルパス
+        mode: 実行モード（"paper"/"live"/"backtest"）- 状態ファイル分離用
+        local_path: ローカルファイルパス（Noneの場合はモード別デフォルト）
         gcs_bucket: Cloud Storageバケット名
-        gcs_path: Cloud Storageオブジェクトパス
+        gcs_path: Cloud Storageオブジェクトパス（Noneの場合はモード別デフォルト）
 
     Returns:
         DrawdownPersistence実装インスタンス
     """
     logger = get_logger()
 
+    # モード別デフォルトパス設定
+    if local_path is None:
+        local_path = f"src/core/state/{mode}/drawdown_state.json"
+    if gcs_path is None:
+        gcs_path = f"drawdown/{mode}/state.json"
+
     # GCP環境判定
     is_gcp = os.getenv("RUNNING_ON_GCP", "false").lower() == "true"
 
     if is_gcp and gcs_bucket:
         try:
-            logger.info(f"Cloud Storage永続化を選択: gs://{gcs_bucket}/{gcs_path}")
+            logger.info(f"Cloud Storage永続化を選択（{mode}モード）: gs://{gcs_bucket}/{gcs_path}")
             return CloudStoragePersistence(gcs_bucket, gcs_path)
         except Exception as e:
             logger.warning(f"Cloud Storage初期化失敗、ローカルファイルにフォールバック: {e}")
 
     # ローカルファイル永続化（デフォルト）
-    logger.info(f"ローカルファイル永続化を選択: {local_path}")
+    logger.info(f"ローカルファイル永続化を選択（{mode}モード）: {local_path}")
     return LocalFilePersistence(local_path)

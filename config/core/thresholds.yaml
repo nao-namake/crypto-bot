@@ -74,19 +74,19 @@ trading:
     min_ml: 0.12 # 0.15→0.12 最小信頼度を下げる
     very_high: 0.6
   default_balance_jpy: 10000.0
-  fallback_btc_jpy: 16000000.0
+  fallback_btc_jpy: 16500000.0
   # Kelly基準初期取引設定（2025/09/19更新・Silent Failure修正対応）
   min_trade_size: 0.0001        # Bitbank最小取引単位（Silent Failure対策・確実な取引実行）
   initial_position_size: 0.0001  # Kelly履歴不足時の初期固定サイズ（最小取引単位・Silent Failure修正）
   kelly_min_trades: 5           # Kelly計算最小取引数（20→5に緩和）
   fallback_prices:
-    ask: 16100000.0
-    bid: 15900000.0
+    ask: 16600000.0
+    bid: 16400000.0
     default_ask: 16100000.0
     default_bid: 15900000.0
   fee_rate: 0.0012
   initial_balance_jpy: 10000.0  # unified.yamlに統一・フォールバック値は11000.0
-  minimum_live_balance: 10000
+  minimum_live_balance: 3000  # 段階的資金管理対応・3千円以下で警告（停止はしない）
   position_sizing:
     max_position_ratio: 0.05
     stop_loss_atr_multiplier: 1.2

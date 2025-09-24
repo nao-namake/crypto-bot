@@ -49,6 +49,7 @@ class ExecutionResult:                  # Phase 21: executor.pyから移行
 **実装機能**:
 - **統合リスク評価**: ML信頼度・ドローダウン・異常検知の総合判定
 - **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算・**2025/09/16ハードコード排除完了**
+  - **警告レベル最適化**: WARNING→DEBUGレベル変更でログノイズ削減（2025/09/23）
 - **動的設定取得**: get_threshold()による設定ファイル（thresholds.yaml）からの値取得・運用中変更対応
 - **3段階判定システム**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
 - **リスクスコア算出**: ML信頼度・異常・ドローダウン・連続損失・ボラティリティの重み付け統合
@@ -88,8 +89,18 @@ execution_result = ExecutionResult(
 )
 ```
 
-### **2. execution_service.py（2025/09/20新規追加）**
+### **2. execution_service.py（2025/09/20新規追加・2025/09/24最終更新）**
 **目的**: 取引実行サービス・ExecutionServiceProtocol実装・ライブ/ペーパーモード対応
+
+**🔧 2025/09/24 Phase 23追加機能**:
+- **モード別初期残高一元管理**: unified.yamlのmode_balancesから初期残高を自動取得
+- **将来の残高変更対応**: 10万円・50万円への変更も設定ファイル1箇所修正で完結
+- **ハードコード排除**: 各ファイルの個別残高設定を完全削除
+
+**🔧 2025/09/23重要修正**:
+- **ペーパートレード価格0円問題解決**: Bitbank API ticker取得機能追加
+- **フォールバック価格使用**: 16,000,000円の現実的フォールバック価格
+- **エラーハンドリング強化**: APIエラー時の適切なフォールバック処理
 
 **主要クラス**:
 ```python
@@ -105,6 +116,8 @@ class ExecutionService:
 **実装機能**:
 - **ライブトレード実行**: BitbankClient.create_orderを使用した実際の注文実行
 - **ペーパートレード実行**: 仮想ポジション管理・リスクフリー検証・統計追跡
+  - **価格取得改善**: Bitbank API ticker取得で実際の市場価格使用（2025/09/23修正）
+  - **フォールバック価格**: 16,000,000円の現実的価格使用（0円問題解決）
 - **バックテスト実行**: 簡易実行・パフォーマンステスト用
 - **エラーハンドリング**: 適切なExecutionResult返却・詳細エラーログ
 - **統計管理**: 実行取引数・セッション損益・残高・ポジション管理
@@ -134,8 +147,13 @@ print(f"実行取引数: {stats['executed_trades']}")
 print(f"セッション損益: {stats['session_pnl']}")
 ```
 
-### **3. risk_monitor.py**
-**目的**: 異常検知・ドローダウン管理統合システム（Phase 21継続）
+### **3. risk_monitor.py（2025/09/23修正）**
+**目的**: 異常検知・ドローダウン管理統合システム
+
+**🔧 2025/09/23重要修正**:
+- **状態復元エラー解決**: "string indices must be integers, not 'str'"エラーを完全解決
+- **タイプチェック強化**: current_sessionのdict型チェック追加
+- **互換性向上**: 旧形式データとの互換性確保
 
 **主要クラス**:
 ```python
@@ -163,6 +181,8 @@ class AnomalyAlert:
 - **ドローダウン管理**: 20%制限・連続損失5回制限・24時間クールダウン・強制リセット機能
 - **取引状況管理**: ACTIVE/PAUSED_DRAWDOWN/PAUSED_CONSECUTIVE_LOSS/PAUSED_MANUAL
 - **状態永続化**: JSON形式での状態保存・復元・破損検知
+  - **復元エラー修正**: current_sessionのdict型チェック追加（2025/09/23）
+  - **互換性確保**: 旧形式データでも正常動作保証
 
 **使用例**:
 ```python
@@ -312,9 +332,14 @@ python -m pytest tests/unit/trading/ --cov=src.trading
 
 ## ⚙️ 設定システム
 
-### **🎯 Kelly Criterion Silent Failure修正（2025/09/19完了）**
+### **🎯 Kelly Criterion Silent Failure修正（2025/09/19完了・2025/09/23最適化）**
 **問題**: Kelly基準がmin_trades_for_kelly不足時にポジションサイズ0で取引ブロック
 **解決**: 初期取引固定サイズ実装により確実な取引実行を保証
+
+**🔧 2025/09/23追加最適化**:
+- **警告レベル最適化**: "Kelly計算に必要な取引数不足"をWARNING→DEBUGレベルに変更
+- **ログノイズ削減**: 初期5取引での重複警告をサイレント化
+- **運用性向上**: デバッグ時のみ詳細情報を表示
 
 **修正内容**:
 - `min_trades_for_kelly`: 20→5取引に緩和（実用性向上）
@@ -324,6 +349,7 @@ python -m pytest tests/unit/trading/ --cov=src.trading
 
 **修正ファイル**:
 - `src/trading/risk_manager.py:268-278`: Kelly履歴不足時の固定サイズ実装
+- `src/trading/risk_manager.py:242`: 警告レベルWARNING→DEBUG変更（2025/09/23）
 - `config/core/thresholds.yaml:79-81`: 最小取引設定の更新
 
 ### **デフォルト設定**

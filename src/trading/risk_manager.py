@@ -312,7 +312,7 @@ class KellyCriterion:
 
             # 最小取引数チェック
             if len(filtered_trades) < self.min_trades_for_kelly:
-                self.logger.warning(
+                self.logger.debug(
                     f"Kelly計算に必要な取引数不足: {len(filtered_trades)} < {self.min_trades_for_kelly}"
                 )
                 return None
@@ -738,6 +738,7 @@ class IntegratedRiskManager:
         config: Dict[str, Any],
         initial_balance: Optional[float] = None,  # 初期残高（設定ファイル参照）
         enable_discord_notifications: bool = True,
+        mode: str = "live",  # 新規: 実行モード（paper/live/backtest）
     ):
         """
         統合リスク管理器初期化
@@ -749,6 +750,7 @@ class IntegratedRiskManager:
         """
         self.config = config
         self.enable_discord_notifications = enable_discord_notifications
+        self.mode = mode  # モード保持
         self.logger = get_logger()
 
         # 初期残高設定（統一設定管理体系：unified.yamlから取得）
@@ -799,13 +801,14 @@ class IntegratedRiskManager:
             # ポジションサイズ統合器
             self.position_integrator = PositionSizeIntegrator(self.kelly)
 
-            # ドローダウン管理（統一設定管理体系対応）
+            # ドローダウン管理（モード別分離対応）
             drawdown_config = config.get("drawdown_manager", {})
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=drawdown_config.get("max_drawdown_ratio", 0.20),
                 consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
                 cooldown_hours=drawdown_config.get("cooldown_hours", 24),
                 config=drawdown_config,  # persistence設定を含む
+                mode=self.mode,  # モード伝播
             )
             self.drawdown_manager.initialize_balance(initial_balance)
 

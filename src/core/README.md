@@ -300,6 +300,12 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 
 ## ⚠️ 重要事項 (Phase 22最適化)
 
+### **2025/09/24 Phase 23追加: モード別初期残高一元管理**
+- **orchestrator.py**: mode_balances対応・大文字小文字統一（config.mode.lower()）
+- **_get_actual_balance()**: unified.yamlのmode_balancesから残高取得・ペーパーモードAPI呼び出し回避
+- **設定一元化**: 将来の残高変更（10万円・50万円）も設定ファイル1箇所修正で完結
+- **モード別分離**: 状態ファイルをsrc/core/state/{mode}/に分離・本番環境への影響防止
+
 ### **2025/09/20修正: Silent Failure問題解決**
 - **orchestrator.py**: execution_service設定修正（RiskManager → ExecutionService）
 - **trading_cycle_manager.py**: AttributeErrorの詳細ログ追加・エラー可視性向上

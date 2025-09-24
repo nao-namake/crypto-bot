@@ -46,11 +46,14 @@ class ExecutionService:
 
         # ペーパートレード用
         self.virtual_positions = []
-        # 統一設定管理体系: unified.yamlから初期残高取得
+        # モード別初期残高取得（Phase 23一元管理対応）
         from ..core.config import load_config
 
         config = load_config("config/core/unified.yaml")
-        self.virtual_balance = getattr(config.risk, "initial_balance", 10000.0)
+        # mode_balancesから該当モードの初期残高を取得
+        mode_balances = getattr(config, "mode_balances", {})
+        mode_balance_config = mode_balances.get(self.mode, {})
+        self.virtual_balance = mode_balance_config.get("initial_balance", 10000.0)
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
@@ -155,7 +158,31 @@ class ExecutionService:
             # 仮想実行（実際の注文は行わない）
             side = evaluation.side
             amount = float(evaluation.position_size)
+
+            # 実際の市場価格取得（ペーパーモードでも正確な価格記録）
             price = float(getattr(evaluation, "entry_price", 0))
+            if price == 0 and self.bitbank_client:
+                try:
+                    import asyncio
+
+                    # Bitbank公開APIから現在価格取得（認証不要・ペーパーモードでも使用可能）
+                    ticker = await asyncio.to_thread(self.bitbank_client.fetch_ticker, "BTC/JPY")
+                    if ticker and "last" in ticker:
+                        price = float(ticker["last"])
+                        self.logger.info(f"📊 ペーパートレード実価格取得: {price:.0f}円")
+                    else:
+                        price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                        self.logger.warning(
+                            f"⚠️ ticker取得失敗、フォールバック価格使用: {price:.0f}円"
+                        )
+                except Exception as e:
+                    price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                    self.logger.warning(
+                        f"⚠️ 価格取得エラー、フォールバック価格使用: {price:.0f}円 - {e}"
+                    )
+            elif price == 0:
+                price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                self.logger.warning(f"⚠️ BitbankClient未設定、フォールバック価格使用: {price:.0f}円")
 
             # 仮想実行結果作成
             virtual_order_id = f"paper_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

@@ -152,16 +152,18 @@ DEFAULT_RISK_CONFIG = {
 
 def create_risk_manager(
     config: dict = None,
-    initial_balance: float = 1000000,
+    initial_balance: float = None,  # Phase 23: mode_balancesから自動取得
     risk_profile: str = "balanced",
+    mode: str = "live",  # 新規: 実行モード（paper/live/backtest）
 ) -> IntegratedRiskManager:
     """
-    統合リスク管理器の作成（Phase 12拡張: リスクプロファイル対応・CI/CD統合・手動実行監視・段階的デプロイ対応）
+    統合リスク管理器の作成（Phase 23拡張: モード別初期残高一元管理対応）
 
     Args:
         config: リスク管理設定。Noneの場合はプロファイル使用
-        initial_balance: 初期残高
+        initial_balance: 初期残高（Noneの場合はmode_balancesから自動取得）
         risk_profile: リスクプロファイル ("conservative", "balanced", "aggressive")
+        mode: 実行モード（paper/live/backtest）
 
     Returns:
         IntegratedRiskManager: 設定済みリスク管理器
@@ -169,10 +171,20 @@ def create_risk_manager(
     if config is None:
         config = get_risk_profile_config(risk_profile)
 
+    # Phase 23一元管理: initial_balanceがNoneの場合はmode_balancesから取得
+    if initial_balance is None:
+        from ..core.config import load_config
+
+        unified_config = load_config("config/core/unified.yaml")
+        mode_balances = getattr(unified_config, "mode_balances", {})
+        mode_balance_config = mode_balances.get(mode, {})
+        initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+
     return IntegratedRiskManager(
         config=config,
         initial_balance=initial_balance,
         enable_discord_notifications=True,
+        mode=mode,  # モード伝播
     )
 
 
