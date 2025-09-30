@@ -16,7 +16,6 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 
@@ -37,6 +36,10 @@ class ADXTrendStrengthStrategy(StrategyBase):
         super().__init__("ADXTrendStrength")
         self.config = config or {}
         self.logger = get_logger()
+
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
         # 戦略パラメータ（動的信頼度計算対応）
         self.adx_period = self.config.get("adx_period", 14)
         self.strong_trend_threshold = get_threshold(
@@ -258,8 +261,8 @@ class ADXTrendStrengthStrategy(StrategyBase):
         # 3. 弱いトレンド（レンジ相場）- DI差分ベースの動的判定
         if analysis["is_weak_trend"]:
             return self._handle_weak_trend_signal(df, analysis)
-        # 4. その他の場合 - 動的HOLD信頼度
-        dynamic_confidence = self._calculate_default_confidence(analysis)
+        # 4. その他の場合 - 動的HOLD信頼度（市場データ統合）
+        dynamic_confidence = self._calculate_default_confidence(analysis, df)
         return self._create_hold_signal(
             df,
             f"条件不適合動的（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_difference']:.1f}）",
@@ -304,8 +307,13 @@ class ADXTrendStrengthStrategy(StrategyBase):
             + crossover_bonus
             + volume_bonus
         )
-        # 0.2-0.9の範囲にクランプ
-        return max(0.2, min(0.9, confidence))
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        # 設定値による範囲制限
+        min_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.strong_min", 0.40)
+        max_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.strong_max", 0.85)
+        return max(min_confidence, min(max_confidence, confidence))
 
     def _handle_weak_trend_signal(
         self, df: pd.DataFrame, analysis: Dict[str, Any]
@@ -339,8 +347,8 @@ class ADXTrendStrengthStrategy(StrategyBase):
                         confidence,
                         f"弱トレンド下降DI（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
                     )
-        # DI差分が小さい場合は動的HOLD
-        dynamic_confidence = self._calculate_weak_trend_hold_confidence(analysis)
+        # DI差分が小さい場合は動的HOLD（市場データ統合）
+        dynamic_confidence = self._calculate_weak_trend_hold_confidence(analysis, df)
         return self._create_hold_signal(
             df,
             f"レンジ相場動的（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
@@ -366,39 +374,125 @@ class ADXTrendStrengthStrategy(StrategyBase):
         if analysis["volume_ratio"] > 1.1:
             volume_bonus = min(0.1, (analysis["volume_ratio"] - 1.0) * 0.2)
         confidence = base_confidence + di_strength_bonus + adx_direction_bonus + volume_bonus
-        return max(0.25, min(0.6, confidence))
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
 
-    def _calculate_weak_trend_hold_confidence(self, analysis: Dict[str, Any]) -> float:
+        # 設定値による範囲制限
+        min_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_min", 0.25)
+        max_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_max", 0.50)
+        return max(min_confidence, min(max_confidence, confidence))
+
+    def _calculate_weak_trend_hold_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
         """
-        弱トレンドHOLD信頼度計算
+        弱トレンドHOLD信頼度計算（市場データ統合版）
         Args:
             analysis: ADX分析結果
+            df: 市場データ（市場不確実性計算用）
         Returns:
             動的信頼度 (0.2-0.35)
         """
-        base_confidence = get_threshold("strategies.adx_trend.hold_confidence", 0.25)
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        base_confidence = get_threshold("strategies.adx_trend.hold_confidence", 0.30)
+
+        # 市場データ基づく動的信頼度調整システム
+        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
+
         # ADX値による調整（低いほど不確実性増加）
         adx_penalty = (
             (self.weak_trend_threshold - analysis["adx"]) / self.weak_trend_threshold * 0.05
         )
         # DI差分による微調整
         di_strength_bonus = min(0.03, analysis["di_strength"] / 10.0 * 0.03)
-        # ボラティリティによる調整
-        volatility_bonus = 0.0
-        if analysis["volatility_ratio"] > 0.01:
-            volatility_bonus = min(0.02, analysis["volatility_ratio"] * 2)
-        confidence = base_confidence - adx_penalty + di_strength_bonus + volatility_bonus
-        return max(0.2, min(0.35, confidence))
 
-    def _calculate_default_confidence(self, analysis: Dict[str, Any]) -> float:
+        # 基本信頼度と補正を市場不確実性で動的調整（固定値回避）
+        confidence = (base_confidence - adx_penalty + di_strength_bonus) * (1 + market_uncertainty)
+
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        hold_min = get_threshold("dynamic_confidence.strategies.adx_trend.hold_min", 0.20)
+        hold_max = get_threshold("dynamic_confidence.strategies.adx_trend.hold_max", 0.35)
+        return max(hold_min, min(hold_max, confidence))
+
+    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
         """
-        デフォルト動的信頼度計算
+        市場データ基づく不確実性計算（設定ベース統一ロジック）
+
+        Args:
+            df: 市場データ
+
+        Returns:
+            float: 市場不確実性係数（設定値の範囲）
+        """
+        try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
+            # 設定値取得
+            volatility_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
+            )
+            volume_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
+            )
+            volume_multiplier = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
+            )
+            price_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
+            )
+            uncertainty_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
+            )
+
+            # ATRベースのボラティリティ要因
+            current_price = float(df["close"].iloc[-1])
+            atr_value = float(df["atr_14"].iloc[-1])
+            volatility_factor = min(volatility_max, atr_value / current_price)
+
+            # ボリューム異常度（平均からの乖離）
+            current_volume = float(df["volume"].iloc[-1])
+            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
+            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
+
+            # 価格変動率（短期動向）
+            price_change = abs(float(df["close"].pct_change().iloc[-1]))
+            price_factor = min(price_max, price_change)
+
+            # 統合不確実性（設定値の範囲で市場状況を反映）
+            market_uncertainty = volatility_factor + volume_factor + price_factor
+
+            # 設定値で調整範囲を制限
+            return min(uncertainty_max, market_uncertainty)
+
+        except Exception as e:
+            self.logger.warning(f"市場不確実性計算エラー: {e}")
+            return 0.02  # デフォルト値（2%の軽微な調整）
+
+    def _calculate_default_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
+        """
+        デフォルト動的信頼度計算（市場データ統合版）
         Args:
             analysis: ADX分析結果
+            df: 市場データ（市場不確実性計算用）
         Returns:
-            動的信頼度 (0.2-0.3)
+            動的信頼度 (0.25-0.45)
         """
-        base_confidence = get_threshold("strategies.adx_trend.hold_confidence", 0.25)
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        base_confidence = get_threshold("strategies.adx_trend.hold_confidence", 0.30)
+
+        # 市場データ基づく動的信頼度調整システム
+        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
+
         # ADX状態による調整
         if analysis["is_moderate_trend"]:
             trend_bonus = 0.02
@@ -406,12 +500,16 @@ class ADXTrendStrengthStrategy(StrategyBase):
             trend_bonus = -0.02
         else:
             trend_bonus = 0.0
-        # 市場状況による微調整
-        market_adjustment = (
-            analysis["volatility_ratio"] + abs(analysis["volume_ratio"] - 1.0)
-        ) * 0.01
-        confidence = base_confidence + trend_bonus + market_adjustment
-        return max(0.2, min(0.3, confidence))
+
+        # 基本信頼度と傾向補正を市場不確実性で動的調整（固定値回避）
+        confidence = (base_confidence + trend_bonus) * (1 + market_uncertainty)
+
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        default_min = get_threshold("dynamic_confidence.strategies.adx_trend.default_min", 0.25)
+        default_max = get_threshold("dynamic_confidence.strategies.adx_trend.default_max", 0.45)
+        return max(default_min, min(default_max, confidence))
 
     def _create_buy_signal(
         self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str
@@ -486,6 +584,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         if dynamic_confidence is not None:
             confidence = dynamic_confidence
         else:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
             confidence = get_threshold("strategies.adx_trend.hold_confidence", 0.25)
         return StrategySignal(
             strategy_name=self.name,

@@ -1,5 +1,5 @@
 """
-戦略システム - Phase 22統合戦略管理層
+戦略システム - Phase 28完了・Phase 29最適化版
 
 5つの取引戦略を統合した戦略実行システム。
 シンプルで効率的な戦略実装を提供。
@@ -11,7 +11,7 @@
 4. Donchianチャネル: ブレイクアウト・反転戦略
 5. ADXトレンド強度: トレンド方向性分析戦略
 
-Phase 22完了: 2025年9月14日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from .base.strategy_base import StrategyBase, StrategySignal
@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 
-# Phase 22統合：重複定数をutilsから再エクスポート
+# Phase 28完了・Phase 29最適化：重複定数をutilsから再エクスポート
 from .utils import EntryAction, StrategyType
 
 

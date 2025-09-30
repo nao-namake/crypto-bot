@@ -204,6 +204,7 @@ class DonchianChannelStrategy(StrategyBase):
         """
         channel_pos = analysis["channel_position"]
         volume_ratio = analysis["volume_ratio"]
+
         # 1. ブレイクアウトシグナル（強いトレンド）
         if analysis["is_upper_breakout"] and volume_ratio > 1.2:
             return self._create_buy_signal(
@@ -253,17 +254,17 @@ class DonchianChannelStrategy(StrategyBase):
                     confidence=confidence,
                     reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
                 )
-        # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避）
+        # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避・市場データ統合）
         if analysis["in_middle_zone"]:
             # 完全な中央域でもモメンタムに基づく微弱な方向性を計算
-            dynamic_confidence = self._calculate_middle_zone_confidence(analysis)
+            dynamic_confidence = self._calculate_middle_zone_confidence(analysis, df)
             return self._create_hold_signal(
                 df,
                 f"中央域動的判定（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
                 dynamic_confidence,
             )
-        # 5. その他のケース - 動的HOLD
-        dynamic_confidence = self._calculate_default_confidence(analysis)
+        # 5. その他のケース - 動的HOLD（市場データ統合）
+        dynamic_confidence = self._calculate_default_confidence(analysis, df)
         return self._create_hold_signal(
             df,
             f"動的HOLD（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
@@ -328,51 +329,119 @@ class DonchianChannelStrategy(StrategyBase):
         confidence = base_confidence + position_bonus + volatility_bonus + volume_bonus
         return max(0.25, min(0.6, confidence))
 
-    def _calculate_middle_zone_confidence(self, analysis: Dict[str, Any]) -> float:
+    def _calculate_middle_zone_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
         """
-        中央域動的信頼度計算
+        中央域動的信頼度計算（市場データ統合版）
         Args:
             analysis: チャネル分析結果
+            df: 市場データ（市場不確実性計算用）
         Returns:
             動的信頼度 (0.2-0.4)
         """
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
         # 基本信頼度
         base_confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
+        # 市場データ基づく動的信頼度調整システム
+        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
+
         # チャネル位置による微調整（完全中央=0.5から離れるほど信頼度上昇）
         channel_pos = analysis["channel_position"]
         center_deviation = abs(channel_pos - 0.5)
         deviation_bonus = center_deviation * 0.2
-        # ボラティリティによる調整
-        volatility_bonus = 0.0
-        if analysis["volatility_ratio"] > 0.015:  # 1.5%以上のボラティリティ
-            volatility_bonus = min(0.05, (analysis["volatility_ratio"] - 0.015) * 10)
-        # 出来高による微調整
-        volume_bonus = 0.0
-        if analysis["volume_ratio"] != 1.0:  # 平均と異なる出来高
-            volume_bonus = min(0.03, abs(analysis["volume_ratio"] - 1.0) * 0.05)
-        confidence = base_confidence + deviation_bonus + volatility_bonus + volume_bonus
-        return max(0.2, min(0.4, confidence))
 
-    def _calculate_default_confidence(self, analysis: Dict[str, Any]) -> float:
+        # 基本信頼度と位置補正を市場不確実性で動的調整（固定値回避）
+        raw_confidence = (base_confidence + deviation_bonus) * (1 + market_uncertainty)
+
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        hold_min = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_min", 0.20)
+        hold_max = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_max", 0.45)
+        confidence = max(hold_min, min(hold_max, raw_confidence))
+
+        return confidence
+
+    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
         """
-        デフォルト動的信頼度計算（その他のケース）
+        市場データ基づく不確実性計算（統一ロジック）
+
+        Args:
+            df: 市場データ
+
+        Returns:
+            float: 市場不確実性係数（0-0.1の範囲）
+        """
+        try:
+            # ATRベースのボラティリティ要因
+            current_price = float(df["close"].iloc[-1])
+            atr_value = float(df["atr_14"].iloc[-1])
+            volatility_factor = min(0.05, atr_value / current_price)
+
+            # ボリューム異常度（平均からの乖離）
+            current_volume = float(df["volume"].iloc[-1])
+            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
+            volume_factor = min(0.03, abs(volume_ratio - 1.0) * 0.1)
+
+            # 価格変動率（短期動向）
+            price_change = abs(float(df["close"].pct_change().iloc[-1]))
+            price_factor = min(0.02, price_change)
+
+            # 統合不確実性（0-0.1の範囲で市場状況を反映）
+            market_uncertainty = volatility_factor + volume_factor + price_factor
+
+            # 最大10%の調整範囲に制限
+            return min(0.1, market_uncertainty)
+
+        except Exception as e:
+            self.logger.warning(f"市場不確実性計算エラー: {e}")
+            return 0.02  # デフォルト値（2%の軽微な調整）
+
+    def _calculate_default_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
+        """
+        デフォルト動的信頼度計算（その他のケース・市場データ統合版）
         Args:
             analysis: チャネル分析結果
+            df: 市場データ（市場不確実性計算用）
         Returns:
-            動的信頼度 (0.2-0.35)
+            動的信頼度 (0.15-0.35)
         """
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
         # 基本信頼度
         base_confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
+        # 市場データ基づく動的信頼度調整システム（強化版）
+        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
+
         # チャネル幅による調整（幅が大きいほど不確実性増加）
+        width_adjustment = 0.0
         if analysis["channel_width"] > 0:
             width_factor = min(1.0, analysis["channel_width"] / (analysis["current_price"] * 0.1))
-            width_penalty = width_factor * 0.05
-            base_confidence -= width_penalty
-        # 市場状況による微調整
-        volatility_adjustment = analysis["volatility_ratio"] * 0.5
-        volume_adjustment = abs(analysis["volume_ratio"] - 1.0) * 0.02
-        confidence = base_confidence + volatility_adjustment + volume_adjustment
-        return max(0.2, min(0.35, confidence))
+            width_adjustment = width_factor * 0.05
+
+        # ボラティリティと出来高による追加動的調整
+        volatility_adjustment = analysis.get("volatility_ratio", 0.02) * 2.0
+        volume_adjustment = abs(analysis.get("volume_ratio", 1.0) - 1.0) * 0.1
+
+        # 総合動的調整（固定値回避・確実な変動確保）
+        total_adjustment = market_uncertainty + volatility_adjustment + volume_adjustment
+        raw_confidence = base_confidence * (1 + total_adjustment) - width_adjustment
+
+        # 循環インポート回避のため遅延インポート
+        from ...core.config.threshold_manager import get_threshold
+
+        hold_min = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_min", 0.20)
+        hold_max = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_max", 0.45)
+        confidence = max(hold_min, min(hold_max, raw_confidence))
+
+        return confidence
 
     def _create_buy_signal(
         self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str

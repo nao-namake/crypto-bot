@@ -1,7 +1,7 @@
 """
-バックテストレポートシステム - Phase 21・本番同一ロジック対応
+バックテストレポートシステム - Phase 28完了・Phase 29最適化版・本番同一ロジック対応
 
-Phase 21改良:
+Phase 29最適化:
 - BacktestEngineとの依存関係を廃止
 - 本番と同じ取引ロジック結果のレポート生成
 - シンプルで保守しやすいレポート機能
@@ -24,7 +24,7 @@ from ..core.logger import get_logger
 
 class BacktestReporter:
     """
-    バックテストレポート生成システム（Phase 21）
+    バックテストレポート生成システム（Phase 29最適化版）
 
     本番同一ロジックバックテスト用のシンプルなレポート機能。
     """
@@ -32,7 +32,7 @@ class BacktestReporter:
     def __init__(self, output_dir: Optional[str] = None):
         self.logger = get_logger(__name__)
 
-        # 出力ディレクトリ設定（Phase 21: バックテスト統合フォルダ）
+        # 出力ディレクトリ設定（Phase 29: バックテスト統合フォルダ）
         if output_dir is None:
             # src/backtest/logs/ 配下に保存（集約済み）
             base_dir = Path(__file__).parent / "logs"
@@ -47,7 +47,7 @@ class BacktestReporter:
         self, final_stats: Dict[str, Any], start_date: datetime, end_date: datetime
     ) -> str:
         """
-        バックテストレポート生成（Phase 21）
+        バックテストレポート生成（Phase 29最適化）
 
         Args:
             final_stats: バックテスト統計データ
@@ -71,7 +71,7 @@ class BacktestReporter:
                     "end_date": end_date.isoformat(),
                     "duration_days": (end_date - start_date).days,
                     "generated_at": datetime.now().isoformat(),
-                    "phase": "Phase_21_同一ロジック",
+                    "phase": "Phase_29_同一ロジック",
                 },
                 "execution_stats": final_stats,
                 "system_info": {
@@ -137,7 +137,7 @@ class BacktestReporter:
                 "error_message": error_message,
                 "context": context,
                 "timestamp": datetime.now().isoformat(),
-                "phase": "Phase_21_BacktestSystem",
+                "phase": "Phase_29_BacktestSystem",
             }
 
             with open(filepath, "w", encoding="utf-8") as f:

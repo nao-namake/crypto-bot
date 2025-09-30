@@ -1,8 +1,8 @@
 {
-  "feature_order_version": "v2.2.0",
+  "feature_order_version": "v2.3.0",
   "total_features": 15,
-  "last_updated": "2025-09-14T00:00:00Z",
-  "description": "Phase 22完了: 設定最適化対応・15特徴量統一システム・26キー重複問題解決・DonchianChannel/ADX対応",
+  "last_updated": "2025-09-28T00:00:00Z",
+  "description": "Phase 28完了・Phase 29最適化版: 設定重複解消・統一設定管理体系完成・15特徴量統一システム・DonchianChannel/ADX対応",
   
   "feature_categories": {
     "basic": {
@@ -171,6 +171,13 @@
       "method": "strategy_driven_optimization_unused_removal",
       "added_features": ["donchian_high_20", "donchian_low_20", "channel_position", "adx_14", "plus_di_14", "minus_di_14"],
       "removed_features": ["returns_1", "macd_signal", "zscore"]
+    },
+    "phase29_optimization": {
+      "target": "設定重複解消",
+      "achieved": "完成",
+      "optimization_type": "configuration_unification",
+      "method": "duplicate_removal_visual_improvement",
+      "improvements": ["設定重複削除", "視覚的改善", "理解しやすさ向上", "unified.yaml・thresholds.yaml分離最適化"]
     }
   },
   
@@ -193,17 +200,18 @@
       "audit_logging": "enabled"
     },
     "quality_assurance": {
-      "test_coverage": "58.64%",
+      "test_coverage": "64.74%",
       "total_tests": 625,
       "dev_check_integration": "completed"
     }
   },
   
   "validation": {
-    "checksum": "sha256:phase20_abc123...",
-    "last_validated": "2025-09-09T00:00:00Z", 
+    "checksum": "sha256:phase29_def456...",
+    "last_validated": "2025-09-28T00:00:00Z",
     "validation_status": "passed",
-    "phase20_compliance": "verified",
-    "feature_count_validation": "15_features_confirmed"
+    "phase29_compliance": "verified",
+    "feature_count_validation": "15_features_confirmed",
+    "configuration_unification": "completed"
   }
 }

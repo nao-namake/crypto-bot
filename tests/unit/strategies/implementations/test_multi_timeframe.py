@@ -142,7 +142,9 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
     def test_make_2tf_decision_agreement(self):
         """2層統合判定 - 時間軸一致テスト."""
         # 両時間軸が買いシグナル
-        decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=1)
+        decision = self.strategy._make_2tf_decision(
+            tf_4h_signal=1, tf_15m_signal=1, df=self.test_df
+        )
 
         self.assertEqual(decision["action"], EntryAction.BUY)
         # 動的信頼度（0.95〜1.05の範囲）
@@ -153,7 +155,9 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
     def test_make_2tf_decision_disagreement(self):
         """2層統合判定 - 時間軸不一致テスト."""
         # 時間軸が不一致
-        decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=-1)
+        decision = self.strategy._make_2tf_decision(
+            tf_4h_signal=1, tf_15m_signal=-1, df=self.test_df
+        )
 
         # 攻撃的設定：重み付け判定で不一致でも取引（require_timeframe_agreement=False）
         # weighted_score = 1 * 0.6 + (-1) * 0.4 = 0.2 < min_confidence(0.4) なのでHOLD
@@ -163,7 +167,9 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
     def test_make_2tf_decision_4h_only(self):
         """2層統合判定 - 4時間足のみシグナルテスト."""
         # 4時間足のみシグナルあり
-        decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=0)
+        decision = self.strategy._make_2tf_decision(
+            tf_4h_signal=1, tf_15m_signal=0, df=self.test_df
+        )
 
         # 攻撃的設定：重み付け判定モード（require_timeframe_agreement=False）
         # weighted_score = 1 * 0.6 + 0 * 0.4 = 0.6 >= min_confidence(0.4) なのでBUY
@@ -177,7 +183,7 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         # 一致不要モードの戦略
         strategy = MultiTimeframeStrategy(config={"require_timeframe_agreement": False})
 
-        decision = strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=-1)
+        decision = strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=-1, df=self.test_df)
 
         # 重み付け判定モード
         # 4h(1 * 0.6) + 15m(-1 * 0.4) = 0.2 > 0 なので買い
@@ -240,7 +246,9 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         high_conf_strategy = MultiTimeframeStrategy(config={"min_confidence": 0.9})
 
         # 4時間足のみのシグナル（信頼度が低い）
-        decision = high_conf_strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=0)
+        decision = high_conf_strategy._make_2tf_decision(
+            tf_4h_signal=1, tf_15m_signal=0, df=self.test_df
+        )
 
         # 信頼度が閾値未満ならHOLD
         if decision["confidence"] < 0.9:

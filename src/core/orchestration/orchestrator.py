@@ -1,7 +1,7 @@
 """
 統合取引システム制御 - TradingOrchestrator
 
-Application Service Layer として、Phase 1-12の高レベル統合制御のみを担当・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応。
+Application Service Layer として、Phase 28完了・Phase 29最適化版の高レベル統合制御のみを担当・CI/CDワークフロー最適化・手動実行監視・段階的デプロイ対応。
 具体的なビジネスロジックは各Phase層に委譲し、真のレイヤー分離を実現。
 
 設計原則:
@@ -34,10 +34,7 @@ if TYPE_CHECKING:
     from ...strategies.base.strategy_base import StrategySignal
     from ...trading.risk_manager import ExecutionResult, TradeEvaluation
 
-# Phase 22: BacktestEngine廃止、新システムはBacktestRunnerを使用
 # BacktestReporter は遅延インポートで循環インポート回避
-
-# from ...features.core_adapter import FeatureServiceAdapter  # Phase 22統合: feature_generator.pyに統合済み
 from ..config import Config, get_threshold
 from ..exceptions import (
     CryptoBotError,
@@ -99,7 +96,7 @@ class TradingOrchestrator:
             strategy_service: 戦略評価サービス
             ml_service: ML予測サービス
             risk_service: リスク管理サービス
-            execution_service: 注文実行サービス（Phase 7追加）.
+            execution_service: 注文実行サービス（Phase 28完了・Phase 29最適化版）.
         """
         self.config = config
         self.logger = logger
@@ -112,18 +109,18 @@ class TradingOrchestrator:
         self.risk_service = risk_service
         self.execution_service = execution_service
 
-        # Phase 22: バックテストレポーター初期化（遅延インポート）
+        # Phase 28完了・Phase 29最適化: バックテストレポーター初期化（遅延インポート）
         from ...backtest.reporter import BacktestReporter
 
         self.backtest_reporter = BacktestReporter()
         self.paper_trading_reporter = PaperTradingReporter(logger)
 
-        # Phase 22: 新バックテストシステム（本番同一ロジック）
+        # Phase 28完了・Phase 29最適化: 新バックテストシステム（本番同一ロジック）
         self.backtest_runner = BacktestRunner(self, logger)
         self.paper_trading_runner = PaperTradingRunner(self, logger)
         self.live_trading_runner = LiveTradingRunner(self, logger)
 
-        # Phase 22 リファクタリング: サービス層初期化（分離済み）
+        # Phase 28完了・Phase 29最適化: サービス層初期化（分離済み）
         self.health_checker = HealthChecker(self, logger)
         self.system_recovery = SystemRecoveryService(self, logger)
         self.trading_logger = TradingLoggerService(self, logger)
@@ -185,7 +182,7 @@ class TradingOrchestrator:
         self.logger.info(f"TradingOrchestrator実行開始 - モード: {mode.upper()}（Configから取得）")
 
         try:
-            # Phase 22 統合システム: BacktestEngine直接実行
+            # Phase 28完了・Phase 29最適化: BacktestRunner統合実行
             if mode == "backtest":
                 await self._run_backtest_mode()
             elif mode == "paper":
@@ -218,7 +215,7 @@ class TradingOrchestrator:
 
     async def run_trading_cycle(self) -> None:
         """
-        取引サイクル実行（Phase 14-B リファクタリング）
+        取引サイクル実行（Phase 28完了・Phase 29最適化）
 
         TradingCycleManagerに処理を委譲し、orchestratorは制御のみ担当。
         約200行のロジックをサービス層に分離。
@@ -235,15 +232,15 @@ class TradingOrchestrator:
 
     async def _run_backtest_mode(self) -> None:
         """
-        バックテストモード実行（Phase 22・本番同一ロジック）
+        バックテストモード実行（Phase 28完了・Phase 29最適化）
 
-        Phase 22改良:
+        Phase 28完了・Phase 29最適化:
         - BacktestEngineを廃止し、BacktestRunnerを使用
         - 本番と同じtrading_cycle_managerで取引判定
         - CSVデータから時系列で順次処理
         """
         try:
-            self.logger.info("📊 バックテストモード開始（Phase 22・本番同一ロジック）")
+            self.logger.info("📊 バックテストモード開始（Phase 28完了・Phase 29最適化）")
 
             # データサービスをバックテストモードに設定
             self.data_service.set_backtest_mode(True)
@@ -278,12 +275,6 @@ class TradingOrchestrator:
             self.data_service.clear_backtest_data()
 
 
-# Phase 22: _setup_backtest_engine削除（BacktestRunnerが処理を担当）
-
-# Phase 22: _process_backtest_results と _save_backtest_error_report削除
-# BacktestRunnerとBacktestReporterが直接連携して処理
-
-
 async def create_trading_orchestrator(
     config: Config, logger: CryptoBotLogger
 ) -> TradingOrchestrator:
@@ -300,7 +291,6 @@ async def create_trading_orchestrator(
     Returns:
         初期化済みTradingOrchestrator.
     """
-    # Phase 22統合: feature_generator.py統合により削除・EnsembleModel → MLServiceAdapter移行完了
     from ...core.reporting.discord_notifier import DiscordManager
     from ...data.bitbank_client import BitbankClient
     from ...data.data_pipeline import DataPipeline
@@ -353,15 +343,15 @@ async def create_trading_orchestrator(
         else:
             logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
 
-        # Phase 2: データサービス
+        # Phase 28完了・Phase 29最適化: データサービス
         bitbank_client = BitbankClient()
         data_service = DataPipeline(client=bitbank_client)
 
-        # Phase 3: 特徴量サービス（統合アダプター）
-        # Phase 22統合: FeatureGenerator統合クラスを使用
+        # Phase 28完了・Phase 29最適化: 特徴量サービス（統合アダプター）
+        # FeatureGenerator統合クラスを使用
         feature_service = FeatureGenerator()
 
-        # Phase 4: 戦略サービス
+        # Phase 28完了・Phase 29最適化: 戦略サービス
         strategy_service = StrategyManager()
         strategies = [
             ATRBasedStrategy(),
@@ -374,19 +364,19 @@ async def create_trading_orchestrator(
         for strategy in strategies:
             strategy_service.register_strategy(strategy, weight=1.0)
 
-        # Phase 5: MLサービス（根本問題解決版）
+        # Phase 28完了・Phase 29最適化: MLサービス（根本問題解決版）
         from .ml_adapter import MLServiceAdapter
 
         ml_service = MLServiceAdapter(logger)
         logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
-        # Phase 6: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
+        # Phase 28完了・Phase 29最適化: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
         initial_balance = await _get_actual_balance(config, logger)
         risk_service = create_risk_manager(
             config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance, mode=config.mode
         )
 
-        # Phase 22統合: 実行サービス（risk_manager統合）
+        # Phase 28完了・Phase 29最適化: 実行サービス（risk_manager統合）
         # executor.pyから移行されたexecution機能をrisk_manager経由で使用
         from ...trading import create_risk_manager
 
@@ -394,7 +384,7 @@ async def create_trading_orchestrator(
         execution_mode = config.mode
         logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
-        # Phase 7: 取引実行サービス（新規実装）
+        # Phase 28完了・Phase 29最適化: 取引実行サービス（新規実装）
         from ...trading.execution_service import ExecutionService
 
         execution_service = ExecutionService(mode=execution_mode, bitbank_client=bitbank_client)
@@ -435,9 +425,9 @@ async def create_trading_orchestrator(
 
 # BitbankAPI実残高取得関数
 async def _get_actual_balance(config, logger) -> float:
-    """残高取得（モード別一元管理対応・Phase 23）"""
+    """残高取得（モード別一元管理対応・Phase 28完了・Phase 29最適化）"""
 
-    # モード別初期残高をunified.yamlから取得（Phase 23一元管理）
+    # モード別初期残高をunified.yamlから取得（Phase 28完了・Phase 29最適化）
     def _get_mode_balance(mode: str) -> float:
         """mode_balancesから該当モードの初期残高を取得"""
         from ..config import load_config
@@ -476,7 +466,7 @@ async def _get_actual_balance(config, logger) -> float:
 
         if jpy_balance <= 0:
             logger.warning(f"⚠️ Bitbank残高が0円以下（{jpy_balance}円）、mode_balances値使用")
-            # Phase 23一元管理: mode_balancesからフォールバック残高取得
+            # Phase 28完了・Phase 29最適化: mode_balancesからフォールバック残高取得
             fallback_balance = _get_mode_balance(current_mode)
             logger.info(f"💰 フォールバック残高（mode_balances）: {fallback_balance}円")
             return fallback_balance
@@ -486,18 +476,17 @@ async def _get_actual_balance(config, logger) -> float:
 
     except ExchangeAPIError as e:
         logger.error(f"❌ BitbankAPI認証エラー: {e}")
-        # Phase 23一元管理: mode_balancesからフォールバック残高取得
+        # Phase 28完了・Phase 29最適化: mode_balancesからフォールバック残高取得
         fallback_balance = _get_mode_balance(current_mode)
         logger.warning(f"💰 認証エラーのためmode_balances残高使用: {fallback_balance}円")
         return fallback_balance
 
     except Exception as e:
         logger.error(f"❌ 残高取得予期しないエラー: {e}")
-        # Phase 23一元管理: mode_balancesからフォールバック残高取得
+        # Phase 28完了・Phase 29最適化: mode_balancesからフォールバック残高取得
         fallback_balance = _get_mode_balance(current_mode)
         logger.warning(f"💰 エラーのためmode_balances残高使用: {fallback_balance}円")
         return fallback_balance
 
 
 # 内部アダプタークラス（Protocol準拠）
-# Phase 22統合: FeatureServiceAdapterは features/feature_generator.py に統合済み

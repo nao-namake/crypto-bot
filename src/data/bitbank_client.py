@@ -229,12 +229,10 @@ class BitbankClient:
             pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
             url = f"https://public.bitbank.cc/{pair}/candlestick/4hour/{year}"
 
-            # SSL証明書検証を無効化（macOSのPython証明書問題対応）
+            # SSL証明書設定（セキュア設定）
             import ssl
 
             ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
 
             connector = aiohttp.TCPConnector(ssl=ssl_context)
             async with aiohttp.ClientSession(connector=connector) as session:
@@ -750,6 +748,184 @@ class BitbankClient:
                 f"市場情報取得に失敗しました: {symbol} - {e}",
                 context={"symbol": symbol},
             )
+
+    async def fetch_margin_status(self) -> Dict[str, Any]:
+        """
+        信用取引口座状況取得（Phase 27新機能・保証金維持率直接取得）
+
+        Returns:
+            信用取引口座の状況情報（保証金維持率含む）
+
+        Raises:
+            ExchangeAPIError: 取得失敗時
+        """
+        try:
+            if not self.api_key or not self.api_secret:
+                raise ExchangeAPIError(
+                    "信用取引口座状況取得には認証が必要です",
+                    context={"operation": "fetch_margin_status"},
+                )
+
+            # ccxtの標準APIでは信用取引状況を取得できない場合があるため、
+            # bitbank独自のprivate APIを直接呼び出す
+            response = await self._call_private_api("/user/margin/status")
+
+            # 保証金維持率とリスク情報を含む完全な状況を返す
+            margin_data = {
+                "margin_ratio": response.get("data", {}).get("maintenance_margin_ratio"),
+                "available_balance": response.get("data", {}).get("available_margin"),
+                "used_margin": response.get("data", {}).get("used_margin"),
+                "unrealized_pnl": response.get("data", {}).get("unrealized_pnl"),
+                "margin_call_status": response.get("data", {}).get("margin_call_status"),
+                "raw_response": response,
+            }
+
+            self.logger.info(
+                f"📊 信用取引口座状況取得成功 - 維持率: {margin_data['margin_ratio']:.1f}%",
+                extra_data={
+                    "margin_ratio": margin_data["margin_ratio"],
+                    "available_balance": margin_data["available_balance"],
+                    "margin_call_status": margin_data["margin_call_status"],
+                },
+            )
+
+            return margin_data
+
+        except Exception as e:
+            self.logger.error(f"信用取引口座状況取得失敗: {e}")
+            raise ExchangeAPIError(
+                f"信用取引口座状況取得に失敗しました: {e}",
+                context={"operation": "fetch_margin_status"},
+            )
+
+    async def fetch_margin_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
+        """
+        信用建玉情報取得（Phase 27新機能・詳細ポジション情報）
+
+        Args:
+            symbol: 通貨ペア
+
+        Returns:
+            建玉情報リスト（ロング・ショート別）
+
+        Raises:
+            ExchangeAPIError: 取得失敗時
+        """
+        try:
+            if not self.api_key or not self.api_secret:
+                raise ExchangeAPIError(
+                    "信用建玉情報取得には認証が必要です",
+                    context={"operation": "fetch_margin_positions"},
+                )
+
+            # bitbank独自のprivate APIを直接呼び出し
+            response = await self._call_private_api("/user/margin/positions")
+
+            positions = []
+            for position_data in response.get("data", {}).get("positions", []):
+                position = {
+                    "symbol": position_data.get("pair", symbol),
+                    "side": position_data.get("position_side"),  # long/short
+                    "amount": float(position_data.get("open_amount", 0)),
+                    "average_price": float(position_data.get("average_price", 0)),
+                    "unrealized_pnl": float(position_data.get("unrealized_pnl", 0)),
+                    "margin_used": float(position_data.get("margin_used", 0)),
+                    "losscut_price": float(position_data.get("losscut_price", 0)),
+                    "raw_data": position_data,
+                }
+                positions.append(position)
+
+            self.logger.debug(
+                f"信用建玉情報取得成功: {len(positions)}件",
+                extra_data={"symbol": symbol, "active_positions": len(positions)},
+            )
+
+            return positions
+
+        except Exception as e:
+            self.logger.error(f"信用建玉情報取得失敗: {e}")
+            raise ExchangeAPIError(
+                f"信用建玉情報取得に失敗しました: {e}",
+                context={"operation": "fetch_margin_positions", "symbol": symbol},
+            )
+
+    async def _call_private_api(
+        self, endpoint: str, params: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        bitbank private API直接呼び出し（内部用）
+
+        Args:
+            endpoint: APIエンドポイント（例: '/user/margin/status'）
+            params: リクエストパラメータ
+
+        Returns:
+            API応答データ
+
+        Raises:
+            ExchangeAPIError: API呼び出し失敗時
+        """
+        import hashlib
+        import hmac
+        import json
+        from urllib.parse import urlencode
+
+        try:
+            # bitbank API仕様に基づく認証署名生成
+            base_url = "https://api.bitbank.cc/v1"
+            url = f"{base_url}{endpoint}"
+
+            # タイムスタンプとnonce
+            timestamp = str(int(time.time() * 1000))
+            nonce = timestamp
+
+            # リクエストボディ作成
+            if params:
+                body = json.dumps(params, separators=(",", ":"))
+            else:
+                body = ""
+
+            # 署名文字列作成
+            message = f"{timestamp}{body}"
+            signature = hmac.new(
+                self.api_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+            ).hexdigest()
+
+            # ヘッダー作成
+            headers = {
+                "ACCESS-KEY": self.api_key,
+                "ACCESS-NONCE": nonce,
+                "ACCESS-SIGNATURE": signature,
+                "Content-Type": "application/json",
+            }
+
+            # SSL設定（セキュア設定）
+            import ssl
+
+            ssl_context = ssl.create_default_context()
+
+            # API呼び出し実行
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                timeout = aiohttp.ClientTimeout(total=30.0)
+                async with session.post(
+                    url, headers=headers, data=body, timeout=timeout
+                ) as response:
+                    result = await response.json()
+
+                    if result.get("success") == 1:
+                        return result
+                    else:
+                        error_code = result.get("data", {}).get("code", "unknown")
+                        raise ExchangeAPIError(
+                            f"bitbank API エラー: {error_code}",
+                            context={"endpoint": endpoint, "error_code": error_code},
+                        )
+
+        except aiohttp.ClientError as e:
+            raise ExchangeAPIError(f"ネットワークエラー: {e}", context={"endpoint": endpoint})
+        except Exception as e:
+            raise ExchangeAPIError(f"private API呼び出し失敗: {e}", context={"endpoint": endpoint})
 
     def get_stats(self) -> Dict[str, Any]:
         """統計情報取得."""

@@ -1,5 +1,5 @@
 """
-MLサービス フォールバック機能 - Phase 22 分割
+MLサービス フォールバック機能 - Phase 28完了・Phase 29最適化版
 
 ダミーモデル・フォールバック機能・安全ネット機能を提供。
 MLモデル読み込み失敗時の最終的な安全装置。
@@ -22,7 +22,7 @@ class DummyModel:
     def __init__(self) -> None:
         self.is_fitted = True
         self.model_name = "DummyModel"
-        # Phase 22: 特徴量定義一元化対応
+        # Phase 28完了・Phase 29最適化: 特徴量定義一元化対応
         from ..config.feature_manager import get_feature_count
 
         self.n_features_ = get_feature_count()

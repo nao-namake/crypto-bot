@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: ❓ 質問・サポート
-    url: https://github.com/nao/crypto-bot/discussions
-    about: 使い方の質問や一般的なサポートについてはDiscussionsをご利用ください
-  - name: 📚 ドキュメント
-    url: https://github.com/nao/crypto-bot/blob/main/README.md
-    about: README.mdとCLAUDE.mdで基本的な使い方を確認できます

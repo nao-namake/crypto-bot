@@ -10,7 +10,7 @@
 3. RCI逆張り補完: RCI過買い・過売り水準での確認
 4. 多数決判定: 3指標の合意によるエントリー決定
 
-Phase 4簡素化実装日: 2025年8月18日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from datetime import datetime
@@ -80,7 +80,7 @@ class MochipoyAlertStrategy(StrategyBase):
             self.logger.info(f"[MochipoyAlert] RCI分析結果: {rci_result} (signal: {rci_signal})")
 
             # 多数決によるシンプル統合判定
-            signal_decision = self._make_simple_decision(ema_signal, macd_signal, rci_signal)
+            signal_decision = self._make_simple_decision(ema_signal, macd_signal, rci_signal, df)
             self.logger.info(
                 f"[MochipoyAlert] 最終判定: {signal_decision.get('action')} (confidence: {signal_decision.get('confidence', 0):.3f})"
             )
@@ -182,56 +182,150 @@ class MochipoyAlertStrategy(StrategyBase):
             self.logger.error(f"RCI計算エラー: {e}")
             return pd.Series([0] * len(prices), index=prices.index)
 
-    def _make_simple_decision(
-        self, ema_signal: int, macd_signal: int, rci_signal: int
-    ) -> Dict[str, Any]:
-        """シンプル多数決判定 - 動的信頼度計算."""
+    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
+        """
+        市場データ基づく不確実性計算（設定ベース統一ロジック）
+
+        Args:
+            df: 市場データ
+
+        Returns:
+            float: 市場不確実性係数（設定値の範囲）
+        """
         try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
+            # 設定値取得
+            volatility_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
+            )
+            volume_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
+            )
+            volume_multiplier = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
+            )
+            price_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
+            )
+            uncertainty_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
+            )
+
+            # ATRベースのボラティリティ要因
+            current_price = float(df["close"].iloc[-1])
+            atr_value = float(df["atr_14"].iloc[-1])
+            volatility_factor = min(volatility_max, atr_value / current_price)
+
+            # ボリューム異常度（平均からの乖離）
+            current_volume = float(df["volume"].iloc[-1])
+            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
+            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
+
+            # 価格変動率（短期動向）
+            price_change = abs(float(df["close"].pct_change().iloc[-1]))
+            price_factor = min(price_max, price_change)
+
+            # 統合不確実性（設定値の範囲で市場状況を反映）
+            market_uncertainty = volatility_factor + volume_factor + price_factor
+
+            # 設定値で調整範囲を制限
+            return min(uncertainty_max, market_uncertainty)
+
+        except Exception as e:
+            self.logger.warning(f"市場不確実性計算エラー: {e}")
+            return 0.02  # デフォルト値（2%の軽微な調整）
+
+    def _make_simple_decision(
+        self, ema_signal: int, macd_signal: int, rci_signal: int, df: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """シンプル多数決判定 - 設定ベース動的信頼度計算."""
+        try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
             # 3指標の投票結果
             signals = [ema_signal, macd_signal, rci_signal]
             buy_votes = signals.count(1)
             sell_votes = signals.count(-1)
             hold_votes = signals.count(0)
 
-            # 動的信頼度計算（固定値回避）
-            import random
-            import time
+            # 設定値取得（勝率向上最適化版）
+            buy_strong_base = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_strong_base", 0.70
+            )
+            buy_strong_max = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_strong_max", 0.95
+            )
+            buy_weak_base = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_weak_base", 0.45
+            )
+            buy_weak_max = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_weak_max", 0.60
+            )
+            sell_strong_base = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_strong_base", 0.70
+            )
+            sell_strong_max = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_strong_max", 0.95
+            )
+            sell_weak_base = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_weak_base", 0.45
+            )
+            sell_weak_max = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_weak_max", 0.60
+            )
+            hold_base = get_threshold(
+                "dynamic_confidence.strategies.mochipoy_alert.hold_base", 0.20
+            )
+            hold_min = get_threshold("dynamic_confidence.strategies.mochipoy_alert.hold_min", 0.1)
+            hold_max = get_threshold("dynamic_confidence.strategies.mochipoy_alert.hold_max", 0.35)
+            uncertainty_boost = get_threshold(
+                "dynamic_confidence.market_uncertainty.uncertainty_boost", 1.5
+            )
 
-            # シード値を現在時刻の秒とマイクロ秒で変動
-            seed = int(time.time() * 1000000) % 10000
-            random.seed(seed)
+            # 市場データ基づく動的信頼度調整システム
+            market_uncertainty = self._calculate_market_uncertainty(df)
 
-            # 攻撃的投票判定（1票でも取引・月100-200取引対応）
+            # 最適化された投票判定（勝率向上版）
             if buy_votes >= 2:
-                # 2票以上の強い賛成 - 高信頼度（動的変動）
+                # 2票以上の強い賛成 - 高信頼度（設定ベース動的変動）
                 action = EntryAction.BUY
-                base_confidence = 0.65 + (buy_votes - 2) * 0.15  # 2票:0.65-0.80, 3票:0.80-0.95
-                variance = random.uniform(0.0, 0.15)  # 0-15%の変動
-                confidence = min(0.95, base_confidence + variance)
+                base_confidence = buy_strong_base + (buy_votes - 2) * 0.15  # 3票時ボーナス
+                confidence = min(
+                    buy_strong_max, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                )
             elif sell_votes >= 2:
-                # 2票以上の強い反対 - 高信頼度（動的変動）
+                # 2票以上の強い反対 - 高信頼度（設定ベース動的変動）
                 action = EntryAction.SELL
-                base_confidence = 0.65 + (sell_votes - 2) * 0.15
-                variance = random.uniform(0.0, 0.15)
-                confidence = min(0.95, base_confidence + variance)
+                base_confidence = sell_strong_base + (sell_votes - 2) * 0.15
+                confidence = min(
+                    sell_strong_max, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                )
             elif buy_votes == 1 and sell_votes == 0:
-                # 1票のBUY（他はHOLD） - 攻撃的取引（動的変動）
+                # 1票のBUY（他はHOLD） - 積極的取引（設定ベース動的変動）
                 action = EntryAction.BUY
-                base_confidence = 0.35  # ベース信頼度
-                variance = random.uniform(0.0, 0.15)  # 0-15%の変動
-                confidence = min(0.50, base_confidence + variance)
+                base_confidence = buy_weak_base
+                confidence = min(
+                    buy_weak_max, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                )
             elif sell_votes == 1 and buy_votes == 0:
-                # 1票のSELL（他はHOLD） - 攻撃的取引（動的変動）
+                # 1票のSELL（他はHOLD） - 積極的取引（設定ベース動的変動）
                 action = EntryAction.SELL
-                base_confidence = 0.35
-                variance = random.uniform(0.0, 0.15)
-                confidence = min(0.50, base_confidence + variance)
+                base_confidence = sell_weak_base
+                confidence = min(
+                    sell_weak_max, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                )
             else:
-                # 意見が割れるか全てHOLD（動的変動）
+                # 意見が割れるか全てHOLD（設定ベース動的変動）
                 action = EntryAction.HOLD
-                base_confidence = self.config["hold_confidence"]
-                variance = random.uniform(-0.05, 0.05)  # ±5%の変動
-                confidence = max(0.1, min(0.3, base_confidence + variance))
+                base_confidence = hold_base
+                confidence = max(
+                    hold_min,
+                    min(hold_max, base_confidence * (1 + market_uncertainty / uncertainty_boost)),
+                )
 
             # 最低信頼度チェック
             if confidence < self.config["min_confidence"]:

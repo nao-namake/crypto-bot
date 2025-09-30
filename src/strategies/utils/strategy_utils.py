@@ -1,5 +1,5 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 21統合版
+戦略共通ユーティリティ統合モジュール - Phase 28完了・Phase 29最適化版
 
 戦略関連のユーティリティ機能を統合管理：
 - 戦略定数：EntryAction、StrategyType統一
@@ -8,7 +8,7 @@
 
 統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 21完了: 2025年9月12日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from datetime import datetime

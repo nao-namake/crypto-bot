@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.trading.risk_manager import (
     IntegratedRiskManager,
@@ -112,7 +113,8 @@ class TestIntegratedRiskManager:
             }
         )
 
-    def test_evaluate_trade_opportunity_approved(self):
+    @pytest.mark.asyncio
+    async def test_evaluate_trade_opportunity_approved(self):
         """取引機会評価（承認）テスト."""
         market_data = self.create_sample_market_data()
 
@@ -126,7 +128,7 @@ class TestIntegratedRiskManager:
             "take_profit": 51000,
         }
 
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -143,7 +145,8 @@ class TestIntegratedRiskManager:
         assert evaluation.confidence_level == 0.8
         assert len(evaluation.evaluation_timestamp.isoformat()) > 0
 
-    def test_evaluate_trade_opportunity_low_ml_confidence(self):
+    @pytest.mark.asyncio
+    async def test_evaluate_trade_opportunity_low_ml_confidence(self):
         """ML信頼度不足による拒否テスト."""
         market_data = self.create_sample_market_data()
 
@@ -151,7 +154,7 @@ class TestIntegratedRiskManager:
 
         strategy_signal = {"strategy_name": "test_strategy", "action": "buy", "confidence": 0.7}
 
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -165,7 +168,8 @@ class TestIntegratedRiskManager:
         assert evaluation.decision == RiskDecision.APPROVED
         assert evaluation.position_size > 0.0  # ポジションサイズが設定される
 
-    def test_evaluate_trade_opportunity_drawdown_limit(self):
+    @pytest.mark.asyncio
+    async def test_evaluate_trade_opportunity_drawdown_limit(self):
         """ドローダウン制限による拒否テスト."""
         market_data = self.create_sample_market_data()
 
@@ -177,7 +181,7 @@ class TestIntegratedRiskManager:
         ml_prediction = {"confidence": 0.8, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.7}
 
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -190,7 +194,8 @@ class TestIntegratedRiskManager:
         assert evaluation.decision == RiskDecision.DENIED
         assert any("ドローダウン" in reason for reason in evaluation.denial_reasons)
 
-    def test_evaluate_trade_opportunity_critical_anomaly(self):
+    @pytest.mark.asyncio
+    async def test_evaluate_trade_opportunity_critical_anomaly(self):
         """重大異常による拒否テスト."""
         market_data = self.create_sample_market_data()
 
@@ -198,7 +203,7 @@ class TestIntegratedRiskManager:
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.7}
 
         # 重大スプレッド異常
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -212,7 +217,8 @@ class TestIntegratedRiskManager:
         assert evaluation.decision == RiskDecision.APPROVED
         assert len(evaluation.anomaly_alerts) > 0
 
-    def test_risk_score_calculation(self):
+    @pytest.mark.asyncio
+    async def test_risk_score_calculation(self):
         """リスクスコア計算テスト."""
         market_data = self.create_sample_market_data()
 
@@ -220,7 +226,7 @@ class TestIntegratedRiskManager:
         ml_prediction = {"confidence": 0.5, "action": "buy"}  # 中程度信頼度
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.7}
 
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -249,7 +255,8 @@ class TestIntegratedRiskManager:
         assert trade.is_win == True
         assert trade.strategy == "test_strategy"
 
-    def test_risk_metrics_update(self):
+    @pytest.mark.asyncio
+    async def test_risk_metrics_update(self):
         """リスク指標更新テスト."""
         market_data = self.create_sample_market_data()
 
@@ -258,7 +265,7 @@ class TestIntegratedRiskManager:
             ml_prediction = {"confidence": 0.7, "action": "buy"}
             strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-            evaluation = self.risk_manager.evaluate_trade_opportunity(
+            evaluation = await self.risk_manager.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
                 strategy_signal=strategy_signal,
                 market_data=market_data,
@@ -274,7 +281,8 @@ class TestIntegratedRiskManager:
         assert metrics.approved_trades > 0
         assert metrics.last_evaluation is not None
 
-    def test_evaluation_history_limit(self):
+    @pytest.mark.asyncio
+    async def test_evaluation_history_limit(self):
         """評価履歴サイズ制限テスト."""
         market_data = self.create_sample_market_data()
 
@@ -286,7 +294,7 @@ class TestIntegratedRiskManager:
             if i % 100 == 0:  # 進捗表示
                 print(f"評価実行中: {i}/1100")
 
-            self.risk_manager.evaluate_trade_opportunity(
+            await self.risk_manager.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
                 strategy_signal=strategy_signal,
                 market_data=market_data,
@@ -299,7 +307,8 @@ class TestIntegratedRiskManager:
         # 履歴サイズが制限される
         assert len(self.risk_manager.evaluation_history) <= 1000
 
-    def test_get_risk_summary(self):
+    @pytest.mark.asyncio
+    async def test_get_risk_summary(self):
         """リスクサマリー取得テスト."""
         market_data = self.create_sample_market_data()
 
@@ -311,7 +320,7 @@ class TestIntegratedRiskManager:
         ml_prediction = {"confidence": 0.7, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-        self.risk_manager.evaluate_trade_opportunity(
+        await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -335,7 +344,8 @@ class TestIntegratedRiskManager:
         assert 0 <= summary["approval_rate"] <= 1
         assert summary["system_status"] in ["active", "paused"]
 
-    def test_conditional_decision(self):
+    @pytest.mark.asyncio
+    async def test_conditional_decision(self):
         """条件付き承認テスト."""
         market_data = self.create_sample_market_data()
 
@@ -344,7 +354,7 @@ class TestIntegratedRiskManager:
             ml_prediction = {"confidence": 0.6, "action": "buy"}
             strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-            evaluation = self.risk_manager.evaluate_trade_opportunity(
+            evaluation = await self.risk_manager.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
                 strategy_signal=strategy_signal,
                 market_data=market_data,
@@ -358,7 +368,8 @@ class TestIntegratedRiskManager:
             assert evaluation.decision == RiskDecision.CONDITIONAL
             assert evaluation.risk_score == 0.65
 
-    def test_error_handling_in_evaluation(self):
+    @pytest.mark.asyncio
+    async def test_error_handling_in_evaluation(self):
         """評価時のエラーハンドリングテスト."""
         # 無効な市場データ
         invalid_market_data = pd.DataFrame()
@@ -366,7 +377,7 @@ class TestIntegratedRiskManager:
         ml_prediction = {"confidence": 0.7, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-        evaluation = self.risk_manager.evaluate_trade_opportunity(
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=invalid_market_data,
@@ -381,8 +392,9 @@ class TestIntegratedRiskManager:
         assert evaluation.risk_score == 1.0  # 最大リスク
         assert evaluation.position_size == 0.0
 
+    @pytest.mark.asyncio
     @patch("asyncio.create_task")
-    def test_discord_notification_integration(self, mock_create_task):
+    async def test_discord_notification_integration(self, mock_create_task):
         """Discord通知連携テスト."""
         # Discord通知有効な管理器作成
         risk_manager_with_discord = IntegratedRiskManager(
@@ -395,7 +407,7 @@ class TestIntegratedRiskManager:
         ml_prediction = {"confidence": 0.1, "action": "buy"}  # 低信頼度
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-        evaluation = risk_manager_with_discord.evaluate_trade_opportunity(
+        evaluation = await risk_manager_with_discord.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -482,7 +494,8 @@ class TestIntegratedRiskManager:
 
 
 # パフォーマンステスト
-def test_integrated_risk_manager_performance():
+@pytest.mark.asyncio
+async def test_integrated_risk_manager_performance():
     """統合リスク管理パフォーマンステスト."""
     config = {
         "kelly_criterion": {"max_position_ratio": 0.03},
@@ -505,7 +518,7 @@ def test_integrated_risk_manager_performance():
         ml_prediction = {"confidence": 0.7, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-        risk_manager.evaluate_trade_opportunity(
+        await risk_manager.evaluate_trade_opportunity(
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
             market_data=market_data,
@@ -522,7 +535,8 @@ def test_integrated_risk_manager_performance():
 
 
 # 統合テスト
-def test_complete_risk_management_workflow():
+@pytest.mark.asyncio
+async def test_complete_risk_management_workflow():
     """完全なリスク管理ワークフローテスト."""
     config = {
         "kelly_criterion": {"max_position_ratio": 0.02, "min_trades_for_kelly": 3},
@@ -546,7 +560,7 @@ def test_complete_risk_management_workflow():
     )
 
     # 1. 正常時の取引評価
-    evaluation1 = risk_manager.evaluate_trade_opportunity(
+    evaluation1 = await risk_manager.evaluate_trade_opportunity(
         ml_prediction={"confidence": 0.8, "action": "buy"},
         strategy_signal={"strategy_name": "test", "action": "buy", "confidence": 0.7},
         market_data=market_data,
@@ -565,7 +579,7 @@ def test_complete_risk_management_workflow():
         risk_manager.record_trade_result(-20000, "test", 0.6)
 
     # 4. 停止状態での評価
-    evaluation2 = risk_manager.evaluate_trade_opportunity(
+    evaluation2 = await risk_manager.evaluate_trade_opportunity(
         ml_prediction={"confidence": 0.8, "action": "buy"},
         strategy_signal={"strategy_name": "test", "action": "buy", "confidence": 0.7},
         market_data=market_data,

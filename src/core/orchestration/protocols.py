@@ -1,5 +1,5 @@
 """
-サービスプロトコル定義 - Phase 22 orchestrator分離
+サービスプロトコル定義 - Phase 28完了・Phase 29最適化版
 各サービス層のインターフェース定義
 """
 
@@ -55,7 +55,7 @@ class RiskServiceProtocol(Protocol):
 
 
 class ExecutionServiceProtocol(Protocol):
-    """注文実行サービスインターフェース（Phase 7追加）."""
+    """注文実行サービスインターフェース（Phase 28完了・Phase 29最適化版）."""
 
     async def execute_trade(self, evaluation: "TradeEvaluation") -> "ExecutionResult": ...
 

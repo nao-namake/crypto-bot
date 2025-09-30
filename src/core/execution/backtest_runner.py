@@ -1,7 +1,7 @@
 """
-バックテストランナー - Phase 22 ハードコード排除・統合最適化
+バックテストランナー - Phase 28完了・Phase 29最適化版
 
-Phase 22最適化：
+Phase 28完了・Phase 29最適化：
 - ペーパートレードと同じアプローチでCSVデータからバックテスト実行
 - 本番と同一のtrading_cycle_managerを使用
 - CSVデータを時系列で順次処理し、各時点で取引判定を実行
@@ -25,7 +25,7 @@ from .base_runner import BaseRunner
 
 
 class BacktestRunner(BaseRunner):
-    """バックテストモード実行クラス（Phase 22 ハードコード排除対応）"""
+    """バックテストモード実行クラス（Phase 28完了・Phase 29最適化版）"""
 
     def __init__(self, orchestrator_ref, logger):
         """
@@ -45,7 +45,7 @@ class BacktestRunner(BaseRunner):
         self.data_index = 0  # 現在の処理位置
         self.total_data_points = 0
 
-        # バックテスト設定（Phase 22: ハードコード排除）
+        # バックテスト設定（Phase 28完了・Phase 29最適化）
         self.symbol = get_threshold("backtest.symbol", "BTC/JPY")
         self.timeframes = get_threshold("backtest.timeframes", ["15m", "4h"])
         self.lookback_window = get_threshold(

@@ -94,18 +94,26 @@ class TestExecutionService:
 
     @pytest.fixture
     def paper_service(self):
-        """ペーパートレード用ExecutionService"""
+        """ペーパートレード用ExecutionService（ポジション制限機能対応）"""
         from src.trading.execution_service import ExecutionService
 
-        return ExecutionService(mode="paper")
+        service = ExecutionService(mode="paper")
+        # テスト用に十分な残高を設定（制限機能テスト用）
+        service.virtual_balance = 100000.0  # 10万円に設定
+        service.current_balance = 100000.0
+        service.virtual_positions = []  # 初期ポジションをクリア
+        return service
 
     @pytest.fixture
     def live_service(self):
-        """ライブトレード用ExecutionService（モック付き）"""
+        """ライブトレード用ExecutionService（モック付き・ポジション制限機能対応）"""
         from src.trading.execution_service import ExecutionService
 
         mock_client = Mock()
-        return ExecutionService(mode="live", bitbank_client=mock_client)
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+        # テスト用に十分な残高を設定（制限機能テスト用）
+        service.current_balance = 100000.0  # 10万円に設定
+        return service
 
     @pytest.fixture
     def sample_evaluation(self):
@@ -189,6 +197,10 @@ class TestExecutionService:
         from src.trading.risk_manager import OrderStatus as RealOrderStatus
 
         service = ExecutionService(mode="backtest")
+        # テスト用に十分な残高を設定（制限機能テスト用）
+        service.virtual_balance = 100000.0  # 10万円に設定
+        service.current_balance = 100000.0
+        service.virtual_positions = []  # 初期ポジションをクリア
         result = await service.execute_trade(sample_evaluation)
 
         # ExecutionResult型検証
@@ -237,6 +249,8 @@ class TestExecutionService:
         from src.trading.risk_manager import OrderStatus as RealOrderStatus
 
         service = ExecutionService(mode="live", bitbank_client=None)
+        # テスト用に十分な残高を設定（最小資金要件をクリア）
+        service.current_balance = 100000.0  # 10万円に設定
 
         result = await service.execute_trade(sample_evaluation)
 

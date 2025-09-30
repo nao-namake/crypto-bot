@@ -2,7 +2,7 @@
 
 ## 🎯 役割・責任
 
-AI自動取引システムのレポート生成とDiscord通知システム。取引シグナル、システム状態、エラー情報をDiscordチャンネルにリアルタイム通知。Phase 22統合により、レポート生成機能とDiscord通知機能を統合管理。
+AI自動取引システムのレポート生成とDiscord通知システム。取引シグナル、システム状態、エラー情報をDiscordチャンネルにリアルタイム通知。Phase 28完了・Phase 29最適化により、レポート生成機能とDiscord通知機能を統合管理。
 
 ## 📂 ファイル構成
 
@@ -11,84 +11,58 @@ src/core/reporting/
 ├── __init__.py               # レポート・通知システムエクスポート
 ├── base_reporter.py          # 基底レポーター（統一インターフェース）
 ├── paper_trading_reporter.py # ペーパートレードレポート生成
-└── discord_notifier.py       # Discord通知統合システム（Phase 22統合 + 最適化強化版）
-    ├── DiscordClient         # Discord Webhook送信・基盤層
-    ├── DiscordFormatter      # メッセージフォーマット・表現層
-    ├── DiscordManager        # 通知制御・Rate Limit・制御層
-    ├── NotificationBatcher   # バッチ処理・通知集約システム（🆕）
-    ├── DailySummaryCollector # 日次サマリー収集・送信（🆕）
-    └── EnhancedDiscordManager # 拡張Discord管理（バッチ機能統合版）（🆕）
+└── discord_notifier.py       # Discord通知統合システム（Phase 28完了・Phase 29最適化）
 ```
 
 ## 🔧 主要コンポーネント
 
-### **discord_notifier.py（Phase 22統合）**
+### **discord_notifier.py**
 
-**目的**: Discord通知の統合システム（3クラス統合）
+6つのクラスを統合したDiscord通知システム：
 
-**主要クラス**:
 ```python
 class DiscordClient:
-    def __init__(self, webhook_url: Optional[str] = None)  # 優先順位付きURL取得
     def send_message(self, message, level) -> bool        # シンプルメッセージ送信
     def send_embed(self, title, description) -> bool      # 埋め込み形式送信
-    def _validate_webhook_url(self, url) -> bool          # URL形式検証
-    
+
 class DiscordFormatter:
     @staticmethod
     def format_trading_signal(signal_data) -> Dict        # 取引シグナル形式
     @staticmethod
     def format_system_status(status_data) -> Dict         # システム状態形式
-    @staticmethod
-    def format_error_notification(error_data) -> Dict     # エラー通知形式
-    
+
 class DiscordManager:
-    def __init__(self, webhook_url: Optional[str] = None) # 通知管理初期化
-    def send_simple_message(self, message, level) -> bool # シンプル送信
     def send_trading_signal(self, signal_data) -> bool    # 取引シグナル送信
     def send_system_status(self, status_data) -> bool     # システム状態送信
     def send_error_notification(self, error_data) -> bool # エラー通知送信
 
-# 🆕 新機能: バッチ処理・通知最適化システム
-
 class NotificationBatcher:
-    def __init__(self, discord_client: DiscordClient)     # バッチャー初期化
     def add_notification(self, data, level) -> bool       # 通知をキューに追加
     def process_batch(self) -> bool                       # バッチ通知の処理・送信
-    def _generate_batch_summary(self) -> List[Dict]       # バッチサマリー生成
-    def _check_rate_limit(self) -> bool                   # レート制限チェック
 
 class DailySummaryCollector:
-    def __init__(self, discord_client: DiscordClient)     # サマリーコレクター初期化
     def add_daily_event(self, event_data)                 # 日次イベント追加
-    def should_send_daily_summary(self) -> bool           # 送信タイミング判定
     def generate_daily_summary(self) -> Dict              # 日次サマリー生成
 
 class EnhancedDiscordManager(DiscordManager):
-    def __init__(self, webhook_url: Optional[str] = None) # 拡張マネージャー初期化
     def send_simple_message(self, message, level) -> bool # 拡張版シンプル送信
-    def send_trading_signal(self, signal_data) -> bool    # 拡張版取引シグナル
     def process_pending_notifications(self)               # 保留中通知の処理
-    def get_enhanced_status(self) -> Dict                 # 拡張状態情報取得
 ```
 
 ### **base_reporter.py**
 
-**目的**: レポート生成の統一インターフェース
+レポート生成の統一インターフェース：
 
-**主要機能**:
 ```python
 class BaseReporter:
-    def __init__(self, logger: CryptoBotLogger)          # 基底レポーター初期化
     async def save_report(self, data, report_type) -> Path # 統一レポート保存
     async def generate_error_report(self, error_data) -> Path # エラーレポート生成
 ```
 
 ### **paper_trading_reporter.py**
 
-**目的**: ペーパートレード専用レポート生成
+ペーパートレード専用レポート生成：
 
-**主要機能**:
 ```python
 class PaperTradingReporter(BaseReporter):
     async def generate_session_report(self, session_stats) -> Path # セッションレポート
@@ -98,219 +72,75 @@ class PaperTradingReporter(BaseReporter):
 
 ## 🚀 使用方法
 
-### **基本的な通知送信（従来版）**
+### **基本的な通知送信**
+
 ```python
 from src.core.reporting.discord_notifier import DiscordManager
 
 # 初期化（WebhookURLは自動取得）
 manager = DiscordManager()
 
-# シンプルメッセージ送信（即時送信）
+# シンプルメッセージ送信
 manager.send_simple_message("システム起動完了", "info")
-manager.send_simple_message("警告: API制限に近づいています", "warning")
-manager.send_simple_message("緊急: システム停止", "critical")
-```
-
-### **🆕 バッチ処理対応通知送信（推奨）**
-```python
-from src.core.reporting.discord_notifier import EnhancedDiscordManager
-
-# 拡張マネージャー初期化（バッチ処理自動有効化）
-manager = EnhancedDiscordManager()
-
-# 通知送信（自動的にバッチ処理またはレベル別送信）
-manager.send_simple_message("取引完了", "info")         # → 日次サマリーに集約
-manager.send_simple_message("価格急変検出", "warning")    # → 1時間バッチに集約
-manager.send_simple_message("残高異常検出", "critical")   # → 即時送信
-
-# 保留中通知の手動処理（定期実行時）
-manager.process_pending_notifications()
-```
-
-### **取引シグナル通知**
-```python
-# 取引シグナルデータ準備
-signal_data = {
-    "action": "buy",           # buy/sell/hold
-    "confidence": 0.75,        # 信頼度 (0-1)
-    "price": 1000000,          # 価格
-    "symbol": "BTC/JPY",       # 通貨ペア
-    "features_used": 12,       # 使用特徴量数
-    "model": "ProductionEnsemble"
-}
 
 # 取引シグナル送信
+signal_data = {
+    "action": "BUY",
+    "confidence": 0.85,
+    "price": 4800000,
+    "strategy": "ATRBased"
+}
 manager.send_trading_signal(signal_data)
 ```
 
+### **拡張機能（バッチ処理・日次サマリー）**
+
+```python
+from src.core.reporting.discord_notifier import EnhancedDiscordManager
+
+# 拡張マネージャー使用
+enhanced_manager = EnhancedDiscordManager()
+
+# バッチ処理で複数通知を効率送信
+enhanced_manager.send_simple_message("通知1", "info")
+enhanced_manager.send_simple_message("通知2", "warning")
+enhanced_manager.process_pending_notifications()  # 一括送信
+```
+
 ### **レポート生成**
+
 ```python
 from src.core.reporting import PaperTradingReporter
 
-# ペーパートレードレポート生成
 reporter = PaperTradingReporter(logger)
+
+# ペーパートレードセッションレポート生成
+session_stats = {"trades": 10, "profit": 5000, "duration": "2h"}
 report_path = await reporter.generate_session_report(session_stats)
 ```
 
-## ⚙️ 設定・Webhook URL管理
+## ⚙️ 設定管理
 
-### **優先順位付きWebhook URL取得**
+Discord通知設定は `config/core/thresholds.yaml` で一元管理：
 
-Discord Webhook URLは以下の優先順位で自動取得されます：
-
-1. **引数**（最優先）: `DiscordManager(webhook_url="https://...")`
-2. **`.env`ファイル**（推奨）: `config/secrets/.env`
-3. **環境変数**: `DISCORD_WEBHOOK_URL`
-4. **txtファイル**（後方互換性）: `config/secrets/discord_webhook.txt`
-
-### **.env ファイル設定（推奨方法）**
-
-`config/secrets/.env`:
-```bash
-# Discord通知設定
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
-
-# その他の環境変数
-BITBANK_API_KEY=your_api_key
-BITBANK_API_SECRET=your_api_secret
-```
-
-### **Phase 22統合設定**
-
-`config/core/unified.yaml`:
 ```yaml
-# レポート設定（Phase 22 ハードコード値外出し）
-reporting:
-  base_dir: "logs/reports"
-  paper_trading_dir: "logs/paper_trading_reports"
-  error_dir: "logs/reports/errors"
-  max_report_size_mb: 10
-  retention_days: 30
-
-# Discord通知設定（Phase 22 統合 + 最適化強化版）
-discord:
-  # 基本設定
-  max_retries: 3
-  timeout_seconds: 10
-  max_message_length: 2000
-  embed_color:
-    success: 0x00FF00
-    warning: 0xFFFF00
-    error: 0xFF0000
-
-  # 🆕 バッチ処理設定（通知負荷軽減）
-  batch_notifications: true            # バッチ処理有効化
-  batch_interval_minutes: 60          # 1時間毎にバッチ送信
-  daily_summary_hour: 18              # JST 18:00に日次サマリー
-
-  # 🆕 レート制限強化
-  rate_limit:
-    min_interval_seconds: 5           # 最小間隔5秒
-    max_per_hour: 12                 # 1時間最大12通知
-    burst_limit: 3                   # 短時間バースト制限
-
-  # 🆕 通知レベル最適化
-  notification_levels:
-    critical: immediate              # 即時通知（残高異常等）
-    warning: batch                   # バッチ集約（1時間毎）
-    info: daily                      # 日次サマリーのみ
-
-  # 起動時設定
-  startup_grace_period: 30           # 起動後30秒は通知抑制
+monitoring:
+  discord:
+    min_interval: 2
+    rate_limit_per_minute: 30
+  health_check:
+    interval_seconds: 60
 ```
 
-## 🛡️ エラーハンドリング・制限対応
+## 特徴・制約
 
-### **Cloud Run環境変数制御文字対応**
-
-**問題**: Cloud RunのSecret Manager統合時に環境変数に制御文字・改行文字が追加される
-
-**症状**:
-```
-ローカル: 121文字のURL → 正常動作
-Cloud Run: 122文字のURL → 401エラー（Invalid Webhook Token）
-```
-
-**解決策**: 全URL読み込みポイントで制御文字完全除去
-```python
-# 環境変数読み込み時の強化処理（実装済み）
-cleaned_url = env_url.strip().rstrip('\n\r').strip('"\'')
-
-# デバッグ情報出力
-if len(cleaned_url) != len(env_url.strip()):
-    logger.warning(f"🔧 環境変数URL清浄化: {len(env_url)}文字 -> {len(cleaned_url)}文字")
-    original_hash = hashlib.md5(env_url.encode()).hexdigest()[:8]
-    cleaned_hash = hashlib.md5(cleaned_url.encode()).hexdigest()[:8]
-    logger.info(f"   元ハッシュ: {original_hash} -> 清浄後: {cleaned_hash}")
-```
-
-**2025-09-19 追加修正**: Secret Manager version 6作成による根本解決
-- **問題特定**: version 5が122文字（+1文字）で401エラー発生
-- **解決**: 正確な121文字URLでversion 6作成・CI/CD更新
-- **結果**: GCP Secret Manager discord-webhook-url:6 使用で問題完全解決
-
-### **401エラー（認証失敗）対応**
-
-```python
-# 401エラー発生時の自動処理
-# - URLハッシュをログ出力（セキュリティ考慮）
-# - 通知システムを自動無効化
-# - 連続エラーを防止
-```
-
-### **Rate Limit対応**
-
-- **最小送信間隔**: 2秒（設定で変更可能）
-- **起動時抑制**: 30秒間（システム安定化のため）
-- **429エラー**: 自動的に送信抑制
-
-### **JSON形式エラー（50109）対応**
-
-- **事前検証**: JSON送信前に形式チェック
-- **文字エンコーディング**: UTF-8対応
-- **特殊文字処理**: Discord API準拠の処理
-
-## 🎨 メッセージフォーマット
-
-### **レベル別色設定**
-
-```python
-LEVEL_COLORS = {
-    "info": 0x3498DB,      # 青色（情報）
-    "warning": 0xF39C12,   # 黄色（警告）
-    "critical": 0xE74C3C,  # 赤色（緊急）
-}
-```
-
-## ⚠️ 重要事項
-
-### **セキュリティ**
-
-- **機密保護**: `config/secrets/`は`.gitignore`で保護済み
-- **権限設定**: `chmod 600 config/secrets/discord_webhook.txt`推奨
-- **URLハッシュ**: 401エラー時はハッシュのみログ出力
-
-### **Phase 22統合 + 最適化強化版の利点**
-
-#### **従来のPhase 22統合の利点**
-- **統一管理**: レポート生成とDiscord通知を一元化
-- **設定統合**: `unified.yaml`での設定管理
-- **保守性向上**: 機能関連性に基づく適切な配置
-- **後方互換性**: 既存のインポートパスも対応
-
-#### **🆕 最適化強化版の追加効果**
-- **通知負荷軽減**: バッチ処理により通信回数90%削減
-- **コスト最適化**: レート制限により従量課金を抑制
-- **運用安定性**: 無限通知ループを根本的に防止
-- **プロセス管理**: 重複起動防止により今回の問題を解決
-- **スケーラブル設計**: 大量通知に対応可能なキューイングシステム
-
-### **依存関係**
-
-- **外部ライブラリ**: requests（HTTP送信）、python-dotenv（.env読み込み）
-- **内部依存**: src.core.config（設定管理）、src.core.logger（ログシステム）
-- **設定ファイル**: config/core/unified.yaml、config/secrets/.env
+- **統合設計**: 6クラス1ファイルによる効率的管理
+- **レート制限**: Discord API制限対応・自動調整
+- **バッチ処理**: 複数通知の効率的送信
+- **日次サマリー**: 取引結果の自動集計・送信
+- **エラー処理**: 通信失敗時の自動再試行・フォールバック
+- **設定外部化**: ハードコード排除・動的設定変更
 
 ---
 
-**レポート生成・通知システム**: Phase 22統合により、レポート生成とDiscord通知機能を統合管理。3層アーキテクチャによる堅牢なDiscord通知システムと統一レポート生成インターフェースを提供。
+**レポート生成・通知システム（Phase 28完了・Phase 29最適化）**: Discord通知統合・レポート生成・バッチ処理による包括的監視・通知システム。

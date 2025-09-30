@@ -1,6 +1,6 @@
 # src/ - AI自動取引システム実装
 
-AI自動取引システムのメイン実装ディレクトリ。データ取得・特徴量生成・戦略実行・機械学習・リスク管理・取引実行を統合したレイヤードアーキテクチャシステム。
+**Phase 28完了・Phase 29最適化済み**のAI自動取引システム実装。15特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化レイヤードアーキテクチャ。
 
 ## 📂 システム構成
 
@@ -8,42 +8,37 @@ AI自動取引システムのメイン実装ディレクトリ。データ取得
 src/
 ├── __init__.py                     # パッケージ初期化
 ├── core/                          # コア基盤システム
-│   ├── orchestration/                 # システム統合制御
+│   ├── orchestration/                 # システム統合制御・TradingOrchestrator
 │   ├── config/                        # 設定管理・特徴量管理
-│   ├── execution/                     # 取引実行制御
-│   ├── reporting/                     # レポーティング
-│   ├── services/                      # システムサービス
-│   ├── config.py                      # 設定読み込み
-│   ├── logger.py                      # ログ管理・Discord通知
-│   ├── exceptions.py                  # カスタム例外
-│   ├── protocols.py                   # インターフェース定義
-│   └── market_data.py                 # 市場データ管理
+│   ├── execution/                     # バックテスト実行制御
+│   ├── reporting/                     # レポーティング・Discord統合
+│   ├── services/                      # システムサービス・正常終了管理
+│   └── [基盤ファイル群]                # config.py・logger.py・exceptions.py等
 ├── data/                          # データ層
-│   ├── bitbank_client.py              # Bitbank API統合
+│   ├── bitbank_client.py              # Bitbank API統合・残高・取引実行
 │   ├── data_pipeline.py               # データ取得・処理パイプライン
 │   └── data_cache.py                  # データキャッシュシステム
 ├── features/                      # 特徴量システム
 │   └── feature_generator.py          # 15特徴量生成・統合管理
 ├── strategies/                    # 戦略システム → [詳細](strategies/README.md)
 │   ├── base/                          # 戦略基盤・統合管理
-│   ├── implementations/               # 5戦略実装（ATR・もちぽよ・MTF・Donchian・ADX）
+│   ├── implementations/               # 5戦略実装（ATR・MochiPoy・MTF・Donchian・ADX）
 │   └── utils/                         # 戦略共通処理
 ├── ml/                           # 機械学習システム
-│   ├── models.py                      # MLモデル実装
-│   ├── ensemble.py                    # アンサンブルモデル・3モデル統合
-│   ├── model_manager.py               # モデル管理・バージョニング
-│   └── __init__.py                    # ML統合エクスポート
+│   ├── models.py                      # 個別MLモデル実装
+│   ├── ensemble.py                    # ProductionEnsemble・3モデル統合
+│   └── model_manager.py               # モデル管理・週次学習対応
 ├── trading/                      # 取引実行・リスク管理層 → [詳細](trading/README.md)
-│   ├── risk_manager.py                # 統合リスク管理・Kelly基準
-│   ├── risk_monitor.py                # 異常検知・ドローダウン管理
-│   ├── executor.py                    # 注文実行・統計管理
-│   └── __init__.py                    # 取引統合エクスポート
+│   ├── risk_manager.py                # 統合リスク管理・Kelly基準・TP/SL
+│   ├── position_manager.py            # ポジション管理・仮想ポジション
+│   ├── execution_service.py           # ExecutionService・取引実行統合
+│   └── [リスク管理群]                  # risk_monitor.py・thresholds.py等
 ├── backtest/                     # バックテストシステム
-│   ├── engine.py                      # バックテストエンジン
-│   ├── evaluator.py                   # 性能評価・統計分析
-│   └── reporter.py                    # レポート生成・可視化
-└── monitoring/                   # 監視システム
-    └── discord_notifier.py           # Discord通知・3階層監視
+│   ├── data/                          # CSV読み込み・キャッシュ
+│   ├── scripts/                       # データ収集スクリプト
+│   ├── logs/                          # レポート出力先
+│   └── reporter.py                    # レポート生成・JSON出力
+└── [監視なし]                      # monitoring削除済み・Discord機能はcoreに統合
 ```
 
 ## 🔧 システムアーキテクチャ
@@ -146,18 +141,15 @@ src/
 - **注文実行**: ペーパートレード・実取引・レイテンシー監視
 
 ### **7. backtest/ - バックテストシステム**
-**目的**: 戦略検証・性能評価・独立実行環境
+**目的**: 本番同一ロジック・バックテスト・CSV過去データ利用
 
-**主要モジュール**:
-- `engine.py`: バックテストエンジン・仮想取引・手数料計算
-- `evaluator.py`: 性能評価・統計分析・リスク指標計算
-- `reporter.py`: レポート生成・可視化・CSV・HTML出力
+**主要コンポーネント**:
+- `data/csv_data_loader.py`: CSV読み込み・キャッシュ・過去データ管理
+- `scripts/collect_historical_csv.py`: 過去データ収集・Bitbank API→CSV変換
+- `reporter.py`: JSON形式レポート生成・統計分析
+- `logs/`: バックテスト結果出力先（空・実行時自動作成）
 
-### **8. monitoring/ - 監視システム**
-**目的**: リアルタイム監視・Discord通知・運用管理
-
-**主要モジュール**:
-- `discord_notifier.py`: 3階層通知（Critical/Warning/Info）・Cloud Run監視統合
+**Phase 29最適化**: SSL証明書検証有効化・型ヒント改善・Phase 28バージョン更新完了
 
 ## 🚀 使用方法
 
@@ -177,26 +169,26 @@ await orchestrator.run_trading_cycle()
 ```
 
 ### **バックテスト実行**
+```bash
+# メイン実行（推奨）
+python main.py --mode backtest
+
+# CSVデータ更新（月1回推奨）
+python src/backtest/scripts/collect_historical_csv.py --days 180
+```
+
 ```python
-from src.backtest.engine import BacktestEngine
+# バックテスト結果確認
+from src.backtest.data.csv_data_loader import get_csv_loader
+from src.backtest.reporter import BacktestReporter
 
-# バックテストエンジン作成
-engine = BacktestEngine(
-    initial_balance=1000000,
-    slippage_rate=0.0005,
-    commission_rate=0.0012
-)
+# CSV読み込み確認
+loader = get_csv_loader()
+data = loader.load_historical_data("BTC/JPY", "4h")
 
-# バックテスト実行
-results = await engine.run_backtest(
-    start_date=datetime(2024, 8, 1),
-    end_date=datetime(2024, 9, 1),
-    symbol="BTC/JPY"
-)
-
-# 結果分析
-evaluator = BacktestEvaluator(results)
-report = evaluator.generate_report()
+# レポート確認
+reporter = BacktestReporter()
+# 結果はsrc/backtest/logs/backtest_*.jsonに出力
 ```
 
 ### **個別コンポーネント使用**
@@ -241,9 +233,9 @@ python -m pytest tests/unit/ml/ -v
 python -m pytest tests/ --cov=src --cov-report=html
 ```
 
-### **品質指標**
-- **テスト成功率**: 625テスト100%成功
-- **コードカバレッジ**: 58.64%以上維持
+### **品質指標（Phase 29更新）**
+- **テスト成功率**: 639テスト100%成功
+- **コードカバレッジ**: 64.74%達成・向上中
 - **実行時間**: システム全体テスト30秒以内
 
 ### **継続的品質保証**
@@ -294,23 +286,23 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ## ⚠️ 重要事項
 
-### **システム要件 (Phase 22最適化後)**
-- **Python**: 3.12推奨（MLライブラリ互換性最適化済み）・async/await・型ヒント対応
+### **システム要件（Phase 28完了・Phase 29最適化）**
+- **Python**: 3.13推奨（最新MLライブラリ対応）・async/await完全対応・型ヒント拡充
 - **メモリ**: 本番運用1GB・バックテスト2GB推奨
 - **ディスク**: キャッシュ・ログ・モデル用に5GB以上
-- **コード品質**: Phase 22最適化で企業級品質を実現
+- **コード品質**: Phase 29デプロイ前最適化・不要コード削除・構成見直し完了
 
 ### **運用制約**
 - **API制限**: Bitbank 35秒間隔・接続数制限・レート制限対応
 - **リスク管理**: Kelly基準・20%ドローダウン制限・連続5損失停止
 - **監視必須**: Discord 3階層通知・Cloud Run監視・ヘルスチェック
 
-### **開発制約 (Phase 22最適化後)**
-- **テスト必須**: scripts/testing/checks.sh実行・カバレッジ58.64%維持
-- **品質ゲート**: CI/CD自動チェック・失敗時開発停止
-- **コード品質**: flake8・black・isort通過必須
+### **開発制約（Phase 29デプロイ準備）**
+- **テスト必須**: scripts/testing/checks.sh実行・カバレッジ64.74%維持
+- **品質ゲート**: CI/CD自動チェック・639テスト100%成功必須
+- **コード品質**: flake8・black・isort通過・SSL証明書セキュリティ対応
 - **設定分離**: 本番・バックテスト・開発環境完全分離
-- **Phase 22品質**: 未使用コード削除・構造最適化完了
+- **Phase 29完了**: デプロイ前最適化・不要ファイル削除・READMEの簡潔化実施
 
 ### **依存関係**
 - **外部ライブラリ**: pandas・numpy・ccxt・lightgbm・xgboost・scikit-learn
@@ -327,6 +319,6 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ---
 
-**AI自動取引システム (Phase 22最適化完了)**: レイヤードアーキテクチャによる統合システム。データ取得→特徴量生成→戦略実行→機械学習→リスク管理→取引実行の完全自動化。ペーパートレードから実取引まで対応し、包括的な品質保証とリスク管理を実現。
+**AI自動取引システム（Phase 28完了・Phase 29デプロイ準備完了）**: 15特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化。テイクプロフィット/ストップロス実装・ML信頼度連動取引制限・最小ロット優先・bitbank API統合により、少額運用から本格運用まで対応。
 
-**Phase 22成果**: 未使用コード削除(423行)・構造最適化・保守性向上により企業級コード品質を実現。
+**Phase 29成果**: デプロイ前最適化・不要ファイル削除・SSL証明書セキュリティ強化・README簡潔化により、企業級品質とデプロイ準備を完了。

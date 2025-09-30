@@ -1,5 +1,5 @@
 """
-統合設定管理システム - Phase 22 ハードコード排除・設定完全一元化
+統合設定管理システム - Phase 28完了・Phase 29最適化版
 環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 """
 
@@ -43,18 +43,7 @@ class Config:
     @classmethod
     def load_from_file(cls, config_path: str, cmdline_mode: Optional[str] = None) -> "Config":
         """
-        YAMLファイルから設定を読み込み（モード設定一元化・3層優先順位）
-        ハードコーディング排除版 - thresholds.yamlと統合ロード
-
-        モード設定の優先順位:
-        1. コマンドライン引数（最優先）
-        2. 環境変数 MODE
-        3. YAMLファイル（デフォルト）
-
-        設定値の優先順位:
-        1. メインYAMLファイル（config_path）
-        2. thresholds.yaml（フォールバック値）
-        3. 組み込みデフォルト値
+        YAMLファイルから設定を読み込み（モード設定一元化・thresholds.yaml統合）
 
         Args:
             config_path: 設定ファイルパス
@@ -80,19 +69,16 @@ class Config:
             # thresholds.yaml読み込み失敗時は警告を出して継続
             print(f"⚠️ thresholds.yaml読み込み失敗: {e}")
 
-        # 🎯 モード設定一元化: 3層優先順位の実装
-        mode = "paper"  # デフォルト
+        # モード設定一元化: コマンドライン > 環境変数 > YAML
+        mode = "paper"
 
-        # レイヤー3: YAMLファイル（最低優先）
         if "mode" in config_data and config_data["mode"]:
             mode = config_data["mode"]
 
-        # レイヤー2: 環境変数（中優先）
         env_mode = os.getenv("MODE")
         if env_mode:
             mode = env_mode.lower()
 
-        # レイヤー1: コマンドライン引数（最優先）
         if cmdline_mode:
             mode = cmdline_mode.lower()
 
@@ -169,105 +155,68 @@ class Config:
         return result
 
     @staticmethod
+    def _create_generic_config(
+        config_class, section_name: str, config_data: dict, extra_data: dict = None
+    ) -> any:
+        """汎用設定作成メソッド（重複コード削減・深いマージ対応）"""
+        data = config_data.get(section_name, {}).copy()
+
+        # デフォルト値で深いマージ補完
+        defaults = config_data.get(section_name, {})
+
+        def deep_merge(base: dict, defaults: dict) -> dict:
+            """深いマージ（デフォルト値で補完）"""
+            for key, default_value in defaults.items():
+                if key not in base or base[key] is None:
+                    base[key] = default_value
+                elif isinstance(base[key], dict) and isinstance(default_value, dict):
+                    deep_merge(base[key], default_value)
+            return base
+
+        data = deep_merge(data, defaults)
+
+        # 除外フィールド（MLConfigのみ）
+        if section_name == "ml":
+            excluded_fields = {"dynamic_confidence"}
+            data = {k: v for k, v in data.items() if k not in excluded_fields}
+
+        # extra_dataがある場合はマージ
+        if extra_data:
+            data.update(extra_data)
+
+        return config_class(**data)
+
+    @staticmethod
     def _create_exchange_config(config_data: dict, exchange_data: dict) -> ExchangeConfig:
         """取引所設定を作成（unified.yamlからデフォルト値取得）"""
-        # unified.yamlからデフォルト値を取得
-        exchange_defaults = config_data.get("exchange", {})
+        extra_data = {
+            "api_key": os.getenv("BITBANK_API_KEY"),
+            "api_secret": os.getenv("BITBANK_API_SECRET"),
+        }
+        # exchange_dataの内容をextra_dataに追加
+        extra_data.update(exchange_data)
 
-        # デフォルト値とマージ
-        for key, default_value in exchange_defaults.items():
-            if key not in exchange_data or exchange_data[key] is None:
-                exchange_data[key] = default_value
-
-        return ExchangeConfig(
-            **exchange_data,
-            api_key=os.getenv("BITBANK_API_KEY"),
-            api_secret=os.getenv("BITBANK_API_SECRET"),
-        )
+        return Config._create_generic_config(ExchangeConfig, "exchange", config_data, extra_data)
 
     @staticmethod
     def _create_ml_config(config_data: dict) -> MLConfig:
         """機械学習設定を作成（unified.yamlからデフォルト値取得）"""
-        ml_data = config_data.get("ml", {}).copy()  # コピーして元データを保護
-
-        # unified.yamlからデフォルト値を取得
-        ml_defaults = config_data.get("ml", {})
-
-        for key, default_value in ml_defaults.items():
-            if key not in ml_data or ml_data[key] is None:
-                ml_data[key] = default_value
-
-        # MLConfigにない項目を除外（dynamic_confidence等）
-        excluded_fields = {"dynamic_confidence"}
-        ml_data = {k: v for k, v in ml_data.items() if k not in excluded_fields}
-
-        return MLConfig(**ml_data)
+        return Config._create_generic_config(MLConfig, "ml", config_data)
 
     @staticmethod
     def _create_risk_config(config_data: dict) -> RiskConfig:
         """リスク管理設定を作成（unified.yamlからデフォルト値取得）"""
-        risk_data = config_data.get("risk", {}).copy()  # コピーして元データを保護
-
-        # unified.yamlからデフォルト値を取得
-        risk_defaults = config_data.get("risk", {})
-
-        def deep_merge(base: dict, defaults: dict) -> dict:
-            """深いマージ（デフォルト値で補完）"""
-            for key, default_value in defaults.items():
-                if key not in base or base[key] is None:
-                    base[key] = default_value
-                elif isinstance(base[key], dict) and isinstance(default_value, dict):
-                    deep_merge(base[key], default_value)
-            return base
-
-        # デフォルト値で補完
-        risk_data = deep_merge(risk_data, risk_defaults)
-
-        return RiskConfig(**risk_data)
+        return Config._create_generic_config(RiskConfig, "risk", config_data)
 
     @staticmethod
     def _create_data_config(config_data: dict) -> DataConfig:
         """データ取得設定を作成（unified.yamlからデフォルト値取得）"""
-        data_data = config_data.get("data", {}).copy()  # コピーして元データを保護
-
-        # unified.yamlからデフォルト値を取得
-        data_defaults = config_data.get("data", {})
-
-        def deep_merge(base: dict, defaults: dict) -> dict:
-            """深いマージ（デフォルト値で補完）"""
-            for key, default_value in defaults.items():
-                if key not in base or base[key] is None:
-                    base[key] = default_value
-                elif isinstance(base[key], dict) and isinstance(default_value, dict):
-                    deep_merge(base[key], default_value)
-            return base
-
-        # デフォルト値で補完
-        data_data = deep_merge(data_data, data_defaults)
-
-        return DataConfig(**data_data)
+        return Config._create_generic_config(DataConfig, "data", config_data)
 
     @staticmethod
     def _create_logging_config(config_data: dict) -> LoggingConfig:
         """ログ設定を作成（unified.yamlからデフォルト値取得）"""
-        logging_data = config_data.get("logging", {}).copy()  # コピーして元データを保護
-
-        # unified.yamlからデフォルト値を取得
-        logging_defaults = config_data.get("logging", {})
-
-        def deep_merge(base: dict, defaults: dict) -> dict:
-            """深いマージ（デフォルト値で補完）"""
-            for key, default_value in defaults.items():
-                if key not in base or base[key] is None:
-                    base[key] = default_value
-                elif isinstance(base[key], dict) and isinstance(default_value, dict):
-                    deep_merge(base[key], default_value)
-            return base
-
-        # デフォルト値で補完
-        logging_data = deep_merge(logging_data, logging_defaults)
-
-        return LoggingConfig(**logging_data)
+        return Config._create_generic_config(LoggingConfig, "logging", config_data)
 
     def validate(self) -> bool:
         """設定の妥当性をチェック."""

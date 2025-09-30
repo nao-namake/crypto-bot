@@ -1,5 +1,5 @@
 """
-MLサービス モデル読み込み機能 - Phase 22 分割
+MLサービス モデル読み込み機能 - Phase 28完了・Phase 29最適化版
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
@@ -71,7 +71,7 @@ class MLModelLoader:
             return False
 
         try:
-            # Phase 22対応: 古いPickleファイル互換性レイヤー（完全版）
+            # Phase 28完了・Phase 29最適化: 古いPickleファイル互換性レイヤー（完全版）
             class EnsembleModule:
                 """ensemble サブモジュールのエミュレート"""
 

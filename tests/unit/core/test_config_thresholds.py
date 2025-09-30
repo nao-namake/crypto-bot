@@ -26,7 +26,7 @@ class TestThresholdConfiguration:
             "src.core.config.threshold_manager.load_thresholds",
             return_value={
                 "ml": {"default_confidence": 0.5},
-                "trading": {"default_balance_jpy": 2000000.0},
+                "trading": {"fallback_btc_jpy": 16500000.0},
             },
         ):
             result = get_threshold("ml.default_confidence", 0.5)
@@ -66,7 +66,7 @@ class TestThresholdConfiguration:
         """YAMLファイルからの閾値設定読み込み"""
         test_config = {
             "ml": {"default_confidence": 0.5},
-            "trading": {"default_balance_jpy": 10000.0},
+            "trading": {"fallback_btc_jpy": 16500000.0},
         }
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -85,7 +85,7 @@ class TestThresholdConfiguration:
                     result = load_thresholds()
 
                 assert result["ml"]["default_confidence"] == 0.5
-                assert result["trading"]["default_balance_jpy"] == 10000.0
+                assert result["trading"]["fallback_btc_jpy"] == 16500000.0
         finally:
             os.unlink(temp_path)
 

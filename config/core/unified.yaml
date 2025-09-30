@@ -1,9 +1,9 @@
 # ========================================
-# 統一設定ファイル (unified.yaml) - 統一設定管理体系確立完了
+# 統一設定ファイル (unified.yaml) - Phase 28完了・Phase 29最適化版
 # ========================================
-# 
-# 統一設定管理体系確立・設定不整合完全解消・v1.0.0
-# 作成日: 2025年9月7日 | 最終更新: 統一設定管理体系確立完了
+#
+# Phase 29最適化：設定重複完全解消・視覚的改善・理解しやすい構造化
+# 作成日: 2025年9月7日 | 最終更新: Phase 28完了・Phase 29最適化完了
 # 目的: 基本設定の統一管理・動的閾値はthresholds.yamlで管理
 #
 # 重要: 1つの設定ファイルで全環境をサポート
@@ -50,17 +50,13 @@ exchange:
 # ========================================
 # 機械学習設定（統一設定管理体系最適化）
 # ========================================
+# 注意: 信頼度闾値はthresholds.yamlで管理、model_weightsはensembleセクションで統一
 ml:
-  confidence_threshold: 0.3  # 0.35→0.3（取引機会増加・月100-200回対応）
   ensemble_enabled: true
   models:
   - lgbm
   - xgb
   - rf
-  model_weights:
-  - 0.5
-  - 0.3
-  - 0.2
   model_path: /app/models/production/production_ensemble.pkl
   model_update_check: true
   fallback_enabled: true
@@ -136,13 +132,9 @@ strategies:
 # ========================================
 # リスク管理設定（Kelly基準・個人開発最適化）
 # ========================================
+# 注意: Kelly基準詳細設定・リスク閾値はthresholds.yamlで管理
 risk:
-  kelly_criterion:
-    max_position_ratio: 0.03
-    safety_factor: 0.7
-    min_trades_for_kelly: 5  # 20→5に緩和（初期取引開始のため）
   risk_per_trade: 0.01
-  kelly_max_fraction: 0.03
   max_drawdown: 0.2
   stop_loss_atr_multiplier: 1.2
   consecutive_loss_limit: 5
@@ -154,7 +146,7 @@ risk:
     max_drawdown_ratio: 0.2
     consecutive_loss_limit: 8  # 5→8（連続損失許容を増加・取引機会拡大）
     cooldown_hours: 6          # 24→6（停止時間を大幅短縮・月100-200回対応）
-    initial_balance: 10000.0   # 実際の初期残高（円）- API取得成功時ベース
+    # 初期残高設定は mode_balances セクションから取得
     fallback_balance: 11000.0  # フォールバック残高（円）- API失敗時判別用
     persistence:
       local_path: "src/core/state/drawdown_state.json"  # ローカル状態ファイルパス
@@ -166,10 +158,6 @@ risk:
     spread_critical_threshold: 0.005
     api_latency_warning: 1.0
     api_latency_critical: 3.0
-  risk_thresholds:
-    min_ml_confidence: 0.12      # 0.15→0.12（最小信頼度を下げて取引機会増加）
-    risk_threshold_deny: 0.85    # 0.95→0.85（リスク許容度を適度に上げる）
-    risk_threshold_conditional: 0.65  # 0.7→0.65（条件付き承認を拡大）
 
 # ========================================
 # 注文実行設定
@@ -267,13 +255,13 @@ trading_constraints:
   - 15m
 
 # ========================================
-# アンサンブル設定（重み配分）
+# アンサンブルモデル重み設定（統一）
 # ========================================
 ensemble:
   weights:
-    lightgbm: 0.4
-    xgboost: 0.4
-    random_forest: 0.2
+    lightgbm: 0.5      # LightGBM 50%（メインモデル）
+    xgboost: 0.3       # XGBoost 30%（補完モデル）
+    random_forest: 0.2 # RandomForest 20%（安定化モデル）
 
 # ========================================
 # レポート設定

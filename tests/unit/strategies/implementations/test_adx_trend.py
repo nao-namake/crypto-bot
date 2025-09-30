@@ -354,7 +354,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertTrue(analysis["bullish_crossover"])
         self.assertFalse(analysis["bearish_crossover"])
 
-    @patch("src.strategies.implementations.adx_trend.get_threshold")
+    @patch("src.core.config.threshold_manager.get_threshold")
     def test_configuration_override(self, mock_get_threshold):
         """設定オーバーライドテスト"""
         mock_get_threshold.return_value = 0.6

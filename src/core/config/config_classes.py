@@ -1,5 +1,5 @@
 """
-設定クラス統合ファイル - Phase 22 ハードコード排除（ファイル数削減維持）
+設定クラス統合ファイル - Phase 28完了・Phase 29最適化版
 
 全ての設定dataclassを一元管理。以下の設定クラスを提供：
 - ExchangeConfig: 取引所接続設定
@@ -52,6 +52,9 @@ class MLConfig:
     model_paths: Optional[Dict[str, Any]] = None
     dynamic_confidence: Optional[Dict[str, Any]] = None
 
+    # Phase 29.5: ML予測統合設定
+    strategy_integration: Optional[Dict[str, Any]] = None
+
 
 @dataclass
 class RiskConfig:
@@ -80,6 +83,16 @@ class RiskConfig:
     kelly_lookback_days: Optional[int] = None
     recent_lookback_hours: Optional[int] = None
     safe_balance_ratio: Optional[float] = None
+
+    # Phase 24: ポジション管理・残高利用率制限フィールド
+    max_capital_usage: Optional[float] = None
+    reserve_ratio: Optional[float] = None
+    min_account_balance: Optional[float] = None  # 最小運用資金要件（5万円未満取引停止）
+
+    # Phase 25: 動的ポジションサイジング設定
+    min_trade_size: Optional[float] = None
+    dynamic_position_sizing: Optional[Dict[str, Any]] = None
+    account_size_adjustments: Optional[Dict[str, Any]] = None
 
 
 @dataclass

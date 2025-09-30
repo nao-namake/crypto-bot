@@ -64,8 +64,8 @@ fi
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3
 """
-統一設定管理体系 シンプルヘルスチェックサーバー
-625テスト100%成功・64.74%カバレッジ・設定不整合完全解消
+Phase 29完了・統一設定管理体系 シンプルヘルスチェックサーバー
+639テスト100%成功・59.63%カバレッジ・設定不整合完全解消
 importエラー回避・Cloud Run最適化版
 """
 import json
@@ -86,8 +86,8 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
                 "mode": os.environ.get('MODE', 'paper'),
                 "timestamp": datetime.now().isoformat(),
                 "service": "crypto-bot-service-prod",
-                "tests": "625 passed (100%)",
-                "coverage": "64.74%",
+                "tests": "639 passed (100%)",
+                "coverage": "59.63%",
                 "features": "15 unified",
                 "models": "ProductionEnsemble ready"
             }

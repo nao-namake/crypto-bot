@@ -1,5 +1,5 @@
 """
-戦略実装 - Phase 21統合戦略実装層
+戦略実装 - Phase 28完了・Phase 29最適化版
 
 5つの取引戦略の具体的実装を提供。
 各戦略は独立して動作し、StrategyManagerによって統合される。
@@ -11,7 +11,7 @@
 4. DonchianChannelStrategy: ブレイクアウト・反転戦略
 5. ADXTrendStrengthStrategy: トレンド強度・方向性分析戦略
 
-Phase 21完了: 2025年9月12日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from .adx_trend import ADXTrendStrengthStrategy

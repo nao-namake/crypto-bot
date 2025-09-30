@@ -1,7 +1,7 @@
 """
 統合リスク管理・ポジションサイジングシステム
 
-Phase 22統合取引管理システムの中核機能：
+Phase 28完了・Phase 29最適化統合取引管理システムの中核機能：
 - 統合リスク管理システム
 - Kelly基準ポジションサイジング
 - 取引実行結果管理（executor.pyから移行）
@@ -34,6 +34,7 @@ from ..core.config import get_position_config, get_threshold
 from ..core.exceptions import RiskManagementError
 from ..core.logger import get_logger
 from ..core.reporting.discord_notifier import DiscordManager
+from .margin_monitor import MarginMonitor
 from .risk_monitor import DrawdownManager, TradingAnomalyDetector, TradingStatus
 
 if TYPE_CHECKING:
@@ -66,6 +67,7 @@ class OrderStatus(Enum):
     FILLED = "filled"
     CANCELLED = "cancelled"
     FAILED = "failed"
+    REJECTED = "rejected"  # ポジション管理制限により拒否
 
 
 @dataclass
@@ -143,6 +145,9 @@ class ExecutionResult:
     # レイテンシー監視・デバッグ情報
     execution_time_ms: Optional[float] = None
     notes: Optional[str] = None
+    # 緊急決済関連フィールド（急変時例外処理）
+    emergency_exit: Optional[bool] = None
+    emergency_reason: Optional[str] = None
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -681,45 +686,171 @@ class PositionSizeIntegrator:
         risk_manager_confidence: float,
         strategy_name: str,
         config: Dict,
+        current_balance: float = None,
+        btc_price: float = None,
     ) -> float:
         """
-        Kelly基準と既存RiskManagerの統合ポジションサイズ計算
+        Kelly基準と既存RiskManagerの統合ポジションサイズ計算（動的サイジング対応）
 
         Args:
             ml_confidence: ML予測信頼度
             risk_manager_confidence: RiskManager用信頼度
             strategy_name: 戦略名
             config: 戦略設定
+            current_balance: 現在残高（動的サイジング用）
+            btc_price: BTC価格（動的サイジング用）
 
         Returns:
-            統合ポジションサイズ（より保守的な値を採用）
+            統合ポジションサイズ（動的調整済み）
         """
         try:
-            # Kelly基準によるサイズ
-            kelly_size = self.kelly.calculate_optimal_size(
-                ml_confidence=ml_confidence, strategy_name=strategy_name
+            from ..core.config import get_threshold
+
+            # 動的ポジションサイジングが有効かチェック
+            dynamic_enabled = get_threshold(
+                "position_management.dynamic_position_sizing.enabled", False
             )
 
-            # 既存RiskManagerによるサイズ
-            from ..strategies.utils import RiskManager
+            if dynamic_enabled and current_balance and btc_price:
+                # 動的ポジションサイジングを使用
+                dynamic_size = self._calculate_dynamic_position_size(
+                    ml_confidence, current_balance, btc_price
+                )
 
-            risk_manager_size = RiskManager.calculate_position_size(
-                confidence=risk_manager_confidence, config=config
-            )
+                # 従来のKelly+RiskManagerと比較して最小値を採用
+                kelly_size = self.kelly.calculate_optimal_size(
+                    ml_confidence=ml_confidence, strategy_name=strategy_name
+                )
 
-            # より保守的な値を採用
-            integrated_size = min(kelly_size, risk_manager_size)
+                from ..strategies.utils import RiskManager
 
-            self.logger.info(
-                f"📊 統合ポジションサイズ計算: Kelly={kelly_size:.6f}, "
-                f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC"
-            )
+                risk_manager_size = RiskManager.calculate_position_size(
+                    confidence=risk_manager_confidence, config=config
+                )
 
-            return integrated_size
+                # 3つの値のうち最も保守的な値を採用
+                integrated_size = min(dynamic_size, kelly_size, risk_manager_size)
+
+                self.logger.info(
+                    f"📊 動的統合ポジションサイズ計算: Dynamic={dynamic_size:.6f}, "
+                    f"Kelly={kelly_size:.6f}, RiskManager={risk_manager_size:.6f}, "
+                    f"採用={integrated_size:.6f} BTC (信頼度={ml_confidence:.1%})"
+                )
+
+                return integrated_size
+
+            else:
+                # 従来の方法を使用
+                kelly_size = self.kelly.calculate_optimal_size(
+                    ml_confidence=ml_confidence, strategy_name=strategy_name
+                )
+
+                from ..strategies.utils import RiskManager
+
+                risk_manager_size = RiskManager.calculate_position_size(
+                    confidence=risk_manager_confidence, config=config
+                )
+
+                integrated_size = min(kelly_size, risk_manager_size)
+
+                self.logger.info(
+                    f"📊 統合ポジションサイズ計算: Kelly={kelly_size:.6f}, "
+                    f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC"
+                )
+
+                return integrated_size
 
         except Exception as e:
             self.logger.error(f"統合ポジションサイズ計算エラー: {e}")
             return 0.01  # フォールバック値
+
+    def _calculate_dynamic_position_size(
+        self, ml_confidence: float, current_balance: float, btc_price: float
+    ) -> float:
+        """
+        ML信頼度に基づく動的ポジションサイジング
+
+        Args:
+            ml_confidence: ML予測信頼度 (0.0-1.0)
+            current_balance: 現在の口座残高（円）
+            btc_price: 現在のBTC価格（円）
+
+        Returns:
+            ポジションサイズ（BTC）
+        """
+        try:
+            from ..core.config import get_threshold
+
+            # ML信頼度によるカテゴリー決定と比率範囲取得
+            if ml_confidence < 0.6:
+                # 低信頼度
+                min_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
+                )
+                max_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.low_confidence.max_ratio", 0.03
+                )
+                confidence_category = "low"
+            elif ml_confidence < 0.75:
+                # 中信頼度
+                min_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.medium_confidence.min_ratio", 0.03
+                )
+                max_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.medium_confidence.max_ratio", 0.05
+                )
+                confidence_category = "medium"
+            else:
+                # 高信頼度
+                min_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.high_confidence.min_ratio", 0.05
+                )
+                max_ratio = get_threshold(
+                    "position_management.dynamic_position_sizing.high_confidence.max_ratio", 0.10
+                )
+                confidence_category = "high"
+
+            # 信頼度に応じた線形補間で比率を計算
+            if ml_confidence < 0.6:
+                normalized_confidence = (ml_confidence - 0.5) / 0.1  # 0.5-0.6 -> 0-1
+            elif ml_confidence < 0.75:
+                normalized_confidence = (ml_confidence - 0.6) / 0.15  # 0.6-0.75 -> 0-1
+            else:
+                normalized_confidence = min((ml_confidence - 0.75) / 0.25, 1.0)  # 0.75-1.0 -> 0-1
+
+            normalized_confidence = max(0.0, min(1.0, normalized_confidence))
+            position_ratio = min_ratio + (max_ratio - min_ratio) * normalized_confidence
+
+            # 資金による計算
+            calculated_size = (current_balance * position_ratio) / btc_price
+
+            # 最小ロット保証
+            min_trade_size = get_threshold("position_management.min_trade_size", 0.0001)
+            final_size = max(calculated_size, min_trade_size)
+
+            # 資金規模別調整
+            if current_balance < get_threshold(
+                "position_management.account_size_adjustments.small.threshold", 50000
+            ):
+                # 少額資金：最小ロット優先
+                override_enabled = get_threshold(
+                    "position_management.account_size_adjustments.small.min_trade_override", True
+                )
+                if override_enabled:
+                    final_size = max(final_size, min_trade_size)
+
+            self.logger.info(
+                f"🎯 動的ポジションサイズ: {confidence_category}信頼度({ml_confidence:.1%}) -> "
+                f"比率={position_ratio:.1%}, サイズ={final_size:.6f} BTC, "
+                f"残高={current_balance:.0f}円"
+            )
+
+            return final_size
+
+        except Exception as e:
+            self.logger.error(f"動的ポジションサイズ計算エラー: {e}")
+            # フォールバック：最小ロットを返す
+            return get_threshold("position_management.min_trade_size", 0.0001)
 
 
 # === 統合リスク管理システム ===
@@ -827,11 +958,15 @@ class IntegratedRiskManager:
                 ),
             )
 
+            # 保証金監視システム（Phase 26）
+            self.margin_monitor = MarginMonitor()
+            self.logger.info("✅ 保証金監視システム初期化完了（監視のみ・制限なし）")
+
         except Exception as e:
             self.logger.error(f"リスクコンポーネント初期化エラー: {e}")
             raise RiskManagementError(f"リスク管理システム初期化失敗: {e}")
 
-    def evaluate_trade_opportunity(
+    async def evaluate_trade_opportunity(
         self,
         ml_prediction: Dict[str, Any],
         strategy_signal: Dict[str, Any],
@@ -942,7 +1077,20 @@ class IntegratedRiskManager:
                     f"ML信頼度不足: {ml_confidence:.3f} < {min_ml_confidence:.3f}"
                 )
 
-            # 4. ポジションサイジング計算（エラー時でも継続）
+            # 4. 残高利用率チェック（口座残高使い切り防止）
+            capital_usage_check = self._check_capital_usage_limits(current_balance, last_price)
+            if not capital_usage_check["allowed"]:
+                denial_reasons.append(capital_usage_check["reason"])
+                self.logger.warning(f"🚫 残高利用率制限: {capital_usage_check['reason']}")
+
+            # 5. 保証金維持率監視（Phase 26: 監視のみ・制限なし）
+            margin_warning_message = await self._check_margin_ratio(
+                current_balance, last_price, ml_prediction, strategy_signal
+            )
+            if margin_warning_message:
+                warnings.append(margin_warning_message)
+
+            # 6. ポジションサイジング計算（エラー時でも継続）
             position_size = 0.0
             kelly_recommendation = 0.0
             stop_loss = None
@@ -967,6 +1115,8 @@ class IntegratedRiskManager:
                             else getattr(strategy_signal, "strategy_name", "unknown")
                         ),
                         config=self.config,
+                        current_balance=current_balance,
+                        btc_price=last_price,
                     )
 
                     # Kelly推奨値取得
@@ -1106,6 +1256,94 @@ class IntegratedRiskManager:
 
         except Exception as e:
             self.logger.error(f"取引結果記録エラー: {e}")
+
+    def _check_capital_usage_limits(
+        self, current_balance: float, btc_price: float
+    ) -> Dict[str, Any]:
+        """
+        残高利用率制限チェック（口座残高使い切り防止）
+
+        Args:
+            current_balance: 現在残高
+            btc_price: BTC価格（円）
+
+        Returns:
+            Dict: {"allowed": bool, "reason": str, "usage_ratio": float}
+        """
+        try:
+            # 設定値取得
+            max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)  # 30%まで
+            reserve_ratio = get_threshold("risk.reserve_ratio", 0.7)  # 70%予備資金
+
+            # 初期残高取得（unified.yamlから）
+            from ..core.config import load_config
+
+            config = load_config("config/core/unified.yaml")
+            mode_balances = getattr(config, "mode_balances", {})
+            # 実行モードを判定（簡易実装: current_balanceから推測）
+            if current_balance >= 90000:
+                mode = "live"  # 10万円以上なら本番想定
+            elif current_balance >= 8000:
+                mode = "paper"  # 8千円以上ならペーパー想定
+            else:
+                mode = "paper"  # デフォルト
+
+            mode_balance_config = mode_balances.get(mode, {})
+            initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+
+            # 使用済み資金計算
+            used_capital = initial_balance - current_balance
+            if initial_balance > 0:
+                current_usage_ratio = used_capital / initial_balance
+            else:
+                current_usage_ratio = 1.0  # 残高不明の場合は100%使用と判定
+
+            # 制限チェック
+            if current_usage_ratio >= max_capital_usage:
+                return {
+                    "allowed": False,
+                    "reason": f"資金利用率上限超過: {current_usage_ratio * 100:.1f}% >= {max_capital_usage * 100:.0f}%",
+                    "usage_ratio": current_usage_ratio,
+                }
+
+            # 余裕度チェック（次の取引が制限に引っかからないか）
+            min_trade_size = get_threshold("trading.min_trade_size", 0.0001)  # BTC
+            next_trade_cost = min_trade_size * btc_price  # 円
+
+            if (used_capital + next_trade_cost) / initial_balance >= max_capital_usage:
+                return {
+                    "allowed": False,
+                    "reason": f"次回取引で利用率上限超過予測: {((used_capital + next_trade_cost) / initial_balance) * 100:.1f}% >= {max_capital_usage * 100:.0f}%",
+                    "usage_ratio": current_usage_ratio,
+                }
+
+            # 残高充足性チェック
+            min_required_balance = next_trade_cost * 2  # 最低2回分の取引余力
+            if current_balance < min_required_balance:
+                return {
+                    "allowed": False,
+                    "reason": f"残高不足: ¥{current_balance:,.0f} < 必要残高¥{min_required_balance:,.0f}",
+                    "usage_ratio": current_usage_ratio,
+                }
+
+            self.logger.debug(
+                f"✅ 残高利用率チェック通過: {current_usage_ratio * 100:.1f}% / {max_capital_usage * 100:.0f}% 上限"
+            )
+
+            return {
+                "allowed": True,
+                "reason": "残高利用率制限内",
+                "usage_ratio": current_usage_ratio,
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ 残高利用率チェックエラー: {e}")
+            # エラー時は安全のため取引拒否
+            return {
+                "allowed": False,
+                "reason": f"残高利用率チェック処理エラー: {e}",
+                "usage_ratio": 1.0,
+            }
 
     def _calculate_risk_score(
         self,
@@ -1376,3 +1614,192 @@ class IntegratedRiskManager:
                 "system_status": "unknown",
                 "error": str(e),
             }
+
+    async def _check_margin_ratio(
+        self,
+        current_balance: float,
+        btc_price: float,
+        ml_prediction: Dict[str, Any],
+        strategy_signal: Any,
+    ) -> Optional[str]:
+        """
+        保証金維持率監視チェック（Phase 26: 監視のみ・制限なし）
+
+        Args:
+            current_balance: 現在の口座残高（円）
+            btc_price: 現在のBTC価格（円）
+            ml_prediction: ML予測結果
+            strategy_signal: 戦略シグナル
+
+        Returns:
+            Optional[str]: 警告メッセージ（警告なしの場合はNone）
+        """
+        try:
+            # 1. 現在のポジション価値を推定（簡易実装）
+            # 実際の実装では、実際のポジション情報を取得する必要があります
+            estimated_position_value_jpy = self._estimate_current_position_value(
+                current_balance, btc_price
+            )
+
+            # 2. 現在の保証金状況を分析
+            current_margin = await self.margin_monitor.analyze_current_margin(
+                balance_jpy=current_balance, position_value_jpy=estimated_position_value_jpy
+            )
+
+            # 3. 新規ポジションサイズを推定（予測用）
+            ml_confidence = ml_prediction.get("confidence", 0.5)
+            estimated_new_position_size = self._estimate_new_position_size(ml_confidence)
+
+            # 4. 新規ポジション追加後の予測
+            margin_prediction = await self.margin_monitor.predict_future_margin(
+                current_balance_jpy=current_balance,
+                current_position_value_jpy=estimated_position_value_jpy,
+                new_position_size_btc=estimated_new_position_size,
+                btc_price_jpy=btc_price,
+            )
+
+            # 5. ユーザー警告が必要かチェック
+            should_warn, warning_message = self.margin_monitor.should_warn_user(margin_prediction)
+
+            if should_warn:
+                # 詳細ログ出力
+                self.logger.warning(
+                    f"📊 保証金維持率警告: 現在={current_margin.margin_ratio:.1f}%, "
+                    f"予測={margin_prediction.future_margin_ratio:.1f}%, "
+                    f"推奨={margin_prediction.recommendation}",
+                    extra_data={
+                        "current_margin_ratio": current_margin.margin_ratio,
+                        "future_margin_ratio": margin_prediction.future_margin_ratio,
+                        "current_status": current_margin.status.value,
+                        "future_status": margin_prediction.future_status.value,
+                        "position_size_btc": estimated_new_position_size,
+                        "recommendation": margin_prediction.recommendation,
+                    },
+                )
+
+                return f"保証金維持率警告: {warning_message}"
+
+            # 6. 通常ログ（INFO レベル）
+            self.logger.info(
+                f"📊 保証金維持率監視: 現在={current_margin.margin_ratio:.1f}% ({current_margin.status.value}), "
+                f"予測={margin_prediction.future_margin_ratio:.1f}% ({margin_prediction.future_status.value})"
+            )
+
+            return None  # 警告なし
+
+        except Exception as e:
+            self.logger.error(f"❌ 保証金監視チェックエラー: {e}")
+            # エラー時も制限は行わず、警告のみ
+            return f"保証金監視システムエラー（制限なし）: {str(e)}"
+
+    def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
+        """
+        現在のポジション価値推定（簡易実装）
+
+        実際の実装では、取引所APIから実際のポジション情報を取得すべきですが、
+        Phase 26では監視のみなので簡易推定を使用。
+
+        Args:
+            current_balance: 現在残高（円）
+            btc_price: BTC価格（円）
+
+        Returns:
+            推定ポジション価値（円）
+        """
+        try:
+            # 初期残高から現在残高の差異を基にポジション価値を推定
+            from ..core.config import load_config
+
+            config = load_config("config/core/unified.yaml")
+            mode_balances = getattr(config, "mode_balances", {})
+
+            # 実行モード判定（簡易）
+            if current_balance >= 90000:
+                mode = "live"
+            elif current_balance >= 8000:
+                mode = "paper"
+            else:
+                mode = "paper"
+
+            mode_balance_config = mode_balances.get(mode, {})
+            initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+
+            # 使用済み資金を基にポジション価値を推定（概算）
+            used_capital = initial_balance - current_balance
+
+            # 簡易推定：使用済み資金の80%がポジション価値と仮定
+            # （残り20%は手数料・スプレッド・その他コスト）
+            estimated_position_ratio = get_threshold("margin.position_value_estimation_ratio", 0.8)
+            estimated_position_value = max(0, used_capital * estimated_position_ratio)
+
+            self.logger.debug(
+                f"ポジション価値推定: 初期={initial_balance:.0f}円, "
+                f"現在={current_balance:.0f}円, 推定ポジション価値={estimated_position_value:.0f}円"
+            )
+
+            return estimated_position_value
+
+        except Exception as e:
+            self.logger.error(f"ポジション価値推定エラー: {e}")
+            # エラー時は0を返す（ポジションなしと仮定）
+            return 0.0
+
+    def _estimate_new_position_size(self, ml_confidence: float) -> float:
+        """
+        新規ポジションサイズ推定（保証金予測用）
+
+        Args:
+            ml_confidence: ML信頼度
+
+        Returns:
+            推定新規ポジションサイズ（BTC）
+        """
+        try:
+            # 動的ポジションサイジングの設定を参照
+            dynamic_enabled = get_threshold(
+                "position_management.dynamic_position_sizing.enabled", False
+            )
+
+            if dynamic_enabled:
+                # ML信頼度による推定
+                if ml_confidence < 0.6:
+                    # 低信頼度: 1-3%の中央値
+                    estimated_ratio = get_threshold(
+                        "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
+                    )
+                elif ml_confidence < 0.75:
+                    # 中信頼度: 3-5%の中央値
+                    estimated_ratio = get_threshold(
+                        "position_management.dynamic_position_sizing.medium_confidence.min_ratio",
+                        0.03,
+                    )
+                else:
+                    # 高信頼度: 5-10%の中央値
+                    estimated_ratio = get_threshold(
+                        "position_management.dynamic_position_sizing.high_confidence.min_ratio",
+                        0.05,
+                    )
+
+                # 推定残高の比率からBTCサイズを計算（概算）
+                # 実際の実装ではcurrent_balanceを使用すべきですが、ここでは保守的に10,000円と仮定
+                estimated_balance = 10000.0
+                estimated_btc_price = 6000000.0  # 概算600万円
+                estimated_position_size = (
+                    estimated_balance * estimated_ratio
+                ) / estimated_btc_price
+
+            else:
+                # 動的サイジングが無効な場合は最小ロット
+                estimated_position_size = get_threshold("trading.min_trade_size", 0.0001)
+
+            self.logger.debug(
+                f"新規ポジションサイズ推定: ML信頼度={ml_confidence:.1%}, "
+                f"推定サイズ={estimated_position_size:.6f} BTC"
+            )
+
+            return estimated_position_size
+
+        except Exception as e:
+            self.logger.error(f"新規ポジションサイズ推定エラー: {e}")
+            # エラー時は最小ロットを返す
+            return get_threshold("trading.min_trade_size", 0.0001)

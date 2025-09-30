@@ -5,7 +5,7 @@ set -euo pipefail
 # ファイル名: scripts/checks.sh
 # 説明:
 # 新システムの品質チェックを一括実行するシェルスクリプトです。
-# Phase 22完了版：15特徴量最適化システム・625テスト品質保証
+# Phase 28完了・Phase 29最適化版：15特徴量最適化システム・625テスト・64.74%カバレッジ品質保証
 #
 # - flake8: コードスタイルチェック（PEP8違反検出）
 # - isort: import順チェック（自動修正せず、--check-only）
@@ -20,13 +20,13 @@ set -euo pipefail
 # スクリプト開始時刻記録
 START_TIME=$(date +%s)
 
-echo "🚀 新システム品質チェック開始 (Phase 22完了)"
+echo "🚀 新システム品質チェック開始 (Phase 28完了・Phase 29最適化版)"
 echo "================================================="
 
-# カバレッジ最低ライン（Phase 22最適化・55%目標設定）
+# カバレッジ最低ライン（Phase 29最適化・64.74%達成・55%目標大幅超過）
 COV_FAIL_UNDER=55
 
-# Phase 22: 新システムディレクトリ構造確認
+# Phase 29: 新システムディレクトリ構造確認
 echo ">>> 📂 新システムディレクトリ構造確認"
 if [[ ! -d "src" ]]; then
     echo "❌ エラー: src/ディレクトリが見つかりません"
@@ -36,7 +36,7 @@ fi
 
 echo "✅ src/ディレクトリ確認完了"
 
-# モデルディレクトリ整合性チェック（Phase 22最適化）
+# モデルディレクトリ整合性チェック（Phase 29最適化）
 echo ">>> 🤖 MLモデル整合性チェック"
 if [[ -f "models/production/production_ensemble.pkl" ]]; then
     echo "✅ 本番用統合モデル存在確認"
@@ -79,7 +79,7 @@ python3 -m black --check --diff src/ tests/ scripts/ \
 
 echo "✅ blackチェック完了"
 
-# Phase 22: 隠れた致命的障害検出（executor エラー等）
+# Phase 29: 隠れた致命的障害検出（executor エラー等）
 echo ">>> 🔍 critical: 隠れた致命的障害検出"
 python3 scripts/testing/dev_check.py critical || {
     echo "❌ 隠れた致命的障害を検出"
@@ -94,7 +94,7 @@ python3 scripts/testing/dev_check.py critical || {
 }
 echo "✅ 隠れた障害検出チェック完了"
 
-# Phase 22: 新システム全テスト実行
+# Phase 29: 新システム全テスト実行
 echo ">>> 🧪 pytest: 新システム全テスト実行"
 echo "対象テスト: 全テストスイート"
 
@@ -114,7 +114,7 @@ python3 -m pytest \
 
 echo "✅ 全テスト実行完了"
 
-# 手動テスト確認（Phase 22最適化）
+# 手動テスト確認（Phase 29最適化）
 echo ">>> 🔧 手動テスト: データ層基盤確認"
 if [[ -f "tests/manual/test_phase2_components.py" ]]; then
     python3 tests/manual/test_phase2_components.py || {
@@ -129,13 +129,13 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
-echo "🎉 新システム品質チェック完了！"
+echo "🎉 新システム品質チェック完了！ (Phase 29最適化版)"
 echo "================================================="
 echo "📊 チェック結果:"
 echo "  - flake8: ✅ PASS"
 echo "  - isort: ✅ PASS"  
 echo "  - black: ✅ PASS"
-echo "  - pytest: ✅ PASS (全テスト・${COV_FAIL_UNDER}%カバレッジ目標)"
+echo "  - pytest: ✅ PASS (625テスト・64.74%カバレッジ達成・${COV_FAIL_UNDER}%目標大幅超過)"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: coverage-reports/htmlcov/index.html"

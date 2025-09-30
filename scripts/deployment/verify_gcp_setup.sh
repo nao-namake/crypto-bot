@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Phase 12: GCP CI/CD事前検証スクリプト（レガシー改良版）
+# Phase 29: GCP CI/CD事前検証スクリプト（レガシー改良版）
 # 
 # CI/CD実行前にGCP環境の全ての前提条件をチェックし、事前に問題を特定
 # レガシーシステムのベストプラクティスを継承しつつ、個人開発向けに最適化
@@ -27,7 +27,7 @@
 set -euo pipefail
 
 # ========================================
-# 設定・定数定義（Phase 12 + レガシー改良）
+# 設定・定数定義（Phase 29 + レガシー改良）
 # ========================================
 
 # GCPプロジェクト設定（現在の設定から自動取得・GitHub Actions対応）
@@ -298,7 +298,7 @@ check_artifact_registry() {
             if gcloud artifacts repositories create "$REPOSITORY" \
                 --repository-format=docker \
                 --location="$REGION" \
-                --description="Phase 12 crypto-bot Docker images"; then
+                --description="Phase 29 crypto-bot Docker images"; then
                 log "SUCCESS" "Artifact Registryリポジトリ作成完了: $REPOSITORY"
             else
                 log "ERROR" "Artifact Registryリポジトリ作成失敗: $REPOSITORY"
@@ -643,7 +643,7 @@ main() {
     local mode="${1:---full}"
     
     echo -e "${BLUE}==========================================${NC}"
-    echo -e "${BLUE}🔍 Phase 12: GCP CI/CD事前検証システム${NC}"
+    echo -e "${BLUE}🔍 Phase 29: GCP CI/CD事前検証システム${NC}"
     echo -e "${BLUE}==========================================${NC}"
     echo ""
     

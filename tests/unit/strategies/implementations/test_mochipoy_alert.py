@@ -115,8 +115,14 @@ class TestMochipoyAlertStrategy(unittest.TestCase):
 
     def test_make_simple_decision_buy(self):
         """多数決判定テスト - 買い判定."""
+        # テスト用のダミーDataFrame作成
+        test_df = pd.DataFrame(
+            {"close": [100, 101, 102], "atr_14": [1.0, 1.1, 1.2], "volume": [1000, 1100, 1200]}
+        )
         # 2つ以上が買いシグナル
-        decision = self.strategy._make_simple_decision(ema_signal=1, macd_signal=1, rci_signal=0)
+        decision = self.strategy._make_simple_decision(
+            ema_signal=1, macd_signal=1, rci_signal=0, df=test_df
+        )
 
         self.assertEqual(decision["action"], EntryAction.BUY)
         self.assertGreaterEqual(decision["confidence"], 0.6)
@@ -126,8 +132,14 @@ class TestMochipoyAlertStrategy(unittest.TestCase):
 
     def test_make_simple_decision_sell(self):
         """多数決判定テスト - 売り判定."""
+        # テスト用のダミーDataFrame作成
+        test_df = pd.DataFrame(
+            {"close": [100, 101, 102], "atr_14": [1.0, 1.1, 1.2], "volume": [1000, 1100, 1200]}
+        )
         # 2つ以上が売りシグナル
-        decision = self.strategy._make_simple_decision(ema_signal=-1, macd_signal=-1, rci_signal=0)
+        decision = self.strategy._make_simple_decision(
+            ema_signal=-1, macd_signal=-1, rci_signal=0, df=test_df
+        )
 
         self.assertEqual(decision["action"], EntryAction.SELL)
         self.assertGreaterEqual(decision["confidence"], 0.6)
@@ -135,8 +147,14 @@ class TestMochipoyAlertStrategy(unittest.TestCase):
 
     def test_make_simple_decision_hold(self):
         """多数決判定テスト - ホールド判定."""
+        # テスト用のダミーDataFrame作成
+        test_df = pd.DataFrame(
+            {"close": [100, 101, 102], "atr_14": [1.0, 1.1, 1.2], "volume": [1000, 1100, 1200]}
+        )
         # 意見が分かれる場合
-        decision = self.strategy._make_simple_decision(ema_signal=1, macd_signal=-1, rci_signal=0)
+        decision = self.strategy._make_simple_decision(
+            ema_signal=1, macd_signal=-1, rci_signal=0, df=test_df
+        )
 
         self.assertEqual(decision["action"], EntryAction.HOLD)
         self.assertEqual(decision["confidence"], 0.15)  # 月100-200回最適化に合わせて0.2→0.15に変更
@@ -212,8 +230,14 @@ class TestMochipoyAlertStrategy(unittest.TestCase):
         low_conf_config = {"min_confidence": 0.9}
         strategy = MochipoyAlertStrategy(config=low_conf_config)
 
+        # テスト用のダミーDataFrame作成
+        test_df = pd.DataFrame(
+            {"close": [100, 101, 102], "atr_14": [1.0, 1.1, 1.2], "volume": [1000, 1100, 1200]}
+        )
         # 多数決で買いシグナルが出ても、信頼度が低ければHOLD
-        decision = strategy._make_simple_decision(ema_signal=1, macd_signal=1, rci_signal=0)
+        decision = strategy._make_simple_decision(
+            ema_signal=1, macd_signal=1, rci_signal=0, df=test_df
+        )
 
         # confidence 0.6 < min_confidence 0.9 なのでHOLDになるはず
         if decision["confidence"] < 0.9:

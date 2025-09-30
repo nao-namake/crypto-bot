@@ -1,47 +1,51 @@
-# scripts/ - システム運用・管理スクリプト集
+# scripts/ - システム運用・管理スクリプト集（Phase 28完了・Phase 29最適化版）
 
 ## 🎯 役割・責任
 
 システム開発・運用・監視・デプロイメントの全工程を支援する統合ツール集を提供します。品質保証、機械学習モデル管理、本番環境デプロイ、システム分析まで、包括的な自動化ツールでシステムの効率的な開発・運用を支援します。
 
+**Phase 29最適化成果**：625テスト100%成功・64.74%カバレッジ達成・統一設定管理体系完成
+
 ## 📂 ディレクトリ構成
 
 ```
 scripts/
-├── README.md               # このファイル
-├── analytics/              # データ分析・監視スクリプト [詳細: analytics/README.md]
-│   ├── base_analyzer.py           # 共通基盤クラス・ログ取得・システム監視
-│   ├── data_collector.py          # データ収集・統計分析・CSV/JSON出力
-│   ├── performance_analyzer.py    # システム性能分析・パフォーマンス監視
-│   └── dashboard.py               # HTMLダッシュボード・可視化・レポート生成
-├── backtest/               # バックテスト実行スクリプト [詳細: backtest/README.md]
-│   └── run_backtest.py            # メインバックテスト実行スクリプト
+├── README.md               # このファイル（Phase 29最適化版）
+├── analytics/              # システム分析基盤 [詳細: analytics/README.md]
+│   ├── README.md                  # 分析基盤ガイド
+│   └── base_analyzer.py           # 共通基盤クラス・Cloud Runログ取得・システム監視
 ├── deployment/             # デプロイメント・インフラ管理 [詳細: deployment/README.md]
+│   ├── README.md                  # デプロイメントガイド
 │   ├── deploy_production.sh       # 本番環境デプロイメント・Cloud Run管理
 │   ├── docker-entrypoint.sh       # Dockerコンテナエントリーポイント・起動制御
-│   ├── setup_ci_prerequisites.sh  # CI/CD環境構築・GitHub Actions設定
-│   ├── setup_gcp_secrets.sh       # GCP Secret Manager・認証管理
+│   ├── setup_gcp_environment.sh   # 統合GCP環境構築・認証管理・GitHub Actions設定
 │   └── verify_gcp_setup.sh        # GCP環境検証・設定確認
+├── management/             # Bot管理スクリプト [詳細: management/README.md]
+│   ├── README.md                  # Bot管理ガイド
+│   ├── run_safe.sh                # 統合実行スクリプト（タイムアウト・Claude Code対応）
+│   └── bot_manager.sh             # 統合管理スクリプト（状況確認・プロセス停止）
 ├── ml/                     # 機械学習モデル学習・管理 [詳細: ml/README.md]
+│   ├── README.md                  # ML管理ガイド
 │   └── create_ml_models.py        # 機械学習モデル学習・構築メインスクリプト
 └── testing/                # 品質保証・テストシステム [詳細: testing/README.md]
-    ├── checks.sh                  # 品質チェック・テスト実行スクリプト
+    ├── README.md                  # テストシステムガイド
+    ├── checks.sh                  # 品質チェック・テスト実行スクリプト（625テスト・64.74%カバレッジ）
     └── dev_check.py               # 統合開発管理CLI・システム診断
 ```
 
 ## 📋 主要ディレクトリの役割
 
-### **testing/ - 品質保証・テストシステム**
+### **testing/ - 品質保証・テストシステム（Phase 29最適化完了）**
 システム全体の品質保証とテスト実行を担当するディレクトリです。
-- **checks.sh**: 全テスト実行・カバレッジ測定・コードスタイルチェック・品質ゲート
+- **checks.sh**: 625テスト100%成功・64.74%カバレッジ・コードスタイルチェック・隠れた致命的障害検出
 - **dev_check.py**: 統合開発管理CLI・システム診断・機械学習検証・本番環境監視
-- 継続的品質保証・回帰防止・CI/CD統合・開発効率向上
+- 継続的品質保証・回帰防止・CI/CD統合・開発効率向上・Phase 29品質基準完全達成
 
-### **ml/ - 機械学習モデル学習・管理**
+### **ml/ - 機械学習モデル学習・管理（Phase 29対応）**
 機械学習モデルの学習・構築・品質保証を担当するディレクトリです。
-- **create_ml_models.py**: LightGBM・XGBoost・RandomForest学習・ProductionEnsemble構築
+- **create_ml_models.py**: 15特徴量統一・LightGBM・XGBoost・RandomForest学習・ProductionEnsemble構築
 - アンサンブル学習・ハイパーパラメータ最適化・バージョン管理・CI/CD統合
-- 特徴量統合・品質検証・自動学習・週次再学習対応
+- 特徴量統合・品質検証・自動学習・週次再学習対応・625テスト品質ゲート統合
 
 ### **deployment/ - デプロイメント・インフラ管理**
 本番環境デプロイとインフラ管理を担当するディレクトリです。
@@ -50,30 +54,28 @@ scripts/
 - **GCP設定スクリプト**: CI/CD環境構築・Secret Manager・環境検証
 - Docker統合・段階的リリース・監視・復旧・セキュリティ管理
 
-### **analytics/ - データ分析・監視スクリプト**
-システム運用データの分析・監視・可視化を担当するディレクトリです。
-- **base_analyzer.py**: 共通基盤クラス・Cloud Runログ取得・システム監視
-- **data_collector.py**: 取引データ収集・統計分析・品質メトリクス・Discord通知
-- **performance_analyzer.py**: システム性能・機械学習モデル分析・改善提案
-- **dashboard.py**: HTMLダッシュボード・Chart.js可視化・リアルタイムデータ
+### **analytics/ - システム分析基盤（Phase 29最適化・簡素化完了）**
+システム運用データの分析・監視機能の共通基盤を提供するディレクトリです。
+- **base_analyzer.py**: 共通基盤クラス・Cloud Runログ取得・システム監視・dev_check.py統合利用
+- Phase 29最適化により未使用ファイル削除・保守性向上・システム構成簡素化完了
 
-### **backtest/ - バックテスト実行スクリプト**
-取引戦略の検証・性能評価を担当するディレクトリです。
-- **run_backtest.py**: バックテストエンジン・戦略検証・パフォーマンス分析
-- 過去データ使用・収益性分析・リスク管理・詳細レポート生成
-- 本番前検証・戦略改善・統計分析・品質保証統合
+### **management/ - Bot管理スクリプト（Claude Code対応・プロセス管理統合）**
+Botの安全で効率的な実行・管理を支援するディレクトリです。
+- **run_safe.sh**: 統合実行スクリプト・タイムアウト管理・Claude Code完全対応・環境別実行制御
+- **bot_manager.sh**: 統合管理スクリプト・Discord通知ループ解決・バックグラウンド誤認識防止
+- プロセス重複防止・強制停止機能・詳細プロセス監視・運用効率向上
 
 ## 📝 使用方法・例
 
-### **日常開発ワークフロー**
+### **日常開発ワークフロー（Phase 29最適化版）**
 ```bash
-# 1. 品質チェック（開発時必須）
+# 1. 品質チェック（開発時必須・625テスト・64.74%カバレッジ）
 bash scripts/testing/checks.sh
 
 # 2. 統合開発管理（推奨）
-python3 scripts/testing/dev_check.py full-check
+python3 scripts/testing/dev_check.py check
 
-# 3. 機械学習モデル管理
+# 3. 機械学習モデル管理（15特徴量統一システム）
 python3 scripts/testing/dev_check.py ml-models
 
 # 4. システム状態確認
@@ -95,19 +97,19 @@ bash scripts/deployment/deploy_production.sh --staged
 python3 scripts/testing/dev_check.py health-check
 ```
 
-### **分析・監視ワークフロー**
+### **Bot実行・管理ワークフロー（Phase 29最適化版）**
 ```bash
-# 1. データ収集・分析
-python3 scripts/analytics/data_collector.py --hours 24
+# 1. 実行状況確認（誤認防止・推奨）
+bash scripts/management/bot_manager.sh check
 
-# 2. システム性能分析
-python3 scripts/analytics/performance_analyzer.py --period 7d
+# 2. 通常実行（Claude Code完全対応）
+bash scripts/management/run_safe.sh local paper
 
-# 3. ダッシュボード生成
-python3 scripts/analytics/dashboard.py --discord
+# 3. 完全停止（Discord通知ループ解決）
+bash scripts/management/bot_manager.sh stop
 
-# 4. バックテスト実行
-python3 scripts/backtest/run_backtest.py --days 30 --verbose
+# 4. システム監視
+python3 scripts/testing/dev_check.py monitor
 ```
 
 ### **機械学習ワークフロー**
@@ -130,11 +132,11 @@ python3 scripts/analytics/performance_analyzer.py --ml-metrics
 - **GitHub統合**: Actions・OIDC・Workload Identity設定完了
 - **外部API**: Bitbank API・Discord Webhook設定・認証情報
 
-### **品質保証制約**
-- **テスト品質**: 全スクリプト実行前後でのテスト成功・カバレッジ維持必須
+### **品質保証制約（Phase 29基準）**
+- **テスト品質**: 625テスト100%成功・64.74%カバレッジ維持必須・隠れた致命的障害検出
 - **コード品質**: flake8・black・isort準拠・PEP8・型注釈・エラーハンドリング
-- **CI/CD統合**: GitHub Actions・品質ゲート・段階的デプロイ遵守
-- **監視統合**: Discord通知・ログ監視・アラート・自動復旧
+- **CI/CD統合**: GitHub Actions・品質ゲート・段階的デプロイ遵守・統一設定管理体系
+- **監視統合**: Discord通知・ログ監視・アラート・自動復旧・Claude Code誤認識防止
 
 ### **セキュリティ要件**
 - **認証管理**: APIキー・シークレット・Webhook URLの適切な保護

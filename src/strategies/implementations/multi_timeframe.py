@@ -9,7 +9,7 @@
 2. 15分足エントリー: 20EMAクロス + RSIタイミング特定
 3. 両時間軸一致: 2つの時間軸が一致した時のみエントリー
 
-Phase 4簡素化実装日: 2025年8月18日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from datetime import datetime
@@ -40,21 +40,29 @@ class MultiTimeframeStrategy(StrategyBase):
         default_config = {
             # 4時間足分析設定
             "tf_4h_lookback": 16,  # 4時間×16 = 約2.7日
-            "tf_4h_min_strength": 0.002,  # 最小トレンド強度
+            "tf_4h_min_strength": get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.tf_4h_min_strength", 0.002
+            ),  # 最小トレンド強度
             # 15分足分析設定
             "tf_15m_lookback": 4,  # 15分×4 = 1時間相当
             "rsi_overbought": 70,
             "rsi_oversold": 30,
             # 統合判定設定（攻撃的設定：重み付け判定優先）
             "require_timeframe_agreement": False,
-            "min_confidence": 0.4,
-            "tf_4h_weight": 0.6,  # 4時間足重視
-            "tf_15m_weight": 0.4,
+            "min_confidence": get_threshold("strategies.multi_timeframe.min_confidence", 0.4),
+            "tf_4h_weight": get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.tf_4h_weight", 0.6
+            ),  # 4時間足重視
+            "tf_15m_weight": get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.tf_15m_weight", 0.4
+            ),
             # リスク管理
             "stop_loss_atr_multiplier": 2.0,
             "take_profit_ratio": 3.0,
-            "position_size_base": 0.025,
-            # Phase 19+攻撃的設定対応（thresholds.yaml統合）
+            "position_size_base": get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.position_size_base", 0.025
+            ),
+            # Phase 28完了・Phase 29最適化対応（thresholds.yaml統合）
             "hold_confidence": get_threshold("strategies.multi_timeframe.hold_confidence", 0.3),
         }
 
@@ -89,7 +97,7 @@ class MultiTimeframeStrategy(StrategyBase):
             )
 
             # 2層統合判定
-            signal_decision = self._make_2tf_decision(tf_4h_signal, tf_15m_signal)
+            signal_decision = self._make_2tf_decision(tf_4h_signal, tf_15m_signal, df)
             self.logger.info(
                 f"[MultiTimeframe] 最終判定: {signal_decision.get('action')} (confidence: {signal_decision.get('confidence', 0):.3f})"
             )
@@ -109,6 +117,9 @@ class MultiTimeframeStrategy(StrategyBase):
     def _analyze_4h_trend(self, df: pd.DataFrame) -> int:
         """4時間足トレンド分析 - シンプル版."""
         try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
             lookback = self.config["tf_4h_lookback"]
             min_strength = self.config["tf_4h_min_strength"]
 
@@ -129,13 +140,19 @@ class MultiTimeframeStrategy(StrategyBase):
                 if (
                     ema_change > min_strength
                     and current_price > current_ema50
-                    and atr_ratio > 0.005
+                    and atr_ratio
+                    > get_threshold(
+                        "dynamic_confidence.strategies.multi_timeframe.atr_ratio_threshold", 0.005
+                    )
                 ):
                     return 1  # 買いシグナル（上昇トレンド）
                 elif (
                     ema_change < -min_strength
                     and current_price < current_ema50
-                    and atr_ratio > 0.005
+                    and atr_ratio
+                    > get_threshold(
+                        "dynamic_confidence.strategies.multi_timeframe.atr_ratio_threshold", 0.005
+                    )
                 ):
                     return -1  # 売りシグナル（下降トレンド）
 
@@ -183,9 +200,15 @@ class MultiTimeframeStrategy(StrategyBase):
                 recent_low = df["low"].iloc[-lookback:].min()
 
                 # 押し目買い・戻り売り確認
-                if ema_cross_signal == 1 and current_price > recent_low * 1.005:
+                # 循環インポート回避のため遅延インポート
+                from ...core.config.threshold_manager import get_threshold
+
+                pullback_ratio = get_threshold(
+                    "dynamic_confidence.strategies.multi_timeframe.price_breakout_ratio", 0.995
+                )
+                if ema_cross_signal == 1 and current_price > recent_low * (2.0 - pullback_ratio):
                     pullback_signal = 1
-                elif ema_cross_signal == -1 and current_price < recent_high * 0.995:
+                elif ema_cross_signal == -1 and current_price < recent_high * pullback_ratio:
                     pullback_signal = -1
 
             # 統合判定（2つ以上一致でエントリー）
@@ -204,62 +227,183 @@ class MultiTimeframeStrategy(StrategyBase):
             self.logger.error(f"15分足エントリー分析エラー: {e}")
             return 0
 
-    def _make_2tf_decision(self, tf_4h_signal: int, tf_15m_signal: int) -> Dict[str, Any]:
-        """2層統合判定 - シンプル版."""
+    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
+        """
+        市場データ基づく不確実性計算（設定ベース統一ロジック）
+
+        Args:
+            df: 市場データ
+
+        Returns:
+            float: 市場不確実性係数（設定値の範囲）
+        """
         try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
+            # 設定値取得
+            volatility_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
+            )
+            volume_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
+            )
+            volume_multiplier = get_threshold(
+                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
+            )
+            price_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
+            )
+            uncertainty_max = get_threshold(
+                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
+            )
+
+            # ATRベースのボラティリティ要因
+            current_price = float(df["close"].iloc[-1])
+            atr_value = float(df["atr_14"].iloc[-1])
+            volatility_factor = min(volatility_max, atr_value / current_price)
+
+            # ボリューム異常度（平均からの乖離）
+            current_volume = float(df["volume"].iloc[-1])
+            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
+            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
+            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
+
+            # 価格変動率（短期動向）
+            price_change = abs(float(df["close"].pct_change().iloc[-1]))
+            price_factor = min(price_max, price_change)
+
+            # 統合不確実性（設定値の範囲で市場状況を反映）
+            market_uncertainty = volatility_factor + volume_factor + price_factor
+
+            # 設定値で調整範囲を制限
+            return min(uncertainty_max, market_uncertainty)
+
+        except Exception as e:
+            self.logger.warning(f"市場不確実性計算エラー: {e}")
+            return 0.02  # デフォルト値（2%の軽微な調整）
+
+    def _make_2tf_decision(
+        self, tf_4h_signal: int, tf_15m_signal: int, df: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """2層統合判定 - 設定ベース動的信頼度計算."""
+        try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
             require_agreement = self.config["require_timeframe_agreement"]
             min_confidence = self.config["min_confidence"]
             tf_4h_weight = self.config["tf_4h_weight"]
             tf_15m_weight = self.config["tf_15m_weight"]
 
-            # 動的信頼度計算（固定値回避）
-            import random
-            import time
+            # 設定値取得（勝率向上最適化版）
+            agreement_base = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.agreement_base", 0.75
+            )
+            agreement_min = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.agreement_min", 0.70
+            )
+            agreement_max = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.agreement_max", 1.0
+            )
+            single_tf_base = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.single_tf_base", 0.55
+            )
+            single_tf_min = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.single_tf_min", 0.40
+            )
+            single_tf_max = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.single_tf_max", 0.75
+            )
+            disagreement_base = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.disagreement_base", 0.30
+            )
+            disagreement_min = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.disagreement_min", 0.15
+            )
+            disagreement_max = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.disagreement_max", 0.40
+            )
+            weighted_min = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.weighted_min", 0.35
+            )
+            weighted_max = get_threshold(
+                "dynamic_confidence.strategies.multi_timeframe.weighted_max", 1.0
+            )
+            uncertainty_boost = get_threshold(
+                "dynamic_confidence.market_uncertainty.uncertainty_boost", 1.5
+            )
 
-            # シード値を現在時刻の秒とマイクロ秒で変動
-            seed = int(time.time() * 1000000) % 10000
-            random.seed(seed)
+            # 市場データ基づく動的信頼度調整システム
+            market_uncertainty = self._calculate_market_uncertainty(df)
 
-            # 時間軸一致確認
+            # 最適化された時間軸判定（勝率向上版）
             if require_agreement:
                 if tf_4h_signal != 0 and tf_15m_signal != 0 and tf_4h_signal == tf_15m_signal:
-                    # 両方一致（最高信頼度・動的変動）
+                    # 両方一致（最高信頼度・設定ベース動的変動）
                     action = EntryAction.BUY if tf_4h_signal > 0 else EntryAction.SELL
-                    base_confidence = tf_4h_weight + tf_15m_weight  # 最大1.0
-                    variance = random.uniform(-0.05, 0.05)  # ±5%の変動
-                    confidence = max(0.6, min(1.0, base_confidence + variance))
+                    base_confidence = agreement_base
+                    confidence = max(
+                        agreement_min,
+                        min(
+                            agreement_max,
+                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                        ),
+                    )
                 elif tf_4h_signal != 0 and tf_15m_signal == 0:
-                    # 4時間足のみ（重み減額・動的変動）
+                    # 4時間足のみ（重み調整・設定ベース動的変動）
                     action = EntryAction.BUY if tf_4h_signal > 0 else EntryAction.SELL
-                    base_confidence = tf_4h_weight * 0.7
-                    variance = random.uniform(-0.08, 0.12)  # -8%〜+12%の変動
-                    confidence = max(0.3, min(0.8, base_confidence + variance))
+                    base_confidence = single_tf_base
+                    confidence = max(
+                        single_tf_min,
+                        min(
+                            single_tf_max,
+                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                        ),
+                    )
                 else:
-                    # 不一致またはシグナルなし（動的変動）
+                    # 不一致またはシグナルなし（設定ベース動的変動）
                     action = EntryAction.HOLD
-                    base_confidence = self.config["hold_confidence"]
-                    variance = random.uniform(-0.05, 0.08)  # -5%〜+8%の変動
-                    confidence = max(0.1, min(0.35, base_confidence + variance))
+                    base_confidence = disagreement_base
+                    confidence = max(
+                        disagreement_min,
+                        min(
+                            disagreement_max,
+                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                        ),
+                    )
             else:
-                # 重み付け判定（動的変動）
+                # 重み付け判定（設定ベース動的変動）
                 weighted_score = tf_4h_signal * tf_4h_weight + tf_15m_signal * tf_15m_weight
-                variance = random.uniform(-0.06, 0.06)  # ±6%の変動
-
                 if abs(weighted_score) >= min_confidence:
                     action = EntryAction.BUY if weighted_score > 0 else EntryAction.SELL
                     base_confidence = min(abs(weighted_score), 1.0)
-                    confidence = max(0.3, min(1.0, base_confidence + variance))
+                    confidence = max(
+                        weighted_min,
+                        min(
+                            weighted_max,
+                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                        ),
+                    )
                 else:
                     action = EntryAction.HOLD
-                    base_confidence = self.config["hold_confidence"]
-                    confidence = max(0.1, min(0.35, base_confidence + variance))
+                    base_confidence = disagreement_base
+                    confidence = max(
+                        disagreement_min,
+                        min(
+                            disagreement_max,
+                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                        ),
+                    )
 
-            # 最小信頼度チェック（動的変動）
+            # 最小信頼度チェック（設定ベース動的変動）
             if confidence < min_confidence:
                 action = EntryAction.HOLD
-                base_confidence = self.config["hold_confidence"]
-                variance = random.uniform(-0.03, 0.05)  # -3%〜+5%の変動
-                confidence = max(0.1, min(0.3, base_confidence + variance))
+                base_confidence = disagreement_base
+                confidence = max(
+                    disagreement_min,
+                    min(0.3, base_confidence * (1 + market_uncertainty / uncertainty_boost)),
+                )
 
             return {
                 "action": action,

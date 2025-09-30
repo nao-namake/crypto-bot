@@ -1,7 +1,7 @@
 """
 ML層 - 機械学習システム統合
 
-Phase 21実装完了: CI/CD統合・手動実行監視・段階的デプロイ対応の包括的機械学習システム
+Phase 28完了・Phase 29最適化版: CI/CD統合・手動実行監視・段階的デプロイ対応の包括的機械学習システム
 保守性と性能のバランスを重視したシンプル設計
 
 構成:
@@ -20,7 +20,7 @@ Phase 21実装完了: CI/CD統合・手動実行監視・段階的デプロイ�
 
     # モデル管理
     manager = ModelManager()
-    version = manager.save_model(ensemble, description="Phase 21 ensemble")
+    version = manager.save_model(ensemble, description="Phase 28/29 ensemble")
 """
 
 from .ensemble import EnsembleModel, ProductionEnsemble, VotingMethod, VotingSystem

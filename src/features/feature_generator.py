@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 21統合版
+特徴量生成統合システム - Phase 28完了・Phase 29最適化版
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -12,7 +12,7 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 21統合実装日: 2025年9月12日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from typing import Any, Dict, List, Optional
@@ -22,7 +22,7 @@ import pandas as pd
 
 from ..core.config import get_anomaly_config
 
-# Phase 21: 特徴量定義一元化（feature_managerから取得）
+# Phase 28完了・Phase 29最適化: 特徴量定義一元化（feature_managerから取得）
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
@@ -36,7 +36,7 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 21統合版
+    統合特徴量生成クラス - Phase 28完了・Phase 29最適化版
 
     テクニカル指標、異常検知、特徴量サービス機能を
     1つのクラスに統合し、15特徴量生成を効率的に提供。
@@ -263,10 +263,6 @@ class FeatureGenerator:
         except Exception as e:
             self.logger.error(f"出来高比率計算エラー: {e}")
             return pd.Series(np.zeros(len(volume)), index=volume.index)
-
-    # Phase 22: market_stress特徴量削除（15特徴量統一）
-    # def _calculate_market_stress(self, df: pd.DataFrame) -> pd.Series:
-    #     """市場ストレス度指標計算（統合異常指標）"""
 
     def _normalize(self, series: pd.Series) -> pd.Series:
         """0-1範囲に正規化"""

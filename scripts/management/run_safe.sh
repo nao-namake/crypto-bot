@@ -256,6 +256,14 @@ setup_environment() {
         "local")
             export ENVIRONMENT="local"
             export RUNNING_ON_GCP="false"
+            # .envファイルからの環境変数読み込み
+            if [ -f "$PROJECT_ROOT/config/secrets/.env" ]; then
+                log_info "📄 環境変数読み込み: $PROJECT_ROOT/config/secrets/.env"
+                source "$PROJECT_ROOT/config/secrets/.env"
+                export BITBANK_API_KEY BITBANK_API_SECRET DISCORD_WEBHOOK_URL
+            else
+                log_warn "⚠️ .envファイルが見つかりません: $PROJECT_ROOT/config/secrets/.env"
+            fi
             log_info "💻 ローカル環境設定完了"
             ;;
         "gcp")
@@ -439,10 +447,10 @@ main() {
             echo ""
             stop_process
 
-            # force_stop.shでの完全停止も提案
+            # bot_manager.shでの完全停止も提案
             echo ""
             echo -e "${BLUE}💡 より確実な停止には以下を実行:${NC}"
-            echo "    bash scripts/management/force_stop.sh"
+            echo "    bash scripts/management/bot_manager.sh stop"
             echo ""
             ;;
 

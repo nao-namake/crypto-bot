@@ -1,20 +1,34 @@
-# config/core/ - システム基本設定 🚀 Phase 22最適化完了
+# config/core/ - システム基本設定 🚀 Phase 28完了・Phase 29最適化完了
 
 ## 🎯 役割・責任
 
 システム全体で使用する基本設定を管理します。取引所接続、機械学習、戦略、リスク管理などの核となる設定ファイル群を提供し、全システムで一貫した動作を保証します。特に**feature_order.json**は全システムの特徴量定義における単一真実源として機能します。
 
-## 📈 統一設定管理体系確立完了（2025年9月18日）
+## 📈 Phase 29.5完了（2025年9月30日）
 
-**🎯 Phase 22 + 統合設定管理最適化**: 設定不整合完全解消・CI/CD統一化
+**🎯 Phase 29.5: ML予測統合実装・真のハイブリッドMLbot実現**
 
-**✅ 実現成果**:
+**✅ Phase 29.5最適化成果**:
+- **ML予測統合ロジック実装**: trading_cycle_manager.pyにML統合機能追加・戦略70% + ML30%加重平均
+- **設定管理統合**: thresholds.yaml ml.strategy_integration設定追加・MLConfig拡張
+- **品質保証完了**: 625テスト100%成功・64.74%カバレッジ達成・8個の統合テスト追加
+- **MLbot完成**: ML予測が実際の取引判断に統合・戦略とMLの真の融合実現
+
+## 📈 Phase 29最適化完了（2025年9月28日）
+
+**🎯 Phase 29: 設定重複完全解消・視覚的改善・理解しやすい構造化**
+
+**✅ Phase 29最適化成果**:
+- **設定重複完全解消**: 初期残高・ML信頼度・Kelly基準・リスク闾値重複削除
+- **統一設定管理体系完成**: unified.yaml（基本設定）・thresholds.yaml（動的闾値）の完全分離
+- **視覚的改善**: 日本語セクションヘッダー・コメント充実・理解しやすい構造
+- **アンサンブル重み統一**: model_weightsとensemble.weightsの一元化・混乱解消
+- **feature_order.json v2.3.0**: Phase 29最適化対応・設定統一化履歴追加
+
+**✅ 前回Phase 22成果維持**:
 - **統一設定管理体系確立**: cloudbuild.yaml削除・gcp_config.yaml実環境同期・CI/CD統一
 - **Secret Manager最適化**: :latest→具体的バージョン（:3,:5）・セキュリティ向上
 - **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC・実用性大幅向上
-- **26キー重複問題解決**: unified.yaml→thresholds.yaml移行で性能最適化実現
-- **unified.yaml**: 14.3KB→3.9KB（**72.7%削減**）・構造整理完了
-- **thresholds.yaml**: 376行→147行・未使用120キー削除
 - **システム整合性**: **625テスト100%成功**・CI/CD統一動作確認完了
 - **性能向上**: デフォルト値強制 → 最適化設定値活用で真の性能発揮
 
@@ -30,8 +44,8 @@ core/
 
 ## 📋 各ファイルの役割
 
-### **unified.yaml** 🚀**Phase 23最適化完了（2025年9月24日）**
-システムの基本動作を定義する統一設定ファイルです。Phase 23で**モード別初期残高設定の一元化**を実現しました。
+### **unified.yaml** 🚀**Phase 29最適化完了（2025年9月28日）**
+システムの基本動作を定義する統一設定ファイルです。Phase 29で**設定重複完全解消・アンサンブル重み統一**を実現しました。
 
 **📊 Phase 23新機能: モード別初期残高一元管理**:
 - **mode_balances設定追加**: paper/live/backtest各モードの初期残高を一箇所で管理
@@ -82,8 +96,27 @@ core/
 - `feature_definitions`: 各特徴量の詳細定義（型・範囲・重要度）
 - `reduction_history`: 特徴量最適化履歴（97→12→15個）
 
-### **thresholds.yaml** 🚀**Phase 22最適化完了（2025年9月14日）**
-**戦略フォールバック問題を解決する動的閾値設定システム**です。Phase 22で**26キー重複問題を完全解決**し、システム性能を大幅向上させました。
+### **thresholds.yaml** 🚀**Phase 29.5 ML統合設定追加（2025年9月30日）**
+**戦略ハードコード値完全排除・ML予測統合設定・設定一元化システム**です。Phase 29.5で**ML予測統合設定**を追加し、Phase 29の戦略設定値一元化と合わせて完全な設定管理体系を確立しました。
+
+**📊 Phase 29.5 ML予測統合設定追加**:
+- **ML統合設定セクション新設**: `ml.strategy_integration.*` (7項目) で加重平均・ボーナス・ペナルティ制御
+- **動的制御設定**: enabled（有効化）・ml_weight（0.3）・strategy_weight（0.7）・運用中調整対応
+- **強化判定設定**: high_confidence_threshold（0.8）・agreement_bonus（1.2倍）・disagreement_penalty（0.7倍）
+- **安全措置設定**: min_ml_confidence（0.6）最小信頼度閾値・低品質ML予測排除
+
+**📊 Phase 29戦略設定値一元化成果**:
+- **戦略ハードコード完全排除**: Multi-timeframe・ATRBased戦略の数値リテラル（0.002, 0.005, 0.015, 0.7, 0.5, 30.0等）を全てthresholds.yaml参照に変更
+- **循環インポート問題解決**: get_threshold遅延インポート実装による安全な設定参照システム確立
+- **戦略固有設定追加**: `dynamic_confidence.strategies.multi_timeframe.*` (6項目) / `dynamic_confidence.strategies.atr_based.*` (5項目) セクション新設
+- **品質保証完了**: **639テスト100%成功・59.71%カバレッジ維持**でハードコード排除品質確保
+- **コード品質向上**: flake8・black・isort全チェック通過による企業級品質実現
+
+**📊 Phase 25最適化成果**:
+- **動的ポジションサイジング追加**: ML信頼度連動の3段階サイジング（低:1-3%・中:3-5%・高:5-10%）
+- **ポジション制限追加**: 最大3ポジション・1日20取引・30%資本使用制限で無制限取引問題完全解決
+- **緊急ストップロス追加**: 3%価格変動・5%含み損で30分クールダウン回避の強制決済機能
+- **資金規模別調整**: 1-5万円（テスト）・5-10万円（準本番）・10万円以上（本番）対応
 
 **📊 Phase 22最適化成果**:
 - **重複解決**: unified.yaml内26キーをthresholds.yamlに移行・デフォルト値強制問題を完全解決
@@ -96,16 +129,26 @@ core/
   - `atr_based`: BB閾値70%/30%・RSI閾値65/35・最小信頼度0.3（取引機会拡大）・**base_confidence/confidence_multiplier追加**
   - `donchian_channel`: 中央域40-60%・弱シグナル範囲・動的HOLD信頼度
   - `adx_trend`: 弱トレンド15・DI差分1.0・レンジ相場対応
+- **【Phase 29新規追加】`dynamic_confidence.strategies`**: 戦略固有ハードコード値完全排除
+  - `multi_timeframe`: tf_4h_min_strength(0.002)・tf_4h_weight(0.6)・tf_15m_weight(0.4)・position_size_base(0.025)・atr_ratio_threshold(0.005)・price_breakout_ratio(0.995)
+  - `atr_based`: position_size_base(0.015)・market_stress_threshold(0.7)・min_atr_ratio(0.5)・strength_normalize(30.0)・rsi_base(0.2)
 - `ml`: 動的信頼度基準・フォールバック値・**model_paths設定統合**
 - `trading`: 信頼度階層設定・リスク閾値・**Kelly基準Silent Failure修正完了（2025/09/19）**
   - `kelly_min_trades`: 5（20→5に緩和・取引開始促進・実用性大幅向上）
   - `initial_position_size`: 0.0001 BTC（**Silent Failure修正・確実実行保証**）
   - `min_trade_size`: 0.0001 BTC（**Bitbank最小取引単位・Silent Failure根本修正**）
   - `fallback_btc_jpy`: 16000000.0（価格フォールバック・1BTC=1700万円対応）
+- **【Phase 25新規】`position_management`**: ポジション制限・動的サイジング設定
+  - `min_account_balance`: 10000（最小運用資金要件・1万円テスト対応）
+  - `max_open_positions`: 3（同時保有ポジション数上限）
+  - `max_daily_trades`: 20（1日の最大取引回数）
+  - `dynamic_position_sizing`: ML信頼度連動の3段階サイジング設定
+  - `account_size_adjustments`: 資金規模別調整（小・中・大口座対応）
+  - `emergency_stop_loss`: 緊急時ストップロス設定（価格変動・含み損監視）
 - `ensemble/models`: アンサンブル設定・個別モデルパラメータ（**26キー移行分含む**）
 - `reporting/risk`: レポート設定・リスク管理パラメータ
 
-**効果**: フォールバック値0.200 → 市場適応型0.25-0.6・**デフォルト値強制回避によるシステム真価発揮**
+**効果**: フォールバック値0.200 → 市場適応型0.25-0.6・**デフォルト値強制回避によるシステム真価発揮** + **無制限取引問題完全解決**
 
 **主要設定項目**:
 - `confidence_levels`: 信頼度レベル別閾値

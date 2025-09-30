@@ -38,10 +38,8 @@ class HistoricalDataCollector:
         self.output_dir = Path(__file__).parent.parent / "data" / "historical"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # SSL証明書問題対応
+        # SSL証明書設定（セキュア設定）
         self.ssl_context = ssl.create_default_context()
-        self.ssl_context.check_hostname = False
-        self.ssl_context.verify_mode = ssl.CERT_NONE
 
     async def collect_data(
         self,

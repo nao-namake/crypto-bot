@@ -1,1 +1,0 @@
-# Bitbank Execution Test Package

@@ -1,13 +1,16 @@
 """
-取引サイクルマネージャー - Phase 22 リファクタリング
+取引サイクルマネージャー - Phase 28完了・Phase 29最適化版
 
 orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行の
 フロー全体を担当。
 """
 
+from __future__ import annotations
+
 import time
 from datetime import datetime
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
@@ -15,6 +18,9 @@ import pandas as pd
 from ..config import get_threshold
 from ..exceptions import CryptoBotError, ModelLoadError
 from ..logger import CryptoBotLogger
+
+if TYPE_CHECKING:
+    from ...strategies.base.strategy_base import StrategySignal
 
 
 class TradingCycleManager:
@@ -252,8 +258,28 @@ class TradingCycleManager:
             return self._get_fallback_trading_info(market_data)
 
     def _get_fallback_trading_info(self, market_data):
-        """取引情報フォールバック値取得"""
-        current_balance = get_threshold("trading.default_balance_jpy", 1000000.0)
+        """取引情報フォールバック値取得（モード別適正化）"""
+        # モード別適正残高を使用（ドローダウン計算異常問題修正）
+        try:
+            # 実行モードを判定（orchestratorの設定から取得）
+            config_mode = getattr(self.orchestrator.config, "mode", "paper")
+
+            # mode_balancesから適切な初期残高を取得
+            mode_balances = getattr(self.orchestrator.config, "mode_balances", {})
+            mode_config = mode_balances.get(config_mode, {})
+            appropriate_balance = mode_config.get("initial_balance", 10000.0)
+
+            current_balance = appropriate_balance
+            self.logger.warning(
+                f"⚠️ API取得失敗 - {config_mode}モード適正フォールバック残高使用: {current_balance:.0f}円"
+            )
+
+        except Exception as e:
+            # 最終フォールバック
+            current_balance = get_threshold("trading.default_balance_jpy", 10000.0)
+            self.logger.error(
+                f"フォールバック値取得エラー - デフォルト使用: {current_balance:.0f}円, エラー: {e}"
+            )
 
         # 安全にmarket_dataから価格を取得
         try:
@@ -289,11 +315,14 @@ class TradingCycleManager:
         }
 
     async def _evaluate_risk(self, ml_prediction, strategy_signal, main_features, trading_info):
-        """Phase 7: リスク管理・統合判定"""
+        """Phase 7: リスク管理・統合判定（Phase 29.5: ML予測統合）"""
         try:
-            return self.orchestrator.risk_service.evaluate_trade_opportunity(
+            # Phase 29.5: ML予測を戦略シグナルと統合
+            integrated_signal = self._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+            return await self.orchestrator.risk_service.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
-                strategy_signal=strategy_signal,  # 変数名統一
+                strategy_signal=integrated_signal,  # 統合後のシグナルを使用
                 market_data=main_features,  # DataFrameのみ渡す（型整合性確保）
                 current_balance=trading_info["current_balance"],
                 bid=trading_info["bid"],
@@ -313,6 +342,157 @@ class TradingCycleManager:
                 },
             )()
 
+    def _integrate_ml_with_strategy(
+        self, ml_prediction: dict, strategy_signal: StrategySignal
+    ) -> StrategySignal:
+        """
+        Phase 29.5: ML予測と戦略シグナルの統合
+
+        ML予測結果を戦略シグナルと統合し、最終的な取引信頼度を調整。
+        一致時はボーナス、不一致時はペナルティを適用。
+
+        Args:
+            ml_prediction: ML予測結果 {"prediction": int, "confidence": float}
+                          prediction: -1=売り, 0=保持, 1=買い
+            strategy_signal: 戦略シグナル (StrategySignalオブジェクト)
+
+        Returns:
+            StrategySignal: 統合後のシグナル（ML調整済み）
+        """
+        try:
+            # ML統合が無効の場合は元のシグナルをそのまま返す
+            if not get_threshold("ml.strategy_integration.enabled", False):
+                self.logger.debug("ML統合無効 - 戦略シグナルをそのまま使用")
+                return strategy_signal
+
+            # ML予測信頼度が低い場合は統合しない
+            ml_confidence = ml_prediction.get("confidence", 0.0)
+            min_ml_confidence = get_threshold("ml.strategy_integration.min_ml_confidence", 0.6)
+
+            if ml_confidence < min_ml_confidence:
+                self.logger.info(
+                    f"ML信頼度不足 ({ml_confidence:.3f} < {min_ml_confidence:.3f}) - 戦略シグナルのみ使用"
+                )
+                return strategy_signal
+
+            # 予測値とアクションの変換
+            ml_pred = ml_prediction.get("prediction", 0)
+            ml_action_map = {-1: "sell", 0: "hold", 1: "buy"}
+            ml_action = ml_action_map.get(ml_pred, "hold")
+
+            # StrategySignalオブジェクトから属性を直接取得
+            strategy_action = strategy_signal.action
+            strategy_confidence = strategy_signal.confidence
+
+            self.logger.info(
+                f"🔄 ML統合開始: 戦略={strategy_action}({strategy_confidence:.3f}), "
+                f"ML={ml_action}({ml_confidence:.3f})"
+            )
+
+            # 一致・不一致判定
+            is_agreement = (ml_action == strategy_action) or (
+                ml_action == "hold" and strategy_action in ["buy", "sell"]
+            )
+
+            # 統合重み取得
+            ml_weight = get_threshold("ml.strategy_integration.ml_weight", 0.3)
+            strategy_weight = get_threshold("ml.strategy_integration.strategy_weight", 0.7)
+            high_confidence_threshold = get_threshold(
+                "ml.strategy_integration.high_confidence_threshold", 0.8
+            )
+
+            # ベース信頼度計算（加重平均）
+            base_confidence = (strategy_confidence * strategy_weight) + (ml_confidence * ml_weight)
+
+            # ML高信頼度時のボーナス・ペナルティ適用
+            if ml_confidence >= high_confidence_threshold:
+                if is_agreement:
+                    # 一致時: ボーナス適用
+                    agreement_bonus = get_threshold("ml.strategy_integration.agreement_bonus", 1.2)
+                    adjusted_confidence = min(base_confidence * agreement_bonus, 1.0)
+                    self.logger.info(
+                        f"✅ ML・戦略一致（ML高信頼度） - ボーナス適用: "
+                        f"{base_confidence:.3f} → {adjusted_confidence:.3f}"
+                    )
+                else:
+                    # 不一致時: ペナルティ適用
+                    disagreement_penalty = get_threshold(
+                        "ml.strategy_integration.disagreement_penalty", 0.7
+                    )
+                    adjusted_confidence = base_confidence * disagreement_penalty
+                    self.logger.warning(
+                        f"⚠️ ML・戦略不一致（ML高信頼度） - ペナルティ適用: "
+                        f"{base_confidence:.3f} → {adjusted_confidence:.3f}"
+                    )
+
+                    # 不一致時はholdに変更する選択肢も
+                    if adjusted_confidence < 0.4:  # 信頼度が極端に低い場合
+                        self.logger.warning(
+                            f"⛔ 信頼度極低（{adjusted_confidence:.3f}）- holdに変更"
+                        )
+                        # 新しいStrategySignalオブジェクトとして返す（hold変更）
+                        from ...strategies.base.strategy_base import StrategySignal
+
+                        return StrategySignal(
+                            strategy_name=strategy_signal.strategy_name,
+                            timestamp=strategy_signal.timestamp,
+                            action="hold",
+                            confidence=adjusted_confidence,
+                            strength=adjusted_confidence,
+                            current_price=strategy_signal.current_price,
+                            entry_price=strategy_signal.entry_price,
+                            stop_loss=strategy_signal.stop_loss,
+                            take_profit=strategy_signal.take_profit,
+                            position_size=strategy_signal.position_size,
+                            risk_ratio=strategy_signal.risk_ratio,
+                            indicators=strategy_signal.indicators,
+                            reason=f"ML・戦略不一致（信頼度極低）",
+                            metadata={
+                                **(strategy_signal.metadata or {}),
+                                "ml_adjusted": True,
+                                "original_action": strategy_action,
+                                "ml_action": ml_action,
+                                "adjustment_reason": "ml_disagreement_low_confidence",
+                                "original_confidence": strategy_confidence,
+                                "ml_confidence": ml_confidence,
+                            },
+                        )
+            else:
+                # ML信頼度が高くない場合は加重平均のみ
+                adjusted_confidence = base_confidence
+                self.logger.debug(f"📊 ML通常統合（加重平均のみ）: {base_confidence:.3f}")
+
+            # 統合結果を新しいStrategySignalオブジェクトとして返す
+            from ...strategies.base.strategy_base import StrategySignal
+
+            return StrategySignal(
+                strategy_name=strategy_signal.strategy_name,
+                timestamp=strategy_signal.timestamp,
+                action=strategy_action,  # アクションは戦略のものを維持
+                confidence=adjusted_confidence,  # ML統合後の信頼度
+                strength=adjusted_confidence,  # strengthも更新
+                current_price=strategy_signal.current_price,
+                entry_price=strategy_signal.entry_price,
+                stop_loss=strategy_signal.stop_loss,
+                take_profit=strategy_signal.take_profit,
+                position_size=strategy_signal.position_size,
+                risk_ratio=strategy_signal.risk_ratio,
+                indicators=strategy_signal.indicators,
+                reason=strategy_signal.reason,
+                metadata={
+                    **(strategy_signal.metadata or {}),
+                    "ml_adjusted": True,
+                    "original_confidence": strategy_confidence,
+                    "ml_confidence": ml_confidence,
+                    "ml_action": ml_action,
+                    "is_agreement": is_agreement,
+                },
+            )
+
+        except Exception as e:
+            self.logger.error(f"ML統合エラー: {e} - 戦略シグナルのみ使用")
+            return strategy_signal
+
     async def _execute_approved_trades(self, trade_evaluation, cycle_id):
         """Phase 8a: 承認された取引の実行（Silent Failure修正済み）"""
         try:
@@ -326,6 +506,16 @@ class TradingCycleManager:
                 self.logger.debug(
                     f"取引実行開始 - サイクル: {cycle_id}, アクション: {getattr(trade_evaluation, 'side', 'unknown')}"
                 )
+
+                # Phase 8a-1: 取引直前最終検証（口座残高使い切り防止・追加安全チェック）
+                pre_execution_check = await self._pre_execution_verification(
+                    trade_evaluation, cycle_id
+                )
+                if not pre_execution_check["allowed"]:
+                    self.logger.warning(
+                        f"🚫 取引直前検証により取引拒否 - サイクル: {cycle_id}, 理由: {pre_execution_check['reason']}"
+                    )
+                    return
 
                 execution_result = await self.orchestrator.execution_service.execute_trade(
                     trade_evaluation
@@ -441,3 +631,175 @@ class TradingCycleManager:
         )
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")
+
+    async def _pre_execution_verification(self, trade_evaluation, cycle_id) -> dict:
+        """
+        取引実行直前最終検証（口座残高使い切り防止・追加安全チェック）
+
+        リスク管理後から実際の取引実行までの間に状況が変わった可能性を考慮した
+        最後の安全チェック。二重チェックによる安全性向上。
+
+        Args:
+            trade_evaluation: 取引評価結果
+            cycle_id: 取引サイクルID
+
+        Returns:
+            Dict: {"allowed": bool, "reason": str, "additional_info": dict}
+        """
+        try:
+            self.logger.debug(f"🔍 取引直前最終検証開始 - サイクル: {cycle_id}")
+
+            # 1. 基本情報確認
+            side = getattr(trade_evaluation, "side", "unknown")
+            position_size = getattr(trade_evaluation, "position_size", 0.0)
+
+            if side.lower() in ["hold", "none", ""] or position_size <= 0:
+                return {"allowed": False, "reason": "holdシグナルまたは無効なポジションサイズ"}
+
+            # 2. ExecutionService経由でポジション制限再確認
+            try:
+                execution_service = self.orchestrator.execution_service
+                if hasattr(execution_service, "_check_position_limits"):
+                    position_check = execution_service._check_position_limits(trade_evaluation)
+                    if not position_check.get("allowed", True):
+                        return {
+                            "allowed": False,
+                            "reason": f"ポジション制限再確認失敗: {position_check.get('reason', '不明')}",
+                        }
+            except Exception as e:
+                self.logger.warning(f"⚠️ ポジション制限再確認エラー: {e}")
+
+            # 3. 現在残高確認（最新残高でのチェック）
+            try:
+                current_balance = await self._get_current_balance()
+                if current_balance is not None and current_balance > 0:
+                    # 最小取引可能残高チェック
+                    min_trade_size = get_threshold("trading.min_trade_size", 0.0001)
+                    estimated_cost = min_trade_size * 16700000  # BTC価格概算
+
+                    if current_balance < estimated_cost * 1.5:  # 1.5倍の余裕を確保
+                        return {
+                            "allowed": False,
+                            "reason": f"残高不足: ¥{current_balance:,.0f} < 必要残高¥{estimated_cost * 1.5:,.0f}",
+                        }
+            except Exception as e:
+                self.logger.warning(f"⚠️ 現在残高確認エラー: {e}")
+
+            # 4. 市場急変状況チェック
+            try:
+                # 直近の価格ボラティリティ確認（簡易実装）
+                market_volatility_check = await self._check_current_market_volatility()
+                if market_volatility_check and not market_volatility_check.get("stable", True):
+                    volatile_threshold = get_threshold(
+                        "trading.anomaly.max_volatility_for_trade", 0.05
+                    )
+                    current_volatility = market_volatility_check.get("volatility", 0.0)
+
+                    if current_volatility > volatile_threshold:
+                        return {
+                            "allowed": False,
+                            "reason": f"市場急変検出: ボラティリティ {current_volatility * 100:.1f}% > {volatile_threshold * 100:.0f}%",
+                        }
+            except Exception as e:
+                self.logger.debug(f"市場ボラティリティチェックエラー（非致命的）: {e}")
+
+            # 5. 緊急時条件確認（Emergency Stop-Lossがアクティブでないか）
+            try:
+                if hasattr(self.orchestrator, "execution_service"):
+                    emergency_status = await self._check_emergency_conditions()
+                    if emergency_status and not emergency_status.get("normal", True):
+                        return {
+                            "allowed": False,
+                            "reason": f"緊急時条件検出: {emergency_status.get('reason', '不明な緊急事態')}",
+                        }
+            except Exception as e:
+                self.logger.debug(f"緊急時条件チェックエラー（非致命的）: {e}")
+
+            # 6. システム健全性最終確認
+            health_status = await self._check_system_health_for_trading()
+            if not health_status.get("healthy", False):
+                return {
+                    "allowed": False,
+                    "reason": f"システム健全性問題: {health_status.get('issue', '不明')}",
+                }
+
+            self.logger.debug(f"✅ 取引直前最終検証通過 - サイクル: {cycle_id}")
+
+            return {
+                "allowed": True,
+                "reason": "全検証通過",
+                "additional_info": {
+                    "verification_time": datetime.now(),
+                    "checks_performed": [
+                        "position_limits",
+                        "balance",
+                        "volatility",
+                        "emergency",
+                        "health",
+                    ],
+                },
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ 取引直前検証エラー - サイクル: {cycle_id}: {e}")
+            return {"allowed": False, "reason": f"検証処理エラー: {e}"}
+
+    async def _get_current_balance(self) -> Optional[float]:
+        """現在残高取得（簡易実装）"""
+        try:
+            # ExecutionServiceから残高取得を試行
+            execution_service = self.orchestrator.execution_service
+            if hasattr(execution_service, "current_balance"):
+                return float(execution_service.current_balance)
+            elif hasattr(execution_service, "virtual_balance"):
+                return float(execution_service.virtual_balance)
+            return None
+        except Exception:
+            return None
+
+    async def _check_current_market_volatility(self) -> Optional[dict]:
+        """現在の市場ボラティリティ確認（簡易実装）"""
+        try:
+            # 簡易実装: 将来的にはリアルタイム価格変動監視を実装
+            return {"stable": True, "volatility": 0.01}  # 1%以下なら安定
+        except Exception:
+            return None
+
+    async def _check_emergency_conditions(self) -> Optional[dict]:
+        """緊急時条件確認（簡易実装）"""
+        try:
+            # 簡易実装: 将来的には緊急時条件の詳細チェック
+            return {"normal": True}
+        except Exception:
+            return None
+
+    async def _check_system_health_for_trading(self) -> dict:
+        """取引実行可能システム健全性チェック"""
+        try:
+            # 基本的なシステムコンポーネント確認
+            checks = {
+                "execution_service": (
+                    hasattr(self.orchestrator, "execution_service")
+                    and self.orchestrator.execution_service is not None
+                ),
+                "risk_manager": (
+                    hasattr(self.orchestrator, "risk_service")
+                    and self.orchestrator.risk_service is not None
+                ),
+                "data_service": (
+                    hasattr(self.orchestrator, "data_service")
+                    and self.orchestrator.data_service is not None
+                ),
+            }
+
+            if all(checks.values()):
+                return {"healthy": True}
+            else:
+                failed_components = [comp for comp, status in checks.items() if not status]
+                return {
+                    "healthy": False,
+                    "issue": f"必須コンポーネント異常: {', '.join(failed_components)}",
+                }
+
+        except Exception as e:
+            return {"healthy": False, "issue": f"ヘルスチェック例外: {e}"}

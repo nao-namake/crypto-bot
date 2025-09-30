@@ -1,20 +1,165 @@
+# ========================================
+# 動的閾値設定ファイル - Phase 28完了・Phase 29最適化版
+# ========================================
+#
+# Phase 29最適化：重複削除・視覚的改善・統一設定管理体系完成
+# unified.yamlとの完全分離・動的閾値特化・理解しやすい構造化
+#
+# ========================================
+# 実行・動作設定
+# ========================================
 execution:
   backtest_period_days: 180
   live_mode_interval_seconds: 180
   paper_mode_interval_seconds: 60
+# ========================================
+# 機械学習・信頼度設定（動的閾値）
+# ========================================
 ml:
+  # ML基本設定
+  confidence_threshold: 0.3    # unified.yamlから移行・ML信頼度閾値
   allow_dummy_fallback: false
   default_confidence: 0.5
+
+  # ML予測統合設定（Phase 29.5: ML予測を実際の取引判断に統合）
+  strategy_integration:
+    enabled: true                    # ML予測統合機能の有効化
+    ml_weight: 0.3                   # ML予測の重み（30%）
+    strategy_weight: 0.7             # 戦略の重み（70%）
+    high_confidence_threshold: 0.8   # ML高信頼度閾値
+    agreement_bonus: 1.2             # ML・戦略一致時の信頼度ボーナス
+    disagreement_penalty: 0.7        # ML・戦略不一致時のペナルティ
+    min_ml_confidence: 0.6           # ML予測を考慮する最小信頼度
+
+  # 動的信頼度設定（市場適応型）
   dynamic_confidence:
     base_hold: 0.35  # 0.2→0.35 取引機会増加のため上昇
     error_fallback: 0.25  # 0.2→0.25 エラー時も少し積極的に
     ml_fallback: 0.35  # 0.3→0.35 MLエラー時の信頼度向上
     neutral_default: 0.4  # 0.35→0.4 中立時の信頼度向上
     strategy_fallback: 0.35  # 0.25→0.35 戦略エラー時の信頼度向上
+
+# ========================================
+# 動的信頼度計算パラメータ（勝率最適化版）
+# ========================================
+dynamic_confidence:
+  # 共通市場不確実性計算パラメータ（全戦略共通）
+  market_uncertainty:
+    volatility_factor_max: 0.05      # ATRベースボラティリティ上限
+    volatility_divisor: 1.0          # ボラティリティ除数
+    volume_factor_max: 0.03          # ボリューム異常度上限
+    volume_multiplier: 0.1           # ボリューム乗数
+    price_factor_max: 0.02           # 価格変動率上限
+    uncertainty_max: 0.10            # 市場不確実性最大値
+    uncertainty_boost: 1.5           # 不確実性ブースト係数（控えめ）
+
+  # 戦略別動的信頼度パラメータ（勝率向上最適化）
+  strategies:
+    mochipoy_alert:
+      # 多数決システム最適化
+      buy_strong_base: 0.70          # 2票以上賛成時基準信頼度（0.65→0.70）
+      buy_strong_max: 0.95           # 2票以上賛成時最大信頼度
+      buy_weak_base: 0.45            # 1票賛成時基準信頼度（0.35→0.45）
+      buy_weak_max: 0.60             # 1票賛成時最大信頼度
+      sell_strong_base: 0.70         # 2票以上反対時基準信頼度
+      sell_strong_max: 0.95          # 2票以上反対時最大信頼度
+      sell_weak_base: 0.45           # 1票反対時基準信頼度
+      sell_weak_max: 0.60            # 1票反対時最大信頼度
+      hold_base: 0.20                # HOLD時基準信頼度（0.15→0.20）
+      hold_min: 0.1                  # HOLD時最小信頼度
+      hold_max: 0.35                 # HOLD時最大信頼度
+
+    multi_timeframe:
+      # 2軸統合システム最適化
+      agreement_base: 0.75           # 両軸一致時基準信頼度（0.85→0.75）
+      agreement_min: 0.70            # 両軸一致時最小信頼度
+      agreement_max: 1.0             # 両軸一致時最大信頼度
+      single_tf_base: 0.55           # 単一軸時基準信頼度（0.50→0.55）
+      single_tf_min: 0.40            # 単一軸時最小信頼度
+      single_tf_max: 0.75            # 単一軸時最大信頼度
+      disagreement_base: 0.30        # 不一致時基準信頼度（0.25→0.30）
+      disagreement_min: 0.15         # 不一致時最小信頼度
+      disagreement_max: 0.40         # 不一致時最大信頼度
+      weighted_min: 0.35             # 重み付け判定最小信頼度
+      weighted_max: 1.0              # 重み付け判定最大信頼度
+      # 戦略固有パラメータ（ハードコード完全排除）
+      tf_4h_min_strength: 0.002      # 4時間足最小トレンド強度
+      tf_4h_weight: 0.6              # 4時間足重み
+      tf_15m_weight: 0.4             # 15分足重み
+      position_size_base: 0.025      # 基本ポジションサイズ
+      atr_ratio_threshold: 0.005     # ATR比率閾値
+      price_breakout_ratio: 0.995    # 価格ブレイクアウト比率
+
+    donchian_channel:
+      # ブレイクアウト・レンジ戦略最適化
+      breakout_base: 0.60            # ブレイクアウト基準信頼度（0.55→0.60）
+      breakout_min: 0.30             # ブレイクアウト最小信頼度
+      breakout_max: 0.85             # ブレイクアウト最大信頼度
+      reversal_base: 0.50            # リバーサル基準信頼度（0.45→0.50）
+      reversal_min: 0.30             # リバーサル最小信頼度
+      reversal_max: 0.70             # リバーサル最大信頼度
+      hold_base: 0.30                # レンジ内基準信頼度（0.25→0.30）
+      hold_min: 0.20                 # レンジ内最小信頼度
+      hold_max: 0.45                 # レンジ内最大信頼度
+      volume_bonus_max: 0.1          # ボリュームボーナス上限
+      volume_multiplier: 0.2         # ボリューム乗数
+
+    adx_trend:
+      # トレンド強度戦略最適化
+      strong_base: 0.65              # 強トレンド基準信頼度（0.60→0.65）
+      strong_min: 0.40               # 強トレンド最小信頼度
+      strong_max: 0.85               # 強トレンド最大信頼度
+      moderate_base: 0.50            # 中トレンド基準信頼度（0.45→0.50）
+      moderate_min: 0.35             # 中トレンド最小信頼度
+      moderate_max: 0.70             # 中トレンド最大信頼度
+      weak_base: 0.35                # 弱トレンド基準信頼度（0.30→0.35）
+      weak_min: 0.25                 # 弱トレンド最小信頼度
+      weak_max: 0.50                 # 弱トレンド最大信頼度
+      hold_base: 0.30                # HOLD基準信頼度
+      hold_min: 0.25                 # HOLD最小信頼度
+      hold_max: 0.45                 # HOLD最大信頼度
+      default_min: 0.25              # デフォルト最小信頼度
+      default_max: 0.45              # デフォルト最大信頼度
+      adx_bonus_max: 0.25            # ADXボーナス上限
+      adx_divisor: 25                # ADXボーナス除数
+      di_bonus_max: 0.15             # DIボーナス上限
+      di_divisor: 12                 # DIボーナス除数
+      volume_bonus_max: 0.1          # ボリュームボーナス上限
+      volume_multiplier: 0.15        # ボリューム乗数
+
+    atr_based:
+      # ボラティリティ追従戦略最適化
+      high_volatility_base: 0.55     # 高ボラ基準信頼度（0.50→0.55）
+      high_volatility_min: 0.35      # 高ボラ最小信頼度
+      high_volatility_max: 0.80      # 高ボラ最大信頼度
+      normal_volatility_base: 0.45   # 中ボラ基準信頼度（0.40→0.45）
+      normal_volatility_min: 0.30    # 中ボラ最小信頼度
+      normal_volatility_max: 0.65    # 中ボラ最大信頼度
+      low_volatility_base: 0.35      # 低ボラ基準信頼度（0.30→0.35）
+      low_volatility_min: 0.25       # 低ボラ最小信頼度
+      low_volatility_max: 0.50       # 低ボラ最大信頼度
+      # 動的信頼度計算パラメータ
+      rsi_base: 0.2                  # RSI基準信頼度
+      rsi_multiplier: 0.3            # RSI乗数
+      agreement_max: 0.65            # 一致時最大信頼度
+      weak_base: 0.08                # 微弱シグナル基準値
+      weak_multiplier: 0.1           # 微弱シグナル乗数
+      volatility_bonus: 1.02         # 高ボラティリティボーナス
+      volatility_max: 0.65           # ボラティリティ最大信頼度
+      # 戦略固有パラメータ（ハードコード完全排除）
+      position_size_base: 0.015      # 基本ポジションサイズ（逆張り控えめ）
+      market_stress_threshold: 0.7   # 市場ストレス閾値
+      min_atr_ratio: 0.5             # 最小ATR比率（低ボラ回避）
+      strength_divisor: 0.2          # 強度計算除数
+      strength_normalize: 30.0       # RSI強度正規化値
+
+  # エラー処理設定
   emergency_stop_on_dummy: true
   max_model_failures: 3
   prediction_fallback_confidence: 0.0
   dummy_confidence: 0.5
+
+  # パス設定
   model_paths:
     base_path: /app
     local_path: .
@@ -25,7 +170,7 @@ strategies:
   adx_trend:
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
-    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
+    hold_confidence: 0.30  # 0.15→0.30 フォールバック値回避・動的信頼度確保
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
     moderate_trend_max: 25
     moderate_trend_min: 15
@@ -39,15 +184,15 @@ strategies:
     hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     low_volatility_strength: 0.2
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
-    normal_volatility_strength: 0.4
+    normal_volatility_strength: 0.25  # 0.4→0.25 通常ボラティリティ強度削減
     rsi_overbought: 65
     rsi_oversold: 35
     strength_fallback: 0.3
-    base_confidence: 0.3
-    confidence_multiplier: 0.4
+    base_confidence: 0.25  # 0.3→0.25 基準信頼度削減
+    confidence_multiplier: 0.3  # 0.4→0.3 信頼度乗数削減
   donchian_channel:
     breakout_threshold: 0.002
-    hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
+    hold_confidence: 0.25  # 0.15→0.25 動的信頼度確保・固定値回避
     middle_zone_max: 0.6
     middle_zone_min: 0.4
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
@@ -61,46 +206,68 @@ strategies:
   multi_timeframe:
     hold_confidence: 0.15  # 0.2→0.15 より積極的な取引・月100-200回対応
     trend_conflict_confidence: 0.3
+# ========================================
+# 取引・リスク管理設定（動的閾値）
+# ========================================
 trading:
+  # 異常検知設定
   anomaly:
     spread_critical_threshold: 0.005
     spread_warning_threshold: 0.003
+
+  # スプレッド設定
   ask_spread_ratio: 1.001
   bid_spread_ratio: 0.999
+
+  # 信頼度レベル（月100-200回取引対応最適化）
   confidence_levels:
     high: 0.45
     low: 0.2     # 0.25→0.2 低信頼度でも取引・月100-200回対応
     medium: 0.3  # 0.35→0.3 中信頼度も下げる
     min_ml: 0.12 # 0.15→0.12 最小信頼度を下げる
     very_high: 0.6
-  default_balance_jpy: 10000.0
+
+  # 残高・価格設定（unified.yamlとの統一回避・動的値として維持）
   fallback_btc_jpy: 16500000.0
-  # Kelly基準初期取引設定（2025/09/19更新・Silent Failure修正対応）
-  min_trade_size: 0.0001        # Bitbank最小取引単位（Silent Failure対策・確実な取引実行）
-  initial_position_size: 0.0001  # Kelly履歴不足時の初期固定サイズ（最小取引単位・Silent Failure修正）
-  kelly_min_trades: 5           # Kelly計算最小取引数（20→5に緩和）
   fallback_prices:
     ask: 16600000.0
     bid: 16400000.0
     default_ask: 16100000.0
     default_bid: 15900000.0
+
+  # Kelly基準設定（2025/09/19更新・Silent Failure修正完了）
+  kelly_criterion:
+    min_trades_for_kelly: 5           # unified.yamlから移行・Kelly計算最小取引数
+    max_position_ratio: 0.03
+    safety_factor: 0.7
+  min_trade_size: 0.0001        # Bitbank最小取引単位（Silent Failure対策）
+  initial_position_size: 0.0001  # Kelly履歴不足時の初期固定サイズ
+
+  # その他取引設定
   fee_rate: 0.0012
-  initial_balance_jpy: 10000.0  # unified.yamlに統一・フォールバック値は11000.0
-  minimum_live_balance: 3000  # 段階的資金管理対応・3千円以下で警告（停止はしない）
+  minimum_live_balance: 3000  # 段階的資金管理対応・3千円以下で警告
+
+  # ポジションサイジング
   position_sizing:
     max_position_ratio: 0.05
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
     take_profit_ratio: 2.0
+
+  # リスク閾値（unified.yamlから移行）
   risk_thresholds:
-    conditional: 0.65  # 0.6→0.65 条件付き承認をさらに拡大・月100-200回対応
-    deny: 0.85  # 0.8→0.85 リスク許容度を適度に上げる・取引機会増加
+    conditional: 0.65  # 0.6→0.65 条件付き承認をさらに拡大
+    deny: 0.85  # 0.8→0.85 リスク許容度を適度に上げる
     min_ml_confidence: 0.12  # 0.15→0.12 最小信頼度を下げて取引機会増加
-  initial_balance: 1000000
+
+  # その他設定
   stats_log_interval: 10
+# ========================================
+# アンサンブル・モデル設定
+# ========================================
 ensemble:
-  confidence_threshold: 0.3  # 0.35→0.3 ML ensemble信頼度を下げて取引機会増加・月100-200回対応
+  # 注意: confidence_thresholdはml.confidence_thresholdに統一済み
   max_nan_ratio_features: 0.5
   max_nan_ratio_target: 0.3
   min_training_samples: 50
@@ -148,3 +315,81 @@ risk:
   kelly_lookback_days: 30
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
+  # ポジション管理・リスク制限（口座残高使い切り問題対策）
+  max_capital_usage: 0.3  # 総資産の30％まで利用可能
+  reserve_ratio: 0.7      # 70％は予備資金として確保
+position_management:
+  min_account_balance: 10000  # 最小運用資金要件（1万円テスト対応・将来的に拡大可能）
+  max_open_positions: 3   # 同時保有ポジション数上限
+  max_daily_trades: 20    # 1日の最大取引回数
+  cooldown_minutes: 30    # 取引後のクールダウン時間（分）
+
+  # 基本設定
+  min_trade_size: 0.0001  # Bitbank最小ロット（1,670円程度）
+
+  # 取引サイズ制限（ML信頼度別・Phase 27修正）
+  max_position_ratio_per_trade:
+    low_confidence: 0.03      # 低信頼度(<60%): 3%上限
+    medium_confidence: 0.05   # 中信頼度(60-75%): 5%上限
+    high_confidence: 0.10     # 高信頼度(>75%): 10%上限
+    enforce_minimum: true     # 最小ロット優先フラグ（制限 < 最小ロットの場合、最小ロットを許可）
+
+  # ML信頼度連動の動的ポジションサイジング
+  dynamic_position_sizing:
+    enabled: true
+    low_confidence:     # 信頼度 < 60%
+      min_ratio: 0.01   # 1%
+      max_ratio: 0.03   # 3%
+    medium_confidence:  # 信頼度 60-75%
+      min_ratio: 0.03   # 3%
+      max_ratio: 0.05   # 5%
+    high_confidence:    # 信頼度 > 75%
+      min_ratio: 0.05   # 5%
+      max_ratio: 0.10   # 10%
+
+  # 資金規模別調整
+  account_size_adjustments:
+    small:   # 1-5万円（テスト環境）
+      threshold: 50000
+      min_trade_override: true  # 最小ロット優先
+    medium:  # 5-10万円（準本番環境）
+      threshold: 100000
+      position_multiplier: 1.0
+    large:   # 10万円以上（本番環境）
+      threshold: 100001
+      position_multiplier: 1.0
+  # 緊急時ストップロス設定（急変時例外処理）
+  emergency_stop_loss:
+    enable: true                    # 緊急ストップロス機能有効化
+    price_change_threshold: 0.03    # 3%以上の価格変動で発動
+    time_window_minutes: 5          # 価格変動監視時間窓（5分）
+    max_loss_threshold: 0.05        # 5%以上の含み損で強制決済
+    override_cooldown: true         # クールダウン期間を無視して緊急決済
+    min_hold_minutes: 1             # 最小保有時間（1分）- 誤発動防止
+
+  # Phase 28: 通常のテイクプロフィット/ストップロス設定
+  take_profit:
+    enabled: true                   # テイクプロフィット機能有効化
+    default_ratio: 2.5              # リスクリワード比（デフォルト2.5:1）
+    min_profit_ratio: 0.01          # 最小利益率1%（短期トレード対応）
+    override_strategy_tp: false     # 戦略から受け取ったTP価格を優先（false）
+    position_partial_exit: false   # 部分利確（将来拡張用・現在は無効）
+
+  stop_loss:
+    enabled: true                   # ストップロス機能有効化
+    default_atr_multiplier: 2.0     # ATR倍率（デフォルト2.0）
+    max_loss_ratio: 0.03            # 最大損失率3%
+    override_strategy_sl: false     # 戦略から受け取ったSL価格を優先（false）
+    enable_trailing: false         # トレーリングストップ（将来拡張用・現在は無効）
+
+# Phase 26: 保証金監視システム設定
+margin:
+  position_value_estimation_ratio: 0.8  # 使用済み資金からポジション価値推定時の比率（80%）
+
+# Phase 26: 指値注文オプション機能設定
+order_execution:
+  smart_order_enabled: false             # スマート注文機能（デフォルト無効・段階的導入）
+  high_confidence_threshold: 0.75        # 高信頼度閾値（指値注文使用判定）
+  low_confidence_threshold: 0.4          # 低信頼度閾値（成行注文強制）
+  max_spread_ratio_for_limit: 0.005      # 指値注文許可最大スプレッド比率（0.5%）
+  price_improvement_ratio: 0.001         # 指値価格改善比率（0.1% 約定確率向上）

@@ -1,5 +1,5 @@
 """
-取引リスク監視統合システム - Phase 22統合版
+取引リスク監視統合システム - Phase 28完了・Phase 29最適化版
 
 異常検知とドローダウン管理を統合し、
 取引実行時のリスク監視機能を一元化。
@@ -10,7 +10,7 @@
 - 取引状況監視（ACTIVE/PAUSED状態管理）
 - リスク状態の永続化・復元
 
-Phase 22統合: 2025年9月14日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 import json
@@ -777,6 +777,23 @@ class DrawdownManager:
                 self.logger.warning(f"残高が負値: {new_balance:.2f}")
 
             old_balance = self.current_balance
+
+            # 異常な残高変化検出（ドローダウン計算異常対策）
+            if old_balance > 0 and abs(new_balance - old_balance) / old_balance > 0.50:
+                balance_change_ratio = (new_balance - old_balance) / old_balance
+                self.logger.warning(
+                    f"⚠️ 異常な残高変化検出: {old_balance:.0f}円 → {new_balance:.0f}円 "
+                    f"({balance_change_ratio:+.1%}) - API取得エラーの可能性"
+                )
+
+                # 極端な増加（フォールバック値エラー）の場合は以前の残高を維持
+                if balance_change_ratio > 10.0:  # 1000%以上の増加
+                    self.logger.error(
+                        f"💥 異常な残高増加を検出 - フォールバック値エラーの可能性: "
+                        f"{old_balance:.0f}円 → {new_balance:.0f}円 - 以前の残高を維持"
+                    )
+                    new_balance = old_balance
+
             self.current_balance = new_balance
 
             # ピーク更新チェック
@@ -1214,18 +1231,32 @@ class DrawdownManager:
                     self.logger.info("ドローダウン状態ファイルが存在しません（初回起動）")
                     return
 
-            self.current_balance = state.get("current_balance", 0.0)
-            self.peak_balance = state.get("peak_balance", 0.0)
-            self.consecutive_losses = state.get("consecutive_losses", 0)
+            # 型安全性チェック強化
+            if not isinstance(state, dict):
+                self.logger.error(f"状態データが辞書ではありません: {type(state)}")
+                raise TypeError(f"Invalid state data type: {type(state)}")
+
+            self.current_balance = float(state.get("current_balance", 0.0))
+            self.peak_balance = float(state.get("peak_balance", 0.0))
+            self.consecutive_losses = int(state.get("consecutive_losses", 0))
 
             if state.get("last_loss_time"):
-                self.last_loss_time = datetime.fromisoformat(state["last_loss_time"])
+                try:
+                    self.last_loss_time = datetime.fromisoformat(state["last_loss_time"])
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"last_loss_time解析エラー: {e}")
 
             if state.get("trading_status"):
-                self.trading_status = TradingStatus(state["trading_status"])
+                try:
+                    self.trading_status = TradingStatus(state["trading_status"])
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"trading_status解析エラー: {e}")
 
             if state.get("pause_until"):
-                self.pause_until = datetime.fromisoformat(state["pause_until"])
+                try:
+                    self.pause_until = datetime.fromisoformat(state["pause_until"])
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"pause_until解析エラー: {e}")
 
             if state.get("current_session"):
                 session_data = state["current_session"]
@@ -1287,7 +1318,24 @@ class DrawdownManager:
 
         except Exception as e:
             self.logger.error(f"状態復元エラー: {e}")
-            # エラー時はデフォルト状態を使用
+            # ファイル破損の可能性があるため、バックアップを作成してから削除
+            try:
+                if hasattr(self.persistence, "file_path") and self.persistence.file_path.exists():
+                    backup_path = self.persistence.file_path.with_suffix(".corrupted.backup")
+                    import shutil
+
+                    shutil.copy2(self.persistence.file_path, backup_path)
+                    self.logger.info(f"破損ファイルをバックアップ: {backup_path}")
+
+                    # 破損ファイルを削除
+                    self.persistence.file_path.unlink()
+                    self.logger.info("破損した状態ファイルを削除しました")
+            except Exception as backup_error:
+                self.logger.error(f"破損ファイル処理エラー: {backup_error}")
+
+            # デフォルト状態で強制リセット
+            self._force_reset_to_safe_state()
+            self.logger.info("デフォルト状態にリセットしました")
 
 
 # 後方互換性のためのエイリアス

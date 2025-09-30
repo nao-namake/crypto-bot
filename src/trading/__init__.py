@@ -1,5 +1,5 @@
 """
-Trading Layer - Phase 22統合取引管理層
+Trading Layer - Phase 28完了・Phase 29最適化版
 
 統合リスク管理・監視・取引実行結果処理の包括的取引制御機能。
 
@@ -10,11 +10,11 @@ Trading Layer - Phase 22統合取引管理層
 - TradingAnomalyDetector: 取引実行用異常検知
 - ExecutionResult: 取引実行結果統合管理（executor.pyから移行）
 
-Phase 22完了: 2025年9月14日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
-# Phase 22統合: リスク管理（統合API + Kelly基準ポジションサイジング + 取引実行結果）
-from .risk_manager import (  # Phase 22: executor.pyから移行
+# Phase 28/29最適化: リスク管理（統合API + Kelly基準ポジションサイジング + 取引実行結果）
+from .risk_manager import (  # Phase 28完了
     ExecutionMode,
     ExecutionResult,
     IntegratedRiskManager,
@@ -28,7 +28,7 @@ from .risk_manager import (  # Phase 22: executor.pyから移行
     TradeResult,
 )
 
-# Phase 22統合: リスク監視（異常検知 + ドローダウン管理）
+# Phase 28/29最適化: リスク監視（異常検知 + ドローダウン管理）
 from .risk_monitor import (
     AnomalyAlert,
     AnomalyLevel,
@@ -62,7 +62,7 @@ __all__ = [
     "AnomalyAlert",
     "AnomalyLevel",
     "MarketCondition",
-    # Phase 22: 取引実行結果（executor.pyから移行）
+    # Phase 28: 取引実行結果統合
     "ExecutionResult",
     "ExecutionMode",
     "OrderStatus",
@@ -75,11 +75,11 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "22.0.0"
-__phase__ = "Phase 22"
+__version__ = "28.0.0"
+__phase__ = "Phase 28完了・Phase 29最適化"
 __description__ = "統合取引管理層（リスク管理・監視・実行結果処理統合）"
 
-# Phase 12拡張: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
+# Phase 28/29最適化: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
 RISK_PROFILES = {
     "conservative": {
         "kelly_criterion": {
@@ -105,7 +105,7 @@ RISK_PROFILES = {
             "risk_threshold_deny": 0.8,
             "risk_threshold_conditional": 0.6,
         },
-        "description": "バランス型リスク管理（標準・Phase 12デフォルト・CI/CD統合・手動実行監視対応）",
+        "description": "バランス型リスク管理（標準・Phase 28/29最適化・CI/CD統合・手動実行監視対応）",
     },
     "aggressive": {
         "kelly_criterion": {
@@ -122,10 +122,10 @@ RISK_PROFILES = {
     },
 }
 
-# より実践的なデフォルト設定（Phase 12バランス型プロファイル採用・CI/CD統合・手動実行監視・段階的デプロイ対応）
+# より実践的なデフォルト設定（Phase 28/29最適化バランス型プロファイル採用・CI/CD統合・手動実行監視・段階的デプロイ対応）
 DEFAULT_RISK_CONFIG = {
     "kelly_criterion": {
-        "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 12バランス調整・手動実行監視対応）
+        "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 28/29最適化バランス調整・手動実行監視対応）
         "safety_factor": 0.7,  # Kelly値の70%使用（60%→70%・効率向上）
         "min_trades_for_kelly": 5,  # Kelly適用最小取引数（20→5に緩和）
     },
@@ -137,13 +137,13 @@ DEFAULT_RISK_CONFIG = {
     "anomaly_detector": {
         "spread_warning_threshold": 0.003,  # 0.3%スプレッド警告
         "spread_critical_threshold": 0.005,  # 0.5%スプレッド重大
-        "api_latency_warning_ms": 1000,  # 1秒遅延警告
-        "api_latency_critical_ms": 3000,  # 3秒遅延重大
+        "api_latency_warning_ms": 2000,  # 2秒遅延警告（Phase 3最適化）
+        "api_latency_critical_ms": 5000,  # 5秒遅延重大（Phase 3最適化）
         "price_spike_zscore_threshold": 3.0,  # 3σ価格スパイク
         "volume_spike_zscore_threshold": 3.0,  # 3σ出来高スパイク
     },
     "risk_thresholds": {
-        "min_ml_confidence": 0.30,  # 最小ML信頼度30%（35%→30%・Phase 12調整・CI/CD統合）
+        "min_ml_confidence": 0.30,  # 最小ML信頼度30%（35%→30%・Phase 28/29最適化調整・CI/CD統合）
         "risk_threshold_deny": 0.8,  # 80%以上で拒否
         "risk_threshold_conditional": 0.6,  # 60%以上で条件付き
     },
@@ -190,7 +190,7 @@ def create_risk_manager(
 
 def get_risk_profile_config(profile_name: str = "balanced") -> dict:
     """
-    リスクプロファイル設定を取得（Phase 12新機能・CI/CD統合・手動実行監視・段階的デプロイ対応）
+    リスクプロファイル設定を取得（Phase 28/29最適化機能・CI/CD統合・手動実行監視・段階的デプロイ対応）
 
     Args:
         profile_name: プロファイル名 ("conservative", "balanced", "aggressive")

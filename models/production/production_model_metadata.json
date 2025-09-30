@@ -1,9 +1,9 @@
 {
-  "created_at": "2025-09-23T07:34:22.918142",
+  "created_at": "2025-09-28T19:41:42.326028",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "version": "1.0.0",
-  "phase": "Phase 22",
+  "phase": "Phase 29",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -38,24 +38,24 @@
       "f1_score": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "cv_f1_mean": 0.5459958433543454,
-      "cv_f1_std": 0.05139152609193059
+      "cv_f1_mean": 0.515409811594783,
+      "cv_f1_std": 0.04277443427879274
     },
     "xgboost": {
       "accuracy": 1.0,
       "f1_score": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "cv_f1_mean": 0.5091555869406618,
-      "cv_f1_std": 0.04727202833077137
+      "cv_f1_mean": 0.5317842474724208,
+      "cv_f1_std": 0.04528751843890064
     },
     "random_forest": {
-      "accuracy": 0.987037037037037,
-      "f1_score": 0.9870009719472086,
-      "precision": 0.9873128447596533,
-      "recall": 0.987037037037037,
-      "cv_f1_mean": 0.5037492046819245,
-      "cv_f1_std": 0.051410628230151585
+      "accuracy": 0.9740740740740741,
+      "f1_score": 0.9739067377798859,
+      "precision": 0.975140044596726,
+      "recall": 0.9740740740740741,
+      "cv_f1_mean": 0.5105695086369382,
+      "cv_f1_std": 0.05462172465378326
     }
   },
   "training_info": {
@@ -64,9 +64,9 @@
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "c7eb7b456b82532d8b4625af1017dd7f67ef9c37",
-    "commit_short": "c7eb7b45",
+    "commit": "7f801cb491e2525bff4a141b77f34ae7249b16d8",
+    "commit_short": "7f801cb4",
     "branch": "main"
   },
-  "notes": "Phase 22統合・15特徴量最適化・特徴量定義一元化対応"
+  "notes": "Phase 29統合・15特徴量最適化・特徴量定義一元化対応"
 }

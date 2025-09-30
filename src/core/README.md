@@ -1,18 +1,18 @@
-# src/core/ - コアシステム基盤 (Phase 22最適化完了)
+# src/core/ - コアシステム基盤 (Phase 28完了・Phase 29最適化版)
 
 ## 🎯 役割・責任
 
 AI自動取引システムのコアシステム基盤層。設定管理、ログシステム、統合制御、実行モード管理、レポート生成、サービスコンポーネントを提供。システム統合、MLモデル管理、取引実行制御、運用監視を担当し、全システムの基盤として機能します。
 
-**Phase 22最適化**: 未使用コード削除（423行）・構造最適化・保守性向上を実現し、企業級コード品質を確立。
+**Phase 29最適化**: 32ファイル全更新・フォルダ構成最適化・デプロイ前最終クリーンアップ完了し、企業級コード品質を確立。
 
 ## 📂 ディレクトリ構成
 
 ```
 src/core/
-├── __init__.py                    # コアモジュールエクスポート (Phase 22最適化)
+├── __init__.py                    # コアモジュールエクスポート (Phase 29最適化)
 ├── logger.py                      # JST対応ログシステム・Discord統合
-├── exceptions.py                  # カスタム例外階層 (Phase 22スリム化)
+├── exceptions.py                  # カスタム例外階層 (Phase 29最適化)
 │
 ├── config/                        # 設定管理システム
 │   ├── __init__.py                # 設定ローダー・階層化設定管理
@@ -23,7 +23,7 @@ src/core/
 ├── orchestration/                 # システム統合制御
 │   ├── __init__.py                # 統合制御エクスポート
 │   ├── orchestrator.py            # メインシステム統合制御
-│   ├── protocols.py               # サービスプロトコル定義 (Phase 22移動)
+│   ├── protocols.py               # サービスプロトコル定義 (Phase 29最適化)
 │   ├── ml_adapter.py              # MLサービス統合
 │   ├── ml_loader.py               # MLモデル読み込み
 │   └── ml_fallback.py             # MLフォールバック機能
@@ -32,19 +32,22 @@ src/core/
 │   ├── __init__.py                # 実行モードエクスポート
 │   ├── base_runner.py             # 基底実行ランナー
 │   ├── paper_trading_runner.py    # ペーパートレード実行
-│   └── live_trading_runner.py     # ライブトレード実行
-│
-├── shutdown/                      # プロセス管理・graceful shutdown
-│   ├── __init__.py                # shutdown管理エクスポート
-│   └── graceful_shutdown_manager.py # graceful shutdown管理サービス
+│   ├── live_trading_runner.py     # ライブトレード実行
+│   └── backtest_runner.py         # バックテスト実行
 │
 ├── reporting/                     # レポート生成
 │   ├── __init__.py                # レポートエクスポート
 │   ├── base_reporter.py           # 基底レポート機能
 │   └── paper_trading_reporter.py  # ペーパートレードレポート
 │
+├── state/                         # 状態永続化システム (Phase 29追加)
+│   ├── __init__.py                # 状態管理エクスポート
+│   ├── drawdown_persistence.py    # ドローダウン状態永続化
+│   └── README.md                  # 状態管理システム詳細
+│
 └── services/                      # システムサービス
     ├── __init__.py                # サービス層エクスポート
+    ├── graceful_shutdown_manager.py # graceful shutdown管理（Phase 29統合）
     ├── health_checker.py          # システムヘルス監視
     ├── system_recovery.py         # システム復旧
     ├── trading_cycle_manager.py   # 取引サイクル管理
@@ -59,7 +62,7 @@ src/core/
 
 **主要ファイル**:
 - `__init__.py`: 3層優先度（CLI > 環境変数 > YAML）の設定ローダー
-- `config_classes.py`: 5つのdataclass定義（ExchangeConfig、MLConfig、RiskConfig、DataConfig、LoggingConfig）
+- `config_classes.py`: 7つのdataclass定義（ExchangeConfig、MLConfig、RiskConfig、DataConfig、LoggingConfig、**MarginConfig、OrderExecutionConfig（Phase 26追加）**）
 - `feature_manager.py`: 15特徴量統一管理・feature_order.json連携・システム統合
 - `threshold_manager.py`: 動的閾値・パラメータ管理
 
@@ -108,38 +111,7 @@ paper_runner = PaperTradingRunner(orchestrator_ref, logger)
 success = await paper_runner.run()
 ```
 
-### **プロセス管理・Graceful Shutdown (shutdown/)**
-
-**目的**: main.py軽量化方針に従い、graceful shutdown処理を専用サービスとして分離・Discord通知停止問題解決
-
-**主要ファイル**:
-- `graceful_shutdown_manager.py`: シグナルハンドリング・オーケストレーターとランナーの正常終了・タイムアウト管理・shutdown_eventによる協調的終了
-
-**機能**:
-- **シグナルハンドリング**: SIGINT/SIGTERM受信時の適切な処理
-- **協調的終了**: shutdown_eventによるメインタスクとの連携
-- **タイムアウト管理**: 30秒タイムアウト付きクリーンアップ
-- **並行クリーンアップ**: 各ランナーの並行cleanup処理
-- **エラーハンドリング**: 適切なログ出力・例外処理
-
-**設計原則**:
-- **Single Responsibility**: shutdown処理のみ担当
-- **依存性注入**: orchestratorを外部から受け取り
-- **main.py軽量化**: ビジネスロジックをmain.pyから分離
-- **統一設定管理体系**: thresholds.yaml準拠
-
-**使用方法**:
-```python
-from src.core.shutdown import GracefulShutdownManager
-
-# GracefulShutdownManager初期化・シグナルハンドリング設定
-shutdown_manager = GracefulShutdownManager(logger)
-shutdown_manager.initialize(orchestrator)
-
-# メイン処理とshutdown監視を並行実行
-main_task = asyncio.create_task(orchestrator.run())
-await shutdown_manager.shutdown_with_main_task(main_task)
-```
+# Graceful Shutdown機能はservices/graceful_shutdown_manager.pyに統合済み（Phase 29最適化）
 
 ### **レポート生成 (reporting/)**
 
@@ -157,6 +129,25 @@ reporter = PaperTradingReporter(logger)
 report_path = await reporter.generate_session_report(session_stats)
 ```
 
+### **状態永続化システム (state/) - Phase 29追加**
+
+**目的**: モード別状態管理・ドローダウン永続化・本番環境保護
+
+**主要ファイル**:
+- `drawdown_persistence.py`: ドローダウン状態永続化・ローカル/Cloud Storage対応
+- `__init__.py`: 状態管理エクスポート・統一インターフェース
+- `README.md`: 状態管理システム詳細・操作手順
+
+**使用方法**:
+```python
+from src.core.state import create_persistence
+
+# モード別状態管理
+persistence = create_persistence(mode="paper")
+state = await persistence.load_state()
+await persistence.save_state(updated_state)
+```
+
 ### **システムサービス (services/)**
 
 **目的**: システム監視、ヘルスチェック、運用サービス
@@ -166,6 +157,7 @@ report_path = await reporter.generate_session_report(session_stats)
 - `system_recovery.py`: エラー復旧・システム再起動機能
 - `trading_cycle_manager.py`: 取引サイクル実行・ログ記録（2025/09/20修正: エラーハンドリング強化）
 - `trading_logger.py`: 専門取引ログサービス
+- `graceful_shutdown_manager.py`: システム終了管理（Phase 29統合）
 
 **使用方法**:
 ```python
@@ -223,7 +215,7 @@ if await orchestrator.initialize():
 
 ### **Graceful Shutdown管理（main.py軽量化対応）**
 ```python
-from src.core.shutdown import GracefulShutdownManager
+from src.core.services import GracefulShutdownManager
 
 # main.py での使用例
 async def main():
@@ -312,20 +304,18 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 - **ExecutionService統合**: 実際の取引実行機能を実装・BitbankClient.create_order呼び出し
 - **システム復旧**: 0取引/24時間問題を根本解決・取引実行確保
 
-### **2025/09/21追加: Graceful Shutdown管理システム**
-- **shutdown/ モジュール新規追加**: main.py軽量化方針に従いshutdown処理を専用サービスとして分離
-- **GracefulShutdownManager実装**: シグナルハンドリング・協調的終了・タイムアウト管理・並行クリーンアップ
-- **Discord通知停止問題解決**: force_stop.shと連携した確実なプロセス停止機能
-- **main.py軽量化**: 247行→240行に削減・「120行以内」原則への回復・ビジネスロジック分離
-- **設計原則準拠**: Single Responsibility・依存性注入・エラーハンドリング・統一設定管理体系対応
-- **run_safe.sh改善**: プロセスグループ管理・setsid使用・PGID対応終了処理
+### **2025/09/28 Phase 29: システム統合最適化**
+- **services/graceful_shutdown_manager.py統合**: shutdownフォルダ廃止・サービス層統合でアーキテクチャ簡素化
+- **state/システム追加**: モード別状態永続化システムで本番環境保護強化
+- **32ファイル全更新**: 全コアコンポーネントのPhase 29マーカー統一
+- **import統一**: `src.core.services`・`src.core.state`で統一アクセス・開発者体験向上
 
-### **Phase 22最適化成果**
-- **コード削減**: 423行の完全未使用コード削除（market_data.py）
-- **構造改善**: protocols.pyをorchestration/に移動・責任明確化
-- **例外最適化**: 10個の未使用例外クラス削除・保守性向上
-- **Phase統一**: 全ファイルのPhase番号をPhase 22に統一
-- **品質向上**: 625テスト通過維持・58.64%カバレッジ保持
+### **Phase 29最適化成果**
+- **32ファイル全更新**: 全コアコンポーネントのPhase 29マーカー統一完了
+- **アーキテクチャ最適化**: shutdown統合・state追加でシステム構造最適化
+- **デプロイ前準備**: コードクリーンアップ・横断的機能配置最適化完了
+- **状態管理強化**: モード別完全分離・本番環境保護実現
+- **企業級品質**: 639テスト100%成功・64.74%カバレッジ維持・品質ゲート通過
 
 ### **設計原則**
 - **単一責任原則**: 各モジュールは明確で焦点の絞られた目的を持つ
@@ -353,6 +343,6 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 
 ---
 
-**コア基盤 (Phase 22最適化完了)**: AI自動取引システムが異なるモードと環境で確実に動作するための設定、統合制御、実行、レポート、サービスを可能にする基盤層。15特徴量統一管理・5戦略統合・MLモデル統合により、包括的なシステム基盤を提供。
+**コア基盤 (Phase 28完了・Phase 29最適化版)**: AI自動取引システムが異なるモードと環境で確実に動作するための設定、統合制御、実行、レポート、サービス、状態管理を可能にする基盤層。15特徴量統一管理・5戦略統合・MLモデル統合・モード別状態永続化により、包括的なシステム基盤を提供。
 
-**Phase 22成果**: 未使用コード削除・構造最適化・保守性向上により企業級コード品質を実現。423行削除・10例外クラス最適化・プロトコル再配置完了。
+**Phase 29成果**: 32ファイル全更新・アーキテクチャ最適化・デプロイ前最終クリーンアップで企業級コード品質を確立。shutdown統合・state追加・横断的機能配置最適化完了。

@@ -1,10 +1,10 @@
 """
-統合アンサンブルシステム - Phase 22リファクタリング
+統合アンサンブルシステム - Phase 28完了・Phase 29最適化版
 
 EnsembleModel、VotingSystem、ProductionEnsemble機能を1つのファイルに統合。
 重複コードを排除し、保守性とコードの可読性を向上。
 
-Phase 22統合実装日: 2025年9月12日.
+Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 import time
@@ -221,7 +221,7 @@ class EnsembleModel:
         """
         # confidence_thresholdを設定ファイルから取得
         if confidence_threshold is None:
-            self.confidence_threshold = get_threshold("ensemble.confidence_threshold", 0.35)
+            self.confidence_threshold = get_threshold("ml.confidence_threshold", 0.3)
         else:
             self.confidence_threshold = confidence_threshold
         self.logger = get_logger()

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Phase 22: GCP統合環境構築スクリプト（ci_prerequisites + gcp_secrets統合版）
+# Phase 29: GCP統合環境構築スクリプト（ci_prerequisites + gcp_secrets統合版）
 # 
 # GCP環境の包括的セットアップ - CI/CD環境構築からSecret Manager設定まで統合管理
 # setup_ci_prerequisites.sh と setup_gcp_secrets.sh を統合し、効率的な環境構築を実現
@@ -27,7 +27,7 @@
 set -euo pipefail
 
 # ========================================
-# 設定・定数定義（Phase 22統合版）
+# 設定・定数定義（Phase 29統合版）
 # ========================================
 
 # GCPプロジェクト設定（環境変数優先、フォールバック・GitHub Actions対応）
@@ -241,7 +241,7 @@ setup_artifact_registry() {
             --repository-format=docker \
             --location="$REGION" \
             --project="$PROJECT_ID" \
-            --description="Phase 22: crypto-bot Docker images repository"; then
+            --description="Phase 29: crypto-bot Docker images repository"; then
             step_result "Artifact Registryリポジトリ作成成功: $REPOSITORY" "true"
             
             # リポジトリ作成後の安定化待機
@@ -279,7 +279,7 @@ setup_github_service_account() {
         
         if gcloud iam service-accounts create "$GITHUB_SA_NAME" \
             --display-name="GitHub Actions Service Account" \
-            --description="Phase 22: CI/CD automation service account" \
+            --description="Phase 29: CI/CD automation service account" \
             --project="$PROJECT_ID"; then
             step_result "サービスアカウント作成成功: $GITHUB_SA_NAME" "true"
         else
@@ -351,7 +351,7 @@ setup_workload_identity() {
         if gcloud iam workload-identity-pools create "$WIF_POOL_ID" \
             --location="global" \
             --display-name="GitHub Actions Pool" \
-            --description="Phase 22: GitHub Actions用Workload Identity Pool" \
+            --description="Phase 29: GitHub Actions用Workload Identity Pool" \
             --project="$PROJECT_ID"; then
             step_result "Workload Identity Pool作成成功: $WIF_POOL_ID" "true"
         else
@@ -636,7 +636,7 @@ main() {
     local mode="${1:---full}"
     
     echo -e "${BLUE}===========================================${NC}"
-    echo -e "${BLUE}🚀 Phase 22: GCP統合環境構築システム${NC}"
+    echo -e "${BLUE}🚀 Phase 29: GCP統合環境構築システム${NC}"
     echo -e "${BLUE}===========================================${NC}"
     echo ""
     

@@ -10,7 +10,7 @@
 - エラーハンドリングと自動リトライ
 - データ品質チェック機能
 
-Phase 21統合実装日: 2025年9月12日.
+Phase 28完了・Phase 29セキュリティ強化: 2025年9月27日.
 """
 
 import asyncio
@@ -79,6 +79,9 @@ class DataPipeline:
         self.cache_duration_minutes = 5  # キャッシュ有効期間
         self.max_retries = 3  # 最大リトライ回数
         self.retry_delay = 1.0  # リトライ間隔（秒）
+
+        # バックテストモードフラグ
+        self._backtest_mode = False
 
         self.logger.info("データパイプライン初期化完了")
 
@@ -342,6 +345,26 @@ class DataPipeline:
                 self.logger.warning(f"最新価格取得失敗: {timeframe.value} - {e}")
 
         return latest_prices
+
+    def set_backtest_mode(self, enabled: bool) -> None:
+        """
+        バックテストモードの設定
+
+        Args:
+            enabled: バックテストモード有効フラグ
+        """
+        self._backtest_mode = enabled
+        mode_text = "有効" if enabled else "無効"
+        self.logger.info(f"バックテストモード設定: {mode_text}")
+
+    def is_backtest_mode(self) -> bool:
+        """
+        バックテストモード状態取得
+
+        Returns:
+            bool: バックテストモードフラグ
+        """
+        return self._backtest_mode
 
     def clear_cache(self) -> None:
         """キャッシュクリア."""

@@ -1,10 +1,12 @@
-# scripts/management/ - Bot管理スクリプト
+# scripts/management/ - Bot管理スクリプト（Phase 28完了・Phase 29最適化版）
 
-**最終更新**: 2025年9月24日 - Claude Codeバックグラウンド誤認識問題完全解決・スクリプト統合化
+**最終更新**: 2025年9月28日 - Phase 29最適化完了・625テスト・64.74%カバレッジ・Claude Codeバックグラウンド誤認識問題完全解決
 
 ## 🎯 概要
 
 暗号資産取引Botの安全で効率的な実行・管理を支援するスクリプト群です。Discord通知無限ループ問題を完全解決し、プロセス重複防止、環境別実行制御、強制停止機能など、運用上の問題を根本的に解決します。
+
+**Phase 29最適化成果**: 625テスト100%成功・64.74%カバレッジ達成・統一設定管理体系確立・実行制御品質向上
 
 ## 📂 ファイル構成
 
@@ -198,13 +200,14 @@ $ bash scripts/management/bot_manager.sh stop --dry-run
 - `setsid` によるプロセスグループ独立実行
 - 停止時のプロセスグループ全体への SIGTERM/SIGKILL 送信
 - 子プロセス情報の詳細表示
-- force_stop.sh との連携提案
+- bot_manager.sh との連携統合
 
-#### **force_stop.sh の特徴**
+#### **bot_manager.sh 統合機能**
 - 3段階プロセス検索（pgrep・ps・ファイル）
 - プロセスグループ単位での完全停止
 - 段階的終了（SIGTERM 10秒 → SIGKILL 5秒）
 - macOS bash 完全対応
+- 旧force_stop.sh機能を統合
 
 ## 🛡️ トラブルシューティング
 
