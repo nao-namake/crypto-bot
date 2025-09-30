@@ -33,7 +33,7 @@ IMAGE_BASE_PATH="${DOCKER_REGISTRY}/${PROJECT_ID}/${REPOSITORY}/crypto-bot"
 
 # ディレクトリ設定
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # ログ設定
 LOG_DIR="${PROJECT_ROOT}/logs/deployment"
@@ -127,7 +127,7 @@ pre_deployment_checks() {
     log_info "🔍 事前チェック開始"
     
     # プロジェクトルート確認
-    if [[ ! -f "${PROJECT_ROOT}/src/main.py" ]]; then
+    if [[ ! -f "${PROJECT_ROOT}/main.py" ]]; then
         error_exit "プロジェクトルートが正しくありません: ${PROJECT_ROOT}"
     fi
     
@@ -321,8 +321,8 @@ deploy_cloud_run() {
         --timeout="${TIMEOUT}"
         --concurrency=1
         --allow-unauthenticated
-        --set-env-vars="MODE=live,EXCHANGE=bitbank,LOG_LEVEL=INFO,CONFIG_FILE=${CONFIG_FILE},MAX_DAILY_TRADES=${MAX_DAILY_TRADES},DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}"
-        --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest"
+        --set-env-vars="MODE=live,EXCHANGE=bitbank,LOG_LEVEL=INFO,CONFIG_FILE=${CONFIG_FILE},MAX_DAILY_TRADES=${MAX_DAILY_TRADES}"
+        --set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest"
         --revision-suffix="${stage}-$(date +%H%M%S)"
         --quiet
     )
