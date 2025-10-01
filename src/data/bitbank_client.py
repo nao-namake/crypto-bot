@@ -517,6 +517,92 @@ class BitbankClient:
                 },
             )
 
+    def create_take_profit_order(
+        self,
+        entry_side: str,
+        amount: float,
+        take_profit_price: float,
+        symbol: str = "BTC/JPY",
+    ) -> Dict[str, Any]:
+        """
+        テイクプロフィット指値注文作成（Phase 29.6）
+
+        Args:
+            entry_side: エントリー方向（buy/sell）
+            amount: 注文量（BTC）
+            take_profit_price: 利確価格（JPY）
+            symbol: 通貨ペア
+
+        Returns:
+            注文情報（order_id含む）
+
+        Raises:
+            ExchangeAPIError: 注文作成失敗時
+        """
+        # TP注文の方向：エントリーと逆方向
+        tp_side = "sell" if entry_side.lower() == "buy" else "buy"
+
+        self.logger.info(
+            f"📈 テイクプロフィット注文作成: {tp_side} {amount:.4f} BTC @ {take_profit_price:.0f}円",
+            extra_data={
+                "entry_side": entry_side,
+                "tp_side": tp_side,
+                "amount": amount,
+                "price": take_profit_price,
+            },
+        )
+
+        return self.create_order(
+            symbol=symbol,
+            side=tp_side,
+            order_type="limit",
+            amount=amount,
+            price=take_profit_price,
+        )
+
+    def create_stop_loss_order(
+        self,
+        entry_side: str,
+        amount: float,
+        stop_loss_price: float,
+        symbol: str = "BTC/JPY",
+    ) -> Dict[str, Any]:
+        """
+        ストップロス指値注文作成（Phase 29.6）
+
+        Args:
+            entry_side: エントリー方向（buy/sell）
+            amount: 注文量（BTC）
+            stop_loss_price: 損切り価格（JPY）
+            symbol: 通貨ペア
+
+        Returns:
+            注文情報（order_id含む）
+
+        Raises:
+            ExchangeAPIError: 注文作成失敗時
+        """
+        # SL注文の方向：エントリーと逆方向
+        sl_side = "sell" if entry_side.lower() == "buy" else "buy"
+
+        self.logger.info(
+            f"🛡️ ストップロス注文作成: {sl_side} {amount:.4f} BTC @ {stop_loss_price:.0f}円",
+            extra_data={
+                "entry_side": entry_side,
+                "sl_side": sl_side,
+                "amount": amount,
+                "price": stop_loss_price,
+            },
+        )
+
+        return self.create_order(
+            symbol=symbol,
+            side=sl_side,
+            order_type="limit",
+            amount=amount,
+            price=stop_loss_price,
+        )
+
     def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文キャンセル

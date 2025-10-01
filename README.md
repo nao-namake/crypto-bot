@@ -1,8 +1,8 @@
-# 🚀 **Crypto-Bot** - Phase 29.5完了・真のハイブリッドMLbot
+# 🚀 **Crypto-Bot** - Phase 30完了・適応型ATR倍率実装
 
-**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・Phase 29.5 ML予測統合実装完了**
+**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・Phase 30 適応型ATR・TP/SL自動配置完了**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-625%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.74%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2029.5-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-Active-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-646%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-64.87%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2030-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-Active-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/)
 
 ---
 
@@ -17,8 +17,8 @@ pip install -r requirements.txt
 cp config/secrets/.env.example config/secrets/.env
 # → .envファイルにbitbank API・Discord Webhook設定
 
-# 3. Phase 29.5品質チェック
-bash scripts/testing/checks.sh  # 625テスト・64.74%カバレッジ・約30秒
+# 3. Phase 30品質チェック
+bash scripts/testing/checks.sh  # 646テスト・64.87%カバレッジ・約30秒
 
 # 4. システム実行
 bash scripts/management/run_safe.sh local paper  # ペーパートレード
@@ -36,16 +36,28 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ---
 
-## 🎯 **システム概要**（Phase 29.5完了）
+## 🎯 **システム概要**（Phase 30完了）
 
 **AI自動取引システム**は、bitbank信用取引専用のBTC/JPY自動取引ボットです。5つの取引戦略と機械学習を**真に統合**し、15の技術指標を総合分析することで、24時間自動取引を実現する**真のハイブリッドMLbot**です。
 
-### **✅ Phase 29.5完了ステータス（2025/09/30）**
+### **✅ Phase 30完了ステータス（2025/10/01）**
+- **⚖️ 適応型ATR倍率**: ボラティリティ連動ATR倍率（低2.5x・通常2.0x・高1.5x）・市場環境自動適応実装
+- **💰 TP/SL自動配置**: エントリー後即座にTP/SL指値注文配置・完全なリスク管理体制確立
+- **📊 指値注文切替**: default_order_type: limit設定・手数料最適化（Taker 0.12% → Maker -0.02%）
+- **⏰ クールダウン30分**: 過剰取引防止・月100-200回目標達成・コスト効率向上
+- **🛡️ 最小SL距離保証**: 1%最小距離保証・少額資金対応・小ボラティリティ保護
+- **🧪 テスト品質**: 646テスト100%成功・64.87%カバレッジ・Phase 30テスト追加・CI/CD統合
+- **📋 統一設定管理体系**: 15特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化・設定不整合完全解消
+
+### **✅ Phase 29.6完了内容（2025/09/30）**
+- **💰 TP/SL注文API実装**: bitbank_client.create_take_profit_order()・create_stop_loss_order()実装
+- **📊 ポジション追跡修正**: ライブモードvirtual_positions使用・最大3ポジション制限正常動作
+- **🎯 指値価格最適化**: オーダーブック活用・ベストアスク+0.05%/ベストビッド-0.05%計算
+
+### **✅ Phase 29.5完了内容（2025/09/30）**
 - **🤖 ML予測統合実装**: 戦略シグナル（70%）+ ML予測（30%）の加重平均統合・真のハイブリッドMLbot実現
 - **📊 一致/不一致判定**: ML高信頼度（80%以上）時のボーナス（1.2倍）/ペナルティ（0.7倍）適用
 - **⚙️ 動的制御設定**: thresholds.yaml `ml.strategy_integration.*` 7項目新設・運用中パラメータ調整対応
-- **🧪 テスト品質**: 625テスト100%成功・64.74%カバレッジ・ML統合テスト8個追加・CI/CD統合
-- **📋 統一設定管理体系**: 15特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化・設定不整合完全解消
 
 ### **🎯 運用仕様**
 - **🏦 対象市場**: bitbank信用取引・BTC/JPY専用
@@ -254,4 +266,4 @@ mode_balances:
 
 ---
 
-**🎯 Phase 29.5完了・AI自動取引システム** - 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・**ML予測統合（戦略70% + ML30%）**・ExecutionService取引実行・Kelly基準最適化・テイクプロフィット/ストップロス実装・完全なトレーディングサイクル実現・ML信頼度連動取引制限・最小ロット優先・bitbank API統合・統一設定管理体系確立・Discord 3階層監視による完全自動化システムが24時間稼働中。625テスト100%成功・64.74%カバレッジ・CI/CD統合・GCPリソース最適化・Silent Failure根本解決・async/await完全対応・設定不整合完全解消・**真のハイブリッドMLbot実現**により企業級品質・収益最適化・少額運用対応を完全達成。 🚀
+**🎯 Phase 30完了・AI自動取引システム** - 15特徴量統合・5戦略統合・ProductionEnsemble 3モデル・**ML予測統合（戦略70% + ML30%）**・**適応型ATR倍率（低2.5x・通常2.0x・高1.5x）**・**TP/SL自動配置**・**指値注文切替**・**クールダウン30分**・**最小SL距離保証1%**・ExecutionService取引実行・Kelly基準最適化・完全なトレーディングサイクル実現・ML信頼度連動取引制限・最小ロット優先・bitbank API統合・統一設定管理体系確立・Discord 3階層監視による完全自動化システムが24時間稼働中。646テスト100%成功・64.87%カバレッジ・CI/CD統合・GCPリソース最適化・Silent Failure根本解決・async/await完全対応・設定不整合完全解消・**真のハイブリッドMLbot実現・本番環境安定稼働**により企業級品質・収益最適化・少額運用対応を完全達成。 🚀

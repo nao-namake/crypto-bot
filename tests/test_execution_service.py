@@ -355,8 +355,11 @@ class TestExecutionService:
         """複数ペーパートレード実行テスト"""
         from src.trading.risk_manager import ExecutionMode as RealExecutionMode
 
+        # Phase 29.6: クールダウンをテスト用にリセット
         results = []
         for i in range(3):
+            # クールダウンタイマーをリセット（テスト用）
+            paper_service.last_order_time = None
             result = await paper_service.execute_trade(sample_evaluation)
             results.append(result)
 

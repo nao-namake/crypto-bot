@@ -18,6 +18,7 @@ import pandas as pd
 
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
 class ADXTrendStrengthStrategy(StrategyBase):
@@ -73,7 +74,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
             "volume_ratio",
         ]
 
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """
         ADXシグナル生成（抽象メソッド実装）
         Args:
@@ -90,8 +93,8 @@ class ADXTrendStrengthStrategy(StrategyBase):
             adx_analysis = self._analyze_adx_trend(df)
             if not adx_analysis:
                 return self._create_hold_signal(df, "ADX分析失敗")
-            # シグナル判定
-            signal = self._determine_signal(df, adx_analysis)
+            # シグナル判定（Phase 32: multi_timeframe_data渡す）
+            signal = self._determine_signal(df, adx_analysis, multi_timeframe_data)
             self.logger.debug(
                 f"[ADXTrend] シグナル生成完了: {signal.action} "
                 f"(信頼度: {signal.confidence:.3f})"
@@ -211,56 +214,80 @@ class ADXTrendStrengthStrategy(StrategyBase):
             self.logger.error(f"[ADXTrend] ADX分析エラー: {e}")
             return None
 
-    def _determine_signal(self, df: pd.DataFrame, analysis: Dict[str, Any]) -> StrategySignal:
+    def _determine_signal(
+        self,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> StrategySignal:
         """
         シグナル判定ロジック
+
+        Phase 32: multi_timeframe_data対応
+
         Args:
             df: 市場データ
             analysis: ADX分析結果
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+
         Returns:
             最終シグナル
         """
+        current_price = analysis["current_price"]
+
         # 1. 強いトレンド + DIクロスオーバー（最優先）
         if analysis["is_strong_trend"] and analysis["adx_rising"]:
             if analysis["bullish_crossover"]:
                 confidence = self._calculate_trend_confidence(analysis, "buy")
-                return self._create_buy_signal(
-                    df,
-                    analysis,
-                    confidence,
-                    f"強トレンド上昇DIクロス（ADX: {analysis['adx']:.1f}）",
+                return self._create_signal(
+                    action="buy",
+                    confidence=confidence,
+                    reason=f"強トレンド上昇DIクロス（ADX: {analysis['adx']:.1f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
             elif analysis["bearish_crossover"]:
                 confidence = self._calculate_trend_confidence(analysis, "sell")
-                return self._create_sell_signal(
-                    df,
-                    analysis,
-                    confidence,
-                    f"強トレンド下降DIクロス（ADX: {analysis['adx']:.1f}）",
+                return self._create_signal(
+                    action="sell",
+                    confidence=confidence,
+                    reason=f"強トレンド下降DIクロス（ADX: {analysis['adx']:.1f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
         # 2. 中程度トレンド + 明確なDI優勢
         if analysis["is_moderate_trend"] and analysis["di_strength"] >= 2.0:
             if analysis["dominant_direction"] == "bullish" and analysis["volume_ratio"] > 1.1:
                 confidence = self._calculate_trend_confidence(analysis, "buy")
                 if confidence >= self.min_confidence:
-                    return self._create_buy_signal(
-                        df,
-                        analysis,
-                        confidence,
-                        f"中トレンド上昇（ADX: {analysis['adx']:.1f}, +DI優勢）",
+                    return self._create_signal(
+                        action="buy",
+                        confidence=confidence,
+                        reason=f"中トレンド上昇（ADX: {analysis['adx']:.1f}, +DI優勢）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
                     )
             elif analysis["dominant_direction"] == "bearish" and analysis["volume_ratio"] > 1.1:
                 confidence = self._calculate_trend_confidence(analysis, "sell")
                 if confidence >= self.min_confidence:
-                    return self._create_sell_signal(
-                        df,
-                        analysis,
-                        confidence,
-                        f"中トレンド下降（ADX: {analysis['adx']:.1f}, -DI優勢）",
+                    return self._create_signal(
+                        action="sell",
+                        confidence=confidence,
+                        reason=f"中トレンド下降（ADX: {analysis['adx']:.1f}, -DI優勢）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
                     )
         # 3. 弱いトレンド（レンジ相場）- DI差分ベースの動的判定
         if analysis["is_weak_trend"]:
-            return self._handle_weak_trend_signal(df, analysis)
+            return self._handle_weak_trend_signal(df, analysis, multi_timeframe_data)
         # 4. その他の場合 - 動的HOLD信頼度（市場データ統合）
         dynamic_confidence = self._calculate_default_confidence(analysis, df)
         return self._create_hold_signal(
@@ -316,16 +343,26 @@ class ADXTrendStrengthStrategy(StrategyBase):
         return max(min_confidence, min(max_confidence, confidence))
 
     def _handle_weak_trend_signal(
-        self, df: pd.DataFrame, analysis: Dict[str, Any]
+        self,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
         """
         弱トレンド時の動的シグナル処理
+
+        Phase 32: multi_timeframe_data対応
+
         Args:
             df: 市場データ
             analysis: ADX分析結果
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+
         Returns:
             動的シグナル
         """
+        current_price = analysis["current_price"]
+
         # DI差分による弱いシグナル判定
         di_diff = abs(analysis["di_difference"])
         # 十分なDI差分がある場合は弱いシグナルを生成
@@ -334,18 +371,24 @@ class ADXTrendStrengthStrategy(StrategyBase):
             confidence = self._calculate_weak_trend_confidence(analysis, direction)
             if confidence >= self.min_confidence:
                 if direction == "bullish":
-                    return self._create_buy_signal(
-                        df,
-                        analysis,
-                        confidence,
-                        f"弱トレンド上昇DI（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
+                    return self._create_signal(
+                        action="buy",
+                        confidence=confidence,
+                        reason=f"弱トレンド上昇DI（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
                     )
                 else:
-                    return self._create_sell_signal(
-                        df,
-                        analysis,
-                        confidence,
-                        f"弱トレンド下降DI（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
+                    return self._create_signal(
+                        action="sell",
+                        confidence=confidence,
+                        reason=f"弱トレンド下降DI（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
                     )
         # DI差分が小さい場合は動的HOLD（市場データ統合）
         dynamic_confidence = self._calculate_weak_trend_hold_confidence(analysis, df)
@@ -511,70 +554,6 @@ class ADXTrendStrengthStrategy(StrategyBase):
         default_max = get_threshold("dynamic_confidence.strategies.adx_trend.default_max", 0.45)
         return max(default_min, min(default_max, confidence))
 
-    def _create_buy_signal(
-        self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str
-    ) -> StrategySignal:
-        """BUYシグナル生成"""
-        current_price = analysis["current_price"]
-        # リスク管理計算（ADX強度に応じて調整）
-        atr = analysis.get("volatility_ratio", 0.02) * current_price
-        adx_multiplier = 1.5 if analysis["is_strong_trend"] else 1.0
-        stop_loss = current_price - (atr * 2.0 * adx_multiplier)
-        take_profit = current_price + (atr * 3.0 * adx_multiplier)
-        return StrategySignal(
-            strategy_name=self.name,
-            timestamp=datetime.now(),
-            action="buy",
-            confidence=confidence,
-            strength=confidence,
-            current_price=current_price,
-            entry_price=current_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            risk_ratio=0.02,
-            reason=reason,
-            metadata={
-                "adx": analysis["adx"],
-                "plus_di": analysis["plus_di"],
-                "minus_di": analysis["minus_di"],
-                "di_difference": analysis["di_difference"],
-                "trend_strength": "strong" if analysis["is_strong_trend"] else "moderate",
-                "signal_type": "adx_trend_buy",
-            },
-        )
-
-    def _create_sell_signal(
-        self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str
-    ) -> StrategySignal:
-        """SELLシグナル生成"""
-        current_price = analysis["current_price"]
-        # リスク管理計算
-        atr = analysis.get("volatility_ratio", 0.02) * current_price
-        adx_multiplier = 1.5 if analysis["is_strong_trend"] else 1.0
-        stop_loss = current_price + (atr * 2.0 * adx_multiplier)
-        take_profit = current_price - (atr * 3.0 * adx_multiplier)
-        return StrategySignal(
-            strategy_name=self.name,
-            timestamp=datetime.now(),
-            action="sell",
-            confidence=confidence,
-            strength=confidence,
-            current_price=current_price,
-            entry_price=current_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            risk_ratio=0.02,
-            reason=reason,
-            metadata={
-                "adx": analysis["adx"],
-                "plus_di": analysis["plus_di"],
-                "minus_di": analysis["minus_di"],
-                "di_difference": analysis["di_difference"],
-                "trend_strength": "strong" if analysis["is_strong_trend"] else "moderate",
-                "signal_type": "adx_trend_sell",
-            },
-        )
-
     def _create_hold_signal(
         self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None
     ) -> StrategySignal:
@@ -601,4 +580,56 @@ class ADXTrendStrengthStrategy(StrategyBase):
                 "is_dynamic": dynamic_confidence is not None,
                 "confidence_source": "dynamic" if dynamic_confidence is not None else "config",
             },
+        )
+
+    def _create_signal(
+        self,
+        action: str,
+        confidence: float,
+        reason: str,
+        current_price: float,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> StrategySignal:
+        """
+        Phase 32: SignalBuilder統合 - 15m足ATR使用
+
+        Args:
+            action: シグナルアクション（buy/sell）
+            confidence: 信頼度
+            reason: シグナル理由
+            current_price: 現在価格
+            df: 市場データ（4h足）
+            analysis: ADX分析結果
+            multi_timeframe_data: マルチタイムフレームデータ
+
+        Returns:
+            StrategySignal
+        """
+        # 決定辞書作成
+        decision = {
+            "action": action,
+            "confidence": confidence,
+            "strength": confidence,  # ADXTrendでは信頼度=強度
+            "reason": reason,
+            "metadata": {
+                "adx": analysis["adx"],
+                "plus_di": analysis["plus_di"],
+                "minus_di": analysis["minus_di"],
+                "di_difference": analysis["di_difference"],
+                "trend_strength": "strong" if analysis["is_strong_trend"] else "moderate",
+                "signal_type": f"adx_trend_{action}",
+            },
+        }
+
+        # Phase 32: SignalBuilder使用（15m足ATR優先取得）
+        return SignalBuilder.create_signal_with_risk_management(
+            strategy_name=self.name,
+            decision=decision,
+            current_price=current_price,
+            df=df,
+            config=self.config,
+            strategy_type=StrategyType.ADX_TREND,
+            multi_timeframe_data=multi_timeframe_data,
         )

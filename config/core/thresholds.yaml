@@ -44,14 +44,15 @@ ml:
 # ========================================
 dynamic_confidence:
   # 共通市場不確実性計算パラメータ（全戦略共通）
+  # Phase 32.1修正: 変動幅拡大・小数点第3位変動実現
   market_uncertainty:
-    volatility_factor_max: 0.05      # ATRベースボラティリティ上限
+    volatility_factor_max: 0.10      # ATRベースボラティリティ上限（0.05→0.10：2倍拡大）
     volatility_divisor: 1.0          # ボラティリティ除数
-    volume_factor_max: 0.03          # ボリューム異常度上限
-    volume_multiplier: 0.1           # ボリューム乗数
-    price_factor_max: 0.02           # 価格変動率上限
-    uncertainty_max: 0.10            # 市場不確実性最大値
-    uncertainty_boost: 1.5           # 不確実性ブースト係数（控えめ）
+    volume_factor_max: 0.06          # ボリューム異常度上限（0.03→0.06：2倍拡大）
+    volume_multiplier: 0.2           # ボリューム乗数（0.1→0.2：2倍拡大）
+    price_factor_max: 0.04           # 価格変動率上限（0.02→0.04：2倍拡大）
+    uncertainty_max: 0.20            # 市場不確実性最大値（0.10→0.20：2倍拡大）
+    uncertainty_boost: 1.0           # 不確実性ブースト係数（1.5→1.0：変動増幅）
 
   # 戦略別動的信頼度パラメータ（勝率向上最適化）
   strategies:
@@ -382,6 +383,31 @@ position_management:
     override_strategy_sl: false     # 戦略から受け取ったSL価格を優先（false）
     enable_trailing: false         # トレーリングストップ（将来拡張用・現在は無効）
 
+    # Phase 30: 適応型ATR倍率（ボラティリティ連動）
+    adaptive_atr:
+      enabled: true                 # 適応型ATR機能有効化
+      use_15m_timeframe: true       # 15分足ATR使用（エントリータイムフレーム一致）
+      volatility_lookback: 20       # ボラティリティ評価期間（20期間）
+
+      low_volatility:               # 低ボラティリティ時（ATR < 平均ATRの70%）
+        threshold_ratio: 0.7        # 閾値比率
+        multiplier: 2.5             # ATR倍率（広めに設定）
+
+      normal_volatility:            # 通常ボラティリティ時（ATR = 平均ATR ±30%）
+        multiplier: 2.0             # ATR倍率（標準設定）
+
+      high_volatility:              # 高ボラティリティ時（ATR > 平均ATRの130%）
+        threshold_ratio: 1.3        # 閾値比率
+        multiplier: 1.5             # ATR倍率（狭めに設定・急変時対策）
+
+    # Phase 30: 最小SL距離保証（少額資金対策）
+    # Phase 32.1修正: ATR優先に変更・動的保証実現
+    min_distance:
+      enabled: true                 # 最小距離保証有効化
+      ratio: 0.01                   # 固定1%保証（ATRが極小時のフォールバック）
+      override_atr: false           # false: ATR計算優先（Phase 32効果復元）
+      min_atr_multiplier: 1.5       # ATR×1.5倍を最小値として保証（動的保証）
+
 # Phase 26: 保証金監視システム設定
 margin:
   position_value_estimation_ratio: 0.8  # 使用済み資金からポジション価値推定時の比率（80%）
@@ -393,3 +419,11 @@ order_execution:
   low_confidence_threshold: 0.4          # 低信頼度閾値（成行注文強制）
   max_spread_ratio_for_limit: 0.005      # 指値注文許可最大スプレッド比率（0.5%）
   price_improvement_ratio: 0.001         # 指値価格改善比率（0.1% 約定確率向上）
+
+  # Phase 30: 指値注文タイムアウト機能
+  limit_order_timeout:
+    enabled: true                        # タイムアウト機能有効化
+    timeout_minutes: 30                  # タイムアウト時間（30分）
+    fallback_to_market: true             # タイムアウト時に成行注文へ変換
+    max_price_deviation: 0.05            # 価格乖離閾値5%（超過時は即座に成行変換）
+    check_interval_seconds: 60           # 約定状況確認間隔（60秒）

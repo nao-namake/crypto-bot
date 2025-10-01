@@ -9,7 +9,9 @@ Silent Failure修正済み: TradeEvaluationのsideフィールドを正しく使
 
 import asyncio
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
 
 from ..core.config import get_threshold
 from ..core.exceptions import CryptoBotError
@@ -46,6 +48,13 @@ class ExecutionService:
 
         # ペーパートレード用
         self.virtual_positions = []
+
+        # Phase 29.6: クールダウン管理
+        self.last_order_time = None
+
+        # Phase 30: 指値注文タイムアウト管理
+        self.pending_limit_orders: List[Dict[str, Any]] = []
+
         # モード別初期残高取得（Phase 23一元管理対応）
         from ..core.config import load_config
 
@@ -186,6 +195,11 @@ class ExecutionService:
             # 統計更新
             self.executed_trades += 1
 
+            # Phase 29.6: クールダウン時刻更新
+            from datetime import datetime
+
+            self.last_order_time = datetime.now()
+
             # ログ出力（注文タイプ別）
             if order_type == "market":
                 self.logger.info(
@@ -195,6 +209,66 @@ class ExecutionService:
                 self.logger.info(
                     f"✅ 指値注文投入成功: 注文ID={result.order_id}, 予想手数料: Maker(-0.02%)"
                 )
+
+            # Phase 29.6: ライブモードでもポジション追跡（バグ修正）
+            live_position = {
+                "order_id": result.order_id,
+                "side": side,
+                "amount": amount,
+                "price": result.filled_price or result.price,
+                "timestamp": datetime.now(),
+                "take_profit": evaluation.take_profit if evaluation.take_profit else None,
+                "stop_loss": evaluation.stop_loss if evaluation.stop_loss else None,
+            }
+            self.virtual_positions.append(live_position)
+
+            # Phase 29.6: テイクプロフィット/ストップロス注文配置
+            tp_order_id = None
+            sl_order_id = None
+
+            try:
+                # TP/SL設定が有効か確認
+                tp_config = get_threshold("position_management.take_profit", {})
+                sl_config = get_threshold("position_management.stop_loss", {})
+
+                if tp_config.get("enabled", True) and evaluation.take_profit:
+                    try:
+                        tp_order = self.bitbank_client.create_take_profit_order(
+                            entry_side=side,
+                            amount=amount,
+                            take_profit_price=evaluation.take_profit,
+                            symbol=symbol,
+                        )
+                        tp_order_id = tp_order.get("id")
+                        self.logger.info(
+                            f"✅ テイクプロフィット注文配置成功: {tp_order_id} @ {evaluation.take_profit:.0f}円"
+                        )
+                    except Exception as e:
+                        self.logger.error(f"⚠️ テイクプロフィット注文配置失敗: {e}", exc_info=True)
+
+                if sl_config.get("enabled", True) and evaluation.stop_loss:
+                    try:
+                        sl_order = self.bitbank_client.create_stop_loss_order(
+                            entry_side=side,
+                            amount=amount,
+                            stop_loss_price=evaluation.stop_loss,
+                            symbol=symbol,
+                        )
+                        sl_order_id = sl_order.get("id")
+                        self.logger.info(
+                            f"✅ ストップロス注文配置成功: {sl_order_id} @ {evaluation.stop_loss:.0f}円"
+                        )
+                    except Exception as e:
+                        self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}", exc_info=True)
+
+            except Exception as e:
+                self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}", exc_info=True)
+
+            # TP/SL注文IDをポジションに追加
+            if tp_order_id:
+                live_position["tp_order_id"] = tp_order_id
+            if sl_order_id:
+                live_position["sl_order_id"] = sl_order_id
 
             return result
 
@@ -314,6 +388,9 @@ class ExecutionService:
 
             # 統計更新
             self.executed_trades += 1
+
+            # Phase 29.6: クールダウン時刻更新
+            self.last_order_time = datetime.now()
 
             # ログ出力（Phase 28: TP/SL価格表示追加）
             tp_info = (
@@ -476,9 +553,33 @@ class ExecutionService:
                         "reason": f"最小ロット取引に必要な資金({min_required_balance:.0f}円)を下回っています。現在: {current_balance:.0f}円",
                     }
 
+            # Phase 29.6 + Phase 31.1: クールダウンチェック（柔軟な判定）
+            cooldown_minutes = get_threshold("position_management.cooldown_minutes", 30)
+            if self.last_order_time and cooldown_minutes > 0:
+                time_since_last_order = datetime.now() - self.last_order_time
+                required_cooldown = timedelta(minutes=cooldown_minutes)
+
+                if time_since_last_order < required_cooldown:
+                    # Phase 31.1: 柔軟なクールダウン判定（トレンド強度考慮）
+                    should_apply = self._should_apply_cooldown(evaluation)
+
+                    if should_apply:
+                        remaining_minutes = (
+                            required_cooldown - time_since_last_order
+                        ).total_seconds() / 60
+                        return {
+                            "allowed": False,
+                            "reason": f"クールダウン期間中です。残り {remaining_minutes:.1f}分後に取引可能（設定: {cooldown_minutes}分間隔）",
+                        }
+                    else:
+                        self.logger.info(
+                            f"🔥 強トレンド検出 - クールダウンスキップ（残り{(required_cooldown - time_since_last_order).total_seconds() / 60:.1f}分）"
+                        )
+
             # 1. 最大ポジション数チェック
             max_positions = get_threshold("position_management.max_open_positions", 3)
-            current_positions = len(self.virtual_positions) if self.mode == "paper" else 0
+            # Phase 29.6: ライブモードでもvirtual_positionsを使用（バグ修正）
+            current_positions = len(self.virtual_positions)
 
             if current_positions >= max_positions:
                 return {
@@ -821,11 +922,53 @@ class ExecutionService:
             # 1. 基本設定取得
             smart_order_enabled = get_threshold("order_execution.smart_order_enabled", False)
 
-            # スマート注文機能が無効な場合はデフォルト（成行）を使用
+            # スマート注文機能が無効な場合はデフォルト注文タイプを使用
             if not smart_order_enabled:
                 default_order_type = get_threshold(
                     "trading_constraints.default_order_type", "market"
                 )
+
+                # Phase 29.6: 指値注文の場合は簡易価格計算
+                if default_order_type == "limit":
+                    try:
+                        # 板情報取得
+                        import asyncio
+
+                        orderbook = await asyncio.to_thread(
+                            self.bitbank_client.fetch_order_book, "BTC/JPY", 5
+                        )
+
+                        if orderbook and "bids" in orderbook and "asks" in orderbook:
+                            best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
+                            best_ask = float(orderbook["asks"][0][0]) if orderbook["asks"] else 0
+
+                            # 約定確率を高めるため、わずかに有利な価格を設定
+                            side = evaluation.side
+                            if side.lower() == "buy":
+                                # 買い注文: ベストアスクより少し高め（0.05%）
+                                limit_price = best_ask * 1.0005
+                            else:
+                                # 売り注文: ベストビッドより少し低め（0.05%）
+                                limit_price = best_bid * 0.9995
+
+                            self.logger.info(
+                                f"📊 簡易指値価格計算: {side} @ {limit_price:.0f}円 "
+                                f"(bid:{best_bid:.0f}, ask:{best_ask:.0f})"
+                            )
+
+                            return {
+                                "order_type": "limit",
+                                "price": limit_price,
+                                "strategy": "simple_limit",
+                            }
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ 指値価格計算失敗、成行注文にフォールバック: {e}")
+                        return {
+                            "order_type": "market",
+                            "price": None,
+                            "strategy": "fallback_market",
+                        }
+
                 return {"order_type": default_order_type, "price": None, "strategy": "default"}
 
             # 2. ML信頼度による判定
@@ -1211,3 +1354,107 @@ class ExecutionService:
                 fee=0.0,
                 status=OrderStatus.FAILED,
             )
+
+    def _should_apply_cooldown(self, evaluation: TradeEvaluation) -> bool:
+        """
+        Phase 31.1: 柔軟なクールダウン判定
+
+        強いトレンド発生時はクールダウンをスキップし、
+        機会損失を防ぐ。
+
+        Args:
+            evaluation: 取引評価結果（market_conditionsを含む）
+
+        Returns:
+            bool: クールダウンを適用するか
+        """
+        try:
+            # features.yaml から設定取得（Phase 31.1修正: 正しいAPI使用）
+            from ..core.config import get_features_config
+
+            features = get_features_config()
+            features_config = features.get("trading", {}).get("cooldown", {})
+
+            # クールダウン無効の場合は適用しない
+            if not features_config.get("enabled", True):
+                return False
+
+            # 柔軟モード無効の場合は常に適用
+            if not features_config.get("flexible_mode", False):
+                return True
+
+            # 柔軟モード: トレンド強度を判定
+            market_data = evaluation.market_conditions.get("market_data")
+            if market_data is None:
+                # 市場データがない場合はデフォルトで適用
+                return True
+
+            trend_strength = self._calculate_trend_strength(market_data)
+            threshold = features_config.get("trend_strength_threshold", 0.7)
+
+            # 強いトレンド時はクールダウンをスキップ
+            if trend_strength >= threshold:
+                self.logger.info(
+                    f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ"
+                )
+                return False
+
+            return True
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ クールダウン判定エラー: {e} - デフォルトで適用")
+            return True
+
+    def _calculate_trend_strength(self, market_data: Dict) -> float:
+        """
+        Phase 31.1: トレンド強度計算（ADX・DI・EMA総合判定）
+
+        Args:
+            market_data: 市場データ（特徴量含む）
+
+        Returns:
+            float: トレンド強度 (0.0-1.0)
+        """
+        try:
+            # 4h足データを使用してトレンド強度を判定
+            df = market_data.get("4h", pd.DataFrame())
+            if df.empty or len(df) < 3:
+                return 0.0
+
+            # ADX（トレンド強度指標）
+            adx = float(df["adx_14"].iloc[-1]) if "adx_14" in df.columns else 0.0
+
+            # DI差分（方向性）
+            plus_di = float(df["plus_di_14"].iloc[-1]) if "plus_di_14" in df.columns else 0.0
+            minus_di = float(df["minus_di_14"].iloc[-1]) if "minus_di_14" in df.columns else 0.0
+            di_diff = abs(plus_di - minus_di)
+
+            # EMAトレンド（方向の一貫性）
+            ema_20 = float(df["ema_20"].iloc[-1]) if "ema_20" in df.columns else 0.0
+            ema_50 = float(df["ema_50"].iloc[-1]) if "ema_50" in df.columns else 0.0
+            ema_trend = abs(ema_20 - ema_50) / ema_50 if ema_50 > 0 else 0.0
+
+            # トレンド強度スコア算出
+            # ADX: 25以上で強いトレンド（正規化: 0-50 → 0-1）
+            adx_score = min(1.0, adx / 50.0)
+
+            # DI差分: 20以上で明確な方向性（正規化: 0-40 → 0-1）
+            di_score = min(1.0, di_diff / 40.0)
+
+            # EMAトレンド: 2%以上で明確なトレンド（正規化: 0-5% → 0-1）
+            ema_score = min(1.0, ema_trend / 0.05)
+
+            # 加重平均（ADX重視: 50%、DI: 30%、EMA: 20%）
+            trend_strength = adx_score * 0.5 + di_score * 0.3 + ema_score * 0.2
+
+            self.logger.debug(
+                f"トレンド強度計算: ADX={adx:.1f}({adx_score:.2f}), "
+                f"DI差={di_diff:.1f}({di_score:.2f}), "
+                f"EMAトレンド={ema_trend:.3f}({ema_score:.2f}) → 総合={trend_strength:.2f}"
+            )
+
+            return trend_strength
+
+        except Exception as e:
+            self.logger.error(f"❌ トレンド強度計算エラー: {e}")
+            return 0.0

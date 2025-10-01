@@ -1,18 +1,37 @@
 # src/strategies/implementations/ - 取引戦略実装群
 
-**Phase 28完了・Phase 29最適化版**: 5つの独立した取引戦略による多様な市場対応・動的信頼度計算システム。
+**Phase 32完了・SignalBuilder統一版**: 5つの独立した取引戦略による多様な市場対応・動的信頼度計算システム・SignalBuilder統合による15m ATR優先実装・SL/TP機能完全化。
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/implementations/
 ├── __init__.py               # 5戦略エクスポート（30行）
-├── atr_based.py             # ATRBased戦略・ボラティリティ分析（350行）
-├── mochipoy_alert.py        # MochipoyAlert戦略・複合指標（283行）
-├── multi_timeframe.py       # MultiTimeframe戦略・時間軸統合（313行）
-├── donchian_channel.py      # DonchianChannel戦略・ブレイクアウト（280行）
-└── adx_trend.py            # ADXTrendStrength戦略・トレンド強度（265行）
+├── atr_based.py             # ATRBased戦略・ボラティリティ分析（Phase 31統合完了）
+├── mochipoy_alert.py        # MochipoyAlert戦略・複合指標（Phase 31統合完了）
+├── multi_timeframe.py       # MultiTimeframe戦略・時間軸統合（Phase 31統合完了）
+├── donchian_channel.py      # DonchianChannel戦略・ブレイクアウト（Phase 32統合完了）
+└── adx_trend.py            # ADXTrendStrength戦略・トレンド強度（Phase 32統合完了）
 ```
+
+## 📈 Phase 32完了事項（2025年10月2日）
+
+**🎯 5戦略SignalBuilder統一・15m ATR優先実装・SL/TP機能完全化**
+
+**✅ Phase 32完了**:
+- **DonchianChannel SignalBuilder統合**: `_create_signal()`メソッド実装・SignalBuilder使用・15m ATR優先
+- **ADXTrend SignalBuilder統合**: `_create_signal()`メソッド実装・SignalBuilder使用・15m ATR優先
+- **5戦略統一完了**: 全戦略でSignalBuilder使用・一貫したSL/TP計算・15m ATR使用統一
+- **SL距離2%改善**: 4h ATR → 15m ATR使用により、エントリー時間軸に適したSL距離実現
+- **テスト統合完了**: 全戦略テスト更新・646テスト100%成功・59.75%カバレッジ達成
+
+**Phase 31完了（3戦略）**:
+- ATRBased・MochipoyAlert・MultiTimeframe戦略でSignalBuilder統合済み
+
+**効果**:
+- 全5戦略で一貫したリスク管理実現
+- 15m足ATR使用によるSL距離最適化（2%改善）
+- テイクプロフィット/ストップロス自動配置の完全実装
 
 ## 🔧 主要戦略
 

@@ -1,18 +1,18 @@
 # src/strategies/utils/ - 戦略共通処理モジュール
 
-**Phase 28完了・Phase 29最適化版**: 5戦略共通処理の統一管理・リスク管理統合・シグナル生成標準化。
+**Phase 30完了版**: 5戦略共通処理の統一管理・適応型ATR倍率実装・最小SL距離保証・リスク管理統合・シグナル生成標準化。
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/utils/
 ├── __init__.py          # エクスポート管理（30行）
-└── strategy_utils.py    # 戦略共通処理（398行）
+└── strategy_utils.py    # 戦略共通処理（481行・Phase 30: 適応ATR倍率追加）
 ```
 
 ## 🔧 主要機能
 
-### **strategy_utils.py（398行）**
+### **strategy_utils.py（481行・Phase 30更新）**
 
 **目的**: 5戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）の共通処理統一管理
 
@@ -31,10 +31,19 @@ class StrategyType:
     DONCHIAN_CHANNEL = "donchian_channel"
     ADX_TREND_STRENGTH = "adx_trend_strength"
 
-# リスク管理
+# リスク管理（Phase 30拡張）
 class RiskManager:
     @staticmethod
-    def calculate_stop_loss_take_profit(current_price, action, atr_value, config)
+    def _calculate_adaptive_atr_multiplier(current_atr, atr_history=None) -> float
+        # Phase 30新機能: ボラティリティ連動ATR倍率
+        # 低ボラ: 2.5倍（広め）、通常: 2.0倍、高ボラ: 1.5倍（狭め）
+
+    @staticmethod
+    def calculate_stop_loss_take_profit(
+        action, current_price, current_atr, config, atr_history=None
+    ) -> Tuple[Optional[float], Optional[float]]
+        # Phase 30拡張: 適応型ATR倍率・最小SL距離保証（1%）
+
     @staticmethod
     def calculate_position_size(confidence, config)
 
@@ -59,6 +68,19 @@ from .strategy_utils import (
     StrategyType,
 )
 ```
+
+### **Phase 30新機能: 適応型ATR倍率**
+
+**目的**: ボラティリティに応じたストップロス距離の動的調整
+
+**実装内容**:
+- **低ボラティリティ時**: ATR倍率 2.5x（広めのSL・振動による誤停止防止）
+- **通常ボラティリティ**: ATR倍率 2.0x（標準設定）
+- **高ボラティリティ時**: ATR倍率 1.5x（狭めのSL・急変時の損失制限）
+
+**最小SL距離保証**:
+- 1%最小距離保証により、少額資金でも適切なSL設定
+- ATR計算値が小さすぎる場合でも、現在価格の1%を最小保証
 
 ## 🚀 使用例
 
@@ -177,11 +199,12 @@ python scripts/testing/dev_check.py validate --mode light
 ### **特性・制約**
 - **5戦略共通**: ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength対応
 - **統一リスク管理**: 全戦略で一貫したストップロス・利確・ポジションサイズ計算
+- **Phase 30新機能**: 適応型ATR倍率・最小SL距離保証による少額資金対応
 - **後方互換性**: 既存インターフェース維持・段階的移行可能
 - **設定統合**: config/core/thresholds.yaml連携・一元管理
 - **Phase 29最適化**: 実用的機能に集中・保守性重視
-- **依存**: pandas・datetime・src.strategies.base・src.core.*
+- **依存**: pandas・numpy・datetime・src.strategies.base・src.core.*
 
 ---
 
-**戦略共通処理モジュール（Phase 28完了・Phase 29最適化）**: 5戦略統一管理・重複排除・リスク管理統合・シグナル生成標準化システム。
+**戦略共通処理モジュール（Phase 30完了）**: 5戦略統一管理・適応型ATR倍率・最小SL距離保証・重複排除・リスク管理統合・シグナル生成標準化システム。

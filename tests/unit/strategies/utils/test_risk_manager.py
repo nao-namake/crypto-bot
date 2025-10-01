@@ -78,9 +78,9 @@ class TestRiskManager(unittest.TestCase):
         self.assertIsNone(take_profit)
 
     def test_calculate_stop_loss_take_profit_custom_multipliers(self):
-        """カスタム倍率でのテスト."""
+        """カスタム倍率でのテスト（Phase 30: adaptive ATR倍率が優先される）."""
         custom_config = {
-            "stop_loss_atr_multiplier": 1.5,
+            "stop_loss_atr_multiplier": 1.5,  # Phase 30では無視される
             "take_profit_ratio": 3.0,
             "position_size_base": 0.02,
         }
@@ -92,8 +92,10 @@ class TestRiskManager(unittest.TestCase):
             config=custom_config,
         )
 
-        expected_stop_loss = self.current_price - (self.current_atr * 1.5)
-        expected_take_profit = self.current_price + (self.current_atr * 1.5 * 3.0)
+        # Phase 30: adaptive ATRがデフォルト2.0を使用（atr_history=Noneのため）
+        actual_multiplier = 2.0
+        expected_stop_loss = self.current_price - (self.current_atr * actual_multiplier)
+        expected_take_profit = self.current_price + (self.current_atr * actual_multiplier * 3.0)
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)

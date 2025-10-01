@@ -12,7 +12,7 @@ Phase 28完了・Phase 29最適化: 2025年9月27日.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -67,11 +67,110 @@ class RiskManager:
     """
 
     @staticmethod
+    def _extract_15m_atr(
+        df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> Optional[float]:
+        """
+        Phase 31: 15m足ATR優先取得・4h足ATRフォールバック
+
+        Args:
+            df: メインタイムフレームデータ（4h足）
+            multi_timeframe_data: マルチタイムフレームデータ
+
+        Returns:
+            ATR値（15m優先、なければ4h、取得失敗ならNone）
+        """
+        logger = get_logger()
+
+        # Phase 31: 15m足ATR優先取得
+        if multi_timeframe_data and "15m" in multi_timeframe_data:
+            try:
+                df_15m = multi_timeframe_data["15m"]
+                if "atr_14" in df_15m.columns and len(df_15m) > 0:
+                    atr_15m = float(df_15m["atr_14"].iloc[-1])
+                    if atr_15m > 0:
+                        logger.info(f"✅ Phase 31: 15m足ATR使用 = {atr_15m:.0f}円")
+                        return atr_15m
+            except Exception as e:
+                logger.warning(f"15m足ATR取得失敗: {e}")
+
+        # フォールバック: 4h足ATR取得
+        try:
+            if "atr_14" in df.columns and len(df) > 0:
+                atr_4h = float(df["atr_14"].iloc[-1])
+                if atr_4h > 0:
+                    logger.info(f"⚠️ Phase 31フォールバック: 4h足ATR使用 = {atr_4h:.0f}円")
+                    return atr_4h
+        except Exception as e:
+            logger.error(f"4h足ATR取得失敗: {e}")
+
+        return None
+
+    @staticmethod
+    def _calculate_adaptive_atr_multiplier(
+        current_atr: float, atr_history: Optional[List[float]] = None
+    ) -> float:
+        """
+        Phase 30: 適応型ATR倍率計算
+
+        Args:
+            current_atr: 現在のATR値
+            atr_history: ATR履歴（ボラティリティ判定用、Noneの場合はデフォルト倍率）
+
+        Returns:
+            適応型ATR倍率
+        """
+        from ...core.config import get_threshold
+
+        # 適応型ATR機能が無効な場合
+        if not get_threshold("position_management.stop_loss.adaptive_atr.enabled", True):
+            return get_threshold("position_management.stop_loss.default_atr_multiplier", 2.0)
+
+        # ATR履歴がない場合はデフォルト
+        if not atr_history or len(atr_history) < 10:
+            return get_threshold(
+                "position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0
+            )
+
+        # ATR平均計算
+        import numpy as np
+
+        avg_atr = np.mean(atr_history)
+
+        # ボラティリティ状態判定
+        low_threshold = get_threshold(
+            "position_management.stop_loss.adaptive_atr.low_volatility.threshold_ratio", 0.7
+        )
+        high_threshold = get_threshold(
+            "position_management.stop_loss.adaptive_atr.high_volatility.threshold_ratio", 1.3
+        )
+
+        volatility_ratio = current_atr / avg_atr if avg_atr > 0 else 1.0
+
+        # ボラティリティに応じた倍率選択
+        if volatility_ratio < low_threshold:
+            # 低ボラティリティ → 広めのSL
+            return get_threshold(
+                "position_management.stop_loss.adaptive_atr.low_volatility.multiplier", 2.5
+            )
+        elif volatility_ratio > high_threshold:
+            # 高ボラティリティ → 狭めのSL（急変時対策）
+            return get_threshold(
+                "position_management.stop_loss.adaptive_atr.high_volatility.multiplier", 1.5
+            )
+        else:
+            # 通常ボラティリティ → 標準SL
+            return get_threshold(
+                "position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0
+            )
+
+    @staticmethod
     def calculate_stop_loss_take_profit(
         action: str,
         current_price: float,
         current_atr: float,
         config: Dict[str, Any],
+        atr_history: Optional[List[float]] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         ストップロス・テイクプロフィット計算
@@ -79,23 +178,25 @@ class RiskManager:
         Args:
             action: エントリーアクション（buy/sell）
             current_price: 現在価格
-            current_atr: 現在のATR値
+            current_atr: 現在のATR値（Phase 30: 15分足ATR推奨）
             config: 戦略設定（stop_loss_atr_multiplier, take_profit_ratio含む）
+            atr_history: ATR履歴（Phase 30: 適応型ATR用）
 
         Returns:
             (stop_loss, take_profit)のタプル
         """
         logger = get_logger()
+        from ...core.config import get_threshold
 
         try:
             if action not in [EntryAction.BUY, EntryAction.SELL]:
                 return None, None
 
-            # パラメータ取得（戦略固有 or デフォルト）
-            stop_loss_multiplier = config.get(
-                "stop_loss_atr_multiplier",
-                DEFAULT_RISK_PARAMS["stop_loss_atr_multiplier"],
+            # Phase 30: 適応型ATR倍率計算
+            stop_loss_multiplier = RiskManager._calculate_adaptive_atr_multiplier(
+                current_atr, atr_history
             )
+
             take_profit_ratio = config.get(
                 "take_profit_ratio", DEFAULT_RISK_PARAMS["take_profit_ratio"]
             )
@@ -108,6 +209,59 @@ class RiskManager:
 
             # ストップロス距離計算
             stop_loss_distance = current_atr * stop_loss_multiplier
+
+            # Phase 30: 最小SL距離保証
+            # Phase 32.1修正: ATR優先・動的保証実現
+            min_distance_enabled = get_threshold(
+                "position_management.stop_loss.min_distance.enabled", True
+            )
+            if min_distance_enabled:
+                override_atr = get_threshold(
+                    "position_management.stop_loss.min_distance.override_atr", False
+                )
+
+                if override_atr:
+                    # 旧動作: 固定1%保証がATRを上書き
+                    min_distance_ratio = get_threshold(
+                        "position_management.stop_loss.min_distance.ratio", 0.01
+                    )
+                    min_sl_distance = current_price * min_distance_ratio
+
+                    if stop_loss_distance < min_sl_distance:
+                        logger.info(
+                            f"📏 固定1%SL距離保証適用: {stop_loss_distance:.0f}円 → {min_sl_distance:.0f}円"
+                        )
+                        stop_loss_distance = min_sl_distance
+                else:
+                    # Phase 32.1新動作: ATR×倍率を最小値として保証（動的保証）
+                    min_atr_multiplier = get_threshold(
+                        "position_management.stop_loss.min_distance.min_atr_multiplier", 1.5
+                    )
+                    min_atr_based = current_atr * min_atr_multiplier
+
+                    # ATRベース最小値と計算値を比較
+                    if stop_loss_distance < min_atr_based:
+                        logger.info(
+                            f"📏 ATRベース動的SL保証適用: {stop_loss_distance:.0f}円 → {min_atr_based:.0f}円 "
+                            f"(ATR {current_atr:.0f}円 × {min_atr_multiplier:.1f}倍)"
+                        )
+                        stop_loss_distance = min_atr_based
+
+                    # Phase 32.1修正: ATR極小時のみ固定1%フォールバック適用
+                    # ATRベース最小保証より小さい場合のみ固定1%を適用
+                    min_distance_ratio = get_threshold(
+                        "position_management.stop_loss.min_distance.ratio", 0.01
+                    )
+                    absolute_min = current_price * min_distance_ratio
+
+                    # ATRベース最小保証（min_atr_based）と固定1%を比較し、
+                    # ATRベース最小保証より計算値が小さい場合のみ固定1%適用
+                    if stop_loss_distance < min_atr_based and stop_loss_distance < absolute_min:
+                        logger.warning(
+                            f"⚠️ ATR極小・固定1%フォールバック適用: {stop_loss_distance:.0f}円 → {absolute_min:.0f}円 "
+                            f"(ATR {current_atr:.0f}円が極小のため)"
+                        )
+                        stop_loss_distance = absolute_min
 
             # BUY/SELL別の計算
             if action == EntryAction.BUY:
@@ -123,6 +277,11 @@ class RiskManager:
                     f"無効なストップロス/テイクプロフィット: SL={stop_loss:.2f}, TP={take_profit:.2f}"
                 )
                 return None, None
+
+            logger.info(
+                f"🎯 Phase 30 SL/TP計算: ATR={current_atr:.0f}円, 倍率={stop_loss_multiplier:.2f}, "
+                f"SL距離={stop_loss_distance:.0f}円（{stop_loss_distance / current_price * 100:.2f}%）"
+            )
 
             return stop_loss, take_profit
 
@@ -241,6 +400,7 @@ class SignalBuilder:
         df: pd.DataFrame,
         config: Dict[str, Any],
         strategy_type: Optional[str] = None,
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
         """
         リスク管理付きシグナル生成
@@ -252,6 +412,7 @@ class SignalBuilder:
             df: 市場データ（ATR計算用）
             config: 戦略設定
             strategy_type: 戦略タイプ（メタデータ用）
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 31対応）
 
         Returns:
             完全なStrategySignal
@@ -271,17 +432,27 @@ class SignalBuilder:
             risk_ratio = None
 
             if action in [EntryAction.BUY, EntryAction.SELL]:
-                # ATR取得
-                current_atr = SignalBuilder._get_current_atr(df)
+                # Phase 31: 15m足ATR優先取得
+                current_atr = RiskManager._extract_15m_atr(df, multi_timeframe_data)
                 if current_atr is None:
                     logger.warning(f"ATR取得失敗: {strategy_name}")
                     return SignalBuilder._create_error_signal(
                         strategy_name, current_price, "ATR取得失敗"
                     )
 
+                # Phase 30: ATR履歴取得（適応型ATR用）
+                atr_history = None
+                if multi_timeframe_data and "15m" in multi_timeframe_data:
+                    try:
+                        df_15m = multi_timeframe_data["15m"]
+                        if "atr_14" in df_15m.columns:
+                            atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
+                    except Exception:
+                        pass
+
                 # ストップロス・テイクプロフィット計算
                 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
-                    action, current_price, current_atr, config
+                    action, current_price, current_atr, config, atr_history
                 )
 
                 # ポジションサイズ計算

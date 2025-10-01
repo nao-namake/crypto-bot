@@ -277,7 +277,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertGreater(confidence, 0.7)  # 条件が良いので高信頼度
 
     def test_buy_signal_creation(self):
-        """BUYシグナル生成テスト"""
+        """BUYシグナル生成テスト（Phase 32: SignalBuilder統合）"""
         df = self._create_test_data(50)
         analysis = {
             "current_price": 4500000,
@@ -289,7 +289,15 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
             "volatility_ratio": 0.02,
         }
 
-        signal = self.strategy._create_buy_signal(df, analysis, confidence=0.75, reason="テストBUY")
+        # Phase 32: _create_signal()メソッド使用
+        signal = self.strategy._create_signal(
+            action="buy",
+            confidence=0.75,
+            reason="テストBUY",
+            current_price=analysis["current_price"],
+            df=df,
+            analysis=analysis,
+        )
 
         self.assertEqual(signal.action, "buy")
         self.assertEqual(signal.confidence, 0.75)
@@ -297,10 +305,9 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertIsNotNone(signal.take_profit)
         self.assertLess(signal.stop_loss, signal.current_price)
         self.assertGreater(signal.take_profit, signal.current_price)
-        self.assertIn("adx", signal.metadata)
 
     def test_sell_signal_creation(self):
-        """SELLシグナル生成テスト"""
+        """SELLシグナル生成テスト（Phase 32: SignalBuilder統合）"""
         df = self._create_test_data(50)
         analysis = {
             "current_price": 4500000,
@@ -312,8 +319,14 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
             "volatility_ratio": 0.02,
         }
 
-        signal = self.strategy._create_sell_signal(
-            df, analysis, confidence=0.75, reason="テストSELL"
+        # Phase 32: _create_signal()メソッド使用
+        signal = self.strategy._create_signal(
+            action="sell",
+            confidence=0.75,
+            reason="テストSELL",
+            current_price=analysis["current_price"],
+            df=df,
+            analysis=analysis,
         )
 
         self.assertEqual(signal.action, "sell")
@@ -322,7 +335,6 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertIsNotNone(signal.take_profit)
         self.assertGreater(signal.stop_loss, signal.current_price)
         self.assertLess(signal.take_profit, signal.current_price)
-        self.assertIn("adx", signal.metadata)
 
     def test_hold_signal_creation(self):
         """HOLDシグナル生成テスト"""
@@ -383,7 +395,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertIsNone(analysis)
 
     def test_signal_metadata_content(self):
-        """シグナルメタデータ内容テスト"""
+        """シグナルメタデータ内容テスト（Phase 32: SignalBuilder統合）"""
         df = self._create_test_data(50)
 
         # 強トレンド条件設定
@@ -399,11 +411,13 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
         signal = self.strategy.generate_signal(df)
 
-        self.assertIn("adx", signal.metadata)
-        self.assertIn("plus_di", signal.metadata)
-        self.assertIn("minus_di", signal.metadata)
-        self.assertIn("trend_strength", signal.metadata)
-        self.assertEqual(signal.metadata["signal_type"], "adx_trend_buy")
+        # Phase 32: SignalBuilder統合によりメタデータ構造が変更
+        self.assertIn("decision_metadata", signal.metadata)
+        self.assertIn("adx", signal.metadata["decision_metadata"])
+        self.assertIn("plus_di", signal.metadata["decision_metadata"])
+        self.assertIn("minus_di", signal.metadata["decision_metadata"])
+        self.assertIn("trend_strength", signal.metadata["decision_metadata"])
+        self.assertEqual(signal.metadata["decision_metadata"]["signal_type"], "adx_trend_buy")
 
     def test_multiple_adx_scenarios(self):
         """複数ADXシナリオテスト"""

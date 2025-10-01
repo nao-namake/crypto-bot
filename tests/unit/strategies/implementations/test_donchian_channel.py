@@ -226,7 +226,7 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         self.assertGreater(confidence, self.config["min_confidence"])
 
     def test_buy_signal_creation(self):
-        """BUYシグナル生成テスト"""
+        """BUYシグナル生成テスト（Phase 32: SignalBuilder統合）"""
         df = self._create_test_data(50)
         analysis = {
             "current_price": 4500000,
@@ -236,7 +236,15 @@ class TestDonchianChannelStrategy(unittest.TestCase):
             "volatility_ratio": 0.02,
         }
 
-        signal = self.strategy._create_buy_signal(df, analysis, confidence=0.7, reason="テストBUY")
+        # Phase 32: _create_signal()メソッド使用
+        signal = self.strategy._create_signal(
+            action="buy",
+            confidence=0.7,
+            reason="テストBUY",
+            current_price=analysis["current_price"],
+            df=df,
+            analysis=analysis,
+        )
 
         self.assertEqual(signal.action, "buy")
         self.assertEqual(signal.confidence, 0.7)
@@ -246,7 +254,7 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         self.assertGreater(signal.take_profit, signal.current_price)
 
     def test_sell_signal_creation(self):
-        """SELLシグナル生成テスト"""
+        """SELLシグナル生成テスト（Phase 32: SignalBuilder統合）"""
         df = self._create_test_data(50)
         analysis = {
             "current_price": 4500000,
@@ -256,8 +264,14 @@ class TestDonchianChannelStrategy(unittest.TestCase):
             "volatility_ratio": 0.02,
         }
 
-        signal = self.strategy._create_sell_signal(
-            df, analysis, confidence=0.7, reason="テストSELL"
+        # Phase 32: _create_signal()メソッド使用
+        signal = self.strategy._create_signal(
+            action="sell",
+            confidence=0.7,
+            reason="テストSELL",
+            current_price=analysis["current_price"],
+            df=df,
+            analysis=analysis,
         )
 
         self.assertEqual(signal.action, "sell")
@@ -317,9 +331,11 @@ class TestDonchianChannelStrategy(unittest.TestCase):
 
         signal = self.strategy.generate_signal(df)
 
-        self.assertIn("channel_position", signal.metadata)
-        self.assertIn("signal_type", signal.metadata)
-        self.assertEqual(signal.metadata["signal_type"], "donchian_breakout")
+        # Phase 32: SignalBuilder統合によりメタデータ構造が変更
+        self.assertIn("decision_metadata", signal.metadata)
+        self.assertIn("channel_position", signal.metadata["decision_metadata"])
+        self.assertIn("signal_type", signal.metadata["decision_metadata"])
+        self.assertEqual(signal.metadata["decision_metadata"]["signal_type"], "donchian_breakout")
 
     def test_multiple_signal_scenarios(self):
         """複数シナリオシグナルテスト"""

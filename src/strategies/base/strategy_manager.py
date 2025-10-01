@@ -85,12 +85,15 @@ class StrategyManager:
         else:
             self.logger.warning(f"未登録戦略の解除試行: {strategy_name}")
 
-    def analyze_market(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze_market(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """
         全戦略を実行して統合シグナルを生成
 
         Args:
-            df: 市場データ
+            df: 市場データ（メインタイムフレーム）
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 31対応）
 
         Returns:
             統合された最終シグナル.
@@ -98,8 +101,8 @@ class StrategyManager:
         try:
             self.logger.debug("市場分析開始 - 全戦略実行")
 
-            # 全戦略からシグナル取得
-            strategy_signals = self._collect_all_signals(df)
+            # 全戦略からシグナル取得（Phase 31: multi_timeframe_data渡し）
+            strategy_signals = self._collect_all_signals(df, multi_timeframe_data)
 
             # シグナル統合
             combined_signal = self._combine_signals(strategy_signals, df)
@@ -117,7 +120,9 @@ class StrategyManager:
             self.logger.error(f"市場分析エラー: {e}")
             raise StrategyError(f"統合分析失敗: {e}")
 
-    def _collect_all_signals(self, df: pd.DataFrame) -> Dict[str, StrategySignal]:
+    def _collect_all_signals(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> Dict[str, StrategySignal]:
         """全戦略からシグナルを収集."""
         signals = {}
         errors = []
@@ -133,7 +138,8 @@ class StrategyManager:
                 self.logger.debug(f"[{name}] シグナル生成開始 - データシェイプ: {df.shape}")
                 self.logger.debug(f"[{name}] 利用可能な列: {list(df.columns)}")
 
-                signal = strategy.generate_signal(df)
+                # Phase 31: multi_timeframe_dataを渡す
+                signal = strategy.generate_signal(df, multi_timeframe_data=multi_timeframe_data)
                 signals[name] = signal
                 self.logger.info(
                     f"[{name}] シグナル取得成功: {signal.action} ({signal.confidence:.3f})"

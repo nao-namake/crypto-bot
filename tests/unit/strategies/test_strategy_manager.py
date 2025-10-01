@@ -9,6 +9,7 @@ import os
 import sys
 import unittest
 from datetime import datetime
+from typing import Dict, Optional
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -31,7 +32,9 @@ class MockStrategy(StrategyBase):
         self.return_signal = return_signal
         # 親クラスで is_enabled = True が設定される
 
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         return self.return_signal
 
     def get_required_features(self):

@@ -289,6 +289,60 @@ def load_config(config_path: str, cmdline_mode: Optional[str] = None) -> Config:
     return config_manager.load_config(config_path, cmdline_mode=cmdline_mode)
 
 
+# === Phase 31.1: features.yaml読み込みAPI ===
+
+# グローバルキャッシュ
+_features_config_cache: Optional[dict] = None
+
+
+def load_features_config(force_reload: bool = False) -> dict:
+    """
+    features.yamlを読み込む（キャッシュ付き）
+
+    Args:
+        force_reload: 強制再読み込みフラグ
+
+    Returns:
+        features.yaml の内容（辞書）
+    """
+    global _features_config_cache
+
+    if _features_config_cache is not None and not force_reload:
+        return _features_config_cache
+
+    features_path = Path("config/core/features.yaml")
+
+    if not features_path.exists():
+        raise FileNotFoundError(f"features.yaml が見つかりません: {features_path}")
+
+    try:
+        with open(features_path, "r", encoding="utf-8") as f:
+            _features_config_cache = yaml.safe_load(f) or {}
+        return _features_config_cache
+    except Exception as e:
+        raise RuntimeError(f"features.yaml 読み込みエラー: {e}")
+
+
+def get_features_config() -> dict:
+    """
+    features.yamlの内容を取得（キャッシュ使用）
+
+    Returns:
+        features.yaml の内容（辞書）
+    """
+    return load_features_config()
+
+
+def reload_features_config() -> dict:
+    """
+    features.yamlを強制再読み込み
+
+    Returns:
+        features.yaml の内容（辞書）
+    """
+    return load_features_config(force_reload=True)
+
+
 # 分離されたクラスと関数を再エクスポート
 __all__ = [
     # 設定クラス
@@ -316,4 +370,8 @@ __all__ = [
     "get_file_config",
     "get_trading_thresholds",
     "get_system_thresholds",
+    # features.yaml管理関数（Phase 31.1）
+    "load_features_config",
+    "get_features_config",
+    "reload_features_config",
 ]

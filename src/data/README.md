@@ -1,20 +1,20 @@
 # src/data/ - データ層
 
-**Phase 28完了・Phase 29セキュリティ強化版**: Bitbank信用取引API統合・保証金監視・マルチタイムフレームデータパイプライン・SSL証明書セキュリティ対応。
+**Phase 29.6完了・Phase 30対応版**: Bitbank信用取引API統合・TP/SL注文機能・保証金監視・マルチタイムフレームデータパイプライン・SSL証明書セキュリティ対応。
 
 ## 📂 ファイル構成
 
 ```
 src/data/
 ├── __init__.py          # データ層エクスポート（35行）
-├── bitbank_client.py    # Bitbank API接続クライアント（750行）
+├── bitbank_client.py    # Bitbank API接続クライアント（842行・Phase 29.6: TP/SL注文機能追加）
 ├── data_pipeline.py     # データ取得パイプライン（447行）
 └── data_cache.py        # キャッシングシステム（469行）
 ```
 
 ## 🔧 主要コンポーネント
 
-### **bitbank_client.py（750行）**
+### **bitbank_client.py（842行・Phase 29.6更新）**
 
 **目的**: Bitbank信用取引API専用クライアント
 
@@ -22,6 +22,7 @@ src/data/
 - ccxtライブラリ・SSL証明書セキュリティ対応
 - 信用取引（レバレッジ1.0-2.0倍）対応
 - 保証金維持率監視API統合（Phase 27）
+- **Phase 29.6新機能**: テイクプロフィット/ストップロス注文配置機能
 - レート制限・エラーハンドリング・自動リトライ
 
 **主要クラス・メソッド**:
@@ -41,6 +42,23 @@ class BitbankClient:
     def fetch_margin_status(self) -> Dict     # 信用取引口座状況取得（Phase 27新機能）
     def fetch_margin_positions(self) -> List  # 信用取引ポジション一覧取得（Phase 27新機能）
 
+    # Phase 29.6新機能: TP/SL注文配置
+    def create_take_profit_order(            # テイクプロフィット指値注文作成
+        self,
+        entry_side: str,                      # エントリー方向（buy/sell）
+        amount: float,                        # 注文数量
+        take_profit_price: float,             # TP価格
+        symbol: str = "BTC/JPY"
+    ) -> Dict[str, Any]
+
+    def create_stop_loss_order(               # ストップロス指値注文作成
+        self,
+        entry_side: str,                      # エントリー方向（buy/sell）
+        amount: float,                        # 注文数量
+        stop_loss_price: float,               # SL価格
+        symbol: str = "BTC/JPY"
+    ) -> Dict[str, Any]
+
 # グローバル関数
 get_bitbank_client() -> BitbankClient        # グローバルクライアント取得
 create_margin_client() -> BitbankClient      # 新規クライアント作成
@@ -58,6 +76,19 @@ if client.test_connection():
     # Phase 27: 保証金監視API
     margin_status = await client.fetch_margin_status()
     margin_ratio = margin_status.get('marginRatio', 0.0)
+
+    # Phase 29.6: TP/SL注文配置
+    # エントリー後、自動的にTP/SL注文を配置
+    tp_order = client.create_take_profit_order(
+        entry_side="buy",
+        amount=0.0001,
+        take_profit_price=10500000  # TP価格
+    )
+    sl_order = client.create_stop_loss_order(
+        entry_side="buy",
+        amount=0.0001,
+        stop_loss_price=9500000    # SL価格
+    )
 ```
 
 ### **data_pipeline.py（447行）**

@@ -1,0 +1,330 @@
+# ========================================
+# 機能オンオフ設定ファイル (features.yaml)
+# ========================================
+# 目的: bot機能の可視化・一元管理・変更漏れ防止
+# Phase 31.1実装: 2025年10月2日
+#
+# このファイルの役割:
+#   1. botが持つ全機能の可視化・一覧化
+#   2. 設定の一元管理による変更漏れ防止
+#   3. 運用状況に応じた柔軟な機能調整
+#   4. デバッグ時の機能切り分け効率化
+#
+# 設定ファイル分離:
+#   - features.yaml: 機能オンオフ（このファイル）
+#   - unified.yaml: 基本設定（exchange、mode等）
+#   - thresholds.yaml: 動的閾値（信頼度、比率等）
+#
+# ========================================
+
+# ========================================
+# 取引実行機能
+# ========================================
+trading:
+  # 基本設定
+  enabled: true  # 取引機能全体のマスタースイッチ
+
+  # Phase 28実装: TP/SL自動配置
+  stop_loss:
+    enabled: true  # ストップロス自動配置
+    use_limit_order: true  # 指値注文使用（fee: -0.02%）
+    default_atr_multiplier: 2.0  # ATR倍率
+    max_loss_ratio: 0.03  # 最大損失率3%
+    override_strategy_sl: false  # 戦略SL価格優先（false）
+    note: "Phase 28完了: bitbank指値注文でmaker手数料-0.02%獲得"
+
+  take_profit:
+    enabled: true  # テイクプロフィット自動配置
+    use_limit_order: true  # 指値注文使用（fee: -0.02%）
+    default_ratio: 2.5  # リスクリワード比2.5:1
+    min_profit_ratio: 0.01  # 最小利益率1%
+    override_strategy_tp: false  # 戦略TP価格優先（false）
+    position_partial_exit: false  # 部分利確（未実装）
+    note: "Phase 28完了: リスクリワード比2.5:1でTP自動配置"
+
+  # Phase 29.6実装: クールダウン機能
+  # Phase 32.1修正: 15分設定・本番稼働オン
+  cooldown:
+    enabled: true  # クールダウン機能（本番稼働オン）
+    duration_minutes: 15  # クールダウン時間（30→15分：月100-200回目標対応）
+    flexible_mode: true  # Phase 31.1実装: 柔軟なクールダウン判定
+    trend_strength_threshold: 0.7  # 強トレンド判定閾値（flexible_mode時）
+    override_on_strong_trend: true  # 強トレンド時スキップ
+    note: "Phase 32.1: 15分設定・本番稼働、Phase 31.1: トレンド連動柔軟化"
+
+  # 緊急ストップロス
+  emergency_stop_loss:
+    enabled: true  # 急変時例外処理
+    price_change_threshold: 0.03  # 3%以上の価格変動で発動
+    time_window_minutes: 5  # 価格変動監視窓（5分）
+    max_loss_threshold: 0.05  # 5%以上の含み損で強制決済
+    override_cooldown: true  # クールダウン無視
+    min_hold_minutes: 1  # 最小保有時間（誤発動防止）
+    note: "急激な価格変動時の緊急決済機能"
+
+  # 将来実装予定: トレーリングストップ
+  trailing_stop:
+    enabled: false  # トレーリングストップ（未実装）
+    trailing_percent: 0.02  # トレーリング幅（2%）
+    activation_profit: 0.01  # 発動利益率（1%）
+    note: "Phase 32以降の実装予定機能"
+
+# ========================================
+# リスク管理機能
+# ========================================
+risk_management:
+  # 全体設定
+  enabled: true  # リスク管理機能マスタースイッチ
+
+  # Phase 27実装: ML信頼度連動取引制限
+  ml_confidence_limits:
+    enabled: true  # ML信頼度による取引制限
+    low_confidence_limit: 0.03  # 低信頼度(<60%): 3%上限
+    medium_confidence_limit: 0.05  # 中信頼度(60-75%): 5%上限
+    high_confidence_limit: 0.10  # 高信頼度(>75%): 10%上限
+    enforce_minimum_lot: true  # 最小ロット優先
+    note: "Phase 27実装: ML信頼度に応じた動的取引制限"
+
+  # Phase 27実装: 最小ロット優先
+  minimum_lot_priority:
+    enabled: true  # 最小ロット優先（0.0001 BTC）
+    minimum_trade_size: 0.0001  # Bitbank最小単位
+    note: "Phase 27実装: 制限金額 < 最小ロット時、最小ロット優先許可"
+
+  # Phase 29実装: ドローダウン管理
+  drawdown_management:
+    enabled: true  # ドローダウン管理
+    max_drawdown_ratio: 0.2  # 最大許容ドローダウン（20%）
+    consecutive_loss_limit: 8  # 連続損失制限（8回）
+    cooldown_hours: 6  # 緊急停止時間（6時間）
+    persistence_enabled: true  # GCP永続化
+    use_gcs: true  # Cloud Storage使用
+    note: "Phase 29実装: GCS永続化によるドローダウン状態管理"
+
+  # Phase 30実装: 適応型ATR倍率
+  adaptive_atr:
+    enabled: true  # 適応型ATR倍率
+    low_volatility_multiplier: 2.5  # 低ボラティリティ時
+    normal_volatility_multiplier: 2.0  # 通常時
+    high_volatility_multiplier: 1.5  # 高ボラティリティ時
+    minimum_sl_distance_percent: 0.01  # 最小SL距離（1%）
+    note: "Phase 30実装: ボラティリティ連動ATR倍率・1%最小SL"
+
+  # Phase 19最適化: Kelly基準
+  kelly_criterion:
+    enabled: true  # Kelly基準ポジションサイジング
+    lookback_days: 30  # 勝率計算期間（30日）
+    initial_position_size: 0.0001  # 履歴不足時の初期サイズ
+    safe_kelly_fraction: 0.25  # Kelly基準の25%使用（保守的）
+    note: "Phase 19最適化: 5取引で実用的なKelly基準計算"
+
+  # ポジション制限
+  position_limits:
+    enabled: true  # ポジション制限
+    max_open_positions: 3  # 同時保有上限（3ポジション）
+    max_daily_trades: 20  # 日次取引上限（20回）
+    note: "月100-200回取引想定（1日平均3-7回）"
+
+  # 資金管理
+  capital_management:
+    enabled: true  # 資金管理
+    max_capital_usage: 0.3  # 総資産の30%まで利用
+    reserve_ratio: 0.7  # 70%は予備資金として確保
+    min_account_balance: 10000  # 最小運用資金（1万円）
+    note: "口座残高使い切り問題対策"
+
+# ========================================
+# ML統合機能
+# ========================================
+ml_integration:
+  # Phase 29.5実装: ML予測統合
+  enabled: true  # ML予測統合機能
+  strategy_weight: 0.7  # 戦略重み（70%）
+  ml_weight: 0.3  # ML重み（30%）
+
+  # 一致/不一致ボーナス・ペナルティ
+  agreement_bonus: 0.15  # 一致時ボーナス
+  disagreement_penalty: 0.20  # 不一致時ペナルティ
+  extreme_disagreement_penalty: 0.40  # 極端な不一致時
+  note: "Phase 29.5実装: 真のハイブリッドMLbot実現"
+
+  # ML信頼度判定
+  high_confidence_threshold: 0.8  # 高信頼度閾値
+  low_confidence_threshold: 0.4  # 低信頼度閾値
+  min_ml_confidence: 0.6  # ML予測考慮の最小信頼度
+
+  # アンサンブルモデル
+  ensemble:
+    enabled: true  # アンサンブル機能
+    lightgbm_weight: 0.5  # LightGBM 50%
+    xgboost_weight: 0.3  # XGBoost 30%
+    random_forest_weight: 0.2  # RandomForest 20%
+    note: "3モデルアンサンブル・週次自動学習"
+
+  # フォールバック
+  fallback:
+    enabled: true  # MLフォールバック
+    use_dummy_model: true  # DummyModel使用
+    default_confidence: 0.5  # デフォルト信頼度
+    note: "MLエラー時のフォールバック機能"
+
+# ========================================
+# 戦略機能
+# ========================================
+strategies:
+  # 全体設定
+  enabled: true  # 戦略機能マスタースイッチ
+
+  # Phase 31実装: マルチタイムフレームATR
+  multi_timeframe_atr:
+    enabled: true  # 15m足ATR優先使用
+    prefer_15m: true  # 15m足優先
+    fallback_to_4h: true  # 4h足フォールバック
+    note: "Phase 31実装: 15m足ATR使用でSL距離10%→2%改善"
+
+  # 動的信頼度計算
+  dynamic_confidence:
+    enabled: true  # 動的信頼度計算
+    market_uncertainty_adjustment: true  # 市場不確実性調整
+    note: "Phase 29完了: 動的信頼度計算・フォールバック回避"
+
+  # コンセンサス判定
+  consensus:
+    enabled: true  # コンセンサス判定
+    required_agreement: 0.4  # 必要な合意度（40%）
+    confidence_threshold: 0.3  # 信頼度閾値（30%）
+    note: "5戦略の重み付け統合判定"
+
+  # 個別戦略有効化
+  individual_strategies:
+    atr_based: true  # ATRベース戦略（Phase 31: SignalBuilder統合済み）
+    mochipoy_alert: true  # もちぽよアラート戦略（Phase 31: SignalBuilder統合済み）
+    multi_timeframe: true  # マルチタイムフレーム戦略（Phase 31: SignalBuilder統合済み）
+    donchian_channel: true  # ドンチャンチャネル戦略（Phase 32: SignalBuilder統合完了）
+    adx_trend: true  # ADXトレンド戦略（Phase 32: SignalBuilder統合完了）
+    note: "5戦略統合・重み設定はunified.yamlで管理"
+
+# ========================================
+# データ管理機能
+# ========================================
+data:
+  # キャッシュ
+  caching:
+    enabled: true  # データキャッシュ
+    memory_cache: true  # メモリキャッシュ
+    memory_cache_size: 100  # メモリキャッシュサイズ
+    disk_cache: true  # ディスクキャッシュ
+    ttl_minutes: 5  # キャッシュTTL（5分）
+    retention_days: 90  # ディスクキャッシュ保持期間（90日）
+    note: "メモリ+ディスクの2層キャッシュシステム"
+
+  # Phase 29実装: 特徴量管理
+  feature_management:
+    enabled: true  # 特徴量管理
+    feature_count: 15  # 統一15特徴量
+    feature_order_validation: true  # 特徴量順序検証
+    use_feature_order_json: true  # feature_order.json使用
+    note: "Phase 29完了: 15特徴量統一システム"
+
+  # マルチタイムフレーム
+  multi_timeframe:
+    enabled: true  # マルチタイムフレームデータ取得
+    timeframes: ["4h", "15m"]  # 4時間足 + 15分足
+    since_hours: 96  # 取得期間（96時間）
+    limit: 100  # 取得件数上限
+    note: "4h足トレンド判定 + 15m足エントリー"
+
+# ========================================
+# 監視・通知機能
+# ========================================
+monitoring:
+  # Discord通知
+  discord:
+    enabled: true  # Discord通知
+    critical: true  # Critical通知
+    warning: true  # Warning通知
+    info: true  # Info通知
+    trade_notifications: true  # 取引通知
+    batch_notifications: true  # バッチ通知（1時間毎）
+    daily_summary: true  # 日次サマリー（JST 18:00）
+    batch_interval_minutes: 60  # バッチ間隔
+    daily_summary_hour: 18  # 日次サマリー時刻（JST）
+    rate_limit: true  # レート制限（5秒間隔、最大12通知/時）
+    note: "Phase 23実装: Discord 3階層監視システム"
+
+  # ヘルスチェック
+  health_check:
+    enabled: true  # ヘルスチェック
+    interval_seconds: 30  # チェック間隔（30秒）
+    timeout_seconds: 5  # タイムアウト
+    check_system_resources: true  # システムリソースチェック
+    note: "30秒間隔の健全性監視"
+
+  # パフォーマンス追跡
+  performance_tracking:
+    enabled: true  # パフォーマンス追跡
+    log_statistics_every_n_trades: 10  # N取引ごとに統計ログ
+    metrics_interval_seconds: 300  # メトリクス間隔（5分）
+    track_win_rate: true  # 勝率追跡
+    track_profit_factor: true  # プロフィットファクター追跡
+    note: "10取引ごとの詳細統計ログ"
+
+# ========================================
+# インフラ機能
+# ========================================
+infrastructure:
+  # GCP統合
+  gcp:
+    enabled: true  # GCP機能
+    secret_manager: true  # Secret Manager使用
+    workload_identity: true  # Workload Identity使用
+    cloud_storage: true  # Cloud Storage使用（状態永続化）
+    cloud_run: true  # Cloud Run環境
+    use_specific_secret_versions: true  # 具体的バージョン使用（key:latest禁止）
+    note: "Phase 15最適化: Secret Manager具体的バージョン使用"
+
+  # ログ管理
+  logging:
+    file_logging: true  # ファイルログ
+    rotation: true  # ログローテーション
+    retention_days: 30  # ログ保持期間（30日）
+    max_size_mb: 100  # 最大ファイルサイズ
+    use_jst: true  # JST時刻使用
+    note: "JST時刻・日次ローテーション"
+
+# ========================================
+# デバッグ・開発機能
+# ========================================
+development:
+  # デバッグ機能
+  debug_mode: false  # デバッグモード
+  verbose_logging: false  # 詳細ログ
+
+  # テスト機能
+  paper_trading:
+    enabled: true  # ペーパートレード
+    initial_balance: 10000  # 初期残高（1万円）
+    note: "paper mode: 仮想取引・実API未使用"
+
+  backtest:
+    enabled: true  # バックテスト
+    initial_balance: 10000  # 初期残高（1万円）
+    period_days: 180  # バックテスト期間（180日）
+    note: "backtest mode: 過去データ検証"
+
+# ========================================
+# 運用メモ（Phase履歴）
+# ========================================
+phase_history:
+  phase_15: "Secret Manager具体的バージョン使用（key:latest禁止）"
+  phase_19: "Kelly基準最適化（5取引で実用性向上）"
+  phase_23: "Discord 3階層監視システム"
+  phase_27: "ML信頼度連動取引制限・最小ロット優先・少額運用対応"
+  phase_28: "テイクプロフィット/ストップロス実装・完全トレーディングサイクル"
+  phase_29: "統一設定管理体系確立・設定不整合完全解消"
+  phase_29_5: "ML予測統合（戦略70% + ML30%）・真のハイブリッドMLbot実現"
+  phase_29_6: "TP/SL指値注文・30分クールダウン・本番環境問題修正"
+  phase_30: "適応型ATR倍率・ボラティリティ連動SL距離"
+  phase_31: "マルチタイムフレームATR・15m足優先・SL距離10%→2%改善"
+  phase_31_1: "機能オンオフ設定ファイル・クールダウン柔軟化"
+  phase_32: "DonchianChannel・ADXTrend SignalBuilder統合完了・全5戦略統一"

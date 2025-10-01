@@ -62,7 +62,9 @@ class ATRBasedStrategy(StrategyBase):
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="ATRBased", config=merged_config)
 
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """市場分析とシグナル生成."""
         try:
             self.logger.info(
@@ -82,8 +84,8 @@ class ATRBasedStrategy(StrategyBase):
             signal_decision = self._make_decision(
                 bb_analysis, rsi_analysis, atr_analysis, None, market_uncertainty
             )
-            # シグナル生成
-            signal = self._create_signal(signal_decision, current_price, df)
+            # シグナル生成（Phase 31: multi_timeframe_data渡し）
+            signal = self._create_signal(signal_decision, current_price, df, multi_timeframe_data)
             self.logger.debug(
                 f"[ATRBased] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
             )
@@ -444,9 +446,14 @@ class ATRBasedStrategy(StrategyBase):
         }
 
     def _create_signal(
-        self, decision: Dict[str, Any], current_price: float, df: pd.DataFrame
+        self,
+        decision: Dict[str, Any],
+        current_price: float,
+        df: pd.DataFrame,
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
-        """シグナル作成 - 共通モジュール利用."""
+        """シグナル作成 - 共通モジュール利用（Phase 31: マルチタイムフレーム対応）."""
+        # Phase 31: multi_timeframe_dataを渡して15m足ATR取得
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,
@@ -454,6 +461,7 @@ class ATRBasedStrategy(StrategyBase):
             df=df,
             config=self.config,
             strategy_type=StrategyType.ATR_BASED,
+            multi_timeframe_data=multi_timeframe_data,
         )
 
     def get_required_features(self) -> List[str]:

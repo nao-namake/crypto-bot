@@ -7,6 +7,7 @@ Strategy base class テスト - カバレッジ向上
 
 from abc import ABC
 from datetime import datetime
+from typing import Dict, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -41,7 +42,9 @@ class ConcreteStrategy(StrategyBase):
     def __init__(self, name: str = "TestStrategy", config=None):
         super().__init__(name, config)
 
-    def analyze(self, features: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, features: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """テスト用分析実装"""
         if features.empty:
             return StrategySignal(

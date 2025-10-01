@@ -246,7 +246,7 @@ trading_constraints:
   leverage_max: 2.0
   leverage_actual: 1.0
   currency_pair: BTC/JPY
-  default_order_type: market
+  default_order_type: limit  # Phase 29.6: 成行→指値に変更（手数料最適化: Taker 0.12% → Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
   features_count: 15

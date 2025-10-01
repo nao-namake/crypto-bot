@@ -57,8 +57,8 @@ class TradingCycleManager:
             # Phase 3: 特徴量生成
             features, main_features = await self._generate_features(market_data)
 
-            # Phase 4: 戦略評価
-            strategy_signal = await self._evaluate_strategy(main_features)
+            # Phase 4: 戦略評価（Phase 31: マルチタイムフレーム対応）
+            strategy_signal = await self._evaluate_strategy(main_features, features)
 
             # Phase 5: ML予測
             ml_prediction = await self._get_ml_prediction(main_features)
@@ -142,11 +142,14 @@ class TradingCycleManager:
         main_features = features.get(main_timeframe, pd.DataFrame())
         return features, main_features
 
-    async def _evaluate_strategy(self, main_features):
-        """Phase 4: 戦略評価"""
+    async def _evaluate_strategy(self, main_features, all_features):
+        """Phase 4: 戦略評価（Phase 31: マルチタイムフレーム対応）"""
         try:
             if not main_features.empty:
-                return self.orchestrator.strategy_service.analyze_market(main_features)
+                # Phase 31: all_featuresをmulti_timeframe_dataとして渡す
+                return self.orchestrator.strategy_service.analyze_market(
+                    main_features, multi_timeframe_data=all_features
+                )
             else:
                 # 空のDataFrameの場合はHOLDシグナル
                 return self.orchestrator.strategy_service._create_hold_signal(

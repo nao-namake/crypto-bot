@@ -119,12 +119,17 @@ class StrategyBase(ABC):
         self.logger.info(f"戦略初期化完了: {self.name}")
 
     @abstractmethod
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """
         市場データを分析してシグナルを生成（抽象メソッド）
 
         Args:
-            df: OHLCV + 特徴量データ
+            df: OHLCV + 特徴量データ（メインタイムフレーム）
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 31対応）
+                - 形式: {"4h": DataFrame, "15m": DataFrame}
+                - Noneの場合は単一タイムフレーム動作（後方互換）
 
         Returns:
             生成されたシグナル
@@ -144,12 +149,15 @@ class StrategyBase(ABC):
         """
         pass
 
-    def generate_signal(self, df: pd.DataFrame) -> StrategySignal:
+    def generate_signal(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """
         シグナル生成のメインエントリーポイント
 
         Args:
             df: 市場データ
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 31対応）
 
         Returns:
             生成されたシグナル.
@@ -160,8 +168,8 @@ class StrategyBase(ABC):
             # 前処理チェック
             self._validate_input_data(df)
 
-            # 戦略分析実行
-            signal = self.analyze(df)
+            # 戦略分析実行（Phase 31: multi_timeframe_data渡し）
+            signal = self.analyze(df, multi_timeframe_data=multi_timeframe_data)
 
             # 後処理
             self._post_process_signal(signal)

@@ -19,6 +19,7 @@ import pandas as pd
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
 class DonchianChannelStrategy(StrategyBase):
@@ -71,7 +72,9 @@ class DonchianChannelStrategy(StrategyBase):
             "volume_ratio",
         ]
 
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
+    def analyze(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> StrategySignal:
         """
         Donchian Channelシグナル生成（抽象メソッド実装）
         Args:
@@ -88,8 +91,8 @@ class DonchianChannelStrategy(StrategyBase):
             channel_analysis = self._analyze_donchian_channel(df)
             if not channel_analysis:
                 return self._create_hold_signal(df, "チャネル分析失敗")
-            # シグナル判定
-            signal = self._determine_signal(df, channel_analysis)
+            # シグナル判定（Phase 32: multi_timeframe_data渡す）
+            signal = self._determine_signal(df, channel_analysis, multi_timeframe_data)
             self.logger.debug(
                 f"[DonchianChannel] シグナル生成完了: {signal.action} "
                 f"(信頼度: {signal.confidence:.3f})"
@@ -193,66 +196,101 @@ class DonchianChannelStrategy(StrategyBase):
             self.logger.error(f"[DonchianChannel] チャネル分析エラー: {e}")
             return None
 
-    def _determine_signal(self, df: pd.DataFrame, analysis: Dict[str, Any]) -> StrategySignal:
+    def _determine_signal(
+        self,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> StrategySignal:
         """
         シグナル判定ロジック（動的信頼度計算・中央域対応）
+
+        Phase 32: multi_timeframe_data対応
+
         Args:
             df: 市場データ
             analysis: チャネル分析結果
+            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+
         Returns:
             最終シグナル
         """
         channel_pos = analysis["channel_position"]
         volume_ratio = analysis["volume_ratio"]
+        current_price = analysis["current_price"]
 
         # 1. ブレイクアウトシグナル（強いトレンド）
         if analysis["is_upper_breakout"] and volume_ratio > 1.2:
-            return self._create_buy_signal(
-                df, analysis, confidence=0.75, reason="上方ブレイクアウト（出来高増加）"
+            return self._create_signal(
+                action="buy",
+                confidence=0.75,
+                reason="上方ブレイクアウト（出来高増加）",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
             )
         if analysis["is_lower_breakout"] and volume_ratio > 1.2:
-            return self._create_sell_signal(
-                df, analysis, confidence=0.75, reason="下方ブレイクアウト（出来高増加）"
+            return self._create_signal(
+                action="sell",
+                confidence=0.75,
+                reason="下方ブレイクアウト（出来高増加）",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
             )
         # 2. リバーサルシグナル（レンジ相場対応）
         if analysis["in_lower_zone"] and not analysis["is_lower_breakout"]:
             confidence = self._calculate_reversal_confidence(analysis, "buy")
             if confidence >= self.min_confidence:
-                return self._create_buy_signal(
-                    df,
-                    analysis,
+                return self._create_signal(
+                    action="buy",
                     confidence=confidence,
                     reason=f"下限リバーサル（位置: {channel_pos:.3f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
         if analysis["in_upper_zone"] and not analysis["is_upper_breakout"]:
             confidence = self._calculate_reversal_confidence(analysis, "sell")
             if confidence >= self.min_confidence:
-                return self._create_sell_signal(
-                    df,
-                    analysis,
+                return self._create_signal(
+                    action="sell",
                     confidence=confidence,
                     reason=f"上限リバーサル（位置: {channel_pos:.3f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
         # 3. 弱シグナル（中央域手前）- 動的信頼度計算
         if analysis["in_weak_buy_zone"]:
             # 下方向への動きを示唆する弱いbuyシグナル
             confidence = self._calculate_weak_signal_confidence(analysis, "buy")
             if confidence >= self.min_confidence:
-                return self._create_buy_signal(
-                    df,
-                    analysis,
+                return self._create_signal(
+                    action="buy",
                     confidence=confidence,
                     reason=f"弱買いシグナル（位置: {channel_pos:.3f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
         if analysis["in_weak_sell_zone"]:
             # 上方向への動きを示唆する弱いsellシグナル
             confidence = self._calculate_weak_signal_confidence(analysis, "sell")
             if confidence >= self.min_confidence:
-                return self._create_sell_signal(
-                    df,
-                    analysis,
+                return self._create_signal(
+                    action="sell",
                     confidence=confidence,
                     reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
                 )
         # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避・市場データ統合）
         if analysis["in_middle_zone"]:
@@ -443,68 +481,6 @@ class DonchianChannelStrategy(StrategyBase):
 
         return confidence
 
-    def _create_buy_signal(
-        self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str
-    ) -> StrategySignal:
-        """BUYシグナル生成"""
-        current_price = analysis["current_price"]
-        # リスク管理計算
-        atr = analysis.get("volatility_ratio", 0.02) * current_price
-        stop_loss = current_price - (atr * 2.0)  # 2ATR
-        take_profit = current_price + (atr * 3.0)  # 3ATR (1:1.5リスクリワード)
-        return StrategySignal(
-            strategy_name=self.name,
-            timestamp=datetime.now(),
-            action="buy",
-            confidence=confidence,
-            strength=confidence,
-            current_price=current_price,
-            entry_price=current_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            risk_ratio=0.02,  # 2%リスク
-            reason=reason,
-            metadata={
-                "channel_position": analysis["channel_position"],
-                "channel_width": analysis["channel_width"],
-                "volume_ratio": analysis["volume_ratio"],
-                "signal_type": (
-                    "donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"
-                ),
-            },
-        )
-
-    def _create_sell_signal(
-        self, df: pd.DataFrame, analysis: Dict[str, Any], confidence: float, reason: str
-    ) -> StrategySignal:
-        """SELLシグナル生成"""
-        current_price = analysis["current_price"]
-        # リスク管理計算
-        atr = analysis.get("volatility_ratio", 0.02) * current_price
-        stop_loss = current_price + (atr * 2.0)  # 2ATR
-        take_profit = current_price - (atr * 3.0)  # 3ATR
-        return StrategySignal(
-            strategy_name=self.name,
-            timestamp=datetime.now(),
-            action="sell",
-            confidence=confidence,
-            strength=confidence,
-            current_price=current_price,
-            entry_price=current_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            risk_ratio=0.02,
-            reason=reason,
-            metadata={
-                "channel_position": analysis["channel_position"],
-                "channel_width": analysis["channel_width"],
-                "volume_ratio": analysis["volume_ratio"],
-                "signal_type": (
-                    "donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"
-                ),
-            },
-        )
-
     def _create_hold_signal(
         self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None
     ) -> StrategySignal:
@@ -528,4 +504,56 @@ class DonchianChannelStrategy(StrategyBase):
                 "is_dynamic": dynamic_confidence is not None,
                 "confidence_source": "dynamic" if dynamic_confidence is not None else "config",
             },
+        )
+
+    def _create_signal(
+        self,
+        action: str,
+        confidence: float,
+        reason: str,
+        current_price: float,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> StrategySignal:
+        """
+        Phase 32: SignalBuilder統合 - 15m足ATR使用
+
+        Args:
+            action: シグナルアクション（buy/sell）
+            confidence: 信頼度
+            reason: シグナル理由
+            current_price: 現在価格
+            df: 市場データ（4h足）
+            analysis: チャネル分析結果
+            multi_timeframe_data: マルチタイムフレームデータ
+
+        Returns:
+            StrategySignal
+        """
+        # 決定辞書作成
+        decision = {
+            "action": action,
+            "confidence": confidence,
+            "strength": confidence,  # DonchianChannelでは信頼度=強度
+            "reason": reason,
+            "metadata": {
+                "channel_position": analysis["channel_position"],
+                "channel_width": analysis["channel_width"],
+                "volume_ratio": analysis["volume_ratio"],
+                "signal_type": (
+                    "donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"
+                ),
+            },
+        }
+
+        # Phase 32: SignalBuilder使用（15m足ATR優先取得）
+        return SignalBuilder.create_signal_with_risk_management(
+            strategy_name=self.name,
+            decision=decision,
+            current_price=current_price,
+            df=df,
+            config=self.config,
+            strategy_type=StrategyType.DONCHIAN_CHANNEL,
+            multi_timeframe_data=multi_timeframe_data,
         )
