@@ -1,6 +1,6 @@
 # 🤖 AI自動取引Bot機能診断（エントリーシグナル・コア機能編）
 
-**最終更新**: 2025年9月23日 - Claude Code実行対応・macOS完全対応
+**最終更新**: 2025年10月2日 - Phase 32.1対応・Phase 27-32全機能診断追加
 
 ## ⚠️ 重要: まずREADME.mdを読んでください
 
@@ -10,14 +10,22 @@
 
 このファイルは、AI自動取引BotのコアとなるBot固有機能の健全性を診断するためのチェックスクリプト集です。15特徴量生成、5戦略統合、3モデルMLアンサンブル、動的信頼度計算、エントリーシグナル生成など、取引判断に直結する部分を重点的にチェックします。
 
+**Phase 32.1対応**: Phase 27-32の全機能（最小ロット優先、TP/SL、15m ATR、クールダウン、動的信頼度精密化、ML予測統合）の診断機能を追加しました。
+
 ## 🎯 診断対象
 
-- 🎯 **5戦略動的信頼度**: ATR・MochiPoy・MultiTimeframe・Donchian・ADX統合
+- 🎯 **5戦略動的信頼度**: ATR・MochiPoy・MultiTimeframe・Donchian・ADX統合（Phase 32: 小数点第3位変動確認）
 - 🤖 **3モデルMLアンサンブル**: LightGBM・XGBoost・RandomForest予測
+- 💚 **ML予測統合**: Phase 29.5実装・戦略70%+ML30%加重平均統合
 - 📈 **15特徴量生成**: 7カテゴリ完全生成確認
 - 💱 **Kelly基準**: ポジションサイジング・動的計算
 - 🔄 **統合シグナル生成**: 戦略→ML→統合フロー
 - 🔍 **Silent Failure**: シグナル生成→実行断絶検出
+- 💰 **Phase 27**: 最小ロット優先・ML信頼度連動制限
+- 🎯 **Phase 28**: テイクプロフィット/ストップロス実装
+- 📊 **Phase 30**: SL/TP計算改善
+- ⏰ **Phase 31**: 15m足ATR使用・クールダウン柔軟化
+- 🎲 **Phase 32**: 動的信頼度変動幅拡大・override_atr: false
 
 ## 📂 関連ファイル
 
@@ -314,7 +322,108 @@ if [ "$FAILURE_FOUND" = false ]; then
 fi
 ```
 
-### E. 最終判定（Bot機能）
+### E. Phase 27-32機能診断
+
+```bash
+echo ""
+echo "🚀 Phase 27-32機能診断"
+
+# Phase 27: 最小ロット優先検出
+echo ""
+echo "💰 Phase 27: 最小ロット優先機能"
+MIN_LOT_COUNT=$(count_logs_since_deploy "textPayload:\"最小ロット優先適用\" OR textPayload:\"最小ロット許可\"" 20)
+if [ $MIN_LOT_COUNT -gt 0 ]; then
+    echo "✅ 最小ロット優先: 正常動作 ($MIN_LOT_COUNT回検出)"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+else
+    echo "⚠️ 最小ロット優先: 未検出（低残高時未発動の可能性）"
+fi
+
+# Phase 28: テイクプロフィット/ストップロス配置確認
+echo ""
+echo "🎯 Phase 28: TP/SL配置確認"
+TP_COUNT=$(count_logs_since_deploy "textPayload:\"テイクプロフィット注文配置\" OR textPayload:\"TP注文\"" 20)
+SL_COUNT=$(count_logs_since_deploy "textPayload:\"ストップロス注文配置\" OR textPayload:\"SL注文\"" 20)
+echo "   TP注文配置: $TP_COUNT回"
+echo "   SL注文配置: $SL_COUNT回"
+
+if [ $TP_COUNT -gt 0 ] || [ $SL_COUNT -gt 0 ]; then
+    echo "✅ TP/SL機能: 正常動作"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+else
+    echo "⚠️ TP/SL機能: 未検出（エントリーなしの可能性）"
+fi
+
+# Phase 29.5: ML予測統合確認（戦略70%+ML30%）
+echo ""
+echo "💚 Phase 29.5: ML予測統合（戦略70%+ML30%）"
+ML_INTEGRATION_COUNT=$(count_logs_since_deploy "textPayload:\"ML統合\" OR textPayload:\"戦略.*ML.*統合\"" 20)
+STRATEGY_WEIGHT_COUNT=$(count_logs_since_deploy "textPayload:\"戦略=.*ML=\" OR textPayload:\"strategy_weight.*ml_weight\"" 20)
+echo "   ML統合実行: $ML_INTEGRATION_COUNT回"
+echo "   加重平均統合: $STRATEGY_WEIGHT_COUNT回"
+
+if [ $ML_INTEGRATION_COUNT -gt 0 ]; then
+    echo "✅ ML予測統合: 正常動作（Phase 29.5真のハイブリッドMLbot実現）"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+else
+    echo "⚠️ ML予測統合: 未検出（エントリーなしの可能性）"
+fi
+
+# Phase 30: SL/TP計算確認
+echo ""
+echo "📊 Phase 30: SL/TP計算確認"
+PHASE30_CALC_COUNT=$(count_logs_since_deploy "textPayload:\"Phase 30 SL/TP計算\" OR textPayload:\"ATR=.*倍率=.*SL距離=\"" 20)
+if [ $PHASE30_CALC_COUNT -gt 0 ]; then
+    echo "✅ Phase 30 SL/TP計算: 正常動作 ($PHASE30_CALC_COUNT回)"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+
+    # SL距離サンプル表示
+    echo "   サンプルログ:"
+    show_logs_since_deploy "textPayload:\"Phase 30 SL/TP計算\"" 3 | head -3
+else
+    echo "⚠️ Phase 30 SL/TP計算: 未検出"
+fi
+
+# Phase 31: 15m足ATR使用確認
+echo ""
+echo "⏰ Phase 31: 15m足ATR使用・クールダウン確認"
+PHASE31_ATR_COUNT=$(count_logs_since_deploy "textPayload:\"Phase 31: 15m足ATR使用\"" 20)
+COOLDOWN_COUNT=$(count_logs_since_deploy "textPayload:\"クールダウン\" OR textPayload:\"cooldown\"" 20)
+echo "   15m ATR使用: $PHASE31_ATR_COUNT回"
+echo "   クールダウン発動: $COOLDOWN_COUNT回"
+
+if [ $PHASE31_ATR_COUNT -gt 0 ]; then
+    echo "✅ Phase 31 15m ATR: 正常動作"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+else
+    echo "⚠️ Phase 31 15m ATR: 未検出"
+fi
+
+if [ $COOLDOWN_COUNT -gt 0 ]; then
+    echo "✅ クールダウン機能: 動作確認"
+else
+    echo "ℹ️  クールダウン: 未発動（連続取引なし）"
+fi
+
+# Phase 32: 動的信頼度精密値確認
+echo ""
+echo "🎲 Phase 32: 動的信頼度精密値確認（小数点第3位変動）"
+
+# 動的信頼度の精密値検出（0.5XX, 0.6XX, 0.7XX等）
+DYNAMIC_CONFIDENCE_SAMPLES=$(show_logs_since_deploy "textPayload:\"信頼度\" OR textPayload:\"confidence\"" 50 | grep -E "0\.[0-9]{3}" | head -10)
+
+if [ -n "$DYNAMIC_CONFIDENCE_SAMPLES" ]; then
+    echo "✅ Phase 32動的信頼度: 精密値検出（小数点第3位変動確認）"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    echo "   サンプル値:"
+    echo "$DYNAMIC_CONFIDENCE_SAMPLES" | head -5
+else
+    echo "⚠️ Phase 32動的信頼度: 精密値未検出（固定値の可能性）"
+    WARNING_ISSUES=$((WARNING_ISSUES + 1))
+fi
+```
+
+### F. 最終判定（Bot機能）
 
 ```bash
 echo ""

@@ -172,22 +172,22 @@ class ExecutionService:
             # 実際の注文実行
             order_result = self.bitbank_client.create_order(**order_params)
 
-            # 実行結果作成
+            # 実行結果作成（Phase 32.1: NoneType対策強化）
             result = ExecutionResult(
                 success=True,
                 mode=ExecutionMode.LIVE,
                 order_id=order_result.get("id"),
-                price=float(order_result.get("price", price or 0)),
-                amount=float(order_result.get("amount", 0)),
+                price=float(order_result.get("price") or price or 0),
+                amount=float(order_result.get("amount") or 0),
                 filled_price=float(
-                    order_result.get("filled_price", order_result.get("price", price or 0))
+                    order_result.get("filled_price") or order_result.get("price") or price or 0
                 ),
                 filled_amount=float(
-                    order_result.get("filled_amount", order_result.get("amount", 0))
+                    order_result.get("filled_amount") or order_result.get("amount") or 0
                 ),
                 error_message=None,
                 side=side,
-                fee=float(order_result.get("fee", 0)),
+                fee=float(order_result.get("fee") or 0),
                 status=(OrderStatus.FILLED if order_type == "market" else OrderStatus.SUBMITTED),
                 notes=f"{order_type}注文実行 - {order_execution_config.get('strategy', 'default')}",
             )
