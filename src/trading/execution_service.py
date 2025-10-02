@@ -222,7 +222,7 @@ class ExecutionService:
             }
             self.virtual_positions.append(live_position)
 
-            # Phase 29.6: テイクプロフィット/ストップロス注文配置
+            # Phase 29.6 + Phase 33: テイクプロフィット/ストップロス注文配置（エラーハンドリング強化）
             tp_order_id = None
             sl_order_id = None
 
@@ -230,6 +230,11 @@ class ExecutionService:
                 # TP/SL設定が有効か確認
                 tp_config = get_threshold("position_management.take_profit", {})
                 sl_config = get_threshold("position_management.stop_loss", {})
+
+                # Phase 33: evaluation.take_profit/stop_lossの値を明示的にログ出力
+                self.logger.info(
+                    f"📋 TP/SL注文配置試行: TP={evaluation.take_profit}, SL={evaluation.stop_loss}"
+                )
 
                 if tp_config.get("enabled", True) and evaluation.take_profit:
                     try:
@@ -244,7 +249,16 @@ class ExecutionService:
                             f"✅ テイクプロフィット注文配置成功: {tp_order_id} @ {evaluation.take_profit:.0f}円"
                         )
                     except Exception as e:
-                        self.logger.error(f"⚠️ テイクプロフィット注文配置失敗: {e}", exc_info=True)
+                        # Phase 33: エラーコード50061（残高不足）を明示的に検出
+                        error_message = str(e)
+                        if "50061" in error_message:
+                            self.logger.error(
+                                f"❌ TP注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
+                            )
+                        else:
+                            self.logger.error(
+                                f"⚠️ テイクプロフィット注文配置失敗: {e}", exc_info=True
+                            )
 
                 if sl_config.get("enabled", True) and evaluation.stop_loss:
                     try:
@@ -259,7 +273,14 @@ class ExecutionService:
                             f"✅ ストップロス注文配置成功: {sl_order_id} @ {evaluation.stop_loss:.0f}円"
                         )
                     except Exception as e:
-                        self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}", exc_info=True)
+                        # Phase 33: エラーコード50061（残高不足）を明示的に検出
+                        error_message = str(e)
+                        if "50061" in error_message:
+                            self.logger.error(
+                                f"❌ SL注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
+                            )
+                        else:
+                            self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}", exc_info=True)
 
             except Exception as e:
                 self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}", exc_info=True)
@@ -273,7 +294,14 @@ class ExecutionService:
             return result
 
         except Exception as e:
-            self.logger.error(f"❌ ライブ取引実行失敗: {e}")
+            # Phase 33: エラーコード50061（残高不足）を明示的に検出
+            error_message = str(e)
+            if "50061" in error_message:
+                self.logger.error(
+                    f"❌ ライブ取引実行失敗（残高不足）: エラーコード50061 - 新規注文に必要な利用可能証拠金が不足しています - {error_message}"
+                )
+            else:
+                self.logger.error(f"❌ ライブ取引実行失敗: {e}")
             raise
 
     def _ensure_minimum_trade_size(self, evaluation: TradeEvaluation) -> TradeEvaluation:

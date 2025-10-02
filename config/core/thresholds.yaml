@@ -412,18 +412,18 @@ position_management:
 margin:
   position_value_estimation_ratio: 0.8  # 使用済み資金からポジション価値推定時の比率（80%）
 
-# Phase 26: 指値注文オプション機能設定
+# Phase 26: 指値注文オプション機能設定（Phase 33最適化）
 order_execution:
-  smart_order_enabled: false             # スマート注文機能（デフォルト無効・段階的導入）
+  smart_order_enabled: true              # Phase 33: スマート注文機能有効化（手数料削減）
   high_confidence_threshold: 0.75        # 高信頼度閾値（指値注文使用判定）
   low_confidence_threshold: 0.4          # 低信頼度閾値（成行注文強制）
   max_spread_ratio_for_limit: 0.005      # 指値注文許可最大スプレッド比率（0.5%）
-  price_improvement_ratio: 0.001         # 指値価格改善比率（0.1% 約定確率向上）
+  price_improvement_ratio: 0.0002        # Phase 33: 指値価格改善比率（0.02% 約定確率大幅向上）
 
-  # Phase 30: 指値注文タイムアウト機能
+  # Phase 30: 指値注文タイムアウト機能（Phase 33デイトレード最適化）
   limit_order_timeout:
     enabled: true                        # タイムアウト機能有効化
-    timeout_minutes: 30                  # タイムアウト時間（30分）
+    timeout_minutes: 5                   # Phase 33: タイムアウト時間（5分 デイトレード対応）
     fallback_to_market: true             # タイムアウト時に成行注文へ変換
     max_price_deviation: 0.05            # 価格乖離閾値5%（超過時は即座に成行変換）
     check_interval_seconds: 60           # 約定状況確認間隔（60秒）
