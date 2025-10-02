@@ -101,7 +101,8 @@ check_process_status() {
 
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             local current_time=$(date +%s)
-            local elapsed=$((current_time - ${start_time:-$current_time}))
+            local start_time_int=${start_time%.*}  # 小数点以下を削除
+            local elapsed=$((current_time - ${start_time_int:-$current_time}))
             local elapsed_min=$((elapsed / 60))
 
             log_info "✅ プロセス実行中: PID=$pid, 経過時間=${elapsed_min}分"

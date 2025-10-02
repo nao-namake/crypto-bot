@@ -367,9 +367,11 @@ class BitbankClient:
         order_type: str,
         amount: float,
         price: Optional[float] = None,
+        is_closing_order: bool = False,
+        entry_position_side: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        注文作成（信用取引対応・レガシー実証済み設定使用）
+        注文作成（信用取引対応・Phase 33.1: TP/SL決済注文対応）
 
         Args:
             symbol: 通貨ペア（例：BTC/JPY）
@@ -377,6 +379,8 @@ class BitbankClient:
             order_type: 注文タイプ（market/limit）
             amount: 注文量（BTC）
             price: 指値価格（limitの場合・JPY）
+            is_closing_order: 決済注文フラグ（True=既存ポジション決済のみ）
+            entry_position_side: エントリー時のposition_side（"long"/"short"・決済時のみ必須）
 
         Returns:
             注文情報（order_id含む）
@@ -410,15 +414,28 @@ class BitbankClient:
                     context={"price": price},
                 )
 
-            # 信用取引用パラメータ（bitbank API仕様対応・2025/09/23更新）
+            # Phase 33.1: 信用取引用パラメータ（TP/SL決済注文対応・両建て防止修正）
             params = {
                 "margin": True,  # 信用取引有効
                 "marginType": "isolated",  # 分離マージン
                 "leverage": self.leverage,  # レバレッジ倍率
-                "position_side": (
-                    "long" if side.lower() == "buy" else "short"
-                ),  # bitbank信用取引必須パラメータ
             }
+
+            if is_closing_order:
+                # ✅ 決済注文：既存ポジションと同じposition_sideでreduceOnly指定
+                if not entry_position_side:
+                    raise ExchangeAPIError(
+                        "決済注文にはentry_position_sideが必須です",
+                        context={"is_closing_order": True, "entry_position_side": None},
+                    )
+                params["reduceOnly"] = True  # 既存ポジション決済のみ（新規ポジション開かない）
+                params["position_side"] = entry_position_side  # エントリーと同じposition_side
+                self.logger.info(
+                    f"🔄 決済注文作成: {side} {amount:.4f} BTC @ {price or 'MARKET'} (position_side={entry_position_side}, reduceOnly=True)"
+                )
+            else:
+                # 新規注文：sideに基づいてposition_sideを設定
+                params["position_side"] = "long" if side.lower() == "buy" else "short"
 
             # ショート注文の場合の特別な処理（レガシーから継承）
             if side.lower() == "sell":
@@ -525,7 +542,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        テイクプロフィット指値注文作成（Phase 29.6）
+        テイクプロフィット指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -539,14 +556,18 @@ class BitbankClient:
         Raises:
             ExchangeAPIError: 注文作成失敗時
         """
-        # TP注文の方向：エントリーと逆方向
+        # TP注文の方向：エントリーと逆方向（決済するため）
         tp_side = "sell" if entry_side.lower() == "buy" else "buy"
 
+        # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
+        entry_position_side = "long" if entry_side.lower() == "buy" else "short"
+
         self.logger.info(
-            f"📈 テイクプロフィット注文作成: {tp_side} {amount:.4f} BTC @ {take_profit_price:.0f}円",
+            f"📈 テイクプロフィット決済注文作成: {tp_side} {amount:.4f} BTC @ {take_profit_price:.0f}円 (position_side={entry_position_side})",
             extra_data={
                 "entry_side": entry_side,
                 "tp_side": tp_side,
+                "entry_position_side": entry_position_side,
                 "amount": amount,
                 "price": take_profit_price,
             },
@@ -558,6 +579,8 @@ class BitbankClient:
             order_type="limit",
             amount=amount,
             price=take_profit_price,
+            is_closing_order=True,  # ✅ 決済注文フラグ
+            entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
     def create_stop_loss_order(
@@ -568,7 +591,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス指値注文作成（Phase 29.6）
+        ストップロス指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -582,14 +605,18 @@ class BitbankClient:
         Raises:
             ExchangeAPIError: 注文作成失敗時
         """
-        # SL注文の方向：エントリーと逆方向
+        # SL注文の方向：エントリーと逆方向（決済するため）
         sl_side = "sell" if entry_side.lower() == "buy" else "buy"
 
+        # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
+        entry_position_side = "long" if entry_side.lower() == "buy" else "short"
+
         self.logger.info(
-            f"🛡️ ストップロス注文作成: {sl_side} {amount:.4f} BTC @ {stop_loss_price:.0f}円",
+            f"🛡️ ストップロス決済注文作成: {sl_side} {amount:.4f} BTC @ {stop_loss_price:.0f}円 (position_side={entry_position_side})",
             extra_data={
                 "entry_side": entry_side,
                 "sl_side": sl_side,
+                "entry_position_side": entry_position_side,
                 "amount": amount,
                 "price": stop_loss_price,
             },
@@ -601,6 +628,8 @@ class BitbankClient:
             order_type="limit",
             amount=amount,
             price=stop_loss_price,
+            is_closing_order=True,  # ✅ 決済注文フラグ
+            entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
     def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
