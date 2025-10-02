@@ -344,15 +344,19 @@ jobs:
           
           echo "📍 サービスURL: ${SERVICE_URL}"
           
-          # ヘルスチェック（最大5回リトライ・レガシーパターン継承）
+          # 認証トークン取得（Cloud Run認証対応）
+          echo "🔐 認証トークン取得中..."
+          AUTH_TOKEN=$(gcloud auth print-identity-token)
+
+          # ヘルスチェック（最大5回リトライ・認証付き）
           for i in {1..5}; do
             echo "🔍 ヘルスチェック試行 $i/5"
-            
-            if curl -f -s "${SERVICE_URL}/health" --connect-timeout 30 --max-time 60; then
+
+            if curl -f -s -H "Authorization: Bearer ${AUTH_TOKEN}" "${SERVICE_URL}/health" --connect-timeout 30 --max-time 60; then
               echo "✅ ヘルスチェック成功！"
-              
+
               # 基本動作確認
-              if curl -f -s "${SERVICE_URL}/" --connect-timeout 30 --max-time 60; then
+              if curl -f -s -H "Authorization: Bearer ${AUTH_TOKEN}" "${SERVICE_URL}/" --connect-timeout 30 --max-time 60; then
                 echo "✅ 基本動作確認成功！"
                 echo "🎉 デプロイ完了・サービス正常稼働中"
                 exit 0
