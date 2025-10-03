@@ -256,9 +256,7 @@ class ExecutionService:
                                 f"❌ TP注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
                             )
                         else:
-                            self.logger.error(
-                                f"⚠️ テイクプロフィット注文配置失敗: {e}", exc_info=True
-                            )
+                            self.logger.error(f"⚠️ テイクプロフィット注文配置失敗: {e}")
 
                 if sl_config.get("enabled", True) and evaluation.stop_loss:
                     try:
@@ -280,10 +278,10 @@ class ExecutionService:
                                 f"❌ SL注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
                             )
                         else:
-                            self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}", exc_info=True)
+                            self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}")
 
             except Exception as e:
-                self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}", exc_info=True)
+                self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}")
 
             # TP/SL注文IDをポジションに追加
             if tp_order_id:

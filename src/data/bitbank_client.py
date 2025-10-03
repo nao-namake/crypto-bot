@@ -326,6 +326,37 @@ class BitbankClient:
                 context={"symbol": symbol},
             )
 
+    def fetch_order_book(self, symbol: str = "BTC/JPY", limit: int = 20) -> Dict[str, Any]:
+        """
+        板情報取得（Phase 33: スマート注文機能用）
+
+        Args:
+            symbol: 通貨ペア
+            limit: 取得する板の深さ
+
+        Returns:
+            板情報（bids: 買い板, asks: 売り板）
+        """
+        try:
+            orderbook = self.exchange.fetch_order_book(symbol, limit)
+
+            self.logger.debug(
+                f"板情報取得成功: {symbol} (depth={limit})",
+                extra_data={
+                    "symbol": symbol,
+                    "best_bid": orderbook["bids"][0][0] if orderbook.get("bids") else None,
+                    "best_ask": orderbook["asks"][0][0] if orderbook.get("asks") else None,
+                },
+            )
+
+            return orderbook
+
+        except Exception as e:
+            raise DataFetchError(
+                f"板情報取得に失敗しました: {symbol} - {e}",
+                context={"symbol": symbol},
+            )
+
     def fetch_balance(self) -> Dict[str, Any]:
         """
         残高情報取得（信用取引）
