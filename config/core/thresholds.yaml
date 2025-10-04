@@ -323,7 +323,7 @@ position_management:
   min_account_balance: 10000  # 最小運用資金要件（1万円テスト対応・将来的に拡大可能）
   max_open_positions: 3   # 同時保有ポジション数上限
   max_daily_trades: 20    # 1日の最大取引回数
-  cooldown_minutes: 30    # 取引後のクールダウン時間（分）
+  cooldown_minutes: 15    # 取引後のクールダウン時間（分）- Phase 34.1修正: 30→15分（features.yaml統一）
 
   # 基本設定
   min_trade_size: 0.0001  # Bitbank最小ロット（1,670円程度）
