@@ -90,9 +90,11 @@ class HistoricalDataCollector:
     ) -> None:
         """タイムフレーム別データ収集"""
 
-        # 4時間足の場合は直接API、それ以外はBitbankClient使用
+        # Phase 34.1修正: 4時間足と15分足は直接API、それ以外はBitbankClient使用
         if timeframe == "4h":
             data = await self._collect_4h_direct(symbol, days, start_timestamp, end_timestamp)
+        elif timeframe == "15m":
+            data = await self._collect_15m_direct(symbol, days, start_timestamp, end_timestamp)
         else:
             data = await self._collect_via_client(
                 symbol, timeframe, days, start_timestamp, end_timestamp
@@ -174,6 +176,95 @@ class HistoricalDataCollector:
 
         except Exception as e:
             self.logger.warning(f"年別データ取得失敗 {year}: {e}")
+
+        return []
+
+    async def _collect_15m_direct(
+        self, symbol: str, days: int, start_timestamp: int = None, end_timestamp: int = None
+    ) -> List[List]:
+        """15分足データ直接取得（Phase 34.1実装）"""
+        try:
+            # 日付範囲を計算
+            if start_timestamp and end_timestamp:
+                start_date = datetime.fromtimestamp(start_timestamp / 1000)
+                end_date = datetime.fromtimestamp(end_timestamp / 1000)
+            else:
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=days)
+
+            all_data = []
+            current_date = start_date
+
+            # 日単位でデータ取得
+            while current_date <= end_date:
+                day_data = await self._fetch_15m_day_data(symbol, current_date)
+                if day_data:
+                    all_data.extend(day_data)
+
+                current_date += timedelta(days=1)
+
+                # API制限対応（1秒待機）
+                await asyncio.sleep(1)
+
+            # 日付フィルタリング
+            if start_timestamp and end_timestamp:
+                filtered_data = [
+                    row for row in all_data if start_timestamp <= row[0] <= end_timestamp
+                ]
+            else:
+                cutoff_timestamp = int(start_date.timestamp() * 1000)
+                filtered_data = [row for row in all_data if row[0] >= cutoff_timestamp]
+
+            # 重複除去とソート
+            unique_data = {}
+            for row in filtered_data:
+                unique_data[row[0]] = row
+
+            return sorted(unique_data.values(), key=lambda x: x[0])
+
+        except Exception as e:
+            self.logger.error(f"15分足直接取得エラー: {e}")
+            return []
+
+    async def _fetch_15m_day_data(self, symbol: str, date: datetime) -> List[List]:
+        """日別15分足データ取得（Phase 34.1実装）"""
+        try:
+            pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
+            date_str = date.strftime("%Y%m%d")  # YYYYMMDD形式
+            url = f"https://public.bitbank.cc/{pair}/candlestick/15min/{date_str}"
+
+            connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+            async with aiohttp.ClientSession(connector=connector) as session:
+                timeout = aiohttp.ClientTimeout(total=30.0)
+                async with session.get(url, timeout=timeout) as response:
+                    data = await response.json()
+
+                    if data.get("success") == 1:
+                        candlestick_data = data["data"]["candlestick"][0]["ohlcv"]
+
+                        # ccxt形式に変換: [timestamp_ms, open, high, low, close, volume]
+                        ohlcv_data = []
+                        for item in candlestick_data:
+                            if len(item) >= 6:
+                                ohlcv_data.append(
+                                    [
+                                        item[5],  # timestamp_ms
+                                        float(item[0]),  # open
+                                        float(item[1]),  # high
+                                        float(item[2]),  # low
+                                        float(item[3]),  # close
+                                        float(item[4]),  # volume
+                                    ]
+                                )
+
+                        return ohlcv_data
+
+        except Exception as e:
+            # 日別データが存在しない場合は警告レベルを下げる
+            if "404" in str(e) or "Not Found" in str(e):
+                self.logger.debug(f"日別データ未提供 {date_str}: {e}")
+            else:
+                self.logger.warning(f"日別データ取得失敗 {date_str}: {e}")
 
         return []
 
