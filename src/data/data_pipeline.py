@@ -82,6 +82,8 @@ class DataPipeline:
 
         # バックテストモードフラグ
         self._backtest_mode = False
+        # バックテスト用データストレージ（Phase 34追加）
+        self._backtest_data: Dict[str, pd.DataFrame] = {}
 
         self.logger.info("データパイプライン初期化完了")
 
@@ -155,6 +157,18 @@ class DataPipeline:
         Returns:
             OHLCV DataFrameOHLCV データ（pandas DataFrame）.
         """
+        # バックテストモード対応（Phase 34追加）
+        if self._backtest_mode and self._backtest_data:
+            timeframe_key = request.timeframe.value
+            if timeframe_key in self._backtest_data:
+                self.logger.debug(f"バックテストデータ使用: {timeframe_key}")
+                return self._backtest_data[timeframe_key].copy()
+            else:
+                self.logger.warning(
+                    f"バックテストデータに{timeframe_key}が見つかりません。空のDataFrameを返します。"
+                )
+                return pd.DataFrame()
+
         cache_key = self._generate_cache_key(request)
 
         # キャッシュチェック
@@ -365,6 +379,28 @@ class DataPipeline:
             bool: バックテストモードフラグ
         """
         return self._backtest_mode
+
+    def set_backtest_data(self, data: Dict[str, pd.DataFrame]) -> None:
+        """
+        バックテスト用データ設定（Phase 34実装）
+
+        Args:
+            data: タイムフレーム別データ辞書（例: {"4h": df_4h, "15m": df_15m}）
+        """
+        self._backtest_data = data
+        timeframes = list(data.keys())
+        total_rows = sum(len(df) for df in data.values())
+        self.logger.info(
+            f"バックテストデータ設定完了: {timeframes}",
+            extra_data={"timeframes": timeframes, "total_rows": total_rows},
+        )
+
+    def clear_backtest_data(self) -> None:
+        """
+        バックテスト用データクリア（Phase 34実装）
+        """
+        self._backtest_data.clear()
+        self.logger.info("バックテストデータクリア完了")
 
     def clear_cache(self) -> None:
         """キャッシュクリア."""

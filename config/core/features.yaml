@@ -44,7 +44,7 @@ trading:
 
   # Phase 29.6実装: クールダウン機能
   # Phase 32.1修正: 15分設定・本番稼働オン
-  # ⚠️ Phase 34.1注意: 実際の実装はthresholds.yaml:326のcooldown_minutesを参照
+  # ⚠️ Phase 33.3注意: 実際の実装はthresholds.yaml:326のcooldown_minutesを参照
   cooldown:
     enabled: true  # クールダウン機能（本番稼働オン）
     duration_minutes: 15  # クールダウン時間（30→15分：月100-200回目標対応）
@@ -52,7 +52,7 @@ trading:
     flexible_mode: true  # Phase 31.1実装: 柔軟なクールダウン判定
     trend_strength_threshold: 0.7  # 強トレンド判定閾値（flexible_mode時）
     override_on_strong_trend: true  # 強トレンド時スキップ
-    note: "Phase 32.1: 15分設定・本番稼働、Phase 31.1: トレンド連動柔軟化、Phase 34.1: thresholds.yaml統一"
+    note: "Phase 32.1: 15分設定・本番稼働、Phase 31.1: トレンド連動柔軟化、Phase 33.3: thresholds.yaml統一"
 
   # 緊急ストップロス
   emergency_stop_loss:
