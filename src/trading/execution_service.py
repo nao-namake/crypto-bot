@@ -231,9 +231,11 @@ class ExecutionService:
                 tp_config = get_threshold("position_management.take_profit", {})
                 sl_config = get_threshold("position_management.stop_loss", {})
 
-                # Phase 33: evaluation.take_profit/stop_lossの値を明示的にログ出力
+                # Phase 33.2: TP/SL配置の詳細情報をログ出力
                 self.logger.info(
-                    f"📋 TP/SL注文配置試行: TP={evaluation.take_profit}, SL={evaluation.stop_loss}"
+                    f"📋 TP/SL注文配置試行: "
+                    f"TP={evaluation.take_profit:.0f}円 (enabled={tp_config.get('enabled', True)}), "
+                    f"SL={evaluation.stop_loss:.0f}円 (enabled={sl_config.get('enabled', True)})"
                 )
 
                 if tp_config.get("enabled", True) and evaluation.take_profit:
@@ -282,6 +284,18 @@ class ExecutionService:
 
             except Exception as e:
                 self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}")
+
+            # Phase 33.2: TP/SL注文配置結果サマリー
+            if tp_order_id and sl_order_id:
+                self.logger.info(
+                    f"✅ TP/SL両方配置成功: TP注文ID={tp_order_id}, SL注文ID={sl_order_id}"
+                )
+            elif tp_order_id:
+                self.logger.warning(f"⚠️ TPのみ配置: TP注文ID={tp_order_id}, SL配置失敗")
+            elif sl_order_id:
+                self.logger.warning(f"⚠️ SLのみ配置: SL注文ID={sl_order_id}, TP配置失敗")
+            else:
+                self.logger.warning("⚠️ TP/SL両方とも配置されませんでした")
 
             # TP/SL注文IDをポジションに追加
             if tp_order_id:

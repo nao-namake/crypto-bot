@@ -760,6 +760,62 @@ class BitbankClient:
                 context={"operation": "fetch_order", "order_id": order_id},
             )
 
+    def fetch_active_orders(
+        self, symbol: str = "BTC/JPY", limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        アクティブな注文一覧取得（Phase 33.2: TP/SL配置確認用）
+
+        Args:
+            symbol: 通貨ペア
+            limit: 取得する注文数（デフォルト100）
+
+        Returns:
+            アクティブな注文のリスト
+
+        Raises:
+            ExchangeAPIError: 取得失敗時
+        """
+        try:
+            if not self.api_key or not self.api_secret:
+                raise ExchangeAPIError(
+                    "アクティブ注文取得には認証が必要です",
+                    context={"operation": "fetch_active_orders"},
+                )
+
+            # ccxtのfetch_open_ordersを使用
+            active_orders = self.exchange.fetch_open_orders(symbol, limit=limit)
+
+            self.logger.info(
+                f"アクティブ注文取得成功: {len(active_orders)}件",
+                extra_data={
+                    "symbol": symbol,
+                    "order_count": len(active_orders),
+                },
+            )
+
+            # TP/SL注文の統計情報をログ出力
+            tp_orders = [o for o in active_orders if o.get("type") == "take_profit"]
+            sl_orders = [o for o in active_orders if o.get("type") == "stop_loss"]
+            limit_orders = [o for o in active_orders if o.get("type") == "limit"]
+
+            self.logger.info(
+                f"📊 注文タイプ内訳: limit={len(limit_orders)}, TP={len(tp_orders)}, SL={len(sl_orders)}"
+            )
+
+            return active_orders
+
+        except ccxt.AuthenticationError as e:
+            raise ExchangeAPIError(
+                f"認証エラー: {e}",
+                context={"operation": "fetch_active_orders"},
+            )
+        except Exception as e:
+            raise ExchangeAPIError(
+                f"アクティブ注文取得に失敗しました: {e}",
+                context={"operation": "fetch_active_orders", "symbol": symbol},
+            )
+
     def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
         """
         ポジション情報取得（信用取引）
