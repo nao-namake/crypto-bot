@@ -16,6 +16,7 @@ import pandas as pd
 from ..core.config import get_threshold
 from ..core.exceptions import CryptoBotError
 from ..core.logger import get_logger
+from ..core.reporting.discord_notifier import DiscordManager
 from ..data.bitbank_client import BitbankClient
 from .risk_manager import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
 
@@ -64,6 +65,15 @@ class ExecutionService:
         mode_balance_config = mode_balances.get(self.mode, {})
         self.virtual_balance = mode_balance_config.get("initial_balance", 10000.0)
 
+        # Phase 37: Discord通知初期化（ライブモードのみ）
+        self.discord_notifier = None
+        if self.mode == "live":
+            try:
+                self.discord_notifier = DiscordManager()
+                self.logger.info("✅ Discord通知システム初期化完了（残高アラート有効）")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Discord通知初期化失敗: {e} - 残高アラートは無効化されます")
+
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
     async def execute_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
@@ -94,6 +104,27 @@ class ExecutionService:
                     side=evaluation.side,
                     fee=0.0,
                     status=OrderStatus.CANCELLED,  # スキップ状態（holdのため）
+                )
+
+            # Phase 37: 証拠金残高チェック（ライブモードのみ・Container exit回避）
+            balance_check = await self._validate_margin_balance()
+            if not balance_check["sufficient"]:
+                self.logger.info(
+                    f"💤 証拠金不足のため取引スキップ（Container exit回避） - "
+                    f"利用可能={balance_check['available']:.0f}円 < 必要={balance_check['required']:.0f}円"
+                )
+                available = balance_check["available"]
+                required = balance_check["required"]
+                return ExecutionResult(
+                    success=False,
+                    mode=ExecutionMode.LIVE if self.mode == "live" else ExecutionMode.PAPER,
+                    order_id=None,
+                    price=0.0,
+                    amount=0.0,
+                    error_message=f"証拠金不足: {available:.0f}円 < {required:.0f}円",
+                    side=evaluation.side,
+                    fee=0.0,
+                    status=OrderStatus.REJECTED,  # 残高不足により拒否
                 )
 
             # ポジション管理制限チェック（口座残高使い切り問題対策）
@@ -552,6 +583,93 @@ class ExecutionService:
             }
         else:
             return {"positions": 0, "latest_trades": []}
+
+    async def _validate_margin_balance(self) -> Dict[str, Any]:
+        """
+        証拠金残高チェック - 不足時はgraceful degradation（Phase 37）
+
+        Container exit(1)回避のため、残高不足時でもエラーを投げずに
+        取引スキップを示すDictを返却する。
+
+        Returns:
+            Dict: {
+                "sufficient": bool - 残高が十分か,
+                "available": float - 利用可能残高（円）,
+                "required": float - 必要最小残高（円）
+            }
+        """
+        # ライブモードでのみ実行（paper/backtestは影響なし）
+        if self.mode != "live" or not self.bitbank_client:
+            return {"sufficient": True, "available": 0, "required": 0}
+
+        try:
+            # 残高チェック機能の有効化確認
+            balance_alert_enabled = get_threshold("balance_alert.enabled", True)
+            if not balance_alert_enabled:
+                return {"sufficient": True, "available": 0, "required": 0}
+
+            # 証拠金状況取得
+            margin_status = await self.bitbank_client.fetch_margin_status()
+            available_balance = float(margin_status.get("available_balance", 0))
+
+            # 最小取引必要額
+            min_required = get_threshold("balance_alert.min_required_margin", 14000.0)
+
+            if available_balance < min_required:
+                self.logger.warning(
+                    f"⚠️ 証拠金不足検出: 利用可能={available_balance:.0f}円 < 必要={min_required:.0f}円"
+                )
+                # Discord通知送信
+                await self._send_balance_alert(available_balance, min_required)
+
+                return {
+                    "sufficient": False,
+                    "available": available_balance,
+                    "required": min_required,
+                }
+
+            # 残高十分
+            return {
+                "sufficient": True,
+                "available": available_balance,
+                "required": min_required,
+            }
+
+        except Exception as e:
+            # エラー時は既存動作を維持（取引続行）
+            self.logger.error(f"証拠金チェック失敗: {e} - 取引は継続されます")
+            return {"sufficient": True, "available": 0, "required": 0}
+
+    async def _send_balance_alert(self, available: float, required: float) -> None:
+        """
+        Discord残高不足アラート送信（Phase 37）
+
+        Args:
+            available: 利用可能残高（円）
+            required: 必要最小残高（円）
+        """
+        if not self.discord_notifier:
+            self.logger.debug("Discord通知未初期化のため残高アラートスキップ")
+            return
+
+        try:
+            # Discord Critical通知送信
+            discord_enabled = get_threshold("balance_alert.discord_critical_alert", True)
+            if discord_enabled:
+                self.discord_notifier.send_error_notification(
+                    {
+                        "error_type": "INSUFFICIENT_MARGIN_BALANCE",
+                        "message": "🚨 証拠金不足検出 - 新規注文スキップ中",
+                        "details": f"利用可能: {available:.0f}円 / 必要: {required:.0f}円",
+                        "action_required": f"bitbank口座に約{required - available:.0f}円以上の入金が必要です",
+                        "impact": "Container exit(1)回避のため取引をスキップしています",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+                self.logger.info("📧 Discord残高不足アラート送信完了")
+
+        except Exception as e:
+            self.logger.error(f"Discord通知送信失敗: {e}")
 
     def _check_position_limits(self, evaluation: TradeEvaluation) -> Dict[str, Any]:
         """

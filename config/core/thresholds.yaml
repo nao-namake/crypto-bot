@@ -9,9 +9,28 @@
 # 実行・動作設定
 # ========================================
 execution:
-  backtest_period_days: 180
+  backtest_period_days: 30
   live_mode_interval_seconds: 180
   paper_mode_interval_seconds: 60
+
+# ========================================
+# バックテスト最適化設定（Phase 35 - 高速化最適化版）
+# ========================================
+backtest:
+  # ログ設定（Phase 35.2: 最適化）
+  log_level: WARNING            # 基本WARNING（戦略詳細抑制）、重要イベントは明示的INFO
+  discord_enabled: false        # Discord通知無効化（ネットワーク通信削減）
+
+  # 進捗表示設定
+  progress_interval: 1000       # 進捗ログ間隔（デフォルト1000サイクル毎）
+  report_interval: 10000        # 進捗レポート保存間隔（100→10000: I/O 99%削減）
+
+  # API呼び出し設定
+  mock_api_calls: true          # Bitbank API呼び出しモック化（エラー20003排除）
+
+  # パフォーマンス設定
+  enable_detailed_logging: false  # 詳細ログ無効化
+  fast_data_slicing: true         # 高速データスライシング有効化（O(1)最適化）
 # ========================================
 # 機械学習・信頼度設定（動的閾値）
 # ========================================
@@ -427,3 +446,15 @@ order_execution:
     fallback_to_market: true             # タイムアウト時に成行注文へ変換
     max_price_deviation: 0.05            # 価格乖離閾値5%（超過時は即座に成行変換）
     check_interval_seconds: 60           # 約定状況確認間隔（60秒）
+
+# ========================================
+# Phase 37: 残高不足Graceful Degradation
+# ========================================
+# Container exit(1)回避・システム安定性向上
+# 証拠金不足時のDiscordアラート・取引スキップ
+balance_alert:
+  enabled: true                          # 残高チェック機能有効化
+  min_required_margin: 14000.0           # 最小必要証拠金（円）- 0.0001 BTC想定
+  alert_threshold_ratio: 1.2             # アラート閾値（必要額の1.2倍未満で警告）
+  check_interval_minutes: 3              # チェック間隔（分）- 取引サイクルと同期
+  discord_critical_alert: true           # Discord Critical通知有効化
