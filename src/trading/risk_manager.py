@@ -108,12 +108,13 @@ class TradeEvaluation:
     warnings: List[str]
     denial_reasons: List[str]
     evaluation_timestamp: datetime
-
-    # 詳細情報
     kelly_recommendation: float
     drawdown_status: str
     anomaly_alerts: List[str]
     market_conditions: Dict[str, Any]
+
+    # Phase 35.3: オプションフィールド（デフォルト値あり）
+    entry_price: Optional[float] = None  # バックテスト用エントリー価格
 
     # 後方互換性のためのactionプロパティ（Silent Failure修正）
     @property
@@ -1179,6 +1180,7 @@ class IntegratedRiskManager:
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 confidence_level=ml_confidence,
+                entry_price=last_price,  # Phase 35.3: バックテスト用エントリー価格設定
                 warnings=warnings,
                 denial_reasons=denial_reasons,
                 evaluation_timestamp=evaluation_timestamp,
@@ -1216,6 +1218,7 @@ class IntegratedRiskManager:
                 stop_loss=None,
                 take_profit=None,
                 confidence_level=0.0,
+                entry_price=0.0,  # Phase 35.3: エラー時は0（フォールバック）
                 warnings=[],
                 denial_reasons=[f"評価システムエラー: {e}"],
                 evaluation_timestamp=datetime.now(),

@@ -120,7 +120,12 @@ class CryptoBotLogger:
     def __init__(self, name: str = "crypto_bot"):
         self.name = name
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.DEBUG)
+
+        # Phase 35: 環境変数からログレベルを取得（バックテスト最適化）
+        import os
+        env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        initial_level = getattr(logging, env_log_level, logging.DEBUG)
+        self.logger.setLevel(initial_level)
 
         # 重複ハンドラー防止
         if self.logger.handlers:
@@ -160,8 +165,13 @@ class CryptoBotLogger:
 
             logging_config = DefaultLoggingConfig()
 
-        # ログレベル設定
-        log_level = getattr(logging, logging_config.level.upper(), logging.INFO)
+        # Phase 35: ログレベル設定（環境変数を最優先）
+        import os
+        env_log_level = os.getenv("LOG_LEVEL")
+        if env_log_level:
+            log_level = getattr(logging, env_log_level.upper(), logging.INFO)
+        else:
+            log_level = getattr(logging, logging_config.level.upper(), logging.INFO)
         self.logger.setLevel(log_level)
 
         # コンソールハンドラー
@@ -172,9 +182,13 @@ class CryptoBotLogger:
             self._setup_file_handler(logging_config.retention_days)
 
     def _setup_console_handler(self) -> None:
-        """コンソールハンドラーのセットアップ."""
+        """コンソールハンドラーのセットアップ（Phase 35: 環境変数対応）."""
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.DEBUG)
+        # Phase 35: 環境変数でハンドラーレベルも制御
+        import os
+        env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        handler_level = getattr(logging, env_log_level, logging.DEBUG)
+        console_handler.setLevel(handler_level)
         console_handler.setFormatter(ColorFormatter())
         self.logger.addHandler(console_handler)
 
@@ -201,7 +215,11 @@ class CryptoBotLogger:
             encoding="utf-8",
         )
 
-        file_handler.setLevel(logging.DEBUG)
+        # Phase 35: 環境変数でハンドラーレベルも制御（バックテスト最適化）
+        import os
+        env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        handler_level = getattr(logging, env_log_level, logging.DEBUG)
+        file_handler.setLevel(handler_level)
         file_handler.setFormatter(JSONFormatter())
         self.logger.addHandler(file_handler)
 

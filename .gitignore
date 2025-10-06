@@ -174,7 +174,7 @@ health_check.json
 pipeline_log/
 performance_*.json
 
-# 分析・レポート関連（scripts/analytics/）
+# 分析・レポート関連（scripts/analysis/）
 logs/performance_analysis/
 logs/operational_reports/
 logs/monitoring_reports/

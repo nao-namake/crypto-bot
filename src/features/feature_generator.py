@@ -105,6 +105,43 @@ class FeatureGenerator:
             self.logger.error(f"統合特徴量生成エラー: {e}")
             raise DataProcessingError(f"特徴量生成失敗: {e}")
 
+    def generate_features_sync(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        同期版特徴量生成（Phase 35: バックテスト事前計算用）
+
+        Args:
+            df: OHLCVデータを含むDataFrame
+
+        Returns:
+            15特徴量を含むDataFrame
+
+        Note:
+            バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
+        """
+        try:
+            result_df = df.copy()
+
+            # 必要列チェック
+            self._validate_required_columns(result_df)
+
+            # 基本特徴量を生成（3個）
+            result_df = self._generate_basic_features(result_df)
+
+            # テクニカル指標を生成（6個）
+            result_df = self._generate_technical_indicators(result_df)
+
+            # 異常検知指標を生成（3個）
+            result_df = self._generate_anomaly_indicators(result_df)
+
+            # NaN値処理（統合版）
+            result_df = self._handle_nan_values(result_df)
+
+            return result_df
+
+        except Exception as e:
+            self.logger.error(f"同期版特徴量生成エラー: {e}")
+            raise DataProcessingError(f"同期版特徴量生成失敗: {e}")
+
     def _convert_to_dataframe(self, market_data: Dict[str, Any]) -> pd.DataFrame:
         """市場データをDataFrameに変換（タイムフレーム辞書対応）"""
         if isinstance(market_data, pd.DataFrame):

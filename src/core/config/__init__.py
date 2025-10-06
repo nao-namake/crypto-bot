@@ -28,6 +28,18 @@ from .threshold_manager import (
     reload_thresholds,
 )
 
+# Phase 35: ランタイムフラグシステム
+from .runtime_flags import (
+    get_all_flags,
+    get_backtest_log_level,
+    is_backtest_mode,
+    is_paper_mode,
+    reset_all_flags,
+    set_backtest_log_level,
+    set_backtest_mode,
+    set_paper_mode,
+)
+
 
 @dataclass
 class Config:
@@ -374,4 +386,13 @@ __all__ = [
     "load_features_config",
     "get_features_config",
     "reload_features_config",
+    # ランタイムフラグ管理関数（Phase 35）
+    "set_backtest_mode",
+    "is_backtest_mode",
+    "set_paper_mode",
+    "is_paper_mode",
+    "set_backtest_log_level",
+    "get_backtest_log_level",
+    "reset_all_flags",
+    "get_all_flags",
 ]

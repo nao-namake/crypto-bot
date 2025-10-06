@@ -84,6 +84,8 @@ class DataPipeline:
         self._backtest_mode = False
         # バックテスト用データストレージ（Phase 34追加）
         self._backtest_data: Dict[str, pd.DataFrame] = {}
+        # バックテスト用ML予測キャッシュ（Phase 35.4追加）
+        self._backtest_ml_prediction: Optional[Dict[str, Any]] = None
 
         self.logger.info("データパイプライン初期化完了")
 
@@ -362,7 +364,7 @@ class DataPipeline:
 
     def set_backtest_mode(self, enabled: bool) -> None:
         """
-        バックテストモードの設定
+        バックテストモードの設定（Phase 35: BitbankClient連携）
 
         Args:
             enabled: バックテストモード有効フラグ
@@ -370,6 +372,10 @@ class DataPipeline:
         self._backtest_mode = enabled
         mode_text = "有効" if enabled else "無効"
         self.logger.info(f"バックテストモード設定: {mode_text}")
+
+        # Phase 35: BitbankClientにもバックテストモードを伝播
+        if hasattr(self.client, "set_backtest_mode"):
+            self.client.set_backtest_mode(enabled)
 
     def is_backtest_mode(self) -> bool:
         """
@@ -401,6 +407,14 @@ class DataPipeline:
         """
         self._backtest_data.clear()
         self.logger.info("バックテストデータクリア完了")
+
+    def set_backtest_ml_prediction(self, prediction: Dict[str, Any]) -> None:
+        """バックテスト用ML予測設定（Phase 35.4追加）"""
+        self._backtest_ml_prediction = prediction
+
+    def get_backtest_ml_prediction(self) -> Optional[Dict[str, Any]]:
+        """バックテスト用ML予測取得（Phase 35.4追加）"""
+        return self._backtest_ml_prediction
 
     def clear_cache(self) -> None:
         """キャッシュクリア."""

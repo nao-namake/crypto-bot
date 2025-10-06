@@ -65,6 +65,17 @@ class BitbankClient:
 
         self.leverage = leverage
 
+        # Phase 35: バックテストモードフラグ（API呼び出しモック化用）
+        # グローバルフラグから自動検出
+        try:
+            from ..core.config import is_backtest_mode
+            self._backtest_mode = is_backtest_mode()
+            if self._backtest_mode:
+                self.logger.info("🎯 バックテストモード検出: API呼び出しをモック化します")
+        except Exception:
+            # インポートエラー時はデフォルトFalse
+            self._backtest_mode = False
+
         # ccxt Bitbank エクスチェンジ初期化
         try:
             self.exchange = ccxt.bitbank(
@@ -109,6 +120,19 @@ class BitbankClient:
         except Exception as e:
             self.logger.error("Bitbank API接続テスト失敗", error=e)
             return False
+
+    def set_backtest_mode(self, enabled: bool) -> None:
+        """
+        バックテストモード設定（Phase 35: API呼び出しモック化）
+
+        Args:
+            enabled: バックテストモード有効化フラグ
+        """
+        self._backtest_mode = enabled
+        if enabled:
+            self.logger.info("🎯 BitbankClient: バックテストモード有効化（API呼び出しモック化）")
+        else:
+            self.logger.debug("BitbankClient: バックテストモード無効化")
 
     async def fetch_ohlcv(
         self,
@@ -359,11 +383,24 @@ class BitbankClient:
 
     def fetch_balance(self) -> Dict[str, Any]:
         """
-        残高情報取得（信用取引）
+        残高情報取得（Phase 35: バックテストモックデータ対応）
 
         Returns:
             信用取引残高情報.
         """
+        # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
+        if self._backtest_mode:
+            from ..core.config import get_threshold
+
+            mock_enabled = get_threshold("backtest.mock_api_calls", True)
+            if mock_enabled:
+                self.logger.debug("🎯 バックテストモック: fetch_balance スキップ")
+                return {
+                    "JPY": {"total": 10000.0, "free": 10000.0, "used": 0.0},
+                    "BTC": {"total": 0.0, "free": 0.0, "used": 0.0},
+                    "info": {"mock": True},
+                }
+
         try:
             if not self.api_key or not self.api_secret:
                 raise ExchangeAPIError(
@@ -953,7 +990,7 @@ class BitbankClient:
 
     async def fetch_margin_status(self) -> Dict[str, Any]:
         """
-        信用取引口座状況取得（Phase 27新機能・保証金維持率直接取得）
+        信用取引口座状況取得（Phase 35: バックテストモックデータ対応）
 
         Returns:
             信用取引口座の状況情報（保証金維持率含む）
@@ -961,6 +998,22 @@ class BitbankClient:
         Raises:
             ExchangeAPIError: 取得失敗時
         """
+        # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
+        if self._backtest_mode:
+            from ..core.config import get_threshold
+
+            mock_enabled = get_threshold("backtest.mock_api_calls", True)
+            if mock_enabled:
+                self.logger.debug("🎯 バックテストモック: fetch_margin_status スキップ")
+                return {
+                    "margin_ratio": 500.0,  # 維持率500%（安全な値）
+                    "available_balance": 10000.0,  # 利用可能残高10,000円
+                    "used_margin": 0.0,  # 使用保証金0円
+                    "unrealized_pnl": 0.0,  # 未実現損益0円
+                    "margin_call_status": "safe",  # マージンコールなし
+                    "raw_response": {"success": 1, "data": {"mock": True}},
+                }
+
         try:
             if not self.api_key or not self.api_secret:
                 raise ExchangeAPIError(

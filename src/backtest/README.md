@@ -254,7 +254,7 @@ jq '.execution_stats.strategy_performance' "$latest"
 
 - ❌ `BacktestEngine`（独自エンジン）
 - ❌ `BacktestEvaluator`（複雑統計分析）
-- ❌ `/scripts/backtest/run_backtest.py`（独立実行）
+- ❌ `/scripts/management/run_backtest.py`（独立実行）
 - ❌ `日付付きCSVファイル名`（YYYYMM形式）
 
 ### 簡略化機能

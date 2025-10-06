@@ -122,7 +122,12 @@ class TradingLoggerService:
                 log_message += f", 手数料: ¥{execution_result.fee:,.0f}"
 
             # 成功した取引は必ずDiscord通知
-            self.logger.info(log_message, discord_notify=True)
+            # Phase 35.2: バックテスト時はWARNING（強制出力）
+            import os
+            if os.environ.get('BACKTEST_MODE') == 'true':
+                self.logger.warning(log_message, discord_notify=False)
+            else:
+                self.logger.info(log_message, discord_notify=True)
 
             # 統計情報ログ（定期的）
             await self._check_and_log_statistics()

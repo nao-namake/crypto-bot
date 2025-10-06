@@ -111,13 +111,22 @@ class MarginMonitor:
 
     async def fetch_margin_ratio_from_api(self) -> Optional[float]:
         """
-        bitbank APIから保証金維持率を直接取得（Phase 27新機能）
+        bitbank APIから保証金維持率を直接取得（Phase 35: バックテストモード対応）
 
         Returns:
             保証金維持率（%）、取得失敗時はNone
         """
         if not self.use_api_direct:
             return None
+
+        # Phase 35: バックテストモード時はAPI呼び出しスキップ
+        try:
+            from ..core.config import is_backtest_mode
+            if is_backtest_mode():
+                self.logger.debug("🎯 バックテストモード: API呼び出しをスキップ")
+                return None
+        except Exception:
+            pass
 
         try:
             client = get_bitbank_client()

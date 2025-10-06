@@ -218,6 +218,23 @@ async def main():
     # 2. 基本設定読み込み（モード設定一元化対応）
     try:
         config = load_config(args.config, cmdline_mode=args.mode)
+
+        # Phase 35: バックテストモード時の最適化設定
+        if config.mode == "backtest":
+            # thresholds.yamlからログレベルを取得（Phase 35.1: 動的設定対応）
+            from src.core.config.threshold_manager import get_threshold
+            log_level = get_threshold("backtest.log_level", "ERROR")
+
+            # 環境変数でログレベルを制御（全コンポーネントに影響）
+            os.environ["LOG_LEVEL"] = log_level
+            os.environ["BACKTEST_MODE"] = "true"
+            print(f"🎯 バックテストモード検出: ログレベル{log_level}、API呼び出しモック化")
+
+            # グローバルフラグ設定（全コンポーネントで参照可能）
+            from src.core.config import set_backtest_mode, set_backtest_log_level
+            set_backtest_mode(True)
+            set_backtest_log_level(log_level)
+
         logger = setup_logging("crypto_bot")
     except Exception as e:
         print(f"❌ 基本設定エラー: {e}")

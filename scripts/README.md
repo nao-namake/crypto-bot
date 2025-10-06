@@ -10,10 +10,11 @@
 
 ```
 scripts/
-├── README.md               # このファイル（Phase 29最適化版）
-├── analytics/              # システム分析基盤 [詳細: analytics/README.md]
-│   ├── README.md                  # 分析基盤ガイド
-│   └── base_analyzer.py           # 共通基盤クラス・Cloud Runログ取得・システム監視
+├── README.md               # このファイル（Phase 35更新版）
+├── analysis/               # システム分析基盤 [詳細: analysis/README_analytics.md]
+│   ├── README_analytics.md        # 分析基盤ガイド
+│   ├── base_analyzer.py           # 共通基盤クラス・Cloud Runログ取得・システム監視
+│   └── ml_confidence_analysis.sh  # ML信頼度分析スクリプト
 ├── deployment/             # デプロイメント・インフラ管理 [詳細: deployment/README.md]
 │   ├── README.md                  # デプロイメントガイド
 │   ├── deploy_production.sh       # 本番環境デプロイメント・Cloud Run管理
@@ -54,10 +55,11 @@ scripts/
 - **GCP設定スクリプト**: CI/CD環境構築・Secret Manager・環境検証
 - Docker統合・段階的リリース・監視・復旧・セキュリティ管理
 
-### **analytics/ - システム分析基盤（Phase 29最適化・簡素化完了）**
+### **analysis/ - システム分析基盤（Phase 35統合完了）**
 システム運用データの分析・監視機能の共通基盤を提供するディレクトリです。
 - **base_analyzer.py**: 共通基盤クラス・Cloud Runログ取得・システム監視・dev_check.py統合利用
-- Phase 29最適化により未使用ファイル削除・保守性向上・システム構成簡素化完了
+- **ml_confidence_analysis.sh**: ML信頼度分析・GCPログ解析・統計計算・推奨事項自動出力
+- Phase 35で analysis/ と analytics/ を統合・ディレクトリ簡素化完了
 
 ### **management/ - Bot管理スクリプト（Claude Code対応・プロセス管理統合）**
 Botの安全で効率的な実行・管理を支援するディレクトリです。
@@ -120,8 +122,8 @@ python3 scripts/ml/create_ml_models.py --verbose
 # 2. 統合管理経由実行（推奨）
 python3 scripts/testing/dev_check.py ml-models
 
-# 3. 学習結果確認
-python3 scripts/analytics/performance_analyzer.py --ml-metrics
+# 3. ML信頼度分析
+bash scripts/analysis/ml_confidence_analysis.sh
 ```
 
 ## ⚠️ 注意事項・制約

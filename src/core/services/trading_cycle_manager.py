@@ -45,7 +45,12 @@ class TradingCycleManager:
         ここでは統合フローの制御のみ実行。
         """
         cycle_id = datetime.now().isoformat()
-        self.logger.info(f"取引サイクル開始 - ID: {cycle_id}")
+        # Phase 35.2: バックテスト時はDEBUGレベル（ログ抑制）
+        import os
+        if os.environ.get('BACKTEST_MODE') == 'true':
+            self.logger.debug(f"取引サイクル開始 - ID: {cycle_id}")
+        else:
+            self.logger.info(f"取引サイクル開始 - ID: {cycle_id}")
 
         try:
             # Phase 2: データ取得
@@ -115,9 +120,19 @@ class TradingCycleManager:
 
                 # DataFrameの有効性チェック（強化版）
                 if hasattr(df, "empty") and not df.empty:
-                    features[timeframe] = await self.orchestrator.feature_service.generate_features(
-                        df
-                    )
+                    # Phase 35.2: 事前計算済み特徴量チェック（バックテスト最適化）
+                    required_features = ["rsi_14", "macd", "atr_14"]  # 代表的特徴量
+                    if all(col in df.columns for col in required_features):
+                        # 既に特徴量が計算済み（事前計算データ）
+                        features[timeframe] = df
+                        self.logger.debug(
+                            f"✅ {timeframe}事前計算済み特徴量使用（Phase 35最適化）"
+                        )
+                    else:
+                        # 特徴量を計算
+                        features[timeframe] = await self.orchestrator.feature_service.generate_features(
+                            df
+                        )
                 else:
                     self.logger.warning(f"空のDataFrame検出: {timeframe}")
                     features[timeframe] = pd.DataFrame()
@@ -156,14 +171,30 @@ class TradingCycleManager:
                     pd.DataFrame(), "データ不足"
                 )
         except Exception as e:
-            self.logger.error(f"戦略評価エラー: {e}")
+            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
+            import os
+            if os.environ.get('BACKTEST_MODE') == 'true':
+                self.logger.debug(f"戦略評価エラー: {e}")
+            else:
+                self.logger.error(f"戦略評価エラー: {e}")
             return self.orchestrator.strategy_service._create_hold_signal(
                 pd.DataFrame(), f"戦略評価エラー: {e}"
             )
 
     async def _get_ml_prediction(self, main_features):
-        """Phase 5: ML予測"""
+        """Phase 5: ML予測（Phase 35.4: バックテスト時はキャッシュ使用）"""
         try:
+            # Phase 35.4: バックテストモード時は事前計算済みML予測を使用
+            import os
+            if os.environ.get('BACKTEST_MODE') == 'true':
+                cached_prediction = self.orchestrator.data_service.get_backtest_ml_prediction()
+                if cached_prediction:
+                    self.logger.debug(
+                        f"✅ ML予測キャッシュ使用: prediction={cached_prediction['prediction']}, "
+                        f"confidence={cached_prediction['confidence']:.3f}"
+                    )
+                    return cached_prediction
+
             if not main_features.empty:
                 # Phase 22: 15特徴量のみを選択してML予測（特徴量数不一致修正）
                 from ...core.config.feature_manager import get_feature_names
@@ -524,9 +555,16 @@ class TradingCycleManager:
                     trade_evaluation
                 )
 
-                self.logger.info(
-                    f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
-                )
+                # Phase 35.2: バックテスト時はWARNING（強制出力）
+                import os
+                if os.environ.get('BACKTEST_MODE') == 'true':
+                    self.logger.warning(
+                        f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
+                    )
+                else:
+                    self.logger.info(
+                        f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
+                    )
 
                 await self.orchestrator.trading_logger.log_execution_result(
                     execution_result, cycle_id

@@ -154,4 +154,4 @@ print(f"  精度: {prod_data['performance_metrics']['accuracy']:.3f}")
 ### **監視・通知システム**
 - `src/monitoring/discord_notifier.py`: 学習結果通知・アラート・レポート
 - Cloud Run監視・ヘルスチェック・性能メトリクス・運用監視
-- `scripts/analytics/`: 学習分析・性能評価・ダッシュボード・レポート生成
+- `scripts/analysis/`: 学習分析・性能評価・ML信頼度分析・レポート生成

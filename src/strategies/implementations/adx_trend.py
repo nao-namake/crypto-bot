@@ -101,7 +101,12 @@ class ADXTrendStrengthStrategy(StrategyBase):
             )
             return signal
         except Exception as e:
-            self.logger.error(f"[ADXTrend] シグナル生成エラー: {e}")
+            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
+            import os
+            if os.environ.get('BACKTEST_MODE') == 'true':
+                self.logger.debug(f"[ADXTrend] シグナル生成エラー: {e}")
+            else:
+                self.logger.error(f"[ADXTrend] シグナル生成エラー: {e}")
             return self._create_hold_signal(df, f"エラー: {str(e)}")
 
     def _validate_data(self, df: pd.DataFrame) -> bool:

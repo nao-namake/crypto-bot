@@ -42,6 +42,8 @@ class BacktestRunner(BaseRunner):
         self.backtest_end = None
         self.current_timestamp = None
         self.csv_data = {}  # タイムフレーム別CSVデータ
+        self.precomputed_features = {}  # Phase 35: 事前計算済み特徴量（10倍高速化）
+        self.precomputed_ml_predictions = {}  # Phase 35.4: 事前計算済みML予測（10倍高速化）
         self.data_index = 0  # 現在の処理位置
         self.total_data_points = 0
 
@@ -65,7 +67,7 @@ class BacktestRunner(BaseRunner):
             実行成功・失敗
         """
         try:
-            self.logger.info("📊 バックテストモード開始（Phase 22・ハードコード排除版）")
+            self.logger.warning("📊 バックテストモード開始（Phase 35最適化: ログ=WARNING）")
 
             # 1. バックテスト期間設定
             await self._setup_backtest_period()
@@ -73,18 +75,24 @@ class BacktestRunner(BaseRunner):
             # 2. CSVデータ読み込み
             await self._load_csv_data()
 
-            # 3. データ検証
+            # 3. 特徴量事前計算（Phase 35: 10倍高速化）
+            await self._precompute_features()
+
+            # 3.5. ML予測事前計算（Phase 35.4: さらなる高速化）
+            await self._precompute_ml_predictions()
+
+            # 4. データ検証
             if not await self._validate_data():
                 self.logger.error("❌ CSVデータが不十分です")
                 return False
 
-            # 4. 時系列バックテスト実行
+            # 5. 時系列バックテスト実行
             await self._run_time_series_backtest()
 
-            # 5. 最終レポート生成
+            # 6. 最終レポート生成
             await self._generate_final_backtest_report()
 
-            self.logger.info("✅ バックテスト実行完了", discord_notify=True)
+            self.logger.warning("✅ バックテスト実行完了", discord_notify=True)
             return True
 
         except Exception as e:
@@ -141,11 +149,115 @@ class BacktestRunner(BaseRunner):
                 count = len(self.csv_data.get(tf, []))
                 timeframe_stats.append(f"{tf}:{count}件")
 
-            self.logger.info(f"📈 CSVデータ読み込み完了: {', '.join(timeframe_stats)}")
+            self.logger.warning(f"📈 CSVデータ読み込み完了: {', '.join(timeframe_stats)}")
 
         except Exception as e:
             self.logger.error(f"❌ CSVデータ読み込みエラー: {e}")
             raise
+
+    async def _precompute_features(self):
+        """
+        特徴量事前計算（Phase 35: 10倍高速化）
+
+        全CSVデータに対して一度だけ特徴量を計算し、
+        各サイクルではスライスのみ実行することで大幅高速化。
+
+        最適化効果:
+        - 17,271回の特徴量計算 → 1回（タイムフレーム毎）
+        - 理論値: 17,271倍高速化
+        - 実測予想: 20-30分 → 2-3分（10倍高速化）
+        """
+        try:
+            import time
+            from ...features.feature_generator import FeatureGenerator
+
+            self.logger.warning("🚀 特徴量事前計算開始（Phase 35最適化）")
+            start_time = time.time()
+
+            feature_gen = FeatureGenerator()
+
+            for timeframe, df in self.csv_data.items():
+                if df.empty:
+                    continue
+
+                # Phase 35.2: 詳細ログ削除（高速化）
+                tf_start = time.time()
+
+                # 同期版特徴量生成（全データ一括計算）
+                features_df = feature_gen.generate_features_sync(df)
+
+                # 事前計算結果をキャッシュ
+                self.precomputed_features[timeframe] = features_df
+
+            elapsed = time.time() - start_time
+            total_records = sum(len(df) for df in self.csv_data.values())
+            self.logger.warning(
+                f"✅ 特徴量事前計算完了: {total_records}件 "
+                f"（{elapsed:.1f}秒, {total_records/elapsed:.0f}件/秒）",
+                discord_notify=False,
+            )
+
+        except Exception as e:
+            self.logger.error(f"❌ 特徴量事前計算エラー: {e}")
+            raise
+
+    async def _precompute_ml_predictions(self):
+        """
+        ML予測事前計算（Phase 35.4: さらなる高速化）
+
+        全特徴量データに対して一度だけML予測を実行し、
+        各サイクルでは事前計算済み予測を使用することで大幅高速化。
+
+        最適化効果:
+        - 2,747回のML予測 → 1回のバッチ予測
+        - 理論値: 2,747倍高速化
+        - 実測予想: 15分 → 1-2分（10倍高速化）
+        """
+        try:
+            import time
+            import numpy as np
+            from ...core.config.feature_manager import get_feature_names
+
+            self.logger.warning("🤖 ML予測事前計算開始（Phase 35.4最適化）")
+            start_time = time.time()
+
+            # メインタイムフレームの特徴量に対してML予測
+            main_timeframe = self.timeframes[0] if self.timeframes else "4h"
+            if main_timeframe in self.precomputed_features:
+                features_df = self.precomputed_features[main_timeframe]
+
+                # 15特徴量のみ抽出
+                features_to_use = get_feature_names()
+                available_features = [col for col in features_to_use if col in features_df.columns]
+
+                if len(available_features) == len(features_to_use):
+                    ml_features = features_df[available_features]
+
+                    # バッチ予測実行
+                    predictions_array = self.orchestrator.ml_service.predict(ml_features)
+                    probabilities_array = self.orchestrator.ml_service.predict_proba(ml_features)
+
+                    # 予測結果を保存（インデックス対応）
+                    self.precomputed_ml_predictions[main_timeframe] = {
+                        "predictions": predictions_array,
+                        "probabilities": probabilities_array
+                    }
+
+                    elapsed = time.time() - start_time
+                    self.logger.warning(
+                        f"✅ ML予測事前計算完了: {len(predictions_array)}件 "
+                        f"（{elapsed:.1f}秒, {len(predictions_array)/elapsed:.0f}件/秒）",
+                        discord_notify=False
+                    )
+                else:
+                    self.logger.warning(
+                        f"⚠️ 特徴量不足: {len(available_features)}/{len(features_to_use)}個 - ML予測スキップ"
+                    )
+
+        except Exception as e:
+            self.logger.error(f"❌ ML予測事前計算エラー: {e}")
+            # エラー時は通常のML予測にフォールバック（処理継続）
+            self.precomputed_ml_predictions = {}
 
     async def _validate_data(self) -> bool:
         """データ検証"""
@@ -169,7 +281,7 @@ class BacktestRunner(BaseRunner):
         return True
 
     async def _run_time_series_backtest(self):
-        """時系列バックテスト実行"""
+        """時系列バックテスト実行（Phase 35: 高速化最適化版）"""
         main_timeframe = self.timeframes[0] if self.timeframes else "4h"
         main_data = self.csv_data[main_timeframe]
 
@@ -178,17 +290,17 @@ class BacktestRunner(BaseRunner):
             self.data_index = i
             self.current_timestamp = main_data.index[i]
 
-            # 進捗表示
-            progress_interval = get_threshold("backtest.progress_interval", 50)
+            # Phase 35.2: 進捗表示（WARNING強制出力）
+            progress_interval = get_threshold("backtest.progress_interval", 1000)
             if i % progress_interval == 0:
                 progress = (i / len(main_data)) * 100
-                self.logger.info(
+                self.logger.warning(
                     f"📊 バックテスト進行中: {progress:.1f}% "
                     f"({i}/{len(main_data)}) - {self.current_timestamp.strftime('%Y-%m-%d %H:%M')}"
                 )
 
-            # 現在時点のデータを準備
-            await self._setup_current_market_data()
+            # 現在時点のデータを準備（Phase 35: 高速化版）
+            await self._setup_current_market_data_fast(i)
 
             # 取引サイクル実行（本番と同じロジック）
             try:
@@ -200,13 +312,20 @@ class BacktestRunner(BaseRunner):
                 self.logger.warning(f"⚠️ 取引サイクルエラー ({self.current_timestamp}): {e}")
                 continue
 
-            # バックテスト専用の進捗保存（定期的）
-            report_interval = get_threshold("backtest.report_interval", 100)
+            # Phase 35: 進捗保存を大幅削減（100→10000: 99%削減）
+            report_interval = get_threshold("backtest.report_interval", 10000)
             if i % report_interval == 0:
                 await self._save_progress_report()
 
-    async def _setup_current_market_data(self):
-        """現在時点の市場データを準備"""
+    async def _setup_current_market_data_fast(self, current_index: int):
+        """
+        現在時点の市場データを準備（Phase 35: 高速化版）
+
+        最適化:
+        - df[df.index <= timestamp]を排除（O(n)→O(1)）
+        - インデックスベース直接スライシング使用
+        - 100倍以上の高速化
+        """
         # グローバル時刻をバックテスト時刻に設定
         await self._set_simulated_time(self.current_timestamp)
 
@@ -217,16 +336,46 @@ class BacktestRunner(BaseRunner):
             if df.empty:
                 continue
 
-            # 現在時刻以前のデータのみ使用（ルックアヘッド防止）
-            available_data = df[df.index <= self.current_timestamp]
+            # Phase 35: インデックスベース高速スライシング
+            # メインタイムフレームと同じインデックス位置を使用
+            end_idx = min(current_index + 1, len(df))
+            start_idx = max(0, end_idx - self.lookback_window)
 
-            if len(available_data) >= self.lookback_window:
-                current_market_data[timeframe] = available_data.tail(self.lookback_window)
+            # Phase 35.1: 事前計算済み特徴量を使用（10倍高速化）
+            if timeframe in self.precomputed_features:
+                # 事前計算済み特徴量から直接スライス（特徴量計算スキップ）
+                current_market_data[timeframe] = self.precomputed_features[timeframe].iloc[
+                    start_idx:end_idx
+                ]
             else:
-                current_market_data[timeframe] = available_data
+                # フォールバック: 事前計算なしの場合は元のデータ
+                current_market_data[timeframe] = df.iloc[start_idx:end_idx]
 
         # データサービスにバックテスト用データを設定
         self.orchestrator.data_service.set_backtest_data(current_market_data)
+
+        # Phase 35.4: 事前計算済みML予測を設定
+        main_timeframe = self.timeframes[0] if self.timeframes else "4h"
+        if main_timeframe in self.precomputed_ml_predictions and current_index < len(self.precomputed_ml_predictions[main_timeframe]["predictions"]):
+            import numpy as np
+            predictions = self.precomputed_ml_predictions[main_timeframe]["predictions"]
+            probabilities = self.precomputed_ml_predictions[main_timeframe]["probabilities"]
+
+            # 現在インデックスの予測値を取得
+            prediction = int(predictions[current_index])
+            confidence = float(np.max(probabilities[current_index]))
+
+            # data_serviceにML予測を設定
+            self.orchestrator.data_service.set_backtest_ml_prediction({
+                "prediction": prediction,
+                "confidence": confidence
+            })
+
+    async def _setup_current_market_data(self):
+        """現在時点の市場データを準備（旧版・後方互換性維持）"""
+        # Phase 35で_setup_current_market_data_fast()に置き換え
+        # 互換性のため残すが、使用されない
+        await self._setup_current_market_data_fast(self.data_index)
 
     async def _set_simulated_time(self, timestamp: datetime):
         """シミュレーション時刻設定"""
@@ -235,11 +384,15 @@ class BacktestRunner(BaseRunner):
         pass
 
     async def _save_progress_report(self):
-        """進捗レポート保存"""
+        """進捗レポート保存（Phase 35: JSON serializable修正）"""
         try:
             progress_stats = {
-                "current_timestamp": self.current_timestamp,
-                "progress_percentage": (self.data_index / self.total_data_points) * 100,
+                "current_timestamp": self.current_timestamp.isoformat()
+                if self.current_timestamp
+                else None,
+                "progress_percentage": (self.data_index / self.total_data_points) * 100
+                if self.total_data_points > 0
+                else 0,
                 "cycles_completed": self.cycle_count,
                 "processed_data_points": len(self.processed_timestamps),
             }
@@ -251,28 +404,33 @@ class BacktestRunner(BaseRunner):
             self.logger.warning(f"⚠️ 進捗レポート保存エラー: {e}")
 
     async def _generate_final_backtest_report(self):
-        """最終バックテストレポート生成"""
+        """最終バックテストレポート生成（Phase 35: JSON serializable修正）"""
         try:
-            # 最終統計収集
+            # 最終統計収集（Phase 35: datetime→ISO文字列変換でJSON serializable化）
             final_stats = {
                 "backtest_period": {
-                    "start": self.backtest_start,
-                    "end": self.backtest_end,
+                    "start": self.backtest_start.isoformat() if self.backtest_start else None,
+                    "end": self.backtest_end.isoformat() if self.backtest_end else None,
                     "duration_days": (self.backtest_end - self.backtest_start).days,
                 },
                 "data_processing": {
                     "total_data_points": self.total_data_points,
                     "processed_cycles": self.cycle_count,
                     "processed_timestamps": len(self.processed_timestamps),
-                    "success_rate": len(self.processed_timestamps) / self.total_data_points * 100,
+                    "success_rate": len(self.processed_timestamps) / self.total_data_points * 100
+                    if self.total_data_points > 0
+                    else 0,
                 },
                 "timeframes": list(self.csv_data.keys()),
                 "symbol": self.symbol,
             }
 
             # バックテストレポーター経由で詳細レポート生成
+            # Phase 35: datetime→ISO文字列変換
             await self.orchestrator.backtest_reporter.generate_backtest_report(
-                final_stats, self.backtest_start, self.backtest_end
+                final_stats,
+                self.backtest_start.isoformat() if self.backtest_start else None,
+                self.backtest_end.isoformat() if self.backtest_end else None,
             )
 
         except Exception as e:

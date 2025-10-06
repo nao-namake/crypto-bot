@@ -117,7 +117,12 @@ class StrategyManager:
             return combined_signal
 
         except Exception as e:
-            self.logger.error(f"市場分析エラー: {e}")
+            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
+            import os
+            if os.environ.get('BACKTEST_MODE') == 'true':
+                self.logger.debug(f"市場分析エラー: {e}")
+            else:
+                self.logger.error(f"市場分析エラー: {e}")
             raise StrategyError(f"統合分析失敗: {e}")
 
     def _collect_all_signals(
@@ -147,8 +152,14 @@ class StrategyManager:
 
             except Exception as e:
                 error_msg = f"[{name}] シグナル生成エラー: {type(e).__name__}: {e}"
-                self.logger.error(error_msg)
-                self.logger.error(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
+                # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
+                import os
+                if os.environ.get('BACKTEST_MODE') == 'true':
+                    self.logger.debug(error_msg)
+                    self.logger.debug(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
+                else:
+                    self.logger.error(error_msg)
+                    self.logger.error(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
                 errors.append(error_msg)
 
         if not signals and errors:

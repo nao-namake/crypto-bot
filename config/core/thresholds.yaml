@@ -448,7 +448,7 @@ order_execution:
     check_interval_seconds: 60           # 約定状況確認間隔（60秒）
 
 # ========================================
-# Phase 37: 残高不足Graceful Degradation
+# Phase 36: 残高不足Graceful Degradation
 # ========================================
 # Container exit(1)回避・システム安定性向上
 # 証拠金不足時のDiscordアラート・取引スキップ
