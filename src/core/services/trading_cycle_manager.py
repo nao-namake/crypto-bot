@@ -47,7 +47,8 @@ class TradingCycleManager:
         cycle_id = datetime.now().isoformat()
         # Phase 35.2: バックテスト時はDEBUGレベル（ログ抑制）
         import os
-        if os.environ.get('BACKTEST_MODE') == 'true':
+
+        if os.environ.get("BACKTEST_MODE") == "true":
             self.logger.debug(f"取引サイクル開始 - ID: {cycle_id}")
         else:
             self.logger.info(f"取引サイクル開始 - ID: {cycle_id}")
@@ -125,13 +126,11 @@ class TradingCycleManager:
                     if all(col in df.columns for col in required_features):
                         # 既に特徴量が計算済み（事前計算データ）
                         features[timeframe] = df
-                        self.logger.debug(
-                            f"✅ {timeframe}事前計算済み特徴量使用（Phase 35最適化）"
-                        )
+                        self.logger.debug(f"✅ {timeframe}事前計算済み特徴量使用（Phase 35最適化）")
                     else:
                         # 特徴量を計算
-                        features[timeframe] = await self.orchestrator.feature_service.generate_features(
-                            df
+                        features[timeframe] = (
+                            await self.orchestrator.feature_service.generate_features(df)
                         )
                 else:
                     self.logger.warning(f"空のDataFrame検出: {timeframe}")
@@ -173,7 +172,8 @@ class TradingCycleManager:
         except Exception as e:
             # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
             import os
-            if os.environ.get('BACKTEST_MODE') == 'true':
+
+            if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.debug(f"戦略評価エラー: {e}")
             else:
                 self.logger.error(f"戦略評価エラー: {e}")
@@ -186,7 +186,8 @@ class TradingCycleManager:
         try:
             # Phase 35.4: バックテストモード時は事前計算済みML予測を使用
             import os
-            if os.environ.get('BACKTEST_MODE') == 'true':
+
+            if os.environ.get("BACKTEST_MODE") == "true":
                 cached_prediction = self.orchestrator.data_service.get_backtest_ml_prediction()
                 if cached_prediction:
                     self.logger.debug(
@@ -557,7 +558,8 @@ class TradingCycleManager:
 
                 # Phase 35.2: バックテスト時はWARNING（強制出力）
                 import os
-                if os.environ.get('BACKTEST_MODE') == 'true':
+
+                if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.warning(
                         f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
                     )

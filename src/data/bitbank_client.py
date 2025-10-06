@@ -69,6 +69,7 @@ class BitbankClient:
         # グローバルフラグから自動検出
         try:
             from ..core.config import is_backtest_mode
+
             self._backtest_mode = is_backtest_mode()
             if self._backtest_mode:
                 self.logger.info("🎯 バックテストモード検出: API呼び出しをモック化します")

@@ -242,6 +242,7 @@ class TradingOrchestrator:
         実行時間: 6-8時間 → 5-10分（60-96倍高速化）
         """
         import logging
+
         from ..config import get_threshold
 
         # Phase 35: バックテスト最適化設定取得
@@ -261,7 +262,9 @@ class TradingOrchestrator:
                 handler.setLevel(log_level_value)
             # Phase 35: rootロガーも変更（全コンポーネントに適用）
             logging.getLogger().setLevel(log_level_value)
-            self.logger.info(f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）")
+            self.logger.info(
+                f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）"
+            )
 
             # Phase 35: Discord通知を一時的に無効化（ネットワーク通信削減）
             discord_manager_backup = None

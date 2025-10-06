@@ -65,13 +65,21 @@ class BacktestReporter:
 
         try:
             # レポートデータ構築
+            # Phase 35.5: 型チェック追加（文字列/datetime両対応）
+            start_date_str = start_date if isinstance(start_date, str) else start_date.isoformat()
+            end_date_str = end_date if isinstance(end_date, str) else end_date.isoformat()
+
             report_data = {
                 "backtest_info": {
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "duration_days": (end_date - start_date).days,
+                    "start_date": start_date_str,
+                    "end_date": end_date_str,
+                    "duration_days": (
+                        (end_date - start_date).days
+                        if isinstance(start_date, datetime) and isinstance(end_date, datetime)
+                        else 0
+                    ),
                     "generated_at": datetime.now().isoformat(),
-                    "phase": "Phase_29_同一ロジック",
+                    "phase": "Phase_35_最適化版",
                 },
                 "execution_stats": final_stats,
                 "system_info": {

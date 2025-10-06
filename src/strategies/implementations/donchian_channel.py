@@ -101,7 +101,8 @@ class DonchianChannelStrategy(StrategyBase):
         except Exception as e:
             # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
             import os
-            if os.environ.get('BACKTEST_MODE') == 'true':
+
+            if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.debug(f"[DonchianChannel] シグナル生成エラー: {e}")
             else:
                 self.logger.error(f"[DonchianChannel] シグナル生成エラー: {e}")

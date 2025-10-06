@@ -123,6 +123,7 @@ class CryptoBotLogger:
 
         # Phase 35: 環境変数からログレベルを取得（バックテスト最適化）
         import os
+
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         initial_level = getattr(logging, env_log_level, logging.DEBUG)
         self.logger.setLevel(initial_level)
@@ -167,6 +168,7 @@ class CryptoBotLogger:
 
         # Phase 35: ログレベル設定（環境変数を最優先）
         import os
+
         env_log_level = os.getenv("LOG_LEVEL")
         if env_log_level:
             log_level = getattr(logging, env_log_level.upper(), logging.INFO)
@@ -186,6 +188,7 @@ class CryptoBotLogger:
         console_handler = logging.StreamHandler(sys.stdout)
         # Phase 35: 環境変数でハンドラーレベルも制御
         import os
+
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         handler_level = getattr(logging, env_log_level, logging.DEBUG)
         console_handler.setLevel(handler_level)
@@ -217,6 +220,7 @@ class CryptoBotLogger:
 
         # Phase 35: 環境変数でハンドラーレベルも制御（バックテスト最適化）
         import os
+
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         handler_level = getattr(logging, env_log_level, logging.DEBUG)
         file_handler.setLevel(handler_level)

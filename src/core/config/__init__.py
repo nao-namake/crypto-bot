@@ -12,6 +12,18 @@ import yaml
 
 from .config_classes import DataConfig, ExchangeConfig, LoggingConfig, MLConfig, RiskConfig
 
+# Phase 35: ランタイムフラグシステム
+from .runtime_flags import (
+    get_all_flags,
+    get_backtest_log_level,
+    is_backtest_mode,
+    is_paper_mode,
+    reset_all_flags,
+    set_backtest_log_level,
+    set_backtest_mode,
+    set_paper_mode,
+)
+
 # threshold_manager関数をインポートして再エクスポート
 from .threshold_manager import (
     get_all_thresholds,
@@ -26,18 +38,6 @@ from .threshold_manager import (
     get_trading_thresholds,
     load_thresholds,
     reload_thresholds,
-)
-
-# Phase 35: ランタイムフラグシステム
-from .runtime_flags import (
-    get_all_flags,
-    get_backtest_log_level,
-    is_backtest_mode,
-    is_paper_mode,
-    reset_all_flags,
-    set_backtest_log_level,
-    set_backtest_mode,
-    set_paper_mode,
 )
 
 

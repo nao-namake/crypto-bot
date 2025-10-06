@@ -169,6 +169,7 @@ class BacktestRunner(BaseRunner):
         """
         try:
             import time
+
             from ...features.feature_generator import FeatureGenerator
 
             self.logger.warning("🚀 特徴量事前計算開始（Phase 35最適化）")
@@ -193,7 +194,7 @@ class BacktestRunner(BaseRunner):
             total_records = sum(len(df) for df in self.csv_data.values())
             self.logger.warning(
                 f"✅ 特徴量事前計算完了: {total_records}件 "
-                f"（{elapsed:.1f}秒, {total_records/elapsed:.0f}件/秒）",
+                f"（{elapsed:.1f}秒, {total_records / elapsed:.0f}件/秒）",
                 discord_notify=False,
             )
 
@@ -215,7 +216,9 @@ class BacktestRunner(BaseRunner):
         """
         try:
             import time
+
             import numpy as np
+
             from ...core.config.feature_manager import get_feature_names
 
             self.logger.warning("🤖 ML予測事前計算開始（Phase 35.4最適化）")
@@ -240,14 +243,14 @@ class BacktestRunner(BaseRunner):
                     # 予測結果を保存（インデックス対応）
                     self.precomputed_ml_predictions[main_timeframe] = {
                         "predictions": predictions_array,
-                        "probabilities": probabilities_array
+                        "probabilities": probabilities_array,
                     }
 
                     elapsed = time.time() - start_time
                     self.logger.warning(
                         f"✅ ML予測事前計算完了: {len(predictions_array)}件 "
-                        f"（{elapsed:.1f}秒, {len(predictions_array)/elapsed:.0f}件/秒）",
-                        discord_notify=False
+                        f"（{elapsed:.1f}秒, {len(predictions_array) / elapsed:.0f}件/秒）",
+                        discord_notify=False,
                     )
                 else:
                     self.logger.warning(
@@ -312,10 +315,10 @@ class BacktestRunner(BaseRunner):
                 self.logger.warning(f"⚠️ 取引サイクルエラー ({self.current_timestamp}): {e}")
                 continue
 
-            # Phase 35: 進捗保存を大幅削減（100→10000: 99%削減）
-            report_interval = get_threshold("backtest.report_interval", 10000)
-            if i % report_interval == 0:
-                await self._save_progress_report()
+            # Phase 35.5: 進捗レポート保存を完全削除（バックテスト中は不要・I/Oオーバーヘッド削減）
+            # report_interval = get_threshold("backtest.report_interval", 10000)
+            # if i % report_interval == 0:
+            #     await self._save_progress_report()
 
     async def _setup_current_market_data_fast(self, current_index: int):
         """
@@ -356,8 +359,11 @@ class BacktestRunner(BaseRunner):
 
         # Phase 35.4: 事前計算済みML予測を設定
         main_timeframe = self.timeframes[0] if self.timeframes else "4h"
-        if main_timeframe in self.precomputed_ml_predictions and current_index < len(self.precomputed_ml_predictions[main_timeframe]["predictions"]):
+        if main_timeframe in self.precomputed_ml_predictions and current_index < len(
+            self.precomputed_ml_predictions[main_timeframe]["predictions"]
+        ):
             import numpy as np
+
             predictions = self.precomputed_ml_predictions[main_timeframe]["predictions"]
             probabilities = self.precomputed_ml_predictions[main_timeframe]["probabilities"]
 
@@ -366,10 +372,9 @@ class BacktestRunner(BaseRunner):
             confidence = float(np.max(probabilities[current_index]))
 
             # data_serviceにML予測を設定
-            self.orchestrator.data_service.set_backtest_ml_prediction({
-                "prediction": prediction,
-                "confidence": confidence
-            })
+            self.orchestrator.data_service.set_backtest_ml_prediction(
+                {"prediction": prediction, "confidence": confidence}
+            )
 
     async def _setup_current_market_data(self):
         """現在時点の市場データを準備（旧版・後方互換性維持）"""
@@ -387,12 +392,14 @@ class BacktestRunner(BaseRunner):
         """進捗レポート保存（Phase 35: JSON serializable修正）"""
         try:
             progress_stats = {
-                "current_timestamp": self.current_timestamp.isoformat()
-                if self.current_timestamp
-                else None,
-                "progress_percentage": (self.data_index / self.total_data_points) * 100
-                if self.total_data_points > 0
-                else 0,
+                "current_timestamp": (
+                    self.current_timestamp.isoformat() if self.current_timestamp else None
+                ),
+                "progress_percentage": (
+                    (self.data_index / self.total_data_points) * 100
+                    if self.total_data_points > 0
+                    else 0
+                ),
                 "cycles_completed": self.cycle_count,
                 "processed_data_points": len(self.processed_timestamps),
             }
@@ -417,9 +424,11 @@ class BacktestRunner(BaseRunner):
                     "total_data_points": self.total_data_points,
                     "processed_cycles": self.cycle_count,
                     "processed_timestamps": len(self.processed_timestamps),
-                    "success_rate": len(self.processed_timestamps) / self.total_data_points * 100
-                    if self.total_data_points > 0
-                    else 0,
+                    "success_rate": (
+                        len(self.processed_timestamps) / self.total_data_points * 100
+                        if self.total_data_points > 0
+                        else 0
+                    ),
                 },
                 "timeframes": list(self.csv_data.keys()),
                 "symbol": self.symbol,

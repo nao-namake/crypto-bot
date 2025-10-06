@@ -124,7 +124,8 @@ class TradingLoggerService:
             # 成功した取引は必ずDiscord通知
             # Phase 35.2: バックテスト時はWARNING（強制出力）
             import os
-            if os.environ.get('BACKTEST_MODE') == 'true':
+
+            if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.warning(log_message, discord_notify=False)
             else:
                 self.logger.info(log_message, discord_notify=True)

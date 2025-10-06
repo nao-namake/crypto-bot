@@ -119,7 +119,8 @@ class StrategyManager:
         except Exception as e:
             # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
             import os
-            if os.environ.get('BACKTEST_MODE') == 'true':
+
+            if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.debug(f"市場分析エラー: {e}")
             else:
                 self.logger.error(f"市場分析エラー: {e}")
@@ -154,7 +155,8 @@ class StrategyManager:
                 error_msg = f"[{name}] シグナル生成エラー: {type(e).__name__}: {e}"
                 # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
                 import os
-                if os.environ.get('BACKTEST_MODE') == 'true':
+
+                if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(error_msg)
                     self.logger.debug(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
                 else:
@@ -212,7 +214,13 @@ class StrategyManager:
         df: pd.DataFrame,
     ) -> StrategySignal:
         """シグナルコンフリクトの解決."""
-        self.logger.warning("シグナルコンフリクト検出 - 解決処理開始")
+        # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
+        import os
+
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+
+        if not is_backtest:  # Phase 35.5: バックテストモード時はログ出力しない
+            self.logger.warning("シグナルコンフリクト検出 - 解決処理開始")
 
         # 解決方法1: 信頼度ベースの選択
         buy_signals = signal_groups.get("buy", [])

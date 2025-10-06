@@ -122,6 +122,7 @@ class MarginMonitor:
         # Phase 35: バックテストモード時はAPI呼び出しスキップ
         try:
             from ..core.config import is_backtest_mode
+
             if is_backtest_mode():
                 self.logger.debug("🎯 バックテストモード: API呼び出しをスキップ")
                 return None
@@ -281,16 +282,22 @@ class MarginMonitor:
         )
 
         # 警告ログ（制限はしない）
+        # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
+        import os
+
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+
         if future_margin_ratio < current_margin.margin_ratio:
-            self.logger.warning(
-                f"⚠️ 維持率低下予測: {current_margin.margin_ratio:.1f}% → {future_margin_ratio:.1f}%",
-                extra_data={
-                    "current_ratio": current_margin.margin_ratio,
-                    "future_ratio": future_margin_ratio,
-                    "position_size": new_position_size_btc,
-                    "recommendation": recommendation,
-                },
-            )
+            if not is_backtest:  # Phase 35.5: バックテストモード時はログ出力しない
+                self.logger.warning(
+                    f"⚠️ 維持率低下予測: {current_margin.margin_ratio:.1f}% → {future_margin_ratio:.1f}%",
+                    extra_data={
+                        "current_ratio": current_margin.margin_ratio,
+                        "future_ratio": future_margin_ratio,
+                        "position_size": new_position_size_btc,
+                        "recommendation": recommendation,
+                    },
+                )
 
         return prediction
 

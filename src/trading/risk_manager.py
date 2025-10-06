@@ -1664,21 +1664,27 @@ class IntegratedRiskManager:
             # 5. ユーザー警告が必要かチェック
             should_warn, warning_message = self.margin_monitor.should_warn_user(margin_prediction)
 
+            # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
+            import os
+
+            is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+
             if should_warn:
-                # 詳細ログ出力
-                self.logger.warning(
-                    f"📊 保証金維持率警告: 現在={current_margin.margin_ratio:.1f}%, "
-                    f"予測={margin_prediction.future_margin_ratio:.1f}%, "
-                    f"推奨={margin_prediction.recommendation}",
-                    extra_data={
-                        "current_margin_ratio": current_margin.margin_ratio,
-                        "future_margin_ratio": margin_prediction.future_margin_ratio,
-                        "current_status": current_margin.status.value,
-                        "future_status": margin_prediction.future_status.value,
-                        "position_size_btc": estimated_new_position_size,
-                        "recommendation": margin_prediction.recommendation,
-                    },
-                )
+                # 詳細ログ出力（Phase 35.5: バックテストモード時は出力しない）
+                if not is_backtest:
+                    self.logger.warning(
+                        f"📊 保証金維持率警告: 現在={current_margin.margin_ratio:.1f}%, "
+                        f"予測={margin_prediction.future_margin_ratio:.1f}%, "
+                        f"推奨={margin_prediction.recommendation}",
+                        extra_data={
+                            "current_margin_ratio": current_margin.margin_ratio,
+                            "future_margin_ratio": margin_prediction.future_margin_ratio,
+                            "current_status": current_margin.status.value,
+                            "future_status": margin_prediction.future_status.value,
+                            "position_size_btc": estimated_new_position_size,
+                            "recommendation": margin_prediction.recommendation,
+                        },
+                    )
 
                 return f"保証金維持率警告: {warning_message}"
 
