@@ -180,7 +180,7 @@ execution:
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（0.0001 BTC = 約1,700円）
   max_order_size: 0.0005  # 1万円運用に適合（約8,500円相当、安全な上限設定）
-  trade_interval: 180
+  trade_interval: 300  # Phase 37.3: 180→300秒（3分→5分）・月700-900円コスト削減
   margin_trading: true
   force_margin_mode: true
 
