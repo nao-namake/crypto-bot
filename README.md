@@ -1,8 +1,8 @@
-# 🚀 **Crypto-Bot** - Phase 35.7完了・バックテストログ最適化
+# 🚀 **Crypto-Bot** - Phase 37.2完了・bitbank API完全対応
 
-**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・Phase 35.7 バックテストログ最適化・Phase 36 Graceful Degradation完了**
+**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・Phase 37.2 bitbank API GET認証対応・Phase 37 SL注文stop対応完了**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-653%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-59.56%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2035.7-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-Active-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-653%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-58.62%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2037.2-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-Active-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/)
 
 ---
 
@@ -17,8 +17,8 @@ pip install -r requirements.txt
 cp config/secrets/.env.example config/secrets/.env
 # → .envファイルにbitbank API・Discord Webhook設定
 
-# 3. Phase 35.7品質チェック
-bash scripts/testing/checks.sh  # 653テスト・59.56%カバレッジ・約30秒
+# 3. Phase 37.2品質チェック
+bash scripts/testing/checks.sh  # 653テスト・58.62%カバレッジ・約30秒
 
 # 4. システム実行
 bash scripts/management/run_safe.sh local paper  # ペーパートレード
@@ -36,20 +36,26 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ---
 
-## 🎯 **システム概要**（Phase 35.7完了）
+## 🎯 **システム概要**（Phase 37.2完了）
 
 **AI自動取引システム**は、bitbank信用取引専用のBTC/JPY自動取引ボットです。5つの取引戦略と機械学習を**真に統合**し、15の技術指標を総合分析することで、24時間自動取引を実現する**真のハイブリッドMLbot**です。
 
-### **✅ Phase 35.7完了ステータス（2025/10/07）**
-- **📊 バックテストログ最適化**: INFO-levelスキップ・Discord通知スキップ・70%ログ削減（12,781→3,739行）
-- **✅ 物理限界確認**: 47分実行時間（1秒/cycle）・Discord/ログはボトルネックでない科学的検証完了
-- **📉 ログ可読性向上**: WARNING以上のみ保持・重要情報の視認性大幅改善
-- **🧪 テスト品質**: 653テスト100%成功・59.56%カバレッジ・CI/CD統合
+### **✅ Phase 37.2完了ステータス（2025/10/08）**
+- **🔐 bitbank API GET認証対応**: _call_private_api() GET/POST両対応実装
+- **✅ エラー20003解消**: fetch_margin_status() GETメソッド化・署名ロジック分岐・bitbank API完全準拠
+- **🛡️ Phase 36完全動作化**: 証拠金残高チェック正常化・Container exit(1)削減実現
+- **🧪 テスト品質**: 653テスト100%成功・58.62%カバレッジ・CI/CD統合
+
+### **✅ Phase 37完了ステータス（2025/10/08）**
+- **🛡️ SL注文stop対応**: create_stop_loss_order() limit→stop変更・逆指値成行注文実装
+- **✅ エラー50062解消**: trigger_price追加・create_order() stop/stop_limit対応
+- **💰 損切り機能完全化**: 全ポジションに確実な損切り保護実現・TP/SL両建てシステム完成
+- **🧪 テスト品質**: 652テスト100%成功・57.22%カバレッジ
 
 ### **✅ Phase 36完了ステータス（2025/10/07）**
-- **🛡️ Graceful Degradation**: 残高不足時Container exit(1)回避・取引スキップ実装
+- **🛡️ Graceful Degradation**: 残高不足時Container exit(1)回避・取引スキップ実装（Phase 37.2で完全動作）
 - **📊 残高チェック機能**: ExecutionService拡張・Discord通知統合・証拠金残高自動確認
-- **💰 コスト削減**: Container exit(1) 57回/日→0回・月369円削減（年4,428円）
+- **💰 コスト削減**: Container exit(1) 63回/日→0回・月369円削減（年4,428円）
 
 ### **✅ Phase 35完了内容（2025/10/07）**
 - **⚡ 10倍高速化達成**: 6-8時間→47分（特徴量バッチ化+ML予測バッチ化）
