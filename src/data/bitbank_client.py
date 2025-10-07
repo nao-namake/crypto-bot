@@ -1044,7 +1044,8 @@ class BitbankClient:
 
             # ccxtの標準APIでは信用取引状況を取得できない場合があるため、
             # bitbank独自のprivate APIを直接呼び出す
-            response = await self._call_private_api("/user/margin/status")
+            # Phase 37.2: GETメソッドで呼び出し（エラー20003修正）
+            response = await self._call_private_api("/user/margin/status", method="GET")
 
             # 保証金維持率とリスク情報を含む完全な状況を返す
             margin_data = {
@@ -1126,14 +1127,15 @@ class BitbankClient:
             )
 
     async def _call_private_api(
-        self, endpoint: str, params: Optional[Dict] = None
+        self, endpoint: str, params: Optional[Dict] = None, method: str = "POST"
     ) -> Dict[str, Any]:
         """
-        bitbank private API直接呼び出し（内部用）
+        bitbank private API直接呼び出し（Phase 37.2: GET/POST両対応）
 
         Args:
             endpoint: APIエンドポイント（例: '/user/margin/status'）
             params: リクエストパラメータ
+            method: HTTPメソッド（"GET" or "POST"）
 
         Returns:
             API応答データ
@@ -1155,14 +1157,21 @@ class BitbankClient:
             timestamp = str(int(time.time() * 1000))
             nonce = timestamp
 
-            # リクエストボディ作成
-            if params:
-                body = json.dumps(params, separators=(",", ":"))
+            # Phase 37.2: GET/POSTで署名ロジック分岐
+            if method.upper() == "GET":
+                # GETリクエスト署名: nonce + endpoint (+ query parameters)
+                # 現時点でquery parametersは使用しないため、endpointのみ
+                message = f"{nonce}{endpoint}"
+                body = None
             else:
-                body = ""
+                # POSTリクエスト署名: nonce + request body
+                if params:
+                    body = json.dumps(params, separators=(",", ":"))
+                else:
+                    body = ""
+                message = f"{nonce}{body}"
 
-            # 署名文字列作成
-            message = f"{timestamp}{body}"
+            # 署名生成
             signature = hmac.new(
                 self.api_secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
             ).hexdigest()
@@ -1172,8 +1181,11 @@ class BitbankClient:
                 "ACCESS-KEY": self.api_key,
                 "ACCESS-NONCE": nonce,
                 "ACCESS-SIGNATURE": signature,
-                "Content-Type": "application/json",
             }
+
+            # GETリクエストにはContent-Type不要
+            if method.upper() == "POST":
+                headers["Content-Type"] = "application/json"
 
             # SSL設定（セキュア設定）
             import ssl
@@ -1184,24 +1196,34 @@ class BitbankClient:
             connector = aiohttp.TCPConnector(ssl=ssl_context)
             async with aiohttp.ClientSession(connector=connector) as session:
                 timeout = aiohttp.ClientTimeout(total=30.0)
-                async with session.post(
-                    url, headers=headers, data=body, timeout=timeout
-                ) as response:
-                    result = await response.json()
 
-                    if result.get("success") == 1:
-                        return result
-                    else:
-                        error_code = result.get("data", {}).get("code", "unknown")
-                        raise ExchangeAPIError(
-                            f"bitbank API エラー: {error_code}",
-                            context={"endpoint": endpoint, "error_code": error_code},
-                        )
+                # Phase 37.2: GET/POSTメソッド分岐
+                if method.upper() == "GET":
+                    async with session.get(url, headers=headers, timeout=timeout) as response:
+                        result = await response.json()
+                else:
+                    async with session.post(
+                        url, headers=headers, data=body, timeout=timeout
+                    ) as response:
+                        result = await response.json()
+
+                if result.get("success") == 1:
+                    return result
+                else:
+                    error_code = result.get("data", {}).get("code", "unknown")
+                    raise ExchangeAPIError(
+                        f"bitbank API エラー: {error_code}",
+                        context={"endpoint": endpoint, "method": method, "error_code": error_code},
+                    )
 
         except aiohttp.ClientError as e:
-            raise ExchangeAPIError(f"ネットワークエラー: {e}", context={"endpoint": endpoint})
+            raise ExchangeAPIError(
+                f"ネットワークエラー: {e}", context={"endpoint": endpoint, "method": method}
+            )
         except Exception as e:
-            raise ExchangeAPIError(f"private API呼び出し失敗: {e}", context={"endpoint": endpoint})
+            raise ExchangeAPIError(
+                f"private API呼び出し失敗: {e}", context={"endpoint": endpoint, "method": method}
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         """統計情報取得."""
