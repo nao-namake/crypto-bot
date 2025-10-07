@@ -436,18 +436,20 @@ class BitbankClient:
         order_type: str,
         amount: float,
         price: Optional[float] = None,
+        trigger_price: Optional[float] = None,
         is_closing_order: bool = False,
         entry_position_side: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        注文作成（信用取引対応・Phase 33.1: TP/SL決済注文対応）
+        注文作成（信用取引対応・Phase 37.1: stop注文対応）
 
         Args:
             symbol: 通貨ペア（例：BTC/JPY）
             side: 売買方向（buy/sell）
-            order_type: 注文タイプ（market/limit）
+            order_type: 注文タイプ（market/limit/stop/stop_limit）
             amount: 注文量（BTC）
             price: 指値価格（limitの場合・JPY）
+            trigger_price: トリガー価格（stop/stop_limitの場合・JPY）
             is_closing_order: 決済注文フラグ（True=既存ポジション決済のみ）
             entry_position_side: エントリー時のposition_side（"long"/"short"・決済時のみ必須）
 
@@ -468,7 +470,7 @@ class BitbankClient:
             if side not in ["buy", "sell"]:
                 raise ExchangeAPIError(f"無効な売買方向: {side}", context={"side": side})
 
-            if order_type not in ["market", "limit"]:
+            if order_type not in ["market", "limit", "stop", "stop_limit"]:
                 raise ExchangeAPIError(
                     f"無効な注文タイプ: {order_type}",
                     context={"order_type": order_type},
@@ -483,12 +485,29 @@ class BitbankClient:
                     context={"price": price},
                 )
 
+            # Phase 37.1: stop/stop_limit注文のトリガー価格検証
+            if order_type in ["stop", "stop_limit"] and (
+                trigger_price is None or trigger_price <= 0
+            ):
+                raise ExchangeAPIError(
+                    f"逆指値注文には有効なトリガー価格が必要です: {trigger_price}",
+                    context={"trigger_price": trigger_price, "order_type": order_type},
+                )
+
             # Phase 33.1: 信用取引用パラメータ（TP/SL決済注文対応・両建て防止修正）
             params = {
                 "margin": True,  # 信用取引有効
                 "marginType": "isolated",  # 分離マージン
                 "leverage": self.leverage,  # レバレッジ倍率
             }
+
+            # Phase 37.1: stop/stop_limit注文のトリガー価格設定
+            if trigger_price is not None:
+                params["triggerPrice"] = trigger_price
+                self.logger.info(
+                    f"🎯 逆指値注文トリガー設定: {trigger_price:.0f}円",
+                    extra_data={"trigger_price": trigger_price, "order_type": order_type},
+                )
 
             if is_closing_order:
                 # ✅ 決済注文：既存ポジションと同じposition_sideでreduceOnly指定
@@ -660,12 +679,12 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
+        ストップロス逆指値成行注文作成（Phase 37.1: stop注文対応・エラー50062修正）
 
         Args:
             entry_side: エントリー方向（buy/sell）
             amount: 注文量（BTC）
-            stop_loss_price: 損切り価格（JPY）
+            stop_loss_price: 損切りトリガー価格（JPY）
             symbol: 通貨ペア
 
         Returns:
@@ -681,22 +700,23 @@ class BitbankClient:
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
         self.logger.info(
-            f"🛡️ ストップロス決済注文作成: {sl_side} {amount:.4f} BTC @ {stop_loss_price:.0f}円 (position_side={entry_position_side})",
+            f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
             extra_data={
                 "entry_side": entry_side,
                 "sl_side": sl_side,
                 "entry_position_side": entry_position_side,
                 "amount": amount,
-                "price": stop_loss_price,
+                "trigger_price": stop_loss_price,
             },
         )
 
         return self.create_order(
             symbol=symbol,
             side=sl_side,
-            order_type="limit",
+            order_type="stop",  # ✅ Phase 37.1: 逆指値成行注文（stop）に変更
             amount=amount,
-            price=stop_loss_price,
+            price=None,  # 成行注文のためpriceは不要
+            trigger_price=stop_loss_price,  # ✅ トリガー価格追加
             is_closing_order=True,  # ✅ 決済注文フラグ
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
