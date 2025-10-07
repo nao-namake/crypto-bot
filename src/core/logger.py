@@ -252,6 +252,16 @@ class CryptoBotLogger:
         discord_notify: bool = False,
     ) -> None:
         """コンテキスト付きログ出力."""
+        # Phase 35.7: バックテストモード時のログフィルタ（高速化）
+        import os
+
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+
+        # バックテストモード時は不要なログをスキップ
+        if is_backtest and level == logging.INFO:
+            # INFO レベルは完全スキップ（I/O削減）
+            return
+
         # ログレコード作成
         extra = {}
         if extra_data:
@@ -266,8 +276,9 @@ class CryptoBotLogger:
         else:
             self.logger.log(level, message, extra=extra)
 
-        # Discord通知（Phase 22統合）
-        if discord_notify and self._discord_manager:
+        # Discord通知（Phase 22統合・Phase 35.7最適化）
+        # Phase 35.7: バックテストモード時はDiscord通知を完全スキップ（高速化）
+        if discord_notify and self._discord_manager and not is_backtest:
             try:
                 # ログレベルに応じた重要度設定
                 level_map = {
