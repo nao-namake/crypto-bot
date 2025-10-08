@@ -301,32 +301,69 @@ class ExecutionService:
                         )
                         sl_order_id = sl_order.get("id")
                         self.logger.info(
-                            f"✅ ストップロス注文配置成功: {sl_order_id} @ {evaluation.stop_loss:.0f}円"
+                            f"✅ ストップロス注文配置成功: {sl_order_id} @ {evaluation.stop_loss:.0f}円",
+                            extra_data={
+                                "sl_order_id": sl_order_id,
+                                "trigger_price": evaluation.stop_loss,
+                                "entry_side": side,
+                                "amount": amount,
+                            },
                         )
                     except Exception as e:
-                        # Phase 33: エラーコード50061（残高不足）を明示的に検出
+                        # Phase 37.4: エラーコード詳細検出・デバッグ強化
                         error_message = str(e)
-                        if "50061" in error_message:
+                        if "30101" in error_message:
                             self.logger.error(
-                                f"❌ SL注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
+                                f"❌ SL注文配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}",
+                                extra_data={
+                                    "error_code": "30101",
+                                    "trigger_price": evaluation.stop_loss,
+                                    "entry_side": side,
+                                    "amount": amount,
+                                },
+                                discord_notify=True,
+                            )
+                        elif "50061" in error_message:
+                            self.logger.error(
+                                f"❌ SL注文配置失敗（残高不足）: エラーコード50061 - {error_message}",
+                                discord_notify=True,
+                            )
+                        elif "50062" in error_message:
+                            self.logger.error(
+                                f"❌ SL注文配置失敗（ポジション超過）: エラーコード50062 - {error_message}",
+                                discord_notify=True,
                             )
                         else:
-                            self.logger.error(f"⚠️ ストップロス注文配置失敗: {e}")
+                            self.logger.error(
+                                f"⚠️ ストップロス注文配置失敗: {e}",
+                                extra_data={"error_message": error_message},
+                                discord_notify=True,
+                            )
 
             except Exception as e:
                 self.logger.error(f"⚠️ TP/SL注文配置処理エラー: {e}")
 
-            # Phase 33.2: TP/SL注文配置結果サマリー
+            # Phase 37.4: TP/SL注文配置結果サマリー（Discord通知強化）
             if tp_order_id and sl_order_id:
                 self.logger.info(
                     f"✅ TP/SL両方配置成功: TP注文ID={tp_order_id}, SL注文ID={sl_order_id}"
                 )
             elif tp_order_id:
-                self.logger.warning(f"⚠️ TPのみ配置: TP注文ID={tp_order_id}, SL配置失敗")
+                self.logger.warning(
+                    f"⚠️ TPのみ配置: TP注文ID={tp_order_id}, SL配置失敗 - リスク管理不完全",
+                    extra_data={"tp_order_id": tp_order_id, "sl_failed": True},
+                    discord_notify=True,
+                )
             elif sl_order_id:
-                self.logger.warning(f"⚠️ SLのみ配置: SL注文ID={sl_order_id}, TP配置失敗")
+                self.logger.warning(
+                    f"⚠️ SLのみ配置: SL注文ID={sl_order_id}, TP配置失敗",
+                    extra_data={"sl_order_id": sl_order_id, "tp_failed": True},
+                )
             else:
-                self.logger.warning("⚠️ TP/SL両方とも配置されませんでした")
+                self.logger.warning(
+                    "⚠️ TP/SL両方とも配置されませんでした",
+                    discord_notify=True,
+                )
 
             # TP/SL注文IDをポジションに追加
             if tp_order_id:

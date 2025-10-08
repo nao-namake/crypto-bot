@@ -501,9 +501,10 @@ class BitbankClient:
                 "leverage": self.leverage,  # レバレッジ倍率
             }
 
-            # Phase 37.1: stop/stop_limit注文のトリガー価格設定
+            # Phase 37.4: stop/stop_limit注文のトリガー価格設定（エラー30101修正）
             if trigger_price is not None:
-                params["triggerPrice"] = trigger_price
+                # bitbank API仕様に従いsnake_case使用（docs/運用手順/bitbank API.md:127参照）
+                params["trigger_price"] = trigger_price
                 self.logger.info(
                     f"🎯 逆指値注文トリガー設定: {trigger_price:.0f}円",
                     extra_data={"trigger_price": trigger_price, "order_type": order_type},
