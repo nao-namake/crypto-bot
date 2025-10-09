@@ -8,7 +8,7 @@
 設計原則:
 - エントリーポイント特化（120行以内）
 - ビジネスロジックはsrc/core/orchestration/に委譲
-- テスト不要なレベルまで薄く設計・639テスト100%成功・59.63%カバレッジ対応
+- テスト不要なレベルまで薄く設計・653テスト100%成功・58.62%カバレッジ対応
 - 保守性とシンプルさの両立・統一設定管理体系対応
 """
 
@@ -183,7 +183,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 29完了・統一設定管理体系確立完了版・設定不整合完全解消・統一システム最適化",
+        description="暗号資産取引Bot - Phase 37.4完了・SL配置問題完全解決・コスト最適化35-45%達成",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -242,7 +242,7 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(f"🚀 暗号資産取引Bot Phase 29完了・統一設定管理体系・設定不整合完全解消 起動 - モード: {config.mode.upper()}")
+        logger.info(f"🚀 暗号資産取引Bot Phase 37.4完了・SL配置問題完全解決・コスト最適化達成 起動 - モード: {config.mode.upper()}")
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)

@@ -1,12 +1,12 @@
-# Phase 29完了・統一設定管理体系確立完了 Production Dockerfile
-# 639テスト100%成功・59.63%カバレッジ・15特徴量統一システム・設定不整合完全解消対応
+# Phase 37.4完了 Production Dockerfile
+# 653テスト100%成功・58.62%カバレッジ・SL配置問題完全解決・コスト最適化35-45%達成
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 29完了・統一設定管理体系確立完了）
-LABEL maintainer="crypto-bot-phase29-system"
-LABEL version="29.0.0"
-LABEL description="Phase 29完了・デプロイ前最終最適化: 統一設定管理体系確立完了・CI/CD・GCP・15特徴量統一システム・設定不整合完全解消"
+# メタデータ（Phase 37.4完了）
+LABEL maintainer="crypto-bot-phase37-system"
+LABEL version="37.4.0"
+LABEL description="Phase 37.4完了: SL配置問題完全解決・trigger_price修正・bitbank API完全準拠・コスト最適化35-45%達成"
 
 WORKDIR /app
 

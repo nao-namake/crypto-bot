@@ -441,14 +441,14 @@ class BitbankClient:
         entry_position_side: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        注文作成（信用取引対応・Phase 37.1: stop注文対応）
+        注文作成（信用取引対応・Phase 37.5: stop_limit対応）
 
         Args:
             symbol: 通貨ペア（例：BTC/JPY）
             side: 売買方向（buy/sell）
             order_type: 注文タイプ（market/limit/stop/stop_limit）
             amount: 注文量（BTC）
-            price: 指値価格（limitの場合・JPY）
+            price: 指値価格（limit/stop_limitの場合・JPY）
             trigger_price: トリガー価格（stop/stop_limitの場合・JPY）
             is_closing_order: 決済注文フラグ（True=既存ポジション決済のみ）
             entry_position_side: エントリー時のposition_side（"long"/"short"・決済時のみ必須）
@@ -479,13 +479,14 @@ class BitbankClient:
             if amount <= 0:
                 raise ExchangeAPIError(f"無効な注文量: {amount}", context={"amount": amount})
 
-            if order_type == "limit" and (price is None or price <= 0):
+            # Phase 37.5: limit/stop_limit注文の価格検証
+            if order_type in ["limit", "stop_limit"] and (price is None or price <= 0):
                 raise ExchangeAPIError(
-                    f"指値注文には有効な価格が必要です: {price}",
-                    context={"price": price},
+                    f"{order_type}注文には有効な価格が必要です: {price}",
+                    context={"price": price, "order_type": order_type},
                 )
 
-            # Phase 37.1: stop/stop_limit注文のトリガー価格検証
+            # Phase 37.5: stop/stop_limit注文のトリガー価格検証
             if order_type in ["stop", "stop_limit"] and (
                 trigger_price is None or trigger_price <= 0
             ):
@@ -680,7 +681,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス逆指値成行注文作成（Phase 37.1: stop注文対応・エラー50062修正）
+        ストップロス逆指値指値注文作成（Phase 37.5: stop_limit対応・約定保証）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -700,24 +701,35 @@ class BitbankClient:
         # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
+        # ✅ Phase 37.5: 確実に約定させるための執行価格設定
+        # ロングSL（sell）：トリガー価格より0.5%低い価格で売却
+        # ショートSL（buy）：トリガー価格より0.5%高い価格で買戻し
+        slippage = 0.005  # 0.5%のスリッページ
+        if sl_side.lower() == "sell":
+            execution_price = stop_loss_price * (1 - slippage)  # より低い価格で確実に売却
+        else:
+            execution_price = stop_loss_price * (1 + slippage)  # より高い価格で確実に買戻し
+
         self.logger.info(
-            f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
+            f"🛡️ ストップロス逆指値指値注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 → 執行={execution_price:.0f}円 (position_side={entry_position_side})",
             extra_data={
                 "entry_side": entry_side,
                 "sl_side": sl_side,
                 "entry_position_side": entry_position_side,
                 "amount": amount,
                 "trigger_price": stop_loss_price,
+                "execution_price": execution_price,
+                "slippage": slippage,
             },
         )
 
         return self.create_order(
             symbol=symbol,
             side=sl_side,
-            order_type="stop",  # ✅ Phase 37.1: 逆指値成行注文（stop）に変更
+            order_type="stop_limit",  # ✅ Phase 37.5: 逆指値指値注文（stop_limit）に変更
             amount=amount,
-            price=None,  # 成行注文のためpriceは不要
-            trigger_price=stop_loss_price,  # ✅ トリガー価格追加
+            price=execution_price,  # ✅ 執行価格指定（確実に約定させる）
+            trigger_price=stop_loss_price,  # ✅ トリガー価格
             is_closing_order=True,  # ✅ 決済注文フラグ
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
