@@ -402,6 +402,9 @@ position_management:
     override_strategy_sl: false     # 戦略から受け取ったSL価格を優先（false）
     enable_trailing: false         # トレーリングストップ（将来拡張用・現在は無効）
 
+    # Phase 37.5.2: SL執行価格スリッページ設定（約定確実性）
+    execution_slippage: 0.003       # 0.3%スリッページ（0.5%から縮小・SL距離確保と約定確実性の両立）
+
     # Phase 30: 適応型ATR倍率（ボラティリティ連動）
     adaptive_atr:
       enabled: true                 # 適応型ATR機能有効化

@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import aiohttp
 import ccxt
 
-from ..core.config import get_config
+from ..core.config import get_config, get_threshold
 from ..core.exceptions import DataFetchError, ExchangeAPIError
 from ..core.logger import get_logger
 
@@ -511,13 +511,20 @@ class BitbankClient:
                     extra_data={"trigger_price": trigger_price, "order_type": order_type},
                 )
 
-            # Phase 37.5: stop_limit注文の場合、執行価格もparams内に明示的に設定
+            # Phase 37.5.2: stop_limit注文の場合、執行価格もparams内に明示的に設定
             if order_type == "stop_limit" and price is not None:
                 params["price"] = str(int(price))  # bitbank APIは整数文字列を期待
                 self.logger.info(
                     f"💰 逆指値指値注文執行価格設定: {price:.0f}円",
                     extra_data={"price": price, "order_type": order_type},
                 )
+
+            # Phase 37.5.2: amount文字列化（bitbank API仕様完全準拠）
+            params["amount"] = str(amount)
+            self.logger.debug(
+                f"📦 注文数量設定: {amount} BTC (文字列形式)",
+                extra_data={"amount": amount, "order_type": order_type},
+            )
 
             if is_closing_order:
                 # ✅ 決済注文：既存ポジションと同じposition_sideでreduceOnly指定
@@ -573,6 +580,9 @@ class BitbankClient:
                     },
                 )
 
+            # Phase 37.5.2: stop_limit注文の場合、ccxtのprice引数をNone化（params["price"]のみ使用）
+            order_price_arg = None if order_type == "stop_limit" else price
+
             # 注文実行
             start_time = time.time()
             order = self.exchange.create_order(
@@ -580,7 +590,7 @@ class BitbankClient:
                 type=order_type,
                 side=side,
                 amount=amount,
-                price=price,
+                price=order_price_arg,  # stop_limitの場合はNone、params["price"]のみ使用
                 params=params,
             )
             execution_time = time.time() - start_time
@@ -723,10 +733,10 @@ class BitbankClient:
         # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
-        # ✅ Phase 37.5: 確実に約定させるための執行価格設定
-        # ロングSL（sell）：トリガー価格より0.5%低い価格で売却
-        # ショートSL（buy）：トリガー価格より0.5%高い価格で買戻し
-        slippage = 0.005  # 0.5%のスリッページ
+        # ✅ Phase 37.5.2: 確実に約定させるための執行価格設定（設定ファイル化）
+        # ロングSL（sell）：トリガー価格より0.3%低い価格で売却
+        # ショートSL（buy）：トリガー価格より0.3%高い価格で買戻し
+        slippage = get_threshold("position_management.stop_loss.execution_slippage", 0.003)
         if sl_side.lower() == "sell":
             execution_price = stop_loss_price * (1 - slippage)  # より低い価格で確実に売却
         else:
