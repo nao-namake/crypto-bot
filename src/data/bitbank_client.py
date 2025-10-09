@@ -502,13 +502,21 @@ class BitbankClient:
                 "leverage": self.leverage,  # レバレッジ倍率
             }
 
-            # Phase 37.4: stop/stop_limit注文のトリガー価格設定（エラー30101修正）
+            # Phase 37.5: stop/stop_limit注文のトリガー価格・執行価格設定
             if trigger_price is not None:
-                # bitbank API仕様に従いsnake_case使用（docs/運用手順/bitbank API.md:127参照）
-                params["trigger_price"] = trigger_price
+                # bitbank API仕様: 整数文字列を期待
+                params["trigger_price"] = str(int(trigger_price))
                 self.logger.info(
                     f"🎯 逆指値注文トリガー設定: {trigger_price:.0f}円",
                     extra_data={"trigger_price": trigger_price, "order_type": order_type},
+                )
+
+            # Phase 37.5: stop_limit注文の場合、執行価格もparams内に明示的に設定
+            if order_type == "stop_limit" and price is not None:
+                params["price"] = str(int(price))  # bitbank APIは整数文字列を期待
+                self.logger.info(
+                    f"💰 逆指値指値注文執行価格設定: {price:.0f}円",
+                    extra_data={"price": price, "order_type": order_type},
                 )
 
             if is_closing_order:
@@ -550,6 +558,20 @@ class BitbankClient:
                     },
                 )
                 params["side"] = "buy"
+
+            # Phase 37.5: デバッグログ（stop_limit注文パラメータ確認）
+            if order_type == "stop_limit":
+                self.logger.info(
+                    f"📋 stop_limit注文パラメータ確認",
+                    extra_data={
+                        "symbol": symbol,
+                        "type": order_type,
+                        "side": side,
+                        "amount": amount,
+                        "price": price,
+                        "params": params,
+                    },
+                )
 
             # 注文実行
             start_time = time.time()
