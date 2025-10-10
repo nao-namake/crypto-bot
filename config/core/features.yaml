@@ -44,15 +44,12 @@ trading:
 
   # Phase 29.6実装: クールダウン機能
   # Phase 32.1修正: 15分設定・本番稼働オン
-  # ⚠️ Phase 33.3注意: 実際の実装はthresholds.yaml:326のcooldown_minutesを参照
   cooldown:
     enabled: true  # クールダウン機能（本番稼働オン）
-    duration_minutes: 15  # クールダウン時間（30→15分：月100-200回目標対応）
-    # ⚠️ 注意: duration_minutesは参考値。実装上はthresholds.yamlのcooldown_minutes値が使用されます
     flexible_mode: true  # Phase 31.1実装: 柔軟なクールダウン判定
     trend_strength_threshold: 0.7  # 強トレンド判定閾値（flexible_mode時）
     override_on_strong_trend: true  # 強トレンド時スキップ
-    note: "Phase 32.1: 15分設定・本番稼働、Phase 31.1: トレンド連動柔軟化、Phase 33.3: thresholds.yaml統一"
+    note: "クールダウン時間はthresholds.yaml:position_management.cooldown_minutesを参照"
 
   # 緊急ストップロス
   emergency_stop_loss:
@@ -141,34 +138,18 @@ risk_management:
 ml_integration:
   # Phase 29.5実装: ML予測統合
   enabled: true  # ML予測統合機能
-  strategy_weight: 0.7  # 戦略重み（70%）
-  ml_weight: 0.3  # ML重み（30%）
-
-  # 一致/不一致ボーナス・ペナルティ
-  agreement_bonus: 0.15  # 一致時ボーナス
-  disagreement_penalty: 0.20  # 不一致時ペナルティ
-  extreme_disagreement_penalty: 0.40  # 極端な不一致時
-  note: "Phase 29.5実装: 真のハイブリッドMLbot実現"
-
-  # ML信頼度判定
-  high_confidence_threshold: 0.8  # 高信頼度閾値
-  low_confidence_threshold: 0.4  # 低信頼度閾値
-  min_ml_confidence: 0.6  # ML予測考慮の最小信頼度
+  note: "ML統合の重み・閾値はthresholds.yaml:ml.strategy_integrationを参照"
 
   # アンサンブルモデル
   ensemble:
     enabled: true  # アンサンブル機能
-    lightgbm_weight: 0.5  # LightGBM 50%
-    xgboost_weight: 0.3  # XGBoost 30%
-    random_forest_weight: 0.2  # RandomForest 20%
-    note: "3モデルアンサンブル・週次自動学習"
+    note: "モデル重みはunified.yaml:ensemble.weightsを参照（LightGBM 50%・XGBoost 30%・RandomForest 20%）"
 
   # フォールバック
   fallback:
     enabled: true  # MLフォールバック
     use_dummy_model: true  # DummyModel使用
-    default_confidence: 0.5  # デフォルト信頼度
-    note: "MLエラー時のフォールバック機能"
+    note: "MLエラー時のフォールバック機能・デフォルト信頼度はthresholds.yamlを参照"
 
 # ========================================
 # 戦略機能
@@ -330,3 +311,11 @@ phase_history:
   phase_31: "マルチタイムフレームATR・15m足優先・SL距離10%→2%改善"
   phase_31_1: "機能オンオフ設定ファイル・クールダウン柔軟化"
   phase_32: "DonchianChannel・ADXTrend SignalBuilder統合完了・全5戦略統一"
+  phase_34: "Bitbank Public API直接使用・15分足データ80倍改善（216→17,271件）"
+  phase_35: "バックテスト10倍高速化（6-8時間→45分）・特徴量バッチ化"
+  phase_36: "残高不足Graceful Degradation・Container exit(1)解消・月369円削減"
+  phase_37: "SL注文stop対応・エラー50062解消・損切り機能完全化"
+  phase_37_2: "bitbank API GET認証対応・エラー20003解消"
+  phase_37_3: "Discord通知最適化・実行頻度最適化（月700-900円削減・35-45%削減）"
+  phase_37_4: "SL未配置問題根本解決・trigger_price修正・エラー30101解消"
+  phase_37_5: "OCO機能不在対策・orphaned order自動クリーンアップ実装"

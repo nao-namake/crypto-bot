@@ -241,6 +241,73 @@ core/
 - `execution`: 実行制御設定
 - 8個のヘルパー関数用設定値
 
+## 🗺️ 設定値の参照先一覧
+
+このセクションでは、主要な設定項目がどのファイルに存在するかを明示します。設定変更時の参照ガイドとして活用してください。
+
+### **機能トグル系（features.yaml）**
+| 設定項目 | 説明 | 参照パス |
+|---------|------|---------|
+| 取引機能全体 | 取引実行のマスタースイッチ | `trading.enabled` |
+| TP/SL自動配置 | テイクプロフィット・ストップロス機能 | `trading.stop_loss.enabled`, `trading.take_profit.enabled` |
+| クールダウン機能 | 取引後のクールダウン（機能トグルのみ） | `trading.cooldown.enabled`, `trading.cooldown.flexible_mode` |
+| ML予測統合 | ML予測と戦略の統合機能 | `ml_integration.enabled` |
+| アンサンブルモデル | 3モデルアンサンブル機能 | `ml_integration.ensemble.enabled` |
+| ドローダウン管理 | ドローダウン状態追跡・緊急停止 | `risk_management.drawdown_management.enabled` |
+| Discord通知 | 各レベルの通知有効化 | `monitoring.discord.enabled`, `critical`, `warning`, `info` |
+
+**注意**: features.yamlは機能の有効/無効のみを管理します。具体的な数値設定（時間・閾値・重み等）は以下のファイルを参照してください。
+
+### **数値設定系（thresholds.yaml）**
+| 設定項目 | 説明 | 参照パス |
+|---------|------|---------|
+| クールダウン時間 | 取引後の待機時間（分） | `position_management.cooldown_minutes` |
+| ML統合重み | ML予測と戦略の重み配分 | `ml.strategy_integration.ml_weight`, `strategy_weight` |
+| ML統合ボーナス・ペナルティ | 一致/不一致時の信頼度調整 | `ml.strategy_integration.agreement_bonus`, `disagreement_penalty` |
+| ML信頼度閾値 | ML予測の信頼度判定閾値 | `ml.strategy_integration.high_confidence_threshold`, `min_ml_confidence` |
+| 戦略別信頼度閾値 | 各戦略の動的信頼度設定 | `strategies.{strategy_name}.*` |
+| スマート注文設定 | 指値/成行自動切替設定 | `execution.smart_order_enabled`, `price_improvement_ratio`, `timeout_minutes` |
+| Kelly基準設定 | ポジションサイジング設定 | `trading.kelly_min_trades`, `initial_position_size` |
+| ポジション制限 | 同時保有・日次取引上限 | `position_management.max_open_positions`, `max_daily_trades` |
+| 動的サイジング閾値 | ML信頼度別のサイジング比率 | `position_management.dynamic_position_sizing.*` |
+| 緊急ストップロス | 急激な価格変動時の強制決済 | `position_management.emergency_stop_loss.*` |
+
+### **基本構造設定系（unified.yaml）**
+| 設定項目 | 説明 | 参照パス |
+|---------|------|---------|
+| 動作モード | paper/live/backtest | `mode` |
+| モード別初期残高 | 各モードの初期資金 | `mode_balances.paper`, `live`, `backtest` |
+| 取引所設定 | bitbank信用取引設定 | `exchange.name`, `market_type`, `leverage` |
+| アンサンブルモデル重み | LightGBM・XGBoost・RandomForest配分 | `ensemble.weights.lightgbm`, `xgboost`, `random_forest` |
+| 戦略重み | 5戦略の重み配分 | `strategies.weights.{strategy_name}` |
+| データ取得設定 | タイムフレーム・取得期間 | `data.default_timeframe`, `since_hours` |
+| Cloud Run設定 | メモリ・CPU・タイムアウト | `cloud_run.memory`, `cpu`, `timeout` |
+
+### **特徴量定義（feature_order.json）**
+| 設定項目 | 説明 | 参照パス |
+|---------|------|---------|
+| 特徴量総数 | システム全体の特徴量数 | `total_features` (15個) |
+| 特徴量順序 | ML予測に使用する特徴量の順序 | `feature_names` (配列) |
+| カテゴリ分類 | 7カテゴリ分類システム | `feature_categories.*` |
+| 特徴量定義 | 各特徴量の詳細仕様 | `feature_definitions.{feature_name}` |
+
+**⚠️ 重要**: このファイルは全システムの単一真実源です。変更時はMLモデル再学習が必要です。
+
+### **設定ファイル選択ガイド**
+新しい設定を追加する際の判断基準：
+
+1. **features.yaml**: 機能のON/OFFを制御したい場合
+   - 例: 新機能の有効化フラグ、機能切り替え
+
+2. **thresholds.yaml**: 数値による挙動調整が必要な場合
+   - 例: 信頼度閾値、時間設定、比率設定、制限値
+
+3. **unified.yaml**: システムの基本構造に関わる場合
+   - 例: モード設定、取引所設定、重み配分、インフラ設定
+
+4. **feature_order.json**: 特徴量定義を変更する場合（原則変更禁止）
+   - 例: 特徴量追加・削除（全システム影響大・ML再学習必須）
+
 ## 📝 使用方法・例
 
 ### **基本設定の読み込み**
