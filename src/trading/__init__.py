@@ -1,72 +1,111 @@
 """
-Trading Layer - Phase 28完了・Phase 29最適化版
+Trading Layer - Phase 38リファクタリング完了
 
 統合リスク管理・監視・取引実行結果処理の包括的取引制御機能。
+レイヤードアーキテクチャによる責務分離実装。
 
 主要コンポーネント:
 - IntegratedRiskManager: 統合リスク管理API
+- ExecutionService: 取引実行サービス
 - KellyCriterion: Kelly基準ポジションサイジング
 - DrawdownManager: ドローダウン管理・連続損失制御
 - TradingAnomalyDetector: 取引実行用異常検知
-- ExecutionResult: 取引実行結果統合管理（executor.pyから移行）
+- BalanceMonitor: 残高・保証金監視
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 38リファクタリング: 2025年10月11日.
 """
 
-# Phase 28/29最適化: リスク管理（統合API + Kelly基準ポジションサイジング + 取引実行結果）
-from .risk_manager import (  # Phase 28完了
+# Phase 38: コア層（列挙型・データクラス）
+from .core import (
     ExecutionMode,
     ExecutionResult,
-    IntegratedRiskManager,
-    KellyCalculationResult,
-    KellyCriterion,
+    MarginData,
+    MarginPrediction,
+    MarginStatus,
     OrderStatus,
-    PositionSizeIntegrator,
     RiskDecision,
-    RiskMetrics,
     TradeEvaluation,
-    TradeResult,
 )
 
-# Phase 28/29最適化: リスク監視（異常検知 + ドローダウン管理）
-from .risk_monitor import (
+# Phase 38: リスク管理層
+from .risk import (
     AnomalyAlert,
     AnomalyLevel,
     DrawdownManager,
-    DrawdownSnapshot,
-    MarketCondition,
+    KellyCalculationResult,
+    KellyCriterion,
+    PositionSizeIntegrator,
+    TradeRecord,
+    TradeResult,
     TradingAnomalyDetector,
-    TradingSession,
     TradingStatus,
 )
 
+# Phase 38: 実行層
+from .execution import ExecutionService, OrderStrategy, StopManager
+
+# Phase 38: ポジション管理層
+from .position import CooldownManager, PositionCleanup, PositionLimits, PositionTracker
+
+# Phase 38: 残高監視層
+from .balance import BalanceMonitor
+
+# 後方互換性のためのインポート（廃止予定）
+try:
+    from .risk_manager import IntegratedRiskManager, RiskMetrics
+except ImportError:
+    # risk_managerがまだ存在しない場合はスキップ
+    IntegratedRiskManager = None
+    RiskMetrics = None
+
+try:
+    from .risk_monitor import DrawdownSnapshot, MarketCondition, TradingSession
+except ImportError:
+    # risk_monitorがまだ存在しない場合はスキップ
+    DrawdownSnapshot = None
+    MarketCondition = None
+    TradingSession = None
+
 # パブリックAPI
 __all__ = [
-    # 統合API
-    "IntegratedRiskManager",
-    "TradeEvaluation",
-    "RiskMetrics",
+    # コア層
+    "ExecutionMode",
+    "ExecutionResult",
+    "MarginData",
+    "MarginPrediction",
+    "MarginStatus",
+    "OrderStatus",
     "RiskDecision",
-    # Kelly基準
+    "TradeEvaluation",
+    # 実行層
+    "ExecutionService",
+    "OrderStrategy",
+    "StopManager",
+    # ポジション管理層
+    "PositionTracker",
+    "PositionLimits",
+    "PositionCleanup",
+    "CooldownManager",
+    # 残高監視層
+    "BalanceMonitor",
+    # リスク管理層
     "KellyCriterion",
     "PositionSizeIntegrator",
     "TradeResult",
     "KellyCalculationResult",
-    # ドローダウン管理
     "DrawdownManager",
-    "DrawdownSnapshot",
-    "TradingSession",
+    "TradeRecord",
     "TradingStatus",
-    # 異常検知
     "TradingAnomalyDetector",
     "AnomalyAlert",
     "AnomalyLevel",
+    # 後方互換性（廃止予定）
+    "IntegratedRiskManager",
+    "RiskMetrics",
+    "DrawdownSnapshot",
+    "TradingSession",
     "MarketCondition",
-    # Phase 28: 取引実行結果統合
-    "ExecutionResult",
-    "ExecutionMode",
-    "OrderStatus",
-    # Phase 7拡張: リスクプロファイル機能
+    # リスクプロファイル機能
     "RISK_PROFILES",
     "DEFAULT_RISK_CONFIG",
     "create_risk_manager",
@@ -75,9 +114,9 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "28.0.0"
-__phase__ = "Phase 28完了・Phase 29最適化"
-__description__ = "統合取引管理層（リスク管理・監視・実行結果処理統合）"
+__version__ = "38.0.0"
+__phase__ = "Phase 38リファクタリング"
+__description__ = "レイヤードアーキテクチャによる統合取引管理層"
 
 # Phase 28/29最適化: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
 RISK_PROFILES = {
