@@ -1688,10 +1688,12 @@ class ExecutionService:
                 side = pos.get("side", "").lower()  # "long" or "short"
                 contracts = float(pos.get("contracts", 0))
                 if side and contracts > 0:
-                    actual_positions_data.append({
-                        "side": "buy" if side == "long" else "sell",
-                        "amount": contracts,
-                    })
+                    actual_positions_data.append(
+                        {
+                            "side": "buy" if side == "long" else "sell",
+                            "amount": contracts,
+                        }
+                    )
 
             # virtual_positionsと比較して消失したポジションを検出
             # side/amountが一致するポジションを探す
@@ -1703,8 +1705,10 @@ class ExecutionService:
                 # 実際のポジションに一致するものがあるか確認
                 matched = False
                 for actual_pos in actual_positions_data:
-                    if (actual_pos["side"].lower() == vpos_side and
-                        abs(actual_pos["amount"] - vpos_amount) < 0.00001):  # 浮動小数点誤差考慮
+                    if (
+                        actual_pos["side"].lower() == vpos_side
+                        and abs(actual_pos["amount"] - vpos_amount) < 0.00001
+                    ):
                         matched = True
                         break
 
@@ -1742,7 +1746,9 @@ class ExecutionService:
                 )
 
         except Exception as e:
-            self.logger.error(f"❌ Phase 37.5.3: 残注文クリーンアップエラー: {e}", discord_notify=True)
+            self.logger.error(
+                f"❌ Phase 37.5.3: 残注文クリーンアップエラー: {e}", discord_notify=True
+            )
 
     async def _cancel_orphaned_tp_sl_orders(
         self, orphaned_position: dict, symbol: str
