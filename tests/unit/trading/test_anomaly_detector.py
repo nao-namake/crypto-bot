@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 
 import pandas as pd
 
-from src.trading.risk_monitor import (
+from src.trading import (
     AnomalyAlert,
     AnomalyLevel,
     MarketCondition,

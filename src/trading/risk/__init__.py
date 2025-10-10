@@ -7,10 +7,8 @@ Phase 38リファクタリング
 from .anomaly import AnomalyAlert, AnomalyLevel, TradingAnomalyDetector
 from .drawdown import DrawdownManager, TradeRecord, TradingStatus
 from .kelly import KellyCalculationResult, KellyCriterion, TradeResult
+from .manager import IntegratedRiskManager
 from .sizer import PositionSizeIntegrator
-
-# TODO: manager.pyを作成後、以下のインポートを有効化
-# from .manager import IntegratedRiskManager, RiskDecision, RiskMetrics
 
 __all__ = [
     # Kelly基準
@@ -27,8 +25,6 @@ __all__ = [
     "DrawdownManager",
     "TradeRecord",
     "TradingStatus",
-    # TODO: manager.py作成後、以下を有効化
-    # "IntegratedRiskManager",
-    # "RiskDecision",
-    # "RiskMetrics",
+    # 統合リスク管理
+    "IntegratedRiskManager",
 ]

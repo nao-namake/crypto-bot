@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.trading.risk_monitor import (
+from src.trading import (
     DrawdownManager,
     DrawdownSnapshot,
     TradingSession,

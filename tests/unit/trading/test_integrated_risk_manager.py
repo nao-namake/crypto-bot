@@ -18,14 +18,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.trading.risk_manager import (
+from src.trading import (
     IntegratedRiskManager,
     KellyCalculationResult,
     RiskDecision,
     RiskMetrics,
     TradeEvaluation,
 )
-from src.trading.risk_monitor import AnomalyAlert, AnomalyLevel, TradingStatus
+from src.trading import AnomalyAlert, AnomalyLevel, TradingStatus
 
 
 class TestIntegratedRiskManager:
@@ -64,7 +64,7 @@ class TestIntegratedRiskManager:
         )
 
         # DrawdownManagerの状態を完全にリセット（テスト独立性確保）
-        from src.trading.risk_monitor import TradingStatus
+        from src.trading import TradingStatus
 
         self.risk_manager.drawdown_manager.trading_status = TradingStatus.ACTIVE
         self.risk_manager.drawdown_manager.consecutive_losses = 0
@@ -548,7 +548,7 @@ async def test_complete_risk_management_workflow():
     risk_manager = IntegratedRiskManager(config, 1000000, False)
 
     # テスト用にDrawdownManagerの状態を完全リセット
-    from src.trading.risk_monitor import TradingStatus
+    from src.trading import TradingStatus
 
     risk_manager.drawdown_manager.trading_status = TradingStatus.ACTIVE
     risk_manager.drawdown_manager.consecutive_losses = 0

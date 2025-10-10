@@ -32,7 +32,7 @@ from ...features.feature_generator import FeatureGenerator
 
 if TYPE_CHECKING:
     from ...strategies.base.strategy_base import StrategySignal
-    from ...trading.risk_manager import ExecutionResult, TradeEvaluation
+    from ...trading import ExecutionResult, TradeEvaluation
 
 # BacktestReporter は遅延インポートで循環インポート回避
 from ..config import Config, get_threshold
@@ -430,7 +430,7 @@ async def create_trading_orchestrator(
         logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
         # Phase 28完了・Phase 29最適化: 取引実行サービス（新規実装）
-        from ...trading.execution_service import ExecutionService
+        from ...trading.execution import ExecutionService
 
         execution_service = ExecutionService(mode=execution_mode, bitbank_client=bitbank_client)
         execution_service.update_balance(initial_balance)

@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from src.trading.execution_service import ExecutionService
-from src.trading.risk_manager import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
+from src.trading import ExecutionService
+from src.trading import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
 
 
 class TestExecutionServiceBalanceCheck:
@@ -36,7 +36,7 @@ class TestExecutionServiceBalanceCheck:
             self.service = ExecutionService(mode="live", bitbank_client=self.mock_bitbank_client)
 
         # テスト用TradeEvaluation
-        from src.trading.risk_manager import RiskDecision
+        from src.trading import RiskDecision
 
         self.evaluation = TradeEvaluation(
             decision=RiskDecision.APPROVED,

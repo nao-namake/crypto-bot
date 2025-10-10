@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def test_execution_service_import():
     """ExecutionServiceが正常にimportできることを確認"""
     try:
-        from src.trading.execution_service import ExecutionService
+        from src.trading import ExecutionService
 
         assert ExecutionService is not None
     except ImportError as e:
@@ -26,7 +26,7 @@ def test_execution_service_import():
 
 def test_execution_service_initialization():
     """ExecutionService初期化テスト"""
-    from src.trading.execution_service import ExecutionService
+    from src.trading import ExecutionService
 
     # ペーパーモード初期化
     paper_service = ExecutionService(mode="paper")
@@ -42,7 +42,7 @@ def test_execution_service_initialization():
 
 def test_execution_result_field_names():
     """ExecutionResultが正しいフィールド名を持つことを確認"""
-    from src.trading.risk_manager import ExecutionMode, ExecutionResult, OrderStatus
+    from src.trading import ExecutionMode, ExecutionResult, OrderStatus
 
     # 正しいフィールド名でExecutionResultを作成できることを確認
     try:
@@ -76,7 +76,7 @@ def test_execution_result_field_names():
 
 def test_wrong_field_names_raise_error():
     """間違ったフィールド名でTypeErrorが発生することを確認"""
-    from src.trading.risk_manager import ExecutionMode, ExecutionResult
+    from src.trading import ExecutionMode, ExecutionResult
 
     # 間違ったフィールド名（修正前）を使用するとエラーになることを確認
     with pytest.raises(TypeError, match="unexpected keyword argument"):
@@ -104,7 +104,7 @@ def test_wrong_field_names_raise_error():
 
 def test_required_fields():
     """必須フィールドのテスト"""
-    from src.trading.risk_manager import ExecutionMode, ExecutionResult
+    from src.trading import ExecutionMode, ExecutionResult
 
     # success と mode は必須フィールド
     with pytest.raises(TypeError):

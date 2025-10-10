@@ -50,21 +50,9 @@ from .position import CooldownManager, PositionCleanup, PositionLimits, Position
 # Phase 38: 残高監視層
 from .balance import BalanceMonitor
 
-# 後方互換性のためのインポート（廃止予定）
-try:
-    from .risk_manager import IntegratedRiskManager, RiskMetrics
-except ImportError:
-    # risk_managerがまだ存在しない場合はスキップ
-    IntegratedRiskManager = None
-    RiskMetrics = None
-
-try:
-    from .risk_monitor import DrawdownSnapshot, MarketCondition, TradingSession
-except ImportError:
-    # risk_monitorがまだ存在しない場合はスキップ
-    DrawdownSnapshot = None
-    MarketCondition = None
-    TradingSession = None
+# Phase 38: 後方互換性のためのインポート
+from .core import DrawdownSnapshot, MarketCondition, RiskMetrics, TradingSession
+from .risk import IntegratedRiskManager
 
 # パブリックAPI
 __all__ = [

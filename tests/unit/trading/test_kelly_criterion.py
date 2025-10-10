@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.trading.risk_manager import (
+from src.trading import (
     KellyCalculationResult,
     KellyCriterion,
     PositionSizeIntegrator,

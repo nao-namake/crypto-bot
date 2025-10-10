@@ -11,7 +11,7 @@ import pandas as pd
 
 if TYPE_CHECKING:
     from src.strategies.base.strategy_base import StrategySignal
-    from src.trading.risk_manager import ExecutionResult, TradeEvaluation
+    from src.trading import ExecutionResult, TradeEvaluation
 
 
 class DataServiceProtocol(Protocol):
