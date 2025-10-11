@@ -8,12 +8,12 @@ Phase 26完了・Phase 36 Graceful Degradation統合：
 - 状態永続化（Local + GCS）
 """
 
+import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import json
-import os
 
 from ...core.config import get_threshold
 from ...core.logger import get_logger
@@ -21,6 +21,7 @@ from ...core.logger import get_logger
 
 class TradingStatus(Enum):
     """取引状態."""
+
     ACTIVE = "active"
     PAUSED_DRAWDOWN = "paused_drawdown"
     PAUSED_CONSECUTIVE_LOSS = "paused_consecutive_loss"
@@ -30,6 +31,7 @@ class TradingStatus(Enum):
 @dataclass
 class TradeRecord:
     """取引記録."""
+
     timestamp: datetime
     profit_loss: float
     strategy: str
@@ -114,9 +116,7 @@ class DrawdownManager:
             self.peak_balance = current_balance
             self.logger.debug(f"ピーク残高更新: ¥{self.peak_balance:,.0f}")
 
-    def record_trade_result(
-        self, profit_loss: float, strategy: str = "default"
-    ) -> None:
+    def record_trade_result(self, profit_loss: float, strategy: str = "default") -> None:
         """
         取引結果記録
 
@@ -214,9 +214,7 @@ class DrawdownManager:
             "consecutive_loss_limit": self.consecutive_loss_limit,
             "trading_status": self.trading_status.value,
             "trading_allowed": self.check_trading_allowed(),
-            "cooldown_until": (
-                self.cooldown_until.isoformat() if self.cooldown_until else None
-            ),
+            "cooldown_until": (self.cooldown_until.isoformat() if self.cooldown_until else None),
         }
 
     def _save_state(self) -> None:

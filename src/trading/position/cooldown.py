@@ -151,7 +151,7 @@ class CooldownManager:
                 "trend_strength": trend_strength,
                 "threshold": threshold,
                 "skip_cooldown": False,
-                "reason": ""
+                "reason": "",
             }
 
             if not enabled:
@@ -174,5 +174,5 @@ class CooldownManager:
                 "trend_strength": 0.0,
                 "threshold": 0.7,
                 "skip_cooldown": False,
-                "reason": f"エラー: {e}"
+                "reason": f"エラー: {e}",
             }

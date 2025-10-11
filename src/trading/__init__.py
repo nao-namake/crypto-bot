@@ -15,30 +15,24 @@ Trading Layer - Phase 38リファクタリング完了
 Phase 38リファクタリング: 2025年10月11日.
 """
 
+# Phase 38: 残高監視層
+from .balance import BalanceMonitor
+
+# Phase 38: 後方互換性のためのインポート
 # Phase 38: コア層（列挙型・データクラス）
 from .core import (
+    DrawdownSnapshot,
     ExecutionMode,
     ExecutionResult,
     MarginData,
     MarginPrediction,
     MarginStatus,
+    MarketCondition,
     OrderStatus,
     RiskDecision,
+    RiskMetrics,
     TradeEvaluation,
-)
-
-# Phase 38: リスク管理層
-from .risk import (
-    AnomalyAlert,
-    AnomalyLevel,
-    DrawdownManager,
-    KellyCalculationResult,
-    KellyCriterion,
-    PositionSizeIntegrator,
-    TradeRecord,
-    TradeResult,
-    TradingAnomalyDetector,
-    TradingStatus,
+    TradingSession,
 )
 
 # Phase 38: 実行層
@@ -47,12 +41,20 @@ from .execution import ExecutionService, OrderStrategy, StopManager
 # Phase 38: ポジション管理層
 from .position import CooldownManager, PositionCleanup, PositionLimits, PositionTracker
 
-# Phase 38: 残高監視層
-from .balance import BalanceMonitor
-
-# Phase 38: 後方互換性のためのインポート
-from .core import DrawdownSnapshot, MarketCondition, RiskMetrics, TradingSession
-from .risk import IntegratedRiskManager
+# Phase 38: リスク管理層
+from .risk import (
+    AnomalyAlert,
+    AnomalyLevel,
+    DrawdownManager,
+    IntegratedRiskManager,
+    KellyCalculationResult,
+    KellyCriterion,
+    PositionSizeIntegrator,
+    TradeRecord,
+    TradeResult,
+    TradingAnomalyDetector,
+    TradingStatus,
+)
 
 # パブリックAPI
 __all__ = [

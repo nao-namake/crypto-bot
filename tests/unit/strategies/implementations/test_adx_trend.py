@@ -470,6 +470,162 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
                 signal = self.strategy.generate_signal(test_df)
                 self.assertEqual(signal.action, scenario["expected"])
 
+    def test_calculate_weak_trend_confidence(self):
+        """弱トレンド信頼度計算テスト"""
+        analysis = {
+            "di_strength": 2.5,
+            "adx_rising": True,
+            "volume_ratio": 1.2,
+        }
+
+        confidence = self.strategy._calculate_weak_trend_confidence(analysis, "bullish")
+
+        # 0.25-0.5の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.25)
+        self.assertLessEqual(confidence, 0.50)
+
+    def test_calculate_weak_trend_hold_confidence(self):
+        """弱トレンドHOLD信頼度計算テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "adx": 12,
+            "di_strength": 0.5,
+        }
+
+        confidence = self.strategy._calculate_weak_trend_hold_confidence(analysis, df)
+
+        # 0.2-0.35の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.20)
+        self.assertLessEqual(confidence, 0.35)
+
+    def test_calculate_default_confidence(self):
+        """デフォルト動的信頼度計算テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "is_moderate_trend": True,
+            "is_weak_trend": False,
+            "is_strong_trend": False,
+        }
+
+        confidence = self.strategy._calculate_default_confidence(analysis, df)
+
+        # 0.25-0.45の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.25)
+        self.assertLessEqual(confidence, 0.45)
+
+    def test_calculate_market_uncertainty(self):
+        """市場不確実性計算テスト"""
+        df = self._create_test_data(50)
+
+        uncertainty = self.strategy._calculate_market_uncertainty(df)
+
+        # 0-0.1の範囲内であることを確認
+        self.assertGreaterEqual(uncertainty, 0.0)
+        self.assertLessEqual(uncertainty, 0.1)
+
+    def test_calculate_market_uncertainty_error(self):
+        """市場不確実性計算エラーハンドリングテスト"""
+        df = self._create_test_data(50)
+        df["close"] = None
+
+        uncertainty = self.strategy._calculate_market_uncertainty(df)
+
+        # デフォルト値が返されることを確認
+        self.assertEqual(uncertainty, 0.02)
+
+    def test_handle_weak_trend_with_sufficient_di(self):
+        """弱トレンド処理 - 十分なDI差分テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "current_price": 4500000,
+            "adx": 12,
+            "plus_di": 20,
+            "minus_di": 18.5,
+            "di_difference": 1.5,  # weak_di_threshold以上
+            "di_strength": 1.5,
+            "adx_rising": True,
+            "volume_ratio": 1.1,
+            "volatility_ratio": 0.02,
+            "is_strong_trend": False,
+            "is_weak_trend": True,
+            "is_moderate_trend": False,
+        }
+
+        signal = self.strategy._handle_weak_trend_signal(df, analysis)
+
+        # 弱いシグナルまたはHOLDが返されることを確認
+        self.assertIn(signal.action, ["buy", "sell", "hold"])
+
+    def test_handle_weak_trend_with_low_di(self):
+        """弱トレンド処理 - 低DI差分テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "current_price": 4500000,
+            "adx": 12,
+            "di_difference": 0.3,  # weak_di_threshold未満
+            "di_strength": 0.3,
+            "adx_rising": False,
+            "volume_ratio": 1.0,
+        }
+
+        signal = self.strategy._handle_weak_trend_signal(df, analysis)
+
+        # HOLDが返されることを確認
+        self.assertEqual(signal.action, "hold")
+
+    def test_analyze_with_multi_timeframe_data(self):
+        """マルチタイムフレームデータを使用した分析テスト"""
+        df = self._create_test_data(50)
+
+        # 15分足データ作成
+        multi_tf_data = {
+            "15m": pd.DataFrame(
+                {
+                    "close": [4500000],
+                    "atr_14": [1500],  # 15分足のATR
+                }
+            )
+        }
+
+        signal = self.strategy.analyze(df, multi_timeframe_data=multi_tf_data)
+
+        # シグナルが正常に生成されることを確認
+        self.assertIsNotNone(signal)
+        self.assertIn(signal.action, ["buy", "sell", "hold"])
+
+    def test_analyze_with_backtest_mode(self):
+        """バックテストモードでの分析テスト"""
+        import os
+
+        # バックテストモード設定
+        os.environ["BACKTEST_MODE"] = "true"
+
+        df = pd.DataFrame()  # 空DataFrame（エラー発生）
+
+        try:
+            signal = self.strategy.analyze(df)
+            # HOLDシグナルが返されることを確認
+            self.assertEqual(signal.action, "hold")
+        finally:
+            # 環境変数クリーンアップ
+            os.environ.pop("BACKTEST_MODE", None)
+
+    def test_adx_falling_condition(self):
+        """ADX下降条件テスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
+
+        # ADX下降設定
+        df.loc[latest_idx, "adx_14"] = 20
+        df.loc[prev_idx, "adx_14"] = 23  # 下降
+
+        analysis = self.strategy._analyze_adx_trend(df)
+
+        self.assertIsNotNone(analysis)
+        self.assertTrue(analysis["adx_falling"])
+        self.assertFalse(analysis["adx_rising"])
+
 
 if __name__ == "__main__":
     unittest.main()

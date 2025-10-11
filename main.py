@@ -31,12 +31,12 @@ if env_path.exists():
 
     # .envファイルから直接読み込んで環境変数に設定
     try:
-        with open(env_path, 'r', encoding='utf-8') as f:
+        with open(env_path, "r", encoding="utf-8") as f:
             for line_no, line in enumerate(f, 1):
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
+                if line and not line.startswith("#") and "=" in line:
                     try:
-                        key, value = line.split('=', 1)
+                        key, value = line.split("=", 1)
                         os.environ[key.strip()] = value.strip()
                     except ValueError:
                         print(f"⚠️ 環境変数解析エラー (行{line_no}): {line}")
@@ -44,7 +44,7 @@ if env_path.exists():
         print(f"❌ .envファイル読み込みエラー: {e}")
 
     # 重要な環境変数の設定確認
-    required_vars = ['BITBANK_API_KEY', 'BITBANK_API_SECRET', 'DISCORD_WEBHOOK_URL']
+    required_vars = ["BITBANK_API_KEY", "BITBANK_API_SECRET", "DISCORD_WEBHOOK_URL"]
     for var in required_vars:
         if var in os.environ and os.environ[var]:
             print(f"✅ {var}: 設定済み（{len(os.environ[var])}文字）")
@@ -105,7 +105,7 @@ def check_single_instance():
 
     try:
         # ロックファイルを開く
-        lock_file = open(lock_file_path, 'w')
+        lock_file = open(lock_file_path, "w")
 
         # 排他ロック試行（非ブロッキング）
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -118,7 +118,7 @@ def check_single_instance():
 
         # ロックファイルオブジェクトを保持（プロセス終了時に自動解除）
         # グローバル変数として保持しないとGCで削除される可能性
-        globals()['_lock_file'] = lock_file
+        globals()["_lock_file"] = lock_file
 
         return True
 
@@ -170,6 +170,7 @@ def setup_signal_handlers():
 
     Note: Graceful shutdown処理はGracefulShutdownManagerに委譲
     """
+
     def signal_handler(signum, frame):
         signal_name = signal.Signals(signum).name
         print(f"🛑 シグナル受信: {signal_name} - 正常終了中...")
@@ -183,7 +184,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 37.4完了・SL配置問題完全解決・コスト最適化35-45%達成",
+        description="暗号資産取引Bot - Phase 38完了・trading層レイヤードアーキテクチャ・70.56%カバレッジ達成",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -201,7 +202,9 @@ def parse_arguments():
         help="動作モード (default: paper)",
     )
     parser.add_argument(
-        "--config", default="config/core/unified.yaml", help="設定ファイルパス (default: config/core/unified.yaml)"
+        "--config",
+        default="config/core/unified.yaml",
+        help="設定ファイルパス (default: config/core/unified.yaml)",
     )
 
     return parser.parse_args()
@@ -223,6 +226,7 @@ async def main():
         if config.mode == "backtest":
             # thresholds.yamlからログレベルを取得（Phase 35.1: 動的設定対応）
             from src.core.config.threshold_manager import get_threshold
+
             log_level = get_threshold("backtest.log_level", "ERROR")
 
             # 環境変数でログレベルを制御（全コンポーネントに影響）
@@ -232,6 +236,7 @@ async def main():
 
             # グローバルフラグ設定（全コンポーネントで参照可能）
             from src.core.config import set_backtest_mode, set_backtest_log_level
+
             set_backtest_mode(True)
             set_backtest_log_level(log_level)
 
@@ -242,7 +247,9 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(f"🚀 暗号資産取引Bot Phase 37.4完了・SL配置問題完全解決・コスト最適化達成 起動 - モード: {config.mode.upper()}")
+        logger.info(
+            f"🚀 暗号資産取引Bot Phase 38完了・trading層レイヤードアーキテクチャ・70.56%カバレッジ達成 起動 - モード: {config.mode.upper()}"
+        )
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)

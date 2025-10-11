@@ -383,6 +383,225 @@ class TestDonchianChannelStrategy(unittest.TestCase):
                 signal = self.strategy.generate_signal(test_df)
                 self.assertEqual(signal.action, scenario["expected"])
 
+    def test_weak_buy_zone_signal(self):
+        """弱買いゾーンシグナルテスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # 弱買いゾーン設定（0.25-0.4）
+        df.loc[latest_idx, "channel_position"] = 0.32
+        df.loc[latest_idx, "volume_ratio"] = 1.1
+        df.loc[latest_idx, "atr_14"] = 2000  # 適度なボラティリティ
+
+        signal = self.strategy.generate_signal(df)
+
+        # 弱買いシグナルまたはHOLDが返されることを確認
+        self.assertIn(signal.action, ["buy", "hold"])
+
+    def test_weak_sell_zone_signal(self):
+        """弱売りゾーンシグナルテスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # 弱売りゾーン設定（0.6-0.75）
+        df.loc[latest_idx, "channel_position"] = 0.68
+        df.loc[latest_idx, "volume_ratio"] = 1.1
+        df.loc[latest_idx, "atr_14"] = 2000
+
+        signal = self.strategy.generate_signal(df)
+
+        # 弱売りシグナルまたはHOLDが返されることを確認
+        self.assertIn(signal.action, ["sell", "hold"])
+
+    def test_calculate_weak_signal_confidence(self):
+        """弱シグナル信頼度計算テスト"""
+        analysis = {
+            "channel_position": 0.35,
+            "volatility_ratio": 0.02,
+            "volume_ratio": 1.2,
+        }
+
+        confidence = self.strategy._calculate_weak_signal_confidence(analysis, "buy")
+
+        # 0.25-0.6の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.25)
+        self.assertLessEqual(confidence, 0.6)
+
+    def test_calculate_middle_zone_confidence(self):
+        """中央域動的信頼度計算テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "channel_position": 0.5,
+            "volatility_ratio": 0.02,
+            "volume_ratio": 1.0,
+        }
+
+        confidence = self.strategy._calculate_middle_zone_confidence(analysis, df)
+
+        # 0.2-0.45の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.20)
+        self.assertLessEqual(confidence, 0.45)
+
+    def test_calculate_default_confidence(self):
+        """デフォルト動的信頼度計算テスト"""
+        df = self._create_test_data(50)
+        analysis = {
+            "channel_position": 0.7,
+            "channel_width": 50000,
+            "current_price": 4500000,
+            "volatility_ratio": 0.02,
+            "volume_ratio": 1.1,
+        }
+
+        confidence = self.strategy._calculate_default_confidence(analysis, df)
+
+        # 0.20-0.45の範囲内であることを確認
+        self.assertGreaterEqual(confidence, 0.20)
+        self.assertLessEqual(confidence, 0.45)
+
+    def test_calculate_market_uncertainty(self):
+        """市場不確実性計算テスト"""
+        df = self._create_test_data(50)
+
+        uncertainty = self.strategy._calculate_market_uncertainty(df)
+
+        # 0-0.1の範囲内であることを確認
+        self.assertGreaterEqual(uncertainty, 0.0)
+        self.assertLessEqual(uncertainty, 0.1)
+
+    def test_calculate_market_uncertainty_error(self):
+        """市場不確実性計算エラーハンドリングテスト"""
+        df = self._create_test_data(50)
+        df["close"] = None  # 不正データ
+
+        uncertainty = self.strategy._calculate_market_uncertainty(df)
+
+        # デフォルト値が返されることを確認
+        self.assertEqual(uncertainty, 0.02)
+
+    def test_channel_analysis_zero_width(self):
+        """チャネル幅ゼロのエッジケーステスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # チャネル幅がゼロになる設定
+        df.loc[latest_idx, "donchian_high_20"] = 4500000
+        df.loc[latest_idx, "donchian_low_20"] = 4500000
+        df.loc[latest_idx, "close"] = 4500000
+
+        analysis = self.strategy._analyze_donchian_channel(df)
+
+        self.assertIsNotNone(analysis)
+        self.assertEqual(analysis["channel_width"], 0)
+
+    def test_upper_reversal_without_breakout(self):
+        """上限リバーサル（ブレイクアウトなし）テスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # 上限付近だがブレイクアウトしていない
+        df.loc[latest_idx, "channel_position"] = 0.96
+        df.loc[latest_idx, "volume_ratio"] = 1.1
+
+        signal = self.strategy.generate_signal(df)
+
+        # 売りシグナルまたはHOLDが返されることを確認
+        self.assertIn(signal.action, ["sell", "hold"])
+
+    def test_lower_reversal_without_breakout(self):
+        """下限リバーサル（ブレイクアウトなし）テスト"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # 下限付近だがブレイクアウトしていない
+        df.loc[latest_idx, "channel_position"] = 0.04
+        df.loc[latest_idx, "volume_ratio"] = 1.1
+
+        signal = self.strategy.generate_signal(df)
+
+        # 買いシグナルまたはHOLDが返されることを確認
+        self.assertIn(signal.action, ["buy", "hold"])
+
+    def test_hold_signal_with_dynamic_confidence(self):
+        """動的信頼度付きHOLDシグナルテスト"""
+        df = self._create_test_data(50)
+
+        signal = self.strategy._create_hold_signal(df, "テスト理由", dynamic_confidence=0.35)
+
+        self.assertEqual(signal.action, "hold")
+        self.assertEqual(signal.confidence, 0.35)
+        self.assertIn("テスト理由", signal.reason)
+        self.assertTrue(signal.metadata.get("is_dynamic"))
+
+    def test_hold_signal_without_dynamic_confidence(self):
+        """動的信頼度なしHOLDシグナルテスト"""
+        df = self._create_test_data(50)
+
+        signal = self.strategy._create_hold_signal(df, "テスト理由")
+
+        self.assertEqual(signal.action, "hold")
+        self.assertGreater(signal.confidence, 0.0)
+        self.assertFalse(signal.metadata.get("is_dynamic"))
+
+    def test_analyze_with_multi_timeframe_data(self):
+        """マルチタイムフレームデータを使用した分析テスト"""
+        df = self._create_test_data(50)
+
+        # 15分足データ作成
+        multi_tf_data = {
+            "15m": pd.DataFrame(
+                {
+                    "close": [4500000],
+                    "atr_14": [1500],  # 15分足のATR
+                }
+            )
+        }
+
+        signal = self.strategy.analyze(df, multi_timeframe_data=multi_tf_data)
+
+        # シグナルが正常に生成されることを確認
+        self.assertIsNotNone(signal)
+        self.assertIn(signal.action, ["buy", "sell", "hold"])
+
+    def test_analyze_with_backtest_mode(self):
+        """バックテストモードでの分析テスト"""
+        import os
+
+        # バックテストモード設定
+        os.environ["BACKTEST_MODE"] = "true"
+
+        df = pd.DataFrame()  # 空DataFrame（エラー発生）
+
+        try:
+            signal = self.strategy.analyze(df)
+            # HOLDシグナルが返されることを確認
+            self.assertEqual(signal.action, "hold")
+        finally:
+            # 環境変数クリーンアップ
+            os.environ.pop("BACKTEST_MODE", None)
+
+    def test_reversal_confidence_edge_cases(self):
+        """リバーサル信頼度計算エッジケーステスト"""
+        # ボラティリティが範囲外
+        analysis1 = {
+            "channel_position": 0.02,
+            "volatility_ratio": 0.05,  # 範囲外（高い）
+            "volume_ratio": 0.8,
+        }
+        conf1 = self.strategy._calculate_reversal_confidence(analysis1, "buy")
+        self.assertGreaterEqual(conf1, 0.2)
+        self.assertLessEqual(conf1, 0.9)
+
+        # ボラティリティが範囲内
+        analysis2 = {
+            "channel_position": 0.98,
+            "volatility_ratio": 0.02,  # 適度
+            "volume_ratio": 1.3,
+        }
+        conf2 = self.strategy._calculate_reversal_confidence(analysis2, "sell")
+        self.assertGreaterEqual(conf2, 0.2)
+        self.assertLessEqual(conf2, 0.9)
+
 
 if __name__ == "__main__":
     unittest.main()

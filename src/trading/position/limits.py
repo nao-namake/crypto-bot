@@ -38,7 +38,7 @@ class PositionLimits:
         evaluation: TradeEvaluation,
         virtual_positions: List[Dict[str, Any]],
         last_order_time: Optional[datetime],
-        current_balance: float
+        current_balance: float,
     ) -> Dict[str, Any]:
         """
         ポジション管理制限チェック（口座残高使い切り問題対策）
@@ -129,9 +129,7 @@ class PositionLimits:
         return {"allowed": True, "reason": "資金要件OK"}
 
     async def _check_cooldown(
-        self,
-        evaluation: TradeEvaluation,
-        last_order_time: Optional[datetime]
+        self, evaluation: TradeEvaluation, last_order_time: Optional[datetime]
     ) -> Dict[str, Any]:
         """
         クールダウンチェック（Phase 31.1: 柔軟な判定）
@@ -159,9 +157,7 @@ class PositionLimits:
                 should_apply = True
 
             if should_apply:
-                remaining_minutes = (
-                    required_cooldown - time_since_last_order
-                ).total_seconds() / 60
+                remaining_minutes = (required_cooldown - time_since_last_order).total_seconds() / 60
                 return {
                     "allowed": False,
                     "reason": f"クールダウン期間中です。残り {remaining_minutes:.1f}分後に取引可能（設定: {cooldown_minutes}分間隔）",
@@ -208,6 +204,7 @@ class PositionLimits:
 
         # 初期残高の取得（設定ファイルから）
         from ...core.config import load_config
+
         config = load_config("config/core/unified.yaml")
         mode_balances = getattr(config, "mode_balances", {})
 
@@ -259,9 +256,7 @@ class PositionLimits:
                 trade_date = timestamp.date()
             elif isinstance(timestamp, str):
                 try:
-                    trade_date = datetime.fromisoformat(
-                        timestamp.replace("Z", "+00:00")
-                    ).date()
+                    trade_date = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date()
                 except Exception:
                     continue
             else:
@@ -279,9 +274,7 @@ class PositionLimits:
         return {"allowed": True, "reason": "日次取引回数OK"}
 
     def _check_trade_size(
-        self,
-        evaluation: TradeEvaluation,
-        current_balance: float
+        self, evaluation: TradeEvaluation, current_balance: float
     ) -> Dict[str, Any]:
         """
         取引サイズチェック（ML信頼度連動・最小ロット優先）

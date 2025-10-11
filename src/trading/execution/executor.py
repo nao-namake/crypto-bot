@@ -135,11 +135,15 @@ class ExecutionService:
             # ポジション管理制限チェック（口座残高使い切り問題対策）
             if self.position_limits:
                 position_check_result = await self.position_limits.check_limits(
-                    evaluation, self.virtual_positions, self.last_order_time,
-                    self.virtual_balance if self.mode == "paper" else self.current_balance
+                    evaluation,
+                    self.virtual_positions,
+                    self.last_order_time,
+                    self.virtual_balance if self.mode == "paper" else self.current_balance,
                 )
                 if not position_check_result["allowed"]:
-                    self.logger.warning(f"🚫 取引制限により取引拒否: {position_check_result['reason']}")
+                    self.logger.warning(
+                        f"🚫 取引制限により取引拒否: {position_check_result['reason']}"
+                    )
                     return ExecutionResult(
                         success=False,
                         mode=ExecutionMode.LIVE if self.mode == "live" else ExecutionMode.PAPER,
@@ -197,7 +201,7 @@ class ExecutionService:
                 order_execution_config = {
                     "order_type": get_threshold("trading_constraints.default_order_type", "market"),
                     "price": None,
-                    "strategy": "default"
+                    "strategy": "default",
                 }
 
             order_type = order_execution_config["order_type"]
@@ -525,6 +529,6 @@ class ExecutionService:
                 self.bitbank_client,
                 self.mode,
                 self.executed_trades,
-                self.session_pnl
+                self.session_pnl,
             )
         return None

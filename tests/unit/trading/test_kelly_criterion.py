@@ -307,3 +307,210 @@ def test_kelly_with_real_data(sample_trade_data):
     assert result is not None
     assert 0 <= result.win_rate <= 1
     assert result.kelly_fraction >= 0
+
+
+class TestKellyCriterionAdvanced:
+    """Kelly基準高度テスト（未カバー箇所対応）."""
+
+    def setup_method(self):
+        """各テスト前の初期化."""
+        self.kelly = KellyCriterion(
+            max_position_ratio=0.03,
+            safety_factor=0.5,
+            min_trades_for_kelly=5,
+        )
+
+    def test_calculate_from_history_with_lookback(self):
+        """履歴データ期間フィルタテスト."""
+        # 古いデータ追加（30日以前）
+        old_timestamp = datetime.now() - timedelta(days=40)
+        self.kelly.add_trade_result(100, "test", 0.8, timestamp=old_timestamp)
+
+        # 新しいデータ追加（30日以内）
+        for i in range(5):
+            recent_timestamp = datetime.now() - timedelta(days=i)
+            profit = 100 if i < 3 else -50
+            self.kelly.add_trade_result(profit, "test", 0.7, timestamp=recent_timestamp)
+
+        # lookback_days=30で計算
+        result = self.kelly.calculate_from_history(lookback_days=30)
+        assert result is not None
+        assert result.sample_size == 5  # 古いデータは除外される
+
+    def test_calculate_from_history_no_wins(self):
+        """勝ち取引なしケーステスト."""
+        # 全て負け取引
+        for _i in range(5):
+            self.kelly.add_trade_result(-50, "test")
+
+        result = self.kelly.calculate_from_history()
+        assert result is None  # 勝ち取引がないため計算不可
+
+    def test_calculate_from_history_no_losses(self):
+        """負け取引なしケーステスト."""
+        # 全て勝ち取引
+        for _i in range(5):
+            self.kelly.add_trade_result(100, "test")
+
+        result = self.kelly.calculate_from_history()
+        assert result is None  # 負け取引がないため計算不可
+
+    def test_calculate_optimal_size_with_initial_trades(self):
+        """Kelly履歴不足時の固定サイズテスト."""
+        # 取引履歴なし（min_trades_for_kelly=5未満）
+        size = self.kelly.calculate_optimal_size(ml_confidence=0.8)
+        # 初期固定サイズが返される
+        assert size > 0
+        assert size <= 0.02  # max_order_size制限内
+
+        # 取引履歴を3件追加（まだmin_trades_for_kelly未満）
+        for _i in range(3):
+            self.kelly.add_trade_result(100, "test")
+
+        size2 = self.kelly.calculate_optimal_size(ml_confidence=0.8)
+        assert size2 > 0
+
+    def test_calculate_optimal_size_with_kelly_error(self):
+        """Kelly計算エラー時の保守的サイズテスト."""
+        # Kelly計算がエラーを返すようにデータを追加
+        for _i in range(10):
+            self.kelly.add_trade_result(-50, "test")  # 全て負け取引
+
+        with patch.object(self.kelly, "calculate_from_history", return_value=None):
+            size = self.kelly.calculate_optimal_size(ml_confidence=0.8)
+            # 保守的サイズが返される
+            assert size > 0
+            assert size <= self.kelly.max_position_ratio
+
+    def test_dynamic_position_sizing_zero_atr(self):
+        """ATRゼロ時のダイナミックサイジングテスト."""
+        position_size, stop_loss = self.kelly.calculate_dynamic_position_size(
+            balance=1000000, entry_price=50000, atr_value=0, ml_confidence=0.8
+        )
+
+        assert position_size > 0
+        assert stop_loss > 0
+        # ATR=0の場合、ストップロスはentry_priceと同じになる可能性がある
+        assert stop_loss <= 50000
+
+    def test_dynamic_position_sizing_stop_loss_safety(self):
+        """ストップロス安全チェックテスト."""
+        # 極端に大きなATRでストップロスが負値になるケース
+        position_size, stop_loss = self.kelly.calculate_dynamic_position_size(
+            balance=1000000, entry_price=50000, atr_value=30000, ml_confidence=0.8
+        )
+
+        # ストップロスは正値である必要がある
+        assert stop_loss > 0
+        assert stop_loss < 50000
+
+    def test_safe_fallback_position_size(self):
+        """安全フォールバックポジションサイズテスト."""
+        position_size, stop_loss = self.kelly._safe_fallback_position_size(
+            balance=1000000, entry_price=50000
+        )
+
+        assert position_size > 0
+        assert stop_loss > 0
+        assert stop_loss < 50000
+
+        # 最大制限チェック
+        max_safe = 1000000 * 0.1 / 50000
+        assert position_size <= max_safe
+
+    def test_kelly_statistics_error(self):
+        """Kelly統計情報取得エラーテスト."""
+        # 取引履歴を追加してからエラーを発生させる
+        for _i in range(5):
+            self.kelly.add_trade_result(100, "test")
+
+        # 統計計算でエラーを発生させる
+        with patch.object(
+            self.kelly, "calculate_from_history", side_effect=Exception("Test error")
+        ):
+            stats = self.kelly.get_kelly_statistics()
+            assert "status" in stats
+            assert stats["status"] == "エラー"
+
+    def test_calculate_kelly_fraction_edge_cases(self):
+        """Kelly公式エッジケース追加テスト."""
+        # Kelly値が100%を超えるケース
+        kelly_over_100 = self.kelly.calculate_kelly_fraction(
+            win_rate=0.9, avg_win=10.0, avg_loss=1.0
+        )
+        assert kelly_over_100 <= 1.0  # 100%にクリップされる
+
+        # 負のKelly値（不利な確率）
+        kelly_negative = self.kelly.calculate_kelly_fraction(
+            win_rate=0.2, avg_win=1.0, avg_loss=1.0
+        )
+        assert kelly_negative == 0.0  # 負値は0にクリップされる
+
+    def test_calculate_optimal_size_with_max_order_size_limit(self):
+        """max_order_size制限テスト."""
+        # Kelly履歴を追加
+        for i in range(10):
+            profit = 100 if i < 8 else -50  # 80%勝率
+            self.kelly.add_trade_result(profit, "test")
+
+        # 高信頼度で計算
+        size = self.kelly.calculate_optimal_size(ml_confidence=1.0, strategy_name="test")
+
+        # max_order_size制限が適用される
+        assert size <= 0.02  # デフォルトのmax_order_size
+
+    def test_dynamic_position_sizing_scale_limits(self):
+        """ダイナミックサイジングスケール制限テスト."""
+        # 極端に低いボラティリティ（スケールが大きくなる）
+        position_size_low_vol, _ = self.kelly.calculate_dynamic_position_size(
+            balance=1000000,
+            entry_price=50000,
+            atr_value=10,  # 極端に低いATR
+            ml_confidence=0.8,
+            target_volatility=0.01,
+            max_scale=3.0,
+        )
+
+        # 極端に高いボラティリティ（スケールが小さくなる）
+        position_size_high_vol, _ = self.kelly.calculate_dynamic_position_size(
+            balance=1000000,
+            entry_price=50000,
+            atr_value=5000,  # 極端に高いATR
+            ml_confidence=0.8,
+            target_volatility=0.01,
+            max_scale=3.0,
+        )
+
+        # 高ボラティリティ時の方がポジションサイズが小さい
+        assert position_size_high_vol < position_size_low_vol
+
+    def test_add_trade_result_with_custom_timestamp(self):
+        """カスタムタイムスタンプ付き取引結果追加テスト."""
+        custom_timestamp = datetime(2024, 1, 1, 12, 0, 0)
+        self.kelly.add_trade_result(
+            profit_loss=100, strategy="test", confidence=0.8, timestamp=custom_timestamp
+        )
+
+        assert len(self.kelly.trade_history) == 1
+        assert self.kelly.trade_history[0].timestamp == custom_timestamp
+
+    def test_kelly_fraction_calculation_error(self):
+        """Kelly公式計算エラーハンドリングテスト."""
+        # 無効なパラメータでエラーを発生させる
+        with patch.object(self.kelly.logger, "error") as mock_logger:
+            # avg_lossがゼロの場合
+            kelly_f = self.kelly.calculate_kelly_fraction(win_rate=0.6, avg_win=1.0, avg_loss=0)
+            assert kelly_f == 0.0
+
+    def test_calculate_from_history_calculation_error(self):
+        """履歴からのKelly計算エラーテスト."""
+        # 取引データ追加
+        for _i in range(5):
+            self.kelly.add_trade_result(100, "test")
+
+        # calculate_kelly_fractionでエラーを発生させる
+        with patch.object(
+            self.kelly, "calculate_kelly_fraction", side_effect=Exception("Calculation error")
+        ):
+            result = self.kelly.calculate_from_history()
+            assert result is None

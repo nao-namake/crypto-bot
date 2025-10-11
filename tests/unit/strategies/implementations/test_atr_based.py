@@ -247,6 +247,197 @@ class TestATRBasedStrategy(unittest.TestCase):
         self.assertIn("action", decision)
         self.assertIn("strength", decision)
 
+    def test_bb_analysis_error_handling(self):
+        """BB位置分析エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["bb_position"] = "invalid"  # 不正データ
+
+        result = self.strategy._analyze_bb_position(error_df)
+
+        self.assertEqual(result["signal"], 0)
+        self.assertEqual(result["strength"], 0.0)
+        self.assertEqual(result["confidence"], 0.0)
+        self.assertIn("エラー", result["analysis"])
+
+    def test_rsi_analysis_error_handling(self):
+        """RSI分析エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["rsi_14"] = None  # 不正データ
+
+        result = self.strategy._analyze_rsi_momentum(error_df)
+
+        self.assertEqual(result["signal"], 0)
+        self.assertEqual(result["strength"], 0.0)
+        self.assertEqual(result["confidence"], 0.0)
+        self.assertIn("エラー", result["analysis"])
+
+    def test_atr_volatility_short_data(self):
+        """ATRボラティリティ分析 - 短期データテスト."""
+        short_df = self.test_df.iloc[:10].copy()  # 20期間未満
+        result = self.strategy._analyze_atr_volatility(short_df)
+
+        self.assertIn(result["regime"], ["low", "normal", "high"])
+        self.assertEqual(result["volatility_multiplier"], 1.0)  # デフォルト値
+
+    def test_atr_volatility_error_handling(self):
+        """ATRボラティリティ分析エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["atr_14"] = None
+
+        result = self.strategy._analyze_atr_volatility(error_df)
+
+        self.assertEqual(result["regime"], "normal")
+        self.assertEqual(result["strength"], 0.0)
+        self.assertIn("エラー", result["analysis"])
+
+    def test_calculate_market_uncertainty(self):
+        """市場不確実性計算テスト."""
+        uncertainty = self.strategy._calculate_market_uncertainty(self.test_df)
+
+        # 0-0.1の範囲内であることを確認
+        self.assertGreaterEqual(uncertainty, 0.0)
+        self.assertLessEqual(uncertainty, 0.1)
+
+    def test_calculate_market_uncertainty_error(self):
+        """市場不確実性計算エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["close"] = None
+
+        uncertainty = self.strategy._calculate_market_uncertainty(error_df)
+
+        # デフォルト値が返されることを確認
+        self.assertEqual(uncertainty, 0.02)
+
+    def test_make_decision_bb_only(self):
+        """統合判定 - BBシグナルのみテスト."""
+        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.15}
+        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
+        atr_analysis = {"regime": "normal", "strength": 0.5}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # BB単独シグナルが処理されることを確認
+        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+
+    def test_make_decision_rsi_only(self):
+        """統合判定 - RSIシグナルのみテスト."""
+        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.5}
+        rsi_analysis = {"signal": -1, "confidence": 0.5, "strength": 0.6, "rsi": 70.0}
+        atr_analysis = {"regime": "normal", "strength": 0.5}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # RSI単独シグナルが処理されることを確認
+        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+
+    def test_make_decision_weak_neutral_signal(self):
+        """統合判定 - 微弱中立シグナルテスト."""
+        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.5}
+        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
+        atr_analysis = {"regime": "normal", "strength": 0.5}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # 中立状態でHOLDになることを確認
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+
+    def test_make_decision_large_deviation(self):
+        """統合判定 - 大きな乖離による微弱シグナルテスト."""
+        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.2}
+        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 35.0}
+        atr_analysis = {"regime": "normal", "strength": 0.5}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # 大きな乖離で微弱シグナルが生成されることを確認
+        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
+
+    def test_make_decision_low_volatility_penalty(self):
+        """統合判定 - 低ボラティリティペナルティテスト."""
+        bb_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.7, "bb_position": 0.8}
+        rsi_analysis = {"signal": 1, "confidence": 0.4, "strength": 0.6, "rsi": 75.0}
+        atr_analysis = {"regime": "low", "strength": 0.1}  # 低ボラティリティ
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # 低ボラティリティペナルティが適用されることを確認
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+
+    def test_make_decision_below_min_confidence(self):
+        """統合判定 - 最小信頼度未満テスト."""
+        bb_analysis = {"signal": 1, "confidence": 0.1, "strength": 0.2, "bb_position": 0.8}
+        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
+        atr_analysis = {"regime": "low", "strength": 0.1}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # 最小信頼度未満でHOLDになることを確認
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+
+    def test_make_decision_error_handling(self):
+        """統合判定エラーハンドリングテスト."""
+        # 不正な分析結果
+        bb_analysis = None
+        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6, "rsi": 75.0}
+        atr_analysis = {"regime": "normal", "strength": 0.5}
+        stress_analysis = {"filter_ok": True}
+
+        decision = self.strategy._make_decision(
+            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
+        )
+
+        # エラー時はHOLDが返されることを確認
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+        self.assertIn("エラー", decision["analysis"])
+
+    def test_create_hold_decision(self):
+        """ホールド決定作成テスト."""
+        decision = self.strategy._create_hold_decision("テスト理由")
+
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+        self.assertGreater(decision["confidence"], 0.0)
+        self.assertEqual(decision["strength"], 0.0)
+        self.assertIn("テスト理由", decision["analysis"])
+
+    def test_analyze_with_multi_timeframe_data(self):
+        """マルチタイムフレームデータを使用した分析テスト."""
+        # 15分足データ作成
+        multi_tf_data = {
+            "15m": pd.DataFrame(
+                {
+                    "close": [10500000],
+                    "atr_14": [300000],  # 15分足のATR
+                }
+            )
+        }
+
+        signal = self.strategy.analyze(self.test_df, multi_timeframe_data=multi_tf_data)
+
+        # シグナルが正常に生成されることを確認
+        self.assertIsNotNone(signal)
+        self.assertIn(signal.action, [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
+
 
 def run_atr_based_tests():
     """ATRベース戦略テスト実行関数."""

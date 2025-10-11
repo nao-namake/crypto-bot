@@ -31,7 +31,7 @@ class BalanceMonitor:
         self,
         balance_jpy: float,
         position_value_jpy: float,
-        bitbank_client: Optional[BitbankClient] = None
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> float:
         """
         保証金維持率を計算（API優先・フォールバック付き）
@@ -58,9 +58,7 @@ class BalanceMonitor:
         return self._calculate_margin_ratio_direct(balance_jpy, position_value_jpy)
 
     def _calculate_margin_ratio_direct(
-        self,
-        balance_jpy: float,
-        position_value_jpy: float
+        self, balance_jpy: float, position_value_jpy: float
     ) -> float:
         """
         保証金維持率を直接計算
@@ -97,10 +95,7 @@ class BalanceMonitor:
 
         return max(0, margin_ratio)
 
-    async def _fetch_margin_ratio_from_api(
-        self,
-        bitbank_client: BitbankClient
-    ) -> Optional[float]:
+    async def _fetch_margin_ratio_from_api(self, bitbank_client: BitbankClient) -> Optional[float]:
         """
         bitbank APIから保証金維持率を直接取得
 
@@ -115,9 +110,7 @@ class BalanceMonitor:
 
             api_margin_ratio = margin_status.get("margin_ratio")
             if api_margin_ratio is not None:
-                self.logger.info(
-                    f"📡 API直接取得成功: 保証金維持率 {api_margin_ratio:.1f}%"
-                )
+                self.logger.info(f"📡 API直接取得成功: 保証金維持率 {api_margin_ratio:.1f}%")
                 return float(api_margin_ratio)
             else:
                 self.logger.warning("⚠️ API応答に保証金維持率データなし")
@@ -154,7 +147,7 @@ class BalanceMonitor:
         self,
         balance_jpy: float,
         position_value_jpy: float,
-        bitbank_client: Optional[BitbankClient] = None
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> MarginData:
         """
         現在の保証金状況を分析
@@ -179,16 +172,14 @@ class BalanceMonitor:
             margin_ratio=margin_ratio,
             status=status,
             message=message,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         # 履歴に追加
         self._add_to_history(margin_data)
 
         # ログ出力
-        self.logger.info(
-            f"📊 保証金維持率: {margin_ratio:.1f}% - {message}"
-        )
+        self.logger.info(f"📊 保証金維持率: {margin_ratio:.1f}% - {message}")
 
         return margin_data
 
@@ -198,7 +189,7 @@ class BalanceMonitor:
         current_position_value_jpy: float,
         new_position_size_btc: float,
         btc_price_jpy: float,
-        bitbank_client: Optional[BitbankClient] = None
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> MarginPrediction:
         """
         新規ポジション追加後の維持率を予測
@@ -238,7 +229,7 @@ class BalanceMonitor:
             future_status=future_status,
             position_size_btc=new_position_size_btc,
             btc_price=btc_price_jpy,
-            recommendation=recommendation
+            recommendation=recommendation,
         )
 
         # 警告ログ（バックテスト時は抑制）
@@ -318,11 +309,11 @@ class BalanceMonitor:
                 "margin_ratio": latest.margin_ratio,
                 "status": latest.status.value,
                 "message": latest.message,
-                "timestamp": latest.timestamp.isoformat()
+                "timestamp": latest.timestamp.isoformat(),
             },
             "trend": trend,
             "history_count": len(self.margin_history),
-            "recommendations": self._get_margin_recommendations(latest)
+            "recommendations": self._get_margin_recommendations(latest),
         }
 
     def _get_margin_recommendations(self, margin_data: MarginData) -> List[str]:
@@ -338,30 +329,29 @@ class BalanceMonitor:
         recommendations = []
 
         if margin_data.status == MarginStatus.CRITICAL:
-            recommendations.extend([
-                "🚨 緊急：追証が発生しています",
-                "💰 入金を検討してください",
-                "📉 ポジション縮小を検討してください",
-                "⏱️ 新規エントリーは控えめに"
-            ])
+            recommendations.extend(
+                [
+                    "🚨 緊急：追証が発生しています",
+                    "💰 入金を検討してください",
+                    "📉 ポジション縮小を検討してください",
+                    "⏱️ 新規エントリーは控えめに",
+                ]
+            )
         elif margin_data.status == MarginStatus.WARNING:
-            recommendations.extend([
-                "⚠️ 維持率が低下しています",
-                "💰 追加入金を検討してください",
-                "📊 ポジションサイズを控えめに",
-                "👀 市場動向を注意深く監視"
-            ])
+            recommendations.extend(
+                [
+                    "⚠️ 維持率が低下しています",
+                    "💰 追加入金を検討してください",
+                    "📊 ポジションサイズを控えめに",
+                    "👀 市場動向を注意深く監視",
+                ]
+            )
         elif margin_data.status == MarginStatus.CAUTION:
-            recommendations.extend([
-                "⚠️ 維持率に注意してください",
-                "📊 大きなポジションは避ける",
-                "👀 価格変動を監視"
-            ])
+            recommendations.extend(
+                ["⚠️ 維持率に注意してください", "📊 大きなポジションは避ける", "👀 価格変動を監視"]
+            )
         else:  # SAFE
-            recommendations.extend([
-                "✅ 安全な維持率です",
-                "💪 通常通りの取引が可能"
-            ])
+            recommendations.extend(["✅ 安全な維持率です", "💪 通常通りの取引が可能"])
 
         return recommendations
 
@@ -386,22 +376,19 @@ class BalanceMonitor:
         if future_ratio < critical_threshold:
             return (
                 True,
-                f"🚨 危険：このエントリーで維持率が{future_ratio:.1f}%に低下します（追証発生）"
+                f"🚨 危険：このエントリーで維持率が{future_ratio:.1f}%に低下します（追証発生）",
             )
 
         # 大幅に維持率が低下する場合
         if current_ratio - future_ratio > large_drop_threshold:
             return (
                 True,
-                f"⚠️ 警告：維持率が大幅低下します（{current_ratio:.1f}% → {future_ratio:.1f}%）"
+                f"⚠️ 警告：維持率が大幅低下します（{current_ratio:.1f}% → {future_ratio:.1f}%）",
             )
 
         # 150%を下回る場合
         if future_ratio < warning_threshold:
-            return (
-                True,
-                f"⚠️ 注意：エントリー後の維持率は{future_ratio:.1f}%になります"
-            )
+            return (True, f"⚠️ 注意：エントリー後の維持率は{future_ratio:.1f}%になります")
 
         return False, ""
 
@@ -409,7 +396,7 @@ class BalanceMonitor:
         self,
         required_amount: float,
         current_balance: float,
-        bitbank_client: Optional[BitbankClient] = None
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> Dict[str, Any]:
         """
         残高充足性チェック
@@ -441,7 +428,7 @@ class BalanceMonitor:
             "current_balance": current_balance,
             "available_balance": available_balance,
             "required_amount": required_amount,
-            "shortage": max(0, required_amount - min(current_balance, available_balance))
+            "shortage": max(0, required_amount - min(current_balance, available_balance)),
         }
 
         if not result["sufficient"]:

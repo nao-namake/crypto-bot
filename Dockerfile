@@ -1,12 +1,12 @@
-# Phase 37.4完了 Production Dockerfile
-# 653テスト100%成功・58.62%カバレッジ・SL配置問題完全解決・コスト最適化35-45%達成
+# Phase 38完了 Production Dockerfile
+# 1,078テスト100%成功・70.56%カバレッジ・trading層レイヤードアーキテクチャ完成
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 37.4完了）
-LABEL maintainer="crypto-bot-phase37-system"
-LABEL version="37.4.0"
-LABEL description="Phase 37.4完了: SL配置問題完全解決・trigger_price修正・bitbank API完全準拠・コスト最適化35-45%達成"
+# メタデータ（Phase 38完了）
+LABEL maintainer="crypto-bot-phase38-system"
+LABEL version="38.0.0"
+LABEL description="Phase 38完了: trading層レイヤードアーキテクチャ・70.56%カバレッジ達成・1,078テスト成功"
 
 WORKDIR /app
 

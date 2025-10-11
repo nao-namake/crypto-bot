@@ -312,7 +312,8 @@ run_bot() {
 
     # ペーパーモード時のドローダウン自動リセット
     if [ "$mode" = "paper" ]; then
-        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/paper/drawdown_state.json"
+        # Phase 38修正: DrawdownManagerが実際に使用するパスに統一
+        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/drawdown_state.json"
         if [ -f "$DRAWDOWN_FILE" ]; then
             log_info "🔄 ドローダウン状態リセット（ペーパーモード）"
             rm -f "$DRAWDOWN_FILE"

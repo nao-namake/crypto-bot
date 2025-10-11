@@ -122,8 +122,7 @@ class PositionTracker:
             該当するポジションリスト
         """
         return [
-            pos for pos in self.virtual_positions
-            if pos.get("side", "").lower() == side.lower()
+            pos for pos in self.virtual_positions if pos.get("side", "").lower() == side.lower()
         ]
 
     def get_all_positions(self) -> List[Dict[str, Any]]:
@@ -193,10 +192,7 @@ class PositionTracker:
         return count
 
     def update_position_tp_sl(
-        self,
-        order_id: str,
-        tp_order_id: Optional[str] = None,
-        sl_order_id: Optional[str] = None
+        self, order_id: str, tp_order_id: Optional[str] = None, sl_order_id: Optional[str] = None
     ) -> bool:
         """
         ポジションのTP/SL注文IDを更新
@@ -224,8 +220,7 @@ class PositionTracker:
         return True
 
     def get_orphaned_positions(
-        self,
-        actual_positions: List[Dict[str, Any]]
+        self, actual_positions: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         実際のポジションと比較して消失したポジションを検出
@@ -248,10 +243,7 @@ class PositionTracker:
                 actual_side = actual_pos.get("side", "").lower()
                 actual_amount = float(actual_pos.get("amount", 0))
 
-                if (
-                    actual_side == vpos_side
-                    and abs(actual_amount - vpos_amount) < 0.00001
-                ):
+                if actual_side == vpos_side and abs(actual_amount - vpos_amount) < 0.00001:
                     matched = True
                     break
 

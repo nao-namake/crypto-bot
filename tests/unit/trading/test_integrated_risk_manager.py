@@ -9,6 +9,10 @@ Phase 6リスク管理層の中核である統合リスク管理システムの�
 - リスクスコア算出
 - 最終判定ロジック
 - 各コンポーネント連携.
+
+注意: Phase 38リファクタリング対応完了。
+DrawdownManagerの新しいAPI（config parameter、update_balanceの戻り値変更、
+デフォルトinitial_balance=10000.0）に対応済み。
 """
 
 from datetime import datetime, timedelta
@@ -19,13 +23,15 @@ import pandas as pd
 import pytest
 
 from src.trading import (
+    AnomalyAlert,
+    AnomalyLevel,
     IntegratedRiskManager,
     KellyCalculationResult,
     RiskDecision,
     RiskMetrics,
     TradeEvaluation,
+    TradingStatus,
 )
-from src.trading import AnomalyAlert, AnomalyLevel, TradingStatus
 
 
 class TestIntegratedRiskManager:
@@ -57,22 +63,15 @@ class TestIntegratedRiskManager:
             },
         }
 
+        # Phase 38対応: mode='backtest'でstate file読み込みを回避
         self.risk_manager = IntegratedRiskManager(
             config=self.config,
             initial_balance=1000000,
             enable_discord_notifications=False,  # テスト時は無効
+            mode="backtest",  # テスト時はバックテストモードで状態ファイル読み込みを回避
         )
 
-        # DrawdownManagerの状態を完全にリセット（テスト独立性確保）
-        from src.trading import TradingStatus
-
-        self.risk_manager.drawdown_manager.trading_status = TradingStatus.ACTIVE
-        self.risk_manager.drawdown_manager.consecutive_losses = 0
-        self.risk_manager.drawdown_manager.pause_until = None
-        self.risk_manager.drawdown_manager.current_balance = 1000000
-        self.risk_manager.drawdown_manager.peak_balance = 1000000
-        self.risk_manager.drawdown_manager.last_loss_time = None
-
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_risk_manager_initialization(self):
         """リスク管理器初期化テスト."""
         assert self.risk_manager.config == self.config
@@ -82,6 +81,7 @@ class TestIntegratedRiskManager:
         assert self.risk_manager.position_integrator is not None
         assert len(self.risk_manager.evaluation_history) == 0
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_component_initialization(self):
         """コンポーネント初期化テスト."""
         # Kelly基準設定確認
@@ -168,15 +168,21 @@ class TestIntegratedRiskManager:
         assert evaluation.decision == RiskDecision.APPROVED
         assert evaluation.position_size > 0.0  # ポジションサイズが設定される
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_evaluate_trade_opportunity_drawdown_limit(self):
         """ドローダウン制限による拒否テスト."""
         market_data = self.create_sample_market_data()
 
-        # ドローダウン制限を超過させる
+        # Phase 38対応: ドローダウン制限を超過させる正しい手順
+        # 1. 初期残高設定
         self.risk_manager.drawdown_manager.initialize_balance(1000000)
-        self.risk_manager.drawdown_manager.update_balance(1200000)  # ピーク
-        self.risk_manager.drawdown_manager.update_balance(750000)  # 25%ドローダウン
+        # 2. ピーク残高に更新
+        self.risk_manager.drawdown_manager.update_balance(1200000)
+        # 3. ドローダウン状態の残高に更新（37.5% > 20%制限）
+        self.risk_manager.drawdown_manager.update_balance(750000)
+        # 4. 損失を記録してクールダウンをトリガー
+        self.risk_manager.drawdown_manager.record_trade_result(-450000, "test")
 
         ml_prediction = {"confidence": 0.8, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.7}
@@ -194,6 +200,7 @@ class TestIntegratedRiskManager:
         assert evaluation.decision == RiskDecision.DENIED
         assert any("ドローダウン" in reason for reason in evaluation.denial_reasons)
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_evaluate_trade_opportunity_critical_anomaly(self):
         """重大異常による拒否テスト."""
@@ -213,10 +220,12 @@ class TestIntegratedRiskManager:
             api_latency_ms=500,
         )
 
-        # 実装では重大スプレッド異常があっても承認される設計
-        assert evaluation.decision == RiskDecision.APPROVED
+        # Phase 38対応: 重大スプレッド異常は拒否される
+        assert evaluation.decision == RiskDecision.DENIED
         assert len(evaluation.anomaly_alerts) > 0
+        assert any("スプレッド" in reason for reason in evaluation.denial_reasons)
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_risk_score_calculation(self):
         """リスクスコア計算テスト."""
@@ -241,6 +250,7 @@ class TestIntegratedRiskManager:
         # 実装では警告はanomaly_alertsに記録される
         assert len(evaluation.anomaly_alerts) > 0  # 警告レベル異常
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_record_trade_result(self):
         """取引結果記録テスト."""
         # 利益取引記録
@@ -281,6 +291,7 @@ class TestIntegratedRiskManager:
         assert metrics.approved_trades > 0
         assert metrics.last_evaluation is not None
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_evaluation_history_limit(self):
         """評価履歴サイズ制限テスト."""
@@ -307,6 +318,7 @@ class TestIntegratedRiskManager:
         # 履歴サイズが制限される
         assert len(self.risk_manager.evaluation_history) <= 1000
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_get_risk_summary(self):
         """リスクサマリー取得テスト."""
@@ -368,6 +380,7 @@ class TestIntegratedRiskManager:
             assert evaluation.decision == RiskDecision.CONDITIONAL
             assert evaluation.risk_score == 0.65
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     async def test_error_handling_in_evaluation(self):
         """評価時のエラーハンドリングテスト."""
@@ -392,13 +405,17 @@ class TestIntegratedRiskManager:
         assert evaluation.risk_score == 1.0  # 最大リスク
         assert evaluation.position_size == 0.0
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     @pytest.mark.asyncio
     @patch("asyncio.create_task")
     async def test_discord_notification_integration(self, mock_create_task):
         """Discord通知連携テスト."""
-        # Discord通知有効な管理器作成
+        # Discord通知有効な管理器作成（Phase 38対応: mode='backtest'追加）
         risk_manager_with_discord = IntegratedRiskManager(
-            config=self.config, initial_balance=1000000, enable_discord_notifications=True
+            config=self.config,
+            initial_balance=1000000,
+            enable_discord_notifications=True,
+            mode="backtest",
         )
 
         market_data = self.create_sample_market_data()
@@ -420,6 +437,7 @@ class TestIntegratedRiskManager:
         # Discord通知タスクが作成される
         assert mock_create_task.called
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_market_volatility_estimation(self):
         """市場ボラティリティ推定テスト."""
         # ATRありの市場データ
@@ -437,6 +455,7 @@ class TestIntegratedRiskManager:
         volatility_minimal = self.risk_manager._estimate_market_volatility(minimal_data)
         assert volatility_minimal == 0.02  # デフォルト値
 
+    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_final_decision_logic(self):
         """最終判定ロジックテスト."""
         # 各判定パターンをテスト
@@ -492,8 +511,235 @@ class TestIntegratedRiskManager:
         )
         assert decision == RiskDecision.APPROVED
 
+    @pytest.mark.asyncio
+    async def test_capital_usage_limits(self):
+        """残高利用率制限チェックテスト."""
+        # 正常ケース
+        result = self.risk_manager._check_capital_usage_limits(
+            current_balance=9500, btc_price=6000000
+        )
+        assert result["allowed"] == True
+
+        # 利用率超過ケース（30%以上使用）
+        result_over = self.risk_manager._check_capital_usage_limits(
+            current_balance=6500, btc_price=6000000  # 35%使用
+        )
+        assert result_over["allowed"] == False
+        assert "資金利用率上限超過" in result_over["reason"]
+
+    @pytest.mark.asyncio
+    async def test_margin_ratio_check(self):
+        """保証金維持率監視チェックテスト."""
+        market_data = self.create_sample_market_data()
+        ml_prediction = {"confidence": 0.7, "action": "buy"}
+        strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
+
+        # 正常ケース
+        warning = await self.risk_manager._check_margin_ratio(
+            current_balance=1000000,
+            btc_price=6000000,
+            ml_prediction=ml_prediction,
+            strategy_signal=strategy_signal,
+        )
+        # Noneまたは警告メッセージ
+        assert warning is None or isinstance(warning, str)
+
+    def test_estimate_position_value(self):
+        """ポジション価値推定テスト."""
+        # ライブモード判定
+        value_live = self.risk_manager._estimate_current_position_value(
+            current_balance=95000, btc_price=6000000
+        )
+        assert value_live >= 0
+
+        # ペーパーモード判定
+        value_paper = self.risk_manager._estimate_current_position_value(
+            current_balance=9500, btc_price=6000000
+        )
+        assert value_paper >= 0
+
+    def test_estimate_new_position_size(self):
+        """新規ポジションサイズ推定テスト."""
+        # 低信頼度
+        size_low = self.risk_manager._estimate_new_position_size(ml_confidence=0.5)
+        assert size_low > 0
+
+        # 中信頼度
+        size_mid = self.risk_manager._estimate_new_position_size(ml_confidence=0.7)
+        assert size_mid > 0
+
+        # 高信頼度
+        size_high = self.risk_manager._estimate_new_position_size(ml_confidence=0.8)
+        assert size_high > 0
+
+    def test_check_stop_conditions(self):
+        """停止条件チェックテスト."""
+        result = self.risk_manager.check_stop_conditions()
+        assert "should_stop" in result
+        assert "stop_reasons" in result
+        assert "trading_allowed" in result
+        assert "system_status" in result
+        assert isinstance(result["should_stop"], bool)
+
+    @pytest.mark.asyncio
+    async def test_evaluate_with_dict_strategy_signal(self):
+        """辞書型strategy_signal評価テスト."""
+        market_data = self.create_sample_market_data()
+        ml_prediction = {"confidence": 0.7, "action": "buy"}
+        strategy_signal = {
+            "strategy_name": "test",
+            "action": "buy",
+            "confidence": 0.6,
+            "stop_loss": 49000,
+            "take_profit": 51000,
+        }
+
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
+            ml_prediction=ml_prediction,
+            strategy_signal=strategy_signal,
+            market_data=market_data,
+            current_balance=1000000,
+            bid=50000,
+            ask=50100,
+            api_latency_ms=500,
+        )
+
+        assert evaluation.side in ["buy", "sell", "none"]
+        assert evaluation.stop_loss is not None
+        assert evaluation.take_profit is not None
+
+    @pytest.mark.asyncio
+    async def test_evaluate_with_object_strategy_signal(self):
+        """オブジェクト型strategy_signal評価テスト."""
+        market_data = self.create_sample_market_data()
+        ml_prediction = {"confidence": 0.7, "action": "buy"}
+
+        # Mock strategy signal object
+        strategy_signal = Mock()
+        strategy_signal.strategy_name = "test_strategy"
+        strategy_signal.action = "buy"
+        strategy_signal.confidence = 0.6
+        strategy_signal.stop_loss = 49000
+        strategy_signal.take_profit = 51000
+
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
+            ml_prediction=ml_prediction,
+            strategy_signal=strategy_signal,
+            market_data=market_data,
+            current_balance=1000000,
+            bid=50000,
+            ask=50100,
+            api_latency_ms=500,
+        )
+
+        assert evaluation.side in ["buy", "sell", "none"]
+
+    @pytest.mark.asyncio
+    async def test_evaluate_with_hold_action(self):
+        """hold/none action評価テスト."""
+        market_data = self.create_sample_market_data()
+        ml_prediction = {"confidence": 0.7, "action": "hold"}
+        strategy_signal = {"strategy_name": "test", "action": "hold", "confidence": 0.6}
+
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
+            ml_prediction=ml_prediction,
+            strategy_signal=strategy_signal,
+            market_data=market_data,
+            current_balance=1000000,
+            bid=50000,
+            ask=50100,
+            api_latency_ms=500,
+        )
+
+        assert evaluation.side == "none"
+
+    @pytest.mark.asyncio
+    async def test_risk_score_components(self):
+        """リスクスコアコンポーネントテスト."""
+        # 異常アラート作成
+        anomaly_alerts = [
+            Mock(level=Mock(value="critical")),
+            Mock(level=Mock(value="warning")),
+        ]
+
+        risk_score = self.risk_manager._calculate_risk_score(
+            ml_confidence=0.5,
+            anomaly_alerts=anomaly_alerts,
+            drawdown_ratio=0.1,
+            consecutive_losses=2,
+            market_volatility=0.03,
+        )
+
+        assert 0 <= risk_score <= 1
+
+        # 高リスクケース
+        high_risk_score = self.risk_manager._calculate_risk_score(
+            ml_confidence=0.2,  # 低信頼度
+            anomaly_alerts=[Mock(level=Mock(value="critical"))] * 5,
+            drawdown_ratio=0.19,  # 高ドローダウン
+            consecutive_losses=4,
+            market_volatility=0.08,  # 高ボラティリティ
+        )
+
+        assert high_risk_score > risk_score
+
+    @pytest.mark.asyncio
+    async def test_position_sizing_error_handling(self):
+        """ポジションサイジングエラーハンドリングテスト."""
+        market_data = self.create_sample_market_data()
+
+        # ポジションサイジング計算でエラーを発生させる
+        with patch.object(
+            self.risk_manager.position_integrator,
+            "calculate_integrated_position_size",
+            side_effect=Exception("Test error"),
+        ):
+            ml_prediction = {"confidence": 0.7, "action": "buy"}
+            strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
+
+            evaluation = await self.risk_manager.evaluate_trade_opportunity(
+                ml_prediction=ml_prediction,
+                strategy_signal=strategy_signal,
+                market_data=market_data,
+                current_balance=1000000,
+                bid=50000,
+                ask=50100,
+                api_latency_ms=500,
+            )
+
+            # エラー時は最小サイズにフォールバック
+            assert len(evaluation.warnings) > 0
+
+    @pytest.mark.asyncio
+    async def test_denial_reasons_accumulation(self):
+        """拒否理由蓄積テスト."""
+        market_data = self.create_sample_market_data()
+
+        # 複数の拒否理由を発生させる
+        ml_prediction = {"confidence": 0.1, "action": "buy"}  # 低信頼度
+        strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
+
+        # ドローダウン制限を超過させる
+        self.risk_manager.drawdown_manager.initialize_balance(1000000)
+        self.risk_manager.drawdown_manager.update_balance(750000)  # 25%ドローダウン
+
+        evaluation = await self.risk_manager.evaluate_trade_opportunity(
+            ml_prediction=ml_prediction,
+            strategy_signal=strategy_signal,
+            market_data=market_data,
+            current_balance=750000,
+            bid=50000,
+            ask=50300,  # 重大スプレッド
+            api_latency_ms=500,
+        )
+
+        # 複数の拒否理由が記録される
+        assert len(evaluation.denial_reasons) > 0
+        assert evaluation.decision == RiskDecision.DENIED
+
 
 # パフォーマンステスト
+@pytest.mark.xfail(False, reason="Phase 38対応済み")
 @pytest.mark.asyncio
 async def test_integrated_risk_manager_performance():
     """統合リスク管理パフォーマンステスト."""
@@ -504,7 +750,10 @@ async def test_integrated_risk_manager_performance():
         "risk_thresholds": {"min_ml_confidence": 0.25},
     }
 
-    risk_manager = IntegratedRiskManager(config, enable_discord_notifications=False)
+    # Phase 38対応: mode='backtest'追加
+    risk_manager = IntegratedRiskManager(
+        config, enable_discord_notifications=False, mode="backtest"
+    )
     market_data = pd.DataFrame(
         {"close": [50000] * 20, "volume": [1000] * 20, "atr_14": [1000] * 20}
     )
@@ -545,16 +794,8 @@ async def test_complete_risk_management_workflow():
         "risk_thresholds": {"min_ml_confidence": 0.3},
     }
 
-    risk_manager = IntegratedRiskManager(config, 1000000, False)
-
-    # テスト用にDrawdownManagerの状態を完全リセット
-    from src.trading import TradingStatus
-
-    risk_manager.drawdown_manager.trading_status = TradingStatus.ACTIVE
-    risk_manager.drawdown_manager.consecutive_losses = 0
-    risk_manager.drawdown_manager.pause_until = None
-    risk_manager.drawdown_manager.current_balance = 1000000
-    risk_manager.drawdown_manager.peak_balance = 1000000  # ピーク残高もリセット
+    # Phase 38対応: mode='backtest'で状態ファイル読み込みを回避
+    risk_manager = IntegratedRiskManager(config, 1000000, False, mode="backtest")
     market_data = pd.DataFrame(
         {"close": [50000] * 30, "volume": [1000] * 30, "atr_14": [1000] * 30}
     )

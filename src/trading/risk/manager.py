@@ -225,10 +225,7 @@ class IntegratedRiskManager:
 
             # side属性を"buy"/"sell"のみに正規化
             raw_side = (
-                strategy_action
-                or ml_prediction.get("action")
-                or ml_prediction.get("side")
-                or "buy"
+                strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "buy"
             )
 
             # holdの場合は実取引しないため、適切なside値を設定
@@ -686,9 +683,7 @@ class IntegratedRiskManager:
             )
 
             # 4. ユーザー警告が必要かチェック
-            should_warn, warning_message = self.balance_monitor.should_warn_user(
-                margin_prediction
-            )
+            should_warn, warning_message = self.balance_monitor.should_warn_user(margin_prediction)
 
             if should_warn:
                 return f"保証金維持率警告: {warning_message}"
@@ -699,9 +694,7 @@ class IntegratedRiskManager:
             self.logger.error(f"❌ 保証金監視チェックエラー: {e}")
             return f"保証金監視システムエラー（制限なし）: {str(e)}"
 
-    def _estimate_current_position_value(
-        self, current_balance: float, btc_price: float
-    ) -> float:
+    def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
         """現在のポジション価値推定"""
         try:
             config = load_config("config/core/unified.yaml")

@@ -47,54 +47,242 @@ src/trading/
 | 責務混在 | レイヤー分離 | 保守性向上 |
 | テスト困難 | 単独テスト可能 | テスタビリティ向上 |
 
-## 🔧 主要コンポーネント
+## 🔧 レイヤードアーキテクチャ詳細
 
-### **1. risk_manager.py（1,805行）**
+### **Layer 1: core/ - 共通定義層**
 
-**目的**: 統合リスク管理・Kelly基準ポジションサイジング・取引実行結果管理
+**責務**: 全層で使用する共通型定義・列挙型の提供
 
-**主要クラス**:
+**モジュール**:
+
+#### **enums.py（150行）**
 ```python
-class IntegratedRiskManager:
-    def evaluate_trade_opportunity(ml_prediction, strategy_signal, market_data)  # 取引機会評価
-    def _calculate_risk_score(evaluation_data)                                   # リスクスコア算出
-    def _make_final_decision(risk_score)                                         # 最終判定
+class RiskDecision(Enum):
+    APPROVED = "approved"                # 取引承認
+    CONDITIONAL = "conditional"          # 条件付き承認
+    DENIED = "denied"                    # 取引拒否
 
-class KellyCriterion:
-    def calculate_dynamic_position_size(balance, entry_price, atr_value)         # 動的ポジションサイズ
-    def add_trade_result(profit_loss, strategy, confidence)                      # 取引結果記録
+class OrderStatus(Enum):
+    PENDING = "pending"                  # 注文待機
+    FILLED = "filled"                    # 約定完了
+    CANCELED = "canceled"                # キャンセル済み
+    FAILED = "failed"                    # 注文失敗
 
+class ExecutionMode(Enum):
+    PAPER = "paper"                      # ペーパートレード
+    LIVE = "live"                        # ライブ取引
+    BACKTEST = "backtest"                # バックテスト
+```
+
+#### **types.py（230行）**
+```python
 @dataclass
 class TradeEvaluation:
-    decision: RiskDecision              # APPROVED/CONDITIONAL/DENIED
-    position_size: float                # 推奨ポジションサイズ
-    risk_score: float                   # リスクスコア(0.0-1.0)
-    recommended_action: str             # BUY/SELL/HOLD
+    decision: RiskDecision               # リスク判定結果
+    position_size: float                 # 推奨ポジションサイズ
+    risk_score: float                    # リスクスコア(0.0-1.0)
+    recommended_action: str              # BUY/SELL/HOLD
 
 @dataclass
 class ExecutionResult:
-    success: bool                       # 実行成功/失敗
-    mode: ExecutionMode                 # PAPER/LIVE
-    order_id: Optional[str]             # 注文ID
-    status: OrderStatus                 # 注文状態
+    success: bool                        # 実行成功/失敗
+    mode: ExecutionMode                  # 実行モード
+    order_id: Optional[str]              # 注文ID
+    status: OrderStatus                  # 注文状態
+```
+
+### **Layer 2: balance/ - 残高監視層**
+
+**責務**: 証拠金・残高状況の監視とアラート
+
+#### **monitor.py（450行）**
+```python
+class MarginMonitor:
+    def calculate_current_margin_ratio(balance, positions)       # 現在の維持率計算
+    def calculate_projected_margin_ratio(balance, new_value)     # 予測維持率計算
+    def get_margin_status(margin_ratio)                          # 状態判定
+```
+
+**実装機能**:
+- **4段階状態判定**: SAFE（100%以上）・CAUTION（80-100%）・WARNING（50-80%）・CRITICAL（50%未満）
+- **新規ポジション影響予測**: 追加取引による維持率変化の事前計算
+- **Discord通知連携**: 危険な維持率の自動通知
+
+### **Layer 3: execution/ - 注文実行層**
+
+**責務**: 注文生成・実行・ストップ条件管理
+
+#### **executor.py（600行）**
+```python
+class ExecutionService:
+    async def execute_trade(evaluation: TradeEvaluation) -> ExecutionResult
+    async def _execute_live_trade(evaluation)                    # ライブ取引実行
+    async def _execute_paper_trade(evaluation)                   # ペーパー取引実行
+    async def _execute_backtest_trade(evaluation)                # バックテスト実行
+```
+
+**実装機能**:
+- **3モード統一実行**: ライブ・ペーパー・バックテスト対応
+- **TP/SL自動配置**: エントリー後即座にTP/SL指値注文配置
+- **エラーハンドリング**: 残高不足（50061）・API制限（20003）等の詳細検出
+
+#### **order_strategy.py（400行）**
+```python
+class OrderStrategy:
+    def calculate_limit_price(bid, ask, action)                  # 指値価格計算
+    def optimize_order_price(orderbook, action)                  # オーダーブック最適化
+    def should_use_limit_order(market_conditions)                # 注文種別判定
+```
+
+**実装機能**:
+- **スマート注文**: 指値/成行自動切替・手数料14-28%削減
+- **価格最適化**: ベストアスク+0.05%/ベストビッド-0.05%計算
+- **タイムアウト管理**: 5分未約定で自動キャンセル・デイトレード最適化
+
+#### **stop_manager.py（600行）**
+```python
+class StopManager:
+    async def check_stop_conditions()                            # ストップ条件チェック
+    async def execute_stop_loss(position)                        # 損切り実行
+    async def execute_take_profit(position)                      # 利確実行
+```
+
+**実装機能**:
+- **TP/SL監視**: 全ポジションの条件チェック・自動決済
+- **緊急停止**: 異常な価格変動・システム異常時の自動停止
+
+### **Layer 4: position/ - ポジション管理層**
+
+**責務**: ポジション追跡・制限・クールダウン・クリーンアップ
+
+#### **tracker.py（260行）**
+```python
+class PositionTracker:
+    def track_position(order_id, position_data)                  # ポジション追跡
+    def get_open_positions()                                     # オープンポジション取得
+    def update_position_status(position_id, status)              # 状態更新
+```
+
+#### **limits.py（340行）**
+```python
+class PositionLimits:
+    def check_position_limit(current_positions)                  # ポジション数制限
+    def check_daily_trade_limit(today_trades)                    # 1日取引数制限
+    def can_open_position()                                      # 新規ポジション可否
+```
+
+**実装機能**:
+- **最大3ポジション制限**: 同時保有ポジション数制御
+- **1日20取引制限**: 過剰取引防止
+
+#### **cleanup.py（320行）**
+```python
+class PositionCleanup:
+    async def detect_orphan_positions()                          # 孤児ポジション検出
+    async def auto_cleanup_orphans()                             # 自動クリーンアップ
+```
+
+**実装機能** (Phase 37.5.3):
+- **孤児ポジション検出**: DB記録なしポジションの自動検出
+- **残注文自動クリーンアップ**: 孤児ポジション関連注文の自動キャンセル
+
+#### **cooldown.py（180行）**
+```python
+class CooldownManager:
+    def check_cooldown(last_trade_time)                          # クールダウンチェック
+    def should_skip_cooldown(trend_strength)                     # スキップ判定
+```
+
+**実装機能** (Phase 31.1):
+- **柔軟クールダウン**: トレンド強度ベース（ADX 50%・DI 30%・EMA 20%）
+- **強トレンド時スキップ**: 強度>=0.7で30分クールダウンスキップ・機会損失削減
+
+### **Layer 5: risk/ - リスク管理層**
+
+**責務**: リスク評価・ポジションサイジング・異常検知・ドローダウン管理
+
+#### **manager.py（統合リスク管理）**
+```python
+class IntegratedRiskManager:
+    def evaluate_trade_opportunity(ml_prediction, strategy_signal, market_data)
+    def _calculate_risk_score(evaluation_data)                   # リスクスコア算出
+    def _make_final_decision(risk_score)                         # 最終判定
 ```
 
 **実装機能**:
 - **統合リスク評価**: ML信頼度・ドローダウン・異常検知の総合判定
-- **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算
-- **ML信頼度連動動的ポジションサイジング**: 低信頼度1-3%・中信頼度3-5%・高信頼度5-10%
-- **資金規模別調整**: 小口座（1-5万円）・中規模（5-10万円）・大口座（10万円以上）対応
-- **3段階判定システム**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
-- **取引実行結果管理**: 注文実行結果の統合処理・ペーパートレード/ライブ取引対応
+- **3段階判定**: APPROVED（<0.6）・CONDITIONAL（0.6-0.8）・DENIED（≥0.8）
 
-**使用例**:
+#### **kelly.py（686行）**
 ```python
-from src.trading import IntegratedRiskManager
+class KellyCriterion:
+    def calculate_dynamic_position_size(balance, entry_price, atr)
+    def add_trade_result(profit_loss, strategy, confidence)      # 取引結果記録
+```
 
-# リスク管理器の作成
+**実装機能**:
+- **Kelly基準ポジションサイジング**: 数学的最適ポジションサイズ計算
+- **ML信頼度連動**: 低信頼度1-3%・中信頼度3-5%・高信頼度5-10%
+
+#### **sizer.py（223行）**
+```python
+class PositionSizer:
+    def calculate_position_size(balance, risk_params)            # ポジションサイズ計算
+    def adjust_for_account_size(base_size, balance)              # 資金規模調整
+```
+
+**実装機能**:
+- **資金規模別調整**: 小口座（1-5万円）・中規模（5-10万円）・大口座（10万円以上）
+
+#### **anomaly.py（315行）**
+```python
+class TradingAnomalyDetector:
+    def detect_spread_anomaly(bid, ask)                          # スプレッド異常検知
+    def detect_api_latency_anomaly(response_time)                # API遅延検知
+    def detect_price_spike(current_price, historical_prices)     # 価格スパイク検知
+```
+
+#### **drawdown.py（285行）**
+```python
+class DrawdownManager:
+    def update_equity(current_balance)                           # 資産変動記録
+    def check_drawdown_limit()                                   # ドローダウン制限チェック
+    def check_consecutive_losses()                               # 連続損失チェック
+```
+
+**実装機能**:
+- **最大20%ドローダウン**: 損失制限・自動停止
+- **連続5損失制限**: 取引状況PAUSED化・自動復旧機能
+
+## 🚀 使用方法
+
+### **レイヤードアーキテクチャ使用例**
+
+```python
+# Phase 38: 新しいレイヤードアーキテクチャ
+from src.trading.core.types import TradeEvaluation
+from src.trading.core.enums import RiskDecision, ExecutionMode
+from src.trading.risk.manager import IntegratedRiskManager
+from src.trading.execution.executor import ExecutionService
+from src.trading.balance.monitor import MarginMonitor
+from src.trading.position.tracker import PositionTracker
+from src.trading.position.limits import PositionLimits
+
+# 1. 残高・証拠金監視
+margin_monitor = MarginMonitor(config=config)
+margin_status = margin_monitor.get_margin_status(current_margin_ratio)
+if margin_status == "CRITICAL":
+    # 取引停止処理
+    pass
+
+# 2. ポジション制限チェック
+position_limits = PositionLimits(config=config)
+if not position_limits.can_open_position():
+    # ポジション数超過
+    pass
+
+# 3. リスク評価
 risk_manager = IntegratedRiskManager(config=config, initial_balance=1000000)
-
-# 取引機会の評価
 evaluation = risk_manager.evaluate_trade_opportunity(
     ml_prediction={'confidence': 0.8, 'action': 'buy'},
     strategy_signal={'strategy_name': 'atr_based', 'action': 'buy', 'confidence': 0.7},
@@ -102,114 +290,48 @@ evaluation = risk_manager.evaluate_trade_opportunity(
     current_balance=1000000,
     bid=50000, ask=50100
 )
-```
 
-### **2. margin_monitor.py（399行）**
-
-**目的**: 保証金維持率監視・警告機能
-
-**主要クラス**:
-```python
-class MarginMonitor:
-    def calculate_current_margin_ratio(balance, open_positions)                  # 現在の維持率計算
-    def calculate_projected_margin_ratio(balance, new_position_value)           # 新規ポジション後の予測維持率
-    def get_margin_status(margin_ratio)                                         # 状態判定（SAFE/CAUTION/WARNING/CRITICAL）
-```
-
-**実装機能**:
-- **保証金維持率計算**: 現在の保証金状況を数値化
-- **新規ポジション影響予測**: 追加取引による維持率変化の計算
-- **4段階状態判定**: SAFE（100%以上）・CAUTION（80-100%）・WARNING（50-80%）・CRITICAL（50%未満）
-- **Discord通知連携**: 危険な維持率の自動通知
-
-### **3. execution_service.py（1,363行・Phase 33更新）**
-
-**目的**: 取引実行サービス・ExecutionServiceProtocol実装
-
-**主要クラス**:
-```python
-class ExecutionService:
-    async def execute_trade(evaluation: TradeEvaluation) -> ExecutionResult     # 統一取引実行
-    async def _execute_live_trade(evaluation)                                   # ライブ取引実行
-    async def _execute_paper_trade(evaluation)                                  # ペーパー取引実行
-    async def _execute_backtest_trade(evaluation)                               # バックテスト取引実行
-    async def check_stop_conditions()                                           # ストップ条件チェック
-```
-
-**実装機能**:
-- **3モード対応**: ライブ・ペーパー・バックテスト取引の統一実行
-- **Phase 33新機能: TP/SL堅牢化**: TP/SL値明示的ログ出力（lines 235-237）・デバッグ効率化
-- **Phase 33新機能: エラーコード50061検出**: 残高不足エラーの明示的検出（lines 252-259, 274-281, 295-303）
-- **Phase 33新機能: 詳細エラーメッセージ**: 「新規注文に必要な利用可能証拠金が不足しています」明示・運用監視効率化
-- **Phase 31.1機能: 柔軟クールダウン**: トレンド強度ベース（ADX 50%・DI 30%・EMA 20%）・強度>=0.7でスキップ・機会損失削減
-- **Phase 29.6機能: TP/SL注文自動配置**: エントリー後即座にTP/SL指値注文配置・注文ID追跡
-- **Phase 29.6機能: 指値価格最適化**: オーダーブック活用・ベストアスク+0.05%/ベストビッド-0.05%計算
-- **Phase 29.6機能: クールダウン機能**: 基本30分間隔・過剰取引防止・月100-200回目標達成（Phase 31.1で柔軟化）
-- **Phase 29.6修正: ライブモードポジション追跡**: virtual_positions使用・最大3ポジション制限正常動作
-- **緊急停止機能**: 異常な価格変動・システム異常時の自動停止
-- **ポジション制限**: 最大3ポジション・1日20取引制限
-
-### **4. risk_monitor.py（1,322行）**
-
-**目的**: 異常検知・ドローダウン管理統合システム
-
-**主要クラス**:
-```python
-class TradingAnomalyDetector:
-    def detect_spread_anomaly(bid, ask)                                         # スプレッド異常検知
-    def detect_api_latency_anomaly(response_time)                               # API遅延検知
-    def detect_price_spike(current_price, historical_prices)                    # 価格スパイク検知
-
-class DrawdownManager:
-    def update_equity(current_balance)                                          # 資産変動記録
-    def check_drawdown_limit()                                                  # ドローダウン制限チェック
-    def check_consecutive_losses()                                              # 連続損失チェック
-```
-
-**実装機能**:
-- **異常検知システム**: スプレッド・API遅延・価格スパイクの自動検知
-- **ドローダウン管理**: 最大20%ドローダウン・連続5損失で自動停止
-- **取引状況監視**: ACTIVE/PAUSED状態管理・自動復旧機能
-- **リスク状態永続化**: JSON形式での状態保存・復元
-
-## 🚀 使用方法
-
-### **統合リスク管理システム**
-
-```python
-from src.trading import create_risk_manager
-
-# リスクプロファイル別の管理器作成
-conservative_manager = create_risk_manager(risk_profile="conservative")
-balanced_manager = create_risk_manager(risk_profile="balanced")
-aggressive_manager = create_risk_manager(risk_profile="aggressive")
-
-# 取引評価の実行
-evaluation = balanced_manager.evaluate_trade_opportunity(
-    ml_prediction=ml_result,
-    strategy_signal=strategy_result,
-    market_data=current_market_data,
-    current_balance=account_balance,
-    bid=current_bid,
-    ask=current_ask
-)
-
-# 結果に基づく取引実行
+# 4. 取引実行
 if evaluation.decision == RiskDecision.APPROVED:
+    execution_service = ExecutionService(
+        config=config,
+        bitbank_client=bitbank_client,
+        logger=logger
+    )
     execution_result = await execution_service.execute_trade(evaluation)
+
+    # 5. ポジション追跡
+    if execution_result.success:
+        position_tracker = PositionTracker(config=config)
+        position_tracker.track_position(
+            order_id=execution_result.order_id,
+            position_data=execution_result
+        )
+```
+
+### **後方互換性（Phase 38移行期間）**
+
+```python
+# 既存コードとの互換性維持（__init__.pyでエクスポート）
+from src.trading import IntegratedRiskManager, ExecutionService
+
+# 従来通りの使用方法も可能
+risk_manager = IntegratedRiskManager(config=config)
+evaluation = risk_manager.evaluate_trade_opportunity(...)
 ```
 
 ### **異常検知・ドローダウン管理**
 
 ```python
-from src.trading import TradingAnomalyDetector, DrawdownManager
+from src.trading.risk.anomaly import TradingAnomalyDetector
+from src.trading.risk.drawdown import DrawdownManager
 
 # 異常検知システム
-anomaly_detector = TradingAnomalyDetector()
+anomaly_detector = TradingAnomalyDetector(config=config)
 alerts = anomaly_detector.check_all_anomalies(market_data)
 
 # ドローダウン管理
-drawdown_manager = DrawdownManager()
+drawdown_manager = DrawdownManager(config=config)
 drawdown_manager.update_equity(current_balance)
 trading_status = drawdown_manager.get_trading_status()
 ```
@@ -234,17 +356,28 @@ max_position_ratio = get_threshold("trading.kelly_criterion.max_position_ratio",
 
 ## 🧪 テスト・品質保証
 
+### **Phase 38: レイヤー別テスト**
+
 ```bash
-# 取引システム完全テスト
+# trading層全体テスト
 python -m pytest tests/unit/trading/ -v
 
+# レイヤー別テスト
+python -m pytest tests/unit/trading/balance/ -v          # 残高監視層テスト
+python -m pytest tests/unit/trading/execution/ -v        # 注文実行層テスト
+python -m pytest tests/unit/trading/position/ -v         # ポジション管理層テスト
+python -m pytest tests/unit/trading/risk/ -v             # リスク管理層テスト
+
 # 特定コンポーネントテスト
-python -m pytest tests/unit/trading/test_risk_manager.py -v          # リスク管理（45テスト）
-python -m pytest tests/unit/trading/test_execution_service.py -v     # 取引実行（23テスト）
-python -m pytest tests/unit/trading/test_risk_monitor.py -v          # リスク監視（38テスト）
+python -m pytest tests/unit/trading/risk/test_manager.py -v          # 統合リスク管理
+python -m pytest tests/unit/trading/execution/test_executor.py -v    # 取引実行
+python -m pytest tests/unit/trading/position/test_tracker.py -v      # ポジション追跡
+python -m pytest tests/unit/trading/balance/test_monitor.py -v       # 残高監視
 ```
 
-**品質指標**:
+### **品質指標（Phase 38完了時点）**
+- **総テスト数**: 1,078テスト（Phase 38で60テスト追加）
+- **テストカバレッジ**: 70.56%（Phase 38で+11.94ポイント向上）
 - **テスト成功率**: 100%
 - **リスク評価時間**: 50ms以下
 - **取引実行時間**: 200ms以下
@@ -278,4 +411,21 @@ python -m pytest tests/unit/trading/test_risk_monitor.py -v          # リスク
 
 ---
 
-**統合取引管理層（Phase 33完了）**: 統合リスク管理・Kelly基準ポジションサイジング・TP/SL堅牢化・エラーハンドリング強化・スマート注文機能・手数料最適化（月14-28%削減）・指値価格最適化・デイトレード対応・柔軟クールダウン・異常検知・ドローダウン管理・取引実行結果処理による包括的取引制御システム。
+## 📊 Phase 38完了ステータス
+
+**実装成果**:
+- **4層レイヤードアーキテクチャ完成**: 責務分離・保守性向上・テスタビリティ改善
+- **1,817行ファイルを平均350行に分割**: 可読性大幅向上・-80%の行数削減
+- **テストカバレッジ70.56%達成**: +11.94ポイント向上（58.62% → 70.56%）
+- **1,078テスト成功**: 60テスト追加・100%成功率維持
+- **後方互換性維持**: `__init__.py`エクスポートによる既存コード影響最小化
+
+**技術的意義**:
+- **単一責任原則**: 各層・各モジュールが明確な責務を持つ
+- **依存性注入**: テスト容易性・モック可能性の向上
+- **関心の分離**: ビジネスロジック・データアクセス・実行制御の明確な分離
+- **拡張性**: 新機能追加時の影響範囲の限定化
+
+---
+
+**統合取引管理層（Phase 38完了）**: 5層レイヤードアーキテクチャ（core/balance/execution/position/risk）・統合リスク管理・Kelly基準ポジションサイジング・TP/SL堅牢化・エラーハンドリング強化・スマート注文機能・手数料最適化（月14-28%削減）・指値価格最適化・デイトレード対応・柔軟クールダウン・孤児ポジションクリーンアップ・異常検知・ドローダウン管理による包括的取引制御システム。1,078テスト・70.56%カバレッジ達成。

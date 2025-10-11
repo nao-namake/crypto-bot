@@ -6,7 +6,6 @@ Trading Core Enums - Phase 38リファクタリング
 
 from enum import Enum
 
-
 # === Risk Manager関連 ===
 
 

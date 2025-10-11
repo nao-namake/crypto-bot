@@ -34,7 +34,7 @@ class StopManager:
         bitbank_client: Optional[BitbankClient],
         mode: str,
         executed_trades: int,
-        session_pnl: float
+        session_pnl: float,
     ) -> Optional[ExecutionResult]:
         """
         ストップ条件チェック（Phase 28: テイクプロフィット/ストップロス実装）
@@ -90,7 +90,7 @@ class StopManager:
         side: str,
         amount: float,
         symbol: str,
-        bitbank_client: BitbankClient
+        bitbank_client: BitbankClient,
     ) -> Dict[str, Any]:
         """
         TP/SL注文配置（Phase 29.6 + Phase 33）
@@ -224,7 +224,7 @@ class StopManager:
         virtual_positions: List[Dict[str, Any]],
         mode: str,
         executed_trades: int,
-        session_pnl: float
+        session_pnl: float,
     ) -> Optional[ExecutionResult]:
         """
         Phase 28: 通常のテイクプロフィット/ストップロスチェック
@@ -306,7 +306,9 @@ class StopManager:
                     self.logger.info(
                         f"🎯 テイクプロフィット到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (TP:{take_profit:.0f}円)"
                     )
-                    return await self._execute_position_exit(position, current_price, "take_profit", mode)
+                    return await self._execute_position_exit(
+                        position, current_price, "take_profit", mode
+                    )
 
             # ストップロスチェック
             if sl_config.get("enabled", True) and stop_loss:
@@ -320,7 +322,9 @@ class StopManager:
                     self.logger.warning(
                         f"🛑 ストップロス到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (SL:{stop_loss:.0f}円)"
                     )
-                    return await self._execute_position_exit(position, current_price, "stop_loss", mode)
+                    return await self._execute_position_exit(
+                        position, current_price, "stop_loss", mode
+                    )
 
             return None
 
@@ -406,7 +410,7 @@ class StopManager:
         current_price: float,
         mode: str,
         executed_trades: int,
-        session_pnl: float
+        session_pnl: float,
     ) -> Optional[ExecutionResult]:
         """
         緊急ストップロス条件チェック（急変時例外処理）
@@ -442,7 +446,9 @@ class StopManager:
                     )
 
                     # 緊急決済実行
-                    result = await self._execute_emergency_exit(position, current_price, "emergency", mode)
+                    result = await self._execute_emergency_exit(
+                        position, current_price, "emergency", mode
+                    )
 
                     # ポジションリストから削除
                     virtual_positions.remove(position)
@@ -589,9 +595,7 @@ class StopManager:
             # bitbank APIから実際のポジション取得
             symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
             try:
-                actual_positions = await asyncio.to_thread(
-                    bitbank_client.fetch_positions, symbol
-                )
+                actual_positions = await asyncio.to_thread(bitbank_client.fetch_positions, symbol)
             except Exception as e:
                 self.logger.warning(f"⚠️ ポジション取得エラー、クリーンアップスキップ: {e}")
                 return

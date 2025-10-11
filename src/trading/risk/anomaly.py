@@ -21,6 +21,7 @@ from ...core.logger import get_logger
 
 class AnomalyLevel(Enum):
     """異常レベル."""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -29,6 +30,7 @@ class AnomalyLevel(Enum):
 @dataclass
 class AnomalyAlert:
     """異常アラート."""
+
     timestamp: datetime
     level: AnomalyLevel
     message: str
@@ -64,12 +66,14 @@ class TradingAnomalyDetector:
         self.spread_critical_threshold = spread_critical_threshold or get_threshold(
             "risk.anomaly_detector.spread_critical_threshold", 0.005
         )
-        self.api_latency_warning_ms = api_latency_warning_ms or get_threshold(
-            "risk.anomaly_detector.api_latency_warning", 1.0
-        ) * 1000
-        self.api_latency_critical_ms = api_latency_critical_ms or get_threshold(
-            "risk.anomaly_detector.api_latency_critical", 3.0
-        ) * 1000
+        self.api_latency_warning_ms = (
+            api_latency_warning_ms
+            or get_threshold("risk.anomaly_detector.api_latency_warning", 1.0) * 1000
+        )
+        self.api_latency_critical_ms = (
+            api_latency_critical_ms
+            or get_threshold("risk.anomaly_detector.api_latency_critical", 3.0) * 1000
+        )
         self.price_spike_zscore_threshold = price_spike_zscore_threshold or get_threshold(
             "risk.anomaly_detector.price_spike_zscore_threshold", 3.0
         )
@@ -131,9 +135,7 @@ class TradingAnomalyDetector:
 
         # 古い履歴削除（24時間以上前）
         cutoff_time = datetime.now() - timedelta(hours=24)
-        self.anomaly_history = [
-            a for a in self.anomaly_history if a.timestamp >= cutoff_time
-        ]
+        self.anomaly_history = [a for a in self.anomaly_history if a.timestamp >= cutoff_time]
 
         return alerts
 
@@ -151,14 +153,14 @@ class TradingAnomalyDetector:
                 timestamp=datetime.now(),
                 level=AnomalyLevel.CRITICAL,
                 message=f"危険なスプレッド: {spread_pct:.2%}",
-                details={"bid": bid, "ask": ask, "spread_pct": spread_pct}
+                details={"bid": bid, "ask": ask, "spread_pct": spread_pct},
             )
         elif spread_pct >= self.spread_warning_threshold:
             return AnomalyAlert(
                 timestamp=datetime.now(),
                 level=AnomalyLevel.WARNING,
                 message=f"広いスプレッド: {spread_pct:.2%}",
-                details={"bid": bid, "ask": ask, "spread_pct": spread_pct}
+                details={"bid": bid, "ask": ask, "spread_pct": spread_pct},
             )
 
         return None
@@ -170,14 +172,14 @@ class TradingAnomalyDetector:
                 timestamp=datetime.now(),
                 level=AnomalyLevel.CRITICAL,
                 message=f"重大なAPI遅延: {api_latency_ms:.0f}ms",
-                details={"latency_ms": api_latency_ms}
+                details={"latency_ms": api_latency_ms},
             )
         elif api_latency_ms >= self.api_latency_warning_ms:
             return AnomalyAlert(
                 timestamp=datetime.now(),
                 level=AnomalyLevel.WARNING,
                 message=f"API遅延: {api_latency_ms:.0f}ms",
-                details={"latency_ms": api_latency_ms}
+                details={"latency_ms": api_latency_ms},
             )
 
         return None
@@ -205,8 +207,8 @@ class TradingAnomalyDetector:
                         details={
                             "last_price": last_price,
                             "mean_price": price_mean,
-                            "z_score": z_score
-                        }
+                            "z_score": z_score,
+                        },
                     )
         except Exception as e:
             self.logger.error(f"価格スパイクチェックエラー: {e}")
@@ -236,8 +238,8 @@ class TradingAnomalyDetector:
                         details={
                             "current_volume": volume,
                             "mean_volume": volume_mean,
-                            "z_score": z_score
-                        }
+                            "z_score": z_score,
+                        },
                     )
         except Exception as e:
             self.logger.error(f"ボリューム異常チェックエラー: {e}")
@@ -252,8 +254,12 @@ class TradingAnomalyDetector:
 
             return {
                 "total_alerts_24h": len(recent_alerts),
-                "critical_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL]),
-                "warning_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.WARNING]),
+                "critical_alerts": len(
+                    [a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL]
+                ),
+                "warning_alerts": len(
+                    [a for a in recent_alerts if a.level == AnomalyLevel.WARNING]
+                ),
                 "info_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.INFO]),
             }
         except Exception as e:

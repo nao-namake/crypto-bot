@@ -254,6 +254,113 @@ class TestMultiTimeframeStrategy(unittest.TestCase):
         if decision["confidence"] < 0.9:
             self.assertEqual(decision["action"], EntryAction.HOLD)
 
+    def test_calculate_market_uncertainty(self):
+        """市場不確実性計算テスト."""
+        uncertainty = self.strategy._calculate_market_uncertainty(self.test_df)
+
+        # 0-0.1の範囲内であることを確認
+        self.assertGreaterEqual(uncertainty, 0.0)
+        self.assertLessEqual(uncertainty, 0.1)
+
+    def test_calculate_market_uncertainty_error(self):
+        """市場不確実性計算エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["close"] = None
+
+        uncertainty = self.strategy._calculate_market_uncertainty(error_df)
+
+        # デフォルト値が返されることを確認
+        self.assertEqual(uncertainty, 0.02)
+
+    def test_analyze_4h_trend_error_handling(self):
+        """4時間足トレンド分析エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["ema_50"] = None
+
+        signal = self.strategy._analyze_4h_trend(error_df)
+
+        # エラー時は0（ホールド）が返されることを確認
+        self.assertEqual(signal, 0)
+
+    def test_analyze_15m_entry_error_handling(self):
+        """15分足エントリー分析エラーハンドリングテスト."""
+        error_df = self.test_df.copy()
+        error_df["ema_20"] = None
+
+        signal = self.strategy._analyze_15m_entry(error_df)
+
+        # エラー時は0（ホールド）が返されることを確認
+        self.assertEqual(signal, 0)
+
+    def test_analyze_15m_entry_pullback_detection(self):
+        """15分足エントリー - プルバック検出テスト."""
+        # プルバック条件設定
+        pullback_df = self.test_df.copy()
+        pullback_df.loc[pullback_df.index[-2], "close"] = 10490000
+        pullback_df.loc[pullback_df.index[-2], "ema_20"] = 10500000
+        pullback_df.loc[pullback_df.index[-1], "close"] = 10510000
+        pullback_df.loc[pullback_df.index[-1], "ema_20"] = 10500000
+        pullback_df["rsi_14"] = 45
+
+        # 最近の高値・安値を設定
+        pullback_df.loc[pullback_df.index[-4:], "high"] = [10520000, 10530000, 10525000, 10540000]
+        pullback_df.loc[pullback_df.index[-4:], "low"] = [10480000, 10485000, 10490000, 10495000]
+
+        signal = self.strategy._analyze_15m_entry(pullback_df)
+
+        # プルバックシグナルが検出されることを確認
+        self.assertIn(signal, [-1, 0, 1])
+
+    def test_make_2tf_decision_with_market_data(self):
+        """2層統合判定 - 市場データ統合テスト."""
+        decision = self.strategy._make_2tf_decision(
+            tf_4h_signal=1, tf_15m_signal=1, df=self.test_df
+        )
+
+        # 動的信頼度が計算されることを確認
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+        self.assertIn("tf_4h_signal", decision)
+        self.assertIn("tf_15m_signal", decision)
+        self.assertIn("agreement", decision)
+
+    def test_analyze_with_multi_timeframe_data(self):
+        """マルチタイムフレームデータを使用した分析テスト."""
+        # 15分足データ作成
+        multi_tf_data = {
+            "15m": pd.DataFrame(
+                {
+                    "close": [10500000],
+                    "atr_14": [300000],  # 15分足のATR
+                }
+            )
+        }
+
+        signal = self.strategy.analyze(self.test_df, multi_timeframe_data=multi_tf_data)
+
+        # シグナルが正常に生成されることを確認
+        self.assertIsNotNone(signal)
+        self.assertIn(signal.action, [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
+
+    def test_make_2tf_decision_both_zero(self):
+        """2層統合判定 - 両シグナルゼロテスト."""
+        decision = self.strategy._make_2tf_decision(
+            tf_4h_signal=0, tf_15m_signal=0, df=self.test_df
+        )
+
+        # HOLDになることを確認
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+
+    def test_make_2tf_decision_error_handling(self):
+        """2層統合判定エラーハンドリングテスト."""
+        error_df = pd.DataFrame()  # 空DataFrame
+
+        decision = self.strategy._make_2tf_decision(tf_4h_signal=1, tf_15m_signal=1, df=error_df)
+
+        # 市場不確実性計算でエラーが発生してもデフォルト値が使われ、シグナルが返される
+        # 両方のシグナルが1なので、BUYシグナルが返される
+        self.assertEqual(decision["action"], EntryAction.BUY)
+        self.assertGreaterEqual(decision["confidence"], 0.0)
+
 
 def run_multi_timeframe_tests():
     """マルチタイムフレーム戦略テスト実行関数."""

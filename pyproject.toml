@@ -62,6 +62,7 @@ omit = [
     "*/env/*",
     "*/.cache/*",
     "*/_legacy_v1/*",
+    "*/archive/*",  # Phase 38: 非推奨archiveコードをカバレッジ計算から除外
 ]
 
 [tool.coverage.report]

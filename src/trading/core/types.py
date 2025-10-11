@@ -17,7 +17,6 @@ from .enums import (
     TradingStatus,
 )
 
-
 # === Risk Manager関連 ===
 
 

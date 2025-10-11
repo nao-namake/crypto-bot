@@ -104,7 +104,11 @@ class OrderStrategy:
 
             # 4. 注文戦略決定
             order_config = await self._determine_order_strategy(
-                ml_confidence, high_confidence_threshold, market_conditions, evaluation, bitbank_client
+                ml_confidence,
+                high_confidence_threshold,
+                market_conditions,
+                evaluation,
+                bitbank_client,
             )
 
             self.logger.info(
@@ -142,9 +146,7 @@ class OrderStrategy:
 
             # 板情報取得（スプレッド・流動性確認）
             try:
-                orderbook = await asyncio.to_thread(
-                    bitbank_client.fetch_order_book, "BTC/JPY", 10
-                )
+                orderbook = await asyncio.to_thread(bitbank_client.fetch_order_book, "BTC/JPY", 10)
 
                 if orderbook and "bids" in orderbook and "asks" in orderbook:
                     best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
