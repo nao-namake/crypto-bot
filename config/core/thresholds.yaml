@@ -11,7 +11,7 @@
 execution:
   backtest_period_days: 30
   live_mode_interval_seconds: 180
-  paper_mode_interval_seconds: 60
+  paper_mode_interval_seconds: 300  # Phase 38.1: 60→300秒（5分間隔・15分足戦略に最適化）
 
 # ========================================
 # バックテスト最適化設定（Phase 35 - 高速化最適化版）
@@ -97,9 +97,9 @@ dynamic_confidence:
       single_tf_base: 0.55           # 単一軸時基準信頼度（0.50→0.55）
       single_tf_min: 0.40            # 単一軸時最小信頼度
       single_tf_max: 0.75            # 単一軸時最大信頼度
-      disagreement_base: 0.30        # 不一致時基準信頼度（0.25→0.30）
-      disagreement_min: 0.15         # 不一致時最小信頼度
-      disagreement_max: 0.40         # 不一致時最大信頼度
+      disagreement_base: 0.15        # Phase 38.2: 0.30→0.15（意味論的整合性・MochipoyAlert以下に設定）
+      disagreement_min: 0.10         # Phase 38.2: 0.15→0.10（最小値引き下げ）
+      disagreement_max: 0.30         # Phase 38.2: 0.50→0.30（Phase 38.1誤修正是正）
       weighted_min: 0.35             # 重み付け判定最小信頼度
       weighted_max: 1.0              # 重み付け判定最大信頼度
       # 戦略固有パラメータ（ハードコード完全排除）
@@ -161,11 +161,11 @@ dynamic_confidence:
       # 動的信頼度計算パラメータ
       rsi_base: 0.2                  # RSI基準信頼度
       rsi_multiplier: 0.3            # RSI乗数
-      agreement_max: 0.65            # 一致時最大信頼度
+      agreement_max: 0.85            # Phase 38.1: 0.65→0.85（信頼度情報損失解消）
       weak_base: 0.08                # 微弱シグナル基準値
       weak_multiplier: 0.1           # 微弱シグナル乗数
       volatility_bonus: 1.02         # 高ボラティリティボーナス
-      volatility_max: 0.65           # ボラティリティ最大信頼度
+      volatility_max: 0.85           # Phase 38.1: 0.65→0.85（ボラティリティ信頼度保存）
       # 戦略固有パラメータ（ハードコード完全排除）
       position_size_base: 0.015      # 基本ポジションサイズ（逆張り控えめ）
       market_stress_threshold: 0.7   # 市場ストレス閾値

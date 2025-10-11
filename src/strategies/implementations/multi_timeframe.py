@@ -388,15 +388,27 @@ class MultiTimeframeStrategy(StrategyBase):
                         ),
                     )
                 else:
+                    # Phase 38.2: 両軸0（シグナルなし）の特別処理
                     action = EntryAction.HOLD
-                    base_confidence = disagreement_base
-                    confidence = max(
-                        disagreement_min,
-                        min(
-                            disagreement_max,
-                            base_confidence * (1 + market_uncertainty / uncertainty_boost),
-                        ),
-                    )
+                    if tf_4h_signal == 0 and tf_15m_signal == 0:
+                        # 両軸とも0（完全にシグナルなし）→ 極低信頼度
+                        base_confidence = 0.10
+                        confidence = max(
+                            0.10,
+                            min(
+                                0.25, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                            ),
+                        )
+                    else:
+                        # 片方のみ0または不一致 → 従来のdisagreement処理
+                        base_confidence = disagreement_base
+                        confidence = max(
+                            disagreement_min,
+                            min(
+                                disagreement_max,
+                                base_confidence * (1 + market_uncertainty / uncertainty_boost),
+                            ),
+                        )
 
             # 最小信頼度チェック（設定ベース動的変動）
             if confidence < min_confidence:

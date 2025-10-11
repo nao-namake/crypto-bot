@@ -435,6 +435,20 @@ async def create_trading_orchestrator(
         execution_service = ExecutionService(mode=execution_mode, bitbank_client=bitbank_client)
         execution_service.update_balance(initial_balance)
 
+        # Phase 38.1: PositionLimits/CooldownManager/BalanceMonitor注入（クールダウン機能復活）
+        from ...trading.balance import BalanceMonitor
+        from ...trading.position import CooldownManager, PositionLimits
+
+        position_limits = PositionLimits()  # 引数なし・内部でget_logger()使用
+        cooldown_manager = CooldownManager()  # 引数なし・内部でget_logger()使用
+        position_limits.cooldown_manager = cooldown_manager
+        balance_monitor = BalanceMonitor()  # 引数なし・内部でget_logger()使用
+
+        execution_service.inject_services(
+            position_limits=position_limits, balance_monitor=balance_monitor
+        )
+        logger.info("✅ ExecutionService依存サービス注入完了（PositionLimits・BalanceMonitor）")
+
         # TradingOrchestrator組み立て
         orchestrator = TradingOrchestrator(
             config=config,
