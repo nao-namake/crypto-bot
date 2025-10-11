@@ -10,7 +10,7 @@
 # ========================================
 execution:
   backtest_period_days: 30
-  live_mode_interval_seconds: 180
+  live_mode_interval_seconds: 300  # Phase 38.3: 180→300秒（5分間隔・コスト削減40%）
   paper_mode_interval_seconds: 300  # Phase 38.1: 60→300秒（5分間隔・15分足戦略に最適化）
 
 # ========================================
