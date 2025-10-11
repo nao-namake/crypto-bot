@@ -1,5 +1,5 @@
 """
-戦略共通ユーティリティモジュール - Phase 28完了・Phase 29最適化版
+戦略共通ユーティリティモジュール - Phase 38.4拡張版
 
 戦略関連のユーティリティ機能を統合管理。
 
@@ -7,11 +7,13 @@
 - 戦略定数管理：EntryAction、StrategyType の統一
 - リスク管理：戦略レベルリスク評価・信頼度計算
 - シグナル構築：統一的なシグナル生成機能
+- 市場分析：市場不確実性計算（Phase 38.4新機能）
 - 後方互換性：既存のインポートパスをサポート
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 38.4拡張: 市場不確実性計算統合・重複コード250-300行削減
 """
 
+from .market_utils import MarketUncertaintyCalculator
 from .strategy_utils import (
     DEFAULT_RISK_PARAMS,
     EntryAction,
@@ -26,4 +28,5 @@ __all__ = [
     "DEFAULT_RISK_PARAMS",
     "RiskManager",
     "SignalBuilder",
+    "MarketUncertaintyCalculator",
 ]

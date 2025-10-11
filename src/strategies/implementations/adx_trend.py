@@ -1,13 +1,16 @@
 """
 ADX Trend Strength戦略実装 - 市場レジーム適応型取引
+
 Average Directional Index (ADX) を用いたトレンド強度判定と
 +DI/-DIクロスオーバーによる方向性検出を組み合わせた戦略。
+
 主要機能:
 - ADX値による市場レジーム判定（トレンド vs レンジ）
 - +DI/-DIクロスオーバー検出
 - トレンド強度適応型信頼度調整
 - レンジ相場での取引抑制
-実装日: 2025年9月9日 - フィボナッチ戦略置換
+
+Phase 38.4: 市場不確実性計算統合・バックテストログ統合
 """
 
 from datetime import datetime
@@ -18,6 +21,7 @@ import pandas as pd
 
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..utils import MarketUncertaintyCalculator
 from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
@@ -101,13 +105,10 @@ class ADXTrendStrengthStrategy(StrategyBase):
             )
             return signal
         except Exception as e:
-            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
-            import os
-
-            if os.environ.get("BACKTEST_MODE") == "true":
-                self.logger.debug(f"[ADXTrend] シグナル生成エラー: {e}")
-            else:
-                self.logger.error(f"[ADXTrend] シグナル生成エラー: {e}")
+            # Phase 38.4: バックテストログ統合
+            self.logger.conditional_log(
+                f"[ADXTrend] シグナル生成エラー: {e}", level="error", backtest_level="debug"
+            )
             return self._create_hold_signal(df, f"エラー: {str(e)}")
 
     def _validate_data(self, df: pd.DataFrame) -> bool:
@@ -469,59 +470,15 @@ class ADXTrendStrengthStrategy(StrategyBase):
 
     def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
         """
-        市場データ基づく不確実性計算（設定ベース統一ロジック）
+        市場データ基づく不確実性計算（Phase 38.4: 統合ユーティリティ使用）
 
         Args:
             df: 市場データ
 
         Returns:
-            float: 市場不確実性係数（設定値の範囲）
+            float: 市場不確実性係数（0-0.1の範囲）
         """
-        try:
-            # 循環インポート回避のため遅延インポート
-            from ...core.config.threshold_manager import get_threshold
-
-            # 設定値取得
-            volatility_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
-            )
-            volume_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
-            )
-            volume_multiplier = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
-            )
-            price_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
-            )
-            uncertainty_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
-            )
-
-            # ATRベースのボラティリティ要因
-            current_price = float(df["close"].iloc[-1])
-            atr_value = float(df["atr_14"].iloc[-1])
-            volatility_factor = min(volatility_max, atr_value / current_price)
-
-            # ボリューム異常度（平均からの乖離）
-            current_volume = float(df["volume"].iloc[-1])
-            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
-            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
-
-            # 価格変動率（短期動向）
-            price_change = abs(float(df["close"].pct_change().iloc[-1]))
-            price_factor = min(price_max, price_change)
-
-            # 統合不確実性（設定値の範囲で市場状況を反映）
-            market_uncertainty = volatility_factor + volume_factor + price_factor
-
-            # 設定値で調整範囲を制限
-            return min(uncertainty_max, market_uncertainty)
-
-        except Exception as e:
-            self.logger.warning(f"市場不確実性計算エラー: {e}")
-            return 0.02  # デフォルト値（2%の軽微な調整）
+        return MarketUncertaintyCalculator.calculate(df)
 
     def _calculate_default_confidence(
         self, analysis: Dict[str, Any], df: pd.DataFrame = None

@@ -10,7 +10,7 @@
 - 戦略パフォーマンス追跡
 - 動的戦略重み付け
 
-Phase 21完了: 2025年9月12日.
+Phase 38.4完了
 """
 
 from collections import defaultdict

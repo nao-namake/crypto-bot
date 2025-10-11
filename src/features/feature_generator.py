@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 28完了・Phase 29最適化版
+特徴量生成統合システム - Phase 38.4完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -12,7 +12,7 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 38.4完了
 """
 
 from typing import Any, Dict, List, Optional
@@ -22,7 +22,7 @@ import pandas as pd
 
 from ..core.config import get_anomaly_config
 
-# Phase 28完了・Phase 29最適化: 特徴量定義一元化（feature_managerから取得）
+# Phase 38.4: 特徴量定義一元化（feature_managerから取得）
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
@@ -36,7 +36,7 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 28完了・Phase 29最適化版
+    統合特徴量生成クラス - Phase 38.4完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
     1つのクラスに統合し、15特徴量生成を効率的に提供。

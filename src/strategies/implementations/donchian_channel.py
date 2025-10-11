@@ -1,13 +1,16 @@
 """
 Donchian Channel戦略実装 - ブレイクアウト検出
+
 レンジ相場対応ブレイクアウト戦略。
 20期間チャネルを用いた反転・ブレイクアウト判定を行う。
+
 主要機能:
 - 20期間高値・安値チャネル計算
 - ブレイクアウト・リバーサル検出
 - レンジ相場適応（70-80%市場対応）
 - チャネル位置による強度判定
-実装日: 2025年9月9日 - フィボナッチ戦略置換
+
+Phase 38.4: 市場不確実性計算統合・バックテストログ統合
 """
 
 from datetime import datetime
@@ -19,6 +22,7 @@ import pandas as pd
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..utils import MarketUncertaintyCalculator
 from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
@@ -99,13 +103,12 @@ class DonchianChannelStrategy(StrategyBase):
             )
             return signal
         except Exception as e:
-            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
-            import os
-
-            if os.environ.get("BACKTEST_MODE") == "true":
-                self.logger.debug(f"[DonchianChannel] シグナル生成エラー: {e}")
-            else:
-                self.logger.error(f"[DonchianChannel] シグナル生成エラー: {e}")
+            # Phase 38.4: バックテストログ統合
+            self.logger.conditional_log(
+                f"[DonchianChannel] シグナル生成エラー: {e}",
+                level="error",
+                backtest_level="debug",
+            )
             return self._create_hold_signal(df, f"エラー: {str(e)}")
 
     def _validate_data(self, df: pd.DataFrame) -> bool:
@@ -411,7 +414,7 @@ class DonchianChannelStrategy(StrategyBase):
 
     def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
         """
-        市場データ基づく不確実性計算（統一ロジック）
+        市場データ基づく不確実性計算（Phase 38.4: 統合ユーティリティ使用）
 
         Args:
             df: 市場データ
@@ -419,31 +422,7 @@ class DonchianChannelStrategy(StrategyBase):
         Returns:
             float: 市場不確実性係数（0-0.1の範囲）
         """
-        try:
-            # ATRベースのボラティリティ要因
-            current_price = float(df["close"].iloc[-1])
-            atr_value = float(df["atr_14"].iloc[-1])
-            volatility_factor = min(0.05, atr_value / current_price)
-
-            # ボリューム異常度（平均からの乖離）
-            current_volume = float(df["volume"].iloc[-1])
-            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
-            volume_factor = min(0.03, abs(volume_ratio - 1.0) * 0.1)
-
-            # 価格変動率（短期動向）
-            price_change = abs(float(df["close"].pct_change().iloc[-1]))
-            price_factor = min(0.02, price_change)
-
-            # 統合不確実性（0-0.1の範囲で市場状況を反映）
-            market_uncertainty = volatility_factor + volume_factor + price_factor
-
-            # 最大10%の調整範囲に制限
-            return min(0.1, market_uncertainty)
-
-        except Exception as e:
-            self.logger.warning(f"市場不確実性計算エラー: {e}")
-            return 0.02  # デフォルト値（2%の軽微な調整）
+        return MarketUncertaintyCalculator.calculate(df)
 
     def _calculate_default_confidence(
         self, analysis: Dict[str, Any], df: pd.DataFrame = None

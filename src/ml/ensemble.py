@@ -1,10 +1,10 @@
 """
-統合アンサンブルシステム - Phase 28完了・Phase 29最適化版
+統合アンサンブルシステム - Phase 38.4完了
 
 EnsembleModel、VotingSystem、ProductionEnsemble機能を1つのファイルに統合。
 重複コードを排除し、保守性とコードの可読性を向上。
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 38.4完了
 """
 
 import time
@@ -581,15 +581,16 @@ class EnsembleModel:
 
 class ProductionEnsemble:
     """
-    本番用アンサンブルモデル（後方互換性維持）
+    本番用アンサンブルモデル（Phase 38.4時点で本番使用中）
 
     現在の目的：
-    - scripts/ml/create_ml_models.pyとの互換性を維持
-    - 本番環境での安定動作を保証
+    - scripts/ml/create_ml_models.pyで実使用中（週次自動学習）
+    - 本番環境での安定動作を保証（ml_adapter/ml_loader/trading_cycle_manager）
+    - models/production/production_ensemble.pkl として保存・読み込み
 
     将来の統合計画：
     - 新設計EnsembleModelへの段階的移行を想定
-    - Phase 23以降で統合予定
+    - Phase 39以降で統合検討（現時点では削除不可）
     """
 
     def __init__(self, individual_models: Dict[str, Any]):

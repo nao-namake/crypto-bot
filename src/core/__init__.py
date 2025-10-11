@@ -1,13 +1,16 @@
 """
-core/ - 基盤システム - Phase 28完了・Phase 29最適化版
+core/ - 基盤システム - Phase 38.4完了版
 
 システム全体を支える核心的な基盤機能を提供するディレクトリです。
 責任分離・コード最適化・保守性向上を実現した企業級個人向けAI自動取引システムの基盤を提供します。
 
-Phase 29最適化:
+Phase 28-29最適化:
 - 基盤コンポーネントの配置最適化完了
 - 横断的機能の適切な分離維持
 - デプロイ前コードクリーンアップ完了
+
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 # 設定管理
@@ -50,7 +53,7 @@ from .logger import CryptoBotLogger, JSONFormatter, LogLevel, get_logger, setup_
 # 統合制御システム
 from .orchestration import MLServiceAdapter, TradingOrchestrator, create_trading_orchestrator
 
-# Phase 28完了・Phase 29最適化版 エクスポート定義
+# Phase 38.4完了版 エクスポート定義
 __all__ = [
     # 設定管理
     "Config",
@@ -92,7 +95,7 @@ __all__ = [
     "MLServiceAdapter",
 ]
 
-# Phase 28完了・Phase 29最適化版メタ情報
-__version__ = "29.0"
-__author__ = "CryptoBot Phase 28完了・Phase 29最適化版"
-__description__ = "統合基盤システム - デプロイ前最適化・横断的機能配置・企業級品質確立完了"
+# Phase 38.4完了版メタ情報
+__version__ = "38.4"
+__author__ = "CryptoBot Phase 38.4完了版"
+__description__ = "統合基盤システム - trading層レイヤードアーキテクチャ完成・全モジュールPhase統一・コード品質保証完了"

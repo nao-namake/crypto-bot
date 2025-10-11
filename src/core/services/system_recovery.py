@@ -1,8 +1,12 @@
 """
-システム復旧サービス - Phase 28完了・Phase 29最適化版
+システム復旧サービス - Phase 38.4完了版
 
 orchestrator.pyから分離したシステム復旧・エラー処理機能。
 MLサービス復旧・システム再起動・エラー記録を担当。
+
+Phase 28-29最適化: システム復旧機能分離・自動復旧実装
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from datetime import datetime

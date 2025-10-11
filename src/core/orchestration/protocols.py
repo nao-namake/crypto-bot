@@ -1,6 +1,11 @@
 """
-サービスプロトコル定義 - Phase 28完了・Phase 29最適化版
-各サービス層のインターフェース定義
+サービスプロトコル定義 - Phase 38.4完了版
+
+各サービス層のインターフェース定義・Protocol型ヒント基盤システム
+
+Phase 28-29最適化: Protocol型ヒントシステム確立・依存性注入基盤
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 # 循環インポート回避のため、型ヒントでのみ使用
@@ -55,7 +60,7 @@ class RiskServiceProtocol(Protocol):
 
 
 class ExecutionServiceProtocol(Protocol):
-    """注文実行サービスインターフェース（Phase 28完了・Phase 29最適化版）."""
+    """注文実行サービスインターフェース（Phase 38.4完了版）."""
 
     async def execute_trade(self, evaluation: "TradeEvaluation") -> "ExecutionResult": ...
 

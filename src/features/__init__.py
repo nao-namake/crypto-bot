@@ -1,5 +1,5 @@
 """
-特徴量エンジニアリング - Phase 28完了・Phase 29最適化版
+特徴量エンジニアリング - Phase 38.4完了
 
 97特徴量から15特徴量への極限最適化システム
 統合により3ファイル→1ファイルへ削減（67%削減）
@@ -9,14 +9,14 @@
 - トレンド（2個）、出来高（1個）、ブレイクアウト（3個）、レジーム（3個）
 - 合計15個の厳選された特徴量
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 38.4完了
 """
 
-# Phase 28完了・Phase 29最適化: feature_generatorからエクスポート
+# Phase 38.4: feature_generatorからエクスポート
 from .feature_generator import FEATURE_CATEGORIES, OPTIMIZED_FEATURES, FeatureGenerator
 
 __all__ = [
-    "FeatureGenerator",  # Phase 28完了・Phase 29最適化クラス
+    "FeatureGenerator",  # Phase 38.4完了クラス
     "OPTIMIZED_FEATURES",
     "FEATURE_CATEGORIES",
 ]

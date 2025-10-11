@@ -1,8 +1,12 @@
 """
-ヘルスチェッカー - Phase 28完了・Phase 29最適化版
+ヘルスチェッカー - Phase 38.4完了版
 
 orchestrator.pyから分離したヘルスチェック機能。
 各サービスの健全性確認・システム状態監視を担当。
+
+Phase 28-29最適化: ヘルスチェック機能分離・リソース監視実装
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from ..config import get_monitoring_config

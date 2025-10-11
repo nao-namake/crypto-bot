@@ -1,6 +1,6 @@
 # src/features/ - 特徴量生成システム
 
-**Phase 28完了・Phase 29最適化版**: 15特徴量統一システム・feature_order.json単一真実源連携・7カテゴリ分類による統合特徴量エンジニアリング。
+**Phase 38.4完了**: 15特徴量統一システム・feature_order.json単一真実源連携・7カテゴリ分類による統合特徴量エンジニアリング。
 
 ## 📂 ファイル構成
 
@@ -87,9 +87,9 @@ print(f"生成特徴量数: {feature_info['total_features']}")
 - **7カテゴリ分類**: basic・momentum・volatility・trend・volume・breakout・regime
 - **統合効率**: 重複排除・pandasネイティブ最適化・高速計算
 - **品質保証**: 15特徴量完全確認・NaN値統一処理・エラーハンドリング
-- **Phase 29最適化**: コメントアウトコード削除・Phase 28/29バージョン更新完了
+- **Phase 38.4完了**: Phase 28/29最適化完了状態維持・Phaseマーカー統一
 - **依存**: pandas・numpy・src.core.config.feature_manager・src.core.*
 
 ---
 
-**特徴量生成システム（Phase 28完了・Phase 29最適化）**: feature_order.json単一真実源連携・15特徴量統一システム・7カテゴリ分類による統合特徴量エンジニアリング機能。
+**特徴量生成システム（Phase 38.4完了）**: feature_order.json単一真実源連携・15特徴量統一システム・7カテゴリ分類による統合特徴量エンジニアリング機能。

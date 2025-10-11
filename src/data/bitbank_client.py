@@ -1,8 +1,9 @@
 """
-Bitbank 信用取引専用APIクライアント - シンプル版
+Bitbank 信用取引専用APIクライアント - Phase 38.4完了
 
 信用取引（ロング・ショート）に特化したBitbank APIクライアント
-ccxtライブラリを使用してシンプルな実装に特化。.
+ccxtライブラリを使用してシンプルな実装に特化。
+Phase 35-37.5で機能追加完了（バックテストモード・stop_limit注文・GET/POST API対応）
 """
 
 import os

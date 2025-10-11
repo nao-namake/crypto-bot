@@ -1,8 +1,12 @@
 """
-取引ログサービス - Phase 28完了・Phase 29最適化版
+取引ログサービス - Phase 38.4完了版
 
 orchestrator.pyから分離した取引関連ログ機能。
 取引決定・実行結果・統計情報のログ出力を担当。
+
+Phase 28-29最適化: 取引ログ機能分離・統計情報出力実装
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from ..config import get_threshold

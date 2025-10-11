@@ -1,9 +1,9 @@
 """
-統合ログシステム - Phase 28完了・Phase 29最適化版
+統合ログシステム - Phase 38.4拡張版
 
 JSTタイムゾーン・ファイル・コンソール・Discord通知の統合ログシステム。
 構造化ログ・JSONフォーマット・カラー出力・重要度ベース通知を実現。
-Phase 29で企業級品質のログシステムを確立。
+Phase 38.4: バックテストモード自動判定ロギング追加・戦略重複コード削減。
 """
 
 import json
@@ -361,6 +361,72 @@ class CryptoBotLogger:
     ) -> None:
         """クリティカルログ（必ずDiscord通知）."""
         self._log_with_context(logging.CRITICAL, message, extra_data, error, discord_notify=True)
+
+    def conditional_log(
+        self,
+        message: str,
+        level: str = "info",
+        backtest_level: str = "debug",
+        extra_data: Optional[Dict[str, Any]] = None,
+        discord_notify: bool = False,
+    ) -> None:
+        """
+        バックテストモード自動判定ログ（Phase 38.4新機能）
+
+        バックテストモードを自動判定し、適切なログレベルで出力する。
+        戦略ファイルでの環境変数チェック重複コードを削減。
+
+        Args:
+            message: ログメッセージ
+            level: 通常モード時のログレベル（"debug", "info", "warning", "error"）
+            backtest_level: バックテストモード時のログレベル
+            extra_data: 追加データ
+            discord_notify: Discord通知フラグ
+
+        Example:
+            # Before (重複コード):
+            >>> import os
+            >>> if os.environ.get("BACKTEST_MODE") == "true":
+            >>>     self.logger.debug(f"[Strategy] シグナル生成エラー: {e}")
+            >>> else:
+            >>>     self.logger.error(f"[Strategy] シグナル生成エラー: {e}")
+
+            # After (Phase 38.4):
+            >>> self.logger.conditional_log(
+            >>>     f"[Strategy] シグナル生成エラー: {e}",
+            >>>     level="error",
+            >>>     backtest_level="debug"
+            >>> )
+        """
+        import os
+
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+
+        # バックテストモード判定
+        effective_level = backtest_level if is_backtest else level
+
+        # ログレベルマッピング
+        level_map = {
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "critical": logging.CRITICAL,
+        }
+
+        log_level = level_map.get(effective_level.lower(), logging.INFO)
+
+        # ログ出力（_log_with_contextを使用してDiscord通知も統合）
+        if log_level == logging.CRITICAL:
+            self.critical(message, extra_data=extra_data)
+        elif log_level == logging.ERROR:
+            self.error(message, extra_data=extra_data, discord_notify=discord_notify)
+        elif log_level == logging.WARNING:
+            self.warning(message, extra_data=extra_data, discord_notify=discord_notify)
+        elif log_level == logging.INFO:
+            self.info(message, extra_data=extra_data, discord_notify=discord_notify)
+        else:  # DEBUG
+            self.debug(message, extra_data=extra_data)
 
     def log_trade(
         self,

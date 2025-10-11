@@ -1,8 +1,12 @@
 """
-MLサービス フォールバック機能 - Phase 28完了・Phase 29最適化版
+MLサービス フォールバック機能 - Phase 38.4完了版
 
 ダミーモデル・フォールバック機能・安全ネット機能を提供。
 MLモデル読み込み失敗時の最終的な安全装置。
+
+Phase 28-29最適化: ダミーモデル分離・フォールバック機能専門化
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from typing import Union
@@ -22,7 +26,7 @@ class DummyModel:
     def __init__(self) -> None:
         self.is_fitted = True
         self.model_name = "DummyModel"
-        # Phase 28完了・Phase 29最適化: 特徴量定義一元化対応
+        # Phase 28-29最適化: 特徴量定義一元化対応
         from ..config.feature_manager import get_feature_count
 
         self.n_features_ = get_feature_count()

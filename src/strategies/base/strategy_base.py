@@ -7,7 +7,7 @@
 - StrategySignal: 戦略シグナルデータクラス
 - StrategyBase: 全戦略の基底クラス
 
-Phase 21完了: 2025年9月12日.
+Phase 38.4完了
 """
 
 from abc import ABC, abstractmethod

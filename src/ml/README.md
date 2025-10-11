@@ -1,6 +1,6 @@
 # src/ml/ - 機械学習システム
 
-**Phase 28完了・Phase 29最適化版**: 15特徴量を入力とした3モデルアンサンブル（LightGBM・XGBoost・RandomForest）による高精度取引シグナル予測システム。
+**Phase 38.4完了**: 15特徴量を入力とした3モデルアンサンブル（LightGBM・XGBoost・RandomForest）による高精度取引シグナル予測システム。
 
 ## 📂 ファイル構成
 
@@ -128,9 +128,9 @@ expected_features = [
 - **3モデルアンサンブル**: LightGBM・XGBoost・RandomForest重み付け統合
 - **本番運用**: ProductionEnsemble・予測レイテンシー100ms以下
 - **メモリ効率**: 学習時500MB以下・予測時100MB以下
-- **Phase 29最適化**: Phaseマーカー統一・ドキュメント簡潔化完了
+- **Phase 38.4完了**: Phaseマーカー統一・ドキュメント更新完了
 - **依存**: scikit-learn・lightgbm・xgboost・joblib・src.core.*
 
 ---
 
-**機械学習システム（Phase 28完了・Phase 29最適化）**: 15特徴量3モデルアンサンブルによる高精度取引シグナル予測・重み付け投票・本番ProductionEnsemble統合システム。
+**機械学習システム（Phase 38.4完了）**: 15特徴量3モデルアンサンブルによる高精度取引シグナル予測・重み付け投票・本番ProductionEnsemble統合システム。

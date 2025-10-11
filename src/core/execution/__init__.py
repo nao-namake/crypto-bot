@@ -1,8 +1,12 @@
 """
-実行モード管理システム - Phase 28完了・Phase 29最適化版
+実行モード管理システム - Phase 38.4完了版
 
 orchestrator.pyから分離した実行モード機能を統合管理。
 3モード（backtest/paper/live）の統合実行を担当。
+
+Phase 28-29最適化: 実行モード機能分離・3モード統合管理確立
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from .backtest_runner import BacktestRunner

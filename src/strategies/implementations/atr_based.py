@@ -1,13 +1,16 @@
 """
 ATRベース戦略実装 - シンプル逆張り戦略
+
 ATRとボリンジャーバンドを使用したシンプルな逆張り戦略。
 過度な価格変動時の平均回帰を狙う。
+
 戦略ロジック:
 1. ATRで市場ボラティリティを測定
 2. ボリンジャーバンド位置で過買い・過売り判定
 3. RSIで追加確認
 4. 市場ストレスで異常状況フィルター
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+
+Phase 38.4: 市場不確実性計算統合・重複コード削減
 """
 
 from datetime import datetime
@@ -18,7 +21,7 @@ import pandas as pd
 from ...core.exceptions import StrategyError
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
-from ..utils import EntryAction, SignalBuilder, StrategyType
+from ..utils import EntryAction, MarketUncertaintyCalculator, SignalBuilder, StrategyType
 
 
 class ATRBasedStrategy(StrategyBase):
@@ -243,59 +246,15 @@ class ATRBasedStrategy(StrategyBase):
 
     def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
         """
-        市場データ基づく不確実性計算（設定ベース統一ロジック）
+        市場データ基づく不確実性計算（Phase 38.4: 統合ユーティリティ使用）
 
         Args:
             df: 市場データ
 
         Returns:
-            float: 市場不確実性係数（設定値の範囲）
+            float: 市場不確実性係数（0-0.1の範囲）
         """
-        try:
-            # 循環インポート回避のため遅延インポート
-            from ...core.config.threshold_manager import get_threshold
-
-            # 設定値取得
-            volatility_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
-            )
-            volume_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
-            )
-            volume_multiplier = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
-            )
-            price_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
-            )
-            uncertainty_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
-            )
-
-            # ATRベースのボラティリティ要因
-            current_price = float(df["close"].iloc[-1])
-            atr_value = float(df["atr_14"].iloc[-1])
-            volatility_factor = min(volatility_max, atr_value / current_price)
-
-            # ボリューム異常度（平均からの乖離）
-            current_volume = float(df["volume"].iloc[-1])
-            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
-            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
-
-            # 価格変動率（短期動向）
-            price_change = abs(float(df["close"].pct_change().iloc[-1]))
-            price_factor = min(price_max, price_change)
-
-            # 統合不確実性（設定値の範囲で市場状況を反映）
-            market_uncertainty = volatility_factor + volume_factor + price_factor
-
-            # 設定値で調整範囲を制限
-            return min(uncertainty_max, market_uncertainty)
-
-        except Exception as e:
-            self.logger.warning(f"市場不確実性計算エラー: {e}")
-            return 0.02  # デフォルト値（2%の軽微な調整）
+        return MarketUncertaintyCalculator.calculate(df)
 
     def _make_decision(
         self,

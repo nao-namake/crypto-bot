@@ -1,7 +1,12 @@
 """
-Graceful Shutdown管理 - Phase 28完了・Phase 29最適化版
+Graceful Shutdown管理 - Phase 38.4完了版
 
 main.py軽量化方針に従い、shutdown処理を専用サービスとして分離。
+
+Phase 28-29最適化: Graceful Shutdown専門サービス・シグナルハンドリング実装
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+
 設計原則：
 - Single Responsibility: shutdown処理のみ担当
 - 依存性注入: orchestratorを外部から受け取り

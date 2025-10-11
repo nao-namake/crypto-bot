@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_a0f2e9561de1dba2_base_reporter_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-10-11 16:11 +0900
+            created at 2025-10-12 08:32 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -81,28 +81,30 @@
 </header>
 <main id="source">
     <p class="pln"><span class="n"><a id="t1" href="#t1">1</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">&#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#12539;&#36890;&#30693;&#12471;&#12473;&#12486;&#12512; - Phase 28&#23436;&#20102;&#12539;Phase 29&#26368;&#36969;&#21270;&#29256;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t2" href="#t2">2</a></span><span class="t"><span class="str">&#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#12539;&#36890;&#30693;&#12471;&#12473;&#12486;&#12512; - Phase 38.4&#23436;&#20102;&#29256;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t3" href="#t3">3</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t4" href="#t4">4</a></span><span class="t"><span class="str">orchestrator.py&#12363;&#12425;&#20998;&#38626;&#12375;&#12383;&#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#27231;&#33021;&#12392;Discord&#36890;&#30693;&#27231;&#33021;&#12434;&#32113;&#21512;&#31649;&#29702;&#12290;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t5" href="#t5">5</a></span><span class="t"><span class="str">&#12496;&#12483;&#12463;&#12486;&#12473;&#12488;&#12539;&#12506;&#12540;&#12497;&#12540;&#12488;&#12524;&#12540;&#12489;&#12539;&#12456;&#12521;&#12540;&#12524;&#12509;&#12540;&#12488;&#12398;&#29983;&#25104;&#12362;&#12424;&#12403;Discord&#36890;&#30693;&#12434;&#25285;&#24403;&#12290;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t6" href="#t6">6</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">Phase 28&#23436;&#20102;&#12539;Phase 29&#26368;&#36969;&#21270;: monitoring&#12501;&#12457;&#12523;&#12480;&#12363;&#12425;Discord&#36890;&#30693;&#27231;&#33021;&#12434;&#32113;&#21512;&#12290;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="com"># BacktestReporter moved to src/backtest/core_reporter.py</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">base_reporter</span> <span class="key">import</span> <span class="nam">BaseReporter</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">discord_notifier</span> <span class="key">import</span> <span class="nam">DiscordClient</span><span class="op">,</span> <span class="nam">DiscordFormatter</span><span class="op">,</span> <span class="nam">DiscordManager</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">paper_trading_reporter</span> <span class="key">import</span> <span class="nam">PaperTradingReporter</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="nam">__all__</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">    <span class="com"># &#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#27231;&#33021;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t">    <span class="str">"BaseReporter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="str">"PaperTradingReporter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="com"># Discord&#36890;&#30693;&#27231;&#33021;&#65288;Phase 28&#23436;&#20102;&#12539;Phase 29&#26368;&#36969;&#21270;&#65289;</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="str">"DiscordClient"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="str">"DiscordFormatter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="str">"DiscordManager"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t7" href="#t7">7</a></span><span class="t"><span class="str">Phase 28-29&#26368;&#36969;&#21270;: monitoring&#12501;&#12457;&#12523;&#12480;&#12363;&#12425;Discord&#36890;&#30693;&#27231;&#33021;&#32113;&#21512;&#12539;&#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#20307;&#31995;&#30906;&#31435;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t8" href="#t8">8</a></span><span class="t"><span class="str">Phase 38: trading&#23652;&#12524;&#12452;&#12516;&#12540;&#12489;&#12450;&#12540;&#12461;&#12486;&#12463;&#12481;&#12515;&#23455;&#35013;&#23436;&#20102;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t9" href="#t9">9</a></span><span class="t"><span class="str">Phase 38.4: &#20840;&#12514;&#12472;&#12517;&#12540;&#12523;Phase&#32113;&#19968;&#12539;&#12467;&#12540;&#12489;&#21697;&#36074;&#20445;&#35388;&#23436;&#20102;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t10" href="#t10">10</a></span><span class="t"><span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t11" href="#t11">11</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="com"># BacktestReporter moved to src/backtest/core_reporter.py</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">base_reporter</span> <span class="key">import</span> <span class="nam">BaseReporter</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">discord_notifier</span> <span class="key">import</span> <span class="nam">DiscordClient</span><span class="op">,</span> <span class="nam">DiscordFormatter</span><span class="op">,</span> <span class="nam">DiscordManager</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="op">.</span><span class="nam">paper_trading_reporter</span> <span class="key">import</span> <span class="nam">PaperTradingReporter</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="nam">__all__</span> <span class="op">=</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="com"># &#12524;&#12509;&#12540;&#12488;&#29983;&#25104;&#27231;&#33021;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">    <span class="str">"BaseReporter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t">    <span class="str">"PaperTradingReporter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">    <span class="com"># Discord&#36890;&#30693;&#27231;&#33021;&#65288;Phase 38.4&#23436;&#20102;&#29256;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t">    <span class="str">"DiscordClient"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t">    <span class="str">"DiscordFormatter"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t">    <span class="str">"DiscordManager"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -112,7 +114,7 @@
             <a class="nav" href="z_a0f2e9561de1dba2_base_reporter_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-10-11 16:11 +0900
+            created at 2025-10-12 08:32 +0900
         </p>
     </div>
 </footer>

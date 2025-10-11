@@ -1,15 +1,16 @@
 """
-Discord通知システム統合版 - Phase 28完了・Phase 29最適化版
+Discord通知システム統合版 - Phase 38.4完了版
 
 3ファイル（discord_client.py, discord_formatter.py, discord_manager.py）を
 1ファイルに統合し、管理の簡素化と保守性の向上を実現。
 
-統合効果:
+Phase 28-29最適化: Discord通知3層統合・ファイル数50%削減
 - ファイル数削減: 4→2（50%削減）
 - 管理簡素化: Discord関連処理の一元化
 - import簡素化: 内部import不要
 
-Phase 28完了・Phase 29最適化日: 2025年9月28日.
+Phase 38: trading層レイヤードアーキテクチャ実装完了
+Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 import json
@@ -37,7 +38,7 @@ class DiscordClient:
     """
     シンプルなDiscord Webhook通知クライアント
 
-    Phase 28完了・Phase 29最適化での完全再設計により、必要最小限の機能のみを提供。
+    Phase 28-29最適化での完全再設計により、必要最小限の機能のみを提供。
     JSON形式エラー（50109）の根本解決と高い保守性を実現。
     """
 
@@ -421,7 +422,7 @@ class DiscordFormatter:
         # アクション絵文字
         action_emojis = {"buy": "📈", "sell": "📉", "hold": "⏸️"}
 
-        # 信頼度に応じた色（Phase 28完了・Phase 29最適化：設定ファイル参照）
+        # 信頼度に応じた色（Phase 28-29最適化：設定ファイル参照）
         high_threshold = get_monitoring_config("discord.confidence_thresholds.high", 0.8)
         medium_threshold = get_monitoring_config("discord.confidence_thresholds.medium", 0.6)
 
@@ -653,7 +654,7 @@ class DiscordManager:
         """
         self.logger = logging.getLogger("crypto_bot.discord_manager")
 
-        # Discord clientとformatter初期化（Phase 28完了・Phase 29最適化：内部インスタンス化）
+        # Discord clientとformatter初期化（Phase 28-29最適化：内部インスタンス化）
         self.client = DiscordClient(webhook_url)
         self.formatter = DiscordFormatter()
 
