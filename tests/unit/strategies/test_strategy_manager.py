@@ -251,7 +251,7 @@ class TestStrategyManager(unittest.TestCase):
         self.assertEqual(self.manager.signal_conflicts, 1)
 
     def test_analyze_market_small_conflict_difference(self):
-        """市場分析テスト - 小さなコンフリクト差."""
+        """市場分析テスト - 小さなコンフリクト差（Phase 38.5: 全5票統合ロジック対応）."""
         # ほぼ同じ信頼度の相反シグナル
         close_buy_signal = StrategySignal(
             strategy_name="CloseBuy",
@@ -276,7 +276,8 @@ class TestStrategyManager(unittest.TestCase):
         buy_strategy = MockStrategy("BuyStrategy", close_buy_signal)
         sell_strategy = MockStrategy("SellStrategy", close_sell_signal)
 
-        # 小さな差の閾値を設定
+        # Phase 38.5: min_conflict_thresholdは廃止され、全5票統合ロジックを使用
+        # 以下の設定は互換性のため残すが、実際には使用されない
         self.manager.config["min_conflict_threshold"] = 0.05
 
         self.manager.register_strategy(buy_strategy)
@@ -284,9 +285,10 @@ class TestStrategyManager(unittest.TestCase):
 
         result = self.manager.analyze_market(self.test_df)
 
-        # 差が小さいのでホールドになるはず
-        self.assertEqual(result.action, EntryAction.HOLD)
-        self.assertIn("コンフリクト回避", result.reason)
+        # Phase 38.5: 全5票統合ロジックにより、最高比率のアクションが選択される
+        # buy: 0.65 (50.8%), sell: 0.63 (49.2%) → buy選択
+        self.assertEqual(result.action, EntryAction.BUY)
+        self.assertIn("全5票統合結果", result.reason)
 
     def test_analyze_market_no_strategies(self):
         """市場分析テスト - 戦略なし."""

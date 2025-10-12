@@ -485,7 +485,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertLessEqual(confidence, 0.50)
 
     def test_calculate_weak_trend_hold_confidence(self):
-        """弱トレンドHOLD信頼度計算テスト"""
+        """弱トレンドHOLD信頼度計算テスト（Phase 38.5: hold信頼度向上対応）"""
         df = self._create_test_data(50)
         analysis = {
             "adx": 12,
@@ -494,9 +494,9 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
         confidence = self.strategy._calculate_weak_trend_hold_confidence(analysis, df)
 
-        # 0.2-0.35の範囲内であることを確認
-        self.assertGreaterEqual(confidence, 0.20)
-        self.assertLessEqual(confidence, 0.35)
+        # Phase 38.5: hold_min 0.20→0.35, hold_max 0.45→0.60 に引き上げ
+        self.assertGreaterEqual(confidence, 0.35)
+        self.assertLessEqual(confidence, 0.60)
 
     def test_calculate_default_confidence(self):
         """デフォルト動的信頼度計算テスト"""

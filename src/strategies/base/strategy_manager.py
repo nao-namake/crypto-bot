@@ -213,44 +213,74 @@ class StrategyManager:
         all_signals: Dict[str, StrategySignal],
         df: pd.DataFrame,
     ) -> StrategySignal:
-        """シグナルコンフリクトの解決."""
+        """
+        シグナルコンフリクトの解決（Phase 38.5: 全5票統合ロジック実装）
+
+        従来のbuy vs sell比較を廃止し、全アクション（buy/sell/hold）の
+        重み付け信頼度を計算して最高スコアのアクションを選択する。
+        """
         # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
         import os
 
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         if not is_backtest:  # Phase 35.5: バックテストモード時はログ出力しない
-            self.logger.warning("シグナルコンフリクト検出 - 解決処理開始")
+            self.logger.warning("シグナルコンフリクト検出 - 全5票統合ロジック実行")
 
-        # 解決方法1: 信頼度ベースの選択
+        # Phase 38.5: 全アクション（buy/sell/hold）の信号を取得
         buy_signals = signal_groups.get("buy", [])
         sell_signals = signal_groups.get("sell", [])
+        hold_signals = signal_groups.get("hold", [])
 
         # 各グループの重み付け信頼度計算
         buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
         sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
+        hold_weighted_confidence = self._calculate_weighted_confidence(hold_signals)
+
+        # 合計スコア計算（正規化用）
+        total_score = buy_weighted_confidence + sell_weighted_confidence + hold_weighted_confidence
+
+        # 各アクションの比率計算
+        if total_score > 0:
+            buy_ratio = buy_weighted_confidence / total_score
+            sell_ratio = sell_weighted_confidence / total_score
+            hold_ratio = hold_weighted_confidence / total_score
+        else:
+            # すべて0の場合はhold選択
+            return self._create_hold_signal(df, reason="全戦略信頼度ゼロ")
 
         self.logger.debug(
-            f"コンフリクト解決: BUY={buy_weighted_confidence:.3f} vs SELL={sell_weighted_confidence:.3f}"
+            f"全5票統合: BUY={buy_ratio:.3f}({len(buy_signals)}票) "
+            f"SELL={sell_ratio:.3f}({len(sell_signals)}票) "
+            f"HOLD={hold_ratio:.3f}({len(hold_signals)}票)"
         )
 
-        # 差が小さい場合はホールド
-        min_conflict_threshold = self.config.get("min_conflict_threshold", 0.1)
-        if abs(buy_weighted_confidence - sell_weighted_confidence) < min_conflict_threshold:
-            self.logger.info("コンフリクト解決: 差が小さいためホールド選択")
-            return self._create_hold_signal(df, reason="信頼度差が小さいためコンフリクト回避")
+        # 最高比率のアクションを選択
+        max_ratio = max(buy_ratio, sell_ratio, hold_ratio)
 
-        # より高い信頼度のグループを選択
-        if buy_weighted_confidence > sell_weighted_confidence:
+        if buy_ratio == max_ratio:
             winning_group = buy_signals
             action = "buy"
             confidence = buy_weighted_confidence
-        else:
+            ratio = buy_ratio
+        elif sell_ratio == max_ratio:
             winning_group = sell_signals
             action = "sell"
             confidence = sell_weighted_confidence
+            ratio = sell_ratio
+        else:  # hold_ratio == max_ratio
+            # hold が最高スコア → _create_hold_signalで動的confidence計算
+            self.logger.info(
+                f"コンフリクト解決: HOLD選択 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)"
+            )
+            return self._create_hold_signal(
+                df,
+                reason=f"全5票統合結果 - HOLD優勢 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)",
+            )
 
-        self.logger.info(f"コンフリクト解決: {action.upper()}選択 (信頼度: {confidence:.3f})")
+        self.logger.info(
+            f"コンフリクト解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)"
+        )
 
         # 勝利グループから最も信頼度の高いシグナルをベースに統合
         best_signal = max(winning_group, key=lambda x: x[1].confidence)[1]
@@ -267,11 +297,17 @@ class StrategyManager:
             take_profit=best_signal.take_profit,
             position_size=best_signal.position_size,
             risk_ratio=best_signal.risk_ratio,
-            reason=f"コンフリクト解決 - {len(winning_group)}戦略の統合結果",
+            reason=f"全5票統合結果 - {len(winning_group)}戦略 (比率: {ratio:.3f})",
             metadata={
                 "conflict_resolved": True,
-                "competing_signals": len(buy_signals) + len(sell_signals),
-                "resolution_method": "weighted_confidence",
+                "total_signals": len(buy_signals) + len(sell_signals) + len(hold_signals),
+                "buy_votes": len(buy_signals),
+                "sell_votes": len(sell_signals),
+                "hold_votes": len(hold_signals),
+                "buy_ratio": buy_ratio,
+                "sell_ratio": sell_ratio,
+                "hold_ratio": hold_ratio,
+                "resolution_method": "all_votes_weighted_integration",  # Phase 38.5
             },
         )
 

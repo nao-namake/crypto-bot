@@ -118,9 +118,9 @@ dynamic_confidence:
       reversal_base: 0.50            # リバーサル基準信頼度（0.45→0.50）
       reversal_min: 0.30             # リバーサル最小信頼度
       reversal_max: 0.70             # リバーサル最大信頼度
-      hold_base: 0.30                # レンジ内基準信頼度（0.25→0.30）
-      hold_min: 0.20                 # レンジ内最小信頼度
-      hold_max: 0.45                 # レンジ内最大信頼度
+      hold_base: 0.40                # レンジ内基準信頼度（0.25→0.30→0.40 Phase 38.5）
+      hold_min: 0.35                 # レンジ内最小信頼度（0.20→0.35 Phase 38.5 +75%）
+      hold_max: 0.60                 # レンジ内最大信頼度（0.45→0.60 Phase 38.5 +33%）
       volume_bonus_max: 0.1          # ボリュームボーナス上限
       volume_multiplier: 0.2         # ボリューム乗数
 
@@ -135,9 +135,9 @@ dynamic_confidence:
       weak_base: 0.35                # 弱トレンド基準信頼度（0.30→0.35）
       weak_min: 0.25                 # 弱トレンド最小信頼度
       weak_max: 0.50                 # 弱トレンド最大信頼度
-      hold_base: 0.30                # HOLD基準信頼度
-      hold_min: 0.25                 # HOLD最小信頼度
-      hold_max: 0.45                 # HOLD最大信頼度
+      hold_base: 0.45                # HOLD基準信頼度（0.30→0.45 Phase 38.5 +50%）
+      hold_min: 0.35                 # HOLD最小信頼度（0.25→0.35 Phase 38.5 +40%）
+      hold_max: 0.60                 # HOLD最大信頼度（0.45→0.60 Phase 38.5 +33%）
       default_min: 0.25              # デフォルト最小信頼度
       default_max: 0.45              # デフォルト最大信頼度
       adx_bonus_max: 0.25            # ADXボーナス上限
@@ -190,7 +190,7 @@ strategies:
   adx_trend:
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
-    hold_confidence: 0.30  # 0.15→0.30 フォールバック値回避・動的信頼度確保
+    hold_confidence: 0.45  # 0.15→0.30→0.45 Phase 38.5 +50% 動的信頼度確保
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
     moderate_trend_max: 25
     moderate_trend_min: 15
@@ -212,7 +212,7 @@ strategies:
     confidence_multiplier: 0.3  # 0.4→0.3 信頼度乗数削減
   donchian_channel:
     breakout_threshold: 0.002
-    hold_confidence: 0.25  # 0.15→0.25 動的信頼度確保・固定値回避
+    hold_confidence: 0.40  # 0.15→0.25→0.40 Phase 38.5 +60% 動的信頼度確保
     middle_zone_max: 0.6
     middle_zone_min: 0.4
     min_confidence: 0.25  # 0.3→0.25 より低い信頼度でもシグナル生成
