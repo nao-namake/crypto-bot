@@ -112,7 +112,11 @@ class ExecutionService:
 
             # Phase 37: 証拠金残高チェック（ライブモードのみ・Container exit回避）
             if self.balance_monitor:
-                balance_check = await self.balance_monitor.validate_margin_balance()
+                balance_check = await self.balance_monitor.validate_margin_balance(
+                    mode=self.mode,
+                    bitbank_client=self.bitbank_client,
+                    discord_notifier=self.discord_notifier,
+                )
                 if not balance_check["sufficient"]:
                     self.logger.info(
                         f"💤 証拠金不足のため取引スキップ（Container exit回避） - "
