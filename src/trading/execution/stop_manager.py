@@ -593,23 +593,25 @@ class StopManager:
                 return
 
             # bitbank APIから実際のポジション取得
+            # Phase 37.5.4: ccxt fetch_positions()はbitbank未対応のため、native API使用
             symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
             try:
-                actual_positions = await asyncio.to_thread(bitbank_client.fetch_positions, symbol)
+                actual_positions = await bitbank_client.fetch_margin_positions(symbol)
             except Exception as e:
                 self.logger.warning(f"⚠️ ポジション取得エラー、クリーンアップスキップ: {e}")
                 return
 
             # 実際に存在するポジションをside/amountでマッチング可能な形式に変換
+            # Phase 37.5.4: native API形式（"amount"フィールド）に対応
             actual_positions_data = []
             for pos in actual_positions:
                 side = pos.get("side", "").lower()  # "long" or "short"
-                contracts = float(pos.get("contracts", 0))
-                if side and contracts > 0:
+                amount = float(pos.get("amount", 0))  # native APIは"amount"フィールド
+                if side and amount > 0:
                     actual_positions_data.append(
                         {
                             "side": "buy" if side == "long" else "sell",
-                            "amount": contracts,
+                            "amount": amount,
                         }
                     )
 

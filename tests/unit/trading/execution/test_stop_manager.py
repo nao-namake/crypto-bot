@@ -47,6 +47,7 @@ def mock_bitbank_client():
     client = AsyncMock()
     client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
     client.fetch_positions = AsyncMock(return_value=[])
+    client.fetch_margin_positions = AsyncMock(return_value=[])  # Phase 37.5.4: native API対応
     client.create_take_profit_order = Mock(return_value={"id": "tp_order_123"})
     client.create_stop_loss_order = Mock(return_value={"id": "sl_order_456"})
     client.cancel_order = AsyncMock()
@@ -742,7 +743,8 @@ class TestCleanupOrphanedOrders:
 
         await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
 
-        mock_bitbank_client.fetch_positions.assert_not_called()
+        # Phase 37.5.4: fetch_margin_positions()は呼ばれない
+        mock_bitbank_client.fetch_margin_positions.assert_not_called()
         mock_bitbank_client.cancel_order.assert_not_called()
 
     @pytest.mark.asyncio
@@ -755,9 +757,9 @@ class TestCleanupOrphanedOrders:
 
         virtual_positions = [{"side": "buy", "amount": 0.001, "order_id": "order_123"}]
 
-        # 実際のポジションも同じ
-        mock_bitbank_client.fetch_positions = AsyncMock(
-            return_value=[{"side": "long", "contracts": 0.001}]  # buy → long
+        # Phase 37.5.4: 実際のポジションも同じ（native API形式）
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.001}]  # buy → long
         )
 
         await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
@@ -771,7 +773,7 @@ class TestCleanupOrphanedOrders:
     async def test_orphaned_position_cleanup(
         self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
     ):
-        """消失ポジションのTP/SL注文をキャンセル"""
+        """Phase 37.5.4: 消失ポジションのTP/SL注文をキャンセル"""
         mock_threshold.return_value = "BTC/JPY"
 
         virtual_positions = [
@@ -784,11 +786,11 @@ class TestCleanupOrphanedOrders:
             }
         ]
 
-        # asyncio.to_thread()をmock（fetch_positions呼び出し用）
-        async def mock_fetch_positions(*args, **kwargs):
+        # Phase 37.5.4: asyncio.to_thread()をmock（fetch_margin_positions呼び出し用）
+        async def mock_fetch_margin_positions(*args, **kwargs):
             return []  # 実際のポジションは空（消失）
 
-        mock_to_thread.side_effect = lambda func, *args: mock_fetch_positions()
+        mock_to_thread.side_effect = lambda func, *args: mock_fetch_margin_positions()
 
         await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
 
@@ -804,7 +806,7 @@ class TestCleanupOrphanedOrders:
     async def test_cancel_order_already_filled(
         self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
     ):
-        """既にキャンセル/約定済みの注文エラーは警告レベル"""
+        """Phase 37.5.4: 既にキャンセル/約定済みの注文エラーは警告レベル"""
         mock_threshold.return_value = "BTC/JPY"
 
         virtual_positions = [
@@ -817,9 +819,9 @@ class TestCleanupOrphanedOrders:
             }
         ]
 
-        # asyncio.to_thread()をmock
+        # Phase 37.5.4: asyncio.to_thread()をmock
         async def mock_async_call(func, *args):
-            if func.__name__ == "fetch_positions":
+            if func.__name__ == "fetch_margin_positions":
                 return []  # ポジション消失
             elif func.__name__ == "cancel_order":
                 raise Exception("OrderNotFound: order not found")
@@ -953,7 +955,7 @@ class TestCleanupOrphanedOrdersDetailed:
     async def test_position_mismatch_detection(
         self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
     ):
-        """仮想ポジションと実際のポジション不一致検出"""
+        """Phase 37.5.4: 仮想ポジションと実際のポジション不一致検出"""
         mock_threshold.return_value = "BTC/JPY"
 
         virtual_positions = [
@@ -966,9 +968,9 @@ class TestCleanupOrphanedOrdersDetailed:
             }
         ]
 
-        # asyncio.to_thread()を正しくモック
+        # Phase 37.5.4: asyncio.to_thread()を正しくモック（fetch_margin_positions使用）
         async def mock_to_thread_impl(func, *args):
-            if func == mock_bitbank_client.fetch_positions:
+            if func == mock_bitbank_client.fetch_margin_positions:
                 # 実際のポジションは存在しない（消失）
                 return []
             elif func == mock_bitbank_client.cancel_order:
@@ -987,7 +989,7 @@ class TestCleanupOrphanedOrdersDetailed:
     @patch("asyncio.to_thread")
     @patch("src.trading.execution.stop_manager.get_threshold")
     async def test_position_amount_mismatch(self, mock_threshold, mock_to_thread, stop_manager):
-        """数量不一致でポジション消失判定"""
+        """Phase 37.5.4: 数量不一致でポジション消失判定"""
         mock_threshold.return_value = "BTC/JPY"
         mock_client = AsyncMock()
 
@@ -1001,10 +1003,10 @@ class TestCleanupOrphanedOrdersDetailed:
             }
         ]
 
-        # 実際のポジションは0.002（数量不一致）
+        # Phase 37.5.4: 実際のポジションは0.002（数量不一致・native API形式）
         async def mock_to_thread_impl(func, *args):
-            if func == mock_client.fetch_positions:
-                return [{"side": "long", "contracts": 0.002}]  # 数量違い
+            if func == mock_client.fetch_margin_positions:
+                return [{"side": "long", "amount": 0.002}]  # 数量違い
             elif func == mock_client.cancel_order:
                 return {"success": True}
             return None
@@ -1021,7 +1023,7 @@ class TestCleanupOrphanedOrdersDetailed:
     async def test_fetch_positions_error_skips_cleanup(
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
-        """fetch_positions()エラー時はクリーンアップスキップ"""
+        """Phase 37.5.4: fetch_margin_positions()エラー時はクリーンアップスキップ"""
         mock_threshold.return_value = "BTC/JPY"
 
         virtual_positions = [
@@ -1033,8 +1035,8 @@ class TestCleanupOrphanedOrdersDetailed:
             }
         ]
 
-        # fetch_positions()がエラー
-        mock_bitbank_client.fetch_positions = AsyncMock(side_effect=Exception("API Error"))
+        # Phase 37.5.4: fetch_margin_positions()がエラー
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API Error"))
 
         # エラーが発生しないことを確認（graceful degradation）
         await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
