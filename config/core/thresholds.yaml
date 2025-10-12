@@ -398,7 +398,7 @@ position_management:
   stop_loss:
     enabled: true                   # ストップロス機能有効化
     default_atr_multiplier: 2.0     # ATR倍率（デフォルト2.0）
-    max_loss_ratio: 0.03            # 最大損失率3%
+    max_loss_ratio: 0.03            # Phase 38.7: 最大損失率3%（正常時0.64% + スリッページ2% = 2.64%想定・安全マージン確保）
     override_strategy_sl: false     # 戦略から受け取ったSL価格を優先（false）
     enable_trailing: false         # トレーリングストップ（将来拡張用・現在は無効）
 

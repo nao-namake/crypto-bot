@@ -268,19 +268,94 @@ class ExecutionService:
                 )
 
             # Phase 29.6: ライブモードでもポジション追跡（バグ修正）
+            # Phase 38.7: 実約定価格ベースでTP/SL再計算（SL距離5x誤差修正）
+            actual_filled_price = result.filled_price or result.price
+
+            # 実約定価格でTP/SL価格を再計算
+            recalculated_tp = None
+            recalculated_sl = None
+
+            if actual_filled_price > 0 and evaluation.take_profit and evaluation.stop_loss:
+                from ...strategies.utils.strategy_utils import RiskManager
+
+                # ATR値とATR履歴を取得（evaluationのmarket_conditionsから）
+                market_conditions = getattr(evaluation, "market_conditions", {})
+                market_data = market_conditions.get("market_data", {})
+
+                current_atr = None
+                atr_history = None
+
+                # 15m足ATR取得試行
+                if "15m" in market_data:
+                    df_15m = market_data["15m"]
+                    if "atr_14" in df_15m.columns and len(df_15m) > 0:
+                        current_atr = float(df_15m["atr_14"].iloc[-1])
+                        atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
+
+                # 4h足ATRフォールバック
+                if not current_atr and "4h" in market_data:
+                    df_4h = market_data["4h"]
+                    if "atr_14" in df_4h.columns and len(df_4h) > 0:
+                        current_atr = float(df_4h["atr_14"].iloc[-1])
+
+                if current_atr and current_atr > 0:
+                    # 実約定価格ベースで再計算
+                    config = {"take_profit_ratio": 2.5}  # デフォルト設定
+                    recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
+                        side, actual_filled_price, current_atr, config, atr_history
+                    )
+
+                    # 再計算成功時、ログ出力
+                    if recalculated_sl and recalculated_tp:
+                        original_sl = evaluation.stop_loss
+                        original_tp = evaluation.take_profit
+                        sl_diff = abs(recalculated_sl - original_sl)
+                        tp_diff = abs(recalculated_tp - original_tp)
+
+                        self.logger.info(
+                            f"🔄 Phase 38.7: 実約定価格ベースTP/SL再計算完了 - "
+                            f"約定価格={actual_filled_price:.0f}円 | "
+                            f"SL: {original_sl:.0f}円→{recalculated_sl:.0f}円 (差{sl_diff:.0f}円) | "
+                            f"TP: {original_tp:.0f}円→{recalculated_tp:.0f}円 (差{tp_diff:.0f}円)"
+                        )
+                    else:
+                        # Phase 38.7: 再計算失敗時のエラーハンドリング
+                        self.logger.warning(
+                            f"⚠️ Phase 38.7: TP/SL再計算失敗（RiskManager戻り値None） - "
+                            f"ATR={current_atr:.0f}円・元のTP/SL使用継続"
+                        )
+                else:
+                    # Phase 38.7: ATR取得失敗時のエラーハンドリング
+                    self.logger.warning(
+                        f"⚠️ Phase 38.7: ATR取得失敗（current_atr={current_atr}） - "
+                        f"実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
+                    )
+
+            # 再計算された値を使用（失敗時は元の値）
+            final_tp = recalculated_tp if recalculated_tp else evaluation.take_profit
+            final_sl = recalculated_sl if recalculated_sl else evaluation.stop_loss
+
             live_position = {
                 "order_id": result.order_id,
                 "side": side,
                 "amount": amount,
-                "price": result.filled_price or result.price,
+                "price": actual_filled_price,
                 "timestamp": datetime.now(),
-                "take_profit": evaluation.take_profit if evaluation.take_profit else None,
-                "stop_loss": evaluation.stop_loss if evaluation.stop_loss else None,
+                "take_profit": final_tp,
+                "stop_loss": final_sl,
             }
             self.virtual_positions.append(live_position)
 
             # TP/SL注文配置（StopManagerに委譲）
-            if self.stop_manager:
+            # Phase 37.5.5: 再計算されたTP/SL価格を使用
+            if self.stop_manager and final_tp and final_sl:
+                # evaluationを再計算値で更新（immutable対応）
+                if hasattr(evaluation, "__dict__"):
+                    evaluation.take_profit = final_tp
+                    evaluation.stop_loss = final_sl
+                else:
+                    evaluation = replace(evaluation, take_profit=final_tp, stop_loss=final_sl)
+
                 tp_sl_result = await self.stop_manager.place_tp_sl_orders(
                     evaluation, side, amount, symbol, self.bitbank_client
                 )
