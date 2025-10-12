@@ -499,7 +499,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertLessEqual(confidence, 0.60)
 
     def test_calculate_default_confidence(self):
-        """デフォルト動的信頼度計算テスト"""
+        """デフォルト動的信頼度計算テスト（Phase 38.5.1: default_max 0.60対応）"""
         df = self._create_test_data(50)
         analysis = {
             "is_moderate_trend": True,
@@ -509,9 +509,9 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
         confidence = self.strategy._calculate_default_confidence(analysis, df)
 
-        # 0.25-0.45の範囲内であることを確認
+        # Phase 38.5.1: 0.25-0.60の範囲内であることを確認（default_max統一）
         self.assertGreaterEqual(confidence, 0.25)
-        self.assertLessEqual(confidence, 0.45)
+        self.assertLessEqual(confidence, 0.60)
 
     def test_calculate_market_uncertainty(self):
         """市場不確実性計算テスト"""

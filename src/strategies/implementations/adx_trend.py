@@ -514,7 +514,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         from ...core.config.threshold_manager import get_threshold
 
         default_min = get_threshold("dynamic_confidence.strategies.adx_trend.default_min", 0.25)
-        default_max = get_threshold("dynamic_confidence.strategies.adx_trend.default_max", 0.45)
+        default_max = get_threshold(
+            "dynamic_confidence.strategies.adx_trend.default_max", 0.60
+        )  # Phase 38.5.1: 0.45→0.60（thresholds.yaml統一）
         return max(default_min, min(default_max, confidence))
 
     def _create_hold_signal(

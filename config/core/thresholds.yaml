@@ -139,7 +139,7 @@ dynamic_confidence:
       hold_min: 0.35                 # HOLD最小信頼度（0.25→0.35 Phase 38.5 +40%）
       hold_max: 0.60                 # HOLD最大信頼度（0.45→0.60 Phase 38.5 +33%）
       default_min: 0.25              # デフォルト最小信頼度
-      default_max: 0.45              # デフォルト最大信頼度
+      default_max: 0.60              # デフォルト最大信頼度（0.45→0.60 Phase 38.5.1 hold_max統一）
       adx_bonus_max: 0.25            # ADXボーナス上限
       adx_divisor: 25                # ADXボーナス除数
       di_bonus_max: 0.15             # DIボーナス上限
