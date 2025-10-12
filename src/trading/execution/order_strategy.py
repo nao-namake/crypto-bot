@@ -245,9 +245,9 @@ class OrderStrategy:
         self, evaluation: TradeEvaluation, market_conditions: Dict[str, Any]
     ) -> float:
         """
-        指値注文価格計算
+        指値注文価格計算（Phase 38.7.1: 確実約定戦略対応）
 
-        約定確率を考慮しつつ、手数料削減効果を最大化する指値価格を計算。
+        約定確率を最優先しつつ、メイカー手数料リベート獲得を目指す指値価格を計算。
 
         Args:
             evaluation: 取引評価
@@ -265,40 +265,74 @@ class OrderStrategy:
                 self.logger.warning("⚠️ 最良気配なし、指値価格計算不可")
                 return 0
 
-            # 指値注文の価格戦略設定
-            price_improvement_ratio = get_threshold(
-                "order_execution.price_improvement_ratio", 0.001
-            )  # 0.1% 価格改善
+            # Phase 38.7.1: 確実約定戦略設定
+            entry_price_strategy = get_threshold(
+                "order_execution.entry_price_strategy", "unfavorable"
+            )  # "favorable" or "unfavorable"
 
-            if side.lower() == "buy":
-                # 買い注文：現在のbid価格より少し上（約定確率向上）
-                limit_price = best_bid * (1 + price_improvement_ratio)
+            guaranteed_execution_premium = get_threshold(
+                "order_execution.guaranteed_execution_premium", 0.0005
+            )  # 0.05% プレミアム（確実約定用）
 
-                # ask価格を超えないように制限
-                max_buy_price = best_ask * 0.999  # askより0.1%下
-                limit_price = min(limit_price, max_buy_price)
+            if entry_price_strategy == "unfavorable":
+                # ✅ 確実約定戦略：板の前に並ぶ不利な価格で注文（約定確率100%）
+                if side.lower() == "buy":
+                    # 買い注文：ask価格より少し上（板の最前列・確実に約定）
+                    limit_price = best_ask * (1 + guaranteed_execution_premium)
 
-                self.logger.debug(
-                    f"💰 買い指値価格計算: bid={best_bid:.0f}円 -> 指値={limit_price:.0f}円 "
-                    f"(改善={price_improvement_ratio * 100:.1f}%)"
-                )
+                    self.logger.debug(
+                        f"💰 買い指値価格計算（確実約定戦略）: ask={best_ask:.0f}円 -> 指値={limit_price:.0f}円 "
+                        f"(プレミアム={guaranteed_execution_premium * 100:.2f}%)"
+                    )
 
-            elif side.lower() == "sell":
-                # 売り注文：現在のask価格より少し下（約定確率向上）
-                limit_price = best_ask * (1 - price_improvement_ratio)
+                elif side.lower() == "sell":
+                    # 売り注文：bid価格より少し下（板の最前列・確実に約定）
+                    limit_price = best_bid * (1 - guaranteed_execution_premium)
 
-                # bid価格を下回らないように制限
-                min_sell_price = best_bid * 1.001  # bidより0.1%上
-                limit_price = max(limit_price, min_sell_price)
+                    self.logger.debug(
+                        f"💰 売り指値価格計算（確実約定戦略）: bid={best_bid:.0f}円 -> 指値={limit_price:.0f}円 "
+                        f"(プレミアム={guaranteed_execution_premium * 100:.2f}%)"
+                    )
 
-                self.logger.debug(
-                    f"💰 売り指値価格計算: ask={best_ask:.0f}円 -> 指値={limit_price:.0f}円 "
-                    f"(改善={price_improvement_ratio * 100:.1f}%)"
-                )
+                else:
+                    self.logger.error(f"❌ 不正な注文サイド: {side}")
+                    return 0
 
             else:
-                self.logger.error(f"❌ 不正な注文サイド: {side}")
-                return 0
+                # 従来の価格改善戦略（有利な価格だが約定確率は低い）
+                price_improvement_ratio = get_threshold(
+                    "order_execution.price_improvement_ratio", 0.001
+                )  # 0.1% 価格改善
+
+                if side.lower() == "buy":
+                    # 買い注文：現在のbid価格より少し上（約定確率向上）
+                    limit_price = best_bid * (1 + price_improvement_ratio)
+
+                    # ask価格を超えないように制限
+                    max_buy_price = best_ask * 0.999  # askより0.1%下
+                    limit_price = min(limit_price, max_buy_price)
+
+                    self.logger.debug(
+                        f"💰 買い指値価格計算（価格改善戦略）: bid={best_bid:.0f}円 -> 指値={limit_price:.0f}円 "
+                        f"(改善={price_improvement_ratio * 100:.1f}%)"
+                    )
+
+                elif side.lower() == "sell":
+                    # 売り注文：現在のask価格より少し下（約定確率向上）
+                    limit_price = best_ask * (1 - price_improvement_ratio)
+
+                    # bid価格を下回らないように制限
+                    min_sell_price = best_bid * 1.001  # bidより0.1%上
+                    limit_price = max(limit_price, min_sell_price)
+
+                    self.logger.debug(
+                        f"💰 売り指値価格計算（価格改善戦略）: ask={best_ask:.0f}円 -> 指値={limit_price:.0f}円 "
+                        f"(改善={price_improvement_ratio * 100:.1f}%)"
+                    )
+
+                else:
+                    self.logger.error(f"❌ 不正な注文サイド: {side}")
+                    return 0
 
             # 価格の妥当性チェック
             if limit_price <= 0:

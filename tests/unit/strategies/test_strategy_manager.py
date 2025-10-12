@@ -432,6 +432,114 @@ class TestStrategyManager(unittest.TestCase):
         self.assertEqual(result.action, EntryAction.HOLD)
         self.assertIn("ホールド推奨", result.reason)
 
+    def test_phase_38_8_hold_vs_sell_conflict_detection(self):
+        """Phase 38.8: hold vs sell コンフリクト検出テスト."""
+        # 従来: hold vs sell はコンフリクトとして検出されなかった
+        # Phase 38.8: 2つ以上の異なるアクションがあればコンフリクト検出
+        hold_strategy = MockStrategy("HoldStrategy", self.hold_signal)
+        sell_strategy = MockStrategy("SellStrategy", self.sell_signal)
+
+        self.manager.register_strategy(hold_strategy)
+        self.manager.register_strategy(sell_strategy)
+
+        result = self.manager.analyze_market(self.test_df)
+
+        # コンフリクトとして処理され、全5票統合ロジックで解決される
+        self.assertEqual(self.manager.signal_conflicts, 1)
+        self.assertTrue(
+            result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
+        )
+
+    def test_phase_38_8_weighted_confidence_over_vote_count(self):
+        """Phase 38.8: 重み付き信頼度優先テスト（票数カウント廃止）."""
+        # ペーパートレード分析で発見された問題の再現テスト
+        # 票数: 3 hold > 2 sell
+        # 信頼度: hold 1.092 < sell 1.411
+        # 従来: hold選択（票数カウント）
+        # Phase 38.8: sell選択（重み付き信頼度）
+
+        # 3つのhold戦略（低信頼度）
+        hold1 = StrategySignal(
+            strategy_name="Hold1",
+            timestamp=datetime.now(),
+            action=EntryAction.HOLD,
+            confidence=0.150,  # ATRBased相当
+            strength=0.0,
+            current_price=10250000,
+            reason="Hold1",
+        )
+        hold2 = StrategySignal(
+            strategy_name="Hold2",
+            timestamp=datetime.now(),
+            action=EntryAction.HOLD,
+            confidence=0.453,  # DonchianChannel相当
+            strength=0.0,
+            current_price=10250000,
+            reason="Hold2",
+        )
+        hold3 = StrategySignal(
+            strategy_name="Hold3",
+            timestamp=datetime.now(),
+            action=EntryAction.HOLD,
+            confidence=0.489,  # ADXTrendStrength相当
+            strength=0.0,
+            current_price=10250000,
+            reason="Hold3",
+        )
+
+        # 2つのsell戦略（高信頼度）
+        sell1 = StrategySignal(
+            strategy_name="Sell1",
+            timestamp=datetime.now(),
+            action=EntryAction.SELL,
+            confidence=0.760,  # MochipoyAlert相当
+            strength=0.7,
+            current_price=10250000,
+            reason="Sell1",
+        )
+        sell2 = StrategySignal(
+            strategy_name="Sell2",
+            timestamp=datetime.now(),
+            action=EntryAction.SELL,
+            confidence=0.651,  # MultiTimeframe相当
+            strength=0.6,
+            current_price=10250000,
+            reason="Sell2",
+        )
+
+        # 戦略登録（全て重み1.0）
+        self.manager.register_strategy(MockStrategy("Hold1", hold1), weight=1.0)
+        self.manager.register_strategy(MockStrategy("Hold2", hold2), weight=1.0)
+        self.manager.register_strategy(MockStrategy("Hold3", hold3), weight=1.0)
+        self.manager.register_strategy(MockStrategy("Sell1", sell1), weight=1.0)
+        self.manager.register_strategy(MockStrategy("Sell2", sell2), weight=1.0)
+
+        result = self.manager.analyze_market(self.test_df)
+
+        # Phase 38.8: 重み付き信頼度で判定されるため、sellが選択される
+        # hold合計: 0.150 + 0.453 + 0.489 = 1.092
+        # sell合計: 0.760 + 0.651 = 1.411
+        # sell > hold なので sell選択
+        self.assertEqual(result.action, EntryAction.SELL)
+        self.assertIn("全5票統合", result.reason)
+        self.assertEqual(self.manager.signal_conflicts, 1)
+
+    def test_phase_38_8_hold_vs_buy_conflict_detection(self):
+        """Phase 38.8: hold vs buy コンフリクト検出テスト."""
+        hold_strategy = MockStrategy("HoldStrategy", self.hold_signal)
+        buy_strategy = MockStrategy("BuyStrategy", self.buy_signal)
+
+        self.manager.register_strategy(hold_strategy)
+        self.manager.register_strategy(buy_strategy)
+
+        result = self.manager.analyze_market(self.test_df)
+
+        # コンフリクトとして検出される
+        self.assertEqual(self.manager.signal_conflicts, 1)
+        self.assertTrue(
+            result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
+        )
+
 
 def run_strategy_manager_tests():
     """戦略マネージャーテスト実行関数."""

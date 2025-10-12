@@ -714,7 +714,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス逆指値指値注文作成（Phase 37.5: stop_limit対応・約定保証）
+        ストップロス逆指値成行注文作成（Phase 38.7.1: stop対応・確実な損切り実行）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -734,34 +734,26 @@ class BitbankClient:
         # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
-        # ✅ Phase 37.5.2: 確実に約定させるための執行価格設定（設定ファイル化）
-        # ロングSL（sell）：トリガー価格より0.3%低い価格で売却
-        # ショートSL（buy）：トリガー価格より0.3%高い価格で買戻し
-        slippage = get_threshold("position_management.stop_loss.execution_slippage", 0.003)
-        if sl_side.lower() == "sell":
-            execution_price = stop_loss_price * (1 - slippage)  # より低い価格で確実に売却
-        else:
-            execution_price = stop_loss_price * (1 + slippage)  # より高い価格で確実に買戻し
-
+        # ✅ Phase 38.7.1: stop注文（逆指値成行）で確実な損切り実行
+        # トリガー到達後は即座に成行注文として執行される（執行価格指定不要）
         self.logger.info(
-            f"🛡️ ストップロス逆指値指値注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 → 執行={execution_price:.0f}円 (position_side={entry_position_side})",
+            f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
             extra_data={
                 "entry_side": entry_side,
                 "sl_side": sl_side,
                 "entry_position_side": entry_position_side,
                 "amount": amount,
                 "trigger_price": stop_loss_price,
-                "execution_price": execution_price,
-                "slippage": slippage,
+                "order_type": "stop",
             },
         )
 
         return self.create_order(
             symbol=symbol,
             side=sl_side,
-            order_type="stop_limit",  # ✅ Phase 37.5: 逆指値指値注文（stop_limit）に変更
+            order_type="stop",  # ✅ Phase 38.7.1: 逆指値成行注文（stop）に変更
             amount=amount,
-            price=execution_price,  # ✅ 執行価格指定（確実に約定させる）
+            price=None,  # ✅ stop注文には執行価格不要（成行執行）
             trigger_price=stop_loss_price,  # ✅ トリガー価格
             is_closing_order=True,  # ✅ 決済注文フラグ
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side

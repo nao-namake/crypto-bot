@@ -200,12 +200,18 @@ class StrategyManager:
         return dict(groups)
 
     def _has_signal_conflict(self, signal_groups: Dict[str, List]) -> bool:
-        """シグナルコンフリクトの検出."""
-        # buy と sell が同時にある場合はコンフリクト
-        has_buy = "buy" in signal_groups and len(signal_groups["buy"]) > 0
-        has_sell = "sell" in signal_groups and len(signal_groups["sell"]) > 0
+        """
+        シグナルコンフリクトの検出（Phase 38.8: 全アクション対応）
 
-        return has_buy and has_sell
+        2つ以上の異なるアクションが存在する場合はコンフリクトとして検出。
+        従来: buy vs sell のみ検出
+        Phase 38.8: buy/sell/hold の全組み合わせを検出
+        """
+        # アクション数をカウント（空でないグループのみ）
+        active_actions = [action for action, signals in signal_groups.items() if len(signals) > 0]
+
+        # 2つ以上の異なるアクションが存在すればコンフリクト
+        return len(active_actions) >= 2
 
     def _resolve_signal_conflict(
         self,
@@ -317,10 +323,25 @@ class StrategyManager:
         all_signals: Dict[str, StrategySignal],
         df: pd.DataFrame,
     ) -> StrategySignal:
-        """一貫したシグナルの統合."""
-        # 最も多いアクションを選択
+        """
+        一貫したシグナルの統合（Phase 38.8: 重み付き信頼度ベース判定）
+
+        従来: 票数カウントで最多アクションを選択
+        Phase 38.8: 重み付き信頼度の合計が最大のアクションを選択
+        """
+        # 重み付き信頼度が最も高いアクションを選択（Phase 38.8: 票数カウント廃止）
+        action_confidences = {
+            action: self._calculate_weighted_confidence(signals)
+            for action, signals in signal_groups.items()
+        }
+        dominant_action = max(action_confidences, key=action_confidences.get)
+        dominant_confidence = action_confidences[dominant_action]
+
+        # ログ出力（デバッグ用）
         action_counts = {action: len(signals) for action, signals in signal_groups.items()}
-        dominant_action = max(action_counts, key=action_counts.get)
+        self.logger.debug(
+            f"統合判定: {dominant_action.upper()} (信頼度: {dominant_confidence:.3f}, 票数: {action_counts[dominant_action]})"
+        )
 
         if dominant_action == "hold":
             return self._create_hold_signal(df, reason=f"{action_counts['hold']}戦略がホールド推奨")
