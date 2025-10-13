@@ -23,7 +23,7 @@ import json
 import logging
 import pickle
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -40,6 +40,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
+    from src.backtest.scripts.collect_historical_csv import HistoricalDataCollector
     from src.core.config import load_config
     from src.core.logger import get_logger
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
@@ -122,19 +123,72 @@ class NewSystemMLModelCreator:
             ),
         }
 
-    def prepare_training_data(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
-        """学習用データ準備（新システム対応）."""
-        self.logger.info(f"📊 学習データ準備開始（過去{days}日分）")
+    async def _load_real_historical_data(self, days: int) -> pd.DataFrame:
+        """
+        実データ読み込み（Phase 39.1: ML実データ学習システム）
+
+        Args:
+            days: 収集日数
+
+        Returns:
+            pd.DataFrame: OHLCV データ
+        """
+        self.logger.info(f"📊 Phase 39.1: 実データ読み込み開始（過去{days}日分）")
+
+        csv_path = Path("src/backtest/data/historical/BTC_JPY_4h.csv")
+
+        # データ収集（存在しない、または古い場合）
+        if not csv_path.exists():
+            self.logger.info("💾 履歴データ未存在 - 自動収集開始")
+            try:
+                collector = HistoricalDataCollector()
+                await collector.collect_data(symbol="BTC/JPY", days=days, timeframes=["4h"])
+                self.logger.info("✅ データ収集完了")
+            except Exception as e:
+                self.logger.error(f"❌ データ収集失敗: {e}")
+                raise
+
+        # CSV読み込み
+        try:
+            df = pd.read_csv(csv_path)
+
+            # timestamp をdatetimeに変換
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            df.set_index("timestamp", inplace=True)
+
+            # 期間フィルタ
+            cutoff_date = datetime.now() - timedelta(days=days)
+            df = df[df.index >= cutoff_date]
+
+            # 欠損値チェック
+            if df.isnull().any().any():
+                self.logger.warning("⚠️ 欠損値を検出 - クリーニング実行")
+                df = df.dropna()
+
+            self.logger.info(
+                f"✅ 実データ読み込み完了: {len(df)}サンプル "
+                f"({df.index.min().strftime('%Y-%m-%d')} 〜 {df.index.max().strftime('%Y-%m-%d')})"
+            )
+
+            # OHLCV カラムのみ返却
+            return df[["open", "high", "low", "close", "volume"]].copy()
+
+        except Exception as e:
+            self.logger.error(f"❌ CSV読み込みエラー: {e}")
+            raise
+
+    async def prepare_training_data_async(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
+        """学習用データ準備（Phase 39.1: 実データ対応）"""
+        self.logger.info(f"📊 Phase 39.1: 実データ学習開始（過去{days}日分）")
 
         try:
-            # 一時的にサンプルデータを使用（非同期問題回避）
-            self.logger.info("🔧 サンプルデータでモデル学習を実行")
-            df = self._generate_sample_data(days * 6)  # 4時間足相当
+            # Phase 39.1: 実データ読み込み
+            df = await self._load_real_historical_data(days)
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # 特徴量エンジニアリング（Phase 29: async/await修正）
-            features_df = asyncio.run(self.feature_generator.generate_features(df))
+            # 特徴量エンジニアリング
+            features_df = await self.feature_generator.generate_features(df)
 
             # 15特徴量への整合性確保
             features_df = self._ensure_feature_consistency(features_df)
@@ -146,13 +200,18 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ 学習データ準備完了: {len(features_df)}サンプル、{len(features_df.columns)}特徴量"
+                f"✅ Phase 39.1 実データ準備完了: {len(features_df)}サンプル、"
+                f"{len(features_df.columns)}特徴量"
             )
             return features_df, target
 
         except Exception as e:
             self.logger.error(f"❌ 学習データ準備エラー: {e}")
             raise
+
+    def prepare_training_data(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
+        """学習用データ準備（同期ラッパー・後方互換性）"""
+        return asyncio.run(self.prepare_training_data_async(days))
 
     def _generate_sample_data(self, samples: int) -> pd.DataFrame:
         """サンプルデータ生成（実データ取得失敗時のフォールバック）."""
