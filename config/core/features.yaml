@@ -201,13 +201,13 @@ data:
     retention_days: 90  # ディスクキャッシュ保持期間（90日）
     note: "メモリ+ディスクの2層キャッシュシステム"
 
-  # Phase 29実装: 特徴量管理
+  # Phase 29実装: 特徴量管理・Phase 40.6拡張
   feature_management:
     enabled: true  # 特徴量管理
-    feature_count: 15  # 統一15特徴量
+    feature_count: 50  # Phase 40.6: 50特徴量拡張システム（15→50）
     feature_order_validation: true  # 特徴量順序検証
     use_feature_order_json: true  # feature_order.json使用
-    note: "Phase 29完了: 15特徴量統一システム"
+    note: "Phase 40.6完了: Feature Engineering拡張（Lag/Rolling/Interaction/Time追加）"
 
   # マルチタイムフレーム
   multi_timeframe:

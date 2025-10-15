@@ -85,7 +85,7 @@ class FeatureManager:
             features = []
             categories = config["feature_categories"]
 
-            # 順序保証のためのカテゴリ順序
+            # 順序保証のためのカテゴリ順序 - Phase 40.6: 50特徴量対応
             category_order = [
                 "basic",
                 "momentum",
@@ -94,6 +94,10 @@ class FeatureManager:
                 "volume",
                 "breakout",
                 "regime",
+                "lag",  # Phase 40.6: ラグ特徴量（10個）
+                "rolling",  # Phase 40.6: 移動統計量（12個）
+                "interaction",  # Phase 40.6: 交互作用特徴量（6個）
+                "time",  # Phase 40.6: 時間ベース特徴量（7個）
             ]
 
             for category in category_order:

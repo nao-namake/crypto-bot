@@ -31,6 +31,7 @@ from .runtime_flags import (
 
 # threshold_manager関数をインポートして再エクスポート
 from .threshold_manager import (
+    clear_runtime_overrides,
     get_all_thresholds,
     get_anomaly_config,
     get_backtest_config,
@@ -38,11 +39,14 @@ from .threshold_manager import (
     get_file_config,
     get_monitoring_config,
     get_position_config,
+    get_runtime_overrides,
     get_system_thresholds,
     get_threshold,
     get_trading_thresholds,
     load_thresholds,
     reload_thresholds,
+    set_runtime_override,
+    set_runtime_overrides_batch,
 )
 
 
@@ -387,6 +391,11 @@ __all__ = [
     "get_file_config",
     "get_trading_thresholds",
     "get_system_thresholds",
+    # Phase 40.1: 実行時オーバーライド機能
+    "set_runtime_override",
+    "set_runtime_overrides_batch",
+    "clear_runtime_overrides",
+    "get_runtime_overrides",
     # features.yaml管理関数（Phase 31.1）
     "load_features_config",
     "get_features_config",

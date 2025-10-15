@@ -92,16 +92,14 @@ python tests/manual/manual_bitbank_client.py
 
 ### **開発時品質チェック**
 ```bash
-# 統合品質チェック（開発時必須）
+# 統合品質チェック（開発時必須・Phase 39完了版）
 bash scripts/testing/checks.sh
 
-# 統合開発管理CLI
-python3 scripts/testing/dev_check.py full-check
-
-# 個別品質確認
-python3 scripts/testing/dev_check.py validate       # 基本品質チェック
-python3 scripts/testing/dev_check.py ml-models      # 機械学習モデル確認
-python3 scripts/testing/dev_check.py status         # システム状態確認
+# 期待結果:
+# ✅ 1,097テスト100%成功
+# ✅ 70.56%カバレッジ達成
+# ✅ コードスタイル準拠
+# ✅ ML学習データ・必須ライブラリ・trading層アーキテクチャ確認
 ```
 
 ### **テスト結果分析**
@@ -158,8 +156,7 @@ open coverage-reports/htmlcov/index.html
 - `logs/`: テストログ・エラーログ・実行履歴・デバッグ情報
 
 ### **品質保証・CI/CD統合**
-- `scripts/testing/checks.sh`: 品質チェック・テスト実行・統合確認・CI/CD対応
-- `scripts/testing/dev_check.py`: 統合開発管理・品質確認・システム診断・多機能CLI
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト実行・統合確認・CI/CD対応
 - `.github/workflows/`: CI/CDパイプライン・自動テスト・品質ゲート・デプロイ統合
 - GitHub Actions・自動品質管理・Discord通知・Cloud Run監視統合
 

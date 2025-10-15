@@ -184,7 +184,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 38完了・trading層レイヤードアーキテクチャ・70.56%カバレッジ達成",
+        description="暗号資産取引Bot - Phase 40完了・79パラメータOptuna最適化・70.56%カバレッジ達成",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -248,7 +248,7 @@ async def main():
     # 3. TradingOrchestratorに実行を委譲
     try:
         logger.info(
-            f"🚀 暗号資産取引Bot Phase 38完了・trading層レイヤードアーキテクチャ・70.56%カバレッジ達成 起動 - モード: {config.mode.upper()}"
+            f"🚀 暗号資産取引Bot Phase 40完了・79パラメータOptuna最適化・70.56%カバレッジ達成 起動 - モード: {config.mode.upper()}"
         )
 
         # 依存性組み立て済みOrchestratorを取得

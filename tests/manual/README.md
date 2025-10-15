@@ -131,8 +131,7 @@ test_bitbank_basic()
 
 ### **品質保証との統合**
 - `tests/unit/`: 単体テスト・モックテスト・回帰テスト・自動品質保証
-- `scripts/testing/checks.sh`: 品質チェック・テスト統合・CI/CD品質ゲート
-- `scripts/testing/dev_check.py`: 統合開発管理・システム診断・品質確認
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト統合・CI/CD品質ゲート
 
 ### **外部システム統合**
 - **Bitbank API**: 公開API・市場データ・レート制限・エラーレスポンス

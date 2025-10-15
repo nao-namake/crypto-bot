@@ -55,14 +55,17 @@ RandomForestアルゴリズムで学習された個別モデルファイルで�
 
 ### **モデル学習・管理の基本操作**
 ```bash
-# 統合学習システムによる全モデル学習
-python3 scripts/testing/dev_check.py ml-models
+# Phase 39完了版MLモデル学習
+python3 scripts/ml/create_ml_models.py
 
-# 学習状態確認（実行なし）
-python3 scripts/testing/dev_check.py ml-models --dry-run
-
-# 詳細学習スクリプト実行
+# 詳細学習スクリプト実行（Phase 39対応）
 python3 scripts/ml/create_ml_models.py --verbose --days 365
+
+# Phase 39.5: Optunaハイパーパラメータ最適化実行
+python3 scripts/ml/create_ml_models.py --optimize --n-trials 50
+
+# 品質チェック（Phase 39完了版）
+bash scripts/testing/checks.sh
 
 # 自動学習ワークフローの確認
 gh run list --workflow=weekly-retrain.yml --limit 5
@@ -149,9 +152,13 @@ check_model_quality()
 
 ## ⚠️ 注意事項・制約
 
-### **学習プロセス要件**
+### **学習プロセス要件**（Phase 39完了）
 - **特徴量統一管理**: feature_managerシステムとの統合が必須
-- **交差検証**: TimeSeriesSplitによる金融時系列データに適した検証
+- **実データ学習**（Phase 39.1）: CSV実データ読み込み・過去180日分15分足データ（17,271件）
+- **3クラス分類**（Phase 39.2）: BUY/HOLD/SELL分類・閾値0.5%（ノイズ削減最適化）
+- **TimeSeriesSplit**（Phase 39.3）: n_splits=5による金融時系列データに適したCV
+- **Early Stopping**（Phase 39.3）: rounds=20で過学習防止・LightGBM/XGBoost対応
+- **Train/Val/Test分割**（Phase 39.3）: 70/15/15比率・厳格な評価体系
 - **品質基準**: F1スコア0.6以上を維持する必要性
 - **バージョン管理**: Git情報とモデルハッシュによる厳密な管理
 
@@ -161,10 +168,12 @@ check_model_quality()
 - **ファイルサイズ**: RandomForestが最大（4.3MB）、適切な容量管理が必要
 - **学習時間**: 自動学習は45分以内での完了が目標
 
-### **品質保証要件**
+### **品質保証要件**（Phase 39完了）
 - **継続監視**: 定期的な性能評価と品質チェック
-- **データリーク防止**: 時系列データでの適切な分割手法
-- **過学習対策**: 交差検証と正則化による汎化性能確保
+- **データリーク防止**: TimeSeriesSplit n_splits=5による適切な分割
+- **過学習対策**（Phase 39.3）: Early Stopping rounds=20・正則化による汎化性能確保
+- **クラス不均衡対応**（Phase 39.4）: SMOTE + class_weight='balanced'
+- **ハイパーパラメータ最適化**（Phase 39.5）: Optuna TPESamplerによる自動最適化
 - **テスト統合**: 単体テストと統合テストの完備
 
 ## 🔗 関連ファイル・依存関係
@@ -177,7 +186,8 @@ check_model_quality()
 ### **モデル管理システム**
 - `models/production/`: 本番用アンサンブルモデル（統合先）
 - `models/archive/`: 過去バージョン保存・履歴管理
-- `scripts/testing/dev_check.py`: 統合学習・品質チェックシステム
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）
+- `scripts/ml/create_ml_models.py`: モデル学習・作成スクリプト
 
 ### **設定・品質保証**
 - `config/core/unified.yaml`: 統一設定ファイル（学習パラメータ・システム設定・全環境対応）
@@ -192,5 +202,7 @@ check_model_quality()
 ### **外部ライブラリ依存**
 - **scikit-learn**: 機械学習フレームワーク・交差検証
 - **LightGBM, XGBoost**: 勾配ブースティングライブラリ
+- **imbalanced-learn**（Phase 39.4）: SMOTE oversamplingによるクラス不均衡対応
+- **optuna**（Phase 39.5）: TPESamplerハイパーパラメータ最適化
 - **pandas, numpy**: データ処理・特徴量エンジニアリング
 - **joblib, pickle**: モデルシリアライゼーション・並列処理

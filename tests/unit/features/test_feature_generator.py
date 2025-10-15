@@ -87,8 +87,8 @@ class TestFeatureGenerator:
         for feature in OPTIMIZED_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # computed_featuresに記録されているかチェック
-        assert len(generator.computed_features) == 15
+        # computed_featuresに記録されているかチェック - Phase 40.6: 50特徴量
+        assert len(generator.computed_features) == 50
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -487,8 +487,8 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が15になるはず
-        assert len(generator.computed_features) == 15
+        # 計算された特徴量数が50になるはず - Phase 40.6
+        assert len(generator.computed_features) == 50
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in OPTIMIZED_FEATURES:

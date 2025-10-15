@@ -85,7 +85,7 @@
 core/
 ├── features.yaml        # 機能トグル設定（Phase 31.1新規追加・7カテゴリー~50機能）
 ├── unified.yaml         # 統一設定ファイル（全環境対応）
-├── feature_order.json   # 15特徴量統一定義（単一真実源）
+├── feature_order.json   # 50特徴量統一定義（単一真実源・Phase 40.6拡張完了）
 ├── thresholds.yaml      # 動的閾値設定（フォールバック回避・戦略最適化）
 └── README.md            # このファイル
 ```
@@ -154,22 +154,28 @@ core/
 - `trading_constraints.default_order_type`: market → limit（手数料削減: 0.12% → -0.02%）
 - `position_management.cooldown_minutes`: 30分間隔強制（過剰取引防止）
 
-### **feature_order.json**  
+### **feature_order.json**
 **機械学習システムの特徴量定義における単一真実源**です。全システム（Generator・Manager・ML・Backtest）がこのファイルを参照し、特徴量の統一性を保証します。
 
-**主要内容**:
-- `total_features`: 特徴量総数（**15個**）
-- `feature_order_version`: v2.2.0（統合システム対応）
-- `feature_categories`: 7カテゴリ分類システム
-  - `basic`: 基本価格・出来高情報（**2個**）- close, volume
-  - `momentum`: モメンタム指標（**2個**）- rsi_14, macd
-  - `volatility`: ボラティリティ指標（**2個**）- atr_14, bb_position
-  - `trend`: トレンド指標（**2個**）- ema_20, ema_50
-  - `volume`: 出来高指標（**1個**）- volume_ratio
-  - `breakout`: ブレイクアウト指標（**3個**）- donchian_high_20, donchian_low_20, channel_position
-  - `regime`: 市場レジーム指標（**3個**）- adx_14, plus_di_14, minus_di_14
+**主要内容**（Phase 40.6拡張完了）:
+- `total_features`: 特徴量総数（**50個**・Phase 40.6: 15→50拡張）
+- `feature_order_version`: v2.3.0（Phase 40.6対応）
+- `feature_categories`: 11カテゴリ分類システム
+  - 従来の7カテゴリ（15個）:
+    - `basic`: 基本価格・出来高情報（**2個**）- close, volume
+    - `momentum`: モメンタム指標（**2個**）- rsi_14, macd
+    - `volatility`: ボラティリティ指標（**2個**）- atr_14, bb_position
+    - `trend`: トレンド指標（**2個**）- ema_20, ema_50
+    - `volume`: 出来高指標（**1個**）- volume_ratio
+    - `breakout`: ブレイクアウト指標（**3個**）- donchian_high_20, donchian_low_20, channel_position
+    - `regime`: 市場レジーム指標（**3個**）- adx_14, plus_di_14, minus_di_14
+  - Phase 40.6拡張の4カテゴリ（35個）:
+    - `lag`: ラグ特徴量（**10個**）- close_lag_1〜5, volume_lag_1〜5
+    - `rolling`: 移動統計量（**12個**）- close/volume の mean/std/max/min（5期・20期）
+    - `interaction`: 交互作用特徴量（**6個**）- rsi_atr, macd_volume, ema_spread等
+    - `time`: 時間ベース特徴量（**7個**）- hour, day_of_week, hour_sin/cos等
 - `feature_definitions`: 各特徴量の詳細定義（型・範囲・重要度）
-- `reduction_history`: 特徴量最適化履歴（97→12→15個）
+- `reduction_history`: 特徴量最適化履歴（97→12→15→50個）
 
 ### **thresholds.yaml** 🚀**Phase 33 手数料最適化完了（2025年10月3日）**
 **戦略ハードコード値完全排除・ML予測統合設定・手数料最適化設定・設定一元化システム**です。Phase 33で**スマート注文機能有効化・約定確率最適化・デイトレード対応**を実現し、Phase 29.5のML予測統合設定と合わせて完全な設定管理体系を確立しました。
@@ -286,9 +292,9 @@ core/
 ### **特徴量定義（feature_order.json）**
 | 設定項目 | 説明 | 参照パス |
 |---------|------|---------|
-| 特徴量総数 | システム全体の特徴量数 | `total_features` (15個) |
-| 特徴量順序 | ML予測に使用する特徴量の順序 | `feature_names` (配列) |
-| カテゴリ分類 | 7カテゴリ分類システム | `feature_categories.*` |
+| 特徴量総数 | システム全体の特徴量数 | `total_features` (50個・Phase 40.6拡張完了) |
+| 特徴量順序 | ML予測に使用する特徴量の順序 | `feature_names` (配列・50個) |
+| カテゴリ分類 | 11カテゴリ分類システム（Phase 40.6: 7→11カテゴリ） | `feature_categories.*` |
 | 特徴量定義 | 各特徴量の詳細仕様 | `feature_definitions.{feature_name}` |
 
 **⚠️ 重要**: このファイルは全システムの単一真実源です。変更時はMLモデル再学習が必要です。
@@ -393,9 +399,9 @@ manager.process_pending_notifications()
 
 ### **特徴量管理の重要原則**
 - **単一真実源**: `feature_order.json`が全システムの特徴量定義の唯一の基準
-- **15特徴量統一**: 全システム（Generator・Manager・ML・Backtest・Production）で15特徴量統一
+- **50特徴量統一**: 全システム（Generator・Manager・ML・Backtest・Production）で50特徴量統一（Phase 40.6拡張完了）
 - **順序厳守**: 特徴量順序変更は予測性能に重大な影響・MLモデル再学習必要
-- **カテゴリ整合性**: 7カテゴリ分類システムの構造維持
+- **カテゴリ整合性**: 11カテゴリ分類システムの構造維持（Phase 40.6: 7→11カテゴリ）
 
 ### **設定整合性の重要性**
 - **環境間統一**: core/とbacktest/間での特徴量・戦略設定の完全統一・**信頼度35%統一設定**

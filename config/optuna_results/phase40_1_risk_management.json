@@ -1,0 +1,24 @@
+{
+  "phase": "phase40_1_risk_management",
+  "created_at": "2025-10-15T06:25:55.045156",
+  "best_params": {
+    "sl_atr_low_vol": 2.4,
+    "sl_atr_normal_vol": 1.9,
+    "sl_atr_high_vol": 1.5,
+    "sl_min_distance_ratio": 0.017,
+    "sl_min_atr_multiplier": 1.2,
+    "tp_default_ratio": 2.8,
+    "tp_min_profit_ratio": 0.014000000000000002,
+    "kelly_max_position_ratio": 0.01,
+    "kelly_safety_factor": 0.8,
+    "risk_conditional": 0.55,
+    "risk_deny": 0.75
+  },
+  "best_value": 1.3586622142302052,
+  "study_stats": {
+    "n_trials": 50,
+    "n_complete": 50,
+    "n_failed": 0,
+    "duration_seconds": 0.2792940139770508
+  }
+}

@@ -203,7 +203,7 @@ class TradingCycleManager:
                     return cached_prediction
 
             if not main_features.empty:
-                # Phase 22: 15特徴量のみを選択してML予測（特徴量数不一致修正）
+                # Phase 40.6: 50特徴量を動的取得してML予測（特徴量数不一致修正）
                 from ...core.config.feature_manager import get_feature_names
 
                 features_to_use = get_feature_names()
@@ -467,9 +467,13 @@ class TradingCycleManager:
                     )
 
                     # 不一致時はholdに変更する選択肢も
-                    if adjusted_confidence < 0.4:  # 信頼度が極端に低い場合
+                    # Phase 40.3: hold変更閾値を設定から取得（ハードコード排除）
+                    hold_threshold = get_threshold(
+                        "ml.strategy_integration.hold_conversion_threshold", 0.4
+                    )
+                    if adjusted_confidence < hold_threshold:  # 信頼度が極端に低い場合
                         self.logger.warning(
-                            f"⛔ 信頼度極低（{adjusted_confidence:.3f}）- holdに変更"
+                            f"⛔ 信頼度極低（{adjusted_confidence:.3f} < {hold_threshold:.3f}）- holdに変更"
                         )
                         # 新しいStrategySignalオブジェクトとして返す（hold変更）
                         from ...strategies.base.strategy_base import StrategySignal

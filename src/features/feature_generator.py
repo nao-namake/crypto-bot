@@ -36,18 +36,20 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 38.4完了
+    統合特徴量生成クラス - Phase 40.6完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、15特徴量生成を効率的に提供。
+    1つのクラスに統合し、50特徴量生成を効率的に提供。
 
     主要機能:
-    - テクニカル指標生成（9個）
-    - 異常検知指標生成（1個）
     - 基本特徴量生成（2個）
-    - ブレイクアウト指標生成（3個）
-    - レジーム指標生成（3個）
-    - 統合品質管理と15特徴量確認
+    - テクニカル指標生成（12個：RSI, MACD, ATR, BB, EMA, Donchian, ADX）
+    - 異常検知指標生成（1個：Volume Ratio）
+    - ラグ特徴量生成（10個：Close/Volume/RSI/MACD lag）- Phase 40.6
+    - 移動統計量生成（12個：MA, Std, Max, Min）- Phase 40.6
+    - 交互作用特徴量生成（6個：RSI×ATR, MACD×Volume等）- Phase 40.6
+    - 時間ベース特徴量生成（7個：Hour, Day, Month等）- Phase 40.6
+    - 統合品質管理と50特徴量確認
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -65,37 +67,49 @@ class FeatureGenerator:
 
     async def generate_features(self, market_data: Dict[str, Any]) -> pd.DataFrame:
         """
-        統合特徴量生成処理（15特徴量確認機能付き）
+        統合特徴量生成処理（50特徴量確認機能付き）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
 
         Returns:
-            15特徴量を含むDataFrame
+            50特徴量を含むDataFrame
         """
         try:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            self.logger.info("特徴量生成開始 - 15特徴量システム")
+            self.logger.info("特徴量生成開始 - Phase 40.6: 50特徴量システム")
             self.computed_features.clear()
 
             # 必要列チェック
             self._validate_required_columns(result_df)
 
-            # 🔹 基本特徴量を生成（3個）
+            # 🔹 基本特徴量を生成（2個）
             result_df = self._generate_basic_features(result_df)
 
-            # 🔹 テクニカル指標を生成（6個）
+            # 🔹 テクニカル指標を生成（12個）
             result_df = self._generate_technical_indicators(result_df)
 
-            # 🔹 異常検知指標を生成（3個）
+            # 🔹 異常検知指標を生成（1個）
             result_df = self._generate_anomaly_indicators(result_df)
+
+            # 🔹 ラグ特徴量を生成（10個）- Phase 40.6
+            result_df = self._generate_lag_features(result_df)
+
+            # 🔹 移動統計量を生成（12個）- Phase 40.6
+            result_df = self._generate_rolling_statistics(result_df)
+
+            # 🔹 交互作用特徴量を生成（6個）- Phase 40.6
+            result_df = self._generate_interaction_features(result_df)
+
+            # 🔹 時間ベース特徴量を生成（7個）- Phase 40.6
+            result_df = self._generate_time_features(result_df)
 
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
 
-            # 🎯 15特徴量完全確認・検証
+            # 🎯 50特徴量完全確認・検証
             self._validate_feature_generation(result_df)
 
             # DataFrameをそのまま返す（戦略で使用するため）
@@ -107,13 +121,13 @@ class FeatureGenerator:
 
     def generate_features_sync(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 35: バックテスト事前計算用）
+        同期版特徴量生成（Phase 35: バックテスト事前計算用・Phase 40.6: 50特徴量対応）
 
         Args:
             df: OHLCVデータを含むDataFrame
 
         Returns:
-            15特徴量を含むDataFrame
+            50特徴量を含むDataFrame
 
         Note:
             バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
@@ -124,14 +138,26 @@ class FeatureGenerator:
             # 必要列チェック
             self._validate_required_columns(result_df)
 
-            # 基本特徴量を生成（3個）
+            # 基本特徴量を生成（2個）
             result_df = self._generate_basic_features(result_df)
 
-            # テクニカル指標を生成（6個）
+            # テクニカル指標を生成（12個）
             result_df = self._generate_technical_indicators(result_df)
 
-            # 異常検知指標を生成（3個）
+            # 異常検知指標を生成（1個）
             result_df = self._generate_anomaly_indicators(result_df)
+
+            # ラグ特徴量を生成（10個）- Phase 40.6
+            result_df = self._generate_lag_features(result_df)
+
+            # 移動統計量を生成（12個）- Phase 40.6
+            result_df = self._generate_rolling_statistics(result_df)
+
+            # 交互作用特徴量を生成（6個）- Phase 40.6
+            result_df = self._generate_interaction_features(result_df)
+
+            # 時間ベース特徴量を生成（7個）- Phase 40.6
+            result_df = self._generate_time_features(result_df)
 
             # NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
@@ -256,6 +282,177 @@ class FeatureGenerator:
         self.computed_features.add("volume_ratio")
 
         self.logger.debug("異常検知指標生成完了: 2個")
+        return result_df
+
+    def _generate_lag_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """ラグ特徴量生成（過去N期間の値・10個）"""
+        result_df = df.copy()
+
+        # Close lag features (5個)
+        for lag in [1, 2, 3, 5, 10]:
+            result_df[f"close_lag_{lag}"] = result_df["close"].shift(lag)
+            self.computed_features.add(f"close_lag_{lag}")
+
+        # Volume lag features (3個)
+        for lag in [1, 2, 3]:
+            result_df[f"volume_lag_{lag}"] = result_df["volume"].shift(lag)
+            self.computed_features.add(f"volume_lag_{lag}")
+
+        # RSI lag feature (1個)
+        if "rsi_14" in result_df.columns:
+            result_df["rsi_lag_1"] = result_df["rsi_14"].shift(1)
+            self.computed_features.add("rsi_lag_1")
+
+        # MACD lag feature (1個)
+        if "macd" in result_df.columns:
+            result_df["macd_lag_1"] = result_df["macd"].shift(1)
+            self.computed_features.add("macd_lag_1")
+
+        self.logger.debug("ラグ特徴量生成完了: 10個")
+        return result_df
+
+    def _generate_rolling_statistics(self, df: pd.DataFrame) -> pd.DataFrame:
+        """移動統計量生成（Rolling Statistics・12個）"""
+        result_df = df.copy()
+
+        # Moving Average (3個)
+        for window in [5, 10, 20]:
+            result_df[f"close_ma_{window}"] = (
+                result_df["close"].rolling(window=window, min_periods=1).mean()
+            )
+            self.computed_features.add(f"close_ma_{window}")
+
+        # Standard Deviation (3個)
+        for window in [5, 10, 20]:
+            result_df[f"close_std_{window}"] = (
+                result_df["close"].rolling(window=window, min_periods=1).std()
+            )
+            self.computed_features.add(f"close_std_{window}")
+
+        # Max (3個)
+        for window in [5, 10, 20]:
+            result_df[f"close_max_{window}"] = (
+                result_df["close"].rolling(window=window, min_periods=1).max()
+            )
+            self.computed_features.add(f"close_max_{window}")
+
+        # Min (3個)
+        for window in [5, 10, 20]:
+            result_df[f"close_min_{window}"] = (
+                result_df["close"].rolling(window=window, min_periods=1).min()
+            )
+            self.computed_features.add(f"close_min_{window}")
+
+        self.logger.debug("移動統計量生成完了: 12個")
+        return result_df
+
+    def _generate_interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """交互作用特徴量生成（Feature Interactions・6個）"""
+        result_df = df.copy()
+
+        # RSI × ATR
+        if "rsi_14" in result_df.columns and "atr_14" in result_df.columns:
+            result_df["rsi_x_atr"] = result_df["rsi_14"] * result_df["atr_14"]
+            self.computed_features.add("rsi_x_atr")
+
+        # MACD × Volume
+        if "macd" in result_df.columns and "volume" in result_df.columns:
+            result_df["macd_x_volume"] = result_df["macd"] * result_df["volume"]
+            self.computed_features.add("macd_x_volume")
+
+        # BB Position × Volume Ratio
+        if "bb_position" in result_df.columns and "volume_ratio" in result_df.columns:
+            result_df["bb_position_x_volume_ratio"] = (
+                result_df["bb_position"] * result_df["volume_ratio"]
+            )
+            self.computed_features.add("bb_position_x_volume_ratio")
+
+        # EMA Spread × ADX
+        if (
+            "ema_20" in result_df.columns
+            and "ema_50" in result_df.columns
+            and "adx_14" in result_df.columns
+        ):
+            ema_spread = result_df["ema_20"] - result_df["ema_50"]
+            result_df["ema_spread_x_adx"] = ema_spread * result_df["adx_14"]
+            self.computed_features.add("ema_spread_x_adx")
+
+        # Close × ATR
+        if "close" in result_df.columns and "atr_14" in result_df.columns:
+            result_df["close_x_atr"] = result_df["close"] * result_df["atr_14"]
+            self.computed_features.add("close_x_atr")
+
+        # Volume × BB Position
+        if "volume" in result_df.columns and "bb_position" in result_df.columns:
+            result_df["volume_x_bb_position"] = result_df["volume"] * result_df["bb_position"]
+            self.computed_features.add("volume_x_bb_position")
+
+        self.logger.debug("交互作用特徴量生成完了: 6個")
+        return result_df
+
+    def _generate_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """時間ベース特徴量生成（Time-based Features・7個）"""
+        result_df = df.copy()
+
+        # indexまたはtimestamp列から日時情報を抽出
+        if isinstance(result_df.index, pd.DatetimeIndex):
+            dt_index = result_df.index
+        elif "timestamp" in result_df.columns:
+            dt_index = pd.to_datetime(result_df["timestamp"])
+        else:
+            # 日時情報がない場合はゼロ埋め
+            self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")
+            result_df["hour"] = 0
+            result_df["day_of_week"] = 0
+            result_df["is_weekend"] = 0
+            result_df["is_market_open_hour"] = 0
+            result_df["month"] = 1
+            result_df["quarter"] = 1
+            result_df["is_quarter_end"] = 0
+            self.computed_features.update(
+                [
+                    "hour",
+                    "day_of_week",
+                    "is_weekend",
+                    "is_market_open_hour",
+                    "month",
+                    "quarter",
+                    "is_quarter_end",
+                ]
+            )
+            return result_df
+
+        # Hour (0-23)
+        result_df["hour"] = dt_index.hour
+        self.computed_features.add("hour")
+
+        # Day of week (0-6)
+        result_df["day_of_week"] = dt_index.dayofweek
+        self.computed_features.add("day_of_week")
+
+        # Is weekend (土日: 1, 平日: 0)
+        result_df["is_weekend"] = (dt_index.dayofweek >= 5).astype(int)
+        self.computed_features.add("is_weekend")
+
+        # Is market open hour (9-15時JST: 1, それ以外: 0)
+        result_df["is_market_open_hour"] = ((dt_index.hour >= 9) & (dt_index.hour <= 15)).astype(
+            int
+        )
+        self.computed_features.add("is_market_open_hour")
+
+        # Month (1-12)
+        result_df["month"] = dt_index.month
+        self.computed_features.add("month")
+
+        # Quarter (1-4)
+        result_df["quarter"] = dt_index.quarter
+        self.computed_features.add("quarter")
+
+        # Is quarter end (3,6,9,12月: 1, それ以外: 0)
+        result_df["is_quarter_end"] = dt_index.month.isin([3, 6, 9, 12]).astype(int)
+        self.computed_features.add("is_quarter_end")
+
+        self.logger.debug("時間ベース特徴量生成完了: 7個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -423,7 +620,7 @@ class FeatureGenerator:
         return df
 
     def _validate_feature_generation(self, df: pd.DataFrame) -> None:
-        """15特徴量完全確認・検証"""
+        """50特徴量完全確認・検証 - Phase 40.6"""
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
 
@@ -442,11 +639,41 @@ class FeatureGenerator:
                             "bb_position",
                             "ema_20",
                             "ema_50",
+                            "donchian_high_20",
+                            "donchian_low_20",
+                            "channel_position",
+                            "adx_14",
+                            "plus_di_14",
+                            "minus_di_14",
                         ]
                         if f in df.columns
                     ]
                 ),
                 "anomaly_features": len([f for f in ["volume_ratio"] if f in df.columns]),
+                "lag_features": len([f for f in df.columns if "lag" in f]),
+                "rolling_features": len(
+                    [
+                        f
+                        for f in df.columns
+                        if any(kw in f for kw in ["_ma_", "_std_", "_max_", "_min_"])
+                    ]
+                ),
+                "interaction_features": len([f for f in df.columns if "_x_" in f]),
+                "time_features": len(
+                    [
+                        f
+                        for f in [
+                            "hour",
+                            "day_of_week",
+                            "is_weekend",
+                            "is_market_open_hour",
+                            "month",
+                            "quarter",
+                            "is_quarter_end",
+                        ]
+                        if f in df.columns
+                    ]
+                ),
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": len(OPTIMIZED_FEATURES),
@@ -460,7 +687,7 @@ class FeatureGenerator:
                 f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
         else:
-            self.logger.info("✅ 15特徴量完全生成成功")
+            self.logger.info("✅ Phase 40.6: 50特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""

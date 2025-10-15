@@ -218,5 +218,5 @@ open coverage-reports/htmlcov/index.html
 
 ### **品質保証・CI/CD**
 - `.github/workflows/`: CI/CDパイプライン・自動テスト・品質ゲート
-- `scripts/testing/dev_check.py`: 統合管理・品質確認・システム診断
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト実行・統合確認
 - Discord通知・Cloud Run監視・GitHub Actions統合・自動品質管理

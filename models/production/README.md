@@ -33,9 +33,15 @@ models/production/
 - 各アルゴリズムの重み設定
 - システム設定とパラメーター情報
 
-### **モデル構成と特徴**
+### **モデル構成と特徴**（Phase 39完了）
 ProductionEnsembleは複数のアルゴリズムを統合しています。
 - **アンサンブル手法**: 重み付き投票によるアンサンブル学習
+- **実データ学習**（Phase 39.1）: CSV実データ読み込み・過去180日分15分足データ（17,271件）
+- **3クラス分類**（Phase 39.2）: BUY/HOLD/SELL分類・閾値0.5%（ノイズ削減最適化）
+- **TimeSeriesSplit**（Phase 39.3）: n_splits=5による堅牢なCross Validation
+- **Early Stopping**（Phase 39.3）: rounds=20で過学習防止・LightGBM/XGBoost対応
+- **SMOTE oversampling**（Phase 39.4）: クラス不均衡対応・少数派クラス増強
+- **Optunaハイパーパラメータ最適化**（Phase 39.5）: TPESampler・3モデル自動最適化
 - **特徴量管理**: 統一されたfeature_managerシステムとの連携
 - **バージョン管理**: Git情報とモデルハッシュによる管理
 - **性能監視**: 継続的な品質監視と自動アラート機能
@@ -93,8 +99,8 @@ ls -lh models/production/*.pkl
 # メタデータ確認
 cat models/production/production_model_metadata.json | jq '.performance_metrics'
 
-# モデル検証スクリプト実行
-python3 scripts/testing/dev_check.py ml-models
+# 品質チェック（Phase 39完了版）
+bash scripts/testing/checks.sh
 ```
 
 ## ⚠️ 注意事項・制約
@@ -127,7 +133,8 @@ python3 scripts/testing/dev_check.py ml-models
 ### **モデル管理システム**
 - `models/training/`: 学習用個別モデル格納フォルダ
 - `models/archive/`: 過去バージョン保存フォルダ
-- `scripts/testing/dev_check.py`: モデル品質チェックスクリプト
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）
+- `scripts/ml/create_ml_models.py`: モデル学習・更新スクリプト
 
 ### **設定ファイル**
 - `config/core/unified.yaml`: 統一設定ファイル（システム基本設定・本番環境設定・全環境対応）
@@ -140,5 +147,7 @@ python3 scripts/testing/dev_check.py ml-models
 ### **外部ライブラリ依存**
 - **scikit-learn**: 機械学習フレームワーク
 - **LightGBM, XGBoost**: 勾配ブースティングライブラリ
+- **imbalanced-learn**（Phase 39.4）: SMOTE oversamplingによるクラス不均衡対応
+- **optuna**（Phase 39.5）: TPESamplerハイパーパラメータ最適化
 - **pandas, numpy**: データ処理ライブラリ
 - **pickle**: モデルシリアライゼーション

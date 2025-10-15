@@ -14,16 +14,19 @@ scripts/ml/
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **create_ml_models.py**
+### **create_ml_models.py**（Phase 39完了）
 機械学習モデルの学習・構築・管理を担当するメインスクリプトです。
 - **個別モデル学習**: LightGBM・XGBoost・RandomForest の3つのアルゴリズム学習
+- **Phase 39.1**: 実データ学習（CSV読み込み・過去180日分15分足データ・17,271件）
+- **Phase 39.2**: 閾値最適化（0.3% → 0.5%）・3クラス分類（BUY/HOLD/SELL）
+- **Phase 39.3**: TimeSeriesSplit n_splits=5・Early Stopping rounds=20・Train/Val/Test 70/15/15
+- **Phase 39.4**: SMOTE oversampling・class_weight='balanced'・クラス不均衡対応
+- **Phase 39.5**: Optunaハイパーパラメータ最適化（TPESampler・自動最適化）
 - **アンサンブル構築**: ProductionEnsemble作成・重み付け投票・モデル統合
 - **特徴量統合**: feature_manager連携・15特徴量生成・データパイプライン統合
-- **ハイパーパラメータ最適化**: TimeSeriesSplit・GridSearchCV・金融時系列最適化
 - **品質保証**: モデル検証・予測テスト・性能評価・品質ゲート
 - **バージョン管理**: メタデータ管理・モデル保存・履歴追跡・自動アーカイブ
 - **CI/CD統合**: GitHub Actions連携・自動学習・週次再学習・Discord通知
-- 約25.7KBの実装ファイル（Phase 22対応・15特徴量統合完了）
 
 ### **主要機能と特徴**
 - **統合学習システム**: 特徴量生成→モデル学習→アンサンブル構築の完全自動化

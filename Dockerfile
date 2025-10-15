@@ -1,12 +1,12 @@
-# Phase 38完了 Production Dockerfile
-# 1,078テスト100%成功・70.56%カバレッジ・trading層レイヤードアーキテクチャ完成
+# Phase 40完了 Production Dockerfile
+# 1,097テスト100%成功・70.56%カバレッジ・79パラメータOptuna最適化完成
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 38完了）
-LABEL maintainer="crypto-bot-phase38-system"
-LABEL version="38.0.0"
-LABEL description="Phase 38完了: trading層レイヤードアーキテクチャ・70.56%カバレッジ達成・1,078テスト成功"
+# メタデータ（Phase 40完了）
+LABEL maintainer="crypto-bot-phase40-system"
+LABEL version="40.0.0"
+LABEL description="Phase 40完了: 79パラメータOptuna最適化・70.56%カバレッジ達成・1,097テスト成功"
 
 WORKDIR /app
 

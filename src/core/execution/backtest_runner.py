@@ -239,7 +239,7 @@ class BacktestRunner(BaseRunner):
             if main_timeframe in self.precomputed_features:
                 features_df = self.precomputed_features[main_timeframe]
 
-                # 15特徴量のみ抽出
+                # Phase 40.6: 50特徴量抽出（動的取得）
                 features_to_use = get_feature_names()
                 available_features = [col for col in features_to_use if col in features_df.columns]
 

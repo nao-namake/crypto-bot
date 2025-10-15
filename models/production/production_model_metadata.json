@@ -1,9 +1,9 @@
 {
-  "created_at": "2025-10-13T09:39:30.608882",
+  "created_at": "2025-10-16T06:33:07.214858",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "version": "1.0.0",
-  "phase": "Phase 29",
+  "phase": "Phase 39.5",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -20,7 +20,42 @@
     "channel_position",
     "adx_14",
     "plus_di_14",
-    "minus_di_14"
+    "minus_di_14",
+    "close_lag_1",
+    "close_lag_2",
+    "close_lag_3",
+    "close_lag_5",
+    "close_lag_10",
+    "volume_lag_1",
+    "volume_lag_2",
+    "volume_lag_3",
+    "rsi_lag_1",
+    "macd_lag_1",
+    "close_ma_5",
+    "close_ma_10",
+    "close_ma_20",
+    "close_std_5",
+    "close_std_10",
+    "close_std_20",
+    "close_max_5",
+    "close_max_10",
+    "close_max_20",
+    "close_min_5",
+    "close_min_10",
+    "close_min_20",
+    "rsi_x_atr",
+    "macd_x_volume",
+    "bb_position_x_volume_ratio",
+    "ema_spread_x_adx",
+    "close_x_atr",
+    "volume_x_bb_position",
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "is_market_open_hour",
+    "month",
+    "quarter",
+    "is_quarter_end"
   ],
   "individual_models": [
     "lightgbm",
@@ -34,39 +69,39 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 1.0,
-      "f1_score": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "cv_f1_mean": 0.5722523752631279,
-      "cv_f1_std": 0.134571790868652
+      "accuracy": 0.535483870967742,
+      "f1_score": 0.5643724104607661,
+      "precision": 0.622068155087365,
+      "recall": 0.535483870967742,
+      "cv_f1_mean": 0.48295113454412775,
+      "cv_f1_std": 0.07556886926170824
     },
     "xgboost": {
-      "accuracy": 1.0,
-      "f1_score": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "cv_f1_mean": 0.6215982377469613,
-      "cv_f1_std": 0.13822964514335717
+      "accuracy": 0.6451612903225806,
+      "f1_score": 0.5932498740648147,
+      "precision": 0.5503771465254373,
+      "recall": 0.6451612903225806,
+      "cv_f1_mean": 0.5554397111793505,
+      "cv_f1_std": 0.05532180231342924
     },
     "random_forest": {
-      "accuracy": 1.0,
-      "f1_score": 1.0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "cv_f1_mean": 0.587247320580654,
-      "cv_f1_std": 0.16261904636131727
+      "accuracy": 0.6129032258064516,
+      "f1_score": 0.5742854352143604,
+      "precision": 0.540298579109063,
+      "recall": 0.6129032258064516,
+      "cv_f1_mean": 0.5525806552920864,
+      "cv_f1_std": 0.07494574823961417
     }
   },
   "training_info": {
-    "samples": 141,
-    "feature_count": 15,
+    "samples": 1024,
+    "feature_count": 50,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "7332b1e998df588cf95b89e7ae1eef10a63116a5",
-    "commit_short": "7332b1e9",
+    "commit": "45cbcec24575bfd50af049fbabf9b0ce14a93a31",
+    "commit_short": "45cbcec2",
     "branch": "main"
   },
-  "notes": "Phase 29統合・15特徴量最適化・特徴量定義一元化対応"
+  "notes": "Phase 39完了・実データ学習・閾値0.5%・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
 }

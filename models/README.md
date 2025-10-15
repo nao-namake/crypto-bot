@@ -61,14 +61,17 @@ models/
 
 ### **統合モデル管理システム**
 ```bash
-# 全モデルの学習・更新・検証
-python3 scripts/testing/dev_check.py ml-models
+# Phase 39完了版MLモデル学習・更新
+python3 scripts/ml/create_ml_models.py
 
-# モデル状態確認（実行なし）
-python3 scripts/testing/dev_check.py ml-models --dry-run
-
-# 詳細学習スクリプト実行
+# 詳細学習スクリプト実行（Phase 39対応）
 python3 scripts/ml/create_ml_models.py --verbose --days 365
+
+# Phase 39.5: Optunaハイパーパラメータ最適化実行
+python3 scripts/ml/create_ml_models.py --optimize --n-trials 50
+
+# 品質チェック（Phase 39完了版）
+bash scripts/testing/checks.sh
 
 # 自動学習ワークフロー状況確認
 gh run list --workflow=weekly-retrain.yml --limit 5
@@ -109,8 +112,8 @@ cp models/archive/production_model_metadata_20250904_055752.json models/producti
 # バックアップ状況確認
 ls -la models/production_backup_*/
 
-# 緊急時復旧テスト
-python3 scripts/testing/dev_check.py ml-models --dry-run
+# モデル検証（Phase 39完了版）
+python3 scripts/ml/create_ml_models.py --verbose
 ```
 
 ### **個別モデル性能比較**
@@ -154,7 +157,10 @@ print(f"  精度: {prod_metrics['accuracy']:.3f}")
 ### **品質保証要件**
 - **継続監視**: 定期的な性能評価と品質チェック
 - **テスト統合**: 単体テスト・統合テスト・回帰テストの完備
-- **交差検証**: TimeSeriesSplitによる金融時系列データ対応
+- **交差検証**（Phase 39.3）: TimeSeriesSplit n_splits=5による金融時系列データ対応
+- **Early Stopping**（Phase 39.3）: rounds=20で過学習防止・LightGBM/XGBoost対応
+- **クラス不均衡対応**（Phase 39.4）: SMOTE + class_weight='balanced'
+- **ハイパーパラメータ最適化**（Phase 39.5）: Optuna TPESamplerによる自動最適化
 - **自動化**: CI/CDパイプラインによる品質ゲート
 
 ## 🔗 関連ファイル・依存関係
@@ -166,7 +172,7 @@ print(f"  精度: {prod_metrics['accuracy']:.3f}")
 
 ### **システム管理・CI/CD**
 - `.github/workflows/`: 自動学習・デプロイワークフロー
-- `scripts/testing/dev_check.py`: 統合システム診断・管理
+- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト実行
 - `logs/`: モデル学習・運用ログ記録
 
 ### **設定・品質保証**
@@ -177,6 +183,8 @@ print(f"  精度: {prod_metrics['accuracy']:.3f}")
 ### **外部ライブラリ依存**
 - **scikit-learn**: 機械学習フレームワーク・アンサンブル学習
 - **LightGBM, XGBoost**: 勾配ブースティングライブラリ
+- **imbalanced-learn**（Phase 39.4）: SMOTE oversamplingによるクラス不均衡対応
+- **optuna**（Phase 39.5）: TPESamplerハイパーパラメータ最適化
 - **pandas, numpy**: データ処理・特徴量エンジニアリング
 - **pickle, joblib**: モデルシリアライゼーション・並列処理
 

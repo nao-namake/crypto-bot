@@ -30,7 +30,7 @@ class TestDummyModel:
         model = DummyModel()
 
         assert model.is_fitted is True
-        assert model.n_features_ == 15
+        assert model.n_features_ == 50  # Phase 40.6: 50特徴量
 
     def test_dummy_model_predict_with_dataframe(self):
         """DummyModel予測（DataFrame入力）"""

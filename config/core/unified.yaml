@@ -82,7 +82,7 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（15特徴量統一システム）
+# 特徴量設定（50特徴量統一システム - Phase 40.6拡張）
 # ========================================
 features:
   mode: optimized
@@ -249,7 +249,7 @@ trading_constraints:
   default_order_type: limit  # Phase 29.6: 成行→指値に変更（手数料最適化: Taker 0.12% → Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 15
+  features_count: 50  # Phase 40.6: 50特徴量拡張システム（15→50）
   timeframes:
   - 4h
   - 15m
