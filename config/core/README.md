@@ -1,8 +1,28 @@
-# config/core/ - システム基本設定 🚀 Phase 33完了（Phase 31.1-33統合）
+# config/core/ - システム基本設定 🚀 Phase 42.2完了（Phase 31.1-42.2統合）
 
 ## 🎯 役割・責任
 
-システム全体で使用する基本設定を管理します。取引所接続、機械学習、戦略、リスク管理などの核となる設定ファイル群を提供し、全システムで一貫した動作を保証します。特に**feature_order.json**は全システムの特徴量定義における単一真実源、**features.yaml**は機能トグル管理の中心として機能します。
+システム全体で使用する基本設定を管理します。取引所接続、機械学習、戦略、リスク管理などの核となる設定ファイル群を提供し、全システムで一貫した動作を保証します。特に**feature_order.json**は全システムの特徴量定義における単一真実源、**features.yaml**は機能トグル管理、**thresholds.yaml**はPhase 42.2トレーリングストップ設定の中心として機能します。
+
+## 📈 Phase 42.2完了（2025年10月18日）
+
+**🎯 Phase 42.2: トレーリングストップ設定追加・Bybit/Binance準拠**
+
+**✅ Phase 42.2完了**:
+- **トレーリングストップ設定追加**: thresholds.yaml lines 334-340
+  - enabled: **true**（Phase 42.3で有効化）
+  - activation_profit: 0.02（2%含み益でトレーリング開始）
+  - trailing_percent: 0.03（3%距離・Bybit/Binance標準）
+  - min_update_distance: 200（200円・ノイズ防止）
+  - min_profit_lock: 0.005（0.5%最低利益保証）
+  - cancel_tp_when_exceeds: true（SL>TP時にTPキャンセル）
+
+- **含み益保護機能**: -450円損失防止
+  - 背景: Phase 38で-451円損失（4.5%）発生
+  - 対策: 2%含み益到達後、0.5%利益を保証
+  - 効果: 含み益がある状態での大幅損失を防止
+
+- **品質保証**: 1,081テスト100%成功・69.57%カバレッジ達成
 
 ## 📈 Phase 33完了（2025年10月3日）
 
@@ -177,8 +197,28 @@ core/
 - `feature_definitions`: 各特徴量の詳細定義（型・範囲・重要度）
 - `reduction_history`: 特徴量最適化履歴（97→12→15→50個）
 
-### **thresholds.yaml** 🚀**Phase 33 手数料最適化完了（2025年10月3日）**
-**戦略ハードコード値完全排除・ML予測統合設定・手数料最適化設定・設定一元化システム**です。Phase 33で**スマート注文機能有効化・約定確率最適化・デイトレード対応**を実現し、Phase 29.5のML予測統合設定と合わせて完全な設定管理体系を確立しました。
+### **thresholds.yaml** 🚀**Phase 42.2 トレーリングストップ設定追加完了（2025年10月18日）**
+**戦略ハードコード値完全排除・ML予測統合設定・手数料最適化設定・トレーリングストップ設定・設定一元化システム**です。Phase 41.8.5で3クラス分類対応の閾値最適化、Phase 42.2でトレーリングストップ設定を追加しました。
+
+**📊 Phase 42.2 トレーリングストップ設定追加**:
+- **トレーリングストップ設定**: lines 334-340（Bybit/Binance準拠）
+  - enabled: **true**（Phase 42.3で有効化・含み益保護）
+  - activation_profit: 0.02（2%含み益でトレーリング開始）
+  - trailing_percent: 0.03（3%距離・Bybit/Binance標準・TP2.5%対応最適化）
+  - min_update_distance: 200（200円・ノイズ防止）
+  - min_profit_lock: 0.005（0.5%最低利益保証・SLがentry+0.5%を下回らない）
+  - cancel_tp_when_exceeds: true（SL>TP時にTPキャンセル・さらなる上昇追従）
+- **効果**: -450円損失防止（Phase 38で-451円損失発生）・含み益保護実現
+
+**📊 Phase 41.8.5 ML統合閾値最適化**:
+- **min_ml_confidence**: 0.6 → **0.45**（-25%・3クラス分類対応）
+- **high_confidence_threshold**: 0.8 → **0.60**（-25%・3クラス分類対応）
+- **3段階統合ロジック再設計**:
+  - Stage 1（< 0.45）: 戦略のみ採用
+  - Stage 2（0.45-0.60）: 戦略70% + ML30%加重平均
+  - Stage 3（≥ 0.60）: ボーナス/ペナルティ適用
+- **ML統合率改善**: 10% → **100%**（ペーパートレード検証済み）
+- **背景**: 3クラス分類では信頼度が0.5-0.6に集中・旧閾値0.6では統合機能がほぼ無効化
 
 **📊 Phase 33 手数料最適化設定追加**:
 - **スマート注文機能**: smart_order_enabled: false → true（line 417）・高信頼度（≥75%）時は指値、低信頼度（<40%）時は成行
@@ -190,8 +230,8 @@ core/
 **📊 Phase 29.5 ML予測統合設定追加**:
 - **ML統合設定セクション新設**: `ml.strategy_integration.*` (7項目) で加重平均・ボーナス・ペナルティ制御
 - **動的制御設定**: enabled（有効化）・ml_weight（0.3）・strategy_weight（0.7）・運用中調整対応
-- **強化判定設定**: high_confidence_threshold（0.8）・agreement_bonus（1.2倍）・disagreement_penalty（0.7倍）
-- **安全措置設定**: min_ml_confidence（0.6）最小信頼度閾値・低品質ML予測排除
+- **強化判定設定**: high_confidence_threshold（Phase 41.8.5で0.60に最適化）・agreement_bonus（1.2倍）・disagreement_penalty（0.7倍）
+- **安全措置設定**: min_ml_confidence（Phase 41.8.5で0.45に最適化）最小信頼度閾値・3クラス分類対応
 
 **📊 Phase 29戦略設定値一元化成果**:
 - **戦略ハードコード完全排除**: Multi-timeframe・ATRBased戦略の数値リテラル（0.002, 0.005, 0.015, 0.7, 0.5, 30.0等）を全てthresholds.yaml参照に変更
@@ -213,6 +253,13 @@ core/
 - **構造整理**: セクション分類による可読性向上・管理効率化
 
 **主要内容**:
+- **【Phase 42.2新規】`position_management.stop_loss.trailing`**: トレーリングストップ設定
+  - enabled: true（有効化）
+  - activation_profit: 0.02（2%含み益で開始）
+  - trailing_percent: 0.03（3%距離）
+  - min_update_distance: 200（200円・ノイズ防止）
+  - min_profit_lock: 0.005（0.5%最低利益保証）
+  - cancel_tp_when_exceeds: true（TP超過時キャンセル）
 - `strategies`: 戦略別最適化パラメータ
   - `atr_based`: BB閾値70%/30%・RSI閾値65/35・最小信頼度0.3（取引機会拡大）・**base_confidence/confidence_multiplier追加**
   - `donchian_channel`: 中央域40-60%・弱シグナル範囲・動的HOLD信頼度
@@ -267,10 +314,11 @@ core/
 ### **数値設定系（thresholds.yaml）**
 | 設定項目 | 説明 | 参照パス |
 |---------|------|---------|
+| **トレーリングストップ設定** | **Phase 42.2新規・Bybit/Binance準拠** | `position_management.stop_loss.trailing.*` |
 | クールダウン時間 | 取引後の待機時間（分） | `position_management.cooldown_minutes` |
 | ML統合重み | ML予測と戦略の重み配分 | `ml.strategy_integration.ml_weight`, `strategy_weight` |
 | ML統合ボーナス・ペナルティ | 一致/不一致時の信頼度調整 | `ml.strategy_integration.agreement_bonus`, `disagreement_penalty` |
-| ML信頼度閾値 | ML予測の信頼度判定閾値 | `ml.strategy_integration.high_confidence_threshold`, `min_ml_confidence` |
+| ML信頼度閾値 | ML予測の信頼度判定閾値（Phase 41.8.5最適化） | `ml.strategy_integration.high_confidence_threshold`, `min_ml_confidence` |
 | 戦略別信頼度閾値 | 各戦略の動的信頼度設定 | `strategies.{strategy_name}.*` |
 | スマート注文設定 | 指値/成行自動切替設定 | `execution.smart_order_enabled`, `price_improvement_ratio`, `timeout_minutes` |
 | Kelly基準設定 | ポジションサイジング設定 | `trading.kelly_min_trades`, `initial_position_size` |

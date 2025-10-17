@@ -14,7 +14,7 @@ scripts/ml/
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **create_ml_models.py**（Phase 39完了）
+### **create_ml_models.py**（Phase 41.8完了）
 機械学習モデルの学習・構築・管理を担当するメインスクリプトです。
 - **個別モデル学習**: LightGBM・XGBoost・RandomForest の3つのアルゴリズム学習
 - **Phase 39.1**: 実データ学習（CSV読み込み・過去180日分15分足データ・17,271件）
@@ -22,8 +22,14 @@ scripts/ml/
 - **Phase 39.3**: TimeSeriesSplit n_splits=5・Early Stopping rounds=20・Train/Val/Test 70/15/15
 - **Phase 39.4**: SMOTE oversampling・class_weight='balanced'・クラス不均衡対応
 - **Phase 39.5**: Optunaハイパーパラメータ最適化（TPESampler・自動最適化）
+- **Phase 41.8**: 実戦略信号学習（訓練時/推論時一貫性確保・Look-ahead bias防止・55特徴量対応）
+  - **実戦略信号生成**: `_generate_real_strategy_signals_for_training()`メソッド実装・過去データから5戦略実行
+  - **訓練/推論一貫性**: 訓練時0-fill問題解決・実際の戦略信号を学習データに統合
+  - **Look-ahead bias防止**: `df.iloc[: i + 1]`による過去データのみ使用・未来データリーク防止
+  - **55特徴量対応**: 50基本特徴量 + 5戦略信号特徴量（ATRBased/MochipoyAlert/MultiTimeframe/DonchianChannel/ADXTrendStrength）
+  - **信号エンコーディング**: `action × confidence`方式・buy=+1.0、hold=0.0、sell=-1.0
 - **アンサンブル構築**: ProductionEnsemble作成・重み付け投票・モデル統合
-- **特徴量統合**: feature_manager連携・15特徴量生成・データパイプライン統合
+- **特徴量統合**: feature_manager連携・55特徴量生成・データパイプライン統合
 - **品質保証**: モデル検証・予測テスト・性能評価・品質ゲート
 - **バージョン管理**: メタデータ管理・モデル保存・履歴追跡・自動アーカイブ
 - **CI/CD統合**: GitHub Actions連携・自動学習・週次再学習・Discord通知

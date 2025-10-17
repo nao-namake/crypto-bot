@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-新システム用MLモデル作成スクリプト - Phase 39完了版（ML信頼度向上期）.
+新システム用MLモデル作成スクリプト - Phase 41.8完了版（Strategy-Aware ML・完全実装）
 
+Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確保）
+Phase 41対応: 戦略シグナル特徴量統合（50→55特徴量）
 Phase 39対応: 実データ学習・閾値最適化・CV強化・SMOTE・Optuna最適化
-レガシーシステムのretrain_97_features_model.pyを参考に新システム構造で実装
 
 機能:
-- 15特徴量での LightGBM・XGBoost・RandomForest アンサンブル学習
+- 55特徴量での LightGBM・XGBoost・RandomForest アンサンブル学習
+- Phase 41.8: 実戦略信号学習 - 過去データから実際に5戦略を実行して学習データ生成
+- Phase 41: Strategy-Aware ML - 戦略シグナル5特徴量追加
+- Phase 40.6: Feature Engineering拡張 - 15→50特徴量
 - Phase 39.1: 実データ学習（CSV読み込み・過去180日分15分足データ）
 - Phase 39.2: 閾値最適化（0.3% → 0.5%）・3クラス分類（BUY/HOLD/SELL）
 - Phase 39.3: TimeSeriesSplit n_splits=5・Early Stopping rounds=20・Train/Val/Test 70/15/15
@@ -16,20 +20,17 @@ Phase 39対応: 実データ学習・閾値最適化・CV強化・SMOTE・Optuna
 - models/production/ にモデル保存
 - 実取引前の品質保証・性能検証
 
-Phase 39完了成果: 1,097テスト100%成功・70.56%カバレッジ達成・企業級ML基盤完成
+Phase 41.8完了成果: 55特徴量完全統合・訓練時と推論時の一貫性確保・実戦略信号学習
 
 使用方法:
+    # Phase 41.8: 55特徴量で学習（実戦略信号・推奨）
+    python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+
     # 基本実行（Phase 39.1-39.4）
     python scripts/ml/create_ml_models.py [--dry-run] [--verbose]
 
-    # Phase 39.2: 3クラス分類・閾値変更
-    python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.01
-
     # Phase 39.4: SMOTE oversampling有効化
     python scripts/ml/create_ml_models.py --use-smote
-
-    # Phase 39.5: Optunaハイパーパラメータ最適化
-    python scripts/ml/create_ml_models.py --optimize --n-trials 50
 """
 
 import argparse
@@ -64,6 +65,7 @@ try:
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
     from src.ml.ensemble import ProductionEnsemble
+    from src.strategies.base.strategy_manager import StrategyManager  # Phase 41.8
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
     print("プロジェクトルートから実行してください。")
@@ -229,8 +231,8 @@ class NewSystemMLModelCreator:
             raise
 
     async def prepare_training_data_async(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
-        """学習用データ準備（Phase 39.1: 実データ対応）"""
-        self.logger.info(f"📊 Phase 39.1: 実データ学習開始（過去{days}日分）")
+        """学習用データ準備（Phase 41.8: 実戦略信号統合）"""
+        self.logger.info(f"📊 Phase 41.8: 実データ学習開始（過去{days}日分・55特徴量・実戦略信号）")
 
         try:
             # Phase 39.1: 実データ読み込み
@@ -238,10 +240,18 @@ class NewSystemMLModelCreator:
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # 特徴量エンジニアリング
+            # 特徴量エンジニアリング（50特徴量）
             features_df = await self.feature_generator.generate_features(df)
 
-            # 15特徴量への整合性確保
+            # Phase 41.8: 実戦略信号生成（50→55特徴量）
+            # Note: 過去データから実際に5戦略を実行し、本物の戦略信号を生成
+            #       これにより訓練時と推論時の一貫性を確保
+            strategy_signals_df = await self._generate_real_strategy_signals_for_training(df)
+
+            # 50特徴量 + 5戦略信号 = 55特徴量を結合
+            features_df = pd.concat([features_df, strategy_signals_df], axis=1)
+
+            # 特徴量整合性確保（55特徴量）
             features_df = self._ensure_feature_consistency(features_df)
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
@@ -251,8 +261,8 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 39.1 実データ準備完了: {len(features_df)}サンプル、"
-                f"{len(features_df.columns)}特徴量"
+                f"✅ Phase 41.8 実データ準備完了: {len(features_df)}サンプル、"
+                f"{len(features_df.columns)}特徴量（55特徴量・実戦略信号統合完了）"
             )
             return features_df, target
 
@@ -300,15 +310,171 @@ class NewSystemMLModelCreator:
         df.set_index("timestamp", inplace=True)
         return df
 
+    async def _generate_real_strategy_signals_for_training(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Phase 41.8: 実際の戦略信号を生成（過去データから）
+
+        各時点で5戦略を実行し、本物の戦略信号を計算。
+        これにより訓練時と推論時の一貫性を確保。
+
+        Args:
+            df: OHLCV価格データ
+
+        Returns:
+            pd.DataFrame: 戦略信号5列のDataFrame (index aligned with df)
+        """
+        self.logger.info("📊 Phase 41.8: 実戦略信号生成開始（過去データから5戦略実行）")
+
+        # 戦略シグナル特徴量名
+        strategy_names = [
+            "ATRBased",
+            "MochipoyAlert",
+            "MultiTimeframe",
+            "DonchianChannel",
+            "ADXTrendStrength",
+        ]
+
+        # 結果格納用DataFrame
+        strategy_signals = pd.DataFrame(index=df.index)
+
+        try:
+            # StrategyManager初期化
+            strategy_manager = StrategyManager()
+            self.logger.info("✅ StrategyManager初期化完了")
+
+            # バックテストモード有効化
+            self.data_pipeline.set_backtest_data({"4h": df.copy()})
+            self.logger.info("✅ DataPipelineバックテストモード設定完了")
+
+            # 各時点で戦略実行（look-ahead bias回避のため順次処理）
+            total_points = len(df)
+            processed = 0
+
+            for i in range(len(df)):
+                # 現在時点までのデータのみ使用（未来データ漏洩防止）
+                current_data = df.iloc[: i + 1]
+
+                # 最低限のデータポイントが必要（特徴量計算のため）
+                if len(current_data) < 50:
+                    # データ不足時は0で埋める
+                    for strategy_name in strategy_names:
+                        strategy_signals.loc[
+                            current_data.index[-1], f"strategy_signal_{strategy_name}"
+                        ] = 0.0
+                    continue
+
+                try:
+                    # DataPipeline更新
+                    self.data_pipeline.set_backtest_data({"4h": current_data.copy()})
+
+                    # 個別戦略信号取得
+                    signals = strategy_manager.get_individual_strategy_signals({"4h": current_data})
+
+                    # action × confidence を計算して格納
+                    current_timestamp = current_data.index[-1]
+                    for strategy_name in strategy_names:
+                        if strategy_name in signals:
+                            action = signals[strategy_name]["action"]
+                            confidence = signals[strategy_name]["confidence"]
+
+                            # action を数値化: buy=+1, hold=0, sell=-1
+                            action_value = {"buy": 1.0, "hold": 0.0, "sell": -1.0}.get(action, 0.0)
+
+                            # 戦略信号 = action × confidence
+                            signal_value = action_value * confidence
+
+                            strategy_signals.loc[
+                                current_timestamp, f"strategy_signal_{strategy_name}"
+                            ] = signal_value
+                        else:
+                            # 戦略信号が得られない場合は0
+                            strategy_signals.loc[
+                                current_timestamp, f"strategy_signal_{strategy_name}"
+                            ] = 0.0
+
+                except Exception as e:
+                    # エラー時は0で埋める（学習継続）
+                    self.logger.warning(f"⚠️ 時点{i}で戦略実行エラー: {e}, 0で埋めます")
+                    for strategy_name in strategy_names:
+                        strategy_signals.loc[
+                            current_data.index[-1], f"strategy_signal_{strategy_name}"
+                        ] = 0.0
+
+                # 進捗表示（10%ごと）
+                processed += 1
+                if processed % max(1, total_points // 10) == 0:
+                    progress = (processed / total_points) * 100
+                    self.logger.info(
+                        f"📊 Phase 41.8: 戦略信号生成進捗 {processed}/{total_points} ({progress:.1f}%)"
+                    )
+
+            # 欠損値を0で埋める
+            strategy_signals.fillna(0.0, inplace=True)
+
+            self.logger.info(
+                f"✅ Phase 41.8: 実戦略信号生成完了 - {len(strategy_signals)}行 × 5戦略"
+            )
+            self.logger.info(
+                f"📊 Phase 41.8: 戦略信号統計 - "
+                f"非ゼロ率: {(strategy_signals != 0).sum().sum() / (len(strategy_signals) * 5) * 100:.1f}%"
+            )
+
+            return strategy_signals
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 41.8: 実戦略信号生成エラー: {e}")
+            # エラー時はフォールバック（0埋め）
+            self.logger.warning("⚠️ Phase 41.8: フォールバック - 戦略信号を0埋め")
+            for strategy_name in strategy_names:
+                strategy_signals[f"strategy_signal_{strategy_name}"] = 0.0
+            return strategy_signals
+
+    def _add_strategy_signal_features_for_training(self, features_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Phase 41: ML学習用に戦略シグナル特徴量を追加（5個・0埋め）
+
+        Deprecated: Phase 41.8で_generate_real_strategy_signals_for_training()に置き換え
+        後方互換性のために残置
+
+        Note:
+            ML学習時は過去データから戦略を実行していないため、
+            戦略シグナル特徴量を0埋めで追加します。
+            実運用時には本物の戦略シグナルが使用されます。
+
+        Returns:
+            pd.DataFrame: 戦略シグナル特徴量が追加されたDataFrame
+        """
+        self.logger.info("📊 Phase 41: 戦略シグナル特徴量追加（ML学習用・0埋め）")
+
+        # 戦略シグナル特徴量名
+        strategy_signal_features = [
+            "strategy_signal_ATRBased",
+            "strategy_signal_MochipoyAlert",
+            "strategy_signal_MultiTimeframe",
+            "strategy_signal_DonchianChannel",
+            "strategy_signal_ADXTrendStrength",
+        ]
+
+        # 0埋めで追加
+        for feature_name in strategy_signal_features:
+            features_df[feature_name] = 0.0
+
+        self.logger.info(
+            f"✅ Phase 41: 戦略シグナル特徴量5個追加完了 "
+            f"({len(features_df.columns)}特徴量 - ML学習用0埋め)"
+        )
+
+        return features_df
+
     def _ensure_feature_consistency(self, features_df: pd.DataFrame) -> pd.DataFrame:
-        """15特徴量への整合性確保."""
+        """特徴量整合性確保（Phase 41: 55特徴量対応）"""
         # 不足特徴量の0埋め
         for feature in self.expected_features:
             if feature not in features_df.columns:
                 features_df[feature] = 0.0
                 self.logger.warning(f"⚠️ 不足特徴量を0埋め: {feature}")
 
-        # 特徴量のみ選択 - Phase 40.6: 動的特徴量数対応
+        # 特徴量のみ選択 - Phase 41: 55特徴量対応
         features_df = features_df[self.expected_features]
 
         expected_count = len(self.expected_features)
@@ -846,13 +1012,13 @@ class NewSystemMLModelCreator:
                     except Exception:
                         git_commit = {"commit": "unknown", "branch": "unknown"}
 
-                    # 本番用メタデータ保存（Phase 39完了: ML信頼度向上期）
+                    # 本番用メタデータ保存（Phase 41.8完了: Strategy-Aware ML・実戦略信号学習）
                     production_metadata = {
                         "created_at": datetime.now().isoformat(),
                         "model_type": "ProductionEnsemble",
                         "model_file": str(model_file),
                         "version": "1.0.0",
-                        "phase": "Phase 39.5",  # Phase 39完了
+                        "phase": "Phase 41.8",  # Phase 41.8完了: 実戦略信号学習
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
                         "individual_models": [
@@ -866,7 +1032,7 @@ class NewSystemMLModelCreator:
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
                         },
                         "git_info": git_commit,
-                        "notes": "Phase 39完了・実データ学習・閾値0.5%・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
+                        "notes": "Phase 41.8完了・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
                     }
 
                     production_metadata_file = (
@@ -894,7 +1060,7 @@ class NewSystemMLModelCreator:
             except Exception as e:
                 self.logger.error(f"❌ {model_name} モデル保存エラー: {e}")
 
-        # 学習用メタデータ保存（Phase 39完了: ML信頼度向上期）
+        # 学習用メタデータ保存（Phase 41.8完了: Strategy-Aware ML・実戦略信号学習）
         training_metadata = {
             "created_at": datetime.now().isoformat(),
             "feature_names": training_results.get("feature_names", []),
@@ -902,8 +1068,8 @@ class NewSystemMLModelCreator:
             "model_metrics": training_results.get("results", {}),
             "model_files": saved_files,
             "config_path": self.config_path,
-            "phase": "Phase 39.5",  # Phase 39完了
-            "notes": "Phase 39完了・実データ学習・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果",
+            "phase": "Phase 41.8",  # Phase 41.8完了: 実戦略信号学習
+            "notes": "Phase 41.8完了・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果",
         }
 
         training_metadata_file = self.training_dir / "training_metadata.json"

@@ -1,10 +1,13 @@
 """
-特徴量生成統合システム - Phase 38.4完了
+特徴量生成統合システム - Phase 41完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
 
-97特徴量から15特徴量への最適化システム実装（5戦略対応）。
+Phase履歴:
+- Phase 38.4: 97特徴量から15特徴量への最適化システム実装（5戦略対応）
+- Phase 40.6: Feature Engineering拡張 - 15→50特徴量（Lag/Rolling/Interaction/Time追加）
+- Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル5個追加）
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
@@ -12,7 +15,7 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 38.4完了
+Phase 41完了
 """
 
 from typing import Any, Dict, List, Optional
@@ -36,10 +39,10 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 40.6完了
+    統合特徴量生成クラス - Phase 41完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、50特徴量生成を効率的に提供。
+    1つのクラスに統合し、55特徴量生成を効率的に提供。
 
     主要機能:
     - 基本特徴量生成（2個）
@@ -49,7 +52,12 @@ class FeatureGenerator:
     - 移動統計量生成（12個：MA, Std, Max, Min）- Phase 40.6
     - 交互作用特徴量生成（6個：RSI×ATR, MACD×Volume等）- Phase 40.6
     - 時間ベース特徴量生成（7個：Hour, Day, Month等）- Phase 40.6
-    - 統合品質管理と50特徴量確認
+    - 戦略シグナル特徴量生成（5個：戦略判断エンコード）- Phase 41
+    - 統合品質管理と特徴量確認（50 or 55特徴量）
+
+    Phase 41: Strategy-Aware ML
+    - 後方互換性維持（strategy_signals=None → 50特徴量）
+    - 戦略シグナル統合（strategy_signals提供 → 55特徴量）
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -65,21 +73,34 @@ class FeatureGenerator:
         )
         self.computed_features = set()
 
-    async def generate_features(self, market_data: Dict[str, Any]) -> pd.DataFrame:
+    async def generate_features(
+        self,
+        market_data: Dict[str, Any],
+        strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（50特徴量確認機能付き）
+        統合特徴量生成処理（Phase 41: 55特徴量対応）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
+            strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            50特徴量を含むDataFrame
+            特徴量を含むDataFrame（strategy_signals=None → 50特徴量, あり → 55特徴量）
+
+        Note:
+            - Phase 41: Strategy-Aware ML実装
+            - 後方互換性: strategy_signals=None → 50特徴量のまま動作
         """
         try:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            self.logger.info("特徴量生成開始 - Phase 40.6: 50特徴量システム")
+            # Phase判定
+            phase_info = (
+                "Phase 41: 55特徴量システム" if strategy_signals else "Phase 40.6: 50特徴量システム"
+            )
+            self.logger.info(f"特徴量生成開始 - {phase_info}")
             self.computed_features.clear()
 
             # 必要列チェック
@@ -106,10 +127,14 @@ class FeatureGenerator:
             # 🔹 時間ベース特徴量を生成（7個）- Phase 40.6
             result_df = self._generate_time_features(result_df)
 
+            # 🔹 戦略シグナル特徴量を追加（5個）- Phase 41
+            if strategy_signals:
+                result_df = self._add_strategy_signal_features(result_df, strategy_signals)
+
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
 
-            # 🎯 50特徴量完全確認・検証
+            # 🎯 特徴量完全確認・検証
             self._validate_feature_generation(result_df)
 
             # DataFrameをそのまま返す（戦略で使用するため）
@@ -119,18 +144,24 @@ class FeatureGenerator:
             self.logger.error(f"統合特徴量生成エラー: {e}")
             raise DataProcessingError(f"特徴量生成失敗: {e}")
 
-    def generate_features_sync(self, df: pd.DataFrame) -> pd.DataFrame:
+    def generate_features_sync(
+        self,
+        df: pd.DataFrame,
+        strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 35: バックテスト事前計算用・Phase 40.6: 50特徴量対応）
+        同期版特徴量生成（Phase 35: バックテスト事前計算用・Phase 41: 55特徴量対応）
 
         Args:
             df: OHLCVデータを含むDataFrame
+            strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            50特徴量を含むDataFrame
+            特徴量を含むDataFrame（strategy_signals=None → 50特徴量, あり → 55特徴量）
 
         Note:
             バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
+            Phase 41: 後方互換性維持（strategy_signals=None → 50特徴量）
         """
         try:
             result_df = df.copy()
@@ -158,6 +189,10 @@ class FeatureGenerator:
 
             # 時間ベース特徴量を生成（7個）- Phase 40.6
             result_df = self._generate_time_features(result_df)
+
+            # 戦略シグナル特徴量を追加（5個）- Phase 41
+            if strategy_signals:
+                result_df = self._add_strategy_signal_features(result_df, strategy_signals)
 
             # NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
@@ -453,6 +488,72 @@ class FeatureGenerator:
         self.computed_features.add("is_quarter_end")
 
         self.logger.debug("時間ベース特徴量生成完了: 7個")
+        return result_df
+
+    def _add_strategy_signal_features(
+        self, df: pd.DataFrame, strategy_signals: Optional[Dict[str, Dict[str, float]]] = None
+    ) -> pd.DataFrame:
+        """
+        Phase 41: 戦略シグナル特徴量追加（Strategy Signals・5個）
+
+        Args:
+            df: 特徴量DataFrame
+            strategy_signals: 戦略シグナル辞書（StrategyManager.get_individual_strategy_signals()の戻り値）
+                例: {
+                    "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},
+                    "MochipoyAlert": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
+                    ...
+                }
+
+        Returns:
+            戦略シグナル特徴量が追加されたDataFrame
+
+        Note:
+            - Phase 41: Strategy-Aware ML実装
+            - MLが戦略の専門知識を学習可能に
+            - 後方互換性: strategy_signals=None → スキップ（50特徴量のまま）
+        """
+        result_df = df.copy()
+
+        # strategy_signalsがNoneまたは空の場合はスキップ（後方互換性）
+        if not strategy_signals:
+            self.logger.debug("戦略シグナル特徴量スキップ（strategy_signals未提供）")
+            return result_df
+
+        # 各戦略のシグナルを特徴量として追加
+        strategy_feature_names = [
+            "strategy_signal_ATRBased",
+            "strategy_signal_MochipoyAlert",
+            "strategy_signal_MultiTimeframe",
+            "strategy_signal_DonchianChannel",
+            "strategy_signal_ADXTrendStrength",
+        ]
+
+        strategy_internal_names = {
+            "ATRBased": "strategy_signal_ATRBased",
+            "MochipoyAlert": "strategy_signal_MochipoyAlert",
+            "MultiTimeframe": "strategy_signal_MultiTimeframe",
+            "DonchianChannel": "strategy_signal_DonchianChannel",
+            "ADXTrendStrength": "strategy_signal_ADXTrendStrength",
+        }
+
+        added_count = 0
+        for internal_name, feature_name in strategy_internal_names.items():
+            if internal_name in strategy_signals:
+                # エンコード済み値を使用（buy=+1, hold=0, sell=-1 × confidence）
+                encoded_value = strategy_signals[internal_name].get("encoded", 0.0)
+
+                # DataFrameの最後の行に値を追加
+                result_df[feature_name] = encoded_value
+                self.computed_features.add(feature_name)
+                added_count += 1
+            else:
+                # 戦略シグナルがない場合は0で補完
+                result_df[feature_name] = 0.0
+                self.computed_features.add(feature_name)
+                self.logger.debug(f"戦略シグナル不足: {internal_name} → 0.0で補完")
+
+        self.logger.debug(f"戦略シグナル特徴量生成完了: {added_count}/5個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:

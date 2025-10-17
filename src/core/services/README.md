@@ -1,8 +1,8 @@
-# src/core/services/ - システムサービス層 🚀 Phase 29.5完了
+# src/core/services/ - システムサービス層 🚀 Phase 42.3完了
 
 ## 🎯 役割・責任
 
-システム全体の統合制御・ヘルスチェック・ログ管理・取引サイクル実行を担当します。Phase 29.5でML予測統合ロジックを実装し、真のハイブリッドMLbotを実現しました。
+システム全体の統合制御・ヘルスチェック・ログ管理・取引サイクル実行を担当します。Phase 29.5でML予測統合ロジックを実装し、Phase 42.3でML Agreement Logic修正・Feature Warning抑制を完了しました。
 
 ## 📂 ファイル構成
 
@@ -16,13 +16,35 @@ services/
 └── README.md                        # このファイル
 ```
 
+## 📈 Phase 42.3完了（2025年10月18日）
+
+**🎯 Phase 42.3: ML統合バグ修正・特徴量警告抑制**
+
+### ✅ Phase 42.3最適化成果
+- **Phase 42.3.1: ML Agreement Logic修正**: hold + directional signal誤ボーナス解消（trading_cycle_manager.py:548）
+  - 修正前: `is_agreement = (ml_action == strategy_action) or (ml_action == "hold" and strategy_action in ["buy", "sell"])`
+  - 修正後: `is_agreement = ml_action == strategy_action`（strict matching）
+  - 効果: ML=hold + Strategy=sell時の誤20%ボーナス削除（0.708→0.850の誤判定解消）
+
+- **Phase 42.3.2: Feature Warning抑制**: `strategy_signal_*`特徴量警告除外（trading_cycle_manager.py:308-330）
+  - 背景: Phase 41で後から追加される5戦略信号特徴量（50→55個）が警告を発生
+  - 対策: `strategy_signal_*`を実際の特徴量不足から除外・DEBUGログに変更
+  - 効果: 誤警告削除・ログノイズ削減
+
+- **品質保証完了**: 1,081テスト100%成功・69.57%カバレッジ達成
+
+### 📊 Phase 42.3重要事項
+- **ML統合精度向上**: hold信号が方向性信号と誤って一致判定されていた問題を解決
+- **特徴量管理改善**: Phase 41の55特徴量（50基本+5戦略信号）システムとの整合性確保
+- **ペーパートレード検証**: Phase 42.3.1修正によりML統合ロジックの正確性を確認
+
 ## 📈 Phase 29.5完了（2025年9月30日）
 
 **🎯 Phase 29.5: ML予測統合実装・真のハイブリッドMLbot実現**
 
 ### ✅ Phase 29.5最適化成果
 - **ML予測統合ロジック実装**: 戦略70% + ML30%の加重平均統合（trading_cycle_manager.py:340-454）
-- **一致・不一致判定システム**: ML高信頼度（80%以上）時のボーナス（1.2倍）・ペナルティ（0.7倍）適用
+- **一致・不一致判定システム**: ML高信頼度（60%以上・Phase 41.8.5最適化）時のボーナス（1.2倍）・ペナルティ（0.7倍）適用
 - **自動hold変更機能**: 不一致かつ信頼度極低（0.4未満）時の安全措置
 - **設定管理統合**: thresholds.yaml ML統合設定追加・MLConfig拡張
 - **品質保証完了**: 625テスト100%成功・64.74%カバレッジ達成・8個の統合テスト追加
@@ -35,9 +57,9 @@ services/
 
 ## 🔧 主要ファイル詳細
 
-### **trading_cycle_manager.py** 🚀**Phase 29.5 ML統合実装完了**
+### **trading_cycle_manager.py** 🚀**Phase 42.3 ML統合修正完了**
 
-取引サイクル実行の中核システムです。Phase 29.5でML予測統合ロジックを実装し、戦略とMLの真の融合を実現しました。
+取引サイクル実行の中核システムです。Phase 29.5でML予測統合ロジックを実装し、Phase 42.3でML Agreement Logic修正・Feature Warning抑制を完了しました。
 
 **Phase 29.5新機能**:
 ```python

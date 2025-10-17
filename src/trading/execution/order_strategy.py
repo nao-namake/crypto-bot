@@ -344,3 +344,124 @@ class OrderStrategy:
         except Exception as e:
             self.logger.error(f"❌ 指値価格計算エラー: {e}")
             return 0
+
+    # ========================================
+    # Phase 42: 統合TP/SL用メソッド
+    # ========================================
+
+    def calculate_consolidated_tp_sl_prices(
+        self,
+        average_entry_price: float,
+        side: str,
+        market_conditions: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, float]:
+        """
+        統合TP/SL価格計算（Phase 42・平均価格基準）
+
+        平均エントリー価格から±TP/SL率で統合TP/SL価格を計算する。
+        適応型ATR倍率・リスクリワード比管理に対応。
+
+        Args:
+            average_entry_price: 平均エントリー価格
+            side: 注文サイド (buy/sell)
+            market_conditions: 市場条件（ATR値等）
+
+        Returns:
+            Dict: {
+                "take_profit_price": float,
+                "stop_loss_price": float,
+                "tp_rate": float,
+                "sl_rate": float
+            }
+        """
+        try:
+            # TP/SL設定取得
+            tp_config = get_threshold("position_management.take_profit", {})
+            sl_config = get_threshold("position_management.stop_loss", {})
+
+            # デフォルト設定
+            default_tp_ratio = tp_config.get("default_ratio", 2.5)
+            min_profit_ratio = tp_config.get("min_profit_ratio", 0.01)
+            default_atr_multiplier = sl_config.get("default_atr_multiplier", 2.0)
+            max_loss_ratio = sl_config.get("max_loss_ratio", 0.03)
+
+            # SL率計算（適応型ATR倍率対応）
+            if market_conditions and "atr_ratio" in market_conditions:
+                # ATR比率がある場合は適応型計算
+                atr_ratio = market_conditions["atr_ratio"]
+                sl_rate = min(atr_ratio * default_atr_multiplier, max_loss_ratio)
+                self.logger.debug(
+                    f"📊 適応型SL率計算: ATR比率={atr_ratio:.4f} × 倍率={default_atr_multiplier} = {sl_rate * 100:.2f}%"
+                )
+            else:
+                # デフォルトSL率（最小1%・最大3%）
+                sl_rate = min(0.02, max_loss_ratio)  # デフォルト2%
+                self.logger.debug(f"📊 デフォルトSL率使用: {sl_rate * 100:.2f}%")
+
+            # TP率計算（リスクリワード比管理）
+            tp_rate = max(sl_rate * default_tp_ratio, min_profit_ratio)
+            self.logger.debug(
+                f"📊 TP率計算: SL率={sl_rate * 100:.2f}% × RR比={default_tp_ratio} = {tp_rate * 100:.2f}%"
+            )
+
+            # 価格計算
+            if side.lower() == "buy":
+                # 買いポジション: TP = 平均価格 × (1 + tp_rate), SL = 平均価格 × (1 - sl_rate)
+                take_profit_price = round(average_entry_price * (1 + tp_rate))
+                stop_loss_price = round(average_entry_price * (1 - sl_rate))
+
+                self.logger.info(
+                    f"💰 買いポジション統合TP/SL計算: "
+                    f"平均={average_entry_price:.0f}円, "
+                    f"TP={take_profit_price:.0f}円(+{tp_rate * 100:.2f}%), "
+                    f"SL={stop_loss_price:.0f}円(-{sl_rate * 100:.2f}%)"
+                )
+
+            elif side.lower() == "sell":
+                # 売りポジション: TP = 平均価格 × (1 - tp_rate), SL = 平均価格 × (1 + sl_rate)
+                take_profit_price = round(average_entry_price * (1 - tp_rate))
+                stop_loss_price = round(average_entry_price * (1 + sl_rate))
+
+                self.logger.info(
+                    f"💰 売りポジション統合TP/SL計算: "
+                    f"平均={average_entry_price:.0f}円, "
+                    f"TP={take_profit_price:.0f}円(-{tp_rate * 100:.2f}%), "
+                    f"SL={stop_loss_price:.0f}円(+{sl_rate * 100:.2f}%)"
+                )
+
+            else:
+                self.logger.error(f"❌ 不正な注文サイド: {side}")
+                return {
+                    "take_profit_price": 0.0,
+                    "stop_loss_price": 0.0,
+                    "tp_rate": 0.0,
+                    "sl_rate": 0.0,
+                }
+
+            # 価格の妥当性チェック
+            if take_profit_price <= 0 or stop_loss_price <= 0:
+                self.logger.error(
+                    f"❌ 不正なTP/SL価格: TP={take_profit_price}, SL={stop_loss_price}"
+                )
+                return {
+                    "take_profit_price": 0.0,
+                    "stop_loss_price": 0.0,
+                    "tp_rate": tp_rate,
+                    "sl_rate": sl_rate,
+                }
+
+            return {
+                "take_profit_price": take_profit_price,
+                "stop_loss_price": stop_loss_price,
+                "tp_rate": tp_rate,
+                "sl_rate": sl_rate,
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ 統合TP/SL価格計算エラー: {e}")
+            return {
+                "take_profit_price": 0.0,
+                "stop_loss_price": 0.0,
+                "tp_rate": 0.0,
+                "sl_rate": 0.0,
+            }

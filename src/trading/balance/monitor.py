@@ -26,6 +26,9 @@ class BalanceMonitor:
         """BalanceMonitor初期化"""
         self.logger = get_logger()
         self.margin_history: List[MarginData] = []
+        # Phase 42.3.3: 証拠金チェック失敗時の取引中止機能
+        self._margin_check_failure_count = 0
+        self._max_margin_check_retries = 3
 
     async def calculate_margin_ratio(
         self,
@@ -494,7 +497,13 @@ class BalanceMonitor:
                     "required": min_required,
                 }
 
-            # 残高十分
+            # 証拠金チェック成功 - リトライカウンターリセット（Phase 42.3.3）
+            if self._margin_check_failure_count > 0:
+                self.logger.info(
+                    f"✅ 証拠金チェック成功 - リトライカウンターリセット（{self._margin_check_failure_count}→0）"
+                )
+                self._margin_check_failure_count = 0
+
             return {
                 "sufficient": True,
                 "available": available_balance,
@@ -502,9 +511,85 @@ class BalanceMonitor:
             }
 
         except Exception as e:
-            # エラー時は既存動作を維持（取引続行）
-            self.logger.error(f"証拠金チェック失敗: {e} - 取引は継続されます")
+            # Phase 42.3.3: 証拠金チェック失敗時の詳細分類
+            error_str = str(e)
+
+            # エラー20001（bitbank API認証エラー）のみをカウント
+            # ネットワークエラー・タイムアウトは一時的な問題なので無視
+            is_api_auth_error = "20001" in error_str or "API エラー: 20001" in error_str
+
+            if is_api_auth_error:
+                self._margin_check_failure_count += 1
+                self.logger.error(
+                    f"🚨 bitbank API認証エラー（20001）検出 "
+                    f"({self._margin_check_failure_count}/{self._max_margin_check_retries}): {e}"
+                )
+
+                # リトライ制限に達した場合は取引を中止
+                if self._margin_check_failure_count >= self._max_margin_check_retries:
+                    self.logger.critical(
+                        f"🚨 証拠金チェック失敗リトライ上限到達 "
+                        f"({self._max_margin_check_retries}回) - 取引を中止します"
+                    )
+
+                    # Discord Critical通知送信
+                    await self._send_margin_check_failure_alert(e, discord_notifier)
+
+                    return {
+                        "sufficient": False,
+                        "available": 0,
+                        "required": get_threshold("balance_alert.min_required_margin", 14000.0),
+                        "error": "margin_check_failure_auth_error",
+                        "retry_count": self._margin_check_failure_count,
+                    }
+
+                # リトライ制限内の場合は既存動作を維持（取引続行）
+                self.logger.warning(
+                    f"⚠️ API認証エラー（リトライ {self._margin_check_failure_count}/{self._max_margin_check_retries}） - 取引は継続されます"
+                )
+            else:
+                # ネットワークエラー・タイムアウト等は一時的な問題なのでカウントしない
+                self.logger.warning(
+                    f"⚠️ 証拠金チェック一時的失敗（ネットワーク/タイムアウト）: {e} - "
+                    f"フォールバック使用（リトライカウント維持: {self._margin_check_failure_count}）"
+                )
+
+            # エラー時は既存動作を維持（取引続行・機会損失回避）
             return {"sufficient": True, "available": 0, "required": 0}
+
+    async def _send_margin_check_failure_alert(
+        self, error: Exception, discord_notifier: Optional[Any]
+    ) -> None:
+        """
+        Discord証拠金チェック失敗アラート送信（Phase 42.3.3）
+
+        Args:
+            error: 発生したエラー
+            discord_notifier: Discord通知マネージャー
+        """
+        if not discord_notifier:
+            self.logger.debug("Discord通知未初期化のため証拠金チェック失敗アラートスキップ")
+            return
+
+        try:
+            # Discord Critical通知送信
+            discord_enabled = get_threshold("balance_alert.discord_critical_alert", True)
+            if discord_enabled:
+                discord_notifier.send_error_notification(
+                    {
+                        "error_type": "MARGIN_CHECK_FAILURE",
+                        "message": f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中",
+                        "details": f"エラー詳細: {str(error)}",
+                        "action_required": "bitbank APIの状態確認・システム再起動を推奨します",
+                        "impact": "Phase 38残高不足無限ループ問題の再発防止のため、取引を自動的に中止しています",
+                        "timestamp": datetime.now().isoformat(),
+                        "retry_count": self._margin_check_failure_count,
+                    }
+                )
+                self.logger.info("📧 Discord証拠金チェック失敗アラート送信完了")
+
+        except Exception as e:
+            self.logger.error(f"Discord通知送信失敗: {e}")
 
     async def _send_balance_alert(
         self, available: float, required: float, discord_notifier: Optional[Any]

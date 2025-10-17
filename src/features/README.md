@@ -1,6 +1,6 @@
 # src/features/ - 特徴量生成システム
 
-**Phase 40.6完了**: 50特徴量拡張システム（15→50特徴量）・feature_order.json単一真実源連携・11カテゴリ分類による統合特徴量エンジニアリング。
+**Phase 41.8対応**: 50基本特徴量生成システム（15→50特徴量）・feature_order.json単一真実源連携・11カテゴリ分類による統合特徴量エンジニアリング。5戦略信号特徴量はML学習時に別途生成され、合計55特徴量としてMLモデルに入力されます。
 
 ## 📂 ファイル構成
 
@@ -90,13 +90,35 @@ print(f"生成特徴量数: {feature_info['total_features']}")
 ## ⚠️ 重要事項
 
 ### **特性・制約**
-- **50特徴量統一**: feature_order.json単一真実源による全システム整合性（Phase 40.6拡張完了）
+- **50基本特徴量統一**: feature_order.json単一真実源による全システム整合性（Phase 40.6拡張完了）
 - **11カテゴリ分類**: 従来7カテゴリ + 新規4カテゴリ（lag・rolling・interaction・time）
 - **統合効率**: 重複排除・pandasネイティブ最適化・高速計算
 - **品質保証**: 50特徴量完全確認・NaN値統一処理・エラーハンドリング
 - **Phase 40.6完了**: 15→50特徴量拡張・ML予測精度+8-15%・ロバスト性+10-20%向上
+- **Phase 41.8戦略信号**: ML学習時に5戦略信号を別途生成（合計55特徴量システム）
 - **依存**: pandas・numpy・src.core.config.feature_manager・src.core.*
+
+## 📊 Phase 41.8: Strategy-Aware ML対応
+
+**Phase 41.8完了**: ML学習システムにおいて、本システムが生成する50基本特徴量に加えて、5戦略信号特徴量がML学習時に生成されます。
+
+### **55特徴量システム構成**
+- **50基本特徴量**（本モジュール生成）: 従来の特徴量生成システム
+- **5戦略信号特徴量**（ML学習時生成）: `scripts/ml/create_ml_models.py`で実戦略実行により生成
+  - `strategy_signal_ATRBased`
+  - `strategy_signal_MochipoyAlert`
+  - `strategy_signal_MultiTimeframe`
+  - `strategy_signal_DonchianChannel`
+  - `strategy_signal_ADXTrendStrength`
+
+### **推論時の特徴量**
+推論時（実取引判断時）は、TradingOrchestratorが:
+1. 本モジュールで50基本特徴量を生成
+2. 5戦略を実行して5戦略信号を生成
+3. 合計55特徴量をMLモデルに入力
+
+これにより、訓練時と推論時の特徴量構造が完全に一致します（Phase 41.8実装済み）。
 
 ---
 
-**特徴量生成システム（Phase 40.6完了）**: feature_order.json単一真実源連携・50特徴量拡張システム（15→50）・11カテゴリ分類による統合特徴量エンジニアリング機能。
+**特徴量生成システム（Phase 41.8対応）**: feature_order.json単一真実源連携・50基本特徴量拡張システム（15→50）・11カテゴリ分類による統合特徴量エンジニアリング機能。Phase 41.8でML学習時に5戦略信号が追加され、合計55特徴量システムを構成。

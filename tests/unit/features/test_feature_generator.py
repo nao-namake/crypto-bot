@@ -22,6 +22,17 @@ import pytest
 from src.core.exceptions import DataProcessingError
 from src.features.feature_generator import OPTIMIZED_FEATURES, FeatureGenerator
 
+# Phase 41: 戦略シグナル特徴量を除外した基本特徴量（50個）
+# generate_features()はstrategy_signalsパラメータを渡さないと50特徴量のみ生成
+STRATEGY_SIGNAL_FEATURES = [
+    "strategy_signal_ATRBased",
+    "strategy_signal_MochipoyAlert",
+    "strategy_signal_MultiTimeframe",
+    "strategy_signal_DonchianChannel",
+    "strategy_signal_ADXTrendStrength",
+]
+BASE_FEATURES = [f for f in OPTIMIZED_FEATURES if f not in STRATEGY_SIGNAL_FEATURES]
+
 
 class TestFeatureGenerator:
     """FeatureGenerator統合版メインテストクラス"""
@@ -83,11 +94,27 @@ class TestFeatureGenerator:
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # 12特徴量すべてが存在するかチェック
-        for feature in OPTIMIZED_FEATURES:
+        # Phase 41: 戦略シグナル特徴量を除外した50特徴量をチェック
+        # （strategy_signalsパラメータを渡さない場合、50特徴量のみ生成される）
+        strategy_signal_features = [
+            "strategy_signal_ATRBased",
+            "strategy_signal_MochipoyAlert",
+            "strategy_signal_MultiTimeframe",
+            "strategy_signal_DonchianChannel",
+            "strategy_signal_ADXTrendStrength",
+        ]
+        base_features = [f for f in OPTIMIZED_FEATURES if f not in strategy_signal_features]
+
+        for feature in base_features:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # computed_featuresに記録されているかチェック - Phase 40.6: 50特徴量
+        # 戦略シグナル特徴量は存在しないはず（後方互換性確認）
+        for feature in strategy_signal_features:
+            assert (
+                feature not in result_df.columns
+            ), f"戦略シグナル特徴量{feature}が意図せず生成されている"
+
+        # computed_featuresに記録されているかチェック - Phase 41: 50特徴量（戦略シグナル除外）
         assert len(generator.computed_features) == 50
 
     @pytest.mark.asyncio
@@ -101,8 +128,17 @@ class TestFeatureGenerator:
         # 4hタイムフレームのデータが使われているはず
         assert len(result_df) == len(multitime_data["4h"])
 
-        # 12特徴量すべてが存在するかチェック
-        for feature in OPTIMIZED_FEATURES:
+        # Phase 41: 戦略シグナル特徴量を除外した50特徴量をチェック
+        strategy_signal_features = [
+            "strategy_signal_ATRBased",
+            "strategy_signal_MochipoyAlert",
+            "strategy_signal_MultiTimeframe",
+            "strategy_signal_DonchianChannel",
+            "strategy_signal_ADXTrendStrength",
+        ]
+        base_features = [f for f in OPTIMIZED_FEATURES if f not in strategy_signal_features]
+
+        for feature in base_features:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
     @pytest.mark.asyncio
@@ -142,7 +178,7 @@ class TestFeatureGenerator:
                 assert all(x > 0 for x in volume_ratio_valid), "volume_ratio値が負"
 
         # NaN値処理確認
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             if feature in result_df.columns:
                 assert not result_df[feature].isnull().any(), f"{feature}にNaN値が残存"
                 assert not np.isinf(result_df[feature]).any(), f"{feature}に無限値が存在"
@@ -193,11 +229,11 @@ class TestFeatureGenerator:
         assert len(result_df) == 1
 
         # 単一行でも12特徴量が生成されるかチェック
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"単一行で特徴量{feature}が不足"
 
         # NaN値が適切に処理されているかチェック
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert not result_df[feature].isnull().any(), f"単一行で{feature}にNaN残存"
 
     @pytest.mark.asyncio
@@ -217,7 +253,7 @@ class TestFeatureGenerator:
         assert len(result_df) == 5
 
         # 12特徴量すべてが生成されているかチェック
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"辞書入力で特徴量{feature}が不足"
 
     @pytest.mark.asyncio
@@ -239,7 +275,7 @@ class TestFeatureGenerator:
         assert len(result_df) == len(data_with_nan)
 
         # NaN値が適切に処理されているかチェック
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             if feature in result_df.columns:
                 assert not result_df[feature].isnull().any(), f"NaN処理後に{feature}にNaN残存"
                 assert not np.isinf(result_df[feature]).any(), f"NaN処理後に{feature}に無限値存在"
@@ -263,7 +299,7 @@ class TestFeatureGenerator:
         assert len(result_df) == 5
 
         # 極端な値でも処理が完了することを確認
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             if feature in result_df.columns:
                 assert not np.isinf(result_df[feature]).any(), f"極端値処理で{feature}に無限値"
                 assert not result_df[feature].isnull().any(), f"極端値処理で{feature}にNaN残存"
@@ -305,7 +341,7 @@ class TestFeatureGenerator:
         assert len(result_df) == n_large
 
         # 12特徴量すべて生成確認
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"大規模データで特徴量{feature}が不足"
 
     def test_feature_categories_coverage(self):
@@ -332,7 +368,7 @@ class TestFeatureGenerator:
         for features in FEATURE_CATEGORIES.values():
             all_categorized_features.extend(features)
 
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert feature in all_categorized_features, f"特徴量{feature}がカテゴリ未分類"
 
     @pytest.mark.asyncio
@@ -380,7 +416,7 @@ class TestFeatureGenerator:
             assert isinstance(result, pd.DataFrame)
             assert len(result) == len(sample_ohlcv_data)
 
-            for feature in OPTIMIZED_FEATURES:
+            for feature in BASE_FEATURES:
                 assert feature in result.columns, f"並行実行で特徴量{feature}が不足"
 
         # 結果の一貫性確認（同じ入力なので同じ結果になるはず）
@@ -491,5 +527,5 @@ class TestFeatureGeneratorPrivateMethods:
         assert len(generator.computed_features) == 50
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
-        for feature in OPTIMIZED_FEATURES:
+        for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"

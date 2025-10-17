@@ -488,3 +488,63 @@ class StrategyManager:
         self.total_decisions = 0
 
         self.logger.info("統計情報リセット完了")
+
+    def get_individual_strategy_signals(
+        self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
+    ) -> Dict[str, Dict[str, float]]:
+        """
+        Phase 41: 各戦略の個別シグナルを取得（ML特徴量用）
+
+        MLが戦略の専門知識を学習できるよう、各戦略の判断を個別に取得します。
+
+        Args:
+            df: 市場データ（メインタイムフレーム）
+            multi_timeframe_data: マルチタイムフレームデータ（オプション）
+
+        Returns:
+            各戦略のシグナル辞書
+            例: {
+                "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},
+                "MochipoyAlert": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
+                "MultiTimeframe": {"action": "hold", "confidence": 0.500, "encoded": 0.0}
+            }
+
+        Note:
+            - encoded: action × confidence エンコーディング（buy=+1, hold=0, sell=-1）
+            - MLの特徴量生成に使用される
+            - 後方互換性: 既存のanalyze_market()には影響なし
+        """
+        try:
+            # 既存の_collect_all_signals()を再利用
+            strategy_signals = self._collect_all_signals(df, multi_timeframe_data)
+
+            # ML用に変換
+            result = {}
+            for strategy_name, signal in strategy_signals.items():
+                # action × confidence エンコーディング
+                if signal.action == "buy":
+                    encoded = signal.confidence  # +1 * confidence
+                elif signal.action == "sell":
+                    encoded = -signal.confidence  # -1 * confidence
+                else:  # hold
+                    encoded = 0.0  # 0 * confidence
+
+                result[strategy_name] = {
+                    "action": signal.action,
+                    "confidence": signal.confidence,
+                    "encoded": encoded,
+                }
+
+            self.logger.debug(
+                f"個別戦略シグナル取得完了: {len(result)}戦略 "
+                f"(BUY={sum(1 for s in result.values() if s['action'] == 'buy')}, "
+                f"SELL={sum(1 for s in result.values() if s['action'] == 'sell')}, "
+                f"HOLD={sum(1 for s in result.values() if s['action'] == 'hold')})"
+            )
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"個別戦略シグナル取得エラー: {e}")
+            # エラー時は空辞書を返す（後方互換性）
+            return {}

@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-16T06:33:07.215875",
+  "created_at": "2025-10-17T00:22:08.796454",
   "feature_names": [
     "close",
     "volume",
@@ -50,33 +50,38 @@
     "is_market_open_hour",
     "month",
     "quarter",
-    "is_quarter_end"
+    "is_quarter_end",
+    "strategy_signal_ATRBased",
+    "strategy_signal_MochipoyAlert",
+    "strategy_signal_MultiTimeframe",
+    "strategy_signal_DonchianChannel",
+    "strategy_signal_ADXTrendStrength"
   ],
-  "training_samples": 1024,
+  "training_samples": 1019,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.535483870967742,
-      "f1_score": 0.5643724104607661,
-      "precision": 0.622068155087365,
-      "recall": 0.535483870967742,
-      "cv_f1_mean": 0.48295113454412775,
-      "cv_f1_std": 0.07556886926170824
+      "accuracy": 0.43506493506493504,
+      "f1_score": 0.48851596074826575,
+      "precision": 0.579873907605,
+      "recall": 0.43506493506493504,
+      "cv_f1_mean": 0.4876335910010641,
+      "cv_f1_std": 0.09873369344949907
     },
     "xgboost": {
-      "accuracy": 0.6451612903225806,
-      "f1_score": 0.5932498740648147,
-      "precision": 0.5503771465254373,
-      "recall": 0.6451612903225806,
-      "cv_f1_mean": 0.5554397111793505,
-      "cv_f1_std": 0.05532180231342924
+      "accuracy": 0.6753246753246753,
+      "f1_score": 0.5932263814616756,
+      "precision": 0.5289256198347108,
+      "recall": 0.6753246753246753,
+      "cv_f1_mean": 0.5289797666185911,
+      "cv_f1_std": 0.06678474274415955
     },
     "random_forest": {
-      "accuracy": 0.6129032258064516,
-      "f1_score": 0.5742854352143604,
-      "precision": 0.540298579109063,
-      "recall": 0.6129032258064516,
-      "cv_f1_mean": 0.5525806552920864,
-      "cv_f1_std": 0.07494574823961417
+      "accuracy": 0.6558441558441559,
+      "f1_score": 0.6142609027424969,
+      "precision": 0.5863024913982507,
+      "recall": 0.6558441558441559,
+      "cv_f1_mean": 0.5266936356587786,
+      "cv_f1_std": 0.09803362138815327
     }
   },
   "model_files": {
@@ -86,6 +91,6 @@
     "production_ensemble": "models/production/production_ensemble.pkl"
   },
   "config_path": "config/core/unified.yaml",
-  "phase": "Phase 39.5",
-  "notes": "Phase 39完了・実データ学習・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果"
+  "phase": "Phase 41.8",
+  "notes": "Phase 41.8完了・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果"
 }

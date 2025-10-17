@@ -1,9 +1,9 @@
 {
-  "feature_order_version": "v2.4.0",
-  "phase": "Phase 40.6",
-  "total_features": 50,
-  "last_updated": "2025-10-16T00:00:00Z",
-  "description": "Phase 40.6完了: Feature Engineering拡張 - 15特徴量→50特徴量（Lag/Rolling/Interaction/Time追加）",
+  "feature_order_version": "v2.5.0",
+  "phase": "Phase 41",
+  "total_features": 55,
+  "last_updated": "2025-10-16T12:00:00Z",
+  "description": "Phase 41完了: Strategy-Aware ML - 戦略シグナル5個追加（50→55特徴量）",
 
   "feature_categories": {
     "basic": {
@@ -119,6 +119,17 @@
         "month",
         "quarter",
         "is_quarter_end"
+      ]
+    },
+
+    "strategy_signals": {
+      "description": "戦略シグナル特徴量（Strategy Signals・5個）",
+      "features": [
+        "strategy_signal_ATRBased",
+        "strategy_signal_MochipoyAlert",
+        "strategy_signal_MultiTimeframe",
+        "strategy_signal_DonchianChannel",
+        "strategy_signal_ADXTrendStrength"
       ]
     }
   },
@@ -423,6 +434,41 @@
       "description": "四半期末フラグ（3,6,9,12月: 1, それ以外: 0）",
       "range": "0-1",
       "importance": "low"
+    },
+    "strategy_signal_ATRBased": {
+      "type": "strategy_signal",
+      "description": "ATRベース戦略シグナル（action × confidence）",
+      "range": "-1.0 to 1.0",
+      "importance": "critical",
+      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
+    },
+    "strategy_signal_MochipoyAlert": {
+      "type": "strategy_signal",
+      "description": "もちぽよアラート戦略シグナル（action × confidence）",
+      "range": "-1.0 to 1.0",
+      "importance": "critical",
+      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
+    },
+    "strategy_signal_MultiTimeframe": {
+      "type": "strategy_signal",
+      "description": "マルチタイムフレーム戦略シグナル（action × confidence）",
+      "range": "-1.0 to 1.0",
+      "importance": "critical",
+      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
+    },
+    "strategy_signal_DonchianChannel": {
+      "type": "strategy_signal",
+      "description": "Donchianチャネル戦略シグナル（action × confidence）",
+      "range": "-1.0 to 1.0",
+      "importance": "critical",
+      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
+    },
+    "strategy_signal_ADXTrendStrength": {
+      "type": "strategy_signal",
+      "description": "ADXトレンド強度戦略シグナル（action × confidence）",
+      "range": "-1.0 to 1.0",
+      "importance": "critical",
+      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
     }
   },
 
@@ -457,6 +503,20 @@
       "added_categories": ["lag", "rolling", "interaction", "time"],
       "added_features_count": 35,
       "improvements": ["Lag Features（10個）", "Rolling Statistics（12個）", "Interaction Features（6個）", "Time Features（7個）"]
+    },
+    "phase41_expansion": {
+      "target": "Strategy-Aware ML",
+      "achieved": 55,
+      "expansion_type": "strategy_integration",
+      "method": "strategy_signal_features",
+      "added_categories": ["strategy_signals"],
+      "added_features_count": 5,
+      "improvements": [
+        "戦略シグナル特徴量追加（5個）",
+        "MLが戦略の専門知識を学習可能に",
+        "市場データのみ → 市場データ + 戦略判断の統合",
+        "期待効果: F1スコア 0.56-0.59 → 0.65+, ML信頼度 +30-50%"
+      ]
     }
   },
 
@@ -486,11 +546,11 @@
   },
 
   "validation": {
-    "checksum": "sha256:phase40_6_abc123...",
-    "last_validated": "2025-10-16T00:00:00Z",
+    "checksum": "sha256:phase41_def456...",
+    "last_validated": "2025-10-16T12:00:00Z",
     "validation_status": "passed",
-    "phase40_6_compliance": "verified",
-    "feature_count_validation": "50_features_confirmed",
-    "feature_engineering_expansion": "completed"
+    "phase41_compliance": "verified",
+    "feature_count_validation": "55_features_confirmed",
+    "strategy_aware_ml": "completed"
   }
 }

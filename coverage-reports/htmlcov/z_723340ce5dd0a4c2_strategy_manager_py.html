@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/strategies/base/strategy_manager.py: 94.15%</title>
+    <title>Coverage for src/strategies/base/strategy_manager.py: 87.25%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/strategies/base/strategy_manager.py</b>:
-            <span class="pc_cov">94.15%</span>
+            <span class="pc_cov">87.25%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">188 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">177<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">11<span class="text"> missing</span></button>
+            <span class="text">204 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">178<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">26<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_93f8678435bd503b___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-10-13 07:00 +0900
+            created at 2025-10-16 23:49 +0900
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -570,6 +570,66 @@
     <p class="run"><span class="n"><a id="t488" href="#t488">488</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">total_decisions</span> <span class="op">=</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t489" href="#t489">489</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t490" href="#t490">490</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">info</span><span class="op">(</span><span class="str">"&#32113;&#35336;&#24773;&#22577;&#12522;&#12475;&#12483;&#12488;&#23436;&#20102;"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t">    <span class="key">def</span> <span class="nam">get_individual_strategy_signals</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span> <span class="nam">df</span><span class="op">:</span> <span class="nam">pd</span><span class="op">.</span><span class="nam">DataFrame</span><span class="op">,</span> <span class="nam">multi_timeframe_data</span><span class="op">:</span> <span class="nam">Optional</span><span class="op">[</span><span class="nam">Dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">pd</span><span class="op">.</span><span class="nam">DataFrame</span><span class="op">]</span><span class="op">]</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t494" href="#t494">494</a></span><span class="t">    <span class="op">)</span> <span class="op">-></span> <span class="nam">Dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">Dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">float</span><span class="op">]</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t495" href="#t495">495</a></span><span class="t">        <span class="str">"""</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t496" href="#t496">496</a></span><span class="t"><span class="str">        Phase 41: &#21508;&#25126;&#30053;&#12398;&#20491;&#21029;&#12471;&#12464;&#12490;&#12523;&#12434;&#21462;&#24471;&#65288;ML&#29305;&#24500;&#37327;&#29992;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t497" href="#t497">497</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t498" href="#t498">498</a></span><span class="t"><span class="str">        ML&#12364;&#25126;&#30053;&#12398;&#23554;&#38272;&#30693;&#35672;&#12434;&#23398;&#32722;&#12391;&#12365;&#12427;&#12424;&#12358;&#12289;&#21508;&#25126;&#30053;&#12398;&#21028;&#26029;&#12434;&#20491;&#21029;&#12395;&#21462;&#24471;&#12375;&#12414;&#12377;&#12290;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t499" href="#t499">499</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t500" href="#t500">500</a></span><span class="t"><span class="str">        Args:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t501" href="#t501">501</a></span><span class="t"><span class="str">            df: &#24066;&#22580;&#12487;&#12540;&#12479;&#65288;&#12513;&#12452;&#12531;&#12479;&#12452;&#12512;&#12501;&#12524;&#12540;&#12512;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t502" href="#t502">502</a></span><span class="t"><span class="str">            multi_timeframe_data: &#12510;&#12523;&#12481;&#12479;&#12452;&#12512;&#12501;&#12524;&#12540;&#12512;&#12487;&#12540;&#12479;&#65288;&#12458;&#12503;&#12471;&#12519;&#12531;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t503" href="#t503">503</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t504" href="#t504">504</a></span><span class="t"><span class="str">        Returns:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t505" href="#t505">505</a></span><span class="t"><span class="str">            &#21508;&#25126;&#30053;&#12398;&#12471;&#12464;&#12490;&#12523;&#36766;&#26360;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t506" href="#t506">506</a></span><span class="t"><span class="str">            &#20363;: {</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t507" href="#t507">507</a></span><span class="t"><span class="str">                "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t508" href="#t508">508</a></span><span class="t"><span class="str">                "MochipoyAlert": {"action": "sell", "confidence": 0.729, "encoded": -0.729},</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t509" href="#t509">509</a></span><span class="t"><span class="str">                "MultiTimeframe": {"action": "hold", "confidence": 0.500, "encoded": 0.0}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t510" href="#t510">510</a></span><span class="t"><span class="str">            }</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t511" href="#t511">511</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t512" href="#t512">512</a></span><span class="t"><span class="str">        Note:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t513" href="#t513">513</a></span><span class="t"><span class="str">            - encoded: action &#215; confidence &#12456;&#12531;&#12467;&#12540;&#12487;&#12451;&#12531;&#12464;&#65288;buy=+1, hold=0, sell=-1&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t514" href="#t514">514</a></span><span class="t"><span class="str">            - ML&#12398;&#29305;&#24500;&#37327;&#29983;&#25104;&#12395;&#20351;&#29992;&#12373;&#12428;&#12427;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t515" href="#t515">515</a></span><span class="t"><span class="str">            - &#24460;&#26041;&#20114;&#25563;&#24615;: &#26082;&#23384;&#12398;analyze_market()&#12395;&#12399;&#24433;&#38911;&#12394;&#12375;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t516" href="#t516">516</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t517" href="#t517">517</a></span><span class="t">        <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t518" href="#t518">518</a></span><span class="t">            <span class="com"># &#26082;&#23384;&#12398;_collect_all_signals()&#12434;&#20877;&#21033;&#29992;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t519" href="#t519">519</a></span><span class="t">            <span class="nam">strategy_signals</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_collect_all_signals</span><span class="op">(</span><span class="nam">df</span><span class="op">,</span> <span class="nam">multi_timeframe_data</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t520" href="#t520">520</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t521" href="#t521">521</a></span><span class="t">            <span class="com"># ML&#29992;&#12395;&#22793;&#25563;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t522" href="#t522">522</a></span><span class="t">            <span class="nam">result</span> <span class="op">=</span> <span class="op">{</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t523" href="#t523">523</a></span><span class="t">            <span class="key">for</span> <span class="nam">strategy_name</span><span class="op">,</span> <span class="nam">signal</span> <span class="key">in</span> <span class="nam">strategy_signals</span><span class="op">.</span><span class="nam">items</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t524" href="#t524">524</a></span><span class="t">                <span class="com"># action &#215; confidence &#12456;&#12531;&#12467;&#12540;&#12487;&#12451;&#12531;&#12464;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t525" href="#t525">525</a></span><span class="t">                <span class="key">if</span> <span class="nam">signal</span><span class="op">.</span><span class="nam">action</span> <span class="op">==</span> <span class="str">"buy"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t526" href="#t526">526</a></span><span class="t">                    <span class="nam">encoded</span> <span class="op">=</span> <span class="nam">signal</span><span class="op">.</span><span class="nam">confidence</span>  <span class="com"># +1 * confidence</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t527" href="#t527">527</a></span><span class="t">                <span class="key">elif</span> <span class="nam">signal</span><span class="op">.</span><span class="nam">action</span> <span class="op">==</span> <span class="str">"sell"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t528" href="#t528">528</a></span><span class="t">                    <span class="nam">encoded</span> <span class="op">=</span> <span class="op">-</span><span class="nam">signal</span><span class="op">.</span><span class="nam">confidence</span>  <span class="com"># -1 * confidence</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t529" href="#t529">529</a></span><span class="t">                <span class="key">else</span><span class="op">:</span>  <span class="com"># hold</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t530" href="#t530">530</a></span><span class="t">                    <span class="nam">encoded</span> <span class="op">=</span> <span class="num">0.0</span>  <span class="com"># 0 * confidence</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t531" href="#t531">531</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t532" href="#t532">532</a></span><span class="t">                <span class="nam">result</span><span class="op">[</span><span class="nam">strategy_name</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t533" href="#t533">533</a></span><span class="t">                    <span class="str">"action"</span><span class="op">:</span> <span class="nam">signal</span><span class="op">.</span><span class="nam">action</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t534" href="#t534">534</a></span><span class="t">                    <span class="str">"confidence"</span><span class="op">:</span> <span class="nam">signal</span><span class="op">.</span><span class="nam">confidence</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">                    <span class="str">"encoded"</span><span class="op">:</span> <span class="nam">encoded</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t">                <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">debug</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">                <span class="fst">f"</span><span class="fst">&#20491;&#21029;&#25126;&#30053;&#12471;&#12464;&#12490;&#12523;&#21462;&#24471;&#23436;&#20102;: </span><span class="op">{</span><span class="nam">len</span><span class="op">(</span><span class="nam">result</span><span class="op">)</span><span class="op">}</span><span class="fst">&#25126;&#30053; </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t">                <span class="fst">f"</span><span class="fst">(BUY=</span><span class="op">{</span><span class="nam">sum</span><span class="op">(</span><span class="num">1</span> <span class="key">for</span> <span class="nam">s</span> <span class="key">in</span> <span class="nam">result</span><span class="op">.</span><span class="nam">values</span><span class="op">(</span><span class="op">)</span> <span class="key">if</span> <span class="nam">s</span><span class="op">[</span><span class="str">'action'</span><span class="op">]</span> <span class="op">==</span> <span class="str">'buy'</span><span class="op">)</span><span class="op">}</span><span class="fst">, </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t">                <span class="fst">f"</span><span class="fst">SELL=</span><span class="op">{</span><span class="nam">sum</span><span class="op">(</span><span class="num">1</span> <span class="key">for</span> <span class="nam">s</span> <span class="key">in</span> <span class="nam">result</span><span class="op">.</span><span class="nam">values</span><span class="op">(</span><span class="op">)</span> <span class="key">if</span> <span class="nam">s</span><span class="op">[</span><span class="str">'action'</span><span class="op">]</span> <span class="op">==</span> <span class="str">'sell'</span><span class="op">)</span><span class="op">}</span><span class="fst">, </span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t542" href="#t542">542</a></span><span class="t">                <span class="fst">f"</span><span class="fst">HOLD=</span><span class="op">{</span><span class="nam">sum</span><span class="op">(</span><span class="num">1</span> <span class="key">for</span> <span class="nam">s</span> <span class="key">in</span> <span class="nam">result</span><span class="op">.</span><span class="nam">values</span><span class="op">(</span><span class="op">)</span> <span class="key">if</span> <span class="nam">s</span><span class="op">[</span><span class="str">'action'</span><span class="op">]</span> <span class="op">==</span> <span class="str">'hold'</span><span class="op">)</span><span class="op">}</span><span class="fst">)</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t543" href="#t543">543</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t544" href="#t544">544</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t545" href="#t545">545</a></span><span class="t">            <span class="key">return</span> <span class="nam">result</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t546" href="#t546">546</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t547" href="#t547">547</a></span><span class="t">        <span class="key">except</span> <span class="nam">Exception</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t548" href="#t548">548</a></span><span class="t">            <span class="nam">self</span><span class="op">.</span><span class="nam">logger</span><span class="op">.</span><span class="nam">error</span><span class="op">(</span><span class="fst">f"</span><span class="fst">&#20491;&#21029;&#25126;&#30053;&#12471;&#12464;&#12490;&#12523;&#21462;&#24471;&#12456;&#12521;&#12540;: </span><span class="op">{</span><span class="nam">e</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t549" href="#t549">549</a></span><span class="t">            <span class="com"># &#12456;&#12521;&#12540;&#26178;&#12399;&#31354;&#36766;&#26360;&#12434;&#36820;&#12377;&#65288;&#24460;&#26041;&#20114;&#25563;&#24615;&#65289;</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t550" href="#t550">550</a></span><span class="t">            <span class="key">return</span> <span class="op">{</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -579,7 +639,7 @@
             <a class="nav" href="z_93f8678435bd503b___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-10-13 07:00 +0900
+            created at 2025-10-16 23:49 +0900
         </p>
     </div>
 </footer>

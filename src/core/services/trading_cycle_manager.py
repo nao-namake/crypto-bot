@@ -1,5 +1,5 @@
 """
-取引サイクルマネージャー - Phase 38.4完了版
+取引サイクルマネージャー - Phase 41.8.5完了版
 
 orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行の
@@ -10,6 +10,8 @@ Phase 29.5: ML予測統合実装（戦略70% + ML30%）
 Phase 35: バックテスト最適化（特徴量事前計算・ML予測キャッシュ・ログ最適化）
 Phase 38: trading層レイヤードアーキテクチャ実装完了
 Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 41.8: Strategy-Aware ML実装（戦略シグナル→特徴量統合・50→55特徴量・実戦略信号学習）
+Phase 41.8.5: ML統合閾値最適化（3段階統合ロジック・min_ml_confidence: 0.45・ML統合率100%達成）
 """
 
 from __future__ import annotations
@@ -66,13 +68,22 @@ class TradingCycleManager:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
 
-            # Phase 3: 特徴量生成
+            # Phase 3: 特徴量生成（50特徴量）
             features, main_features = await self._generate_features(market_data)
 
             # Phase 4: 戦略評価（Phase 31: マルチタイムフレーム対応）
             strategy_signal = await self._evaluate_strategy(main_features, features)
 
-            # Phase 5: ML予測
+            # Phase 41: 個別戦略シグナル取得
+            strategy_signals = await self._get_individual_strategy_signals(main_features, features)
+
+            # Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
+            if strategy_signals:
+                main_features = await self._add_strategy_signal_features(
+                    main_features, strategy_signals
+                )
+
+            # Phase 5: ML予測（Phase 41: 55特徴量対応）
             ml_prediction = await self._get_ml_prediction(main_features)
 
             # Phase 6: 追加情報取得（リスク管理のため）
@@ -86,6 +97,8 @@ class TradingCycleManager:
             # Phase 8: 注文実行
             await self._execute_approved_trades(trade_evaluation, cycle_id)
             await self._check_stop_conditions(cycle_id)
+            # Phase 42.2: トレーリングストップ監視
+            await self._monitor_trailing_stop(market_data, cycle_id)
 
         except ValueError as e:
             await self._handle_value_error(e, cycle_id)
@@ -187,6 +200,86 @@ class TradingCycleManager:
                 pd.DataFrame(), f"戦略評価エラー: {e}"
             )
 
+    async def _get_individual_strategy_signals(self, main_features, all_features):
+        """
+        Phase 41: 個別戦略シグナル取得（ML特徴量用）
+
+        各戦略の個別判断を取得し、ML特徴量として使用するための
+        エンコードされたシグナルを返します。
+
+        Args:
+            main_features: メインタイムフレーム特徴量
+            all_features: 全タイムフレーム特徴量
+
+        Returns:
+            Dict: 個別戦略シグナル辞書
+                例: {"ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678}}
+        """
+        try:
+            if main_features.empty:
+                self.logger.debug("Phase 41: 特徴量不足により個別戦略シグナル取得スキップ")
+                return {}
+
+            # StrategyManager.get_individual_strategy_signals() を呼び出し
+            strategy_signals = self.orchestrator.strategy_service.get_individual_strategy_signals(
+                main_features, multi_timeframe_data=all_features
+            )
+
+            if strategy_signals:
+                self.logger.info(
+                    f"✅ Phase 41: 個別戦略シグナル取得完了 - {len(strategy_signals)}戦略"
+                )
+                return strategy_signals
+            else:
+                self.logger.warning("Phase 41: 個別戦略シグナルが空です")
+                return {}
+
+        except Exception as e:
+            self.logger.error(f"Phase 41: 個別戦略シグナル取得エラー: {e}")
+            return {}
+
+    async def _add_strategy_signal_features(self, main_features, strategy_signals):
+        """
+        Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
+
+        個別戦略シグナルをDataFrameに特徴量として追加します。
+
+        Args:
+            main_features: 既存の特徴量DataFrame（50特徴量）
+            strategy_signals: 個別戦略シグナル辞書
+
+        Returns:
+            pd.DataFrame: 戦略シグナル特徴量が追加されたDataFrame（55特徴量）
+        """
+        try:
+            if main_features.empty or not strategy_signals:
+                self.logger.warning("Phase 41: 特徴量追加スキップ（データ不足）")
+                return main_features
+
+            # FeatureGenerator._add_strategy_signal_features() を使用
+            updated_features = self.orchestrator.feature_service._add_strategy_signal_features(
+                main_features, strategy_signals
+            )
+
+            if updated_features is not None and not updated_features.empty:
+                # 特徴量数確認
+                original_count = len(main_features.columns)
+                updated_count = len(updated_features.columns)
+                added_count = updated_count - original_count
+
+                self.logger.info(
+                    f"✅ Phase 41: 戦略シグナル特徴量追加完了 - "
+                    f"{original_count}→{updated_count}特徴量（+{added_count}個）"
+                )
+                return updated_features
+            else:
+                self.logger.warning("Phase 41: 特徴量追加失敗 - 元の特徴量を使用")
+                return main_features
+
+        except Exception as e:
+            self.logger.error(f"Phase 41: 戦略シグナル特徴量追加エラー: {e} - 元の特徴量を使用")
+            return main_features
+
     async def _get_ml_prediction(self, main_features):
         """Phase 5: ML予測（Phase 35.4: バックテスト時はキャッシュ使用）"""
         try:
@@ -212,10 +305,29 @@ class TradingCycleManager:
                 available_features = [
                     col for col in features_to_use if col in main_features.columns
                 ]
+                # Phase 42.3.2: Phase 41で後から追加される戦略シグナル特徴量は警告から除外
                 if len(available_features) != len(features_to_use):
-                    self.logger.warning(
-                        f"特徴量不足検出: {len(available_features)}/{len(features_to_use)}個"
-                    )
+                    missing_features = [
+                        f for f in features_to_use if f not in main_features.columns
+                    ]
+                    # strategy_signal_* は Phase 41 で後から追加されるため、実際の不足としてカウントしない
+                    strategy_signal_features = [
+                        f for f in missing_features if f.startswith("strategy_signal_")
+                    ]
+                    real_missing = [
+                        f for f in missing_features if not f.startswith("strategy_signal_")
+                    ]
+
+                    # 実際に不足している特徴量（戦略シグナル以外）のみ警告
+                    if real_missing:
+                        self.logger.warning(
+                            f"🚨 特徴量不足検出: {len(real_missing)}/{len(features_to_use)}個 - {real_missing[:5]}"
+                        )
+                    elif strategy_signal_features:
+                        # 戦略シグナル特徴量のみが不足している場合はDEBUGレベル（Phase 41で追加予定）
+                        self.logger.debug(
+                            f"Phase 41: 戦略シグナル特徴量は後で追加されます（{len(strategy_signal_features)}個）"
+                        )
 
                 main_features_for_ml = main_features[available_features]
                 self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
@@ -430,10 +542,10 @@ class TradingCycleManager:
                 f"ML={ml_action}({ml_confidence:.3f})"
             )
 
-            # 一致・不一致判定
-            is_agreement = (ml_action == strategy_action) or (
-                ml_action == "hold" and strategy_action in ["buy", "sell"]
-            )
+            # 一致・不一致判定（Phase 42.3.1: hold予測は厳密な一致のみ認定）
+            # 修正前: holdをあらゆる方向性シグナルと一致扱い（バグ）
+            # 修正後: 厳密な一致のみ（ML=buy+戦略=buy、ML=sell+戦略=sell、ML=hold+戦略=hold）
+            is_agreement = ml_action == strategy_action
 
             # 統合重み取得
             ml_weight = get_threshold("ml.strategy_integration.ml_weight", 0.3)
@@ -621,6 +733,56 @@ class TradingCycleManager:
                 )
         except Exception as e:
             self.logger.error(f"ストップ条件チェックエラー: {e}")
+
+    async def _monitor_trailing_stop(self, market_data, cycle_id):
+        """
+        Phase 42.2: トレーリングストップ監視
+
+        含み益が一定水準に達した場合、トレーリングストップを更新する。
+
+        Args:
+            market_data: 市場データ（マルチタイムフレーム）
+            cycle_id: 取引サイクルID
+        """
+        try:
+            # トレーリングストップ設定確認
+            trailing_config = get_threshold("position_management.stop_loss.trailing", {})
+            if not trailing_config.get("enabled", False):
+                return  # トレーリングストップ無効時はスキップ
+
+            # 現在価格を取得
+            from ..config import get_data_config
+
+            main_timeframe = get_data_config("timeframes", ["4h", "15m"])[0]
+
+            if (
+                isinstance(market_data, dict)
+                and main_timeframe in market_data
+                and not market_data[main_timeframe].empty
+            ):
+                current_price = float(market_data[main_timeframe]["close"].iloc[-1])
+            else:
+                self.logger.debug("Phase 42.2: トレーリングストップ監視スキップ（価格取得不可）")
+                return
+
+            # ExecutionServiceのmonitor_trailing_conditionsを呼び出し
+            result = await self.orchestrator.execution_service.monitor_trailing_conditions(
+                current_price=current_price
+            )
+
+            # トレーリング発動時のログ
+            if result.get("trailing_activated"):
+                self.logger.info(
+                    f"🔄 Phase 42.2: トレーリングストップ更新完了 - サイクル: {cycle_id}, "
+                    f"新SL価格: {result['new_sl_price']:.0f}円",
+                    discord_notify=True,
+                )
+
+        except Exception as e:
+            # トレーリングストップ監視エラーは致命的ではないのでDEBUGレベル
+            self.logger.debug(
+                f"Phase 42.2: トレーリングストップ監視エラー - サイクル: {cycle_id}: {e}"
+            )
 
     async def _handle_value_error(self, e, cycle_id):
         """ValueError処理"""

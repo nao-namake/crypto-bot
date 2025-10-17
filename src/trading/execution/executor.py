@@ -77,6 +77,7 @@ class ExecutionService:
         self.stop_manager = None
         self.position_limits = None
         self.balance_monitor = None
+        self.position_tracker = None  # Phase 42: 統合TP/SL用ポジション追跡
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
@@ -346,8 +347,9 @@ class ExecutionService:
             }
             self.virtual_positions.append(live_position)
 
-            # TP/SL注文配置（StopManagerに委譲）
-            # Phase 37.5.5: 再計算されたTP/SL価格を使用
+            # Phase 42: TP/SL配置モード判定（individual/consolidated）
+            tp_sl_mode = get_threshold("position_management.tp_sl_mode", "individual")
+
             if self.stop_manager and final_tp and final_sl:
                 # evaluationを再計算値で更新（immutable対応）
                 if hasattr(evaluation, "__dict__"):
@@ -356,14 +358,21 @@ class ExecutionService:
                 else:
                     evaluation = replace(evaluation, take_profit=final_tp, stop_loss=final_sl)
 
-                tp_sl_result = await self.stop_manager.place_tp_sl_orders(
-                    evaluation, side, amount, symbol, self.bitbank_client
-                )
-                # TP/SL注文IDをポジションに追加
-                if tp_sl_result.get("tp_order_id"):
-                    live_position["tp_order_id"] = tp_sl_result["tp_order_id"]
-                if tp_sl_result.get("sl_order_id"):
-                    live_position["sl_order_id"] = tp_sl_result["sl_order_id"]
+                if tp_sl_mode == "consolidated" and self.position_tracker and self.order_strategy:
+                    # Phase 42: 統合TP/SLモード
+                    await self._handle_consolidated_tp_sl(
+                        live_position, evaluation, side, amount, symbol, actual_filled_price
+                    )
+                else:
+                    # 従来の個別TP/SLモード
+                    tp_sl_result = await self.stop_manager.place_tp_sl_orders(
+                        evaluation, side, amount, symbol, self.bitbank_client
+                    )
+                    # TP/SL注文IDをポジションに追加
+                    if tp_sl_result.get("tp_order_id"):
+                        live_position["tp_order_id"] = tp_sl_result["tp_order_id"]
+                    if tp_sl_result.get("sl_order_id"):
+                        live_position["sl_order_id"] = tp_sl_result["sl_order_id"]
 
             return result
 
@@ -437,6 +446,60 @@ class ExecutionService:
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
             }
             self.virtual_positions.append(virtual_position)
+
+            # Phase 42: ペーパートレードでも統合TP/SL対応（整合性維持）
+            tp_sl_mode = get_threshold("position_management.tp_sl_mode", "individual")
+            if (
+                tp_sl_mode == "consolidated"
+                and self.position_tracker
+                and self.order_strategy
+                and virtual_position.get("take_profit")
+                and virtual_position.get("stop_loss")
+            ):
+                try:
+                    self.logger.info("🔄 Phase 42: ペーパートレード統合TP/SL処理")
+
+                    # PositionTrackerにポジション追加
+                    self.position_tracker.add_position(
+                        order_id=virtual_order_id,
+                        side=side,
+                        amount=amount,
+                        price=price,
+                        take_profit=virtual_position["take_profit"],
+                        stop_loss=virtual_position["stop_loss"],
+                        strategy_name=virtual_position["strategy_name"],
+                    )
+
+                    # 平均価格更新
+                    new_average_price = self.position_tracker.update_average_on_entry(price, amount)
+                    total_size = self.position_tracker._total_position_size
+
+                    # 統合TP/SL価格計算（ログ出力用）
+                    market_conditions = getattr(evaluation, "market_conditions", {})
+                    new_tp_sl = self.order_strategy.calculate_consolidated_tp_sl_prices(
+                        average_entry_price=new_average_price,
+                        side=side,
+                        market_conditions=market_conditions,
+                    )
+
+                    self.logger.info(
+                        f"📊 Phase 42: ペーパー統合TP/SL - 平均={new_average_price:.0f}円, "
+                        f"総数量={total_size:.6f} BTC, TP={new_tp_sl['take_profit_price']:.0f}円, "
+                        f"SL={new_tp_sl['stop_loss_price']:.0f}円"
+                    )
+
+                    # 仮想統合注文ID保存（ペーパーモード用）
+                    consolidated_tp_id = f"paper_tp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    consolidated_sl_id = f"paper_sl_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    self.position_tracker.set_consolidated_tp_sl_ids(
+                        tp_order_id=consolidated_tp_id,
+                        sl_order_id=consolidated_sl_id,
+                        tp_price=new_tp_sl["take_profit_price"],
+                        sl_price=new_tp_sl["stop_loss_price"],
+                        side=side,
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ ペーパー統合TP/SL処理エラー: {e}")
 
             # 統計更新
             self.executed_trades += 1
@@ -576,6 +639,7 @@ class ExecutionService:
         stop_manager: Optional[Any] = None,
         position_limits: Optional[Any] = None,
         balance_monitor: Optional[Any] = None,
+        position_tracker: Optional[Any] = None,
     ) -> None:
         """
         関連サービスを注入
@@ -585,6 +649,7 @@ class ExecutionService:
             stop_manager: StopManagerインスタンス
             position_limits: PositionLimitsインスタンス
             balance_monitor: BalanceMonitorインスタンス
+            position_tracker: PositionTrackerインスタンス (Phase 42)
         """
         if order_strategy:
             self.order_strategy = order_strategy
@@ -594,6 +659,336 @@ class ExecutionService:
             self.position_limits = position_limits
         if balance_monitor:
             self.balance_monitor = balance_monitor
+        if position_tracker:
+            self.position_tracker = position_tracker
+
+    async def _handle_consolidated_tp_sl(
+        self,
+        live_position: Dict[str, Any],
+        evaluation: TradeEvaluation,
+        side: str,
+        amount: float,
+        symbol: str,
+        entry_price: float,
+    ) -> None:
+        """
+        Phase 42: 統合TP/SL処理（エントリー時）
+
+        新規エントリー時に平均価格を再計算し、既存TP/SLをキャンセルして
+        新しい統合TP/SL注文を配置する。
+
+        Args:
+            live_position: 現在のポジション情報
+            evaluation: 取引評価結果
+            side: 注文サイド (buy/sell)
+            amount: 数量
+            symbol: 取引ペア
+            entry_price: エントリー価格
+        """
+        try:
+            self.logger.info("🔄 Phase 42: 統合TP/SL処理開始")
+
+            # 1. PositionTrackerにポジション追加
+            tp_price = getattr(evaluation, "take_profit", None)
+            sl_price = getattr(evaluation, "stop_loss", None)
+            strategy_name = getattr(evaluation, "strategy_name", "unknown")
+
+            self.position_tracker.add_position(
+                order_id=live_position["order_id"],
+                side=side,
+                amount=amount,
+                price=entry_price,
+                take_profit=tp_price,
+                stop_loss=sl_price,
+                strategy_name=strategy_name,
+            )
+
+            # 2. 平均エントリー価格を更新
+            new_average_price = self.position_tracker.update_average_on_entry(entry_price, amount)
+            total_position_size = self.position_tracker._total_position_size
+
+            self.logger.info(
+                f"📊 平均価格更新完了: {new_average_price:.0f}円 "
+                f"(総数量: {total_position_size:.6f} BTC)"
+            )
+
+            # 3. 既存の統合TP/SL注文IDを取得
+            existing_ids = self.position_tracker.get_consolidated_tp_sl_ids()
+            existing_tp_id = existing_ids.get("tp_order_id")
+            existing_sl_id = existing_ids.get("sl_order_id")
+
+            # 4. 既存TP/SL注文をキャンセル（存在する場合）
+            if existing_tp_id or existing_sl_id:
+                consolidate_on_new_entry = get_threshold(
+                    "position_management.consolidated.consolidate_on_new_entry", True
+                )
+                if consolidate_on_new_entry:
+                    self.logger.info(
+                        f"🗑️ 既存統合TP/SL注文キャンセル開始: TP={existing_tp_id}, SL={existing_sl_id}"
+                    )
+                    cancel_result = await self.stop_manager.cancel_existing_tp_sl(
+                        tp_order_id=existing_tp_id,
+                        sl_order_id=existing_sl_id,
+                        symbol=symbol,
+                        bitbank_client=self.bitbank_client,
+                    )
+                    self.logger.info(
+                        f"✅ 既存TP/SLキャンセル完了: {cancel_result['cancelled_count']}件"
+                    )
+
+            # 5. 市場条件を取得（適応型ATR倍率用）
+            market_conditions = getattr(evaluation, "market_conditions", {})
+
+            # 6. 平均価格ベースで新しいTP/SL価格を計算
+            new_tp_sl_prices = self.order_strategy.calculate_consolidated_tp_sl_prices(
+                average_entry_price=new_average_price,
+                side=side,
+                market_conditions=market_conditions,
+            )
+
+            new_tp_price = new_tp_sl_prices["take_profit_price"]
+            new_sl_price = new_tp_sl_prices["stop_loss_price"]
+
+            self.logger.info(
+                f"🎯 新規統合TP/SL価格計算完了: "
+                f"平均={new_average_price:.0f}円, TP={new_tp_price:.0f}円, SL={new_sl_price:.0f}円"
+            )
+
+            # 7. 新しい統合TP/SL注文を配置
+            place_result = await self.stop_manager.place_consolidated_tp_sl(
+                average_price=new_average_price,
+                total_amount=total_position_size,
+                side=side,
+                take_profit_price=new_tp_price,
+                stop_loss_price=new_sl_price,
+                symbol=symbol,
+                bitbank_client=self.bitbank_client,
+            )
+
+            # 8. 新しいTP/SL注文IDをPositionTrackerに保存
+            new_tp_id = place_result.get("tp_order_id")
+            new_sl_id = place_result.get("sl_order_id")
+
+            if new_tp_id or new_sl_id:
+                self.position_tracker.set_consolidated_tp_sl_ids(
+                    tp_order_id=new_tp_id,
+                    sl_order_id=new_sl_id,
+                    tp_price=new_tp_price,
+                    sl_price=new_sl_price,
+                    side=side,
+                )
+                self.logger.info(
+                    f"✅ Phase 42: 統合TP/SL配置完了 - TP: {new_tp_id}, SL: {new_sl_id}"
+                )
+
+                # ポジションにも記録（後方互換性維持）
+                if new_tp_id:
+                    live_position["tp_order_id"] = new_tp_id
+                if new_sl_id:
+                    live_position["sl_order_id"] = new_sl_id
+            else:
+                self.logger.warning("⚠️ Phase 42: 統合TP/SL注文ID取得失敗")
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 42: 統合TP/SL処理エラー: {e}", exc_info=True)
+            # エラー時は個別TP/SLにフォールバック
+            self.logger.warning("⚠️ 個別TP/SLモードにフォールバック")
+            try:
+                tp_sl_result = await self.stop_manager.place_tp_sl_orders(
+                    evaluation, side, amount, symbol, self.bitbank_client
+                )
+                if tp_sl_result.get("tp_order_id"):
+                    live_position["tp_order_id"] = tp_sl_result["tp_order_id"]
+                if tp_sl_result.get("sl_order_id"):
+                    live_position["sl_order_id"] = tp_sl_result["sl_order_id"]
+            except Exception as fallback_error:
+                self.logger.error(f"❌ フォールバックTP/SL配置も失敗: {fallback_error}")
+
+    # ========================================
+    # Phase 42.2: トレーリングストップ用メソッド
+    # ========================================
+
+    async def monitor_trailing_conditions(
+        self,
+        current_price: float,
+    ) -> Dict[str, Any]:
+        """
+        Phase 42.2: トレーリングストップ条件監視
+
+        含み益が一定水準に達した場合、トレーリングストップを更新する。
+        TP超過時はTPをキャンセルして追従を継続する。
+
+        Args:
+            current_price: 現在のBTC価格
+
+        Returns:
+            Dict: {"trailing_activated": bool, "new_sl_price": float, ...}
+        """
+        try:
+            # トレーリングストップ設定確認
+            trailing_config = get_threshold("position_management.stop_loss.trailing", {})
+
+            if not trailing_config.get("enabled", False):
+                return {"trailing_activated": False}
+
+            # 必要なサービスの存在確認
+            if not self.position_tracker or not self.stop_manager or not self.bitbank_client:
+                self.logger.debug("⚠️ トレーリングストップ必要サービス未注入のためスキップ")
+                return {"trailing_activated": False}
+
+            # 統合TP/SL IDを取得
+            consolidated_ids = self.position_tracker.get_consolidated_tp_sl_ids()
+            existing_tp_id = consolidated_ids.get("tp_order_id")
+            existing_sl_id = consolidated_ids.get("sl_order_id")
+
+            # SL注文が存在しない場合はスキップ
+            if not existing_sl_id:
+                return {"trailing_activated": False}
+
+            # ポジション情報を取得
+            if self.position_tracker.get_position_count() == 0:
+                return {"trailing_activated": False}
+
+            average_entry_price = self.position_tracker._average_entry_price
+            total_amount = self.position_tracker._total_position_size
+            side = self.position_tracker._side
+
+            # 現在のSL価格を取得（PositionTrackerから）
+            # Phase 42.2: consolidated_sl_priceを追加する必要がある
+            # 暫定的に計算で求める
+            current_sl_price = consolidated_ids.get("sl_price", 0)
+            if current_sl_price == 0:
+                # SL価格が保存されていない場合は、初期配置時の値を使用
+                self.logger.debug("⚠️ 現在SL価格取得不可のためスキップ")
+                return {"trailing_activated": False}
+
+            symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
+
+            # トレーリングストップ更新
+            result = await self.stop_manager.update_trailing_stop_loss(
+                current_price=current_price,
+                average_entry_price=average_entry_price,
+                current_sl_price=current_sl_price,
+                side=side,
+                symbol=symbol,
+                total_amount=total_amount,
+                bitbank_client=self.bitbank_client,
+                existing_tp_id=existing_tp_id,
+                existing_sl_id=existing_sl_id,
+            )
+
+            # トレーリング発動時の処理
+            if result.get("trailing_activated"):
+                # PositionTrackerに新しいSL IDと価格を保存
+                new_sl_id = result.get("new_sl_order_id")
+                new_sl_price = result.get("new_sl_price")
+                if new_sl_id:
+                    # TP価格は変更なし（既存値を維持）
+                    existing_tp_price = consolidated_ids.get("tp_price", 0)
+                    self.position_tracker.set_consolidated_tp_sl_ids(
+                        tp_order_id=existing_tp_id,  # TPはそのまま
+                        sl_order_id=new_sl_id,  # 新しいSL ID
+                        tp_price=existing_tp_price,  # TP価格は維持
+                        sl_price=new_sl_price,  # 新しいSL価格
+                        side=side,
+                    )
+
+                # Phase 42.2: TP超過チェック（TPキャンセル処理）
+                cancel_tp_when_exceeds = trailing_config.get("cancel_tp_when_exceeds", True)
+                if cancel_tp_when_exceeds:
+                    await self._cancel_tp_when_trailing_exceeds(
+                        new_sl_price=result["new_sl_price"],
+                        existing_tp_id=existing_tp_id,
+                        side=side,
+                        symbol=symbol,
+                    )
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"❌ トレーリングストップ監視エラー: {e}", exc_info=True)
+            return {"trailing_activated": False}
+
+    async def _cancel_tp_when_trailing_exceeds(
+        self,
+        new_sl_price: float,
+        existing_tp_id: Optional[str],
+        side: str,
+        symbol: str,
+    ) -> None:
+        """
+        Phase 42.2: トレーリングSLがTPを超えた場合にTPをキャンセル
+
+        利益最大化のため、トレーリングSLがTPを超えたらTPをキャンセルして
+        さらなる上昇を追従する。
+
+        Args:
+            new_sl_price: 新しいSL価格
+            existing_tp_id: 既存TP注文ID
+            side: 注文サイド (buy/sell)
+            symbol: 取引ペア
+        """
+        try:
+            if not existing_tp_id:
+                return
+
+            # TP価格を取得（PositionTrackerから）
+            consolidated_ids = self.position_tracker.get_consolidated_tp_sl_ids()
+            tp_price = consolidated_ids.get("tp_price", 0)
+
+            if tp_price == 0:
+                self.logger.debug("⚠️ TP価格取得不可のためTPキャンセルスキップ")
+                return
+
+            # SLがTPを超えたかチェック
+            tp_exceeded = False
+            if side.lower() == "buy" and new_sl_price >= tp_price:
+                tp_exceeded = True
+                self.logger.info(
+                    f"🔄 Phase 42.2: 買いポジションでSLがTP超過 - "
+                    f"SL={new_sl_price:.0f}円 >= TP={tp_price:.0f}円"
+                )
+            elif side.lower() == "sell" and new_sl_price <= tp_price:
+                tp_exceeded = True
+                self.logger.info(
+                    f"🔄 Phase 42.2: 売りポジションでSLがTP超過 - "
+                    f"SL={new_sl_price:.0f}円 <= TP={tp_price:.0f}円"
+                )
+
+            if tp_exceeded:
+                # TPをキャンセル
+                try:
+                    await asyncio.to_thread(
+                        self.bitbank_client.cancel_order, existing_tp_id, symbol
+                    )
+                    self.logger.info(
+                        f"✅ Phase 42.2: トレーリングSL がTP超過のためTPキャンセル完了: {existing_tp_id}",
+                        extra_data={
+                            "tp_order_id": existing_tp_id,
+                            "new_sl_price": new_sl_price,
+                            "tp_price": tp_price,
+                        },
+                        discord_notify=True,
+                    )
+
+                    # PositionTrackerからTP ID・価格を削除
+                    self.position_tracker.set_consolidated_tp_sl_ids(
+                        tp_order_id=None,  # TPをクリア
+                        sl_order_id=consolidated_ids.get("sl_order_id"),  # SLはそのまま
+                        tp_price=0.0,  # TP価格をクリア
+                        sl_price=new_sl_price,  # SL価格は維持
+                        side=side,
+                    )
+
+                except Exception as e:
+                    self.logger.error(
+                        f"❌ Phase 42.2: TPキャンセル失敗: {e}",
+                        extra_data={"error_message": str(e)},
+                        discord_notify=True,
+                    )
+
+        except Exception as e:
+            self.logger.error(f"❌ TP超過チェックエラー: {e}", exc_info=True)
 
     async def check_stop_conditions(self) -> Optional[ExecutionResult]:
         """

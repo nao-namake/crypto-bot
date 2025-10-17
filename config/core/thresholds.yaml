@@ -18,10 +18,10 @@ ml:
     enabled: true
     ml_weight: 0.3
     strategy_weight: 0.7
-    high_confidence_threshold: 0.8
+    high_confidence_threshold: 0.60
     agreement_bonus: 1.2
     disagreement_penalty: 0.7
-    min_ml_confidence: 0.6
+    min_ml_confidence: 0.45
     hold_conversion_threshold: 0.4
   dynamic_confidence:
     base_hold: 0.35
@@ -330,6 +330,14 @@ position_management:
       ratio: 0.01
       override_atr: false
       min_atr_multiplier: 1.5
+    # Phase 42.2: トレーリングストップ設定（Bybit/Binance準拠・本システム最適化）
+    trailing:
+      enabled: true  # Phase 42.3: 有効化（含み益保護・-450円損失防止）
+      activation_profit: 0.02  # 2%含み益でトレーリング開始
+      trailing_percent: 0.03  # 3%距離（Bybit/Binance標準・TP2.5%対応最適化）
+      min_update_distance: 200  # 200円（ノイズ防止）
+      min_profit_lock: 0.005  # 0.5%最低利益保証（SLがentry+0.5%を下回らない）
+      cancel_tp_when_exceeds: true  # トレーリングSLがTP超過時にTPキャンセル
 margin:
   position_value_estimation_ratio: 0.8
 order_execution:

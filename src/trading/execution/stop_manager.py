@@ -875,3 +875,428 @@ class StopManager:
         except Exception as e:
             self.logger.error(f"❌ 価格変動チェックエラー: {e}")
             return None
+
+    # ========================================
+    # Phase 42: 統合TP/SL用メソッド
+    # ========================================
+
+    async def cancel_existing_tp_sl(
+        self,
+        tp_order_id: Optional[str],
+        sl_order_id: Optional[str],
+        symbol: str,
+        bitbank_client: BitbankClient,
+    ) -> Dict[str, Any]:
+        """
+        既存TP/SL注文キャンセル（Phase 42）
+
+        新規TP/SL配置前に既存の統合TP/SL注文をキャンセルする。
+
+        Args:
+            tp_order_id: TP注文ID
+            sl_order_id: SL注文ID
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            Dict: {"cancelled_count": int, "errors": List[str]}
+        """
+        cancelled_count = 0
+        errors = []
+
+        try:
+            # TP注文キャンセル
+            if tp_order_id:
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
+                    cancelled_count += 1
+                    self.logger.info(f"✅ 統合TP注文キャンセル成功: {tp_order_id}")
+                except Exception as e:
+                    error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
+                    # 既にキャンセル済み・約定済みのエラーは警告レベル
+                    if "OrderNotFound" in str(e) or "not found" in str(e).lower():
+                        self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
+                    else:
+                        errors.append(error_msg)
+                        self.logger.warning(f"⚠️ {error_msg}")
+
+            # SL注文キャンセル
+            if sl_order_id:
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+                    cancelled_count += 1
+                    self.logger.info(f"✅ 統合SL注文キャンセル成功: {sl_order_id}")
+                except Exception as e:
+                    error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
+                    # 既にキャンセル済み・約定済みのエラーは警告レベル
+                    if "OrderNotFound" in str(e) or "not found" in str(e).lower():
+                        self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
+                    else:
+                        errors.append(error_msg)
+                        self.logger.warning(f"⚠️ {error_msg}")
+
+            return {"cancelled_count": cancelled_count, "errors": errors}
+
+        except Exception as e:
+            self.logger.error(f"❌ 統合TP/SLキャンセル処理エラー: {e}")
+            return {"cancelled_count": cancelled_count, "errors": [str(e)]}
+
+    async def place_consolidated_tp_sl(
+        self,
+        average_price: float,
+        total_amount: float,
+        side: str,
+        take_profit_price: float,
+        stop_loss_price: float,
+        symbol: str,
+        bitbank_client: BitbankClient,
+    ) -> Dict[str, Any]:
+        """
+        統合TP/SL配置（Phase 42・平均価格基準）
+
+        複数エントリーの平均価格に基づいて統合TP/SL注文を配置する。
+
+        Args:
+            average_price: 平均エントリー価格
+            total_amount: 総ポジションサイズ
+            side: 注文サイド (buy/sell)
+            take_profit_price: TP価格
+            stop_loss_price: SL価格
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            Dict: {"tp_order_id": str, "sl_order_id": str}
+        """
+        tp_order_id = None
+        sl_order_id = None
+
+        try:
+            # TP/SL設定が有効か確認
+            tp_config = get_threshold("position_management.take_profit", {})
+            sl_config = get_threshold("position_management.stop_loss", {})
+
+            self.logger.info(
+                f"📋 統合TP/SL配置試行（Phase 42）: "
+                f"平均価格={average_price:.0f}円, 総数量={total_amount:.6f} BTC, "
+                f"TP={take_profit_price:.0f}円, SL={stop_loss_price:.0f}円"
+            )
+
+            # テイクプロフィット配置
+            if tp_config.get("enabled", True) and take_profit_price > 0:
+                try:
+                    tp_order = bitbank_client.create_take_profit_order(
+                        entry_side=side,
+                        amount=total_amount,
+                        take_profit_price=take_profit_price,
+                        symbol=symbol,
+                    )
+                    tp_order_id = tp_order.get("id")
+                    self.logger.info(
+                        f"✅ 統合TP注文配置成功: {tp_order_id} @ {take_profit_price:.0f}円 "
+                        f"(数量: {total_amount:.6f} BTC)"
+                    )
+                except Exception as e:
+                    error_message = str(e)
+                    if "50061" in error_message:
+                        self.logger.error(
+                            f"❌ 統合TP注文配置失敗（残高不足）: エラーコード50061 - {error_message}"
+                        )
+                    else:
+                        self.logger.error(f"⚠️ 統合TP注文配置失敗: {e}")
+
+            # ストップロス配置
+            if sl_config.get("enabled", True) and stop_loss_price > 0:
+                try:
+                    sl_order = bitbank_client.create_stop_loss_order(
+                        entry_side=side,
+                        amount=total_amount,
+                        stop_loss_price=stop_loss_price,
+                        symbol=symbol,
+                    )
+                    sl_order_id = sl_order.get("id")
+                    self.logger.info(
+                        f"✅ 統合SL注文配置成功: {sl_order_id} @ {stop_loss_price:.0f}円 "
+                        f"(数量: {total_amount:.6f} BTC)",
+                        extra_data={
+                            "sl_order_id": sl_order_id,
+                            "trigger_price": stop_loss_price,
+                            "entry_side": side,
+                            "amount": total_amount,
+                        },
+                    )
+                except Exception as e:
+                    error_message = str(e)
+                    if "30101" in error_message:
+                        self.logger.error(
+                            f"❌ 統合SL注文配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}",
+                            discord_notify=True,
+                        )
+                    elif "50061" in error_message:
+                        self.logger.error(
+                            f"❌ 統合SL注文配置失敗（残高不足）: エラーコード50061 - {error_message}",
+                            discord_notify=True,
+                        )
+                    elif "50062" in error_message:
+                        self.logger.error(
+                            f"❌ 統合SL注文配置失敗（ポジション超過）: エラーコード50062 - {error_message}",
+                            discord_notify=True,
+                        )
+                    else:
+                        self.logger.error(
+                            f"⚠️ 統合SL注文配置失敗: {e}",
+                            discord_notify=True,
+                        )
+
+        except Exception as e:
+            self.logger.error(f"⚠️ 統合TP/SL配置処理エラー: {e}")
+
+        # 配置結果サマリー
+        if tp_order_id and sl_order_id:
+            self.logger.info(
+                f"✅ 統合TP/SL両方配置成功: TP={tp_order_id}, SL={sl_order_id}",
+                discord_notify=False,
+            )
+        elif tp_order_id:
+            self.logger.warning(
+                f"⚠️ 統合TPのみ配置: TP={tp_order_id}, SL配置失敗 - リスク管理不完全",
+                extra_data={"tp_order_id": tp_order_id, "sl_failed": True},
+                discord_notify=True,
+            )
+        elif sl_order_id:
+            self.logger.warning(
+                f"⚠️ 統合SLのみ配置: SL={sl_order_id}, TP配置失敗",
+                extra_data={"sl_order_id": sl_order_id, "tp_failed": True},
+            )
+        else:
+            self.logger.warning(
+                "⚠️ 統合TP/SL両方とも配置されませんでした",
+                discord_notify=True,
+            )
+
+        return {"tp_order_id": tp_order_id, "sl_order_id": sl_order_id}
+
+    # ========================================
+    # Phase 42.2: トレーリングストップ用メソッド
+    # ========================================
+
+    async def update_trailing_stop_loss(
+        self,
+        current_price: float,
+        average_entry_price: float,
+        current_sl_price: float,
+        side: str,
+        symbol: str,
+        total_amount: float,
+        bitbank_client: BitbankClient,
+        existing_tp_id: Optional[str],
+        existing_sl_id: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        トレーリングSL更新（Phase 42.2）
+
+        含み益が一定水準（activation_profit）に達したら、SL価格を自動的に引き上げて
+        利益を保護する。TPは変更しない。
+
+        Args:
+            current_price: 現在価格
+            average_entry_price: 平均エントリー価格
+            current_sl_price: 現在のSL価格
+            side: 注文サイド (buy/sell)
+            symbol: 通貨ペア
+            total_amount: 総ポジションサイズ
+            bitbank_client: BitbankClientインスタンス
+            existing_tp_id: 既存TP注文ID
+            existing_sl_id: 既存SL注文ID
+
+        Returns:
+            Dict: {
+                "trailing_activated": bool,
+                "new_sl_price": float,
+                "new_sl_order_id": str,
+                "unrealized_pnl_ratio": float
+            }
+        """
+        try:
+            # トレーリング設定取得
+            trailing_config = get_threshold("position_management.stop_loss.trailing", {})
+
+            if not trailing_config.get("enabled", False):
+                self.logger.debug("トレーリングストップ無効のためスキップ")
+                return {
+                    "trailing_activated": False,
+                    "new_sl_price": current_sl_price,
+                    "new_sl_order_id": existing_sl_id,
+                    "unrealized_pnl_ratio": 0.0,
+                }
+
+            # デフォルト値（Phase 42.2: 大手取引所準拠・本システム最適化）
+            activation_profit = trailing_config.get("activation_profit", 0.02)  # 2%
+            trailing_percent = trailing_config.get(
+                "trailing_percent", 0.03
+            )  # 3%（Bybit/Binance準拠）
+            min_update_distance = trailing_config.get(
+                "min_update_distance", 200
+            )  # 200円（ノイズ防止）
+            min_profit_lock = trailing_config.get("min_profit_lock", 0.005)  # 0.5%（最低利益保証）
+
+            # 含み益計算
+            if side.lower() == "buy":
+                unrealized_pnl_ratio = (current_price - average_entry_price) / average_entry_price
+            elif side.lower() == "sell":
+                unrealized_pnl_ratio = (average_entry_price - current_price) / average_entry_price
+            else:
+                self.logger.warning(f"⚠️ 不正なサイド: {side}")
+                return {
+                    "trailing_activated": False,
+                    "new_sl_price": current_sl_price,
+                    "new_sl_order_id": existing_sl_id,
+                    "unrealized_pnl_ratio": 0.0,
+                }
+
+            # トレーリング発動条件チェック
+            if unrealized_pnl_ratio < activation_profit:
+                self.logger.debug(
+                    f"トレーリング発動条件未達: 含み益{unrealized_pnl_ratio * 100:.2f}% < "
+                    f"発動閾値{activation_profit * 100:.0f}%"
+                )
+                return {
+                    "trailing_activated": False,
+                    "new_sl_price": current_sl_price,
+                    "new_sl_order_id": existing_sl_id,
+                    "unrealized_pnl_ratio": unrealized_pnl_ratio,
+                }
+
+            # 新しいSL価格計算（トレーリング幅分を現在価格から引く）
+            if side.lower() == "buy":
+                # 買いポジション: 現在価格 - trailing_percent
+                new_sl_price = current_price * (1 - trailing_percent)
+            else:
+                # 売りポジション: 現在価格 + trailing_percent
+                new_sl_price = current_price * (1 + trailing_percent)
+
+            # Phase 42.2: min_profit_lock適用（エントリー価格+0.5%を下回らない）
+            if side.lower() == "buy":
+                # 買いポジション: エントリー価格 + min_profit_lock を下回らない
+                min_sl_price = average_entry_price * (1 + min_profit_lock)
+                if new_sl_price < min_sl_price:
+                    self.logger.debug(
+                        f"min_profit_lock適用: {new_sl_price:.0f}円 → {min_sl_price:.0f}円 "
+                        f"(エントリー価格+{min_profit_lock * 100:.1f}%)"
+                    )
+                    new_sl_price = min_sl_price
+            else:
+                # 売りポジション: エントリー価格 - min_profit_lock を上回らない
+                max_sl_price = average_entry_price * (1 - min_profit_lock)
+                if new_sl_price > max_sl_price:
+                    self.logger.debug(
+                        f"min_profit_lock適用: {new_sl_price:.0f}円 → {max_sl_price:.0f}円 "
+                        f"(エントリー価格-{min_profit_lock * 100:.1f}%)"
+                    )
+                    new_sl_price = max_sl_price
+
+            # 新SL価格が現在SL価格より悪い場合はスキップ（SLは有利な方向にのみ更新）
+            if side.lower() == "buy":
+                if new_sl_price <= current_sl_price:
+                    self.logger.debug(
+                        f"新SL価格が現在SL価格以下のためスキップ: "
+                        f"{new_sl_price:.0f}円 <= {current_sl_price:.0f}円"
+                    )
+                    return {
+                        "trailing_activated": False,
+                        "new_sl_price": current_sl_price,
+                        "new_sl_order_id": existing_sl_id,
+                        "unrealized_pnl_ratio": unrealized_pnl_ratio,
+                    }
+            else:
+                if new_sl_price >= current_sl_price:
+                    self.logger.debug(
+                        f"新SL価格が現在SL価格以上のためスキップ: "
+                        f"{new_sl_price:.0f}円 >= {current_sl_price:.0f}円"
+                    )
+                    return {
+                        "trailing_activated": False,
+                        "new_sl_price": current_sl_price,
+                        "new_sl_order_id": existing_sl_id,
+                        "unrealized_pnl_ratio": unrealized_pnl_ratio,
+                    }
+
+            # 最小更新距離チェック
+            sl_price_diff = abs(new_sl_price - current_sl_price)
+            if sl_price_diff < min_update_distance:
+                self.logger.debug(
+                    f"SL価格差が最小更新距離未満のためスキップ: "
+                    f"{sl_price_diff:.0f}円 < {min_update_distance}円"
+                )
+                return {
+                    "trailing_activated": False,
+                    "new_sl_price": current_sl_price,
+                    "new_sl_order_id": existing_sl_id,
+                    "unrealized_pnl_ratio": unrealized_pnl_ratio,
+                }
+
+            self.logger.info(
+                f"🔄 Phase 42.2: トレーリングSL発動! "
+                f"含み益={unrealized_pnl_ratio * 100:.2f}%, "
+                f"現在価格={current_price:.0f}円, "
+                f"SL価格: {current_sl_price:.0f}円 → {new_sl_price:.0f}円 (+{sl_price_diff:.0f}円)"
+            )
+
+            # 既存SL注文をキャンセル（TPはそのまま維持）
+            if existing_sl_id:
+                cancel_result = await self.cancel_existing_tp_sl(
+                    tp_order_id=None,  # TPはキャンセルしない
+                    sl_order_id=existing_sl_id,
+                    symbol=symbol,
+                    bitbank_client=bitbank_client,
+                )
+                self.logger.info(
+                    f"✅ トレーリング用既存SLキャンセル: {cancel_result['cancelled_count']}件"
+                )
+
+            # 新しいSL注文を配置
+            sl_config = get_threshold("position_management.stop_loss", {})
+            new_sl_order_id = None
+
+            if sl_config.get("enabled", True):
+                try:
+                    sl_order = bitbank_client.create_stop_loss_order(
+                        entry_side=side,
+                        amount=total_amount,
+                        stop_loss_price=new_sl_price,
+                        symbol=symbol,
+                    )
+                    new_sl_order_id = sl_order.get("id")
+                    self.logger.info(
+                        f"✅ Phase 42.2: トレーリングSL配置成功: {new_sl_order_id} @ {new_sl_price:.0f}円",
+                        extra_data={
+                            "sl_order_id": new_sl_order_id,
+                            "trigger_price": new_sl_price,
+                            "trailing_distance": sl_price_diff,
+                            "unrealized_pnl_ratio": unrealized_pnl_ratio,
+                        },
+                        discord_notify=True,  # トレーリング発動はDiscord通知
+                    )
+                except Exception as e:
+                    error_message = str(e)
+                    self.logger.error(
+                        f"❌ トレーリングSL配置失敗: {e}",
+                        extra_data={"error_message": error_message},
+                        discord_notify=True,
+                    )
+
+            return {
+                "trailing_activated": True,
+                "new_sl_price": new_sl_price,
+                "new_sl_order_id": new_sl_order_id,
+                "unrealized_pnl_ratio": unrealized_pnl_ratio,
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ トレーリングSL更新エラー: {e}", exc_info=True)
+            return {
+                "trailing_activated": False,
+                "new_sl_price": current_sl_price,
+                "new_sl_order_id": existing_sl_id,
+                "unrealized_pnl_ratio": 0.0,
+            }

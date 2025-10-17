@@ -15,25 +15,29 @@ models/production/
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **production_ensemble.pkl**
+### **production_ensemble.pkl**（Phase 41.8完了）
 本番環境で使用されるアンサンブル学習モデルファイルです。
 - 複数の機械学習アルゴリズムを統合したアンサンブルモデル
 - LightGBM、XGBoost、RandomForestを組み合わせた構成
+- **55特徴量対応**（Phase 41.8）: 50基本特徴量 + 5戦略信号特徴量
+- **実戦略信号学習**: 訓練時/推論時一貫性確保・実際の戦略信号を学習
 - 実際の取引判断で使用される予測エンジン
 - pickle形式でシリアライズされたモデルオブジェクト
 - 約5-10MBのファイルサイズ
 
-### **production_model_metadata.json**
+### **production_model_metadata.json**（Phase 41.8完了）
 モデルの詳細情報とメタデータを管理するファイルです。
 - モデルの性能指標（F1スコア、精度、再現率など）
-- 特徴量の定義と構成情報
-- 学習データとバリデーション情報
+- **55特徴量定義**（Phase 41.8）: 50基本特徴量 + 5戦略信号特徴量
+  - ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
+- 学習データとバリデーション情報（1,019サンプル・TimeSeriesSplit n_splits=5）
 - バージョン管理とGit統合情報
 - モデル作成日時と更新履歴
-- 各アルゴリズムの重み設定
+- 各アルゴリズムの重み設定（LightGBM: 0.4, XGBoost: 0.4, RandomForest: 0.2）
+- Phase情報とステータス（Phase 41.8完了・production_ready）
 - システム設定とパラメーター情報
 
-### **モデル構成と特徴**（Phase 39完了）
+### **モデル構成と特徴**（Phase 41.8完了）
 ProductionEnsembleは複数のアルゴリズムを統合しています。
 - **アンサンブル手法**: 重み付き投票によるアンサンブル学習
 - **実データ学習**（Phase 39.1）: CSV実データ読み込み・過去180日分15分足データ（17,271件）
@@ -42,7 +46,12 @@ ProductionEnsembleは複数のアルゴリズムを統合しています。
 - **Early Stopping**（Phase 39.3）: rounds=20で過学習防止・LightGBM/XGBoost対応
 - **SMOTE oversampling**（Phase 39.4）: クラス不均衡対応・少数派クラス増強
 - **Optunaハイパーパラメータ最適化**（Phase 39.5）: TPESampler・3モデル自動最適化
-- **特徴量管理**: 統一されたfeature_managerシステムとの連携
+- **Strategy-Aware ML**（Phase 41.8）: 実戦略信号学習・55特徴量対応
+  - **訓練/推論一貫性**: 訓練時0-fill問題解決・実戦略信号を学習データに統合
+  - **Look-ahead bias防止**: 過去データのみ使用・未来データリーク防止
+  - **5戦略信号統合**: ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
+  - **信号エンコーディング**: action × confidence方式（buy=+1.0, hold=0.0, sell=-1.0）
+- **特徴量管理**: 統一されたfeature_managerシステムとの連携・55特徴量対応
 - **バージョン管理**: Git情報とモデルハッシュによる管理
 - **性能監視**: 継続的な品質監視と自動アラート機能
 

@@ -39,9 +39,9 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """50特徴量サンプルデータ作成 - Phase 40.6"""
-        # Phase 40.6: 50特徴量に対応した動的データ生成
-        return np.random.random((3, 50))
+        """55特徴量サンプルデータ作成 - Phase 41"""
+        # Phase 41: 55特徴量に対応した動的データ生成
+        return np.random.random((3, 55))
 
     @pytest.fixture
     def ensemble(self, mock_models):
@@ -56,9 +56,9 @@ class TestProductionEnsemble:
         assert "lightgbm" in ensemble.models
         assert "xgboost" in ensemble.models
         assert "random_forest" in ensemble.models
-        assert ensemble.n_features_ == 50  # Phase 40.6: 50特徴量
+        assert ensemble.n_features_ == 55  # Phase 41: 55特徴量
         assert ensemble.is_fitted is True
-        assert len(ensemble.feature_names) == 50  # Phase 40.6: 50特徴量
+        assert len(ensemble.feature_names) == 55  # Phase 41: 55特徴量
         assert "close" in ensemble.feature_names
         assert "rsi_14" in ensemble.feature_names
 
@@ -107,8 +107,8 @@ class TestProductionEnsemble:
         assert info["type"] == "ProductionEnsemble"
         assert len(info["individual_models"]) == 3
         assert "lightgbm" in info["individual_models"]
-        assert info["n_features"] == 50  # Phase 40.6: 50特徴量
-        assert len(info["feature_names"]) == 50  # Phase 40.6: 50特徴量
+        assert info["n_features"] == 55  # Phase 41: 55特徴量
+        assert len(info["feature_names"]) == 55  # Phase 41: 55特徴量
         assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
@@ -206,7 +206,7 @@ class TestProductionEnsemble:
 
         assert "ProductionEnsemble" in repr_str
         assert "models=3" in repr_str
-        assert "features=50" in repr_str  # Phase 40.6: 50特徴量
+        assert "features=55" in repr_str  # Phase 41: 55特徴量
         assert "weights=" in repr_str
 
     def test_pandas_dataframe_input(self, mock_models):
@@ -221,11 +221,11 @@ class TestProductionEnsemble:
 
             ensemble = ProductionEnsemble(mock_models)
 
-            # DataFrame形式のデータ (50特徴量) - Phase 40.6
+            # DataFrame形式のデータ (55特徴量) - Phase 41
             from src.core.config.feature_manager import get_feature_names
 
             feature_names = get_feature_names()
-            df_data = pd.DataFrame(np.random.random((2, 50)), columns=feature_names)
+            df_data = pd.DataFrame(np.random.random((2, 55)), columns=feature_names)
 
             predictions = ensemble.predict(df_data)
             probabilities = ensemble.predict_proba(df_data)
@@ -286,9 +286,9 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """50特徴量サンプルデータ作成 - Phase 40.6"""
-        # Phase 40.6: 50特徴量に対応した動的データ生成
-        return np.random.random((3, 50))
+        """55特徴量サンプルデータ作成 - Phase 41"""
+        # Phase 41: 55特徴量に対応した動的データ生成
+        return np.random.random((3, 55))
 
     def test_single_model_ensemble(self):
         """単一モデルアンサンブルテスト"""
@@ -298,8 +298,8 @@ class TestProductionEnsembleEdgeCases:
 
         ensemble = ProductionEnsemble({"single": mock_single})
 
-        # 50特徴量データ - Phase 40.6
-        data = np.random.random((2, 50))
+        # 55特徴量データ - Phase 41
+        data = np.random.random((2, 55))
         predictions = ensemble.predict(data)
         probabilities = ensemble.predict_proba(data)
 
@@ -325,8 +325,8 @@ class TestProductionEnsembleEdgeCases:
         """大規模データセット性能テスト"""
         ensemble = ProductionEnsemble(mock_models)
 
-        # 1000サンプルの大きなデータセット (50特徴量) - Phase 40.6
-        large_data = np.random.random((1000, 50))
+        # 1000サンプルの大きなデータセット (55特徴量) - Phase 41
+        large_data = np.random.random((1000, 55))
 
         # モックの戻り値を大きなサイズに調整
         for model in mock_models.values():
