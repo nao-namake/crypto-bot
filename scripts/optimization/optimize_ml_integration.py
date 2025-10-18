@@ -172,6 +172,31 @@ class MLIntegrationOptimizer:
 
         return params
 
+    def get_simple_params(self, trial: optuna.Trial) -> Dict[str, Any]:
+        """
+        バックテスト統合用のシンプルなパラメータ形式を取得
+
+        Args:
+            trial: Optuna Trial
+
+        Returns:
+            Dict: シンプルなキー形式のパラメータ（backtest_integration.py用）
+        """
+        return {
+            "ml_weight": trial.suggest_float("ml_weight", 0.1, 0.5, step=0.05),
+            "high_confidence_threshold": trial.suggest_float(
+                "high_confidence_threshold", 0.7, 0.9, step=0.05
+            ),
+            "agreement_bonus": trial.suggest_float("agreement_bonus", 1.0, 1.5, step=0.05),
+            "disagreement_penalty": trial.suggest_float(
+                "disagreement_penalty", 0.5, 0.9, step=0.05
+            ),
+            "min_ml_confidence": trial.suggest_float("min_ml_confidence", 0.4, 0.8, step=0.05),
+            "hold_conversion_threshold": trial.suggest_float(
+                "hold_conversion_threshold", 0.3, 0.5, step=0.05
+            ),
+        }
+
     def _validate_parameters(self, params: Dict[str, Any]) -> bool:
         """
         パラメータ妥当性検証
@@ -256,7 +281,7 @@ class MLIntegrationOptimizer:
 
     async def _run_backtest(self, params: Dict[str, Any]) -> float:
         """
-        バックテスト実行（Phase 40.3簡易版・Phase 40.5で本格実装）
+        バックテスト実行（Phase 40.5実装・シミュレーションベース）
 
         Args:
             params: テスト対象パラメータ
@@ -264,17 +289,12 @@ class MLIntegrationOptimizer:
         Returns:
             float: シャープレシオ
         """
-        # Phase 40.3: 簡易バックテスト実装
-        # Phase 40.5で実際のBacktestRunnerを使用した本格実装に置き換え
+        # Phase 40.5: シミュレーションベースのバックテスト
+        # ハイブリッド最適化のStage 1で使用（高速・大量試行）
+        # Stage 2/3では実バックテスト統合（backtest_integration.py）を使用
 
         try:
-            # TODO Phase 40.5: 実際のバックテスト実行
-            # from src.core.orchestration.trading_orchestrator import TradingOrchestrator
-            # orchestrator = TradingOrchestrator(mode="backtest", logger=self.logger)
-            # await orchestrator.run()
-            # sharpe = calculate_sharpe_from_results(orchestrator.results)
-
-            # Phase 40.3: ダミー実装（シミュレーション）
+            # シミュレーションスコア計算
             # パラメータの妥当性スコア計算
 
             # 理想的なパラメータに近いほど高スコア
@@ -325,7 +345,7 @@ class MLIntegrationOptimizer:
 
     def optimize(self, n_trials: int = 150, timeout: int = 7200) -> Dict[str, Any]:
         """
-        最適化実行
+        最適化実行（シミュレーションベース）
 
         Args:
             n_trials: 試行回数（デフォルト150回）
@@ -334,7 +354,7 @@ class MLIntegrationOptimizer:
         Returns:
             Dict: 最適化結果
         """
-        self.logger.warning("🚀 Phase 40.3: ML統合パラメータ最適化開始")
+        self.logger.warning("🚀 Phase 40.3: ML統合パラメータ最適化開始（シミュレーションベース）")
         self.logger.info(f"試行回数: {n_trials}回、タイムアウト: {timeout}秒")
 
         start_time = time.time()
@@ -385,17 +405,111 @@ class MLIntegrationOptimizer:
             "result_path": result_path,
         }
 
+    def optimize_hybrid(
+        self,
+        n_simulation_trials: int = 750,
+        n_lightweight_candidates: int = 50,
+        n_full_candidates: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        ハイブリッド最適化実行（Phase 40.5実装）
+
+        3段階最適化:
+        - Stage 1: シミュレーション（750試行・高速）
+        - Stage 2: 軽量バックテスト（上位50候補・30日・10%サンプリング）
+        - Stage 3: 完全バックテスト（上位10候補・180日・100%データ）
+
+        Args:
+            n_simulation_trials: Stage 1試行回数
+            n_lightweight_candidates: Stage 2候補数
+            n_full_candidates: Stage 3候補数
+
+        Returns:
+            Dict: 最適化結果
+        """
+        from .hybrid_optimizer import HybridOptimizer
+
+        self.logger.warning("🚀 Phase 40.5: ML統合パラメータハイブリッド最適化開始")
+
+        # ハイブリッド最適化器作成
+        hybrid = HybridOptimizer(
+            phase_name="phase40_3_ml_integration",
+            simulation_objective=self.objective,
+            param_suggest_func=self.get_simple_params,
+            param_type="ml_integration",
+            n_simulation_trials=n_simulation_trials,
+            n_lightweight_candidates=n_lightweight_candidates,
+            n_full_candidates=n_full_candidates,
+            verbose=True,
+        )
+
+        # ハイブリッド最適化実行
+        result = hybrid.run()
+
+        self.logger.warning(
+            f"✅ ハイブリッド最適化完了: シャープレシオ={result['best_value']:.4f}",
+            discord_notify=True,
+        )
+
+        return result
+
 
 def main():
     """メイン実行"""
+    import argparse
+
+    # コマンドライン引数解析
+    parser = argparse.ArgumentParser(description="Phase 40.3: ML統合パラメータ最適化")
+    parser.add_argument(
+        "--use-hybrid-backtest",
+        action="store_true",
+        help="ハイブリッド最適化を使用（シミュレーション→軽量バックテスト→完全バックテスト）",
+    )
+    parser.add_argument(
+        "--n-trials",
+        type=int,
+        default=150,
+        help="試行回数（シミュレーションモード時、デフォルト150回）",
+    )
+    parser.add_argument(
+        "--n-simulation-trials",
+        type=int,
+        default=750,
+        help="ハイブリッドモード: Stage 1シミュレーション試行回数（デフォルト750回）",
+    )
+    parser.add_argument(
+        "--n-lightweight-candidates",
+        type=int,
+        default=50,
+        help="ハイブリッドモード: Stage 2軽量バックテスト候補数（デフォルト50件）",
+    )
+    parser.add_argument(
+        "--n-full-candidates",
+        type=int,
+        default=10,
+        help="ハイブリッドモード: Stage 3完全バックテスト候補数（デフォルト10件）",
+    )
+
+    args = parser.parse_args()
+
     # ログシステム初期化
     logger = CryptoBotLogger()
 
     # 最適化実行
     optimizer = MLIntegrationOptimizer(logger)
 
-    # Phase 40.3: 試行回数150回・タイムアウト2時間
-    results = optimizer.optimize(n_trials=150, timeout=7200)
+    if args.use_hybrid_backtest:
+        # Phase 40.5: ハイブリッド最適化
+        logger.info("ハイブリッド最適化モード（3段階最適化）")
+        results = optimizer.optimize_hybrid(
+            n_simulation_trials=args.n_simulation_trials,
+            n_lightweight_candidates=args.n_lightweight_candidates,
+            n_full_candidates=args.n_full_candidates,
+        )
+    else:
+        # Phase 40.3: シミュレーションベース最適化
+        logger.info("シミュレーションベース最適化モード")
+        results = optimizer.optimize(n_trials=args.n_trials, timeout=7200)
 
     # 最適パラメータ表示
     print("\n" + "=" * 80)
@@ -404,10 +518,14 @@ def main():
     print("\n以下のパラメータをthresholds.yamlに反映してください:\n")
 
     for key, value in results["best_params"].items():
-        print(f"  {key}: {value}")
+        if isinstance(value, float):
+            print(f"  {key}: {value:.6f}")
+        else:
+            print(f"  {key}: {value}")
 
     print(f"\n最適シャープレシオ: {results['best_value']:.4f}")
-    print(f"結果保存先: {results['result_path']}")
+    if "result_path" in results:
+        print(f"結果保存先: {results['result_path']}")
     print("=" * 80)
 
 

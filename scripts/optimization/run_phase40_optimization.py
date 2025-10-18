@@ -46,16 +46,32 @@ from src.core.logger import CryptoBotLogger
 class Phase40UnifiedOptimizer:
     """Phase 40統合最適化クラス"""
 
-    def __init__(self, logger: CryptoBotLogger, dry_run: bool = False):
+    def __init__(
+        self,
+        logger: CryptoBotLogger,
+        dry_run: bool = False,
+        use_hybrid_backtest: bool = False,
+        n_simulation_trials: int = 750,
+        n_lightweight_candidates: int = 50,
+        n_full_candidates: int = 10,
+    ):
         """
         初期化
 
         Args:
             logger: ログシステム
             dry_run: DRY RUNモード（True: 実際の更新なし）
+            use_hybrid_backtest: ハイブリッド最適化使用（Phase 40.5実装）
+            n_simulation_trials: Stage 1シミュレーション試行数
+            n_lightweight_candidates: Stage 2軽量バックテスト候補数
+            n_full_candidates: Stage 3完全バックテスト候補数
         """
         self.logger = logger
         self.dry_run = dry_run
+        self.use_hybrid_backtest = use_hybrid_backtest
+        self.n_simulation_trials = n_simulation_trials
+        self.n_lightweight_candidates = n_lightweight_candidates
+        self.n_full_candidates = n_full_candidates
         self.checkpoint_file = Path("config/optuna_results/.checkpoint.json")
         self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -183,7 +199,26 @@ class Phase40UnifiedOptimizer:
                 # Phase 40.1-40.4: 最適化実行
                 optimizer_class = phase["optimizer_class"]
                 optimizer = optimizer_class(self.logger)
-                results = optimizer.optimize(n_trials=phase["n_trials"], timeout=phase["timeout"])
+
+                if self.use_hybrid_backtest:
+                    # ハイブリッド最適化実行（Phase 40.5実装）
+                    self.logger.info(
+                        f"🔬 ハイブリッド最適化モード: "
+                        f"{self.n_simulation_trials}試行 → "
+                        f"上位{self.n_lightweight_candidates}候補 → "
+                        f"上位{self.n_full_candidates}候補"
+                    )
+                    results = optimizer.optimize_hybrid(
+                        n_simulation_trials=self.n_simulation_trials,
+                        n_lightweight_candidates=self.n_lightweight_candidates,
+                        n_full_candidates=self.n_full_candidates,
+                    )
+                else:
+                    # 通常の最適化実行（シミュレーションベース）
+                    results = optimizer.optimize(
+                        n_trials=phase["n_trials"], timeout=phase["timeout"]
+                    )
+
                 success = results.get("best_value", -10.0) > -5.0
 
             if success:
@@ -364,13 +399,43 @@ def main():
         help="指定Phaseから再開",
     )
     parser.add_argument("--dry-run", action="store_true", help="DRY RUNモード（実際の更新なし）")
+    parser.add_argument(
+        "--use-hybrid-backtest",
+        action="store_true",
+        help="ハイブリッド最適化を使用（Phase 40.5: シミュレーション→軽量バックテスト→完全バックテスト）",
+    )
+    parser.add_argument(
+        "--n-simulation-trials",
+        type=int,
+        default=750,
+        help="ハイブリッドモード: Stage 1シミュレーション試行数（デフォルト: 750）",
+    )
+    parser.add_argument(
+        "--n-lightweight-candidates",
+        type=int,
+        default=50,
+        help="ハイブリッドモード: Stage 2軽量バックテスト候補数（デフォルト: 50）",
+    )
+    parser.add_argument(
+        "--n-full-candidates",
+        type=int,
+        default=10,
+        help="ハイブリッドモード: Stage 3完全バックテスト候補数（デフォルト: 10）",
+    )
     args = parser.parse_args()
 
     # ログシステム初期化
     logger = CryptoBotLogger()
 
     # 統合最適化実行
-    optimizer = Phase40UnifiedOptimizer(logger, dry_run=args.dry_run)
+    optimizer = Phase40UnifiedOptimizer(
+        logger,
+        dry_run=args.dry_run,
+        use_hybrid_backtest=args.use_hybrid_backtest,
+        n_simulation_trials=args.n_simulation_trials,
+        n_lightweight_candidates=args.n_lightweight_candidates,
+        n_full_candidates=args.n_full_candidates,
+    )
 
     try:
         if args.all:
