@@ -349,6 +349,7 @@ class ExecutionService:
 
             # Phase 42: TP/SL配置モード判定（individual/consolidated）
             tp_sl_mode = get_threshold("position_management.tp_sl_mode", "individual")
+            self.logger.info(f"🔍 Phase 42デバッグ: tp_sl_mode = '{tp_sl_mode}'")
 
             if self.stop_manager and final_tp and final_sl:
                 # evaluationを再計算値で更新（immutable対応）
@@ -357,6 +358,20 @@ class ExecutionService:
                     evaluation.stop_loss = final_sl
                 else:
                     evaluation = replace(evaluation, take_profit=final_tp, stop_loss=final_sl)
+
+                # Phase 42デバッグ: 統合TP/SL条件チェック
+                has_tracker = self.position_tracker is not None
+                has_strategy = self.order_strategy is not None
+                will_use_consolidated = (
+                    tp_sl_mode == "consolidated" and has_tracker and has_strategy
+                )
+                self.logger.info(
+                    f"🔍 Phase 42デバッグ: 統合TP/SL判定 - "
+                    f"モード={tp_sl_mode}, "
+                    f"tracker={'✅' if has_tracker else '❌'}, "
+                    f"strategy={'✅' if has_strategy else '❌'}, "
+                    f"統合使用={'✅ YES' if will_use_consolidated else '❌ NO (個別モード)'}"
+                )
 
                 if tp_sl_mode == "consolidated" and self.position_tracker and self.order_strategy:
                     # Phase 42: 統合TP/SLモード

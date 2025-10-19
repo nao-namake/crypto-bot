@@ -41,6 +41,18 @@ from src.core.logger import CryptoBotLogger
 class RiskManagementOptimizer:
     """リスク管理パラメータ最適化クラス"""
 
+    # Phase 42: TP/SL距離固定パラメータ（Optuna最適化から除外）
+    # デイトレード最適化済み設定値（Optuna Phase 40結果）
+    FIXED_TP_SL_PARAMS = {
+        "sl_atr_low_vol": 2.1,
+        "sl_atr_normal_vol": 2.0,
+        "sl_atr_high_vol": 1.2,
+        "sl_min_distance_ratio": 0.01,  # 1.0%
+        "sl_min_atr_multiplier": 1.3,
+        "tp_default_ratio": 1.5,
+        "tp_min_profit_ratio": 0.019,  # 1.9%
+    }
+
     def __init__(self, logger: CryptoBotLogger):
         """
         初期化
@@ -109,47 +121,49 @@ class RiskManagementOptimizer:
         params = {}
 
         # ========================================
-        # 1. ストップロス関連パラメータ
+        # 1. ストップロス関連パラメータ（Phase 42: 固定値使用）
         # ========================================
 
+        # Phase 42: デイトレード最適化済みTP/SL固定値を使用（Optuna最適化から除外）
         # 適応型ATR倍率（低ボラティリティ）
         params["position_management.stop_loss.adaptive_atr.low_volatility.multiplier"] = (
-            trial.suggest_float("sl_atr_low_vol", 2.0, 3.5, step=0.1)
+            self.FIXED_TP_SL_PARAMS["sl_atr_low_vol"]
         )
 
         # 適応型ATR倍率（通常ボラティリティ）
         params["position_management.stop_loss.adaptive_atr.normal_volatility.multiplier"] = (
-            trial.suggest_float("sl_atr_normal_vol", 1.5, 2.5, step=0.1)
+            self.FIXED_TP_SL_PARAMS["sl_atr_normal_vol"]
         )
 
         # 適応型ATR倍率（高ボラティリティ）
         params["position_management.stop_loss.adaptive_atr.high_volatility.multiplier"] = (
-            trial.suggest_float("sl_atr_high_vol", 1.0, 2.0, step=0.1)
+            self.FIXED_TP_SL_PARAMS["sl_atr_high_vol"]
         )
 
         # 最小SL距離比率
-        params["position_management.stop_loss.min_distance.ratio"] = trial.suggest_float(
-            "sl_min_distance_ratio", 0.005, 0.02, step=0.001
-        )
+        params["position_management.stop_loss.min_distance.ratio"] = self.FIXED_TP_SL_PARAMS[
+            "sl_min_distance_ratio"
+        ]
 
         # 最小ATR倍率
         params["position_management.stop_loss.min_distance.min_atr_multiplier"] = (
-            trial.suggest_float("sl_min_atr_multiplier", 1.0, 2.0, step=0.1)
+            self.FIXED_TP_SL_PARAMS["sl_min_atr_multiplier"]
         )
 
         # ========================================
-        # 2. テイクプロフィット関連パラメータ
+        # 2. テイクプロフィット関連パラメータ（Phase 42: 固定値使用）
         # ========================================
 
+        # Phase 42: デイトレード最適化済みTP/SL固定値を使用（Optuna最適化から除外）
         # リスクリワード比
-        params["position_management.take_profit.default_ratio"] = trial.suggest_float(
-            "tp_default_ratio", 1.5, 4.0, step=0.1
-        )
+        params["position_management.take_profit.default_ratio"] = self.FIXED_TP_SL_PARAMS[
+            "tp_default_ratio"
+        ]
 
         # 最小利益率
-        params["position_management.take_profit.min_profit_ratio"] = trial.suggest_float(
-            "tp_min_profit_ratio", 0.005, 0.02, step=0.001
-        )
+        params["position_management.take_profit.min_profit_ratio"] = self.FIXED_TP_SL_PARAMS[
+            "tp_min_profit_ratio"
+        ]
 
         # ========================================
         # 3. Kelly基準関連パラメータ

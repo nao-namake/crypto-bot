@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-ハイブリッドOptuna最適化システム - Phase 40.5
+ハイブリッドOptuna最適化システム - Phase 40.5最適化版
 
-3段階最適化戦略:
+3段階最適化戦略（Phase 40.5実行時間最適化済み）:
 - Stage 1: シミュレーションベース最適化（750試行・高速・~11秒）
-- Stage 2: 軽量バックテスト検証（上位50候補・30日・10%サンプリング・~37.5分）
-- Stage 3: 完全バックテスト検証（上位10候補・180日・100%データ・~7.5時間）
+- Stage 2: 軽量バックテスト検証（上位30候補・7日・20%サンプリング・~20分）
+- Stage 3: 完全バックテスト検証（上位7候補・90日・100%データ・~2.6時間）
 
-合計実行時間: 約8時間
+合計実行時間: 約3時間（8時間目標達成）
 精度: シミュレーション → 実データ検証の段階的絞り込みにより高精度を実現
+
+Phase 40.5最適化内容:
+- サンプリング機能実装（backtest_runner.py）
+- Stage 2: 30日10%→7日20%（2倍高速化・候補数50→30）
+- Stage 3: 180日→90日（2倍高速化・候補数10→7）
 """
 
 import asyncio
@@ -52,8 +57,8 @@ class HybridOptimizer:
         param_suggest_func: Callable,
         param_type: str = "risk",
         n_simulation_trials: int = 750,
-        n_lightweight_candidates: int = 50,
-        n_full_candidates: int = 10,
+        n_lightweight_candidates: int = 30,  # Phase 40.5最適化: 50→30（実行時間短縮）
+        n_full_candidates: int = 7,  # Phase 40.5最適化: 10→7（実行時間短縮）
         study_name: Optional[str] = None,
         checkpoint_dir: str = "config/optuna_checkpoints",
         verbose: bool = True,

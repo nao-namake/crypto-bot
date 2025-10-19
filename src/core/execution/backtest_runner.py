@@ -161,9 +161,64 @@ class BacktestRunner(BaseRunner):
 
             self.logger.warning(f"📈 CSVデータ読み込み完了: {', '.join(timeframe_stats)}")
 
+            # Phase 40.5拡張: データサンプリング処理（Optuna最適化高速化）
+            sampling_ratio = get_threshold("backtest.data_sampling_ratio", 1.0)
+            if sampling_ratio < 1.0:
+                self._apply_data_sampling(sampling_ratio)
+
         except Exception as e:
             self.logger.error(f"❌ CSVデータ読み込みエラー: {e}")
             raise
+
+    def _apply_data_sampling(self, sampling_ratio: float) -> None:
+        """
+        データサンプリング処理（Phase 40.5拡張: Optuna最適化高速化）
+
+        等間隔サンプリングを使用して時系列の連続性を保持しつつデータ量を削減。
+
+        Args:
+            sampling_ratio: サンプリング比率（0.0-1.0）
+                例: 0.1 = 10%サンプリング、0.2 = 20%サンプリング
+
+        効果:
+            - 10%サンプリング: 実行時間1/10（予想）
+            - 20%サンプリング: 実行時間1/5（予想）
+        """
+        if sampling_ratio >= 1.0:
+            return  # サンプリング不要
+
+        self.logger.warning(
+            f"🔬 データサンプリング開始: {sampling_ratio * 100:.0f}% "
+            f"(Optuna最適化高速化・Phase 40.5)"
+        )
+
+        for timeframe in self.csv_data.keys():
+            original_df = self.csv_data[timeframe]
+            original_count = len(original_df)
+
+            if original_count == 0:
+                continue
+
+            # 等間隔サンプリング（時系列連続性保持）
+            step = max(1, int(1 / sampling_ratio))
+            sampled_df = original_df.iloc[::step].copy()
+
+            # 最後の行は必ず含める（最新データ確保）
+            if original_df.index[-1] not in sampled_df.index:
+                sampled_df = pd.concat([sampled_df, original_df.iloc[[-1]]])
+
+            sampled_count = len(sampled_df)
+
+            self.csv_data[timeframe] = sampled_df
+
+            self.logger.warning(
+                f"  {timeframe}: {original_count}件 → {sampled_count}件 "
+                f"({sampled_count / original_count * 100:.1f}%)"
+            )
+
+        # メインタイムフレームのデータポイント数更新
+        main_timeframe = self.timeframes[0] if self.timeframes else "4h"
+        self.total_data_points = len(self.csv_data[main_timeframe])
 
     async def _precompute_features(self):
         """
