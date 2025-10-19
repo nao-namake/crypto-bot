@@ -206,28 +206,20 @@ class RiskManagementOptimizer:
             Dict: シンプルなキー形式のパラメータ（backtest_integration.py用）
         """
         return {
-            # SL ATR倍率
-            "sl_atr_low_vol": trial.suggest_float("sl_atr_low_vol", 2.0, 3.5, step=0.1),
-            "sl_atr_normal_vol": trial.suggest_float("sl_atr_normal_vol", 1.5, 2.5, step=0.1),
-            "sl_atr_high_vol": trial.suggest_float("sl_atr_high_vol", 1.0, 2.0, step=0.1),
-            # SL最小距離
-            "sl_min_distance_ratio": trial.suggest_float(
-                "sl_min_distance_ratio", 0.005, 0.02, step=0.001
-            ),
-            "sl_min_atr_multiplier": trial.suggest_float(
-                "sl_min_atr_multiplier", 1.0, 2.0, step=0.1
-            ),
-            # TP設定
-            "tp_default_ratio": trial.suggest_float("tp_default_ratio", 1.5, 4.0, step=0.1),
-            "tp_min_profit_ratio": trial.suggest_float(
-                "tp_min_profit_ratio", 0.005, 0.02, step=0.001
-            ),
-            # Kelly基準
+            # Phase 42.4: TP/SL固定値使用（Optuna最適化対象外）
+            "sl_atr_low_vol": self.FIXED_TP_SL_PARAMS["sl_atr_low_vol"],
+            "sl_atr_normal_vol": self.FIXED_TP_SL_PARAMS["sl_atr_normal_vol"],
+            "sl_atr_high_vol": self.FIXED_TP_SL_PARAMS["sl_atr_high_vol"],
+            "sl_min_distance_ratio": self.FIXED_TP_SL_PARAMS["sl_min_distance_ratio"],
+            "sl_min_atr_multiplier": self.FIXED_TP_SL_PARAMS["sl_min_atr_multiplier"],
+            "tp_default_ratio": self.FIXED_TP_SL_PARAMS["tp_default_ratio"],
+            "tp_min_profit_ratio": self.FIXED_TP_SL_PARAMS["tp_min_profit_ratio"],
+            # Kelly基準（Optuna最適化対象）
             "kelly_max_position_ratio": trial.suggest_float(
                 "kelly_max_position_ratio", 0.01, 0.05, step=0.005
             ),
             "kelly_safety_factor": trial.suggest_float("kelly_safety_factor", 0.5, 1.0, step=0.05),
-            # リスクスコア閾値
+            # リスクスコア閾値（Optuna最適化対象）
             "risk_conditional": trial.suggest_float("risk_conditional", 0.50, 0.75, step=0.05),
             "risk_deny": trial.suggest_float("risk_deny", 0.75, 0.95, step=0.05),
         }
