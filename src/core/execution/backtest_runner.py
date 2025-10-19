@@ -252,6 +252,20 @@ class BacktestRunner(BaseRunner):
                 # 同期版特徴量生成（全データ一括計算）
                 features_df = feature_gen.generate_features_sync(df)
 
+                # Phase 42.5: 戦略シグナル特徴量を0埋め（バックテスト高速化対応）
+                # バックテストでは事前計算のため戦略を実行できないので、
+                # 戦略シグナル特徴量は0.0（中立値）で埋める
+                strategy_signal_features = [
+                    "strategy_signal_ATRBased",
+                    "strategy_signal_MochipoyAlert",
+                    "strategy_signal_MultiTimeframe",
+                    "strategy_signal_DonchianChannel",
+                    "strategy_signal_ADXTrendStrength",
+                ]
+                for col in strategy_signal_features:
+                    if col not in features_df.columns:
+                        features_df[col] = 0.0
+
                 # 事前計算結果をキャッシュ
                 self.precomputed_features[timeframe] = features_df
 
