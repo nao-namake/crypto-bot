@@ -262,6 +262,10 @@ risk:
   max_capital_usage: 0.3
   reserve_ratio: 0.7
 position_management:
+  # Phase 42: 統合TP/SL・トレーリングストップ機能有効化
+  tp_sl_mode: "consolidated"  # "individual" or "consolidated"
+  consolidated:
+    consolidate_on_new_entry: true  # エントリー時に既存TP/SLキャンセル・再統合
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 20

@@ -185,8 +185,19 @@ class HybridOptimizer:
         )
 
         # 最適化実行
+        # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
+        def logging_callback(study, trial):
+            if trial.number % 50 == 0 or trial.number < 5:
+                print(
+                    f"Trial {trial.number}/{self.n_simulation_trials} "
+                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
+                )
+
         study.optimize(
-            self.simulation_objective, n_trials=self.n_simulation_trials, show_progress_bar=True
+            self.simulation_objective,
+            n_trials=self.n_simulation_trials,
+            show_progress_bar=False,
+            callbacks=[logging_callback],
         )
 
         duration = time.time() - start_time

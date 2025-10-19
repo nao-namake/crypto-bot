@@ -277,7 +277,11 @@ models/production/              # 本番MLモデル（週次自動更新）
   8. 新TP/SL ID保存
 - **Graceful Degradation**: エラー時は個別TP/SLにフォールバック
 - **後方互換性維持**: デフォルトは"individual"モード（既存動作）
-- **品質保証**: 1,081テスト達成・69.57%カバレッジ・ペーパートレード検証完了
+- **⚠️ 必須設定** (`config/core/thresholds.yaml`):
+  - `position_management.tp_sl_mode: "consolidated"` - 統合モード有効化（必須）
+  - `position_management.consolidated.consolidate_on_new_entry: true` - エントリー時統合（推奨）
+  - **注意**: 設定がないとデフォルト`"individual"`で機能無効
+- **品質保証**: 1,148テスト達成・69.73%カバレッジ・ペーパートレード検証完了
 
 ### **📅 Phase 41.8.5（2025/10/17）- ML統合閾値最適化**
 - **背景**: Phase 41.8ペーパートレード検証で重大な設計問題を発見

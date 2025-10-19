@@ -492,6 +492,8 @@ class MLHyperparameterOptimizer:
                 score += 0.03  # 完全一致ボーナス
 
             # ランダムノイズ追加（実際のバックテスト変動をシミュレート）
+            # Phase 40.5: 再現性確保のため乱数シード固定
+            np.random.seed(42)
             noise = np.random.normal(0, 0.15)
             f1_score = max(0.0, min(1.0, score + noise))
 
@@ -525,11 +527,20 @@ class MLHyperparameterOptimizer:
         )
 
         # 最適化実行
+        # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
+        def logging_callback(study, trial):
+            if trial.number % 50 == 0 or trial.number < 5:
+                print(
+                    f"Trial {trial.number}/{n_trials} "
+                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
+                )
+
         study.optimize(
             self.objective,
             n_trials=n_trials,
             timeout=timeout,
-            show_progress_bar=True,
+            show_progress_bar=False,
+            callbacks=[logging_callback],
         )
 
         duration = time.time() - start_time
