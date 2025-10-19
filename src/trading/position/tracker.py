@@ -4,6 +4,8 @@
 仮想ポジションの管理と追跡を行う。
 """
 
+import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -22,7 +24,7 @@ class PositionTracker:
     """
 
     def __init__(self):
-        """PositionTracker初期化"""
+        """PositionTracker初期化 - Phase 42.4: 状態永続化対応"""
         self.logger = get_logger()
         self.virtual_positions: List[Dict[str, Any]] = []
 
@@ -35,6 +37,12 @@ class PositionTracker:
         self._consolidated_tp_price: float = 0.0
         self._consolidated_sl_price: float = 0.0
         self._side: str = ""  # buy/sell（トレーリング判定用）
+
+        # Phase 42.4: 状態永続化パス設定
+        self.local_state_path = "src/core/state/consolidated_tp_sl_state.json"
+
+        # Phase 42.4: 状態復元
+        self._load_state()
 
     def add_position(
         self,
@@ -425,6 +433,9 @@ class PositionTracker:
             self._side = side if side is not None else ""
             self.logger.debug(f"📝 ポジションサイド設定: {self._side}")
 
+        # Phase 42.4: 状態を永続化
+        self._save_state()
+
     def get_consolidated_position_info(self) -> Dict[str, Any]:
         """
         統合ポジション情報取得（Phase 42・Phase 42.2拡張）
@@ -467,3 +478,63 @@ class PositionTracker:
         self._total_position_size = 0.0
         self._side = ""
         self.logger.debug("🧹 統合TP/SL情報クリア")
+
+        # Phase 42.4: 状態を永続化
+        self._save_state()
+
+    # ========================================
+    # Phase 42.4: 状態永続化メソッド
+    # ========================================
+
+    def _save_state(self) -> None:
+        """統合TP/SL状態を保存（Phase 42.4）"""
+        try:
+            state = {
+                "tp_order_id": self._consolidated_tp_order_id,
+                "sl_order_id": self._consolidated_sl_order_id,
+                "tp_price": self._consolidated_tp_price,
+                "sl_price": self._consolidated_sl_price,
+                "side": self._side,
+                "average_entry_price": self._average_entry_price,
+                "total_position_size": self._total_position_size,
+            }
+
+            # ディレクトリ作成
+            os.makedirs(os.path.dirname(self.local_state_path), exist_ok=True)
+
+            # JSON保存
+            with open(self.local_state_path, "w") as f:
+                json.dump(state, f, indent=2)
+
+            self.logger.debug(f"💾 統合TP/SL状態保存完了: {self.local_state_path}")
+
+        except Exception as e:
+            self.logger.error(f"❌ 統合TP/SL状態保存失敗: {e}")
+
+    def _load_state(self) -> None:
+        """統合TP/SL状態を復元（Phase 42.4）"""
+        try:
+            if not os.path.exists(self.local_state_path):
+                self.logger.info(
+                    f"📋 統合TP/SL状態ファイル未存在、新規作成: {self.local_state_path}"
+                )
+                return
+
+            with open(self.local_state_path, "r") as f:
+                state = json.load(f)
+
+            self._consolidated_tp_order_id = state.get("tp_order_id")
+            self._consolidated_sl_order_id = state.get("sl_order_id")
+            self._consolidated_tp_price = state.get("tp_price", 0.0)
+            self._consolidated_sl_price = state.get("sl_price", 0.0)
+            self._side = state.get("side", "")
+            self._average_entry_price = state.get("average_entry_price", 0.0)
+            self._total_position_size = state.get("total_position_size", 0.0)
+
+            self.logger.info(
+                f"📂 統合TP/SL状態復元完了: "
+                f"TP={self._consolidated_tp_order_id}, SL={self._consolidated_sl_order_id}"
+            )
+
+        except Exception as e:
+            self.logger.error(f"❌ 統合TP/SL状態復元失敗: {e}")

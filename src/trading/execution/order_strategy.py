@@ -375,15 +375,13 @@ class OrderStrategy:
             }
         """
         try:
-            # TP/SL設定取得
-            tp_config = get_threshold("position_management.take_profit", {})
-            sl_config = get_threshold("position_management.stop_loss", {})
-
-            # デフォルト設定
-            default_tp_ratio = tp_config.get("default_ratio", 2.5)
-            min_profit_ratio = tp_config.get("min_profit_ratio", 0.01)
-            default_atr_multiplier = sl_config.get("default_atr_multiplier", 2.0)
-            max_loss_ratio = sl_config.get("max_loss_ratio", 0.03)
+            # Phase 42.4: TP/SL設定をthresholds.yamlトップレベルから取得（ハードコード削除）
+            # 固定パラメータ（Phase 42で最適化対象外として設定済み）
+            default_tp_ratio = get_threshold("tp_default_ratio", 1.5)
+            min_profit_ratio = get_threshold("tp_min_profit_ratio", 0.019)
+            default_atr_multiplier = get_threshold("sl_atr_normal_vol", 2.0)
+            sl_min_distance_ratio = get_threshold("sl_min_distance_ratio", 0.01)
+            max_loss_ratio = get_threshold("position_management.stop_loss.max_loss_ratio", 0.03)
 
             # SL率計算（適応型ATR倍率対応）
             if market_conditions and "atr_ratio" in market_conditions:
@@ -394,8 +392,8 @@ class OrderStrategy:
                     f"📊 適応型SL率計算: ATR比率={atr_ratio:.4f} × 倍率={default_atr_multiplier} = {sl_rate * 100:.2f}%"
                 )
             else:
-                # デフォルトSL率（最小1%・最大3%）
-                sl_rate = min(0.02, max_loss_ratio)  # デフォルト2%
+                # Phase 42.4: デフォルトSL率をthresholds.yamlから取得（ハードコード0.02削除）
+                sl_rate = sl_min_distance_ratio
                 self.logger.debug(f"📊 デフォルトSL率使用: {sl_rate * 100:.2f}%")
 
             # TP率計算（リスクリワード比管理）

@@ -34,18 +34,17 @@ class TestCalculateConsolidatedTpSlPrices:
 
         # 設定値モック
         def threshold_side_effect(key, default=None):
-            if "take_profit.default_ratio" in key:
-                return 2.5
-            elif "take_profit.min_profit_ratio" in key:
-                return 0.01
-            elif "stop_loss.default_atr_multiplier" in key:
-                return 2.0
-            elif "stop_loss.max_loss_ratio" in key:
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
                 return 0.03
-            elif key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -54,21 +53,28 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="buy", market_conditions=None
         )
 
-        # ATRなしのデフォルト計算: SL=2%, TP=2%×2.5=5%
+        # Phase 42.4: ATRなしのデフォルト計算: SL=2%, TP=2%×1.5=3%
         assert result["stop_loss_price"] == round(14000000.0 * 0.98)  # -2%
-        assert result["take_profit_price"] == round(14000000.0 * 1.05)  # +5%
+        assert result["take_profit_price"] == round(14000000.0 * 1.03)  # +3%
         assert 0.019 <= result["sl_rate"] <= 0.021  # 2%付近
-        assert 0.049 <= result["tp_rate"] <= 0.051  # 5%付近
+        assert 0.029 <= result["tp_rate"] <= 0.031  # 3%付近
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_buy_position_adaptive_atr_multiplier(self, mock_threshold, order_strategy):
-        """買いポジション適応型ATR倍率"""
+        """買いポジション適応型ATR倍率 - Phase 42.4更新"""
 
         def threshold_side_effect(key, default=None):
-            if key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            # Phase 42.4: 新設定値
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -80,22 +86,29 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="buy", market_conditions=market_conditions
         )
 
-        # SL率 = min(0.015 × 2.0, 0.03) = 0.03
-        # TP率 = max(0.03 × 2.5, 0.01) = 0.075 → ただし最大損失率で制限
+        # Phase 42.4: SL率 = min(0.015 × 2.0, 0.03) = 0.03
+        # TP率 = max(0.03 × 1.5, 0.03) = 0.045（4.5%）
         assert result["stop_loss_price"] == round(14000000.0 * (1 - 0.03))  # -3%
-        assert result["take_profit_price"] == round(14000000.0 * (1 + 0.075))  # +7.5%
+        assert result["take_profit_price"] == round(14000000.0 * (1 + 0.045))  # +4.5%
         assert 0.029 <= result["sl_rate"] <= 0.031  # 3%付近
-        assert 0.074 <= result["tp_rate"] <= 0.076  # 7.5%付近
+        assert 0.044 <= result["tp_rate"] <= 0.046  # 4.5%付近
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_sell_position_normal_calculation_no_atr(self, mock_threshold, order_strategy):
         """売りポジション正常計算（ATR条件なし）"""
 
         def threshold_side_effect(key, default=None):
-            if key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -104,21 +117,28 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="sell", market_conditions=None
         )
 
-        # 売りポジション: TP = -5%, SL = +2%
-        assert result["take_profit_price"] == round(14000000.0 * 0.95)  # -5%
+        # Phase 42.4: 売りポジション: TP = -3%, SL = +2%
+        assert result["take_profit_price"] == round(14000000.0 * 0.97)  # -3%
         assert result["stop_loss_price"] == round(14000000.0 * 1.02)  # +2%
         assert 0.019 <= result["sl_rate"] <= 0.021  # 2%付近
-        assert 0.049 <= result["tp_rate"] <= 0.051  # 5%付近
+        assert 0.029 <= result["tp_rate"] <= 0.031  # 3%付近
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_sell_position_adaptive_atr_multiplier(self, mock_threshold, order_strategy):
         """売りポジション適応型ATR倍率"""
 
         def threshold_side_effect(key, default=None):
-            if key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -130,12 +150,12 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="sell", market_conditions=market_conditions
         )
 
-        # SL率 = min(0.01 × 2.0, 0.03) = 0.02
-        # TP率 = max(0.02 × 2.5, 0.01) = 0.05
-        assert result["take_profit_price"] == round(14000000.0 * (1 - 0.05))  # -5%
+        # Phase 42.4: SL率 = min(0.01 × 2.0, 0.03) = 0.02
+        # TP率 = max(0.02 × 1.5, 0.03) = 0.03
+        assert result["take_profit_price"] == round(14000000.0 * (1 - 0.03))  # -3%
         assert result["stop_loss_price"] == round(14000000.0 * (1 + 0.02))  # +2%
         assert 0.019 <= result["sl_rate"] <= 0.021  # 2%付近
-        assert 0.049 <= result["tp_rate"] <= 0.051  # 5%付近
+        assert 0.029 <= result["tp_rate"] <= 0.031  # 3%付近
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_invalid_side_error_handling(self, mock_threshold, order_strategy):
@@ -189,13 +209,20 @@ class TestCalculateConsolidatedTpSlPrices:
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_risk_reward_ratio_min_profit_guarantee(self, mock_threshold, order_strategy):
-        """リスクリワード比・最小利益率保証確認"""
+        """リスクリワード比・最小利益率保証確認 - Phase 42.4更新"""
 
         def threshold_side_effect(key, default=None):
-            if key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.03}  # 最小利益率3%
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            # Phase 42.4: 新設定値（tp_min_profit_ratio: 0.03 = 3%）
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03  # 最小利益率3%
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -207,20 +234,27 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="buy", market_conditions=market_conditions
         )
 
-        # SL率 = min(0.0025 × 2.0, 0.03) = 0.005（0.5%）
-        # TP率 = max(0.005 × 2.5, 0.03) = 0.03（最小利益率が優先）
+        # Phase 42.4: SL率 = min(0.0025 × 2.0, 0.03) = 0.005（0.5%）
+        # TP率 = max(0.005 × 1.5, 0.03) = 0.03（最小利益率が優先）
         assert result["sl_rate"] <= 0.006  # 0.5%付近
         assert result["tp_rate"] >= 0.029  # 最小利益率3%保証
 
     @patch("src.trading.execution.order_strategy.get_threshold")
     def test_max_loss_ratio_upper_limit(self, mock_threshold, order_strategy):
-        """最大損失率上限制限確認"""
+        """最大損失率上限制限確認 - Phase 42.4更新"""
 
         def threshold_side_effect(key, default=None):
-            if key == "position_management.take_profit":
-                return {"default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif key == "position_management.stop_loss":
-                return {"default_atr_multiplier": 2.0, "max_loss_ratio": 0.025}  # 最大2.5%
+            # Phase 42.4: 新設定値（max_loss_ratio: 0.025 = 2.5%でテスト）
+            if key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.025  # テスト用: 最大2.5%
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -232,7 +266,7 @@ class TestCalculateConsolidatedTpSlPrices:
             average_entry_price=14000000.0, side="buy", market_conditions=market_conditions
         )
 
-        # SL率 = min(0.05 × 2.0, 0.025) = 0.025（最大損失率が優先）
+        # Phase 42.4: SL率 = min(0.05 × 2.0, 0.025) = 0.025（最大損失率が優先）
         assert result["sl_rate"] <= 0.026  # 2.5%以下
-        # TP率 = max(0.025 × 2.5, 0.01) = 0.0625
-        assert 0.061 <= result["tp_rate"] <= 0.064  # 6.25%付近
+        # TP率 = max(0.025 × 1.5, 0.03) = 0.0375（3.75%）
+        assert 0.036 <= result["tp_rate"] <= 0.039  # 3.75%付近

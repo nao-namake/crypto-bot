@@ -1,8 +1,8 @@
-# src/trading/position/ - ポジション管理層 🚀 Phase 42.2完了
+# src/trading/position/ - ポジション管理層 🚀 Phase 42.4完了
 
 ## 🎯 役割・責任
 
-ポジション追跡・制限管理・クリーンアップ・クールダウン制御を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で平均価格追跡機能、Phase 42.2でトレーリングSL/TP価格フィールドを追加しました。
+ポジション追跡・制限管理・クリーンアップ・クールダウン制御を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で平均価格追跡機能、Phase 42.2でトレーリングSL/TP価格フィールド、Phase 42.4で統合TP/SL状態永続化を実装しました。
 
 ## 📂 ファイル構成
 
@@ -15,6 +15,50 @@ position/
 ├── __init__.py      # モジュール初期化
 └── README.md        # このファイル
 ```
+
+## 📈 Phase 42.4完了（2025年10月20日）
+
+**🎯 Phase 42.4: 統合TP/SL状態永続化・Cloud Run再起動対応**
+
+### ✅ Phase 42.4最適化成果
+- **JSON状態永続化実装**: tracker.py lines 489-538に状態保存・復元機能追加
+  ```python
+  # 状態ファイルパス
+  self.local_state_path = "src/core/state/consolidated_tp_sl_state.json"
+
+  # 保存: set_consolidated_tp_sl_ids()呼び出し時に自動保存
+  # 復元: __init__()時に自動復元
+  ```
+
+- **Cloud Run再起動時の状態維持**:
+  - 従来の問題: メモリ内のみの状態管理 → Cloud Run再起動時に消失
+  - Phase 42.4解決策: JSON永続化 → 再起動後も統合TP/SL ID維持
+  - 効果: 22注文問題（既存TP/SLキャンセル失敗）の根本解決
+
+- **保存内容**:
+  ```json
+  {
+    "tp_order_id": "12345",
+    "sl_order_id": "12346",
+    "tp_price": 15970209,
+    "sl_price": 16793416,
+    "side": "sell",
+    "average_entry_price": 16464133.0,
+    "total_position_size": 0.0001
+  }
+  ```
+
+- **自動保存・自動復元**:
+  - `_save_state()`: 統合TP/SL設定時に自動保存（line 489-512）
+  - `_load_state()`: 初期化時に自動復元（line 514-538）
+  - `__init__()`: 起動時に自動的に状態復元を呼び出し（line 45）
+
+- **品質保証完了**: 1,164テスト100%成功・69.58%カバレッジ達成
+
+### 📊 Phase 42.4重要事項
+- **drawdown_state.json設計踏襲**: 既存のドローダウン永続化と同じJSON設計パターン使用
+- **Graceful Degradation**: 状態ファイル読み込み失敗時もシステム継続
+- **後方互換性**: 既存のPhase 42/42.2機能と完全互換
 
 ## 📈 Phase 42.2完了（2025年10月18日）
 

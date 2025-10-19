@@ -25,7 +25,14 @@ def execution_service():
 
 @pytest.fixture
 def position_tracker():
-    """PositionTracker fixture"""
+    """PositionTracker fixture - Phase 42.4: 状態ファイルクリーンアップ"""
+    import os
+
+    # Phase 42.4: 各テスト前に永続化ファイルを削除してクリーンな状態で開始
+    state_file = "src/core/state/consolidated_tp_sl_state.json"
+    if os.path.exists(state_file):
+        os.remove(state_file)
+
     return PositionTracker()
 
 
@@ -139,7 +146,7 @@ class TestConsolidatedTpSlIntegration:
 
         # 検証: PositionTrackerにポジション追加されている
         assert position_tracker.get_position_count() == 1
-        # 検証: 平均価格が更新されている
+        # Phase 42.4: クリーンな状態から開始（永続化ファイル削除済み）
         assert position_tracker._average_entry_price == 14000000.0
         assert position_tracker._total_position_size == 0.001
 
@@ -287,12 +294,23 @@ class TestConsolidatedTpSlIntegration:
         """複数エントリー時の平均価格更新"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -337,9 +355,10 @@ class TestConsolidatedTpSlIntegration:
             entry_price=14200000.0,
         )
 
-        # 検証: 加重平均価格計算
-        # (14,000,000 × 0.001 + 14,200,000 × 0.002) / 0.003
-        # = (14,000 + 28,400) / 0.003 = 42,400 / 0.003 = 14,133,333円
+        # Phase 42.4: クリーンな状態から2回のエントリー
+        # 1回目: 0.001 BTC @ 14000000円
+        # 2回目: 0.002 BTC @ 14200000円
+        # 平均価格: (14000000 × 0.001 + 14200000 × 0.002) / 0.003 = 14133333.33円
         expected_average = (14000000.0 * 0.001 + 14200000.0 * 0.002) / 0.003
         assert position_tracker._average_entry_price == pytest.approx(expected_average, rel=1e-6)
         assert position_tracker._total_position_size == 0.003
@@ -359,12 +378,23 @@ class TestConsolidatedTpSlIntegration:
         """市場条件取得・使用確認"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -416,12 +446,23 @@ class TestConsolidatedTpSlIntegration:
         """TP/SL価格計算正確性"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -470,12 +511,23 @@ class TestConsolidatedTpSlIntegration:
         """注文配置成功（TP/SL両方）"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -524,12 +576,23 @@ class TestConsolidatedTpSlIntegration:
         """エラー時フォールバック（個別TP/SL）"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -583,12 +646,23 @@ class TestConsolidatedTpSlIntegration:
         """PositionTracker ID保存確認"""
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -637,12 +711,23 @@ class TestConsolidatedTpSlIntegration:
         paper_service = ExecutionService(mode="paper", bitbank_client=mock_bitbank_client)
 
         def threshold_side_effect(key, default=None):
+            # Phase 42.4: 新設定値（SL 2%, TP 3%, RR比 1.5:1）
             if key == "position_management.tp_sl_mode":
                 return "consolidated"
-            elif "take_profit" in key:
-                return {"enabled": True, "default_ratio": 2.5, "min_profit_ratio": 0.01}
-            elif "stop_loss" in key:
-                return {"enabled": True, "default_atr_multiplier": 2.0, "max_loss_ratio": 0.03}
+            elif key == "tp_default_ratio":
+                return 1.5
+            elif key == "tp_min_profit_ratio":
+                return 0.03
+            elif key == "sl_atr_normal_vol":
+                return 2.0
+            elif key == "sl_min_distance_ratio":
+                return 0.02
+            elif key == "position_management.stop_loss.max_loss_ratio":
+                return 0.03
+            elif key == "position_management.take_profit":
+                return {"enabled": True}
+            elif key == "position_management.stop_loss":
+                return {"enabled": True}
             return default
 
         mock_threshold.side_effect = threshold_side_effect

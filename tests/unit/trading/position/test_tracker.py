@@ -27,7 +27,14 @@ from src.trading.position.tracker import PositionTracker
 
 @pytest.fixture
 def tracker():
-    """PositionTracker fixture"""
+    """PositionTracker fixture - Phase 42.4: 状態ファイルクリーンアップ"""
+    import os
+
+    # Phase 42.4: 各テスト前に永続化ファイルを削除してクリーンな状態で開始
+    state_file = "src/core/state/consolidated_tp_sl_state.json"
+    if os.path.exists(state_file):
+        os.remove(state_file)
+
     return PositionTracker()
 
 

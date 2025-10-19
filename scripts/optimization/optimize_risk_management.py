@@ -41,16 +41,16 @@ from src.core.logger import CryptoBotLogger
 class RiskManagementOptimizer:
     """リスク管理パラメータ最適化クラス"""
 
-    # Phase 42: TP/SL距離固定パラメータ（Optuna最適化から除外）
-    # デイトレード最適化済み設定値（Optuna Phase 40結果）
+    # Phase 42.4: TP/SL距離固定パラメータ（デイトレード段階的最適化）
+    # 2025年市場ベストプラクティス準拠（BTC日次ボラティリティ2-5%対応）
     FIXED_TP_SL_PARAMS = {
         "sl_atr_low_vol": 2.1,
         "sl_atr_normal_vol": 2.0,
         "sl_atr_high_vol": 1.2,
-        "sl_min_distance_ratio": 0.01,  # 1.0%
+        "sl_min_distance_ratio": 0.02,  # Phase 42.4: 2.0%（1.0% → 2.0%）
         "sl_min_atr_multiplier": 1.3,
-        "tp_default_ratio": 1.5,
-        "tp_min_profit_ratio": 0.019,  # 1.9%
+        "tp_default_ratio": 1.5,  # RR比1.5:1維持（段階的最適化）
+        "tp_min_profit_ratio": 0.03,  # Phase 42.4: 3.0%（1.9% → 3.0%）
     }
 
     def __init__(self, logger: CryptoBotLogger):

@@ -1,10 +1,12 @@
-# Phase 40: Optuna包括最適化 - 使い方ガイド
+# Phase 40: Optuna包括最適化 - 使い方ガイド（Phase 42.4 FIXED_TP_SL_PARAMS同期完了）
 
 ## 📋 このディレクトリの役割
 
 **Phase 40最適化スクリプト格納ディレクトリ**
 
 Optunaを使用したベイズ最適化により、システム全体のパラメータを包括的に最適化します。
+
+**⚠️ Phase 42.4更新**: TP/SL距離パラメータはOptuna最適化対象外（FIXED_TP_SL_PARAMS）に設定されています。デイトレード戦略確立後の最適化に備えた設計です。
 
 **対象パラメータ**: 79パラメータ
 - Phase 40.1: リスク管理（12パラメータ）
@@ -170,6 +172,17 @@ python3 scripts/optimization/integrate_and_deploy.py
 ### Phase 40.1: リスク管理パラメータ最適化
 
 **対象**: 12パラメータ（TP/SL・Kelly基準・リスクスコア）
+
+**⚠️ Phase 42.4重要**: TP/SL距離パラメータは最適化対象外（FIXED_TP_SL_PARAMS）
+- `sl_atr_low_vol: 2.1`
+- `sl_atr_normal_vol: 2.0`
+- `sl_atr_high_vol: 1.2`
+- `sl_min_distance_ratio: 0.02` ← Phase 42.4: 1.0% → 2.0%
+- `sl_min_atr_multiplier: 1.3`
+- `tp_default_ratio: 1.5` ← Phase 42.4: RR比1.5:1維持
+- `tp_min_profit_ratio: 0.03` ← Phase 42.4: 1.9% → 3.0%
+
+これらは`optimize_risk_management.py` lines 44-54で固定値として定義されており、Optuna最適化から除外されています。デイトレード戦略確立後に最適化する設計です。
 
 **実行方法**:
 ```bash
@@ -627,4 +640,4 @@ else:
 
 ---
 
-**最終更新**: 2025年10月18日 - Phase 40.5ハイブリッド最適化システム説明追加
+**最終更新**: 2025年10月20日 - Phase 42.4 FIXED_TP_SL_PARAMS同期完了・デイトレード段階的最適化対応

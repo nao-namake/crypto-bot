@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-18T09:29:16.236396",
+  "created_at": "2025-10-20T06:41:11.377271",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/production_ensemble.pkl",
   "version": "1.0.0",
@@ -74,38 +74,38 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.48366013071895425,
-      "f1_score": 0.5298407811808183,
-      "precision": 0.6244164332399627,
-      "recall": 0.48366013071895425,
-      "cv_f1_mean": 0.4794794574088167,
-      "cv_f1_std": 0.07562722552489452
+      "accuracy": 0.5266666666666666,
+      "f1_score": 0.5450180158363238,
+      "precision": 0.5711141722952956,
+      "recall": 0.5266666666666666,
+      "cv_f1_mean": 0.48280858239793467,
+      "cv_f1_std": 0.0822193234393016
     },
     "xgboost": {
-      "accuracy": 0.6928104575163399,
-      "f1_score": 0.6097742684125268,
-      "precision": 0.5536176242058596,
-      "recall": 0.6928104575163399,
-      "cv_f1_mean": 0.5367276955354864,
-      "cv_f1_std": 0.0435418904273801
+      "accuracy": 0.6933333333333334,
+      "f1_score": 0.6118447121820615,
+      "precision": 0.5612857142857144,
+      "recall": 0.6933333333333334,
+      "cv_f1_mean": 0.5255138686159109,
+      "cv_f1_std": 0.06021324995671979
     },
     "random_forest": {
-      "accuracy": 0.6797385620915033,
-      "f1_score": 0.608088486676722,
-      "precision": 0.553289133399163,
-      "recall": 0.6797385620915033,
-      "cv_f1_mean": 0.5463735503138192,
-      "cv_f1_std": 0.06245346469503748
+      "accuracy": 0.6866666666666666,
+      "f1_score": 0.6187708287616122,
+      "precision": 0.5807679738562093,
+      "recall": 0.6866666666666666,
+      "cv_f1_mean": 0.543640704427484,
+      "cv_f1_std": 0.08624516844625091
     }
   },
   "training_info": {
-    "samples": 1011,
+    "samples": 1000,
     "feature_count": 55,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "e5edad90ec30f2de29273b14bd8aa5677741fee3",
-    "commit_short": "e5edad90",
+    "commit": "b9e9f166285026a69a3448b38faf2e005d02a578",
+    "commit_short": "b9e9f166",
     "branch": "main"
   },
   "notes": "Phase 41.8完了・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"

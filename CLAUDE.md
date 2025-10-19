@@ -1,12 +1,19 @@
-# CLAUDE.md - Phase 42.3完了・Claude Code最適化ガイド
+# CLAUDE.md - Phase 42.4完了・Claude Code最適化ガイド
 
-**🎯 即座に理解すべき重要事項：本システムはPhase 42.3完了済み・統合TP/SL+トレーリングストップ実装・注文数91.7%削減・ML Agreement Logic修正・証拠金チェックリトライ機能実装・Strategy-Aware ML実装・55特徴量学習・ML統合率100%達成・テストカバレッジ69.57%達成・1,081テスト100%成功・CI/CD品質保証完了の企業級AI自動取引システム**
+**🎯 即座に理解すべき重要事項：本システムはPhase 42.4完了済み・TP/SL設定最適化・状態永続化実装・統合TP/SL+トレーリングストップ実装・注文数91.7%削減・ML Agreement Logic修正・証拠金チェックリトライ機能実装・Strategy-Aware ML実装・55特徴量学習・ML統合率100%達成・テストカバレッジ69.58%達成・1,164テスト100%成功・CI/CD品質保証完了の企業級AI自動取引システム**
 
 ---
 
 ## 🚨 **現在のシステム状態**（重要・必読）
 
 ### **✅ 最新Phase完了ステータス**
+
+**Phase 42.4完了（2025/10/20）**:
+- TP/SL設定最適化（SL 2%・TP 3%・RR比1.5:1・2025年BTC市場ベストプラクティス準拠）
+- order_strategy.pyハードコード値削除（get_threshold()パターン適用）
+- PositionTracker状態永続化実装（JSON保存・Cloud Run再起動対応）
+- 22注文問題解決（統合TP/SL ID永続化・注文蓄積防止）
+- 品質保証完了（1,164テスト100%成功・69.58%カバレッジ達成）
 
 **Phase 42.3完了（2025/10/18）**:
 - ML Agreement Logic修正（strict matching・hold誤ボーナス解消）
@@ -104,7 +111,7 @@
 
 ### **⚖️ リスク管理**
 - 適応型ATR倍率（低2.5x・通常2.0x・高1.5x）
-- 最小SL距離保証1%・15m ATR優先でSL距離2%改善
+- TP/SL設定最適化（Phase 42.4: SL 2%・TP 3%・RR比1.5:1・状態永続化・22注文問題解決）
 - 統合TP/SL実装（Phase 42.1: 複数ポジション加重平均・注文数91.7%削減）
 - トレーリングストップ（Phase 42.2: 2%発動・3%距離・最小0.5%利益ロック）
 - TP/SL自動配置（stop注文・trigger_price完全対応）
@@ -129,10 +136,10 @@
 
 ### **🧪 品質チェック（開発前後必須）**
 ```bash
-# Phase 40品質チェック - 開発前後に必ず実行
+# Phase 42.4品質チェック - 開発前後に必ず実行
 bash scripts/testing/checks.sh
 
-# 期待結果: ✅ 1,081テスト100%成功・69.57%カバレッジ通過・約80秒で完了
+# 期待結果: ✅ 1,164テスト100%成功・69.58%カバレッジ通過・約80秒で完了
 ```
 
 ### **🔄 システム実行（Claude Code最適化済み）**
@@ -199,10 +206,10 @@ src/                        # メイン実装・レイヤードアーキテク�
 └── monitoring/             # 📢 Discord 3階層監視
 
 📁 重要ファイル:
-scripts/testing/checks.sh       # 品質チェック（開発必須・1,081テスト）
+scripts/testing/checks.sh       # 品質チェック（開発必須・1,164テスト）
 config/core/features.yaml       # 機能トグル設定（7カテゴリー~50機能）
 config/core/unified.yaml        # 統合設定ファイル（指値/クールダウン設定）
-config/core/thresholds.yaml     # ML統合・適応型ATR設定
+config/core/thresholds.yaml     # ML統合・適応型ATR・TP/SL設定
 models/production/              # 本番MLモデル（週次自動更新）
 ```
 
@@ -211,7 +218,7 @@ models/production/              # 本番MLモデル（週次自動更新）
 ## 🎯 **開発原則・品質基準**
 
 ### **🧪 品質保証（必須遵守）**
-- **🔬 テスト実行**: 開発前後に`checks.sh`必須実行・1,081テスト100%維持・69.57%カバレッジ
+- **🔬 テスト実行**: 開発前後に`checks.sh`必須実行・1,164テスト100%維持・69.58%カバレッジ
 - **📈 カバレッジ**: 70%以上維持・新機能は必ずテスト追加
 - **🔄 CI/CD**: GitHub Actions自動品質ゲート・失敗時は修正必須
 
@@ -233,6 +240,32 @@ models/production/              # 本番MLモデル（週次自動更新）
 ---
 
 ## 🔧 **重要技術ポイント・Phase履歴**（必須理解事項）
+
+### **📅 Phase 42.4（2025/10/20）- TP/SL設定最適化・状態永続化実装**
+- **Phase 42.4.1: order_strategy.pyハードコード値削除** (`order_strategy.py:378-397`):
+  - 修正前: `sl_rate = min(0.02, max_loss_ratio)` - SL 2%ハードコード
+  - 修正前: `default_tp_ratio = tp_config.get("default_ratio", 2.5)` - TP 2.5倍ハードコード
+  - 修正後: `get_threshold()`でthresholds.yamlから直接取得
+  - 効果: Phase 42デプロイ後も設定が反映されなかった根本原因を解決
+- **Phase 42.4.2: PositionTracker状態永続化実装** (`tracker.py:489-538`):
+  - 背景: 統合TP/SL IDがメモリのみに保存され、Cloud Run再起動で消失
+  - 対策: JSON永続化実装（`src/core/state/consolidated_tp_sl_state.json`）
+  - `_save_state()`: 統合TP/SL状態自動保存・各更新時に実行
+  - `_load_state()`: 起動時状態復元・既存TP/SL ID取得
+  - 効果: 22個の未約定注文蓄積問題を根本解決
+- **Phase 42.4.3: TP/SL設定値最適化** (`thresholds.yaml:367-387`):
+  - `sl_min_distance_ratio`: 0.01 → 0.02（SL 2%・証拠金1万円で最大損失200円）
+  - `tp_min_profit_ratio`: 0.019 → 0.03（TP 3%・細かく利益確定）
+  - `tp_default_ratio`: 1.5維持（RR比1.5:1・段階的最適化アプローチ）
+  - 設定根拠: 2025年BTC市場ベストプラクティス準拠（日次ボラティリティ2-5%）
+- **Phase 42.4.4: Optuna固定パラメータ同期** (`optimize_risk_management.py:44-54`):
+  - FIXED_TP_SL_PARAMSをthresholds.yamlと同期
+  - sl_min_distance_ratio: 0.01 → 0.02、tp_min_profit_ratio: 0.019 → 0.03
+- **Phase 42.4.5: テスト修正・品質保証** (9テストファイル更新):
+  - Phase 42.4設定パターン対応（get_threshold()直接呼び出し）
+  - 状態ファイルクリーンアップ（fixture-levelクリーンアップ実装）
+  - 期待値調整（clean state基準に更新）
+- **品質保証**: 1,164テスト100%成功・69.58%カバレッジ達成・ペーパートレード検証完了
 
 ### **📅 Phase 42.3（2025/10/18）- バグ修正3件**
 - **Phase 42.3.1: ML Agreement Logic修正** (`trading_cycle_manager.py:548`):
@@ -464,34 +497,36 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 
 ---
 
-## ✅ **開発時チェックリスト**（Phase 42.3完了時点）
+## ✅ **開発時チェックリスト**（Phase 42.4完了時点）
 
 ### **🔍 必須確認事項**
-1. **🧪 品質チェック**: `bash scripts/testing/checks.sh`で1,081テスト・69.57%カバレッジ確認
+1. **🧪 品質チェック**: `bash scripts/testing/checks.sh`で1,164テスト・69.58%カバレッジ確認
 2. **☁️ 本番稼働**: Cloud Run・Discord通知・取引ログ確認
-3. **🎯 Phase 42.3機能**: ML Agreement Logic修正・Feature Warning抑制・証拠金チェックリトライ確認
-4. **🎯 Phase 42.2機能**: トレーリングストップ実装・2%発動・3%距離・最小0.5%利益ロック確認
-5. **🎯 Phase 42.1機能**: 統合TP/SL実装・注文数91.7%削減・加重平均価格・8ステップフロー確認
-6. **🎯 Phase 41.8.5機能**: ML統合率100%達成・閾値0.45/0.60最適化・3段階統合ロジック確認
-7. **🧠 Phase 41.8機能**: Strategy-Aware ML・55特徴量学習・訓練/推論一貫性・F1スコア0.56-0.61確認
-8. **🎯 Phase 40機能**: 79パラメータ最適化・統合最適化スクリプト・期待効果+50-70%確認
-9. **💰 Phase 38.7.2機能**: 完全指値オンリー実装・年間¥150,000削減・約定率90-95%確認
-10. **🏗️ Phase 38機能**: trading層5層アーキテクチャ・後方互換性・テスト追加確認
-11. **🎯 Phase 37.4機能**: SL配置成功率100%・trigger_price修正・エラー30101解消確認
-12. **💰 Phase 37.3機能**: コスト削減35-45%・5分間隔実行・月額1,100-1,300円確認
-13. **🛡️ Phase 37.2機能**: bitbank API GET認証・エラー20003解消確認
-14. **🎯 Phase 37機能**: SL注文stop対応・エラー50062解消確認
-15. **🛡️ Phase 36機能**: Graceful Degradation・Container exit(1)解消確認
-16. **📊 Phase 35機能**: バックテスト10倍高速化・45分実行時間確認
+3. **🎯 Phase 42.4機能**: TP/SL設定最適化・ハードコード削除・状態永続化・22注文問題解決確認
+4. **🎯 Phase 42.3機能**: ML Agreement Logic修正・Feature Warning抑制・証拠金チェックリトライ確認
+5. **🎯 Phase 42.2機能**: トレーリングストップ実装・2%発動・3%距離・最小0.5%利益ロック確認
+6. **🎯 Phase 42.1機能**: 統合TP/SL実装・注文数91.7%削減・加重平均価格・8ステップフロー確認
+7. **🎯 Phase 41.8.5機能**: ML統合率100%達成・閾値0.45/0.60最適化・3段階統合ロジック確認
+8. **🧠 Phase 41.8機能**: Strategy-Aware ML・55特徴量学習・訓練/推論一貫性・F1スコア0.56-0.61確認
+9. **🎯 Phase 40機能**: 79パラメータ最適化・統合最適化スクリプト・期待効果+50-70%確認
+10. **💰 Phase 38.7.2機能**: 完全指値オンリー実装・年間¥150,000削減・約定率90-95%確認
+11. **🏗️ Phase 38機能**: trading層5層アーキテクチャ・後方互換性・テスト追加確認
+12. **🎯 Phase 37.4機能**: SL配置成功率100%・trigger_price修正・エラー30101解消確認
+13. **💰 Phase 37.3機能**: コスト削減35-45%・5分間隔実行・月額1,100-1,300円確認
+14. **🛡️ Phase 37.2機能**: bitbank API GET認証・エラー20003解消確認
+15. **🎯 Phase 37機能**: SL注文stop対応・エラー50062解消確認
+16. **🛡️ Phase 36機能**: Graceful Degradation・Container exit(1)解消確認
+17. **📊 Phase 35機能**: バックテスト10倍高速化・45分実行時間確認
 
 ### **🚀 開発開始前チェック**
-1. **📊 最新状況把握**: システム状況・エラー状況・Phase 42.3ステータス確認
-2. **🧪 品質基準**: 1,081テスト・69.57%カバレッジ・コード品質確認
+1. **📊 最新状況把握**: システム状況・エラー状況・Phase 42.4ステータス確認
+2. **🧪 品質基準**: 1,164テスト・69.58%カバレッジ・コード品質確認
 3. **⚙️ 設定整合性**: config整合性・環境変数・features.yaml・unified.yaml・thresholds.yaml確認
 
 ---
 
-**🎯 Phase 42.3完了・企業級AI自動取引システム**:
+**🎯 Phase 42.4完了・企業級AI自動取引システム**:
+Phase 42.4 TP/SL設定最適化・状態永続化実装（SL 2%・TP 3%・RR比1.5:1・order_strategy.pyハードコード削除・PositionTracker永続化・22注文問題解決・2025年BTC市場ベストプラクティス準拠）・
 Phase 42.3 バグ修正3件（ML Agreement Logic strict matching・Feature Warning抑制・証拠金チェックリトライ・Error 20001対策・無限ループ防止）・
 Phase 42.2 トレーリングストップ実装（2%発動・3%距離・最小0.5%利益ロック・TP自動キャンセル・Bybit/Binance準拠）・
 Phase 42.1 統合TP/SL実装完了（注文数91.7%削減・24注文→2注文・加重平均価格ベース・8ステップフロー・Graceful Degradation）・
@@ -511,8 +546,8 @@ bitbank API完全対応（GET/POST認証・snake_case準拠）・コスト最適
 Graceful Degradation（Container exit解消）・15m ATR優先実装・柔軟クールダウン・features.yaml機能管理・
 3層設定体系・Discord 3階層監視による真のハイブリッドMLbot・企業級品質・収益最適化・デイトレード対応・
 少額運用対応・実用的バックテスト環境を実現した完全自動化AI取引システムが24時間稼働継続中。
-1,081テスト100%成功・69.57%カバレッジ・CI/CD統合・本番環境安定稼働により企業級品質を完全達成 🚀
+1,164テスト100%成功・69.58%カバレッジ・CI/CD統合・本番環境安定稼働により企業級品質を完全達成 🚀
 
 ---
 
-**📅 最終更新**: 2025年10月18日 - Phase 42.3完了
+**📅 最終更新**: 2025年10月20日 - Phase 42.4完了
