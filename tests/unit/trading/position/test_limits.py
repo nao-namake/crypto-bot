@@ -306,8 +306,9 @@ class TestCheckDailyTrades:
         """日次取引回数制限到達"""
         mock_threshold.return_value = 5
 
-        today = datetime.now()
-        virtual_positions = [{"timestamp": today - timedelta(hours=i)} for i in range(5)]
+        # 確実に今日の日付内に収まるように12時を基準にする（UTC/JST境界対策）
+        today = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
+        virtual_positions = [{"timestamp": today - timedelta(minutes=i * 30)} for i in range(5)]
 
         result = limits._check_daily_trades(virtual_positions)
 
