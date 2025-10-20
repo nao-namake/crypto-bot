@@ -16,11 +16,11 @@ ml:
   default_confidence: 0.5
   strategy_integration:
     enabled: true
-    ml_weight: 0.3
+    ml_weight: 0.35  # Phase 44.1: +17%増加（ML予測信頼度反映強化）
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.7
+    disagreement_penalty: 0.85  # Phase 44.1: -30% → -15%ペナルティ（過剰ペナルティ削減）
     min_ml_confidence: 0.45
     hold_conversion_threshold: 0.4
   dynamic_confidence:
@@ -41,11 +41,11 @@ dynamic_confidence:
   strategies:
     mochipoy_alert:
       buy_strong_base: 0.7
-      buy_strong_max: 0.95
+      buy_strong_max: 0.70  # Phase 44.2: 最大70%に制限（単一戦略過剰影響防止）
       buy_weak_base: 0.45
       buy_weak_max: 0.6
       sell_strong_base: 0.7
-      sell_strong_max: 0.95
+      sell_strong_max: 0.70  # Phase 44.2: 最大70%に制限（単一戦略過剰影響防止）
       sell_weak_base: 0.45
       sell_weak_max: 0.6
       hold_base: 0.2
@@ -427,7 +427,7 @@ atr_bb_oversold: 0.35
 ml_weight: 0.35
 high_confidence_threshold: 0.85
 agreement_bonus: 1.15
-disagreement_penalty: 0.7
+disagreement_penalty: 0.85  # Phase 44.1: 同期更新（-30% → -15%ペナルティ）
 min_ml_confidence: 0.45
 hold_conversion_threshold: 0.4
 lgbm_num_leaves: 40

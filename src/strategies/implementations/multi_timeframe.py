@@ -347,12 +347,12 @@ class MultiTimeframeStrategy(StrategyBase):
                     # Phase 38.2: 両軸0（シグナルなし）の特別処理
                     action = EntryAction.HOLD
                     if tf_4h_signal == 0 and tf_15m_signal == 0:
-                        # 両軸とも0（完全にシグナルなし）→ 極低信頼度
-                        base_confidence = 0.10
+                        # 両軸とも0（完全にシグナルなし）→ 改善された信頼度（Phase 44.3）
+                        base_confidence = 0.35
                         confidence = max(
-                            0.10,
+                            0.30,
                             min(
-                                0.25, base_confidence * (1 + market_uncertainty / uncertainty_boost)
+                                0.40, base_confidence * (1 + market_uncertainty / uncertainty_boost)
                             ),
                         )
                     else:
