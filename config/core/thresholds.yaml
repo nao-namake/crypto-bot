@@ -262,10 +262,8 @@ risk:
   max_capital_usage: 0.3
   reserve_ratio: 0.7
 position_management:
-  # Phase 42: 統合TP/SL・トレーリングストップ機能有効化
-  tp_sl_mode: "consolidated"  # "individual" or "consolidated"
-  consolidated:
-    consolidate_on_new_entry: true  # エントリー時に既存TP/SLキャンセル・再統合
+  # Phase 43.5: individualモード廃止、統合TP/SL強制（トレーリングストップ含む）
+  consolidate_on_new_entry: true  # エントリー時に既存TP/SLキャンセル・再統合
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 20
@@ -343,6 +341,15 @@ position_management:
       cancel_tp_when_exceeds: true
 margin:
   position_value_estimation_ratio: 0.8
+  # Phase 43: 維持率閾値設定
+  thresholds:
+    critical: 100.0      # 追証発生レベル - 100%未満でエントリー拒否
+    warning: 100.0       # 警告レベル
+    caution: 150.0       # 注意レベル
+    safe: 200.0          # 安全レベル
+  large_drop_threshold: 50.0
+  min_position_value: 1000.0
+  max_ratio_cap: 10000.0
 order_execution:
   smart_order_enabled: true
   high_confidence_threshold: 0.0

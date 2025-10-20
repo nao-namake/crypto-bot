@@ -1,0 +1,112 @@
+[
+  {
+    "trial_number": 0,
+    "params": {
+      "kelly_max_position_ratio": 0.025,
+      "kelly_safety_factor": 1.0,
+      "risk_conditional": 0.7,
+      "risk_deny": 0.85
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 1,
+    "params": {
+      "kelly_max_position_ratio": 0.015,
+      "kelly_safety_factor": 0.55,
+      "risk_conditional": 0.5,
+      "risk_deny": 0.95
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 2,
+    "params": {
+      "kelly_max_position_ratio": 0.035,
+      "kelly_safety_factor": 0.8500000000000001,
+      "risk_conditional": 0.5,
+      "risk_deny": 0.95
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 3,
+    "params": {
+      "kelly_max_position_ratio": 0.045000000000000005,
+      "kelly_safety_factor": 0.6,
+      "risk_conditional": 0.55,
+      "risk_deny": 0.75
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 4,
+    "params": {
+      "kelly_max_position_ratio": 0.02,
+      "kelly_safety_factor": 0.75,
+      "risk_conditional": 0.6,
+      "risk_deny": 0.8
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 5,
+    "params": {
+      "kelly_max_position_ratio": 0.035,
+      "kelly_safety_factor": 0.55,
+      "risk_conditional": 0.55,
+      "risk_deny": 0.8
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 6,
+    "params": {
+      "kelly_max_position_ratio": 0.03,
+      "kelly_safety_factor": 0.9,
+      "risk_conditional": 0.55,
+      "risk_deny": 0.85
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 7,
+    "params": {
+      "kelly_max_position_ratio": 0.035,
+      "kelly_safety_factor": 0.5,
+      "risk_conditional": 0.65,
+      "risk_deny": 0.75
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 8,
+    "params": {
+      "kelly_max_position_ratio": 0.01,
+      "kelly_safety_factor": 1.0,
+      "risk_conditional": 0.75,
+      "risk_deny": 0.95
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  },
+  {
+    "trial_number": 9,
+    "params": {
+      "kelly_max_position_ratio": 0.02,
+      "kelly_safety_factor": 0.55,
+      "risk_conditional": 0.7,
+      "risk_deny": 0.85
+    },
+    "simulation_score": 0.9293428306022465,
+    "sharpe_ratio": 0.0
+  }
+]

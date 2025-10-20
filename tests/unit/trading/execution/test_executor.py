@@ -399,37 +399,7 @@ class TestExecuteTradeLiveMode:
         assert result.order_id == "limit_order_456"
         mock_order_strategy.get_optimal_execution_config.assert_called_once()
 
-    @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    @patch("src.trading.execution.executor.get_threshold")
-    async def test_live_trade_with_stop_manager(
-        self, mock_threshold, mock_discord, sample_evaluation, mock_bitbank_client
-    ):
-        """StopManager経由のTP/SL注文配置テスト"""
-        mock_threshold.return_value = "BTC/JPY"
-        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-
-        # StopManager注入
-        mock_stop_manager = AsyncMock()
-        mock_stop_manager.place_tp_sl_orders = AsyncMock(
-            return_value={"tp_order_id": "tp_789", "sl_order_id": "sl_012"}
-        )
-        service.inject_services(stop_manager=mock_stop_manager)
-
-        result = await service.execute_trade(sample_evaluation)
-
-        # StopManager呼び出し確認
-        mock_stop_manager.place_tp_sl_orders.assert_called_once()
-        call_args = mock_stop_manager.place_tp_sl_orders.call_args[0]
-        assert call_args[0] == sample_evaluation
-        assert call_args[1] == "buy"
-        assert call_args[2] == 0.0001
-
-        # ポジション記録確認
-        assert len(service.virtual_positions) == 1
-        position = service.virtual_positions[0]
-        assert position["tp_order_id"] == "tp_789"
-        assert position["sl_order_id"] == "sl_012"
+    # Phase 43.5: test_live_trade_with_stop_manager削除（place_tp_sl_orders廃止のため）
 
     @pytest.mark.asyncio
     async def test_live_trade_no_bitbank_client_error(self, sample_evaluation):

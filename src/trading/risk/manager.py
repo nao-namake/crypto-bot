@@ -9,7 +9,7 @@ Kelly基準ポジションサイジング、ドローダウン管理、異常検
 import asyncio
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -245,12 +245,15 @@ class IntegratedRiskManager:
                 denial_reasons.append(capital_usage_check["reason"])
                 self.logger.warning(f"🚫 残高利用率制限: {capital_usage_check['reason']}")
 
-            # 5. 保証金維持率監視
-            margin_warning_message = await self._check_margin_ratio(
+            # 5. 保証金維持率監視（Phase 43: 拒否機能追加）
+            should_deny, margin_message = await self._check_margin_ratio(
                 current_balance, last_price, ml_prediction, strategy_signal
             )
-            if margin_warning_message:
-                warnings.append(margin_warning_message)
+            if should_deny and margin_message:
+                denial_reasons.append(margin_message)  # 拒否
+                self.logger.warning(f"🚫 Phase 43: 維持率制限: {margin_message}")
+            elif margin_message:
+                warnings.append(margin_message)  # 警告のみ
 
             # 6. ポジションサイジング計算
             position_size = 0.0
@@ -651,9 +654,9 @@ class IntegratedRiskManager:
         btc_price: float,
         ml_prediction: Dict[str, Any],
         strategy_signal: Any,
-    ) -> Optional[str]:
+    ) -> Tuple[bool, Optional[str]]:
         """
-        保証金維持率監視チェック（Phase 38: BalanceMonitor使用）
+        保証金維持率監視チェック（Phase 43: 拒否機能追加）
 
         Args:
             current_balance: 現在の口座残高（円）
@@ -662,7 +665,9 @@ class IntegratedRiskManager:
             strategy_signal: 戦略シグナル
 
         Returns:
-            Optional[str]: 警告メッセージ（警告なしの場合はNone）
+            Tuple[bool, Optional[str]]:
+                - bool: True=拒否すべき, False=許可
+                - Optional[str]: 拒否/警告メッセージ（問題なしの場合はNone）
         """
         try:
             # 1. 現在のポジション価値を推定
@@ -682,17 +687,31 @@ class IntegratedRiskManager:
                 btc_price_jpy=btc_price,
             )
 
-            # 4. ユーザー警告が必要かチェック
+            future_margin_ratio = margin_prediction.future_margin_ratio
+
+            # Phase 43: 維持率100%未満で新規エントリー拒否（追証リスク回避）
+            critical_threshold = get_threshold("margin.thresholds.critical", 100.0)
+            if future_margin_ratio < critical_threshold:
+                deny_message = (
+                    f"🚨 Phase 43: 維持率100%未満予測 - エントリー拒否 "
+                    f"({future_margin_ratio:.1f}% < {critical_threshold:.0f}%、追証リスク)"
+                )
+                self.logger.warning(deny_message)
+                return True, deny_message  # True = 拒否
+
+            # 4. ユーザー警告が必要かチェック（警告レベル：許可するが通知）
             should_warn, warning_message = self.balance_monitor.should_warn_user(margin_prediction)
 
             if should_warn:
-                return f"保証金維持率警告: {warning_message}"
+                warning_msg = f"保証金維持率警告: {warning_message}"
+                return False, warning_msg  # False = 許可（警告のみ）
 
-            return None
+            return False, None  # 問題なし
 
         except Exception as e:
             self.logger.error(f"❌ 保証金監視チェックエラー: {e}")
-            return f"保証金監視システムエラー（制限なし）: {str(e)}"
+            error_msg = f"保証金監視システムエラー（制限なし）: {str(e)}"
+            return False, error_msg  # エラー時は許可（安全側に倒す）
 
     def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
         """現在のポジション価値推定"""

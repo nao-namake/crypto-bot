@@ -354,17 +354,23 @@ class OrderStrategy:
         average_entry_price: float,
         side: str,
         market_conditions: Optional[Dict[str, Any]] = None,
+        existing_sl_price: Optional[float] = None,
     ) -> Dict[str, float]:
         """
-        統合TP/SL価格計算（Phase 42・平均価格基準）
+        統合TP/SL価格計算（Phase 43・SL最悪位置維持対応）
 
         平均エントリー価格から±TP/SL率で統合TP/SL価格を計算する。
         適応型ATR倍率・リスクリワード比管理に対応。
+
+        Phase 43: ナンピン時は既存SLと比較し、より保護的なSL位置を維持する。
+        - 買いポジション: max(新規SL, 既存SL) - 高い方が保護的
+        - 売りポジション: min(新規SL, 既存SL) - 低い方が保護的
 
         Args:
             average_entry_price: 平均エントリー価格
             side: 注文サイド (buy/sell)
             market_conditions: 市場条件（ATR値等）
+            existing_sl_price: 既存SL価格（ナンピン時、Phase 43追加）
 
         Returns:
             Dict: {
@@ -406,25 +412,49 @@ class OrderStrategy:
             if side.lower() == "buy":
                 # 買いポジション: TP = 平均価格 × (1 + tp_rate), SL = 平均価格 × (1 - sl_rate)
                 take_profit_price = round(average_entry_price * (1 + tp_rate))
-                stop_loss_price = round(average_entry_price * (1 - sl_rate))
+                new_sl_price = round(average_entry_price * (1 - sl_rate))
+
+                # Phase 43: 既存SLと比較し、より保護的な位置を維持
+                if existing_sl_price is not None and existing_sl_price > 0:
+                    # 買いポジション: SL価格が高い方が保護的（損失が小さい）
+                    stop_loss_price = max(new_sl_price, existing_sl_price)
+                    if stop_loss_price != new_sl_price:
+                        self.logger.info(
+                            f"🛡️ Phase 43: 既存SL維持 - 新規={new_sl_price:.0f}円 < 既存={existing_sl_price:.0f}円 "
+                            f"→ 保護的な既存SL採用"
+                        )
+                else:
+                    stop_loss_price = new_sl_price
 
                 self.logger.info(
                     f"💰 買いポジション統合TP/SL計算: "
                     f"平均={average_entry_price:.0f}円, "
                     f"TP={take_profit_price:.0f}円(+{tp_rate * 100:.2f}%), "
-                    f"SL={stop_loss_price:.0f}円(-{sl_rate * 100:.2f}%)"
+                    f"SL={stop_loss_price:.0f}円(-{(average_entry_price - stop_loss_price) / average_entry_price * 100:.2f}%)"
                 )
 
             elif side.lower() == "sell":
                 # 売りポジション: TP = 平均価格 × (1 - tp_rate), SL = 平均価格 × (1 + sl_rate)
                 take_profit_price = round(average_entry_price * (1 - tp_rate))
-                stop_loss_price = round(average_entry_price * (1 + sl_rate))
+                new_sl_price = round(average_entry_price * (1 + sl_rate))
+
+                # Phase 43: 既存SLと比較し、より保護的な位置を維持
+                if existing_sl_price is not None and existing_sl_price > 0:
+                    # 売りポジション: SL価格が低い方が保護的（損失が小さい）
+                    stop_loss_price = min(new_sl_price, existing_sl_price)
+                    if stop_loss_price != new_sl_price:
+                        self.logger.info(
+                            f"🛡️ Phase 43: 既存SL維持 - 新規={new_sl_price:.0f}円 > 既存={existing_sl_price:.0f}円 "
+                            f"→ 保護的な既存SL採用"
+                        )
+                else:
+                    stop_loss_price = new_sl_price
 
                 self.logger.info(
                     f"💰 売りポジション統合TP/SL計算: "
                     f"平均={average_entry_price:.0f}円, "
                     f"TP={take_profit_price:.0f}円(-{tp_rate * 100:.2f}%), "
-                    f"SL={stop_loss_price:.0f}円(+{sl_rate * 100:.2f}%)"
+                    f"SL={stop_loss_price:.0f}円(+{(stop_loss_price - average_entry_price) / average_entry_price * 100:.2f}%)"
                 )
 
             else:

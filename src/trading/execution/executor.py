@@ -347,10 +347,7 @@ class ExecutionService:
             }
             self.virtual_positions.append(live_position)
 
-            # Phase 42: TP/SL配置モード判定（individual/consolidated）
-            tp_sl_mode = get_threshold("position_management.tp_sl_mode", "individual")
-            self.logger.info(f"🔍 Phase 42デバッグ: tp_sl_mode = '{tp_sl_mode}'")
-
+            # Phase 43.5: 統合TP/SL強制（individualモード廃止）
             if self.stop_manager and final_tp and final_sl:
                 # evaluationを再計算値で更新（immutable対応）
                 if hasattr(evaluation, "__dict__"):
@@ -359,35 +356,16 @@ class ExecutionService:
                 else:
                     evaluation = replace(evaluation, take_profit=final_tp, stop_loss=final_sl)
 
-                # Phase 42デバッグ: 統合TP/SL条件チェック
-                has_tracker = self.position_tracker is not None
-                has_strategy = self.order_strategy is not None
-                will_use_consolidated = (
-                    tp_sl_mode == "consolidated" and has_tracker and has_strategy
-                )
-                self.logger.info(
-                    f"🔍 Phase 42デバッグ: 統合TP/SL判定 - "
-                    f"モード={tp_sl_mode}, "
-                    f"tracker={'✅' if has_tracker else '❌'}, "
-                    f"strategy={'✅' if has_strategy else '❌'}, "
-                    f"統合使用={'✅ YES' if will_use_consolidated else '❌ NO (個別モード)'}"
-                )
+                # Phase 43.5: PositionTracker/OrderStrategy必須化
+                if not (self.position_tracker and self.order_strategy):
+                    raise CryptoBotError(
+                        "Phase 43.5: PositionTracker/OrderStrategy未初期化 - 統合TP/SL実行不可"
+                    )
 
-                if tp_sl_mode == "consolidated" and self.position_tracker and self.order_strategy:
-                    # Phase 42: 統合TP/SLモード
-                    await self._handle_consolidated_tp_sl(
-                        live_position, evaluation, side, amount, symbol, actual_filled_price
-                    )
-                else:
-                    # 従来の個別TP/SLモード
-                    tp_sl_result = await self.stop_manager.place_tp_sl_orders(
-                        evaluation, side, amount, symbol, self.bitbank_client
-                    )
-                    # TP/SL注文IDをポジションに追加
-                    if tp_sl_result.get("tp_order_id"):
-                        live_position["tp_order_id"] = tp_sl_result["tp_order_id"]
-                    if tp_sl_result.get("sl_order_id"):
-                        live_position["sl_order_id"] = tp_sl_result["sl_order_id"]
+                # Phase 42: 統合TP/SLモード（強制）
+                await self._handle_consolidated_tp_sl(
+                    live_position, evaluation, side, amount, symbol, actual_filled_price
+                )
 
             return result
 
@@ -462,17 +440,15 @@ class ExecutionService:
             }
             self.virtual_positions.append(virtual_position)
 
-            # Phase 42: ペーパートレードでも統合TP/SL対応（整合性維持）
-            tp_sl_mode = get_threshold("position_management.tp_sl_mode", "individual")
+            # Phase 43.5: ペーパートレードでも統合TP/SL強制（整合性維持）
             if (
-                tp_sl_mode == "consolidated"
-                and self.position_tracker
+                self.position_tracker
                 and self.order_strategy
                 and virtual_position.get("take_profit")
                 and virtual_position.get("stop_loss")
             ):
                 try:
-                    self.logger.info("🔄 Phase 42: ペーパートレード統合TP/SL処理")
+                    self.logger.info("🔄 Phase 43.5: ペーパートレード統合TP/SL処理")
 
                     # PositionTrackerにポジション追加
                     self.position_tracker.add_position(
@@ -489,12 +465,17 @@ class ExecutionService:
                     new_average_price = self.position_tracker.update_average_on_entry(price, amount)
                     total_size = self.position_tracker._total_position_size
 
-                    # 統合TP/SL価格計算（ログ出力用）
+                    # Phase 43: 既存SL価格を取得（SL最悪位置維持用）
+                    existing_ids = self.position_tracker.get_consolidated_tp_sl_ids()
+                    existing_sl_price = existing_ids.get("sl_price", 0)
+
+                    # 統合TP/SL価格計算（Phase 43: 既存SL考慮）
                     market_conditions = getattr(evaluation, "market_conditions", {})
                     new_tp_sl = self.order_strategy.calculate_consolidated_tp_sl_prices(
                         average_entry_price=new_average_price,
                         side=side,
                         market_conditions=market_conditions,
+                        existing_sl_price=existing_sl_price if existing_sl_price > 0 else None,
                     )
 
                     self.logger.info(
@@ -754,11 +735,15 @@ class ExecutionService:
             # 5. 市場条件を取得（適応型ATR倍率用）
             market_conditions = getattr(evaluation, "market_conditions", {})
 
-            # 6. 平均価格ベースで新しいTP/SL価格を計算
+            # Phase 43: 既存SL価格を取得（SL最悪位置維持用）
+            existing_sl_price = existing_ids.get("sl_price", 0)
+
+            # 6. 平均価格ベースで新しいTP/SL価格を計算（Phase 43: 既存SL考慮）
             new_tp_sl_prices = self.order_strategy.calculate_consolidated_tp_sl_prices(
                 average_entry_price=new_average_price,
                 side=side,
                 market_conditions=market_conditions,
+                existing_sl_price=existing_sl_price if existing_sl_price > 0 else None,
             )
 
             new_tp_price = new_tp_sl_prices["take_profit_price"]
@@ -805,19 +790,9 @@ class ExecutionService:
                 self.logger.warning("⚠️ Phase 42: 統合TP/SL注文ID取得失敗")
 
         except Exception as e:
-            self.logger.error(f"❌ Phase 42: 統合TP/SL処理エラー: {e}", exc_info=True)
-            # エラー時は個別TP/SLにフォールバック
-            self.logger.warning("⚠️ 個別TP/SLモードにフォールバック")
-            try:
-                tp_sl_result = await self.stop_manager.place_tp_sl_orders(
-                    evaluation, side, amount, symbol, self.bitbank_client
-                )
-                if tp_sl_result.get("tp_order_id"):
-                    live_position["tp_order_id"] = tp_sl_result["tp_order_id"]
-                if tp_sl_result.get("sl_order_id"):
-                    live_position["sl_order_id"] = tp_sl_result["sl_order_id"]
-            except Exception as fallback_error:
-                self.logger.error(f"❌ フォールバックTP/SL配置も失敗: {fallback_error}")
+            self.logger.error(f"❌ Phase 43.5: 統合TP/SL処理エラー: {e}", exc_info=True)
+            # Phase 43.5: フォールバック廃止 - エラーをそのまま伝播
+            raise
 
     # ========================================
     # Phase 42.2: トレーリングストップ用メソッド

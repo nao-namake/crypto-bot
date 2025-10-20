@@ -529,20 +529,21 @@ class TestIntegratedRiskManager:
 
     @pytest.mark.asyncio
     async def test_margin_ratio_check(self):
-        """保証金維持率監視チェックテスト."""
+        """保証金維持率監視チェックテスト（Phase 43: Tuple戻り値対応）."""
         market_data = self.create_sample_market_data()
         ml_prediction = {"confidence": 0.7, "action": "buy"}
         strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
 
-        # 正常ケース
-        warning = await self.risk_manager._check_margin_ratio(
+        # 正常ケース（Phase 43: Tuple[bool, Optional[str]]を返す）
+        should_deny, message = await self.risk_manager._check_margin_ratio(
             current_balance=1000000,
             btc_price=6000000,
             ml_prediction=ml_prediction,
             strategy_signal=strategy_signal,
         )
-        # Noneまたは警告メッセージ
-        assert warning is None or isinstance(warning, str)
+        # Phase 43: 戻り値検証
+        assert isinstance(should_deny, bool)
+        assert message is None or isinstance(message, str)
 
     def test_estimate_position_value(self):
         """ポジション価値推定テスト."""
