@@ -13,6 +13,8 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
+from tax.trade_history_recorder import TradeHistoryRecorder
+
 from ...core.config import get_threshold, load_config
 from ...core.exceptions import CryptoBotError
 from ...core.logger import get_logger
@@ -46,6 +48,13 @@ class ExecutionService:
         self.session_pnl = 0.0
         self.current_balance = 0.0
         self.trade_history = []
+
+        # Phase 47: 取引履歴記録システム
+        try:
+            self.trade_recorder = TradeHistoryRecorder()
+        except Exception as e:
+            self.logger.warning(f"⚠️ TradeHistoryRecorder初期化失敗: {e}")
+            self.trade_recorder = None
 
         # ペーパートレード用
         self.virtual_positions = []
@@ -254,6 +263,21 @@ class ExecutionService:
 
             # 統計更新
             self.executed_trades += 1
+
+            # Phase 47: 取引履歴記録（ライブモード）
+            if self.trade_recorder:
+                try:
+                    self.trade_recorder.record_trade(
+                        trade_type="entry",
+                        side=side,
+                        amount=result.filled_amount,
+                        price=result.filled_price,
+                        fee=result.fee,
+                        order_id=result.order_id,
+                        notes=f"Live {order_type}注文 - {order_execution_config.get('strategy', 'default')}",
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 取引履歴記録失敗: {e}")
 
             # Phase 29.6: クールダウン時刻更新
             self.last_order_time = datetime.now()
@@ -485,6 +509,21 @@ class ExecutionService:
 
             # 統計更新
             self.executed_trades += 1
+
+            # Phase 47: 取引履歴記録（ペーパーモード）
+            if self.trade_recorder:
+                try:
+                    self.trade_recorder.record_trade(
+                        trade_type="entry",
+                        side=side,
+                        amount=amount,
+                        price=price,
+                        fee=0.0,
+                        order_id=virtual_order_id,
+                        notes=f"Paper trade - {virtual_position.get('strategy_name', 'unknown')}",
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ 取引履歴記録失敗: {e}")
 
             # Phase 29.6: クールダウン時刻更新
             self.last_order_time = datetime.now()

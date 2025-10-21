@@ -1,0 +1,373 @@
+"""
+BitbankClient テストファイル - Phase 17品質向上・カバレッジ75%達成
+
+Bitbank信用取引専用APIクライアントの基本機能を包括的にテスト。
+初期化・設定検証・基本メソッドをカバー。
+"""
+
+import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.core.exceptions import DataFetchError, ExchangeAPIError
+from src.data.bitbank_client import BitbankClient
+
+
+class TestBitbankClient:
+    """BitbankClient メインテストクラス"""
+
+    def test_init_basic(self):
+        """基本初期化テスト"""
+        with patch.dict(
+            os.environ, {"BITBANK_API_KEY": "test_api_key", "BITBANK_API_SECRET": "test_api_secret"}
+        ):
+            with patch("ccxt.bitbank") as mock_ccxt:
+                mock_exchange = MagicMock()
+                mock_ccxt.return_value = mock_exchange
+
+                client = BitbankClient()
+
+                assert client.api_key == "test_api_key"
+                assert client.api_secret == "test_api_secret"
+                assert client.leverage == 1.0
+                assert hasattr(client, "logger")
+
+    def test_init_with_params(self):
+        """パラメータ付き初期化テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            client = BitbankClient(api_key="custom_key", api_secret="custom_secret", leverage=2.0)
+
+            assert client.api_key == "custom_key"
+            assert client.api_secret == "custom_secret"
+            assert client.leverage == 2.0
+
+    def test_init_invalid_leverage_low(self):
+        """無効レバレッジ（低）テスト"""
+        with pytest.raises(ValueError, match="レバレッジは1.0-2.0の範囲で設定してください"):
+            BitbankClient(leverage=0.5)
+
+    def test_init_invalid_leverage_high(self):
+        """無効レバレッジ（高）テスト"""
+        with pytest.raises(ValueError, match="レバレッジは1.0-2.0の範囲で設定してください"):
+            BitbankClient(leverage=3.0)
+
+    def test_init_edge_leverage_values(self):
+        """境界値レバレッジテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            # 下限値
+            client1 = BitbankClient(leverage=1.0)
+            assert client1.leverage == 1.0
+
+            # 上限値
+            client2 = BitbankClient(leverage=2.0)
+            assert client2.leverage == 2.0
+
+    def test_init_no_api_keys(self):
+        """APIキーなし初期化テスト"""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("ccxt.bitbank") as mock_ccxt:
+                mock_exchange = MagicMock()
+                mock_ccxt.return_value = mock_exchange
+
+                client = BitbankClient()
+
+                assert client.api_key is None
+                assert client.api_secret is None
+
+    @patch("ccxt.bitbank")
+    def test_ccxt_initialization(self, mock_ccxt):
+        """ccxt初期化テスト"""
+        mock_exchange = MagicMock()
+        mock_ccxt.return_value = mock_exchange
+
+        with patch.dict(
+            os.environ, {"BITBANK_API_KEY": "test_key", "BITBANK_API_SECRET": "test_secret"}
+        ):
+            client = BitbankClient()
+
+            # ccxt.bitbankが呼ばれている
+            mock_ccxt.assert_called_once()
+
+            # exchangeプロパティが設定されている
+            assert client.exchange == mock_exchange
+
+    def test_logger_initialization(self):
+        """ログ初期化テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            client = BitbankClient()
+
+            assert hasattr(client, "logger")
+            assert client.logger is not None
+
+    def test_attributes_exist(self):
+        """必要属性存在確認テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            client = BitbankClient()
+
+            # 必須属性の存在確認
+            assert hasattr(client, "api_key")
+            assert hasattr(client, "api_secret")
+            assert hasattr(client, "leverage")
+            assert hasattr(client, "exchange")
+            assert hasattr(client, "logger")
+
+    def test_environment_variable_priority(self):
+        """環境変数優先度テスト"""
+        # 環境変数を設定
+        with patch.dict(
+            os.environ, {"BITBANK_API_KEY": "env_key", "BITBANK_API_SECRET": "env_secret"}
+        ):
+            with patch("ccxt.bitbank") as mock_ccxt:
+                mock_exchange = MagicMock()
+                mock_ccxt.return_value = mock_exchange
+
+                # パラメータなしの場合は環境変数使用
+                client1 = BitbankClient()
+                assert client1.api_key == "env_key"
+                assert client1.api_secret == "env_secret"
+
+                # パラメータありの場合はパラメータ優先
+                client2 = BitbankClient(api_key="param_key", api_secret="param_secret")
+                assert client2.api_key == "param_key"
+                assert client2.api_secret == "param_secret"
+
+    def test_leverage_types(self):
+        """レバレッジ型テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            # 整数
+            client1 = BitbankClient(leverage=2)
+            assert client1.leverage == 2
+
+            # 浮動小数点
+            client2 = BitbankClient(leverage=1.5)
+            assert client2.leverage == 1.5
+
+    def test_multiple_instance_creation(self):
+        """複数インスタンス作成テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            # 各呼び出しで異なるMockオブジェクトを返す
+            mock_ccxt.side_effect = lambda *args, **kwargs: MagicMock()
+
+            client1 = BitbankClient(leverage=1.0)
+            client2 = BitbankClient(leverage=2.0)
+
+            # 独立したインスタンス
+            assert client1 is not client2
+            assert client1.leverage != client2.leverage
+            # exchangeオブジェクトは異なる場合がある（mockの実装による）
+
+
+class TestBitbankClientErrorHandling:
+    """BitbankClient エラーハンドリングテスト"""
+
+    def test_invalid_leverage_types(self):
+        """無効レバレッジ型テスト"""
+        invalid_leverages = [
+            "1.5",  # 文字列
+            None,  # None
+            [],  # リスト
+            {},  # 辞書
+        ]
+
+        for invalid_leverage in invalid_leverages:
+            with pytest.raises((ValueError, TypeError)):
+                BitbankClient(leverage=invalid_leverage)
+
+    def test_zero_leverage(self):
+        """ゼロレバレッジテスト"""
+        with pytest.raises(ValueError):
+            BitbankClient(leverage=0)
+
+    def test_negative_leverage(self):
+        """負レバレッジテスト"""
+        with pytest.raises(ValueError):
+            BitbankClient(leverage=-1.0)
+
+    def test_extreme_leverage_values(self):
+        """極端レバレッジ値テスト"""
+        extreme_values = [100.0, 1000.0, float("inf")]
+
+        for extreme_value in extreme_values:
+            with pytest.raises(ValueError):
+                BitbankClient(leverage=extreme_value)
+
+    @patch("ccxt.bitbank")
+    def test_ccxt_initialization_error(self, mock_ccxt):
+        """ccxt初期化エラーテスト"""
+        # ccxtの初期化でエラーが発生する場合
+        mock_ccxt.side_effect = Exception("ccxt initialization failed")
+
+        with pytest.raises(RuntimeError):
+            BitbankClient()
+
+    def test_empty_string_api_keys(self):
+        """空文字列APIキーテスト"""
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("ccxt.bitbank") as mock_ccxt:
+                mock_exchange = MagicMock()
+                mock_ccxt.return_value = mock_exchange
+
+                # 空文字列はFalsyなので環境変数またはNoneになる
+                client = BitbankClient(api_key="", api_secret="")
+
+                # 空文字列は論理的にFalsyのため、環境変数またはNoneが使用される
+                assert client.api_key is None  # 環境変数がない場合None
+                assert client.api_secret is None
+
+
+class TestBitbankClientEdgeCases:
+    """BitbankClient エッジケーステスト"""
+
+    def test_very_precise_leverage(self):
+        """高精度レバレッジテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            precise_leverage = 1.123456789
+            client = BitbankClient(leverage=precise_leverage)
+
+            assert client.leverage == precise_leverage
+
+    def test_leverage_boundary_values(self):
+        """レバレッジ境界値詳細テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            # 1.0より僅かに小さい値
+            with pytest.raises(ValueError):
+                BitbankClient(leverage=0.9999999)
+
+            # 2.0より僅かに大きい値
+            with pytest.raises(ValueError):
+                BitbankClient(leverage=2.0000001)
+
+    def test_unicode_api_keys(self):
+        """Unicode APIキーテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            unicode_key = "テスト_キー_🔑"
+            unicode_secret = "秘密_情報_🔐"
+
+            client = BitbankClient(api_key=unicode_key, api_secret=unicode_secret)
+
+            assert client.api_key == unicode_key
+            assert client.api_secret == unicode_secret
+
+    def test_very_long_api_keys(self):
+        """非常に長いAPIキーテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            long_key = "x" * 1000
+            long_secret = "y" * 1000
+
+            client = BitbankClient(api_key=long_key, api_secret=long_secret)
+
+            assert client.api_key == long_key
+            assert client.api_secret == long_secret
+
+    def test_special_character_api_keys(self):
+        """特殊文字APIキーテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            special_key = "!@#$%^&*()_+-={}[]|\\:;\"'<>?,./"
+            special_secret = "~`!@#$%^&*()_+-={}[]|\\:;\"'<>?,./"
+
+            client = BitbankClient(api_key=special_key, api_secret=special_secret)
+
+            assert client.api_key == special_key
+            assert client.api_secret == special_secret
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_no_environment_variables(self):
+        """環境変数なしテスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_exchange = MagicMock()
+            mock_ccxt.return_value = mock_exchange
+
+            client = BitbankClient()
+
+            assert client.api_key is None
+            assert client.api_secret is None
+            assert client.leverage == 1.0
+
+
+class TestBitbankClientIntegration:
+    """BitbankClient 統合テストクラス"""
+
+    @patch("ccxt.bitbank")
+    def test_realistic_initialization_scenario(self, mock_ccxt):
+        """現実的初期化シナリオテスト"""
+        mock_exchange = MagicMock()
+        mock_ccxt.return_value = mock_exchange
+
+        # 現実的な本番環境想定
+        with patch.dict(
+            os.environ,
+            {"BITBANK_API_KEY": "1234567890abcdef", "BITBANK_API_SECRET": "abcdef1234567890"},
+        ):
+            client = BitbankClient(leverage=1.8)
+
+            # 基本設定確認
+            assert client.api_key == "1234567890abcdef"
+            assert client.api_secret == "abcdef1234567890"
+            assert client.leverage == 1.8
+            assert client.exchange is not None
+
+            # ccxtの呼び出し確認
+            mock_ccxt.assert_called_once()
+
+    def test_client_independence(self):
+        """クライアント独立性テスト"""
+        with patch("ccxt.bitbank") as mock_ccxt:
+            mock_ccxt.return_value = MagicMock()
+
+            # 複数クライアント作成
+            clients = []
+            for i in range(5):
+                client = BitbankClient(
+                    api_key=f"key_{i}", api_secret=f"secret_{i}", leverage=1.0 + i * 0.2
+                )
+                clients.append(client)
+
+            # 各クライアントが独立している
+            for i, client in enumerate(clients):
+                assert client.api_key == f"key_{i}"
+                assert client.api_secret == f"secret_{i}"
+                assert abs(client.leverage - (1.0 + i * 0.2)) < 1e-10
+
+    @patch("ccxt.bitbank")
+    def test_memory_usage_efficiency(self, mock_ccxt):
+        """メモリ使用効率テスト"""
+        mock_ccxt.return_value = MagicMock()
+
+        # 大量インスタンス作成・削除
+        for _i in range(100):
+            client = BitbankClient(leverage=1.5)
+            del client  # 明示的削除
+
+        # エラーなく完了することを確認
+        assert True  # テスト完了の確認

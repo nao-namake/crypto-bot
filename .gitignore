@@ -137,7 +137,6 @@ hyperparameter_*.json
 # データファイル
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的データ・ダウンロードファイル
-data/
 raw_data/
 downloaded_data/
 cache_data/
@@ -241,4 +240,8 @@ _legacy_v1/
 **/backup_*
 _old/
 _backup/
-legacy/
+legacy/data/
+# Tax database files (exclude SQLite databases)
+tax/*.db
+tax/*.csv
+tax/*.txt
