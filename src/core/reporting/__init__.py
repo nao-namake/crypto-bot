@@ -11,15 +11,14 @@ Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 
 # BacktestReporter moved to src/backtest/core_reporter.py
 from .base_reporter import BaseReporter
-from .discord_notifier import DiscordClient, DiscordFormatter, DiscordManager
+from .discord_notifier import DiscordClient, DiscordManager
 from .paper_trading_reporter import PaperTradingReporter
 
 __all__ = [
     # レポート生成機能
     "BaseReporter",
     "PaperTradingReporter",
-    # Discord通知機能（Phase 38.4完了版）
+    # Discord通知機能（Phase 48完了版 - 週間レポート専用）
     "DiscordClient",
-    "DiscordFormatter",
     "DiscordManager",
 ]

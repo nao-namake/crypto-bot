@@ -1,0 +1,109 @@
+# 週間レポート自動送信 - Phase 48実装
+# 毎週月曜日 9:00 JST に取引統計レポートをDiscordに送信
+
+name: Weekly Trading Report
+
+on:
+  schedule:
+    # 毎週月曜日 00:00 UTC = 09:00 JST
+    - cron: '0 0 * * 1'
+  workflow_dispatch:  # 手動実行も可能
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  send-weekly-report:
+    name: Generate and Send Weekly Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # 週間レポート用追加依存関係
+          pip install matplotlib Pillow
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
+          access_token_lifetime: 1800s
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Download trade history database from Cloud Run
+        run: |
+          echo "📥 取引履歴データベース取得中..."
+
+          # Cloud Run環境から取引履歴データベースを取得
+          # 注: Cloud Runはステートレスなので、実際の運用では
+          # Cloud StorageやCloud SQLにデータを永続化する必要があります
+
+          # 一時的な対応: ローカルでダミーデータベース作成
+          mkdir -p tax
+
+          # TODO: Phase 49でCloud Storage統合実装予定
+          # gsutil cp gs://crypto-bot-data/trade_history.db tax/trade_history.db
+
+          echo "⚠️ 注意: 現在はCloud Run環境からのデータ取得未実装"
+          echo "Phase 49でCloud Storage統合を実装予定"
+
+      - name: Get Discord Webhook URL from Secret Manager
+        id: get-webhook
+        run: |
+          echo "🔑 Discord Webhook URL取得中..."
+
+          DISCORD_WEBHOOK_URL=$(gcloud secrets versions access 6 --secret="discord-webhook-url")
+
+          # GitHub Actions環境変数に設定
+          echo "DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL" >> $GITHUB_ENV
+
+          echo "✅ Discord Webhook URL取得完了"
+
+      - name: Generate and send weekly report
+        env:
+          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_WEBHOOK_URL }}
+        run: |
+          echo "📊 週間レポート生成・送信開始..."
+
+          # 週間レポートスクリプト実行
+          python scripts/reports/weekly_report.py \
+            --db-path tax/trade_history.db \
+            --discord-webhook-url "$DISCORD_WEBHOOK_URL"
+
+          EXIT_CODE=$?
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ 週間レポート送信成功"
+          else
+            echo "❌ 週間レポート送信失敗（Exit Code: $EXIT_CODE）"
+            exit 1
+          fi
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          echo "🧹 一時ファイルクリーンアップ..."
+          rm -f /tmp/weekly_pnl_curve.png
+          echo "✅ クリーンアップ完了"
