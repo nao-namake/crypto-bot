@@ -27,8 +27,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.config import get_threshold
 from src.core.logger import CryptoBotLogger
-from src.data.bitbank_client import BitbankClient
-from src.features.generator import FeatureGenerator
+from src.data.data_pipeline import DataPipeline
+from src.features.feature_generator import FeatureGenerator
 from src.ml.ensemble import ProductionEnsemble
 from src.ml.meta_learning import MarketRegimeAnalyzer
 from src.strategies.implementations.atr_based import ATRBasedStrategy
@@ -54,14 +54,15 @@ def generate_training_data(
         logger.info(f"📊 Meta-ML学習データ生成開始（過去{days}日間）")
 
     # データ取得
-    client = BitbankClient()
+    pipeline = DataPipeline()
     end_time = datetime.now()
     start_time = end_time - timedelta(days=days)
 
     if logger:
         logger.info(f"📈 価格データ取得: {start_time} - {end_time}")
 
-    df = client.get_historical_data(
+    # 15m足データ取得
+    df = pipeline.fetch_historical_data(
         symbol="btc_jpy", timeframe="15m", start_time=start_time, end_time=end_time
     )
 
@@ -346,7 +347,9 @@ def main(args):
             logger.info("✅ Meta-ML学習パイプライン完了（DRY RUN・保存スキップ）")
 
     except Exception as e:
-        logger.error(f"❌ Meta-ML学習失敗: {e}", exc_info=True)
+        logger.error(f"❌ Meta-ML学習失敗: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
