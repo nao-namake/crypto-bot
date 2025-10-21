@@ -59,6 +59,9 @@ class MLConfig:
     # Phase 29.5: ML予測統合設定
     strategy_integration: Optional[Dict[str, Any]] = None
 
+    # Phase 45: Meta-Learning動的重み最適化設定
+    meta_learning: Optional[Dict[str, Any]] = None
+
 
 @dataclass
 class RiskConfig:

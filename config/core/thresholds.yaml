@@ -23,6 +23,41 @@ ml:
     disagreement_penalty: 0.85  # Phase 44.1: -30% → -15%ペナルティ（過剰ペナルティ削減）
     min_ml_confidence: 0.45
     hold_conversion_threshold: 0.4
+  # Phase 45: Meta-Learning動的重み最適化システム
+  meta_learning:
+    enabled: false  # デフォルト無効（慎重な段階的有効化）
+    model_path: "models/meta_learning/meta_model.pkl"
+    # フォールバック固定重み（Meta-ML失敗時使用）
+    fallback_ml_weight: 0.35
+    fallback_strategy_weight: 0.7
+    # Meta-ML予測信頼度閾値
+    min_confidence: 0.3
+    # 市場状況特徴量設定
+    market_features:
+      # ボラティリティ関連
+      atr_window: 14
+      bb_window: 20
+      volatility_ratio_window: 7
+      # トレンド関連
+      ema_short: 20
+      ema_long: 50
+      adx_window: 14
+      trend_strength_threshold: 0.5
+      # レンジ判定関連
+      donchian_window: 20
+      range_threshold: 0.02
+    # パフォーマンストラッキング設定
+    performance_tracking:
+      window_days_short: 7
+      window_days_long: 30
+      min_trades_required: 5
+      history_file: "src/core/state/performance_history.json"
+    # Meta-MLモデル設定
+    model_config:
+      n_estimators: 100
+      learning_rate: 0.05
+      max_depth: 5
+      random_state: 42
   dynamic_confidence:
     base_hold: 0.35
     error_fallback: 0.25

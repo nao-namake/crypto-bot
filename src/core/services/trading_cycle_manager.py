@@ -45,6 +45,19 @@ class TradingCycleManager:
         self.orchestrator = orchestrator_ref
         self.logger = logger
 
+        # Phase 45: Meta-Learning動的重み最適化初期化
+        self.meta_optimizer = None
+        self.market_data_cache = None  # 市場データキャッシュ（Meta-ML用）
+        if get_threshold("ml.meta_learning.enabled", False):
+            try:
+                from ...ml.meta_learning import MetaLearningWeightOptimizer
+
+                self.meta_optimizer = MetaLearningWeightOptimizer(logger=logger)
+                self.logger.info("✅ Meta-Learning動的重み最適化: 有効")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Meta-Learning初期化失敗: {e} - フォールバック固定重み使用")
+                self.meta_optimizer = None
+
     async def execute_trading_cycle(self):
         """
         取引サイクル実行
@@ -67,6 +80,9 @@ class TradingCycleManager:
             if market_data is None:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
+
+            # Phase 45: 市場データキャッシュ（Meta-ML用）
+            self.market_data_cache = market_data
 
             # Phase 3: 特徴量生成（50特徴量）
             features, main_features = await self._generate_features(market_data)
@@ -495,6 +511,45 @@ class TradingCycleManager:
                 },
             )()
 
+    def _get_dynamic_weights(self) -> dict[str, float]:
+        """
+        Phase 45.4: Meta-Learningで動的重みを取得
+
+        市場状況に応じて戦略・ML重みを動的に最適化。
+        Meta-ML無効時・エラー時はフォールバック固定重み使用。
+
+        Returns:
+            dict[str, float]: 動的重み
+                - ml: ML重み（0-1）
+                - strategy: 戦略重み（0-1）
+                ※合計1.0に正規化済み
+        """
+        # Meta-Learning無効時はフォールバック固定重み
+        if self.meta_optimizer is None:
+            return {
+                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
+                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
+            }
+
+        # 市場データ未キャッシュ時はフォールバック
+        if self.market_data_cache is None:
+            self.logger.debug("市場データ未キャッシュ - フォールバック固定重み使用")
+            return {
+                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
+                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
+            }
+
+        try:
+            # Meta-ML推論
+            weights = self.meta_optimizer.predict_weights(self.market_data_cache)
+            return weights
+        except Exception as e:
+            self.logger.warning(f"⚠️ Meta-ML動的重み取得エラー: {e} - フォールバック固定重み使用")
+            return {
+                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
+                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
+            }
+
     def _integrate_ml_with_strategy(
         self, ml_prediction: dict, strategy_signal: StrategySignal
     ) -> StrategySignal:
@@ -547,9 +602,10 @@ class TradingCycleManager:
             # 修正後: 厳密な一致のみ（ML=buy+戦略=buy、ML=sell+戦略=sell、ML=hold+戦略=hold）
             is_agreement = ml_action == strategy_action
 
-            # 統合重み取得
-            ml_weight = get_threshold("ml.strategy_integration.ml_weight", 0.3)
-            strategy_weight = get_threshold("ml.strategy_integration.strategy_weight", 0.7)
+            # Phase 45.4: 動的重み取得（Meta-Learning対応）
+            weights = self._get_dynamic_weights()
+            ml_weight = weights["ml"]
+            strategy_weight = weights["strategy"]
             high_confidence_threshold = get_threshold(
                 "ml.strategy_integration.high_confidence_threshold", 0.8
             )

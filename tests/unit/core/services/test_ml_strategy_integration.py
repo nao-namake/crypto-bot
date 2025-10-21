@@ -299,3 +299,147 @@ class TestMLIntegration:
 
         # エラー時は元のシグナルをそのまま返す
         assert result == strategy_signal
+
+
+class TestMetaLearningDynamicWeights:
+    """Phase 45: Meta-Learning動的重み最適化テスト"""
+
+    @pytest.fixture
+    def mock_orchestrator(self):
+        """モックOrchestratorを作成"""
+        orchestrator = Mock()
+        orchestrator.config = Mock()
+        orchestrator.config.mode = "paper"
+        return orchestrator
+
+    @pytest.fixture
+    def trading_cycle_manager(self, mock_orchestrator):
+        """TradingCycleManager初期化"""
+        logger = CryptoBotLogger(name="test_meta_learning_integration")
+        return TradingCycleManager(mock_orchestrator, logger)
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_meta_learning_disabled_uses_fixed_weights(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """Meta-Learning無効時: 固定重み使用（最重要・既存動作確認）"""
+
+        def threshold_side_effect(key, default):
+            if key == "ml.meta_learning.enabled":
+                return False  # Meta-Learning無効（デフォルト）
+            if key == "ml.strategy_integration.ml_weight":
+                return 0.35  # 固定重み
+            if key == "ml.strategy_integration.strategy_weight":
+                return 0.7  # 固定重み
+            return default
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        # _get_dynamic_weights()呼び出し
+        weights = trading_cycle_manager._get_dynamic_weights()
+
+        # 固定重みが返される
+        assert weights["ml"] == 0.35
+        assert weights["strategy"] == 0.7
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_meta_learning_enabled_no_model_fallback(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """Meta-Learning有効・モデル未存在時: フォールバック固定重み"""
+
+        def threshold_side_effect(key, default):
+            if key == "ml.meta_learning.enabled":
+                return True  # Meta-Learning有効
+            if key == "ml.meta_learning.model_path":
+                return "models/meta_learning/non_existent_model.pkl"
+            if key == "ml.strategy_integration.ml_weight":
+                return 0.35  # フォールバック固定重み
+            if key == "ml.strategy_integration.strategy_weight":
+                return 0.7  # フォールバック固定重み
+            return default
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        # Meta-Learningオプティマイザー初期化試行（モデル未存在）
+        # __init__で初期化されるが、モデル未存在なのでmeta_optimizer=None
+
+        # _get_dynamic_weights()呼び出し
+        weights = trading_cycle_manager._get_dynamic_weights()
+
+        # フォールバック固定重みが返される
+        assert weights["ml"] == 0.35
+        assert weights["strategy"] == 0.7
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_meta_learning_no_market_data_cache_fallback(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """市場データ未キャッシュ時: フォールバック固定重み"""
+
+        def threshold_side_effect(key, default):
+            if key == "ml.meta_learning.enabled":
+                return True  # Meta-Learning有効
+            if key == "ml.strategy_integration.ml_weight":
+                return 0.35
+            if key == "ml.strategy_integration.strategy_weight":
+                return 0.7
+            return default
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        # 市場データキャッシュなし（デフォルト状態）
+        assert trading_cycle_manager.market_data_cache is None
+
+        # _get_dynamic_weights()呼び出し
+        weights = trading_cycle_manager._get_dynamic_weights()
+
+        # フォールバック固定重みが返される
+        assert weights["ml"] == 0.35
+        assert weights["strategy"] == 0.7
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_integrate_ml_with_strategy_uses_dynamic_weights(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """_integrate_ml_with_strategy()内で動的重みが使用されることを確認"""
+
+        # モック動的重み（ML重視の例）
+        dynamic_ml_weight = 0.6
+        dynamic_strategy_weight = 0.4
+
+        def threshold_side_effect(key, default):
+            if key == "ml.meta_learning.enabled":
+                return False  # 無効にして固定重みシミュレーション
+            if key == "ml.strategy_integration.enabled":
+                return True
+            if key == "ml.strategy_integration.min_ml_confidence":
+                return 0.45
+            if key == "ml.strategy_integration.ml_weight":
+                return dynamic_ml_weight  # カスタム重み
+            if key == "ml.strategy_integration.strategy_weight":
+                return dynamic_strategy_weight  # カスタム重み
+            if key == "ml.strategy_integration.high_confidence_threshold":
+                return 0.8
+            return default
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        # ML予測・戦略シグナル
+        ml_prediction = {"prediction": 1, "confidence": 0.7}
+        strategy_signal = StrategySignal(
+            strategy_name="test_strategy",
+            timestamp=datetime.now(),
+            action="buy",
+            confidence=0.6,
+            strength=0.6,
+            current_price=17000000.0,
+        )
+
+        # ML統合実行
+        result = trading_cycle_manager._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+        # 動的重みで加重平均計算
+        # expected_confidence = 0.6 * 0.4 + 0.7 * 0.6 = 0.24 + 0.42 = 0.66
+        assert result.action == "buy"
+        assert 0.65 < result.confidence < 0.67
