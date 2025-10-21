@@ -44,9 +44,9 @@ class ATRBasedStrategy(StrategyBase):
             "rsi_overbought": get_threshold("strategies.atr_based.rsi_overbought", 65),
             "rsi_oversold": get_threshold("strategies.atr_based.rsi_oversold", 35),
             "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
-            # リスク管理
-            "stop_loss_atr_multiplier": 1.5,
-            "take_profit_ratio": 2.0,
+            # Phase 46: リスク管理（ハードコード排除）
+            "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
+            "take_profit_ratio": get_threshold("tp_default_ratio", 2.0),
             "position_size_base": get_threshold(
                 "dynamic_confidence.strategies.atr_based.position_size_base", 0.015
             ),  # 1.5%（逆張りなので控えめ）

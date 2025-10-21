@@ -160,23 +160,11 @@ risk:
     api_latency_critical: 3.0
 
 # ========================================
-# ポジション管理設定（Phase 42: 統合TP/SL実装）
-# ========================================
-position_management:
-  # TP/SL配置モード設定
-  tp_sl_mode: "consolidated"  # "individual" (デフォルト・既存動作) or "consolidated" (Phase 42新機能)
-
-  # 統合TP/SL設定（tp_sl_mode="consolidated"時有効）
-  consolidated:
-    enabled: true                  # 統合TP/SLモード有効化（Phase 42検証中）
-    consolidate_on_new_entry: true # 新規エントリー時に既存TP/SLを更新
-    cancel_before_update: true     # 新規TP/SL配置前に既存TP/SLをキャンセル
-
-  # 注意: TP/SL詳細設定（価格計算・ATR倍率等）はthresholds.yamlで管理
-
-# ========================================
 # 注文実行設定
 # ========================================
+# 注意: ポジション管理設定（TP/SL等）はthresholds.yamlで管理
+#
+
 execution:
   mode: paper
   order:

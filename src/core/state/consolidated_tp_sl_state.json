@@ -1,9 +1,0 @@
-{
-  "tp_order_id": null,
-  "sl_order_id": null,
-  "tp_price": 0.0,
-  "sl_price": 0.0,
-  "side": "",
-  "average_entry_price": 0.0,
-  "total_position_size": 0.0
-}

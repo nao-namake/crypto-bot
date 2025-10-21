@@ -24,25 +24,13 @@ class PositionTracker:
     """
 
     def __init__(self):
-        """PositionTracker初期化 - Phase 42.4: 状態永続化対応"""
+        """PositionTracker初期化 - Phase 46: デイトレード特化・個別TP/SL"""
         self.logger = get_logger()
         self.virtual_positions: List[Dict[str, Any]] = []
 
-        # Phase 42: 統合TP/SL用追加フィールド
+        # Phase 46: 平均価格追跡（統計用・統合TP/SL機能は削除）
         self._average_entry_price: float = 0.0
         self._total_position_size: float = 0.0
-        self._consolidated_tp_order_id: Optional[str] = None
-        self._consolidated_sl_order_id: Optional[str] = None
-        # Phase 42.2: トレーリングストップ用価格フィールド追加
-        self._consolidated_tp_price: float = 0.0
-        self._consolidated_sl_price: float = 0.0
-        self._side: str = ""  # buy/sell（トレーリング判定用）
-
-        # Phase 42.4: 状態永続化パス設定
-        self.local_state_path = "src/core/state/consolidated_tp_sl_state.json"
-
-        # Phase 42.4: 状態復元
-        self._load_state()
 
     def add_position(
         self,
@@ -371,170 +359,14 @@ class PositionTracker:
 
         return self._average_entry_price
 
-    def get_consolidated_tp_sl_ids(self) -> Dict[str, Any]:
-        """
-        統合TP/SL注文ID・価格取得（Phase 42・Phase 42.2拡張）
-
-        Returns:
-            Dict: {
-                "tp_order_id": Optional[str],
-                "sl_order_id": Optional[str],
-                "tp_price": float,
-                "sl_price": float
-            }
-        """
-        return {
-            "tp_order_id": self._consolidated_tp_order_id,
-            "sl_order_id": self._consolidated_sl_order_id,
-            "tp_price": self._consolidated_tp_price,
-            "sl_price": self._consolidated_sl_price,
-        }
-
-    def set_consolidated_tp_sl_ids(
-        self,
-        tp_order_id=_UNSET,
-        sl_order_id=_UNSET,
-        tp_price=_UNSET,
-        sl_price=_UNSET,
-        side=_UNSET,
-    ) -> None:
-        """
-        統合TP/SL注文ID・価格設定（Phase 42・Phase 42.2拡張・Phase 42.2.7 None値対応）
-
-        Args:
-            tp_order_id: TP注文ID（None指定可能=クリア）
-            sl_order_id: SL注文ID（None指定可能=クリア）
-            tp_price: TP価格（0.0指定可能=クリア）
-            sl_price: SL価格（0.0指定可能=クリア）
-            side: ポジションサイド（空文字指定可能=クリア）
-
-        Note:
-            Phase 42.2.7: Sentinel値（_UNSET）を使用して、
-            「パラメータ未指定」と「Noneで明示的にクリア」を区別する。
-        """
-        if tp_order_id is not _UNSET:
-            self._consolidated_tp_order_id = tp_order_id
-            self.logger.debug(f"📝 統合TP注文ID設定: {tp_order_id}")
-
-        if sl_order_id is not _UNSET:
-            self._consolidated_sl_order_id = sl_order_id
-            self.logger.debug(f"📝 統合SL注文ID設定: {sl_order_id}")
-
-        # Phase 42.2: 価格情報も保存
-        if tp_price is not _UNSET:
-            self._consolidated_tp_price = tp_price if tp_price is not None else 0.0
-            self.logger.debug(f"📝 統合TP価格設定: {self._consolidated_tp_price:.0f}円")
-
-        if sl_price is not _UNSET:
-            self._consolidated_sl_price = sl_price if sl_price is not None else 0.0
-            self.logger.debug(f"📝 統合SL価格設定: {self._consolidated_sl_price:.0f}円")
-
-        if side is not _UNSET:
-            self._side = side if side is not None else ""
-            self.logger.debug(f"📝 ポジションサイド設定: {self._side}")
-
-        # Phase 42.4: 状態を永続化
-        self._save_state()
-
-    def get_consolidated_position_info(self) -> Dict[str, Any]:
-        """
-        統合ポジション情報取得（Phase 42・Phase 42.2拡張）
-
-        Returns:
-            Dict: {
-                "average_entry_price": float,
-                "total_position_size": float,
-                "tp_order_id": Optional[str],
-                "sl_order_id": Optional[str],
-                "tp_price": float,
-                "sl_price": float,
-                "side": str,
-                "position_count": int
-            }
-        """
-        return {
-            "average_entry_price": self._average_entry_price,
-            "total_position_size": self._total_position_size,
-            "tp_order_id": self._consolidated_tp_order_id,
-            "sl_order_id": self._consolidated_sl_order_id,
-            "tp_price": self._consolidated_tp_price,
-            "sl_price": self._consolidated_sl_price,
-            "side": self._side,
-            "position_count": len(self.virtual_positions),
-        }
-
-    def clear_consolidated_tp_sl(self) -> None:
-        """
-        統合TP/SL注文ID・価格クリア（Phase 42・Phase 42.2拡張）
-
-        全決済時など、統合TP/SL注文ID・価格をリセットする。
-        """
-        self._consolidated_tp_order_id = None
-        self._consolidated_sl_order_id = None
-        # Phase 42.2: 価格情報もクリア
-        self._consolidated_tp_price = 0.0
-        self._consolidated_sl_price = 0.0
-        self._average_entry_price = 0.0
-        self._total_position_size = 0.0
-        self._side = ""
-        self.logger.debug("🧹 統合TP/SL情報クリア")
-
-        # Phase 42.4: 状態を永続化
-        self._save_state()
-
     # ========================================
-    # Phase 42.4: 状態永続化メソッド
+    # Phase 46: 統合TP/SL関連メソッド削除（デイトレード特化）
     # ========================================
-
-    def _save_state(self) -> None:
-        """統合TP/SL状態を保存（Phase 42.4）"""
-        try:
-            state = {
-                "tp_order_id": self._consolidated_tp_order_id,
-                "sl_order_id": self._consolidated_sl_order_id,
-                "tp_price": self._consolidated_tp_price,
-                "sl_price": self._consolidated_sl_price,
-                "side": self._side,
-                "average_entry_price": self._average_entry_price,
-                "total_position_size": self._total_position_size,
-            }
-
-            # ディレクトリ作成
-            os.makedirs(os.path.dirname(self.local_state_path), exist_ok=True)
-
-            # JSON保存
-            with open(self.local_state_path, "w") as f:
-                json.dump(state, f, indent=2)
-
-            self.logger.debug(f"💾 統合TP/SL状態保存完了: {self.local_state_path}")
-
-        except Exception as e:
-            self.logger.error(f"❌ 統合TP/SL状態保存失敗: {e}")
-
-    def _load_state(self) -> None:
-        """統合TP/SL状態を復元（Phase 42.4）"""
-        try:
-            if not os.path.exists(self.local_state_path):
-                self.logger.info(
-                    f"📋 統合TP/SL状態ファイル未存在、新規作成: {self.local_state_path}"
-                )
-                return
-
-            with open(self.local_state_path, "r") as f:
-                state = json.load(f)
-
-            self._consolidated_tp_order_id = state.get("tp_order_id")
-            self._consolidated_sl_order_id = state.get("sl_order_id")
-            self._consolidated_tp_price = state.get("tp_price", 0.0)
-            self._consolidated_sl_price = state.get("sl_price", 0.0)
-            self._side = state.get("side", "")
-            self._average_entry_price = state.get("average_entry_price", 0.0)
-            self._total_position_size = state.get("total_position_size", 0.0)
-
-            self.logger.info(
-                f"📂 統合TP/SL状態復元完了: "
-                f"TP={self._consolidated_tp_order_id}, SL={self._consolidated_sl_order_id}"
-            )
-
-        except Exception as e:
-            self.logger.error(f"❌ 統合TP/SL状態復元失敗: {e}")
+    # Phase 42.1-42.4で実装された統合TP/SL機能を削除:
+    # - get_consolidated_tp_sl_ids()
+    # - set_consolidated_tp_sl_ids()
+    # - get_consolidated_position_info()
+    # - clear_consolidated_tp_sl()
+    # - _save_state() / _load_state() (Phase 42.4状態永続化)
+    #
+    # デイトレード特化設計では個別TP/SL配置に回帰

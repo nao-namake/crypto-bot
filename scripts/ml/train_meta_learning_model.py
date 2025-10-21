@@ -349,6 +349,7 @@ def main(args):
     except Exception as e:
         logger.error(f"❌ Meta-ML学習失敗: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

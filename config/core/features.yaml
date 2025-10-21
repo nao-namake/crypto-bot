@@ -296,26 +296,6 @@ development:
     note: "backtest mode: 過去データ検証"
 
 # ========================================
-# 運用メモ（Phase履歴）
+# Phase 46完了: デイトレード特化設計
 # ========================================
-phase_history:
-  phase_15: "Secret Manager具体的バージョン使用（key:latest禁止）"
-  phase_19: "Kelly基準最適化（5取引で実用性向上）"
-  phase_23: "Discord 3階層監視システム"
-  phase_27: "ML信頼度連動取引制限・最小ロット優先・少額運用対応"
-  phase_28: "テイクプロフィット/ストップロス実装・完全トレーディングサイクル"
-  phase_29: "統一設定管理体系確立・設定不整合完全解消"
-  phase_29_5: "ML予測統合（戦略70% + ML30%）・真のハイブリッドMLbot実現"
-  phase_29_6: "TP/SL指値注文・30分クールダウン・本番環境問題修正"
-  phase_30: "適応型ATR倍率・ボラティリティ連動SL距離"
-  phase_31: "マルチタイムフレームATR・15m足優先・SL距離10%→2%改善"
-  phase_31_1: "機能オンオフ設定ファイル・クールダウン柔軟化"
-  phase_32: "DonchianChannel・ADXTrend SignalBuilder統合完了・全5戦略統一"
-  phase_34: "Bitbank Public API直接使用・15分足データ80倍改善（216→17,271件）"
-  phase_35: "バックテスト10倍高速化（6-8時間→45分）・特徴量バッチ化"
-  phase_36: "残高不足Graceful Degradation・Container exit(1)解消・月369円削減"
-  phase_37: "SL注文stop対応・エラー50062解消・損切り機能完全化"
-  phase_37_2: "bitbank API GET認証対応・エラー20003解消"
-  phase_37_3: "Discord通知最適化・実行頻度最適化（月700-900円削減・35-45%削減）"
-  phase_37_4: "SL未配置問題根本解決・trigger_price修正・エラー30101解消"
-  phase_37_5: "OCO機能不在対策・orphaned order自動クリーンアップ実装"
+# Phase履歴詳細は docs/開発履歴/ で管理

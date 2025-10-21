@@ -42,13 +42,15 @@ class MochipoyAlertStrategy(StrategyBase):
             # RCI設定
             "rci_period": 14,
             "rci_overbought": 80,
-            "rci_oversold": -80,
-            # シグナル設定
-            "min_confidence": 0.4,
-            # リスク管理
-            "stop_loss_atr_multiplier": 2.0,
-            "take_profit_ratio": 2.0,
-            "position_size_base": 0.02,  # 2%
+            "rci_oversold": get_threshold("strategies.mochipoy_alert.rci_oversold", -80),
+            # Phase 46: シグナル設定（ハードコード排除）
+            "min_confidence": get_threshold("strategies.mochipoy_alert.min_confidence", 0.4),
+            # Phase 46: リスク管理（ハードコード排除）
+            "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
+            "take_profit_ratio": get_threshold("tp_default_ratio", 2.0),
+            "position_size_base": get_threshold(
+                "strategies.mochipoy_alert.position_size_base", 0.02
+            ),  # 2%
             # Phase 19+攻撃的設定対応（thresholds.yaml統合）
             "hold_confidence": get_threshold("strategies.mochipoy_alert.hold_confidence", 0.3),
         }

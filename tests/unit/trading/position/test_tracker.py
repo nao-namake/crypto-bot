@@ -552,16 +552,7 @@ class TestInitialization:
         exposure = tracker.get_total_exposure()
         assert exposure["total"] == 0
 
-    def test_phase42_fields_initialization(self, tracker):
-        """Phase 42: 統合TP/SL用フィールド初期化確認"""
-        assert hasattr(tracker, "_average_entry_price")
-        assert hasattr(tracker, "_total_position_size")
-        assert hasattr(tracker, "_consolidated_tp_order_id")
-        assert hasattr(tracker, "_consolidated_sl_order_id")
-        assert tracker._average_entry_price == 0.0
-        assert tracker._total_position_size == 0.0
-        assert tracker._consolidated_tp_order_id is None
-        assert tracker._consolidated_sl_order_id is None
+    # Phase 46: test_phase42_fields_initialization削除（統合TP/SLフィールド削除に伴い）
 
 
 # ========================================
@@ -663,115 +654,11 @@ class TestUpdateAverageOnExit:
         assert tracker._total_position_size == 0.0
 
 
-class TestGetConsolidatedTpSlIds:
-    """get_consolidated_tp_sl_ids() テスト - Phase 42"""
-
-    def test_get_consolidated_ids_initial_state(self, tracker):
-        """初期状態ではNone, None"""
-        ids = tracker.get_consolidated_tp_sl_ids()
-
-        assert ids["tp_order_id"] is None
-        assert ids["sl_order_id"] is None
-
-    def test_get_consolidated_ids_after_set(self, tracker):
-        """ID設定後は正しく返す"""
-        tracker.set_consolidated_tp_sl_ids(tp_order_id="tp_cons_001", sl_order_id="sl_cons_001")
-
-        ids = tracker.get_consolidated_tp_sl_ids()
-
-        assert ids["tp_order_id"] == "tp_cons_001"
-        assert ids["sl_order_id"] == "sl_cons_001"
-
-
-class TestSetConsolidatedTpSlIds:
-    """set_consolidated_tp_sl_ids() テスト - Phase 42"""
-
-    def test_set_consolidated_both_ids(self, tracker):
-        """TP/SL両方のID設定"""
-        tracker.set_consolidated_tp_sl_ids(tp_order_id="tp_cons_123", sl_order_id="sl_cons_456")
-
-        assert tracker._consolidated_tp_order_id == "tp_cons_123"
-        assert tracker._consolidated_sl_order_id == "sl_cons_456"
-
-    def test_set_consolidated_partial_ids(self, tracker):
-        """片方のみ設定も可能（引数省略時は既存値保持・None渡し時はクリア）"""
-        # TPのみ設定（引数省略で既存値保持）
-        tracker.set_consolidated_tp_sl_ids(tp_order_id="tp_only")
-
-        assert tracker._consolidated_tp_order_id == "tp_only"
-        assert tracker._consolidated_sl_order_id is None  # 初期値
-
-        # SLのみ設定（TPは引数省略で保持される）
-        tracker.set_consolidated_tp_sl_ids(sl_order_id="sl_only")
-
-        assert tracker._consolidated_tp_order_id == "tp_only"  # 保持
-        assert tracker._consolidated_sl_order_id == "sl_only"
-
-        # Phase 42.2.7新仕様: 明示的にNoneを渡すとクリアされる
-        tracker.set_consolidated_tp_sl_ids(tp_order_id=None)
-
-        assert tracker._consolidated_tp_order_id is None  # クリアされた
-        assert tracker._consolidated_sl_order_id == "sl_only"  # 保持
-
-
-class TestGetConsolidatedPositionInfo:
-    """get_consolidated_position_info() テスト - Phase 42"""
-
-    def test_get_consolidated_info_initial_state(self, tracker):
-        """初期状態では全フィールド0またはNone"""
-        info = tracker.get_consolidated_position_info()
-
-        assert info["average_entry_price"] == 0.0
-        assert info["total_position_size"] == 0.0
-        assert info["tp_order_id"] is None
-        assert info["sl_order_id"] is None
-        assert info["position_count"] == 0
-
-    def test_get_consolidated_info_with_data(self, tracker):
-        """データ設定後は全情報を正しく返す"""
-        # ポジション追加
-        tracker.add_position("order_1", "buy", 0.001, 10_000_000.0)
-        tracker.add_position("order_2", "buy", 0.002, 10_500_000.0)
-        # 平均価格更新
-        tracker.update_average_on_entry(10_000_000.0, 0.001)
-        tracker.update_average_on_entry(10_500_000.0, 0.002)
-        # 統合ID設定
-        tracker.set_consolidated_tp_sl_ids("tp_cons_999", "sl_cons_888")
-
-        info = tracker.get_consolidated_position_info()
-
-        expected_avg = (10_000_000.0 * 0.001 + 10_500_000.0 * 0.002) / 0.003
-        assert info["average_entry_price"] == pytest.approx(expected_avg, abs=0.01)
-        assert info["total_position_size"] == pytest.approx(0.003, abs=0.000001)
-        assert info["tp_order_id"] == "tp_cons_999"
-        assert info["sl_order_id"] == "sl_cons_888"
-        assert info["position_count"] == 2
-
-
-class TestClearConsolidatedTpSl:
-    """clear_consolidated_tp_sl() テスト - Phase 42"""
-
-    def test_clear_consolidated_all_fields_reset(self, tracker):
-        """全フィールドがリセットされる"""
-        # データ設定
-        tracker.update_average_on_entry(10_000_000.0, 0.001)
-        tracker.set_consolidated_tp_sl_ids("tp_old", "sl_old")
-
-        # クリア実行
-        tracker.clear_consolidated_tp_sl()
-
-        # 全フィールド確認
-        assert tracker._average_entry_price == 0.0
-        assert tracker._total_position_size == 0.0
-        assert tracker._consolidated_tp_order_id is None
-        assert tracker._consolidated_sl_order_id is None
-
-    def test_clear_consolidated_idempotent(self, tracker):
-        """複数回呼び出しても問題なし"""
-        tracker.update_average_on_entry(10_000_000.0, 0.001)
-
-        tracker.clear_consolidated_tp_sl()
-        tracker.clear_consolidated_tp_sl()  # 2回目
-
-        assert tracker._average_entry_price == 0.0
-        assert tracker._total_position_size == 0.0
+# ========================================
+# Phase 46: 統合TP/SL機能テスト削除（デイトレード特化）
+# ========================================
+# 以下のテストクラスを削除（統合TP/SL機能削除に伴い）:
+# - TestGetConsolidatedTpSlIds
+# - TestSetConsolidatedTpSlIds
+# - TestGetConsolidatedPositionInfo
+# - TestClearConsolidatedTpSl

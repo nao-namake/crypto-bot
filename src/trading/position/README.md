@@ -1,20 +1,82 @@
-# src/trading/position/ - ポジション管理層 🚀 Phase 42.4完了
+# src/trading/position/ - ポジション管理層 🚀 Phase 46完了
 
 ## 🎯 役割・責任
 
-ポジション追跡・制限管理・クリーンアップ・クールダウン制御を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で平均価格追跡機能、Phase 42.2でトレーリングSL/TP価格フィールド、Phase 42.4で統合TP/SL状態永続化を実装しました。
+ポジション追跡・制限管理・クリーンアップ・クールダウン制御を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で平均価格追跡機能、Phase 42.2でトレーリングSL/TP価格フィールド、Phase 42.4で統合TP/SL状態永続化を実装、**Phase 46でデイトレード特化・個別TP/SL管理に回帰**しました。
 
 ## 📂 ファイル構成
 
 ```
 position/
-├── tracker.py       # ポジション追跡（Phase 42, 42.2: 平均価格・TP/SL価格追跡）
+├── tracker.py       # ポジション追跡（Phase 46: 個別TP/SL管理・平均価格統計のみ）
 ├── limits.py        # ポジション制限管理
 ├── cleanup.py       # 孤児ポジションクリーンアップ（Phase 37.5.3）
 ├── cooldown.py      # クールダウン管理（Phase 31.1）
 ├── __init__.py      # モジュール初期化
 └── README.md        # このファイル
 ```
+
+## 📈 Phase 46完了（2025年10月22日）
+
+**🎯 Phase 46: デイトレード特化・個別TP/SL管理回帰・統合機能削除**
+
+### ✅ Phase 46.2.4 統合TP/SL管理削除成果（-173行のコード削減）
+
+**背景**: Phase 42-42.4で実装したスイングトレード向けの統合TP/SL管理機能（複数ポジション加重平均・統合注文ID管理・状態永続化）が、デイトレード特化戦略では不要な複雑性を生み出していました。Phase 46で個別TP/SL管理に回帰し、シンプル性を最優先しました。
+
+**削除内容**:
+- **tracker.py**: 統合TP/SL ID管理削除（Line 366-469、-104行）
+  - `get_consolidated_tp_sl_ids()` 削除
+  - `set_consolidated_tp_sl_ids()` 削除
+  - `get_consolidated_position_info()` 削除
+  - `clear_consolidated_tp_sl()` 削除
+- **tracker.py**: 状態永続化機能削除（Line 489-538、-50行）
+  - `_save_state()` 削除（JSON保存機能）
+  - `_load_state()` 削除（起動時復元機能）
+  - `src/core/state/consolidated_tp_sl_state.json` 削除
+- **tracker.py**: 統合用フィールド削除（Line 34-41、-8行）
+  - `_consolidated_tp_order_id` 削除
+  - `_consolidated_sl_order_id` 削除
+  - `_consolidated_tp_price` 削除
+  - `_consolidated_sl_price` 削除
+  - `_side` 削除
+- **コメント整理**: Phase 42-42.4関連コメント削除（-11行）
+- **合計**: -173行削除（Phase 42-42.4レガシーコード完全削除）
+
+**効果**:
+- コードベース大幅簡略化（tracker.py: 538行 → 373行、-30.7%）
+- 個別TP/SL管理に回帰（エントリー毎に独立したTP/SL注文）
+- 平均価格追跡は統計目的で維持（統合機能削除・監視用データとして活用）
+
+### ✅ Phase 46設計変更：平均価格追跡の用途変更
+
+**背景**: Phase 42で実装した平均価格追跡機能は統合TP/SL計算用でしたが、Phase 46では統計・監視目的に用途変更しました。
+
+**変更内容**:
+```python
+# Phase 46: 平均価格追跡（統計用・統合TP/SL機能は削除）
+self._average_entry_price: float = 0.0
+self._total_position_size: float = 0.0
+```
+
+**活用方法**:
+- Discord通知での平均エントリー価格表示
+- ダッシュボード統計情報
+- ポジション管理モニタリング
+- デバッグ・解析用データ
+
+**メソッド維持**:
+- `calculate_average_entry_price()`: 加重平均価格計算（統計用）
+- `update_average_on_entry()`: エントリー時平均更新（統計用）
+- `update_average_on_exit()`: 決済時平均更新（統計用）
+
+### 📊 Phase 46重要事項
+- **Phase 46設計哲学**: デイトレード特化・個別TP/SL管理・シンプル性優先
+- **平均価格用途変更**: 統合TP/SL計算用 → 統計・監視用
+- **状態永続化削除**: Cloud Run再起動対応不要（個別TP/SL管理）
+- **品質保証完了**: 1,101テスト100%成功・68.93%カバレッジ達成
+
+---
 
 ## 📈 Phase 42.4完了（2025年10月20日）
 

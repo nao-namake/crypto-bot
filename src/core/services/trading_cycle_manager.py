@@ -113,8 +113,7 @@ class TradingCycleManager:
             # Phase 8: 注文実行
             await self._execute_approved_trades(trade_evaluation, cycle_id)
             await self._check_stop_conditions(cycle_id)
-            # Phase 42.2: トレーリングストップ監視
-            await self._monitor_trailing_stop(market_data, cycle_id)
+            # Phase 46: トレーリングストップ削除（デイトレード不要）
 
         except ValueError as e:
             await self._handle_value_error(e, cycle_id)
@@ -790,55 +789,11 @@ class TradingCycleManager:
         except Exception as e:
             self.logger.error(f"ストップ条件チェックエラー: {e}")
 
-    async def _monitor_trailing_stop(self, market_data, cycle_id):
-        """
-        Phase 42.2: トレーリングストップ監視
-
-        含み益が一定水準に達した場合、トレーリングストップを更新する。
-
-        Args:
-            market_data: 市場データ（マルチタイムフレーム）
-            cycle_id: 取引サイクルID
-        """
-        try:
-            # トレーリングストップ設定確認
-            trailing_config = get_threshold("position_management.stop_loss.trailing", {})
-            if not trailing_config.get("enabled", False):
-                return  # トレーリングストップ無効時はスキップ
-
-            # 現在価格を取得
-            from ..config import get_data_config
-
-            main_timeframe = get_data_config("timeframes", ["4h", "15m"])[0]
-
-            if (
-                isinstance(market_data, dict)
-                and main_timeframe in market_data
-                and not market_data[main_timeframe].empty
-            ):
-                current_price = float(market_data[main_timeframe]["close"].iloc[-1])
-            else:
-                self.logger.debug("Phase 42.2: トレーリングストップ監視スキップ（価格取得不可）")
-                return
-
-            # ExecutionServiceのmonitor_trailing_conditionsを呼び出し
-            result = await self.orchestrator.execution_service.monitor_trailing_conditions(
-                current_price=current_price
-            )
-
-            # トレーリング発動時のログ
-            if result.get("trailing_activated"):
-                self.logger.info(
-                    f"🔄 Phase 42.2: トレーリングストップ更新完了 - サイクル: {cycle_id}, "
-                    f"新SL価格: {result['new_sl_price']:.0f}円",
-                    discord_notify=True,
-                )
-
-        except Exception as e:
-            # トレーリングストップ監視エラーは致命的ではないのでDEBUGレベル
-            self.logger.debug(
-                f"Phase 42.2: トレーリングストップ監視エラー - サイクル: {cycle_id}: {e}"
-            )
+    # ========================================
+    # Phase 46: トレーリングストップ削除（デイトレード不要）
+    # ========================================
+    # Phase 42.2で実装されたトレーリングストップ監視機能を削除
+    # デイトレード特化設計では不要なため
 
     async def _handle_value_error(self, e, cycle_id):
         """ValueError処理"""

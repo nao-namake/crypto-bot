@@ -197,8 +197,10 @@ class RiskManager:
                 current_atr, atr_history
             )
 
+            # Phase 46: thresholds.yamlから直接取得（ハードコード排除）
             take_profit_ratio = config.get(
-                "take_profit_ratio", DEFAULT_RISK_PARAMS["take_profit_ratio"]
+                "take_profit_ratio",
+                get_threshold("tp_default_ratio", DEFAULT_RISK_PARAMS["take_profit_ratio"]),
             )
             min_atr = config.get("min_atr_threshold", DEFAULT_RISK_PARAMS["min_atr_threshold"])
 

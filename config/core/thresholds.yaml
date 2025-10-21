@@ -297,12 +297,16 @@ risk:
   max_capital_usage: 0.3
   reserve_ratio: 0.7
 position_management:
-  # Phase 43.5: individualモード廃止、統合TP/SL強制（トレーリングストップ含む）
-  consolidate_on_new_entry: true  # エントリー時に既存TP/SLキャンセル・再統合
+  # ========================================
+  # Phase 46: デイトレード特化設計
+  # ========================================
+  # デイトレード最適化設定: SL 2% / TP 4% / RR比 2.0:1
+  # 個別TP/SL配置に回帰（統合TP/SL・トレーリングストップ削除）
+  consolidate_on_new_entry: false  # Phase 46: 統合TP/SL無効化
   min_account_balance: 10000
   max_open_positions: 3
-  max_daily_trades: 20
-  cooldown_minutes: 15
+  max_daily_trades: 50            # Phase 46: 20 → 50（デイトレード機会増加）
+  cooldown_minutes: 15            # Phase 46: デイトレード対応（15分維持）
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
     low_confidence: 0.03
@@ -339,16 +343,16 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 2.5
-    min_profit_ratio: 0.01
+    default_ratio: 2.0              # Phase 46: 2.5 → 2.0（RR比 2.0:1）
+    min_profit_ratio: 0.04          # Phase 46: 0.01 → 0.04（TP 4%）
     override_strategy_tp: false
     position_partial_exit: false
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.03
+    max_loss_ratio: 0.02            # Phase 46: 0.03 → 0.02（SL 2%）
     override_strategy_sl: false
-    enable_trailing: false
+    enable_trailing: false          # Phase 46: トレーリングストップ無効（デイトレード不要）
     execution_slippage: 0.003
     adaptive_atr:
       enabled: true
@@ -364,11 +368,11 @@ position_management:
         multiplier: 1.5
     min_distance:
       enabled: true
-      ratio: 0.01
+      ratio: 0.02                   # Phase 46: 0.01 → 0.02（SL 2%最小距離）
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:
-      enabled: true
+      enabled: false                # Phase 46: トレーリングストップ無効化（デイトレード不要）
       activation_profit: 0.02
       trailing_percent: 0.03
       min_update_distance: 200
@@ -424,8 +428,8 @@ sl_atr_normal_vol: 2.0                  # 固定値: 適応型ATR倍率（通常
 sl_atr_high_vol: 1.2                    # 固定値: 適応型ATR倍率（高ボラティリティ）
 sl_min_distance_ratio: 0.02             # Phase 42.4: 最小SL距離比率（2.0% ← 1.0%から変更）
 sl_min_atr_multiplier: 1.3              # 固定値: 最小ATR倍率
-tp_default_ratio: 1.5                   # Phase 42.4: リスクリワード比（1.5:1維持・段階的最適化）
-tp_min_profit_ratio: 0.03               # Phase 42.4: 最小利益率（3.0% ← 1.9%から変更）
+tp_default_ratio: 2.0                   # Phase 46: デイトレード特化・リスクリワード比2.0:1
+tp_min_profit_ratio: 0.04               # Phase 46: デイトレード特化・最小利益率4.0%
 # ==================================================================================
 kelly_max_position_ratio: 0.05
 kelly_safety_factor: 1.0

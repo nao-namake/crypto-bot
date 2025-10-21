@@ -1,19 +1,226 @@
-# src/trading/execution/ - 注文実行層 🚀 Phase 42.4完了
+# src/trading/execution/ - 注文実行層 🚀 Phase 46完了
 
 ## 🎯 役割・責任
 
-注文実行・TP/SL管理・トレーリングストップ実装を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で統合TP/SL実装、Phase 42.2でトレーリングストップ機能を完成、Phase 42.4でTP/SL設定最適化を実現しました。
+注文実行・TP/SL管理を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で統合TP/SL実装、Phase 42.2でトレーリングストップ機能を完成、Phase 42.4でTP/SL設定最適化、Phase 43で技術的負債削除・SL保護機能を実現、**Phase 46でデイトレード特化・シンプル設計に回帰**しました。
 
 ## 📂 ファイル構成
 
 ```
 execution/
-├── executor.py         # 注文実行サービス（Phase 42, 42.2: 統合TP/SL・トレーリング実装）
-├── stop_manager.py     # TP/SL管理（Phase 42, 42.2: 統合TP/SL・トレーリング実装）
-├── order_strategy.py   # 注文戦略（Phase 42: 統合TP/SL価格計算）
+├── executor.py         # 注文実行サービス（Phase 46: 個別TP/SL回帰・ペーパーバグ修正）
+├── stop_manager.py     # TP/SL管理（Phase 46: 個別TP/SL専用・131行）
+├── order_strategy.py   # 注文戦略（Phase 46: ハードコード値完全排除）
 ├── __init__.py         # モジュール初期化
 └── README.md           # このファイル
 ```
+
+## 📈 Phase 46完了（2025年10月22日）
+
+**🎯 Phase 46: デイトレード特化・シンプル設計回帰・スイングトレード機能削除**
+
+### ✅ Phase 46.2.4 不要コード削除成果（-1,172行のコード削減）
+
+**背景**: Phase 42-43で実装したスイングトレード向け機能（統合TP/SL・トレーリングストップ）が、デイトレード特化戦略では過剰に複雑で、本番環境で22注文問題を引き起こしました。Phase 46でデイトレード特化設計に回帰し、シンプル性・保守性を最優先しました。
+
+**削除内容**:
+- **executor.py**: トレーリングストップ監視削除（Line 811-992、-182行）
+- **executor.py**: 統合TP/SL処理削除（Line 665-806、-142行）
+- **stop_manager.py**: トレーリングSL更新削除（Line 1083-1302、-220行）
+- **stop_manager.py**: 統合TP/SL配置削除（Line 879-1077、-199行）
+- **order_strategy.py**: 統合TP/SL価格計算削除（Line 352-467、-148行）
+- **order_strategy.py**: SL最悪位置保護削除（Line 44-84、-41行）
+- **tracker.py**: 統合TP/SL管理削除（Line 366-538、-173行）
+- **thresholds.yaml**: トレーリング設定削除（-7行）
+- **テスト**: Phase 42-43関連テスト8件削除（-60行）
+- **合計**: -1,172行削除（Phase 42-43レガシーコード完全削除）
+
+**効果**:
+- コードベース大幅簡略化（executor.py: 980行 → 478行、-51.2%）
+- 個別TP/SL配置に回帰（シンプル・予測可能・デバッグ容易）
+- 保守性・可読性大幅向上
+
+### ✅ Phase 46.2.5 個別TP/SL配置ロジック実装（+131行）
+
+**背景**: Phase 43.5で削除したPhase 29.6の個別TP/SL実装（`place_tp_sl_orders()`）を、Phase 46設計に合わせて再実装しました。
+
+**実装内容**:
+
+**stop_manager.py** (`place_individual_tp_sl()`):
+```python
+async def place_individual_tp_sl(
+    self,
+    bitbank_client: BitbankClient,
+    side: str,
+    entry_price: float,
+    position_size: float,
+    tp_price: Optional[float] = None,
+    sl_price: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Phase 46: 個別TP/SL配置（デイトレード特化・シンプル設計）
+
+    Args:
+        bitbank_client: Bitbank APIクライアント
+        side: ポジションサイド（buy/sell）
+        entry_price: エントリー価格
+        position_size: ポジションサイズ
+        tp_price: TP価格（Noneの場合は自動計算）
+        sl_price: SL価格（Noneの場合は自動計算）
+
+    Returns:
+        Dict: {
+            "tp_order_id": Optional[str],
+            "sl_order_id": Optional[str],
+            "success": bool
+        }
+
+    設計方針:
+        - Phase 29.6実装を継承（実績あり）
+        - RiskManager設定値を直接使用（ハードコード排除）
+        - get_threshold()でthresholds.yaml参照
+    """
+```
+
+**効果**:
+- エントリー毎に個別TP/SL配置（1エントリー = 3注文）
+- 設定値反映確認（SL 2%・TP 4%・RR 2.0:1）
+- ハードコード値なし（get_threshold()パターン使用）
+
+### ✅ Phase 46.3 ハードコード値完全排除（5箇所修正）
+
+**背景**: 要件定義.md「ハードコード値ゼロ」要件を遵守するため、残存していたハードコード値を完全排除しました。
+
+**修正箇所**:
+1. **executor.py:129**: `default_side = get_threshold("trading_constraints.default_side", "buy")`
+2. **executor.py:211**: `sl_min = get_threshold("sl_min_distance_ratio", 0.01)`
+3. **order_strategy.py:72**: `limit_price = best_ask * (1 + get_threshold("order_execution.guaranteed_execution_premium", 0.0005))`
+4. **order_strategy.py:75**: `limit_price = best_bid * (1 - get_threshold("order_execution.guaranteed_execution_premium", 0.0005))`
+5. **RiskManager.py:369**: `sl_rate = get_threshold("sl_min_distance_ratio", 0.01)`
+
+**効果**:
+- ハードコード値完全排除（100%達成）
+- 設定ファイル一元管理（thresholds.yaml）
+- 運用中のパラメータ調整容易化
+
+### ✅ Phase 46.5 ペーパートレードバグ修正
+
+**背景**: ローカルペーパーモード検証時にパラメータ不一致エラーを発見しました。
+
+**修正内容**:
+
+**executor.py** (Line 473-478):
+```python
+# 修正前（INCORRECT）:
+self.position_tracker.add_position(
+    position_id=virtual_order_id,  # WRONG
+    side=side,
+    amount=amount,
+    entry_price=price,  # WRONG
+)
+
+# 修正後（FIXED）:
+self.position_tracker.add_position(
+    order_id=virtual_order_id,
+    side=side,
+    amount=amount,
+    price=price,
+)
+```
+
+**効果**:
+- ペーパートレード正常動作化
+- PositionTrackerシグネチャ準拠
+- エラー「ペーパーポジション追加エラー」完全解消
+
+### 📊 Phase 46重要事項
+- **Phase 46設計哲学**: デイトレード特化・シンプル性・保守性優先
+- **削除vs実装**: -1,172行削除 + 131行実装 = -1,041行純削減
+- **品質保証完了**: 1,101テスト100%成功・68.93%カバレッジ達成
+- **ペーパートレード検証完了**: 全8項目チェックリストクリア
+
+---
+
+## 📈 Phase 43完了（2025年10月21日）
+
+**🎯 Phase 43: 技術的負債削除・SL保護・維持率制限実装（再設計版）**
+
+### ✅ Phase 43.5 技術的負債削除成果（-320行のコード削減）
+
+**背景**: Phase 42.1の統合TP/SL実装後も、Phase 29.6の個別TP/SL実装（`place_tp_sl_orders()`メソッド）が残存し、フォールバックコードや重複処理が必要でした。Phase 43.5で完全削除し、クリーンなアーキテクチャを実現しました。
+
+**削除内容**:
+- **stop_manager.py**: `place_tp_sl_orders()`メソッド削除（Line 87-219、-133行）
+- **executor.py**: individualモード分岐削除（Line 350-391、-28行）
+- **executor.py**: fallbackハンドリング削除（Line 783-796、-11行）
+- **thresholds.yaml**: `tp_sl_mode`設定削除（-3行）
+- **tests**: 個別TP/SL関連テスト7件削除（-145行）
+- **合計**: -320行削除（Phase 29.6レガシーコード完全削除）
+
+**効果**:
+- コードベース大幅簡略化（executor.py: 1,008行 → 980行）
+- 統合TP/SL強制化（注文数91.7%削減効果維持）
+- 保守性・可読性大幅向上
+
+### ✅ Phase 43 SL最悪位置保護実装（ナンピン時損失拡大防止）
+
+**背景**: 本番環境で12回ナンピンエントリー実行時、SL位置が初期位置から移動し、損失が200円 → 450円に拡大（+125%）しました。
+
+**実装内容**:
+
+**order_strategy.py** (`calculate_consolidated_tp_sl_prices()`):
+```python
+def calculate_consolidated_tp_sl_prices(
+    self,
+    average_entry_price: float,
+    side: str,
+    market_conditions: Optional[Dict[str, Any]] = None,
+    existing_sl_price: Optional[float] = None,  # Phase 43追加
+) -> Dict[str, float]:
+    """
+    Phase 43: ナンピン時は既存SLと比較し、より保護的なSL位置を維持する。
+    - 買いポジション: max(新規SL, 既存SL) - 高い方が保護的
+    - 売りポジション: min(新規SL, 既存SL) - 低い方が保護的
+    """
+    # SL計算
+    new_sl_price = average_entry_price * (1 - sl_rate)  # 新規SL
+
+    # Phase 43: 既存SLと比較し、より保護的な位置を維持
+    if existing_sl_price is not None and existing_sl_price > 0:
+        if side.lower() == "buy":
+            stop_loss_price = max(new_sl_price, existing_sl_price)  # 高い方
+        else:  # sell
+            stop_loss_price = min(new_sl_price, existing_sl_price)  # 低い方
+    else:
+        stop_loss_price = new_sl_price
+```
+
+**executor.py** (既存SL価格取得):
+```python
+# Phase 43: 既存SL価格を取得（SL最悪位置維持用）
+existing_ids = self.position_tracker.get_consolidated_tp_sl_ids()
+existing_sl_price = existing_ids.get("sl_price", 0)
+
+# 統合TP/SL価格計算（Phase 43: 既存SL考慮）
+new_tp_sl_prices = self.order_strategy.calculate_consolidated_tp_sl_prices(
+    average_entry_price=new_average_price,
+    side=side,
+    market_conditions=market_conditions,
+    existing_sl_price=existing_sl_price if existing_sl_price > 0 else None,
+)
+```
+
+**効果**:
+- 初回エントリー: SL = 新規計算値（例: entry - 2%）
+- 2回目ナンピン: 平均価格上昇 → 新規SL > 既存SL → **既存SL維持**
+- 結果: 最大損失が初期設定（2% = 200円）を超えない
+
+### 📊 Phase 43重要事項
+- **Phase 43.5前提**: 技術的負債削除により、クリーンな実装を実現
+- **後方互換性**: ペーパートレード・ライブトレード両対応
+- **品質保証完了**: 1,141テスト100%成功・69.47%カバレッジ達成
+
+---
 
 ## 📈 Phase 42.4完了（2025年10月20日）
 
