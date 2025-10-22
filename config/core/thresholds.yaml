@@ -380,9 +380,9 @@ position_management:
       cancel_tp_when_exceeds: true
 margin:
   position_value_estimation_ratio: 0.8
-  # Phase 43: 維持率閾値設定
+  # Phase 49.5: 維持率閾値修正（80%確実遵守）
   thresholds:
-    critical: 100.0      # 追証発生レベル - 100%未満でエントリー拒否
+    critical: 80.0       # Phase 49.5: 80%未満でエントリー拒否（旧100.0から変更）
     warning: 100.0       # 警告レベル
     caution: 150.0       # 注意レベル
     safe: 200.0          # 安全レベル

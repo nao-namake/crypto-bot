@@ -324,8 +324,8 @@ class ExecutionService:
                         current_atr = float(df_4h["atr_14"].iloc[-1])
 
                 if current_atr and current_atr > 0:
-                    # Phase 46: 実約定価格ベースで再計算（ハードコード排除）
-                    config = {"take_profit_ratio": get_threshold("tp_default_ratio", 2.5)}
+                    # Phase 49.6: デフォルト値2.5→2.0（thresholds.yaml準拠）
+                    config = {"take_profit_ratio": get_threshold("tp_default_ratio", 2.0)}
                     recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
                         side, actual_filled_price, current_atr, config, atr_history
                     )

@@ -688,13 +688,21 @@ class IntegratedRiskManager:
             )
 
             future_margin_ratio = margin_prediction.future_margin_ratio
+            current_margin_ratio = margin_prediction.current_margin.margin_ratio
 
-            # Phase 43: 維持率100%未満で新規エントリー拒否（追証リスク回避）
-            critical_threshold = get_threshold("margin.thresholds.critical", 100.0)
+            # Phase 49.5: 維持率80%未満で新規エントリー拒否（確実な遵守）
+            critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
+
+            # Phase 49.5: 詳細ログ出力（デバッグ用）
+            self.logger.info(
+                f"📊 Phase 49.5 維持率チェック: 現在={current_margin_ratio:.1f}%, "
+                f"予測={future_margin_ratio:.1f}%, 閾値={critical_threshold:.0f}%"
+            )
+
             if future_margin_ratio < critical_threshold:
                 deny_message = (
-                    f"🚨 Phase 43: 維持率100%未満予測 - エントリー拒否 "
-                    f"({future_margin_ratio:.1f}% < {critical_threshold:.0f}%、追証リスク)"
+                    f"🚨 Phase 49.5: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
+                    f"(現在={current_margin_ratio:.1f}% → 予測={future_margin_ratio:.1f}% < {critical_threshold:.0f}%)"
                 )
                 self.logger.warning(deny_message)
                 return True, deny_message  # True = 拒否
@@ -709,9 +717,12 @@ class IntegratedRiskManager:
             return False, None  # 問題なし
 
         except Exception as e:
-            self.logger.error(f"❌ 保証金監視チェックエラー: {e}")
-            error_msg = f"保証金監視システムエラー（制限なし）: {str(e)}"
-            return False, error_msg  # エラー時は許可（安全側に倒す）
+            # Phase 49.5: エラー時は拒否（安全側に倒す）
+            self.logger.error(
+                f"❌ Phase 49.5: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
+            )
+            error_msg = f"🚨 保証金監視システムエラー - 安全のためエントリー拒否: {str(e)}"
+            return True, error_msg  # Phase 49.5: エラー時は拒否（旧False→True変更）
 
     def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
         """現在のポジション価値推定"""

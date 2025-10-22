@@ -43,10 +43,11 @@ class StrategyType:
 
 
 # 基本リスク管理パラメータ（戦略で上書き可能）
+# Phase 49.6: ハードコード値削除・thresholds.yaml準拠
 DEFAULT_RISK_PARAMS: Dict[str, Any] = {
     # ストップロス・テイクプロフィット
     "stop_loss_atr_multiplier": 2.0,  # 一般的な設定
-    "take_profit_ratio": 2.5,  # リワード・リスク比
+    "take_profit_ratio": 2.0,  # Phase 49.6: 2.5→2.0（thresholds.yaml tp_default_ratio準拠）
     # ポジションサイズ
     "position_size_base": 0.02,  # 2%の基本設定
     # 計算設定

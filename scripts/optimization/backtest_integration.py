@@ -508,15 +508,15 @@ if __name__ == "__main__":
             integration = create_full_backtest()
             print("🚀 完全バックテストテスト開始（180日・100%データ）")
 
-        # テストパラメータ（Phase 40.1から取得した最適値）
+        # Phase 49.6: thresholds.yaml準拠値に更新（古い最適値から現行設定へ同期）
         test_params = {
             "sl_atr_low_vol": 2.1,
             "sl_atr_normal_vol": 2.0,
             "sl_atr_high_vol": 1.2,
-            "sl_min_distance_ratio": 0.009,
+            "sl_min_distance_ratio": 0.02,  # Phase 49.6: 0.009→0.02（thresholds.yaml準拠）
             "sl_min_atr_multiplier": 1.3,
-            "tp_default_ratio": 1.5,
-            "tp_min_profit_ratio": 0.019,
+            "tp_default_ratio": 2.0,  # Phase 49.6: 1.5→2.0（thresholds.yaml準拠）
+            "tp_min_profit_ratio": 0.04,  # Phase 49.6: 0.019→0.04（thresholds.yaml準拠）
             "kelly_max_position_ratio": 0.05,
             "kelly_safety_factor": 1.0,
             "risk_conditional": 0.7,

@@ -1,9 +1,11 @@
 """
-残高・保証金監視サービス - Phase 38リファクタリング
+残高・保証金監視サービス - Phase 49.5完了版
 Phase 28/29: 保証金維持率監視システム
+Phase 43: 維持率拒否機能実装
+Phase 49.5: 維持率80%確実遵守ロジック実装
 
-現在の59%という危険な維持率を可視化し、
-将来的な制限機能の基盤を提供する。
+保証金維持率を監視し、80%未満でのエントリーを確実に拒否。
+IntegratedRiskManager経由で全エントリーをチェック。
 """
 
 from datetime import datetime
@@ -246,7 +248,7 @@ class BalanceMonitor:
 
     def _get_recommendation(self, margin_ratio: float) -> str:
         """
-        維持率に基づく推奨アクション
+        維持率に基づく推奨アクション（Phase 49.5更新）
 
         Args:
             margin_ratio: 保証金維持率（%）
@@ -254,13 +256,17 @@ class BalanceMonitor:
         Returns:
             推奨アクション
         """
-        critical_threshold = get_threshold("margin.thresholds.warning", 100.0)
-        warning_threshold = get_threshold("margin.thresholds.caution", 150.0)
+        # Phase 49.5: critical=80.0に変更
+        critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
+        warning_threshold = get_threshold("margin.thresholds.warning", 100.0)
+        caution_threshold = get_threshold("margin.thresholds.caution", 150.0)
         safe_threshold = get_threshold("margin.thresholds.safe", 200.0)
 
         if margin_ratio < critical_threshold:
-            return "🚨 新規エントリー非推奨（追証リスク）"
+            return f"🚨 新規エントリー拒否（{critical_threshold:.0f}%未満）"
         elif margin_ratio < warning_threshold:
+            return "⚠️ 警告: 維持率が低い状態です"
+        elif margin_ratio < caution_threshold:
             return "⚠️ ポジションサイズ削減を推奨"
         elif margin_ratio < safe_threshold:
             return "⚠️ 注意深く監視してください"
@@ -360,7 +366,7 @@ class BalanceMonitor:
 
     def should_warn_user(self, margin_prediction: MarginPrediction) -> Tuple[bool, str]:
         """
-        ユーザー警告が必要かを判定
+        ユーザー警告が必要かを判定（Phase 49.5更新）
 
         Args:
             margin_prediction: 維持率予測結果
@@ -371,15 +377,24 @@ class BalanceMonitor:
         future_ratio = margin_prediction.future_margin_ratio
         current_ratio = margin_prediction.current_margin.margin_ratio
 
-        critical_threshold = get_threshold("margin.thresholds.warning", 100.0)
-        warning_threshold = get_threshold("margin.thresholds.caution", 150.0)
+        # Phase 49.5: critical=80.0に変更
+        critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
+        warning_threshold = get_threshold("margin.thresholds.warning", 100.0)
+        caution_threshold = get_threshold("margin.thresholds.caution", 150.0)
         large_drop_threshold = get_threshold("margin.large_drop_threshold", 50.0)
 
-        # 100%を下回る予測の場合
+        # Phase 49.5: 80%を下回る予測の場合（IntegratedRiskManagerで拒否されるはず）
         if future_ratio < critical_threshold:
             return (
                 True,
-                f"🚨 危険：このエントリーで維持率が{future_ratio:.1f}%に低下します（追証発生）",
+                f"🚨 危険：このエントリーで維持率が{future_ratio:.1f}%に低下します（{critical_threshold:.0f}%未満で拒否）",
+            )
+
+        # 100%を下回る予測の場合
+        if future_ratio < warning_threshold:
+            return (
+                True,
+                f"⚠️ 警告：このエントリーで維持率が{future_ratio:.1f}%に低下します",
             )
 
         # 大幅に維持率が低下する場合
@@ -390,7 +405,7 @@ class BalanceMonitor:
             )
 
         # 150%を下回る場合
-        if future_ratio < warning_threshold:
+        if future_ratio < caution_threshold:
             return (True, f"⚠️ 注意：エントリー後の維持率は{future_ratio:.1f}%になります")
 
         return False, ""

@@ -373,7 +373,7 @@ class TestMarginPrediction:
 
         assert prediction.current_margin.status == MarginStatus.SAFE
         assert prediction.future_status == MarginStatus.CRITICAL
-        assert "非推奨" in prediction.recommendation or "追証" in prediction.recommendation
+        assert "警告" in prediction.recommendation or "拒否" in prediction.recommendation
 
 
 class TestRecommendations:
@@ -429,7 +429,7 @@ class TestRecommendations:
         }.get(key, default)
 
         recommendation = self.monitor._get_recommendation(80.0)
-        assert "非推奨" in recommendation or "追証" in recommendation
+        assert "拒否" in recommendation or "警告" in recommendation
 
 
 class TestMarginSummary:
@@ -573,7 +573,7 @@ class TestUserWarning:
         should_warn, message = self.monitor.should_warn_user(prediction)
 
         assert should_warn is True
-        assert "追証" in message or "危険" in message
+        assert "警告" in message or "低下" in message or "拒否" in message
 
     @patch("src.trading.balance.monitor.get_threshold")
     def test_should_warn_user_large_drop(self, mock_threshold):

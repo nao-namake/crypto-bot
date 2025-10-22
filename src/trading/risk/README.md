@@ -1,8 +1,8 @@
-# src/trading/risk/ - リスク管理層 🛡️ Phase 46完了
+# src/trading/risk/ - リスク管理層 🛡️ Phase 49.5完了
 
 ## 🎯 役割・責任
 
-リスク管理・ポジションサイジング・Kelly基準・異常検知・ドローダウン管理を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 43で維持率100%未満拒否機能を実現、**Phase 46でハードコード値完全排除**を達成しました。
+リスク管理・ポジションサイジング・Kelly基準・異常検知・ドローダウン管理を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 43で維持率100%未満拒否機能を実現、Phase 46でハードコード値完全排除を達成、**Phase 49.5で維持率80%確実遵守ロジック実装**を完了しました。
 
 ## 📂 ファイル構成
 
@@ -289,9 +289,107 @@ def calculate_optimal_size(
 
 ---
 
+## 🎊 Phase 49.5完了（2025/10/22）
+
+### **Phase 49.5: 維持率80%確実遵守ロジック実装**
+
+#### 背景・問題
+- **ユーザー期待**: 維持率80%未満でエントリー拒否
+- **実際の動作**: 維持率53%でもエントリー許可（設定と乖離）
+- **根本原因**: critical閾値100.0（追証発生レベル）に設定されていた
+
+#### 修正内容
+
+**1. thresholds.yaml修正** (line 385)
+```yaml
+# Phase 49.5修正前:
+margin:
+  thresholds:
+    critical: 100.0      # 追証発生レベル
+
+# Phase 49.5修正後:
+margin:
+  thresholds:
+    critical: 80.0       # 80%未満でエントリー拒否
+```
+
+**2. manager.py詳細ログ追加** (line 693-723)
+```python
+# Phase 49.5: 詳細ログ出力
+self.logger.info(
+    f"📊 Phase 49.5 維持率チェック: 現在={current_margin_ratio:.1f}%, "
+    f"予測={future_margin_ratio:.1f}%, 閾値={critical_threshold:.0f}%"
+)
+
+if future_margin_ratio < critical_threshold:
+    deny_message = (
+        f"🚨 Phase 49.5: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
+        f"(現在={current_margin_ratio:.1f}% → 予測={future_margin_ratio:.1f}% < {critical_threshold:.0f}%)"
+    )
+    return True, deny_message  # True = 拒否
+```
+
+**3. エラー時処理変更** (line 720-723)
+```python
+# Phase 49.5修正前: エラー時は許可（機会損失回避）
+return False, error_msg
+
+# Phase 49.5修正後: エラー時は拒否（安全第一）
+return True, error_msg  # 安全側に倒す
+```
+
+**4. monitor.py推奨メッセージ更新** (line 265-266)
+```python
+# Phase 49.5修正前:
+if margin_ratio < critical_threshold:
+    return "🚨 新規エントリー非推奨（追証リスク）"
+
+# Phase 49.5修正後:
+if margin_ratio < critical_threshold:
+    return f"🚨 新規エントリー拒否（{critical_threshold:.0f}%未満）"
+```
+
+#### 効果
+
+✅ **維持率80%未満で確実にエントリー拒否**:
+- IntegratedRiskManagerの`_check_margin_ratio()`で事前チェック
+- 全エントリー前に予測維持率を計算
+- 80%未満予測時は即座に拒否
+
+✅ **安全第一のリスク管理**:
+- エラー時も拒否（旧動作：許可）
+- 追証リスク完全回避
+- 詳細ログで問題追跡可能
+
+✅ **ログ品質向上**:
+- 現在維持率・予測維持率・閾値を明示
+- デバッグ容易性向上
+
+---
+
 ## 📝 使用方法・例
 
-### **Phase 43 維持率制限の動作**
+### **Phase 49.5 維持率80%確実遵守の動作**
+
+```python
+# エントリー前の維持率チェック（自動実行）
+should_deny, margin_message = await risk_manager._check_margin_ratio(
+    current_balance=100000,  # 現在残高10万円
+    btc_price=14000000,      # BTC価格1,400万円
+    ml_prediction={"confidence": 0.6},
+    strategy_signal=strategy_signal
+)
+
+# ログ出力例:
+# 📊 Phase 49.5 維持率チェック: 現在=85.0%, 予測=75.0%, 閾値=80.0%
+# 🚨 Phase 49.5: 維持率80.0%未満予測 - エントリー拒否 (現在=85.0% → 予測=75.0% < 80.0%)
+
+if should_deny:
+    # エントリー拒否（should_deny=True）
+    return TradeEvaluation(side="hold", ...)
+```
+
+### **Phase 43 維持率制限の動作（旧実装）**
 
 ```python
 from src.trading.risk.manager import IntegratedRiskManager

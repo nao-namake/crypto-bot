@@ -1,8 +1,8 @@
-# 🚀 **Crypto-Bot** - Phase 48完了・AI自動取引システム
+# 🚀 **Crypto-Bot** - Phase 49完了・AI自動取引システム
 
-**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・確定申告対応システム実装（95%時間削減）・Discord週間レポート実装（通知99%削減・コスト35%削減）・TP/SL設定最適化・統合TP/SL+トレーリングストップ実装・Strategy-Aware ML実装・ML統合率100%達成・68.32%カバレッジ達成**
+**🎯 bitbank信用取引専用・BTC/JPY高頻度自動取引ボット・バックテスト完全改修（信頼性100%達成・可視化システム実装）・確定申告対応システム実装（95%時間削減）・Discord週間レポート実装（通知99%削減・コスト35%削減）・TP/SL設定最適化・統合TP/SL+トレーリングストップ実装・Strategy-Aware ML実装・ML統合率100%達成・66.72%カバレッジ達成**
 
-[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-1117%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-68.32%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2048-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-100%25-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![Strategy Aware](https://img.shields.io/badge/Strategy%20Aware-55%20features-purple)](models/production/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/) [![Weekly Report](https://img.shields.io/badge/Weekly%20Report-Active-blue)](scripts/reports/) [![Tax System](https://img.shields.io/badge/Tax%20System-Complete-green)](tax/)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://python.org) [![Tests](https://img.shields.io/badge/tests-1097%20passed-success)](tests/) [![Coverage](https://img.shields.io/badge/coverage-66.72%25-green)](coverage-reports/) [![Phase](https://img.shields.io/badge/Phase%2049-Completed-brightgreen)](docs/) [![ML Integration](https://img.shields.io/badge/ML%20Integration-100%25-blue)](src/core/services/) [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Running-success)](https://cloud.google.com/run) [![Config](https://img.shields.io/badge/Unified%20Config-Complete-orange)](config/) [![Strategy Aware](https://img.shields.io/badge/Strategy%20Aware-55%20features-purple)](models/production/) [![GCP](https://img.shields.io/badge/GCP%20Optimized-Complete-blue)](docs/) [![Backtest](https://img.shields.io/badge/Backtest-100%25%20Reliable-green)](src/backtest/) [![Weekly Report](https://img.shields.io/badge/Weekly%20Report-Active-blue)](scripts/reports/) [![Tax System](https://img.shields.io/badge/Tax%20System-Complete-green)](tax/)
 
 ---
 
@@ -17,8 +17,8 @@ pip install -r requirements.txt
 cp config/secrets/.env.example config/secrets/.env
 # → .envファイルにbitbank API・Discord Webhook設定
 
-# 3. Phase 48品質チェック
-bash scripts/testing/checks.sh  # 1,117テスト・68.32%カバレッジ・約80秒
+# 3. Phase 49品質チェック
+bash scripts/testing/checks.sh  # 1,097テスト・66.72%カバレッジ・約80秒
 
 # 4. システム実行
 bash scripts/management/run_safe.sh local paper  # ペーパートレード
@@ -36,11 +36,17 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ---
 
-## 🎯 **システム概要**（Phase 42.4完了）
+## 🎯 **システム概要**（Phase 49完了）
 
 **AI自動取引システム**は、bitbank信用取引専用のBTC/JPY自動取引ボットです。5つの取引戦略と機械学習を**真に統合**し、55の特徴量（50基本+5戦略信号）を総合分析することで、24時間自動取引を実現する**真のハイブリッドMLbot**です。
 
 ### **✅ 最新Phase完了ステータス**
+
+**Phase 49（2025/10/22）**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker損益計算・matplotlib可視化・維持率80%確実遵守・TP/SL設定完全同期・バックテスト信頼性100%達成）
+
+**Phase 48（2025/10/22）**: Discord週間レポート実装（通知99%削減・損益曲線グラフ・matplotlib・GitHub Actions週次実行・月額コスト35%削減）
+
+**Phase 47（2025/10/22）**: 確定申告対応システム実装（SQLite・CSV出力・税務レポート生成・移動平均法損益計算・作業時間95%削減）
 
 **Phase 42.4（2025/10/20）**: TP/SL設定最適化・状態永続化実装（SL 2%・TP 3%・RR比1.5:1・order_strategy.pyハードコード削除・PositionTracker永続化・22注文問題解決）
 
