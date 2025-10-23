@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY src/ /app/src/
 COPY config/ /app/config/
 COPY models/ /app/models/
+COPY tax/ /app/tax/
 COPY main.py /app/
 COPY tests/manual/ /app/tests/manual/
 
