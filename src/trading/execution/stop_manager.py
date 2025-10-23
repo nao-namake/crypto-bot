@@ -61,8 +61,9 @@ class StopManager:
                 return None
 
             # Phase 28: 通常のテイクプロフィット/ストップロスチェック
+            # Phase 49.6: bitbank_clientを渡してクリーンアップ対応
             tp_sl_result = await self._check_take_profit_stop_loss(
-                current_price, virtual_positions, mode, executed_trades, session_pnl
+                current_price, virtual_positions, mode, executed_trades, session_pnl, bitbank_client
             )
             if tp_sl_result:
                 return tp_sl_result
@@ -91,6 +92,7 @@ class StopManager:
         mode: str,
         executed_trades: int,
         session_pnl: float,
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> Optional[ExecutionResult]:
         """
         Phase 28: 通常のテイクプロフィット/ストップロスチェック
@@ -116,7 +118,7 @@ class StopManager:
             # 各ポジションのTP/SLチェック
             for position in virtual_positions:
                 exit_result = await self._evaluate_position_exit(
-                    position, current_price, tp_config, sl_config, mode
+                    position, current_price, tp_config, sl_config, mode, bitbank_client
                 )
                 if exit_result:
                     # ポジションリストから削除
@@ -135,7 +137,13 @@ class StopManager:
             return None
 
     async def _evaluate_position_exit(
-        self, position: dict, current_price: float, tp_config: dict, sl_config: dict, mode: str
+        self,
+        position: dict,
+        current_price: float,
+        tp_config: dict,
+        sl_config: dict,
+        mode: str,
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> Optional[ExecutionResult]:
         """
         個別ポジションの決済判定
@@ -172,8 +180,9 @@ class StopManager:
                     self.logger.info(
                         f"🎯 テイクプロフィット到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (TP:{take_profit:.0f}円)"
                     )
+                    # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
                     return await self._execute_position_exit(
-                        position, current_price, "take_profit", mode
+                        position, current_price, "take_profit", mode, bitbank_client
                     )
 
             # ストップロスチェック
@@ -188,8 +197,9 @@ class StopManager:
                     self.logger.warning(
                         f"🛑 ストップロス到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (SL:{stop_loss:.0f}円)"
                     )
+                    # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
                     return await self._execute_position_exit(
-                        position, current_price, "stop_loss", mode
+                        position, current_price, "stop_loss", mode, bitbank_client
                     )
 
             return None
@@ -199,7 +209,12 @@ class StopManager:
             return None
 
     async def _execute_position_exit(
-        self, position: dict, current_price: float, exit_reason: str, mode: str
+        self,
+        position: dict,
+        current_price: float,
+        exit_reason: str,
+        mode: str,
+        bitbank_client: Optional[BitbankClient] = None,
     ) -> ExecutionResult:
         """
         ポジション決済実行
@@ -209,6 +224,7 @@ class StopManager:
             current_price: 決済価格
             exit_reason: 決済理由 ("take_profit", "stop_loss", "emergency")
             mode: 実行モード
+            bitbank_client: BitbankClientインスタンス（Phase 49.6: クリーンアップ用）
 
         Returns:
             ExecutionResult: 決済実行結果
@@ -226,6 +242,29 @@ class StopManager:
                 pnl = (current_price - entry_price) * amount
             else:
                 pnl = (entry_price - current_price) * amount
+
+            # Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
+            if bitbank_client and mode == "live":
+                tp_order_id = position.get("tp_order_id")
+                sl_order_id = position.get("sl_order_id")
+
+                if tp_order_id or sl_order_id:
+                    try:
+                        symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
+                        cleanup_result = await self.cleanup_position_orders(
+                            tp_order_id=tp_order_id,
+                            sl_order_id=sl_order_id,
+                            symbol=symbol,
+                            bitbank_client=bitbank_client,
+                            reason=exit_reason,
+                        )
+                        if cleanup_result["cancelled_count"] > 0:
+                            self.logger.info(
+                                f"🧹 Phase 49.6: ポジション決済時クリーンアップ実行 - "
+                                f"{cleanup_result['cancelled_count']}件キャンセル"
+                            )
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}")
 
             # ExecutionResult作成
             result = ExecutionResult(
@@ -597,6 +636,76 @@ class StopManager:
                     self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
                 else:
                     self.logger.warning(f"⚠️ {error_msg}")
+
+        return {"cancelled_count": cancelled_count, "errors": errors}
+
+    async def cleanup_position_orders(
+        self,
+        tp_order_id: Optional[str],
+        sl_order_id: Optional[str],
+        symbol: str,
+        bitbank_client: BitbankClient,
+        reason: str = "position_exit",
+    ) -> Dict[str, Any]:
+        """
+        Phase 49.6: ポジション決済時のTP/SL注文クリーンアップ
+
+        TP到達時: 残SL注文を自動削除
+        SL到達時: 残TP注文を自動削除
+        手動決済時: 両方を自動削除
+
+        Args:
+            tp_order_id: TP注文ID（存在する場合）
+            sl_order_id: SL注文ID（存在する場合）
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+            reason: クリーンアップ理由（"take_profit", "stop_loss", "manual"）
+
+        Returns:
+            Dict: {"cancelled_count": int, "errors": List[str]}
+        """
+        cancelled_count = 0
+        errors = []
+
+        # TP注文キャンセル（SL到達時・手動決済時）
+        if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
+            try:
+                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
+                cancelled_count += 1
+                self.logger.info(
+                    f"✅ Phase 49.6: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
+                )
+            except Exception as e:
+                error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
+                errors.append(error_msg)
+                # 既にキャンセル済み・約定済みのエラーはDEBUGレベル
+                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
+                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
+                else:
+                    self.logger.warning(f"⚠️ {error_msg}", discord_notify=True)
+
+        # SL注文キャンセル（TP到達時・手動決済時）
+        if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
+            try:
+                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+                cancelled_count += 1
+                self.logger.info(
+                    f"✅ Phase 49.6: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
+                )
+            except Exception as e:
+                error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
+                errors.append(error_msg)
+                # 既にキャンセル済み・約定済みのエラーはDEBUGレベル
+                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
+                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
+                else:
+                    self.logger.warning(f"⚠️ {error_msg}", discord_notify=True)
+
+        if cancelled_count > 0:
+            self.logger.info(
+                f"🧹 Phase 49.6: ポジション決済時クリーンアップ完了 - "
+                f"{cancelled_count}件キャンセル, 理由: {reason}"
+            )
 
         return {"cancelled_count": cancelled_count, "errors": errors}
 

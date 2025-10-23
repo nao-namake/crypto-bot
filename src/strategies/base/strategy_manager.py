@@ -377,21 +377,28 @@ class StrategyManager:
         )
 
     def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
-        """重み付け信頼度計算."""
+        """
+        重み付け信頼度計算（Phase 49.8: 平均→合計に修正）
+
+        複数戦略が同じアクションを推奨している場合、その総合的な確信度を
+        正しく反映するため、平均ではなく合計を返す。
+
+        修正前: 平均値 → BUY (0.4975) < SELL (0.500) - 誤判定
+        修正後: 合計値 → BUY (0.995) > SELL (0.500) - 正判定
+        """
         if not signals:
             return 0.0
 
         total_weighted_confidence = 0.0
-        total_weight = 0.0
 
         for strategy_name, signal in signals:
             weight = self.strategy_weights.get(strategy_name, 1.0)
             weighted_confidence = signal.confidence * weight
-
             total_weighted_confidence += weighted_confidence
-            total_weight += weight
 
-        return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
+        # Phase 49.8: 合計値を返す（平均ではなく）
+        # 信頼度が1.0を超える場合は1.0でクリップ（ML統合との整合性）
+        return min(total_weighted_confidence, 1.0)
 
     def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合") -> StrategySignal:
         """ホールドシグナル生成 - 動的confidence実装."""

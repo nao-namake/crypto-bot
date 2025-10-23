@@ -106,6 +106,45 @@ class PositionTracker:
         self.logger.warning(f"⚠️ ポジション未検出: {order_id}")
         return None
 
+    def remove_position_with_cleanup(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Phase 49.6: ポジション削除＋TP/SL注文ID取得（クリーンアップ用）
+
+        ポジションを削除し、紐づくTP/SL注文IDを返す。
+        StopManager.cleanup_position_orders()との連携用。
+
+        Args:
+            order_id: 削除する注文ID
+
+        Returns:
+            Dict: {
+                "position": 削除されたポジション情報,
+                "tp_order_id": TP注文ID (存在する場合),
+                "sl_order_id": SL注文ID (存在する場合)
+            }
+            存在しない場合はNone
+        """
+        for position in self.virtual_positions:
+            if position.get("order_id") == order_id:
+                self.virtual_positions.remove(position)
+
+                tp_order_id = position.get("tp_order_id")
+                sl_order_id = position.get("sl_order_id")
+
+                self.logger.info(
+                    f"🗑️ Phase 49.6: ポジション削除（クリーンアップ対象）: {order_id} | "
+                    f"TP注文ID: {tp_order_id or 'なし'}, SL注文ID: {sl_order_id or 'なし'}"
+                )
+
+                return {
+                    "position": position,
+                    "tp_order_id": tp_order_id,
+                    "sl_order_id": sl_order_id,
+                }
+
+        self.logger.warning(f"⚠️ ポジション未検出: {order_id}")
+        return None
+
     def find_position(self, order_id: str) -> Optional[Dict[str, Any]]:
         """
         ポジションを検索
