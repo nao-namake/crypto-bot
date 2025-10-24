@@ -270,6 +270,37 @@ jobs:
           
           echo "✅ Dockerイメージプッシュ完了"
 
+      - name: Docker Container Startup Test (Phase 49.14)
+        run: |
+          # Phase 49.14: Dockerコンテナ起動テスト（import検証）
+          IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
+
+          echo "🐳 Phase 49.14: Docker Container起動テスト実行中..."
+          echo "イメージ: ${IMAGE_TAG}"
+
+          # コンテナ起動テスト（Python import検証）
+          # Phase 49.13のような 'No module named tax' エラーを事前検出
+          if docker run --rm "${IMAGE_TAG}" python3 -c "
+          import sys
+          sys.path.insert(0, '/app')
+          sys.path.insert(0, '/app/src')
+
+          # 重要モジュールimport検証
+          from src.core.orchestration.orchestrator import TradingOrchestrator
+          from src.trading.execution.executor import ExecutionService
+          from tax.trade_history_recorder import TradeHistoryRecorder
+          from src.strategies.base.strategy_manager import StrategyManager
+
+          print('✅ All critical imports successful')
+          "; then
+            echo "✅ Docker Container起動テスト成功 - 全モジュールimport可能"
+          else
+            echo "❌ Docker Container起動テスト失敗 - モジュールimportエラー"
+            echo "Phase 49.13 'No module named ...' 問題を検出しました"
+            echo "Dockerfileの COPY 命令を確認してください"
+            exit 1
+          fi
+
       - name: 段階的Cloud Runデプロイ（レガシー改良版）
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"

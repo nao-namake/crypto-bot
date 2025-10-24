@@ -281,6 +281,19 @@ setup_environment() {
 
     log_info "🎯 動作モード: $mode"
 
+    # Phase 49.14: ペーパートレード時のシステム整合性検証
+    if [ "$mode" == "paper" ] && [ -f "$PROJECT_ROOT/scripts/testing/validate_system.sh" ]; then
+        log_info "🔍 Phase 49.14: システム整合性検証実行中..."
+        if bash "$PROJECT_ROOT/scripts/testing/validate_system.sh" >/dev/null 2>&1; then
+            log_info "✅ システム整合性検証完了"
+        else
+            log_error "❌ システム整合性検証失敗"
+            log_error "   Dockerfile・特徴量・戦略の不整合が検出されました"
+            log_error "   詳細: bash scripts/testing/validate_system.sh"
+            return 1
+        fi
+    fi
+
     return 0
 }
 

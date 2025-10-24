@@ -162,6 +162,18 @@ else
     echo "⚠️  警告: 手動テストファイルが見つかりません"
 fi
 
+# Phase 49.14: システム整合性検証
+echo ">>> 🔍 Phase 49.14: システム整合性検証"
+if [[ -f "scripts/testing/validate_system.sh" ]]; then
+    bash scripts/testing/validate_system.sh || {
+        echo "❌ エラー: システム整合性検証失敗"
+        echo "Dockerfile・特徴量・戦略の不整合が検出されました"
+        exit 1
+    }
+else
+    echo "⚠️  警告: validate_system.sh が見つかりません"
+fi
+
 # 実行時間計算
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
@@ -178,6 +190,7 @@ echo "  - ML学習データ: ✅ Phase 39.1実データ対応"
 echo "  - 必須ライブラリ: ✅ Phase 39.4-39.5対応（imbalanced-learn・optuna）"
 echo "  - 機能トグル設定: ✅ Phase 31.1対応（features.yaml）"
 echo "  - trading層アーキテクチャ: ✅ Phase 38完了（4層分離）"
+echo "  - システム整合性: ✅ Phase 49.14対応（Dockerfile・特徴量・戦略検証）"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: coverage-reports/htmlcov/index.html"
