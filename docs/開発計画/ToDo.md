@@ -86,13 +86,22 @@
 - [x] 49.13.3: コミット・プッシュ・CI実行
 - **効果**: Phase 47追加のtax/モジュールがDockerfileに反映されていなかった問題を解決
 
-### Phase 49.14: 総合検証システム実装 ⏳実装中（2025/10/24）
-- [ ] 49.14.1: validate_system.sh作成（Dockerfile整合性・特徴量数・戦略整合性・モジュールimport検証）
-- [ ] 49.14.2: checks.sh統合（品質チェックに検証追加）
-- [ ] 49.14.3: run_safe.sh統合（ペーパートレード起動前検証）
-- [ ] 49.14.4: CI統合（System Validation step・Docker Container Startup Test追加）
-- [ ] 49.14.5: テスト・検証（全4層検証確認）
+### Phase 49.14: 総合検証システム実装 ✅完了（2025/10/24）
+- [x] 49.14.1: validate_system.sh作成（Dockerfile整合性・特徴量数・戦略整合性・モジュールimport検証）
+- [x] 49.14.2: checks.sh統合（品質チェックに検証追加）
+- [x] 49.14.3: run_safe.sh統合（ペーパートレード起動前検証）
+- [x] 49.14.4: CI統合（System Validation step・Docker Container Startup Test追加）
+- [x] 49.14.5: テスト・検証（全4層検証確認）
 - **目的**: 今後の特徴量追加・戦略追加時の不整合を開発段階で検出
+
+### Phase 49.15: 証拠金維持率80%遵守・TradeTracker統合 ✅完了（2025/10/24）
+- [x] 49.15.1: IntegratedRiskManager修正（bitbank_client追加・API実データ取得）
+- [x] 49.15.2: ExecutionService拡張（TradeTracker統合・record_entry()実装）
+- [x] 49.15.3: bitbank API.md更新（証拠金維持率仕様追記）
+- [x] 49.15.4: ドキュメント更新（Phase_49.md・ToDo.md）
+- [x] 49.15.5: 品質保証（checks.sh実行・テスト維持）
+- **目的**: 証拠金維持率80%確実遵守・バックテスト性能測定機能化
+- **効果**: bitbank API実データ取得により80%閾値が実際の維持率で判定される
 
 **Phase 49期待効果**:
 - ✅ バックテスト信頼性100%（ライブモード完全一致）

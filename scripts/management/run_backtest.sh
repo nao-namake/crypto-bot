@@ -117,9 +117,9 @@ run_backtest() {
     cd "$PROJECT_ROOT"
 
     # ドローダウン状態リセット（バックテストモード）
-    DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/backtest/drawdown_state.json"
+    DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/drawdown_state.json"
     if [ -f "$DRAWDOWN_FILE" ]; then
-        log_info "🔄 ドローダウン状態リセット（バックテストモード）"
+        log_info "🔄 ドローダウン状態リセット"
         rm -f "$DRAWDOWN_FILE"
     fi
 
@@ -153,8 +153,8 @@ show_backtest_report() {
         return
     fi
 
-    # 最新のレポートファイルを探す
-    latest_report=$(find "$LOG_DIR" -name "backtest_report_*.txt" -type f -print0 | xargs -0 ls -t 2>/dev/null | head -1)
+    # 最新のレポートファイルを探す（Phase 49: backtest_*.txt形式）
+    latest_report=$(find "$LOG_DIR" -name "backtest_*.txt" -type f -print0 | xargs -0 ls -t 2>/dev/null | head -1)
 
     if [ -n "$latest_report" ] && [ -f "$latest_report" ]; then
         log_info "📄 最新レポート: $latest_report"
@@ -206,7 +206,7 @@ main() {
 
     echo ""
     echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}🚀 バックテスト実行システム - Phase 34${NC}"
+    echo -e "${BLUE}🚀 バックテスト実行システム - Phase 49完了版${NC}"
     echo -e "${BLUE}========================================${NC}"
     echo ""
 

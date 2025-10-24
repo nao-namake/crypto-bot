@@ -42,6 +42,7 @@ class IntegratedRiskManager:
         initial_balance: Optional[float] = None,
         enable_discord_notifications: bool = True,
         mode: str = "live",
+        bitbank_client=None,
     ):
         """
         統合リスク管理器初期化
@@ -51,10 +52,12 @@ class IntegratedRiskManager:
             initial_balance: 初期残高
             enable_discord_notifications: Discord通知有効化
             mode: 実行モード（paper/live/backtest）
+            bitbank_client: Bitbank APIクライアント（Phase 49.15: 証拠金維持率API取得用）
         """
         self.config = config
         self.enable_discord_notifications = enable_discord_notifications
         self.mode = mode
+        self.bitbank_client = bitbank_client  # Phase 49.15: 証拠金維持率API取得用
         self.logger = get_logger()
 
         # 初期残高設定（統一設定管理体系）
@@ -679,12 +682,13 @@ class IntegratedRiskManager:
             ml_confidence = ml_prediction.get("confidence", 0.5)
             estimated_new_position_size = self._estimate_new_position_size(ml_confidence)
 
-            # 3. 新規ポジション追加後の予測
+            # 3. 新規ポジション追加後の予測（Phase 49.15: bitbank_client追加）
             margin_prediction = await self.balance_monitor.predict_future_margin(
                 current_balance_jpy=current_balance,
                 current_position_value_jpy=estimated_position_value_jpy,
                 new_position_size_btc=estimated_new_position_size,
                 btc_price_jpy=btc_price,
+                bitbank_client=self.bitbank_client,  # Phase 49.15: API取得用
             )
 
             future_margin_ratio = margin_prediction.future_margin_ratio

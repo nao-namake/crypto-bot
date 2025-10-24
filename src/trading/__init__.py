@@ -184,6 +184,7 @@ def create_risk_manager(
     initial_balance: float = None,  # Phase 23: mode_balancesから自動取得
     risk_profile: str = "balanced",
     mode: str = "live",  # 新規: 実行モード（paper/live/backtest）
+    bitbank_client=None,  # Phase 49.15: 証拠金維持率API取得用
 ) -> IntegratedRiskManager:
     """
     統合リスク管理器の作成（Phase 23拡張: モード別初期残高一元管理対応）
@@ -193,6 +194,7 @@ def create_risk_manager(
         initial_balance: 初期残高（Noneの場合はmode_balancesから自動取得）
         risk_profile: リスクプロファイル ("conservative", "balanced", "aggressive")
         mode: 実行モード（paper/live/backtest）
+        bitbank_client: Bitbank APIクライアント（Phase 49.15: 証拠金維持率API取得用）
 
     Returns:
         IntegratedRiskManager: 設定済みリスク管理器
@@ -214,6 +216,7 @@ def create_risk_manager(
         initial_balance=initial_balance,
         enable_discord_notifications=True,
         mode=mode,  # モード伝播
+        bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
     )
 
 

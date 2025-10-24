@@ -356,23 +356,22 @@ class BacktestRunner(BaseRunner):
                     continue
 
                 try:
-                    # 1. 特徴量生成（過去データのみ）
+                    # 1. 特徴量生成（過去データのみ）- Look-ahead bias防止
                     features_df = feature_gen.generate_features_sync(historical_data)
                     if features_df.empty or len(features_df) == 0:
                         for col in strategy_signal_columns.keys():
                             strategy_signal_columns[col].append(0.0)
                         continue
 
-                    # 最新行のみ取得（現在時点の特徴量）
-                    current_features = features_df.iloc[[-1]]
-
-                    # 2. 全タイムフレーム特徴量準備（簡易版 - メインタイムフレームのみ）
-                    all_features = {main_timeframe: current_features}
+                    # 2. 全タイムフレーム特徴量準備（ライブモード一致）
+                    # 戦略は特徴量DataFrame（全履歴）を期待している
+                    all_features = {main_timeframe: features_df}
 
                     # 3. 個別戦略シグナル取得（Phase 41.8準拠）
+                    # features_df（過去全体の特徴量）を渡すことでライブモードと一致
                     strategy_signals = (
                         self.orchestrator.strategy_service.get_individual_strategy_signals(
-                            current_features, multi_timeframe_data=all_features
+                            features_df, multi_timeframe_data=all_features
                         )
                     )
 
@@ -523,7 +522,7 @@ class BacktestRunner(BaseRunner):
 
             # Phase 49.3: サイクル前のポジション数記録（エントリー検出用）
             positions_before = set(
-                p["order_id"] for p in self.orchestrator.position_tracker.virtual_positions
+                p["order_id"] for p in self.orchestrator.execution_service.virtual_positions
             )
 
             # 取引サイクル実行（本番と同じロジック）
@@ -533,7 +532,7 @@ class BacktestRunner(BaseRunner):
                 self.processed_timestamps.append(self.current_timestamp)
 
                 # Phase 49.3: サイクル後の新規ポジションをTradeTrackerに記録
-                positions_after = self.orchestrator.position_tracker.virtual_positions
+                positions_after = self.orchestrator.execution_service.virtual_positions
                 for position in positions_after:
                     order_id = position.get("order_id")
                     if order_id not in positions_before:
@@ -588,8 +587,9 @@ class BacktestRunner(BaseRunner):
         """
         try:
             # 1. 全ポジション取得
-            position_tracker = self.orchestrator.position_tracker
-            positions = position_tracker.virtual_positions.copy()  # コピーして安全にイテレーション
+            positions = (
+                self.orchestrator.execution_service.virtual_positions.copy()
+            )  # コピーして安全にイテレーション
 
             if not positions:
                 return  # ポジションなし
@@ -651,7 +651,9 @@ class BacktestRunner(BaseRunner):
                         )
 
                         # 6. ポジション削除
-                        position_tracker.remove_position(order_id)
+                        self.orchestrator.execution_service.position_tracker.remove_position(
+                            order_id
+                        )
 
                         # Phase 49.3: TradeTrackerにエグジット記録
                         if (

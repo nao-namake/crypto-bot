@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from tax.trade_history_recorder import TradeHistoryRecorder
 
+from ...backtest.reporter import TradeTracker
 from ...core.config import get_threshold, load_config
 from ...core.exceptions import CryptoBotError
 from ...core.logger import get_logger
@@ -55,6 +56,13 @@ class ExecutionService:
         except Exception as e:
             self.logger.warning(f"⚠️ TradeHistoryRecorder初期化失敗: {e}")
             self.trade_recorder = None
+
+        # Phase 49.15: バックテストレポート用取引追跡
+        try:
+            self.trade_tracker = TradeTracker()
+        except Exception as e:
+            self.logger.warning(f"⚠️ TradeTracker初期化失敗: {e}")
+            self.trade_tracker = None
 
         # ペーパートレード用
         self.virtual_positions = []
@@ -278,6 +286,20 @@ class ExecutionService:
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ 取引履歴記録失敗: {e}")
+
+            # Phase 49.15: TradeTracker記録（バックテストレポート用）
+            if self.trade_tracker:
+                try:
+                    self.trade_tracker.record_entry(
+                        order_id=result.order_id,
+                        side=side,
+                        amount=result.filled_amount,
+                        price=result.filled_price,
+                        timestamp=datetime.now(),
+                        strategy=order_execution_config.get("strategy", "unknown"),
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
 
             # Phase 29.6: クールダウン時刻更新
             self.last_order_time = datetime.now()
@@ -525,6 +547,20 @@ class ExecutionService:
                 except Exception as e:
                     self.logger.warning(f"⚠️ 取引履歴記録失敗: {e}")
 
+            # Phase 49.15: TradeTracker記録（バックテストレポート用）
+            if self.trade_tracker:
+                try:
+                    self.trade_tracker.record_entry(
+                        order_id=virtual_order_id,
+                        side=side,
+                        amount=amount,
+                        price=price,
+                        timestamp=datetime.now(),
+                        strategy=virtual_position.get("strategy_name", "unknown"),
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
+
             # Phase 29.6: クールダウン時刻更新
             self.last_order_time = datetime.now()
 
@@ -572,6 +608,21 @@ class ExecutionService:
             )
 
             self.executed_trades += 1
+
+            # Phase 49.15: TradeTracker記録（バックテストレポート用）
+            if self.trade_tracker:
+                try:
+                    self.trade_tracker.record_entry(
+                        order_id=result.order_id,
+                        side=side,
+                        amount=amount,
+                        price=price,
+                        timestamp=datetime.now(),
+                        strategy=getattr(evaluation, "strategy_name", "unknown"),
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
+
             return result
 
         except Exception as e:

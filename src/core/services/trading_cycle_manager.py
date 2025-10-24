@@ -93,6 +93,8 @@ class TradingCycleManager:
             # Phase 41: 個別戦略シグナル取得
             strategy_signals = await self._get_individual_strategy_signals(main_features, features)
 
+            # Phase 49.8: 診断ログ削除（根本原因修正完了）
+
             # Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
             if strategy_signals:
                 main_features = await self._add_strategy_signal_features(

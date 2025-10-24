@@ -118,6 +118,10 @@ class TradingOrchestrator:
         from ...backtest.reporter import BacktestReporter
 
         self.backtest_reporter = BacktestReporter()
+
+        # Phase 49.15: ExecutionServiceにTradeTracker注入（統一インスタンス使用）
+        self.execution_service.trade_tracker = self.backtest_reporter.trade_tracker
+
         self.paper_trading_reporter = PaperTradingReporter(logger)
 
         # Phase 28-29最適化: 新バックテストシステム（本番同一ロジック）
@@ -423,7 +427,10 @@ async def create_trading_orchestrator(
         # Phase 28-29最適化: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
         initial_balance = await _get_actual_balance(config, logger)
         risk_service = create_risk_manager(
-            config=DEFAULT_RISK_CONFIG, initial_balance=initial_balance, mode=config.mode
+            config=DEFAULT_RISK_CONFIG,
+            initial_balance=initial_balance,
+            mode=config.mode,
+            bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
         )
 
         # Phase 28-29最適化: 実行サービス（risk_manager統合）
