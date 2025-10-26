@@ -25,11 +25,11 @@ class TestRiskManager(unittest.TestCase):
         self.current_atr = 500000.0  # 50万円のATR
         self.basic_config = {
             "stop_loss_atr_multiplier": 2.0,
-            "take_profit_ratio": 2.5,
+            "take_profit_ratio": 0.67,  # Phase 49.18: RR比0.67:1
             "position_size_base": 0.02,
-            # Phase 49.16: max_loss_ratio・min_profit_ratio追加
+            # Phase 49.18: max_loss_ratio・min_profit_ratio最適化
             "max_loss_ratio": 0.015,  # 1.5%
-            "min_profit_ratio": 0.02,  # 2.0%
+            "min_profit_ratio": 0.01,  # Phase 49.18: 1.0%
             "default_atr_multiplier": 2.0,
         }
 
@@ -42,11 +42,11 @@ class TestRiskManager(unittest.TestCase):
             config=self.basic_config,
         )
 
-        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
-        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
-        # TP距離 = max(200000円[2.0%], 375000円[SL×2.5]) = 375000円
+        # Phase 49.18: SL 1.5%固定・TP 1.0%・RR比0.67:1
+        # SL距離 = 150000円[1.5%]（固定採用）
+        # TP距離 = max(100000円[1.0%], 100500円[SL×0.67]) = 100500円
         expected_stop_loss = self.current_price - 150000  # 9,850,000
-        expected_take_profit = self.current_price + 375000  # 10,375,000
+        expected_take_profit = self.current_price + 100500  # 10,100,500
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
@@ -62,11 +62,11 @@ class TestRiskManager(unittest.TestCase):
             config=self.basic_config,
         )
 
-        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
-        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
-        # TP距離 = max(200000円[2.0%], 375000円[SL×2.5]) = 375000円
+        # Phase 49.18: SL 1.5%固定・TP 1.0%・RR比0.67:1
+        # SL距離 = 150000円[1.5%]（固定採用）
+        # TP距離 = max(100000円[1.0%], 100500円[SL×0.67]) = 100500円
         expected_stop_loss = self.current_price + 150000  # 10,150,000
-        expected_take_profit = self.current_price - 375000  # 9,625,000
+        expected_take_profit = self.current_price - 100500  # 9,899,500
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
@@ -91,9 +91,9 @@ class TestRiskManager(unittest.TestCase):
             "stop_loss_atr_multiplier": 1.5,  # Phase 49.16では補助的に使用
             "take_profit_ratio": 3.0,
             "position_size_base": 0.02,
-            # Phase 49.16: max_loss_ratio・min_profit_ratio追加
+            # Phase 49.18: max_loss_ratio・min_profit_ratio最適化
             "max_loss_ratio": 0.015,  # 1.5%
-            "min_profit_ratio": 0.02,  # 2.0%
+            "min_profit_ratio": 0.01,  # Phase 49.18: 1.0%
             "default_atr_multiplier": 2.0,
         }
 
@@ -104,9 +104,9 @@ class TestRiskManager(unittest.TestCase):
             config=custom_config,
         )
 
-        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
-        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
-        # TP距離 = max(200000円[2.0%], 450000円[SL×3.0]) = 450000円
+        # Phase 49.18: SL 1.5%固定・TP 1.0%・個別RR比3.0
+        # SL距離 = 150000円[1.5%]（固定採用）
+        # TP距離 = max(100000円[1.0%], 450000円[SL×3.0]) = 450000円
         expected_stop_loss = self.current_price - 150000  # 9,850,000
         expected_take_profit = self.current_price + 450000  # 10,450,000
 

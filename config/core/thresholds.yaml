@@ -339,8 +339,8 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 1.33
-    min_profit_ratio: 0.02
+    default_ratio: 0.67              # Phase 49.18: RR比0.67:1（TP 1.0% / SL 1.5%）
+    min_profit_ratio: 0.01          # Phase 49.18: TP 1.0%（現実的な利確ライン・2-3時間到達）
     override_strategy_tp: false
     position_partial_exit: false
   stop_loss:

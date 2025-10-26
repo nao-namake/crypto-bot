@@ -63,7 +63,8 @@ class TestConstants(unittest.TestCase):
         self.assertGreaterEqual(DEFAULT_RISK_PARAMS["stop_loss_atr_multiplier"], 1.0)
         self.assertLessEqual(DEFAULT_RISK_PARAMS["stop_loss_atr_multiplier"], 5.0)
 
-        self.assertGreaterEqual(DEFAULT_RISK_PARAMS["take_profit_ratio"], 1.0)
+        # Phase 49.18: TP 1.0% / SL 1.5% = RR比0.67:1対応
+        self.assertGreaterEqual(DEFAULT_RISK_PARAMS["take_profit_ratio"], 0.5)
         self.assertLessEqual(DEFAULT_RISK_PARAMS["take_profit_ratio"], 10.0)
 
         self.assertGreaterEqual(DEFAULT_RISK_PARAMS["position_size_base"], 0.001)
