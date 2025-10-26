@@ -87,10 +87,7 @@ jobs:
         run: |
           echo "🔍 統一設定管理体系: GCP環境事前検証開始"
           echo "デプロイ前にGCP環境の準備状況を確認します"
-          
-          # 検証スクリプト実行
-          chmod +x scripts/deployment/verify_gcp_setup.sh
-          
+
           # レガシー方式：認証確認強化版（権限反映ラグ対応）
           echo "🔍 レガシー方式：軽量GCP検証実行"
           
