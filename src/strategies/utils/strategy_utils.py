@@ -199,22 +199,22 @@ class RiskManager:
                 get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
             )
 
-            # max_loss_ratioベースのSL距離（最優先）
+            # max_loss_ratioベースのSL距離（固定採用）
             sl_distance_from_ratio = current_price * max_loss_ratio
 
-            # ATRベースのSL距離（補助）
+            # ATRベースのSL距離（参考値のみ・採用しない）
             stop_loss_multiplier = RiskManager._calculate_adaptive_atr_multiplier(
                 current_atr, atr_history
             )
             sl_distance_from_atr = current_atr * stop_loss_multiplier
 
-            # 最小値を採用（安全優先）
-            stop_loss_distance = min(sl_distance_from_ratio, sl_distance_from_atr)
+            # max_loss_ratio固定採用（安定性優先）
+            stop_loss_distance = sl_distance_from_ratio
 
             logger.info(
                 f"🎯 Phase 49.16 SL距離計算: "
-                f"max_loss={max_loss_ratio * 100:.1f}% → {sl_distance_from_ratio:.0f}円, "
-                f"ATR×{stop_loss_multiplier:.2f} → {sl_distance_from_atr:.0f}円 "
+                f"max_loss={max_loss_ratio * 100:.1f}% → {sl_distance_from_ratio:.0f}円（固定採用）, "
+                f"ATR×{stop_loss_multiplier:.2f} → {sl_distance_from_atr:.0f}円（参考値） "
                 f"→ 採用={stop_loss_distance:.0f}円({stop_loss_distance / current_price * 100:.2f}%)"
             )
 
