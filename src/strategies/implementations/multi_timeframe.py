@@ -58,7 +58,9 @@ class MultiTimeframeStrategy(StrategyBase):
             ),
             # リスク管理
             "stop_loss_atr_multiplier": 2.0,
-            "take_profit_ratio": 3.0,
+            "take_profit_ratio": get_threshold(
+                "position_management.take_profit.default_ratio", 0.67
+            ),  # Phase 49.18: thresholds.yaml準拠
             "position_size_base": get_threshold(
                 "dynamic_confidence.strategies.multi_timeframe.position_size_base", 0.025
             ),

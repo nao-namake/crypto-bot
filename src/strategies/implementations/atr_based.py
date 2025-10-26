@@ -46,7 +46,9 @@ class ATRBasedStrategy(StrategyBase):
             "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
             # Phase 46: リスク管理（ハードコード排除）
             "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
-            "take_profit_ratio": get_threshold("tp_default_ratio", 2.0),
+            "take_profit_ratio": get_threshold(
+                "position_management.take_profit.default_ratio", 0.67
+            ),  # Phase 49.18: thresholds.yaml準拠
             "position_size_base": get_threshold(
                 "dynamic_confidence.strategies.atr_based.position_size_base", 0.015
             ),  # 1.5%（逆張りなので控えめ）
