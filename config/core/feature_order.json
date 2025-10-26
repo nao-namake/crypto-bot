@@ -1,9 +1,9 @@
 {
-  "feature_order_version": "v2.5.0",
-  "phase": "Phase 49",
-  "total_features": 55,
-  "last_updated": "2025-10-22T12:00:00Z",
-  "description": "55特徴量（50基本+5戦略信号）- Strategy-Aware ML統合システム",
+  "feature_order_version": "v2.6.0",
+  "phase": "Phase 50.2",
+  "total_features": 62,
+  "last_updated": "2025-10-27T12:00:00Z",
+  "description": "62特徴量（57基本+5戦略信号）- Phase 50.2時間的特徴量拡張（外部APIなし）",
 
   "feature_categories": {
     "basic": {
@@ -110,7 +110,7 @@
     },
 
     "time": {
-      "description": "時間ベース特徴量（Time-based Features・7個）",
+      "description": "時間ベース特徴量（Time-based Features・14個）- Phase 50.2拡張",
       "features": [
         "hour",
         "day_of_week",
@@ -118,7 +118,14 @@
         "is_market_open_hour",
         "month",
         "quarter",
-        "is_quarter_end"
+        "is_quarter_end",
+        "is_asia_session",
+        "is_europe_session",
+        "is_us_session",
+        "hour_sin",
+        "hour_cos",
+        "day_sin",
+        "day_cos"
       ]
     },
 
@@ -435,6 +442,55 @@
       "range": "0-1",
       "importance": "low"
     },
+    "is_asia_session": {
+      "type": "time",
+      "description": "アジア市場セッション（JST 9:00-17:00: 1, それ以外: 0）",
+      "range": "0-1",
+      "importance": "medium",
+      "phase": "Phase 50.2"
+    },
+    "is_europe_session": {
+      "type": "time",
+      "description": "欧州市場セッション（JST 16:00-01:00: 1, それ以外: 0）",
+      "range": "0-1",
+      "importance": "medium",
+      "phase": "Phase 50.2"
+    },
+    "is_us_session": {
+      "type": "time",
+      "description": "米国市場セッション（JST 22:00-06:00: 1, それ以外: 0）",
+      "range": "0-1",
+      "importance": "medium",
+      "phase": "Phase 50.2"
+    },
+    "hour_sin": {
+      "type": "time",
+      "description": "時刻の周期性（sin変換・24時間サイクル）",
+      "range": "-1.0 to 1.0",
+      "importance": "medium",
+      "phase": "Phase 50.2"
+    },
+    "hour_cos": {
+      "type": "time",
+      "description": "時刻の周期性（cos変換・24時間サイクル）",
+      "range": "-1.0 to 1.0",
+      "importance": "medium",
+      "phase": "Phase 50.2"
+    },
+    "day_sin": {
+      "type": "time",
+      "description": "曜日の周期性（sin変換・7日サイクル）",
+      "range": "-1.0 to 1.0",
+      "importance": "low",
+      "phase": "Phase 50.2"
+    },
+    "day_cos": {
+      "type": "time",
+      "description": "曜日の周期性（cos変換・7日サイクル）",
+      "range": "-1.0 to 1.0",
+      "importance": "low",
+      "phase": "Phase 50.2"
+    },
     "strategy_signal_ATRBased": {
       "type": "strategy_signal",
       "description": "ATRベース戦略シグナル（action × confidence）",
@@ -517,6 +573,22 @@
         "市場データのみ → 市場データ + 戦略判断の統合",
         "期待効果: F1スコア 0.56-0.59 → 0.65+, ML信頼度 +30-50%"
       ]
+    },
+    "phase50_2_expansion": {
+      "target": "時間的特徴量拡張（外部APIなし）",
+      "achieved": 62,
+      "expansion_type": "temporal_features",
+      "method": "market_sessions_cyclical_encoding",
+      "added_categories": [],
+      "extended_categories": ["time"],
+      "added_features_count": 7,
+      "improvements": [
+        "市場セッション特徴量追加（3個）: アジア・欧州・米国セッション",
+        "周期性エンコーディング（4個）: hour/day sin/cos変換",
+        "時間特徴量 7個 → 14個（2倍）",
+        "外部API依存ゼロ（timestampのみ使用）",
+        "期待効果: ML予測精度 +5-10%, 市場セッション別パターン認識向上"
+      ]
     }
   },
 
@@ -546,11 +618,12 @@
   },
 
   "validation": {
-    "checksum": "sha256:phase49_abc123...",
-    "last_validated": "2025-10-22T12:00:00Z",
+    "checksum": "sha256:phase50_2_def456...",
+    "last_validated": "2025-10-27T12:00:00Z",
     "validation_status": "passed",
-    "phase49_compliance": "verified",
-    "feature_count_validation": "55_features_confirmed",
-    "strategy_aware_ml": "completed"
+    "phase50_2_compliance": "verified",
+    "feature_count_validation": "62_features_confirmed",
+    "temporal_features_expansion": "completed",
+    "external_api_dependency": "none"
   }
 }

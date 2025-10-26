@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 49完了
+特徴量生成統合システム - Phase 50.2完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -8,6 +8,7 @@ Phase履歴:
 - Phase 38.4: 97特徴量から15特徴量への最適化システム実装（5戦略対応）
 - Phase 40.6: Feature Engineering拡張 - 15→50特徴量（Lag/Rolling/Interaction/Time追加）
 - Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル5個追加）
+- Phase 50.2: 時間的特徴量拡張 - 55→62特徴量（市場セッション3個+周期性4個追加・外部APIなし）
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
@@ -15,7 +16,7 @@ Phase履歴:
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 49完了
+Phase 50.2完了
 """
 
 from typing import Any, Dict, List, Optional
@@ -39,10 +40,10 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 49完了
+    統合特徴量生成クラス - Phase 50.2完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、55特徴量生成を効率的に提供。
+    1つのクラスに統合し、62特徴量生成を効率的に提供。
 
     主要機能:
     - 基本特徴量生成（2個）
@@ -51,13 +52,17 @@ class FeatureGenerator:
     - ラグ特徴量生成（10個：Close/Volume/RSI/MACD lag）- Phase 40.6
     - 移動統計量生成（12個：MA, Std, Max, Min）- Phase 40.6
     - 交互作用特徴量生成（6個：RSI×ATR, MACD×Volume等）- Phase 40.6
-    - 時間ベース特徴量生成（7個：Hour, Day, Month等）- Phase 40.6
+    - 時間ベース特徴量生成（14個：Hour, Day, Month, 市場セッション, 周期性）- Phase 40.6/50.2
     - 戦略シグナル特徴量生成（5個：戦略判断エンコード）- Phase 41
-    - 統合品質管理と特徴量確認（50 or 55特徴量）
+    - 統合品質管理と特徴量確認（57 or 62特徴量）
 
     Phase 41: Strategy-Aware ML
-    - 後方互換性維持（strategy_signals=None → 50特徴量）
-    - 戦略シグナル統合（strategy_signals提供 → 55特徴量）
+    - 後方互換性維持（strategy_signals=None → 57特徴量）
+    - 戦略シグナル統合（strategy_signals提供 → 62特徴量）
+
+    Phase 50.2: 時間的特徴量拡張（外部APIなし）
+    - 市場セッション特徴量（3個）: アジア・欧州・米国セッション
+    - 周期性エンコーディング（4個）: hour/day sin/cos変換
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -79,18 +84,19 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（Phase 41: 55特徴量対応）
+        統合特徴量生成処理（Phase 50.2: 62特徴量対応）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（strategy_signals=None → 50特徴量, あり → 55特徴量）
+            特徴量を含むDataFrame（strategy_signals=None → 57特徴量, あり → 62特徴量）
 
         Note:
             - Phase 41: Strategy-Aware ML実装
-            - 後方互換性: strategy_signals=None → 50特徴量のまま動作
+            - Phase 50.2: 時間的特徴量拡張（7→14個・外部APIなし）
+            - 後方互換性: strategy_signals=None → 57特徴量のまま動作
         """
         try:
             # DataFrameに変換
@@ -98,7 +104,9 @@ class FeatureGenerator:
 
             # Phase判定
             phase_info = (
-                "Phase 41: 55特徴量システム" if strategy_signals else "Phase 40.6: 50特徴量システム"
+                "Phase 50.2: 62特徴量システム"
+                if strategy_signals
+                else "Phase 50.2: 57特徴量システム"
             )
             self.logger.info(f"特徴量生成開始 - {phase_info}")
             self.computed_features.clear()
@@ -124,7 +132,7 @@ class FeatureGenerator:
             # 🔹 交互作用特徴量を生成（6個）- Phase 40.6
             result_df = self._generate_interaction_features(result_df)
 
-            # 🔹 時間ベース特徴量を生成（7個）- Phase 40.6
+            # 🔹 時間ベース特徴量を生成（14個）- Phase 40.6/50.2
             result_df = self._generate_time_features(result_df)
 
             # 🔹 戦略シグナル特徴量を追加（5個）- Phase 41
@@ -150,7 +158,7 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 35: バックテスト事前計算用・Phase 41: 55特徴量対応）
+        同期版特徴量生成（Phase 35: バックテスト事前計算用・Phase 50.2: 62特徴量対応）
 
         Args:
             df: OHLCVデータを含むDataFrame
@@ -426,7 +434,7 @@ class FeatureGenerator:
         return result_df
 
     def _generate_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """時間ベース特徴量生成（Time-based Features・7個）"""
+        """時間ベース特徴量生成（Time-based Features・14個）- Phase 50.2拡張"""
         result_df = df.copy()
 
         # indexまたはtimestamp列から日時情報を抽出
@@ -444,6 +452,14 @@ class FeatureGenerator:
             result_df["month"] = 1
             result_df["quarter"] = 1
             result_df["is_quarter_end"] = 0
+            # Phase 50.2: 新規特徴量デフォルト値
+            result_df["is_asia_session"] = 0
+            result_df["is_europe_session"] = 0
+            result_df["is_us_session"] = 0
+            result_df["hour_sin"] = 0.0
+            result_df["hour_cos"] = 1.0
+            result_df["day_sin"] = 0.0
+            result_df["day_cos"] = 1.0
             self.computed_features.update(
                 [
                     "hour",
@@ -453,6 +469,13 @@ class FeatureGenerator:
                     "month",
                     "quarter",
                     "is_quarter_end",
+                    "is_asia_session",
+                    "is_europe_session",
+                    "is_us_session",
+                    "hour_sin",
+                    "hour_cos",
+                    "day_sin",
+                    "day_cos",
                 ]
             )
             return result_df
@@ -487,7 +510,37 @@ class FeatureGenerator:
         result_df["is_quarter_end"] = dt_index.month.isin([3, 6, 9, 12]).astype(int)
         self.computed_features.add("is_quarter_end")
 
-        self.logger.debug("時間ベース特徴量生成完了: 7個")
+        # ========== Phase 50.2: 新規特徴量追加 ==========
+
+        # アジア市場セッション（JST 9:00-17:00）
+        result_df["is_asia_session"] = ((dt_index.hour >= 9) & (dt_index.hour < 17)).astype(int)
+        self.computed_features.add("is_asia_session")
+
+        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理
+        result_df["is_europe_session"] = (
+            ((dt_index.hour >= 16) & (dt_index.hour <= 23)) | (dt_index.hour < 1)
+        ).astype(int)
+        self.computed_features.add("is_europe_session")
+
+        # 米国市場セッション（JST 22:00-06:00）- 日をまたぐ処理
+        result_df["is_us_session"] = (
+            ((dt_index.hour >= 22) & (dt_index.hour <= 23)) | (dt_index.hour < 6)
+        ).astype(int)
+        self.computed_features.add("is_us_session")
+
+        # 時刻の周期性エンコーディング（24時間サイクル）
+        result_df["hour_sin"] = np.sin(2 * np.pi * dt_index.hour / 24)
+        result_df["hour_cos"] = np.cos(2 * np.pi * dt_index.hour / 24)
+        self.computed_features.add("hour_sin")
+        self.computed_features.add("hour_cos")
+
+        # 曜日の周期性エンコーディング（7日サイクル）
+        result_df["day_sin"] = np.sin(2 * np.pi * dt_index.dayofweek / 7)
+        result_df["day_cos"] = np.cos(2 * np.pi * dt_index.dayofweek / 7)
+        self.computed_features.add("day_sin")
+        self.computed_features.add("day_cos")
+
+        self.logger.debug("時間ベース特徴量生成完了: 14個（Phase 50.2拡張）")
         return result_df
 
     def _add_strategy_signal_features(

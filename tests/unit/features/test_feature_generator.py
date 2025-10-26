@@ -1,13 +1,18 @@
 """
-統合FeatureGenerator テストファイル - Phase 18対応版
+統合FeatureGenerator テストファイル - Phase 50.2対応版
 
 Phase 18統合により、TechnicalIndicators・MarketAnomalyDetector・FeatureServiceAdapterが
-FeatureGeneratorクラスに統合されました。12特徴量生成システムの包括的テスト。
+FeatureGeneratorクラスに統合されました。62特徴量生成システムの包括的テスト。
 
 テスト対象:
-- 基本特徴量生成（3個）: close, volume, returns_1
-- テクニカル指標生成（6個）: rsi_14, macd, atr_14, bb_position, ema_20, ema_50
-- 異常検知指標生成（3個）: zscore, volume_ratio, market_stress
+- 基本特徴量生成（2個）: close, volume
+- テクニカル指標生成（12個）: rsi_14, macd, atr_14, bb_position, ema_20, ema_50, etc
+- 異常検知指標生成（1個）: volume_ratio
+- ラグ特徴量生成（10個）: close_lag_1, etc - Phase 40.6
+- 移動統計量生成（12個）: close_ma_5, etc - Phase 40.6
+- 交互作用特徴量生成（6個）: rsi_x_atr, etc - Phase 40.6
+- 時間ベース特徴量生成（14個）: hour, day_of_week, 市場セッション, 周期性 - Phase 40.6/50.2
+- 戦略シグナル特徴量（5個）: strategy_signal_* - Phase 41
 - 入力形式対応: DataFrame, 辞書, マルチタイムフレーム
 - 出力形式確認: DataFrame返却
 - エラーハンドリング: 不正データ、不足列等
@@ -22,8 +27,8 @@ import pytest
 from src.core.exceptions import DataProcessingError
 from src.features.feature_generator import OPTIMIZED_FEATURES, FeatureGenerator
 
-# Phase 41: 戦略シグナル特徴量を除外した基本特徴量（50個）
-# generate_features()はstrategy_signalsパラメータを渡さないと50特徴量のみ生成
+# Phase 50.2: 戦略シグナル特徴量を除外した基本特徴量（57個）
+# generate_features()はstrategy_signalsパラメータを渡さないと57特徴量のみ生成
 STRATEGY_SIGNAL_FEATURES = [
     "strategy_signal_ATRBased",
     "strategy_signal_MochipoyAlert",
@@ -114,8 +119,8 @@ class TestFeatureGenerator:
                 feature not in result_df.columns
             ), f"戦略シグナル特徴量{feature}が意図せず生成されている"
 
-        # computed_featuresに記録されているかチェック - Phase 41: 50特徴量（戦略シグナル除外）
-        assert len(generator.computed_features) == 50
+        # computed_featuresに記録されているかチェック - Phase 50.2: 57特徴量（戦略シグナル除外）
+        assert len(generator.computed_features) == 57
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -523,8 +528,8 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が50になるはず - Phase 40.6
-        assert len(generator.computed_features) == 50
+        # 計算された特徴量数が57になるはず - Phase 50.2
+        assert len(generator.computed_features) == 57
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
