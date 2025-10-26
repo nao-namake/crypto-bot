@@ -873,5 +873,277 @@ git push origin main
 
 ---
 
-**Phase 49完了日**: 2025年10月24日（Phase 49.1-49.15完了）
+## ✅ Phase 49.16: src/フォルダ完全整理・Phase番号統一（2025/10/26）
+
+### 🎯 目的
+
+**背景**:
+- Phase 50として作業していたPhase番号をPhase 49.16に変更
+- src/core/フォルダの完全整理（Phase 49完了情報への更新）
+- src/ルートファイルの更新（__init__.py・README.md）
+
+**目標**:
+1. Phase番号の統一（Phase 50 → Phase 49.16）
+2. src/core/の全ファイルPhase情報更新
+3. srcフォルダ全体のドキュメント整備
+
+---
+
+### 📋 実装内容
+
+#### Phase 49.16-1: Phase番号変更（5ファイル） ✅完了
+
+**変更対象**:
+1. `src/strategies/utils/strategy_utils.py` - RiskManager.calculate_stop_loss_take_profit()
+2. `src/trading/execution/executor.py` (758行) - メイン実行ロジック
+3. `src/trading/execution/README.md` - TP/SL設定完全見直しドキュメント
+4. `src/trading/README.md` - trading層概要
+5. `tests/unit/strategies/utils/test_risk_manager.py` - テストケース
+
+**変更内容**: Phase 50 → Phase 49.16 に統一
+
+**TP/SL計算完全見直しの技術詳細**:
+
+**背景**: Phase 42.4でorder_strategy.pyのハードコード値は削除済みだったが、strategy_utils.py（RiskManager）とexecutor.py（再計算ロジック）にハードコード値が残存していた
+
+**技術的変更内容**:
+1. **strategy_utils.py (Lines 215, 241, 267)**:
+   - 修正前: `sl_rate = min(0.02, max_loss_ratio)` - SL 2%ハードコード
+   - 修正前: `default_tp_ratio = tp_config.get("default_ratio", 2.5)` - TP 2.5倍ハードコード
+   - 修正後: `get_threshold("risk.sl_min_distance_ratio", 0.02)` - 動的設定読み込み
+   - 修正後: `get_threshold("risk.tp_min_profit_ratio", 0.03)` - 動的設定読み込み
+
+2. **executor.py (Line 350)**:
+   - TP/SL再計算ロジックでget_threshold()パターン適用
+   - 実約定価格ベースの再計算時も動的設定使用
+
+3. **統一パターン確立**:
+   ```python
+   # Phase 49.16統一パターン
+   sl_distance = get_threshold("risk.sl_min_distance_ratio", 0.02)
+   tp_profit = get_threshold("risk.tp_min_profit_ratio", 0.03)
+   ```
+
+**効果**:
+- Phase番号の一貫性確保
+- 技術仕様の正確性維持
+- **設定ファイル変更のみで動作変更可能**（コード修正不要）
+- **thresholds.yaml変更が即座に反映**される仕組み完成
+- Phase 42.4で残存していたハードコード値を完全削除
+
+#### Phase 49.16-2: src/core/完全整理（35ファイル） ✅完了
+
+**対象ファイル**: 31 Pythonファイル（8,078行）+ 4 README
+
+**更新内容**:
+1. **core/ルートファイル（3ファイル）**:
+   - `__init__.py`: Phase 38.4 → Phase 49完了、バージョン49.0
+   - `logger.py`: 統合ログシステム（JST・Discord統合）
+   - `exceptions.py`: 11種類カスタム例外クラス
+
+2. **core/config/（5ファイル）**:
+   - `threshold_manager.py`: 動的閾値管理・Phase 40 Optuna最適化
+   - `feature_manager.py`: 55特徴量管理（50基本+5戦略信号）
+   - `runtime_flags.py`: backtest/paper実行モード制御
+   - `config_classes.py`: 5 dataclass詳細説明
+   - `__init__.py`: 3層設定体系統合
+
+3. **core/orchestration/（6ファイル）**:
+   - `orchestrator.py` (575行): アプリケーションサービス層・高レベルフロー制御
+   - Phase 49完了情報追加（バックテスト完全改修・証拠金維持率80%遵守）
+
+4. **core/execution/（5ファイル）**:
+   - `backtest_runner.py` (821行): **Phase 49完全改修**
+     - 戦略シグナル事前計算・TP/SL決済ロジック実装
+     - TradeTracker統合・matplotlib可視化システム
+     - バックテスト信頼性100%達成
+
+5. **core/reporting/（4ファイル + README）**:
+   - `discord_notifier.py`: Phase 48週間レポート専用
+   - 通知99%削減（300-1,500回/月 → 4回/月）
+   - コスト35%削減達成
+
+6. **core/services/（6ファイル + README）**:
+   - `trading_cycle_manager.py` (1,033行): **最重要ファイル**
+     - Phase 49完了情報追加
+     - Phase 49.16: TP/SL設定完全見直し
+     - Phase 42.3: ML Agreement Logic修正
+     - Phase 41.8.5: ML統合閾値最適化
+     - Phase 29.5: ML予測統合実装
+
+7. **core/state/（2ファイル + README）**:
+   - `drawdown_persistence.py`: 状態永続化システム
+   - ローカルファイル・Cloud Storage両対応
+   - モード別完全分離（paper/live/backtest）
+
+8. **core/メインREADME**:
+   - 完全構造ドキュメント更新
+   - Phase 47-49履歴追加
+   - 全ファイル構成図更新
+
+**統一更新内容**:
+- ✅ Phase 38.4 → Phase 49完了 に統一
+- ✅ Phase履歴包括追加（Phase 29.5 → Phase 49）
+- ✅ 技術仕様・機能詳細・重要事項明確化
+- ✅ コードロジック変更なし（Phaseマーカーのみ更新）
+
+#### Phase 49.16-3: src/ルートファイル更新（2ファイル） ✅完了
+
+**1. src/__init__.py**:
+```python
+__version__ = "49.0"
+__phase__ = "Phase 49完了"
+__description__ = "AI自動取引システム実装 - Phase 49 バックテスト完全改修・確定申告対応・週間レポート実装完了"
+```
+
+**Phase履歴追加**:
+- Phase 49完了（バックテスト完全改修・証拠金維持率80%遵守・TP/SL設定完全同期）
+- Phase 48完了（Discord週間レポート・通知99%削減・コスト35%削減）
+- Phase 47完了（確定申告対応・作業時間95%削減）
+- Phase 42完了（統合TP/SL・トレーリングストップ・ML Agreement Logic修正）
+- Phase 41.8完了（Strategy-Aware ML・ML統合率100%達成）
+- Phase 38完了（trading層レイヤードアーキテクチャ・完全指値オンリー）
+
+**2. src/README.md**:
+
+**更新内容**:
+- Phase 28/29記述 → Phase 49完了に全面更新
+- 55特徴量システム詳細追加（50基本+5戦略信号）
+- Phase 49バックテスト完全改修詳細追加
+- 品質指標更新（1,065テスト・66.72%カバレッジ）
+- Phase 47-49成果追加
+
+**主要セクション更新**:
+- システム構成: monitoring/週間レポート専用に更新
+- features/: 55特徴量詳細追加
+- ml/: ProductionEnsemble詳細・Strategy-Aware ML追加
+- backtest/: Phase 49完全改修詳細追加
+- 品質指標: 1,065テスト・66.72%カバレッジ
+- Phase 49成果サマリー追加
+
+---
+
+### 🔧 技術的成果
+
+1. **Phase番号統一**:
+   - Phase 50 → Phase 49.16への一貫性確保
+   - 全ファイルでPhase履歴明確化
+
+2. **ドキュメント完備**:
+   - src/core/全35ファイル更新完了
+   - Phase 49完了情報の包括的追加
+   - 技術仕様・機能詳細の明確化
+
+3. **品質保証**:
+   - 1,065テスト100%成功
+   - 66.72%カバレッジ達成
+   - flake8・black・isort全てPASS
+
+---
+
+### 📁 変更ファイル一覧（Phase 49.16）
+
+#### Phase番号変更（5ファイル）
+1. `src/strategies/utils/strategy_utils.py`
+2. `src/trading/execution/executor.py`
+3. `src/trading/execution/README.md`
+4. `src/trading/README.md`
+5. `tests/unit/strategies/utils/test_risk_manager.py`
+
+#### src/core/完全整理（35ファイル）
+**core/ルート（3ファイル）**:
+6. `src/core/__init__.py`
+7. `src/core/logger.py`
+8. `src/core/exceptions.py`
+
+**core/config/（5ファイル）**:
+9. `src/core/config/__init__.py`
+10. `src/core/config/threshold_manager.py`
+11. `src/core/config/feature_manager.py`
+12. `src/core/config/runtime_flags.py`
+13. `src/core/config/config_classes.py`
+
+**core/orchestration/（6ファイル）**:
+14. `src/core/orchestration/__init__.py`
+15. `src/core/orchestration/orchestrator.py` (575行・最重要)
+16. `src/core/orchestration/ml_adapter.py`
+17. `src/core/orchestration/ml_fallback.py`
+18. `src/core/orchestration/ml_loader.py`
+19. `src/core/orchestration/protocols.py`
+
+**core/execution/（5ファイル）**:
+20. `src/core/execution/__init__.py`
+21. `src/core/execution/backtest_runner.py` (821行・Phase 49完全改修)
+22. `src/core/execution/base_runner.py`
+23. `src/core/execution/paper_trading_runner.py`
+24. `src/core/execution/live_trading_runner.py`
+
+**core/reporting/（5ファイル）**:
+25. `src/core/reporting/__init__.py`
+26. `src/core/reporting/discord_notifier.py` (Phase 48週間レポート)
+27. `src/core/reporting/base_reporter.py`
+28. `src/core/reporting/paper_trading_reporter.py`
+29. `src/core/reporting/README.md`
+
+**core/services/（7ファイル）**:
+30. `src/core/services/__init__.py`
+31. `src/core/services/trading_cycle_manager.py` (1,033行・最重要)
+32. `src/core/services/health_checker.py`
+33. `src/core/services/trading_logger.py`
+34. `src/core/services/system_recovery.py`
+35. `src/core/services/graceful_shutdown_manager.py`
+36. `src/core/services/README.md`
+
+**core/state/（3ファイル）**:
+37. `src/core/state/__init__.py`
+38. `src/core/state/drawdown_persistence.py`
+39. `src/core/state/README.md`
+
+**core/メインREADME（1ファイル）**:
+40. `src/core/README.md`
+
+#### src/ルートファイル（2ファイル）
+41. `src/__init__.py`
+42. `src/README.md`
+
+**合計**: 42ファイル更新
+
+---
+
+### ✅ 品質保証結果
+
+**checks.sh実行結果**:
+- ✅ flake8チェック: PASS
+- ✅ isortチェック: PASS
+- ✅ blackチェック: PASS
+- ✅ pytest: **1,065テスト100%成功**
+- ✅ カバレッジ: **66.72%達成**
+- ⏱️ 実行時間: 約80秒
+
+---
+
+### 📊 Phase 49.16成果まとめ
+
+1. **Phase番号統一完了**:
+   - Phase 50 → Phase 49.16への一貫性確保
+   - TP/SL設定完全見直し関連ファイル全更新
+
+2. **src/core/完全整理完了**:
+   - 31 Pythonファイル（8,078行）+ 4 README更新
+   - Phase 49完了情報の包括的追加
+   - 技術仕様・機能詳細の明確化
+
+3. **srcフォルダドキュメント完備**:
+   - src/__init__.py: Phase 49完了情報追加
+   - src/README.md: 全面的更新（Phase 49成果反映）
+   - 55特徴量・1,065テスト・66.72%カバレッジ情報更新
+
+4. **品質保証100%**:
+   - 全テストPASS・コード品質PASS
+   - 既存機能への影響なし
+   - ドキュメント整合性確保
+
+---
+
+**Phase 49完了日**: 2025年10月26日（Phase 49.1-49.16完了）
 **次Phase開始**: Phase 50（情報源多様化）準備中

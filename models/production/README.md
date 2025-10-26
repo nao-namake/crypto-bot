@@ -1,52 +1,52 @@
-# models/production/ - 本番環境モデル管理
+# models/production/ - 本番環境モデル管理（Phase 49完了時点）
 
 ## 🎯 役割・責任
 
-実際の取引で使用される本番用機械学習モデルを管理します。モデルファイルとメタデータの一元管理、バージョン管理、性能監視、品質保証を担当し、安定した取引システムの運用を支援します。
+実際の取引で使用される本番用機械学習モデルを管理します。55特徴量Strategy-Aware ML・3モデルアンサンブル・週次自動学習による高品質な予測モデルの提供、性能監視、品質保証を通じて安定した取引システム運用を実現します。
 
-## 📂 ファイル構成
+## 📂 ファイル構成（Phase 49完了版）
 
 ```
 models/production/
-├── README.md                        # このファイル
-├── production_ensemble.pkl          # 本番用アンサンブルモデルファイル
-└── production_model_metadata.json   # モデル情報とメタデータ
+├── README.md                        # このファイル（Phase 49完了版）
+├── production_ensemble.pkl          # 本番用アンサンブルモデル（1.5MB）
+└── production_model_metadata.json   # モデル情報とメタデータ（2.7KB）
 ```
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **production_ensemble.pkl**（Phase 41.8完了）
+### **production_ensemble.pkl**（Phase 49完了）
 本番環境で使用されるアンサンブル学習モデルファイルです。
 - 複数の機械学習アルゴリズムを統合したアンサンブルモデル
 - LightGBM、XGBoost、RandomForestを組み合わせた構成
-- **55特徴量対応**（Phase 41.8）: 50基本特徴量 + 5戦略信号特徴量
+- **55特徴量対応**（Phase 41.8実装）: 50基本特徴量 + 5戦略信号特徴量
 - **実戦略信号学習**: 訓練時/推論時一貫性確保・実際の戦略信号を学習
 - 実際の取引判断で使用される予測エンジン
 - pickle形式でシリアライズされたモデルオブジェクト
-- 約5-10MBのファイルサイズ
+- 約1.5MBのファイルサイズ（Phase 49時点）
 
-### **production_model_metadata.json**（Phase 41.8完了）
+### **production_model_metadata.json**（Phase 49完了）
 モデルの詳細情報とメタデータを管理するファイルです。
 - モデルの性能指標（F1スコア、精度、再現率など）
-- **55特徴量定義**（Phase 41.8）: 50基本特徴量 + 5戦略信号特徴量
+- **55特徴量定義**（Phase 41.8実装）: 50基本特徴量 + 5戦略信号特徴量
   - ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
-- 学習データとバリデーション情報（1,019サンプル・TimeSeriesSplit n_splits=5）
+- 学習データとバリデーション情報（TimeSeriesSplit n_splits=5）
 - バージョン管理とGit統合情報
 - モデル作成日時と更新履歴
 - 各アルゴリズムの重み設定（LightGBM: 0.4, XGBoost: 0.4, RandomForest: 0.2）
-- Phase情報とステータス（Phase 41.8完了・production_ready）
+- Phase情報とステータス（Phase 49完了・production_ready）
 - システム設定とパラメーター情報
 
-### **モデル構成と特徴**（Phase 41.8完了）
+### **モデル構成と特徴**（Phase 49完了）
 ProductionEnsembleは複数のアルゴリズムを統合しています。
 - **アンサンブル手法**: 重み付き投票によるアンサンブル学習
-- **実データ学習**（Phase 39.1）: CSV実データ読み込み・過去180日分15分足データ（17,271件）
-- **3クラス分類**（Phase 39.2）: BUY/HOLD/SELL分類・閾値0.5%（ノイズ削減最適化）
-- **TimeSeriesSplit**（Phase 39.3）: n_splits=5による堅牢なCross Validation
-- **Early Stopping**（Phase 39.3）: rounds=20で過学習防止・LightGBM/XGBoost対応
-- **SMOTE oversampling**（Phase 39.4）: クラス不均衡対応・少数派クラス増強
-- **Optunaハイパーパラメータ最適化**（Phase 39.5）: TPESampler・3モデル自動最適化
-- **Strategy-Aware ML**（Phase 41.8）: 実戦略信号学習・55特徴量対応
+- **実データ学習**: CSV実データ読み込み・過去180日分15分足データ
+- **3クラス分類**: BUY/HOLD/SELL分類・閾値0.5%
+- **TimeSeriesSplit**: n_splits=5による堅牢なCross Validation
+- **Early Stopping**: rounds=20で過学習防止・LightGBM/XGBoost対応
+- **SMOTE oversampling**: クラス不均衡対応・少数派クラス増強
+- **Optunaハイパーパラメータ最適化**: TPESampler・3モデル自動最適化（Phase 40: 79パラメータ最適化統合）
+- **Strategy-Aware ML**（Phase 41.8実装）: 実戦略信号学習・55特徴量対応
   - **訓練/推論一貫性**: 訓練時0-fill問題解決・実戦略信号を学習データに統合
   - **Look-ahead bias防止**: 過去データのみ使用・未来データリーク防止
   - **5戦略信号統合**: ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
@@ -54,6 +54,7 @@ ProductionEnsembleは複数のアルゴリズムを統合しています。
 - **特徴量管理**: 統一されたfeature_managerシステムとの連携・55特徴量対応
 - **バージョン管理**: Git情報とモデルハッシュによる管理
 - **性能監視**: 継続的な品質監視と自動アラート機能
+- **週次自動学習**: GitHub Actions自動学習ワークフロー（毎週日曜18:00 JST）
 
 ## 📝 使用方法・例
 

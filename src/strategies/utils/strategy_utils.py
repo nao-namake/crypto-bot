@@ -1,5 +1,5 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 28完了・Phase 29最適化版
+戦略共通ユーティリティ統合モジュール - Phase 49完了
 
 戦略関連のユーティリティ機能を統合管理：
 - 戦略定数：EntryAction、StrategyType統一
@@ -8,7 +8,7 @@
 
 統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 28完了・Phase 29最適化: 2025年9月27日.
+Phase 49完了
 """
 
 from datetime import datetime
@@ -174,14 +174,14 @@ class RiskManager:
         atr_history: Optional[List[float]] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
-        ストップロス・テイクプロフィット計算
+        Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
 
         Args:
             action: エントリーアクション（buy/sell）
             current_price: 現在価格
-            current_atr: 現在のATR値（Phase 30: 15分足ATR推奨）
-            config: 戦略設定（stop_loss_atr_multiplier, take_profit_ratio含む）
-            atr_history: ATR履歴（Phase 30: 適応型ATR用）
+            current_atr: 現在のATR値
+            config: 完全なTP/SL設定（executor.pyから渡される）
+            atr_history: ATR履歴（適応型ATR用）
 
         Returns:
             (stop_loss, take_profit)のタプル
@@ -193,103 +193,88 @@ class RiskManager:
             if action not in [EntryAction.BUY, EntryAction.SELL]:
                 return None, None
 
-            # Phase 30: 適応型ATR倍率計算
+            # === SL距離計算（max_loss_ratio優先） ===
+            max_loss_ratio = config.get(
+                "max_loss_ratio",
+                get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
+            )
+
+            # max_loss_ratioベースのSL距離（最優先）
+            sl_distance_from_ratio = current_price * max_loss_ratio
+
+            # ATRベースのSL距離（補助）
             stop_loss_multiplier = RiskManager._calculate_adaptive_atr_multiplier(
                 current_atr, atr_history
             )
+            sl_distance_from_atr = current_atr * stop_loss_multiplier
 
-            # Phase 46: thresholds.yamlから直接取得（ハードコード排除）
-            take_profit_ratio = config.get(
-                "take_profit_ratio",
-                get_threshold("tp_default_ratio", DEFAULT_RISK_PARAMS["take_profit_ratio"]),
-            )
-            min_atr = config.get("min_atr_threshold", DEFAULT_RISK_PARAMS["min_atr_threshold"])
-
-            # ATR最小値チェック（ゼロ除算回避）
-            if current_atr < min_atr:
-                logger.warning(f"ATR値が小さすぎます: {current_atr:.6f} < {min_atr}")
-                current_atr = min_atr
-
-            # ストップロス距離計算
-            stop_loss_distance = current_atr * stop_loss_multiplier
-
-            # Phase 30: 最小SL距離保証
-            # Phase 32.1修正: ATR優先・動的保証実現
-            min_distance_enabled = get_threshold(
-                "position_management.stop_loss.min_distance.enabled", True
-            )
-            if min_distance_enabled:
-                override_atr = get_threshold(
-                    "position_management.stop_loss.min_distance.override_atr", False
-                )
-
-                if override_atr:
-                    # 旧動作: 固定1%保証がATRを上書き
-                    min_distance_ratio = get_threshold(
-                        "position_management.stop_loss.min_distance.ratio", 0.01
-                    )
-                    min_sl_distance = current_price * min_distance_ratio
-
-                    if stop_loss_distance < min_sl_distance:
-                        logger.info(
-                            f"📏 固定1%SL距離保証適用: {stop_loss_distance:.0f}円 → {min_sl_distance:.0f}円"
-                        )
-                        stop_loss_distance = min_sl_distance
-                else:
-                    # Phase 32.1新動作: ATR×倍率を最小値として保証（動的保証）
-                    min_atr_multiplier = get_threshold(
-                        "position_management.stop_loss.min_distance.min_atr_multiplier", 1.5
-                    )
-                    min_atr_based = current_atr * min_atr_multiplier
-
-                    # ATRベース最小値と計算値を比較
-                    if stop_loss_distance < min_atr_based:
-                        logger.info(
-                            f"📏 ATRベース動的SL保証適用: {stop_loss_distance:.0f}円 → {min_atr_based:.0f}円 "
-                            f"(ATR {current_atr:.0f}円 × {min_atr_multiplier:.1f}倍)"
-                        )
-                        stop_loss_distance = min_atr_based
-
-                    # Phase 32.1修正: ATR極小時のみ固定1%フォールバック適用
-                    # ATRベース最小保証より小さい場合のみ固定1%を適用
-                    min_distance_ratio = get_threshold(
-                        "position_management.stop_loss.min_distance.ratio", 0.01
-                    )
-                    absolute_min = current_price * min_distance_ratio
-
-                    # ATRベース最小保証（min_atr_based）と固定1%を比較し、
-                    # ATRベース最小保証より計算値が小さい場合のみ固定1%適用
-                    if stop_loss_distance < min_atr_based and stop_loss_distance < absolute_min:
-                        logger.warning(
-                            f"⚠️ ATR極小・固定1%フォールバック適用: {stop_loss_distance:.0f}円 → {absolute_min:.0f}円 "
-                            f"(ATR {current_atr:.0f}円が極小のため)"
-                        )
-                        stop_loss_distance = absolute_min
-
-            # BUY/SELL別の計算
-            if action == EntryAction.BUY:
-                stop_loss = current_price - stop_loss_distance
-                take_profit = current_price + (stop_loss_distance * take_profit_ratio)
-            else:  # SELL
-                stop_loss = current_price + stop_loss_distance
-                take_profit = current_price - (stop_loss_distance * take_profit_ratio)
-
-            # 値の妥当性確認
-            if stop_loss <= 0 or take_profit <= 0:
-                logger.error(
-                    f"無効なストップロス/テイクプロフィット: SL={stop_loss:.2f}, TP={take_profit:.2f}"
-                )
-                return None, None
+            # 最小値を採用（安全優先）
+            stop_loss_distance = min(sl_distance_from_ratio, sl_distance_from_atr)
 
             logger.info(
-                f"🎯 Phase 30 SL/TP計算: ATR={current_atr:.0f}円, 倍率={stop_loss_multiplier:.2f}, "
-                f"SL距離={stop_loss_distance:.0f}円（{stop_loss_distance / current_price * 100:.2f}%）"
+                f"🎯 Phase 49.16 SL距離計算: "
+                f"max_loss={max_loss_ratio * 100:.1f}% → {sl_distance_from_ratio:.0f}円, "
+                f"ATR×{stop_loss_multiplier:.2f} → {sl_distance_from_atr:.0f}円 "
+                f"→ 採用={stop_loss_distance:.0f}円({stop_loss_distance / current_price * 100:.2f}%)"
+            )
+
+            # === TP距離計算（min_profit_ratio優先） ===
+            min_profit_ratio = config.get(
+                "min_profit_ratio",
+                get_threshold("position_management.take_profit.min_profit_ratio", 0.02),
+            )
+            default_tp_ratio = config.get(
+                "take_profit_ratio",
+                get_threshold("position_management.take_profit.default_ratio", 1.33),
+            )
+
+            # min_profit_ratioベースのTP距離
+            tp_distance_from_ratio = current_price * min_profit_ratio
+
+            # SL距離×TP比率ベースのTP距離
+            tp_distance_from_sl = stop_loss_distance * default_tp_ratio
+
+            # 大きい方を採用（利益確保優先）
+            take_profit_distance = max(tp_distance_from_ratio, tp_distance_from_sl)
+
+            logger.info(
+                f"🎯 Phase 49.16 TP距離計算: "
+                f"min_profit={min_profit_ratio * 100:.1f}% → {tp_distance_from_ratio:.0f}円, "
+                f"SL×{default_tp_ratio:.2f} → {tp_distance_from_sl:.0f}円 "
+                f"→ 採用={take_profit_distance:.0f}円({take_profit_distance / current_price * 100:.2f}%)"
+            )
+
+            # === 価格計算 ===
+            if action == EntryAction.BUY:
+                stop_loss = current_price - stop_loss_distance
+                take_profit = current_price + take_profit_distance
+            else:  # SELL
+                stop_loss = current_price + stop_loss_distance
+                take_profit = current_price - take_profit_distance
+
+            # 妥当性確認
+            if stop_loss <= 0 or take_profit <= 0:
+                logger.error(f"無効なTP/SL価格: SL={stop_loss:.0f}円, TP={take_profit:.0f}円")
+                return None, None
+
+            # 最終ログ
+            rr_ratio = (
+                abs((take_profit - current_price) / (current_price - stop_loss))
+                if action == EntryAction.BUY
+                else abs((current_price - take_profit) / (stop_loss - current_price))
+            )
+            logger.info(
+                f"✅ Phase 49.16 TP/SL確定: "
+                f"エントリー={current_price:.0f}円, "
+                f"SL={stop_loss:.0f}円({abs(stop_loss - current_price) / current_price * 100:.2f}%), "
+                f"TP={take_profit:.0f}円({abs(take_profit - current_price) / current_price * 100:.2f}%), "
+                f"RR比={rr_ratio:.2f}:1"
             )
 
             return stop_loss, take_profit
 
         except Exception as e:
-            logger.error(f"ストップロス・テイクプロフィット計算エラー: {e}")
+            logger.error(f"TP/SL計算エラー: {e}")
             return None, None
 
     @staticmethod

@@ -1,14 +1,14 @@
-# tests/ - テスト・品質保証システム
+# tests/ - テスト・品質保証システム（Phase 49完了時点）
 
 ## 🎯 役割・責任
 
-システム全体のテスト・品質保証を統合管理し、コード品質の維持、回帰防止、継続的品質向上を支援します。単体テストから手動テストまで、包括的なテストカバレッジでシステムの信頼性と安定性を確保し、開発効率の向上と品質の継続的改善を実現します。
+システム全体のテスト・品質保証を統合管理し、コード品質の維持、回帰防止、継続的品質向上を支援します。単体テストから手動テストまで、包括的なテストカバレッジでシステムの信頼性と安定性を確保し、開発効率の向上と品質の継続的改善を実現します（Phase 49: 1,117テスト・68.32%カバレッジ達成）。
 
-## 📂 ディレクトリ構成
+## 📂 ディレクトリ構成（Phase 49完了版）
 
 ```
 tests/
-├── README.md                    # このファイル
+├── README.md                    # このファイル（Phase 49完了版）
 ├── unit/                        # 単体テストシステム（32テストファイル）
 │   ├── backtest/                   # バックテストエンジンテスト
 │   ├── core/                       # コアシステム・設定・ML統合テスト
@@ -92,12 +92,12 @@ python tests/manual/manual_bitbank_client.py
 
 ### **開発時品質チェック**
 ```bash
-# 統合品質チェック（開発時必須・Phase 39完了版）
+# 統合品質チェック（開発時必須・Phase 49完了版）
 bash scripts/testing/checks.sh
 
 # 期待結果:
-# ✅ 1,097テスト100%成功
-# ✅ 70.56%カバレッジ達成
+# ✅ 1,117テスト100%成功
+# ✅ 68.32%カバレッジ達成
 # ✅ コードスタイル準拠
 # ✅ ML学習データ・必須ライブラリ・trading層アーキテクチャ確認
 ```
@@ -142,10 +142,10 @@ open coverage-reports/htmlcov/index.html
 
 ## 🔗 関連ファイル・依存関係
 
-### **テスト対象システム**
-- `src/features/feature_generator.py`: 特徴量生成・12特徴量・データ前処理
+### **テスト対象システム**（Phase 49完了版）
+- `src/features/feature_manager.py`: 特徴量生成・55特徴量（50基本+5戦略信号）・データ前処理
 - `src/ml/ensemble.py`: ProductionEnsemble・3モデル統合・予測エンジン
-- `src/strategies/`: 4戦略・戦略管理・シグナル生成・リスク管理
+- `src/strategies/`: 5戦略・戦略管理・シグナル生成・リスク管理
 - `src/trading/`: 取引実行・リスク管理・異常検知・ドローダウン管理
 - `src/monitoring/`: Discord通知・システム監視・アラート・ヘルスチェック
 
@@ -156,7 +156,7 @@ open coverage-reports/htmlcov/index.html
 - `logs/`: テストログ・エラーログ・実行履歴・デバッグ情報
 
 ### **品質保証・CI/CD統合**
-- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト実行・統合確認・CI/CD対応
+- `scripts/testing/checks.sh`: 品質チェック（Phase 49完了版）・テスト実行・統合確認・CI/CD対応
 - `.github/workflows/`: CI/CDパイプライン・自動テスト・品質ゲート・デプロイ統合
 - GitHub Actions・自動品質管理・Discord通知・Cloud Run監視統合
 

@@ -1,7 +1,7 @@
-# config/ - 設定管理ディレクトリ（Phase 28完了・Phase 29最適化版）
+# config/ - 設定管理ディレクトリ（Phase 49完了時点）
 
-**最終更新**: 2025年9月28日 - Phase 28完了・Phase 29最適化版
-**テスト品質**: 625テスト・64.74%カバレッジ
+**最終更新**: 2025年10月22日 - Phase 49完了
+**テスト品質**: 1,117テスト・68.32%カバレッジ・55特徴量
 
 ## 🎯 役割・責任
 
@@ -11,133 +11,125 @@
 
 ```
 config/
-├── README.md                   # このファイル（Phase 29最適化版）
+├── README.md                   # このファイル（Phase 49完了版）
 │
-├── core/                      # システム基本設定（Phase 29最適化完了）
-│   ├── README.md              # コア設定ガイド（設定重複解消詳細）
-│   ├── unified.yaml           # 統一設定ファイル（システム全体・重複削除済み）
-│   ├── thresholds.yaml        # 動的閾値設定（ML信頼度・Kelly基準統合）
-│   └── feature_order.json     # 15特徴量順序定義（v2.3.0・Phase 29対応）
+├── core/                      # システム基本設定（Phase 49完了）
+│   ├── README.md              # コア設定ガイド（実践的実装ガイド）
+│   ├── unified.yaml           # 統一設定ファイル（システム全体・55特徴量対応）
+│   ├── thresholds.yaml        # 動的閾値設定（TP/SL・ML統合・79パラメータ）
+│   └── feature_order.json     # 55特徴量順序定義（v2.5.0・Strategy-Aware ML対応）
 │
-├── infrastructure/            # インフラ設定（統一設定管理体系対応）
-│   ├── README.md              # インフラガイド（v23.0.0・CI/CD統一版）
-│   └── gcp_config.yaml        # GCP統合設定（v29.0.0・Secret Manager具体バージョン）
+├── infrastructure/            # GCPインフラ設定（Cloud Run・Secret Manager）
+│   ├── README.md              # 実践的GCP運用ガイド（gcloudコマンド集）
+│   └── gcp_config.yaml        # GCP統合設定（Workload Identity・Secret Manager）
 │
-└── secrets/                   # 機密情報（.gitignoreで除外・Phase 29対応）
-    ├── README.md              # 機密設定ガイド（Phase 29マーカー追加）
-    ├── .env.example           # 環境変数テンプレート（Phase 29最適化版）
-    ├── discord_webhook.txt    # Discord Webhook URL
-    └── .env                   # 環境変数（機密情報）
+├── secrets/                   # 機密情報（.gitignoreで完全除外）
+│   ├── README.md              # 機密情報管理ガイド
+│   ├── .env.example           # 環境変数テンプレート
+│   ├── discord_webhook.txt    # Discord Webhook URL
+│   └── .env                   # 環境変数（機密情報）
+│
+└── optimization/              # Optuna最適化結果管理（Phase 40実装）
+    ├── README.md              # 最適化結果使用ガイド（79パラメータ）
+    ├── results/               # Phase 40最適化結果（JSON形式）
+    ├── checkpoints/           # 最適化チェックポイント（.gitignore対象）
+    └── .checkpoint.json       # 実行状態管理
 ```
 
-## 📋 各ディレクトリの役割（Phase 29最適化版）
+## 📋 各ディレクトリの役割（Phase 49完了版）
 
-### **core/**（Phase 29設定重複解消完了）
+### **core/**（システム基本設定）
 システムの基本設定を統一管理します。
-- `unified.yaml`: システム全体設定（アンサンブル重み・基本動作・重複削除済み）
-- `thresholds.yaml`: 動的閾値設定（ML信頼度0.3・Kelly基準・TP/SL設定統合）
-- `feature_order.json`: 15特徴量順序定義（v2.3.0・ATR/MochiPoy/MTF/Donchian/ADX対応）
+- `unified.yaml`: システム全体設定（55特徴量・5戦略・3モデルアンサンブル）
+- `thresholds.yaml`: 動的閾値設定（TP/SL・ML統合・79パラメータ最適化対応）
+- `feature_order.json`: 55特徴量順序定義（50基本+5戦略信号・Strategy-Aware ML対応）
 
-### **infrastructure/**（統一設定管理体系確立）
-GCP統合インフラ設定を管理します。
-- `gcp_config.yaml`: GCP統合設定（v29.0.0・Secret Manager具体バージョン・GitHub Actions統一）
-- Cloud Run、Artifact Registry、Secret Manager統合管理
-- CI/CD統一設定（GitHub Actions完全統一・Cloud Build廃止）
+### **infrastructure/**（GCPインフラ設定）
+GCP本番環境の設定を管理します。
+- `gcp_config.yaml`: Cloud Run・Secret Manager・Workload Identity設定
+- 実践的GCP運用ガイド（gcloudコマンド集・トラブルシューティング）
 
-### **secrets/**（機密情報Phase 29対応）
+### **secrets/**（機密情報管理）
 機密情報を安全管理します（.gitignoreで完全除外）。
-- Discord Webhook URL、Bitbank APIキー統合管理
-- 環境変数設定（Phase 29最適化テンプレート）
-- ローカル優先・GCP Secret Manager連携
+- Discord Webhook URL・Bitbank APIキー管理
+- 環境変数設定テンプレート
+- ローカル開発優先・GCP Secret Manager連携
 
-## 🚀 Phase 29最適化成果
+### **optimization/**（Optuna最適化結果）
+Phase 40で実装された79パラメータ最適化結果を管理します。
+- 4フェーズ最適化結果（リスク12・戦略30・ML統合7・MLハイパー30）
+- チェックポイント管理（中断・再開対応）
+- thresholds.yaml統合デプロイ機能
 
-### **設定重複完全解消**
-- **unified.yaml と thresholds.yaml の責任分離**：ML信頼度・Kelly基準・アンサンブル重み設定の重複を完全解消
-- **視覚的理解向上**：日本語セクションヘッダーによる構造化・理解しやすい設定構成
-- **統一設定管理体系**：全設定ファイルPhase 29マーカー統一・一貫性確保
+## 📝 使用方法（Phase 49完了版）
 
-### **テスト品質向上**
-- **625テスト100%成功**：58.64% → 64.74%カバレッジ向上・品質基準強化
-- **15特徴量統一システム**：ATR・MochiPoy・MultiTimeframe・DonchianChannel・ADX戦略統合
-- **ProductionEnsemble**：LightGBM 50%・XGBoost 30%・RandomForest 20%重み最適化
-
-## 📝 使用方法・例（Phase 29最適化版）
-
-### **基本システム実行**
+### **品質チェック（開発必須）**
 ```bash
-# 品質チェック（開発必須）
-bash scripts/testing/checks.sh                    # 625テスト・64.74%カバレッジ確認
-
-# システム実行（Phase 29最適化設定）
-python3 main.py --mode paper    # ペーパートレード（デフォルト）
-python3 main.py --mode live     # ライブトレード（本番運用）
+# Phase 49品質基準: 1,117テスト・68.32%カバレッジ
+bash scripts/testing/checks.sh
 ```
 
-### **Phase 29最適化設定の活用**
-```python
-from src.core.config import get_threshold, get_ml_config, get_trading_config
-
-# Phase 29最適化設定値取得
-confidence = get_threshold("ml.confidence_threshold", 0.3)  # thresholds.yaml統合
-kelly_min_trades = get_threshold("trading.kelly_criterion.min_trades", 5)  # 実用性向上
-
-# 15特徴量統一システム
-from src.core.config.feature_manager import FeatureManager
-fm = FeatureManager()
-feature_names = fm.get_feature_names()  # 15特徴量一覧（ATR/MochiPoy/MTF/Donchian/ADX）
-feature_count = fm.get_feature_count()  # 15
-
-# アンサンブル重み（unified.yaml統一）
-weights = get_ml_config("ensemble.weights")  # LightGBM 50%, XGBoost 30%, RandomForest 20%
-```
-
-### **機密情報設定**
+### **設定ファイル編集**
 ```bash
-# secretsディレクトリ作成
-mkdir -p config/secrets
+# TP/SL設定変更（デイトレード特化: SL 1.5% / TP 2%）
+vim config/core/thresholds.yaml
 
-# Discord Webhook URL設定
-echo "https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN" > config/secrets/discord_webhook.txt
+# ML統合閾値調整（3段階統合ロジック: 0.45/0.60）
+vim config/core/thresholds.yaml
+
+# 特徴量確認（55特徴量: 50基本+5戦略信号）
+cat config/core/feature_order.json | jq '.total_features'
 ```
 
-## ⚠️ 注意事項・制約（Phase 29最適化版）
+### **Optuna最適化実行**
+```bash
+# 79パラメータ最適化実行（Phase 40実装）
+python3 scripts/optimization/run_phase40_optimization.py
 
-### **Phase 29最適化設定の制約**
-- **unified.yaml**: システム全体設定・重複削除により変更時は慎重に
-- **thresholds.yaml**: ML信頼度・Kelly基準統合設定・取引頻度に直接影響
-- **feature_order.json**: 15特徴量順序変更は予測性能に重大影響
-- **設定分離原則**: 各ファイルの責任範囲を維持・重複を避ける
+# 最適化結果確認
+cat config/optimization/results/phase40_1_risk_management.json | jq '.best_value'
 
-### **統一設定管理体系の制約**
-- **Phase 29マーカー**: 全設定ファイルでバージョン統一必須
-- **テスト品質基準**: 625テスト100%成功・64.74%カバレッジ維持必須
-- **CI/CD統合**: GitHub Actions統一・設定変更時は自動テスト通過必須
+# thresholds.yaml統合デプロイ
+python3 scripts/optimization/integrate_and_deploy.py --dry-run
+```
 
-### **機密情報管理（Phase 29対応）**
-- **config/secrets/**：`.gitignore`完全除外・Phase 29テンプレート使用
-- **Secret Manager具体バージョン**: `:latest`禁止・具体的バージョン（:3,:5）使用
-- **ローカル優先設定**: GCP Secret Manager依存解消・開発効率向上
+## ⚠️ 注意事項・制約（Phase 49完了版）
 
-## 🔗 関連ファイル・依存関係（Phase 29最適化版）
+### **設定ファイル変更時の注意**
+- **feature_order.json**: 55特徴量順序変更は予測性能に重大影響・慎重に変更
+- **thresholds.yaml**: TP/SL・ML統合設定変更は取引頻度・リスク管理に直接影響
+- **unified.yaml**: システム全体構造設定・変更時は影響範囲を十分確認
 
-### **Phase 29統一設定管理システム**
-- `src/core/config.py`: 設定ファイル統一読み込み・重複解消対応
-- `src/core/config/feature_manager.py`: 15特徴量統一管理（v2.3.0対応）
-- `src/core/config/threshold_manager.py`: 動的閾値管理（ML信頼度・Kelly基準統合）
+### **品質基準維持**
+- **テスト品質**: 1,117テスト100%成功・68.32%カバレッジ維持必須
+- **開発フロー**: 設定変更後は`bash scripts/testing/checks.sh`で品質確認
+- **CI/CD**: GitHub Actions自動テスト通過必須
 
-### **Phase 29対応システム統合**
-- `src/core/orchestration/orchestrator.py`: システム統合制御（ExecutionService統合・Silent Failure解決）
-- `main.py`: エントリーポイント（625テスト品質ゲート・Phase 29設定）
-- `src/strategies/`: 5戦略統合（ATR・MochiPoy・MTF・Donchian・ADX）
-- `src/ml/`: ProductionEnsemble（LightGBM・XGBoost・RandomForest重み最適化）
+### **機密情報管理**
+- **config/secrets/**: `.gitignore`完全除外・絶対にコミットしない
+- **Secret Manager**: `:latest`禁止・具体的バージョン（:3, :5）使用
+- **環境変数**: `.env.example`をコピーして`.env`作成・値を設定
 
-### **統一設定管理体系インフラ**
-- `.github/workflows/`: CI/CD統一パイプライン（GitHub Actions完全統一・Cloud Build廃止）
-- `config/infrastructure/gcp_config.yaml`: GCP統合設定（v29.0.0・Secret Manager具体バージョン）
-- `.gitignore`: 機密情報完全保護・Phase 29テンプレート対応
+## 🔗 関連ファイル・依存関係（Phase 49完了版）
 
-## 🎯 Phase 29最適化まとめ
+### **設定読み込みシステム**
+- `src/core/config.py`: 設定ファイル統一読み込み（unified.yaml・thresholds.yaml統合）
+- `src/core/config/feature_manager.py`: 55特徴量管理（feature_order.json単一参照）
+- `src/core/config/threshold_manager.py`: 動的閾値管理（TP/SL・ML統合・79パラメータ）
 
-**設定重複完全解消・視覚的理解向上・統一設定管理体系確立により、AI自動取引システムの設定管理が企業級品質に到達しました。625テスト100%成功・64.74%カバレッジ・15特徴量統一システム・5戦略統合・ProductionEnsemble最適化により、24時間安定稼働の基盤が完成しています。** 🚀
+### **システム統合**
+- `src/core/orchestration/orchestrator.py`: システム統合制御（TradingOrchestrator）
+- `src/strategies/`: 5戦略統合（ATR・MochiPoy・MultiTimeframe・Donchian・ADX）
+- `src/ml/`: ProductionEnsemble（3モデルアンサンブル・55特徴量Strategy-Aware ML）
+- `tax/`: 確定申告システム（Phase 47実装・移動平均法損益計算）
+
+### **最適化・運用システム**
+- `scripts/optimization/`: Optuna最適化スクリプト（Phase 40実装・79パラメータ）
+- `scripts/reports/weekly_report.py`: 週間レポート生成（Phase 48実装・Discord通知）
+- `.github/workflows/`: CI/CD統合パイプライン（品質ゲート・週次レポート）
+- `.gitignore`: 機密情報完全保護（config/secrets/完全除外）
+
+## 🎯 Phase 49完了まとめ
+
+**Phase 49完了時点の設定管理システム**: 1,117テスト100%成功・68.32%カバレッジ・55特徴量Strategy-Aware ML・79パラメータOptuna最適化・TP/SL設定最適化（SL 1.5%/TP 2%）・統合TP/SL実装（注文数91.7%削減）・トレーリングストップ・確定申告対応・週間レポート自動化により、企業級品質のAI自動取引システムが24時間安定稼働中 🚀
 

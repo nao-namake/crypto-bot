@@ -1,14 +1,16 @@
 """
-特徴量管理システム - Phase 41完了版
+特徴量管理システム - Phase 49完了
 
 特徴量定義の一元化により、ハードコーディング排除と保守性向上を実現。
 config/core/feature_order.jsonを真の情報源として全システムが統一的に参照。
 
-Phase 28-29最適化: 15特徴量統一管理システム確立
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 55特徴量管理（50基本特徴量 + 5戦略シグナル特徴量）
+- Strategy-Aware ML対応（実戦略信号学習・訓練/推論一貫性確保）
+- feature_order.json完全準拠（total_features: 55・categories定義）
+Phase 41: Strategy-Aware ML実装 - 50→55特徴量（戦略シグナル5個追加）
 Phase 40.6: Feature Engineering拡張 - 15→50特徴量
-Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル5個追加）
+Phase 28-29: 15特徴量統一管理システム確立
 """
 
 import json

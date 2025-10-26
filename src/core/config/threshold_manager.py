@@ -1,11 +1,16 @@
 """
-閾値設定管理システム - Phase 38.4完了版
+閾値設定管理システム - Phase 49完了
 
-thresholds.yaml統合管理・8個専用アクセス関数実装・フォールバック値削除
+thresholds.yaml統合管理・8専用アクセス関数・実行時オーバーライド対応
 
-Phase 28-29最適化: 閾値設定管理システム確立
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- get_threshold(): 階層キーアクセス（"position_management.stop_loss.max_loss_ratio"）
+- 8専用アクセス関数: get_trading_thresholds・get_monitoring_config等
+- 実行時オーバーライド（Phase 40.1 Optuna最適化対応）
+- thresholds.yamlキャッシュ・reload_thresholds()再読み込み
+
+Phase 40.1: 実行時パラメータオーバーライド実装（Optuna最適化用）
+Phase 28-29: 閾値設定管理システム確立
 """
 
 import copy

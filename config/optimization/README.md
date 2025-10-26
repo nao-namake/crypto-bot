@@ -103,12 +103,12 @@
 
 ```bash
 # JSONファイルを直接確認
-cat config/optuna_results/phase40_1_risk_management.json | python3 -m json.tool
+cat config/optimization/results/phase40_1_risk_management.json | python3 -m json.tool
 
 # または
 python3 -c "
 import json
-with open('config/optuna_results/phase40_1_risk_management.json') as f:
+with open('config/optimization/results/phase40_1_risk_management.json') as f:
     data = json.load(f)
     print(f'Phase: {data[\"phase\"]}')
     print(f'Best Value: {data[\"best_value\"]:.4f}')
@@ -145,7 +145,7 @@ python3 scripts/optimization/integrate_and_deploy.py
 from scripts.optimization.optuna_utils import OptimizationResultManager
 
 # 結果マネージャー初期化
-manager = OptimizationResultManager(results_dir="config/optuna_results")
+manager = OptimizationResultManager(results_dir="config/optimization/results")
 
 # Phase 40.1の結果読み込み
 result = manager.load_results("phase40_1_risk_management")
@@ -211,7 +211,7 @@ else:
 
 最適化結果ファイルは貴重なデータです：
 
-- **定期的にバックアップ**: `config/optuna_results/`をコピー
+- **定期的にバックアップ**: `config/optimization/results/`をコピー
 - **Git管理推奨**: 結果ファイルをGitコミット
 - **バージョン管理**: 日付付きファイル名で保存（例: `phase40_1_risk_management_20251014.json`）
 
@@ -239,7 +239,7 @@ else:
 python3 scripts/optimization/optimize_risk_management.py
 
 # 2. 結果確認
-cat config/optuna_results/phase40_1_risk_management.json | python3 -m json.tool
+cat config/optimization/results/phase40_1_risk_management.json | python3 -m json.tool
 
 # 3. 既存結果とのベンチマーク比較
 # 新しいbest_valueと既存best_valueを比較
@@ -252,14 +252,19 @@ python3 scripts/optimization/integrate_and_deploy.py
 
 ## 📚 関連ドキュメント
 
-- **Phase 40実装ガイド**: `scripts/optimization/README_PHASE40.md`
+- **Phase 40実装ガイド**: `scripts/optimization/README.md`（Phase 49完了版）
 - **最適化スクリプト**: `scripts/optimization/optimize_*.py`
 - **統合デプロイスクリプト**: `scripts/optimization/integrate_and_deploy.py`
 - **共通ユーティリティ**: `scripts/optimization/optuna_utils.py`
 - **設定ファイル**: `config/core/thresholds.yaml`
+- **開発履歴**: `docs/開発履歴/Phase_40-46.md`
 
 ---
 
-**Phase 40完了日**: 2025年10月14日
-**最適化パラメータ数**: 79（合計）
-**期待効果**: +50-70%の収益向上
+**⚠️ Phase 49時点の重要事項**:
+- **最適化パラメータ数**: 79（Phase 40完了時）
+- **Phase 46削除**: 統合TP/SL・トレーリングストップ関連パラメータ無効化
+- **Phase 49有効**: 戦略パラメータ（30個）・ML統合（7個）・MLハイパー（30個）
+- **Phase 42.4固定**: TP/SL距離パラメータ（デイトレード最適化済み）
+
+**最終更新**: 2025年10月25日 - Phase 49完了・個別TP/SL管理回帰

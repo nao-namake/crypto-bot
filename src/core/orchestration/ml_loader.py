@@ -1,12 +1,16 @@
 """
-MLサービス モデル読み込み機能 - Phase 38.4完了版
+MLサービス モデル読み込み機能 - Phase 49完了
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
 
-Phase 28-29最適化: MLモデル読み込み専門モジュール分離・互換性レイヤー実装
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- ProductionEnsemble読み込み（models/production/production_ensemble.pkl）
+- 個別モデル再構築（LightGBM・XGBoost・RandomForest）
+- pickle.UnpicklingError対応（モデルクラス再定義）
+- DummyModelフォールバック（読み込み失敗時）
+
+Phase 28-29: MLモデル読み込み専門モジュール分離・互換性レイヤー実装
 """
 
 import pickle

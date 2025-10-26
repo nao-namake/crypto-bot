@@ -245,3 +245,6 @@ legacy/data/
 tax/*.db
 tax/*.csv
 tax/*.txt
+
+# Optimization checkpoints (temporary files)
+config/optimization/checkpoints/

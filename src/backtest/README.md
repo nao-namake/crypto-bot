@@ -30,15 +30,15 @@
 
 ```
 src/backtest/
-├── __init__.py                    # Phase 38.4完了
+├── __init__.py                    # Phase 49完了
 ├── README.md                      # このファイル（Phase 49更新）
 ├── reporter.py                    # レポート生成・TradeTracker（Phase 49拡張）
 ├── visualizer.py                  # matplotlib可視化（Phase 49.4新規）
 ├── data/
 │   ├── csv_data_loader.py         # CSV読み込み・キャッシュ機能（Phase 38.4完了）
-│   └── historical/                # 📂 CSVデータ（固定ファイル名）
-│       ├── BTC_JPY_4h.csv         # 4時間足データ（1080件）
-│       └── BTC_JPY_15m.csv        # 15分足データ（Phase 34: 80倍改善・17,271件）
+│   └── historical/                # 📂 CSVデータ保存先
+│       └── .gitkeep               # バックテスト実行前にデータ収集が必要
+│                                  # 実行: python src/backtest/scripts/collect_historical_csv.py --days 180
 ├── scripts/
 │   └── collect_historical_csv.py  # データ収集・期間統一機能（Phase 34実装）
 └── logs/                          # レポート出力先
@@ -56,10 +56,13 @@ src/backtest/
 ### 1. 基本的なバックテスト実行
 
 ```bash
-# 既存CSVデータでバックテスト実行（すぐに実行可能）
+# 1. データ収集（初回実行時・必須）
+python src/backtest/scripts/collect_historical_csv.py --days 180
+
+# 2. バックテスト実行
 python main.py --mode backtest
 
-# レポート確認
+# 3. レポート確認
 ls -t src/backtest/logs/backtest_*.json | head -1 | xargs cat | jq
 ```
 
@@ -81,15 +84,23 @@ python main.py --mode backtest
 ```bash
 # CSVファイル確認
 ls -la src/backtest/data/historical/
-# 期待される結果: BTC_JPY_4h.csv, BTC_JPY_15m.csv
+# 期待される結果: .gitkeep（データ未収集時）または BTC_JPY_4h.csv, BTC_JPY_15m.csv
 
-# データ統計確認
+# データ統計確認（データ収集後）
 python -c "
 import pandas as pd
-df_4h = pd.read_csv('src/backtest/data/historical/BTC_JPY_4h.csv')
-df_15m = pd.read_csv('src/backtest/data/historical/BTC_JPY_15m.csv')
-print(f'4時間足: {len(df_4h)}件 ({df_4h[\"datetime\"].iloc[0]} - {df_4h[\"datetime\"].iloc[-1]})')
-print(f'15分足: {len(df_15m)}件 ({df_15m[\"datetime\"].iloc[0]} - {df_15m[\"datetime\"].iloc[-1]})')
+import os
+
+csv_4h = 'src/backtest/data/historical/BTC_JPY_4h.csv'
+csv_15m = 'src/backtest/data/historical/BTC_JPY_15m.csv'
+
+if os.path.exists(csv_4h) and os.path.exists(csv_15m):
+    df_4h = pd.read_csv(csv_4h)
+    df_15m = pd.read_csv(csv_15m)
+    print(f'4時間足: {len(df_4h)}件 ({df_4h[\"datetime\"].iloc[0]} - {df_4h[\"datetime\"].iloc[-1]})')
+    print(f'15分足: {len(df_15m)}件 ({df_15m[\"datetime\"].iloc[0]} - {df_15m[\"datetime\"].iloc[-1]})')
+else:
+    print('⚠️ データ未収集: python src/backtest/scripts/collect_historical_csv.py --days 180 を実行してください')
 "
 ```
 
@@ -133,13 +144,16 @@ TradingCycleManager ← 本番と完全同一
 
 - **固定ファイル名**: `BTC_JPY_4h.csv`, `BTC_JPY_15m.csv`
 - **期間変更**: CSVファイル上書きのみ（パス修正不要）
-- **サポート時間軸**: 4h（トレンド）, 15m（エントリー）
+- **サポート時間軸**:
+  - **15m（メイン）**: エントリー判断・メイン取引軸
+  - **4h（補助）**: トレンド環境認識・補助判断軸
 
-### 期間統一ルール
+### 期間統一ルール（データ収集時）
 
-1. **4時間足優先**: 4時間足データの期間をベースとする
-2. **自動マッチング**: `--match-4h`で15分足を4時間足に合わせる
+1. **期間決定基準**: データ収集時は4時間足の期間を基準とする（効率性のため）
+2. **自動マッチング**: `--match-4h`で15分足を4時間足の期間に合わせる
 3. **データ整合性**: MultiTimeframe戦略のため両時間軸必須
+4. **取引ロジック**: 15m足がメイン（エントリー判断）、4h足が補助（トレンド環境認識）
 
 ### 開発ルール
 
@@ -185,7 +199,8 @@ python src/backtest/scripts/collect_historical_csv.py --match-4h --timeframes 15
 ```bash
 # 両時間軸データ確認
 ls src/backtest/data/historical/BTC_JPY_*.csv
-# 期待結果: BTC_JPY_4h.csv, BTC_JPY_15m.csv
+# 期待結果: BTC_JPY_4h.csv, BTC_JPY_15m.csv（データ収集後）
+#          または「No such file」（データ未収集時）
 
 # データ期間確認
 python -c "

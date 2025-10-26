@@ -1,12 +1,17 @@
 """
-ライブトレードランナー - Phase 38.4完了版
+ライブトレードランナー - Phase 49完了
 
 orchestrator.pyから分離したライブトレード実行機能。
 ライブトレードモードの専用処理・実取引管理を担当。
 
-Phase 28-29最適化: ライブトレードモード専用処理・残高確認・実取引管理確立
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 実取引管理（trading_cycle_manager統合・取引サイクル実行）
+- 残高確認・証拠金維持率監視
+- セッション統計（cycle_count・trade_count・total_pnl）
+- Discord通知統合（取引開始・取引実行・エラー通知）
+- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
+
+Phase 28-29: ライブトレードモード専用処理・残高確認・実取引管理確立
 """
 
 import asyncio

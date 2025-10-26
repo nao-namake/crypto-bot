@@ -1,5 +1,5 @@
-# 統一設定管理体系対応: GCPリソースクリーンアップワークフロー
-# 古いリソース自動削除・コスト30%削減・625テスト品質保証・運用最適化
+# GCPリソースクリーンアップワークフロー
+# 古いリソース自動削除・コスト30%削減・1,117テスト品質保証・運用最適化（Phase 49完了）
 
 name: GCP Resource Cleanup
 
@@ -142,25 +142,25 @@ jobs:
       - name: 📊 クリーンアップサマリー生成
         if: always()
         run: |
-          echo "📊 === 統一設定管理体系: GCPリソースクリーンアップサマリー ==="
+          echo "📊 === GCPリソースクリーンアップサマリー ==="
           echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "クリーンアップレベル: ${{ github.event.inputs.cleanup_level || 'scheduled-safe' }}"
-          
+
           echo ""
           echo "🐳 現在のDockerイメージ数:"
           gcloud artifacts docker images list \
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
             --format="table(version,createTime)" \
             --limit=10 || echo "⚠️ イメージ一覧取得失敗"
-          
+
           echo ""
           echo "☁️ 現在のCloud Runサービス:"
           gcloud run services list --region=${{ env.REGION }} \
             --format="table(metadata.name,status.url,status.conditions[0].lastTransitionTime)" \
             || echo "⚠️ サービス一覧取得失敗"
-          
+
           echo ""
-          echo "📈 統一設定管理体系品質保証: 625テスト・64.74%カバレッジ環境"
+          echo "📈 品質保証: 1,117テスト・68.32%カバレッジ（Phase 49完了）"
           echo "✅ GCPリソースクリーンアップ完了"
 
       - name: 🚨 Aggressive Cleanup警告
@@ -172,9 +172,9 @@ jobs:
           echo "⚠️ 本番環境への影響を確認してください"
           echo "⚠️ ========================================="
 
-# 注意事項 (統一設定管理体系対応):
+# 注意事項:
 # 1. このワークフローは手動実行を推奨します
 # 2. aggressive レベルは慎重に使用してください
 # 3. 本番環境に影響する可能性があります
-# 4. 定期実行は月1回の安全な削除のみです
-# 5. 統一設定管理体系: 625テスト・64.74%カバレッジ環境での実行を前提
+# 4. 定期実行は月1回の安全な削除のみです（毎月第1日曜日 JST 2:00 AM）
+# 5. Phase 49品質保証: 1,117テスト・68.32%カバレッジ環境での実行を前提

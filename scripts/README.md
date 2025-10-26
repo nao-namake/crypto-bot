@@ -1,129 +1,155 @@
-# scripts/ - システム運用・管理スクリプト集（Phase 28完了・Phase 29最適化版）
+# scripts/ - システム運用・管理スクリプト集（Phase 49完了版）
 
 ## 🎯 役割・責任
 
-システム開発・運用・監視・デプロイメントの全工程を支援する統合ツール集を提供します。品質保証、機械学習モデル管理、本番環境デプロイ、システム分析まで、包括的な自動化ツールでシステムの効率的な開発・運用を支援します。
+システム開発・運用・監視・デプロイメント・バックテストの全工程を支援する統合ツール集を提供します。品質保証、機械学習モデル管理、本番環境デプロイ、バックテスト実行まで、包括的な自動化ツールでシステムの効率的な開発・運用を支援します。
 
-**Phase 29最適化成果**：625テスト100%成功・64.74%カバレッジ達成・統一設定管理体系完成
+**Phase 49完了成果**：1,117テスト100%成功・68.32%カバレッジ達成・バックテスト完全改修・確定申告対応・週間レポート実装
 
 ## 📂 ディレクトリ構成
 
 ```
 scripts/
-├── README.md               # このファイル（Phase 35更新版）
-├── analysis/               # システム分析基盤 [詳細: analysis/README_analytics.md]
-│   ├── README_analytics.md        # 分析基盤ガイド
-│   ├── base_analyzer.py           # 共通基盤クラス・Cloud Runログ取得・システム監視
-│   └── ml_confidence_analysis.sh  # ML信頼度分析スクリプト
+├── README.md               # このファイル（Phase 49完了版）
 ├── deployment/             # デプロイメント・インフラ管理 [詳細: deployment/README.md]
-│   ├── README.md                  # デプロイメントガイド
-│   ├── deploy_production.sh       # 本番環境デプロイメント・Cloud Run管理
-│   ├── docker-entrypoint.sh       # Dockerコンテナエントリーポイント・起動制御
-│   ├── setup_gcp_environment.sh   # 統合GCP環境構築・認証管理・GitHub Actions設定
-│   └── verify_gcp_setup.sh        # GCP環境検証・設定確認
+│   ├── README.md                  # デプロイメントガイド（Phase 49完了版）
+│   ├── docker-entrypoint.sh       # Dockerコンテナエントリーポイント・起動制御（Phase 49対応済み）
+│   └── archive/                   # 初期セットアップ用スクリプト（環境構築済みのため使用頻度低）
+│       ├── setup_gcp_environment.sh   # 統合GCP環境構築・認証管理・GitHub Actions設定
+│       └── verify_gcp_setup.sh        # GCP環境検証・設定確認
 ├── management/             # Bot管理スクリプト [詳細: management/README.md]
-│   ├── README.md                  # Bot管理ガイド
-│   ├── run_safe.sh                # 統合実行スクリプト（タイムアウト・Claude Code対応）
+│   ├── README.md                  # Bot管理ガイド（Phase 49完了版）
+│   ├── run_safe.sh                # 統合実行スクリプト（Phase 49.14対応済み・タイムアウト・Claude Code対応）
 │   └── bot_manager.sh             # 統合管理スクリプト（状況確認・プロセス停止）
+├── backtest/               # バックテスト実行システム [詳細: backtest/README.md] 【Phase 49新設】
+│   ├── README.md                  # バックテスト実行ガイド（Phase 49完了版）
+│   └── run_backtest.sh            # バックテスト実行スクリプト（Phase 34実装・Phase 49移動）
 ├── ml/                     # 機械学習モデル学習・管理 [詳細: ml/README.md]
-│   ├── README.md                  # ML管理ガイド
-│   └── create_ml_models.py        # 機械学習モデル学習・構築メインスクリプト
+│   ├── README.md                  # ML管理ガイド（Phase 49完了版）
+│   ├── create_ml_models.py        # 機械学習モデル学習・構築メインスクリプト（55特徴量Strategy-Aware ML）
+│   └── archive/                   # 過去の実験的スクリプト（Phase 49整理）
+│       └── train_meta_learning_model.py   # Meta-Learning実験実装（Phase 45.3・未使用）
 └── testing/                # 品質保証・テストシステム [詳細: testing/README.md]
-    ├── README.md                  # テストシステムガイド
-    ├── checks.sh                  # 品質チェック・テスト実行スクリプト（625テスト・64.74%カバレッジ）
-    └── dev_check.py               # 統合開発管理CLI・システム診断
+    ├── README.md                  # テストシステムガイド（Phase 49完了版）
+    ├── checks.sh                  # 品質チェック・テスト実行スクリプト（1,117テスト・68.32%カバレッジ）
+    └── validate_system.sh         # システム整合性検証スクリプト（Phase 49.14実装）
 ```
 
 ## 📋 主要ディレクトリの役割
 
-### **testing/ - 品質保証・テストシステム（Phase 29最適化完了）**
+### **testing/ - 品質保証・テストシステム（Phase 49完了）**
 システム全体の品質保証とテスト実行を担当するディレクトリです。
-- **checks.sh**: 625テスト100%成功・64.74%カバレッジ・コードスタイルチェック・隠れた致命的障害検出
-- **dev_check.py**: 統合開発管理CLI・システム診断・機械学習検証・本番環境監視
-- 継続的品質保証・回帰防止・CI/CD統合・開発効率向上・Phase 29品質基準完全達成
+- **checks.sh**: 1,117テスト100%成功・68.32%カバレッジ・コードスタイルチェック・隠れた致命的障害検出
+- **validate_system.sh**: Phase 49.14実装・Dockerfile/特徴量/戦略/モジュール整合性検証・Phase 49.13問題防止
+- 継続的品質保証・回帰防止・CI/CD統合・開発効率向上・Phase 49品質基準完全達成
 
-### **ml/ - 機械学習モデル学習・管理（Phase 29対応）**
+### **ml/ - 機械学習モデル学習・管理（Phase 49対応）**
 機械学習モデルの学習・構築・品質保証を担当するディレクトリです。
-- **create_ml_models.py**: 15特徴量統一・LightGBM・XGBoost・RandomForest学習・ProductionEnsemble構築
+- **create_ml_models.py**: 55特徴量Strategy-Aware ML・LightGBM・XGBoost・RandomForest学習・ProductionEnsemble構築
 - アンサンブル学習・ハイパーパラメータ最適化・バージョン管理・CI/CD統合
-- 特徴量統合・品質検証・自動学習・週次再学習対応・625テスト品質ゲート統合
+- 特徴量統合（50基本+5戦略信号）・品質検証・自動学習・週次再学習対応・1,117テスト品質ゲート統合
 
-### **deployment/ - デプロイメント・インフラ管理**
+### **deployment/ - デプロイメント・インフラ管理（Phase 49完了）**
 本番環境デプロイとインフラ管理を担当するディレクトリです。
-- **deploy_production.sh**: GCP Cloud Run段階的デプロイ・品質ゲート・Discord通知
-- **docker-entrypoint.sh**: コンテナ起動制御・デュアルプロセス・ヘルスチェック
-- **GCP設定スクリプト**: CI/CD環境構築・Secret Manager・環境検証
-- Docker統合・段階的リリース・監視・復旧・セキュリティ管理
+- **docker-entrypoint.sh**: コンテナ起動制御（Phase 49対応済み）・デュアルプロセス・ヘルスチェック
+- **archive/**: 初期セットアップ用スクリプト（環境構築済みのため使用頻度低）
+  - **setup_gcp_environment.sh**: GCP環境初期構築（初期構築のみ）
+  - **verify_gcp_setup.sh**: GCP環境検証・設定確認（診断時のみ）
+- Docker統合・段階的リリース・監視・復旧・セキュリティ管理・Phase 49完了成果反映
 
-### **analysis/ - システム分析基盤（Phase 35統合完了）**
-システム運用データの分析・監視機能の共通基盤を提供するディレクトリです。
-- **base_analyzer.py**: 共通基盤クラス・Cloud Runログ取得・システム監視・dev_check.py統合利用
-- **ml_confidence_analysis.sh**: ML信頼度分析・GCPログ解析・統計計算・推奨事項自動出力
-- Phase 35で analysis/ と analytics/ を統合・ディレクトリ簡素化完了
-
-### **management/ - Bot管理スクリプト（Claude Code対応・プロセス管理統合）**
+### **management/ - Bot管理スクリプト（Phase 49完了・Claude Code完全対応）**
 Botの安全で効率的な実行・管理を支援するディレクトリです。
-- **run_safe.sh**: 統合実行スクリプト・タイムアウト管理・Claude Code完全対応・環境別実行制御
+- **run_safe.sh**: 統合実行スクリプト（Phase 49.14対応済み）・タイムアウト管理・Claude Code完全対応・環境別実行制御
 - **bot_manager.sh**: 統合管理スクリプト・Discord通知ループ解決・バックグラウンド誤認識防止
-- プロセス重複防止・強制停止機能・詳細プロセス監視・運用効率向上
+- プロセス重複防止・強制停止機能・詳細プロセス監視・運用効率向上・Phase 49.14システム検証統合
+
+### **backtest/ - バックテスト実行システム（Phase 49新設）** 【Phase 49整理】
+バックテストシステムの実行・管理を支援するディレクトリです。
+- **run_backtest.sh**: バックテスト実行スクリプト（Phase 34実装・Phase 49移動）・3モード実行（quick/standard/full）
+- **Phase 49完全改修**: 戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker実装・matplotlib可視化
+- バックテスト信頼性100%達成・ライブモード完全一致・SELL判定正常化・45分実行（10倍高速化）
+- **Phase 49整理**: scripts/management/から分離・バックテスト専用ツールとして独立
 
 ## 📝 使用方法・例
 
-### **日常開発ワークフロー（Phase 29最適化版）**
+### **日常開発ワークフロー（Phase 49完了版）**
 ```bash
-# 1. 品質チェック（開発時必須・625テスト・64.74%カバレッジ）
+# 1. 品質チェック（開発時必須・1,117テスト・68.32%カバレッジ）
 bash scripts/testing/checks.sh
 
-# 2. 統合開発管理（推奨）
-python3 scripts/testing/dev_check.py check
+# 2. システム整合性検証（Phase 49.14・推奨）
+bash scripts/testing/validate_system.sh
 
-# 3. 機械学習モデル管理（15特徴量統一システム）
-python3 scripts/testing/dev_check.py ml-models
-
-# 4. システム状態確認
-python3 scripts/testing/dev_check.py status
+# 3. 機械学習モデル管理（55特徴量Strategy-Aware ML）
+python3 scripts/ml/create_ml_models.py --optimize --n-trials 50
 ```
 
 ### **本番デプロイワークフロー**
 ```bash
-# 1. 環境検証
-bash scripts/deployment/verify_gcp_setup.sh --full
-
-# 2. 品質チェック
+# 1. 品質チェック（必須）
 bash scripts/testing/checks.sh
 
-# 3. 段階的デプロイ
-bash scripts/deployment/deploy_production.sh --staged
+# 2. システム整合性検証（推奨）
+bash scripts/testing/validate_system.sh
 
-# 4. デプロイ後確認
-python3 scripts/testing/dev_check.py health-check
+# 3. 環境検証（必要時のみ）
+bash scripts/deployment/verify_gcp_setup.sh --full
+
+# 4. デプロイ実行（GitHub Actions自動実行）
+# .github/workflows/ci.yml が自動実行（main ブランチpush時）
+
+# 5. デプロイ後確認
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
+curl https://crypto-bot-service-prod-XXXXXXXX.asia-northeast1.run.app/health
 ```
 
-### **Bot実行・管理ワークフロー（Phase 29最適化版）**
+### **Bot実行・管理ワークフロー（Phase 49完了版）**
 ```bash
 # 1. 実行状況確認（誤認防止・推奨）
 bash scripts/management/bot_manager.sh check
 
-# 2. 通常実行（Claude Code完全対応）
+# 2. 通常実行（Phase 49.14システム検証自動実行）
 bash scripts/management/run_safe.sh local paper
 
 # 3. 完全停止（Discord通知ループ解決）
 bash scripts/management/bot_manager.sh stop
 
-# 4. システム監視
-python3 scripts/testing/dev_check.py monitor
+# 4. 本番環境監視（GCP Cloud Run）
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 
-### **機械学習ワークフロー**
+### **機械学習ワークフロー**（Phase 49完了版）
 ```bash
-# 1. モデル学習・構築
+# 1. モデル学習・構築（55特徴量Strategy-Aware ML・基本実行）
 python3 scripts/ml/create_ml_models.py --verbose
 
-# 2. 統合管理経由実行（推奨）
-python3 scripts/testing/dev_check.py ml-models
+# 2. Optunaハイパーパラメータ最適化（推奨）
+python3 scripts/ml/create_ml_models.py --optimize --n-trials 50 --verbose
 
-# 3. ML信頼度分析
-bash scripts/analysis/ml_confidence_analysis.sh
+# 3. 週次自動再学習（GitHub Actions）
+# .github/workflows/model-training.yml - 毎週日曜18:00 JST自動実行
+
+# 4. モデル検証
+python3 -c "import json; print(json.load(open('models/production/production_model_metadata.json', 'r')))"
+```
+
+### **バックテストワークフロー（Phase 49完了版）** 【Phase 49新設】
+```bash
+# 1. 品質チェック（必須）
+bash scripts/testing/checks.sh
+
+# 2. クイックバックテスト（7日間・動作確認用）
+bash scripts/backtest/run_backtest.sh quick
+
+# 3. 標準バックテスト（30日間・通常検証用）
+bash scripts/backtest/run_backtest.sh standard
+
+# 4. フルバックテスト（180日間・推奨・完全検証）
+bash scripts/backtest/run_backtest.sh full
+
+# 5. レポート確認
+open logs/backtest_report_*.html
 ```
 
 ## ⚠️ 注意事項・制約
@@ -134,11 +160,12 @@ bash scripts/analysis/ml_confidence_analysis.sh
 - **GitHub統合**: Actions・OIDC・Workload Identity設定完了
 - **外部API**: Bitbank API・Discord Webhook設定・認証情報
 
-### **品質保証制約（Phase 29基準）**
-- **テスト品質**: 625テスト100%成功・64.74%カバレッジ維持必須・隠れた致命的障害検出
+### **品質保証制約（Phase 49基準）**
+- **テスト品質**: 1,117テスト100%成功・68.32%カバレッジ維持必須・隠れた致命的障害検出
 - **コード品質**: flake8・black・isort準拠・PEP8・型注釈・エラーハンドリング
 - **CI/CD統合**: GitHub Actions・品質ゲート・段階的デプロイ遵守・統一設定管理体系
 - **監視統合**: Discord通知・ログ監視・アラート・自動復旧・Claude Code誤認識防止
+- **バックテスト検証**: Phase 49完全改修・信頼性100%達成・ライブモード完全一致必須
 
 ### **セキュリティ要件**
 - **認証管理**: APIキー・シークレット・Webhook URLの適切な保護
@@ -172,11 +199,13 @@ bash scripts/analysis/ml_confidence_analysis.sh
 
 ### **外部システム統合**
 - **GCP Services**: Cloud Run・Secret Manager・Artifact Registry・IAM
-- **GitHub Actions**: CI/CD・自動化・品質ゲート・週次学習ワークフロー
-- **Discord API**: 通知・アラート・監視・レポート配信・運用連携
-- **Bitbank API**: 市場データ・取引システム・認証・レート制限対応
+- **GitHub Actions**: CI/CD・自動化・品質ゲート・週次学習ワークフロー・週間レポート自動送信
+- **Discord API**: 通知・アラート・監視・レポート配信・運用連携・週間レポート（Phase 48実装）
+- **Bitbank API**: 市場データ・取引システム・認証・レート制限対応・バックテスト履歴データ取得
 
 ### **監視・分析システム**
 - `src/monitoring/`: Discord通知・アラート・システム監視・ヘルスチェック
 - Cloud Run監視・ログ分析・パフォーマンス・エラー検知・自動復旧
 - HTMLダッシュボード・可視化・レポート・統計分析・トレンド監視
+- `src/backtest/`: バックテストエンジン（Phase 49完全改修）・TradeTracker・matplotlib可視化
+- `src/core/reporting/`: 週間レポート生成（Phase 48実装）・損益曲線グラフ・通知99%削減

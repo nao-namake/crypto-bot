@@ -1,19 +1,19 @@
 # src/strategies/base/ - 戦略基盤システム
 
-**Phase 28完了・Phase 29最適化版**: 全戦略の統一インターフェース・競合解決システム・重み付け統合による戦略アーキテクチャ基盤。
+**Phase 49完了**: 全戦略の統一インターフェース・競合解決システム・重み付け統合による戦略アーキテクチャ基盤。
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/base/
-├── __init__.py          # 基盤エクスポート（18行）
-├── strategy_base.py     # 抽象基底クラス（280行）
-└── strategy_manager.py  # 戦略統合管理（408行）
+├── __init__.py          # 基盤エクスポート（17行）
+├── strategy_base.py     # 抽象基底クラス（294行）
+└── strategy_manager.py  # 戦略統合管理（557行）
 ```
 
 ## 🔧 主要コンポーネント
 
-### **strategy_base.py（280行）**
+### **strategy_base.py（294行）**
 
 **目的**: 全戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）が継承する統一基底クラス
 
@@ -37,7 +37,7 @@ class StrategyBase(ABC):
     def generate_signal(self, df: pd.DataFrame) -> StrategySignal  # 統一シグナル生成
 ```
 
-### **strategy_manager.py（408行）**
+### **strategy_manager.py（557行）**
 
 **目的**: 5戦略統合管理・競合解決・重み付け統合による最終シグナル生成
 
@@ -148,9 +148,9 @@ def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal
 - **競合解決**: BUY vs SELL同時発生時の自動解決・安全性優先
 - **重み付け統合**: 戦略別重みでの信頼度統合・パフォーマンス反映
 - **15特徴量連携**: feature_order.json単一真実源との完全整合
-- **Phase 29最適化**: Phaseマーカー統一・簡潔化・実用性重視
+- **Phase 49完了**: Phaseマーカー統一・簡潔化・実用性重視
 - **依存**: pandas・datetime・abc・typing・src.strategies.utils.*
 
 ---
 
-**戦略基盤システム（Phase 28完了・Phase 29最適化）**: 5戦略統一インターフェース・競合解決システム・重み付け統合による15特徴量連携戦略アーキテクチャ基盤。
+**戦略基盤システム（Phase 49完了）**: 5戦略統一インターフェース・競合解決システム・重み付け統合による15特徴量連携戦略アーキテクチャ基盤。

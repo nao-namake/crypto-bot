@@ -1,15 +1,22 @@
 """
 暗号資産取引Bot - エントリーポイント
 
-統一設定管理体系確立完了版・設定不整合完全解消・統一システム最適化対応の薄いエントリーポイント。
+Phase 49完了版・企業級AI自動取引システム対応の薄いエントリーポイント。
 具体的なビジネスロジックはTradingOrchestratorに委譲し、
 ここでは引数解析と基本設定のみを担当。
 
+Phase 49完了成果:
+- バックテスト完全改修（信頼性100%達成・TradeTracker統合・matplotlib可視化）
+- 確定申告対応システム（作業時間95%削減）
+- Discord週間レポート（通知99%削減・コスト35%削減）
+- 統合TP/SL（注文数91.7%削減）・Strategy-Aware ML（55特徴量・ML統合率100%）
+- 1,065テスト100%成功・66.72%カバレッジ達成
+
 設計原則:
-- エントリーポイント特化（120行以内）
+- エントリーポイント特化（286行）
 - ビジネスロジックはsrc/core/orchestration/に委譲
-- テスト不要なレベルまで薄く設計・653テスト100%成功・58.62%カバレッジ対応
-- 保守性とシンプルさの両立・統一設定管理体系対応
+- テスト不要なレベルまで薄く設計
+- 保守性とシンプルさの両立
 """
 
 import argparse
@@ -184,7 +191,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 40完了・79パラメータOptuna最適化・70.56%カバレッジ達成",
+        description="暗号資産取引Bot - Phase 49完了・1,065テスト100%成功・66.72%カバレッジ達成",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -248,7 +255,7 @@ async def main():
     # 3. TradingOrchestratorに実行を委譲
     try:
         logger.info(
-            f"🚀 暗号資産取引Bot Phase 40完了・79パラメータOptuna最適化・70.56%カバレッジ達成 起動 - モード: {config.mode.upper()}"
+            f"🚀 暗号資産取引Bot Phase 49完了・企業級AI自動取引システム 起動 - モード: {config.mode.upper()}"
         )
 
         # 依存性組み立て済みOrchestratorを取得

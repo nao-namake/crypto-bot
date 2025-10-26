@@ -16,14 +16,14 @@ ml:
   default_confidence: 0.5
   strategy_integration:
     enabled: true
-    ml_weight: 0.35  # Phase 44.1: +17%増加（ML予測信頼度反映強化）
+    ml_weight: 0.35
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.85  # Phase 44.1: -30% → -15%ペナルティ（過剰ペナルティ削減）
+    disagreement_penalty: 0.85
     min_ml_confidence: 0.45
     hold_conversion_threshold: 0.4
-  # Phase 45: Meta-Learning動的重み最適化システム
+  # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
     model_path: "models/meta_learning/meta_model.pkl"
@@ -76,11 +76,11 @@ dynamic_confidence:
   strategies:
     mochipoy_alert:
       buy_strong_base: 0.7
-      buy_strong_max: 0.70  # Phase 44.2: 最大70%に制限（単一戦略過剰影響防止）
+      buy_strong_max: 0.70
       buy_weak_base: 0.45
       buy_weak_max: 0.6
       sell_strong_base: 0.7
-      sell_strong_max: 0.70  # Phase 44.2: 最大70%に制限（単一戦略過剰影響防止）
+      sell_strong_max: 0.70
       sell_weak_base: 0.45
       sell_weak_max: 0.6
       hold_base: 0.2
@@ -297,16 +297,12 @@ risk:
   max_capital_usage: 0.3
   reserve_ratio: 0.7
 position_management:
-  # ========================================
-  # Phase 46: デイトレード特化設計
-  # ========================================
-  # デイトレード最適化設定: SL 2% / TP 4% / RR比 2.0:1
-  # 個別TP/SL配置に回帰（統合TP/SL・トレーリングストップ削除）
-  consolidate_on_new_entry: false  # Phase 46: 統合TP/SL無効化
+  # デイトレード特化設定: SL 1.5% / TP 2% / RR比 1.33:1（細かく利確）
+  consolidate_on_new_entry: false
   min_account_balance: 10000
   max_open_positions: 3
-  max_daily_trades: 50            # Phase 46: 20 → 50（デイトレード機会増加）
-  cooldown_minutes: 15            # Phase 46: デイトレード対応（15分維持）
+  max_daily_trades: 50
+  cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
     low_confidence: 0.03
@@ -343,16 +339,16 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 2.0              # Phase 46: 2.5 → 2.0（RR比 2.0:1）
-    min_profit_ratio: 0.04          # Phase 46: 0.01 → 0.04（TP 4%）
+    default_ratio: 1.33
+    min_profit_ratio: 0.02
     override_strategy_tp: false
     position_partial_exit: false
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.02            # Phase 46: 0.03 → 0.02（SL 2%）
+    max_loss_ratio: 0.015
     override_strategy_sl: false
-    enable_trailing: false          # Phase 46: トレーリングストップ無効（デイトレード不要）
+    enable_trailing: false
     execution_slippage: 0.003
     adaptive_atr:
       enabled: true
@@ -368,11 +364,11 @@ position_management:
         multiplier: 1.5
     min_distance:
       enabled: true
-      ratio: 0.02                   # Phase 46: 0.01 → 0.02（SL 2%最小距離）
+      ratio: 0.015
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:
-      enabled: false                # Phase 46: トレーリングストップ無効化（デイトレード不要）
+      enabled: false
       activation_profit: 0.02
       trailing_percent: 0.03
       min_update_distance: 200
@@ -380,12 +376,12 @@ position_management:
       cancel_tp_when_exceeds: true
 margin:
   position_value_estimation_ratio: 0.8
-  # Phase 49.5: 維持率閾値修正（80%確実遵守）
+  # 維持率閾値（80%確実遵守）
   thresholds:
-    critical: 80.0       # Phase 49.5: 80%未満でエントリー拒否（旧100.0から変更）
-    warning: 100.0       # 警告レベル
-    caution: 150.0       # 注意レベル
-    safe: 200.0          # 安全レベル
+    critical: 80.0
+    warning: 100.0
+    caution: 150.0
+    safe: 200.0
   large_drop_threshold: 50.0
   min_position_value: 1000.0
   max_ratio_cap: 10000.0
@@ -411,30 +407,11 @@ balance_alert:
   discord_critical_alert: true
 
 # ==================================================================================
-# Phase 42.4: TP/SL距離固定値（デイトレード段階的最適化・2025/10/20更新）
+# Optuna最適化値（Phase 40以降の最適化結果）
 # ==================================================================================
-# 2025年市場ベストプラクティス準拠（BTC日次ボラティリティ2-5%対応）
-# 段階的アプローチ: RR比1:1.5で実績収集 → 将来的に2:1へ移行検討
-#
-# 設定根拠:
-# - SL 2.0%: 市場推奨3-8%の下限（証拠金1万円で最大損失200円）
-# - TP 3.0%: 細かく利益確定（市場ボラティリティ中間値）
-# - RR比 1.5:1: 勝率40%以上で収益化可能（現行MLモデルF1スコア0.56-0.61）
-#
-# optimize_risk_management.py の FIXED_TP_SL_PARAMS と同期してください。
+# 以下の設定はOptuna最適化により決定された値です。
+# 変更する場合は scripts/optimization/run_phase40_optimization.py を使用してください。
 # ==================================================================================
-sl_atr_low_vol: 2.1                     # 固定値: 適応型ATR倍率（低ボラティリティ）
-sl_atr_normal_vol: 2.0                  # 固定値: 適応型ATR倍率（通常ボラティリティ）
-sl_atr_high_vol: 1.2                    # 固定値: 適応型ATR倍率（高ボラティリティ）
-sl_min_distance_ratio: 0.015            # Phase 49: 最小SL距離比率1.5%（少額運用・頻繁エントリー対応）
-sl_min_atr_multiplier: 1.3              # 固定値: 最小ATR倍率
-tp_default_ratio: 2.0                   # Phase 46: デイトレード特化・リスクリワード比2.0:1
-tp_min_profit_ratio: 0.02               # Phase 49: 最小利益率2.0%（短スパン利確・頻繁エントリー対応）
-# ==================================================================================
-kelly_max_position_ratio: 0.05
-kelly_safety_factor: 1.0
-risk_conditional: 0.7
-risk_deny: 0.85
 mochipoy_buy_strong_base: 0.7
 mochipoy_buy_weak_base: 0.44999999999999996
 mochipoy_sell_strong_base: 0.75
@@ -466,7 +443,7 @@ atr_bb_oversold: 0.35
 ml_weight: 0.35
 high_confidence_threshold: 0.85
 agreement_bonus: 1.15
-disagreement_penalty: 0.85  # Phase 44.1: 同期更新（-30% → -15%ペナルティ）
+disagreement_penalty: 0.85
 min_ml_confidence: 0.45
 hold_conversion_threshold: 0.4
 lgbm_num_leaves: 40

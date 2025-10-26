@@ -1,12 +1,12 @@
 # src/strategies/ - 取引戦略システム
 
-**Phase 38.4完了**: 市場不確実性計算統合・バックテストログユーティリティ追加・コード重複削減による戦略層最適化。
+**Phase 49完了**: 市場不確実性計算統合・バックテストログユーティリティ追加・コード重複削減による戦略層最適化。
 
 ## 🎯 役割・責任
 
 AI自動取引システムの戦略層。5つの取引戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）を統合管理し、市場データから取引シグナルを生成。統一インターフェース・競合解決・重み付け統合・動的信頼度計算により、安定した取引判断を提供。
 
-**Phase 38.4改善点**:
+**Phase 49完了**:
 - 市場不確実性計算統合（MarketUncertaintyCalculator）: 全5戦略の重複コード250-300行削減
 - バックテストログユーティリティ（conditional_log）: 20-30箇所の環境変数チェック統一
 - 保守性向上: 統一ユーティリティ活用による一元管理実現
@@ -15,18 +15,19 @@ AI自動取引システムの戦略層。5つの取引戦略（ATRBased・Mochip
 
 ```
 src/strategies/
-├── __init__.py              # 戦略システムエクスポート（42行）
+├── __init__.py              # 戦略システムエクスポート（41行・Phase 49完了）
 ├── base/                    # 戦略基盤システム
-│   ├── strategy_base.py        # 抽象基底クラス（280行）
-│   └── strategy_manager.py     # 戦略統合管理（408行）
+│   ├── strategy_base.py        # 抽象基底クラス（294行・Phase 49完了）
+│   └── strategy_manager.py     # 戦略統合管理（557行・Phase 49完了）
 ├── implementations/         # 戦略実装群
-│   ├── atr_based.py           # ATRBased戦略（350行）
-│   ├── mochipoy_alert.py      # MochipoyAlert戦略（283行）
-│   ├── multi_timeframe.py     # MultiTimeframe戦略（313行）
-│   ├── donchian_channel.py    # DonchianChannel戦略（280行）
-│   └── adx_trend.py          # ADXTrendStrength戦略（265行）
+│   ├── atr_based.py           # ATRBased戦略（436行・Phase 49完了）
+│   ├── mochipoy_alert.py      # MochipoyAlert戦略（352行・Phase 49完了）
+│   ├── multi_timeframe.py     # MultiTimeframe戦略（445行・Phase 49完了）
+│   ├── donchian_channel.py    # DonchianChannel戦略（544行・Phase 49完了）
+│   └── adx_trend.py          # ADXTrendStrength戦略（600行・Phase 49完了）
 └── utils/                   # 共通処理モジュール
-    └── strategy_utils.py      # 統合共通処理（398行）
+    ├── strategy_utils.py      # 統合共通処理（572行・Phase 49完了）
+    └── market_utils.py        # 市場分析ユーティリティ（180行・Phase 49完了）
 ```
 
 ## 🔧 主要コンポーネント
@@ -206,9 +207,9 @@ min_confidence = get_threshold("strategies.atr_based.min_confidence", 0.3)
 - **動的信頼度**: 各戦略が市場状況に応じて0.2-0.8範囲で動的計算
 - **統一インターフェース**: 全戦略がStrategyBase継承・StrategySignal統一形式
 - **設定一元化**: config/core/thresholds.yaml一括管理・再起動で設定反映
-- **Phase 38.4最適化**: コード重複削減・統一ユーティリティ活用・保守性向上
+- **Phase 49完了**: コード重複削減・統一ユーティリティ活用・保守性向上
 - **依存**: pandas・numpy・src.core.*・統合15特徴量データ
 
 ---
 
-**取引戦略システム（Phase 38.4完了）**: 5戦略統合管理・競合解決システム・重み付け統合・動的信頼度計算・市場不確実性計算統合・バックテストログユーティリティによる統一戦略層。
+**取引戦略システム（Phase 49完了）**: 5戦略統合管理・競合解決システム・重み付け統合・動的信頼度計算・市場不確実性計算統合・バックテストログユーティリティによる統一戦略層。

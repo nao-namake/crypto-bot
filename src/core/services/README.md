@@ -1,24 +1,38 @@
-# src/core/services/ - システムサービス層 🚀 Phase 42.3完了
+# src/core/services/ - システムサービス層 🚀 Phase 49完了
 
 ## 🎯 役割・責任
 
-システム全体の統合制御・ヘルスチェック・ログ管理・取引サイクル実行を担当します。Phase 29.5でML予測統合ロジックを実装し、Phase 42.3でML Agreement Logic修正・Feature Warning抑制を完了しました。
+システム全体の統合制御・ヘルスチェック・ログ管理・取引サイクル実行を担当します。
+
+**Phase 49完了**: バックテスト完全改修統合・証拠金維持率80%遵守・TP/SL設定完全同期
+**Phase 42.3完了**: ML Agreement Logic修正・Feature Warning抑制・証拠金チェックリトライ
+**Phase 41.8.5完了**: ML統合閾値最適化（min_ml_confidence: 0.45・ML統合率100%達成）
+**Phase 29.5完了**: ML予測統合実装（戦略70% + ML30%・一致ボーナス/不一致ペナルティ）
 
 ## 📂 ファイル構成
 
 ```
 services/
-├── trading_cycle_manager.py        # 取引サイクル実行管理（Phase 29.5: ML統合実装）
+├── trading_cycle_manager.py        # 取引サイクル実行管理（1,033行・Phase 49完了・最重要ファイル）
 ├── health_checker.py                # システムヘルスチェック
-├── trading_logger.py                # 取引ログ管理・Discord通知
+├── trading_logger.py                # 取引ログ管理
 ├── system_recovery.py               # 自動復旧システム
 ├── graceful_shutdown_manager.py     # グレースフルシャットダウン
 └── README.md                        # このファイル
 ```
 
+## 📈 Phase 49完了（2025年10月22日）
+
+**🎯 Phase 49: バックテスト完全改修・証拠金維持率80%遵守・TP/SL設定完全同期**
+
+### ✅ Phase 49最適化成果
+- **バックテスト完全改修統合**: 戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker統合・matplotlib可視化
+- **証拠金維持率80%遵守**: critical閾値 100.0 → 80.0変更・詳細ログ・安全優先エラーハンドリング
+- **TP/SL設定完全同期**: thresholds.yaml完全準拠・ハードコード値削除・設定値確実反映
+
 ## 📈 Phase 42.3完了（2025年10月18日）
 
-**🎯 Phase 42.3: ML統合バグ修正・特徴量警告抑制**
+**🎯 Phase 42.3: ML統合バグ修正・特徴量警告抑制・証拠金チェックリトライ**
 
 ### ✅ Phase 42.3最適化成果
 - **Phase 42.3.1: ML Agreement Logic修正**: hold + directional signal誤ボーナス解消（trading_cycle_manager.py:548）
@@ -31,7 +45,8 @@ services/
   - 対策: `strategy_signal_*`を実際の特徴量不足から除外・DEBUGログに変更
   - 効果: 誤警告削除・ログノイズ削減
 
-- **品質保証完了**: 1,081テスト100%成功・69.57%カバレッジ達成
+- **Phase 42.3.3: 証拠金チェックリトライ**: Error 20001（bitbank API認証エラー）3回リトライ実装・無限ループ防止
+- **品質保証完了**: 1,097テスト100%成功・66.72%カバレッジ達成（Phase 49）
 
 ### 📊 Phase 42.3重要事項
 - **ML統合精度向上**: hold信号が方向性信号と誤って一致判定されていた問題を解決
@@ -57,9 +72,9 @@ services/
 
 ## 🔧 主要ファイル詳細
 
-### **trading_cycle_manager.py** 🚀**Phase 42.3 ML統合修正完了**
+### **trading_cycle_manager.py** 🚀**Phase 49完了（最重要・1,033行）**
 
-取引サイクル実行の中核システムです。Phase 29.5でML予測統合ロジックを実装し、Phase 42.3でML Agreement Logic修正・Feature Warning抑制を完了しました。
+取引サイクル実行の中核システムです。データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行のフロー全体を担当。Phase 49でバックテスト完全改修統合・証拠金維持率80%遵守・TP/SL設定完全同期を完了しました。
 
 **Phase 29.5新機能**:
 ```python

@@ -1,53 +1,54 @@
-# models/training/ - 機械学習モデル学習・管理
+# models/training/ - 機械学習モデル学習・管理（Phase 49完了時点）
 
 ## 🎯 役割・責任
 
-個別の機械学習モデルの学習、検証、管理を担当します。LightGBM、XGBoost、RandomForestの3つのアルゴリズムを個別に学習・最適化し、本番環境で使用するアンサンブルモデルの構成要素を提供します。モデルの性能評価、バージョン管理、品質保証を通じて高品質な予測モデルの開発を支援します。
+個別の機械学習モデルの学習、検証、管理を担当します。LightGBM、XGBoost、RandomForestの3つのアルゴリズムを個別に学習・最適化し、55特徴量Strategy-Aware ML・週次自動学習による本番環境アンサンブルモデルの構成要素を提供します。
 
-## 📂 ファイル構成
+## 📂 ファイル構成（Phase 49完了版）
 
 ```
 models/training/
-├── README.md                    # このファイル
-├── lightgbm_model.pkl          # LightGBM個別学習モデル
-├── xgboost_model.pkl           # XGBoost個別学習モデル
-├── random_forest_model.pkl     # RandomForest個別学習モデル
-└── training_metadata.json      # 学習結果とメタデータ
+├── README.md                    # このファイル（Phase 49完了版）
+├── lightgbm_model.pkl          # LightGBM個別学習モデル（45KB）
+├── xgboost_model.pkl           # XGBoost個別学習モデル（371KB）
+├── random_forest_model.pkl     # RandomForest個別学習モデル（1.0MB）
+└── training_metadata.json      # 学習結果とメタデータ（2.5KB）
 ```
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **lightgbm_model.pkl**
+### **lightgbm_model.pkl**（Phase 49完了）
 LightGBMアルゴリズムで学習された個別モデルファイルです。
 - 高速な予測処理と効率的なメモリ使用が特徴
 - 勾配ブースティング手法による高精度予測
-- 約382KBのコンパクトなファイルサイズ
-- アンサンブルモデルでの40%重み付け予定
+- 約45KBのコンパクトなファイルサイズ（Phase 49時点）
+- アンサンブルモデルでの40%重み付け
 - GCP環境での1Gi制約に適合した軽量設計
 
-### **xgboost_model.pkl**
+### **xgboost_model.pkl**（Phase 49完了）
 XGBoostアルゴリズムで学習された個別モデルファイルです。
 - 高精度予測を重視したアルゴリズム設計
 - 過学習防止機能と安定した性能
-- 約537KBのファイルサイズ
-- アンサンブルモデルでの40%重み付け予定
+- 約371KBのファイルサイズ（Phase 49時点）
+- アンサンブルモデルでの40%重み付け
 - 金融時系列データに最適化されたパラメータ
 
-### **random_forest_model.pkl**
+### **random_forest_model.pkl**（Phase 49完了）
 RandomForestアルゴリズムで学習された個別モデルファイルです。
 - アンサンブル学習による安定性と解釈性
 - 過学習に対する高い耐性
-- 約4.3MBの最大ファイルサイズ
-- アンサンブルモデルでの20%重み付け予定
+- 約1.0MBのファイルサイズ（Phase 49時点）
+- アンサンブルモデルでの20%重み付け
 - 基盤的な安定性を提供する役割
 
-### **training_metadata.json**
+### **training_metadata.json**（Phase 49完了）
 学習結果の詳細情報とメタデータを管理するファイルです。
 - 各モデルの性能指標（F1スコア、精度、再現率など）
-- 学習に使用した特徴量の定義と数
-- 交差検証結果とバリデーション手法
+- **55特徴量定義**: 50基本特徴量 + 5戦略信号特徴量（Phase 41.8実装）
+- 交差検証結果とバリデーション手法（TimeSeriesSplit n_splits=5）
 - 学習実行日時とバージョン情報
 - Git情報とモデルハッシュ
+- Phase 40ハイパーパラメータ最適化結果（79パラメータ）
 - 学習データのサンプル数と期間
 - 次回学習スケジュール情報
 

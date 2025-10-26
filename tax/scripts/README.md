@@ -1,4 +1,4 @@
-# scripts/tax/ - 確定申告対応スクリプト（Phase 47実装）
+# tax/scripts/ - 確定申告対応スクリプト（Phase 47実装）
 
 **最終更新**: 2025年10月25日 - Phase 47完了・確定申告対応システム実装・95%時間削減達成
 
@@ -11,7 +11,7 @@
 ## 📂 ファイル構成
 
 ```
-scripts/tax/
+tax/scripts/
 ├── README.md                   # このファイル（Phase 47完了版）
 ├── export_trade_history.py     # CSV出力スクリプト（Phase 47.2実装）
 └── generate_tax_report.py      # 税務レポート生成スクリプト（Phase 47.4実装）
@@ -30,7 +30,7 @@ scripts/tax/
 **実行方法**:
 ```bash
 # 2025年取引履歴をCSV出力
-python3 scripts/tax/export_trade_history.py \
+python3 tax/scripts/export_trade_history.py \
   --start-date 2025-01-01 \
   --end-date 2025-12-31 \
   --output tax/exports/trades_2025.csv
@@ -48,7 +48,7 @@ python3 scripts/tax/export_trade_history.py \
 **実行方法**:
 ```bash
 # 2025年税務レポート生成
-python3 scripts/tax/generate_tax_report.py \
+python3 tax/scripts/generate_tax_report.py \
   --year 2025 \
   --output tax/reports/tax_report_2025.txt
 ```
@@ -63,7 +63,7 @@ cd /Users/nao/Desktop/bot
 # ========================================
 # Step 1: 取引履歴CSV出力
 # ========================================
-python3 scripts/tax/export_trade_history.py \
+python3 tax/scripts/export_trade_history.py \
   --start-date 2025-01-01 \
   --end-date 2025-12-31 \
   --output tax/exports/trades_2025.csv
@@ -76,7 +76,7 @@ python3 scripts/tax/export_trade_history.py \
 # ========================================
 # Step 2: 税務レポート生成
 # ========================================
-python3 scripts/tax/generate_tax_report.py \
+python3 tax/scripts/generate_tax_report.py \
   --year 2025 \
   --output tax/reports/tax_report_2025.txt
 
@@ -96,13 +96,13 @@ python3 scripts/tax/generate_tax_report.py \
 ### **カスタム期間出力**
 ```bash
 # 特定月の取引履歴（2025年1月）
-python3 scripts/tax/export_trade_history.py \
+python3 tax/scripts/export_trade_history.py \
   --start-date 2025-01-01 \
   --end-date 2025-01-31 \
   --output tax/exports/trades_2025_01.csv
 
 # 四半期レポート（2025年Q1）
-python3 scripts/tax/export_trade_history.py \
+python3 tax/scripts/export_trade_history.py \
   --start-date 2025-01-01 \
   --end-date 2025-03-31 \
   --output tax/exports/trades_2025_Q1.csv

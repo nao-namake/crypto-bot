@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 41完了
+特徴量生成統合システム - Phase 49完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -15,7 +15,7 @@ Phase履歴:
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 41完了
+Phase 49完了
 """
 
 from typing import Any, Dict, List, Optional
@@ -39,7 +39,7 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 41完了
+    統合特徴量生成クラス - Phase 49完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
     1つのクラスに統合し、55特徴量生成を効率的に提供。
@@ -717,7 +717,9 @@ class FeatureGenerator:
         """NaN値処理（統合版）"""
         for feature in self.computed_features:
             if feature in df.columns:
-                df[feature] = df[feature].ffill().bfill().fillna(0)
+                # pandas 2.x互換性: チェーン代入を2行に分割
+                df[feature] = df[feature].ffill().bfill()
+                df[feature] = df[feature].fillna(0)
         return df
 
     def _validate_feature_generation(self, df: pd.DataFrame) -> None:

@@ -1,14 +1,14 @@
-# tests/unit/ - 単体テストシステム
+# tests/unit/ - 単体テストシステム（Phase 49完了時点）
 
 ## 🎯 役割・責任
 
-システム全体の単体テストを管理し、コード品質の保証、回帰防止、継続的品質向上を支援します。機械学習モデル、取引戦略、データ処理、監視システムまで、包括的なテストカバレッジでシステムの信頼性を確保します。
+システム全体の単体テストを管理し、コード品質の保証、回帰防止、継続的品質向上を支援します。機械学習モデル、取引戦略、データ処理、監視システムまで、包括的なテストカバレッジでシステムの信頼性を確保します（Phase 49: 1,117テスト・68.32%カバレッジ達成）。
 
-## 📂 ディレクトリ構成
+## 📂 ディレクトリ構成（Phase 49完了版）
 
 ```
 tests/unit/
-├── README.md                    # このファイル
+├── README.md                    # このファイル（Phase 49完了版）
 ├── backtest/                    # バックテストエンジンテスト
 │   └── test_engine.py              # バックテストエンジン・性能評価テスト
 ├── core/                        # コアシステムテスト
@@ -18,12 +18,9 @@ tests/unit/
 │   ├── test_config_thresholds.py       # 設定・閾値管理テスト
 │   └── test_ml_adapter_exception_handling.py  # ML統合・例外処理テスト
 ├── data/                        # データ層テスト
-│   ├── test_bitbank_client.py.disabled # Bitbank APIクライアントテスト（無効）
 │   └── test_data_cache.py           # データキャッシュ・管理テスト
 ├── features/                    # 特徴量システムテスト
-│   ├── test_anomaly.py.deprecated      # 異常検知特徴量テスト（非推奨）
-│   ├── test_feature_generator.py       # 特徴量生成・管理テスト
-│   └── test_technical.py.deprecated    # テクニカル指標テスト（非推奨）
+│   └── test_feature_generator.py       # 特徴量生成・管理テスト（55特徴量対応）
 ├── ml/                          # 機械学習システムテスト
 │   ├── models/                     # 個別モデルテスト
 │   │   ├── test_rf_model.py            # RandomForest モデルテスト
@@ -70,9 +67,9 @@ tests/unit/
 - **モデル管理**: バージョン管理・メタデータ・学習履歴・品質評価
 - 8テストファイル・機械学習パイプライン全体をカバー
 
-### **strategies/ - 取引戦略システムテスト**
-4つの取引戦略の動作確認と戦略管理システムのテストです。
-- **戦略実装**: ATR・フィボナッチ・もちぽよアラート・マルチタイムフレーム
+### **strategies/ - 取引戦略システムテスト**（Phase 49完了版）
+5つの取引戦略の動作確認と戦略管理システムのテストです。
+- **戦略実装**: ATR・フィボナッチ・もちぽよアラート・マルチタイムフレーム・Donchian Channel
 - **戦略基盤**: 共通基盤クラス・戦略インターフェース・統合制御
 - **ユーティリティ**: シグナル構築・リスク管理・定数管理
 - **戦略管理**: 複数戦略の統合・競合解決・信頼度評価
@@ -93,9 +90,9 @@ Discord通知とシステム監視の品質保証です。
 - **監視連携**: Cloud Run・システムヘルス・パフォーマンス監視
 - 3テストファイル・監視システム全体をカバー
 
-### **features/ - 特徴量システムテスト**
+### **features/ - 特徴量システムテスト**（Phase 49完了版）
 特徴量生成とデータ処理の品質保証です。
-- **特徴量生成**: 12特徴量・テクニカル指標・異常検知特徴量
+- **特徴量生成**: 55特徴量（50基本+5戦略信号）・テクニカル指標・Strategy-Aware ML対応
 - **データ品質**: 欠損値処理・異常値検知・データ整合性
 - **パフォーマンス**: 生成速度・メモリ効率・スケーラビリティ
 - 1アクティブテストファイル・特徴量システムをカバー
@@ -197,10 +194,10 @@ open coverage-reports/htmlcov/index.html
 
 ## 🔗 関連ファイル・依存関係
 
-### **テスト対象システム**
-- `src/features/feature_generator.py`: 特徴量生成・12特徴量・データ前処理
+### **テスト対象システム**（Phase 49完了版）
+- `src/features/feature_manager.py`: 特徴量生成・55特徴量（50基本+5戦略信号）・データ前処理
 - `src/ml/ensemble.py`: ProductionEnsemble・3モデル統合・予測エンジン
-- `src/strategies/`: 4戦略・戦略管理・シグナル生成・リスク管理
+- `src/strategies/`: 5戦略・戦略管理・シグナル生成・リスク管理
 - `src/trading/`: 取引実行・リスク管理・異常検知・ドローダウン管理
 - `src/monitoring/`: Discord通知・システム監視・アラート・ヘルスチェック
 
@@ -218,5 +215,5 @@ open coverage-reports/htmlcov/index.html
 
 ### **品質保証・CI/CD**
 - `.github/workflows/`: CI/CDパイプライン・自動テスト・品質ゲート
-- `scripts/testing/checks.sh`: 品質チェック（Phase 39完了版）・テスト実行・統合確認
+- `scripts/testing/checks.sh`: 品質チェック（Phase 49完了版）・テスト実行・統合確認
 - Discord通知・Cloud Run監視・GitHub Actions統合・自動品質管理

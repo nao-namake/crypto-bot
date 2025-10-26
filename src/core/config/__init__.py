@@ -1,11 +1,14 @@
 """
-統合設定管理システム - Phase 38.4完了版
+統合設定管理システム - Phase 49完了
 
 環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 
-Phase 28-29最適化: 統合設定管理システム確立
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 3層設定体系（features.yaml・unified.yaml・thresholds.yaml）
+- threshold_manager: 8専用アクセス関数・実行時オーバーライド対応（Phase 40.1 Optuna最適化）
+- feature_manager: 55特徴量管理（Phase 41 Strategy-Aware ML）
+- runtime_flags: バックテストモード・ペーパーモード制御（Phase 35）
+Phase 28-29: 統合設定管理システム確立
 """
 
 import os

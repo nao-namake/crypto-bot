@@ -1,12 +1,17 @@
 """
-ペーパートレードランナー - Phase 38.4完了版
+ペーパートレードランナー - Phase 49完了
 
 orchestrator.pyから分離したペーパートレード実行機能。
 ペーパートレードモードの専用処理・セッション管理を担当。
 
-Phase 28-29最適化: ペーパートレードモード専用処理・レポート生成確立
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- ペーパートレード管理（trading_cycle_manager統合・仮想取引実行）
+- セッション統計（cycle_count・session_stats）
+- レポート生成（PaperTradingReporter統合）
+- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
+- Discord通知統合（セッション開始・エラー通知）
+
+Phase 28-29: ペーパートレードモード専用処理・レポート生成確立
 """
 
 import asyncio

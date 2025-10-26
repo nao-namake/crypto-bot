@@ -1,12 +1,17 @@
 """
-ペーパートレードレポーター - Phase 38.4完了版
+ペーパートレードレポーター - Phase 49完了
 
 orchestrator.pyから分離したペーパートレードレポート生成機能。
 ペーパートレードセッションの統計・レポート作成を担当。
 
-Phase 28-29最適化: ペーパートレードレポート専門化・Markdown/JSON生成
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- セッションレポート生成（cycle数・取引統計・session_stats）
+- 取引履歴レポート生成（trade_history・時系列記録）
+- パフォーマンスレポート生成（勝率・損益・ドローダウン）
+- Markdown・JSON両形式出力
+- thresholds.yaml設定準拠（reporting.paper_trading_dir: logs/paper_trading_reports）
+
+Phase 28-29: ペーパートレードレポート専門化・Markdown/JSON生成
 """
 
 import json

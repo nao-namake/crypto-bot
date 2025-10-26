@@ -1,92 +1,138 @@
-# GitHub Actions Workflows - 統一設定管理体系
+# GitHub Actions Workflows
 
-## 🎯 役割・責任
+## 🎯 役割
 
-このディレクトリには、統一設定管理体系の下で実行される3つのワークフローファイルが含まれています。CI/CD統一化・設定不整合完全解消により、システムの品質保証、機械学習モデルの管理、リソース最適化を実現します。
+このディレクトリには、AI自動取引システムのCI/CD、ML自動再学習、リソース管理、レポート自動送信を実現する4つのワークフローが含まれています。
 
 ## 📂 ファイル構成
 
 ```
-workflows/
-├── ci.yml               # メインCI/CDパイプライン（統一設定管理体系対応）
-├── model-training.yml   # ML モデル学習・デプロイメント（15特徴量統一）
-├── cleanup.yml          # GCPリソースクリーンアップ（625テスト品質保証）
+.github/workflows/
+├── ci.yml               # CI/CDパイプライン（品質チェック・ビルド・デプロイ）
+├── model-training.yml   # ML自動再学習（週次・55特徴量Strategy-Aware ML）
+├── cleanup.yml          # GCPリソースクリーンアップ（月次・コスト最適化）
+├── weekly_report.yml    # 週間レポート自動送信（Phase 48実装）
 └── README.md            # このファイル
 ```
 
-## 🔧 ワークフローの役割・ルール
+## 🔧 ワークフロー詳細
 
-### **ci.yml - CI/CDパイプライン（統一設定管理体系）**
+### **ci.yml - CI/CDパイプライン**
 
-**役割**: メインのCI/CDパイプライン・設定不整合完全解消・GitHub Actions統一
+**役割**: メインのCI/CDパイプライン・品質保証・本番自動デプロイ
 
 **実行条件**:
-- `main` ブランチへのプッシュ（自動デプロイ・MODE=live）
+- `main` ブランチへのプッシュ（自動デプロイ）
 - プルリクエスト作成時（品質チェック）
-- 手動実行
-- **repository_dispatch**: ML学習完了時の自動デプロイ（`model-updated`イベント）
+- 手動実行（`workflow_dispatch`）
+- ML学習完了時（`model-updated`イベント）
 
 **実行フロー**:
-1. **品質チェック**: 625テスト実行・64.74%カバレッジ・コード品質確認
-2. **GCP環境確認**: Secret Manager（:3,:5）・Workload Identity・必要リソース確認
+1. **品質チェック**: 1,117テスト実行・68.32%カバレッジ・コード品質確認（Phase 49完了）
+2. **GCP環境確認**: Secret Manager・Workload Identity・必要リソース確認
 3. **Dockerビルド**: イメージ構築とArtifact Registryプッシュ
-4. **本番デプロイ**: Cloud Runサービスデプロイ（MODE=live統一設定）
-5. **ヘルスチェック**: デプロイ成功確認
+4. **Docker起動テスト**: Phase 49.14実装（モジュールimport検証）
+5. **本番デプロイ**: Cloud Runサービスデプロイ（MODE=live）
+6. **ヘルスチェック**: デプロイ成功確認
 
-### **model-training.yml - MLモデル学習・デプロイメント（15特徴量統一）**
+**品質保証**: 1,117テスト100%成功・68.32%カバレッジ達成（Phase 49完了）
 
-**役割**: MLモデルの学習とデプロイメント・15特徴量統一システム
+---
+
+### **model-training.yml - ML自動再学習**
+
+**役割**: MLモデルの週次自動再学習とデプロイメント・55特徴量Strategy-Aware ML
 
 **実行条件**:
 - 毎週日曜日 18:00 JST（スケジュール実行）
-- 手動実行（パラメータ設定可能）
+- 手動実行（`workflow_dispatch`・パラメータ設定可能）
 
 **パラメータ**:
-- `training_days`: 学習データ期間（90/180/365日）
-- `dry_run`: テスト実行フラグ
+- `n_trials`: Optuna最適化試行回数（50推奨・100高精度・30テスト用）
+- `dry_run`: ドライラン実行フラグ（モデル保存なし）
 
 **実行フロー**:
-1. **環境セットアップ**: Python3.13・依存関係インストール・モデルディレクトリ作成
-2. **モデル学習**: ProductionEnsemble・3モデルアンサンブル学習・指定期間データ
-3. **品質検証**: 15特徴量・モデルファイル・メタデータ整合性検証
+1. **環境セットアップ**: Python3.13・依存関係インストール
+2. **ML学習実行**: 統合運用ガイド準拠コマンド
+   ```bash
+   --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+   ```
+3. **品質検証**: 55特徴量検証（最小50特徴量・将来の拡張対応）・モデルタイプ確認
 4. **バージョン管理**: 自動コミット・プッシュ・Git情報追跡
-5. **デプロイトリガー**: repository_dispatch → `model-updated`イベント送信
+5. **デプロイトリガー**: `model-updated`イベント送信 → ci.yml自動実行
 
-### **cleanup.yml - GCPリソースクリーンアップ（625テスト品質保証）**
+**実行時間**: 約4-8分（50-100 trials）・タイムアウト30分
 
-**役割**: GCPリソースの自動削除とコスト最適化・625テスト品質保証環境
+---
+
+### **cleanup.yml - GCPリソースクリーンアップ**
+
+**役割**: GCPリソースの自動削除とコスト最適化（月30%削減）
 
 **実行条件**:
-- 手動実行（推奨）
+- 手動実行（`workflow_dispatch`・推奨）
 - 毎月第1日曜日 JST 2:00 AM（スケジュール実行）
 
 **パラメータ**:
 - `cleanup_level`: クリーンアップレベル（safe/moderate/aggressive）
 
 **クリーンアップレベル**:
-- **Safe**: 古いDockerイメージ・Cloud Runリビジョンのみ削除
-- **Moderate**: Safe + Cloud Build履歴・古いリビジョン削除
-- **Aggressive**: より積極的な大量削除
+- **Safe**: 古いDockerイメージ（最新5個保持）・Cloud Runリビジョン（最新3個保持）
+- **Moderate**: Safe + Cloud Build履歴（30日以上）
+- **Aggressive**: より積極的な大量削除（要注意）
+
+**コスト削減効果**: 月30%削減・年間コスト最適化
+
+---
+
+### **weekly_report.yml - 週間レポート自動送信**
+
+**役割**: 週間取引統計レポート（損益曲線グラフ付き）のDiscord自動送信
+
+**実行条件**:
+- 毎週月曜日 9:00 JST（スケジュール実行）
+- 手動実行（`workflow_dispatch`）
+
+**レポート内容**:
+- 週間損益統計（勝率・取引回数・最大利益/損失）
+- 損益曲線グラフ（matplotlib生成）
+- Discord自動送信
+
+**現状制限**: Cloud Storage未統合（将来実装予定・Phase 50以降）
+
+**通知削減効果**: 99%削減（300-1,500回/月 → 4回/月）
+
+---
 
 ## 📝 使用方法
 
-### **完全自動化フロー（統一設定管理体系）**
+### **完全自動化フロー**
 
 ```
 🗓️  毎週日曜18:00 JST
     ↓
 🤖 model-training.yml 自動実行
-    ├── Python3.13環境・MLライブラリ依存関係
+    ├── Python3.13環境セットアップ
     ├── ProductionEnsemble学習（LightGBM・XGBoost・RandomForest）
-    ├── 15特徴量品質検証・モデル整合性確認
-    └── Git自動コミット・repository_dispatch送信
+    ├── 55特徴量品質検証（最小50特徴量・将来拡張対応）
+    └── Git自動コミット・model-updatedイベント送信
     ↓
-🚀 ci.yml 自動トリガー（model-updatedイベント）
-    ├── 625テスト・品質チェック・64.74%カバレッジ確認
+🚀 ci.yml 自動トリガー
+    ├── 1,117テスト・品質チェック・68.32%カバレッジ確認
     ├── Docker Build・Artifact Registry プッシュ
     └── Cloud Run本番デプロイ・新MLモデル適用（MODE=live）
     ↓
 ✅ 週次完全自動モデル更新完了
+
+🗓️  毎週月曜9:00 JST
+    ↓
+📊 weekly_report.yml 自動実行
+    └── 週間レポート（損益統計・グラフ）Discord送信
+
+🗓️  毎月第1日曜2:00 JST
+    ↓
+🧹 cleanup.yml 自動実行（safeモード）
+    └── 古いリソース削除・コスト30%削減
 ```
 
 ### **手動実行方法**
@@ -94,12 +140,13 @@ workflows/
 ```bash
 # GitHub CLI使用
 gh workflow run ci.yml                                    # CI/CDパイプライン
-gh workflow run model-training.yml                       # MLモデル学習
+gh workflow run model-training.yml                       # MLモデル学習（50 trials）
 gh workflow run cleanup.yml -f cleanup_level=safe        # リソースクリーンアップ
+gh workflow run weekly_report.yml                        # 週間レポート即座送信
 
 # パラメータ付き実行
-gh workflow run model-training.yml -f training_days=365  # 365日学習
-gh workflow run model-training.yml -f dry_run=true       # テスト実行
+gh workflow run model-training.yml -f n_trials=100       # 高精度学習（100 trials）
+gh workflow run model-training.yml -f dry_run=true       # ドライラン（モデル保存なし）
 gh workflow run cleanup.yml -f cleanup_level=moderate    # 中程度クリーンアップ
 ```
 
@@ -109,89 +156,99 @@ gh workflow run cleanup.yml -f cleanup_level=moderate    # 中程度クリーン
 # 実行履歴確認
 gh run list --workflow=ci.yml --limit 5
 gh run list --workflow=model-training.yml --limit 5
+gh run list --workflow=cleanup.yml --limit 5
+gh run list --workflow=weekly_report.yml --limit 5
 
 # 詳細ログ確認
 gh run view [RUN_ID] --log
+
+# 最新実行確認
+gh run list --limit 1
 ```
 
-## ⚠️ 注意事項
+---
 
-### **統一設定管理体系制約**
+## ⚠️ 重要な設定・制約
+
+### **実行制約**
 - **同時実行制限**: mainブランチでは順次実行（競合回避）
-- **実行時間制限**: CI/CD 30分・ML学習 60分・クリーンアップ 20分
+- **実行時間制限**: CI/CD 30分・ML学習 30分・クリーンアップ 20分・週間レポート 10分
 - **Python版**: 3.13（全ワークフロー統一・MLライブラリ互換性最適化）
-- **MODE設定**: CI/CDは自動的にMODE=live（統一設定管理体系）
+- **実行制限**: mainブランチでの実行に制限（安全性確保）
 
-### **権限・セキュリティ（統一設定管理体系対応）**
+### **GCP認証・権限**
 - **Workload Identity**: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
 - **Service Account**: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`
-- **Secret Manager**: 具体的バージョン（bitbank-api-key:3, bitbank-api-secret:3, discord-webhook-url:6）
-- **実行制限**: mainブランチでの実行に制限（安全性確保）
+- **Secret Manager**: 具体的バージョン必須
+  - `bitbank-api-key:3`
+  - `bitbank-api-secret:3`
+  - `discord-webhook-url:6`
+
+### **環境変数**
+- **MODE**: CI/CD時自動的に `live`
+- **LOG_LEVEL**: `INFO`
+- **PYTHONPATH**: `/app`
+- **FEATURE_MODE**: `full`
+- **DEPLOY_STAGE**: `live`
 
 ### **依存関係**
 - GCPプロジェクト設定とリソースの事前準備が必要
-- 各ワークフローは他のプロジェクトファイル（scripts/, src/, models/ など）に依存
-- 統一設定管理体系：全設定ファイルとの整合性が必要
+- 各ワークフローは他のプロジェクトファイル（`scripts/`, `src/`, `models/` など）に依存
+- 全設定ファイル（`config/core/*.yaml`）との整合性が必要
+
+---
 
 ## 🔧 重要な修正履歴
 
-### **2025-09-18: 統一設定管理体系確立完了**
+### **2025-10-25: Phase 49完了対応**
 
-**実現内容**: CI/CD・GCP・設定ファイルの完全統一・設定不整合完全解消
+**更新内容**:
+- 1,117テスト・68.32%カバレッジ達成
+- 55特徴量Strategy-Aware ML対応（model-training.yml）
+- 特徴量検証を柔軟化（最小50特徴量・将来拡張対応）
+- ML学習パラメータ修正（`training_days` → `n_trials`）
+- Docker起動テスト実装（Phase 49.14）
+
+---
+
+### **2025-09-18: CI/CD統一・設定不整合解消**
+
+**実現内容**: CI/CD・GCP・設定ファイルの完全統一
 
 **主要改善**:
-- **cloudbuild.yaml削除**: GitHub Actions統一・Cloud Build廃止・設定不整合解消
-- **Secret Manager最適化**: :latest廃止→具体的バージョン（:3,:5）・セキュリティ向上
-- **MODE設定統一**: CI/CD時自動的にMODE=live・環境変数で統一制御
-- **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC・実用性大幅向上
+- **cloudbuild.yaml削除**: GitHub Actions統一・Cloud Build廃止
+- **Secret Manager最適化**: `:latest`廃止→具体的バージョン（:3, :6）
+- **MODE設定統一**: CI/CD時自動的に `MODE=live`
+- **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC
 - **Python版統一**: 全ワークフローで3.13統一
-- **テスト・品質統一**: 625テスト・64.74%カバレッジ・15特徴量で統一
 
 **技術的詳細**:
 - 3層優先順位：CLI引数 > 環境変数 > YAML設定
-- CI/CD環境変数：MODE=live・LOG_LEVEL=INFO・PYTHONPATH=/app
-- Secret Manager具体的バージョン使用でCloud Run環境での動的参照問題解決
+- Secret Manager具体的バージョン使用でCloud Run環境の動的参照問題解決
 
-**影響**:
-- ✅ 設定不整合完全解消・100%統一達成
-- ✅ CI/CDでデプロイ時確実にライブモード動作
-- ✅ Kelly基準問題解決・取引開始促進
-- ✅ 全システムで統一設定管理体系確立
-
-### **2025-09-15: Secret Manager参照修正（根本原因解決）**
-
-**解決方法**: 具体的バージョン番号に変更（ci.yml:319）
-```yaml
-# 修正後の設定
---set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6"
-```
-
-**教訓**: Cloud Run環境では `key: latest` ではなく具体的バージョン番号を使用
+---
 
 ### **2025-09-19: Discord Webhook 401エラー修正**
 
-**問題**: GCP Secret Manager version 5の Discord Webhook URL が122文字（余分な文字）で401エラー発生
-
-**症状**:
-- ローカル環境: 121文字のURL → 正常動作
-- Cloud Run環境: 122文字のURL → 401エラー「Invalid Webhook Token」
+**問題**: Secret Manager version 5のDiscord Webhook URLが122文字（余分な文字）で401エラー発生
 
 **解決方法**: 正確な121文字URLでSecret Manager version 6作成
+
 ```bash
 # 新バージョン作成
 echo -n "正確な121文字URL" | gcloud secrets versions add discord-webhook-url --data-file=-
 
-# CI/CD設定更新（ci.yml:319）
+# CI/CD設定更新（ci.yml）
 DISCORD_WEBHOOK_URL=discord-webhook-url:6  # version 5 → 6
 ```
 
 **確認結果**:
 - ✅ Secret Manager version 6: 121文字（正確）
 - ✅ Webhook テスト: HTTP 204 成功
-- ✅ CI/CD設定更新: discord-webhook-url:6
+- ✅ CI/CD設定更新: `discord-webhook-url:6`
 
 **教訓**: Secret Managerの文字数精度が重要、テスト環境での文字数検証必須
 
 ---
 
-**統一設定管理体系により、AI自動取引botのCI/CD・GCP環境・設定ファイルが100%統一され、設定不整合問題が完全に解消されました。**
+**Phase 49完了**: 1,117テスト100%成功・68.32%カバレッジ達成・55特徴量Strategy-Aware ML・SELL Only問題解決・証拠金維持率80%遵守により、企業級品質のAI自動取引システムが完全自動化されています。

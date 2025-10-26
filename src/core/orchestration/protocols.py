@@ -1,11 +1,15 @@
 """
-サービスプロトコル定義 - Phase 38.4完了版
+サービスプロトコル定義 - Phase 49完了
 
 各サービス層のインターフェース定義・Protocol型ヒント基盤システム
 
-Phase 28-29最適化: Protocol型ヒントシステム確立・依存性注入基盤
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 5サービスプロトコル定義（Data・Feature・Strategy・ML・Execution）
+- Protocol型ヒントシステム（typing.Protocol基盤）
+- 依存性注入基盤（TradingOrchestrator型安全注入）
+- 循環インポート回避（TYPE_CHECKING条件分岐）
+
+Phase 28-29: Protocol型ヒントシステム確立・依存性注入基盤
 """
 
 # 循環インポート回避のため、型ヒントでのみ使用

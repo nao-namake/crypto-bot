@@ -1,104 +1,81 @@
-# scripts/deployment/ - デプロイメント・インフラ管理スクリプト（Phase 28完了・Phase 29最適化版）
+# scripts/deployment/ - デプロイメント・インフラ管理スクリプト（Phase 49完了時点）
 
 ## 🎯 役割・責任
 
-本番環境へのデプロイメント、GCP Cloud Run環境の構築・管理、CI/CD環境の設定、認証システムの管理を担当するインフラ管理スクリプト群を管理します。Docker コンテナベースの本番デプロイから GCP サービスの設定、GitHub Actions との統合まで、システムの運用基盤を構築・保守する包括的なデプロイメントツールを提供します。
+本番環境へのデプロイメント、GCP Cloud Run環境の管理、Docker コンテナベースの運用基盤を提供します。実運用に必要なスクリプトのみを管理し、初期セットアップ用スクリプトは archive/ に保管しています。
 
-**Phase 29最適化成果**: 625テスト100%成功・64.74%カバレッジ達成・統一設定管理体系確立・デプロイメント品質向上
+**Phase 49完了成果**: 1,117テスト100%成功・68.32%カバレッジ達成・バックテスト完全改修・確定申告対応・週間レポート実装
 
-## 📂 ファイル構成
+## 📂 ファイル構成（Phase 49完了版）
 
 ```
 scripts/deployment/
-├── README.md                    # このファイル
-├── deploy_production.sh         # 本番環境デプロイメント・Cloud Run管理
-├── docker-entrypoint.sh         # Dockerコンテナエントリーポイント・起動制御
-├── setup_gcp_environment.sh     # 統合GCP環境構築・認証管理・GitHub Actions設定
-└── verify_gcp_setup.sh          # GCP環境検証・設定確認
+├── README.md                    # このファイル（Phase 49完了版）
+├── docker-entrypoint.sh         # Dockerコンテナエントリーポイント・起動制御（Phase 49完了）
+└── archive/                     # 初期セットアップ用スクリプト（環境構築済みのため使用頻度低）
+    ├── setup_gcp_environment.sh     # 統合GCP環境構築・認証管理（初期構築のみ）
+    └── verify_gcp_setup.sh          # GCP環境検証・設定確認（診断時のみ）
 ```
+
+**注**: deploy_production.shは削除（`.github/workflows/ci.yml`で`gcloud run deploy`を直接使用）
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **deploy_production.sh**
-GCP Cloud Run への本番デプロイメントを管理するメインスクリプトです。
-- **段階的デプロイ**: paper→stage-10→stage-50→live の段階的リリース
-- **Docker統合**: Dockerfile ビルド・Artifact Registry 管理・イメージ推送
-- **サービス管理**: Cloud Run サービス作成・更新・環境変数設定
-- **品質ゲート**: デプロイ前後のテスト実行・品質確認・ロールバック機能
-- **Discord通知**: デプロイ状況の通知・成功/失敗レポート送信
-- **ヘルスチェック**: サービス起動確認・応答性テスト・安定性検証
-- 約20KBの実装ファイル
-
-### **docker-entrypoint.sh**
+### **docker-entrypoint.sh**（Phase 49完了）
 Docker コンテナの起動制御とプロセス管理を担当します。
 - **デュアルプロセス**: ヘルスチェックサーバーと取引システムの並行実行
 - **環境初期化**: Python パス設定・依存関係確認・設定ファイル検証
-- **ヘルスチェックAPI**: /health エンドポイント・軽量JSON応答・監視連携
+- **MLモデル検証**: 起動時55特徴量Strategy-Aware MLモデル動作確認
+- **ヘルスチェックAPI**: /health エンドポイント・軽量JSON応答・Phase 49情報表示
 - **プロセス監視**: メインプロセス監視・異常終了検知・自動復旧処理
 - **エラーハンドリング**: 起動失敗時の詳細ログ・診断情報・適切な終了処理
 - **Cloud Run最適化**: メモリ効率・起動時間短縮・スケーリング対応
 - 約8.7KBの実装ファイル
 
-### **setup_gcp_environment.sh**
-統合GCP環境構築スクリプト - CI/CD環境構築とSecret Manager認証管理を統合した包括的な環境セットアップツールです。
-- **統合環境構築**: Cloud Run・Artifact Registry・Secret Manager・IAM設定を一元管理
-- **GitHub Actions統合**: OIDC設定・Workload Identity構築・CI/CD用サービスアカウント設定
-- **認証情報管理**: Bitbank API・Discord Webhook・その他認証情報の安全な設定
-- **モード選択**: `--full`（完全構築）、`--apis-only`（API有効化のみ）、`--secrets-only`（認証情報のみ）、`--verify`（検証のみ）
-- **対話式設定**: 安全な入力・確認・設定検証・自動修復機能
-- **環境検証**: 設定完了後の包括的動作確認・接続テスト・権限確認
-- **レポート生成**: 詳細な設定結果レポート・問題診断・修復手順提示
-- 約25KBの実装ファイル
+### **archive/**（初期セットアップ専用）
+GCP環境の初期構築・検証用スクリプトを保管するフォルダです。Phase 49時点でGCP環境構築済みのため、通常運用では使用しません。
 
-### **verify_gcp_setup.sh**
-GCP 環境の設定状況を包括的に検証・診断します。
-- **環境診断**: GCP サービス設定・権限・接続状況の全体確認
-- **Cloud Run検証**: サービス状態・設定・ヘルスチェック・スケーリング
-- **Secret Manager確認**: 認証情報存在・アクセス権限・設定整合性
-- **GitHub Actions確認**: OIDC 設定・Workload Identity・CI/CD 権限
-- **ネットワーク検証**: API 接続・外部サービス通信・レスポンス確認
-- **問題診断**: 設定不備検出・修復提案・詳細レポート生成
-- 約27KBの実装ファイル
+**setup_gcp_environment.sh**（24KB・690行・Phase 29）:
+- **用途**: GCP環境初期構築（API有効化・IAM設定・Secret Manager設定）
+- **使用頻度**: 極めて低い（初期構築済み・環境再構築時のみ）
+- **代替方法**: 日常運用は`gcloud`コマンドで直接実行
+
+**verify_gcp_setup.sh**（26KB・714行・Phase 29）:
+- **用途**: GCP環境検証・診断（Cloud Run・Secret Manager・GitHub Actions）
+- **使用頻度**: 低い（環境診断時のみ・`.github/workflows/ci.yml`で権限付与のみ）
+- **代替方法**: `gcloud run services describe crypto-bot-service-prod --region=asia-northeast1`等で直接確認
+
+**保持理由**: 環境再構築・新規環境セットアップ時に有用（完全削除せず保管）
 
 ## 📝 使用方法・例
 
-### **基本的なデプロイワークフロー**
+### **日常運用**（Phase 49完了版）
 ```bash
-# 1. 品質チェック（デプロイ前必須）
+# 1. 品質チェック（開発時必須）
 bash scripts/testing/checks.sh
 
-# 2. GCP環境検証
-bash scripts/deployment/verify_gcp_setup.sh --full
+# 2. 本番環境稼働確認
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
 
-# 3. 本番環境デプロイ
-bash scripts/deployment/deploy_production.sh --staged
+# 3. システムログ確認
+gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
-# 4. デプロイ後確認
-bash scripts/deployment/verify_gcp_setup.sh --cloud-run-check
+# 4. ヘルスチェック確認
+curl https://crypto-bot-service-prod-XXXXXXXX.asia-northeast1.run.app/health
 ```
 
-### **初回環境構築**
+**注**: デプロイは`.github/workflows/ci.yml`で自動実行（GitHub Actionsワークフロー）
+
+### **環境再構築時のみ**（通常運用では不要）
 ```bash
 # 1. 統合GCP環境構築（完全セットアップ）
-bash scripts/deployment/setup_gcp_environment.sh --full
+bash scripts/deployment/archive/setup_gcp_environment.sh --full
 
 # 2. 環境設定検証
-bash scripts/deployment/verify_gcp_setup.sh --full --final-check
+bash scripts/deployment/archive/verify_gcp_setup.sh --full --final-check
 
-# 3. 初回デプロイ実行
-bash scripts/deployment/deploy_production.sh --first-deploy
-```
-
-### **段階的環境構築**
-```bash
-# APIs有効化のみ（初期準備）
-bash scripts/deployment/setup_gcp_environment.sh --apis-only
-
-# 認証情報設定のみ
-bash scripts/deployment/setup_gcp_environment.sh --secrets-only
-
-# 設定検証のみ
-bash scripts/deployment/setup_gcp_environment.sh --verify
+# 3. デプロイはGitHub Actionsで自動実行
+# （ci.ymlのgcloud run deployが実行される）
 ```
 
 ### **Docker コンテナ管理**
@@ -114,19 +91,22 @@ bash scripts/deployment/docker-entrypoint.sh
 curl http://localhost:8080/health
 ```
 
-### **トラブルシューティング**
+### **トラブルシューティング**（Phase 49完了版）
 ```bash
-# 詳細診断実行
-bash scripts/deployment/verify_gcp_setup.sh --debug --verbose
-
-# Cloud Run ログ確認
+# Cloud Run ログ確認（Phase 49情報表示）
 gcloud logging read "resource.type=cloud_run_revision" --limit=50
 
 # サービス状態確認
 gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
 
 # デプロイ履歴確認
-gcloud run revisions list --service=crypto-bot-service-prod
+gcloud run revisions list --service=crypto-bot-service-prod --region=asia-northeast1
+
+# ヘルスチェック確認（Phase 49情報取得）
+curl https://crypto-bot-service-prod-XXXXXXXX.asia-northeast1.run.app/health | jq
+
+# 環境再構築時の詳細診断（通常運用では不要）
+bash scripts/deployment/archive/verify_gcp_setup.sh --debug --verbose
 ```
 
 ## ⚠️ 注意事項・制約
@@ -137,10 +117,10 @@ gcloud run revisions list --service=crypto-bot-service-prod
 - **GitHub統合**: GitHub Actions・OIDC・Workload Identity 設定完了
 - **Docker環境**: Docker・gcloud CLI・kubectl インストール・認証設定
 
-### **デプロイメント制約**
-- **品質ゲート**: テスト成功・コード品質・依存関係確認必須
-- **段階的デプロイ**: paper→stage→live 順次実行・各段階での確認必須
-- **リソース制限**: GCP 無料枠・Cloud Run メモリ/CPU制限・コスト管理
+### **デプロイメント制約**（Phase 49完了版）
+- **品質ゲート**: 1,117テスト100%成功・68.32%カバレッジ・コード品質確認必須
+- **自動デプロイ**: GitHub Actions CI/CDワークフロー（.github/workflows/ci.yml）で自動実行
+- **リソース制限**: GCP Cloud Run 1Gi・1CPU・月額700-900円コスト管理
 - **ネットワーク**: 外部API接続・Discord通知・Bitbank API アクセス必須
 
 ### **セキュリティ要件**

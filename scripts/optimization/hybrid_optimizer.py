@@ -60,7 +60,7 @@ class HybridOptimizer:
         n_lightweight_candidates: int = 30,  # Phase 40.5最適化: 50→30（実行時間短縮）
         n_full_candidates: int = 7,  # Phase 40.5最適化: 10→7（実行時間短縮）
         study_name: Optional[str] = None,
-        checkpoint_dir: str = "config/optuna_checkpoints",
+        checkpoint_dir: str = "config/optimization/checkpoints",
         verbose: bool = True,
     ):
         """

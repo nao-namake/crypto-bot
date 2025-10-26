@@ -1,20 +1,20 @@
 # src/data/ - データ層
 
-**Phase 38.4完了**: Bitbank信用取引API統合・TP/SL注文機能・保証金監視・マルチタイムフレームデータパイプライン・SSL証明書セキュリティ対応。
+**Phase 49完了**: Bitbank信用取引API統合・TP/SL注文機能・保証金監視・マルチタイムフレームデータパイプライン・SSL証明書セキュリティ対応・維持率80%遵守ロジック実装。
 
 ## 📂 ファイル構成
 
 ```
 src/data/
-├── __init__.py          # データ層エクスポート（35行）
-├── bitbank_client.py    # Bitbank API接続クライアント（842行・Phase 29.6: TP/SL注文機能追加）
-├── data_pipeline.py     # データ取得パイプライン（447行）
-└── data_cache.py        # キャッシングシステム（469行）
+├── __init__.py          # データ層エクスポート（36行・Phase 49完了）
+├── bitbank_client.py    # Bitbank API接続クライアント（1,299行・Phase 49完了）
+├── data_pipeline.py     # データ取得パイプライン（557行・Phase 49完了）
+└── data_cache.py        # キャッシングシステム（469行・Phase 49完了）
 ```
 
 ## 🔧 主要コンポーネント
 
-### **bitbank_client.py（842行・Phase 29.6更新）**
+### **bitbank_client.py（1,299行・Phase 49完了）**
 
 **目的**: Bitbank信用取引API専用クライアント
 
@@ -91,10 +91,10 @@ if client.test_connection():
     )
 ```
 
-### **data_pipeline.py（447行）**
+### **data_pipeline.py（557行・Phase 49完了）**
 
 **目的**: マルチタイムフレーム対応データ取得パイプライン
-**タイムフレーム**: 15分足・4時間足の2軸構成
+**タイムフレーム**: 15分足（メイン）・4時間足（環境認識）の2軸構成
 
 **主要クラス**:
 ```python
@@ -130,7 +130,7 @@ multi_data = await pipeline.fetch_multi_timeframe("BTC/JPY", limit=100)
 df = await fetch_market_data("BTC/JPY", "4h", 100)
 ```
 
-### **data_cache.py（469行）**
+### **data_cache.py（469行・Phase 49完了）**
 
 **目的**: 高速データアクセス・階層化キャッシング
 **戦略**: LRUメモリキャッシュ・3ヶ月ディスク保存・階層化アクセス
@@ -197,9 +197,9 @@ if cached_data is None:
 ### **特性・制約**
 - **API制限**: 1000ms間隔・最大3回リトライ・30秒タイムアウト
 - **パフォーマンス**: メモリ5分・ディスク3ヶ月・ヒット率80%以上
-- **Phase 38.4完了**: SSL証明書セキュリティ強化・信用取引特化設計・Phase 35-37.5機能追加完了
+- **Phase 49完了**: SSL証明書セキュリティ強化・信用取引特化設計・Phase 35-49機能追加完了・維持率80%遵守ロジック
 - **依存**: ccxt・pandas・aiohttp・src.core.*
 
 ---
 
-**データ層（Phase 38.4完了）**: Bitbank信用取引特化・SSL証明書セキュリティ対応・保証金監視API統合・マルチタイムフレームデータパイプライン・階層化キャッシング機能。
+**データ層（Phase 49完了）**: Bitbank信用取引特化・SSL証明書セキュリティ対応・保証金監視API統合・マルチタイムフレームデータパイプライン（15m足メイン/4h足環境認識）・階層化キャッシング機能・維持率80%遵守ロジック実装。

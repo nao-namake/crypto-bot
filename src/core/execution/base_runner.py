@@ -1,12 +1,15 @@
 """
-基底ランナークラス - Phase 38.4完了版
+基底ランナークラス - Phase 49完了
 
 実行モードの共通機能・インターフェースを提供。
 orchestrator.pyから分離した実行モード機能の基盤。
 
-Phase 28-29最適化: 実行モード基底クラス設計・共通機能抽出完了
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 共通インターフェース定義（run・initialize_mode・cleanup_mode抽象メソッド）
+- 3モード共通機能（orchestrator参照・logger統合・config取得・モード名自動設定）
+- ABC（Abstract Base Class）型安全設計
+
+Phase 28-29: 実行モード基底クラス設計・共通機能抽出完了
 """
 
 import asyncio

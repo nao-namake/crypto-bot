@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crypto-bot"
-version = "37.4.0"
-description = "AI-powered cryptocurrency trading bot - Phase 37.4完了・SL配置問題完全解決・コスト最適化達成"
+version = "49.15.0"
+description = "AI-powered cryptocurrency trading bot - Phase 49.15完了・システム整合性検証7項目拡張・1,117テスト100%・68.32%カバレッジ達成"
 authors = [{name = "Crypto Bot Team", email = "team@crypto-bot.local"}]
 readme = "README.md"
 requires-python = ">=3.13"
@@ -78,7 +78,7 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-fail_under = 55
+fail_under = 65
 precision = 2
 show_missing = true
 skip_covered = false

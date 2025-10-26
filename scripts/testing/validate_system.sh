@@ -1,12 +1,19 @@
 #!/bin/bash
-# Phase 49.14-1: システム整合性検証スクリプト
+# Phase 49.15: システム整合性検証スクリプト
 #
-# 目的: 開発段階でDockerfile・特徴量・戦略の不整合を検出
+# 目的: 開発・デプロイ段階でシステム稼働保証の事前チェック実行
+# 検証項目: Dockerfile・特徴量・戦略・設定ファイル・環境変数・モデルメタデータ
 # 使用: checks.sh、run_safe.sh、CI/CDで自動実行
+#
+# Phase 49.15追加機能（2025/10/26）:
+# - 設定ファイル整合性チェック（YAML構文・必須フィールド・設定値妥当性）
+# - 環境変数・Secret チェック（DISCORD_WEBHOOK_URL・BITBANK_API_KEY/SECRET）
+# - モデルメタデータ整合性チェック（F1スコア・特徴量数・モデル年齢・訓練データサイズ）
+# - すべてのチェックは動的設定読み込み方式（特徴量・戦略数の増減に自動対応）
 
-set -e
+# set -e を削除（while read ループとの互換性問題回避）
 
-echo "🔍 Phase 49.14: システム整合性検証開始..."
+echo "🔍 Phase 49.15: システム整合性検証開始（7項目）..."
 echo ""
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -18,7 +25,7 @@ ERRORS=0
 # ========================================
 # 1. Dockerfile整合性チェック
 # ========================================
-echo "📦 [1/4] Dockerfile整合性チェック..."
+echo "📦 [1/7] Dockerfile整合性チェック..."
 
 # 必須ディレクトリリスト（Phase 49.13で追加されたtax/を含む）
 REQUIRED_DIRS=("src" "config" "models" "tax" "tests/manual")
@@ -54,7 +61,7 @@ echo ""
 # ========================================
 # 2. 特徴量数検証
 # ========================================
-echo "📊 [2/4] 特徴量数検証..."
+echo "📊 [2/7] 特徴量数検証..."
 
 # feature_order.json の特徴量数取得
 if [ ! -f "config/core/feature_order.json" ]; then
@@ -112,7 +119,7 @@ echo ""
 # ========================================
 # 3. 戦略整合性検証
 # ========================================
-echo "🎯 [3/4] 戦略整合性検証..."
+echo "🎯 [3/7] 戦略整合性検証..."
 
 # unified.yaml の戦略リスト取得
 UNIFIED_STRATEGIES=$(python3 -c "
@@ -178,7 +185,7 @@ echo ""
 # ========================================
 # 4. モジュールimport検証（軽量版）
 # ========================================
-echo "📥 [4/4] モジュールimport検証..."
+echo "📥 [4/7] モジュールimport検証..."
 
 # PYTHONPATH設定
 export PYTHONPATH="$PROJECT_ROOT:$PROJECT_ROOT/src:$PYTHONPATH"
@@ -206,15 +213,273 @@ done
 echo ""
 
 # ========================================
+# 5. 設定ファイル整合性チェック
+# ========================================
+echo "⚙️  [5/7] 設定ファイル整合性チェック..."
+
+# YAML構文チェック - 動的にコア設定ファイルを検証
+CONFIG_FILES=("config/core/unified.yaml" "config/core/thresholds.yaml" "config/core/features.yaml")
+
+for config_file in "${CONFIG_FILES[@]}"; do
+    if [ ! -f "$config_file" ]; then
+        echo "  ❌ ERROR: $config_file が見つかりません"
+        ERRORS=$((ERRORS + 1))
+        continue
+    fi
+
+    # YAML構文チェック
+    if ! python3 -c "import yaml; yaml.safe_load(open('$config_file'))" 2>/dev/null; then
+        echo "  ❌ ERROR: $config_file のYAML構文エラー"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "  ✅ $config_file - 構文OK"
+    fi
+done
+
+# unified.yaml 必須フィールド確認（動的検証）
+UNIFIED_CHECK=$(python3 -c "
+import yaml
+try:
+    with open('config/core/unified.yaml') as f:
+        data = yaml.safe_load(f)
+        required = ['mode', 'strategies', 'risk', 'execution']
+        missing = [k for k in required if k not in data]
+        if missing:
+            print('MISSING:' + ','.join(missing))
+        else:
+            print('OK')
+except Exception as e:
+    print(f'ERROR:{e}')
+" 2>&1)
+
+if [[ "$UNIFIED_CHECK" == "MISSING:"* ]]; then
+    MISSING_FIELDS=$(echo "$UNIFIED_CHECK" | cut -d':' -f2)
+    echo "  ❌ ERROR: unified.yaml 必須フィールド不足: $MISSING_FIELDS"
+    ERRORS=$((ERRORS + 1))
+elif [[ "$UNIFIED_CHECK" == "ERROR:"* ]]; then
+    echo "  ❌ ERROR: unified.yaml 読み込み失敗"
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✅ unified.yaml 必須フィールド確認完了"
+fi
+
+# thresholds.yaml 設定値妥当性チェック（動的範囲検証）
+THRESHOLD_CHECK=$(python3 -c "
+import yaml
+try:
+    with open('config/core/thresholds.yaml') as f:
+        data = yaml.safe_load(f)
+        errors = []
+
+        # TP/SL率チェック（動的取得）
+        if 'position_management' in data:
+            pm = data['position_management']
+            sl_ratio = pm.get('sl_min_distance_ratio', 0)
+            tp_ratio = pm.get('tp_min_profit_ratio', 0)
+            if not (0.0 <= sl_ratio <= 1.0):
+                errors.append(f'sl_min_distance_ratio={sl_ratio}は0.0-1.0範囲外')
+            if not (0.0 <= tp_ratio <= 1.0):
+                errors.append(f'tp_min_profit_ratio={tp_ratio}は0.0-1.0範囲外')
+
+        # ML統合閾値チェック（動的取得）
+        if 'ml_integration' in data:
+            ml = data['ml_integration']
+            min_conf = ml.get('min_ml_confidence', 0)
+            high_conf = ml.get('high_confidence_threshold', 0)
+            if not (0.0 <= min_conf <= 1.0):
+                errors.append(f'min_ml_confidence={min_conf}は0.0-1.0範囲外')
+            if not (0.0 <= high_conf <= 1.0):
+                errors.append(f'high_confidence_threshold={high_conf}は0.0-1.0範囲外')
+
+        if errors:
+            print('INVALID:' + '|'.join(errors))
+        else:
+            print('OK')
+except Exception as e:
+    print(f'ERROR:{e}')
+" 2>&1)
+
+if [[ "$THRESHOLD_CHECK" == "INVALID:"* ]]; then
+    INVALID_VALUES=$(echo "$THRESHOLD_CHECK" | cut -d':' -f2 | tr '|' '\n')
+    echo "  ❌ ERROR: thresholds.yaml 設定値妥当性エラー:"
+    echo "$INVALID_VALUES" | while read line; do echo "     - $line"; done
+    ERRORS=$((ERRORS + 1))
+elif [[ "$THRESHOLD_CHECK" == "ERROR:"* ]]; then
+    echo "  ❌ ERROR: thresholds.yaml 読み込み失敗"
+    ERRORS=$((ERRORS + 1))
+else
+    echo "  ✅ thresholds.yaml 設定値妥当性確認完了"
+fi
+
+echo ""
+
+# ========================================
+# 6. 環境変数・Secret チェック
+# ========================================
+echo "🔐 [6/7] 環境変数・Secret チェック..."
+
+# Discord Webhook URL確認（本番環境で必須）
+if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+    echo "  ✅ DISCORD_WEBHOOK_URL: 設定済み"
+else
+    echo "  ⚠️  WARNING: DISCORD_WEBHOOK_URL が未設定（ローカル環境の場合は問題なし）"
+fi
+
+# Bitbank API キー確認（ライブモード時必須）
+# ローカル環境ではなくても良いため、WARNINGレベル
+if [ -n "$BITBANK_API_KEY" ]; then
+    echo "  ✅ BITBANK_API_KEY: 設定済み"
+else
+    echo "  ⚠️  WARNING: BITBANK_API_KEY が未設定（ペーパー/バックテストモードの場合は問題なし）"
+fi
+
+if [ -n "$BITBANK_API_SECRET" ]; then
+    echo "  ✅ BITBANK_API_SECRET: 設定済み"
+else
+    echo "  ⚠️  WARNING: BITBANK_API_SECRET が未設定（ペーパー/バックテストモードの場合は問題なし）"
+fi
+
+echo ""
+
+# ========================================
+# 7. モデルメタデータ整合性チェック
+# ========================================
+echo "🤖 [7/7] モデルメタデータ整合性チェック..."
+
+if [ ! -f "models/production/production_model_metadata.json" ]; then
+    echo "  ❌ ERROR: production_model_metadata.json が見つかりません"
+    ERRORS=$((ERRORS + 1))
+else
+    # メタデータ検証（動的検証）
+    METADATA_CHECK=$(python3 -c "
+import json
+from datetime import datetime, timedelta
+
+try:
+    with open('models/production/production_model_metadata.json') as f:
+        metadata = json.load(f)
+        errors = []
+        warnings = []
+
+        # F1スコア妥当性チェック（動的取得・妥当範囲検証）
+        if 'ensemble_performance' in metadata:
+            f1_score = metadata['ensemble_performance'].get('weighted_f1', 0)
+            if not (0.4 <= f1_score <= 0.8):
+                warnings.append(f'F1スコア={f1_score:.3f}が通常範囲外（0.4-0.8推奨）')
+            else:
+                print(f'INFO:F1スコア={f1_score:.3f}')
+
+        # 特徴量数確認（動的取得 - feature_order.jsonと比較）
+        with open('config/core/feature_order.json') as ff:
+            expected_features = json.load(ff)['total_features']
+
+        actual_features = metadata['training_info'].get('feature_count', 0)
+        if actual_features != expected_features:
+            errors.append(f'特徴量数不一致: metadata={actual_features} vs config={expected_features}')
+        else:
+            print(f'INFO:特徴量数一致={actual_features}')
+
+        # モデル作成日チェック（動的取得・90日以内確認）
+        created_at = metadata.get('created_at', '')
+        if created_at:
+            from datetime import timezone
+            # タイムゾーン情報がない場合はUTCとして扱う
+            created_str = created_at.replace('Z', '+00:00')
+            created_date = datetime.fromisoformat(created_str)
+            if created_date.tzinfo is None:
+                created_date = created_date.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            age_days = (now - created_date).days
+            if age_days > 90:
+                warnings.append(f'モデル作成から{age_days}日経過（90日以内推奨）')
+            else:
+                print(f'INFO:モデル作成{age_days}日前')
+
+        # 訓練データサイズチェック（動的取得）
+        if 'training_info' in metadata:
+            train_size = metadata['training_info'].get('train_size', 0)
+            if train_size < 10000:
+                warnings.append(f'訓練データサイズ={train_size}が少ない（10,000件以上推奨）')
+            else:
+                print(f'INFO:訓練データ={train_size}件')
+
+        if errors:
+            print('ERROR:' + '|'.join(errors))
+        elif warnings:
+            print('WARNING:' + '|'.join(warnings))
+        else:
+            print('OK')
+except Exception as e:
+    print(f'ERROR:メタデータ読み込み失敗:{e}')
+" 2>&1)
+
+    # INFO行を処理（正常メッセージ）
+    echo "$METADATA_CHECK" | grep "^INFO:" | cut -d':' -f2- | while read info; do
+        echo "  ℹ️  $info"
+    done
+
+    # エラー・警告処理
+    ERROR_LINE=$(echo "$METADATA_CHECK" | grep "^ERROR:")
+    WARNING_LINE=$(echo "$METADATA_CHECK" | grep "^WARNING:")
+
+    if [ -n "$ERROR_LINE" ]; then
+        ERROR_MSGS=$(echo "$ERROR_LINE" | cut -d':' -f2 | tr '|' '\n')
+        echo "  ❌ ERROR: モデルメタデータ整合性エラー:"
+        echo "$ERROR_MSGS" | while read line; do echo "     - $line"; done
+        ERRORS=$((ERRORS + 1))
+    elif [ -n "$WARNING_LINE" ]; then
+        WARNING_MSGS=$(echo "$WARNING_LINE" | cut -d':' -f2 | tr '|' '\n')
+        echo "  ⚠️  WARNING: モデルメタデータ警告:"
+        echo "$WARNING_MSGS" | while read line; do echo "     - $line"; done
+    fi
+
+    if [ -z "$ERROR_LINE" ] && [ -z "$WARNING_LINE" ]; then
+        OK_LINE=$(echo "$METADATA_CHECK" | grep "^OK")
+        if [ -n "$OK_LINE" ]; then
+            echo "  ✅ モデルメタデータ整合性確認完了"
+        fi
+    fi
+fi
+
+# モデルファイル存在・サイズ確認（動的確認）
+# Phase 49: production_ensemble.pkl に統合（lgbm/xgb/rf は個別ファイル不要）
+MODEL_FILES=("models/production/production_ensemble.pkl")
+
+for model_file in "${MODEL_FILES[@]}"; do
+    if [ ! -f "$model_file" ]; then
+        echo "  ❌ ERROR: $model_file が見つかりません"
+        ERRORS=$((ERRORS + 1))
+    else
+        # ファイルサイズ確認（1KB以上 - 空ファイルチェック）
+        FILE_SIZE=$(stat -f%z "$model_file" 2>/dev/null || stat -c%s "$model_file" 2>/dev/null)
+        if [ "$FILE_SIZE" -lt 1024 ]; then
+            echo "  ❌ ERROR: $model_file のサイズが小さすぎます（${FILE_SIZE}B < 1KB）"
+            ERRORS=$((ERRORS + 1))
+        else
+            # サイズを人間可読形式に変換
+            if [ "$FILE_SIZE" -ge 1048576 ]; then
+                SIZE_MB=$(echo "scale=1; $FILE_SIZE / 1048576" | bc)
+                echo "  ✅ $model_file - ${SIZE_MB}MB"
+            else
+                SIZE_KB=$(echo "scale=1; $FILE_SIZE / 1024" | bc)
+                echo "  ✅ $model_file - ${SIZE_KB}KB"
+            fi
+        fi
+    fi
+done
+
+echo ""
+
+# ========================================
 # 結果サマリー
 # ========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ $ERRORS -eq 0 ]; then
-    echo "✅ Phase 49.14: システム整合性検証完了 - エラー無し"
+    echo "✅ Phase 49.15: システム整合性検証完了（7項目） - エラー無し"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     exit 0
 else
-    echo "❌ Phase 49.14: システム整合性検証失敗 - $ERRORS 個のエラー"
+    echo "❌ Phase 49.15: システム整合性検証失敗（7項目） - $ERRORS 個のエラー"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     exit 1
 fi

@@ -1,7 +1,7 @@
 """
 trading/position層 - ポジション管理
 
-Phase 38リファクタリング
+Phase 49完了
 """
 
 from .cleanup import PositionCleanup

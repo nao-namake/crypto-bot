@@ -1,14 +1,19 @@
 """
-ドローダウン状態永続化システム - Phase 38.4完了版
+ドローダウン状態永続化システム - Phase 49完了
 
 ローカルファイルとCloud Storageの両方に対応した
 統一的な永続化インターフェースを提供。
 GCP/ローカル環境の自動判定により適切な実装を選択。
 モード別（paper/live/backtest）状態分離による安全性確保。
 
-Phase 28-29最適化: 永続化インターフェース統一・GCP/ローカル環境対応・モード別分離実装
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 統一永続化インターフェース（DrawdownPersistence基底クラス）
+- ローカルファイル実装（LocalFilePersistence・JSON保存）
+- Cloud Storage実装（CloudStoragePersistence・GCSバケット保存）
+- 環境自動判定（create_persistence・GCP/ローカル環境判別）
+- モード別完全分離（paper/live/backtest独立状態ファイル）
+
+Phase 28-29: 永続化インターフェース統一・GCP/ローカル環境対応・モード別分離実装
 """
 
 import json

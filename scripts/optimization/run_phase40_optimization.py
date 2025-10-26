@@ -72,7 +72,7 @@ class Phase40UnifiedOptimizer:
         self.n_simulation_trials = n_simulation_trials
         self.n_lightweight_candidates = n_lightweight_candidates
         self.n_full_candidates = n_full_candidates
-        self.checkpoint_file = Path("config/optuna_results/.checkpoint.json")
+        self.checkpoint_file = Path("config/optimization/.checkpoint.json")
         self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Phase定義（実行順序）

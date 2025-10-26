@@ -27,10 +27,14 @@ class TestRiskManager(unittest.TestCase):
             "stop_loss_atr_multiplier": 2.0,
             "take_profit_ratio": 2.5,
             "position_size_base": 0.02,
+            # Phase 49.16: max_loss_ratio・min_profit_ratio追加
+            "max_loss_ratio": 0.015,  # 1.5%
+            "min_profit_ratio": 0.02,  # 2.0%
+            "default_atr_multiplier": 2.0,
         }
 
     def test_calculate_stop_loss_take_profit_buy(self):
-        """買いポジションのストップロス・テイクプロフィット計算テスト."""
+        """買いポジションのストップロス・テイクプロフィット計算テスト（Phase 49.16更新）."""
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
             action=EntryAction.BUY,
             current_price=self.current_price,
@@ -38,9 +42,11 @@ class TestRiskManager(unittest.TestCase):
             config=self.basic_config,
         )
 
-        # 買いポジション: ストップロスは下、テイクプロフィットは上
-        expected_stop_loss = self.current_price - (self.current_atr * 2.0)  # 9,000,000
-        expected_take_profit = self.current_price + (self.current_atr * 2.0 * 2.5)  # 12,500,000
+        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
+        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
+        # TP距離 = max(200000円[2.0%], 375000円[SL×2.5]) = 375000円
+        expected_stop_loss = self.current_price - 150000  # 9,850,000
+        expected_take_profit = self.current_price + 375000  # 10,375,000
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
@@ -48,7 +54,7 @@ class TestRiskManager(unittest.TestCase):
         self.assertGreater(take_profit, self.current_price)
 
     def test_calculate_stop_loss_take_profit_sell(self):
-        """売りポジションのストップロス・テイクプロフィット計算テスト."""
+        """売りポジションのストップロス・テイクプロフィット計算テスト（Phase 49.16更新）."""
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
             action=EntryAction.SELL,
             current_price=self.current_price,
@@ -56,9 +62,11 @@ class TestRiskManager(unittest.TestCase):
             config=self.basic_config,
         )
 
-        # 売りポジション: ストップロスは上、テイクプロフィットは下
-        expected_stop_loss = self.current_price + (self.current_atr * 2.0)  # 11,000,000
-        expected_take_profit = self.current_price - (self.current_atr * 2.0 * 2.5)  # 7,500,000
+        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
+        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
+        # TP距離 = max(200000円[2.0%], 375000円[SL×2.5]) = 375000円
+        expected_stop_loss = self.current_price + 150000  # 10,150,000
+        expected_take_profit = self.current_price - 375000  # 9,625,000
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
@@ -78,11 +86,15 @@ class TestRiskManager(unittest.TestCase):
         self.assertIsNone(take_profit)
 
     def test_calculate_stop_loss_take_profit_custom_multipliers(self):
-        """カスタム倍率でのテスト（Phase 30: adaptive ATR倍率が優先される）."""
+        """カスタム倍率でのテスト（Phase 49.16: max_loss_ratio・min_profit_ratio優先）."""
         custom_config = {
-            "stop_loss_atr_multiplier": 1.5,  # Phase 30では無視される
+            "stop_loss_atr_multiplier": 1.5,  # Phase 49.16では補助的に使用
             "take_profit_ratio": 3.0,
             "position_size_base": 0.02,
+            # Phase 49.16: max_loss_ratio・min_profit_ratio追加
+            "max_loss_ratio": 0.015,  # 1.5%
+            "min_profit_ratio": 0.02,  # 2.0%
+            "default_atr_multiplier": 2.0,
         }
 
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
@@ -92,10 +104,11 @@ class TestRiskManager(unittest.TestCase):
             config=custom_config,
         )
 
-        # Phase 30: adaptive ATRがデフォルト2.0を使用（atr_history=Noneのため）
-        actual_multiplier = 2.0
-        expected_stop_loss = self.current_price - (self.current_atr * actual_multiplier)
-        expected_take_profit = self.current_price + (self.current_atr * actual_multiplier * 3.0)
+        # Phase 49.16: max_loss_ratio優先（1.5%）・min_profit_ratio優先（2.0%）
+        # SL距離 = min(150000円[1.5%], 1000000円[ATR×2]) = 150000円
+        # TP距離 = max(200000円[2.0%], 450000円[SL×3.0]) = 450000円
+        expected_stop_loss = self.current_price - 150000  # 9,850,000
+        expected_take_profit = self.current_price + 450000  # 10,450,000
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)

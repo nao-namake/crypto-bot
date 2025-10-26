@@ -1,59 +1,67 @@
-# src/core/ - コアシステム基盤 (Phase 38.4完了版)
+# src/core/ - コアシステム基盤（Phase 49完了）
 
 ## 🎯 役割・責任
 
 AI自動取引システムのコアシステム基盤層。設定管理、ログシステム、統合制御、実行モード管理、レポート生成、サービスコンポーネントを提供。システム統合、MLモデル管理、取引実行制御、運用監視を担当し、全システムの基盤として機能します。
 
-**Phase 28-29最適化**: 32ファイル全更新・フォルダ構成最適化・デプロイ前最終クリーンアップ完了し、企業級コード品質を確立。
-**Phase 38**: trading層レイヤードアーキテクチャ実装完了・テストカバレッジ70.56%達成。
-**Phase 38.4**: 全モジュールPhase統一・コード品質保証完了。
+**Phase 49完了**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker統合・matplotlib可視化）・証拠金維持率80%遵守・TP/SL設定完全同期（thresholds.yaml完全準拠）
+**Phase 48完了**: Discord週間レポート実装（通知99%削減・損益グラフ・matplotlib・コスト35%削減）
+**Phase 47完了**: 確定申告対応システム実装（SQLite取引記録・移動平均法損益計算・作業時間95%削減）
+**Phase 42完了**: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ・ML Agreement Logic修正
+**Phase 41.8完了**: Strategy-Aware ML実装（55特徴量・実戦略信号学習・ML統合率100%達成）
+**Phase 38完了**: trading層レイヤードアーキテクチャ実装完了・テストカバレッジ70.56%達成
+**Phase 28-29完了**: 32ファイル全更新・フォルダ構成最適化・企業級コード品質確立
 
 ## 📂 ディレクトリ構成
 
 ```
-src/core/
-├── __init__.py                    # コアモジュールエクスポート (Phase 29最適化)
-├── logger.py                      # JST対応ログシステム・Discord統合
-├── exceptions.py                  # カスタム例外階層 (Phase 29最適化)
+src/core/                          # 31 Pythonファイル（8,078行）+ 4 README
+├── __init__.py                    # コアモジュールエクスポート（Phase 49完了）
+├── logger.py                      # JST対応ログシステム・Discord統合（534行）
+├── exceptions.py                  # カスタム例外階層（247行・11種類例外クラス）
 │
-├── config/                        # 設定管理システム
-│   ├── __init__.py                # 設定ローダー・階層化設定管理
-│   ├── config_classes.py          # 設定dataclass定義
-│   ├── feature_manager.py         # 特徴量統一管理
-│   └── threshold_manager.py       # 閾値・動的設定管理
+├── config/                        # 設定管理システム（5ファイル）
+│   ├── __init__.py                # 設定ローダー・3層設定体系
+│   ├── config_classes.py          # 5設定dataclass定義
+│   ├── feature_manager.py         # 55特徴量統一管理（Phase 41）
+│   ├── runtime_flags.py           # ランタイムフラグ（Phase 35）
+│   └── threshold_manager.py       # 閾値・動的設定管理・実行時オーバーライド（Phase 40.1）
 │
-├── orchestration/                 # システム統合制御
+├── orchestration/                 # システム統合制御（6ファイル）
 │   ├── __init__.py                # 統合制御エクスポート
-│   ├── orchestrator.py            # メインシステム統合制御
-│   ├── protocols.py               # サービスプロトコル定義 (Phase 29最適化)
-│   ├── ml_adapter.py              # MLサービス統合
-│   ├── ml_loader.py               # MLモデル読み込み
-│   └── ml_fallback.py             # MLフォールバック機能
+│   ├── orchestrator.py            # Application Service Layer（575行）
+│   ├── protocols.py               # 5サービスプロトコル定義
+│   ├── ml_adapter.py              # ProductionEnsemble統一インターフェース
+│   ├── ml_loader.py               # MLモデル読み込み・個別モデル再構築
+│   └── ml_fallback.py             # DummyModel安全装置（hold信頼度0.5）
 │
-├── execution/                     # 実行モード管理
+├── execution/                     # 実行モード管理（5ファイル）
 │   ├── __init__.py                # 実行モードエクスポート
-│   ├── base_runner.py             # 基底実行ランナー
+│   ├── base_runner.py             # 基底実行ランナー（ABC型安全設計）
 │   ├── paper_trading_runner.py    # ペーパートレード実行
 │   ├── live_trading_runner.py     # ライブトレード実行
-│   └── backtest_runner.py         # バックテスト実行
+│   └── backtest_runner.py         # バックテスト実行（Phase 49完全改修・信頼性100%達成）
 │
-├── reporting/                     # レポート生成
+├── reporting/                     # レポート生成（4ファイル + README）
 │   ├── __init__.py                # レポートエクスポート
-│   ├── base_reporter.py           # 基底レポート機能
-│   └── paper_trading_reporter.py  # ペーパートレードレポート
+│   ├── base_reporter.py           # 基底レポート機能（3種類レポート対応）
+│   ├── paper_trading_reporter.py  # ペーパートレードレポート
+│   ├── discord_notifier.py        # Discord週間レポート専用（Phase 48完了・通知99%削減）
+│   └── README.md                  # レポート生成システム詳細
 │
-├── state/                         # 状態永続化システム (Phase 29追加)
+├── state/                         # 状態永続化システム（2ファイル + README・Phase 49完了）
 │   ├── __init__.py                # 状態管理エクスポート
-│   ├── drawdown_persistence.py    # ドローダウン状態永続化
+│   ├── drawdown_persistence.py    # ドローダウン状態永続化（ローカル・Cloud Storage両対応）
 │   └── README.md                  # 状態管理システム詳細
 │
-└── services/                      # システムサービス
+└── services/                      # システムサービス（6ファイル + README）
     ├── __init__.py                # サービス層エクスポート
-    ├── graceful_shutdown_manager.py # graceful shutdown管理（Phase 29統合）
-    ├── health_checker.py          # システムヘルス監視
-    ├── system_recovery.py         # システム復旧
-    ├── trading_cycle_manager.py   # 取引サイクル管理
-    └── trading_logger.py          # 取引ログサービス
+    ├── trading_cycle_manager.py   # 取引サイクル管理（1,033行・Phase 49完了・最重要ファイル）
+    ├── graceful_shutdown_manager.py # Graceful shutdown管理（30秒タイムアウト）
+    ├── health_checker.py          # システムヘルスチェック
+    ├── system_recovery.py         # システム復旧（MLサービス復旧・最大3回試行）
+    ├── trading_logger.py          # 取引ログサービス
+    └── README.md                  # システムサービス層詳細
 ```
 
 ## 🔧 主要コンポーネント

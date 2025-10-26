@@ -188,7 +188,7 @@ class WalkForwardTester:
 class OptimizationResultManager:
     """最適化結果の保存・読み込みマネージャー"""
 
-    def __init__(self, results_dir: str = "config/optuna_results"):
+    def __init__(self, results_dir: str = "config/optimization/results"):
         """
         結果マネージャー初期化
 

@@ -1,13 +1,17 @@
 """
-状態永続化システム - Phase 38.4完了版
+状態永続化システム - Phase 49完了
 
 ドローダウン状態の永続化・管理システム。
 ローカルファイルとCloud Storage両対応の統一インターフェース。
 モード別（paper/live/backtest）状態分離によるデータ安全性確保。
 
-Phase 28-29最適化: 状態永続化システム確立・モード別分離実装
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- DrawdownPersistence: 基底抽象クラス（save_state・load_state・delete_stateインターフェース）
+- LocalFilePersistence: ローカルファイル実装（src/core/state/{mode}/drawdown_state.json）
+- CloudStoragePersistence: GCP Cloud Storage実装（gs://bucket/{mode}/drawdown_state.json）
+- create_persistence(): 環境自動判定ファクトリ関数（GCP/ローカル環境自動選択）
+
+Phase 28-29: 状態永続化システム確立・モード別分離実装
 """
 
 from .drawdown_persistence import (

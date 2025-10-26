@@ -118,4 +118,4 @@ gcloud projects add-iam-policy-binding my-crypto-bot-project \
 | github-deployer | - | - | developer ✅ | writer ✅ | - | user ✅ | ✅ |
 | webhook-notifier | accessor ✅ | - | - | - | publisher ✅ | - | - |
 
-**最終確認日**: 2025年10月9日
+**最終確認日**: 2025年10月25日

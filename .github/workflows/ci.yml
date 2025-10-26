@@ -1,5 +1,5 @@
-# 統一設定管理体系確立完了: 設定不整合完全解消CI/CDパイプライン
-# 625テスト100%成功・64.74%カバレッジ達成・Kelly基準最適化・統一設定管理完成
+# CI/CDパイプライン
+# 1,117テスト100%成功・68.32%カバレッジ達成・Phase 49完了（SELL Only問題解決・証拠金維持率80%遵守）
 
 name: CI/CD Pipeline
 
@@ -47,7 +47,7 @@ jobs:
       - name: Setup test environment
         run: |
           mkdir -p models/production
-          echo '{"version": "ci-test", "features": 12}' > models/production/model_metadata.json
+          echo '{"version": "ci-test", "features": 55}' > models/production/model_metadata.json
           touch models/production/production_ensemble.pkl
 
       - name: Run quality checks (checks.sh)
@@ -215,7 +215,7 @@ jobs:
         run: |
           # Docker用の必要なディレクトリ作成
           mkdir -p models/production logs cache
-          echo '{"version": "production", "features": 12, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
+          echo '{"version": "production", "features": 55, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
           
           # 本番用モデル確認（CI環境では作成済み）
           if [ -f "models/production/production_ensemble.pkl" ]; then
@@ -304,9 +304,9 @@ jobs:
       - name: 段階的Cloud Runデプロイ（レガシー改良版）
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
-          
-          echo "🚀 統一設定管理体系段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "設定不整合完全解消システム・625テスト100%成功・Kelly基準最適化・統一設定管理完成版"
+
+          echo "🚀 段階的デプロイ開始: ${IMAGE_TAG}"
+          echo "Phase 49完了: 1,117テスト100%成功・68.32%カバレッジ達成・SELL Only問題解決・証拠金維持率80%遵守"
           
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
@@ -357,8 +357,8 @@ jobs:
           gcloud run services update-traffic "$FULL_SERVICE_NAME" \
             --to-latest \
             --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
-          
-          echo "✅ 統一設定管理体系本番デプロイ完了・設定不整合完全解消システム稼働開始"
+
+          echo "✅ Phase 49本番デプロイ完了・システム稼働開始"
 
       - name: Verify Deployment Health Check
         run: |
@@ -416,13 +416,13 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 統一設定管理体系本番デプロイ成功・設定不整合完全解消完成！"
+            echo "🎉 Phase 49本番デプロイ成功！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: 625テスト100%成功・64.74%カバレッジ・統一設定管理体系完成"
+            echo "📈 品質保証: 1,117テスト100%成功・68.32%カバレッジ・SELL Only問題解決・証拠金維持率80%遵守"
           else
-            echo "❌ 統一設定管理体系デプロイ失敗"
+            echo "❌ デプロイ失敗"
             echo "🔍 ログを確認してください"
           fi
 

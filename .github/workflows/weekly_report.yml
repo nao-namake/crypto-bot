@@ -1,5 +1,5 @@
-# 週間レポート自動送信 - Phase 48実装
-# 毎週月曜日 9:00 JST に取引統計レポートをDiscordに送信
+# 週間レポート自動送信ワークフロー
+# 毎週月曜日 9:00 JST に取引統計レポート（損益曲線グラフ付き）をDiscordに送信
 
 name: Weekly Trading Report
 
@@ -52,22 +52,21 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Download trade history database from Cloud Run
+      - name: Download trade history database
         run: |
           echo "📥 取引履歴データベース取得中..."
 
-          # Cloud Run環境から取引履歴データベースを取得
-          # 注: Cloud Runはステートレスなので、実際の運用では
-          # Cloud StorageやCloud SQLにデータを永続化する必要があります
+          # 現状: Cloud Runはステートレスのため、データ永続化が課題
+          # 将来実装: Cloud StorageまたはCloud SQLに取引履歴を永続化予定
 
           # 一時的な対応: ローカルでダミーデータベース作成
           mkdir -p tax
 
-          # TODO: Phase 49でCloud Storage統合実装予定
+          # TODO: 将来実装（Phase 50以降）
           # gsutil cp gs://crypto-bot-data/trade_history.db tax/trade_history.db
 
-          echo "⚠️ 注意: 現在はCloud Run環境からのデータ取得未実装"
-          echo "Phase 49でCloud Storage統合を実装予定"
+          echo "⚠️ 注意: Cloud Storage統合未実装（将来実装予定）"
+          echo "現在は週間レポート機能は制限付きで動作します"
 
       - name: Get Discord Webhook URL from Secret Manager
         id: get-webhook
@@ -87,17 +86,15 @@ jobs:
         run: |
           echo "📊 週間レポート生成・送信開始..."
 
-          # 週間レポートスクリプト実行
+          # 週間レポートスクリプト実行（損益統計・グラフ生成・Discord送信）
           python scripts/reports/weekly_report.py \
             --db-path tax/trade_history.db \
             --discord-webhook-url "$DISCORD_WEBHOOK_URL"
 
-          EXIT_CODE=$?
-
-          if [ $EXIT_CODE -eq 0 ]; then
+          if [ $? -eq 0 ]; then
             echo "✅ 週間レポート送信成功"
           else
-            echo "❌ 週間レポート送信失敗（Exit Code: $EXIT_CODE）"
+            echo "❌ 週間レポート送信失敗"
             exit 1
           fi
 
@@ -107,3 +104,9 @@ jobs:
           echo "🧹 一時ファイルクリーンアップ..."
           rm -f /tmp/weekly_pnl_curve.png
           echo "✅ クリーンアップ完了"
+
+# 注意事項:
+# 1. 週次自動実行: 毎週月曜日 9:00 JST（UTC 00:00）
+# 2. 手動実行可能: workflow_dispatch対応
+# 3. 現状制限: Cloud Storage未統合（将来実装予定・Phase 50以降）
+# 4. レポート内容: 損益統計・損益曲線グラフ（matplotlib生成）・Discord送信

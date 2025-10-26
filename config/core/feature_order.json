@@ -1,9 +1,9 @@
 {
   "feature_order_version": "v2.5.0",
-  "phase": "Phase 41",
+  "phase": "Phase 49",
   "total_features": 55,
-  "last_updated": "2025-10-16T12:00:00Z",
-  "description": "Phase 41完了: Strategy-Aware ML - 戦略シグナル5個追加（50→55特徴量）",
+  "last_updated": "2025-10-22T12:00:00Z",
+  "description": "55特徴量（50基本+5戦略信号）- Strategy-Aware ML統合システム",
 
   "feature_categories": {
     "basic": {
@@ -539,17 +539,17 @@
       "audit_logging": "enabled"
     },
     "quality_assurance": {
-      "test_coverage": "70.56%",
-      "total_tests": 1078,
-      "phase38_completion": "verified"
+      "test_coverage": "68.32%",
+      "total_tests": 1117,
+      "phase49_completion": "verified"
     }
   },
 
   "validation": {
-    "checksum": "sha256:phase41_def456...",
-    "last_validated": "2025-10-16T12:00:00Z",
+    "checksum": "sha256:phase49_abc123...",
+    "last_validated": "2025-10-22T12:00:00Z",
     "validation_status": "passed",
-    "phase41_compliance": "verified",
+    "phase49_compliance": "verified",
     "feature_count_validation": "55_features_confirmed",
     "strategy_aware_ml": "completed"
   }

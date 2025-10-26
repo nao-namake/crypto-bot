@@ -1,4 +1,6 @@
-# Phase 40: Optuna包括最適化 - 使い方ガイド（Phase 42.4 FIXED_TP_SL_PARAMS同期完了）
+# Phase 40: Optuna包括最適化 - 使い方ガイド（Phase 49完了版）
+
+**最終更新**: 2025年10月25日 - Phase 49完了・Phase 46スイングトレード機能削除反映・Phase 42.4 TP/SL固定パラメータ対応
 
 ## 📋 このディレクトリの役割
 
@@ -6,7 +8,10 @@
 
 Optunaを使用したベイズ最適化により、システム全体のパラメータを包括的に最適化します。
 
-**⚠️ Phase 42.4更新**: TP/SL距離パラメータはOptuna最適化対象外（FIXED_TP_SL_PARAMS）に設定されています。デイトレード戦略確立後の最適化に備えた設計です。
+**⚠️ Phase 49時点の重要事項**:
+- **Phase 42.4対応**: TP/SL距離パラメータはOptuna最適化対象外（FIXED_TP_SL_PARAMS）に固定
+- **Phase 46対応**: スイングトレード機能削除（統合TP/SL・トレーリングストップ）により一部パラメータ無効化
+- **Phase 49対応**: デイトレード特化・個別TP/SL管理回帰・1,117テスト100%成功・68.32%カバレッジ達成
 
 **対象パラメータ**: 79パラメータ
 - Phase 40.1: リスク管理（12パラメータ）
@@ -36,19 +41,20 @@ scripts/optimization/
 ├── optimize_ml_hyperparameters.py         # Phase 40.4: MLハイパーパラメータ最適化
 └── integrate_and_deploy.py                # Phase 40.5: 統合・デプロイ
 
-config/optuna_results/
+config/optimization/
 ├── README.md                              # 結果ファイルガイド
-├── phase40_1_risk_management.json         # Phase 40.1結果（シミュレーション）
-├── phase40_1_risk_management_hybrid.json  # Phase 40.1結果（ハイブリッド・推奨）
-├── phase40_2_strategy_parameters.json     # Phase 40.2結果（シミュレーション）
-├── phase40_2_strategy_parameters_hybrid.json # Phase 40.2結果（ハイブリッド・推奨）
-├── phase40_3_ml_integration.json          # Phase 40.3結果（シミュレーション）
-├── phase40_3_ml_integration_hybrid.json   # Phase 40.3結果（ハイブリッド・推奨）
-├── phase40_4_ml_hyperparameters.json      # Phase 40.4結果（シミュレーション）
-└── phase40_4_ml_hyperparameters_hybrid.json # Phase 40.4結果（ハイブリッド・推奨）
-
-config/optuna_checkpoints/
-└── phase40_*_stage*.json                  # ハイブリッド最適化チェックポイント
+├── results/
+│   ├── phase40_1_risk_management.json         # Phase 40.1結果（シミュレーション）
+│   ├── phase40_1_risk_management_hybrid.json  # Phase 40.1結果（ハイブリッド・推奨）
+│   ├── phase40_2_strategy_parameters.json     # Phase 40.2結果（シミュレーション）
+│   ├── phase40_2_strategy_parameters_hybrid.json # Phase 40.2結果（ハイブリッド・推奨）
+│   ├── phase40_3_ml_integration.json          # Phase 40.3結果（シミュレーション）
+│   ├── phase40_3_ml_integration_hybrid.json   # Phase 40.3結果（ハイブリッド・推奨）
+│   ├── phase40_4_ml_hyperparameters.json      # Phase 40.4結果（シミュレーション）
+│   └── phase40_4_ml_hyperparameters_hybrid.json # Phase 40.4結果（ハイブリッド・推奨）
+├── checkpoints/
+│   └── phase40_*_stage*.json                  # ハイブリッド最適化チェックポイント
+└── .checkpoint.json                       # Phase40統合最適化進捗管理
 
 config/core/backups/
 └── thresholds_backup_YYYYMMDD_HHMMSS.yaml # 自動バックアップ
@@ -135,12 +141,12 @@ python3 scripts/optimization/optimize_ml_hyperparameters.py
 
 ```bash
 # JSON結果ファイルを確認
-cat config/optuna_results/phase40_1_risk_management.json | python3 -m json.tool
+cat config/optimization/results/phase40_1_risk_management.json | python3 -m json.tool
 
 # または、Pythonで確認
 python3 -c "
 import json
-with open('config/optuna_results/phase40_1_risk_management.json') as f:
+with open('config/optimization/results/phase40_1_risk_management.json') as f:
     data = json.load(f)
     print(f'Best Value (Sharpe Ratio): {data[\"best_value\"]:.4f}')
     print(f'Parameters Optimized: {len(data[\"best_params\"])}')
@@ -169,20 +175,25 @@ python3 scripts/optimization/integrate_and_deploy.py
 
 ## 📊 各最適化スクリプトの詳細
 
-### Phase 40.1: リスク管理パラメータ最適化
+### Phase 40.1: リスク管理パラメータ最適化（Phase 49時点）
 
 **対象**: 12パラメータ（TP/SL・Kelly基準・リスクスコア）
 
-**⚠️ Phase 42.4重要**: TP/SL距離パラメータは最適化対象外（FIXED_TP_SL_PARAMS）
+**⚠️ Phase 42.4-49重要事項**: TP/SL距離パラメータは最適化対象外（FIXED_TP_SL_PARAMS）
 - `sl_atr_low_vol: 2.1`
 - `sl_atr_normal_vol: 2.0`
 - `sl_atr_high_vol: 1.2`
-- `sl_min_distance_ratio: 0.02` ← Phase 42.4: 1.0% → 2.0%
+- `sl_min_distance_ratio: 0.02` ← Phase 42.4: 1.0% → 2.0%（デイトレード最適値）
 - `sl_min_atr_multiplier: 1.3`
-- `tp_default_ratio: 1.5` ← Phase 42.4: RR比1.5:1維持
-- `tp_min_profit_ratio: 0.03` ← Phase 42.4: 1.9% → 3.0%
+- `tp_default_ratio: 1.5` ← Phase 42.4: RR比1.5:1維持（デイトレード最適化済み）
+- `tp_min_profit_ratio: 0.03` ← Phase 42.4: 1.9% → 3.0%（細かく利益確定）
 
-これらは`optimize_risk_management.py` lines 44-54で固定値として定義されており、Optuna最適化から除外されています。デイトレード戦略確立後に最適化する設計です。
+これらは`optimize_risk_management.py` lines 44-54で固定値として定義されており、Optuna最適化から除外されています。Phase 49デイトレード戦略確立後の最適化に備えた設計です。
+
+**⚠️ Phase 46削除パラメータ（最適化対象外）**:
+- ~~統合TP/SL関連パラメータ（Phase 42.1実装 → Phase 46削除）~~
+- ~~トレーリングストップ関連パラメータ（Phase 42.2実装 → Phase 46削除）~~
+- Phase 49現在は**個別TP/SL管理**に回帰（デイトレード特化）
 
 **実行方法**:
 ```bash
@@ -330,12 +341,12 @@ python3 scripts/optimization/run_phase40_optimization.py --all --use-hybrid-back
 ```
 
 **チェックポイント機能**:
-- 各Stage完了後に自動保存: `config/optuna_checkpoints/phase40_*_stage*.json`
+- 各Stage完了後に自動保存: `config/optimization/checkpoints/phase40_*_stage*.json`
 - 中断・再開対応（Ctrl+C後に再実行で続きから開始）
 
 **結果ファイル**:
 ```
-config/optuna_results/
+config/optimization/results/
 ├── phase40_1_risk_management_hybrid.json
 ├── phase40_2_strategy_parameters_hybrid.json
 ├── phase40_3_ml_integration_hybrid.json
@@ -470,7 +481,7 @@ for i, (train_data, test_data) in enumerate(splits):
    - `config/core/backups/thresholds_backup_*.yaml`
 
 2. **最適化結果**
-   - `config/optuna_results/*.json`をGit管理推奨
+   - `config/optimization/results/*.json`をGit管理推奨
    - 日付付きファイル名で保存
 
 3. **復元方法**
@@ -504,7 +515,7 @@ optimizer.optimize(n_trials=100, timeout=3600)  # 100回・1時間
 **確認方法**:
 ```bash
 # 結果ファイル確認
-ls -la config/optuna_results/
+ls -la config/optimization/results/
 
 # 期待されるファイル:
 # phase40_1_risk_management.json
@@ -575,7 +586,7 @@ python3 scripts/optimization/integrate_and_deploy.py
 python3 scripts/optimization/optimize_risk_management.py
 
 # 2. 結果確認
-cat config/optuna_results/phase40_1_risk_management.json | python3 -m json.tool
+cat config/optimization/results/phase40_1_risk_management.json | python3 -m json.tool
 
 # 3. 既存結果とのベンチマーク比較
 # 新しいbest_valueと既存best_valueを比較
@@ -591,10 +602,10 @@ python3 scripts/optimization/integrate_and_deploy.py
 import json
 
 # 新旧結果を読み込み
-with open('config/optuna_results/phase40_1_risk_management.json') as f:
+with open('config/optimization/results/phase40_1_risk_management.json') as f:
     new_result = json.load(f)
 
-with open('config/optuna_results/phase40_1_risk_management_old.json') as f:
+with open('config/optimization/results/phase40_1_risk_management_old.json') as f:
     old_result = json.load(f)
 
 # 性能比較
@@ -619,7 +630,7 @@ else:
 ## 📚 関連ドキュメント
 
 - **開発履歴**: `docs/開発履歴/Phase_40/Phase_40_開発履歴.md`
-- **結果ファイルガイド**: `config/optuna_results/README.md`
+- **結果ファイルガイド**: `config/optimization/README.md`
 - **共通ユーティリティ**: `scripts/optimization/optuna_utils.py`
 - **設定ファイル**: `config/core/thresholds.yaml`
 - **Phase 38-39履歴**: `docs/開発履歴/Phase_38-39.md`
@@ -630,7 +641,7 @@ else:
 
 **問題が発生した場合**:
 1. このREADMEのトラブルシューティングセクション確認
-2. `config/optuna_results/README.md`の結果ファイルフォーマット確認
+2. `config/optimization/README.md`の結果ファイルフォーマット確認
 3. `docs/開発履歴/Phase_40/Phase_40_開発履歴.md`の実装詳細確認
 
 **ルール**:
@@ -640,4 +651,22 @@ else:
 
 ---
 
-**最終更新**: 2025年10月20日 - Phase 42.4 FIXED_TP_SL_PARAMS同期完了・デイトレード段階的最適化対応
+## 📝 Phase 49時点での最適化対象まとめ
+
+### **✅ 有効な最適化対象パラメータ**
+1. **Phase 40.2: 戦略パラメータ（30個）** - 5戦略の信頼度・閾値・重み
+2. **Phase 40.3: ML統合パラメータ（7個）** - ML/戦略加重平均・一致ボーナス
+3. **Phase 40.4: MLハイパーパラメータ（30個）** - LightGBM・XGBoost・RandomForest
+
+### **⚠️ 固定・削除パラメータ**
+1. **Phase 40.1: リスク管理（12個）** - TP/SL距離パラメータは固定値（Phase 42.4）
+2. **Phase 46削除**: 統合TP/SL・トレーリングストップ関連パラメータ
+
+### **推奨最適化スケジュール（Phase 49基準）**
+- **毎月**: Phase 40.4（MLハイパーパラメータ）のみ再最適化
+- **四半期毎**: Phase 40.2-40.4全体を再最適化（戦略・ML統合・MLハイパー）
+- **Phase 40.1**: 固定値のため最適化不要（デイトレード戦略確立済み）
+
+---
+
+**最終更新**: 2025年10月25日 - Phase 49完了・Phase 46スイングトレード機能削除反映・個別TP/SL管理回帰・デイトレード特化完了

@@ -1,11 +1,12 @@
 """
 取引実行サービス - ExecutionServiceProtocol実装
-Phase 38リファクタリング - メイン実行ロジック
+Phase 49.16完了 - メイン実行ロジック・TP/SL設定完全見直し
 
 ライブ/ペーパーモードを自動判別し、適切な取引実行を行う。
 BitbankClient.create_orderを使用した実際の注文実行機能を提供。
 
 Silent Failure修正済み: TradeEvaluationのsideフィールドを正しく使用。
+Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
 """
 
 import asyncio
@@ -346,8 +347,26 @@ class ExecutionService:
                         current_atr = float(df_4h["atr_14"].iloc[-1])
 
                 if current_atr and current_atr > 0:
-                    # Phase 49.6: デフォルト値2.5→2.0（thresholds.yaml準拠）
-                    config = {"take_profit_ratio": get_threshold("tp_default_ratio", 2.0)}
+                    # Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
+                    config = {
+                        # TP設定
+                        "take_profit_ratio": get_threshold(
+                            "position_management.take_profit.default_ratio", 1.33
+                        ),
+                        "min_profit_ratio": get_threshold(
+                            "position_management.take_profit.min_profit_ratio", 0.02
+                        ),
+                        # SL設定
+                        "max_loss_ratio": get_threshold(
+                            "position_management.stop_loss.max_loss_ratio", 0.015
+                        ),
+                        "min_distance_ratio": get_threshold(
+                            "position_management.stop_loss.min_distance.ratio", 0.015
+                        ),
+                        "default_atr_multiplier": get_threshold(
+                            "position_management.stop_loss.default_atr_multiplier", 2.0
+                        ),
+                    }
                     recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
                         side, actual_filled_price, current_atr, config, atr_history
                     )

@@ -78,8 +78,8 @@ bash scripts/testing/checks.sh
 **確定申告時（Phase 47機能）**:
 ```bash
 # 税務対応ガイド参照
-python3 scripts/tax/export_trade_history.py --start-date 2025-01-01 --end-date 2025-12-31 --output tax/exports/trades_2025.csv
-python3 scripts/tax/generate_tax_report.py --year 2025 --output tax/reports/tax_report_2025.txt
+python3 tax/scripts/export_trade_history.py --start-date 2025-01-01 --end-date 2025-12-31 --output tax/exports/trades_2025.csv
+python3 tax/scripts/generate_tax_report.py --year 2025 --output tax/reports/tax_report_2025.txt
 ```
 
 ---
@@ -237,7 +237,7 @@ bash scripts/testing/checks.sh
 
 - `scripts/testing/checks.sh`: 品質チェック（開発必須）
 - `scripts/reports/weekly_report.py`: 週間レポート生成（Phase 48）
-- `scripts/tax/`: 確定申告スクリプト（Phase 47）
+- `tax/scripts/`: 確定申告スクリプト（Phase 47）
 
 ---
 

@@ -4,15 +4,21 @@
 
 **使用場面**:
 - デプロイ後のBot機能稼働確認
-- 特徴量生成・戦略判定・ML予測の健全性チェック
+- 55特徴量生成・5戦略判定・ML予測の健全性チェック
 - Silent Failure・取引阻害エラーの早期検知
 - 定期的なBot機能診断（毎日推奨）
 
 **ルール**:
 - 01_システム稼働診断.md で基盤正常確認後に実行
 - 終了コードで問題の重大度を判断
-- Phase履歴・開発完了情報は記載しない（開発履歴ドキュメント参照）
+- 実装履歴は開発履歴ドキュメント参照
 - Bot機能のみに特化（基盤システムは01参照）
+
+**現在のシステム状態**: Phase 49完了（2025/10/24）
+- 55特徴量Strategy-Aware ML（50基本+5戦略信号）
+- ML統合率100%達成（閾値0.45/0.60最適化）
+- TradeTracker統合・SELL Only問題解決
+- 証拠金維持率80%確実遵守・デイトレード設定（SL 1.5%・TP 2%）
 
 ## ⚠️ 重要: まずREADME.mdを読んでください
 
@@ -23,17 +29,18 @@
 ## 🎯 診断対象
 
 - 🎯 **5戦略動的信頼度**: ATR・MochiPoy・MultiTimeframe・Donchian・ADX統合（小数点第3位変動確認）
-- 🤖 **3モデルMLアンサンブル**: LightGBM・XGBoost・RandomForest予測
-- 💚 **ML予測統合**: 戦略70%+ML30%加重平均統合
-- 📈 **15特徴量生成**: 7カテゴリ完全生成確認
+- 🤖 **3モデルMLアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
+- 💚 **ML予測統合**: 戦略70%+ML30%加重平均統合・ML統合率100%達成（Phase 41.8.5）
+- 📈 **55特徴量生成**: 50基本特徴量+5戦略信号特徴量（Strategy-Aware ML・Phase 41.8）
 - 💱 **Kelly基準**: ポジションサイジング・動的計算
-- 🔄 **統合シグナル生成**: 戦略→ML→統合フロー
+- 🔄 **統合シグナル生成**: 戦略→ML→統合フロー・SELL Only問題解決（Phase 49）
 - 🔍 **Silent Failure**: シグナル生成→実行断絶検出
 - 💰 **取引機能**: 最小ロット優先・ML信頼度連動制限
-- 🎯 **TP/SL機能**: テイクプロフィット/ストップロス実装
-- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率
+- 🎯 **TP/SL機能**: デイトレード設定（SL 1.5%・TP 2%・Phase 49）
+- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率・証拠金維持率80%遵守
 - ⏰ **時間軸管理**: 15m足ATR使用・クールダウン柔軟化
 - 🎲 **動的信頼度**: 変動幅拡大・override_atr設定
+- 📊 **TradeTracker統合**: エントリー/エグジットペアリング・損益計算（Phase 49）
 
 ## 📂 関連ファイル
 
@@ -247,7 +254,7 @@ check_process_status() {
 # 9段階プロセス状態確認（macOS互換版）
 DATA_4H_STATUS=$(check_process_status "textPayload:\"4h足\" OR textPayload:\"4時間足\"")
 DATA_15M_STATUS=$(check_process_status "textPayload:\"15m足\" OR textPayload:\"15分足\"")
-FEATURE_STATUS=$(check_process_status "textPayload:\"15特徴量\" OR textPayload:\"特徴量生成完了\"")
+FEATURE_STATUS=$(check_process_status "textPayload:\"55特徴量\" OR textPayload:\"特徴量生成完了\"")
 STRATEGY_STATUS=$(check_process_status "textPayload:\"ATRBased\" OR textPayload:\"MochipoyAlert\"")
 ML_STATUS=$(check_process_status "textPayload:\"LightGBM\" OR textPayload:\"XGBoost\"")
 SIGNAL_STATUS=$(check_process_status "textPayload:\"統合シグナル生成\"")
@@ -255,6 +262,7 @@ RISK_STATUS=$(check_process_status "textPayload:\"リスク評価\" OR textPaylo
 APPROVED_STATUS=$(check_process_status "textPayload:\"APPROVED\" OR textPayload:\"取引承認\"")
 EXECUTION_STATUS=$(check_process_status "textPayload:\"ExecutionService\"")
 BITBANK_STATUS=$(check_process_status "textPayload:\"create_order\" OR textPayload:\"Bitbank注文\"")
+TRADETRACKER_STATUS=$(check_process_status "textPayload:\"TradeTracker\" OR textPayload:\"エントリー/エグジットペアリング\"")
 
 # 視覚的フロー表示（macOS互換版）
 echo "🔄 AI自動取引プロセスフロー状態:"
@@ -264,19 +272,19 @@ cat << EOF
    4時間足・15分足
             ↓
 ② 特徴量生成          $FEATURE_STATUS
-   15特徴量統合計算
+   55特徴量統合計算（50基本+5戦略信号）
             ↓
 ③ 5戦略実行           $STRATEGY_STATUS
    BUY/SELL/HOLD判定
             ↓
 ④ ML予測              $ML_STATUS
-   3モデルアンサンブル
+   3モデルアンサンブル（LightGBM 40%・XGBoost 40%・RandomForest 20%）
             ↓
 ⑤ 統合シグナル生成    $SIGNAL_STATUS
-   戦略+ML統合
+   戦略70%+ML30%統合
             ↓
 ⑥ リスク評価          $RISK_STATUS
-   Kelly基準・3段階判定
+   Kelly基準・証拠金維持率80%確認
             ↓
 ⑦ 取引承認判定        $APPROVED_STATUS
    APPROVED/DENIED
@@ -286,6 +294,9 @@ cat << EOF
             ↓
 ⑨ Bitbank注文実行     $BITBANK_STATUS
    実際のAPI注文
+            ↓
+⑩ TradeTracker統合    $TRADETRACKER_STATUS
+   エントリー/エグジットペアリング（Phase 49）
 EOF
 
 # プロセス断絶ポイント特定（macOS互換版）
@@ -793,4 +804,4 @@ bash 02_Bot機能診断.sh --detail-signal
 
 **🎯 重要**: このファイルはBot固有機能をチェックします。基盤システム（インフラ）の問題が検出された場合は、まず **01_システム稼働診断.md** で基盤を修正してからBot機能診断を実行してください。
 
-**最終更新**: 2025年10月9日
+**最終更新**: 2025年10月25日 - Phase 49完了対応（55特徴量・TradeTracker統合・SELL Only問題解決）

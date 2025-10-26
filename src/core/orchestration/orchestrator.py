@@ -1,13 +1,14 @@
 """
-統合取引システム制御 - TradingOrchestrator - Phase 38.4完了版
+統合取引システム制御 - TradingOrchestrator - Phase 49完了
 
 Application Service Layer として、高レベル統合制御のみを担当。
 具体的なビジネスロジックは各Phase層に委譲し、真のレイヤー分離を実現。
 
-Phase 28-29最適化: Application Service Pattern確立・責任分離・依存性注入基盤
-Phase 35: バックテスト最適化実装（ログレベル動的変更・Discord無効化・API呼び出しモック化）
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 高レベルフロー制御（データ取得→特徴量生成→戦略実行→ML予測→リスク評価→取引判断）
+- 依存性注入基盤（DataService・FeatureService・StrategyManager・ExecutionService等）
+- バックテストモード対応（ログレベル動的変更・Discord無効化・API呼び出しモック化）
+- エラーハンドリング階層化（DataFetchError・ModelPredictionError・TradingError等）
 
 設計原則:
 - Application Service Pattern: 高レベルフロー制御のみ
@@ -15,11 +16,8 @@ Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 - 責任分離: 具体的実装は各Phaseに委譲
 - エラーハンドリング階層化: 適切なレベルでの例外処理
 
-メリット:
-1. テスト容易性: 完全にモック可能な設計
-2. 保守性: main.pyを変更せずに機能拡張可能
-3. 可読性: システム全体のフローが明確
-4. 拡張性: 新モードやPhaseの追加が容易.
+Phase 35: バックテスト最適化実装
+Phase 28-29: Application Service Pattern確立・責任分離・依存性注入基盤
 """
 
 import asyncio

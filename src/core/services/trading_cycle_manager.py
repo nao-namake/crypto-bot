@@ -1,17 +1,21 @@
 """
-取引サイクルマネージャー - Phase 41.8.5完了版
+取引サイクルマネージャー - Phase 49完了（最重要・1,033行）
 
 orchestrator.pyから分離した取引サイクル実行機能。
-データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行の
-フロー全体を担当。
+データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行のフロー全体を担当。
 
-Phase 28-29最適化: 取引サイクル統合管理・エラーハンドリング階層化
-Phase 29.5: ML予測統合実装（戦略70% + ML30%）
-Phase 35: バックテスト最適化（特徴量事前計算・ML予測キャッシュ・ログ最適化）
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
-Phase 41.8: Strategy-Aware ML実装（戦略シグナル→特徴量統合・50→55特徴量・実戦略信号学習）
-Phase 41.8.5: ML統合閾値最適化（3段階統合ロジック・min_ml_confidence: 0.45・ML統合率100%達成）
+Phase 49完了:
+- バックテスト完全改修統合（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker・matplotlib可視化）
+- 証拠金維持率80%遵守ロジック統合（critical: 100.0 → 80.0変更）
+- TP/SL設定完全同期（thresholds.yaml完全準拠・ハードコード値削除）
+
+Phase 49.16: TP/SL設定完全見直し
+Phase 42.3: ML Agreement Logic修正（strict matching）・Feature Warning抑制・証拠金チェックリトライ
+Phase 42.1-42.2: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ実装
+Phase 41.8.5: ML統合閾値最適化（min_ml_confidence: 0.45・ML統合率100%達成）
+Phase 41.8: Strategy-Aware ML実装（55特徴量・実戦略信号学習）
+Phase 35: バックテスト最適化（特徴量事前計算・ML予測キャッシュ）
+Phase 29.5: ML予測統合実装（戦略70% + ML30%・一致ボーナス/不一致ペナルティ）
 """
 
 from __future__ import annotations

@@ -1,16 +1,19 @@
 """
-MLサービス統合アダプター - Phase 38.4完了版
+MLサービス統合アダプター - Phase 49完了
 
 ProductionEnsembleとEnsembleModelの統一インターフェースを提供し、
 MLモデル未学習エラーを根本的に解決するアダプター。
 
-Phase 28-29最適化: MLサービス3層分離設計確立
+Phase 49完了:
+- ProductionEnsemble統一インターフェース（3モデルアンサンブル予測）
+- DummyModelフォールバック（MLモデル未学習時の安全装置）
+- 予測信頼度自動計算（確率分布ベース）
+- 3クラス分類対応（buy/hold/sell）
+
+Phase 28-29: MLサービス3層分離設計確立
 - ml_loader.py: モデル読み込み専門
 - ml_fallback.py: フォールバック機能専門
 - ml_adapter.py: 統合インターフェース・予測機能
-
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
 """
 
 from typing import Any, Dict, Union
@@ -27,7 +30,7 @@ from .ml_loader import MLModelLoader
 
 class MLServiceAdapter:
     """
-    MLサービス統合アダプター - Phase 38.4完了版
+    MLサービス統合アダプター - Phase 49完了
 
     MLModelLoaderに読み込み処理を委譲し、予測インターフェースを提供。
     モジュラー設計により保守性と可読性を大幅向上。

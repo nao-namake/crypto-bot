@@ -90,10 +90,7 @@ ACCESS-SIGNATURE: <HMAC-SHA256 signature>
 | < 50% | マージンコール | 追加証拠金必要・新規取引制限 |
 | < 25% | 強制決済 | ロスカット実行 |
 
-**Phase 49.15実装詳細**:
-- `monitor.py:103-126`: API直接取得実装
-- `bitbank_client.py:1050-1114`: fetch_margin_status()メソッド
-- 取得成功時ログ: `📡 API直接取得成功: 保証金維持率 X.X%`
+**実装参照**: `src/trading/balance/monitor.py`（証拠金監視）・`src/data/bitbank_client.py`（fetch_margin_status()）
 
 ### 注文管理
 | エンドポイント | メソッド | 説明 |
@@ -187,3 +184,7 @@ ACCESS-SIGNATURE: <HMAC-SHA256 signature>
 | テイクプロフィット | `limit`（指値） | 利益確保・手数料還元 |
 | ストップロス | `stop`（逆指値成行） | 確実な損切り実行 |
 | 緊急決済 | `market`（成行） | 即時約定優先 |
+
+---
+
+**📅 最終更新**: 2025年10月25日 - API仕様参照ファイル（実装詳細は開発履歴参照）

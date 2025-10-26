@@ -1,5 +1,5 @@
 """
-戦略実装 - Phase 38.4最適化版
+戦略実装 - Phase 49完了
 
 5つの取引戦略の具体的実装を提供。
 各戦略は独立して動作し、StrategyManagerによって統合される。
@@ -11,7 +11,7 @@
 4. DonchianChannelStrategy: ブレイクアウト・反転戦略
 5. ADXTrendStrengthStrategy: トレンド強度・方向性分析戦略
 
-Phase 38.4: 市場不確実性計算統合・重複コード削減・保守性向上
+Phase 49完了: 市場不確実性計算統合・重複コード削減・保守性向上
 """
 
 from .adx_trend import ADXTrendStrengthStrategy

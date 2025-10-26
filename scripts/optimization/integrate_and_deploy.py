@@ -37,7 +37,7 @@ class IntegrationDeployer:
             logger: ログシステム
         """
         self.logger = logger
-        self.results_dir = Path("config/optuna_results")
+        self.results_dir = Path("config/optimization/results")
         self.thresholds_path = Path("config/core/thresholds.yaml")
         self.backup_dir = Path("config/core/backups")
 

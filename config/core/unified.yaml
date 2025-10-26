@@ -1,9 +1,7 @@
 # ========================================
-# 統一設定ファイル (unified.yaml) - Phase 28完了・Phase 29最適化版
+# 統一設定ファイル (unified.yaml)
 # ========================================
 #
-# Phase 29最適化：設定重複完全解消・視覚的改善・理解しやすい構造化
-# 作成日: 2025年9月7日 | 最終更新: Phase 28完了・Phase 29最適化完了
 # 目的: 基本設定の統一管理・動的閾値はthresholds.yamlで管理
 #
 # 重要: 1つの設定ファイルで全環境をサポート
@@ -21,13 +19,13 @@
 mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 
 # ========================================
-# モード別初期残高設定（一元管理・Phase 23追加）
+# モード別初期残高設定（一元管理）
 # ========================================
-# 用途: 将来的な残高変更（10万円、50万円等）時に一箇所修正で完結
+# 用途: 将来的な残高変更時に一箇所修正で完結
 # 参照: ExecutionService、IntegratedRiskManager、DrawdownManager
 mode_balances:
   paper:
-    initial_balance: 100000.0     # ペーパートレード初期残高（10万円・実験用）
+    initial_balance: 10000.0      # ペーパートレード初期残高（1万円）
     description: "ペーパートレード用初期残高（実験・検証用）"
   live:
     initial_balance: 10000.0      # ライブトレード初期残高（1万円・実運用）
@@ -69,8 +67,8 @@ ml:
 # ========================================
 data:
   timeframes:
-  - 15m  # Phase 49: メインタイムフレーム（エントリー判断用・469行データ）
-  - 4h   # 補助タイムフレーム（トレンド判断用・30行データ）
+  - 15m  # メインタイムフレーム（エントリー判断用）
+  - 4h   # 補助タイムフレーム（トレンド判断用）
   since_hours: 96
   limit: 100
   cache_enabled: true
@@ -82,7 +80,7 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（50特徴量統一システム - Phase 40.6拡張）
+# 特徴量設定（55特徴量統一システム）
 # ========================================
 features:
   mode: optimized
@@ -183,7 +181,7 @@ execution:
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（0.0001 BTC = 約1,700円）
   max_order_size: 0.0005  # 1万円運用に適合（約8,500円相当、安全な上限設定）
-  trade_interval: 300  # Phase 37.3: 180→300秒（3分→5分）・月700-900円コスト削減
+  trade_interval: 300     # 5分間隔実行（月700-900円コスト最適化）
   margin_trading: true
   force_margin_mode: true
 
@@ -249,13 +247,13 @@ trading_constraints:
   leverage_max: 2.0
   leverage_actual: 1.0
   currency_pair: BTC/JPY
-  default_order_type: limit  # Phase 29.6: 成行→指値に変更（手数料最適化: Taker 0.12% → Maker -0.02%）
+  default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 50  # Phase 40.6: 50特徴量拡張システム（15→50）
+  features_count: 55  # 現在55特徴量（feature_order.json参照）
   timeframes:
-  - 15m  # Phase 49: メインタイムフレーム（エントリー判断用・469行データ）
-  - 4h   # 補助タイムフレーム（トレンド判断用・30行データ）
+  - 15m  # メインタイムフレーム（エントリー判断用）
+  - 4h   # 補助タイムフレーム（トレンド判断用）
 
 # ========================================
 # アンサンブルモデル重み設定（統一）

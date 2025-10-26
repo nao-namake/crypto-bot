@@ -1,12 +1,16 @@
 """
-基底レポートクラス - Phase 38.4完了版
+基底レポートクラス - Phase 49完了
 
 レポート生成の共通機能・インターフェースを提供。
 orchestrator.pyから分離したレポート機能の基盤。
 
-Phase 28-29最適化: レポート基底クラス設計・共通機能抽出
-Phase 38: trading層レイヤードアーキテクチャ実装完了
-Phase 38.4: 全モジュールPhase統一・コード品質保証完了
+Phase 49完了:
+- 統一レポート保存インターフェース（save_report・generate_error_report）
+- 3種類レポート対応（backtest/paper_trading/error）
+- JSON・Markdown両形式出力
+- thresholds.yaml設定準拠（reporting.base_dir: logs/reports）
+
+Phase 28-29: レポート基底クラス設計・共通機能抽出
 """
 
 import json

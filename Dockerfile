@@ -1,12 +1,12 @@
-# Phase 40完了 Production Dockerfile
-# 1,097テスト100%成功・70.56%カバレッジ・79パラメータOptuna最適化完成
+# Phase 49完了 Production Dockerfile
+# 1,065テスト100%成功・66.72%カバレッジ・企業級AI自動取引システム
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 40完了）
-LABEL maintainer="crypto-bot-phase40-system"
-LABEL version="40.0.0"
-LABEL description="Phase 40完了: 79パラメータOptuna最適化・70.56%カバレッジ達成・1,097テスト成功"
+# メタデータ（Phase 49完了）
+LABEL maintainer="crypto-bot-phase49-system"
+LABEL version="49.0.0"
+LABEL description="Phase 49完了: バックテスト完全改修・確定申告対応・週間レポート・統合TP/SL・Strategy-Aware ML実装完了"
 
 WORKDIR /app
 

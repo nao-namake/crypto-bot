@@ -1,19 +1,113 @@
-# src/trading/execution/ - 注文実行層 🚀 Phase 46完了
+# src/trading/execution/ - 注文実行層 🚀 Phase 49.16完了
 
 ## 🎯 役割・責任
 
-注文実行・TP/SL管理を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で統合TP/SL実装、Phase 42.2でトレーリングストップ機能を完成、Phase 42.4でTP/SL設定最適化、Phase 43で技術的負債削除・SL保護機能を実現、**Phase 46でデイトレード特化・シンプル設計に回帰**しました。
+注文実行・TP/SL管理を担当します。Phase 38でtradingレイヤードアーキテクチャの一部として分離、Phase 42で統合TP/SL実装、Phase 42.2でトレーリングストップ機能を完成、Phase 42.4でTP/SL設定最適化、Phase 43で技術的負債削除・SL保護機能を実現、Phase 46でデイトレード特化・シンプル設計に回帰、**Phase 49.16でTP/SL設定完全見直し・設定値確実反映を実現**しました。
 
 ## 📂 ファイル構成
 
 ```
 execution/
-├── executor.py         # 注文実行サービス（Phase 46: 個別TP/SL回帰・ペーパーバグ修正）
-├── stop_manager.py     # TP/SL管理（Phase 46: 個別TP/SL専用・131行）
-├── order_strategy.py   # 注文戦略（Phase 46: ハードコード値完全排除）
+├── executor.py         # 注文実行サービス（758行・Phase 49.16: TP/SL設定完全渡し）
+├── stop_manager.py     # TP/SL管理（989行・Phase 49完了）
+├── order_strategy.py   # 注文戦略（356行・Phase 49完了）
 ├── __init__.py         # モジュール初期化
 └── README.md           # このファイル
 ```
+
+## 📈 Phase 49.16完了（2025年10月26日）
+
+**🎯 Phase 49.16: TP/SL設定完全見直し・設定値確実反映・ライブモード問題解決**
+
+### 🚨 緊急修正背景
+
+**ライブモード問題**: TP/SL価格が設定値（thresholds.yaml）と異なる問題が発生。
+- 設定値: SL 1.5%・TP 2% (max_loss_ratio: 0.015, min_profit_ratio: 0.02)
+- 実際のTP/SL: 設定値が反映されず、ハードコード値やATRのみで計算
+
+### ✅ Phase 49.16.1 executor.py TP/SL設定完全渡し修正（Line 348-371）
+
+**根本原因**: executor.pyがRiskManagerに不完全な設定を渡していた。
+
+**修正前（BROKEN）**:
+```python
+# Line 350: 間違った設定キー名・不完全な設定渡し
+config = {"take_profit_ratio": get_threshold("tp_default_ratio", 2.0)}
+recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(...)
+```
+
+**修正後（FIXED）**:
+```python
+# Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
+config = {
+    # TP設定
+    "take_profit_ratio": get_threshold("position_management.take_profit.default_ratio", 1.33),
+    "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio", 0.02),
+    # SL設定
+    "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
+    "min_distance_ratio": get_threshold("position_management.stop_loss.min_distance.ratio", 0.015),
+    "default_atr_multiplier": get_threshold("position_management.stop_loss.default_atr_multiplier", 2.0),
+}
+```
+
+**効果**:
+- ✅ 全5設定項目を完全渡し（TP設定2項目・SL設定3項目）
+- ✅ 正しい設定キー名使用（"position_management."プレフィックス）
+- ✅ max_loss_ratio: 0.015（1.5%）が確実に反映
+
+### ✅ Phase 49.16.2 strategy_utils.py RiskManager完全見直し（Line 169-274）
+
+**根本原因**: RiskManagerがmax_loss_ratio・min_profit_ratioを無視していた。
+
+**修正前（BROKEN）**:
+```python
+# ATRベースのSL距離のみ計算（max_loss_ratio無視）
+stop_loss_distance = current_atr * stop_loss_multiplier
+
+# TP距離も不完全（min_profit_ratio無視）
+take_profit_distance = stop_loss_distance * default_tp_ratio
+```
+
+**修正後（FIXED）**:
+```python
+# === SL距離計算（max_loss_ratio優先） ===
+max_loss_ratio = config.get("max_loss_ratio", 0.015)
+
+# max_loss_ratioベースのSL距離（最優先）
+sl_distance_from_ratio = current_price * max_loss_ratio
+
+# ATRベースのSL距離（補助）
+sl_distance_from_atr = current_atr * stop_loss_multiplier
+
+# 最小値を採用（安全優先）
+stop_loss_distance = min(sl_distance_from_ratio, sl_distance_from_atr)
+
+# === TP距離計算（min_profit_ratio優先） ===
+min_profit_ratio = config.get("min_profit_ratio", 0.02)
+
+# min_profit_ratioベースのTP距離
+tp_distance_from_ratio = current_price * min_profit_ratio
+
+# SL距離×TP比率ベースのTP距離
+tp_distance_from_sl = stop_loss_distance * default_tp_ratio
+
+# 大きい方を採用（利益確保優先）
+take_profit_distance = max(tp_distance_from_ratio, tp_distance_from_sl)
+```
+
+**効果**:
+- ✅ max_loss_ratio: 0.015（1.5%）を確実に遵守
+- ✅ min_profit_ratio: 0.02（2%）を確実に遵守
+- ✅ 双方向計算（ratio-based + ATR-based）で最適値選択
+- ✅ 詳細ログ出力（デバッグ容易化）
+
+### 📊 Phase 49.16重要事項
+- **設定値確実反映**: max_loss_ratio・min_profit_ratio完全遵守
+- **デュアル計算アプローチ**: ratio-based（安全優先）+ ATR-based（市場適応）
+- **詳細ログ**: 全計算ステップログ出力（検証容易化）
+- **品質保証**: flake8準拠（E226エラー修正完了）
+
+---
 
 ## 📈 Phase 46完了（2025年10月22日）
 
