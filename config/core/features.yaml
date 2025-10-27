@@ -23,23 +23,23 @@ trading:
   # 基本設定
   enabled: true  # 取引機能全体のマスタースイッチ
 
-  # TP/SL自動配置
+  # TP/SL自動配置（Phase 49.18デイトレード特化設定）
   stop_loss:
     enabled: true  # ストップロス自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
     default_atr_multiplier: 2.0  # ATR倍率
-    max_loss_ratio: 0.03  # 最大損失率3%
+    max_loss_ratio: 0.015  # Phase 49.18: SL 1.5%（デイトレード最適化）
     override_strategy_sl: false  # 戦略SL価格優先（false）
-    note: "bitbank指値注文でmaker手数料-0.02%獲得"
+    note: "Phase 49.18: SL 1.5%・bitbank指値注文でmaker手数料-0.02%獲得"
 
   take_profit:
     enabled: true  # テイクプロフィット自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
-    default_ratio: 2.5  # リスクリワード比2.5:1
-    min_profit_ratio: 0.01  # 最小利益率1%
+    default_ratio: 0.67  # Phase 49.18: RR比0.67:1（TP 1.0% / SL 1.5%）
+    min_profit_ratio: 0.01  # Phase 49.18: TP 1.0%（現実的利確ライン・2-3時間到達）
     override_strategy_tp: false  # 戦略TP価格優先（false）
     position_partial_exit: false  # 部分利確（未実装）
-    note: "リスクリワード比2.5:1でTP自動配置"
+    note: "Phase 49.18: TP 1.0%・RR比0.67:1でデイトレード最適化"
 
   # クールダウン機能
   cooldown:
@@ -59,12 +59,12 @@ trading:
     min_hold_minutes: 1  # 最小保有時間（誤発動防止）
     note: "急激な価格変動時の緊急決済機能"
 
-  # 将来実装予定: トレーリングストップ
+  # トレーリングストップ（Phase 42.2実装済み・現在無効化）
   trailing_stop:
-    enabled: false  # トレーリングストップ（未実装）
-    trailing_percent: 0.02  # トレーリング幅（2%）
-    activation_profit: 0.01  # 発動利益率（1%）
-    note: "将来実装予定機能"
+    enabled: false  # Phase 42.2実装済み・現在無効化（thresholds.yaml参照）
+    trailing_percent: 0.03  # Phase 42.2: トレーリング幅（3%）
+    activation_profit: 0.02  # Phase 42.2: 発動利益率（2%）
+    note: "Phase 42.2: 2%発動・3%距離・最小0.5%利益ロック実装済み（現在無効化）"
 
 # ========================================
 # リスク管理機能
@@ -202,10 +202,10 @@ data:
   # 特徴量管理（feature_order.json参照・拡張可能設計）
   feature_management:
     enabled: true  # 特徴量管理
-    feature_count: 55  # 現在55個（feature_order.json参照・拡張時は自動反映）
+    feature_count: 70  # Phase 50.3: 70特徴量（62基本+8外部API・feature_order.json参照）
     feature_order_validation: true  # 特徴量順序検証
     use_feature_order_json: true  # feature_order.json使用
-    note: "特徴量追加時: feature_order.json更新で自動反映（config修正不要）"
+    note: "Phase 50.3: 70特徴量（62基本+8外部API）・feature_order.json更新で自動反映"
 
   # マルチタイムフレーム
   multi_timeframe:
@@ -214,6 +214,16 @@ data:
     since_hours: 96  # 取得期間（96時間）
     limit: 100  # 取得件数上限
     note: "4h足トレンド判定 + 15m足エントリー"
+
+  # 外部API特徴量（Phase 50.3 - マクロ経済指標統合）
+  external_api_features:
+    enabled: true  # 外部APIマクロ経済指標（8個）
+    yahoo_finance: true  # Yahoo Finance API（USD/JPY・日経平均・米10年債）
+    alternative_me: true  # Alternative.me API（Crypto Fear & Greed Index）
+    cache_ttl_hours: 24  # キャッシュTTL（24時間）
+    timeout_seconds: 10  # API呼び出しタイムアウト（10秒）
+    graceful_degradation: true  # API失敗時Level 2（62特徴量）へフォールバック
+    note: "Phase 50.3: 4段階Graceful Degradation（70→62→57→DummyModel）・完全無料API"
 
 # ========================================
 # 監視・通知機能

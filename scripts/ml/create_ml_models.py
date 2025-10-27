@@ -231,8 +231,8 @@ class NewSystemMLModelCreator:
             raise
 
     async def prepare_training_data_async(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
-        """学習用データ準備（Phase 41.8: 実戦略信号統合）"""
-        self.logger.info(f"📊 Phase 41.8: 実データ学習開始（過去{days}日分・55特徴量・実戦略信号）")
+        """学習用データ準備（Phase 50.3: 70特徴量・外部API・実戦略信号統合）"""
+        self.logger.info(f"📊 Phase 50.3: 実データ学習開始（過去{days}日分・70特徴量・外部API・実戦略信号）")
 
         try:
             # Phase 39.1: 実データ読み込み
@@ -240,18 +240,25 @@ class NewSystemMLModelCreator:
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # 特徴量エンジニアリング（50特徴量）
+            # Phase 50.3: 特徴量エンジニアリング（70特徴量: 62基本 + 8外部API）
             features_df = await self.feature_generator.generate_features(df)
 
-            # Phase 41.8: 実戦略信号生成（50→55特徴量）
+            # Phase 50.3: 戦略シグナル特徴量を削除（後で実戦略信号で置き換える）
+            # generate_features() は戦略シグナルを0.0で自動生成するが、Phase 41.8では実戦略信号を使用
+            strategy_signal_cols = [col for col in features_df.columns if col.startswith('strategy_signal_')]
+            if strategy_signal_cols:
+                features_df = features_df.drop(columns=strategy_signal_cols)
+                self.logger.info(f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）")
+
+            # Phase 41.8: 実戦略信号生成（62→70特徴量 or 65→70特徴量）
             # Note: 過去データから実際に5戦略を実行し、本物の戦略信号を生成
             #       これにより訓練時と推論時の一貫性を確保
             strategy_signals_df = await self._generate_real_strategy_signals_for_training(df)
 
-            # 50特徴量 + 5戦略信号 = 55特徴量を結合
+            # Phase 50.3: 基本特徴量 + 外部API特徴量 + 実戦略信号 = 70特徴量を結合
             features_df = pd.concat([features_df, strategy_signals_df], axis=1)
 
-            # 特徴量整合性確保（55特徴量）
+            # Phase 50.3: 特徴量整合性確保（70特徴量）
             features_df = self._ensure_feature_consistency(features_df)
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
@@ -261,8 +268,8 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 41.8 実データ準備完了: {len(features_df)}サンプル、"
-                f"{len(features_df.columns)}特徴量（55特徴量・実戦略信号統合完了）"
+                f"✅ Phase 50.3 実データ準備完了: {len(features_df)}サンプル、"
+                f"{len(features_df.columns)}特徴量（70特徴量: 62基本+8外部API・実戦略信号統合完了）"
             )
             return features_df, target
 

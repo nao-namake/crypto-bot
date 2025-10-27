@@ -1,14 +1,20 @@
 """
-MLサービス モデル読み込み機能 - Phase 50.1完了
+MLサービス モデル読み込み機能 - Phase 50.3完了
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
 
+Phase 50.3完了:
+- 4段階Graceful Degradation実装（外部API統合対応）
+  - Level 1（完全+外部API）: 70特徴量モデル（production_ensemble_full.pkl）
+  - Level 2（完全）: 62特徴量モデル（production_ensemble.pkl）
+  - Level 3（基本）: 57特徴量モデル（production_ensemble_57.pkl）
+  - Level 4（ダミー）: DummyModel（最終フォールバック）
+- 外部API障害時自動Level 2フォールバック
+- レガシーシステム教訓反映: 外部API失敗でもシステム継続動作保証
+
 Phase 50.1完了:
 - 3段階Graceful Degradation実装（設定駆動型）
-  - Level 1（完全）: 62特徴量モデル（production_ensemble.pkl）
-  - Level 2（基本）: 57特徴量モデル（production_ensemble_57.pkl）
-  - Level 3（ダミー）: DummyModel（最終フォールバック）
 - feature_order.json設定駆動型モデル選択
 - 特徴量数自動判定システム
 - 動的モデルフォールバック機能
@@ -35,9 +41,10 @@ from .ml_fallback import DummyModel
 
 class MLModelLoader:
     """
-    MLモデル読み込み管理クラス - Phase 50.1: 3段階Graceful Degradation対応
+    MLモデル読み込み管理クラス - Phase 50.3: 4段階Graceful Degradation対応
 
     設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
+    外部API障害時は自動的にLevel 2（62特徴量）にフォールバックし、システム継続性を保証。
     """
 
     def __init__(self, logger: CryptoBotLogger):
@@ -49,11 +56,12 @@ class MLModelLoader:
 
     def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        Phase 50.1: 3段階Graceful Degradation付き優先順位モデル読み込み
+        Phase 50.3: 4段階Graceful Degradation付き優先順位モデル読み込み
 
-        Level 1（完全）: 62特徴量モデル → production_ensemble.pkl
-        Level 2（基本）: 57特徴量モデル → production_ensemble_57.pkl
-        Level 3（ダミー）: DummyModel → 最終フォールバック
+        Level 1（完全+外部API）: 70特徴量モデル → production_ensemble_full.pkl
+        Level 2（完全）: 62特徴量モデル → production_ensemble.pkl
+        Level 3（基本）: 57特徴量モデル → production_ensemble_57.pkl
+        Level 4（ダミー）: DummyModel → 最終フォールバック
 
         Args:
             feature_count: 生成された特徴量数（Noneの場合は設定から判定）
@@ -61,68 +69,86 @@ class MLModelLoader:
         Returns:
             読み込まれたモデルインスタンス
         """
-        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.1: 3段階Graceful Degradation")
+        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.3: 4段階Graceful Degradation")
 
-        # Phase 50.1: 特徴量レベル判定
+        # Phase 50.3: 特徴量レベル判定
         target_level = self._determine_feature_level(feature_count)
         self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
 
-        # Level 1: 完全特徴量モデル読み込み試行
-        if target_level == "full" and self._load_production_ensemble(level="full"):
+        # Level 1: 外部API付き完全特徴量モデル読み込み試行（70特徴量）
+        if target_level == "full_with_external" and self._load_production_ensemble(
+            level="full_with_external"
+        ):
             return self.model
 
-        # Level 2: 基本特徴量モデル読み込み試行
-        if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
-            self.logger.info("Level 2（基本）モデルにフォールバック")
+        # Level 2: 外部APIなし完全特徴量モデル読み込み試行（62特徴量）
+        if target_level in ["full_with_external", "full"] and self._load_production_ensemble(
+            level="full"
+        ):
+            if target_level == "full_with_external":
+                self.logger.info("Level 2（外部APIなし）モデルにフォールバック")
             return self.model
 
-        # Level 2.5: 個別モデルから再構築試行（後方互換性）
+        # Level 3: 基本特徴量モデル読み込み試行（57特徴量）
+        if target_level in [
+            "full_with_external",
+            "full",
+            "basic",
+        ] and self._load_production_ensemble(level="basic"):
+            self.logger.info("Level 3（基本）モデルにフォールバック")
+            return self.model
+
+        # Level 3.5: 個別モデルから再構築試行（後方互換性）
         if self._load_from_individual_models():
-            self.logger.info("Level 2.5（再構築）モデルにフォールバック")
+            self.logger.info("Level 3.5（再構築）モデルにフォールバック")
             return self.model
 
-        # Level 3: 最終フォールバック - ダミーモデル
+        # Level 4: 最終フォールバック - ダミーモデル
         self._load_dummy_model()
         return self.model
 
     def _determine_feature_level(self, feature_count: Optional[int] = None) -> str:
         """
-        Phase 50.1: 特徴量レベル判定（設定駆動型）
+        Phase 50.3: 特徴量レベル判定（設定駆動型・外部API対応）
 
         Args:
             feature_count: 生成された特徴量数
 
         Returns:
-            特徴量レベル文字列（"full" or "basic"）
+            特徴量レベル文字列（"full_with_external", "full", or "basic"）
         """
         # feature_order.jsonから特徴量レベル情報を取得
         from ..config.feature_manager import _feature_manager
 
         level_counts = _feature_manager.get_feature_level_counts()
 
-        # feature_countが指定されていない場合は、デフォルトでfullを試行
+        # feature_countが指定されていない場合は、デフォルトでfull_with_externalを試行
         if feature_count is None:
-            self.logger.debug("特徴量数未指定 → Level 1（完全）を試行")
-            return "full"
+            self.logger.debug("特徴量数未指定 → Level 1（完全+外部API）を試行")
+            return "full_with_external"
 
-        # 62特徴量の場合
+        # 70特徴量の場合（外部API含む）- Phase 50.3
+        if feature_count == level_counts.get("full_with_external", 70):
+            return "full_with_external"
+
+        # 62特徴量の場合（外部APIなし）
         if feature_count == level_counts.get("full", 62):
             return "full"
 
-        # 57特徴量の場合
+        # 57特徴量の場合（基本特徴量のみ）
         if feature_count == level_counts.get("basic", 57):
             return "basic"
 
-        # その他の場合はfullを試行（フォールバック）
-        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全）を試行")
-        return "full"
+        # その他の場合はfull_with_externalを試行（フォールバック）
+        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全+外部API）を試行")
+        return "full_with_external"
 
     def _load_production_ensemble(self, level: str = "full") -> bool:
         """
-        Phase 50.1: ProductionEnsemble読み込み（設定駆動型・互換性レイヤー付き）
+        Phase 50.3: ProductionEnsemble読み込み（設定駆動型・互換性レイヤー付き・外部API対応）
 
         Args:
-            level: 特徴量レベル（"full" or "basic"）
+            level: 特徴量レベル（"full_with_external", "full", or "basic"）
 
         Returns:
             読み込み成功の可否

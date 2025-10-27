@@ -1,20 +1,26 @@
 {
-  "feature_order_version": "v2.7.0",
-  "phase": "Phase 49.20",
-  "total_features": 62,
-  "last_updated": "2025-10-27T20:00:00Z",
-  "description": "62特徴量（57基本+5戦略信号）- Phase 49.20設定駆動型3段階Graceful Degradation",
+  "feature_order_version": "v2.8.0",
+  "phase": "Phase 50.3",
+  "total_features": 70,
+  "last_updated": "2025-10-28T12:00:00Z",
+  "description": "70特徴量（62基本+8外部API）- Phase 50.3マクロ経済指標統合・4段階Graceful Degradation",
 
   "feature_levels": {
+    "full_with_external": {
+      "count": 70,
+      "description": "完全特徴量（外部API含む）- Level 1",
+      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals", "external_api"],
+      "model_file": "production_ensemble_full.pkl"
+    },
     "full": {
       "count": 62,
-      "description": "完全特徴量（戦略信号含む）- Level 1",
+      "description": "完全特徴量（外部APIなし・戦略信号含む）- Level 2",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
-      "model_file": "production_ensemble_62.pkl"
+      "model_file": "production_ensemble.pkl"
     },
     "basic": {
       "count": 57,
-      "description": "基本特徴量（戦略信号なし）- Level 2",
+      "description": "基本特徴量（戦略信号・外部APIなし）- Level 3",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time"],
       "model_file": "production_ensemble_57.pkl"
     }
@@ -152,6 +158,20 @@
         "strategy_signal_MultiTimeframe",
         "strategy_signal_DonchianChannel",
         "strategy_signal_ADXTrendStrength"
+      ]
+    },
+
+    "external_api": {
+      "description": "外部APIマクロ経済指標（External API Features・8個）- Phase 50.3",
+      "features": [
+        "usd_jpy",
+        "nikkei_225",
+        "us_10y_yield",
+        "fear_greed_index",
+        "usd_jpy_change_1d",
+        "nikkei_change_1d",
+        "usd_jpy_btc_correlation",
+        "market_sentiment"
       ]
     }
   },
@@ -540,6 +560,70 @@
       "range": "-1.0 to 1.0",
       "importance": "critical",
       "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
+    },
+    "usd_jpy": {
+      "type": "external_api",
+      "description": "USD/JPY為替レート（Yahoo Finance）",
+      "range": "positive_float",
+      "importance": "medium",
+      "phase": "Phase 50.3",
+      "data_source": "Yahoo Finance (USDJPY=X)"
+    },
+    "nikkei_225": {
+      "type": "external_api",
+      "description": "日経平均株価（Yahoo Finance）",
+      "range": "positive_float",
+      "importance": "medium",
+      "phase": "Phase 50.3",
+      "data_source": "Yahoo Finance (^N225)"
+    },
+    "us_10y_yield": {
+      "type": "external_api",
+      "description": "米国債10年利回り（Yahoo Finance）",
+      "range": "0-100 (percent)",
+      "importance": "medium",
+      "phase": "Phase 50.3",
+      "data_source": "Yahoo Finance (^TNX)"
+    },
+    "fear_greed_index": {
+      "type": "external_api",
+      "description": "Crypto Fear & Greed Index（Alternative.me API）",
+      "range": "0-100",
+      "importance": "high",
+      "phase": "Phase 50.3",
+      "data_source": "Alternative.me API"
+    },
+    "usd_jpy_change_1d": {
+      "type": "external_api",
+      "description": "USD/JPY 1日変化率（%）",
+      "range": "float (percent)",
+      "importance": "low",
+      "phase": "Phase 50.3",
+      "data_source": "Derived from usd_jpy"
+    },
+    "nikkei_change_1d": {
+      "type": "external_api",
+      "description": "日経平均 1日変化率（%）",
+      "range": "float (percent)",
+      "importance": "low",
+      "phase": "Phase 50.3",
+      "data_source": "Derived from nikkei_225"
+    },
+    "usd_jpy_btc_correlation": {
+      "type": "external_api",
+      "description": "USD/JPY-BTC相関係数（過去24時間）",
+      "range": "-1.0 to 1.0",
+      "importance": "low",
+      "phase": "Phase 50.3",
+      "data_source": "Calculated from usd_jpy and BTC price"
+    },
+    "market_sentiment": {
+      "type": "external_api",
+      "description": "総合市場センチメント（Fear & Greedベース）",
+      "range": "-1.0 to 1.0",
+      "importance": "medium",
+      "phase": "Phase 50.3",
+      "data_source": "Derived from fear_greed_index"
     }
   },
 
@@ -603,6 +687,25 @@
         "時間特徴量 7個 → 14個（2倍）",
         "外部API依存ゼロ（timestampのみ使用）",
         "期待効果: ML予測精度 +5-10%, 市場セッション別パターン認識向上"
+      ]
+    },
+    "phase50_3_expansion": {
+      "target": "マクロ経済指標統合（外部API）",
+      "achieved": 70,
+      "expansion_type": "external_api_features",
+      "method": "yahoo_finance_alternative_me_api",
+      "added_categories": ["external_api"],
+      "extended_categories": [],
+      "added_features_count": 8,
+      "improvements": [
+        "外部API特徴量追加（8個）: USD/JPY・日経平均・米10年債・Fear & Greed Index・派生指標4個",
+        "4段階Graceful Degradation実装（70→62→57→DummyModel）",
+        "Yahoo Finance API統合（USD/JPY・日経平均・米10年債）",
+        "Alternative.me API統合（Crypto Fear & Greed Index）",
+        "24時間キャッシュ・10秒タイムアウト・外部API障害時Level 2フォールバック",
+        "レガシーシステム教訓反映: 外部API失敗時もシステム継続動作保証",
+        "期待効果: ML予測精度 +5-10%, マクロ経済相関学習・市場センチメント定量化",
+        "月額コスト: 0円（完全無料API使用）"
       ]
     }
   },

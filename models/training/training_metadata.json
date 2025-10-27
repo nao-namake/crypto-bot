@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-27T07:52:07.860149",
+  "created_at": "2025-10-28T07:40:37.417216",
   "feature_names": [
     "close",
     "volume",
@@ -62,33 +62,41 @@
     "strategy_signal_MochipoyAlert",
     "strategy_signal_MultiTimeframe",
     "strategy_signal_DonchianChannel",
-    "strategy_signal_ADXTrendStrength"
+    "strategy_signal_ADXTrendStrength",
+    "usd_jpy",
+    "nikkei_225",
+    "us_10y_yield",
+    "fear_greed_index",
+    "usd_jpy_change_1d",
+    "nikkei_change_1d",
+    "usd_jpy_btc_correlation",
+    "market_sentiment"
   ],
-  "training_samples": 1075,
+  "training_samples": 1069,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.3395061728395062,
-      "f1_score": 0.3175295677753888,
-      "precision": 0.4967586057523545,
-      "recall": 0.3395061728395062,
-      "cv_f1_mean": 0.43787173833130166,
-      "cv_f1_std": 0.09747499150389813
+      "accuracy": 0.37267080745341613,
+      "f1_score": 0.369891630761196,
+      "precision": 0.4224566541663632,
+      "recall": 0.37267080745341613,
+      "cv_f1_mean": 0.49792658550848545,
+      "cv_f1_std": 0.08373973042543173
     },
     "xgboost": {
-      "accuracy": 0.5185185185185185,
-      "f1_score": 0.35411020776874436,
-      "precision": 0.2688614540466392,
-      "recall": 0.5185185185185185,
-      "cv_f1_mean": 0.5397402087785947,
-      "cv_f1_std": 0.046629987256240804
+      "accuracy": 0.4968944099378882,
+      "f1_score": 0.3766422854384886,
+      "precision": 0.3315099570645267,
+      "recall": 0.4968944099378882,
+      "cv_f1_mean": 0.5400324070960443,
+      "cv_f1_std": 0.047501836180612475
     },
     "random_forest": {
-      "accuracy": 0.5123456790123457,
-      "f1_score": 0.352762598664238,
-      "precision": 0.2689814814814815,
-      "recall": 0.5123456790123457,
-      "cv_f1_mean": 0.5367364869256216,
-      "cv_f1_std": 0.06189193194552443
+      "accuracy": 0.4782608695652174,
+      "f1_score": 0.41292111917774693,
+      "precision": 0.41111213298691746,
+      "recall": 0.4782608695652174,
+      "cv_f1_mean": 0.5488979464167539,
+      "cv_f1_std": 0.0646069809557394
     }
   },
   "model_files": {

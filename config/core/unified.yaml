@@ -80,7 +80,11 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（55特徴量統一システム）
+# 特徴量設定（Phase 50.3: 70特徴量統一システム）
+# ========================================
+# Phase 50.3: 70特徴量（62基本+8外部API）
+# - 62基本特徴量: Phase 50.2までの時間的特徴量含む
+# - 8外部API特徴量: USD/JPY・日経平均・米10年債・Fear & Greed Index・派生指標4個
 # ========================================
 features:
   mode: optimized
@@ -250,7 +254,7 @@ trading_constraints:
   default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 55  # 現在55特徴量（feature_order.json参照）
+  features_count: 70  # Phase 50.3: 70特徴量（62基本+8外部API・feature_order.json参照）
   timeframes:
   - 15m  # メインタイムフレーム（エントリー判断用）
   - 4h   # 補助タイムフレーム（トレンド判断用）

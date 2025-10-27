@@ -1,8 +1,8 @@
 """
-統合FeatureGenerator テストファイル - Phase 50.2対応版
+統合FeatureGenerator テストファイル - Phase 50.3対応版
 
 Phase 18統合により、TechnicalIndicators・MarketAnomalyDetector・FeatureServiceAdapterが
-FeatureGeneratorクラスに統合されました。62特徴量生成システムの包括的テスト。
+FeatureGeneratorクラスに統合されました。70特徴量生成システムの包括的テスト。
 
 テスト対象:
 - 基本特徴量生成（2個）: close, volume
@@ -13,9 +13,12 @@ FeatureGeneratorクラスに統合されました。62特徴量生成システ�
 - 交互作用特徴量生成（6個）: rsi_x_atr, etc - Phase 40.6
 - 時間ベース特徴量生成（14個）: hour, day_of_week, 市場セッション, 周期性 - Phase 40.6/50.2
 - 戦略シグナル特徴量（5個）: strategy_signal_* - Phase 41
+- 外部API特徴量（8個）: usd_jpy, nikkei_225, us_10y_yield, fear_greed_index等 - Phase 50.3
 - 入力形式対応: DataFrame, 辞書, マルチタイムフレーム
 - 出力形式確認: DataFrame返却
 - エラーハンドリング: 不正データ、不足列等
+
+注: 単体テストでは external_api_client を渡さないため、外部API特徴量は生成されません（57特徴量のみ）
 """
 
 import asyncio
@@ -27,8 +30,8 @@ import pytest
 from src.core.exceptions import DataProcessingError
 from src.features.feature_generator import OPTIMIZED_FEATURES, FeatureGenerator
 
-# Phase 50.2: 戦略シグナル特徴量を除外した基本特徴量（57個）
-# generate_features()はstrategy_signalsパラメータを渡さないと57特徴量のみ生成
+# Phase 50.3: 戦略シグナル・外部API特徴量を除外した基本特徴量（57個）
+# generate_features()はstrategy_signalsパラメータを渡さず、external_api_clientも渡さないと57特徴量のみ生成
 STRATEGY_SIGNAL_FEATURES = [
     "strategy_signal_ATRBased",
     "strategy_signal_MochipoyAlert",
@@ -36,7 +39,20 @@ STRATEGY_SIGNAL_FEATURES = [
     "strategy_signal_DonchianChannel",
     "strategy_signal_ADXTrendStrength",
 ]
-BASE_FEATURES = [f for f in OPTIMIZED_FEATURES if f not in STRATEGY_SIGNAL_FEATURES]
+EXTERNAL_API_FEATURES = [
+    "usd_jpy",
+    "nikkei_225",
+    "us_10y_yield",
+    "fear_greed_index",
+    "usd_jpy_change_1d",
+    "nikkei_change_1d",
+    "usd_jpy_btc_correlation",
+    "market_sentiment",
+]
+# Phase 50.3: include_external_api=Falseまたはexternal_api_clientなしの場合の期待特徴量（62個）
+FEATURES_WITHOUT_EXTERNAL_API = [f for f in OPTIMIZED_FEATURES if f not in EXTERNAL_API_FEATURES]
+EXCLUDED_FEATURES = STRATEGY_SIGNAL_FEATURES + EXTERNAL_API_FEATURES
+BASE_FEATURES = [f for f in OPTIMIZED_FEATURES if f not in EXCLUDED_FEATURES]
 
 
 class TestFeatureGenerator:
@@ -93,13 +109,15 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_generate_features_basic_dataframe(self, generator, sample_ohlcv_data):
         """基本特徴量生成テスト（DataFrame入力）"""
-        result_df = await generator.generate_features(sample_ohlcv_data)
+        result_df = await generator.generate_features(
+            sample_ohlcv_data, include_external_api=False  # Phase 50.3: 外部API無効
+        )
 
         # 戻り値がDataFrameかチェック
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 50.1: 必ず62特徴量生成（戦略シグナル含む）
+        # Phase 50.3: include_external_api=Falseの場合は62特徴量生成（外部API除外・戦略シグナル含む）
         # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
         strategy_signal_features = [
             "strategy_signal_ATRBased",
@@ -109,8 +127,8 @@ class TestFeatureGenerator:
             "strategy_signal_ADXTrendStrength",
         ]
 
-        # 全特徴量が存在するかチェック（戦略シグナル含む）
-        for feature in OPTIMIZED_FEATURES:
+        # Phase 50.3: 外部API特徴量を除く62特徴量が存在するかチェック（戦略シグナル含む）
+        for feature in FEATURES_WITHOUT_EXTERNAL_API:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
         # Phase 50.1: 戦略シグナル特徴量は0.0で存在するはず（確実な62特徴量生成）
@@ -133,17 +151,9 @@ class TestFeatureGenerator:
         # 4hタイムフレームのデータが使われているはず
         assert len(result_df) == len(multitime_data["4h"])
 
-        # Phase 41: 戦略シグナル特徴量を除外した50特徴量をチェック
-        strategy_signal_features = [
-            "strategy_signal_ATRBased",
-            "strategy_signal_MochipoyAlert",
-            "strategy_signal_MultiTimeframe",
-            "strategy_signal_DonchianChannel",
-            "strategy_signal_ADXTrendStrength",
-        ]
-        base_features = [f for f in OPTIMIZED_FEATURES if f not in strategy_signal_features]
-
-        for feature in base_features:
+        # Phase 50.3: 戦略シグナル・外部API特徴量を除外した57特徴量をチェック
+        # external_api_clientを渡していないため、外部API特徴量は生成されない
+        for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
     @pytest.mark.asyncio
@@ -528,8 +538,9 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が62になるはず - Phase 50.1（確実な62特徴量生成）
-        assert len(generator.computed_features) == 62
+        # 計算された特徴量数が62-70の範囲になるはず - Phase 50.3（外部API取得失敗考慮）
+        # 62基本特徴量 + 0-8外部API特徴量（実API呼び出しのため取得失敗の可能性あり）
+        assert 62 <= len(generator.computed_features) <= 70
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
