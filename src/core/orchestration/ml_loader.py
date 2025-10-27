@@ -1,8 +1,17 @@
 """
-MLサービス モデル読み込み機能 - Phase 49完了
+MLサービス モデル読み込み機能 - Phase 50.1完了
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
+
+Phase 50.1完了:
+- 3段階Graceful Degradation実装（設定駆動型）
+  - Level 1（完全）: 62特徴量モデル（production_ensemble.pkl）
+  - Level 2（基本）: 57特徴量モデル（production_ensemble_57.pkl）
+  - Level 3（ダミー）: DummyModel（最終フォールバック）
+- feature_order.json設定駆動型モデル選択
+- 特徴量数自動判定システム
+- 動的モデルフォールバック機能
 
 Phase 49完了:
 - ProductionEnsemble読み込み（models/production/production_ensemble.pkl）
@@ -25,41 +34,99 @@ from .ml_fallback import DummyModel
 
 
 class MLModelLoader:
-    """MLモデル読み込み管理クラス"""
+    """
+    MLモデル読み込み管理クラス - Phase 50.1: 3段階Graceful Degradation対応
+
+    設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
+    """
 
     def __init__(self, logger: CryptoBotLogger):
         self.logger = logger
         self.model = None
         self.model_type = "Unknown"
         self.is_fitted = False
+        self.feature_level = "unknown"  # Phase 50.1: 使用中の特徴量レベル
 
-    def load_model_with_priority(self) -> Any:
+    def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        優先順位付きモデル読み込み
+        Phase 50.1: 3段階Graceful Degradation付き優先順位モデル読み込み
 
-        1. ProductionEnsemble（最優先）
-        2. 個別モデルから再構築
-        3. ダミーモデル（最終フォールバック）
+        Level 1（完全）: 62特徴量モデル → production_ensemble.pkl
+        Level 2（基本）: 57特徴量モデル → production_ensemble_57.pkl
+        Level 3（ダミー）: DummyModel → 最終フォールバック
+
+        Args:
+            feature_count: 生成された特徴量数（Noneの場合は設定から判定）
 
         Returns:
             読み込まれたモデルインスタンス
         """
-        self.logger.info("🤖 MLモデル読み込み開始")
+        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.1: 3段階Graceful Degradation")
 
-        # 1. ProductionEnsemble読み込み試行
-        if self._load_production_ensemble():
+        # Phase 50.1: 特徴量レベル判定
+        target_level = self._determine_feature_level(feature_count)
+        self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
+
+        # Level 1: 完全特徴量モデル読み込み試行
+        if target_level == "full" and self._load_production_ensemble(level="full"):
             return self.model
 
-        # 2. 個別モデルから再構築試行
+        # Level 2: 基本特徴量モデル読み込み試行
+        if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
+            self.logger.info("Level 2（基本）モデルにフォールバック")
+            return self.model
+
+        # Level 2.5: 個別モデルから再構築試行（後方互換性）
         if self._load_from_individual_models():
+            self.logger.info("Level 2.5（再構築）モデルにフォールバック")
             return self.model
 
-        # 3. 最終フォールバック: ダミーモデル
+        # Level 3: 最終フォールバック - ダミーモデル
         self._load_dummy_model()
         return self.model
 
-    def _load_production_ensemble(self) -> bool:
-        """ProductionEnsemble読み込み（互換性レイヤー付き）"""
+    def _determine_feature_level(self, feature_count: Optional[int] = None) -> str:
+        """
+        Phase 50.1: 特徴量レベル判定（設定駆動型）
+
+        Args:
+            feature_count: 生成された特徴量数
+
+        Returns:
+            特徴量レベル文字列（"full" or "basic"）
+        """
+        # feature_order.jsonから特徴量レベル情報を取得
+        from ..config.feature_manager import _feature_manager
+
+        level_counts = _feature_manager.get_feature_level_counts()
+
+        # feature_countが指定されていない場合は、デフォルトでfullを試行
+        if feature_count is None:
+            self.logger.debug("特徴量数未指定 → Level 1（完全）を試行")
+            return "full"
+
+        # 62特徴量の場合
+        if feature_count == level_counts.get("full", 62):
+            return "full"
+
+        # 57特徴量の場合
+        if feature_count == level_counts.get("basic", 57):
+            return "basic"
+
+        # その他の場合はfullを試行（フォールバック）
+        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全）を試行")
+        return "full"
+
+    def _load_production_ensemble(self, level: str = "full") -> bool:
+        """
+        Phase 50.1: ProductionEnsemble読み込み（設定駆動型・互換性レイヤー付き）
+
+        Args:
+            level: 特徴量レベル（"full" or "basic"）
+
+        Returns:
+            読み込み成功の可否
+        """
         import os
 
         # Cloud Run環境とローカル環境の両方に対応
@@ -69,13 +136,29 @@ class MLModelLoader:
             cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
         )
 
-        ensemble_path = get_threshold(
-            "ml.model_paths.production_ensemble", "models/production/production_ensemble.pkl"
-        )
-        model_path = Path(base_path) / ensemble_path
+        # Phase 50.1: feature_order.jsonから設定駆動型でモデルファイル名取得
+        from ..config.feature_manager import _feature_manager
+
+        level_info = _feature_manager.get_feature_level_info()
+
+        if level not in level_info:
+            self.logger.warning(f"想定外の特徴量レベル: {level} → 読み込みスキップ")
+            return False
+
+        model_filename = level_info[level].get("model_file", "production_ensemble.pkl")
+        model_path = Path(base_path) / "models" / "production" / model_filename
+
+        # 後方互換性: production_ensemble.pklが指定されている場合はフォールバックパス試行
+        if not model_path.exists() and model_filename == "production_ensemble.pkl":
+            fallback_path = Path(base_path) / get_threshold(
+                "ml.model_paths.production_ensemble", "models/production/production_ensemble.pkl"
+            )
+            if fallback_path.exists():
+                model_path = fallback_path
+                self.logger.debug(f"後方互換性パス使用: {model_path}")
 
         if not model_path.exists():
-            self.logger.warning(f"ProductionEnsemble未発見: {model_path}")
+            self.logger.warning(f"ProductionEnsemble未発見 (Level {level.upper()}): {model_path}")
             return False
 
         try:
@@ -118,16 +201,20 @@ class MLModelLoader:
 
             # モデルの妥当性チェック
             if hasattr(self.model, "predict") and hasattr(self.model, "predict_proba"):
-                self.model_type = "ProductionEnsemble"
+                self.model_type = f"ProductionEnsemble_{level.upper()}"
                 self.is_fitted = getattr(self.model, "is_fitted", True)
-                self.logger.info("✅ ProductionEnsemble読み込み成功")
+                self.feature_level = level
+                feature_count = level_info[level].get("count", "unknown")
+                self.logger.info(
+                    f"✅ ProductionEnsemble読み込み成功 (Level {level.upper()}, {feature_count}特徴量)"
+                )
                 return True
             else:
                 self.logger.error("ProductionEnsembleに必須メソッドが不足")
                 return False
 
         except Exception as e:
-            self.logger.error(f"ProductionEnsemble読み込みエラー: {e}")
+            self.logger.error(f"ProductionEnsemble読み込みエラー (Level {level.upper()}): {e}")
             return False
 
     def _load_from_individual_models(self) -> bool:
@@ -206,10 +293,16 @@ class MLModelLoader:
             return False
 
     def get_model_info(self) -> Dict[str, Any]:
-        """モデル情報取得"""
+        """
+        Phase 50.1: モデル情報取得（特徴量レベル含む）
+
+        Returns:
+            モデル情報辞書
+        """
         return {
             "model_type": self.model_type,
             "is_fitted": self.is_fitted,
+            "feature_level": self.feature_level,  # Phase 50.1追加
             "has_predict": hasattr(self.model, "predict") if self.model else False,
             "has_predict_proba": (hasattr(self.model, "predict_proba") if self.model else False),
         }

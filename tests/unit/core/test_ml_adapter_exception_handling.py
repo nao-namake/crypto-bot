@@ -162,7 +162,8 @@ class TestMLServiceAdapterExceptionHandling:
                 assert adapter.model_type == "DummyModel"
                 mock_logger.error.assert_called()
                 error_call = mock_logger.error.call_args_list[0][0][0]
-                assert "ProductionEnsemble読み込みエラー:" in error_call
+                # Phase 50.1: エラーメッセージに "(Level FULL)" または "(Level BASIC)" が含まれる
+                assert "ProductionEnsemble読み込みエラー" in error_call
 
     def test_production_ensemble_pickle_error(self, mock_logger, temp_models_dir):
         """ProductionEnsemble逆シリアライゼーションエラー"""

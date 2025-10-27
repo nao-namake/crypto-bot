@@ -99,8 +99,8 @@ class TestFeatureGenerator:
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 41: 戦略シグナル特徴量を除外した50特徴量をチェック
-        # （strategy_signalsパラメータを渡さない場合、50特徴量のみ生成される）
+        # Phase 50.1: 必ず62特徴量生成（戦略シグナル含む）
+        # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
         strategy_signal_features = [
             "strategy_signal_ATRBased",
             "strategy_signal_MochipoyAlert",
@@ -108,19 +108,19 @@ class TestFeatureGenerator:
             "strategy_signal_DonchianChannel",
             "strategy_signal_ADXTrendStrength",
         ]
-        base_features = [f for f in OPTIMIZED_FEATURES if f not in strategy_signal_features]
 
-        for feature in base_features:
+        # 全特徴量が存在するかチェック（戦略シグナル含む）
+        for feature in OPTIMIZED_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # 戦略シグナル特徴量は存在しないはず（後方互換性確認）
+        # Phase 50.1: 戦略シグナル特徴量は0.0で存在するはず（確実な62特徴量生成）
         for feature in strategy_signal_features:
-            assert (
-                feature not in result_df.columns
-            ), f"戦略シグナル特徴量{feature}が意図せず生成されている"
+            assert feature in result_df.columns, f"戦略シグナル特徴量{feature}が生成されていない"
+            # strategy_signals=Noneの場合は0.0で生成
+            assert (result_df[feature] == 0.0).all(), f"戦略シグナル特徴量{feature}が0.0でない"
 
-        # computed_featuresに記録されているかチェック - Phase 50.2: 57特徴量（戦略シグナル除外）
-        assert len(generator.computed_features) == 57
+        # computed_featuresに記録されているかチェック - Phase 50.1: 62特徴量（確実）
+        assert len(generator.computed_features) == 62
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -528,8 +528,8 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が57になるはず - Phase 50.2
-        assert len(generator.computed_features) == 57
+        # 計算された特徴量数が62になるはず - Phase 50.1（確実な62特徴量生成）
+        assert len(generator.computed_features) == 62
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:

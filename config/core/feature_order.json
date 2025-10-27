@@ -1,9 +1,24 @@
 {
-  "feature_order_version": "v2.6.0",
-  "phase": "Phase 50.2",
+  "feature_order_version": "v2.7.0",
+  "phase": "Phase 49.20",
   "total_features": 62,
-  "last_updated": "2025-10-27T12:00:00Z",
-  "description": "62特徴量（57基本+5戦略信号）- Phase 50.2時間的特徴量拡張（外部APIなし）",
+  "last_updated": "2025-10-27T20:00:00Z",
+  "description": "62特徴量（57基本+5戦略信号）- Phase 49.20設定駆動型3段階Graceful Degradation",
+
+  "feature_levels": {
+    "full": {
+      "count": 62,
+      "description": "完全特徴量（戦略信号含む）- Level 1",
+      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
+      "model_file": "production_ensemble_62.pkl"
+    },
+    "basic": {
+      "count": 57,
+      "description": "基本特徴量（戦略信号なし）- Level 2",
+      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time"],
+      "model_file": "production_ensemble_57.pkl"
+    }
+  },
 
   "feature_categories": {
     "basic": {

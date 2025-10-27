@@ -346,7 +346,7 @@ position_management:
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.015
+    max_loss_ratio: 0.015           # Phase 49.18: SL 1.5%
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003

@@ -218,6 +218,80 @@ class FeatureManager:
             "version": config.get("feature_order_version", "unknown"),
         }
 
+    def get_feature_level_info(self) -> Dict[str, Dict]:
+        """
+        Phase 50.1: 特徴量レベル情報を取得（設定駆動型Graceful Degradation用）
+
+        Returns:
+            特徴量レベル情報辞書
+            例: {
+                "full": {"count": 62, "description": "...", "model_file": "..."},
+                "basic": {"count": 57, "description": "...", "model_file": "..."}
+            }
+        """
+        config = self._load_feature_config()
+
+        if "feature_levels" in config:
+            return config["feature_levels"]
+
+        # デフォルト（後方互換性）
+        return {
+            "full": {
+                "count": config.get("total_features", 62),
+                "description": "完全特徴量",
+                "model_file": "production_ensemble.pkl",
+            }
+        }
+
+    def get_feature_level_counts(self) -> Dict[str, int]:
+        """
+        Phase 50.1: 特徴量レベル別カウントを取得
+
+        Returns:
+            レベル名をキーとした特徴量数辞書
+            例: {"full": 62, "basic": 57}
+        """
+        level_info = self.get_feature_level_info()
+        return {level: info["count"] for level, info in level_info.items()}
+
+    def get_basic_feature_names(self) -> List[str]:
+        """
+        Phase 50.1: 基本特徴量名リストを取得（戦略信号なし）
+
+        Returns:
+            基本特徴量名のリスト（strategy_signalsカテゴリを除く）
+        """
+        config = self._load_feature_config()
+
+        if "feature_categories" in config:
+            features = []
+            categories = config["feature_categories"]
+
+            # strategy_signalsを除くカテゴリ順序
+            category_order = [
+                "basic",
+                "momentum",
+                "volatility",
+                "trend",
+                "volume",
+                "breakout",
+                "regime",
+                "lag",
+                "rolling",
+                "interaction",
+                "time",
+                # strategy_signalsは除外
+            ]
+
+            for category in category_order:
+                if category in categories and "features" in categories[category]:
+                    features.extend(categories[category]["features"])
+
+            return features
+
+        # フォールバック
+        return self.get_feature_names()  # 全特徴量を返す
+
     def clear_cache(self):
         """キャッシュをクリア"""
         self._feature_config = None
