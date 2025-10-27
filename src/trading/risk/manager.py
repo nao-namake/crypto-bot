@@ -673,14 +673,16 @@ class IntegratedRiskManager:
                 - Optional[str]: 拒否/警告メッセージ（問題なしの場合はNone）
         """
         try:
-            # 1. 現在のポジション価値を推定
-            estimated_position_value_jpy = self._estimate_current_position_value(
+            # 1. 現在のポジション価値を推定（Phase 50.1.5: API実ポジション取得優先）
+            estimated_position_value_jpy = await self._get_current_position_value(
                 current_balance, btc_price
             )
 
-            # 2. 新規ポジションサイズを推定
+            # 2. 新規ポジションサイズを推定（Phase 50.1.5: 実BTC価格・実残高使用）
             ml_confidence = ml_prediction.get("confidence", 0.5)
-            estimated_new_position_size = self._estimate_new_position_size(ml_confidence)
+            estimated_new_position_size = self._estimate_new_position_size(
+                ml_confidence, btc_price, current_balance
+            )
 
             # 3. 新規ポジション追加後の予測（Phase 49.15: bitbank_client追加）
             margin_prediction = await self.balance_monitor.predict_future_margin(
@@ -728,8 +730,38 @@ class IntegratedRiskManager:
             error_msg = f"🚨 保証金監視システムエラー - 安全のためエントリー拒否: {str(e)}"
             return True, error_msg  # Phase 49.5: エラー時は拒否（旧False→True変更）
 
+    async def _get_current_position_value(self, current_balance: float, btc_price: float) -> float:
+        """
+        Phase 50.1.5: 現在のポジション価値取得（API優先・推定フォールバック）
+
+        Args:
+            current_balance: 現在の残高（JPY）
+            btc_price: 現在のBTC価格（JPY）
+
+        Returns:
+            現在のポジション価値（JPY）
+        """
+        # Phase 50.1.5: API実ポジション取得を試行
+        if self.bitbank_client:
+            try:
+                positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+                if positions:
+                    actual_position_value = sum(
+                        float(pos.get("amount", 0)) * btc_price for pos in positions
+                    )
+                    if actual_position_value > 0:
+                        self.logger.info(
+                            f"✅ Phase 50.1.5: API実ポジション取得成功 - 価値={actual_position_value:.0f}円"
+                        )
+                        return actual_position_value
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 50.1.5: API実ポジション取得失敗 - 推定値使用: {e}")
+
+        # フォールバック：推定値を使用
+        return self._estimate_current_position_value(current_balance, btc_price)
+
     def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
-        """現在のポジション価値推定"""
+        """現在のポジション価値推定（フォールバック用）"""
         try:
             config = load_config("config/core/unified.yaml")
             mode_balances = getattr(config, "mode_balances", {})
@@ -751,14 +783,31 @@ class IntegratedRiskManager:
             estimated_position_ratio = get_threshold("margin.position_value_estimation_ratio", 0.8)
             estimated_position_value = max(0, used_capital * estimated_position_ratio)
 
+            self.logger.debug(
+                f"Phase 50.1.5: ポジション価値推定 - "
+                f"used_capital={used_capital:.0f}円, estimated={estimated_position_value:.0f}円"
+            )
+
             return estimated_position_value
 
         except Exception as e:
             self.logger.error(f"ポジション価値推定エラー: {e}")
             return 0.0
 
-    def _estimate_new_position_size(self, ml_confidence: float) -> float:
-        """新規ポジションサイズ推定"""
+    def _estimate_new_position_size(
+        self, ml_confidence: float, btc_price: float, current_balance: float
+    ) -> float:
+        """
+        Phase 50.1.5: 新規ポジションサイズ推定（実BTC価格・実残高使用）
+
+        Args:
+            ml_confidence: ML信頼度
+            btc_price: 現在のBTC価格（JPY）
+            current_balance: 現在の残高（JPY）
+
+        Returns:
+            推定ポジションサイズ（BTC）
+        """
         try:
             dynamic_enabled = get_threshold(
                 "position_management.dynamic_position_sizing.enabled", False
@@ -780,11 +829,8 @@ class IntegratedRiskManager:
                         0.05,
                     )
 
-                estimated_balance = 10000.0
-                estimated_btc_price = 6000000.0
-                estimated_position_size = (
-                    estimated_balance * estimated_ratio
-                ) / estimated_btc_price
+                # Phase 50.1.5: 実際の値を使用（ハードコード削除）
+                estimated_position_size = (current_balance * estimated_ratio) / btc_price
 
             else:
                 estimated_position_size = get_threshold("trading.min_trade_size", 0.0001)

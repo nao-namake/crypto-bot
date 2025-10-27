@@ -560,17 +560,27 @@ class TestIntegratedRiskManager:
         assert value_paper >= 0
 
     def test_estimate_new_position_size(self):
-        """新規ポジションサイズ推定テスト."""
+        """新規ポジションサイズ推定テスト（Phase 50.1.5: シグネチャ変更対応）."""
+        # Phase 50.1.5: btc_price, current_balanceパラメータを追加
+        btc_price = 17600000.0  # 1760万円（実BTC価格）
+        current_balance = 10000.0  # 1万円
+
         # 低信頼度
-        size_low = self.risk_manager._estimate_new_position_size(ml_confidence=0.5)
+        size_low = self.risk_manager._estimate_new_position_size(
+            ml_confidence=0.5, btc_price=btc_price, current_balance=current_balance
+        )
         assert size_low > 0
 
         # 中信頼度
-        size_mid = self.risk_manager._estimate_new_position_size(ml_confidence=0.7)
+        size_mid = self.risk_manager._estimate_new_position_size(
+            ml_confidence=0.7, btc_price=btc_price, current_balance=current_balance
+        )
         assert size_mid > 0
 
         # 高信頼度
-        size_high = self.risk_manager._estimate_new_position_size(ml_confidence=0.8)
+        size_high = self.risk_manager._estimate_new_position_size(
+            ml_confidence=0.8, btc_price=btc_price, current_balance=current_balance
+        )
         assert size_high > 0
 
     def test_check_stop_conditions(self):

@@ -219,13 +219,14 @@ class RiskManager:
             )
 
             # === TP距離計算（min_profit_ratio優先） ===
+            # Phase 50.1.5: デフォルト値をPhase 49.18値（0.01/0.67）に修正
             min_profit_ratio = config.get(
                 "min_profit_ratio",
-                get_threshold("position_management.take_profit.min_profit_ratio", 0.02),
+                get_threshold("position_management.take_profit.min_profit_ratio", 0.01),
             )
             default_tp_ratio = config.get(
                 "take_profit_ratio",
-                get_threshold("position_management.take_profit.default_ratio", 1.33),
+                get_threshold("position_management.take_profit.default_ratio", 0.67),
             )
 
             # min_profit_ratioベースのTP距離

@@ -347,14 +347,14 @@ class ExecutionService:
                         current_atr = float(df_4h["atr_14"].iloc[-1])
 
                 if current_atr and current_atr > 0:
-                    # Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
+                    # Phase 50.1.5: TP/SL設定完全渡し（Phase 49.18デフォルト値修正）
                     config = {
-                        # TP設定
+                        # TP設定（Phase 50.1.5: デフォルト値を0.67/0.01に修正）
                         "take_profit_ratio": get_threshold(
-                            "position_management.take_profit.default_ratio", 1.33
+                            "position_management.take_profit.default_ratio", 0.67
                         ),
                         "min_profit_ratio": get_threshold(
-                            "position_management.take_profit.min_profit_ratio", 0.02
+                            "position_management.take_profit.min_profit_ratio", 0.01
                         ),
                         # SL設定
                         "max_loss_ratio": get_threshold(
