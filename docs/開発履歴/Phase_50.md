@@ -1040,7 +1040,347 @@ aiohttp>=3.9.0          # Alternative.me API（非同期HTTPクライアント�
 
 ---
 
+---
+
+## Phase 50.3.1: 未約定注文蓄積問題解決（TP/SL注文ID保存）
+
+**実装日**: 2025年10月28日
+**ステータス**: ✅ 完了
+
+### 🎯 目的
+
+**23個の未約定注文蓄積問題の根本解決**:
+1. Phase 49.6で実装されたTP/SLクリーンアップ機能が動作していなかった
+2. executor.pyでTP/SL注文IDを保存していなかった
+3. ポジション決済時にTP/SL注文が残り続ける問題を解決
+
+### 📋 問題分析
+
+#### 現象
+
+**本番環境**: 23個の未約定注文（7エントリー × 2 = 14注文期待値 + 9個余剰）
+- 7回エントリー: 0.0007 BTC（0.0001 BTC × 7回）
+- 期待未約定数: 14個（7 TP + 7 SL）
+- 実際未約定数: 23個（+9個余剰）
+- 余剰分の9個: 過去エントリーで決済済みなのに残っているTP/SL注文
+
+#### 根本原因
+
+**Phase 49.6の不完全な実装**:
+
+1. **stop_manager.py** (lines 246-268): クリーンアップロジックは実装済み
+   ```python
+   # Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
+   if bitbank_client and mode == "live":
+       tp_order_id = position.get("tp_order_id")  # ← None取得
+       sl_order_id = position.get("sl_order_id")  # ← None取得
+
+       if tp_order_id or sl_order_id:  # ← 条件False
+           cleanup_result = await self.cleanup_position_orders(...)  # 実行されない
+   ```
+
+2. **executor.py** (lines 419-460): TP/SL注文ID保存なし
+   ```python
+   # 個別TP配置
+   tp_order = await self.stop_manager.place_take_profit(...)
+   if tp_order:
+       self.logger.info(f"✅ ID: {tp_order.get('order_id', 'N/A')}")
+       # ⚠️ 問題: order_idを保存していない
+
+   # 個別SL配置
+   sl_order = await self.stop_manager.place_stop_loss(...)
+   if sl_order:
+       self.logger.info(f"✅ ID: {sl_order.get('order_id', 'N/A')}")
+       # ⚠️ 問題: order_idを保存していない
+   ```
+
+3. **結果**: ポジション決済時
+   - stop_manager.pyが`tp_order_id`/`sl_order_id`を取得 → None
+   - クリーンアップ処理スキップ
+   - TP/SL注文が永久に残る
+   - 毎回のエントリーで未約定注文が蓄積
+
+### 🔧 実装内容
+
+#### 1. executor.py修正（91行修正）
+
+**ファイル**: `src/trading/execution/executor.py`
+
+**変更内容** (lines 404-491):
+
+```python
+# Phase 50.3.1: virtual_positionsにtp_order_id/sl_order_idフィールド追加
+live_position = {
+    "order_id": result.order_id,
+    "side": side,
+    "amount": amount,
+    "price": actual_filled_price,
+    "timestamp": datetime.now(),
+    "take_profit": final_tp,
+    "stop_loss": final_sl,
+    "tp_order_id": None,  # Phase 50.3.1: TP注文ID追跡用
+    "sl_order_id": None,  # Phase 50.3.1: SL注文ID追跡用
+}
+self.virtual_positions.append(live_position)
+
+# Phase 46: 個別TP/SL配置（統合TP/SL削除・デイトレード特化）
+if self.stop_manager and final_tp and final_sl:
+    # PositionTrackerに追加（統合ID管理なし）
+    if self.position_tracker:
+        self.position_tracker.add_position(
+            order_id=result.order_id, side=side, amount=amount, price=actual_filled_price
+        )
+
+    # Phase 50.3.1: TP/SL注文ID保存用変数
+    tp_order_id = None
+    sl_order_id = None
+
+    # 個別TP配置
+    try:
+        tp_order = await self.stop_manager.place_take_profit(...)
+        if tp_order:
+            tp_order_id = tp_order.get("order_id")  # Phase 50.3.1: ID取得
+            self.logger.info(f"✅ Phase 46: 個別TP配置完了 - ID: {tp_order_id or 'N/A'}")
+    except Exception as e:
+        self.logger.warning(f"⚠️ TP配置失敗（継続）: {e}")
+
+    # 個別SL配置
+    try:
+        sl_order = await self.stop_manager.place_stop_loss(...)
+        if sl_order:
+            sl_order_id = sl_order.get("order_id")  # Phase 50.3.1: ID取得
+            self.logger.info(f"✅ Phase 46: 個別SL配置完了 - ID: {sl_order_id or 'N/A'}")
+    except Exception as e:
+        self.logger.warning(f"⚠️ SL配置失敗（継続）: {e}")
+
+    # Phase 50.3.1: TP/SL注文ID保存（Phase 49.6クリーンアップ機能を完全化）
+    if tp_order_id or sl_order_id:
+        # PositionTrackerに注文IDを保存
+        if self.position_tracker:
+            try:
+                self.position_tracker.update_position_stop_orders(
+                    order_id=result.order_id,
+                    tp_order_id=tp_order_id,
+                    sl_order_id=sl_order_id,
+                )
+                self.logger.debug(
+                    f"💾 Phase 50.3.1: TP/SL注文ID保存完了 - "
+                    f"TP: {tp_order_id or 'なし'}, SL: {sl_order_id or 'なし'}"
+                )
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 50.3.1: TP/SL注文ID保存失敗（継続）: {e}")
+
+        # virtual_positionsにも保存（stop_manager互換性維持）
+        live_position["tp_order_id"] = tp_order_id
+        live_position["sl_order_id"] = sl_order_id
+```
+
+**主要変更点**:
+1. `live_position`辞書に`tp_order_id`/`sl_order_id`フィールド追加（初期値None）
+2. TP/SL注文配置後に`order_id`を取得・保存
+3. `position_tracker.update_position_stop_orders()`呼び出し追加
+4. `virtual_positions`にもorder ID保存（stop_manager互換性維持）
+
+**効果**:
+- ✅ Phase 49.6のクリーンアップ機能が正常動作
+- ✅ ポジション決済時にTP/SL注文が自動キャンセル
+- ✅ 未約定注文の蓄積防止
+
+#### 2. stop_manager.py既存実装確認
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+**Phase 49.6クリーンアップロジック** (lines 246-268):
+```python
+# Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
+if bitbank_client and mode == "live":
+    tp_order_id = position.get("tp_order_id")  # Phase 50.3.1でNoneから実ID取得に
+    sl_order_id = position.get("sl_order_id")  # Phase 50.3.1でNoneから実ID取得に
+
+    if tp_order_id or sl_order_id:
+        try:
+            cleanup_result = await self.cleanup_position_orders(
+                tp_order_id=tp_order_id,
+                sl_order_id=sl_order_id,
+                symbol=symbol,
+                bitbank_client=bitbank_client,
+                reason=exit_reason,
+            )
+            if cleanup_result["cancelled_count"] > 0:
+                self.logger.info(
+                    f"🧹 Phase 49.6: ポジション決済時クリーンアップ実行 - "
+                    f"{cleanup_result['cancelled_count']}件キャンセル"
+                )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}")
+```
+
+**cleanup_position_orders()メソッド** (lines 642-705):
+- TP注文キャンセル: SL到達時・手動決済時
+- SL注文キャンセル: TP到達時・手動決済時
+- エラーハンドリング: OrderNotFound時はDEBUGレベル
+
+**確認結果**:
+- ✅ Phase 49.6でクリーンアップ機能は完全実装済み
+- ✅ executor.pyの修正でtp_order_id/sl_order_idが渡されるようになり動作開始
+- ✅ 追加修正不要
+
+#### 3. position/tracker.py既存メソッド確認
+
+**ファイル**: `src/trading/position/tracker.py`
+
+**update_position_stop_orders()メソッド** (lines 244-267):
+```python
+def update_position_stop_orders(
+    self, order_id: str, tp_order_id: Optional[str] = None, sl_order_id: Optional[str] = None
+) -> bool:
+    """
+    ポジションのTP/SL注文IDを更新
+
+    Args:
+        order_id: エントリー注文ID
+        tp_order_id: TP注文ID
+        sl_order_id: SL注文ID
+
+    Returns:
+        更新成功フラグ
+    """
+    if order_id not in self.positions:
+        return False
+
+    position = self.positions[order_id]
+
+    # Phase 42.1: 統合TP/SL ID保存
+    if tp_order_id is not None:
+        position["tp_order_id"] = tp_order_id
+
+    if sl_order_id is not None:
+        position["sl_order_id"] = sl_order_id
+
+    return True
+```
+
+**確認結果**:
+- ✅ Phase 42.1で`update_position_stop_orders()`メソッド実装済み
+- ✅ executor.pyが呼び出すだけで動作
+- ✅ 追加修正不要
+
+### ✅ 品質保証
+
+#### テスト結果
+- ✅ **総テスト数**: 1,107テスト
+- ✅ **成功率**: 100%（1 skipped）
+- ✅ **カバレッジ**: 66.72%維持
+- ✅ **コード品質**: black・flake8・isort全通過
+
+#### 既存テスト影響
+- ✅ **executor.py修正**: 既存テストは影響なし
+  - virtual_positionsの新フィールド（tp_order_id/sl_order_id）を検証していない
+  - Phase 43.5でTP/SL配置テスト削除済み
+- ✅ **後方互換性**: 完全維持
+  - 既存の`virtual_positions`構造に2フィールド追加のみ
+  - 既存コードは新フィールドを無視するため動作継続
+
+### 📈 期待効果
+
+#### 定量的効果
+
+1. **未約定注文削減**: 23個 → 14個（-39%）
+   - 余剰9個の未約定注文を削減
+   - 次回エントリー以降、ポジション決済時に自動クリーンアップ
+
+2. **UI簡潔化**: 未約定注文画面の混雑解消
+   - bitbank取引画面の視認性向上
+   - 実際のポジション状況把握が容易
+
+3. **API呼び出し削減**: 手動キャンセル不要
+   - 余剰注文の手動削除作業ゼロ
+   - 運用負荷削減
+
+#### 定性的効果
+
+1. **Phase 49.6完全化**:
+   - 既存のクリーンアップ機能が正常動作開始
+   - Phase 49.6実装意図（TP/SL自動削除）達成
+
+2. **システム健全性向上**:
+   - 未約定注文の永続的蓄積防止
+   - ポジション決済と同時にTP/SL注文も削除
+   - 取引履歴の明瞭性向上
+
+3. **保守性向上**:
+   - 手動介入不要の自動クリーンアップ
+   - 運用工数削減
+
+### 🔧 実装ファイル
+
+#### 修正ファイル（1ファイル）
+1. **src/trading/execution/executor.py**: TP/SL注文ID保存処理追加（lines 404-491, 91行修正）
+
+#### 既存実装確認（修正不要）
+1. **src/trading/execution/stop_manager.py**: Phase 49.6クリーンアップ機能実装済み
+2. **src/trading/position/tracker.py**: update_position_stop_orders()メソッド実装済み
+
+### 🛡️ リスク管理
+
+#### 識別されたリスク
+1. **既存の23個の未約定注文**: 中
+   - 現状: 既に蓄積済みの23個は手動削除必要
+   - 対策: デプロイ前に手動で全未約定注文をキャンセル
+   - 影響: 今後のエントリーは正常動作
+
+2. **position_trackerエラーリスク**: 低
+   - 現状: update_position_stop_orders()失敗時はwarningログ・処理継続
+   - 対策: エラー時もTP/SL注文は配置済み・最悪ケースでもPhase 49.6前の状態に戻るのみ
+   - 影響: 軽微
+
+3. **後方互換性**: なし
+   - 変更はvirtual_positionsに2フィールド追加のみ
+   - 既存コードは新フィールドを無視するため影響なし
+
+#### 緩和策
+1. **段階的デプロイ**:
+   - ペーパートレード検証不要（未約定注文発生しない）
+   - ライブ直接デプロイ可能
+   - 初回エントリー時のログ監視
+
+2. **ロールバック準備**:
+   - Git履歴による即座の巻き戻し可能
+   - 最悪ケースでもPhase 49.6前の状態（手動削除運用）に戻るのみ
+
+### 🚀 デプロイ
+
+**デプロイ日時**: 2025年10月28日（Phase 50.3.1完了）
+**デプロイ方法**: GitHub Actions CI/CD自動デプロイ
+
+**デプロイ手順**:
+1. ✅ executor.py修正完了
+2. ✅ 品質チェック実行: 1,107テスト100%成功
+3. ⏳ Phase_50.md更新（本セクション追加）
+4. ⏳ ToDo.md達成済みタスク更新
+5. ⏳ Git コミット・プッシュ
+6. ⏳ GitHub Actions ワークフロー起動
+7. ⏳ Cloud Run自動デプロイ
+8. ⏳ 初回エントリー時の動作確認（TP/SL注文ID保存ログ・決済時クリーンアップログ）
+
+### 📝 運用時の確認事項
+
+#### デプロイ後確認
+```bash
+# 1. TP/SL注文ID保存ログ確認
+gcloud logging read "textPayload:\"Phase 50.3.1: TP/SL注文ID保存完了\"" --limit=5
+
+# 2. クリーンアップ実行ログ確認
+gcloud logging read "textPayload:\"Phase 49.6: ポジション決済時クリーンアップ実行\"" --limit=5
+
+# 3. 未約定注文数確認（bitbank UI）
+# 期待: 次回エントリー以降、ポジション決済時に未約定注文が減少
+```
+
+---
+
 **Phase 50.1完了日**: 2025年10月27日
 **Phase 50.2完了日**: 2025年10月27日（Phase 50.1と同日）
 **Phase 50.3完了日**: 2025年10月28日
-**次回更新予定**: Phase 50.3.1テスト修正・Phase 50.3稼働確認後
+**Phase 50.3.1完了日**: 2025年10月28日
+**次回更新予定**: Phase 50.3.1稼働確認・未約定注文削減効果検証後

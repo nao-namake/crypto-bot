@@ -409,6 +409,8 @@ class ExecutionService:
                 "timestamp": datetime.now(),
                 "take_profit": final_tp,
                 "stop_loss": final_sl,
+                "tp_order_id": None,  # Phase 50.3.1: TP注文ID追跡用
+                "sl_order_id": None,  # Phase 50.3.1: SL注文ID追跡用
             }
             self.virtual_positions.append(live_position)
 
@@ -423,6 +425,10 @@ class ExecutionService:
                         price=actual_filled_price,
                     )
 
+                # Phase 50.3.1: TP/SL注文ID保存用変数
+                tp_order_id = None
+                sl_order_id = None
+
                 # 個別TP配置
                 try:
                     tp_order = await self.stop_manager.place_take_profit(
@@ -434,8 +440,9 @@ class ExecutionService:
                         bitbank_client=self.bitbank_client,
                     )
                     if tp_order:
+                        tp_order_id = tp_order.get("order_id")
                         self.logger.info(
-                            f"✅ Phase 46: 個別TP配置完了 - ID: {tp_order.get('order_id', 'N/A')}, "
+                            f"✅ Phase 46: 個別TP配置完了 - ID: {tp_order_id or 'N/A'}, "
                             f"価格: {final_tp:.0f}円"
                         )
                 except Exception as e:
@@ -452,12 +459,34 @@ class ExecutionService:
                         bitbank_client=self.bitbank_client,
                     )
                     if sl_order:
+                        sl_order_id = sl_order.get("order_id")
                         self.logger.info(
-                            f"✅ Phase 46: 個別SL配置完了 - ID: {sl_order.get('order_id', 'N/A')}, "
+                            f"✅ Phase 46: 個別SL配置完了 - ID: {sl_order_id or 'N/A'}, "
                             f"価格: {final_sl:.0f}円"
                         )
                 except Exception as e:
                     self.logger.warning(f"⚠️ SL配置失敗（継続）: {e}")
+
+                # Phase 50.3.1: TP/SL注文ID保存（Phase 49.6クリーンアップ機能を完全化）
+                if tp_order_id or sl_order_id:
+                    # PositionTrackerに注文IDを保存
+                    if self.position_tracker:
+                        try:
+                            self.position_tracker.update_position_stop_orders(
+                                order_id=result.order_id,
+                                tp_order_id=tp_order_id,
+                                sl_order_id=sl_order_id,
+                            )
+                            self.logger.debug(
+                                f"💾 Phase 50.3.1: TP/SL注文ID保存完了 - "
+                                f"TP: {tp_order_id or 'なし'}, SL: {sl_order_id or 'なし'}"
+                            )
+                        except Exception as e:
+                            self.logger.warning(f"⚠️ Phase 50.3.1: TP/SL注文ID保存失敗（継続）: {e}")
+
+                    # virtual_positionsにも保存（stop_manager互換性維持）
+                    live_position["tp_order_id"] = tp_order_id
+                    live_position["sl_order_id"] = sl_order_id
 
             return result
 
