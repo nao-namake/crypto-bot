@@ -232,7 +232,9 @@ class NewSystemMLModelCreator:
 
     async def prepare_training_data_async(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
         """学習用データ準備（Phase 50.3: 70特徴量・外部API・実戦略信号統合）"""
-        self.logger.info(f"📊 Phase 50.3: 実データ学習開始（過去{days}日分・70特徴量・外部API・実戦略信号）")
+        self.logger.info(
+            f"📊 Phase 50.3: 実データ学習開始（過去{days}日分・70特徴量・外部API・実戦略信号）"
+        )
 
         try:
             # Phase 39.1: 実データ読み込み
@@ -245,10 +247,14 @@ class NewSystemMLModelCreator:
 
             # Phase 50.3: 戦略シグナル特徴量を削除（後で実戦略信号で置き換える）
             # generate_features() は戦略シグナルを0.0で自動生成するが、Phase 41.8では実戦略信号を使用
-            strategy_signal_cols = [col for col in features_df.columns if col.startswith('strategy_signal_')]
+            strategy_signal_cols = [
+                col for col in features_df.columns if col.startswith("strategy_signal_")
+            ]
             if strategy_signal_cols:
                 features_df = features_df.drop(columns=strategy_signal_cols)
-                self.logger.info(f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）")
+                self.logger.info(
+                    f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）"
+                )
 
             # Phase 41.8: 実戦略信号生成（62→70特徴量 or 65→70特徴量）
             # Note: 過去データから実際に5戦略を実行し、本物の戦略信号を生成
