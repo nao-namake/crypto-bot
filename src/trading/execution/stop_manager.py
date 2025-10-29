@@ -75,9 +75,13 @@ class StopManager:
             if emergency_result:
                 return emergency_result
 
-            # Phase 37.5.3: ライブモードでポジション消失検出・残注文クリーンアップ
-            if mode == "live" and bitbank_client:
-                await self._cleanup_orphaned_orders(virtual_positions, bitbank_client)
+            # Phase 50.5: SL注文キャンセル問題により一時無効化
+            # Phase 37.5.3クリーンアップ機能が新規SL注文を誤ってキャンセルする問題を発見
+            # 根本原因: virtual_positionsに sl_order_id が保存されていない（Phase 50.3.1未デプロイ時）
+            # → 孤立注文と誤判定 → SL注文即座にキャンセル → 無制限損失リスク
+            # Phase 50.5: 一時無効化（Phase 50.3.1デプロイ後、再有効化検討）
+            # if mode == "live" and bitbank_client:
+            #     await self._cleanup_orphaned_orders(virtual_positions, bitbank_client)
 
             return None
 

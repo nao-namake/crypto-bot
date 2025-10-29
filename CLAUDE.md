@@ -199,7 +199,7 @@ ML予測（3モデルアンサンブル → 信頼度）
 2. `config/core/unified.yaml`: 基本設定（残高・実行間隔等）
 3. `config/core/thresholds.yaml`: 動的値（ML閾値・リスク設定等）
 
-**設定変更パターン（Phase 42.4以降）**:
+**設定変更パターン（推奨）**:
 ```python
 # ❌ 避けるべき: ハードコード
 sl_rate = 0.02
@@ -226,7 +226,7 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 
 **Phase 49.16: TP/SL計算完全見直し**
 - strategy_utils.py・executor.pyのハードコード値削除
-- `get_threshold()`パターン適用（Phase 42.4パターン踏襲）
+- `get_threshold()`パターン適用（設定管理統一）
 - 効果: 設定ファイル変更のみで動作変更可能
 
 **Phase 49.15: 証拠金維持率80%遵守**
@@ -257,30 +257,14 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 - 作業時間95%削減（10時間 → 30分）
 - ExecutionService統合
 
-### Phase 46（2025/10/22）- デイトレード特化・シンプル設計回帰
-
-**背景**: スイングトレード機能（Phase 42実装）が過剰に複雑・デイトレードに不適合
+### Phase 46（2025/10/22）- デイトレード特化・個別TP/SL実装
 
 **実施内容**:
-- **スイングトレード機能完全削除**（統合TP/SL・トレーリングストップ）
-- **個別TP/SL管理に回帰**（エントリー毎に独立したTP/SL注文）
+- **個別TP/SL実装**（エントリー毎に独立したTP/SL注文）
 - **デイトレード特化設定**: 初期設定後Phase 49.18で最終調整（SL 1.5%・TP 1.0%・RR比0.67:1）
-- **コードベース大幅簡略化**: -1,041行削除（executor.py: -51.2%、stop_manager.py: -89.9%）
+- **コードベース大幅簡略化**: シンプル設計・保守性向上
 
 **効果**: シンプル性・保守性大幅向上・予測可能な動作・デバッグ容易性確保
-
-### Phase 42.3-42.4（2025/10/18-20）- バグ修正・TP/SL最適化
-
-**Phase 42.3: バグ修正3件**
-- ML Agreement Logic修正（strict matching）
-- Feature Warning抑制（strategy_signal_*除外）
-- 証拠金チェックリトライ（Error 20001対策・3回リトライ）
-
-**Phase 42.4: TP/SL設定最適化**
-- order_strategy.pyハードコード値削除（`get_threshold()`パターン適用）
-- thresholds.yaml完全準拠（設定変更のみで動作変更可能）
-
-**注**: Phase 42.1-42.2で実装した統合TP/SL・トレーリングストップは**Phase 46で削除済み**
 
 ### Phase 41.8.5（2025/10/17）- ML統合閾値最適化
 

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from ...core.logger import get_logger
 
-# Phase 42.2: Sentinel value for explicitly clearing fields
+# Sentinel value for explicitly clearing fields
 _UNSET = object()
 
 
@@ -20,7 +20,7 @@ class PositionTracker:
     ポジション追跡サービス
 
     仮想ポジションの追加、削除、検索機能を提供する。
-    Phase 42: 統合TP/SL対応（平均価格追跡・統合注文ID管理）
+    Phase 46: 個別TP/SL実装（デイトレード特化）
     """
 
     def __init__(self):
@@ -28,7 +28,7 @@ class PositionTracker:
         self.logger = get_logger()
         self.virtual_positions: List[Dict[str, Any]] = []
 
-        # Phase 46: 平均価格追跡（統計用・統合TP/SL機能は削除）
+        # 平均価格追跡（統計用）
         self._average_entry_price: float = 0.0
         self._total_position_size: float = 0.0
 
@@ -307,12 +307,12 @@ class PositionTracker:
         return orphaned
 
     # ========================================
-    # Phase 42: 統合TP/SL用メソッド
+    # 統計用メソッド（平均価格計算）
     # ========================================
 
     def calculate_average_entry_price(self) -> float:
         """
-        加重平均エントリー価格計算（Phase 42）
+        加重平均エントリー価格計算
 
         全ての仮想ポジションから加重平均価格を計算する。
 
@@ -341,7 +341,7 @@ class PositionTracker:
 
     def update_average_on_entry(self, price: float, amount: float) -> float:
         """
-        新規エントリー時に平均価格更新（Phase 42）
+        新規エントリー時に平均価格更新
 
         Args:
             price: 新規エントリー価格
@@ -372,7 +372,7 @@ class PositionTracker:
 
     def update_average_on_exit(self, amount: float) -> float:
         """
-        決済時に平均価格更新（Phase 42）
+        決済時に平均価格更新
 
         Args:
             amount: 決済数量
@@ -399,13 +399,6 @@ class PositionTracker:
         return self._average_entry_price
 
     # ========================================
-    # Phase 46: 統合TP/SL関連メソッド削除（デイトレード特化）
+    # Phase 46: 個別TP/SL実装（デイトレード特化）
     # ========================================
-    # Phase 42.1-42.4で実装された統合TP/SL機能を削除:
-    # - get_consolidated_tp_sl_ids()
-    # - set_consolidated_tp_sl_ids()
-    # - get_consolidated_position_info()
-    # - clear_consolidated_tp_sl()
-    # - _save_state() / _load_state() (Phase 42.4状態永続化)
-    #
-    # デイトレード特化設計では個別TP/SL配置に回帰
+    # デイトレード特化設計では個別TP/SL配置を採用
