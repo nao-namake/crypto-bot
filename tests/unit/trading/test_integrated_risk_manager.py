@@ -545,19 +545,8 @@ class TestIntegratedRiskManager:
         assert isinstance(should_deny, bool)
         assert message is None or isinstance(message, str)
 
-    def test_estimate_position_value(self):
-        """ポジション価値推定テスト."""
-        # ライブモード判定
-        value_live = self.risk_manager._estimate_current_position_value(
-            current_balance=95000, btc_price=6000000
-        )
-        assert value_live >= 0
-
-        # ペーパーモード判定
-        value_paper = self.risk_manager._estimate_current_position_value(
-            current_balance=9500, btc_price=6000000
-        )
-        assert value_paper >= 0
+    # Phase 50.4: _estimate_current_position_value()削除により、このテストも削除
+    # 現在はAPI直接取得方式（predict_future_margin内でfetch_margin_ratio_from_api）を使用
 
     def test_estimate_new_position_size(self):
         """新規ポジションサイズ推定テスト（Phase 50.1.5: シグネチャ変更対応）."""

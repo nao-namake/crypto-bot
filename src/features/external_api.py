@@ -168,15 +168,27 @@ class ExternalAPIClient:
 
         Returns:
             USD/JPY終値（失敗時はNone）
+
+        Note:
+            Phase 50.6: yfinanceは同期ライブラリのため、asyncio.to_thread()で
+            別スレッド実行してイベントループをブロックしない設計
         """
         try:
             import yfinance as yf
 
-            ticker = yf.Ticker("USDJPY=X")
-            data = ticker.history(period="1d")
+            # Phase 50.6: yfinanceの同期処理を別スレッドで実行
+            def _sync_fetch_usd_jpy():
+                ticker = yf.Ticker("USDJPY=X")
+                data = ticker.history(period="1d")
 
-            if not data.empty:
-                value = float(data["Close"].iloc[-1])
+                if not data.empty:
+                    return float(data["Close"].iloc[-1])
+                return None
+
+            # 別スレッドで実行（イベントループブロック回避）
+            value = await asyncio.to_thread(_sync_fetch_usd_jpy)
+
+            if value is not None:
                 self.logger.debug(f"USD/JPY: {value:.2f}")
                 return value
 
@@ -193,15 +205,27 @@ class ExternalAPIClient:
 
         Returns:
             日経平均終値（失敗時はNone）
+
+        Note:
+            Phase 50.6: yfinanceは同期ライブラリのため、asyncio.to_thread()で
+            別スレッド実行してイベントループをブロックしない設計
         """
         try:
             import yfinance as yf
 
-            ticker = yf.Ticker("^N225")
-            data = ticker.history(period="1d")
+            # Phase 50.6: yfinanceの同期処理を別スレッドで実行
+            def _sync_fetch_nikkei():
+                ticker = yf.Ticker("^N225")
+                data = ticker.history(period="1d")
 
-            if not data.empty:
-                value = float(data["Close"].iloc[-1])
+                if not data.empty:
+                    return float(data["Close"].iloc[-1])
+                return None
+
+            # 別スレッドで実行（イベントループブロック回避）
+            value = await asyncio.to_thread(_sync_fetch_nikkei)
+
+            if value is not None:
                 self.logger.debug(f"日経平均: {value:.2f}")
                 return value
 
@@ -218,15 +242,27 @@ class ExternalAPIClient:
 
         Returns:
             米10年債利回り（失敗時はNone）
+
+        Note:
+            Phase 50.6: yfinanceは同期ライブラリのため、asyncio.to_thread()で
+            別スレッド実行してイベントループをブロックしない設計
         """
         try:
             import yfinance as yf
 
-            ticker = yf.Ticker("^TNX")
-            data = ticker.history(period="1d")
+            # Phase 50.6: yfinanceの同期処理を別スレッドで実行
+            def _sync_fetch_us_10y():
+                ticker = yf.Ticker("^TNX")
+                data = ticker.history(period="1d")
 
-            if not data.empty:
-                value = float(data["Close"].iloc[-1])
+                if not data.empty:
+                    return float(data["Close"].iloc[-1])
+                return None
+
+            # 別スレッドで実行（イベントループブロック回避）
+            value = await asyncio.to_thread(_sync_fetch_us_10y)
+
+            if value is not None:
                 self.logger.debug(f"米10年債利回り: {value:.2f}%")
                 return value
 
