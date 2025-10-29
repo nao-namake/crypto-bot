@@ -659,7 +659,7 @@ class IntegratedRiskManager:
         strategy_signal: Any,
     ) -> Tuple[bool, Optional[str]]:
         """
-        保証金維持率監視チェック（Phase 43: 拒否機能追加）
+        保証金維持率監視チェック（Phase 50.4: API直接取得方式に変更）
 
         Args:
             current_balance: 現在の口座残高（円）
@@ -673,41 +673,43 @@ class IntegratedRiskManager:
                 - Optional[str]: 拒否/警告メッセージ（問題なしの場合はNone）
         """
         try:
-            # 1. 現在のポジション価値を推定（Phase 50.1.5: API実ポジション取得優先）
-            estimated_position_value_jpy = await self._get_current_position_value(
-                current_balance, btc_price
-            )
-
-            # 2. 新規ポジションサイズを推定（Phase 50.1.5: 実BTC価格・実残高使用）
+            # Phase 50.4: 新規ポジションサイズを推定（実BTC価格・実残高使用）
             ml_confidence = ml_prediction.get("confidence", 0.5)
             estimated_new_position_size = self._estimate_new_position_size(
                 ml_confidence, btc_price, current_balance
             )
 
-            # 3. 新規ポジション追加後の予測（Phase 49.15: bitbank_client追加）
+            # Phase 50.4: predict_future_margin()内でAPI直接取得するため、
+            # current_position_value_jpyは使用されない（0.0でも動作）
             margin_prediction = await self.balance_monitor.predict_future_margin(
                 current_balance_jpy=current_balance,
-                current_position_value_jpy=estimated_position_value_jpy,
+                current_position_value_jpy=0.0,  # Phase 50.4: 使用停止（APIから取得）
                 new_position_size_btc=estimated_new_position_size,
                 btc_price_jpy=btc_price,
-                bitbank_client=self.bitbank_client,  # Phase 49.15: API取得用
+                bitbank_client=self.bitbank_client,  # Phase 50.4: API取得用
             )
 
             future_margin_ratio = margin_prediction.future_margin_ratio
             current_margin_ratio = margin_prediction.current_margin.margin_ratio
+            estimated_position_value = margin_prediction.current_margin.position_value_jpy
 
             # Phase 49.5: 維持率80%未満で新規エントリー拒否（確実な遵守）
             critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
 
-            # Phase 49.5: 詳細ログ出力（デバッグ用）
+            # Phase 50.4: 詳細ログ出力（ポジション価値追加）
             self.logger.info(
-                f"📊 Phase 49.5 維持率チェック: 現在={current_margin_ratio:.1f}%, "
-                f"予測={future_margin_ratio:.1f}%, 閾値={critical_threshold:.0f}%"
+                f"📊 Phase 50.4 維持率チェック: "
+                f"残高={current_balance:.0f}円, "
+                f"現在ポジション={estimated_position_value:.0f}円, "
+                f"新規サイズ={estimated_new_position_size:.4f}BTC, "
+                f"現在={current_margin_ratio:.1f}%, "
+                f"予測={future_margin_ratio:.1f}%, "
+                f"閾値={critical_threshold:.0f}%"
             )
 
             if future_margin_ratio < critical_threshold:
                 deny_message = (
-                    f"🚨 Phase 49.5: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
+                    f"🚨 Phase 50.4: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
                     f"(現在={current_margin_ratio:.1f}% → 予測={future_margin_ratio:.1f}% < {critical_threshold:.0f}%)"
                 )
                 self.logger.warning(deny_message)
@@ -723,76 +725,15 @@ class IntegratedRiskManager:
             return False, None  # 問題なし
 
         except Exception as e:
-            # Phase 49.5: エラー時は拒否（安全側に倒す）
+            # Phase 50.4: エラー時は拒否（安全側に倒す）
             self.logger.error(
-                f"❌ Phase 49.5: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
+                f"❌ Phase 50.4: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
             )
             error_msg = f"🚨 保証金監視システムエラー - 安全のためエントリー拒否: {str(e)}"
-            return True, error_msg  # Phase 49.5: エラー時は拒否（旧False→True変更）
+            return True, error_msg  # Phase 50.4: エラー時は拒否（安全側に倒す）
 
-    async def _get_current_position_value(self, current_balance: float, btc_price: float) -> float:
-        """
-        Phase 50.1.5: 現在のポジション価値取得（API優先・推定フォールバック）
-
-        Args:
-            current_balance: 現在の残高（JPY）
-            btc_price: 現在のBTC価格（JPY）
-
-        Returns:
-            現在のポジション価値（JPY）
-        """
-        # Phase 50.1.5: API実ポジション取得を試行
-        if self.bitbank_client:
-            try:
-                positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
-                if positions:
-                    actual_position_value = sum(
-                        float(pos.get("amount", 0)) * btc_price for pos in positions
-                    )
-                    if actual_position_value > 0:
-                        self.logger.info(
-                            f"✅ Phase 50.1.5: API実ポジション取得成功 - 価値={actual_position_value:.0f}円"
-                        )
-                        return actual_position_value
-            except Exception as e:
-                self.logger.warning(f"⚠️ Phase 50.1.5: API実ポジション取得失敗 - 推定値使用: {e}")
-
-        # フォールバック：推定値を使用
-        return self._estimate_current_position_value(current_balance, btc_price)
-
-    def _estimate_current_position_value(self, current_balance: float, btc_price: float) -> float:
-        """現在のポジション価値推定（フォールバック用）"""
-        try:
-            config = load_config("config/core/unified.yaml")
-            mode_balances = getattr(config, "mode_balances", {})
-
-            # 実行モード判定
-            if current_balance >= 90000:
-                mode = "live"
-            elif current_balance >= 8000:
-                mode = "paper"
-            else:
-                mode = "paper"
-
-            mode_balance_config = mode_balances.get(mode, {})
-            initial_balance = mode_balance_config.get("initial_balance", 10000.0)
-
-            # 使用済み資金を基にポジション価値を推定
-            used_capital = initial_balance - current_balance
-
-            estimated_position_ratio = get_threshold("margin.position_value_estimation_ratio", 0.8)
-            estimated_position_value = max(0, used_capital * estimated_position_ratio)
-
-            self.logger.debug(
-                f"Phase 50.1.5: ポジション価値推定 - "
-                f"used_capital={used_capital:.0f}円, estimated={estimated_position_value:.0f}円"
-            )
-
-            return estimated_position_value
-
-        except Exception as e:
-            self.logger.error(f"ポジション価値推定エラー: {e}")
-            return 0.0
+    # Phase 50.4: _get_current_position_value() と _estimate_current_position_value() を削除
+    # 理由: predict_future_margin()がAPI直接取得方式に変更されたため不要
 
     def _estimate_new_position_size(
         self, ml_confidence: float, btc_price: float, current_balance: float

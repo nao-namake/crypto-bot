@@ -197,11 +197,11 @@ class BalanceMonitor:
         bitbank_client: Optional[BitbankClient] = None,
     ) -> MarginPrediction:
         """
-        新規ポジション追加後の維持率を予測
+        新規ポジション追加後の維持率を予測（Phase 50.4: API直接取得方式に変更）
 
         Args:
             current_balance_jpy: 現在の残高（JPY）
-            current_position_value_jpy: 現在の建玉総額（JPY）
+            current_position_value_jpy: 現在の建玉総額（JPY）※Phase 50.4: 使用停止（不正確なため）
             new_position_size_btc: 新規ポジションサイズ（BTC）
             btc_price_jpy: BTC価格（JPY）
             bitbank_client: Bitbank APIクライアント
@@ -209,14 +209,53 @@ class BalanceMonitor:
         Returns:
             維持率予測結果
         """
-        # 現在の状況
-        current_margin = await self.analyze_current_margin(
-            current_balance_jpy, current_position_value_jpy, bitbank_client
+        # Phase 50.4: APIから現在の維持率を直接取得（ポジション価値計算不要）
+        current_margin_ratio_from_api = None
+        if bitbank_client and not is_backtest_mode():
+            current_margin_ratio_from_api = await self._fetch_margin_ratio_from_api(bitbank_client)
+
+        # Phase 50.4: API取得が成功した場合、そこから逆算して現在のポジション価値を推定
+        if current_margin_ratio_from_api is not None and current_margin_ratio_from_api < 10000.0:
+            # 維持率 = (残高 / ポジション価値) × 100
+            # → ポジション価値 = 残高 / (維持率 / 100)
+            estimated_current_position_value = current_balance_jpy / (
+                current_margin_ratio_from_api / 100.0
+            )
+            self.logger.info(
+                f"📊 Phase 50.4: API維持率{current_margin_ratio_from_api:.1f}%から"
+                f"現在ポジション価値を推定: {estimated_current_position_value:.0f}円"
+            )
+        else:
+            # Phase 50.4: API取得失敗時はフォールバック（引数のposition_value使用）
+            estimated_current_position_value = current_position_value_jpy
+            if estimated_current_position_value < 100.0:  # 極小値の場合
+                # ポジションなしと判断
+                estimated_current_position_value = 0.0
+                self.logger.debug(
+                    "Phase 50.4: API取得失敗・ポジション価値極小値 → ポジションなしと判断"
+                )
+
+        # Phase 50.4: MarginData作成（API維持率使用）
+        if current_margin_ratio_from_api is not None:
+            current_margin_ratio = current_margin_ratio_from_api
+        else:
+            current_margin_ratio = self._calculate_margin_ratio_direct(
+                current_balance_jpy, estimated_current_position_value
+            )
+
+        status, message = self.get_margin_status(current_margin_ratio)
+        current_margin = MarginData(
+            current_balance=current_balance_jpy,
+            position_value_jpy=estimated_current_position_value,
+            margin_ratio=current_margin_ratio,
+            status=status,
+            message=message,
+            timestamp=datetime.now(),
         )
 
         # 新規ポジション追加後の建玉総額
         new_position_value_jpy = new_position_size_btc * btc_price_jpy
-        future_position_value = current_position_value_jpy + new_position_value_jpy
+        future_position_value = estimated_current_position_value + new_position_value_jpy
 
         # 予測維持率
         future_margin_ratio = self._calculate_margin_ratio_direct(
@@ -235,6 +274,16 @@ class BalanceMonitor:
             position_size_btc=new_position_size_btc,
             btc_price=btc_price_jpy,
             recommendation=recommendation,
+        )
+
+        # Phase 50.4: 詳細ログ出力（デバッグ用）
+        self.logger.info(
+            f"📊 Phase 50.4 維持率予測: "
+            f"現在={current_margin_ratio:.1f}% "
+            f"(API={'成功' if current_margin_ratio_from_api else 'フォールバック'}), "
+            f"ポジション={estimated_current_position_value:.0f}円 → "
+            f"新規追加後={future_position_value:.0f}円, "
+            f"予測={future_margin_ratio:.1f}%"
         )
 
         # 警告ログ（バックテスト時は抑制）
