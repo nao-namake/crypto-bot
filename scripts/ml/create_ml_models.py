@@ -1290,33 +1290,61 @@ class NewSystemMLModelCreator:
             return {"commit": "unknown", "commit_short": "unknown", "branch": "unknown"}
 
     def _archive_existing_models(self) -> bool:
-        """既存モデルを自動アーカイブ（Phase 29: バージョン管理強化）."""
-        try:
-            production_model = self.production_dir / "production_ensemble.pkl"
-            production_metadata = self.production_dir / "production_model_metadata.json"
+        """
+        既存モデルを自動アーカイブ（Phase 50.8.1: Level 1-3モデル対応）
 
-            if production_model.exists():
-                # アーカイブディレクトリ作成
+        Phase 50.7以降は3段階モデルシステム：
+        - ensemble_level1.pkl (70特徴量)
+        - ensemble_level2.pkl (62特徴量)
+        - ensemble_level3.pkl (57特徴量)
+        """
+        try:
+            # Phase 50.7: 3段階モデルシステム対応
+            level_files = [
+                "ensemble_level1.pkl",
+                "ensemble_level2.pkl",
+                "ensemble_level3.pkl",
+            ]
+
+            archived_any = False
+            for model_filename in level_files:
+                production_model = self.production_dir / model_filename
+
+                if production_model.exists():
+                    # アーカイブディレクトリ作成
+                    archive_dir = Path("models/archive")
+                    archive_dir.mkdir(exist_ok=True)
+
+                    # タイムスタンプ付きアーカイブ
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    model_name = model_filename.replace(".pkl", "")
+                    archive_model = archive_dir / f"{model_name}_{timestamp}.pkl"
+
+                    # ファイルコピー
+                    import shutil
+
+                    shutil.copy2(production_model, archive_model)
+
+                    self.logger.info(f"✅ 既存モデルアーカイブ完了: {archive_model}")
+                    archived_any = True
+
+            # メタデータもアーカイブ
+            production_metadata = self.production_dir / "production_model_metadata.json"
+            if production_metadata.exists():
                 archive_dir = Path("models/archive")
                 archive_dir.mkdir(exist_ok=True)
-
-                # タイムスタンプ付きアーカイブ
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                archive_model = archive_dir / f"production_ensemble_{timestamp}.pkl"
                 archive_metadata = archive_dir / f"production_model_metadata_{timestamp}.json"
 
-                # ファイルコピー
                 import shutil
 
-                shutil.copy2(production_model, archive_model)
-                if production_metadata.exists():
-                    shutil.copy2(production_metadata, archive_metadata)
+                shutil.copy2(production_metadata, archive_metadata)
+                self.logger.info(f"✅ メタデータアーカイブ完了: {archive_metadata}")
 
-                self.logger.info(f"✅ 既存モデルアーカイブ完了: {archive_model}")
-                return True
-            else:
+            if not archived_any:
                 self.logger.info("📂 既存モデルなし - アーカイブスキップ")
-                return True
+
+            return True
 
         except Exception as e:
             self.logger.error(f"❌ モデルアーカイブエラー: {e}")

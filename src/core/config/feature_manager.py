@@ -237,12 +237,12 @@ class FeatureManager:
         if "feature_levels" in config:
             return config["feature_levels"]
 
-        # デフォルト（後方互換性）
+        # デフォルト（Phase 50.8.1: Level 2モデル使用）
         return {
             "full": {
                 "count": config.get("total_features", 62),
                 "description": "完全特徴量",
-                "model_file": "production_ensemble.pkl",
+                "model_file": "ensemble_level2.pkl",
             }
         }
 

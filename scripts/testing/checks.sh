@@ -48,13 +48,21 @@ else
     echo "Phase 34のデータ収集を実行するか、シミュレーションデータでの学習となります"
 fi
 
-# Phase 49: MLモデル整合性チェック
-echo ">>> 🤖 MLモデル整合性チェック"
-if [[ -f "models/production/production_ensemble.pkl" ]]; then
-    echo "✅ 本番用統合モデル存在確認（Phase 49完了・55特徴量Strategy-Aware ML・Optuna最適化済み）"
+# Phase 50.7: 3段階MLモデルシステム整合性チェック
+echo ">>> 🤖 Phase 50.7 MLモデル整合性チェック（3段階システム）"
+MISSING_MODELS=()
+[[ ! -f "models/production/ensemble_level1.pkl" ]] && MISSING_MODELS+=("Level 1 (70特徴量)")
+[[ ! -f "models/production/ensemble_level2.pkl" ]] && MISSING_MODELS+=("Level 2 (62特徴量)")
+[[ ! -f "models/production/ensemble_level3.pkl" ]] && MISSING_MODELS+=("Level 3 (57特徴量)")
+
+if [ ${#MISSING_MODELS[@]} -eq 0 ]; then
+    echo "✅ 本番用3段階モデル完全存在確認（Phase 50.7完了）"
+    echo "   Level 1: 70特徴量（外部API含む）"
+    echo "   Level 2: 62特徴量（バックテスト用）"
+    echo "   Level 3: 57特徴量（基本フォールバック）"
 else
-    echo "⚠️  警告: 本番用統合モデルが見つかりません"
-    echo "python3 scripts/ml/create_ml_models.py で作成してください"
+    echo "⚠️  警告: 以下のモデルが見つかりません: ${MISSING_MODELS[*]}"
+    echo "python3 scripts/ml/create_ml_models.py --level [1-3] で作成してください"
 fi
 
 # Phase 49: 必須ライブラリ確認

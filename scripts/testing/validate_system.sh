@@ -103,14 +103,27 @@ with open('models/production/production_model_metadata.json') as f:
     fi
 fi
 
-# 特徴量数一致確認
+# Phase 50.8: 3段階モデルシステム対応特徴量数検証
 if [ -n "$FEATURE_ORDER_COUNT" ] && [ -n "$MODEL_FEATURE_COUNT" ]; then
-    if [ "$FEATURE_ORDER_COUNT" != "$MODEL_FEATURE_COUNT" ]; then
-        echo "  ❌ ERROR: 特徴量数不一致 - $FEATURE_ORDER_COUNT != $MODEL_FEATURE_COUNT"
-        echo "     → Phase 49.13エラー '特徴量数不一致: 15 != 55' の再発"
-        ERRORS=$((ERRORS + 1))
+    # feature_levelsから期待される特徴量数を取得（70, 62, 57）
+    VALID_FEATURE_COUNTS=$(python3 -c "
+import json
+with open('config/core/feature_order.json') as f:
+    data = json.load(f)
+    levels = data.get('feature_levels', {})
+    counts = [str(level['count']) for level in levels.values()]
+    print(' '.join(counts))
+" 2>&1)
+
+    # production_model_metadata.jsonの特徴量数がいずれかのレベルに該当するか確認
+    if echo "$VALID_FEATURE_COUNTS" | grep -q "\<$MODEL_FEATURE_COUNT\>"; then
+        echo "  ✅ 特徴量数妥当性確認: $MODEL_FEATURE_COUNT 特徴量（Phase 50.7 Level 1-3対応）"
+        if [ "$FEATURE_ORDER_COUNT" != "$MODEL_FEATURE_COUNT" ]; then
+            echo "  ℹ️  INFO: Level 1定義=$FEATURE_ORDER_COUNT, 実行モデル=$MODEL_FEATURE_COUNT (正常)"
+        fi
     else
-        echo "  ✅ 特徴量数一致: $FEATURE_ORDER_COUNT 特徴量"
+        echo "  ❌ ERROR: 特徴量数不正 - $MODEL_FEATURE_COUNT は期待値 [$VALID_FEATURE_COUNTS] のいずれでもない"
+        ERRORS=$((ERRORS + 1))
     fi
 fi
 
@@ -369,15 +382,17 @@ try:
             else:
                 print(f'INFO:F1スコア={f1_score:.3f}')
 
-        # 特徴量数確認（動的取得 - feature_order.jsonと比較）
+        # Phase 50.8: 3段階モデルシステム対応特徴量数確認
         with open('config/core/feature_order.json') as ff:
-            expected_features = json.load(ff)['total_features']
+            feature_config = json.load(ff)
+            # Level 1-3の期待特徴量数を取得（70, 62, 57）
+            valid_counts = [level['count'] for level in feature_config.get('feature_levels', {}).values()]
 
         actual_features = metadata['training_info'].get('feature_count', 0)
-        if actual_features != expected_features:
-            errors.append(f'特徴量数不一致: metadata={actual_features} vs config={expected_features}')
+        if actual_features in valid_counts:
+            print(f'INFO:特徴量数妥当={actual_features}（Phase 50.7 Level 1-3対応）')
         else:
-            print(f'INFO:特徴量数一致={actual_features}')
+            errors.append(f'特徴量数不正: metadata={actual_features}, 期待値={valid_counts}のいずれでもない')
 
         # モデル作成日チェック（動的取得・90日以内確認）
         created_at = metadata.get('created_at', '')
@@ -442,8 +457,12 @@ except Exception as e:
 fi
 
 # モデルファイル存在・サイズ確認（動的確認）
-# Phase 49: production_ensemble.pkl に統合（lgbm/xgb/rf は個別ファイル不要）
-MODEL_FILES=("models/production/production_ensemble.pkl")
+# Phase 50.7: 3段階モデルシステム（Level 1-3）
+MODEL_FILES=(
+    "models/production/ensemble_level1.pkl"
+    "models/production/ensemble_level2.pkl"
+    "models/production/ensemble_level3.pkl"
+)
 
 for model_file in "${MODEL_FILES[@]}"; do
     if [ ! -f "$model_file" ]; then

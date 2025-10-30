@@ -106,8 +106,10 @@ results/
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# 本番用モデルは例外（CI/CD必須）
-!models/production/production_ensemble.pkl
+# Phase 50.8.1: 本番用3段階モデルは例外（CI/CD必須）
+!models/production/ensemble_level1.pkl
+!models/production/ensemble_level2.pkl
+!models/production/ensemble_level3.pkl
 *.model
 *.joblib
 *.h5

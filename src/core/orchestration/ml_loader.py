@@ -1,17 +1,23 @@
 """
-MLサービス モデル読み込み機能 - Phase 50.3完了
+MLサービス モデル読み込み機能 - Phase 50.8完了
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
 
-Phase 50.3完了:
-- 4段階Graceful Degradation実装（外部API統合対応）
-  - Level 1（完全+外部API）: 70特徴量モデル（production_ensemble_full.pkl）
-  - Level 2（完全）: 62特徴量モデル（production_ensemble.pkl）
-  - Level 3（基本）: 57特徴量モデル（production_ensemble_57.pkl）
+Phase 50.8完了:
+- 旧モデルパス後方互換性削除（Phase 50.7完全移行）
+
+Phase 50.7完了:
+- 3段階MLモデルシステム実装（Phase 50.7モデル名固定化）
+  - Level 1（完全+外部API）: 70特徴量モデル（ensemble_level1.pkl）
+  - Level 2（完全）: 62特徴量モデル（ensemble_level2.pkl）
+  - Level 3（基本）: 57特徴量モデル（ensemble_level3.pkl）
   - Level 4（ダミー）: DummyModel（最終フォールバック）
 - 外部API障害時自動Level 2フォールバック
 - レガシーシステム教訓反映: 外部API失敗でもシステム継続動作保証
+
+Phase 50.3完了:
+- 4段階Graceful Degradation実装（外部API統合対応）
 
 Phase 50.1完了:
 - 3段階Graceful Degradation実装（設定駆動型）
@@ -20,7 +26,7 @@ Phase 50.1完了:
 - 動的モデルフォールバック機能
 
 Phase 49完了:
-- ProductionEnsemble読み込み（models/production/production_ensemble.pkl）
+- ProductionEnsemble読み込み
 - 個別モデル再構築（LightGBM・XGBoost・RandomForest）
 - pickle.UnpicklingError対応（モデルクラス再定義）
 - DummyModelフォールバック（読み込み失敗時）
@@ -56,11 +62,11 @@ class MLModelLoader:
 
     def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        Phase 50.3: 4段階Graceful Degradation付き優先順位モデル読み込み
+        Phase 50.7: 3段階MLモデルシステム優先順位読み込み
 
-        Level 1（完全+外部API）: 70特徴量モデル → production_ensemble_full.pkl
-        Level 2（完全）: 62特徴量モデル → production_ensemble.pkl
-        Level 3（基本）: 57特徴量モデル → production_ensemble_57.pkl
+        Level 1（完全+外部API）: 70特徴量モデル → ensemble_level1.pkl
+        Level 2（完全）: 62特徴量モデル → ensemble_level2.pkl
+        Level 3（基本）: 57特徴量モデル → ensemble_level3.pkl
         Level 4（ダミー）: DummyModel → 最終フォールバック
 
         Args:
@@ -174,22 +180,7 @@ class MLModelLoader:
         model_filename = level_info[level].get("model_file", "ensemble_level2.pkl")
         model_path = Path(base_path) / "models" / "production" / model_filename
 
-        # Phase 50.7: 後方互換性 - 新モデルが存在しない場合は旧モデル名で探す
-        if not model_path.exists():
-            # 旧モデル名マッピング
-            old_model_mapping = {
-                "ensemble_level1.pkl": "production_ensemble_full.pkl",
-                "ensemble_level2.pkl": "production_ensemble.pkl",
-                "ensemble_level3.pkl": "production_ensemble_57.pkl",
-            }
-            old_model_name = old_model_mapping.get(model_filename)
-            if old_model_name:
-                fallback_path = Path(base_path) / "models" / "production" / old_model_name
-                if fallback_path.exists():
-                    model_path = fallback_path
-                    self.logger.info(
-                        f"Phase 50.7後方互換性: 旧モデル使用 {old_model_name} → {model_filename}"
-                    )
+        # Phase 50.8.1: 旧モデル後方互換性削除（Phase 50.7完全移行）
 
         if not model_path.exists():
             self.logger.warning(f"ProductionEnsemble未発見 (Level {level.upper()}): {model_path}")

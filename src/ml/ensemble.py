@@ -586,7 +586,7 @@ class ProductionEnsemble:
     現在の目的：
     - scripts/ml/create_ml_models.pyで実使用中（週次自動学習）
     - 本番環境での安定動作を保証（ml_adapter/ml_loader/trading_cycle_manager）
-    - models/production/production_ensemble.pkl として保存・読み込み
+    - Phase 50.7: ensemble_level1/2/3.pkl として保存・読み込み
 
     将来の統合計画：
     - 新設計EnsembleModelへの段階的移行を想定
