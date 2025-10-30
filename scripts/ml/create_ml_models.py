@@ -1,36 +1,39 @@
 #!/usr/bin/env python3
 """
-新システム用MLモデル作成スクリプト - Phase 41.8完了版（Strategy-Aware ML・完全実装）
+新システム用MLモデル作成スクリプト - Phase 50.7完了版（3レベルMLモデル・設定駆動型）
 
+Phase 50.7対応: モデル名固定化・3レベルMLモデル完全実装・バックテスト環境統一
+Phase 50.3対応: 70特徴量（62基本+8外部API）・4段階Graceful Degradation
 Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確保）
 Phase 41対応: 戦略シグナル特徴量統合（50→55特徴量）
 Phase 39対応: 実データ学習・閾値最適化・CV強化・SMOTE・Optuna最適化
 
 機能:
-- 55特徴量での LightGBM・XGBoost・RandomForest アンサンブル学習
+- **3レベルMLモデル生成** - Level 1（70特徴量）・Level 2（62特徴量）・Level 3（57特徴量）
+- **設定駆動型** - feature_order.json完全準拠・ハードコードゼロ
+- **外部API特徴量統合** - USD/JPY・日経平均・米10年債・Fear & Greed Index・派生指標4個
+- **レベル別特徴量選択** - feature_order.jsonカテゴリー定義に基づく自動選択
+- **統合メタデータ生成** - 全レベル情報を1つのJSONに集約（ensemble_metadata.json）
 - Phase 41.8: 実戦略信号学習 - 過去データから実際に5戦略を実行して学習データ生成
-- Phase 41: Strategy-Aware ML - 戦略シグナル5特徴量追加
 - Phase 40.6: Feature Engineering拡張 - 15→50特徴量
-- Phase 39.1: 実データ学習（CSV読み込み・過去180日分15分足データ）
-- Phase 39.2: 閾値最適化（0.3% → 0.5%）・3クラス分類（BUY/HOLD/SELL）
-- Phase 39.3: TimeSeriesSplit n_splits=5・Early Stopping rounds=20・Train/Val/Test 70/15/15
-- Phase 39.4: SMOTE oversampling・class_weight='balanced'
-- Phase 39.5: Optunaハイパーパラメータ最適化（TPESampler）
-- 新システム src/ 構造に対応
-- models/production/ にモデル保存
-- 実取引前の品質保証・性能検証
+- Phase 39.1-39.5: 実データ学習・TimeSeriesSplit・SMOTE・Optuna最適化
+- 新システム src/ 構造対応
+- models/production/ にレベル別モデル保存
 
-Phase 41.8完了成果: 55特徴量完全統合・訓練時と推論時の一貫性確保・実戦略信号学習
+Phase 50.7完了成果: 70特徴量完全統合・3レベルモデル完全実装・バックテスト環境統一
 
 使用方法:
-    # Phase 41.8: 55特徴量で学習（実戦略信号・推奨）
-    python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # Phase 50.7: Level 1モデル学習（70特徴量・外部API含む）
+    python scripts/ml/create_ml_models.py --level 1 --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # 基本実行（Phase 39.1-39.4）
-    python scripts/ml/create_ml_models.py [--dry-run] [--verbose]
+    # Phase 50.7: Level 2モデル学習（62特徴量・バックテスト用）
+    python scripts/ml/create_ml_models.py --level 2 --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # Phase 39.4: SMOTE oversampling有効化
-    python scripts/ml/create_ml_models.py --use-smote
+    # Phase 50.7: Level 3モデル学習（57特徴量・最小フォールバック）
+    python scripts/ml/create_ml_models.py --level 3 --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+
+    # Phase 50.7: 全レベル一括学習（推奨）
+    python scripts/ml/create_ml_models.py --level all --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 """
 
 import argparse
@@ -61,6 +64,7 @@ sys.path.insert(0, str(project_root))
 try:
     from src.backtest.scripts.collect_historical_csv import HistoricalDataCollector
     from src.core.config import load_config
+    from src.core.config.feature_manager import _feature_manager  # Phase 50.7
     from src.core.logger import get_logger
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
@@ -84,9 +88,10 @@ class NewSystemMLModelCreator:
         use_smote: bool = False,
         optimize: bool = False,
         n_trials: int = 20,
+        target_level: int = 2,
     ):
         """
-        初期化（Phase 39.2-39.5対応）
+        初期化（Phase 50.7対応・3レベルMLモデル）
 
         Args:
             config_path: 設定ファイルパス
@@ -96,8 +101,10 @@ class NewSystemMLModelCreator:
             use_smote: SMOTEオーバーサンプリング使用（Phase 39.4）
             optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
             n_trials: Optuna試行回数（Phase 39.5）
+            target_level: 学習対象レベル 1/2/3（Phase 50.7）
         """
         self.config_path = config_path
+        self.target_level = target_level
         self.verbose = verbose
         self.target_threshold = target_threshold  # Phase 39.2
         self.n_classes = n_classes  # Phase 39.2
@@ -231,9 +238,16 @@ class NewSystemMLModelCreator:
             raise
 
     async def prepare_training_data_async(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
-        """学習用データ準備（Phase 50.3: 70特徴量・外部API・実戦略信号統合）"""
+        """
+        Phase 50.7: レベル別特徴量選択対応
+
+        Level 1 (full_with_external): 70特徴量（62基本+8外部API）
+        Level 2 (full): 62特徴量（62基本のみ・外部API除外）
+        Level 3 (basic): 57特徴量（57基本のみ・外部API+戦略信号除外）
+        """
+        level_info = {1: "Level 1（70特徴量）", 2: "Level 2（62特徴量）", 3: "Level 3（57特徴量）"}
         self.logger.info(
-            f"📊 Phase 50.3: 実データ学習開始（過去{days}日分・70特徴量・外部API・実戦略信号）"
+            f"📊 Phase 50.7: 実データ学習開始（過去{days}日分・{level_info.get(self.target_level, 'Unknown')}）"
         )
 
         try:
@@ -267,6 +281,9 @@ class NewSystemMLModelCreator:
             # Phase 50.3: 特徴量整合性確保（70特徴量）
             features_df = self._ensure_feature_consistency(features_df)
 
+            # Phase 50.7: レベル別特徴量選択
+            features_df = self._select_features_by_level(features_df)
+
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
             target = self._generate_target(df, self.target_threshold, self.n_classes)
 
@@ -274,8 +291,8 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 50.3 実データ準備完了: {len(features_df)}サンプル、"
-                f"{len(features_df.columns)}特徴量（70特徴量: 62基本+8外部API・実戦略信号統合完了）"
+                f"✅ Phase 50.7 実データ準備完了: {len(features_df)}サンプル、"
+                f"{len(features_df.columns)}特徴量（{level_info.get(self.target_level, 'Unknown')}）"
             )
             return features_df, target
 
@@ -495,6 +512,68 @@ class NewSystemMLModelCreator:
             self.logger.warning(f"⚠️ 特徴量数不一致: {len(features_df.columns)} != {expected_count}")
 
         return features_df
+
+    def _select_features_by_level(self, features_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Phase 50.7: レベル別特徴量選択
+
+        Level 1: 全70特徴量使用（変更なし）
+        Level 2: 外部API特徴量8個を除外（62特徴量）
+        Level 3: 外部API特徴量8個+戦略信号5個を除外（57特徴量）
+
+        Args:
+            features_df: 全特徴量を含むDataFrame
+
+        Returns:
+            pd.DataFrame: レベルに応じた特徴量のみを含むDataFrame
+        """
+        if self.target_level == 1:
+            # Level 1: 全特徴量使用（70特徴量）
+            self.logger.info("📊 Phase 50.7: Level 1 - 全70特徴量使用")
+            return features_df
+
+        # 外部API特徴量リスト（8個）
+        external_api_features = [
+            "usd_jpy",
+            "nikkei_225",
+            "us_10y_yield",
+            "fear_greed_index",
+            "usd_jpy_change_1d",
+            "nikkei_change_1d",
+            "usd_jpy_btc_correlation",
+            "market_sentiment",
+        ]
+
+        # 戦略信号特徴量（5個・prefix検索）
+        strategy_signal_features = [
+            col for col in features_df.columns if col.startswith("strategy_signal_")
+        ]
+
+        if self.target_level == 2:
+            # Level 2: 外部API特徴量を除外（62特徴量）
+            features_to_drop = [f for f in external_api_features if f in features_df.columns]
+            features_df = features_df.drop(columns=features_to_drop, errors="ignore")
+            self.logger.info(
+                f"📊 Phase 50.7: Level 2 - 外部API特徴量{len(features_to_drop)}個を除外 → {len(features_df.columns)}特徴量"
+            )
+            return features_df
+
+        elif self.target_level == 3:
+            # Level 3: 外部API特徴量 + 戦略信号を除外（57特徴量）
+            features_to_drop = []
+            features_to_drop.extend([f for f in external_api_features if f in features_df.columns])
+            features_to_drop.extend(strategy_signal_features)
+
+            features_df = features_df.drop(columns=features_to_drop, errors="ignore")
+            self.logger.info(
+                f"📊 Phase 50.7: Level 3 - 外部API+戦略信号{len(features_to_drop)}個を除外 → {len(features_df.columns)}特徴量"
+            )
+            return features_df
+
+        else:
+            # 想定外のレベル値
+            self.logger.warning(f"⚠️ 想定外のtarget_level: {self.target_level} → Level 1として処理")
+            return features_df
 
     def _generate_target(
         self,
@@ -1014,8 +1093,16 @@ class NewSystemMLModelCreator:
         for model_name, model in models.items():
             try:
                 if model_name == "production_ensemble":
+                    # Phase 50.7: feature_order.jsonから設定駆動型でモデルファイル名取得
+                    level_map = {1: "full_with_external", 2: "full", 3: "basic"}
+                    target_level_key = level_map.get(self.target_level, "full")
+                    level_info = _feature_manager.get_feature_level_info()
+                    model_filename = level_info[target_level_key].get(
+                        "model_file", "ensemble_level2.pkl"
+                    )
+
                     # 本番用統合モデルはproductionフォルダに保存
-                    model_file = self.production_dir / "production_ensemble.pkl"
+                    model_file = self.production_dir / model_filename
                     with open(model_file, "wb") as f:
                         pickle.dump(model, f)
 
@@ -1112,12 +1199,26 @@ class NewSystemMLModelCreator:
                     validation_passed = False
                     continue
 
-                # サンプル予測テスト（DataFrameでsklearn警告回避）- Phase 40.6: 動的特徴量数対応
-                n_features = len(self.expected_features)
+                # Phase 50.7: レベル別特徴量数対応サンプル予測テスト
+                # モデルの実際の特徴量数を取得（LightGBMモデルから）
+                if hasattr(model, "models") and "lightgbm" in model.models:
+                    # ProductionEnsembleの場合
+                    lgbm_model = model.models["lightgbm"]
+                    if hasattr(lgbm_model, "n_features_in_"):
+                        n_features = lgbm_model.n_features_in_
+                    elif hasattr(lgbm_model, "_n_features"):
+                        n_features = lgbm_model._n_features
+                    else:
+                        n_features = len(self.expected_features)
+                elif hasattr(model, "n_features_in_"):
+                    n_features = model.n_features_in_
+                else:
+                    n_features = len(self.expected_features)
+
+                # レベルに応じた特徴量リストを取得
+                feature_list = self.expected_features[:n_features]
                 sample_features_array = np.random.random((5, n_features))
-                sample_features = pd.DataFrame(
-                    sample_features_array, columns=self.expected_features
-                )
+                sample_features = pd.DataFrame(sample_features_array, columns=feature_list)
                 prediction = model.predict(sample_features)
 
                 if len(prediction) == 5:
@@ -1140,16 +1241,16 @@ class NewSystemMLModelCreator:
                             self.logger.error(f"❌ predict_proba 形状不正: {probabilities.shape}")
                             validation_passed = False
 
-                    # get_model_info メソッド確認 - Phase 40.6: 動的特徴量数対応
+                    # Phase 50.7: レベル別特徴量数対応 - get_model_info確認
                     if hasattr(model, "get_model_info"):
                         info = model.get_model_info()
-                        expected_count = len(self.expected_features)
-                        if info.get("n_features") == expected_count:
-                            self.logger.info("✅ get_model_info 確認成功")
+                        # すでに取得済みのn_features（レベル別）を使用
+                        if info.get("n_features") == n_features:
+                            self.logger.info(f"✅ get_model_info 確認成功（{n_features}特徴量）")
                         else:
                             self.logger.error(
                                 f"❌ get_model_info 特徴量数不正: "
-                                f"{info.get('n_features')} != {expected_count}"
+                                f"{info.get('n_features')} != {n_features}"
                             )
                             validation_passed = False
 
@@ -1315,11 +1416,21 @@ def main():
         help="Phase 39.5: Optuna最適化試行回数（デフォルト: 20）",
     )
 
+    # Phase 50.7: レベル設定引数
+    parser.add_argument(
+        "--level",
+        type=int,
+        default=2,
+        choices=[1, 2, 3],
+        help="Phase 50.7: 学習対象レベル 1（70特徴量・外部API含む）/2（62特徴量・バックテスト用・推奨）/3（57特徴量・最小フォールバック）",
+    )
+
     args = parser.parse_args()
 
-    # モデル作成実行（Phase 39.2-39.5対応）
+    # モデル作成実行（Phase 50.7対応）
     creator = NewSystemMLModelCreator(
         config_path=args.config,
+        target_level=args.level,
         verbose=args.verbose,
         target_threshold=args.threshold,
         n_classes=args.n_classes,

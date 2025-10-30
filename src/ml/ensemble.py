@@ -617,11 +617,29 @@ class ProductionEnsemble:
         self.weights = default_weights
 
         self.is_fitted = True
-        # Phase 22: 特徴量定義一元化対応
+        # Phase 50.7: レベル別特徴量数対応 - 実際のモデルから特徴量数を取得
         from ..core.config.feature_manager import get_feature_count, get_feature_names
 
-        self.n_features_ = get_feature_count()
-        self.feature_names = get_feature_names()
+        # 実際に学習されたモデルの特徴量数を取得（レベル別対応）
+        detected_n_features = None
+        for model_name, model in self.models.items():
+            if hasattr(model, "n_features_in_"):
+                detected_n_features = model.n_features_in_
+                break
+            elif hasattr(model, "_n_features"):
+                detected_n_features = model._n_features
+                break
+
+        # モデルから検出できた場合はそれを使用、できない場合はフォールバック
+        if detected_n_features is not None:
+            self.n_features_ = detected_n_features
+            # 特徴量名もレベルに応じて切り詰める
+            all_feature_names = get_feature_names()
+            self.feature_names = all_feature_names[: self.n_features_]
+        else:
+            # フォールバック: 全特徴量を使用（Level 1相当）
+            self.n_features_ = get_feature_count()
+            self.feature_names = get_feature_names()
 
         # モデル数検証
         if len(self.models) == 0:

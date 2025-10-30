@@ -12,7 +12,7 @@
 - **実装順序**に沿って記載（Phase 50 → 51 → 53...）
 - 定期的にタスク状況を更新
 
-**🎯 2025/10/28更新**: Phase 50.1-50.3完了 → Phase 50.4（バックテスト検証・ML再学習）実施予定 ⭐最優先
+**🎯 2025/10/30更新**: Phase 50.1-50.6完了（70特徴量・外部API統合・証拠金維持率80%完全修正） → Phase 50.7簡易版（基本性能確認）→ Phase 51（戦略最適化）実施予定 ⭐最優先
 
 ---
 
@@ -142,81 +142,128 @@
 
 **詳細**: docs/開発履歴/Phase_50.md Phase 50.3.1セクション参照
 
-### Phase 50.4: バックテスト検証・ウォークフォワード検証（予定）⭐次回実施
+### Phase 50.4: 証拠金維持率80%チェック完全修正（完了）✅
 
 **実装内容**:
-- [ ] 70特徴量バックテスト検証（Phase 50.3完了後）
-- [ ] **ウォークフォワード検証実装**（新規追加・重要）
-- [ ] TimeSeriesSplit強化（n_splits=5継続）
-- [ ] 過学習検証（train vs validation vs test）
-- [ ] モデル汎化性能評価
+- [x] monitor.py: API直接取得方式に変更（`/user/margin/status`）
+- [x] fetch_margin_ratio_from_api()実装（maintenance_margin_ratio直接取得）
+- [x] 逆算ポジション価値推定実装
+- [x] 500%固定返却問題の根本解決
+- [x] 旧メソッド削除（_get_current_position_value・_estimate_current_position_value）
+
+**問題分析**:
+- Phase 50.1修正が不完全（BTC価格ハードコード削除のみ）
+- monitor.pyの500%固定返却が残存（ポジション価値過小推定時）
+- fetch_margin_positions() Error 20003（GET認証未対応）
+- 結果: 証拠金維持率80%チェック無効化・含み損295円（期待150円の197%超過）
+
+**完了日**: 2025/10/30
+
+**品質基準**: ✅ 1,087テスト100%成功・67.11%カバレッジ維持
+
+**期待効果**:
+- 証拠金維持率80%チェック完全有効化
+- ポジション蓄積防止 → 含み損150円遵守
+- 青天井リスク完全解消
+
+**詳細**: docs/開発履歴/Phase_50.md Phase 50.4セクション参照
+
+### Phase 50.5: SL注文保護・Phase 42完全削除（完了）✅
+
+**実装内容**:
+- [x] cleanup.py: Phase 37.5.3クリーンアップ機能を一時無効化
+- [x] executor.py: Phase 42統合TP/SL参照を完全削除
+- [x] stop_manager.py: Phase 42統合TP/SL参照を完全削除
+- [x] tracker.py: Phase 42統合TP/SL参照を完全削除
+- [x] SL注文保護（Phase 46個別TP/SL優先）
+
+**問題分析**:
+- bitbank UIでSL注文が0個存在（TP注文は10個存在）
+- 含み損569円（期待150円の379%・無制限損失リスク）
+- Phase 37.5.3がSL注文を誤削除（TP注文のみ保護）
+- Phase 42統合TP/SL参照が残存（Phase 42.4で削除したはずが残っていた）
+
+**完了日**: 2025/10/30
+
+**品質基準**: ✅ 1,087テスト100%成功・67.11%カバレッジ維持
+
+**期待効果**:
+- SL注文保護完了（Phase 46個別TP/SL優先）
+- Phase 42レガシーコード完全削除
+- 無制限損失リスク解消
+
+**詳細**: docs/開発履歴/Phase_50.md Phase 50.5セクション参照
+
+### Phase 50.6: 外部API特徴量取得完全修正（完了）✅
+
+**実装内容**:
+- [x] external_api.py: asyncio.to_thread()実装（yfinance同期処理対応）
+- [x] fetch_usd_jpy(): _sync_fetch_usd_jpy()を別スレッド実行
+- [x] fetch_nikkei_225(): _sync_fetch_nikkei()を別スレッド実行
+- [x] fetch_us_10y_yield(): _sync_fetch_us_10y()を別スレッド実行
+- [x] イベントループブロック回避
+
+**問題分析**:
+- Phase 50.3デプロイ後、外部API成功率2/8（25%）
+- yfinanceライブラリが同期ライブラリ → asyncイベントループブロック
+- RuntimeWarning: coroutine 'fetch_usd_jpy' was never awaited
+- 結果: Level 2（62特徴量）フォールバック継続
+
+**完了日**: 2025/10/30
+
+**品質基準**: ✅ 1,087テスト100%成功・67.11%カバレッジ維持
+
+**期待効果**:
+- 外部API成功率: 2/8（25%）→ 8/8（100%）
+- Level 1（70特徴量）正常稼働
+- イベントループブロック解消
+
+**詳細**: docs/開発履歴/Phase_50.md Phase 50.6セクション参照
+
+### Phase 50.7: バックテスト基本検証（簡易版）（1-2日）⭐次回実施
+
+**実装内容**:
+- [ ] 70特徴量バックテスト基本性能確認（Phase 50.6完了後）
+- [ ] 既存バックテストツールで検証（Phase 49基盤活用）
+- [ ] F1スコア・シャープレシオ確認
+- [ ] ドローダウン悪化がないことを確認
 - [ ] ペーパートレード検証（1週間）
 
-**注**: Phase 50.3でMLモデル再学習は完了済み（Optuna 50 trials実施済み）
-
-**ウォークフォワード検証実装**:
-```python
-# ローリングウィンドウによる検証
-for train_end in rolling_windows:
-    train_data = data[:train_end]
-    test_data = data[train_end:train_end + test_period]
-    model.fit(train_data)
-    predictions = model.predict(test_data)
-    evaluate_performance(predictions, test_data)
-```
+**注**:
+- Phase 50.3でMLモデル再学習は完了済み（Optuna 50 trials実施済み）
+- **ウォークフォワード検証はPhase 51.4で本格実装予定**（Phase 51戦略最適化と統合）
 
 **品質基準**:
-- 汎化性能の向上確認
-- F1スコア0.56-0.61 → 0.65-0.70目標
+- F1スコア0.56-0.61 → 0.60-0.65目標（基本改善確認のみ）
 - ドローダウン悪化がないこと
+- 1-2日で完了（簡易版）
 
-### Phase 50.5: 特徴量選択・最適化（2-3日）
+## Phase 50達成効果（Phase 50.1-50.7完了予定 ✅）
 
-**実装内容**:
-- [ ] **ミューチュアルインフォメーション分析**
-- [ ] **逐次特徴量削減**（Recursive Feature Elimination）
-- [ ] 相関分析・冗長性排除
-- [ ] L1正則化による特徴量選択
-- [ ] 最適特徴量セット決定（過学習防止）
-
-**実装例**:
-```python
-from sklearn.feature_selection import mutual_info_classif, RFE
-from sklearn.linear_model import LassoCV
-
-# ミューチュアルインフォメーション
-mi_scores = mutual_info_classif(X, y)
-top_features = select_top_k_features(mi_scores, k=60)
-
-# 逐次特徴量削減
-rfe = RFE(estimator=model, n_features_to_select=60)
-selected_features = rfe.fit_transform(X, y)
-```
-
-**品質基準**:
-- 特徴量数削減（65-70 → 60-65最適化）
-- モデル精度維持または向上
-- 過学習指標改善
-
-## Phase 50達成効果（Phase 50.1-50.3完了）
-
-- **特徴量数**: 55 → 70（Phase 50.3完了）→ 60-65（Phase 50.5最適化後予定）
-- **ML予測精度**: Phase 50.4ウォークフォワード検証で確認予定
+- **特徴量数**: 55 → 70（Phase 50.3完了）→ Phase 50.7基本検証 → Phase 51戦略最適化（65-68特徴量）
+- **外部API統合**: 8特徴量（USD/JPY・日経平均・米10年債・Fear & Greed Index + 派生指標4個）
+- **外部API成功率**: 100%達成（Phase 50.6完了・asyncio.to_thread()実装）
+- **証拠金維持率80%**: 完全修正（Phase 50.4完了・API直接取得方式）
+- **SL注文保護**: 完了（Phase 50.5完了・Phase 42レガシーコード完全削除）
+- **ML予測精度**: Phase 50.7基本検証 → Phase 51.4ウォークフォワード検証で確認予定
 - **2025年最先端レベル**: マクロ経済指標・時間特徴量統合完了
 - **月額コスト**: 0円（完全無料・Yahoo Finance・Alternative.me API使用）
-- **Graceful Degradation**: 4段階対応（70/62/57/Dummy特徴量）
+- **Graceful Degradation**: 4段階対応（Level 1: 70 → Level 2: 62 → Level 3: 57 → Level 4: Dummy）
+- **特徴量選択**: Phase 53.2で実施予定（Phase 51戦略最適化完了後）
 
 ## リスクと対策
 
 **リスク**:
 - 特徴量増加による過学習
-- データ取得障害（Yahoo Finance/FRED API）
+- データ取得障害（Yahoo Finance/Alternative.me API）
 
 **対策**:
-- Phase 50.5で特徴量選択・最適化実施
-- ウォークフォワード検証で汎化性確認
-- データ取得エラーハンドリング実装
-- 欠損値補完ロジック実装
+- Phase 50.7で基本性能確認（簡易版）
+- Phase 51.4でウォークフォワード検証を本格実装
+- Phase 53.2で特徴量選択・最適化実施（戦略最適化後）
+- データ取得エラーハンドリング実装（Phase 50.3完了）
+- 4段階Graceful Degradation実装（Phase 50.3完了）
+- 24時間キャッシュフォールバック（Phase 50.3完了）
 
 ---
 
@@ -331,23 +378,40 @@ selected_features = rfe.fit_transform(X, y)
 - ドローダウン悪化なし
 - F1スコア0.65以上達成
 
-### Phase 51.4: ML再学習・統合検証（2-3日）
+### Phase 51.4: ML再学習・ウォークフォワード検証（3-4日）
 
 **実装内容**:
 - [ ] 戦略シグナル特徴量更新（5戦略 → 3-4戦略）
-- [ ] feature_order.json更新（62特徴量 → 52+N特徴量）
-  - 52基本特徴量 + N戦略シグナル特徴量（N=3-4）
+- [ ] feature_order.json更新（70特徴量 → 65+N特徴量）
+  - 62基本特徴量（50テクニカル+7時間+5派生指標） + N戦略シグナル特徴量（N=3-4）
 - [ ] MLモデル再学習（Optuna 50 trials）
+- [ ] **ウォークフォワード検証実装**（Phase 50.7から移動・本格実装）
+  - TimeSeriesSplit強化（n_splits=5継続）
+  - 過学習検証（train vs validation vs test）
+  - モデル汎化性能評価
 - [ ] バックテスト総合検証（Phase 49基盤活用）
 - [ ] F1スコア・収益性・リスク指標評価
-- [ ] ウォークフォワード検証（Phase 50.4で実装済み）
+
+**ウォークフォワード検証実装**:
+```python
+# ローリングウィンドウによる検証
+for train_end in rolling_windows:
+    train_data = data[:train_end]
+    test_data = data[train_end:train_end + test_period]
+    model.fit(train_data)
+    predictions = model.predict(test_data)
+    evaluate_performance(predictions, test_data)
+```
 
 **品質基準**:
 - F1スコア0.65-0.70維持または向上
 - シャープレシオ改善確認
 - ドローダウン悪化なし
+- 汎化性能の向上確認（ウォークフォワード検証）
 - テストカバレッジ66%以上維持
-- 1,049テスト100%成功維持
+- 1,087テスト100%成功維持
+
+**注**: Phase 53.2で特徴量選択実施後、最終調整の可能性あり
 
 ### Phase 51.5: ペーパートレード検証（1週間）
 
@@ -497,7 +561,37 @@ selected_features = rfe.fit_transform(X, y)
 - 欠損値処理実装
 - バックテストで効果検証
 
-### Phase 53.2: モデルドリフト検知システム（4-5日）【新規追加】
+### Phase 53.2: 特徴量選択・最適化（2-3日）【Phase 50.8から移動・Phase 51完了後実施】
+
+**実装内容**:
+- [ ] **ミューチュアルインフォメーション分析**
+- [ ] **逐次特徴量削減**（Recursive Feature Elimination）
+- [ ] 相関分析・冗長性排除
+- [ ] L1正則化による特徴量選択
+- [ ] 最適特徴量セット決定（過学習防止）
+
+**実装例**:
+```python
+from sklearn.feature_selection import mutual_info_classif, RFE
+from sklearn.linear_model import LassoCV
+
+# ミューチュアルインフォメーション
+mi_scores = mutual_info_classif(X, y)
+top_features = select_top_k_features(mi_scores, k=60)
+
+# 逐次特徴量削減
+rfe = RFE(estimator=model, n_features_to_select=60)
+selected_features = rfe.fit_transform(X, y)
+```
+
+**品質基準**:
+- 特徴量数削減（65-70 → 60-65最適化）
+- モデル精度維持または向上
+- 過学習指標改善
+
+**注**: Phase 51（戦略最適化）完了後に実施・戦略数削減（5→3-4）を反映した特徴量選択
+
+### Phase 53.3: モデルドリフト検知システム（4-5日）【新規追加】
 
 **実装内容**:
 - [ ] **データ分布変化検出**
@@ -525,7 +619,7 @@ if p_value < 0.05:
 - 再学習の自動トリガー実装
 - 誤検知率を低く保つ
 
-### Phase 53.3: ABテスト・継続的評価フレームワーク（1週間）【拡張】
+### Phase 53.4: ABテスト・継続的評価フレームワーク（1週間）【拡張】
 
 **実装内容**:
 - [ ] ABテスト実装（新旧戦略・特徴量比較）
@@ -539,7 +633,7 @@ if p_value < 0.05:
 - 統計的有意性検定
 - 可視化ダッシュボード
 
-### Phase 53.4: 先進的手法研究（研究課題）【新規追加】
+### Phase 53.5: 先進的手法研究（研究課題）【新規追加】
 
 **研究対象**:
 - [ ] RNN/LSTM: 時系列パターン学習
@@ -578,7 +672,7 @@ if p_value < 0.05:
 
 ---
 
-# 🌐 Phase 53.5: マルチアセット対応（2-3週間）【Phase 52から移動・優先度低】
+# 🌐 Phase 53.6: マルチアセット対応（2-3週間）【Phase 52から移動・優先度低】
 
 ## 目的
 
@@ -588,28 +682,28 @@ if p_value < 0.05:
 
 ## 実装タスク
 
-### Phase 53.5.1: アセット抽象化（3-4日）
+### Phase 53.6.1: アセット抽象化（3-4日）
 
 **実装内容**:
 - [ ] AssetConfigクラス実装
 - [ ] unified.yaml拡張
 - [ ] 資産別パラメータ管理
 
-### Phase 53.5.2: bitbank ETH/JPY対応（3-4日）
+### Phase 53.6.2: bitbank ETH/JPY対応（3-4日）
 
 **実装内容**:
 - [ ] ETH/JPY API対応
 - [ ] ETH-BTC相関係数特徴量追加
 - [ ] 流動性確認
 
-### Phase 53.5.3: bitbank XRP/JPY対応（3-4日）
+### Phase 53.6.3: bitbank XRP/JPY対応（3-4日）
 
 **実装内容**:
 - [ ] XRP/JPY API対応
 - [ ] XRP-BTC相関係数特徴量追加
 - [ ] 流動性確認
 
-### Phase 53.5.4: 海外CEX/DEXマイナーアルトコイン対応（4-5日）
+### Phase 53.6.4: 海外CEX/DEXマイナーアルトコイン対応（4-5日）
 
 **実装内容**:
 - [ ] 候補資産選定（SOL・AVAX・MATIC・LINK）
@@ -617,24 +711,24 @@ if p_value < 0.05:
 - [ ] Binance/Uniswap API統合
 - [ ] 法規制確認
 
-### Phase 53.5.5: ポートフォリオ最適化（4-5日）
+### Phase 53.6.5: ポートフォリオ最適化（4-5日）
 
 **実装内容**:
 - [ ] PortfolioOptimizer実装
 - [ ] Kelly基準ベース資金配分
 - [ ] 相関係数考慮リスク分散
 
-### Phase 53.5.6: 段階的ライブ適用（2-3週間）
+### Phase 53.6.6: 段階的ライブ適用（2-3週間）
 
 **実装内容**:
 - [ ] ペーパートレード検証（各資産1週間）
 - [ ] 少額ライブ検証（各1万円・1週間）
 
-## Phase 53.5期待効果
+## Phase 53.6期待効果
 
 - **収益機会**: +30-50%拡大
 - **リスク分散**: 相関係数考慮
-- **Phase 50+51+53.5複合効果**: +62-116%
+- **Phase 50+51+53.6複合効果**: +62-116%
 
 ## リスクと対策
 
@@ -755,4 +849,4 @@ if p_value < 0.05:
 
 ---
 
-**最終更新**: 2025年10月28日 - Phase 50.3完了（70特徴量・マクロ経済指標統合・Graceful Degradation実装）・Phase 50.4次回実施予定
+**最終更新**: 2025年10月30日 - Phase 50.1-50.6完了（70特徴量・外部API統合・証拠金維持率80%完全修正・SL注文保護・外部API成功率100%達成）・Phase 50.7簡易版 → Phase 51 → Phase 53.2（Phase 50.8移動）実施順序決定

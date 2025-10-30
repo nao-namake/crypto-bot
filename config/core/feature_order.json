@@ -1,28 +1,28 @@
 {
-  "feature_order_version": "v2.8.0",
-  "phase": "Phase 50.3",
+  "feature_order_version": "v2.9.0",
+  "phase": "Phase 50.7",
   "total_features": 70,
-  "last_updated": "2025-10-28T12:00:00Z",
-  "description": "70特徴量（62基本+8外部API）- Phase 50.3マクロ経済指標統合・4段階Graceful Degradation",
+  "last_updated": "2025-10-30T12:00:00Z",
+  "description": "70特徴量（62基本+8外部API）- Phase 50.7モデル名固定化・3レベルMLモデル完全実装",
 
   "feature_levels": {
     "full_with_external": {
       "count": 70,
       "description": "完全特徴量（外部API含む）- Level 1",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals", "external_api"],
-      "model_file": "production_ensemble_full.pkl"
+      "model_file": "ensemble_level1.pkl"
     },
     "full": {
       "count": 62,
       "description": "完全特徴量（外部APIなし・戦略信号含む）- Level 2",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
-      "model_file": "production_ensemble.pkl"
+      "model_file": "ensemble_level2.pkl"
     },
     "basic": {
       "count": 57,
       "description": "基本特徴量（戦略信号・外部APIなし）- Level 3",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time"],
-      "model_file": "production_ensemble_57.pkl"
+      "model_file": "ensemble_level3.pkl"
     }
   },
 

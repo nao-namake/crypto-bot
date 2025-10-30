@@ -4,7 +4,7 @@
 
 **使用場面**:
 - デプロイ後のBot機能稼働確認
-- 55特徴量生成・5戦略判定・ML予測の健全性チェック
+- 70特徴量生成（62基本+8外部API）・5戦略判定・ML予測の健全性チェック
 - Silent Failure・取引阻害エラーの早期検知
 - 定期的なBot機能診断（毎日推奨）
 
@@ -14,11 +14,11 @@
 - 実装履歴は開発履歴ドキュメント参照
 - Bot機能のみに特化（基盤システムは01参照）
 
-**現在のシステム状態**: Phase 49完了（2025/10/24）
-- 55特徴量Strategy-Aware ML（50基本+5戦略信号）
+**現在のシステム状態**: Phase 50完了（2025/10/30）
+- 70特徴量システム（62基本+8外部API）・4段階Graceful Degradation
+- 外部API統合（USD/JPY・日経平均・米10年債・Fear & Greed Index）
 - ML統合率100%達成（閾値0.45/0.60最適化）
-- TradeTracker統合・SELL Only問題解決
-- 証拠金維持率80%確実遵守・デイトレード設定（SL 1.5%・TP 2%）
+- 証拠金維持率80%完全修正（Phase 50.4: API直接取得方式）
 
 ## ⚠️ 重要: まずREADME.mdを読んでください
 
@@ -28,16 +28,17 @@
 
 ## 🎯 診断対象
 
+- 📊 **70特徴量システム**: 62基本+8外部API・4段階Graceful Degradation（Phase 50.3）
+- 🌐 **外部API統合**: USD/JPY・日経平均・米10年債・Fear & Greed Index（Phase 50.3・50.6）
 - 🎯 **5戦略動的信頼度**: ATR・MochiPoy・MultiTimeframe・Donchian・ADX統合（小数点第3位変動確認）
 - 🤖 **3モデルMLアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
 - 💚 **ML予測統合**: 戦略70%+ML30%加重平均統合・ML統合率100%達成（Phase 41.8.5）
-- 📈 **55特徴量生成**: 50基本特徴量+5戦略信号特徴量（Strategy-Aware ML・Phase 41.8）
 - 💱 **Kelly基準**: ポジションサイジング・動的計算
 - 🔄 **統合シグナル生成**: 戦略→ML→統合フロー・SELL Only問題解決（Phase 49）
 - 🔍 **Silent Failure**: シグナル生成→実行断絶検出
 - 💰 **取引機能**: 最小ロット優先・ML信頼度連動制限
 - 🎯 **TP/SL機能**: デイトレード設定（SL 1.5%・TP 2%・Phase 49）
-- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率・証拠金維持率80%遵守
+- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率・証拠金維持率80%完全修正（Phase 50.4）
 - ⏰ **時間軸管理**: 15m足ATR使用・クールダウン柔軟化
 - 🎲 **動的信頼度**: 変動幅拡大・override_atr設定
 - 📊 **TradeTracker統合**: エントリー/エグジットペアリング・損益計算（Phase 49）
@@ -103,7 +104,37 @@ NORMAL_CHECKS=0
 echo ""
 echo "🤖 Bot機能チェック"
 
-# 1. Silent Failure検出（最重要）
+# 1. 70特徴量システム稼働確認（Phase 50.3）
+echo ""
+echo "📊 70特徴量システム稼働確認（Phase 50.3: 外部API統合）"
+FEATURE_70_SUCCESS=$(count_logs_since_deploy "textPayload:\"70特徴量\" OR textPayload:\"70個の特徴量\"" 15)
+FEATURE_62_FALLBACK=$(count_logs_since_deploy "textPayload:\"62特徴量\" OR textPayload:\"Level 2.*62\"" 15)
+FEATURE_57_FALLBACK=$(count_logs_since_deploy "textPayload:\"57特徴量\" OR textPayload:\"Level 3.*57\"" 15)
+FEATURE_DUMMY_FALLBACK=$(count_logs_since_deploy "textPayload:\"DummyModel\" OR textPayload:\"Level 4\"" 15)
+
+echo "   Level 1（70特徴量・外部API含む）: $FEATURE_70_SUCCESS回"
+echo "   Level 2（62特徴量・外部API除外）: $FEATURE_62_FALLBACK回"
+echo "   Level 3（57特徴量・戦略信号除外）: $FEATURE_57_FALLBACK回"
+echo "   Level 4（DummyModel）: $FEATURE_DUMMY_FALLBACK回"
+
+if [ $FEATURE_70_SUCCESS -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
+    echo "✅ 70特徴量システム: 正常稼働（外部API統合成功・Phase 50.3完了）"
+    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+
+    if [ $FEATURE_62_FALLBACK -gt 0 ]; then
+        echo "   ℹ️ Level 2フォールバック: ${FEATURE_62_FALLBACK}回（外部API障害時の正常動作）"
+    fi
+elif [ $FEATURE_62_FALLBACK -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
+    echo "⚠️ 62特徴量システム: フォールバック稼働中（外部API障害継続中）"
+    WARNING_ISSUES=$((WARNING_ISSUES + 1))
+elif [ $FEATURE_DUMMY_FALLBACK -gt 0 ]; then
+    echo "❌ DummyModelフォールバック: 重大問題（MLモデル・特徴量生成完全停止）"
+    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 2))
+else
+    echo "ℹ️ 70特徴量システム: 未確認（取引サイクル未実行の可能性）"
+fi
+
+# 2. Silent Failure検出（最重要）
 echo ""
 echo "🔍 Silent Failure検出分析"
 SIGNAL_COUNT=$(count_logs_since_deploy "textPayload:\"統合シグナル生成: buy\" OR textPayload:\"統合シグナル生成: sell\"" 30)
@@ -134,19 +165,34 @@ else
     fi
 fi
 
-# 2. ML予測実行確認
+# 3. ML予測実行確認（70特徴量対応）
 echo ""
-echo "🤖 ML予測システム確認"
+echo "🤖 ML予測システム確認（Phase 50.3: 70特徴量対応）"
 ML_PREDICTION_COUNT=$(count_logs_since_deploy "textPayload:\"ProductionEnsemble\" OR textPayload:\"ML予測\" OR textPayload:\"アンサンブル予測\"" 20)
+ML_70_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"70.*特徴量.*予測\" OR textPayload:\"予測.*70\"" 15)
+ML_62_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"62.*特徴量.*予測\" OR textPayload:\"予測.*62\"" 15)
+
+echo "   ML予測実行総数: $ML_PREDICTION_COUNT回"
+echo "   70特徴量予測: $ML_70_FEATURE_COUNT回"
+echo "   62特徴量予測（フォールバック）: $ML_62_FEATURE_COUNT回"
+
 if [ $ML_PREDICTION_COUNT -gt 0 ]; then
-    echo "✅ ML予測: 正常実行中 ($ML_PREDICTION_COUNT回確認)"
-    NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    if [ $ML_70_FEATURE_COUNT -gt 0 ]; then
+        echo "✅ ML予測: 正常実行中（70特徴量・外部API統合完了）"
+        NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    elif [ $ML_62_FEATURE_COUNT -gt 0 ]; then
+        echo "⚠️ ML予測: フォールバック稼働中（62特徴量・外部API障害）"
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+    else
+        echo "✅ ML予測: 実行中（${ML_PREDICTION_COUNT}回確認）"
+        NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
+    fi
 else
     echo "❌ ML予測: 未実行 (ProductionEnsemble動作なし)"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 fi
 
-# 3. フォールバック値使用頻度確認
+# 4. フォールバック値使用頻度確認
 echo ""
 echo "🔄 フォールバック値使用頻度確認"
 FALLBACK_CONFIDENCE_COUNT=$(count_logs_since_deploy "textPayload:\"信頼度: 0.200\"" 30)

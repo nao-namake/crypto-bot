@@ -171,17 +171,25 @@ class MLModelLoader:
             self.logger.warning(f"想定外の特徴量レベル: {level} → 読み込みスキップ")
             return False
 
-        model_filename = level_info[level].get("model_file", "production_ensemble.pkl")
+        model_filename = level_info[level].get("model_file", "ensemble_level2.pkl")
         model_path = Path(base_path) / "models" / "production" / model_filename
 
-        # 後方互換性: production_ensemble.pklが指定されている場合はフォールバックパス試行
-        if not model_path.exists() and model_filename == "production_ensemble.pkl":
-            fallback_path = Path(base_path) / get_threshold(
-                "ml.model_paths.production_ensemble", "models/production/production_ensemble.pkl"
-            )
-            if fallback_path.exists():
-                model_path = fallback_path
-                self.logger.debug(f"後方互換性パス使用: {model_path}")
+        # Phase 50.7: 後方互換性 - 新モデルが存在しない場合は旧モデル名で探す
+        if not model_path.exists():
+            # 旧モデル名マッピング
+            old_model_mapping = {
+                "ensemble_level1.pkl": "production_ensemble_full.pkl",
+                "ensemble_level2.pkl": "production_ensemble.pkl",
+                "ensemble_level3.pkl": "production_ensemble_57.pkl",
+            }
+            old_model_name = old_model_mapping.get(model_filename)
+            if old_model_name:
+                fallback_path = Path(base_path) / "models" / "production" / old_model_name
+                if fallback_path.exists():
+                    model_path = fallback_path
+                    self.logger.info(
+                        f"Phase 50.7後方互換性: 旧モデル使用 {old_model_name} → {model_filename}"
+                    )
 
         if not model_path.exists():
             self.logger.warning(f"ProductionEnsemble未発見 (Level {level.upper()}): {model_path}")

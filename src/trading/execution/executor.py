@@ -467,22 +467,22 @@ class ExecutionService:
                 except Exception as e:
                     self.logger.warning(f"⚠️ SL配置失敗（継続）: {e}")
 
-                # Phase 50.3.1: TP/SL注文ID保存（Phase 49.6クリーンアップ機能を完全化）
+                # Phase 50.8: TP/SL注文ID保存（メソッド名修正 - Phase 50.3.1バグ修正）
                 if tp_order_id or sl_order_id:
                     # PositionTrackerに注文IDを保存
                     if self.position_tracker:
                         try:
-                            self.position_tracker.update_position_stop_orders(
+                            self.position_tracker.update_position_tp_sl(
                                 order_id=result.order_id,
                                 tp_order_id=tp_order_id,
                                 sl_order_id=sl_order_id,
                             )
                             self.logger.debug(
-                                f"💾 Phase 50.3.1: TP/SL注文ID保存完了 - "
+                                f"💾 Phase 50.8: TP/SL注文ID保存完了 - "
                                 f"TP: {tp_order_id or 'なし'}, SL: {sl_order_id or 'なし'}"
                             )
                         except Exception as e:
-                            self.logger.warning(f"⚠️ Phase 50.3.1: TP/SL注文ID保存失敗（継続）: {e}")
+                            self.logger.warning(f"⚠️ Phase 50.8: TP/SL注文ID保存失敗（継続）: {e}")
 
                     # virtual_positionsにも保存（stop_manager互換性維持）
                     live_position["tp_order_id"] = tp_order_id

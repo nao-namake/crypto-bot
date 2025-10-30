@@ -22,14 +22,17 @@ class TestProductionEnsemble:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
+        mock_lgbm.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
+        mock_xgb.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
+        mock_rf.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         return {
             "lightgbm": mock_lgbm,
@@ -176,6 +179,7 @@ class TestProductionEnsemble:
         # predict_proba なし、predict のみのモックモデル
         mock_simple = MagicMock()
         mock_simple.predict.return_value = np.array([0.8, 0.3, 0.9])
+        mock_simple.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
         # predict_proba 属性を削除
         del mock_simple.predict_proba
 
@@ -190,6 +194,7 @@ class TestProductionEnsemble:
     def test_predict_proba_model_without_methods(self, sample_data):
         """予測メソッド完全なしエラーテスト"""
         mock_broken = MagicMock()
+        mock_broken.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
         # 両方のメソッドを削除
         del mock_broken.predict
         del mock_broken.predict_proba
@@ -242,9 +247,11 @@ class TestProductionEnsemble:
         # 特定の予測結果を持つモック作成
         mock_model1 = MagicMock()
         mock_model1.predict.return_value = np.array([1, 1, 0])  # 全て確定的
+        mock_model1.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         mock_model2 = MagicMock()
         mock_model2.predict.return_value = np.array([0, 0, 1])  # model1の逆
+        mock_model2.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         models = {"model1": mock_model1, "model2": mock_model2}
         ensemble = ProductionEnsemble(models)
@@ -269,14 +276,17 @@ class TestProductionEnsembleEdgeCases:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
+        mock_lgbm.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
+        mock_xgb.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
+        mock_rf.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         return {
             "lightgbm": mock_lgbm,
@@ -295,6 +305,7 @@ class TestProductionEnsembleEdgeCases:
         mock_single = MagicMock()
         mock_single.predict.return_value = np.array([1, 0])
         mock_single.predict_proba.return_value = np.array([[0.3, 0.7], [0.8, 0.2]])
+        mock_single.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
 
         ensemble = ProductionEnsemble({"single": mock_single})
 

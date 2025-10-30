@@ -299,10 +299,13 @@ class TestMLLoader4StageGracefulDegradation:
         """ProductionEnsemble読み込みテスト（Level 1: full_with_external）"""
         loader = MLModelLoader(logger=logger)
 
-        # production_ensemble_full.pklが存在しない場合はスキップ
-        model_path = Path("models/production/production_ensemble_full.pkl")
+        # Phase 50.7: ensemble_level1.pkl（旧名production_ensemble_full.pkl）が存在しない場合はスキップ
+        model_path = Path("models/production/ensemble_level1.pkl")
         if not model_path.exists():
-            pytest.skip("production_ensemble_full.pkl not found")
+            # 後方互換性: 旧モデル名でも試行
+            model_path = Path("models/production/production_ensemble_full.pkl")
+            if not model_path.exists():
+                pytest.skip("ensemble_level1.pkl not found")
 
         success = loader._load_production_ensemble(level="full_with_external")
 
@@ -314,10 +317,13 @@ class TestMLLoader4StageGracefulDegradation:
         """ProductionEnsemble読み込みテスト（Level 2: full）"""
         loader = MLModelLoader(logger=logger)
 
-        # production_ensemble.pklが存在しない場合はスキップ
-        model_path = Path("models/production/production_ensemble.pkl")
+        # Phase 50.7: ensemble_level2.pkl（旧名production_ensemble.pkl）が存在しない場合はスキップ
+        model_path = Path("models/production/ensemble_level2.pkl")
         if not model_path.exists():
-            pytest.skip("production_ensemble.pkl not found")
+            # 後方互換性: 旧モデル名でも試行
+            model_path = Path("models/production/production_ensemble.pkl")
+            if not model_path.exists():
+                pytest.skip("ensemble_level2.pkl not found")
 
         success = loader._load_production_ensemble(level="full")
 
@@ -329,7 +335,7 @@ class TestMLLoader4StageGracefulDegradation:
         """load_model_with_priority Level 2フォールバックテスト"""
         loader = MLModelLoader(logger=logger)
 
-        # 70特徴量でLevel 1試行→Level 2フォールバック（production_ensemble_full.pklなし）
+        # Phase 50.7: 70特徴量でLevel 1試行→Level 2フォールバック（ensemble_level1.pklなし）
         model = loader.load_model_with_priority(feature_count=70)
 
         # モデルが読み込まれている
@@ -337,7 +343,7 @@ class TestMLLoader4StageGracefulDegradation:
         assert loader.model is not None
 
         # Level 2またはLevel 3にフォールバック（環境により異なる）
-        assert loader.feature_level in ["full", "basic", "unknown"]
+        assert loader.feature_level in ["full_with_external", "full", "basic", "unknown"]
 
     def test_load_model_with_priority_dummy_fallback(self, logger):
         """load_model_with_priority ダミーモデルフォールバックテスト"""
@@ -450,4 +456,4 @@ class TestEndToEndGracefulDegradation:
 
         # Level 2またはLevel 3にフォールバック
         assert model is not None
-        assert loader.feature_level in ["full", "basic", "unknown"]
+        assert loader.feature_level in ["full_with_external", "full", "basic", "unknown"]

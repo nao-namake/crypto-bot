@@ -128,9 +128,9 @@ jobs:
         run: |
           echo "🔍 モデル品質検証開始"
 
-          # 1. ファイル存在確認
-          if [ ! -f "models/production/production_ensemble.pkl" ]; then
-            echo "❌ モデルファイル不存在: production_ensemble.pkl"
+          # Phase 50.7: 1. ファイル存在確認（新モデル名対応）
+          if [ ! -f "models/production/ensemble_level2.pkl" ]; then
+            echo "❌ モデルファイル不存在: ensemble_level2.pkl"
             exit 1
           fi
 
@@ -181,8 +181,8 @@ jobs:
 
           echo "✅ 特徴量検証完了: ${FEATURE_COUNT}特徴量（Phase 49現在: 55特徴量）"
 
-          # 4. モデルサイズ確認
-          MODEL_SIZE=$(du -h models/production/production_ensemble.pkl | awk '{print $1}')
+          # Phase 50.7: 4. モデルサイズ確認（新モデル名対応）
+          MODEL_SIZE=$(du -h models/production/ensemble_level2.pkl | awk '{print $1}')
           echo "📊 モデルサイズ: ${MODEL_SIZE}"
 
           echo "✅ モデル品質検証完了"

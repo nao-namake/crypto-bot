@@ -47,8 +47,8 @@ jobs:
       - name: Setup test environment
         run: |
           mkdir -p models/production
-          echo '{"version": "ci-test", "features": 55}' > models/production/model_metadata.json
-          touch models/production/production_ensemble.pkl
+          echo '{"version": "ci-test", "features": 70}' > models/production/model_metadata.json
+          touch models/production/ensemble_level2.pkl  # Phase 50.7
 
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
@@ -214,9 +214,9 @@ jobs:
           mkdir -p models/production logs cache
           echo '{"version": "production", "features": 55, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
           
-          # 本番用モデル確認（CI環境では作成済み）
-          if [ -f "models/production/production_ensemble.pkl" ]; then
-            echo "✅ 本番用モデル確認済み: models/production/production_ensemble.pkl"
+          # Phase 50.7: 本番用モデル確認（CI環境では作成済み）
+          if [ -f "models/production/ensemble_level2.pkl" ]; then
+            echo "✅ 本番用モデル確認済み: models/production/ensemble_level2.pkl"
           else
             echo "⚠️ 本番用モデル未確認（CI環境で作成予定）"
           fi

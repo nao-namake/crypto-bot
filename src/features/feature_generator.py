@@ -20,6 +20,7 @@ Phase履歴:
 Phase 50.1完了 - 確実な特徴量生成システム確立
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -144,9 +145,13 @@ class FeatureGenerator:
             # 🔹 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
             result_df = self._add_strategy_signal_features(result_df, strategy_signals)
 
-            # 🔹 外部API特徴量を生成（8個）- Phase 50.3: オプション
+            # 🔹 外部API特徴量を生成（8個）- Phase 50.3/50.7: オプション
             if include_external_api:
-                result_df = await self._generate_external_api_features(result_df)
+                # Phase 50.7: バックテストモードでは0埋め
+                is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+                result_df = await self._generate_external_api_features(
+                    result_df, is_backtest=is_backtest
+                )
 
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
@@ -170,18 +175,19 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 50.1: 62特徴量確実生成・バックテスト事前計算用）
+        同期版特徴量生成（Phase 50.7: 70特徴量対応・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（必ず62特徴量）
+            特徴量を含むDataFrame（必ず62 or 70特徴量）
 
         Note:
             - バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
             - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も62特徴量・0埋め）
+            - Phase 50.7: バックテストモード時は70特徴量（外部API特徴量8個を0埋め）
         """
         try:
             result_df = df.copy()
@@ -212,6 +218,24 @@ class FeatureGenerator:
 
             # 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
             result_df = self._add_strategy_signal_features(result_df, strategy_signals)
+
+            # Phase 50.7: バックテストモード時は外部API特徴量を0埋め（8個）
+            if os.environ.get("BACKTEST_MODE") == "true":
+                external_api_features = [
+                    "usd_jpy",
+                    "nikkei_225",
+                    "us_10y_yield",
+                    "fear_greed_index",
+                    "usd_jpy_change_1d",
+                    "nikkei_change_1d",
+                    "usd_jpy_btc_correlation",
+                    "market_sentiment",
+                ]
+                self.logger.info("🧪 バックテストモード: 外部API特徴量を0埋め（8特徴量）")
+                for feature_name in external_api_features:
+                    result_df[feature_name] = 0.0
+                    self.computed_features.add(feature_name)
+                self.logger.info("✅ 外部API特徴量0埋め完了: 8/8個（Level 1: 70特徴量対応）")
 
             # NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
@@ -786,12 +810,15 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    async def _generate_external_api_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    async def _generate_external_api_features(
+        self, df: pd.DataFrame, is_backtest: bool = False
+    ) -> pd.DataFrame:
         """
-        外部API特徴量生成 - Phase 50.3
+        外部API特徴量生成 - Phase 50.3/50.7
 
         Args:
             df: 特徴量DataFrame
+            is_backtest: バックテストモード（True時は0埋め）
 
         Returns:
             外部API特徴量を追加したDataFrame（8特徴量追加）
@@ -800,9 +827,32 @@ class FeatureGenerator:
             ExternalAPIError: 外部API取得失敗時
 
         Note:
+            - Phase 50.7: バックテストモード時は外部API呼び出しスキップ・0埋め
             - 外部API取得失敗時はExternalAPIErrorを上げる
             - 呼び出し側でLevel 2（62特徴量）にフォールバック
         """
+        # 8特徴量のうち取得できたものを追加
+        expected_features = [
+            "usd_jpy",
+            "nikkei_225",
+            "us_10y_yield",
+            "fear_greed_index",
+            "usd_jpy_change_1d",
+            "nikkei_change_1d",
+            "usd_jpy_btc_correlation",
+            "market_sentiment",
+        ]
+
+        # Phase 50.7: バックテストモード時は0埋め（外部API呼び出しスキップ）
+        if is_backtest:
+            self.logger.info("🧪 バックテストモード: 外部API特徴量を0埋め（8特徴量）")
+            for feature_name in expected_features:
+                df[feature_name] = 0.0
+                self.computed_features.add(feature_name)
+            self.logger.info("✅ 外部API特徴量0埋め完了: 8/8個（Level 1: 70特徴量対応）")
+            return df
+
+        # 通常モード: 外部APIから実データ取得
         try:
             from .external_api import ExternalAPIClient, ExternalAPIError
 
@@ -818,18 +868,6 @@ class FeatureGenerator:
             if not indicators:
                 self.logger.error("外部API全取得失敗 → Level 2フォールバック")
                 raise ExternalAPIError("All external API calls failed")
-
-            # 8特徴量のうち取得できたものを追加
-            expected_features = [
-                "usd_jpy",
-                "nikkei_225",
-                "us_10y_yield",
-                "fear_greed_index",
-                "usd_jpy_change_1d",
-                "nikkei_change_1d",
-                "usd_jpy_btc_correlation",
-                "market_sentiment",
-            ]
 
             added_count = 0
             for feature_name in expected_features:

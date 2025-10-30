@@ -14,15 +14,21 @@
 - 基盤システム正常後にBot機能診断実行
 - Phase履歴・開発完了情報は記載しない（開発履歴ドキュメント参照）
 
+**現在のシステム状態**: Phase 50完了（2025/10/30）
+- 70特徴量システム（62基本+8外部API）・4段階Graceful Degradation
+- 外部API統合（USD/JPY・日経平均・米10年債・Fear & Greed Index）
+- 証拠金維持率80%完全修正（Phase 50.4: API直接取得方式）
+- Phase 50.6: asyncio.to_thread()実装・外部API成功率100%達成
+
 ---
 
 ## 📂 ファイル構成
 
 | ファイル | 目的 | 実行時間 | 対象 |
 |---------|------|----------|------|
-| **01_システム稼働診断.md** | インフラ基盤の健全性チェック | 5分 | Cloud Run・Secret Manager・Discord・Container・API応答異常・証拠金維持率80%確認 |
-| **02_Bot機能診断.md** | Bot固有機能のエントリーシグナルチェック | 10分 | 55特徴量（50基本+5戦略信号）・5戦略・ML統合・取引阻害エラー・TradeTracker統合 |
-| **03_緊急対応マニュアル.md** | 問題発生時の即座修正手順 | 1-5分 | Silent Failure・権限問題・Container問題・NoneType対策 |
+| **01_システム稼働診断.md** | インフラ基盤の健全性チェック | 5分 | Cloud Run・Secret Manager・Discord・Container・API応答異常・証拠金維持率80%確認（Phase 50.4: API直接取得）・外部API特徴量取得状況（Phase 50.3・50.6） |
+| **02_Bot機能診断.md** | Bot固有機能のエントリーシグナルチェック | 10分 | 70特徴量（62基本+8外部API）・4段階Graceful Degradation・5戦略・ML統合・取引阻害エラー・TradeTracker統合 |
+| **03_緊急対応マニュアル.md** | 問題発生時の即座修正手順 | 1-5分 | Silent Failure・権限問題・Container問題・NoneType対策・外部API障害対応（Phase 50） |
 
 ---
 
@@ -79,7 +85,8 @@ bash 02_Bot機能診断.sh
 ### 02_Bot機能診断.md
 - **対象**: Bot固有のコア機能
 - **重点**:
-  - 15特徴量生成完全性
+  - 70特徴量生成完全性（62基本+8外部API・Phase 50.3）
+  - 4段階Graceful Degradation（70→62→57→Dummy）
   - 5戦略動的信頼度（小数点第3位変動確認）
   - ML予測統合（戦略70%+ML30%）
   - 取引機能（最小ロット・TP/SL・15m ATR・クールダウン）
@@ -94,6 +101,7 @@ bash 02_Bot機能診断.sh
   - 権限問題・Container問題・Discord修復
   - NoneType エラー対策
   - API応答異常対応
+  - 外部API障害対応（Phase 50・Level 2フォールバック確認）
 - **判定**: 修正コマンドによる迅速復旧
 - **実行条件**: 01/02で問題検出時
 
@@ -184,4 +192,4 @@ bash 02_Bot機能診断.sh
 
 **🎯 重要**: このフォルダのファイルはClaude Codeが一度に理解できる適切な長さに分割されています。問題の種類に応じて適切なファイルを選択してください。
 
-**最終更新**: 2025年10月25日 - Phase 49完了対応（55特徴量・証拠金維持率80%・TradeTracker統合）
+**最終更新**: 2025年10月30日 - Phase 50完了対応（70特徴量・4段階Graceful Degradation・外部API統合・証拠金維持率80%完全修正）

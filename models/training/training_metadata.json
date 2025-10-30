@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-28T07:40:37.417216",
+  "created_at": "2025-10-30T20:02:20.933282",
   "feature_names": [
     "close",
     "volume",
@@ -62,48 +62,40 @@
     "strategy_signal_MochipoyAlert",
     "strategy_signal_MultiTimeframe",
     "strategy_signal_DonchianChannel",
-    "strategy_signal_ADXTrendStrength",
-    "usd_jpy",
-    "nikkei_225",
-    "us_10y_yield",
-    "fear_greed_index",
-    "usd_jpy_change_1d",
-    "nikkei_change_1d",
-    "usd_jpy_btc_correlation",
-    "market_sentiment"
+    "strategy_signal_ADXTrendStrength"
   ],
-  "training_samples": 1069,
+  "training_samples": 1054,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.37267080745341613,
-      "f1_score": 0.369891630761196,
-      "precision": 0.4224566541663632,
-      "recall": 0.37267080745341613,
-      "cv_f1_mean": 0.49792658550848545,
-      "cv_f1_std": 0.08373973042543173
+      "accuracy": 0.3522012578616352,
+      "f1_score": 0.3382991352502786,
+      "precision": 0.38967028778349533,
+      "recall": 0.3522012578616352,
+      "cv_f1_mean": 0.4871805926391839,
+      "cv_f1_std": 0.09264194640977177
     },
     "xgboost": {
-      "accuracy": 0.4968944099378882,
-      "f1_score": 0.3766422854384886,
-      "precision": 0.3315099570645267,
-      "recall": 0.4968944099378882,
-      "cv_f1_mean": 0.5400324070960443,
-      "cv_f1_std": 0.047501836180612475
+      "accuracy": 0.4779874213836478,
+      "f1_score": 0.40931593347013,
+      "precision": 0.4357863285957179,
+      "recall": 0.4779874213836478,
+      "cv_f1_mean": 0.5429756202639807,
+      "cv_f1_std": 0.04745426293068238
     },
     "random_forest": {
-      "accuracy": 0.4782608695652174,
-      "f1_score": 0.41292111917774693,
-      "precision": 0.41111213298691746,
-      "recall": 0.4782608695652174,
-      "cv_f1_mean": 0.5488979464167539,
-      "cv_f1_std": 0.0646069809557394
+      "accuracy": 0.4968553459119497,
+      "f1_score": 0.33819565562073883,
+      "precision": 0.25633938228578296,
+      "recall": 0.4968553459119497,
+      "cv_f1_mean": 0.5555545122129226,
+      "cv_f1_std": 0.042866077926464935
     }
   },
   "model_files": {
     "lightgbm": "models/training/lightgbm_model.pkl",
     "xgboost": "models/training/xgboost_model.pkl",
     "random_forest": "models/training/random_forest_model.pkl",
-    "production_ensemble": "models/production/production_ensemble.pkl"
+    "production_ensemble": "models/production/ensemble_level2.pkl"
   },
   "config_path": "config/core/unified.yaml",
   "phase": "Phase 41.8",

@@ -118,17 +118,35 @@ ensemble:              # アンサンブル重み（LightGBM 50%・XGBoost 30%�
 
 **役割**: 全システムで使用する特徴量の順序・定義を一元管理
 
-**Phase 49完了時点**:
-- **total_features: 55**（50基本+5戦略信号）
-- **test_coverage: 68.32%**
-- **total_tests: 1117**
+**Phase 50.7完了時点**:
+- **total_features**: Level 1: 70、Level 2: 62、Level 3: 57
+- **test_coverage: 66.72%**
+- **total_tests: 1097**
+- **3レベルモデルシステム実装完了**
 
 **構造**:
 ```json
 {
-  "feature_order_version": "v2.5.0",
-  "phase": "Phase 49",
-  "total_features": 55,
+  "feature_order_version": "v2.9.0",
+  "phase": "Phase 50.7",
+
+  "feature_levels": {
+    "full_with_external": {
+      "count": 70,
+      "model_file": "ensemble_level1.pkl",
+      "description": "完全特徴量 + 外部API（バックテスト用推奨）"
+    },
+    "full": {
+      "count": 62,
+      "model_file": "ensemble_level2.pkl",
+      "description": "完全特徴量（外部APIなし・本番推奨）"
+    },
+    "basic": {
+      "count": 57,
+      "model_file": "ensemble_level3.pkl",
+      "description": "基本特徴量のみ（緊急フォールバック）"
+    }
+  },
 
   "feature_categories": {
     "basic": ["close", "volume"],
@@ -142,6 +160,11 @@ ensemble:              # アンサンブル重み（LightGBM 50%・XGBoost 30%�
     "rolling": [...],
     "interaction": [...],
     "time": [...],
+    "external_api": [
+      "usd_jpy", "nikkei_225", "us_10y_yield", "fear_greed_index",
+      "usd_jpy_change_1d", "nikkei_change_1d",
+      "usd_jpy_btc_correlation", "market_sentiment"
+    ],
     "strategy_signals": [
       "strategy_signal_atr_based",
       "strategy_signal_mochipoy_alert",
@@ -153,18 +176,33 @@ ensemble:              # アンサンブル重み（LightGBM 50%・XGBoost 30%�
 }
 ```
 
+**Phase 50.7新機能: feature_levels**
+- **model_file設定**: 各レベルに対応するモデルファイル名を固定
+  - Level 1: `ensemble_level1.pkl`（70特徴量）
+  - Level 2: `ensemble_level2.pkl`（62特徴量）
+  - Level 3: `ensemble_level3.pkl`（57特徴量）
+- **設定駆動型モデル選択**: 特徴量数に応じて自動的に最適なモデルを選択
+- **Graceful Degradation**: Level 1 → Level 2 → Level 3 → DummyModelの4段階フォールバック
+
 **使い方**:
-- 参照元: `src/core/config/feature_manager.py`
+- 参照元: `src/core/config/feature_manager.py`、`src/core/orchestration/ml_loader.py`
 - 特徴量追加時: このファイルを更新すれば全システムに自動反映
 - 順序変更時: 既存モデル再訓練必須
+- **モデル名変更時**: `feature_levels[].model_file`を更新（固定化推奨）
 
 **拡張ガイドライン**:
 - **特徴量追加時**:
   1. `feature_categories`の適切なカテゴリーに追加
   2. `feature_order`配列に追加
-  3. `total_features`を更新
+  3. `feature_levels`の`count`を更新（レベル別）
   4. `last_updated`タイムスタンプ更新
-  5. MLモデル再訓練実施（`scripts/ml/create_ml_models.py`）
+  5. MLモデル再訓練実施（`scripts/ml/create_ml_models.py --level [1|2|3]`）
+
+- **Phase 50.7: レベル追加時**:
+  1. `feature_levels`に新レベル追加（例: `"minimal"`）
+  2. `model_file`を固定値で設定（例: `"ensemble_level4.pkl"`）
+  3. `create_ml_models.py`に`--level 4`対応追加
+  4. `ml_loader.py`にLevel 4読み込みロジック追加
 
 ---
 
