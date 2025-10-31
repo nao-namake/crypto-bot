@@ -145,7 +145,7 @@ class TestMLServiceAdapterExceptionHandling:
                 mock_logger.warning.assert_called()
 
     def test_production_ensemble_file_io_error(self, mock_logger, temp_models_dir):
-        """ProductionEnsembleファイル読み込みI/Oエラー"""
+        """ProductionEnsembleファイル読み込みI/Oエラー（Phase 50.8以前の後方互換性テスト）"""
         production_file = temp_models_dir / "production" / "production_ensemble.pkl"
         production_file.touch()  # 空ファイル作成
 

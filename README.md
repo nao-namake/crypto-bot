@@ -1,10 +1,10 @@
 # 🚀 Crypto-Bot - AI自動取引システム
 
-**Phase 49完了・bitbank BTC/JPY専用・企業級品質達成**
+**Phase 50.8完了・bitbank BTC/JPY専用・企業級品質達成**
 
-[![Tests](https://img.shields.io/badge/tests-1065%20passed-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-66.72%25-green)](coverage-reports/)
-[![Phase 49](https://img.shields.io/badge/Phase%2049-Completed-brightgreen)](docs/)
+[![Tests](https://img.shields.io/badge/tests-1117%20passed-success)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-68.32%25-green)](coverage-reports/)
+[![Phase 50.8](https://img.shields.io/badge/Phase%2050.8-Completed-brightgreen)](docs/)
 
 ---
 
@@ -20,8 +20,8 @@ pip install -r requirements.txt
 cp config/secrets/.env.example config/secrets/.env
 # → .envファイルにbitbank API・Discord Webhook設定
 
-# 3. Phase 49品質チェック
-bash scripts/testing/checks.sh  # 1,065テスト・66.72%カバレッジ・約80秒
+# 3. Phase 50.8品質チェック
+bash scripts/testing/checks.sh  # 1,117テスト・68.32%カバレッジ・約74秒
 
 # 4. システム実行
 bash scripts/management/run_safe.sh local paper  # ペーパートレード
@@ -42,18 +42,28 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ## 🎯 システム概要
 
-AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。5つの取引戦略と機械学習を統合し、55の特徴量を総合分析することで、24時間自動取引を実現します。
+AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。5つの取引戦略と機械学習を統合し、**70の特徴量**（62基本+8外部API）を総合分析することで、24時間自動取引を実現します。
 
 ### 運用仕様
 
 - **対象市場**: bitbank信用取引・BTC/JPY専用
 - **資金規模**: 1万円スタート → 最大50万円（段階的拡大）
 - **取引頻度**: 月100-200回・5分間隔実行
-- **稼働体制**: 24時間自動取引・Cloud Run稼働
+- **稼働体制**: 24時間自動取引・Cloud Run稼働・ゼロダウンタイム
 - **インフラコスト**: 月額700-900円（GCP）
-- **品質保証**: 1,065テスト100%成功・66.72%カバレッジ
+- **品質保証**: 1,117テスト100%成功・68.32%カバレッジ
 
 ### 最新Phase完了
+
+**Phase 50.8（2025/11/01）**: Graceful Degradation完全実装（外部API障害対応）
+- Level 1→2自動フォールバック実装（外部API障害時も継続動作）
+- 動的モデル選択実装（特徴量数に応じた最適モデル自動選択）
+- ExternalAPIError伝播修正（正しい例外ハンドリング）
+- 本番環境0エントリー問題を根本解決・ゼロダウンタイム実現
+
+**Phase 50.7（2025/10/31）**: 3レベルモデルシステム・バックテスト検証
+- 3レベルモデル完全実装（ensemble_level1/2/3.pkl・70/62/57特徴量）
+- バックテスト外部API特徴量0埋め対応・ML予測2,419件成功
 
 **Phase 49（2025/10/26）**: バックテスト完全改修
 - TradeTracker実装（エントリー/エグジットペアリング・損益計算）
@@ -82,24 +92,25 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 
 - **5戦略統合**: ATRBased・MochiPoy・MultiTimeframe・DonchianChannel・ADXTrendStrength
 - **動的信頼度計算**: 市場適応型信頼度0.25-0.6・フォールバック回避
-- **Strategy-Aware ML**: 55特徴量学習（50基本+5戦略信号）・ML統合率100%達成
+- **Strategy-Aware ML**: **70特徴量学習**（62基本+8外部API）・ML統合率100%達成
 - **3モデルアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
 - **F1スコア**: 0.56-0.61達成
+- **4段階Graceful Degradation**: Level 1（70）→2（62）→3（57）→Dummy・ゼロダウンタイム
 
 ### リスク管理・取引実行
 
-- **個別TP/SL管理**: SL 1.5%・TP 2%・RR比1.33:1（デイトレード特化・Phase 46）
+- **個別TP/SL管理**: SL 1.5%・TP 1.0%・RR比0.67:1（デイトレード特化・Phase 49.18）
 - **適応型ATR**: ボラティリティ別SL調整（低2.5x・通常2.0x・高1.5x）
 - **完全指値オンリー**: 100%指値注文・年間¥150,000削減・約定率90-95%
 - **Kelly基準最適化**: 初期固定サイズ・5取引で実用性向上
-- **証拠金チェックリトライ**: Error 20001対策・3回リトライ上限
+- **証拠金維持率80%遵守**: API直接取得・過剰レバレッジ防止
 
 ### 運用監視システム
 
-- **24時間稼働**: Google Cloud Run・自動スケーリング
+- **24時間稼働**: Google Cloud Run・自動スケーリング・ゼロダウンタイム
 - **週間レポート**: 損益曲線グラフ・毎週月曜9時自動送信
 - **確定申告システム**: SQLite取引記録・移動平均法損益計算・CSV出力
-- **品質保証**: 1,065テスト自動実行・66.72%カバレッジ
+- **品質保証**: 1,117テスト自動実行・68.32%カバレッジ
 - **週次ML学習**: 過去180日データで毎回ゼロから再学習・市場変化適応
 
 ---

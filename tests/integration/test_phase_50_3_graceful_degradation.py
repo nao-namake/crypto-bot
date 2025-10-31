@@ -317,13 +317,10 @@ class TestMLLoader4StageGracefulDegradation:
         """ProductionEnsemble読み込みテスト（Level 2: full）"""
         loader = MLModelLoader(logger=logger)
 
-        # Phase 50.7: ensemble_level2.pkl（旧名production_ensemble.pkl）が存在しない場合はスキップ
+        # Phase 50.8.6: ensemble_level2.pkl（Phase 50.7モデル名固定化）
         model_path = Path("models/production/ensemble_level2.pkl")
         if not model_path.exists():
-            # 後方互換性: 旧モデル名でも試行
-            model_path = Path("models/production/production_ensemble.pkl")
-            if not model_path.exists():
-                pytest.skip("ensemble_level2.pkl not found")
+            pytest.skip("ensemble_level2.pkl not found")
 
         success = loader._load_production_ensemble(level="full")
 

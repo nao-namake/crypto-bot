@@ -22,7 +22,7 @@ execution/
 ### 🚨 緊急修正背景
 
 **ライブモード問題**: TP/SL価格が設定値（thresholds.yaml）と異なる問題が発生。
-- 設定値: SL 1.5%・TP 2% (max_loss_ratio: 0.015, min_profit_ratio: 0.02)
+- 設定値: SL 1.5%・TP 1.0% (max_loss_ratio: 0.015, min_profit_ratio: 0.01) ← Phase 50.8時点
 - 実際のTP/SL: 設定値が反映されず、ハードコード値やATRのみで計算
 
 ### ✅ Phase 49.16.1 executor.py TP/SL設定完全渡し修正（Line 348-371）
@@ -40,9 +40,9 @@ recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(.
 ```python
 # Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
 config = {
-    # TP設定
+    # TP設定（Phase 50.8時点: min_profit_ratio: 0.01 = 1.0%）
     "take_profit_ratio": get_threshold("position_management.take_profit.default_ratio", 1.33),
-    "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio", 0.02),
+    "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio", 0.01),
     # SL設定
     "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
     "min_distance_ratio": get_threshold("position_management.stop_loss.min_distance.ratio", 0.015),
