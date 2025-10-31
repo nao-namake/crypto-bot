@@ -32,6 +32,7 @@ from ..core.config import get_anomaly_config
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
+from .external_api import ExternalAPIError  # Phase 50.8: Graceful Degradation修正用
 
 # 特徴量リスト（一元化対応）
 OPTIMIZED_FEATURES = get_feature_names()
@@ -162,10 +163,11 @@ class FeatureGenerator:
             # DataFrameをそのまま返す（戦略で使用するため）
             return result_df
 
+        except ExternalAPIError:
+            # Phase 50.8: ExternalAPIErrorは上位に伝播（Level 2フォールバック用）
+            self.logger.warning("⚠️ 外部API特徴量取得失敗 → Level 2フォールバック")
+            raise
         except Exception as e:
-            # ExternalAPIErrorは上位に伝播（Level 2フォールバック用）
-            if "ExternalAPIError" in str(type(e).__name__):
-                raise
             self.logger.error(f"統合特徴量生成エラー: {e}")
             raise DataProcessingError(f"特徴量生成失敗: {e}")
 

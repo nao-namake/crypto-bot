@@ -40,7 +40,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ..config import get_threshold
-from ..exceptions import FileIOError, ModelLoadError
 from ..logger import CryptoBotLogger
 from .ml_fallback import DummyModel
 

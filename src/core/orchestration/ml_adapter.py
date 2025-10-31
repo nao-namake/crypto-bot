@@ -21,7 +21,6 @@ from typing import Any, Dict, Union
 import numpy as np
 import pandas as pd
 
-from ..config import get_threshold
 from ..exceptions import ModelPredictionError
 from ..logger import CryptoBotLogger
 from .ml_fallback import DummyModel
@@ -50,6 +49,7 @@ class MLServiceAdapter:
         self.model = self.loader.load_model_with_priority()
         self.model_type = self.loader.model_type
         self.is_fitted = self.loader.is_fitted
+        self.current_feature_count = None  # Phase 50.8: 現在のモデルの特徴量数
 
     def predict(
         self, X: Union[pd.DataFrame, np.ndarray], use_confidence: bool = True
@@ -141,4 +141,43 @@ class MLServiceAdapter:
 
         except Exception as e:
             self.logger.error(f"MLモデル再読み込み予期しないエラー: {e}")
+            return False
+
+    def ensure_correct_model(self, feature_count: int) -> bool:
+        """
+        Phase 50.8: 特徴量数に応じた正しいモデルを確保
+
+        特徴量数に基づいて適切なレベルのモデルがロードされているか確認し、
+        必要に応じて再ロードする。
+
+        Args:
+            feature_count: 実際の特徴量数
+
+        Returns:
+            bool: 成功したかどうか
+        """
+        # 現在のモデルが特徴量数に合っている場合はスキップ
+        if self.current_feature_count == feature_count:
+            self.logger.debug(f"✅ Phase 50.8: モデルは既に{feature_count}特徴量用にロード済み")
+            return True
+
+        # 特徴量数に応じてモデルを再ロード
+        self.logger.info(f"🔄 Phase 50.8: {feature_count}特徴量用モデルにロード中...")
+
+        try:
+            # 特徴量数を指定してモデルを再ロード
+            self.model = self.loader.load_model_with_priority(feature_count=feature_count)
+            self.model_type = self.loader.model_type
+            self.is_fitted = self.loader.is_fitted
+            self.current_feature_count = feature_count
+
+            # ロードされたモデルレベルを確認
+            level_name = self.loader._determine_feature_level(feature_count)
+            self.logger.info(
+                f"✅ Phase 50.8: {level_name}モデルロード成功（{feature_count}特徴量）"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 50.8: {feature_count}特徴量用モデルロード失敗: {e}")
             return False

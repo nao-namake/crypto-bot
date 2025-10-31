@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
+from ...features.external_api import ExternalAPIError  # Phase 50.8: Graceful Degradation修正用
+
 # Silent Failure修正: RiskDecision Enum は動的インポートで回避
 from ..config import get_threshold
 from ..exceptions import CryptoBotError, ModelLoadError
@@ -168,10 +170,24 @@ class TradingCycleManager:
                         features[timeframe] = df
                         self.logger.debug(f"✅ {timeframe}事前計算済み特徴量使用（Phase 35最適化）")
                     else:
-                        # 特徴量を計算
-                        features[timeframe] = (
-                            await self.orchestrator.feature_service.generate_features(df)
-                        )
+                        # Phase 50.8: Level 1→Level 2フォールバック実装
+                        try:
+                            # Level 1: 70特徴量（外部API含む）で試行
+                            features[timeframe] = (
+                                await self.orchestrator.feature_service.generate_features(
+                                    df, include_external_api=True
+                                )
+                            )
+                        except ExternalAPIError as e:
+                            # Level 2: 62特徴量（外部API除外）にフォールバック
+                            self.logger.warning(
+                                f"⚠️ {timeframe} Level 1失敗 → Level 2（62特徴量）にフォールバック: {e}"
+                            )
+                            features[timeframe] = (
+                                await self.orchestrator.feature_service.generate_features(
+                                    df, include_external_api=False
+                                )
+                            )
                 else:
                     self.logger.warning(f"空のDataFrame検出: {timeframe}")
                     features[timeframe] = pd.DataFrame()
@@ -192,7 +208,7 @@ class TradingCycleManager:
         # 設定からメインタイムフレームを取得
         from ..config import get_data_config
 
-        main_timeframe = get_data_config("timeframes", ["4h", "15m"])[0]  # 最初の要素がメイン
+        main_timeframe = get_data_config("timeframes", ["15m", "4h"])[0]  # 最初の要素がメイン
         main_features = features.get(main_timeframe, pd.DataFrame())
         return features, main_features
 
@@ -352,6 +368,14 @@ class TradingCycleManager:
 
                 main_features_for_ml = main_features[available_features]
                 self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
+
+                # Phase 50.8: 特徴量数に応じた正しいモデルを確保
+                actual_feature_count = len(main_features.columns)
+                if not self.orchestrator.ml_service.ensure_correct_model(actual_feature_count):
+                    self.logger.warning(
+                        f"⚠️ Phase 50.8: モデルロード失敗（{actual_feature_count}特徴量） - "
+                        "フォールバック処理継続"
+                    )
 
                 # ML予測と信頼度を同時取得
                 self.logger.info("🤖 ML予測実行開始: ProductionEnsemble予測中")
@@ -664,7 +688,7 @@ class TradingCycleManager:
                             position_size=strategy_signal.position_size,
                             risk_ratio=strategy_signal.risk_ratio,
                             indicators=strategy_signal.indicators,
-                            reason=f"ML・戦略不一致（信頼度極低）",
+                            reason="ML・戦略不一致（信頼度極低）",
                             metadata={
                                 **(strategy_signal.metadata or {}),
                                 "ml_adjusted": True,
@@ -930,7 +954,10 @@ class TradingCycleManager:
                     if current_volatility > volatile_threshold:
                         return {
                             "allowed": False,
-                            "reason": f"市場急変検出: ボラティリティ {current_volatility * 100:.1f}% > {volatile_threshold * 100:.0f}%",
+                            "reason": (
+                                f"市場急変検出: ボラティリティ {current_volatility * 100:.1f}% "
+                                f"> {volatile_threshold * 100:.0f}%"
+                            ),
                         }
             except Exception as e:
                 self.logger.debug(f"市場ボラティリティチェックエラー（非致命的）: {e}")
