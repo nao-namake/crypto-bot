@@ -46,18 +46,10 @@ jobs:
 
       - name: Setup test environment
         run: |
-          mkdir -p models/production
+          # Phase 50.9: 実モデルファイルがGitに含まれるため、ダミー作成不要
+          mkdir -p logs cache
           echo '{"version": "ci-test", "features": 62}' > models/production/model_metadata.json
-          # Phase 50.9: ダミーモデルファイル作成（サイズチェック対応）
-          python3 -c "
-          import pickle
-          dummy_data = {'model': 'ci-test-dummy', 'data': 'x' * 2000}
-          with open('models/production/ensemble_full.pkl', 'wb') as f:
-              pickle.dump(dummy_data, f)
-          with open('models/production/ensemble_basic.pkl', 'wb') as f:
-              pickle.dump(dummy_data, f)
-          print('✅ ダミーモデルファイル作成完了')
-          "
+          echo "✅ テスト環境準備完了（実モデルファイル使用）"
 
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
