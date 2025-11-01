@@ -457,11 +457,10 @@ except Exception as e:
 fi
 
 # モデルファイル存在・サイズ確認（動的確認）
-# Phase 50.7: 3段階モデルシステム（Level 1-3）
+# Phase 50.9: 2段階モデルシステム（full/basic）
 MODEL_FILES=(
-    "models/production/ensemble_level1.pkl"
-    "models/production/ensemble_level2.pkl"
-    "models/production/ensemble_level3.pkl"
+    "models/production/ensemble_full.pkl"
+    "models/production/ensemble_basic.pkl"
 )
 
 for model_file in "${MODEL_FILES[@]}"; do

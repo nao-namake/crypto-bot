@@ -22,17 +22,17 @@ class TestProductionEnsemble:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_lgbm.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_xgb.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_rf.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         return {
             "lightgbm": mock_lgbm,
@@ -42,9 +42,9 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """70特徴量サンプルデータ作成 - Phase 50.3"""
-        # Phase 50.3: 70特徴量に対応した動的データ生成（62基本+8外部API）
-        return np.random.random((3, 70))
+        """62特徴量サンプルデータ作成 - Phase 50.9"""
+        # Phase 50.9: 62特徴量固定（外部API削除）
+        return np.random.random((3, 62))
 
     @pytest.fixture
     def ensemble(self, mock_models):
@@ -59,9 +59,9 @@ class TestProductionEnsemble:
         assert "lightgbm" in ensemble.models
         assert "xgboost" in ensemble.models
         assert "random_forest" in ensemble.models
-        assert ensemble.n_features_ == 70  # Phase 50.3: 70特徴量（62基本+8外部API）
+        assert ensemble.n_features_ == 62  # Phase 50.9: 62特徴量固定（外部API削除）
         assert ensemble.is_fitted is True
-        assert len(ensemble.feature_names) == 70  # Phase 50.3: 70特徴量（62基本+8外部API）
+        assert len(ensemble.feature_names) == 62  # Phase 50.9: 62特徴量固定（外部API削除）
         assert "close" in ensemble.feature_names
         assert "rsi_14" in ensemble.feature_names
 
@@ -110,8 +110,8 @@ class TestProductionEnsemble:
         assert info["type"] == "ProductionEnsemble"
         assert len(info["individual_models"]) == 3
         assert "lightgbm" in info["individual_models"]
-        assert info["n_features"] == 70  # Phase 50.3: 70特徴量（62基本+8外部API）
-        assert len(info["feature_names"]) == 70  # Phase 50.3: 70特徴量（62基本+8外部API）
+        assert info["n_features"] == 62  # Phase 50.9: 62特徴量固定（外部API削除）
+        assert len(info["feature_names"]) == 62  # Phase 50.9: 62特徴量固定（外部API削除）
         assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
@@ -179,7 +179,7 @@ class TestProductionEnsemble:
         # predict_proba なし、predict のみのモックモデル
         mock_simple = MagicMock()
         mock_simple.predict.return_value = np.array([0.8, 0.3, 0.9])
-        mock_simple.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_simple.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
         # predict_proba 属性を削除
         del mock_simple.predict_proba
 
@@ -194,7 +194,7 @@ class TestProductionEnsemble:
     def test_predict_proba_model_without_methods(self, sample_data):
         """予測メソッド完全なしエラーテスト"""
         mock_broken = MagicMock()
-        mock_broken.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_broken.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
         # 両方のメソッドを削除
         del mock_broken.predict
         del mock_broken.predict_proba
@@ -211,7 +211,7 @@ class TestProductionEnsemble:
 
         assert "ProductionEnsemble" in repr_str
         assert "models=3" in repr_str
-        assert "features=70" in repr_str  # Phase 50.3: 70特徴量（62基本+8外部API）
+        assert "features=62" in repr_str  # Phase 50.9: 62特徴量固定（外部API削除）
         assert "weights=" in repr_str
 
     def test_pandas_dataframe_input(self, mock_models):
@@ -226,11 +226,11 @@ class TestProductionEnsemble:
 
             ensemble = ProductionEnsemble(mock_models)
 
-            # DataFrame形式のデータ (70特徴量) - Phase 50.3
+            # DataFrame形式のデータ (62特徴量) - Phase 50.9
             from src.core.config.feature_manager import get_feature_names
 
             feature_names = get_feature_names()
-            df_data = pd.DataFrame(np.random.random((2, 70)), columns=feature_names)
+            df_data = pd.DataFrame(np.random.random((2, 62)), columns=feature_names)
 
             predictions = ensemble.predict(df_data)
             probabilities = ensemble.predict_proba(df_data)
@@ -247,11 +247,11 @@ class TestProductionEnsemble:
         # 特定の予測結果を持つモック作成
         mock_model1 = MagicMock()
         mock_model1.predict.return_value = np.array([1, 1, 0])  # 全て確定的
-        mock_model1.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_model1.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         mock_model2 = MagicMock()
         mock_model2.predict.return_value = np.array([0, 0, 1])  # model1の逆
-        mock_model2.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_model2.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         models = {"model1": mock_model1, "model2": mock_model2}
         ensemble = ProductionEnsemble(models)
@@ -276,17 +276,17 @@ class TestProductionEnsembleEdgeCases:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_lgbm.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_xgb.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_rf.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         return {
             "lightgbm": mock_lgbm,
@@ -296,21 +296,21 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """70特徴量サンプルデータ作成 - Phase 50.3"""
-        # Phase 50.3: 70特徴量に対応した動的データ生成（62基本+8外部API）
-        return np.random.random((3, 70))
+        """62特徴量サンプルデータ作成 - Phase 50.9"""
+        # Phase 50.9: 62特徴量固定（外部API削除）
+        return np.random.random((3, 62))
 
     def test_single_model_ensemble(self):
         """単一モデルアンサンブルテスト"""
         mock_single = MagicMock()
         mock_single.predict.return_value = np.array([1, 0])
         mock_single.predict_proba.return_value = np.array([[0.3, 0.7], [0.8, 0.2]])
-        mock_single.n_features_in_ = 70  # Phase 50.7: 特徴量数属性追加
+        mock_single.n_features_in_ = 62  # Phase 50.9: 62特徴量固定（外部API削除）
 
         ensemble = ProductionEnsemble({"single": mock_single})
 
-        # 70特徴量データ - Phase 50.3
-        data = np.random.random((2, 70))
+        # 62特徴量データ - Phase 50.9
+        data = np.random.random((2, 62))
         predictions = ensemble.predict(data)
         probabilities = ensemble.predict_proba(data)
 
@@ -336,8 +336,8 @@ class TestProductionEnsembleEdgeCases:
         """大規模データセット性能テスト"""
         ensemble = ProductionEnsemble(mock_models)
 
-        # 1000サンプルの大きなデータセット (70特徴量) - Phase 50.3
-        large_data = np.random.random((1000, 70))
+        # 1000サンプルの大きなデータセット (62特徴量) - Phase 50.9
+        large_data = np.random.random((1000, 62))
 
         # モックの戻り値を大きなサイズに調整
         for model in mock_models.values():

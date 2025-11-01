@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 50.1完了
+特徴量生成統合システム - Phase 50.9完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -10,14 +10,15 @@ Phase履歴:
 - Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル5個追加）
 - Phase 50.2: 時間的特徴量拡張 - 55→62特徴量（市場セッション3個+周期性4個追加・外部APIなし）
 - Phase 50.1: 確実な62特徴量生成実装（strategy_signals=None時も62特徴量・0埋め・後から追加しない）
+- Phase 50.9: 外部API完全削除・シンプル設計回帰（62特徴量固定・2段階Graceful Degradation）
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
-- コード行数削減: 461行→約250行（46%削減）
+- コード行数削減: 461行→約250行（46%削除）
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 50.1完了 - 確実な特徴量生成システム確立
+Phase 50.9完了 - 62特徴量固定・外部API削除・安定性向上
 """
 
 import os
@@ -32,7 +33,6 @@ from ..core.config import get_anomaly_config
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
-from .external_api import ExternalAPIError  # Phase 50.8: Graceful Degradation修正用
 
 # 特徴量リスト（一元化対応）
 OPTIMIZED_FEATURES = get_feature_names()
@@ -43,7 +43,7 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 50.1完了
+    統合特徴量生成クラス - Phase 50.9完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
     1つのクラスに統合し、62特徴量を確実に生成。
@@ -58,6 +58,11 @@ class FeatureGenerator:
     - 時間ベース特徴量生成（14個：Hour, Day, Month, 市場セッション, 周期性）- Phase 40.6/50.2
     - 戦略シグナル特徴量生成（5個：戦略判断エンコード）- Phase 41/50.1
     - 統合品質管理と特徴量確認（必ず62特徴量）
+
+    Phase 50.9: 外部API完全削除・シンプル設計回帰
+    - 62特徴量固定（70特徴量システム完全廃止）
+    - 外部API依存削除（USD/JPY・日経平均等8指標削除）
+    - システム安定性向上・保守性向上
 
     Phase 50.1: 確実な62特徴量生成実装
     - 必ず62特徴量生成（strategy_signals=None時も5個を0.0で追加）
@@ -86,25 +91,22 @@ class FeatureGenerator:
         self,
         market_data: Dict[str, Any],
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
-        include_external_api: bool = True,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（Phase 50.3: 70特徴量対応・外部API統合）
+        統合特徴量生成処理（Phase 50.9: 62特徴量固定・外部API削除）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
-            include_external_api: 外部API特徴量を含めるか（Phase 50.3追加・デフォルトTrue）
 
         Returns:
-            特徴量を含むDataFrame（62 or 70特徴量）
+            特徴量を含むDataFrame（62特徴量固定）
 
         Raises:
-            ExternalAPIError: 外部API取得失敗時（Level 2フォールバック用）
-            DataProcessingError: その他のエラー
+            DataProcessingError: 特徴量生成エラー
 
         Note:
-            - Phase 50.3: 外部API特徴量対応（62→70特徴量・障害時Level 2フォールバック）
+            - Phase 50.9: 外部API完全削除・62特徴量固定システム
             - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も62特徴量・0埋め）
             - Phase 41: Strategy-Aware ML実装
             - Phase 50.2: 時間的特徴量拡張（7→14個・外部APIなし）
@@ -114,9 +116,9 @@ class FeatureGenerator:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            # Phase 50.3: 62 or 70特徴量システム
-            target_features = 70 if include_external_api else 62
-            self.logger.info(f"特徴量生成開始 - Phase 50.3: {target_features}特徴量システム")
+            # Phase 50.9: 62特徴量固定システム
+            target_features = 62
+            self.logger.info(f"特徴量生成開始 - Phase 50.9: {target_features}特徴量固定システム")
             self.computed_features.clear()
 
             # 必要列チェック
@@ -146,27 +148,15 @@ class FeatureGenerator:
             # 🔹 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
             result_df = self._add_strategy_signal_features(result_df, strategy_signals)
 
-            # 🔹 外部API特徴量を生成（8個）- Phase 50.3/50.7: オプション
-            if include_external_api:
-                # Phase 50.7: バックテストモードでは0埋め
-                is_backtest = os.environ.get("BACKTEST_MODE") == "true"
-                result_df = await self._generate_external_api_features(
-                    result_df, is_backtest=is_backtest
-                )
-
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
 
-            # 🎯 特徴量完全確認・検証（62 or 70対応）
+            # 🎯 特徴量完全確認・検証（62特徴量固定）
             self._validate_feature_generation(result_df, expected_count=target_features)
 
             # DataFrameをそのまま返す（戦略で使用するため）
             return result_df
 
-        except ExternalAPIError:
-            # Phase 50.8: ExternalAPIErrorは上位に伝播（Level 2フォールバック用）
-            self.logger.warning("⚠️ 外部API特徴量取得失敗 → Level 2フォールバック")
-            raise
         except Exception as e:
             self.logger.error(f"統合特徴量生成エラー: {e}")
             raise DataProcessingError(f"特徴量生成失敗: {e}")
@@ -177,19 +167,19 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 50.7: 70特徴量対応・バックテスト事前計算用）
+        同期版特徴量生成（Phase 50.9: 62特徴量固定・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（必ず62 or 70特徴量）
+            特徴量を含むDataFrame（必ず62特徴量）
 
         Note:
             - バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
+            - Phase 50.9: 外部API削除・62特徴量固定システム
             - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も62特徴量・0埋め）
-            - Phase 50.7: バックテストモード時は70特徴量（外部API特徴量8個を0埋め）
         """
         try:
             result_df = df.copy()
@@ -220,24 +210,6 @@ class FeatureGenerator:
 
             # 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
             result_df = self._add_strategy_signal_features(result_df, strategy_signals)
-
-            # Phase 50.7: バックテストモード時は外部API特徴量を0埋め（8個）
-            if os.environ.get("BACKTEST_MODE") == "true":
-                external_api_features = [
-                    "usd_jpy",
-                    "nikkei_225",
-                    "us_10y_yield",
-                    "fear_greed_index",
-                    "usd_jpy_change_1d",
-                    "nikkei_change_1d",
-                    "usd_jpy_btc_correlation",
-                    "market_sentiment",
-                ]
-                self.logger.info("🧪 バックテストモード: 外部API特徴量を0埋め（8特徴量）")
-                for feature_name in external_api_features:
-                    result_df[feature_name] = 0.0
-                    self.computed_features.add(feature_name)
-                self.logger.info("✅ 外部API特徴量0埋め完了: 8/8個（Level 1: 70特徴量対応）")
 
             # NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
@@ -812,121 +784,23 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    async def _generate_external_api_features(
-        self, df: pd.DataFrame, is_backtest: bool = False
-    ) -> pd.DataFrame:
-        """
-        外部API特徴量生成 - Phase 50.3/50.7
-
-        Args:
-            df: 特徴量DataFrame
-            is_backtest: バックテストモード（True時は0埋め）
-
-        Returns:
-            外部API特徴量を追加したDataFrame（8特徴量追加）
-
-        Raises:
-            ExternalAPIError: 外部API取得失敗時
-
-        Note:
-            - Phase 50.7: バックテストモード時は外部API呼び出しスキップ・0埋め
-            - 外部API取得失敗時はExternalAPIErrorを上げる
-            - 呼び出し側でLevel 2（62特徴量）にフォールバック
-        """
-        # 8特徴量のうち取得できたものを追加
-        expected_features = [
-            "usd_jpy",
-            "nikkei_225",
-            "us_10y_yield",
-            "fear_greed_index",
-            "usd_jpy_change_1d",
-            "nikkei_change_1d",
-            "usd_jpy_btc_correlation",
-            "market_sentiment",
-        ]
-
-        # Phase 50.7: バックテストモード時は0埋め（外部API呼び出しスキップ）
-        if is_backtest:
-            self.logger.info("🧪 バックテストモード: 外部API特徴量を0埋め（8特徴量）")
-            for feature_name in expected_features:
-                df[feature_name] = 0.0
-                self.computed_features.add(feature_name)
-            self.logger.info("✅ 外部API特徴量0埋め完了: 8/8個（Level 1: 70特徴量対応）")
-            return df
-
-        # 通常モード: 外部APIから実データ取得
-        try:
-            from .external_api import ExternalAPIClient, ExternalAPIError
-
-            self.logger.info("🌐 外部API特徴量生成開始")
-
-            # ExternalAPIClient初期化
-            api_client = ExternalAPIClient(cache_ttl=86400, logger=self.logger)
-
-            # 全指標取得（タイムアウト10秒）
-            # BTCデータを渡して相関係数計算を試みる
-            indicators = await api_client.fetch_all_indicators(timeout=10.0, btc_data=df)
-
-            if not indicators:
-                self.logger.error("外部API全取得失敗 → Level 2フォールバック")
-                raise ExternalAPIError("All external API calls failed")
-
-            added_count = 0
-            for feature_name in expected_features:
-                if feature_name in indicators:
-                    df[feature_name] = indicators[feature_name]
-                    self.computed_features.add(feature_name)
-                    added_count += 1
-                    self.logger.debug(f"✅ {feature_name}: {indicators[feature_name]}")
-                else:
-                    # 一部失敗は許容（取得できた特徴量のみ使用）
-                    self.logger.warning(f"外部API特徴量{feature_name}取得失敗 → スキップ")
-
-            if added_count == 0:
-                self.logger.error("外部API特徴量が1つも取得できなかった → Level 2フォールバック")
-                raise ExternalAPIError("No external API features obtained")
-
-            self.logger.info(f"✅ 外部API特徴量生成完了: {added_count}/{len(expected_features)}個")
-            return df
-
-        except ExternalAPIError:
-            # 外部APIエラーは上位に伝播
-            raise
-        except Exception as e:
-            self.logger.error(f"外部API特徴量生成エラー: {e} → Level 2フォールバック")
-            raise ExternalAPIError(f"External API feature generation failed: {e}")
-
     def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 62) -> None:
         """
-        特徴量完全確認・検証 - Phase 50.3: 62 or 70対応
+        特徴量完全確認・検証 - Phase 50.9: 62特徴量固定
 
         Args:
             df: 検証対象DataFrame
-            expected_count: 期待特徴量数（62 or 70）
+            expected_count: 期待特徴量数（62固定）
         """
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
 
-        # Phase 50.3: 外部API特徴量を含める場合は70特徴量
-        external_api_features = [
-            "usd_jpy",
-            "nikkei_225",
-            "us_10y_yield",
-            "fear_greed_index",
-            "usd_jpy_change_1d",
-            "nikkei_change_1d",
-            "usd_jpy_btc_correlation",
-            "market_sentiment",
-        ]
+        # Phase 50.9: 外部API削除・double counting bug修正
+        total_generated = len(generated_features)
 
-        external_api_generated = [f for f in external_api_features if f in df.columns]
-
-        total_generated = len(generated_features) + len(external_api_generated)
-
-        # 🚨 統合ログ出力 - Phase 50.3: 62 or 70対応
+        # 🚨 統合ログ出力 - Phase 50.9: 62特徴量固定
         self.logger.info(
-            f"特徴量生成完了 - 総数: {total_generated}/{expected_count}個 "
-            f"(基本62: {len(generated_features)}, 外部API: {len(external_api_generated)})",
+            f"特徴量生成完了 - 総数: {total_generated}/{expected_count}個",
             extra_data={
                 "basic_features": len([f for f in ["close", "volume"] if f in df.columns]),
                 "technical_features": len(
@@ -974,33 +848,22 @@ class FeatureGenerator:
                         if f in df.columns
                     ]
                 ),
-                "external_api_features": len(external_api_generated),
-                "external_api_list": external_api_generated,
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": expected_count,
-                "success": total_generated >= expected_count - 8,  # 外部API一部失敗許容
+                "success": total_generated >= expected_count,  # Phase 50.9: 62特徴量完全一致
             },
         )
 
-        # ⚠️ 不足特徴量の警告 - Phase 50.3: 外部API許容
+        # ⚠️ 不足特徴量の警告 - Phase 50.9: 62特徴量固定
         if missing_features:
             self.logger.warning(
-                f"🚨 基本特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
+                f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
 
-        # Phase 50.3: 外部API特徴量の検証
-        if expected_count == 70:
-            if len(external_api_generated) == 0:
-                self.logger.warning("⚠️ 外部API特徴量が1つも生成されませんでした")
-            elif len(external_api_generated) < len(external_api_features):
-                self.logger.warning(
-                    f"⚠️ 外部API特徴量一部取得失敗: {len(external_api_generated)}/{len(external_api_features)}個"
-                )
-            else:
-                self.logger.info("✅ Phase 50.3: 70特徴量（外部API含む）完全生成成功")
-        else:
-            self.logger.info("✅ Phase 50.1-50.2: 62特徴量（外部APIなし）完全生成成功")
+        # Phase 50.9: 62特徴量完全生成確認
+        if total_generated == expected_count:
+            self.logger.info("✅ Phase 50.9: 62特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""

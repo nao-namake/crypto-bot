@@ -26,8 +26,6 @@ from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
-from ...features.external_api import ExternalAPIError  # Phase 50.8: Graceful Degradation修正用
-
 # Silent Failure修正: RiskDecision Enum は動的インポートで回避
 from ..config import get_threshold
 from ..exceptions import CryptoBotError, ModelLoadError
@@ -171,23 +169,10 @@ class TradingCycleManager:
                         self.logger.debug(f"✅ {timeframe}事前計算済み特徴量使用（Phase 35最適化）")
                     else:
                         # Phase 50.8: Level 1→Level 2フォールバック実装
-                        try:
-                            # Level 1: 70特徴量（外部API含む）で試行
-                            features[timeframe] = (
-                                await self.orchestrator.feature_service.generate_features(
-                                    df, include_external_api=True
-                                )
-                            )
-                        except ExternalAPIError as e:
-                            # Level 2: 62特徴量（外部API除外）にフォールバック
-                            self.logger.warning(
-                                f"⚠️ {timeframe} Level 1失敗 → Level 2（62特徴量）にフォールバック: {e}"
-                            )
-                            features[timeframe] = (
-                                await self.orchestrator.feature_service.generate_features(
-                                    df, include_external_api=False
-                                )
-                            )
+                        # Phase 50.9: 62特徴量固定システム（外部API削除）
+                        features[timeframe] = (
+                            await self.orchestrator.feature_service.generate_features(df)
+                        )
                 else:
                     self.logger.warning(f"空のDataFrame検出: {timeframe}")
                     features[timeframe] = pd.DataFrame()

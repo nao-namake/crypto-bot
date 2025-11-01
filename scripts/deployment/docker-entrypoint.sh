@@ -33,9 +33,11 @@ try:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
 
-        # 簡易予測テスト（55特徴量：50基本+5戦略信号）
+        # 簡易予測テスト（Phase 50.9: 62特徴量固定システム - feature_order.json準拠）
         import numpy as np
-        test_features = np.random.random((1, 55))
+        from src.core.config.feature_manager import get_feature_count
+        feature_count = get_feature_count()
+        test_features = np.random.random((1, feature_count))
         prediction = adapter.predict(test_features)
         
         print(f'✅ 予測テスト成功: prediction={prediction[0]}')
@@ -82,14 +84,14 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # シンプルヘルスチェック（importエラー回避）
             health_data = {
                 "status": "healthy",
-                "phase": "Phase 49 Complete",
+                "phase": "Phase 50.9 Complete",
                 "mode": os.environ.get('MODE', 'paper'),
                 "timestamp": datetime.now().isoformat(),
                 "service": "crypto-bot-service-prod",
-                "tests": "1,117 passed (100%)",
-                "coverage": "68.32%",
-                "features": "バックテスト完全改修・確定申告対応・週間レポート実装・55特徴量Strategy-Aware ML",
-                "models": "ProductionEnsemble ready (55 features)"
+                "tests": "1,056 passed (100%)",
+                "coverage": "64.99%",
+                "features": "Phase 50.9: 62特徴量固定システム・外部API完全削除・2段階Graceful Degradation・シンプル設計回帰",
+                "models": "ProductionEnsemble ready (62 features - Phase 50.9)"
             }
             
             self.send_response(200)

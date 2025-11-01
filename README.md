@@ -1,10 +1,11 @@
 # 🚀 Crypto-Bot - AI自動取引システム
 
-**Phase 50.8完了・bitbank BTC/JPY専用・企業級品質達成**
+**Phase 50.9実装予定・bitbank BTC/JPY専用・企業級品質達成**
 
 [![Tests](https://img.shields.io/badge/tests-1117%20passed-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-68.32%25-green)](coverage-reports/)
 [![Phase 50.8](https://img.shields.io/badge/Phase%2050.8-Completed-brightgreen)](docs/)
+[![Phase 50.9](https://img.shields.io/badge/Phase%2050.9-In%20Preparation-yellow)](docs/)
 
 ---
 
@@ -42,7 +43,9 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ## 🎯 システム概要
 
-AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。5つの取引戦略と機械学習を統合し、**70の特徴量**（62基本+8外部API）を総合分析することで、24時間自動取引を実現します。
+AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。5つの取引戦略と機械学習を統合し、**62の特徴量**（50テクニカル+7時間+5戦略信号）を総合分析することで、24時間自動取引を実現します。
+
+**Phase 50.9実装予定**: 外部API特徴量（8個）を完全削除し、62基本特徴量に最適化。GCP環境での安定性向上とシンプル設計回帰を実現します。
 
 ### 運用仕様
 
@@ -53,13 +56,24 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 - **インフラコスト**: 月額700-900円（GCP）
 - **品質保証**: 1,117テスト100%成功・68.32%カバレッジ
 
-### 最新Phase完了
+### 最新Phase完了・実装予定
 
-**Phase 50.8（2025/11/01）**: Graceful Degradation完全実装（外部API障害対応）
+**Phase 50.9（実装予定）**: 外部API完全削除・システム安定化
+- **目的**: GCP環境不安定性・時間軸ミスマッチ（日次 vs 5分足）・統計的有意性不足（+0.83%）により外部API削除
+- **モデルリネーム**: ensemble_level2.pkl → ensemble_full.pkl（62特徴量・デフォルト）
+- **特徴量変更**: 70特徴量 → **62特徴量**に最適化
+- **期待効果**: システム安定性向上・ゼロダウンタイム実現・保守性+20%・シンプル設計回帰
+
+**Phase 51.1（Phase 50.9直後実施）**: レンジ型戦略リバランス
+- **目的**: 市場の70-80%がレンジ相場・RR比0.67:1に最適化
+- **戦略重み変更**: ATRBased 25%→35%・DonchianChannel 15%→25%（レンジ型60%化）
+- **期待効果**: 勝率+5-10%・エントリー機会+30-50%・エクイティカーブ平滑化
+
+**Phase 50.8（2025/11/01完了）**: Graceful Degradation完全実装
 - Level 1→2自動フォールバック実装（外部API障害時も継続動作）
 - 動的モデル選択実装（特徴量数に応じた最適モデル自動選択）
 - ExternalAPIError伝播修正（正しい例外ハンドリング）
-- 本番環境0エントリー問題を根本解決・ゼロダウンタイム実現
+- 本番環境0エントリー問題を根本解決
 
 **Phase 50.7（2025/10/31）**: 3レベルモデルシステム・バックテスト検証
 - 3レベルモデル完全実装（ensemble_level1/2/3.pkl・70/62/57特徴量）
@@ -91,11 +105,12 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 ### AI取引システム
 
 - **5戦略統合**: ATRBased・MochiPoy・MultiTimeframe・DonchianChannel・ADXTrendStrength
+- **Phase 51.1予定**: レンジ型戦略60%配分（ATRBased 35%・DonchianChannel 25%）・RR比0.67:1最適化
 - **動的信頼度計算**: 市場適応型信頼度0.25-0.6・フォールバック回避
-- **Strategy-Aware ML**: **70特徴量学習**（62基本+8外部API）・ML統合率100%達成
+- **Strategy-Aware ML**: **62特徴量学習**（50テクニカル+7時間+5戦略信号）・ML統合率100%達成
 - **3モデルアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
 - **F1スコア**: 0.56-0.61達成
-- **4段階Graceful Degradation**: Level 1（70）→2（62）→3（57）→Dummy・ゼロダウンタイム
+- **2段階Graceful Degradation**（Phase 50.9）: ensemble_full.pkl（62）→ensemble_basic.pkl（57）→Dummy・ゼロダウンタイム
 
 ### リスク管理・取引実行
 
@@ -279,4 +294,4 @@ mode_balances:
 
 ---
 
-**📅 最終更新**: 2025年10月26日 - Phase 49完了
+**📅 最終更新**: 2025年11月01日 - Phase 50.8完了・Phase 50.9実装準備完了・Phase 51.1実装予定

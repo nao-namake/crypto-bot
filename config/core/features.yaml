@@ -215,16 +215,6 @@ data:
     limit: 100  # 取得件数上限
     note: "4h足トレンド判定 + 15m足エントリー"
 
-  # 外部API特徴量（Phase 50.3 - マクロ経済指標統合）
-  external_api_features:
-    enabled: true  # 外部APIマクロ経済指標（8個）
-    yahoo_finance: true  # Yahoo Finance API（USD/JPY・日経平均・米10年債）
-    alternative_me: true  # Alternative.me API（Crypto Fear & Greed Index）
-    cache_ttl_hours: 24  # キャッシュTTL（24時間）
-    timeout_seconds: 10  # API呼び出しタイムアウト（10秒）
-    graceful_degradation: true  # API失敗時Level 2（62特徴量）へフォールバック
-    note: "Phase 50.3: 4段階Graceful Degradation（70→62→57→DummyModel）・完全無料API"
-
 # ========================================
 # 監視・通知機能
 # ========================================

@@ -1,9 +1,9 @@
 {
   "created_at": "2025-10-30T20:02:20.932742",
   "model_type": "ProductionEnsemble",
-  "model_file": "models/production/ensemble_level2.pkl",
+  "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
-  "phase": "Phase 41.8",
+  "phase": "Phase 50.9",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -115,5 +115,5 @@
     "commit_short": "960ac811",
     "branch": "main"
   },
-  "notes": "Phase 41.8完了・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
+  "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・ensemble_full.pkl（旧ensemble_level2.pkl）・2段階Graceful Degradation・シンプル設計回帰"
 }

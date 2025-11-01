@@ -49,14 +49,14 @@ exchange:
 # 機械学習設定（統一設定管理体系最適化）
 # ========================================
 # 注意: 信頼度闾値はthresholds.yamlで管理、model_weightsはensembleセクションで統一
-# Phase 50.7: 3段階モデルシステム（ml_loaderが動的にLevel 1-3を選択）
+# Phase 50.9: 2段階Graceful Degradation（full 62 → basic 57 → Dummy）
 ml:
   ensemble_enabled: true
   models:
   - lgbm
   - xgb
   - rf
-  # model_path: Phase 50.7で削除（ml_loaderが動的にensemble_level1/2/3.pklを選択）
+  # model_path: Phase 50.9で削除（ml_loaderが動的にensemble_full/basic.pklを選択）
   model_update_check: true
   fallback_enabled: true
   prediction:

@@ -1,8 +1,17 @@
 """
-MLサービス モデル読み込み機能 - Phase 50.8完了
+MLサービス モデル読み込み機能 - Phase 50.9完了
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
+
+Phase 50.9完了:
+- 外部API完全削除・2段階Graceful Degradation実装
+  - Level 1（完全）: 62特徴量モデル（ensemble_full.pkl）- デフォルト
+  - Level 2（基本）: 57特徴量モデル（ensemble_basic.pkl）- フォールバック
+  - Level 3（ダミー）: DummyModel（最終フォールバック）
+- モデルファイルリネーム: ensemble_level2/3 → ensemble_full/basic
+- full_with_external（70特徴量）完全削除
+- シンプル設計回帰・保守性向上
 
 Phase 50.8完了:
 - 旧モデルパス後方互換性削除（Phase 50.7完全移行）
@@ -46,10 +55,11 @@ from .ml_fallback import DummyModel
 
 class MLModelLoader:
     """
-    MLモデル読み込み管理クラス - Phase 50.3: 4段階Graceful Degradation対応
+    MLモデル読み込み管理クラス - Phase 50.9: 2段階Graceful Degradation対応
 
     設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
-    外部API障害時は自動的にLevel 2（62特徴量）にフォールバックし、システム継続性を保証。
+    外部API削除により、full（62特徴量）→basic（57特徴量）→Dummyの2段階フォールバックで
+    システム継続性を保証。
     """
 
     def __init__(self, logger: CryptoBotLogger):
@@ -61,12 +71,11 @@ class MLModelLoader:
 
     def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        Phase 50.7: 3段階MLモデルシステム優先順位読み込み
+        Phase 50.9: 2段階MLモデルシステム優先順位読み込み
 
-        Level 1（完全+外部API）: 70特徴量モデル → ensemble_level1.pkl
-        Level 2（完全）: 62特徴量モデル → ensemble_level2.pkl
-        Level 3（基本）: 57特徴量モデル → ensemble_level3.pkl
-        Level 4（ダミー）: DummyModel → 最終フォールバック
+        Level 1（完全）: 62特徴量モデル → ensemble_full.pkl
+        Level 2（基本）: 57特徴量モデル → ensemble_basic.pkl
+        Level 3（ダミー）: DummyModel → 最終フォールバック
 
         Args:
             feature_count: 生成された特徴量数（Noneの場合は設定から判定）
@@ -74,69 +83,52 @@ class MLModelLoader:
         Returns:
             読み込まれたモデルインスタンス
         """
-        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.3: 4段階Graceful Degradation")
+        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.9: 2段階Graceful Degradation")
 
-        # Phase 50.3: 特徴量レベル判定
+        # Phase 50.9: 特徴量レベル判定
         target_level = self._determine_feature_level(feature_count)
         self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
 
-        # Level 1: 外部API付き完全特徴量モデル読み込み試行（70特徴量）
-        if target_level == "full_with_external" and self._load_production_ensemble(
-            level="full_with_external"
-        ):
+        # Level 1: 完全特徴量モデル読み込み試行（62特徴量）
+        if target_level == "full" and self._load_production_ensemble(level="full"):
             return self.model
 
-        # Level 2: 外部APIなし完全特徴量モデル読み込み試行（62特徴量）
-        if target_level in ["full_with_external", "full"] and self._load_production_ensemble(
-            level="full"
-        ):
-            if target_level == "full_with_external":
-                self.logger.info("Level 2（外部APIなし）モデルにフォールバック")
+        # Level 2: 基本特徴量モデル読み込み試行（57特徴量）
+        if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
+            if target_level == "full":
+                self.logger.info("Level 2（基本）モデルにフォールバック")
             return self.model
 
-        # Level 3: 基本特徴量モデル読み込み試行（57特徴量）
-        if target_level in [
-            "full_with_external",
-            "full",
-            "basic",
-        ] and self._load_production_ensemble(level="basic"):
-            self.logger.info("Level 3（基本）モデルにフォールバック")
-            return self.model
-
-        # Level 3.5: 個別モデルから再構築試行（後方互換性）
+        # Level 2.5: 個別モデルから再構築試行（後方互換性）
         if self._load_from_individual_models():
-            self.logger.info("Level 3.5（再構築）モデルにフォールバック")
+            self.logger.info("Level 2.5（再構築）モデルにフォールバック")
             return self.model
 
-        # Level 4: 最終フォールバック - ダミーモデル
+        # Level 3: 最終フォールバック - ダミーモデル
         self._load_dummy_model()
         return self.model
 
     def _determine_feature_level(self, feature_count: Optional[int] = None) -> str:
         """
-        Phase 50.3: 特徴量レベル判定（設定駆動型・外部API対応）
+        Phase 50.9: 特徴量レベル判定（設定駆動型・外部API削除）
 
         Args:
             feature_count: 生成された特徴量数
 
         Returns:
-            特徴量レベル文字列（"full_with_external", "full", or "basic"）
+            特徴量レベル文字列（"full" or "basic"）
         """
         # feature_order.jsonから特徴量レベル情報を取得
         from ..config.feature_manager import _feature_manager
 
         level_counts = _feature_manager.get_feature_level_counts()
 
-        # feature_countが指定されていない場合は、デフォルトでfull_with_externalを試行
+        # feature_countが指定されていない場合は、デフォルトでfullを試行
         if feature_count is None:
-            self.logger.debug("特徴量数未指定 → Level 1（完全+外部API）を試行")
-            return "full_with_external"
+            self.logger.debug("特徴量数未指定 → Level 1（完全62特徴量）を試行")
+            return "full"
 
-        # 70特徴量の場合（外部API含む）- Phase 50.3
-        if feature_count == level_counts.get("full_with_external", 70):
-            return "full_with_external"
-
-        # 62特徴量の場合（外部APIなし）
+        # 62特徴量の場合（完全特徴量）
         if feature_count == level_counts.get("full", 62):
             return "full"
 
@@ -144,16 +136,16 @@ class MLModelLoader:
         if feature_count == level_counts.get("basic", 57):
             return "basic"
 
-        # その他の場合はfull_with_externalを試行（フォールバック）
-        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全+外部API）を試行")
-        return "full_with_external"
+        # その他の場合はfullを試行（フォールバック）
+        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全62特徴量）を試行")
+        return "full"
 
     def _load_production_ensemble(self, level: str = "full") -> bool:
         """
-        Phase 50.3: ProductionEnsemble読み込み（設定駆動型・互換性レイヤー付き・外部API対応）
+        Phase 50.9: ProductionEnsemble読み込み（設定駆動型・互換性レイヤー付き）
 
         Args:
-            level: 特徴量レベル（"full_with_external", "full", or "basic"）
+            level: 特徴量レベル（"full" or "basic"）
 
         Returns:
             読み込み成功の可否
@@ -176,10 +168,8 @@ class MLModelLoader:
             self.logger.warning(f"想定外の特徴量レベル: {level} → 読み込みスキップ")
             return False
 
-        model_filename = level_info[level].get("model_file", "ensemble_level2.pkl")
+        model_filename = level_info[level].get("model_file", "ensemble_full.pkl")
         model_path = Path(base_path) / "models" / "production" / model_filename
-
-        # Phase 50.8.1: 旧モデル後方互換性削除（Phase 50.7完全移行）
 
         if not model_path.exists():
             self.logger.warning(f"ProductionEnsemble未発見 (Level {level.upper()}): {model_path}")

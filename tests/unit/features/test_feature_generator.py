@@ -109,15 +109,13 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_generate_features_basic_dataframe(self, generator, sample_ohlcv_data):
         """基本特徴量生成テスト（DataFrame入力）"""
-        result_df = await generator.generate_features(
-            sample_ohlcv_data, include_external_api=False  # Phase 50.3: 外部API無効
-        )
+        result_df = await generator.generate_features(sample_ohlcv_data)  # Phase 50.9: 62特徴量固定
 
         # 戻り値がDataFrameかチェック
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 50.3: include_external_api=Falseの場合は62特徴量生成（外部API除外・戦略シグナル含む）
+        # Phase 50.9: 62特徴量固定（外部API削除・戦略シグナル含む）
         # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
         strategy_signal_features = [
             "strategy_signal_ATRBased",
