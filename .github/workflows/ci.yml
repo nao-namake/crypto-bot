@@ -49,18 +49,15 @@ jobs:
           mkdir -p models/production
           echo '{"version": "ci-test", "features": 62}' > models/production/model_metadata.json
           # Phase 50.9: ダミーモデルファイル作成（サイズチェック対応）
-          python3 << 'EOF'
-import pickle
-import sys
-sys.path.insert(0, '.')
-# ダミーモデルデータ作成（1KB以上）
-dummy_data = {"model": "ci-test-dummy", "data": "x" * 2000}
-with open("models/production/ensemble_full.pkl", "wb") as f:
-    pickle.dump(dummy_data, f)
-with open("models/production/ensemble_basic.pkl", "wb") as f:
-    pickle.dump(dummy_data, f)
-print("✅ ダミーモデルファイル作成完了")
-EOF
+          python3 -c "
+          import pickle
+          dummy_data = {'model': 'ci-test-dummy', 'data': 'x' * 2000}
+          with open('models/production/ensemble_full.pkl', 'wb') as f:
+              pickle.dump(dummy_data, f)
+          with open('models/production/ensemble_basic.pkl', 'wb') as f:
+              pickle.dump(dummy_data, f)
+          print('✅ ダミーモデルファイル作成完了')
+          "
 
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
