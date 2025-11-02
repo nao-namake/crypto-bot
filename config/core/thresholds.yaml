@@ -219,6 +219,43 @@ performance:
   default_latency_ms: 100.0
 
 # ========================================
+# 🎯 動的戦略選択設定（Dynamic Strategy Selection）
+# ========================================
+# Phase 51.5-A: 3戦略構成最適化（MochipoyAlert・MultiTimeframe削除）
+#
+# 目的: 市場レジーム（tight_range/normal_range/trending/high_volatility）に応じて
+#       戦略の重みを動的に変更し、レジーム特性に最適化された戦略選択を実現
+#
+# 設定方法:
+#   - レジーム名: tight_range, normal_range, trending, high_volatility
+#   - 戦略名: ATRBased, DonchianChannel, ADXTrendStrength（3戦略）
+#   - 重み: 0.0-1.0（合計1.0になるように設定）
+#   - high_volatility: 全戦略無効化（空辞書 {}）
+# ========================================
+dynamic_strategy_selection:
+  enabled: true
+  # レジーム別戦略重みマッピング
+  # Phase 51.5-A: 3戦略構成に最適化（range型2・trend型1）
+  regime_strategy_mapping:
+    tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
+      ATRBased: 0.70            # レンジ検出力が高い・ボラティリティベース判断
+      DonchianChannel: 0.30      # ブレイクアウト検出
+      ADXTrendStrength: 0.0      # 使用しない（トレンド専用）
+    normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
+      ATRBased: 0.50
+      DonchianChannel: 0.30
+      ADXTrendStrength: 0.20     # 弱トレンド検出
+    trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
+      ADXTrendStrength: 0.60     # 強トレンド検出（主力）
+      ATRBased: 0.30            # トレンド相場でも対応可能
+      DonchianChannel: 0.10      # トレンド方向ブレイクアウト
+    high_volatility:  # 高ボラティリティ（ATR比 > 1.8%・4時間足）
+      # 全戦略無効化（待機モード）
+      ATRBased: 0.0
+      DonchianChannel: 0.0
+      ADXTrendStrength: 0.0
+
+# ========================================
 # 🎯 戦略パラメータ（Strategy Parameters）
 # ========================================
 # 5戦略の閾値・信頼度計算設定
@@ -534,15 +571,6 @@ balance_alert:
 # 期待効果:
 #   +50-70%の収益向上（リスク+10-15%・戦略+15-20%・ML統合+10-15%・MLハイパー+15-20%）
 # ==================================================================================
-mochipoy_buy_strong_base: 0.7
-mochipoy_buy_weak_base: 0.44999999999999996
-mochipoy_sell_strong_base: 0.75
-mochipoy_sell_weak_base: 0.45
-mochipoy_neutral_base: 0.30000000000000004
-mtf_agreement_base: 0.8
-mtf_partial_agreement_base: 0.4
-mtf_no_agreement_base: 0.30000000000000004
-mtf_4h_weight: 0.55
 donchian_breakout_base: 0.5
 donchian_reversal_base: 0.4
 donchian_weak_base: 0.25

@@ -5,12 +5,12 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
 
 Phase履歴:
-- Phase 38.4: 97特徴量から15特徴量への最適化システム実装（5戦略対応）
+- Phase 38.4: 97特徴量から15特徴量への最適化システム実装（3戦略対応）
 - Phase 40.6: Feature Engineering拡張 - 15→50特徴量（Lag/Rolling/Interaction/Time追加）
-- Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル5個追加）
-- Phase 50.2: 時間的特徴量拡張 - 55→62特徴量（市場セッション3個+周期性4個追加・外部APIなし）
-- Phase 50.1: 確実な62特徴量生成実装（strategy_signals=None時も62特徴量・0埋め・後から追加しない）
-- Phase 50.9: 外部API完全削除・シンプル設計回帰（62特徴量固定・2段階Graceful Degradation）
+- Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル3個追加）
+- Phase 50.2: 時間的特徴量拡張 - 55→60特徴量（市場セッション3個+周期性4個追加・外部APIなし）
+- Phase 50.1: 確実な60特徴量生成実装（strategy_signals=None時も60特徴量・0埋め・後から追加しない）
+- Phase 50.9: 外部API完全削除・シンプル設計回帰（60特徴量固定・2段階Graceful Degradation）
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
@@ -18,7 +18,7 @@ Phase履歴:
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 50.9完了 - 62特徴量固定・外部API削除・安定性向上
+Phase 50.9完了 - 60特徴量固定・外部API削除・安定性向上
 """
 
 import os
@@ -46,7 +46,7 @@ class FeatureGenerator:
     統合特徴量生成クラス - Phase 50.9完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、62特徴量を確実に生成。
+    1つのクラスに統合し、60特徴量を確実に生成。
 
     主要機能:
     - 基本特徴量生成（2個）
@@ -56,16 +56,16 @@ class FeatureGenerator:
     - 移動統計量生成（12個：MA, Std, Max, Min）- Phase 40.6
     - 交互作用特徴量生成（6個：RSI×ATR, MACD×Volume等）- Phase 40.6
     - 時間ベース特徴量生成（14個：Hour, Day, Month, 市場セッション, 周期性）- Phase 40.6/50.2
-    - 戦略シグナル特徴量生成（5個：戦略判断エンコード）- Phase 41/50.1
-    - 統合品質管理と特徴量確認（必ず62特徴量）
+    - 戦略シグナル特徴量生成（3個：戦略判断エンコード）- Phase 41/50.1
+    - 統合品質管理と特徴量確認（必ず60特徴量）
 
     Phase 50.9: 外部API完全削除・シンプル設計回帰
-    - 62特徴量固定（70特徴量システム完全廃止）
+    - 60特徴量固定（70特徴量システム完全廃止）
     - 外部API依存削除（USD/JPY・日経平均等8指標削除）
     - システム安定性向上・保守性向上
 
-    Phase 50.1: 確実な62特徴量生成実装
-    - 必ず62特徴量生成（strategy_signals=None時も5個を0.0で追加）
+    Phase 50.1: 確実な60特徴量生成実装
+    - 必ず60特徴量生成（strategy_signals=None時も5個を0.0で追加）
     - 後から追加しない設計（信頼性向上）
     - ML予測エラー防止（特徴量数不一致解消）
 
@@ -93,21 +93,21 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（Phase 50.9: 62特徴量固定・外部API削除）
+        統合特徴量生成処理（Phase 50.9: 60特徴量固定・外部API削除）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（62特徴量固定）
+            特徴量を含むDataFrame（60特徴量固定）
 
         Raises:
             DataProcessingError: 特徴量生成エラー
 
         Note:
-            - Phase 50.9: 外部API完全削除・62特徴量固定システム
-            - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も62特徴量・0埋め）
+            - Phase 50.9: 外部API完全削除・60特徴量固定システム
+            - Phase 50.1: 確実な60特徴量生成（strategy_signals=None時も60特徴量・0埋め）
             - Phase 41: Strategy-Aware ML実装
             - Phase 50.2: 時間的特徴量拡張（7→14個・外部APIなし）
             - 信頼性向上: 後から追加せず、生成時に全特徴量確定
@@ -116,7 +116,7 @@ class FeatureGenerator:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            # Phase 50.9: 62特徴量固定システム
+            # Phase 50.9: 60特徴量固定システム
             target_features = 62
             self.logger.info(f"特徴量生成開始 - Phase 50.9: {target_features}特徴量固定システム")
             self.computed_features.clear()
@@ -151,7 +151,7 @@ class FeatureGenerator:
             # 🔹 NaN値処理（統合版）
             result_df = self._handle_nan_values(result_df)
 
-            # 🎯 特徴量完全確認・検証（62特徴量固定）
+            # 🎯 特徴量完全確認・検証（60特徴量固定）
             self._validate_feature_generation(result_df, expected_count=target_features)
 
             # DataFrameをそのまま返す（戦略で使用するため）
@@ -167,19 +167,19 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 50.9: 62特徴量固定・バックテスト事前計算用）
+        同期版特徴量生成（Phase 50.9: 60特徴量固定・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（必ず62特徴量）
+            特徴量を含むDataFrame（必ず60特徴量）
 
         Note:
             - バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
-            - Phase 50.9: 外部API削除・62特徴量固定システム
-            - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も62特徴量・0埋め）
+            - Phase 50.9: 外部API削除・60特徴量固定システム
+            - Phase 50.1: 確実な60特徴量生成（strategy_signals=None時も60特徴量・0埋め）
         """
         try:
             result_df = df.copy()
@@ -556,33 +556,32 @@ class FeatureGenerator:
         self, df: pd.DataFrame, strategy_signals: Optional[Dict[str, Dict[str, float]]] = None
     ) -> pd.DataFrame:
         """
-        Phase 50.1: 戦略シグナル特徴量追加（Strategy Signals・5個・必ず追加）
+        Phase 50.1: 戦略シグナル特徴量追加（Strategy Signals・3個・必ず追加）
 
         Args:
             df: 特徴量DataFrame
             strategy_signals: 戦略シグナル辞書（StrategyManager.get_individual_strategy_signals()の戻り値）
                 例: {
                     "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},
-                    "MochipoyAlert": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
+                    "DonchianChannel": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
                     ...
                 }
 
         Returns:
-            戦略シグナル特徴量が追加されたDataFrame（必ず5個追加）
+            戦略シグナル特徴量が追加されたDataFrame（必ず3個追加）
 
         Note:
-            - Phase 50.1: 確実な62特徴量生成（strategy_signals=None時も5個を0.0で追加）
+            - Phase 51.5-A: 60特徴量生成（strategy_signals=None時も3個を0.0で追加）
+            - Phase 50.1: 確実な60特徴量生成（3戦略構成（Phase 51.5-A削除後））
             - Phase 41: Strategy-Aware ML実装
             - MLが戦略の専門知識を学習可能に
-            - 信頼性向上: 必ず5個追加（後から追加しない）
+            - 信頼性向上: 必ず3個追加（後から追加しない）
         """
         result_df = df.copy()
 
-        # 各戦略のシグナルを特徴量として追加
+        # 各戦略のシグナルを特徴量として追加（Phase 51.5-A: 3戦略構成）
         strategy_internal_names = {
             "ATRBased": "strategy_signal_ATRBased",
-            "MochipoyAlert": "strategy_signal_MochipoyAlert",
-            "MultiTimeframe": "strategy_signal_MultiTimeframe",
             "DonchianChannel": "strategy_signal_DonchianChannel",
             "ADXTrendStrength": "strategy_signal_ADXTrendStrength",
         }
@@ -591,12 +590,12 @@ class FeatureGenerator:
 
         # Phase 50.1: strategy_signals=Noneの場合も処理を継続（0埋め）
         if not strategy_signals:
-            self.logger.debug("戦略シグナル特徴量: strategy_signals未提供 → 5個を0.0で生成（確実）")
-            # 5個すべてを0.0で追加
+            self.logger.debug("戦略シグナル特徴量: strategy_signals未提供 → 3個を0.0で生成（確実）")
+            # 3個すべてを0.0で追加
             for internal_name, feature_name in strategy_internal_names.items():
                 result_df[feature_name] = 0.0
                 self.computed_features.add(feature_name)
-            self.logger.debug("戦略シグナル特徴量生成完了: 5個（0埋め）")
+            self.logger.debug("戦略シグナル特徴量生成完了: 3個（0埋め）")
             return result_df
 
         # strategy_signalsが提供されている場合
@@ -615,7 +614,7 @@ class FeatureGenerator:
                 self.computed_features.add(feature_name)
                 self.logger.debug(f"戦略シグナル不足: {internal_name} → 0.0で補完")
 
-        self.logger.debug(f"戦略シグナル特徴量生成完了: {added_count}/5個")
+        self.logger.debug(f"戦略シグナル特徴量生成完了: {added_count}/3個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -784,9 +783,9 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 62) -> None:
+    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 60) -> None:
         """
-        特徴量完全確認・検証 - Phase 50.9: 62特徴量固定
+        特徴量完全確認・検証 - Phase 50.9: 60特徴量固定
 
         Args:
             df: 検証対象DataFrame
@@ -798,7 +797,7 @@ class FeatureGenerator:
         # Phase 50.9: 外部API削除・double counting bug修正
         total_generated = len(generated_features)
 
-        # 🚨 統合ログ出力 - Phase 50.9: 62特徴量固定
+        # 🚨 統合ログ出力 - Phase 50.9: 60特徴量固定
         self.logger.info(
             f"特徴量生成完了 - 総数: {total_generated}/{expected_count}個",
             extra_data={
@@ -851,19 +850,19 @@ class FeatureGenerator:
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": expected_count,
-                "success": total_generated >= expected_count,  # Phase 50.9: 62特徴量完全一致
+                "success": total_generated >= expected_count,  # Phase 50.9: 60特徴量完全一致
             },
         )
 
-        # ⚠️ 不足特徴量の警告 - Phase 50.9: 62特徴量固定
+        # ⚠️ 不足特徴量の警告 - Phase 50.9: 60特徴量固定
         if missing_features:
             self.logger.warning(
                 f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
 
-        # Phase 50.9: 62特徴量完全生成確認
+        # Phase 50.9: 60特徴量完全生成確認
         if total_generated == expected_count:
-            self.logger.info("✅ Phase 50.9: 62特徴量完全生成成功")
+            self.logger.info("✅ Phase 50.9: 60特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""

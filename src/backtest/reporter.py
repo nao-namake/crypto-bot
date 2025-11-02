@@ -100,6 +100,19 @@ class TradeTracker:
         # 損益計算
         pnl = self._calculate_pnl(entry["side"], entry["amount"], entry["entry_price"], exit_price)
 
+        # 保有期間計算（分単位）- Phase 51.4-Day2追加
+        if hasattr(entry["entry_timestamp"], "timestamp"):
+            # datetime objectの場合
+            holding_period = (
+                exit_timestamp.timestamp() - entry["entry_timestamp"].timestamp()
+            ) / 60
+        elif isinstance(entry["entry_timestamp"], (int, float)):
+            # Unix timestampの場合
+            holding_period = (exit_timestamp - entry["entry_timestamp"]) / 60
+        else:
+            # その他の場合は0
+            holding_period = 0.0
+
         # 取引完了情報
         trade = {
             "order_id": order_id,
@@ -112,6 +125,7 @@ class TradeTracker:
             "strategy": entry["strategy"],
             "exit_reason": exit_reason,
             "pnl": pnl,
+            "holding_period": holding_period,  # Phase 51.4-Day2追加
         }
 
         self.completed_trades.append(trade)

@@ -64,8 +64,6 @@
     "day_sin",
     "day_cos",
     "strategy_signal_ATRBased",
-    "strategy_signal_MochipoyAlert",
-    "strategy_signal_MultiTimeframe",
     "strategy_signal_DonchianChannel",
     "strategy_signal_ADXTrendStrength"
   ],
@@ -107,7 +105,7 @@
   },
   "training_info": {
     "samples": 1054,
-    "feature_count": 62,
+    "feature_count": 60,
     "training_duration_seconds": 0
   },
   "git_info": {
@@ -115,5 +113,5 @@
     "commit_short": "960ac811",
     "branch": "main"
   },
-  "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・ensemble_full.pkl（旧ensemble_level2.pkl）・2段階Graceful Degradation・シンプル設計回帰"
+  "notes": "Phase 51.5-A完了・戦略削除（3戦略）・60特徴量固定システム・ensemble_full.pkl・2段階Graceful Degradation"
 }

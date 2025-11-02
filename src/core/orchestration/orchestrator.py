@@ -350,8 +350,6 @@ async def create_trading_orchestrator(
     from ...strategies.implementations.adx_trend import ADXTrendStrengthStrategy
     from ...strategies.implementations.atr_based import ATRBasedStrategy
     from ...strategies.implementations.donchian_channel import DonchianChannelStrategy
-    from ...strategies.implementations.mochipoy_alert import MochipoyAlertStrategy
-    from ...strategies.implementations.multi_timeframe import MultiTimeframeStrategy
     from ...trading import DEFAULT_RISK_CONFIG, create_risk_manager
 
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")
@@ -403,12 +401,10 @@ async def create_trading_orchestrator(
         # FeatureGenerator統合クラスを使用
         feature_service = FeatureGenerator()
 
-        # Phase 28-29最適化: 戦略サービス
+        # Phase 51.5-A: 3戦略構成（ATRBased・DonchianChannel・ADXTrendStrength）
         strategy_service = StrategyManager()
         strategies = [
             ATRBasedStrategy(),
-            MochipoyAlertStrategy(),
-            MultiTimeframeStrategy(),
             DonchianChannelStrategy(),
             ADXTrendStrengthStrategy(),
         ]

@@ -217,12 +217,21 @@ class DataPipeline:
                 self.logger.info(
                     f"データ取得成功: {request.symbol} {request.timeframe.value}",
                     extra_data={
-                        "rows": len(df),
+                        "requested_limit": request.limit,  # Phase 51.5-A Fix
+                        "actual_rows": len(df),  # Phase 51.5-A Fix
+                        "discrepancy": request.limit - len(df),  # Phase 51.5-A Fix
+                        "rows": len(df),  # 既存フィールド（後方互換性）
                         "latest_timestamp": (df.index[-1].isoformat() if len(df) > 0 else None),
                         "attempt": attempt + 1,
                         "type_safe": isinstance(df, pd.DataFrame),
                     },
                 )
+
+                # Phase 51.5-A Fix: 取得件数が要求の半分以下なら警告
+                if len(df) < request.limit * 0.5:
+                    self.logger.warning(
+                        f"⚠️ データ取得件数が要求の半分以下: 要求={request.limit}件, 実際={len(df)}件"
+                    )
 
                 return df
 

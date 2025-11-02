@@ -49,7 +49,7 @@ EXTERNAL_API_FEATURES = [
     "usd_jpy_btc_correlation",
     "market_sentiment",
 ]
-# Phase 50.3: include_external_api=Falseまたはexternal_api_clientなしの場合の期待特徴量（62個）
+# Phase 51.5-A: include_external_api=Falseまたはexternal_api_clientなしの場合の期待特徴量（60個）
 FEATURES_WITHOUT_EXTERNAL_API = [f for f in OPTIMIZED_FEATURES if f not in EXTERNAL_API_FEATURES]
 EXCLUDED_FEATURES = STRATEGY_SIGNAL_FEATURES + EXTERNAL_API_FEATURES
 BASE_FEATURES = [f for f in OPTIMIZED_FEATURES if f not in EXCLUDED_FEATURES]
@@ -109,34 +109,34 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_generate_features_basic_dataframe(self, generator, sample_ohlcv_data):
         """基本特徴量生成テスト（DataFrame入力）"""
-        result_df = await generator.generate_features(sample_ohlcv_data)  # Phase 50.9: 62特徴量固定
+        result_df = await generator.generate_features(
+            sample_ohlcv_data
+        )  # Phase 51.5-A: 60特徴量固定
 
         # 戻り値がDataFrameかチェック
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 50.9: 62特徴量固定（外部API削除・戦略シグナル含む）
+        # Phase 51.5-A: 60特徴量固定（外部API削除・戦略シグナル3個含む）
         # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
         strategy_signal_features = [
             "strategy_signal_ATRBased",
-            "strategy_signal_MochipoyAlert",
-            "strategy_signal_MultiTimeframe",
             "strategy_signal_DonchianChannel",
             "strategy_signal_ADXTrendStrength",
         ]
 
-        # Phase 50.3: 外部API特徴量を除く62特徴量が存在するかチェック（戦略シグナル含む）
+        # Phase 51.5-A: 外部API特徴量を除く60特徴量が存在するかチェック（戦略シグナル含む）
         for feature in FEATURES_WITHOUT_EXTERNAL_API:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # Phase 50.1: 戦略シグナル特徴量は0.0で存在するはず（確実な62特徴量生成）
+        # Phase 51.5-A: 戦略シグナル特徴量は0.0で存在するはず（確実な60特徴量生成）
         for feature in strategy_signal_features:
             assert feature in result_df.columns, f"戦略シグナル特徴量{feature}が生成されていない"
             # strategy_signals=Noneの場合は0.0で生成
             assert (result_df[feature] == 0.0).all(), f"戦略シグナル特徴量{feature}が0.0でない"
 
-        # computed_featuresに記録されているかチェック - Phase 50.1: 62特徴量（確実）
-        assert len(generator.computed_features) == 62
+        # computed_featuresに記録されているかチェック - Phase 51.5-A: 60特徴量（確実）
+        assert len(generator.computed_features) == 60
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -536,9 +536,9 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が62-70の範囲になるはず - Phase 50.3（外部API取得失敗考慮）
-        # 62基本特徴量 + 0-8外部API特徴量（実API呼び出しのため取得失敗の可能性あり）
-        assert 62 <= len(generator.computed_features) <= 70
+        # 計算された特徴量数が60-68の範囲になるはず - Phase 51.5-A（外部API取得失敗考慮）
+        # 60基本特徴量 + 0-8外部API特徴量（実API呼び出しのため取得失敗の可能性あり）
+        assert 60 <= len(generator.computed_features) <= 68
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:

@@ -440,17 +440,17 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 3. **モデルファイル確認**: ensemble_full.pkl・ensemble_basic.pkl存在確認
 4. **62特徴量動作確認**: 特徴量生成・ML予測・エントリー判断正常動作
 5. **本番環境確認**: Cloud Run・62特徴量・ensemble_full.pkl使用確認
-6. **Phase 51.1準備**: レンジ型戦略リバランス実装準備
+6. **Phase 51完全再設計完了**: 旧Phase 51.1スキップ・市場状況分類+動的戦略選択アーキテクチャ
 7. **設定整合性**: features.yaml・unified.yaml・thresholds.yaml確認
 
 ### 開発開始前チェック
 
-1. **最新状況把握**: **Phase 50.9完了**・ToDo.md確認・Phase 50完了ステータス確認
+1. **最新状況把握**: **Phase 50.9完了**・**Phase 51完全再設計完了**・ToDo.md確認
 2. **品質基準**: Phase 50.9完了後テスト検証必要・68%カバレッジ維持目標
 3. **設定管理**: ハードコード禁止・get_threshold()パターン遵守
 4. **Phase 50.9理解**: 外部API削除完了・モデルリネーム完了・シンプル設計確立
-5. **Phase 51.1準備**: レンジ型戦略リバランス理解・RR比0.67:1適合確認
+5. **Phase 51理解**: 旧Phase 51.1スキップ・市場状況分類+動的戦略選択・Phase 51.1-New〜51.8-New実装準備完了
 
 ---
 
-**📅 最終更新**: 2025年11月01日 - **Phase 50.9完了**・CLAUDE.md/Phase_50.md更新完了
+**📅 最終更新**: 2025年11月02日 - **Phase 51完全再設計完了**（旧Phase 51.1スキップ・ML統合アーキテクチャ刷新・市場状況分類+動的戦略選択）・ToDo.md/CLAUDE.md更新完了

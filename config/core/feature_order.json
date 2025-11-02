@@ -1,13 +1,13 @@
 {
   "feature_order_version": "v3.0.0",
-  "phase": "Phase 50.9",
-  "total_features": 62,
-  "last_updated": "2025-11-01T12:00:00Z",
-  "description": "62基本特徴量（外部API削除・シンプル設計回帰）- Phase 50.9完了",
+  "phase": "Phase 51.5-A",
+  "total_features": 60,
+  "last_updated": "2025-11-03T12:00:00Z",
+  "description": "60基本特徴量（3戦略シグナル）- Phase 51.5-A完了",
 
   "feature_levels": {
     "full": {
-      "count": 62,
+      "count": 60,
       "description": "完全特徴量（外部APIなし・戦略信号含む）- デフォルトモデル",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
       "model_file": "ensemble_full.pkl"
@@ -145,11 +145,9 @@
     },
 
     "strategy_signals": {
-      "description": "戦略シグナル特徴量（Strategy Signals・5個）",
+      "description": "戦略シグナル特徴量（Strategy Signals・3個・Phase 51.5-A）",
       "features": [
         "strategy_signal_ATRBased",
-        "strategy_signal_MochipoyAlert",
-        "strategy_signal_MultiTimeframe",
         "strategy_signal_DonchianChannel",
         "strategy_signal_ADXTrendStrength"
       ]
@@ -513,20 +511,6 @@
       "importance": "critical",
       "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
     },
-    "strategy_signal_MochipoyAlert": {
-      "type": "strategy_signal",
-      "description": "もちぽよアラート戦略シグナル（action × confidence）",
-      "range": "-1.0 to 1.0",
-      "importance": "critical",
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
-    },
-    "strategy_signal_MultiTimeframe": {
-      "type": "strategy_signal",
-      "description": "マルチタイムフレーム戦略シグナル（action × confidence）",
-      "range": "-1.0 to 1.0",
-      "importance": "critical",
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence"
-    },
     "strategy_signal_DonchianChannel": {
       "type": "strategy_signal",
       "description": "Donchianチャネル戦略シグナル（action × confidence）",
@@ -591,7 +575,7 @@
     },
     "phase50_2_expansion": {
       "target": "時間的特徴量拡張（外部APIなし）",
-      "achieved": 62,
+      "achieved": 60,
       "expansion_type": "temporal_features",
       "method": "market_sessions_cyclical_encoding",
       "added_categories": [],
@@ -607,14 +591,14 @@
     },
     "phase50_9_simplification": {
       "target": "外部API完全削除・シンプル設計回帰",
-      "achieved": 62,
+      "achieved": 60,
       "simplification_type": "external_api_removal",
       "method": "graceful_degradation_simplification",
       "removed_categories": ["external_api"],
       "removed_features_count": 8,
       "improvements": [
         "外部API特徴量削除（8個）: USD/JPY・日経平均・米10年債・Fear & Greed Index等",
-        "4段階 → 2段階Graceful Degradation（full 62 → basic 57 → Dummy）",
+        "4段階 → 2段階Graceful Degradation（full 60 → basic 57 → Dummy）",
         "モデルファイルリネーム（ensemble_level2/3 → ensemble_full/basic）",
         "システム安定性向上・ゼロダウンタイム実現",
         "保守性+20%・コード削減~1,438行・シンプル設計回帰",

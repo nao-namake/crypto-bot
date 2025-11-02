@@ -1,9 +1,10 @@
 """
-取引サイクルマネージャー - Phase 49完了（最重要・1,033行）
+取引サイクルマネージャー - Phase 51.3完了（最重要・1,100行）
 
 orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行のフロー全体を担当。
 
+Phase 51.3: Dynamic Strategy Selection実装（市場レジーム連動戦略重み最適化）
 Phase 49完了:
 - バックテスト完全改修統合（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker・matplotlib可視化）
 - 証拠金維持率80%遵守ロジック統合（critical: 100.0 → 80.0変更）
@@ -62,6 +63,22 @@ class TradingCycleManager:
                 self.logger.warning(f"⚠️ Meta-Learning初期化失敗: {e} - フォールバック固定重み使用")
                 self.meta_optimizer = None
 
+        # Phase 51.3: Dynamic Strategy Selection初期化
+        self.dynamic_strategy_selector = None
+        self.market_regime_classifier = None
+        if get_threshold("dynamic_strategy_selection.enabled", True):
+            try:
+                from .dynamic_strategy_selector import DynamicStrategySelector
+                from .market_regime_classifier import MarketRegimeClassifier
+
+                self.dynamic_strategy_selector = DynamicStrategySelector()
+                self.market_regime_classifier = MarketRegimeClassifier()
+                self.logger.info("✅ Phase 51.3: 動的戦略選択システム有効")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 51.3: 動的戦略選択初期化失敗: {e} - 固定重み使用")
+                self.dynamic_strategy_selector = None
+                self.market_regime_classifier = None
+
     async def execute_trading_cycle(self):
         """
         取引サイクル実行
@@ -90,6 +107,9 @@ class TradingCycleManager:
 
             # Phase 3: 特徴量生成（50特徴量）
             features, main_features = await self._generate_features(market_data)
+
+            # Phase 51.3: 動的戦略選択（レジーム分類 → 戦略重み更新）
+            await self._apply_dynamic_strategy_selection(main_features)
 
             # Phase 4: 戦略評価（Phase 31: マルチタイムフレーム対応）
             strategy_signal = await self._evaluate_strategy(main_features, features)
@@ -137,8 +157,9 @@ class TradingCycleManager:
     async def _fetch_market_data(self):
         """Phase 2: データ取得"""
         try:
+            # Phase 51.5-A Fix: limit=100→200（戦略最低20件要求に対する安全マージン）
             return await self.orchestrator.data_service.fetch_multi_timeframe(
-                symbol="BTC/JPY", limit=100
+                symbol="BTC/JPY", limit=200
             )
         except Exception as e:
             self.logger.error(f"市場データ取得エラー: {e}")
@@ -221,6 +242,62 @@ class TradingCycleManager:
             return self.orchestrator.strategy_service._create_hold_signal(
                 pd.DataFrame(), f"戦略評価エラー: {e}"
             )
+
+    async def _apply_dynamic_strategy_selection(self, main_features: pd.DataFrame):
+        """
+        Phase 51.3: 動的戦略選択（市場レジーム連動戦略重み最適化）
+
+        市場レジームを分類し、レジームに応じた戦略重みを適用する。
+
+        処理フロー:
+        1. MarketRegimeClassifierで市場レジーム分類
+        2. DynamicStrategySelectorでレジーム別戦略重み取得
+        3. StrategyManager.update_strategy_weights()で重み更新
+
+        Args:
+            main_features: メインタイムフレーム特徴量
+        """
+        try:
+            # 機能無効化チェック
+            if not self.dynamic_strategy_selector or not self.market_regime_classifier:
+                return
+
+            # 特徴量不足チェック
+            if main_features.empty:
+                self.logger.debug("Phase 51.3: 特徴量不足 - 動的戦略選択スキップ")
+                return
+
+            # 1. 市場レジーム分類
+            regime = self.market_regime_classifier.classify(main_features)
+
+            # 2. レジーム別戦略重み取得
+            regime_weights = self.dynamic_strategy_selector.get_regime_weights(regime)
+
+            # 3. 戦略重み更新
+            if regime_weights:
+                # 通常レジーム: 戦略重み適用
+                self.orchestrator.strategy_service.update_strategy_weights(regime_weights)
+                self.logger.info(
+                    f"✅ Phase 51.3: 戦略重み更新完了 - レジーム={regime.value}, "
+                    f"戦略数={len(regime_weights)}"
+                )
+            else:
+                # 高ボラティリティ: 全戦略無効化（待機モード）
+                # 注: 空辞書を渡すと全戦略が無効化される想定だが、
+                # StrategyManagerの実装次第では別の処理が必要
+                self.logger.warning(
+                    f"⚠️ Phase 51.3: 高ボラティリティ検出（レジーム={regime.value}）- 全戦略待機モード"
+                )
+                # 全戦略を0重みに設定
+                all_zero_weights = {
+                    strategy_name: 0.0
+                    for strategy_name in self.orchestrator.strategy_service.strategies.keys()
+                }
+                self.orchestrator.strategy_service.update_strategy_weights(all_zero_weights)
+
+        except Exception as e:
+            self.logger.error(f"Phase 51.3: 動的戦略選択エラー: {e} - 固定重み継続使用")
+            # エラー時は既存の重みを維持（何もしない）
 
     async def _get_individual_strategy_signals(self, main_features, all_features):
         """

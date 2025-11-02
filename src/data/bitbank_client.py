@@ -141,7 +141,7 @@ class BitbankClient:
         symbol: str = None,
         timeframe: str = "1h",
         since: Optional[int] = None,
-        limit: int = 100,
+        limit: int = 200,  # Phase 51.5-A Fix: デフォルト100→200件
     ) -> List[List[Union[int, float]]]:
         """
         OHLCV データ取得（4時間足は直接API実装を使用）
@@ -150,7 +150,7 @@ class BitbankClient:
             symbol: 通貨ペア（Noneの場合は設定から取得）
             timeframe: タイムフレーム（1m, 5m, 15m, 30m, 1h, 4h, 8h, 12h, 1d, 1w）
             since: 開始時刻（ミリ秒）
-            limit: 取得件数
+            limit: 取得件数（Phase 51.5-A Fix: デフォルト200件）
 
         Returns:
             OHLCV データリスト [[timestamp, open, high, low, close, volume], ...]

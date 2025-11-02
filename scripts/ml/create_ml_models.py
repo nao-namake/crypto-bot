@@ -342,13 +342,11 @@ class NewSystemMLModelCreator:
         Returns:
             pd.DataFrame: 戦略信号5列のDataFrame (index aligned with df)
         """
-        self.logger.info("📊 Phase 41.8: 実戦略信号生成開始（過去データから5戦略実行）")
+        self.logger.info("📊 Phase 51.5-A: 実戦略信号生成開始（過去データから3戦略実行）")
 
-        # 戦略シグナル特徴量名
+        # 戦略シグナル特徴量名 - Phase 51.5-A: 3戦略構成
         strategy_names = [
             "ATRBased",
-            "MochipoyAlert",
-            "MultiTimeframe",
             "DonchianChannel",
             "ADXTrendStrength",
         ]
@@ -465,11 +463,9 @@ class NewSystemMLModelCreator:
         """
         self.logger.info("📊 Phase 41: 戦略シグナル特徴量追加（ML学習用・0埋め）")
 
-        # 戦略シグナル特徴量名
+        # 戦略シグナル特徴量名 - Phase 51.5-A: 3戦略構成
         strategy_signal_features = [
             "strategy_signal_ATRBased",
-            "strategy_signal_MochipoyAlert",
-            "strategy_signal_MultiTimeframe",
             "strategy_signal_DonchianChannel",
             "strategy_signal_ADXTrendStrength",
         ]

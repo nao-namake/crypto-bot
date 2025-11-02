@@ -113,19 +113,15 @@ features:
   - minus_di_14
 
 # ========================================
-# 戦略設定（5戦略統合）
+# 戦略設定（3戦略統合・Phase 51.5-A）
 # ========================================
 strategies:
   enabled:
   - atr_based
-  - mochipoy_alert
-  - multi_timeframe
   - donchian_channel
   - adx_trend
   weights:
     atr_based: 0.25
-    mochipoy_alert: 0.25
-    multi_timeframe: 0.2
     donchian_channel: 0.15
     adx_trend: 0.15
   consensus:

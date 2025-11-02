@@ -176,6 +176,12 @@ strategies:
     confidence_threshold: 0.3  # 信頼度閾値（30%）
     note: "5戦略の重み付け統合判定"
 
+  # 動的戦略選択（Phase 51.3実装）
+  dynamic_selection:
+    enabled: true  # Phase 51.3: 動的戦略選択
+    use_regime_weights: true  # 市場レジーム連動重み使用
+    note: "Phase 51.3: 市場レジーム連動戦略重み最適化（thresholds.yaml:dynamic_strategy_selection参照）"
+
   # 個別戦略有効化（拡張可能設計）
   individual_strategies:
     atr_based: true  # ATRベース戦略
