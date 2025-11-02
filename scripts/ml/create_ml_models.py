@@ -22,11 +22,14 @@ Phase 39対応: 実データ学習・閾値最適化・CV強化・SMOTE・Optuna
 Phase 50.9完了成果: 62特徴量固定システム・2段階Graceful Degradation・約1,438行削減
 
 使用方法:
-    # Phase 50.9: full モデル学習（62特徴量・デフォルト推奨）
-    python scripts/ml/create_ml_models.py --level 1 --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # Phase 51.5-B: 両モデル一括学習（デフォルト・推奨）
+    python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # Phase 50.9: basic モデル学習（57特徴量・フォールバック）
-    python scripts/ml/create_ml_models.py --level 2 --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # Phase 51.5-B: fullモデルのみ学習（緊急時）
+    python scripts/ml/create_ml_models.py --model full --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+
+    # Phase 51.5-B: basicモデルのみ学習（緊急時）
+    python scripts/ml/create_ml_models.py --model basic --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 """
 
 import argparse
@@ -81,10 +84,10 @@ class NewSystemMLModelCreator:
         use_smote: bool = False,
         optimize: bool = False,
         n_trials: int = 20,
-        target_level: int = 2,
+        models_to_train: list = None,
     ):
         """
-        初期化（Phase 50.9対応・2段階MLモデル）
+        初期化（Phase 51.5-B対応・一括生成システム）
 
         Args:
             config_path: 設定ファイルパス
@@ -94,10 +97,11 @@ class NewSystemMLModelCreator:
             use_smote: SMOTEオーバーサンプリング使用（Phase 39.4）
             optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
             n_trials: Optuna試行回数（Phase 39.5）
-            target_level: モデルタイプ 1=full/2=basic（Phase 50.9）
+            models_to_train: 訓練するモデルリスト ["full", "basic"] デフォルトは両方
         """
         self.config_path = config_path
-        self.target_level = target_level
+        self.models_to_train = models_to_train or ["full", "basic"]
+        self.current_model_type = "full"  # ループ処理中に動的に設定
         self.verbose = verbose
         self.target_threshold = target_threshold  # Phase 39.2
         self.n_classes = n_classes  # Phase 39.2
@@ -234,11 +238,13 @@ class NewSystemMLModelCreator:
         """
         Phase 50.9: モデル別特徴量選択（2段階システム）
 
-        target_level=1 (full): 62特徴量（全特徴量使用）
-        target_level=2 (basic): 57特徴量（戦略信号除外）
+        model_type="full": 60特徴量（全特徴量使用）
+        model_type="basic": 57特徴量（戦略信号除外）
         """
-        model_name = "full（62特徴量）" if self.target_level == 1 else "basic（57特徴量）"
-        self.logger.info(f"📊 Phase 50.9: 実データ学習開始（過去{days}日分・{model_name}）")
+        model_name = (
+            "full（60特徴量）" if self.current_model_type == "full" else "basic（57特徴量）"
+        )
+        self.logger.info(f"📊 Phase 51.5-B: 実データ学習開始（過去{days}日分・{model_name}）")
 
         try:
             # Phase 39.1: 実データ読み込み
@@ -511,9 +517,11 @@ class NewSystemMLModelCreator:
         Returns:
             pd.DataFrame: モデルに応じた特徴量のみを含むDataFrame
         """
-        if self.target_level == 1:
-            # full: 全62特徴量使用
-            self.logger.info(f"📊 Phase 50.9: full モデル - 全{len(features_df.columns)}特徴量使用")
+        if self.current_model_type == "full":
+            # full: 全60特徴量使用
+            self.logger.info(
+                f"📊 Phase 51.5-A: full モデル - 全{len(features_df.columns)}特徴量使用"
+            )
             return features_df
 
         # basic: 戦略信号を除外（57特徴量）
@@ -524,7 +532,7 @@ class NewSystemMLModelCreator:
 
         features_df = features_df.drop(columns=strategy_signal_features, errors="ignore")
         self.logger.info(
-            f"📊 Phase 50.9: basic モデル - 戦略信号{len(strategy_signal_features)}個を除外 → {len(features_df.columns)}特徴量"
+            f"📊 Phase 51.5-A: basic モデル - 戦略信号{len(strategy_signal_features)}個を除外 → {len(features_df.columns)}特徴量"
         )
         return features_df
 
@@ -1046,8 +1054,8 @@ class NewSystemMLModelCreator:
         for model_name, model in models.items():
             try:
                 if model_name == "production_ensemble":
-                    # Phase 50.9: feature_order.jsonから設定駆動型でモデルファイル名取得
-                    target_model_type = "full" if self.target_level == 1 else "basic"
+                    # Phase 51.5-A Fix: feature_order.jsonから設定駆動型でモデルファイル名取得
+                    target_model_type = self.current_model_type
                     model_config = _feature_manager.get_feature_level_info()
                     model_filename = model_config[target_model_type].get(
                         "model_file", "ensemble_full.pkl"
@@ -1087,9 +1095,19 @@ class NewSystemMLModelCreator:
                         "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
                     }
 
-                    production_metadata_file = (
-                        self.production_dir / "production_model_metadata.json"
-                    )
+                    # Phase 51.5-A Fix: メタデータファイル名決定
+                    # fullモデルは検証用にproduction_model_metadata.jsonに保存
+                    # basicモデルは別ファイルに保存（デバッグ用）
+                    if self.current_model_type == "full":
+                        production_metadata_file = (
+                            self.production_dir / "production_model_metadata.json"
+                        )
+                    else:
+                        production_metadata_file = (
+                            self.production_dir
+                            / f"production_model_metadata_{self.current_model_type}.json"
+                        )
+
                     with open(production_metadata_file, "w", encoding="utf-8") as f:
                         json.dump(
                             production_metadata,
@@ -1301,33 +1319,61 @@ class NewSystemMLModelCreator:
             return False
 
     def run(self, dry_run: bool = False, days: int = 180) -> bool:
-        """メイン実行処理."""
+        """メイン実行処理（Phase 51.5-A Fix: 一括生成システム）."""
         try:
-            self.logger.info("🚀 新システムMLモデル作成開始")
+            self.logger.info(
+                f"🚀 Phase 51.5-A Fix: MLモデル作成開始 - 訓練対象: {self.models_to_train}"
+            )
 
             # 0. 既存モデル自動アーカイブ（Phase 29: バージョン管理強化）
             if not dry_run:
                 if not self._archive_existing_models():
                     self.logger.warning("⚠️ アーカイブ失敗 - 処理続行")
 
-            # 1. 学習データ準備
+            # 1. 学習データ準備（1回のみ・全60特徴量生成）
+            # 戦略信号生成が最も時間がかかるため、1回だけ実行
+            self.logger.info("📊 Phase 51.5-A Fix: 学習データ準備開始（全モデル共通）")
             features, target = self.prepare_training_data(days)
+            self.logger.info("✅ 学習データ準備完了（全60特徴量生成済み）")
 
-            # 2. モデル学習
-            training_results = self.train_models(features, target, dry_run)
+            # 2. 各モデルを訓練（ループ処理）
+            all_saved_files = {}
+            for model_type in self.models_to_train:
+                self.current_model_type = model_type
+                model_name = "full（60特徴量）" if model_type == "full" else "basic（57特徴量）"
+
+                self.logger.info("")
+                self.logger.info("=" * 80)
+                self.logger.info(f"📊 Phase 51.5-A Fix: {model_name}モデル訓練開始")
+                self.logger.info("=" * 80)
+
+                # モデル訓練（_select_features_by_levelで特徴量絞り込み）
+                training_results = self.train_models(features, target, dry_run)
+
+                if dry_run:
+                    self.logger.info(f"🔍 {model_name}モデル ドライラン完了")
+                    continue
+
+                # モデル保存
+                saved_files = self.save_models(training_results)
+                all_saved_files.update(saved_files)
+
+                self.logger.info(f"✅ {model_name}モデル訓練・保存完了")
 
             if dry_run:
-                self.logger.info("🔍 ドライラン完了")
+                self.logger.info("🔍 全モデル ドライラン完了")
                 return True
 
-            # 3. モデル保存
-            saved_files = self.save_models(training_results)
+            # 3. 検証（全モデル）
+            self.logger.info("")
+            self.logger.info("=" * 80)
+            self.logger.info("🔍 Phase 51.5-A Fix: 全モデル検証開始")
+            self.logger.info("=" * 80)
 
-            # 4. 検証
-            validation_passed = self.validate_models(saved_files)
+            validation_passed = self.validate_models(all_saved_files)
 
             if validation_passed:
-                self.logger.info("✅ MLモデル作成完了 - 実取引準備完了")
+                self.logger.info("✅ Phase 51.5-A Fix: 全MLモデル作成完了 - 実取引準備完了")
                 return True
             else:
                 self.logger.error("❌ MLモデル作成失敗")
@@ -1394,21 +1440,31 @@ def main():
         help="Phase 39.5: Optuna最適化試行回数（デフォルト: 20）",
     )
 
-    # Phase 50.9: モデルタイプ設定（2段階システム）
+    # Phase 51.5-B: モデル選択（一括生成システム）
     parser.add_argument(
-        "--level",
-        type=int,
-        default=1,
-        choices=[1, 2],
-        help="Phase 50.9: モデルタイプ 1=full（62特徴量・デフォルト推奨）/2=basic（57特徴量・フォールバック）",
+        "--model",
+        type=str,
+        default="both",
+        choices=["both", "full", "basic"],
+        help="Phase 51.5-B: 訓練するモデル both=両方（デフォルト推奨）/full=fullのみ/basic=basicのみ",
     )
 
     args = parser.parse_args()
 
-    # モデル作成実行（Phase 50.9対応）
+    # モデル選択をリストに変換
+    if args.model == "both":
+        models_to_train = ["full", "basic"]
+    elif args.model == "full":
+        models_to_train = ["full"]
+    elif args.model == "basic":
+        models_to_train = ["basic"]
+    else:
+        models_to_train = ["full", "basic"]
+
+    # モデル作成実行（Phase 51.5-B対応）
     creator = NewSystemMLModelCreator(
         config_path=args.config,
-        target_level=args.level,
+        models_to_train=models_to_train,
         verbose=args.verbose,
         target_threshold=args.threshold,
         n_classes=args.n_classes,

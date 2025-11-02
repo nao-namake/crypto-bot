@@ -1,8 +1,8 @@
 """
-Phase 50.9 統合テスト: 2段階Graceful Degradation
+Phase 51.5-A 統合テスト: 2段階Graceful Degradation
 
-MLモデルの2段階Graceful Degradation (full 62 → basic 57 → Dummy) を検証。
-外部API関連テストはPhase 50.9で削除済み。
+MLモデルの2段階Graceful Degradation (full 60 → basic 57 → Dummy) を検証。
+Phase 51.5-A: 5戦略→3戦略削減により60特徴量に更新。
 """
 
 from pathlib import Path
@@ -21,17 +21,17 @@ def logger():
 
 
 class TestMLLoader2StageGracefulDegradation:
-    """MLLoader 2段階Graceful Degradationテスト（Phase 50.9: 62→57→Dummy）"""
+    """MLLoader 2段階Graceful Degradationテスト（Phase 51.5-A: 60→57→Dummy）"""
 
-    def test_determine_feature_level_62_features(self, logger):
-        """特徴量レベル判定テスト（62特徴量 → full）"""
+    def test_determine_feature_level_60_features(self, logger):
+        """特徴量レベル判定テスト（60特徴量 → full - Phase 51.5-A）"""
         loader = MLModelLoader(logger=logger)
 
-        level = loader._determine_feature_level(feature_count=62)
+        level = loader._determine_feature_level(feature_count=60)
         assert level == "full"
 
     def test_determine_feature_level_57_features(self, logger):
-        """特徴量レベル判定テスト（57特徴量 → basic）"""
+        """特徴量レベル判定テスト（57特徴量 → basic - Phase 51.5-A）"""
         loader = MLModelLoader(logger=logger)
 
         level = loader._determine_feature_level(feature_count=57)
@@ -42,26 +42,23 @@ class TestMLLoader2StageGracefulDegradation:
         loader = MLModelLoader(logger=logger)
 
         level = loader._determine_feature_level(feature_count=99)
-        assert level == "full"  # Phase 50.9: fullにフォールバック
+        assert level == "full"  # Phase 51.5-A: fullにフォールバック
 
     def test_determine_feature_level_none(self, logger):
         """特徴量レベル判定テスト（特徴量数未指定 → fullデフォルト）"""
         loader = MLModelLoader(logger=logger)
 
         level = loader._determine_feature_level(feature_count=None)
-        assert level == "full"  # Phase 50.9: fullがデフォルト
+        assert level == "full"  # Phase 51.5-A: fullがデフォルト
 
     def test_load_production_ensemble_level_full(self, logger):
-        """ProductionEnsemble読み込みテスト（Level full: 62特徴量）"""
+        """ProductionEnsemble読み込みテスト（full: 60特徴量 - Phase 51.5-A）"""
         loader = MLModelLoader(logger=logger)
 
-        # Phase 50.9: ensemble_full.pkl（旧ensemble_level2.pkl）
+        # Phase 51.5-A: ensemble_full.pkl（60特徴量）
         model_path = Path("models/production/ensemble_full.pkl")
         if not model_path.exists():
-            # 後方互換性: 旧モデル名でも試行
-            model_path = Path("models/production/ensemble_level2.pkl")
-            if not model_path.exists():
-                pytest.skip("ensemble_full.pkl not found")
+            pytest.skip("ensemble_full.pkl not found")
 
         success = loader._load_production_ensemble(level="full")
 
@@ -70,16 +67,13 @@ class TestMLLoader2StageGracefulDegradation:
             assert "full" in loader.model_type.lower()
 
     def test_load_production_ensemble_level_basic(self, logger):
-        """ProductionEnsemble読み込みテスト（Level basic: 57特徴量）"""
+        """ProductionEnsemble読み込みテスト（basic: 57特徴量 - Phase 51.5-A）"""
         loader = MLModelLoader(logger=logger)
 
-        # Phase 50.9: ensemble_basic.pkl（旧ensemble_level3.pkl）
+        # Phase 51.5-A: ensemble_basic.pkl（57特徴量）
         model_path = Path("models/production/ensemble_basic.pkl")
         if not model_path.exists():
-            # 後方互換性: 旧モデル名でも試行
-            model_path = Path("models/production/ensemble_level3.pkl")
-            if not model_path.exists():
-                pytest.skip("ensemble_basic.pkl not found")
+            pytest.skip("ensemble_basic.pkl not found")
 
         success = loader._load_production_ensemble(level="basic")
 
@@ -94,7 +88,7 @@ class TestMLLoader2StageGracefulDegradation:
         # 全てのモデルファイルが存在しないことをシミュレート
         with patch.object(loader, "_load_production_ensemble", return_value=False):
             with patch.object(loader, "_load_from_individual_models", return_value=False):
-                model = loader.load_model_with_priority(feature_count=62)
+                model = loader.load_model_with_priority(feature_count=60)
 
         # ダミーモデルにフォールバック
         assert model is not None

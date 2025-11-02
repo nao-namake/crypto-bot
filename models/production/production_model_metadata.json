@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-10-30T20:02:20.932742",
+  "created_at": "2025-11-03T08:32:28.583300",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
@@ -79,39 +79,39 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.3522012578616352,
-      "f1_score": 0.3382991352502786,
-      "precision": 0.38967028778349533,
-      "recall": 0.3522012578616352,
-      "cv_f1_mean": 0.4871805926391839,
-      "cv_f1_std": 0.09264194640977177
+      "accuracy": 0.38461538461538464,
+      "f1_score": 0.35743745365467217,
+      "precision": 0.36603735797051845,
+      "recall": 0.38461538461538464,
+      "cv_f1_mean": 0.44543961122091924,
+      "cv_f1_std": 0.10655063167425291
     },
     "xgboost": {
-      "accuracy": 0.4779874213836478,
-      "f1_score": 0.40931593347013,
-      "precision": 0.4357863285957179,
-      "recall": 0.4779874213836478,
-      "cv_f1_mean": 0.5429756202639807,
-      "cv_f1_std": 0.04745426293068238
+      "accuracy": 0.4935897435897436,
+      "f1_score": 0.42974852253431606,
+      "precision": 0.449525385009256,
+      "recall": 0.4935897435897436,
+      "cv_f1_mean": 0.5110011044893812,
+      "cv_f1_std": 0.0660716445265416
     },
     "random_forest": {
-      "accuracy": 0.4968553459119497,
-      "f1_score": 0.33819565562073883,
-      "precision": 0.25633938228578296,
-      "recall": 0.4968553459119497,
-      "cv_f1_mean": 0.5555545122129226,
-      "cv_f1_std": 0.042866077926464935
+      "accuracy": 0.5128205128205128,
+      "f1_score": 0.3602851448345011,
+      "precision": 0.5468409586056645,
+      "recall": 0.5128205128205128,
+      "cv_f1_mean": 0.5475153237863198,
+      "cv_f1_std": 0.03994631812319763
     }
   },
   "training_info": {
-    "samples": 1054,
+    "samples": 1032,
     "feature_count": 60,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "960ac8111efc50b543b8d564a4e14f794084b836",
-    "commit_short": "960ac811",
+    "commit": "0f1190d29d2f3f66f0e2bc99bc7d3f406b39afb0",
+    "commit_short": "0f1190d2",
     "branch": "main"
   },
-  "notes": "Phase 51.5-A完了・戦略削除（3戦略）・60特徴量固定システム・ensemble_full.pkl・2段階Graceful Degradation"
+  "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
 }
