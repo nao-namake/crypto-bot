@@ -27,7 +27,7 @@ strategies:
   atr_based:
     enabled: true
     class_name: "ATRBased"                        # StrategyRegistry登録名
-    module_path: "strategies.implementations.atr_based"
+    module_path: "src.strategies.implementations.atr_based"
     strategy_type: "atr_based"                    # StrategyType定数値
     weight: 0.25                                   # 戦略重み（25%）
     priority: 1                                    # 優先度（低いほど優先）
@@ -38,7 +38,7 @@ strategies:
   donchian_channel:
     enabled: true
     class_name: "DonchianChannel"
-    module_path: "strategies.implementations.donchian_channel"
+    module_path: "src.strategies.implementations.donchian_channel"
     strategy_type: "donchian_channel"
     weight: 0.15                                   # 戦略重み（15%）
     priority: 2
@@ -49,7 +49,7 @@ strategies:
   adx_trend:
     enabled: true
     class_name: "ADXTrendStrength"
-    module_path: "strategies.implementations.adx_trend"
+    module_path: "src.strategies.implementations.adx_trend"
     strategy_type: "adx_trend"
     weight: 0.15                                   # 戦略重み（15%）
     priority: 3

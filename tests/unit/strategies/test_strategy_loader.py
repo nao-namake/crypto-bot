@@ -274,7 +274,10 @@ class TestStrategyLoaderStrategyLoading:
         try:
             with patch("src.strategies.strategy_loader.get_all_thresholds", return_value={}):
                 loader = StrategyLoader(temp_path)
-                with pytest.raises(StrategyError, match="Registryに登録されていません"):
+                with pytest.raises(
+                    StrategyError,
+                    match=r"Registryに未登録で、'module_path'が設定されていません",
+                ):
                     loader.load_strategies()
         finally:
             Path(temp_path).unlink()

@@ -160,8 +160,33 @@ class StrategyLoader:
             if field not in strategy_config:
                 raise StrategyError(f"戦略'{strategy_id}'の設定に '{field}' がありません")
 
-        # Registry から戦略クラス取得
         class_name = strategy_config["class_name"]
+
+        # Phase 51.5-B Fix: 戦略クラスが未登録の場合のみモジュールをimport
+        if not StrategyRegistry.is_registered(class_name):
+            # module_pathが必須（本番環境）
+            if "module_path" not in strategy_config:
+                raise StrategyError(
+                    f"戦略'{strategy_id}'のクラス'{class_name}'がRegistryに未登録で、"
+                    f"'module_path'が設定されていません。strategies.yamlに'module_path'を追加してください。"
+                )
+
+            module_path = strategy_config["module_path"]
+            try:
+                import importlib
+
+                importlib.import_module(module_path)
+                self.logger.info(
+                    f"✅ Phase 51.5-B Fix: 戦略モジュールimport成功 - module={module_path}"
+                )
+            except ImportError as e:
+                raise StrategyError(
+                    f"戦略'{strategy_id}'のモジュール'{module_path}'のimportに失敗しました: {e}"
+                ) from e
+        else:
+            self.logger.debug(f"ℹ️ Phase 51.5-B: 戦略'{class_name}'は既に登録済み - importスキップ")
+
+        # Registry から戦略クラス取得
         try:
             strategy_class = StrategyRegistry.get_strategy(class_name)
         except StrategyError as e:
