@@ -21,10 +21,12 @@ import pandas as pd
 
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..strategy_registry import StrategyRegistry
 from ..utils import MarketUncertaintyCalculator
 from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
+@StrategyRegistry.register(name="ADXTrendStrength", strategy_type=StrategyType.ADX_TREND)
 class ADXTrendStrengthStrategy(StrategyBase):
     """
     ADX Trend Strength戦略クラス

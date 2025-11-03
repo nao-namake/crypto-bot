@@ -22,10 +22,12 @@ import pandas as pd
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..strategy_registry import StrategyRegistry
 from ..utils import MarketUncertaintyCalculator
 from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
+@StrategyRegistry.register(name="DonchianChannel", strategy_type=StrategyType.DONCHIAN_CHANNEL)
 class DonchianChannelStrategy(StrategyBase):
     """
     Donchian Channel戦略クラス

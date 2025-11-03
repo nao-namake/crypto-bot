@@ -347,9 +347,7 @@ async def create_trading_orchestrator(
     from ...data.bitbank_client import BitbankClient
     from ...data.data_pipeline import DataPipeline
     from ...strategies.base.strategy_manager import StrategyManager
-    from ...strategies.implementations.adx_trend import ADXTrendStrengthStrategy
-    from ...strategies.implementations.atr_based import ATRBasedStrategy
-    from ...strategies.implementations.donchian_channel import DonchianChannelStrategy
+    from ...strategies.strategy_loader import StrategyLoader
     from ...trading import DEFAULT_RISK_CONFIG, create_risk_manager
 
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")
@@ -401,16 +399,23 @@ async def create_trading_orchestrator(
         # FeatureGenerator統合クラスを使用
         feature_service = FeatureGenerator()
 
-        # Phase 51.5-A: 3戦略構成（ATRBased・DonchianChannel・ADXTrendStrength）
+        # Phase 51.5-B: 動的戦略管理システム（StrategyLoader使用）
         strategy_service = StrategyManager()
-        strategies = [
-            ATRBasedStrategy(),
-            DonchianChannelStrategy(),
-            ADXTrendStrengthStrategy(),
-        ]
+        strategy_loader = StrategyLoader("config/strategies.yaml")
+        loaded_strategies = strategy_loader.load_strategies()
+
+        logger.info(f"✅ Phase 51.5-B: {len(loaded_strategies)}戦略をロードしました")
+
         # 戦略を個別に登録
-        for strategy in strategies:
-            strategy_service.register_strategy(strategy, weight=1.0)
+        for strategy_data in loaded_strategies:
+            strategy_service.register_strategy(
+                strategy_data["instance"], weight=strategy_data["weight"]
+            )
+            logger.info(
+                f"   - {strategy_data['metadata']['name']}: "
+                f"weight={strategy_data['weight']}, "
+                f"priority={strategy_data['priority']}"
+            )
 
         # Phase 28-29最適化: MLサービス（根本問題解決版）
         from .ml_adapter import MLServiceAdapter

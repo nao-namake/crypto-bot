@@ -21,9 +21,11 @@ import pandas as pd
 from ...core.exceptions import StrategyError
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
+from ..strategy_registry import StrategyRegistry
 from ..utils import EntryAction, MarketUncertaintyCalculator, SignalBuilder, StrategyType
 
 
+@StrategyRegistry.register(name="ATRBased", strategy_type=StrategyType.ATR_BASED)
 class ATRBasedStrategy(StrategyBase):
     """
     ATRベース戦略
