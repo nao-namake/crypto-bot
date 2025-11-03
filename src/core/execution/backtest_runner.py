@@ -253,10 +253,9 @@ class BacktestRunner(BaseRunner):
 
                 # Phase 49.1: 戦略シグナル特徴量は_precompute_strategy_signals()で別途計算
                 # ここでは0.0で初期化のみ（後で上書きされる）
+                # Phase 51.5-A: 3戦略シグナル（MochipoyAlert・MultiTimeframe削除）
                 strategy_signal_features = [
                     "strategy_signal_ATRBased",
-                    "strategy_signal_MochipoyAlert",
-                    "strategy_signal_MultiTimeframe",
                     "strategy_signal_DonchianChannel",
                     "strategy_signal_ADXTrendStrength",
                 ]

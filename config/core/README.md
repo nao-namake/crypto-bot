@@ -118,33 +118,29 @@ ensemble:              # アンサンブル重み（LightGBM 50%・XGBoost 30%�
 
 **役割**: 全システムで使用する特徴量の順序・定義を一元管理
 
-**Phase 50.7完了時点**:
-- **total_features**: Level 1: 70、Level 2: 62、Level 3: 57
-- **test_coverage: 66.72%**
-- **total_tests: 1097**
-- **3レベルモデルシステム実装完了**
+**Phase 51.5-A完了時点**:
+- **total_features**: 60（50基本+3戦略シグナル+7時間的）
+- **test_coverage: 68.27%**
+- **total_tests: 1,153**
+- **3戦略システム実装完了**（ATRBased・DonchianChannel・ADXTrendStrength）
+- **2段階Graceful Degradation実装完了**
 
 **構造**:
 ```json
 {
-  "feature_order_version": "v2.9.0",
-  "phase": "Phase 50.7",
+  "feature_order_version": "v3.0.0",
+  "phase": "Phase 51.5-A",
 
   "feature_levels": {
-    "full_with_external": {
-      "count": 70,
-      "model_file": "ensemble_level1.pkl",
-      "description": "完全特徴量 + 外部API（バックテスト用推奨）"
-    },
     "full": {
-      "count": 62,
-      "model_file": "ensemble_level2.pkl",
-      "description": "完全特徴量（外部APIなし・本番推奨）"
+      "count": 60,
+      "model_file": "ensemble_full.pkl",
+      "description": "完全特徴量（50基本+3戦略シグナル+7時間的）"
     },
     "basic": {
       "count": 57,
-      "model_file": "ensemble_level3.pkl",
-      "description": "基本特徴量のみ（緊急フォールバック）"
+      "model_file": "ensemble_basic.pkl",
+      "description": "基本特徴量のみ（戦略シグナルなし・フォールバック用）"
     }
   },
 

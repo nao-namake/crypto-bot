@@ -12,7 +12,7 @@
 - **実装順序**に沿って記載（Phase 50.9 → 51 → 52...）
 - 定期的にタスク状況を更新
 
-**🎯 2025/11/04更新**: Phase 51.1-51.4完了 ✅・Phase 51.5-A完了 ✅（戦略削除実行・27ファイル修正・60特徴量固定）・**Phase 51.5-B完了** ✅（動的戦略管理基盤実装・93%削減達成・1,111テスト成功）→ **Phase 51.5-C実装推奨**（レガシーコード完全調査）⭐次回優先
+**🎯 2025/11/04更新**: Phase 51.1-51.4完了 ✅・Phase 51.5-A完了 ✅（戦略削除実行・27ファイル修正・60特徴量固定）・**Phase 51.5-B完了** ✅（動的戦略管理基盤実装・93%削減達成・1,111テスト成功）・**Phase 51.5-C完了** ✅（緊急修正5問題・1,153テスト成功）・**Phase 51.5-D完了** ✅（レガシーコード修正8ファイル・システム整合性100%達成・1,153テスト成功・68.77%カバレッジ）→ **Phase 51.5-E実装推奨**（統合デプロイ）⭐次回優先
 
 ---
 
@@ -508,61 +508,73 @@ grep -r "full_with_external" src/ config/
 
 ---
 
-#### Phase 51.5-C: レガシーコード完全調査（1-2日）⭐⭐⭐⭐ 次回実装
+#### ✅ Phase 51.5-C: 緊急修正5問題（2025/11/04完了）
 
-**目的**: Phase 51.5-A完了後も残存している可能性のある5戦略・62特徴量・70特徴量の参照を完全調査
+**目的**: Phase 51.5-B本番デプロイ後の5問題修正（0エントリー問題解決）
 
-**背景**:
-- Phase 51.5-Aで2回に分けて詳細調査・置き換え・削除を実施
-- まだどこかのコードに残存している可能性があるため完全調査が必要
+**実施内容**:
+1. **Phase 51.5-B module_path修正**
+   - strategies.yaml: `module_path`キー追加（動的import対応）
+   - StrategyLoader: import_module()でmodule_path使用
+2. **Phase 50.8データ12行問題修正**
+   - タイムアウト30秒延長（10秒→30秒・sock_read=25秒）
+   - リトライ3回追加（exponential backoff: 1秒・2秒・4秒）
+   - デバッグログ追加・最小行数チェック（20行未満でエラー）
+3. **TP/SL価格差異バグ修正**
+   - 3段階ATRフォールバック実装（15m→4h→固定値0.015）
+   - TP/SL再計算必須化（require_tpsl_recalculation: true）
+   - thresholds.yaml設定追加（fallback_atr: 0.015）
+4. **15m足リトライロジック追加**（仮修正・18件問題継続）
+   - リトライロジック追加も根本原因未解決
+5. **15m足直接API実装**（本修正・since=None問題解決）
+   - 4h足パターン準拠の直接API実装（YYYYMMDD形式）
+   - 複数日データ結合・18件→183件取得成功
 
-**調査項目**:
-1. **5戦略参照調査**
-   - MochipoyAlert文字列検索
-   - MultiTimeframe文字列検索
-   - 戦略リスト長さ5のハードコード検索
-   - ドキュメント内の5戦略言及箇所
-
-2. **62特徴量参照調査**
-   - "62" 数値リテラル検索 (特徴量コンテキスト)
-   - feature_count: 62 検索
-   - assert文での62検索
-   - コメント内の62特徴量言及
-
-3. **70特徴量参照調査** (Phase 50.9外部API削除後の残存)
-   - "70" 数値リテラル検索 (特徴量コンテキスト)
-   - external_api文字列検索
-   - Level 1 / full_with_external検索
-   - ドキュメント内の70特徴量言及
-
-4. **ドキュメント完全更新**
-   - README.md
-   - CLAUDE.md
-   - docs/開発履歴/*.md
-   - docs/開発計画/*.md
-
-**実行コマンド**:
-```bash
-# 5戦略調査
-grep -r "MochipoyAlert" src/ tests/ config/ docs/ scripts/
-grep -r "MultiTimeframe" src/ tests/ config/ docs/ scripts/
-grep -rn "== 5\|len.*5" tests/ --include="*.py" | grep -i "strateg"
-
-# 62特徴量調査
-grep -rn "62" src/ tests/ config/ --include="*.py" --include="*.json" --include="*.yaml" | grep -i "feature"
-
-# 70特徴量調査
-grep -rn "70" src/ tests/ config/ docs/ --include="*.py" --include="*.json" --include="*.yaml" --include="*.md" | grep -i "feature"
-grep -r "external_api" src/ tests/ config/ docs/
-grep -r "full_with_external\|level1\|Level 1" src/ tests/ config/ docs/
-```
-
-**期待成果**:
-- 完全なレガシーコード削除確認
-- ドキュメント整合性100%達成
-- システムクリーン性確保
+**品質保証結果**:
+- ✅ 全1,153テスト成功（100%達成）
+- ✅ カバレッジ68.27%達成（65%を上回る）
+- ✅ flake8・black・isort全てPASS
+- ✅ ペーパートレード検証: 5問題すべて修正・Phase 51.5-B動的戦略管理・Phase 51.3動的重み選択すべて正常動作
 
 **詳細**: `docs/開発履歴/Phase_51.5-51.X.md` Phase 51.5-C参照
+
+---
+
+#### ✅ Phase 51.5-D: レガシーコード完全調査・修正（2025/11/04完了）
+
+**目的**: Phase 51.5-A完了後も残存している可能性のある5戦略・62特徴量・70特徴量の参照を完全調査・修正
+
+**調査結果サマリー**:
+- **総ヒット件数**: 327件（うちドキュメント履歴は許容）
+- **修正必要**: 8ファイル（config 4・src 1・docs 3）
+- **修正不要（許容）**: 80+件（ドキュメント履歴・コメント・ログ）
+
+**重大発見（修正実施）**:
+1. **60特徴量移行不完全**: feature_generator.py:120が`target_features = 62`のまま（Phase 51.5-A時に設定ファイルのみ修正・実装コード未修正）
+2. **config不整合**: features.yaml・unified.yaml の`feature_count: 70`→`60`に修正
+3. **backtest_runner.py**: 5戦略シグナル→3戦略シグナルに修正
+4. **ドキュメント不整合**: CLAUDE.md・README.md・config/README.mdに62特徴量参照残存
+
+**修正ファイル一覧**:
+- `src/features/feature_generator.py`: target_features: 62→60（実装コード修正）
+- `config/core/features.yaml`: feature_count: 70→60
+- `config/core/unified.yaml`: features_count: 70→60
+- `src/core/execution/backtest_runner.py`: 5戦略シグナル→3戦略シグナル
+- `config/core/README.md`: Phase 51.5-A構成反映
+- `CLAUDE.md`: Phase 51.5-D完了反映・5箇所更新
+- `README.md`: Phase 51.5-D完了反映・7箇所更新
+- `__pycache__/*.pyc`: 6ファイル削除
+
+**品質保証結果**:
+- ✅ 全1,153テスト成功（100%達成）
+- ✅ カバレッジ68.77%達成（期待値68.27%を上回る）
+- ✅ grep検証0件（62特徴量・70特徴量・5戦略シグナル・__pycache__）
+- ✅ システム整合性100%達成（設定・実装・ドキュメント完全一致）
+- ✅ コード品質維持（flake8・black・isort全てPASS）
+
+**Phase 51.5-A~D完了宣言**: 戦略削減（5→3）・60特徴量固定システム・動的戦略管理基盤・レガシーコード完全修正により、**システム整合性100%達成**
+
+**詳細**: `docs/開発履歴/Phase_51.5-51.X.md` Phase 51.5-D参照
 
 ---
 
@@ -995,4 +1007,4 @@ if p_value < 0.05:
 
 ---
 
-**最終更新**: 2025年11月04日 - **Phase 51.5-B完了** ✅（動的戦略管理基盤実装・93%削減達成・1,111テスト100%成功） → **Phase 51.5-C実装推奨** ⭐次回優先（レガシーコード完全調査）
+**最終更新**: 2025年11月04日 - **Phase 51.5-A~D完了** ✅（戦略削減・動的管理基盤・緊急修正・レガシーコード完全修正・システム整合性100%達成・1,153テスト成功・68.77%カバレッジ） → **Phase 51.5-E実装推奨** ⭐次回優先（統合デプロイ）

@@ -317,6 +317,7 @@ class ExecutionService:
 
             # Phase 29.6: ライブモードでもポジション追跡（バグ修正）
             # Phase 38.7: 実約定価格ベースでTP/SL再計算（SL距離5x誤差修正）
+            # Phase 51.5-C: TP/SL再計算強化（3段階ATRフォールバック + 再計算必須化）
             actual_filled_price = result.filled_price or result.price
 
             # 実約定価格でTP/SL価格を再計算
@@ -326,26 +327,62 @@ class ExecutionService:
             if actual_filled_price > 0 and evaluation.take_profit and evaluation.stop_loss:
                 from ...strategies.utils.strategy_utils import RiskManager
 
-                # ATR値とATR履歴を取得（evaluationのmarket_conditionsから）
+                # ATR値とATR履歴を取得（3段階フォールバック）
                 market_conditions = getattr(evaluation, "market_conditions", {})
                 market_data = market_conditions.get("market_data", {})
 
                 current_atr = None
                 atr_history = None
+                atr_source = None  # デバッグ用：ATR取得元
 
-                # 15m足ATR取得試行
+                # Phase 51.5-C: 3段階ATRフォールバック
+                # Level 1: evaluation.market_conditions から取得（既存）
                 if "15m" in market_data:
                     df_15m = market_data["15m"]
                     if "atr_14" in df_15m.columns and len(df_15m) > 0:
                         current_atr = float(df_15m["atr_14"].iloc[-1])
                         atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
+                        atr_source = "evaluation.market_conditions[15m]"
 
-                # 4h足ATRフォールバック
                 if not current_atr and "4h" in market_data:
                     df_4h = market_data["4h"]
                     if "atr_14" in df_4h.columns and len(df_4h) > 0:
                         current_atr = float(df_4h["atr_14"].iloc[-1])
+                        atr_source = "evaluation.market_conditions[4h]"
 
+                # Level 2: DataService経由で直接取得（Phase 51.5-C新規）
+                if not current_atr and hasattr(self, "data_service") and self.data_service:
+                    try:
+                        # 15m足ATRを優先取得
+                        df_15m = self.data_service.fetch_ohlcv("BTC/JPY", "15m", limit=50)
+                        if "atr_14" in df_15m.columns and len(df_15m) > 0:
+                            current_atr = float(df_15m["atr_14"].iloc[-1])
+                            atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
+                            atr_source = "DataService[15m]"
+                            self.logger.info(
+                                f"✅ Phase 51.5-C: DataService経由ATR取得成功 - "
+                                f"15m足ATR={current_atr:.0f}円"
+                            )
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Phase 51.5-C: DataService経由ATR取得失敗 - {e}")
+
+                # Level 3: thresholds.yaml fallback_atr使用（Phase 51.5-C新規）
+                if not current_atr:
+                    try:
+                        fallback_atr = float(get_threshold("risk.fallback_atr", 500000))
+                    except (ValueError, TypeError):
+                        # 型変換失敗時はデフォルト値使用
+                        fallback_atr = 500000.0
+                        self.logger.warning(
+                            "⚠️ Phase 51.5-C: fallback_atr型変換失敗 - デフォルト値500,000円使用"
+                        )
+                    current_atr = fallback_atr
+                    atr_source = "thresholds.yaml[fallback_atr]"
+                    self.logger.warning(
+                        f"⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr={fallback_atr:.0f}円"
+                    )
+
+                # ATR取得完了（3段階いずれかで取得）
                 if current_atr and current_atr > 0:
                     # Phase 50.1.5: TP/SL設定完全渡し（Phase 49.18デフォルト値修正）
                     config = {
@@ -378,24 +415,78 @@ class ExecutionService:
                         sl_diff = abs(recalculated_sl - original_sl)
                         tp_diff = abs(recalculated_tp - original_tp)
 
+                        # 価格差異計算（entry_priceがある場合）
+                        if evaluation.entry_price is not None:
+                            entry_price_val = float(evaluation.entry_price)
+                            actual_price_val = float(actual_filled_price)
+                            price_diff = abs(actual_price_val - entry_price_val)
+                            price_info = (
+                                f"価格: シグナル時={entry_price_val:.0f}円"
+                                f"→実約定={actual_price_val:.0f}円 (差{price_diff:.0f}円) | "
+                            )
+                        else:
+                            actual_price_val = float(actual_filled_price)
+                            price_info = f"実約定価格={actual_price_val:.0f}円 | "
+
                         self.logger.info(
-                            f"🔄 Phase 38.7: 実約定価格ベースTP/SL再計算完了 - "
-                            f"約定価格={actual_filled_price:.0f}円 | "
+                            f"🔄 Phase 51.5-C: 実約定価格ベースTP/SL再計算完了 - "
+                            f"ATR取得元={atr_source}, ATR={current_atr:.0f}円 | "
+                            f"{price_info}"
                             f"SL: {original_sl:.0f}円→{recalculated_sl:.0f}円 (差{sl_diff:.0f}円) | "
                             f"TP: {original_tp:.0f}円→{recalculated_tp:.0f}円 (差{tp_diff:.0f}円)"
                         )
                     else:
-                        # Phase 38.7: 再計算失敗時のエラーハンドリング
-                        self.logger.warning(
-                            f"⚠️ Phase 38.7: TP/SL再計算失敗（RiskManager戻り値None） - "
-                            f"ATR={current_atr:.0f}円・元のTP/SL使用継続"
-                        )
+                        # Phase 51.5-C: 再計算失敗時のハンドリング
+                        require_recalc = get_threshold("risk.require_tpsl_recalculation", True)
+                        if require_recalc:
+                            # 再計算必須モード：エントリー中止
+                            self.logger.error(
+                                f"❌ Phase 51.5-C: TP/SL再計算失敗（require_tpsl_recalculation=True） - "
+                                f"ATR={current_atr:.0f}円・エントリー中止"
+                            )
+                            return ExecutionResult(
+                                success=False,
+                                error_message="TP/SL再計算失敗によりエントリー中止",
+                                mode=ExecutionMode.LIVE,
+                                order_id=None,
+                                side=side,
+                                amount=0.0,
+                                price=0.0,
+                                status=OrderStatus.FAILED,
+                                timestamp=datetime.now(),
+                            )
+                        else:
+                            # 再計算任意モード：元のTP/SL使用
+                            self.logger.warning(
+                                f"⚠️ Phase 51.5-C: TP/SL再計算失敗（RiskManager戻り値None） - "
+                                f"ATR={current_atr:.0f}円・元のTP/SL使用継続"
+                            )
                 else:
-                    # Phase 38.7: ATR取得失敗時のエラーハンドリング
-                    self.logger.warning(
-                        f"⚠️ Phase 38.7: ATR取得失敗（current_atr={current_atr}） - "
-                        f"実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
-                    )
+                    # Phase 51.5-C: ATR取得失敗時のハンドリング
+                    require_recalc = get_threshold("risk.require_tpsl_recalculation", True)
+                    if require_recalc:
+                        # 再計算必須モード：エントリー中止
+                        self.logger.error(
+                            f"❌ Phase 51.5-C: ATR取得失敗（require_tpsl_recalculation=True） - "
+                            f"current_atr={current_atr}・エントリー中止"
+                        )
+                        return ExecutionResult(
+                            success=False,
+                            error_message="ATR取得失敗によりエントリー中止",
+                            mode=ExecutionMode.LIVE,
+                            order_id=None,
+                            side=side,
+                            amount=0.0,
+                            price=0.0,
+                            status=OrderStatus.FAILED,
+                            timestamp=datetime.now(),
+                        )
+                    else:
+                        # 再計算任意モード：元のTP/SL使用
+                        self.logger.warning(
+                            f"⚠️ Phase 51.5-C: ATR取得失敗（current_atr={current_atr}） - "
+                            f"実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
+                        )
 
             # 再計算された値を使用（失敗時は元の値）
             final_tp = recalculated_tp if recalculated_tp else evaluation.take_profit

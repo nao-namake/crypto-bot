@@ -116,9 +116,9 @@ class FeatureGenerator:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            # Phase 50.9: 60特徴量固定システム
-            target_features = 62
-            self.logger.info(f"特徴量生成開始 - Phase 50.9: {target_features}特徴量固定システム")
+            # Phase 51.5-A: 60特徴量固定システム（50基本+3戦略シグナル+7時間的）
+            target_features = 60
+            self.logger.info(f"特徴量生成開始 - Phase 51.5-A: {target_features}特徴量固定システム")
             self.computed_features.clear()
 
             # 必要列チェック

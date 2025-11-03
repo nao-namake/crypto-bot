@@ -367,7 +367,17 @@ class TestExecuteTradeLiveMode:
         self, mock_threshold, mock_discord, sample_evaluation, mock_bitbank_client
     ):
         """OrderStrategy経由の指値注文テスト"""
-        mock_threshold.return_value = "BTC/JPY"
+
+        # Phase 51.5-C: mock_thresholdを適切な値マップに変更
+        def mock_get_threshold(key, default=None):
+            threshold_map = {
+                "data.symbol": "BTC/JPY",
+                "risk.fallback_atr": 500000,
+                "risk.require_tpsl_recalculation": False,  # テストではTP/SL再計算を任意に
+            }
+            return threshold_map.get(key, default)
+
+        mock_threshold.side_effect = mock_get_threshold
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         # OrderStrategy注入（指値注文設定）

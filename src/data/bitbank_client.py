@@ -216,45 +216,179 @@ class BitbankClient:
                 # フォールバックとしてccxtを試行（エラーになる可能性が高いが）
                 # ここはそのままccxt呼び出しを継続
 
-        try:
-            self.logger.debug(f"OHLCV データ取得開始: {symbol} {timeframe} limit={limit}")
+        # Phase 51.5-C Fix: 15分足の場合は直接API実装を使用（YYYYMMDD形式・since=None問題回避）
+        if timeframe == "15m":
+            self.logger.debug("15分足検出: 直接API実装を使用（Phase 51.5-C）")
+            import asyncio
+            from datetime import datetime, timedelta
 
-            ohlcv = self.exchange.fetch_ohlcv(
-                symbol=symbol, timeframe=timeframe, since=since, limit=limit
-            )
+            try:
+                # 15分足は1日96本 → limitから必要日数を計算
+                # limit=50なら約0.5日分 → 1日分取得
+                # limit=200なら約2.08日分 → 3日分取得
+                candles_per_day = 96
+                days_needed = max(1, (limit // candles_per_day) + 1)
 
-            if not ohlcv:
-                raise DataFetchError(
-                    f"OHLCV データが空です: {symbol} {timeframe}",
-                    context={"symbol": symbol, "timeframe": timeframe},
+                self.logger.debug(
+                    f"📊 15分足データ取得計画: limit={limit}本 → {days_needed}日分取得"
                 )
 
-            self.logger.debug(
-                f"OHLCV データ取得成功: {len(ohlcv)}件",
-                extra_data={
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "count": len(ohlcv),
-                },
-            )
+                # 複数日のデータを結合
+                all_ohlcv = []
+                for days_ago in range(days_needed):
+                    date_obj = datetime.now() - timedelta(days=days_ago)
+                    date_str = date_obj.strftime("%Y%m%d")
 
-            return ohlcv
+                    try:
+                        daily_data = await self.fetch_ohlcv_15m_direct(symbol=symbol, date=date_str)
+                        if daily_data:
+                            all_ohlcv.extend(daily_data)
+                            self.logger.debug(
+                                f"📊 15分足日次データ取得成功: {date_str} → {len(daily_data)}件"
+                            )
+                    except DataFetchError as e:
+                        self.logger.warning(f"⚠️ 15分足日次データ取得失敗（{date_str}）: {e}")
+                        # 1日分の失敗は許容（他の日でカバー）
+                        continue
 
-        except ccxt.NetworkError as e:
+                if not all_ohlcv:
+                    raise DataFetchError(
+                        f"15分足データ取得失敗: {days_needed}日間すべて取得失敗",
+                        context={"symbol": symbol, "timeframe": timeframe, "days": days_needed},
+                    )
+
+                # タイムスタンプでソート（古い順）
+                all_ohlcv.sort(key=lambda x: x[0])
+
+                # Phase 51.5-C: limit適用前の件数ログ
+                original_count = len(all_ohlcv)
+
+                # limitが指定されている場合は最新データに制限
+                if limit and len(all_ohlcv) > limit:
+                    all_ohlcv = all_ohlcv[-limit:]
+                    self.logger.info(
+                        f"📊 15分足limit適用 - "
+                        f"取得件数={original_count}件, "
+                        f"limit={limit}件, "
+                        f"適用後={len(all_ohlcv)}件"
+                    )
+                else:
+                    self.logger.info(
+                        f"📊 15分足limit適用なし - "
+                        f"取得件数={original_count}件 (limit={limit}件)"
+                    )
+
+                # Phase 51.5-C: 最小行数チェック（戦略要求20行未満ならエラー）
+                min_required_rows = 20
+                if len(all_ohlcv) < min_required_rows:
+                    self.logger.warning(
+                        f"⚠️ 15分足直接API取得件数不足: {len(all_ohlcv)}件 < {min_required_rows}件必要 "
+                        f"- ccxtリトライ"
+                    )
+                    raise ValueError(
+                        f"データ不足: {len(all_ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
+                    )
+
+                self.logger.info(
+                    f"✅ Phase 51.5-C: 15分足直接API実装成功 - "
+                    f"{days_needed}日分 → {len(all_ohlcv)}件取得完了"
+                )
+
+                return all_ohlcv
+
+            except Exception as e:
+                self.logger.warning(
+                    f"15分足直接API取得失敗（{type(e).__name__}: {e}）、ccxtでリトライ"
+                )
+                # フォールバックとしてccxtを試行
+                # ここはそのままccxt呼び出しを継続
+
+        # Phase 51.5-C Fix: 15m足等でもリトライロジック適用
+        max_retries = 3
+        last_exception = None
+        min_required_rows = 20  # 戦略要求最小行数
+
+        for attempt in range(max_retries):
+            try:
+                self.logger.debug(
+                    f"OHLCV データ取得開始（試行{attempt + 1}/{max_retries}）: "
+                    f"{symbol} {timeframe} limit={limit}"
+                )
+
+                # Phase 51.5-C Fix: タイムアウト設定（既存のexchange設定を利用）
+                # ccxtのexchangeインスタンスは既にtimeout設定済み（30秒）
+                ohlcv = self.exchange.fetch_ohlcv(
+                    symbol=symbol, timeframe=timeframe, since=since, limit=limit
+                )
+
+                if not ohlcv:
+                    raise DataFetchError(
+                        f"OHLCV データが空です: {symbol} {timeframe}",
+                        context={"symbol": symbol, "timeframe": timeframe},
+                    )
+
+                # Phase 51.5-C Fix: 最小行数チェック
+                if len(ohlcv) < min_required_rows:
+                    error_msg = (
+                        f"データ不足: {len(ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
+                    )
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt  # Exponential backoff
+                        self.logger.warning(
+                            f"⚠️ {error_msg} - {wait_time}秒後にリトライ（試行{attempt + 1}/{max_retries}）"
+                        )
+                        import asyncio
+
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        raise DataFetchError(
+                            error_msg, context={"symbol": symbol, "timeframe": timeframe}
+                        )
+
+                self.logger.info(
+                    f"✅ {timeframe}足データ取得成功: {len(ohlcv)}件",
+                    extra_data={
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "count": len(ohlcv),
+                    },
+                )
+
+                return ohlcv
+
+            except (ccxt.NetworkError, ccxt.ExchangeError) as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff: 1秒, 2秒, 4秒
+                    self.logger.warning(
+                        f"⚠️ {timeframe}足取得失敗（試行{attempt + 1}/{max_retries}）: "
+                        f"{type(e).__name__}: {e} - {wait_time}秒後にリトライ"
+                    )
+                    import asyncio
+
+                    await asyncio.sleep(wait_time)
+                else:
+                    self.logger.error(
+                        f"❌ {timeframe}足取得失敗（全{max_retries}回試行）: {type(e).__name__}: {e}"
+                    )
+                    raise DataFetchError(
+                        f"{type(e).__name__}: {e}",
+                        context={"symbol": symbol, "timeframe": timeframe},
+                    ) from e
+            except Exception as e:
+                self.logger.error(f"❌ 予期しないエラー: {type(e).__name__}: {e}")
+                raise DataFetchError(
+                    f"OHLCV データ取得に失敗しました: {e}",
+                    context={"symbol": symbol, "timeframe": timeframe},
+                ) from e
+
+        # 全リトライ失敗時（ここには到達しないはずだが念のため）
+        if last_exception:
             raise DataFetchError(
-                f"ネットワークエラー: {e}",
+                f"全{max_retries}回のリトライ失敗: {last_exception}",
                 context={"symbol": symbol, "timeframe": timeframe},
-            )
-        except ccxt.ExchangeError as e:
-            raise DataFetchError(
-                f"取引所エラー: {e}",
-                context={"symbol": symbol, "timeframe": timeframe},
-            )
-        except Exception as e:
-            raise DataFetchError(
-                f"OHLCV データ取得に失敗しました: {e}",
-                context={"symbol": symbol, "timeframe": timeframe},
-            )
+            ) from last_exception
 
     async def fetch_ohlcv_4h_direct(
         self,
@@ -414,6 +548,167 @@ class BitbankClient:
         raise DataFetchError(
             f"4時間足データ取得失敗（全{max_retries}回試行完了・原因不明）",
             context={"symbol": symbol, "year": year, "last_exception": str(last_exception)},
+        )
+
+    async def fetch_ohlcv_15m_direct(
+        self,
+        symbol: str = "BTC/JPY",
+        date: str = "20251104",
+    ) -> List[List[Union[int, float]]]:
+        """
+        15分足データを直接API実装で取得（ccxt制約回避）
+
+        Phase 51.5-C: since=None問題解決のため、4h足と同様の直接API実装を追加
+        bitbank APIは15m足に対してYYYYMMDD形式パラメータを要求（短期足仕様）
+
+        Args:
+            symbol: 通貨ペア
+            date: 取得日（YYYYMMDD形式、例: 20251104）
+
+        Returns:
+            OHLCV データリスト [[timestamp, open, high, low, close, volume], ...]
+
+        Raises:
+            DataFetchError: データ取得失敗時
+        """
+        # Phase 51.5-C: リトライロジック追加（4h足パターン準拠）
+        max_retries = 3
+        last_exception = None
+
+        for attempt in range(max_retries):
+            try:
+                self.logger.debug(
+                    f"15分足直接API取得開始: {symbol} {date} (試行 {attempt + 1}/{max_retries})"
+                )
+
+                # Bitbank Public APIの正しい形式（YYYYMMDD形式）
+                pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
+                url = f"https://public.bitbank.cc/{pair}/candlestick/15min/{date}"
+
+                # SSL証明書設定（セキュア設定）
+                import ssl
+
+                ssl_context = ssl.create_default_context()
+
+                connector = aiohttp.TCPConnector(ssl=ssl_context)
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    # Phase 51.5-C: タイムアウト設定（4h足と同様）
+                    timeout = aiohttp.ClientTimeout(
+                        total=30.0,  # 全体タイムアウト: 30秒
+                        connect=5.0,  # 接続タイムアウト: 5秒
+                        sock_read=25.0,  # 読み取りタイムアウト: 25秒
+                    )
+
+                    async with session.get(url, timeout=timeout) as response:
+                        # レスポンスサイズログ
+                        content_length = response.headers.get("Content-Length")
+                        if content_length:
+                            self.logger.debug(
+                                f"📊 15m足レスポンスサイズ: {int(content_length) / 1024:.1f}KB"
+                            )
+
+                        # JSONパース
+                        text = await response.text()
+                        self.logger.debug(f"📊 15m足テキストサイズ: {len(text) / 1024:.1f}KB")
+
+                        import json
+
+                        data = json.loads(text)
+
+                        # API Response確認
+                        self.logger.debug(
+                            f"📊 15m足API Response確認 - "
+                            f"success={data.get('success')}, "
+                            f"has_data={bool(data.get('data'))}, "
+                            f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
+                        )
+
+                        if data.get("success") == 1:
+                            candlestick_data = data["data"]["candlestick"][0]["ohlcv"]
+
+                            if not candlestick_data:
+                                raise DataFetchError(
+                                    f"15分足データが空です: {symbol} {date}",
+                                    context={"symbol": symbol, "date": date},
+                                )
+
+                            # Raw Candlestick件数ログ
+                            self.logger.debug(
+                                f"📊 15m足Raw Candlestick件数: {len(candlestick_data)}件"
+                            )
+
+                            # データ形式をccxtと統一（timestampをミリ秒に変換）
+                            ohlcv_data = []
+                            for item in candlestick_data:
+                                # Bitbank形式: [open, high, low, close, volume, timestamp_ms]
+                                # ccxt形式: [timestamp_ms, open, high, low, close, volume]
+                                if len(item) >= 6:
+                                    timestamp_ms = item[5]
+                                    ohlcv_data.append(
+                                        [
+                                            timestamp_ms,
+                                            float(item[0]),  # open
+                                            float(item[1]),  # high
+                                            float(item[2]),  # low
+                                            float(item[3]),  # close
+                                            float(item[4]),  # volume
+                                        ]
+                                    )
+
+                            # 変換後のデータ件数ログ
+                            self.logger.info(
+                                f"✅ 15分足直接API取得成功: {len(ohlcv_data)}件 (date={date})",
+                                extra_data={
+                                    "symbol": symbol,
+                                    "date": date,
+                                    "count": len(ohlcv_data),
+                                    "method": "direct_api_15m",
+                                    "attempt": attempt + 1,
+                                },
+                            )
+
+                            return ohlcv_data
+
+                        else:
+                            error_code = data.get("data", {}).get("code", "unknown")
+                            raise DataFetchError(
+                                f"Bitbank API エラー（15m足）: {error_code}",
+                                context={
+                                    "symbol": symbol,
+                                    "date": date,
+                                    "error_code": error_code,
+                                },
+                            )
+
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff: 1秒, 2秒, 4秒
+                    self.logger.warning(
+                        f"⚠️ 15分足取得失敗（試行{attempt + 1}/{max_retries}）: {type(e).__name__}: {e} "
+                        f"- {wait_time}秒後にリトライ"
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    self.logger.error(
+                        f"❌ 15分足取得失敗（全{max_retries}回試行失敗）: {type(e).__name__}: {e}"
+                    )
+                    raise DataFetchError(
+                        f"ネットワークエラー（15分足・{max_retries}回リトライ失敗）: {e}",
+                        context={"symbol": symbol, "date": date, "attempts": max_retries},
+                    )
+            except Exception as e:
+                last_exception = e
+                self.logger.error(f"❌ 15分足取得予期しないエラー: {type(e).__name__}: {e}")
+                raise DataFetchError(
+                    f"15分足データ取得失敗: {e}",
+                    context={"symbol": symbol, "date": date, "attempt": attempt + 1},
+                )
+
+        # ここには到達しないはずだが、念のため
+        raise DataFetchError(
+            f"15分足データ取得失敗（全{max_retries}回試行完了・原因不明）",
+            context={"symbol": symbol, "date": date, "last_exception": str(last_exception)},
         )
 
     def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:

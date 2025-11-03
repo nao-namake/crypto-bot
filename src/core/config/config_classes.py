@@ -90,6 +90,10 @@ class RiskConfig:
     recent_lookback_hours: Optional[int] = None
     safe_balance_ratio: Optional[float] = None
 
+    # Phase 51.5-C: TP/SL再計算フォールバック設定
+    fallback_atr: Optional[float] = None  # ATR取得失敗時のフォールバックATR値
+    require_tpsl_recalculation: Optional[bool] = None  # TP/SL再計算必須化
+
     # Phase 24: ポジション管理・残高利用率制限フィールド
     max_capital_usage: Optional[float] = None
     reserve_ratio: Optional[float] = None
