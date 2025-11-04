@@ -1,6 +1,8 @@
 """
-ストップ条件管理サービス - Phase 49完了
+ストップ条件管理サービス - Phase 51.6リファクタリング完了
 Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
+Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
+Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -75,13 +77,9 @@ class StopManager:
             if emergency_result:
                 return emergency_result
 
-            # Phase 50.5: SL注文キャンセル問題により一時無効化
-            # Phase 37.5.3クリーンアップ機能が新規SL注文を誤ってキャンセルする問題を発見
-            # 根本原因: virtual_positionsに sl_order_id が保存されていない（Phase 50.3.1未デプロイ時）
-            # → 孤立注文と誤判定 → SL注文即座にキャンセル → 無制限損失リスク
-            # Phase 50.5: 一時無効化（Phase 50.3.1デプロイ後、再有効化検討）
-            # if mode == "live" and bitbank_client:
-            #     await self._cleanup_orphaned_orders(virtual_positions, bitbank_client)
+            # Phase 51.6: Phase 50.5コメントアウトコード削除
+            # Phase 37.5.3クリーンアップ機能は、virtual_positionsにsl_order_id保存必須のため
+            # 現時点で安全に動作するまで無効化維持（Phase 49.6で個別クリーンアップ実装済み）
 
             return None
 
@@ -482,166 +480,8 @@ class StopManager:
                 status=OrderStatus.FAILED,
             )
 
-    async def _cleanup_orphaned_orders(
-        self, virtual_positions: List[Dict[str, Any]], bitbank_client: BitbankClient
-    ) -> None:
-        """
-        Phase 37.5.3: ポジション消失検出・残注文クリーンアップ
-
-        bitbankにはOCO機能がないため、TP約定時にSL注文が残る問題を解決する。
-        virtual_positionsと実際のポジションを比較し、消失したポジションの
-        TP/SL注文を自動キャンセルする。
-
-        Args:
-            virtual_positions: 仮想ポジションリスト
-            bitbank_client: BitbankClientインスタンス
-        """
-        try:
-            # virtual_positionsが空の場合は何もしない
-            if not virtual_positions:
-                return
-
-            # bitbank APIから実際のポジション取得
-            # Phase 37.5.4: ccxt fetch_positions()はbitbank未対応のため、native API使用
-            symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
-            try:
-                actual_positions = await bitbank_client.fetch_margin_positions(symbol)
-            except Exception as e:
-                self.logger.warning(f"⚠️ ポジション取得エラー、クリーンアップスキップ: {e}")
-                return
-
-            # 実際に存在するポジションをside/amountでマッチング可能な形式に変換
-            # Phase 37.5.4: native API形式（"amount"フィールド）に対応
-            actual_positions_data = []
-            for pos in actual_positions:
-                side = pos.get("side", "").lower()  # "long" or "short"
-                amount = float(pos.get("amount", 0))  # native APIは"amount"フィールド
-                if side and amount > 0:
-                    actual_positions_data.append(
-                        {
-                            "side": "buy" if side == "long" else "sell",
-                            "amount": amount,
-                        }
-                    )
-
-            # virtual_positionsと比較して消失したポジションを検出
-            orphaned_positions = []
-            for vpos in virtual_positions:
-                vpos_side = vpos.get("side", "").lower()
-                vpos_amount = float(vpos.get("amount", 0))
-
-                # 実際のポジションに一致するものがあるか確認
-                matched = False
-                for actual_pos in actual_positions_data:
-                    if (
-                        actual_pos["side"].lower() == vpos_side
-                        and abs(actual_pos["amount"] - vpos_amount) < 0.00001
-                    ):
-                        matched = True
-                        break
-
-                # 一致するポジションがない = 消失した
-                if not matched:
-                    orphaned_positions.append(vpos)
-
-            # 消失ポジションが検出された場合、TP/SL注文をキャンセル
-            if orphaned_positions:
-                self.logger.warning(
-                    f"🔍 Phase 37.5.3: {len(orphaned_positions)}個のポジション消失検出 → TP/SL注文クリーンアップ開始",
-                    extra_data={
-                        "orphaned_count": len(orphaned_positions),
-                        "virtual_positions_count": len(virtual_positions),
-                        "actual_positions_count": len(actual_positions),
-                    },
-                )
-
-                cleanup_count = 0
-                for orphaned_pos in orphaned_positions:
-                    cleanup_result = await self._cancel_orphaned_tp_sl_orders(
-                        orphaned_pos, symbol, bitbank_client
-                    )
-                    if cleanup_result["cancelled_count"] > 0:
-                        cleanup_count += cleanup_result["cancelled_count"]
-
-                    # virtual_positionsから削除
-                    try:
-                        virtual_positions.remove(orphaned_pos)
-                    except ValueError:
-                        pass  # 既に削除されている場合は無視
-
-                self.logger.info(
-                    f"✅ Phase 37.5.3: TP/SL注文クリーンアップ完了 - {cleanup_count}件キャンセル",
-                    extra_data={"cancelled_orders": cleanup_count},
-                    discord_notify=True,
-                )
-
-        except Exception as e:
-            self.logger.error(
-                f"❌ Phase 37.5.3: 残注文クリーンアップエラー: {e}", discord_notify=True
-            )
-
-    async def _cancel_orphaned_tp_sl_orders(
-        self, orphaned_position: dict, symbol: str, bitbank_client: BitbankClient
-    ) -> Dict[str, Any]:
-        """
-        Phase 37.5.3: 消失ポジションのTP/SL注文キャンセル
-
-        Args:
-            orphaned_position: 消失したポジション情報
-            symbol: 通貨ペア
-            bitbank_client: BitbankClientインスタンス
-
-        Returns:
-            Dict: {"cancelled_count": int, "errors": List[str]}
-        """
-        cancelled_count = 0
-        errors = []
-
-        # TP注文キャンセル
-        tp_order_id = orphaned_position.get("tp_order_id")
-        if tp_order_id:
-            try:
-                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
-                cancelled_count += 1
-                self.logger.info(
-                    f"✅ TP注文キャンセル成功: {tp_order_id}",
-                    extra_data={
-                        "order_id": tp_order_id,
-                        "position_id": orphaned_position.get("order_id"),
-                    },
-                )
-            except Exception as e:
-                error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
-                errors.append(error_msg)
-                # 既にキャンセル済み・約定済みのエラーは警告レベル
-                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
-                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
-                else:
-                    self.logger.warning(f"⚠️ {error_msg}")
-
-        # SL注文キャンセル
-        sl_order_id = orphaned_position.get("sl_order_id")
-        if sl_order_id:
-            try:
-                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
-                cancelled_count += 1
-                self.logger.info(
-                    f"✅ SL注文キャンセル成功: {sl_order_id}",
-                    extra_data={
-                        "order_id": sl_order_id,
-                        "position_id": orphaned_position.get("order_id"),
-                    },
-                )
-            except Exception as e:
-                error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
-                errors.append(error_msg)
-                # 既にキャンセル済み・約定済みのエラーは警告レベル
-                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
-                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
-                else:
-                    self.logger.warning(f"⚠️ {error_msg}")
-
-        return {"cancelled_count": cancelled_count, "errors": errors}
+    # Phase 51.6: _cleanup_orphaned_orders()/_cancel_orphaned_tp_sl_orders()削除（約160行）
+    # 理由: Phase 50.5で無効化済み・Phase 49.6でcleanup_position_orders()に置き換え済み
 
     async def cleanup_position_orders(
         self,
@@ -682,11 +522,11 @@ class StopManager:
             except Exception as e:
                 error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
-                # 既にキャンセル済み・約定済みのエラーはDEBUGレベル
+                # Phase 51.6: Discord通知削除（週間レポートのみ）
                 if "OrderNotFound" in str(e) or "not found" in str(e).lower():
                     self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
                 else:
-                    self.logger.warning(f"⚠️ {error_msg}", discord_notify=True)
+                    self.logger.warning(f"⚠️ {error_msg}")
 
         # SL注文キャンセル（TP到達時・手動決済時）
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
@@ -699,11 +539,11 @@ class StopManager:
             except Exception as e:
                 error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
-                # 既にキャンセル済み・約定済みのエラーはDEBUGレベル
+                # Phase 51.6: Discord通知削除（週間レポートのみ）
                 if "OrderNotFound" in str(e) or "not found" in str(e).lower():
                     self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
                 else:
-                    self.logger.warning(f"⚠️ {error_msg}", discord_notify=True)
+                    self.logger.warning(f"⚠️ {error_msg}")
 
         if cancelled_count > 0:
             self.logger.info(
@@ -927,7 +767,7 @@ class StopManager:
         bitbank_client: BitbankClient,
     ) -> Optional[Dict[str, Any]]:
         """
-        個別SL注文配置（Phase 46・デイトレード特化）
+        個別SL注文配置（Phase 51.6強化: SL価格検証・エラー30101対策）
 
         Args:
             side: エントリーサイド (buy/sell)
@@ -947,9 +787,45 @@ class StopManager:
                 self.logger.debug("SL配置無効（設定オフ）")
                 return None
 
-            if stop_loss_price <= 0:
-                self.logger.warning("⚠️ SL価格が不正（0以下）")
+            # Phase 51.6: SL価格検証強化（None/0/負の値チェック）
+            if stop_loss_price is None:
+                self.logger.error("❌ SL価格がNone（エラー30101対策）")
                 return None
+
+            if stop_loss_price <= 0:
+                self.logger.error(
+                    f"❌ SL価格が不正（0以下）: {stop_loss_price}円 - エントリー: {entry_price:.0f}円"
+                )
+                return None
+
+            # Phase 51.6: エントリー価格との妥当性チェック
+            if side.lower() == "buy" and stop_loss_price >= entry_price:
+                self.logger.error(
+                    f"❌ SL価格が不正（BUY時はエントリー価格より低い必要）: "
+                    f"SL={stop_loss_price:.0f}円 >= Entry={entry_price:.0f}円"
+                )
+                return None
+            elif side.lower() == "sell" and stop_loss_price <= entry_price:
+                self.logger.error(
+                    f"❌ SL価格が不正（SELL時はエントリー価格より高い必要）: "
+                    f"SL={stop_loss_price:.0f}円 <= Entry={entry_price:.0f}円"
+                )
+                return None
+
+            # Phase 51.6: SL距離の合理性チェック（極端な値の検出）
+            sl_distance_ratio = abs(stop_loss_price - entry_price) / entry_price
+            max_sl_ratio = get_threshold("position_management.stop_loss.max_loss_ratio", 0.007)
+
+            if sl_distance_ratio < 0.001:  # 0.1%未満（極端に近い）
+                self.logger.warning(
+                    f"⚠️ SL価格が極端に近い: {sl_distance_ratio * 100:.3f}% "
+                    f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
+                )
+            elif sl_distance_ratio > max_sl_ratio * 3:  # 設定値の3倍以上（極端に遠い）
+                self.logger.warning(
+                    f"⚠️ SL価格が極端に遠い: {sl_distance_ratio * 100:.2f}% > {max_sl_ratio * 3 * 100:.1f}% "
+                    f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
+                )
 
             # SL注文配置
             sl_order = bitbank_client.create_stop_loss_order(
@@ -975,18 +851,148 @@ class StopManager:
 
         except Exception as e:
             error_message = str(e)
+            # Phase 51.6: Discord通知削除（週間レポートのみ）
             if "30101" in error_message:
                 self.logger.error(
-                    f"❌ SL配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}",
-                    discord_notify=True,
+                    f"❌ SL配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}"
                 )
             elif "50061" in error_message:
                 self.logger.error(f"❌ SL配置失敗（残高不足）: エラーコード50061 - {error_message}")
             elif "50062" in error_message:
                 self.logger.error(
-                    f"❌ SL配置失敗（注文タイプ不正）: エラーコード50062 - {error_message}",
-                    discord_notify=True,
+                    f"❌ SL配置失敗（注文タイプ不正）: エラーコード50062 - {error_message}"
                 )
             else:
                 self.logger.error(f"❌ SL配置失敗: {e}")
             return None
+
+    # ========================================
+    # Phase 51.6: 古い注文クリーンアップ（bitbank 30件制限対策）
+    # ========================================
+
+    async def cleanup_old_unfilled_orders(
+        self,
+        symbol: str,
+        bitbank_client: BitbankClient,
+        virtual_positions: List[Dict[str, Any]],
+        max_age_hours: int = 24,
+        threshold_count: int = 25,
+    ) -> Dict[str, Any]:
+        """
+        Phase 51.6: 古い未約定注文クリーンアップ（bitbank 30件制限対策）
+
+        bitbank API仕様: 同一取引ペアで30件制限（エラー60011）
+        「孤児注文」（ポジションが存在しない古い注文）のみを削除し、
+        アクティブなポジションのTP/SL注文は保護する。
+
+        Args:
+            symbol: 通貨ペア（例: "BTC/JPY"）
+            bitbank_client: BitbankClientインスタンス
+            virtual_positions: 現在のアクティブポジション（TP/SL注文ID含む）
+            max_age_hours: 削除対象の注文経過時間（デフォルト24時間）
+            threshold_count: クリーンアップ発動閾値（デフォルト25件・30件の83%）
+
+        Returns:
+            Dict: {"cancelled_count": int, "order_count": int, "errors": List[str]}
+        """
+        try:
+            # アクティブ注文取得
+            active_orders = await asyncio.to_thread(
+                bitbank_client.fetch_active_orders, symbol, limit=100
+            )
+            order_count = len(active_orders)
+
+            # 閾値未満なら何もしない
+            if order_count < threshold_count:
+                self.logger.debug(
+                    f"📊 Phase 51.6: アクティブ注文数{order_count}件（{threshold_count}件未満・クリーンアップ不要）"
+                )
+                return {"cancelled_count": 0, "order_count": order_count, "errors": []}
+
+            self.logger.warning(
+                f"⚠️ Phase 51.6: アクティブ注文数{order_count}件（{threshold_count}件以上）- 古い注文クリーンアップ開始"
+            )
+
+            # アクティブポジションのTP/SL注文IDを収集（削除対象から除外）
+            protected_order_ids = set()
+            for position in virtual_positions:
+                tp_id = position.get("tp_order_id")
+                sl_id = position.get("sl_order_id")
+                if tp_id:
+                    protected_order_ids.add(str(tp_id))
+                if sl_id:
+                    protected_order_ids.add(str(sl_id))
+
+            if protected_order_ids:
+                self.logger.info(
+                    f"🛡️ Phase 51.6: {len(protected_order_ids)}件の注文を保護（アクティブポジション）"
+                )
+
+            # 24時間以上経過した孤児注文を抽出
+            from datetime import datetime, timedelta
+
+            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            old_orphan_orders = []
+
+            for order in active_orders:
+                order_id = str(order.get("id"))
+
+                # アクティブポジションのTP/SL注文は除外
+                if order_id in protected_order_ids:
+                    continue
+
+                # TP注文のみ対象（limit注文）
+                if order.get("type") != "limit":
+                    continue
+
+                # 注文時刻チェック
+                order_timestamp = order.get("timestamp", 0)
+                if order_timestamp == 0:
+                    continue
+
+                order_time = datetime.fromtimestamp(order_timestamp / 1000)
+                if order_time < cutoff_time:
+                    old_orphan_orders.append(order)
+
+            if not old_orphan_orders:
+                self.logger.info(
+                    f"ℹ️ Phase 51.6: 24時間以上経過した孤児注文なし（{order_count}件中0件）"
+                )
+                return {"cancelled_count": 0, "order_count": order_count, "errors": []}
+
+            # 古い孤児注文を削除
+            cancelled_count = 0
+            errors = []
+
+            for order in old_orphan_orders:
+                order_id = order.get("id")
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                    cancelled_count += 1
+                    self.logger.info(
+                        f"✅ Phase 51.6: 古いTP注文キャンセル成功 - ID: {order_id}, "
+                        f"経過時間: {(datetime.now() - datetime.fromtimestamp(order['timestamp'] / 1000)).total_seconds() / 3600:.1f}時間"
+                    )
+                except Exception as e:
+                    error_msg = f"注文{order_id}キャンセル失敗: {e}"
+                    # OrderNotFoundは許容（既にキャンセル/約定済み）
+                    if "OrderNotFound" in str(e) or "not found" in str(e).lower():
+                        self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
+                    else:
+                        errors.append(error_msg)
+                        self.logger.warning(f"⚠️ {error_msg}")
+
+            self.logger.info(
+                f"🧹 Phase 51.6: 古い孤児注文クリーンアップ完了 - "
+                f"{cancelled_count}件キャンセル（{order_count}件中{len(old_orphan_orders)}件対象・保護{len(protected_order_ids)}件）"
+            )
+
+            return {
+                "cancelled_count": cancelled_count,
+                "order_count": order_count,
+                "errors": errors,
+            }
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 51.6: 古い注文クリーンアップエラー: {e}")
+            return {"cancelled_count": 0, "order_count": 0, "errors": [str(e)]}

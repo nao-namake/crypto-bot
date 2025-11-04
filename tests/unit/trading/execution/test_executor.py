@@ -596,11 +596,19 @@ class TestMinimumTradeSize:
     @patch("src.trading.execution.executor.get_threshold")
     async def test_minimum_trade_size_enforcement(self, mock_threshold, mock_bitbank_client):
         """最小ロットサイズ保証適用テスト"""
-        mock_threshold.side_effect = lambda key, default: {
+        mock_threshold.side_effect = lambda key, default=None: {
             "position_management.dynamic_position_sizing.enabled": True,
             "position_management.min_trade_size": 0.0001,
             "trading_constraints.currency_pair": "BTC/JPY",
             "trading_constraints.default_order_type": "market",
+            # Phase 51.6: TP/SL再計算で使用される設定
+            "position_management.take_profit.default_ratio": 1.29,
+            "position_management.take_profit.min_profit_ratio": 0.009,
+            "position_management.stop_loss.max_loss_ratio": 0.007,
+            "position_management.stop_loss.min_distance.ratio": 0.007,
+            "position_management.stop_loss.default_atr_multiplier": 2.0,
+            "risk.require_tpsl_recalculation": False,
+            "risk.fallback_atr": 500000,
         }.get(key, default)
 
         # 最小サイズ未満のevaluation
@@ -635,7 +643,7 @@ class TestMinimumTradeSize:
         self, mock_threshold, mock_discord, mock_bitbank_client
     ):
         """動的サイジング無効時は最小サイズ保証なし"""
-        mock_threshold.side_effect = lambda key, default: {
+        mock_threshold.side_effect = lambda key, default=None: {
             "position_management.dynamic_position_sizing.enabled": False,
             "trading_constraints.currency_pair": "BTC/JPY",
             "trading_constraints.default_order_type": "market",
@@ -1047,7 +1055,7 @@ class TestMinimumTradeSizeEdgeCases:
     @patch("src.trading.execution.executor.get_threshold")
     async def test_minimum_trade_size_with_dataclass(self, mock_threshold):
         """dataclass型のevaluation調整テスト"""
-        mock_threshold.side_effect = lambda key, default: {
+        mock_threshold.side_effect = lambda key, default=None: {
             "position_management.dynamic_position_sizing.enabled": True,
             "position_management.min_trade_size": 0.0001,
         }.get(key, default)
@@ -1107,3 +1115,232 @@ class TestMinimumTradeSizeEdgeCases:
 
         # エラー時も元のサイズで実行される
         assert result.amount == 0.00005
+
+
+# ========================================
+# Phase 51.6: Atomic Entry Pattern テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPhase516AtomicEntry:
+    """Phase 51.6: Atomic Entry Pattern機能のテスト"""
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientのモック"""
+        client = MagicMock()
+        client.create_order = MagicMock(
+            return_value={"order_id": "entry123", "price": 14000000.0, "amount": 0.0001}
+        )
+        client.cancel_order = MagicMock(return_value={"success": True})
+        return client
+
+    @pytest.fixture
+    def mock_stop_manager(self):
+        """StopManagerのモック"""
+        manager = MagicMock()
+        return manager
+
+    @pytest.fixture
+    def sample_execution_result(self):
+        """ExecutionResultサンプル"""
+        return ExecutionResult(
+            success=True,
+            order_id="entry123",
+            side="buy",
+            amount=0.0001,
+            price=14000000.0,
+            filled_price=14000000.0,
+            status=OrderStatus.FILLED,
+            mode=ExecutionMode.LIVE,
+            timestamp=datetime.now(),
+        )
+
+    @pytest.fixture
+    def sample_evaluation(self):
+        """TradeEvaluationサンプル"""
+        return TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=13900000.0,  # SL 0.7%
+            take_profit=14126000.0,  # TP 0.9%
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.01,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+    async def test_place_tp_with_retry_success_first_attempt(
+        self, mock_bitbank_client, mock_stop_manager
+    ):
+        """Phase 51.6: TP注文配置リトライ - 初回成功"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        service.stop_manager = mock_stop_manager
+
+        # TP注文成功をモック
+        mock_stop_manager.place_take_profit = AsyncMock(
+            return_value={"order_id": "tp123", "price": 14126000.0}
+        )
+
+        result = await service._place_tp_with_retry(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            take_profit_price=14126000.0,
+            symbol="BTC/JPY",
+            max_retries=3,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "tp123"
+        mock_stop_manager.place_take_profit.assert_called_once()
+
+    async def test_place_tp_with_retry_success_second_attempt(
+        self, mock_bitbank_client, mock_stop_manager
+    ):
+        """Phase 51.6: TP注文配置リトライ - 2回目成功"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        service.stop_manager = mock_stop_manager
+
+        # 1回目失敗、2回目成功をモック
+        mock_stop_manager.place_take_profit = AsyncMock(
+            side_effect=[
+                Exception("一時的エラー"),
+                {"order_id": "tp123", "price": 14126000.0},
+            ]
+        )
+
+        result = await service._place_tp_with_retry(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            take_profit_price=14126000.0,
+            symbol="BTC/JPY",
+            max_retries=3,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "tp123"
+        assert mock_stop_manager.place_take_profit.call_count == 2
+
+    async def test_place_tp_with_retry_all_attempts_failed(
+        self, mock_bitbank_client, mock_stop_manager
+    ):
+        """Phase 51.6: TP注文配置リトライ - 全て失敗"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        service.stop_manager = mock_stop_manager
+
+        # 全ての試行で失敗
+        mock_stop_manager.place_take_profit = AsyncMock(side_effect=Exception("永続的エラー"))
+
+        with pytest.raises(Exception, match="永続的エラー"):
+            await service._place_tp_with_retry(
+                side="buy",
+                amount=0.0001,
+                entry_price=14000000.0,
+                take_profit_price=14126000.0,
+                symbol="BTC/JPY",
+                max_retries=3,
+            )
+
+        assert mock_stop_manager.place_take_profit.call_count == 3
+
+    async def test_place_sl_with_retry_success(self, mock_bitbank_client, mock_stop_manager):
+        """Phase 51.6: SL注文配置リトライ - 成功"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        service.stop_manager = mock_stop_manager
+
+        # SL注文成功をモック
+        mock_stop_manager.place_stop_loss = AsyncMock(
+            return_value={"order_id": "sl123", "trigger_price": 13900000.0}
+        )
+
+        result = await service._place_sl_with_retry(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            stop_loss_price=13900000.0,
+            symbol="BTC/JPY",
+            max_retries=3,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "sl123"
+        mock_stop_manager.place_stop_loss.assert_called_once()
+
+    async def test_rollback_entry_cancels_all_orders(self, mock_bitbank_client):
+        """Phase 51.6: Atomic Entryロールバック - 全注文キャンセル"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # キャンセル成功をモック
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
+
+        await service._rollback_entry(
+            entry_order_id="entry123",
+            tp_order_id="tp123",
+            sl_order_id="sl123",
+            symbol="BTC/JPY",
+            error=Exception("TP配置失敗"),
+        )
+
+        # 3つの注文すべてキャンセルされることを確認
+        assert mock_bitbank_client.cancel_order.call_count == 3
+        mock_bitbank_client.cancel_order.assert_any_call("tp123", "BTC/JPY")
+        mock_bitbank_client.cancel_order.assert_any_call("sl123", "BTC/JPY")
+        mock_bitbank_client.cancel_order.assert_any_call("entry123", "BTC/JPY")
+
+    async def test_rollback_entry_partial_orders(self, mock_bitbank_client):
+        """Phase 51.6: Atomic Entryロールバック - 部分的な注文のみキャンセル"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # TP注文のみ存在（SLは配置前に失敗）
+        await service._rollback_entry(
+            entry_order_id="entry123",
+            tp_order_id="tp123",
+            sl_order_id=None,  # SL未配置
+            symbol="BTC/JPY",
+            error=Exception("SL配置失敗"),
+        )
+
+        # TP注文とエントリー注文のみキャンセル
+        assert mock_bitbank_client.cancel_order.call_count == 2
+        mock_bitbank_client.cancel_order.assert_any_call("tp123", "BTC/JPY")
+        mock_bitbank_client.cancel_order.assert_any_call("entry123", "BTC/JPY")
+
+    @patch("src.trading.execution.executor.get_threshold")
+    async def test_calculate_tp_sl_for_live_trade_success(
+        self, mock_threshold, sample_evaluation, sample_execution_result
+    ):
+        """Phase 51.6: TP/SL再計算メソッド - 成功"""
+        service = ExecutionService(mode="live")
+
+        # thresholds設定をモック（Phase 51.6設定）
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit.default_ratio": 1.29,
+            "position_management.take_profit.min_profit_ratio": 0.009,
+            "position_management.stop_loss.max_loss_ratio": 0.007,
+            "position_management.stop_loss.min_distance.ratio": 0.007,
+            "position_management.stop_loss.default_atr_multiplier": 2.0,
+            "risk.require_tpsl_recalculation": False,  # 任意モード
+        }.get(key, default)
+
+        final_tp, final_sl = await service._calculate_tp_sl_for_live_trade(
+            evaluation=sample_evaluation,
+            result=sample_execution_result,
+            side="buy",
+            amount=0.0001,
+        )
+
+        # TP/SLが返されることを確認
+        assert final_tp is not None
+        assert final_sl is not None
+        assert final_tp > sample_execution_result.filled_price  # TPは約定価格より高い
+        assert final_sl < sample_execution_result.filled_price  # SLは約定価格より低い

@@ -422,8 +422,8 @@ risk:
 # ========================================
 # 📈 ポジション管理設定（Position Management Settings）
 # ========================================
-# Phase 49.18完了（デイトレード特化設定）:
-#   - SL 1.5%・TP 1.0%・RR比0.67:1（細かく利確・デイトレード最適化）
+# Phase 51.6完了（被害最小化・こまめ利確）:
+#   - SL 0.7%・TP 0.9%・RR比1.29:1（Phase 51.6: 被害最小化・こまめ利確）
 #   - Phase 46: 個別TP/SL実装（デイトレード特化・シンプル実装）
 #   - Phase 49.18: 証拠金維持率80%確実遵守（critical: 100.0 → 80.0変更）
 #   - Phase 50.5: SL注文保護（クリーンアップ機能一時無効化）
@@ -470,14 +470,14 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 0.67              # Phase 49.18: RR比0.67:1（TP 1.0% / SL 1.5%）
-    min_profit_ratio: 0.01          # Phase 49.18: TP 1.0%（現実的な利確ライン・2-3時間到達）
+    default_ratio: 1.29              # Phase 51.6: RR比1.29:1（TP 0.9% / SL 0.7%）
+    min_profit_ratio: 0.009          # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false
     position_partial_exit: false
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.015           # Phase 49.18: SL 1.5%
+    max_loss_ratio: 0.007            # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
@@ -495,7 +495,7 @@ position_management:
         multiplier: 1.5
     min_distance:
       enabled: true
-      ratio: 0.015
+      ratio: 0.007               # Phase 51.6: SL 0.7%に合わせて変更
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:

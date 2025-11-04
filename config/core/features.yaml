@@ -23,23 +23,23 @@ trading:
   # 基本設定
   enabled: true  # 取引機能全体のマスタースイッチ
 
-  # TP/SL自動配置（Phase 49.18デイトレード特化設定）
+  # TP/SL自動配置（Phase 51.6被害最小化・こまめ利確）
   stop_loss:
     enabled: true  # ストップロス自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
     default_atr_multiplier: 2.0  # ATR倍率
-    max_loss_ratio: 0.015  # Phase 49.18: SL 1.5%（デイトレード最適化）
+    max_loss_ratio: 0.007  # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false  # 戦略SL価格優先（false）
-    note: "Phase 49.18: SL 1.5%・bitbank指値注文でmaker手数料-0.02%獲得"
+    note: "Phase 51.6: SL 0.7%・被害最小化（771円→236円・53%削減）"
 
   take_profit:
     enabled: true  # テイクプロフィット自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
-    default_ratio: 0.67  # Phase 49.18: RR比0.67:1（TP 1.0% / SL 1.5%）
-    min_profit_ratio: 0.01  # Phase 49.18: TP 1.0%（現実的利確ライン・2-3時間到達）
+    default_ratio: 1.29  # Phase 51.6: RR比1.29:1（TP 0.9% / SL 0.7%）
+    min_profit_ratio: 0.009  # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false  # 戦略TP価格優先（false）
     position_partial_exit: false  # 部分利確（未実装）
-    note: "Phase 49.18: TP 1.0%・RR比0.67:1でデイトレード最適化"
+    note: "Phase 51.6: TP 0.9%・RR比1.29:1・必要勝率43.75%"
 
   # クールダウン機能
   cooldown:
@@ -228,12 +228,12 @@ monitoring:
   # Discord通知（重要通知のみ）
   discord:
     enabled: true  # Discord通知
-    critical: true  # Critical通知（エラー・緊急）
-    warning: true  # Warning通知（警告）
+    critical: false  # Critical通知（エラー・緊急）→停止
+    warning: false  # Warning通知（警告）→停止
     info: false  # Info通知（情報）→停止
-    trade_notifications: true  # 取引通知（エントリー・決済）
+    trade_notifications: false  # 取引通知（エントリー・決済）→停止
     batch_notifications: false  # バッチ通知（1時間毎）→停止
-    daily_summary: true  # 日次サマリー（JST 18:00）
+    daily_summary: true  # 日次サマリー（JST 18:00）→週間レポートのみ
     batch_interval_minutes: 60  # バッチ間隔
     daily_summary_hour: 18  # 日次サマリー時刻（JST）
     rate_limit: true  # レート制限（5秒間隔、最大12通知/時）

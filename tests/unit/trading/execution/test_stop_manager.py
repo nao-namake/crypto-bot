@@ -572,105 +572,10 @@ class TestShouldApplyCooldown:
         assert result is True
 
 
-class TestCleanupOrphanedOrders:
-    """Phase 37.5.3: 残注文クリーンアップ機能テスト"""
-
-    @pytest.mark.asyncio
-    async def test_empty_virtual_positions_no_cleanup(self, stop_manager, mock_bitbank_client):
-        """仮想ポジションが空の場合は何もしない"""
-        virtual_positions = []
-
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        # Phase 37.5.4: fetch_margin_positions()は呼ばれない
-        mock_bitbank_client.fetch_margin_positions.assert_not_called()
-        mock_bitbank_client.cancel_order.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_matching_positions_no_cleanup(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
-        """ポジション一致時はクリーンアップなし"""
-        mock_threshold.return_value = "BTC/JPY"
-
-        virtual_positions = [{"side": "buy", "amount": 0.001, "order_id": "order_123"}]
-
-        # Phase 37.5.4: 実際のポジションも同じ（native API形式）
-        mock_bitbank_client.fetch_margin_positions = AsyncMock(
-            return_value=[{"side": "long", "amount": 0.001}]  # buy → long
-        )
-
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        mock_bitbank_client.cancel_order.assert_not_called()
-
-    @pytest.mark.xfail(reason="asyncio.to_thread mock複雑性のため一時的にxfail", strict=False)
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_orphaned_position_cleanup(
-        self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
-    ):
-        """Phase 37.5.4: 消失ポジションのTP/SL注文をキャンセル"""
-        mock_threshold.return_value = "BTC/JPY"
-
-        virtual_positions = [
-            {
-                "side": "buy",
-                "amount": 0.001,
-                "order_id": "order_123",
-                "tp_order_id": "tp_order_999",
-                "sl_order_id": "sl_order_888",
-            }
-        ]
-
-        # Phase 37.5.4: asyncio.to_thread()をmock（fetch_margin_positions呼び出し用）
-        async def mock_fetch_margin_positions(*args, **kwargs):
-            return []  # 実際のポジションは空（消失）
-
-        mock_to_thread.side_effect = lambda func, *args: mock_fetch_margin_positions()
-
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        # TP/SL注文がキャンセルされる（asyncio.to_thread経由）
-        # Note: cancel_orderもasyncio.to_thread経由で呼ばれる
-        # virtual_positionsから削除される
-        assert len(virtual_positions) == 0
-
-    @pytest.mark.xfail(reason="asyncio.to_thread mock複雑性のため一時的にxfail", strict=False)
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_cancel_order_already_filled(
-        self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
-    ):
-        """Phase 37.5.4: 既にキャンセル/約定済みの注文エラーは警告レベル"""
-        mock_threshold.return_value = "BTC/JPY"
-
-        virtual_positions = [
-            {
-                "side": "buy",
-                "amount": 0.001,
-                "order_id": "order_123",
-                "tp_order_id": "tp_order_999",
-                "sl_order_id": None,
-            }
-        ]
-
-        # Phase 37.5.4: asyncio.to_thread()をmock
-        async def mock_async_call(func, *args):
-            if func.__name__ == "fetch_margin_positions":
-                return []  # ポジション消失
-            elif func.__name__ == "cancel_order":
-                raise Exception("OrderNotFound: order not found")
-
-        mock_to_thread.side_effect = lambda func, *args: mock_async_call(func, *args)
-
-        # エラーが発生しないことを確認（正常終了）
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        assert len(virtual_positions) == 0
+# Phase 51.6: TestCleanupOrphanedOrdersクラス削除
+# 理由: _cleanup_orphaned_orders()メソッドは Phase 51.6で削除され、
+# cleanup_old_unfilled_orders()メソッドに置き換えられた。
+# Phase 51.6の新しいテストは TestPhase516CleanupOldUnfilledOrders クラスで実装済み。
 
 
 class TestGetCurrentPrice:
@@ -785,213 +690,15 @@ class TestRapidPriceMovement:
 # ===== 追加テスト: 未カバー箇所対応 =====
 
 
-class TestCleanupOrphanedOrdersDetailed:
-    """_cleanup_orphaned_orders() 詳細テスト - Phase 37.5.3"""
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_position_mismatch_detection(
-        self, mock_threshold, mock_to_thread, stop_manager, mock_bitbank_client
-    ):
-        """Phase 37.5.4: 仮想ポジションと実際のポジション不一致検出"""
-        mock_threshold.return_value = "BTC/JPY"
-
-        virtual_positions = [
-            {
-                "side": "buy",
-                "amount": 0.001,
-                "order_id": "order_123",
-                "tp_order_id": "tp_999",
-                "sl_order_id": "sl_888",
-            }
-        ]
-
-        # Phase 37.5.4: asyncio.to_thread()を正しくモック（fetch_margin_positions使用）
-        async def mock_to_thread_impl(func, *args):
-            if func == mock_bitbank_client.fetch_margin_positions:
-                # 実際のポジションは存在しない（消失）
-                return []
-            elif func == mock_bitbank_client.cancel_order:
-                return {"success": True}
-            else:
-                return None
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        # ポジション消失が検出され、virtual_positionsから削除されたことを確認
-        assert len(virtual_positions) == 0
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_position_amount_mismatch(self, mock_threshold, mock_to_thread, stop_manager):
-        """Phase 37.5.4: 数量不一致でポジション消失判定"""
-        mock_threshold.return_value = "BTC/JPY"
-        mock_client = AsyncMock()
-
-        virtual_positions = [
-            {
-                "side": "buy",
-                "amount": 0.001,  # 仮想: 0.001
-                "order_id": "order_123",
-                "tp_order_id": "tp_999",
-                "sl_order_id": None,
-            }
-        ]
-
-        # Phase 37.5.4: 実際のポジションは0.002（数量不一致・native API形式）
-        async def mock_to_thread_impl(func, *args):
-            if func == mock_client.fetch_margin_positions:
-                return [{"side": "long", "amount": 0.002}]  # 数量違い
-            elif func == mock_client.cancel_order:
-                return {"success": True}
-            return None
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_client)
-
-        # 数量不一致 → 消失判定 → virtual_positionsから削除
-        assert len(virtual_positions) == 0
-
-    @pytest.mark.asyncio
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_fetch_positions_error_skips_cleanup(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
-        """Phase 37.5.4: fetch_margin_positions()エラー時はクリーンアップスキップ"""
-        mock_threshold.return_value = "BTC/JPY"
-
-        virtual_positions = [
-            {
-                "side": "buy",
-                "amount": 0.001,
-                "order_id": "order_123",
-                "tp_order_id": "tp_999",
-            }
-        ]
-
-        # Phase 37.5.4: fetch_margin_positions()がエラー
-        mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API Error"))
-
-        # エラーが発生しないことを確認（graceful degradation）
-        await stop_manager._cleanup_orphaned_orders(virtual_positions, mock_bitbank_client)
-
-        # ポジションは削除されない（クリーンアップスキップ）
-        assert len(virtual_positions) == 1
+# Phase 51.6: TestCleanupOrphanedOrdersDetailedクラス削除
+# 理由: _cleanup_orphaned_orders()メソッドは Phase 51.6で削除され、
+# cleanup_old_unfilled_orders()メソッドに置き換えられた。
+# Phase 51.6の新しいテストは TestPhase516CleanupOldUnfilledOrders クラスで実装済み。
 
 
-class TestCancelOrphanedTpSlOrders:
-    """_cancel_orphaned_tp_sl_orders() テスト - Phase 37.5.3"""
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    async def test_cancel_both_tp_sl_success(self, mock_to_thread, stop_manager):
-        """TP/SL両方キャンセル成功"""
-        mock_client = AsyncMock()
-        orphaned_position = {
-            "order_id": "order_123",
-            "tp_order_id": "tp_999",
-            "sl_order_id": "sl_888",
-        }
-
-        # asyncio.to_thread()のモック
-        async def mock_to_thread_impl(func, *args):
-            return {"success": True}
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        result = await stop_manager._cancel_orphaned_tp_sl_orders(
-            orphaned_position, "BTC/JPY", mock_client
-        )
-
-        assert result["cancelled_count"] == 2
-        assert len(result["errors"]) == 0
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    async def test_cancel_tp_only(self, mock_to_thread, stop_manager):
-        """TPのみキャンセル（SL注文なし）"""
-        mock_client = AsyncMock()
-        orphaned_position = {
-            "order_id": "order_123",
-            "tp_order_id": "tp_999",
-            "sl_order_id": None,  # SL注文なし
-        }
-
-        async def mock_to_thread_impl(func, *args):
-            return {"success": True}
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        result = await stop_manager._cancel_orphaned_tp_sl_orders(
-            orphaned_position, "BTC/JPY", mock_client
-        )
-
-        assert result["cancelled_count"] == 1
-        assert len(result["errors"]) == 0
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    async def test_cancel_order_not_found_error(self, mock_to_thread, stop_manager):
-        """注文未発見エラーは警告レベル（正常終了）"""
-        mock_client = AsyncMock()
-        orphaned_position = {
-            "order_id": "order_123",
-            "tp_order_id": "tp_999",
-            "sl_order_id": "sl_888",
-        }
-
-        # cancel_order()でOrderNotFoundエラー
-        async def mock_to_thread_impl(func, *args):
-            if func == mock_client.cancel_order:
-                raise Exception("OrderNotFound: Order not found")
-            return None
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        result = await stop_manager._cancel_orphaned_tp_sl_orders(
-            orphaned_position, "BTC/JPY", mock_client
-        )
-
-        # エラーだがcancelled_count=0、errors配列に記録
-        assert result["cancelled_count"] == 0
-        assert len(result["errors"]) == 2  # TP, SL両方エラー
-
-    @pytest.mark.asyncio
-    @patch("asyncio.to_thread")
-    async def test_cancel_mixed_success_failure(self, mock_to_thread, stop_manager):
-        """TP成功・SL失敗の混在ケース"""
-        mock_client = AsyncMock()
-        orphaned_position = {
-            "order_id": "order_123",
-            "tp_order_id": "tp_999",
-            "sl_order_id": "sl_888",
-        }
-
-        call_count = 0
-
-        async def mock_to_thread_impl(func, *args):
-            nonlocal call_count
-            if func == mock_client.cancel_order:
-                call_count += 1
-                if call_count == 1:  # TP成功
-                    return {"success": True}
-                else:  # SL失敗
-                    raise Exception("API Error")
-            return None
-
-        mock_to_thread.side_effect = mock_to_thread_impl
-
-        result = await stop_manager._cancel_orphaned_tp_sl_orders(
-            orphaned_position, "BTC/JPY", mock_client
-        )
-
-        assert result["cancelled_count"] == 1  # TPのみ成功
-        assert len(result["errors"]) == 1  # SLエラー
+# Phase 51.6: TestCancelOrphanedTpSlOrdersクラス削除
+# 理由: _cancel_orphaned_tp_sl_orders()メソッドは Phase 51.6で削除された。
+# Phase 49.6でcleanup_position_orders()に置き換え済み。
 
 
 class TestCalculateTrendStrengthDetailed:
@@ -1193,3 +900,277 @@ class TestEvaluateEmergencyExit:
         result = await stop_manager._evaluate_emergency_exit(position, 14000000.0, config)
 
         assert result is False
+
+
+# ========================================
+# Phase 51.6: 古い注文クリーンアップ + SL価格検証強化テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPhase516CleanupOldUnfilledOrders:
+    """Phase 51.6: 古い未約定注文クリーンアップのテスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        """StopManagerインスタンス"""
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientのモック"""
+        client = MagicMock()
+        return client
+
+    async def test_cleanup_old_orphan_orders_success(self, stop_manager, mock_bitbank_client):
+        """Phase 51.6: 古い孤児注文クリーンアップ - 成功"""
+        from datetime import datetime, timedelta
+
+        # 24時間以上前の古い注文
+        old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
+
+        # アクティブ注文をモック（31件・30件制限超過）
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                # 古い孤児TP注文（削除対象）
+                {
+                    "id": "old_tp_1",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+                {
+                    "id": "old_tp_2",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+                # アクティブポジションのTP/SL注文（保護対象）
+                {
+                    "id": "active_tp_1",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+                {
+                    "id": "active_sl_1",
+                    "pair": "btc_jpy",
+                    "side": "buy",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+            ]
+        )
+
+        # アクティブポジション（TP/SL注文IDを持つ）
+        virtual_positions = [
+            {
+                "order_id": "position_1",
+                "tp_order_id": "active_tp_1",  # 保護対象
+                "sl_order_id": "active_sl_1",  # 保護対象
+            }
+        ]
+
+        # キャンセル成功をモック
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
+
+        result = await stop_manager.cleanup_old_unfilled_orders(
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+            max_age_hours=24,
+            threshold_count=3,  # 3件以上で発動
+        )
+
+        # 2件の古い孤児注文がキャンセルされることを確認
+        assert result["cancelled_count"] == 2
+        assert mock_bitbank_client.cancel_order.call_count == 2
+
+    async def test_cleanup_protects_active_positions(self, stop_manager, mock_bitbank_client):
+        """Phase 51.6: アクティブポジションのTP/SL注文を保護"""
+        from datetime import datetime, timedelta
+
+        old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
+
+        # アクティブ注文をモック
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                # アクティブポジションのTP/SL注文（保護対象・削除しない）
+                {
+                    "id": "active_tp_1",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+                {
+                    "id": "active_sl_1",
+                    "pair": "btc_jpy",
+                    "side": "buy",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+            ]
+        )
+
+        # アクティブポジション
+        virtual_positions = [
+            {
+                "order_id": "position_1",
+                "tp_order_id": "active_tp_1",  # 保護対象
+                "sl_order_id": "active_sl_1",  # 保護対象
+            }
+        ]
+
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
+
+        result = await stop_manager.cleanup_old_unfilled_orders(
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+            max_age_hours=24,
+            threshold_count=1,
+        )
+
+        # アクティブポジションのTP/SL注文は削除されない
+        assert result["cancelled_count"] == 0
+        assert mock_bitbank_client.cancel_order.call_count == 0
+
+    async def test_cleanup_below_threshold_skips(self, stop_manager, mock_bitbank_client):
+        """Phase 51.6: 閾値未満の場合はクリーンアップスキップ"""
+        from datetime import datetime, timedelta
+
+        old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
+
+        # アクティブ注文をモック（2件のみ）
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "old_tp_1",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+                {
+                    "id": "old_tp_2",
+                    "pair": "btc_jpy",
+                    "side": "sell",
+                    "type": "limit",
+                    "timestamp": old_time,
+                },
+            ]
+        )
+
+        virtual_positions = []
+
+        result = await stop_manager.cleanup_old_unfilled_orders(
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+            max_age_hours=24,
+            threshold_count=25,  # 閾値25件（2件では未達）
+        )
+
+        # 閾値未満のためスキップ（cancelled_count=0, order_count=2）
+        assert result["cancelled_count"] == 0
+        assert result["order_count"] == 2
+        assert result["errors"] == []
+
+
+@pytest.mark.asyncio
+class TestPhase516SLPriceValidation:
+    """Phase 51.6: SL価格検証強化のテスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        """StopManagerインスタンス"""
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientのモック"""
+        client = MagicMock()
+        client.create_order = MagicMock(
+            return_value={"order_id": "sl123", "trigger_price": 13900000.0}
+        )
+        return client
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_price_none_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 51.6: SL価格None検証 - エラー30101対策"""
+        mock_threshold.return_value = True
+
+        result = await stop_manager.place_stop_loss(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            stop_loss_price=None,  # None（不正）
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # SL配置失敗（None検証でブロック）
+        assert result is None
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_price_zero_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 51.6: SL価格0検証"""
+        mock_threshold.return_value = True
+
+        result = await stop_manager.place_stop_loss(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            stop_loss_price=0,  # 0（不正）
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # SL配置失敗（0検証でブロック）
+        assert result is None
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_price_negative_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 51.6: SL価格負の値検証"""
+        mock_threshold.return_value = True
+
+        result = await stop_manager.place_stop_loss(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            stop_loss_price=-100000,  # 負の値（不正）
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # SL配置失敗（負の値検証でブロック）
+        assert result is None
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_price_invalid_direction_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 51.6: SL価格方向検証（BUY時はエントリー価格より低い必要）"""
+        mock_threshold.return_value = True
+
+        result = await stop_manager.place_stop_loss(
+            side="buy",
+            amount=0.0001,
+            entry_price=14000000.0,
+            stop_loss_price=14100000.0,  # エントリー価格より高い（不正）
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # SL配置失敗（方向検証でブロック）
+        assert result is None
