@@ -759,6 +759,154 @@ bash scripts/testing/checks.sh
 - maker手数料込み実質1.1%利益
 - 被害最小化（-53%削減）
 
+---
+
+## 10. Discord通知追加対応（2025/11/05完了）
+
+### 概要
+
+**目的**: 残存していた古いDiscord通知コードを完全削除
+
+**背景**:
+- features.yamlで通知停止設定済み
+- しかし4箇所で`send_error_notification()`を呼び出すコードが残存
+- このメソッドはdiscord_notifier.pyに存在しない（将来的にAttributeError発生リスク）
+
+### 削除・無効化箇所
+
+**1. src/trading/balance/monitor.py** (2メソッド):
+
+```python
+# Before: 証拠金チェック失敗アラート（28行）
+async def _send_margin_check_failure_alert(...):
+    if discord_enabled:
+        discord_notifier.send_error_notification({...})  # 存在しないメソッド
+
+# After: ログ出力のみ（8行）
+async def _send_margin_check_failure_alert(...):
+    """Phase 51.6: Discord通知削除済み（週間サマリーのみ）"""
+    self.logger.critical(
+        f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中\n"
+        f"エラー詳細: {str(error)}\n"
+        f"リトライ回数: {self._margin_check_failure_count}"
+    )
+```
+
+同様に`_send_balance_alert()`も修正。
+
+**2. src/core/logger.py** (37行削除):
+
+```python
+# Before: Discord通知ブロック（37行）
+if discord_notify and self._discord_manager and not is_backtest:
+    try:
+        # ログレベルに応じた重要度設定
+        level_map = {...}
+        discord_level = level_map.get(level, "info")
+
+        if error:
+            error_data = {...}
+            result = self._discord_manager.send_error_notification(error_data)
+        else:
+            result = self._discord_manager.send_simple_message(message, discord_level)
+        ...
+
+# After: 完全削除（4行）
+# Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+# 旧コード: send_error_notification()は存在しないメソッドだったため削除
+# features.yamlでcritical/warning/trade全てfalse設定済み
+pass
+```
+
+**3. src/trading/risk/manager.py** (32行削除):
+
+```python
+# Before: リスク管理Discord通知（32行）
+async def _send_discord_notifications(self, evaluation: TradeEvaluation):
+    if not self.enable_discord_notifications or not self.discord_manager:
+        return
+
+    if evaluation.decision == RiskDecision.DENIED:
+        error_data = {...}
+        success = self.discord_manager.send_error_notification(error_data)
+        ...
+
+# After: 早期return（7行）
+async def _send_discord_notifications(self, evaluation: TradeEvaluation):
+    """
+    Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+    旧コード: send_error_notification()は存在しないメソッドだったため削除
+    """
+    # Phase 51.6: features.yamlでcritical/warning/trade全てfalse設定済み
+    return
+```
+
+### コード変更統計
+
+| ファイル | 削除行 | 追加行 | 純減 |
+|---------|-------|-------|------|
+| monitor.py | 56行 | 14行 | -42行 |
+| logger.py | 37行 | 4行 | -33行 |
+| risk/manager.py | 25行 | 8行 | -17行 |
+| **合計** | **118行** | **26行** | **-92行** |
+
+### 品質保証結果
+
+```
+✅ 1142テスト全合格（100%成功率）
+✅ 65.95%カバレッジ（目標65%達成）
+✅ flake8 PASS
+✅ isort PASS
+✅ black PASS
+✅ 実行時間: 72秒
+```
+
+**個別テスト確認**:
+- balance/monitor.py: 42テスト全合格
+- logger関連: 26テスト全合格
+- risk/manager: テストなし（問題なし）
+
+### Discord通知最終確認
+
+**全通知箇所**:
+- ✅ **週間サマリー**: scripts/reports/weekly_report.py - **継続稼働**
+- ✅ monitor.py: 通知コード削除完了
+- ✅ logger.py: 通知コード削除完了
+- ✅ risk/manager.py: 通知メソッド無効化完了
+- ✅ archive/: 旧ファイル（無視）
+
+**features.yaml設定**:
+```yaml
+monitoring:
+  discord:
+    critical: false      # ✅ Critical通知停止
+    warning: false       # ✅ Warning通知停止
+    trade_notifications: false  # ✅ 取引通知停止
+    daily_summary: true  # ✅ 週間サマリーのみ継続
+```
+
+### Git操作
+
+```bash
+✅ Commit: ef23346e "fix: Phase 51.6追加対応 - Discord通知コード完全削除"
+✅ Push: origin main
+```
+
+### まとめ
+
+**成果**:
+- 存在しないメソッド呼び出し削除（AttributeError回避）
+- 92行のコード削減（-7.8%）
+- Discord通知: 週間サマリーのみ（意図通り）
+- コードクリーンアップ完了
+
+**影響範囲**:
+- 実装ファイル: 3ファイル修正
+- テストファイル: 変更なし（既存テスト全合格）
+- 設定ファイル: 変更なし（features.yaml設定済み）
+
+---
+
 ### 次回Phase予定
 
 **Phase 51.7（予定）**:
@@ -776,6 +924,6 @@ bash scripts/testing/checks.sh
 
 ---
 
-**📅 Phase 51.6完了日**: 2025年11月05日
-**📊 品質保証**: 1142テスト全合格・68.42%カバレッジ・コード品質PASS
-**🎯 期待効果**: 被害53%削減・Atomic Entry保証・bitbank 30件制限対策完了
+**📅 Phase 51.6完了日**: 2025年11月05日（Discord通知追加対応含む）
+**📊 品質保証**: 1142テスト全合格・65.95%カバレッジ・コード品質PASS
+**🎯 期待効果**: 被害53%削減・Atomic Entry保証・bitbank 30件制限対策・Discord通知完全停止
