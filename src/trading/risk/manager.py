@@ -596,37 +596,13 @@ class IntegratedRiskManager:
             self.logger.error(f"統計更新エラー: {e}")
 
     async def _send_discord_notifications(self, evaluation: TradeEvaluation) -> None:
-        """Discord通知送信"""
-        try:
-            if not self.enable_discord_notifications or not self.discord_manager:
-                return
-
-            # 重大異常時のみ通知
-            if evaluation.decision == RiskDecision.DENIED and evaluation.denial_reasons:
-                error_data = {
-                    "type": "RiskManagementDenial",
-                    "message": "取引がリスク管理により拒否されました",
-                    "component": "IntegratedRiskManager",
-                    "severity": ("warning" if evaluation.risk_score < 0.8 else "critical"),
-                    "details": {
-                        "risk_score": f"{evaluation.risk_score:.1%}",
-                        "denial_reasons": evaluation.denial_reasons[:3],
-                        "action": evaluation.side,
-                        "market_conditions": evaluation.market_conditions,
-                    },
-                }
-
-                try:
-                    success = self.discord_manager.send_error_notification(error_data)
-                    if success:
-                        self.logger.info("✅ リスク管理Discord通知送信完了")
-                    else:
-                        self.logger.warning("⚠️ Discord通知送信失敗（Rate limit等）")
-                except Exception as discord_error:
-                    self.logger.error(f"❌ Discord通知送信エラー: {discord_error}")
-
-        except Exception as e:
-            self.logger.error(f"Discord通知処理エラー: {e}")
+        """
+        Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        旧コード: send_error_notification()は存在しないメソッドだったため削除
+        """
+        # Phase 51.6: features.yamlでcritical/warning/trade全てfalse設定済み
+        # リスク管理の通知は全て停止（ログ出力のみ）
+        return
 
     def _log_evaluation_result(self, evaluation: TradeEvaluation) -> None:
         """評価結果ログ出力"""

@@ -278,44 +278,10 @@ class CryptoBotLogger:
         else:
             self.logger.log(level, message, extra=extra)
 
-        # Discord通知（Phase 22統合・Phase 35.7最適化）
-        # Phase 35.7: バックテストモード時はDiscord通知を完全スキップ（高速化）
-        if discord_notify and self._discord_manager and not is_backtest:
-            try:
-                # ログレベルに応じた重要度設定
-                level_map = {
-                    logging.DEBUG: "info",
-                    logging.INFO: "info",
-                    logging.WARNING: "warning",
-                    logging.ERROR: "critical",
-                    logging.CRITICAL: "critical",
-                }
-
-                discord_level = level_map.get(level, "info")
-
-                # エラー情報がある場合はエラー通知として送信
-                if error:
-                    error_data = {
-                        "type": type(error).__name__,
-                        "message": str(error),
-                        "component": (
-                            extra_data.get("component", "システム") if extra_data else "システム"
-                        ),
-                        "severity": discord_level,
-                    }
-                    result = self._discord_manager.send_error_notification(error_data)
-                else:
-                    # 通常メッセージとして送信
-                    result = self._discord_manager.send_simple_message(message, discord_level)
-
-                if result:
-                    self.logger.debug("✅ ログからDiscord通知送信成功")
-                else:
-                    self.logger.debug("⚠️ ログからDiscord通知送信失敗（Rate limit等）")
-
-            except Exception as e:
-                # 通知エラーは無限ループを避けるため別途ログ
-                self.logger.error(f"❌ Discord通知送信に失敗: {type(e).__name__}: {e}")
+        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        # 旧コード: send_error_notification()は存在しないメソッドだったため削除
+        # features.yamlでcritical/warning/trade全てfalse設定済み
+        pass
 
     def debug(self, message: str, extra_data: Optional[Dict[str, Any]] = None) -> None:
         """デバッグログ."""

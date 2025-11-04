@@ -625,66 +625,36 @@ class BalanceMonitor:
         self, error: Exception, discord_notifier: Optional[Any]
     ) -> None:
         """
-        Discord証拠金チェック失敗アラート送信（Phase 42.3.3）
+        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
+        証拠金チェック失敗時はログ出力のみ
 
         Args:
             error: 発生したエラー
-            discord_notifier: Discord通知マネージャー
+            discord_notifier: Discord通知マネージャー（未使用）
         """
-        if not discord_notifier:
-            self.logger.debug("Discord通知未初期化のため証拠金チェック失敗アラートスキップ")
-            return
-
-        try:
-            # Discord Critical通知送信
-            discord_enabled = get_threshold("balance_alert.discord_critical_alert", True)
-            if discord_enabled:
-                discord_notifier.send_error_notification(
-                    {
-                        "error_type": "MARGIN_CHECK_FAILURE",
-                        "message": f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中",
-                        "details": f"エラー詳細: {str(error)}",
-                        "action_required": "bitbank APIの状態確認・システム再起動を推奨します",
-                        "impact": "Phase 38残高不足無限ループ問題の再発防止のため、取引を自動的に中止しています",
-                        "timestamp": datetime.now().isoformat(),
-                        "retry_count": self._margin_check_failure_count,
-                    }
-                )
-                self.logger.info("📧 Discord証拠金チェック失敗アラート送信完了")
-
-        except Exception as e:
-            self.logger.error(f"Discord通知送信失敗: {e}")
+        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        self.logger.critical(
+            f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中\n"
+            f"エラー詳細: {str(error)}\n"
+            f"リトライ回数: {self._margin_check_failure_count}"
+        )
 
     async def _send_balance_alert(
         self, available: float, required: float, discord_notifier: Optional[Any]
     ) -> None:
         """
-        Discord残高不足アラート送信（Phase 37）
+        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
+        残高不足検出時はログ出力のみ
 
         Args:
             available: 利用可能残高（円）
             required: 必要最小残高（円）
-            discord_notifier: Discord通知マネージャー
+            discord_notifier: Discord通知マネージャー（未使用）
         """
-        if not discord_notifier:
-            self.logger.debug("Discord通知未初期化のため残高アラートスキップ")
-            return
-
-        try:
-            # Discord Critical通知送信
-            discord_enabled = get_threshold("balance_alert.discord_critical_alert", True)
-            if discord_enabled:
-                discord_notifier.send_error_notification(
-                    {
-                        "error_type": "INSUFFICIENT_MARGIN_BALANCE",
-                        "message": "🚨 証拠金不足検出 - 新規注文スキップ中",
-                        "details": f"利用可能: {available:.0f}円 / 必要: {required:.0f}円",
-                        "action_required": f"bitbank口座に約{required - available:.0f}円以上の入金が必要です",
-                        "impact": "Container exit(1)回避のため取引をスキップしています",
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                )
-                self.logger.info("📧 Discord残高不足アラート送信完了")
-
-        except Exception as e:
-            self.logger.error(f"Discord通知送信失敗: {e}")
+        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        shortage = required - available
+        self.logger.critical(
+            f"🚨 証拠金不足検出 - 新規注文スキップ中\n"
+            f"利用可能: {available:.0f}円 / 必要: {required:.0f}円\n"
+            f"不足額: {shortage:.0f}円"
+        )
