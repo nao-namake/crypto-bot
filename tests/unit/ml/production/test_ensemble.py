@@ -22,17 +22,17 @@ class TestProductionEnsemble:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_lgbm.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_xgb.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_rf.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         return {
             "lightgbm": mock_lgbm,
@@ -42,9 +42,9 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """60特徴量サンプルデータ作成 - Phase 50.9"""
-        # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
-        return np.random.random((3, 60))
+        """55特徴量サンプルデータ作成 - Phase 51.7 Day 7"""
+        # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
+        return np.random.random((3, 55))
 
     @pytest.fixture
     def ensemble(self, mock_models):
@@ -59,9 +59,9 @@ class TestProductionEnsemble:
         assert "lightgbm" in ensemble.models
         assert "xgboost" in ensemble.models
         assert "random_forest" in ensemble.models
-        assert ensemble.n_features_ == 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        assert ensemble.n_features_ == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert ensemble.is_fitted is True
-        assert len(ensemble.feature_names) == 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        assert len(ensemble.feature_names) == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert "close" in ensemble.feature_names
         assert "rsi_14" in ensemble.feature_names
 
@@ -110,8 +110,8 @@ class TestProductionEnsemble:
         assert info["type"] == "ProductionEnsemble"
         assert len(info["individual_models"]) == 3
         assert "lightgbm" in info["individual_models"]
-        assert info["n_features"] == 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
-        assert len(info["feature_names"]) == 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        assert info["n_features"] == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
+        assert len(info["feature_names"]) == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
@@ -179,7 +179,7 @@ class TestProductionEnsemble:
         # predict_proba なし、predict のみのモックモデル
         mock_simple = MagicMock()
         mock_simple.predict.return_value = np.array([0.8, 0.3, 0.9])
-        mock_simple.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_simple.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         # predict_proba 属性を削除
         del mock_simple.predict_proba
 
@@ -194,7 +194,7 @@ class TestProductionEnsemble:
     def test_predict_proba_model_without_methods(self, sample_data):
         """予測メソッド完全なしエラーテスト"""
         mock_broken = MagicMock()
-        mock_broken.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_broken.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         # 両方のメソッドを削除
         del mock_broken.predict
         del mock_broken.predict_proba
@@ -211,7 +211,7 @@ class TestProductionEnsemble:
 
         assert "ProductionEnsemble" in repr_str
         assert "models=3" in repr_str
-        assert "features=60" in repr_str  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        assert "features=55" in repr_str  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert "weights=" in repr_str
 
     def test_pandas_dataframe_input(self, mock_models):
@@ -226,11 +226,11 @@ class TestProductionEnsemble:
 
             ensemble = ProductionEnsemble(mock_models)
 
-            # DataFrame形式のデータ (60特徴量) - Phase 50.9
+            # DataFrame形式のデータ (55特徴量) - Phase 51.7 Day 7
             from src.core.config.feature_manager import get_feature_names
 
             feature_names = get_feature_names()
-            df_data = pd.DataFrame(np.random.random((2, 60)), columns=feature_names)
+            df_data = pd.DataFrame(np.random.random((2, 55)), columns=feature_names)
 
             predictions = ensemble.predict(df_data)
             probabilities = ensemble.predict_proba(df_data)
@@ -247,11 +247,11 @@ class TestProductionEnsemble:
         # 特定の予測結果を持つモック作成
         mock_model1 = MagicMock()
         mock_model1.predict.return_value = np.array([1, 1, 0])  # 全て確定的
-        mock_model1.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_model1.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         mock_model2 = MagicMock()
         mock_model2.predict.return_value = np.array([0, 0, 1])  # model1の逆
-        mock_model2.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_model2.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         models = {"model1": mock_model1, "model2": mock_model2}
         ensemble = ProductionEnsemble(models)
@@ -276,17 +276,17 @@ class TestProductionEnsembleEdgeCases:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_lgbm.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_xgb.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_rf.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         return {
             "lightgbm": mock_lgbm,
@@ -296,21 +296,21 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """60特徴量サンプルデータ作成 - Phase 50.9"""
-        # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
-        return np.random.random((3, 60))
+        """55特徴量サンプルデータ作成 - Phase 51.7 Day 7"""
+        # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
+        return np.random.random((3, 55))
 
     def test_single_model_ensemble(self):
         """単一モデルアンサンブルテスト"""
         mock_single = MagicMock()
         mock_single.predict.return_value = np.array([1, 0])
         mock_single.predict_proba.return_value = np.array([[0.3, 0.7], [0.8, 0.2]])
-        mock_single.n_features_in_ = 60  # Phase 51.5-A: 60特徴量固定（3戦略シグナル）
+        mock_single.n_features_in_ = 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
 
         ensemble = ProductionEnsemble({"single": mock_single})
 
-        # 60特徴量データ - Phase 50.9
-        data = np.random.random((2, 60))
+        # 55特徴量データ - Phase 51.7 Day 7
+        data = np.random.random((2, 55))
         predictions = ensemble.predict(data)
         probabilities = ensemble.predict_proba(data)
 
@@ -336,8 +336,8 @@ class TestProductionEnsembleEdgeCases:
         """大規模データセット性能テスト"""
         ensemble = ProductionEnsemble(mock_models)
 
-        # 1000サンプルの大きなデータセット (60特徴量) - Phase 50.9
-        large_data = np.random.random((1000, 60))
+        # 1000サンプルの大きなデータセット (55特徴量) - Phase 51.7 Day 7
+        large_data = np.random.random((1000, 55))
 
         # モックの戻り値を大きなサイズに調整
         for model in mock_models.values():

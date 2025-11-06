@@ -42,6 +42,7 @@ backtest:
   mock_api_calls: true
   enable_detailed_logging: false
   fast_data_slicing: true
+  data_sampling_ratio: 0.2  # Phase 51.7: 20%サンプリング（6戦略高速検証・26分→5分）
 
 # ========================================
 # 🤖 ML統合設定（ML Integration Settings）
@@ -116,36 +117,6 @@ dynamic_confidence:
     uncertainty_max: 0.2
     uncertainty_boost: 1.0
   strategies:
-    mochipoy_alert:
-      buy_strong_base: 0.7
-      buy_strong_max: 0.70
-      buy_weak_base: 0.45
-      buy_weak_max: 0.6
-      sell_strong_base: 0.7
-      sell_strong_max: 0.70
-      sell_weak_base: 0.45
-      sell_weak_max: 0.6
-      hold_base: 0.2
-      hold_min: 0.1
-      hold_max: 0.35
-    multi_timeframe:
-      agreement_base: 0.75
-      agreement_min: 0.7
-      agreement_max: 1.0
-      single_tf_base: 0.55
-      single_tf_min: 0.4
-      single_tf_max: 0.75
-      disagreement_base: 0.15
-      disagreement_min: 0.1
-      disagreement_max: 0.3
-      weighted_min: 0.35
-      weighted_max: 1.0
-      tf_4h_min_strength: 0.002
-      tf_4h_weight: 0.6
-      tf_15m_weight: 0.4
-      position_size_base: 0.025
-      atr_ratio_threshold: 0.005
-      price_breakout_ratio: 0.995
     donchian_channel:
       breakout_base: 0.6
       breakout_min: 0.3
@@ -294,12 +265,36 @@ strategies:
     weak_signal_confidence: 0.35
     weak_signal_max: 0.75
     weak_signal_min: 0.25
-  mochipoy_alert:
-    hold_confidence: 0.15
-    weak_signal_confidence: 0.4
-  multi_timeframe:
-    hold_confidence: 0.15
-    trend_conflict_confidence: 0.3
+  bb_reversal:
+    # Phase 51.7 Day 3: BB Reversal戦略設定
+    min_confidence: 0.30
+    hold_confidence: 0.25
+    bb_width_threshold: 0.02        # BB幅閾値（2% = レンジ相場判定）
+    rsi_overbought: 70              # RSI買われすぎ閾値
+    rsi_oversold: 30                # RSI売られすぎ閾値
+    bb_upper_threshold: 0.95        # BB上限タッチ閾値（95%以上）
+    bb_lower_threshold: 0.05        # BB下限タッチ閾値（5%以下）
+    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
+  stochastic_reversal:
+    # Phase 51.7 Day 4: Stochastic Reversal戦略設定
+    min_confidence: 0.30
+    hold_confidence: 0.25
+    stoch_overbought: 80            # Stochastic過買い閾値
+    stoch_oversold: 20              # Stochastic過売り閾値
+    rsi_overbought: 65              # RSI買われすぎ閾値
+    rsi_oversold: 35                # RSI売られすぎ閾値
+    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
+  macd_ema_crossover:
+    # Phase 51.7 Day 5: MACD + EMA Crossover戦略設定
+    min_confidence: 0.35
+    hold_confidence: 0.25
+    adx_trend_threshold: 25         # ADXトレンド相場閾値（25以上）
+    volume_ratio_threshold: 1.1     # 出来高増加閾値
+    macd_strong_threshold: 50000    # MACD強い閾値（ヒストグラム正規化用）
+    ema_divergence_threshold: 0.01  # EMA乖離度閾値（1%）
+    sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）
 
 # ========================================
 # 💹 取引設定（Trading Settings）

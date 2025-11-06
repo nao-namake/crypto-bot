@@ -72,7 +72,7 @@ class TestSignalBuilder(unittest.TestCase):
             current_price=self.current_price,
             df=self.test_df,
             config=self.basic_config,
-            strategy_type=StrategyType.MOCHIPOY_ALERT,
+            strategy_type=StrategyType.ATR_BASED,
         )
 
         # 基本プロパティの確認
@@ -96,7 +96,7 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertGreater(signal.risk_ratio, 0)
 
         # メタデータの確認
-        self.assertEqual(signal.metadata["strategy_type"], StrategyType.MOCHIPOY_ALERT)
+        self.assertEqual(signal.metadata["strategy_type"], StrategyType.ATR_BASED)
         self.assertTrue(signal.metadata["risk_calculated"])
 
     def test_create_signal_with_risk_management_sell(self):
@@ -158,7 +158,7 @@ class TestSignalBuilder(unittest.TestCase):
             current_price=self.current_price,
             df=self.test_df,
             config=self.basic_config,
-            strategy_type=StrategyType.MULTI_TIMEFRAME,
+            strategy_type=StrategyType.ATR_BASED,  # Phase 51.7 Day 7: MULTI_TIMEFRAME削除のためATR_BASED使用
         )
 
         # 決定メタデータが保持されていることを確認
@@ -284,12 +284,12 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertIsInstance(signal.timestamp, datetime)
 
     def test_multiple_strategy_types(self):
-        """全戦略タイプでのテスト."""
+        """全戦略タイプでのテスト - Phase 51.7 Day 7: 6戦略構成."""
         strategy_types = [
-            StrategyType.MOCHIPOY_ALERT,
             StrategyType.ATR_BASED,
             StrategyType.DONCHIAN_CHANNEL,
-            StrategyType.MULTI_TIMEFRAME,
+            StrategyType.ADX_TREND,
+            StrategyType.BB_REVERSAL,
         ]
 
         for strategy_type in strategy_types:

@@ -1,34 +1,34 @@
 {
-  "created_at": "2025-11-03T08:12:43.483739",
+  "created_at": "2025-11-07T07:21:04.189244",
   "n_trials": 50,
   "models": {
     "lightgbm": {
       "best_params": {
-        "learning_rate": 0.27885824775199286,
-        "max_depth": 13,
-        "n_estimators": 191,
-        "num_leaves": 22
+        "learning_rate": 0.1490156113273222,
+        "max_depth": 12,
+        "n_estimators": 129,
+        "num_leaves": 81
       },
-      "best_score": 0.5412860823150484,
+      "best_score": 0.5474733057424622,
       "n_trials": 50
     },
     "xgboost": {
       "best_params": {
-        "learning_rate": 0.0121724796365622,
-        "max_depth": 3,
-        "n_estimators": 206,
-        "min_child_weight": 4
+        "learning_rate": 0.02080991016861143,
+        "max_depth": 7,
+        "n_estimators": 133,
+        "min_child_weight": 10
       },
-      "best_score": 0.584982123817554,
+      "best_score": 0.5910792622400297,
       "n_trials": 50
     },
     "random_forest": {
       "best_params": {
-        "n_estimators": 258,
+        "n_estimators": 137,
         "max_depth": 8,
-        "min_samples_split": 5
+        "min_samples_split": 2
       },
-      "best_score": 0.5915712745919092,
+      "best_score": 0.5908865194159546,
       "n_trials": 50
     }
   }

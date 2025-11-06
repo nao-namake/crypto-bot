@@ -81,12 +81,11 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（Phase 51.5-A: 60特徴量固定システム）
+# 特徴量設定（Phase 51.7 Day 7: 54特徴量固定システム）
 # ========================================
-# Phase 51.5-A: 60特徴量（50基本+3戦略シグナル+7時間的）
-# - 50基本特徴量: テクニカル指標（15指標）
-# - 3戦略シグナル特徴量: ATRBased・DonchianChannel・ADXTrendStrength
-# - 7時間的特徴量: 曜日・時間帯・地域別市場時間（Phase 50.2）
+# Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル）
+# - 48基本特徴量: テクニカル指標・ラグ・交差項・時間的特徴量
+# - 6戦略シグナル特徴量: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
 # ========================================
 features:
   mode: optimized
@@ -114,17 +113,24 @@ features:
   - minus_di_14
 
 # ========================================
-# 戦略設定（3戦略統合・Phase 51.5-A）
+# 戦略設定（6戦略統合・Phase 51.7 Day 7）
 # ========================================
+# Note: 詳細な戦略定義はconfig/strategies.yamlを参照
 strategies:
   enabled:
   - atr_based
   - donchian_channel
   - adx_trend
+  - bb_reversal
+  - stochastic_reversal
+  - macd_ema_crossover
   weights:
     atr_based: 0.25
     donchian_channel: 0.15
     adx_trend: 0.15
+    bb_reversal: 0.15
+    stochastic_reversal: 0.15
+    macd_ema_crossover: 0.15
   consensus:
     required_agreement: 0.4
     confidence_threshold: 0.3
@@ -252,7 +258,7 @@ trading_constraints:
   default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 60  # Phase 51.5-A: 60特徴量（50基本+3戦略シグナル+7時間的・feature_order.json参照）
+  features_count: 54  # Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル・feature_order.json参照）
   timeframes:
   - 15m  # メインタイムフレーム（エントリー判断用）
   - 4h   # 補助タイムフレーム（トレンド判断用）

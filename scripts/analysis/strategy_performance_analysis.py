@@ -92,14 +92,14 @@ class StrategyPerformanceAnalyzer:
         )
         self.regime_classifier = MarketRegimeClassifier()
 
-        # 3戦略リスト（Phase 51.5-A）
-        self.strategies = [
-            "ATRBased",
-            "DonchianChannel",
-            "ADXTrendStrength",
-        ]
+        # Phase 51.7 Day 7: 戦略リストを動的取得（設定駆動型）
+        from src.strategies.strategy_loader import StrategyLoader
 
-        self.logger.info("✅ StrategyPerformanceAnalyzer初期化完了")
+        loader = StrategyLoader()
+        strategies_data = loader.load_strategies()
+        self.strategies = [s["metadata"]["name"] for s in strategies_data]
+
+        self.logger.info(f"✅ StrategyPerformanceAnalyzer初期化完了 - {len(self.strategies)}戦略")
 
     def calculate_basic_metrics(self, trades: List[Dict], strategy_name: str) -> PerformanceMetrics:
         """
@@ -291,16 +291,14 @@ class StrategyPerformanceAnalyzer:
         Returns:
             戦略インスタンス
         """
-        strategy_map = {
-            "ATRBased": ATRBasedStrategy,
-            "DonchianChannel": DonchianChannelStrategy,
-            "ADXTrendStrength": ADXTrendStrengthStrategy,
-        }
+        # Phase 51.7 Day 7: StrategyRegistryから動的取得
+        from src.strategies.strategy_registry import StrategyRegistry
 
-        if strategy_name not in strategy_map:
+        strategy_class = StrategyRegistry.get_strategy(strategy_name)
+        if strategy_class is None:
             raise ValueError(f"未知の戦略名: {strategy_name}")
 
-        return strategy_map[strategy_name]()
+        return strategy_class()
 
     async def _run_single_strategy_backtest(
         self, strategy_name: str, historical_data: pd.DataFrame

@@ -1,5 +1,5 @@
 """
-特徴量生成統合システム - Phase 50.9完了
+特徴量生成統合システム - Phase 51.7 Day 2完了
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合し、重複コード削除と保守性向上を実現。
@@ -11,6 +11,7 @@ Phase履歴:
 - Phase 50.2: 時間的特徴量拡張 - 55→60特徴量（市場セッション3個+周期性4個追加・外部APIなし）
 - Phase 50.1: 確実な60特徴量生成実装（strategy_signals=None時も60特徴量・0埋め・後から追加しない）
 - Phase 50.9: 外部API完全削除・シンプル設計回帰（60特徴量固定・2段階Graceful Degradation）
+- Phase 51.7 Day 2: Feature Importance分析に基づく最適化 - 60→51特徴量（20削除・11追加）
 
 統合効果:
 - ファイル数削減: 3→1（67%削減）
@@ -18,7 +19,7 @@ Phase履歴:
 - 重複コード削除: _handle_nan_values、logger初期化等
 - 管理簡素化: 特徴量処理の完全一元化
 
-Phase 50.9完了 - 60特徴量固定・外部API削除・安定性向上
+Phase 51.7 Day 2完了 - 51特徴量固定・データドリブン最適化・6戦略対応
 """
 
 import os
@@ -43,35 +44,41 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 50.9完了
+    統合特徴量生成クラス - Phase 51.7 Day 2完了
 
     テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、60特徴量を確実に生成。
+    1つのクラスに統合し、51特徴量を確実に生成。
 
     主要機能:
     - 基本特徴量生成（2個）
-    - テクニカル指標生成（12個：RSI, MACD, ATR, BB, EMA, Donchian, ADX）
+    - テクニカル指標生成（17個：RSI, MACD拡張, ATR, BB拡張, EMA, Donchian, ADX, Stochastic, volume_ema, atr_ratio）
     - 異常検知指標生成（1個：Volume Ratio）
-    - ラグ特徴量生成（10個：Close/Volume/RSI/MACD lag）- Phase 40.6
-    - 移動統計量生成（12個：MA, Std, Max, Min）- Phase 40.6
-    - 交互作用特徴量生成（6個：RSI×ATR, MACD×Volume等）- Phase 40.6
-    - 時間ベース特徴量生成（14個：Hour, Day, Month, 市場セッション, 周期性）- Phase 40.6/50.2
+    - ラグ特徴量生成（9個：Close/Volume/RSI/MACD lag）- Phase 40.6/51.7
+    - 移動統計量生成（5個：MA, Std）- Phase 40.6/51.7
+    - 交互作用特徴量生成（5個：RSI×ATR, MACD×Volume等）- Phase 40.6/51.7
+    - 時間ベース特徴量生成（7個：Hour, Day, 市場セッション, 周期性）- Phase 40.6/50.2/51.7
     - 戦略シグナル特徴量生成（3個：戦略判断エンコード）- Phase 41/50.1
-    - 統合品質管理と特徴量確認（必ず60特徴量）
+    - 統合品質管理と特徴量確認（必ず51特徴量）
+
+    Phase 51.7 Day 2: Feature Importance分析に基づく最適化
+    - 51特徴量固定（60→51: 20削除・11追加）
+    - 削除特徴量: Importance ≤ 1.5の20特徴量（データドリブン判断）
+    - 追加特徴量: 6戦略対応（Stochastic, MACD拡張, BB拡張等）
+    - システム精度向上・6戦略対応強化
 
     Phase 50.9: 外部API完全削除・シンプル設計回帰
     - 60特徴量固定（70特徴量システム完全廃止）
     - 外部API依存削除（USD/JPY・日経平均等8指標削除）
     - システム安定性向上・保守性向上
 
-    Phase 50.1: 確実な60特徴量生成実装
-    - 必ず60特徴量生成（strategy_signals=None時も5個を0.0で追加）
+    Phase 50.1: 確実な特徴量生成実装
+    - 必ず固定数生成（strategy_signals=None時も3個を0.0で追加）
     - 後から追加しない設計（信頼性向上）
     - ML予測エラー防止（特徴量数不一致解消）
 
     Phase 50.2: 時間的特徴量拡張（外部APIなし）
-    - 市場セッション特徴量（3個）: アジア・欧州・米国セッション
-    - 周期性エンコーディング（4個）: hour/day sin/cos変換
+    - 市場セッション特徴量（1個保持: 欧州セッション）
+    - 周期性エンコーディング（3個保持: hour_cos, day_sin/cos）
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -93,32 +100,35 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（Phase 50.9: 60特徴量固定・外部API削除）
+        統合特徴量生成処理（Phase 51.7 Day 2: 51特徴量固定・データドリブン最適化）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（60特徴量固定）
+            特徴量を含むDataFrame（51特徴量固定）
 
         Raises:
             DataProcessingError: 特徴量生成エラー
 
         Note:
+            - Phase 51.7 Day 2: Feature Importance分析に基づく最適化（60→51特徴量）
             - Phase 50.9: 外部API完全削除・60特徴量固定システム
-            - Phase 50.1: 確実な60特徴量生成（strategy_signals=None時も60特徴量・0埋め）
+            - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も3個を0埋め）
             - Phase 41: Strategy-Aware ML実装
-            - Phase 50.2: 時間的特徴量拡張（7→14個・外部APIなし）
+            - Phase 50.2: 時間的特徴量拡張（外部APIなし）
             - 信頼性向上: 後から追加せず、生成時に全特徴量確定
         """
         try:
             # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
 
-            # Phase 51.5-A: 60特徴量固定システム（50基本+3戦略シグナル+7時間的）
-            target_features = 60
-            self.logger.info(f"特徴量生成開始 - Phase 51.5-A: {target_features}特徴量固定システム")
+            # Phase 51.7 Day 7: 55特徴量固定システム（49基本+6戦略シグナル）
+            target_features = 55
+            self.logger.info(
+                f"特徴量生成開始 - Phase 51.7 Day 7: {target_features}特徴量固定システム"
+            )
             self.computed_features.clear()
 
             # 必要列チェック
@@ -167,19 +177,20 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 50.9: 60特徴量固定・バックテスト事前計算用）
+        同期版特徴量生成（Phase 51.7 Day 2: 51特徴量固定・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
 
         Returns:
-            特徴量を含むDataFrame（必ず60特徴量）
+            特徴量を含むDataFrame（必ず51特徴量）
 
         Note:
             - バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
+            - Phase 51.7 Day 2: Feature Importance分析に基づく最適化（60→51特徴量）
             - Phase 50.9: 外部API削除・60特徴量固定システム
-            - Phase 50.1: 確実な60特徴量生成（strategy_signals=None時も60特徴量・0埋め）
+            - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も3個を0埋め）
         """
         try:
             result_df = df.copy()
@@ -196,19 +207,19 @@ class FeatureGenerator:
             # 異常検知指標を生成（1個）
             result_df = self._generate_anomaly_indicators(result_df)
 
-            # ラグ特徴量を生成（10個）- Phase 40.6
+            # ラグ特徴量を生成（9個）- Phase 40.6
             result_df = self._generate_lag_features(result_df)
 
-            # 移動統計量を生成（12個）- Phase 40.6
+            # 移動統計量を生成（5個）- Phase 40.6
             result_df = self._generate_rolling_statistics(result_df)
 
-            # 交互作用特徴量を生成（6個）- Phase 40.6
+            # 交互作用特徴量を生成（5個）- Phase 40.6
             result_df = self._generate_interaction_features(result_df)
 
-            # 時間ベース特徴量を生成（14個）- Phase 40.6/50.2
+            # 時間ベース特徴量を生成（7個）- Phase 40.6/50.2
             result_df = self._generate_time_features(result_df)
 
-            # 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
+            # 戦略シグナル特徴量を追加（6個）- Phase 51.7: 6戦略対応（Noneの場合は0埋め）
             result_df = self._add_strategy_signal_features(result_df, strategy_signals)
 
             # NaN値処理（統合版）
@@ -268,7 +279,7 @@ class FeatureGenerator:
             raise DataProcessingError(f"必要列が不足: {missing_cols}")
 
     def _generate_basic_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """基本特徴量生成（3個）"""
+        """基本特徴量生成（2個）"""
         result_df = df.copy()
 
         # 基本データはそのまま（close, volume）
@@ -283,32 +294,37 @@ class FeatureGenerator:
         return result_df
 
     def _generate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """テクニカル指標生成（6個）"""
+        """テクニカル指標生成（21個）"""
         result_df = df.copy()
 
         # RSI 14期間
         result_df["rsi_14"] = self._calculate_rsi(result_df["close"])
         self.computed_features.add("rsi_14")
 
-        # MACD（ラインのみ生成）
-        macd_line, _ = self._calculate_macd(result_df["close"])
+        # MACD拡張（ライン・シグナル・ヒストグラム生成）
+        macd_line, macd_signal = self._calculate_macd(result_df["close"])
         result_df["macd"] = macd_line
-        self.computed_features.add("macd")
+        result_df["macd_signal"] = macd_signal
+        result_df["macd_histogram"] = macd_line - macd_signal
+        self.computed_features.update(["macd", "macd_signal", "macd_histogram"])
 
         # ATR 14期間
         result_df["atr_14"] = self._calculate_atr(result_df)
         self.computed_features.add("atr_14")
 
-        # ボリンジャーバンド位置
-        result_df["bb_position"] = self._calculate_bb_position(result_df["close"])
-        self.computed_features.add("bb_position")
+        # ボリンジャーバンド拡張（上限・下限・位置）
+        bb_upper, bb_lower, bb_position = self._calculate_bb_bands(result_df["close"])
+        result_df["bb_upper"] = bb_upper
+        result_df["bb_lower"] = bb_lower
+        result_df["bb_position"] = bb_position
+        self.computed_features.update(["bb_upper", "bb_lower", "bb_position"])
 
-        # EMA 20期間・50期間
+        # EMA 2本（20/50期間）- Phase 51.7 Day 7: ema_20復活（MACDEMACrossover必須）
         result_df["ema_20"] = result_df["close"].ewm(span=20, adjust=False).mean()
         result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
         self.computed_features.update(["ema_20", "ema_50"])
 
-        # Donchian Channel指標（3個）
+        # Donchian Channel指標（3個）- Phase 51.7 Day 7: donchian_high_20復活（DonchianChannel必須）
         donchian_high, donchian_low, channel_position = self._calculate_donchian_channel(result_df)
         result_df["donchian_high_20"] = donchian_high
         result_df["donchian_low_20"] = donchian_low
@@ -322,7 +338,21 @@ class FeatureGenerator:
         result_df["minus_di_14"] = minus_di
         self.computed_features.update(["adx_14", "plus_di_14", "minus_di_14"])
 
-        self.logger.debug("テクニカル指標生成完了: 11個")
+        # Stochastic Oscillator（2個）
+        stoch_k, stoch_d = self._calculate_stochastic(result_df)
+        result_df["stoch_k"] = stoch_k
+        result_df["stoch_d"] = stoch_d
+        self.computed_features.update(["stoch_k", "stoch_d"])
+
+        # 出来高EMA
+        result_df["volume_ema"] = self._calculate_volume_ema(result_df["volume"])
+        self.computed_features.add("volume_ema")
+
+        # ATR比率（ボラティリティ正規化）
+        result_df["atr_ratio"] = self._calculate_atr_ratio(result_df)
+        self.computed_features.add("atr_ratio")
+
+        self.logger.debug("テクニカル指標生成完了: 17個")
         return result_df
 
     def _generate_anomaly_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -337,15 +367,15 @@ class FeatureGenerator:
         return result_df
 
     def _generate_lag_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """ラグ特徴量生成（過去N期間の値・10個）"""
+        """ラグ特徴量生成（過去N期間の値・7個・Phase 51.7 Day 2削減）"""
         result_df = df.copy()
 
-        # Close lag features (5個)
-        for lag in [1, 2, 3, 5, 10]:
+        # Close lag features (4個・close_lag_5削除: Importance=1.0と低い)
+        for lag in [1, 2, 3, 10]:
             result_df[f"close_lag_{lag}"] = result_df["close"].shift(lag)
             self.computed_features.add(f"close_lag_{lag}")
 
-        # Volume lag features (3個)
+        # Volume lag features (3個・全保持: volume_lag_2が最重要!)
         for lag in [1, 2, 3]:
             result_df[f"volume_lag_{lag}"] = result_df["volume"].shift(lag)
             self.computed_features.add(f"volume_lag_{lag}")
@@ -360,46 +390,46 @@ class FeatureGenerator:
             result_df["macd_lag_1"] = result_df["macd"].shift(1)
             self.computed_features.add("macd_lag_1")
 
-        self.logger.debug("ラグ特徴量生成完了: 10個")
+        self.logger.debug("ラグ特徴量生成完了: 9個（Phase 51.7 Day 2削減）")
         return result_df
 
     def _generate_rolling_statistics(self, df: pd.DataFrame) -> pd.DataFrame:
-        """移動統計量生成（Rolling Statistics・12個）"""
+        """移動統計量生成（Rolling Statistics・5個・Phase 51.7 Day 2削減）"""
         result_df = df.copy()
 
-        # Moving Average (3個)
-        for window in [5, 10, 20]:
+        # Moving Average (2個・close_ma_5削除: Importance=0)
+        for window in [10, 20]:
             result_df[f"close_ma_{window}"] = (
                 result_df["close"].rolling(window=window, min_periods=1).mean()
             )
             self.computed_features.add(f"close_ma_{window}")
 
-        # Standard Deviation (3個)
+        # Standard Deviation (3個・全保持: Importance=16/12/5と非常に高い！)
         for window in [5, 10, 20]:
             result_df[f"close_std_{window}"] = (
                 result_df["close"].rolling(window=window, min_periods=1).std()
             )
             self.computed_features.add(f"close_std_{window}")
 
-        # Max (3個)
-        for window in [5, 10, 20]:
-            result_df[f"close_max_{window}"] = (
-                result_df["close"].rolling(window=window, min_periods=1).max()
-            )
-            self.computed_features.add(f"close_max_{window}")
+        # Max (削除: Importance=0/0/1と全て低い・Phase 51.7 Day 2）
+        # for window in [5, 10, 20]:
+        #     result_df[f"close_max_{window}"] = (
+        #         result_df["close"].rolling(window=window, min_periods=1).max()
+        #     )
+        #     self.computed_features.add(f"close_max_{window}")
 
-        # Min (3個)
-        for window in [5, 10, 20]:
-            result_df[f"close_min_{window}"] = (
-                result_df["close"].rolling(window=window, min_periods=1).min()
-            )
-            self.computed_features.add(f"close_min_{window}")
+        # Min (削除: Importance=0/1/0と全て低い・Phase 51.7 Day 2）
+        # for window in [5, 10, 20]:
+        #     result_df[f"close_min_{window}"] = (
+        #         result_df["close"].rolling(window=window, min_periods=1).min()
+        #     )
+        #     self.computed_features.add(f"close_min_{window}")
 
-        self.logger.debug("移動統計量生成完了: 12個")
+        self.logger.debug("移動統計量生成完了: 5個")
         return result_df
 
     def _generate_interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """交互作用特徴量生成（Feature Interactions・6個）"""
+        """交互作用特徴量生成（Feature Interactions・5個・Phase 51.7 Day 2削減）"""
         result_df = df.copy()
 
         # RSI × ATR
@@ -419,15 +449,15 @@ class FeatureGenerator:
             )
             self.computed_features.add("bb_position_x_volume_ratio")
 
-        # EMA Spread × ADX
-        if (
-            "ema_20" in result_df.columns
-            and "ema_50" in result_df.columns
-            and "adx_14" in result_df.columns
-        ):
-            ema_spread = result_df["ema_20"] - result_df["ema_50"]
-            result_df["ema_spread_x_adx"] = ema_spread * result_df["adx_14"]
-            self.computed_features.add("ema_spread_x_adx")
+        # EMA Spread × ADX（削除: ema_20削除によりema_spreadが計算不可・Importance=2と低い）
+        # if (
+        #     "ema_20" in result_df.columns
+        #     and "ema_50" in result_df.columns
+        #     and "adx_14" in result_df.columns
+        # ):
+        #     ema_spread = result_df["ema_20"] - result_df["ema_50"]
+        #     result_df["ema_spread_x_adx"] = ema_spread * result_df["adx_14"]
+        #     self.computed_features.add("ema_spread_x_adx")
 
         # Close × ATR
         if "close" in result_df.columns and "atr_14" in result_df.columns:
@@ -439,11 +469,11 @@ class FeatureGenerator:
             result_df["volume_x_bb_position"] = result_df["volume"] * result_df["bb_position"]
             self.computed_features.add("volume_x_bb_position")
 
-        self.logger.debug("交互作用特徴量生成完了: 6個")
+        self.logger.debug("交互作用特徴量生成完了: 5個（Phase 51.7 Day 2削減）")
         return result_df
 
     def _generate_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """時間ベース特徴量生成（Time-based Features・14個）- Phase 50.2拡張"""
+        """時間ベース特徴量生成（Time-based Features・8個・Phase 51.7 Day 2削減）"""
         result_df = df.copy()
 
         # indexまたはtimestamp列から日時情報を抽出
@@ -452,20 +482,13 @@ class FeatureGenerator:
         elif "timestamp" in result_df.columns:
             dt_index = pd.to_datetime(result_df["timestamp"])
         else:
-            # 日時情報がない場合はゼロ埋め
+            # 日時情報がない場合はゼロ埋め（削減後の8特徴量のみ）
             self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")
             result_df["hour"] = 0
             result_df["day_of_week"] = 0
-            result_df["is_weekend"] = 0
             result_df["is_market_open_hour"] = 0
-            result_df["month"] = 1
-            result_df["quarter"] = 1
-            result_df["is_quarter_end"] = 0
-            # Phase 50.2: 新規特徴量デフォルト値
-            result_df["is_asia_session"] = 0
+            # Phase 51.7: 欧州セッションのみ保持（is_asia/us削除: Importance=0）
             result_df["is_europe_session"] = 0
-            result_df["is_us_session"] = 0
-            result_df["hour_sin"] = 0.0
             result_df["hour_cos"] = 1.0
             result_df["day_sin"] = 0.0
             result_df["day_cos"] = 1.0
@@ -473,15 +496,8 @@ class FeatureGenerator:
                 [
                     "hour",
                     "day_of_week",
-                    "is_weekend",
                     "is_market_open_hour",
-                    "month",
-                    "quarter",
-                    "is_quarter_end",
-                    "is_asia_session",
                     "is_europe_session",
-                    "is_us_session",
-                    "hour_sin",
                     "hour_cos",
                     "day_sin",
                     "day_cos",
@@ -497,9 +513,8 @@ class FeatureGenerator:
         result_df["day_of_week"] = dt_index.dayofweek
         self.computed_features.add("day_of_week")
 
-        # Is weekend (土日: 1, 平日: 0)
-        result_df["is_weekend"] = (dt_index.dayofweek >= 5).astype(int)
-        self.computed_features.add("is_weekend")
+        # Is weekend (削除: Importance=0・Phase 51.7 Day 2）
+        # result_df["is_weekend"] = (dt_index.dayofweek >= 5).astype(int)
 
         # Is market open hour (9-15時JST: 1, それ以外: 0)
         result_df["is_market_open_hour"] = ((dt_index.hour >= 9) & (dt_index.hour <= 15)).astype(
@@ -507,56 +522,72 @@ class FeatureGenerator:
         )
         self.computed_features.add("is_market_open_hour")
 
-        # Month (1-12)
-        result_df["month"] = dt_index.month
-        self.computed_features.add("month")
+        # Month (削除: Importance=1.0と低い・Phase 51.7 Day 2）
+        # result_df["month"] = dt_index.month
 
-        # Quarter (1-4)
-        result_df["quarter"] = dt_index.quarter
-        self.computed_features.add("quarter")
+        # Quarter (削除: Importance=0・Phase 51.7 Day 2）
+        # result_df["quarter"] = dt_index.quarter
 
-        # Is quarter end (3,6,9,12月: 1, それ以外: 0)
-        result_df["is_quarter_end"] = dt_index.month.isin([3, 6, 9, 12]).astype(int)
-        self.computed_features.add("is_quarter_end")
+        # Is quarter end (削除: Importance=0・Phase 51.7 Day 2）
+        # result_df["is_quarter_end"] = dt_index.month.isin([3, 6, 9, 12]).astype(int)
 
-        # ========== Phase 50.2: 新規特徴量追加 ==========
+        # ========== Phase 50.2: 市場セッション特徴量（1個保持・2個削除）==========
 
-        # アジア市場セッション（JST 9:00-17:00）
-        result_df["is_asia_session"] = ((dt_index.hour >= 9) & (dt_index.hour < 17)).astype(int)
-        self.computed_features.add("is_asia_session")
+        # アジア市場セッション（削除: Importance=0・Phase 51.7 Day 2）
+        # result_df["is_asia_session"] = ((dt_index.hour >= 9) & (dt_index.hour < 17)).astype(int)
 
-        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理
+        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理（保持: Importance=1）
         result_df["is_europe_session"] = (
             ((dt_index.hour >= 16) & (dt_index.hour <= 23)) | (dt_index.hour < 1)
         ).astype(int)
         self.computed_features.add("is_europe_session")
 
-        # 米国市場セッション（JST 22:00-06:00）- 日をまたぐ処理
-        result_df["is_us_session"] = (
-            ((dt_index.hour >= 22) & (dt_index.hour <= 23)) | (dt_index.hour < 6)
-        ).astype(int)
-        self.computed_features.add("is_us_session")
+        # 米国市場セッション（削除: Importance=0・Phase 51.7 Day 2）
+        # result_df["is_us_session"] = (
+        #     ((dt_index.hour >= 22) & (dt_index.hour <= 23)) | (dt_index.hour < 6)
+        # ).astype(int)
 
-        # 時刻の周期性エンコーディング（24時間サイクル）
-        result_df["hour_sin"] = np.sin(2 * np.pi * dt_index.hour / 24)
+        # ========== 周期性エンコーディング（3個保持・1個削除）==========
+
+        # 時刻の周期性エンコーディング（hour_sin削除: Importance=0）
+        # result_df["hour_sin"] = np.sin(2 * np.pi * dt_index.hour / 24)
         result_df["hour_cos"] = np.cos(2 * np.pi * dt_index.hour / 24)
-        self.computed_features.add("hour_sin")
         self.computed_features.add("hour_cos")
 
-        # 曜日の周期性エンコーディング（7日サイクル）
+        # 曜日の周期性エンコーディング（7日サイクル・全保持: day_sin=7と高い）
         result_df["day_sin"] = np.sin(2 * np.pi * dt_index.dayofweek / 7)
         result_df["day_cos"] = np.cos(2 * np.pi * dt_index.dayofweek / 7)
         self.computed_features.add("day_sin")
         self.computed_features.add("day_cos")
 
-        self.logger.debug("時間ベース特徴量生成完了: 14個（Phase 50.2拡張）")
+        self.logger.debug("時間ベース特徴量生成完了: 7個（Phase 51.7 Day 2削減）")
         return result_df
+
+    def _get_strategy_signal_feature_names(self) -> Dict[str, str]:
+        """
+        Phase 51.7 Day 7: 戦略シグナル特徴量名を動的取得（設定駆動型）
+
+        strategies.yamlから戦略リストを読み込み、特徴量名辞書を生成。
+        これにより、戦略追加時に修正が不要になる。
+
+        Returns:
+            戦略名をキーとした特徴量名辞書
+            例: {"ATRBased": "strategy_signal_ATRBased", ...}
+        """
+        from ..strategies.strategy_loader import StrategyLoader
+
+        loader = StrategyLoader()
+        strategies_data = loader.load_strategies()
+        return {
+            s["metadata"]["name"]: f"strategy_signal_{s['metadata']['name']}"
+            for s in strategies_data
+        }
 
     def _add_strategy_signal_features(
         self, df: pd.DataFrame, strategy_signals: Optional[Dict[str, Dict[str, float]]] = None
     ) -> pd.DataFrame:
         """
-        Phase 50.1: 戦略シグナル特徴量追加（Strategy Signals・3個・必ず追加）
+        Phase 51.7 Day 7: 戦略シグナル特徴量追加（Strategy Signals・設定駆動型・必ず追加）
 
         Args:
             df: 特徴量DataFrame
@@ -568,34 +599,34 @@ class FeatureGenerator:
                 }
 
         Returns:
-            戦略シグナル特徴量が追加されたDataFrame（必ず3個追加）
+            戦略シグナル特徴量が追加されたDataFrame（strategies.yamlから動的取得）
 
         Note:
-            - Phase 51.5-A: 60特徴量生成（strategy_signals=None時も3個を0.0で追加）
-            - Phase 50.1: 確実な60特徴量生成（3戦略構成（Phase 51.5-A削除後））
+            - Phase 51.7 Day 7: 6戦略統合・設定駆動型（strategies.yamlから動的読み込み）
+            - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も0.0で追加）
             - Phase 41: Strategy-Aware ML実装
             - MLが戦略の専門知識を学習可能に
-            - 信頼性向上: 必ず3個追加（後から追加しない）
+            - 信頼性向上: 戦略数分必ず追加（後から追加しない）
+            - ⚠️ Phase 51.7 Day 1発見: 既存戦略信号はImportance=0（Phase 51.8以降で改善検討）
         """
         result_df = df.copy()
 
-        # 各戦略のシグナルを特徴量として追加（Phase 51.5-A: 3戦略構成）
-        strategy_internal_names = {
-            "ATRBased": "strategy_signal_ATRBased",
-            "DonchianChannel": "strategy_signal_DonchianChannel",
-            "ADXTrendStrength": "strategy_signal_ADXTrendStrength",
-        }
+        # 各戦略のシグナルを特徴量として追加（Phase 51.7 Day 7: 6戦略・設定駆動型）
+        strategy_internal_names = self._get_strategy_signal_feature_names()
+        num_strategies = len(strategy_internal_names)
 
         added_count = 0
 
         # Phase 50.1: strategy_signals=Noneの場合も処理を継続（0埋め）
         if not strategy_signals:
-            self.logger.debug("戦略シグナル特徴量: strategy_signals未提供 → 3個を0.0で生成（確実）")
-            # 3個すべてを0.0で追加
+            self.logger.debug(
+                f"戦略シグナル特徴量: strategy_signals未提供 → {num_strategies}個を0.0で生成（確実）"
+            )
+            # 全戦略を0.0で追加
             for internal_name, feature_name in strategy_internal_names.items():
                 result_df[feature_name] = 0.0
                 self.computed_features.add(feature_name)
-            self.logger.debug("戦略シグナル特徴量生成完了: 3個（0埋め）")
+            self.logger.debug(f"戦略シグナル特徴量生成完了: {num_strategies}個（0埋め）")
             return result_df
 
         # strategy_signalsが提供されている場合
@@ -614,7 +645,7 @@ class FeatureGenerator:
                 self.computed_features.add(feature_name)
                 self.logger.debug(f"戦略シグナル不足: {internal_name} → 0.0で補完")
 
-        self.logger.debug(f"戦略シグナル特徴量生成完了: {added_count}/3個")
+        self.logger.debug(f"戦略シグナル特徴量生成完了: {added_count}/{num_strategies}個")
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -641,13 +672,38 @@ class FeatureGenerator:
         true_range = np.maximum(high_low, np.maximum(high_close, low_close))
         return true_range.rolling(window=period, min_periods=1).mean()
 
-    def _calculate_bb_position(self, close: pd.Series, period: int = 20) -> pd.Series:
-        """ボリンジャーバンド位置計算"""
+    def _calculate_bb_bands(self, close: pd.Series, period: int = 20) -> tuple:
+        """ボリンジャーバンド拡張（上限・下限・位置を返す）"""
         bb_middle = close.rolling(window=period, min_periods=1).mean()
         bb_std_dev = close.rolling(window=period, min_periods=1).std()
         bb_upper = bb_middle + (bb_std_dev * 2)
         bb_lower = bb_middle - (bb_std_dev * 2)
-        return (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
+        bb_position = (close - bb_lower) / (bb_upper - bb_lower + 1e-8)
+        return bb_upper, bb_lower, bb_position
+
+    def _calculate_stochastic(self, df: pd.DataFrame, period: int = 14, smooth_k: int = 3) -> tuple:
+        """Stochastic Oscillator計算 (%K, %D)"""
+        low_min = df["low"].rolling(window=period, min_periods=1).min()
+        high_max = df["high"].rolling(window=period, min_periods=1).max()
+
+        # %K計算（Fast %K）
+        stoch_k_fast = 100 * (df["close"] - low_min) / (high_max - low_min + 1e-8)
+
+        # %K smoothing（Slow %K）
+        stoch_k = stoch_k_fast.rolling(window=smooth_k, min_periods=1).mean()
+
+        # %D計算（%Kの3期間SMA）
+        stoch_d = stoch_k.rolling(window=3, min_periods=1).mean()
+
+        return stoch_k, stoch_d
+
+    def _calculate_volume_ema(self, volume: pd.Series, period: int = 20) -> pd.Series:
+        """出来高EMA計算"""
+        return volume.ewm(span=period, adjust=False).mean()
+
+    def _calculate_atr_ratio(self, df: pd.DataFrame) -> pd.Series:
+        """ATR/Close比率計算（ボラティリティ正規化）"""
+        return df["atr_14"] / (df["close"] + 1e-8)
 
     def _calculate_volume_ratio(self, volume: pd.Series, period: Optional[int] = None) -> pd.Series:
         """出来高比率計算"""
@@ -783,21 +839,21 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 60) -> None:
+    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 55) -> None:
         """
-        特徴量完全確認・検証 - Phase 50.9: 60特徴量固定
+        特徴量完全確認・検証 - Phase 51.7 Day 7: 55特徴量固定
 
         Args:
             df: 検証対象DataFrame
-            expected_count: 期待特徴量数（62固定）
+            expected_count: 期待特徴量数（55固定）
         """
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
 
-        # Phase 50.9: 外部API削除・double counting bug修正
+        # Phase 51.7 Day 2: Feature Importance分析に基づく最適化
         total_generated = len(generated_features)
 
-        # 🚨 統合ログ出力 - Phase 50.9: 60特徴量固定
+        # 🚨 統合ログ出力 - Phase 51.7 Day 2: 51特徴量固定
         self.logger.info(
             f"特徴量生成完了 - 総数: {total_generated}/{expected_count}個",
             extra_data={
@@ -808,16 +864,22 @@ class FeatureGenerator:
                         for f in [
                             "rsi_14",
                             "macd",
+                            "macd_signal",
+                            "macd_histogram",
                             "atr_14",
+                            "bb_upper",
+                            "bb_lower",
                             "bb_position",
-                            "ema_20",
                             "ema_50",
-                            "donchian_high_20",
                             "donchian_low_20",
                             "channel_position",
                             "adx_14",
                             "plus_di_14",
                             "minus_di_14",
+                            "stoch_k",
+                            "stoch_d",
+                            "volume_ema",
+                            "atr_ratio",
                         ]
                         if f in df.columns
                     ]
@@ -825,11 +887,7 @@ class FeatureGenerator:
                 "anomaly_features": len([f for f in ["volume_ratio"] if f in df.columns]),
                 "lag_features": len([f for f in df.columns if "lag" in f]),
                 "rolling_features": len(
-                    [
-                        f
-                        for f in df.columns
-                        if any(kw in f for kw in ["_ma_", "_std_", "_max_", "_min_"])
-                    ]
+                    [f for f in df.columns if any(kw in f for kw in ["_ma_", "_std_"])]
                 ),
                 "interaction_features": len([f for f in df.columns if "_x_" in f]),
                 "time_features": len(
@@ -838,11 +896,11 @@ class FeatureGenerator:
                         for f in [
                             "hour",
                             "day_of_week",
-                            "is_weekend",
                             "is_market_open_hour",
-                            "month",
-                            "quarter",
-                            "is_quarter_end",
+                            "is_europe_session",
+                            "hour_cos",
+                            "day_sin",
+                            "day_cos",
                         ]
                         if f in df.columns
                     ]
@@ -850,19 +908,19 @@ class FeatureGenerator:
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": expected_count,
-                "success": total_generated >= expected_count,  # Phase 50.9: 60特徴量完全一致
+                "success": total_generated >= expected_count,  # Phase 51.7 Day 2: 51特徴量完全一致
             },
         )
 
-        # ⚠️ 不足特徴量の警告 - Phase 50.9: 60特徴量固定
+        # ⚠️ 不足特徴量の警告 - Phase 51.7 Day 2: 51特徴量固定
         if missing_features:
             self.logger.warning(
                 f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
 
-        # Phase 50.9: 60特徴量完全生成確認
+        # Phase 51.7 Day 2: 51特徴量完全生成確認
         if total_generated == expected_count:
-            self.logger.info("✅ Phase 50.9: 60特徴量完全生成成功")
+            self.logger.info("✅ Phase 51.7 Day 2: 51特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""

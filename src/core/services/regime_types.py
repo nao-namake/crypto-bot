@@ -31,7 +31,7 @@ class RegimeType(Enum):
     """通常レンジ相場（2-5%変動）- ATRBased+Donchian+ADXバランス型"""
 
     TRENDING = "trending"
-    """トレンド相場（ADX > 25）- MultiTimeframe+Mochipoy重視"""
+    """トレンド相場（ADX > 25）- ADXTrendStrength重視"""
 
     HIGH_VOLATILITY = "high_volatility"
     """高ボラティリティ（ATR比 > 1.8%・4時間足）- 全戦略ディスエーブル（待機）"""

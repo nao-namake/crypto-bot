@@ -1,11 +1,11 @@
 # 🚀 Crypto-Bot - AI自動取引システム
 
-**Phase 50.9実装予定・bitbank BTC/JPY専用・企業級品質達成**
+**Phase 51.5-E完了・bitbank BTC/JPY専用・企業級品質達成**
 
-[![Tests](https://img.shields.io/badge/tests-1117%20passed-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-68.32%25-green)](coverage-reports/)
-[![Phase 50.8](https://img.shields.io/badge/Phase%2050.8-Completed-brightgreen)](docs/)
-[![Phase 50.9](https://img.shields.io/badge/Phase%2050.9-In%20Preparation-yellow)](docs/)
+[![Tests](https://img.shields.io/badge/tests-1153%20passed-success)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-68.77%25-green)](coverage-reports/)
+[![Phase 51.5](https://img.shields.io/badge/Phase%2051.5-Completed-brightgreen)](docs/)
+[![Phase 51.6](https://img.shields.io/badge/Phase%2051.6-In%20Progress-yellow)](docs/)
 
 ---
 
@@ -21,8 +21,8 @@ pip install -r requirements.txt
 cp config/secrets/.env.example config/secrets/.env
 # → .envファイルにbitbank API・Discord Webhook設定
 
-# 3. Phase 50.8品質チェック
-bash scripts/testing/checks.sh  # 1,117テスト・68.32%カバレッジ・約74秒
+# 3. Phase 51.5-E品質チェック
+bash scripts/testing/checks.sh  # 1,153テスト・68.77%カバレッジ・約74秒
 
 # 4. システム実行
 bash scripts/management/run_safe.sh local paper  # ペーパートレード
@@ -45,7 +45,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。3つの取引戦略と機械学習を統合し、**60の特徴量**（50基本+3戦略シグナル+7時間的）を総合分析することで、24時間自動取引を実現します。
 
-**Phase 51.5-A完了**: 戦略削減（5→3）・60特徴量固定システム確立。動的戦略管理基盤（Phase 51.5-B）・レガシーコード完全修正（Phase 51.5-D）により、システム整合性100%達成。
+**Phase 51.5-E完了**: 戦略削減（5→3）・60特徴量固定システム確立・動的戦略管理基盤実装・レガシーコード完全修正により、システム整合性100%達成・Phase 51完走計画確定（Phase 51.6-51.11・データドリブンな戦略選択・Phase 52以降凍結）。
 
 ### 運用仕様
 
@@ -54,33 +54,29 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 - **取引頻度**: 月100-200回・5分間隔実行
 - **稼働体制**: 24時間自動取引・Cloud Run稼働・ゼロダウンタイム
 - **インフラコスト**: 月額700-900円（GCP）
-- **品質保証**: 1,117テスト100%成功・68.32%カバレッジ
+- **品質保証**: 1,153テスト100%成功・68.77%カバレッジ
 
-### 最新Phase完了・実装予定
+### 最新Phase完了
 
-**Phase 51.5-D完了**: レガシーコード完全修正・システム整合性100%達成
+**Phase 51.5-E完了**（2025/11/04）: 統合デプロイ・MLモデル再訓練・CI/CD成功・GCPデプロイ完了
 - **Phase 51.5-A**: 戦略削減（5→3）・60特徴量固定システム確立
-- **Phase 51.5-B**: 動的戦略管理基盤実装（93%削減達成）
-- **Phase 51.5-C**: 緊急修正5問題（15m足直接API実装・TP/SL修正）
-- **Phase 51.5-D**: レガシーコード修正8ファイル（60特徴量移行完了）
+- **Phase 51.5-A Fix**: データ行数問題修正（1,081→17,272行）
+- **Phase 51.5-A Fix 2**: MLモデル一括生成システム実装
+- **Phase 51.5-B**: 動的戦略管理基盤実装（93%削減達成・27→2ファイル）
+- **Phase 51.5-C**: 緊急修正5問題（15m足直接API実装・45分完了）
+- **Phase 51.5-D**: レガシーコード完全修正13ファイル（システム整合性100%）
+- **Phase 51.5-E**: 統合デプロイ・最新MLモデル投入・本番稼働開始
 - **モデル**: ensemble_full.pkl（60特徴量）・ensemble_basic.pkl（57特徴量）
-- **期待効果**: システム整合性100%・品質保証完全達成（1,153テスト・68.27%カバレッジ）
+- **品質**: 1,153テスト100%成功・68.77%カバレッジ
+- **開発履歴**: `docs/開発履歴/Phase_51.5.md`（722行・7サブPhase）
 
-**Phase 51.1（Phase 50.9直後実施）**: レンジ型戦略リバランス
-- **目的**: 市場の70-80%がレンジ相場・RR比0.67:1に最適化
-- **戦略重み変更**: ATRBased 25%→35%・DonchianChannel 15%→25%（レンジ型60%化）
-- **期待効果**: 勝率+5-10%・エントリー機会+30-50%・エクイティカーブ平滑化
-
-**Phase 50.8（2025/11/01完了）**: Graceful Degradation完全実装
-- Level 1→2自動フォールバック実装（外部API障害時も継続動作）
-- 動的モデル選択実装（特徴量数に応じた最適モデル自動選択）
-- ExternalAPIError伝播修正（正しい例外ハンドリング）
-- 本番環境0エントリー問題を根本解決
-
-**Phase 50.7〜51.5-D（2025/10/31〜11/04）**: モデルシステム進化・Phase 51.5完了
-- Phase 50.9: ensemble_full.pkl/ensemble_basic.pkl（62/57特徴量）
-- Phase 51.5-A: 60特徴量固定システム（50基本+3戦略+7時間）
-- Phase 51.5-D: レガシーコード完全修正・システム整合性100%達成
+**Phase 51完走計画**（Phase 51.6-51.11）:
+- **基本方針**: データドリブンな戦略選択（各ステップでバックテスト評価）
+- **Phase 51.6**: 新戦略実装（レンジ型・トレンド型厳選）+ バックテスト評価
+- **Phase 51.7-51.8**: レジーム別最適化・ML統合最適化 + バックテスト評価
+- **Phase 51.9-51.11**: 総合検証・ペーパートレード・本番展開
+- **Phase 52以降**: 凍結（実運用3ヶ月データ収集後に再検討）
+- **開発基盤**: Registry Pattern実装（拡張性93%向上）・技術的負債ゼロ
 
 **Phase 49（2025/10/26）**: バックテスト完全改修
 - TradeTracker実装（エントリー/エグジットペアリング・損益計算）
@@ -108,12 +104,11 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 ### AI取引システム
 
 - **3戦略統合**（Phase 51.5-A）: ATRBased・DonchianChannel・ADXTrendStrength
-- **動的戦略管理**（Phase 51.5-B）: 93%削減達成・strategies.yaml主導
-- **動的信頼度計算**: 市場適応型信頼度0.25-0.6・フォールバック回避
+- **動的戦略管理**（Phase 51.5-B）: Registry Pattern・93%削減達成・戦略追加が2ファイルのみ
 - **Strategy-Aware ML**: **60特徴量学習**（50基本+3戦略シグナル+7時間的）・ML統合率100%達成
 - **3モデルアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
 - **F1スコア**: 0.56-0.61達成
-- **2段階Graceful Degradation**（Phase 51.5-A）: ensemble_full.pkl（60）→ensemble_basic.pkl（57）→Dummy・ゼロダウンタイム
+- **2段階Graceful Degradation**: ensemble_full.pkl（60特徴量）→ensemble_basic.pkl（57特徴量）→DummyModel・ゼロダウンタイム保証
 
 ### リスク管理・取引実行
 
@@ -128,7 +123,7 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 - **24時間稼働**: Google Cloud Run・自動スケーリング・ゼロダウンタイム
 - **週間レポート**: 損益曲線グラフ・毎週月曜9時自動送信
 - **確定申告システム**: SQLite取引記録・移動平均法損益計算・CSV出力
-- **品質保証**: 1,117テスト自動実行・68.32%カバレッジ
+- **品質保証**: 1,153テスト自動実行・68.77%カバレッジ
 - **週次ML学習**: 過去180日データで毎回ゼロから再学習・市場変化適応
 
 ---
@@ -139,7 +134,7 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 🏗️ レイヤードアーキテクチャ設計
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  📊 Data Layer  │───▶│ 📈 Feature Layer│───▶│ 🎯 Strategy Layer│
-│  (Bitbank API)  │    │ (15 Indicators) │    │ (5 Strategies)  │
+│  (Bitbank API)  │    │ (15 Indicators) │    │ (3 Strategies)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
           │                       │                       │
           ▼                       ▼                       ▼
@@ -156,8 +151,8 @@ src/
 ├── core/                   # 基盤システム（設定・実行制御・レポート）
 ├── data/                   # データ層（Bitbank API・キャッシュ）
 ├── features/               # 特徴量生成（15指標）
-├── strategies/             # 5戦略統合システム
-├── ml/                     # ML統合（3モデルアンサンブル）
+├── strategies/             # 3戦略統合システム（Phase 51.5-A）
+├── ml/                     # ML統合（3モデルアンサンブル・60特徴量）
 ├── trading/                # 取引管理層（5層アーキテクチャ）
 ├── backtest/               # バックテストシステム（Phase 49完全改修）
 └── monitoring/             # 週間レポート（Phase 48）
@@ -263,12 +258,12 @@ mode_balances:
 
 ### システム性能
 
-- **テスト成功率**: 100%（1,065テスト）・CI/CD品質ゲート通過
-- **コードカバレッジ**: 66.72%・品質基準大幅超過
+- **テスト成功率**: 100%（1,153テスト）・CI/CD品質ゲート通過
+- **コードカバレッジ**: 68.77%・品質基準大幅超過
 - **ML統合率**: 100%達成（3段階統合ロジック）
 - **ML性能**: F1スコア0.56-0.61
 - **バックテスト性能**: 45分実行（10倍高速化達成）
-- **システム安定性**: Container exit(1)完全解消・Graceful Degradation実装
+- **システム安定性**: Container exit(1)完全解消・Graceful Degradation実装・ゼロダウンタイム保証
 
 ### コスト・収益最適化
 
@@ -297,4 +292,4 @@ mode_balances:
 
 ---
 
-**📅 最終更新**: 2025年11月01日 - Phase 50.8完了・Phase 50.9実装準備完了・Phase 51.1実装予定
+**📅 最終更新**: 2025年11月04日 - **Phase 51.5-E完了**（統合デプロイ・MLモデル再訓練・CI/CD成功・GCPデプロイ完了）+ **Phase 51完走計画確定**（Phase 51.6-51.11・データドリブンな戦略選択・Phase 52以降凍結）

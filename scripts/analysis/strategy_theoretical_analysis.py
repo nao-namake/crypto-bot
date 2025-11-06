@@ -27,25 +27,24 @@ class StrategyTheoreticalAnalyzer:
     def __init__(self):
         self.logger = get_logger(__name__)
 
-        # 3戦略リスト - Phase 51.5-A
-        self.strategies = [
-            "ATRBased",
-            "DonchianChannel",
-            "ADXTrendStrength",
-        ]
+        # Phase 51.7 Day 7: strategies.yamlから動的取得（設定駆動型）
+        from src.strategies.strategy_loader import StrategyLoader
 
-        # 戦略の設計思想（手動分類） - Phase 51.5-A: 3戦略構成
+        loader = StrategyLoader()
+        strategies_data = loader.load_strategies()
+
+        # 戦略リスト
+        self.strategies = [s["metadata"]["name"] for s in strategies_data]
+
+        # 戦略の設計思想（regime_affinityから取得）
         self.strategy_types = {
-            "ATRBased": "range",  # レンジ型（ATRベースのボラティリティ検出）
-            "DonchianChannel": "range",  # レンジ型（ブレイクアウト検出）
-            "ADXTrendStrength": "trend",  # トレンド型（ADXトレンド強度）
+            s["metadata"]["name"]: s["config"].get("regime_affinity", "both")
+            for s in strategies_data
         }
 
-        # 戦略の主要指標 - Phase 51.5-A: 3戦略構成
+        # 戦略の主要指標（indicatorsから取得）
         self.strategy_indicators = {
-            "ATRBased": ["ATR", "BB", "RSI"],
-            "DonchianChannel": ["Donchian", "Breakout"],
-            "ADXTrendStrength": ["ADX", "DI"],
+            s["metadata"]["name"]: s["config"].get("indicators", []) for s in strategies_data
         }
 
         self.logger.info("✅ StrategyTheoreticalAnalyzer初期化完了")

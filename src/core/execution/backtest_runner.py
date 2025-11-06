@@ -253,11 +253,13 @@ class BacktestRunner(BaseRunner):
 
                 # Phase 49.1: 戦略シグナル特徴量は_precompute_strategy_signals()で別途計算
                 # ここでは0.0で初期化のみ（後で上書きされる）
-                # Phase 51.5-A: 3戦略シグナル（MochipoyAlert・MultiTimeframe削除）
+                # Phase 51.7 Day 7: 6戦略シグナル（設定駆動型・動的生成）
+                from ...strategies.strategy_loader import StrategyLoader
+
+                loader = StrategyLoader()
+                strategies_data = loader.load_strategies()
                 strategy_signal_features = [
-                    "strategy_signal_ATRBased",
-                    "strategy_signal_DonchianChannel",
-                    "strategy_signal_ADXTrendStrength",
+                    f"strategy_signal_{s['metadata']['name']}" for s in strategies_data
                 ]
                 for col in strategy_signal_features:
                     if col not in features_df.columns:
@@ -316,15 +318,15 @@ class BacktestRunner(BaseRunner):
             feature_gen = FeatureGenerator()
             total_rows = len(main_df)
 
-            # 戦略シグナル特徴量の初期化（全行×5戦略）
-            strategy_names = [
-                "ATRBased",
-                "MochipoyAlert",
-                "MultiTimeframe",
-                "DonchianChannel",
-                "ADXTrendStrength",
-            ]
+            # 戦略シグナル特徴量の初期化（Phase 51.7 Day 7: 6戦略・設定駆動型）
+            from ...strategies.strategy_loader import StrategyLoader
+
+            loader = StrategyLoader()
+            strategies_data = loader.load_strategies()
+            strategy_names = [s["metadata"]["name"] for s in strategies_data]
             strategy_signal_columns = {f"strategy_signal_{name}": [] for name in strategy_names}
+
+            self.logger.warning(f"✅ {len(strategy_names)}戦略でバックテスト実行: {strategy_names}")
 
             # 進捗報告用
             progress_interval = max(1, total_rows // 10)  # 10%ごとに報告
@@ -563,9 +565,34 @@ class BacktestRunner(BaseRunner):
             # if i % report_interval == 0:
             #     await self._save_progress_report()
 
+    def _calculate_pnl(
+        self, side: str, entry_price: float, exit_price: float, amount: float
+    ) -> float:
+        """
+        損益計算（Phase 51.7 Phase 3-2: ライブモード一致化）
+
+        Args:
+            side: エントリーサイド（"buy" or "sell"）
+            entry_price: エントリー価格
+            exit_price: 決済価格
+            amount: 取引量（BTC）
+
+        Returns:
+            損益（円）
+        """
+        if side == "buy":
+            # ロングポジション決済: (決済価格 - エントリー価格) × 数量
+            pnl = (exit_price - entry_price) * amount
+        else:  # side == "sell"
+            # ショートポジション決済: (エントリー価格 - 決済価格) × 数量
+            pnl = (entry_price - exit_price) * amount
+
+        return pnl
+
     async def _check_tp_sl_triggers(self, current_price: float, timestamp):
         """
         TP/SLトリガーチェック・決済シミュレーション（Phase 49.2: バックテスト完全改修）
+        （Phase 51.7 Phase 3-2: 仮想残高更新追加 - ライブモード一致化）
 
         現在価格とTP/SL価格を比較し、トリガー時に決済注文シミュレーションを実行。
         これによりバックテストでSELL注文が生成され、完全な取引サイクルを実現。
@@ -578,7 +605,8 @@ class BacktestRunner(BaseRunner):
             1. PositionTrackerから全ポジション取得
             2. 各ポジションのTP/SL価格と現在価格を比較
             3. TP/SLトリガー時に決済注文シミュレーション
-            4. ポジション削除
+            4. 仮想残高更新（Phase 51.7 Phase 3-2追加）
+            5. ポジション削除
         """
         try:
             # 1. 全ポジション取得
@@ -631,18 +659,19 @@ class BacktestRunner(BaseRunner):
                         f"(エントリー: {entry_price:.0f}円, 戦略: {strategy_name}) - {timestamp}"
                     )
 
-                    # 5. 決済注文シミュレーション（ExecutionService経由）
+                    # 5. 決済処理（Phase 51.7 Phase 3-3.5: バックテスト最適化）
+                    # バックテストモードではbitbank API呼び出し不要（残高更新とTradeTracker記録のみ）
                     try:
-                        # 決済サイド: buy → sell, sell → buy
-                        exit_side = "sell" if side == "buy" else "buy"
+                        # Phase 51.7 Phase 3-2: 仮想残高更新（ライブモード一致化）
+                        pnl = self._calculate_pnl(side, entry_price, exit_price, amount)
+                        current_balance = self.orchestrator.execution_service.virtual_balance
+                        self.orchestrator.execution_service.virtual_balance += pnl
+                        new_balance = self.orchestrator.execution_service.virtual_balance
 
-                        # ExecutionService経由で決済注文実行
-                        # バックテストモードではbitbank APIは呼ばれず、仮想注文のみ実行
-                        await self.orchestrator.execution_service._execute_order_with_limit(
-                            side=exit_side,
-                            amount=amount,
-                            price=exit_price,
-                            reason=f"{trigger_type}トリガー決済",
+                        self.logger.info(
+                            f"💰 Phase 51.7 Phase 3-2: 仮想残高更新 - "
+                            f"{trigger_type}決済損益: {pnl:+.0f}円 → 残高: {new_balance:.0f}円 "
+                            f"(前残高: {current_balance:.0f}円)"
                         )
 
                         # 6. ポジション削除
@@ -768,6 +797,9 @@ class BacktestRunner(BaseRunner):
     async def _generate_final_backtest_report(self):
         """最終バックテストレポート生成（Phase 35: JSON serializable修正）"""
         try:
+            # Phase 51.7: バックテスト終了時に全オープンポジションを強制決済
+            await self._close_all_open_positions()
+
             # 最終統計収集（Phase 35: datetime→ISO文字列変換でJSON serializable化）
             final_stats = {
                 "backtest_period": {
@@ -799,6 +831,62 @@ class BacktestRunner(BaseRunner):
 
         except Exception as e:
             self.logger.error(f"❌ 最終レポート生成エラー: {e}")
+
+    async def _close_all_open_positions(self):
+        """
+        バックテスト終了時に全オープンポジションを強制決済（Phase 51.7追加）
+
+        TP/SL決済が発生しなかったポジションを最終価格で決済し、
+        TradeTrackerに記録することで統計計算を可能にする。
+        """
+        try:
+            # 全オープンポジション取得
+            open_positions = self.orchestrator.execution_service.virtual_positions.copy()
+
+            if not open_positions:
+                self.logger.warning("📊 オープンポジションなし - 決済不要")
+                return
+
+            self.logger.warning(
+                f"📊 バックテスト終了 - {len(open_positions)}件のオープンポジションを強制決済"
+            )
+
+            # 最終価格取得
+            main_timeframe = self.timeframes[0] if self.timeframes else "15m"
+            if main_timeframe in self.csv_data:
+                main_data = self.csv_data[main_timeframe]
+                if not main_data.empty:
+                    final_price = main_data.iloc[-1]["close"]
+                    final_timestamp = main_data.index[-1]
+
+                    # 各ポジションを決済
+                    for position in open_positions:
+                        order_id = position.get("order_id")
+
+                        # TradeTrackerにエグジット記録
+                        if (
+                            hasattr(self.orchestrator, "backtest_reporter")
+                            and self.orchestrator.backtest_reporter
+                        ):
+                            self.orchestrator.backtest_reporter.trade_tracker.record_exit(
+                                order_id=order_id,
+                                exit_price=final_price,
+                                exit_timestamp=final_timestamp,
+                                exit_reason="バックテスト終了時強制決済",
+                            )
+
+                        self.logger.info(
+                            f"✅ 強制決済: {order_id} @ {final_price:.0f}円 (バックテスト終了)"
+                        )
+
+                    self.logger.warning(f"✅ {len(open_positions)}件のポジション強制決済完了")
+                else:
+                    self.logger.warning("⚠️ データが空のため強制決済スキップ")
+            else:
+                self.logger.warning(f"⚠️ メインタイムフレーム {main_timeframe} が見つかりません")
+
+        except Exception as e:
+            self.logger.error(f"❌ オープンポジション強制決済エラー: {e}")
 
     async def _save_error_report(self, error_message: str):
         """エラーレポート保存"""

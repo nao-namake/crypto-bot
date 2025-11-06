@@ -109,51 +109,89 @@ class DynamicStrategySelector:
 
     def _get_default_weights(self, regime: RegimeType) -> Dict[str, float]:
         """
-        デフォルト戦略重みを返す（フォールバック用）
+        Phase 51.7 Day 7: レジーム別デフォルト重み取得（設定駆動型・6戦略対応）
 
-        重要: 全5戦略の重みを返す（使用しない戦略は0.0に設定）
-              StrategyManager.update_strategy_weights()は部分的な更新のみを行うため、
+        strategies.yamlから戦略を動的読み込みし、regime_affinityに基づいて
+        レジーム別の重み付けを自動計算。戦略追加時の修正箇所を削減。
+
+        重要: StrategyManager.update_strategy_weights()は部分的な更新のみを行うため、
               レジームに含まれない戦略を明示的に0.0にする必要がある。
 
         Args:
             regime: 市場レジーム
 
         Returns:
-            Dict[str, float]: デフォルト戦略重み（3戦略・Phase 51.5-A・合計1.0）
+            Dict[str, float]: デフォルト戦略重み（全戦略・動的・合計1.0）
         """
+        from ...strategies.strategy_loader import StrategyLoader
+
+        # 全戦略を動的取得
+        loader = StrategyLoader()
+        strategies_data = loader.load_strategies()
+
+        # 全戦略を0.0で初期化
+        weights = {s["metadata"]["name"]: 0.0 for s in strategies_data}
+
+        # レジーム別重み付けロジック
         if regime == RegimeType.TIGHT_RANGE:
-            return {
-                "ATRBased": 0.70,
-                "DonchianChannel": 0.30,
-                "ADXTrendStrength": 0.0,
-            }
+            # レンジ型戦略のみ（70:30比率）
+            range_strategies = [
+                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
+            ]
+            if len(range_strategies) >= 2:
+                # 優先度順でトップ2に重み配分
+                sorted_strategies = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                weights[sorted_strategies[0]["metadata"]["name"]] = 0.70
+                weights[sorted_strategies[1]["metadata"]["name"]] = 0.30
+            elif len(range_strategies) == 1:
+                weights[range_strategies[0]["metadata"]["name"]] = 1.0
+
         elif regime == RegimeType.NORMAL_RANGE:
-            return {
-                "ATRBased": 0.50,
-                "DonchianChannel": 0.30,
-                "ADXTrendStrength": 0.20,
-            }
+            # レンジ型80% + トレンド型20%
+            range_strategies = [
+                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
+            ]
+            trend_strategies = [
+                s for s in strategies_data if s["config"].get("regime_affinity") == "trend"
+            ]
+            if range_strategies:
+                sorted_range = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                weights[sorted_range[0]["metadata"]["name"]] = 0.50
+                if len(sorted_range) >= 2:
+                    weights[sorted_range[1]["metadata"]["name"]] = 0.30
+            if trend_strategies:
+                weights[trend_strategies[0]["metadata"]["name"]] = 0.20
+
         elif regime == RegimeType.TRENDING:
-            return {
-                "ADXTrendStrength": 0.60,
-                "ATRBased": 0.30,
-                "DonchianChannel": 0.10,
-            }
+            # トレンド型60% + レンジ型40%
+            trend_strategies = [
+                s for s in strategies_data if s["config"].get("regime_affinity") == "trend"
+            ]
+            range_strategies = [
+                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
+            ]
+            if trend_strategies:
+                weights[trend_strategies[0]["metadata"]["name"]] = 0.60
+            if range_strategies:
+                sorted_range = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                weights[sorted_range[0]["metadata"]["name"]] = 0.30
+                if len(sorted_range) >= 2:
+                    weights[sorted_range[1]["metadata"]["name"]] = 0.10
+
         elif regime == RegimeType.HIGH_VOLATILITY:
             # 高ボラティリティは全戦略0.0（全戦略無効化）
-            return {
-                "ATRBased": 0.0,
-                "DonchianChannel": 0.0,
-                "ADXTrendStrength": 0.0,
-            }
+            pass  # 既に0.0で初期化済み
+
         else:
-            # 未知のレジーム: 均等重み（3戦略・Phase 51.5-A）
+            # 未知のレジーム: 均等重み
             self.logger.warning(f"⚠️ 未知のレジーム: {regime.value} - 均等重みを使用")
-            return {
-                "ATRBased": 0.33,
-                "DonchianChannel": 0.33,
-                "ADXTrendStrength": 0.34,
-            }
+            num_strategies = len(weights)
+            if num_strategies > 0:
+                equal_weight = 1.0 / num_strategies
+                for strategy_name in weights.keys():
+                    weights[strategy_name] = equal_weight
+
+        return weights
 
     def is_enabled(self) -> bool:
         """

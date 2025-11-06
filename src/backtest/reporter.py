@@ -344,6 +344,31 @@ class BacktestReporter:
 
             self.logger.info(f"バックテストレポート生成完了(JSON): {json_filepath}")
 
+            # Phase 51.7: パフォーマンス指標サマリーをWARNINGレベルで出力（バックテスト時に確認しやすく）
+            self.logger.warning("=" * 60)
+            self.logger.warning("📊 バックテスト結果サマリー")
+            self.logger.warning("=" * 60)
+            self.logger.warning(f"総取引数: {performance_metrics.get('total_trades', 0)}件")
+            self.logger.warning(f"勝ちトレード: {performance_metrics.get('winning_trades', 0)}件")
+            self.logger.warning(f"負けトレード: {performance_metrics.get('losing_trades', 0)}件")
+            self.logger.warning(f"勝率: {performance_metrics.get('win_rate', 0.0):.2f}%")
+            self.logger.warning(f"総損益: ¥{performance_metrics.get('total_pnl', 0.0):,.0f}")
+            self.logger.warning(f"総利益: ¥{performance_metrics.get('total_profit', 0.0):,.0f}")
+            self.logger.warning(f"総損失: ¥{performance_metrics.get('total_loss', 0.0):,.0f}")
+            self.logger.warning(
+                f"プロフィットファクター: {performance_metrics.get('profit_factor', 0.0):.2f}"
+            )
+            self.logger.warning(
+                f"最大ドローダウン: ¥{performance_metrics.get('max_drawdown', 0.0):,.0f} ({performance_metrics.get('max_drawdown_pct', 0.0):.2f}%)"
+            )
+            self.logger.warning(
+                f"平均勝ちトレード: ¥{performance_metrics.get('average_win', 0.0):,.0f}"
+            )
+            self.logger.warning(
+                f"平均負けトレード: ¥{performance_metrics.get('average_loss', 0.0):,.0f}"
+            )
+            self.logger.warning("=" * 60)
+
             # Phase 49.3: テキストレポート生成
             text_filename = f"backtest_{timestamp}.txt"
             text_filepath = self.output_dir / text_filename

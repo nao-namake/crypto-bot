@@ -637,17 +637,19 @@ class ExecutionService:
             raise
 
     async def _execute_backtest_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
-        """バックテスト実行"""
+        """バックテスト実行（Phase 51.7: ライブモード完全一致化）"""
         try:
             # バックテスト用の簡易実行
             side = evaluation.side
             amount = float(evaluation.position_size)
             price = float(getattr(evaluation, "entry_price", 0))
 
+            virtual_order_id = f"backtest_{self.executed_trades + 1}"
+
             result = ExecutionResult(
                 success=True,
                 mode=ExecutionMode.PAPER,  # バックテストはペーパーモード扱い
-                order_id=f"backtest_{self.executed_trades + 1}",
+                order_id=virtual_order_id,
                 price=price,
                 amount=amount,
                 filled_price=price,
@@ -658,6 +660,37 @@ class ExecutionService:
                 status=OrderStatus.FILLED,
             )
 
+            # Phase 51.7: 仮想ポジション記録（TP/SL価格追加 - ライブモード一致化）
+            virtual_position = {
+                "order_id": virtual_order_id,
+                "side": side,
+                "amount": amount,
+                "price": price,
+                "timestamp": datetime.now(),
+                "take_profit": getattr(evaluation, "take_profit", None),
+                "stop_loss": getattr(evaluation, "stop_loss", None),
+                "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
+            }
+            self.virtual_positions.append(virtual_position)
+
+            # Phase 51.7: PositionTracker登録（ポジション管理統一）
+            if self.position_tracker:
+                try:
+                    self.position_tracker.add_position(
+                        order_id=virtual_order_id,
+                        side=side,
+                        amount=amount,
+                        price=price,
+                    )
+                    self.logger.debug(
+                        f"📊 Phase 51.7: バックテストポジション追加 - ID: {virtual_order_id}, "
+                        f"価格: {price:.0f}円, TP: {virtual_position.get('take_profit'):.0f}円, "
+                        f"SL: {virtual_position.get('stop_loss'):.0f}円"
+                    )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ バックテストポジション追加エラー: {e}")
+
+            # 統計更新
             self.executed_trades += 1
 
             # Phase 49.15: TradeTracker記録（バックテストレポート用）

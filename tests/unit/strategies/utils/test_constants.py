@@ -33,14 +33,15 @@ class TestConstants(unittest.TestCase):
         self.assertIsInstance(EntryAction.CLOSE, str)
 
     def test_strategy_type_constants(self):
-        """StrategyTypeクラステスト."""
+        """StrategyTypeクラステスト - Phase 51.7 Day 7: 6戦略構成."""
         # 全ての戦略タイプが存在することを確認
         expected_types = [
-            "MOCHIPOY_ALERT",
             "ATR_BASED",
-            "BOLLINGER_BANDS",
             "DONCHIAN_CHANNEL",
             "ADX_TREND",
+            "BB_REVERSAL",
+            "STOCHASTIC_REVERSAL",
+            "MACD_EMA_CROSSOVER",
         ]
 
         for strategy_type in expected_types:
@@ -83,13 +84,15 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(sorted(all_actions), sorted(expected_actions))
 
     def test_strategy_type_uniqueness(self):
-        """StrategyType定数の一意性テスト."""
+        """StrategyType定数の一意性テスト - Phase 51.7 Day 7: 6戦略構成."""
         # 各戦略タイプが一意であることを確認
         strategy_values = [
-            StrategyType.MOCHIPOY_ALERT,
             StrategyType.ATR_BASED,
             StrategyType.DONCHIAN_CHANNEL,
-            StrategyType.MULTI_TIMEFRAME,
+            StrategyType.ADX_TREND,
+            StrategyType.BB_REVERSAL,
+            StrategyType.STOCHASTIC_REVERSAL,
+            StrategyType.MACD_EMA_CROSSOVER,
         ]
 
         # 重複がないことを確認

@@ -423,28 +423,30 @@ async def create_trading_orchestrator(
         ml_service = MLServiceAdapter(logger)
         logger.info(f"🤖 MLサービス初期化完了: {ml_service.get_model_info()['model_type']}")
 
-        # Phase 28-29最適化: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
-        initial_balance = await _get_actual_balance(config, logger)
-        risk_service = create_risk_manager(
-            config=DEFAULT_RISK_CONFIG,
-            initial_balance=initial_balance,
-            mode=config.mode,
-            bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
-        )
-
         # Phase 28-29最適化: 実行サービス（risk_manager統合）
-        # executor.pyから移行されたexecution機能をrisk_manager経由で使用
-        from ...trading import create_risk_manager
+        # Phase 51.7 Phase 3-3: execution_service先行作成（risk_serviceに渡すため）
+        initial_balance = await _get_actual_balance(config, logger)
 
         # Config統一化: 実行モードをconfig.modeから取得（モード設定一元化）
         execution_mode = config.mode
         logger.info(f"🎯 実行モードConfig取得: config.mode={execution_mode}")
 
         # Phase 28-29最適化: 取引実行サービス（新規実装）
+        # Phase 51.7 Phase 3-3: risk_service作成前に実行
         from ...trading.execution import ExecutionService
 
         execution_service = ExecutionService(mode=execution_mode, bitbank_client=bitbank_client)
         execution_service.update_balance(initial_balance)
+
+        # Phase 28-29最適化: リスクサービス（BitbankAPI実残高取得対応・モード別分離対応）
+        # Phase 51.7 Phase 3-3: execution_service注入（バックテスト証拠金維持率チェック対応）
+        risk_service = create_risk_manager(
+            config=DEFAULT_RISK_CONFIG,
+            initial_balance=initial_balance,
+            mode=config.mode,
+            bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
+            execution_service=execution_service,  # Phase 51.7 Phase 3-3: バックテスト対応
+        )
 
         # Phase 38.1: PositionLimits/CooldownManager/BalanceMonitor注入（クールダウン機能復活）
         # Phase 42: PositionTracker注入追加（統合TP/SL対応）

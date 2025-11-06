@@ -209,11 +209,14 @@ class TestStrategyPerformanceAnalyzer:
         assert metrics.sharpe_ratio == 2.5
 
     def test_analyzer_strategies_list(self, analyzer):
-        """アナライザーが3戦略を認識していることを確認 - Phase 51.5-A"""
-        assert len(analyzer.strategies) == 3
+        """アナライザーが6戦略を認識していることを確認 - Phase 51.7 Day 7"""
+        assert len(analyzer.strategies) == 6
         assert "ATRBased" in analyzer.strategies
         assert "DonchianChannel" in analyzer.strategies
         assert "ADXTrendStrength" in analyzer.strategies
+        assert "BBReversal" in analyzer.strategies
+        assert "StochasticReversal" in analyzer.strategies
+        assert "MACDEMACrossover" in analyzer.strategies
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -264,8 +267,10 @@ class TestStrategyPerformanceAnalyzerDay2:
         assert hasattr(strategy, "analyze")
 
     def test_get_strategy_instance_invalid(self, analyzer):
-        """未知の戦略名でエラーが発生することを確認"""
-        with pytest.raises(ValueError, match="未知の戦略名"):
+        """未知の戦略名でエラーが発生することを確認 - Phase 51.7 Day 7"""
+        from src.core.exceptions import StrategyError
+
+        with pytest.raises(StrategyError, match="が見つかりません"):
             analyzer._get_strategy_instance("UnknownStrategy")
 
     @pytest.mark.asyncio
@@ -314,21 +319,24 @@ class TestStrategyPerformanceAnalyzerDay2:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_calculate_strategy_correlation_structure(self, analyzer):
-        """相関分析が正しい構造を返すことを確認 - Phase 51.5-A: 3戦略構成"""
+        """相関分析が正しい構造を返すことを確認 - Phase 51.7 Day 7: 6戦略構成"""
         import pandas as pd
 
-        # サンプル取引データ - Phase 51.5-A: 3戦略のみ
+        # サンプル取引データ - Phase 51.7 Day 7: 6戦略
         all_strategy_trades = {
             "ATRBased": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 1000}],
             "DonchianChannel": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 800}],
             "ADXTrendStrength": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": -300}],
+            "BBReversal": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 500}],
+            "StochasticReversal": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 600}],
+            "MACDEMACrossover": [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": -200}],
         }
 
         corr_df = analyzer.calculate_strategy_correlation(all_strategy_trades)
 
-        # DataFrameが3x3であることを確認 - Phase 51.5-A
+        # DataFrameが6x6であることを確認 - Phase 51.7 Day 7
         assert isinstance(corr_df, pd.DataFrame)
-        assert corr_df.shape == (3, 3)
+        assert corr_df.shape == (6, 6)
 
         # 対角要素が1.0であることを確認（自己相関）
         for strategy in analyzer.strategies:
@@ -343,9 +351,9 @@ class TestStrategyPerformanceAnalyzerDay2:
 
         corr_df = analyzer.calculate_strategy_correlation(all_strategy_trades)
 
-        # 単位行列が返されることを確認 - Phase 51.5-A: 3戦略構成
+        # 単位行列が返されることを確認 - Phase 51.7 Day 7: 6戦略構成
         assert isinstance(corr_df, pd.DataFrame)
-        assert corr_df.shape == (3, 3)
+        assert corr_df.shape == (6, 6)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # アンサンブル貢献度測定テスト
@@ -353,12 +361,12 @@ class TestStrategyPerformanceAnalyzerDay2:
 
     @pytest.mark.asyncio
     async def test_measure_ensemble_contribution_structure(self, analyzer, sample_historical_data):
-        """貢献度測定が正しい構造を返すことを確認 - Phase 51.5-A: 3戦略構成"""
+        """貢献度測定が正しい構造を返すことを確認 - Phase 51.7 Day 7: 6戦略構成"""
         contribution_results = await analyzer.measure_ensemble_contribution(sample_historical_data)
 
-        # 3戦略分の貢献度が返されることを確認 - Phase 51.5-A
+        # 6戦略分の貢献度が返されることを確認 - Phase 51.7 Day 7
         assert isinstance(contribution_results, dict)
-        assert len(contribution_results) == 3
+        assert len(contribution_results) == 6
 
         # 各戦略の貢献度指標が存在することを確認
         for strategy in analyzer.strategies:
@@ -376,7 +384,7 @@ class TestStrategyPerformanceAnalyzerDay2:
 
     @pytest.mark.asyncio
     async def test_integration_all_analyses(self, analyzer, sample_historical_data):
-        """全分析機能が連携して動作することを確認 - Phase 51.5-A: 3戦略構成"""
+        """全分析機能が連携して動作することを確認 - Phase 51.7 Day 7: 6戦略構成"""
         # 基本分析
         metrics = await analyzer.analyze_single_strategy("ATRBased", sample_historical_data)
         assert metrics.strategy_name == "ATRBased"
@@ -387,12 +395,12 @@ class TestStrategyPerformanceAnalyzerDay2:
         )
         assert len(regime_metrics) == 4
 
-        # 相関分析（簡易版）- Phase 51.5-A: 3戦略構成
+        # 相関分析（簡易版）- Phase 51.7 Day 7: 6戦略構成
         all_strategy_trades = {
             s: [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 1000}] for s in analyzer.strategies
         }
         corr_df = analyzer.calculate_strategy_correlation(all_strategy_trades)
-        assert corr_df.shape == (3, 3)
+        assert corr_df.shape == (6, 6)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

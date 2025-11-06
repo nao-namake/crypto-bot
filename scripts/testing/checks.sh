@@ -48,8 +48,8 @@ else
     echo "Phase 34のデータ収集を実行するか、シミュレーションデータでの学習となります"
 fi
 
-# Phase 50.9: 2段階MLモデルシステム整合性チェック
-echo ">>> 🤖 Phase 51.5-A MLモデル整合性チェック（60特徴量システム）"
+# Phase 51.7: 2段階MLモデルシステム整合性チェック
+echo ">>> 🤖 Phase 51.7 Day 7 MLモデル整合性チェック（55特徴量システム）"
 if [[ -f "scripts/testing/validate_model_consistency.py" ]]; then
     python3 scripts/testing/validate_model_consistency.py || {
         echo "❌ エラー: MLモデル整合性検証失敗"
@@ -61,13 +61,13 @@ else
     # フォールバック: 基本的なファイル存在確認のみ
     echo "⚠️  警告: validate_model_consistency.py not found - 基本チェックのみ実行"
     MISSING_MODELS=()
-    [[ ! -f "models/production/ensemble_full.pkl" ]] && MISSING_MODELS+=("ensemble_full (60特徴量)")
-    [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (57特徴量)")
+    [[ ! -f "models/production/ensemble_full.pkl" ]] && MISSING_MODELS+=("ensemble_full (55特徴量)")
+    [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (49特徴量)")
 
     if [ ${#MISSING_MODELS[@]} -eq 0 ]; then
-        echo "✅ 本番用2段階モデル存在確認（Phase 51.5-A）"
-        echo "   ensemble_full.pkl: 60特徴量（3戦略信号含む・デフォルト）"
-        echo "   ensemble_basic.pkl: 57特徴量（戦略信号なし・フォールバック）"
+        echo "✅ 本番用2段階モデル存在確認（Phase 51.7 Day 7）"
+        echo "   ensemble_full.pkl: 55特徴量（6戦略信号含む・デフォルト）"
+        echo "   ensemble_basic.pkl: 49特徴量（戦略信号なし・フォールバック）"
     else
         echo "⚠️  警告: 以下のモデルが見つかりません: ${MISSING_MODELS[*]}"
         echo "python3 scripts/ml/create_ml_models.py で作成してください"

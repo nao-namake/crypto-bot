@@ -512,8 +512,8 @@ class StrategyManager:
             各戦略のシグナル辞書
             例: {
                 "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},
-                "MochipoyAlert": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
-                "MultiTimeframe": {"action": "hold", "confidence": 0.500, "encoded": 0.0}
+                "DonchianChannel": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
+                "ADXTrendStrength": {"action": "hold", "confidence": 0.500, "encoded": 0.0}
             }
 
         Note:

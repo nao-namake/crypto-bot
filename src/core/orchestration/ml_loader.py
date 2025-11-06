@@ -4,13 +4,15 @@ MLサービス モデル読み込み機能 - Phase 50.9完了
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
 
-Phase 50.9完了:
-- 外部API完全削除・2段階Graceful Degradation実装
-  - Level 1（完全）: 62特徴量モデル（ensemble_full.pkl）- デフォルト
-  - Level 2（基本）: 57特徴量モデル（ensemble_basic.pkl）- フォールバック
+Phase 51.7 Day 7完了:
+- 6戦略統合・54特徴量システム確立
+  - Level 1（完全）: 54特徴量モデル（ensemble_full.pkl）- デフォルト（48基本+6戦略シグナル）
+  - Level 2（基本）: 48特徴量モデル（ensemble_basic.pkl）- フォールバック（48基本のみ）
   - Level 3（ダミー）: DummyModel（最終フォールバック）
+
+Phase 50.9完了:
+- 外部API完全削除・2段階Graceful Degradation実装（62/57特徴量）
 - モデルファイルリネーム: ensemble_level2/3 → ensemble_full/basic
-- full_with_external（70特徴量）完全削除
 - シンプル設計回帰・保守性向上
 
 Phase 50.8完了:
@@ -55,10 +57,10 @@ from .ml_fallback import DummyModel
 
 class MLModelLoader:
     """
-    MLモデル読み込み管理クラス - Phase 50.9: 2段階Graceful Degradation対応
+    MLモデル読み込み管理クラス - Phase 51.7 Day 7: 6戦略統合対応
 
     設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
-    外部API削除により、full（62特徴量）→basic（57特徴量）→Dummyの2段階フォールバックで
+    6戦略統合により、full（54特徴量）→basic（48特徴量）→Dummyの2段階フォールバックで
     システム継続性を保証。
     """
 
@@ -71,10 +73,10 @@ class MLModelLoader:
 
     def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        Phase 50.9: 2段階MLモデルシステム優先順位読み込み
+        Phase 51.7 Day 7: 6戦略統合MLモデルシステム優先順位読み込み
 
-        Level 1（完全）: 62特徴量モデル → ensemble_full.pkl
-        Level 2（基本）: 57特徴量モデル → ensemble_basic.pkl
+        Level 1（完全）: 54特徴量モデル → ensemble_full.pkl（48基本+6戦略シグナル）
+        Level 2（基本）: 48特徴量モデル → ensemble_basic.pkl（48基本のみ）
         Level 3（ダミー）: DummyModel → 最終フォールバック
 
         Args:
@@ -83,17 +85,17 @@ class MLModelLoader:
         Returns:
             読み込まれたモデルインスタンス
         """
-        self.logger.info("🤖 MLモデル読み込み開始 - Phase 50.9: 2段階Graceful Degradation")
+        self.logger.info("🤖 MLモデル読み込み開始 - Phase 51.7 Day 7: 6戦略統合システム")
 
-        # Phase 50.9: 特徴量レベル判定
+        # Phase 51.7: 特徴量レベル判定
         target_level = self._determine_feature_level(feature_count)
         self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
 
-        # Level 1: 完全特徴量モデル読み込み試行（62特徴量）
+        # Level 1: 完全特徴量モデル読み込み試行（54特徴量）
         if target_level == "full" and self._load_production_ensemble(level="full"):
             return self.model
 
-        # Level 2: 基本特徴量モデル読み込み試行（57特徴量）
+        # Level 2: 基本特徴量モデル読み込み試行（48特徴量）
         if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
             if target_level == "full":
                 self.logger.info("Level 2（基本）モデルにフォールバック")
@@ -110,7 +112,7 @@ class MLModelLoader:
 
     def _determine_feature_level(self, feature_count: Optional[int] = None) -> str:
         """
-        Phase 50.9: 特徴量レベル判定（設定駆動型・外部API削除）
+        Phase 51.7 Day 7: 特徴量レベル判定（6戦略統合システム）
 
         Args:
             feature_count: 生成された特徴量数
@@ -125,19 +127,19 @@ class MLModelLoader:
 
         # feature_countが指定されていない場合は、デフォルトでfullを試行
         if feature_count is None:
-            self.logger.debug("特徴量数未指定 → Level 1（完全62特徴量）を試行")
+            self.logger.debug("特徴量数未指定 → Level 1（完全54特徴量）を試行")
             return "full"
 
-        # 62特徴量の場合（完全特徴量）
-        if feature_count == level_counts.get("full", 62):
+        # 55特徴量の場合（完全特徴量: 49基本+6戦略シグナル）
+        if feature_count == level_counts.get("full", 55):
             return "full"
 
-        # 57特徴量の場合（基本特徴量のみ）
-        if feature_count == level_counts.get("basic", 57):
+        # 48特徴量の場合（基本特徴量のみ）
+        if feature_count == level_counts.get("basic", 48):
             return "basic"
 
         # その他の場合はfullを試行（フォールバック）
-        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全62特徴量）を試行")
+        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全54特徴量）を試行")
         return "full"
 
     def _load_production_ensemble(self, level: str = "full") -> bool:

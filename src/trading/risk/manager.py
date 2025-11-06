@@ -43,6 +43,7 @@ class IntegratedRiskManager:
         enable_discord_notifications: bool = True,
         mode: str = "live",
         bitbank_client=None,
+        execution_service=None,  # Phase 51.7 Phase 3-3: バックテスト証拠金維持率チェック用
     ):
         """
         統合リスク管理器初期化
@@ -53,11 +54,13 @@ class IntegratedRiskManager:
             enable_discord_notifications: Discord通知有効化
             mode: 実行モード（paper/live/backtest）
             bitbank_client: Bitbank APIクライアント（Phase 49.15: 証拠金維持率API取得用）
+            execution_service: ExecutionServiceインスタンス（Phase 51.7: バックテスト対応）
         """
         self.config = config
         self.enable_discord_notifications = enable_discord_notifications
         self.mode = mode
         self.bitbank_client = bitbank_client  # Phase 49.15: 証拠金維持率API取得用
+        self.execution_service = execution_service  # Phase 51.7: バックテスト対応
         self.logger = get_logger()
 
         # 初期残高設定（統一設定管理体系）
@@ -655,11 +658,30 @@ class IntegratedRiskManager:
                 ml_confidence, btc_price, current_balance
             )
 
+            # Phase 51.7 Phase 3-3: バックテストモードでは仮想ポジションから現在価値を計算
+            from ...core.config.runtime_flags import is_backtest_mode
+
+            current_position_value_jpy = 0.0  # デフォルト（API取得時）
+
+            if is_backtest_mode() and self.execution_service:
+                # バックテストモード: virtual_positionsから現在のポジション価値を計算
+                if hasattr(self.execution_service, "virtual_positions"):
+                    virtual_positions = self.execution_service.virtual_positions
+                    for position in virtual_positions:
+                        position_amount = position.get("amount", 0.0)
+                        current_position_value_jpy += position_amount * btc_price
+
+                    self.logger.info(
+                        f"📊 Phase 51.7 Phase 3-3: バックテスト現在ポジション価値計算 - "
+                        f"{len(virtual_positions)}ポジション, 合計価値: {current_position_value_jpy:.0f}円"
+                    )
+
             # Phase 50.4: predict_future_margin()内でAPI直接取得するため、
             # current_position_value_jpyは使用されない（0.0でも動作）
+            # Phase 51.7 Phase 3-3: バックテストモードでは計算した値を使用
             margin_prediction = await self.balance_monitor.predict_future_margin(
                 current_balance_jpy=current_balance,
-                current_position_value_jpy=0.0,  # Phase 50.4: 使用停止（APIから取得）
+                current_position_value_jpy=current_position_value_jpy,  # Phase 51.7: バックテスト対応
                 new_position_size_btc=estimated_new_position_size,
                 btc_price_jpy=btc_price,
                 bitbank_client=self.bitbank_client,  # Phase 50.4: API取得用

@@ -23,18 +23,18 @@ def logger():
 class TestMLLoader2StageGracefulDegradation:
     """MLLoader 2段階Graceful Degradationテスト（Phase 51.5-A: 60→57→Dummy）"""
 
-    def test_determine_feature_level_60_features(self, logger):
-        """特徴量レベル判定テスト（60特徴量 → full - Phase 51.5-A）"""
+    def test_determine_feature_level_55_features(self, logger):
+        """特徴量レベル判定テスト（55特徴量 → full - Phase 51.7 Day 7）"""
         loader = MLModelLoader(logger=logger)
 
-        level = loader._determine_feature_level(feature_count=60)
+        level = loader._determine_feature_level(feature_count=55)
         assert level == "full"
 
-    def test_determine_feature_level_57_features(self, logger):
-        """特徴量レベル判定テスト（57特徴量 → basic - Phase 51.5-A）"""
+    def test_determine_feature_level_49_features(self, logger):
+        """特徴量レベル判定テスト（49特徴量 → basic - Phase 51.7 Day 7）"""
         loader = MLModelLoader(logger=logger)
 
-        level = loader._determine_feature_level(feature_count=57)
+        level = loader._determine_feature_level(feature_count=49)
         assert level == "basic"
 
     def test_determine_feature_level_unknown_features(self, logger):

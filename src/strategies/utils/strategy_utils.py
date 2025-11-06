@@ -32,22 +32,23 @@ class EntryAction:
 
 
 class StrategyType:
-    """戦略タイプ定数."""
+    """戦略タイプ定数 - Phase 51.5-A: 3戦略構成 + Phase 51.7: 3戦略追加."""
 
-    MOCHIPOY_ALERT = "mochipoy_alert"
     ATR_BASED = "atr_based"
     BOLLINGER_BANDS = "bollinger_bands"
     DONCHIAN_CHANNEL = "donchian_channel"
     ADX_TREND = "adx_trend"
-    MULTI_TIMEFRAME = "multi_timeframe"
+    BB_REVERSAL = "bb_reversal"  # Phase 51.7 Day 3: BB Reversal strategy
+    STOCHASTIC_REVERSAL = "stochastic_reversal"  # Phase 51.7 Day 4: Stochastic Reversal strategy
+    MACD_EMA_CROSSOVER = "macd_ema_crossover"  # Phase 51.7 Day 5: MACD+EMA Crossover strategy
 
 
 # 基本リスク管理パラメータ（戦略で上書き可能）
-# Phase 49.18: thresholds.yaml完全準拠（フォールバック値）
+# Phase 51.6: フォールバック値のみ・実際の値は設定ファイル（thresholds.yaml）優先
 DEFAULT_RISK_PARAMS: Dict[str, Any] = {
-    # ストップロス・テイクプロフィット
-    "stop_loss_atr_multiplier": 2.0,  # 一般的な設定
-    "take_profit_ratio": 0.67,  # Phase 49.18: RR比0.67:1（thresholds.yaml準拠）
+    # ストップロス・テイクプロフィット（Phase 51.6: 設定ファイル優先）
+    "stop_loss_atr_multiplier": 2.0,  # フォールバック値
+    "take_profit_ratio": 1.29,  # Phase 51.6: RR比1.29:1（フォールバック値）
     # ポジションサイズ
     "position_size_base": 0.02,  # 2%の基本設定
     # 計算設定
@@ -194,9 +195,10 @@ class RiskManager:
                 return None, None
 
             # === SL距離計算（max_loss_ratio優先） ===
+            # Phase 51.6: ハードコード削除・設定ファイル一元管理（SL 0.7%）
             max_loss_ratio = config.get(
                 "max_loss_ratio",
-                get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
+                get_threshold("position_management.stop_loss.max_loss_ratio"),
             )
 
             # max_loss_ratioベースのSL距離（固定採用）
@@ -219,14 +221,14 @@ class RiskManager:
             )
 
             # === TP距離計算（min_profit_ratio優先） ===
-            # Phase 50.1.5: デフォルト値をPhase 49.18値（0.01/0.67）に修正
+            # Phase 51.6: ハードコード削除・設定ファイル一元管理（TP 0.9%・RR比1.29:1）
             min_profit_ratio = config.get(
                 "min_profit_ratio",
-                get_threshold("position_management.take_profit.min_profit_ratio", 0.01),
+                get_threshold("position_management.take_profit.min_profit_ratio"),
             )
             default_tp_ratio = config.get(
                 "take_profit_ratio",
-                get_threshold("position_management.take_profit.default_ratio", 0.67),
+                get_threshold("position_management.take_profit.default_ratio"),
             )
 
             # min_profit_ratioベースのTP距離

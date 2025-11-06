@@ -1,14 +1,15 @@
 """
-特徴量管理システム - Phase 50.9完了
+特徴量管理システム - Phase 51.7 Day 7完了
 
 特徴量定義の一元化により、ハードコーディング排除と保守性向上を実現。
 config/core/feature_order.jsonを真の情報源として全システムが統一的に参照。
 
-Phase 50.9完了:
-- 62特徴量固定管理（外部API削除・シンプル設計回帰）
-- 2段階Graceful Degradation対応（Level 1: 62 → Level 2: 57 → Dummy）
-- feature_order.json完全準拠（total_features: 62）
+Phase 51.7 Day 7完了:
+- 55特徴量固定管理（49基本+6戦略シグナル）
+- 6戦略統合（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）
+- feature_order.json完全準拠（total_features: 55）
 
+Phase 50.9完了: 外部API削除・シンプル設計回帰（62特徴量）
 Phase 50.2完了: 時間的特徴量拡張（55→62特徴量）
 Phase 49完了: 55特徴量管理（50基本+5戦略シグナル）・Strategy-Aware ML対応
 Phase 41: Strategy-Aware ML実装 - 50→55特徴量（戦略シグナル5個追加）
