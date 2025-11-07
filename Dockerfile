@@ -11,8 +11,9 @@ LABEL description="Phase 49完了: バックテスト完全改修・確定申告
 WORKDIR /app
 
 # 最小限のシステムパッケージ（統一設定管理体系最適化）
+# Phase 51.7 Day 7: cmake・libsecp256k1-dev追加（coincurveビルド対応）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates gcc libc6-dev \
+    curl ca-certificates gcc libc6-dev cmake libsecp256k1-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
