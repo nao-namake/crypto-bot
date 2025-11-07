@@ -14,11 +14,13 @@
 - 基盤システム正常後にBot機能診断実行
 - Phase履歴・開発完了情報は記載しない（開発履歴ドキュメント参照）
 
-**現在のシステム状態**: Phase 50完了（2025/10/30）
-- 70特徴量システム（62基本+8外部API）・4段階Graceful Degradation
-- 外部API統合（USD/JPY・日経平均・米10年債・Fear & Greed Index）
-- 証拠金維持率80%完全修正（Phase 50.4: API直接取得方式）
-- Phase 50.6: asyncio.to_thread()実装・外部API成功率100%達成
+**現在のシステム状態**: Phase 51.7完了（2025/11/08）
+- 55特徴量システム（49基本+6戦略信号）・2段階Graceful Degradation
+- 6戦略統合（Range型4戦略68%・Trend型2戦略32%）
+- TP/SL最適化（SL 0.7%・TP 0.9%・RR比1.29:1）
+- Atomic Entry Pattern実装（Entry/TP/SL一体保証・Exponential Backoff retry）
+- Market Regime Classification（4段階市場状況分類・動的戦略選択）
+- Dynamic Strategy Management（Registry+Decorator+Facadeパターン）
 
 ---
 
@@ -26,9 +28,9 @@
 
 | ファイル | 目的 | 実行時間 | 対象 |
 |---------|------|----------|------|
-| **01_システム稼働診断.md** | インフラ基盤の健全性チェック | 5分 | Cloud Run・Secret Manager・Discord・Container・API応答異常・証拠金維持率80%確認（Phase 50.4: API直接取得）・外部API特徴量取得状況（Phase 50.3・50.6） |
-| **02_Bot機能診断.md** | Bot固有機能のエントリーシグナルチェック | 10分 | 70特徴量（62基本+8外部API）・4段階Graceful Degradation・5戦略・ML統合・取引阻害エラー・TradeTracker統合 |
-| **03_緊急対応マニュアル.md** | 問題発生時の即座修正手順 | 1-5分 | Silent Failure・権限問題・Container問題・NoneType対策・外部API障害対応（Phase 50） |
+| **01_システム稼働診断.md** | インフラ基盤の健全性チェック | 5分 | Cloud Run・Secret Manager・Discord・Container・API応答異常・Atomic Entry Pattern動作確認・Market Regime Classification確認 |
+| **02_Bot機能診断.md** | Bot固有機能のエントリーシグナルチェック | 10分 | 55特徴量（49基本+6戦略信号）・2段階Graceful Degradation・6戦略（Range 4+Trend 2）・Registry Pattern・ML統合・取引阻害エラー・TradeTracker統合 |
+| **03_緊急対応マニュアル.md** | 問題発生時の即座修正手順 | 1-5分 | Silent Failure・権限問題・Container問題・NoneType対策・Atomic Entry Pattern障害対応・TP/SL配置失敗対応 |
 
 ---
 
@@ -85,11 +87,12 @@ bash 02_Bot機能診断.sh
 ### 02_Bot機能診断.md
 - **対象**: Bot固有のコア機能
 - **重点**:
-  - 70特徴量生成完全性（62基本+8外部API・Phase 50.3）
-  - 4段階Graceful Degradation（70→62→57→Dummy）
-  - 5戦略動的信頼度（小数点第3位変動確認）
-  - ML予測統合（戦略70%+ML30%）
-  - 取引機能（最小ロット・TP/SL・15m ATR・クールダウン）
+  - 55特徴量生成完全性（49基本+6戦略信号）
+  - 2段階Graceful Degradation（55→49→Dummy）
+  - 6戦略動的信頼度（Range 4戦略+Trend 2戦略・小数点第3位変動確認）
+  - Registry Pattern動作確認（動的戦略管理基盤）
+  - ML予測統合（3段階統合ロジック・<0.45戦略のみ・0.45-0.60加重平均・≥0.60ボーナス/ペナルティ）
+  - 取引機能（最小ロット・TP/SL・15m ATR・クールダウン・Atomic Entry Pattern）
   - 取引阻害エラー検出（NoneType・API応答異常）
 - **判定**: 取引判断機能が正常かを確認
 - **実行条件**: 01で基盤が正常な場合のみ
@@ -101,7 +104,8 @@ bash 02_Bot機能診断.sh
   - 権限問題・Container問題・Discord修復
   - NoneType エラー対策
   - API応答異常対応
-  - 外部API障害対応（Phase 50・Level 2フォールバック確認）
+  - Atomic Entry Pattern障害対応（Entry/TP/SL一体性保証・ロールバック動作確認）
+  - TP/SL配置失敗対応（Exponential Backoff retry動作確認）
 - **判定**: 修正コマンドによる迅速復旧
 - **実行条件**: 01/02で問題検出時
 
@@ -192,4 +196,4 @@ bash 02_Bot機能診断.sh
 
 **🎯 重要**: このフォルダのファイルはClaude Codeが一度に理解できる適切な長さに分割されています。問題の種類に応じて適切なファイルを選択してください。
 
-**最終更新**: 2025年10月30日 - Phase 50完了対応（70特徴量・4段階Graceful Degradation・外部API統合・証拠金維持率80%完全修正）
+**最終更新**: 2025年11月08日 - Phase 51.7完了対応（55特徴量・6戦略・2段階Graceful Degradation・Atomic Entry Pattern・Market Regime Classification・Dynamic Strategy Management）

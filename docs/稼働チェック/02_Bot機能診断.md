@@ -4,7 +4,7 @@
 
 **使用場面**:
 - デプロイ後のBot機能稼働確認
-- 70特徴量生成（62基本+8外部API）・5戦略判定・ML予測の健全性チェック
+- 55特徴量生成（49基本+6戦略信号）・6戦略判定・ML予測の健全性チェック
 - Silent Failure・取引阻害エラーの早期検知
 - 定期的なBot機能診断（毎日推奨）
 
@@ -14,11 +14,13 @@
 - 実装履歴は開発履歴ドキュメント参照
 - Bot機能のみに特化（基盤システムは01参照）
 
-**現在のシステム状態**: Phase 50完了（2025/10/30）
-- 70特徴量システム（62基本+8外部API）・4段階Graceful Degradation
-- 外部API統合（USD/JPY・日経平均・米10年債・Fear & Greed Index）
-- ML統合率100%達成（閾値0.45/0.60最適化）
-- 証拠金維持率80%完全修正（Phase 50.4: API直接取得方式）
+**現在のシステム状態**: Phase 51.7完了（2025/11/08）
+- 55特徴量システム（49基本+6戦略信号）・2段階Graceful Degradation
+- 6戦略統合（Range型4戦略68%・Trend型2戦略32%）
+- ML統合率100%達成（閾値0.45/0.60最適化・3段階統合ロジック）
+- TP/SL最適化（SL 0.7%・TP 0.9%・RR比1.29:1・Phase 51.6）
+- Atomic Entry Pattern実装（Entry/TP/SL一体保証・Exponential Backoff retry）
+- Dynamic Strategy Management（Registry+Decorator+Facadeパターン・Phase 51.5-B）
 
 ## ⚠️ 重要: まずREADME.mdを読んでください
 
@@ -28,20 +30,22 @@
 
 ## 🎯 診断対象
 
-- 📊 **70特徴量システム**: 62基本+8外部API・4段階Graceful Degradation（Phase 50.3）
-- 🌐 **外部API統合**: USD/JPY・日経平均・米10年債・Fear & Greed Index（Phase 50.3・50.6）
-- 🎯 **5戦略動的信頼度**: ATR・MochiPoy・MultiTimeframe・Donchian・ADX統合（小数点第3位変動確認）
+- 📊 **55特徴量システム**: 49基本+6戦略信号・2段階Graceful Degradation（Phase 51.7）
+- 🎯 **6戦略動的信頼度**: Range型4戦略（ATR・BBReversal・StochasticReversal・Donchian）+ Trend型2戦略（ADX・MACDEMACrossover）統合（小数点第3位変動確認）
+- 🏗️ **Dynamic Strategy Management**: Registry+Decorator+Facadeパターン（Phase 51.5-B）
 - 🤖 **3モデルMLアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
-- 💚 **ML予測統合**: 戦略70%+ML30%加重平均統合・ML統合率100%達成（Phase 41.8.5）
+- 💚 **ML予測統合**: 3段階統合ロジック（<0.45戦略のみ・0.45-0.60加重平均・≥0.60ボーナス/ペナルティ）・ML統合率100%達成（Phase 41.8.5）
 - 💱 **Kelly基準**: ポジションサイジング・動的計算
 - 🔄 **統合シグナル生成**: 戦略→ML→統合フロー・SELL Only問題解決（Phase 49）
 - 🔍 **Silent Failure**: シグナル生成→実行断絶検出
 - 💰 **取引機能**: 最小ロット優先・ML信頼度連動制限
-- 🎯 **TP/SL機能**: デイトレード設定（SL 1.5%・TP 2%・Phase 49）
-- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率・証拠金維持率80%完全修正（Phase 50.4）
+- 🎯 **TP/SL機能**: 最適化設定（SL 0.7%・TP 0.9%・RR比1.29:1・Phase 51.6）
+- 🛡️ **Atomic Entry Pattern**: Entry/TP/SL一体保証・Exponential Backoff retry（Phase 51.6）
+- 📊 **リスク管理**: SL/TP計算・適応型ATR倍率
 - ⏰ **時間軸管理**: 15m足ATR使用・クールダウン柔軟化
 - 🎲 **動的信頼度**: 変動幅拡大・override_atr設定
 - 📊 **TradeTracker統合**: エントリー/エグジットペアリング・損益計算（Phase 49）
+- 📈 **Market Regime Classification**: 4段階市場状況分類・動的戦略選択（Phase 51.1-51.4）
 
 ## 📂 関連ファイル
 
@@ -104,34 +108,32 @@ NORMAL_CHECKS=0
 echo ""
 echo "🤖 Bot機能チェック"
 
-# 1. 70特徴量システム稼働確認（Phase 50.3）
+# 1. 55特徴量システム稼働確認（Phase 51.7）
 echo ""
-echo "📊 70特徴量システム稼働確認（Phase 50.3: 外部API統合）"
-FEATURE_70_SUCCESS=$(count_logs_since_deploy "textPayload:\"70特徴量\" OR textPayload:\"70個の特徴量\"" 15)
-FEATURE_62_FALLBACK=$(count_logs_since_deploy "textPayload:\"62特徴量\" OR textPayload:\"Level 2.*62\"" 15)
-FEATURE_57_FALLBACK=$(count_logs_since_deploy "textPayload:\"57特徴量\" OR textPayload:\"Level 3.*57\"" 15)
-FEATURE_DUMMY_FALLBACK=$(count_logs_since_deploy "textPayload:\"DummyModel\" OR textPayload:\"Level 4\"" 15)
+echo "📊 55特徴量システム稼働確認（Phase 51.7: 49基本+6戦略信号）"
+FEATURE_55_SUCCESS=$(count_logs_since_deploy "textPayload:\"55特徴量\" OR textPayload:\"55個の特徴量\"" 15)
+FEATURE_49_FALLBACK=$(count_logs_since_deploy "textPayload:\"49特徴量\" OR textPayload:\"基本特徴量のみ\"" 15)
+FEATURE_DUMMY_FALLBACK=$(count_logs_since_deploy "textPayload:\"DummyModel\"" 15)
 
-echo "   Level 1（70特徴量・外部API含む）: $FEATURE_70_SUCCESS回"
-echo "   Level 2（62特徴量・外部API除外）: $FEATURE_62_FALLBACK回"
-echo "   Level 3（57特徴量・戦略信号除外）: $FEATURE_57_FALLBACK回"
-echo "   Level 4（DummyModel）: $FEATURE_DUMMY_FALLBACK回"
+echo "   Level 1（55特徴量・完全セット）: $FEATURE_55_SUCCESS回"
+echo "   Level 2（49特徴量・戦略信号除外）: $FEATURE_49_FALLBACK回"
+echo "   Level 3（DummyModel）: $FEATURE_DUMMY_FALLBACK回"
 
-if [ $FEATURE_70_SUCCESS -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
-    echo "✅ 70特徴量システム: 正常稼働（外部API統合成功・Phase 50.3完了）"
+if [ $FEATURE_55_SUCCESS -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
+    echo "✅ 55特徴量システム: 正常稼働（49基本+6戦略信号・Phase 51.7完了）"
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 
-    if [ $FEATURE_62_FALLBACK -gt 0 ]; then
-        echo "   ℹ️ Level 2フォールバック: ${FEATURE_62_FALLBACK}回（外部API障害時の正常動作）"
+    if [ $FEATURE_49_FALLBACK -gt 0 ]; then
+        echo "   ℹ️ Level 2フォールバック: ${FEATURE_49_FALLBACK}回（戦略信号障害時の正常動作）"
     fi
-elif [ $FEATURE_62_FALLBACK -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
-    echo "⚠️ 62特徴量システム: フォールバック稼働中（外部API障害継続中）"
+elif [ $FEATURE_49_FALLBACK -gt 0 ] && [ $FEATURE_DUMMY_FALLBACK -eq 0 ]; then
+    echo "⚠️ 49特徴量システム: フォールバック稼働中（戦略信号障害継続中）"
     WARNING_ISSUES=$((WARNING_ISSUES + 1))
 elif [ $FEATURE_DUMMY_FALLBACK -gt 0 ]; then
     echo "❌ DummyModelフォールバック: 重大問題（MLモデル・特徴量生成完全停止）"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 2))
 else
-    echo "ℹ️ 70特徴量システム: 未確認（取引サイクル未実行の可能性）"
+    echo "ℹ️ 55特徴量システム: 未確認（取引サイクル未実行の可能性）"
 fi
 
 # 2. Silent Failure検出（最重要）
@@ -165,23 +167,23 @@ else
     fi
 fi
 
-# 3. ML予測実行確認（70特徴量対応）
+# 3. ML予測実行確認（55特徴量対応）
 echo ""
-echo "🤖 ML予測システム確認（Phase 50.3: 70特徴量対応）"
+echo "🤖 ML予測システム確認（Phase 51.7: 55特徴量対応）"
 ML_PREDICTION_COUNT=$(count_logs_since_deploy "textPayload:\"ProductionEnsemble\" OR textPayload:\"ML予測\" OR textPayload:\"アンサンブル予測\"" 20)
-ML_70_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"70.*特徴量.*予測\" OR textPayload:\"予測.*70\"" 15)
-ML_62_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"62.*特徴量.*予測\" OR textPayload:\"予測.*62\"" 15)
+ML_55_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"55.*特徴量.*予測\" OR textPayload:\"予測.*55\"" 15)
+ML_49_FEATURE_COUNT=$(count_logs_since_deploy "textPayload:\"49.*特徴量.*予測\" OR textPayload:\"予測.*49\"" 15)
 
 echo "   ML予測実行総数: $ML_PREDICTION_COUNT回"
-echo "   70特徴量予測: $ML_70_FEATURE_COUNT回"
-echo "   62特徴量予測（フォールバック）: $ML_62_FEATURE_COUNT回"
+echo "   55特徴量予測: $ML_55_FEATURE_COUNT回"
+echo "   49特徴量予測（フォールバック）: $ML_49_FEATURE_COUNT回"
 
 if [ $ML_PREDICTION_COUNT -gt 0 ]; then
-    if [ $ML_70_FEATURE_COUNT -gt 0 ]; then
-        echo "✅ ML予測: 正常実行中（70特徴量・外部API統合完了）"
+    if [ $ML_55_FEATURE_COUNT -gt 0 ]; then
+        echo "✅ ML予測: 正常実行中（55特徴量・完全セット稼働）"
         NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
-    elif [ $ML_62_FEATURE_COUNT -gt 0 ]; then
-        echo "⚠️ ML予測: フォールバック稼働中（62特徴量・外部API障害）"
+    elif [ $ML_49_FEATURE_COUNT -gt 0 ]; then
+        echo "⚠️ ML予測: フォールバック稼働中（49特徴量・戦略信号障害）"
         WARNING_ISSUES=$((WARNING_ISSUES + 1))
     else
         echo "✅ ML予測: 実行中（${ML_PREDICTION_COUNT}回確認）"
@@ -208,15 +210,15 @@ else
 fi
 ```
 
-### B. 5戦略動的信頼度統合確認
+### B. 6戦略動的信頼度統合確認
 
 ```bash
 echo ""
-echo "🎯 5戦略動的信頼度確認"
+echo "🎯 6戦略動的信頼度確認（Phase 51.7: Range 4戦略 + Trend 2戦略）"
 
 # 戦略統合チェック関数（macOS最適化）
 check_strategy_confidence() {
-    local strategies=("ATRBased" "MochipoyAlert" "MultiTimeframe" "DonchianChannel" "ADXTrendStrength")
+    local strategies=("ATRBased" "BBReversal" "StochasticReversal" "DonchianChannel" "ADXTrendStrength" "MACDEMACrossover")
     local active_strategies=0
 
     echo "   戦略稼働状況:"
@@ -229,14 +231,14 @@ check_strategy_confidence() {
     local dynamic_count=$(count_logs_since_deploy "textPayload:\"信頼度: 0.[3-6][0-9]\"" 30)
     echo "   動的信頼度計算: $dynamic_count回"
 
-    if [ $active_strategies -eq 5 ] && [ $dynamic_count -gt 10 ]; then
-        echo "✅ 5戦略動的信頼度: 全戦略正常稼働（動的計算$dynamic_count回）"
+    if [ $active_strategies -eq 6 ] && [ $dynamic_count -gt 10 ]; then
+        echo "✅ 6戦略動的信頼度: 全戦略正常稼働（Range 4戦略+Trend 2戦略・動的計算$dynamic_count回）"
         NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
-    elif [ $active_strategies -ge 3 ] && [ $dynamic_count -gt 5 ]; then
-        echo "⚠️ 5戦略動的信頼度: ${active_strategies}/5戦略稼働（動的計算制限的）"
+    elif [ $active_strategies -ge 4 ] && [ $dynamic_count -gt 5 ]; then
+        echo "⚠️ 6戦略動的信頼度: ${active_strategies}/6戦略稼働（動的計算制限的）"
         WARNING_ISSUES=$((WARNING_ISSUES + 1))
     else
-        echo "❌ 5戦略動的信頼度: ${active_strategies}/5戦略稼働（動的計算$dynamic_count回・停止疑い）"
+        echo "❌ 6戦略動的信頼度: ${active_strategies}/6戦略稼働（動的計算$dynamic_count回・停止疑い）"
         CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
     fi
 }
@@ -253,7 +255,7 @@ echo "🤖 3モデルアンサンブル詳細確認"
 # ML統合チェック関数（macOS最適化）
 check_ml_ensemble() {
     local models=("LightGBM" "XGBoost" "RandomForest")
-    local weights=("50%" "30%" "20%")
+    local weights=("40%" "40%" "20%")
     local active_models=0
 
     echo "   モデル稼働状況:"
@@ -265,7 +267,7 @@ check_ml_ensemble() {
         [ $count -gt 0 ] && active_models=$((active_models + 1))
     done
 
-    local weight_count=$(count_logs_since_deploy "textPayload:\"50%\" OR textPayload:\"30%\" OR textPayload:\"20%\"" 10)
+    local weight_count=$(count_logs_since_deploy "textPayload:\"40%\" OR textPayload:\"20%\"" 10)
     echo "   重み付け確認: $weight_count回"
 
     if [ $active_models -eq 3 ]; then
@@ -301,7 +303,7 @@ check_process_status() {
 DATA_4H_STATUS=$(check_process_status "textPayload:\"4h足\" OR textPayload:\"4時間足\"")
 DATA_15M_STATUS=$(check_process_status "textPayload:\"15m足\" OR textPayload:\"15分足\"")
 FEATURE_STATUS=$(check_process_status "textPayload:\"55特徴量\" OR textPayload:\"特徴量生成完了\"")
-STRATEGY_STATUS=$(check_process_status "textPayload:\"ATRBased\" OR textPayload:\"MochipoyAlert\"")
+STRATEGY_STATUS=$(check_process_status "textPayload:\"ATRBased\" OR textPayload:\"BBReversal\" OR textPayload:\"StochasticReversal\"")
 ML_STATUS=$(check_process_status "textPayload:\"LightGBM\" OR textPayload:\"XGBoost\"")
 SIGNAL_STATUS=$(check_process_status "textPayload:\"統合シグナル生成\"")
 RISK_STATUS=$(check_process_status "textPayload:\"リスク評価\" OR textPayload:\"TradeEvaluation\"")
@@ -318,25 +320,25 @@ cat << EOF
    4時間足・15分足
             ↓
 ② 特徴量生成          $FEATURE_STATUS
-   55特徴量統合計算（50基本+5戦略信号）
+   55特徴量統合計算（49基本+6戦略信号）
             ↓
-③ 5戦略実行           $STRATEGY_STATUS
-   BUY/SELL/HOLD判定
+③ 6戦略実行           $STRATEGY_STATUS
+   BUY/SELL/HOLD判定（Range 4戦略+Trend 2戦略）
             ↓
 ④ ML予測              $ML_STATUS
    3モデルアンサンブル（LightGBM 40%・XGBoost 40%・RandomForest 20%）
             ↓
 ⑤ 統合シグナル生成    $SIGNAL_STATUS
-   戦略70%+ML30%統合
+   3段階統合ロジック（<0.45戦略のみ・0.45-0.60加重平均・≥0.60ボーナス/ペナルティ）
             ↓
 ⑥ リスク評価          $RISK_STATUS
-   Kelly基準・証拠金維持率80%確認
+   Kelly基準・証拠金維持率確認
             ↓
 ⑦ 取引承認判定        $APPROVED_STATUS
    APPROVED/DENIED
             ↓
 ⑧ ExecutionService    $EXECUTION_STATUS
-   取引実行サービス
+   取引実行サービス・Atomic Entry Pattern
             ↓
 ⑨ Bitbank注文実行     $BITBANK_STATUS
    実際のAPI注文
@@ -527,7 +529,7 @@ elif [ $WARNING_ISSUES -ge 3 ]; then
     exit 3
 else
     echo "🟢 Bot機能正常 - エントリーシグナル完全稼働"
-    echo "   ✨ 15特徴量・5戦略・3モデル・Kelly基準・統合シグナルすべて正常"
+    echo "   ✨ 55特徴量・6戦略・3モデル・Kelly基準・統合シグナルすべて正常"
     echo "   📊 正常: $NORMAL_CHECKS件, 警告: $WARNING_ISSUES件, 致命的: $CRITICAL_ISSUES件"
     echo "   🚀 AI自動取引システム完全稼働中"
     exit 0
@@ -850,4 +852,4 @@ bash 02_Bot機能診断.sh --detail-signal
 
 **🎯 重要**: このファイルはBot固有機能をチェックします。基盤システム（インフラ）の問題が検出された場合は、まず **01_システム稼働診断.md** で基盤を修正してからBot機能診断を実行してください。
 
-**最終更新**: 2025年10月25日 - Phase 49完了対応（55特徴量・TradeTracker統合・SELL Only問題解決）
+**最終更新**: 2025年11月08日 - Phase 51.7完了対応（55特徴量・6戦略・3段階ML統合ロジック・Atomic Entry Pattern・Dynamic Strategy Management）
