@@ -134,20 +134,20 @@ echo ""
 # ========================================
 echo "🎯 [3/7] 戦略整合性検証..."
 
-# unified.yaml の戦略リスト取得
-UNIFIED_STRATEGIES=$(python3 -c "
+# Phase 51.5-B: strategies.yaml から戦略リスト取得（unified.yaml移行済み）
+STRATEGIES_YAML_STRATEGIES=$(python3 -c "
 import yaml
-with open('config/core/unified.yaml') as f:
+with open('config/strategies.yaml') as f:
     data = yaml.safe_load(f)
     strategies = data.get('strategies', {})
     print(' '.join(sorted(strategies.keys())))
 " 2>&1)
 
 if [ $? -ne 0 ]; then
-    echo "  ❌ ERROR: unified.yaml の読み込みに失敗"
+    echo "  ❌ ERROR: strategies.yaml の読み込みに失敗"
     ERRORS=$((ERRORS + 1))
 else
-    echo "  📋 unified.yaml 戦略: $UNIFIED_STRATEGIES"
+    echo "  📋 strategies.yaml 戦略: $STRATEGIES_YAML_STRATEGIES"
 fi
 
 # feature_order.json の strategy_signal 特徴量取得
@@ -181,15 +181,15 @@ else
 fi
 
 # 戦略整合性確認（簡易版 - 数の一致確認）
-if [ -n "$UNIFIED_STRATEGIES" ] && [ -n "$FEATURE_STRATEGIES" ]; then
-    UNIFIED_COUNT=$(echo $UNIFIED_STRATEGIES | wc -w | tr -d ' ')
+if [ -n "$STRATEGIES_YAML_STRATEGIES" ] && [ -n "$FEATURE_STRATEGIES" ]; then
+    STRATEGIES_COUNT=$(echo $STRATEGIES_YAML_STRATEGIES | wc -w | tr -d ' ')
     FEATURE_COUNT=$(echo $FEATURE_STRATEGIES | wc -w | tr -d ' ')
 
-    if [ "$UNIFIED_COUNT" != "$FEATURE_COUNT" ]; then
-        echo "  ⚠️  WARNING: 戦略数不一致 - unified.yaml:$UNIFIED_COUNT vs feature_order.json:$FEATURE_COUNT"
+    if [ "$STRATEGIES_COUNT" != "$FEATURE_COUNT" ]; then
+        echo "  ⚠️  WARNING: 戦略数不一致 - strategies.yaml:$STRATEGIES_COUNT vs feature_order.json:$FEATURE_COUNT"
         echo "     → 新規戦略追加時は両方のファイルを更新してください"
     else
-        echo "  ✅ 戦略数一致: $UNIFIED_COUNT 戦略"
+        echo "  ✅ 戦略数一致: $STRATEGIES_COUNT 戦略（Phase 51.5-B動的戦略管理）"
     fi
 fi
 
@@ -255,7 +255,7 @@ import yaml
 try:
     with open('config/core/unified.yaml') as f:
         data = yaml.safe_load(f)
-        required = ['mode', 'strategies', 'risk', 'execution']
+        required = ['mode', 'risk', 'execution']  # Phase 51.5-B: strategies moved to strategies.yaml
         missing = [k for k in required if k not in data]
         if missing:
             print('MISSING:' + ','.join(missing))

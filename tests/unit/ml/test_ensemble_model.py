@@ -43,7 +43,7 @@ class TestEnsembleModel:
 
     @pytest.fixture
     def sample_data(self):
-        """テスト用サンプルデータ."""
+        """テスト用サンプルデータ（Phase 51.9: 3クラス分類対応）."""
         np.random.seed(42)
         n_samples = 100
         # Phase 19: 特徴量数をfeature_managerから取得（ハードコード削除）
@@ -55,7 +55,8 @@ class TestEnsembleModel:
             np.random.randn(n_samples, n_features),
             columns=[f"feature_{i}" for i in range(n_features)],
         )
-        y = pd.Series(np.random.randint(0, 2, n_samples))
+        # Phase 51.9: 真の3クラス分類対応 (0: sell, 1: hold, 2: buy)
+        y = pd.Series(np.random.randint(0, 3, n_samples))
 
         return X, y
 
@@ -91,7 +92,7 @@ class TestEnsembleModel:
         assert ensemble.weights["xgb"] > ensemble.weights["rf"]
 
     def test_fit_basic(self, ensemble_model, sample_data):
-        """基本的な学習テスト."""
+        """基本的な学習テスト（Phase 51.9: 3クラス分類対応）."""
         X, y = sample_data
 
         result = ensemble_model.fit(X, y)
@@ -99,7 +100,7 @@ class TestEnsembleModel:
         assert result is ensemble_model  # メソッドチェーン
         assert ensemble_model.is_fitted
         assert ensemble_model.feature_names == X.columns.tolist()
-        assert len(ensemble_model.classes_) == 2
+        assert len(ensemble_model.classes_) == 3  # Phase 51.9: 3クラス分類
         assert len(ensemble_model.model_performance) == 3
 
     def test_fit_with_insufficient_data(self, ensemble_model):
@@ -133,7 +134,7 @@ class TestEnsembleModel:
             ensemble_model.predict_proba(X)
 
     def test_predict_basic(self, ensemble_model, sample_data):
-        """基本的な予測テスト."""
+        """基本的な予測テスト（Phase 51.9: 3クラス分類対応）."""
         X, y = sample_data
         ensemble_model.fit(X, y)
 
@@ -141,10 +142,11 @@ class TestEnsembleModel:
 
         assert isinstance(predictions, np.ndarray)
         assert len(predictions) == len(X)
-        assert all(pred in [-1, 0, 1] for pred in predictions)  # -1は低信頼度
+        # Phase 51.9: 3クラス分類 (0: sell, 1: hold, 2: buy) + -1: 低信頼度
+        assert all(pred in [-1, 0, 1, 2] for pred in predictions)
 
     def test_predict_without_confidence(self, ensemble_model, sample_data):
-        """信頼度閾値なしの予測テスト."""
+        """信頼度閾値なしの予測テスト（Phase 51.9: 3クラス分類対応）."""
         X, y = sample_data
         ensemble_model.fit(X, y)
 
@@ -152,17 +154,19 @@ class TestEnsembleModel:
 
         assert isinstance(predictions, np.ndarray)
         assert len(predictions) == len(X)
-        assert all(pred in [0, 1] for pred in predictions)  # 0または1のみ
+        # Phase 51.9: 3クラス分類 (0: sell, 1: hold, 2: buy)
+        assert all(pred in [0, 1, 2] for pred in predictions)
 
     def test_predict_proba_basic(self, ensemble_model, sample_data):
-        """基本的な確率予測テスト."""
+        """基本的な確率予測テスト（Phase 51.9: 3クラス分類対応）."""
         X, y = sample_data
         ensemble_model.fit(X, y)
 
         probabilities = ensemble_model.predict_proba(X)
 
         assert isinstance(probabilities, np.ndarray)
-        assert probabilities.shape == (len(X), 2)
+        # Phase 51.9: 3クラス分類対応
+        assert probabilities.shape == (len(X), 3)
         assert all(0 <= prob <= 1 for row in probabilities for prob in row)
 
         # 各行の確率の合計が1に近いかチェック

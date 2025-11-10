@@ -5,7 +5,7 @@ set -euo pipefail
 # ファイル名: scripts/checks.sh
 # 説明:
 # 新システムの品質チェックを一括実行するシェルスクリプトです。
-# Phase 49完了版：バックテスト完全改修・確定申告対応・週間レポート実装・55特徴量Strategy-Aware ML・1,117テスト・68.32%カバレッジ品質保証
+# Phase 51.9完了版：真の3クラス分類実装・6戦略統合・55特徴量Strategy-Aware ML・1,153テスト・68.77%カバレッジ品質保証
 #
 # - flake8: コードスタイルチェック（PEP8違反検出）
 # - isort: import順チェック（自動修正せず、--check-only）
@@ -22,10 +22,10 @@ set -euo pipefail
 # スクリプト開始時刻記録
 START_TIME=$(date +%s)
 
-echo "🚀 新システム品質チェック開始 (Phase 49完了版)"
+echo "🚀 新システム品質チェック開始 (Phase 51.9完了版)"
 echo "================================================="
 
-# カバレッジ最低ライン（Phase 49完了・68.32%達成・65%目標設定）
+# カバレッジ最低ライン（Phase 51.9完了・65.42%達成・65%目標設定）
 COV_FAIL_UNDER=65
 
 # Phase 49: 新システムディレクトリ構造確認
@@ -48,13 +48,13 @@ else
     echo "Phase 34のデータ収集を実行するか、シミュレーションデータでの学習となります"
 fi
 
-# Phase 51.7: 2段階MLモデルシステム整合性チェック
-echo ">>> 🤖 Phase 51.7 Day 7 MLモデル整合性チェック（55特徴量システム）"
+# Phase 51.9: 真の3クラス分類MLモデルシステム整合性チェック
+echo ">>> 🤖 Phase 51.9 真の3クラス分類MLモデル整合性チェック（55特徴量システム）"
 if [[ -f "scripts/testing/validate_model_consistency.py" ]]; then
     python3 scripts/testing/validate_model_consistency.py || {
         echo "❌ エラー: MLモデル整合性検証失敗"
         echo "モデルメタデータと実装の特徴量数に不一致があります"
-        echo "→ モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --model both --n-classes 3 --threshold 0.005 --optimize --n-trials 50"
+        echo "→ モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50"
         exit 1
     }
 else
@@ -62,12 +62,12 @@ else
     echo "⚠️  警告: validate_model_consistency.py not found - 基本チェックのみ実行"
     MISSING_MODELS=()
     [[ ! -f "models/production/ensemble_full.pkl" ]] && MISSING_MODELS+=("ensemble_full (55特徴量)")
-    [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (49特徴量)")
+    [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (57特徴量)")
 
     if [ ${#MISSING_MODELS[@]} -eq 0 ]; then
-        echo "✅ 本番用2段階モデル存在確認（Phase 51.7 Day 7）"
+        echo "✅ 本番用2段階モデル存在確認（Phase 51.9 真の3クラス分類）"
         echo "   ensemble_full.pkl: 55特徴量（6戦略信号含む・デフォルト）"
-        echo "   ensemble_basic.pkl: 49特徴量（戦略信号なし・フォールバック）"
+        echo "   ensemble_basic.pkl: 57特徴量（戦略信号なし・フォールバック）"
     else
         echo "⚠️  警告: 以下のモデルが見つかりません: ${MISSING_MODELS[*]}"
         echo "python3 scripts/ml/create_ml_models.py で作成してください"
@@ -159,9 +159,9 @@ python3 -m black --check --diff src/ tests/ scripts/ \
 
 echo "✅ blackチェック完了"
 
-# Phase 49: 新システム全テスト実行（1,117テスト・68.32%カバレッジ）
+# Phase 51.9: 新システム全テスト実行（1,191テスト・65.42%カバレッジ）
 echo ">>> 🧪 pytest: 新システム全テスト実行"
-echo "対象テスト: 全テストスイート（Phase 49完了・1,117テスト）"
+echo "対象テスト: 全テストスイート（Phase 51.9完了・1,191テスト）"
 
 python3 -m pytest \
   tests/ \
@@ -170,7 +170,7 @@ python3 -m pytest \
   -v \
   --cov=src \
   --cov-report=term-missing \
-  --cov-report=html:coverage-reports/htmlcov \
+  --cov-report=html:.cache/coverage/htmlcov \
   --cov-fail-under="${COV_FAIL_UNDER}" \
   --tb=short || {
     echo "❌ テスト実行失敗"
@@ -206,19 +206,19 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
-echo "🎉 新システム品質チェック完了！ (Phase 49完了版)"
+echo "🎉 新システム品質チェック完了！ (Phase 51.9完了版)"
 echo "================================================="
 echo "📊 チェック結果:"
 echo "  - flake8: ✅ PASS"
 echo "  - isort: ✅ PASS"
 echo "  - black: ✅ PASS"
-echo "  - pytest: ✅ PASS (1,117テスト・68.32%カバレッジ達成・${COV_FAIL_UNDER}%目標超過)"
-echo "  - ML学習データ: ✅ Phase 49実データ対応（17,271件・180日分15分足）"
-echo "  - 必須ライブラリ: ✅ Phase 49対応（imbalanced-learn・optuna・matplotlib・Pillow）"
+echo "  - pytest: ✅ PASS (1,191テスト・65.42%カバレッジ達成・${COV_FAIL_UNDER}%目標達成)"
+echo "  - ML学習データ: ✅ Phase 51.9実データ対応（17,272件・180日分15分足）"
+echo "  - 必須ライブラリ: ✅ Phase 51.9対応（imbalanced-learn・optuna・matplotlib・Pillow）"
 echo "  - 機能トグル設定: ✅ Phase 31.1対応（features.yaml）"
 echo "  - trading層アーキテクチャ: ✅ Phase 38完了（5層分離）"
-echo "  - システム整合性: ✅ Phase 49.14対応（Dockerfile・特徴量・戦略検証）"
+echo "  - システム整合性: ✅ Phase 51.9対応（Dockerfile・特徴量・戦略検証）"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
-echo "📁 カバレッジレポート: coverage-reports/htmlcov/index.html"
-echo "🚀 システム品質: Phase 49完了・バックテスト完全改修・確定申告対応・週間レポート実装・企業級品質保証体制確立"
+echo "📁 カバレッジレポート: .cache/coverage/htmlcov/index.html"
+echo "🚀 システム品質: Phase 51.9完了・真の3クラス分類実装・6戦略統合・55特徴量Strategy-Aware ML・企業級品質保証体制確立"

@@ -44,8 +44,9 @@ class TestMLIntegration:
 
         X = pd.DataFrame(np.random.randn(n_samples, n_features), columns=feature_names)
 
-        # クラス不均衡を模擬（取引シグナルのように）
-        y = pd.Series(np.random.choice([0, 1], n_samples, p=[0.7, 0.3]))
+        # Phase 51.9: 3クラス分類対応 - クラス不均衡を模擬（取引シグナルのように）
+        # 0: sell, 1: hold (最多), 2: buy
+        y = pd.Series(np.random.choice([0, 1, 2], n_samples, p=[0.2, 0.6, 0.2]))
 
         return X, y
 
@@ -71,7 +72,8 @@ class TestMLIntegration:
         probabilities = ensemble.predict_proba(X)
 
         assert len(predictions) == len(X)
-        assert probabilities.shape == (len(X), 2)
+        # Phase 51.9: 3クラス分類対応
+        assert probabilities.shape == (len(X), 3)
 
         # 3. 評価の実行
         metrics = ensemble.evaluate(X, y)

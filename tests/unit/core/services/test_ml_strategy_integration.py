@@ -109,7 +109,10 @@ class TestMLIntegration:
 
         mock_get_threshold.side_effect = threshold_side_effect
 
-        ml_prediction = {"prediction": 1, "confidence": 0.9}  # buy, 高信頼度
+        ml_prediction = {
+            "prediction": 2,
+            "confidence": 0.9,
+        }  # buy, 高信頼度（Phase 51.9: 真の3クラス分類）
         strategy_signal = StrategySignal(
             strategy_name="test_strategy",
             timestamp=datetime.now(),
@@ -145,7 +148,10 @@ class TestMLIntegration:
 
         mock_get_threshold.side_effect = threshold_side_effect
 
-        ml_prediction = {"prediction": -1, "confidence": 0.9}  # sell, 高信頼度
+        ml_prediction = {
+            "prediction": 0,
+            "confidence": 0.9,
+        }  # sell, 高信頼度（Phase 51.9: 真の3クラス分類）
         strategy_signal = StrategySignal(
             strategy_name="test_strategy",
             timestamp=datetime.now(),
@@ -183,7 +189,10 @@ class TestMLIntegration:
 
         mock_get_threshold.side_effect = threshold_side_effect
 
-        ml_prediction = {"prediction": -1, "confidence": 0.9}  # sell, 高信頼度
+        ml_prediction = {
+            "prediction": 0,
+            "confidence": 0.9,
+        }  # sell, 高信頼度（Phase 51.9: 真の3クラス分類）
         strategy_signal = StrategySignal(
             strategy_name="test_strategy",
             timestamp=datetime.now(),
@@ -263,18 +272,19 @@ class TestMLIntegration:
             current_price=17000000.0,
         )
 
-        # -1: sell
-        ml_sell = {"prediction": -1, "confidence": 0.7}
+        # Phase 51.9: 真の3クラス分類 (0: sell, 1: hold, 2: buy)
+        # 0: sell
+        ml_sell = {"prediction": 0, "confidence": 0.7}
         result_sell = trading_cycle_manager._integrate_ml_with_strategy(ml_sell, strategy_signal)
         assert result_sell.metadata["ml_action"] == "sell"
 
-        # 0: hold
-        ml_hold = {"prediction": 0, "confidence": 0.7}
+        # 1: hold
+        ml_hold = {"prediction": 1, "confidence": 0.7}
         result_hold = trading_cycle_manager._integrate_ml_with_strategy(ml_hold, strategy_signal)
         assert result_hold.metadata["ml_action"] == "hold"
 
-        # 1: buy
-        ml_buy = {"prediction": 1, "confidence": 0.7}
+        # 2: buy
+        ml_buy = {"prediction": 2, "confidence": 0.7}
         result_buy = trading_cycle_manager._integrate_ml_with_strategy(ml_buy, strategy_signal)
         assert result_buy.metadata["ml_action"] == "buy"
 

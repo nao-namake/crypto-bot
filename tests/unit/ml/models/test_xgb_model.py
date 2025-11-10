@@ -57,12 +57,12 @@ class TestXGBModel:
         assert xgb_model.is_fitted is False
 
     def test_initialization_with_default_params(self):
-        """デフォルトパラメータ初期化テスト"""
+        """デフォルトパラメータ初期化テスト（Phase 51.9: 真の3クラス分類対応）"""
         model = XGBModel()
 
-        assert model.model_params["objective"] == "binary:logistic"
+        assert model.model_params["objective"] == "multi:softprob"  # Phase 51.9: 3クラス分類
         assert model.model_params["verbosity"] == 0
-        assert model.model_params["eval_metric"] == "logloss"
+        assert model.model_params["eval_metric"] == "mlogloss"  # Phase 51.9: multiclass logloss
         assert model.model_params["use_label_encoder"] is False
         assert model.model_params["tree_method"] == "hist"
         assert model.model_params["random_state"] == 42  # 環境変数から設定
@@ -170,7 +170,7 @@ class TestXGBModel:
         assert result is xgb_model or hasattr(result, "__bool__")
 
     def test_predict_success(self, xgb_model, sample_features, sample_targets):
-        """正常予測テスト"""
+        """正常予測テスト（Phase 51.9: 真の3クラス分類対応）"""
         xgb_model.fit(sample_features, sample_targets)
 
         test_features = sample_features.iloc[:10]
@@ -178,7 +178,9 @@ class TestXGBModel:
 
         assert predictions is not None
         assert len(predictions) == 10
-        assert all(pred in [0, 1] for pred in predictions)
+        # Phase 51.9: 3クラス分類 - numpy配列対応（バイナリデータなので0, 1のみ）
+        predictions_array = np.array(predictions).ravel()  # 1D配列に変換
+        assert all(pred in [0, 1, 2] for pred in predictions_array)
 
     def test_predict_without_fitting(self, xgb_model, sample_features):
         """学習前予測テスト"""
@@ -214,14 +216,14 @@ class TestXGBModel:
         assert len(predictions) == 5
 
     def test_predict_proba_success(self, xgb_model, sample_features, sample_targets):
-        """確率予測成功テスト"""
+        """確率予測成功テスト（Phase 51.9: 真の3クラス分類対応）"""
         xgb_model.fit(sample_features, sample_targets)
 
         test_features = sample_features.iloc[:5]
         probabilities = xgb_model.predict_proba(test_features)
 
         assert probabilities is not None
-        assert probabilities.shape == (5, 2)  # 5サンプル、2クラス
+        assert probabilities.shape == (5, 3)  # 5サンプル、3クラス（Phase 51.9: 真の3クラス分類）
         assert np.all((probabilities >= 0) & (probabilities <= 1))
         assert np.allclose(probabilities.sum(axis=1), 1.0)  # 確率の合計は1
 
