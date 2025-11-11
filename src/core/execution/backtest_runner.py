@@ -1204,25 +1204,21 @@ class BacktestRunner(BaseRunner):
         enabled=false: 戦略評価モード（制限なし）
         enabled=true: 本番シミュレーションモード（-20%制限適用）
         """
-        from ...core.config.feature_flags import get_feature_flag
+        from ...core.config import get_features_config
         from ...trading.risk.drawdown import DrawdownManager
 
         # features.yamlから設定読み込み
-        drawdown_enabled = get_feature_flag(
-            "development.backtest.drawdown_limits.enabled", False
-        )
+        features_config = get_features_config()
+        backtest_config = features_config.get("development", {}).get("backtest", {})
+        drawdown_config = backtest_config.get("drawdown_limits", {})
+
+        drawdown_enabled = drawdown_config.get("enabled", False)
 
         if drawdown_enabled:
             # 本番シミュレーションモード: DrawdownManager有効化
-            max_drawdown_ratio = get_feature_flag(
-                "development.backtest.drawdown_limits.max_drawdown_ratio", 0.2
-            )
-            consecutive_loss_limit = get_feature_flag(
-                "development.backtest.drawdown_limits.consecutive_loss_limit", 8
-            )
-            cooldown_hours = get_feature_flag(
-                "development.backtest.drawdown_limits.cooldown_hours", 6
-            )
+            max_drawdown_ratio = drawdown_config.get("max_drawdown_ratio", 0.2)
+            consecutive_loss_limit = drawdown_config.get("consecutive_loss_limit", 8)
+            cooldown_hours = drawdown_config.get("cooldown_hours", 6)
 
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=max_drawdown_ratio,
