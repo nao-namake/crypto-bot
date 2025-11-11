@@ -6,8 +6,22 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
   workflow_dispatch:
   repository_dispatch:
     types: [model-updated]
