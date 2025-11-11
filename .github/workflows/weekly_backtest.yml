@@ -69,7 +69,7 @@ jobs:
           mkdir -p src/backtest/data/historical
 
           # 履歴データ収集（180日分）
-          python3 src/backtest/data/historical/collect_historical_csv.py --days 180
+          python3 src/backtest/scripts/collect_historical_csv.py --days 180
 
           # データ収集確認
           if [ -f "src/backtest/data/historical/btc_jpy_15m.csv" ]; then
