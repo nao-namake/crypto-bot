@@ -194,7 +194,7 @@ class TestTradingLoggerService:
             expected_message = (
                 "✅ 📈 注文実行成功 - サイクル: test-cycle, "
                 "サイド: BUY, 数量: 0.1234 BTC, 価格: ¥3,500,000, "
-                "PnL: 💰¥5,000, 手数料: ¥1,500"
+                "PnL: 💰¥5,000, 手数料: ¥1,500.00"  # Phase 51.8-J4-D: .2f対応
             )
             trading_logger.logger.info.assert_called_once_with(
                 expected_message, discord_notify=True
@@ -219,7 +219,7 @@ class TestTradingLoggerService:
             expected_message = (
                 "🛑 自動決済: ✅ 📉 注文実行成功 - サイクル: test-cycle-sell, "
                 "サイド: SELL, 数量: 0.0500 BTC, 価格: ¥3,400,000, "
-                "PnL: 💸¥-2,000, 手数料: ¥1,200"
+                "PnL: 💸¥-2,000, 手数料: ¥1,200.00"  # Phase 51.8-J4-D: .2f対応
             )
             trading_logger.logger.info.assert_called_once_with(
                 expected_message, discord_notify=True

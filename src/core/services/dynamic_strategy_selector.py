@@ -67,7 +67,8 @@ class DynamicStrategySelector:
 
         # 高ボラティリティは空辞書（全戦略無効化）
         if regime == RegimeType.HIGH_VOLATILITY and not weights:
-            self.logger.info(f"⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
+            # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
+            self.logger.warning(f"⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
             return {}
 
         # 重み検証
@@ -78,7 +79,8 @@ class DynamicStrategySelector:
             )
             weights = default_weights
 
-        self.logger.info(
+        # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
+        self.logger.warning(
             f"✅ 動的戦略選択: レジーム={regime.value}, "
             f"戦略重み={{{', '.join([f'{k}: {v:.2f}' for k, v in weights.items()])}}}"
         )
@@ -135,12 +137,10 @@ class DynamicStrategySelector:
         # レジーム別重み付けロジック
         if regime == RegimeType.TIGHT_RANGE:
             # レンジ型戦略のみ（70:30比率）
-            range_strategies = [
-                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
-            ]
+            range_strategies = [s for s in strategies_data if s.get("regime_affinity") == "range"]
             if len(range_strategies) >= 2:
                 # 優先度順でトップ2に重み配分
-                sorted_strategies = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                sorted_strategies = sorted(range_strategies, key=lambda x: x.get("priority", 999))
                 weights[sorted_strategies[0]["metadata"]["name"]] = 0.70
                 weights[sorted_strategies[1]["metadata"]["name"]] = 0.30
             elif len(range_strategies) == 1:
@@ -148,14 +148,10 @@ class DynamicStrategySelector:
 
         elif regime == RegimeType.NORMAL_RANGE:
             # レンジ型80% + トレンド型20%
-            range_strategies = [
-                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
-            ]
-            trend_strategies = [
-                s for s in strategies_data if s["config"].get("regime_affinity") == "trend"
-            ]
+            range_strategies = [s for s in strategies_data if s.get("regime_affinity") == "range"]
+            trend_strategies = [s for s in strategies_data if s.get("regime_affinity") == "trend"]
             if range_strategies:
-                sorted_range = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                sorted_range = sorted(range_strategies, key=lambda x: x.get("priority", 999))
                 weights[sorted_range[0]["metadata"]["name"]] = 0.50
                 if len(sorted_range) >= 2:
                     weights[sorted_range[1]["metadata"]["name"]] = 0.30
@@ -164,16 +160,12 @@ class DynamicStrategySelector:
 
         elif regime == RegimeType.TRENDING:
             # トレンド型60% + レンジ型40%
-            trend_strategies = [
-                s for s in strategies_data if s["config"].get("regime_affinity") == "trend"
-            ]
-            range_strategies = [
-                s for s in strategies_data if s["config"].get("regime_affinity") == "range"
-            ]
+            trend_strategies = [s for s in strategies_data if s.get("regime_affinity") == "trend"]
+            range_strategies = [s for s in strategies_data if s.get("regime_affinity") == "range"]
             if trend_strategies:
                 weights[trend_strategies[0]["metadata"]["name"]] = 0.60
             if range_strategies:
-                sorted_range = sorted(range_strategies, key=lambda x: x["config"]["priority"])
+                sorted_range = sorted(range_strategies, key=lambda x: x.get("priority", 999))
                 weights[sorted_range[0]["metadata"]["name"]] = 0.30
                 if len(sorted_range) >= 2:
                     weights[sorted_range[1]["metadata"]["name"]] = 0.10
@@ -202,3 +194,56 @@ class DynamicStrategySelector:
         """
         enabled = get_threshold("dynamic_strategy_selection.enabled", True)
         return enabled
+
+    def get_regime_position_limit(self, regime: RegimeType) -> int:
+        """
+        Phase 51.8: レジーム別最大ポジション数を取得
+
+        市場レジームに応じた最大同時保有ポジション数を取得する。
+        動的戦略選択が無効の場合はグローバル設定値を使用。
+
+        Args:
+            regime: 市場レジーム
+
+        Returns:
+            int: 最大ポジション数
+                - tight_range: 5件（レンジ相場は分散投資重視）
+                - normal_range: 4件（バランス型）
+                - trending: 3件（トレンド相場は中程度の集中）
+                - high_volatility: 0件（完全待機）
+
+        Example:
+            >>> selector = DynamicStrategySelector()
+            >>> selector.get_regime_position_limit(RegimeType.TIGHT_RANGE)
+            5
+            >>> selector.get_regime_position_limit(RegimeType.HIGH_VOLATILITY)
+            0
+        """
+        # 動的戦略選択が無効の場合はグローバル設定使用
+        if not self.is_enabled():
+            fallback = get_threshold("position_management.max_open_positions", 2)  # デフォルト2件
+            self.logger.debug(f"📊 Phase 51.8: 動的戦略選択無効 - グローバル設定使用: {fallback}件")
+            return fallback
+
+        # thresholds.yaml から取得
+        config_key = f"position_limits.{regime.value}.max_positions"
+
+        # デフォルト値: レジーム別制限
+        default_limits = {
+            RegimeType.TIGHT_RANGE: 5,
+            RegimeType.NORMAL_RANGE: 4,
+            RegimeType.TRENDING: 3,
+            RegimeType.HIGH_VOLATILITY: 0,
+        }
+
+        # フォールバック: 設定ファイル不足時
+        fallback_limit = get_threshold("position_limits.fallback_max_positions", 2)
+
+        limit = get_threshold(config_key, default_limits.get(regime, fallback_limit))
+
+        # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
+        self.logger.warning(
+            f"📊 Phase 51.8: レジーム別ポジション制限 - " f"regime={regime.value}, 上限={limit}件"
+        )
+
+        return limit

@@ -21,12 +21,14 @@ Phase 35: バックテスト10倍高速化実装（6-8時間→45分）
 """
 
 import asyncio
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from ..config import get_threshold
+from ..services.market_regime_classifier import MarketRegimeClassifier
 from .base_runner import BaseRunner
 
 
@@ -64,6 +66,9 @@ class BacktestRunner(BaseRunner):
         self.cycle_count = 0
         self.processed_timestamps = []
         self.session_stats = {}
+
+        # Phase 51.8-J4-G: レジーム分類器（エントリー時のregime記録用）
+        self.regime_classifier = MarketRegimeClassifier()
 
     async def run(self) -> bool:
         """
@@ -496,74 +501,184 @@ class BacktestRunner(BaseRunner):
         return True
 
     async def _run_time_series_backtest(self):
-        """時系列バックテスト実行（Phase 35: 高速化最適化版）"""
+        """
+        時系列バックテスト実行（Phase 35: 高速化最適化版）
+        Phase 51.8-J4-B: 5分間隔実行対応（ライブモード一致化）
+        Phase 51.8-J4-H: 完了保証（例外ハンドリング強化）
+        """
         main_timeframe = self.timeframes[0] if self.timeframes else "15m"
         main_data = self.csv_data[main_timeframe]
 
-        # データを時系列順で処理
-        for i in range(self.lookback_window, len(main_data)):
-            self.data_index = i
-            self.current_timestamp = main_data.index[i]
+        # Phase 51.8-J4-B: ライブモード実行間隔取得（デフォルト5分）
+        live_interval_minutes = get_threshold("execution.interval_minutes", 5)
+        # 15分足データから何回実行するか計算（15分 / 5分 = 3回）
+        executions_per_candle_default = 15 // live_interval_minutes
 
-            # Phase 35.2: 進捗表示（WARNING強制出力）
-            progress_interval = get_threshold("backtest.progress_interval", 1000)
-            if i % progress_interval == 0:
-                progress = (i / len(main_data)) * 100
-                self.logger.warning(
-                    f"📊 バックテスト進行中: {progress:.1f}% "
-                    f"({i}/{len(main_data)}) - {self.current_timestamp.strftime('%Y-%m-%d %H:%M')}"
-                )
+        # Phase 51.8-J4-H: バックテスト高速化オーバーライド（1回実行で1/3の時間）
+        # 注: Phase 51.8-K完了後、最終検証時は3回に戻すこと（ライブモード一致性確認）
+        executions_per_candle = get_threshold(
+            "backtest.inner_loop_count", executions_per_candle_default
+        )
 
-            # 現在時点のデータを準備（Phase 35: 高速化版）
-            await self._setup_current_market_data_fast(i)
+        # Phase 51.8-J4-H: ループ完了保証
+        total_candles = len(main_data) - self.lookback_window
+        processed_candles = 0
 
-            # Phase 49.3: サイクル前のポジション数記録（エントリー検出用）
-            positions_before = set(
-                p["order_id"] for p in self.orchestrator.execution_service.virtual_positions
+        # Phase 51.10-C: ETA計算用の開始時刻記録
+        backtest_start_time = time.time()
+
+        try:
+            # データを時系列順で処理
+            for i in range(self.lookback_window, len(main_data)):
+                self.data_index = i
+                candle_timestamp = main_data.index[i]
+                processed_candles += 1
+
+                # Phase 51.10-C: 進捗表示（ETA追加・間隔改善）
+                progress_interval = get_threshold("backtest.progress_interval", 100)
+                if i % progress_interval == 0:
+                    progress = (i / len(main_data)) * 100
+
+                    # ETA計算
+                    elapsed_time = time.time() - backtest_start_time
+                    if i > self.lookback_window:  # 最初の数サンプル後に計算開始
+                        samples_processed = i - self.lookback_window
+                        samples_remaining = len(main_data) - i
+                        avg_time_per_sample = elapsed_time / samples_processed
+                        eta_seconds = avg_time_per_sample * samples_remaining
+
+                        # 残り時間を人間が読みやすい形式に変換
+                        if eta_seconds < 60:
+                            eta_str = f"{int(eta_seconds)}秒"
+                        elif eta_seconds < 3600:
+                            eta_str = f"{int(eta_seconds / 60)}分{int(eta_seconds % 60)}秒"
+                        else:
+                            hours = int(eta_seconds / 3600)
+                            minutes = int((eta_seconds % 3600) / 60)
+                            eta_str = f"{hours}時間{minutes}分"
+
+                        self.logger.warning(
+                            f"📊 バックテスト進行中: {progress:.1f}% "
+                            f"({i}/{len(main_data)}) - {candle_timestamp.strftime('%Y-%m-%d %H:%M')} "
+                            f"[残り時間: {eta_str}]"
+                        )
+                    else:
+                        self.logger.warning(
+                            f"📊 バックテスト進行中: {progress:.1f}% "
+                            f"({i}/{len(main_data)}) - {candle_timestamp.strftime('%Y-%m-%d %H:%M')}"
+                        )
+
+                # 現在時点のデータを準備（Phase 35: 高速化版）
+                await self._setup_current_market_data_fast(i)
+
+                # Phase 51.8-J4-B: 15分足1本につき、5分間隔で複数回実行
+                for exec_offset in range(executions_per_candle):
+                    # 5分間隔のタイムスタンプ計算（0分、5分、10分）
+                    self.current_timestamp = candle_timestamp + timedelta(
+                        minutes=exec_offset * live_interval_minutes
+                    )
+
+                    # Phase 49.3: サイクル前のポジション数記録（エントリー検出用）
+                    positions_before = set(
+                        p["order_id"] for p in self.orchestrator.execution_service.virtual_positions
+                    )
+
+                    # 取引サイクル実行（本番と同じロジック）
+                    try:
+                        await self.orchestrator.run_trading_cycle()
+                        self.cycle_count += 1
+                        self.processed_timestamps.append(self.current_timestamp)
+
+                        # Phase 49.3: サイクル後の新規ポジションをTradeTrackerに記録
+                        positions_after = self.orchestrator.execution_service.virtual_positions
+                        for position in positions_after:
+                            order_id = position.get("order_id")
+                            if order_id not in positions_before:
+                                # 新規エントリー検出
+                                if (
+                                    hasattr(self.orchestrator, "backtest_reporter")
+                                    and self.orchestrator.backtest_reporter
+                                ):
+                                    # Phase 51.8-J4-G: レジーム情報取得（エントリー時点の市場状況）
+                                    regime_str = "unknown"
+                                    try:
+                                        # 現在時点までの特徴量データを取得してregime分類
+                                        current_features = self.precomputed_features.get(
+                                            self.current_timestamp
+                                        )
+                                        if current_features is not None:
+                                            # 現在時点のデータフレームを構築（最低限の必要カラム）
+                                            regime = self.regime_classifier.classify(
+                                                current_features
+                                            )
+                                            regime_str = regime.value
+                                    except Exception as regime_error:
+                                        self.logger.debug(
+                                            f"⚠️ レジーム分類エラー（デフォルト'unknown'使用）: {regime_error}"
+                                        )
+
+                                    self.orchestrator.backtest_reporter.trade_tracker.record_entry(
+                                        order_id=order_id,
+                                        side=position.get("side"),
+                                        amount=position.get("amount"),
+                                        price=position.get("price"),
+                                        timestamp=self.current_timestamp,
+                                        strategy=position.get("strategy_name", "unknown"),
+                                        regime=regime_str,  # Phase 51.8-J4-G: レジーム情報追加
+                                    )
+
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ 取引サイクルエラー ({self.current_timestamp}): {e}")
+                        continue
+
+                # Phase 49.2: TP/SLトリガーチェック・決済シミュレーション
+                # Phase 51.8-J4-C: ローソク足内トリガー対応（high/low使用）
+                try:
+                    # ローソク足OHLC取得
+                    candle = main_data.iloc[i]
+                    close_price = candle.get("close", None)
+                    high_price = candle.get("high", None)
+                    low_price = candle.get("low", None)
+
+                    if close_price is not None and high_price is not None and low_price is not None:
+                        await self._check_tp_sl_triggers(
+                            close_price, high_price, low_price, self.current_timestamp
+                        )
+                except Exception as e:
+                    self.logger.debug(
+                        f"⚠️ TP/SLトリガーチェックエラー ({self.current_timestamp}): {e}"
+                    )
+
+                # Phase 35.5: 進捗レポート保存を完全削除（バックテスト中は不要・I/Oオーバーヘッド削減）
+                # report_interval = get_threshold("backtest.report_interval", 10000)
+                # if i % report_interval == 0:
+                #     await self._save_progress_report()
+
+            # Phase 51.8-J4-H: ループ完了ログ
+            self.logger.warning(
+                f"✅ バックテストループ完了: {processed_candles}/{total_candles}本処理完了"
             )
 
-            # 取引サイクル実行（本番と同じロジック）
-            try:
-                await self.orchestrator.run_trading_cycle()
-                self.cycle_count += 1
-                self.processed_timestamps.append(self.current_timestamp)
+        except Exception as e:
+            # Phase 51.8-J4-H: 例外発生時のエラーログ
+            self.logger.error(f"❌ バックテスト実行中にエラー発生: {e}")
+            self.logger.error(f"処理済みローソク足: {processed_candles}/{total_candles}")
+            import traceback
 
-                # Phase 49.3: サイクル後の新規ポジションをTradeTrackerに記録
-                positions_after = self.orchestrator.execution_service.virtual_positions
-                for position in positions_after:
-                    order_id = position.get("order_id")
-                    if order_id not in positions_before:
-                        # 新規エントリー検出
-                        if (
-                            hasattr(self.orchestrator, "backtest_reporter")
-                            and self.orchestrator.backtest_reporter
-                        ):
-                            self.orchestrator.backtest_reporter.trade_tracker.record_entry(
-                                order_id=order_id,
-                                side=position.get("side"),
-                                amount=position.get("amount"),
-                                price=position.get("price"),
-                                timestamp=self.current_timestamp,
-                                strategy=position.get("strategy_name", "unknown"),
-                            )
+            self.logger.error(f"トレースバック:\n{traceback.format_exc()}")
+            raise  # エラーを再送出して上位で処理
 
-            except Exception as e:
-                self.logger.warning(f"⚠️ 取引サイクルエラー ({self.current_timestamp}): {e}")
-                continue
+        finally:
+            # Phase 51.8-J4-H: クリーンアップ保証（成功・失敗問わず実行）
+            self.logger.warning(f"🔄 バックテスト後処理開始: 残ポジション決済・最終レポート生成")
 
-            # Phase 49.2: TP/SLトリガーチェック・決済シミュレーション
-            try:
-                # 現在価格取得
-                current_price = main_data.iloc[i].get("close", None)
-                if current_price is not None:
-                    await self._check_tp_sl_triggers(current_price, self.current_timestamp)
-            except Exception as e:
-                self.logger.debug(f"⚠️ TP/SLトリガーチェックエラー ({self.current_timestamp}): {e}")
+            # 残ポジション強制決済
+            await self._force_close_remaining_positions()
 
-            # Phase 35.5: 進捗レポート保存を完全削除（バックテスト中は不要・I/Oオーバーヘッド削減）
-            # report_interval = get_threshold("backtest.report_interval", 10000)
-            # if i % report_interval == 0:
-            #     await self._save_progress_report()
+            # 最終レポート生成保証は run() メソッドで実施（既存ロジック維持）
+            self.logger.warning(
+                f"✅ バックテスト後処理完了: 処理済み={processed_candles}本、サイクル数={self.cycle_count}"
+            )
 
     def _calculate_pnl(
         self, side: str, entry_price: float, exit_price: float, amount: float
@@ -589,22 +704,27 @@ class BacktestRunner(BaseRunner):
 
         return pnl
 
-    async def _check_tp_sl_triggers(self, current_price: float, timestamp):
+    async def _check_tp_sl_triggers(
+        self, close_price: float, high_price: float, low_price: float, timestamp
+    ):
         """
         TP/SLトリガーチェック・決済シミュレーション（Phase 49.2: バックテスト完全改修）
         （Phase 51.7 Phase 3-2: 仮想残高更新追加 - ライブモード一致化）
+        （Phase 51.8-J4-C: ローソク足内トリガー対応 - high/low価格使用）
 
-        現在価格とTP/SL価格を比較し、トリガー時に決済注文シミュレーションを実行。
+        ローソク足のOHLC価格とTP/SL価格を比較し、トリガー時に決済注文シミュレーションを実行。
         これによりバックテストでSELL注文が生成され、完全な取引サイクルを実現。
 
         Args:
-            current_price: 現在の終値
+            close_price: ローソク足の終値
+            high_price: ローソク足の高値（TPチェック用）
+            low_price: ローソク足の安値（SLチェック用）
             timestamp: 現在タイムスタンプ
 
         処理フロー:
             1. PositionTrackerから全ポジション取得
-            2. 各ポジションのTP/SL価格と現在価格を比較
-            3. TP/SLトリガー時に決済注文シミュレーション
+            2. 各ポジションのTP/SL価格とローソク足high/lowを比較
+            3. TP/SLトリガー時に決済注文シミュレーション（両方トリガー時はSL優先）
             4. 仮想残高更新（Phase 51.7 Phase 3-2追加）
             5. ポジション削除
         """
@@ -631,22 +751,26 @@ class BacktestRunner(BaseRunner):
                 if take_profit is None and stop_loss is None:
                     continue
 
-                # 3. TP/SLトリガー判定
+                # 3. TP/SLトリガー判定（Phase 51.8-J4-C: ローソク足内トリガー対応）
                 tp_triggered = False
                 sl_triggered = False
 
                 if side == "buy":
-                    # ロングポジション: 価格上昇でTP・価格下落でSL
-                    if take_profit and current_price >= take_profit:
+                    # ロングポジション: 高値でTPチェック・安値でSLチェック
+                    if take_profit and high_price >= take_profit:
                         tp_triggered = True
-                    elif stop_loss and current_price <= stop_loss:
+                    if stop_loss and low_price <= stop_loss:
                         sl_triggered = True
                 elif side == "sell":
-                    # ショートポジション: 価格下落でTP・価格上昇でSL
-                    if take_profit and current_price <= take_profit:
+                    # ショートポジション: 安値でTPチェック・高値でSLチェック
+                    if take_profit and low_price <= take_profit:
                         tp_triggered = True
-                    elif stop_loss and current_price >= stop_loss:
+                    if stop_loss and high_price >= stop_loss:
                         sl_triggered = True
+
+                # 両方トリガーされた場合はSL優先（保守的判定）
+                if tp_triggered and sl_triggered:
+                    tp_triggered = False  # SLを優先
 
                 # 4. トリガー時に決済シミュレーション
                 if tp_triggered or sl_triggered:
@@ -660,24 +784,59 @@ class BacktestRunner(BaseRunner):
                     )
 
                     # 5. 決済処理（Phase 51.7 Phase 3-3.5: バックテスト最適化）
+                    # Phase 51.8-J4-D: 証拠金返還処理追加
+                    # Phase 51.8-J4-E: 手数料シミュレーション追加
                     # バックテストモードではbitbank API呼び出し不要（残高更新とTradeTracker記録のみ）
                     try:
+                        # Phase 51.8-J4-D: 証拠金返還（エントリー時に控除した証拠金を戻す）
+                        entry_order_total = entry_price * amount
+                        margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                        current_balance = self.orchestrator.execution_service.virtual_balance
+                        self.orchestrator.execution_service.virtual_balance += margin_to_return
+
+                        # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
+                        exit_order_total = exit_price * amount
+                        exit_fee_rate = -0.0002  # Maker手数料（指値注文）
+                        exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
+                        self.orchestrator.execution_service.virtual_balance -= (
+                            exit_fee_amount  # リベート加算
+                        )
+
                         # Phase 51.7 Phase 3-2: 仮想残高更新（ライブモード一致化）
                         pnl = self._calculate_pnl(side, entry_price, exit_price, amount)
-                        current_balance = self.orchestrator.execution_service.virtual_balance
                         self.orchestrator.execution_service.virtual_balance += pnl
                         new_balance = self.orchestrator.execution_service.virtual_balance
 
-                        self.logger.info(
-                            f"💰 Phase 51.7 Phase 3-2: 仮想残高更新 - "
-                            f"{trigger_type}決済損益: {pnl:+.0f}円 → 残高: {new_balance:.0f}円 "
-                            f"(前残高: {current_balance:.0f}円)"
+                        # Phase 51.8-J4-D再修正: WARNINGレベルでログ出力（バックテストモードで可視化）
+                        self.logger.warning(
+                            f"💰 Phase 51.8-J4-D/E: 決済処理 - "
+                            f"証拠金返還: +¥{margin_to_return:,.0f}, "
+                            f"手数料リベート: +¥{abs(exit_fee_amount):,.2f}, "
+                            f"{trigger_type}決済損益: {pnl:+.0f}円 → 残高: ¥{new_balance:,.0f} "
+                            f"(前残高: ¥{current_balance:,.0f})"
                         )
 
-                        # 6. ポジション削除
+                        # 6. ポジション削除（Phase 51.8-J4-A: ゴーストポジションバグ修正）
+                        # position_trackerとexecutor.virtual_positionsの両方から削除
                         self.orchestrator.execution_service.position_tracker.remove_position(
                             order_id
                         )
+
+                        # Phase 51.8-J4-A: executor.virtual_positionsからも削除（同期化）
+                        try:
+                            virtual_positions = (
+                                self.orchestrator.execution_service.virtual_positions
+                            )
+                            virtual_positions[:] = [
+                                pos for pos in virtual_positions if pos.get("order_id") != order_id
+                            ]
+                            self.logger.debug(
+                                f"🗑️ Phase 51.8-J4-A: executor.virtual_positionsから削除 - {order_id}"
+                            )
+                        except Exception as sync_error:
+                            self.logger.warning(
+                                f"⚠️ Phase 51.8-J4-A: virtual_positions同期エラー: {sync_error}"
+                            )
 
                         # Phase 49.3: TradeTrackerにエグジット記録
                         if (
@@ -703,6 +862,115 @@ class BacktestRunner(BaseRunner):
 
         except Exception as e:
             self.logger.error(f"❌ Phase 49.2: TP/SLトリガーチェックエラー: {e}")
+
+    async def _force_close_remaining_positions(self):
+        """
+        Phase 51.8-J4-H: 残ポジション強制決済（バックテスト終了時）
+
+        バックテスト終了時に残っている全ポジションを最終価格で強制決済。
+        完全な統計記録のため、未決済ポジションをゼロにする。
+
+        処理フロー:
+            1. 全残ポジション取得
+            2. 最終ローソク足の終値で決済
+            3. 損益計算・仮想残高更新
+            4. TradeTrackerに記録（exit_reason="バックテスト終了時の強制決済"）
+            5. ポジション削除
+        """
+        try:
+            # 1. 全ポジション取得
+            positions = (
+                self.orchestrator.execution_service.virtual_positions.copy()
+            )  # コピーして安全にイテレーション
+
+            if not positions:
+                self.logger.warning("✅ Phase 51.8-J4-H: 残ポジションなし（全決済完了）")
+                return
+
+            # 最終ローソク足の終値取得
+            main_timeframe = self.timeframes[0] if self.timeframes else "15m"
+            main_data = self.csv_data[main_timeframe]
+            last_candle = main_data.iloc[-1]
+            final_price = last_candle.get("close")
+            final_timestamp = main_data.index[-1]
+
+            if final_price is None:
+                self.logger.error("❌ Phase 51.8-J4-H: 最終価格取得失敗 - 強制決済中止")
+                return
+
+            self.logger.warning(
+                f"🔄 Phase 51.8-J4-H: 残ポジション強制決済開始 - "
+                f"残{len(positions)}件 @ {final_price:.0f}円 ({final_timestamp})"
+            )
+
+            # 2. 各ポジションを強制決済
+            closed_count = 0
+            for position in positions:
+                order_id = position.get("order_id")
+                side = position.get("side")  # "buy" or "sell"
+                amount = position.get("amount")
+                entry_price = position.get("price")
+                strategy_name = position.get("strategy_name", "unknown")
+
+                try:
+                    # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
+                    # Phase 51.8-J4-D: 証拠金返還処理
+                    entry_order_total = entry_price * amount
+                    margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                    current_balance = self.orchestrator.execution_service.virtual_balance
+                    self.orchestrator.execution_service.virtual_balance += margin_to_return
+
+                    # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
+                    exit_order_total = final_price * amount
+                    exit_fee_rate = -0.0002  # Maker手数料（指値注文）
+                    exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
+                    self.orchestrator.execution_service.virtual_balance -= (
+                        exit_fee_amount  # リベート加算
+                    )
+
+                    # 損益計算・仮想残高更新
+                    pnl = self._calculate_pnl(side, entry_price, final_price, amount)
+                    self.orchestrator.execution_service.virtual_balance += pnl
+                    new_balance = self.orchestrator.execution_service.virtual_balance
+
+                    self.logger.warning(
+                        f"💰 Phase 51.8-J4-H: 強制決済 - {side} {amount} BTC "
+                        f"(エントリー: {entry_price:.0f}円 → 決済: {final_price:.0f}円) "
+                        f"証拠金返還: +¥{margin_to_return:,.0f}, "
+                        f"手数料リベート: +¥{abs(exit_fee_amount):,.2f}, "
+                        f"損益: {pnl:+.0f}円 → 残高: ¥{new_balance:,.0f}"
+                    )
+
+                    # 4. ポジション削除（Phase 51.8-J4-A: 同期化）
+                    self.orchestrator.execution_service.position_tracker.remove_position(order_id)
+                    virtual_positions = self.orchestrator.execution_service.virtual_positions
+                    virtual_positions[:] = [
+                        pos for pos in virtual_positions if pos.get("order_id") != order_id
+                    ]
+
+                    # 5. TradeTrackerに記録
+                    if (
+                        hasattr(self.orchestrator, "backtest_reporter")
+                        and self.orchestrator.backtest_reporter
+                    ):
+                        self.orchestrator.backtest_reporter.trade_tracker.record_exit(
+                            order_id=order_id,
+                            exit_price=final_price,
+                            exit_timestamp=final_timestamp,
+                            exit_reason="バックテスト終了時の強制決済",
+                        )
+
+                    closed_count += 1
+
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Phase 51.8-J4-H: 強制決済エラー - {order_id}: {e}")
+
+            self.logger.warning(
+                f"✅ Phase 51.8-J4-H: 残ポジション強制決済完了 - {closed_count}/{len(positions)}件決済"
+            )
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 51.8-J4-H: 残ポジション強制決済エラー: {e}")
 
     async def _setup_current_market_data_fast(self, current_index: int):
         """

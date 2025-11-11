@@ -327,7 +327,16 @@ class IntegratedRiskManager:
                 denial_reasons=denial_reasons,
             )
 
-            # 9. 市場状況記録
+            # 9. 市場状況記録 + Phase 51.8-10: レジーム情報追加
+            from ...core.services.market_regime_classifier import MarketRegimeClassifier
+
+            # レジーム分類（Phase 51.8-10: ポジション制限・記録用）
+            regime_classifier = MarketRegimeClassifier()
+            regime = regime_classifier.classify(market_data)
+            regime_value = (
+                regime.value if hasattr(regime, "value") else str(regime)
+            )  # Phase 51.8-10: 文字列化
+
             market_conditions = {
                 "last_price": last_price,
                 "bid": bid,
@@ -340,6 +349,8 @@ class IntegratedRiskManager:
                     if "atr_14" in market_data.columns
                     else 0.0
                 ),
+                "regime": regime,  # Phase 51.8-10: レジーム情報（ポジション制限用・RegimeTypeオブジェクト）
+                "regime_value": regime_value,  # Phase 51.8-10: レジーム文字列（記録用）
             }
 
             # 10. 評価結果構築

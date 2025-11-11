@@ -52,6 +52,12 @@ class StopManager:
             ExecutionResult: ストップ実行結果（実行しない場合はNone）
         """
         try:
+            # Phase 51.8-J4-D再修正: バックテストモードでは決済処理をスキップ
+            # backtest_runner.py の _check_tp_sl_triggers() が唯一の決済ルート（証拠金返還含む）
+            # stop_manager.py で重複決済すると証拠金が返還されず残高が減る問題を回避
+            if mode == "backtest":
+                return None
+
             # ポジションがない場合は何もしない
             if not virtual_positions:
                 return None

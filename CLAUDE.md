@@ -165,7 +165,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=5
 ```
 
-### バックテスト実行（Phase 49最適化）
+### バックテスト実行（Phase 51.8-J4対応）
 
 ```bash
 # データ存在確認（必須）
@@ -175,8 +175,12 @@ wc -l src/backtest/data/historical/btc_jpy_15m.csv   # 期待: 17,272行
 # データ収集（不足時）
 python src/backtest/data/historical/collect_historical_csv.py --days 180
 
-# バックテスト実行
-python src/backtest/scripts/run_backtest.py
+# バックテスト実行（推奨：ログ自動保存）
+bash scripts/backtest/run_backtest.sh              # デフォルト
+bash scripts/backtest/run_backtest.sh phase51.8    # カスタム名
+
+# または直接実行（手動ログ管理）
+python3 main.py --mode backtest
 ```
 
 ---

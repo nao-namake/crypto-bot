@@ -202,10 +202,10 @@ data:
   # 特徴量管理（feature_order.json参照・拡張可能設計）
   feature_management:
     enabled: true  # 特徴量管理
-    feature_count: 54  # Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル）
+    feature_count: 55  # Phase 51.9: 55特徴量（49基本+6戦略シグナル）
     feature_order_validation: true  # 特徴量順序検証
     use_feature_order_json: true  # feature_order.json使用
-    note: "Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル）・6戦略統合完了・feature_order.json参照"
+    note: "Phase 51.9: 55特徴量（49基本+6戦略シグナル）・6戦略統合完了・feature_order.json参照"
 
   # マルチタイムフレーム
   multi_timeframe:

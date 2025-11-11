@@ -1,9 +1,9 @@
 {
-  "feature_order_version": "v4.1.0",
-  "phase": "Phase 51.7 Day 7",
+  "feature_order_version": "v4.2.0",
+  "phase": "Phase 51.9",
   "total_features": 55,
-  "last_updated": "2025-11-07T07:20:00Z",
-  "description": "55特徴量（6戦略完全対応）- Phase 51.7 Day 7完了",
+  "last_updated": "2025-11-10T00:00:00Z",
+  "description": "55特徴量（6戦略完全対応・Phase 51.9戦略シグナルエンコーディング改善）",
 
   "feature_levels": {
     "full": {
@@ -507,60 +507,60 @@
     },
     "strategy_signal_ATRBased": {
       "type": "strategy_signal",
-      "description": "ATRベース戦略シグナル（action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "ATRベース戦略シグナル（0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "low",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "⚠️ Importance=0（Phase 51.8以降で改善検討）"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
     },
     "strategy_signal_DonchianChannel": {
       "type": "strategy_signal",
-      "description": "Donchianチャネル戦略シグナル（action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "Donchianチャネル戦略シグナル（0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "low",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "⚠️ Importance=0（Phase 51.8以降で改善検討）"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
     },
     "strategy_signal_ADXTrendStrength": {
       "type": "strategy_signal",
-      "description": "ADXトレンド強度戦略シグナル（action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "ADXトレンド強度戦略シグナル（0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "low",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "⚠️ Importance=0（Phase 51.8以降で改善検討）"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
     },
     "strategy_signal_BBReversal": {
       "type": "strategy_signal",
-      "description": "BB Reversal戦略シグナル（レンジ相場での平均回帰・action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "BB Reversal戦略シグナル（レンジ相場での平均回帰・0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "medium",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "Phase 51.7 Day 3追加: レンジ相場最適化",
-      "phase": "Phase 51.7 Day 3"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.7 Day 3追加・Phase 51.9エンコーディング改善完了",
+      "phase": "Phase 51.9"
     },
     "strategy_signal_StochasticReversal": {
       "type": "strategy_signal",
-      "description": "Stochastic Reversal戦略シグナル（モメンタム逆張り・action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "Stochastic Reversal戦略シグナル（モメンタム逆張り・0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "medium",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "Phase 51.7 Day 4追加: レンジ相場モメンタム逆張り",
-      "phase": "Phase 51.7 Day 4"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.7 Day 4追加・Phase 51.9エンコーディング改善完了",
+      "phase": "Phase 51.9"
     },
     "strategy_signal_MACDEMACrossover": {
       "type": "strategy_signal",
-      "description": "MACD+EMA Crossover戦略シグナル（トレンド転換期の押し目買い・戻り売り・action × confidence）",
-      "range": "-1.0 to 1.0",
+      "description": "MACD+EMA Crossover戦略シグナル（トレンド転換期の押し目買い・戻り売り・0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
       "importance": "medium",
       "feature_importance": 0,
-      "encoding": "buy=+1, hold=0, sell=-1, multiplied by confidence",
-      "note": "Phase 51.7 Day 5追加: トレンド転換期最適化",
-      "phase": "Phase 51.7 Day 5"
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 51.7 Day 5追加・Phase 51.9エンコーディング改善完了",
+      "phase": "Phase 51.9"
     }
   },
 

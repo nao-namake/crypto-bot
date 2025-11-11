@@ -646,48 +646,26 @@ class ProductionEnsemble:
             raise ValueError("個別モデルが提供されていません")
 
     def predict(self, X) -> np.ndarray:
-        """予測実行（重み付け投票）"""
-        if hasattr(X, "values"):
-            X_array = X.values
-        else:
-            X_array = X
+        """予測実行（重み付け投票）
 
-        # 入力形状検証
-        if X_array.shape[1] != self.n_features_:
-            raise ValueError(f"特徴量数不一致: {X_array.shape[1]} != {self.n_features_}")
+        Phase 51.9-6C: 3クラス分類対応
+        - predict_proba()を使用してクラス確率を取得
+        - argmax()で最も確率の高いクラスを返す
+        """
+        # predict_proba()を使用して確率取得
+        probas = self.predict_proba(X)
 
-        # sklearn警告回避のため特徴量名付きDataFrameを作成
-        import pandas as pd
-
-        if not isinstance(X, pd.DataFrame):
-            X_with_names = pd.DataFrame(X_array, columns=self.feature_names)
-        else:
-            X_with_names = X
-
-        predictions = {}
-
-        # 各モデルから予測取得
-        for name, model in self.models.items():
-            if hasattr(model, "predict"):
-                pred = model.predict(X_with_names)
-                predictions[name] = pred
-            else:
-                raise ValueError(f"モデル {name} にpredictメソッドがありません")
-
-        # 重み付け平均計算
-        ensemble_pred = np.zeros(len(X_array))
-        total_weight = 0
-
-        for name, pred in predictions.items():
-            weight = self.weights.get(name, 1.0)
-            ensemble_pred += pred * weight
-            total_weight += weight
-
-        # 最終予測（閾値0.5）
-        return (ensemble_pred / total_weight > 0.5).astype(int)
+        # argmax()で最も確率の高いクラスを返す（2クラス・3クラス共通）
+        return np.argmax(probas, axis=1)
 
     def predict_proba(self, X) -> np.ndarray:
-        """予測確率（重み付け平均）"""
+        """予測確率（重み付け平均）
+
+        Phase 51.9-6C: 3クラス分類対応
+        - 各モデルの全クラス確率を保持
+        - 重み付け平均で統合
+        - 2クラス・3クラス両対応
+        """
         if hasattr(X, "values"):
             X_array = X.values
         else:
@@ -706,19 +684,28 @@ class ProductionEnsemble:
             X_with_names = X
 
         probabilities = {}
+        n_classes = None
 
         # 各モデルから確率取得
         for name, model in self.models.items():
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X_with_names)
-                probabilities[name] = proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
+                # Phase 51.9-6C: 全クラスの確率を保持（2クラス・3クラス対応）
+                probabilities[name] = proba
+                if n_classes is None:
+                    n_classes = proba.shape[1]
             elif hasattr(model, "predict"):
-                probabilities[name] = model.predict(X_with_names).astype(float)
+                # predict_probaがない場合はpredictを使用
+                pred = model.predict(X_with_names).astype(int)
+                # one-hot encoding
+                proba = np.zeros((len(pred), n_classes if n_classes else 2))
+                proba[np.arange(len(pred)), pred] = 1.0
+                probabilities[name] = proba
             else:
                 raise ValueError(f"モデル {name} に予測メソッドがありません")
 
-        # 重み付け平均計算
-        ensemble_proba = np.zeros(len(X))
+        # 重み付け平均計算（全クラス確率を統合）
+        ensemble_proba = np.zeros((len(X_array), n_classes))
         total_weight = 0
 
         for name, proba in probabilities.items():
@@ -728,8 +715,9 @@ class ProductionEnsemble:
 
         final_proba = ensemble_proba / total_weight
 
-        # [P(class=0), P(class=1)] 形式で返す
-        return np.column_stack([1 - final_proba, final_proba])
+        # Phase 51.9-6C: 全クラスの確率を返す（2クラス・3クラス対応）
+        # 形状: (n_samples, n_classes)
+        return final_proba
 
     def get_model_info(self) -> Dict[str, Any]:
         """モデル情報取得"""

@@ -127,8 +127,9 @@ class TradingLoggerService:
                 log_message += f", PnL: {pnl_emoji}¥{execution_result.paper_pnl:,.0f}"
 
             # 手数料情報追加
+            # Phase 51.8-J4-D再修正: 小数点2桁表示（-¥3.40のような小額手数料を正しく表示）
             if hasattr(execution_result, "fee") and execution_result.fee is not None:
-                log_message += f", 手数料: ¥{execution_result.fee:,.0f}"
+                log_message += f", 手数料: ¥{execution_result.fee:,.2f}"
 
             # 成功した取引は必ずDiscord通知
             # Phase 35.2: バックテスト時はWARNING（強制出力）

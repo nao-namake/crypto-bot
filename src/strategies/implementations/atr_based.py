@@ -52,14 +52,14 @@ class ATRBasedStrategy(StrategyBase):
                 "position_management.take_profit.default_ratio"
             ),  # Phase 51.6: TP 0.9%・RR比1.29:1
             "position_size_base": get_threshold(
-                "dynamic_confidence.strategies.atr_based.position_size_base"
-            ),  # Phase 51.6: 設定ファイルから取得
+                "ml.dynamic_confidence.strategies.atr_based.position_size_base", 0.015
+            ),  # Phase 51.9-5: mlプレフィックス追加・設定ファイルから取得
             # フィルター設定
             "market_stress_threshold": get_threshold(
-                "dynamic_confidence.strategies.atr_based.market_stress_threshold", 0.7
+                "ml.dynamic_confidence.strategies.atr_based.market_stress_threshold", 0.7
             ),  # 市場ストレス閾値
             "min_atr_ratio": get_threshold(
-                "dynamic_confidence.strategies.atr_based.min_atr_ratio", 0.5
+                "ml.dynamic_confidence.strategies.atr_based.min_atr_ratio", 0.5
             ),  # 最小ATR比率（低ボラ回避）
             # Phase 28完了・Phase 29最適化対応（thresholds.yaml統合）
             "normal_volatility_strength": get_threshold(
@@ -150,7 +150,7 @@ class ATRBasedStrategy(StrategyBase):
                 from ...core.config.threshold_manager import get_threshold
 
                 strength_normalize = get_threshold(
-                    "dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
+                    "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
                 )
                 strength = min(
                     (current_rsi - self.config["rsi_overbought"]) / strength_normalize, 1.0
@@ -161,7 +161,7 @@ class ATRBasedStrategy(StrategyBase):
                 from ...core.config.threshold_manager import get_threshold
 
                 strength_normalize = get_threshold(
-                    "dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
+                    "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
                 )
                 strength = min(
                     (self.config["rsi_oversold"] - current_rsi) / strength_normalize, 1.0
@@ -172,9 +172,9 @@ class ATRBasedStrategy(StrategyBase):
             # 循環インポート回避のため遅延インポート
             from ...core.config.threshold_manager import get_threshold
 
-            rsi_base = get_threshold("dynamic_confidence.strategies.atr_based.rsi_base", 0.2)
+            rsi_base = get_threshold("ml.dynamic_confidence.strategies.atr_based.rsi_base", 0.2)
             rsi_multiplier = get_threshold(
-                "dynamic_confidence.strategies.atr_based.rsi_multiplier", 0.3
+                "ml.dynamic_confidence.strategies.atr_based.rsi_multiplier", 0.3
             )
             confidence = rsi_base + strength * rsi_multiplier if abs(signal) > 0 else 0.0
             return {
@@ -288,7 +288,7 @@ class ATRBasedStrategy(StrategyBase):
 
                     base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
                     confidence_max = get_threshold(
-                        "dynamic_confidence.strategies.atr_based.agreement_max", 0.65
+                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
                     )
                     confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
@@ -335,10 +335,10 @@ class ATRBasedStrategy(StrategyBase):
                     from ...core.config.threshold_manager import get_threshold
 
                     weak_base = get_threshold(
-                        "dynamic_confidence.strategies.atr_based.weak_base", 0.08
+                        "ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08
                     )
                     weak_multiplier = get_threshold(
-                        "dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
+                        "ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
                     )
 
                     # より乖離の大きい指標を採用
@@ -367,10 +367,10 @@ class ATRBasedStrategy(StrategyBase):
                 from ...core.config.threshold_manager import get_threshold
 
                 volatility_bonus = get_threshold(
-                    "dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02
+                    "ml.dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02
                 )
                 volatility_max = get_threshold(
-                    "dynamic_confidence.strategies.atr_based.volatility_max", 0.65
+                    "ml.dynamic_confidence.strategies.atr_based.volatility_max", 0.65
                 )
                 confidence = min(
                     confidence * volatility_bonus, volatility_max

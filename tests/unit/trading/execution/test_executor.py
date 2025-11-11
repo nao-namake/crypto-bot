@@ -574,7 +574,8 @@ class TestExecuteTradeBacktestMode:
         assert result.status == OrderStatus.FILLED
         assert result.order_id == "backtest_1"
         assert result.price == 14000000.0
-        assert result.fee == 0.0
+        # Phase 51.8-J4-E: 手数料シミュレーション実装により、Maker手数料リベート発生
+        assert abs(result.fee - 0.28) < 0.01  # 約¥0.28リベート
 
     @pytest.mark.asyncio
     async def test_backtest_multiple_trades(self, sample_evaluation):
@@ -1344,3 +1345,137 @@ class TestPhase516AtomicEntry:
         assert final_sl is not None
         assert final_tp > sample_execution_result.filled_price  # TPは約定価格より高い
         assert final_sl < sample_execution_result.filled_price  # SLは約定価格より低い
+
+    # ========================================
+    # Phase 51.10-A: エントリー前TP/SLクリーンアップテスト
+    # ========================================
+
+    async def test_cleanup_old_tp_sl_before_entry_success(self, mock_bitbank_client):
+        """Phase 51.10-A: エントリー前クリーンアップ - 古いTP/SL削除成功"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # アクティブ注文モック（BUYエントリー想定）
+        mock_bitbank_client.get_active_orders.return_value = {
+            "orders": [
+                # 削除対象: 古いBUY側のTP（SELL limit注文）
+                {"order_id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
+                # 削除対象: 古いBUY側のSL（SELL stop注文）
+                {"order_id": "old_sl_1", "side": "sell", "type": "stop", "price": 15400000},
+                # 保護対象: 他のエントリー注文（BUY limit）
+                {"order_id": "other_entry", "side": "buy", "type": "limit", "price": 15500000},
+            ]
+        }
+
+        # virtual_positionsは空（新規エントリー想定）
+        service.virtual_positions = []
+
+        await service._cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="entry123",
+        )
+
+        # 2件の古いTP/SL注文が削除される
+        assert mock_bitbank_client.cancel_order.call_count == 2
+        mock_bitbank_client.cancel_order.assert_any_call("old_tp_1", "BTC/JPY")
+        mock_bitbank_client.cancel_order.assert_any_call("old_sl_1", "BTC/JPY")
+
+    async def test_cleanup_old_tp_sl_before_entry_with_protected_orders(self, mock_bitbank_client):
+        """Phase 51.10-A: エントリー前クリーンアップ - アクティブポジションのTP/SL保護"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # アクティブ注文モック
+        mock_bitbank_client.get_active_orders.return_value = {
+            "orders": [
+                # 保護対象: アクティブポジションのTP
+                {"order_id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
+                # 保護対象: アクティブポジションのSL
+                {"order_id": "active_sl", "side": "sell", "type": "stop", "price": 15400000},
+                # 削除対象: 古いTP
+                {"order_id": "old_tp", "side": "sell", "type": "limit", "price": 15550000},
+            ]
+        }
+
+        # アクティブポジションのTP/SL注文ID（保護対象）
+        service.virtual_positions = [
+            {
+                "side": "buy",
+                "amount": 0.0001,
+                "tp_order_id": "active_tp",
+                "sl_order_id": "active_sl",
+            }
+        ]
+
+        await service._cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="entry123",
+        )
+
+        # 古いTP注文のみ削除（アクティブポジションのTP/SLは保護）
+        assert mock_bitbank_client.cancel_order.call_count == 1
+        mock_bitbank_client.cancel_order.assert_called_once_with("old_tp", "BTC/JPY")
+
+    async def test_cleanup_old_tp_sl_before_entry_no_orders(self, mock_bitbank_client):
+        """Phase 51.10-A: エントリー前クリーンアップ - アクティブ注文なし"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # アクティブ注文なし
+        mock_bitbank_client.get_active_orders.return_value = {"orders": []}
+
+        await service._cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="entry123",
+        )
+
+        # 削除実行されない
+        assert mock_bitbank_client.cancel_order.call_count == 0
+
+    async def test_cleanup_old_tp_sl_before_entry_error_handling(self, mock_bitbank_client):
+        """Phase 51.10-A: エントリー前クリーンアップ - エラーハンドリング"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # get_active_orders失敗
+        mock_bitbank_client.get_active_orders.side_effect = Exception("API error")
+
+        # エラーが発生してもクリーンアップメソッド自体は例外をraiseしない
+        # （警告ログのみ・処理継続）
+        try:
+            await service._cleanup_old_tp_sl_before_entry(
+                side="buy",
+                symbol="BTC/JPY",
+                entry_order_id="entry123",
+            )
+            # 正常終了（例外raiseされない）
+        except Exception:
+            pytest.fail("Cleanup should not raise exception on error")
+
+    async def test_cleanup_old_tp_sl_before_entry_sell_side(self, mock_bitbank_client):
+        """Phase 51.10-A: エントリー前クリーンアップ - SELLエントリー側"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # アクティブ注文モック（SELLエントリー想定）
+        mock_bitbank_client.get_active_orders.return_value = {
+            "orders": [
+                # 削除対象: 古いSELL側のTP（BUY limit注文）
+                {"order_id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},
+                # 削除対象: 古いSELL側のSL（BUY stop注文）
+                {"order_id": "old_sl_sell", "side": "buy", "type": "stop", "price": 15600000},
+                # 非対象: BUY側のTP（SELL limit）
+                {"order_id": "buy_tp", "side": "sell", "type": "limit", "price": 15700000},
+            ]
+        }
+
+        service.virtual_positions = []
+
+        await service._cleanup_old_tp_sl_before_entry(
+            side="sell",  # SELLエントリー
+            symbol="BTC/JPY",
+            entry_order_id="entry123",
+        )
+
+        # SELL側の古いTP/SL注文（BUY側）のみ削除
+        assert mock_bitbank_client.cancel_order.call_count == 2
+        mock_bitbank_client.cancel_order.assert_any_call("old_tp_sell", "BTC/JPY")
+        mock_bitbank_client.cancel_order.assert_any_call("old_sl_sell", "BTC/JPY")

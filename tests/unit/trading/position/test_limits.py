@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from src.core.services.regime_types import RegimeType
 from src.trading.core import RiskDecision, TradeEvaluation
 from src.trading.position.limits import PositionLimits
 
@@ -226,6 +227,66 @@ class TestCheckMaxPositions:
         result = limits._check_max_positions([])
 
         assert result["allowed"] is True
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Phase 51.8: レジーム別ポジション制限テスト
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    @patch("src.core.services.dynamic_strategy_selector.get_threshold")
+    def test_regime_limit_tight_range(self, mock_threshold, limits):
+        """Phase 51.8: TIGHT_RANGEレジームで最大5ポジション制限"""
+        # DynamicStrategySelector内部のget_threshold()をモック
+        mock_threshold.side_effect = lambda key, default: {
+            "dynamic_strategy_selection.enabled": True,
+            "position_limits.tight_range.max_positions": 5,
+        }.get(key, default)
+
+        virtual_positions = [{"order_id": str(i)} for i in range(4)]
+        result = limits._check_max_positions(virtual_positions, RegimeType.TIGHT_RANGE)
+
+        assert result["allowed"] is True
+        assert "レジーム別ポジション数OK" in result["reason"]
+
+    @patch("src.core.services.dynamic_strategy_selector.get_threshold")
+    def test_regime_limit_high_volatility(self, mock_threshold, limits):
+        """Phase 51.8: HIGH_VOLATILITYレジームで0ポジション制限（完全待機）"""
+        mock_threshold.side_effect = lambda key, default: {
+            "dynamic_strategy_selection.enabled": True,
+            "position_limits.high_volatility.max_positions": 0,
+        }.get(key, default)
+
+        virtual_positions = []
+        result = limits._check_max_positions(virtual_positions, RegimeType.HIGH_VOLATILITY)
+
+        # 0ポジション制限なので、すでに0件でも新規は拒否
+        assert result["allowed"] is False
+        assert "レジーム別ポジション制限" in result["reason"]
+
+    @patch("src.core.services.dynamic_strategy_selector.get_threshold")
+    def test_regime_limit_at_limit(self, mock_threshold, limits):
+        """Phase 51.8: レジーム別制限到達"""
+        mock_threshold.side_effect = lambda key, default: {
+            "dynamic_strategy_selection.enabled": True,
+            "position_limits.trending.max_positions": 3,
+        }.get(key, default)
+
+        virtual_positions = [{"order_id": str(i)} for i in range(3)]
+        result = limits._check_max_positions(virtual_positions, RegimeType.TRENDING)
+
+        assert result["allowed"] is False
+        assert "レジーム別ポジション制限" in result["reason"]
+        assert "3個" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_regime_none_uses_global_limit(self, mock_threshold, limits):
+        """Phase 51.8: レジーム情報なし時は従来のグローバル制限を使用"""
+        mock_threshold.return_value = 3
+
+        virtual_positions = [{"order_id": "1"}, {"order_id": "2"}]
+        result = limits._check_max_positions(virtual_positions, regime=None)
+
+        assert result["allowed"] is True
+        assert "ポジション数OK" in result["reason"]
 
 
 class TestCheckCapitalUsage:

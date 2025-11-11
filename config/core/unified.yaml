@@ -48,10 +48,16 @@ exchange:
 # ========================================
 # 機械学習設定（統一設定管理体系最適化）
 # ========================================
-# 注意: 信頼度闾値はthresholds.yamlで管理、model_weightsはensembleセクションで統一
-# Phase 50.9: 2段階Graceful Degradation（full 62 → basic 57 → Dummy）
+# 注意: 信頼度閾値はthresholds.yamlで管理
+# Phase 50.9: 2段階Graceful Degradation（full 55 → basic 49 → Dummy）
+# Phase 51.9-5: ensemble重みをmlセクションに統合
 ml:
   ensemble_enabled: true
+  # アンサンブルモデル重み設定（Phase 51.9-5: 統合）
+  ensemble_weights:
+    lightgbm: 0.5      # LightGBM 50%（メインモデル）
+    xgboost: 0.3       # XGBoost 30%（補完モデル）
+    random_forest: 0.2 # RandomForest 20%（安定化モデル）
   models:
   - lgbm
   - xgb
@@ -81,10 +87,10 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（Phase 51.7 Day 7: 54特徴量固定システム）
+# 特徴量設定（Phase 51.9: 55特徴量固定システム）
 # ========================================
-# Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル）
-# - 48基本特徴量: テクニカル指標・ラグ・交差項・時間的特徴量
+# Phase 51.9: 55特徴量（49基本+6戦略シグナル）
+# - 49基本特徴量: テクニカル指標・ラグ・交差項・時間的特徴量
 # - 6戦略シグナル特徴量: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
 # ========================================
 features:
@@ -113,27 +119,12 @@ features:
   - minus_di_14
 
 # ========================================
-# 戦略設定（6戦略統合・Phase 51.7 Day 7）
+# 戦略設定（6戦略統合・Phase 51.9）
 # ========================================
-# Note: 詳細な戦略定義はconfig/strategies.yamlを参照
-strategies:
-  enabled:
-  - atr_based
-  - donchian_channel
-  - adx_trend
-  - bb_reversal
-  - stochastic_reversal
-  - macd_ema_crossover
-  weights:
-    atr_based: 0.25
-    donchian_channel: 0.15
-    adx_trend: 0.15
-    bb_reversal: 0.15
-    stochastic_reversal: 0.15
-    macd_ema_crossover: 0.15
-  consensus:
-    required_agreement: 0.4
-    confidence_threshold: 0.3
+# Phase 51.9-5: 戦略設定はconfig/strategies.yamlで一元管理
+# Phase 51.5-B動的戦略管理基盤により、strategies.yamlが唯一の戦略定義ソース
+#
+# 設定参照: config/strategies.yaml
 
 # ========================================
 # リスク管理設定（Kelly基準・個人開発最適化）
@@ -258,19 +249,16 @@ trading_constraints:
   default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 54  # Phase 51.7 Day 7: 54特徴量（48基本+6戦略シグナル・feature_order.json参照）
+  features_count: 55  # Phase 51.9: 55特徴量（49基本+6戦略シグナル・feature_order.json参照）
   timeframes:
   - 15m  # メインタイムフレーム（エントリー判断用）
   - 4h   # 補助タイムフレーム（トレンド判断用）
 
 # ========================================
-# アンサンブルモデル重み設定（統一）
+# アンサンブルモデル重み設定
 # ========================================
-ensemble:
-  weights:
-    lightgbm: 0.5      # LightGBM 50%（メインモデル）
-    xgboost: 0.3       # XGBoost 30%（補完モデル）
-    random_forest: 0.2 # RandomForest 20%（安定化モデル）
+# Phase 51.9-5: ensemble重みはmlセクションに統合（上記ml.ensemble_weights参照）
+# 設定削除（重複排除）
 
 # ========================================
 # レポート設定

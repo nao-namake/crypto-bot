@@ -453,7 +453,7 @@ class TradingCycleManager:
                     confidence = float(np.max(ml_probabilities[-1]))
 
                     self.logger.info(
-                        f"✅ ML予測完了: prediction={['売り', '保持', '買い'][prediction + 1]}, confidence={confidence:.3f}"
+                        f"✅ ML予測完了: prediction={['売り', '保持', '買い'][prediction]}, confidence={confidence:.3f}"
                     )
 
                     return {
@@ -577,8 +577,20 @@ class TradingCycleManager:
     async def _evaluate_risk(self, ml_prediction, strategy_signal, main_features, trading_info):
         """Phase 7: リスク管理・統合判定（Phase 29.5: ML予測統合）"""
         try:
-            # Phase 29.5: ML予測を戦略シグナルと統合
-            integrated_signal = self._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+            # Phase 51.9: レジーム分類（ML統合前に実行）
+            regime = "unknown"
+            if self.market_regime_classifier is not None:
+                try:
+                    regime_type = self.market_regime_classifier.classify(main_features)
+                    regime = regime_type.value  # RegimeType.TIGHT_RANGE → "tight_range"
+                except Exception as e:
+                    self.logger.warning(f"⚠️ レジーム分類エラー: {e} - デフォルト設定使用")
+                    regime = "unknown"
+
+            # Phase 29.5 + Phase 51.9: ML予測を戦略シグナルと統合（レジーム別）
+            integrated_signal = self._integrate_ml_with_strategy(
+                ml_prediction, strategy_signal, regime=regime
+            )
 
             return await self.orchestrator.risk_service.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
@@ -642,18 +654,21 @@ class TradingCycleManager:
             }
 
     def _integrate_ml_with_strategy(
-        self, ml_prediction: dict, strategy_signal: StrategySignal
+        self, ml_prediction: dict, strategy_signal: StrategySignal, regime: str = "unknown"
     ) -> StrategySignal:
         """
-        Phase 29.5: ML予測と戦略シグナルの統合
+        Phase 29.5 + Phase 51.9: ML予測と戦略シグナルの統合（レジーム別最適化）
 
         ML予測結果を戦略シグナルと統合し、最終的な取引信頼度を調整。
+        Phase 51.9: レジーム別にML統合パラメータを動的適用。
         一致時はボーナス、不一致時はペナルティを適用。
 
         Args:
             ml_prediction: ML予測結果 {"prediction": int, "confidence": float}
                           prediction: -1=売り, 0=保持, 1=買い
             strategy_signal: 戦略シグナル (StrategySignalオブジェクト)
+            regime: 市場レジーム (Phase 51.9: レジーム別パラメータ適用)
+                   "tight_range", "normal_range", "trending", "high_volatility", "unknown"
 
         Returns:
             StrategySignal: 統合後のシグナル（ML調整済み）
@@ -664,9 +679,53 @@ class TradingCycleManager:
                 self.logger.debug("ML統合無効 - 戦略シグナルをそのまま使用")
                 return strategy_signal
 
+            # Phase 51.9: レジーム別ML統合パラメータ読み込み
+            regime_ml_enabled = get_threshold("ml.regime_ml_integration.enabled", False)
+            if regime_ml_enabled and regime != "unknown":
+                # レジーム別設定を試行
+                regime_config_base = f"ml.regime_ml_integration.{regime}"
+                min_ml_confidence = get_threshold(f"{regime_config_base}.min_ml_confidence", None)
+                high_confidence_threshold = get_threshold(
+                    f"{regime_config_base}.high_confidence_threshold", None
+                )
+                ml_weight = get_threshold(f"{regime_config_base}.ml_weight", None)
+                strategy_weight = get_threshold(f"{regime_config_base}.strategy_weight", None)
+                agreement_bonus = get_threshold(f"{regime_config_base}.agreement_bonus", None)
+                disagreement_penalty = get_threshold(
+                    f"{regime_config_base}.disagreement_penalty", None
+                )
+
+                # レジーム別設定が存在する場合のみログ出力
+                if min_ml_confidence is not None:
+                    self.logger.info(
+                        f"📊 Phase 51.9: レジーム別ML統合適用 - regime={regime}, "
+                        f"min_conf={min_ml_confidence:.2f}, ml_weight={ml_weight:.2f}"
+                    )
+            else:
+                # Phase 51.9無効 or レジーム不明時はデフォルト設定使用
+                min_ml_confidence = None
+                high_confidence_threshold = None
+                ml_weight = None
+                strategy_weight = None
+                agreement_bonus = None
+                disagreement_penalty = None
+
+            # フォールバック: レジーム別設定がない場合は従来の固定設定使用
+            if min_ml_confidence is None:
+                min_ml_confidence = get_threshold("ml.strategy_integration.min_ml_confidence", 0.6)
+            if high_confidence_threshold is None:
+                high_confidence_threshold = get_threshold(
+                    "ml.strategy_integration.high_confidence_threshold", 0.8
+                )
+            if agreement_bonus is None:
+                agreement_bonus = get_threshold("ml.strategy_integration.agreement_bonus", 1.2)
+            if disagreement_penalty is None:
+                disagreement_penalty = get_threshold(
+                    "ml.strategy_integration.disagreement_penalty", 0.7
+                )
+
             # ML予測信頼度が低い場合は統合しない
             ml_confidence = ml_prediction.get("confidence", 0.0)
-            min_ml_confidence = get_threshold("ml.strategy_integration.min_ml_confidence", 0.6)
 
             if ml_confidence < min_ml_confidence:
                 self.logger.info(
@@ -674,16 +733,17 @@ class TradingCycleManager:
                 )
                 return strategy_signal
 
-            # 予測値とアクションの変換
+            # 予測値とアクションの変換（Phase 51.9-6A: 3クラス分類対応）
             ml_pred = ml_prediction.get("prediction", 0)
-            ml_action_map = {-1: "sell", 0: "hold", 1: "buy"}
+            ml_action_map = {0: "sell", 1: "hold", 2: "buy"}  # 3クラス: 0=SELL, 1=HOLD, 2=BUY
             ml_action = ml_action_map.get(ml_pred, "hold")
 
             # StrategySignalオブジェクトから属性を直接取得
             strategy_action = strategy_signal.action
             strategy_confidence = strategy_signal.confidence
 
-            self.logger.info(
+            # Phase 51.8-J4-G: バックテストモードで戦略信頼度可視化のためWARNINGレベルに変更
+            self.logger.warning(
                 f"🔄 ML統合開始: 戦略={strategy_action}({strategy_confidence:.3f}), "
                 f"ML={ml_action}({ml_confidence:.3f})"
             )
@@ -693,13 +753,14 @@ class TradingCycleManager:
             # 修正後: 厳密な一致のみ（ML=buy+戦略=buy、ML=sell+戦略=sell、ML=hold+戦略=hold）
             is_agreement = ml_action == strategy_action
 
-            # Phase 45.4: 動的重み取得（Meta-Learning対応）
-            weights = self._get_dynamic_weights()
-            ml_weight = weights["ml"]
-            strategy_weight = weights["strategy"]
-            high_confidence_threshold = get_threshold(
-                "ml.strategy_integration.high_confidence_threshold", 0.8
-            )
+            # Phase 45.4 + Phase 51.9: 動的重み取得（レジーム別 or Meta-Learning）
+            # レジーム別設定がない場合のみMeta-Learning動的重みを使用
+            if ml_weight is None or strategy_weight is None:
+                weights = self._get_dynamic_weights()
+                if ml_weight is None:
+                    ml_weight = weights["ml"]
+                if strategy_weight is None:
+                    strategy_weight = weights["strategy"]
 
             # ベース信頼度計算（加重平均）
             base_confidence = (strategy_confidence * strategy_weight) + (ml_confidence * ml_weight)
@@ -707,22 +768,24 @@ class TradingCycleManager:
             # ML高信頼度時のボーナス・ペナルティ適用
             if ml_confidence >= high_confidence_threshold:
                 if is_agreement:
-                    # 一致時: ボーナス適用
-                    agreement_bonus = get_threshold("ml.strategy_integration.agreement_bonus", 1.2)
+                    # 一致時: ボーナス適用（レジーム別設定が既に読み込み済み）
                     adjusted_confidence = min(base_confidence * agreement_bonus, 1.0)
-                    self.logger.info(
-                        f"✅ ML・戦略一致（ML高信頼度） - ボーナス適用: "
-                        f"{base_confidence:.3f} → {adjusted_confidence:.3f}"
+                    # Phase 51.8-J4-G + Phase 51.9: レジーム情報追加
+                    self.logger.warning(
+                        f"✅ ML・戦略一致（ML高信頼度）[{regime}] - "
+                        f"戦略={strategy_action}({strategy_confidence:.3f}), "
+                        f"ML={ml_action}({ml_confidence:.3f}), "
+                        f"ボーナス適用: {base_confidence:.3f} → {adjusted_confidence:.3f}"
                     )
                 else:
-                    # 不一致時: ペナルティ適用
-                    disagreement_penalty = get_threshold(
-                        "ml.strategy_integration.disagreement_penalty", 0.7
-                    )
+                    # 不一致時: ペナルティ適用（レジーム別設定が既に読み込み済み）
                     adjusted_confidence = base_confidence * disagreement_penalty
+                    # Phase 51.8-J4-G + Phase 51.9: レジーム情報追加
                     self.logger.warning(
-                        f"⚠️ ML・戦略不一致（ML高信頼度） - ペナルティ適用: "
-                        f"{base_confidence:.3f} → {adjusted_confidence:.3f}"
+                        f"⚠️ ML・戦略不一致（ML高信頼度）[{regime}] - "
+                        f"戦略={strategy_action}({strategy_confidence:.3f}), "
+                        f"ML={ml_action}({ml_confidence:.3f}), "
+                        f"ペナルティ適用: {base_confidence:.3f} → {adjusted_confidence:.3f}"
                     )
 
                     # 不一致時はholdに変更する選択肢も

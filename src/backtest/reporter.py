@@ -54,6 +54,7 @@ class TradeTracker:
         price: float,
         timestamp,
         strategy: str = "unknown",
+        regime: Optional[str] = None,  # Phase 51.8-J4-G: レジーム情報追加
     ):
         """
         エントリー注文記録
@@ -65,16 +66,32 @@ class TradeTracker:
             price: エントリー価格
             timestamp: タイムスタンプ
             strategy: 戦略名
+            regime: 市場レジーム（Phase 51.8-J4-G追加）
         """
+        # Phase 51.8-9準備: Timestamp serialization対応
+        timestamp_str = str(timestamp) if hasattr(timestamp, "__str__") else timestamp
+
+        # Phase 51.8-10修正: 既存order_idの上書き防止（executor.py優先）
+        if order_id in self.open_entries:
+            self.logger.debug(
+                f"既存エントリー検出・スキップ: {order_id} "
+                f"(既存regime={self.open_entries[order_id].get('regime')}, 新regime={regime})"
+            )
+            return  # 既存エントリーを保持（executor.pyの呼び出しを優先）
+
         self.open_entries[order_id] = {
             "order_id": order_id,
             "side": side,
             "amount": amount,
             "entry_price": price,
-            "entry_timestamp": timestamp,
+            "entry_timestamp": timestamp,  # 計算用（元オブジェクト）
+            "entry_timestamp_str": timestamp_str,  # JSON出力用（文字列）
             "strategy": strategy,
+            "regime": regime,  # Phase 51.8-J4-G: レジーム情報保存
         }
-        self.logger.debug(f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円")
+        self.logger.debug(
+            f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})"
+        )
 
     def record_exit(
         self, order_id: str, exit_price: float, exit_timestamp, exit_reason: str = "unknown"
@@ -113,6 +130,11 @@ class TradeTracker:
             # その他の場合は0
             holding_period = 0.0
 
+        # Phase 51.8-9準備: Timestamp serialization対応
+        exit_timestamp_str = (
+            str(exit_timestamp) if hasattr(exit_timestamp, "__str__") else exit_timestamp
+        )
+
         # 取引完了情報
         trade = {
             "order_id": order_id,
@@ -120,12 +142,15 @@ class TradeTracker:
             "amount": entry["amount"],
             "entry_price": entry["entry_price"],
             "exit_price": exit_price,
-            "entry_timestamp": entry["entry_timestamp"],
-            "exit_timestamp": exit_timestamp,
+            "entry_timestamp": entry.get(
+                "entry_timestamp_str", str(entry["entry_timestamp"])
+            ),  # Phase 51.8-9: JSON用文字列
+            "exit_timestamp": exit_timestamp_str,  # Phase 51.8-9: JSON用文字列
             "strategy": entry["strategy"],
             "exit_reason": exit_reason,
             "pnl": pnl,
             "holding_period": holding_period,  # Phase 51.4-Day2追加
+            "regime": entry.get("regime"),  # Phase 51.8-J4-G: レジーム情報追加
         }
 
         self.completed_trades.append(trade)
@@ -260,6 +285,67 @@ class TradeTracker:
 
         return (max_dd, max_dd_pct)
 
+    def get_regime_performance(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Phase 51.8-J4-G: レジーム別パフォーマンス集計
+
+        各市場レジームでの取引パフォーマンスを集計し、
+        レジーム別の最適戦略重み決定に必要なデータを提供。
+
+        Returns:
+            レジーム別パフォーマンス辞書:
+                {
+                    "tight_range": {
+                        "total_trades": 10,
+                        "winning_trades": 7,
+                        "win_rate": 70.0,
+                        "total_pnl": 1500.0,
+                        "average_pnl": 150.0
+                    },
+                    ...
+                }
+        """
+        regime_stats: Dict[str, Dict[str, Any]] = {}
+
+        # レジーム別に取引を集計
+        for trade in self.completed_trades:
+            regime = trade.get("regime", "unknown")
+
+            # レジーム統計初期化
+            if regime not in regime_stats:
+                regime_stats[regime] = {
+                    "total_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "total_profit": 0.0,
+                    "total_loss": 0.0,
+                    "average_pnl": 0.0,
+                    "trades": [],  # 詳細取引リスト（オプション）
+                }
+
+            # 統計更新
+            regime_stats[regime]["total_trades"] += 1
+            regime_stats[regime]["total_pnl"] += trade["pnl"]
+            regime_stats[regime]["trades"].append(trade)
+
+            if trade["pnl"] > 0:
+                regime_stats[regime]["winning_trades"] += 1
+                regime_stats[regime]["total_profit"] += trade["pnl"]
+            elif trade["pnl"] < 0:
+                regime_stats[regime]["losing_trades"] += 1
+                regime_stats[regime]["total_loss"] += trade["pnl"]
+
+        # 勝率・平均損益計算
+        for regime, stats in regime_stats.items():
+            total = stats["total_trades"]
+            if total > 0:
+                stats["win_rate"] = (stats["winning_trades"] / total) * 100
+                stats["average_pnl"] = stats["total_pnl"] / total
+
+        return regime_stats
+
 
 class BacktestReporter:
     """
@@ -310,6 +396,9 @@ class BacktestReporter:
             # Phase 49.3: パフォーマンス指標取得
             performance_metrics = self.trade_tracker.get_performance_metrics()
 
+            # Phase 51.8-J4-G: レジーム別パフォーマンス取得
+            regime_performance = self.trade_tracker.get_regime_performance()
+
             # レポートデータ構築
             # Phase 35.5: 型チェック追加（文字列/datetime両対応）
             start_date_str = start_date if isinstance(start_date, str) else start_date.isoformat()
@@ -336,6 +425,8 @@ class BacktestReporter:
                 # Phase 49.3: 損益分析追加
                 "performance_metrics": performance_metrics,
                 "completed_trades": len(self.trade_tracker.completed_trades),
+                # Phase 51.8-J4-G: レジーム別パフォーマンス追加
+                "regime_performance": regime_performance,
             }
 
             # JSONファイル保存
@@ -368,6 +459,22 @@ class BacktestReporter:
                 f"平均負けトレード: ¥{performance_metrics.get('average_loss', 0.0):,.0f}"
             )
             self.logger.warning("=" * 60)
+
+            # Phase 51.8-J4-G: レジーム別パフォーマンスサマリー
+            if regime_performance:
+                self.logger.warning("")
+                self.logger.warning("=" * 60)
+                self.logger.warning("📊 レジーム別パフォーマンス（Phase 51.8-J4-G）")
+                self.logger.warning("=" * 60)
+                for regime, stats in regime_performance.items():
+                    self.logger.warning(f"\n【{regime}】")
+                    self.logger.warning(f"  総取引数: {stats.get('total_trades', 0)}件")
+                    self.logger.warning(f"  勝ちトレード: {stats.get('winning_trades', 0)}件")
+                    self.logger.warning(f"  負けトレード: {stats.get('losing_trades', 0)}件")
+                    self.logger.warning(f"  勝率: {stats.get('win_rate', 0.0):.2f}%")
+                    self.logger.warning(f"  総損益: ¥{stats.get('total_pnl', 0.0):,.0f}")
+                    self.logger.warning(f"  平均損益: ¥{stats.get('average_pnl', 0.0):,.0f}")
+                self.logger.warning("=" * 60)
 
             # Phase 49.3: テキストレポート生成
             text_filename = f"backtest_{timestamp}.txt"

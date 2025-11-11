@@ -211,6 +211,7 @@ class StrategyLoader:
             "instance": strategy_instance,
             "weight": strategy_config.get("weight", 1.0),
             "priority": strategy_config.get("priority", 99),
+            "regime_affinity": strategy_config.get("regime_affinity", "both"),  # Phase 51.8
             "metadata": {
                 "strategy_id": strategy_id,
                 "name": class_name,

@@ -38,6 +38,7 @@ class MLConfig:
 
     confidence_threshold: Optional[float] = None
     ensemble_enabled: Optional[bool] = None
+    ensemble_weights: Optional[Dict[str, float]] = None  # Phase 51.9-5: ensemble重み設定統合
     models: Optional[List[str]] = None
     model_weights: Optional[List[float]] = None
     model_path: Optional[str] = None
@@ -60,6 +61,21 @@ class MLConfig:
 
     # Phase 45: Meta-Learning動的重み最適化設定
     meta_learning: Optional[Dict[str, Any]] = None
+
+    # Phase 51.9: レジーム別ML統合設定
+    regime_ml_integration: Optional[Dict[str, Any]] = None
+
+    # Meta-ML予測信頼度閾値
+    min_confidence: Optional[float] = None
+
+    # 市場状況特徴量設定
+    market_features: Optional[Dict[str, Any]] = None
+
+    # パフォーマンストラッキング設定
+    performance_tracking: Optional[Dict[str, Any]] = None
+
+    # Meta-MLモデル設定
+    model_config: Optional[Dict[str, Any]] = None
 
 
 @dataclass

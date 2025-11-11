@@ -104,7 +104,15 @@ class BaseMLModel(ABC):
                 # predict_probaがない場合は予測値を確率風に変換
                 predictions = self.estimator.predict(X_aligned)
                 n_samples = len(predictions)
-                probabilities = np.zeros((n_samples, 2))
+                # Phase 51.9-6D: クラス数自動検出（3クラス想定）
+                n_classes = len(np.unique(predictions))
+                if n_classes < 2:
+                    n_classes = 2  # 最小2クラス
+                if n_classes != 3:
+                    self.logger.warning(
+                        f"Expected 3 classes but detected {n_classes} in predictions"
+                    )
+                probabilities = np.zeros((n_samples, n_classes))
                 probabilities[np.arange(n_samples), predictions] = 1.0
                 return probabilities
 
@@ -283,8 +291,10 @@ class LGBMModel(BaseMLModel):
         """LightGBMモデルの初期化"""
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.lgbm", {})
+        # Phase 51.9-6D: 3クラス専用（デフォルトをmulticlassに変更）
         default_params = {
-            "objective": "binary",
+            "objective": config_params.get("objective", "multiclass"),
+            "num_class": config_params.get("num_class", 3),
             "boosting_type": "gbdt",
             "verbose": -1,
             **config_params,  # 設定ファイルの値で上書き
@@ -373,10 +383,12 @@ class XGBModel(BaseMLModel):
         """XGBoostモデルの初期化"""
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.xgb", {})
+        # Phase 51.9-6D: 3クラス専用（デフォルトをmulti:softprobに変更）
         default_params = {
-            "objective": "binary:logistic",
+            "objective": config_params.get("objective", "multi:softprob"),
+            "num_class": config_params.get("num_class", 3),
             "verbosity": 0,
-            "eval_metric": "logloss",
+            "eval_metric": config_params.get("eval_metric", "mlogloss"),
             "use_label_encoder": False,
             "tree_method": "hist",
             "grow_policy": "depthwise",

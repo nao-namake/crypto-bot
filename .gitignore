@@ -41,9 +41,7 @@ pip-wheel-metadata/
 .coverage_data/
 test_reports/
 
-# カバレッジレポート（coverage-reports/で管理）
-coverage-reports/.coverage.*     # 一時カバレッジファイル
-coverage-reports/htmlcov/        # HTMLレポート（サイズ大・動的生成）
+# カバレッジレポート（.cache/coverage/で管理）
 .coverage                        # ルートの一時カバレッジファイル
 coverage.xml                     # XML形式レポート
 
@@ -149,6 +147,7 @@ cache_data/
 # バックテスト関連データ（動的生成）
 src/backtest/data/*.csv           # 履歴データキャッシュ
 src/backtest/data/*.json          # 結果データ
+src/backtest/logs/*.log           # Phase 51.8-J4: バックテスト実行ログ
 backtest_results/
 historical_data/
 

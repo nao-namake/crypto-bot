@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from ...core.config import get_threshold
 from ...core.logger import get_logger
+from ...core.services.regime_types import RegimeType
 from ..core import TradeEvaluation
 
 
@@ -39,6 +40,7 @@ class PositionLimits:
         virtual_positions: List[Dict[str, Any]],
         last_order_time: Optional[datetime],
         current_balance: float,
+        regime: Optional[RegimeType] = None,
     ) -> Dict[str, Any]:
         """
         ポジション管理制限チェック（口座残高使い切り問題対策）
@@ -48,6 +50,7 @@ class PositionLimits:
             virtual_positions: 現在のポジションリスト
             last_order_time: 最後の注文時刻
             current_balance: 現在の残高
+            regime: 市場レジーム（Phase 51.8: レジーム別ポジション制限）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
@@ -63,8 +66,8 @@ class PositionLimits:
             if not cooldown_check["allowed"]:
                 return cooldown_check
 
-            # 1. 最大ポジション数チェック
-            position_count_check = self._check_max_positions(virtual_positions)
+            # 1. 最大ポジション数チェック（Phase 51.8: レジーム対応）
+            position_count_check = self._check_max_positions(virtual_positions, regime)
             if not position_count_check["allowed"]:
                 return position_count_check
 
@@ -169,18 +172,42 @@ class PositionLimits:
 
         return {"allowed": True, "reason": "クールダウンOK"}
 
-    def _check_max_positions(self, virtual_positions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _check_max_positions(
+        self, virtual_positions: List[Dict[str, Any]], regime: Optional[RegimeType] = None
+    ) -> Dict[str, Any]:
         """
-        最大ポジション数チェック
+        最大ポジション数チェック（Phase 51.8: レジーム対応）
 
         Args:
             virtual_positions: 現在のポジションリスト
+            regime: 市場レジーム（Phase 51.8: レジーム別制限適用）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
         """
-        max_positions = get_threshold("position_management.max_open_positions", 3)
         current_positions = len(virtual_positions)
+
+        # Phase 51.8: レジーム別ポジション制限
+        if regime is not None:
+            from ...core.services.dynamic_strategy_selector import DynamicStrategySelector
+
+            selector = DynamicStrategySelector()
+            max_positions = selector.get_regime_position_limit(regime)
+
+            if current_positions >= max_positions:
+                return {
+                    "allowed": False,
+                    "reason": f"Phase 51.8: レジーム別ポジション制限({regime.value}: {max_positions}個)に達しています。現在: {current_positions}個",
+                }
+
+            self.logger.info(
+                f"📊 Phase 51.8: レジーム別ポジション数チェック通過 - "
+                f"regime={regime.value}, 現在={current_positions}件, 上限={max_positions}件"
+            )
+            return {"allowed": True, "reason": f"レジーム別ポジション数OK({regime.value})"}
+
+        # 従来のグローバル制限（レジーム情報なし時のフォールバック）
+        max_positions = get_threshold("position_management.max_open_positions", 3)
 
         if current_positions >= max_positions:
             return {

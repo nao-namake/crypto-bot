@@ -187,7 +187,9 @@ class ModelManager:
             if len(predictions) > 0:
                 prediction = int(predictions[-1])  # 最新の予測
                 confidence = float(probabilities[-1].max()) if len(probabilities) > 0 else 0.5
-                action = "buy" if prediction == 1 else "sell" if prediction == 0 else "hold"
+                # Phase 51.9-6D: 3クラス専用（0=sell, 1=hold, 2=buy）
+                action_map = {0: "sell", 1: "hold", 2: "buy"}
+                action = action_map.get(prediction, "hold")
             else:
                 from ..core.config import get_threshold
 

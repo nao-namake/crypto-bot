@@ -157,11 +157,15 @@ class ExecutionService:
 
             # ポジション管理制限チェック（口座残高使い切り問題対策）
             if self.position_limits:
+                # Phase 51.8: レジーム情報を取得（market_conditionsから）
+                regime = evaluation.market_conditions.get("regime", None)
+
                 position_check_result = await self.position_limits.check_limits(
                     evaluation,
                     self.virtual_positions,
                     self.last_order_time,
                     self.virtual_balance if self.mode == "paper" else self.current_balance,
+                    regime=regime,  # Phase 51.8: レジーム別制限適用
                 )
                 if not position_check_result["allowed"]:
                     self.logger.warning(
@@ -291,6 +295,9 @@ class ExecutionService:
             # Phase 49.15: TradeTracker記録（バックテストレポート用）
             if self.trade_tracker:
                 try:
+                    # Phase 51.8-10: レジーム情報取得・記録（文字列値使用）
+                    regime_value = evaluation.market_conditions.get("regime_value", None)
+
                     self.trade_tracker.record_entry(
                         order_id=result.order_id,
                         side=side,
@@ -298,6 +305,7 @@ class ExecutionService:
                         price=result.filled_price,
                         timestamp=datetime.now(),
                         strategy=order_execution_config.get("strategy", "unknown"),
+                        regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
@@ -374,6 +382,20 @@ class ExecutionService:
                     # クリーンアップ失敗しても処理継続（TP/SL配置を優先）
                     self.logger.warning(
                         f"⚠️ Phase 51.6: 古い注文クリーンアップ失敗（処理継続）: {e}"
+                    )
+
+            # Phase 51.10-A: エントリー前の同一側TP/SL注文クリーンアップ
+            if self.stop_manager:
+                try:
+                    await self._cleanup_old_tp_sl_before_entry(
+                        side=side,
+                        symbol=symbol,
+                        entry_order_id=result.order_id,
+                    )
+                except Exception as e:
+                    # クリーンアップ失敗してもエントリーは継続（Phase 51.6思想維持）
+                    self.logger.warning(
+                        f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続）: {e}"
                     )
 
             # Phase 51.6: Atomic Entry Pattern（Entry/TP/SL一体化・全成功 or 全ロールバック）
@@ -601,6 +623,9 @@ class ExecutionService:
             # Phase 49.15: TradeTracker記録（バックテストレポート用）
             if self.trade_tracker:
                 try:
+                    # Phase 51.8-10: レジーム情報取得・記録（文字列値使用）
+                    regime_value = evaluation.market_conditions.get("regime_value", None)
+
                     self.trade_tracker.record_entry(
                         order_id=virtual_order_id,
                         side=side,
@@ -608,6 +633,7 @@ class ExecutionService:
                         price=price,
                         timestamp=datetime.now(),
                         strategy=virtual_position.get("strategy_name", "unknown"),
+                        regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
@@ -637,12 +663,54 @@ class ExecutionService:
             raise
 
     async def _execute_backtest_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
-        """バックテスト実行（Phase 51.7: ライブモード完全一致化）"""
+        """
+        バックテスト実行（Phase 51.7: ライブモード完全一致化）
+        Phase 51.8-J4-D: 残高管理追加（エントリー時資金控除・不足時拒否）
+        """
         try:
             # バックテスト用の簡易実行
             side = evaluation.side
             amount = float(evaluation.position_size)
             price = float(getattr(evaluation, "entry_price", 0))
+
+            # Phase 51.8-J4-D: 必要証拠金計算（bitbank信用取引は4倍レバレッジ固定）
+            order_total = price * amount  # 注文総額
+            required_margin = order_total / 4  # 必要証拠金（25%）
+
+            # Phase 51.8-J4-D: 残高チェック
+            if self.virtual_balance < required_margin:
+                self.logger.warning(
+                    f"⚠️ Phase 51.8-J4-D: 残高不足により取引拒否 - "
+                    f"必要証拠金: ¥{required_margin:,.0f}, "
+                    f"現在残高: ¥{self.virtual_balance:,.0f}"
+                )
+                return ExecutionResult(
+                    success=False,
+                    mode=ExecutionMode.PAPER,
+                    order_id=None,
+                    price=0.0,
+                    amount=0.0,
+                    filled_price=0.0,
+                    filled_amount=0.0,
+                    error_message=f"残高不足: 必要¥{required_margin:,.0f}, 残高¥{self.virtual_balance:,.0f}",
+                    side=side,
+                    fee=0.0,
+                    status=OrderStatus.FAILED,
+                )
+
+            # Phase 51.8-J4-D: エントリー時に証拠金を控除
+            self.virtual_balance -= required_margin
+
+            # Phase 51.8-J4-E: 手数料シミュレーション（Maker: -0.02%リベート）
+            fee_rate = -0.0002  # Maker手数料（指値注文）
+            fee_amount = order_total * fee_rate  # 負の値（リベート）
+            self.virtual_balance -= fee_amount  # 負の手数料なので残高増加
+
+            self.logger.info(
+                f"💰 Phase 51.8-J4-D/E: エントリー処理 - "
+                f"証拠金控除: -¥{required_margin:,.0f}, "
+                f"手数料リベート: +¥{abs(fee_amount):,.2f} → 残高: ¥{self.virtual_balance:,.0f}"
+            )
 
             virtual_order_id = f"backtest_{self.executed_trades + 1}"
 
@@ -656,7 +724,7 @@ class ExecutionService:
                 filled_amount=amount,
                 error_message=None,
                 side=side,
-                fee=0.0,
+                fee=abs(fee_amount),  # 手数料（正の値で記録）
                 status=OrderStatus.FILLED,
             )
 
@@ -696,6 +764,9 @@ class ExecutionService:
             # Phase 49.15: TradeTracker記録（バックテストレポート用）
             if self.trade_tracker:
                 try:
+                    # Phase 51.8-10: レジーム情報取得・記録（文字列値使用）
+                    regime_value = evaluation.market_conditions.get("regime_value", None)
+
                     self.trade_tracker.record_entry(
                         order_id=result.order_id,
                         side=side,
@@ -703,6 +774,7 @@ class ExecutionService:
                         price=price,
                         timestamp=datetime.now(),
                         strategy=getattr(evaluation, "strategy_name", "unknown"),
+                        regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
@@ -1128,6 +1200,134 @@ class ExecutionService:
                     raise
 
         return None
+
+    async def _cleanup_old_tp_sl_before_entry(
+        self,
+        side: str,
+        symbol: str,
+        entry_order_id: str,
+    ) -> None:
+        """
+        Phase 51.10-A: エントリー前の古いTP/SL注文クリーンアップ
+
+        同一ポジション側（BUY or SELL）の古い未約定TP/SL注文を削除する。
+        Phase 51.6で実装したAtomic Entry Patternを完全にするための追加機能。
+
+        背景:
+        - Phase 51.6実装後、14エントリー → 28個のTP/SL注文が蓄積
+        - 既存のcleanup_old_unfilled_orders()は全ポジションのTP/SLを保護するため削除されない
+        - bitbank API 30件制限により、古いTP/SL注文が新規注文をブロック（-1.22%異常配置率）
+
+        設計方針:
+        - Phase 46思想遵守: 個別TP/SL管理維持
+        - Phase 51.6思想完成: Atomic Entry Pattern維持
+        - 新規エントリー前に同一側の古いTP/SL注文のみ削除
+
+        Args:
+            side: エントリーサイド (buy/sell) - この側の古いTP/SL注文のみ削除
+            symbol: 通貨ペア
+            entry_order_id: 今回のエントリー注文ID（ログ用）
+        """
+        try:
+            # 全アクティブ注文取得
+            active_orders_resp = await asyncio.to_thread(
+                self.bitbank_client.get_active_orders, symbol
+            )
+
+            if not active_orders_resp or not active_orders_resp.get("orders"):
+                self.logger.debug(f"📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
+                return
+
+            active_orders = active_orders_resp["orders"]
+
+            # 同一ポジション側の古いTP/SL注文を検索
+            # - BUYエントリー → SELL側のTP（利確）・SELL側のSL（損切）
+            # - SELLエントリー → BUY側のTP（利確）・BUY側のSL（損切）
+            target_tp_side = "sell" if side == "buy" else "buy"
+            target_sl_side = "sell" if side == "buy" else "buy"
+
+            # 現在のアクティブポジションのTP/SL注文IDを取得（保護対象）
+            protected_order_ids = set()
+            if self.virtual_positions:
+                for pos in self.virtual_positions:
+                    # 同じ側のポジションのTP/SL注文は保護
+                    if pos.get("side") == side:
+                        tp_id = pos.get("tp_order_id")
+                        sl_id = pos.get("sl_order_id")
+                        if tp_id:
+                            protected_order_ids.add(str(tp_id))
+                        if sl_id:
+                            protected_order_ids.add(str(sl_id))
+
+            # 削除対象の注文を収集
+            orders_to_cancel = []
+            for order in active_orders:
+                order_id = str(order["order_id"])
+                order_side = order["side"]
+                order_type = order.get("type", "")
+
+                # 保護対象の注文はスキップ
+                if order_id in protected_order_ids:
+                    continue
+
+                # 同一側のTP/SL注文のみ削除対象
+                # TP: limit注文 & 反対サイド
+                # SL: stop注文 & 反対サイド
+                is_tp = order_type == "limit" and order_side == target_tp_side
+                is_sl = order_type == "stop" and order_side == target_sl_side
+
+                if is_tp or is_sl:
+                    orders_to_cancel.append(
+                        {
+                            "order_id": order_id,
+                            "side": order_side,
+                            "type": order_type,
+                            "price": order.get("price"),
+                        }
+                    )
+
+            # 削除実行
+            if not orders_to_cancel:
+                self.logger.info(
+                    f"✅ Phase 51.10-A: クリーンアップ不要 - "
+                    f"{side}側の古いTP/SL注文なし（Entry: {entry_order_id}）"
+                )
+                return
+
+            cancel_success = 0
+            cancel_fail = 0
+
+            for order in orders_to_cancel:
+                try:
+                    await asyncio.to_thread(
+                        self.bitbank_client.cancel_order, order["order_id"], symbol
+                    )
+                    cancel_success += 1
+                    self.logger.info(
+                        f"🗑️ Phase 51.10-A: 古いTP/SL削除成功 - "
+                        f"ID: {order['order_id']}, "
+                        f"Type: {order['type']}, "
+                        f"Price: {order.get('price', 'N/A')}"
+                    )
+                except Exception as e:
+                    cancel_fail += 1
+                    self.logger.warning(
+                        f"⚠️ Phase 51.10-A: TP/SL削除失敗（継続） - "
+                        f"ID: {order['order_id']}, エラー: {e}"
+                    )
+
+            self.logger.info(
+                f"✅ Phase 51.10-A: クリーンアップ完了 - "
+                f"{side}側 {cancel_success}件削除成功・{cancel_fail}件失敗 "
+                f"（Entry: {entry_order_id}）"
+            )
+
+        except Exception as e:
+            # クリーンアップ失敗してもエントリーは継続（Phase 51.6: L383-385と同様）
+            self.logger.warning(
+                f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続） - "
+                f"Entry: {entry_order_id}, エラー: {e}"
+            )
 
     async def _rollback_entry(
         self,
