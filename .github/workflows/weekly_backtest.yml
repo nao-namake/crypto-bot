@@ -71,17 +71,17 @@ jobs:
           # 履歴データ収集（180日分）
           python3 src/backtest/scripts/collect_historical_csv.py --days 180
 
-          # データ収集確認
-          if [ -f "src/backtest/data/historical/btc_jpy_15m.csv" ]; then
-            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_15m.csv)
+          # データ収集確認（大文字ファイル名）
+          if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/BTC_JPY_15m.csv)
             echo "✅ 15分足データ収集完了: ${CSV_LINES}行"
           else
             echo "❌ 15分足データ収集失敗"
             exit 1
           fi
 
-          if [ -f "src/backtest/data/historical/btc_jpy_4h.csv" ]; then
-            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_4h.csv)
+          if [ -f "src/backtest/data/historical/BTC_JPY_4h.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/BTC_JPY_4h.csv)
             echo "✅ 4時間足データ収集完了: ${CSV_LINES}行"
           else
             echo "❌ 4時間足データ収集失敗"
