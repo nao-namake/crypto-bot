@@ -59,7 +59,39 @@ jobs:
           echo "✅ 依存関係インストール完了"
 
       # ========================================
-      # Step 4: テスト環境準備（Phase 52.0対応）
+      # Step 4: 履歴データ収集（Phase 52.2対応）
+      # ========================================
+      - name: Collect historical data
+        run: |
+          echo "📥 履歴データ収集開始..."
+
+          # 必要なディレクトリ作成
+          mkdir -p src/backtest/data/historical
+
+          # 履歴データ収集（180日分）
+          python3 src/backtest/data/historical/collect_historical_csv.py --days 180
+
+          # データ収集確認
+          if [ -f "src/backtest/data/historical/btc_jpy_15m.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_15m.csv)
+            echo "✅ 15分足データ収集完了: ${CSV_LINES}行"
+          else
+            echo "❌ 15分足データ収集失敗"
+            exit 1
+          fi
+
+          if [ -f "src/backtest/data/historical/btc_jpy_4h.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_4h.csv)
+            echo "✅ 4時間足データ収集完了: ${CSV_LINES}行"
+          else
+            echo "❌ 4時間足データ収集失敗"
+            exit 1
+          fi
+
+          echo "✅ 履歴データ収集完了"
+
+      # ========================================
+      # Step 5: テスト環境準備（Phase 52.0対応）
       # ========================================
       - name: Setup backtest environment
         run: |
@@ -85,27 +117,10 @@ jobs:
             echo "⚠️ ensemble_basic.pkl未確認（フォールバック不可）"
           fi
 
-          # CSVデータ確認
-          if [ -f "src/backtest/data/historical/btc_jpy_15m.csv" ]; then
-            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_15m.csv)
-            echo "✅ 15分足データ確認済み: ${CSV_LINES}行"
-          else
-            echo "❌ 15分足データ未確認"
-            exit 1
-          fi
-
-          if [ -f "src/backtest/data/historical/btc_jpy_4h.csv" ]; then
-            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_4h.csv)
-            echo "✅ 4時間足データ確認済み: ${CSV_LINES}行"
-          else
-            echo "❌ 4時間足データ未確認"
-            exit 1
-          fi
-
           echo "✅ バックテスト環境準備完了"
 
       # ========================================
-      # Step 5: バックテスト実行
+      # Step 6: バックテスト実行
       # ========================================
       - name: Run backtest
         run: |
@@ -139,7 +154,7 @@ jobs:
           fi
 
       # ========================================
-      # Step 6: Markdownレポート生成
+      # Step 7: Markdownレポート生成
       # ========================================
       - name: Generate Markdown report
         run: |
@@ -166,7 +181,7 @@ jobs:
           fi
 
       # ========================================
-      # Step 7: Git設定
+      # Step 8: Git設定
       # ========================================
       - name: Configure Git
         run: |
@@ -176,7 +191,7 @@ jobs:
           echo "✅ Git設定完了"
 
       # ========================================
-      # Step 8: Markdownレポートコミット
+      # Step 9: Markdownレポートコミット
       # ========================================
       - name: Commit Markdown report
         run: |
@@ -201,7 +216,7 @@ jobs:
           fi
 
       # ========================================
-      # Step 9: リポジトリにプッシュ
+      # Step 10: リポジトリにプッシュ
       # ========================================
       - name: Push to repository
         run: |
@@ -215,7 +230,7 @@ jobs:
           echo "🔄 ローカル環境で 'git pull' を実行して同期してください"
 
       # ========================================
-      # Step 10: 実行サマリー
+      # Step 11: 実行サマリー
       # ========================================
       - name: Execution summary
         if: always()
