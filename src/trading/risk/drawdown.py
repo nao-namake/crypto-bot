@@ -116,18 +116,26 @@ class DrawdownManager:
             self.peak_balance = current_balance
             self.logger.debug(f"ピーク残高更新: ¥{self.peak_balance:,.0f}")
 
-    def record_trade_result(self, profit_loss: float, strategy: str = "default") -> None:
+    def record_trade_result(
+        self, profit_loss: float, strategy: str = "default", current_time=None
+    ) -> None:
         """
-        取引結果記録
+        取引結果記録（Phase 52.2: バックテスト時刻対応）
 
         Args:
             profit_loss: 損益（正値=利益、負値=損失）
             strategy: 戦略名
+            current_time: 取引時刻（datetime）。
+                         None時はdatetime.now()使用（本番モード）。
+                         バックテスト時は取引発生時刻を指定。
         """
         try:
+            # Phase 52.2: 基準時刻決定（本番時は現在時刻、バックテスト時は指定時刻）
+            now = current_time if current_time is not None else datetime.now()
+
             # 取引記録追加
             trade_record = TradeRecord(
-                timestamp=datetime.now(),
+                timestamp=now,
                 profit_loss=profit_loss,
                 strategy=strategy,
             )
@@ -141,15 +149,15 @@ class DrawdownManager:
                 )
             else:
                 if self.consecutive_losses > 0:
-                    self.logger.info(f"連続損失リセット（勝ち取引）")
+                    self.logger.info("連続損失リセット（勝ち取引）")
                 self.consecutive_losses = 0
 
             # ドローダウンチェック
             current_drawdown = self.calculate_current_drawdown()
             if current_drawdown >= self.max_drawdown_ratio:
-                self._enter_cooldown(TradingStatus.PAUSED_DRAWDOWN)
+                self._enter_cooldown(TradingStatus.PAUSED_DRAWDOWN, current_time=now)
             elif self.consecutive_losses >= self.consecutive_loss_limit:
-                self._enter_cooldown(TradingStatus.PAUSED_CONSECUTIVE_LOSS)
+                self._enter_cooldown(TradingStatus.PAUSED_CONSECUTIVE_LOSS, current_time=now)
 
             # 状態保存
             self._save_state()
@@ -165,24 +173,48 @@ class DrawdownManager:
         drawdown = (self.peak_balance - self.current_balance) / self.peak_balance
         return max(0.0, drawdown)
 
-    def check_trading_allowed(self) -> bool:
-        """取引許可チェック"""
+    def check_trading_allowed(self, current_time=None) -> bool:
+        """
+        取引許可チェック（Phase 52.2: バックテスト時刻対応）
+
+        Args:
+            current_time: 判定基準時刻（datetime）。
+                         None時はdatetime.now()使用（本番モード）。
+                         バックテスト時は過去のタイムスタンプを指定。
+
+        Returns:
+            bool: 取引許可の場合True
+        """
+        # Phase 52.2: 基準時刻決定（本番時は現在時刻、バックテスト時は指定時刻）
+        now = current_time if current_time is not None else datetime.now()
+
         # クールダウン期間チェック
-        if self.cooldown_until and datetime.now() < self.cooldown_until:
-            remaining = (self.cooldown_until - datetime.now()).total_seconds() / 3600
+        if self.cooldown_until and now < self.cooldown_until:
+            remaining = (self.cooldown_until - now).total_seconds() / 3600
             self.logger.debug(f"クールダウン中: 残り{remaining:.1f}時間")
             return False
 
         # クールダウン解除
-        if self.cooldown_until and datetime.now() >= self.cooldown_until:
+        if self.cooldown_until and now >= self.cooldown_until:
             self._exit_cooldown()
 
         return self.trading_status == TradingStatus.ACTIVE
 
-    def _enter_cooldown(self, status: TradingStatus) -> None:
-        """クールダウン開始"""
+    def _enter_cooldown(self, status: TradingStatus, current_time=None) -> None:
+        """
+        クールダウン開始（Phase 52.2: バックテスト時刻対応）
+
+        Args:
+            status: 取引ステータス
+            current_time: 基準時刻（datetime）。
+                         None時はdatetime.now()使用（本番モード）。
+                         バックテスト時はクールダウン開始時刻を指定。
+        """
+        # Phase 52.2: 基準時刻決定（本番時は現在時刻、バックテスト時は指定時刻）
+        now = current_time if current_time is not None else datetime.now()
+
         self.trading_status = status
-        self.cooldown_until = datetime.now() + timedelta(hours=self.cooldown_hours)
+        self.cooldown_until = now + timedelta(hours=self.cooldown_hours)
 
         self.logger.warning(
             f"クールダウン開始: {status.value}, "

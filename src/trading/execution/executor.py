@@ -1004,6 +1004,7 @@ class ExecutionService:
             # ATR取得完了（3段階いずれかで取得）
             if current_atr and current_atr > 0:
                 # Phase 51.6: TP/SL設定完全渡し（ハードコード削除・設定ファイル一元管理）
+                # Phase 52.0: レジーム情報取得追加
                 config = {
                     # TP設定（Phase 51.6: TP 0.9%・RR比1.29:1）
                     "take_profit_ratio": get_threshold(
@@ -1021,8 +1022,18 @@ class ExecutionService:
                         "position_management.stop_loss.default_atr_multiplier"
                     ),
                 }
+
+                # Phase 52.0: レジーム情報取得
+                regime = market_conditions.get("regime", None)
+                regime_str = None
+                if regime:
+                    # RegimeType enumの場合は文字列に変換
+                    regime_str = regime.value if hasattr(regime, "value") else str(regime)
+                    self.logger.info(f"🎯 Phase 52.0: レジーム情報取得 - {regime_str}")
+
+                # Phase 52.0: レジーム情報を含めてTP/SL計算
                 recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
-                    side, actual_filled_price, current_atr, config, atr_history
+                    side, actual_filled_price, current_atr, config, atr_history, regime=regime_str
                 )
 
                 # 再計算成功時、ログ出力

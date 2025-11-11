@@ -1,0 +1,246 @@
+# 週次バックテスト自動化ワークフロー - Phase 52.1
+# 目的: 毎週日曜日00:00(JST)にバックテストを自動実行し、Markdownレポートをリポジトリにコミット
+
+name: Weekly Backtest Automation
+
+on:
+  # 毎週日曜日00:00 JST = 土曜日15:00 UTC
+  schedule:
+    - cron: '0 15 * * 6'
+
+  # 手動実行も可能
+  workflow_dispatch:
+    inputs:
+      phase_name:
+        description: 'Phase名（レポートファイル名用）'
+        required: false
+        default: '52.1'
+
+env:
+  PYTHON_VERSION: '3.13'
+  BACKTEST_TIMEOUT_MINUTES: 180  # 3時間（バックテスト実行時間: 約2h43m）
+
+jobs:
+  weekly-backtest:
+    name: Weekly Backtest Execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 全体タイムアウト: 3時間
+
+    permissions:
+      contents: write  # Git commitとpushに必要
+
+    steps:
+      # ========================================
+      # Step 1: コードチェックアウト
+      # ========================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 全履歴取得（Git操作用）
+
+      # ========================================
+      # Step 2: Python環境セットアップ
+      # ========================================
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      # ========================================
+      # Step 3: 依存関係インストール
+      # ========================================
+      - name: Install dependencies
+        run: |
+          echo "📦 依存関係インストール開始..."
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "✅ 依存関係インストール完了"
+
+      # ========================================
+      # Step 4: テスト環境準備（Phase 52.0対応）
+      # ========================================
+      - name: Setup backtest environment
+        run: |
+          echo "🔧 バックテスト環境準備開始..."
+
+          # 必要なディレクトリ作成
+          mkdir -p logs cache src/backtest/logs docs/バックテスト記録
+
+          # モデルメタデータ作成（Phase 52.0対応）
+          echo '{"version": "weekly-backtest", "features": 60, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
+
+          # モデルファイル確認
+          if [ -f "models/production/ensemble_full.pkl" ]; then
+            echo "✅ ensemble_full.pkl確認済み"
+          else
+            echo "❌ ensemble_full.pkl未確認"
+            exit 1
+          fi
+
+          if [ -f "models/production/ensemble_basic.pkl" ]; then
+            echo "✅ ensemble_basic.pkl確認済み"
+          else
+            echo "⚠️ ensemble_basic.pkl未確認（フォールバック不可）"
+          fi
+
+          # CSVデータ確認
+          if [ -f "src/backtest/data/historical/btc_jpy_15m.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_15m.csv)
+            echo "✅ 15分足データ確認済み: ${CSV_LINES}行"
+          else
+            echo "❌ 15分足データ未確認"
+            exit 1
+          fi
+
+          if [ -f "src/backtest/data/historical/btc_jpy_4h.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/btc_jpy_4h.csv)
+            echo "✅ 4時間足データ確認済み: ${CSV_LINES}行"
+          else
+            echo "❌ 4時間足データ未確認"
+            exit 1
+          fi
+
+          echo "✅ バックテスト環境準備完了"
+
+      # ========================================
+      # Step 5: バックテスト実行
+      # ========================================
+      - name: Run backtest
+        run: |
+          echo "🚀 バックテスト実行開始..."
+          echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
+          echo "実行時刻（UTC）: $(date -u '+%Y/%m/%d %H:%M:%S')"
+
+          # バックテスト実行（タイムアウト対策: timeoutコマンド使用）
+          timeout $((BACKTEST_TIMEOUT_MINUTES * 60)) python3 main.py --mode backtest 2>&1 | tee backtest_run.log
+
+          BACKTEST_EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ $BACKTEST_EXIT_CODE -eq 0 ]; then
+            echo "✅ バックテスト実行成功"
+          elif [ $BACKTEST_EXIT_CODE -eq 124 ]; then
+            echo "⏱️ バックテストタイムアウト（${BACKTEST_TIMEOUT_MINUTES}分超過）"
+            exit 1
+          else
+            echo "❌ バックテスト実行失敗（終了コード: $BACKTEST_EXIT_CODE）"
+            exit 1
+          fi
+
+          # 最新のJSONレポート確認
+          LATEST_JSON=$(ls -t src/backtest/logs/backtest_*.json 2>/dev/null | head -1)
+          if [ -n "$LATEST_JSON" ]; then
+            echo "✅ JSONレポート生成確認: $LATEST_JSON"
+            echo "LATEST_JSON=$LATEST_JSON" >> $GITHUB_ENV
+          else
+            echo "❌ JSONレポート未生成"
+            exit 1
+          fi
+
+      # ========================================
+      # Step 6: Markdownレポート生成
+      # ========================================
+      - name: Generate Markdown report
+        run: |
+          echo "📝 Markdownレポート生成開始..."
+
+          # Phase名取得（手動実行時は入力値、定期実行時はデフォルト）
+          PHASE_NAME="${{ github.event.inputs.phase_name || '52.1' }}"
+          echo "Phase名: $PHASE_NAME"
+
+          # Markdownレポート生成
+          python3 scripts/backtest/generate_markdown_report.py \
+            "$LATEST_JSON" \
+            --phase "$PHASE_NAME" \
+            --output-dir "docs/バックテスト記録"
+
+          # 生成されたMarkdownファイル確認
+          LATEST_MARKDOWN=$(ls -t docs/バックテスト記録/Phase_*.md 2>/dev/null | head -1)
+          if [ -n "$LATEST_MARKDOWN" ]; then
+            echo "✅ Markdownレポート生成確認: $LATEST_MARKDOWN"
+            echo "LATEST_MARKDOWN=$LATEST_MARKDOWN" >> $GITHUB_ENV
+          else
+            echo "❌ Markdownレポート未生成"
+            exit 1
+          fi
+
+      # ========================================
+      # Step 7: Git設定
+      # ========================================
+      - name: Configure Git
+        run: |
+          echo "⚙️ Git設定開始..."
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+          echo "✅ Git設定完了"
+
+      # ========================================
+      # Step 8: Markdownレポートコミット
+      # ========================================
+      - name: Commit Markdown report
+        run: |
+          echo "📤 Markdownレポートコミット開始..."
+
+          # 変更ファイル確認
+          git status --short
+
+          # Markdownレポートのみコミット（JSONは除外）
+          git add "docs/バックテスト記録/Phase_*.md"
+
+          # コミット（変更がある場合のみ）
+          if git diff --staged --quiet; then
+            echo "ℹ️ コミット対象なし（変更なし）"
+          else
+            REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y/%m/%d')
+            COMMIT_MSG="docs: 週次バックテストレポート追加 ${REPORT_DATE}"
+            COMMIT_BODY="週次自動バックテスト結果 (Phase 52.1) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
+
+            git commit -m "${COMMIT_MSG}" -m "${COMMIT_BODY}"
+            echo "✅ コミット完了"
+          fi
+
+      # ========================================
+      # Step 9: リポジトリにプッシュ
+      # ========================================
+      - name: Push to repository
+        run: |
+          echo "🚀 リポジトリにプッシュ開始..."
+
+          # プッシュ実行
+          git push origin main
+
+          echo "✅ プッシュ完了"
+          echo "📍 Markdownレポートがリポジトリに追加されました: ${LATEST_MARKDOWN}"
+          echo "🔄 ローカル環境で 'git pull' を実行して同期してください"
+
+      # ========================================
+      # Step 10: 実行サマリー
+      # ========================================
+      - name: Execution summary
+        if: always()
+        run: |
+          echo "=" * 60
+          echo "📊 週次バックテスト実行サマリー（Phase 52.1）"
+          echo "=" * 60
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ ステータス: 成功"
+            echo "📝 レポート: ${LATEST_MARKDOWN}"
+            echo "📤 Git: コミット・プッシュ完了"
+            echo "🔄 ローカル環境: git pull で同期してください"
+          else
+            echo "❌ ステータス: 失敗"
+            echo "🔍 ログを確認してください"
+          fi
+
+          echo "=" * 60
+          echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
+          echo "=" * 60
+
+# ========================================
+# 同時実行制御
+# ========================================
+concurrency:
+  group: weekly-backtest
+  cancel-in-progress: false  # 実行中のバックテストは中断しない

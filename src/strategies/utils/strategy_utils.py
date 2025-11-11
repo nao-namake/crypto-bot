@@ -173,9 +173,11 @@ class RiskManager:
         current_atr: float,
         config: Dict[str, Any],
         atr_history: Optional[List[float]] = None,
+        regime: Optional[str] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
+        Phase 52.0: レジーム別動的TP/SL調整実装
 
         Args:
             action: エントリーアクション（buy/sell）
@@ -183,6 +185,7 @@ class RiskManager:
             current_atr: 現在のATR値
             config: 完全なTP/SL設定（executor.pyから渡される）
             atr_history: ATR履歴（適応型ATR用）
+            regime: 市場レジーム（tight_range/normal_range/trending/high_volatility）
 
         Returns:
             (stop_loss, take_profit)のタプル
@@ -194,8 +197,43 @@ class RiskManager:
             if action not in [EntryAction.BUY, EntryAction.SELL]:
                 return None, None
 
+            # ========================================
+            # Phase 52.0: レジーム別TP/SL設定の適用
+            # ========================================
+            if regime and get_threshold("position_management.take_profit.regime_based.enabled", False):
+                # レジーム別TP設定取得
+                regime_tp = get_threshold(
+                    f"position_management.take_profit.regime_based.{regime}.min_profit_ratio", None
+                )
+                regime_tp_ratio = get_threshold(
+                    f"position_management.take_profit.regime_based.{regime}.default_ratio", None
+                )
+                # レジーム別SL設定取得
+                regime_sl = get_threshold(
+                    f"position_management.stop_loss.regime_based.{regime}.max_loss_ratio", None
+                )
+
+                if regime_tp and regime_sl:
+                    # レジーム別設定をconfigに反映
+                    config["min_profit_ratio"] = regime_tp
+                    if regime_tp_ratio:
+                        config["take_profit_ratio"] = regime_tp_ratio
+                    config["max_loss_ratio"] = regime_sl
+
+                    logger.info(
+                        f"🎯 Phase 52.0: レジーム別TP/SL適用 - {regime}: "
+                        f"TP={regime_tp*100:.1f}%, SL={regime_sl*100:.1f}%, "
+                        f"RR比={regime_tp_ratio:.2f}:1"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Phase 52.0: レジーム別TP/SL設定が不完全 - {regime}: "
+                        f"TP={regime_tp}, SL={regime_sl} → デフォルト設定使用"
+                    )
+
             # === SL距離計算（max_loss_ratio優先） ===
             # Phase 51.6: ハードコード削除・設定ファイル一元管理（SL 0.7%）
+            # Phase 52.0: レジーム別設定が適用済み（上記で反映）
             max_loss_ratio = config.get(
                 "max_loss_ratio",
                 get_threshold("position_management.stop_loss.max_loss_ratio"),

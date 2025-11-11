@@ -70,6 +70,9 @@ class BacktestRunner(BaseRunner):
         # Phase 51.8-J4-G: レジーム分類器（エントリー時のregime記録用）
         self.regime_classifier = MarketRegimeClassifier()
 
+        # Phase 52.2: DrawdownManager統合（設定ファイル制御）
+        self._initialize_drawdown_manager()
+
     async def run(self) -> bool:
         """
         バックテストモード実行
@@ -583,6 +586,16 @@ class BacktestRunner(BaseRunner):
                         p["order_id"] for p in self.orchestrator.execution_service.virtual_positions
                     )
 
+                    # Phase 52.2: DrawdownManager制限チェック（本番シミュレーション時のみ）
+                    if self.drawdown_manager is not None:
+                        if not self.drawdown_manager.check_trading_allowed(self.current_timestamp):
+                            # 取引停止中（cooldown期間）
+                            self.logger.debug(
+                                f"⏸️ Phase 52.2: DrawdownManager制限により取引スキップ "
+                                f"({self.current_timestamp})"
+                            )
+                            continue  # 次の5分間隔へスキップ
+
                     # 取引サイクル実行（本番と同じロジック）
                     try:
                         await self.orchestrator.run_trading_cycle()
@@ -806,6 +819,18 @@ class BacktestRunner(BaseRunner):
                         pnl = self._calculate_pnl(side, entry_price, exit_price, amount)
                         self.orchestrator.execution_service.virtual_balance += pnl
                         new_balance = self.orchestrator.execution_service.virtual_balance
+
+                        # Phase 52.2: DrawdownManagerに取引結果記録（本番シミュレーション時のみ）
+                        if self.drawdown_manager is not None:
+                            self.drawdown_manager.update_balance(new_balance)
+                            self.drawdown_manager.record_trade_result(
+                                pnl, strategy_name, current_time=timestamp
+                            )
+                            self.logger.debug(
+                                f"📊 Phase 52.2: DrawdownManager更新 - "
+                                f"残高: ¥{new_balance:,.0f}, PnL: {pnl:+.0f}円, 戦略: {strategy_name}, "
+                                f"時刻: {timestamp}"
+                            )
 
                         # Phase 51.8-J4-D再修正: WARNINGレベルでログ出力（バックテストモードで可視化）
                         self.logger.warning(
@@ -1170,3 +1195,53 @@ class BacktestRunner(BaseRunner):
 
         except Exception as e:
             self.logger.warning(f"⚠️ エラーレポート保存失敗: {e}")
+
+    def _initialize_drawdown_manager(self):
+        """
+        Phase 52.2: DrawdownManager初期化（設定ファイル制御）
+
+        features.yamlの設定に基づいてDrawdownManagerを初期化。
+        enabled=false: 戦略評価モード（制限なし）
+        enabled=true: 本番シミュレーションモード（-20%制限適用）
+        """
+        from ...core.config.feature_flags import get_feature_flag
+        from ...trading.risk.drawdown import DrawdownManager
+
+        # features.yamlから設定読み込み
+        drawdown_enabled = get_feature_flag(
+            "development.backtest.drawdown_limits.enabled", False
+        )
+
+        if drawdown_enabled:
+            # 本番シミュレーションモード: DrawdownManager有効化
+            max_drawdown_ratio = get_feature_flag(
+                "development.backtest.drawdown_limits.max_drawdown_ratio", 0.2
+            )
+            consecutive_loss_limit = get_feature_flag(
+                "development.backtest.drawdown_limits.consecutive_loss_limit", 8
+            )
+            cooldown_hours = get_feature_flag(
+                "development.backtest.drawdown_limits.cooldown_hours", 6
+            )
+
+            self.drawdown_manager = DrawdownManager(
+                max_drawdown_ratio=max_drawdown_ratio,
+                consecutive_loss_limit=consecutive_loss_limit,
+                cooldown_hours=cooldown_hours,
+                mode="backtest",  # バックテストモード（状態永続化は無効）
+            )
+
+            # 初期残高設定（unified.yamlから取得）
+            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+            self.drawdown_manager.initialize_balance(initial_balance)
+
+            self.logger.warning(
+                f"✅ DrawdownManager有効化（本番シミュレーションモード）: "
+                f"DD制限={max_drawdown_ratio*100:.0f}%, "
+                f"連敗制限={consecutive_loss_limit}回, "
+                f"クールダウン={cooldown_hours}時間"
+            )
+        else:
+            # 戦略評価モード: DrawdownManager無効化
+            self.drawdown_manager = None
+            self.logger.warning("ℹ️ DrawdownManager無効化（戦略評価モード・制限なし）")

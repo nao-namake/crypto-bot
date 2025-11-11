@@ -580,6 +580,30 @@ position_management:
     min_profit_ratio: 0.009          # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false
     position_partial_exit: false
+
+    # ========================================
+    # Phase 52.0: レジーム別TP設定
+    # ========================================
+    # 目的: 市場レジームに応じたTP最適化
+    #   - tight_range: TP 0.8%（頻繁利確・93.9%発生率対応）
+    #   - normal_range: TP 1.0%（標準利確）
+    #   - trending: TP 1.5%（大きく伸ばす）
+    # 期待効果: 勝率46.1%→50%+、取引毎リターン+219%
+    # ========================================
+    regime_based:
+      enabled: true
+      tight_range:
+        min_profit_ratio: 0.008      # TP 0.8%（RR比1.33:1）
+        default_ratio: 1.33
+      normal_range:
+        min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
+        default_ratio: 1.43
+      trending:
+        min_profit_ratio: 0.015      # TP 1.5%（RR比1.50:1）
+        default_ratio: 1.50
+      high_volatility:
+        min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
+        default_ratio: 1.33
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
@@ -587,6 +611,27 @@ position_management:
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
+
+    # ========================================
+    # Phase 52.0: レジーム別SL設定
+    # ========================================
+    # 目的: 市場レジームに応じたSL最適化
+    #   - tight_range: SL 0.6%（損失最小化・レンジ相場特化）
+    #   - normal_range: SL 0.7%（標準損切り）
+    #   - trending: SL 1.0%（トレンド継続余地確保）
+    # 期待効果: 平均損失-12円→-10円（-17%改善）
+    # ========================================
+    regime_based:
+      enabled: true
+      tight_range:
+        max_loss_ratio: 0.006        # SL 0.6%（RR比1.33:1）
+      normal_range:
+        max_loss_ratio: 0.007        # SL 0.7%（RR比1.43:1）
+      trending:
+        max_loss_ratio: 0.010        # SL 1.0%（RR比1.50:1）
+      high_volatility:
+        max_loss_ratio: 0.015        # SL 1.5%（参考値・実際はエントリーなし）
+
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true

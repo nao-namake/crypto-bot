@@ -289,6 +289,14 @@ development:
 
   backtest:
     enabled: true  # バックテスト
-    initial_balance: 10000  # 初期残高（1万円）
+    initial_balance: 100000  # 初期残高（10万円・Phase 51.10-B標準化）
     period_days: 180  # バックテスト期間（180日）
     note: "backtest mode: 過去データ検証"
+
+    # Phase 52.2: DrawdownManager制限設定（バックテスト用）
+    drawdown_limits:
+      enabled: true  # true: 本番シミュレーション / false: 戦略評価（制限なし）
+      max_drawdown_ratio: 0.2  # 最大ドローダウン20%
+      consecutive_loss_limit: 8  # 連続損失8回
+      cooldown_hours: 6  # クールダウン6時間
+      note: "enabled=true で本番と同じDrawdownManager制限を適用"
