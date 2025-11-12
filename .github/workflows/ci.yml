@@ -4,15 +4,15 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'CLAUDE.md'
-      - 'README.md'
-      - '.gitignore'
-      - 'LICENSE'
+  # push:  # 自動実行無効化（手動実行のみ）
+  #   branches: [main]
+  #   paths-ignore:
+  #     - 'docs/**'
+  #     - '**.md'
+  #     - 'CLAUDE.md'
+  #     - 'README.md'
+  #     - '.gitignore'
+  #     - 'LICENSE'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -22,7 +22,7 @@ on:
       - 'README.md'
       - '.gitignore'
       - 'LICENSE'
-  workflow_dispatch:
+  workflow_dispatch:  # 手動実行
   repository_dispatch:
     types: [model-updated]
 
