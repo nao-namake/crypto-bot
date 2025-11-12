@@ -4,6 +4,11 @@
 name: Weekly Trading Report
 
 on:
+  # push実行防止（GitHub内部バリデーション対策）
+  push:
+    paths-ignore:
+      - '**'  # すべてのファイル変更を無視（push時は実行しない）
+
   schedule:
     # 毎週月曜日 00:00 UTC = 09:00 JST
     - cron: '0 0 * * 1'
