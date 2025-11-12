@@ -4,18 +4,20 @@
 name: CI/CD Pipeline
 
 on:
-  # push:  # 自動実行無効化（手動実行のみ）
-  #   branches: [main]
-  #   paths-ignore:
-  #     - 'docs/**'
-  #     - '**.md'
-  #     - 'CLAUDE.md'
-  #     - 'README.md'
-  #     - '.gitignore'
-  #     - 'LICENSE'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/workflows/**'  # ワークフロー変更でCI/CD起動しない
+      - 'docs/**'
+      - '**.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
     branches: [main]
     paths-ignore:
+      - '.github/workflows/**'  # ワークフロー変更でCI/CD起動しない
       - 'docs/**'
       - '**.md'
       - 'CLAUDE.md'
