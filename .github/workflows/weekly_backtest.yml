@@ -222,6 +222,13 @@ jobs:
         run: |
           echo "🚀 リポジトリにプッシュ開始..."
 
+          # 最新変更を取得（競合対策）
+          git pull --rebase origin main || {
+            echo "⚠️ リベース競合発生、マージ戦略で再試行"
+            git rebase --abort
+            git pull origin main
+          }
+
           # プッシュ実行
           git push origin main
 
