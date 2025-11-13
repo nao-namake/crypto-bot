@@ -110,9 +110,7 @@ class ExecutionService:
             ExecutionResult: 実行結果
         """
         try:
-            self.logger.info(
-                f"🚀 取引実行開始 - モード: {self.mode}, アクション: {evaluation.side}"
-            )
+            self.logger.info(f"🚀 取引実行開始 - モード: {self.mode}, アクション: {evaluation.side}")
 
             # holdシグナルの場合は取引実行しない（根本解決）
             if getattr(evaluation, "side", "").lower() in ["hold", "none", ""]:
@@ -138,7 +136,7 @@ class ExecutionService:
                 )
                 if not balance_check["sufficient"]:
                     self.logger.info(
-                        f"💤 証拠金不足のため取引スキップ（Container exit回避） - "
+                        "💤 証拠金不足のため取引スキップ（Container exit回避） - "
                         f"利用可能={balance_check['available']:.0f}円 < 必要={balance_check['required']:.0f}円"
                     )
                     available = balance_check["available"]
@@ -168,9 +166,7 @@ class ExecutionService:
                     regime=regime,  # Phase 51.8: レジーム別制限適用
                 )
                 if not position_check_result["allowed"]:
-                    self.logger.warning(
-                        f"🚫 取引制限により取引拒否: {position_check_result['reason']}"
-                    )
+                    self.logger.warning(f"🚫 取引制限により取引拒否: {position_check_result['reason']}")
                     return ExecutionResult(
                         success=False,
                         mode=ExecutionMode.LIVE if self.mode == "live" else ExecutionMode.PAPER,
@@ -235,8 +231,7 @@ class ExecutionService:
             price = order_execution_config.get("price")
 
             self.logger.info(
-                f"💰 Bitbank注文実行: {side} {amount} BTC ({order_type}注文)"
-                + (f" @ {price:.0f}円" if price else "")
+                f"💰 Bitbank注文実行: {side} {amount} BTC ({order_type}注文)" + (f" @ {price:.0f}円" if price else "")
             )
 
             # 注文パラメータ構築
@@ -261,12 +256,8 @@ class ExecutionService:
                 order_id=order_result.get("id"),
                 price=float(order_result.get("price") or price or 0),
                 amount=float(order_result.get("amount") or 0),
-                filled_price=float(
-                    order_result.get("filled_price") or order_result.get("price") or price or 0
-                ),
-                filled_amount=float(
-                    order_result.get("filled_amount") or order_result.get("amount") or 0
-                ),
+                filled_price=float(order_result.get("filled_price") or order_result.get("price") or price or 0),
+                filled_amount=float(order_result.get("filled_amount") or order_result.get("amount") or 0),
                 error_message=None,
                 side=side,
                 fee=float(order_result.get("fee") or 0),
@@ -315,13 +306,9 @@ class ExecutionService:
 
             # ログ出力（注文タイプ別）
             if order_type == "market":
-                self.logger.info(
-                    f"✅ 成行注文実行成功: 注文ID={result.order_id}, 手数料: Taker(0.12%)"
-                )
+                self.logger.info(f"✅ 成行注文実行成功: 注文ID={result.order_id}, 手数料: Taker(0.12%)")
             else:
-                self.logger.info(
-                    f"✅ 指値注文投入成功: 注文ID={result.order_id}, 予想手数料: Maker(-0.02%)"
-                )
+                self.logger.info(f"✅ 指値注文投入成功: 注文ID={result.order_id}, 予想手数料: Maker(-0.02%)")
 
             # Phase 29.6: ライブモードでもポジション追跡（バグ修正）
             # Phase 51.6: TP/SL再計算メソッド抽出（可読性向上・保守性向上）
@@ -329,9 +316,7 @@ class ExecutionService:
 
             # TP/SL再計算（3段階ATRフォールバック）
             try:
-                final_tp, final_sl = await self._calculate_tp_sl_for_live_trade(
-                    evaluation, result, side, amount
-                )
+                final_tp, final_sl = await self._calculate_tp_sl_for_live_trade(evaluation, result, side, amount)
             except CryptoBotError as e:
                 # ATR取得失敗・TP/SL再計算失敗時のエントリー中止
                 self.logger.error(f"❌ Phase 51.6: TP/SL再計算エラー - {e}")
@@ -374,15 +359,13 @@ class ExecutionService:
                     )
                     if cleanup_result["cancelled_count"] > 0:
                         self.logger.info(
-                            f"🧹 Phase 51.6: 古い孤児注文クリーンアップ実行 - "
+                            "🧹 Phase 51.6: 古い孤児注文クリーンアップ実行 - "
                             f"{cleanup_result['cancelled_count']}件キャンセル "
                             f"（{cleanup_result['order_count']}件中）"
                         )
                 except Exception as e:
                     # クリーンアップ失敗しても処理継続（TP/SL配置を優先）
-                    self.logger.warning(
-                        f"⚠️ Phase 51.6: 古い注文クリーンアップ失敗（処理継続）: {e}"
-                    )
+                    self.logger.warning(f"⚠️ Phase 51.6: 古い注文クリーンアップ失敗（処理継続）: {e}")
 
             # Phase 51.10-A: エントリー前の同一側TP/SL注文クリーンアップ
             if self.stop_manager:
@@ -394,9 +377,7 @@ class ExecutionService:
                     )
                 except Exception as e:
                     # クリーンアップ失敗してもエントリーは継続（Phase 51.6思想維持）
-                    self.logger.warning(
-                        f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続）: {e}"
-                    )
+                    self.logger.warning(f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続）: {e}")
 
             # Phase 51.6: Atomic Entry Pattern（Entry/TP/SL一体化・全成功 or 全ロールバック）
             if self.stop_manager and final_tp and final_sl:
@@ -416,7 +397,7 @@ class ExecutionService:
                 try:
                     # Step 1/3: エントリー注文実行済み
                     self.logger.info(
-                        f"✅ Phase 51.6 Step 1/3: エントリー成功 - "
+                        "✅ Phase 51.6 Step 1/3: エントリー成功 - "
                         f"ID: {result.order_id}, 価格: {actual_filled_price:.0f}円"
                     )
 
@@ -434,8 +415,7 @@ class ExecutionService:
 
                     tp_order_id = tp_order.get("order_id")
                     self.logger.info(
-                        f"✅ Phase 51.6 Step 2/3: TP配置成功 - "
-                        f"ID: {tp_order_id}, 価格: {final_tp:.0f}円"
+                        "✅ Phase 51.6 Step 2/3: TP配置成功 - " f"ID: {tp_order_id}, 価格: {final_tp:.0f}円"
                     )
 
                     # Step 3/3: SL注文配置（リトライ付き）
@@ -452,8 +432,7 @@ class ExecutionService:
 
                     sl_order_id = sl_order.get("order_id")
                     self.logger.info(
-                        f"✅ Phase 51.6 Step 3/3: SL配置成功 - "
-                        f"ID: {sl_order_id}, 価格: {final_sl:.0f}円"
+                        "✅ Phase 51.6 Step 3/3: SL配置成功 - " f"ID: {sl_order_id}, 価格: {final_sl:.0f}円"
                     )
 
                     # 全成功 → TP/SL注文ID保存
@@ -468,8 +447,7 @@ class ExecutionService:
                                 sl_order_id=sl_order_id,
                             )
                             self.logger.debug(
-                                f"💾 Phase 51.6: TP/SL注文ID保存完了 - "
-                                f"TP: {tp_order_id}, SL: {sl_order_id}"
+                                "💾 Phase 51.6: TP/SL注文ID保存完了 - " f"TP: {tp_order_id}, SL: {sl_order_id}"
                             )
                         except Exception as e:
                             self.logger.warning(f"⚠️ Phase 51.6: TP/SL注文ID保存失敗（継続）: {e}")
@@ -492,9 +470,7 @@ class ExecutionService:
                     )
 
                     # virtual_positionsから削除（不完全なポジション削除）
-                    self.virtual_positions = [
-                        p for p in self.virtual_positions if p.get("order_id") != result.order_id
-                    ]
+                    self.virtual_positions = [p for p in self.virtual_positions if p.get("order_id") != result.order_id]
 
                     # PositionTrackerからも削除
                     if self.position_tracker:
@@ -544,14 +520,10 @@ class ExecutionService:
                         self.logger.info(f"📊 ペーパートレード実価格取得: {price:.0f}円")
                     else:
                         price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
-                        self.logger.warning(
-                            f"⚠️ ticker取得失敗、フォールバック価格使用: {price:.0f}円"
-                        )
+                        self.logger.warning(f"⚠️ ticker取得失敗、フォールバック価格使用: {price:.0f}円")
                 except Exception as e:
                     price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
-                    self.logger.warning(
-                        f"⚠️ 価格取得エラー、フォールバック価格使用: {price:.0f}円 - {e}"
-                    )
+                    self.logger.warning(f"⚠️ 価格取得エラー、フォールバック価格使用: {price:.0f}円 - {e}")
             elif price == 0:
                 price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
                 self.logger.warning(f"⚠️ BitbankClient未設定、フォールバック価格使用: {price:.0f}円")
@@ -642,19 +614,9 @@ class ExecutionService:
             self.last_order_time = datetime.now()
 
             # ログ出力（Phase 28: TP/SL価格表示追加）
-            tp_info = (
-                f", TP:{virtual_position['take_profit']:.0f}円"
-                if virtual_position.get("take_profit")
-                else ""
-            )
-            sl_info = (
-                f", SL:{virtual_position['stop_loss']:.0f}円"
-                if virtual_position.get("stop_loss")
-                else ""
-            )
-            self.logger.info(
-                f"📝 ペーパー取引実行: {side} {amount} BTC @ {price:.0f}円{tp_info}{sl_info}"
-            )
+            tp_info = f", TP:{virtual_position['take_profit']:.0f}円" if virtual_position.get("take_profit") else ""
+            sl_info = f", SL:{virtual_position['stop_loss']:.0f}円" if virtual_position.get("stop_loss") else ""
+            self.logger.info(f"📝 ペーパー取引実行: {side} {amount} BTC @ {price:.0f}円{tp_info}{sl_info}")
 
             return result
 
@@ -680,7 +642,7 @@ class ExecutionService:
             # Phase 51.8-J4-D: 残高チェック
             if self.virtual_balance < required_margin:
                 self.logger.warning(
-                    f"⚠️ Phase 51.8-J4-D: 残高不足により取引拒否 - "
+                    "⚠️ Phase 51.8-J4-D: 残高不足により取引拒否 - "
                     f"必要証拠金: ¥{required_margin:,.0f}, "
                     f"現在残高: ¥{self.virtual_balance:,.0f}"
                 )
@@ -707,7 +669,7 @@ class ExecutionService:
             self.virtual_balance -= fee_amount  # 負の手数料なので残高増加
 
             self.logger.info(
-                f"💰 Phase 51.8-J4-D/E: エントリー処理 - "
+                "💰 Phase 51.8-J4-D/E: エントリー処理 - "
                 f"証拠金控除: -¥{required_margin:,.0f}, "
                 f"手数料リベート: +¥{abs(fee_amount):,.2f} → 残高: ¥{self.virtual_balance:,.0f}"
             )
@@ -797,9 +759,7 @@ class ExecutionService:
         """
         try:
             # 動的ポジションサイジングが有効かチェック
-            dynamic_enabled = get_threshold(
-                "position_management.dynamic_position_sizing.enabled", False
-            )
+            dynamic_enabled = get_threshold("position_management.dynamic_position_sizing.enabled", False)
 
             if not dynamic_enabled:
                 return evaluation  # 従来通り変更なし
@@ -812,9 +772,7 @@ class ExecutionService:
 
             if current_position_size < min_trade_size:
                 # 最小ロット保証適用
-                self.logger.info(
-                    f"📏 最小ロット保証適用: {current_position_size:.6f} -> {min_trade_size:.6f} BTC"
-                )
+                self.logger.info(f"📏 最小ロット保証適用: {current_position_size:.6f} -> {min_trade_size:.6f} BTC")
 
                 # evaluationのposition_sizeを更新（immutableなdataclassの場合を考慮）
                 if hasattr(evaluation, "__dict__"):
@@ -979,8 +937,7 @@ class ExecutionService:
                         atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
                         atr_source = "DataService[15m]"
                         self.logger.info(
-                            f"✅ Phase 51.5-C: DataService経由ATR取得成功 - "
-                            f"15m足ATR={current_atr:.0f}円"
+                            "✅ Phase 51.5-C: DataService経由ATR取得成功 - " f"15m足ATR={current_atr:.0f}円"
                         )
                 except Exception as e:
                     self.logger.warning(f"⚠️ Phase 51.5-C: DataService経由ATR取得失敗 - {e}")
@@ -992,14 +949,10 @@ class ExecutionService:
                 except (ValueError, TypeError):
                     # 型変換失敗時はデフォルト値使用
                     fallback_atr = 500000.0
-                    self.logger.warning(
-                        "⚠️ Phase 51.5-C: fallback_atr型変換失敗 - デフォルト値500,000円使用"
-                    )
+                    self.logger.warning("⚠️ Phase 51.5-C: fallback_atr型変換失敗 - デフォルト値500,000円使用")
                 current_atr = fallback_atr
                 atr_source = "thresholds.yaml[fallback_atr]"
-                self.logger.warning(
-                    f"⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr={fallback_atr:.0f}円"
-                )
+                self.logger.warning(f"⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr={fallback_atr:.0f}円")
 
             # ATR取得完了（3段階いずれかで取得）
             if current_atr and current_atr > 0:
@@ -1007,20 +960,12 @@ class ExecutionService:
                 # Phase 52.0: レジーム情報取得追加
                 config = {
                     # TP設定（Phase 51.6: TP 0.9%・RR比1.29:1）
-                    "take_profit_ratio": get_threshold(
-                        "position_management.take_profit.default_ratio"
-                    ),
-                    "min_profit_ratio": get_threshold(
-                        "position_management.take_profit.min_profit_ratio"
-                    ),
+                    "take_profit_ratio": get_threshold("position_management.take_profit.default_ratio"),
+                    "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio"),
                     # SL設定（Phase 51.6: SL 0.7%）
                     "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio"),
-                    "min_distance_ratio": get_threshold(
-                        "position_management.stop_loss.min_distance.ratio"
-                    ),
-                    "default_atr_multiplier": get_threshold(
-                        "position_management.stop_loss.default_atr_multiplier"
-                    ),
+                    "min_distance_ratio": get_threshold("position_management.stop_loss.min_distance.ratio"),
+                    "default_atr_multiplier": get_threshold("position_management.stop_loss.default_atr_multiplier"),
                 }
 
                 # Phase 52.0: レジーム情報取得
@@ -1057,7 +1002,7 @@ class ExecutionService:
                         price_info = f"実約定価格={actual_price_val:.0f}円 | "
 
                     self.logger.info(
-                        f"🔄 Phase 51.5-C: 実約定価格ベースTP/SL再計算完了 - "
+                        "🔄 Phase 51.5-C: 実約定価格ベースTP/SL再計算完了 - "
                         f"ATR取得元={atr_source}, ATR={current_atr:.0f}円 | "
                         f"{price_info}"
                         f"SL: {original_sl:.0f}円→{recalculated_sl:.0f}円 (差{sl_diff:.0f}円) | "
@@ -1069,14 +1014,14 @@ class ExecutionService:
                     if require_recalc:
                         # 再計算必須モード：エントリー中止
                         self.logger.error(
-                            f"❌ Phase 51.5-C: TP/SL再計算失敗（require_tpsl_recalculation=True） - "
+                            "❌ Phase 51.5-C: TP/SL再計算失敗（require_tpsl_recalculation=True） - "
                             f"ATR={current_atr:.0f}円・エントリー中止"
                         )
                         raise CryptoBotError("TP/SL再計算失敗によりエントリー中止")
                     else:
                         # 再計算任意モード：元のTP/SL使用
                         self.logger.warning(
-                            f"⚠️ Phase 51.5-C: TP/SL再計算失敗（RiskManager戻り値None） - "
+                            "⚠️ Phase 51.5-C: TP/SL再計算失敗（RiskManager戻り値None） - "
                             f"ATR={current_atr:.0f}円・元のTP/SL使用継続"
                         )
             else:
@@ -1085,7 +1030,7 @@ class ExecutionService:
                 if require_recalc:
                     # 再計算必須モード：エントリー中止
                     self.logger.error(
-                        f"❌ Phase 51.5-C: ATR取得失敗（require_tpsl_recalculation=True） - "
+                        "❌ Phase 51.5-C: ATR取得失敗（require_tpsl_recalculation=True） - "
                         f"current_atr={current_atr}・エントリー中止"
                     )
                     raise CryptoBotError("ATR取得失敗によりエントリー中止")
@@ -1093,7 +1038,7 @@ class ExecutionService:
                     # 再計算任意モード：元のTP/SL使用
                     self.logger.warning(
                         f"⚠️ Phase 51.5-C: ATR取得失敗（current_atr={current_atr}） - "
-                        f"実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
+                        "実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
                     )
 
         # 再計算された値を使用（失敗時は元の値）
@@ -1241,12 +1186,10 @@ class ExecutionService:
         """
         try:
             # 全アクティブ注文取得
-            active_orders_resp = await asyncio.to_thread(
-                self.bitbank_client.get_active_orders, symbol
-            )
+            active_orders_resp = await asyncio.to_thread(self.bitbank_client.get_active_orders, symbol)
 
             if not active_orders_resp or not active_orders_resp.get("orders"):
-                self.logger.debug(f"📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
+                self.logger.debug("📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
                 return
 
             active_orders = active_orders_resp["orders"]
@@ -1300,8 +1243,7 @@ class ExecutionService:
             # 削除実行
             if not orders_to_cancel:
                 self.logger.info(
-                    f"✅ Phase 51.10-A: クリーンアップ不要 - "
-                    f"{side}側の古いTP/SL注文なし（Entry: {entry_order_id}）"
+                    "✅ Phase 51.10-A: クリーンアップ不要 - " f"{side}側の古いTP/SL注文なし（Entry: {entry_order_id}）"
                 )
                 return
 
@@ -1310,12 +1252,10 @@ class ExecutionService:
 
             for order in orders_to_cancel:
                 try:
-                    await asyncio.to_thread(
-                        self.bitbank_client.cancel_order, order["order_id"], symbol
-                    )
+                    await asyncio.to_thread(self.bitbank_client.cancel_order, order["order_id"], symbol)
                     cancel_success += 1
                     self.logger.info(
-                        f"🗑️ Phase 51.10-A: 古いTP/SL削除成功 - "
+                        "🗑️ Phase 51.10-A: 古いTP/SL削除成功 - "
                         f"ID: {order['order_id']}, "
                         f"Type: {order['type']}, "
                         f"Price: {order.get('price', 'N/A')}"
@@ -1323,12 +1263,11 @@ class ExecutionService:
                 except Exception as e:
                     cancel_fail += 1
                     self.logger.warning(
-                        f"⚠️ Phase 51.10-A: TP/SL削除失敗（継続） - "
-                        f"ID: {order['order_id']}, エラー: {e}"
+                        "⚠️ Phase 51.10-A: TP/SL削除失敗（継続） - " f"ID: {order['order_id']}, エラー: {e}"
                     )
 
             self.logger.info(
-                f"✅ Phase 51.10-A: クリーンアップ完了 - "
+                "✅ Phase 51.10-A: クリーンアップ完了 - "
                 f"{side}側 {cancel_success}件削除成功・{cancel_fail}件失敗 "
                 f"（Entry: {entry_order_id}）"
             )
@@ -1336,8 +1275,7 @@ class ExecutionService:
         except Exception as e:
             # クリーンアップ失敗してもエントリーは継続（Phase 51.6: L383-385と同様）
             self.logger.warning(
-                f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続） - "
-                f"Entry: {entry_order_id}, エラー: {e}"
+                "⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続） - " f"Entry: {entry_order_id}, エラー: {e}"
             )
 
     async def _rollback_entry(
@@ -1361,7 +1299,7 @@ class ExecutionService:
             error: 発生したエラー
         """
         self.logger.error(
-            f"🔄 Phase 51.6: Atomic Entry ロールバック開始 - "
+            "🔄 Phase 51.6: Atomic Entry ロールバック開始 - "
             f"Entry: {entry_order_id}, TP: {tp_order_id}, SL: {sl_order_id}"
         )
 
@@ -1386,12 +1324,10 @@ class ExecutionService:
             try:
                 await asyncio.to_thread(self.bitbank_client.cancel_order, entry_order_id, symbol)
                 self.logger.error(
-                    f"🚨 Phase 51.6: エントリー注文ロールバック成功 - "
-                    f"ID: {entry_order_id}, 理由: {error}"
+                    "🚨 Phase 51.6: エントリー注文ロールバック成功 - " f"ID: {entry_order_id}, 理由: {error}"
                 )
             except Exception as e:
                 # エントリー注文キャンセル失敗は致命的エラー
                 self.logger.critical(
-                    f"❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
-                    f"ID: {entry_order_id}, エラー: {e}"
+                    "❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - " f"ID: {entry_order_id}, エラー: {e}"
                 )

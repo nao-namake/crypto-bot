@@ -92,9 +92,7 @@ class MLIntegrationOptimizer:
             # 6. 進捗表示
             if sharpe_ratio > self.best_sharpe:
                 self.best_sharpe = sharpe_ratio
-                self.logger.info(
-                    f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}"
-                )
+                self.logger.info(f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}")
 
             return sharpe_ratio
 
@@ -120,14 +118,10 @@ class MLIntegrationOptimizer:
         # ========================================
 
         # ML予測の重み（10-50%の範囲で調整）
-        params["ml.strategy_integration.ml_weight"] = trial.suggest_float(
-            "ml_weight", 0.1, 0.5, step=0.05
-        )
+        params["ml.strategy_integration.ml_weight"] = trial.suggest_float("ml_weight", 0.1, 0.5, step=0.05)
 
         # 戦略の重み（自動計算: 1 - ml_weight）
-        params["ml.strategy_integration.strategy_weight"] = (
-            1.0 - params["ml.strategy_integration.ml_weight"]
-        )
+        params["ml.strategy_integration.strategy_weight"] = 1.0 - params["ml.strategy_integration.ml_weight"]
 
         # ========================================
         # 2. 高信頼度閾値（ボーナス/ペナルティ適用判定）
@@ -143,9 +137,7 @@ class MLIntegrationOptimizer:
         # ========================================
 
         # 一致時ボーナス倍率（1.0-1.5の範囲で調整）
-        params["ml.strategy_integration.agreement_bonus"] = trial.suggest_float(
-            "agreement_bonus", 1.0, 1.5, step=0.05
-        )
+        params["ml.strategy_integration.agreement_bonus"] = trial.suggest_float("agreement_bonus", 1.0, 1.5, step=0.05)
 
         # 不一致時ペナルティ倍率（0.5-0.9の範囲で調整）
         params["ml.strategy_integration.disagreement_penalty"] = trial.suggest_float(
@@ -184,17 +176,11 @@ class MLIntegrationOptimizer:
         """
         return {
             "ml_weight": trial.suggest_float("ml_weight", 0.1, 0.5, step=0.05),
-            "high_confidence_threshold": trial.suggest_float(
-                "high_confidence_threshold", 0.7, 0.9, step=0.05
-            ),
+            "high_confidence_threshold": trial.suggest_float("high_confidence_threshold", 0.7, 0.9, step=0.05),
             "agreement_bonus": trial.suggest_float("agreement_bonus", 1.0, 1.5, step=0.05),
-            "disagreement_penalty": trial.suggest_float(
-                "disagreement_penalty", 0.5, 0.9, step=0.05
-            ),
+            "disagreement_penalty": trial.suggest_float("disagreement_penalty", 0.5, 0.9, step=0.05),
             "min_ml_confidence": trial.suggest_float("min_ml_confidence", 0.4, 0.8, step=0.05),
-            "hold_conversion_threshold": trial.suggest_float(
-                "hold_conversion_threshold", 0.3, 0.5, step=0.05
-            ),
+            "hold_conversion_threshold": trial.suggest_float("hold_conversion_threshold", 0.3, 0.5, step=0.05),
         }
 
     def _validate_parameters(self, params: Dict[str, Any]) -> bool:
@@ -229,28 +215,20 @@ class MLIntegrationOptimizer:
 
             # ボーナスは1.0以上（増加のみ）
             if agreement_bonus < 1.0:
-                self.logger.warning(
-                    f"⚠️ ボーナス範囲エラー: agreement_bonus({agreement_bonus}) < 1.0"
-                )
+                self.logger.warning(f"⚠️ ボーナス範囲エラー: agreement_bonus({agreement_bonus}) < 1.0")
                 return False
 
             # ペナルティは1.0以下（減少のみ）
             if disagreement_penalty > 1.0:
-                self.logger.warning(
-                    f"⚠️ ペナルティ範囲エラー: disagreement_penalty({disagreement_penalty}) > 1.0"
-                )
+                self.logger.warning(f"⚠️ ペナルティ範囲エラー: disagreement_penalty({disagreement_penalty}) > 1.0")
                 return False
 
             # ========================================
             # 3. 閾値の論理的順序検証
             # ========================================
-            high_confidence_threshold = params.get(
-                "ml.strategy_integration.high_confidence_threshold", 0.8
-            )
+            high_confidence_threshold = params.get("ml.strategy_integration.high_confidence_threshold", 0.8)
             min_ml_confidence = params.get("ml.strategy_integration.min_ml_confidence", 0.6)
-            hold_conversion_threshold = params.get(
-                "ml.strategy_integration.hold_conversion_threshold", 0.4
-            )
+            hold_conversion_threshold = params.get("ml.strategy_integration.hold_conversion_threshold", 0.4)
 
             # 高信頼度閾値 > 最小ML信頼度（論理的整合性）
             if not (high_confidence_threshold > min_ml_confidence):
@@ -372,10 +350,7 @@ class MLIntegrationOptimizer:
         # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
         def logging_callback(study, trial):
             if trial.number % 50 == 0 or trial.number < 5:
-                print(
-                    f"Trial {trial.number}/{n_trials} "
-                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
-                )
+                print(f"Trial {trial.number}/{n_trials} " f"完了: value={trial.value:.4f}, best={study.best_value:.4f}")
 
         study.optimize(
             self.objective,
@@ -393,9 +368,7 @@ class MLIntegrationOptimizer:
         # 結果保存
         study_stats = {
             "n_trials": len(study.trials),
-            "n_complete": len(
-                [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-            ),
+            "n_complete": len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]),
             "n_failed": len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]),
             "duration_seconds": duration,
         }

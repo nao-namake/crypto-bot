@@ -129,9 +129,7 @@ class TestMLServiceAdapterExceptionHandling:
                 def mock_path_constructor(path):
                     mock_instance = Mock()
                     mock_instance.exists.return_value = False
-                    mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
-                        f"{path}/{other}"
-                    )
+                    mock_instance.__truediv__ = lambda self, other: mock_path_constructor(f"{path}/{other}")
                     return mock_instance
 
                 MockPath.side_effect = mock_path_constructor
@@ -241,9 +239,7 @@ class TestMLServiceAdapterExceptionHandling:
 
             adapter = MLServiceAdapter(mock_logger)
 
-            assert (
-                adapter.model_type == "DummyModel"
-            )  # パスが存在しない場合はDummyModelにフォールバック
+            assert adapter.model_type == "DummyModel"  # パスが存在しない場合はDummyModelにフォールバック
             # DummyModelの場合はwarningメッセージが出る
             mock_logger.warning.assert_called()  # warningログが呼ばれることを確認
 
@@ -288,9 +284,7 @@ class TestMLServiceAdapterExceptionHandling:
                     mock_instance.exists.return_value = True
                 else:
                     mock_instance.exists.return_value = False
-                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
-                    f"{path_str}/{other}"
-                )
+                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(f"{path_str}/{other}")
                 return mock_instance
 
             MockPath.side_effect = mock_path_constructor
@@ -305,9 +299,7 @@ class TestMLServiceAdapterExceptionHandling:
                         # 個別モデル再構築エラーのログが出力されることを確認
                         mock_logger.error.assert_called()
 
-    def test_individual_models_production_ensemble_construction_error(
-        self, mock_logger, temp_models_dir
-    ):
+    def test_individual_models_production_ensemble_construction_error(self, mock_logger, temp_models_dir):
         """個別モデルからのProductionEnsemble構築エラー"""
         training_dir = temp_models_dir / "training"
         lightgbm_file = training_dir / "lightgbm_model.pkl"
@@ -330,9 +322,7 @@ class TestMLServiceAdapterExceptionHandling:
                     mock_instance.exists.return_value = True
                 else:
                     mock_instance.exists.return_value = False
-                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
-                    f"{path_str}/{other}"
-                )
+                mock_instance.__truediv__ = lambda self, other: mock_path_constructor(f"{path_str}/{other}")
                 return mock_instance
 
             MockPath.side_effect = mock_path_constructor
@@ -390,9 +380,7 @@ class TestMLServiceAdapterPredictionErrors:
             adapter.model = DummyModel()
             adapter.model_type = "DummyModel"
 
-        with patch.object(
-            adapter.loader, "_load_dummy_model", side_effect=mock_load_dummy
-        ) as mock_load_dummy_patch:
+        with patch.object(adapter.loader, "_load_dummy_model", side_effect=mock_load_dummy) as mock_load_dummy_patch:
             result = adapter.predict(X)
 
             assert isinstance(result, np.ndarray)
@@ -481,9 +469,7 @@ class TestMLServiceAdapterPredictionErrors:
     def test_predict_proba_attribute_error_fallback(self, adapter_with_mock_model):
         """確率予測AttributeError時のフォールバック"""
         adapter = adapter_with_mock_model
-        adapter.model.predict_proba.side_effect = AttributeError(
-            "predict_probaメソッドが存在しません"
-        )
+        adapter.model.predict_proba.side_effect = AttributeError("predict_probaメソッドが存在しません")
 
         X = pd.DataFrame({"feature1": [1, 2]})
 
@@ -636,9 +622,7 @@ class TestMLServiceAdapterUtilityMethods:
         """モデル再読み込み失敗"""
         mock_logger = MagicMock()
 
-        with patch(
-            "src.core.orchestration.ml_loader.MLModelLoader.load_model_with_priority"
-        ) as mock_load:
+        with patch("src.core.orchestration.ml_loader.MLModelLoader.load_model_with_priority") as mock_load:
             # 初期化は成功、再読み込みで失敗
             mock_load.side_effect = [None, FileNotFoundError("ファイルが見つかりません")]
 
@@ -660,15 +644,11 @@ class TestMLServiceAdapterUtilityMethods:
             adapter = MLServiceAdapter(mock_logger)
 
             # Phase 18では loader.reload_model() をモックして例外を発生させる
-            with patch.object(
-                adapter.loader, "reload_model", side_effect=RuntimeError("予期しないエラー")
-            ):
+            with patch.object(adapter.loader, "reload_model", side_effect=RuntimeError("予期しないエラー")):
                 result = adapter.reload_model()
 
                 assert result is False
-                mock_logger.error.assert_called_with(
-                    "MLモデル再読み込み予期しないエラー: 予期しないエラー"
-                )
+                mock_logger.error.assert_called_with("MLモデル再読み込み予期しないエラー: 予期しないエラー")
 
 
 # パラメータ化テスト: 様々なエラータイプ
@@ -738,9 +718,7 @@ class TestMLServiceAdapterIntegration:
                 def mock_path_constructor(path):
                     mock_instance = Mock()
                     mock_instance.exists.return_value = False  # 全てのパスで存在しない
-                    mock_instance.__truediv__ = lambda self, other: mock_path_constructor(
-                        f"{path}/{other}"
-                    )
+                    mock_instance.__truediv__ = lambda self, other: mock_path_constructor(f"{path}/{other}")
                     return mock_instance
 
                 MockPath.side_effect = mock_path_constructor

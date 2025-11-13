@@ -129,12 +129,8 @@ class IntegratedRiskManager:
                 spread_critical_threshold=anomaly_config.get("spread_critical_threshold", 0.005),
                 api_latency_warning_ms=anomaly_config.get("api_latency_warning_ms", 1000),
                 api_latency_critical_ms=anomaly_config.get("api_latency_critical_ms", 3000),
-                price_spike_zscore_threshold=anomaly_config.get(
-                    "price_spike_zscore_threshold", 3.0
-                ),
-                volume_spike_zscore_threshold=anomaly_config.get(
-                    "volume_spike_zscore_threshold", 3.0
-                ),
+                price_spike_zscore_threshold=anomaly_config.get("price_spike_zscore_threshold", 3.0),
+                volume_spike_zscore_threshold=anomaly_config.get("volume_spike_zscore_threshold", 3.0),
             )
 
             # 保証金監視システム（Phase 38: BalanceMonitor使用）
@@ -179,9 +175,7 @@ class IntegratedRiskManager:
             if hasattr(strategy_signal, "__dict__"):
                 self.logger.debug(f"🔍 StrategySignal型: {type(strategy_signal).__name__}")
             elif isinstance(strategy_signal, dict):
-                self.logger.warning(
-                    "⚠️ strategy_signalが辞書型です。StrategySignalオブジェクトが期待されます。"
-                )
+                self.logger.warning("⚠️ strategy_signalが辞書型です。StrategySignalオブジェクトが期待されます。")
             else:
                 self.logger.error(f"❌ strategy_signalの型が不正: {type(strategy_signal)}")
                 denial_reasons.append(f"不正なstrategy_signal型: {type(strategy_signal)}")
@@ -225,14 +219,10 @@ class IntegratedRiskManager:
             if isinstance(strategy_signal, dict):
                 strategy_action = strategy_signal.get("action") or strategy_signal.get("side")
             else:
-                strategy_action = getattr(strategy_signal, "action", None) or getattr(
-                    strategy_signal, "side", None
-                )
+                strategy_action = getattr(strategy_signal, "action", None) or getattr(strategy_signal, "side", None)
 
             # side属性を"buy"/"sell"のみに正規化
-            raw_side = (
-                strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "buy"
-            )
+            raw_side = strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "buy"
 
             # holdの場合は実取引しないため、適切なside値を設定
             if raw_side.lower() in ["hold", "none", ""]:
@@ -241,9 +231,7 @@ class IntegratedRiskManager:
                 trade_side = raw_side
 
             if ml_confidence < min_ml_confidence:
-                denial_reasons.append(
-                    f"ML信頼度不足: {ml_confidence:.3f} < {min_ml_confidence:.3f}"
-                )
+                denial_reasons.append(f"ML信頼度不足: {ml_confidence:.3f} < {min_ml_confidence:.3f}")
 
             # 4. 残高利用率チェック
             capital_usage_check = self._check_capital_usage_limits(current_balance, last_price)
@@ -274,9 +262,7 @@ class IntegratedRiskManager:
                     if isinstance(strategy_signal, dict):
                         strategy_confidence = strategy_signal.get("confidence", default_confidence)
                     else:
-                        strategy_confidence = getattr(
-                            strategy_signal, "confidence", default_confidence
-                        )
+                        strategy_confidence = getattr(strategy_signal, "confidence", default_confidence)
 
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
@@ -333,9 +319,7 @@ class IntegratedRiskManager:
             # レジーム分類（Phase 51.8-10: ポジション制限・記録用）
             regime_classifier = MarketRegimeClassifier()
             regime = regime_classifier.classify(market_data)
-            regime_value = (
-                regime.value if hasattr(regime, "value") else str(regime)
-            )  # Phase 51.8-10: 文字列化
+            regime_value = regime.value if hasattr(regime, "value") else str(regime)  # Phase 51.8-10: 文字列化
 
             market_conditions = {
                 "last_price": last_price,
@@ -344,11 +328,7 @@ class IntegratedRiskManager:
                 "spread_pct": (ask - bid) / last_price,
                 "volume": volume,
                 "api_latency_ms": api_latency_ms,
-                "atr_current": (
-                    float(market_data["atr_14"].iloc[-1])
-                    if "atr_14" in market_data.columns
-                    else 0.0
-                ),
+                "atr_current": (float(market_data["atr_14"].iloc[-1]) if "atr_14" in market_data.columns else 0.0),
                 "regime": regime,  # Phase 51.8-10: レジーム情報（ポジション制限用・RegimeTypeオブジェクト）
                 "regime_value": regime_value,  # Phase 51.8-10: レジーム文字列（記録用）
             }
@@ -433,18 +413,14 @@ class IntegratedRiskManager:
             )
 
             # ドローダウン管理への取引結果記録
-            self.drawdown_manager.record_trade_result(
-                profit_loss=profit_loss, strategy=strategy_name
-            )
+            self.drawdown_manager.record_trade_result(profit_loss=profit_loss, strategy=strategy_name)
 
             self.logger.info(f"取引結果記録完了: P&L={profit_loss:.2f}, 戦略={strategy_name}")
 
         except Exception as e:
             self.logger.error(f"取引結果記録エラー: {e}")
 
-    def _check_capital_usage_limits(
-        self, current_balance: float, btc_price: float
-    ) -> Dict[str, Any]:
+    def _check_capital_usage_limits(self, current_balance: float, btc_price: float) -> Dict[str, Any]:
         """残高利用率制限チェック"""
         try:
             max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)
@@ -599,11 +575,7 @@ class IntegratedRiskManager:
             lookback_hours = get_threshold("risk.recent_lookback_hours", 24)
             recent_time = datetime.now() - timedelta(hours=lookback_hours)
             self.risk_metrics.anomaly_count_24h = len(
-                [
-                    alert
-                    for alert in self.anomaly_detector.anomaly_history
-                    if alert.timestamp >= recent_time
-                ]
+                [alert for alert in self.anomaly_detector.anomaly_history if alert.timestamp >= recent_time]
             )
 
         except Exception as e:
@@ -634,8 +606,7 @@ class IntegratedRiskManager:
                 )
             else:
                 self.logger.info(
-                    f"条件付き承認: リスクスコア={evaluation.risk_score:.1%}, "
-                    f"警告={len(evaluation.warnings)}件"
+                    f"条件付き承認: リスクスコア={evaluation.risk_score:.1%}, " f"警告={len(evaluation.warnings)}件"
                 )
 
         except Exception as e:
@@ -665,9 +636,7 @@ class IntegratedRiskManager:
         try:
             # Phase 50.4: 新規ポジションサイズを推定（実BTC価格・実残高使用）
             ml_confidence = ml_prediction.get("confidence", 0.5)
-            estimated_new_position_size = self._estimate_new_position_size(
-                ml_confidence, btc_price, current_balance
-            )
+            estimated_new_position_size = self._estimate_new_position_size(ml_confidence, btc_price, current_balance)
 
             # Phase 51.7 Phase 3-3: バックテストモードでは仮想ポジションから現在価値を計算
             from ...core.config.runtime_flags import is_backtest_mode
@@ -735,18 +704,14 @@ class IntegratedRiskManager:
 
         except Exception as e:
             # Phase 50.4: エラー時は拒否（安全側に倒す）
-            self.logger.error(
-                f"❌ Phase 50.4: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
-            )
+            self.logger.error(f"❌ Phase 50.4: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}")
             error_msg = f"🚨 保証金監視システムエラー - 安全のためエントリー拒否: {str(e)}"
             return True, error_msg  # Phase 50.4: エラー時は拒否（安全側に倒す）
 
     # Phase 50.4: _get_current_position_value() と _estimate_current_position_value() を削除
     # 理由: predict_future_margin()がAPI直接取得方式に変更されたため不要
 
-    def _estimate_new_position_size(
-        self, ml_confidence: float, btc_price: float, current_balance: float
-    ) -> float:
+    def _estimate_new_position_size(self, ml_confidence: float, btc_price: float, current_balance: float) -> float:
         """
         Phase 50.1.5: 新規ポジションサイズ推定（実BTC価格・実残高使用）
 
@@ -759,9 +724,7 @@ class IntegratedRiskManager:
             推定ポジションサイズ（BTC）
         """
         try:
-            dynamic_enabled = get_threshold(
-                "position_management.dynamic_position_sizing.enabled", False
-            )
+            dynamic_enabled = get_threshold("position_management.dynamic_position_sizing.enabled", False)
 
             if dynamic_enabled:
                 if ml_confidence < 0.6:
@@ -810,12 +773,8 @@ class IntegratedRiskManager:
                         if e.evaluation_timestamp >= datetime.now() - timedelta(hours=24)
                     ]
                 ),
-                "approval_rate": (
-                    self.risk_metrics.approved_trades / max(1, self.risk_metrics.total_evaluations)
-                ),
-                "system_status": (
-                    "active" if drawdown_stats.get("trading_allowed", False) else "paused"
-                ),
+                "approval_rate": (self.risk_metrics.approved_trades / max(1, self.risk_metrics.total_evaluations)),
+                "system_status": ("active" if drawdown_stats.get("trading_allowed", False) else "paused"),
             }
 
             return summary

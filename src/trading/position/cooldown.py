@@ -62,9 +62,7 @@ class CooldownManager:
 
             # 強いトレンド時はクールダウンをスキップ
             if trend_strength >= threshold:
-                self.logger.info(
-                    f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ"
-                )
+                self.logger.info(f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ")
                 return False
 
             return True

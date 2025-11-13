@@ -186,9 +186,7 @@ class SystemRecoveryService:
                 self.recovery_attempts["consecutive_ml_errors"] = consecutive_count
 
                 if consecutive_count >= 5:  # 5回連続でMLエラー
-                    self.logger.warning(
-                        f"⚠️ ML関連エラー連続発生 ({consecutive_count}回) - 復旧検討"
-                    )
+                    self.logger.warning(f"⚠️ ML関連エラー連続発生 ({consecutive_count}回) - 復旧検討")
                     # 自動復旧の検討（非同期で実行）
 
         except Exception as e:

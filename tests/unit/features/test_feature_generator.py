@@ -78,9 +78,7 @@ class TestFeatureGenerator:
         lows = [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices]
         volumes = np.random.lognormal(7, 0.3, n_periods)  # 対数正規分布
 
-        return pd.DataFrame(
-            {"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes}
-        )
+        return pd.DataFrame({"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes})
 
     @pytest.fixture
     def multitime_data(self, sample_ohlcv_data):
@@ -109,9 +107,7 @@ class TestFeatureGenerator:
     @pytest.mark.asyncio
     async def test_generate_features_basic_dataframe(self, generator, sample_ohlcv_data):
         """基本特徴量生成テスト（DataFrame入力）"""
-        result_df = await generator.generate_features(
-            sample_ohlcv_data
-        )  # Phase 51.5-A: 60特徴量固定
+        result_df = await generator.generate_features(sample_ohlcv_data)  # Phase 51.5-A: 60特徴量固定
 
         # 戻り値がDataFrameかチェック
         assert isinstance(result_df, pd.DataFrame)
@@ -548,9 +544,7 @@ class TestFeatureGeneratorPrivateMethods:
 # ========================================
 # Phase 51.7 Day 2: 新規追加特徴量テスト
 # ========================================
-@pytest.mark.skip(
-    reason="Phase 51.7 Day 7: Day 2テスト(51特徴量)はDay 7(55特徴量・6戦略)に置き換えられたためスキップ"
-)
+@pytest.mark.skip(reason="Phase 51.7 Day 7: Day 2テスト(51特徴量)はDay 7(55特徴量・6戦略)に置き換えられたためスキップ")
 class TestPhase517Day2NewFeatures:
     """Phase 51.7 Day 2で追加された新特徴量のテストクラス"""
 
@@ -571,9 +565,7 @@ class TestPhase517Day2NewFeatures:
         lows = [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices]
         volumes = np.random.lognormal(7, 0.3, n_periods)
 
-        return pd.DataFrame(
-            {"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes}
-        )
+        return pd.DataFrame({"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes})
 
     @pytest.fixture
     def generator(self):
@@ -646,9 +638,7 @@ class TestPhase517Day2NewFeatures:
 
         # bb_lower < bb_upper の関係確認
         if "bb_upper" in result_df.columns:
-            assert all(
-                result_df["bb_lower"] <= result_df["bb_upper"]
-            ), "bb_lower > bb_upperの異常値が存在"
+            assert all(result_df["bb_lower"] <= result_df["bb_upper"]), "bb_lower > bb_upperの異常値が存在"
 
     @pytest.mark.asyncio
     async def test_stoch_k_generation(self, generator, sample_ohlcv_data):
@@ -730,9 +720,7 @@ class TestPhase517Day2NewFeatures:
         result_df = await generator.generate_features(sample_ohlcv_data)
 
         # Phase 51.7 Day 2: 51特徴量固定
-        assert (
-            len(generator.computed_features) == 51
-        ), f"生成特徴量数が51でない: {len(generator.computed_features)}"
+        assert len(generator.computed_features) == 51, f"生成特徴量数が51でない: {len(generator.computed_features)}"
 
         # 新規追加特徴量が全て存在することを確認
         new_features = [
@@ -776,9 +764,7 @@ class TestPhase517Day2NewFeatures:
         ]
 
         for feature in deleted_features:
-            assert (
-                feature not in result_df.columns
-            ), f"削除されたはずの特徴量{feature}が生成されている"
+            assert feature not in result_df.columns, f"削除されたはずの特徴量{feature}が生成されている"
 
     @pytest.mark.asyncio
     async def test_new_features_no_nan_values(self, generator, sample_ohlcv_data):
@@ -809,9 +795,7 @@ class TestPhase517Day2NewFeatures:
         # bb_lower < close < bb_upper の妥当性確認（大部分のデータで成立）
         if all(f in result_df.columns for f in ["bb_lower", "bb_upper", "close"]):
             # BB外のデータもあり得るが、極端な外れ値でないことを確認
-            within_bands = (result_df["bb_lower"] <= result_df["close"]) & (
-                result_df["close"] <= result_df["bb_upper"]
-            )
+            within_bands = (result_df["bb_lower"] <= result_df["close"]) & (result_df["close"] <= result_df["bb_upper"])
             within_ratio = within_bands.sum() / len(result_df)
             assert within_ratio >= 0.5, f"BBバンド内データ比率が低すぎる: {within_ratio:.2%}"
 

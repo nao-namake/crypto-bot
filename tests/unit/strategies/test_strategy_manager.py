@@ -446,9 +446,7 @@ class TestStrategyManager(unittest.TestCase):
 
         # コンフリクトとして処理され、全5票統合ロジックで解決される
         self.assertEqual(self.manager.signal_conflicts, 1)
-        self.assertTrue(
-            result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
-        )
+        self.assertTrue(result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason)
 
     def test_phase_38_8_weighted_confidence_over_vote_count(self):
         """Phase 38.8: 重み付き信頼度優先テスト（票数カウント廃止）."""
@@ -536,9 +534,7 @@ class TestStrategyManager(unittest.TestCase):
 
         # コンフリクトとして検出される
         self.assertEqual(self.manager.signal_conflicts, 1)
-        self.assertTrue(
-            result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
-        )
+        self.assertTrue(result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason)
 
 
 def run_strategy_manager_tests():

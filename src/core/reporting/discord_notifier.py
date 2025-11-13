@@ -98,7 +98,7 @@ class DiscordClient:
                 env_url = os.getenv("DISCORD_WEBHOOK_URL")
                 if env_url and env_url.strip():
                     cleaned_url = env_url.strip().rstrip("\n\r").strip("\"'")
-                    self.logger.info(f"📁 Discord Webhook URLを.envファイルから読み込み")
+                    self.logger.info("📁 Discord Webhook URLを.envファイルから読み込み")
                     return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ .envファイル読み込み失敗: {e}")
@@ -117,7 +117,7 @@ class DiscordClient:
                 txt_url = txt_path.read_text().strip()
                 if txt_url:
                     cleaned_url = txt_url.strip().rstrip("\n\r").strip("\"'")
-                    self.logger.info(f"📄 Discord Webhook URLをtxtファイルから読み込み")
+                    self.logger.info("📄 Discord Webhook URLをtxtファイルから読み込み")
                     return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ txtファイル読み込み失敗: {e}")
@@ -316,9 +316,7 @@ class DiscordClient:
                         self.logger.debug("✅ Discord通知送信成功（ファイル添付）")
                         return True
                     else:
-                        self.logger.error(
-                            f"❌ Discord API エラー ({response.status_code}): {response.text}"
-                        )
+                        self.logger.error(f"❌ Discord API エラー ({response.status_code}): {response.text}")
                         return False
 
             except Exception as e:
@@ -372,9 +370,7 @@ class DiscordClient:
                 self.logger.warning("⚠️ Discord Rate Limit - 送信抑制")
                 return False
             else:
-                self.logger.error(
-                    f"❌ Discord API エラー ({response.status_code}): {response.text}"
-                )
+                self.logger.error(f"❌ Discord API エラー ({response.status_code}): {response.text}")
                 return False
 
         except requests.exceptions.RequestException as e:

@@ -72,9 +72,7 @@ class FeatureManager:
                 "volatility": {"features": ["atr_14", "bb_position"]},
                 "trend": {"features": ["ema_20", "ema_50"]},
                 "volume": {"features": ["volume_ratio"]},
-                "breakout": {
-                    "features": ["donchian_high_20", "donchian_low_20", "channel_position"]
-                },
+                "breakout": {"features": ["donchian_high_20", "donchian_low_20", "channel_position"]},
                 "regime": {"features": ["adx_14", "plus_di_14", "minus_di_14"]},
             },
         }
@@ -202,9 +200,7 @@ class FeatureManager:
             self.logger.warning(f"余分な特徴量（無視されます）: {sorted(extra)}")
 
         if len(features) != self.get_feature_count():
-            self.logger.error(
-                f"特徴量数不一致: 期待={self.get_feature_count()}, 実際={len(features)}"
-            )
+            self.logger.error(f"特徴量数不一致: 期待={self.get_feature_count()}, 実際={len(features)}")
             return False
 
         return True

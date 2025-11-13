@@ -254,9 +254,7 @@ class TestIntegratedRiskManager:
     def test_record_trade_result(self):
         """取引結果記録テスト."""
         # 利益取引記録
-        self.risk_manager.record_trade_result(
-            profit_loss=50000, strategy_name="test_strategy", confidence=0.8
-        )
+        self.risk_manager.record_trade_result(profit_loss=50000, strategy_name="test_strategy", confidence=0.8)
 
         # Kelly履歴に追加されているか確認
         assert len(self.risk_manager.kelly.trade_history) == 1
@@ -515,15 +513,11 @@ class TestIntegratedRiskManager:
     async def test_capital_usage_limits(self):
         """残高利用率制限チェックテスト."""
         # 正常ケース
-        result = self.risk_manager._check_capital_usage_limits(
-            current_balance=9500, btc_price=6000000
-        )
+        result = self.risk_manager._check_capital_usage_limits(current_balance=9500, btc_price=6000000)
         assert result["allowed"] == True
 
         # 利用率超過ケース（30%以上使用）
-        result_over = self.risk_manager._check_capital_usage_limits(
-            current_balance=6500, btc_price=6000000  # 35%使用
-        )
+        result_over = self.risk_manager._check_capital_usage_limits(current_balance=6500, btc_price=6000000)  # 35%使用
         assert result_over["allowed"] == False
         assert "資金利用率上限超過" in result_over["reason"]
 
@@ -751,12 +745,8 @@ async def test_integrated_risk_manager_performance():
     }
 
     # Phase 38対応: mode='backtest'追加
-    risk_manager = IntegratedRiskManager(
-        config, enable_discord_notifications=False, mode="backtest"
-    )
-    market_data = pd.DataFrame(
-        {"close": [50000] * 20, "volume": [1000] * 20, "atr_14": [1000] * 20}
-    )
+    risk_manager = IntegratedRiskManager(config, enable_discord_notifications=False, mode="backtest")
+    market_data = pd.DataFrame({"close": [50000] * 20, "volume": [1000] * 20, "atr_14": [1000] * 20})
 
     import time
 
@@ -796,9 +786,7 @@ async def test_complete_risk_management_workflow():
 
     # Phase 38対応: mode='backtest'で状態ファイル読み込みを回避
     risk_manager = IntegratedRiskManager(config, 1000000, False, mode="backtest")
-    market_data = pd.DataFrame(
-        {"close": [50000] * 30, "volume": [1000] * 30, "atr_14": [1000] * 30}
-    )
+    market_data = pd.DataFrame({"close": [50000] * 30, "volume": [1000] * 30, "atr_14": [1000] * 30})
 
     # 1. 正常時の取引評価
     evaluation1 = await risk_manager.evaluate_trade_opportunity(

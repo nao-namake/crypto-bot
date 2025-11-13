@@ -23,9 +23,7 @@ def load_json_report(json_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def generate_markdown_report(
-    report_data: Dict[str, Any], phase_name: str = "52.1"
-) -> str:
+def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.1") -> str:
     """
     Phase 51.10-B形式のMarkdownレポート生成
 
@@ -40,7 +38,6 @@ def generate_markdown_report(
     backtest_info = report_data.get("backtest_info", {})
     perf = report_data.get("performance_metrics", {})
     regime_perf = report_data.get("regime_performance", {})
-    exec_stats = report_data.get("execution_stats", {})
 
     # 実行日時
     start_date = backtest_info.get("start_date", "N/A")
@@ -136,14 +133,16 @@ def generate_markdown_report(
 
     # レジーム別パフォーマンス
     if regime_perf:
-        lines.extend([
-            "---",
-            "",
-            "## レジーム別パフォーマンス（Phase 51.8-J4-G）",
-            "",
-            "| レジーム | エントリー数 | 勝率 | 平均損益/取引 | 総損益 |",
-            "|---------|------------|------|-------------|--------|",
-        ])
+        lines.extend(
+            [
+                "---",
+                "",
+                "## レジーム別パフォーマンス（Phase 51.8-J4-G）",
+                "",
+                "| レジーム | エントリー数 | 勝率 | 平均損益/取引 | 総損益 |",
+                "|---------|------------|------|-------------|--------|",
+            ]
+        )
 
         for regime, stats in regime_perf.items():
             regime_total = stats.get("total_trades", 0)
@@ -166,35 +165,41 @@ def generate_markdown_report(
         lines.extend(["", ""])
 
     # パフォーマンス指標
-    lines.extend([
-        "---",
-        "",
-        "## パフォーマンス指標",
-        "",
-        "### 損益サマリー",
-        "",
-        f"- **総損益**: ¥{total_pnl:+,.0f}",
-        f"- **総利益**: ¥{total_profit:+,.0f}",
-        f"- **総損失**: ¥{total_loss:+,.0f}",
-        f"- **平均損益/取引**: ¥{avg_pnl_per_trade:+,.0f}",
-        "",
-        "### リスク指標",
-        "",
-        f"- **最大ドローダウン**: ¥{max_dd:,.0f} ({max_dd_pct:.2f}%)",
-        f"- **プロフィットファクター**: {profit_factor:.2f}",
-        f"- **平均勝ちトレード**: ¥{avg_win:+,.0f}",
-        f"- **平均負けトレード**: ¥{avg_loss:+,.0f}",
-        "",
-        "### 取引品質",
-        "",
-        f"- **勝率**: {win_rate:.1f}%",
-        f"- **リスクリワード比**: {abs(avg_win / avg_loss):.2f}:1 (平均)" if avg_loss != 0 else "- **リスクリワード比**: N/A",
-        "",
-        "---",
-        "",
-        "## 結論",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "## パフォーマンス指標",
+            "",
+            "### 損益サマリー",
+            "",
+            f"- **総損益**: ¥{total_pnl:+,.0f}",
+            f"- **総利益**: ¥{total_profit:+,.0f}",
+            f"- **総損失**: ¥{total_loss:+,.0f}",
+            f"- **平均損益/取引**: ¥{avg_pnl_per_trade:+,.0f}",
+            "",
+            "### リスク指標",
+            "",
+            f"- **最大ドローダウン**: ¥{max_dd:,.0f} ({max_dd_pct:.2f}%)",
+            f"- **プロフィットファクター**: {profit_factor:.2f}",
+            f"- **平均勝ちトレード**: ¥{avg_win:+,.0f}",
+            f"- **平均負けトレード**: ¥{avg_loss:+,.0f}",
+            "",
+            "### 取引品質",
+            "",
+            f"- **勝率**: {win_rate:.1f}%",
+            (
+                f"- **リスクリワード比**: {abs(avg_win / avg_loss):.2f}:1 (平均)"
+                if avg_loss != 0
+                else "- **リスクリワード比**: N/A"
+            ),
+            "",
+            "---",
+            "",
+            "## 結論",
+            "",
+        ]
+    )
 
     # 自動結論生成（Phase 52.0の効果評価）
     if total_trades > 0:
@@ -203,14 +208,16 @@ def generate_markdown_report(
         pf_eval = "優秀" if profit_factor >= 1.5 else "良好" if profit_factor >= 1.0 else "要改善"
         win_rate_eval = "高い" if win_rate >= 50 else "中程度" if win_rate >= 40 else "低い"
 
-        lines.extend([
-            f"### 総合評価: {profitability}",
-            "",
-            f"- **プロフィットファクター {profit_factor:.2f}**: {pf_eval}",
-            f"- **勝率 {win_rate:.1f}%**: {win_rate_eval}",
-            f"- **最大DD {max_dd_pct:.2f}%**: {'許容範囲内' if max_dd_pct < 30 else '要注意'}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"### 総合評価: {profitability}",
+                "",
+                f"- **プロフィットファクター {profit_factor:.2f}**: {pf_eval}",
+                f"- **勝率 {win_rate:.1f}%**: {win_rate_eval}",
+                f"- **最大DD {max_dd_pct:.2f}%**: {'許容範囲内' if max_dd_pct < 30 else '要注意'}",
+                "",
+            ]
+        )
 
         # レジーム別評価
         if regime_perf:
@@ -218,7 +225,7 @@ def generate_markdown_report(
             lines.append("")
 
             best_regime = None
-            best_avg_pnl = float('-inf')
+            best_avg_pnl = float("-inf")
 
             for regime, stats in regime_perf.items():
                 regime_avg = stats.get("average_pnl", 0.0)
@@ -237,28 +244,34 @@ def generate_markdown_report(
                 lines.append("")
 
         # Phase 52.0効果評価
-        lines.extend([
-            "### Phase 52.0実装効果",
-            "",
-            "レジーム別動的TP/SL調整の効果を検証。",
-            "",
-            "- tight_rangeでのTP 0.8%/SL 0.6%設定による早期利確・損切り",
-            "- trendingでのTP 1.5%/SL 1.0%設定によるトレンドフォロー",
-            "",
-        ])
+        lines.extend(
+            [
+                "### Phase 52.0実装効果",
+                "",
+                "レジーム別動的TP/SL調整の効果を検証。",
+                "",
+                "- tight_rangeでのTP 0.8%/SL 0.6%設定による早期利確・損切り",
+                "- trendingでのTP 1.5%/SL 1.0%設定によるトレンドフォロー",
+                "",
+            ]
+        )
     else:
-        lines.extend([
-            "### エントリーなし",
-            "",
-            "バックテスト期間中、エントリー条件を満たす取引機会が検出されませんでした。",
-            "",
-        ])
+        lines.extend(
+            [
+                "### エントリーなし",
+                "",
+                "バックテスト期間中、エントリー条件を満たす取引機会が検出されませんでした。",
+                "",
+            ]
+        )
 
-    lines.extend([
-        "---",
-        "",
-        f"**レポート生成日時**: {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            f"**レポート生成日時**: {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -290,9 +303,7 @@ def save_markdown_report(markdown_content: str, phase_name: str, output_dir: Pat
 
 def main():
     """メイン処理"""
-    parser = argparse.ArgumentParser(
-        description="バックテストJSONレポートをMarkdownに変換（Phase 52.1）"
-    )
+    parser = argparse.ArgumentParser(description="バックテストJSONレポートをMarkdownに変換（Phase 52.1）")
     parser.add_argument(
         "json_path",
         type=str,

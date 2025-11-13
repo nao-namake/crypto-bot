@@ -59,9 +59,7 @@ class PaperTradingReporter(BaseReporter):
             performance_stats = self._calculate_session_stats(session_stats)
 
             # マークダウンレポート生成
-            report_content = self._generate_markdown_report(
-                session_stats, timestamp, performance_stats
-            )
+            report_content = self._generate_markdown_report(session_stats, timestamp, performance_stats)
 
             # ファイル保存
             with open(filepath, "w", encoding="utf-8") as f:
@@ -159,9 +157,7 @@ class PaperTradingReporter(BaseReporter):
                 action = trade.get("action", "N/A")
                 price = trade.get("price", 0)
                 confidence = trade.get("confidence", 0)
-                report_content += (
-                    f"{i}. {time} - {action} @ ¥{price:,.0f} (信頼度: {confidence:.2f})\n"
-                )
+                report_content += f"{i}. {time} - {action} @ ¥{price:,.0f} (信頼度: {confidence:.2f})\n"
         else:
             report_content += "取引実行はありませんでした。\n"
 
@@ -203,9 +199,7 @@ class PaperTradingReporter(BaseReporter):
             session_stats: セッション統計データ
             timestamp: レポート生成時刻
         """
-        json_filepath = (
-            self.paper_report_dir / f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
-        )
+        json_filepath = self.paper_report_dir / f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
 
         json_data = {
             "timestamp": timestamp.isoformat(),
@@ -220,9 +214,7 @@ class PaperTradingReporter(BaseReporter):
         with open(json_filepath, "w", encoding="utf-8") as f:
             json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
 
-    async def save_session_error_report(
-        self, error_message: str, session_stats: Dict = None
-    ) -> Path:
+    async def save_session_error_report(self, error_message: str, session_stats: Dict = None) -> Path:
         """
         ペーパートレードセッションエラーレポート生成
 
@@ -285,9 +277,7 @@ class PaperTradingReporter(BaseReporter):
             self.logger.error(f"ペーパートレードエラーレポート保存失敗: {e}")
             raise
 
-    def format_discord_notification(
-        self, performance_stats: Dict[str, Any], session_duration_hours: int
-    ) -> Dict:
+    def format_discord_notification(self, performance_stats: Dict[str, Any], session_duration_hours: int) -> Dict:
         """
         Discord通知用フォーマット
 

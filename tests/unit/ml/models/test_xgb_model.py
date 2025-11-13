@@ -43,9 +43,7 @@ class TestXGBModel:
     @pytest.fixture
     def xgb_model(self):
         """XGBModelインスタンス"""
-        return XGBModel(
-            n_estimators=10, max_depth=3, learning_rate=0.1, random_state=42
-        )  # テスト用に小さい値
+        return XGBModel(n_estimators=10, max_depth=3, learning_rate=0.1, random_state=42)  # テスト用に小さい値
 
     def test_model_initialization(self, xgb_model):
         """モデル初期化テスト"""
@@ -118,9 +116,7 @@ class TestXGBModel:
             assert not model.is_fitted
         # Early stoppingにより、実際の木の数は100より少ない可能性がある
 
-    def test_fit_without_validation_data_but_early_stopping(
-        self, xgb_model, sample_features, sample_targets
-    ):
+    def test_fit_without_validation_data_but_early_stopping(self, xgb_model, sample_features, sample_targets):
         """検証データなしでEarly stopping設定時のテスト"""
         xgb_model.early_stopping_rounds = 10
 
@@ -246,9 +242,7 @@ class TestXGBModel:
         assert all(imp >= 0 for imp in importance["importance"])
         # XGBoostの重要度は合計が1になるとは限らないが、正の値である
 
-    def test_get_feature_importance_different_types(
-        self, xgb_model, sample_features, sample_targets
-    ):
+    def test_get_feature_importance_different_types(self, xgb_model, sample_features, sample_targets):
         """異なるタイプの特徴量重要度取得テスト"""
         xgb_model.fit(sample_features, sample_targets)
 

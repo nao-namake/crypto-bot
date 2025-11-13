@@ -67,12 +67,10 @@ class TradingAnomalyDetector:
             "risk.anomaly_detector.spread_critical_threshold", 0.005
         )
         self.api_latency_warning_ms = (
-            api_latency_warning_ms
-            or get_threshold("risk.anomaly_detector.api_latency_warning", 1.0) * 1000
+            api_latency_warning_ms or get_threshold("risk.anomaly_detector.api_latency_warning", 1.0) * 1000
         )
         self.api_latency_critical_ms = (
-            api_latency_critical_ms
-            or get_threshold("risk.anomaly_detector.api_latency_critical", 3.0) * 1000
+            api_latency_critical_ms or get_threshold("risk.anomaly_detector.api_latency_critical", 3.0) * 1000
         )
         self.price_spike_zscore_threshold = price_spike_zscore_threshold or get_threshold(
             "risk.anomaly_detector.price_spike_zscore_threshold", 3.0
@@ -139,9 +137,7 @@ class TradingAnomalyDetector:
 
         return alerts
 
-    def _check_spread_anomaly(
-        self, bid: float, ask: float, last_price: float
-    ) -> Optional[AnomalyAlert]:
+    def _check_spread_anomaly(self, bid: float, ask: float, last_price: float) -> Optional[AnomalyAlert]:
         """スプレッド異常チェック"""
         if last_price <= 0:
             return None
@@ -184,9 +180,7 @@ class TradingAnomalyDetector:
 
         return None
 
-    def _check_price_spike(
-        self, last_price: float, market_data: pd.DataFrame
-    ) -> Optional[AnomalyAlert]:
+    def _check_price_spike(self, last_price: float, market_data: pd.DataFrame) -> Optional[AnomalyAlert]:
         """価格スパイクチェック"""
         try:
             if len(market_data) < 20:
@@ -215,9 +209,7 @@ class TradingAnomalyDetector:
 
         return None
 
-    def _check_volume_anomaly(
-        self, volume: float, market_data: pd.DataFrame
-    ) -> Optional[AnomalyAlert]:
+    def _check_volume_anomaly(self, volume: float, market_data: pd.DataFrame) -> Optional[AnomalyAlert]:
         """ボリューム異常チェック"""
         try:
             if len(market_data) < 20 or "volume" not in market_data.columns:
@@ -254,12 +246,8 @@ class TradingAnomalyDetector:
 
             return {
                 "total_alerts_24h": len(recent_alerts),
-                "critical_alerts": len(
-                    [a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL]
-                ),
-                "warning_alerts": len(
-                    [a for a in recent_alerts if a.level == AnomalyLevel.WARNING]
-                ),
+                "critical_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.CRITICAL]),
+                "warning_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.WARNING]),
                 "info_alerts": len([a for a in recent_alerts if a.level == AnomalyLevel.INFO]),
             }
         except Exception as e:

@@ -216,15 +216,9 @@ def print_regime_statistics(stats: dict):
     trending_target = 15 <= stats["trending_pct"] <= 20
     volatility_target = 5 <= stats["high_volatility_pct"] <= 10
 
-    logger.info(
-        f"  レンジ相場 70-80%: {'✅' if range_target else '⚠️'} ({stats['range_total_pct']:.2f}%)"
-    )
-    logger.info(
-        f"  トレンド相場 15-20%: {'✅' if trending_target else '⚠️'} ({stats['trending_pct']:.2f}%)"
-    )
-    logger.info(
-        f"  高ボラティリティ 5-10%: {'✅' if volatility_target else '⚠️'} ({stats['high_volatility_pct']:.2f}%)"
-    )
+    logger.info(f"  レンジ相場 70-80%: {'✅' if range_target else '⚠️'} ({stats['range_total_pct']:.2f}%)")
+    logger.info(f"  トレンド相場 15-20%: {'✅' if trending_target else '⚠️'} ({stats['trending_pct']:.2f}%)")
+    logger.info(f"  高ボラティリティ 5-10%: {'✅' if volatility_target else '⚠️'} ({stats['high_volatility_pct']:.2f}%)")
 
     # 総合判定
     all_targets = range_target and trending_target and volatility_target
@@ -232,9 +226,7 @@ def print_regime_statistics(stats: dict):
     logger.info("=" * 80)
 
 
-def print_random_samples(
-    df: pd.DataFrame, features_df: pd.DataFrame, regimes: list, sample_size: int = 50
-):
+def print_random_samples(df: pd.DataFrame, features_df: pd.DataFrame, regimes: list, sample_size: int = 50):
     """
     ランダムサンプルを表示（手動検証用）
 

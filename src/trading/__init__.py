@@ -237,9 +237,7 @@ def get_risk_profile_config(profile_name: str = "balanced") -> dict:
         ValueError: 無効なプロファイル名
     """
     if profile_name not in RISK_PROFILES:
-        raise ValueError(
-            f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}"
-        )
+        raise ValueError(f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}")
 
     # デフォルト設定をベースに、プロファイル設定で上書き（深いコピーで元の設定を保護）
     config = {

@@ -121,9 +121,7 @@ class TradingCycleManager:
 
             # Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
             if strategy_signals:
-                main_features = await self._add_strategy_signal_features(
-                    main_features, strategy_signals
-                )
+                main_features = await self._add_strategy_signal_features(main_features, strategy_signals)
 
             # Phase 5: ML予測（Phase 41: 55特徴量対応）
             ml_prediction = await self._get_ml_prediction(main_features)
@@ -132,9 +130,7 @@ class TradingCycleManager:
             trading_info = await self._fetch_trading_info(market_data)
 
             # Phase 7: リスク管理・統合判定
-            trade_evaluation = await self._evaluate_risk(
-                ml_prediction, strategy_signal, main_features, trading_info
-            )
+            trade_evaluation = await self._evaluate_risk(ml_prediction, strategy_signal, main_features, trading_info)
 
             # Phase 8: 注文実行
             await self._execute_approved_trades(trade_evaluation, cycle_id)
@@ -158,9 +154,7 @@ class TradingCycleManager:
         """Phase 2: データ取得"""
         try:
             # Phase 51.5-A Fix: limit=100→200（戦略最低20件要求に対する安全マージン）
-            return await self.orchestrator.data_service.fetch_multi_timeframe(
-                symbol="BTC/JPY", limit=200
-            )
+            return await self.orchestrator.data_service.fetch_multi_timeframe(symbol="BTC/JPY", limit=200)
         except Exception as e:
             self.logger.error(f"市場データ取得エラー: {e}")
             return None
@@ -191,9 +185,7 @@ class TradingCycleManager:
                     else:
                         # Phase 50.8: Level 1→Level 2フォールバック実装
                         # Phase 50.9: 62特徴量固定システム（外部API削除）
-                        features[timeframe] = (
-                            await self.orchestrator.feature_service.generate_features(df)
-                        )
+                        features[timeframe] = await self.orchestrator.feature_service.generate_features(df)
                 else:
                     self.logger.warning(f"空のDataFrame検出: {timeframe}")
                     features[timeframe] = pd.DataFrame()
@@ -228,9 +220,7 @@ class TradingCycleManager:
                 )
             else:
                 # 空のDataFrameの場合はHOLDシグナル
-                return self.orchestrator.strategy_service._create_hold_signal(
-                    pd.DataFrame(), "データ不足"
-                )
+                return self.orchestrator.strategy_service._create_hold_signal(pd.DataFrame(), "データ不足")
         except Exception as e:
             # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
             import os
@@ -239,9 +229,7 @@ class TradingCycleManager:
                 self.logger.debug(f"戦略評価エラー: {e}")
             else:
                 self.logger.error(f"戦略評価エラー: {e}")
-            return self.orchestrator.strategy_service._create_hold_signal(
-                pd.DataFrame(), f"戦略評価エラー: {e}"
-            )
+            return self.orchestrator.strategy_service._create_hold_signal(pd.DataFrame(), f"戦略評価エラー: {e}")
 
     async def _apply_dynamic_strategy_selection(self, main_features: pd.DataFrame):
         """
@@ -278,20 +266,16 @@ class TradingCycleManager:
                 # 通常レジーム: 戦略重み適用
                 self.orchestrator.strategy_service.update_strategy_weights(regime_weights)
                 self.logger.info(
-                    f"✅ Phase 51.3: 戦略重み更新完了 - レジーム={regime.value}, "
-                    f"戦略数={len(regime_weights)}"
+                    f"✅ Phase 51.3: 戦略重み更新完了 - レジーム={regime.value}, " f"戦略数={len(regime_weights)}"
                 )
             else:
                 # 高ボラティリティ: 全戦略無効化（待機モード）
                 # 注: 空辞書を渡すと全戦略が無効化される想定だが、
                 # StrategyManagerの実装次第では別の処理が必要
-                self.logger.warning(
-                    f"⚠️ Phase 51.3: 高ボラティリティ検出（レジーム={regime.value}）- 全戦略待機モード"
-                )
+                self.logger.warning(f"⚠️ Phase 51.3: 高ボラティリティ検出（レジーム={regime.value}）- 全戦略待機モード")
                 # 全戦略を0重みに設定
                 all_zero_weights = {
-                    strategy_name: 0.0
-                    for strategy_name in self.orchestrator.strategy_service.strategies.keys()
+                    strategy_name: 0.0 for strategy_name in self.orchestrator.strategy_service.strategies.keys()
                 }
                 self.orchestrator.strategy_service.update_strategy_weights(all_zero_weights)
 
@@ -325,9 +309,7 @@ class TradingCycleManager:
             )
 
             if strategy_signals:
-                self.logger.info(
-                    f"✅ Phase 41: 個別戦略シグナル取得完了 - {len(strategy_signals)}戦略"
-                )
+                self.logger.info(f"✅ Phase 41: 個別戦略シグナル取得完了 - {len(strategy_signals)}戦略")
                 return strategy_signals
             else:
                 self.logger.warning("Phase 41: 個別戦略シグナルが空です")
@@ -401,21 +383,13 @@ class TradingCycleManager:
                 features_to_use = get_feature_names()
 
                 # 利用可能な特徴量のみを選択
-                available_features = [
-                    col for col in features_to_use if col in main_features.columns
-                ]
+                available_features = [col for col in features_to_use if col in main_features.columns]
                 # Phase 42.3.2: Phase 41で後から追加される戦略シグナル特徴量は警告から除外
                 if len(available_features) != len(features_to_use):
-                    missing_features = [
-                        f for f in features_to_use if f not in main_features.columns
-                    ]
+                    missing_features = [f for f in features_to_use if f not in main_features.columns]
                     # strategy_signal_* は Phase 41 で後から追加されるため、実際の不足としてカウントしない
-                    strategy_signal_features = [
-                        f for f in missing_features if f.startswith("strategy_signal_")
-                    ]
-                    real_missing = [
-                        f for f in missing_features if not f.startswith("strategy_signal_")
-                    ]
+                    strategy_signal_features = [f for f in missing_features if f.startswith("strategy_signal_")]
+                    real_missing = [f for f in missing_features if not f.startswith("strategy_signal_")]
 
                     # 実際に不足している特徴量（戦略シグナル以外）のみ警告
                     if real_missing:
@@ -435,8 +409,7 @@ class TradingCycleManager:
                 actual_feature_count = len(main_features.columns)
                 if not self.orchestrator.ml_service.ensure_correct_model(actual_feature_count):
                     self.logger.warning(
-                        f"⚠️ Phase 50.8: モデルロード失敗（{actual_feature_count}特徴量） - "
-                        "フォールバック処理継続"
+                        f"⚠️ Phase 50.8: モデルロード失敗（{actual_feature_count}特徴量） - " "フォールバック処理継続"
                     )
 
                 # ML予測と信頼度を同時取得
@@ -537,9 +510,7 @@ class TradingCycleManager:
         except Exception as e:
             # 最終フォールバック
             current_balance = get_threshold("trading.default_balance_jpy", 10000.0)
-            self.logger.error(
-                f"フォールバック値取得エラー - デフォルト使用: {current_balance:.0f}円, エラー: {e}"
-            )
+            self.logger.error(f"フォールバック値取得エラー - デフォルト使用: {current_balance:.0f}円, エラー: {e}")
 
         # 安全にmarket_dataから価格を取得
         try:
@@ -588,9 +559,7 @@ class TradingCycleManager:
                     regime = "unknown"
 
             # Phase 29.5 + Phase 51.9: ML予測を戦略シグナルと統合（レジーム別）
-            integrated_signal = self._integrate_ml_with_strategy(
-                ml_prediction, strategy_signal, regime=regime
-            )
+            integrated_signal = self._integrate_ml_with_strategy(ml_prediction, strategy_signal, regime=regime)
 
             return await self.orchestrator.risk_service.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
@@ -685,15 +654,11 @@ class TradingCycleManager:
                 # レジーム別設定を試行
                 regime_config_base = f"ml.regime_ml_integration.{regime}"
                 min_ml_confidence = get_threshold(f"{regime_config_base}.min_ml_confidence", None)
-                high_confidence_threshold = get_threshold(
-                    f"{regime_config_base}.high_confidence_threshold", None
-                )
+                high_confidence_threshold = get_threshold(f"{regime_config_base}.high_confidence_threshold", None)
                 ml_weight = get_threshold(f"{regime_config_base}.ml_weight", None)
                 strategy_weight = get_threshold(f"{regime_config_base}.strategy_weight", None)
                 agreement_bonus = get_threshold(f"{regime_config_base}.agreement_bonus", None)
-                disagreement_penalty = get_threshold(
-                    f"{regime_config_base}.disagreement_penalty", None
-                )
+                disagreement_penalty = get_threshold(f"{regime_config_base}.disagreement_penalty", None)
 
                 # レジーム別設定が存在する場合のみログ出力
                 if min_ml_confidence is not None:
@@ -714,23 +679,17 @@ class TradingCycleManager:
             if min_ml_confidence is None:
                 min_ml_confidence = get_threshold("ml.strategy_integration.min_ml_confidence", 0.6)
             if high_confidence_threshold is None:
-                high_confidence_threshold = get_threshold(
-                    "ml.strategy_integration.high_confidence_threshold", 0.8
-                )
+                high_confidence_threshold = get_threshold("ml.strategy_integration.high_confidence_threshold", 0.8)
             if agreement_bonus is None:
                 agreement_bonus = get_threshold("ml.strategy_integration.agreement_bonus", 1.2)
             if disagreement_penalty is None:
-                disagreement_penalty = get_threshold(
-                    "ml.strategy_integration.disagreement_penalty", 0.7
-                )
+                disagreement_penalty = get_threshold("ml.strategy_integration.disagreement_penalty", 0.7)
 
             # ML予測信頼度が低い場合は統合しない
             ml_confidence = ml_prediction.get("confidence", 0.0)
 
             if ml_confidence < min_ml_confidence:
-                self.logger.info(
-                    f"ML信頼度不足 ({ml_confidence:.3f} < {min_ml_confidence:.3f}) - 戦略シグナルのみ使用"
-                )
+                self.logger.info(f"ML信頼度不足 ({ml_confidence:.3f} < {min_ml_confidence:.3f}) - 戦略シグナルのみ使用")
                 return strategy_signal
 
             # 予測値とアクションの変換（Phase 51.9-6A: 3クラス分類対応）
@@ -790,9 +749,7 @@ class TradingCycleManager:
 
                     # 不一致時はholdに変更する選択肢も
                     # Phase 40.3: hold変更閾値を設定から取得（ハードコード排除）
-                    hold_threshold = get_threshold(
-                        "ml.strategy_integration.hold_conversion_threshold", 0.4
-                    )
+                    hold_threshold = get_threshold("ml.strategy_integration.hold_conversion_threshold", 0.4)
                     if adjusted_confidence < hold_threshold:  # 信頼度が極端に低い場合
                         self.logger.warning(
                             f"⛔ 信頼度極低（{adjusted_confidence:.3f} < {hold_threshold:.3f}）- holdに変更"
@@ -875,18 +832,14 @@ class TradingCycleManager:
                 )
 
                 # Phase 8a-1: 取引直前最終検証（口座残高使い切り防止・追加安全チェック）
-                pre_execution_check = await self._pre_execution_verification(
-                    trade_evaluation, cycle_id
-                )
+                pre_execution_check = await self._pre_execution_verification(trade_evaluation, cycle_id)
                 if not pre_execution_check["allowed"]:
                     self.logger.warning(
                         f"🚫 取引直前検証により取引拒否 - サイクル: {cycle_id}, 理由: {pre_execution_check['reason']}"
                     )
                     return
 
-                execution_result = await self.orchestrator.execution_service.execute_trade(
-                    trade_evaluation
-                )
+                execution_result = await self.orchestrator.execution_service.execute_trade(trade_evaluation)
 
                 # Phase 35.2: バックテスト時はWARNING（強制出力）
                 import os
@@ -900,9 +853,7 @@ class TradingCycleManager:
                         f"✅ 取引実行完了 - サイクル: {cycle_id}, 結果: {execution_result.success if execution_result else 'None'}"
                     )
 
-                await self.orchestrator.trading_logger.log_execution_result(
-                    execution_result, cycle_id
-                )
+                await self.orchestrator.trading_logger.log_execution_result(execution_result, cycle_id)
             else:
                 # holdシグナルや取引拒否の詳細説明
                 decision = getattr(trade_evaluation, "decision", "unknown")
@@ -917,9 +868,7 @@ class TradingCycleManager:
                     self.logger.debug(
                         f"取引未承認 - サイクル: {cycle_id}, 決定: {decision}, アクション: {side}, 理由: {reason}"
                     )
-                await self.orchestrator.trading_logger.log_trade_decision(
-                    trade_evaluation, cycle_id
-                )
+                await self.orchestrator.trading_logger.log_trade_decision(trade_evaluation, cycle_id)
         except AttributeError as e:
             # ExecutionServiceにexecute_tradeメソッドがない場合の詳細エラー
             self.logger.error(f"❌ ExecutionServiceメソッドエラー - サイクル: {cycle_id}: {e}")
@@ -938,9 +887,7 @@ class TradingCycleManager:
         try:
             stop_result = await self.orchestrator.execution_service.check_stop_conditions()
             if stop_result:
-                await self.orchestrator.trading_logger.log_execution_result(
-                    stop_result, cycle_id, is_stop=True
-                )
+                await self.orchestrator.trading_logger.log_execution_result(stop_result, cycle_id, is_stop=True)
         except Exception as e:
             self.logger.error(f"ストップ条件チェックエラー: {e}")
 
@@ -997,9 +944,7 @@ class TradingCycleManager:
     async def _handle_system_error(self, e, cycle_id):
         """RuntimeError/SystemError処理"""
         # システムレベルエラー
-        self.logger.error(
-            f"システムレベルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
-        )
+        self.logger.error(f"システムレベルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=False)
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
 
@@ -1071,9 +1016,7 @@ class TradingCycleManager:
                 # 直近の価格ボラティリティ確認（簡易実装）
                 market_volatility_check = await self._check_current_market_volatility()
                 if market_volatility_check and not market_volatility_check.get("stable", True):
-                    volatile_threshold = get_threshold(
-                        "trading.anomaly.max_volatility_for_trade", 0.05
-                    )
+                    volatile_threshold = get_threshold("trading.anomaly.max_volatility_for_trade", 0.05)
                     current_volatility = market_volatility_check.get("volatility", 0.0)
 
                     if current_volatility > volatile_threshold:
@@ -1163,16 +1106,13 @@ class TradingCycleManager:
             # 基本的なシステムコンポーネント確認
             checks = {
                 "execution_service": (
-                    hasattr(self.orchestrator, "execution_service")
-                    and self.orchestrator.execution_service is not None
+                    hasattr(self.orchestrator, "execution_service") and self.orchestrator.execution_service is not None
                 ),
                 "risk_manager": (
-                    hasattr(self.orchestrator, "risk_service")
-                    and self.orchestrator.risk_service is not None
+                    hasattr(self.orchestrator, "risk_service") and self.orchestrator.risk_service is not None
                 ),
                 "data_service": (
-                    hasattr(self.orchestrator, "data_service")
-                    and self.orchestrator.data_service is not None
+                    hasattr(self.orchestrator, "data_service") and self.orchestrator.data_service is not None
                 ),
             }
 

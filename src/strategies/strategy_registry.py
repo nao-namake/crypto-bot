@@ -64,8 +64,7 @@ class StrategyRegistry:
             # 重複登録チェック
             if name in cls._strategies:
                 raise StrategyError(
-                    f"戦略'{name}'は既に登録されています。"
-                    f"既存: {cls._strategies[name]['class'].__name__}"
+                    f"戦略'{name}'は既に登録されています。" f"既存: {cls._strategies[name]['class'].__name__}"
                 )
 
             # 戦略メタデータ登録
@@ -102,9 +101,7 @@ class StrategyRegistry:
         """
         if name not in cls._strategies:
             available = ", ".join(cls._strategies.keys())
-            raise StrategyError(
-                f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}"
-            )
+            raise StrategyError(f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}")
 
         return cls._strategies[name]["class"]
 
@@ -124,9 +121,7 @@ class StrategyRegistry:
         """
         if name not in cls._strategies:
             available = ", ".join(cls._strategies.keys())
-            raise StrategyError(
-                f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}"
-            )
+            raise StrategyError(f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}")
 
         return cls._strategies[name].copy()
 

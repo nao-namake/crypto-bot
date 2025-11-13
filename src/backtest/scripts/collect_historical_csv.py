@@ -84,9 +84,7 @@ class HistoricalDataCollector:
         # 各タイムフレームでデータ収集
         for timeframe in timeframes:
             try:
-                await self._collect_timeframe_data(
-                    symbol, timeframe, days, start_timestamp, end_timestamp
-                )
+                await self._collect_timeframe_data(symbol, timeframe, days, start_timestamp, end_timestamp)
                 self.logger.info(f"✅ {timeframe}データ収集完了")
             except Exception as e:
                 self.logger.error(f"❌ {timeframe}データ収集失敗: {e}")
@@ -107,9 +105,7 @@ class HistoricalDataCollector:
         elif timeframe == "15m":
             data = await self._collect_15m_direct(symbol, days, start_timestamp, end_timestamp)
         else:
-            data = await self._collect_via_client(
-                symbol, timeframe, days, start_timestamp, end_timestamp
-            )
+            data = await self._collect_via_client(symbol, timeframe, days, start_timestamp, end_timestamp)
 
         if data:
             await self._save_to_csv(data, symbol, timeframe)
@@ -136,16 +132,12 @@ class HistoricalDataCollector:
             # 日付フィルタリング
             if start_timestamp and end_timestamp:
                 # 指定期間でフィルタ
-                filtered_data = [
-                    row for row in all_data if start_timestamp <= row[0] <= end_timestamp
-                ]
+                filtered_data = [row for row in all_data if start_timestamp <= row[0] <= end_timestamp]
             else:
                 # 日数指定でフィルタ
                 cutoff_date = datetime.now() - timedelta(days=days)
                 cutoff_timestamp = int(cutoff_date.timestamp() * 1000)
-                filtered_data = [
-                    row for row in all_data if row[0] >= cutoff_timestamp
-                ]  # timestampでフィルタ
+                filtered_data = [row for row in all_data if row[0] >= cutoff_timestamp]  # timestampでフィルタ
 
             return sorted(filtered_data, key=lambda x: x[0])  # 時系列順にソート
 
@@ -219,9 +211,7 @@ class HistoricalDataCollector:
 
             # 日付フィルタリング
             if start_timestamp and end_timestamp:
-                filtered_data = [
-                    row for row in all_data if start_timestamp <= row[0] <= end_timestamp
-                ]
+                filtered_data = [row for row in all_data if start_timestamp <= row[0] <= end_timestamp]
             else:
                 cutoff_timestamp = int(start_date.timestamp() * 1000)
                 filtered_data = [row for row in all_data if row[0] >= cutoff_timestamp]
@@ -310,13 +300,9 @@ class HistoricalDataCollector:
             # 10日分ずつ取得（APIレート制限対応）
             for i in range(0, int(period_days), 10):
                 batch_start = since_timestamp + (i * 24 * 60 * 60 * 1000)  # i日後の開始時刻
-                batch_end = min(
-                    batch_start + (10 * 24 * 60 * 60 * 1000), end_ts
-                )  # 10日後または終了時刻
+                batch_end = min(batch_start + (10 * 24 * 60 * 60 * 1000), end_ts)  # 10日後または終了時刻
 
-                data = await client.fetch_ohlcv(
-                    symbol=symbol, timeframe=timeframe, since=batch_start, limit=2000
-                )
+                data = await client.fetch_ohlcv(symbol=symbol, timeframe=timeframe, since=batch_start, limit=2000)
 
                 if data:
                     # 期間内のデータのみ追加
@@ -383,9 +369,7 @@ async def main():
 
     parser = argparse.ArgumentParser(description="過去データCSV収集")
     parser.add_argument("--days", type=int, default=180, help="収集日数（デフォルト: 180日）")
-    parser.add_argument(
-        "--symbol", default=default_symbol, help=f"通貨ペア（デフォルト: {default_symbol}）"
-    )
+    parser.add_argument("--symbol", default=default_symbol, help=f"通貨ペア（デフォルト: {default_symbol}）")
     parser.add_argument(
         "--timeframes",
         nargs="+",
@@ -407,9 +391,7 @@ async def main():
             if not df.empty:
                 args.start_timestamp = int(df["timestamp"].iloc[0])
                 args.end_timestamp = int(df["timestamp"].iloc[-1])
-                print(
-                    f"既存4時間足データ期間に合わせます: {args.start_timestamp} - {args.end_timestamp}"
-                )
+                print(f"既存4時間足データ期間に合わせます: {args.start_timestamp} - {args.end_timestamp}")
         else:
             print("既存4時間足データが見つかりません")
             return

@@ -149,9 +149,7 @@ class TestOrchestratorInitialization:
     @pytest.mark.asyncio
     async def test_initialize_unexpected_error(self, orchestrator):
         """初期化時の予期しないエラーハンドリング"""
-        orchestrator.health_checker.check_all_services = AsyncMock(
-            side_effect=ValueError("Unexpected error")
-        )
+        orchestrator.health_checker.check_all_services = AsyncMock(side_effect=ValueError("Unexpected error"))
 
         with pytest.raises(CryptoBotError, match="TradingOrchestrator初期化で予期しないエラー"):
             await orchestrator.initialize()
@@ -178,9 +176,7 @@ class TestOrchestratorRun:
         await orchestrator.run()
 
         orchestrator._run_backtest_mode.assert_called_once()
-        orchestrator.logger.info.assert_any_call(
-            "TradingOrchestrator実行開始 - モード: BACKTEST（Configから取得）"
-        )
+        orchestrator.logger.info.assert_any_call("TradingOrchestrator実行開始 - モード: BACKTEST（Configから取得）")
 
     @pytest.mark.asyncio
     async def test_run_paper_mode(self, orchestrator, mock_config):
@@ -219,9 +215,7 @@ class TestOrchestratorRun:
         """KeyboardInterruptハンドリング"""
         orchestrator._initialized = True
         mock_config.mode = "paper"
-        orchestrator.paper_trading_runner.run_with_error_handling = AsyncMock(
-            side_effect=KeyboardInterrupt()
-        )
+        orchestrator.paper_trading_runner.run_with_error_handling = AsyncMock(side_effect=KeyboardInterrupt())
 
         # KeyboardInterruptは握りつぶされる
         await orchestrator.run()
@@ -266,9 +260,7 @@ class TestTradingCycle:
     @pytest.mark.asyncio
     async def test_run_trading_cycle_unexpected_error(self, orchestrator):
         """取引サイクルで予期しないエラー発生時"""
-        orchestrator.trading_cycle_manager.execute_trading_cycle = AsyncMock(
-            side_effect=ValueError("Unexpected")
-        )
+        orchestrator.trading_cycle_manager.execute_trading_cycle = AsyncMock(side_effect=ValueError("Unexpected"))
 
         with pytest.raises(CryptoBotError, match="最上位で予期しないエラー"):
             await orchestrator.run_trading_cycle()
@@ -305,20 +297,14 @@ class TestBacktestMode:
 
         await orchestrator._run_backtest_mode()
 
-        orchestrator.logger.warning.assert_any_call(
-            "⚠️ バックテスト実行で問題が発生しました", discord_notify=False
-        )
+        orchestrator.logger.warning.assert_any_call("⚠️ バックテスト実行で問題が発生しました", discord_notify=False)
 
     @pytest.mark.asyncio
     @patch("src.core.orchestration.orchestrator.get_threshold")
-    async def test_run_backtest_mode_file_error(
-        self, mock_get_threshold, orchestrator, mock_services
-    ):
+    async def test_run_backtest_mode_file_error(self, mock_get_threshold, orchestrator, mock_services):
         """バックテスト時のファイルI/Oエラー"""
         mock_get_threshold.side_effect = lambda key, default: default
-        orchestrator.backtest_runner.run = AsyncMock(
-            side_effect=FileNotFoundError("Data file not found")
-        )
+        orchestrator.backtest_runner.run = AsyncMock(side_effect=FileNotFoundError("Data file not found"))
 
         with pytest.raises(DataProcessingError, match="データ読み込みエラー"):
             await orchestrator._run_backtest_mode()
@@ -328,9 +314,7 @@ class TestBacktestMode:
 
     @pytest.mark.asyncio
     @patch("src.core.orchestration.orchestrator.get_threshold")
-    async def test_run_backtest_mode_value_error(
-        self, mock_get_threshold, orchestrator, mock_services
-    ):
+    async def test_run_backtest_mode_value_error(self, mock_get_threshold, orchestrator, mock_services):
         """バックテスト時のデータ形式エラー"""
         mock_get_threshold.side_effect = lambda key, default: default
         orchestrator.backtest_runner.run = AsyncMock(side_effect=ValueError("Invalid data format"))
@@ -340,9 +324,7 @@ class TestBacktestMode:
 
     @pytest.mark.asyncio
     @patch("src.core.orchestration.orchestrator.get_threshold")
-    async def test_run_backtest_mode_import_error(
-        self, mock_get_threshold, orchestrator, mock_services
-    ):
+    async def test_run_backtest_mode_import_error(self, mock_get_threshold, orchestrator, mock_services):
         """バックテスト時のモジュールエラー"""
         mock_get_threshold.side_effect = lambda key, default: default
         orchestrator.backtest_runner.run = AsyncMock(side_effect=ImportError("Module not found"))
@@ -352,9 +334,7 @@ class TestBacktestMode:
 
     @pytest.mark.asyncio
     @patch("src.core.orchestration.orchestrator.get_threshold")
-    async def test_run_backtest_mode_discord_disable(
-        self, mock_get_threshold, orchestrator, mock_services
-    ):
+    async def test_run_backtest_mode_discord_disable(self, mock_get_threshold, orchestrator, mock_services):
         """バックテスト時のDiscord無効化"""
         mock_get_threshold.side_effect = lambda key, default: {
             "backtest.log_level": "WARNING",
@@ -390,9 +370,7 @@ class TestGetActualBalance:
         balance = await _get_actual_balance(mock_config, mock_logger)
 
         assert balance == 100000.0
-        mock_logger.info.assert_any_call(
-            "📝 ペーパーモード: API呼び出しをスキップ、mode_balances残高使用"
-        )
+        mock_logger.info.assert_any_call("📝 ペーパーモード: API呼び出しをスキップ、mode_balances残高使用")
 
     @pytest.mark.asyncio
     @patch("src.core.config.load_config")
@@ -409,16 +387,12 @@ class TestGetActualBalance:
         balance = await _get_actual_balance(mock_config, mock_logger)
 
         assert balance == 10000.0
-        mock_logger.info.assert_any_call(
-            "📝 バックテストモード: API呼び出しをスキップ、mode_balances残高使用"
-        )
+        mock_logger.info.assert_any_call("📝 バックテストモード: API呼び出しをスキップ、mode_balances残高使用")
 
     @pytest.mark.asyncio
     @patch("src.core.config.load_config")
     @patch("src.data.bitbank_client.BitbankClient")
-    async def test_get_actual_balance_live_mode_success(
-        self, mock_bitbank_class, mock_load_config, mock_logger
-    ):
+    async def test_get_actual_balance_live_mode_success(self, mock_bitbank_class, mock_load_config, mock_logger):
         """ライブモード時のAPI残高取得成功"""
         mock_config = Mock()
         mock_config.mode = "live"
@@ -436,9 +410,7 @@ class TestGetActualBalance:
     @pytest.mark.asyncio
     @patch("src.core.config.load_config")
     @patch("src.data.bitbank_client.BitbankClient")
-    async def test_get_actual_balance_live_mode_zero_balance(
-        self, mock_bitbank_class, mock_load_config, mock_logger
-    ):
+    async def test_get_actual_balance_live_mode_zero_balance(self, mock_bitbank_class, mock_load_config, mock_logger):
         """ライブモード時の残高0円時のフォールバック"""
         mock_config = Mock()
         mock_config.mode = "live"
@@ -461,9 +433,7 @@ class TestGetActualBalance:
     @pytest.mark.asyncio
     @patch("src.core.config.load_config")
     @patch("src.data.bitbank_client.BitbankClient")
-    async def test_get_actual_balance_api_error(
-        self, mock_bitbank_class, mock_load_config, mock_logger
-    ):
+    async def test_get_actual_balance_api_error(self, mock_bitbank_class, mock_load_config, mock_logger):
         """API認証エラー時のフォールバック"""
         from src.core.exceptions import ExchangeAPIError
 
@@ -537,14 +507,10 @@ class TestCreateTradingOrchestrator:
 
     @pytest.mark.asyncio
     @patch("src.core.reporting.discord_notifier.DiscordManager")
-    async def test_create_trading_orchestrator_import_error(
-        self, mock_discord_manager, mock_config, mock_logger
-    ):
+    async def test_create_trading_orchestrator_import_error(self, mock_discord_manager, mock_config, mock_logger):
         """依存モジュール読み込みエラー"""
         # ImportErrorを引き起こす
-        with patch(
-            "src.data.bitbank_client.BitbankClient", side_effect=ImportError("Module error")
-        ):
+        with patch("src.data.bitbank_client.BitbankClient", side_effect=ImportError("Module error")):
             with pytest.raises(CryptoBotError, match="依存モジュール読み込みエラー"):
                 await create_trading_orchestrator(mock_config, mock_logger)
 

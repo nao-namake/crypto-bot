@@ -114,9 +114,7 @@ class WeeklyReportGenerator:
 
         # 週間損益計算
         weekly_pnl = sum(
-            trade.get("pnl", 0.0) or 0.0
-            for trade in trades
-            if trade["trade_type"] in ["exit", "tp", "sl"]
+            trade.get("pnl", 0.0) or 0.0 for trade in trades if trade["trade_type"] in ["exit", "tp", "sl"]
         )
 
         # 取引回数
@@ -124,11 +122,7 @@ class WeeklyReportGenerator:
         exit_count = len([t for t in trades if t["trade_type"] in ["exit", "tp", "sl"]])
 
         # 勝率計算
-        winning_trades = [
-            t
-            for t in trades
-            if t["trade_type"] in ["exit", "tp", "sl"] and (t.get("pnl", 0) or 0) > 0
-        ]
+        winning_trades = [t for t in trades if t["trade_type"] in ["exit", "tp", "sl"] and (t.get("pnl", 0) or 0) > 0]
         win_rate = len(winning_trades) / exit_count * 100 if exit_count > 0 else 0.0
 
         # 最大ドローダウン計算
@@ -184,9 +178,7 @@ class WeeklyReportGenerator:
 
         return max_dd
 
-    def _calculate_daily_pnl(
-        self, trades: List[Dict], start_date: datetime, end_date: datetime
-    ) -> List[Dict]:
+    def _calculate_daily_pnl(self, trades: List[Dict], start_date: datetime, end_date: datetime) -> List[Dict]:
         """
         日別損益計算
 
@@ -231,9 +223,7 @@ class WeeklyReportGenerator:
 
         return result
 
-    def _generate_pnl_chart(
-        self, start_date: datetime, end_date: datetime, stats: Dict
-    ) -> Optional[str]:
+    def _generate_pnl_chart(self, start_date: datetime, end_date: datetime, stats: Dict) -> Optional[str]:
         """
         損益曲線グラフ生成
 
@@ -323,8 +313,7 @@ class WeeklyReportGenerator:
         # タイトル・説明文
         title = "📊 週間レポート (Weekly Trading Report)"
         description = (
-            f"**期間**: {stats['start_date'].strftime('%Y/%m/%d')} 〜 "
-            f"{stats['end_date'].strftime('%Y/%m/%d')}"
+            f"**期間**: {stats['start_date'].strftime('%Y/%m/%d')} 〜 " f"{stats['end_date'].strftime('%Y/%m/%d')}"
         )
 
         # フィールド作成
@@ -349,9 +338,7 @@ class WeeklyReportGenerator:
             },
             {
                 "name": "🔢 取引回数 (Trades)",
-                "value": (
-                    f"エントリー: {stats['entry_count']}回\n" f"エグジット: {stats['exit_count']}回"
-                ),
+                "value": (f"エントリー: {stats['entry_count']}回\n" f"エグジット: {stats['exit_count']}回"),
                 "inline": True,
             },
             {

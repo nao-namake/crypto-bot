@@ -61,12 +61,8 @@ class BBReversalStrategy(StrategyBase):
             "sl_multiplier": get_threshold("strategies.bb_reversal.sl_multiplier", 1.5),
             # Phase 49.16: TP/SL設定（thresholds.yaml優先）
             "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
-            "min_profit_ratio": get_threshold(
-                "position_management.take_profit.min_profit_ratio", 0.010
-            ),
-            "take_profit_ratio": get_threshold(
-                "position_management.take_profit.default_ratio", 1.29
-            ),
+            "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio", 0.010),
+            "take_profit_ratio": get_threshold("position_management.take_profit.default_ratio", 1.29),
         }
 
         # 設定マージ
@@ -242,10 +238,7 @@ class BBReversalStrategy(StrategyBase):
             rsi = float(latest["rsi_14"])
 
             # SELL信号（BB上限タッチ + RSI買われすぎ）
-            if (
-                bb_position > self.config["bb_upper_threshold"]
-                and rsi > self.config["rsi_overbought"]
-            ):
+            if bb_position > self.config["bb_upper_threshold"] and rsi > self.config["rsi_overbought"]:
                 # 信頼度: BB位置が上限に近いほど高い
                 confidence = min(0.30 + (bb_position - 0.95) * 2.0, 0.50)
                 # 強度: BB位置の偏り度合い
@@ -256,14 +249,11 @@ class BBReversalStrategy(StrategyBase):
                     "confidence": confidence,
                     "strength": strength,
                     "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": f"BB上限タッチ・RSI買われすぎ→反転下落期待",
+                    "analysis": "BB上限タッチ・RSI買われすぎ→反転下落期待",
                 }
 
             # BUY信号（BB下限タッチ + RSI売られすぎ）
-            elif (
-                bb_position < self.config["bb_lower_threshold"]
-                and rsi < self.config["rsi_oversold"]
-            ):
+            elif bb_position < self.config["bb_lower_threshold"] and rsi < self.config["rsi_oversold"]:
                 # 信頼度: BB位置が下限に近いほど高い
                 confidence = min(0.30 + (0.05 - bb_position) * 2.0, 0.50)
                 # 強度: BB位置の偏り度合い
@@ -274,7 +264,7 @@ class BBReversalStrategy(StrategyBase):
                     "confidence": confidence,
                     "strength": strength,
                     "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": f"BB下限タッチ・RSI売られすぎ→反転上昇期待",
+                    "analysis": "BB下限タッチ・RSI売られすぎ→反転上昇期待",
                 }
 
             # HOLD信号

@@ -97,9 +97,7 @@ class RiskManagementOptimizer:
             # 5. 進捗表示
             if sharpe_ratio > self.best_sharpe:
                 self.best_sharpe = sharpe_ratio
-                self.logger.info(
-                    f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}"
-                )
+                self.logger.info(f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}")
 
             return sharpe_ratio
 
@@ -126,29 +124,27 @@ class RiskManagementOptimizer:
 
         # Phase 42: デイトレード最適化済みTP/SL固定値を使用（Optuna最適化から除外）
         # 適応型ATR倍率（低ボラティリティ）
-        params["position_management.stop_loss.adaptive_atr.low_volatility.multiplier"] = (
-            self.FIXED_TP_SL_PARAMS["sl_atr_low_vol"]
-        )
-
-        # 適応型ATR倍率（通常ボラティリティ）
-        params["position_management.stop_loss.adaptive_atr.normal_volatility.multiplier"] = (
-            self.FIXED_TP_SL_PARAMS["sl_atr_normal_vol"]
-        )
-
-        # 適応型ATR倍率（高ボラティリティ）
-        params["position_management.stop_loss.adaptive_atr.high_volatility.multiplier"] = (
-            self.FIXED_TP_SL_PARAMS["sl_atr_high_vol"]
-        )
-
-        # 最小SL距離比率
-        params["position_management.stop_loss.min_distance.ratio"] = self.FIXED_TP_SL_PARAMS[
-            "sl_min_distance_ratio"
+        params["position_management.stop_loss.adaptive_atr.low_volatility.multiplier"] = self.FIXED_TP_SL_PARAMS[
+            "sl_atr_low_vol"
         ]
 
+        # 適応型ATR倍率（通常ボラティリティ）
+        params["position_management.stop_loss.adaptive_atr.normal_volatility.multiplier"] = self.FIXED_TP_SL_PARAMS[
+            "sl_atr_normal_vol"
+        ]
+
+        # 適応型ATR倍率（高ボラティリティ）
+        params["position_management.stop_loss.adaptive_atr.high_volatility.multiplier"] = self.FIXED_TP_SL_PARAMS[
+            "sl_atr_high_vol"
+        ]
+
+        # 最小SL距離比率
+        params["position_management.stop_loss.min_distance.ratio"] = self.FIXED_TP_SL_PARAMS["sl_min_distance_ratio"]
+
         # 最小ATR倍率
-        params["position_management.stop_loss.min_distance.min_atr_multiplier"] = (
-            self.FIXED_TP_SL_PARAMS["sl_min_atr_multiplier"]
-        )
+        params["position_management.stop_loss.min_distance.min_atr_multiplier"] = self.FIXED_TP_SL_PARAMS[
+            "sl_min_atr_multiplier"
+        ]
 
         # ========================================
         # 2. テイクプロフィット関連パラメータ（Phase 42: 固定値使用）
@@ -156,14 +152,10 @@ class RiskManagementOptimizer:
 
         # Phase 42: デイトレード最適化済みTP/SL固定値を使用（Optuna最適化から除外）
         # リスクリワード比
-        params["position_management.take_profit.default_ratio"] = self.FIXED_TP_SL_PARAMS[
-            "tp_default_ratio"
-        ]
+        params["position_management.take_profit.default_ratio"] = self.FIXED_TP_SL_PARAMS["tp_default_ratio"]
 
         # 最小利益率
-        params["position_management.take_profit.min_profit_ratio"] = self.FIXED_TP_SL_PARAMS[
-            "tp_min_profit_ratio"
-        ]
+        params["position_management.take_profit.min_profit_ratio"] = self.FIXED_TP_SL_PARAMS["tp_min_profit_ratio"]
 
         # ========================================
         # 3. Kelly基準関連パラメータ
@@ -184,14 +176,10 @@ class RiskManagementOptimizer:
         # ========================================
 
         # 条件付き承認閾値
-        params["trading.risk_thresholds.conditional"] = trial.suggest_float(
-            "risk_conditional", 0.50, 0.75, step=0.05
-        )
+        params["trading.risk_thresholds.conditional"] = trial.suggest_float("risk_conditional", 0.50, 0.75, step=0.05)
 
         # 拒否閾値
-        params["trading.risk_thresholds.deny"] = trial.suggest_float(
-            "risk_deny", 0.75, 0.95, step=0.05
-        )
+        params["trading.risk_thresholds.deny"] = trial.suggest_float("risk_deny", 0.75, 0.95, step=0.05)
 
         return params
 
@@ -215,9 +203,7 @@ class RiskManagementOptimizer:
             "tp_default_ratio": self.FIXED_TP_SL_PARAMS["tp_default_ratio"],
             "tp_min_profit_ratio": self.FIXED_TP_SL_PARAMS["tp_min_profit_ratio"],
             # Kelly基準（Optuna最適化対象）
-            "kelly_max_position_ratio": trial.suggest_float(
-                "kelly_max_position_ratio", 0.01, 0.05, step=0.005
-            ),
+            "kelly_max_position_ratio": trial.suggest_float("kelly_max_position_ratio", 0.01, 0.05, step=0.005),
             "kelly_safety_factor": trial.suggest_float("kelly_safety_factor", 0.5, 1.0, step=0.05),
             # リスクスコア閾値（Optuna最適化対象）
             "risk_conditional": trial.suggest_float("risk_conditional", 0.50, 0.75, step=0.05),
@@ -240,15 +226,9 @@ class RiskManagementOptimizer:
 
         try:
             # パラメータの妥当性チェック
-            sl_low = params.get(
-                "position_management.stop_loss.adaptive_atr.low_volatility.multiplier", 2.5
-            )
-            sl_normal = params.get(
-                "position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0
-            )
-            sl_high = params.get(
-                "position_management.stop_loss.adaptive_atr.high_volatility.multiplier", 1.5
-            )
+            sl_low = params.get("position_management.stop_loss.adaptive_atr.low_volatility.multiplier", 2.5)
+            sl_normal = params.get("position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0)
+            sl_high = params.get("position_management.stop_loss.adaptive_atr.high_volatility.multiplier", 1.5)
             tp_ratio = params.get("position_management.take_profit.default_ratio", 2.5)
 
             # パラメータバリデーション
@@ -294,9 +274,7 @@ class RiskManagementOptimizer:
         Returns:
             Dict: 最適化結果
         """
-        self.logger.warning(
-            f"🚀 Phase 40.1: リスク管理パラメータ最適化開始（シミュレーションベース）"
-        )
+        self.logger.warning("🚀 Phase 40.1: リスク管理パラメータ最適化開始（シミュレーションベース）")
         self.logger.info(f"試行回数: {n_trials}回、タイムアウト: {timeout}秒")
 
         start_time = time.time()
@@ -312,10 +290,7 @@ class RiskManagementOptimizer:
         # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
         def logging_callback(study, trial):
             if trial.number % 50 == 0 or trial.number < 5:
-                print(
-                    f"Trial {trial.number}/{n_trials} "
-                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
-                )
+                print(f"Trial {trial.number}/{n_trials} " f"完了: value={trial.value:.4f}, best={study.best_value:.4f}")
 
         study.optimize(
             self.objective,
@@ -333,9 +308,7 @@ class RiskManagementOptimizer:
         # 結果保存
         study_stats = {
             "n_trials": len(study.trials),
-            "n_complete": len(
-                [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-            ),
+            "n_complete": len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]),
             "n_failed": len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]),
             "duration_seconds": duration,
         }

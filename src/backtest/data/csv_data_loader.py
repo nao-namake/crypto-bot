@@ -233,9 +233,7 @@ class BacktestCSVLoader:
 
             checks = {
                 "has_data": not df.empty,
-                "valid_columns": all(
-                    col in df.columns for col in ["open", "high", "low", "close", "volume"]
-                ),
+                "valid_columns": all(col in df.columns for col in ["open", "high", "low", "close", "volume"]),
                 "no_duplicates": not df.index.duplicated().any(),
                 "sorted_index": df.index.is_monotonic_increasing,
                 "no_null_values": not df.isnull().any().any(),

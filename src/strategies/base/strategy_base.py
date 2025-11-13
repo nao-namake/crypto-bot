@@ -174,9 +174,7 @@ class StrategyBase(ABC):
             # 後処理
             self._post_process_signal(signal)
 
-            self.logger.debug(
-                f"[{self.name}] シグナル生成完了: {signal.action} (信頼度: {signal.confidence:.3f})"
-            )
+            self.logger.debug(f"[{self.name}] シグナル生成完了: {signal.action} (信頼度: {signal.confidence:.3f})")
 
             return signal
 
@@ -259,9 +257,7 @@ class StrategyBase(ABC):
             "by_action": action_counts,
             "avg_confidence": total_confidence / len(self.signal_history),
             "success_rate": self.get_success_rate(),
-            "last_signal_time": (
-                self.last_signal.timestamp.isoformat() if self.last_signal else None
-            ),
+            "last_signal_time": (self.last_signal.timestamp.isoformat() if self.last_signal else None),
         }
 
     def enable(self):

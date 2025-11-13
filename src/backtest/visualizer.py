@@ -260,9 +260,7 @@ class BacktestVisualizer:
             timestamps = sorted(price_data.keys())
             prices = [price_data[ts] for ts in timestamps]
 
-            ax.plot(
-                range(len(prices)), prices, linewidth=1.5, color="#2E86AB", label="Price", alpha=0.7
-            )
+            ax.plot(range(len(prices)), prices, linewidth=1.5, color="#2E86AB", label="Price", alpha=0.7)
 
             # エントリー/エグジットマーカー
             for trade in trades:
@@ -301,9 +299,7 @@ class BacktestVisualizer:
                 except ValueError:
                     continue  # タイムスタンプが見つからない場合はスキップ
 
-            ax.set_title(
-                "価格チャート + エントリー/エグジットマーカー", fontsize=14, fontweight="bold"
-            )
+            ax.set_title("価格チャート + エントリー/エグジットマーカー", fontsize=14, fontweight="bold")
             ax.set_xlabel("時間軸（インデックス）", fontsize=12)
             ax.set_ylabel("価格（円）", fontsize=12)
             ax.legend(["Price", "Entry", "Exit (Win)", "Exit (Loss)"], loc="best")

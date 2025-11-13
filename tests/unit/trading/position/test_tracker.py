@@ -419,9 +419,7 @@ class TestUpdatePositionTpSl:
         """TP/SL両方更新"""
         tracker.add_position("order_123", "buy", 0.001, 14000000.0)
 
-        success = tracker.update_position_tp_sl(
-            "order_123", tp_order_id="tp_new_001", sl_order_id="sl_new_002"
-        )
+        success = tracker.update_position_tp_sl("order_123", tp_order_id="tp_new_001", sl_order_id="sl_new_002")
 
         assert success is True
         position = tracker.find_position("order_123")

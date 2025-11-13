@@ -298,9 +298,7 @@ class TestStrategyPerformanceAnalyzerDay2:
         """レジーム別分析が正しい構造を返すことを確認"""
         from src.core.services.regime_types import RegimeType
 
-        regime_metrics = await analyzer.analyze_regime_performance(
-            "ATRBased", sample_historical_data
-        )
+        regime_metrics = await analyzer.analyze_regime_performance("ATRBased", sample_historical_data)
 
         # 4レジーム分のメトリクスが返されることを確認
         assert isinstance(regime_metrics, dict)
@@ -390,15 +388,11 @@ class TestStrategyPerformanceAnalyzerDay2:
         assert metrics.strategy_name == "ATRBased"
 
         # レジーム別分析
-        regime_metrics = await analyzer.analyze_regime_performance(
-            "ATRBased", sample_historical_data
-        )
+        regime_metrics = await analyzer.analyze_regime_performance("ATRBased", sample_historical_data)
         assert len(regime_metrics) == 4
 
         # 相関分析（簡易版）- Phase 51.7 Day 7: 6戦略構成
-        all_strategy_trades = {
-            s: [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 1000}] for s in analyzer.strategies
-        }
+        all_strategy_trades = {s: [{"exit_timestamp": "2025-01-01 00:00:00", "pnl": 1000}] for s in analyzer.strategies}
         corr_df = analyzer.calculate_strategy_correlation(all_strategy_trades)
         assert corr_df.shape == (6, 6)
 

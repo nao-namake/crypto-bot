@@ -164,9 +164,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
         self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
@@ -179,9 +177,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 攻撃的設定：不一致時はより強いシグナル（BB confidence=0.6 > RSI confidence=0.5）を採用
         # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
@@ -195,9 +191,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": False}  # 高ストレス
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         self.assertEqual(decision["action"], EntryAction.HOLD)
         self.assertIn("市場ストレス高", decision["analysis"])
@@ -237,9 +231,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "high", "strength": 0.8}  # 高ボラティリティ
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 実装に合わせた動的信頼度の検証
         # 動的計算により期待値よりも低くなる可能性があることを考慮
@@ -315,9 +307,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # BB単独シグナルが処理されることを確認
         self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
@@ -330,9 +320,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # RSI単独シグナルが処理されることを確認
         self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
@@ -345,9 +333,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 中立状態でHOLDになることを確認
         self.assertEqual(decision["action"], EntryAction.HOLD)
@@ -359,9 +345,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 大きな乖離で微弱シグナルが生成されることを確認
         self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
@@ -373,9 +357,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "low", "strength": 0.1}  # 低ボラティリティ
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 低ボラティリティペナルティが適用されることを確認
         self.assertGreaterEqual(decision["confidence"], 0.0)
@@ -387,9 +369,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "low", "strength": 0.1}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # 最小信頼度未満でHOLDになることを確認
         self.assertEqual(decision["action"], EntryAction.HOLD)
@@ -403,9 +383,7 @@ class TestATRBasedStrategy(unittest.TestCase):
         atr_analysis = {"regime": "normal", "strength": 0.5}
         stress_analysis = {"filter_ok": True}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._make_decision(bb_analysis, rsi_analysis, atr_analysis, stress_analysis)
 
         # エラー時はHOLDが返されることを確認
         self.assertEqual(decision["action"], EntryAction.HOLD)

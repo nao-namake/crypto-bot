@@ -177,7 +177,7 @@ def print_regime_stats(data: Dict[str, any]) -> None:
     total_trades = sum(s["trade_count"] for s in stats.values())
     total_pnl = sum(s["total_pnl"] for s in stats.values())
 
-    print(f"📌 全体サマリー:")
+    print("📌 全体サマリー:")
     print(f"  - 総エントリー数: {data['total_entries']}件")
     print(f"  - 総エグジット数: {data['total_exits']}件")
     print(f"  - 総取引数: {total_trades}件")
@@ -186,10 +186,7 @@ def print_regime_stats(data: Dict[str, any]) -> None:
 
     print("📊 レジーム別詳細:")
     print("-" * 80)
-    print(
-        f"{'レジーム':<15} {'検出':<6} {'エントリー':<8} {'取引':<6} "
-        f"{'勝率':<8} {'平均損益':<10} {'総損益':<10}"
-    )
+    print(f"{'レジーム':<15} {'検出':<6} {'エントリー':<8} {'取引':<6} " f"{'勝率':<8} {'平均損益':<10} {'総損益':<10}")
     print("-" * 80)
 
     for regime, name in regime_names.items():
@@ -271,8 +268,7 @@ def suggest_optimization(data: Dict[str, any]) -> None:
         score = regime_scores[regime]
         s = stats[regime]
         print(
-            f"  - {name}: {score:.3f} "
-            f"(勝率{s['win_rate']:.1f}%, 平均¥{s['avg_pnl']:+.0f}, {s['trade_count']}取引)"
+            f"  - {name}: {score:.3f} " f"(勝率{s['win_rate']:.1f}%, 平均¥{s['avg_pnl']:+.0f}, {s['trade_count']}取引)"
         )
 
     print()
@@ -307,9 +303,7 @@ def suggest_optimization(data: Dict[str, any]) -> None:
 def main():
     if len(sys.argv) < 2:
         print("使用方法: python3 extract_regime_stats.py <log_file>")
-        print(
-            "例: python3 scripts/analysis/extract_regime_stats.py backtest_phase51.8_j4h_test.log"
-        )
+        print("例: python3 scripts/analysis/extract_regime_stats.py backtest_phase51.8_j4h_test.log")
         sys.exit(1)
 
     log_path = sys.argv[1]

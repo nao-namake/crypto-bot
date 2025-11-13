@@ -65,9 +65,7 @@ class TestShouldApplyCooldown:
     @patch("src.trading.position.cooldown.get_features_config")
     async def test_flexible_mode_disabled(self, mock_features, cooldown_manager, sample_evaluation):
         """柔軟モード無効時は常にTrue"""
-        mock_features.return_value = {
-            "trading": {"cooldown": {"enabled": True, "flexible_mode": False}}
-        }
+        mock_features.return_value = {"trading": {"cooldown": {"enabled": True, "flexible_mode": False}}}
 
         result = await cooldown_manager.should_apply_cooldown(sample_evaluation)
 
@@ -94,9 +92,7 @@ class TestShouldApplyCooldown:
 
     @pytest.mark.asyncio
     @patch("src.trading.position.cooldown.get_features_config")
-    async def test_strong_trend_skips_cooldown(
-        self, mock_features, cooldown_manager, sample_evaluation
-    ):
+    async def test_strong_trend_skips_cooldown(self, mock_features, cooldown_manager, sample_evaluation):
         """強トレンド時はクールダウンスキップ"""
         mock_features.return_value = {
             "trading": {
@@ -129,9 +125,7 @@ class TestShouldApplyCooldown:
 
     @pytest.mark.asyncio
     @patch("src.trading.position.cooldown.get_features_config")
-    async def test_weak_trend_applies_cooldown(
-        self, mock_features, cooldown_manager, sample_evaluation
-    ):
+    async def test_weak_trend_applies_cooldown(self, mock_features, cooldown_manager, sample_evaluation):
         """弱トレンド時はクールダウン適用"""
         mock_features.return_value = {
             "trading": {
@@ -163,9 +157,7 @@ class TestShouldApplyCooldown:
 
     @pytest.mark.asyncio
     @patch("src.trading.position.cooldown.get_features_config")
-    async def test_exception_handling_defaults_to_true(
-        self, mock_features, cooldown_manager, sample_evaluation
-    ):
+    async def test_exception_handling_defaults_to_true(self, mock_features, cooldown_manager, sample_evaluation):
         """例外発生時はデフォルトでTrue"""
         mock_features.side_effect = Exception("Config error")
 
@@ -369,9 +361,7 @@ class TestGetCooldownStatus:
     @patch("src.trading.position.cooldown.get_features_config")
     def test_normal_mode_status(self, mock_features, cooldown_manager):
         """通常モード状態"""
-        mock_features.return_value = {
-            "trading": {"cooldown": {"enabled": True, "flexible_mode": False}}
-        }
+        mock_features.return_value = {"trading": {"cooldown": {"enabled": True, "flexible_mode": False}}}
 
         status = cooldown_manager.get_cooldown_status(0.5)
 

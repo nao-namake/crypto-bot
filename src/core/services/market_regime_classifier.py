@@ -94,7 +94,7 @@ class MarketRegimeClassifier:
 
             # レンジ判定指標計算
             bb_width = self._calc_bb_width(df)
-            donchian_width = self._calc_donchian_width(df)
+            # 未使用: donchian_width = self._calc_donchian_width(df)
             price_range = self._calc_price_range(df, lookback=self.price_range_lookback)
 
             # トレンド判定指標計算
@@ -119,13 +119,11 @@ class MarketRegimeClassifier:
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), "
-                        f"価格変動={price_range:.4f} (< 0.02)"
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), " f"価格変動={price_range:.4f} (< 0.02)"
                     )
                 else:
                     self.logger.warning(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), "
-                        f"価格変動={price_range:.4f} (< 0.02)"
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), " f"価格変動={price_range:.4f} (< 0.02)"
                     )
                 return RegimeType.TIGHT_RANGE
 
@@ -133,40 +131,26 @@ class MarketRegimeClassifier:
             if self._is_trending(adx, ema_slope):
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
-                    self.logger.debug(
-                        f"📈 トレンド検出: ADX={adx:.2f} (> 25), "
-                        f"EMA傾き={ema_slope:.4f} (> 0.01)"
-                    )
+                    self.logger.debug(f"📈 トレンド検出: ADX={adx:.2f} (> 25), " f"EMA傾き={ema_slope:.4f} (> 0.01)")
                 else:
-                    self.logger.warning(
-                        f"📈 トレンド検出: ADX={adx:.2f} (> 25), "
-                        f"EMA傾き={ema_slope:.4f} (> 0.01)"
-                    )
+                    self.logger.warning(f"📈 トレンド検出: ADX={adx:.2f} (> 25), " f"EMA傾き={ema_slope:.4f} (> 0.01)")
                 return RegimeType.TRENDING
 
             # 4. 通常レンジ判定
             if self._is_normal_range(bb_width, adx):
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
-                    self.logger.debug(
-                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)"
-                    )
+                    self.logger.debug(f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)")
                 else:
-                    self.logger.warning(
-                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)"
-                    )
+                    self.logger.warning(f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)")
                 return RegimeType.NORMAL_RANGE
 
             # 5. デフォルト: 通常レンジ
             # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
             if os.environ.get("BACKTEST_MODE") == "true":
-                self.logger.debug(
-                    f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})"
-                )
+                self.logger.debug(f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})")
             else:
-                self.logger.warning(
-                    f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})"
-                )
+                self.logger.warning(f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})")
             return RegimeType.NORMAL_RANGE
 
         except Exception as e:

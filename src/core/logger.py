@@ -241,9 +241,7 @@ class CryptoBotLogger:
             self._discord_manager = notifier
         else:
             # 旧システムの場合は警告
-            self.logger.warning(
-                "⚠️ 旧Discord通知システムが渡されました - 新システムに移行してください"
-            )
+            self.logger.warning("⚠️ 旧Discord通知システムが渡されました - 新システムに移行してください")
 
     def _log_with_context(
         self,
@@ -476,8 +474,7 @@ class CryptoBotLogger:
         }
 
         self.info(
-            f"パフォーマンス: PnL={total_pnl:.2f} 勝率={win_rate:.1%} "
-            f"取引数={trade_count} DD={max_drawdown:.1%}",
+            f"パフォーマンス: PnL={total_pnl:.2f} 勝率={win_rate:.1%} " f"取引数={trade_count} DD={max_drawdown:.1%}",
             extra_data=perf_data,
             discord_notify=True,
         )

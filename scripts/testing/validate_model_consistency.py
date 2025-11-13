@@ -45,9 +45,7 @@ class ModelConsistencyValidator:
         # 2. production_model_metadata.json読み込み
         model_metadata = self._load_model_metadata()
         if not model_metadata:
-            self.warnings.append(
-                "⚠️  production_model_metadata.json not found - モデル未訓練の可能性"
-            )
+            self.warnings.append("⚠️  production_model_metadata.json not found - モデル未訓練の可能性")
 
         # 3. 有効戦略数カウント
         active_strategies = self._count_active_strategies()
@@ -70,7 +68,7 @@ class ModelConsistencyValidator:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            print(f"✅ feature_order.json読み込み成功")
+            print("✅ feature_order.json読み込み成功")
             print(f"   Phase: {data.get('phase', 'unknown')}")
             print(f"   Total features: {data.get('total_features', 'unknown')}")
             return data
@@ -87,11 +85,9 @@ class ModelConsistencyValidator:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            print(f"\n✅ production_model_metadata.json読み込み成功")
+            print("\n✅ production_model_metadata.json読み込み成功")
             print(f"   Phase: {data.get('phase', 'unknown')}")
-            print(
-                f"   Feature count: {data.get('training_info', {}).get('feature_count', 'unknown')}"
-            )
+            print(f"   Feature count: {data.get('training_info', {}).get('feature_count', 'unknown')}")
             print(f"   Feature names count: {len(data.get('feature_names', []))}")
             return data
         except Exception as e:
@@ -114,7 +110,7 @@ class ModelConsistencyValidator:
             # enabled戦略のみカウント
             active = [s for s in strategies_config.get("strategies", []) if s.get("enabled", False)]
             count = len(active)
-            print(f"\n✅ strategies.yaml読み込み成功")
+            print("\n✅ strategies.yaml読み込み成功")
             print(f"   有効戦略数: {count}")
             for strategy in active:
                 print(f"     - {strategy.get('name', 'unknown')}")
@@ -123,9 +119,7 @@ class ModelConsistencyValidator:
             self.warnings.append(f"⚠️  strategies.yaml読み込みエラー: {e}")
             return 0
 
-    def _validate_feature_counts(
-        self, feature_order_data: Dict, model_metadata: Optional[Dict]
-    ) -> None:
+    def _validate_feature_counts(self, feature_order_data: Dict, model_metadata: Optional[Dict]) -> None:
         """特徴量数の整合性検証"""
         print("\n" + "=" * 60)
         print("📊 特徴量数整合性検証")
@@ -135,7 +129,7 @@ class ModelConsistencyValidator:
         expected_full = feature_order_data.get("feature_levels", {}).get("full", {}).get("count")
         expected_basic = feature_order_data.get("feature_levels", {}).get("basic", {}).get("count")
 
-        print(f"\n🎯 期待値 (feature_order.json):")
+        print("\n🎯 期待値 (feature_order.json):")
         print(f"   Full model: {expected_full} features")
         print(f"   Basic model: {expected_basic} features")
 
@@ -147,25 +141,21 @@ class ModelConsistencyValidator:
         actual_feature_count = model_metadata.get("training_info", {}).get("feature_count")
         actual_feature_names_count = len(model_metadata.get("feature_names", []))
 
-        print(f"\n📦 実際のモデル (production_model_metadata.json):")
+        print("\n📦 実際のモデル (production_model_metadata.json):")
         print(f"   training_info.feature_count: {actual_feature_count}")
         print(f"   len(feature_names): {actual_feature_names_count}")
 
         # 検証
         if actual_feature_count != expected_full:
+            self.errors.append(f"❌ 特徴量数不一致: モデル={actual_feature_count}, 期待値={expected_full}")
             self.errors.append(
-                f"❌ 特徴量数不一致: モデル={actual_feature_count}, 期待値={expected_full}"
-            )
-            self.errors.append(
-                f"   → モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --model both --n-classes 3 --threshold 0.005 --optimize --n-trials 50"
+                "   → モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --model both --n-classes 3 --threshold 0.005 --optimize --n-trials 50"
             )
         else:
             print(f"\n✅ 特徴量数一致: {actual_feature_count} == {expected_full}")
 
         if actual_feature_names_count != expected_full:
-            self.errors.append(
-                f"❌ feature_names数不一致: {actual_feature_names_count} != {expected_full}"
-            )
+            self.errors.append(f"❌ feature_names数不一致: {actual_feature_names_count} != {expected_full}")
 
     def _validate_strategy_signals(self, feature_order_data: Dict, active_strategies: int) -> None:
         """戦略信号特徴量の整合性検証"""
@@ -174,20 +164,16 @@ class ModelConsistencyValidator:
         print("=" * 60)
 
         # feature_order.jsonの戦略信号特徴量
-        strategy_signals = feature_order_data.get("feature_categories", {}).get(
-            "strategy_signals", {}
-        )
+        strategy_signals = feature_order_data.get("feature_categories", {}).get("strategy_signals", {})
         expected_signals = len(strategy_signals.get("features", []))
 
-        print(f"\n🎯 期待値:")
+        print("\n🎯 期待値:")
         print(f"   有効戦略数: {active_strategies}")
         print(f"   戦略信号特徴量数: {expected_signals}")
 
         if active_strategies > 0 and active_strategies != expected_signals:
-            self.errors.append(
-                f"❌ 戦略信号数不一致: 有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}"
-            )
-            self.errors.append(f"   → feature_order.jsonのstrategy_signalsを更新してください")
+            self.errors.append(f"❌ 戦略信号数不一致: 有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}")
+            self.errors.append("   → feature_order.jsonのstrategy_signalsを更新してください")
         else:
             print(f"\n✅ 戦略信号数一致: {active_strategies} == {expected_signals}")
 
@@ -198,14 +184,10 @@ class ModelConsistencyValidator:
         print("=" * 60)
 
         # 期待されるモデルファイル
-        full_model_file = (
-            feature_order_data.get("feature_levels", {}).get("full", {}).get("model_file")
-        )
-        basic_model_file = (
-            feature_order_data.get("feature_levels", {}).get("basic", {}).get("model_file")
-        )
+        full_model_file = feature_order_data.get("feature_levels", {}).get("full", {}).get("model_file")
+        basic_model_file = feature_order_data.get("feature_levels", {}).get("basic", {}).get("model_file")
 
-        print(f"\n🎯 期待されるモデルファイル:")
+        print("\n🎯 期待されるモデルファイル:")
         print(f"   Full: {full_model_file}")
         print(f"   Basic: {basic_model_file}")
 

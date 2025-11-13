@@ -305,9 +305,7 @@ class ModelManager:
                 "total_models": len(self.metadata),
                 "valid_models": model_count,
                 "total_size_mb": total_size / (1024 * 1024),
-                "avg_size_mb": (
-                    (total_size / model_count / (1024 * 1024)) if model_count > 0 else 0
-                ),
+                "avg_size_mb": ((total_size / model_count / (1024 * 1024)) if model_count > 0 else 0),
                 "base_path": str(self.base_path),
             }
 

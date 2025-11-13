@@ -60,9 +60,7 @@ class MLServiceAdapter:
         self.is_fitted = self.loader.is_fitted
         self.current_feature_count = None  # Phase 50.8: 現在のモデルの特徴量数
 
-    def predict(
-        self, X: Union[pd.DataFrame, np.ndarray], use_confidence: bool = True
-    ) -> np.ndarray:
+    def predict(self, X: Union[pd.DataFrame, np.ndarray], use_confidence: bool = True) -> np.ndarray:
         """
         統一predict インターフェース
 
@@ -78,10 +76,7 @@ class MLServiceAdapter:
 
         try:
             # EnsembleModelの場合は use_confidence パラメータを渡す
-            if (
-                hasattr(self.model, "predict")
-                and "use_confidence" in self.model.predict.__code__.co_varnames
-            ):
+            if hasattr(self.model, "predict") and "use_confidence" in self.model.predict.__code__.co_varnames:
                 return self.model.predict(X, use_confidence=use_confidence)
             else:
                 return self.model.predict(X)
@@ -182,9 +177,7 @@ class MLServiceAdapter:
 
             # ロードされたモデルレベルを確認
             level_name = self.loader._determine_feature_level(feature_count)
-            self.logger.info(
-                f"✅ Phase 50.8: {level_name}モデルロード成功（{feature_count}特徴量）"
-            )
+            self.logger.info(f"✅ Phase 50.8: {level_name}モデルロード成功（{feature_count}特徴量）")
             return True
 
         except Exception as e:

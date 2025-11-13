@@ -173,9 +173,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         crossover = self.strategy._detect_stochastic_crossover(df)
         self.assertEqual(crossover, "none")
 
-    @patch(
-        "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
-    )
+    @patch("src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management")
     def test_analyze_sell_signal(self, mock_signal_builder):
         """SELL信号生成テスト - 過買い + ベアクロス + RSI買われすぎ"""
         # SELL条件: stoch_k > 80, stoch_d > 80, ベアクロス, rsi > 65, ADX < 20
@@ -197,9 +195,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         self.assertGreater(decision["confidence"], 0.25)
         self.assertGreater(decision["strength"], 0)
 
-    @patch(
-        "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
-    )
+    @patch("src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management")
     def test_analyze_buy_signal(self, mock_signal_builder):
         """BUY信号生成テスト - 過売り + ゴールデンクロス + RSI売られすぎ"""
         # BUY条件: stoch_k < 20, stoch_d < 20, ゴールデンクロス, rsi < 35, ADX < 20

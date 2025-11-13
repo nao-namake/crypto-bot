@@ -98,9 +98,7 @@ class BaseReporter:
 
         return markdown
 
-    def format_discord_embed(
-        self, data: Dict, title: str = "レポート", color: int = 0x00FF00
-    ) -> Dict:
+    def format_discord_embed(self, data: Dict, title: str = "レポート", color: int = 0x00FF00) -> Dict:
         """
         Discord通知用embed生成
 

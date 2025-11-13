@@ -203,7 +203,7 @@ class Phase40UnifiedOptimizer:
                 if self.use_hybrid_backtest:
                     # ハイブリッド最適化実行（Phase 40.5実装）
                     self.logger.info(
-                        f"🔬 ハイブリッド最適化モード: "
+                        "🔬 ハイブリッド最適化モード: "
                         f"{self.n_simulation_trials}試行 → "
                         f"上位{self.n_lightweight_candidates}候補 → "
                         f"上位{self.n_full_candidates}候補"
@@ -215,9 +215,7 @@ class Phase40UnifiedOptimizer:
                     )
                 else:
                     # 通常の最適化実行（シミュレーションベース）
-                    results = optimizer.optimize(
-                        n_trials=phase["n_trials"], timeout=phase["timeout"]
-                    )
+                    results = optimizer.optimize(n_trials=phase["n_trials"], timeout=phase["timeout"])
 
                 success = results.get("best_value", -10.0) > -5.0
 
@@ -322,7 +320,7 @@ class Phase40UnifiedOptimizer:
         print("🎉 Phase 40統合最適化完了")
         print("=" * 80)
         print(f"\n実行時間: {hours}時間{minutes}分")
-        print(f"最適化パラメータ総数: 79")
+        print("最適化パラメータ総数: 79")
         print("\n完了Phase:")
         for phase in self.phases:
             print(f"  ✅ {phase['name']}")

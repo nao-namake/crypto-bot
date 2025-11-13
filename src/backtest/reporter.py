@@ -95,9 +95,7 @@ class TradeTracker:
             "strategy": strategy,
             "regime": regime,  # Phase 51.8-J4-G: レジーム情報保存
         }
-        self.logger.debug(
-            f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})"
-        )
+        self.logger.debug(f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})")
 
     def record_exit(
         self, order_id: str, exit_price: float, exit_timestamp, exit_reason: str = "unknown"
@@ -126,9 +124,7 @@ class TradeTracker:
         # 保有期間計算（分単位）- Phase 51.4-Day2追加
         if hasattr(entry["entry_timestamp"], "timestamp"):
             # datetime objectの場合
-            holding_period = (
-                exit_timestamp.timestamp() - entry["entry_timestamp"].timestamp()
-            ) / 60
+            holding_period = (exit_timestamp.timestamp() - entry["entry_timestamp"].timestamp()) / 60
         elif isinstance(entry["entry_timestamp"], (int, float)):
             # Unix timestampの場合
             holding_period = (exit_timestamp - entry["entry_timestamp"]) / 60
@@ -137,9 +133,7 @@ class TradeTracker:
             holding_period = 0.0
 
         # Phase 51.8-9準備: Timestamp serialization対応
-        exit_timestamp_str = (
-            str(exit_timestamp) if hasattr(exit_timestamp, "__str__") else exit_timestamp
-        )
+        exit_timestamp_str = str(exit_timestamp) if hasattr(exit_timestamp, "__str__") else exit_timestamp
 
         # 取引完了情報
         trade = {
@@ -171,9 +165,7 @@ class TradeTracker:
 
         return trade
 
-    def _calculate_pnl(
-        self, side: str, amount: float, entry_price: float, exit_price: float
-    ) -> float:
+    def _calculate_pnl(self, side: str, amount: float, entry_price: float, exit_price: float) -> float:
         """
         損益計算（手数料考慮なし・簡易版）
 
@@ -459,18 +451,12 @@ class BacktestReporter:
             self.logger.warning(f"総損益: ¥{performance_metrics.get('total_pnl', 0.0):,.0f}")
             self.logger.warning(f"総利益: ¥{performance_metrics.get('total_profit', 0.0):,.0f}")
             self.logger.warning(f"総損失: ¥{performance_metrics.get('total_loss', 0.0):,.0f}")
-            self.logger.warning(
-                f"プロフィットファクター: {performance_metrics.get('profit_factor', 0.0):.2f}"
-            )
+            self.logger.warning(f"プロフィットファクター: {performance_metrics.get('profit_factor', 0.0):.2f}")
             self.logger.warning(
                 f"最大ドローダウン: ¥{performance_metrics.get('max_drawdown', 0.0):,.0f} ({performance_metrics.get('max_drawdown_pct', 0.0):.2f}%)"
             )
-            self.logger.warning(
-                f"平均勝ちトレード: ¥{performance_metrics.get('average_win', 0.0):,.0f}"
-            )
-            self.logger.warning(
-                f"平均負けトレード: ¥{performance_metrics.get('average_loss', 0.0):,.0f}"
-            )
+            self.logger.warning(f"平均勝ちトレード: ¥{performance_metrics.get('average_win', 0.0):,.0f}")
+            self.logger.warning(f"平均負けトレード: ¥{performance_metrics.get('average_loss', 0.0):,.0f}")
             self.logger.warning("=" * 60)
 
             # Phase 51.8-J4-G: レジーム別パフォーマンスサマリー
@@ -492,9 +478,7 @@ class BacktestReporter:
             # Phase 49.3: テキストレポート生成
             text_filename = f"backtest_{timestamp}.txt"
             text_filepath = self.output_dir / text_filename
-            await self._generate_text_report(
-                text_filepath, report_data, start_date_str, end_date_str
-            )
+            await self._generate_text_report(text_filepath, report_data, start_date_str, end_date_str)
 
             self.logger.info(f"バックテストレポート生成完了(TEXT): {text_filepath}")
 
@@ -521,9 +505,7 @@ class BacktestReporter:
             self.logger.error(f"レポート生成エラー: {e}")
             raise
 
-    async def _generate_text_report(
-        self, filepath: Path, report_data: Dict, start_date: str, end_date: str
-    ):
+    async def _generate_text_report(self, filepath: Path, report_data: Dict, start_date: str, end_date: str):
         """
         テキストレポート生成（Phase 49.3: 詳細な損益レポート）
 

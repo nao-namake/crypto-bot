@@ -250,15 +250,13 @@ class TradingOrchestrator:
         """
         import logging
 
-        from ..config import get_threshold
-
         # Phase 35: バックテスト最適化設定取得
         backtest_log_level = get_threshold("backtest.log_level", "WARNING")
         discord_enabled = get_threshold("backtest.discord_enabled", False)
 
         # 元の設定を保存（復元用）
         original_log_level = self.logger.logger.level
-        original_discord_enabled = getattr(self.logger, "_discord_manager", None) is not None
+        # 未使用変数削除: original_discord_enabled
 
         try:
             # Phase 35: ログレベルを動的変更（大量ログ出力を抑制）
@@ -269,9 +267,7 @@ class TradingOrchestrator:
                 handler.setLevel(log_level_value)
             # Phase 35: rootロガーも変更（全コンポーネントに適用）
             logging.getLogger().setLevel(log_level_value)
-            self.logger.info(
-                f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）"
-            )
+            self.logger.info(f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）")
 
             # Phase 35: Discord通知を一時的に無効化（ネットワーク通信削減）
             discord_manager_backup = None
@@ -327,9 +323,7 @@ class TradingOrchestrator:
             self.logger.info("✅ バックテストモード設定を復元しました")
 
 
-async def create_trading_orchestrator(
-    config: Config, logger: CryptoBotLogger
-) -> TradingOrchestrator:
+async def create_trading_orchestrator(config: Config, logger: CryptoBotLogger) -> TradingOrchestrator:
     """
     TradingOrchestrator作成用ファクトリー関数
 
@@ -362,9 +356,7 @@ async def create_trading_orchestrator(
         if webhook_path.exists():
             try:
                 webhook_url = webhook_path.read_text().strip()
-                logger.info(
-                    f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）"
-                )
+                logger.info(f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）")
             except Exception as e:
                 logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
                 webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
@@ -408,9 +400,7 @@ async def create_trading_orchestrator(
 
         # 戦略を個別に登録
         for strategy_data in loaded_strategies:
-            strategy_service.register_strategy(
-                strategy_data["instance"], weight=strategy_data["weight"]
-            )
+            strategy_service.register_strategy(strategy_data["instance"], weight=strategy_data["weight"])
             logger.info(
                 f"   - {strategy_data['metadata']['name']}: "
                 f"weight={strategy_data['weight']}, "

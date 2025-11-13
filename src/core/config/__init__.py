@@ -179,9 +179,7 @@ class Config:
         return result
 
     @staticmethod
-    def _create_generic_config(
-        config_class, section_name: str, config_data: dict, extra_data: dict = None
-    ) -> any:
+    def _create_generic_config(config_class, section_name: str, config_data: dict, extra_data: dict = None) -> any:
         """汎用設定作成メソッド（重複コード削減・深いマージ対応）"""
         data = config_data.get(section_name, {}).copy()
 

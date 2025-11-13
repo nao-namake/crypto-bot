@@ -85,9 +85,7 @@ class TestMLIntegration:
 
         # 4. モデル管理システムでの保存
         manager = ModelManager(base_path=temp_model_dir)
-        version = manager.save_model(
-            ensemble, description="End-to-end test model", performance_metrics=metrics
-        )
+        version = manager.save_model(ensemble, description="End-to-end test model", performance_metrics=metrics)
 
         assert version in manager.metadata
 
@@ -291,9 +289,7 @@ class TestMLIntegration:
             ensemble.fit(X, y)
             metrics = ensemble.evaluate(X, y)
 
-            version = manager.save_model(
-                ensemble, description=f"Model version {i + 1}", performance_metrics=metrics
-            )
+            version = manager.save_model(ensemble, description=f"Model version {i + 1}", performance_metrics=metrics)
             versions.append(version)
 
             # バージョン名重複を避けるため少し待機

@@ -120,14 +120,10 @@ class MLHyperparameterOptimizer:
         params["models.lgbm.num_leaves"] = trial.suggest_int("lgbm_num_leaves", 20, 150, step=10)
 
         # 2. learning_rate: 学習率（0.01-0.3・対数スケール）
-        params["models.lgbm.learning_rate"] = trial.suggest_float(
-            "lgbm_learning_rate", 0.01, 0.3, log=True
-        )
+        params["models.lgbm.learning_rate"] = trial.suggest_float("lgbm_learning_rate", 0.01, 0.3, log=True)
 
         # 3. n_estimators: ツリーの数（50-500）
-        params["models.lgbm.n_estimators"] = trial.suggest_int(
-            "lgbm_n_estimators", 50, 500, step=50
-        )
+        params["models.lgbm.n_estimators"] = trial.suggest_int("lgbm_n_estimators", 50, 500, step=50)
 
         # 4. max_depth: ツリーの最大深さ（3-15・-1も可）
         max_depth = trial.suggest_int("lgbm_max_depth", 3, 15)
@@ -137,19 +133,13 @@ class MLHyperparameterOptimizer:
         params["models.lgbm.max_depth"] = max_depth
 
         # 5. min_child_samples: 葉ノードの最小サンプル数（10-100）
-        params["models.lgbm.min_child_samples"] = trial.suggest_int(
-            "lgbm_min_child_samples", 10, 100, step=10
-        )
+        params["models.lgbm.min_child_samples"] = trial.suggest_int("lgbm_min_child_samples", 10, 100, step=10)
 
         # 6. feature_fraction: 特徴量サンプリング比率（0.6-1.0）
-        params["models.lgbm.feature_fraction"] = trial.suggest_float(
-            "lgbm_feature_fraction", 0.6, 1.0, step=0.05
-        )
+        params["models.lgbm.feature_fraction"] = trial.suggest_float("lgbm_feature_fraction", 0.6, 1.0, step=0.05)
 
         # 7. bagging_fraction: データサンプリング比率（0.6-1.0）
-        params["models.lgbm.bagging_fraction"] = trial.suggest_float(
-            "lgbm_bagging_fraction", 0.6, 1.0, step=0.05
-        )
+        params["models.lgbm.bagging_fraction"] = trial.suggest_float("lgbm_bagging_fraction", 0.6, 1.0, step=0.05)
 
         # 8. bagging_freq: バギング頻度（0-10）
         # bagging_fraction < 1.0 の場合のみ有効
@@ -159,14 +149,10 @@ class MLHyperparameterOptimizer:
             params["models.lgbm.bagging_freq"] = 0
 
         # 9. reg_alpha: L1正則化（0.0-10.0・対数スケール）
-        params["models.lgbm.reg_alpha"] = trial.suggest_float(
-            "lgbm_reg_alpha", 1e-8, 10.0, log=True
-        )
+        params["models.lgbm.reg_alpha"] = trial.suggest_float("lgbm_reg_alpha", 1e-8, 10.0, log=True)
 
         # 10. reg_lambda: L2正則化（0.0-10.0・対数スケール）
-        params["models.lgbm.reg_lambda"] = trial.suggest_float(
-            "lgbm_reg_lambda", 1e-8, 10.0, log=True
-        )
+        params["models.lgbm.reg_lambda"] = trial.suggest_float("lgbm_reg_lambda", 1e-8, 10.0, log=True)
 
         # ========================================
         # XGBoost（10パラメータ）
@@ -176,9 +162,7 @@ class MLHyperparameterOptimizer:
         params["models.xgb.max_depth"] = trial.suggest_int("xgb_max_depth", 3, 15)
 
         # 2. learning_rate: 学習率（0.01-0.3・対数スケール）
-        params["models.xgb.learning_rate"] = trial.suggest_float(
-            "xgb_learning_rate", 0.01, 0.3, log=True
-        )
+        params["models.xgb.learning_rate"] = trial.suggest_float("xgb_learning_rate", 0.01, 0.3, log=True)
 
         # 3. n_estimators: ツリーの数（50-500）
         params["models.xgb.n_estimators"] = trial.suggest_int("xgb_n_estimators", 50, 500, step=50)
@@ -190,9 +174,7 @@ class MLHyperparameterOptimizer:
         params["models.xgb.subsample"] = trial.suggest_float("xgb_subsample", 0.6, 1.0, step=0.05)
 
         # 6. colsample_bytree: 特徴量サンプリング比率（0.6-1.0）
-        params["models.xgb.colsample_bytree"] = trial.suggest_float(
-            "xgb_colsample_bytree", 0.6, 1.0, step=0.05
-        )
+        params["models.xgb.colsample_bytree"] = trial.suggest_float("xgb_colsample_bytree", 0.6, 1.0, step=0.05)
 
         # 7. gamma: 分割のための最小損失削減（0.0-5.0）
         params["models.xgb.gamma"] = trial.suggest_float("xgb_gamma", 0.0, 5.0, step=0.5)
@@ -204,9 +186,7 @@ class MLHyperparameterOptimizer:
         params["models.xgb.lambda"] = trial.suggest_float("xgb_lambda", 1e-8, 10.0, log=True)
 
         # 10. scale_pos_weight: 正例の重み（0.5-2.0）
-        params["models.xgb.scale_pos_weight"] = trial.suggest_float(
-            "xgb_scale_pos_weight", 0.5, 2.0, step=0.1
-        )
+        params["models.xgb.scale_pos_weight"] = trial.suggest_float("xgb_scale_pos_weight", 0.5, 2.0, step=0.1)
 
         # ========================================
         # RandomForest（10パラメータ）
@@ -229,13 +209,9 @@ class MLHyperparameterOptimizer:
         params["models.rf.min_samples_leaf"] = trial.suggest_int("rf_min_samples_leaf", 1, 10)
 
         # 5. max_features: 分割時の最大特徴量数（sqrt/log2/0.5-1.0）
-        max_features_type = trial.suggest_categorical(
-            "rf_max_features_type", ["sqrt", "log2", "float"]
-        )
+        max_features_type = trial.suggest_categorical("rf_max_features_type", ["sqrt", "log2", "float"])
         if max_features_type == "float":
-            params["models.rf.max_features"] = trial.suggest_float(
-                "rf_max_features_float", 0.5, 1.0, step=0.1
-            )
+            params["models.rf.max_features"] = trial.suggest_float("rf_max_features_float", 0.5, 1.0, step=0.1)
         else:
             params["models.rf.max_features"] = max_features_type
 
@@ -247,9 +223,7 @@ class MLHyperparameterOptimizer:
         params["models.rf.max_leaf_nodes"] = rf_max_leaf_nodes
 
         # 7. min_impurity_decrease: 不純度減少の最小値（0.0-0.1）
-        params["models.rf.min_impurity_decrease"] = trial.suggest_float(
-            "rf_min_impurity_decrease", 0.0, 0.1, step=0.01
-        )
+        params["models.rf.min_impurity_decrease"] = trial.suggest_float("rf_min_impurity_decrease", 0.0, 0.1, step=0.01)
 
         # 8. bootstrap: ブートストラップサンプリング（True/False）
         params["models.rf.bootstrap"] = trial.suggest_categorical("rf_bootstrap", [True, False])
@@ -303,8 +277,7 @@ class MLHyperparameterOptimizer:
                 max_leaves_for_depth = 2**max_depth
                 if num_leaves > max_leaves_for_depth:
                     self.logger.warning(
-                        f"⚠️ LightGBM検証エラー: num_leaves({num_leaves}) > "
-                        f"2^max_depth({max_leaves_for_depth})"
+                        f"⚠️ LightGBM検証エラー: num_leaves({num_leaves}) > " f"2^max_depth({max_leaves_for_depth})"
                     )
                     return False
 
@@ -530,10 +503,7 @@ class MLHyperparameterOptimizer:
         # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
         def logging_callback(study, trial):
             if trial.number % 50 == 0 or trial.number < 5:
-                print(
-                    f"Trial {trial.number}/{n_trials} "
-                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
-                )
+                print(f"Trial {trial.number}/{n_trials} " f"完了: value={trial.value:.4f}, best={study.best_value:.4f}")
 
         study.optimize(
             self.objective,
@@ -551,9 +521,7 @@ class MLHyperparameterOptimizer:
         # 結果保存
         study_stats = {
             "n_trials": len(study.trials),
-            "n_complete": len(
-                [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-            ),
+            "n_complete": len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]),
             "n_failed": len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]),
             "duration_seconds": duration,
         }

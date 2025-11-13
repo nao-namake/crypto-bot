@@ -38,14 +38,11 @@ class StrategyTheoreticalAnalyzer:
 
         # 戦略の設計思想（regime_affinityから取得）
         self.strategy_types = {
-            s["metadata"]["name"]: s["config"].get("regime_affinity", "both")
-            for s in strategies_data
+            s["metadata"]["name"]: s["config"].get("regime_affinity", "both") for s in strategies_data
         }
 
         # 戦略の主要指標（indicatorsから取得）
-        self.strategy_indicators = {
-            s["metadata"]["name"]: s["config"].get("indicators", []) for s in strategies_data
-        }
+        self.strategy_indicators = {s["metadata"]["name"]: s["config"].get("indicators", []) for s in strategies_data}
 
         self.logger.info("✅ StrategyTheoreticalAnalyzer初期化完了")
 
@@ -88,11 +85,7 @@ class StrategyTheoreticalAnalyzer:
         # 基準1: 全レジームで重みが0の戦略
         never_used = []
         for strategy in self.strategies:
-            used_count = sum(
-                1
-                for regime_data in coverage.values()
-                if strategy in regime_data["active_strategies"]
-            )
+            used_count = sum(1 for regime_data in coverage.values() if strategy in regime_data["active_strategies"])
             if used_count == 0:
                 never_used.append(strategy)
 
@@ -111,11 +104,7 @@ class StrategyTheoreticalAnalyzer:
         # 基準2: 使用頻度が極めて低い戦略（1レジームのみ）
         low_usage = []
         for strategy in self.strategies:
-            used_count = sum(
-                1
-                for regime_data in coverage.values()
-                if strategy in regime_data["active_strategies"]
-            )
+            used_count = sum(1 for regime_data in coverage.values() if strategy in regime_data["active_strategies"])
             if 0 < used_count <= 1:
                 low_usage.append(strategy)
 
@@ -159,9 +148,7 @@ class StrategyTheoreticalAnalyzer:
         sorted_redundant = sorted(redundant, key=lambda x: 0 if x["severity"] == "high" else 1)
 
         # 上位3-4戦略を削除候補に
-        deletion_candidates = (
-            sorted_redundant[:4] if len(sorted_redundant) >= 4 else sorted_redundant
-        )
+        deletion_candidates = sorted_redundant[:4] if len(sorted_redundant) >= 4 else sorted_redundant
 
         return {
             "deletion_candidates": deletion_candidates,
@@ -171,9 +158,7 @@ class StrategyTheoreticalAnalyzer:
             ],
         }
 
-    def generate_report(
-        self, regime_weights: dict, coverage: dict, redundant: list, recommendation: dict
-    ) -> str:
+    def generate_report(self, regime_weights: dict, coverage: dict, redundant: list, recommendation: dict) -> str:
         """包括的レポート生成"""
         lines = []
         lines.append("=" * 80)

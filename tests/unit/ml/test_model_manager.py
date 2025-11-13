@@ -258,8 +258,7 @@ class TestModelManager:
         # 勝者判定（手動版）
         winner = (
             "model_b"
-            if test_result["model_b_metrics"]["accuracy"]
-            > test_result["model_a_metrics"]["accuracy"]
+            if test_result["model_b_metrics"]["accuracy"] > test_result["model_a_metrics"]["accuracy"]
             else "model_a"
         )
         assert winner == "model_b"

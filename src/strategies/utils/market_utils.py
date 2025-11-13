@@ -61,21 +61,11 @@ class MarketUncertaintyCalculator:
             from ...core.config.threshold_manager import get_threshold
 
             # 設定値取得（thresholds.yaml: dynamic_confidence.market_uncertainty）
-            volatility_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
-            )
-            volume_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
-            )
-            volume_multiplier = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
-            )
-            price_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
-            )
-            uncertainty_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
-            )
+            volatility_max = get_threshold("dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05)
+            volume_max = get_threshold("dynamic_confidence.market_uncertainty.volume_factor_max", 0.03)
+            volume_multiplier = get_threshold("dynamic_confidence.market_uncertainty.volume_multiplier", 0.1)
+            price_max = get_threshold("dynamic_confidence.market_uncertainty.price_factor_max", 0.02)
+            uncertainty_max = get_threshold("dynamic_confidence.market_uncertainty.uncertainty_max", 0.10)
 
             # 1. ATRベースのボラティリティ要因
             current_price = float(df["close"].iloc[-1])
@@ -132,21 +122,11 @@ class MarketUncertaintyCalculator:
         try:
             from ...core.config.threshold_manager import get_threshold
 
-            volatility_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
-            )
-            volume_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
-            )
-            volume_multiplier = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
-            )
-            price_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
-            )
-            uncertainty_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
-            )
+            volatility_max = get_threshold("dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05)
+            volume_max = get_threshold("dynamic_confidence.market_uncertainty.volume_factor_max", 0.03)
+            volume_multiplier = get_threshold("dynamic_confidence.market_uncertainty.volume_multiplier", 0.1)
+            price_max = get_threshold("dynamic_confidence.market_uncertainty.price_factor_max", 0.02)
+            uncertainty_max = get_threshold("dynamic_confidence.market_uncertainty.uncertainty_max", 0.10)
 
             # 各要因計算
             current_price = float(df["close"].iloc[-1])

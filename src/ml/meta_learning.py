@@ -43,19 +43,13 @@ class MarketRegimeAnalyzer:
         # thresholds.yamlから設定取得（ハードコード禁止）
         self.atr_window = get_threshold("ml.meta_learning.market_features.atr_window", 14)
         self.bb_window = get_threshold("ml.meta_learning.market_features.bb_window", 20)
-        self.volatility_ratio_window = get_threshold(
-            "ml.meta_learning.market_features.volatility_ratio_window", 7
-        )
+        self.volatility_ratio_window = get_threshold("ml.meta_learning.market_features.volatility_ratio_window", 7)
         self.ema_short = get_threshold("ml.meta_learning.market_features.ema_short", 20)
         self.ema_long = get_threshold("ml.meta_learning.market_features.ema_long", 50)
         self.adx_window = get_threshold("ml.meta_learning.market_features.adx_window", 14)
-        self.trend_strength_threshold = get_threshold(
-            "ml.meta_learning.market_features.trend_strength_threshold", 0.5
-        )
+        self.trend_strength_threshold = get_threshold("ml.meta_learning.market_features.trend_strength_threshold", 0.5)
         self.donchian_window = get_threshold("ml.meta_learning.market_features.donchian_window", 20)
-        self.range_threshold = get_threshold(
-            "ml.meta_learning.market_features.range_threshold", 0.02
-        )
+        self.range_threshold = get_threshold("ml.meta_learning.market_features.range_threshold", 0.02)
 
     def analyze(self, df: pd.DataFrame) -> Dict[str, float]:
         """
@@ -85,9 +79,7 @@ class MarketRegimeAnalyzer:
 
         try:
             # ボラティリティ特徴量
-            features["volatility_atr_14"] = self._normalize(
-                df["atr_14"].iloc[-1], df["close"].iloc[-1]
-            )
+            features["volatility_atr_14"] = self._normalize(df["atr_14"].iloc[-1], df["close"].iloc[-1])
             features["volatility_bb_width"] = self._calculate_bb_width(df)
             features["volatility_ratio_7d"] = self._calculate_volatility_ratio(df)
 
@@ -95,9 +87,7 @@ class MarketRegimeAnalyzer:
             features["trend_ema_spread"] = self._calculate_ema_spread(df)
             features["trend_adx"] = self._normalize_indicator(df["adx_14"].iloc[-1], 0, 100)
             features["trend_di_plus"] = self._normalize_indicator(df["plus_di_14"].iloc[-1], 0, 100)
-            features["trend_di_minus"] = self._normalize_indicator(
-                df["minus_di_14"].iloc[-1], 0, 100
-            )
+            features["trend_di_minus"] = self._normalize_indicator(df["minus_di_14"].iloc[-1], 0, 100)
             features["trend_strength"] = self._calculate_trend_strength(df)
 
             # レンジ判定特徴量
@@ -107,7 +97,7 @@ class MarketRegimeAnalyzer:
             # 出来高特徴量
             features["volume_ratio"] = self._calculate_volume_ratio(df)
 
-        except Exception as e:
+        except Exception:  # 未使用変数e削除
             # エラー時はデフォルト特徴量を返す
             return self._get_default_features()
 
@@ -275,15 +265,9 @@ class PerformanceTracker:
         - history_fileパスはget_threshold()で取得（ハードコード禁止）
         """
         # thresholds.yamlから設定取得
-        self.window_days_short = get_threshold(
-            "ml.meta_learning.performance_tracking.window_days_short", 7
-        )
-        self.window_days_long = get_threshold(
-            "ml.meta_learning.performance_tracking.window_days_long", 30
-        )
-        self.min_trades_required = get_threshold(
-            "ml.meta_learning.performance_tracking.min_trades_required", 5
-        )
+        self.window_days_short = get_threshold("ml.meta_learning.performance_tracking.window_days_short", 7)
+        self.window_days_long = get_threshold("ml.meta_learning.performance_tracking.window_days_long", 30)
+        self.min_trades_required = get_threshold("ml.meta_learning.performance_tracking.min_trades_required", 5)
         history_file = get_threshold(
             "ml.meta_learning.performance_tracking.history_file",
             "src/core/state/performance_history.json",
@@ -407,18 +391,10 @@ class PerformanceTracker:
             # 戦略統計更新
             for strategy_name, perf in self.history["strategy_performance"].items():
                 strategy_trades = perf["trades"]
-                perf["win_rate_7d"] = self._calculate_win_rate(
-                    strategy_trades, now, self.window_days_short
-                )
-                perf["win_rate_30d"] = self._calculate_win_rate(
-                    strategy_trades, now, self.window_days_long
-                )
-                perf["avg_profit_7d"] = self._calculate_avg_profit(
-                    strategy_trades, now, self.window_days_short
-                )
-                perf["avg_profit_30d"] = self._calculate_avg_profit(
-                    strategy_trades, now, self.window_days_long
-                )
+                perf["win_rate_7d"] = self._calculate_win_rate(strategy_trades, now, self.window_days_short)
+                perf["win_rate_30d"] = self._calculate_win_rate(strategy_trades, now, self.window_days_long)
+                perf["avg_profit_7d"] = self._calculate_avg_profit(strategy_trades, now, self.window_days_short)
+                perf["avg_profit_30d"] = self._calculate_avg_profit(strategy_trades, now, self.window_days_long)
 
         except Exception:
             pass
@@ -522,14 +498,10 @@ class MetaLearningWeightOptimizer:
         self.logger = logger
 
         # thresholds.yamlから設定取得
-        model_path = get_threshold(
-            "ml.meta_learning.model_path", "models/meta_learning/meta_model.pkl"
-        )
+        model_path = get_threshold("ml.meta_learning.model_path", "models/meta_learning/meta_model.pkl")
         self.model_path = Path(model_path)
         self.fallback_ml_weight = get_threshold("ml.meta_learning.fallback_ml_weight", 0.35)
-        self.fallback_strategy_weight = get_threshold(
-            "ml.meta_learning.fallback_strategy_weight", 0.7
-        )
+        self.fallback_strategy_weight = get_threshold("ml.meta_learning.fallback_strategy_weight", 0.7)
         self.min_confidence = get_threshold("ml.meta_learning.min_confidence", 0.3)
 
         # Meta-MLモデル
@@ -545,9 +517,7 @@ class MetaLearningWeightOptimizer:
         """Meta-MLモデル読み込み"""
         if not self.model_path.exists():
             if self.logger:
-                self.logger.info(
-                    f"📊 Meta-MLモデル未存在: {self.model_path} - フォールバック重み使用"
-                )
+                self.logger.info(f"📊 Meta-MLモデル未存在: {self.model_path} - フォールバック重み使用")
             return None
 
         try:
@@ -562,9 +532,7 @@ class MetaLearningWeightOptimizer:
                 self.logger.warning(f"⚠️ Meta-MLモデル読み込み失敗: {e} - フォールバック重み使用")
             return None
 
-    def predict_weights(
-        self, market_data: pd.DataFrame, performance_data: Optional[Dict] = None
-    ) -> Dict[str, float]:
+    def predict_weights(self, market_data: pd.DataFrame, performance_data: Optional[Dict] = None) -> Dict[str, float]:
         """
         市場状況から最適重みを予測
 
@@ -608,9 +576,7 @@ class MetaLearningWeightOptimizer:
                 return self._get_fallback_weights()
 
             if self.logger:
-                self.logger.info(
-                    f"📊 Meta-ML動的重み: ML={ml_weight:.3f}, 戦略={strategy_weight:.3f}"
-                )
+                self.logger.info(f"📊 Meta-ML動的重み: ML={ml_weight:.3f}, 戦略={strategy_weight:.3f}")
 
             return {"ml": ml_weight, "strategy": strategy_weight}
 
@@ -619,9 +585,7 @@ class MetaLearningWeightOptimizer:
                 self.logger.warning(f"⚠️ Meta-ML推論エラー: {e} - フォールバック重み使用")
             return self._get_fallback_weights()
 
-    def _create_feature_vector(
-        self, market_features: Dict[str, float], performance_data: Dict[str, Any]
-    ) -> np.ndarray:
+    def _create_feature_vector(self, market_features: Dict[str, float], performance_data: Dict[str, Any]) -> np.ndarray:
         """
         特徴量ベクトル作成
 

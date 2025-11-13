@@ -87,8 +87,7 @@ class StrategyPerformanceAnalyzer:
         """
         self.logger = get_logger(__name__)
         self.data_file = (
-            data_file
-            or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_4h.csv"
+            data_file or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_4h.csv"
         )
         self.regime_classifier = MarketRegimeClassifier()
 
@@ -250,9 +249,7 @@ class StrategyPerformanceAnalyzer:
 
         return df
 
-    async def analyze_single_strategy(
-        self, strategy_name: str, historical_data: pd.DataFrame
-    ) -> PerformanceMetrics:
+    async def analyze_single_strategy(self, strategy_name: str, historical_data: pd.DataFrame) -> PerformanceMetrics:
         """
         単一戦略のパフォーマンス分析（Phase 51.4-Day2: 実バックテスト統合）
 
@@ -300,9 +297,7 @@ class StrategyPerformanceAnalyzer:
 
         return strategy_class()
 
-    async def _run_single_strategy_backtest(
-        self, strategy_name: str, historical_data: pd.DataFrame
-    ) -> List[Dict]:
+    async def _run_single_strategy_backtest(self, strategy_name: str, historical_data: pd.DataFrame) -> List[Dict]:
         """
         単一戦略バックテスト実行（Phase 51.4-Day2実装）
 
@@ -321,9 +316,7 @@ class StrategyPerformanceAnalyzer:
         # 特徴量事前計算（Phase 51.5-A修正）
         self.logger.info(f"[{strategy_name}] 特徴量事前計算開始...")
         feature_generator = FeatureGenerator()
-        historical_data_with_features = await feature_generator.generate_features(
-            historical_data.copy()
-        )
+        historical_data_with_features = await feature_generator.generate_features(historical_data.copy())
         self.logger.info(f"[{strategy_name}] 特徴量計算完了: {historical_data_with_features.shape}")
 
         # TradeTracker初期化
@@ -347,11 +340,7 @@ class StrategyPerformanceAnalyzer:
             df_slice = historical_data_with_features.iloc[: i + 1].copy()
             current_row = historical_data_with_features.iloc[i]
             current_price = float(current_row["close"])
-            current_time = (
-                pd.to_datetime(current_row["timestamp"])
-                if "timestamp" in current_row
-                else datetime.now()
-            )
+            current_time = pd.to_datetime(current_row["timestamp"]) if "timestamp" in current_row else datetime.now()
 
             try:
                 # 戦略シグナル取得
@@ -397,9 +386,7 @@ class StrategyPerformanceAnalyzer:
                 if (side == "buy" and signal.action == EntryAction.SELL) or (
                     side == "sell" and signal.action == EntryAction.BUY
                 ):
-                    tracker.record_exit(
-                        open_position["order_id"], current_price, current_time, "SIGNAL"
-                    )
+                    tracker.record_exit(open_position["order_id"], current_price, current_time, "SIGNAL")
                     open_position = None
 
             # 新規エントリー判定（ポジションがない場合のみ）
@@ -409,9 +396,7 @@ class StrategyPerformanceAnalyzer:
                 side = "buy" if signal.action == EntryAction.BUY else "sell"
                 amount = 0.01  # 固定数量（簡易版）
 
-                tracker.record_entry(
-                    order_id, side, amount, current_price, current_time, strategy_name
-                )
+                tracker.record_entry(order_id, side, amount, current_price, current_time, strategy_name)
                 open_position = {
                     "order_id": order_id,
                     "side": side,
@@ -422,16 +407,10 @@ class StrategyPerformanceAnalyzer:
         if open_position is not None:
             final_row = historical_data.iloc[-1]
             final_price = float(final_row["close"])
-            final_time = (
-                pd.to_datetime(final_row["timestamp"])
-                if "timestamp" in final_row
-                else datetime.now()
-            )
+            final_time = pd.to_datetime(final_row["timestamp"]) if "timestamp" in final_row else datetime.now()
             tracker.record_exit(open_position["order_id"], final_price, final_time, "END")
 
-        self.logger.info(
-            f"✅ {strategy_name} バックテスト完了 - {len(tracker.completed_trades)}取引"
-        )
+        self.logger.info(f"✅ {strategy_name} バックテスト完了 - {len(tracker.completed_trades)}取引")
         return tracker.completed_trades
 
     async def analyze_regime_performance(
@@ -494,9 +473,7 @@ class StrategyPerformanceAnalyzer:
         regime_metrics = {}
         for regime, trades_list in regime_trades.items():
             if len(trades_list) > 0:
-                metrics = self.calculate_basic_metrics(
-                    trades_list, f"{strategy_name}_{regime.value}"
-                )
+                metrics = self.calculate_basic_metrics(trades_list, f"{strategy_name}_{regime.value}")
                 regime_metrics[regime] = metrics
                 self.logger.info(
                     f"  {regime.value}: {len(trades_list)}取引, "
@@ -523,9 +500,7 @@ class StrategyPerformanceAnalyzer:
         self.logger.info(f"✅ {strategy_name} レジーム別分析完了")
         return regime_metrics
 
-    def calculate_strategy_correlation(
-        self, all_strategy_trades: Dict[str, List[Dict]]
-    ) -> pd.DataFrame:
+    def calculate_strategy_correlation(self, all_strategy_trades: Dict[str, List[Dict]]) -> pd.DataFrame:
         """
         戦略間相関分析（Phase 51.4-Day2実装）
 
@@ -597,9 +572,7 @@ class StrategyPerformanceAnalyzer:
 
         return corr_df
 
-    async def measure_ensemble_contribution(
-        self, historical_data: pd.DataFrame
-    ) -> Dict[str, Dict[str, float]]:
+    async def measure_ensemble_contribution(self, historical_data: pd.DataFrame) -> Dict[str, Dict[str, float]]:
         """
         アンサンブル貢献度測定（Phase 51.4-Day2実装・簡易版）
 
@@ -734,9 +707,7 @@ class StrategyPerformanceAnalyzer:
 
         return "\n".join(report_lines)
 
-    def save_results(
-        self, results: Dict[str, PerformanceMetrics], output_dir: Optional[Path] = None
-    ):
+    def save_results(self, results: Dict[str, PerformanceMetrics], output_dir: Optional[Path] = None):
         """
         分析結果を保存
 
@@ -902,9 +873,7 @@ async def main():
             if strategy_name not in deletion_candidates:
                 deletion_candidates.append(strategy_name)
             deletion_reasons[strategy_name] = deletion_reasons.get(strategy_name, [])
-            deletion_reasons[strategy_name].append(
-                f"貢献度{contrib['contribution_pct']:+.2f}%（ノイズ）"
-            )
+            deletion_reasons[strategy_name].append(f"貢献度{contrib['contribution_pct']:+.2f}%（ノイズ）")
             print(f"  ⚠️  {strategy_name}: 貢献度 {contrib['contribution_pct']:+.2f}%")
 
     if not any(c["contribution"] < 0 for c in contribution_results.values()):

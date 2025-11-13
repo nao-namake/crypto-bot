@@ -35,9 +35,7 @@ class PositionCleanup:
         """
         self.position_tracker = position_tracker
 
-    async def cleanup_orphaned_positions(
-        self, bitbank_client: Optional[BitbankClient] = None
-    ) -> Dict[str, Any]:
+    async def cleanup_orphaned_positions(self, bitbank_client: Optional[BitbankClient] = None) -> Dict[str, Any]:
         """
         Phase 37.5.3: 孤児ポジションクリーンアップ
 
@@ -100,13 +98,12 @@ class PositionCleanup:
                 self.logger.warning(f"⚠️ 一部注文削除失敗: {', '.join(failed_cancels)}")
 
             self.logger.info(
-                f"✅ 孤児ポジションクリーンアップ完了: "
-                f"{len(orphaned)}ポジション検出, {cleaned_count}注文削除"
+                "✅ 孤児ポジションクリーンアップ完了: " f"{len(orphaned)}ポジション検出, {cleaned_count}注文削除"
             )
 
             return {
                 "success": True,
-                "message": f"クリーンアップ完了",
+                "message": "クリーンアップ完了",
                 "cleaned": cleaned_count,
                 "orphaned_positions": len(orphaned),
                 "failed_cancels": failed_cancels,
@@ -116,9 +113,7 @@ class PositionCleanup:
             self.logger.error(f"❌ 孤児ポジションクリーンアップエラー: {e}")
             return {"success": False, "message": f"クリーンアップエラー: {e}", "cleaned": 0}
 
-    async def _fetch_actual_positions(
-        self, bitbank_client: BitbankClient
-    ) -> Optional[List[Dict[str, Any]]]:
+    async def _fetch_actual_positions(self, bitbank_client: BitbankClient) -> Optional[List[Dict[str, Any]]]:
         """
         実際のポジションを取得
 
@@ -187,9 +182,7 @@ class PositionCleanup:
             self.logger.error(f"❌ 注文キャンセルエラー ({order_id}): {e}")
             return False
 
-    async def check_stale_positions(
-        self, max_age_hours: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    async def check_stale_positions(self, max_age_hours: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         古いポジションを検出
 
@@ -215,9 +208,7 @@ class PositionCleanup:
                     stale_positions.append(position)
 
         if stale_positions:
-            self.logger.warning(
-                f"⚠️ 古いポジション検出: {len(stale_positions)}件 " f"({max_age_hours}時間以上経過)"
-            )
+            self.logger.warning(f"⚠️ 古いポジション検出: {len(stale_positions)}件 " f"({max_age_hours}時間以上経過)")
 
         return stale_positions
 
@@ -246,9 +237,7 @@ class PositionCleanup:
             "sell_exposure": exposure.get("sell", 0),
         }
 
-    async def emergency_cleanup(
-        self, bitbank_client: Optional[BitbankClient] = None
-    ) -> Dict[str, Any]:
+    async def emergency_cleanup(self, bitbank_client: Optional[BitbankClient] = None) -> Dict[str, Any]:
         """
         緊急クリーンアップ（全仮想ポジション削除）
 
@@ -288,8 +277,7 @@ class PositionCleanup:
             cleared_count = self.position_tracker.clear_all_positions()
 
             self.logger.warning(
-                f"⚠️ 緊急クリーンアップ実行: "
-                f"{cleared_count}ポジション削除, {canceled_orders}注文キャンセル"
+                "⚠️ 緊急クリーンアップ実行: " f"{cleared_count}ポジション削除, {canceled_orders}注文キャンセル"
             )
 
             return {

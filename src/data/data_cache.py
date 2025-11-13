@@ -230,9 +230,7 @@ class DataCache:
                 timeframe=metadata_dict["timeframe"],
                 symbol=metadata_dict["symbol"],
                 expires_at=(
-                    datetime.fromisoformat(metadata_dict["expires_at"])
-                    if metadata_dict["expires_at"]
-                    else None
+                    datetime.fromisoformat(metadata_dict["expires_at"]) if metadata_dict["expires_at"] else None
                 ),
             )
 

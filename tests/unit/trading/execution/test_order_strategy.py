@@ -70,9 +70,7 @@ class TestOrderStrategyBasicFunctionality:
         }.get(key, default)
 
         # 実行
-        result = await self.order_strategy.get_optimal_execution_config(
-            self.evaluation, bitbank_client=None
-        )
+        result = await self.order_strategy.get_optimal_execution_config(self.evaluation, bitbank_client=None)
 
         # 検証
         assert result["order_type"] == "market"
@@ -109,9 +107,7 @@ class TestOrderStrategyBasicFunctionality:
         )
 
         # 実行（買い注文）
-        result = await self.order_strategy.get_optimal_execution_config(
-            self.evaluation, bitbank_client=mock_client
-        )
+        result = await self.order_strategy.get_optimal_execution_config(self.evaluation, bitbank_client=mock_client)
 
         # 検証
         assert result["order_type"] == "limit"
@@ -164,9 +160,7 @@ class TestOrderStrategyBasicFunctionality:
         )
 
         # 実行
-        result = await self.order_strategy.get_optimal_execution_config(
-            sell_evaluation, bitbank_client=mock_client
-        )
+        result = await self.order_strategy.get_optimal_execution_config(sell_evaluation, bitbank_client=mock_client)
 
         # 検証
         assert result["order_type"] == "limit"
@@ -198,9 +192,7 @@ class TestOrderStrategyBasicFunctionality:
         mock_client.fetch_order_book = Mock(side_effect=Exception("API Error"))
 
         # 実行
-        result = await self.order_strategy.get_optimal_execution_config(
-            self.evaluation, bitbank_client=mock_client
-        )
+        result = await self.order_strategy.get_optimal_execution_config(self.evaluation, bitbank_client=mock_client)
 
         # 検証
         assert result["order_type"] == "market"
@@ -566,9 +558,7 @@ class TestOrderStrategyLimitPriceCalculation:
         }
 
         # 実行
-        limit_price = await self.order_strategy._calculate_limit_price(
-            self.buy_evaluation, market_conditions
-        )
+        limit_price = await self.order_strategy._calculate_limit_price(self.buy_evaluation, market_conditions)
 
         # 検証
         assert limit_price > 0
@@ -598,9 +588,7 @@ class TestOrderStrategyLimitPriceCalculation:
         }
 
         # 実行
-        limit_price = await self.order_strategy._calculate_limit_price(
-            self.sell_evaluation, market_conditions
-        )
+        limit_price = await self.order_strategy._calculate_limit_price(self.sell_evaluation, market_conditions)
 
         # 検証
         assert limit_price > 0
@@ -625,9 +613,7 @@ class TestOrderStrategyLimitPriceCalculation:
         }
 
         # 実行
-        limit_price = await self.order_strategy._calculate_limit_price(
-            self.buy_evaluation, market_conditions
-        )
+        limit_price = await self.order_strategy._calculate_limit_price(self.buy_evaluation, market_conditions)
 
         # 検証
         assert limit_price == 0
@@ -668,9 +654,7 @@ class TestOrderStrategyLimitPriceCalculation:
         }
 
         # 実行
-        limit_price = await self.order_strategy._calculate_limit_price(
-            invalid_evaluation, market_conditions
-        )
+        limit_price = await self.order_strategy._calculate_limit_price(invalid_evaluation, market_conditions)
 
         # 検証
         assert limit_price == 0
@@ -716,9 +700,7 @@ class TestOrderStrategyErrorHandling:
         mock_threshold.side_effect = Exception("Threshold Error")
 
         # 実行
-        result = await self.order_strategy.get_optimal_execution_config(
-            self.evaluation, bitbank_client=None
-        )
+        result = await self.order_strategy.get_optimal_execution_config(self.evaluation, bitbank_client=None)
 
         # 検証
         assert result["order_type"] == "market"

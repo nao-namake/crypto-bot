@@ -47,21 +47,13 @@ class DonchianChannelStrategy(StrategyBase):
         self.logger = get_logger()
         # 戦略パラメータ（動的信頼度計算対応）
         self.channel_period = self.config.get("channel_period", 20)
-        self.breakout_threshold = get_threshold(
-            "strategies.donchian_channel.breakout_threshold", 0.002
-        )  # 0.2%
-        self.reversal_threshold = get_threshold(
-            "strategies.donchian_channel.reversal_threshold", 0.05
-        )  # 5%位置
-        self.min_confidence = get_threshold(
-            "strategies.donchian_channel.min_confidence", 0.3
-        )  # 緩和設定
+        self.breakout_threshold = get_threshold("strategies.donchian_channel.breakout_threshold", 0.002)  # 0.2%
+        self.reversal_threshold = get_threshold("strategies.donchian_channel.reversal_threshold", 0.05)  # 5%位置
+        self.min_confidence = get_threshold("strategies.donchian_channel.min_confidence", 0.3)  # 緩和設定
         # 中央域・弱シグナル設定（動的計算用）
         self.middle_zone_min = get_threshold("strategies.donchian_channel.middle_zone_min", 0.4)
         self.middle_zone_max = get_threshold("strategies.donchian_channel.middle_zone_max", 0.6)
-        self.weak_signal_confidence = get_threshold(
-            "strategies.donchian_channel.weak_signal_confidence", 0.35
-        )
+        self.weak_signal_confidence = get_threshold("strategies.donchian_channel.weak_signal_confidence", 0.35)
         self.logger.info(f"Donchian Channel戦略初期化完了 - 期間: {self.channel_period}")
 
     def get_required_features(self) -> list[str]:
@@ -100,8 +92,7 @@ class DonchianChannelStrategy(StrategyBase):
             # シグナル判定（Phase 32: multi_timeframe_data渡す）
             signal = self._determine_signal(df, channel_analysis, multi_timeframe_data)
             self.logger.debug(
-                f"[DonchianChannel] シグナル生成完了: {signal.action} "
-                f"(信頼度: {signal.confidence:.3f})"
+                f"[DonchianChannel] シグナル生成完了: {signal.action} " f"(信頼度: {signal.confidence:.3f})"
             )
             return signal
         except Exception as e:
@@ -150,12 +141,8 @@ class DonchianChannelStrategy(StrategyBase):
             channel_width = donchian_high - donchian_low
             channel_mid = (donchian_high + donchian_low) / 2
             # 価格位置分析
-            price_to_high = (
-                (donchian_high - current_price) / channel_width if channel_width > 0 else 0
-            )
-            price_to_low = (
-                (current_price - donchian_low) / channel_width if channel_width > 0 else 0
-            )
+            price_to_high = (donchian_high - current_price) / channel_width if channel_width > 0 else 0
+            price_to_low = (current_price - donchian_low) / channel_width if channel_width > 0 else 0
             # ブレイクアウト検出
             is_upper_breakout = current_price > donchian_high * (1 + self.breakout_threshold)
             is_lower_breakout = current_price < donchian_low * (1 - self.breakout_threshold)
@@ -171,11 +158,7 @@ class DonchianChannelStrategy(StrategyBase):
             analysis["in_weak_buy_zone"] = in_weak_buy_zone
             analysis["in_weak_sell_zone"] = in_weak_sell_zone
             # ボラティリティ分析（ATR使用）
-            atr = (
-                float(latest["atr_14"])
-                if "atr_14" in latest and not pd.isna(latest["atr_14"])
-                else 0
-            )
+            atr = float(latest["atr_14"]) if "atr_14" in latest and not pd.isna(latest["atr_14"]) else 0
             volatility_ratio = atr / current_price if current_price > 0 else 0
             # 出来高分析
             volume_ratio = float(latest["volume_ratio"]) if "volume_ratio" in latest else 1.0
@@ -378,9 +361,7 @@ class DonchianChannelStrategy(StrategyBase):
         confidence = base_confidence + position_bonus + volatility_bonus + volume_bonus
         return max(0.25, min(0.6, confidence))
 
-    def _calculate_middle_zone_confidence(
-        self, analysis: Dict[str, Any], df: pd.DataFrame = None
-    ) -> float:
+    def _calculate_middle_zone_confidence(self, analysis: Dict[str, Any], df: pd.DataFrame = None) -> float:
         """
         中央域動的信頼度計算（市場データ統合版）
         Args:
@@ -426,9 +407,7 @@ class DonchianChannelStrategy(StrategyBase):
         """
         return MarketUncertaintyCalculator.calculate(df)
 
-    def _calculate_default_confidence(
-        self, analysis: Dict[str, Any], df: pd.DataFrame = None
-    ) -> float:
+    def _calculate_default_confidence(self, analysis: Dict[str, Any], df: pd.DataFrame = None) -> float:
         """
         デフォルト動的信頼度計算（その他のケース・市場データ統合版）
         Args:
@@ -468,9 +447,7 @@ class DonchianChannelStrategy(StrategyBase):
 
         return confidence
 
-    def _create_hold_signal(
-        self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None
-    ) -> StrategySignal:
+    def _create_hold_signal(self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None) -> StrategySignal:
         """HOLDシグナル生成（動的信頼度対応）"""
         current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
         # 動的信頼度優先、なければ設定値使用
@@ -528,9 +505,7 @@ class DonchianChannelStrategy(StrategyBase):
                 "channel_position": analysis["channel_position"],
                 "channel_width": analysis["channel_width"],
                 "volume_ratio": analysis["volume_ratio"],
-                "signal_type": (
-                    "donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"
-                ),
+                "signal_type": ("donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"),
             },
         }
 

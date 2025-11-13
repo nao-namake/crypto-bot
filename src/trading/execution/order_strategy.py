@@ -48,17 +48,13 @@ class OrderStrategy:
 
             # スマート注文機能が無効な場合はデフォルト注文タイプを使用
             if not smart_order_enabled:
-                default_order_type = get_threshold(
-                    "trading_constraints.default_order_type", "market"
-                )
+                default_order_type = get_threshold("trading_constraints.default_order_type", "market")
 
                 # Phase 29.6: 指値注文の場合は簡易価格計算
                 if default_order_type == "limit" and bitbank_client:
                     try:
                         # 板情報取得
-                        orderbook = await asyncio.to_thread(
-                            bitbank_client.fetch_order_book, "BTC/JPY", 5
-                        )
+                        orderbook = await asyncio.to_thread(bitbank_client.fetch_order_book, "BTC/JPY", 5)
 
                         if orderbook and "bids" in orderbook and "asks" in orderbook:
                             best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
@@ -95,9 +91,7 @@ class OrderStrategy:
 
             # 2. ML信頼度による判定
             ml_confidence = float(getattr(evaluation, "confidence_level", 0.5))
-            high_confidence_threshold = get_threshold(
-                "order_execution.high_confidence_threshold", 0.75
-            )
+            high_confidence_threshold = get_threshold("order_execution.high_confidence_threshold", 0.75)
 
             # 3. 市場条件確認
             market_conditions = await self._assess_market_conditions(bitbank_client)
@@ -123,9 +117,7 @@ class OrderStrategy:
             # エラー時は安全な成行注文を使用
             return {"order_type": "market", "price": None, "strategy": "fallback_market"}
 
-    async def _assess_market_conditions(
-        self, bitbank_client: Optional[BitbankClient] = None
-    ) -> Dict[str, Any]:
+    async def _assess_market_conditions(self, bitbank_client: Optional[BitbankClient] = None) -> Dict[str, Any]:
         """
         市場条件評価（指値注文判定用）
 
@@ -206,9 +198,7 @@ class OrderStrategy:
                 return {"order_type": "market", "price": None, "strategy": "emergency_market"}
 
             # 2. 低信頼度の場合は成行注文（確実な約定優先）
-            low_confidence_threshold = get_threshold(
-                "order_execution.low_confidence_threshold", 0.4
-            )
+            low_confidence_threshold = get_threshold("order_execution.low_confidence_threshold", 0.4)
             if ml_confidence < low_confidence_threshold:
                 return {"order_type": "market", "price": None, "strategy": "low_confidence_market"}
 
@@ -241,9 +231,7 @@ class OrderStrategy:
             self.logger.error(f"❌ 注文戦略決定エラー: {e}")
             return {"order_type": "market", "price": None, "strategy": "error_fallback_market"}
 
-    async def _calculate_limit_price(
-        self, evaluation: TradeEvaluation, market_conditions: Dict[str, Any]
-    ) -> float:
+    async def _calculate_limit_price(self, evaluation: TradeEvaluation, market_conditions: Dict[str, Any]) -> float:
         """
         指値注文価格計算（Phase 38.7.1: 確実約定戦略対応）
 

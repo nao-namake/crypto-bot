@@ -61,9 +61,7 @@ class BaseMLModel(ABC):
             self._validate_training_data(X, y)
             self.feature_names = X.columns.tolist()
 
-            self.logger.info(
-                f"Training {self.model_name} with {len(X)} samples, {len(X.columns)} features"
-            )
+            self.logger.info(f"Training {self.model_name} with {len(X)} samples, {len(X.columns)} features")
 
             self.estimator.fit(X, y)
             self.is_fitted = True
@@ -109,9 +107,7 @@ class BaseMLModel(ABC):
                 if n_classes < 2:
                     n_classes = 2  # 最小2クラス
                 if n_classes != 3:
-                    self.logger.warning(
-                        f"Expected 3 classes but detected {n_classes} in predictions"
-                    )
+                    self.logger.warning(f"Expected 3 classes but detected {n_classes} in predictions")
                 probabilities = np.zeros((n_samples, n_classes))
                 probabilities[np.arange(n_samples), predictions] = 1.0
                 return probabilities
@@ -130,9 +126,9 @@ class BaseMLModel(ABC):
             if importance is None:
                 return None
 
-            importance_df = pd.DataFrame(
-                {"feature": self.feature_names, "importance": importance}
-            ).sort_values("importance", ascending=False)
+            importance_df = pd.DataFrame({"feature": self.feature_names, "importance": importance}).sort_values(
+                "importance", ascending=False
+            )
 
             return importance_df
 
@@ -186,12 +182,8 @@ class BaseMLModel(ABC):
     def _validate_training_data(self, X, y) -> None:
         """学習データの妥当性チェック"""
         # NumPy配列とPandas両方に対応
-        x_empty = (
-            X.empty if hasattr(X, "empty") else (X.size == 0 if hasattr(X, "size") else len(X) == 0)
-        )
-        y_empty = (
-            y.empty if hasattr(y, "empty") else (y.size == 0 if hasattr(y, "size") else len(y) == 0)
-        )
+        x_empty = X.empty if hasattr(X, "empty") else (X.size == 0 if hasattr(X, "size") else len(X) == 0)
+        y_empty = y.empty if hasattr(y, "empty") else (y.size == 0 if hasattr(y, "size") else len(y) == 0)
 
         if x_empty or y_empty:
             raise ValueError("Training data is empty")
@@ -201,9 +193,7 @@ class BaseMLModel(ABC):
 
         min_samples = get_threshold("models.min_training_samples", 10)
         if len(X) < min_samples:
-            raise ValueError(
-                f"Insufficient training data: {len(X)} samples (minimum: {min_samples})"
-            )
+            raise ValueError(f"Insufficient training data: {len(X)} samples (minimum: {min_samples})")
 
         # NaN値チェック（NumPy配列とPandas両方に対応）
         if hasattr(X, "isna"):
@@ -228,13 +218,9 @@ class BaseMLModel(ABC):
         max_nan_target = get_threshold("ensemble.max_nan_ratio_target", 0.3)
 
         if x_nan_ratio > max_nan_features:
-            raise ValueError(
-                f"Too many NaN values in features: {x_nan_ratio:.2%} (max: {max_nan_features:.2%})"
-            )
+            raise ValueError(f"Too many NaN values in features: {x_nan_ratio:.2%} (max: {max_nan_features:.2%})")
         if y_nan_ratio > max_nan_target:
-            raise ValueError(
-                f"Too many NaN values in target: {y_nan_ratio:.2%} (max: {max_nan_target:.2%})"
-            )
+            raise ValueError(f"Too many NaN values in target: {y_nan_ratio:.2%} (max: {max_nan_target:.2%})")
 
     def _align_features(self, X: pd.DataFrame) -> pd.DataFrame:
         """特徴量の整合性確保"""
@@ -497,9 +483,7 @@ class RFModel(BaseMLModel):
         try:
             clean_params = self._clean_rf_params(kwargs)
             estimator = RandomForestClassifier(**clean_params)
-            self.logger.info(
-                f"✅ RandomForest estimator created with {len(clean_params)} parameters"
-            )
+            self.logger.info(f"✅ RandomForest estimator created with {len(clean_params)} parameters")
             return estimator
         except Exception as e:
             self.logger.error(f"❌ Failed to create RandomForest estimator: {e}")
@@ -518,9 +502,7 @@ class RFModel(BaseMLModel):
             # scikit-learn 1.2 未満ではmonotonic_cstを除去
             if sklearn_version < (1, 2) and "monotonic_cst" in clean_params:
                 del clean_params["monotonic_cst"]
-                self.logger.info(
-                    "Removed monotonic_cst parameter (unsupported in this sklearn version)"
-                )
+                self.logger.info("Removed monotonic_cst parameter (unsupported in this sklearn version)")
 
         except Exception as e:
             self.logger.warning(f"Could not check sklearn version: {e}")

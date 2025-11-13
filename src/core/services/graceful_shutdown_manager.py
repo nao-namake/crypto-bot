@@ -126,16 +126,10 @@ class GracefulShutdownManager:
         cleanup_tasks = []
 
         # 各ランナーのクリーンアップタスクを並行実行
-        if (
-            hasattr(self.orchestrator, "paper_trading_runner")
-            and self.orchestrator.paper_trading_runner
-        ):
+        if hasattr(self.orchestrator, "paper_trading_runner") and self.orchestrator.paper_trading_runner:
             cleanup_tasks.append(self.orchestrator.paper_trading_runner.cleanup_mode())
 
-        if (
-            hasattr(self.orchestrator, "live_trading_runner")
-            and self.orchestrator.live_trading_runner
-        ):
+        if hasattr(self.orchestrator, "live_trading_runner") and self.orchestrator.live_trading_runner:
             cleanup_tasks.append(self.orchestrator.live_trading_runner.cleanup_mode())
 
         if hasattr(self.orchestrator, "backtest_runner") and self.orchestrator.backtest_runner:
@@ -159,9 +153,7 @@ class GracefulShutdownManager:
         shutdown_task = asyncio.create_task(self.wait_for_shutdown_signal())
 
         # いずれかが完了するまで待機
-        done, pending = await asyncio.wait(
-            [main_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
-        )
+        done, pending = await asyncio.wait([main_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED)
 
         # shutdown_eventがセットされた場合はgraceful shutdown実行
         if shutdown_task in done:

@@ -57,9 +57,7 @@ class TestRFModel:
         """デフォルトパラメータ初期化テスト"""
         model = RFModel()
 
-        assert (
-            model.model_params["n_jobs"] == 1
-        )  # Python 3.13 Parallel処理エラー回避のため単一スレッド化
+        assert model.model_params["n_jobs"] == 1  # Python 3.13 Parallel処理エラー回避のため単一スレッド化
         assert model.model_params["criterion"] == "gini"
         assert model.model_params["random_state"] == 42  # 環境変数から設定
         assert model.model_params["warm_start"] is False
@@ -120,9 +118,7 @@ class TestRFModel:
 
     def test_fit_with_nan_values(self, rf_model):
         """NaN値を含むデータでの学習テスト"""
-        features_with_nan = pd.DataFrame(
-            {"feature1": [1, 2, np.nan, 4, 5], "feature2": [1, np.nan, 3, 4, 5]}
-        )
+        features_with_nan = pd.DataFrame({"feature1": [1, 2, np.nan, 4, 5], "feature2": [1, np.nan, 3, 4, 5]})
         targets = np.array([0, 1, 0, 1, 0])
 
         # NaN値を含むデータでは例外が発生する
@@ -367,9 +363,7 @@ class TestRFModel:
         rf_model.fit(sample_features, sample_targets)
 
         # 予測時も同じ特徴量名順序である必要がある
-        reordered_features = sample_features[
-            ["bb_position", "rsi_14", "atr_14", "volume_sma_ratio", "price_change_1h"]
-        ]
+        reordered_features = sample_features[["bb_position", "rsi_14", "atr_14", "volume_sma_ratio", "price_change_1h"]]
         predictions = rf_model.predict(reordered_features.iloc[:5])
 
         # 特徴量順序が変わっても予測できる（内部で調整される）

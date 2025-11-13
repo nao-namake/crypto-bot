@@ -193,9 +193,7 @@ class IntegrationDeployer:
         with open(self.thresholds_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
-    def apply_parameters(
-        self, current: Dict[str, Any], optimized: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def apply_parameters(self, current: Dict[str, Any], optimized: Dict[str, Any]) -> Dict[str, Any]:
         """
         最適化パラメータを現在の設定に適用
 
@@ -323,10 +321,7 @@ class IntegrationDeployer:
                 best_value = phase_data.get("best_value", 0)
                 total_params += param_count
 
-                print(
-                    f"  ✅ {phase['description']}: "
-                    f"{param_count}パラメータ最適化（目的関数値: {best_value:.4f}）"
-                )
+                print(f"  ✅ {phase['description']}: " f"{param_count}パラメータ最適化（目的関数値: {best_value:.4f}）")
 
         print(f"\n🔢 合計最適化パラメータ数: {total_params}")
 

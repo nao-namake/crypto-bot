@@ -42,29 +42,21 @@ class TestBalanceMonitorCalculation:
     def test_calculate_margin_ratio_direct_normal(self):
         """保証金維持率直接計算テスト（正常値）."""
         # 100万円残高、50万円建玉 → 200%
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=1000000, position_value_jpy=500000
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=1000000, position_value_jpy=500000)
         assert ratio == pytest.approx(200.0, rel=0.01)
 
         # 50万円残高、100万円建玉 → 50%
-        ratio2 = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=500000, position_value_jpy=1000000
-        )
+        ratio2 = self.monitor._calculate_margin_ratio_direct(balance_jpy=500000, position_value_jpy=1000000)
         assert ratio2 == pytest.approx(50.0, rel=0.01)
 
     def test_calculate_margin_ratio_direct_no_position(self):
         """建玉なし時の保証金維持率計算テスト."""
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=1000000, position_value_jpy=0
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=1000000, position_value_jpy=0)
         assert ratio == float("inf")
 
     def test_calculate_margin_ratio_direct_negative_position(self):
         """負の建玉値時の保証金維持率計算テスト."""
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=1000000, position_value_jpy=-100000
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=1000000, position_value_jpy=-100000)
         assert ratio == float("inf")
 
     @patch("src.trading.balance.monitor.get_threshold")
@@ -73,9 +65,7 @@ class TestBalanceMonitorCalculation:
         mock_threshold.return_value = 1000.0
 
         # 建玉が極小値（1000円未満）→ 安全値500%を返す
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=100000, position_value_jpy=500
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=100000, position_value_jpy=500)
         assert ratio == 500.0
         mock_threshold.assert_called_with("margin.min_position_value", 1000.0)
 
@@ -89,9 +79,7 @@ class TestBalanceMonitorCalculation:
 
         # 1億円残高、100円建玉 → 極小建玉なので500%を返す
         # （建玉が1000円未満のため極小値扱い）
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=100000000, position_value_jpy=100
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=100000000, position_value_jpy=100)
         assert ratio == 500.0
 
     @patch("src.trading.balance.monitor.get_threshold")
@@ -103,9 +91,7 @@ class TestBalanceMonitorCalculation:
         }.get(key, default)
 
         # 負の残高 → 0にクリップ
-        ratio = self.monitor._calculate_margin_ratio_direct(
-            balance_jpy=-100000, position_value_jpy=500000
-        )
+        ratio = self.monitor._calculate_margin_ratio_direct(balance_jpy=-100000, position_value_jpy=500000)
         assert ratio == 0.0
 
 
@@ -273,9 +259,7 @@ class TestMarginAnalysis:
             "margin.thresholds.warning": 100.0,
         }.get(key, default)
 
-        margin_data = await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=500000
-        )
+        margin_data = await self.monitor.analyze_current_margin(balance_jpy=1000000, position_value_jpy=500000)
 
         assert isinstance(margin_data, MarginData)
         assert margin_data.current_balance == 1000000
@@ -303,9 +287,7 @@ class TestMarginAnalysis:
 
         # 15件追加して最大10件に制限されることを確認
         for i in range(15):
-            await self.monitor.analyze_current_margin(
-                balance_jpy=1000000 + i * 1000, position_value_jpy=500000
-            )
+            await self.monitor.analyze_current_margin(balance_jpy=1000000 + i * 1000, position_value_jpy=500000)
 
         assert len(self.monitor.margin_history) == 10
         # 最新のデータが保持されている
@@ -483,12 +465,8 @@ class TestMarginSummary:
         }.get(key, default)
 
         # 維持率が改善するデータ追加
-        await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=1000000  # 100%
-        )
-        await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=500000  # 200%
-        )
+        await self.monitor.analyze_current_margin(balance_jpy=1000000, position_value_jpy=1000000)  # 100%
+        await self.monitor.analyze_current_margin(balance_jpy=1000000, position_value_jpy=500000)  # 200%
 
         summary = self.monitor.get_margin_summary()
         assert summary["trend"] == "improving"
@@ -506,12 +484,8 @@ class TestMarginSummary:
         }.get(key, default)
 
         # 維持率が悪化するデータ追加
-        await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=500000  # 200%
-        )
-        await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=1000000  # 100%
-        )
+        await self.monitor.analyze_current_margin(balance_jpy=1000000, position_value_jpy=500000)  # 200%
+        await self.monitor.analyze_current_margin(balance_jpy=1000000, position_value_jpy=1000000)  # 100%
 
         summary = self.monitor.get_margin_summary()
         assert summary["trend"] == "declining"
@@ -685,9 +659,7 @@ class TestBalanceSufficiency:
         """残高充足テスト."""
         mock_backtest.return_value = True
 
-        result = await self.monitor.check_balance_sufficiency(
-            required_amount=500000, current_balance=1000000
-        )
+        result = await self.monitor.check_balance_sufficiency(required_amount=500000, current_balance=1000000)
 
         assert result["sufficient"] is True
         assert result["current_balance"] == 1000000
@@ -701,9 +673,7 @@ class TestBalanceSufficiency:
         """残高不足テスト."""
         mock_backtest.return_value = True
 
-        result = await self.monitor.check_balance_sufficiency(
-            required_amount=1500000, current_balance=1000000
-        )
+        result = await self.monitor.check_balance_sufficiency(required_amount=1500000, current_balance=1000000)
 
         assert result["sufficient"] is False
         assert result["shortage"] == 500000

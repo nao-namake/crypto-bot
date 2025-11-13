@@ -206,9 +206,7 @@ class StopManager:
                         f"🛑 ストップロス到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (SL:{stop_loss:.0f}円)"
                     )
                     # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
-                    return await self._execute_position_exit(
-                        position, current_price, "stop_loss", mode, bitbank_client
-                    )
+                    return await self._execute_position_exit(position, current_price, "stop_loss", mode, bitbank_client)
 
             return None
 
@@ -350,18 +348,12 @@ class StopManager:
 
             # 各ポジションの緊急決済チェック
             for position in virtual_positions:
-                emergency_exit = await self._evaluate_emergency_exit(
-                    position, current_price, emergency_config
-                )
+                emergency_exit = await self._evaluate_emergency_exit(position, current_price, emergency_config)
                 if emergency_exit:
-                    self.logger.critical(
-                        f"🚨 緊急ストップロス発動! ポジション: {position['order_id']}"
-                    )
+                    self.logger.critical(f"🚨 緊急ストップロス発動! ポジション: {position['order_id']}")
 
                     # 緊急決済実行
-                    result = await self._execute_emergency_exit(
-                        position, current_price, "emergency", mode
-                    )
+                    result = await self._execute_emergency_exit(position, current_price, "emergency", mode)
 
                     # ポジションリストから削除
                     virtual_positions.remove(position)
@@ -374,9 +366,7 @@ class StopManager:
             self.logger.error(f"❌ 緊急ストップロスチェックエラー: {e}")
             return None
 
-    async def _evaluate_emergency_exit(
-        self, position: dict, current_price: float, config: dict
-    ) -> bool:
+    async def _evaluate_emergency_exit(self, position: dict, current_price: float, config: dict) -> bool:
         """
         個別ポジションの緊急決済判定
 
@@ -456,9 +446,7 @@ class StopManager:
             # 反対売買（決済）のサイド決定
             exit_side = "sell" if entry_side.lower() == "buy" else "buy"
 
-            self.logger.critical(
-                f"🚨 緊急決済実行: {exit_side} {amount} BTC @ {current_price:.0f}円 - 理由: {reason}"
-            )
+            self.logger.critical(f"🚨 緊急決済実行: {exit_side} {amount} BTC @ {current_price:.0f}円 - 理由: {reason}")
 
             # 決済実行結果作成
             result = await self._execute_position_exit(position, current_price, reason, mode)
@@ -522,9 +510,7 @@ class StopManager:
             try:
                 await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
                 cancelled_count += 1
-                self.logger.info(
-                    f"✅ Phase 49.6: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
-                )
+                self.logger.info(f"✅ Phase 49.6: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}")
             except Exception as e:
                 error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
@@ -539,9 +525,7 @@ class StopManager:
             try:
                 await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
                 cancelled_count += 1
-                self.logger.info(
-                    f"✅ Phase 49.6: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
-                )
+                self.logger.info(f"✅ Phase 49.6: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}")
             except Exception as e:
                 error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
@@ -553,8 +537,7 @@ class StopManager:
 
         if cancelled_count > 0:
             self.logger.info(
-                f"🧹 Phase 49.6: ポジション決済時クリーンアップ完了 - "
-                f"{cancelled_count}件キャンセル, 理由: {reason}"
+                f"🧹 Phase 49.6: ポジション決済時クリーンアップ完了 - " f"{cancelled_count}件キャンセル, 理由: {reason}"
             )
 
         return {"cancelled_count": cancelled_count, "errors": errors}
@@ -598,9 +581,7 @@ class StopManager:
 
             # 強いトレンド時はクールダウンをスキップ
             if trend_strength >= threshold:
-                self.logger.info(
-                    f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ"
-                )
+                self.logger.info(f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ")
                 return False
 
             return True
@@ -678,9 +659,7 @@ class StopManager:
             self.logger.warning(f"⚠️ 現在価格取得エラー: {e}")
             return get_threshold("trading.fallback_btc_jpy", 16500000.0)
 
-    async def _check_rapid_price_movement(
-        self, current_price: float, config: dict
-    ) -> Optional[str]:
+    async def _check_rapid_price_movement(self, current_price: float, config: dict) -> Optional[str]:
         """
         急激な価格変動検出
 
@@ -690,7 +669,7 @@ class StopManager:
         try:
             # 簡易実装: 設定された閾値以上の変動を検出
             # 実際の実装では過去5分間の価格履歴を確認する
-            price_change_threshold = config.get("price_change_threshold", 0.03)
+            # 未使用: price_change_threshold = config.get("price_change_threshold", 0.03)
 
             # TODO: 実際の価格履歴データベースから過去5分間の価格変動を計算
             # 現在は簡易実装として、大きな価格変動があったと仮定した場合の処理のみ
@@ -799,9 +778,7 @@ class StopManager:
                 return None
 
             if stop_loss_price <= 0:
-                self.logger.error(
-                    f"❌ SL価格が不正（0以下）: {stop_loss_price}円 - エントリー: {entry_price:.0f}円"
-                )
+                self.logger.error(f"❌ SL価格が不正（0以下）: {stop_loss_price}円 - エントリー: {entry_price:.0f}円")
                 return None
 
             # Phase 51.6: エントリー価格との妥当性チェック
@@ -859,15 +836,11 @@ class StopManager:
             error_message = str(e)
             # Phase 51.6: Discord通知削除（週間レポートのみ）
             if "30101" in error_message:
-                self.logger.error(
-                    f"❌ SL配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}"
-                )
+                self.logger.error(f"❌ SL配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}")
             elif "50061" in error_message:
                 self.logger.error(f"❌ SL配置失敗（残高不足）: エラーコード50061 - {error_message}")
             elif "50062" in error_message:
-                self.logger.error(
-                    f"❌ SL配置失敗（注文タイプ不正）: エラーコード50062 - {error_message}"
-                )
+                self.logger.error(f"❌ SL配置失敗（注文タイプ不正）: エラーコード50062 - {error_message}")
             else:
                 self.logger.error(f"❌ SL配置失敗: {e}")
             return None
@@ -903,9 +876,7 @@ class StopManager:
         """
         try:
             # アクティブ注文取得
-            active_orders = await asyncio.to_thread(
-                bitbank_client.fetch_active_orders, symbol, limit=100
-            )
+            active_orders = await asyncio.to_thread(bitbank_client.fetch_active_orders, symbol, limit=100)
             order_count = len(active_orders)
 
             # 閾値未満なら何もしない
@@ -930,12 +901,10 @@ class StopManager:
                     protected_order_ids.add(str(sl_id))
 
             if protected_order_ids:
-                self.logger.info(
-                    f"🛡️ Phase 51.6: {len(protected_order_ids)}件の注文を保護（アクティブポジション）"
-                )
+                self.logger.info(f"🛡️ Phase 51.6: {len(protected_order_ids)}件の注文を保護（アクティブポジション）")
 
             # 24時間以上経過した孤児注文を抽出
-            from datetime import datetime, timedelta
+            # 削除: 重複import timedelta（line 938）
 
             cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
             old_orphan_orders = []
@@ -961,9 +930,7 @@ class StopManager:
                     old_orphan_orders.append(order)
 
             if not old_orphan_orders:
-                self.logger.info(
-                    f"ℹ️ Phase 51.6: 24時間以上経過した孤児注文なし（{order_count}件中0件）"
-                )
+                self.logger.info(f"ℹ️ Phase 51.6: 24時間以上経過した孤児注文なし（{order_count}件中0件）")
                 return {"cancelled_count": 0, "order_count": order_count, "errors": []}
 
             # 古い孤児注文を削除

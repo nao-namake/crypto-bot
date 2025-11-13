@@ -187,14 +187,14 @@ class BitbankClient:
                 if limit and len(ohlcv) > limit:
                     ohlcv = ohlcv[-limit:]
                     self.logger.info(
-                        f"📊 4時間足limit適用 - "
+                        "📊 4時間足limit適用 - "
                         f"取得件数={original_count}件, "
                         f"limit={limit}件, "
                         f"適用後={len(ohlcv)}件"
                     )
                 else:
                     self.logger.info(
-                        f"📊 4時間足limit適用なし - "
+                        "📊 4時間足limit適用なし - "
                         f"取得件数={original_count}件 (limit={limit}件)"
                     )
 
@@ -203,7 +203,7 @@ class BitbankClient:
                 if len(ohlcv) < min_required_rows:
                     self.logger.warning(
                         f"⚠️ 4時間足直接API取得件数不足: {len(ohlcv)}件 < {min_required_rows}件必要 "
-                        f"- ccxtリトライ"
+                        "- ccxtリトライ"
                     )
                     raise ValueError(
                         f"データ不足: {len(ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
@@ -219,7 +219,7 @@ class BitbankClient:
         # Phase 51.5-C Fix: 15分足の場合は直接API実装を使用（YYYYMMDD形式・since=None問題回避）
         if timeframe == "15m":
             self.logger.debug("15分足検出: 直接API実装を使用（Phase 51.5-C）")
-            import asyncio
+            # 削除: 重複import asyncio (line 222)
             from datetime import datetime, timedelta
 
             try:
@@ -267,14 +267,14 @@ class BitbankClient:
                 if limit and len(all_ohlcv) > limit:
                     all_ohlcv = all_ohlcv[-limit:]
                     self.logger.info(
-                        f"📊 15分足limit適用 - "
+                        "📊 15分足limit適用 - "
                         f"取得件数={original_count}件, "
                         f"limit={limit}件, "
                         f"適用後={len(all_ohlcv)}件"
                     )
                 else:
                     self.logger.info(
-                        f"📊 15分足limit適用なし - "
+                        "📊 15分足limit適用なし - "
                         f"取得件数={original_count}件 (limit={limit}件)"
                     )
 
@@ -283,14 +283,14 @@ class BitbankClient:
                 if len(all_ohlcv) < min_required_rows:
                     self.logger.warning(
                         f"⚠️ 15分足直接API取得件数不足: {len(all_ohlcv)}件 < {min_required_rows}件必要 "
-                        f"- ccxtリトライ"
+                        "- ccxtリトライ"
                     )
                     raise ValueError(
                         f"データ不足: {len(all_ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
                     )
 
                 self.logger.info(
-                    f"✅ Phase 51.5-C: 15分足直接API実装成功 - "
+                    "✅ Phase 51.5-C: 15分足直接API実装成功 - "
                     f"{days_needed}日分 → {len(all_ohlcv)}件取得完了"
                 )
 
@@ -337,7 +337,7 @@ class BitbankClient:
                         self.logger.warning(
                             f"⚠️ {error_msg} - {wait_time}秒後にリトライ（試行{attempt + 1}/{max_retries}）"
                         )
-                        import asyncio
+# 削除: 重複import asyncio（line 340）
 
                         await asyncio.sleep(wait_time)
                         continue
@@ -455,7 +455,7 @@ class BitbankClient:
 
                         # Phase 51.5 Fix: Raw Responseログ追加（デバッグ強化）
                         self.logger.debug(
-                            f"📊 API Response確認 - "
+                            "📊 API Response確認 - "
                             f"success={data.get('success')}, "
                             f"has_data={bool(data.get('data'))}, "
                             f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
@@ -617,7 +617,7 @@ class BitbankClient:
 
                         # API Response確認
                         self.logger.debug(
-                            f"📊 15m足API Response確認 - "
+                            "📊 15m足API Response確認 - "
                             f"success={data.get('success')}, "
                             f"has_data={bool(data.get('data'))}, "
                             f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
@@ -782,7 +782,7 @@ class BitbankClient:
         """
         # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
         if self._backtest_mode:
-            from ..core.config import get_threshold
+            # 削除: 重複import get_threshold (line 785)
 
             mock_enabled = get_threshold("backtest.mock_api_calls", True)
             if mock_enabled:
@@ -960,7 +960,7 @@ class BitbankClient:
             # Phase 37.5: デバッグログ（stop_limit注文パラメータ確認）
             if order_type == "stop_limit":
                 self.logger.info(
-                    f"📋 stop_limit注文パラメータ確認",
+                    "📋 stop_limit注文パラメータ確認",
                     extra_data={
                         "symbol": symbol,
                         "type": order_type,
@@ -1449,7 +1449,7 @@ class BitbankClient:
         """
         # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
         if self._backtest_mode:
-            from ..core.config import get_threshold
+            # 削除: 重複import get_threshold (line 1452)
 
             mock_enabled = get_threshold("backtest.mock_api_calls", True)
             if mock_enabled:

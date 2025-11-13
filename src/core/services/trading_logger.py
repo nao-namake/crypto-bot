@@ -87,14 +87,10 @@ class TradingLoggerService:
 
             if success:
                 # 成功時の詳細ログ
-                await self._log_successful_execution(
-                    execution_result, cycle_id, stop_prefix, success_emoji
-                )
+                await self._log_successful_execution(execution_result, cycle_id, stop_prefix, success_emoji)
             else:
                 # 失敗時のログ
-                await self._log_failed_execution(
-                    execution_result, cycle_id, stop_prefix, success_emoji
-                )
+                await self._log_failed_execution(execution_result, cycle_id, stop_prefix, success_emoji)
 
         except (KeyError, AttributeError) as e:
             # 実行結果データアクセスエラー
@@ -106,9 +102,7 @@ class TradingLoggerService:
             # その他の予期しないエラー（ログ出力失敗は致命的でない）
             self.logger.error(f"実行結果ログ出力予期しないエラー: {e}")
 
-    async def _log_successful_execution(
-        self, execution_result, cycle_id: str, stop_prefix: str, success_emoji: str
-    ):
+    async def _log_successful_execution(self, execution_result, cycle_id: str, stop_prefix: str, success_emoji: str):
         """成功時実行ログ"""
         try:
             side_emoji = "📈" if execution_result.side == "buy" else "📉"
@@ -146,9 +140,7 @@ class TradingLoggerService:
         except Exception as e:
             self.logger.error(f"❌ 成功時実行ログエラー: {e}")
 
-    async def _log_failed_execution(
-        self, execution_result, cycle_id: str, stop_prefix: str, success_emoji: str
-    ):
+    async def _log_failed_execution(self, execution_result, cycle_id: str, stop_prefix: str, success_emoji: str):
         """失敗時実行ログ"""
         try:
             # 辞書型とオブジェクト型の両方に対応（エラー詳細強化）
@@ -163,9 +155,7 @@ class TradingLoggerService:
             self.logger.debug(f"実行結果型: {result_type}, エラー詳細: {error_detail}")
 
             error_message = (
-                f"{stop_prefix}{success_emoji} 注文実行失敗 - "
-                f"サイクル: {cycle_id}, "
-                f"エラー: {error_detail}"
+                f"{stop_prefix}{success_emoji} 注文実行失敗 - " f"サイクル: {cycle_id}, " f"エラー: {error_detail}"
             )
 
             # 実行失敗はWarningレベル・Discord通知
@@ -177,10 +167,7 @@ class TradingLoggerService:
     async def _check_and_log_statistics(self):
         """統計情報チェック・ログ出力"""
         try:
-            if (
-                hasattr(self.orchestrator, "execution_service")
-                and self.orchestrator.execution_service
-            ):
+            if hasattr(self.orchestrator, "execution_service") and self.orchestrator.execution_service:
                 stats = self.orchestrator.execution_service.get_trading_statistics()
 
                 # 設定された間隔で統計出力
@@ -282,9 +269,7 @@ class TradingLoggerService:
             duration_seconds: 実行時間（秒）
         """
         try:
-            self.logger.debug(
-                f"✅ 取引サイクル完了 - ID: {cycle_id}, 実行時間: {duration_seconds:.2f}秒"
-            )
+            self.logger.debug(f"✅ 取引サイクル完了 - ID: {cycle_id}, 実行時間: {duration_seconds:.2f}秒")
 
         except Exception as e:
             self.logger.error(f"❌ サイクル終了ログエラー: {e}")

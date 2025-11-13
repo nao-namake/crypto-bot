@@ -68,7 +68,7 @@ class DynamicStrategySelector:
         # 高ボラティリティは空辞書（全戦略無効化）
         if regime == RegimeType.HIGH_VOLATILITY and not weights:
             # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
-            self.logger.warning(f"⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
+            self.logger.warning("⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
             return {}
 
         # 重み検証
@@ -242,8 +242,6 @@ class DynamicStrategySelector:
         limit = get_threshold(config_key, default_limits.get(regime, fallback_limit))
 
         # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
-        self.logger.warning(
-            f"📊 Phase 51.8: レジーム別ポジション制限 - " f"regime={regime.value}, 上限={limit}件"
-        )
+        self.logger.warning("📊 Phase 51.8: レジーム別ポジション制限 - " f"regime={regime.value}, 上限={limit}件")
 
         return limit

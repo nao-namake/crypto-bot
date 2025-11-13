@@ -211,9 +211,7 @@ class HybridOptimizer:
         print_optimization_summary(study, f"{self.phase_name} - Stage 1", duration)
 
         # 上位候補抽出
-        top_trials = sorted(study.trials, key=lambda t: t.value, reverse=True)[
-            : self.n_lightweight_candidates
-        ]
+        top_trials = sorted(study.trials, key=lambda t: t.value, reverse=True)[: self.n_lightweight_candidates]
 
         result = {
             "study": study,
@@ -254,9 +252,7 @@ class HybridOptimizer:
             )
 
             # 非同期バックテスト実行
-            sharpe_ratio = asyncio.run(
-                backtest.run_backtest_with_params(trial.params, param_type=self.param_type)
-            )
+            sharpe_ratio = asyncio.run(backtest.run_backtest_with_params(trial.params, param_type=self.param_type))
 
             result = {
                 "trial_number": trial.number,
@@ -376,8 +372,7 @@ class HybridOptimizer:
         # Trial objectをdict化
         if isinstance(data, dict) and "top_trials" in data:
             data["top_trials"] = [
-                {"number": t.number, "value": t.value, "params": t.params}
-                for t in data["top_trials"]
+                {"number": t.number, "value": t.value, "params": t.params} for t in data["top_trials"]
             ]
 
         with open(checkpoint_path, "w", encoding="utf-8") as f:
@@ -394,7 +389,7 @@ class HybridOptimizer:
 
         print(f"\n⏱️  実行時間: {duration:.1f}秒 ({duration / 60:.1f}分)")
         print(f"🔢 検証候補数: {len(results)}")
-        print(f"\n🏆 上位3候補:")
+        print("\n🏆 上位3候補:")
 
         for i, result in enumerate(results[:3]):
             print(f"\n  {i + 1}位: シャープレシオ = {result['sharpe_ratio']:.4f}")
@@ -408,7 +403,7 @@ class HybridOptimizer:
 
         print(f"\n⏱️  実行時間: {duration:.1f}秒 ({duration / 60:.1f}分, {duration / 3600:.1f}時間)")
         print(f"🔢 検証候補数: {len(results)}")
-        print(f"\n🏆 最終上位3候補:")
+        print("\n🏆 最終上位3候補:")
 
         for i, result in enumerate(results[:3]):
             print(f"\n  {i + 1}位: 最終シャープレシオ = {result['final_sharpe']:.4f}")
@@ -424,14 +419,14 @@ class HybridOptimizer:
         print(f"\n⏱️  総実行時間: {total_duration / 3600:.2f}時間")
         print(f"📊 最終シャープレシオ: {result['best_value']:.4f}")
 
-        print(f"\n🎯 最適パラメータ:")
+        print("\n🎯 最適パラメータ:")
         for key, value in result["best_params"].items():
             if isinstance(value, float):
                 print(f"  - {key}: {value:.6f}")
             else:
                 print(f"  - {key}: {value}")
 
-        print(f"\n📈 最適化プロセス:")
+        print("\n📈 最適化プロセス:")
         print(f"  - Stage 1: {result['stage1_trials']}試行（シミュレーション）")
         print(f"  - Stage 2: {result['stage2_candidates']}候補（軽量バックテスト）")
         print(f"  - Stage 3: {result['stage3_candidates']}候補（完全バックテスト）")

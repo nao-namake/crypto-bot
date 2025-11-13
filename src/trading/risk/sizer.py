@@ -56,23 +56,17 @@ class PositionSizeIntegrator:
             統合ポジションサイズ（動的調整済み）
         """
         try:
-            from ...core.config import get_threshold
+            # 削除: 重複import get_threshold（line 59）
 
             # 動的ポジションサイジングが有効かチェック
-            dynamic_enabled = get_threshold(
-                "position_management.dynamic_position_sizing.enabled", False
-            )
+            dynamic_enabled = get_threshold("position_management.dynamic_position_sizing.enabled", False)
 
             if dynamic_enabled and current_balance and btc_price:
                 # 動的ポジションサイジングを使用
-                dynamic_size = self._calculate_dynamic_position_size(
-                    ml_confidence, current_balance, btc_price
-                )
+                dynamic_size = self._calculate_dynamic_position_size(ml_confidence, current_balance, btc_price)
 
                 # 従来のKelly+RiskManagerと比較して最小値を採用
-                kelly_size = self.kelly.calculate_optimal_size(
-                    ml_confidence=ml_confidence, strategy_name=strategy_name
-                )
+                kelly_size = self.kelly.calculate_optimal_size(ml_confidence=ml_confidence, strategy_name=strategy_name)
 
                 from ...strategies.utils import RiskManager
 
@@ -93,9 +87,7 @@ class PositionSizeIntegrator:
 
             else:
                 # 従来の方法を使用
-                kelly_size = self.kelly.calculate_optimal_size(
-                    ml_confidence=ml_confidence, strategy_name=strategy_name
-                )
+                kelly_size = self.kelly.calculate_optimal_size(ml_confidence=ml_confidence, strategy_name=strategy_name)
 
                 from ...strategies.utils import RiskManager
 
@@ -116,9 +108,7 @@ class PositionSizeIntegrator:
             self.logger.error(f"統合ポジションサイズ計算エラー: {e}")
             return 0.01  # フォールバック値
 
-    def _calculate_dynamic_position_size(
-        self, ml_confidence: float, current_balance: float, btc_price: float
-    ) -> float:
+    def _calculate_dynamic_position_size(self, ml_confidence: float, current_balance: float, btc_price: float) -> float:
         """
         ML信頼度に基づく動的ポジションサイジング
 
@@ -131,17 +121,13 @@ class PositionSizeIntegrator:
             ポジションサイズ（BTC）
         """
         try:
-            from ...core.config import get_threshold
+            # 削除: 重複import get_threshold（line 134）
 
             # ML信頼度によるカテゴリー決定と比率範囲取得
             if ml_confidence < 0.6:
                 # 低信頼度
-                min_ratio = get_threshold(
-                    "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
-                )
-                max_ratio = get_threshold(
-                    "position_management.dynamic_position_sizing.low_confidence.max_ratio", 0.03
-                )
+                min_ratio = get_threshold("position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01)
+                max_ratio = get_threshold("position_management.dynamic_position_sizing.low_confidence.max_ratio", 0.03)
                 confidence_category = "low"
             elif ml_confidence < 0.75:
                 # 中信頼度
@@ -154,12 +140,8 @@ class PositionSizeIntegrator:
                 confidence_category = "medium"
             else:
                 # 高信頼度
-                min_ratio = get_threshold(
-                    "position_management.dynamic_position_sizing.high_confidence.min_ratio", 0.05
-                )
-                max_ratio = get_threshold(
-                    "position_management.dynamic_position_sizing.high_confidence.max_ratio", 0.10
-                )
+                min_ratio = get_threshold("position_management.dynamic_position_sizing.high_confidence.min_ratio", 0.05)
+                max_ratio = get_threshold("position_management.dynamic_position_sizing.high_confidence.max_ratio", 0.10)
                 confidence_category = "high"
 
             # 信頼度に応じた線形補間で比率を計算
@@ -181,9 +163,7 @@ class PositionSizeIntegrator:
             final_size = max(calculated_size, min_trade_size)
 
             # 資金規模別調整
-            if current_balance < get_threshold(
-                "position_management.account_size_adjustments.small.threshold", 50000
-            ):
+            if current_balance < get_threshold("position_management.account_size_adjustments.small.threshold", 50000):
                 # 少額資金：最小ロット優先
                 override_enabled = get_threshold(
                     "position_management.account_size_adjustments.small.min_trade_override", True

@@ -109,9 +109,7 @@ class RiskManager:
         return None
 
     @staticmethod
-    def _calculate_adaptive_atr_multiplier(
-        current_atr: float, atr_history: Optional[List[float]] = None
-    ) -> float:
+    def _calculate_adaptive_atr_multiplier(current_atr: float, atr_history: Optional[List[float]] = None) -> float:
         """
         Phase 30: 適応型ATR倍率計算
 
@@ -130,9 +128,7 @@ class RiskManager:
 
         # ATR履歴がない場合はデフォルト
         if not atr_history or len(atr_history) < 10:
-            return get_threshold(
-                "position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0
-            )
+            return get_threshold("position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0)
 
         # ATR平均計算
         import numpy as np
@@ -140,9 +136,7 @@ class RiskManager:
         avg_atr = np.mean(atr_history)
 
         # ボラティリティ状態判定
-        low_threshold = get_threshold(
-            "position_management.stop_loss.adaptive_atr.low_volatility.threshold_ratio", 0.7
-        )
+        low_threshold = get_threshold("position_management.stop_loss.adaptive_atr.low_volatility.threshold_ratio", 0.7)
         high_threshold = get_threshold(
             "position_management.stop_loss.adaptive_atr.high_volatility.threshold_ratio", 1.3
         )
@@ -152,19 +146,13 @@ class RiskManager:
         # ボラティリティに応じた倍率選択
         if volatility_ratio < low_threshold:
             # 低ボラティリティ → 広めのSL
-            return get_threshold(
-                "position_management.stop_loss.adaptive_atr.low_volatility.multiplier", 2.5
-            )
+            return get_threshold("position_management.stop_loss.adaptive_atr.low_volatility.multiplier", 2.5)
         elif volatility_ratio > high_threshold:
             # 高ボラティリティ → 狭めのSL（急変時対策）
-            return get_threshold(
-                "position_management.stop_loss.adaptive_atr.high_volatility.multiplier", 1.5
-            )
+            return get_threshold("position_management.stop_loss.adaptive_atr.high_volatility.multiplier", 1.5)
         else:
             # 通常ボラティリティ → 標準SL
-            return get_threshold(
-                "position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0
-            )
+            return get_threshold("position_management.stop_loss.adaptive_atr.normal_volatility.multiplier", 2.0)
 
     @staticmethod
     def calculate_stop_loss_take_profit(
@@ -209,9 +197,7 @@ class RiskManager:
                     f"position_management.take_profit.regime_based.{regime}.default_ratio", None
                 )
                 # レジーム別SL設定取得
-                regime_sl = get_threshold(
-                    f"position_management.stop_loss.regime_based.{regime}.max_loss_ratio", None
-                )
+                regime_sl = get_threshold(f"position_management.stop_loss.regime_based.{regime}.max_loss_ratio", None)
 
                 if regime_tp and regime_sl:
                     # レジーム別設定をconfigに反映
@@ -243,9 +229,7 @@ class RiskManager:
             sl_distance_from_ratio = current_price * max_loss_ratio
 
             # ATRベースのSL距離（参考値のみ・採用しない）
-            stop_loss_multiplier = RiskManager._calculate_adaptive_atr_multiplier(
-                current_atr, atr_history
-            )
+            stop_loss_multiplier = RiskManager._calculate_adaptive_atr_multiplier(current_atr, atr_history)
             sl_distance_from_atr = current_atr * stop_loss_multiplier
 
             # max_loss_ratio固定採用（安定性優先）
@@ -465,9 +449,7 @@ class SignalBuilder:
                 current_atr = RiskManager._extract_15m_atr(df, multi_timeframe_data)
                 if current_atr is None:
                     logger.warning(f"ATR取得失敗: {strategy_name}")
-                    return SignalBuilder._create_error_signal(
-                        strategy_name, current_price, "ATR取得失敗"
-                    )
+                    return SignalBuilder._create_error_signal(strategy_name, current_price, "ATR取得失敗")
 
                 # Phase 30: ATR履歴取得（適応型ATR用）
                 atr_history = None
@@ -516,9 +498,7 @@ class SignalBuilder:
 
         except Exception as e:
             logger.error(f"シグナル生成エラー ({strategy_name}): {e}")
-            return SignalBuilder._create_error_signal(
-                strategy_name, current_price, f"シグナル生成エラー: {e}"
-            )
+            return SignalBuilder._create_error_signal(strategy_name, current_price, f"シグナル生成エラー: {e}")
 
     @staticmethod
     def create_hold_signal(
@@ -572,9 +552,7 @@ class SignalBuilder:
             return None
 
     @staticmethod
-    def _create_error_signal(
-        strategy_name: str, current_price: float, error_message: str
-    ) -> StrategySignal:
+    def _create_error_signal(strategy_name: str, current_price: float, error_message: str) -> StrategySignal:
         """
         エラー時のフォールバックシグナル生成
 

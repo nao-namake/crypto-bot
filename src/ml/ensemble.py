@@ -133,9 +133,7 @@ class VotingSystem:
         else:
             return self._hard_voting(predictions)
 
-    def _weighted_soft_voting(
-        self, probabilities: Dict[str, np.ndarray]
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _weighted_soft_voting(self, probabilities: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         """重み付けソフト投票"""
         weighted_avg = self._average_probabilities(probabilities, use_weights=True)
         predictions = np.argmax(weighted_avg, axis=1)
@@ -143,9 +141,7 @@ class VotingSystem:
 
         return predictions, confidence
 
-    def _average_probabilities(
-        self, probabilities: Dict[str, np.ndarray], use_weights: bool = False
-    ) -> np.ndarray:
+    def _average_probabilities(self, probabilities: Dict[str, np.ndarray], use_weights: bool = False) -> np.ndarray:
         """確率の平均化"""
         if not probabilities:
             raise ValueError("No probabilities provided")
@@ -554,9 +550,7 @@ class EnsembleModel:
 
         min_samples = get_threshold("ensemble.min_training_samples", 50)
         if len(X) < min_samples:  # アンサンブルには多めのデータが必要
-            raise ValueError(
-                f"Insufficient training data for ensemble: {len(X)} samples (minimum: {min_samples})"
-            )
+            raise ValueError(f"Insufficient training data for ensemble: {len(X)} samples (minimum: {min_samples})")
 
         # クラス数チェック
         n_classes = len(np.unique(y))

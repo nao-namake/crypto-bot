@@ -146,9 +146,7 @@ class TestCleanupOrphanedPositions:
         assert result["cleaned"] == 1
 
     @pytest.mark.asyncio
-    async def test_cleanup_both_tp_sl_orders(
-        self, cleanup, mock_position_tracker, mock_bitbank_client
-    ):
+    async def test_cleanup_both_tp_sl_orders(self, cleanup, mock_position_tracker, mock_bitbank_client):
         """TP/SL両方クリーンアップ"""
         cleanup.inject_position_tracker(mock_position_tracker)
 
@@ -170,9 +168,7 @@ class TestCleanupOrphanedPositions:
         assert result["cleaned"] == 2  # TP + SL
 
     @pytest.mark.asyncio
-    async def test_cleanup_multiple_orphaned_positions(
-        self, cleanup, mock_position_tracker, mock_bitbank_client
-    ):
+    async def test_cleanup_multiple_orphaned_positions(self, cleanup, mock_position_tracker, mock_bitbank_client):
         """複数孤児ポジションクリーンアップ"""
         cleanup.inject_position_tracker(mock_position_tracker)
 
@@ -227,10 +223,7 @@ class TestCleanupOrphanedPositions:
         result = await cleanup.cleanup_orphaned_positions(mock_client)
 
         assert result["success"] is False
-        assert (
-            "クリーンアップエラー" in result["message"]
-            or "実ポジション取得失敗" in result["message"]
-        )
+        assert "クリーンアップエラー" in result["message"] or "実ポジション取得失敗" in result["message"]
 
 
 class TestFetchActualPositions:
@@ -330,9 +323,7 @@ class TestCancelOrder:
     async def test_cancel_order_not_found(self, cleanup):
         """注文が存在しない（エラー60002）"""
         mock_client = AsyncMock()
-        mock_client.cancel_order = AsyncMock(
-            side_effect=Exception("bitbank API Error 60002: Order not found")
-        )
+        mock_client.cancel_order = AsyncMock(side_effect=Exception("bitbank API Error 60002: Order not found"))
 
         result = await cleanup._cancel_order(mock_client, "order_123")
 

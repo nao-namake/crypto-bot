@@ -157,9 +157,7 @@ class MLModelLoader:
         # Cloud Run環境とローカル環境の両方に対応
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")
-        base_path = (
-            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
-        )
+        base_path = cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
 
         # Phase 50.1: feature_order.jsonから設定駆動型でモデルファイル名取得
         from ..config.feature_manager import _feature_manager
@@ -221,9 +219,7 @@ class MLModelLoader:
                 self.is_fitted = getattr(self.model, "is_fitted", True)
                 self.feature_level = level
                 feature_count = level_info[level].get("count", "unknown")
-                self.logger.info(
-                    f"✅ ProductionEnsemble読み込み成功 (Level {level.upper()}, {feature_count}特徴量)"
-                )
+                self.logger.info(f"✅ ProductionEnsemble読み込み成功 (Level {level.upper()}, {feature_count}特徴量)")
                 return True
             else:
                 self.logger.error("ProductionEnsembleに必須メソッドが不足")
@@ -239,9 +235,7 @@ class MLModelLoader:
 
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")
-        base_path = (
-            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
-        )
+        base_path = cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
 
         training_path_str = get_threshold("ml.model_paths.training_path", "models/training")
         training_path = Path(base_path) / training_path_str
@@ -275,9 +269,7 @@ class MLModelLoader:
                 self.model = ProductionEnsemble(individual_models)
                 self.model_type = "ReconstructedEnsemble"
                 self.is_fitted = True
-                self.logger.info(
-                    f"✅ 個別モデルからEnsemble再構築成功 ({len(individual_models)}モデル)"
-                )
+                self.logger.info(f"✅ 個別モデルからEnsemble再構築成功 ({len(individual_models)}モデル)")
                 return True
             else:
                 self.logger.error("有効な個別モデルが見つかりません")

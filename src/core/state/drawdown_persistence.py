@@ -202,9 +202,7 @@ class CloudStoragePersistence(DrawdownPersistence):
             json_data = blob.download_as_text()
             state = json.loads(json_data)
 
-            self.logger.debug(
-                f"Cloud Storage読み込み成功: gs://{self.bucket_name}/{self.object_path}"
-            )
+            self.logger.debug(f"Cloud Storage読み込み成功: gs://{self.bucket_name}/{self.object_path}")
             return state
 
         except Exception as e:
@@ -230,13 +228,9 @@ class CloudStoragePersistence(DrawdownPersistence):
 
             # オブジェクトをコピー
             source_blob.reload()  # メタデータ取得
-            backup_blob.upload_from_string(
-                source_blob.download_as_text(), content_type="application/json"
-            )
+            backup_blob.upload_from_string(source_blob.download_as_text(), content_type="application/json")
 
-            self.logger.info(
-                f"Cloud Storageバックアップ作成: gs://{self.bucket_name}/{backup_path}"
-            )
+            self.logger.info(f"Cloud Storageバックアップ作成: gs://{self.bucket_name}/{backup_path}")
             return True
 
         except Exception as e:

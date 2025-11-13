@@ -92,9 +92,7 @@ class HealthChecker:
             cpu_usage = psutil.cpu_percent(interval=cpu_check_interval)
 
             # 警告レベル設定（thresholds.yamlから取得）
-            memory_warning_threshold = get_monitoring_config(
-                "health_check.memory_threshold_percent", 85
-            )
+            memory_warning_threshold = get_monitoring_config("health_check.memory_threshold_percent", 85)
             cpu_warning_threshold = get_monitoring_config("health_check.cpu_threshold_percent", 80)
 
             if memory_usage > memory_warning_threshold:
@@ -103,9 +101,7 @@ class HealthChecker:
             if cpu_usage > cpu_warning_threshold:
                 self.logger.warning(f"⚠️ CPU使用量高: {cpu_usage:.1f}%")
 
-            self.logger.debug(
-                f"🔍 システムリソース確認完了 - Memory: {memory_usage:.1f}%, CPU: {cpu_usage:.1f}%"
-            )
+            self.logger.debug(f"🔍 システムリソース確認完了 - Memory: {memory_usage:.1f}%, CPU: {cpu_usage:.1f}%")
 
         except ImportError:
             # psutilがない場合はスキップ

@@ -110,9 +110,7 @@ class StrategyManager:
             # 統合結果記録
             self._record_decision(strategy_signals, combined_signal)
 
-            self.logger.info(
-                f"統合シグナル生成: {combined_signal.action} (信頼度: {combined_signal.confidence:.3f})"
-            )
+            self.logger.info(f"統合シグナル生成: {combined_signal.action} (信頼度: {combined_signal.confidence:.3f})")
 
             return combined_signal
 
@@ -147,9 +145,7 @@ class StrategyManager:
                 # Phase 31: multi_timeframe_dataを渡す
                 signal = strategy.generate_signal(df, multi_timeframe_data=multi_timeframe_data)
                 signals[name] = signal
-                self.logger.info(
-                    f"[{name}] シグナル取得成功: {signal.action} ({signal.confidence:.3f})"
-                )
+                self.logger.info(f"[{name}] シグナル取得成功: {signal.action} ({signal.confidence:.3f})")
 
             except Exception as e:
                 error_msg = f"[{name}] シグナル生成エラー: {type(e).__name__}: {e}"
@@ -170,9 +166,7 @@ class StrategyManager:
         self.logger.debug(f"シグナル収集完了: {len(signals)}戦略")
         return signals
 
-    def _combine_signals(
-        self, signals: Dict[str, StrategySignal], df: pd.DataFrame
-    ) -> StrategySignal:
+    def _combine_signals(self, signals: Dict[str, StrategySignal], df: pd.DataFrame) -> StrategySignal:
         """シグナルを統合して最終決定を生成."""
         if not signals:
             return self._create_hold_signal(df)
@@ -276,17 +270,13 @@ class StrategyManager:
             ratio = sell_ratio
         else:  # hold_ratio == max_ratio
             # hold が最高スコア → _create_hold_signalで動的confidence計算
-            self.logger.info(
-                f"コンフリクト解決: HOLD選択 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)"
-            )
+            self.logger.info(f"コンフリクト解決: HOLD選択 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)")
             return self._create_hold_signal(
                 df,
                 reason=f"全5票統合結果 - HOLD優勢 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)",
             )
 
-        self.logger.info(
-            f"コンフリクト解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)"
-        )
+        self.logger.info(f"コンフリクト解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)")
 
         # 勝利グループから最も信頼度の高いシグナルをベースに統合
         best_signal = max(winning_group, key=lambda x: x[1].confidence)[1]
@@ -331,8 +321,7 @@ class StrategyManager:
         """
         # 重み付き信頼度が最も高いアクションを選択（Phase 38.8: 票数カウント廃止）
         action_confidences = {
-            action: self._calculate_weighted_confidence(signals)
-            for action, signals in signal_groups.items()
+            action: self._calculate_weighted_confidence(signals) for action, signals in signal_groups.items()
         }
         dominant_action = max(action_confidences, key=action_confidences.get)
         dominant_confidence = action_confidences[dominant_action]

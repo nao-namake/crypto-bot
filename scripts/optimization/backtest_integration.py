@@ -82,9 +82,7 @@ class BacktestIntegration:
         self.successful_runs = 0
         self.failed_runs = 0
 
-    async def run_backtest_with_params(
-        self, params: Dict[str, Any], param_type: str = "risk"
-    ) -> float:
+    async def run_backtest_with_params(self, params: Dict[str, Any], param_type: str = "risk") -> float:
         """
         パラメータを適用してバックテスト実行
 
@@ -397,9 +395,7 @@ class BacktestIntegration:
             sharpe_ratio = self.metrics_calculator.calculate_sharpe_ratio(returns)
 
             if self.verbose:
-                win_rate = (
-                    sum(1 for r in returns if r > 0) / len(returns) if returns.size > 0 else 0
-                )
+                win_rate = sum(1 for r in returns if r > 0) / len(returns) if returns.size > 0 else 0
                 avg_return = np.mean(returns)
                 self.logger.info(
                     f"📊 バックテスト結果: 取引数={len(returns)}, "
@@ -420,17 +416,13 @@ class BacktestIntegration:
         Returns:
             Dict: 統計情報
         """
-        avg_time = (
-            self.total_execution_time / self.execution_count if self.execution_count > 0 else 0
-        )
+        avg_time = self.total_execution_time / self.execution_count if self.execution_count > 0 else 0
 
         return {
             "total_executions": self.execution_count,
             "successful_runs": self.successful_runs,
             "failed_runs": self.failed_runs,
-            "success_rate": (
-                self.successful_runs / self.execution_count if self.execution_count > 0 else 0
-            ),
+            "success_rate": (self.successful_runs / self.execution_count if self.execution_count > 0 else 0),
             "total_time_seconds": self.total_execution_time,
             "average_time_seconds": avg_time,
             "period_days": self.period_days,
