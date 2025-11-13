@@ -465,6 +465,193 @@ bash scripts/testing/checks.sh
 
 ---
 
-**📅 最終更新**: 2025年11月12日
+## 🐛 Phase 52.2 CI/CD修正・バグ修正
+
+### 問題1: GitHub Actions連動実行
+
+**発生日時**: 2025/11/12 16:00-16:15
+**問題**: `weekly_backtest.yml`実行時に他のCI/CDワークフローが連動実行される
+
+**原因**:
+1. `.github/workflows/ci.yml`の`push: main`トリガーがワークフローファイル変更でも起動
+2. `model-training.yml`等が`push`トリガーなしでもGitHub内部バリデーションで起動
+
+**影響**:
+- `weekly_backtest.yml`手動実行時に`ci.yml`、`model-training.yml`が同時起動
+- リソース浪費・実行時間増加・ログ混乱
+
+**修正内容**:
+
+#### 1. ci.yml修正
+```yaml
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/workflows/**'  # ワークフロー変更でCI/CD起動しない
+      - 'docs/**'
+      - '**.md'
+```
+
+**ファイル**: `/Users/nao/Desktop/bot/.github/workflows/ci.yml`
+**コミット**: `d8e797d5` - fix: CI/CD正常化 - ワークフロー変更時の不要実行防止
+
+#### 2. 全ワークフローにpush実行防止追加
+```yaml
+on:
+  # push実行防止（GitHub内部バリデーション対策）
+  push:
+    paths-ignore:
+      - '**'  # すべてのファイル変更を無視（push時は実行しない）
+```
+
+**対象ファイル**:
+- `model-training.yml`
+- `weekly_report.yml`
+- `cleanup.yml`
+- `weekly_backtest.yml`
+
+**コミット**: `01a71c60` - fix: 全ワークフローのpush実行完全防止
+
+**効果**:
+- ✅ 各ワークフローが完全独立して実行
+- ✅ `weekly_backtest.yml`単独実行時、他のCIは起動しない
+- ✅ コード変更時、`ci.yml`のみ自動実行（`.github/workflows/`除く）
+- ✅ ワークフロー変更時、どのCIも起動しない
+
+---
+
+### 問題2: 最大ドローダウン計算バグ
+
+**発見日時**: 2025/11/13 19:58
+**問題**: バックテストレポートの最大ドローダウンが60.73%と異常に高い
+
+**原因**:
+```python
+# TradeTrackerのバグ実装
+self.equity_curve: List[float] = [0.0]  # 累積損益のみ記録（初期残高なし）
+
+# 最大ドローダウン計算
+max_equity = self.equity_curve[0]  # = 0.0（初期残高を含まない）
+for equity in self.equity_curve:
+    dd = max_equity - equity
+    max_dd_pct = (dd / max_equity * 100)  # ← 分母が小さすぎる
+```
+
+**誤った計算**:
+- ピークエクイティ: ¥604（最大累積損益）
+- 最大DD: ¥367 / ¥604 × 100 = **60.73%**（誤り）
+
+**実際の状況**:
+- 初期残高: ¥100,000
+- 最低エクイティ: ¥100,000 - ¥367 = ¥99,633
+- 最終エクイティ: ¥100,000 + ¥1,142 = ¥101,142
+- **正しいDD**: ¥367 / ¥100,000 × 100 = **0.37%**
+
+**修正内容**:
+
+#### 1. TradeTracker初期化修正
+```python
+def __init__(self, initial_balance: float = 100000.0):
+    """
+    TradeTracker初期化
+
+    Args:
+        initial_balance: 初期残高（デフォルト: ¥100,000）
+    """
+    self.initial_balance = initial_balance  # Phase 52.3: 初期残高記録
+    self.equity_curve: List[float] = [0.0]  # エクイティカーブ（累積損益）
+```
+
+#### 2. 最大ドローダウン計算修正
+```python
+def _calculate_max_drawdown(self) -> tuple:
+    """
+    最大ドローダウン計算（Phase 52.3修正: 初期残高を考慮）
+
+    equity_curveは累積損益を記録しているため、初期残高を加算して
+    絶対残高ベースでドローダウンを計算する。
+    """
+    # Phase 52.3修正: 初期残高から開始
+    max_equity = self.initial_balance
+
+    for cumulative_pnl in self.equity_curve:
+        # 累積損益を絶対残高に変換
+        current_equity = self.initial_balance + cumulative_pnl
+
+        if current_equity > max_equity:
+            max_equity = current_equity
+
+        dd = max_equity - current_equity
+        if dd > max_dd:
+            max_dd = dd
+            max_dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
+
+    return (max_dd, max_dd_pct)
+```
+
+**ファイル**: `/Users/nao/Desktop/bot/src/backtest/reporter.py`
+**変更行**: 41-53（`__init__`）、269-299（`_calculate_max_drawdown`）
+**コミット**: `7ff55421` - fix: Phase 52.3 最大ドローダウン計算バグ修正（60.73% → 0.37%）
+
+**効果**:
+- ✅ 正しい最大ドローダウン: 0.37%（60.73%から修正）
+- ✅ 正しいピークエクイティ: ¥101,142（¥604から修正）
+- ✅ バックテストレポートの信頼性向上
+
+**影響範囲**:
+- バックテスト・ペーパートレードのみ（本番環境は`TradeTracker`未使用）
+
+---
+
+## 📊 週次バックテスト実行結果
+
+**実行日時**: 2025/11/12 15:59:19 UTC（2025/11/13 00:59:19 JST）
+**Run ID**: 19303608211
+**実行時間**: 1時間41分37秒
+**ステータス**: ✅ 完全成功
+
+### 実行ステップ
+1. ✅ Set up job
+2. ✅ Checkout code
+3. ✅ Set up Python 3.13
+4. ✅ Install dependencies
+5. ✅ **Collect historical data**（Phase 52.2対応・データ収集成功）
+6. ✅ Setup backtest environment
+7. ✅ **Run backtest**（1時間41分実行）
+8. ✅ **Generate Markdown report**
+9. ✅ Configure Git
+10. ✅ **Commit Markdown report**
+11. ✅ **Push to repository**
+12. ✅ Execution summary
+
+### 生成レポート
+**ファイル**: `docs/バックテスト記録/Phase_52.2-production-simulation-final_20251112.md`
+**コミット**: `4ebd5d0b` - docs: 週次バックテストレポート追加 2025/11/13
+
+### パフォーマンスサマリー（修正前の値）
+| 指標 | 値 |
+|-----|---|
+| 総損益 | +¥1,142 |
+| 勝率 | 49.7% |
+| プロフィットファクター | 1.27 |
+| 総エントリー数 | 717件 |
+| 最大ドローダウン | ~~60.73%~~ → **0.37%（修正後）** |
+| リスクリワード比 | 1.28:1 |
+
+### レジーム別パフォーマンス
+| レジーム | エントリー数 | 勝率 | 総損益 |
+|---------|------------|------|--------|
+| tight_range | 704件 | 49.9% | +¥1,161 |
+| normal_range | 13件 | 38.5% | -¥19 |
+
+### DrawdownManager動作確認
+- ✅ クールダウン発動: 多数確認（2025年8月に集中）
+- ✅ 本番シミュレーション動作: 正常
+- ✅ -20%制限・8連続損失・6時間クールダウン: 機能確認
+
+---
+
+**📅 最終更新**: 2025年11月13日
 **👤 担当**: nao
-**✅ ステータス**: Phase 52.0-52.2完了・Phase 52.3準備中
+**✅ ステータス**: Phase 52.0-52.2完了・CI/CD修正完了・ドローダウンバグ修正完了・Phase 52.3準備中
