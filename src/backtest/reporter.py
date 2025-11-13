@@ -38,12 +38,18 @@ class TradeTracker:
     パフォーマンス指標（勝率・プロフィットファクター・最大DD等）を提供。
     """
 
-    def __init__(self):
-        """TradeTracker初期化"""
+    def __init__(self, initial_balance: float = 100000.0):
+        """
+        TradeTracker初期化
+
+        Args:
+            initial_balance: 初期残高（デフォルト: ¥100,000）
+        """
         self.logger = get_logger(__name__)
         self.open_entries: Dict[str, Dict] = {}  # オープンエントリー（order_id → entry info）
         self.completed_trades: List[Dict] = []  # 完了した取引ペア
         self.total_pnl = 0.0
+        self.initial_balance = initial_balance  # Phase 52.3: 初期残高記録
         self.equity_curve: List[float] = [0.0]  # エクイティカーブ（累積損益）
 
     def record_entry(
@@ -262,7 +268,10 @@ class TradeTracker:
 
     def _calculate_max_drawdown(self) -> tuple:
         """
-        最大ドローダウン計算
+        最大ドローダウン計算（Phase 52.3修正: 初期残高を考慮）
+
+        equity_curveは累積損益を記録しているため、初期残高を加算して
+        絶対残高ベースでドローダウンを計算する。
 
         Returns:
             (max_drawdown, max_drawdown_pct): 最大ドローダウン（円）、最大ドローダウン（%）
@@ -270,15 +279,19 @@ class TradeTracker:
         if len(self.equity_curve) < 2:
             return (0.0, 0.0)
 
-        max_equity = self.equity_curve[0]
+        # Phase 52.3修正: 初期残高から開始
+        max_equity = self.initial_balance
         max_dd = 0.0
         max_dd_pct = 0.0
 
-        for equity in self.equity_curve:
-            if equity > max_equity:
-                max_equity = equity
+        for cumulative_pnl in self.equity_curve:
+            # 累積損益を絶対残高に変換
+            current_equity = self.initial_balance + cumulative_pnl
 
-            dd = max_equity - equity
+            if current_equity > max_equity:
+                max_equity = current_equity
+
+            dd = max_equity - current_equity
             if dd > max_dd:
                 max_dd = dd
                 max_dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
