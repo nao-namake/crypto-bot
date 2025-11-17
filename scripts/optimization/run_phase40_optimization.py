@@ -215,7 +215,9 @@ class Phase40UnifiedOptimizer:
                     )
                 else:
                     # 通常の最適化実行（シミュレーションベース）
-                    results = optimizer.optimize(n_trials=phase["n_trials"], timeout=phase["timeout"])
+                    results = optimizer.optimize(
+                        n_trials=phase["n_trials"], timeout=phase["timeout"]
+                    )
 
                 success = results.get("best_value", -10.0) > -5.0
 

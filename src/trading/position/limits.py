@@ -1,5 +1,5 @@
 """
-ポジション制限管理サービス - Phase 49完了
+ポジション制限管理サービス - Phase 52.4-B完了
 
 ポジション数、資金利用率、日次取引回数などの制限をチェック。
 """
@@ -106,7 +106,9 @@ class PositionLimits:
         min_account_balance = get_threshold("position_management.min_account_balance", 10000.0)
 
         # 動的ポジションサイジングが有効な場合は最小要件を緩和
-        dynamic_enabled = get_threshold("position_management.dynamic_position_sizing.enabled", False)
+        dynamic_enabled = get_threshold(
+            "position_management.dynamic_position_sizing.enabled", False
+        )
 
         if not dynamic_enabled and current_balance < min_account_balance:
             return {
@@ -129,7 +131,9 @@ class PositionLimits:
 
         return {"allowed": True, "reason": "資金要件OK"}
 
-    async def _check_cooldown(self, evaluation: TradeEvaluation, last_order_time: Optional[datetime]) -> Dict[str, Any]:
+    async def _check_cooldown(
+        self, evaluation: TradeEvaluation, last_order_time: Optional[datetime]
+    ) -> Dict[str, Any]:
         """
         クールダウンチェック（Phase 31.1: 柔軟な判定）
 
@@ -242,11 +246,12 @@ class PositionLimits:
         mode_balance_config = mode_balances.get(mode, {})
         initial_balance = mode_balance_config.get("initial_balance", 10000.0)
 
-        # 現在の使用率計算
+        # 現在の使用率計算（使用額 / 初期残高）
+        # 例: 初期10万円 → 現在7万円 → 使用率30%（3万円使用）
         if initial_balance > 0:
             current_usage_ratio = (initial_balance - current_balance) / initial_balance
         else:
-            current_usage_ratio = 1.0
+            current_usage_ratio = 1.0  # 初期残高0の場合は100%使用扱い
 
         if current_usage_ratio >= max_capital_usage:
             return {
@@ -296,7 +301,9 @@ class PositionLimits:
 
         return {"allowed": True, "reason": "日次取引回数OK"}
 
-    def _check_trade_size(self, evaluation: TradeEvaluation, current_balance: float) -> Dict[str, Any]:
+    def _check_trade_size(
+        self, evaluation: TradeEvaluation, current_balance: float
+    ) -> Dict[str, Any]:
         """
         取引サイズチェック（ML信頼度連動・最小ロット優先）
 
@@ -316,11 +323,21 @@ class PositionLimits:
         min_trade_amount = min_trade_size * estimated_btc_price
 
         # ML信頼度に基づく制限比率を決定
-        if ml_confidence < 0.60:
+        # Phase 52.4: 閾値をthresholds.yamlから取得（ハードコード削除）
+        low_threshold = get_threshold(
+            "position_management.confidence_thresholds.low_to_medium", 0.60
+        )
+        medium_threshold = get_threshold(
+            "position_management.confidence_thresholds.medium_to_high", 0.75
+        )
+
+        if ml_confidence < low_threshold:
             # 低信頼度
-            max_position_ratio = get_threshold("position_management.max_position_ratio_per_trade.low_confidence", 0.03)
+            max_position_ratio = get_threshold(
+                "position_management.max_position_ratio_per_trade.low_confidence", 0.03
+            )
             confidence_category = "low"
-        elif ml_confidence < 0.75:
+        elif ml_confidence < medium_threshold:
             # 中信頼度
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.medium_confidence", 0.05
@@ -328,11 +345,15 @@ class PositionLimits:
             confidence_category = "medium"
         else:
             # 高信頼度
-            max_position_ratio = get_threshold("position_management.max_position_ratio_per_trade.high_confidence", 0.10)
+            max_position_ratio = get_threshold(
+                "position_management.max_position_ratio_per_trade.high_confidence", 0.10
+            )
             confidence_category = "high"
 
         max_allowed_amount = current_balance * max_position_ratio
-        enforce_minimum = get_threshold("position_management.max_position_ratio_per_trade.enforce_minimum", True)
+        enforce_minimum = get_threshold(
+            "position_management.max_position_ratio_per_trade.enforce_minimum", True
+        )
 
         # 最小ロット優先チェック
         if enforce_minimum and trade_amount <= min_trade_amount:

@@ -1,17 +1,17 @@
 """
-サービス層システム - Phase 49完了
+サービス層システム - Phase 52.4
 
-orchestrator.pyから分離したサービス機能を統合管理。
-ヘルスチェック・エラー記録・取引サイクル管理を担当。
+システムサービス機能を統合管理。
+取引サイクル実行・市場レジーム分類・動的戦略選択・システム監視を提供。
 
-Phase 49完了:
+主要機能:
 - TradingCycleManager: 取引サイクル実行管理（データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行）
-- GracefulShutdownManager: グレースフルシャットダウン（シグナルハンドリング・30秒タイムアウト）
-- HealthChecker: ヘルスチェック（全サービス健全性確認・システム状態監視）
-- SystemRecoveryService: システム復旧（MLサービス復旧・エラー記録・自動再起動）
-- TradingLoggerService: 取引ログ（取引決定・実行結果・統計情報）
-
-Phase 28-29: サービス層分離・機能モジュール化完了
+- MarketRegimeClassifier: 市場レジーム分類（tight_range/normal_range/trending/high_volatility）
+- DynamicStrategySelector: レジーム別動的戦略選択（Phase 51.3-51.9）
+- GracefulShutdownManager: Gracefulシャットダウン管理
+- HealthChecker: システムヘルスチェック
+- SystemRecoveryService: システム自動復旧
+- TradingLoggerService: 取引ログ管理
 """
 
 from .graceful_shutdown_manager import GracefulShutdownManager

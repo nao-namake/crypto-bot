@@ -1,17 +1,34 @@
-# 📊 バックテストシステム (Phase 49完了)
+# 📊 バックテストシステム
+
+**最終更新**: 2025/11/16 (Phase 52.4-B)
 
 ## 🎯 概要
 
 **本番と完全同一のロジック**で動作するバックテストシステムです。
 独自エンジンを廃止し、`TradingCycleManager`を使用してCSVデータから時系列バックテストを実行します。
 
-**Phase 49完了実績（2025/10/22）**:
+### 現状（Phase 52.4-B）
+- ✅ **信頼性100%達成**: Phase 49完全改修ベース
+- ✅ **ML統合対応**: Phase 51-52 レジーム分類・戦略選択対応
+- ✅ **週次レポート**: Phase 48 Discord週次レポート統合
+- ✅ **高速CSV処理**: キャッシュ機能・8種類整合性チェック
+- ✅ **完全可視化**: matplotlib 4種類グラフ
+
+### 開発履歴
+
+**Phase 52.4-B（2025/11/16）**: コード整理・ドキュメント統一完了
+
+**Phase 52.3（2025/11/12）**: 最大ドローダウン計算バグ修正（60.73% → 0.37%）
+
+**Phase 51.8（2025/11/09）**: レジーム分類対応バックテスト
+
+**Phase 49（2025/10/22）**: バックテスト完全改修
 - ✅ 戦略シグナル0埋め問題解消（568 BUY / 0 SELL → 完全動作）
 - ✅ TP/SLトリガー・決済ロジック実装（エントリー/エグジット完全ペアリング）
 - ✅ TradeTracker実装（勝率・プロフィットファクター・最大DD算出）
 - ✅ matplotlib可視化実装（エクイティカーブ・損益分布・ドローダウン・価格チャート）
 
-**Phase 34-35完了実績**:
+**Phase 34-35**: 高速化基盤実装
 - ✅ 15分足データ収集80倍改善（216件→17,271件・99.95%成功率）
 - ✅ バックテスト10倍高速化達成（6-8時間→45分実行）
 - ✅ 特徴量バッチ化（無限倍高速化）・ML予測バッチ化（3,000倍高速化）
@@ -30,21 +47,22 @@
 
 ```
 src/backtest/
-├── __init__.py                    # Phase 49完了
-├── README.md                      # このファイル（Phase 49更新）
-├── reporter.py                    # レポート生成・TradeTracker（Phase 49拡張）
-├── visualizer.py                  # matplotlib可視化（Phase 49.4新規）
+├── __init__.py                    # Phase 52.4-B更新完了
+├── README.md                      # このファイル（Phase 52.4-B更新）
+├── reporter.py                    # レポート生成・TradeTracker（Phase 52.4-B更新）
+├── visualizer.py                  # matplotlib可視化（Phase 52.4-B更新）
 ├── data/
-│   ├── csv_data_loader.py         # CSV読み込み・キャッシュ機能（Phase 38.4完了）
+│   ├── csv_data_loader.py         # CSV読み込み・キャッシュ機能（Phase 52.4-B更新）
+│   ├── README.md                  # データモジュールドキュメント（Phase 52.4-B追加）
 │   └── historical/                # 📂 CSVデータ保存先
 │       └── .gitkeep               # バックテスト実行前にデータ収集が必要
-│                                  # 実行: python src/backtest/scripts/collect_historical_csv.py --days 180
 ├── scripts/
-│   └── collect_historical_csv.py  # データ収集・期間統一機能（Phase 34実装）
-└── logs/                          # レポート出力先
+│   └── collect_historical_csv.py  # 過去データ収集（Phase 52.4-B更新）
+└── logs/                          # 📂 バックテストログ保存先
+    ├── .gitkeep                   # ログファイル出力先
     ├── backtest_YYYYMMDD_HHMMSS.json     # JSON実行統計
-    ├── backtest_YYYYMMDD_HHMMSS.txt      # Phase 49: テキストレポート
-    └── graphs_YYYYMMDD_HHMMSS/           # Phase 49: matplotlib可視化
+    ├── backtest_YYYYMMDD_HHMMSS.txt      # テキストレポート
+    └── graphs_YYYYMMDD_HHMMSS/           # matplotlib可視化
         ├── equity_curve.png              # エクイティカーブ
         ├── pnl_distribution.png          # 損益分布ヒストグラム
         ├── drawdown.png                  # ドローダウンチャート

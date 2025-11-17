@@ -1,5 +1,5 @@
 # CI/CDパイプライン
-# 1,117テスト100%成功・68.32%カバレッジ達成・Phase 49完了（SELL Only問題解決・証拠金維持率80%遵守）
+# Phase 52.4: コード品質改善・flake8エラー完全解消
 
 name: CI/CD Pipeline
 
@@ -62,10 +62,11 @@ jobs:
 
       - name: Setup test environment
         run: |
-          # Phase 50.9: 実モデルファイルがGitに含まれるため、ダミー作成不要
+          # Phase 52.4: 特徴量数一元管理（feature_order.jsonから自動取得）
           mkdir -p logs cache
-          echo '{"version": "ci-test", "features": 62}' > models/production/model_metadata.json
-          echo "✅ テスト環境準備完了（実モデルファイル使用）"
+          FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
+          echo "{\"version\": \"ci-test\", \"features\": ${FEATURE_COUNT}}" > models/production/model_metadata.json
+          echo "✅ テスト環境準備完了（実モデルファイル使用・${FEATURE_COUNT}特徴量）"
 
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
@@ -229,13 +230,16 @@ jobs:
         run: |
           # Docker用の必要なディレクトリ作成
           mkdir -p models/production logs cache
-          echo '{"version": "production", "features": 55, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
-          
-          # Phase 50.9: 本番用モデル確認（CI環境では作成済み）
+
+          # Phase 52.4: 特徴量数一元管理（feature_order.jsonから自動取得）
+          FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
+          echo "{\"version\": \"production\", \"features\": ${FEATURE_COUNT}, \"created\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > models/production/model_metadata.json
+
+          # Phase 52.4: 本番用モデル確認（一元管理された特徴量数）
           if [ -f "models/production/ensemble_full.pkl" ]; then
-            echo "✅ 本番用モデル確認済み: models/production/ensemble_full.pkl"
+            echo "✅ 本番用モデル確認済み: models/production/ensemble_full.pkl (${FEATURE_COUNT}特徴量)"
           else
-            echo "⚠️ 本番用モデル未確認（CI環境で作成予定）"
+            echo "⚠️ 本番用モデル未確認（CI環境で作成予定・${FEATURE_COUNT}特徴量）"
           fi
 
       - name: Authenticate to Google Cloud
@@ -284,16 +288,16 @@ jobs:
           
           echo "✅ Dockerイメージプッシュ完了"
 
-      - name: Docker Container Startup Test (Phase 49.14)
+      - name: Docker Container Startup Test
         run: |
-          # Phase 49.14: Dockerコンテナ起動テスト（import検証）
+          # Dockerコンテナ起動テスト（import検証）
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
 
-          echo "🐳 Phase 49.14: Docker Container起動テスト実行中..."
+          echo "🐳 Docker Container起動テスト実行中..."
           echo "イメージ: ${IMAGE_TAG}"
 
           # コンテナ起動テスト（Python import検証）
-          # Phase 49.13のような 'No module named tax' エラーを事前検出
+          # 'No module named ...' エラーを事前検出
           if docker run --rm "${IMAGE_TAG}" python3 -c "
           import sys
           sys.path.insert(0, '/app')
@@ -310,7 +314,7 @@ jobs:
             echo "✅ Docker Container起動テスト成功 - 全モジュールimport可能"
           else
             echo "❌ Docker Container起動テスト失敗 - モジュールimportエラー"
-            echo "Phase 49.13 'No module named ...' 問題を検出しました"
+            echo "'No module named ...' 問題を検出しました"
             echo "Dockerfileの COPY 命令を確認してください"
             exit 1
           fi
@@ -320,14 +324,9 @@ jobs:
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
 
           echo "🚀 段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "Phase 49完了: 1,117テスト100%成功・68.32%カバレッジ達成・SELL Only問題解決・証拠金維持率80%遵守"
-          
-          # デプロイモード判定（レガシー改良・本番モードデフォルト）
-          DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
-          echo "📊 デプロイモード: $DEPLOY_MODE"
-          
-          # Phase 16-B統一設定（本番モード固定・設定一元化対応）
-          SERVICE_SUFFIX=""
+          echo "Phase 52.4: コード品質改善・flake8エラー完全解消"
+
+          # 統一設定（本番モード固定・設定一元化対応）
           MEMORY="1Gi"
           CPU="1"
           MIN_INSTANCES="1"
@@ -335,7 +334,7 @@ jobs:
           TIMEOUT="3600"
           DEPLOY_MODE="live"
           echo "📋 本番モード（ライブトレード）"
-          
+
           FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}"
           echo "📍 デプロイサービス名: $FULL_SERVICE_NAME"
           
@@ -372,7 +371,7 @@ jobs:
             --to-latest \
             --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
 
-          echo "✅ Phase 49本番デプロイ完了・システム稼働開始"
+          echo "✅ Phase 52.4本番デプロイ完了・システム稼働開始"
 
       - name: Verify Deployment Health Check
         run: |
@@ -430,11 +429,10 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Phase 49本番デプロイ成功！"
+            echo "🎉 Phase 52.4本番デプロイ成功！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: 1,117テスト100%成功・68.32%カバレッジ・SELL Only問題解決・証拠金維持率80%遵守"
           else
             echo "❌ デプロイ失敗"
             echo "🔍 ログを確認してください"

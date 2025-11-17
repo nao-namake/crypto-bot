@@ -1,5 +1,5 @@
 """
-Stochastic Reversal戦略 - Phase 51.7 Day 4
+Stochastic Reversal戦略 - Phase 52.4-B
 
 レンジ相場におけるモメンタム逆張り戦略。
 Stochastic指標の過買い・過売り領域からの反転を捉える。
@@ -10,7 +10,7 @@ Stochastic指標の過買い・過売り領域からの反転を捉える。
 - BUY信号: Stochastic過売り（K<20, D<20）+ ゴールデンクロス + RSI < 35
 - Dynamic confidence: 0.30-0.50（Stochastic値に基づく）
 
-Phase 51.7 Day 4実装
+Phase 52.4-B実装
 """
 
 from typing import Any, Dict, List, Optional
@@ -23,7 +23,9 @@ from ..strategy_registry import StrategyRegistry
 from ..utils import EntryAction, SignalBuilder, StrategyType
 
 
-@StrategyRegistry.register(name="StochasticReversal", strategy_type=StrategyType.STOCHASTIC_REVERSAL)
+@StrategyRegistry.register(
+    name="StochasticReversal", strategy_type=StrategyType.STOCHASTIC_REVERSAL
+)
 class StochasticReversalStrategy(StrategyBase):
     """
     Stochastic Reversal戦略 - レンジ相場でのモメンタム逆張り
@@ -50,12 +52,18 @@ class StochasticReversalStrategy(StrategyBase):
         """
         default_config = {
             "min_confidence": get_threshold("strategies.stochastic_reversal.min_confidence", 0.30),
-            "hold_confidence": get_threshold("strategies.stochastic_reversal.hold_confidence", 0.25),
-            "stoch_overbought": get_threshold("strategies.stochastic_reversal.stoch_overbought", 80),
+            "hold_confidence": get_threshold(
+                "strategies.stochastic_reversal.hold_confidence", 0.25
+            ),
+            "stoch_overbought": get_threshold(
+                "strategies.stochastic_reversal.stoch_overbought", 80
+            ),
             "stoch_oversold": get_threshold("strategies.stochastic_reversal.stoch_oversold", 20),
             "rsi_overbought": get_threshold("strategies.stochastic_reversal.rsi_overbought", 65),
             "rsi_oversold": get_threshold("strategies.stochastic_reversal.rsi_oversold", 35),
-            "adx_range_threshold": get_threshold("strategies.stochastic_reversal.adx_range_threshold", 20),
+            "adx_range_threshold": get_threshold(
+                "strategies.stochastic_reversal.adx_range_threshold", 20
+            ),
             "sl_multiplier": get_threshold("strategies.stochastic_reversal.sl_multiplier", 1.5),
         }
         merged_config = {**default_config, **(config or {})}

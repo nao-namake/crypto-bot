@@ -1,6 +1,6 @@
 # src/strategies/base/ - 戦略基盤システム
 
-**Phase 49完了**: 全戦略の統一インターフェース・競合解決システム・重み付け統合による戦略アーキテクチャ基盤。
+**Phase 52.4-B完了**: 全戦略の統一インターフェース・競合解決システム・重み付け統合による戦略アーキテクチャ基盤。
 
 ## 📂 ファイル構成
 
@@ -15,7 +15,7 @@ src/strategies/base/
 
 ### **strategy_base.py（294行）**
 
-**目的**: 全戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）が継承する統一基底クラス
+**目的**: 全戦略（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）が継承する統一基底クラス
 
 **主要クラス**:
 ```python
@@ -39,7 +39,7 @@ class StrategyBase(ABC):
 
 ### **strategy_manager.py（557行）**
 
-**目的**: 5戦略統合管理・競合解決・重み付け統合による最終シグナル生成
+**目的**: 6戦略統合管理・競合解決・重み付け統合による最終シグナル生成
 
 **主要クラス**:
 ```python
@@ -74,11 +74,12 @@ from src.strategies.base import StrategyManager
 from src.strategies.implementations import *
 
 manager = StrategyManager()
-manager.register_strategy(ATRBasedStrategy(), weight=0.25)
-manager.register_strategy(MochiPoyAlertStrategy(), weight=0.25)
-manager.register_strategy(MultiTimeframeStrategy(), weight=0.20)
-manager.register_strategy(DonchianChannelStrategy(), weight=0.15)
-manager.register_strategy(ADXTrendStrengthStrategy(), weight=0.15)
+manager.register_strategy(ATRBasedStrategy(), weight=1.0)
+manager.register_strategy(DonchianChannelStrategy(), weight=1.0)
+manager.register_strategy(ADXTrendStrengthStrategy(), weight=1.0)
+manager.register_strategy(BBReversalStrategy(), weight=1.0)
+manager.register_strategy(StochasticReversalStrategy(), weight=1.0)
+manager.register_strategy(MACDEMACrossoverStrategy(), weight=1.0)
 
 # 統合分析実行
 market_data = get_market_data()  # 15特徴量データ
@@ -90,7 +91,7 @@ combined_signal = manager.analyze_market(market_data)
 ### **競合検知・解決フロー**
 
 ```
-【各戦略並行実行】→ 個別StrategySignal生成（5戦略）
+【各戦略並行実行】→ 個別StrategySignal生成（6戦略）
         ↓
 【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
         ↓
@@ -138,8 +139,8 @@ def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal
 ## 🔧 設定
 
 **環境変数**: 不要（設定ファイルから自動取得）
-**データ要件**: 15特徴量統一・feature_order.json準拠・最小データ数20以上
-**戦略重み**: ATRBased:0.25・MochipoyAlert:0.25・MultiTimeframe:0.20・DonchianChannel:0.15・ADXTrendStrength:0.15
+**データ要件**: 55特徴量統一・feature_order.json準拠・最小データ数20以上
+**戦略重み**: ATRBased:1.0・DonchianChannel:1.0・ADXTrendStrength:1.0・BBReversal:1.0・StochasticReversal:1.0・MACDEMACrossover:1.0
 
 ## ⚠️ 重要事項
 
@@ -147,10 +148,10 @@ def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal
 - **統一インターフェース**: 全戦略がStrategyBase継承・StrategySignal統一形式
 - **競合解決**: BUY vs SELL同時発生時の自動解決・安全性優先
 - **重み付け統合**: 戦略別重みでの信頼度統合・パフォーマンス反映
-- **15特徴量連携**: feature_order.json単一真実源との完全整合
-- **Phase 49完了**: Phaseマーカー統一・簡潔化・実用性重視
+- **55特徴量連携**: feature_order.json単一真実源との完全整合
+- **Phase 52.4-B完了**: コード品質改善・6戦略システム・定数抽出
 - **依存**: pandas・datetime・abc・typing・src.strategies.utils.*
 
 ---
 
-**戦略基盤システム（Phase 49完了）**: 5戦略統一インターフェース・競合解決システム・重み付け統合による15特徴量連携戦略アーキテクチャ基盤。
+**戦略基盤システム（Phase 52.4-B完了）**: 6戦略統一インターフェース・競合解決システム・重み付け統合による55特徴量連携戦略アーキテクチャ基盤。

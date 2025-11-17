@@ -107,7 +107,9 @@ class TestCheckStopConditions:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_price_fetch_failure_returns_none(self, mock_threshold, stop_manager, sample_position):
+    async def test_price_fetch_failure_returns_none(
+        self, mock_threshold, stop_manager, sample_position
+    ):
         """価格取得失敗時はNoneを返す"""
         # フォールバック価格を設定
         mock_threshold.return_value = 0  # 無効価格
@@ -127,7 +129,9 @@ class TestCheckStopConditions:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_take_profit_triggered(self, mock_threshold, stop_manager, sample_position, mock_bitbank_client):
+    async def test_take_profit_triggered(
+        self, mock_threshold, stop_manager, sample_position, mock_bitbank_client
+    ):
         """テイクプロフィット到達時に決済実行"""
         # TP/SL有効化
         mock_threshold.side_effect = lambda key, default=None: (
@@ -153,7 +157,9 @@ class TestCheckStopConditions:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_stop_loss_triggered(self, mock_threshold, stop_manager, sample_position, mock_bitbank_client):
+    async def test_stop_loss_triggered(
+        self, mock_threshold, stop_manager, sample_position, mock_bitbank_client
+    ):
         """ストップロス到達時に決済実行"""
         # TP/SL有効化
         mock_threshold.side_effect = lambda key, default=None: (
@@ -180,7 +186,9 @@ class TestCheckStopConditions:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_exception_handling_returns_none(self, mock_threshold, stop_manager, sample_position):
+    async def test_exception_handling_returns_none(
+        self, mock_threshold, stop_manager, sample_position
+    ):
         """例外発生時はNoneを返す"""
         # フォールバック価格を設定
         mock_threshold.return_value = 0  # 無効価格
@@ -445,7 +453,9 @@ class TestCheckEmergencyStopLoss:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_emergency_disabled_returns_none(self, mock_threshold, stop_manager, sample_position):
+    async def test_emergency_disabled_returns_none(
+        self, mock_threshold, stop_manager, sample_position
+    ):
         """緊急ストップロス無効時はNone"""
         mock_threshold.return_value = {"enable": False}
 
@@ -461,7 +471,9 @@ class TestCheckEmergencyStopLoss:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_max_loss_threshold_triggered(self, mock_threshold, stop_manager, sample_position):
+    async def test_max_loss_threshold_triggered(
+        self, mock_threshold, stop_manager, sample_position
+    ):
         """最大損失閾値超過で緊急決済"""
         mock_threshold.return_value = {
             "enable": True,
@@ -500,7 +512,9 @@ class TestShouldApplyCooldown:
     @patch("src.core.config.get_features_config")
     def test_flexible_mode_disabled(self, mock_features, stop_manager, sample_evaluation):
         """柔軟モード無効時は常にTrue"""
-        mock_features.return_value = {"trading": {"cooldown": {"enabled": True, "flexible_mode": False}}}
+        mock_features.return_value = {
+            "trading": {"cooldown": {"enabled": True, "flexible_mode": False}}
+        }
 
         result = stop_manager.should_apply_cooldown(sample_evaluation)
 
@@ -1080,11 +1094,15 @@ class TestPhase516SLPriceValidation:
     def mock_bitbank_client(self):
         """BitbankClientのモック"""
         client = MagicMock()
-        client.create_order = MagicMock(return_value={"order_id": "sl123", "trigger_price": 13900000.0})
+        client.create_order = MagicMock(
+            return_value={"order_id": "sl123", "trigger_price": 13900000.0}
+        )
         return client
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_price_none_validation(self, mock_threshold, stop_manager, mock_bitbank_client):
+    async def test_sl_price_none_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
         """Phase 51.6: SL価格None検証 - エラー30101対策"""
         mock_threshold.return_value = True
 
@@ -1101,7 +1119,9 @@ class TestPhase516SLPriceValidation:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_price_zero_validation(self, mock_threshold, stop_manager, mock_bitbank_client):
+    async def test_sl_price_zero_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
         """Phase 51.6: SL価格0検証"""
         mock_threshold.return_value = True
 
@@ -1118,7 +1138,9 @@ class TestPhase516SLPriceValidation:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_price_negative_validation(self, mock_threshold, stop_manager, mock_bitbank_client):
+    async def test_sl_price_negative_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
         """Phase 51.6: SL価格負の値検証"""
         mock_threshold.return_value = True
 
@@ -1135,7 +1157,9 @@ class TestPhase516SLPriceValidation:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_price_invalid_direction_validation(self, mock_threshold, stop_manager, mock_bitbank_client):
+    async def test_sl_price_invalid_direction_validation(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
         """Phase 51.6: SL価格方向検証（BUY時はエントリー価格より低い必要）"""
         mock_threshold.return_value = True
 

@@ -1,5 +1,5 @@
 """
-MACD + EMA Crossover戦略 - Phase 51.7 Day 5
+MACD + EMA Crossover戦略 - Phase 52.4-B
 
 トレンド転換期の押し目買い・戻り売り戦略。
 MACDクロスオーバー + EMAトレンド確認による高精度エントリー。
@@ -10,7 +10,7 @@ MACDクロスオーバー + EMAトレンド確認による高精度エントリ�
 - SELL信号: MACDデッドクロス + EMA 20 < EMA 50 + 出来高増加
 - Dynamic confidence: 0.35-0.65（MACD強度 + EMA乖離に基づく）
 
-Phase 51.7 Day 5実装
+Phase 52.4-B実装
 """
 
 from typing import Any, Dict, List, Optional
@@ -51,10 +51,18 @@ class MACDEMACrossoverStrategy(StrategyBase):
         default_config = {
             "min_confidence": get_threshold("strategies.macd_ema_crossover.min_confidence", 0.35),
             "hold_confidence": get_threshold("strategies.macd_ema_crossover.hold_confidence", 0.25),
-            "adx_trend_threshold": get_threshold("strategies.macd_ema_crossover.adx_trend_threshold", 25),
-            "volume_ratio_threshold": get_threshold("strategies.macd_ema_crossover.volume_ratio_threshold", 1.1),
-            "macd_strong_threshold": get_threshold("strategies.macd_ema_crossover.macd_strong_threshold", 50000),
-            "ema_divergence_threshold": get_threshold("strategies.macd_ema_crossover.ema_divergence_threshold", 0.01),
+            "adx_trend_threshold": get_threshold(
+                "strategies.macd_ema_crossover.adx_trend_threshold", 25
+            ),
+            "volume_ratio_threshold": get_threshold(
+                "strategies.macd_ema_crossover.volume_ratio_threshold", 1.1
+            ),
+            "macd_strong_threshold": get_threshold(
+                "strategies.macd_ema_crossover.macd_strong_threshold", 50000
+            ),
+            "ema_divergence_threshold": get_threshold(
+                "strategies.macd_ema_crossover.ema_divergence_threshold", 0.01
+            ),
             "sl_multiplier": get_threshold("strategies.macd_ema_crossover.sl_multiplier", 1.5),
         }
         merged_config = {**default_config, **(config or {})}
@@ -262,7 +270,11 @@ class MACDEMACrossoverStrategy(StrategyBase):
         ema_divergence = self._calculate_ema_divergence(df)
 
         # BUY信号（ゴールデンクロス + 上昇トレンド + 出来高増加）
-        if crossover == "golden" and ema_trend == "uptrend" and volume_ratio >= self.config["volume_ratio_threshold"]:
+        if (
+            crossover == "golden"
+            and ema_trend == "uptrend"
+            and volume_ratio >= self.config["volume_ratio_threshold"]
+        ):
             # 信頼度：MACD強度 + EMA乖離度に基づく（0.35-0.65）
             confidence = min(
                 self.config["min_confidence"] + (macd_strength * 0.15) + (ema_divergence * 0.15),
@@ -280,7 +292,11 @@ class MACDEMACrossoverStrategy(StrategyBase):
             }
 
         # SELL信号（デッドクロス + 下降トレンド + 出来高増加）
-        elif crossover == "dead" and ema_trend == "downtrend" and volume_ratio >= self.config["volume_ratio_threshold"]:
+        elif (
+            crossover == "dead"
+            and ema_trend == "downtrend"
+            and volume_ratio >= self.config["volume_ratio_threshold"]
+        ):
             # 信頼度：MACD強度 + EMA乖離度に基づく（0.35-0.65）
             confidence = min(
                 self.config["min_confidence"] + (macd_strength * 0.15) + (ema_divergence * 0.15),

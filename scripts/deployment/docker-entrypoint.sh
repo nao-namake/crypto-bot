@@ -1,6 +1,6 @@
 #!/bin/bash
-# Phase 49完了 Docker統合エントリポイント
-# 1,117テスト100%成功・68.32%カバレッジ・バックテスト完全改修・確定申告対応・週間レポート実装
+# Phase 52.4完了 Docker統合エントリポイント
+# 6戦略システム・55特徴量・動的戦略管理
 
 set -e
 
@@ -16,7 +16,7 @@ echo "  CI: ${CI:-false}"
 # 統一設定管理体系: 基本ヘルスチェックサーバー起動（設定不整合完全解消）
 echo "🌐 ヘルスチェックサーバー起動準備..."
 
-# 統一設定管理体系: 起動時MLモデルチェック（Phase 49完了・55特徴量Strategy-Aware ML）
+# 統一設定管理体系: 起動時MLモデルチェック（Phase 52.4・55特徴量システム）
 echo "🤖 起動時MLモデル検証実行..."
 python3 -c "
 import sys
@@ -33,19 +33,19 @@ try:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
 
-        # 簡易予測テスト（Phase 50.9: 62特徴量固定システム - feature_order.json準拠）
+        # 簡易予測テスト（Phase 52.4: 55特徴量システム - feature_order.json準拠）
         import numpy as np
         from src.core.config.feature_manager import get_feature_count
         feature_count = get_feature_count()
         test_features = np.random.random((1, feature_count))
         prediction = adapter.predict(test_features)
-        
+
         print(f'✅ 予測テスト成功: prediction={prediction[0]}')
         logger.info('✅ 起動時モデル検証成功')
     else:
         print('⚠️ MLモデル未学習 - ダミーモードで継続')
         logger.warning('⚠️ ダミーモード稼働')
-        
+
 except ImportError as e:
     print(f'❌ 統一設定管理体系後のimportエラー: {str(e)}')
     print(f'⚠️ MLモジュール読み込み失敗 - ダミーモードで継続')
@@ -66,8 +66,8 @@ fi
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3
 """
-Phase 49完了 シンプルヘルスチェックサーバー
-1,117テスト100%成功・68.32%カバレッジ・バックテスト完全改修・確定申告対応・週間レポート実装
+Phase 52.4完了 シンプルヘルスチェックサーバー
+6戦略システム・55特徴量・動的戦略管理
 importエラー回避・Cloud Run最適化版
 """
 import json
@@ -84,33 +84,33 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # シンプルヘルスチェック（importエラー回避）
             health_data = {
                 "status": "healthy",
-                "phase": "Phase 50.9 Complete",
+                "phase": "Phase 52.4 Complete",
                 "mode": os.environ.get('MODE', 'paper'),
                 "timestamp": datetime.now().isoformat(),
                 "service": "crypto-bot-service-prod",
-                "tests": "1,056 passed (100%)",
-                "coverage": "64.99%",
-                "features": "Phase 50.9: 62特徴量固定システム・外部API完全削除・2段階Graceful Degradation・シンプル設計回帰",
-                "models": "ProductionEnsemble ready (62 features - Phase 50.9)"
+                "tests": "1,153 passed (100%)",
+                "coverage": "68.77%",
+                "features": "Phase 52.4: 55特徴量システム (49基本+6戦略)・6戦略 (ATRBased/Donchian/ADX/BBReversal/Stochastic/MACDCrossover)・動的戦略管理",
+                "models": "ProductionEnsemble ready (55 features - Phase 52.4)"
             }
-            
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(health_data, indent=2).encode())
-                
+
         elif self.path == '/':
             # 基本動作確認エンドポイント
             basic_info = {
                 "service": "crypto-bot-service-prod",
-                "version": "49.0.0",
+                "version": "52.4.0",
                 "status": "operational",
                 "timestamp": datetime.now().isoformat(),
                 "mode": os.environ.get('MODE', 'paper'),
                 "health_endpoint": "/health",
-                "description": "Phase 49完了 AI自動取引システム（バックテスト完全改修・確定申告対応・週間レポート実装）"
+                "description": "Phase 52.4 AI自動取引システム (6戦略・55特徴量・動的戦略管理・ハードコード撲滅完了)"
             }
-            
+
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
@@ -118,7 +118,7 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    
+
     def log_message(self, format, *args):
         # ログを最小限に
         pass

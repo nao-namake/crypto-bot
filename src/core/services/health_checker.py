@@ -1,17 +1,15 @@
 """
-ヘルスチェッカー - Phase 49完了
+ヘルスチェッカー - Phase 52.4
 
-orchestrator.pyから分離したヘルスチェック機能。
+ヘルスチェック機能。
 各サービスの健全性確認・システム状態監視を担当。
 
-Phase 49完了:
+主要機能:
 - 全サービスヘルスチェック（check_all_services）
 - サービス初期化確認（_check_service_initialization）
 - システムリソース監視（_check_system_resources）
 - HealthCheckError例外発生（service_name・context情報）
 - thresholds.yaml準拠設定管理
-
-Phase 28-29: ヘルスチェック機能分離・リソース監視実装
 """
 
 from ..config import get_monitoring_config
@@ -92,7 +90,9 @@ class HealthChecker:
             cpu_usage = psutil.cpu_percent(interval=cpu_check_interval)
 
             # 警告レベル設定（thresholds.yamlから取得）
-            memory_warning_threshold = get_monitoring_config("health_check.memory_threshold_percent", 85)
+            memory_warning_threshold = get_monitoring_config(
+                "health_check.memory_threshold_percent", 85
+            )
             cpu_warning_threshold = get_monitoring_config("health_check.cpu_threshold_percent", 80)
 
             if memory_usage > memory_warning_threshold:
@@ -101,7 +101,9 @@ class HealthChecker:
             if cpu_usage > cpu_warning_threshold:
                 self.logger.warning(f"⚠️ CPU使用量高: {cpu_usage:.1f}%")
 
-            self.logger.debug(f"🔍 システムリソース確認完了 - Memory: {memory_usage:.1f}%, CPU: {cpu_usage:.1f}%")
+            self.logger.debug(
+                f"🔍 システムリソース確認完了 - Memory: {memory_usage:.1f}%, CPU: {cpu_usage:.1f}%"
+            )
 
         except ImportError:
             # psutilがない場合はスキップ

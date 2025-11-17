@@ -366,10 +366,20 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertTrue(analysis["bullish_crossover"])
         self.assertFalse(analysis["bearish_crossover"])
 
+    @patch("src.core.config.threshold_manager.get_file_config")
     @patch("src.core.config.threshold_manager.get_threshold")
-    def test_configuration_override(self, mock_get_threshold):
+    def test_configuration_override(self, mock_get_threshold, mock_get_file_config):
         """設定オーバーライドテスト"""
-        mock_get_threshold.return_value = 0.6
+        # Phase 52.5: get_file_config mockを追加（logger.py backtest.env_var_name対応）
+        mock_get_file_config.return_value = "BACKTEST_MODE"
+
+        # Phase 52.5: get_threshold側だけを0.6に設定
+        def threshold_side_effect(key, default=None):
+            if key == "strategies.adx_trend.min_confidence":
+                return 0.6
+            return default if default is not None else 0.5
+
+        mock_get_threshold.side_effect = threshold_side_effect
 
         custom_config = {"min_confidence": 0.5}
         strategy = ADXTrendStrengthStrategy(config=custom_config)

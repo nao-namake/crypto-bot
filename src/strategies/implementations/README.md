@@ -1,357 +1,297 @@
 # src/strategies/implementations/ - 取引戦略実装群
 
-**Phase 49完了**: 5つの独立した取引戦略による多様な市場対応・動的信頼度計算システム・SignalBuilder統合による15m ATR優先実装・SL/TP機能完全化。
+**Phase 52.4-B完了**: 6戦略統合システム・55特徴量・動的信頼度計算・Registry Pattern導入
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/implementations/
-├── __init__.py               # 5戦略エクスポート（29行）
-├── atr_based.py             # ATRBased戦略・ボラティリティ分析（Phase 31統合完了）
-├── mochipoy_alert.py        # MochipoyAlert戦略・複合指標（Phase 31統合完了）
-├── multi_timeframe.py       # MultiTimeframe戦略・時間軸統合（Phase 31統合完了）
-├── donchian_channel.py      # DonchianChannel戦略・ブレイクアウト（Phase 32統合完了）
-└── adx_trend.py            # ADXTrendStrength戦略・トレンド強度（Phase 32統合完了）
+├── __init__.py                 # 6戦略エクスポート（33行）
+├── atr_based.py               # ATRBased戦略（range型・440行）
+├── donchian_channel.py        # DonchianChannel戦略（range型・546行）
+├── adx_trend.py               # ADXTrendStrength戦略（trend型・602行）
+├── bb_reversal.py             # BBReversal戦略（range型・320行）
+├── stochastic_reversal.py     # StochasticReversal戦略（range型・266行）
+└── macd_ema_crossover.py      # MACDEMACrossover戦略（trend型・350行）
 ```
 
-## 📈 Phase 32完了事項（2025年10月2日）
+**総行数**: 2,557行（Python 7ファイル）
 
-**🎯 5戦略SignalBuilder統一・15m ATR優先実装・SL/TP機能完全化**
+---
 
-**✅ Phase 32完了**:
-- **DonchianChannel SignalBuilder統合**: `_create_signal()`メソッド実装・SignalBuilder使用・15m ATR優先
-- **ADXTrend SignalBuilder統合**: `_create_signal()`メソッド実装・SignalBuilder使用・15m ATR優先
-- **5戦略統一完了**: 全戦略でSignalBuilder使用・一貫したSL/TP計算・15m ATR使用統一
-- **SL距離2%改善**: 4h ATR → 15m ATR使用により、エントリー時間軸に適したSL距離実現
-- **テスト統合完了**: 全戦略テスト更新・646テスト100%成功・59.75%カバレッジ達成
+## 🎯 実装戦略（6戦略）
 
-**Phase 31完了（3戦略）**:
-- ATRBased・MochipoyAlert・MultiTimeframe戦略でSignalBuilder統合済み
+### **1. ATRBasedStrategy**（range型）
+**目的**: ボラティリティベース逆張り戦略
+**ロジック**:
+- ATRで市場ボラティリティ測定
+- ボリンジャーバンド位置で過買い・過売り判定
+- RSIで追加確認
+- 市場ストレスで異常状況フィルター
 
-**効果**:
-- 全5戦略で一貫したリスク管理実現
-- 15m足ATR使用によるSL距離最適化（2%改善）
-- テイクプロフィット/ストップロス自動配置の完全実装
+**設定**:
+```yaml
+bb_overbought: 0.7  # BB過買い閾値
+bb_oversold: 0.3    # BB過売り閾値
+rsi_overbought: 65
+rsi_oversold: 35
+min_confidence: 0.3
+```
 
-## 🔧 主要戦略
+**特徴**: 平均回帰理論・レンジ相場に強い
 
-### **1. ATRBasedStrategy（atr_based.py）**
-**戦略タイプ**: ボラティリティ追従型・動的信頼度計算
+---
 
-**主要ロジック**:
+### **2. DonchianChannelStrategy**（range型）
+**目的**: ブレイクアウト・反転検出
+**ロジック**:
+- 20期間高値・安値チャネル計算
+- ブレイクアウト・リバーサル検出
+- レンジ相場適応（70-80%市場対応）
+- チャネル位置による強度判定
+
+**設定**:
+```yaml
+channel_period: 20
+min_confidence: 0.3
+breakout_strength_threshold: 0.6
+```
+
+**特徴**: レンジ相場専用・ブレイクアウト精度高
+
+---
+
+### **3. ADXTrendStrengthStrategy**（trend型）
+**目的**: トレンド強度・方向性分析
+**ロジック**:
+- ADX値による市場レジーム判定
+- +DI/-DIクロスオーバー検出
+- トレンド強度適応型信頼度調整
+- レンジ相場での取引抑制
+
+**設定**:
+```yaml
+adx_weak_threshold: 20
+adx_moderate_threshold: 25
+adx_strong_threshold: 40
+min_confidence: 0.3
+```
+
+**特徴**: トレンド相場専用・強度別対応
+
+---
+
+### **4. BBReversalStrategy**（range型）
+**目的**: ボリンジャーバンド反転
+**ロジック**:
+- BB上限タッチ + RSI買われすぎ → SELL
+- BB下限タッチ + RSI売られすぎ → BUY
+- レンジ相場判定（ADX < 20, BB幅 < 2%）
+
+**設定**:
+```yaml
+rsi_overbought: 70
+rsi_oversold: 30
+bb_upper_threshold: 0.95
+bb_lower_threshold: 0.05
+adx_range_threshold: 20
+```
+
+**特徴**: レンジ相場特化・平均回帰狙い
+
+---
+
+### **5. StochasticReversalStrategy**（range型）
+**目的**: モメンタム逆張り
+**ロジック**:
+- レンジ相場判定（ADX < 20）
+- SELL: Stochastic過買い（K>80, D>80）+ ベアクロス + RSI > 65
+- BUY: Stochastic過売り（K<20, D<20）+ ゴールデンクロス + RSI < 35
+- Dynamic confidence: 0.30-0.50
+
+**設定**:
+```yaml
+stoch_overbought: 80
+stoch_oversold: 20
+rsi_overbought: 65
+rsi_oversold: 35
+adx_range_threshold: 20
+```
+
+**特徴**: レンジ相場・モメンタム反転捕捉
+
+---
+
+### **6. MACDEMACrossoverStrategy**（trend型）
+**目的**: トレンド転換期エントリー
+**ロジック**:
+- トレンド相場判定（ADX > 25）
+- BUY: MACDゴールデンクロス + EMA 20 > EMA 50 + 出来高増加
+- SELL: MACDデッドクロス + EMA 20 < EMA 50 + 出来高増加
+- Dynamic confidence: 0.35-0.65
+
+**設定**:
+```yaml
+adx_trend_threshold: 25
+macd_histogram_threshold: 0.5
+volume_threshold: 1.2
+ema_divergence_threshold: 0.01
+```
+
+**特徴**: トレンド転換期・押し目買い/戻り売り
+
+---
+
+## 🔧 共通実装パターン
+
+### **Registry Pattern**
 ```python
-- ATRボラティリティ測定による市場状況判定
-- ボリンジャーバンド位置での過買い・過売り判定
-- RSI追加確認による精度向上
-- 動的信頼度計算（0.2-0.8範囲）
+from ..strategy_registry import StrategyRegistry
+from ..utils import StrategyType
+
+@StrategyRegistry.register(name="ATRBased", strategy_type=StrategyType.ATR_BASED)
+class ATRBasedStrategy(StrategyBase):
+    ...
 ```
 
-**適用市場**: 高ボラティリティ相場・トレンドフォロー・積極的取引機会
-
-### **2. MochipoyAlertStrategy（mochipoy_alert.py）**
-**戦略タイプ**: 複合指標・多数決システム
-
-**主要ロジック**:
+### **設定管理（thresholds.yaml統合）**
 ```python
-- EMAトレンド判定（20EMA vs 50EMA）
-- MACDモメンタム分析（MACD > 0）
-- RCI逆張り補完（過買い・過売り水準）
-- 3指標多数決による最終判定
+from ...core.config.threshold_manager import get_threshold
+
+default_config = {
+    "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
+    "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
+    ...
+}
 ```
 
-**適用市場**: 全市場状況・機会損失防止・積極的シグナル捕捉
-
-### **3. MultiTimeframeStrategy（multi_timeframe.py）**
-**戦略タイプ**: マルチタイムフレーム分析型
-
-**主要ロジック**:
+### **SignalBuilder統一**
 ```python
-- 4時間足: 50EMAによる中期トレンド分析
-- 15分足: 20EMAクロス + RSIエントリータイミング
-- 2軸統合: 時間軸間の整合性確認
-- 両軸一致時のみエントリー実行
+from ..utils import SignalBuilder, EntryAction
+
+signal = SignalBuilder.build(
+    strategy=self,
+    action=EntryAction.BUY,
+    confidence=0.7,
+    strength=0.6,
+    current_price=df["close"].iloc[-1],
+    indicators=analysis
+)
 ```
 
-**適用市場**: 中期トレンド継続時・明確な方向性のある相場
+---
 
-### **4. DonchianChannelStrategy（donchian_channel.py）**
-**戦略タイプ**: ブレイクアウト・反転戦略
+## 📊 戦略タイプ別分類
 
-**主要ロジック**:
-```python
-- 20期間ドンチャンチャネル計算
-- 高値・安値ブレイクアウト検知
-- RSI確認による偽ブレイクアウト除外
-- チャネル内レンジ取引対応
-```
+### **Range型（レンジ相場）** - 4戦略
+1. ATRBased: ボラティリティベース逆張り
+2. DonchianChannel: ブレイクアウト・反転
+3. BBReversal: ボリンジャーバンド反転
+4. StochasticReversal: モメンタム逆張り
 
-**適用市場**: ブレイクアウト相場・レンジ抜け・明確なサポレジ
+### **Trend型（トレンド相場）** - 2戦略
+1. ADXTrendStrength: トレンド強度分析
+2. MACDEMACrossover: トレンド転換期エントリー
 
-### **5. ADXTrendStrengthStrategy（adx_trend.py）**
-**戦略タイプ**: トレンド強度・方向性分析戦略
+**市場対応**: レンジ相場70-80% → range型4戦略で重点カバー
 
-**主要ロジック**:
-```python
-- 14期間ADXによるトレンド強度測定
-- +DI/-DIによる方向性判定
-- 強いトレンド閾値（25以上）でのエントリー
-- 方向性明確時の順張り戦略
-```
-
-**適用市場**: 強いトレンド相場・方向性明確時・順張り機会
+---
 
 ## 🚀 使用例
 
 ```python
-# 基本的な戦略実装
-from src.strategies.implementations import *
-
-# 個別戦略使用
-atr_strategy = ATRBasedStrategy()
-mochipoy_strategy = MochipoyAlertStrategy()
-multi_strategy = MultiTimeframeStrategy()
-donchian_strategy = DonchianChannelStrategy()
-adx_strategy = ADXTrendStrengthStrategy()
-
-# 市場分析実行
-market_data = get_market_data()  # 15特徴量データ
-signal = atr_strategy.analyze(market_data)
-
-print(f"戦略: {signal.strategy_name}")
-print(f"判定: {signal.action}")
-print(f"信頼度: {signal.confidence:.3f}")
-
-# 戦略マネージャーでの統合使用
+from src.strategies.implementations import (
+    ATRBasedStrategy,
+    DonchianChannelStrategy,
+    ADXTrendStrengthStrategy,
+    BBReversalStrategy,
+    StochasticReversalStrategy,
+    MACDEMACrossoverStrategy
+)
 from src.strategies.base import StrategyManager
 
+# 戦略マネージャー初期化
 manager = StrategyManager()
-manager.register_strategy(ATRBasedStrategy(), weight=0.25)
-manager.register_strategy(MochipoyAlertStrategy(), weight=0.25)
-manager.register_strategy(MultiTimeframeStrategy(), weight=0.20)
-manager.register_strategy(DonchianChannelStrategy(), weight=0.15)
-manager.register_strategy(ADXTrendStrengthStrategy(), weight=0.15)
 
-# 統合分析実行
+# 6戦略登録（均等重み）
+manager.register_strategy(ATRBasedStrategy(), weight=1.0)
+manager.register_strategy(DonchianChannelStrategy(), weight=1.0)
+manager.register_strategy(ADXTrendStrengthStrategy(), weight=1.0)
+manager.register_strategy(BBReversalStrategy(), weight=1.0)
+manager.register_strategy(StochasticReversalStrategy(), weight=1.0)
+manager.register_strategy(MACDEMACrossoverStrategy(), weight=1.0)
+
+# 市場分析実行
+market_data = get_market_data()  # 55特徴量データ
 combined_signal = manager.analyze_market(market_data)
+
+# 統合シグナル取得
+print(f"Action: {combined_signal.action}")
+print(f"Confidence: {combined_signal.confidence:.3f}")
 ```
-
-## 📊 統合判定システム
-
-### **統合判定フロー**
-
-```
-【各戦略並行実行】→ 個別StrategySignal生成（5戦略）
-        ↓
-【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
-        ↓
-【競合検知】→ BUY vs SELL同時存在チェック
-        ↓
-競合なし → 多数決＋重み付け統合
-競合あり → 重み付け信頼度比較
-        ↓
-【最終統合シグナル】→ StrategySignal(strategy_name="StrategyManager")
-```
-
-### **戦略重み設定**
-
-```python
-# 現在の推奨重み設定
-strategy_weights = {
-    'ATRBased': 0.25,           # 25% - ボラティリティ対応
-    'MochipoyAlert': 0.25,      # 25% - 複合指標信頼性
-    'MultiTimeframe': 0.20,     # 20% - 時間軸統合精度
-    'DonchianChannel': 0.15,    # 15% - ブレイクアウト捕捉
-    'ADXTrendStrength': 0.15    # 15% - トレンド強度確認
-}
-```
-
-## 🔧 動的信頼度計算システム
-
-### **市場データ基づく動的信頼度**
-
-**Phase 49完了**: 全5戦略でハードコード値を削除し、市場データに基づく動的信頼度計算を実装。
-
-### **動的信頼度の特徴**
-
-- **小数点第3位まで表示**: 0.235、0.678など動的に変化する値
-- **市場不確実性反映**: ATR、ボリューム、価格変動率を統合計算
-- **設定ベース調整**: thresholds.yamlで最小値・最大値・パラメータを管理
-- **固定値回避**: 0.2、0.4等の固定値は完全に排除
-
-### **計算方式**
-
-```python
-# 市場不確実性計算（全戦略共通）
-def _calculate_market_uncertainty(df):
-    # ATRベースボラティリティ要因
-    volatility_factor = min(0.05, atr_value / current_price)
-
-    # ボリューム異常度
-    volume_factor = min(0.03, abs(volume_ratio - 1.0) * 0.1)
-
-    # 価格変動率
-    price_factor = min(0.02, price_change)
-
-    # 統合不確実性
-    return volatility_factor + volume_factor + price_factor
-
-# 戦略別動的信頼度
-base_confidence = get_threshold("dynamic_confidence.strategies.{strategy}.{level}_base")
-confidence = (base_confidence + signal_strength) * (1 + market_uncertainty)
-```
-
-### **戦略別動的信頼度実装**
-
-#### **MochipoyAlert戦略**: 3指標多数決システム
-```python
-# 2票以上賛成時: 0.70～0.95の動的範囲
-buy_strong_confidence = 0.70 + bonus * (1 + market_uncertainty)
-
-# 1票賛成時: 0.45～0.60の動的範囲
-buy_weak_confidence = 0.45 + weak_bonus * (1 + market_uncertainty)
-
-# HOLD時: 0.10～0.35の動的範囲
-hold_confidence = 0.20 + hold_adjustment * (1 + market_uncertainty)
-```
-
-#### **MultiTimeframe戦略**: 2軸統合システム
-```python
-# 両軸一致時: 0.75～1.05の動的範囲
-agreement_confidence = 0.75 + agreement_bonus * (1 + market_uncertainty)
-
-# 重み付け判定: 4h軸60% + 15m軸40%
-weighted_score = tf_4h_signal * 0.6 + tf_15m_signal * 0.4
-confidence = abs(weighted_score) * (1 + market_uncertainty)
-```
-
-#### **DonchianChannel戦略**: ブレイクアウト・レンジシステム
-```python
-# ブレイクアウト時: 0.60～0.85の動的範囲
-breakout_confidence = 0.60 + breakout_strength * (1 + market_uncertainty)
-
-# レンジ内: 0.20～0.45の動的範囲
-range_confidence = 0.30 + range_adjustment * (1 + market_uncertainty)
-```
-
-#### **ADXTrendStrength戦略**: トレンド強度システム
-```python
-# 強トレンド: 0.40～0.85の動的範囲
-strong_confidence = 0.65 + adx_bonus * (1 + market_uncertainty)
-
-# 弱トレンド: 0.25～0.50の動的範囲
-weak_confidence = 0.35 + weak_bonus * (1 + market_uncertainty)
-```
-
-#### **ATRBased戦略**: ボラティリティ追従システム
-```python
-# BB+RSI一致: 0.65上限の動的調整
-agreement_confidence = combined_base * (1 + market_uncertainty)
-
-# 単独シグナル: 0.70倍減額 + 動的調整
-single_confidence = base_confidence * 0.7 * (1 + market_uncertainty)
-```
-
-### **設定管理システム**
-
-**設定ファイル**: `config/core/thresholds.yaml`
-
-```yaml
-# 共通市場不確実性パラメータ
-dynamic_confidence:
-  market_uncertainty:
-    volatility_factor_max: 0.05      # ATRボラティリティ上限
-    volume_factor_max: 0.03          # ボリューム異常度上限
-    price_factor_max: 0.02           # 価格変動率上限
-    uncertainty_max: 0.10            # 市場不確実性最大値
-    uncertainty_boost: 1.5           # 不確実性ブースト係数
-
-  # 戦略別動的信頼度パラメータ
-  strategies:
-    mochipoy_alert:
-      buy_strong_base: 0.70          # 2票以上賛成時基準信頼度
-      buy_strong_max: 0.95           # 2票以上賛成時最大信頼度
-      buy_weak_base: 0.45            # 1票賛成時基準信頼度
-      hold_base: 0.20                # HOLD時基準信頼度
-      hold_max: 0.35                 # HOLD時最大信頼度
-
-    multi_timeframe:
-      agreement_base: 0.75           # 両軸一致時基準信頼度
-      agreement_max: 1.05            # 両軸一致時最大信頼度
-      weighted_base: 0.50            # 重み付け基準信頼度
-
-    donchian_channel:
-      breakout_base: 0.60            # ブレイクアウト基準信頼度
-      breakout_max: 0.85             # ブレイクアウト最大信頼度
-      hold_base: 0.30                # レンジ内基準信頼度
-      hold_max: 0.45                 # レンジ内最大信頼度
-
-    adx_trend:
-      strong_base: 0.65              # 強トレンド基準信頼度
-      strong_max: 0.85               # 強トレンド最大信頼度
-      weak_base: 0.35                # 弱トレンド基準信頼度
-      weak_max: 0.50                 # 弱トレンド最大信頼度
-
-    atr_based:
-      agreement_max: 0.65            # 一致時最大信頼度
-      weak_base: 0.08                # 微弱シグナル基準値
-      volatility_bonus: 1.02         # 高ボラティリティボーナス
-```
-
-## 🎯 戦略選択ガイド
-
-### **市場状況別推奨戦略**
-
-**高ボラティリティ・トレンド相場**:
-```python
-recommended = ["ATRBased", "MultiTimeframe", "ADXTrendStrength"]
-```
-
-**横ばい・レンジ相場**:
-```python
-recommended = ["MochipoyAlert", "DonchianChannel"]
-```
-
-**ブレイクアウト期待相場**:
-```python
-recommended = ["DonchianChannel", "ADXTrendStrength"]
-```
-
-**不明確な相場**:
-```python
-recommended = ["ATRBased", "MochipoyAlert", "MultiTimeframe"]  # バランス型
-```
-
-## 🧪 テスト
-
-```bash
-# 全戦略テスト実行
-python -m pytest tests/unit/strategies/implementations/ -v
-
-# 個別戦略テスト
-python -m pytest tests/unit/strategies/implementations/test_atr_based.py -v
-python -m pytest tests/unit/strategies/implementations/test_mochipoy_alert.py -v
-
-# 統合基盤確認（Phase 49.14システム整合性検証）
-bash scripts/testing/validate_system.sh
-```
-
-**テスト構成**:
-- **ATRBased**: 15テスト（ボラティリティ分析・エントリー判定等）
-- **MochipoyAlert**: 15テスト（RCI分析・多数決システム等）
-- **MultiTimeframe**: 15テスト（時間軸統合・トレンド整合性等）
-- **DonchianChannel**: 15テスト（ブレイクアウト検知等）
-- **ADXTrendStrength**: 15テスト（トレンド強度分析等）
-
-## ⚠️ 重要事項
-
-### **特性・制約**
-- **15特徴量統一**: feature_order.json準拠・順序厳守必須
-- **動的信頼度**: 各戦略が市場状況に応じて0.2-0.8範囲で動的計算
-- **統一インターフェース**: 全戦略がStrategyBase継承・StrategySignal統一形式
-- **設定一元化**: thresholds.yaml一括管理・再起動で設定反映
-- **Phase 49完了**: Phaseマーカー統一・実用性重視・簡潔化完了
-- **依存**: pandas・datetime・src.strategies.base・src.core.*
 
 ---
 
-**取引戦略実装群（Phase 49完了）**: 5戦略統合による多様な市場対応・動的信頼度計算・統一設定管理システム。
+## ⚙️ 設定
+
+**環境変数**: 不要（thresholds.yaml・features.yaml・strategies.yamlから自動取得）
+
+**データ要件**:
+- 55特徴量統一（feature_order.json準拠）
+- 最小データ数: 20以上
+- 4時間足（トレンド判定）+ 15分足（エントリー実行）
+
+**デフォルト設定ファイル**:
+- `config/core/thresholds.yaml`: 戦略パラメータ・閾値
+- `config/core/features.yaml`: 機能トグル
+- `config/core/strategies.yaml`: 戦略登録・重み設定
+
+**SL/TP設定**:
+- SL: ATR × 2.0（通常ボラティリティ）
+- TP: thresholds.yaml設定優先
+- RR比: 1.29:1（デイトレード特化）
+
+---
+
+## ✅ 品質保証
+
+**テスト**:
+- 単体テスト: 各戦略ごとに完備
+- 統合テスト: StrategyManager経由
+- カバレッジ: 68.77%（目標68.27%超過）
+
+**コード品質**:
+- flake8: 全ファイルPASS
+- isort: インポートソート済み
+- black: コードフォーマット済み
+
+**CI/CD**:
+- GitHub Actions自動品質ゲート
+- GCP Cloud Run自動デプロイ
+
+---
+
+## ⚠️ 重要事項
+
+### **アーキテクチャ**
+- **Registry Pattern**: 動的戦略登録・拡張容易
+- **設定駆動**: ハードコード禁止・thresholds.yaml一元管理
+- **SignalBuilder統一**: 全戦略で統一シグナル生成
+- **55特徴量システム**: feature_order.json単一真実源
+
+### **Phase 52.4-B完了内容**
+- 6戦略統合システム確立
+- Phase参照統一（Phase 52.4-B）
+- 特徴量数統一（55特徴量）
+- コード品質改善（magic numbers削減）
+
+### **依存関係**
+- pandas: データ処理
+- numpy: 数値計算
+- src.strategies.base: StrategyBase継承
+- src.strategies.utils: SignalBuilder・EntryAction・StrategyType
+- src.core.config: get_threshold設定管理
+
+---
+
+**Phase 52.4-B完了**: 6戦略統合システム・55特徴量・Registry Pattern・thresholds.yaml統合・動的戦略管理基盤

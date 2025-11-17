@@ -211,7 +211,9 @@ class HybridOptimizer:
         print_optimization_summary(study, f"{self.phase_name} - Stage 1", duration)
 
         # 上位候補抽出
-        top_trials = sorted(study.trials, key=lambda t: t.value, reverse=True)[: self.n_lightweight_candidates]
+        top_trials = sorted(study.trials, key=lambda t: t.value, reverse=True)[
+            : self.n_lightweight_candidates
+        ]
 
         result = {
             "study": study,
@@ -252,7 +254,9 @@ class HybridOptimizer:
             )
 
             # 非同期バックテスト実行
-            sharpe_ratio = asyncio.run(backtest.run_backtest_with_params(trial.params, param_type=self.param_type))
+            sharpe_ratio = asyncio.run(
+                backtest.run_backtest_with_params(trial.params, param_type=self.param_type)
+            )
 
             result = {
                 "trial_number": trial.number,
@@ -372,7 +376,8 @@ class HybridOptimizer:
         # Trial objectをdict化
         if isinstance(data, dict) and "top_trials" in data:
             data["top_trials"] = [
-                {"number": t.number, "value": t.value, "params": t.params} for t in data["top_trials"]
+                {"number": t.number, "value": t.value, "params": t.params}
+                for t in data["top_trials"]
             ]
 
         with open(checkpoint_path, "w", encoding="utf-8") as f:

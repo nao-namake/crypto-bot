@@ -1,23 +1,21 @@
 """
-統合取引システム制御 - TradingOrchestrator - Phase 49完了
+統合取引システム制御 - TradingOrchestrator - Phase 52.4
 
-Application Service Layer として、高レベル統合制御のみを担当。
-具体的なビジネスロジックは各Phase層に委譲し、真のレイヤー分離を実現。
+Application Service Layerとして高レベル統合制御を担当。
+システム全体のデータフロー統合・各サービス層の協調制御を実現。
 
-Phase 49完了:
+機能:
 - 高レベルフロー制御（データ取得→特徴量生成→戦略実行→ML予測→リスク評価→取引判断）
 - 依存性注入基盤（DataService・FeatureService・StrategyManager・ExecutionService等）
 - バックテストモード対応（ログレベル動的変更・Discord無効化・API呼び出しモック化）
 - エラーハンドリング階層化（DataFetchError・ModelPredictionError・TradingError等）
+- 3モード実行システム統合（backtest/paper/live）
 
 設計原則:
-- Application Service Pattern: 高レベルフロー制御のみ
-- 依存性注入: テスト容易性の確保
-- 責任分離: 具体的実装は各Phaseに委譲
-- エラーハンドリング階層化: 適切なレベルでの例外処理
-
-Phase 35: バックテスト最適化実装
-Phase 28-29: Application Service Pattern確立・責任分離・依存性注入基盤
+- Application Service Pattern（高レベルフロー制御のみ）
+- 依存性注入（Protocol型ヒント・テスト容易性確保）
+- 責任分離（具体的実装は各層に委譲）
+- エラーハンドリング階層化（適切なレベルでの例外処理）
 """
 
 import asyncio
@@ -267,7 +265,9 @@ class TradingOrchestrator:
                 handler.setLevel(log_level_value)
             # Phase 35: rootロガーも変更（全コンポーネントに適用）
             logging.getLogger().setLevel(log_level_value)
-            self.logger.info(f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）")
+            self.logger.info(
+                f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）"
+            )
 
             # Phase 35: Discord通知を一時的に無効化（ネットワーク通信削減）
             discord_manager_backup = None
@@ -323,7 +323,9 @@ class TradingOrchestrator:
             self.logger.info("✅ バックテストモード設定を復元しました")
 
 
-async def create_trading_orchestrator(config: Config, logger: CryptoBotLogger) -> TradingOrchestrator:
+async def create_trading_orchestrator(
+    config: Config, logger: CryptoBotLogger
+) -> TradingOrchestrator:
     """
     TradingOrchestrator作成用ファクトリー関数
 
@@ -356,7 +358,9 @@ async def create_trading_orchestrator(config: Config, logger: CryptoBotLogger) -
         if webhook_path.exists():
             try:
                 webhook_url = webhook_path.read_text().strip()
-                logger.info(f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）")
+                logger.info(
+                    f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）"
+                )
             except Exception as e:
                 logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
                 webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
@@ -372,16 +376,23 @@ async def create_trading_orchestrator(config: Config, logger: CryptoBotLogger) -
         discord_manager = DiscordManager(webhook_url=webhook_url)
         logger.set_discord_manager(discord_manager)
 
-        # Discord接続テストの実行
+        # Phase 52.4: Discord接続テスト無効化（25分毎の不要な通知削減）
+        # 週間レポート送信のみに特化するため、接続テスト通知は不要
+        # if discord_manager.enabled:
+        #     logger.info("🧪 Discord接続テスト実行中...")
+        #     test_result = discord_manager.test_connection()
+        #     if test_result:
+        #         logger.info("✅ Discord接続テスト成功")
+        #     else:
+        #         logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
+        # else:
+        #     logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
+
+        # Discord初期化ログのみ（接続テストなし）
         if discord_manager.enabled:
-            logger.info("🧪 Discord接続テスト実行中...")
-            test_result = discord_manager.test_connection()
-            if test_result:
-                logger.info("✅ Discord接続テスト成功")
-            else:
-                logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
+            logger.info("✅ Discord通知システム初期化完了（接続テストスキップ）")
         else:
-            logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
+            logger.warning("⚠️ Discord通知は無効化されています")
 
         # Phase 28-29最適化: データサービス
         bitbank_client = BitbankClient()
@@ -393,14 +404,16 @@ async def create_trading_orchestrator(config: Config, logger: CryptoBotLogger) -
 
         # Phase 51.5-B: 動的戦略管理システム（StrategyLoader使用）
         strategy_service = StrategyManager()
-        strategy_loader = StrategyLoader("config/strategies.yaml")
+        strategy_loader = StrategyLoader("config/core/strategies.yaml")
         loaded_strategies = strategy_loader.load_strategies()
 
         logger.info(f"✅ Phase 51.5-B: {len(loaded_strategies)}戦略をロードしました")
 
         # 戦略を個別に登録
         for strategy_data in loaded_strategies:
-            strategy_service.register_strategy(strategy_data["instance"], weight=strategy_data["weight"])
+            strategy_service.register_strategy(
+                strategy_data["instance"], weight=strategy_data["weight"]
+            )
             logger.info(
                 f"   - {strategy_data['metadata']['name']}: "
                 f"weight={strategy_data['weight']}, "

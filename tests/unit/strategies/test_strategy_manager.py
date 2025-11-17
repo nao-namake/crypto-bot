@@ -288,7 +288,8 @@ class TestStrategyManager(unittest.TestCase):
         # Phase 38.5: 全5票統合ロジックにより、最高比率のアクションが選択される
         # buy: 0.65 (50.8%), sell: 0.63 (49.2%) → buy選択
         self.assertEqual(result.action, EntryAction.BUY)
-        self.assertIn("全5票統合結果", result.reason)
+        # Phase 52.5: メッセージフォーマット変更（全5票統合結果 → 全戦略統合結果）
+        self.assertIn("全戦略統合結果", result.reason)
 
     def test_analyze_market_no_strategies(self):
         """市場分析テスト - 戦略なし."""
@@ -446,7 +447,10 @@ class TestStrategyManager(unittest.TestCase):
 
         # コンフリクトとして処理され、全5票統合ロジックで解決される
         self.assertEqual(self.manager.signal_conflicts, 1)
-        self.assertTrue(result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason)
+        # Phase 52.5: メッセージフォーマット変更（全5票統合 → 全戦略統合）
+        self.assertTrue(
+            result.metadata.get("conflict_resolved", False) or "全戦略統合" in result.reason
+        )
 
     def test_phase_38_8_weighted_confidence_over_vote_count(self):
         """Phase 38.8: 重み付き信頼度優先テスト（票数カウント廃止）."""
@@ -519,7 +523,8 @@ class TestStrategyManager(unittest.TestCase):
         # sell合計: 0.760 + 0.651 = 1.411
         # sell > hold なので sell選択
         self.assertEqual(result.action, EntryAction.SELL)
-        self.assertIn("全5票統合", result.reason)
+        # Phase 52.5: メッセージフォーマット変更（全5票統合 → 全戦略統合）
+        self.assertIn("全戦略統合", result.reason)
         self.assertEqual(self.manager.signal_conflicts, 1)
 
     def test_phase_38_8_hold_vs_buy_conflict_detection(self):
@@ -534,7 +539,10 @@ class TestStrategyManager(unittest.TestCase):
 
         # コンフリクトとして検出される
         self.assertEqual(self.manager.signal_conflicts, 1)
-        self.assertTrue(result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason)
+        # Phase 52.5: メッセージフォーマット変更（全5票統合 → 全戦略統合）
+        self.assertTrue(
+            result.metadata.get("conflict_resolved", False) or "全戦略統合" in result.reason
+        )
 
 
 def run_strategy_manager_tests():

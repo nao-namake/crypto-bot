@@ -47,7 +47,9 @@ class TestKellyCriterion:
         """Kelly公式計算テスト."""
         # 勝率60%, 平均利益1.5, 平均損失1.0の場合
         # Kelly = (1.5 * 0.6 - 0.4) / 1.5 = 0.3333...
-        kelly_fraction = self.kelly.calculate_kelly_fraction(win_rate=0.6, avg_win=1.5, avg_loss=1.0)
+        kelly_fraction = self.kelly.calculate_kelly_fraction(
+            win_rate=0.6, avg_win=1.5, avg_loss=1.0
+        )
 
         expected = (1.5 * 0.6 - 0.4) / 1.5
         assert abs(kelly_fraction - expected) < 0.001
@@ -222,11 +224,15 @@ class TestKellyCriterion:
     def test_error_handling(self):
         """エラーハンドリングテスト."""
         # 無効な勝率でのKelly計算
-        kelly_invalid = self.kelly.calculate_kelly_fraction(win_rate=1.5, avg_win=1.0, avg_loss=1.0)  # 無効（100%超）
+        kelly_invalid = self.kelly.calculate_kelly_fraction(
+            win_rate=1.5, avg_win=1.0, avg_loss=1.0
+        )  # 無効（100%超）
         assert kelly_invalid == 0.0
 
         # 無効な損失値
-        kelly_invalid2 = self.kelly.calculate_kelly_fraction(win_rate=0.6, avg_win=1.0, avg_loss=0)  # 無効（ゼロ除算）
+        kelly_invalid2 = self.kelly.calculate_kelly_fraction(
+            win_rate=0.6, avg_win=1.0, avg_loss=0
+        )  # 無効（ゼロ除算）
         assert kelly_invalid2 == 0.0
 
     def test_strategy_filtering(self):
@@ -400,7 +406,9 @@ class TestKellyCriterionAdvanced:
 
     def test_safe_fallback_position_size(self):
         """安全フォールバックポジションサイズテスト."""
-        position_size, stop_loss = self.kelly._safe_fallback_position_size(balance=1000000, entry_price=50000)
+        position_size, stop_loss = self.kelly._safe_fallback_position_size(
+            balance=1000000, entry_price=50000
+        )
 
         assert position_size > 0
         assert stop_loss > 0
@@ -417,7 +425,9 @@ class TestKellyCriterionAdvanced:
             self.kelly.add_trade_result(100, "test")
 
         # 統計計算でエラーを発生させる
-        with patch.object(self.kelly, "calculate_from_history", side_effect=Exception("Test error")):
+        with patch.object(
+            self.kelly, "calculate_from_history", side_effect=Exception("Test error")
+        ):
             stats = self.kelly.get_kelly_statistics()
             assert "status" in stats
             assert stats["status"] == "エラー"
@@ -425,11 +435,15 @@ class TestKellyCriterionAdvanced:
     def test_calculate_kelly_fraction_edge_cases(self):
         """Kelly公式エッジケース追加テスト."""
         # Kelly値が100%を超えるケース
-        kelly_over_100 = self.kelly.calculate_kelly_fraction(win_rate=0.9, avg_win=10.0, avg_loss=1.0)
+        kelly_over_100 = self.kelly.calculate_kelly_fraction(
+            win_rate=0.9, avg_win=10.0, avg_loss=1.0
+        )
         assert kelly_over_100 <= 1.0  # 100%にクリップされる
 
         # 負のKelly値（不利な確率）
-        kelly_negative = self.kelly.calculate_kelly_fraction(win_rate=0.2, avg_win=1.0, avg_loss=1.0)
+        kelly_negative = self.kelly.calculate_kelly_fraction(
+            win_rate=0.2, avg_win=1.0, avg_loss=1.0
+        )
         assert kelly_negative == 0.0  # 負値は0にクリップされる
 
     def test_calculate_optimal_size_with_max_order_size_limit(self):
@@ -473,7 +487,9 @@ class TestKellyCriterionAdvanced:
     def test_add_trade_result_with_custom_timestamp(self):
         """カスタムタイムスタンプ付き取引結果追加テスト."""
         custom_timestamp = datetime(2024, 1, 1, 12, 0, 0)
-        self.kelly.add_trade_result(profit_loss=100, strategy="test", confidence=0.8, timestamp=custom_timestamp)
+        self.kelly.add_trade_result(
+            profit_loss=100, strategy="test", confidence=0.8, timestamp=custom_timestamp
+        )
 
         assert len(self.kelly.trade_history) == 1
         assert self.kelly.trade_history[0].timestamp == custom_timestamp
@@ -493,6 +509,8 @@ class TestKellyCriterionAdvanced:
             self.kelly.add_trade_result(100, "test")
 
         # calculate_kelly_fractionでエラーを発生させる
-        with patch.object(self.kelly, "calculate_kelly_fraction", side_effect=Exception("Calculation error")):
+        with patch.object(
+            self.kelly, "calculate_kelly_fraction", side_effect=Exception("Calculation error")
+        ):
             result = self.kelly.calculate_from_history()
             assert result is None

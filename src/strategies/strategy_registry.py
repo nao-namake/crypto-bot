@@ -1,5 +1,5 @@
 """
-戦略レジストリ - Phase 51.5-B実装
+戦略レジストリ - Phase 52.4-B完了
 
 Registry Pattern + Decoratorによる戦略自動登録システム。
 戦略追加・削除の影響範囲を93%削減（27ファイル→4ファイル）。
@@ -9,7 +9,7 @@ Registry Pattern + Decoratorによる戦略自動登録システム。
 - 戦略クラスの動的取得・リスト化
 - 戦略メタデータ管理
 
-Phase 51.5-B: 動的戦略管理基盤実装
+Phase 52.4-B完了
 """
 
 from typing import Any, Dict, Optional, Type
@@ -64,7 +64,8 @@ class StrategyRegistry:
             # 重複登録チェック
             if name in cls._strategies:
                 raise StrategyError(
-                    f"戦略'{name}'は既に登録されています。" f"既存: {cls._strategies[name]['class'].__name__}"
+                    f"戦略'{name}'は既に登録されています。"
+                    f"既存: {cls._strategies[name]['class'].__name__}"
                 )
 
             # 戦略メタデータ登録
@@ -101,7 +102,9 @@ class StrategyRegistry:
         """
         if name not in cls._strategies:
             available = ", ".join(cls._strategies.keys())
-            raise StrategyError(f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}")
+            raise StrategyError(
+                f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}"
+            )
 
         return cls._strategies[name]["class"]
 
@@ -121,7 +124,9 @@ class StrategyRegistry:
         """
         if name not in cls._strategies:
             available = ", ".join(cls._strategies.keys())
-            raise StrategyError(f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}")
+            raise StrategyError(
+                f"戦略'{name}'が見つかりません。" f"利用可能な戦略: {available or '（なし）'}"
+            )
 
         return cls._strategies[name].copy()
 

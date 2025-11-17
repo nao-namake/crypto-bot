@@ -104,7 +104,7 @@ results/
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# Phase 50.9: 本番用2段階モデルは例外（62特徴量固定システム）
+# Phase 52.4-B: 本番用2段階モデルは例外（55特徴量・6戦略システム）
 !models/production/ensemble_full.pkl
 !models/production/ensemble_basic.pkl
 *.model

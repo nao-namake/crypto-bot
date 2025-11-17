@@ -1,10 +1,8 @@
 """
-残高・保証金監視サービス - Phase 49.5完了版
-Phase 28/29: 保証金維持率監視システム
-Phase 43: 維持率拒否機能実装
-Phase 49.5: 維持率80%確実遵守ロジック実装
+残高・保証金監視サービス - Phase 52.4-B完了
 
 保証金維持率を監視し、80%未満でのエントリーを確実に拒否。
+証拠金チェックリトライ機能（API認証エラー3回リトライ）により安定した取引継続を実現。
 IntegratedRiskManager経由で全エントリーをチェック。
 """
 
@@ -28,7 +26,7 @@ class BalanceMonitor:
         """BalanceMonitor初期化"""
         self.logger = get_logger()
         self.margin_history: List[MarginData] = []
-        # Phase 42.3.3: 証拠金チェック失敗時の取引中止機能
+        # 証拠金チェック失敗時の取引中止機能
         self._margin_check_failure_count = 0
         self._max_margin_check_retries = 3
 
@@ -62,7 +60,9 @@ class BalanceMonitor:
         # フォールバック：計算方式
         return self._calculate_margin_ratio_direct(balance_jpy, position_value_jpy)
 
-    def _calculate_margin_ratio_direct(self, balance_jpy: float, position_value_jpy: float) -> float:
+    def _calculate_margin_ratio_direct(
+        self, balance_jpy: float, position_value_jpy: float
+    ) -> float:
         """
         保証金維持率を直接計算
 
@@ -80,7 +80,8 @@ class BalanceMonitor:
         min_position_value = get_threshold("margin.min_position_value", 1000.0)
         if position_value_jpy < min_position_value:
             self.logger.debug(
-                f"建玉極小値: {position_value_jpy:.0f}円 < {min_position_value:.0f}円 " f"→ 安全値500%として扱う"
+                f"建玉極小値: {position_value_jpy:.0f}円 < {min_position_value:.0f}円 "
+                f"→ 安全値500%として扱う"
             )
             return 500.0
 
@@ -90,7 +91,9 @@ class BalanceMonitor:
         # 異常な高値のキャップ
         max_ratio = get_threshold("margin.max_ratio_cap", 10000.0)
         if margin_ratio > max_ratio:
-            self.logger.warning(f"異常に高い維持率検出: {margin_ratio:.1f}% → {max_ratio:.0f}%にキャップ")
+            self.logger.warning(
+                f"異常に高い維持率検出: {margin_ratio:.1f}% → {max_ratio:.0f}%にキャップ"
+            )
             return max_ratio
 
         return max(0, margin_ratio)
@@ -160,7 +163,9 @@ class BalanceMonitor:
         Returns:
             保証金分析結果
         """
-        margin_ratio = await self.calculate_margin_ratio(balance_jpy, position_value_jpy, bitbank_client)
+        margin_ratio = await self.calculate_margin_ratio(
+            balance_jpy, position_value_jpy, bitbank_client
+        )
 
         status, message = self.get_margin_status(margin_ratio)
 
@@ -190,11 +195,11 @@ class BalanceMonitor:
         bitbank_client: Optional[BitbankClient] = None,
     ) -> MarginPrediction:
         """
-        新規ポジション追加後の維持率を予測（Phase 50.4: API直接取得方式に変更）
+        新規ポジション追加後の維持率を予測（Phase 52.4: API直接取得方式に変更）
 
         Args:
             current_balance_jpy: 現在の残高（JPY）
-            current_position_value_jpy: 現在の建玉総額（JPY）※Phase 50.4: 使用停止（不正確なため）
+            current_position_value_jpy: 現在の建玉総額（JPY）※Phase 52.4: 使用停止（不正確なため）
             new_position_size_btc: 新規ポジションサイズ（BTC）
             btc_price_jpy: BTC価格（JPY）
             bitbank_client: Bitbank APIクライアント
@@ -202,29 +207,33 @@ class BalanceMonitor:
         Returns:
             維持率予測結果
         """
-        # Phase 50.4: APIから現在の維持率を直接取得（ポジション価値計算不要）
+        # Phase 52.4: APIから現在の維持率を直接取得（ポジション価値計算不要）
         current_margin_ratio_from_api = None
         if bitbank_client and not is_backtest_mode():
             current_margin_ratio_from_api = await self._fetch_margin_ratio_from_api(bitbank_client)
 
-        # Phase 50.4: API取得が成功した場合、そこから逆算して現在のポジション価値を推定
+        # Phase 52.4: API取得が成功した場合、そこから逆算して現在のポジション価値を推定
         if current_margin_ratio_from_api is not None and current_margin_ratio_from_api < 10000.0:
             # 維持率 = (残高 / ポジション価値) × 100
             # → ポジション価値 = 残高 / (維持率 / 100)
-            estimated_current_position_value = current_balance_jpy / (current_margin_ratio_from_api / 100.0)
+            estimated_current_position_value = current_balance_jpy / (
+                current_margin_ratio_from_api / 100.0
+            )
             self.logger.info(
-                f"📊 Phase 50.4: API維持率{current_margin_ratio_from_api:.1f}%から"
+                f"📊 Phase 52.4: API維持率{current_margin_ratio_from_api:.1f}%から"
                 f"現在ポジション価値を推定: {estimated_current_position_value:.0f}円"
             )
         else:
-            # Phase 50.4: API取得失敗時はフォールバック（引数のposition_value使用）
+            # Phase 52.4: API取得失敗時はフォールバック（引数のposition_value使用）
             estimated_current_position_value = current_position_value_jpy
             if estimated_current_position_value < 100.0:  # 極小値の場合
                 # ポジションなしと判断
                 estimated_current_position_value = 0.0
-                self.logger.debug("Phase 50.4: API取得失敗・ポジション価値極小値 → ポジションなしと判断")
+                self.logger.debug(
+                    "Phase 52.4: API取得失敗・ポジション価値極小値 → ポジションなしと判断"
+                )
 
-        # Phase 50.4: MarginData作成（API維持率使用）
+        # Phase 52.4: MarginData作成（API維持率使用）
         if current_margin_ratio_from_api is not None:
             current_margin_ratio = current_margin_ratio_from_api
         else:
@@ -247,7 +256,9 @@ class BalanceMonitor:
         future_position_value = estimated_current_position_value + new_position_value_jpy
 
         # 予測維持率
-        future_margin_ratio = self._calculate_margin_ratio_direct(current_balance_jpy, future_position_value)
+        future_margin_ratio = self._calculate_margin_ratio_direct(
+            current_balance_jpy, future_position_value
+        )
 
         future_status, _ = self.get_margin_status(future_margin_ratio)
 
@@ -263,9 +274,9 @@ class BalanceMonitor:
             recommendation=recommendation,
         )
 
-        # Phase 50.4: 詳細ログ出力（デバッグ用）
+        # Phase 52.4: 詳細ログ出力（デバッグ用）
         self.logger.info(
-            f"📊 Phase 50.4 維持率予測: "
+            f"📊 Phase 52.4 維持率予測: "
             f"現在={current_margin_ratio:.1f}% "
             f"(API={'成功' if current_margin_ratio_from_api else 'フォールバック'}), "
             f"ポジション={estimated_current_position_value:.0f}円 → "
@@ -276,14 +287,15 @@ class BalanceMonitor:
         # 警告ログ（バックテスト時は抑制）
         if not is_backtest_mode() and future_margin_ratio < current_margin.margin_ratio:
             self.logger.warning(
-                f"⚠️ 維持率低下予測: {current_margin.margin_ratio:.1f}% " f"→ {future_margin_ratio:.1f}%"
+                f"⚠️ 維持率低下予測: {current_margin.margin_ratio:.1f}% "
+                f"→ {future_margin_ratio:.1f}%"
             )
 
         return prediction
 
     def _get_recommendation(self, margin_ratio: float) -> str:
         """
-        維持率に基づく推奨アクション（Phase 49.5更新）
+        維持率に基づく推奨アクション（Phase 52.4更新）
 
         Args:
             margin_ratio: 保証金維持率（%）
@@ -291,7 +303,7 @@ class BalanceMonitor:
         Returns:
             推奨アクション
         """
-        # Phase 49.5: critical=80.0に変更
+        # Phase 52.4: critical=80.0に変更
         critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
         warning_threshold = get_threshold("margin.thresholds.warning", 100.0)
         caution_threshold = get_threshold("margin.thresholds.caution", 150.0)
@@ -391,7 +403,9 @@ class BalanceMonitor:
                 ]
             )
         elif margin_data.status == MarginStatus.CAUTION:
-            recommendations.extend(["⚠️ 維持率に注意してください", "📊 大きなポジションは避ける", "👀 価格変動を監視"])
+            recommendations.extend(
+                ["⚠️ 維持率に注意してください", "📊 大きなポジションは避ける", "👀 価格変動を監視"]
+            )
         else:  # SAFE
             recommendations.extend(["✅ 安全な維持率です", "💪 通常通りの取引が可能"])
 
@@ -399,7 +413,7 @@ class BalanceMonitor:
 
     def should_warn_user(self, margin_prediction: MarginPrediction) -> Tuple[bool, str]:
         """
-        ユーザー警告が必要かを判定（Phase 49.5更新）
+        ユーザー警告が必要かを判定（Phase 52.4更新）
 
         Args:
             margin_prediction: 維持率予測結果
@@ -410,13 +424,13 @@ class BalanceMonitor:
         future_ratio = margin_prediction.future_margin_ratio
         current_ratio = margin_prediction.current_margin.margin_ratio
 
-        # Phase 49.5: critical=80.0に変更
+        # Phase 52.4: critical=80.0に変更
         critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
         warning_threshold = get_threshold("margin.thresholds.warning", 100.0)
         caution_threshold = get_threshold("margin.thresholds.caution", 150.0)
         large_drop_threshold = get_threshold("margin.large_drop_threshold", 50.0)
 
-        # Phase 49.5: 80%を下回る予測の場合（IntegratedRiskManagerで拒否されるはず）
+        # Phase 52.4: 80%を下回る予測の場合（IntegratedRiskManagerで拒否されるはず）
         if future_ratio < critical_threshold:
             return (
                 True,
@@ -498,7 +512,7 @@ class BalanceMonitor:
         discord_notifier: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
-        証拠金残高チェック - 不足時はgraceful degradation（Phase 36/37）
+        証拠金残高チェック - 不足時はgraceful degradation（Phase 52.4）
 
         Container exit(1)回避のため、残高不足時でもエラーを投げずに
         取引スキップを示すDictを返却する。
@@ -533,7 +547,9 @@ class BalanceMonitor:
             min_required = get_threshold("balance_alert.min_required_margin", 14000.0)
 
             if available_balance < min_required:
-                self.logger.warning(f"⚠️ 証拠金不足検出: 利用可能={available_balance:.0f}円 < 必要={min_required:.0f}円")
+                self.logger.warning(
+                    f"⚠️ 証拠金不足検出: 利用可能={available_balance:.0f}円 < 必要={min_required:.0f}円"
+                )
                 # Discord通知送信
                 await self._send_balance_alert(available_balance, min_required, discord_notifier)
 
@@ -557,7 +573,7 @@ class BalanceMonitor:
             }
 
         except Exception as e:
-            # Phase 42.3.3: 証拠金チェック失敗時の詳細分類
+            # Phase 52.4: 証拠金チェック失敗時の詳細分類
             error_str = str(e)
 
             # エラー20001（bitbank API認証エラー）のみをカウント
@@ -591,7 +607,8 @@ class BalanceMonitor:
 
                 # リトライ制限内の場合は既存動作を維持（取引続行）
                 self.logger.warning(
-                    f"⚠️ API認証エラー（リトライ {self._margin_check_failure_count}/{self._max_margin_check_retries}） - 取引は継続されます"
+                    f"⚠️ API認証エラー（リトライ "
+                    f"{self._margin_check_failure_count}/{self._max_margin_check_retries}） - 取引継続"
                 )
             else:
                 # ネットワークエラー・タイムアウト等は一時的な問題なのでカウントしない
@@ -603,25 +620,29 @@ class BalanceMonitor:
             # エラー時は既存動作を維持（取引続行・機会損失回避）
             return {"sufficient": True, "available": 0, "required": 0}
 
-    async def _send_margin_check_failure_alert(self, error: Exception, discord_notifier: Optional[Any]) -> None:
+    async def _send_margin_check_failure_alert(
+        self, error: Exception, discord_notifier: Optional[Any]
+    ) -> None:
         """
-        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
+        Phase 52.4: Discord通知削除済み（週間サマリーのみ）
         証拠金チェック失敗時はログ出力のみ
 
         Args:
             error: 発生したエラー
             discord_notifier: Discord通知マネージャー（未使用）
         """
-        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        # Phase 52.4: Discord通知完全停止（週間サマリーのみ）
         self.logger.critical(
             f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中\n"
             f"エラー詳細: {str(error)}\n"
             f"リトライ回数: {self._margin_check_failure_count}"
         )
 
-    async def _send_balance_alert(self, available: float, required: float, discord_notifier: Optional[Any]) -> None:
+    async def _send_balance_alert(
+        self, available: float, required: float, discord_notifier: Optional[Any]
+    ) -> None:
         """
-        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
+        Phase 52.4: Discord通知削除済み（週間サマリーのみ）
         残高不足検出時はログ出力のみ
 
         Args:
@@ -629,7 +650,7 @@ class BalanceMonitor:
             required: 必要最小残高（円）
             discord_notifier: Discord通知マネージャー（未使用）
         """
-        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
+        # Phase 52.4: Discord通知完全停止（週間サマリーのみ）
         shortage = required - available
         self.logger.critical(
             f"🚨 証拠金不足検出 - 新規注文スキップ中\n"

@@ -1,4 +1,4 @@
-# 週間レポート自動送信ワークフロー
+# 週間レポート自動送信ワークフロー - Phase 52.4
 # 毎週月曜日 9:00 JST に取引統計レポート（損益曲線グラフ付き）をDiscordに送信
 
 name: Weekly Trading Report
@@ -17,12 +17,16 @@ on:
 env:
   PROJECT_ID: my-crypto-bot-project
   PYTHON_VERSION: '3.13'
+  WORKFLOW_TIMEOUT: 10
+  ACCESS_TOKEN_LIFETIME: 1800
+  DISCORD_WEBHOOK_SECRET_NAME: 'discord-webhook-url'
+  DISCORD_WEBHOOK_SECRET_VERSION: '6'
 
 jobs:
   send-weekly-report:
     name: Generate and Send Weekly Report
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: ${{ fromJSON(env.WORKFLOW_TIMEOUT) }}
 
     permissions:
       contents: read
@@ -52,7 +56,7 @@ jobs:
         with:
           workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
-          access_token_lifetime: 1800s
+          access_token_lifetime: ${{ env.ACCESS_TOKEN_LIFETIME }}s
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -67,7 +71,7 @@ jobs:
           # 一時的な対応: ローカルでダミーデータベース作成
           mkdir -p tax
 
-          # TODO: 将来実装（Phase 50以降）
+          # TODO: 将来実装（Phase 52.4以降）
           # gsutil cp gs://crypto-bot-data/trade_history.db tax/trade_history.db
 
           echo "⚠️ 注意: Cloud Storage統合未実装（将来実装予定）"
@@ -78,7 +82,7 @@ jobs:
         run: |
           echo "🔑 Discord Webhook URL取得中..."
 
-          DISCORD_WEBHOOK_URL=$(gcloud secrets versions access 6 --secret="discord-webhook-url")
+          DISCORD_WEBHOOK_URL=$(gcloud secrets versions access ${{ env.DISCORD_WEBHOOK_SECRET_VERSION }} --secret="${{ env.DISCORD_WEBHOOK_SECRET_NAME }}")
 
           # GitHub Actions環境変数に設定
           echo "DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL" >> $GITHUB_ENV
@@ -113,5 +117,6 @@ jobs:
 # 注意事項:
 # 1. 週次自動実行: 毎週月曜日 9:00 JST（UTC 00:00）
 # 2. 手動実行可能: workflow_dispatch対応
-# 3. 現状制限: Cloud Storage未統合（将来実装予定・Phase 50以降）
+# 3. 現状制限: Cloud Storage未統合（将来実装予定・Phase 52.4以降）
 # 4. レポート内容: 損益統計・損益曲線グラフ（matplotlib生成）・Discord送信
+# 5. Phase 52.4: 環境変数化完了（timeout・secret名・バージョン等4変数）

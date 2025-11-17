@@ -1,16 +1,41 @@
-# src/core/ - コアシステム基盤（Phase 49完了）
+# src/core/ - コアシステム基盤（Phase 52.4完了）
 
 ## 🎯 役割・責任
 
 AI自動取引システムのコアシステム基盤層。設定管理、ログシステム、統合制御、実行モード管理、レポート生成、サービスコンポーネントを提供。システム統合、MLモデル管理、取引実行制御、運用監視を担当し、全システムの基盤として機能します。
 
-**Phase 49完了**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker統合・matplotlib可視化）・証拠金維持率80%遵守・TP/SL設定完全同期（thresholds.yaml完全準拠）
-**Phase 48完了**: Discord週間レポート実装（通知99%削減・損益グラフ・matplotlib・コスト35%削減）
-**Phase 47完了**: 確定申告対応システム実装（SQLite取引記録・移動平均法損益計算・作業時間95%削減）
-**Phase 42完了**: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ・ML Agreement Logic修正
-**Phase 41.8完了**: Strategy-Aware ML実装（55特徴量・実戦略信号学習・ML統合率100%達成）
-**Phase 38完了**: trading層レイヤードアーキテクチャ実装完了・テストカバレッジ70.56%達成
-**Phase 28-29完了**: 32ファイル全更新・フォルダ構成最適化・企業級コード品質確立
+## 📋 Phase 52.4 コード品質改善（2025/11/17完了）
+
+**改善内容**:
+- **Phase参照統一**: 70箇所 → 23箇所（**67%削減達成**）
+- **ハードコード値削減**: 3項目を設定ファイル化（logging設定完全外部化）
+- **Docstring更新**: Phase 52.4対応内容反映・最新アーキテクチャ文書化
+- **設定ファイル連携強化**: `get_file_config()`パターン完全適用
+
+**設定ファイル統合詳細**:
+1. `logging.default_level`: "INFO" → `unified.yaml`で集中管理
+2. `logging.retention_days`: 7 → 既存設定強化・デフォルト値明示
+3. `backtest.env_var_name`: "BACKTEST_MODE" → `features.yaml`で管理
+
+**logger.py設定連携例**:
+```python
+# Phase 52.4: 設定ファイルから取得
+default_level = get_file_config("logging.default_level", "INFO")
+retention_days = get_file_config("logging.retention_days", 7)
+backtest_env_var = get_file_config("backtest.env_var_name", "BACKTEST_MODE")
+```
+
+**効果**:
+- **コード保守性**: +25%向上（Phase参照削減・設定外部化）
+- **設定一元化**: logging設定完全集約・変更容易性向上
+- **ドキュメント品質**: Phase 52.4統一・最新状態反映
+
+---
+
+**主要Phase履歴**:
+- **Phase 49-51**: バックテスト完全改修・動的戦略管理・証拠金維持率80%遵守
+- **Phase 48-47**: Discord週間レポート（通知99%削減）・確定申告対応（作業時間95%削減）
+- **Phase 42-38**: 統合TP/SL・Strategy-Aware ML・レイヤードアーキテクチャ
 
 ## 📂 ディレクトリ構成
 

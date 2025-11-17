@@ -1,21 +1,19 @@
 """
-Graceful Shutdown管理 - Phase 49完了
+Graceful Shutdown管理 - Phase 52.4
 
-main.py軽量化方針に従い、shutdown処理を専用サービスとして分離。
+Gracefulシャットダウン処理専用サービス。
 
-Phase 49完了:
+主要機能:
 - シグナルハンドリング設定（SIGINT・SIGTERM・KeyboardInterrupt）
 - orchestrator・runner正常終了
 - 30秒タイムアウト管理
 - shutdown_event協調的終了
 - thresholds.yaml準拠設定管理
 
-設計原則：
+設計原則:
 - Single Responsibility: shutdown処理のみ担当
 - 依存性注入: orchestratorを外部から受け取り
 - エラーハンドリング: 適切なログ出力・例外処理
-
-Phase 28-29: Graceful Shutdown専門サービス・シグナルハンドリング実装
 """
 
 import asyncio
@@ -23,6 +21,7 @@ import signal
 import sys
 from typing import Optional
 
+from ..config import get_threshold
 from ..logger import CryptoBotLogger
 
 
@@ -47,7 +46,7 @@ class GracefulShutdownManager:
         self.logger = logger
         self.orchestrator: Optional[object] = None
         self.shutdown_event: Optional[asyncio.Event] = None
-        self._shutdown_timeout = 30  # 30秒タイムアウト
+        self._shutdown_timeout = get_threshold("services.graceful_shutdown.timeout_seconds", 30)
 
     def initialize(self, orchestrator: object) -> None:
         """
@@ -126,10 +125,16 @@ class GracefulShutdownManager:
         cleanup_tasks = []
 
         # 各ランナーのクリーンアップタスクを並行実行
-        if hasattr(self.orchestrator, "paper_trading_runner") and self.orchestrator.paper_trading_runner:
+        if (
+            hasattr(self.orchestrator, "paper_trading_runner")
+            and self.orchestrator.paper_trading_runner
+        ):
             cleanup_tasks.append(self.orchestrator.paper_trading_runner.cleanup_mode())
 
-        if hasattr(self.orchestrator, "live_trading_runner") and self.orchestrator.live_trading_runner:
+        if (
+            hasattr(self.orchestrator, "live_trading_runner")
+            and self.orchestrator.live_trading_runner
+        ):
             cleanup_tasks.append(self.orchestrator.live_trading_runner.cleanup_mode())
 
         if hasattr(self.orchestrator, "backtest_runner") and self.orchestrator.backtest_runner:
@@ -153,7 +158,9 @@ class GracefulShutdownManager:
         shutdown_task = asyncio.create_task(self.wait_for_shutdown_signal())
 
         # いずれかが完了するまで待機
-        done, pending = await asyncio.wait([main_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            [main_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+        )
 
         # shutdown_eventがセットされた場合はgraceful shutdown実行
         if shutdown_task in done:

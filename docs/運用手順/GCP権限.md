@@ -1,5 +1,7 @@
 # GCP IAM権限管理
 
+**Phase 52.4**
+
 ## 📋 このファイルの目的
 
 **使用場面**:
@@ -118,4 +120,4 @@ gcloud projects add-iam-policy-binding my-crypto-bot-project \
 | github-deployer | - | - | developer ✅ | writer ✅ | - | user ✅ | ✅ |
 | webhook-notifier | accessor ✅ | - | - | - | publisher ✅ | - | - |
 
-**最終確認日**: 2025年10月25日
+**最終確認日**: 2025年11月15日

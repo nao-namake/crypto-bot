@@ -1,54 +1,53 @@
-# scripts/ml/ - 機械学習モデル学習・管理スクリプト（Phase 49完了版）
+# scripts/ml/ - 機械学習モデル学習・管理スクリプト（Phase 52.4）
 
-**最終更新**: 2025年10月25日 - Phase 49完了・55特徴量Strategy-Aware ML・週次自動再学習
+**最終更新**: 2025年11月15日 - Phase 52.4コード整理完了
 
 ## 🎯 役割・責任
 
 機械学習モデルの学習、管理、品質保証を担当するスクリプトディレクトリです。個別モデルの学習からアンサンブルモデルの構築、性能評価、バージョン管理までを一元的に管理し、安定した機械学習システムの運用を支援します。特徴量生成から予測モデルの構築まで、包括的な機械学習パイプラインを提供します。
 
-**Phase 49完了成果**: 55特徴量Strategy-Aware ML完全実装・週次自動再学習・GitHub Actions統合・1,117テスト100%成功・68.32%カバレッジ達成
+**Phase 52.4完了成果**: 6戦略統合・55特徴量Strategy-Aware ML・週次自動再学習・GitHub Actions統合
 
-## 📂 ファイル構成（Phase 49完了版）
+## 📂 ファイル構成（Phase 52.4）
 
 ```
 scripts/ml/
-├── README.md              # このファイル（Phase 49完了版）
-├── create_ml_models.py    # 機械学習モデル学習・構築メインスクリプト（Phase 41.8完了版）
+├── README.md              # このファイル（Phase 52.4）
+├── create_ml_models.py    # 機械学習モデル学習・構築メインスクリプト（Phase 52.4）
 └── archive/               # 過去の実験的スクリプト（使用頻度低）
-    └── train_meta_learning_model.py  # Phase 45.3実装・Meta-Learning学習パイプライン（実験的）
+    └── train_meta_learning_model.py  # Meta-Learning学習パイプライン（実験的・未使用）
 ```
 
 **注**: archive/は過去の実験的実装を保持（現在未使用・将来の参考用）
 
 ## 📋 主要ファイル・フォルダの役割
 
-### **create_ml_models.py**（Phase 41.8完了・Phase 49完全対応）
+### **create_ml_models.py**（Phase 52.4）
 機械学習モデルの学習・構築・管理を担当するメインスクリプトです。
 - **個別モデル学習**: LightGBM・XGBoost・RandomForest の3つのアルゴリズム学習
-- **Phase 39.1**: 実データ学習（CSV読み込み・過去180日分15分足データ・17,271件）
-- **Phase 39.2**: 閾値最適化（0.3% → 0.5%）・3クラス分類（BUY/HOLD/SELL）
-- **Phase 39.3**: TimeSeriesSplit n_splits=5・Early Stopping rounds=20・Train/Val/Test 70/15/15
-- **Phase 39.4**: SMOTE oversampling・class_weight='balanced'・クラス不均衡対応
-- **Phase 39.5**: Optunaハイパーパラメータ最適化（TPESampler・自動最適化）
-- **Phase 41.8**: 実戦略信号学習（訓練時/推論時一貫性確保・Look-ahead bias防止・55特徴量対応）
-  - **実戦略信号生成**: `_generate_real_strategy_signals_for_training()`メソッド実装（Line 313-430）・過去データから5戦略実行
-  - **訓練/推論一貫性**: 訓練時0-fill問題解決・実際の戦略信号を学習データに統合
+- **実データ学習**: CSV読み込み・過去180日分15分足データ
+- **3クラス分類**: BUY/HOLD/SELL・閾値最適化
+- **TimeSeriesSplit**: n_splits=5・Early Stopping・Train/Val/Test 70/15/15
+- **クラス不均衡対応**: SMOTE oversampling・class_weight='balanced'
+- **ハイパーパラメータ最適化**: Optuna TPESampler・自動最適化
+- **Strategy-Aware ML**: 実戦略信号学習（訓練時/推論時一貫性確保・Look-ahead bias防止）
+  - **実戦略信号生成**: `_generate_real_strategy_signals_for_training()`メソッド実装・過去データから6戦略実行
+  - **訓練/推論一貫性**: 実際の戦略信号を学習データに統合
   - **Look-ahead bias防止**: `df.iloc[: i + 1]`による過去データのみ使用・未来データリーク防止
-  - **55特徴量対応**: 50基本特徴量 + 5戦略信号特徴量（ATRBased/MochipoyAlert/MultiTimeframe/DonchianChannel/ADXTrendStrength）
+  - **55特徴量対応**: 49基本特徴量 + 6戦略信号特徴量（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）
   - **信号エンコーディング**: `action × confidence`方式・buy=+1.0、hold=0.0、sell=-1.0
-- **アンサンブル構築**: ProductionEnsemble作成・重み付け投票（LightGBM 40%・XGBoost 40%・RandomForest 20%）・モデル統合
-- **特徴量統合**: feature_manager連携・55特徴量生成・データパイプライン統合
-- **品質保証**: モデル検証・予測テスト・性能評価・品質ゲート（F1スコア0.56-0.61達成）
-- **バージョン管理**: メタデータ管理・モデル保存・履歴追跡・自動アーカイブ
+- **アンサンブル構築**: ProductionEnsemble作成・重み付け投票（LightGBM 40%・XGBoost 40%・RandomForest 20%）
+- **特徴量統合**: feature_manager連携・feature_order.json準拠
+- **品質保証**: モデル検証・予測テスト・性能評価
+- **バージョン管理**: メタデータ管理・モデル保存・履歴追跡
 - **CI/CD統合**: GitHub Actions連携・自動学習・週次再学習・Discord通知
-- 約55KBの堅牢な実装ファイル
 
-### **Phase 49完了時点の最新モデル再学習対応状況**
+### **Phase 52.4モデル再学習対応状況**
 ✅ **完全対応済み** - 問題なし
 
 **GitHub Actions週次自動再学習**（`.github/workflows/model-training.yml`）:
 - ✅ **週次自動実行**: 毎週日曜18:00 JST（UTC 09:00）
-- ✅ **55特徴量Strategy-Aware ML**: 50基本特徴量 + 5戦略信号特徴量完全対応
+- ✅ **55特徴量Strategy-Aware ML**: 49基本特徴量 + 6戦略信号特徴量完全対応
 - ✅ **3クラス分類**: SELL/HOLD/BUY・閾値±0.5%
 - ✅ **Optunaハイパーパラメータ最適化**: 50試行デフォルト・100試行高精度オプション
 - ✅ **自動コミット・プッシュ**: モデル更新の自動バージョン管理
@@ -76,9 +75,9 @@ scripts/ml/
 
 ## 📝 使用方法・例
 
-### **基本的なモデル学習**（Phase 49推奨コマンド）
+### **基本的なモデル学習**（Phase 52.4推奨コマンド）
 ```bash
-# Phase 49推奨: 55特徴量Strategy-Aware ML・3クラス分類・Optuna最適化
+# Phase 52.4推奨: 55特徴量Strategy-Aware ML・3クラス分類・Optuna最適化
 python3 scripts/ml/create_ml_models.py \
   --n-classes 3 \
   --threshold 0.005 \
@@ -173,18 +172,18 @@ print(f"  精度: {prod_data['performance_metrics']['accuracy']:.3f}")
 
 ### **データ要件**
 - **最低データ量**: 2000サンプル以上の市場データ・時系列順序維持
-- **特徴量品質**: feature_manager生成55特徴量（50基本+5戦略信号）・欠損値処理済み
+- **特徴量品質**: feature_manager生成55特徴量（49基本+6戦略信号）・欠損値処理済み
 - **ラベル品質**: buy/sell/holdバランス・クラス不均衡対応・検証データ分離
 - **データ新鮮性**: 週次自動再学習・市場変動対応・学習データ更新
 
-### **品質保証要件（Phase 49基準）**
-- **性能閾値**: F1スコア0.56-0.61達成・精度維持・過学習防止・55特徴量最適化
+### **品質保証要件（Phase 52.4）**
+- **性能閾値**: F1スコア最適化・精度維持・過学習防止・55特徴量最適化
 - **交差検証**: TimeSeriesSplit・金融時系列データ対応・リーク防止
-- **テスト統合**: 1,117テスト100%成功・68.32%カバレッジ維持・品質ゲート通過
+- **テスト統合**: 品質ゲート通過・カバレッジ基準達成
 - **監視**: 学習ログ・Discord通知・性能追跡・異常検知・アラート通知
 
 ### **システム統合制約**
-- **特徴量統合**: feature_manager.pyとの完全統合（Phase 49・55特徴量）・データパイプライン統合
+- **特徴量統合**: feature_manager.pyとの完全統合（Phase 52.4・55特徴量）・データパイプライン統合
 - **モデル統合**: ProductionEnsemble・アンサンブル学習・重み最適化（LightGBM 40%・XGBoost 40%・RandomForest 20%）
 - **CI/CD統合**: GitHub Actions・週次自動再学習・品質ゲート・デプロイ連携
 - **ストレージ**: モデルファイル・メタデータ・ログの適切な管理
@@ -199,24 +198,24 @@ print(f"  精度: {prod_data['performance_metrics']['accuracy']:.3f}")
 ## 🔗 関連ファイル・依存関係
 
 ### **機械学習システム**
-- `src/features/feature_generator.py`: 特徴量生成・55特徴量管理（50基本+5戦略信号）・データ前処理
+- `src/features/feature_generator.py`: 特徴量生成・55特徴量管理（49基本+6戦略信号）・データ前処理
 - `src/ml/ensemble.py`: ProductionEnsemble・アンサンブル学習・予測エンジン
 - `models/`: モデル保存・バージョン管理・アーカイブシステム
-- `src/strategies/`: 5戦略実装（ATR・MochiPoy・MultiTimeframe・DonchianChannel・ADX）
+- `src/strategies/`: 6戦略実装（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）
 
-### **品質保証・テスト**（Phase 49完了版）
-- `scripts/testing/checks.sh`: 品質チェック（1,117テスト実行・68.32%カバレッジ）
-- `scripts/testing/validate_system.sh`: システム整合性検証（Phase 49.14・特徴量数検証）
+### **品質保証・テスト**（Phase 52.4）
+- `scripts/testing/checks.sh`: 品質チェック
+- `scripts/testing/validate_system.sh`: システム整合性検証・特徴量数検証
 - `tests/unit/ml/`: 機械学習テスト・モデル検証・品質保証
 
 ### **設定・データ管理**
 - `config/core/`: 機械学習設定・アルゴリズムパラメータ・学習設定
-- `config/core/feature_manager.py`: 55特徴量定義管理（Phase 49完了）
+- `config/core/feature_manager.py`: 55特徴量定義管理（Phase 52.4）
 - `data/`: 市場データ・学習データ・前処理データ・キャッシュ
 - `logs/`: 学習ログ・性能メトリクス・エラーログ・履歴管理
 
 ### **CI/CD・自動化**
-- `.github/workflows/model-training.yml`: 週次自動再学習ワークフロー（Phase 49完全対応）
+- `.github/workflows/model-training.yml`: 週次自動再学習ワークフロー（Phase 52.4完全対応）
 - `scripts/deployment/`: デプロイメント・Cloud Run・本番環境統合
 - GCP Secret Manager・Cloud Run・GitHub Actions統合
 
@@ -235,10 +234,10 @@ print(f"  精度: {prod_data['performance_metrics']['accuracy']:.3f}")
 ---
 
 **🎯 重要**:
-- **Phase 49完了**: 55特徴量Strategy-Aware ML完全実装・週次自動再学習・GitHub Actions統合
+- **Phase 52.4完了**: 6戦略統合・55特徴量Strategy-Aware ML・週次自動再学習・GitHub Actions統合
 - **最新モデル再学習対応**: 完全対応済み・問題なし
 - **週次自動実行**: 毎週日曜18:00 JST・自動コミット・デプロイトリガー
-- **品質保証**: 1,117テスト100%成功・68.32%カバレッジ・F1スコア0.56-0.61達成
+- **品質保証**: 品質ゲート通過・カバレッジ基準達成・F1スコア最適化
 
 **推奨運用方法**:
 1. **週次自動再学習**: GitHub Actionsで自動実行（手動介入不要）

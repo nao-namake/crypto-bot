@@ -1,11 +1,13 @@
 #!/bin/bash
-# Phase 49.15: システム整合性検証スクリプト
+# システム整合性検証スクリプト（7項目チェック）
+#
+# 最終更新: 2025/11/16
 #
 # 目的: 開発・デプロイ段階でシステム稼働保証の事前チェック実行
 # 検証項目: Dockerfile・特徴量・戦略・設定ファイル・環境変数・モデルメタデータ
 # 使用: checks.sh、run_safe.sh、CI/CDで自動実行
 #
-# Phase 49.15追加機能（2025/10/26）:
+# 主要機能:
 # - 設定ファイル整合性チェック（YAML構文・必須フィールド・設定値妥当性）
 # - 環境変数・Secret チェック（DISCORD_WEBHOOK_URL・BITBANK_API_KEY/SECRET）
 # - モデルメタデータ整合性チェック（F1スコア・特徴量数・モデル年齢・訓練データサイズ）
@@ -13,7 +15,7 @@
 
 # set -e を削除（while read ループとの互換性問題回避）
 
-echo "🔍 Phase 49.15: システム整合性検証開始（7項目）..."
+echo "🔍 システム整合性検証開始（7項目チェック）..."
 echo ""
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -27,7 +29,7 @@ ERRORS=0
 # ========================================
 echo "📦 [1/7] Dockerfile整合性チェック..."
 
-# 必須ディレクトリリスト（Phase 49.13で追加されたtax/を含む）
+# 必須ディレクトリリスト
 REQUIRED_DIRS=("src" "config" "models" "tax" "tests/manual")
 
 for dir in "${REQUIRED_DIRS[@]}"; do
@@ -41,7 +43,7 @@ for dir in "${REQUIRED_DIRS[@]}"; do
     # Dockerfileに COPY 命令が存在するか確認
     if ! grep -q "COPY $dir/" Dockerfile; then
         echo "  ❌ ERROR: Dockerfile に 'COPY $dir/' が見つかりません"
-        echo "     → Phase 49.13問題の再発（40時間停止の原因）"
+        echo "     → Dockerfile COPY漏れ防止"
         ERRORS=$((ERRORS + 1))
     else
         echo "  ✅ $dir/ - OK"
@@ -103,9 +105,9 @@ with open('models/production/production_model_metadata.json') as f:
     fi
 fi
 
-# Phase 50.8: 3段階モデルシステム対応特徴量数検証
+# 2段階モデルシステム対応特徴量数検証（full/basic）
 if [ -n "$FEATURE_ORDER_COUNT" ] && [ -n "$MODEL_FEATURE_COUNT" ]; then
-    # feature_levelsから期待される特徴量数を取得（70, 62, 57）
+    # feature_levelsから期待される特徴量数を取得（full: 55, basic: 49）
     VALID_FEATURE_COUNTS=$(python3 -c "
 import json
 with open('config/core/feature_order.json') as f:
@@ -117,9 +119,9 @@ with open('config/core/feature_order.json') as f:
 
     # production_model_metadata.jsonの特徴量数がいずれかのレベルに該当するか確認
     if echo "$VALID_FEATURE_COUNTS" | grep -q "\<$MODEL_FEATURE_COUNT\>"; then
-        echo "  ✅ 特徴量数妥当性確認: $MODEL_FEATURE_COUNT 特徴量（Phase 50.7 Level 1-3対応）"
+        echo "  ✅ 特徴量数妥当性確認: $MODEL_FEATURE_COUNT 特徴量（full/basic対応）"
         if [ "$FEATURE_ORDER_COUNT" != "$MODEL_FEATURE_COUNT" ]; then
-            echo "  ℹ️  INFO: Level 1定義=$FEATURE_ORDER_COUNT, 実行モデル=$MODEL_FEATURE_COUNT (正常)"
+            echo "  ℹ️  INFO: full定義=$FEATURE_ORDER_COUNT, 実行モデル=$MODEL_FEATURE_COUNT (正常)"
         fi
     else
         echo "  ❌ ERROR: 特徴量数不正 - $MODEL_FEATURE_COUNT は期待値 [$VALID_FEATURE_COUNTS] のいずれでもない"
@@ -134,10 +136,10 @@ echo ""
 # ========================================
 echo "🎯 [3/7] 戦略整合性検証..."
 
-# Phase 51.5-B: strategies.yaml から戦略リスト取得（unified.yaml移行済み）
+# Phase 52.4: config/core/strategies.yaml から戦略リスト取得
 STRATEGIES_YAML_STRATEGIES=$(python3 -c "
 import yaml
-with open('config/strategies.yaml') as f:
+with open('config/core/strategies.yaml') as f:
     data = yaml.safe_load(f)
     strategies = data.get('strategies', {})
     print(' '.join(sorted(strategies.keys())))
@@ -189,7 +191,7 @@ if [ -n "$STRATEGIES_YAML_STRATEGIES" ] && [ -n "$FEATURE_STRATEGIES" ]; then
         echo "  ⚠️  WARNING: 戦略数不一致 - strategies.yaml:$STRATEGIES_COUNT vs feature_order.json:$FEATURE_COUNT"
         echo "     → 新規戦略追加時は両方のファイルを更新してください"
     else
-        echo "  ✅ 戦略数一致: $STRATEGIES_COUNT 戦略（Phase 51.5-B動的戦略管理）"
+        echo "  ✅ 戦略数一致: $STRATEGIES_COUNT 戦略（動的戦略管理）"
     fi
 fi
 
@@ -218,7 +220,7 @@ for import_stmt in "${CRITICAL_IMPORTS[@]}"; do
         echo "  ✅ $MODULE_NAME - OK"
     else
         echo "  ❌ ERROR: $import_stmt が失敗しました"
-        echo "     → Phase 49.13エラー 'No module named ...' の可能性"
+        echo "     → 'No module named ...' エラーの可能性"
         ERRORS=$((ERRORS + 1))
     fi
 done
@@ -255,7 +257,7 @@ import yaml
 try:
     with open('config/core/unified.yaml') as f:
         data = yaml.safe_load(f)
-        required = ['mode', 'risk', 'execution']  # Phase 51.5-B: strategies moved to strategies.yaml
+        required = ['mode', 'risk', 'execution']  # strategies moved to strategies.yaml
         missing = [k for k in required if k not in data]
         if missing:
             print('MISSING:' + ','.join(missing))
@@ -382,15 +384,15 @@ try:
             else:
                 print(f'INFO:F1スコア={f1_score:.3f}')
 
-        # Phase 50.8: 3段階モデルシステム対応特徴量数確認
+        # 2段階モデルシステム対応特徴量数確認（full/basic）
         with open('config/core/feature_order.json') as ff:
             feature_config = json.load(ff)
-            # Level 1-3の期待特徴量数を取得（70, 62, 57）
+            # full/basicの期待特徴量数を取得（full: 55, basic: 49）
             valid_counts = [level['count'] for level in feature_config.get('feature_levels', {}).values()]
 
         actual_features = metadata['training_info'].get('feature_count', 0)
         if actual_features in valid_counts:
-            print(f'INFO:特徴量数妥当={actual_features}（Phase 50.7 Level 1-3対応）')
+            print(f'INFO:特徴量数妥当={actual_features}（full/basic対応）')
         else:
             errors.append(f'特徴量数不正: metadata={actual_features}, 期待値={valid_counts}のいずれでもない')
 
@@ -457,7 +459,7 @@ except Exception as e:
 fi
 
 # モデルファイル存在・サイズ確認（動的確認）
-# Phase 50.9: 2段階モデルシステム（full/basic）
+# 2段階モデルシステム（full/basic）
 MODEL_FILES=(
     "models/production/ensemble_full.pkl"
     "models/production/ensemble_basic.pkl"
@@ -493,11 +495,11 @@ echo ""
 # ========================================
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ $ERRORS -eq 0 ]; then
-    echo "✅ Phase 49.15: システム整合性検証完了（7項目） - エラー無し"
+    echo "✅ システム整合性検証完了（7項目） - エラー無し"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     exit 0
 else
-    echo "❌ Phase 49.15: システム整合性検証失敗（7項目） - $ERRORS 個のエラー"
+    echo "❌ システム整合性検証失敗（7項目） - $ERRORS 個のエラー"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     exit 1
 fi

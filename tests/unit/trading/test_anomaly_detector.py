@@ -89,7 +89,9 @@ class TestTradingAnomalyDetector:
             market_data=market_data,
         )
         # 警告レベルのスプレッドアラートが含まれる
-        spread_alerts = [a for a in alerts if "スプレッド" in a.message and a.level == AnomalyLevel.WARNING]
+        spread_alerts = [
+            a for a in alerts if "スプレッド" in a.message and a.level == AnomalyLevel.WARNING
+        ]
         assert len(spread_alerts) > 0
 
     @pytest.mark.xfail(False, reason="Phase 38対応済み")
@@ -110,11 +112,15 @@ class TestTradingAnomalyDetector:
         )
 
         # Phase 38: anomaly_type削除、level/messageで確認
-        spread_alerts = [a for a in alerts if "スプレッド" in a.message and a.level == AnomalyLevel.CRITICAL]
+        spread_alerts = [
+            a for a in alerts if "スプレッド" in a.message and a.level == AnomalyLevel.CRITICAL
+        ]
         assert len(spread_alerts) > 0
         assert "危険なスプレッド" in spread_alerts[0].message
 
-    @pytest.mark.xfail(reason="Phase 38: 逆転スプレッド検知機能削除（簡素化のため個別エラー検知は廃止）")
+    @pytest.mark.xfail(
+        reason="Phase 38: 逆転スプレッド検知機能削除（簡素化のため個別エラー検知は廃止）"
+    )
     def test_inverted_spread_detection(self):
         """逆転スプレッド検知テスト."""
         bid = 50100
@@ -170,7 +176,9 @@ class TestTradingAnomalyDetector:
             market_data=market_data,
         )
         # Phase 38: 警告レベル遅延アラートあり
-        latency_alerts = [a for a in alerts if "遅延" in a.message and a.level == AnomalyLevel.WARNING]
+        latency_alerts = [
+            a for a in alerts if "遅延" in a.message and a.level == AnomalyLevel.WARNING
+        ]
         assert len(latency_alerts) > 0
 
     @pytest.mark.xfail(False, reason="Phase 38対応済み")
@@ -186,11 +194,15 @@ class TestTradingAnomalyDetector:
             market_data=market_data,
         )
         # Phase 38: 重大レベル遅延アラートあり
-        latency_alerts = [a for a in alerts if "遅延" in a.message and a.level == AnomalyLevel.CRITICAL]
+        latency_alerts = [
+            a for a in alerts if "遅延" in a.message and a.level == AnomalyLevel.CRITICAL
+        ]
         assert len(latency_alerts) > 0
         assert "重大なAPI遅延" in latency_alerts[0].message
 
-    @pytest.mark.xfail(reason="Phase 38: 無効遅延値検知機能削除（簡素化のため個別エラー検知は廃止）")
+    @pytest.mark.xfail(
+        reason="Phase 38: 無効遅延値検知機能削除（簡素化のため個別エラー検知は廃止）"
+    )
     def test_invalid_latency(self):
         """無効遅延値テスト."""
         alert = self.detector.check_api_latency_anomaly(-100)  # 負の値
@@ -281,7 +293,9 @@ class TestTradingAnomalyDetector:
         price_alerts = [a for a in alerts if "価格" in a.message]
         assert len(price_alerts) == 0
 
-    @pytest.mark.xfail(reason="Phase 38: 無効現在価格検知機能削除（簡素化のため個別エラー検知は廃止）")
+    @pytest.mark.xfail(
+        reason="Phase 38: 無効現在価格検知機能削除（簡素化のため個別エラー検知は廃止）"
+    )
     def test_invalid_current_price(self):
         """無効現在価格テスト."""
         price_history = pd.Series([50000, 50100, 49900])
@@ -351,7 +365,9 @@ class TestTradingAnomalyDetector:
         volume_alerts = [a for a in alerts if "ボリューム" in a.message]
         assert len(volume_alerts) == 0
 
-    @pytest.mark.xfail(reason="Phase 38: 無効ボリューム検知機能削除（簡素化のため個別エラー検知は廃止）")
+    @pytest.mark.xfail(
+        reason="Phase 38: 無効ボリューム検知機能削除（簡素化のため個別エラー検知は廃止）"
+    )
     def test_invalid_volume(self):
         """無効出来高テスト."""
         # 実装では最初にデータ長チェック（10未満は早期リターン）があるため、十分な長さが必要
@@ -402,7 +418,9 @@ class TestTradingAnomalyDetector:
     def test_comprehensive_with_market_data(self):
         """市場データ付き包括的異常検知テスト."""
         # サンプル市場データ作成（20件以上必要）
-        market_data = pd.DataFrame({"close": [50000] * 19 + [52000], "volume": [1000] * 20})  # 最後だけ大きく変動
+        market_data = pd.DataFrame(
+            {"close": [50000] * 19 + [52000], "volume": [1000] * 20}
+        )  # 最後だけ大きく変動
 
         alerts = self.detector.comprehensive_anomaly_check(
             bid=51900,

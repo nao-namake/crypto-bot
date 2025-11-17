@@ -1,15 +1,22 @@
 """
-データ取得パイプライン - Phase 49完了
+データ取得パイプライン
 
-15分足と4時間足のデータを効率的に取得・管理する
-シンプルで高速なデータパイプライン実装。
+最終更新: 2025/11/16 (Phase 52.4-B)
 
-主な特徴:
+15分足・4時間足データを効率的に取得・管理するデータパイプライン。
+マルチタイムフレーム対応・高速キャッシング・自動リトライ機構を実装。
+
+主要機能:
 - マルチタイムフレーム対応（15m, 4h）2軸構成
-- 効率的なデータキャッシング
-- エラーハンドリングと自動リトライ
-- データ品質チェック機能
-- Phase 34-49でバックテストモード対応完了
+- 効率的なデータキャッシング（LRUキャッシュ統合）
+- エラーハンドリング・自動リトライ（指数バックオフ）
+- データ品質チェック機能（欠損値・異常値検出）
+- バックテストモード対応（CSV読み込み）
+
+開発履歴:
+- Phase 52.4-B: コード整理・ドキュメント統一
+- Phase 49: バックテストモード対応完了
+- Phase 34: 高速キャッシング実装
 """
 
 import asyncio
@@ -165,15 +172,21 @@ class DataPipeline:
                 self.logger.debug(f"バックテストデータ使用: {timeframe_key}")
                 return self._backtest_data[timeframe_key].copy()
             else:
-                self.logger.warning(f"バックテストデータに{timeframe_key}が見つかりません。空のDataFrameを返します。")
+                self.logger.warning(
+                    f"バックテストデータに{timeframe_key}が見つかりません。空のDataFrameを返します。"
+                )
                 return pd.DataFrame()
 
         cache_key = self._generate_cache_key(request)
 
-        # キャッシュチェック
+        # CRIT-5 Fix: Race condition修正（キャッシュ存在チェック追加）
+        # キャッシュチェック - 存在確認とアクセスをアトミックに
         if use_cache and self._is_cache_valid(cache_key):
-            self.logger.debug(f"キャッシュからデータ取得: {cache_key}")
-            return self._cache[cache_key].copy()
+            cached_data = self._cache.get(cache_key)
+            if cached_data is not None:
+                self.logger.debug(f"キャッシュからデータ取得: {cache_key}")
+                return cached_data.copy()
+            # キャッシュが削除されていた場合は、通常のデータ取得へフォールスルー
 
         # データ取得（リトライ機能付き）
         for attempt in range(self.max_retries):
@@ -203,7 +216,9 @@ class DataPipeline:
 
                 # 型安全性チェック - DataFrameの保証
                 if not isinstance(df, pd.DataFrame):
-                    self.logger.error(f"データ変換エラー: 期待された型はDataFrame、実際の型は{type(df)}")
+                    self.logger.error(
+                        f"データ変換エラー: 期待された型はDataFrame、実際の型は{type(df)}"
+                    )
                     return pd.DataFrame()  # 空のDataFrameを返して型安全性を保証
 
                 # キャッシュに保存
@@ -225,7 +240,9 @@ class DataPipeline:
 
                 # Phase 51.5-A Fix: 取得件数が要求の半分以下なら警告
                 if len(df) < request.limit * 0.5:
-                    self.logger.warning(f"⚠️ データ取得件数が要求の半分以下: 要求={request.limit}件, 実際={len(df)}件")
+                    self.logger.warning(
+                        f"⚠️ データ取得件数が要求の半分以下: 要求={request.limit}件, 実際={len(df)}件"
+                    )
 
                 return df
 
@@ -233,14 +250,17 @@ class DataPipeline:
                 self.logger.warning(f"データ取得失敗 (試行 {attempt + 1}/{self.max_retries}): {e}")
 
                 if attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay)
+                    # CRIT-6 Fix: time.sleep → await asyncio.sleep（イベントループブロッキング解消）
+                    await asyncio.sleep(self.retry_delay)
                 else:
                     raise DataFetchError(
                         f"データ取得に失敗しました: {request.symbol} {request.timeframe.value}",
                         context={"max_retries_exceeded": True},
                     )
 
-    async def fetch_multi_timeframe(self, symbol: str = None, limit: int = 1000) -> Dict[str, pd.DataFrame]:
+    async def fetch_multi_timeframe(
+        self, symbol: str = None, limit: int = 1000
+    ) -> Dict[str, pd.DataFrame]:
         """
         マルチタイムフレーム データを一括取得（型安全性強化）
 
@@ -283,7 +303,9 @@ class DataPipeline:
                     except Exception:
                         results[timeframe.value] = pd.DataFrame()
                 else:
-                    self.logger.warning(f"予期しない型が返却されました: {type(df)}, 空DataFrameで代替")
+                    self.logger.warning(
+                        f"予期しない型が返却されました: {type(df)}, 空DataFrameで代替"
+                    )
                     results[timeframe.value] = pd.DataFrame()
 
             except asyncio.CancelledError:
@@ -294,7 +316,9 @@ class DataPipeline:
                 self.logger.error(f"タイムアウト: {timeframe.value} - {e}")
                 results[timeframe.value] = pd.DataFrame()
             except Exception as e:
-                error_msg = f"マルチタイムフレーム取得失敗: {timeframe.value} - " f"{type(e).__name__}: {e}"
+                error_msg = (
+                    f"マルチタイムフレーム取得失敗: {timeframe.value} - " f"{type(e).__name__}: {e}"
+                )
                 self.logger.error(error_msg)
                 # 失敗したタイムフレームは必ず空のDataFrameで代替（型保証）
                 results[timeframe.value] = pd.DataFrame()
@@ -303,7 +327,10 @@ class DataPipeline:
         for tf, data in results.items():
             if not isinstance(data, pd.DataFrame):
                 data_detail = str(data)[:100] if data else "None"
-                self.logger.error(f"型不整合検出: {tf} = {type(data)}, " f"空のDataFrameで修正. 詳細: {data_detail}")
+                self.logger.error(
+                    f"型不整合検出: {tf} = {type(data)}, "
+                    f"空のDataFrameで修正. 詳細: {data_detail}"
+                )
                 results[tf] = pd.DataFrame()
             elif not hasattr(data, "empty"):
                 self.logger.error(f"DataFrame属性不整合: {tf}, 空のDataFrameで修正")
@@ -421,7 +448,9 @@ class DataPipeline:
 
         cache_info = {
             "total_cached_items": len(self._cache),
-            "cache_size_mb": sum(df.memory_usage(deep=True).sum() for df in self._cache.values()) / 1024 / 1024,
+            "cache_size_mb": sum(df.memory_usage(deep=True).sum() for df in self._cache.values())
+            / 1024
+            / 1024,
             "items": [],
         }
 

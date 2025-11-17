@@ -1,5 +1,5 @@
 """
-BB Reversal戦略実装 - Phase 51.7 Day 3
+BB Reversal戦略実装 - Phase 52.4-B
 
 レンジ相場での平均回帰戦略:
 - BB上限タッチ + RSI買われすぎ → SELL信号
@@ -11,7 +11,7 @@ BB Reversal戦略実装 - Phase 51.7 Day 3
 - RSIとBBの組み合わせで反転ポイントを検出
 - トレンド相場ではシグナル発生を抑制
 
-Phase 51.7 Day 3実装
+Phase 52.4-B実装
 """
 
 from typing import Any, Dict, List, Optional
@@ -59,10 +59,14 @@ class BBReversalStrategy(StrategyBase):
             "bb_lower_threshold": get_threshold("strategies.bb_reversal.bb_lower_threshold", 0.05),
             "adx_range_threshold": get_threshold("strategies.bb_reversal.adx_range_threshold", 20),
             "sl_multiplier": get_threshold("strategies.bb_reversal.sl_multiplier", 1.5),
-            # Phase 49.16: TP/SL設定（thresholds.yaml優先）
+            # Phase 52.4-B: TP/SL設定（thresholds.yaml優先）
             "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
-            "min_profit_ratio": get_threshold("position_management.take_profit.min_profit_ratio", 0.010),
-            "take_profit_ratio": get_threshold("position_management.take_profit.default_ratio", 1.29),
+            "min_profit_ratio": get_threshold(
+                "position_management.take_profit.min_profit_ratio", 0.010
+            ),
+            "take_profit_ratio": get_threshold(
+                "position_management.take_profit.default_ratio", 1.29
+            ),
         }
 
         # 設定マージ
@@ -238,7 +242,10 @@ class BBReversalStrategy(StrategyBase):
             rsi = float(latest["rsi_14"])
 
             # SELL信号（BB上限タッチ + RSI買われすぎ）
-            if bb_position > self.config["bb_upper_threshold"] and rsi > self.config["rsi_overbought"]:
+            if (
+                bb_position > self.config["bb_upper_threshold"]
+                and rsi > self.config["rsi_overbought"]
+            ):
                 # 信頼度: BB位置が上限に近いほど高い
                 confidence = min(0.30 + (bb_position - 0.95) * 2.0, 0.50)
                 # 強度: BB位置の偏り度合い
@@ -253,7 +260,10 @@ class BBReversalStrategy(StrategyBase):
                 }
 
             # BUY信号（BB下限タッチ + RSI売られすぎ）
-            elif bb_position < self.config["bb_lower_threshold"] and rsi < self.config["rsi_oversold"]:
+            elif (
+                bb_position < self.config["bb_lower_threshold"]
+                and rsi < self.config["rsi_oversold"]
+            ):
                 # 信頼度: BB位置が下限に近いほど高い
                 confidence = min(0.30 + (0.05 - bb_position) * 2.0, 0.50)
                 # 強度: BB位置の偏り度合い

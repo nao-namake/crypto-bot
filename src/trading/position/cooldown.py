@@ -1,5 +1,5 @@
 """
-クールダウン管理サービス - Phase 49完了
+クールダウン管理サービス - Phase 52.4-B完了
 Phase 31.1: 柔軟なクールダウン機能
 
 強いトレンド発生時はクールダウンをスキップし、機会損失を防ぐ。
@@ -12,6 +12,9 @@ import pandas as pd
 from ...core.config import get_features_config
 from ...core.logger import get_logger
 from ..core import TradeEvaluation
+
+# Phase 52.4: トレンド強度閾値デフォルト値（マジックナンバー削減）
+DEFAULT_TREND_STRENGTH_THRESHOLD = 0.7
 
 
 class CooldownManager:
@@ -58,11 +61,15 @@ class CooldownManager:
                 return True
 
             trend_strength = self.calculate_trend_strength(market_data)
-            threshold = features_config.get("trend_strength_threshold", 0.7)
+            threshold = features_config.get(
+                "trend_strength_threshold", DEFAULT_TREND_STRENGTH_THRESHOLD
+            )
 
             # 強いトレンド時はクールダウンをスキップ
             if trend_strength >= threshold:
-                self.logger.info(f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ")
+                self.logger.info(
+                    f"🔥 強トレンド検出 (強度: {trend_strength:.2f}) - クールダウンスキップ"
+                )
                 return False
 
             return True
@@ -141,7 +148,9 @@ class CooldownManager:
 
             enabled = features_config.get("enabled", True)
             flexible_mode = features_config.get("flexible_mode", False)
-            threshold = features_config.get("trend_strength_threshold", 0.7)
+            threshold = features_config.get(
+                "trend_strength_threshold", DEFAULT_TREND_STRENGTH_THRESHOLD
+            )
 
             status = {
                 "enabled": enabled,
@@ -170,7 +179,7 @@ class CooldownManager:
                 "enabled": True,
                 "flexible_mode": False,
                 "trend_strength": 0.0,
-                "threshold": 0.7,
+                "threshold": DEFAULT_TREND_STRENGTH_THRESHOLD,
                 "skip_cooldown": False,
                 "reason": f"エラー: {e}",
             }

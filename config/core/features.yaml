@@ -23,23 +23,23 @@ trading:
   # 基本設定
   enabled: true  # 取引機能全体のマスタースイッチ
 
-  # TP/SL自動配置（Phase 51.6被害最小化・こまめ利確）
+  # TP/SL自動配置（Phase 52.4）
   stop_loss:
     enabled: true  # ストップロス自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
     default_atr_multiplier: 2.0  # ATR倍率
-    max_loss_ratio: 0.007  # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
+    max_loss_ratio: 0.007  # SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false  # 戦略SL価格優先（false）
-    note: "Phase 51.6: SL 0.7%・被害最小化（771円→236円・53%削減）"
+    note: "SL 0.7%・被害最小化（損失53%削減）"
 
   take_profit:
     enabled: true  # テイクプロフィット自動配置
     use_limit_order: true  # 指値注文使用（fee: -0.02%）
-    default_ratio: 1.29  # Phase 51.6: RR比1.29:1（TP 0.9% / SL 0.7%）
-    min_profit_ratio: 0.009  # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
+    default_ratio: 1.29  # RR比1.29:1（TP 0.9% / SL 0.7%）
+    min_profit_ratio: 0.009  # TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false  # 戦略TP価格優先（false）
     position_partial_exit: false  # 部分利確（未実装）
-    note: "Phase 51.6: TP 0.9%・RR比1.29:1・必要勝率43.75%"
+    note: "TP 0.9%・RR比1.29:1・必要勝率43.75%"
 
   # クールダウン機能
   cooldown:
@@ -61,10 +61,10 @@ trading:
 
   # トレーリングストップ（Phase 42.2実装済み・現在無効化）
   trailing_stop:
-    enabled: false  # Phase 42.2実装済み・現在無効化（thresholds.yaml参照）
-    trailing_percent: 0.03  # Phase 42.2: トレーリング幅（3%）
-    activation_profit: 0.02  # Phase 42.2: 発動利益率（2%）
-    note: "Phase 42.2: 2%発動・3%距離・最小0.5%利益ロック実装済み（現在無効化）"
+    enabled: false  # 現在無効化（thresholds.yaml参照）
+    trailing_percent: 0.03  # トレーリング幅（3%）
+    activation_profit: 0.02  # 発動利益率（2%）
+    note: "2%発動・3%距離・0.5%利益ロック（現在無効化）"
 
 # ========================================
 # リスク管理機能
@@ -92,7 +92,7 @@ risk_management:
   drawdown_management:
     enabled: true  # ドローダウン管理
     max_drawdown_ratio: 0.2  # 最大許容ドローダウン（20%）
-    consecutive_loss_limit: 8  # 連続損失制限（8回）
+    consecutive_loss_limit: 8  # 連続損失制限（8回）- 詳細: unified.yaml:drawdown_manager.consecutive_loss_limit
     cooldown_hours: 6  # 緊急停止時間（6時間）
     persistence_enabled: true  # GCP永続化
     use_gcs: true  # Cloud Storage使用
@@ -141,13 +141,13 @@ ml_integration:
   # アンサンブルモデル（拡張可能設計）
   ensemble:
     enabled: true  # アンサンブル機能
-    note: "現在3モデル（LightGBM 50%・XGBoost 30%・RandomForest 20%）・拡張時: unified.yaml:ensemble.weightsで重み設定"
+    note: "3モデル（LightGBM 50%・XGBoost 30%・RandomForest 20%）"
 
   # フォールバック
   fallback:
     enabled: true  # MLフォールバック
     use_dummy_model: true  # DummyModel使用
-    note: "MLエラー時のフォールバック機能・デフォルト信頼度はthresholds.yamlを参照"
+    note: "MLエラー時フォールバック（デフォルト信頼度: thresholds.yaml参照）"
 
 # ========================================
 # 戦略機能
@@ -169,21 +169,21 @@ strategies:
     confidence_threshold: 0.3  # 信頼度閾値（30%）
     note: "5戦略の重み付け統合判定"
 
-  # 動的戦略選択（Phase 51.3実装）
+  # 動的戦略選択（Phase 52.4）
   dynamic_selection:
-    enabled: true  # Phase 51.3: 動的戦略選択
+    enabled: true  # 動的戦略選択
     use_regime_weights: true  # 市場レジーム連動重み使用
-    note: "Phase 51.3: 市場レジーム連動戦略重み最適化（thresholds.yaml:dynamic_strategy_selection参照）"
+    note: "市場レジーム連動戦略重み最適化（thresholds.yaml参照）"
 
-  # 個別戦略有効化（Phase 51.7 Day 7: 6戦略統合完了）
+  # 個別戦略有効化（Phase 52.4: 6戦略統合）
   individual_strategies:
     atr_based: true  # ATRベース戦略
     donchian_channel: true  # ドンチャンチャネル戦略
     adx_trend: true  # ADXトレンド戦略
-    bb_reversal: true  # BB Reversal戦略（Phase 51.7 Day 3）
-    stochastic_reversal: true  # Stochastic Reversal戦略（Phase 51.7 Day 4）
-    macd_ema_crossover: true  # MACD EMA Crossover戦略（Phase 51.7 Day 5）
-    note: "Phase 51.7 Day 7: 6戦略統合完了（ATR・Donchian・ADX・BB・Stochastic・MACD）"
+    bb_reversal: true  # BB Reversal戦略
+    stochastic_reversal: true  # Stochastic Reversal戦略
+    macd_ema_crossover: true  # MACD EMA Crossover戦略
+    note: "6戦略統合（レンジ型4・トレンド型2）"
 
 # ========================================
 # データ管理機能
@@ -202,10 +202,10 @@ data:
   # 特徴量管理（feature_order.json参照・拡張可能設計）
   feature_management:
     enabled: true  # 特徴量管理
-    feature_count: 55  # Phase 51.9: 55特徴量（49基本+6戦略シグナル）
+    # feature_count: 55  # Phase 52.5: feature_order.jsonが単一真実源（total_features: 55）
     feature_order_validation: true  # 特徴量順序検証
     use_feature_order_json: true  # feature_order.json使用
-    note: "Phase 51.9: 55特徴量（49基本+6戦略シグナル）・6戦略統合完了・feature_order.json参照"
+    note: "55特徴量（49基本+6戦略シグナル）・詳細: config/core/feature_order.json"
 
   # マルチタイムフレーム
   multi_timeframe:
@@ -289,14 +289,20 @@ development:
 
   backtest:
     enabled: true  # バックテスト
-    initial_balance: 100000  # 初期残高（10万円・Phase 51.10-B標準化）
+    initial_balance: 100000  # 初期残高（10万円）
     period_days: 180  # バックテスト期間（180日）
     note: "backtest mode: 過去データ検証"
 
-    # Phase 52.2: DrawdownManager制限設定（バックテスト用）
+    # DrawdownManager制限設定（バックテスト用・Phase 52.2）
     drawdown_limits:
       enabled: true  # true: 本番シミュレーション / false: 戦略評価（制限なし）
       max_drawdown_ratio: 0.2  # 最大ドローダウン20%
-      consecutive_loss_limit: 8  # 連続損失8回
+      consecutive_loss_limit: 8  # 連続損失8回 - 詳細: unified.yaml:drawdown_manager.consecutive_loss_limit
       cooldown_hours: 6  # クールダウン6時間
       note: "enabled=true で本番と同じDrawdownManager制限を適用"
+
+# ========================================
+# バックテストモード設定（Phase 52.4追加）
+# ========================================
+backtest:
+  env_var_name: "BACKTEST_MODE"  # バックテストモード環境変数名（logger.py使用）

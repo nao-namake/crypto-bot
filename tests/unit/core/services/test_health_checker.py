@@ -126,4 +126,6 @@ class TestHealthChecker:
         with patch("builtins.__import__", side_effect=ImportError("psutil not found")):
             await health_checker._check_system_resources()
 
-            health_checker.logger.debug.assert_called_with("psutilが利用できないため、システムリソース確認をスキップ")
+            health_checker.logger.debug.assert_called_with(
+                "psutilが利用できないため、システムリソース確認をスキップ"
+            )

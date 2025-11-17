@@ -112,7 +112,7 @@ class TestProductionEnsemble:
         assert "lightgbm" in info["individual_models"]
         assert info["n_features"] == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert len(info["feature_names"]) == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
-        assert info["phase"] == "Phase 22"
+        assert info["phase"] == "Phase 52.4-B"  # Phase 52.5: ML訓練最新Phase
         assert info["status"] == "production_ready"
         assert "weights" in info
 
@@ -186,7 +186,9 @@ class TestProductionEnsemble:
         """predict_proba なしモデルのフォールバックテスト（Phase 51.9: 3クラス分類対応）"""
         # Phase 51.9: 2つのモデル - 1つはpredict_proba（n_classes設定用）、1つはpredictのみ（fallback）
         mock_proba_model = MagicMock()
-        mock_proba_model.predict_proba.return_value = np.array([[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]])
+        mock_proba_model.predict_proba.return_value = np.array(
+            [[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]]
+        )
         mock_proba_model.n_features_in_ = 55
 
         mock_predict_only = MagicMock()
@@ -260,7 +262,9 @@ class TestProductionEnsemble:
         """重み付け予測計算の詳細テスト（Phase 51.9: 3クラス分類対応）"""
         # Phase 51.9: predict_probaを持つモデルを追加してn_classesを確実に設定
         mock_proba = MagicMock()
-        mock_proba.predict_proba.return_value = np.array([[0.3, 0.5, 0.2], [0.4, 0.4, 0.2], [0.1, 0.3, 0.6]])
+        mock_proba.predict_proba.return_value = np.array(
+            [[0.3, 0.5, 0.2], [0.4, 0.4, 0.2], [0.1, 0.3, 0.6]]
+        )
         mock_proba.n_features_in_ = 55
 
         mock_model1 = MagicMock()

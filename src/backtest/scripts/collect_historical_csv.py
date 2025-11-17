@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-過去データCSV収集スクリプト - Phase 38.4完了
+過去データCSV収集スクリプト
+
+最終更新: 2025/11/16 (Phase 52.4-B)
 
 本番環境と同じBitbank APIから過去データを取得してCSV形式で保存。
 バックテストの高速化とAPI依存削減を実現。
 
-Phase 34完了実績:
-- 15分足データ収集80倍改善（216件→17,271件・99.95%成功率）
+主要機能:
+- 15分足データ収集（大量データ対応・99.95%成功率）
 - Bitbank Public API直接使用実装（4時間足・15分足）
 - 期間統一機能実装（--match-4hオプション）
 - 日別イテレーション実装（ccxt制限回避）
@@ -39,9 +41,14 @@ from src.data.bitbank_client import BitbankClient
 
 class HistoricalDataCollector:
     """
-    過去データCSV収集システム（Phase 38.4完了）
+    過去データCSV収集システム
 
-    Phase 34実装: Bitbank Public API直接使用・期間統一機能。
+    最終更新: 2025/11/16 (Phase 52.4-B)
+
+    主要機能:
+    - Bitbank Public API直接使用（4時間足・15分足）
+    - 期間統一機能（--match-4hオプション）
+    - 大量データ対応（日別イテレーション）
     """
 
     def __init__(self):
@@ -84,7 +91,9 @@ class HistoricalDataCollector:
         # 各タイムフレームでデータ収集
         for timeframe in timeframes:
             try:
-                await self._collect_timeframe_data(symbol, timeframe, days, start_timestamp, end_timestamp)
+                await self._collect_timeframe_data(
+                    symbol, timeframe, days, start_timestamp, end_timestamp
+                )
                 self.logger.info(f"✅ {timeframe}データ収集完了")
             except Exception as e:
                 self.logger.error(f"❌ {timeframe}データ収集失敗: {e}")
@@ -99,13 +108,15 @@ class HistoricalDataCollector:
     ) -> None:
         """タイムフレーム別データ収集"""
 
-        # Phase 34.1修正: 4時間足と15分足は直接API、それ以外はBitbankClient使用
+        # 4時間足と15分足は直接API、それ以外はBitbankClient使用
         if timeframe == "4h":
             data = await self._collect_4h_direct(symbol, days, start_timestamp, end_timestamp)
         elif timeframe == "15m":
             data = await self._collect_15m_direct(symbol, days, start_timestamp, end_timestamp)
         else:
-            data = await self._collect_via_client(symbol, timeframe, days, start_timestamp, end_timestamp)
+            data = await self._collect_via_client(
+                symbol, timeframe, days, start_timestamp, end_timestamp
+            )
 
         if data:
             await self._save_to_csv(data, symbol, timeframe)
@@ -132,12 +143,16 @@ class HistoricalDataCollector:
             # 日付フィルタリング
             if start_timestamp and end_timestamp:
                 # 指定期間でフィルタ
-                filtered_data = [row for row in all_data if start_timestamp <= row[0] <= end_timestamp]
+                filtered_data = [
+                    row for row in all_data if start_timestamp <= row[0] <= end_timestamp
+                ]
             else:
                 # 日数指定でフィルタ
                 cutoff_date = datetime.now() - timedelta(days=days)
                 cutoff_timestamp = int(cutoff_date.timestamp() * 1000)
-                filtered_data = [row for row in all_data if row[0] >= cutoff_timestamp]  # timestampでフィルタ
+                filtered_data = [
+                    row for row in all_data if row[0] >= cutoff_timestamp
+                ]  # timestampでフィルタ
 
             return sorted(filtered_data, key=lambda x: x[0])  # 時系列順にソート
 
@@ -185,7 +200,7 @@ class HistoricalDataCollector:
     async def _collect_15m_direct(
         self, symbol: str, days: int, start_timestamp: int = None, end_timestamp: int = None
     ) -> List[List]:
-        """15分足データ直接取得（Phase 34.1実装）"""
+        """15分足データ直接取得（日別イテレーション実装）"""
         try:
             # 日付範囲を計算
             if start_timestamp and end_timestamp:
@@ -211,7 +226,9 @@ class HistoricalDataCollector:
 
             # 日付フィルタリング
             if start_timestamp and end_timestamp:
-                filtered_data = [row for row in all_data if start_timestamp <= row[0] <= end_timestamp]
+                filtered_data = [
+                    row for row in all_data if start_timestamp <= row[0] <= end_timestamp
+                ]
             else:
                 cutoff_timestamp = int(start_date.timestamp() * 1000)
                 filtered_data = [row for row in all_data if row[0] >= cutoff_timestamp]
@@ -228,7 +245,7 @@ class HistoricalDataCollector:
             return []
 
     async def _fetch_15m_day_data(self, symbol: str, date: datetime) -> List[List]:
-        """日別15分足データ取得（Phase 34.1実装）"""
+        """日別15分足データ取得"""
         try:
             pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
             date_str = date.strftime("%Y%m%d")  # YYYYMMDD形式
@@ -300,9 +317,13 @@ class HistoricalDataCollector:
             # 10日分ずつ取得（APIレート制限対応）
             for i in range(0, int(period_days), 10):
                 batch_start = since_timestamp + (i * 24 * 60 * 60 * 1000)  # i日後の開始時刻
-                batch_end = min(batch_start + (10 * 24 * 60 * 60 * 1000), end_ts)  # 10日後または終了時刻
+                batch_end = min(
+                    batch_start + (10 * 24 * 60 * 60 * 1000), end_ts
+                )  # 10日後または終了時刻
 
-                data = await client.fetch_ohlcv(symbol=symbol, timeframe=timeframe, since=batch_start, limit=2000)
+                data = await client.fetch_ohlcv(
+                    symbol=symbol, timeframe=timeframe, since=batch_start, limit=2000
+                )
 
                 if data:
                     # 期間内のデータのみ追加
@@ -369,7 +390,9 @@ async def main():
 
     parser = argparse.ArgumentParser(description="過去データCSV収集")
     parser.add_argument("--days", type=int, default=180, help="収集日数（デフォルト: 180日）")
-    parser.add_argument("--symbol", default=default_symbol, help=f"通貨ペア（デフォルト: {default_symbol}）")
+    parser.add_argument(
+        "--symbol", default=default_symbol, help=f"通貨ペア（デフォルト: {default_symbol}）"
+    )
     parser.add_argument(
         "--timeframes",
         nargs="+",
@@ -391,7 +414,9 @@ async def main():
             if not df.empty:
                 args.start_timestamp = int(df["timestamp"].iloc[0])
                 args.end_timestamp = int(df["timestamp"].iloc[-1])
-                print(f"既存4時間足データ期間に合わせます: {args.start_timestamp} - {args.end_timestamp}")
+                print(
+                    f"既存4時間足データ期間に合わせます: {args.start_timestamp} - {args.end_timestamp}"
+                )
         else:
             print("既存4時間足データが見つかりません")
             return

@@ -1,17 +1,14 @@
 """
-ペーパートレードランナー - Phase 49完了
+ペーパートレードランナー - Phase 52.4
 
-orchestrator.pyから分離したペーパートレード実行機能。
 ペーパートレードモードの専用処理・セッション管理を担当。
 
-Phase 49完了:
+機能:
 - ペーパートレード管理（trading_cycle_manager統合・仮想取引実行）
 - セッション統計（cycle_count・session_stats）
 - レポート生成（PaperTradingReporter統合）
-- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
+- 定期実行制御（thresholds.yaml設定・デフォルト5分間隔）
 - Discord通知統合（セッション開始・エラー通知）
-
-Phase 28-29: ペーパートレードモード専用処理・レポート生成確立
 """
 
 import asyncio
@@ -118,7 +115,9 @@ class PaperTradingRunner(BaseRunner):
                 "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "cycles_completed": self.cycle_count,
                 "total_signals": getattr(self.orchestrator.execution_service, "total_signals", 0),
-                "executed_trades": getattr(self.orchestrator.execution_service, "executed_trades", 0),
+                "executed_trades": getattr(
+                    self.orchestrator.execution_service, "executed_trades", 0
+                ),
                 "current_balance": getattr(
                     self.orchestrator.execution_service,
                     "current_balance",
@@ -155,7 +154,9 @@ class PaperTradingRunner(BaseRunner):
         try:
             session_stats = self._collect_session_stats() if self.session_start else None
 
-            await self.orchestrator.paper_trading_reporter.save_session_error_report(error_message, session_stats)
+            await self.orchestrator.paper_trading_reporter.save_session_error_report(
+                error_message, session_stats
+            )
 
         except Exception as e:
             self.logger.error(f"❌ ペーパートレードエラーレポート保存失敗: {e}")
@@ -181,13 +182,21 @@ class PaperTradingRunner(BaseRunner):
             final_stats = {
                 "mode": "paper_trading",
                 "session_duration": {
-                    "start": (self.session_start.strftime("%Y-%m-%d %H:%M:%S") if self.session_start else "N/A"),
+                    "start": (
+                        self.session_start.strftime("%Y-%m-%d %H:%M:%S")
+                        if self.session_start
+                        else "N/A"
+                    ),
                     "end": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 },
                 "performance": {
                     "cycles_completed": self.cycle_count,
-                    "total_signals": getattr(self.orchestrator.execution_service, "total_signals", 0),
-                    "executed_trades": getattr(self.orchestrator.execution_service, "executed_trades", 0),
+                    "total_signals": getattr(
+                        self.orchestrator.execution_service, "total_signals", 0
+                    ),
+                    "executed_trades": getattr(
+                        self.orchestrator.execution_service, "executed_trades", 0
+                    ),
                     "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
                 },
                 "completion_status": "completed",

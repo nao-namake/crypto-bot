@@ -1,35 +1,28 @@
 #!/usr/bin/env python3
 """
-新システム用MLモデル作成スクリプト - Phase 51.9完了版（6戦略・55特徴量・3クラス分類）
-
-Phase 51.9対応: 真の3クラス分類実装・55特徴量システム（6戦略統合）
-Phase 51.7 Day 7対応: 6戦略統合・動的ストラテジーローダー・55特徴量システム
-Phase 50.9対応: 外部API完全削除・シンプル設計回帰・2段階Graceful Degradation
-Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確保）
+新システム用MLモデル作成スクリプト - Phase 52.4（6戦略・55特徴量・3クラス分類）
 
 機能:
 - **2段階MLモデル生成** - full（55特徴量）・basic（49特徴量）
 - **設定駆動型** - feature_order.json完全準拠・strategies.yaml動的ロード・ハードコードゼロ
 - **6戦略統合** - StrategyLoader動的ロード（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）
-- **外部API完全削除** - システム安定性向上・ゼロダウンタイム実現
 - **モデル別特徴量選択** - feature_order.jsonカテゴリー定義に基づく自動選択
 - **統合メタデータ生成** - 全モデル情報を1つのJSONに集約（ensemble_metadata.json）
-- Phase 41.8: 実戦略信号学習 - 過去データから実際に戦略を実行して学習データ生成
-- Phase 40.6: Feature Engineering拡張 - 15→49基本特徴量
-- Phase 39.1-39.5: 実データ学習・TimeSeriesSplit・SMOTE・Optuna最適化
-- 新システム src/ 構造対応
+- **真の3クラス分類** - 0=sell, 1=hold, 2=buy
+- **Strategy-Aware ML** - 実戦略信号学習（訓練時と推論時の一貫性確保）
+- **TimeSeriesSplit・SMOTE・Optuna最適化**
 - models/production/ にモデル保存（full/basic）
 
-Phase 51.9完了成果: 55特徴量固定システム（6戦略統合）・真の3クラス分類・動的ストラテジーローダー・設定駆動型アーキテクチャ
+Phase 52.4完了成果: 6戦略統合・55特徴量システム・真の3クラス分類・設定駆動型アーキテクチャ
 
 使用方法:
-    # Phase 51.5-B: 両モデル一括学習（デフォルト・推奨）
+    # 両モデル一括学習（デフォルト・推奨）
     python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # Phase 51.5-B: fullモデルのみ学習（緊急時）
+    # fullモデルのみ学習（緊急時）
     python scripts/ml/create_ml_models.py --model full --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # Phase 51.5-B: basicモデルのみ学習（緊急時）
+    # basicモデルのみ学習（緊急時）
     python scripts/ml/create_ml_models.py --model basic --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 """
 
@@ -66,7 +59,7 @@ try:
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
     from src.ml.ensemble import ProductionEnsemble
-    from src.strategies.base.strategy_manager import StrategyManager  # Phase 41.8
+    from src.strategies.base.strategy_manager import StrategyManager
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
     print("プロジェクトルートから実行してください。")
@@ -88,16 +81,16 @@ class NewSystemMLModelCreator:
         models_to_train: list = None,
     ):
         """
-        初期化（Phase 51.5-B対応・一括生成システム）
+        初期化（Phase 52.4対応・一括生成システム）
 
         Args:
             config_path: 設定ファイルパス
             verbose: 詳細ログ出力
-            target_threshold: ターゲット閾値（Phase 39.2）
-            n_classes: クラス数 2 or 3（Phase 39.2）
-            use_smote: SMOTEオーバーサンプリング使用（Phase 39.4）
-            optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
-            n_trials: Optuna試行回数（Phase 39.5）
+            target_threshold: ターゲット閾値
+            n_classes: クラス数 2 or 3
+            use_smote: SMOTEオーバーサンプリング使用
+            optimize: Optunaハイパーパラメータ最適化使用
+            n_trials: Optuna試行回数
             models_to_train: 訓練するモデルリスト ["full", "basic"] デフォルトは両方
         """
         self.config_path = config_path
@@ -137,10 +130,8 @@ class NewSystemMLModelCreator:
         # モデル保存先ディレクトリ
         self.training_dir = Path("models/training")
         self.production_dir = Path("models/production")
-        self.optuna_dir = Path("models/optuna")  # Phase 39.5
         self.training_dir.mkdir(parents=True, exist_ok=True)
         self.production_dir.mkdir(parents=True, exist_ok=True)
-        self.optuna_dir.mkdir(parents=True, exist_ok=True)  # Phase 39.5
 
         # データパイプライン初期化
         try:
@@ -159,7 +150,9 @@ class NewSystemMLModelCreator:
         self.expected_features = get_feature_names()
 
         self.logger.info(f"🎯 対象特徴量: {len(self.expected_features)}個（新システム最適化済み）")
-        self.logger.info(f"🎯 Phase 39.2 ターゲット設定: 閾値={target_threshold:.1%}, クラス数={n_classes}")
+        self.logger.info(
+            f"🎯 Phase 39.2 ターゲット設定: 閾値={target_threshold:.1%}, クラス数={n_classes}"
+        )
 
         # MLモデル設定（Phase 39.3-39.4対応・Phase 51.9-6A: 3クラス対応）
         # LightGBM設定
@@ -267,7 +260,9 @@ class NewSystemMLModelCreator:
         model_type="full": 55特徴量（全特徴量使用・6戦略信号含む）
         model_type="basic": 49特徴量（戦略信号除外）
         """
-        model_name = "full（55特徴量）" if self.current_model_type == "full" else "basic（49特徴量）"
+        model_name = (
+            "full（55特徴量）" if self.current_model_type == "full" else "basic（49特徴量）"
+        )
         self.logger.info(f"📊 Phase 51.9: 実データ学習開始（過去{days}日分・{model_name}）")
 
         try:
@@ -276,21 +271,27 @@ class NewSystemMLModelCreator:
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # Phase 50.9: 特徴量エンジニアリング（62特徴量・外部API完全削除済み）
+            # 特徴量エンジニアリング（55特徴量システム）
             features_df = await self.feature_generator.generate_features(df)
 
             # Phase 41.8: 戦略シグナル特徴量を削除（後で実戦略信号で置き換える）
             # generate_features() は戦略シグナルを0.0で自動生成するが、Phase 41.8では実戦略信号を使用
-            strategy_signal_cols = [col for col in features_df.columns if col.startswith("strategy_signal_")]
+            strategy_signal_cols = [
+                col for col in features_df.columns if col.startswith("strategy_signal_")
+            ]
             if strategy_signal_cols:
                 features_df = features_df.drop(columns=strategy_signal_cols)
-                self.logger.info(f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）")
+                self.logger.info(
+                    f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）"
+                )
 
             # Phase 51.9: 実戦略信号生成（49→55特徴量・6戦略統合）
             # Note: 過去データから実際に戦略を実行し、本物の戦略信号を生成
             #       これにより訓練時と推論時の一貫性を確保
             #       特徴量を含むデータを渡す（戦略はテクニカル指標を必要とするため）
-            strategy_signals_df = await self._generate_real_strategy_signals_for_training(features_df)
+            strategy_signals_df = await self._generate_real_strategy_signals_for_training(
+                features_df
+            )
 
             # Phase 51.9: 基本特徴量（49） + 実戦略信号（6） = 55特徴量を結合
             features_df = pd.concat([features_df, strategy_signals_df], axis=1)
@@ -298,8 +299,8 @@ class NewSystemMLModelCreator:
             # Phase 51.9: 特徴量整合性確保（55特徴量固定システム）
             features_df = self._ensure_feature_consistency(features_df)
 
-            # Phase 50.9: モデル別特徴量選択（2段階システム）
-            features_df = self._select_features_by_level(features_df)
+            # Phase 52.4 CRITICAL FIX: 特徴量選択はrun()内のループで実行
+            # ここでは全55特徴量を生成し、run()でモデル別に選択する
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
             target = self._generate_target(df, self.target_threshold, self.n_classes)
@@ -308,7 +309,7 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 50.9: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（{model_name}）"
+                f"✅ Phase 52.4: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（全特徴量）"
             )
             return features_df, target
 
@@ -358,25 +359,27 @@ class NewSystemMLModelCreator:
 
     async def _generate_real_strategy_signals_for_training(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Phase 41.8: 実際の戦略信号を生成（過去データから）
+        Strategy-Aware ML: 実際の戦略信号を生成（過去データから）
 
-        各時点で5戦略を実行し、本物の戦略信号を計算。
+        各時点で6戦略を実行し、本物の戦略信号を計算。
         これにより訓練時と推論時の一貫性を確保。
 
         Args:
             df: OHLCV価格データ
 
         Returns:
-            pd.DataFrame: 戦略信号5列のDataFrame (index aligned with df)
+            pd.DataFrame: 戦略信号6列のDataFrame (index aligned with df)
         """
-        # Phase 51.7 Day 7: strategies.yamlから動的ロード（6戦略対応）
+        # strategies.yamlから動的ロード（6戦略対応）
         from src.strategies.strategy_loader import StrategyLoader
 
-        strategy_loader = StrategyLoader("config/strategies.yaml")
+        strategy_loader = StrategyLoader("config/core/strategies.yaml")
         loaded_strategies = strategy_loader.load_strategies()
         strategy_names = [s["metadata"]["name"] for s in loaded_strategies]
 
-        self.logger.info(f"📊 Phase 51.9: 実戦略信号生成開始（過去データから{len(strategy_names)}戦略実行）")
+        self.logger.info(
+            f"📊 Phase 51.9: 実戦略信号生成開始（過去データから{len(strategy_names)}戦略実行）"
+        )
         self.logger.info(f"   戦略リスト: {strategy_names}")
 
         # 結果格納用DataFrame
@@ -388,7 +391,9 @@ class NewSystemMLModelCreator:
 
             # Phase 51.9: 全戦略をStrategyManagerに登録
             for strategy_data in loaded_strategies:
-                strategy_manager.register_strategy(strategy_data["instance"], weight=strategy_data["weight"])
+                strategy_manager.register_strategy(
+                    strategy_data["instance"], weight=strategy_data["weight"]
+                )
 
             self.logger.info(f"✅ StrategyManager初期化完了 - {len(loaded_strategies)}戦略登録")
 
@@ -408,7 +413,9 @@ class NewSystemMLModelCreator:
                 if len(current_data) < 50:
                     # データ不足時は0で埋める
                     for strategy_name in strategy_names:
-                        strategy_signals.loc[current_data.index[-1], f"strategy_signal_{strategy_name}"] = 0.0
+                        strategy_signals.loc[
+                            current_data.index[-1], f"strategy_signal_{strategy_name}"
+                        ] = 0.0
                     continue
 
                 try:
@@ -437,22 +444,30 @@ class NewSystemMLModelCreator:
                             else:  # hold
                                 signal_value = 0.5
 
-                            strategy_signals.loc[current_timestamp, f"strategy_signal_{strategy_name}"] = signal_value
+                            strategy_signals.loc[
+                                current_timestamp, f"strategy_signal_{strategy_name}"
+                            ] = signal_value
                         else:
                             # 戦略信号が得られない場合はhold扱い（0.5）
-                            strategy_signals.loc[current_timestamp, f"strategy_signal_{strategy_name}"] = 0.5
+                            strategy_signals.loc[
+                                current_timestamp, f"strategy_signal_{strategy_name}"
+                            ] = 0.5
 
                 except Exception as e:
                     # Phase 51.9: エラー時はhold（0.5）で埋める（学習継続）
                     self.logger.warning(f"⚠️ 時点{i}で戦略実行エラー: {e}, hold(0.5)で埋めます")
                     for strategy_name in strategy_names:
-                        strategy_signals.loc[current_data.index[-1], f"strategy_signal_{strategy_name}"] = 0.5
+                        strategy_signals.loc[
+                            current_data.index[-1], f"strategy_signal_{strategy_name}"
+                        ] = 0.5
 
                 # 進捗表示（10%ごと）
                 processed += 1
                 if processed % max(1, total_points // 10) == 0:
                     progress = (processed / total_points) * 100
-                    self.logger.info(f"📊 Phase 41.8: 戦略信号生成進捗 {processed}/{total_points} ({progress:.1f}%)")
+                    self.logger.info(
+                        f"📊 Phase 41.8: 戦略信号生成進捗 {processed}/{total_points} ({progress:.1f}%)"
+                    )
 
             # Phase 51.9: 欠損値をhold（0.5）で埋める
             strategy_signals.fillna(0.5, inplace=True)
@@ -461,8 +476,14 @@ class NewSystemMLModelCreator:
                 f"✅ Phase 51.9: 実戦略信号生成完了 - {len(strategy_signals)}行 × {len(strategy_names)}戦略"
             )
             # Phase 51.9: buy/sell率（hold以外の率）を表示
-            buy_sell_rate = (strategy_signals != 0.5).sum().sum() / (len(strategy_signals) * len(strategy_names)) * 100
-            self.logger.info(f"📊 Phase 51.9: 戦略信号統計 - buy/sell率（hold以外）: {buy_sell_rate:.1f}%")
+            buy_sell_rate = (
+                (strategy_signals != 0.5).sum().sum()
+                / (len(strategy_signals) * len(strategy_names))
+                * 100
+            )
+            self.logger.info(
+                f"📊 Phase 51.9: 戦略信号統計 - buy/sell率（hold以外）: {buy_sell_rate:.1f}%"
+            )
 
             return strategy_signals
 
@@ -511,7 +532,9 @@ class NewSystemMLModelCreator:
 
         # basic: 戦略信号を除外（49特徴量）
         # 設定駆動型: strategy_signal_ プレフィックスで動的検索
-        strategy_signal_features = [col for col in features_df.columns if col.startswith("strategy_signal_")]
+        strategy_signal_features = [
+            col for col in features_df.columns if col.startswith("strategy_signal_")
+        ]
 
         features_df = features_df.drop(columns=strategy_signal_features, errors="ignore")
         self.logger.info(
@@ -573,7 +596,9 @@ class NewSystemMLModelCreator:
 
         return target
 
-    def _clean_data(self, features_df: pd.DataFrame, target: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
+    def _clean_data(
+        self, features_df: pd.DataFrame, target: pd.Series
+    ) -> Tuple[pd.DataFrame, pd.Series]:
         """データクリーニング."""
         # NaN除去
         valid_mask = ~(features_df.isna().any(axis=1) | target.isna())
@@ -590,7 +615,9 @@ class NewSystemMLModelCreator:
 
         return features_clean, target_clean
 
-    def _objective_lightgbm(self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series) -> float:
+    def _objective_lightgbm(
+        self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
+    ) -> float:
         """Phase 39.5: LightGBM最適化objective関数（Phase 51.9-6A: 3クラス対応）"""
         params = {
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
@@ -625,7 +652,9 @@ class NewSystemMLModelCreator:
 
         return np.mean(scores)
 
-    def _objective_xgboost(self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series) -> float:
+    def _objective_xgboost(
+        self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
+    ) -> float:
         """Phase 39.5: XGBoost最適化objective関数（Phase 51.9-6A: 3クラス対応）"""
         params = {
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
@@ -667,7 +696,9 @@ class NewSystemMLModelCreator:
 
         return np.mean(scores)
 
-    def _objective_random_forest(self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series) -> float:
+    def _objective_random_forest(
+        self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
+    ) -> float:
         """Phase 39.5: RandomForest最適化objective関数"""
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
@@ -751,25 +782,23 @@ class NewSystemMLModelCreator:
                 }
 
                 self.logger.info(
-                    f"✅ {model_name} 最適化完了 - Best F1: {best_score:.4f}, " f"Best params: {best_params}"
+                    f"✅ {model_name} 最適化完了 - Best F1: {best_score:.4f}, "
+                    f"Best params: {best_params}"
                 )
 
             except Exception as e:
                 self.logger.error(f"❌ {model_name} 最適化エラー: {e}")
                 optimization_results["models"][model_name] = {"error": str(e)}
 
-        # 結果保存
-        try:
-            results_file = self.optuna_dir / "phase39_5_results.json"
-            with open(results_file, "w", encoding="utf-8") as f:
-                json.dump(optimization_results, f, indent=2, ensure_ascii=False)
-            self.logger.info(f"💾 最適化結果保存: {results_file}")
-        except Exception as e:
-            self.logger.error(f"❌ 最適化結果保存エラー: {e}")
+        # Phase 52.4: Optuna結果はthresholds.yaml:optuna_optimizedセクションに統合済み
+        # ファイル保存は不要（設定一元化）
+        self.logger.info("💾 Optuna最適化完了（結果はthresholds.yaml:optuna_optimizedに統合済み）")
 
         return optimal_params
 
-    def train_models(self, features: pd.DataFrame, target: pd.Series, dry_run: bool = False) -> Dict[str, Any]:
+    def train_models(
+        self, features: pd.DataFrame, target: pd.Series, dry_run: bool = False
+    ) -> Dict[str, Any]:
         """モデル学習実行（Phase 39.3-39.4対応）"""
         self.logger.info("🤖 Phase 39.3-39.4 MLモデル学習開始")
 
@@ -844,9 +873,13 @@ class NewSystemMLModelCreator:
                     if self.use_smote and self.n_classes == 2:
                         try:
                             smote = SMOTE(random_state=42)
-                            X_cv_train_resampled, y_cv_train_resampled = smote.fit_resample(X_cv_train, y_cv_train)
+                            X_cv_train_resampled, y_cv_train_resampled = smote.fit_resample(
+                                X_cv_train, y_cv_train
+                            )
                             # Convert back to DataFrame to preserve feature names
-                            X_cv_train = pd.DataFrame(X_cv_train_resampled, columns=X_cv_train.columns)
+                            X_cv_train = pd.DataFrame(
+                                X_cv_train_resampled, columns=X_cv_train.columns
+                            )
                             y_cv_train = pd.Series(y_cv_train_resampled)
                             if len(X_cv_train_resampled) > len(X_cv_train):
                                 self.logger.debug(
@@ -854,7 +887,9 @@ class NewSystemMLModelCreator:
                                     f"{len(train_idx)}→{len(X_cv_train_resampled)}サンプル"
                                 )
                         except Exception as e:
-                            self.logger.warning(f"⚠️ SMOTE適用失敗（CV fold）: {e}, 元データで学習継続")
+                            self.logger.warning(
+                                f"⚠️ SMOTE適用失敗（CV fold）: {e}, 元データで学習継続"
+                            )
 
                     # Phase 39.3: Early Stopping for LightGBM and XGBoost
                     if model_name == "lightgbm":
@@ -865,7 +900,9 @@ class NewSystemMLModelCreator:
                                 eval_set=[(X_cv_val, y_cv_val)],
                                 callbacks=[
                                     # LightGBM 4.0+ uses callbacks instead of early_stopping_rounds
-                                    __import__("lightgbm").early_stopping(stopping_rounds=20, verbose=False)
+                                    __import__("lightgbm").early_stopping(
+                                        stopping_rounds=20, verbose=False
+                                    )
                                 ],
                             )
                         except ValueError as e:
@@ -906,25 +943,35 @@ class NewSystemMLModelCreator:
                 if self.use_smote and self.n_classes == 2:
                     try:
                         smote = SMOTE(random_state=42)
-                        X_train_val_resampled, y_train_val_resampled = smote.fit_resample(X_train_val, y_train_val)
+                        X_train_val_resampled, y_train_val_resampled = smote.fit_resample(
+                            X_train_val, y_train_val
+                        )
                         # Convert back to DataFrame to preserve feature names
-                        X_train_val = pd.DataFrame(X_train_val_resampled, columns=X_train_val.columns)
+                        X_train_val = pd.DataFrame(
+                            X_train_val_resampled, columns=X_train_val.columns
+                        )
                         y_train_val = pd.Series(y_train_val_resampled)
                         self.logger.info(
                             f"📊 Phase 39.4: SMOTE適用（Final training） - "
                             f"{len(X_train) + len(X_val)}→{len(X_train_val_resampled)}サンプル"
                         )
                     except Exception as e:
-                        self.logger.warning(f"⚠️ SMOTE適用失敗（Final training）: {e}, 元データで学習継続")
+                        self.logger.warning(
+                            f"⚠️ SMOTE適用失敗（Final training）: {e}, 元データで学習継続"
+                        )
 
                 if model_name == "lightgbm":
                     model.fit(
                         X_train_val,
                         y_train_val,
                         eval_set=[(X_test, y_test)],
-                        callbacks=[__import__("lightgbm").early_stopping(stopping_rounds=20, verbose=False)],
+                        callbacks=[
+                            __import__("lightgbm").early_stopping(stopping_rounds=20, verbose=False)
+                        ],
                     )
-                    self.logger.info(f"📊 Phase 39.3: {model_name} Early Stopping enabled (rounds=20)")
+                    self.logger.info(
+                        f"📊 Phase 39.3: {model_name} Early Stopping enabled (rounds=20)"
+                    )
                 elif model_name == "xgboost":
                     # XGBoost 2.0+ uses callbacks for early stopping
                     try:
@@ -937,10 +984,14 @@ class NewSystemMLModelCreator:
                             callbacks=[xgb_callback.EarlyStopping(rounds=20)],
                             verbose=False,
                         )
-                        self.logger.info(f"📊 Phase 39.3: {model_name} Early Stopping enabled (rounds=20)")
+                        self.logger.info(
+                            f"📊 Phase 39.3: {model_name} Early Stopping enabled (rounds=20)"
+                        )
                     except Exception as e:
                         # Fallback: train without early stopping
-                        self.logger.warning(f"⚠️ XGBoost Early Stopping failed: {e}, training without it")
+                        self.logger.warning(
+                            f"⚠️ XGBoost Early Stopping failed: {e}, training without it"
+                        )
                         model.fit(X_train_val, y_train_val)
                 else:
                     # RandomForest: Train on Train+Val without early stopping
@@ -951,8 +1002,12 @@ class NewSystemMLModelCreator:
                 test_metrics = {
                     "accuracy": accuracy_score(y_test, y_test_pred),
                     "f1_score": f1_score(y_test, y_test_pred, average="weighted"),
-                    "precision": precision_score(y_test, y_test_pred, average="weighted", zero_division=0),
-                    "recall": recall_score(y_test, y_test_pred, average="weighted", zero_division=0),
+                    "precision": precision_score(
+                        y_test, y_test_pred, average="weighted", zero_division=0
+                    ),
+                    "recall": recall_score(
+                        y_test, y_test_pred, average="weighted", zero_division=0
+                    ),
                     "cv_f1_mean": np.mean(cv_scores),
                     "cv_f1_std": np.std(cv_scores),
                 }
@@ -973,7 +1028,9 @@ class NewSystemMLModelCreator:
         if len(trained_models) >= 2:
             try:
                 # ProductionEnsemble自体を含まないように個別モデルのみ渡す
-                individual_models_only = {k: v for k, v in trained_models.items() if k != "production_ensemble"}
+                individual_models_only = {
+                    k: v for k, v in trained_models.items() if k != "production_ensemble"
+                }
                 ensemble_model = self._create_ensemble(individual_models_only)
                 trained_models["production_ensemble"] = ensemble_model
                 self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
@@ -1011,7 +1068,9 @@ class NewSystemMLModelCreator:
                     # Phase 51.5-A Fix: feature_order.jsonから設定駆動型でモデルファイル名取得
                     target_model_type = self.current_model_type
                     model_config = _feature_manager.get_feature_level_info()
-                    model_filename = model_config[target_model_type].get("model_file", "ensemble_full.pkl")
+                    model_filename = model_config[target_model_type].get(
+                        "model_file", "ensemble_full.pkl"
+                    )
 
                     # 本番用統合モデルはproductionフォルダに保存
                     model_file = self.production_dir / model_filename
@@ -1033,7 +1092,9 @@ class NewSystemMLModelCreator:
                         "phase": "Phase 50.9",  # Phase 50.9完了: 外部API完全削除・シンプル設計回帰
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
-                        "individual_models": [k for k in model.models.keys() if k != "production_ensemble"],
+                        "individual_models": [
+                            k for k in model.models.keys() if k != "production_ensemble"
+                        ],
                         "model_weights": model.weights,
                         "performance_metrics": training_results.get("results", {}),
                         "training_info": {
@@ -1042,17 +1103,20 @@ class NewSystemMLModelCreator:
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
                         },
                         "git_info": git_commit,
-                        "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
+                        "notes": "Phase 52.4完了・6戦略統合・55特徴量システム・真の3クラス分類・2段階Graceful Degradation・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
                     }
 
                     # Phase 51.5-A Fix: メタデータファイル名決定
                     # fullモデルは検証用にproduction_model_metadata.jsonに保存
                     # basicモデルは別ファイルに保存（デバッグ用）
                     if self.current_model_type == "full":
-                        production_metadata_file = self.production_dir / "production_model_metadata.json"
+                        production_metadata_file = (
+                            self.production_dir / "production_model_metadata.json"
+                        )
                     else:
                         production_metadata_file = (
-                            self.production_dir / f"production_model_metadata_{self.current_model_type}.json"
+                            self.production_dir
+                            / f"production_model_metadata_{self.current_model_type}.json"
                         )
 
                     with open(production_metadata_file, "w", encoding="utf-8") as f:
@@ -1157,7 +1221,8 @@ class NewSystemMLModelCreator:
                             self.logger.info(f"✅ predict_proba 確認成功（{self.n_classes}クラス）")
                         else:
                             self.logger.error(
-                                f"❌ predict_proba 形状不正: {probabilities.shape} " f"!= {expected_shape}"
+                                f"❌ predict_proba 形状不正: {probabilities.shape} "
+                                f"!= {expected_shape}"
                             )
                             validation_passed = False
 
@@ -1169,7 +1234,8 @@ class NewSystemMLModelCreator:
                             self.logger.info(f"✅ get_model_info 確認成功（{n_features}特徴量）")
                         else:
                             self.logger.error(
-                                f"❌ get_model_info 特徴量数不正: " f"{info.get('n_features')} != {n_features}"
+                                f"❌ get_model_info 特徴量数不正: "
+                                f"{info.get('n_features')} != {n_features}"
                             )
                             validation_passed = False
 
@@ -1192,7 +1258,9 @@ class NewSystemMLModelCreator:
 
         try:
             # Git commit hash取得
-            commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, cwd=project_root).strip()
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], text=True, cwd=project_root
+            ).strip()
 
             # Git branch取得
             branch = subprocess.check_output(
@@ -1208,14 +1276,14 @@ class NewSystemMLModelCreator:
 
     def _archive_existing_models(self) -> bool:
         """
-        既存モデルを自動アーカイブ（Phase 50.9: 2段階システム）
+        既存モデルを自動アーカイブ（Phase 52.4: 2段階システム）
 
-        Phase 50.9対応モデル：
-        - ensemble_full.pkl（62特徴量）
-        - ensemble_basic.pkl（57特徴量）
+        Phase 52.4対応モデル：
+        - ensemble_full.pkl（55特徴量）
+        - ensemble_basic.pkl（49特徴量）
         """
         try:
-            # Phase 50.9: 2段階モデルシステム対応
+            # 2段階モデルシステム対応
             level_files = [
                 "ensemble_full.pkl",
                 "ensemble_basic.pkl",
@@ -1277,8 +1345,10 @@ class NewSystemMLModelCreator:
 
             # 1. 学習データ準備（1回のみ・全55特徴量生成）
             # 戦略信号生成が最も時間がかかるため、1回だけ実行
-            self.logger.info("📊 Phase 51.9: 学習データ準備開始（全モデル共通）")
-            features, target = self.prepare_training_data(days)
+            self.logger.info("📊 Phase 52.4: 学習データ準備開始（全モデル共通）")
+            # 一時的にcurrent_model_typeを"full"に設定して全特徴量生成
+            self.current_model_type = "full"
+            features_full, target = self.prepare_training_data(days)
             self.logger.info("✅ 学習データ準備完了（全55特徴量生成済み）")
 
             # 2. 各モデルを訓練（ループ処理）
@@ -1289,10 +1359,16 @@ class NewSystemMLModelCreator:
 
                 self.logger.info("")
                 self.logger.info("=" * 80)
-                self.logger.info(f"📊 Phase 51.9: {model_name}モデル訓練開始")
+                self.logger.info(f"📊 Phase 52.4: {model_name}モデル訓練開始")
                 self.logger.info("=" * 80)
 
-                # モデル訓練（_select_features_by_levelで特徴量絞り込み）
+                # モデル別特徴量選択（CRITICAL FIX: ループ内で再実行）
+                features = self._select_features_by_level(features_full.copy())
+                self.logger.info(
+                    f"✅ 特徴量選択完了: {len(features.columns)}個（{model_type}モデル用）"
+                )
+
+                # モデル訓練
                 training_results = self.train_models(features, target, dry_run)
 
                 if dry_run:

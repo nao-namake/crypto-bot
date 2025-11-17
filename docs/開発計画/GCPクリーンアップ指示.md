@@ -1,5 +1,7 @@
 # 🧹 GCPリソース定期クリーンアップ指示書
 
+**Phase 52.4**
+
 ## 📋 このファイルの目的
 
 **使用場面**:
@@ -12,7 +14,6 @@
 - 本番サービスへの影響回避を最優先（実行前に稼働確認必須）
 - 3つの削除方式を用途別に使い分け（安全・完全・デプロイ前）
 - エラーハンドリングを重視（NOT_FOUNDは正常として処理）
-- 実施履歴は開発履歴ドキュメント参照
 
 ---
 
@@ -30,7 +31,7 @@
 - **自動化モード**: `CLEANUP_AUTO_MODE=true`で非インタラクティブ実行可能
 - **エラー許容**: `NOT_FOUND`は正常（既削除）として処理
 
-## 🚀 **自動化モード設定**
+## 🚀 自動化モード設定
 ```bash
 # 自動化モード（CI/CD・スクリプト実行用）
 export CLEANUP_AUTO_MODE=true
@@ -87,9 +88,9 @@ gsutil ls -L gs://my-crypto-bot-project_cloudbuild | grep "Storage class\|Total 
 
 ## 🧹 2. 安全レベル クリーンアップ（本番影響なし）
 
-### ✅ Artifact Registry 古いDockerイメージ削除（改良版・変数スコープ対応）
+### ✅ Artifact Registry 古いDockerイメージ削除
 
-#### **🚀 方式1: 安全クリーンアップ（推奨・最新7個保持）**
+#### 🚀 方式1: 安全クリーンアップ（推奨・最新7個保持）
 ```bash
 echo "🐳 === Artifact Registry安全クリーンアップ（最新7個保持） ==="
 
@@ -114,11 +115,7 @@ fi
 
 if [[ $CONFIRM_DELETE == [yY] ]]; then
     echo "🗑️ 削除実行中..."
-    
-    # 削除処理（変数スコープ問題解決・パイプライン使用）
-    DELETE_SUCCESS=0
-    DELETE_FAILED=0
-    
+
     gcloud artifacts docker images list \
       asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot \
       --sort-by=CREATE_TIME --format="value(version)" --limit=100 2>/dev/null | \
@@ -126,22 +123,19 @@ if [[ $CONFIRM_DELETE == [yY] ]]; then
     while read -r IMAGE_VERSION; do
         if [ -n "$IMAGE_VERSION" ]; then
             echo "削除中: crypto-bot:$IMAGE_VERSION"
-            
+
             if gcloud artifacts docker images delete \
               "asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot:$IMAGE_VERSION" \
               --delete-tags --quiet 2>/dev/null; then
                 echo "✅ 削除成功: $IMAGE_VERSION"
-                DELETE_SUCCESS=$((DELETE_SUCCESS + 1))
             else
-                # NOT_FOUND は正常（既削除）として処理
                 echo "⚠️ 削除スキップ（既削除済み・NOT_FOUND）: $IMAGE_VERSION"
-                DELETE_SUCCESS=$((DELETE_SUCCESS + 1))
             fi
         fi
     done
-    
+
     echo "✅ 安全クリーンアップ完了"
-    
+
     # 結果確認
     FINAL_IMAGES=$(gcloud artifacts docker images list asia-northeast1-docker.pkg.dev/my-crypto-bot-project/crypto-bot-repo/crypto-bot --format="value(version)" 2>/dev/null | wc -l)
     echo "📊 削除結果: $TOTAL_IMAGES 個 → $FINAL_IMAGES 個（削除: $((TOTAL_IMAGES - FINAL_IMAGES)) 個）"
@@ -150,7 +144,7 @@ else
 fi
 ```
 
-#### **⚡ 方式2: 完全クリーンアップ（全削除・デバッグ用）**
+#### ⚡ 方式2: 完全クリーンアップ（全削除・デバッグ用）
 ```bash
 echo "🔥 === Artifact Registry完全クリーンアップ（全削除） ==="
 
@@ -195,9 +189,9 @@ else
 fi
 ```
 
-#### **🚀 方式3: デプロイ前完全クリーンアップ（実証済み）**
+#### 🚀 方式3: デプロイ前完全クリーンアップ
 ```bash
-echo "🧹 === デプロイ前完全GCPクリーンアップ（全削除・実証済み） ==="
+echo "🧹 === デプロイ前完全GCPクリーンアップ（全削除） ==="
 
 # ステップ1: Cloud Runサービス削除
 echo "🚨 Cloud Runサービス削除中..."
@@ -220,23 +214,7 @@ gcloud artifacts docker images list asia-northeast1-docker.pkg.dev/my-crypto-bot
     fi
 done
 
-# ステップ3: 旧gcr.io削除（一回きり・2025年9月29日実施済み）
-echo "🗑️ 旧gcr.ioイメージ確認・削除..."
-if gcloud container images list-tags gcr.io/my-crypto-bot-project/crypto-bot --format="value(DIGEST)" 2>/dev/null | grep -q .; then
-    echo "旧gcr.ioイメージが見つかりました。削除実行中..."
-    gcloud container images list-tags gcr.io/my-crypto-bot-project/crypto-bot --format="value(DIGEST)" 2>/dev/null | \
-    while read -r DIGEST; do
-        if [ -n "$DIGEST" ]; then
-            echo "削除中: gcr.io digest:$DIGEST"
-            gcloud container images delete "gcr.io/my-crypto-bot-project/crypto-bot@sha256:$DIGEST" \
-              --force-delete-tags --quiet 2>/dev/null || echo "⚠️ 削除失敗: $DIGEST"
-        fi
-    done
-else
-    echo "✅ gcr.io: 既にクリーンアップ済み（通常）"
-fi
-
-# ステップ4: Cloud Build履歴削除
+# ステップ3: Cloud Build履歴削除
 echo "🏗️ Cloud Build履歴全削除..."
 gcloud builds list --format="value(id)" --limit=100 2>/dev/null | while read -r BUILD_ID; do
     if [ -n "$BUILD_ID" ]; then
@@ -249,38 +227,6 @@ echo "✅ デプロイ前完全クリーンアップ完了"
 echo "🚀 新規デプロイ準備完了: クリーンな状態でのデプロイが可能です"
 ```
 
-#### **🔧 エラーハンドリング改良**
-```bash
-# カスタムエラー判定関数
-cleanup_delete_image() {
-    local IMAGE_URI="$1"
-    local IMAGE_VERSION="$2"
-    
-    if gcloud artifacts docker images delete "$IMAGE_URI" --delete-tags --quiet 2>/dev/null; then
-        echo "✅ 削除成功: $IMAGE_VERSION"
-        return 0
-    else
-        local EXIT_CODE=$?
-        case $EXIT_CODE in
-            1) 
-                # NOT_FOUND = 正常（既削除）
-                echo "⚠️ 既削除済み: $IMAGE_VERSION"
-                return 0
-                ;;
-            2)
-                # PERMISSION_DENIED = 権限エラー
-                echo "❌ 権限エラー: $IMAGE_VERSION"
-                return 1
-                ;;
-            *)
-                # その他エラー
-                echo "❌ 削除失敗: $IMAGE_VERSION (終了コード: $EXIT_CODE)"
-                return 1
-                ;;
-        esac
-    fi
-}
-```
 
 ### 💡 タグ付きリソース削除の詳細手順
 
@@ -333,10 +279,10 @@ gcloud run revisions delete OLD_REVISION_NAME \
 
 ## 🔗 関連リンク
 
-- [自動クリーンアップCI](../../.github/workflows/cleanup.yml) - 月次自動クリーンアップ
-- [CI後チェック作業](./CI後チェック作業.md) - デプロイ後確認手順
-- [開発計画ToDo](../開発計画/ToDo.md) - 緊急対応事項
+- 自動クリーンアップCI: `.github/workflows/cleanup.yml`
+- CI後チェック作業: `docs/開発計画/CI後チェック作業.md`
+- 開発計画ToDo: `docs/開発計画/ToDo.md`
 
 ---
 
-**📅 最終更新**: 2025年10月25日
+**最終更新**: 2025-11-15 (Phase 52.4)

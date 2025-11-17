@@ -1,6 +1,25 @@
 #!/usr/bin/env python3
 """
-Optuna最適化用バックテスト統合モジュール - Phase 40.5
+⚠️ INCOMPLETE - バックテスト統合未完成
+
+このファイルは実バックテスト統合を想定して設計されていますが、
+_execute_backtest() メソッドが未実装です。
+
+【現状】:
+- ❌ 実バックテストは実行されていません
+- ❌ シミュレーションのみ（_run_backtest()メソッド）
+- ❌ Stage 2・Stage 3のバックテスト検証が機能していません
+
+【完成後の想定動作】:
+- ✅ TradingOrchestratorを呼び出して実バックテスト実行
+- ✅ JSONから性能指標を抽出してシャープレシオ計算
+- ✅ Optuna最適化ループに統合
+
+Phase 53以降で _execute_backtest() メソッドを実装予定。
+
+---
+
+Optuna最適化用バックテスト統合モジュール - Phase 40.5（Phase 52.4現在未完成）
 
 実バックテストシステムとOptuna最適化を統合するためのラッパークラスを提供：
 - 軽量バックテスト実行（期間短縮・サンプリング対応）
@@ -10,8 +29,8 @@ Optuna最適化用バックテスト統合モジュール - Phase 40.5
 
 ハイブリッド最適化戦略:
 - Stage 1: シミュレーション（750試行・高速）
-- Stage 2: 軽量バックテスト（上位50試行・30日・10%サンプリング）
-- Stage 3: 完全バックテスト（上位10試行・180日・100%データ）
+- Stage 2: 軽量バックテスト（上位50試行・30日・10%サンプリング）← 未実装
+- Stage 3: 完全バックテスト（上位10試行・180日・100%データ）← 未実装
 """
 
 import asyncio
@@ -82,7 +101,9 @@ class BacktestIntegration:
         self.successful_runs = 0
         self.failed_runs = 0
 
-    async def run_backtest_with_params(self, params: Dict[str, Any], param_type: str = "risk") -> float:
+    async def run_backtest_with_params(
+        self, params: Dict[str, Any], param_type: str = "risk"
+    ) -> float:
         """
         パラメータを適用してバックテスト実行
 
@@ -395,7 +416,9 @@ class BacktestIntegration:
             sharpe_ratio = self.metrics_calculator.calculate_sharpe_ratio(returns)
 
             if self.verbose:
-                win_rate = sum(1 for r in returns if r > 0) / len(returns) if returns.size > 0 else 0
+                win_rate = (
+                    sum(1 for r in returns if r > 0) / len(returns) if returns.size > 0 else 0
+                )
                 avg_return = np.mean(returns)
                 self.logger.info(
                     f"📊 バックテスト結果: 取引数={len(returns)}, "
@@ -416,13 +439,17 @@ class BacktestIntegration:
         Returns:
             Dict: 統計情報
         """
-        avg_time = self.total_execution_time / self.execution_count if self.execution_count > 0 else 0
+        avg_time = (
+            self.total_execution_time / self.execution_count if self.execution_count > 0 else 0
+        )
 
         return {
             "total_executions": self.execution_count,
             "successful_runs": self.successful_runs,
             "failed_runs": self.failed_runs,
-            "success_rate": (self.successful_runs / self.execution_count if self.execution_count > 0 else 0),
+            "success_rate": (
+                self.successful_runs / self.execution_count if self.execution_count > 0 else 0
+            ),
             "total_time_seconds": self.total_execution_time,
             "average_time_seconds": avg_time,
             "period_days": self.period_days,

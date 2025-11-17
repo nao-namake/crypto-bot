@@ -1,23 +1,20 @@
 """
-バックテストランナー - Phase 49完了
+バックテストランナー - Phase 52.4
 
-Phase 49完了: バックテスト完全改修（信頼性100%達成）
-- 戦略シグナル事前計算: 全時点で実戦略を実行・look-ahead bias完全防止
-- TP/SL決済ロジック実装: 各時点の高値・安値でTP/SL判定・リアル取引完全再現
-- TradeTracker統合: エントリー/エグジットペアリング・損益計算・パフォーマンス指標算出
-- matplotlib可視化システム: 4種類グラフ（エクイティカーブ・損益分布・ドローダウン・価格チャート）
-- ライブモード完全一致: バックテスト結果とライブモード取引判定が100%一致・SELL判定正常化
-- 品質保証: 1,097テスト100%成功・66.72%カバレッジ達成
+バックテストモード実行・戦略検証・パフォーマンス分析を担当。
 
-Phase 35: バックテスト10倍高速化実装（6-8時間→45分）
-- 特徴量事前計算: 288分→0秒（無限倍高速化）・265,130件/秒処理
-- ML予測事前計算: 15分→0.3秒（3,000倍高速化）・10,063件/秒処理
+機能:
+- 戦略シグナル事前計算（look-ahead bias完全防止）
+- TP/SL決済ロジック（高値・安値判定・リアル取引再現）
+- TradeTracker統合（エントリー/エグジットペアリング・損益計算）
+- matplotlib可視化（エクイティカーブ・損益分布・ドローダウン・価格チャート）
+- CSV履歴データ読込（4h足・15m足）
+- バックテスト高速化（特徴量事前計算・ML予測事前計算）
 
 設計原則:
-- Look-ahead bias完全防止（実戦略シグナル事前計算）
-- リアル取引完全再現（TP/SL決済ロジック実装）
-- TradeTrackerによる正確な損益計算
-- matplotlib詳細可視化レポート生成
+- Look-ahead bias完全防止
+- リアル取引完全再現
+- 正確な損益計算・パフォーマンス指標
 """
 
 import asyncio
@@ -58,7 +55,9 @@ class BacktestRunner(BaseRunner):
         # バックテスト設定（Phase 28完了・Phase 29最適化）
         self.symbol = get_threshold("backtest.symbol", "BTC/JPY")
         self.timeframes = get_threshold("backtest.timeframes", ["15m", "4h"])
-        self.lookback_window = get_threshold("backtest.lookback_window", 100)  # 各時点で過去N件のデータを供給
+        self.lookback_window = get_threshold(
+            "backtest.lookback_window", 100
+        )  # 各時点で過去N件のデータを供給
 
         # 統計情報
         self.cycle_count = 0
@@ -148,7 +147,11 @@ class BacktestRunner(BaseRunner):
             # 設定からメインタイムフレームを取得
             main_timeframe = self.timeframes[0] if self.timeframes else "15m"
 
-            if not self.csv_data or main_timeframe not in self.csv_data or self.csv_data[main_timeframe].empty:
+            if (
+                not self.csv_data
+                or main_timeframe not in self.csv_data
+                or self.csv_data[main_timeframe].empty
+            ):
                 raise ValueError(f"主要データ（{main_timeframe}）が不足: {self.symbol}")
 
             # データ統計
@@ -189,7 +192,8 @@ class BacktestRunner(BaseRunner):
             return  # サンプリング不要
 
         self.logger.warning(
-            f"🔬 データサンプリング開始: {sampling_ratio * 100:.0f}% " "(Optuna最適化高速化・Phase 40.5)"
+            f"🔬 データサンプリング開始: {sampling_ratio * 100:.0f}% "
+            "(Optuna最適化高速化・Phase 40.5)"
         )
 
         for timeframe in self.csv_data.keys():
@@ -259,7 +263,9 @@ class BacktestRunner(BaseRunner):
 
                 loader = StrategyLoader()
                 strategies_data = loader.load_strategies()
-                strategy_signal_features = [f"strategy_signal_{s['metadata']['name']}" for s in strategies_data]
+                strategy_signal_features = [
+                    f"strategy_signal_{s['metadata']['name']}" for s in strategies_data
+                ]
                 for col in strategy_signal_features:
                     if col not in features_df.columns:
                         features_df[col] = 0.0
@@ -270,7 +276,8 @@ class BacktestRunner(BaseRunner):
             elapsed = time.time() - start_time
             total_records = sum(len(df) for df in self.csv_data.values())
             self.logger.warning(
-                f"✅ 特徴量事前計算完了: {total_records}件 " f"（{elapsed:.1f}秒, {total_records / elapsed:.0f}件/秒）",
+                f"✅ 特徴量事前計算完了: {total_records}件 "
+                f"（{elapsed:.1f}秒, {total_records / elapsed:.0f}件/秒）",
                 discord_notify=False,
             )
 
@@ -327,7 +334,8 @@ class BacktestRunner(BaseRunner):
             self.logger.warning(f"✅ {len(strategy_names)}戦略でバックテスト実行: {strategy_names}")
 
             # 進捗報告用
-            progress_interval = max(1, total_rows // 10)  # 10%ごとに報告
+            progress_percentage = get_threshold("backtest.progress_report_percentage", 10)
+            progress_interval = max(1, total_rows // progress_percentage)
 
             # 各タイムスタンプで過去データのみ使用して戦略実行
             for i in range(total_rows):
@@ -340,11 +348,13 @@ class BacktestRunner(BaseRunner):
                     elapsed = time.time() - start_time
                     eta = (elapsed / i) * (total_rows - i) if i > 0 else 0
                     self.logger.warning(
-                        f"  進捗: {progress:.1f}% ({i}/{total_rows}) - " f"経過: {elapsed:.1f}秒, 残り: {eta:.1f}秒"
+                        f"  進捗: {progress:.1f}% ({i}/{total_rows}) - "
+                        f"経過: {elapsed:.1f}秒, 残り: {eta:.1f}秒"
                     )
 
                 # データ不足時は0.0で埋める（最初の数行）
-                if len(historical_data) < 20:  # 最小データ数チェック
+                min_data_rows = get_threshold("backtest.strategy_signal_min_data_rows", 20)
+                if len(historical_data) < min_data_rows:
                     for col in strategy_signal_columns.keys():
                         strategy_signal_columns[col].append(0.0)
                     continue
@@ -363,8 +373,10 @@ class BacktestRunner(BaseRunner):
 
                     # 3. 個別戦略シグナル取得（Phase 41.8準拠）
                     # features_df（過去全体の特徴量）を渡すことでライブモードと一致
-                    strategy_signals = self.orchestrator.strategy_service.get_individual_strategy_signals(
-                        features_df, multi_timeframe_data=all_features
+                    strategy_signals = (
+                        self.orchestrator.strategy_service.get_individual_strategy_signals(
+                            features_df, multi_timeframe_data=all_features
+                        )
                     )
 
                     # 4. 戦略シグナルエンコーディング（action × confidence）
@@ -372,7 +384,9 @@ class BacktestRunner(BaseRunner):
                         if strategy_name in strategy_signals:
                             signal = strategy_signals[strategy_name]
                             encoded_value = signal.get("encoded", 0.0)
-                            strategy_signal_columns[f"strategy_signal_{strategy_name}"].append(encoded_value)
+                            strategy_signal_columns[f"strategy_signal_{strategy_name}"].append(
+                                encoded_value
+                            )
                         else:
                             # 戦略シグナル取得失敗時は0.0
                             strategy_signal_columns[f"strategy_signal_{strategy_name}"].append(0.0)
@@ -398,7 +412,8 @@ class BacktestRunner(BaseRunner):
 
             elapsed = time.time() - start_time
             self.logger.warning(
-                f"✅ 戦略シグナル事前計算完了: {total_rows}件 " f"（{elapsed:.1f}秒, {total_rows / elapsed:.1f}件/秒）",
+                f"✅ 戦略シグナル事前計算完了: {total_rows}件 "
+                f"（{elapsed:.1f}秒, {total_rows / elapsed:.1f}件/秒）",
                 discord_notify=False,
             )
 
@@ -471,7 +486,9 @@ class BacktestRunner(BaseRunner):
         min_data_points = get_threshold("backtest.min_data_points", 50)
 
         if self.total_data_points < min_data_points:
-            self.logger.warning(f"⚠️ データが不足: {self.total_data_points}件 " f"（最小{min_data_points}件必要）")
+            self.logger.warning(
+                f"⚠️ データが不足: {self.total_data_points}件 " f"（最小{min_data_points}件必要）"
+            )
             return False
 
         # データ品質チェック
@@ -501,7 +518,9 @@ class BacktestRunner(BaseRunner):
 
         # Phase 51.8-J4-H: バックテスト高速化オーバーライド（1回実行で1/3の時間）
         # 注: Phase 51.8-K完了後、最終検証時は3回に戻すこと（ライブモード一致性確認）
-        executions_per_candle = get_threshold("backtest.inner_loop_count", executions_per_candle_default)
+        executions_per_candle = get_threshold(
+            "backtest.inner_loop_count", executions_per_candle_default
+        )
 
         # Phase 51.8-J4-H: ループ完了保証
         total_candles = len(main_data) - self.lookback_window
@@ -557,17 +576,22 @@ class BacktestRunner(BaseRunner):
                 # Phase 51.8-J4-B: 15分足1本につき、5分間隔で複数回実行
                 for exec_offset in range(executions_per_candle):
                     # 5分間隔のタイムスタンプ計算（0分、5分、10分）
-                    self.current_timestamp = candle_timestamp + timedelta(minutes=exec_offset * live_interval_minutes)
+                    self.current_timestamp = candle_timestamp + timedelta(
+                        minutes=exec_offset * live_interval_minutes
+                    )
 
                     # Phase 49.3: サイクル前のポジション数記録（エントリー検出用）
-                    positions_before = set(p["order_id"] for p in self.orchestrator.execution_service.virtual_positions)
+                    positions_before = set(
+                        p["order_id"] for p in self.orchestrator.execution_service.virtual_positions
+                    )
 
                     # Phase 52.2: DrawdownManager制限チェック（本番シミュレーション時のみ）
                     if self.drawdown_manager is not None:
                         if not self.drawdown_manager.check_trading_allowed(self.current_timestamp):
                             # 取引停止中（cooldown期間）
                             self.logger.debug(
-                                "⏸️ Phase 52.2: DrawdownManager制限により取引スキップ " f"({self.current_timestamp})"
+                                "⏸️ Phase 52.2: DrawdownManager制限により取引スキップ "
+                                f"({self.current_timestamp})"
                             )
                             continue  # 次の5分間隔へスキップ
 
@@ -591,10 +615,14 @@ class BacktestRunner(BaseRunner):
                                     regime_str = "unknown"
                                     try:
                                         # 現在時点までの特徴量データを取得してregime分類
-                                        current_features = self.precomputed_features.get(self.current_timestamp)
+                                        current_features = self.precomputed_features.get(
+                                            self.current_timestamp
+                                        )
                                         if current_features is not None:
                                             # 現在時点のデータフレームを構築（最低限の必要カラム）
-                                            regime = self.regime_classifier.classify(current_features)
+                                            regime = self.regime_classifier.classify(
+                                                current_features
+                                            )
                                             regime_str = regime.value
                                     except Exception as regime_error:
                                         self.logger.debug(
@@ -625,9 +653,13 @@ class BacktestRunner(BaseRunner):
                     low_price = candle.get("low", None)
 
                     if close_price is not None and high_price is not None and low_price is not None:
-                        await self._check_tp_sl_triggers(close_price, high_price, low_price, self.current_timestamp)
+                        await self._check_tp_sl_triggers(
+                            close_price, high_price, low_price, self.current_timestamp
+                        )
                 except Exception as e:
-                    self.logger.debug(f"⚠️ TP/SLトリガーチェックエラー ({self.current_timestamp}): {e}")
+                    self.logger.debug(
+                        f"⚠️ TP/SLトリガーチェックエラー ({self.current_timestamp}): {e}"
+                    )
 
                 # Phase 35.5: 進捗レポート保存を完全削除（バックテスト中は不要・I/Oオーバーヘッド削減）
                 # report_interval = get_threshold("backtest.report_interval", 10000)
@@ -635,7 +667,9 @@ class BacktestRunner(BaseRunner):
                 #     await self._save_progress_report()
 
             # Phase 51.8-J4-H: ループ完了ログ
-            self.logger.warning(f"✅ バックテストループ完了: {processed_candles}/{total_candles}本処理完了")
+            self.logger.warning(
+                f"✅ バックテストループ完了: {processed_candles}/{total_candles}本処理完了"
+            )
 
         except Exception as e:
             # Phase 51.8-J4-H: 例外発生時のエラーログ
@@ -658,7 +692,9 @@ class BacktestRunner(BaseRunner):
                 f"✅ バックテスト後処理完了: 処理済み={processed_candles}本、サイクル数={self.cycle_count}"
             )
 
-    def _calculate_pnl(self, side: str, entry_price: float, exit_price: float, amount: float) -> float:
+    def _calculate_pnl(
+        self, side: str, entry_price: float, exit_price: float, amount: float
+    ) -> float:
         """
         損益計算（Phase 51.7 Phase 3-2: ライブモード一致化）
 
@@ -680,7 +716,9 @@ class BacktestRunner(BaseRunner):
 
         return pnl
 
-    async def _check_tp_sl_triggers(self, close_price: float, high_price: float, low_price: float, timestamp):
+    async def _check_tp_sl_triggers(
+        self, close_price: float, high_price: float, low_price: float, timestamp
+    ):
         """
         TP/SLトリガーチェック・決済シミュレーション（Phase 49.2: バックテスト完全改修）
         （Phase 51.7 Phase 3-2: 仮想残高更新追加 - ライブモード一致化）
@@ -704,7 +742,9 @@ class BacktestRunner(BaseRunner):
         """
         try:
             # 1. 全ポジション取得
-            positions = self.orchestrator.execution_service.virtual_positions.copy()  # コピーして安全にイテレーション
+            positions = (
+                self.orchestrator.execution_service.virtual_positions.copy()
+            )  # コピーして安全にイテレーション
 
             if not positions:
                 return  # ポジションなし
@@ -770,7 +810,9 @@ class BacktestRunner(BaseRunner):
                         exit_order_total = exit_price * amount
                         exit_fee_rate = -0.0002  # Maker手数料（指値注文）
                         exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
-                        self.orchestrator.execution_service.virtual_balance -= exit_fee_amount  # リベート加算
+                        self.orchestrator.execution_service.virtual_balance -= (
+                            exit_fee_amount  # リベート加算
+                        )
 
                         # Phase 51.7 Phase 3-2: 仮想残高更新（ライブモード一致化）
                         pnl = self._calculate_pnl(side, entry_price, exit_price, amount)
@@ -780,7 +822,9 @@ class BacktestRunner(BaseRunner):
                         # Phase 52.2: DrawdownManagerに取引結果記録（本番シミュレーション時のみ）
                         if self.drawdown_manager is not None:
                             self.drawdown_manager.update_balance(new_balance)
-                            self.drawdown_manager.record_trade_result(pnl, strategy_name, current_time=timestamp)
+                            self.drawdown_manager.record_trade_result(
+                                pnl, strategy_name, current_time=timestamp
+                            )
                             self.logger.debug(
                                 "📊 Phase 52.2: DrawdownManager更新 - "
                                 f"残高: ¥{new_balance:,.0f}, PnL: {pnl:+.0f}円, 戦略: {strategy_name}, "
@@ -798,18 +842,31 @@ class BacktestRunner(BaseRunner):
 
                         # 6. ポジション削除（Phase 51.8-J4-A: ゴーストポジションバグ修正）
                         # position_trackerとexecutor.virtual_positionsの両方から削除
-                        self.orchestrator.execution_service.position_tracker.remove_position(order_id)
+                        self.orchestrator.execution_service.position_tracker.remove_position(
+                            order_id
+                        )
 
                         # Phase 51.8-J4-A: executor.virtual_positionsからも削除（同期化）
                         try:
-                            virtual_positions = self.orchestrator.execution_service.virtual_positions
-                            virtual_positions[:] = [pos for pos in virtual_positions if pos.get("order_id") != order_id]
-                            self.logger.debug(f"🗑️ Phase 51.8-J4-A: executor.virtual_positionsから削除 - {order_id}")
+                            virtual_positions = (
+                                self.orchestrator.execution_service.virtual_positions
+                            )
+                            virtual_positions[:] = [
+                                pos for pos in virtual_positions if pos.get("order_id") != order_id
+                            ]
+                            self.logger.debug(
+                                f"🗑️ Phase 51.8-J4-A: executor.virtual_positionsから削除 - {order_id}"
+                            )
                         except Exception as sync_error:
-                            self.logger.warning(f"⚠️ Phase 51.8-J4-A: virtual_positions同期エラー: {sync_error}")
+                            self.logger.warning(
+                                f"⚠️ Phase 51.8-J4-A: virtual_positions同期エラー: {sync_error}"
+                            )
 
                         # Phase 49.3: TradeTrackerにエグジット記録
-                        if hasattr(self.orchestrator, "backtest_reporter") and self.orchestrator.backtest_reporter:
+                        if (
+                            hasattr(self.orchestrator, "backtest_reporter")
+                            and self.orchestrator.backtest_reporter
+                        ):
                             self.orchestrator.backtest_reporter.trade_tracker.record_exit(
                                 order_id=order_id,
                                 exit_price=exit_price,
@@ -823,7 +880,9 @@ class BacktestRunner(BaseRunner):
                         )
 
                     except Exception as e:
-                        self.logger.warning(f"⚠️ Phase 49.2: 決済シミュレーションエラー - {order_id}: {e}")
+                        self.logger.warning(
+                            f"⚠️ Phase 49.2: 決済シミュレーションエラー - {order_id}: {e}"
+                        )
 
         except Exception as e:
             self.logger.error(f"❌ Phase 49.2: TP/SLトリガーチェックエラー: {e}")
@@ -844,7 +903,9 @@ class BacktestRunner(BaseRunner):
         """
         try:
             # 1. 全ポジション取得
-            positions = self.orchestrator.execution_service.virtual_positions.copy()  # コピーして安全にイテレーション
+            positions = (
+                self.orchestrator.execution_service.virtual_positions.copy()
+            )  # コピーして安全にイテレーション
 
             if not positions:
                 self.logger.warning("✅ Phase 51.8-J4-H: 残ポジションなし（全決済完了）")
@@ -887,7 +948,9 @@ class BacktestRunner(BaseRunner):
                     exit_order_total = final_price * amount
                     exit_fee_rate = -0.0002  # Maker手数料（指値注文）
                     exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
-                    self.orchestrator.execution_service.virtual_balance -= exit_fee_amount  # リベート加算
+                    self.orchestrator.execution_service.virtual_balance -= (
+                        exit_fee_amount  # リベート加算
+                    )
 
                     # 損益計算・仮想残高更新
                     pnl = self._calculate_pnl(side, entry_price, final_price, amount)
@@ -905,10 +968,15 @@ class BacktestRunner(BaseRunner):
                     # 4. ポジション削除（Phase 51.8-J4-A: 同期化）
                     self.orchestrator.execution_service.position_tracker.remove_position(order_id)
                     virtual_positions = self.orchestrator.execution_service.virtual_positions
-                    virtual_positions[:] = [pos for pos in virtual_positions if pos.get("order_id") != order_id]
+                    virtual_positions[:] = [
+                        pos for pos in virtual_positions if pos.get("order_id") != order_id
+                    ]
 
                     # 5. TradeTrackerに記録
-                    if hasattr(self.orchestrator, "backtest_reporter") and self.orchestrator.backtest_reporter:
+                    if (
+                        hasattr(self.orchestrator, "backtest_reporter")
+                        and self.orchestrator.backtest_reporter
+                    ):
                         self.orchestrator.backtest_reporter.trade_tracker.record_exit(
                             order_id=order_id,
                             exit_price=final_price,
@@ -921,7 +989,9 @@ class BacktestRunner(BaseRunner):
                 except Exception as e:
                     self.logger.warning(f"⚠️ Phase 51.8-J4-H: 強制決済エラー - {order_id}: {e}")
 
-            self.logger.warning(f"✅ Phase 51.8-J4-H: 残ポジション強制決済完了 - {closed_count}/{len(positions)}件決済")
+            self.logger.warning(
+                f"✅ Phase 51.8-J4-H: 残ポジション強制決済完了 - {closed_count}/{len(positions)}件決済"
+            )
 
         except Exception as e:
             self.logger.error(f"❌ Phase 51.8-J4-H: 残ポジション強制決済エラー: {e}")
@@ -953,7 +1023,9 @@ class BacktestRunner(BaseRunner):
             # Phase 35.1: 事前計算済み特徴量を使用（10倍高速化）
             if timeframe in self.precomputed_features:
                 # 事前計算済み特徴量から直接スライス（特徴量計算スキップ）
-                current_market_data[timeframe] = self.precomputed_features[timeframe].iloc[start_idx:end_idx]
+                current_market_data[timeframe] = self.precomputed_features[timeframe].iloc[
+                    start_idx:end_idx
+                ]
             else:
                 # フォールバック: 事前計算なしの場合は元のデータ
                 current_market_data[timeframe] = df.iloc[start_idx:end_idx]
@@ -996,9 +1068,13 @@ class BacktestRunner(BaseRunner):
         """進捗レポート保存（Phase 35: JSON serializable修正）"""
         try:
             progress_stats = {
-                "current_timestamp": (self.current_timestamp.isoformat() if self.current_timestamp else None),
+                "current_timestamp": (
+                    self.current_timestamp.isoformat() if self.current_timestamp else None
+                ),
                 "progress_percentage": (
-                    (self.data_index / self.total_data_points) * 100 if self.total_data_points > 0 else 0
+                    (self.data_index / self.total_data_points) * 100
+                    if self.total_data_points > 0
+                    else 0
                 ),
                 "cycles_completed": self.cycle_count,
                 "processed_data_points": len(self.processed_timestamps),
@@ -1063,7 +1139,9 @@ class BacktestRunner(BaseRunner):
                 self.logger.warning("📊 オープンポジションなし - 決済不要")
                 return
 
-            self.logger.warning(f"📊 バックテスト終了 - {len(open_positions)}件のオープンポジションを強制決済")
+            self.logger.warning(
+                f"📊 バックテスト終了 - {len(open_positions)}件のオープンポジションを強制決済"
+            )
 
             # 最終価格取得
             main_timeframe = self.timeframes[0] if self.timeframes else "15m"
@@ -1078,7 +1156,10 @@ class BacktestRunner(BaseRunner):
                         order_id = position.get("order_id")
 
                         # TradeTrackerにエグジット記録
-                        if hasattr(self.orchestrator, "backtest_reporter") and self.orchestrator.backtest_reporter:
+                        if (
+                            hasattr(self.orchestrator, "backtest_reporter")
+                            and self.orchestrator.backtest_reporter
+                        ):
                             self.orchestrator.backtest_reporter.trade_tracker.record_exit(
                                 order_id=order_id,
                                 exit_price=final_price,
@@ -1086,7 +1167,9 @@ class BacktestRunner(BaseRunner):
                                 exit_reason="バックテスト終了時強制決済",
                             )
 
-                        self.logger.info(f"✅ 強制決済: {order_id} @ {final_price:.0f}円 (バックテスト終了)")
+                        self.logger.info(
+                            f"✅ 強制決済: {order_id} @ {final_price:.0f}円 (バックテスト終了)"
+                        )
 
                     self.logger.warning(f"✅ {len(open_positions)}件のポジション強制決済完了")
                 else:
@@ -1149,7 +1232,7 @@ class BacktestRunner(BaseRunner):
 
             self.logger.warning(
                 "✅ DrawdownManager有効化（本番シミュレーションモード）: "
-                f"DD制限={max_drawdown_ratio*100:.0f}%, "
+                f"DD制限={max_drawdown_ratio * 100:.0f}%, "
                 f"連敗制限={consecutive_loss_limit}回, "
                 f"クールダウン={cooldown_hours}時間"
             )

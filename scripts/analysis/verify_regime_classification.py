@@ -1,19 +1,18 @@
 """
-市場レジーム分類精度検証スクリプト - Phase 51.2-New
+市場レジーム分類精度検証スクリプト - Phase 52.4
 
-MarketRegimeClassifierの分類精度を過去180日分のデータで検証。
+MarketRegimeClassifierの分類精度を履歴データで検証。
 レンジ/トレンド/高ボラティリティの検出精度を確認する。
 
-期待結果:
-- レンジ相場（tight + normal）: 70-80%
-- トレンド相場: 15-20%
-- 高ボラティリティ: 5-10%
+設定管理: thresholds.yamlに検証パラメータ定義
+期待結果: thresholds.yaml:analysis.regime_verification.target_rangesに定義
 """
 
 import asyncio
 import random
 import sys
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 
@@ -21,6 +20,7 @@ import pandas as pd
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from src.core.config.threshold_manager import get_threshold
 from src.core.logger import get_logger
 from src.core.services.market_regime_classifier import MarketRegimeClassifier
 from src.core.services.regime_types import RegimeType
@@ -211,14 +211,36 @@ def print_regime_statistics(stats: dict):
     logger.info("🎯 目標達成確認")
     logger.info("=" * 80)
 
-    # 目標値との比較
-    range_target = 70 <= stats["range_total_pct"] <= 80
-    trending_target = 15 <= stats["trending_pct"] <= 20
-    volatility_target = 5 <= stats["high_volatility_pct"] <= 10
+    # thresholds.yamlから目標値を取得
+    range_min = get_threshold("analysis.regime_verification.target_ranges.range_market.min", 70)
+    range_max = get_threshold("analysis.regime_verification.target_ranges.range_market.max", 80)
+    trending_min = get_threshold(
+        "analysis.regime_verification.target_ranges.trending_market.min", 15
+    )
+    trending_max = get_threshold(
+        "analysis.regime_verification.target_ranges.trending_market.max", 20
+    )
+    volatility_min = get_threshold(
+        "analysis.regime_verification.target_ranges.high_volatility.min", 5
+    )
+    volatility_max = get_threshold(
+        "analysis.regime_verification.target_ranges.high_volatility.max", 10
+    )
 
-    logger.info(f"  レンジ相場 70-80%: {'✅' if range_target else '⚠️'} ({stats['range_total_pct']:.2f}%)")
-    logger.info(f"  トレンド相場 15-20%: {'✅' if trending_target else '⚠️'} ({stats['trending_pct']:.2f}%)")
-    logger.info(f"  高ボラティリティ 5-10%: {'✅' if volatility_target else '⚠️'} ({stats['high_volatility_pct']:.2f}%)")
+    # 目標値との比較
+    range_target = range_min <= stats["range_total_pct"] <= range_max
+    trending_target = trending_min <= stats["trending_pct"] <= trending_max
+    volatility_target = volatility_min <= stats["high_volatility_pct"] <= volatility_max
+
+    logger.info(
+        f"  レンジ相場 {range_min}-{range_max}%: {'✅' if range_target else '⚠️'} ({stats['range_total_pct']:.2f}%)"
+    )
+    logger.info(
+        f"  トレンド相場 {trending_min}-{trending_max}%: {'✅' if trending_target else '⚠️'} ({stats['trending_pct']:.2f}%)"
+    )
+    logger.info(
+        f"  高ボラティリティ {volatility_min}-{volatility_max}%: {'✅' if volatility_target else '⚠️'} ({stats['high_volatility_pct']:.2f}%)"
+    )
 
     # 総合判定
     all_targets = range_target and trending_target and volatility_target
@@ -226,7 +248,9 @@ def print_regime_statistics(stats: dict):
     logger.info("=" * 80)
 
 
-def print_random_samples(df: pd.DataFrame, features_df: pd.DataFrame, regimes: list, sample_size: int = 50):
+def print_random_samples(
+    df: pd.DataFrame, features_df: pd.DataFrame, regimes: list, sample_size: Optional[int] = None
+):
     """
     ランダムサンプルを表示（手動検証用）
 
@@ -234,8 +258,11 @@ def print_random_samples(df: pd.DataFrame, features_df: pd.DataFrame, regimes: l
         df: 履歴データ
         features_df: 特徴量データ
         regimes: 分類結果リスト
-        sample_size: サンプル数
+        sample_size: サンプル数（Noneの場合はthresholds.yamlから取得）
     """
+    if sample_size is None:
+        sample_size = get_threshold("analysis.regime_verification.sample_size", 50)
+
     logger.info("\n" + "=" * 80)
     logger.info(f"🔍 ランダムサンプル表示（{sample_size}件）")
     logger.info("=" * 80)
@@ -280,10 +307,13 @@ async def main(limit_rows: int = None):
     Args:
         limit_rows: テスト用行数制限（Noneの場合は全行処理）
     """
-    logger.info("🚀 Phase 51.2-New: 市場レジーム分類精度検証開始")
+    logger.info("🚀 Phase 52.4: 市場レジーム分類精度検証開始")
 
-    # 1. 履歴データ読み込み
-    csv_path = "src/backtest/data/historical/BTC_JPY_4h.csv"
+    # 1. 履歴データ読み込み（thresholds.yamlからデフォルトパス取得）
+    csv_path = get_threshold(
+        "analysis.regime_verification.default_data_path",
+        "src/backtest/data/historical/BTC_JPY_4h.csv",
+    )
     df = load_historical_data(csv_path)
 
     # テスト用: 行数制限

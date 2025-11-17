@@ -1,5 +1,5 @@
 """
-ポジション追跡サービス - Phase 49完了
+ポジション追跡サービス - Phase 52.4-B完了
 
 仮想ポジションの管理と追跡を行う。
 """
@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 from ...core.logger import get_logger
 
 # Sentinel value for explicitly clearing fields
+# Phase 42.2.7で導入・Phase 46で統合TP/SL削除により未使用
+# APIシグネチャ変更を避けるため保持（将来的な拡張用）
 _UNSET = object()
 
 
@@ -81,7 +83,8 @@ class PositionTracker:
         self.virtual_positions.append(position)
 
         self.logger.info(
-            f"📝 ポジション追加: {side} {amount} BTC @ {price:.0f}円 " f"(ID: {order_id}, 戦略: {strategy_name})"
+            f"📝 ポジション追加: {side} {amount} BTC @ {price:.0f}円 "
+            f"(ID: {order_id}, 戦略: {strategy_name})"
         )
 
         return position
@@ -169,7 +172,9 @@ class PositionTracker:
         Returns:
             該当するポジションリスト
         """
-        return [pos for pos in self.virtual_positions if pos.get("side", "").lower() == side.lower()]
+        return [
+            pos for pos in self.virtual_positions if pos.get("side", "").lower() == side.lower()
+        ]
 
     def get_all_positions(self) -> List[Dict[str, Any]]:
         """
@@ -197,10 +202,14 @@ class PositionTracker:
             {"buy": float, "sell": float, "total": float}
         """
         buy_exposure = sum(
-            pos["amount"] * pos["price"] for pos in self.virtual_positions if pos.get("side", "").lower() == "buy"
+            pos["amount"] * pos["price"]
+            for pos in self.virtual_positions
+            if pos.get("side", "").lower() == "buy"
         )
         sell_exposure = sum(
-            pos["amount"] * pos["price"] for pos in self.virtual_positions if pos.get("side", "").lower() == "sell"
+            pos["amount"] * pos["price"]
+            for pos in self.virtual_positions
+            if pos.get("side", "").lower() == "sell"
         )
 
         return {
@@ -261,7 +270,9 @@ class PositionTracker:
 
         return True
 
-    def get_orphaned_positions(self, actual_positions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def get_orphaned_positions(
+        self, actual_positions: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         実際のポジションと比較して消失したポジションを検出
 
@@ -291,7 +302,9 @@ class PositionTracker:
                 orphaned.append(vpos)
 
         if orphaned:
-            self.logger.warning(f"🔍 消失ポジション検出: {len(orphaned)}件 / 全{len(self.virtual_positions)}件")
+            self.logger.warning(
+                f"🔍 消失ポジション検出: {len(orphaned)}件 / 全{len(self.virtual_positions)}件"
+            )
 
         return orphaned
 
@@ -311,7 +324,10 @@ class PositionTracker:
         if not self.virtual_positions:
             return 0.0
 
-        total_value = sum(float(pos.get("price", 0)) * float(pos.get("amount", 0)) for pos in self.virtual_positions)
+        total_value = sum(
+            float(pos.get("price", 0)) * float(pos.get("amount", 0))
+            for pos in self.virtual_positions
+        )
         total_size = sum(float(pos.get("amount", 0)) for pos in self.virtual_positions)
 
         if total_size == 0:
@@ -385,6 +401,5 @@ class PositionTracker:
         return self._average_entry_price
 
     # ========================================
-    # Phase 46: 個別TP/SL実装（デイトレード特化）
+    # 個別TP/SL実装（デイトレード特化・Phase 52.4）
     # ========================================
-    # デイトレード特化設計では個別TP/SL配置を採用

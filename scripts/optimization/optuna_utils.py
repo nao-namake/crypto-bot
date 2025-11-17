@@ -110,7 +110,9 @@ class OptimizationMetrics:
             return 0.0
 
         gross_profit = sum(trade.get("profit", 0) for trade in trades if trade.get("profit", 0) > 0)
-        gross_loss = abs(sum(trade.get("profit", 0) for trade in trades if trade.get("profit", 0) < 0))
+        gross_loss = abs(
+            sum(trade.get("profit", 0) for trade in trades if trade.get("profit", 0) < 0)
+        )
 
         if gross_loss == 0:
             return float("inf") if gross_profit > 0 else 0.0

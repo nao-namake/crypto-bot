@@ -1,5 +1,7 @@
 """
-バックテスト可視化システム - Phase 49.4完了
+バックテスト可視化システム
+
+最終更新: 2025/11/16 (Phase 52.4-B)
 
 matplotlib使用してバックテスト結果をグラフ化。
 直感的なパフォーマンス理解と問題箇所の視覚的特定を実現。
@@ -9,6 +11,9 @@ matplotlib使用してバックテスト結果をグラフ化。
 - 損益分布ヒストグラム
 - 価格チャート + エントリー/エグジットマーカー
 - ドローダウンチャート
+
+開発履歴:
+- Phase 49.4: matplotlib可視化実装（4種類のグラフ）
 """
 
 from datetime import datetime
@@ -27,9 +32,14 @@ matplotlib.use("Agg")
 
 class BacktestVisualizer:
     """
-    バックテスト可視化システム（Phase 49.4: matplotlib可視化実装）
+    バックテスト可視化システム
+
+    最終更新: 2025/11/16 (Phase 52.4-B)
 
     TradeTrackerのデータを使用してパフォーマンスグラフを生成。
+
+    実装履歴:
+    - Phase 49.4: matplotlib可視化実装（4種類のグラフ）
     """
 
     def __init__(self, output_dir: Optional[str] = None):
@@ -260,7 +270,9 @@ class BacktestVisualizer:
             timestamps = sorted(price_data.keys())
             prices = [price_data[ts] for ts in timestamps]
 
-            ax.plot(range(len(prices)), prices, linewidth=1.5, color="#2E86AB", label="Price", alpha=0.7)
+            ax.plot(
+                range(len(prices)), prices, linewidth=1.5, color="#2E86AB", label="Price", alpha=0.7
+            )
 
             # エントリー/エグジットマーカー
             for trade in trades:
@@ -299,7 +311,9 @@ class BacktestVisualizer:
                 except ValueError:
                     continue  # タイムスタンプが見つからない場合はスキップ
 
-            ax.set_title("価格チャート + エントリー/エグジットマーカー", fontsize=14, fontweight="bold")
+            ax.set_title(
+                "価格チャート + エントリー/エグジットマーカー", fontsize=14, fontweight="bold"
+            )
             ax.set_xlabel("時間軸（インデックス）", fontsize=12)
             ax.set_ylabel("価格（円）", fontsize=12)
             ax.legend(["Price", "Entry", "Exit (Win)", "Exit (Loss)"], loc="best")

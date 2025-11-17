@@ -1,16 +1,15 @@
 """
-統合制御システム - Phase 49完了
+統合制御システム - Phase 52.4
 
 システム全体の統合制御・ML統合アダプター・高レベル制御機能を提供。
-orchestrator.pyから分離した統合制御機能の集約。
+Application Service Layerとして高レベルフロー制御を担当。
 
-Phase 49完了:
-- TradingOrchestrator: Application Service Layer高レベル統合制御
-- MLServiceAdapter: ProductionEnsemble統一インターフェース・ML予測統合
-- ml_loader: モデル読み込み専門（ProductionEnsemble・個別モデル再構築）
-- ml_fallback: DummyModel安全装置（hold信頼度0.5フォールバック）
-Phase 35: バックテスト最適化（ログレベル動的変更・Discord無効化）
-Phase 28-29: Application Service Pattern確立・責任分離・依存性注入基盤
+主要コンポーネント:
+- TradingOrchestrator: 統合取引システム制御（データ→特徴量→戦略→ML→リスク→取引）
+- MLServiceAdapter: ML予測統合インターフェース（ProductionEnsemble統一）
+- MLModelLoader: モデル読み込み管理（3段階Graceful Degradation）
+- DummyModel: 最終フォールバック（ML失敗時の安全装置）
+- Protocols: サービスプロトコル定義（依存性注入基盤）
 """
 
 from .ml_adapter import MLServiceAdapter

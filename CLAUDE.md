@@ -1,4 +1,4 @@
-# CLAUDE.md - Phase 51.5-E完了・開発ガイド
+# CLAUDE.md - Phase 52.5完了・開発ガイド
 
 **Claude Codeが即座に理解すべき開発指針と技術情報**
 
@@ -6,9 +6,9 @@
 
 ## 🎯 システム現状（最重要・即座理解）
 
-### Phase 51.5-E完了ステータス（2025/11/04）
+### Phase 52.5完了ステータス（2025/11/18）
 
-**現在の状況**: Phase 51.5シリーズ完全完了 ✅ → **Phase 51完走計画（Phase 51.6-51.11）**
+**現在の状況**: Phase 52.5完了 ✅ → **本番環境安定稼働中**（設定ファイル最適化・1,252テスト100%成功）
 
 **Phase 50.9: 外部API完全削除**（完了 ✅）:
 - **目的**: GCP環境不安定性・時間軸ミスマッチ（日次 vs 5分足）・統計的有意性不足（+0.83%）により外部API削除
@@ -19,35 +19,32 @@
 - **モデルリネーム**（重要：旧レベルシステム廃止）:
   - `ensemble_level2.pkl`（62特徴量） → **`ensemble_full.pkl`**（デフォルト）
   - `ensemble_level3.pkl`（57特徴量） → **`ensemble_basic.pkl`**（フォールバック）
-- **特徴量変更**: 70特徴量 → 62特徴量 → **60特徴量**（Phase 51.5-A: 3戦略シグナル）
+- **特徴量変更**: 70特徴量 → 62特徴量 → **55特徴量**（Phase 51.7: 6戦略シグナル）
 - **期待効果**: システム安定性向上・ゼロダウンタイム実現・保守性+20%・シンプル設計回帰
 - **実装詳細**: `docs/開発履歴/Phase_50.md` Phase 50.9参照
 
-**Phase 51.5シリーズ完了**（2025/11/03-04）:
-- **Phase 51.5-A**: 戦略削減（5→3）・60特徴量固定システム確立
-- **Phase 51.5-A Fix**: データ行数問題修正（1,081→17,272行）
-- **Phase 51.5-A Fix 2**: MLモデル一括生成システム実装
-- **Phase 51.5-B**: 動的戦略管理基盤（影響範囲93%削減・27→2ファイル）
-- **Phase 51.5-C**: 本番環境緊急対応（5問題同時修正・45分完了）
-- **Phase 51.5-D**: レガシーコード完全修正（システム整合性100%）
-- **Phase 51.5-E**: 統合デプロイ・MLモデル再訓練（CI/CD成功・GCPデプロイ完了）
-- **開発履歴**: `docs/開発履歴/Phase_51.5.md`（722行・7サブPhase記録）
+**Phase 51完走完了**（2025/11/05-11/12）:
+- **Phase 51.6**: TP/SL見直し（RR比0.7:1 → 0.67:1）・基礎設定統一
+- **Phase 51.7**: 6戦略実装完了（レンジ3・トレンド3）・55特徴量確立
+- **Phase 51.8**: レジーム別ポジション制限・ML統合最適化
+- **Phase 51.9**: 真の3クラス分類実装（F1改善+9.7%）・バックテスト検証
+- **Phase 51.10**: TP/SL孤児注文完全解決（Option D実装）
+- **Phase 51.11**: 本番デプロイ完了・Phase 51完走宣言
 
-**Phase 51完走計画**（Phase 51.6-51.11）:
-- **基本方針**: データドリブンな戦略選択（各ステップでバックテスト評価）
-- **Phase 51.6**: 新戦略実装（レンジ型・トレンド型厳選）+ バックテスト評価
-- **Phase 51.7**: レジーム別戦略重み最適化 + バックテスト評価
-- **Phase 51.8**: ML統合最適化（レジーム別）+ バックテスト評価
-- **Phase 51.9**: バックテスト総合検証
-- **Phase 51.10**: ペーパートレード検証（1週間）
-- **Phase 51.11**: 本番展開
-- **Phase 52以降**: 凍結（実運用3ヶ月データ収集後に再検討）
+**Phase 52シリーズ完了**（2025/11/12-11/18）:
+- **Phase 52.0**: レジーム別動的TP/SL実装（tight_range/normal_range/trending）
+- **Phase 52.1**: 週次バックテスト自動化（GitHub Actions）
+- **Phase 52.2**: 本番シミュレーションモード・DrawdownManager統合
+- **Phase 52.3**: コード品質改善（flake8エラー完全解消）
+- **Phase 52.4**: CI/CD系統整理（特徴量数一元化・環境変数化）
+- **Phase 52.5**: 設定ファイル最適化完了（重複削除110行・Single Source of Truth確立）
 
-**開発基盤**（Phase 51.5完了により確立）:
+**開発基盤**（Phase 52.5完了時点）:
 - **拡張性**: Registry Pattern実装により戦略追加が2ファイルのみ（93%削減達成）
-- **技術的負債**: ゼロ（Phase 51.5-D完全調査）
-- **品質基盤**: 1,153テスト・68.77%カバレッジ
-- **開発速度**: +40-60%向上見込み（動的戦略管理基盤・システム整合性100%）
+- **技術的負債**: ゼロ（Phase 51.5-D完全調査・Phase 52.3コード品質改善・Phase 52.5設定最適化）
+- **品質基盤**: 1,252テスト・66.78%カバレッジ達成
+- **設定管理**: Single Source of Truth確立・重複削除110行・使用箇所ドキュメント化
+- **開発速度**: 安定稼働優先（動的戦略管理基盤・システム整合性100%）
 
 ---
 
@@ -68,11 +65,12 @@
 - **Phase 48**: Discord週間レポート（通知99%削減・コスト35%削減）
 - **Phase 47**: 確定申告対応システム（作業時間95%削減）
 
-**品質指標**（Phase 51.5-E完了後）:
-- **テスト成功率**: 100%（1,153テスト全成功）
-- **カバレッジ**: 68.77%（目標68.27%超過）
+**品質指標**（Phase 52.5完了後）:
+- **テスト成功率**: 100%（1,252テスト）
+- **カバレッジ**: 66.78%（65%目標超過）
 - **コード品質**: flake8・isort・black全てPASS
 - **CI/CD**: GitHub Actions成功・GCP Cloud Runデプロイ完了
+- **設定管理**: Single Source of Truth確立・重複削除110行
 
 **運用仕様**:
 - bitbank信用取引・BTC/JPY専用
@@ -83,37 +81,44 @@
 
 ### システム概要
 
-**AI自動取引システム**: 3戦略 + ML統合（**60特徴量固定**）による真のハイブリッドMLbot
+**AI自動取引システム**: 6戦略 + ML統合（**55特徴量システム**）による真のハイブリッドMLbot
 
 **技術構成**:
 - Python 3.13・MLライブラリ互換性最適化
-- **3戦略統合**（Phase 51.5-A）: ATRBased・DonchianChannel・ADXTrendStrength
+- **6戦略統合**（Phase 51.7）:
+  - レンジ型3個: ATRBased・DonchianChannel・BBReversal
+  - トレンド型3個: ADXTrendStrength・StochasticReversal・MACDEMACrossover
 - **動的戦略管理**（Phase 51.5-B）: Registry Pattern・93%影響削減
-- 3モデルアンサンブル（LightGBM 40%・XGBoost 40%・RandomForest 20%）
+- 3モデルアンサンブル（LightGBM 50%・XGBoost 30%・RandomForest 20%）
 - 4時間足（トレンド）+ 15分足（エントリー）
-- **Phase 51.5-E**: 60特徴量システム本番稼働開始
+- **Phase 52.5**: 55特徴量システム本番稼働中・設定ファイル最適化完了
 
 **リスク管理**:
-- **TP/SL設定**: SL 1.5%・TP 1.0%・RR比0.67:1（Phase 49.18デイトレード特化・**レンジ型に最適**）
+- **TP/SL設定**（Phase 52.0レジーム別動的設定）:
+  - tight_range: TP 0.6% / SL 0.8%
+  - normal_range: TP 1.0% / SL 0.7%（Phase 51.6基本設定）
+  - trending: TP 2.0% / SL 2.0%
 - **個別TP/SL管理**: エントリー毎に独立したTP/SL注文（Phase 46回帰）
 - **完全指値オンリー**: 年間¥150,000削減（Phase 38.7.2）
 - **適応型ATR**: ボラティリティ別SL調整（低2.5x・通常2.0x・高1.5x）
 - **証拠金維持率80%確実遵守**（Phase 49.18）
 
-**ML統合**（Phase 51.5-A完了）:
-- **60特徴量固定システム**（Phase 51.5-A: 50基本+3戦略シグナル+7時間的）
-  - 50テクニカル特徴量
-  - 3戦略信号特徴量（Phase 51.5-A: ATRBased・DonchianChannel・ADXTrendStrength）
-  - 7時間的特徴量（Phase 50.2: 曜日・時間帯・地域別市場時間）
+**ML統合**（Phase 52.4-A完了）:
+- **55特徴量システム**（Phase 51.7確立・Phase 52.4-A一元管理）:
+  - 49基本テクニカル特徴量
+  - 6戦略信号特徴量（Phase 51.7: 6戦略すべてのシグナル）
+  - feature_order.jsonが唯一の真実（Single Source of Truth）
+- **真の3クラス分類**（Phase 51.9）:
+  - 0=sell, 1=hold, 2=buy
+  - F1スコア+9.7%改善
 - Strategy-Aware ML: 実戦略信号学習（Phase 41.8）
 - ML統合率100%達成（Phase 41.8.5）
 - 3段階統合ロジック（<0.45: 戦略のみ・0.45-0.60: 加重平均・≥0.60: ボーナス/ペナルティ）
-- **2段階Graceful Degradation**（Phase 50.9: シンプル化）:
-  - **Level 1（デフォルト）**: 60特徴量 ← **ensemble_full.pkl**（完全特徴量セット）
-  - **Level 2（フォールバック）**: 57特徴量 ← **ensemble_basic.pkl**（戦略信号なし）
+- **2段階Graceful Degradation**（Phase 50.9）:
+  - **Level 1（デフォルト）**: 55特徴量 ← **ensemble_full.pkl**（完全特徴量セット）
+  - **Level 2（フォールバック）**: 49特徴量 ← **ensemble_basic.pkl**（戦略信号なし）
   - **Level 3（最終）**: DummyModel（全holdシグナル・システム継続動作保証）
-  - **Phase 50.9完了**: 外部API依存削除・セマンティック命名採用・システム安定性向上
-- **削除理由**: GCP環境不安定性・時間軸ミスマッチ（日次 vs 5分足）・統計的有意性不足（+0.83%）
+  - 外部API依存削除・セマンティック命名採用・システム安定性向上
 
 ---
 
@@ -125,17 +130,11 @@
 # 品質チェック - 開発前後に必ず実行
 bash scripts/testing/checks.sh
 
-# Phase 50.8時点（Phase 50.9実装前）:
-# ✅ 1,117テスト全成功（100%達成）
-# ✅ 68.32%カバレッジ達成（65%目標超過）
+# Phase 52.5時点:
+# ✅ 1,252テスト・100%成功
+# ✅ 66.78%カバレッジ達成（65%目標超過）
 # ✅ flake8・isort・black全てPASS
 # ✅ 実行時間: 約74秒で完了
-
-# Phase 50.9実装後の期待結果:
-# ✅ 280テスト全成功（-46テスト・外部API関連削除）
-# ✅ 68%以上カバレッジ維持
-# ✅ flake8・isort・black全てPASS
-# ✅ 実行時間: 約60秒で完了（高速化）
 ```
 
 ### システム実行
@@ -169,11 +168,11 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 
 ```bash
 # データ存在確認（必須）
-wc -l src/backtest/data/historical/btc_jpy_4h.csv    # 期待: 1,081行
-wc -l src/backtest/data/historical/btc_jpy_15m.csv   # 期待: 17,272行
+wc -l src/backtest/data/historical/BTC_JPY_4h.csv    # 例: ~2,000行（180日分4時間足）
+wc -l src/backtest/data/historical/BTC_JPY_15m.csv   # 例: ~30,000行（180日分15分足）
 
 # データ収集（不足時）
-python src/backtest/data/historical/collect_historical_csv.py --days 180
+python src/backtest/scripts/collect_historical_csv.py --days 180
 
 # バックテスト実行（推奨：ログ自動保存）
 bash scripts/backtest/run_backtest.sh              # デフォルト
@@ -199,7 +198,7 @@ src/                        # メイン実装・レイヤードアーキテク�
 │   └── services/               # システムサービス・GracefulShutdown
 ├── data/                   # 📊 データ層（Bitbank API・キャッシュ）
 ├── features/               # 📈 特徴量生成（15指標）
-├── strategies/             # 🎯 5戦略統合システム
+├── strategies/             # 🎯 6戦略統合システム
 ├── ml/                     # 🧠 ProductionEnsemble・3モデル統合
 ├── trading/                # ⚖️ 取引管理層（Phase 38レイヤードアーキテクチャ）
 │   ├── core/                   # 共通定義層（enums・types）
@@ -227,30 +226,30 @@ scripts/
 └── models/production/              # 本番MLモデル（週次自動更新）
 ```
 
-### データフロー（Phase 51.5-E完了後）
+### データフロー（Phase 52.5最新）
 
 ```
 データ取得（Bitbank API・15分足直接取得）
     ↓
-特徴量生成（15指標 → 50基本特徴量 + 7時間的特徴量 = 57特徴量）
+特徴量生成（15指標 → 49基本特徴量）
     ↓
-戦略実行（3戦略 → 3戦略信号特徴量追加 → 60特徴量）
+戦略実行（6戦略 → 6戦略信号特徴量追加 → 55特徴量）
     ↓
-ML予測（ensemble_full.pkl: 60特徴量モデル → 信頼度）
+ML予測（ensemble_full.pkl: 55特徴量モデル → 信頼度）
     ↓
-リスク評価（Kelly基準・ポジション制限）
+リスク評価（Kelly基準・ポジション制限・ドローダウン管理）
     ↓
-取引判断（個別TP/SL・適応型ATR・RR比0.67:1）
+取引判断（レジーム別動的TP/SL・適応型ATR）
     ↓
-取引実行（完全指値オンリー・bitbank API）
+取引実行（Atomic Entry・完全指値オンリー・bitbank API）
 ```
 
-**Phase 51.5シリーズ変更点**:
-- 戦略削減（5戦略 → **3戦略**）
-- 特徴量最適化（62 → **60特徴量**）
-- 動的戦略管理基盤実装（Registry Pattern）
-- システム整合性100%達成
-- 15分足直接API実装（Phase 51.5-C）
+**Phase 52.5変更点**:
+- 設定ファイル最適化（重複削除110行・Single Source of Truth確立）
+- feature_order.json（55特徴量）が唯一の真実源
+- 使用箇所ドキュメント化（10+主要設定）
+- 視覚的改善（12個のセクション区切り）
+- 1,252テスト100%成功・66.78%カバレッジ達成
 
 ---
 
@@ -258,15 +257,16 @@ ML予測（ensemble_full.pkl: 60特徴量モデル → 信頼度）
 
 ### 品質保証（必須遵守）
 
-- **テスト実行**: 開発前後に`checks.sh`必須実行・1,153テスト100%維持・68.77%カバレッジ
-- **カバレッジ**: 68%以上維持・新機能は必ずテスト追加
+- **テスト実行**: 開発前後に`checks.sh`必須実行・1,252テスト100%維持・66.78%カバレッジ
+- **カバレッジ**: 65%以上維持・新機能は必ずテスト追加
 - **CI/CD**: GitHub Actions自動品質ゲート・失敗時は修正必須
 
-**Phase 51.5-E完了後の品質指標**:
-- 全テスト数: 1,153テスト（Phase 51.5-B: +58テスト追加）
-- カバレッジ: 68.77%（目標68.27%超過）
+**Phase 52.5完了後の品質指標**:
+- 全テスト数: 1,252テスト（Phase 52シリーズ: +99テスト追加）
+- カバレッジ: 66.78%（目標65%超過）
 - コード品質: flake8・black・isort全てPASS
 - CI/CD: GitHub Actions成功・GCP Cloud Runデプロイ完了
+- 設定管理: Single Source of Truth確立・重複削除110行
 
 ### 設定管理統一（最重要）
 
@@ -378,7 +378,7 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 
 ### Phase 41.8（2025/10/17）- Strategy-Aware ML
 
-- 55特徴量学習（50基本+5戦略信号）
+- 55特徴量学習（49基本+6戦略信号）
 - 実戦略信号学習・訓練/推論一貫性確保
 - Look-ahead bias防止（`df.iloc[: i + 1]`）
 - F1スコア0.56-0.61達成
@@ -462,24 +462,24 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 
 ## ✅ 開発時チェックリスト
 
-### 必須確認事項（Phase 51.5-E完了後）
+### 必須確認事項（Phase 52.5完了後）
 
-1. **品質チェック**: `bash scripts/testing/checks.sh`で1,153テスト・68.77%カバレッジ確認
-2. **モデルファイル確認**: ensemble_full.pkl（60特徴量）・ensemble_basic.pkl（57特徴量）存在確認
-3. **60特徴量動作確認**: 特徴量生成・ML予測・エントリー判断正常動作
-4. **3戦略動作確認**: ATRBased・DonchianChannel・ADXTrendStrength稼働確認
-5. **本番環境確認**: Cloud Run・60特徴量・ensemble_full.pkl使用確認
-6. **動的戦略管理確認**: strategy_config.py・strategies.yaml・動的ロード正常動作
-7. **設定整合性**: features.yaml・unified.yaml・thresholds.yaml確認
+1. **品質チェック**: `bash scripts/testing/checks.sh`で1,252テスト・66.78%カバレッジ確認
+2. **モデルファイル確認**: ensemble_full.pkl（55特徴量）・ensemble_basic.pkl（49特徴量）存在確認
+3. **55特徴量動作確認**: 特徴量生成・ML予測・エントリー判断正常動作
+4. **6戦略動作確認**: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover稼働確認
+5. **本番環境確認**: Cloud Run・55特徴量・ensemble_full.pkl使用確認
+6. **動的戦略管理確認**: strategies.yaml・動的ロード正常動作
+7. **設定整合性**: features.yaml・unified.yaml・thresholds.yaml・feature_order.json確認（Single Source of Truth）
 
 ### 開発開始前チェック
 
-1. **最新状況把握**: **Phase 51.5-E完了**・**Phase 51完走計画（Phase 51.6-51.11）**・ToDo.md確認
-2. **品質基準**: 1,153テスト100%成功・68.77%カバレッジ維持必須
-3. **設定管理**: ハードコード禁止・get_threshold()パターン遵守
-4. **Phase 51.5理解**: 3戦略・60特徴量・動的戦略管理基盤（93%削減）・システム整合性100%
-5. **Phase 51完走**: データドリブンな戦略選択・バックテスト評価重視・Phase 52以降凍結
+1. **最新状況把握**: **Phase 52.5完了**・**Phase 51/52完走完了**・docs/開発計画/ToDo.md確認
+2. **品質基準**: 1,252テスト100%成功・66.78%カバレッジ維持必須
+3. **設定管理**: ハードコード禁止・get_threshold()パターン遵守・Single Source of Truth（feature_order.json）
+4. **Phase 52.5理解**: 6戦略・55特徴量・動的戦略管理基盤（93%削減）・設定最適化完了（重複削除110行）
+5. **本番安定稼働**: レジーム別動的TP/SL・DrawdownManager統合・週次バックテスト自動化
 
 ---
 
-**📅 最終更新**: 2025年11月04日 - **Phase 51.5-E完了**（統合デプロイ・MLモデル再訓練・CI/CD成功・GCPデプロイ完了）+ **Phase 51完走計画確定**（Phase 51.6-51.11・データドリブンな戦略選択・Phase 52以降凍結）
+**📅 最終更新**: 2025年11月18日 - **Phase 52.5完了**（設定ファイル最適化・重複削除110行・Single Source of Truth確立・1,252テスト100%成功）

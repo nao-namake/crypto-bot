@@ -10,7 +10,7 @@ ATRとボリンジャーバンドを使用したシンプルな逆張り戦略�
 3. RSIで追加確認
 4. 市場ストレスで異常状況フィルター
 
-Phase 49完了: 市場不確実性計算統合・重複コード削減
+Phase 52.4-B完了: 市場不確実性計算統合・重複コード削減
 """
 
 from datetime import datetime
@@ -46,14 +46,14 @@ class ATRBasedStrategy(StrategyBase):
             "rsi_overbought": get_threshold("strategies.atr_based.rsi_overbought", 65),
             "rsi_oversold": get_threshold("strategies.atr_based.rsi_oversold", 35),
             "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
-            # Phase 51.6: リスク管理（ハードコード削除・設定ファイル一元管理）
+            # Phase 52.4-B: リスク管理（ハードコード削除・設定ファイル一元管理）
             "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
             "take_profit_ratio": get_threshold(
                 "position_management.take_profit.default_ratio"
-            ),  # Phase 51.6: TP 0.9%・RR比1.29:1
+            ),  # Phase 52.4-B: TP設定
             "position_size_base": get_threshold(
                 "ml.dynamic_confidence.strategies.atr_based.position_size_base", 0.015
-            ),  # Phase 51.9-5: mlプレフィックス追加・設定ファイルから取得
+            ),  # Phase 52.4-B: mlプレフィックス・設定ファイルから取得
             # フィルター設定
             "market_stress_threshold": get_threshold(
                 "ml.dynamic_confidence.strategies.atr_based.market_stress_threshold", 0.7
@@ -62,7 +62,9 @@ class ATRBasedStrategy(StrategyBase):
                 "ml.dynamic_confidence.strategies.atr_based.min_atr_ratio", 0.5
             ),  # 最小ATR比率（低ボラ回避）
             # Phase 28完了・Phase 29最適化対応（thresholds.yaml統合）
-            "normal_volatility_strength": get_threshold("strategies.atr_based.normal_volatility_strength", 0.3),
+            "normal_volatility_strength": get_threshold(
+                "strategies.atr_based.normal_volatility_strength", 0.3
+            ),
         }
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="ATRBased", config=merged_config)
@@ -86,10 +88,14 @@ class ATRBasedStrategy(StrategyBase):
             # 市場不確実性計算（統一ロジック）
             market_uncertainty = self._calculate_market_uncertainty(df)
             # 統合判定（市場データ基づく動的調整）
-            signal_decision = self._make_decision(bb_analysis, rsi_analysis, atr_analysis, None, market_uncertainty)
+            signal_decision = self._make_decision(
+                bb_analysis, rsi_analysis, atr_analysis, None, market_uncertainty
+            )
             # シグナル生成（Phase 31: multi_timeframe_data渡し）
             signal = self._create_signal(signal_decision, current_price, df, multi_timeframe_data)
-            self.logger.debug(f"[ATRBased] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})")
+            self.logger.debug(
+                f"[ATRBased] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
+            )
             return signal
         except Exception as e:
             self.logger.error(f"[ATRBased] 分析エラー: {e}")
@@ -114,7 +120,9 @@ class ATRBasedStrategy(StrategyBase):
 
             base_confidence = get_threshold("strategies.atr_based.base_confidence", 0.3)
             confidence_multiplier = get_threshold("strategies.atr_based.confidence_multiplier", 0.4)
-            confidence = base_confidence + strength * confidence_multiplier if abs(signal) > 0 else 0.0
+            confidence = (
+                base_confidence + strength * confidence_multiplier if abs(signal) > 0 else 0.0
+            )
             return {
                 "signal": signal,
                 "strength": strength,
@@ -144,7 +152,9 @@ class ATRBasedStrategy(StrategyBase):
                 strength_normalize = get_threshold(
                     "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
                 )
-                strength = min((current_rsi - self.config["rsi_overbought"]) / strength_normalize, 1.0)
+                strength = min(
+                    (current_rsi - self.config["rsi_overbought"]) / strength_normalize, 1.0
+                )
             elif current_rsi <= self.config["rsi_oversold"]:
                 signal = 1  # 買いシグナル
                 # 循環インポート回避のため遅延インポート
@@ -153,7 +163,9 @@ class ATRBasedStrategy(StrategyBase):
                 strength_normalize = get_threshold(
                     "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
                 )
-                strength = min((self.config["rsi_oversold"] - current_rsi) / strength_normalize, 1.0)
+                strength = min(
+                    (self.config["rsi_oversold"] - current_rsi) / strength_normalize, 1.0
+                )
             else:
                 signal = 0
                 strength = 0.0
@@ -161,7 +173,9 @@ class ATRBasedStrategy(StrategyBase):
             from ...core.config.threshold_manager import get_threshold
 
             rsi_base = get_threshold("ml.dynamic_confidence.strategies.atr_based.rsi_base", 0.2)
-            rsi_multiplier = get_threshold("ml.dynamic_confidence.strategies.atr_based.rsi_multiplier", 0.3)
+            rsi_multiplier = get_threshold(
+                "ml.dynamic_confidence.strategies.atr_based.rsi_multiplier", 0.3
+            )
             confidence = rsi_base + strength * rsi_multiplier if abs(signal) > 0 else 0.0
             return {
                 "signal": signal,
@@ -273,7 +287,9 @@ class ATRBasedStrategy(StrategyBase):
                     from ...core.config.threshold_manager import get_threshold
 
                     base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
-                    confidence_max = get_threshold("ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65)
+                    confidence_max = get_threshold(
+                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
+                    )
                     confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
                     reason = f"BB+RSI一致シグナル ({bb_analysis['bb_position']:.2f}, RSI:{rsi_analysis['rsi']:.1f})"
@@ -318,21 +334,31 @@ class ATRBasedStrategy(StrategyBase):
                     # 循環インポート回避のため遅延インポート
                     from ...core.config.threshold_manager import get_threshold
 
-                    weak_base = get_threshold("ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08)
-                    weak_multiplier = get_threshold("ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1)
+                    weak_base = get_threshold(
+                        "ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08
+                    )
+                    weak_multiplier = get_threshold(
+                        "ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
+                    )
 
                     # より乖離の大きい指標を採用
                     if bb_deviation > rsi_deviation:
                         action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
-                        base_confidence = weak_base + total_deviation * weak_multiplier  # 設定ベース計算
+                        base_confidence = (
+                            weak_base + total_deviation * weak_multiplier
+                        )  # 設定ベース計算
                     else:
                         action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
-                        base_confidence = weak_base + total_deviation * weak_multiplier  # 設定ベース計算
+                        base_confidence = (
+                            weak_base + total_deviation * weak_multiplier
+                        )  # 設定ベース計算
                     confidence = base_confidence
                     strength = total_deviation
                     reason = f"極微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
                 else:
-                    return self._create_hold_decision(f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）")
+                    return self._create_hold_decision(
+                        f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
+                    )
             # ボラティリティ調整適用
             confidence *= volatility_penalty
             # 高ボラティリティボーナス（抑制）
@@ -340,9 +366,15 @@ class ATRBasedStrategy(StrategyBase):
                 # 循環インポート回避のため遅延インポート
                 from ...core.config.threshold_manager import get_threshold
 
-                volatility_bonus = get_threshold("ml.dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02)
-                volatility_max = get_threshold("ml.dynamic_confidence.strategies.atr_based.volatility_max", 0.65)
-                confidence = min(confidence * volatility_bonus, volatility_max)  # 設定ベースボーナス・上限
+                volatility_bonus = get_threshold(
+                    "ml.dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02
+                )
+                volatility_max = get_threshold(
+                    "ml.dynamic_confidence.strategies.atr_based.volatility_max", 0.65
+                )
+                confidence = min(
+                    confidence * volatility_bonus, volatility_max
+                )  # 設定ベースボーナス・上限
             # 最小信頼度チェック（緩和済み）
             if confidence < self.config["min_confidence"]:
                 # 完全拒否ではなく、動的に調整された信頼度を記録

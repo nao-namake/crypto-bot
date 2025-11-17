@@ -1,15 +1,14 @@
 """
-サービスプロトコル定義 - Phase 49完了
+サービスプロトコル定義 - Phase 52.4
 
-各サービス層のインターフェース定義・Protocol型ヒント基盤システム
+各サービス層のインターフェース定義・Protocol型ヒント基盤システム。
+TradingOrchestratorへの依存性注入基盤を提供。
 
-Phase 49完了:
-- 5サービスプロトコル定義（Data・Feature・Strategy・ML・Execution）
-- Protocol型ヒントシステム（typing.Protocol基盤）
-- 依存性注入基盤（TradingOrchestrator型安全注入）
+機能:
+- 6サービスプロトコル定義（Data・Feature・Strategy・ML・Execution・Risk）
+- Protocol型ヒントシステム（typing.Protocol基盤・型安全性確保）
 - 循環インポート回避（TYPE_CHECKING条件分岐）
-
-Phase 28-29: Protocol型ヒントシステム確立・依存性注入基盤
+- 依存性注入基盤（TradingOrchestrator型安全注入）
 """
 
 # 循環インポート回避のため、型ヒントでのみ使用

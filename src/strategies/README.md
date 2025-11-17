@@ -1,13 +1,13 @@
 # src/strategies/ - 取引戦略システム
 
-**Phase 49完了**: 市場不確実性計算統合・バックテストログユーティリティ追加・コード重複削減による戦略層最適化。
+**Phase 52.4-B完了**: 市場不確実性計算統合・バックテストログユーティリティ追加・コード重複削減による戦略層最適化。
 
 ## 🎯 役割・責任
 
-AI自動取引システムの戦略層。5つの取引戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）を統合管理し、市場データから取引シグナルを生成。統一インターフェース・競合解決・重み付け統合・動的信頼度計算により、安定した取引判断を提供。
+AI自動取引システムの戦略層。6つの取引戦略（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）を統合管理し、市場データから取引シグナルを生成。統一インターフェース・競合解決・重み付け統合・動的信頼度計算により、安定した取引判断を提供。
 
-**Phase 49完了**:
-- 市場不確実性計算統合（MarketUncertaintyCalculator）: 全5戦略の重複コード250-300行削減
+**Phase 52.4-B完了**:
+- 市場不確実性計算統合（MarketUncertaintyCalculator）: 全6戦略の重複コード250-300行削減
 - バックテストログユーティリティ（conditional_log）: 20-30箇所の環境変数チェック統一
 - 保守性向上: 統一ユーティリティ活用による一元管理実現
 
@@ -15,19 +15,20 @@ AI自動取引システムの戦略層。5つの取引戦略（ATRBased・Mochip
 
 ```
 src/strategies/
-├── __init__.py              # 戦略システムエクスポート（41行・Phase 49完了）
+├── __init__.py              # 戦略システムエクスポート（41行・Phase 52.4-B完了）
 ├── base/                    # 戦略基盤システム
-│   ├── strategy_base.py        # 抽象基底クラス（294行・Phase 49完了）
-│   └── strategy_manager.py     # 戦略統合管理（557行・Phase 49完了）
+│   ├── strategy_base.py        # 抽象基底クラス（294行・Phase 52.4-B完了）
+│   └── strategy_manager.py     # 戦略統合管理（557行・Phase 52.4-B完了）
 ├── implementations/         # 戦略実装群
-│   ├── atr_based.py           # ATRBased戦略（436行・Phase 49完了）
-│   ├── mochipoy_alert.py      # MochipoyAlert戦略（352行・Phase 49完了）
-│   ├── multi_timeframe.py     # MultiTimeframe戦略（445行・Phase 49完了）
-│   ├── donchian_channel.py    # DonchianChannel戦略（544行・Phase 49完了）
-│   └── adx_trend.py          # ADXTrendStrength戦略（600行・Phase 49完了）
+│   ├── atr_based.py            # ATRBased戦略（436行・Phase 52.4-B完了）
+│   ├── donchian_channel.py     # DonchianChannel戦略（544行・Phase 52.4-B完了）
+│   ├── adx_trend.py           # ADXTrendStrength戦略（600行・Phase 52.4-B完了）
+│   ├── bb_reversal.py          # BBReversal戦略（Phase 52.4-B完了）
+│   ├── stochastic_reversal.py  # StochasticReversal戦略（Phase 52.4-B完了）
+│   └── macd_ema_crossover.py   # MACDEMACrossover戦略（Phase 52.4-B完了）
 └── utils/                   # 共通処理モジュール
-    ├── strategy_utils.py      # 統合共通処理（572行・Phase 49完了）
-    └── market_utils.py        # 市場分析ユーティリティ（180行・Phase 49完了）
+    ├── strategy_utils.py      # 統合共通処理（600行・Phase 52.4-B完了）
+    └── market_utils.py        # 市場分析ユーティリティ（180行・Phase 52.4-B完了）
 ```
 
 ## 🔧 主要コンポーネント
@@ -50,12 +51,13 @@ class StrategyManager:
 
 ### **implementations/ - 戦略実装群** → [詳細](implementations/README.md)
 
-**5戦略の特徴**:
+**6戦略の特徴**:
 - **ATRBased**: ボラティリティ追従・動的信頼度計算（0.2-0.8範囲）
-- **MochipoyAlert**: EMA・MACD・RCI複合指標・多数決システム
-- **MultiTimeframe**: 4時間足＋15分足・時間軸統合分析
 - **DonchianChannel**: 20期間ブレイクアウト・中央域対応
 - **ADXTrendStrength**: トレンド強度分析・弱トレンド対応
+- **BBReversal**: ボリンジャーバンド反転戦略・逆張り型
+- **StochasticReversal**: ストキャスティクス反転戦略・過熱域検出
+- **MACDEMACrossover**: MACD・EMAクロスオーバー戦略・トレンドフォロー型
 
 ### **utils/ - 共通処理モジュール** → [詳細](utils/README.md)
 
@@ -78,12 +80,13 @@ from src.strategies.implementations import *
 # 戦略マネージャー初期化
 manager = StrategyManager()
 
-# 5戦略登録（重み付け）
-manager.register_strategy(ATRBasedStrategy(), weight=0.25)
-manager.register_strategy(MochipoyAlertStrategy(), weight=0.25)
-manager.register_strategy(MultiTimeframeStrategy(), weight=0.20)
+# 6戦略登録（重み付け）
+manager.register_strategy(ATRBasedStrategy(), weight=0.20)
 manager.register_strategy(DonchianChannelStrategy(), weight=0.15)
 manager.register_strategy(ADXTrendStrengthStrategy(), weight=0.15)
+manager.register_strategy(BBReversalStrategy(), weight=0.15)
+manager.register_strategy(StochasticReversalStrategy(), weight=0.20)
+manager.register_strategy(MACDEMACrossoverStrategy(), weight=0.15)
 
 # 統合分析実行
 market_data = get_market_data()  # 15特徴量データ
@@ -112,7 +115,7 @@ print(f"信頼度: {signal.confidence:.3f}")
 
 **統合判定フロー**:
 ```
-【各戦略並行実行】→ 個別StrategySignal生成（5戦略）
+【各戦略並行実行】→ 個別StrategySignal生成（6戦略）
         ↓
 【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
         ↓
@@ -152,9 +155,9 @@ def _calculate_weighted_confidence(self, signals):
 bash scripts/testing/checks.sh
 
 # 個別コンポーネントテスト
-python -m pytest tests/unit/strategies/implementations/ -v  # 5戦略テスト（各15テスト）
-python -m pytest tests/unit/strategies/base/ -v           # 基盤システムテスト（38テスト）
-python -m pytest tests/unit/strategies/utils/ -v          # 共通処理テスト（23テスト）
+python -m pytest tests/unit/strategies/implementations/ -v  # 6戦略テスト
+python -m pytest tests/unit/strategies/base/ -v           # 基盤システムテスト
+python -m pytest tests/unit/strategies/utils/ -v          # 共通処理テスト
 ```
 
 **品質指標**:
@@ -207,9 +210,9 @@ min_confidence = get_threshold("strategies.atr_based.min_confidence", 0.3)
 - **動的信頼度**: 各戦略が市場状況に応じて0.2-0.8範囲で動的計算
 - **統一インターフェース**: 全戦略がStrategyBase継承・StrategySignal統一形式
 - **設定一元化**: config/core/thresholds.yaml一括管理・再起動で設定反映
-- **Phase 49完了**: コード重複削減・統一ユーティリティ活用・保守性向上
+- **Phase 52.4-B完了**: コード重複削減・統一ユーティリティ活用・保守性向上
 - **依存**: pandas・numpy・src.core.*・統合15特徴量データ
 
 ---
 
-**取引戦略システム（Phase 49完了）**: 5戦略統合管理・競合解決システム・重み付け統合・動的信頼度計算・市場不確実性計算統合・バックテストログユーティリティによる統一戦略層。
+**取引戦略システム（Phase 52.4-B完了）**: 6戦略統合管理・動的戦略管理基盤（Registry Pattern）・競合解決システム・重み付け統合・動的信頼度計算・市場不確実性計算統合による統一戦略層。

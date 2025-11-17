@@ -142,12 +142,16 @@ class TestDataValidation:
 
     def test_validate_ohlcv_data_high_lower_than_low(self, pipeline):
         """high < low は検証失敗"""
-        invalid_data = [[1704067200000, 14000000.0, 13900000.0, 14100000.0, 14050000.0, 1000.0]]  # high < low
+        invalid_data = [
+            [1704067200000, 14000000.0, 13900000.0, 14100000.0, 14050000.0, 1000.0]
+        ]  # high < low
         assert pipeline._validate_ohlcv_data(invalid_data) is False
 
     def test_validate_ohlcv_data_negative_volume(self, pipeline):
         """負のvolumeは検証失敗"""
-        invalid_data = [[1704067200000, 14000000.0, 14100000.0, 13900000.0, 14050000.0, -1000.0]]  # 負volume
+        invalid_data = [
+            [1704067200000, 14000000.0, 14100000.0, 13900000.0, 14050000.0, -1000.0]
+        ]  # 負volume
         assert pipeline._validate_ohlcv_data(invalid_data) is False
 
     def test_validate_ohlcv_data_non_numeric(self, pipeline):
@@ -228,7 +232,9 @@ class TestFetchOhlcv:
         assert mock_bitbank_client.fetch_ohlcv.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_fetch_ohlcv_cache_disabled(self, pipeline, mock_bitbank_client, sample_ohlcv_data):
+    async def test_fetch_ohlcv_cache_disabled(
+        self, pipeline, mock_bitbank_client, sample_ohlcv_data
+    ):
         """キャッシュ無効時は毎回APIを呼ぶ"""
         mock_bitbank_client.fetch_ohlcv.return_value = sample_ohlcv_data
 
@@ -295,7 +301,9 @@ class TestMultiTimeframe:
     """fetch_multi_timeframe() テスト"""
 
     @pytest.mark.asyncio
-    async def test_fetch_multi_timeframe_success(self, pipeline, mock_bitbank_client, sample_ohlcv_data):
+    async def test_fetch_multi_timeframe_success(
+        self, pipeline, mock_bitbank_client, sample_ohlcv_data
+    ):
         """マルチタイムフレーム取得成功"""
         mock_bitbank_client.fetch_ohlcv.return_value = sample_ohlcv_data
 
@@ -308,7 +316,9 @@ class TestMultiTimeframe:
         assert isinstance(results["15m"], pd.DataFrame)
 
     @pytest.mark.asyncio
-    async def test_fetch_multi_timeframe_partial_failure(self, pipeline, mock_bitbank_client, sample_ohlcv_data):
+    async def test_fetch_multi_timeframe_partial_failure(
+        self, pipeline, mock_bitbank_client, sample_ohlcv_data
+    ):
         """一部のタイムフレーム取得失敗でも継続"""
         # 15m成功、4h失敗
         mock_bitbank_client.fetch_ohlcv.side_effect = [
@@ -363,7 +373,9 @@ class TestLatestPrices:
         assert prices["15m"] == 14150000.0
 
     @pytest.mark.asyncio
-    async def test_get_latest_prices_with_failure(self, pipeline, mock_bitbank_client, sample_ohlcv_data):
+    async def test_get_latest_prices_with_failure(
+        self, pipeline, mock_bitbank_client, sample_ohlcv_data
+    ):
         """一部失敗しても継続"""
         # 4h失敗、15m成功
         mock_bitbank_client.fetch_ohlcv.side_effect = [
@@ -388,13 +400,17 @@ class TestHistoricalData:
         mock_bitbank_client.fetch_ohlcv.return_value = sample_ohlcv_data
 
         since = datetime(2025, 1, 1)
-        df = await pipeline.fetch_historical_data(symbol="BTC/JPY", timeframe="4h", since=since, limit=100)
+        df = await pipeline.fetch_historical_data(
+            symbol="BTC/JPY", timeframe="4h", since=since, limit=100
+        )
 
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 3
 
     @pytest.mark.asyncio
-    async def test_fetch_historical_data_timeframe_mapping(self, pipeline, mock_bitbank_client, sample_ohlcv_data):
+    async def test_fetch_historical_data_timeframe_mapping(
+        self, pipeline, mock_bitbank_client, sample_ohlcv_data
+    ):
         """タイムフレーム文字列のマッピング"""
         mock_bitbank_client.fetch_ohlcv.return_value = sample_ohlcv_data
 

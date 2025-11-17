@@ -1,18 +1,17 @@
 """
-Discord通知システム - Phase 49完了（週間レポート専用）
+Discord通知システム - Phase 52.4（週間レポート専用）
 
-Phase 49完了:
+週間レポート送信に特化したシンプルなDiscord通知システム。
+Phase 48で複雑な通知機能を削除し、通知99%削減を達成。
+
+主要機能:
 - DiscordClient: シンプルWebhook通知クライアント（画像ファイル送信対応）
 - DiscordManager: 週間レポート専用通知マネージャー
 - 損益グラフ送信機能（matplotlib・Pillow統合）
 - レート制限対応（rate_limit_ms: 1000ms）
+- Webhook URL自動取得（.env優先）
 
-Phase 48: Discord週間レポート実装（通知99%削減達成）
-- 既存の複雑な通知システムを完全削除（300-1,500回/月 → 4回/月）
-- 週間レポート送信機能のみに特化（コスト35%削減・月額700-900円削減）
-- シンプルな設計で保守性向上
-
-削除された機能: エラー通知・取引シグナル通知・取引実行結果通知・システム状態通知・バッチ処理・日次サマリー
+Phase 48簡略化: 300-1,500通知/月 → 4通知/月（99%削減・コスト35%削減）
 """
 
 import json
@@ -177,11 +176,13 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # 色設定
+        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
+        from ..config import get_threshold
+
         colors = {
-            "info": 0x3498DB,  # 青色
-            "warning": 0xF39C12,  # 黄色
-            "critical": 0xE74C3C,  # 赤色
+            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
+            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
+            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
         }
 
         # 絵文字設定
@@ -228,8 +229,14 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # 色・絵文字設定
-        colors = {"info": 0x3498DB, "warning": 0xF39C12, "critical": 0xE74C3C}
+        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
+        from ..config import get_threshold
+
+        colors = {
+            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
+            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
+            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
+        }
         emojis = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}
 
         # embed構築
@@ -276,8 +283,14 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # 色・絵文字設定
-        colors = {"info": 0x3498DB, "warning": 0xF39C12, "critical": 0xE74C3C}
+        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
+        from ..config import get_threshold
+
+        colors = {
+            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
+            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
+            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
+        }
         emojis = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}
 
         # embed構築
@@ -316,7 +329,9 @@ class DiscordClient:
                         self.logger.debug("✅ Discord通知送信成功（ファイル添付）")
                         return True
                     else:
-                        self.logger.error(f"❌ Discord API エラー ({response.status_code}): {response.text}")
+                        self.logger.error(
+                            f"❌ Discord API エラー ({response.status_code}): {response.text}"
+                        )
                         return False
 
             except Exception as e:
@@ -370,7 +385,9 @@ class DiscordClient:
                 self.logger.warning("⚠️ Discord Rate Limit - 送信抑制")
                 return False
             else:
-                self.logger.error(f"❌ Discord API エラー ({response.status_code}): {response.text}")
+                self.logger.error(
+                    f"❌ Discord API エラー ({response.status_code}): {response.text}"
+                )
                 return False
 
         except requests.exceptions.RequestException as e:

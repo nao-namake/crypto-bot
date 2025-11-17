@@ -1,8 +1,8 @@
 """
-Trading Layer - Phase 49完了
+Trading Layer - Phase 52.4-B完了
 
-統合リスク管理・監視・取引実行結果処理の包括的取引制御機能。
-レイヤードアーキテクチャによる責務分離実装。
+5層レイヤードアーキテクチャによる統合取引管理層。
+Phase 52.4-Bで設定管理統一・コード品質最適化完了。
 
 主要コンポーネント:
 - IntegratedRiskManager: 統合リスク管理API
@@ -12,14 +12,14 @@ Trading Layer - Phase 49完了
 - TradingAnomalyDetector: 取引実行用異常検知
 - BalanceMonitor: 残高・保証金監視
 
-Phase 49完了
+Phase 52.4-B完了
 """
 
-# Phase 38: 残高監視層
+# 残高監視層
 from .balance import BalanceMonitor
 
-# Phase 38: 後方互換性のためのインポート
-# Phase 38: コア層（列挙型・データクラス）
+# 後方互換性のためのインポート
+# コア層（列挙型・データクラス）
 from .core import (
     DrawdownSnapshot,
     ExecutionMode,
@@ -35,13 +35,13 @@ from .core import (
     TradingSession,
 )
 
-# Phase 38: 実行層
+# 実行層
 from .execution import ExecutionService, OrderStrategy, StopManager
 
-# Phase 38: ポジション管理層
+# ポジション管理層
 from .position import CooldownManager, PositionCleanup, PositionLimits, PositionTracker
 
-# Phase 38: リスク管理層
+# リスク管理層
 from .risk import (
     AnomalyAlert,
     AnomalyLevel,
@@ -104,11 +104,11 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "38.0.0"
-__phase__ = "Phase 38リファクタリング"
-__description__ = "レイヤードアーキテクチャによる統合取引管理層"
+__version__ = "52.4"
+__phase__ = "Phase 52.4-B完了"
+__description__ = "5層レイヤードアーキテクチャによる統合取引管理層・設定管理統一・コード品質最適化"
 
-# Phase 28/29最適化: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）
+# リスクプロファイル機能
 RISK_PROFILES = {
     "conservative": {
         "kelly_criterion": {
@@ -134,7 +134,7 @@ RISK_PROFILES = {
             "risk_threshold_deny": 0.8,
             "risk_threshold_conditional": 0.6,
         },
-        "description": "バランス型リスク管理（標準・Phase 28/29最適化・CI/CD統合・手動実行監視対応）",
+        "description": "バランス型リスク管理（標準）",
     },
     "aggressive": {
         "kelly_criterion": {
@@ -147,16 +147,16 @@ RISK_PROFILES = {
             "risk_threshold_deny": 0.85,
             "risk_threshold_conditional": 0.65,
         },
-        "description": "積極的リスク管理（レガシーAggressiveRiskManager継承）",
+        "description": "積極的リスク管理",
     },
 }
 
-# より実践的なデフォルト設定（Phase 28/29最適化バランス型プロファイル採用・CI/CD統合・手動実行監視・段階的デプロイ対応）
+# デフォルト設定（バランス型プロファイル採用）
 DEFAULT_RISK_CONFIG = {
     "kelly_criterion": {
-        "max_position_ratio": 0.10,  # 最大10%（5%→10%・Phase 28/29最適化バランス調整・手動実行監視対応）
-        "safety_factor": 0.7,  # Kelly値の70%使用（60%→70%・効率向上）
-        "min_trades_for_kelly": 5,  # Kelly適用最小取引数（20→5に緩和）
+        "max_position_ratio": 0.10,  # 最大10%
+        "safety_factor": 0.7,  # Kelly値の70%使用
+        "min_trades_for_kelly": 5,  # Kelly適用最小取引数
     },
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,  # 最大ドローダウン20%
@@ -166,13 +166,13 @@ DEFAULT_RISK_CONFIG = {
     "anomaly_detector": {
         "spread_warning_threshold": 0.003,  # 0.3%スプレッド警告
         "spread_critical_threshold": 0.005,  # 0.5%スプレッド重大
-        "api_latency_warning_ms": 2000,  # 2秒遅延警告（Phase 3最適化）
-        "api_latency_critical_ms": 5000,  # 5秒遅延重大（Phase 3最適化）
+        "api_latency_warning_ms": 2000,  # 2秒遅延警告
+        "api_latency_critical_ms": 5000,  # 5秒遅延重大
         "price_spike_zscore_threshold": 3.0,  # 3σ価格スパイク
         "volume_spike_zscore_threshold": 3.0,  # 3σ出来高スパイク
     },
     "risk_thresholds": {
-        "min_ml_confidence": 0.30,  # 最小ML信頼度30%（35%→30%・Phase 28/29最適化調整・CI/CD統合）
+        "min_ml_confidence": 0.30,  # 最小ML信頼度30%
         "risk_threshold_deny": 0.8,  # 80%以上で拒否
         "risk_threshold_conditional": 0.6,  # 60%以上で条件付き
     },
@@ -181,22 +181,22 @@ DEFAULT_RISK_CONFIG = {
 
 def create_risk_manager(
     config: dict = None,
-    initial_balance: float = None,  # Phase 23: mode_balancesから自動取得
+    initial_balance: float = None,
     risk_profile: str = "balanced",
-    mode: str = "live",  # 新規: 実行モード（paper/live/backtest）
-    bitbank_client=None,  # Phase 49.15: 証拠金維持率API取得用
-    execution_service=None,  # Phase 51.7 Phase 3-3: バックテスト証拠金維持率チェック用
+    mode: str = "live",
+    bitbank_client=None,
+    execution_service=None,
 ) -> IntegratedRiskManager:
     """
-    統合リスク管理器の作成（Phase 23拡張: モード別初期残高一元管理対応）
+    統合リスク管理器の作成
 
     Args:
         config: リスク管理設定。Noneの場合はプロファイル使用
         initial_balance: 初期残高（Noneの場合はmode_balancesから自動取得）
         risk_profile: リスクプロファイル ("conservative", "balanced", "aggressive")
         mode: 実行モード（paper/live/backtest）
-        bitbank_client: Bitbank APIクライアント（Phase 49.15: 証拠金維持率API取得用）
-        execution_service: ExecutionServiceインスタンス（Phase 51.7: バックテスト対応）
+        bitbank_client: Bitbank APIクライアント
+        execution_service: ExecutionServiceインスタンス
 
     Returns:
         IntegratedRiskManager: 設定済みリスク管理器
@@ -204,7 +204,7 @@ def create_risk_manager(
     if config is None:
         config = get_risk_profile_config(risk_profile)
 
-    # Phase 23一元管理: initial_balanceがNoneの場合はmode_balancesから取得
+    # initial_balanceがNoneの場合はmode_balancesから取得
     if initial_balance is None:
         from ..core.config import load_config
 
@@ -217,15 +217,15 @@ def create_risk_manager(
         config=config,
         initial_balance=initial_balance,
         enable_discord_notifications=True,
-        mode=mode,  # モード伝播
-        bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
-        execution_service=execution_service,  # Phase 51.7: バックテスト対応
+        mode=mode,
+        bitbank_client=bitbank_client,
+        execution_service=execution_service,
     )
 
 
 def get_risk_profile_config(profile_name: str = "balanced") -> dict:
     """
-    リスクプロファイル設定を取得（Phase 28/29最適化機能・CI/CD統合・手動実行監視・段階的デプロイ対応）
+    リスクプロファイル設定を取得
 
     Args:
         profile_name: プロファイル名 ("conservative", "balanced", "aggressive")
@@ -237,7 +237,9 @@ def get_risk_profile_config(profile_name: str = "balanced") -> dict:
         ValueError: 無効なプロファイル名
     """
     if profile_name not in RISK_PROFILES:
-        raise ValueError(f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}")
+        raise ValueError(
+            f"無効なリスクプロファイル: {profile_name}. " f"利用可能: {list(RISK_PROFILES.keys())}"
+        )
 
     # デフォルト設定をベースに、プロファイル設定で上書き（深いコピーで元の設定を保護）
     config = {

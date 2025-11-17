@@ -21,27 +21,32 @@ mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 # ========================================
 # モード別初期残高設定（一元管理）
 # ========================================
-# 用途: 将来的な残高変更時に一箇所修正で完結
-# 参照: ExecutionService、IntegratedRiskManager、DrawdownManager
+# Phase 52.5: 使用箇所追加
+# 使用箇所:
+#   - src/core/orchestration/orchestrator.py (Lines 518-575)
+#   - src/trading/execution/executor.py (Lines 89-91)
+#   - src/trading/risk/manager.py (Lines 454, 464)
+#   - src/trading/position/limits.py (Lines 236, 246)
+#   - src/core/services/trading_cycle_manager.py (Lines 521-523)
 mode_balances:
   paper:
-    initial_balance: 10000.0      # ペーパートレード初期残高（1万円）
-    description: "ペーパートレード用初期残高（実験・検証用）"
+    initial_balance: 10000.0      # ペーパートレード（1万円）
+    description: "実験・検証用"
   live:
-    initial_balance: 10000.0      # ライブトレード初期残高（1万円・実運用）
-    description: "ライブトレード用初期残高（本番運用・API取得ベース）"
+    initial_balance: 10000.0      # ライブトレード（1万円・本番運用）
+    description: "本番運用・API取得ベース"
   backtest:
-    initial_balance: 100000.0     # バックテスト初期残高（10万円・実運用想定検証）
-    description: "バックテスト用初期残高（過去データ検証用・ライブモードと独立）"
+    initial_balance: 100000.0     # バックテスト（10万円）
+    description: "過去データ検証用"
 
 # 取引所設定（bitbank信用取引専用）
 exchange:
   name: bitbank
   symbol: BTC/JPY
   leverage: 1.0
-  rate_limit_ms: 35000
-  timeout_ms: 120000
-  retries: 5
+  rate_limit_ms: 1000           # API レート制限（ミリ秒）
+  timeout_ms: 30000             # APIタイムアウト（30秒）
+  retries: 3                    # 最大リトライ回数
   ssl_verify: true
   api_version: v1
 
@@ -49,11 +54,15 @@ exchange:
 # 機械学習設定（統一設定管理体系最適化）
 # ========================================
 # 注意: 信頼度閾値はthresholds.yamlで管理
-# Phase 50.9: 2段階Graceful Degradation（full 55 → basic 49 → Dummy）
-# Phase 51.9-5: ensemble重みをmlセクションに統合
+# Phase 52.4: 2段階Graceful Degradation・ensemble重み統合
+#
+# 使用箇所:
+#   - ensemble_weights: src/core/config/config_classes.py (Line 38)
+#   - fallback_enabled: src/core/orchestration/ml_fallback.py
+#   - models: src/ml/model_manager.py
 ml:
   ensemble_enabled: true
-  # アンサンブルモデル重み設定（Phase 51.9-5: 統合）
+  # アンサンブルモデル重み設定（Phase 52.4整理完了）
   ensemble_weights:
     lightgbm: 0.5      # LightGBM 50%（メインモデル）
     xgboost: 0.3       # XGBoost 30%（補完モデル）
@@ -62,7 +71,7 @@ ml:
   - lgbm
   - xgb
   - rf
-  # model_path: Phase 50.9で削除（ml_loaderが動的にensemble_full/basic.pklを選択）
+  # model_path: Phase 52.4削除済み（ml_loaderが動的にensemble_full/basic.pklを選択）
   model_update_check: true
   fallback_enabled: true
   prediction:
@@ -87,41 +96,24 @@ data:
     retention_days: 90
 
 # ========================================
-# 特徴量設定（Phase 51.9: 55特徴量固定システム）
+# 特徴量設定（Phase 52.5: 設定ファイル重複排除）
 # ========================================
-# Phase 51.9: 55特徴量（49基本+6戦略シグナル）
+# 55特徴量（49基本+6戦略シグナル）
 # - 49基本特徴量: テクニカル指標・ラグ・交差項・時間的特徴量
 # - 6戦略シグナル特徴量: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
+#
+# Phase 52.5重複削除:
+#   特徴量定義は config/core/feature_order.json が単一真実源
+#   FeatureManagerが自動的にJSONファイルから特徴量リストを読み込み
+#   このファイルでの重複定義は不要（保守性向上・同期問題解消）
 # ========================================
-features:
-  mode: optimized
-  basic:
-  - close
-  - volume
-  momentum:
-  - rsi_14
-  - macd
-  volatility:
-  - atr_14
-  - bb_position
-  trend:
-  - ema_20
-  - ema_50
-  volume:
-  - volume_ratio
-  breakout:
-  - donchian_high_20
-  - donchian_low_20
-  - channel_position
-  regime:
-  - adx_14
-  - plus_di_14
-  - minus_di_14
+# features設定は feature_order.json から自動ロード
+# 詳細: config/core/feature_order.json:feature_categories
 
 # ========================================
-# 戦略設定（6戦略統合・Phase 51.9）
+# 戦略設定（6戦略統合・Phase 52.4整理完了）
 # ========================================
-# Phase 51.9-5: 戦略設定はconfig/strategies.yamlで一元管理
+# Phase 52.4: 戦略設定はconfig/strategies.yamlで一元管理
 # Phase 51.5-B動的戦略管理基盤により、strategies.yamlが唯一の戦略定義ソース
 #
 # 設定参照: config/strategies.yaml
@@ -134,21 +126,23 @@ risk:
   risk_per_trade: 0.01
   max_drawdown: 0.2
   stop_loss_atr_multiplier: 1.2
-  consecutive_loss_limit: 5
+  # Phase 52.5: consecutive_loss_limit削除（drawdown_manager.consecutive_loss_limitに統一）
   take_profit_ratio: 2.0
   daily_loss_limit: 0.05
   weekly_loss_limit: 0.1
   emergency_stop_enabled: true
   drawdown_manager:
     max_drawdown_ratio: 0.2
-    consecutive_loss_limit: 8  # 5→8（連続損失許容を増加・取引機会拡大）
+    consecutive_loss_limit: 8  # Phase 52.4: 5→8（連続損失許容を増加・取引機会拡大）
     cooldown_hours: 6          # 24→6（停止時間を大幅短縮・月100-200回対応）
     # 初期残高設定は mode_balances セクションから取得
     fallback_balance: 11000.0  # フォールバック残高（円）- API失敗時判別用
     persistence:
-      local_path: "src/core/state/drawdown_state.json"  # ローカル状態ファイルパス
-      gcs_bucket: "crypto-bot-state"                    # Cloud Storageバケット名
-      gcs_path: "drawdown/state.json"                   # Cloud Storageオブジェクトパス
+      # Phase 52.4: モード別状態分離対応（{mode}はpaper/live/backtestに置換）
+      local_path_template: "src/core/state/{mode}/drawdown_state.json"  # モード別ローカルパステンプレート
+      gcs_path_template: "drawdown/{mode}/state.json"                   # モード別GCSパステンプレート
+      backup_prefix: "backup/"                                          # バックアップディレクトリプレフィックス
+      gcs_bucket: "crypto-bot-state"                                    # Cloud Storageバケット名
   anomaly_detector:
     lookback_period: 20
     spread_warning_threshold: 0.003
@@ -187,6 +181,7 @@ production:
 # ========================================
 # ログ設定（環境別対応）
 # ========================================
+# Phase 52.4: logging設定完全外部化
 logging:
   level: INFO
   file_enabled: true
@@ -249,16 +244,25 @@ trading_constraints:
   default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
   initial_capital: 10000
   target_capital: 500000
-  features_count: 55  # Phase 51.9: 55特徴量（49基本+6戦略シグナル・feature_order.json参照）
+  # features_count: 55  # Phase 52.5: feature_order.jsonが単一真実源（total_features: 55）
   timeframes:
   - 15m  # メインタイムフレーム（エントリー判断用）
   - 4h   # 補助タイムフレーム（トレンド判断用）
 
 # ========================================
-# アンサンブルモデル重み設定
+# MLモデルファイル参照（Phase 52.5追加）
 # ========================================
-# Phase 51.9-5: ensemble重みはmlセクションに統合（上記ml.ensemble_weights参照）
-# 設定削除（重複排除）
+# 単一真実源: config/core/feature_order.json:feature_levels
+#
+# 使用箇所:
+#   - src/core/orchestration/ml_loader.py (load_ensemble_model)
+#   - src/ml/model_manager.py
+#   - src/ml/ensemble.py (ProductionEnsemble)
+ml_models:
+  full_features_model: "ensemble_full.pkl"    # 55特徴量（49基本+6戦略シグナル）
+  basic_features_model: "ensemble_basic.pkl"  # 49特徴量（戦略シグナルなし・フォールバック）
+  model_directory: "models/production"        # 本番モデル保存ディレクトリ
+  note: "2段階Graceful Degradation: full→basic→DummyModel"
 
 # ========================================
 # レポート設定
@@ -275,34 +279,62 @@ reporting:
 # ========================================
 # Discord通知設定
 # ========================================
+# Phase 52.4: 週間レポート中心・リアルタイム通知最小化
 discord:
   # 基本設定
   max_retries: 3
   timeout_seconds: 10
   max_message_length: 2000
+  startup_grace_period: 30      # 起動後30秒は通知抑制
+  min_interval: 2               # 最小間隔（後方互換）
+
+  # Embed色設定
   embed_color:
-    success: 65280
-    warning: 16776960
-    error: 16711680
-    info: 39423
+    success: 65280              # 緑
+    warning: 16776960           # 黄
+    error: 16711680             # 赤
+    info: 39423                 # 青
 
-  # バッチ処理設定（通知負荷軽減）
+  # バッチ処理設定
   batch_notifications: true
-  batch_interval_minutes: 60
-  daily_summary_hour: 18  # JST 18:00に日次サマリー送信
+  batch_interval_minutes: 60    # 1時間毎バッチ集約
+  daily_summary_hour: 18        # JST 18:00日次サマリー
 
-  # レート制限強化
+  # レート制限
   rate_limit:
-    min_interval_seconds: 5      # 最小間隔を5秒に拡大
-    max_per_hour: 12            # 1時間最大12通知
-    burst_limit: 3              # 短時間バースト制限
+    min_interval_seconds: 5     # 最小間隔5秒
+    max_per_hour: 12            # 最大12通知/時
+    burst_limit: 3              # バースト制限3通知
 
-  # 通知レベル最適化
+  # 通知レベル
   notification_levels:
-    critical: immediate          # 即時通知（残高異常等）
+    critical: immediate         # 即時通知（残高異常等）
     warning: batch              # バッチ集約（1時間毎）
     info: daily                 # 日次サマリーのみ
 
-  # 起動時設定
-  startup_grace_period: 30      # 起動後30秒は通知抑制
-  min_interval: 2               # 従来設定（後方互換）
+# ========================================
+# レポート生成設定（Phase 52.4追加）
+# ========================================
+# 週間レポート生成システム設定
+reporting:
+  # 週間レポート設定
+  weekly_report_days: 7                           # レポート期間（日数）
+  temp_chart_path: "/tmp/weekly_pnl_curve.png"   # 一時チャートファイルパス
+  chart_dpi: 150                                  # チャート解像度
+  chart_figsize: [12, 8]                          # チャートサイズ [幅, 高さ]
+
+  # ドローダウン計算用初期残高（Phase 52.3バグ修正対応）
+  # 注: 実運用では mode_balances の該当モード値を使用推奨
+  initial_balance: 10000                          # デフォルト初期残高（ペーパー/ライブ）
+
+# ========================================
+# バックテスト設定（Phase 52.4-B追加）
+# ========================================
+backtest:
+  # データ設定
+  data:
+    default_symbol: "BTC/JPY"                     # デフォルト取引ペア
+    default_timeframes: ["4h", "15m"]             # デフォルト時間軸
+    data_directory: "src/backtest/data/historical" # データディレクトリ
+    csv_read_timeout: 30.0                        # CSV読み込みタイムアウト（秒）
+    cache_enabled: true                           # キャッシュ有効化

@@ -1,8 +1,7 @@
 """
-戦略個別パフォーマンス分析 - Phase 51.4
+戦略個別パフォーマンス分析 - Phase 52.4
 
-既存3戦略（ATRBased・DonchianChannel・ADXTrendStrength）の
-個別パフォーマンスを定量的に評価し、削除候補を特定する。
+strategies.yamlに定義された戦略の個別パフォーマンスを定量的に評価する。
 
 主要機能:
 - 単一戦略のパフォーマンス分析（勝率・損益率・シャープレシオ・最大DD）
@@ -11,10 +10,7 @@
 - アンサンブル貢献度測定（除外時の性能変化）
 - レポート生成・可視化
 
-Phase 51.4実装計画:
-- Day 1（今回）: 基本骨格・メトリクス計算・簡易テスト
-- Day 2（次回）: レジーム別分析・相関分析・貢献度測定
-- Day 3（次回）: 可視化・レポート生成・完全テスト・実データ検証
+設定管理: thresholds.yamlに分析パラメータ定義
 """
 
 import asyncio
@@ -31,18 +27,13 @@ import pandas as pd
 # プロジェクトルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.backtest.reporter import TradeTracker  # Phase 51.4-Day2追加
-from src.core.config.threshold_manager import get_threshold  # Phase 51.4-Day2追加
+from src.backtest.reporter import TradeTracker
+from src.core.config.threshold_manager import get_threshold
 from src.core.logger import get_logger
 from src.core.services.market_regime_classifier import MarketRegimeClassifier
 from src.core.services.regime_types import RegimeType
-from src.features.feature_generator import FeatureGenerator  # Phase 51.5-A追加
-from src.strategies.implementations.adx_trend import ADXTrendStrengthStrategy  # Phase 51.4-Day2追加
-from src.strategies.implementations.atr_based import ATRBasedStrategy  # Phase 51.4-Day2追加
-from src.strategies.implementations.donchian_channel import (  # Phase 51.4-Day2追加
-    DonchianChannelStrategy,
-)
-from src.strategies.utils import EntryAction  # Phase 51.4-Day2追加
+from src.features.feature_generator import FeatureGenerator
+from src.strategies.utils import EntryAction
 
 
 @dataclass
@@ -75,7 +66,7 @@ class StrategyPerformanceAnalyzer:
     """
     戦略個別パフォーマンス分析器
 
-    Phase 51.4: 既存5戦略の個別評価・削除候補特定
+    Phase 52.4: strategies.yamlに定義された戦略の個別評価
     """
 
     def __init__(self, data_file: Optional[Path] = None):
@@ -83,15 +74,19 @@ class StrategyPerformanceAnalyzer:
         初期化
 
         Args:
-            data_file: 履歴データファイルパス（Noneの場合はデフォルトパス使用）
+            data_file: 履歴データファイルパス（Noneの場合はthresholds.yamlのデフォルトパス使用）
         """
         self.logger = get_logger(__name__)
-        self.data_file = (
-            data_file or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_4h.csv"
+
+        # デフォルトパスをthresholds.yamlから取得
+        default_path = get_threshold(
+            "analysis.strategy_performance.default_data_path",
+            "src/backtest/data/historical/BTC_JPY_4h.csv",
         )
+        self.data_file = data_file or Path(__file__).parent.parent.parent / default_path
         self.regime_classifier = MarketRegimeClassifier()
 
-        # Phase 51.7 Day 7: 戦略リストを動的取得（設定駆動型）
+        # 戦略リストを動的取得（設定駆動型）
         from src.strategies.strategy_loader import StrategyLoader
 
         loader = StrategyLoader()
@@ -176,19 +171,30 @@ class StrategyPerformanceAnalyzer:
             avg_holding_period=avg_holding_period,
         )
 
-    def _calculate_sharpe_ratio(self, pnls: List[float], risk_free_rate: float = 0.0) -> float:
+    def _calculate_sharpe_ratio(
+        self, pnls: List[float], risk_free_rate: Optional[float] = None
+    ) -> float:
         """
         シャープレシオを計算
 
         Args:
             pnls: 損益リスト
-            risk_free_rate: リスクフリーレート（デフォルト0%）
+            risk_free_rate: リスクフリーレート（Noneの場合はthresholds.yamlから取得）
 
         Returns:
             シャープレシオ（年率換算）
         """
         if not pnls or len(pnls) < 2:
             return 0.0
+
+        # thresholds.yamlから設定取得
+        if risk_free_rate is None:
+            risk_free_rate = get_threshold(
+                "analysis.strategy_performance.sharpe_ratio.risk_free_rate", 0.0
+            )
+        annualization_factor = get_threshold(
+            "analysis.strategy_performance.sharpe_ratio.annualization_factor", 365
+        )
 
         returns = np.array(pnls)
         mean_return = np.mean(returns)
@@ -198,9 +204,8 @@ class StrategyPerformanceAnalyzer:
             return 0.0
 
         # シャープレシオ = (平均リターン - リスクフリーレート) / リターンの標準偏差
-        # 年率換算: √(取引頻度) を乗算（仮定: 1日1取引 → √365）
         sharpe = (mean_return - risk_free_rate) / std_return
-        annualized_sharpe = sharpe * np.sqrt(365)  # 年率換算
+        annualized_sharpe = sharpe * np.sqrt(annualization_factor)
 
         return float(annualized_sharpe)
 
@@ -249,7 +254,9 @@ class StrategyPerformanceAnalyzer:
 
         return df
 
-    async def analyze_single_strategy(self, strategy_name: str, historical_data: pd.DataFrame) -> PerformanceMetrics:
+    async def analyze_single_strategy(
+        self, strategy_name: str, historical_data: pd.DataFrame
+    ) -> PerformanceMetrics:
         """
         単一戦略のパフォーマンス分析（Phase 51.4-Day2: 実バックテスト統合）
 
@@ -297,7 +304,9 @@ class StrategyPerformanceAnalyzer:
 
         return strategy_class()
 
-    async def _run_single_strategy_backtest(self, strategy_name: str, historical_data: pd.DataFrame) -> List[Dict]:
+    async def _run_single_strategy_backtest(
+        self, strategy_name: str, historical_data: pd.DataFrame
+    ) -> List[Dict]:
         """
         単一戦略バックテスト実行（Phase 51.4-Day2実装）
 
@@ -316,7 +325,9 @@ class StrategyPerformanceAnalyzer:
         # 特徴量事前計算（Phase 51.5-A修正）
         self.logger.info(f"[{strategy_name}] 特徴量事前計算開始...")
         feature_generator = FeatureGenerator()
-        historical_data_with_features = await feature_generator.generate_features(historical_data.copy())
+        historical_data_with_features = await feature_generator.generate_features(
+            historical_data.copy()
+        )
         self.logger.info(f"[{strategy_name}] 特徴量計算完了: {historical_data_with_features.shape}")
 
         # TradeTracker初期化
@@ -340,7 +351,11 @@ class StrategyPerformanceAnalyzer:
             df_slice = historical_data_with_features.iloc[: i + 1].copy()
             current_row = historical_data_with_features.iloc[i]
             current_price = float(current_row["close"])
-            current_time = pd.to_datetime(current_row["timestamp"]) if "timestamp" in current_row else datetime.now()
+            current_time = (
+                pd.to_datetime(current_row["timestamp"])
+                if "timestamp" in current_row
+                else datetime.now()
+            )
 
             try:
                 # 戦略シグナル取得
@@ -386,7 +401,9 @@ class StrategyPerformanceAnalyzer:
                 if (side == "buy" and signal.action == EntryAction.SELL) or (
                     side == "sell" and signal.action == EntryAction.BUY
                 ):
-                    tracker.record_exit(open_position["order_id"], current_price, current_time, "SIGNAL")
+                    tracker.record_exit(
+                        open_position["order_id"], current_price, current_time, "SIGNAL"
+                    )
                     open_position = None
 
             # 新規エントリー判定（ポジションがない場合のみ）
@@ -396,7 +413,9 @@ class StrategyPerformanceAnalyzer:
                 side = "buy" if signal.action == EntryAction.BUY else "sell"
                 amount = 0.01  # 固定数量（簡易版）
 
-                tracker.record_entry(order_id, side, amount, current_price, current_time, strategy_name)
+                tracker.record_entry(
+                    order_id, side, amount, current_price, current_time, strategy_name
+                )
                 open_position = {
                     "order_id": order_id,
                     "side": side,
@@ -407,10 +426,16 @@ class StrategyPerformanceAnalyzer:
         if open_position is not None:
             final_row = historical_data.iloc[-1]
             final_price = float(final_row["close"])
-            final_time = pd.to_datetime(final_row["timestamp"]) if "timestamp" in final_row else datetime.now()
+            final_time = (
+                pd.to_datetime(final_row["timestamp"])
+                if "timestamp" in final_row
+                else datetime.now()
+            )
             tracker.record_exit(open_position["order_id"], final_price, final_time, "END")
 
-        self.logger.info(f"✅ {strategy_name} バックテスト完了 - {len(tracker.completed_trades)}取引")
+        self.logger.info(
+            f"✅ {strategy_name} バックテスト完了 - {len(tracker.completed_trades)}取引"
+        )
         return tracker.completed_trades
 
     async def analyze_regime_performance(
@@ -473,7 +498,9 @@ class StrategyPerformanceAnalyzer:
         regime_metrics = {}
         for regime, trades_list in regime_trades.items():
             if len(trades_list) > 0:
-                metrics = self.calculate_basic_metrics(trades_list, f"{strategy_name}_{regime.value}")
+                metrics = self.calculate_basic_metrics(
+                    trades_list, f"{strategy_name}_{regime.value}"
+                )
                 regime_metrics[regime] = metrics
                 self.logger.info(
                     f"  {regime.value}: {len(trades_list)}取引, "
@@ -500,7 +527,9 @@ class StrategyPerformanceAnalyzer:
         self.logger.info(f"✅ {strategy_name} レジーム別分析完了")
         return regime_metrics
 
-    def calculate_strategy_correlation(self, all_strategy_trades: Dict[str, List[Dict]]) -> pd.DataFrame:
+    def calculate_strategy_correlation(
+        self, all_strategy_trades: Dict[str, List[Dict]]
+    ) -> pd.DataFrame:
         """
         戦略間相関分析（Phase 51.4-Day2実装）
 
@@ -572,7 +601,9 @@ class StrategyPerformanceAnalyzer:
 
         return corr_df
 
-    async def measure_ensemble_contribution(self, historical_data: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+    async def measure_ensemble_contribution(
+        self, historical_data: pd.DataFrame
+    ) -> Dict[str, Dict[str, float]]:
         """
         アンサンブル貢献度測定（Phase 51.4-Day2実装・簡易版）
 
@@ -707,7 +738,9 @@ class StrategyPerformanceAnalyzer:
 
         return "\n".join(report_lines)
 
-    def save_results(self, results: Dict[str, PerformanceMetrics], output_dir: Optional[Path] = None):
+    def save_results(
+        self, results: Dict[str, PerformanceMetrics], output_dir: Optional[Path] = None
+    ):
         """
         分析結果を保存
 
@@ -873,7 +906,9 @@ async def main():
             if strategy_name not in deletion_candidates:
                 deletion_candidates.append(strategy_name)
             deletion_reasons[strategy_name] = deletion_reasons.get(strategy_name, [])
-            deletion_reasons[strategy_name].append(f"貢献度{contrib['contribution_pct']:+.2f}%（ノイズ）")
+            deletion_reasons[strategy_name].append(
+                f"貢献度{contrib['contribution_pct']:+.2f}%（ノイズ）"
+            )
             print(f"  ⚠️  {strategy_name}: 貢献度 {contrib['contribution_pct']:+.2f}%")
 
     if not any(c["contribution"] < 0 for c in contribution_results.values()):

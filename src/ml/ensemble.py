@@ -1,10 +1,10 @@
 """
-統合アンサンブルシステム - Phase 49完了
+統合アンサンブルシステム
+
+最終更新: 2025/11/16 (Phase 52.4-B)
 
 EnsembleModel、VotingSystem、ProductionEnsemble機能を1つのファイルに統合。
 重複コードを排除し、保守性とコードの可読性を向上。
-
-Phase 49完了
 """
 
 import time
@@ -133,7 +133,9 @@ class VotingSystem:
         else:
             return self._hard_voting(predictions)
 
-    def _weighted_soft_voting(self, probabilities: Dict[str, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+    def _weighted_soft_voting(
+        self, probabilities: Dict[str, np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """重み付けソフト投票"""
         weighted_avg = self._average_probabilities(probabilities, use_weights=True)
         predictions = np.argmax(weighted_avg, axis=1)
@@ -141,7 +143,9 @@ class VotingSystem:
 
         return predictions, confidence
 
-    def _average_probabilities(self, probabilities: Dict[str, np.ndarray], use_weights: bool = False) -> np.ndarray:
+    def _average_probabilities(
+        self, probabilities: Dict[str, np.ndarray], use_weights: bool = False
+    ) -> np.ndarray:
         """確率の平均化"""
         if not probabilities:
             raise ValueError("No probabilities provided")
@@ -550,14 +554,17 @@ class EnsembleModel:
 
         min_samples = get_threshold("ensemble.min_training_samples", 50)
         if len(X) < min_samples:  # アンサンブルには多めのデータが必要
-            raise ValueError(f"Insufficient training data for ensemble: {len(X)} samples (minimum: {min_samples})")
+            raise ValueError(
+                f"Insufficient training data for ensemble: {len(X)} samples "
+                f"(minimum: {min_samples})"
+            )
 
         # クラス数チェック
         n_classes = len(np.unique(y))
         if n_classes < 2:
             raise ValueError(f"Need at least 2 classes for classification, got {n_classes}")
 
-    def get_model_info(self) -> Dict[str, any]:
+    def get_model_info(self) -> Dict[str, Any]:
         """アンサンブルモデルの情報を取得"""
         return {
             "ensemble_type": "soft_voting",
@@ -575,16 +582,16 @@ class EnsembleModel:
 
 class ProductionEnsemble:
     """
-    本番用アンサンブルモデル（Phase 38.4時点で本番使用中）
+    本番用アンサンブルモデル（Phase 52.4-B対応完了）
 
     現在の目的：
     - scripts/ml/create_ml_models.pyで実使用中（週次自動学習）
     - 本番環境での安定動作を保証（ml_adapter/ml_loader/trading_cycle_manager）
-    - Phase 50.7: ensemble_level1/2/3.pkl として保存・読み込み
+    - 55特徴量固定システム対応
 
     将来の統合計画：
     - 新設計EnsembleModelへの段階的移行を想定
-    - Phase 39以降で統合検討（現時点では削除不可）
+    - 段階的統合を検討（現時点では削除不可）
     """
 
     def __init__(self, individual_models: Dict[str, Any]):
@@ -611,7 +618,7 @@ class ProductionEnsemble:
         self.weights = default_weights
 
         self.is_fitted = True
-        # Phase 50.7: レベル別特徴量数対応 - 実際のモデルから特徴量数を取得
+        # Phase 52.4-B: 55特徴量固定システム - 実際のモデルから特徴量数を取得
         from ..core.config.feature_manager import get_feature_count, get_feature_names
 
         # 実際に学習されたモデルの特徴量数を取得（レベル別対応）
@@ -642,7 +649,7 @@ class ProductionEnsemble:
     def predict(self, X) -> np.ndarray:
         """予測実行（重み付け投票）
 
-        Phase 51.9-6C: 3クラス分類対応
+        Phase 52.4-B: 3クラス分類対応
         - predict_proba()を使用してクラス確率を取得
         - argmax()で最も確率の高いクラスを返す
         """
@@ -655,7 +662,7 @@ class ProductionEnsemble:
     def predict_proba(self, X) -> np.ndarray:
         """予測確率（重み付け平均）
 
-        Phase 51.9-6C: 3クラス分類対応
+        Phase 52.4-B: 3クラス分類対応
         - 各モデルの全クラス確率を保持
         - 重み付け平均で統合
         - 2クラス・3クラス両対応
@@ -684,7 +691,7 @@ class ProductionEnsemble:
         for name, model in self.models.items():
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X_with_names)
-                # Phase 51.9-6C: 全クラスの確率を保持（2クラス・3クラス対応）
+                # Phase 52.4-B: 全クラスの確率を保持（2クラス・3クラス対応）
                 probabilities[name] = proba
                 if n_classes is None:
                     n_classes = proba.shape[1]
@@ -709,7 +716,7 @@ class ProductionEnsemble:
 
         final_proba = ensemble_proba / total_weight
 
-        # Phase 51.9-6C: 全クラスの確率を返す（2クラス・3クラス対応）
+        # Phase 52.4-B: 全クラスの確率を返す（2クラス・3クラス対応）
         # 形状: (n_samples, n_classes)
         return final_proba
 
@@ -721,7 +728,7 @@ class ProductionEnsemble:
             "weights": self.weights.copy(),
             "n_features": self.n_features_,
             "feature_names": self.feature_names.copy(),
-            "phase": "Phase 22",
+            "phase": "Phase 52.4-B",
             "status": "production_ready",
         }
 

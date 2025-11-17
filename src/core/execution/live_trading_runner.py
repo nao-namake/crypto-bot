@@ -1,17 +1,14 @@
 """
-ライブトレードランナー - Phase 49完了
+ライブトレードランナー - Phase 52.4
 
-orchestrator.pyから分離したライブトレード実行機能。
 ライブトレードモードの専用処理・実取引管理を担当。
 
-Phase 49完了:
+機能:
 - 実取引管理（trading_cycle_manager統合・取引サイクル実行）
 - 残高確認・証拠金維持率監視
 - セッション統計（cycle_count・trade_count・total_pnl）
 - Discord通知統合（取引開始・取引実行・エラー通知）
-- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
-
-Phase 28-29: ライブトレードモード専用処理・残高確認・実取引管理確立
+- 定期実行制御（thresholds.yaml設定・デフォルト5分間隔）
 """
 
 import asyncio
@@ -96,10 +93,14 @@ class LiveTradingRunner(BaseRunner):
             # 残高確認（最小残高チェック・条件緩和）
             try:
                 balance = await self._check_account_balance()
-                min_balance = get_threshold("trading.minimum_live_balance", 5000)  # 5千円最小（緩和）
+                min_balance = get_threshold(
+                    "trading.minimum_live_balance", 5000
+                )  # 5千円最小（緩和）
 
                 if balance < min_balance:
-                    self.logger.warning(f"⚠️ 残高不足: {balance:,.0f}円 < {min_balance:,.0f}円（監視モードで継続）")
+                    self.logger.warning(
+                        f"⚠️ 残高不足: {balance:,.0f}円 < {min_balance:,.0f}円（監視モードで継続）"
+                    )
                     # 以前は return False でシステム停止していたが、継続するように変更
                     # 監視モードで継続し、システムを停止させない
                 else:
@@ -147,7 +148,9 @@ class LiveTradingRunner(BaseRunner):
 
                         config = load_config("config/core/unified.yaml")
                         drawdown_config = (
-                            config.risk.drawdown_manager if hasattr(config.risk, "drawdown_manager") else {}
+                            config.risk.drawdown_manager
+                            if hasattr(config.risk, "drawdown_manager")
+                            else {}
                         )
                         fallback = getattr(drawdown_config, "fallback_balance", 11000.0)
                         if hasattr(self.orchestrator.execution_service, "current_balance"):
@@ -166,7 +169,9 @@ class LiveTradingRunner(BaseRunner):
                     if hasattr(self.orchestrator.execution_service, "current_balance"):
                         self.orchestrator.execution_service.current_balance = fallback
                     balance = fallback
-                    self.logger.warning(f"⚠️ 残高再取得エラーのためフォールバック使用: {fallback:,.0f}円")
+                    self.logger.warning(
+                        f"⚠️ 残高再取得エラーのためフォールバック使用: {fallback:,.0f}円"
+                    )
 
             return balance
 
@@ -182,8 +187,9 @@ class LiveTradingRunner(BaseRunner):
                 await self._execute_trading_cycle()
                 self.cycle_count += 1
 
-                # 50サイクルごとに統計出力（約2.5時間）
-                if self.cycle_count % 50 == 0:
+                # 定期的に統計出力
+                cycle_interval = get_threshold("live.progress_log_cycle_interval", 50)
+                if self.cycle_count % cycle_interval == 0:
                     await self._log_progress_statistics()
 
                 # ライブトレード実行間隔（外部化・収益性重視）
@@ -222,7 +228,9 @@ class LiveTradingRunner(BaseRunner):
                 "trade_count": self.trade_count,
                 "current_balance": current_balance,
                 "session_pnl": session_pnl,
-                "avg_cycles_per_hour": (round(self.cycle_count / duration_hours, 2) if duration_hours > 0 else 0),
+                "avg_cycles_per_hour": (
+                    round(self.cycle_count / duration_hours, 2) if duration_hours > 0 else 0
+                ),
             }
 
             self.logger.info(
@@ -260,10 +268,16 @@ class LiveTradingRunner(BaseRunner):
             # ライブトレード用のエラーレポートは backtest_reporter を流用
             # （将来的にはlive_trading_reporterを作成可能）
             context = {
-                "session_start": (self.session_start.strftime("%Y-%m-%d %H:%M:%S") if self.session_start else "N/A"),
+                "session_start": (
+                    self.session_start.strftime("%Y-%m-%d %H:%M:%S")
+                    if self.session_start
+                    else "N/A"
+                ),
                 "cycles_completed": self.cycle_count,
                 "trade_count": self.trade_count,
-                "current_balance": getattr(self.orchestrator.execution_service, "current_balance", 0),
+                "current_balance": getattr(
+                    self.orchestrator.execution_service, "current_balance", 0
+                ),
             }
 
             await self.orchestrator.backtest_reporter.save_error_report(error_message, context)
@@ -290,18 +304,28 @@ class LiveTradingRunner(BaseRunner):
     async def _save_final_statistics(self):
         """最終統計保存（オーバーライド）"""
         try:
-            duration_hours = (datetime.now() - self.session_start).total_seconds() / 3600 if self.session_start else 0
+            duration_hours = (
+                (datetime.now() - self.session_start).total_seconds() / 3600
+                if self.session_start
+                else 0
+            )
 
             final_stats = {
                 "mode": "live_trading",
                 "session_info": {
-                    "start": (self.session_start.strftime("%Y-%m-%d %H:%M:%S") if self.session_start else "N/A"),
+                    "start": (
+                        self.session_start.strftime("%Y-%m-%d %H:%M:%S")
+                        if self.session_start
+                        else "N/A"
+                    ),
                     "duration_hours": round(duration_hours, 2),
                 },
                 "performance": {
                     "cycles_completed": self.cycle_count,
                     "trades_executed": self.trade_count,
-                    "final_balance": getattr(self.orchestrator.execution_service, "current_balance", 0),
+                    "final_balance": getattr(
+                        self.orchestrator.execution_service, "current_balance", 0
+                    ),
                     "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
                 },
                 "completion_status": "completed",

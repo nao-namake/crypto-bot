@@ -160,7 +160,9 @@ class TestBBReversalStrategy(unittest.TestCase):
         is_range = self.strategy._is_range_market(df)
         self.assertFalse(is_range)
 
-    @patch("src.strategies.implementations.bb_reversal.SignalBuilder.create_signal_with_risk_management")
+    @patch(
+        "src.strategies.implementations.bb_reversal.SignalBuilder.create_signal_with_risk_management"
+    )
     def test_analyze_sell_signal(self, mock_signal_builder):
         """SELL信号生成テスト - BB上限タッチ + RSI買われすぎ"""
         # SELL条件: bb_position > 0.95, rsi > 70, ADX < 20
@@ -182,7 +184,9 @@ class TestBBReversalStrategy(unittest.TestCase):
         self.assertGreater(decision["confidence"], 0.25)
         self.assertGreater(decision["strength"], 0)
 
-    @patch("src.strategies.implementations.bb_reversal.SignalBuilder.create_signal_with_risk_management")
+    @patch(
+        "src.strategies.implementations.bb_reversal.SignalBuilder.create_signal_with_risk_management"
+    )
     def test_analyze_buy_signal(self, mock_signal_builder):
         """BUY信号生成テスト - BB下限タッチ + RSI売られすぎ"""
         # BUY条件: bb_position < 0.05, rsi < 30, ADX < 20

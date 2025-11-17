@@ -1,13 +1,17 @@
 # Phase 52.2-production-simulation-final バックテスト記録
 
-**実施日**: 2025/11/12
+**Phase 52.4**
+
+**実施日**: 2025年11月12日
+
+**注**: 特徴量数・戦略数・システム設定は`config/core/feature_order.json`・`config/core/strategies.yaml`・`config/core/thresholds.yaml`を参照
 
 ---
 
 ## 実施目的
 
 Phase 52.2-production-simulation-final実装の効果検証を目的としたバックテスト実行。
-過去180日間のBTC/JPY 15分足データを使用し、本番環境と同一ロジックで検証。
+BTC/JPY 15分足データを使用し、本番環境と同一ロジックで検証。
 
 ---
 
@@ -110,4 +114,22 @@ Phase 52.2-production-simulation-final実装の効果検証を目的としたバ
 
 ---
 
-**レポート生成日時**: 2025/11/12 17:40:53
+## 📁 関連ファイル
+
+### **設定ファイル**
+- `config/core/feature_order.json`: 特徴量定義（Single Source of Truth）
+- `config/core/strategies.yaml`: 戦略定義（Single Source of Truth）
+- `config/core/thresholds.yaml`: TP/SL設定・ML統合設定
+
+### **開発履歴**
+- `docs/開発履歴/Phase_52.md`: Phase 52実装詳細
+
+### **バックテストシステム**
+- `src/backtest/`: バックテスト実装
+- `logs/backtest/`: バックテストログ
+
+---
+
+**📅 作成日**: 2025年11月12日（Phase 52.4更新: 2025年11月15日）
+**📝 作成者**: Claude Code
+**🏷️ タグ**: Phase 52.2, バックテスト, 本番シミュレーション

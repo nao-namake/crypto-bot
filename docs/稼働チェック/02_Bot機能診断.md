@@ -4,7 +4,7 @@
 
 **使用場面**:
 - デプロイ後のBot機能稼働確認
-- 55特徴量生成（49基本+6戦略信号）・6戦略判定・ML予測の健全性チェック
+- 特徴量生成・戦略判定・ML予測の健全性チェック
 - Silent Failure・取引阻害エラーの早期検知
 - 定期的なBot機能診断（毎日推奨）
 
@@ -14,13 +14,11 @@
 - 実装履歴は開発履歴ドキュメント参照
 - Bot機能のみに特化（基盤システムは01参照）
 
-**現在のシステム状態**: Phase 51.7完了（2025/11/08）
-- 55特徴量システム（49基本+6戦略信号）・2段階Graceful Degradation
-- 6戦略統合（Range型4戦略68%・Trend型2戦略32%）
-- ML統合率100%達成（閾値0.45/0.60最適化・3段階統合ロジック）
-- TP/SL最適化（SL 0.7%・TP 0.9%・RR比1.29:1・Phase 51.6）
+**現在のシステム状態**: Phase 52.4完了（2025/11/15）
+- 2段階Graceful Degradation（ensemble_full.pkl → ensemble_basic.pkl → DummyModel）
+- ML統合率100%達成（thresholds.yamlに閾値定義）
 - Atomic Entry Pattern実装（Entry/TP/SL一体保証・Exponential Backoff retry）
-- Dynamic Strategy Management（Registry+Decorator+Facadeパターン・Phase 51.5-B）
+- Dynamic Strategy Management（Registry+Decorator+Facadeパターン）
 
 ## ⚠️ 重要: まずREADME.mdを読んでください
 
@@ -30,22 +28,22 @@
 
 ## 🎯 診断対象
 
-- 📊 **55特徴量システム**: 49基本+6戦略信号・2段階Graceful Degradation（Phase 51.7）
-- 🎯 **6戦略動的信頼度**: Range型4戦略（ATR・BBReversal・StochasticReversal・Donchian）+ Trend型2戦略（ADX・MACDEMACrossover）統合（小数点第3位変動確認）
-- 🏗️ **Dynamic Strategy Management**: Registry+Decorator+Facadeパターン（Phase 51.5-B）
-- 🤖 **3モデルMLアンサンブル**: LightGBM 40%・XGBoost 40%・RandomForest 20%
-- 💚 **ML予測統合**: 3段階統合ロジック（<0.45戦略のみ・0.45-0.60加重平均・≥0.60ボーナス/ペナルティ）・ML統合率100%達成（Phase 41.8.5）
+- 📊 **特徴量システム**: 2段階Graceful Degradation（feature_order.jsonに定義）
+- 🎯 **戦略動的信頼度**: 戦略統合（strategies.yamlに定義・小数点第3位変動確認）
+- 🏗️ **Dynamic Strategy Management**: Registry+Decorator+Facadeパターン
+- 🤖 **3モデルMLアンサンブル**: LightGBM・XGBoost・RandomForest（thresholds.yamlに重み定義）
+- 💚 **ML予測統合**: ML統合率100%達成（thresholds.yamlに閾値定義）
 - 💱 **Kelly基準**: ポジションサイジング・動的計算
-- 🔄 **統合シグナル生成**: 戦略→ML→統合フロー・SELL Only問題解決（Phase 49）
+- 🔄 **統合シグナル生成**: 戦略→ML→統合フロー
 - 🔍 **Silent Failure**: シグナル生成→実行断絶検出
 - 💰 **取引機能**: 最小ロット優先・ML信頼度連動制限
-- 🎯 **TP/SL機能**: 最適化設定（SL 0.7%・TP 0.9%・RR比1.29:1・Phase 51.6）
-- 🛡️ **Atomic Entry Pattern**: Entry/TP/SL一体保証・Exponential Backoff retry（Phase 51.6）
+- 🎯 **TP/SL機能**: 最適化設定（thresholds.yamlに定義）
+- 🛡️ **Atomic Entry Pattern**: Entry/TP/SL一体保証・Exponential Backoff retry
 - 📊 **リスク管理**: SL/TP計算・適応型ATR倍率
-- ⏰ **時間軸管理**: 15m足ATR使用・クールダウン柔軟化
+- ⏰ **時間軸管理**: ATR使用・クールダウン柔軟化
 - 🎲 **動的信頼度**: 変動幅拡大・override_atr設定
-- 📊 **TradeTracker統合**: エントリー/エグジットペアリング・損益計算（Phase 49）
-- 📈 **Market Regime Classification**: 4段階市場状況分類・動的戦略選択（Phase 51.1-51.4）
+- 📊 **TradeTracker統合**: エントリー/エグジットペアリング・損益計算
+- 📈 **Market Regime Classification**: 市場状況分類・動的戦略選択
 
 ## 📂 関連ファイル
 
@@ -852,4 +850,4 @@ bash 02_Bot機能診断.sh --detail-signal
 
 **🎯 重要**: このファイルはBot固有機能をチェックします。基盤システム（インフラ）の問題が検出された場合は、まず **01_システム稼働診断.md** で基盤を修正してからBot機能診断を実行してください。
 
-**最終更新**: 2025年11月08日 - Phase 51.7完了対応（55特徴量・6戦略・3段階ML統合ロジック・Atomic Entry Pattern・Dynamic Strategy Management）
+**最終更新**: 2025年11月15日 - Phase 52.4完了対応（設定一元化・ハードコード撲滅）

@@ -174,7 +174,9 @@ class TestTradingLoggerService:
         with patch.object(trading_logger, "_log_successful_execution") as mock_success:
             await trading_logger.log_execution_result(execution_result, "test-cycle", is_stop=True)
 
-            mock_success.assert_called_once_with(execution_result, "test-cycle", "🛑 自動決済: ", "✅")
+            mock_success.assert_called_once_with(
+                execution_result, "test-cycle", "🛑 自動決済: ", "✅"
+            )
 
     @pytest.mark.asyncio
     async def test_log_successful_execution_buy(self, trading_logger):
@@ -194,7 +196,9 @@ class TestTradingLoggerService:
                 "サイド: BUY, 数量: 0.1234 BTC, 価格: ¥3,500,000, "
                 "PnL: 💰¥5,000, 手数料: ¥1,500.00"  # Phase 51.8-J4-D: .2f対応
             )
-            trading_logger.logger.info.assert_called_once_with(expected_message, discord_notify=True)
+            trading_logger.logger.info.assert_called_once_with(
+                expected_message, discord_notify=True
+            )
             mock_stats.assert_called_once()
 
     @pytest.mark.asyncio
@@ -208,14 +212,18 @@ class TestTradingLoggerService:
         execution_result.fee = 1200
 
         with patch.object(trading_logger, "_check_and_log_statistics") as mock_stats:
-            await trading_logger._log_successful_execution(execution_result, "test-cycle-sell", "🛑 自動決済: ", "✅")
+            await trading_logger._log_successful_execution(
+                execution_result, "test-cycle-sell", "🛑 自動決済: ", "✅"
+            )
 
             expected_message = (
                 "🛑 自動決済: ✅ 📉 注文実行成功 - サイクル: test-cycle-sell, "
                 "サイド: SELL, 数量: 0.0500 BTC, 価格: ¥3,400,000, "
                 "PnL: 💸¥-2,000, 手数料: ¥1,200.00"  # Phase 51.8-J4-D: .2f対応
             )
-            trading_logger.logger.info.assert_called_once_with(expected_message, discord_notify=True)
+            trading_logger.logger.info.assert_called_once_with(
+                expected_message, discord_notify=True
+            )
 
     @pytest.mark.asyncio
     async def test_log_successful_execution_no_pnl_no_fee(self, trading_logger):
@@ -231,9 +239,12 @@ class TestTradingLoggerService:
             await trading_logger._log_successful_execution(execution_result, "test-cycle", "", "✅")
 
             expected_message = (
-                "✅ 📈 注文実行成功 - サイクル: test-cycle, " "サイド: BUY, 数量: 0.0800 BTC, 価格: ¥3,300,000"
+                "✅ 📈 注文実行成功 - サイクル: test-cycle, "
+                "サイド: BUY, 数量: 0.0800 BTC, 価格: ¥3,300,000"
             )
-            trading_logger.logger.info.assert_called_once_with(expected_message, discord_notify=True)
+            trading_logger.logger.info.assert_called_once_with(
+                expected_message, discord_notify=True
+            )
 
     @pytest.mark.asyncio
     async def test_log_failed_execution(self, trading_logger):
@@ -241,10 +252,13 @@ class TestTradingLoggerService:
         execution_result = MagicMock()
         execution_result.error_message = "API Error: Insufficient funds"
 
-        await trading_logger._log_failed_execution(execution_result, "test-cycle-fail", "🛑 自動決済: ", "❌")
+        await trading_logger._log_failed_execution(
+            execution_result, "test-cycle-fail", "🛑 自動決済: ", "❌"
+        )
 
         expected_message = (
-            "🛑 自動決済: ❌ 注文実行失敗 - サイクル: test-cycle-fail, " "エラー: API Error: Insufficient funds"
+            "🛑 自動決済: ❌ 注文実行失敗 - サイクル: test-cycle-fail, "
+            "エラー: API Error: Insufficient funds"
         )
         trading_logger.logger.warning.assert_called_once_with(expected_message, discord_notify=True)
 
@@ -293,7 +307,9 @@ class TestTradingLoggerService:
     @pytest.mark.asyncio
     async def test_check_and_log_statistics_exception(self, trading_logger):
         """統計チェック - 例外処理テスト"""
-        trading_logger.orchestrator.execution_service.get_trading_statistics.side_effect = Exception("stats error")
+        trading_logger.orchestrator.execution_service.get_trading_statistics.side_effect = (
+            Exception("stats error")
+        )
 
         await trading_logger._check_and_log_statistics()
 
@@ -368,7 +384,9 @@ class TestTradingLoggerService:
         result = trading_logger.format_performance_summary(stats)
 
         assert result == {}
-        trading_logger.logger.error.assert_called_once_with("❌ パフォーマンスサマリーフォーマットエラー: format error")
+        trading_logger.logger.error.assert_called_once_with(
+            "❌ パフォーマンスサマリーフォーマットエラー: format error"
+        )
 
     @pytest.mark.asyncio
     async def test_log_cycle_start(self, trading_logger):
@@ -377,7 +395,9 @@ class TestTradingLoggerService:
 
         await trading_logger.log_cycle_start(cycle_id)
 
-        trading_logger.logger.debug.assert_called_once_with("🔄 取引サイクル開始 - ID: cycle-start-001")
+        trading_logger.logger.debug.assert_called_once_with(
+            "🔄 取引サイクル開始 - ID: cycle-start-001"
+        )
 
     @pytest.mark.asyncio
     async def test_log_cycle_end(self, trading_logger):

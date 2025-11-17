@@ -1,17 +1,15 @@
 """
-ペーパートレードレポーター - Phase 49完了
+ペーパートレードレポーター - Phase 52.4
 
-orchestrator.pyから分離したペーパートレードレポート生成機能。
-ペーパートレードセッションの統計・レポート作成を担当。
+ペーパートレードセッションのレポート生成機能。
+BaseReporter継承による統一インターフェース実装。
 
-Phase 49完了:
+主要機能:
 - セッションレポート生成（cycle数・取引統計・session_stats）
 - 取引履歴レポート生成（trade_history・時系列記録）
 - パフォーマンスレポート生成（勝率・損益・ドローダウン）
 - Markdown・JSON両形式出力
-- thresholds.yaml設定準拠（reporting.paper_trading_dir: logs/paper_trading_reports）
-
-Phase 28-29: ペーパートレードレポート専門化・Markdown/JSON生成
+- 設定駆動型（thresholds.yaml: reporting.paper_trading_dir）
 """
 
 import json
@@ -59,7 +57,9 @@ class PaperTradingReporter(BaseReporter):
             performance_stats = self._calculate_session_stats(session_stats)
 
             # マークダウンレポート生成
-            report_content = self._generate_markdown_report(session_stats, timestamp, performance_stats)
+            report_content = self._generate_markdown_report(
+                session_stats, timestamp, performance_stats
+            )
 
             # ファイル保存
             with open(filepath, "w", encoding="utf-8") as f:
@@ -133,8 +133,7 @@ class PaperTradingReporter(BaseReporter):
 - **実行結果**: ✅ SUCCESS
 
 ## 🎯 システム情報
-- **Phase**: 22（リファクタリング・責任分離対応）
-- **レポーター**: PaperTradingReporter（分離済み）
+- **レポーター**: PaperTradingReporter
 - **取引モード**: Paper Trading（仮想取引）
 - **実行環境**: TradingOrchestrator
 
@@ -157,7 +156,9 @@ class PaperTradingReporter(BaseReporter):
                 action = trade.get("action", "N/A")
                 price = trade.get("price", 0)
                 confidence = trade.get("confidence", 0)
-                report_content += f"{i}. {time} - {action} @ ¥{price:,.0f} (信頼度: {confidence:.2f})\n"
+                report_content += (
+                    f"{i}. {time} - {action} @ ¥{price:,.0f} (信頼度: {confidence:.2f})\n"
+                )
         else:
             report_content += "取引実行はありませんでした。\n"
 
@@ -185,7 +186,7 @@ class PaperTradingReporter(BaseReporter):
 - パフォーマンス改善の余地
 
 ---
-*このレポートは PaperTradingReporter により自動生成されました（Phase 22分離版）*
+*このレポートは PaperTradingReporter により自動生成されました*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
@@ -199,7 +200,9 @@ class PaperTradingReporter(BaseReporter):
             session_stats: セッション統計データ
             timestamp: レポート生成時刻
         """
-        json_filepath = self.paper_report_dir / f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        json_filepath = (
+            self.paper_report_dir / f"paper_trading_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+        )
 
         json_data = {
             "timestamp": timestamp.isoformat(),
@@ -214,7 +217,9 @@ class PaperTradingReporter(BaseReporter):
         with open(json_filepath, "w", encoding="utf-8") as f:
             json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
 
-    async def save_session_error_report(self, error_message: str, session_stats: Dict = None) -> Path:
+    async def save_session_error_report(
+        self, error_message: str, session_stats: Dict = None
+    ) -> Path:
         """
         ペーパートレードセッションエラーレポート生成
 
@@ -237,7 +242,6 @@ class PaperTradingReporter(BaseReporter):
 - **エラーメッセージ**: {error_message}
 
 ## 🎯 システム情報
-- **Phase**: 22（PaperTradingReporter分離版）
 - **レポーター**: PaperTradingReporter
 - **エラー種別**: ペーパートレードセッションエラー
 
@@ -277,7 +281,9 @@ class PaperTradingReporter(BaseReporter):
             self.logger.error(f"ペーパートレードエラーレポート保存失敗: {e}")
             raise
 
-    def format_discord_notification(self, performance_stats: Dict[str, Any], session_duration_hours: int) -> Dict:
+    def format_discord_notification(
+        self, performance_stats: Dict[str, Any], session_duration_hours: int
+    ) -> Dict:
         """
         Discord通知用フォーマット
 
@@ -288,11 +294,16 @@ class PaperTradingReporter(BaseReporter):
         Returns:
             Discord embed形式データ
         """
-        color = 0x00FF00 if performance_stats["session_pnl"] > 0 else 0xFF0000
+        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
+        from ..config import get_threshold
+
+        success_color = get_threshold("reporting.discord.colors.success", 0x00FF00)
+        error_color = get_threshold("reporting.discord.colors.error", 0xFF0000)
+        color = success_color if performance_stats["session_pnl"] > 0 else error_color
 
         embed = {
             "title": "📊 ペーパートレードセッション報告",
-            "description": "ペーパートレードセッションが完了しました（Phase 22分離版）",
+            "description": "ペーパートレードセッションが完了しました",
             "color": color,
             "timestamp": datetime.now().isoformat(),
             "fields": [

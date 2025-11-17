@@ -1,5 +1,5 @@
 """
-設定クラス統合ファイル - Phase 49完了
+設定クラス統合ファイル - Phase 52.4
 
 全ての設定dataclassを一元管理。以下の5設定クラスを提供：
 - ExchangeConfig: 取引所接続設定（bitbank API・レート制限・タイムアウト）
@@ -7,9 +7,6 @@
 - RiskConfig: リスク管理設定（Kelly基準・ドローダウン制限・ポジション上限）
 - DataConfig: データ取得設定（時間足・キャッシュ・履歴期間）
 - LoggingConfig: ログ設定（レベル・ファイル出力・保持期間）
-
-Phase 49完了: 5設定クラス統合・dataclass型安全設計・Optional対応
-Phase 28-29: 設定クラス統合・dataclass設計確立
 """
 
 from dataclasses import dataclass

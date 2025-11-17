@@ -1,6 +1,30 @@
 #!/usr/bin/env python3
 """
-Phase 40.2: 戦略パラメータ最適化スクリプト
+⚠️ DEPRECATED - Phase 52.4非対応
+
+このファイルは5戦略システム用に設計されています。
+Phase 52.4では6戦略を使用しているため、このファイルを実行するとエラーになります。
+
+【旧システム（5戦略）】:
+- MochipoyAlert ❌ Phase 52.4では削除済み
+- MultiTimeframe ❌ Phase 52.4では削除済み
+- DonchianChannel ✅ Phase 52.4でも使用中
+- ADXTrend → ADXTrendStrength（名前変更）
+- ATRBased ✅ Phase 52.4でも使用中
+
+【Phase 52.4システム（6戦略）】:
+- ATRBased ✅
+- DonchianChannel ✅
+- ADXTrendStrength ✅
+- BBReversal ❌ このファイルには未実装
+- MACDEMACrossover ❌ このファイルには未実装
+- StochasticReversal ❌ このファイルには未実装
+
+Phase 53以降で6戦略対応版の実装を検討予定。
+
+---
+
+Phase 40.2: 戦略パラメータ最適化スクリプト（Phase 40設計・Phase 52.4非対応）
 
 Optunaを使用して5戦略のパラメータを最適化：
 - MochipoyAlert: 動的信頼度パラメータ（buy_strong/weak, sell_strong/weak等）
@@ -92,7 +116,9 @@ class StrategyParameterOptimizer:
             # 6. 進捗表示
             if sharpe_ratio > self.best_sharpe:
                 self.best_sharpe = sharpe_ratio
-                self.logger.info(f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}")
+                self.logger.info(
+                    f"🎯 Trial {self.trial_count}: 新ベスト シャープレシオ={sharpe_ratio:.4f}"
+                )
 
             return sharpe_ratio
 
@@ -118,8 +144,8 @@ class StrategyParameterOptimizer:
         # ========================================
 
         # 買いシグナル強信頼度
-        params["dynamic_confidence.strategies.mochipoy_alert.buy_strong_base"] = trial.suggest_float(
-            "mochipoy_buy_strong_base", 0.60, 0.80, step=0.05
+        params["dynamic_confidence.strategies.mochipoy_alert.buy_strong_base"] = (
+            trial.suggest_float("mochipoy_buy_strong_base", 0.60, 0.80, step=0.05)
         )
 
         # 買いシグナル弱信頼度
@@ -128,8 +154,8 @@ class StrategyParameterOptimizer:
         )
 
         # 売りシグナル強信頼度
-        params["dynamic_confidence.strategies.mochipoy_alert.sell_strong_base"] = trial.suggest_float(
-            "mochipoy_sell_strong_base", 0.55, 0.75, step=0.05
+        params["dynamic_confidence.strategies.mochipoy_alert.sell_strong_base"] = (
+            trial.suggest_float("mochipoy_sell_strong_base", 0.55, 0.75, step=0.05)
         )
 
         # 売りシグナル弱信頼度
@@ -147,18 +173,18 @@ class StrategyParameterOptimizer:
         # ========================================
 
         # 完全一致信頼度
-        params["dynamic_confidence.strategies.multi_timeframe.agreement_base"] = trial.suggest_float(
-            "mtf_agreement_base", 0.65, 0.85, step=0.05
+        params["dynamic_confidence.strategies.multi_timeframe.agreement_base"] = (
+            trial.suggest_float("mtf_agreement_base", 0.65, 0.85, step=0.05)
         )
 
         # 部分一致信頼度
-        params["dynamic_confidence.strategies.multi_timeframe.partial_agreement_base"] = trial.suggest_float(
-            "mtf_partial_agreement_base", 0.40, 0.60, step=0.05
+        params["dynamic_confidence.strategies.multi_timeframe.partial_agreement_base"] = (
+            trial.suggest_float("mtf_partial_agreement_base", 0.40, 0.60, step=0.05)
         )
 
         # 不一致信頼度
-        params["dynamic_confidence.strategies.multi_timeframe.no_agreement_base"] = trial.suggest_float(
-            "mtf_no_agreement_base", 0.15, 0.35, step=0.05
+        params["dynamic_confidence.strategies.multi_timeframe.no_agreement_base"] = (
+            trial.suggest_float("mtf_no_agreement_base", 0.15, 0.35, step=0.05)
         )
 
         # 4時間足重み
@@ -176,18 +202,18 @@ class StrategyParameterOptimizer:
         # ========================================
 
         # ブレイクアウト信頼度
-        params["dynamic_confidence.strategies.donchian_channel.breakout_base"] = trial.suggest_float(
-            "donchian_breakout_base", 0.50, 0.70, step=0.05
+        params["dynamic_confidence.strategies.donchian_channel.breakout_base"] = (
+            trial.suggest_float("donchian_breakout_base", 0.50, 0.70, step=0.05)
         )
 
         # リバーサル信頼度
-        params["dynamic_confidence.strategies.donchian_channel.reversal_base"] = trial.suggest_float(
-            "donchian_reversal_base", 0.40, 0.60, step=0.05
+        params["dynamic_confidence.strategies.donchian_channel.reversal_base"] = (
+            trial.suggest_float("donchian_reversal_base", 0.40, 0.60, step=0.05)
         )
 
         # 弱シグナル信頼度
-        params["dynamic_confidence.strategies.donchian_channel.weak_signal_base"] = trial.suggest_float(
-            "donchian_weak_base", 0.20, 0.40, step=0.05
+        params["dynamic_confidence.strategies.donchian_channel.weak_signal_base"] = (
+            trial.suggest_float("donchian_weak_base", 0.20, 0.40, step=0.05)
         )
 
         # ブレイクアウト閾値（価格変動率）
@@ -225,10 +251,14 @@ class StrategyParameterOptimizer:
         )
 
         # 中程度トレンド最小値
-        params["strategies.adx_trend.moderate_trend_min"] = trial.suggest_int("adx_moderate_min", 10, 20, step=1)
+        params["strategies.adx_trend.moderate_trend_min"] = trial.suggest_int(
+            "adx_moderate_min", 10, 20, step=1
+        )
 
         # 中程度トレンド最大値（強トレンド閾値と同じ）
-        params["strategies.adx_trend.moderate_trend_max"] = params["strategies.adx_trend.strong_trend_threshold"]
+        params["strategies.adx_trend.moderate_trend_max"] = params[
+            "strategies.adx_trend.strong_trend_threshold"
+        ]
 
         # DI交差閾値
         params["strategies.adx_trend.di_crossover_threshold"] = trial.suggest_float(
@@ -245,13 +275,13 @@ class StrategyParameterOptimizer:
         # ========================================
 
         # 高ボラティリティ信頼度
-        params["dynamic_confidence.strategies.atr_based.high_volatility_base"] = trial.suggest_float(
-            "atr_high_vol_base", 0.45, 0.65, step=0.05
+        params["dynamic_confidence.strategies.atr_based.high_volatility_base"] = (
+            trial.suggest_float("atr_high_vol_base", 0.45, 0.65, step=0.05)
         )
 
         # 通常ボラティリティ信頼度
-        params["dynamic_confidence.strategies.atr_based.normal_volatility_base"] = trial.suggest_float(
-            "atr_normal_vol_base", 0.35, 0.55, step=0.05
+        params["dynamic_confidence.strategies.atr_based.normal_volatility_base"] = (
+            trial.suggest_float("atr_normal_vol_base", 0.35, 0.55, step=0.05)
         )
 
         # 低ボラティリティ信頼度
@@ -260,16 +290,24 @@ class StrategyParameterOptimizer:
         )
 
         # RSI買われすぎ閾値
-        params["strategies.atr_based.rsi_overbought"] = trial.suggest_int("atr_rsi_overbought", 60, 75, step=1)
+        params["strategies.atr_based.rsi_overbought"] = trial.suggest_int(
+            "atr_rsi_overbought", 60, 75, step=1
+        )
 
         # RSI売られすぎ閾値
-        params["strategies.atr_based.rsi_oversold"] = trial.suggest_int("atr_rsi_oversold", 25, 40, step=1)
+        params["strategies.atr_based.rsi_oversold"] = trial.suggest_int(
+            "atr_rsi_oversold", 25, 40, step=1
+        )
 
         # ボリンジャーバンド買われすぎ閾値
-        params["strategies.atr_based.bb_overbought"] = trial.suggest_float("atr_bb_overbought", 0.6, 0.85, step=0.05)
+        params["strategies.atr_based.bb_overbought"] = trial.suggest_float(
+            "atr_bb_overbought", 0.6, 0.85, step=0.05
+        )
 
         # ボリンジャーバンド売られすぎ閾値
-        params["strategies.atr_based.bb_oversold"] = trial.suggest_float("atr_bb_oversold", 0.15, 0.40, step=0.05)
+        params["strategies.atr_based.bb_oversold"] = trial.suggest_float(
+            "atr_bb_oversold", 0.15, 0.40, step=0.05
+        )
 
         return params
 
@@ -285,24 +323,44 @@ class StrategyParameterOptimizer:
         """
         return {
             # MochipoyAlert
-            "mochipoy_buy_strong_base": trial.suggest_float("mochipoy_buy_strong_base", 0.60, 0.80, step=0.05),
-            "mochipoy_buy_weak_base": trial.suggest_float("mochipoy_buy_weak_base", 0.35, 0.55, step=0.05),
-            "mochipoy_sell_strong_base": trial.suggest_float("mochipoy_sell_strong_base", 0.55, 0.75, step=0.05),
-            "mochipoy_sell_weak_base": trial.suggest_float("mochipoy_sell_weak_base", 0.30, 0.50, step=0.05),
-            "mochipoy_neutral_base": trial.suggest_float("mochipoy_neutral_base", 0.15, 0.35, step=0.05),
+            "mochipoy_buy_strong_base": trial.suggest_float(
+                "mochipoy_buy_strong_base", 0.60, 0.80, step=0.05
+            ),
+            "mochipoy_buy_weak_base": trial.suggest_float(
+                "mochipoy_buy_weak_base", 0.35, 0.55, step=0.05
+            ),
+            "mochipoy_sell_strong_base": trial.suggest_float(
+                "mochipoy_sell_strong_base", 0.55, 0.75, step=0.05
+            ),
+            "mochipoy_sell_weak_base": trial.suggest_float(
+                "mochipoy_sell_weak_base", 0.30, 0.50, step=0.05
+            ),
+            "mochipoy_neutral_base": trial.suggest_float(
+                "mochipoy_neutral_base", 0.15, 0.35, step=0.05
+            ),
             # MultiTimeframe
             "mtf_agreement_base": trial.suggest_float("mtf_agreement_base", 0.65, 0.85, step=0.05),
-            "mtf_partial_agreement_base": trial.suggest_float("mtf_partial_agreement_base", 0.40, 0.60, step=0.05),
-            "mtf_no_agreement_base": trial.suggest_float("mtf_no_agreement_base", 0.15, 0.35, step=0.05),
+            "mtf_partial_agreement_base": trial.suggest_float(
+                "mtf_partial_agreement_base", 0.40, 0.60, step=0.05
+            ),
+            "mtf_no_agreement_base": trial.suggest_float(
+                "mtf_no_agreement_base", 0.15, 0.35, step=0.05
+            ),
             "mtf_4h_weight": trial.suggest_float("mtf_4h_weight", 0.5, 0.7, step=0.05),
             # DonchianChannel
-            "donchian_breakout_base": trial.suggest_float("donchian_breakout_base", 0.50, 0.70, step=0.05),
-            "donchian_reversal_base": trial.suggest_float("donchian_reversal_base", 0.40, 0.60, step=0.05),
+            "donchian_breakout_base": trial.suggest_float(
+                "donchian_breakout_base", 0.50, 0.70, step=0.05
+            ),
+            "donchian_reversal_base": trial.suggest_float(
+                "donchian_reversal_base", 0.40, 0.60, step=0.05
+            ),
             "donchian_weak_base": trial.suggest_float("donchian_weak_base", 0.20, 0.40, step=0.05),
             "donchian_breakout_threshold": trial.suggest_float(
                 "donchian_breakout_threshold", 0.001, 0.005, step=0.0005
             ),
-            "donchian_reversal_threshold": trial.suggest_float("donchian_reversal_threshold", 0.03, 0.10, step=0.01),
+            "donchian_reversal_threshold": trial.suggest_float(
+                "donchian_reversal_threshold", 0.03, 0.10, step=0.01
+            ),
             # ADXTrendStrength
             "adx_strong_base": trial.suggest_float("adx_strong_base", 0.55, 0.75, step=0.05),
             "adx_moderate_base": trial.suggest_float("adx_moderate_base", 0.40, 0.60, step=0.05),
@@ -313,7 +371,9 @@ class StrategyParameterOptimizer:
             "adx_di_confirmation": trial.suggest_float("adx_di_confirmation", 0.2, 0.5, step=0.1),
             # ATRBased
             "atr_high_vol_base": trial.suggest_float("atr_high_vol_base", 0.45, 0.65, step=0.05),
-            "atr_normal_vol_base": trial.suggest_float("atr_normal_vol_base", 0.35, 0.55, step=0.05),
+            "atr_normal_vol_base": trial.suggest_float(
+                "atr_normal_vol_base", 0.35, 0.55, step=0.05
+            ),
             "atr_low_vol_base": trial.suggest_float("atr_low_vol_base", 0.25, 0.45, step=0.05),
             "atr_rsi_overbought": trial.suggest_int("atr_rsi_overbought", 60, 75, step=1),
             "atr_rsi_oversold": trial.suggest_int("atr_rsi_oversold", 25, 40, step=1),
@@ -335,11 +395,21 @@ class StrategyParameterOptimizer:
             # ========================================
             # 1. MochipoyAlert検証
             # ========================================
-            mochipoy_buy_strong = params.get("dynamic_confidence.strategies.mochipoy_alert.buy_strong_base", 0.70)
-            mochipoy_buy_weak = params.get("dynamic_confidence.strategies.mochipoy_alert.buy_weak_base", 0.45)
-            mochipoy_sell_strong = params.get("dynamic_confidence.strategies.mochipoy_alert.sell_strong_base", 0.65)
-            mochipoy_sell_weak = params.get("dynamic_confidence.strategies.mochipoy_alert.sell_weak_base", 0.40)
-            mochipoy_neutral = params.get("dynamic_confidence.strategies.mochipoy_alert.neutral_base", 0.25)
+            mochipoy_buy_strong = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_strong_base", 0.70
+            )
+            mochipoy_buy_weak = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_weak_base", 0.45
+            )
+            mochipoy_sell_strong = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_strong_base", 0.65
+            )
+            mochipoy_sell_weak = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.sell_weak_base", 0.40
+            )
+            mochipoy_neutral = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.neutral_base", 0.25
+            )
 
             # 強 > 弱 > ニュートラル
             if not (mochipoy_buy_strong > mochipoy_buy_weak > mochipoy_neutral):
@@ -350,26 +420,42 @@ class StrategyParameterOptimizer:
             # ========================================
             # 2. MultiTimeframe検証
             # ========================================
-            mtf_agreement = params.get("dynamic_confidence.strategies.multi_timeframe.agreement_base", 0.75)
-            mtf_partial = params.get("dynamic_confidence.strategies.multi_timeframe.partial_agreement_base", 0.50)
-            mtf_no_agreement = params.get("dynamic_confidence.strategies.multi_timeframe.no_agreement_base", 0.25)
+            mtf_agreement = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.agreement_base", 0.75
+            )
+            mtf_partial = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.partial_agreement_base", 0.50
+            )
+            mtf_no_agreement = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.no_agreement_base", 0.25
+            )
 
             # 完全一致 > 部分一致 > 不一致
             if not (mtf_agreement > mtf_partial > mtf_no_agreement):
                 return False
 
             # 重み合計 = 1.0
-            mtf_4h_weight = params.get("dynamic_confidence.strategies.multi_timeframe.tf_4h_weight", 0.6)
-            mtf_15m_weight = params.get("dynamic_confidence.strategies.multi_timeframe.tf_15m_weight", 0.4)
+            mtf_4h_weight = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.tf_4h_weight", 0.6
+            )
+            mtf_15m_weight = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.tf_15m_weight", 0.4
+            )
             if not np.isclose(mtf_4h_weight + mtf_15m_weight, 1.0):
                 return False
 
             # ========================================
             # 3. DonchianChannel検証
             # ========================================
-            donchian_breakout = params.get("dynamic_confidence.strategies.donchian_channel.breakout_base", 0.60)
-            donchian_reversal = params.get("dynamic_confidence.strategies.donchian_channel.reversal_base", 0.50)
-            donchian_weak = params.get("dynamic_confidence.strategies.donchian_channel.weak_signal_base", 0.30)
+            donchian_breakout = params.get(
+                "dynamic_confidence.strategies.donchian_channel.breakout_base", 0.60
+            )
+            donchian_reversal = params.get(
+                "dynamic_confidence.strategies.donchian_channel.reversal_base", 0.50
+            )
+            donchian_weak = params.get(
+                "dynamic_confidence.strategies.donchian_channel.weak_signal_base", 0.30
+            )
 
             # ブレイクアウト > リバーサル > 弱シグナル
             if not (donchian_breakout > donchian_reversal > donchian_weak):
@@ -397,9 +483,15 @@ class StrategyParameterOptimizer:
             # ========================================
             # 5. ATRBased検証
             # ========================================
-            atr_high = params.get("dynamic_confidence.strategies.atr_based.high_volatility_base", 0.55)
-            atr_normal = params.get("dynamic_confidence.strategies.atr_based.normal_volatility_base", 0.45)
-            atr_low = params.get("dynamic_confidence.strategies.atr_based.low_volatility_base", 0.35)
+            atr_high = params.get(
+                "dynamic_confidence.strategies.atr_based.high_volatility_base", 0.55
+            )
+            atr_normal = params.get(
+                "dynamic_confidence.strategies.atr_based.normal_volatility_base", 0.45
+            )
+            atr_low = params.get(
+                "dynamic_confidence.strategies.atr_based.low_volatility_base", 0.35
+            )
 
             # 高 > 通常 > 低
             if not (atr_high > atr_normal > atr_low):
@@ -455,15 +547,21 @@ class StrategyParameterOptimizer:
             score = 1.0
 
             # MochipoyAlert
-            mochipoy_buy_strong = params.get("dynamic_confidence.strategies.mochipoy_alert.buy_strong_base", 0.70)
+            mochipoy_buy_strong = params.get(
+                "dynamic_confidence.strategies.mochipoy_alert.buy_strong_base", 0.70
+            )
             score -= abs(mochipoy_buy_strong - ideal_params["mochipoy_buy_strong"]) * 0.5
 
             # MultiTimeframe
-            mtf_agreement = params.get("dynamic_confidence.strategies.multi_timeframe.agreement_base", 0.75)
+            mtf_agreement = params.get(
+                "dynamic_confidence.strategies.multi_timeframe.agreement_base", 0.75
+            )
             score -= abs(mtf_agreement - ideal_params["mtf_agreement"]) * 0.5
 
             # DonchianChannel
-            donchian_breakout = params.get("dynamic_confidence.strategies.donchian_channel.breakout_base", 0.60)
+            donchian_breakout = params.get(
+                "dynamic_confidence.strategies.donchian_channel.breakout_base", 0.60
+            )
             score -= abs(donchian_breakout - ideal_params["donchian_breakout"]) * 0.5
 
             # ADXTrend
@@ -471,7 +569,9 @@ class StrategyParameterOptimizer:
             score -= abs(adx_strong - ideal_params["adx_strong"]) * 0.5
 
             # ATRBased
-            atr_high = params.get("dynamic_confidence.strategies.atr_based.high_volatility_base", 0.55)
+            atr_high = params.get(
+                "dynamic_confidence.strategies.atr_based.high_volatility_base", 0.55
+            )
             score -= abs(atr_high - ideal_params["atr_high_vol"]) * 0.5
 
             # ランダムノイズ追加（実際のバックテスト変動をシミュレート）
@@ -513,7 +613,10 @@ class StrategyParameterOptimizer:
         # Phase 40.5バグ修正: show_progress_bar=TrueでTrial 113ハング問題対策
         def logging_callback(study, trial):
             if trial.number % 50 == 0 or trial.number < 5:
-                print(f"Trial {trial.number}/{n_trials} " f"完了: value={trial.value:.4f}, best={study.best_value:.4f}")
+                print(
+                    f"Trial {trial.number}/{n_trials} "
+                    f"完了: value={trial.value:.4f}, best={study.best_value:.4f}"
+                )
 
         study.optimize(
             self.objective,
@@ -531,7 +634,9 @@ class StrategyParameterOptimizer:
         # 結果保存
         study_stats = {
             "n_trials": len(study.trials),
-            "n_complete": len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]),
+            "n_complete": len(
+                [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+            ),
             "n_failed": len([t for t in study.trials if t.state == optuna.trial.TrialState.FAIL]),
             "duration_seconds": duration,
         }

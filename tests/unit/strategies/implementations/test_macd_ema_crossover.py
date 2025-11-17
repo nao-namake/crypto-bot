@@ -162,7 +162,9 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
 
     def test_detect_macd_crossover_golden(self):
         """MACDクロスオーバー検出テスト - ゴールデンクロス"""
-        df = self._create_test_data(length=50, macd=10000, macd_signal=9000, crossover_type="golden")
+        df = self._create_test_data(
+            length=50, macd=10000, macd_signal=9000, crossover_type="golden"
+        )
         crossover = self.strategy._detect_macd_crossover(df)
         self.assertEqual(crossover, "golden")
 
@@ -205,7 +207,9 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
         ema_trend = self.strategy._check_ema_trend(df)
         self.assertEqual(ema_trend, "neutral")
 
-    @patch("src.strategies.implementations.macd_ema_crossover.SignalBuilder.create_signal_with_risk_management")
+    @patch(
+        "src.strategies.implementations.macd_ema_crossover.SignalBuilder.create_signal_with_risk_management"
+    )
     def test_analyze_buy_signal(self, mock_signal_builder):
         """BUY信号生成テスト - ゴールデンクロス + 上昇トレンド + 出来高増加"""
         # BUY条件: ゴールデンクロス + EMA 20 > EMA 50 + ADX >= 25 + volume_ratio >= 1.1
@@ -235,7 +239,9 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
         self.assertGreater(decision["confidence"], 0.30)
         self.assertGreater(decision["strength"], 0)
 
-    @patch("src.strategies.implementations.macd_ema_crossover.SignalBuilder.create_signal_with_risk_management")
+    @patch(
+        "src.strategies.implementations.macd_ema_crossover.SignalBuilder.create_signal_with_risk_management"
+    )
     def test_analyze_sell_signal(self, mock_signal_builder):
         """SELL信号生成テスト - デッドクロス + 下降トレンド + 出来高増加"""
         # SELL条件: デッドクロス + EMA 20 < EMA 50 + ADX >= 25 + volume_ratio >= 1.1

@@ -100,7 +100,9 @@ class TestConstants(unittest.TestCase):
 
         # すべて小文字アンダースコア形式であることを確認（実装に合わせて修正）
         for strategy_type in strategy_values:
-            self.assertTrue(strategy_type.islower() or "_" in strategy_type)  # 小文字またはアンダースコア含む
+            self.assertTrue(
+                strategy_type.islower() or "_" in strategy_type
+            )  # 小文字またはアンダースコア含む
             self.assertNotIn(" ", strategy_type)  # スペースなし
             self.assertNotIn("-", strategy_type)  # ハイフンなし
             # アンダースコアまたは英数字のみ

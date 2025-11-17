@@ -100,7 +100,9 @@ class TestDataPipelineBacktest:
         assert df_15m["close"].iloc[0] == 103.0
 
     @pytest.mark.asyncio
-    async def test_fetch_ohlcv_backtest_mode_missing_timeframe(self, pipeline, sample_backtest_data):
+    async def test_fetch_ohlcv_backtest_mode_missing_timeframe(
+        self, pipeline, sample_backtest_data
+    ):
         """fetch_ohlcv() 存在しないタイムフレーム取得のテスト"""
         # バックテストモード有効化（15mデータのみ）
         pipeline.set_backtest_mode(True)

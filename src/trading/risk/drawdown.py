@@ -1,11 +1,11 @@
 """
-ドローダウン管理システム - Phase 49完了
+ドローダウン管理システム - Phase 52.4-B完了
 
-Phase 26完了・Phase 36 Graceful Degradation統合：
+主要機能：
 - 最大ドローダウン監視（20%制限）
-- 連続損失管理（8回制限・Phase 26最適化）
-- クールダウン機能（6時間・Phase 26短縮）
-- 状態永続化（Local + GCS）
+- 連続損失管理（8回制限）
+- クールダウン機能（6時間）
+- 状態永続化（Local Storage）
 """
 
 import json
@@ -45,7 +45,7 @@ class DrawdownManager:
     - 最大ドローダウン監視
     - 連続損失カウント
     - クールダウン期間管理
-    - 状態永続化（ローカル + GCS）
+    - 状態永続化（ローカルストレージ）
     """
 
     def __init__(
@@ -66,11 +66,15 @@ class DrawdownManager:
             config: 設定辞書
             mode: 実行モード（paper/live/backtest）
         """
-        self.max_drawdown_ratio = max_drawdown_ratio or get_threshold("risk.drawdown_manager.max_drawdown_ratio", 0.2)
+        self.max_drawdown_ratio = max_drawdown_ratio or get_threshold(
+            "risk.drawdown_manager.max_drawdown_ratio", 0.2
+        )
         self.consecutive_loss_limit = consecutive_loss_limit or get_threshold(
             "risk.drawdown_manager.consecutive_loss_limit", 8
         )
-        self.cooldown_hours = cooldown_hours or get_threshold("risk.drawdown_manager.cooldown_hours", 6)
+        self.cooldown_hours = cooldown_hours or get_threshold(
+            "risk.drawdown_manager.cooldown_hours", 6
+        )
         self.mode = mode
         self.config = config or {}
 
@@ -85,11 +89,25 @@ class DrawdownManager:
 
         self.logger = get_logger()
 
-        # 状態永続化設定
+        # 状態永続化設定（Phase 52.4: モード別パス対応）
         persistence_config = self.config.get("persistence", {})
-        self.local_state_path = persistence_config.get("local_path", "src/core/state/drawdown_state.json")
+
+        # モード別パステンプレート取得（unified.yamlから）
+        # Config objectは取得できないため、persistence_configから直接取得
+        # フォールバックとしてハードコード値を使用
+        local_path_template = persistence_config.get(
+            "local_path_template", "src/core/state/{mode}/drawdown_state.json"
+        )
+        gcs_path_template = persistence_config.get(
+            "gcs_path_template", "drawdown/{mode}/state.json"
+        )
+
+        # パステンプレートを実モードで置換
+        self.local_state_path = persistence_config.get(
+            "local_path", local_path_template.format(mode=self.mode)
+        )
         self.gcs_bucket = persistence_config.get("gcs_bucket")
-        self.gcs_path = persistence_config.get("gcs_path")
+        self.gcs_path = persistence_config.get("gcs_path", gcs_path_template.format(mode=self.mode))
 
         # 状態復元
         self._load_state()
@@ -110,7 +128,9 @@ class DrawdownManager:
             self.peak_balance = current_balance
             self.logger.debug(f"ピーク残高更新: ¥{self.peak_balance:,.0f}")
 
-    def record_trade_result(self, profit_loss: float, strategy: str = "default", current_time=None) -> None:
+    def record_trade_result(
+        self, profit_loss: float, strategy: str = "default", current_time=None
+    ) -> None:
         """
         取引結果記録（Phase 52.2: バックテスト時刻対応）
 
@@ -136,7 +156,9 @@ class DrawdownManager:
             # 連続損失カウント更新
             if profit_loss < 0:
                 self.consecutive_losses += 1
-                self.logger.warning(f"連続損失更新: {self.consecutive_losses}/{self.consecutive_loss_limit}")
+                self.logger.warning(
+                    f"連続損失更新: {self.consecutive_losses}/{self.consecutive_loss_limit}"
+                )
             else:
                 if self.consecutive_losses > 0:
                     self.logger.info("連続損失リセット（勝ち取引）")
@@ -207,7 +229,8 @@ class DrawdownManager:
         self.cooldown_until = now + timedelta(hours=self.cooldown_hours)
 
         self.logger.warning(
-            f"クールダウン開始: {status.value}, " f"解除予定: {self.cooldown_until.strftime('%Y-%m-%d %H:%M:%S')}"
+            f"クールダウン開始: {status.value}, "
+            f"解除予定: {self.cooldown_until.strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
         # 状態保存
@@ -239,7 +262,7 @@ class DrawdownManager:
         }
 
     def _save_state(self) -> None:
-        """状態保存（ローカル + GCS）"""
+        """状態保存（ローカルストレージ）"""
         try:
             # バックテストモードでは保存しない
             if self.mode == "backtest":
@@ -251,7 +274,9 @@ class DrawdownManager:
                 "current_balance": self.current_balance,
                 "consecutive_losses": self.consecutive_losses,
                 "trading_status": self.trading_status.value,
-                "cooldown_until": (self.cooldown_until.isoformat() if self.cooldown_until else None),
+                "cooldown_until": (
+                    self.cooldown_until.isoformat() if self.cooldown_until else None
+                ),
                 "last_updated": datetime.now().isoformat(),
             }
 
@@ -283,7 +308,9 @@ class DrawdownManager:
             self.peak_balance = state.get("peak_balance", 10000.0)
             self.current_balance = state.get("current_balance", 10000.0)
             self.consecutive_losses = state.get("consecutive_losses", 0)
-            self.trading_status = TradingStatus(state.get("trading_status", TradingStatus.ACTIVE.value))
+            self.trading_status = TradingStatus(
+                state.get("trading_status", TradingStatus.ACTIVE.value)
+            )
 
             cooldown_until_str = state.get("cooldown_until")
             if cooldown_until_str:

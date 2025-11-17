@@ -1,43 +1,24 @@
 """
-MLサービス モデル読み込み機能 - Phase 50.9完了
+MLサービス モデル読み込み機能 - Phase 52.4
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
-ml_adapter.pyから分離したモデル読み込み専用モジュール。
+3段階Graceful Degradationによる堅牢なモデル読み込みを実現。
 
-Phase 51.7 Day 7完了:
-- 6戦略統合・54特徴量システム確立
-  - Level 1（完全）: 54特徴量モデル（ensemble_full.pkl）- デフォルト（48基本+6戦略シグナル）
-  - Level 2（基本）: 48特徴量モデル（ensemble_basic.pkl）- フォールバック（48基本のみ）
+機能:
+- ProductionEnsemble読み込み（ensemble_full.pkl）
+- 3段階Graceful Degradation:
+  - Level 1（完全）: ensemble_full.pkl（デフォルト・全特徴量）
+  - Level 2（基本）: ensemble_basic.pkl（フォールバック・基本特徴量のみ）
   - Level 3（ダミー）: DummyModel（最終フォールバック）
-
-Phase 50.9完了:
-- 外部API完全削除・2段階Graceful Degradation実装（62/57特徴量）
-- モデルファイルリネーム: ensemble_level2/3 → ensemble_full/basic
-- シンプル設計回帰・保守性向上
-
-Phase 50.8完了:
-- 旧モデルパス後方互換性削除（Phase 50.7完全移行）
-
-Phase 50.7完了:
-- 3段階MLモデルシステム実装（Phase 50.7モデル名固定化）
-  - Level 1（完全+外部API）: 70特徴量モデル（ensemble_level1.pkl）
-  - Level 2（完全）: 62特徴量モデル（ensemble_level2.pkl）
-  - Level 3（基本）: 57特徴量モデル（ensemble_level3.pkl）
-  - Level 4（ダミー）: DummyModel（最終フォールバック）
-- 外部API障害時自動Level 2フォールバック
-- レガシーシステム教訓反映: 外部API失敗でもシステム継続動作保証
-
-Phase 50.3完了:
-- 4段階Graceful Degradation実装（外部API統合対応）
-
-Phase 50.1完了:
-- 3段階Graceful Degradation実装（設定駆動型）
+- 個別モデル再構築（LightGBM・XGBoost・RandomForest）
+- 環境判定（GCP Cloud Run / ローカル）
 - feature_order.json設定駆動型モデル選択
-- 特徴量数自動判定システム
-- 動的モデルフォールバック機能
+- 特徴量数自動判定・動的フォールバック
 
-Phase 49完了:
-- ProductionEnsemble読み込み
+設計原則:
+- シンプル設計回帰（外部API削除・2段階モデルシステム）
+- 設定駆動型（feature_order.json・thresholds.yaml）
+- システム継続動作保証（フォールバック完備）
 - 個別モデル再構築（LightGBM・XGBoost・RandomForest）
 - pickle.UnpicklingError対応（モデルクラス再定義）
 - DummyModelフォールバック（読み込み失敗時）
@@ -157,7 +138,9 @@ class MLModelLoader:
         # Cloud Run環境とローカル環境の両方に対応
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")
-        base_path = cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        base_path = (
+            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        )
 
         # Phase 50.1: feature_order.jsonから設定駆動型でモデルファイル名取得
         from ..config.feature_manager import _feature_manager
@@ -219,7 +202,9 @@ class MLModelLoader:
                 self.is_fitted = getattr(self.model, "is_fitted", True)
                 self.feature_level = level
                 feature_count = level_info[level].get("count", "unknown")
-                self.logger.info(f"✅ ProductionEnsemble読み込み成功 (Level {level.upper()}, {feature_count}特徴量)")
+                self.logger.info(
+                    f"✅ ProductionEnsemble読み込み成功 (Level {level.upper()}, {feature_count}特徴量)"
+                )
                 return True
             else:
                 self.logger.error("ProductionEnsembleに必須メソッドが不足")
@@ -235,7 +220,9 @@ class MLModelLoader:
 
         cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
         local_base_path = get_threshold("ml.model_paths.local_path", ".")
-        base_path = cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        base_path = (
+            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        )
 
         training_path_str = get_threshold("ml.model_paths.training_path", "models/training")
         training_path = Path(base_path) / training_path_str
@@ -269,7 +256,9 @@ class MLModelLoader:
                 self.model = ProductionEnsemble(individual_models)
                 self.model_type = "ReconstructedEnsemble"
                 self.is_fitted = True
-                self.logger.info(f"✅ 個別モデルからEnsemble再構築成功 ({len(individual_models)}モデル)")
+                self.logger.info(
+                    f"✅ 個別モデルからEnsemble再構築成功 ({len(individual_models)}モデル)"
+                )
                 return True
             else:
                 self.logger.error("有効な個別モデルが見つかりません")

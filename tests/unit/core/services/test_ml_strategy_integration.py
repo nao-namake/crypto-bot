@@ -171,7 +171,9 @@ class TestMLIntegration:
         assert 0.50 < result.confidence < 0.55  # ペナルティ適用後
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_ml_strategy_disagreement_extreme_penalty(self, mock_get_threshold, trading_cycle_manager):
+    def test_ml_strategy_disagreement_extreme_penalty(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """不一致かつ信頼度極低の場合はholdに変更"""
 
         def threshold_side_effect(key, default):
@@ -211,7 +213,9 @@ class TestMLIntegration:
         assert result.metadata["adjustment_reason"] == "ml_disagreement_low_confidence"
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_ml_normal_integration_weighted_average(self, mock_get_threshold, trading_cycle_manager):
+    def test_ml_normal_integration_weighted_average(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """ML通常統合（信頼度が高くない場合）は加重平均のみ"""
 
         def threshold_side_effect(key, default):
@@ -325,7 +329,9 @@ class TestMetaLearningDynamicWeights:
         return TradingCycleManager(mock_orchestrator, logger)
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_meta_learning_disabled_uses_fixed_weights(self, mock_get_threshold, trading_cycle_manager):
+    def test_meta_learning_disabled_uses_fixed_weights(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """Meta-Learning無効時: 固定重み使用（最重要・既存動作確認）"""
 
         def threshold_side_effect(key, default):
@@ -347,7 +353,9 @@ class TestMetaLearningDynamicWeights:
         assert weights["strategy"] == 0.7
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_meta_learning_enabled_no_model_fallback(self, mock_get_threshold, trading_cycle_manager):
+    def test_meta_learning_enabled_no_model_fallback(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """Meta-Learning有効・モデル未存在時: フォールバック固定重み"""
 
         def threshold_side_effect(key, default):
@@ -374,7 +382,9 @@ class TestMetaLearningDynamicWeights:
         assert weights["strategy"] == 0.7
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_meta_learning_no_market_data_cache_fallback(self, mock_get_threshold, trading_cycle_manager):
+    def test_meta_learning_no_market_data_cache_fallback(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """市場データ未キャッシュ時: フォールバック固定重み"""
 
         def threshold_side_effect(key, default):
@@ -399,7 +409,9 @@ class TestMetaLearningDynamicWeights:
         assert weights["strategy"] == 0.7
 
     @patch("src.core.services.trading_cycle_manager.get_threshold")
-    def test_integrate_ml_with_strategy_uses_dynamic_weights(self, mock_get_threshold, trading_cycle_manager):
+    def test_integrate_ml_with_strategy_uses_dynamic_weights(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
         """_integrate_ml_with_strategy()内で動的重みが使用されることを確認"""
 
         # モック動的重み（ML重視の例）

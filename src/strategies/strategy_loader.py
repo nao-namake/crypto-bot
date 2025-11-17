@@ -1,5 +1,5 @@
 """
-戦略動的ローダー - Phase 51.5-B実装
+戦略動的ローダー - Phase 52.4-B完了
 
 Facade Patternによる戦略動的ロードシステム。
 strategies.yamlから戦略を読み込み、動的にインスタンス化。
@@ -10,7 +10,7 @@ strategies.yamlから戦略を読み込み、動的にインスタンス化。
 - thresholds.yaml連携
 - 優先度順ソート
 
-Phase 51.5-B: 動的戦略管理基盤実装
+Phase 52.4-B完了
 """
 
 from pathlib import Path
@@ -33,7 +33,7 @@ class StrategyLoader:
     Registry Patternと連携して、設定ファイル主導の戦略管理を実現。
 
     使用例:
-        loader = StrategyLoader("config/strategies.yaml")
+        loader = StrategyLoader("config/core/strategies.yaml")
         strategies = loader.load_strategies()
 
         for strategy_data in strategies:
@@ -44,7 +44,7 @@ class StrategyLoader:
     Phase 51.5-B完了
     """
 
-    def __init__(self, config_path: str = "config/strategies.yaml"):
+    def __init__(self, config_path: str = "config/core/strategies.yaml"):
         """
         戦略ローダー初期化
 
@@ -176,9 +176,13 @@ class StrategyLoader:
                 import importlib
 
                 importlib.import_module(module_path)
-                self.logger.info(f"✅ Phase 51.5-B Fix: 戦略モジュールimport成功 - module={module_path}")
+                self.logger.info(
+                    f"✅ Phase 51.5-B Fix: 戦略モジュールimport成功 - module={module_path}"
+                )
             except ImportError as e:
-                raise StrategyError(f"戦略'{strategy_id}'のモジュール'{module_path}'のimportに失敗しました: {e}") from e
+                raise StrategyError(
+                    f"戦略'{strategy_id}'のモジュール'{module_path}'のimportに失敗しました: {e}"
+                ) from e
         else:
             self.logger.debug(f"ℹ️ Phase 51.5-B: 戦略'{class_name}'は既に登録済み - importスキップ")
 
@@ -289,6 +293,8 @@ class StrategyLoader:
 
         if strategy_id not in self.config["strategies"]:
             available = ", ".join(self.config["strategies"].keys())
-            raise StrategyError(f"戦略'{strategy_id}'が見つかりません。" f"利用可能な戦略ID: {available}")
+            raise StrategyError(
+                f"戦略'{strategy_id}'が見つかりません。" f"利用可能な戦略ID: {available}"
+            )
 
         return self.config["strategies"][strategy_id].copy()

@@ -1,9 +1,21 @@
 """
-Bitbank 信用取引専用APIクライアント - Phase 49完了
+Bitbank 信用取引専用APIクライアント
 
-信用取引（ロング・ショート）に特化したBitbank APIクライアント
-ccxtライブラリを使用してシンプルな実装に特化。
-Phase 35-49で機能追加完了（バックテストモード・stop_limit注文・GET/POST API対応・維持率80%遵守）
+最終更新: 2025/11/16 (Phase 52.4-B)
+
+信用取引（ロング・ショート）に特化したBitbank APIクライアント。
+ccxtライブラリを使用したシンプル実装・証拠金維持率監視・SSL証明書対応。
+
+主要機能:
+- 信用取引注文（成行・指値・stop_limit）
+- 証拠金維持率監視（80%遵守）
+- OHLCVデータ取得（マルチタイムフレーム対応）
+- GET/POST API対応・エラーハンドリング
+
+開発履歴:
+- Phase 52.4-B: コード整理・ドキュメント統一
+- Phase 49: バックテストモード・維持率80%遵守
+- Phase 35: stop_limit注文・GET/POST API対応
 """
 
 import asyncio
@@ -12,7 +24,7 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 import aiohttp
-import ccxt
+import ccxt.async_support as ccxt
 
 from ..core.config import get_config, get_threshold
 from ..core.exceptions import DataFetchError, ExchangeAPIError
@@ -42,26 +54,20 @@ class BitbankClient:
         self.api_key = api_key or os.getenv("BITBANK_API_KEY")
         self.api_secret = api_secret or os.getenv("BITBANK_API_SECRET")
 
-        # Cloud Run環境変数読み込み状況をデバッグ
-        import hashlib
-
+        # CRIT-2 Fix: API Secret露出防止（MD5ハッシュ削除・安全な情報のみログ出力）
         if self.api_key:
-            key_hash = hashlib.md5(self.api_key.encode()).hexdigest()[:8]
-            self.logger.info(
-                f"🔑 BITBANK_API_KEY読み込み確認: 存在={bool(self.api_key)}, 長さ={len(self.api_key)}, ハッシュ={key_hash}"
-            )
+            self.logger.info(f"🔑 BITBANK_API_KEY読み込み確認: 存在=True, 長さ={len(self.api_key)}")
         else:
             self.logger.error("❌ BITBANK_API_KEY読み込み失敗: 環境変数が空またはNone")
 
         if self.api_secret:
-            secret_hash = hashlib.md5(self.api_secret.encode()).hexdigest()[:8]
             self.logger.info(
-                f"🔐 BITBANK_API_SECRET読み込み確認: 存在={bool(self.api_secret)}, 長さ={len(self.api_secret)}, ハッシュ={secret_hash}"
+                f"🔐 BITBANK_API_SECRET読み込み確認: 存在=True, 長さ={len(self.api_secret)}"
             )
         else:
             self.logger.error("❌ BITBANK_API_SECRET読み込み失敗: 環境変数が空またはNone")
 
-        # レバレッジ検証
+        # レバレッジ検証（bitbank信用取引仕様: 1.0-2.0）
         if not (1.0 <= leverage <= 2.0):
             raise ValueError(f"レバレッジは1.0-2.0の範囲で設定してください: {leverage}")
 
@@ -86,9 +92,9 @@ class BitbankClient:
                     "apiKey": self.api_key,
                     "secret": self.api_secret,
                     "sandbox": False,  # 本番環境
-                    "rateLimit": 1000,  # API制限対応
+                    "rateLimit": get_config().exchange.rate_limit_ms,  # HIGH-3 Fix: Config統合
                     "enableRateLimit": True,
-                    "timeout": 30000,  # 30秒タイムアウト
+                    "timeout": get_config().exchange.timeout_ms,  # HIGH-3 Fix: Config統合
                 }
             )
 
@@ -103,8 +109,12 @@ class BitbankClient:
                 },
             )
 
-    def test_connection(self) -> bool:
-        """API接続テスト."""
+    async def test_connection(self) -> bool:
+        """
+        API接続テスト
+
+        CRIT-1 Fix: async/await対応（ccxt.async_support使用）
+        """
         try:
             # 公開API（認証不要）でテスト（設定から取得）
             try:
@@ -113,7 +123,7 @@ class BitbankClient:
             except Exception:
                 symbol = "BTC/JPY"  # フォールバック
 
-            ticker = self.exchange.fetch_ticker(symbol)
+            ticker = await self.exchange.fetch_ticker(symbol)
             self.logger.info(
                 f"Bitbank API接続テスト成功 - {symbol}価格: ¥{ticker['last']:,.0f}",
                 extra_data={"price": ticker["last"]},
@@ -170,7 +180,7 @@ class BitbankClient:
         # 4時間足の場合は直接API実装を使用（ccxt制約回避）
         if timeframe == "4h":
             self.logger.debug("4時間足検出: 直接API実装を使用")
-            import asyncio
+            # Phase 52.5: 重複import asyncio削除（モジュール先頭でimport済み）
             from datetime import datetime
 
             # 現在年を取得
@@ -274,8 +284,7 @@ class BitbankClient:
                     )
                 else:
                     self.logger.info(
-                        "📊 15分足limit適用なし - "
-                        f"取得件数={original_count}件 (limit={limit}件)"
+                        "📊 15分足limit適用なし - " f"取得件数={original_count}件 (limit={limit}件)"
                     )
 
                 # Phase 51.5-C: 最小行数チェック（戦略要求20行未満ならエラー）
@@ -306,7 +315,7 @@ class BitbankClient:
         # Phase 51.5-C Fix: 15m足等でもリトライロジック適用
         max_retries = 3
         last_exception = None
-        min_required_rows = 20  # 戦略要求最小行数
+        min_required_rows = 20  # Phase 52.5: 戦略要求最小行数（ハードコード統一）
 
         for attempt in range(max_retries):
             try:
@@ -315,9 +324,10 @@ class BitbankClient:
                     f"{symbol} {timeframe} limit={limit}"
                 )
 
+                # CRIT-1 Fix: async/await対応（イベントループブロッキング解消）
                 # Phase 51.5-C Fix: タイムアウト設定（既存のexchange設定を利用）
                 # ccxtのexchangeインスタンスは既にtimeout設定済み（30秒）
-                ohlcv = self.exchange.fetch_ohlcv(
+                ohlcv = await self.exchange.fetch_ohlcv(
                     symbol=symbol, timeframe=timeframe, since=since, limit=limit
                 )
 
@@ -337,7 +347,7 @@ class BitbankClient:
                         self.logger.warning(
                             f"⚠️ {error_msg} - {wait_time}秒後にリトライ（試行{attempt + 1}/{max_retries}）"
                         )
-# 削除: 重複import asyncio（line 340）
+                        # 削除: 重複import asyncio（line 340）
 
                         await asyncio.sleep(wait_time)
                         continue
@@ -365,8 +375,7 @@ class BitbankClient:
                         f"⚠️ {timeframe}足取得失敗（試行{attempt + 1}/{max_retries}）: "
                         f"{type(e).__name__}: {e} - {wait_time}秒後にリトライ"
                     )
-                    import asyncio
-
+                    # Phase 52.5: 重複import asyncio削除（モジュール先頭でimport済み）
                     await asyncio.sleep(wait_time)
                 else:
                     self.logger.error(
@@ -711,9 +720,11 @@ class BitbankClient:
             context={"symbol": symbol, "date": date, "last_exception": str(last_exception)},
         )
 
-    def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    async def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         ティッカー情報取得
+
+        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -722,7 +733,7 @@ class BitbankClient:
             ティッカー情報.
         """
         try:
-            ticker = self.exchange.fetch_ticker(symbol)
+            ticker = await self.exchange.fetch_ticker(symbol)
 
             self.logger.debug(
                 f"ティッカー取得成功: {symbol} = ¥{ticker['last']:,.0f}",
@@ -742,9 +753,11 @@ class BitbankClient:
                 context={"symbol": symbol},
             )
 
-    def fetch_order_book(self, symbol: str = "BTC/JPY", limit: int = 20) -> Dict[str, Any]:
+    async def fetch_order_book(self, symbol: str = "BTC/JPY", limit: int = 20) -> Dict[str, Any]:
         """
         板情報取得（Phase 33: スマート注文機能用）
+
+        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -754,7 +767,7 @@ class BitbankClient:
             板情報（bids: 買い板, asks: 売り板）
         """
         try:
-            orderbook = self.exchange.fetch_order_book(symbol, limit)
+            orderbook = await self.exchange.fetch_order_book(symbol, limit)
 
             self.logger.debug(
                 f"板情報取得成功: {symbol} (depth={limit})",
@@ -773,7 +786,7 @@ class BitbankClient:
                 context={"symbol": symbol},
             )
 
-    def fetch_balance(self) -> Dict[str, Any]:
+    async def fetch_balance(self) -> Dict[str, Any]:
         """
         残高情報取得（Phase 35: バックテストモックデータ対応）
 
@@ -800,7 +813,7 @@ class BitbankClient:
                     context={"operation": "fetch_balance"},
                 )
 
-            balance = self.exchange.fetch_balance()
+            balance = await self.exchange.fetch_balance()
 
             self.logger.debug(
                 "信用取引残高取得成功",
@@ -820,7 +833,7 @@ class BitbankClient:
                 context={"operation": "fetch_balance"},
             )
 
-    def create_order(
+    async def create_order(
         self,
         symbol: str,
         side: str,
@@ -895,8 +908,9 @@ class BitbankClient:
 
             # Phase 37.5: stop/stop_limit注文のトリガー価格・執行価格設定
             if trigger_price is not None:
+                # HIGH-5 Fix: str(int()) → str(round()) - 価格精度保持
                 # bitbank API仕様: 整数文字列を期待
-                params["trigger_price"] = str(int(trigger_price))
+                params["trigger_price"] = str(round(trigger_price))
                 self.logger.info(
                     f"🎯 逆指値注文トリガー設定: {trigger_price:.0f}円",
                     extra_data={"trigger_price": trigger_price, "order_type": order_type},
@@ -904,7 +918,8 @@ class BitbankClient:
 
             # Phase 37.5.2: stop_limit注文の場合、執行価格もparams内に明示的に設定
             if order_type == "stop_limit" and price is not None:
-                params["price"] = str(int(price))  # bitbank APIは整数文字列を期待
+                # HIGH-5 Fix: str(int()) → str(round()) - 価格精度保持
+                params["price"] = str(round(price))  # bitbank APIは整数文字列を期待
                 self.logger.info(
                     f"💰 逆指値指値注文執行価格設定: {price:.0f}円",
                     extra_data={"price": price, "order_type": order_type},
@@ -976,7 +991,7 @@ class BitbankClient:
 
             # 注文実行
             start_time = time.time()
-            order = self.exchange.create_order(
+            order = await self.exchange.create_order(
                 symbol=symbol,
                 type=order_type,
                 side=side,
@@ -1149,7 +1164,7 @@ class BitbankClient:
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
-    def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    async def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文キャンセル
 
@@ -1170,7 +1185,7 @@ class BitbankClient:
                     context={"operation": "cancel_order"},
                 )
 
-            cancel_result = self.exchange.cancel_order(order_id, symbol)
+            cancel_result = await self.exchange.cancel_order(order_id, symbol)
 
             self.logger.info(
                 f"注文キャンセル成功: {order_id}",
@@ -1195,7 +1210,7 @@ class BitbankClient:
                 context={"operation": "cancel_order", "order_id": order_id},
             )
 
-    def fetch_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    async def fetch_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文状況確認
 
@@ -1216,7 +1231,7 @@ class BitbankClient:
                     context={"operation": "fetch_order"},
                 )
 
-            order = self.exchange.fetch_order(order_id, symbol)
+            order = await self.exchange.fetch_order(order_id, symbol)
 
             self.logger.debug(
                 f"注文情報取得成功: {order_id} - {order['status']}",
@@ -1246,11 +1261,13 @@ class BitbankClient:
                 context={"operation": "fetch_order", "order_id": order_id},
             )
 
-    def fetch_active_orders(
+    async def fetch_active_orders(
         self, symbol: str = "BTC/JPY", limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         アクティブな注文一覧取得（Phase 33.2: TP/SL配置確認用）
+
+        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -1270,7 +1287,7 @@ class BitbankClient:
                 )
 
             # ccxtのfetch_open_ordersを使用
-            active_orders = self.exchange.fetch_open_orders(symbol, limit=limit)
+            active_orders = await self.exchange.fetch_open_orders(symbol, limit=limit)
 
             self.logger.info(
                 f"アクティブ注文取得成功: {len(active_orders)}件",
@@ -1302,7 +1319,7 @@ class BitbankClient:
                 context={"operation": "fetch_active_orders", "symbol": symbol},
             )
 
-    def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
+    async def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
         """
         ポジション情報取得（信用取引）
 
@@ -1322,7 +1339,7 @@ class BitbankClient:
                     context={"operation": "fetch_positions"},
                 )
 
-            positions = self.exchange.fetch_positions([symbol])
+            positions = await self.exchange.fetch_positions([symbol])
 
             # 有効なポジションのみフィルタ
             active_positions = [pos for pos in positions if pos["contracts"] > 0]
@@ -1348,7 +1365,7 @@ class BitbankClient:
                 context={"operation": "fetch_positions", "symbol": symbol},
             )
 
-    def set_leverage(self, symbol: str, leverage: float) -> Dict[str, Any]:
+    async def set_leverage(self, symbol: str, leverage: float) -> Dict[str, Any]:
         """
         レバレッジ設定（信用取引）
 
@@ -1363,7 +1380,9 @@ class BitbankClient:
             ExchangeAPIError: 設定失敗時.
         """
         try:
-            if not (1.0 <= leverage <= 2.0):
+            cfg = get_config()
+            # HIGH-3 Fix: Config統合
+            if not (cfg.exchange.leverage_min <= leverage <= cfg.exchange.leverage_max):
                 raise ExchangeAPIError(
                     f"Bitbankでは1.0-2.0倍のレバレッジのみサポートされています: {leverage}",
                     context={"leverage": leverage},
@@ -1375,7 +1394,7 @@ class BitbankClient:
                     context={"operation": "set_leverage"},
                 )
 
-            result = self.exchange.set_leverage(leverage, symbol)
+            result = await self.exchange.set_leverage(leverage, symbol)
             self.leverage = leverage  # 内部状態更新
 
             self.logger.info(
@@ -1400,9 +1419,11 @@ class BitbankClient:
                 },
             )
 
-    def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    async def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         市場情報取得
+
+        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -1411,7 +1432,7 @@ class BitbankClient:
             市場情報（最小注文単位、手数料等）.
         """
         try:
-            markets = self.exchange.load_markets()
+            markets = await self.exchange.load_markets()
             market = markets.get(symbol)
 
             if not market:

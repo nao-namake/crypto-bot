@@ -222,7 +222,9 @@ class TestThresholdIntegration:
             assert result == "fallback"
 
         # TypeError（不正な型）が返されたケース
-        with patch("src.core.config.threshold_manager.load_thresholds", return_value="invalid_type"):
+        with patch(
+            "src.core.config.threshold_manager.load_thresholds", return_value="invalid_type"
+        ):
             result = get_threshold("any.key", "safe_default")
             assert result == "safe_default"
 
@@ -242,7 +244,9 @@ def test_threshold_access_patterns(key_path, test_data, expected):
     with patch("src.core.config.threshold_manager.load_thresholds", return_value=test_data):
         try:
             result = get_threshold(key_path, "default")
-            assert result == expected or result == "default"  # 配列アクセスなどは失敗してdefaultが返る
+            assert (
+                result == expected or result == "default"
+            )  # 配列アクセスなどは失敗してdefaultが返る
         except (KeyError, TypeError):
             # 期待される失敗ケース
             pass
@@ -254,13 +258,17 @@ class TestBoundaryConditions:
 
     def test_empty_key_path(self):
         """空のキーパスの処理"""
-        with patch("src.core.config.threshold_manager.load_thresholds", return_value={"key": "value"}):
+        with patch(
+            "src.core.config.threshold_manager.load_thresholds", return_value={"key": "value"}
+        ):
             result = get_threshold("", "default")
             assert result == "default"
 
     def test_none_key_path(self):
         """Noneキーパスの処理"""
-        with patch("src.core.config.threshold_manager.load_thresholds", return_value={"key": "value"}):
+        with patch(
+            "src.core.config.threshold_manager.load_thresholds", return_value={"key": "value"}
+        ):
             with pytest.raises(AttributeError):
                 get_threshold(None, "default")
 

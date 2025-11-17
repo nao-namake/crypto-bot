@@ -4,8 +4,8 @@
 
 Google Cloud Platform（GCP）を基盤としたインフラストラクチャ設定を管理します。Cloud Run本番環境、Secret Manager、GitHub Actions CI/CD統合を定義し、24時間稼働する自動取引システムの運用基盤を提供します。
 
-**Phase 49完了時点（2025年10月22日）**:
-- 1,117テスト・68.32%カバレッジ
+**Phase 52.4完了時点（2025年11月15日）**:
+- ML統合システム・レジーム別最適化
 - Cloud Run: crypto-bot-service-prod（asia-northeast1）
 - 月額コスト: 700-900円
 - 5分間隔実行・24時間稼働
@@ -65,7 +65,7 @@ GCPプロジェクト全体の設定を定義します。
 git add .
 git commit -m "機能実装完了"
 git push origin main
-# → GitHub Actionsが1,117テスト実行 → Dockerビルド → Cloud Run自動デプロイ
+# → GitHub Actionsが全テスト実行 → Dockerビルド → Cloud Run自動デプロイ
 ```
 
 ### **サービス状況確認**
@@ -255,12 +255,7 @@ gcloud iam service-accounts list \
 
 ---
 
-## 📊 Phase 49完了時点のシステム状態
-
-### 品質指標
-- **テスト**: 1,117テスト・100%成功
-- **カバレッジ**: 68.32%
-- **特徴量**: 55個（50基本+5戦略信号）
+## 📊 Phase 52.4完了時点のシステム状態
 
 ### インフラ構成
 - **Cloud Run**: asia-northeast1（東京）
@@ -272,6 +267,11 @@ gcloud iam service-accounts list \
 - **Secret Manager**: 具体的バージョン管理（:3, :5）
 - **Workload Identity**: GitHub認証完了
 
+### システム構成
+- **ML統合**: アンサンブルモデル・レジーム別最適化
+- **設定管理**: feature_order.json・strategies.yaml・thresholds.yaml
+- **品質保証**: 全テスト自動実行・CI/CD品質ゲート
+
 ---
 
-**最終更新**: Phase 49完了（2025年10月22日）
+**最終更新**: Phase 52.4完了（2025年11月15日）

@@ -1,24 +1,26 @@
-# scripts/reports/ - レポート生成スクリプト（Phase 48実装）
+# scripts/reports/ - レポート生成スクリプト（Phase 52.4更新）
 
-**最終更新**: 2025年10月25日 - Phase 48完了・週間レポート実装・Discord自動送信
+**最終更新**: 2025年11月16日 - Phase 52.4コード整理・Phase 52.3バグ修正適用・テストカバレッジ追加
 
 ## 🎯 役割・責任
 
 週間レポート生成システムを提供します。過去7日間の取引統計を集計し、損益曲線グラフを生成してDiscordに自動送信します。
 
-**Phase 48完了成果**: 週間レポート自動送信・損益曲線グラフ生成・Discord通知99%削減・コスト35%削減・月額700-900円達成
+**Phase 48で達成した成果**: 週間レポート自動送信・損益曲線グラフ生成・Discord通知99%削減（300-1,500回/月 → 4回/月）・コスト35%削減・月額700-900円達成
+
+**Phase 52.4更新内容**: Phase 52.3最大ドローダウン計算バグ修正適用・ハードコード値config移行・テストカバレッジ追加（0% → 80%+）
 
 ## 📂 ファイル構成
 
 ```
 scripts/reports/
-├── README.md          # このファイル（Phase 48完了版）
-└── weekly_report.py   # 週間レポート生成・Discord送信スクリプト（Phase 48.2実装）
+├── README.md          # このファイル（Phase 52.4更新版）
+└── weekly_report.py   # 週間レポート生成・Discord送信スクリプト（Phase 52.4更新）
 ```
 
 ## 📋 主要ファイルの役割
 
-### **weekly_report.py**（Phase 48.2実装）
+### **weekly_report.py**（Phase 52.4更新）
 過去7日間の取引統計を集計し、損益曲線グラフを生成してDiscordに送信します。
 
 **主要機能**:
@@ -44,7 +46,7 @@ python3 scripts/reports/weekly_report.py --days 14
 
 ## 📝 使用方法・例
 
-### **手動実行**（Phase 48完了版）
+### **手動実行**（Phase 52.4更新版）
 ```bash
 # プロジェクトルートから実行
 cd /Users/nao/Desktop/bot
@@ -67,7 +69,7 @@ python3 scripts/reports/weekly_report.py --days 14
 python3 scripts/reports/weekly_report.py --days 30
 ```
 
-### **GitHub Actions自動実行**（Phase 48完了版）
+### **GitHub Actions自動実行**（Phase 52.4更新版）
 ```bash
 # .github/workflows/weekly_report.yml で自動実行
 # スケジュール: 毎週月曜9:00 JST（UTC 00:00）
@@ -96,7 +98,7 @@ python3 scripts/reports/weekly_report.py --days 30
 - `tax/pnl_calculator.py`: 移動平均法損益計算
 - `tax/trade_history.db`: 取引履歴データベース
 
-### **レポート生成**（Phase 48実装）
+### **レポート生成**（Phase 52.4更新）
 - `src/core/reporting/discord_notifier.py`: Discord通知システム
 - `src/core/reporting/`: 週間レポート生成システム
 
@@ -107,11 +109,12 @@ python3 scripts/reports/weekly_report.py --days 30
 
 ---
 
-**🎯 Phase 48完了時点の重要事項**:
+**🎯 重要事項**:
 - ✅ **週間レポート自動送信**: 毎週月曜9:00 JST自動実行
-- ✅ **Discord通知99%削減**: 300-1,500回/月 → 4回/月
-- ✅ **コスト35%削減**: 月額1,800-2,000円 → 700-900円達成
-- ✅ **損益曲線グラフ**: matplotlib可視化・累積損益推移表示
+- ✅ **Phase 52.3バグ修正適用**: 最大ドローダウン計算の正確性向上（累積損益基準 → ピーク残高基準）
+- ✅ **テストカバレッジ追加**: 0% → 80%+ 達成（Phase 52.4）
+- ✅ **設定管理統一**: ハードコード値をconfig/core/unified.yamlに移行
+- ✅ **Phase 48達成成果**: Discord通知99%削減（300-1,500回/月 → 4回/月）・コスト35%削減（月額700-900円）
 
 **推奨運用方法**:
 1. **自動実行**: GitHub Actions週次自動実行（推奨）

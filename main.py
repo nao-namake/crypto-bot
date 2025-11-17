@@ -1,19 +1,18 @@
 """
 暗号資産取引Bot - エントリーポイント
 
-Phase 49完了版・企業級AI自動取引システム対応の薄いエントリーポイント。
+Phase 52.4-B完了・6戦略55特徴量システム対応の薄いエントリーポイント。
 具体的なビジネスロジックはTradingOrchestratorに委譲し、
 ここでは引数解析と基本設定のみを担当。
 
-Phase 49完了成果:
-- バックテスト完全改修（信頼性100%達成・TradeTracker統合・matplotlib可視化）
-- 確定申告対応システム（作業時間95%削減）
-- Discord週間レポート（通知99%削減・コスト35%削減）
-- 統合TP/SL（注文数91.7%削減）・Strategy-Aware ML（55特徴量・ML統合率100%）
-- 1,065テスト100%成功・66.72%カバレッジ達成
+Phase 52.4-B完了成果:
+- コード品質改善（Phase参照統一67%削減・ハードコード値削減）
+- 6戦略55特徴量システム（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）
+- 真の3クラス分類ML（BUY/SELL/HOLD・F1改善+9.7%）
+- Registry Pattern動的戦略管理（影響範囲93%削減）
 
 設計原則:
-- エントリーポイント特化（286行）
+- エントリーポイント特化（薄い設計）
 - ビジネスロジックはsrc/core/orchestration/に委譲
 - テスト不要なレベルまで薄く設計
 - 保守性とシンプルさの両立
@@ -191,7 +190,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 49完了・1,065テスト100%成功・66.72%カバレッジ達成",
+        description="暗号資産取引Bot - Phase 52.4-B完了・6戦略55特徴量システム",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -229,9 +228,9 @@ async def main():
     try:
         config = load_config(args.config, cmdline_mode=args.mode)
 
-        # Phase 35: バックテストモード時の最適化設定
+        # バックテストモード時の最適化設定（Phase 52.4-B完了）
         if config.mode == "backtest":
-            # thresholds.yamlからログレベルを取得（Phase 35.1: 動的設定対応）
+            # thresholds.yamlからログレベルを取得（動的設定対応）
             from src.core.config.threshold_manager import get_threshold
 
             log_level = get_threshold("backtest.log_level", "ERROR")
@@ -255,7 +254,7 @@ async def main():
     # 3. TradingOrchestratorに実行を委譲
     try:
         logger.info(
-            f"🚀 暗号資産取引Bot Phase 49完了・企業級AI自動取引システム 起動 - モード: {config.mode.upper()}"
+            f"🚀 暗号資産取引Bot Phase 52.4-B完了・6戦略55特徴量システム 起動 - モード: {config.mode.upper()}"
         )
 
         # 依存性組み立て済みOrchestratorを取得

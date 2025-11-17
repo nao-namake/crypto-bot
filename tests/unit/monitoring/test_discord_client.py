@@ -316,7 +316,9 @@ class TestDiscordClient:
         }
 
         for level, expected_color in level_colors.items():
-            result = client.send_embed(title=f"{level}テスト", description="テスト説明", level=level)
+            result = client.send_embed(
+                title=f"{level}テスト", description="テスト説明", level=level
+            )
             assert result is True
 
             # 最後の呼び出しの引数を取得
@@ -343,7 +345,9 @@ class TestDiscordClient:
             {"name": "長いフィールド名テスト" * 10, "value": "長い値テスト" * 50},
         ]
 
-        result = client.send_embed(title="フィールドテスト", description="複数フィールドテスト", fields=test_fields)
+        result = client.send_embed(
+            title="フィールドテスト", description="複数フィールドテスト", fields=test_fields
+        )
         assert result is True
 
         call_args = mock_post.call_args
@@ -424,7 +428,9 @@ class TestDiscordClient:
         # 引数なし、環境変数から取得
         client_env = DiscordClient()
         assert client_env.enabled is True
-        assert client_env.webhook_url == "https://discord.com/api/webhooks/123456789012345678/token123"
+        assert (
+            client_env.webhook_url == "https://discord.com/api/webhooks/123456789012345678/token123"
+        )
 
     @patch("requests.post")
     def test_error_response_codes(self, mock_post):

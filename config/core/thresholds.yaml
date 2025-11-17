@@ -30,6 +30,7 @@ execution:
   backtest_period_days: 180  # Phase 51.8-10: フル期間バックテスト（理論的設定値検証）
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
+  backtest_mode_interval_seconds: 1  # Phase 52.4: バックテスト実行間隔（秒）
 
 # ========================================
 # バックテスト設定（Backtest Settings）
@@ -37,23 +38,21 @@ execution:
 backtest:
   log_level: WARNING
   discord_enabled: false
-  data_limit: 10000  # Phase 51.10-C: サンプル数上限（10,000件で停止）
-  progress_interval: 100  # Phase 51.10-C: 進捗表示間隔（100件毎・1000→100に改善）
+  data_limit: 10000  # Phase 52.4: サンプル数上限（10,000件で停止）
+  progress_interval: 100  # Phase 52.4: 進捗表示間隔（100件毎）
+  progress_report_percentage: 10  # Phase 52.4: 進捗報告間隔（%）
+  strategy_signal_min_data_rows: 20  # Phase 52.4: 戦略シグナル計算最小データ行数
   report_interval: 10000
   mock_api_calls: true
   enable_detailed_logging: false
   fast_data_slicing: true
-  data_sampling_ratio: 1.0  # Phase 51.8-10: 全データ使用（backtest_period_daysで期間制限）
-  inner_loop_count: 1  # Phase 51.8-J4-H: 高速化（1回実行・約40分）注: Phase 51.8-K完了後、最終検証時は3に戻す
+  data_sampling_ratio: 1.0  # Phase 52.4: 全データ使用（backtest_period_daysで期間制限）
+  inner_loop_count: 1  # Phase 52.4: 高速化（1回実行・約40分）
 
 # ========================================
 # 🤖 ML統合設定（ML Integration Settings）
 # ========================================
-# Phase 41.8.5最適化完了:
-#   - min_ml_confidence: 0.45（3クラス分類対応）
-#   - high_confidence_threshold: 0.60（3クラス分類対応）
-#   - ML統合率100%達成（10%→100%改善）
-#   - 3段階統合ロジック（<0.45: 戦略のみ・0.45-0.60: 加重平均・≥0.60: ボーナス/ペナルティ）
+# Phase 52.4: 3段階統合ロジック・ML統合率100%達成
 # ========================================
 ml:
   confidence_threshold: 0.3
@@ -65,9 +64,9 @@ ml:
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.90  # Phase 51.8-J2: ペナルティ緩和（0.85→0.90）
-    min_ml_confidence: 0.35      # Phase 51.8-J2: 閾値緩和（0.45→0.35）
-    hold_conversion_threshold: 0.30  # Phase 51.8-J2: hold変換を厳しく（0.40→0.30）
+    disagreement_penalty: 0.90  # Phase 52.4: ペナルティ緩和
+    min_ml_confidence: 0.35      # Phase 52.4: 閾値緩和
+    hold_conversion_threshold: 0.30  # Phase 52.4: hold変換を厳しく
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -77,20 +76,21 @@ ml:
     fallback_strategy_weight: 0.7
 
   # ========================================
-  # Phase 51.9: レジーム別ML統合設定
+  # Phase 52.4: レジーム別ML統合設定
   # ========================================
-  # Phase 51.8バックテスト結果に基づく最適化:
-  #   - tight_range: 利益の99.4%寄与 → 戦略重視・ML補完控えめ
-  #   - normal_range: 利益の0.6%寄与・PF=1.005 → バランス型
-  #   - trending: 未発生だが将来対応 → ML補完重視
-  #   - high_volatility: エントリー禁止 → 超高閾値
+  # バックテスト最適化: tight_range（99.4%寄与）・normal_range（0.6%）・trending（未発生）
+  #
+  # Phase 52.5: 使用箇所
+  # 使用箇所:
+  #   - src/core/services/trading_cycle_manager.py (Lines 677, 680)
+  #   - src/core/config/config_classes.py (Line 63)
+  #   - src/ml/ensemble.py (get_regime_config)
   # ========================================
   regime_ml_integration:
-    enabled: true  # Phase 51.9: レジーム別ML統合有効化
+    enabled: true  # Phase 52.4: レジーム別ML統合有効化
 
     # tight_range（狭いレンジ）: 戦略重視型
-    # Phase 51.8結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
-    # → 戦略シグナルが強い → ML補完は控えめ
+    # バックテスト結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
     tight_range:
       min_ml_confidence: 0.50           # 高閾値（戦略重視）
       high_confidence_threshold: 0.65
@@ -100,8 +100,7 @@ ml:
       disagreement_penalty: 0.92        # ML・戦略不一致時ペナルティ緩和
 
     # normal_range（通常レンジ）: バランス型
-    # Phase 51.8結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
-    # → ほぼbreakeven → MLとのバランス重視
+    # バックテスト結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
     normal_range:
       min_ml_confidence: 0.40           # 中閾値（バランス型）
       high_confidence_threshold: 0.60
@@ -111,8 +110,7 @@ ml:
       disagreement_penalty: 0.90        # ML・戦略不一致時ペナルティ標準
 
     # trending（トレンド）: ML補完重視型
-    # Phase 51.8結果: 0件（未発生）
-    # → 実験的設定・ML補完を積極活用
+    # バックテスト結果: 0件（未発生・実験的設定）
     trending:
       min_ml_confidence: 0.35           # 低閾値（ML補完重視）
       high_confidence_threshold: 0.55
@@ -122,8 +120,7 @@ ml:
       disagreement_penalty: 0.88        # ML・戦略不一致時ペナルティやや強化
 
     # high_volatility（高ボラティリティ）: 超保守型
-    # Phase 51.8結果: 0件（未発生・ポジション制限0でエントリー禁止）
-    # → 超高閾値でほぼエントリーなし
+    # バックテスト結果: 0件（エントリー禁止）
     high_volatility:
       min_ml_confidence: 0.80           # 超高閾値（実質エントリーなし）
       high_confidence_threshold: 0.90
@@ -189,7 +186,7 @@ ml:
         volume_bonus_max: 0.1
         volume_multiplier: 0.2
 
-      # ADXTrend戦略動的信頼度設定（Phase 51.9-5: インデント修正）
+      # ADXTrend戦略動的信頼度設定
       adx_trend:
         strong_base: 0.65
         strong_min: 0.4
@@ -212,7 +209,7 @@ ml:
         volume_bonus_max: 0.1
         volume_multiplier: 0.15
 
-      # ATRBased戦略動的信頼度設定（Phase 51.9-5: strategies配下に移動）
+      # ATRBased戦略動的信頼度設定
       atr_based:
         high_volatility_base: 0.55
         high_volatility_min: 0.35
@@ -230,7 +227,7 @@ ml:
         weak_multiplier: 0.1
         volatility_bonus: 1.02
         volatility_max: 0.85
-        position_size_base: 0.015       # ← ML訓練で参照（Phase 51.9-5: 階層修正で解決）
+        position_size_base: 0.015       # ML訓練で参照
         market_stress_threshold: 0.7
         min_atr_ratio: 0.5
         strength_divisor: 0.2
@@ -245,6 +242,63 @@ ml:
     training_path: models/training
 
 # ========================================
+# 📊 市場レジーム分類設定（Market Regime Classification）
+# ========================================
+# Phase 52.4: 市場状況4段階分類パラメータ（tight_range/normal_range/trending/high_volatility）
+#
+# Phase 52.5: 使用箇所
+# 使用箇所:
+#   - src/core/services/market_regime_classifier.py (classify_regime)
+#   - src/core/services/trading_cycle_manager.py
+# ========================================
+market_regime:
+  # レンジ判定閾値
+  tight_range:
+    bb_width_threshold: 0.03        # BB幅閾値（3%未満で狭いレンジ）
+    price_range_threshold: 0.02     # 価格変動閾値（2%未満で狭いレンジ）
+  normal_range:
+    bb_width_threshold: 0.05        # BB幅閾値（5%未満で通常レンジ）
+    adx_threshold: 20               # ADX閾値（20未満で通常レンジ）
+  # トレンド判定閾値
+  trending:
+    adx_threshold: 25               # ADX閾値（25超でトレンド）
+    ema_slope_threshold: 0.01       # EMA傾き閾値（1%超でトレンド）
+  # 高ボラティリティ判定閾値
+  high_volatility:
+    atr_ratio_threshold: 0.018      # ATR比閾値（1.8%超で高ボラ）
+  # 計算期間パラメータ
+  periods:
+    bb_period: 20                   # ボリンジャーバンド期間
+    donchian_period: 20             # Donchianチャネル期間
+    ema_period: 20                  # EMA期間
+    ema_lookback: 5                 # EMA傾き計算参照期間
+    price_range_lookback: 20        # 価格変動率計算参照期間
+
+# ========================================
+# 🔧 サービス層設定（Services Layer Settings）
+# ========================================
+# Phase 52.4: 取引サイクル・システム復旧・ヘルスチェック設定
+# ========================================
+services:
+  # 取引サイクル設定
+  trading_cycle:
+    max_retries: 3                  # 最大リトライ回数
+    retry_delay: 5                  # リトライ遅延（秒）
+    validation_timeout: 30          # 検証タイムアウト（秒）
+  # システム復旧設定
+  system_recovery:
+    max_recovery_attempts: 3        # 最大復旧試行回数
+    recovery_delay: 10              # 復旧遅延（秒）
+  # Gracefulシャットダウン設定
+  graceful_shutdown:
+    timeout_seconds: 30             # シャットダウンタイムアウト（秒）
+  # ヘルスチェック設定
+  health_checker:
+    check_interval: 60              # ヘルスチェック間隔（秒）
+    cpu_threshold_percent: 80       # CPU使用率閾値（%）
+    memory_threshold_percent: 80    # メモリ使用率閾値（%）
+
+# ========================================
 # 📊 動的信頼度計算（Dynamic Confidence Calculation）
 # ========================================
 # 市場不確実性に基づく信頼度調整・戦略別信頼度範囲設定
@@ -252,50 +306,48 @@ ml:
 performance:
   default_latency_ms: 100.0
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 🎯 動的戦略選択設定（Dynamic Strategy Selection）
 # ========================================
-# Phase 51.5-A: 3戦略構成最適化（MochipoyAlert・MultiTimeframe削除）
+# Phase 52.4: 6戦略・レジーム別重み最適化（レンジ型95%・バランス型70/20・トレンド型80/20）
 #
-# 目的: 市場レジーム（tight_range/normal_range/trending/high_volatility）に応じて
-#       戦略の重みを動的に変更し、レジーム特性に最適化された戦略選択を実現
-#
-# 設定方法:
-#   - レジーム名: tight_range, normal_range, trending, high_volatility
-#   - 戦略名: ATRBased, BBReversal, DonchianChannel, StochasticReversal,
-#             ADXTrendStrength, MACDEMACrossover（6戦略）
-#   - 重み: 0.0-1.0（合計1.0になるように設定）
-#   - high_volatility: 全戦略無効化（全て0.0）
+# Phase 52.5: 使用箇所
+# 使用箇所:
+#   - src/core/services/dynamic_strategy_selector.py (select_strategies)
+#   - src/strategies/base/strategy_manager.py
 # ========================================
 dynamic_strategy_selection:
-  enabled: true  # Phase 51.8-J2: レジーム別戦略重み最適化有効化（バックテスト評価）
+  enabled: true  # Phase 52.4: レジーム別戦略重み最適化有効化
   # レジーム別戦略重みマッピング
-  # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 51.8-10: レンジ型戦略95%集中（理論的初期値）
-      ATRBased: 0.45            # ↑ 0.40→0.45（主力強化）
-      BBReversal: 0.35          # ↑ 0.30→0.35（BB反転強化）
-      DonchianChannel: 0.10     # ↓ 0.20→0.10（ブレイクアウト削減）
-      StochasticReversal: 0.10  # = 0.10（維持）
-      ADXTrendStrength: 0.0     # = 0.0（トレンド専用・無効化）
-      MACDEMACrossover: 0.0     # = 0.0（トレンド専用・無効化）
+      # レンジ型戦略95%集中
+      ATRBased: 0.45
+      BBReversal: 0.35
+      DonchianChannel: 0.10
+      StochasticReversal: 0.10
+      ADXTrendStrength: 0.0
+      MACDEMACrossover: 0.0
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 51.8-10: バランス型70/20配分（理論的初期値）
-      ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
-      BBReversal: 0.20          # = 0.20（維持）
-      DonchianChannel: 0.10     # ↓ 0.15→0.10（削減）
-      StochasticReversal: 0.15  # = 0.15（維持）
-      ADXTrendStrength: 0.15    # = 0.15（弱トレンド検出）
-      MACDEMACrossover: 0.05    # = 0.05（補助維持）
+      # バランス型70/20配分
+      ATRBased: 0.35
+      BBReversal: 0.20
+      DonchianChannel: 0.10
+      StochasticReversal: 0.15
+      ADXTrendStrength: 0.15
+      MACDEMACrossover: 0.05
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
-      # Phase 51.8-10: トレンド型80/20配分（理論的初期値）
-      ADXTrendStrength: 0.50    # ↑ 0.40→0.50（トレンド主力強化）
-      MACDEMACrossover: 0.30    # = 0.30（維持）
-      ATRBased: 0.15            # ↓ 0.20→0.15（削減）
-      DonchianChannel: 0.05     # ↓ 0.10→0.05（削減）
-      BBReversal: 0.0           # = 0.0（無効化）
-      StochasticReversal: 0.0   # = 0.0（無効化）
+      # トレンド型80/20配分
+      ADXTrendStrength: 0.50
+      MACDEMACrossover: 0.30
+      ATRBased: 0.15
+      DonchianChannel: 0.05
+      BBReversal: 0.0
+      StochasticReversal: 0.0
     high_volatility:  # 高ボラティリティ（ATR比 > 1.8%・4時間足）
       # 全戦略無効化（完全待機モード）
       ATRBased: 0.0
@@ -305,42 +357,36 @@ dynamic_strategy_selection:
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 📊 レジーム別ポジション制限設定（Regime-Based Position Limits）
 # ========================================
-# Phase 51.8: レジーム別保有ポジション制限実装
-#
-# 目的: 市場レジームに応じて保有ポジション数を動的に制限し、
-#       リスク管理を強化・市場状況に最適化されたポジション管理を実現
-#
-# 設定方法:
-#   - レジーム名: tight_range, normal_range, trending, high_volatility
-#   - max_positions: 最大同時保有ポジション数（0-5件）
-#   - 制限超過時: 新規エントリー拒否（reject_on_limit: true）
-#
-# 設計根拠:
-#   - tight_range: レンジ相場は逆張りチャンス多数 → 分散投資重視（5件）
-#   - normal_range: バランス型 → 適度な分散（4件）
-#   - trending: トレンド相場は集中投資 → 中程度の集中（3件）
-#   - high_volatility: 完全待機 → 損失回避（0件）
+# Phase 52.4: レジーム別最大ポジション数制限（6件→4件→2件→0件）
 # ========================================
 position_limits:
   tight_range:
-    max_positions: 6      # Phase 51.8-10: 5→6（分散投資最大化）
+    max_positions: 6      # 分散投資最大化
   normal_range:
-    max_positions: 4      # バランス型（維持）
+    max_positions: 4      # バランス型
   trending:
-    max_positions: 2      # Phase 51.8-10: 3→2（集中投資・損失最小化）
+    max_positions: 2      # 集中投資
   high_volatility:
-    max_positions: 0      # 完全待機（維持）
+    max_positions: 0      # 完全待機
   # エラーフォールバック設定
   fallback_max_positions: 2    # レジーム情報取得失敗時のデフォルト値
   reject_on_limit: true         # 制限超過時は新規エントリー拒否
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 🎯 戦略パラメータ（Strategy Parameters）
 # ========================================
-# 5戦略の閾値・信頼度計算設定
+# Phase 52.4: 6戦略閾値・信頼度計算設定
 # ========================================
 strategies:
   adx_trend:
@@ -377,7 +423,7 @@ strategies:
     weak_signal_max: 0.75
     weak_signal_min: 0.25
   bb_reversal:
-    # Phase 51.7 Day 3: BB Reversal戦略設定
+    # Phase 52.4: BB Reversal戦略設定
     min_confidence: 0.30
     hold_confidence: 0.25
     bb_width_threshold: 0.02        # BB幅閾値（2% = レンジ相場判定）
@@ -388,7 +434,7 @@ strategies:
     adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 51.7 Day 4: Stochastic Reversal戦略設定
+    # Phase 52.4: Stochastic Reversal戦略設定
     min_confidence: 0.30
     hold_confidence: 0.25
     stoch_overbought: 80            # Stochastic過買い閾値
@@ -398,7 +444,7 @@ strategies:
     adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
-    # Phase 51.7 Day 5: MACD + EMA Crossover戦略設定
+    # Phase 52.4: MACD + EMA Crossover戦略設定
     min_confidence: 0.35
     hold_confidence: 0.25
     adx_trend_threshold: 25         # ADXトレンド相場閾値（25以上）
@@ -450,6 +496,21 @@ trading:
     min_ml_confidence: 0.12
   stats_log_interval: 10
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
+# ========================================
+# ライブトレード設定（Live Trading Settings）
+# Phase 52.4: ライブモード専用設定
+# ========================================
+live:
+  progress_log_cycle_interval: 50  # 進捗ログ出力サイクル間隔
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 🧠 アンサンブルモデル設定（Ensemble Model Settings）
 # ========================================
@@ -457,6 +518,10 @@ ensemble:
   max_nan_ratio_features: 0.5
   max_nan_ratio_target: 0.3
   min_training_samples: 50
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
 
 # ========================================
 # 📈 MLモデル設定（ML Model Settings）
@@ -496,18 +561,39 @@ models:
     lambda: 1
     gamma: 0
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 📊 レポート設定（Reporting Settings）
 # ========================================
 reporting:
   base_dir: logs/reports
   paper_trading_dir: logs/paper_trading_reports
+  discord:
+    colors:
+      info: 0x3498DB      # Blue - 情報通知
+      warning: 0xF39C12   # Orange - 警告通知
+      critical: 0xE74C3C  # Red - 重要通知
+      success: 0x00FF00   # Green - 成功通知
+      error: 0xFF0000     # Red - エラー通知
+    validation:
+      url_min_length: 50          # Webhook URL最小長
+      webhook_id_min: 18          # Webhook ID最小桁数
+      webhook_id_max: 19          # Webhook ID最大桁数
+      token_min_length: 3         # Token最小長
+    timeouts:
+      file_upload_seconds: 30     # ファイル送信タイムアウト（秒）
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
 
 # ========================================
 # ⚖️ リスク管理設定（Risk Management Settings）
 # ========================================
-# Kelly基準・ドローダウン・資金管理設定
-# Phase 51.5-C: TP/SL価格差異バグ修正（ticker価格 vs limit価格・ATR取得失敗対応）
+# Phase 52.4: Kelly基準・ドローダウン・TP/SL再計算フォールバック
 # ========================================
 risk:
   emergency_ratio: 0.005
@@ -521,26 +607,40 @@ risk:
   max_capital_usage: 0.3
   reserve_ratio: 0.7
 
-  # Phase 51.5-C: TP/SL再計算フォールバック設定
-  fallback_atr: 500000                   # ATR取得失敗時のフォールバックATR値（500,000円）
-  require_tpsl_recalculation: true       # TP/SL再計算必須化（false時は元のTP/SL使用）
+  # Phase 52.4: TP/SL再計算フォールバック設定
+  fallback_atr: 500000                   # ATR取得失敗時（500,000円）
+  require_tpsl_recalculation: true       # TP/SL再計算必須化
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
 
 # ========================================
 # 📈 ポジション管理設定（Position Management Settings）
 # ========================================
-# Phase 51.6完了（被害最小化・こまめ利確）:
-#   - SL 0.7%・TP 0.9%・RR比1.29:1（Phase 51.6: 被害最小化・こまめ利確）
-#   - Phase 46: 個別TP/SL実装（デイトレード特化・シンプル実装）
-#   - Phase 49.18: 証拠金維持率80%確実遵守（critical: 100.0 → 80.0変更）
-#   - Phase 50.5: SL注文保護（クリーンアップ機能一時無効化）
+# Phase 52.4: TP/SL最適化（SL 0.7%・TP 0.9%・RR比1.29:1）・証拠金維持率80%遵守
+#
+# Phase 52.5: 使用箇所
+# 使用箇所:
+#   - take_profit/stop_loss: src/trading/execution/tp_sl_calculator.py
+#   - max_open_positions: src/trading/position/limits.py (Line 131)
+#   - fallback_position_size: src/trading/risk/sizer.py (Line 118)
+#   - confidence_thresholds: src/trading/position/limits.py (Lines 325-342)
 # ========================================
 position_management:
-  # Phase 46: 個別TP/SL実装（Phase 42統合TP/SL削除済み）
+  # 個別TP/SL実装
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 50
   cooldown_minutes: 15
   min_trade_size: 0.0001
+  # Phase 52.4-B: ポジションサイジングエラー時フォールバック値（sizer.py Line 118）
+  fallback_position_size: 0.01
+  # Phase 52.4: ML信頼度判定閾値（limits.py Lines 325-342のハードコード削除）
+  confidence_thresholds:
+    low_to_medium: 0.60    # 0.60未満: 低信頼度
+    medium_to_high: 0.75   # 0.75未満: 中信頼度・0.75以上: 高信頼度
+
   max_position_ratio_per_trade:
     low_confidence: 0.03
     medium_confidence: 0.05
@@ -576,20 +676,12 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 1.29              # Phase 51.6: RR比1.29:1（TP 0.9% / SL 0.7%）
-    min_profit_ratio: 0.009          # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
+    default_ratio: 1.29              # Phase 52.4: RR比1.29:1（TP 0.9% / SL 0.7%）
+    min_profit_ratio: 0.009          # Phase 52.4: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false
     position_partial_exit: false
 
-    # ========================================
-    # Phase 52.0: レジーム別TP設定
-    # ========================================
-    # 目的: 市場レジームに応じたTP最適化
-    #   - tight_range: TP 0.8%（頻繁利確・93.9%発生率対応）
-    #   - normal_range: TP 1.0%（標準利確）
-    #   - trending: TP 1.5%（大きく伸ばす）
-    # 期待効果: 勝率46.1%→50%+、取引毎リターン+219%
-    # ========================================
+    # Phase 52.4: レジーム別TP設定（0.8%→1.0%→1.5%→2.0%）
     regime_based:
       enabled: true
       tight_range:
@@ -604,23 +696,21 @@ position_management:
       high_volatility:
         min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
         default_ratio: 1.33
+
+  # Phase 52.4-B: 古い注文クリーンアップ設定
+  cleanup:
+    max_age_hours: 24                # 24時間以上の古い注文を削除対象
+    threshold_count: 25              # bitbank API 30件制限対策（25件で警告）
+
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.007            # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
+    max_loss_ratio: 0.007            # Phase 52.4: SL 0.7%（被害最小化）
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
 
-    # ========================================
-    # Phase 52.0: レジーム別SL設定
-    # ========================================
-    # 目的: 市場レジームに応じたSL最適化
-    #   - tight_range: SL 0.6%（損失最小化・レンジ相場特化）
-    #   - normal_range: SL 0.7%（標準損切り）
-    #   - trending: SL 1.0%（トレンド継続余地確保）
-    # 期待効果: 平均損失-12円→-10円（-17%改善）
-    # ========================================
+    # Phase 52.4: レジーム別SL設定（0.6%→0.7%→1.0%→1.5%）
     regime_based:
       enabled: true
       tight_range:
@@ -646,7 +736,7 @@ position_management:
         multiplier: 1.5
     min_distance:
       enabled: true
-      ratio: 0.007               # Phase 51.6: SL 0.7%に合わせて変更
+      ratio: 0.007               # Phase 52.4: SL 0.7%
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:
@@ -657,10 +747,14 @@ position_management:
       min_profit_lock: 0.005
       cancel_tp_when_exceeds: true
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 💰 証拠金管理設定（Margin Management Settings）
 # ========================================
-# Phase 49.18完了: 維持率80%確実遵守（critical: 100.0 → 80.0変更）
+# Phase 52.4: 証拠金維持率80%確実遵守
 # ========================================
 margin:
   position_value_estimation_ratio: 0.8
@@ -674,10 +768,14 @@ margin:
   min_position_value: 1000.0
   max_ratio_cap: 10000.0
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 📝 注文実行設定（Order Execution Settings）
 # ========================================
-# Phase 38.7.2完了: 完全指値オンリー実装（100%指値注文）
+# Phase 52.4: 完全指値オンリー（100%指値・年間¥150,000削減）
 # ========================================
 order_execution:
   smart_order_enabled: true
@@ -694,6 +792,10 @@ order_execution:
     max_price_deviation: 0.05
     check_interval_seconds: 60
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ========================================
 # 🔔 残高アラート設定（Balance Alert Settings）
 # ========================================
@@ -704,85 +806,145 @@ balance_alert:
   check_interval_minutes: 3
   discord_critical_alert: true
 
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
 # ==================================================================================
-# 🔬 Optuna最適化パラメータ（Phase 40最適化結果）
+# 🔬 Optuna最適化パラメータ（Phase 40最適化結果・履歴記録用）
 # ==================================================================================
-# 目的: Phase 40.1-40.4で最適化された79パラメータの最適値
-#
-# 重要:
-#   1. 上記セクションのパラメータと一部重複しています
-#   2. システムは上記セクションの値を優先使用します（get_threshold()参照）
-#   3. このセクションは最適化結果の記録・将来的な参照用です
-#
-# 最適化対象:
-#   - Phase 40.1: リスク管理パラメータ（12個）
-#   - Phase 40.2: 戦略パラメータ（30個）
-#   - Phase 40.3: ML統合パラメータ（7個）
-#   - Phase 40.4: MLハイパーパラメータ（30個）
-#
-# 更新方法:
-#   scripts/optimization/run_phase40_optimization.py を使用
-#   Phase 40.5統合デプロイで自動更新されます
-#
-# 期待効果:
-#   +50-70%の収益向上（リスク+10-15%・戦略+15-20%・ML統合+10-15%・MLハイパー+15-20%）
+# 目的: Phase 40 Optuna最適化結果の記録（79パラメータ）
+# 使用方法: 上記セクションの値を優先使用（get_threshold()参照）
+# 更新方法: scripts/optimization/run_phase40_optimization.py
 # ==================================================================================
-donchian_breakout_base: 0.5
-donchian_reversal_base: 0.4
-donchian_weak_base: 0.25
-donchian_breakout_threshold: 0.0015
-donchian_reversal_threshold: 0.09
-adx_strong_base: 0.7000000000000001
-adx_moderate_base: 0.45
-adx_weak_base: 0.3
-adx_strong_threshold: 23
-adx_moderate_min: 10
-adx_di_crossover: 0.6000000000000001
-adx_di_confirmation: 0.4
-atr_high_vol_base: 0.55
-atr_normal_vol_base: 0.5
-atr_low_vol_base: 0.4
-atr_rsi_overbought: 63
-atr_rsi_oversold: 26
-atr_bb_overbought: 0.8
-atr_bb_oversold: 0.35
-ml_weight: 0.35
-high_confidence_threshold: 0.85
-agreement_bonus: 1.15
-disagreement_penalty: 0.85
-min_ml_confidence: 0.45
-hold_conversion_threshold: 0.4
-lgbm_num_leaves: 40
-lgbm_learning_rate: 0.03842362394715147
-lgbm_n_estimators: 200
-lgbm_max_depth: 10
-lgbm_max_depth_unlimited: true
-lgbm_min_child_samples: 100
-lgbm_feature_fraction: 0.65
-lgbm_bagging_fraction: 0.8
-lgbm_bagging_freq: 7
-lgbm_reg_alpha: 4.9643553965532245e-05
-lgbm_reg_lambda: 0.05302953797331255
-xgb_max_depth: 8
-xgb_learning_rate: 0.09229165545667654
-xgb_n_estimators: 350
-xgb_min_child_weight: 7
-xgb_subsample: 0.9
-xgb_colsample_bytree: 0.8
-xgb_gamma: 4.5
-xgb_alpha: 0.006691186940196909
-xgb_lambda: 0.20681062974015182
-xgb_scale_pos_weight: 0.9
-rf_n_estimators: 200
-rf_max_depth: 24
-rf_max_depth_none: false
-rf_min_samples_split: 18
-rf_min_samples_leaf: 5
-rf_max_features_type: sqrt
-rf_max_features_float: 0.5
-rf_max_leaf_nodes: 50
-rf_max_leaf_nodes_none: true
-rf_min_impurity_decrease: 0.06
-rf_bootstrap: true
-rf_oob_score: false
-rf_class_weight: null
+optuna_optimized:
+  # 戦略パラメータ（30個）
+  strategies:
+    donchian_channel:
+      breakout_base: 0.5
+      reversal_base: 0.4
+      weak_base: 0.25
+      breakout_threshold: 0.0015
+      reversal_threshold: 0.09
+    adx_trend:
+      strong_base: 0.7000000000000001
+      moderate_base: 0.45
+      weak_base: 0.3
+      strong_threshold: 23
+      moderate_min: 10
+      di_crossover: 0.6000000000000001
+      di_confirmation: 0.4
+    atr_based:
+      high_vol_base: 0.55
+      normal_vol_base: 0.5
+      low_vol_base: 0.4
+      rsi_overbought: 63
+      rsi_oversold: 26
+      bb_overbought: 0.8
+      bb_oversold: 0.35
+
+  # ML統合パラメータ（7個）
+  ml_integration:
+    ml_weight: 0.35
+    high_confidence_threshold: 0.85
+    agreement_bonus: 1.15
+    disagreement_penalty: 0.85
+    min_ml_confidence: 0.45
+    hold_conversion_threshold: 0.4
+
+  # MLモデルハイパーパラメータ（42個）
+  model_hyperparameters:
+    lgbm:
+      num_leaves: 40
+      learning_rate: 0.03842362394715147
+      n_estimators: 200
+      max_depth: 10
+      max_depth_unlimited: true
+      min_child_samples: 100
+      feature_fraction: 0.65
+      bagging_fraction: 0.8
+      bagging_freq: 7
+      reg_alpha: 4.9643553965532245e-05
+      reg_lambda: 0.05302953797331255
+    xgb:
+      max_depth: 8
+      learning_rate: 0.09229165545667654
+      n_estimators: 350
+      min_child_weight: 7
+      subsample: 0.9
+      colsample_bytree: 0.8
+      gamma: 4.5
+      alpha: 0.006691186940196909
+      lambda: 0.20681062974015182
+      scale_pos_weight: 0.9
+    rf:
+      n_estimators: 200
+      max_depth: 24
+      max_depth_none: false
+      min_samples_split: 18
+      min_samples_leaf: 5
+      max_features_type: sqrt
+      max_features_float: 0.5
+      max_leaf_nodes: 50
+      max_leaf_nodes_none: true
+      min_impurity_decrease: 0.06
+      bootstrap: true
+      oob_score: false
+      class_weight: null
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
+# ========================================
+# 📊 分析スクリプト設定（Analysis Scripts Settings）
+# Phase 52.4: scripts/analysis/ 用の分析パラメータ
+# ========================================
+analysis:
+  # 戦略パフォーマンス分析（strategy_performance_analysis.py）
+  strategy_performance:
+    default_data_path: "src/backtest/data/historical/BTC_JPY_4h.csv"
+    sharpe_ratio:
+      risk_free_rate: 0.0  # リスクフリーレート
+      annualization_factor: 365  # 年率換算係数（日数）
+    backtest:
+      min_data_rows: 100  # 最小データ行数
+      warmup_rows: 50  # ウォームアップ期間
+      fixed_position_size: 0.01  # 固定ポジションサイズ
+      min_regime_data: 50  # レジーム別最小データ数
+    deletion_criteria:
+      win_rate_threshold: 0.5  # 勝率閾値（50%）
+      correlation_threshold: 0.7  # 相関閾値（70%）
+      contribution_threshold: 0.0  # 貢献度閾値（負の場合削除候補）
+
+  # レジーム分類精度検証（verify_regime_classification.py）
+  regime_verification:
+    default_data_path: "src/backtest/data/historical/BTC_JPY_4h.csv"
+    sample_size: 50  # ランダムサンプル表示数
+    target_ranges:
+      range_market:  # レンジ相場目標範囲
+        min: 70
+        max: 80
+      trending_market:  # トレンド相場目標範囲
+        min: 15
+        max: 20
+      high_volatility:  # 高ボラティリティ目標範囲
+        min: 5
+        max: 10
+
+# ================================================================================
+# Phase 52.5: セクション区切り（視覚的整理）
+# ================================================================================
+
+# ========================================
+# ⚙️ 設定検証（Validation Settings）
+# Phase 52.4: Config.__init__.pyのvalidate()で使用する検証閾値
+# ========================================
+validation:
+  risk:
+    risk_per_trade:
+      min: 0.001
+      max: 0.05
+    max_drawdown:
+      min: 0.01
+      max: 0.5

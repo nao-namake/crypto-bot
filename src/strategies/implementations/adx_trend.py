@@ -10,7 +10,7 @@ Average Directional Index (ADX) を用いたトレンド強度判定と
 - トレンド強度適応型信頼度調整
 - レンジ相場での取引抑制
 
-Phase 49完了: 市場不確実性計算統合・バックテストログ統合
+Phase 52.4-B完了: 市場不確実性計算統合・バックテストログ統合
 """
 
 from datetime import datetime
@@ -49,13 +49,19 @@ class ADXTrendStrengthStrategy(StrategyBase):
 
         # 戦略パラメータ（動的信頼度計算対応）
         self.adx_period = self.config.get("adx_period", 14)
-        self.strong_trend_threshold = get_threshold("strategies.adx_trend.strong_trend_threshold", 25)
+        self.strong_trend_threshold = get_threshold(
+            "strategies.adx_trend.strong_trend_threshold", 25
+        )
         self.weak_trend_threshold = get_threshold("strategies.adx_trend.weak_trend_threshold", 15)
-        self.di_crossover_threshold = get_threshold("strategies.adx_trend.di_crossover_threshold", 0.5)
+        self.di_crossover_threshold = get_threshold(
+            "strategies.adx_trend.di_crossover_threshold", 0.5
+        )
         self.min_confidence = get_threshold("strategies.adx_trend.min_confidence", 0.3)
         # 弱シグナル用設定
         self.weak_di_threshold = get_threshold("strategies.adx_trend.weak_di_threshold", 1.0)
-        self.di_weak_signal_confidence = get_threshold("strategies.adx_trend.di_weak_signal_confidence", 0.35)
+        self.di_weak_signal_confidence = get_threshold(
+            "strategies.adx_trend.di_weak_signal_confidence", 0.35
+        )
         self.logger.info(
             f"ADX Trend戦略初期化完了 - 期間: {self.adx_period}, 強いトレンド閾値: {self.strong_trend_threshold}"
         )
@@ -95,11 +101,16 @@ class ADXTrendStrengthStrategy(StrategyBase):
                 return self._create_hold_signal(df, "ADX分析失敗")
             # シグナル判定（Phase 32: multi_timeframe_data渡す）
             signal = self._determine_signal(df, adx_analysis, multi_timeframe_data)
-            self.logger.debug(f"[ADXTrend] シグナル生成完了: {signal.action} " f"(信頼度: {signal.confidence:.3f})")
+            self.logger.debug(
+                f"[ADXTrend] シグナル生成完了: {signal.action} "
+                f"(信頼度: {signal.confidence:.3f})"
+            )
             return signal
         except Exception as e:
             # Phase 38.4: バックテストログ統合
-            self.logger.conditional_log(f"[ADXTrend] シグナル生成エラー: {e}", level="error", backtest_level="debug")
+            self.logger.conditional_log(
+                f"[ADXTrend] シグナル生成エラー: {e}", level="error", backtest_level="debug"
+            )
             return self._create_hold_signal(df, f"エラー: {str(e)}")
 
     def _validate_data(self, df: pd.DataFrame) -> bool:
@@ -137,12 +148,18 @@ class ADXTrendStrengthStrategy(StrategyBase):
             plus_di = float(latest["plus_di_14"])
             minus_di = float(latest["minus_di_14"])
             # 前期間値
-            prev_adx = float(prev["adx_14"]) if "adx_14" in prev and not pd.isna(prev["adx_14"]) else adx
+            prev_adx = (
+                float(prev["adx_14"]) if "adx_14" in prev and not pd.isna(prev["adx_14"]) else adx
+            )
             prev_plus_di = (
-                float(prev["plus_di_14"]) if "plus_di_14" in prev and not pd.isna(prev["plus_di_14"]) else plus_di
+                float(prev["plus_di_14"])
+                if "plus_di_14" in prev and not pd.isna(prev["plus_di_14"])
+                else plus_di
             )
             prev_minus_di = (
-                float(prev["minus_di_14"]) if "minus_di_14" in prev and not pd.isna(prev["minus_di_14"]) else minus_di
+                float(prev["minus_di_14"])
+                if "minus_di_14" in prev and not pd.isna(prev["minus_di_14"])
+                else minus_di
             )
             # トレンド強度判定
             is_strong_trend = adx >= self.strong_trend_threshold
@@ -156,16 +173,24 @@ class ADXTrendStrengthStrategy(StrategyBase):
             prev_di_difference = prev_plus_di - prev_minus_di
             # DIクロスオーバー検出
             bullish_crossover = (
-                di_difference > 0 and prev_di_difference <= 0 and abs(di_difference) >= self.di_crossover_threshold
+                di_difference > 0
+                and prev_di_difference <= 0
+                and abs(di_difference) >= self.di_crossover_threshold
             )
             bearish_crossover = (
-                di_difference < 0 and prev_di_difference >= 0 and abs(di_difference) >= self.di_crossover_threshold
+                di_difference < 0
+                and prev_di_difference >= 0
+                and abs(di_difference) >= self.di_crossover_threshold
             )
             # DI強度
             di_strength = abs(di_difference)
             dominant_direction = "bullish" if plus_di > minus_di else "bearish"
             # ボラティリティ・出来高分析
-            atr = float(latest["atr_14"]) if "atr_14" in latest and not pd.isna(latest["atr_14"]) else 0
+            atr = (
+                float(latest["atr_14"])
+                if "atr_14" in latest and not pd.isna(latest["atr_14"])
+                else 0
+            )
             volatility_ratio = atr / current_price if current_price > 0 else 0
             volume_ratio = float(latest["volume_ratio"]) if "volume_ratio" in latest else 1.0
             analysis = {
@@ -310,7 +335,14 @@ class ADXTrendStrengthStrategy(StrategyBase):
         volume_bonus = 0.0
         if analysis["volume_ratio"] > 1.2:
             volume_bonus = min(0.1, (analysis["volume_ratio"] - 1.0) * 0.2)
-        confidence = base_confidence + adx_bonus + adx_direction_bonus + di_bonus + crossover_bonus + volume_bonus
+        confidence = (
+            base_confidence
+            + adx_bonus
+            + adx_direction_bonus
+            + di_bonus
+            + crossover_bonus
+            + volume_bonus
+        )
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
@@ -402,7 +434,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         max_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_max", 0.50)
         return max(min_confidence, min(max_confidence, confidence))
 
-    def _calculate_weak_trend_hold_confidence(self, analysis: Dict[str, Any], df: pd.DataFrame = None) -> float:
+    def _calculate_weak_trend_hold_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
         """
         弱トレンドHOLD信頼度計算（市場データ統合版）
         Args:
@@ -420,7 +454,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
 
         # ADX値による調整（低いほど不確実性増加）
-        adx_penalty = (self.weak_trend_threshold - analysis["adx"]) / self.weak_trend_threshold * 0.05
+        adx_penalty = (
+            (self.weak_trend_threshold - analysis["adx"]) / self.weak_trend_threshold * 0.05
+        )
         # DI差分による微調整
         di_strength_bonus = min(0.03, analysis["di_strength"] / 10.0 * 0.03)
 
@@ -446,7 +482,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         """
         return MarketUncertaintyCalculator.calculate(df)
 
-    def _calculate_default_confidence(self, analysis: Dict[str, Any], df: pd.DataFrame = None) -> float:
+    def _calculate_default_confidence(
+        self, analysis: Dict[str, Any], df: pd.DataFrame = None
+    ) -> float:
         """
         デフォルト動的信頼度計算（市場データ統合版）
         Args:
@@ -483,7 +521,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         )  # Phase 38.5.1: 0.45→0.60（thresholds.yaml統一）
         return max(default_min, min(default_max, confidence))
 
-    def _create_hold_signal(self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None) -> StrategySignal:
+    def _create_hold_signal(
+        self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None
+    ) -> StrategySignal:
         """HOLDシグナル生成（動的信頼度対応）"""
         current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
         # 動的信頼度優先、なければ設定値使用

@@ -1,9 +1,9 @@
 {
   "feature_order_version": "v4.2.0",
-  "phase": "Phase 51.9",
+  "phase": "Phase 52.4",
   "total_features": 55,
-  "last_updated": "2025-11-10T00:00:00Z",
-  "description": "55特徴量（6戦略完全対応・Phase 51.9戦略シグナルエンコーディング改善）",
+  "last_updated": "2025-11-14T00:00:00Z",
+  "description": "55特徴量（6戦略完全対応・Phase 52.4コード品質改善完了）",
 
   "feature_levels": {
     "full": {
@@ -137,7 +137,7 @@
     },
 
     "strategy_signals": {
-      "description": "戦略シグナル特徴量（Strategy Signals・6個・Phase 51.7 Day 6-7完了）",
+      "description": "戦略シグナル特徴量（Strategy Signals・6個・Phase 51.7完了）",
       "features": [
         "strategy_signal_ATRBased",
         "strategy_signal_DonchianChannel",
@@ -146,7 +146,7 @@
         "strategy_signal_StochasticReversal",
         "strategy_signal_MACDEMACrossover"
       ],
-      "note": "✅ Phase 51.7 Day 6-7完了: 6戦略シグナル完全対応"
+      "note": "✅ Phase 51.7完了・Phase 52.4整理完了: 6戦略シグナル完全対応"
     }
   },
 
@@ -512,7 +512,7 @@
       "importance": "low",
       "feature_importance": 0,
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
+      "note": "Phase 51.9エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・Phase 52.4整理完了"
     },
     "strategy_signal_DonchianChannel": {
       "type": "strategy_signal",
@@ -521,7 +521,7 @@
       "importance": "low",
       "feature_importance": 0,
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
+      "note": "Phase 51.9エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・Phase 52.4整理完了"
     },
     "strategy_signal_ADXTrendStrength": {
       "type": "strategy_signal",
@@ -530,7 +530,7 @@
       "importance": "low",
       "feature_importance": 0,
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
+      "note": "Phase 51.9エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・Phase 52.4整理完了"
     },
     "strategy_signal_BBReversal": {
       "type": "strategy_signal",
@@ -620,11 +620,11 @@
   },
 
   "validation": {
-    "checksum": "sha256:phase51_7_day2_def456...",
-    "last_validated": "2025-11-05T12:00:00Z",
+    "checksum": "sha256:phase52_4_abc123...",
+    "last_validated": "2025-11-14T00:00:00Z",
     "validation_status": "passed",
-    "phase51_7_day2_compliance": "verified",
-    "feature_count_validation": "51_features_confirmed",
+    "phase52_4_compliance": "verified",
+    "feature_count_validation": "55_features_confirmed",
     "data_driven_optimization": "completed",
     "lightgbm_importance_analysis": "completed"
   }

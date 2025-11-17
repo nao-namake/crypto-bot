@@ -1,21 +1,21 @@
 # src/strategies/utils/ - 戦略共通処理モジュール
 
-**Phase 49完了**: 5戦略共通処理の統一管理・適応型ATR倍率実装・最小SL距離保証・リスク管理統合・シグナル生成標準化。
+**Phase 52.4-B完了**: 6戦略共通処理の統一管理・適応型ATR倍率実装・最小SL距離保証・リスク管理統合・シグナル生成標準化。
 
 ## 📂 ファイル構成
 
 ```
 src/strategies/utils/
 ├── __init__.py          # エクスポート管理（32行）
-├── strategy_utils.py    # 戦略共通処理（572行・Phase 30: 適応ATR倍率追加）
-└── market_utils.py      # 市場分析ユーティリティ（180行・Phase 49完了）
+├── strategy_utils.py    # 戦略共通処理（600行・Phase 30: 適応ATR倍率追加）
+└── market_utils.py      # 市場分析ユーティリティ（180行・Phase 52.4-B完了）
 ```
 
 ## 🔧 主要機能
 
-### **strategy_utils.py（572行・Phase 30更新）**
+### **strategy_utils.py（600行・Phase 30更新）**
 
-**目的**: 5戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）の共通処理統一管理
+**目的**: 6戦略（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）の共通処理統一管理
 
 **提供クラス・機能**:
 ```python
@@ -176,7 +176,7 @@ class ATRBasedStrategy:
 ```
 
 **削減実績**:
-- **重複コード**: 約300行削除（5戦略×60行）
+- **重複コード**: 約300行削除（6戦略×60行）
 - **保守対象**: 5箇所 → 1箇所に集約
 - **一貫性**: 全戦略で統一されたリスク管理
 
@@ -186,7 +186,7 @@ class ATRBasedStrategy:
 # 共通モジュールのテスト実行
 python -m pytest tests/unit/strategies/utils/ -v
 
-# 統合基盤確認（Phase 49.14システム整合性検証）
+# 統合基盤確認（Phase 52.4-B.14システム整合性検証）
 bash scripts/testing/validate_system.sh
 ```
 
@@ -198,14 +198,14 @@ bash scripts/testing/validate_system.sh
 ## ⚠️ 重要事項
 
 ### **特性・制約**
-- **5戦略共通**: ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength対応
+- **6戦略共通**: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover対応
 - **統一リスク管理**: 全戦略で一貫したストップロス・利確・ポジションサイズ計算
 - **Phase 30新機能**: 適応型ATR倍率・最小SL距離保証による少額資金対応
 - **後方互換性**: 既存インターフェース維持・段階的移行可能
 - **設定統合**: config/core/thresholds.yaml連携・一元管理
-- **Phase 49完了**: 実用的機能に集中・保守性重視
+- **Phase 52.4-B完了**: 実用的機能に集中・保守性重視
 - **依存**: pandas・numpy・datetime・src.strategies.base・src.core.*
 
 ---
 
-**戦略共通処理モジュール（Phase 49完了）**: 5戦略統一管理・適応型ATR倍率・最小SL距離保証・重複排除・リスク管理統合・シグナル生成標準化システム。
+**戦略共通処理モジュール（Phase 52.4-B完了）**: 6戦略統一管理・適応型ATR倍率・最小SL距離保証・重複排除・リスク管理統合・シグナル生成標準化システム。

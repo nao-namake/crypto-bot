@@ -1,4 +1,4 @@
-# 週次バックテスト自動化ワークフロー - Phase 52.1
+# 週次バックテスト自動化ワークフロー - Phase 52.4
 # 目的: 毎週日曜日00:00(JST)にバックテストを自動実行し、Markdownレポートをリポジトリにコミット
 
 name: Weekly Backtest Automation
@@ -19,11 +19,12 @@ on:
       phase_name:
         description: 'Phase名（レポートファイル名用）'
         required: false
-        default: '52.1'
+        default: '52.4'
 
 env:
   PYTHON_VERSION: '3.13'
   BACKTEST_TIMEOUT_MINUTES: 180  # 3時間（バックテスト実行時間: 約2h43m）
+  HISTORICAL_DATA_DAYS: 180  # 履歴データ収集日数
 
 jobs:
   weekly-backtest:
@@ -73,8 +74,8 @@ jobs:
           # 必要なディレクトリ作成
           mkdir -p src/backtest/data/historical
 
-          # 履歴データ収集（180日分）
-          python3 src/backtest/scripts/collect_historical_csv.py --days 180
+          # 履歴データ収集（${HISTORICAL_DATA_DAYS}日分）
+          python3 src/backtest/scripts/collect_historical_csv.py --days ${{ env.HISTORICAL_DATA_DAYS }}
 
           # データ収集確認（大文字ファイル名）
           if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
@@ -105,8 +106,9 @@ jobs:
           # 必要なディレクトリ作成
           mkdir -p logs cache src/backtest/logs docs/バックテスト記録
 
-          # モデルメタデータ作成（Phase 52.0対応）
-          echo '{"version": "weekly-backtest", "features": 60, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
+          # モデルメタデータ作成（Phase 52.4対応・特徴量数一元管理）
+          FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
+          echo '{"version": "weekly-backtest", "features": '$FEATURE_COUNT', "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
 
           # モデルファイル確認
           if [ -f "models/production/ensemble_full.pkl" ]; then
@@ -166,7 +168,7 @@ jobs:
           echo "📝 Markdownレポート生成開始..."
 
           # Phase名取得（手動実行時は入力値、定期実行時はデフォルト）
-          PHASE_NAME="${{ github.event.inputs.phase_name || '52.1' }}"
+          PHASE_NAME="${{ github.event.inputs.phase_name || '52.4' }}"
           echo "Phase名: $PHASE_NAME"
 
           # Markdownレポート生成
@@ -214,7 +216,7 @@ jobs:
           else
             REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y/%m/%d')
             COMMIT_MSG="docs: 週次バックテストレポート追加 ${REPORT_DATE}"
-            COMMIT_BODY="週次自動バックテスト結果 (Phase 52.1) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
+            COMMIT_BODY="週次自動バックテスト結果 (Phase 52.4) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
 
             git commit -m "${COMMIT_MSG}" -m "${COMMIT_BODY}"
             echo "✅ コミット完了"
@@ -248,7 +250,7 @@ jobs:
         if: always()
         run: |
           echo "=" * 60
-          echo "📊 週次バックテスト実行サマリー（Phase 52.1）"
+          echo "📊 週次バックテスト実行サマリー（Phase 52.4）"
           echo "=" * 60
 
           if [ "${{ job.status }}" == "success" ]; then

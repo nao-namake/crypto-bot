@@ -1,7 +1,7 @@
 """
-Kelly基準ポジションサイジングシステム
+Kelly基準ポジションサイジングシステム - Phase 52.4-B完了
 
-Phase 28完了・取引実行結果管理統合システムの中核機能：
+主要機能：
 - Kelly基準による理論的最適ポジションサイズ計算
 - 実用的な安全制約の適用
 - 複数レベルフォールバック機能
@@ -78,9 +78,15 @@ class KellyCriterion:
             min_trades_for_kelly: Kelly計算に必要な最小取引数（Noneの場合は設定ファイルから取得）
         """
         # 設定ファイルから動的取得（ハードコード排除）
-        self.max_position_ratio = max_position_ratio or get_threshold("risk.kelly_max_fraction", 0.03)
-        self.safety_factor = safety_factor or get_threshold("risk.kelly_criterion.safety_factor", 0.7)
-        self.min_trades_for_kelly = min_trades_for_kelly or get_threshold("trading.kelly_min_trades", 5)
+        self.max_position_ratio = max_position_ratio or get_threshold(
+            "risk.kelly_max_fraction", 0.03
+        )
+        self.safety_factor = safety_factor or get_threshold(
+            "risk.kelly_criterion.safety_factor", 0.7
+        )
+        self.min_trades_for_kelly = min_trades_for_kelly or get_threshold(
+            "trading.kelly_min_trades", 5
+        )
         self.trade_history: List[TradeResult] = []
         self.logger = get_logger()
 
@@ -173,15 +179,21 @@ class KellyCriterion:
 
             # 期間フィルタ
             cutoff_date = datetime.now() - timedelta(days=lookback_days)
-            filtered_trades = [trade for trade in self.trade_history if trade.timestamp >= cutoff_date]
+            filtered_trades = [
+                trade for trade in self.trade_history if trade.timestamp >= cutoff_date
+            ]
 
             # 戦略フィルタ
             if strategy_filter:
-                filtered_trades = [trade for trade in filtered_trades if trade.strategy == strategy_filter]
+                filtered_trades = [
+                    trade for trade in filtered_trades if trade.strategy == strategy_filter
+                ]
 
             # 最小取引数チェック
             if len(filtered_trades) < self.min_trades_for_kelly:
-                self.logger.debug(f"Kelly計算に必要な取引数不足: {len(filtered_trades)} < {self.min_trades_for_kelly}")
+                self.logger.debug(
+                    f"Kelly計算に必要な取引数不足: {len(filtered_trades)} < {self.min_trades_for_kelly}"
+                )
                 return None
 
             # 統計計算
@@ -265,7 +277,9 @@ class KellyCriterion:
                     max_order_size = get_threshold("production.max_order_size", 0.02)
                     if fixed_initial_size > max_order_size:
                         fixed_initial_size = max_order_size
-                        self.logger.warning(f"初期固定サイズをmax_order_size制限: {fixed_initial_size:.6f} BTC")
+                        self.logger.warning(
+                            f"初期固定サイズをmax_order_size制限: {fixed_initial_size:.6f} BTC"
+                        )
 
                     self.logger.info(
                         f"Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
@@ -286,7 +300,9 @@ class KellyCriterion:
                         )
                         conservative_size = max_order_size
 
-                    self.logger.warning(f"Kelly計算エラー、保守的サイズ使用: {conservative_size:.6f}")
+                    self.logger.warning(
+                        f"Kelly計算エラー、保守的サイズ使用: {conservative_size:.6f}"
+                    )
                     return min(conservative_size, self.max_position_ratio)
 
             # ML信頼度による調整
@@ -358,7 +374,9 @@ class KellyCriterion:
                 raise ValueError(f"目標ボラティリティは0-1.0の範囲: {target_volatility}")
 
             # 1) ベースKellyサイズ計算
-            base_kelly_size = self.calculate_optimal_size(ml_confidence=ml_confidence, strategy_name="dynamic")
+            base_kelly_size = self.calculate_optimal_size(
+                ml_confidence=ml_confidence, strategy_name="dynamic"
+            )
 
             # 2) ATRベースのストップロス計算（設定ファイルから取得）
             stop_atr_multiplier = get_position_config("dynamic_sizing.stop_atr_multiplier", 2.0)
@@ -415,7 +433,9 @@ class KellyCriterion:
             # 複数レベルフォールバック
             return self._safe_fallback_position_size(balance, entry_price)
 
-    def _safe_fallback_position_size(self, balance: float, entry_price: float) -> Tuple[float, float]:
+    def _safe_fallback_position_size(
+        self, balance: float, entry_price: float
+    ) -> Tuple[float, float]:
         """
         安全なフォールバックポジションサイズ計算
 
@@ -434,7 +454,8 @@ class KellyCriterion:
             final_position = min(safe_position, max_safe)
 
             self.logger.warning(
-                f"フォールバックポジションサイズ使用: {final_position:.4f}, " f"ストップ: {safe_stop:.2f}"
+                f"フォールバックポジションサイズ使用: {final_position:.4f}, "
+                f"ストップ: {safe_stop:.2f}"
             )
 
             return final_position, safe_stop

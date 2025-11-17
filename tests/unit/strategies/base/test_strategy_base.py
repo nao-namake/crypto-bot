@@ -221,7 +221,9 @@ class TestStrategyBase:
         signal = strategy.analyze(
             strategy.sample_features
             if hasattr(strategy, "sample_features")
-            else pd.DataFrame({"close": [4000000], "volume": [100], "rsi_14": [50], "bb_position": [0.0]})
+            else pd.DataFrame(
+                {"close": [4000000], "volume": [100], "rsi_14": [50], "bb_position": [0.0]}
+            )
         )
 
         # シグナルが生成されることを確認

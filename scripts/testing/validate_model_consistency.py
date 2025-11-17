@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Phase 51.5-A: MLモデル特徴量整合性検証スクリプト
+MLモデル特徴量整合性検証スクリプト
+
+最終更新: 2025/11/16 (Phase 52.4-B)
 
 目的:
 - モデルメタデータと実装の特徴量数の一致を検証
 - デプロイ前にローカルで不一致を検出
-- Phase 51.5-A問題（60≠62）の再発防止
+- 特徴量不一致問題の再発防止
 
 検証項目:
 1. feature_order.jsonの特徴量数
@@ -35,7 +37,7 @@ class ModelConsistencyValidator:
 
     def validate(self) -> bool:
         """全検証を実行"""
-        print("🔍 Phase 51.5-A: MLモデル整合性検証開始\n")
+        print("🔍 MLモデル整合性検証開始\n")
 
         # 1. feature_order.json読み込み
         feature_order_data = self._load_feature_order()
@@ -45,7 +47,9 @@ class ModelConsistencyValidator:
         # 2. production_model_metadata.json読み込み
         model_metadata = self._load_model_metadata()
         if not model_metadata:
-            self.warnings.append("⚠️  production_model_metadata.json not found - モデル未訓練の可能性")
+            self.warnings.append(
+                "⚠️  production_model_metadata.json not found - モデル未訓練の可能性"
+            )
 
         # 3. 有効戦略数カウント
         active_strategies = self._count_active_strategies()
@@ -86,8 +90,23 @@ class ModelConsistencyValidator:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             print("\n✅ production_model_metadata.json読み込み成功")
-            print(f"   Phase: {data.get('phase', 'unknown')}")
-            print(f"   Feature count: {data.get('training_info', {}).get('feature_count', 'unknown')}")
+
+            # Phase妥当性検証
+            model_phase = data.get("phase", "unknown")
+            print(f"   Phase: {model_phase}")
+
+            # Phase 52.4より古い場合に警告
+            if model_phase != "Phase 52.4" and model_phase != "unknown":
+                self.warnings.append(
+                    f"⚠️  モデルPhaseが古い可能性: {model_phase} (最新: Phase 52.4)"
+                )
+                self.warnings.append(
+                    "   → モデル再訓練を推奨: python3 scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 30"
+                )
+
+            print(
+                f"   Feature count: {data.get('training_info', {}).get('feature_count', 'unknown')}"
+            )
             print(f"   Feature names count: {len(data.get('feature_names', []))}")
             return data
         except Exception as e:
@@ -96,7 +115,7 @@ class ModelConsistencyValidator:
 
     def _count_active_strategies(self) -> int:
         """strategies.yamlから有効戦略数をカウント"""
-        path = self.project_root / "config/strategies/strategies.yaml"
+        path = self.project_root / "config/core/strategies.yaml"
         if not path.exists():
             self.warnings.append(f"⚠️  {path} not found - 戦略数検証スキップ")
             return 0
@@ -107,19 +126,22 @@ class ModelConsistencyValidator:
             with open(path, "r", encoding="utf-8") as f:
                 strategies_config = yaml.safe_load(f)
 
-            # enabled戦略のみカウント
-            active = [s for s in strategies_config.get("strategies", []) if s.get("enabled", False)]
+            # strategies.yamlはdict形式（key: strategy_name, value: config）
+            strategies = strategies_config.get("strategies", {})
+            active = [name for name, cfg in strategies.items() if cfg.get("enabled", False)]
             count = len(active)
             print("\n✅ strategies.yaml読み込み成功")
             print(f"   有効戦略数: {count}")
-            for strategy in active:
-                print(f"     - {strategy.get('name', 'unknown')}")
+            for strategy_name in active:
+                print(f"     - {strategy_name}")
             return count
         except Exception as e:
             self.warnings.append(f"⚠️  strategies.yaml読み込みエラー: {e}")
             return 0
 
-    def _validate_feature_counts(self, feature_order_data: Dict, model_metadata: Optional[Dict]) -> None:
+    def _validate_feature_counts(
+        self, feature_order_data: Dict, model_metadata: Optional[Dict]
+    ) -> None:
         """特徴量数の整合性検証"""
         print("\n" + "=" * 60)
         print("📊 特徴量数整合性検証")
@@ -147,15 +169,19 @@ class ModelConsistencyValidator:
 
         # 検証
         if actual_feature_count != expected_full:
-            self.errors.append(f"❌ 特徴量数不一致: モデル={actual_feature_count}, 期待値={expected_full}")
             self.errors.append(
-                "   → モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --model both --n-classes 3 --threshold 0.005 --optimize --n-trials 50"
+                f"❌ 特徴量数不一致: モデル={actual_feature_count}, 期待値={expected_full}"
+            )
+            self.errors.append(
+                "   → モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 30"
             )
         else:
             print(f"\n✅ 特徴量数一致: {actual_feature_count} == {expected_full}")
 
         if actual_feature_names_count != expected_full:
-            self.errors.append(f"❌ feature_names数不一致: {actual_feature_names_count} != {expected_full}")
+            self.errors.append(
+                f"❌ feature_names数不一致: {actual_feature_names_count} != {expected_full}"
+            )
 
     def _validate_strategy_signals(self, feature_order_data: Dict, active_strategies: int) -> None:
         """戦略信号特徴量の整合性検証"""
@@ -164,18 +190,65 @@ class ModelConsistencyValidator:
         print("=" * 60)
 
         # feature_order.jsonの戦略信号特徴量
-        strategy_signals = feature_order_data.get("feature_categories", {}).get("strategy_signals", {})
-        expected_signals = len(strategy_signals.get("features", []))
+        strategy_signals = feature_order_data.get("feature_categories", {}).get(
+            "strategy_signals", {}
+        )
+        features_list = strategy_signals.get("features", [])
+        # features_listは文字列のリストまたは辞書のリストの可能性がある
+        if features_list and isinstance(features_list[0], str):
+            # 文字列リストの場合
+            expected_signals = len(features_list)
+            signal_names = features_list
+        else:
+            # 辞書リストの場合（レガシー形式）
+            expected_signals = len(features_list)
+            signal_names = [f.get("name", "") for f in features_list]
 
         print("\n🎯 期待値:")
         print(f"   有効戦略数: {active_strategies}")
         print(f"   戦略信号特徴量数: {expected_signals}")
 
+        # 戦略数の一致確認
         if active_strategies > 0 and active_strategies != expected_signals:
-            self.errors.append(f"❌ 戦略信号数不一致: 有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}")
+            self.errors.append(
+                f"❌ 戦略信号数不一致: 有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}"
+            )
             self.errors.append("   → feature_order.jsonのstrategy_signalsを更新してください")
         else:
             print(f"\n✅ 戦略信号数一致: {active_strategies} == {expected_signals}")
+
+        # 戦略名の一致確認（strategies.yamlとfeature_order.jsonのクロスチェック）
+        try:
+            import yaml
+
+            strategies_path = self.project_root / "config/core/strategies.yaml"
+            if strategies_path.exists():
+                with open(strategies_path, "r", encoding="utf-8") as f:
+                    strategies_config = yaml.safe_load(f)
+                strategies = strategies_config.get("strategies", {})
+                active_strategy_names = [
+                    name for name, cfg in strategies.items() if cfg.get("enabled", False)
+                ]
+
+                print("\n🔍 戦略名一致検証:")
+                print(f"   strategies.yaml: {active_strategy_names}")
+                print(f"   feature_order.json signals: {signal_names}")
+
+                # 名前ベース検証（大文字小文字・アンダースコア無視）
+                normalized_yaml = {s.lower().replace("_", "") for s in active_strategy_names}
+                normalized_signals = {
+                    s.lower().replace("_", "").replace("strategy_signal_", "") for s in signal_names
+                }
+
+                if normalized_yaml != normalized_signals:
+                    self.warnings.append(
+                        f"⚠️  戦略名が完全一致しない可能性: yaml={active_strategy_names}, signals={signal_names}"
+                    )
+                    self.warnings.append("   → 戦略追加・削除時は両方のファイルを更新してください")
+                else:
+                    print("   ✅ 戦略名一致確認")
+        except Exception as e:
+            self.warnings.append(f"⚠️  戦略名一致検証エラー: {e}")
 
     def _validate_model_files(self, feature_order_data: Dict) -> None:
         """モデルファイルの存在確認"""
@@ -184,8 +257,12 @@ class ModelConsistencyValidator:
         print("=" * 60)
 
         # 期待されるモデルファイル
-        full_model_file = feature_order_data.get("feature_levels", {}).get("full", {}).get("model_file")
-        basic_model_file = feature_order_data.get("feature_levels", {}).get("basic", {}).get("model_file")
+        full_model_file = (
+            feature_order_data.get("feature_levels", {}).get("full", {}).get("model_file")
+        )
+        basic_model_file = (
+            feature_order_data.get("feature_levels", {}).get("basic", {}).get("model_file")
+        )
 
         print("\n🎯 期待されるモデルファイル:")
         print(f"   Full: {full_model_file}")
