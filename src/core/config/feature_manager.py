@@ -27,9 +27,23 @@ class FeatureManager:
     """
 
     def __init__(self):
-        self.logger = get_logger()
+        self._logger = None  # Phase 52.5: 遅延初期化（CI環境対応）
         self._feature_config: Optional[Dict] = None
         self._feature_order_path = Path("config/core/feature_order.json")
+
+    @property
+    def logger(self):
+        """ログガー遅延初期化（CI環境・テスト環境対応）"""
+        if self._logger is None:
+            try:
+                self._logger = get_logger()
+            except Exception:
+                # CI環境やテスト環境でlogger初期化失敗時はNullLoggerを使用
+                import logging
+
+                self._logger = logging.getLogger(__name__)
+                self._logger.addHandler(logging.NullHandler())
+        return self._logger
 
     def _load_feature_config(self) -> Dict:
         """特徴量設定をキャッシュ付きで読み込み"""

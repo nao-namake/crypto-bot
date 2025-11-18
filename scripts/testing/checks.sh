@@ -203,17 +203,12 @@ else
     echo "ℹ️  INFO: 手動テストファイルが見つかりません（スキップ）"
 fi
 
-# システム整合性検証（Phase 52.5: CI環境では一時的にスキップ - 後で調査）
+# システム整合性検証
 echo ">>> 🔍 システム整合性検証"
 if [[ -f "scripts/testing/validate_system.sh" ]]; then
-    # CI環境検出（set -u対応: デフォルト値設定）
-    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then
-        echo "ℹ️  INFO: CI環境検出 - システム整合性検証をスキップ（Phase 52.5: 後で調査）"
-    else
-        bash scripts/testing/validate_system.sh || {
-            echo "⚠️  WARNING: システム整合性検証失敗（継続可能）"
-        }
-    fi
+    bash scripts/testing/validate_system.sh || {
+        echo "⚠️  WARNING: システム整合性検証失敗（継続可能）"
+    }
 else
     echo "⚠️  警告: validate_system.sh が見つかりません"
 fi

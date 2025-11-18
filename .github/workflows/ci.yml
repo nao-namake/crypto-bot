@@ -62,9 +62,32 @@ jobs:
 
       - name: Setup test environment
         run: |
-          # Phase 52.4: 特徴量数一元管理（feature_order.jsonから自動取得）
-          mkdir -p logs cache
-          FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
+          # Phase 52.5: CI環境デバッグ強化・設定ファイル存在確認
+          mkdir -p logs cache models/production
+
+          # 設定ファイル存在確認（デバッグ用）
+          echo "📂 設定ファイル確認..."
+          ls -la config/core/ || echo "⚠️ config/core/ not found"
+
+          if [ ! -f "config/core/feature_order.json" ]; then
+            echo "❌ ERROR: config/core/feature_order.json not found"
+            exit 1
+          fi
+
+          if [ ! -f "config/core/strategies.yaml" ]; then
+            echo "❌ ERROR: config/core/strategies.yaml not found"
+            exit 1
+          fi
+
+          echo "✅ 設定ファイル確認完了"
+
+          # Phase 52.4: 特徴量数一元管理（エラーハンドリング強化）
+          FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())" 2>&1) || {
+            echo "❌ ERROR: get_feature_count() failed"
+            echo "エラー詳細: $FEATURE_COUNT"
+            exit 1
+          }
+
           echo "{\"version\": \"ci-test\", \"features\": ${FEATURE_COUNT}}" > models/production/model_metadata.json
           echo "✅ テスト環境準備完了（実モデルファイル使用・${FEATURE_COUNT}特徴量）"
 
