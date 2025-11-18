@@ -7,7 +7,7 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '.github/workflows/**'  # ワークフロー変更でCI/CD起動しない
+      # Phase 52.5: .github/workflows/** 削除（ワークフロー変更を即座反映）
       - 'docs/**'
       - '**.md'
       - 'CLAUDE.md'
@@ -17,7 +17,7 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - '.github/workflows/**'  # ワークフロー変更でCI/CD起動しない
+      # Phase 52.5: .github/workflows/** 削除（ワークフロー変更を即座反映）
       - 'docs/**'
       - '**.md'
       - 'CLAUDE.md'
