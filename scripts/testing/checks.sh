@@ -181,9 +181,9 @@ python3 -m pytest \
     exit 1
 }
 
-# 実際のテスト数とカバレッジを抽出
-TEST_COUNT=$(grep -oP '\d+(?= passed)' "${PYTEST_OUTPUT}" | head -1)
-COV_PERCENT=$(grep -oP 'TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+\K\d+%' "${PYTEST_OUTPUT}" | tr -d '%')
+# 実際のテスト数とカバレッジを抽出（BSD grep互換・set -e対応）
+TEST_COUNT=$(grep -o '[0-9]* passed' "${PYTEST_OUTPUT}" | grep -o '[0-9]*' | head -1 || echo "")
+COV_PERCENT=$(grep 'TOTAL' "${PYTEST_OUTPUT}" | grep -o '[0-9]*%' | tail -1 | tr -d '%' || echo "")
 
 # デフォルト値設定（抽出失敗時）
 TEST_COUNT=${TEST_COUNT:-"N/A"}
@@ -206,8 +206,8 @@ fi
 # システム整合性検証（Phase 52.5: CI環境では一時的にスキップ - 後で調査）
 echo ">>> 🔍 システム整合性検証"
 if [[ -f "scripts/testing/validate_system.sh" ]]; then
-    # CI環境検出
-    if [[ -n "${CI}" || -n "${GITHUB_ACTIONS}" ]]; then
+    # CI環境検出（set -u対応: デフォルト値設定）
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then
         echo "ℹ️  INFO: CI環境検出 - システム整合性検証をスキップ（Phase 52.5: 後で調査）"
     else
         bash scripts/testing/validate_system.sh || {
