@@ -550,6 +550,7 @@ models:
     bootstrap: true
     oob_score: true
     class_weight: balanced
+    n_jobs: 1  # Phase 53.5: Cloud Run互換性（gVisor環境でのmultiprocessing制約）
   xgb:
     max_depth: 6
     learning_rate: 0.05

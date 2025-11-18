@@ -189,7 +189,7 @@ class NewSystemMLModelCreator:
             "n_estimators": 200,
             "max_depth": 12,
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,  # Phase 53.5: Cloud Run互換性（gVisor環境でのmultiprocessing制約）
             "class_weight": "balanced",  # Phase 39.4
         }
 
@@ -705,7 +705,7 @@ class NewSystemMLModelCreator:
             "max_depth": trial.suggest_int("max_depth", 5, 20),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,  # Phase 53.5: Cloud Run互換性（gVisor環境でのmultiprocessing制約）
             "class_weight": "balanced",
         }
 
