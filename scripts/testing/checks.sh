@@ -181,9 +181,9 @@ python3 -m pytest \
     exit 1
 }
 
-# 実際のテスト数とカバレッジを抽出（BSD grep互換・set -e対応）
+# 実際のテスト数とカバレッジを抽出（BSD grep互換・set -e対応・小数点対応）
 TEST_COUNT=$(grep -o '[0-9]* passed' "${PYTEST_OUTPUT}" | grep -o '[0-9]*' | head -1 || echo "")
-COV_PERCENT=$(grep 'TOTAL' "${PYTEST_OUTPUT}" | grep -o '[0-9]*%' | tail -1 | tr -d '%' || echo "")
+COV_PERCENT=$(grep 'TOTAL' "${PYTEST_OUTPUT}" | grep -o '[0-9.]*%' | tail -1 | tr -d '%' || echo "")
 
 # デフォルト値設定（抽出失敗時）
 TEST_COUNT=${TEST_COUNT:-"N/A"}
