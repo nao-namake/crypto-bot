@@ -239,3 +239,6 @@ echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: .cache/coverage/htmlcov/index.html"
 echo "🚀 システム品質: 真の3クラス分類実装・6戦略統合・55特徴量Strategy-Aware ML・企業級品質保証体制確立"
+
+# 明示的な成功終了（CI環境で確実に0を返す）
+exit 0
