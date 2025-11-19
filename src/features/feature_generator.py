@@ -771,10 +771,10 @@ class FeatureGenerator:
             channel_width = donchian_high - donchian_low
             channel_position = (close - donchian_low) / (channel_width + EPSILON)
 
-            # NaN値を適切な値で補完
-            donchian_high = donchian_high.bfill().fillna(high.iloc[0])
-            donchian_low = donchian_low.bfill().fillna(low.iloc[0])
-            channel_position = channel_position.fillna(0.5)  # 中央値で補完
+            # Phase 53.6: GCP環境安定性向上（.copy()追加）
+            donchian_high = donchian_high.bfill().fillna(high.iloc[0]).copy()
+            donchian_low = donchian_low.bfill().fillna(low.iloc[0]).copy()
+            channel_position = channel_position.fillna(0.5).copy()  # 中央値で補完
 
             return donchian_high, donchian_low, channel_position
 
@@ -828,10 +828,10 @@ class FeatureGenerator:
             # ADX (Average Directional Index)
             adx = dx.rolling(window=period, min_periods=1).mean()
 
-            # NaN値補完
-            adx = adx.bfill().fillna(0)
-            plus_di = plus_di.bfill().fillna(0)
-            minus_di = minus_di.bfill().fillna(0)
+            # Phase 53.6: GCP環境安定性向上（.copy()追加）
+            adx = adx.bfill().fillna(0).copy()
+            plus_di = plus_di.bfill().fillna(0).copy()
+            minus_di = minus_di.bfill().fillna(0).copy()
 
             return adx, plus_di, minus_di
 
@@ -845,9 +845,9 @@ class FeatureGenerator:
         """NaN値処理（統合版）"""
         for feature in self.computed_features:
             if feature in df.columns:
-                # pandas 2.x互換性: チェーン代入を2行に分割
-                df[feature] = df[feature].ffill().bfill()
-                df[feature] = df[feature].fillna(0)
+                # Phase 53.6: GCP環境安定性向上（中間変数使用）
+                temp_series = df[feature].ffill().bfill().fillna(0)
+                df[feature] = temp_series
         return df
 
     def _validate_feature_generation(

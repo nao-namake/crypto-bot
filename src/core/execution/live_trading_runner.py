@@ -133,7 +133,7 @@ class LiveTradingRunner(BaseRunner):
                     from ..config import get_threshold
 
                     client = BitbankClient()
-                    balance_data = client.fetch_balance()
+                    balance_data = await client.fetch_balance()
                     jpy_balance = balance_data.get("JPY", {}).get("free", 0.0)
 
                     if jpy_balance > 0:

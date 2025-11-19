@@ -423,9 +423,11 @@ class TestGetActualBalance:
         mock_config = Mock()
         mock_config.mode = "live"
 
-        # BitbankClient モック
+        # BitbankClient モック（Phase 53.6: async/await対応）
         mock_client = Mock()
-        mock_client.fetch_balance.return_value = {"JPY": {"free": 15000.0, "total": 15000.0}}
+        mock_client.fetch_balance = AsyncMock(
+            return_value={"JPY": {"free": 15000.0, "total": 15000.0}}
+        )
         mock_bitbank_class.return_value = mock_client
 
         balance = await _get_actual_balance(mock_config, mock_logger)
@@ -448,9 +450,9 @@ class TestGetActualBalance:
         unified_config.mode_balances = {"live": {"initial_balance": 10000.0}}
         mock_load_config.return_value = unified_config
 
-        # BitbankClient モック（残高0円）
+        # BitbankClient モック（Phase 53.6: async/await対応・残高0円）
         mock_client = Mock()
-        mock_client.fetch_balance.return_value = {"JPY": {"free": 0.0, "total": 0.0}}
+        mock_client.fetch_balance = AsyncMock(return_value={"JPY": {"free": 0.0, "total": 0.0}})
         mock_bitbank_class.return_value = mock_client
 
         balance = await _get_actual_balance(mock_config, mock_logger)

@@ -163,7 +163,7 @@ def setup_auto_shutdown():
 
     def timeout_handler(signum, frame):
         print(f"⏰ タイムアウト（{timeout_seconds}秒）によりシステムを終了します")
-        sys.exit(0)
+        sys.exit(1)  # Phase 53.6: 再起動促進・Logger競合回避
 
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(timeout_seconds)
