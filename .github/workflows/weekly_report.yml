@@ -16,7 +16,7 @@ on:
 
 env:
   PROJECT_ID: my-crypto-bot-project
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.11'
   WORKFLOW_TIMEOUT: 10
   ACCESS_TOKEN_LIFETIME: 1800
   DISCORD_WEBHOOK_SECRET_NAME: 'discord-webhook-url'

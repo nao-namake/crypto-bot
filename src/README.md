@@ -315,7 +315,7 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 ## ⚠️ 重要事項
 
 ### **システム要件（Phase 52.4-B完了）**
-- **Python**: 3.13推奨（最新MLライブラリ対応）・async/await完全対応・型ヒント拡充
+- **Python**: 3.11推奨（GCP gVisor互換性・99%稼働率目標 Phase 53.8）・async/await完全対応・型ヒント拡充
 - **メモリ**: 本番運用1GB・バックテスト2GB推奨
 - **ディスク**: キャッシュ・ログ・モデル用に5GB以上
 - **可視化ライブラリ**: matplotlib・Pillow（週間レポート・バックテストグラフ用）

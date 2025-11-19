@@ -1,12 +1,12 @@
-# Phase 52.4-B完了 Production Dockerfile
-# 6戦略55特徴量システム・コード品質改善・企業級AI自動取引システム
+# Phase 53.8 Production Dockerfile
+# Python 3.11ダウングレード・99%稼働率達成・GCP環境安定化
 
-FROM python:3.13-slim-bullseye
+FROM python:3.11-slim-bullseye
 
-# メタデータ（Phase 52.4-B完了）
-LABEL maintainer="crypto-bot-phase52.4-b-system"
-LABEL version="52.4.0"
-LABEL description="Phase 52.4-B完了: コード品質改善・6戦略55特徴量システム・Phase参照統一67%削減"
+# メタデータ（Phase 53.8）
+LABEL maintainer="crypto-bot-phase53.8-stable-system"
+LABEL version="53.8.0"
+LABEL description="Phase 53.8: Python 3.11安定化・99%稼働率目標・pandas/gVisor互換性確保"
 
 WORKDIR /app
 

@@ -197,7 +197,7 @@ pip3 install imbalanced-learn optuna matplotlib Pillow
 ## ⚠️ 注意事項・制約
 
 ### **実行環境要件**
-- **Python環境**: Python 3.13・pytest・coverage・flake8・black・isort
+- **Python環境**: Python 3.11（Phase 53.8）・pytest・coverage・flake8・black・isort
 - **必須ライブラリ**: imbalanced-learn・optuna・matplotlib・Pillow（週間レポート・バックテスト可視化）
 - **実行場所**: プロジェクトルートディレクトリからの実行必須
 - **依存関係**: 全システムモジュール・機械学習ライブラリ・設定ファイル・tax/モジュール

@@ -58,7 +58,7 @@
 - `dry_run`: ドライラン実行フラグ（モデル保存なし）
 
 **実行フロー**:
-1. **環境セットアップ**: Python3.13・依存関係インストール
+1. **環境セットアップ**: Python3.11（Phase 53.8）・依存関係インストール
 2. **ML学習実行**: 統合運用ガイド準拠コマンド
    ```bash
    --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
@@ -167,7 +167,7 @@
 🗓️  毎週日曜18:00 JST
     ↓
 🤖 model-training.yml 自動実行
-    ├── Python3.13環境セットアップ
+    ├── Python3.11環境セットアップ（Phase 53.8）
     ├── ProductionEnsemble学習（LightGBM・XGBoost・RandomForest）
     ├── 55特徴量品質検証（最小50特徴量・将来拡張対応）
     └── Git自動コミット・model-updatedイベント送信
@@ -236,7 +236,7 @@ gh run list --limit 1
   - クリーンアップ: 20分
   - 週次バックテスト: 180分（3時間）
   - 週間レポート: 10分
-- **Python版**: 3.13（全ワークフロー統一・MLライブラリ互換性最適化）
+- **Python版**: 3.11（全ワークフロー統一・GCP gVisor互換性確保・Phase 53.8）
 - **実行制限**: mainブランチでの実行に制限（安全性確保）
 
 ### **GCP認証・権限**
@@ -301,7 +301,7 @@ gh run list --limit 1
 - **Secret Manager最適化**: `:latest`廃止→具体的バージョン（:3, :6）
 - **MODE設定統一**: CI/CD時自動的に `MODE=live`
 - **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC
-- **Python版統一**: 全ワークフローで3.13統一
+- **Python版統一**: 全ワークフローで3.11統一（Phase 53.8・GCP gVisor互換性確保）
 
 **技術的詳細**:
 - 3層優先順位：CLI引数 > 環境変数 > YAML設定

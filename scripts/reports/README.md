@@ -79,7 +79,7 @@ python3 scripts/reports/weekly_report.py --days 30
 ## ⚠️ 注意事項・制約
 
 ### **実行環境要件**
-- **Python環境**: Python 3.13・matplotlib・Pillow必須
+- **Python環境**: Python 3.11（Phase 53.8）・matplotlib・Pillow必須
 - **実行場所**: プロジェクトルートディレクトリから実行必須
 - **データベース**: tax/trade_history.db存在必須（Phase 47取引記録システム）
 - **Discord Webhook**: 環境変数DISCORD_WEBHOOK_URL設定必須

@@ -159,7 +159,7 @@ config/core/                # 統一設定管理（Phase 52.5最適化完了）
 
 ### 言語・フレームワーク
 
-- **Python 3.13**: メイン開発言語・MLライブラリ互換性最適化
+- **Python 3.11**: メイン開発言語・GCP gVisor互換性確保・99%稼働率目標（Phase 53.8）
 - **ccxt**: bitbank API統合・信用取引対応・非同期処理
 - **pandas/numpy**: データ処理・特徴量生成
 - **scikit-learn/XGBoost/LightGBM**: 機械学習モデル・ProductionEnsemble

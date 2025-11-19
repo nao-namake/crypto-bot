@@ -22,7 +22,7 @@ on:
         default: '52.4'
 
 env:
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.11'
   BACKTEST_TIMEOUT_MINUTES: 180  # 3時間（バックテスト実行時間: 約2h43m）
   HISTORICAL_DATA_DAYS: 180  # 履歴データ収集日数
 

@@ -111,7 +111,7 @@ python3 tax/scripts/export_trade_history.py \
 ## ⚠️ 注意事項・制約
 
 ### **実行環境要件**
-- **Python環境**: Python 3.13必須
+- **Python環境**: Python 3.11（Phase 53.8: 99%稼働率目標・gVisor互換性確保）
 - **実行場所**: プロジェクトルートディレクトリから実行必須
 - **データベース**: tax/trade_history.db存在必須（Phase 47.1取引記録システム）
 - **出力ディレクトリ**: tax/exports/・tax/reports/事前作成推奨

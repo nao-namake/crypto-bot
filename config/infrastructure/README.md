@@ -231,7 +231,7 @@ gcloud iam service-accounts list \
 ### **デプロイ制約**
 - **mainブランチ**: 自動デプロイ対象
 - **テスト要件**: 1,117テスト100%成功必須
-- **Python**: 3.13統一
+- **Python**: 3.11統一（Phase 53.8: 99%稼働率目標・gVisor互換性確保）
 
 ---
 
@@ -239,7 +239,7 @@ gcloud iam service-accounts list \
 
 ### **CI/CD関連**
 - `.github/workflows/ci.yml`: GitHub Actions CI/CDワークフロー
-- `Dockerfile`: Python 3.13・Cloud Run対応
+- `Dockerfile`: Python 3.11・Cloud Run対応（Phase 53.8: gVisor互換性確保）
 - `requirements.txt`: Python依存関係
 
 ### **設定ファイル**
