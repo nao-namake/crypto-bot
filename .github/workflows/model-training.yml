@@ -1,5 +1,5 @@
 # MLモデル自動再学習ワークフロー
-# 週次自動実行（日曜18:00 JST）・Phase 51.5-E完了（60特徴量・3クラス分類）・Phase 52.4品質改善
+# 週次自動実行（日曜18:00 JST）・Phase 53.8完了（55特徴量・3クラス分類・Python 3.11）・GCP gVisor互換性
 
 name: ML Model Training
 
@@ -66,7 +66,7 @@ jobs:
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.11'  # Phase 53.8: Python 3.11安定化・GCP gVisor互換性
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
 
@@ -100,11 +100,11 @@ jobs:
           N_TRIALS=${{ github.event.inputs.n_trials || env.N_TRIALS_DEFAULT }}
           DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}
 
-          echo "🎯 Phase 51.5-E完了: MLモデル学習実行（一括生成システム）"
+          echo "🎯 Phase 53.8: MLモデル学習実行（Python 3.11・55特徴量システム）"
           echo "📊 Optuna試行回数: ${N_TRIALS}"
-          echo "📊 3クラス分類（SELL/HOLD/BUY）・60特徴量（50テクニカル+3戦略信号+7時間的）"
+          echo "📊 3クラス分類（SELL/HOLD/BUY）・55特徴量（49基本+6戦略シグナル）"
           echo "📊 閾値: ±0.5%・Optunaハイパーパラメータ最適化"
-          echo "📊 訓練対象: ensemble_full.pkl (60特徴量・デフォルト) + ensemble_basic.pkl (57特徴量・フォールバック)"
+          echo "📊 訓練対象: ensemble_full.pkl (55特徴量・デフォルト) + ensemble_basic.pkl (49特徴量・フォールバック)"
           echo "📊 ドライランモード: ${DRY_RUN}"
 
           # 統合運用ガイド準拠の標準コマンド使用（Phase 52.4: 重複削除）
@@ -187,7 +187,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ 特徴量検証完了: ${FEATURE_COUNT}特徴量（Phase 51.5-E: 60特徴量）"
+          echo "✅ 特徴量検証完了: ${FEATURE_COUNT}特徴量（Phase 53.8: 55特徴量）"
 
           # 4. モデルサイズ確認（両モデル）
           FULL_SIZE=$(du -h models/production/ensemble_full.pkl | awk '{print $1}')
@@ -231,11 +231,12 @@ jobs:
           # コミット作成
           git commit -m "feat: ${MODEL_VERSION} モデル自動更新（週次再学習）" \
             -m "" \
-            -m "- 60特徴量Strategy-Aware ML再学習完了" \
+            -m "- 55特徴量Strategy-Aware ML再学習完了（49基本+6戦略シグナル）" \
             -m "- 3クラス分類（SELL/HOLD/BUY）・閾値±0.5%" \
             -m "- Optuna最適化（${{ github.event.inputs.n_trials || env.N_TRIALS_DEFAULT }}試行）" \
-            -m "- ProductionEnsembleアンサンブル（LightGBM/XGBoost/RandomForest）" \
+            -m "- ProductionEnsembleアンサンブル（LightGBM/XGBoost/RandomForest・n_jobs=1）" \
             -m "- 自動バージョン管理・アーカイブ実行" \
+            -m "- Python 3.11環境（GCP gVisor互換性）" \
             -m "" \
             -m "🤖 Generated with [Claude Code](https://claude.com/claude-code)" \
             -m "" \
@@ -306,7 +307,7 @@ except Exception as e:
           fi
 
           echo ""
-          echo "📈 Phase 51.5-E完了: 60特徴量Strategy-Aware ML・3戦略統合・3クラス分類・Optuna最適化"
+          echo "📈 Phase 53.8完了: 55特徴量Strategy-Aware ML・6戦略統合・3クラス分類・Optuna最適化・Python 3.11環境"
           echo "✅ モデル定期学習: ${{ job.status == 'success' && '完了' || '失敗' }}"
 
       - name: Training Failure Alert
@@ -329,5 +330,6 @@ except Exception as e:
 # 1. 週次自動実行: 毎週日曜18:00 JST（UTC 09:00）
 # 2. 手動実行推奨: n_trials調整可能（50推奨・100高精度・30テスト用）
 # 3. ドライランモード: モデル保存なしでテスト可能
-# 4. Phase 51.5-E完了: 60特徴量（50テクニカル+3戦略信号+7時間的）・3クラス分類・Optuna最適化
+# 4. Phase 53.8完了: 55特徴量（49基本+6戦略シグナル）・3クラス分類・Python 3.11・Optuna最適化
 # 5. 実行時間: 約4-8分（50-100 trials）
+# 6. RandomForest設定: n_jobs=1（GCP gVisor互換性・99%稼働率目標）
