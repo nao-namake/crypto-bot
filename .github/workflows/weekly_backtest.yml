@@ -23,14 +23,14 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
-  BACKTEST_TIMEOUT_MINUTES: 180  # 3時間（バックテスト実行時間: 約2h43m）
+  BACKTEST_TIMEOUT_MINUTES: 300  # 5時間（バックテスト実行時間: 約2h43m + バッファ）
   HISTORICAL_DATA_DAYS: 180  # 履歴データ収集日数
 
 jobs:
   weekly-backtest:
     name: Weekly Backtest Execution
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # 全体タイムアウト: 3時間
+    timeout-minutes: 360  # 全体タイムアウト: 6時間（データ収集10分 + バックテスト5時間 + レポート生成5分 + バッファ）
 
     permissions:
       contents: write  # Git commitとpushに必要
