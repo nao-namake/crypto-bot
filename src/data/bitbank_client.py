@@ -245,7 +245,9 @@ class BitbankClient:
 
                 # 複数日のデータを結合
                 all_ohlcv = []
-                for days_ago in range(days_needed):
+                # Phase 53.8.2: Bitbank API仕様により当日の15m足URLは存在しない（エラーコード10000）
+                # 前日以降の完全データのみ取得（days_ago=1から開始）
+                for days_ago in range(1, days_needed + 1):
                     date_obj = datetime.now() - timedelta(days=days_ago)
                     date_str = date_obj.strftime("%Y%m%d")
 
