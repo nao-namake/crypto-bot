@@ -86,13 +86,44 @@ jobs:
           echo "🚀 モデル学習環境セットアップ"
 
           # 必要なディレクトリ作成
-          mkdir -p models/{production,training,archive} logs cache
+          mkdir -p models/{production,training,archive} logs cache src/backtest/data/historical
 
           # Git設定（コミット用）
           git config --global user.name "GitHub Actions ML Training"
           git config --global user.email "actions@github.com"
 
           echo "✅ 環境セットアップ完了"
+
+      - name: Collect Latest Training Data
+        run: |
+          echo "📊 Phase 53.8.3: 最新訓練データ収集開始（180日分）"
+          echo "🎯 目的: 週次自動学習での古いデータ使用問題を解決"
+
+          # データ収集実行
+          python3 src/backtest/scripts/collect_historical_csv.py \
+            --days 180 \
+            --symbol BTC/JPY
+
+          # データ確認
+          echo "✅ データ収集完了 - ファイル確認:"
+          ls -lh src/backtest/data/historical/
+
+          # データ期間確認（最新性検証）
+          echo ""
+          echo "📈 4h足データ期間:"
+          head -2 src/backtest/data/historical/BTC_JPY_4h.csv
+          tail -2 src/backtest/data/historical/BTC_JPY_4h.csv
+
+          echo ""
+          echo "📈 15m足データ期間:"
+          head -2 src/backtest/data/historical/BTC_JPY_15m.csv
+          tail -2 src/backtest/data/historical/BTC_JPY_15m.csv
+
+          # データ鮮度確認（7日以上古い場合は警告）
+          LATEST_DATE=$(tail -1 src/backtest/data/historical/BTC_JPY_4h.csv | cut -d',' -f7)
+          echo ""
+          echo "✅ 最新データ日時: ${LATEST_DATE}"
+          echo "📅 収集完了 - 最新180日データで訓練します"
 
       - name: Execute ML Model Training
         id: training

@@ -64,9 +64,9 @@ ml:
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.90  # Phase 52.4: ペナルティ緩和
-    min_ml_confidence: 0.35      # Phase 52.4: 閾値緩和
-    hold_conversion_threshold: 0.30  # Phase 52.4: hold変換を厳しく
+    disagreement_penalty: 0.95  # Phase 53.8.3: ペナルティ半減（0.90 → 0.95）・Phase 44.1意図継続
+    min_ml_confidence: 0.30      # Phase 53.8.3: 閾値緩和（0.35 → 0.30, -14%）・統計的有意性確保
+    hold_conversion_threshold: 0.20  # Phase 53.8.3: 48h無エントリー解決（0.30 → 0.20, -33%）★最重要
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -91,8 +91,9 @@ ml:
 
     # tight_range（狭いレンジ）: 戦略重視型
     # バックテスト結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
+    # Phase 53.8.3: 48h無エントリー解決・重要度99.4%レジームでML活用強化
     tight_range:
-      min_ml_confidence: 0.50           # 高閾値（戦略重視）
+      min_ml_confidence: 0.40           # Phase 53.8.3: 0.50 → 0.40 (-20%) ★最重要・統計的有意性
       high_confidence_threshold: 0.65
       ml_weight: 0.25                   # ML 25%
       strategy_weight: 0.75             # 戦略 75%
@@ -102,7 +103,7 @@ ml:
     # normal_range（通常レンジ）: バランス型
     # バックテスト結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
     normal_range:
-      min_ml_confidence: 0.40           # 中閾値（バランス型）
+      min_ml_confidence: 0.35           # Phase 53.8.3: 0.40 → 0.35 (-13%)
       high_confidence_threshold: 0.60
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
@@ -112,7 +113,7 @@ ml:
     # trending（トレンド）: ML補完重視型
     # バックテスト結果: 0件（未発生・実験的設定）
     trending:
-      min_ml_confidence: 0.35           # 低閾値（ML補完重視）
+      min_ml_confidence: 0.30           # Phase 53.8.3: 0.35 → 0.30 (-14%)
       high_confidence_threshold: 0.55
       ml_weight: 0.35                   # ML 35%
       strategy_weight: 0.65             # 戦略 65%

@@ -135,6 +135,9 @@ jobs:
           echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
           echo "実行時刻（UTC）: $(date -u '+%Y/%m/%d %H:%M:%S')"
 
+          # Phase 53.8.4: PYTHONPATH設定（src モジュール認識）
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
           # バックテスト実行（タイムアウト対策: timeoutコマンド使用）
           timeout $((BACKTEST_TIMEOUT_MINUTES * 60)) python3 main.py --mode backtest 2>&1 | tee backtest_run.log
 
