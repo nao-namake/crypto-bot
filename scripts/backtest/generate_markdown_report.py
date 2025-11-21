@@ -14,9 +14,14 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+
+# プロジェクトルートをPythonパスに追加（CI環境対応）
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.core.config.threshold_manager import get_threshold
 

@@ -174,6 +174,9 @@ jobs:
           PHASE_NAME="${{ github.event.inputs.phase_name || '52.4' }}"
           echo "Phase名: $PHASE_NAME"
 
+          # PYTHONPATH設定（src モジュール認識）
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
           # Markdownレポート生成
           python3 scripts/backtest/generate_markdown_report.py \
             "$LATEST_JSON" \
