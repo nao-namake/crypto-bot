@@ -18,6 +18,7 @@
 """
 
 import asyncio
+import os
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -116,8 +117,13 @@ class BacktestRunner(BaseRunner):
 
     async def _setup_backtest_period(self):
         """バックテスト期間設定"""
-        # 外部設定から期間を取得
-        backtest_days = get_threshold("execution.backtest_period_days", 30)
+        # 優先順位: 環境変数 > 設定ファイル > デフォルト（Phase 55.3）
+        env_days = os.environ.get("BACKTEST_DAYS")
+        if env_days:
+            backtest_days = int(env_days)
+            self.logger.info(f"📅 環境変数BACKTEST_DAYSから期間取得: {backtest_days}日間")
+        else:
+            backtest_days = get_threshold("execution.backtest_period_days", 30)
 
         self.backtest_end = datetime.now()
         self.backtest_start = self.backtest_end - timedelta(days=backtest_days)
@@ -340,7 +346,16 @@ class BacktestRunner(BaseRunner):
             # 各タイムスタンプで過去データのみ使用して戦略実行
             for i in range(total_rows):
                 # Phase 49.1: Look-ahead bias防止 - 過去データのみ使用
-                historical_data = main_df.iloc[: i + 1]
+                historical_data = main_df.iloc[: i + 1].copy()
+
+                # Phase 54.9: Bug #3修正 - DatetimeIndex強制保持（Bug #1/#2のトリガー排除）
+                if not isinstance(historical_data.index, pd.DatetimeIndex):
+                    if "timestamp" in historical_data.columns:
+                        historical_data.index = pd.to_datetime(
+                            historical_data["timestamp"], unit="ms"
+                        )
+                        historical_data = historical_data.drop(columns=["timestamp"])
+                        self.logger.debug(f"📅 DatetimeIndex復元: {len(historical_data)}件")
 
                 # 進捗報告
                 if i % progress_interval == 0 and i > 0:
@@ -801,14 +816,21 @@ class BacktestRunner(BaseRunner):
                     # バックテストモードではbitbank API呼び出し不要（残高更新とTradeTracker記録のみ）
                     try:
                         # Phase 51.8-J4-D: 証拠金返還（エントリー時に控除した証拠金を戻す）
+                        # Phase 54.9: ハードコード削除（4→get_threshold）
+                        from src.core.config.threshold_manager import get_threshold
+
+                        leverage = get_threshold("backtest.leverage", 4)
                         entry_order_total = entry_price * amount
-                        margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                        margin_to_return = entry_order_total / leverage  # エントリー時の証拠金
                         current_balance = self.orchestrator.execution_service.virtual_balance
                         self.orchestrator.execution_service.virtual_balance += margin_to_return
 
                         # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
+                        # Phase 54.9: ハードコード削除（-0.0002→get_threshold）
                         exit_order_total = exit_price * amount
-                        exit_fee_rate = -0.0002  # Maker手数料（指値注文）
+                        exit_fee_rate = get_threshold(
+                            "backtest.exit_fee_rate", -0.0002
+                        )  # Maker手数料（指値注文）
                         exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
                         self.orchestrator.execution_service.virtual_balance -= (
                             exit_fee_amount  # リベート加算
@@ -939,14 +961,19 @@ class BacktestRunner(BaseRunner):
                 try:
                     # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
                     # Phase 51.8-J4-D: 証拠金返還処理
+                    # Phase 54.9: ハードコード削除（4→get_threshold）
                     entry_order_total = entry_price * amount
-                    margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                    leverage = get_threshold("backtest.leverage", 4)
+                    margin_to_return = entry_order_total / leverage  # エントリー時の証拠金
                     # 未使用: current_balance = self.orchestrator.execution_service.virtual_balance
                     self.orchestrator.execution_service.virtual_balance += margin_to_return
 
                     # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
+                    # Phase 54.9: ハードコード削除（-0.0002→get_threshold）
                     exit_order_total = final_price * amount
-                    exit_fee_rate = -0.0002  # Maker手数料（指値注文）
+                    exit_fee_rate = get_threshold(
+                        "backtest.exit_fee_rate", -0.0002
+                    )  # Maker手数料（指値注文）
                     exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
                     self.orchestrator.execution_service.virtual_balance -= (
                         exit_fee_amount  # リベート加算
