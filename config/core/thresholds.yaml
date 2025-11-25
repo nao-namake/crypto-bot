@@ -64,9 +64,9 @@ ml:
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.95  # Phase 53.8.3: ペナルティ半減（0.90 → 0.95）・Phase 44.1意図継続
-    min_ml_confidence: 0.30      # Phase 53.8.3: 閾値緩和（0.35 → 0.30, -14%）・統計的有意性確保
-    hold_conversion_threshold: 0.20  # Phase 53.8.3: 48h無エントリー解決（0.30 → 0.20, -33%）★最重要
+    disagreement_penalty: 0.90  # Phase 52.4: ペナルティ緩和
+    min_ml_confidence: 0.35      # Phase 52.4: 閾値緩和
+    hold_conversion_threshold: 0.20  # Phase 55.4: 0.30→0.20（エントリー機会増加）
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -91,19 +91,19 @@ ml:
 
     # tight_range（狭いレンジ）: 戦略重視型
     # バックテスト結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
-    # Phase 53.8.3: 48h無エントリー解決・重要度99.4%レジームでML活用強化
+    # Phase 55.4: ML統合緩和（エントリー率向上）
     tight_range:
-      min_ml_confidence: 0.40           # Phase 53.8.3: 0.50 → 0.40 (-20%) ★最重要・統計的有意性
+      min_ml_confidence: 0.35           # Phase 55.4: 0.40→0.35（緩和）
       high_confidence_threshold: 0.65
-      ml_weight: 0.25                   # ML 25%
-      strategy_weight: 0.75             # 戦略 75%
+      ml_weight: 0.30                   # Phase 55.3: 0.25→0.30（ML重視化）
+      strategy_weight: 0.70             # Phase 55.3: 0.75→0.70（戦略重視から均衡へ）
       agreement_bonus: 1.15             # ML・戦略一致時ボーナス控えめ
-      disagreement_penalty: 0.92        # ML・戦略不一致時ペナルティ緩和
+      disagreement_penalty: 0.98        # Phase 55.4: 0.95→0.98（ペナルティ緩和）
 
     # normal_range（通常レンジ）: バランス型
     # バックテスト結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
     normal_range:
-      min_ml_confidence: 0.35           # Phase 53.8.3: 0.40 → 0.35 (-13%)
+      min_ml_confidence: 0.40           # 中閾値（バランス型）
       high_confidence_threshold: 0.60
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
@@ -113,7 +113,7 @@ ml:
     # trending（トレンド）: ML補完重視型
     # バックテスト結果: 0件（未発生・実験的設定）
     trending:
-      min_ml_confidence: 0.30           # Phase 53.8.3: 0.35 → 0.30 (-14%)
+      min_ml_confidence: 0.35           # 低閾値（ML補完重視）
       high_confidence_threshold: 0.55
       ml_weight: 0.35                   # ML 35%
       strategy_weight: 0.65             # 戦略 65%
@@ -159,7 +159,7 @@ ml:
     max_depth: 5
     random_state: 42
   dynamic_confidence:
-    base_hold: 0.35
+    base_hold: 0.20  # Phase 55.2: 0.35 → 0.20（HOLD優勢化防止）
     error_fallback: 0.25
     ml_fallback: 0.35
     neutral_default: 0.4
@@ -314,23 +314,64 @@ performance:
 # ========================================
 # 🎯 動的戦略選択設定（Dynamic Strategy Selection）
 # ========================================
-# Phase 52.4: 6戦略・レジーム別重み最適化（レンジ型95%・バランス型70/20・トレンド型80/20）
+# Phase 55: 完全フィルタリング方式による戦略システム改修
+# - レジーム別に3戦略のみ有効化（6戦略から絞り込み）
+# - 重み付け方式から完全フィルタリング方式に移行
 #
-# Phase 52.5: 使用箇所
+# Phase 55: 使用箇所
 # 使用箇所:
-#   - src/core/services/dynamic_strategy_selector.py (select_strategies)
+#   - src/core/services/dynamic_strategy_selector.py (apply_regime_strategy_filter)
+#   - src/core/services/trading_cycle_manager.py
 #   - src/strategies/base/strategy_manager.py
 # ========================================
 dynamic_strategy_selection:
   enabled: true  # Phase 52.4: レジーム別戦略重み最適化有効化
+
+  # ========================================
+  # Phase 55: レジーム別有効戦略リスト（完全フィルタリング方式）
+  # ========================================
+  # 設計思想:
+  #   - 各レジームで3戦略のみ有効化（残りは完全無効化）
+  #   - enable()/disable()メソッドで戦略を切り替え
+  #   - 無効な戦略はシグナル生成に参加しない
+  #
+  # 戦略選定根拠:
+  #   - バックテスト結果: tight_range 91.8%, normal_range 8.2%, trending 0%
+  #   - 現実的にはレンジ相場がほぼ全てのため、レンジ型戦略を重視
+  # ========================================
+  regime_active_strategies:
+    # tight_range（狭いレンジ相場）: レンジ型＋逆張り系
+    # ATR=ボラティリティ基準、BB/Stoch=逆張り系で相性◎
+    tight_range:
+      - ATRBased
+      - BBReversal
+      - StochasticReversal
+
+    # normal_range（通常レンジ相場）: レンジ型＋ブレイクアウト検出
+    # ATR/BB=レンジ型中心、Donchian=ブレイクアウト検出
+    normal_range:
+      - ATRBased
+      - BBReversal
+      - DonchianChannel
+
+    # trending（トレンド相場）: トレンド追従＋ブレイクアウト確認
+    # ADX/MACD=トレンド追従、Donchian=ブレイクアウト確認
+    trending:
+      - ADXTrendStrength
+      - MACDEMACrossover
+      - DonchianChannel
+
+    # high_volatility（高ボラティリティ）: 完全待機
+    # 全戦略無効化でリスク回避
+    high_volatility: []
   # レジーム別戦略重みマッピング
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # レンジ型戦略95%集中
-      ATRBased: 0.45
-      BBReversal: 0.35
-      DonchianChannel: 0.10
-      StochasticReversal: 0.10
+      # Phase 55.3: レンジ型戦略100%・4戦略有効化（DonchianChannel再有効化）
+      ATRBased: 0.40           # 0.45→0.40（-5%）
+      BBReversal: 0.30         # 0.35→0.30（-5%）
+      DonchianChannel: 0.15    # 0.10→0.15（+5%・再有効化）
+      StochasticReversal: 0.15 # 0.10→0.15（+5%・モメンタム強化）
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
@@ -465,12 +506,19 @@ trading:
     spread_warning_threshold: 0.003
   ask_spread_ratio: 1.001
   bid_spread_ratio: 0.999
+  # ========================================
+  # Phase 55: 信頼度閾値の最適化
+  # ========================================
+  # 変更理由: 3戦略に絞ることで信頼度が低下するため、大幅緩和を実施
+  # Before: 1 BUY + 5 HOLD → BUY信頼度 0.18 vs HOLD 0.305 → HOLD選択
+  # After:  1 BUY + 2 HOLD → BUY信頼度 0.20 vs HOLD 0.155 → BUY選択
+  # ========================================
   confidence_levels:
-    high: 0.45
-    low: 0.2
-    medium: 0.3
-    min_ml: 0.12
-    very_high: 0.6
+    high: 0.35         # Phase 55: 0.45 → 0.35（大幅緩和・エントリー率向上）
+    low: 0.15          # Phase 55.4: 0.18 → 0.15（さらに緩和）
+    medium: 0.18       # Phase 55.4: 0.22 → 0.18（さらに緩和）
+    min_ml: 0.12       # 維持
+    very_high: 0.55    # Phase 55: 0.60 → 0.55（高信頼度も緩和）
   fallback_btc_jpy: 16500000.0
   fallback_prices:
     ask: 16600000.0
@@ -551,7 +599,6 @@ models:
     bootstrap: true
     oob_score: true
     class_weight: balanced
-    n_jobs: 1  # Phase 53.5: Cloud Run互換性（gVisor環境でのmultiprocessing制約）
   xgb:
     max_depth: 6
     learning_rate: 0.05
@@ -634,7 +681,7 @@ position_management:
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 50
-  cooldown_minutes: 15
+  cooldown_minutes: 5  # Phase 55.2: 15 → 5（エントリー機会+50%）
   min_trade_size: 0.0001
   # Phase 52.4-B: ポジションサイジングエラー時フォールバック値（sizer.py Line 118）
   fallback_position_size: 0.01
@@ -678,26 +725,26 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 1.29              # Phase 52.4: RR比1.29:1（TP 0.9% / SL 0.7%）
-    min_profit_ratio: 0.009          # Phase 52.4: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
+    default_ratio: 1.6               # Phase 55.4: RR比1.6:1（TP 0.8% / SL 0.5%）
+    min_profit_ratio: 0.008          # Phase 55.4: TP 0.8%（勝率優先）
     override_strategy_tp: false
     position_partial_exit: false
 
-    # Phase 52.4: レジーム別TP設定（0.8%→1.0%→1.5%→2.0%）
+    # Phase 55.4: レジーム別TP設定（0.8%→1.5%→2.0%→2.5%）
     regime_based:
       enabled: true
       tight_range:
-        min_profit_ratio: 0.008      # TP 0.8%（RR比1.33:1）
-        default_ratio: 1.33
+        min_profit_ratio: 0.008      # TP 0.8%（RR比1.6:1）Phase 55.4: 1.2%→0.8%
+        default_ratio: 1.6
       normal_range:
-        min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
-        default_ratio: 1.43
+        min_profit_ratio: 0.015      # TP 1.5%（RR比2.5:1）Phase 55.3: 1.0%→1.5%
+        default_ratio: 2.5
       trending:
-        min_profit_ratio: 0.015      # TP 1.5%（RR比1.50:1）
-        default_ratio: 1.50
+        min_profit_ratio: 0.020      # TP 2.0%（RR比2.0:1）Phase 55.3: 1.5%→2.0%
+        default_ratio: 2.0
       high_volatility:
-        min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
-        default_ratio: 1.33
+        min_profit_ratio: 0.025      # TP 2.5%（参考値・実際はエントリーなし）
+        default_ratio: 1.67
 
   # Phase 52.4-B: 古い注文クリーンアップ設定
   cleanup:
@@ -707,20 +754,20 @@ position_management:
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.007            # Phase 52.4: SL 0.7%（被害最小化）
+    max_loss_ratio: 0.005            # Phase 55.3: SL 0.5%（RR比2.4:1で黒字化）
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
 
-    # Phase 52.4: レジーム別SL設定（0.6%→0.7%→1.0%→1.5%）
+    # Phase 55.3: レジーム別SL設定（0.5%→0.6%→1.0%→1.5%）- RR比2.4:1統一
     regime_based:
       enabled: true
       tight_range:
-        max_loss_ratio: 0.006        # SL 0.6%（RR比1.33:1）
+        max_loss_ratio: 0.005        # SL 0.5%（RR比2.4:1）Phase 55.3: 0.6%→0.5%
       normal_range:
-        max_loss_ratio: 0.007        # SL 0.7%（RR比1.43:1）
+        max_loss_ratio: 0.006        # SL 0.6%（RR比2.5:1）Phase 55.3: 0.7%→0.6%
       trending:
-        max_loss_ratio: 0.010        # SL 1.0%（RR比1.50:1）
+        max_loss_ratio: 0.010        # SL 1.0%（RR比2.0:1）維持
       high_volatility:
         max_loss_ratio: 0.015        # SL 1.5%（参考値・実際はエントリーなし）
 
