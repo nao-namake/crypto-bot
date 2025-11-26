@@ -38,11 +38,13 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # レンジ型戦略は正の重み
+        # Phase 54.6: tight_rangeはトップ2レンジ戦略のみ有効（70:30比率）
+        # ATRBased (priority 1) + BBReversal (priority 4)
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] > 0
-        assert weights["DonchianChannel"] > 0
-        assert weights["StochasticReversal"] > 0
+        # DonchianChannel/StochasticReversalは意図的に0.0（ブレイクアウト戦略・レンジ不向き）
+        assert weights["DonchianChannel"] >= 0  # Can be 0.0 in tight_range
+        assert weights["StochasticReversal"] >= 0  # Can be 0.0 in tight_range
 
         # トレンド型戦略は0.0（無効化）
         assert weights["ADXTrendStrength"] == 0.0
@@ -331,3 +333,117 @@ class TestDynamicStrategySelector:
             weights = selector.get_regime_weights(regime)
             # 重み検証（high_volatilityは空辞書OK）
             assert selector.validate_weights(weights)
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Phase 55: 完全フィルタリング方式テスト
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def test_get_regime_active_strategies_tight_range(self, selector):
+        """Phase 55: tight_rangeの有効戦略リストが正しいことを確認"""
+        active_strategies = selector._get_regime_active_strategies(RegimeType.TIGHT_RANGE)
+
+        # tight_range: ATRBased, BBReversal, StochasticReversal
+        assert len(active_strategies) == 3
+        assert "ATRBased" in active_strategies
+        assert "BBReversal" in active_strategies
+        assert "StochasticReversal" in active_strategies
+
+        # 無効な戦略が含まれていないことを確認
+        assert "DonchianChannel" not in active_strategies
+        assert "ADXTrendStrength" not in active_strategies
+        assert "MACDEMACrossover" not in active_strategies
+
+    def test_get_regime_active_strategies_normal_range(self, selector):
+        """Phase 55: normal_rangeの有効戦略リストが正しいことを確認"""
+        active_strategies = selector._get_regime_active_strategies(RegimeType.NORMAL_RANGE)
+
+        # normal_range: ATRBased, BBReversal, DonchianChannel
+        assert len(active_strategies) == 3
+        assert "ATRBased" in active_strategies
+        assert "BBReversal" in active_strategies
+        assert "DonchianChannel" in active_strategies
+
+        # 無効な戦略が含まれていないことを確認
+        assert "StochasticReversal" not in active_strategies
+        assert "ADXTrendStrength" not in active_strategies
+        assert "MACDEMACrossover" not in active_strategies
+
+    def test_get_regime_active_strategies_trending(self, selector):
+        """Phase 55: trendingの有効戦略リストが正しいことを確認"""
+        active_strategies = selector._get_regime_active_strategies(RegimeType.TRENDING)
+
+        # trending: ADXTrendStrength, MACDEMACrossover, DonchianChannel
+        assert len(active_strategies) == 3
+        assert "ADXTrendStrength" in active_strategies
+        assert "MACDEMACrossover" in active_strategies
+        assert "DonchianChannel" in active_strategies
+
+        # 無効な戦略が含まれていないことを確認
+        assert "ATRBased" not in active_strategies
+        assert "BBReversal" not in active_strategies
+        assert "StochasticReversal" not in active_strategies
+
+    def test_get_regime_active_strategies_high_volatility(self, selector):
+        """Phase 55: high_volatilityの有効戦略リストが空であることを確認"""
+        active_strategies = selector._get_regime_active_strategies(RegimeType.HIGH_VOLATILITY)
+
+        # high_volatility: 全戦略無効（空リスト）
+        assert len(active_strategies) == 0
+        assert active_strategies == []
+
+    def test_apply_regime_strategy_filter_tight_range(self, selector):
+        """Phase 55: tight_rangeで戦略フィルタリングが正しく適用されることを確認"""
+        from unittest.mock import MagicMock
+
+        # モックStrategyManagerを作成
+        mock_strategy_manager = MagicMock()
+
+        # 6戦略のモックを作成
+        mock_strategies = {
+            "ATRBased": MagicMock(),
+            "BBReversal": MagicMock(),
+            "StochasticReversal": MagicMock(),
+            "DonchianChannel": MagicMock(),
+            "ADXTrendStrength": MagicMock(),
+            "MACDEMACrossover": MagicMock(),
+        }
+        mock_strategy_manager.strategies = mock_strategies
+
+        # フィルタリング適用
+        selector.apply_regime_strategy_filter(RegimeType.TIGHT_RANGE, mock_strategy_manager)
+
+        # tight_range: ATRBased, BBReversal, StochasticReversal が有効化
+        mock_strategies["ATRBased"].enable.assert_called_once()
+        mock_strategies["BBReversal"].enable.assert_called_once()
+        mock_strategies["StochasticReversal"].enable.assert_called_once()
+
+        # 残りは無効化
+        mock_strategies["DonchianChannel"].disable.assert_called_once()
+        mock_strategies["ADXTrendStrength"].disable.assert_called_once()
+        mock_strategies["MACDEMACrossover"].disable.assert_called_once()
+
+    def test_apply_regime_strategy_filter_high_volatility(self, selector):
+        """Phase 55: high_volatilityで全戦略が無効化されることを確認"""
+        from unittest.mock import MagicMock
+
+        # モックStrategyManagerを作成
+        mock_strategy_manager = MagicMock()
+
+        # 6戦略のモックを作成
+        mock_strategies = {
+            "ATRBased": MagicMock(),
+            "BBReversal": MagicMock(),
+            "StochasticReversal": MagicMock(),
+            "DonchianChannel": MagicMock(),
+            "ADXTrendStrength": MagicMock(),
+            "MACDEMACrossover": MagicMock(),
+        }
+        mock_strategy_manager.strategies = mock_strategies
+
+        # フィルタリング適用
+        selector.apply_regime_strategy_filter(RegimeType.HIGH_VOLATILITY, mock_strategy_manager)
+
+        # high_volatility: 全戦略無効化
+        for strategy in mock_strategies.values():
+            strategy.disable.assert_called_once()
+            strategy.enable.assert_not_called()

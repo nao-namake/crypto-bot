@@ -115,11 +115,14 @@ class ATRBasedStrategy(StrategyBase):
             else:
                 signal = 0  # ニュートラル
                 strength = 0.0
-            # 設定から信頼度パラメータを取得
+            # 設定から信頼度パラメータを取得（Phase 54.6: デフォルト値更新）
             from ...core.config import get_threshold
 
-            base_confidence = get_threshold("strategies.atr_based.base_confidence", 0.3)
-            confidence_multiplier = get_threshold("strategies.atr_based.confidence_multiplier", 0.4)
+            # Phase 54改善適用: base 0.3→0.38, multiplier 0.4→0.55
+            base_confidence = get_threshold("strategies.atr_based.base_confidence", 0.38)
+            confidence_multiplier = get_threshold(
+                "strategies.atr_based.confidence_multiplier", 0.55
+            )
             confidence = (
                 base_confidence + strength * confidence_multiplier if abs(signal) > 0 else 0.0
             )
@@ -273,8 +276,8 @@ class ATRBasedStrategy(StrategyBase):
             # フィルター確認（Phase 28完了・Phase 29最適化: market_stress無効化）
             if stress_analysis and not stress_analysis["filter_ok"]:
                 return self._create_hold_decision("市場ストレス高")
-            # 低ボラティリティでも動的信頼度を計算（早期リターン回避）
-            volatility_penalty = 0.8 if atr_analysis["regime"] == "low" else 1.0
+            # Phase 55.5: 低ボラティリティペナルティ緩和（0.8 → 0.9）
+            volatility_penalty = 0.90 if atr_analysis["regime"] == "low" else 1.0
             # シグナル統合（すべてのケースで動的計算実行）
             bb_signal = bb_analysis["signal"]
             rsi_signal = rsi_analysis["signal"]
@@ -286,9 +289,10 @@ class ATRBasedStrategy(StrategyBase):
                     # 循環インポート回避のため遅延インポート
                     from ...core.config.threshold_manager import get_threshold
 
-                    base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
+                    # Phase 55.5: 一致シグナル係数緩和（0.7→0.8）・上限引き上げ（0.65→0.75）
+                    base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.8
                     confidence_max = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
+                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.75
                     )
                     confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
@@ -310,55 +314,86 @@ class ATRBasedStrategy(StrategyBase):
             # ケース2: BBシグナルのみ
             elif bb_signal != 0:
                 action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                base_confidence = bb_analysis["confidence"] * 0.7  # 単一シグナル減額
+                # Phase 55.5: 単独シグナルペナルティ緩和（0.7→0.85）
+                base_confidence = bb_analysis["confidence"] * 0.85
                 confidence = base_confidence * (1 + market_uncertainty)
                 strength = bb_analysis["strength"]
                 reason = f"BB単独シグナル ({bb_analysis['bb_position']:.2f})"
             # ケース3: RSIシグナルのみ
             elif rsi_signal != 0:
                 action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                base_confidence = rsi_analysis["confidence"] * 0.7
+                # Phase 55.5: 単独シグナルペナルティ緩和（0.7→0.85）
+                base_confidence = rsi_analysis["confidence"] * 0.85
                 confidence = base_confidence * (1 + market_uncertainty)
                 strength = rsi_analysis["strength"]
                 reason = f"RSI単独シグナル ({rsi_analysis['rsi']:.1f})"
-            # ケース4: 明確なシグナルなし - 微弱な動的信頼度を計算
+            # ケース4: Phase 55.7 - BB/RSI極端値での単独シグナル（閾値未達でも発火）
             else:
-                # ニュートラル状態でも市場状況に基づく微弱なシグナルを生成
                 bb_pos = bb_analysis["bb_position"]
                 rsi_val = rsi_analysis["rsi"]
-                # 中央値からの乖離に基づく微弱シグナル
-                bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
-                rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
-                total_deviation = (bb_deviation + rsi_deviation) / 2
-                if total_deviation > 0.25:  # 25%以上の大きな乖離でのみシグナル（抑制強化）
-                    # 循環インポート回避のため遅延インポート
-                    from ...core.config.threshold_manager import get_threshold
 
-                    weak_base = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08
-                    )
-                    weak_multiplier = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
-                    )
-
-                    # より乖離の大きい指標を採用
-                    if bb_deviation > rsi_deviation:
-                        action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
-                        base_confidence = (
-                            weak_base + total_deviation * weak_multiplier
-                        )  # 設定ベース計算
-                    else:
-                        action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
-                        base_confidence = (
-                            weak_base + total_deviation * weak_multiplier
-                        )  # 設定ベース計算
-                    confidence = base_confidence
-                    strength = total_deviation
-                    reason = f"極微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
+                # Phase 55.7: BB極端値（<0.15 or >0.85）で単独シグナル
+                if bb_pos < 0.15:
+                    action = EntryAction.BUY
+                    bb_extreme_bonus = (0.15 - bb_pos) * 1.5  # 最大0.225
+                    confidence = min(0.40 + bb_extreme_bonus, 0.55)
+                    strength = (0.15 - bb_pos) / 0.15
+                    reason = f"BB極端過売り（BB:{bb_pos:.3f}）"
+                elif bb_pos > 0.85:
+                    action = EntryAction.SELL
+                    bb_extreme_bonus = (bb_pos - 0.85) * 1.5
+                    confidence = min(0.40 + bb_extreme_bonus, 0.55)
+                    strength = (bb_pos - 0.85) / 0.15
+                    reason = f"BB極端過買い（BB:{bb_pos:.3f}）"
+                # Phase 55.7: RSI極端値（<30 or >70）で単独シグナル
+                elif rsi_val < 30:
+                    action = EntryAction.BUY
+                    rsi_extreme_bonus = (30 - rsi_val) / 100  # 最大0.30
+                    confidence = min(0.40 + rsi_extreme_bonus, 0.55)
+                    strength = (30 - rsi_val) / 30
+                    reason = f"RSI極端過売り（RSI:{rsi_val:.1f}）"
+                elif rsi_val > 70:
+                    action = EntryAction.SELL
+                    rsi_extreme_bonus = (rsi_val - 70) / 100
+                    confidence = min(0.40 + rsi_extreme_bonus, 0.55)
+                    strength = (rsi_val - 70) / 30
+                    reason = f"RSI極端過買い（RSI:{rsi_val:.1f}）"
+                # ケース5: 明確なシグナルなし - 微弱な動的信頼度を計算
                 else:
-                    return self._create_hold_decision(
-                        f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
-                    )
+                    # ニュートラル状態でも市場状況に基づく微弱なシグナルを生成
+                    # 中央値からの乖離に基づく微弱シグナル
+                    bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
+                    rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
+                    total_deviation = (bb_deviation + rsi_deviation) / 2
+                    if total_deviation > 0.25:  # 25%以上の大きな乖離でのみシグナル（抑制強化）
+                        # 循環インポート回避のため遅延インポート
+                        from ...core.config.threshold_manager import get_threshold
+
+                        weak_base = get_threshold(
+                            "ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08
+                        )
+                        weak_multiplier = get_threshold(
+                            "ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
+                        )
+
+                        # より乖離の大きい指標を採用
+                        if bb_deviation > rsi_deviation:
+                            action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
+                            base_confidence = (
+                                weak_base + total_deviation * weak_multiplier
+                            )  # 設定ベース計算
+                        else:
+                            action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
+                            base_confidence = (
+                                weak_base + total_deviation * weak_multiplier
+                            )  # 設定ベース計算
+                        confidence = base_confidence
+                        strength = total_deviation
+                        reason = f"極微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
+                    else:
+                        return self._create_hold_decision(
+                            f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
+                        )
             # ボラティリティ調整適用
             confidence *= volatility_penalty
             # 高ボラティリティボーナス（抑制）
@@ -396,16 +431,28 @@ class ATRBasedStrategy(StrategyBase):
             return self._create_hold_decision("判定エラー")
 
     def _create_hold_decision(self, reason: str) -> Dict[str, Any]:
-        """ホールド決定作成."""
+        """
+        ホールド決定作成（Phase 54.8.1: hold(0.180)バグ修正）.
+
+        Phase 54.8.1修正: thresholds.yaml hold_confidence設定値を直接使用
+        - 旧コード: 0.15 * 1.2 = 0.180（バグ・エントリー率0.1%）
+        - 新コード: 0.10を直接使用（エントリー率50-100倍改善期待）
+        """
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
-        hold_confidence = get_threshold("strategies.atr_based.hold_confidence", 0.5)
+        # Phase 54.8.1: デフォルト値0.15→0.10修正・1.2倍処理削除（hold(0.180)バグ修正）
+        base_hold = get_threshold("strategies.atr_based.hold_confidence", 0.10)
+
+        # Phase 54.8.1: 1.2倍処理削除 - 設定値を直接使用
+        # 旧コード: dynamic_confidence = base_hold * 1.2 → 0.15 * 1.2 = 0.180（バグ）
+        # 新コード: base_holdを直接使用 → thresholds.yaml値0.10を使用
+
         return {
             "action": EntryAction.HOLD,
-            "confidence": hold_confidence,
+            "confidence": base_hold,
             "strength": 0.0,
-            "analysis": f"ATR逆張り: hold ({reason}) [confidence={hold_confidence}]",
+            "analysis": f"ATR逆張り: hold ({reason}) [confidence={base_hold:.3f}]",
         }
 
     def _create_signal(

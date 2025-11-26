@@ -158,8 +158,11 @@ def setup_auto_shutdown():
     """
     GCP環境での自動シャットダウン設定
     """
+    # Phase 54.9: ハードコード削除（900→get_threshold）
+    from src.core.config.threshold_manager import get_threshold
+
     # 15分（900秒）でタイムアウト
-    timeout_seconds = 900
+    timeout_seconds = get_threshold("system.gcp_auto_shutdown_seconds", 900)
 
     def timeout_handler(signum, frame):
         print(f"⏰ タイムアウト（{timeout_seconds}秒）によりシステムを終了します")
@@ -196,8 +199,9 @@ def parse_arguments():
 使用例:
   python main.py --mode paper              # ペーパートレード（デフォルト）
   python main.py --mode live               # ライブトレード
-  python main.py --mode backtest           # バックテスト
-  python main.py --config config/core/unified.yaml # 統一設定使用
+  python main.py --mode backtest           # バックテスト（設定ファイルの期間）
+  python main.py --mode backtest --days 7  # 7日間バックテスト
+  python main.py --mode backtest --days 30 # 30日間バックテスト
         """,
     )
 
@@ -211,6 +215,11 @@ def parse_arguments():
         "--config",
         default="config/core/unified.yaml",
         help="設定ファイルパス (default: config/core/unified.yaml)",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        help="バックテスト期間（日数）。指定時はthresholds.yamlの値を上書き",
     )
 
     return parser.parse_args()
@@ -234,6 +243,11 @@ async def main():
             from src.core.config.threshold_manager import get_threshold
 
             log_level = get_threshold("backtest.log_level", "ERROR")
+
+            # --days オプション指定時は環境変数で渡す（Phase 55.3）
+            if args.days:
+                os.environ["BACKTEST_DAYS"] = str(args.days)
+                print(f"📅 バックテスト期間指定: {args.days}日間")
 
             # 環境変数でログレベルを制御（全コンポーネントに影響）
             os.environ["LOG_LEVEL"] = log_level

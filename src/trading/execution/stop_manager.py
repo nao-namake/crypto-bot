@@ -821,7 +821,7 @@ class StopManager:
 
             # Phase 52.4-B: SL距離の合理性チェック（極端な値の検出）
             sl_distance_ratio = abs(stop_loss_price - entry_price) / entry_price
-            max_sl_ratio = get_threshold("position_management.stop_loss.max_loss_ratio", 0.007)
+            max_sl_ratio = get_threshold("position_management.stop_loss.max_loss_ratio", 0.005)
 
             if sl_distance_ratio < 0.001:  # 0.1%未満（極端に近い）
                 self.logger.warning(

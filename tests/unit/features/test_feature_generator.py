@@ -129,11 +129,11 @@ class TestFeatureGenerator:
         for feature in FEATURES_WITHOUT_EXTERNAL_API:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # Phase 51.5-A: 戦略シグナル特徴量は0.0で存在するはず（確実な60特徴量生成）
+        # Phase 54.9: 戦略シグナル特徴量は0.5（中立HOLD）で存在するはず（確実な60特徴量生成）
         for feature in strategy_signal_features:
             assert feature in result_df.columns, f"戦略シグナル特徴量{feature}が生成されていない"
-            # strategy_signals=Noneの場合は0.0で生成
-            assert (result_df[feature] == 0.0).all(), f"戦略シグナル特徴量{feature}が0.0でない"
+            # Phase 54.9: Bug #2修正 - strategy_signals=Noneの場合は0.5（中立HOLD）で生成
+            assert (result_df[feature] == 0.5).all(), f"戦略シグナル特徴量{feature}が0.5でない"
 
         # computed_featuresに記録されているかチェック - Phase 51.5-A: 60特徴量（確実）
         assert len(generator.computed_features) == 55

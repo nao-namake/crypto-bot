@@ -80,11 +80,11 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     # 1取引あたり損益
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
 
-    # 設定値取得（thresholds.yamlから動的取得）
-    tp_tight = get_threshold("risk.regime_based_tp_sl.tight_range.tp_ratio", 0.008) * 100
-    sl_tight = get_threshold("risk.regime_based_tp_sl.tight_range.sl_ratio", 0.006) * 100
-    tp_normal = get_threshold("risk.regime_based_tp_sl.normal_range.tp_ratio", 0.010) * 100
-    sl_normal = get_threshold("risk.regime_based_tp_sl.normal_range.sl_ratio", 0.007) * 100
+    # 設定値取得（thresholds.yamlから動的取得・デフォルト値はフォールバック用）
+    tp_tight = get_threshold("risk.regime_based_tp_sl.tight_range.tp_ratio", 0.012) * 100
+    sl_tight = get_threshold("risk.regime_based_tp_sl.tight_range.sl_ratio", 0.005) * 100
+    tp_normal = get_threshold("risk.regime_based_tp_sl.normal_range.tp_ratio", 0.015) * 100
+    sl_normal = get_threshold("risk.regime_based_tp_sl.normal_range.sl_ratio", 0.006) * 100
     tp_trending = get_threshold("risk.regime_based_tp_sl.trending.tp_ratio", 0.015) * 100
     sl_trending = get_threshold("risk.regime_based_tp_sl.trending.sl_ratio", 0.010) * 100
 
@@ -280,8 +280,8 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
                 "",
                 "レジーム別動的TP/SL調整の効果を検証。",
                 "",
-                "- tight_rangeでのTP 0.8%/SL 0.6%設定による早期利確・損切り",
-                "- trendingでのTP 1.5%/SL 1.0%設定によるトレンドフォロー",
+                f"- tight_rangeでのTP {tp_tight:.1f}%/SL {sl_tight:.1f}%設定による早期利確・損切り",
+                f"- trendingでのTP {tp_trending:.1f}%/SL {sl_trending:.1f}%設定によるトレンドフォロー",
                 "",
             ]
         )

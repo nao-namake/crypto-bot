@@ -1,111 +1,120 @@
-# strategies.yaml 設定変更履歴
+# strategies.yaml 設定状態記録
 
-**Phase 52.4**
-
-**注**: 具体的な設定値は`config/core/strategies.yaml`を参照
-
-## 概要
-
-このドキュメントは `config/core/strategies.yaml` の設定変更履歴を記録します。
-
-## 変更履歴
-
-### Phase 52.4 (2025-11-14)
-**設定整理**: Phase参照統一・コメント簡潔化
-
-- Phase参照を最新に統一
-- 詳細履歴を本ドキュメントに移動
-- 設定履歴ドキュメント作成
+**最終更新**: 2025-11-18
 
 ---
 
-### Phase 51.7 Day 3-5 (2025-10-29-30)
-**3戦略追加（3→6戦略）**: レンジ型・トレンド型強化
+## このファイルの目的
 
-**追加戦略**:
-- BB Reversal（レンジ型・BB反転検出）
-- Stochastic Reversal（レンジ型・Stochastic + RSI）
-- MACD EMA Crossover（トレンド型・MACD + EMA + ADX）
-
-**期待効果**:
-- レンジ相場対応強化
-- トレンド相場対応強化
-- 6戦略統合完了
+`config/core/strategies.yaml`の現在の設定状態を記録し、設定の意味・構造・使われ方を文書化する。
 
 ---
 
-### Phase 51.5-B (2025-10-27)
-**動的戦略管理基盤実装**: Registry Pattern導入
+## 現在の設定状態
 
-**変更内容**:
-- 戦略追加時の影響範囲93%削減（27ファイル → 2ファイル）
-- Registry Pattern実装（自動戦略検出・ロード）
-- strategies.yaml が唯一の戦略定義ソース
+### 戦略定義 (strategies)
 
-**期待効果**:
-- 戦略追加: strategies.yaml編集のみ（1ファイル）
-- 戦略実装: strategy実装ファイル追加のみ（1ファイル）
-- 影響範囲: 27ファイル → 2ファイル（93%削減）
+**定義済み戦略**: 6戦略
+
+| ID | クラス名 | 有効 | 重み | 優先度 | レジーム適性 | 説明 |
+|----|---------|------|------|--------|------------|------|
+| `atr_based` | ATRBased | ✅ | 0.17 | 1 | range | ATRベース逆張り戦略 - ボラティリティベース平均回帰 |
+| `donchian_channel` | DonchianChannel | ✅ | 0.17 | 2 | range | Donchianチャネルブレイクアウト戦略 - 高値/安値ブレイクアウト検知 |
+| `adx_trend` | ADXTrendStrength | ✅ | 0.17 | 3 | trend | ADXトレンド強度戦略 - トレンド方向性とDI判定 |
+| `bb_reversal` | BBReversal | ✅ | 0.17 | 4 | range | BB Reversal戦略 - レンジ相場での平均回帰 |
+| `stochastic_reversal` | StochasticReversal | ✅ | 0.17 | 5 | range | Stochastic Reversal戦略 - レンジ相場でのモメンタム逆張り |
+| `macd_ema_crossover` | MACDEMACrossover | ✅ | 0.15 | 6 | trend | MACD+EMA Crossover戦略 - トレンド転換期の押し目買い・戻り売り |
+
+**構成**:
+- レンジ型戦略: 4戦略（ATRBased・DonchianChannel・BBReversal・StochasticReversal）
+- トレンド型戦略: 2戦略（ADXTrendStrength・MACDEMACrossover）
+
+### 統合設定 (integration)
+
+**コンセンサスアルゴリズム**:
+- `consensus_required`: 0.4（必要合意度40%）
+- `confidence_threshold`: 0.3（最小信頼度30%）
+- `signal_conflict_resolution`: "weighted_vote"（加重投票）
+
+**シグナル統合**:
+- `signal_aggregation`: "weighted_average"（加重平均）
+- `min_active_strategies`: 1（最小有効戦略数）
+
+### ML特徴量生成設定 (ml_features)
+
+**戦略シグナル特徴量**:
+- `strategy_signals_enabled`: true（戦略シグナル特徴量を生成）
+- `signal_encoding`: "action_times_confidence"（buy=+confidence, hold=0, sell=-confidence）
+- `feature_order_auto_update`: false（自動更新無効・手動管理）
+
+### 戦略管理機能 (management)
+
+**動的ロード**:
+- `dynamic_loading`: true（StrategyLoader使用）
+- `registry_pattern`: true（Registry Pattern使用）
+- `hot_reload_enabled`: false（ホットリロード無効）
+
+**検証**:
+- `validate_on_load`: true（ロード時検証）
+- `fail_fast`: true（エラー時即座に失敗）
+
+### ログ設定 (logging)
+
+- `strategy_load`: true（戦略ロードログ有効）
+- `strategy_decision`: true（戦略判断ログ有効）
+- `verbose`: false（詳細ログ無効）
 
 ---
 
-### Phase 51.5-A (2025-10-26)
-**3戦略構成最適化**: 5戦略 → 3戦略削減
+## 使用箇所
 
-**削除戦略**: MochipoyAlert・MultiTimeframe
-
-**残存戦略**: ATRBased・DonchianChannel・ADXTrendStrength
-
-**期待効果**: システム簡素化・パフォーマンス向上
-
----
-
-### Phase 41.8 (2025-10-17)
-**Strategy-Aware ML**: 実戦略信号学習
-
-**変更内容**: 戦略信号特徴量をML学習に統合
-
-**期待効果**: ML訓練/推論一貫性確保・Look-ahead bias防止
+| 項目 | 使用箇所 |
+|------|---------|
+| 戦略定義読み込み | `src/strategies/strategy_loader.py` (load_strategies_from_config) |
+| Registry管理 | `src/strategies/strategy_registry.py` (StrategyRegistry) |
+| 戦略実行管理 | `src/strategies/base/strategy_manager.py` |
+| 動的戦略選択 | `src/core/services/dynamic_strategy_selector.py` |
 
 ---
 
-### Phase 32 (2025-10-10)
-**SignalBuilder統一**: 全戦略統一実装
+## 戦略追加手順
 
-**変更内容**: SignalBuilderパターン採用・15m ATR優先・動的信頼度計算統一
+1. 戦略クラスに `@StrategyRegistry.register()` デコレータ追加
+2. `config/core/strategies.yaml` に戦略定義追加
+3. `config/core/thresholds.yaml` に設定追加
 
-**期待効果**: 全戦略統一インターフェース・保守性向上
-
----
-
-### Phase 29.5 (2025-10-08)
-**ML予測統合**: 戦略70% + ML30%
-
-**変更内容**: ML予測を戦略判断に統合・重み付け統合
-
-**期待効果**: ML補完による精度向上
+**完了** - orchestrator.py等の修正不要（影響範囲93%削減達成）
 
 ---
 
-## 現在の設定 (Phase 52.4)
+## 設定値の意味
 
-**注**: 具体的な設定値は `config/core/strategies.yaml` を参照してください。
+### 戦略定義の各フィールド
 
-### 主要構成
-- **戦略数**: strategies.yamlに定義（レンジ型・トレンド型・ブレイクアウト型）
-- **動的戦略管理**: Registry Pattern実装（93%影響削減）
-- **設定ソース**: strategies.yaml（唯一の戦略定義）
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `enabled` | bool | 戦略の有効/無効 |
+| `class_name` | string | 戦略クラス名 |
+| `module_path` | string | モジュールパス |
+| `strategy_type` | string | 戦略タイプID |
+| `weight` | float | 戦略重み（0-1） |
+| `priority` | int | 実行優先度（1-N） |
+| `regime_affinity` | string | レジーム適性（range/trend） |
+| `indicators` | list | 使用インジケーター |
+| `description` | string | 戦略説明 |
+| `config_section` | string | thresholds.yaml設定セクション |
+
+### レジーム適性 (regime_affinity)
+
+- `range`: レンジ相場（横ばい・ボラティリティ低）に適した戦略
+- `trend`: トレンド相場（上昇/下降・方向性明確）に適した戦略
 
 ---
 
 ## 参照
 
-- 戦略設定ファイル: `config/core/strategies.yaml`
-- 戦略パラメータ: `config/core/thresholds.yaml`
-- 動的戦略管理: `src/strategies/strategy_loader.py`
-- Registry Pattern: `src/strategies/strategy_config.py`
-- Phase履歴: `docs/開発履歴/`
-
----
-
-**最終更新**: 2025-11-15 (Phase 52.4)
+- **設定ファイル**: `config/core/strategies.yaml`
+- **動的戦略管理**: `src/strategies/strategy_loader.py`
+- **Registry Pattern**: `src/strategies/strategy_registry.py`
+- **パラメータ設定**: `config/core/thresholds.yaml`
+- **開発履歴**: `docs/開発履歴/`

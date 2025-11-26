@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from ...core.config import get_threshold
+from ...core.config.runtime_flags import is_backtest_mode
 from ...core.logger import get_logger
 from ...core.services.regime_types import RegimeType
 from ..core import TradeEvaluation
@@ -144,6 +145,12 @@ class PositionLimits:
         Returns:
             Dict: {"allowed": bool, "reason": str}
         """
+        # Phase 56: バックテストモードではクールダウンスキップ
+        # 理由: バックテストはシミュレーション時刻を使うが、datetime.now()は実時間を返すため
+        # 正しくクールダウンが機能しない。BacktestRunnerで別途時間管理されている。
+        if is_backtest_mode():
+            return {"allowed": True, "reason": "バックテストモード: クールダウンスキップ"}
+
         cooldown_minutes = get_threshold("position_management.cooldown_minutes", 30)
 
         if not last_order_time or cooldown_minutes <= 0:

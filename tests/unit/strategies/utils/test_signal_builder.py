@@ -206,11 +206,13 @@ class TestSignalBuilder(unittest.TestCase):
 
     def test_create_hold_signal_basic(self):
         """基本ホールドシグナル生成テスト."""
+        # Phase 55.1: 明示的にconfidenceを指定してテスト
         signal = SignalBuilder.create_hold_signal(
             strategy_name=self.strategy_name,
             current_price=self.current_price,
             reason="テスト理由",
             strategy_type=StrategyType.ATR_BASED,
+            confidence=0.5,  # 明示的に指定
         )
 
         # ホールドシグナルの確認
@@ -227,6 +229,24 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertIsNone(signal.take_profit)
         self.assertIsNone(signal.position_size)
         self.assertIsNone(signal.risk_ratio)
+
+    def test_create_hold_signal_with_default_confidence(self):
+        """Phase 55.1: デフォルトconfidence取得テスト（戦略設定から取得）."""
+        signal = SignalBuilder.create_hold_signal(
+            strategy_name=self.strategy_name,
+            current_price=self.current_price,
+            reason="テスト理由",
+            strategy_type=StrategyType.ATR_BASED,
+            # confidence未指定 → strategies.atr_based.hold_confidence から取得
+        )
+
+        # ホールドシグナルの確認（戦略設定値を使用）
+        self.assertEqual(signal.strategy_name, self.strategy_name)
+        self.assertEqual(signal.action, EntryAction.HOLD)
+        # ATR戦略のhold_confidence設定値（thresholds.yamlから取得）
+        self.assertIsInstance(signal.confidence, float)
+        self.assertGreater(signal.confidence, 0)
+        self.assertLess(signal.confidence, 1)
 
     def test_get_current_atr_success(self):
         """ATR取得成功テスト."""

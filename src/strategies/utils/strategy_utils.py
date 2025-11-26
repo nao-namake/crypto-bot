@@ -526,6 +526,7 @@ class SignalBuilder:
         current_price: float,
         reason: str = "条件不適合",
         strategy_type: Optional[str] = None,
+        confidence: Optional[float] = None,
     ) -> StrategySignal:
         """
         ホールドシグナル生成
@@ -535,15 +536,27 @@ class SignalBuilder:
             current_price: 現在価格
             reason: ホールド理由
             strategy_type: 戦略タイプ
+            confidence: 信頼度（指定しない場合はthresholds.yamlから戦略別設定を取得）
 
         Returns:
             ホールドStrategySignal
         """
+        # Phase 55.1: confidence引数を優先、なければ戦略別hold_confidence設定を取得
+        if confidence is None:
+            from ...core.config.threshold_manager import get_threshold
+
+            # 戦略別hold_confidence設定を取得（デフォルト0.25）
+            strategy_key = strategy_type or "default"
+            confidence = get_threshold(
+                f"strategies.{strategy_key}.hold_confidence",
+                get_threshold("ml.dynamic_confidence.base_hold", 0.35),
+            )
+
         return StrategySignal(
             strategy_name=strategy_name,
             timestamp=datetime.now(),
             action=EntryAction.HOLD,
-            confidence=0.5,  # ニュートラル
+            confidence=confidence,
             strength=0.0,
             current_price=current_price,
             reason=reason,

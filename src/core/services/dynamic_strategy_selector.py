@@ -1,21 +1,25 @@
 """
-動的戦略選択器 - Phase 52.4
+動的戦略選択器 - Phase 55
 
 市場レジームに応じて戦略の重みを動的に選択。
 MarketRegimeClassifierの分類結果に基づき、最適な戦略重みを返却。
 
 主要機能:
 - Phase 51.3: 動的戦略選択システム実装
+- Phase 55: 完全フィルタリング方式による戦略有効/無効切り替え
 - レジーム別戦略重み取得（thresholds.yaml設定駆動）
 - 重み検証・正規化（合計1.0保証）
 - フォールバック機能（設定未定義時のデフォルト重み）
 """
 
-from typing import Dict
+from typing import TYPE_CHECKING, Dict, List
 
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from .regime_types import RegimeType
+
+if TYPE_CHECKING:
+    from ...strategies.base.strategy_manager import StrategyManager
 
 
 class DynamicStrategySelector:
@@ -251,3 +255,80 @@ class DynamicStrategySelector:
         )
 
         return limit
+
+    def apply_regime_strategy_filter(
+        self, regime: RegimeType, strategy_manager: "StrategyManager"
+    ) -> None:
+        """
+        Phase 55: レジームに応じて戦略を有効/無効化（完全フィルタリング方式）
+
+        従来の重み付け方式では、重み=0.0でも戦略は計算に参加し、
+        holdシグナルが集計されてしまう問題があった。
+
+        完全フィルタリング方式では、レジームに応じた戦略のみを有効化し、
+        残りは完全に無効化することで、適切な戦略のみでシグナル判定を行う。
+
+        Args:
+            regime: 市場レジーム分類結果
+            strategy_manager: StrategyManager インスタンス
+
+        使用方法:
+            >>> selector = DynamicStrategySelector()
+            >>> selector.apply_regime_strategy_filter(RegimeType.TIGHT_RANGE, strategy_manager)
+            # → ATRBased, BBReversal, StochasticReversal のみ有効化
+
+        設定ファイル参照:
+            - thresholds.yaml: dynamic_strategy_selection.regime_active_strategies
+        """
+        # レジーム別有効戦略リストを取得
+        active_strategies = self._get_regime_active_strategies(regime)
+
+        # ログ出力用の有効/無効リスト
+        enabled_list = []
+        disabled_list = []
+
+        # 各戦略の有効/無効を切り替え
+        for name, strategy in strategy_manager.strategies.items():
+            if name in active_strategies:
+                strategy.enable()
+                enabled_list.append(name)
+            else:
+                strategy.disable()
+                disabled_list.append(name)
+
+        # Phase 55: バックテストモードでも可視化するためWARNINGレベルに変更
+        self.logger.warning(
+            f"🎯 Phase 55 完全フィルタリング: レジーム={regime.value}, "
+            f"有効戦略={enabled_list}, 無効戦略={disabled_list}"
+        )
+
+    def _get_regime_active_strategies(self, regime: RegimeType) -> List[str]:
+        """
+        Phase 55: レジーム別有効戦略リストを取得
+
+        thresholds.yaml の dynamic_strategy_selection.regime_active_strategies から
+        レジーム別の有効戦略リストを取得する。
+
+        Args:
+            regime: 市場レジーム
+
+        Returns:
+            List[str]: 有効な戦略名のリスト
+                例: ["ATRBased", "BBReversal", "StochasticReversal"]
+                high_volatilityの場合は空リスト []
+        """
+        # 設定ファイルから取得
+        config_key = f"dynamic_strategy_selection.regime_active_strategies.{regime.value}"
+
+        # デフォルト値: レジーム別フォールバック（Phase 55設計に基づく）
+        default_active_strategies = {
+            RegimeType.TIGHT_RANGE: ["ATRBased", "BBReversal", "StochasticReversal"],
+            RegimeType.NORMAL_RANGE: ["ATRBased", "BBReversal", "DonchianChannel"],
+            RegimeType.TRENDING: ["ADXTrendStrength", "MACDEMACrossover", "DonchianChannel"],
+            RegimeType.HIGH_VOLATILITY: [],  # 完全待機
+        }
+
+        # 設定ファイルから取得（get_threshold() パターン）
+        active_strategies = get_threshold(config_key, default_active_strategies.get(regime, []))
+
+        return active_strategies

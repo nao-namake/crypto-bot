@@ -288,9 +288,29 @@ class FeatureGenerator:
             raise DataProcessingError(f"同期版特徴量生成失敗: {e}")
 
     def _convert_to_dataframe(self, market_data: Dict[str, Any]) -> pd.DataFrame:
-        """市場データをDataFrameに変換（タイムフレーム辞書対応）"""
+        """
+        市場データをDataFrameに変換（DatetimeIndex強制保持）
+
+        Phase 54.9追加: DatetimeIndex明示的変換により、
+        バックテスト時のDatetimeIndex喪失を根本的に防止。
+        """
         if isinstance(market_data, pd.DataFrame):
-            return market_data.copy()
+            result = market_data.copy()
+
+            # Phase 54.9: DatetimeIndex強制保持（防御的プログラミング・Bug #3の二重防御）
+            if not isinstance(result.index, pd.DatetimeIndex):
+                if "timestamp" in result.columns:
+                    result.index = pd.to_datetime(result["timestamp"], unit="ms")
+                    result = result.drop(columns=["timestamp"])
+                    self.logger.debug("📅 _convert_to_dataframe: DatetimeIndex変換完了")
+                elif "datetime" in result.columns:
+                    result.index = pd.to_datetime(result["datetime"])
+                    result = result.drop(columns=["datetime"])
+                    self.logger.debug(
+                        "📅 _convert_to_dataframe: DatetimeIndex変換完了（datetime列）"
+                    )
+
+            return result
         elif isinstance(market_data, dict):
             try:
                 # タイムフレーム辞書の場合（マルチタイムフレームデータ）
@@ -516,15 +536,17 @@ class FeatureGenerator:
         elif "timestamp" in result_df.columns:
             dt_index = pd.to_datetime(result_df["timestamp"])
         else:
-            # 日時情報がない場合はゼロ埋め（7特徴量）
-            self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")
-            result_df["hour"] = 0
-            result_df["day_of_week"] = 0
-            result_df["is_market_open_hour"] = 0
-            result_df["is_europe_session"] = 0
-            result_df["hour_cos"] = 1.0
-            result_df["day_sin"] = 0.0
-            result_df["day_cos"] = 1.0
+            # 日時情報がない場合は中立値で埋める（Phase 54.9: Bug #1修正）
+            self.logger.warning(
+                "日時情報が見つかりません。時間特徴量を中立デフォルト値で生成します"
+            )
+            result_df["hour"] = 12  # 1日の中間（0→12）
+            result_df["day_of_week"] = 3  # 週の中間・水曜日（0→3）
+            result_df["is_market_open_hour"] = 0  # 変更なし
+            result_df["is_europe_session"] = 0  # 変更なし
+            result_df["hour_cos"] = 0.0  # 中立化（1.0→0.0）
+            result_df["day_sin"] = 0.0  # 変更なし
+            result_df["day_cos"] = 0.0  # 中立化（1.0→0.0）
             self.computed_features.update(
                 [
                     "hour",
@@ -627,13 +649,13 @@ class FeatureGenerator:
         # strategy_signals=Noneの場合も処理を継続（0埋め）
         if not strategy_signals:
             self.logger.debug(
-                f"戦略シグナル特徴量: strategy_signals未提供 → {num_strategies}個を0.0で生成（確実）"
+                f"戦略シグナル特徴量: strategy_signals未提供 → {num_strategies}個を0.5（中立HOLD）で生成（Phase 54.9: Bug #2修正）"
             )
-            # 全戦略を0.0で追加
+            # 全戦略を0.5（中立HOLD）で追加（0.0→0.5: 極端SELL偏重バイアス排除）
             for internal_name, feature_name in strategy_internal_names.items():
-                result_df[feature_name] = 0.0
+                result_df[feature_name] = 0.5  # Phase 54.9: Bug #2修正（0.0→0.5）
                 self.computed_features.add(feature_name)
-            self.logger.debug(f"戦略シグナル特徴量生成完了: {num_strategies}個（0埋め）")
+            self.logger.debug(f"戦略シグナル特徴量生成完了: {num_strategies}個（0.5中立値）")
             return result_df
 
         # strategy_signalsが提供されている場合

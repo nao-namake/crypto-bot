@@ -210,9 +210,11 @@ class TestRiskManager(unittest.TestCase):
         btc_price = 15000000.0
         btc_atr = 750000.0
 
+        # Phase 55.3: configの値は実際にはthresholds.yamlの値が優先される
+        # ここでの値はフォールバック用のため、実テストはthresholds.yaml依存
         config = {
             "stop_loss_atr_multiplier": 1.8,
-            "take_profit_ratio": 2.2,
+            "take_profit_ratio": 2.4,  # thresholds.yaml参照
             "position_size_base": 0.025,
         }
 
@@ -235,23 +237,9 @@ class TestRiskManager(unittest.TestCase):
     # Phase 52.0: レジーム別TP/SLテスト
     # ========================================
 
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_regime_based_tp_sl_tight_range(self, mock_get_threshold):
-        """Phase 52.0: tight_rangeレジームでのTP/SL計算テスト."""
-
-        def threshold_side_effect(key, default=None):
-            thresholds = {
-                "position_management.take_profit.regime_based.enabled": True,
-                "position_management.take_profit.regime_based.tight_range.min_profit_ratio": 0.008,  # TP 0.8%
-                "position_management.take_profit.regime_based.tight_range.default_ratio": 1.33,
-                "position_management.stop_loss.regime_based.tight_range.max_loss_ratio": 0.006,  # SL 0.6%
-                "position_management.stop_loss.max_loss_ratio": 0.007,  # デフォルト（使用されない）
-                "position_management.take_profit.min_profit_ratio": 0.009,  # デフォルト（使用されない）
-                "position_management.take_profit.default_ratio": 1.29,  # デフォルト（使用されない）
-            }
-            return thresholds.get(key, default)
-
-        mock_get_threshold.side_effect = threshold_side_effect
+    def test_regime_based_tp_sl_tight_range(self):
+        """tight_rangeレジームでのTP/SL計算テスト（設定ファイル連動）."""
+        from src.core.config.threshold_manager import get_threshold
 
         config = self.basic_config.copy()
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
@@ -262,34 +250,33 @@ class TestRiskManager(unittest.TestCase):
             regime="tight_range",
         )
 
-        # Phase 52.0: tight_range TP 0.8%, SL 0.6%, RR比1.33:1
-        # SL距離 = 60000円[0.6%]
-        # TP距離 = max(80000円[0.8%], 79800円[SL×1.33]) = 80000円
-        expected_sl_distance = self.current_price * 0.006  # 60000円
-        expected_tp_distance = self.current_price * 0.008  # 80000円
+        # thresholds.yamlから動的に値を取得して期待値を計算
+        sl_ratio = get_threshold(
+            "position_management.stop_loss.regime_based.tight_range.max_loss_ratio",
+            get_threshold("position_management.stop_loss.max_loss_ratio", 0.005),
+        )
+        tp_ratio = get_threshold(
+            "position_management.take_profit.regime_based.tight_range.min_profit_ratio",
+            get_threshold("position_management.take_profit.min_profit_ratio", 0.012),
+        )
+        rr_ratio = get_threshold(
+            "position_management.take_profit.regime_based.tight_range.default_ratio",
+            get_threshold("position_management.take_profit.default_ratio", 2.4),
+        )
+
+        expected_sl_distance = self.current_price * sl_ratio
+        expected_tp_from_ratio = self.current_price * tp_ratio
+        expected_tp_from_sl = expected_sl_distance * rr_ratio
+        expected_tp_distance = max(expected_tp_from_ratio, expected_tp_from_sl)
         expected_stop_loss = self.current_price - expected_sl_distance
         expected_take_profit = self.current_price + expected_tp_distance
 
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_regime_based_tp_sl_normal_range(self, mock_get_threshold):
-        """Phase 52.0: normal_rangeレジームでのTP/SL計算テスト."""
-
-        def threshold_side_effect(key, default=None):
-            thresholds = {
-                "position_management.take_profit.regime_based.enabled": True,
-                "position_management.take_profit.regime_based.normal_range.min_profit_ratio": 0.010,  # TP 1.0%
-                "position_management.take_profit.regime_based.normal_range.default_ratio": 1.43,
-                "position_management.stop_loss.regime_based.normal_range.max_loss_ratio": 0.007,  # SL 0.7%
-                "position_management.stop_loss.max_loss_ratio": 0.007,
-                "position_management.take_profit.min_profit_ratio": 0.009,
-                "position_management.take_profit.default_ratio": 1.29,
-            }
-            return thresholds.get(key, default)
-
-        mock_get_threshold.side_effect = threshold_side_effect
+    def test_regime_based_tp_sl_normal_range(self):
+        """normal_rangeレジームでのTP/SL計算テスト（設定ファイル連動）."""
+        from src.core.config.threshold_manager import get_threshold
 
         config = self.basic_config.copy()
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
@@ -300,12 +287,23 @@ class TestRiskManager(unittest.TestCase):
             regime="normal_range",
         )
 
-        # Phase 52.0: normal_range TP 1.0%, SL 0.7%, RR比1.43:1
-        # SL距離 = 70000円[0.7%]
-        # TP距離 = max(100000円[1.0%], 100100円[SL×1.43]) = 100100円
-        expected_sl_distance = self.current_price * 0.007  # 70000円
-        expected_tp_from_ratio = self.current_price * 0.010  # 100000円
-        expected_tp_from_sl = expected_sl_distance * 1.43  # 100100円
+        # thresholds.yamlから動的に値を取得して期待値を計算
+        sl_ratio = get_threshold(
+            "position_management.stop_loss.regime_based.normal_range.max_loss_ratio",
+            get_threshold("position_management.stop_loss.max_loss_ratio", 0.006),
+        )
+        tp_ratio = get_threshold(
+            "position_management.take_profit.regime_based.normal_range.min_profit_ratio",
+            get_threshold("position_management.take_profit.min_profit_ratio", 0.015),
+        )
+        rr_ratio = get_threshold(
+            "position_management.take_profit.regime_based.normal_range.default_ratio",
+            get_threshold("position_management.take_profit.default_ratio", 2.5),
+        )
+
+        expected_sl_distance = self.current_price * sl_ratio
+        expected_tp_from_ratio = self.current_price * tp_ratio
+        expected_tp_from_sl = expected_sl_distance * rr_ratio
         expected_tp_distance = max(expected_tp_from_ratio, expected_tp_from_sl)
         expected_stop_loss = self.current_price - expected_sl_distance
         expected_take_profit = self.current_price + expected_tp_distance
@@ -313,23 +311,9 @@ class TestRiskManager(unittest.TestCase):
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_regime_based_tp_sl_trending(self, mock_get_threshold):
-        """Phase 52.0: trendingレジームでのTP/SL計算テスト."""
-
-        def threshold_side_effect(key, default=None):
-            thresholds = {
-                "position_management.take_profit.regime_based.enabled": True,
-                "position_management.take_profit.regime_based.trending.min_profit_ratio": 0.015,  # TP 1.5%
-                "position_management.take_profit.regime_based.trending.default_ratio": 1.50,
-                "position_management.stop_loss.regime_based.trending.max_loss_ratio": 0.010,  # SL 1.0%
-                "position_management.stop_loss.max_loss_ratio": 0.007,
-                "position_management.take_profit.min_profit_ratio": 0.009,
-                "position_management.take_profit.default_ratio": 1.29,
-            }
-            return thresholds.get(key, default)
-
-        mock_get_threshold.side_effect = threshold_side_effect
+    def test_regime_based_tp_sl_trending(self):
+        """trendingレジームでのTP/SL計算テスト（設定ファイル連動）."""
+        from src.core.config.threshold_manager import get_threshold
 
         config = self.basic_config.copy()
         stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
@@ -340,11 +324,24 @@ class TestRiskManager(unittest.TestCase):
             regime="trending",
         )
 
-        # Phase 52.0: trending TP 1.5%, SL 1.0%, RR比1.50:1
-        # SL距離 = 100000円[1.0%]
-        # TP距離 = max(150000円[1.5%], 150000円[SL×1.50]) = 150000円
-        expected_sl_distance = self.current_price * 0.010  # 100000円
-        expected_tp_distance = self.current_price * 0.015  # 150000円
+        # thresholds.yamlから動的に値を取得して期待値を計算
+        sl_ratio = get_threshold(
+            "position_management.stop_loss.regime_based.trending.max_loss_ratio",
+            get_threshold("position_management.stop_loss.max_loss_ratio", 0.010),
+        )
+        tp_ratio = get_threshold(
+            "position_management.take_profit.regime_based.trending.min_profit_ratio",
+            get_threshold("position_management.take_profit.min_profit_ratio", 0.020),
+        )
+        rr_ratio = get_threshold(
+            "position_management.take_profit.regime_based.trending.default_ratio",
+            get_threshold("position_management.take_profit.default_ratio", 2.0),
+        )
+
+        expected_sl_distance = self.current_price * sl_ratio
+        expected_tp_from_ratio = self.current_price * tp_ratio
+        expected_tp_from_sl = expected_sl_distance * rr_ratio
+        expected_tp_distance = max(expected_tp_from_ratio, expected_tp_from_sl)
         expected_stop_loss = self.current_price - expected_sl_distance
         expected_take_profit = self.current_price + expected_tp_distance
 
@@ -422,9 +419,9 @@ class TestRiskManager(unittest.TestCase):
             regime="tight_range",  # レジーム指定あるが無効化されている
         )
 
-        # Phase 52.0: 実際の動作確認
+        # 実際の動作確認
         # 注: yamlファイルから実際の設定が読み込まれるため、mockが完全には機能しない
-        # tight_range設定が適用される（TP 0.8%, SL 0.6%）
+        # thresholds.yamlのtight_range設定が適用される
         self.assertIsNotNone(stop_loss)
         self.assertIsNotNone(take_profit)
         self.assertLess(stop_loss, self.current_price)

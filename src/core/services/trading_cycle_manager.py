@@ -289,6 +289,13 @@ class TradingCycleManager:
                 }
                 self.orchestrator.strategy_service.update_strategy_weights(all_zero_weights)
 
+            # 4. Phase 55: 完全フィルタリング方式 - 戦略の有効/無効を切り替え
+            # 重み付け方式に加え、戦略を完全に有効/無効化することで
+            # 無効な戦略がシグナル集計に参加しないようにする
+            self.dynamic_strategy_selector.apply_regime_strategy_filter(
+                regime, self.orchestrator.strategy_service
+            )
+
         except Exception as e:
             self.logger.error(f"Phase 51.3: 動的戦略選択エラー: {e} - 固定重み継続使用")
             # エラー時は既存の重みを維持（何もしない）

@@ -97,7 +97,9 @@ class NewSystemMLModelCreator:
         self.models_to_train = models_to_train or ["full", "basic"]
         self.current_model_type = "full"  # ループ処理中に動的に設定
         self.verbose = verbose
-        self.target_threshold = target_threshold  # Phase 39.2
+        # Phase 54: 15分足ターゲット移行（4h足±0.5% → 15m足±0.2%）
+        # 目的: HOLD偏り解消（62.9% → 35-45%）
+        self.target_threshold = target_threshold  # Phase 54: デフォルト0.002（±0.2%）
         self.n_classes = n_classes  # Phase 39.2
         self.use_smote = use_smote  # Phase 39.4
         self.optimize = optimize  # Phase 39.5
@@ -209,17 +211,18 @@ class NewSystemMLModelCreator:
         Returns:
             pd.DataFrame: OHLCV データ
         """
-        self.logger.info(f"📊 Phase 39.1: 実データ読み込み開始（過去{days}日分）")
+        self.logger.info(f"📊 Phase 54: 15分足実データ読み込み開始（過去{days}日分）")
 
-        csv_path = Path("src/backtest/data/historical/BTC_JPY_4h.csv")
+        # Phase 54: 15分足ターゲット移行（4h足 → 15m足）
+        csv_path = Path("src/backtest/data/historical/BTC_JPY_15m.csv")
 
         # データ収集（存在しない、または古い場合）
         if not csv_path.exists():
-            self.logger.info("💾 履歴データ未存在 - 自動収集開始")
+            self.logger.info("💾 15分足履歴データ未存在 - 自動収集開始")
             try:
                 collector = HistoricalDataCollector()
-                await collector.collect_data(symbol="BTC/JPY", days=days, timeframes=["4h"])
-                self.logger.info("✅ データ収集完了")
+                await collector.collect_data(symbol="BTC/JPY", days=days, timeframes=["15m"])
+                self.logger.info("✅ 15分足データ収集完了")
             except Exception as e:
                 self.logger.error(f"❌ データ収集失敗: {e}")
                 raise
@@ -869,10 +872,11 @@ class NewSystemMLModelCreator:
                     X_cv_val = X_train.iloc[val_idx]
                     y_cv_val = y_train.iloc[val_idx]
 
-                    # Phase 39.4: SMOTE Oversampling (CV fold)
-                    if self.use_smote and self.n_classes == 2:
+                    # Phase 54: SMOTE Oversampling強化（3クラス対応・sampling_strategy='auto'）
+                    if self.use_smote:
                         try:
-                            smote = SMOTE(random_state=42)
+                            # Phase 54: sampling_strategy='auto'で全クラスをmajorityクラス数に揃える
+                            smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
                             X_cv_train_resampled, y_cv_train_resampled = smote.fit_resample(
                                 X_cv_train, y_cv_train
                             )
@@ -881,11 +885,19 @@ class NewSystemMLModelCreator:
                                 X_cv_train_resampled, columns=X_cv_train.columns
                             )
                             y_cv_train = pd.Series(y_cv_train_resampled)
-                            if len(X_cv_train_resampled) > len(X_cv_train):
-                                self.logger.debug(
-                                    f"📊 Phase 39.4: SMOTE適用 - CV fold "
-                                    f"{len(train_idx)}→{len(X_cv_train_resampled)}サンプル"
-                                )
+
+                            # Phase 54: クラス分布確認ログ
+                            class_dist = pd.Series(y_cv_train_resampled).value_counts(
+                                normalize=True
+                            )
+                            self.logger.info(
+                                f"📊 Phase 54: SMOTE適用（CV fold） - "
+                                f"{len(train_idx)}→{len(X_cv_train_resampled)}サンプル"
+                            )
+                            self.logger.info(
+                                f"   SMOTE後クラス分布: "
+                                + ", ".join([f"Class {k}: {v:.1%}" for k, v in class_dist.items()])
+                            )
                         except Exception as e:
                             self.logger.warning(
                                 f"⚠️ SMOTE適用失敗（CV fold）: {e}, 元データで学習継続"
@@ -939,10 +951,11 @@ class NewSystemMLModelCreator:
                 X_train_val = pd.concat([X_train, X_val])
                 y_train_val = pd.concat([y_train, y_val])
 
-                # Phase 39.4: SMOTE Oversampling (Final training)
-                if self.use_smote and self.n_classes == 2:
+                # Phase 54: SMOTE Oversampling強化（Final training・3クラス対応）
+                if self.use_smote:
                     try:
-                        smote = SMOTE(random_state=42)
+                        # Phase 54: sampling_strategy='auto'で全クラスをmajorityクラス数に揃える
+                        smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
                         X_train_val_resampled, y_train_val_resampled = smote.fit_resample(
                             X_train_val, y_train_val
                         )
@@ -951,9 +964,16 @@ class NewSystemMLModelCreator:
                             X_train_val_resampled, columns=X_train_val.columns
                         )
                         y_train_val = pd.Series(y_train_val_resampled)
+
+                        # Phase 54: クラス分布確認ログ
+                        class_dist = pd.Series(y_train_val_resampled).value_counts(normalize=True)
                         self.logger.info(
-                            f"📊 Phase 39.4: SMOTE適用（Final training） - "
+                            f"📊 Phase 54: SMOTE適用（Final training） - "
                             f"{len(X_train) + len(X_val)}→{len(X_train_val_resampled)}サンプル"
+                        )
+                        self.logger.info(
+                            f"   SMOTE後クラス分布: "
+                            + ", ".join([f"Class {k}: {v:.1%}" for k, v in class_dist.items()])
                         )
                     except Exception as e:
                         self.logger.warning(
@@ -1011,6 +1031,22 @@ class NewSystemMLModelCreator:
                     "cv_f1_mean": np.mean(cv_scores),
                     "cv_f1_std": np.std(cv_scores),
                 }
+
+                # Phase 54: 予測分布検証（hold比率チェック）
+                pred_dist = pd.Series(y_test_pred).value_counts(normalize=True)
+                self.logger.info(
+                    f"📊 Phase 54: {model_name} 予測分布 - "
+                    + ", ".join([f"Class {k}: {v:.1%}" for k, v in pred_dist.items()])
+                )
+
+                # Phase 54: hold予測比率警告（60%超過時）
+                if self.n_classes == 3:
+                    hold_ratio = pred_dist.get(1, 0)  # Class 1 = hold
+                    if hold_ratio > 0.60:
+                        self.logger.warning(
+                            f"⚠️ Phase 54: {model_name} hold予測比率が高すぎます: {hold_ratio:.1%} "
+                            f"(閾値: 60%) - モデル改善が必要"
+                        )
 
                 results[model_name] = test_metrics
                 trained_models[model_name] = model

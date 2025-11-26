@@ -60,13 +60,13 @@ ml:
   default_confidence: 0.5
   strategy_integration:
     enabled: true
-    ml_weight: 0.35
-    strategy_weight: 0.7
+    ml_weight: 0.30              # Phase 56: 0.35 → 0.30（合計1.0に正規化）
+    strategy_weight: 0.70        # 維持（合計1.0に）
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
     disagreement_penalty: 0.90  # Phase 52.4: ペナルティ緩和
     min_ml_confidence: 0.35      # Phase 52.4: 閾値緩和
-    hold_conversion_threshold: 0.20  # Phase 55.4: 0.30→0.20（エントリー機会増加）
+    hold_conversion_threshold: 0.15  # Phase 56: 0.20 → 0.15（hold変換減少）
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -91,30 +91,32 @@ ml:
 
     # tight_range（狭いレンジ）: 戦略重視型
     # バックテスト結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
-    # Phase 55.4: ML統合緩和（エントリー率向上）
+    # Phase 56: 月200回エントリー目標でボーナス閾値緩和
     tight_range:
-      min_ml_confidence: 0.35           # Phase 55.4: 0.40→0.35（緩和）
-      high_confidence_threshold: 0.65
-      ml_weight: 0.30                   # Phase 55.3: 0.25→0.30（ML重視化）
-      strategy_weight: 0.70             # Phase 55.3: 0.75→0.70（戦略重視から均衡へ）
-      agreement_bonus: 1.15             # ML・戦略一致時ボーナス控えめ
-      disagreement_penalty: 0.98        # Phase 55.4: 0.95→0.98（ペナルティ緩和）
+      min_ml_confidence: 0.30           # Phase 56: 0.35→0.30（緩和）
+      high_confidence_threshold: 0.45   # Phase 56: 0.55→0.45（ボーナス適用率UP）
+      ml_weight: 0.30                   # 維持
+      strategy_weight: 0.70             # 維持
+      agreement_bonus: 1.25             # Phase 56: 1.15→1.25（ボーナス強化）
+      disagreement_penalty: 0.98        # 維持
 
     # normal_range（通常レンジ）: バランス型
     # バックテスト結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
+    # Phase 56: 月200回エントリー目標で閾値緩和
     normal_range:
-      min_ml_confidence: 0.40           # 中閾値（バランス型）
-      high_confidence_threshold: 0.60
+      min_ml_confidence: 0.35           # Phase 56: 0.40→0.35（緩和）
+      high_confidence_threshold: 0.45   # Phase 56: 0.50→0.45（ボーナス適用率UP）
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
-      agreement_bonus: 1.20             # ML・戦略一致時ボーナス標準
-      disagreement_penalty: 0.90        # ML・戦略不一致時ペナルティ標準
+      agreement_bonus: 1.25             # Phase 56: 1.20→1.25（ボーナス強化）
+      disagreement_penalty: 0.90        # 維持
 
     # trending（トレンド）: ML補完重視型
     # バックテスト結果: 0件（未発生・実験的設定）
+    # Phase 55.7: ML統合緩和
     trending:
       min_ml_confidence: 0.35           # 低閾値（ML補完重視）
-      high_confidence_threshold: 0.55
+      high_confidence_threshold: 0.45   # Phase 55.7: 0.55→0.45（ML信頼度0.45以上でボーナス適用）
       ml_weight: 0.35                   # ML 35%
       strategy_weight: 0.65             # 戦略 65%
       agreement_bonus: 1.25             # ML・戦略一致時ボーナス強化
@@ -432,15 +434,16 @@ position_limits:
 # ========================================
 strategies:
   adx_trend:
-    di_crossover_threshold: 0.5
+    # Phase 55.5: 閾値緩和（シグナル発生率向上）
+    di_crossover_threshold: 0.3       # Phase 55.5: 0.5→0.3
     di_weak_signal_confidence: 0.35
     hold_confidence: 0.45
     min_confidence: 0.25
-    moderate_trend_max: 25
-    moderate_trend_min: 15
-    strong_trend_threshold: 25
+    moderate_trend_max: 22            # Phase 55.5: 25→22
+    moderate_trend_min: 12            # Phase 55.5: 15→12
+    strong_trend_threshold: 22        # Phase 55.5: 25→22
     weak_di_threshold: 1.0
-    weak_trend_threshold: 15
+    weak_trend_threshold: 12          # Phase 55.5: 15→12
   atr_based:
     bb_overbought: 0.7
     bb_oversold: 0.3
@@ -460,37 +463,37 @@ strategies:
     middle_zone_max: 0.6
     middle_zone_min: 0.4
     min_confidence: 0.25
-    reversal_threshold: 0.05
+    reversal_threshold: 0.10          # Phase 55.5: 0.05→0.10（上位/下位10%に拡大）
     weak_signal_confidence: 0.35
-    weak_signal_max: 0.75
+    weak_signal_max: 0.70             # Phase 55.5: 0.75→0.70（弱シグナル上限緩和）
     weak_signal_min: 0.25
   bb_reversal:
-    # Phase 52.4: BB Reversal戦略設定
+    # Phase 55.7: BB Reversal戦略設定（閾値緩和）
     min_confidence: 0.30
     hold_confidence: 0.25
-    bb_width_threshold: 0.02        # BB幅閾値（2% = レンジ相場判定）
-    rsi_overbought: 70              # RSI買われすぎ閾値
-    rsi_oversold: 30                # RSI売られすぎ閾値
-    bb_upper_threshold: 0.95        # BB上限タッチ閾値（95%以上）
-    bb_lower_threshold: 0.05        # BB下限タッチ閾値（5%以下）
-    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    bb_width_threshold: 0.025       # Phase 55.7: 2%→2.5%（BB幅緩和）
+    rsi_overbought: 65              # Phase 55.5: 70→65（RSI閾値緩和）
+    rsi_oversold: 35                # Phase 55.5: 30→35（RSI閾値緩和）
+    bb_upper_threshold: 0.85        # Phase 55.5: 0.95→0.85（BB閾値緩和）
+    bb_lower_threshold: 0.15        # Phase 55.5: 0.05→0.15（BB閾値緩和）
+    adx_range_threshold: 35         # Phase 55.7: 25→35（ADX閾値大幅緩和・hold率93%対策）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 52.4: Stochastic Reversal戦略設定
+    # Phase 55.7: Stochastic Reversal戦略設定（閾値緩和）
     min_confidence: 0.30
     hold_confidence: 0.25
-    stoch_overbought: 80            # Stochastic過買い閾値
-    stoch_oversold: 20              # Stochastic過売り閾値
-    rsi_overbought: 65              # RSI買われすぎ閾値
-    rsi_oversold: 35                # RSI売られすぎ閾値
-    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    stoch_overbought: 75            # Phase 55.5: 80→75（Stochastic閾値緩和）
+    stoch_oversold: 25              # Phase 55.5: 20→25（Stochastic閾値緩和）
+    rsi_overbought: 60              # Phase 55.5: 65→60（RSI閾値緩和）
+    rsi_oversold: 40                # Phase 55.5: 35→40（RSI閾値緩和）
+    adx_range_threshold: 35         # Phase 55.7: 25→35（ADX閾値大幅緩和・hold率89%対策）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
-    # Phase 52.4: MACD + EMA Crossover戦略設定
+    # Phase 55.5: MACD + EMA Crossover戦略設定（閾値緩和）
     min_confidence: 0.35
     hold_confidence: 0.25
-    adx_trend_threshold: 25         # ADXトレンド相場閾値（25以上）
-    volume_ratio_threshold: 1.1     # 出来高増加閾値
+    adx_trend_threshold: 22         # Phase 55.5: 25→22（ADX閾値緩和）
+    volume_ratio_threshold: 1.05    # Phase 55.5: 1.1→1.05（出来高閾値緩和）
     macd_strong_threshold: 50000    # MACD強い閾値（ヒストグラム正規化用）
     ema_divergence_threshold: 0.01  # EMA乖離度閾値（1%）
     sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）
@@ -514,11 +517,11 @@ trading:
   # After:  1 BUY + 2 HOLD → BUY信頼度 0.20 vs HOLD 0.155 → BUY選択
   # ========================================
   confidence_levels:
-    high: 0.35         # Phase 55: 0.45 → 0.35（大幅緩和・エントリー率向上）
-    low: 0.15          # Phase 55.4: 0.18 → 0.15（さらに緩和）
-    medium: 0.18       # Phase 55.4: 0.22 → 0.18（さらに緩和）
+    high: 0.25         # Phase 56: 0.35 → 0.25（月200回エントリー目標）
+    low: 0.10          # Phase 56: 0.15 → 0.10（大幅緩和）
+    medium: 0.15       # Phase 56: 0.18 → 0.15
     min_ml: 0.12       # 維持
-    very_high: 0.55    # Phase 55: 0.60 → 0.55（高信頼度も緩和）
+    very_high: 0.55    # 維持
   fallback_btc_jpy: 16500000.0
   fallback_prices:
     ask: 16600000.0
