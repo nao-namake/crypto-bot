@@ -48,14 +48,17 @@ class MACDEMACrossoverStrategy(StrategyBase):
         Args:
             config: 戦略設定（thresholds.yamlから読み込み）
         """
+        # Phase 55.5: 閾値を中度緩和（シグナル発生率向上）
         default_config = {
             "min_confidence": get_threshold("strategies.macd_ema_crossover.min_confidence", 0.35),
             "hold_confidence": get_threshold("strategies.macd_ema_crossover.hold_confidence", 0.25),
+            # Phase 55.5: ADX閾値緩和（25→22）
             "adx_trend_threshold": get_threshold(
-                "strategies.macd_ema_crossover.adx_trend_threshold", 25
+                "strategies.macd_ema_crossover.adx_trend_threshold", 22
             ),
+            # Phase 55.5: 出来高閾値緩和（1.1→1.05）
             "volume_ratio_threshold": get_threshold(
-                "strategies.macd_ema_crossover.volume_ratio_threshold", 1.1
+                "strategies.macd_ema_crossover.volume_ratio_threshold", 1.05
             ),
             "macd_strong_threshold": get_threshold(
                 "strategies.macd_ema_crossover.macd_strong_threshold", 50000
@@ -250,6 +253,8 @@ class MACDEMACrossoverStrategy(StrategyBase):
         """
         MACD+EMAシグナル分析
 
+        Phase 55.6: クロスオーバー条件緩和 - MACDポジティブダイバージェンスも許容
+
         Args:
             df: 市場データ
 
@@ -258,6 +263,8 @@ class MACDEMACrossoverStrategy(StrategyBase):
         """
         latest = df.iloc[-1]
         volume_ratio = float(latest["volume_ratio"])
+        macd = float(latest["macd"])
+        macd_signal = float(latest["macd_signal"])
 
         # クロスオーバー検出
         crossover = self._detect_macd_crossover(df)
@@ -268,6 +275,10 @@ class MACDEMACrossoverStrategy(StrategyBase):
         # MACD強度・EMA乖離度計算
         macd_strength = self._calculate_macd_strength(df)
         ema_divergence = self._calculate_ema_divergence(df)
+
+        # Phase 55.6: MACDダイバージェンス検出（クロスオーバーなしでも発火）
+        macd_bullish = macd > macd_signal  # MACD > Signal = 上昇モメンタム
+        macd_bearish = macd < macd_signal  # MACD < Signal = 下降モメンタム
 
         # BUY信号（ゴールデンクロス + 上昇トレンド + 出来高増加）
         if (
@@ -311,6 +322,31 @@ class MACDEMACrossoverStrategy(StrategyBase):
                 "confidence": confidence,
                 "strength": strength,
                 "reason": f"MACD+EMAクロスSELL (MACD強度={macd_strength:.2f}, EMA乖離={ema_divergence:.2%}, 出来高比={volume_ratio:.2f})",
+            }
+
+        # Phase 55.6: MACDダイバージェンス（クロスオーバーなしでも発火・信頼度低め）
+        elif macd_bullish and ema_trend == "uptrend" and macd_strength >= 0.3:
+            confidence = min(
+                self.config["min_confidence"] + (macd_strength * 0.10) + (ema_divergence * 0.10),
+                0.55,  # クロスオーバーより低め
+            )
+            return {
+                "action": EntryAction.BUY,
+                "confidence": confidence,
+                "strength": macd_strength,
+                "reason": f"MACDダイバージェンスBUY (MACD>{macd_signal:.0f}, EMA上昇)",
+            }
+
+        elif macd_bearish and ema_trend == "downtrend" and macd_strength >= 0.3:
+            confidence = min(
+                self.config["min_confidence"] + (macd_strength * 0.10) + (ema_divergence * 0.10),
+                0.55,
+            )
+            return {
+                "action": EntryAction.SELL,
+                "confidence": confidence,
+                "strength": macd_strength,
+                "reason": f"MACDダイバージェンスSELL (MACD<{macd_signal:.0f}, EMA下降)",
             }
 
         # HOLD信号

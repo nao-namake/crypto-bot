@@ -47,14 +47,17 @@ class ADXTrendStrengthStrategy(StrategyBase):
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
-        # 戦略パラメータ（動的信頼度計算対応）
+        # Phase 55.5: 戦略パラメータ緩和（シグナル発生率向上）
         self.adx_period = self.config.get("adx_period", 14)
+        # Phase 55.5: 強いトレンド閾値緩和（25→22）
         self.strong_trend_threshold = get_threshold(
-            "strategies.adx_trend.strong_trend_threshold", 25
+            "strategies.adx_trend.strong_trend_threshold", 22
         )
-        self.weak_trend_threshold = get_threshold("strategies.adx_trend.weak_trend_threshold", 15)
+        # Phase 55.5: 弱いトレンド閾値緩和（15→12）
+        self.weak_trend_threshold = get_threshold("strategies.adx_trend.weak_trend_threshold", 12)
+        # Phase 55.5: DI差分閾値緩和（0.5→0.3）
         self.di_crossover_threshold = get_threshold(
-            "strategies.adx_trend.di_crossover_threshold", 0.5
+            "strategies.adx_trend.di_crossover_threshold", 0.3
         )
         self.min_confidence = get_threshold("strategies.adx_trend.min_confidence", 0.3)
         # 弱シグナル用設定
@@ -244,6 +247,7 @@ class ADXTrendStrengthStrategy(StrategyBase):
         """
         current_price = analysis["current_price"]
 
+        # Phase 55.6: シグナル条件大幅緩和（エントリー率向上）
         # 1. 強いトレンド + DIクロスオーバー（最優先）
         if analysis["is_strong_trend"] and analysis["adx_rising"]:
             if analysis["bullish_crossover"]:
@@ -268,9 +272,35 @@ class ADXTrendStrengthStrategy(StrategyBase):
                     analysis=analysis,
                     multi_timeframe_data=multi_timeframe_data,
                 )
-        # 2. 中程度トレンド + 明確なDI優勢
-        if analysis["is_moderate_trend"] and analysis["di_strength"] >= 2.0:
-            if analysis["dominant_direction"] == "bullish" and analysis["volume_ratio"] > 1.1:
+
+        # Phase 55.6: 強いトレンド + DI優勢（クロスオーバー不要）
+        if analysis["is_strong_trend"]:
+            if analysis["dominant_direction"] == "bullish" and analysis["di_strength"] >= 1.0:
+                confidence = self._calculate_trend_confidence(analysis, "buy")
+                return self._create_signal(
+                    action="buy",
+                    confidence=confidence,
+                    reason=f"強トレンド+DI優勢（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_strength']:.1f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
+            elif analysis["dominant_direction"] == "bearish" and analysis["di_strength"] >= 1.0:
+                confidence = self._calculate_trend_confidence(analysis, "sell")
+                return self._create_signal(
+                    action="sell",
+                    confidence=confidence,
+                    reason=f"強トレンド-DI優勢（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_strength']:.1f}）",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
+
+        # 2. 中程度トレンド + DI優勢（Phase 55.6: volume条件削除・DI閾値緩和1.0）
+        if analysis["is_moderate_trend"] and analysis["di_strength"] >= 1.0:
+            if analysis["dominant_direction"] == "bullish":
                 confidence = self._calculate_trend_confidence(analysis, "buy")
                 if confidence >= self.min_confidence:
                     return self._create_signal(
@@ -282,7 +312,7 @@ class ADXTrendStrengthStrategy(StrategyBase):
                         analysis=analysis,
                         multi_timeframe_data=multi_timeframe_data,
                     )
-            elif analysis["dominant_direction"] == "bearish" and analysis["volume_ratio"] > 1.1:
+            elif analysis["dominant_direction"] == "bearish":
                 confidence = self._calculate_trend_confidence(analysis, "sell")
                 if confidence >= self.min_confidence:
                     return self._create_signal(
@@ -429,9 +459,9 @@ class ADXTrendStrengthStrategy(StrategyBase):
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
-        # 設定値による範囲制限
+        # Phase 55.5: 弱シグナル上限引き上げ（0.50→0.60）
         min_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_min", 0.25)
-        max_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_max", 0.50)
+        max_confidence = get_threshold("dynamic_confidence.strategies.adx_trend.weak_max", 0.60)
         return max(min_confidence, min(max_confidence, confidence))
 
     def _calculate_weak_trend_hold_confidence(

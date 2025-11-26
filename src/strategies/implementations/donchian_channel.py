@@ -50,9 +50,10 @@ class DonchianChannelStrategy(StrategyBase):
         self.breakout_threshold = get_threshold(
             "strategies.donchian_channel.breakout_threshold", 0.002
         )  # 0.2%
+        # Phase 55.5: リバーサル閾値緩和（0.05→0.10）- 上位/下位10%に拡大
         self.reversal_threshold = get_threshold(
-            "strategies.donchian_channel.reversal_threshold", 0.05
-        )  # 5%位置
+            "strategies.donchian_channel.reversal_threshold", 0.10
+        )  # 10%位置（緩和）
         self.min_confidence = get_threshold(
             "strategies.donchian_channel.min_confidence", 0.3
         )  # 緩和設定
@@ -231,21 +232,49 @@ class DonchianChannelStrategy(StrategyBase):
         current_price = analysis["current_price"]
 
         # 1. ブレイクアウトシグナル（強いトレンド）
-        if analysis["is_upper_breakout"] and volume_ratio > 1.2:
+        breakout_confidence = get_threshold(
+            "strategies.donchian_channel.breakout_strong_confidence", 0.75
+        )
+        # Phase 55.6: 出来高条件緩和（1.2→1.0）
+        if analysis["is_upper_breakout"] and volume_ratio >= 1.0:
             return self._create_signal(
                 action="buy",
-                confidence=0.75,
+                confidence=breakout_confidence,  # Phase 54: ハードコード削除・設定ファイル一元管理
                 reason="上方ブレイクアウト（出来高増加）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
-        if analysis["is_lower_breakout"] and volume_ratio > 1.2:
+        if analysis["is_lower_breakout"] and volume_ratio >= 1.0:
             return self._create_signal(
                 action="sell",
-                confidence=0.75,
+                confidence=breakout_confidence,  # Phase 54: ハードコード削除・設定ファイル一元管理
                 reason="下方ブレイクアウト（出来高増加）",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
+            )
+
+        # Phase 55.6: チャネル上限/下限接近でもシグナル（ブレイクアウト前でも許容）
+        if channel_pos >= 0.90 and not analysis["is_upper_breakout"]:
+            confidence = self._calculate_reversal_confidence(analysis, "buy")
+            return self._create_signal(
+                action="buy",
+                confidence=max(confidence, 0.45),  # 最低信頼度保証
+                reason=f"チャネル上限接近BUY（位置: {channel_pos:.3f}）",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
+            )
+        if channel_pos <= 0.10 and not analysis["is_lower_breakout"]:
+            confidence = self._calculate_reversal_confidence(analysis, "sell")
+            return self._create_signal(
+                action="sell",
+                confidence=max(confidence, 0.45),
+                reason=f"チャネル下限接近SELL（位置: {channel_pos:.3f}）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
@@ -376,7 +405,8 @@ class DonchianChannelStrategy(StrategyBase):
         if analysis["volume_ratio"] > 1.0:
             volume_bonus = min(0.1, (analysis["volume_ratio"] - 1.0) * 0.2)
         confidence = base_confidence + position_bonus + volatility_bonus + volume_bonus
-        return max(0.25, min(0.6, confidence))
+        # Phase 55.5: 弱シグナル上限引き上げ（0.6→0.70）
+        return max(0.25, min(0.70, confidence))
 
     def _calculate_middle_zone_confidence(
         self, analysis: Dict[str, Any], df: pd.DataFrame = None
