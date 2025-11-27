@@ -525,8 +525,10 @@ class ExecutionService:
                             pass  # 削除失敗は無視
 
                     # エラー結果返却
+                    # Phase 55.9: mode引数追加（ExecutionResult必須パラメータ）
                     return ExecutionResult(
                         success=False,
+                        mode=ExecutionMode.LIVE,
                         order_id=result.order_id,
                         side=side,
                         amount=amount,
