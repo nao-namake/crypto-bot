@@ -101,7 +101,7 @@ class TestOrderStrategyBasicFunctionality:
 
         # モックBitbankClient
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5], [14490000, 1.0]],
                 "asks": [[14510000, 0.3], [14520000, 0.8]],
@@ -138,7 +138,7 @@ class TestOrderStrategyBasicFunctionality:
 
         # モックBitbankClient
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5], [14490000, 1.0]],
                 "asks": [[14510000, 0.3], [14520000, 0.8]],
@@ -195,7 +195,7 @@ class TestOrderStrategyBasicFunctionality:
 
         # モックBitbankClient（エラー発生）
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(side_effect=Exception("API Error"))
+        mock_client.fetch_order_book = AsyncMock(side_effect=Exception("API Error"))
 
         # 実行
         result = await self.order_strategy.get_optimal_execution_config(
@@ -281,7 +281,7 @@ class TestOrderStrategySmartOrderMode:
 
         # モックBitbankClient
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5], [14490000, 1.0]],
                 "asks": [[14510000, 0.3], [14520000, 0.8]],
@@ -381,7 +381,7 @@ class TestOrderStrategySmartOrderMode:
 
         # モックBitbankClient
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5]],
                 "asks": [[14510000, 0.3]],
@@ -419,7 +419,7 @@ class TestOrderStrategyMarketConditions:
 
         # モックBitbankClient
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5], [14490000, 1.0]],
                 "asks": [[14510000, 0.3], [14520000, 0.8]],
@@ -453,7 +453,7 @@ class TestOrderStrategyMarketConditions:
 
         # モックBitbankClient（スプレッド1%）
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5]],
                 "asks": [[14650000, 0.3]],  # 1%以上のスプレッド
@@ -493,7 +493,7 @@ class TestOrderStrategyMarketConditions:
         """
         # モックBitbankClient（エラー発生）
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(side_effect=Exception("API Error"))
+        mock_client.fetch_order_book = AsyncMock(side_effect=Exception("API Error"))
 
         # 実行
         conditions = await self.order_strategy._assess_market_conditions(mock_client)
@@ -748,7 +748,7 @@ class TestOrderStrategyErrorHandling:
 
         # モックBitbankClient（スプレッド拡大）
         mock_client = AsyncMock()
-        mock_client.fetch_order_book = Mock(
+        mock_client.fetch_order_book = AsyncMock(
             return_value={
                 "bids": [[14500000, 0.5]],
                 "asks": [[14650000, 0.3]],  # 1%スプレッド

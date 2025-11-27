@@ -48,8 +48,8 @@ def mock_bitbank_client():
     client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
     client.fetch_positions = AsyncMock(return_value=[])
     client.fetch_margin_positions = AsyncMock(return_value=[])  # Phase 37.5.4: native API対応
-    client.create_take_profit_order = Mock(return_value={"id": "tp_order_123"})
-    client.create_stop_loss_order = Mock(return_value={"id": "sl_order_456"})
+    client.create_take_profit_order = AsyncMock(return_value={"id": "tp_order_123"})
+    client.create_stop_loss_order = AsyncMock(return_value={"id": "sl_order_456"})
     client.cancel_order = AsyncMock()
     return client
 
@@ -168,7 +168,8 @@ class TestCheckStopConditions:
 
         # SL価格到達（13,700,000円以下）
         # _get_current_price()が呼ばれるのでfetch_tickerをmock
-        mock_bitbank_client.fetch_ticker = Mock(return_value={"last": 13650000.0})
+        # Phase 55.8: AsyncMock修正（fetch_tickerはasyncメソッド）
+        mock_bitbank_client.fetch_ticker = AsyncMock(return_value={"last": 13650000.0})
 
         result = await stop_manager.check_stop_conditions(
             virtual_positions=[sample_position],
@@ -584,7 +585,8 @@ class TestGetCurrentPrice:
     @pytest.mark.asyncio
     async def test_fetch_ticker_success(self, stop_manager, mock_bitbank_client):
         """ticker取得成功"""
-        mock_bitbank_client.fetch_ticker = Mock(return_value={"last": 14500000.0})
+        # Phase 55.8: AsyncMock修正（fetch_tickerはasyncメソッド）
+        mock_bitbank_client.fetch_ticker = AsyncMock(return_value={"last": 14500000.0})
 
         price = await stop_manager._get_current_price(mock_bitbank_client)
 
@@ -919,7 +921,7 @@ class TestPhase516CleanupOldUnfilledOrders:
     @pytest.fixture
     def mock_bitbank_client(self):
         """BitbankClientのモック"""
-        client = MagicMock()
+        client = AsyncMock()
         return client
 
     async def test_cleanup_old_orphan_orders_success(self, stop_manager, mock_bitbank_client):
@@ -930,7 +932,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック（31件・30件制限超過）
-        mock_bitbank_client.fetch_active_orders = MagicMock(
+        mock_bitbank_client.fetch_active_orders = AsyncMock(
             return_value=[
                 # 古い孤児TP注文（削除対象）
                 {
@@ -975,7 +977,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         ]
 
         # キャンセル成功をモック
-        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
+        mock_bitbank_client.cancel_order = AsyncMock(return_value={"success": True})
 
         result = await stop_manager.cleanup_old_unfilled_orders(
             symbol="BTC/JPY",
@@ -996,7 +998,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック
-        mock_bitbank_client.fetch_active_orders = MagicMock(
+        mock_bitbank_client.fetch_active_orders = AsyncMock(
             return_value=[
                 # アクティブポジションのTP/SL注文（保護対象・削除しない）
                 {
@@ -1025,7 +1027,7 @@ class TestPhase516CleanupOldUnfilledOrders:
             }
         ]
 
-        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
+        mock_bitbank_client.cancel_order = AsyncMock(return_value={"success": True})
 
         result = await stop_manager.cleanup_old_unfilled_orders(
             symbol="BTC/JPY",
@@ -1046,7 +1048,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック（2件のみ）
-        mock_bitbank_client.fetch_active_orders = MagicMock(
+        mock_bitbank_client.fetch_active_orders = AsyncMock(
             return_value=[
                 {
                     "id": "old_tp_1",
@@ -1093,8 +1095,11 @@ class TestPhase516SLPriceValidation:
     @pytest.fixture
     def mock_bitbank_client(self):
         """BitbankClientのモック"""
-        client = MagicMock()
-        client.create_order = MagicMock(
+        client = AsyncMock()
+        client.create_order = AsyncMock(
+            return_value={"order_id": "sl123", "trigger_price": 13900000.0}
+        )
+        client.create_stop_loss_order = AsyncMock(
             return_value={"order_id": "sl123", "trigger_price": 13900000.0}
         )
         return client

@@ -17,7 +17,6 @@ Phase履歴:
   - Phase 46: デイトレード特化・統合TP/SL削除
 """
 
-import asyncio
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -267,8 +266,8 @@ class ExecutionService:
             if order_type == "limit" and price:
                 order_params["price"] = price
 
-            # 実際の注文実行
-            order_result = self.bitbank_client.create_order(**order_params)
+            # 実際の注文実行（Phase 55.8: async修正）
+            order_result = await self.bitbank_client.create_order(**order_params)
 
             # 実行結果作成（Phase 32.1: NoneType対策強化）
             result = ExecutionResult(
@@ -560,7 +559,8 @@ class ExecutionService:
             if price == 0 and self.bitbank_client:
                 try:
                     # Bitbank公開APIから現在価格取得（認証不要・ペーパーモードでも使用可能）
-                    ticker = await asyncio.to_thread(self.bitbank_client.fetch_ticker, "BTC/JPY")
+                    # Phase 55.8: async修正
+                    ticker = await self.bitbank_client.fetch_ticker("BTC/JPY")
                     if ticker and "last" in ticker:
                         price = float(ticker["last"])
                         self.logger.info(f"📊 ペーパートレード実価格取得: {price:.0f}円")

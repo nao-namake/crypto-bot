@@ -7,7 +7,6 @@ Phase 52.4-B: Discord通知削除・SL価格検証強化・エラー30101対策
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
 
-import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -522,7 +521,8 @@ class StopManager:
         # TP注文キャンセル（SL到達時・手動決済時）
         if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
             try:
-                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
+                # Phase 55.8: async修正
+                await bitbank_client.cancel_order(tp_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
                     f"✅ Phase 52.4-B: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
@@ -539,7 +539,8 @@ class StopManager:
         # SL注文キャンセル（TP到達時・手動決済時）
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
             try:
-                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+                # Phase 55.8: async修正
+                await bitbank_client.cancel_order(sl_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
                     f"✅ Phase 52.4-B: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
@@ -669,7 +670,8 @@ class StopManager:
         """現在価格取得（緊急時用）"""
         try:
             if bitbank_client:
-                ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, "BTC/JPY")
+                # Phase 55.8: async修正
+                ticker = await bitbank_client.fetch_ticker("BTC/JPY")
                 if ticker and "last" in ticker:
                     return float(ticker["last"])
 
@@ -740,8 +742,8 @@ class StopManager:
                 self.logger.warning("⚠️ TP価格が不正（0以下）")
                 return None
 
-            # TP注文配置
-            tp_order = bitbank_client.create_take_profit_order(
+            # TP注文配置（Phase 55.8: async対応）
+            tp_order = await bitbank_client.create_take_profit_order(
                 entry_side=side,
                 amount=amount,
                 take_profit_price=take_profit_price,
@@ -834,8 +836,8 @@ class StopManager:
                     f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
                 )
 
-            # SL注文配置
-            sl_order = bitbank_client.create_stop_loss_order(
+            # SL注文配置（Phase 55.8: async対応）
+            sl_order = await bitbank_client.create_stop_loss_order(
                 entry_side=side,
                 amount=amount,
                 stop_loss_price=stop_loss_price,
@@ -903,10 +905,8 @@ class StopManager:
             Dict: {"cancelled_count": int, "order_count": int, "errors": List[str]}
         """
         try:
-            # アクティブ注文取得
-            active_orders = await asyncio.to_thread(
-                bitbank_client.fetch_active_orders, symbol, limit=100
-            )
+            # アクティブ注文取得（Phase 55.8: async修正）
+            active_orders = await bitbank_client.fetch_active_orders(symbol, limit=100)
             order_count = len(active_orders)
 
             # 閾値未満なら何もしない
@@ -974,7 +974,8 @@ class StopManager:
             for order in old_orphan_orders:
                 order_id = order.get("id")
                 try:
-                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                    # Phase 55.8: async修正
+                    await bitbank_client.cancel_order(order_id, symbol)
                     cancelled_count += 1
                     self.logger.info(
                         f"✅ Phase 52.4-B: 古いTP注文キャンセル成功 - ID: {order_id}, "

@@ -174,16 +174,12 @@ class AtomicEntryManager:
             virtual_positions: 仮想ポジションリスト（保護対象注文ID取得用）
         """
         try:
-            # 全アクティブ注文取得
-            active_orders_resp = await asyncio.to_thread(
-                self.bitbank_client.get_active_orders, symbol
-            )
+            # 全アクティブ注文取得（Phase 55.8: async修正・メソッド名修正）
+            active_orders = await self.bitbank_client.fetch_active_orders(symbol, limit=100)
 
-            if not active_orders_resp or not active_orders_resp.get("orders"):
+            if not active_orders:
                 self.logger.debug("📋 Phase 52.4-B: アクティブ注文なし - クリーンアップ不要")
                 return
-
-            active_orders = active_orders_resp["orders"]
 
             # 同一ポジション側の古いTP/SL注文を検索
             # - BUYエントリー → SELL側のTP（利確）・SELL側のSL（損切）
@@ -244,9 +240,8 @@ class AtomicEntryManager:
 
             for order in orders_to_cancel:
                 try:
-                    await asyncio.to_thread(
-                        self.bitbank_client.cancel_order, order["order_id"], symbol
-                    )
+                    # Phase 55.8: async修正
+                    await self.bitbank_client.cancel_order(order["order_id"], symbol)
                     cancel_success += 1
                     self.logger.info(
                         "🗑️ Phase 52.4-B: 古いTP/SL削除成功 - "
@@ -317,7 +312,8 @@ class AtomicEntryManager:
         # TP注文キャンセル（配置済みの場合）
         if tp_order_id:
             try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, tp_order_id, symbol)
+                # Phase 55.8: async修正
+                await self.bitbank_client.cancel_order(tp_order_id, symbol)
                 self.logger.info(f"✅ Phase 52.4-B: TP注文キャンセル成功 - ID: {tp_order_id}")
                 rollback_status["cancelled_orders"].append(tp_order_id)
             except Exception as e:
@@ -327,7 +323,8 @@ class AtomicEntryManager:
         # SL注文キャンセル（配置済みの場合）
         if sl_order_id:
             try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, sl_order_id, symbol)
+                # Phase 55.8: async修正
+                await self.bitbank_client.cancel_order(sl_order_id, symbol)
                 self.logger.info(f"✅ Phase 52.4-B: SL注文キャンセル成功 - ID: {sl_order_id}")
                 rollback_status["cancelled_orders"].append(sl_order_id)
             except Exception as e:
@@ -337,7 +334,8 @@ class AtomicEntryManager:
         # エントリー注文キャンセル（最重要）
         if entry_order_id:
             try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, entry_order_id, symbol)
+                # Phase 55.8: async修正
+                await self.bitbank_client.cancel_order(entry_order_id, symbol)
                 self.logger.error(
                     "🚨 Phase 52.4-B: エントリー注文ロールバック成功 - "
                     f"ID: {entry_order_id}, 理由: {error}"
