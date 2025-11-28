@@ -691,8 +691,12 @@ class FeatureGenerator:
         gain_values = np.where(delta_values > 0, delta_values, 0)
         loss_values = np.where(delta_values < 0, -delta_values, 0)
 
-        gain = pd.Series(gain_values, index=delta.index).rolling(window=period, min_periods=1).mean()
-        loss = pd.Series(loss_values, index=delta.index).rolling(window=period, min_periods=1).mean()
+        gain = (
+            pd.Series(gain_values, index=delta.index).rolling(window=period, min_periods=1).mean()
+        )
+        loss = (
+            pd.Series(loss_values, index=delta.index).rolling(window=period, min_periods=1).mean()
+        )
         rs = gain / (loss + EPSILON)
         return 100 - (100 / (1 + rs))
 
@@ -852,19 +856,11 @@ class FeatureGenerator:
             low_diff = (low.shift(1) - low).values
 
             # +DM計算（np.where使用）
-            plus_dm_values = np.where(
-                (high_diff > low_diff) & (high_diff > 0),
-                high_diff,
-                0
-            )
+            plus_dm_values = np.where((high_diff > low_diff) & (high_diff > 0), high_diff, 0)
             plus_dm = pd.Series(plus_dm_values, index=df.index)
 
             # -DM計算（np.where使用）
-            minus_dm_values = np.where(
-                (low_diff > high_diff) & (low_diff > 0),
-                low_diff,
-                0
-            )
+            minus_dm_values = np.where((low_diff > high_diff) & (low_diff > 0), low_diff, 0)
             minus_dm = pd.Series(minus_dm_values, index=df.index)
 
             # Smoothed True Range と Directional Movement
