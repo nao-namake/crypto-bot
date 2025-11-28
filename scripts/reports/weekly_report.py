@@ -89,7 +89,7 @@ class WeeklyReportGenerator:
             db_path = _load_config_value("tax.database_path", "tax/trade_history.db")
 
         self.recorder = TradeHistoryRecorder(db_path=db_path)
-        self.calculator = PnLCalculator(db_path=db_path)
+        self.calculator = PnLCalculator(trade_recorder=self.recorder)
         self.discord = DiscordManager(webhook_url=discord_webhook_url)
 
         self.logger.info("📊 WeeklyReportGenerator初期化完了")
