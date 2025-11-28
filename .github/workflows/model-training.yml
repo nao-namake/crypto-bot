@@ -1,5 +1,6 @@
 # MLモデル自動再学習ワークフロー
 # 週次自動実行（日曜18:00 JST）・Phase 53.8完了（55特徴量・3クラス分類・Python 3.11）・GCP gVisor互換性
+# Updated: 2025-11-29 - GitHub Actions キャッシュリフレッシュ
 
 name: ML Model Training
 
