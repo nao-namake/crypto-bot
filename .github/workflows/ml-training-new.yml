@@ -1,0 +1,134 @@
+# MLモデル自動再学習ワークフロー（v2）
+name: ML Model Training v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      n_trials:
+        description: 'Optuna試行回数'
+        required: true
+        default: '50'
+        type: choice
+        options:
+          - '30'
+          - '50'
+          - '100'
+      dry_run:
+        description: 'ドライラン（モデル保存なし）'
+        required: false
+        default: false
+        type: boolean
+
+  schedule:
+    - cron: '0 9 * * 0'
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  REGION: asia-northeast1
+  MIN_FEATURE_COUNT: 50
+
+jobs:
+  train:
+    name: ML Model Training
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Setup directories
+        run: |
+          mkdir -p models/{production,training,archive} logs cache src/backtest/data/historical
+          git config --global user.name "GitHub Actions ML Training"
+          git config --global user.email "actions@github.com"
+
+      - name: Collect training data
+        run: |
+          echo "📊 180日分データ収集"
+          python3 src/backtest/scripts/collect_historical_csv.py --days 180 --symbol BTC/JPY
+          ls -lh src/backtest/data/historical/
+
+      - name: Train ML model
+        id: training
+        run: |
+          N_TRIALS=${{ github.event.inputs.n_trials || '50' }}
+          echo "🎯 モデル学習開始（${N_TRIALS}試行）"
+          
+          python3 scripts/ml/create_ml_models.py \
+            --n-classes 3 \
+            --threshold 0.005 \
+            --optimize \
+            --n-trials "$N_TRIALS" \
+            --verbose
+          
+          echo "training_success=true" >> $GITHUB_OUTPUT
+
+      - name: Validate model
+        if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
+        run: |
+          echo "🔍 モデル検証"
+          
+          if [ ! -f "models/production/ensemble_full.pkl" ]; then
+            echo "❌ ensemble_full.pkl不存在"
+            exit 1
+          fi
+          
+          FEATURE_COUNT=$(python3 -c "
+          import json
+          m = json.load(open('models/production/production_model_metadata.json'))
+          print(len(m.get('feature_names', [])))
+          ")
+          
+          if [ "$FEATURE_COUNT" -lt "$MIN_FEATURE_COUNT" ]; then
+            echo "❌ 特徴量不足: $FEATURE_COUNT < $MIN_FEATURE_COUNT"
+            exit 1
+          fi
+          
+          echo "✅ 検証完了: ${FEATURE_COUNT}特徴量"
+
+      - name: Commit and push
+        if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
+        run: |
+          if git diff --quiet models/; then
+            echo "📋 変更なし"
+            exit 0
+          fi
+          
+          git add models/production/ models/training/
+          git commit -m "feat: MLモデル自動更新（週次再学習）"
+          git push origin main
+
+      - name: Trigger deployment
+        if: github.event.inputs.dry_run != 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: model-updated
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "📊 === サマリー ==="
+          echo "実行: ${{ github.event_name }}"
+          echo "試行: ${{ github.event.inputs.n_trials || '50' }}"
+          echo "ドライラン: ${{ github.event.inputs.dry_run || 'false' }}"
+          echo "成功: ${{ steps.training.outputs.training_success || 'unknown' }}"
