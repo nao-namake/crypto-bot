@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import gc
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -134,6 +135,10 @@ class TradingCycleManager:
             await self._execute_approved_trades(trade_evaluation, cycle_id)
             await self._check_stop_conditions(cycle_id)
             # Phase 46: トレーリングストップ削除（デイトレード不要）
+
+            # Phase 55: GCPメモリ最適化 - サイクル終了時にGC強制実行
+            # gVisor環境でのメモリフラグメンテーション回避
+            gc.collect()
 
         except ValueError as e:
             await self._handle_value_error(e, cycle_id)

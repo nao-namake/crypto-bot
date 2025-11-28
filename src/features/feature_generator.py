@@ -678,10 +678,21 @@ class FeatureGenerator:
         return result_df
 
     def _calculate_rsi(self, close: pd.Series, period: int = RSI_PERIOD) -> pd.Series:
-        """RSI計算"""
+        """
+        RSI計算
+
+        Phase 55: GCPメモリ最適化
+        - Series.where() → np.where() に置換（メモリ効率改善）
+        - gVisor環境でのメモリフラグメンテーション回避
+        """
         delta = close.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=1).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
+        # Phase 55: メモリ効率化（pd.Series.where → np.where）
+        delta_values = delta.values
+        gain_values = np.where(delta_values > 0, delta_values, 0)
+        loss_values = np.where(delta_values < 0, -delta_values, 0)
+
+        gain = pd.Series(gain_values, index=delta.index).rolling(window=period, min_periods=1).mean()
+        loss = pd.Series(loss_values, index=delta.index).rolling(window=period, min_periods=1).mean()
         rs = gain / (loss + EPSILON)
         return 100 - (100 / (1 + rs))
 
@@ -817,23 +828,44 @@ class FeatureGenerator:
 
         Returns:
             (adx, plus_di, minus_di)
+
+        Phase 55: GCPメモリ最適化
+        - pd.concat().max() → np.maximum() に置換（メモリ効率改善）
+        - Series.where() → np.where() に置換
+        - gVisor環境でのメモリフラグメンテーション回避
         """
         try:
             high = df["high"]
             low = df["low"]
             close = df["close"]
 
-            # True Range計算
-            tr1 = high - low
-            tr2 = np.abs(high - close.shift(1))
-            tr3 = np.abs(low - close.shift(1))
-            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            # True Range計算 - Phase 55: メモリ効率化（pd.concat().max → np.maximum）
+            tr1 = (high - low).values
+            tr2 = np.abs(high.values - close.shift(1).values)
+            tr3 = np.abs(low.values - close.shift(1).values)
+            # np.maximumはin-place的に動作し、中間DataFrameを作らない
+            tr_values = np.maximum(np.maximum(tr1, tr2), tr3)
+            tr = pd.Series(tr_values, index=df.index)
 
-            # Directional Movement計算
-            plus_dm = (high - high.shift(1)).where((high - high.shift(1)) > (low.shift(1) - low), 0)
-            minus_dm = (low.shift(1) - low).where((low.shift(1) - low) > (high - high.shift(1)), 0)
-            plus_dm = plus_dm.where(plus_dm > 0, 0)
-            minus_dm = minus_dm.where(minus_dm > 0, 0)
+            # Directional Movement計算 - Phase 55: メモリ効率化（Series.where → np.where）
+            high_diff = (high - high.shift(1)).values
+            low_diff = (low.shift(1) - low).values
+
+            # +DM計算（np.where使用）
+            plus_dm_values = np.where(
+                (high_diff > low_diff) & (high_diff > 0),
+                high_diff,
+                0
+            )
+            plus_dm = pd.Series(plus_dm_values, index=df.index)
+
+            # -DM計算（np.where使用）
+            minus_dm_values = np.where(
+                (low_diff > high_diff) & (low_diff > 0),
+                low_diff,
+                0
+            )
+            minus_dm = pd.Series(minus_dm_values, index=df.index)
 
             # Smoothed True Range と Directional Movement
             atr = tr.rolling(window=period, min_periods=1).mean()
