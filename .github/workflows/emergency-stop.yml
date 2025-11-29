@@ -1,0 +1,75 @@
+# 緊急停止ワークフロー
+# iPhoneのGitHubアプリからワンタップで実行可能
+
+name: 🚨 Emergency Stop
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: '実行アクション'
+        required: true
+        default: 'stop'
+        type: choice
+        options:
+          - stop     # トラフィック0%（即時停止・復旧簡単）
+          - resume   # トラフィック100%（復旧）
+          - status   # 状態確認のみ
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  REGION: asia-northeast1
+  SERVICE_NAME: crypto-bot-service-prod
+
+jobs:
+  emergency-action:
+    name: Emergency Action
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: 🚨 緊急停止（トラフィック0%）
+        if: github.event.inputs.action == 'stop'
+        run: |
+          echo "🚨 緊急停止実行中..."
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --to-revisions=LATEST=0
+          echo "✅ トラフィック0%に設定完了 - Bot停止状態"
+
+      - name: ✅ 復旧（トラフィック100%）
+        if: github.event.inputs.action == 'resume'
+        run: |
+          echo "✅ 復旧実行中..."
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --to-revisions=LATEST=100
+          echo "✅ トラフィック100%に設定完了 - Bot稼働状態"
+
+      - name: 📊 状態確認
+        run: |
+          echo "📊 === 現在のサービス状態 ==="
+          gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --format="table(status.conditions[0].status,status.traffic[0].percent,status.url)"
+
+          echo ""
+          echo "📊 === 最新リビジョン ==="
+          gcloud run revisions list \
+            --service=${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --limit=3 \
+            --format="table(metadata.name,status.conditions[0].status)"
