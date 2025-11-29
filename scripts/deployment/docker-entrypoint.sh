@@ -189,38 +189,68 @@ else
     exec "$@"
 fi
 
-# プロセス監視とシグナルハンドリング（レガシー高度制御継承）
+# プロセス監視とシグナルハンドリング（Phase 56.2: 自動再起動対応）
 if [ -n "$HEALTH_PID" ] && [ -n "$TRADING_PID" ]; then
     echo "👁️  プロセス監視開始..."
-    
+
     # シグナルハンドリング設定
     trap 'echo "🛑 シグナル受信、プロセス停止..."; kill $HEALTH_PID $TRADING_PID 2>/dev/null; exit' SIGTERM SIGINT
-    
-    # 🚨 CRITICAL FIX: プロセス監視ループ強化（早期エラー検出）
+
+    # Phase 56.2: プロセス監視ループ（正常終了時は自動再起動）
     cycle_count=0
+    restart_count=0
+    MAX_RESTARTS=1000  # 最大再起動回数（約7日分=1000×5分）
+
     while true; do
         cycle_count=$((cycle_count + 1))
-        
+
         # ヘルスチェックサーバーの生存確認
         if ! kill -0 $HEALTH_PID 2>/dev/null; then
             echo "❌ [$(date)] ヘルスチェックサーバーが停止しました (サイクル: $cycle_count)"
             kill $TRADING_PID 2>/dev/null
             exit 1
         fi
-        
+
         # トレーディングプロセスの生存確認
         if ! kill -0 $TRADING_PID 2>/dev/null; then
-            echo "❌ [$(date)] トレーディングプロセスが停止しました (サイクル: $cycle_count)"
-            kill $HEALTH_PID 2>/dev/null
-            exit 1
+            # Phase 56.2: 正常終了時は自動再起動（Container exit回避）
+            restart_count=$((restart_count + 1))
+
+            if [ $restart_count -gt $MAX_RESTARTS ]; then
+                echo "❌ [$(date)] 最大再起動回数超過 ($MAX_RESTARTS回) - Container終了"
+                kill $HEALTH_PID 2>/dev/null
+                exit 1
+            fi
+
+            echo "🔄 [$(date)] トレーディングプロセス終了検知 - 自動再起動 ($restart_count/$MAX_RESTARTS)"
+
+            # 5秒待機後に再起動（リソースクリーンアップ時間確保）
+            sleep 5
+
+            # トレーディングプロセス再起動
+            if [ "$MODE" = "live" ]; then
+                python3 main.py --mode live --config config/core/unified.yaml &
+            else
+                python3 main.py --mode paper --config config/core/unified.yaml &
+            fi
+            TRADING_PID=$!
+            echo "✅ [$(date)] トレーディングプロセス再起動完了 (新PID: $TRADING_PID)"
+
+            # 起動確認
+            sleep 3
+            if ! kill -0 $TRADING_PID 2>/dev/null; then
+                echo "❌ [$(date)] トレーディングプロセス起動失敗"
+                kill $HEALTH_PID 2>/dev/null
+                exit 1
+            fi
         fi
-        
-        # 10秒間隔で監視（早期エラー検出優先）
+
+        # 10秒間隔で監視
         sleep 10
-        
+
         # 定期ログ出力（1時間に1回 = 360サイクル）
         if [ $((cycle_count % 360)) -eq 0 ]; then
-            echo "📊 システム稼働中 - $(date) [サイクル: $cycle_count]"
+            echo "📊 システム稼働中 - $(date) [監視サイクル: $cycle_count, 再起動回数: $restart_count]"
             echo "  ヘルスチェックPID: $HEALTH_PID (生存確認済み)"
             echo "  トレーディングPID: $TRADING_PID (生存確認済み)"
         fi

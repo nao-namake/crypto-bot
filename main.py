@@ -157,20 +157,14 @@ def detect_environment():
 def setup_auto_shutdown():
     """
     GCP環境での自動シャットダウン設定
+
+    Phase 56.2: 自動タイムアウト無効化
+    - 無限ループ設計の_run_continuous_trading()と矛盾していた
+    - docker-entrypoint.shで自動再起動を実装済み
+    - Container再起動オーバーヘッド削減（99%稼働率達成のため）
     """
-    # Phase 54.9: ハードコード削除（900→get_threshold）
-    from src.core.config.threshold_manager import get_threshold
-
-    # 15分（900秒）でタイムアウト
-    timeout_seconds = get_threshold("system.gcp_auto_shutdown_seconds", 900)
-
-    def timeout_handler(signum, frame):
-        print(f"⏰ タイムアウト（{timeout_seconds}秒）によりシステムを終了します")
-        sys.exit(1)  # Phase 53.6: 再起動促進・Logger競合回避
-
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout_seconds)
-    print(f"⏰ 自動タイムアウト設定: {timeout_seconds}秒")
+    # Phase 56.2: 自動タイムアウト無効化（継続稼働優先）
+    print("ℹ️ GCP環境検出: 自動タイムアウト無効化（Phase 56.2 - 継続稼働優先）")
 
 
 def setup_signal_handlers():
