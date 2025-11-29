@@ -1,5 +1,8 @@
 # GCPリソースクリーンアップワークフロー
-# 古いリソース自動削除・コスト30%削減・運用最適化（Phase 56.2修正）
+# 古いリソース自動削除・コスト30%削減・運用最適化（Phase 56.3改善）
+# - Dockerイメージ: SHA256ベース削除・--delete-tagsオプション追加
+# - Cloud Runリビジョン: 最新3個保持
+# - スケジュール: 毎月第1日曜日 JST 2:00 AM
 
 name: GCP Resource Cleanup
 
@@ -58,38 +61,41 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: 🧹 Safe Cleanup - Artifact Registry古いイメージ削除
+      - name: 🧹 Safe Cleanup - Artifact Registry古いDockerイメージ削除
         run: |
           echo "🐳 Artifact Registry古いDockerイメージクリーンアップ"
+          echo "保持数: 最新${{ env.IMAGE_RETENTION_COUNT }}個"
 
-          # 現在のイメージ一覧取得（最新5個を保持）
-          IMAGES=$(gcloud artifacts docker images list \
+          # SHA256ダイジェストベースでイメージ一覧取得（最新順）
+          DIGESTS=$(gcloud artifacts docker images list \
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
             --sort-by=~CREATE_TIME \
-            --format="value(version)" \
+            --format="value(digest)" \
             --limit=${{ env.IMAGE_LIST_LIMIT }} 2>/dev/null || echo "")
 
-          if [ -z "$IMAGES" ]; then
+          if [ -z "$DIGESTS" ]; then
             echo "📋 イメージなし、スキップ"
             exit 0
           fi
 
-          # 削除対象イメージを特定（最新5個以外）
-          DELETE_IMAGES=$(echo "$IMAGES" | tail -n +$((${{ env.IMAGE_RETENTION_COUNT }} + 1)))
+          TOTAL_COUNT=$(echo "$DIGESTS" | wc -l | tr -d ' ')
+          echo "📊 現在のイメージ総数: $TOTAL_COUNT"
 
-          if [ -n "$DELETE_IMAGES" ]; then
-            echo "🗑️ 削除対象イメージ数: $(echo "$DELETE_IMAGES" | wc -l)"
+          # 削除対象イメージを特定（最新N個以外）
+          DELETE_DIGESTS=$(echo "$DIGESTS" | tail -n +$((${{ env.IMAGE_RETENTION_COUNT }} + 1)))
 
-            for IMAGE_VERSION in $DELETE_IMAGES; do
-              if [[ "$IMAGE_VERSION" != *"latest"* ]]; then
-                echo "削除中: crypto-bot:$IMAGE_VERSION"
-                gcloud artifacts docker images delete \
-                  ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:$IMAGE_VERSION \
-                  --quiet --delete-tags || echo "⚠️ 削除失敗: $IMAGE_VERSION"
-              fi
+          if [ -n "$DELETE_DIGESTS" ]; then
+            DELETE_COUNT=$(echo "$DELETE_DIGESTS" | wc -l | tr -d ' ')
+            echo "🗑️ 削除対象イメージ数: $DELETE_COUNT"
+
+            for DIGEST in $DELETE_DIGESTS; do
+              echo "削除中: $DIGEST"
+              gcloud artifacts docker images delete \
+                "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot@$DIGEST" \
+                --delete-tags --quiet || echo "⚠️ 削除失敗: $DIGEST"
             done
 
-            echo "✅ 古いDockerイメージ削除完了"
+            echo "✅ 古いDockerイメージ削除完了（$DELETE_COUNT個）"
           else
             echo "📋 削除対象イメージなし（最新${{ env.IMAGE_RETENTION_COUNT }}個のみ存在）"
           fi
@@ -192,3 +198,4 @@ jobs:
 # 3. aggressive レベルは慎重に使用してください
 # 4. 定期実行は月1回の安全な削除のみです（毎月第1日曜日 JST 2:00 AM）
 # 5. Phase 56.2修正: pushトリガー削除・timeout-minutes直接指定
+# 6. Phase 56.3改善: Dockerイメージ削除をSHA256ダイジェストベース+--delete-tagsに変更
