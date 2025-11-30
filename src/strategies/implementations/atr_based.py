@@ -365,7 +365,8 @@ class ATRBasedStrategy(StrategyBase):
                     bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
                     rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
                     total_deviation = (bb_deviation + rsi_deviation) / 2
-                    if total_deviation > 0.25:  # 25%以上の大きな乖離でのみシグナル（抑制強化）
+                    # Phase 56.4.3: 条件緩和（0.25→0.15）- より多くのシグナル発火
+                    if total_deviation > 0.15:  # 15%以上の乖離でシグナル
                         # 循環インポート回避のため遅延インポート
                         from ...core.config.threshold_manager import get_threshold
 

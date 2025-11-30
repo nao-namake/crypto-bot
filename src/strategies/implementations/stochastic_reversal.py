@@ -193,40 +193,57 @@ class StochasticReversalStrategy(StrategyBase):
         # クロスオーバー検出
         crossover = self._detect_stochastic_crossover(df)
 
-        # SELL信号（過買い領域 + ベアクロス + RSI買われすぎ）
-        if (
-            stoch_k > self.config["stoch_overbought"]
-            and stoch_d > self.config["stoch_overbought"]
-            and crossover == "bear"
-            and rsi > self.config["rsi_overbought"]
-        ):
-            # 信頼度：Stochastic値が極端なほど高い
-            confidence = min(self.config["min_confidence"] + (stoch_k - 80) / 100.0, 0.50)
-            strength = (stoch_k - 50) / 50.0  # 0.6-1.0の範囲
+        # Phase 56.4.3: 条件緩和 - クロスオーバー必須条件を削除、過買い/過売り判定のみでもシグナル発生
+        # SELL信号（過買い領域）
+        stoch_sell_condition = (
+            stoch_k > self.config["stoch_overbought"] and stoch_d > self.config["stoch_overbought"]
+        )
+        rsi_sell_condition = rsi > self.config["rsi_overbought"]
+
+        if stoch_sell_condition:
+            # クロスオーバーあり + RSI条件 = 高信頼度
+            if crossover == "bear" and rsi_sell_condition:
+                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 80.0, 0.55)
+            # クロスオーバーのみ or RSI条件のみ = 中信頼度
+            elif crossover == "bear" or rsi_sell_condition:
+                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 120.0, 0.45)
+            # 過買い領域のみ = 低信頼度
+            else:
+                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 150.0, 0.38)
+
+            strength = (stoch_k - 50) / 50.0  # 0.5-1.0の範囲
 
             return {
                 "action": EntryAction.SELL,
                 "confidence": confidence,
                 "strength": strength,
-                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, ベアクロス)",
+                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, クロス={'あり' if crossover == 'bear' else 'なし'})",
             }
 
-        # BUY信号（過売り領域 + ゴールデンクロス + RSI売られすぎ）
-        elif (
-            stoch_k < self.config["stoch_oversold"]
-            and stoch_d < self.config["stoch_oversold"]
-            and crossover == "golden"
-            and rsi < self.config["rsi_oversold"]
-        ):
-            # 信頼度：Stochastic値が極端なほど高い
-            confidence = min(self.config["min_confidence"] + (20 - stoch_k) / 100.0, 0.50)
-            strength = (50 - stoch_k) / 50.0  # 0.6-1.0の範囲
+        # BUY信号（過売り領域）
+        stoch_buy_condition = (
+            stoch_k < self.config["stoch_oversold"] and stoch_d < self.config["stoch_oversold"]
+        )
+        rsi_buy_condition = rsi < self.config["rsi_oversold"]
+
+        if stoch_buy_condition:
+            # クロスオーバーあり + RSI条件 = 高信頼度
+            if crossover == "golden" and rsi_buy_condition:
+                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 80.0, 0.55)
+            # クロスオーバーのみ or RSI条件のみ = 中信頼度
+            elif crossover == "golden" or rsi_buy_condition:
+                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 120.0, 0.45)
+            # 過売り領域のみ = 低信頼度
+            else:
+                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 150.0, 0.38)
+
+            strength = (50 - stoch_k) / 50.0  # 0.5-1.0の範囲
 
             return {
                 "action": EntryAction.BUY,
                 "confidence": confidence,
                 "strength": strength,
-                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, ゴールデンクロス)",
+                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, クロス={'あり' if crossover == 'golden' else 'なし'})",
             }
 
         # HOLD信号

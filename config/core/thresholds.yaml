@@ -754,6 +754,17 @@ position_management:
     max_age_hours: 24                # 24時間以上の古い注文を削除対象
     threshold_count: 25              # bitbank API 30件制限対策（25件で警告）
 
+  # Phase 56.4: Atomic Entry補償処理設定
+  atomic_entry:
+    max_retries: 3                   # TP/SL配置リトライ回数
+    enable_compensation: true        # Entry約定時の補償処理有効化
+    # 約定済み注文判定用APIエラーコード
+    filled_order_error_codes:
+      - "60004"                      # 既に約定済み
+      - "60005"                      # 既にキャンセル済み
+      - "60006"                      # 注文が存在しない
+      - "60007"                      # キャンセル不可
+
   stop_loss:
     enabled: true
     default_atr_multiplier: 2.0

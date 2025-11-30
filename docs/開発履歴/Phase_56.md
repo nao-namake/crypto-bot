@@ -143,4 +143,249 @@ echo "Container crash回数（24時間）: ${CONTAINER_CRASHES:-0}回"
 
 ---
 
-**最終更新**: 2025年11月30日
+## Phase 56.3 - GCPクリーンアップ改善・緊急停止ワークフロー
+
+### GCPリソースクリーンアップ実行
+
+**手動クリーンアップ実行**（2025/11/30 07:47 JST）:
+
+| リソース | 削除前 | 削除後 | 削減数 |
+|---------|--------|--------|--------|
+| Cloud Runリビジョン | 17個 | 3個 | **15個削除** |
+| Dockerイメージ | 31個 | 9個 | **22個削除** |
+
+### cleanup.yml改善
+
+**問題**: 既存のDockerイメージ削除がタグベースで動作不安定
+
+**修正内容**:
+- タグベース削除 → SHA256ダイジェストベース削除に変更
+- `--delete-tags`オプション追加（タグ付きイメージ削除対応）
+- 削除数カウント表示追加
+
+**コミット**: `2a60b7f6`
+
+### 緊急停止ワークフロー作成
+
+**背景**:
+- 当初「モバイル監視アプリ」開発を計画
+- 要件分析の結果、本当に必要なのは「緊急停止機能」と判明
+- PWAアプリ開発（6-10時間）ではなくGitHub Actionsワークフロー（5分）で実現
+
+**作成ファイル**: `.github/workflows/emergency-stop.yml`
+
+**機能**:
+| アクション | 説明 |
+|-----------|------|
+| `stop` | トラフィック0%で即時停止（復旧簡単） |
+| `resume` | トラフィック100%で復旧 |
+| `status` | 現在の状態確認のみ |
+
+**使い方（iPhoneから3タップ）**:
+1. GitHubアプリを開く
+2. Actions → 🚨 Emergency Stop → Run workflow
+3. アクション選択（stop/resume/status）
+
+**メリット**:
+| 比較項目 | GitHub Actions | PWAアプリ |
+|----------|----------------|-----------|
+| 開発工数 | 5分 | 6-10時間 |
+| 追加コスト | ¥0 | 〜¥10/月 |
+| 保守 | 不要 | 必要 |
+
+**コミット**: `0880f63e`
+
+---
+
+## Phase 56 完了サマリー
+
+| Phase | 内容 | 効果 |
+|-------|------|------|
+| 56.2 | 自動タイムアウト無効化・自動再起動 | 稼働率21%→99% |
+| 56.3 | GCPクリーンアップ改善 | ストレージ70%削減 |
+| 56.3 | 緊急停止ワークフロー | アプリ開発不要化 |
+
+---
+
+## Phase 56.4 - 本番エントリーゼロ問題対応（計画中）
+
+**発覚日**: 2025/12/01（24時間稼働診断で検出）
+
+### 問題サマリー
+
+| 問題 | 状態 | 影響度 |
+|------|------|--------|
+| **TP/SL未設定ポジション存在** | 🔴🔴 | **最高** |
+| エントリーゼロ（デプロイ後20時間） | 🔴 | 高 |
+| 全シグナルがhold | 🔴 | 高 |
+| API認証エラー20001（50件/24h） | 🟡 | 中 |
+| 証拠金維持率API失敗 | 🟡 | 中 |
+
+**🚨 緊急: TP/SL未設定ポジション**:
+- ショート: TPあり・SLなし
+- ロング: TP/SL両方なし
+- **リスク**: 無制限損失の可能性
+- **原因**: Atomic Entry Patternの不具合の可能性
+
+### 稼働診断結果（2025/12/01 05:24 JST）
+
+**良好な指標**:
+- ✅ 稼働率99%達成（デプロイ後crashゼロ）
+- ✅ MLシステム正常動作（ensemble_full.pkl使用）
+- ✅ 取引サイクル実行: 200回/期待240回（83%）
+- ✅ Phase 53.8問題: すべて解決済み
+
+**問題のある指標**:
+- 🔴 エントリー完了: **0回**（デプロイ後20時間）
+- 🔴 取引拒否: **198回**（理由: holdシグナル）
+- 🟡 API認証エラー20001: **50件/24h**
+- 🟡 証拠金維持率: API取得失敗（フォールバック値使用）
+
+### 原因分析
+
+```
+戦略シグナル:
+  - ATRBased: hold (0.150)
+  - BBReversal: hold (0.250)
+  - StochasticReversal: hold (0.250)
+  - 統合シグナル: hold (0.200)
+
+ML予測:
+  - action: hold
+  - confidence: 0.604
+
+レジーム:
+  - tight_range: 100%（normal_range/trending: 0%）
+
+最終判断:
+  戦略=hold + ML=hold → 最終判断=hold → 取引拒否
+```
+
+### 完了タスク
+
+#### 56.4.0: Atomic Entry Pattern修正（約定済み判定・補償ロジック） ✅
+
+**問題**: Entry約定済み時にSL配置失敗 → rollbackでEntry注文キャンセル不可 → TP/SL未設定ポジション発生
+
+**修正内容**:
+1. `atomic_entry_manager.py`: `_is_filled_order_error()`でエラーコード設定ファイル参照
+2. `executor.py`: `enable_compensation`と`compensation_max_retries`を設定から取得
+3. `thresholds.yaml`: Atomic Entry補償処理設定追加
+
+```yaml
+# Phase 56.4: Atomic Entry補償処理設定
+atomic_entry:
+  max_retries: 3
+  enable_compensation: true
+  filled_order_error_codes:
+    - "60004"  # 既に約定済み
+    - "60005"  # 既にキャンセル済み
+    - "60006"  # 注文が存在しない
+    - "60007"  # キャンセル不可
+```
+
+#### 56.4.1: API認証エラー20001対応 ✅
+
+**問題**: GCP Secret Manager `:3` 固定バージョン → 最新シークレット未反映
+
+**修正内容**:
+- `ci.yml` (Line 398): `:3` → `:latest` に変更
+- `README.md`: ドキュメント更新
+
+```yaml
+--set-secrets="BITBANK_API_KEY=bitbank-api-key:latest,BITBANK_API_SECRET=bitbank-api-secret:latest,DISCORD_WEBHOOK_URL=discord-webhook-url:latest"
+```
+
+#### 56.4.2: 証拠金維持率API修正 ✅
+
+**問題**: API認証エラー時のエラーハンドリング不足
+
+**修正内容**:
+- `monitor.py`: API認証エラー時のフォールバック値強化
+- `is_fallback`と`error_reason`フィールド追加
+
+```python
+return {
+    "sufficient": False,
+    "available": 0,
+    "required": get_threshold("balance_alert.min_required_margin", 14000.0),
+    "error": "margin_check_failure_auth_error",
+    "is_fallback": True,
+    "error_reason": "API認証エラー20001継続",
+}
+```
+
+#### 56.4.3: holdシグナル過剰問題根本修正 ✅
+
+**根本原因発見**: 本番ログ分析で、**設定ではなく戦略コード内の判定条件**が厳しすぎることを特定
+
+```
+本番ログ:
+[ATRBased] シグナル取得成功: hold (0.150)
+[BBReversal] シグナル取得成功: hold (0.250)
+[StochasticReversal] シグナル取得成功: hold (0.250)
+統合シグナル生成: hold (信頼度: 0.200)
+```
+
+**全3戦略がHOLDを出力** → 統合結果もHOLD → エントリーゼロ
+
+**修正内容**:
+
+##### 1. `bb_reversal.py` (Line 244-285)
+- **変更**: AND条件 → OR条件
+- **Before**: `bb_position < 0.15 AND rsi < 35`（両方同時に満たすことが稀）
+- **After**: `bb_position < 0.15 OR rsi < 35`（どちらか一方で発火）
+- 両方満たす場合は高信頼度、片方のみは低信頼度で差別化
+
+##### 2. `stochastic_reversal.py` (Line 196-249)
+- **変更**: クロスオーバー必須 → オプション化
+- **Before**: 4条件すべて必須（過買い/過売り + クロスオーバー + RSI）
+- **After**: 過買い/過売り条件のみで発火、クロス・RSIがあれば信頼度UP
+
+##### 3. `atr_based.py` (Line 368)
+- **変更**: 乖離度閾値緩和（0.25 → 0.15）
+- より多くの弱シグナル発火を可能に
+
+#### 56.4.4: テスト実行・品質検証 ✅
+
+**品質検証結果**:
+- ✅ 1,259テスト 100%成功
+- ✅ 65.88%カバレッジ（65%目標達成）
+- ✅ flake8・isort・black 全てPASS
+
+**戦略テスト詳細**:
+- BBReversal: 18テスト PASS
+- StochasticReversal: 21テスト PASS
+- ATRBased: 30テスト PASS
+
+### 成功条件
+
+- ✅ テスト100%成功
+- ⏳ エントリー発生確認（デプロイ後24時間監視必要）
+- ⏳ API認証エラー削減確認
+- ⏳ 証拠金維持率正常取得確認
+
+---
+
+## Phase 56.4 完了サマリー
+
+| タスク | 内容 | 修正ファイル |
+|--------|------|-------------|
+| 56.4.0 | Atomic Entry補償ロジック | `atomic_entry_manager.py`, `executor.py`, `thresholds.yaml` |
+| 56.4.1 | Secret Manager `:latest`化 | `ci.yml`, `README.md` |
+| 56.4.2 | 証拠金API fallback強化 | `monitor.py` |
+| 56.4.3 | 戦略条件緩和（根本修正） | `bb_reversal.py`, `stochastic_reversal.py`, `atr_based.py` |
+| 56.4.4 | 品質検証完了 | - |
+
+### 期待効果
+
+| 指標 | 修正前 | 修正後（期待） |
+|------|--------|---------------|
+| エントリー | 0回/24h | 5-20回/24h |
+| holdシグナル | 100% | 50-70% |
+| BUY/SELLシグナル | 0% | 30-50% |
+| TP/SL未設定 | 発生あり | 補償処理で防止 |
+
+---
+
+**最終更新**: 2025年12月1日（Phase 56.4完了）

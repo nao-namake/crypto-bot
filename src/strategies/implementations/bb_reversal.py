@@ -241,13 +241,17 @@ class BBReversalStrategy(StrategyBase):
             bb_position = float(latest["bb_position"])
             rsi = float(latest["rsi_14"])
 
-            # SELL信号（BB上限タッチ + RSI買われすぎ）
-            if (
-                bb_position > self.config["bb_upper_threshold"]
-                and rsi > self.config["rsi_overbought"]
-            ):
-                # 信頼度: BB位置が上限に近いほど高い
-                confidence = min(0.30 + (bb_position - 0.95) * 2.0, 0.50)
+            # Phase 56.4.3: 条件緩和 - BB位置またはRSIどちらか一方でもシグナル発生
+            # SELL信号（BB上限タッチ または RSI買われすぎ）
+            bb_sell_condition = bb_position > self.config["bb_upper_threshold"]
+            rsi_sell_condition = rsi > self.config["rsi_overbought"]
+
+            if bb_sell_condition or rsi_sell_condition:
+                # 両方満たす場合は高信頼度、片方のみは低信頼度
+                if bb_sell_condition and rsi_sell_condition:
+                    confidence = min(0.35 + (bb_position - 0.85) * 1.5, 0.55)
+                else:
+                    confidence = min(0.25 + (bb_position - 0.85) * 1.0, 0.40)
                 # 強度: BB位置の偏り度合い
                 strength = (bb_position - 0.5) * 2.0
 
@@ -255,17 +259,20 @@ class BBReversalStrategy(StrategyBase):
                     "action": EntryAction.SELL,
                     "confidence": confidence,
                     "strength": strength,
-                    "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB上限タッチ・RSI買われすぎ→反転下落期待",
+                    "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f}, 条件={'両方' if bb_sell_condition and rsi_sell_condition else 'BB' if bb_sell_condition else 'RSI'})",
+                    "analysis": "BB上限付近またはRSI買われすぎ→反転下落期待",
                 }
 
-            # BUY信号（BB下限タッチ + RSI売られすぎ）
-            elif (
-                bb_position < self.config["bb_lower_threshold"]
-                and rsi < self.config["rsi_oversold"]
-            ):
-                # 信頼度: BB位置が下限に近いほど高い
-                confidence = min(0.30 + (0.05 - bb_position) * 2.0, 0.50)
+            # BUY信号（BB下限タッチ または RSI売られすぎ）
+            bb_buy_condition = bb_position < self.config["bb_lower_threshold"]
+            rsi_buy_condition = rsi < self.config["rsi_oversold"]
+
+            if bb_buy_condition or rsi_buy_condition:
+                # 両方満たす場合は高信頼度、片方のみは低信頼度
+                if bb_buy_condition and rsi_buy_condition:
+                    confidence = min(0.35 + (0.15 - bb_position) * 1.5, 0.55)
+                else:
+                    confidence = min(0.25 + (0.15 - bb_position) * 1.0, 0.40)
                 # 強度: BB位置の偏り度合い
                 strength = (0.5 - bb_position) * 2.0
 
@@ -273,8 +280,8 @@ class BBReversalStrategy(StrategyBase):
                     "action": EntryAction.BUY,
                     "confidence": confidence,
                     "strength": strength,
-                    "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB下限タッチ・RSI売られすぎ→反転上昇期待",
+                    "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f}, 条件={'両方' if bb_buy_condition and rsi_buy_condition else 'BB' if bb_buy_condition else 'RSI'})",
+                    "analysis": "BB下限付近またはRSI売られすぎ→反転上昇期待",
                 }
 
             # HOLD信号

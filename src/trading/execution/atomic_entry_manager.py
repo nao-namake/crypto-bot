@@ -9,6 +9,7 @@ Phase 52.4-B完了 - executor.pyからAtomic Entry Pattern実装分離
 import asyncio
 from typing import Any, Dict, List, Optional
 
+from ...core.config import get_threshold
 from ...core.logger import CryptoBotLogger
 from ...data.bitbank_client import BitbankClient
 
@@ -17,6 +18,7 @@ class AtomicEntryManager:
     """Atomic Entry管理サービス
 
     Phase 52.4-B: executor.pyから分離
+    Phase 56.4: 約定済み注文判定・補償ロジック追加
     責任: エントリー・TP・SL注文のアトミック配置・リトライ・ロールバック・クリーンアップ
     """
 
@@ -37,6 +39,40 @@ class AtomicEntryManager:
         self.logger = logger
         self.bitbank_client = bitbank_client
         self.stop_manager = stop_manager
+
+    def _is_filled_order_error(self, error: Exception) -> bool:
+        """
+        Phase 56.4: 約定済み注文キャンセル試行エラーかどうかを判定
+
+        bitbank APIエラーコード（thresholds.yamlから取得）:
+        - 60004: 既に約定済みの注文
+        - 60005: 既にキャンセル済みの注文
+        - 60006: 注文が存在しない
+        - 60007: キャンセル不可の状態
+
+        Args:
+            error: 発生した例外
+
+        Returns:
+            bool: 約定済み/キャンセル済み注文のエラーかどうか
+        """
+        error_str = str(error).lower()
+
+        # Phase 56.4: 設定ファイルからエラーコードを取得
+        filled_error_codes = get_threshold(
+            "position_management.atomic_entry.filled_order_error_codes",
+            ["60004", "60005", "60006", "60007"],
+        )
+
+        # APIエラーコードと一般的なキーワードを結合
+        filled_indicators = list(filled_error_codes) + [
+            "already filled",
+            "already cancelled",
+            "already canceled",
+            "order not found",
+            "order already",
+        ]
+        return any(indicator in error_str for indicator in filled_indicators)
 
     async def place_tp_with_retry(
         self,
@@ -342,14 +378,25 @@ class AtomicEntryManager:
                 )
                 rollback_status["cancelled_orders"].append(entry_order_id)
             except Exception as e:
-                # エントリー注文キャンセル失敗は致命的エラー
-                self.logger.critical(
-                    "❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
-                    f"ID: {entry_order_id}, エラー: {e}"
-                )
-                rollback_status["failed_cancellations"].append(entry_order_id)
-                rollback_status["manual_intervention_required"] = True
-                rollback_status["success"] = False
+                # Phase 56.4: 約定済み注文エラーの場合は正常状態として扱う
+                if self._is_filled_order_error(e):
+                    self.logger.warning(
+                        f"⚠️ Phase 56.4: Entry注文は既に約定済み - "
+                        f"ID: {entry_order_id}, ロールバック対象外（補償処理実行）"
+                    )
+                    # 約定済みフラグを設定（executor.pyで補償処理を実行）
+                    rollback_status["entry_filled"] = True
+                    # 約定済みの場合は手動介入不要（補償処理で対応）
+                    rollback_status["cancelled_orders"].append(entry_order_id)
+                else:
+                    # 一時的なAPI errorの場合のみ手動介入フラグ
+                    self.logger.critical(
+                        "❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
+                        f"ID: {entry_order_id}, エラー: {e}"
+                    )
+                    rollback_status["failed_cancellations"].append(entry_order_id)
+                    rollback_status["manual_intervention_required"] = True
+                    rollback_status["success"] = False
 
         # ロールバック結果サマリーログ
         if rollback_status["success"]:

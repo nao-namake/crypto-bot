@@ -587,22 +587,26 @@ class BalanceMonitor:
                     f"({self._margin_check_failure_count}/{self._max_margin_check_retries}): {e}"
                 )
 
-                # リトライ制限に達した場合は取引を中止
+                # リトライ制限に達した場合は取引を中止（Phase 56.4強化）
                 if self._margin_check_failure_count >= self._max_margin_check_retries:
                     self.logger.critical(
-                        f"🚨 証拠金チェック失敗リトライ上限到達 "
-                        f"({self._max_margin_check_retries}回) - 取引を中止します"
+                        f"🚨 Phase 56.4: 証拠金チェック失敗リトライ上限到達 "
+                        f"({self._max_margin_check_retries}回) - 安全なフォールバック値で取引抑制"
                     )
 
                     # Discord Critical通知送信
                     await self._send_margin_check_failure_alert(e, discord_notifier)
 
+                    # Phase 56.4: 安全側に倒す（取引抑制）
+                    # API認証エラー継続時は新規エントリーを抑制
                     return {
                         "sufficient": False,
                         "available": 0,
                         "required": get_threshold("balance_alert.min_required_margin", 14000.0),
                         "error": "margin_check_failure_auth_error",
                         "retry_count": self._margin_check_failure_count,
+                        "is_fallback": True,
+                        "error_reason": "API認証エラー20001継続",
                     }
 
                 # リトライ制限内の場合は既存動作を維持（取引続行）

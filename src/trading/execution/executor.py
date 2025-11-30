@@ -505,6 +505,81 @@ class ExecutionService:
                         error=e,
                     )
 
+                    # Phase 56.4: Entry約定済みの場合は補償処理実行
+                    enable_compensation = get_threshold(
+                        "position_management.atomic_entry.enable_compensation", True
+                    )
+                    if rollback_status.get("entry_filled") and enable_compensation:
+                        self.logger.warning(
+                            "⚠️ Phase 56.4: Entry注文は既に約定 → 残りのTP/SLを自動配置"
+                        )
+
+                        # Phase 56.4: リトライ回数を設定から取得
+                        compensation_max_retries = get_threshold(
+                            "position_management.atomic_entry.max_retries", 3
+                        )
+
+                        # TP注文がない場合は配置
+                        if not tp_order_id and final_tp:
+                            try:
+                                tp_order = await self.atomic_entry_manager.place_tp_with_retry(
+                                    side=side,
+                                    amount=amount,
+                                    entry_price=actual_filled_price,
+                                    take_profit_price=final_tp,
+                                    symbol=symbol,
+                                    max_retries=compensation_max_retries,
+                                )
+                                if tp_order:
+                                    tp_order_id = tp_order.get("order_id")
+                                    self.logger.info(
+                                        f"✅ Phase 56.4: TP注文を自動配置 - ID: {tp_order_id}"
+                                    )
+                            except Exception as retry_e:
+                                self.logger.error(f"❌ Phase 56.4: TP注文自動配置失敗: {retry_e}")
+
+                        # SL注文がない場合は配置
+                        if not sl_order_id and final_sl:
+                            try:
+                                sl_order = await self.atomic_entry_manager.place_sl_with_retry(
+                                    side=side,
+                                    amount=amount,
+                                    entry_price=actual_filled_price,
+                                    stop_loss_price=final_sl,
+                                    symbol=symbol,
+                                    max_retries=compensation_max_retries,
+                                )
+                                if sl_order:
+                                    sl_order_id = sl_order.get("order_id")
+                                    self.logger.info(
+                                        f"✅ Phase 56.4: SL注文を自動配置 - ID: {sl_order_id}"
+                                    )
+                            except Exception as retry_e:
+                                self.logger.error(f"❌ Phase 56.4: SL注文自動配置失敗: {retry_e}")
+
+                        # TP/SL配置できた場合は成功扱いで返却
+                        if tp_order_id or sl_order_id:
+                            for pos in self.virtual_positions:
+                                if pos.get("order_id") == result.order_id:
+                                    pos["tp_order_id"] = tp_order_id
+                                    pos["sl_order_id"] = sl_order_id
+
+                            # PositionTrackerにも保存
+                            if self.position_tracker:
+                                try:
+                                    self.position_tracker.update_position_tp_sl(
+                                        order_id=result.order_id,
+                                        tp_order_id=tp_order_id,
+                                        sl_order_id=sl_order_id,
+                                    )
+                                except Exception:
+                                    pass
+
+                            self.logger.info(
+                                f"✅ Phase 56.4: 補償処理完了 - TP: {tp_order_id}, SL: {sl_order_id}"
+                            )
+                            return result  # 成功として返却
+
                     # Phase 52.4-B: ロールバック失敗時の追加処理
                     if rollback_status.get("manual_intervention_required"):
                         self.logger.critical(
