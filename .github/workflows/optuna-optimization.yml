@@ -12,8 +12,11 @@ name: Optuna Parameter Optimization
 #   - ml_integration: ML統合パラメータのみ
 #   - strategy: 戦略パラメータのみ
 #
-# 実行時間目安:
-#   - hybrid (50試行, 90日): 約3-4時間
+# 実行時間目安（Phase 57.7更新）:
+#   - hybrid (50試行, 90日): 約3.5-4時間
+#     Stage 1: シミュレーション ~10分
+#     Stage 2: 軽量バックテスト (7日×100%) 1試行 ~4分
+#     Stage 3: フルバックテスト (90日×100%) 1試行 ~52分
 #   - strategy (50試行, 90日): 約2-3時間
 #   - risk/ml_integration (50試行, 90日): 約1-2時間
 
@@ -55,7 +58,7 @@ jobs:
   optuna-optimization:
     name: Optuna Hybrid Optimization
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6時間
+    timeout-minutes: 300  # 5時間（4時間目標+バッファ）
 
     permissions:
       contents: write
@@ -102,14 +105,14 @@ jobs:
           # ロックファイル削除
           rm -f /tmp/crypto_bot_*.lock
 
-          # タイムアウト設定（5.5時間）
-          timeout 19800 python3 scripts/optimization/run_github_optimization.py \
+          # タイムアウト設定（4.5時間 = 16200秒）
+          timeout 16200 python3 scripts/optimization/run_github_optimization.py \
             --type ${{ github.event.inputs.optimization_type }} \
             --n-trials ${{ github.event.inputs.n_trials }} \
             --backtest-days ${{ github.event.inputs.backtest_days }} \
             --verbose
         env:
-          OPTUNA_TIMEOUT_SECONDS: '19800'  # 5.5時間（バッファ30分）
+          OPTUNA_TIMEOUT_SECONDS: '16200'  # 4.5時間（4時間目標+バッファ30分）
 
       # 6. 結果をプリセットとして保存
       - name: Save optimization results as preset

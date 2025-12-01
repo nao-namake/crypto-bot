@@ -178,7 +178,8 @@ class TestStrategyManager(unittest.TestCase):
         result = self.manager.analyze_market(self.test_df)
 
         self.assertEqual(result.action, EntryAction.BUY)
-        self.assertEqual(result.strategy_name, "StrategyManager")
+        # Phase 57.3: 最高信頼度戦略名を返すように変更
+        self.assertEqual(result.strategy_name, "SingleStrategy")
         self.assertGreater(result.confidence, 0)
         self.assertEqual(self.manager.total_decisions, 1)
 

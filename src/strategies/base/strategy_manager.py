@@ -302,9 +302,10 @@ class StrategyManager:
 
         # 勝利グループから最も信頼度の高いシグナルをベースに統合
         best_signal = max(winning_group, key=lambda x: x[1].confidence)[1]
+        best_strategy_name = max(winning_group, key=lambda x: x[1].confidence)[0]  # Phase 57.3
 
         return StrategySignal(
-            strategy_name="StrategyManager",
+            strategy_name=best_strategy_name,  # Phase 57.3: 最高信頼度戦略名を設定
             timestamp=datetime.now(),
             action=action,
             confidence=confidence,
@@ -315,7 +316,7 @@ class StrategyManager:
             take_profit=best_signal.take_profit,
             position_size=best_signal.position_size,
             risk_ratio=best_signal.risk_ratio,
-            reason=f"全戦略統合結果 - {len(winning_group)}戦略 (比率: {ratio:.3f})",
+            reason=f"全戦略統合結果 - {len(winning_group)}戦略 (比率: {ratio:.3f}, 主: {best_strategy_name})",
             metadata={
                 "conflict_resolved": True,
                 "total_signals": len(buy_signals) + len(sell_signals) + len(hold_signals),
@@ -326,6 +327,7 @@ class StrategyManager:
                 "sell_ratio": sell_ratio,
                 "hold_ratio": hold_ratio,
                 "resolution_method": "all_votes_weighted_integration",  # Phase 38.5
+                "dominant_strategy": best_strategy_name,  # Phase 57.3追加
             },
         )
 
@@ -367,9 +369,12 @@ class StrategyManager:
         # 最も信頼度の高いシグナルをベースとして使用
         best_signal = max(same_action_signals, key=lambda x: x[1].confidence)[1]
 
+        # Phase 57.3: 最も貢献した戦略名を特定（best_signalの戦略）
+        best_strategy_name = max(same_action_signals, key=lambda x: x[1].confidence)[0]
+
         # 統合シグナル生成
         return StrategySignal(
-            strategy_name="StrategyManager",
+            strategy_name=best_strategy_name,  # Phase 57.3: 最高信頼度戦略名を設定
             timestamp=datetime.now(),
             action=dominant_action,
             confidence=weighted_confidence,
@@ -380,11 +385,12 @@ class StrategyManager:
             take_profit=best_signal.take_profit,
             position_size=best_signal.position_size,
             risk_ratio=best_signal.risk_ratio,
-            reason=f"{len(same_action_signals)}戦略の統合結果",
+            reason=f"{len(same_action_signals)}戦略の統合結果（主: {best_strategy_name}）",
             metadata={
                 "contributing_strategies": [s[0] for s in same_action_signals],
                 "individual_confidences": [s[1].confidence for s in same_action_signals],
                 "integration_method": "weighted_average",
+                "dominant_strategy": best_strategy_name,  # Phase 57.3追加
             },
         )
 

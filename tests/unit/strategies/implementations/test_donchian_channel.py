@@ -423,9 +423,9 @@ class TestDonchianChannelStrategy(unittest.TestCase):
 
         confidence = self.strategy._calculate_weak_signal_confidence(analysis, "buy")
 
-        # 0.25-0.6の範囲内であることを確認
+        # 0.25-0.7の範囲内であることを確認（Phase 57.5: weak_signal_max設定に合わせて上限調整）
         self.assertGreaterEqual(confidence, 0.25)
-        self.assertLessEqual(confidence, 0.6)
+        self.assertLessEqual(confidence, 0.7)
 
     def test_calculate_middle_zone_confidence(self):
         """中央域動的信頼度計算テスト"""

@@ -289,10 +289,10 @@ class ATRBasedStrategy(StrategyBase):
                     # 循環インポート回避のため遅延インポート
                     from ...core.config.threshold_manager import get_threshold
 
-                    # Phase 55.5: 一致シグナル係数緩和（0.7→0.8）・上限引き上げ（0.65→0.75）
-                    base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.8
+                    # Phase 57.4.1: 一致シグナル係数・上限抑制（過剰発火対策）
+                    base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
                     confidence_max = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.75
+                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
                     )
                     confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
@@ -332,30 +332,30 @@ class ATRBasedStrategy(StrategyBase):
                 bb_pos = bb_analysis["bb_position"]
                 rsi_val = rsi_analysis["rsi"]
 
-                # Phase 55.7: BB極端値（<0.15 or >0.85）で単独シグナル
+                # Phase 57.4.1: BB極端値（<0.15 or >0.85）で単独シグナル（信頼度上限抑制）
                 if bb_pos < 0.15:
                     action = EntryAction.BUY
-                    bb_extreme_bonus = (0.15 - bb_pos) * 1.5  # 最大0.225
-                    confidence = min(0.40 + bb_extreme_bonus, 0.55)
+                    bb_extreme_bonus = (0.15 - bb_pos) * 1.2  # Phase 57.4.1: 1.5→1.2（信頼度抑制）
+                    confidence = min(0.35 + bb_extreme_bonus, 0.45)  # Phase 57.4.1: 0.55→0.45
                     strength = (0.15 - bb_pos) / 0.15
                     reason = f"BB極端過売り（BB:{bb_pos:.3f}）"
                 elif bb_pos > 0.85:
                     action = EntryAction.SELL
-                    bb_extreme_bonus = (bb_pos - 0.85) * 1.5
-                    confidence = min(0.40 + bb_extreme_bonus, 0.55)
+                    bb_extreme_bonus = (bb_pos - 0.85) * 1.2  # Phase 57.4.1: 1.5→1.2
+                    confidence = min(0.35 + bb_extreme_bonus, 0.45)  # Phase 57.4.1: 0.55→0.45
                     strength = (bb_pos - 0.85) / 0.15
                     reason = f"BB極端過買い（BB:{bb_pos:.3f}）"
-                # Phase 55.7: RSI極端値（<30 or >70）で単独シグナル
+                # Phase 57.4.1: RSI極端値（<30 or >70）で単独シグナル（信頼度上限抑制）
                 elif rsi_val < 30:
                     action = EntryAction.BUY
-                    rsi_extreme_bonus = (30 - rsi_val) / 100  # 最大0.30
-                    confidence = min(0.40 + rsi_extreme_bonus, 0.55)
+                    rsi_extreme_bonus = (30 - rsi_val) / 120  # Phase 57.4.1: 100→120（信頼度抑制）
+                    confidence = min(0.35 + rsi_extreme_bonus, 0.45)  # Phase 57.4.1: 0.55→0.45
                     strength = (30 - rsi_val) / 30
                     reason = f"RSI極端過売り（RSI:{rsi_val:.1f}）"
                 elif rsi_val > 70:
                     action = EntryAction.SELL
-                    rsi_extreme_bonus = (rsi_val - 70) / 100
-                    confidence = min(0.40 + rsi_extreme_bonus, 0.55)
+                    rsi_extreme_bonus = (rsi_val - 70) / 120  # Phase 57.4.1: 100→120
+                    confidence = min(0.35 + rsi_extreme_bonus, 0.45)  # Phase 57.4.1: 0.55→0.45
                     strength = (rsi_val - 70) / 30
                     reason = f"RSI極端過買い（RSI:{rsi_val:.1f}）"
                 # ケース5: 明確なシグナルなし - 微弱な動的信頼度を計算
@@ -365,8 +365,8 @@ class ATRBasedStrategy(StrategyBase):
                     bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
                     rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
                     total_deviation = (bb_deviation + rsi_deviation) / 2
-                    # Phase 56.4.3: 条件緩和（0.25→0.15）- より多くのシグナル発火
-                    if total_deviation > 0.15:  # 15%以上の乖離でシグナル
+                    # Phase 57.4.1: 条件厳格化（0.15→0.20）- 過剰発火を抑制（96%→50-60%目標）
+                    if total_deviation > 0.20:  # 20%以上の乖離でシグナル
                         # 循環インポート回避のため遅延インポート
                         from ...core.config.threshold_manager import get_threshold
 

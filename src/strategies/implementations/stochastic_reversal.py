@@ -201,15 +201,16 @@ class StochasticReversalStrategy(StrategyBase):
         rsi_sell_condition = rsi > self.config["rsi_overbought"]
 
         if stoch_sell_condition:
+            # Phase 57.4.3: 信頼度計算改善（発火率向上）
             # クロスオーバーあり + RSI条件 = 高信頼度
             if crossover == "bear" and rsi_sell_condition:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 80.0, 0.55)
+                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 60.0, 0.60)
             # クロスオーバーのみ or RSI条件のみ = 中信頼度
             elif crossover == "bear" or rsi_sell_condition:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 120.0, 0.45)
-            # 過買い領域のみ = 低信頼度
+                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 90.0, 0.50)
+            # 過買い領域のみ = やや低めの中信頼度
             else:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 75) / 150.0, 0.38)
+                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 120.0, 0.42)
 
             strength = (stoch_k - 50) / 50.0  # 0.5-1.0の範囲
 
@@ -227,15 +228,16 @@ class StochasticReversalStrategy(StrategyBase):
         rsi_buy_condition = rsi < self.config["rsi_oversold"]
 
         if stoch_buy_condition:
+            # Phase 57.4.3: 信頼度計算改善（発火率向上）
             # クロスオーバーあり + RSI条件 = 高信頼度
             if crossover == "golden" and rsi_buy_condition:
-                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 80.0, 0.55)
+                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 60.0, 0.60)
             # クロスオーバーのみ or RSI条件のみ = 中信頼度
             elif crossover == "golden" or rsi_buy_condition:
-                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 120.0, 0.45)
-            # 過売り領域のみ = 低信頼度
+                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 90.0, 0.50)
+            # 過売り領域のみ = やや低めの中信頼度
             else:
-                confidence = min(self.config["min_confidence"] + (25 - stoch_k) / 150.0, 0.38)
+                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 120.0, 0.42)
 
             strength = (50 - stoch_k) / 50.0  # 0.5-1.0の範囲
 

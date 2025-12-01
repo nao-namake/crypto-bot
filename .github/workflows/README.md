@@ -242,10 +242,10 @@ gh run list --limit 1
 ### **GCP認証・権限**
 - **Workload Identity**: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
 - **Service Account**: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`
-- **Secret Manager**: 具体的バージョン必須
-  - `bitbank-api-key:3`
-  - `bitbank-api-secret:3`
-  - `discord-webhook-url:6`
+- **Secret Manager**: :latest使用（Phase 56.4修正）
+  - `bitbank-api-key:latest`
+  - `bitbank-api-secret:latest`
+  - `discord-webhook-url:latest`
 
 ### **環境変数**
 - **MODE**: CI/CD時自動的に `live`

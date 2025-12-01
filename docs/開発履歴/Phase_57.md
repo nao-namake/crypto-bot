@@ -580,7 +580,143 @@ active.yaml の aliases.C に設定
 
 ---
 
-## Phase 57.7 - ABテスト基盤構築（予定）
+## Phase 57.7 - 軽量バックテストモード・タイムアウト最適化（完了）
+
+**実施日**: 2025/12/02
+
+### 背景・問題
+
+Phase 57.6のGitHub Actions Optuna最適化がタイムアウト（5時間33分）で失敗。
+- **原因**: Stage 2の`_precompute_strategy_signals()`がO(n)で3.2時間かかっていた
+- **目標**: トータル4時間以内に最適化完了
+
+### 解決策
+
+**環境変数優先の軽量モード実装**:
+- 戦略シグナル事前計算スキップ
+- データサンプリング比率の動的制御
+- ハードコードなし・設定一元化
+
+### 修正内容
+
+#### 1. backtest_runner.py - 環境変数優先対応
+
+**ファイル**: `src/core/execution/backtest_runner.py`
+
+```python
+# Phase 57.7拡張: 環境変数優先対応（subprocess経由でのパラメータ注入）
+# 優先順位: 環境変数 > thresholds.yaml > デフォルト
+
+# 戦略シグナル事前計算スキップ
+env_skip = os.environ.get("BACKTEST_SKIP_STRATEGY_SIGNALS", "").lower()
+if env_skip:
+    skip_strategy_signals = env_skip == "true"
+else:
+    skip_strategy_signals = get_threshold("backtest.skip_strategy_signals", False)
+
+if not skip_strategy_signals:
+    await self._precompute_strategy_signals()
+else:
+    self.logger.warning("⚡ 軽量モード: 戦略シグナル事前計算スキップ")
+
+# データサンプリング比率
+env_sampling = os.environ.get("BACKTEST_DATA_SAMPLING_RATIO", "")
+if env_sampling:
+    sampling_ratio = float(env_sampling)
+else:
+    sampling_ratio = get_threshold("backtest.data_sampling_ratio", 1.0)
+```
+
+#### 2. backtest_integration.py - 環境変数注入
+
+**ファイル**: `scripts/optimization/backtest_integration.py`
+
+```python
+# Phase 57.7: 軽量モード - 戦略シグナル事前計算スキップ
+if self.use_lightweight:
+    env["BACKTEST_SKIP_STRATEGY_SIGNALS"] = "true"
+
+# Phase 57.7拡張: データサンプリング比率を環境変数経由で注入
+if self.data_sampling_ratio < 1.0:
+    env["BACKTEST_DATA_SAMPLING_RATIO"] = str(self.data_sampling_ratio)
+```
+
+#### 3. run_github_optimization.py - Stage 2設定最適化
+
+**ファイル**: `scripts/optimization/run_github_optimization.py`
+
+```python
+def _run_lightweight_backtest(self, params: Dict[str, Any]) -> float:
+    """
+    軽量バックテスト実行（7日間×100%）
+
+    Phase 57.7: サンプリングなしで十分な取引数を確保
+    - 7日間 × 100%データ → 約4分/試行、約25-30取引
+    """
+    # Phase 57.7: 100%データで十分な取引数を確保（20%→100%）
+    integration = BacktestIntegration(
+        period_days=7, data_sampling_ratio=1.0, verbose=self.verbose
+    )
+```
+
+#### 4. optuna-optimization.yml - タイムアウト調整
+
+**ファイル**: `.github/workflows/optuna-optimization.yml`
+
+```yaml
+# 実行時間目安（Phase 57.7更新）:
+#   - hybrid (50試行, 90日): 約3.5-4時間
+#     Stage 1: シミュレーション ~10分
+#     Stage 2: 軽量バックテスト (7日×100%) 1試行 ~4分
+#     Stage 3: フルバックテスト (90日×100%) 1試行 ~52分
+
+timeout-minutes: 300  # 5時間（4時間目標+バッファ）
+
+# タイムアウト設定（4.5時間 = 16200秒）
+timeout 16200 python3 scripts/optimization/run_github_optimization.py
+env:
+  OPTUNA_TIMEOUT_SECONDS: '16200'  # 4.5時間（4時間目標+バッファ30分）
+```
+
+### ローカル検証結果
+
+| ステージ | 見積もり | ローカル実測 | 状況 |
+|---------|---------|-------------|------|
+| **Stage 1** | ~10分 | ~0.3秒 | ✅ シミュレーション高速完了 |
+| **Stage 2** | ~4分 | ~93秒 (~1.5分) | ✅ 見積もり内 |
+| **Stage 1+2合計** | ~14分 | ~1.8分 | ✅ 大幅クリア |
+
+### Stage 2 バックテスト結果（7日間×100%）
+
+| 項目 | 値 |
+|------|-----|
+| 取引数 | 47回 |
+| 勝率 | 34.04% |
+| 総損益 | -41.85 JPY |
+| PF | 0.81 |
+| 最大DD | 139.24 JPY (1.38%) |
+
+### 設計原則
+
+| 原則 | 実装 |
+|------|------|
+| **ハードコードなし** | 全て環境変数 or thresholds.yaml |
+| **設定一元化** | `get_threshold()`パターン遵守 |
+| **環境変数優先** | subprocess経由でパラメータ注入可能 |
+| **後方互換性** | 環境変数なしでも既存動作維持 |
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/core/execution/backtest_runner.py` | 環境変数優先の軽量モード |
+| `scripts/optimization/backtest_integration.py` | 環境変数注入 |
+| `scripts/optimization/run_github_optimization.py` | Stage 2: 7日×100% |
+| `.github/workflows/optuna-optimization.yml` | タイムアウト4.5時間 |
+
+---
+
+## Phase 57.8 - ABテスト基盤構築（予定）
 
 ### 実施内容
 - ABテストコントローラー新規作成
@@ -589,7 +725,7 @@ active.yaml の aliases.C に設定
 
 ---
 
-## Phase 57.8 - 手数料・スプレッドシミュレーション（予定）
+## Phase 57.9 - 手数料・スプレッドシミュレーション（予定）
 
 ### 実施内容
 - bitbank手数料正確反映（Maker 0.05%・リベート -0.02%）
@@ -597,4 +733,4 @@ active.yaml の aliases.C に設定
 
 ---
 
-**最終更新**: 2025年12月1日（Phase 57.6完了 - GitHub Actions Optuna最適化ワークフロー）
+**最終更新**: 2025年12月2日（Phase 57.7完了 - 軽量バックテストモード・タイムアウト最適化）

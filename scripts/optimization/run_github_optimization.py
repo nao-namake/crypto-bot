@@ -221,14 +221,20 @@ class GitHubOptimizationRunner:
             return {"best_params": {}, "best_value": 0.0}
 
     def _run_lightweight_backtest(self, params: Dict[str, Any]) -> float:
-        """軽量バックテスト実行（7日間）"""
+        """
+        軽量バックテスト実行（7日間×100%）
+
+        Phase 57.7: サンプリングなしで十分な取引数を確保
+        - 7日間 × 100%データ → 約4分/試行、約25-30取引
+        """
         try:
             import asyncio
 
             from scripts.optimization.backtest_integration import BacktestIntegration
 
+            # Phase 57.7: 100%データで十分な取引数を確保（20%→100%）
             integration = BacktestIntegration(
-                period_days=7, data_sampling_ratio=0.2, verbose=self.verbose
+                period_days=7, data_sampling_ratio=1.0, verbose=self.verbose
             )
 
             sharpe = asyncio.run(

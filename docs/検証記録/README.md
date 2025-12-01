@@ -1,8 +1,8 @@
-# バックテスト記録 - Backtest Records
+# 検証記録 - Verification Records
 
-**Phase 52.4**
+**Phase 56**
 
-**最終更新**: 2025年11月15日
+**最終更新**: 2025年11月30日
 
 ## 🎯 フォルダの目的
 
@@ -11,10 +11,12 @@
 ## 📂 記録ファイル構成
 
 ```
-docs/バックテスト記録/
+docs/検証記録/
 ├── README.md                                             # このファイル
 ├── Phase_51.10-B_20251111.md                            # Phase 51.10-B検証結果
-└── Phase_52.2-production-simulation-final_20251112.md   # Phase 52.2本番シミュレーション
+├── Phase_52.1_20251115.md                               # Phase 52.1検証結果
+├── Phase_52.2-production-simulation-final_20251112.md   # Phase 52.2本番シミュレーション
+└── Phase_56_20251129.md                                 # Phase 56検証結果（最新）
 ```
 
 **注**: 特徴量数・戦略数・システム設定は`config/core/feature_order.json`・`config/core/strategies.yaml`・`config/core/thresholds.yaml`を参照
@@ -161,6 +163,6 @@ cat logs/backtest/backtest_report_latest.json | jq .
 
 ---
 
-**最終更新**: Phase 52.4完了（2025年11月15日）
+**最終更新**: Phase 56完了（2025年11月30日）
 
-**バックテスト記録管理**: Phase実装効果検証・戦略最適化・本番展開判断のエビデンス管理により、データドリブンなシステム改善を実現 🚀
+**検証記録管理**: Phase実装効果検証・戦略最適化・本番展開判断のエビデンス管理により、データドリブンなシステム改善を実現 🚀

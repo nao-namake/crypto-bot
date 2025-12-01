@@ -247,11 +247,12 @@ class BBReversalStrategy(StrategyBase):
             rsi_sell_condition = rsi > self.config["rsi_overbought"]
 
             if bb_sell_condition or rsi_sell_condition:
-                # 両方満たす場合は高信頼度、片方のみは低信頼度
+                # Phase 57.4.2: 信頼度計算改善（発火率向上）
+                # 両方満たす場合は高信頼度、片方のみも中信頼度に引き上げ
                 if bb_sell_condition and rsi_sell_condition:
-                    confidence = min(0.35 + (bb_position - 0.85) * 1.5, 0.55)
+                    confidence = min(0.40 + (bb_position - 0.80) * 1.8, 0.60)
                 else:
-                    confidence = min(0.25 + (bb_position - 0.85) * 1.0, 0.40)
+                    confidence = min(0.32 + (bb_position - 0.80) * 1.2, 0.48)
                 # 強度: BB位置の偏り度合い
                 strength = (bb_position - 0.5) * 2.0
 
@@ -268,11 +269,12 @@ class BBReversalStrategy(StrategyBase):
             rsi_buy_condition = rsi < self.config["rsi_oversold"]
 
             if bb_buy_condition or rsi_buy_condition:
-                # 両方満たす場合は高信頼度、片方のみは低信頼度
+                # Phase 57.4.2: 信頼度計算改善（発火率向上）
+                # 両方満たす場合は高信頼度、片方のみも中信頼度に引き上げ
                 if bb_buy_condition and rsi_buy_condition:
-                    confidence = min(0.35 + (0.15 - bb_position) * 1.5, 0.55)
+                    confidence = min(0.40 + (0.20 - bb_position) * 1.8, 0.60)
                 else:
-                    confidence = min(0.25 + (0.15 - bb_position) * 1.0, 0.40)
+                    confidence = min(0.32 + (0.20 - bb_position) * 1.2, 0.48)
                 # 強度: BB位置の偏り度合い
                 strength = (0.5 - bb_position) * 2.0
 

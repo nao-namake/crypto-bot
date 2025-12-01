@@ -65,6 +65,7 @@ class TradeEvaluation:
 
     # 後方互換性のためのオプションフィールド（デフォルト値あり）
     entry_price: Optional[float] = None  # バックテスト用エントリー価格
+    strategy_name: Optional[str] = None  # Phase 57.1: 戦略名（戦略別パフォーマンス分析用）
 
     # 後方互換性のためのactionプロパティ（Silent Failure修正）
     @property

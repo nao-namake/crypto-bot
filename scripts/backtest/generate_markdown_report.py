@@ -9,7 +9,7 @@
 使用方法:
     python scripts/backtest/generate_markdown_report.py <json_report_path> [--phase <phase_name>]
 
-出力先: docs/バックテスト記録/Phase_<phase_name>_<YYYYMMDD>.md
+出力先: docs/検証記録/Phase_<phase_name>_<YYYYMMDD>.md
 """
 
 import argparse
@@ -81,16 +81,45 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
 
     # 設定値取得（thresholds.yamlから動的取得・デフォルト値はフォールバック用）
-    tp_tight = get_threshold("risk.regime_based_tp_sl.tight_range.tp_ratio", 0.012) * 100
-    sl_tight = get_threshold("risk.regime_based_tp_sl.tight_range.sl_ratio", 0.005) * 100
-    tp_normal = get_threshold("risk.regime_based_tp_sl.normal_range.tp_ratio", 0.015) * 100
-    sl_normal = get_threshold("risk.regime_based_tp_sl.normal_range.sl_ratio", 0.006) * 100
-    tp_trending = get_threshold("risk.regime_based_tp_sl.trending.tp_ratio", 0.015) * 100
-    sl_trending = get_threshold("risk.regime_based_tp_sl.trending.sl_ratio", 0.010) * 100
+    # Phase 56: 正しいパスに修正（position_management配下）
+    tp_tight = (
+        get_threshold(
+            "position_management.take_profit.regime_based.tight_range.min_profit_ratio", 0.008
+        )
+        * 100
+    )
+    sl_tight = (
+        get_threshold(
+            "position_management.stop_loss.regime_based.tight_range.max_loss_ratio", 0.005
+        )
+        * 100
+    )
+    tp_normal = (
+        get_threshold(
+            "position_management.take_profit.regime_based.normal_range.min_profit_ratio", 0.015
+        )
+        * 100
+    )
+    sl_normal = (
+        get_threshold(
+            "position_management.stop_loss.regime_based.normal_range.max_loss_ratio", 0.006
+        )
+        * 100
+    )
+    tp_trending = (
+        get_threshold(
+            "position_management.take_profit.regime_based.trending.min_profit_ratio", 0.020
+        )
+        * 100
+    )
+    sl_trending = (
+        get_threshold("position_management.stop_loss.regime_based.trending.max_loss_ratio", 0.010)
+        * 100
+    )
 
-    max_positions_tight = get_threshold("trading.position_limits.tight_range", 1)
-    max_positions_normal = get_threshold("trading.position_limits.normal_range", 2)
-    max_positions_trending = get_threshold("trading.position_limits.trending", 3)
+    max_positions_tight = get_threshold("position_limits.tight_range.max_positions", 6)
+    max_positions_normal = get_threshold("position_limits.normal_range.max_positions", 4)
+    max_positions_trending = get_threshold("position_limits.trending.max_positions", 2)
 
     lgbm_weight = get_threshold("ml.ensemble.model_weights.lgbm", 0.5) * 100
     xgb_weight = get_threshold("ml.ensemble.model_weights.xgb", 0.3) * 100
@@ -98,6 +127,9 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
 
     min_ml_confidence = get_threshold("ml.ensemble.min_ml_confidence", 0.45)
     high_confidence_threshold = get_threshold("ml.ensemble.high_confidence_threshold", 0.60)
+
+    # Phase 56.1: 初期残高を設定ファイルから取得
+    initial_balance = get_threshold("mode_balances.backtest.initial_balance", 10000.0)
 
     # Markdown生成
     lines = [
@@ -118,7 +150,7 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
         "",
         f"- **バックテスト期間**: {start_date_str} ~ {end_date_str} ({duration_days}日間)",
         "- **データソース**: CSV (15分足 + 4時間足)",
-        "- **初期残高**: ¥100,000",
+        f"- **初期残高**: ¥{initial_balance:,.0f}",
         "- **取引ペア**: BTC/JPY",
         "- **レバレッジ**: 1.0倍",
         "",
@@ -350,8 +382,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="docs/バックテスト記録",
-        help="出力ディレクトリ（デフォルト: docs/バックテスト記録）",
+        default="docs/検証記録",
+        help="出力ディレクトリ（デフォルト: docs/検証記録）",
     )
 
     args = parser.parse_args()

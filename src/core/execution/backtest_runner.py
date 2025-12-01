@@ -91,7 +91,18 @@ class BacktestRunner(BaseRunner):
             await self._precompute_features()
 
             # 3.5. 戦略シグナル事前計算（Phase 49.1: バックテスト完全改修）
-            await self._precompute_strategy_signals()
+            # Phase 57.7: 軽量モード対応 - 設定ファイル/環境変数でスキップ可能
+            # 優先順位: 環境変数 > thresholds.yaml
+            env_skip = os.environ.get("BACKTEST_SKIP_STRATEGY_SIGNALS", "").lower()
+            if env_skip:
+                skip_strategy_signals = env_skip == "true"
+            else:
+                skip_strategy_signals = get_threshold("backtest.skip_strategy_signals", False)
+
+            if not skip_strategy_signals:
+                await self._precompute_strategy_signals()
+            else:
+                self.logger.warning("⚡ 軽量モード: 戦略シグナル事前計算スキップ (Phase 57.7)")
 
             # 3.6. ML予測事前計算（Phase 35.4: さらなる高速化）
             await self._precompute_ml_predictions()
@@ -172,7 +183,17 @@ class BacktestRunner(BaseRunner):
             self.logger.warning(f"📈 CSVデータ読み込み完了: {', '.join(timeframe_stats)}")
 
             # Phase 40.5拡張: データサンプリング処理（Optuna最適化高速化）
-            sampling_ratio = get_threshold("backtest.data_sampling_ratio", 1.0)
+            # Phase 57.7拡張: 環境変数優先対応（subprocess経由でのパラメータ注入）
+            # 優先順位: 環境変数 > thresholds.yaml
+            env_sampling = os.environ.get("BACKTEST_DATA_SAMPLING_RATIO", "")
+            if env_sampling:
+                try:
+                    sampling_ratio = float(env_sampling)
+                except ValueError:
+                    sampling_ratio = get_threshold("backtest.data_sampling_ratio", 1.0)
+            else:
+                sampling_ratio = get_threshold("backtest.data_sampling_ratio", 1.0)
+
             if sampling_ratio < 1.0:
                 self._apply_data_sampling(sampling_ratio)
 

@@ -48,6 +48,7 @@ backtest:
   fast_data_slicing: true
   data_sampling_ratio: 1.0  # Phase 52.4: 全データ使用（backtest_period_daysで期間制限）
   inner_loop_count: 1  # Phase 52.4: 高速化（1回実行・約40分）
+  skip_strategy_signals: false  # Phase 57.7: 軽量モード用（true: 戦略シグナル事前計算スキップ）
 
 # ========================================
 # 🤖 ML統合設定（ML Integration Settings）
@@ -225,11 +226,11 @@ ml:
         low_volatility_max: 0.5
         rsi_base: 0.2
         rsi_multiplier: 0.3
-        agreement_max: 0.85
+        agreement_max: 0.65               # Phase 57.4.1: 0.85→0.65（一致シグナル上限抑制）
         weak_base: 0.08
         weak_multiplier: 0.1
         volatility_bonus: 1.02
-        volatility_max: 0.85
+        volatility_max: 0.65              # Phase 57.4.1: 0.85→0.65（高ボラ上限抑制）
         position_size_base: 0.015       # ML訓練で参照
         market_stress_threshold: 0.7
         min_atr_ratio: 0.5
@@ -257,8 +258,8 @@ ml:
 market_regime:
   # レンジ判定閾値
   tight_range:
-    bb_width_threshold: 0.03        # BB幅閾値（3%未満で狭いレンジ）
-    price_range_threshold: 0.02     # 価格変動閾値（2%未満で狭いレンジ）
+    bb_width_threshold: 0.025       # Phase 57.4.6: 0.03→0.025（2.5%未満で狭いレンジ・判定厳格化）
+    price_range_threshold: 0.015    # Phase 57.4.6: 0.02→0.015（1.5%未満で狭いレンジ・判定厳格化）
   normal_range:
     bb_width_threshold: 0.05        # BB幅閾値（5%未満で通常レンジ）
     adx_threshold: 20               # ADX閾値（20未満で通常レンジ）
@@ -369,11 +370,11 @@ dynamic_strategy_selection:
   # レジーム別戦略重みマッピング
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 55.3: レンジ型戦略100%・4戦略有効化（DonchianChannel再有効化）
-      ATRBased: 0.40           # 0.45→0.40（-5%）
-      BBReversal: 0.30         # 0.35→0.30（-5%）
-      DonchianChannel: 0.15    # 0.10→0.15（+5%・再有効化）
-      StochasticReversal: 0.15 # 0.10→0.15（+5%・モメンタム強化）
+      # Phase 57.4.5: 戦略バランス改善（ATRBased過剰発火抑制・他戦略強化）
+      ATRBased: 0.30           # Phase 57.4.5: 0.40→0.30（-25%・過剰発火抑制）
+      BBReversal: 0.25         # Phase 57.4.5: 0.30→0.25（バランス調整）
+      DonchianChannel: 0.25    # Phase 57.4.5: 0.15→0.25（+67%・発火率向上）
+      StochasticReversal: 0.20 # Phase 57.4.5: 0.15→0.20（+33%・発火率向上）
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
@@ -448,7 +449,7 @@ strategies:
     bb_overbought: 0.7
     bb_oversold: 0.3
     high_volatility_strength: 0.5
-    hold_confidence: 0.15
+    hold_confidence: 0.15             # Phase 57.4.1: 0.10→0.15（hold優位性UP・過剰発火抑制）
     low_volatility_strength: 0.2
     min_confidence: 0.25
     normal_volatility_strength: 0.25
@@ -458,35 +459,36 @@ strategies:
     base_confidence: 0.25
     confidence_multiplier: 0.3
   donchian_channel:
+    # Phase 57.4.4: DonchianChannel設定（発火率向上）
     breakout_threshold: 0.002
-    hold_confidence: 0.4
-    middle_zone_max: 0.6
-    middle_zone_min: 0.4
+    hold_confidence: 0.25             # Phase 57.4.4: 0.4→0.25（hold優位性DOWN）
+    middle_zone_max: 0.55             # Phase 57.4.4: 0.6→0.55（中央域縮小）
+    middle_zone_min: 0.45             # Phase 57.4.4: 0.4→0.45（中央域縮小）
     min_confidence: 0.25
-    reversal_threshold: 0.10          # Phase 55.5: 0.05→0.10（上位/下位10%に拡大）
-    weak_signal_confidence: 0.35
-    weak_signal_max: 0.70             # Phase 55.5: 0.75→0.70（弱シグナル上限緩和）
+    reversal_threshold: 0.15          # Phase 57.4.4: 0.10→0.15（上位/下位15%に拡大）
+    weak_signal_confidence: 0.38      # Phase 57.4.4: 0.35→0.38（弱シグナル信頼度UP）
+    weak_signal_max: 0.75             # Phase 57.4.4: 0.70→0.75（弱シグナル上限UP）
     weak_signal_min: 0.25
   bb_reversal:
-    # Phase 55.7: BB Reversal戦略設定（閾値緩和）
+    # Phase 57.4.2: BB Reversal戦略設定（発火率向上）
     min_confidence: 0.30
-    hold_confidence: 0.25
-    bb_width_threshold: 0.025       # Phase 55.7: 2%→2.5%（BB幅緩和）
-    rsi_overbought: 65              # Phase 55.5: 70→65（RSI閾値緩和）
-    rsi_oversold: 35                # Phase 55.5: 30→35（RSI閾値緩和）
-    bb_upper_threshold: 0.85        # Phase 55.5: 0.95→0.85（BB閾値緩和）
-    bb_lower_threshold: 0.15        # Phase 55.5: 0.05→0.15（BB閾値緩和）
-    adx_range_threshold: 35         # Phase 55.7: 25→35（ADX閾値大幅緩和・hold率93%対策）
+    hold_confidence: 0.15           # Phase 57.4.2: 0.25→0.15（hold優位性DOWN・発火率UP）
+    bb_width_threshold: 0.035       # Phase 57.4.2: 0.025→0.035（BB幅3.5%まで許容）
+    rsi_overbought: 60              # Phase 57.4.2: 65→60（RSI閾値さらに緩和）
+    rsi_oversold: 40                # Phase 57.4.2: 35→40（RSI閾値さらに緩和）
+    bb_upper_threshold: 0.80        # Phase 57.4.2: 0.85→0.80（BB閾値さらに緩和）
+    bb_lower_threshold: 0.20        # Phase 57.4.2: 0.15→0.20（BB閾値さらに緩和）
+    adx_range_threshold: 40         # Phase 57.4.2: 35→40（ADX40以下でレンジ判定）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 55.7: Stochastic Reversal戦略設定（閾値緩和）
+    # Phase 57.4.3: Stochastic Reversal戦略設定（発火率向上）
     min_confidence: 0.30
-    hold_confidence: 0.25
-    stoch_overbought: 75            # Phase 55.5: 80→75（Stochastic閾値緩和）
-    stoch_oversold: 25              # Phase 55.5: 20→25（Stochastic閾値緩和）
-    rsi_overbought: 60              # Phase 55.5: 65→60（RSI閾値緩和）
-    rsi_oversold: 40                # Phase 55.5: 35→40（RSI閾値緩和）
-    adx_range_threshold: 35         # Phase 55.7: 25→35（ADX閾値大幅緩和・hold率89%対策）
+    hold_confidence: 0.15           # Phase 57.4.3: 0.25→0.15（hold優位性DOWN・発火率UP）
+    stoch_overbought: 70            # Phase 57.4.3: 75→70（Stochastic閾値さらに緩和）
+    stoch_oversold: 30              # Phase 57.4.3: 25→30（Stochastic閾値さらに緩和）
+    rsi_overbought: 58              # Phase 57.4.3: 60→58（RSI閾値さらに緩和）
+    rsi_oversold: 42                # Phase 57.4.3: 40→42（RSI閾値さらに緩和）
+    adx_range_threshold: 30         # Phase 57.4.3: 35→30（ADX30以下でレンジ判定）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
     # Phase 55.5: MACD + EMA Crossover戦略設定（閾値緩和）

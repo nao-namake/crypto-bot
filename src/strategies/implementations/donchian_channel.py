@@ -57,9 +57,9 @@ class DonchianChannelStrategy(StrategyBase):
         self.min_confidence = get_threshold(
             "strategies.donchian_channel.min_confidence", 0.3
         )  # 緩和設定
-        # 中央域・弱シグナル設定（動的計算用）
-        self.middle_zone_min = get_threshold("strategies.donchian_channel.middle_zone_min", 0.4)
-        self.middle_zone_max = get_threshold("strategies.donchian_channel.middle_zone_max", 0.6)
+        # Phase 57.4.4: 中央域・弱シグナル設定（発火範囲拡大）
+        self.middle_zone_min = get_threshold("strategies.donchian_channel.middle_zone_min", 0.45)
+        self.middle_zone_max = get_threshold("strategies.donchian_channel.middle_zone_max", 0.55)
         self.weak_signal_confidence = get_threshold(
             "strategies.donchian_channel.weak_signal_confidence", 0.35
         )
@@ -164,9 +164,9 @@ class DonchianChannelStrategy(StrategyBase):
             in_upper_zone = channel_position > (1 - self.reversal_threshold)  # 上部5%
             in_lower_zone = channel_position < self.reversal_threshold  # 下部5%
             in_middle_zone = self.middle_zone_min <= channel_position <= self.middle_zone_max
-            # 弱シグナル範囲（中央域外の準備信号）
-            in_weak_buy_zone = 0.25 <= channel_position < self.middle_zone_min
-            in_weak_sell_zone = self.middle_zone_max < channel_position <= 0.75
+            # Phase 57.4.4: 弱シグナル範囲拡大（発火率向上）
+            in_weak_buy_zone = 0.20 <= channel_position < self.middle_zone_min
+            in_weak_sell_zone = self.middle_zone_max < channel_position <= 0.80
             # analysis辞書の初期化と追加
             analysis = {}
             analysis["in_weak_buy_zone"] = in_weak_buy_zone
@@ -257,8 +257,8 @@ class DonchianChannelStrategy(StrategyBase):
                 multi_timeframe_data=multi_timeframe_data,
             )
 
-        # Phase 55.6: チャネル上限/下限接近でもシグナル（ブレイクアウト前でも許容）
-        if channel_pos >= 0.90 and not analysis["is_upper_breakout"]:
+        # Phase 57.4.4: チャネル上限/下限接近でもシグナル（閾値緩和）
+        if channel_pos >= 0.85 and not analysis["is_upper_breakout"]:
             confidence = self._calculate_reversal_confidence(analysis, "buy")
             return self._create_signal(
                 action="buy",
@@ -269,7 +269,7 @@ class DonchianChannelStrategy(StrategyBase):
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
-        if channel_pos <= 0.10 and not analysis["is_lower_breakout"]:
+        if channel_pos <= 0.15 and not analysis["is_lower_breakout"]:
             confidence = self._calculate_reversal_confidence(analysis, "sell")
             return self._create_signal(
                 action="sell",

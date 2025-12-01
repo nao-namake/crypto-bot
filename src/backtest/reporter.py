@@ -23,32 +23,47 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..core.config import get_threshold
 from ..core.logger import get_logger
 
 # Phase 49.4: BacktestVisualizer統合（遅延インポート）
+
+
+def _get_backtest_initial_balance() -> float:
+    """
+    バックテスト用初期残高を設定から取得（Phase 56.1修正）
+
+    Returns:
+        初期残高（デフォルト: ¥10,000）
+    """
+    return get_threshold("mode_balances.backtest.initial_balance", 10000.0)
 
 
 class TradeTracker:
     """
     取引ペア追跡システム
 
-    最終更新: 2025/11/16 (Phase 52.4-B)
+    最終更新: 2025/11/30 (Phase 56.1)
 
     エントリー/エグジットをペアリングし、取引毎の損益を計算。
     パフォーマンス指標（勝率・プロフィットファクター・最大DD等）を提供。
 
     実装履歴:
+    - Phase 56.1: 初期残高を設定ファイルから取得（unified.yaml連携）
     - Phase 52.3: 最大ドローダウン計算バグ修正
     - Phase 49.3: 初回実装（損益計算・レポート機能）
     """
 
-    def __init__(self, initial_balance: float = 100000.0):
+    def __init__(self, initial_balance: float = None):
         """
         TradeTracker初期化
 
         Args:
-            initial_balance: 初期残高（デフォルト: ¥100,000）
+            initial_balance: 初期残高（Noneの場合は設定ファイルから取得）
         """
+        # Phase 56.1: 設定ファイルから初期残高を取得（デフォルト値問題修正）
+        if initial_balance is None:
+            initial_balance = _get_backtest_initial_balance()
         self.logger = get_logger(__name__)
         self.open_entries: Dict[str, Dict] = {}  # オープンエントリー（order_id → entry info）
         self.completed_trades: List[Dict] = []  # 完了した取引ペア
@@ -363,6 +378,89 @@ class TradeTracker:
 
         return regime_stats
 
+    def get_strategy_performance(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Phase 57.1: 戦略別パフォーマンス集計
+
+        各戦略の取引パフォーマンスを集計し、
+        6戦略それぞれの寄与度を可視化するためのデータを提供。
+
+        Returns:
+            戦略別パフォーマンス辞書:
+                {
+                    "atr_based": {
+                        "total_trades": 15,
+                        "winning_trades": 9,
+                        "losing_trades": 6,
+                        "win_rate": 60.0,
+                        "total_pnl": 2500.0,
+                        "total_profit": 4000.0,
+                        "total_loss": -1500.0,
+                        "profit_factor": 2.67,
+                        "average_pnl": 166.67,
+                        "average_win": 444.44,
+                        "average_loss": -250.0
+                    },
+                    ...
+                }
+        """
+        strategy_stats: Dict[str, Dict[str, Any]] = {}
+
+        # 戦略別に取引を集計
+        for trade in self.completed_trades:
+            strategy = trade.get("strategy", "unknown")
+
+            # 戦略統計初期化
+            if strategy not in strategy_stats:
+                strategy_stats[strategy] = {
+                    "total_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "total_profit": 0.0,
+                    "total_loss": 0.0,
+                    "profit_factor": 0.0,
+                    "average_pnl": 0.0,
+                    "average_win": 0.0,
+                    "average_loss": 0.0,
+                    "trades": [],  # 詳細取引リスト（オプション）
+                }
+
+            # 統計更新
+            strategy_stats[strategy]["total_trades"] += 1
+            strategy_stats[strategy]["total_pnl"] += trade["pnl"]
+            strategy_stats[strategy]["trades"].append(trade)
+
+            if trade["pnl"] > 0:
+                strategy_stats[strategy]["winning_trades"] += 1
+                strategy_stats[strategy]["total_profit"] += trade["pnl"]
+            elif trade["pnl"] < 0:
+                strategy_stats[strategy]["losing_trades"] += 1
+                strategy_stats[strategy]["total_loss"] += trade["pnl"]
+
+        # 勝率・平均損益・PF計算
+        for strategy, stats in strategy_stats.items():
+            total = stats["total_trades"]
+            wins = stats["winning_trades"]
+            losses = stats["losing_trades"]
+
+            if total > 0:
+                stats["win_rate"] = (wins / total) * 100
+                stats["average_pnl"] = stats["total_pnl"] / total
+
+            if wins > 0:
+                stats["average_win"] = stats["total_profit"] / wins
+
+            if losses > 0:
+                stats["average_loss"] = stats["total_loss"] / losses
+
+            # プロフィットファクター計算
+            if stats["total_loss"] != 0:
+                stats["profit_factor"] = stats["total_profit"] / abs(stats["total_loss"])
+
+        return strategy_stats
+
 
 class BacktestReporter:
     """
@@ -429,6 +527,9 @@ class BacktestReporter:
             start_date_str = start_date if isinstance(start_date, str) else start_date.isoformat()
             end_date_str = end_date if isinstance(end_date, str) else end_date.isoformat()
 
+            # Phase 57.1: 戦略別パフォーマンス取得
+            strategy_performance = self.trade_tracker.get_strategy_performance()
+
             report_data = {
                 "backtest_info": {
                     "start_date": start_date_str,
@@ -439,7 +540,7 @@ class BacktestReporter:
                         else 0
                     ),
                     "generated_at": datetime.now().isoformat(),
-                    "phase": "Phase_49.3_損益分析完了",
+                    "phase": "Phase_57.1_戦略別パフォーマンス対応",
                 },
                 "execution_stats": final_stats,
                 "system_info": {
@@ -452,6 +553,8 @@ class BacktestReporter:
                 "completed_trades": len(self.trade_tracker.completed_trades),
                 # Phase 51.8-J4-G: レジーム別パフォーマンス追加
                 "regime_performance": regime_performance,
+                # Phase 57.1: 戦略別パフォーマンス追加
+                "strategy_performance": strategy_performance,
             }
 
             # JSONファイル保存
@@ -500,6 +603,30 @@ class BacktestReporter:
                     self.logger.warning(f"  総損益: ¥{stats.get('total_pnl', 0.0):,.0f}")
                     self.logger.warning(f"  平均損益: ¥{stats.get('average_pnl', 0.0):,.0f}")
                 self.logger.warning("=" * 60)
+
+            # Phase 57.1: 戦略別パフォーマンスサマリー
+            strategy_performance = self.trade_tracker.get_strategy_performance()
+            if strategy_performance:
+                self.logger.warning("")
+                self.logger.warning("=" * 60)
+                self.logger.warning("📊 戦略別パフォーマンス（Phase 57.1）")
+                self.logger.warning("=" * 60)
+                for strategy, stats in strategy_performance.items():
+                    self.logger.warning(f"\n【{strategy}】")
+                    self.logger.warning(f"  総取引数: {stats.get('total_trades', 0)}件")
+                    self.logger.warning(f"  勝ちトレード: {stats.get('winning_trades', 0)}件")
+                    self.logger.warning(f"  負けトレード: {stats.get('losing_trades', 0)}件")
+                    self.logger.warning(f"  勝率: {stats.get('win_rate', 0.0):.2f}%")
+                    self.logger.warning(f"  総損益: ¥{stats.get('total_pnl', 0.0):,.0f}")
+                    self.logger.warning(f"  PF: {stats.get('profit_factor', 0.0):.2f}")
+                    self.logger.warning(f"  平均損益: ¥{stats.get('average_pnl', 0.0):,.0f}")
+                self.logger.warning("=" * 60)
+
+                # JSON出力にも追加
+                report_data["strategy_performance"] = {
+                    k: {kk: vv for kk, vv in v.items() if kk != "trades"}
+                    for k, v in strategy_performance.items()
+                }
 
             # Phase 49.3: テキストレポート生成
             text_filename = f"backtest_{timestamp}.txt"

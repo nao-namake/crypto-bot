@@ -108,7 +108,7 @@ jobs:
           echo "🔧 バックテスト環境準備開始..."
 
           # 必要なディレクトリ作成
-          mkdir -p logs cache src/backtest/logs docs/バックテスト記録
+          mkdir -p logs cache src/backtest/logs docs/検証記録
 
           # モデルメタデータ作成（Phase 52.4対応・特徴量数一元管理）
           FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
@@ -185,10 +185,10 @@ jobs:
           python3 scripts/backtest/generate_markdown_report.py \
             "$LATEST_JSON" \
             --phase "$PHASE_NAME" \
-            --output-dir "docs/バックテスト記録"
+            --output-dir "docs/検証記録"
 
           # 生成されたMarkdownファイル確認
-          LATEST_MARKDOWN=$(ls -t docs/バックテスト記録/Phase_*.md 2>/dev/null | head -1)
+          LATEST_MARKDOWN=$(ls -t docs/検証記録/Phase_*.md 2>/dev/null | head -1)
           if [ -n "$LATEST_MARKDOWN" ]; then
             echo "✅ Markdownレポート生成確認: $LATEST_MARKDOWN"
             echo "LATEST_MARKDOWN=$LATEST_MARKDOWN" >> $GITHUB_ENV
@@ -218,7 +218,7 @@ jobs:
           git status --short
 
           # Markdownレポートのみコミット（JSONは除外）
-          git add "docs/バックテスト記録/Phase_*.md"
+          git add "docs/検証記録/Phase_*.md"
 
           # コミット（変更がある場合のみ）
           if git diff --staged --quiet; then

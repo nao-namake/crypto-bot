@@ -353,7 +353,14 @@ class IntegratedRiskManager:
                 "regime_value": regime_value,  # Phase 51.8-10: レジーム文字列（記録用）
             }
 
-            # 10. 評価結果構築
+            # 10. 評価結果構築（Phase 57.1: strategy_name追加）
+            # 戦略名取得
+            strategy_name_extracted = (
+                strategy_signal.get("strategy_name", "unknown")
+                if isinstance(strategy_signal, dict)
+                else getattr(strategy_signal, "strategy_name", "unknown")
+            )
+
             evaluation = TradeEvaluation(
                 decision=decision,
                 side=trade_side,
@@ -370,6 +377,7 @@ class IntegratedRiskManager:
                 drawdown_status=self.drawdown_manager.trading_status.value,
                 anomaly_alerts=[a.message for a in anomaly_alerts],
                 market_conditions=market_conditions,
+                strategy_name=strategy_name_extracted,  # Phase 57.1: 戦略名追加
             )
 
             # 11. 統計更新
