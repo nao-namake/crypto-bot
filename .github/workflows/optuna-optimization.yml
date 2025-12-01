@@ -1,0 +1,182 @@
+name: Optuna Parameter Optimization
+
+# Phase 57.6: GitHub Actions上でOptuna最適化を実行
+#
+# 使用方法:
+#   1. GitHub Actions > Optuna Parameter Optimization > Run workflow
+#   2. パラメータを選択して実行
+#
+# 最適化タイプ:
+#   - hybrid: 全パラメータ3段階最適化（リスク + ML統合 + 戦略）
+#   - risk: リスク管理パラメータのみ
+#   - ml_integration: ML統合パラメータのみ
+#   - strategy: 戦略パラメータのみ
+#
+# 実行時間目安:
+#   - hybrid (50試行, 90日): 約3-4時間
+#   - strategy (50試行, 90日): 約2-3時間
+#   - risk/ml_integration (50試行, 90日): 約1-2時間
+
+on:
+  workflow_dispatch:
+    inputs:
+      optimization_type:
+        description: '最適化タイプ'
+        type: choice
+        options:
+          - 'hybrid'
+          - 'risk'
+          - 'ml_integration'
+          - 'strategy'
+        default: 'hybrid'
+
+      n_trials:
+        description: '試行回数（Stage 2-3用）'
+        type: choice
+        options:
+          - '30'
+          - '50'
+          - '100'
+        default: '50'
+
+      backtest_days:
+        description: 'バックテスト日数（最終検証用）'
+        type: choice
+        options:
+          - '30'
+          - '90'
+          - '180'
+        default: '90'
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  optuna-optimization:
+    name: Optuna Hybrid Optimization
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6時間
+
+    permissions:
+      contents: write
+
+    steps:
+      # 1. チェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Python環境セットアップ
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      # 3. 依存関係インストール
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. 履歴データ収集
+      - name: Collect historical data
+        run: |
+          mkdir -p src/backtest/data/historical
+
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
+          python3 src/backtest/scripts/collect_historical_csv.py \
+            --days ${{ github.event.inputs.backtest_days }}
+
+          # データ確認
+          echo "📊 履歴データ確認:"
+          wc -l src/backtest/data/historical/BTC_JPY_*.csv
+
+      # 5. Optuna最適化実行
+      - name: Run Optuna optimization
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
+          # ロックファイル削除
+          rm -f /tmp/crypto_bot_*.lock
+
+          # タイムアウト設定（5.5時間）
+          timeout 19800 python3 scripts/optimization/run_github_optimization.py \
+            --type ${{ github.event.inputs.optimization_type }} \
+            --n-trials ${{ github.event.inputs.n_trials }} \
+            --backtest-days ${{ github.event.inputs.backtest_days }} \
+            --verbose
+        env:
+          OPTUNA_TIMEOUT_SECONDS: '19800'  # 5.5時間（バッファ30分）
+
+      # 6. 結果をプリセットとして保存
+      - name: Save optimization results as preset
+        run: |
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
+          python3 scripts/optimization/save_as_preset.py \
+            --source config/optimization/results/latest_optimization.json \
+            --preset-name "optuna_$(date +%Y%m%d)" \
+            --update-active
+
+      # 7. 結果サマリー表示
+      - name: Show optimization results
+        run: |
+          echo "📊 最適化結果サマリー"
+          echo "=========================="
+          cat config/optimization/results/latest_optimization.json
+
+      # 8. Git設定・コミット
+      - name: Commit optimization results
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+
+          git add config/optimization/results/
+          git add config/core/strategies/presets/
+
+          if ! git diff --staged --quiet; then
+            git commit -m "feat: Optuna最適化結果 (${{ github.event.inputs.optimization_type }})
+
+            - 試行回数: ${{ github.event.inputs.n_trials }}
+            - バックテスト日数: ${{ github.event.inputs.backtest_days }}
+            - タイプ: ${{ github.event.inputs.optimization_type }}
+
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+            Co-Authored-By: Claude <noreply@anthropic.com>"
+
+            # プル・リベース・プッシュ
+            git pull --rebase origin main || { git rebase --abort; git pull origin main; }
+            git push origin main
+          else
+            echo "⚠️ 変更なし - コミットをスキップ"
+          fi
+
+      # 9. 結果サマリーをジョブサマリーに出力
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## 📊 Optuna最適化サマリー" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 項目 | 値 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| タイプ | ${{ github.event.inputs.optimization_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 試行数 | ${{ github.event.inputs.n_trials }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| バックテスト日数 | ${{ github.event.inputs.backtest_days }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f config/optimization/results/latest_optimization.json ]; then
+            echo "### 最適化結果" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat config/optimization/results/latest_optimization.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ 結果ファイルが見つかりません" >> $GITHUB_STEP_SUMMARY
+          fi
+
+concurrency:
+  group: optuna-optimization
+  cancel-in-progress: false
