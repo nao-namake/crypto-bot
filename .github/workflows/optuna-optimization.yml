@@ -137,8 +137,8 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "GitHub Actions Bot"
 
-          git add config/optimization/results/
-          git add config/core/strategies/presets/
+          git add -f config/optimization/results/
+          git add -f config/core/strategies/presets/
 
           if ! git diff --staged --quiet; then
             git commit -m "feat: Optuna最適化結果 (${{ github.event.inputs.optimization_type }})
