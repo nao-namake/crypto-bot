@@ -1611,10 +1611,12 @@ class BitbankClient:
             nonce = timestamp
 
             # Phase 37.2: GET/POSTで署名ロジック分岐
+            # Phase 59緊急修正: bitbank API仕様に基づき、GETの署名には/v1を含める必要がある
             if method.upper() == "GET":
-                # GETリクエスト署名: nonce + endpoint (+ query parameters)
-                # 現時点でquery parametersは使用しないため、endpointのみ
-                message = f"{nonce}{endpoint}"
+                # GETリクエスト署名: nonce + /v1 + endpoint (+ query parameters)
+                # bitbank公式仕様: https://github.com/bitbankinc/bitbank-api-docs/blob/master/rest-api_JP.md
+                # 「GETのACCESS-SIGNATUREで使用する「リクエストのパス」には"/v1"も含める必要があります。」
+                message = f"{nonce}/v1{endpoint}"
                 body = None
             else:
                 # POSTリクエスト署名: nonce + request body
