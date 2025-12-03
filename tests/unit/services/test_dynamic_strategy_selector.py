@@ -46,8 +46,8 @@ class TestDynamicStrategySelector:
         assert weights["DonchianChannel"] >= 0  # Can be 0.0 in tight_range
         assert weights["StochasticReversal"] >= 0  # Can be 0.0 in tight_range
 
-        # トレンド型戦略は0.0（無効化）
-        assert weights["ADXTrendStrength"] == 0.0
+        # Phase 59.11: tight_rangeでも高PF戦略は微量追加
+        assert weights["ADXTrendStrength"] == 0.1  # Phase 59.11: 0.0→0.1（PF2.72の高性能戦略追加）
         assert weights["MACDEMACrossover"] == 0.0
 
         # 重み合計が1.0であることを確認

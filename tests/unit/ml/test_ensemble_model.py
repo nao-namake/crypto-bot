@@ -74,7 +74,7 @@ class TestEnsembleModel:
         assert "xgb" in ensemble.models
         assert "rf" in ensemble.models
 
-        assert ensemble.confidence_threshold == 0.3  # 月100-200回最適化に合わせて0.35→0.3に変更
+        assert ensemble.confidence_threshold == 0.4  # Phase 59.11: 0.3→0.4（ML統合厳格化）
         assert not ensemble.is_fitted
         assert ensemble.feature_names is None
 
