@@ -1,0 +1,229 @@
+# ========================================
+# Phase 60.5 戦略設定プリセット
+# ========================================
+# Phase 60.5: SL比率緩和・TP/SL改善アプローチ
+# 検証日: 2025-12-04
+# 目標: PF 1.3以上達成
+#
+# Phase 60からの変更点:
+#   - tight_rangeでADX/MACDを除外（レンジ戦略に集中）
+#   - StochasticReversalを復活（レンジで機能）
+#   - SL比率を緩和（0.5%→0.6%）でSL率低減
+#   - TP比率を維持（1.5%）でRR比2.5:1
+# ========================================
+
+version: "phase60_5"
+description: "Phase 60.5設定 - SL緩和・TP/SL改善"
+tested_date: "2025-12-04"
+
+# パフォーマンス記録（検証後に更新）
+performance:
+  win_rate: 0.0
+  profit_factor: 0.0
+  total_pnl: 0
+  total_trades: 0
+  max_drawdown: 0.0
+
+# ========================================
+# レジーム別有効戦略リスト
+# ========================================
+# Phase 60.5: Phase 56ベースを維持（レンジ戦略に集中）
+regime_active_strategies:
+  tight_range:
+    - ATRBased
+    - BBReversal
+    - StochasticReversal    # Phase 60.5: 復活
+  normal_range:
+    - ATRBased
+    - BBReversal
+    - DonchianChannel
+    - ADXTrendStrength      # Phase 60.5: normal_rangeのみで追加
+  trending:
+    - ADXTrendStrength
+    - MACDEMACrossover
+    - DonchianChannel
+  high_volatility: []
+
+# ========================================
+# 戦略重みマッピング
+# ========================================
+# Phase 60.5: Phase 56ベース + 微調整
+regime_strategy_mapping:
+  tight_range:
+    ATRBased: 0.35           # Phase 56: 0.40
+    BBReversal: 0.35         # Phase 56: 0.30 → 勝率63%で増加
+    DonchianChannel: 0.15    # Phase 56: 0.15
+    StochasticReversal: 0.15 # Phase 56: 0.15 → 復活
+    ADXTrendStrength: 0.0    # Phase 60.5: tight_rangeでは除外
+    MACDEMACrossover: 0.0
+  normal_range:
+    ATRBased: 0.30
+    BBReversal: 0.25
+    DonchianChannel: 0.15
+    StochasticReversal: 0.10
+    ADXTrendStrength: 0.15   # normal_rangeでは使用
+    MACDEMACrossover: 0.05
+  trending:
+    ADXTrendStrength: 0.50
+    MACDEMACrossover: 0.30
+    ATRBased: 0.15
+    DonchianChannel: 0.05
+    BBReversal: 0.0
+    StochasticReversal: 0.0
+  high_volatility:
+    ATRBased: 0.0
+    BBReversal: 0.0
+    DonchianChannel: 0.0
+    StochasticReversal: 0.0
+    ADXTrendStrength: 0.0
+    MACDEMACrossover: 0.0
+
+# ========================================
+# TP/SL設定（レジーム別）
+# ========================================
+# Phase 60.5: SL緩和でSL率低減
+take_profit:
+  tight_range:
+    min_profit_ratio: 0.015    # Phase 56: 1.2% → Phase 60.5: 1.5%
+    default_ratio: 2.5         # Phase 56: 2.4 → Phase 60.5: 2.5
+  normal_range:
+    min_profit_ratio: 0.018    # Phase 56: 1.5% → Phase 60.5: 1.8%
+    default_ratio: 2.5
+  trending:
+    min_profit_ratio: 0.018    # Phase 56: 1.5% → Phase 60.5: 1.8%
+    default_ratio: 1.8         # Phase 56: 1.5 → Phase 60.5: 1.8
+  high_volatility:
+    min_profit_ratio: 0.025
+    default_ratio: 1.67
+
+stop_loss:
+  tight_range:
+    max_loss_ratio: 0.006      # Phase 56: 0.5% → Phase 60.5: 0.6%（SL緩和）
+  normal_range:
+    max_loss_ratio: 0.007      # Phase 56: 0.6% → Phase 60.5: 0.7%
+  trending:
+    max_loss_ratio: 0.010      # SL 1.0%維持
+  high_volatility:
+    max_loss_ratio: 0.015      # SL 1.5%維持
+
+# ========================================
+# ML統合設定
+# ========================================
+# Phase 60.5: Phase 56ベースを維持
+ml_integration:
+  hold_conversion_threshold: 0.20
+  min_ml_confidence: 0.35
+  high_confidence_threshold: 0.55
+  disagreement_penalty: 0.90
+  ml_weight: 0.30
+  strategy_weight: 0.70
+  agreement_bonus: 1.2
+
+# レジーム別ML統合
+regime_ml_integration:
+  tight_range:
+    min_ml_confidence: 0.30
+    high_confidence_threshold: 0.45
+    ml_weight: 0.30
+    strategy_weight: 0.70
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.98
+  normal_range:
+    min_ml_confidence: 0.35
+    high_confidence_threshold: 0.45
+    ml_weight: 0.30
+    strategy_weight: 0.70
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.90
+  trending:
+    min_ml_confidence: 0.35
+    high_confidence_threshold: 0.45
+    ml_weight: 0.35
+    strategy_weight: 0.65
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.88
+
+# ========================================
+# 信頼度レベル
+# ========================================
+confidence_levels:
+  high: 0.35
+  medium: 0.18
+  low: 0.15
+  min_ml: 0.12
+  very_high: 0.55
+
+# ========================================
+# 戦略パラメータ
+# ========================================
+# Phase 60.5: Phase 56ベース + RSI閾値調整
+strategies:
+  atr_based:
+    hold_confidence: 0.10
+    min_confidence: 0.25
+    bb_overbought: 0.7
+    bb_oversold: 0.3
+    rsi_overbought: 70         # Phase 56: 65 → 60.5: 70（厳格化）
+    rsi_oversold: 30           # Phase 56: 35 → 60.5: 30
+
+  bb_reversal:
+    hold_confidence: 0.25
+    min_confidence: 0.30
+    bb_width_threshold: 0.025
+    rsi_overbought: 70         # Phase 56: 65 → 60.5: 70
+    rsi_oversold: 30           # Phase 56: 35 → 60.5: 30
+    bb_upper_threshold: 0.85
+    bb_lower_threshold: 0.15
+    adx_range_threshold: 40    # Phase 56: 35 → 60.5: 40（レンジ範囲拡大）
+    sl_multiplier: 1.5
+
+  stochastic_reversal:
+    hold_confidence: 0.25
+    min_confidence: 0.30
+    stoch_overbought: 80       # Phase 56: 75 → 60.5: 80（厳格化）
+    stoch_oversold: 20         # Phase 56: 25 → 60.5: 20
+    rsi_overbought: 65         # Phase 56: 60 → 60.5: 65
+    rsi_oversold: 35           # Phase 56: 40 → 60.5: 35
+    adx_range_threshold: 40    # Phase 56: 35 → 60.5: 40
+    sl_multiplier: 1.5
+
+  donchian_channel:
+    hold_confidence: 0.40
+    min_confidence: 0.25
+    middle_zone_min: 0.40
+    middle_zone_max: 0.60
+    reversal_threshold: 0.10
+    weak_signal_confidence: 0.35
+    weak_signal_max: 0.70
+
+  adx_trend:
+    hold_confidence: 0.45
+    min_confidence: 0.25
+    di_crossover_threshold: 0.5
+    strong_trend_threshold: 25
+    moderate_trend_min: 15
+    moderate_trend_max: 25
+    weak_trend_threshold: 15
+
+  macd_ema_crossover:
+    hold_confidence: 0.25
+    min_confidence: 0.35
+    adx_trend_threshold: 25
+    volume_ratio_threshold: 1.1
+    sl_multiplier: 1.5
+
+# ========================================
+# レジーム判定閾値
+# ========================================
+market_regime:
+  tight_range:
+    bb_width_threshold: 0.03
+    price_range_threshold: 0.02
+  normal_range:
+    bb_width_threshold: 0.05
+    adx_threshold: 20
+  trending:
+    adx_threshold: 25
+    ema_slope_threshold: 0.01
+  high_volatility:
+    atr_ratio_threshold: 0.018
