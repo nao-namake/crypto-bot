@@ -56,18 +56,18 @@ backtest:
 # Phase 52.4: 3段階統合ロジック・ML統合率100%達成
 # ========================================
 ml:
-  confidence_threshold: 0.3
+  confidence_threshold: 0.40     # Phase 59.11: 0.30→0.40（厳格化）
   allow_dummy_fallback: false
   default_confidence: 0.5
   strategy_integration:
     enabled: true
-    ml_weight: 0.30              # Phase 56: 0.35 → 0.30（合計1.0に正規化）
-    strategy_weight: 0.70        # 維持（合計1.0に）
+    ml_weight: 0.30              # 維持
+    strategy_weight: 0.70        # 維持
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.90  # Phase 52.4: ペナルティ緩和
-    min_ml_confidence: 0.35      # Phase 52.4: 閾値緩和
-    hold_conversion_threshold: 0.15  # Phase 56: 0.20 → 0.15（hold変換減少）
+    disagreement_penalty: 0.90   # 維持
+    min_ml_confidence: 0.40      # Phase 59.11: 0.35→0.40（厳格化）
+    hold_conversion_threshold: 0.20  # Phase 59.11: 0.15→0.20（Phase 52.1復帰）
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -370,21 +370,21 @@ dynamic_strategy_selection:
   # レジーム別戦略重みマッピング
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 57.4.5: 戦略バランス改善（ATRBased過剰発火抑制・他戦略強化）
-      ATRBased: 0.30           # Phase 57.4.5: 0.40→0.30（-25%・過剰発火抑制）
-      BBReversal: 0.25         # Phase 57.4.5: 0.30→0.25（バランス調整）
-      DonchianChannel: 0.25    # Phase 57.4.5: 0.15→0.25（+67%・発火率向上）
-      StochasticReversal: 0.20 # Phase 57.4.5: 0.15→0.20（+33%・発火率向上）
-      ADXTrendStrength: 0.0
+      # Phase 59.11: 高PF戦略重視（Donchian増加・Stoch削減）
+      ATRBased: 0.25           # Phase 59.11: 0.30→0.25（低PF戦略削減）
+      BBReversal: 0.20         # Phase 59.11: 0.25→0.20（低PF戦略削減）
+      DonchianChannel: 0.35    # Phase 59.11: 0.25→0.35（高PF戦略増加・PF1.86）
+      StochasticReversal: 0.10 # Phase 59.11: 0.20→0.10（低PF戦略削減・PF0.58）
+      ADXTrendStrength: 0.10   # Phase 59.11: 0.0→0.10（高PF戦略追加・PF2.72）
       MACDEMACrossover: 0.0
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # バランス型70/20配分
-      ATRBased: 0.35
-      BBReversal: 0.20
-      DonchianChannel: 0.10
-      StochasticReversal: 0.15
-      ADXTrendStrength: 0.15
-      MACDEMACrossover: 0.05
+      # Phase 59.11: 高PF戦略重視
+      ATRBased: 0.25           # Phase 59.11: 0.35→0.25（削減）
+      BBReversal: 0.15         # Phase 59.11: 0.20→0.15（削減）
+      DonchianChannel: 0.15    # Phase 59.11: 0.10→0.15（増加）
+      StochasticReversal: 0.10 # Phase 59.11: 0.15→0.10（削減）
+      ADXTrendStrength: 0.25   # Phase 59.11: 0.15→0.25（増加）
+      MACDEMACrossover: 0.10   # Phase 59.11: 0.05→0.10（増加）
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
       # トレンド型80/20配分
       ADXTrendStrength: 0.50
@@ -740,13 +740,13 @@ position_management:
     regime_based:
       enabled: true
       tight_range:
-        min_profit_ratio: 0.008      # TP 0.8%（RR比1.6:1）Phase 55.4: 1.2%→0.8%
-        default_ratio: 1.6
+        min_profit_ratio: 0.012      # Phase 59.11: TP 1.2%（RR比2.4:1）Phase 52.1復帰
+        default_ratio: 2.4           # Phase 59.11: RR比2.4:1（Phase 52.1復帰）
       normal_range:
-        min_profit_ratio: 0.015      # TP 1.5%（RR比2.5:1）Phase 55.3: 1.0%→1.5%
+        min_profit_ratio: 0.015      # TP 1.5%（RR比2.5:1）維持
         default_ratio: 2.5
       trending:
-        min_profit_ratio: 0.020      # TP 2.0%（RR比2.0:1）Phase 55.3: 1.5%→2.0%
+        min_profit_ratio: 0.020      # TP 2.0%（RR比2.0:1）維持
         default_ratio: 2.0
       high_volatility:
         min_profit_ratio: 0.025      # TP 2.5%（参考値・実際はエントリーなし）
