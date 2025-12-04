@@ -106,6 +106,19 @@ strategies:
     description: "MACD+EMA Crossover戦略 - トレンド転換期の押し目買い・戻り売り"
     config_section: "strategies.macd_ema_crossover"
 
+  # 戦略7: MeanReversion戦略（Phase 61新規追加）
+  mean_reversion:
+    enabled: true
+    class_name: "MeanReversion"
+    module_path: "src.strategies.implementations.mean_reversion"
+    strategy_type: "mean_reversion"
+    weight: 0.15
+    priority: 7
+    regime_affinity: "range"
+    indicators: ["SMA", "BB", "RSI"]
+    description: "MeanReversion戦略 - 移動平均乖離反転（OR条件・レンジ特化）"
+    config_section: "strategies.mean_reversion"
+
 # ========================================
 # 統合設定（全戦略共通）
 # ========================================

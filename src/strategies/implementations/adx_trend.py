@@ -235,103 +235,108 @@ class ADXTrendStrengthStrategy(StrategyBase):
         """
         シグナル判定ロジック
 
-        Phase 32: multi_timeframe_data対応
+        Phase 60.4: AND → OR条件変更（早期シグナル発火）
 
         Args:
             df: 市場データ
             analysis: ADX分析結果
-            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+            multi_timeframe_data: マルチタイムフレームデータ
 
         Returns:
             最終シグナル
         """
         current_price = analysis["current_price"]
 
-        # Phase 55.6: シグナル条件大幅緩和（エントリー率向上）
-        # 1. 強いトレンド + DIクロスオーバー（最優先）
-        if analysis["is_strong_trend"] and analysis["adx_rising"]:
-            if analysis["bullish_crossover"]:
-                confidence = self._calculate_trend_confidence(analysis, "buy")
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"強トレンド上昇DIクロス（ADX: {analysis['adx']:.1f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-            elif analysis["bearish_crossover"]:
-                confidence = self._calculate_trend_confidence(analysis, "sell")
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"強トレンド下降DIクロス（ADX: {analysis['adx']:.1f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
+        # Phase 60.5-C: 強いトレンド必須（勝率改善のため厳格化）
+        # ADX >= strong_trend_threshold が必須条件
+        if not analysis["is_strong_trend"]:
+            # 強いトレンドでなければ即HOLD（下のHOLDセクションへ）
+            conf = self._calculate_default_confidence(analysis, df)
+            return self._create_hold_signal(
+                df,
+                f"ADX動的: ADX条件未達成（ADX={analysis['adx']:.1f}, DI差={analysis['di_strength']:.1f}）",
+                dynamic_confidence=conf,
+            )
 
-        # Phase 55.6: 強いトレンド + DI優勢（クロスオーバー不要）
-        if analysis["is_strong_trend"]:
-            if analysis["dominant_direction"] == "bullish" and analysis["di_strength"] >= 1.0:
-                confidence = self._calculate_trend_confidence(analysis, "buy")
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"強トレンド+DI優勢（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_strength']:.1f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-            elif analysis["dominant_direction"] == "bearish" and analysis["di_strength"] >= 1.0:
-                confidence = self._calculate_trend_confidence(analysis, "sell")
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"強トレンド-DI優勢（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_strength']:.1f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
+        # Phase 60.5-C: BUY条件判定（強トレンド必須 + 補助条件）
+        buy_conditions = ["強トレンド"]  # 必須条件
+        if analysis["bullish_crossover"]:
+            buy_conditions.append("DIクロス")
+        # Phase 60.5-C: di_strength閾値を8.0に引き上げ
+        if analysis["dominant_direction"] == "bullish" and analysis["di_strength"] >= 8.0:
+            buy_conditions.append("+DI優勢")
 
-        # 2. 中程度トレンド + DI優勢（Phase 55.6: volume条件削除・DI閾値緩和1.0）
-        if analysis["is_moderate_trend"] and analysis["di_strength"] >= 1.0:
+        # Phase 60.5-C: 強トレンド + 1条件以上（計2条件以上）でBUY
+        if len(buy_conditions) >= 2 and analysis["dominant_direction"] == "bullish":
+            # 条件数に応じた信頼度計算
+            base_confidence = 0.40
+            condition_bonus = (len(buy_conditions) - 2) * 0.10
+            confidence = min(base_confidence + condition_bonus, 0.60)
+
+            return self._create_signal(
+                action="buy",
+                confidence=confidence,
+                reason=f"ADX BUY ({', '.join(buy_conditions)}) ADX={analysis['adx']:.1f}",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
+            )
+
+        # Phase 60.5-C: SELL条件判定（強トレンド必須 + 補助条件）
+        sell_conditions = ["強トレンド"]  # 必須条件
+        if analysis["bearish_crossover"]:
+            sell_conditions.append("DIクロス")
+        # Phase 60.5-C: di_strength閾値を8.0に引き上げ
+        if analysis["dominant_direction"] == "bearish" and analysis["di_strength"] >= 8.0:
+            sell_conditions.append("-DI優勢")
+
+        # Phase 60.5-C: 強トレンド + 1条件以上（計2条件以上）でSELL
+        if len(sell_conditions) >= 2 and analysis["dominant_direction"] == "bearish":
+            # 条件数に応じた信頼度計算
+            base_confidence = 0.40
+            condition_bonus = (len(sell_conditions) - 2) * 0.10
+            confidence = min(base_confidence + condition_bonus, 0.60)
+
+            return self._create_signal(
+                action="sell",
+                confidence=confidence,
+                reason=f"ADX SELL ({', '.join(sell_conditions)}) ADX={analysis['adx']:.1f}",
+                current_price=current_price,
+                df=df,
+                analysis=analysis,
+                multi_timeframe_data=multi_timeframe_data,
+            )
+
+        # Phase 60.5-B: 中程度トレンド削除（過剰発火の主原因）
+        # 中程度トレンドだけでは発火しない（強トレンド/DIクロス/DI優勢で2条件以上必須）
+        if False and analysis["is_moderate_trend"] and analysis["di_strength"] >= 5.0:
             if analysis["dominant_direction"] == "bullish":
-                confidence = self._calculate_trend_confidence(analysis, "buy")
-                if confidence >= self.min_confidence:
-                    return self._create_signal(
-                        action="buy",
-                        confidence=confidence,
-                        reason=f"中トレンド上昇（ADX: {analysis['adx']:.1f}, +DI優勢）",
-                        current_price=current_price,
-                        df=df,
-                        analysis=analysis,
-                        multi_timeframe_data=multi_timeframe_data,
-                    )
+                return self._create_signal(
+                    action="buy",
+                    confidence=0.35,
+                    reason=f"中トレンドBUY (ADX={analysis['adx']:.1f}, DI差={analysis['di_strength']:.1f})",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
             elif analysis["dominant_direction"] == "bearish":
-                confidence = self._calculate_trend_confidence(analysis, "sell")
-                if confidence >= self.min_confidence:
-                    return self._create_signal(
-                        action="sell",
-                        confidence=confidence,
-                        reason=f"中トレンド下降（ADX: {analysis['adx']:.1f}, -DI優勢）",
-                        current_price=current_price,
-                        df=df,
-                        analysis=analysis,
-                        multi_timeframe_data=multi_timeframe_data,
-                    )
-        # 3. 弱いトレンド（レンジ相場）- DI差分ベースの動的判定
-        if analysis["is_weak_trend"]:
-            return self._handle_weak_trend_signal(df, analysis, multi_timeframe_data)
-        # 4. その他の場合 - 動的HOLD信頼度（市場データ統合）
+                return self._create_signal(
+                    action="sell",
+                    confidence=0.35,
+                    reason=f"中トレンドSELL (ADX={analysis['adx']:.1f}, DI差={analysis['di_strength']:.1f})",
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
+
+        # HOLD（条件未達成）
         dynamic_confidence = self._calculate_default_confidence(analysis, df)
         return self._create_hold_signal(
             df,
-            f"条件不適合動的（ADX: {analysis['adx']:.1f}, DI差: {analysis['di_difference']:.1f}）",
+            f"ADX条件未達成（ADX={analysis['adx']:.1f}, DI差={analysis['di_difference']:.1f}）",
             dynamic_confidence,
         )
 

@@ -79,6 +79,8 @@ class MACDEMACrossoverStrategy(StrategyBase):
         """
         戦略分析実行
 
+        Phase 60.4: ADXフィルター削除・OR条件化
+
         Args:
             df: 市場データ（4時間足）
             multi_timeframe_data: マルチタイムフレームデータ（15m足含む）
@@ -95,14 +97,11 @@ class MACDEMACrossoverStrategy(StrategyBase):
         latest = df.iloc[-1]
         current_price = float(latest["close"])
 
-        # 3. トレンド相場判定
-        if not self._is_trend_market(df):
-            return self._create_hold_signal("not_trend_market", df)
-
-        # 4. MACD+EMAクロスシグナル分析
+        # Phase 60.4: ADXフィルター削除（以前は70%の時間HOLDになっていた）
+        # 3. MACD+EMAクロスシグナル分析（OR条件）
         decision = self._analyze_macd_ema_signal(df)
 
-        # 5. SignalBuilder使用
+        # 4. SignalBuilder使用
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,
@@ -253,7 +252,7 @@ class MACDEMACrossoverStrategy(StrategyBase):
         """
         MACD+EMAシグナル分析
 
-        Phase 55.6: クロスオーバー条件緩和 - MACDポジティブダイバージェンスも許容
+        Phase 60.4: OR条件化（クロスオーバー OR EMAトレンド OR MACDモメンタム）
 
         Args:
             df: 市場データ
@@ -262,7 +261,6 @@ class MACDEMACrossoverStrategy(StrategyBase):
             Dict[str, Any]: シグナル判断結果
         """
         latest = df.iloc[-1]
-        volume_ratio = float(latest["volume_ratio"])
         macd = float(latest["macd"])
         macd_signal = float(latest["macd_signal"])
 
@@ -272,91 +270,69 @@ class MACDEMACrossoverStrategy(StrategyBase):
         # EMAトレンド判定
         ema_trend = self._check_ema_trend(df)
 
-        # MACD強度・EMA乖離度計算
+        # MACD強度計算
         macd_strength = self._calculate_macd_strength(df)
-        ema_divergence = self._calculate_ema_divergence(df)
 
-        # Phase 55.6: MACDダイバージェンス検出（クロスオーバーなしでも発火）
+        # MACDモメンタム判定
         macd_bullish = macd > macd_signal  # MACD > Signal = 上昇モメンタム
         macd_bearish = macd < macd_signal  # MACD < Signal = 下降モメンタム
 
-        # BUY信号（ゴールデンクロス + 上昇トレンド + 出来高増加）
-        if (
-            crossover == "golden"
-            and ema_trend == "uptrend"
-            and volume_ratio >= self.config["volume_ratio_threshold"]
-        ):
-            # 信頼度：MACD強度 + EMA乖離度に基づく（0.35-0.65）
-            confidence = min(
-                self.config["min_confidence"] + (macd_strength * 0.15) + (ema_divergence * 0.15),
-                0.65,
-            )
+        # Phase 60.6c-v2: クロスオーバー必須維持・信頼度改善
+        # BUY条件（クロスオーバー必須 + 補助条件）
+        buy_conditions = []
+        if crossover == "golden":
+            buy_conditions.append("ゴールデンクロス")
+        if ema_trend == "uptrend":
+            buy_conditions.append("EMA上昇")
+        if macd_bullish and macd_strength >= 0.2:
+            buy_conditions.append("MACDブル")
 
-            # シグナル強度：MACD強度を採用
-            strength = macd_strength
+        # クロスオーバー必須 + 2条件以上でBUY
+        if crossover == "golden" and len(buy_conditions) >= 2:
+            # 条件数に応じた段階的信頼度（良好戦略パターン適用）
+            base_confidence = 0.40  # 0.35→0.40に上げ
+            condition_bonus = (len(buy_conditions) - 2) * 0.08
+            strength_bonus = macd_strength * 0.06
+            confidence = min(base_confidence + condition_bonus + strength_bonus, 0.55)
 
             return {
                 "action": EntryAction.BUY,
                 "confidence": confidence,
-                "strength": strength,
-                "reason": f"MACD+EMAクロスBUY (MACD強度={macd_strength:.2f}, EMA乖離={ema_divergence:.2%}, 出来高比={volume_ratio:.2f})",
+                "strength": macd_strength,
+                "reason": f"MACD BUY ({', '.join(buy_conditions)}) 強度={macd_strength:.2f}",
             }
 
-        # SELL信号（デッドクロス + 下降トレンド + 出来高増加）
-        elif (
-            crossover == "dead"
-            and ema_trend == "downtrend"
-            and volume_ratio >= self.config["volume_ratio_threshold"]
-        ):
-            # 信頼度：MACD強度 + EMA乖離度に基づく（0.35-0.65）
-            confidence = min(
-                self.config["min_confidence"] + (macd_strength * 0.15) + (ema_divergence * 0.15),
-                0.65,
-            )
+        # SELL条件（クロスオーバー必須 + 補助条件）
+        sell_conditions = []
+        if crossover == "dead":
+            sell_conditions.append("デッドクロス")
+        if ema_trend == "downtrend":
+            sell_conditions.append("EMA下降")
+        if macd_bearish and macd_strength >= 0.2:
+            sell_conditions.append("MACDベア")
 
-            # シグナル強度：MACD強度を採用
-            strength = macd_strength
+        # クロスオーバー必須 + 2条件以上でSELL
+        if crossover == "dead" and len(sell_conditions) >= 2:
+            # 条件数に応じた段階的信頼度（良好戦略パターン適用）
+            base_confidence = 0.40  # 0.35→0.40に上げ
+            condition_bonus = (len(sell_conditions) - 2) * 0.08
+            strength_bonus = macd_strength * 0.06
+            confidence = min(base_confidence + condition_bonus + strength_bonus, 0.55)
 
             return {
                 "action": EntryAction.SELL,
                 "confidence": confidence,
-                "strength": strength,
-                "reason": f"MACD+EMAクロスSELL (MACD強度={macd_strength:.2f}, EMA乖離={ema_divergence:.2%}, 出来高比={volume_ratio:.2f})",
-            }
-
-        # Phase 55.6: MACDダイバージェンス（クロスオーバーなしでも発火・信頼度低め）
-        elif macd_bullish and ema_trend == "uptrend" and macd_strength >= 0.3:
-            confidence = min(
-                self.config["min_confidence"] + (macd_strength * 0.10) + (ema_divergence * 0.10),
-                0.55,  # クロスオーバーより低め
-            )
-            return {
-                "action": EntryAction.BUY,
-                "confidence": confidence,
                 "strength": macd_strength,
-                "reason": f"MACDダイバージェンスBUY (MACD>{macd_signal:.0f}, EMA上昇)",
-            }
-
-        elif macd_bearish and ema_trend == "downtrend" and macd_strength >= 0.3:
-            confidence = min(
-                self.config["min_confidence"] + (macd_strength * 0.10) + (ema_divergence * 0.10),
-                0.55,
-            )
-            return {
-                "action": EntryAction.SELL,
-                "confidence": confidence,
-                "strength": macd_strength,
-                "reason": f"MACDダイバージェンスSELL (MACD<{macd_signal:.0f}, EMA下降)",
+                "reason": f"MACD SELL ({', '.join(sell_conditions)}) 強度={macd_strength:.2f}",
             }
 
         # HOLD信号
-        else:
-            return {
-                "action": EntryAction.HOLD,
-                "confidence": self.config["hold_confidence"],
-                "strength": 0.0,
-                "reason": "MACD+EMAクロス条件未達成",
-            }
+        return {
+            "action": EntryAction.HOLD,
+            "confidence": self.config["hold_confidence"],
+            "strength": 0.0,
+            "reason": f"MACD条件未達成 (BUY={len(buy_conditions)}, SELL={len(sell_conditions)})",
+        }
 
     def _create_hold_signal(self, reason: str, df: pd.DataFrame) -> StrategySignal:
         """

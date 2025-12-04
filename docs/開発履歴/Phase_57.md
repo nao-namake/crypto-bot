@@ -716,7 +716,89 @@ env:
 
 ---
 
-## Phase 57.8 - ABテスト基盤構築（予定）
+## Phase 57.8 - 週次バックテスト廃止・ドキュメント整理（完了）
+
+**実施日**: 2025/12/02
+
+### 背景・目的
+
+週次バックテストの自動実行は廃止済み（Phase 55.3で手動実行に移行）だが、ドキュメントに古い参照が残っていた。また、誤って`docs/バックテスト記録/`フォルダが再作成されてしまう問題が発生。
+
+### 問題
+
+1. `.github/workflows/README.md`に`weekly_backtest.yml`への参照が残存
+2. `docs/バックテスト記録/`フォルダが`docs/検証記録/`に移行済みだが、古いパス参照が残っていた
+3. 実行状況確認コマンドが古いワークフロー名を参照
+
+### 修正内容
+
+#### 1. `.github/workflows/README.md` 更新
+
+**修正箇所**:
+- ファイル構成リストを最新化（`weekly_backtest.yml` → `backtest.yml`, `optuna-optimization.yml`, `emergency-stop.yml`）
+- `weekly_backtest.yml`セクションを`backtest.yml`手動実行セクションに置換
+- 自動化フロー図から週次バックテストを削除
+- 手動実行コマンドを更新
+- 実行履歴確認コマンドを更新（`backtest.yml`, `weekly-report.yml`, `optuna-optimization.yml`）
+- 実行時間制限を更新（バックテスト手動実行6時間、Optuna最適化5時間）
+
+#### 2. 非推奨フォルダ削除
+
+```bash
+rm -rf docs/バックテスト記録/
+```
+
+- `Phase_55.3_20251201.md`を含むフォルダを削除
+- 今後は`docs/検証記録/`のみ使用
+
+### 現在のワークフロー構成
+
+```
+.github/workflows/
+├── ci.yml                 # CI/CDパイプライン
+├── model-training.yml     # ML自動再学習（週次）
+├── cleanup.yml            # GCPリソースクリーンアップ（月次）
+├── backtest.yml           # バックテスト手動実行（Phase 55.3実装）
+├── optuna-optimization.yml # Optunaパラメータ最適化（Phase 57実装）
+├── weekly-report.yml      # 週間レポート自動送信（Phase 48実装）
+├── emergency-stop.yml     # 緊急停止ワークフロー（Phase 56実装）
+└── README.md
+```
+
+### 自動化フロー（更新後）
+
+```
+🗓️ 毎週日曜18:00 JST
+    ↓
+🤖 model-training.yml 自動実行
+    └── MLモデル週次更新 → ci.ymlトリガー → 本番デプロイ
+
+🗓️ 毎週月曜9:00 JST
+    ↓
+📊 weekly-report.yml 自動実行
+    └── 週間レポートDiscord送信
+
+🗓️ 毎月第1日曜2:00 JST
+    ↓
+🧹 cleanup.yml 自動実行
+    └── GCPリソースクリーンアップ
+
+📝 手動実行（必要時）
+    ↓
+📊 backtest.yml / optuna-optimization.yml
+    └── バックテスト・Optuna最適化
+```
+
+### 修正ファイル一覧
+
+| ファイル | 操作 | 内容 |
+|---------|------|------|
+| `.github/workflows/README.md` | 修正 | 週次バックテスト参照削除、最新ワークフロー反映 |
+| `docs/バックテスト記録/` | 削除 | 非推奨フォルダ削除 |
+
+---
+
+## Phase 57.9 - ABテスト基盤構築（予定）
 
 ### 実施内容
 - ABテストコントローラー新規作成
@@ -725,7 +807,7 @@ env:
 
 ---
 
-## Phase 57.9 - 手数料・スプレッドシミュレーション（予定）
+## Phase 57.10 - 手数料・スプレッドシミュレーション（予定）
 
 ### 実施内容
 - bitbank手数料正確反映（Maker 0.05%・リベート -0.02%）
@@ -733,4 +815,4 @@ env:
 
 ---
 
-**最終更新**: 2025年12月2日（Phase 57.7完了 - 軽量バックテストモード・タイムアウト最適化）
+**最終更新**: 2025年12月2日（Phase 57.8完了 - 週次バックテスト廃止・ドキュメント整理）

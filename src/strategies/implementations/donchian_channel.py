@@ -215,137 +215,101 @@ class DonchianChannelStrategy(StrategyBase):
         multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
         """
-        シグナル判定ロジック（動的信頼度計算・中央域対応）
+        シグナル判定ロジック
 
-        Phase 32: multi_timeframe_data対応
+        Phase 60.4: 極端値のみで発火（弱シグナル削除）
+        - ブレイクアウト: チャネル外への突破
+        - 極端値反転: 上位/下位10%のみ
 
         Args:
             df: 市場データ
             analysis: チャネル分析結果
-            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+            multi_timeframe_data: マルチタイムフレームデータ
 
         Returns:
             最終シグナル
         """
         channel_pos = analysis["channel_position"]
-        volume_ratio = analysis["volume_ratio"]
         current_price = analysis["current_price"]
 
-        # 1. ブレイクアウトシグナル（強いトレンド）
+        # 1. ブレイクアウトシグナル（最優先）
         breakout_confidence = get_threshold(
             "strategies.donchian_channel.breakout_strong_confidence", 0.75
         )
-        # Phase 55.6: 出来高条件緩和（1.2→1.0）
-        if analysis["is_upper_breakout"] and volume_ratio >= 1.0:
+        if analysis["is_upper_breakout"]:
             return self._create_signal(
                 action="buy",
-                confidence=breakout_confidence,  # Phase 54: ハードコード削除・設定ファイル一元管理
-                reason="上方ブレイクアウト（出来高増加）",
+                confidence=breakout_confidence,
+                reason=f"Donchian上方ブレイクアウト（位置: {channel_pos:.3f}）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
-        if analysis["is_lower_breakout"] and volume_ratio >= 1.0:
+        if analysis["is_lower_breakout"]:
             return self._create_signal(
                 action="sell",
-                confidence=breakout_confidence,  # Phase 54: ハードコード削除・設定ファイル一元管理
-                reason="下方ブレイクアウト（出来高増加）",
+                confidence=breakout_confidence,
+                reason=f"Donchian下方ブレイクアウト（位置: {channel_pos:.3f}）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
 
-        # Phase 57.4.4: チャネル上限/下限接近でもシグナル（閾値緩和）
-        if channel_pos >= 0.85 and not analysis["is_upper_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "buy")
+        # Phase 60.6c-v2: 極端値範囲拡大（0.12→0.15）・発火率向上
+        # 2. 下限極端値（channel_pos < 0.15）→ BUY（反転期待）
+        if channel_pos < 0.15:
+            # Phase 60.6c: 良好戦略パターン適用（条件数スケーリング）
+            buy_conditions = [
+                channel_pos < 0.15,  # 極端値（0.12→0.15に緩和）
+                analysis.get("volume_ratio", 1.0) > 1.0,  # 出来高増加
+                analysis.get("volatility_ratio", 0) < 0.03,  # 適度なボラティリティ
+            ]
+            buy_count = sum(buy_conditions)
+            base_confidence = 0.40
+            position_bonus = (0.15 - channel_pos) * 1.2
+            condition_bonus = (buy_count - 1) * 0.06
+            confidence = min(base_confidence + position_bonus + condition_bonus, 0.58)
             return self._create_signal(
                 action="buy",
-                confidence=max(confidence, 0.45),  # 最低信頼度保証
-                reason=f"チャネル上限接近BUY（位置: {channel_pos:.3f}）",
+                confidence=confidence,
+                reason=f"Donchian下限極端値BUY（位置: {channel_pos:.3f}, 条件数={buy_count}）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
-        if channel_pos <= 0.15 and not analysis["is_lower_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "sell")
+
+        # 3. 上限極端値（channel_pos > 0.85）→ SELL（反転期待）
+        if channel_pos > 0.85:
+            # Phase 60.6c-v2: 良好戦略パターン適用（条件数スケーリング）
+            sell_conditions = [
+                channel_pos > 0.85,  # 極端値（0.88→0.85に緩和）
+                analysis.get("volume_ratio", 1.0) > 1.0,  # 出来高増加
+                analysis.get("volatility_ratio", 0) < 0.03,  # 適度なボラティリティ
+            ]
+            sell_count = sum(sell_conditions)
+            base_confidence = 0.40
+            position_bonus = (channel_pos - 0.85) * 1.2
+            condition_bonus = (sell_count - 1) * 0.06
+            confidence = min(base_confidence + position_bonus + condition_bonus, 0.58)
             return self._create_signal(
                 action="sell",
-                confidence=max(confidence, 0.45),
-                reason=f"チャネル下限接近SELL（位置: {channel_pos:.3f}）",
+                confidence=confidence,
+                reason=f"Donchian上限極端値SELL（位置: {channel_pos:.3f}, 条件数={sell_count}）",
                 current_price=current_price,
                 df=df,
                 analysis=analysis,
                 multi_timeframe_data=multi_timeframe_data,
             )
-        # 2. リバーサルシグナル（レンジ相場対応）
-        if analysis["in_lower_zone"] and not analysis["is_lower_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "buy")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"下限リバーサル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        if analysis["in_upper_zone"] and not analysis["is_upper_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "sell")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"上限リバーサル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        # 3. 弱シグナル（中央域手前）- 動的信頼度計算
-        if analysis["in_weak_buy_zone"]:
-            # 下方向への動きを示唆する弱いbuyシグナル
-            confidence = self._calculate_weak_signal_confidence(analysis, "buy")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"弱買いシグナル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        if analysis["in_weak_sell_zone"]:
-            # 上方向への動きを示唆する弱いsellシグナル
-            confidence = self._calculate_weak_signal_confidence(analysis, "sell")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避・市場データ統合）
-        if analysis["in_middle_zone"]:
-            # 完全な中央域でもモメンタムに基づく微弱な方向性を計算
-            dynamic_confidence = self._calculate_middle_zone_confidence(analysis, df)
-            return self._create_hold_signal(
-                df,
-                f"中央域動的判定（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
-                dynamic_confidence,
-            )
-        # 5. その他のケース - 動的HOLD（市場データ統合）
+
+        # 4. 中央域（0.10-0.90）→ HOLD
+        # Phase 60.4: 弱シグナル削除（ノイズ回避）
         dynamic_confidence = self._calculate_default_confidence(analysis, df)
         return self._create_hold_signal(
             df,
-            f"動的HOLD（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
+            f"Donchian中央域HOLD（位置: {channel_pos:.3f}）",
             dynamic_confidence,
         )
 

@@ -186,9 +186,10 @@ class BBReversalStrategy(StrategyBase):
         """
         レンジ相場判定
 
+        Phase 60.6c: OR条件に緩和（発火率向上）
         判定基準:
-        1. BB幅 < bb_width_threshold（デフォルト: 0.02 = 2%）
-        2. ADX < adx_range_threshold（デフォルト: 20）
+        1. BB幅 < bb_width_threshold（デフォルト: 0.02 = 2%）OR
+        2. ADX < adx_range_threshold（デフォルト: 25）
 
         Args:
             df: 市場データ
@@ -206,7 +207,8 @@ class BBReversalStrategy(StrategyBase):
             adx = float(latest["adx_14"])
             adx_ok = adx < self.config["adx_range_threshold"]
 
-            is_range = bb_width_ok and adx_ok
+            # Phase 60.6c: OR条件に緩和（発火率向上）
+            is_range = bb_width_ok or adx_ok
 
             self.logger.debug(
                 f"レンジ相場判定: BB幅={bb_width:.4f} "
@@ -241,18 +243,21 @@ class BBReversalStrategy(StrategyBase):
             bb_position = float(latest["bb_position"])
             rsi = float(latest["rsi_14"])
 
-            # Phase 56.4.3: 条件緩和 - BB位置またはRSIどちらか一方でもシグナル発生
+            # Phase 60.6c: 良好戦略パターン適用（OR条件・条件数スケーリング）
             # SELL信号（BB上限タッチ または RSI買われすぎ）
             bb_sell_condition = bb_position > self.config["bb_upper_threshold"]
             rsi_sell_condition = rsi > self.config["rsi_overbought"]
 
-            if bb_sell_condition or rsi_sell_condition:
-                # Phase 57.4.2: 信頼度計算改善（発火率向上）
-                # 両方満たす場合は高信頼度、片方のみも中信頼度に引き上げ
-                if bb_sell_condition and rsi_sell_condition:
-                    confidence = min(0.40 + (bb_position - 0.80) * 1.8, 0.60)
-                else:
-                    confidence = min(0.32 + (bb_position - 0.80) * 1.2, 0.48)
+            # 条件数カウント
+            sell_conditions = [bb_sell_condition, rsi_sell_condition]
+            sell_count = sum(sell_conditions)
+
+            if sell_count > 0:
+                # Phase 60.6c: 条件数に応じた段階的信頼度（良好戦略パターン）
+                base_confidence = 0.38
+                condition_bonus = (sell_count - 1) * 0.12  # 2条件で+0.12
+                position_bonus = (bb_position - 0.5) * 0.15 if bb_sell_condition else 0.0
+                confidence = min(base_confidence + condition_bonus + position_bonus, 0.58)
                 # 強度: BB位置の偏り度合い
                 strength = (bb_position - 0.5) * 2.0
 
@@ -260,7 +265,7 @@ class BBReversalStrategy(StrategyBase):
                     "action": EntryAction.SELL,
                     "confidence": confidence,
                     "strength": strength,
-                    "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f}, 条件={'両方' if bb_sell_condition and rsi_sell_condition else 'BB' if bb_sell_condition else 'RSI'})",
+                    "reason": f"BB反転SELL (BB={bb_position:.2f}, RSI={rsi:.1f}, 条件数={sell_count})",
                     "analysis": "BB上限付近またはRSI買われすぎ→反転下落期待",
                 }
 
@@ -268,13 +273,16 @@ class BBReversalStrategy(StrategyBase):
             bb_buy_condition = bb_position < self.config["bb_lower_threshold"]
             rsi_buy_condition = rsi < self.config["rsi_oversold"]
 
-            if bb_buy_condition or rsi_buy_condition:
-                # Phase 57.4.2: 信頼度計算改善（発火率向上）
-                # 両方満たす場合は高信頼度、片方のみも中信頼度に引き上げ
-                if bb_buy_condition and rsi_buy_condition:
-                    confidence = min(0.40 + (0.20 - bb_position) * 1.8, 0.60)
-                else:
-                    confidence = min(0.32 + (0.20 - bb_position) * 1.2, 0.48)
+            # 条件数カウント
+            buy_conditions = [bb_buy_condition, rsi_buy_condition]
+            buy_count = sum(buy_conditions)
+
+            if buy_count > 0:
+                # Phase 60.6c: 条件数に応じた段階的信頼度（良好戦略パターン）
+                base_confidence = 0.38
+                condition_bonus = (buy_count - 1) * 0.12  # 2条件で+0.12
+                position_bonus = (0.5 - bb_position) * 0.15 if bb_buy_condition else 0.0
+                confidence = min(base_confidence + condition_bonus + position_bonus, 0.58)
                 # 強度: BB位置の偏り度合い
                 strength = (0.5 - bb_position) * 2.0
 
@@ -282,7 +290,7 @@ class BBReversalStrategy(StrategyBase):
                     "action": EntryAction.BUY,
                     "confidence": confidence,
                     "strength": strength,
-                    "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f}, 条件={'両方' if bb_buy_condition and rsi_buy_condition else 'BB' if bb_buy_condition else 'RSI'})",
+                    "reason": f"BB反転BUY (BB={bb_position:.2f}, RSI={rsi:.1f}, 条件数={buy_count})",
                     "analysis": "BB下限付近またはRSI売られすぎ→反転上昇期待",
                 }
 

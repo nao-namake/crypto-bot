@@ -1,0 +1,268 @@
+# ========================================
+# Phase 60.7 戦略設定プリセット
+# ========================================
+# Phase 60.7: タイトレンジ最適化・問題戦略2つを除外
+# 検証日: 2025-12-05
+#
+# 有効戦略（5戦略）:
+#   ✅ StochasticReversal: 貢献度+13.8%
+#   ✅ MeanReversion: 貢献度+14.4%（閾値緩和）
+#   ✅ ADXTrendStrength: 貢献度+2.7%
+#   ✅ ATRBased: 貢献度+1.3%
+#   ⚠️ BBReversal: 貢献度-5.5%（閾値緩和で改善試行）
+#
+# 除外戦略（2戦略）:
+#   ❌ DonchianChannel: 貢献度-22.0%
+#   ❌ MACDEMACrossover: 貢献度-6.2%
+#
+# 変更点（Phase 60.6c → 60.7）:
+#   - BBReversal: 閾値緩和（HOLD率82.6%→59.5%）
+#   - MeanReversion: 閾値緩和（HOLD率84.5%→78.6%）
+#   - ADXTrendStrength: 有効化維持（貢献度プラス）
+#   - 問題戦略2つを完全除外（重み0）
+# ========================================
+
+version: "phase60.7"
+description: "Phase 60.7設定 - タイトレンジ最適化・貢献度ベース重み配分"
+tested_date: "2025-12-05"
+
+# パフォーマンス記録（検証後に更新）
+performance:
+  win_rate: 0.0
+  profit_factor: 0.0
+  total_pnl: 0
+  total_trades: 0
+  max_drawdown: 0.0
+
+# ========================================
+# レジーム別有効戦略リスト
+# ========================================
+# Phase 61: 問題戦略完全除外・MeanReversion追加
+# - 良好戦略: ATRBased(+240.7%), BBReversal(+32.9%), StochasticReversal(+329%)
+# - 新戦略: MeanReversion（OR条件・良好戦略パターン踏襲）
+# - 無効化: ADX(-330.2%), MACD(-192%), Donchian(-143%)
+regime_active_strategies:
+  tight_range:
+    - ATRBased
+    - BBReversal
+    - StochasticReversal
+    - MeanReversion
+  normal_range:
+    - ATRBased
+    - BBReversal
+    - StochasticReversal
+    - MeanReversion
+  trending:                    # Phase 61: レンジ戦略流用（トレンド戦略が全て問題戦略）
+    - ATRBased
+    - BBReversal
+    - StochasticReversal
+    - MeanReversion
+  high_volatility: []
+
+# ========================================
+# 戦略重みマッピング
+# ========================================
+# Phase 60.7: 貢献度ベースで重み最適化（問題戦略2つを除外）
+regime_strategy_mapping:
+  tight_range:
+    ATRBased: 0.20             # 貢献度+1.3%
+    BBReversal: 0.20           # 貢献度-5.5%（閾値緩和で改善試行）
+    StochasticReversal: 0.30   # 貢献度+13.8%
+    MeanReversion: 0.15        # 貢献度+14.4%
+    ADXTrendStrength: 0.15     # 貢献度+2.7%（有効化）
+    DonchianChannel: 0.0       # 問題戦略（貢献度-22%）→除外
+    MACDEMACrossover: 0.0      # 問題戦略（貢献度-6.2%）→除外
+  normal_range:
+    ATRBased: 0.20
+    BBReversal: 0.20
+    StochasticReversal: 0.30
+    MeanReversion: 0.15
+    ADXTrendStrength: 0.15
+    DonchianChannel: 0.0
+    MACDEMACrossover: 0.0
+  trending:                    # Phase 60.7: ADXはトレンド相場で有効
+    ATRBased: 0.15
+    BBReversal: 0.15
+    StochasticReversal: 0.25
+    MeanReversion: 0.15
+    ADXTrendStrength: 0.30     # トレンド相場で重み増加
+    DonchianChannel: 0.0
+    MACDEMACrossover: 0.0
+  high_volatility:
+    ATRBased: 0.0
+    BBReversal: 0.0
+    StochasticReversal: 0.0
+    MeanReversion: 0.0
+    ADXTrendStrength: 0.0
+    DonchianChannel: 0.0
+    MACDEMACrossover: 0.0
+
+# ========================================
+# TP/SL設定（レジーム別）
+# ========================================
+# Phase 61: Phase 60.5ベース維持
+take_profit:
+  tight_range:
+    min_profit_ratio: 0.015    # TP 1.5%
+    default_ratio: 2.5         # RR比 2.5:1
+  normal_range:
+    min_profit_ratio: 0.018    # TP 1.8%
+    default_ratio: 2.5
+  trending:
+    min_profit_ratio: 0.018    # TP 1.8%（レンジ戦略使用のため調整）
+    default_ratio: 2.5
+  high_volatility:
+    min_profit_ratio: 0.025
+    default_ratio: 1.67
+
+stop_loss:
+  tight_range:
+    max_loss_ratio: 0.006      # SL 0.6%
+  normal_range:
+    max_loss_ratio: 0.007      # SL 0.7%
+  trending:
+    max_loss_ratio: 0.007      # SL 0.7%（レンジ戦略使用のため調整）
+  high_volatility:
+    max_loss_ratio: 0.015      # SL 1.5%
+
+# ========================================
+# ML統合設定
+# ========================================
+# Phase 61: Phase 56ベースを維持
+ml_integration:
+  hold_conversion_threshold: 0.20
+  min_ml_confidence: 0.35
+  high_confidence_threshold: 0.55
+  disagreement_penalty: 0.90
+  ml_weight: 0.30
+  strategy_weight: 0.70
+  agreement_bonus: 1.2
+
+# レジーム別ML統合
+regime_ml_integration:
+  tight_range:
+    min_ml_confidence: 0.30
+    high_confidence_threshold: 0.45
+    ml_weight: 0.30
+    strategy_weight: 0.70
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.98
+  normal_range:
+    min_ml_confidence: 0.35
+    high_confidence_threshold: 0.45
+    ml_weight: 0.30
+    strategy_weight: 0.70
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.90
+  trending:
+    min_ml_confidence: 0.35
+    high_confidence_threshold: 0.45
+    ml_weight: 0.30            # Phase 61: レンジ戦略使用のため調整
+    strategy_weight: 0.70
+    agreement_bonus: 1.25
+    disagreement_penalty: 0.90
+
+# ========================================
+# 信頼度レベル
+# ========================================
+confidence_levels:
+  high: 0.35
+  medium: 0.18
+  low: 0.15
+  min_ml: 0.12
+  very_high: 0.55
+
+# ========================================
+# 戦略パラメータ
+# ========================================
+# Phase 61: 良好戦略のパラメータはPhase 60.5ベース維持
+strategies:
+  atr_based:
+    hold_confidence: 0.10
+    min_confidence: 0.25
+    bb_overbought: 0.7
+    bb_oversold: 0.3
+    rsi_overbought: 70
+    rsi_oversold: 30
+
+  bb_reversal:
+    # Phase 60.7: タイトレンジ最適化（HOLD率82.6%→改善目標）
+    hold_confidence: 0.25           # HOLD抑制で発火促進
+    min_confidence: 0.38            # コード内base_confidence=0.38に対応
+    bb_width_threshold: 0.03        # 0.02→0.03（緩和・発火率向上）
+    rsi_overbought: 68              # 70→68（緩和）
+    rsi_oversold: 32                # 30→32（緩和）
+    bb_upper_threshold: 0.80        # 0.85→0.80（緩和）
+    bb_lower_threshold: 0.20        # 0.15→0.20（緩和）
+    adx_range_threshold: 30         # 25→30（緩和）
+    sl_multiplier: 1.5
+
+  stochastic_reversal:
+    hold_confidence: 0.25
+    min_confidence: 0.30
+    stoch_overbought: 80
+    stoch_oversold: 20
+    rsi_overbought: 65
+    rsi_oversold: 35
+    adx_range_threshold: 40
+    sl_multiplier: 1.5
+
+  mean_reversion:
+    # Phase 60.7: タイトレンジ最適化（HOLD率84.5%→改善目標）
+    hold_confidence: 0.15           # 低めでHOLD抑制・発火促進
+    min_confidence: 0.30
+    sma_deviation_threshold: 0.015  # 0.02→0.015（緩和・発火率向上）
+    rsi_overbought: 72              # 70→72（緩和）
+    rsi_oversold: 28                # 30→28（緩和）
+    bb_upper_threshold: 0.85        # 0.9→0.85（緩和）
+    bb_lower_threshold: 0.15        # 0.1→0.15（緩和）
+    adx_range_threshold: 30         # 25→30（緩和）
+    sl_multiplier: 1.5
+
+  # Phase 60.6c: DonchianChannel極端値範囲拡大（コード改修対応）
+  donchian_channel:
+    hold_confidence: 0.30           # HOLD抑制で発火促進
+    min_confidence: 0.40            # コード内base_confidence=0.40に対応
+    middle_zone_min: 0.12           # コードで直接判定（0.12）
+    middle_zone_max: 0.88           # コードで直接判定（0.88）
+    reversal_threshold: 0.12        # コード改修対応（0.12範囲）
+    breakout_threshold: 0.002       # ブレイクアウト閾値緩和
+    weak_signal_confidence: 0.35    # 弱シグナル（未使用）
+    weak_signal_max: 0.55           # 弱シグナル上限（未使用）
+
+  adx_trend:
+    # Phase 60.5-C: ADX無効化（マイナス貢献度のため）
+    # 代わりに他の戦略に重みを分散
+    hold_confidence: 0.90      # 極めて高めでほぼHOLD固定
+    min_confidence: 0.80       # Phase 60.5-C: ほぼ発火しない設定
+    di_crossover_threshold: 0.5
+    strong_trend_threshold: 50 # Phase 60.5-C: 40→50（極めて厳格化）
+    moderate_trend_min: 30     # Phase 60.5-C: 20→30
+    moderate_trend_max: 45     # Phase 60.5-C: 35→45
+    weak_trend_threshold: 30   # Phase 60.5-C: 20→30
+
+  macd_ema_crossover:
+    # Phase 60.6c: MACD OR条件化（コード改修対応）
+    hold_confidence: 0.25           # HOLD抑制で発火促進
+    min_confidence: 0.38            # コード内base_confidence=0.38に対応
+    adx_trend_threshold: 20         # 標準値（OR条件のため緩い）
+    volume_ratio_threshold: 1.0     # 標準値（OR条件のため緩い）
+    macd_strong_threshold: 30000    # MACD強度閾値（標準）
+    ema_divergence_threshold: 0.005 # EMA乖離閾値（標準）
+    sl_multiplier: 1.5
+
+# ========================================
+# レジーム判定閾値
+# ========================================
+market_regime:
+  tight_range:
+    bb_width_threshold: 0.03
+    price_range_threshold: 0.02
+  normal_range:
+    bb_width_threshold: 0.05
+    adx_threshold: 20
+  trending:
+    adx_threshold: 25
+    ema_slope_threshold: 0.01
+  high_volatility:
+    atr_ratio_threshold: 0.018

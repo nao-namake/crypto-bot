@@ -14,8 +14,8 @@
 # ========================================
 
 # 現在アクティブなプリセット
-# 選択肢: phase56 | phase57_4 | phase59 | phase60 | phase60_5 | custom
-active_preset: phase60_5
+# 選択肢: phase56 | phase57_4 | phase59 | phase60 | phase60_5 | phase60_5b | custom
+active_preset: phase60_5b
 
 # ========================================
 # プリセットエイリアス（A, B, C形式）

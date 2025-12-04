@@ -19,7 +19,7 @@
 #
 # 使用方法:
 #   - get_threshold()関数で動的に参照（ハードコード禁止）
-#   - Optuna最適化: scripts/optimization/run_phase40_optimization.py
+#   - Optuna最適化: scripts/optimization/run_github_optimization.py
 #
 # ========================================
 
@@ -370,21 +370,21 @@ dynamic_strategy_selection:
   # レジーム別戦略重みマッピング
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 59.11: 高PF戦略重視（Donchian増加・Stoch削減）
-      ATRBased: 0.25           # Phase 59.11: 0.30→0.25（低PF戦略削減）
-      BBReversal: 0.20         # Phase 59.11: 0.25→0.20（低PF戦略削減）
-      DonchianChannel: 0.35    # Phase 59.11: 0.25→0.35（高PF戦略増加・PF1.86）
-      StochasticReversal: 0.10 # Phase 59.11: 0.20→0.10（低PF戦略削減・PF0.58）
-      ADXTrendStrength: 0.10   # Phase 59.11: 0.0→0.10（高PF戦略追加・PF2.72）
-      MACDEMACrossover: 0.0
+      # Phase 60.4: 高PF戦略集中（分析結果: ADX PF1.34, MACD PF1.48）
+      ATRBased: 0.20           # Phase 60.4: 0.25→0.20（PF0.77→削減）
+      BBReversal: 0.25         # Phase 60.4: 0.20→0.25（勝率63%・スコア1位）
+      DonchianChannel: 0.20    # Phase 60.4: 0.35→0.20（PF1.04・スコア低め）
+      StochasticReversal: 0.05 # Phase 60.4: 0.10→0.05（PF0.66・最低）
+      ADXTrendStrength: 0.20   # Phase 60.4: 0.10→0.20（PF1.34増加）
+      MACDEMACrossover: 0.10   # Phase 60.4: 0.0→0.10（PF1.48追加）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 59.11: 高PF戦略重視
-      ATRBased: 0.25           # Phase 59.11: 0.35→0.25（削減）
-      BBReversal: 0.15         # Phase 59.11: 0.20→0.15（削減）
-      DonchianChannel: 0.15    # Phase 59.11: 0.10→0.15（増加）
-      StochasticReversal: 0.10 # Phase 59.11: 0.15→0.10（削減）
-      ADXTrendStrength: 0.25   # Phase 59.11: 0.15→0.25（増加）
-      MACDEMACrossover: 0.10   # Phase 59.11: 0.05→0.10（増加）
+      # Phase 60.4: 高PF戦略重視
+      ATRBased: 0.20           # Phase 60.4: 0.25→0.20（PF低め）
+      BBReversal: 0.20         # Phase 60.4: 0.15→0.20（勝率63%）
+      DonchianChannel: 0.15    # Phase 60.4: 維持
+      StochasticReversal: 0.05 # Phase 60.4: 0.10→0.05（PF最低）
+      ADXTrendStrength: 0.25   # Phase 60.4: 維持（PF1.34）
+      MACDEMACrossover: 0.15   # Phase 60.4: 0.10→0.15（PF1.48増加）
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
       # トレンド型80/20配分
       ADXTrendStrength: 0.50
@@ -435,16 +435,16 @@ position_limits:
 # ========================================
 strategies:
   adx_trend:
-    # Phase 55.5: 閾値緩和（シグナル発生率向上）
-    di_crossover_threshold: 0.3       # Phase 55.5: 0.5→0.3
+    # Phase 60.7: 貢献度+2.7%でプラス → 有効化維持
+    di_crossover_threshold: 0.3
     di_weak_signal_confidence: 0.35
     hold_confidence: 0.45
-    min_confidence: 0.25
-    moderate_trend_max: 22            # Phase 55.5: 25→22
-    moderate_trend_min: 12            # Phase 55.5: 15→12
-    strong_trend_threshold: 22        # Phase 55.5: 25→22
+    min_confidence: 0.35
+    moderate_trend_max: 22
+    moderate_trend_min: 12
+    strong_trend_threshold: 30
     weak_di_threshold: 1.0
-    weak_trend_threshold: 12          # Phase 55.5: 15→12
+    weak_trend_threshold: 12
   atr_based:
     # Phase 59.10: ATRBased設定（最終最適化・バランス重視）
     bb_overbought: 0.70               # Phase 59.10: バランス
@@ -460,26 +460,26 @@ strategies:
     base_confidence: 0.25             # Phase 59.10: バランス
     confidence_multiplier: 0.3
   donchian_channel:
-    # Phase 57.4.4: DonchianChannel設定（発火率向上）
-    breakout_threshold: 0.002
-    hold_confidence: 0.25             # Phase 57.4.4: 0.4→0.25（hold優位性DOWN）
-    middle_zone_max: 0.55             # Phase 57.4.4: 0.6→0.55（中央域縮小）
-    middle_zone_min: 0.45             # Phase 57.4.4: 0.4→0.45（中央域縮小）
-    min_confidence: 0.25
-    reversal_threshold: 0.15          # Phase 57.4.4: 0.10→0.15（上位/下位15%に拡大）
-    weak_signal_confidence: 0.38      # Phase 57.4.4: 0.35→0.38（弱シグナル信頼度UP）
-    weak_signal_max: 0.75             # Phase 57.4.4: 0.70→0.75（弱シグナル上限UP）
+    # Phase 60.6b: 貢献度-19.9% → 完全無効化
+    breakout_threshold: 0.003         # 維持
+    hold_confidence: 0.95             # Phase 60.6b: 完全HOLD
+    middle_zone_max: 0.55             # 維持
+    middle_zone_min: 0.45             # 維持
+    min_confidence: 0.95              # Phase 60.6b: 発火不可能
+    reversal_threshold: 0.05          # 維持
+    weak_signal_confidence: 0.40      # 維持
+    weak_signal_max: 0.65             # 維持
     weak_signal_min: 0.25
   bb_reversal:
-    # Phase 59.10: BB Reversal戦略設定（最終最適化・バランス重視）
-    min_confidence: 0.28            # Phase 59.10: バランス
-    hold_confidence: 0.15           # Phase 59.10: 低め維持
-    bb_width_threshold: 0.030       # Phase 59.10: バランス
-    rsi_overbought: 68              # Phase 59.10: バランス
-    rsi_oversold: 32                # Phase 59.10: バランス
-    bb_upper_threshold: 0.75        # Phase 59.10: バランス
-    bb_lower_threshold: 0.25        # Phase 59.10: バランス
-    adx_range_threshold: 60         # Phase 59.10: バランス
+    # Phase 60.7: タイトレンジ最適化（HOLD率82.6%→改善目標）
+    min_confidence: 0.38            # Phase 60.7: 発火可能に（0.95→0.38）
+    hold_confidence: 0.25           # Phase 60.7: HOLD抑制（0.95→0.25）
+    bb_width_threshold: 0.03        # Phase 60.7: 0.02→0.03（緩和）
+    rsi_overbought: 68              # Phase 60.7: 75→68（緩和）
+    rsi_oversold: 32                # Phase 60.7: 25→32（緩和）
+    bb_upper_threshold: 0.80        # Phase 60.7: 0.90→0.80（緩和）
+    bb_lower_threshold: 0.20        # Phase 60.7: 0.10→0.20（緩和）
+    adx_range_threshold: 30         # Phase 60.7: 25→30（レンジ判定拡大）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # Phase 59.10: Stochastic Reversal戦略設定（最終最適化・バランス重視）
@@ -492,14 +492,25 @@ strategies:
     adx_range_threshold: 60         # Phase 59.10: バランス
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
-    # Phase 59.5g: MACD + EMA Crossover戦略設定（HOLD率大幅改善）
-    min_confidence: 0.30            # Phase 59.5g: 0.35→0.30（緩和）
-    hold_confidence: 0.20           # Phase 59.5g: 0.25→0.20（hold優先度DOWN）
-    adx_trend_threshold: 12         # Phase 59.5g: 15→12（さらに緩和）
-    volume_ratio_threshold: 0.8     # Phase 59.5g: 0.9→0.8（さらに緩和）
-    macd_strong_threshold: 20000    # Phase 59.5g: 30000→20000（さらに緩和）
-    ema_divergence_threshold: 0.003 # Phase 59.5g: 0.005→0.003（さらに緩和）
+    # Phase 60.6: 貢献度-5.8% → 0%目標（完全無効化）
+    min_confidence: 0.95            # Phase 60.6: 0.30→0.95（発火不可能に）
+    hold_confidence: 0.95           # Phase 60.6: 0.20→0.95（ほぼ完全HOLD）
+    adx_trend_threshold: 12         # 維持
+    volume_ratio_threshold: 0.8     # 維持
+    macd_strong_threshold: 20000    # 維持
+    ema_divergence_threshold: 0.003 # 維持
     sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）
+  mean_reversion:
+    # Phase 60.7: タイトレンジ最適化（HOLD率84.5%→改善目標）
+    min_confidence: 0.30            # シグナル発火最小信頼度
+    hold_confidence: 0.15           # HOLD判定信頼度（低め設定で発火促進）
+    sma_deviation_threshold: 0.012  # Phase 60.7: 0.015→0.012（さらに緩和）
+    rsi_overbought: 68              # Phase 60.7: 65→68（緩和）
+    rsi_oversold: 32                # Phase 60.7: 35→32（緩和）
+    bb_upper_threshold: 0.82        # Phase 60.7: 0.85→0.82（緩和）
+    bb_lower_threshold: 0.18        # Phase 60.7: 0.15→0.18（緩和）
+    adx_range_threshold: 35         # Phase 60.7: 30→35（レンジ判定拡大）
+    sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
 
 # ========================================
 # 💹 取引設定（Trading Settings）
@@ -736,15 +747,15 @@ position_management:
     override_strategy_tp: false
     position_partial_exit: false
 
-    # Phase 55.4: レジーム別TP設定（0.8%→1.5%→2.0%→2.5%）
+    # Phase 60.4: レジーム別TP設定（RR比改善でPF向上）
     regime_based:
       enabled: true
       tight_range:
-        min_profit_ratio: 0.012      # Phase 59.11: TP 1.2%（RR比2.4:1）Phase 52.1復帰
-        default_ratio: 2.4           # Phase 59.11: RR比2.4:1（Phase 52.1復帰）
+        min_profit_ratio: 0.015      # Phase 60.4: TP 1.5%（RR比3.0:1）PF改善
+        default_ratio: 3.0           # Phase 60.4: RR比3.0:1（1.2%→1.5%）
       normal_range:
-        min_profit_ratio: 0.015      # TP 1.5%（RR比2.5:1）維持
-        default_ratio: 2.5
+        min_profit_ratio: 0.018      # Phase 60.4: TP 1.8%（RR比3.0:1）
+        default_ratio: 3.0
       trending:
         min_profit_ratio: 0.020      # TP 2.0%（RR比2.0:1）維持
         default_ratio: 2.0
@@ -881,7 +892,7 @@ balance_alert:
 # ==================================================================================
 # 目的: Phase 40 Optuna最適化結果の記録（79パラメータ）
 # 使用方法: 上記セクションの値を優先使用（get_threshold()参照）
-# 更新方法: scripts/optimization/run_phase40_optimization.py
+# 更新方法: scripts/optimization/run_github_optimization.py
 # ==================================================================================
 optuna_optimized:
   # 戦略パラメータ（30個）

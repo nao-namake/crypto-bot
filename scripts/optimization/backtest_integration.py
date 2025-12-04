@@ -468,16 +468,17 @@ class BacktestIntegration:
 
     def _extract_metrics_from_json(self, json_path: str) -> float:
         """
-        Phase 57.2: JSONレポートからシャープレシオを計算
+        Phase 58修正: JSONレポートから最適化スコアを計算
 
-        バックテストJSONレポートから取引履歴を抽出し、
-        シャープレシオを計算して返す。
+        Phase 58変更点:
+        - Sharpe Ratio計算を廃止（平均値繰り返しでは不正確）
+        - PFベーススコアを採用（直接的で信頼性が高い）
 
         Args:
             json_path: JSONレポートファイルパス
 
         Returns:
-            float: シャープレシオ
+            float: 最適化スコア（-5.0〜+5.0）
         """
         try:
             with open(json_path, "r", encoding="utf-8") as f:
@@ -490,44 +491,64 @@ class BacktestIntegration:
             win_rate = perf.get("win_rate", 0.0)
             profit_factor = perf.get("profit_factor", 0.0)
 
-            if total_trades == 0:
-                self.logger.warning("⚠️ 取引履歴が空です")
-                return 0.0
-
-            # 取引結果から疑似リターン配列を作成
-            # 平均勝ちトレード・負けトレードを使用
-            avg_win = perf.get("average_win", 0.0)
-            avg_loss = perf.get("average_loss", 0.0)
-            winning_trades = perf.get("winning_trades", 0)
-            losing_trades = perf.get("losing_trades", 0)
-
-            # リターン配列を構築
-            returns = []
-            for _ in range(winning_trades):
-                returns.append(avg_win)
-            for _ in range(losing_trades):
-                returns.append(avg_loss)
-
-            if not returns:
-                return 0.0
-
-            returns_array = np.array(returns)
-
-            # シャープレシオ計算
-            sharpe_ratio = self.metrics_calculator.calculate_sharpe_ratio(returns_array)
+            # Phase 58: PFベーススコア計算
+            optimization_score = self._calculate_optimization_score(perf)
 
             if self.verbose:
                 self.logger.info(
                     f"📊 バックテスト結果: 取引数={total_trades}, "
                     f"勝率={win_rate:.1f}%, PF={profit_factor:.2f}, "
-                    f"総損益={total_pnl:+.0f}円, シャープレシオ={sharpe_ratio:.4f}"
+                    f"総損益={total_pnl:+.0f}円, 最適化スコア={optimization_score:.4f}"
                 )
 
-            return sharpe_ratio
+            return optimization_score
 
         except Exception as e:
             self.logger.error(f"❌ JSON抽出エラー: {e}")
-            return 0.0
+            return -5.0
+
+    def _calculate_optimization_score(self, perf: dict) -> float:
+        """
+        Phase 58: PFベース最適化スコア計算（Sharpe代替）
+
+        Sharpe Ratio計算の問題点:
+        - 平均勝ち/負けを繰り返し使用するとリターン分布が歪む
+        - 年率換算が取引単位リターンに不適切
+
+        PFベーススコアの利点:
+        - 直接的な収益性指標
+        - Optuna最適化に適した範囲（-5.0〜+5.0）
+        - 取引数・勝率も考慮
+
+        Args:
+            perf: パフォーマンス指標辞書
+
+        Returns:
+            float: 最適化スコア（-5.0〜+5.0）
+        """
+        win_rate = perf.get("win_rate", 0.0) / 100.0  # %を小数に変換
+        profit_factor = perf.get("profit_factor", 0.0)
+        total_trades = perf.get("total_trades", 0)
+
+        # 取引数不足ペナルティ
+        if total_trades < 10:
+            return -5.0
+
+        # PFベーススコア（PF>1で正、PF<1で負）
+        # PF=1.0 → 0, PF=2.0 → +2.0, PF=0.5 → -1.0
+        pf_score = (profit_factor - 1.0) * 2.0
+
+        # 勝率ボーナス（50%以上で加点）
+        # 勝率60% → +0.1, 勝率40% → 0
+        wr_bonus = (win_rate - 0.5) if win_rate > 0.5 else 0.0
+
+        # 取引数ペナルティ（少なすぎると減点）
+        trade_penalty = 0.0 if total_trades >= 30 else -0.5
+
+        # 合計スコア（境界値クリッピング）
+        raw_score = pf_score + wr_bonus + trade_penalty
+
+        return float(max(-5.0, min(raw_score, 5.0)))
 
     def get_performance_stats(self) -> Dict[str, Any]:
         """

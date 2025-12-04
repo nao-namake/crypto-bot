@@ -11,8 +11,10 @@
 ├── ci.yml                 # CI/CDパイプライン（品質チェック・ビルド・デプロイ）
 ├── model-training.yml     # ML自動再学習（週次・55特徴量Strategy-Aware ML）
 ├── cleanup.yml            # GCPリソースクリーンアップ（月次・コスト最適化）
-├── weekly_backtest.yml    # 週次バックテスト自動化（Phase 52.1実装）
-├── weekly_report.yml      # 週間レポート自動送信（Phase 48実装）
+├── backtest.yml           # バックテスト手動実行（Phase 55.3実装）
+├── optuna-optimization.yml # Optunaパラメータ最適化（Phase 57実装）
+├── weekly-report.yml      # 週間レポート自動送信（Phase 48実装）
+├── emergency-stop.yml     # 緊急停止ワークフロー（Phase 56実装）
 └── README.md              # このファイル
 ```
 
@@ -101,30 +103,25 @@
 
 ---
 
-### **weekly_backtest.yml - 週次バックテスト自動化**
+### **backtest.yml - バックテスト手動実行**
 
-**役割**: 毎週日曜日00:00 JST に180日間バックテストを自動実行し、Markdownレポートをリポジトリにコミット（Phase 52.1実装）
+**役割**: 手動トリガーでバックテストを実行し、Markdownレポートをリポジトリにコミット（Phase 55.3実装）
 
 **実行条件**:
-- 毎週日曜日 00:00 JST（スケジュール実行）
-- 手動実行（`workflow_dispatch`・Phase名カスタマイズ可能）
+- 手動実行のみ（`workflow_dispatch`）
+- ※週次自動実行は廃止（Phase 57.8）
 
 **実行フロー**:
-1. **履歴データ収集**: 180日分の15分足・4時間足データ収集
-2. **バックテスト実行**: タイムアウト3時間・進捗表示対応
+1. **履歴データ収集**: 指定日数分の15分足・4時間足データ収集
+2. **バックテスト実行**: タイムアウト5時間・進捗表示対応
 3. **Markdownレポート生成**: Phase_XX.Y_YYYYMMDD形式
-4. **Gitコミット**: docs/バックテスト記録/ に自動追加
+4. **Gitコミット**: docs/検証記録/ に自動追加
 
 **バックテスト設定**:
-- 期間: 180日間
+- 期間: 30/60/90/180/365日間（選択可能）
 - 初期残高: 10万円（バックテスト専用設定）
 - TP/SL: unified.yaml設定値使用
-- タイムアウト: 3時間（実行時間約2h43m）
-
-**Phase 52.4改善**:
-- 特徴量数一元管理（`get_feature_count()`・動的取得）
-- 環境変数追加（履歴データ日数）
-- Phase参照更新（5箇所・Phase 52.4統一）
+- タイムアウト: 6時間
 
 ---
 
@@ -153,17 +150,9 @@
 
 ## 📝 使用方法
 
-### **完全自動化フロー**
+### **自動化フロー（Phase 57.8更新）**
 
 ```
-🗓️  毎週土曜15:00 UTC（日曜00:00 JST）
-    ↓
-📊 weekly_backtest.yml 自動実行
-    ├── 180日間履歴データ収集
-    ├── バックテスト実行（約2h43m）
-    ├── Markdownレポート生成
-    └── docs/バックテスト記録/ に自動コミット
-
 🗓️  毎週日曜18:00 JST
     ↓
 🤖 model-training.yml 自動実行
@@ -173,7 +162,7 @@
     └── Git自動コミット・model-updatedイベント送信
     ↓
 🚀 ci.yml 自動トリガー
-    ├── 1,191テスト・品質チェック・65.42%カバレッジ確認
+    ├── 1,252テスト・品質チェック・66%カバレッジ確認
     ├── Docker Build・Artifact Registry プッシュ
     └── Cloud Run本番デプロイ・新MLモデル適用（MODE=live）
     ↓
@@ -181,13 +170,18 @@
 
 🗓️  毎週月曜9:00 JST
     ↓
-📊 weekly_report.yml 自動実行
+📊 weekly-report.yml 自動実行
     └── 週間レポート（損益統計・グラフ）Discord送信
 
 🗓️  毎月第1日曜2:00 JST
     ↓
 🧹 cleanup.yml 自動実行（safeモード）
     └── 古いリソース削除・コスト30%削減
+
+📝  手動実行（必要時）
+    ↓
+📊 backtest.yml 手動実行
+    └── 指定期間バックテスト・docs/検証記録/ にレポート保存
 ```
 
 ### **手動実行方法**
@@ -197,14 +191,16 @@
 gh workflow run ci.yml                                    # CI/CDパイプライン
 gh workflow run model-training.yml                       # MLモデル学習（50 trials）
 gh workflow run cleanup.yml -f cleanup_level=safe        # リソースクリーンアップ
-gh workflow run weekly_backtest.yml                      # バックテスト即座実行
-gh workflow run weekly_report.yml                        # 週間レポート即座送信
+gh workflow run backtest.yml                             # バックテスト手動実行
+gh workflow run weekly-report.yml                        # 週間レポート即座送信
+gh workflow run optuna-optimization.yml                  # Optunaパラメータ最適化
 
 # パラメータ付き実行
 gh workflow run model-training.yml -f n_trials=100       # 高精度学習（100 trials）
 gh workflow run model-training.yml -f dry_run=true       # ドライラン（モデル保存なし）
 gh workflow run cleanup.yml -f cleanup_level=moderate    # 中程度クリーンアップ
-gh workflow run weekly_backtest.yml -f phase_name=52.4   # カスタムPhase名
+gh workflow run backtest.yml -f phase_name=57.8 -f backtest_days=90  # カスタム設定
+gh workflow run optuna-optimization.yml -f optimization_type=hybrid  # ハイブリッド最適化
 ```
 
 ### **実行状況確認**
@@ -214,8 +210,9 @@ gh workflow run weekly_backtest.yml -f phase_name=52.4   # カスタムPhase名
 gh run list --workflow=ci.yml --limit 5
 gh run list --workflow=model-training.yml --limit 5
 gh run list --workflow=cleanup.yml --limit 5
-gh run list --workflow=weekly_backtest.yml --limit 5
-gh run list --workflow=weekly_report.yml --limit 5
+gh run list --workflow=backtest.yml --limit 5
+gh run list --workflow=weekly-report.yml --limit 5
+gh run list --workflow=optuna-optimization.yml --limit 5
 
 # 詳細ログ確認
 gh run view [RUN_ID] --log
@@ -234,7 +231,8 @@ gh run list --limit 1
   - CI/CD: 30分
   - ML学習: 30分
   - クリーンアップ: 20分
-  - 週次バックテスト: 180分（3時間）
+  - バックテスト手動実行: 360分（6時間）
+  - Optuna最適化: 300分（5時間）
   - 週間レポート: 10分
 - **Python版**: 3.11（全ワークフロー統一・GCP gVisor互換性確保・Phase 53.8）
 - **実行制限**: mainブランチでの実行に制限（安全性確保）

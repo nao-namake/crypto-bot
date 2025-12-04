@@ -32,7 +32,7 @@ class EntryAction:
 
 
 class StrategyType:
-    """戦略タイプ定数 - Phase 52.4-B: 6戦略システム."""
+    """戦略タイプ定数 - Phase 61: 7戦略システム."""
 
     ATR_BASED = "atr_based"
     DONCHIAN_CHANNEL = "donchian_channel"
@@ -40,6 +40,7 @@ class StrategyType:
     BB_REVERSAL = "bb_reversal"
     STOCHASTIC_REVERSAL = "stochastic_reversal"
     MACD_EMA_CROSSOVER = "macd_ema_crossover"
+    MEAN_REVERSION = "mean_reversion"  # Phase 61: 新規追加
 
 
 # 基本リスク管理パラメータ（戦略で上書き可能）

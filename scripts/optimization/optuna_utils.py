@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
-Optuna最適化共通ユーティリティ - Phase 40
+Optuna最適化共通ユーティリティ - Phase 40/60.3
 
 Phase 40全体で使用する共通機能を提供：
 - Walk-forward testing実装
 - シャープレシオ計算
 - 最適化結果の保存・読み込み
 - バックテスト実行ヘルパー
+
+Phase 60.3追加機能:
+- 戦略別パラメータ範囲取得
+- 過学習検出ヘルパー
 """
 
 import json
@@ -24,14 +28,20 @@ class OptimizationMetrics:
     @staticmethod
     def calculate_sharpe_ratio(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
         """
-        シャープレシオ計算
+        シャープレシオ計算（Phase 58修正版）
 
         Args:
-            returns: リターン配列
-            risk_free_rate: リスクフリーレート（年率）
+            returns: リターン配列（取引単位リターン）
+            risk_free_rate: リスクフリーレート
 
         Returns:
-            float: シャープレシオ
+            float: シャープレシオ（-5.0〜+5.0にクリッピング）
+
+        Note:
+            Phase 58修正: 年率換算を削除。
+            理由: 入力データは日次リターンではなく取引単位リターンのため、
+            sqrt(365)による年率換算は不適切。
+            境界値クリッピングで極端な値を防止。
         """
         if len(returns) == 0:
             return 0.0
@@ -45,13 +55,13 @@ class OptimizationMetrics:
         if std_return == 0:
             return 0.0
 
-        # シャープレシオ
+        # シャープレシオ（年率換算なし - 取引単位リターンに適用）
         sharpe = (mean_return - risk_free_rate) / std_return
 
-        # 年率換算（日次リターンの場合、sqrt(365)で年率化）
-        sharpe_annualized = sharpe * np.sqrt(365)
+        # 境界値クリッピング（極端な値を防止）
+        sharpe_clipped = max(-5.0, min(sharpe, 5.0))
 
-        return float(sharpe_annualized)
+        return float(sharpe_clipped)
 
     @staticmethod
     def calculate_max_drawdown(equity_curve: np.ndarray) -> float:
@@ -282,3 +292,123 @@ def print_optimization_summary(
             print(f"  - {key}: {value}")
 
     print("\n" + "=" * 80)
+
+
+# =============================================================================
+# [Phase 60.3] 戦略別パラメータ範囲取得
+# =============================================================================
+
+
+class StrategyParameterRanges:
+    """[Phase 60.3] 戦略別パラメータ範囲定義"""
+
+    # 各戦略の最適化可能パラメータと範囲
+    STRATEGY_PARAMS = {
+        "ATRBased": {
+            "atr_period": {"type": "int", "low": 10, "high": 30},
+            "atr_multiplier": {"type": "float", "low": 1.5, "high": 3.5},
+            "rsi_overbought": {"type": "int", "low": 65, "high": 80},
+            "rsi_oversold": {"type": "int", "low": 20, "high": 35},
+        },
+        "DonchianChannel": {
+            "period": {"type": "int", "low": 15, "high": 30},
+            "breakout_threshold": {"type": "float", "low": 0.0, "high": 0.02},
+        },
+        "ADXTrendStrength": {
+            "adx_period": {"type": "int", "low": 10, "high": 20},
+            "adx_threshold": {"type": "int", "low": 20, "high": 35},
+            "trend_strength_threshold": {"type": "float", "low": 0.3, "high": 0.7},
+        },
+        "BBReversal": {
+            "bb_period": {"type": "int", "low": 15, "high": 25},
+            "bb_std": {"type": "float", "low": 1.5, "high": 2.5},
+            "bb_width_threshold": {"type": "float", "low": 0.02, "high": 0.05},
+            "rsi_buy_threshold": {"type": "int", "low": 25, "high": 40},
+            "rsi_sell_threshold": {"type": "int", "low": 60, "high": 75},
+        },
+        "StochasticReversal": {
+            "stoch_period": {"type": "int", "low": 10, "high": 20},
+            "stoch_overbought": {"type": "int", "low": 75, "high": 90},
+            "stoch_oversold": {"type": "int", "low": 10, "high": 25},
+        },
+        "MACDEMACrossover": {
+            "macd_fast": {"type": "int", "low": 8, "high": 15},
+            "macd_slow": {"type": "int", "low": 20, "high": 30},
+            "macd_signal": {"type": "int", "low": 7, "high": 12},
+            "ema_period": {"type": "int", "low": 15, "high": 30},
+        },
+    }
+
+    @classmethod
+    def get_params_for_strategy(cls, strategy_name: str) -> Dict[str, Dict[str, Any]]:
+        """
+        戦略別パラメータ範囲取得
+
+        Args:
+            strategy_name: 戦略名
+
+        Returns:
+            Dict: パラメータ名と範囲のマッピング
+        """
+        return cls.STRATEGY_PARAMS.get(strategy_name, {})
+
+    @classmethod
+    def get_all_strategies(cls) -> List[str]:
+        """利用可能な全戦略名を取得"""
+        return list(cls.STRATEGY_PARAMS.keys())
+
+
+class OverfittingDetector:
+    """[Phase 60.3] 過学習検出クラス"""
+
+    def __init__(self, degradation_threshold: float = 0.20):
+        """
+        初期化
+
+        Args:
+            degradation_threshold: 乖離率閾値（デフォルト20%）
+        """
+        self.degradation_threshold = degradation_threshold
+        self.warnings = []
+
+    def check_overfitting(
+        self,
+        train_score: float,
+        test_score: float,
+        period_name: str = "",
+    ) -> bool:
+        """
+        過学習チェック
+
+        Args:
+            train_score: 訓練期間スコア
+            test_score: テスト期間スコア
+            period_name: 期間名（ログ用）
+
+        Returns:
+            bool: 過学習警告がある場合True
+        """
+        if train_score <= 0:
+            return False
+
+        degradation = (train_score - test_score) / train_score
+
+        if degradation > self.degradation_threshold:
+            warning_msg = (
+                f"過学習検出 {period_name}: "
+                f"訓練={train_score:.2f} テスト={test_score:.2f} "
+                f"乖離={degradation*100:.1f}%"
+            )
+            self.warnings.append(warning_msg)
+            return True
+
+        return False
+
+    def get_summary(self) -> Dict[str, Any]:
+        """検出サマリー取得"""
+        return {
+            "warning_count": len(self.warnings),
+            "has_overfitting": len(self.warnings) > 0,
+            "warnings": self.warnings,
+            "threshold_pct": self.degradation_threshold * 100,
+        }

@@ -77,7 +77,7 @@ optuna_optimized:      # Optuna最適化値（Phase 40）
 **使い方**:
 - コードから参照: `get_threshold("パラメータ名")`
 - Phase 40 Optuna最適化結果を含む
-- 変更時: `scripts/optimization/run_phase40_optimization.py`使用推奨
+- 変更時: `scripts/optimization/run_github_optimization.py`使用推奨
 
 **変更履歴**: `docs/設定履歴/thresholds_yaml_history.md`
 
