@@ -144,19 +144,25 @@ class TestBBReversalStrategy(unittest.TestCase):
         self.assertTrue(is_range)
 
     def test_is_range_market_false_high_adx(self):
-        """レンジ相場判定テスト - トレンド相場（ADX高）"""
-        # トレンド相場条件: ADX >= 20
+        """レンジ相場判定テスト - トレンド相場（ADX高+BB幅広）"""
+        # Phase 60.6c: OR条件のため、両方NGでないとトレンド判定
+        # トレンド相場条件: ADX >= adx_range_threshold AND BB幅 >= bb_width_threshold
+        # setUp config: adx_range_threshold=20, bb_width_threshold=0.02
         df = self._create_test_data(adx=25)
+        # BB幅を強制的に広げる（2%以上にする）
+        df["bb_upper"] = df["close"] * 1.03
+        df["bb_lower"] = df["close"] * 0.97
         is_range = self.strategy._is_range_market(df)
         self.assertFalse(is_range)
 
     def test_is_range_market_false_wide_bb(self):
-        """レンジ相場判定テスト - トレンド相場（BB幅広）"""
-        # トレンド相場条件: BB幅 >= 2%
-        df = self._create_test_data()
+        """レンジ相場判定テスト - トレンド相場（BB幅広+ADX高）"""
+        # Phase 60.6c: OR条件のため、両方NGでないとトレンド判定
+        # トレンド相場条件: BB幅 >= threshold AND ADX >= threshold
+        df = self._create_test_data(adx=35)  # ADXも高く
         # BB幅を強制的に広げる
-        df["bb_upper"] = df["close"] * 1.03
-        df["bb_lower"] = df["close"] * 0.97
+        df["bb_upper"] = df["close"] * 1.05
+        df["bb_lower"] = df["close"] * 0.95
         is_range = self.strategy._is_range_market(df)
         self.assertFalse(is_range)
 
@@ -226,10 +232,14 @@ class TestBBReversalStrategy(unittest.TestCase):
 
     def test_analyze_hold_signal_trend_market(self):
         """HOLD信号生成テスト - トレンド相場"""
-        # トレンド相場条件: ADX >= 20
-        df = self._create_test_data(bb_position=0.97, rsi=75, adx=30)
+        # Phase 60.6c: OR条件のため、両方NGでないとトレンド判定
+        # トレンド相場条件: ADX >= 30 AND BB幅 >= threshold
+        df = self._create_test_data(bb_position=0.97, rsi=75, adx=35)
+        # BB幅も広くしてトレンド判定にする
+        df["bb_upper"] = df["close"] * 1.05
+        df["bb_lower"] = df["close"] * 0.95
 
-        # トレンド相場なので即HOLD
+        # ADX=35 >= 30 AND BB幅広いのでトレンド相場判定→HOLD
         signal = self.strategy.analyze(df)
         self.assertEqual(signal.action, EntryAction.HOLD)
         self.assertIn("トレンド相場", signal.reason)

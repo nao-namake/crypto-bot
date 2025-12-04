@@ -44,14 +44,14 @@
 - **設定管理**: Single Source of Truth確立
 
 **モデルシステム**:
-- **ensemble_full.pkl**（55特徴量・デフォルト）← **n_jobs=1設定済み**
+- **ensemble_full.pkl**（56特徴量・デフォルト）← **n_jobs=1設定済み**
 - **ensemble_basic.pkl**（49特徴量・フォールバック）← **n_jobs=1設定済み**
 - **DummyModel**（最終フォールバック・ゼロダウンタイム保証）
 
 **アーキテクチャ基盤**:
 - **拡張性**: Registry Pattern実装・戦略追加が2ファイルのみ（93%削減）
 - **技術的負債**: ゼロ
-- **動的戦略管理**: 6戦略統合・55特徴量システム
+- **動的戦略管理**: 7戦略統合・56特徴量システム
 - **システム整合性**: 100%達成
 
 **運用仕様**:
@@ -63,17 +63,18 @@
 
 ### システム概要
 
-**AI自動取引システム**: 6戦略 + ML統合（**55特徴量システム**）による真のハイブリッドMLbot
+**AI自動取引システム**: 7戦略 + ML統合（**56特徴量システム**）による真のハイブリッドMLbot
 
 **技術構成**:
 - Python 3.11・GCP gVisor互換性確保・99%稼働率達成（Phase 53.5/53.8）
-- **6戦略統合**（Phase 51.7）:
-  - レンジ型3個: ATRBased・DonchianChannel・BBReversal
-  - トレンド型3個: ADXTrendStrength・StochasticReversal・MACDEMACrossover
+- **7戦略統合**（Phase 60.7）:
+  - レンジ型4個: ATRBased・BBReversal・StochasticReversal・MeanReversion
+  - トレンド型1個: ADXTrendStrength
+  - 無効化2個: DonchianChannel・MACDEMACrossover（貢献度マイナス）
 - **動的戦略管理**: Registry Pattern・93%影響削減
 - 3モデルアンサンブル（LightGBM 50%・XGBoost 30%・RandomForest 20%・**n_jobs=1設定**・CV F1: 0.52-0.59）
 - 4時間足（トレンド）+ 15分足（エントリー）
-- **本番稼働中**: 55特徴量システム・ML統合設定最適化完了（Phase 53.8.3）
+- **本番稼働中**: 56特徴量システム・ML統合設定最適化完了（Phase 60.7）
 
 **リスク管理**:
 - **TP/SL設定**（レジーム別動的設定）:
@@ -86,9 +87,9 @@
 - **証拠金維持率80%確実遵守**（Phase 49.18）
 
 **ML統合**（最新システム）:
-- **55特徴量システム**（確立・一元管理・n_jobs=1設定）:
+- **56特徴量システム**（確立・一元管理・n_jobs=1設定）:
   - 49基本テクニカル特徴量
-  - 6戦略信号特徴量（Phase 51.7: 6戦略すべてのシグナル）
+  - 7戦略信号特徴量（Phase 60.7: 7戦略すべてのシグナル）
   - feature_order.jsonが唯一の真実（Single Source of Truth）
 - **真の3クラス分類**:
   - 0=sell, 1=hold, 2=buy（F1改善+9.7%）
@@ -96,7 +97,7 @@
 - ML統合率100%達成
 - 3段階統合ロジック（<0.45: 戦略のみ・0.45-0.60: 加重平均・≥0.60: ボーナス/ペナルティ）
 - **2段階Graceful Degradation**:
-  - **Level 1（デフォルト）**: 55特徴量 ← **ensemble_full.pkl**（完全特徴量セット）
+  - **Level 1（デフォルト）**: 56特徴量 ← **ensemble_full.pkl**（完全特徴量セット）
   - **Level 2（フォールバック）**: 49特徴量 ← **ensemble_basic.pkl**（戦略信号なし）
   - **Level 3（最終）**: DummyModel（全holdシグナル・システム継続動作保証）
   - 外部API依存削除・セマンティック命名採用・システム安定性向上

@@ -61,8 +61,12 @@ class MeanReversionStrategy(StrategyBase):
             "rsi_overbought": get_threshold("strategies.mean_reversion.rsi_overbought", 65),
             "rsi_oversold": get_threshold("strategies.mean_reversion.rsi_oversold", 35),
             # Phase 60.5: BB閾値緩和（0.9/0.1→0.85/0.15）
-            "bb_upper_threshold": get_threshold("strategies.mean_reversion.bb_upper_threshold", 0.85),
-            "bb_lower_threshold": get_threshold("strategies.mean_reversion.bb_lower_threshold", 0.15),
+            "bb_upper_threshold": get_threshold(
+                "strategies.mean_reversion.bb_upper_threshold", 0.85
+            ),
+            "bb_lower_threshold": get_threshold(
+                "strategies.mean_reversion.bb_lower_threshold", 0.15
+            ),
             # Phase 60.5: レンジ相場判定拡大（25→30）
             "adx_range_threshold": get_threshold(
                 "strategies.mean_reversion.adx_range_threshold", 30

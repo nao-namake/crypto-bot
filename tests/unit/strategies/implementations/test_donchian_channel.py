@@ -80,9 +80,9 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         self.assertEqual(default_strategy.name, "DonchianChannel")
         self.assertEqual(default_strategy.channel_period, 20)
 
-        # カスタム設定
+        # カスタム設定 - thresholds.yaml値を使用
         self.assertEqual(self.strategy.channel_period, 20)
-        self.assertEqual(self.strategy.breakout_threshold, 0.002)
+        self.assertEqual(self.strategy.breakout_threshold, 0.003)  # thresholds.yaml設定
 
     def test_required_features(self):
         """必要特徴量テスト"""

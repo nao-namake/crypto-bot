@@ -135,8 +135,8 @@ class TestFeatureGenerator:
             # Phase 54.9: Bug #2修正 - strategy_signals=Noneの場合は0.5（中立HOLD）で生成
             assert (result_df[feature] == 0.5).all(), f"戦略シグナル特徴量{feature}が0.5でない"
 
-        # computed_featuresに記録されているかチェック - Phase 51.5-A: 60特徴量（確実）
-        assert len(generator.computed_features) == 55
+        # computed_featuresに記録されているかチェック - Phase 60.7: 56特徴量（7戦略）
+        assert len(generator.computed_features) == 56
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -536,9 +536,9 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が55-63の範囲になるはず - Phase 51.7 Day 7（6戦略構成）
-        # 49基本特徴量 + 6戦略信号特徴量 = 55特徴量
-        assert 55 <= len(generator.computed_features) <= 63
+        # 計算された特徴量数が56-63の範囲になるはず - Phase 60.7（7戦略構成）
+        # 49基本特徴量 + 7戦略信号特徴量 = 56特徴量
+        assert 56 <= len(generator.computed_features) <= 63
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
@@ -549,7 +549,7 @@ class TestFeatureGeneratorPrivateMethods:
 # Phase 51.7 Day 2: 新規追加特徴量テスト
 # ========================================
 @pytest.mark.skip(
-    reason="Phase 51.7 Day 7: Day 2テスト(51特徴量)はDay 7(55特徴量・6戦略)に置き換えられたためスキップ"
+    reason="Phase 60.7: Day 2テスト(51特徴量)はPhase 60.7(56特徴量・7戦略)に置き換えられたためスキップ"
 )
 class TestPhase517Day2NewFeatures:
     """Phase 51.7 Day 2で追加された新特徴量のテストクラス"""

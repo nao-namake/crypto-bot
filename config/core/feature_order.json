@@ -1,14 +1,14 @@
 {
-  "feature_order_version": "v4.2.0",
-  "phase": "Phase 52.4",
-  "total_features": 55,
-  "last_updated": "2025-11-14T00:00:00Z",
-  "description": "55特徴量（6戦略完全対応・Phase 52.4コード品質改善完了）",
+  "feature_order_version": "v4.3.0",
+  "phase": "Phase 60.7",
+  "total_features": 56,
+  "last_updated": "2025-12-05T00:00:00Z",
+  "description": "56特徴量（7戦略完全対応・Phase 60.7 MeanReversion追加）",
 
   "feature_levels": {
     "full": {
-      "count": 55,
-      "description": "完全特徴量（6戦略信号含む・49基本+6戦略）- デフォルトモデル",
+      "count": 56,
+      "description": "完全特徴量（7戦略信号含む・49基本+7戦略）- デフォルトモデル",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
       "model_file": "ensemble_full.pkl"
     },
@@ -137,16 +137,17 @@
     },
 
     "strategy_signals": {
-      "description": "戦略シグナル特徴量（Strategy Signals・6個・Phase 51.7完了）",
+      "description": "戦略シグナル特徴量（Strategy Signals・7個・Phase 60.7 MeanReversion追加）",
       "features": [
         "strategy_signal_ATRBased",
         "strategy_signal_DonchianChannel",
         "strategy_signal_ADXTrendStrength",
         "strategy_signal_BBReversal",
         "strategy_signal_StochasticReversal",
-        "strategy_signal_MACDEMACrossover"
+        "strategy_signal_MACDEMACrossover",
+        "strategy_signal_MeanReversion"
       ],
-      "note": "✅ Phase 51.7完了・Phase 52.4整理完了: 6戦略シグナル完全対応"
+      "note": "✅ Phase 60.7: 7戦略シグナル完全対応（MeanReversion追加）"
     }
   },
 
@@ -561,6 +562,16 @@
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
       "note": "Phase 51.7 Day 5追加・Phase 51.9エンコーディング改善完了",
       "phase": "Phase 51.9"
+    },
+    "strategy_signal_MeanReversion": {
+      "type": "strategy_signal",
+      "description": "MeanReversion戦略シグナル（移動平均乖離反転・レンジ特化・0.0-1.0連続値）",
+      "range": "0.0 to 1.0",
+      "importance": "medium",
+      "feature_importance": 0,
+      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
+      "note": "Phase 60.7追加・OR条件・レンジ特化戦略",
+      "phase": "Phase 60.7"
     }
   },
 

@@ -295,23 +295,23 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
         # SignalBuilderが呼ばれる（HOLDシグナル生成）
         self.assertEqual(signal.action, EntryAction.HOLD)
 
-    def test_analyze_hold_signal_range_market(self):
-        """HOLD信号生成テスト - レンジ相場"""
-        # レンジ相場条件: ADX < 25
+    def test_analyze_hold_signal_no_conditions(self):
+        """HOLD信号生成テスト - 条件未達成"""
+        # Phase 60.4: ADXフィルター削除。クロスオーバーなし+条件未達成でHOLD
         df = self._create_test_data(
             macd=10000,
-            macd_signal=9000,
-            ema_20=15200000,
-            ema_50=15000000,
-            adx=20,
+            macd_signal=10000,  # クロスオーバーなし
+            ema_20=15000000,
+            ema_50=15000000,  # EMAトレンドなし
+            adx=10,
             volume_ratio=1.2,
-            crossover_type="golden",
+            crossover_type="none",
         )
 
-        # レンジ相場なので即HOLD
+        # クロスオーバーなし・条件未達成なのでHOLD
         signal = self.strategy.analyze(df)
         self.assertEqual(signal.action, EntryAction.HOLD)
-        self.assertIn("not_trend_market", signal.reason)
+        self.assertIn("条件未達成", signal.reason)
 
     def test_analyze_macd_ema_signal_buy(self):
         """MACD+EMAシグナル分析テスト - BUY"""
@@ -328,7 +328,8 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
         self.assertEqual(decision["action"], EntryAction.BUY)
         self.assertGreater(decision["confidence"], 0.30)
         self.assertGreater(decision["strength"], 0)
-        self.assertIn("MACD+EMAクロスBUY", decision["reason"])
+        # Phase 60.6c-v2: reason形式変更
+        self.assertIn("MACD BUY", decision["reason"])
 
     def test_analyze_macd_ema_signal_sell(self):
         """MACD+EMAシグナル分析テスト - SELL"""
@@ -345,7 +346,8 @@ class TestMACDEMACrossoverStrategy(unittest.TestCase):
         self.assertEqual(decision["action"], EntryAction.SELL)
         self.assertGreater(decision["confidence"], 0.30)
         self.assertGreater(decision["strength"], 0)
-        self.assertIn("MACD+EMAクロスSELL", decision["reason"])
+        # Phase 60.6c-v2: reason形式変更
+        self.assertIn("MACD SELL", decision["reason"])
 
     def test_analyze_macd_ema_signal_hold(self):
         """MACD+EMAシグナル分析テスト - HOLD"""

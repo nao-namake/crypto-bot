@@ -344,11 +344,12 @@ dynamic_strategy_selection:
   # ========================================
   regime_active_strategies:
     # tight_range（狭いレンジ相場）: レンジ型＋逆張り系
-    # ATR=ボラティリティ基準、BB/Stoch=逆張り系で相性◎
+    # ATR=ボラティリティ基準、BB/Stoch=逆張り系、MeanReversion=平均回帰で相性◎
     tight_range:
       - ATRBased
       - BBReversal
       - StochasticReversal
+      - MeanReversion
 
     # normal_range（通常レンジ相場）: レンジ型＋ブレイクアウト検出
     # ATR/BB=レンジ型中心、Donchian=ブレイクアウト検出
@@ -370,37 +371,41 @@ dynamic_strategy_selection:
   # レジーム別戦略重みマッピング
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 60.4: 高PF戦略集中（分析結果: ADX PF1.34, MACD PF1.48）
-      ATRBased: 0.20           # Phase 60.4: 0.25→0.20（PF0.77→削減）
-      BBReversal: 0.25         # Phase 60.4: 0.20→0.25（勝率63%・スコア1位）
-      DonchianChannel: 0.20    # Phase 60.4: 0.35→0.20（PF1.04・スコア低め）
-      StochasticReversal: 0.05 # Phase 60.4: 0.10→0.05（PF0.66・最低）
-      ADXTrendStrength: 0.20   # Phase 60.4: 0.10→0.20（PF1.34増加）
-      MACDEMACrossover: 0.10   # Phase 60.4: 0.0→0.10（PF1.48追加）
+      # Phase 60.7: 7戦略統合・高PF戦略集中
+      ATRBased: 0.15           # Phase 60.7: 調整
+      BBReversal: 0.20         # Phase 60.7: 勝率63%・スコア1位
+      DonchianChannel: 0.15    # Phase 60.7: 調整
+      StochasticReversal: 0.05 # Phase 60.7: PF0.66・最低
+      ADXTrendStrength: 0.15   # Phase 60.7: PF1.34
+      MACDEMACrossover: 0.10   # Phase 60.7: PF1.48
+      MeanReversion: 0.20      # Phase 60.7: レンジ戦略追加
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 60.4: 高PF戦略重視
-      ATRBased: 0.20           # Phase 60.4: 0.25→0.20（PF低め）
-      BBReversal: 0.20         # Phase 60.4: 0.15→0.20（勝率63%）
-      DonchianChannel: 0.15    # Phase 60.4: 維持
-      StochasticReversal: 0.05 # Phase 60.4: 0.10→0.05（PF最低）
-      ADXTrendStrength: 0.25   # Phase 60.4: 維持（PF1.34）
-      MACDEMACrossover: 0.15   # Phase 60.4: 0.10→0.15（PF1.48増加）
+      # Phase 60.7: 7戦略統合・高PF戦略重視
+      ATRBased: 0.15           # Phase 60.7: 調整
+      BBReversal: 0.15         # Phase 60.7: 勝率63%
+      DonchianChannel: 0.10    # Phase 60.7: 調整
+      StochasticReversal: 0.05 # Phase 60.7: PF最低
+      ADXTrendStrength: 0.20   # Phase 60.7: PF1.34
+      MACDEMACrossover: 0.15   # Phase 60.7: PF1.48
+      MeanReversion: 0.20      # Phase 60.7: レンジ戦略追加
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
-      # トレンド型80/20配分
+      # Phase 60.7: 7戦略統合・トレンド型80/20配分
       ADXTrendStrength: 0.50
       MACDEMACrossover: 0.30
       ATRBased: 0.15
       DonchianChannel: 0.05
       BBReversal: 0.0
       StochasticReversal: 0.0
+      MeanReversion: 0.0       # Phase 60.7: トレンド時は無効
     high_volatility:  # 高ボラティリティ（ATR比 > 1.8%・4時間足）
-      # 全戦略無効化（完全待機モード）
+      # Phase 60.7: 7戦略統合・全戦略無効化（完全待機モード）
       ATRBased: 0.0
       BBReversal: 0.0
       DonchianChannel: 0.0
       StochasticReversal: 0.0
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
+      MeanReversion: 0.0       # Phase 60.7: 高ボラ時は無効
 
 # ================================================================================
 # Phase 52.5: セクション区切り（視覚的整理）

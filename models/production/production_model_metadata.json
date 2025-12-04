@@ -1,9 +1,9 @@
 {
-  "created_at": "2025-11-22T09:15:47.312974",
+  "created_at": "2025-12-05T07:32:10.807976",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
-  "phase": "Phase 50.9",
+  "phase": "Phase 60.7",
   "status": "production_ready",
   "feature_names": [
     "close",
@@ -60,7 +60,8 @@
     "strategy_signal_ADXTrendStrength",
     "strategy_signal_BBReversal",
     "strategy_signal_StochasticReversal",
-    "strategy_signal_MACDEMACrossover"
+    "strategy_signal_MACDEMACrossover",
+    "strategy_signal_MeanReversion"
   ],
   "individual_models": [
     "lightgbm",
@@ -74,38 +75,38 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.3845256609642302,
-      "f1_score": 0.3953821165413383,
-      "precision": 0.5026582000783206,
-      "recall": 0.3845256609642302,
-      "cv_f1_mean": 0.5570480499134649,
-      "cv_f1_std": 0.04868220127706582
+      "accuracy": 0.8819444444444444,
+      "f1_score": 0.873869289914066,
+      "precision": 0.8660919540229886,
+      "recall": 0.8819444444444444,
+      "cv_f1_mean": 0.8636272850337671,
+      "cv_f1_std": 0.060872841937830165
     },
     "xgboost": {
-      "accuracy": 0.4646189735614308,
-      "f1_score": 0.42729856242526354,
-      "precision": 0.42458452741851577,
-      "recall": 0.4646189735614308,
-      "cv_f1_mean": 0.5588817443972753,
-      "cv_f1_std": 0.04271890388997038
+      "accuracy": 0.9212962962962963,
+      "f1_score": 0.8835564480142793,
+      "precision": 0.848786865569273,
+      "recall": 0.9212962962962963,
+      "cv_f1_mean": 0.8664350311559401,
+      "cv_f1_std": 0.06245727350662072
     },
     "random_forest": {
-      "accuracy": 0.4416796267496112,
-      "f1_score": 0.4449624181508043,
-      "precision": 0.4692507878560452,
-      "recall": 0.4416796267496112,
-      "cv_f1_mean": 0.5700448645880726,
-      "cv_f1_std": 0.03922102939147224
+      "accuracy": 0.9120370370370371,
+      "f1_score": 0.8789122051833915,
+      "precision": 0.8481092073381794,
+      "recall": 0.9120370370370371,
+      "cv_f1_mean": 0.8680026044512358,
+      "cv_f1_std": 0.06399697044595308
     }
   },
   "training_info": {
-    "samples": 17141,
-    "feature_count": 55,
+    "samples": 2876,
+    "feature_count": 56,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "e45e17b6eb266bc4b1024782960cfef37e923196",
-    "commit_short": "e45e17b6",
+    "commit": "4958552a1ee583abf8ebeeaa23260c2506a46389",
+    "commit_short": "4958552a",
     "branch": "main"
   },
   "notes": "Phase 52.4完了・6戦略統合・55特徴量システム・真の3クラス分類・2段階Graceful Degradation・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"

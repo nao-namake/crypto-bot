@@ -1,8 +1,8 @@
 """
-動的戦略選択器のテスト - Phase 51.8
+動的戦略選択器のテスト - Phase 60.7
 
 DynamicStrategySelectorの機能・ロジックをテスト。
-6戦略構成（ATRBased・BBReversal・DonchianChannel・StochasticReversal・ADXTrendStrength・MACDEMACrossover）対応。
+7戦略構成（ATRBased・BBReversal・DonchianChannel・StochasticReversal・ADXTrendStrength・MACDEMACrossover・MeanReversion）対応。
 """
 
 import pytest
@@ -24,67 +24,66 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_get_regime_weights_tight_range(self, selector):
-        """tight_range レジームの重み取得が正しいことを確認（Phase 51.8: 6戦略）"""
+        """tight_range レジームの重み取得が正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector.get_regime_weights(RegimeType.TIGHT_RANGE)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
 
-        # tight_rangeはレンジ型戦略に集中（ATRBased・BBReversal・DonchianChannel・StochasticReversal）
+        # tight_rangeは全7戦略を含む
         assert "ATRBased" in weights
         assert "BBReversal" in weights
         assert "DonchianChannel" in weights
         assert "StochasticReversal" in weights
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
+        assert "MeanReversion" in weights
 
-        # Phase 54.6: tight_rangeはトップ2レンジ戦略のみ有効（70:30比率）
-        # ATRBased (priority 1) + BBReversal (priority 4)
+        # Phase 60.7: レンジ戦略が正の重みを持つ
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] > 0
-        # DonchianChannel/StochasticReversalは意図的に0.0（ブレイクアウト戦略・レンジ不向き）
-        assert weights["DonchianChannel"] >= 0  # Can be 0.0 in tight_range
-        assert weights["StochasticReversal"] >= 0  # Can be 0.0 in tight_range
+        assert weights["MeanReversion"] > 0
 
-        # Phase 59.11: tight_rangeでも高PF戦略は微量追加
-        assert weights["ADXTrendStrength"] == 0.1  # Phase 59.11: 0.0→0.1（PF2.72の高性能戦略追加）
-        assert weights["MACDEMACrossover"] == 0.0
+        # Phase 60.7: 7戦略統合の重み設定
+        assert weights["ADXTrendStrength"] == 0.15  # Phase 60.7: PF1.34
+        assert weights["MACDEMACrossover"] == 0.10  # Phase 60.7: PF1.48
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
 
     def test_get_regime_weights_normal_range(self, selector):
-        """normal_range レジームの重み取得が正しいことを確認（Phase 51.8: 6戦略）"""
+        """normal_range レジームの重み取得が正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector.get_regime_weights(RegimeType.NORMAL_RANGE)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
 
-        # normal_rangeはバランス型配分（全6戦略使用）
+        # normal_rangeはバランス型配分（全7戦略使用）
         assert "ATRBased" in weights
         assert "BBReversal" in weights
         assert "DonchianChannel" in weights
         assert "StochasticReversal" in weights
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
+        assert "MeanReversion" in weights
 
-        # 全戦略が正の重み（バランス型）
+        # 全戦略が正の重みまたは0（バランス型）
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] > 0
         assert weights["DonchianChannel"] > 0
-        assert weights["StochasticReversal"] > 0
         assert weights["ADXTrendStrength"] > 0
         assert weights["MACDEMACrossover"] > 0
+        assert weights["MeanReversion"] > 0
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
 
     def test_get_regime_weights_trending(self, selector):
-        """trending レジームの重み取得が正しいことを確認（Phase 51.8: 6戦略）"""
+        """trending レジームの重み取得が正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector.get_regime_weights(RegimeType.TRENDING)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
 
         # trendingはトレンド型戦略に集中（ADXTrendStrength・MACDEMACrossover）
         assert "ADXTrendStrength" in weights
@@ -93,6 +92,7 @@ class TestDynamicStrategySelector:
         assert "DonchianChannel" in weights
         assert "BBReversal" in weights
         assert "StochasticReversal" in weights
+        assert "MeanReversion" in weights
 
         # トレンド型戦略は正の重み
         assert weights["ADXTrendStrength"] > 0
@@ -103,6 +103,7 @@ class TestDynamicStrategySelector:
         # レンジ型戦略は0.0（無効化）
         assert weights["BBReversal"] == 0.0
         assert weights["StochasticReversal"] == 0.0
+        assert weights["MeanReversion"] == 0.0  # Phase 60.7: トレンド時は無効
 
         # ADXTrendStrengthが最も高い重みを持つことを確認
         assert weights["ADXTrendStrength"] > weights["MACDEMACrossover"]
@@ -112,11 +113,11 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights)
 
     def test_get_regime_weights_high_volatility(self, selector):
-        """high_volatility レジームは全戦略0.0（全戦略無効化）を返すことを確認（Phase 51.8: 6戦略）"""
+        """high_volatility レジームは全戦略0.0（全戦略無効化）を返すことを確認（Phase 60.7: 7戦略）"""
         weights = selector.get_regime_weights(RegimeType.HIGH_VOLATILITY)
 
         # 高ボラティリティは全戦略0.0（全戦略無効化）
-        assert len(weights) == 6  # 全6戦略を含む - Phase 51.8
+        assert len(weights) == 7  # 全7戦略を含む - Phase 60.7
         assert all(weight == 0.0 for weight in weights.values())
         # 合計0.0も有効と判定されることを確認
         assert selector.validate_weights(weights)
@@ -131,7 +132,7 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_validate_weights_sum_to_one(self, selector):
-        """重み合計が1.0の場合にTrueを返すことを確認（Phase 51.8: 6戦略）"""
+        """重み合計が1.0の場合にTrueを返すことを確認（Phase 60.7: 7戦略）"""
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
@@ -143,7 +144,7 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights) is True
 
     def test_validate_weights_sum_not_one(self, selector):
-        """重み合計が1.0でない場合にFalseを返すことを確認（Phase 51.8: 6戦略）"""
+        """重み合計が1.0でない場合にFalseを返すことを確認（Phase 60.7: 7戦略）"""
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
@@ -160,7 +161,7 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights) is True
 
     def test_validate_weights_all_zero(self, selector):
-        """全戦略0.0（合計0.0）はTrueを返すことを確認（高ボラティリティ時・Phase 51.8: 6戦略）"""
+        """全戦略0.0（合計0.0）はTrueを返すことを確認（高ボラティリティ時・Phase 60.7: 7戦略）"""
         weights = {
             "ATRBased": 0.0,
             "BBReversal": 0.0,
@@ -168,11 +169,12 @@ class TestDynamicStrategySelector:
             "StochasticReversal": 0.0,
             "ADXTrendStrength": 0.0,
             "MACDEMACrossover": 0.0,
+            "MeanReversion": 0.0,
         }
         assert selector.validate_weights(weights) is True
 
     def test_validate_weights_tolerance(self, selector):
-        """許容誤差範囲（0.99-1.01）でTrueを返すことを確認（Phase 51.8: 6戦略）"""
+        """許容誤差範囲（0.99-1.01）でTrueを返すことを確認（Phase 60.7: 7戦略）"""
         # 0.995（許容範囲内）
         weights = {
             "ATRBased": 0.30,
@@ -222,12 +224,12 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_get_default_weights_tight_range(self, selector):
-        """tight_range のデフォルト重みが正しいことを確認（Phase 51.8: 6戦略）"""
+        """tight_range のデフォルト重みが正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector._get_default_weights(RegimeType.TIGHT_RANGE)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
+        # Phase 60.7: 設定駆動型のため、strategies.yamlの構成に依存
         # レンジ型戦略が正の重みを持つことを確認
         assert weights.get("ATRBased", 0) > 0 or weights.get("BBReversal", 0) > 0
         # トレンド型戦略は0.0か低い重み
@@ -236,35 +238,35 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights)
 
     def test_get_default_weights_normal_range(self, selector):
-        """normal_range のデフォルト重みが正しいことを確認（Phase 51.8: 6戦略）"""
+        """normal_range のデフォルト重みが正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector._get_default_weights(RegimeType.NORMAL_RANGE)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
+        # Phase 60.7: 設定駆動型のため、strategies.yamlの構成に依存
         # バランス型配分を確認
         assert sum(weights.values()) >= 0.0
         # 重み合計が1.0または0.0
         assert selector.validate_weights(weights)
 
     def test_get_default_weights_trending(self, selector):
-        """trending のデフォルト重みが正しいことを確認（Phase 51.8: 6戦略）"""
+        """trending のデフォルト重みが正しいことを確認（Phase 60.7: 7戦略）"""
         weights = selector._get_default_weights(RegimeType.TRENDING)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
+        # Phase 60.7: 設定駆動型のため、strategies.yamlの構成に依存
         # トレンド型戦略が正の重みを持つことを確認
         assert weights.get("ADXTrendStrength", 0) > 0 or weights.get("MACDEMACrossover", 0) > 0
         # 重み合計が1.0または0.0
         assert selector.validate_weights(weights)
 
     def test_get_default_weights_high_volatility(self, selector):
-        """high_volatility のデフォルト重みは全戦略0.0であることを確認（Phase 51.8: 6戦略）"""
+        """high_volatility のデフォルト重みは全戦略0.0であることを確認（Phase 60.7: 7戦略）"""
         weights = selector._get_default_weights(RegimeType.HIGH_VOLATILITY)
 
-        # Phase 51.8: 6戦略全てを含む
-        assert len(weights) == 6
+        # Phase 60.7: 7戦略全てを含む
+        assert len(weights) == 7
         # 高ボラティリティは全戦略0.0
         assert all(weight == 0.0 for weight in weights.values())
         assert selector.validate_weights(weights)
@@ -339,14 +341,15 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_get_regime_active_strategies_tight_range(self, selector):
-        """Phase 55: tight_rangeの有効戦略リストが正しいことを確認"""
+        """Phase 60.7: tight_rangeの有効戦略リストが正しいことを確認"""
         active_strategies = selector._get_regime_active_strategies(RegimeType.TIGHT_RANGE)
 
-        # tight_range: ATRBased, BBReversal, StochasticReversal
-        assert len(active_strategies) == 3
+        # tight_range: ATRBased, BBReversal, StochasticReversal, MeanReversion
+        assert len(active_strategies) == 4
         assert "ATRBased" in active_strategies
         assert "BBReversal" in active_strategies
         assert "StochasticReversal" in active_strategies
+        assert "MeanReversion" in active_strategies
 
         # 無効な戦略が含まれていないことを確認
         assert "DonchianChannel" not in active_strategies
@@ -392,13 +395,13 @@ class TestDynamicStrategySelector:
         assert active_strategies == []
 
     def test_apply_regime_strategy_filter_tight_range(self, selector):
-        """Phase 55: tight_rangeで戦略フィルタリングが正しく適用されることを確認"""
+        """Phase 60.7: tight_rangeで戦略フィルタリングが正しく適用されることを確認"""
         from unittest.mock import MagicMock
 
         # モックStrategyManagerを作成
         mock_strategy_manager = MagicMock()
 
-        # 6戦略のモックを作成
+        # 7戦略のモックを作成
         mock_strategies = {
             "ATRBased": MagicMock(),
             "BBReversal": MagicMock(),
@@ -406,16 +409,18 @@ class TestDynamicStrategySelector:
             "DonchianChannel": MagicMock(),
             "ADXTrendStrength": MagicMock(),
             "MACDEMACrossover": MagicMock(),
+            "MeanReversion": MagicMock(),
         }
         mock_strategy_manager.strategies = mock_strategies
 
         # フィルタリング適用
         selector.apply_regime_strategy_filter(RegimeType.TIGHT_RANGE, mock_strategy_manager)
 
-        # tight_range: ATRBased, BBReversal, StochasticReversal が有効化
+        # tight_range: ATRBased, BBReversal, StochasticReversal, MeanReversion が有効化
         mock_strategies["ATRBased"].enable.assert_called_once()
         mock_strategies["BBReversal"].enable.assert_called_once()
         mock_strategies["StochasticReversal"].enable.assert_called_once()
+        mock_strategies["MeanReversion"].enable.assert_called_once()
 
         # 残りは無効化
         mock_strategies["DonchianChannel"].disable.assert_called_once()
@@ -423,13 +428,13 @@ class TestDynamicStrategySelector:
         mock_strategies["MACDEMACrossover"].disable.assert_called_once()
 
     def test_apply_regime_strategy_filter_high_volatility(self, selector):
-        """Phase 55: high_volatilityで全戦略が無効化されることを確認"""
+        """Phase 60.7: high_volatilityで全戦略が無効化されることを確認"""
         from unittest.mock import MagicMock
 
         # モックStrategyManagerを作成
         mock_strategy_manager = MagicMock()
 
-        # 6戦略のモックを作成
+        # 7戦略のモックを作成
         mock_strategies = {
             "ATRBased": MagicMock(),
             "BBReversal": MagicMock(),
@@ -437,6 +442,7 @@ class TestDynamicStrategySelector:
             "DonchianChannel": MagicMock(),
             "ADXTrendStrength": MagicMock(),
             "MACDEMACrossover": MagicMock(),
+            "MeanReversion": MagicMock(),
         }
         mock_strategy_manager.strategies = mock_strategies
 

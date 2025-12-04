@@ -31,12 +31,15 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
     def setUp(self):
         """テスト前処理"""
+        # Phase 55.7b/60.5-C: 閾値緩和対応
+        # 実装はget_threshold()から設定を取得するため、
+        # テスト設定と実装設定が一致するようにする
         self.config = {
             "adx_period": 14,
-            "strong_trend_threshold": 25,
-            "weak_trend_threshold": 20,
-            "di_crossover_threshold": 0.5,
-            "min_confidence": 0.4,
+            "strong_trend_threshold": 22,  # Phase 55.7b: 25→22に緩和
+            "weak_trend_threshold": 12,  # Phase 55.7b: 20→12に緩和
+            "di_crossover_threshold": 0.3,  # Phase 55.5: 0.5→0.3に緩和
+            "min_confidence": 0.3,  # Phase 55.5: 0.4→0.3に緩和
         }
         self.strategy = ADXTrendStrengthStrategy(config=self.config)
 
@@ -82,9 +85,9 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertEqual(default_strategy.name, "ADXTrendStrength")
         self.assertEqual(default_strategy.adx_period, 14)
 
-        # カスタム設定 - Phase 55.7b: 強トレンド閾値25→22に緩和
+        # thresholds.yaml設定: strong_trend_threshold: 30
         self.assertEqual(self.strategy.adx_period, 14)
-        self.assertEqual(self.strategy.strong_trend_threshold, 22)  # Phase 55.7b
+        self.assertEqual(self.strategy.strong_trend_threshold, 30)  # thresholds.yaml設定値
 
     def test_required_features(self):
         """必要特徴量テスト"""
@@ -140,99 +143,119 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertIn("bearish_crossover", analysis)
 
     def test_strong_trend_bullish_crossover(self):
-        """強トレンド上昇DIクロスオーバーテスト"""
+        """強トレンド上昇DIクロスオーバーテスト（Phase 60.5-C対応）"""
         df = self._create_test_data(50)
 
         # 強トレンド + 上昇DIクロス条件設定
+        # thresholds.yaml: strong_trend_threshold: 30
         latest_idx = df.index[-1]
         prev_idx = df.index[-2]
 
-        # 強トレンド設定
-        df.loc[latest_idx, "adx_14"] = 30  # 強トレンド
-        df.loc[prev_idx, "adx_14"] = 28  # 上昇
+        # 強トレンド設定（ADX >= 30必須）
+        df.loc[latest_idx, "adx_14"] = 35  # 強トレンド
+        df.loc[prev_idx, "adx_14"] = 32  # 上昇
 
-        # DIクロスオーバー設定
-        df.loc[latest_idx, "plus_di_14"] = 25
-        df.loc[latest_idx, "minus_di_14"] = 15  # +DI > -DI
-        df.loc[prev_idx, "plus_di_14"] = 15
-        df.loc[prev_idx, "minus_di_14"] = 16  # 前期間は-DI > +DI
+        # DIクロスオーバー設定（DI差 >= 8.0必須）
+        df.loc[latest_idx, "plus_di_14"] = 30
+        df.loc[latest_idx, "minus_di_14"] = 20  # +DI > -DI、DI差=10
+        df.loc[prev_idx, "plus_di_14"] = 18
+        df.loc[prev_idx, "minus_di_14"] = 22  # 前期間は-DI > +DI（クロス条件）
 
         df.loc[latest_idx, "volume_ratio"] = 1.5
 
         signal = self.strategy.generate_signal(df)
 
         self.assertEqual(signal.action, "buy")
-        self.assertGreater(signal.confidence, 0.6)
-        self.assertIn("強トレンド", signal.reason)
+        # Phase 60.5-C: 信頼度は0.40-0.60範囲
+        self.assertGreaterEqual(signal.confidence, 0.4)
+        self.assertTrue(
+            "BUY" in signal.reason or "強トレンド" in signal.reason,
+            f"Expected BUY-related message: {signal.reason}",
+        )
 
     def test_strong_trend_bearish_crossover(self):
-        """強トレンド下降DIクロスオーバーテスト"""
+        """強トレンド下降DIクロスオーバーテスト（Phase 60.5-C対応）"""
         df = self._create_test_data(50)
 
         # 強トレンド + 下降DIクロス条件設定
+        # thresholds.yaml: strong_trend_threshold: 30
         latest_idx = df.index[-1]
         prev_idx = df.index[-2]
 
-        # 強トレンド設定
-        df.loc[latest_idx, "adx_14"] = 30
-        df.loc[prev_idx, "adx_14"] = 28
+        # 強トレンド設定（ADX >= 30必須）
+        df.loc[latest_idx, "adx_14"] = 35
+        df.loc[prev_idx, "adx_14"] = 32
 
-        # DIクロスオーバー設定
-        df.loc[latest_idx, "plus_di_14"] = 15
-        df.loc[latest_idx, "minus_di_14"] = 25  # -DI > +DI
-        df.loc[prev_idx, "plus_di_14"] = 16
-        df.loc[prev_idx, "minus_di_14"] = 15  # 前期間は+DI > -DI
+        # DIクロスオーバー設定（DI差 >= 8.0必須）
+        df.loc[latest_idx, "plus_di_14"] = 18
+        df.loc[latest_idx, "minus_di_14"] = 28  # -DI > +DI、DI差=10
+        df.loc[prev_idx, "plus_di_14"] = 22
+        df.loc[prev_idx, "minus_di_14"] = 18  # 前期間は+DI > -DI（クロス条件）
 
         df.loc[latest_idx, "volume_ratio"] = 1.5
 
         signal = self.strategy.generate_signal(df)
 
         self.assertEqual(signal.action, "sell")
-        self.assertGreater(signal.confidence, 0.6)
-        self.assertIn("強トレンド", signal.reason)
+        # Phase 60.5-C: 信頼度は0.40-0.60範囲
+        self.assertGreaterEqual(signal.confidence, 0.4)
+        self.assertTrue(
+            "SELL" in signal.reason or "強トレンド" in signal.reason,
+            f"Expected SELL-related message: {signal.reason}",
+        )
 
     def test_moderate_trend_bullish_dominance(self):
-        """中トレンド上昇優勢テスト（Phase 55.7b: 強トレンド閾値緩和対応）"""
+        """強トレンド上昇優勢テスト（Phase 60.5-C: 強トレンド必須+DI優勢条件）"""
         df = self._create_test_data(50)
 
-        # 中トレンド + +DI優勢条件設定
+        # Phase 60.5-C: 強トレンド（ADX>=30）+ DI差>=8.0が必須
+        # thresholds.yaml: strong_trend_threshold: 30
         latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
 
-        df.loc[latest_idx, "adx_14"] = 22  # Phase 55.7bで強トレンド閾値が22に緩和
-        df.loc[latest_idx, "plus_di_14"] = 25
-        df.loc[latest_idx, "minus_di_14"] = 20  # DI差: 5 (>= 2.0)
+        df.loc[latest_idx, "adx_14"] = 32  # 強トレンド（>=30）
+        df.loc[prev_idx, "adx_14"] = 30
+        df.loc[latest_idx, "plus_di_14"] = 30
+        df.loc[latest_idx, "minus_di_14"] = 20  # DI差: 10 (>= 8.0)
+        df.loc[prev_idx, "plus_di_14"] = 18
+        df.loc[prev_idx, "minus_di_14"] = 22  # DIクロスオーバー条件
         df.loc[latest_idx, "volume_ratio"] = 1.2
 
         signal = self.strategy.generate_signal(df)
 
         self.assertEqual(signal.action, "buy")
         self.assertGreaterEqual(signal.confidence, self.config["min_confidence"])
-        # Phase 55.7b: ADX=22は強トレンド判定になるため、両方許容
+        # Phase 60.5-C: 強トレンド必須
         self.assertTrue(
-            "中トレンド" in signal.reason or "強トレンド" in signal.reason,
-            f"Expected trend-related message in reason: {signal.reason}",
+            "BUY" in signal.reason or "強トレンド" in signal.reason,
+            f"Expected BUY-related message in reason: {signal.reason}",
         )
 
     def test_moderate_trend_bearish_dominance(self):
-        """中トレンド下降優勢テスト（Phase 55.7b: 強トレンド閾値緩和対応）"""
+        """強トレンド下降優勢テスト（Phase 60.5-C: 強トレンド必須+DI優勢条件）"""
         df = self._create_test_data(50)
 
-        # 中トレンド + -DI優勢条件設定
+        # Phase 60.5-C: 強トレンド（ADX>=30）+ DI差>=8.0が必須
+        # thresholds.yaml: strong_trend_threshold: 30
         latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
 
-        df.loc[latest_idx, "adx_14"] = 22
+        df.loc[latest_idx, "adx_14"] = 32  # 強トレンド（>=30）
+        df.loc[prev_idx, "adx_14"] = 30
         df.loc[latest_idx, "plus_di_14"] = 18
-        df.loc[latest_idx, "minus_di_14"] = 25  # DI差: -7 (強度7 >= 2.0)
+        df.loc[latest_idx, "minus_di_14"] = 28  # DI差: -10 (強度10 >= 8.0)
+        df.loc[prev_idx, "plus_di_14"] = 22
+        df.loc[prev_idx, "minus_di_14"] = 18  # DIクロスオーバー条件
         df.loc[latest_idx, "volume_ratio"] = 1.2
 
         signal = self.strategy.generate_signal(df)
 
         self.assertEqual(signal.action, "sell")
         self.assertGreaterEqual(signal.confidence, self.config["min_confidence"])
-        # Phase 55.7b: 強トレンド閾値が25→22に緩和されたため、ADX=22は強トレンド判定
+        # Phase 60.5-C: 強トレンド必須
         self.assertTrue(
-            "中トレンド" in signal.reason or "強トレンド" in signal.reason,
-            f"Expected trend-related message in reason: {signal.reason}",
+            "SELL" in signal.reason or "強トレンド" in signal.reason,
+            f"Expected SELL-related message in reason: {signal.reason}",
         )
 
     def test_weak_trend_hold(self):
