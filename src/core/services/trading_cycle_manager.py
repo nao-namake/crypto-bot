@@ -156,9 +156,11 @@ class TradingCycleManager:
     async def _fetch_market_data(self):
         """Phase 2: データ取得"""
         try:
-            # Phase 51.5-A Fix: limit=100→200（戦略最低20件要求に対する安全マージン）
+            # Phase 60.8: limit=200→500（バックテストとライブの乖離解消）
+            # - 200本では長期指標（SMA50等）が不安定
+            # - 500本=約5日分の15分足データで特徴量計算を安定化
             return await self.orchestrator.data_service.fetch_multi_timeframe(
-                symbol="BTC/JPY", limit=200
+                symbol="BTC/JPY", limit=500
             )
         except Exception as e:
             self.logger.error(f"市場データ取得エラー: {e}")
