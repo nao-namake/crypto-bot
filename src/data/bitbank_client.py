@@ -1500,18 +1500,27 @@ class BitbankClient:
             # Phase 37.2: GETメソッドで呼び出し（エラー20003修正）
             response = await self._call_private_api("/user/margin/status", method="GET")
 
-            # 保証金維持率とリスク情報を含む完全な状況を返す
+            # Phase 60.9: bitbank APIの正しいフィールド名に修正
+            # 旧: maintenance_margin_ratio → 新: total_margin_balance_percentage
+            # 旧: available_margin → 新: buy_credit（買いご利用可能枠）
+            # 旧: used_margin → 新: total_margin_position_product（建玉合計）
+            # 旧: unrealized_pnl → 新: margin_position_profit_loss（評価損益）
+            # 旧: margin_call_status → 新: status（口座状況ステータス）
+            data = response.get("data", {})
             margin_data = {
-                "margin_ratio": response.get("data", {}).get("maintenance_margin_ratio"),
-                "available_balance": response.get("data", {}).get("available_margin"),
-                "used_margin": response.get("data", {}).get("used_margin"),
-                "unrealized_pnl": response.get("data", {}).get("unrealized_pnl"),
-                "margin_call_status": response.get("data", {}).get("margin_call_status"),
+                "margin_ratio": data.get("total_margin_balance_percentage"),
+                "available_balance": data.get("buy_credit"),
+                "used_margin": data.get("total_margin_position_product"),
+                "unrealized_pnl": data.get("margin_position_profit_loss"),
+                "margin_call_status": data.get("status"),  # NORMAL, LOSSCUT, CALL, DEBT, SETTLED
                 "raw_response": response,
             }
 
+            # None安全なログ出力
+            margin_ratio = margin_data["margin_ratio"]
+            margin_ratio_str = f"{margin_ratio:.1f}%" if margin_ratio is not None else "N/A"
             self.logger.info(
-                f"📊 信用取引口座状況取得成功 - 維持率: {margin_data['margin_ratio']:.1f}%",
+                f"📊 信用取引口座状況取得成功 - 維持率: {margin_ratio_str}",
                 extra_data={
                     "margin_ratio": margin_data["margin_ratio"],
                     "available_balance": margin_data["available_balance"],
