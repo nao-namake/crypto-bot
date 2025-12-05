@@ -75,6 +75,19 @@ else
     fi
 fi
 
+# MLモデル予測分布検証（Phase 60.9追加）
+echo ">>> 🎯 MLモデル予測分布検証（Phase 60.9: HOLDバイアス検出）"
+if [[ -f "scripts/testing/validate_ml_prediction_distribution.py" ]]; then
+    python3 scripts/testing/validate_ml_prediction_distribution.py || {
+        echo "❌ エラー: MLモデル予測分布検証失敗"
+        echo "モデルに極端なクラスバイアスがあります（例: 常にHOLDを予測）"
+        echo "→ モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.002 --use-smote --optimize --n-trials 50"
+        exit 1
+    }
+else
+    echo "⚠️  警告: validate_ml_prediction_distribution.py not found - スキップ"
+fi
+
 # 必須ライブラリ確認
 echo ">>> 📦 必須ライブラリ確認"
 python3 -c "import imblearn; print('✅ imbalanced-learn インストール確認（SMOTE対応）')" 2>/dev/null || {
@@ -230,6 +243,7 @@ echo "  - 必須ライブラリ: ✅ 対応完了（imbalanced-learn・optuna・
 echo "  - 機能トグル設定: ✅ 対応完了（features.yaml）"
 echo "  - trading層アーキテクチャ: ✅ 完了（5層分離）"
 echo "  - システム整合性: ✅ 対応完了（Dockerfile・特徴量・戦略検証）"
+echo "  - MLモデル予測分布: ✅ 対応完了（Phase 60.9: HOLDバイアス検出）"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: .cache/coverage/htmlcov/index.html"

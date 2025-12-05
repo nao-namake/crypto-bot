@@ -270,8 +270,11 @@ class TestBBReversalStrategy(unittest.TestCase):
         decision = self.strategy._analyze_bb_reversal_signal(df)
 
         self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], self.config["hold_confidence"])
-        self.assertEqual(decision["strength"], 0.0)
+        # Phase 60.12: HOLDでも動的信頼度計算を使用（中央値の場合は最小信頼度付近）
+        self.assertGreaterEqual(decision["confidence"], 0.15)
+        self.assertLessEqual(decision["confidence"], 0.55)
+        # strength は最大（sell_strength, buy_strength）のどちらか
+        self.assertGreaterEqual(decision["strength"], 0.0)
 
     def test_analyze_empty_dataframe(self):
         """空データフレームテスト"""
@@ -314,18 +317,24 @@ class TestBBReversalStrategy(unittest.TestCase):
         df = self._create_test_data(bb_position=0.97, rsi=75)
         decision = self.strategy._analyze_bb_reversal_signal(df)
 
-        # strength = (bb_position - 0.5) * 2.0
-        expected_strength = (0.97 - 0.5) * 2.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+        # Phase 60.12: 新しい強度計算
+        # sell_strength = (bb_position - 0.5) * 2 + (rsi - 50) / 50 = 0.94 + 0.5 = 1.44
+        # bb_strength = (0.97 - 0.5) * 2 = 0.94
+        # rsi_strength = (75 - 50) / 50 = 0.5
+        expected_sell_strength = 0.94 + 0.5  # 1.44
+        self.assertAlmostEqual(decision["strength"], expected_sell_strength, places=2)
 
     def test_strength_calculation_buy(self):
         """強度計算テスト - BUY"""
         df = self._create_test_data(bb_position=0.03, rsi=25)
         decision = self.strategy._analyze_bb_reversal_signal(df)
 
-        # strength = (0.5 - bb_position) * 2.0
-        expected_strength = (0.5 - 0.03) * 2.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+        # Phase 60.12: 新しい強度計算
+        # buy_strength = (0.5 - bb_position) * 2 + (50 - rsi) / 50 = 0.94 + 0.5 = 1.44
+        # bb_strength = (0.5 - 0.03) * 2 = 0.94
+        # rsi_strength = (50 - 25) / 50 = 0.5
+        expected_buy_strength = 0.94 + 0.5  # 1.44
+        self.assertAlmostEqual(decision["strength"], expected_buy_strength, places=2)
 
 
 # pytest実行用

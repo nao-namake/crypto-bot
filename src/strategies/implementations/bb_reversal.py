@@ -225,12 +225,11 @@ class BBReversalStrategy(StrategyBase):
 
     def _analyze_bb_reversal_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        BB反転シグナル分析
+        BB反転シグナル分析（Phase 60.11: 動的信頼度計算）
 
-        シグナル生成ロジック:
-        1. SELL: bb_position > 0.95 AND rsi > 70
-        2. BUY: bb_position < 0.05 AND rsi < 30
-        3. HOLD: それ以外
+        全ての状況で動的信頼度を計算:
+        - BB位置・RSIの中央からの乖離度に基づく
+        - 0.5/50を中央として、乖離が大きいほど信頼度が高い
 
         Args:
             df: 市場データ
@@ -243,65 +242,74 @@ class BBReversalStrategy(StrategyBase):
             bb_position = float(latest["bb_position"])
             rsi = float(latest["rsi_14"])
 
-            # Phase 60.6c: 良好戦略パターン適用（OR条件・条件数スケーリング）
-            # SELL信号（BB上限タッチ または RSI買われすぎ）
-            bb_sell_condition = bb_position > self.config["bb_upper_threshold"]
-            rsi_sell_condition = rsi > self.config["rsi_overbought"]
+            # === Phase 60.11: 動的信頼度計算（常に実行） ===
 
-            # 条件数カウント
-            sell_conditions = [bb_sell_condition, rsi_sell_condition]
-            sell_count = sum(sell_conditions)
+            # 設定から重みを取得（デフォルト: BB 60%, RSI 40%）
+            bb_weight = self.config.get("bb_weight", 0.6)
+            rsi_weight = self.config.get("rsi_weight", 0.4)
+            min_confidence = self.config.get("min_confidence", 0.15)
+            max_confidence = self.config.get("max_confidence", 0.55)
+            signal_threshold = self.config.get("signal_threshold", 0.4)
 
-            if sell_count > 0:
-                # Phase 60.6c: 条件数に応じた段階的信頼度（良好戦略パターン）
-                base_confidence = 0.38
-                condition_bonus = (sell_count - 1) * 0.12  # 2条件で+0.12
-                position_bonus = (bb_position - 0.5) * 0.15 if bb_sell_condition else 0.0
-                confidence = min(base_confidence + condition_bonus + position_bonus, 0.58)
-                # 強度: BB位置の偏り度合い
-                strength = (bb_position - 0.5) * 2.0
+            # BB位置の偏り度合い（0-1スケール、0.5が中央）
+            bb_deviation = abs(bb_position - 0.5)  # 0 ~ 0.5
 
+            # RSIの偏り度合い（0-50スケール、50が中央）→ 0-1に正規化
+            rsi_deviation = abs(rsi - 50) / 50  # 0 ~ 1
+
+            # 総合偏り度合い（重み付け平均）
+            # bb_deviation: 0~0.5を0~1に正規化
+            total_deviation = (bb_deviation * 2) * bb_weight + rsi_deviation * rsi_weight
+
+            # 動的信頼度計算（偏りが大きいほど高い）
+            confidence_range = max_confidence - min_confidence
+            dynamic_confidence = min_confidence + total_deviation * confidence_range
+
+            # === 方向判定 ===
+
+            # SELL方向の強さ（正の値）
+            sell_strength = 0.0
+            if bb_position > 0.5:
+                sell_strength += (bb_position - 0.5) * 2  # 0 ~ 1
+            if rsi > 50:
+                sell_strength += (rsi - 50) / 50  # 0 ~ 1
+
+            # BUY方向の強さ（正の値）
+            buy_strength = 0.0
+            if bb_position < 0.5:
+                buy_strength += (0.5 - bb_position) * 2  # 0 ~ 1
+            if rsi < 50:
+                buy_strength += (50 - rsi) / 50  # 0 ~ 1
+
+            # === シグナル決定 ===
+
+            if sell_strength > buy_strength and sell_strength >= signal_threshold:
                 return {
                     "action": EntryAction.SELL,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"BB反転SELL (BB={bb_position:.2f}, RSI={rsi:.1f}, 条件数={sell_count})",
-                    "analysis": "BB上限付近またはRSI買われすぎ→反転下落期待",
+                    "confidence": dynamic_confidence,
+                    "strength": sell_strength,
+                    "reason": f"BB反転SELL (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"強度={sell_strength:.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                    "analysis": "BB上方+RSI買われすぎ傾向→反転下落期待",
                 }
-
-            # BUY信号（BB下限タッチ または RSI売られすぎ）
-            bb_buy_condition = bb_position < self.config["bb_lower_threshold"]
-            rsi_buy_condition = rsi < self.config["rsi_oversold"]
-
-            # 条件数カウント
-            buy_conditions = [bb_buy_condition, rsi_buy_condition]
-            buy_count = sum(buy_conditions)
-
-            if buy_count > 0:
-                # Phase 60.6c: 条件数に応じた段階的信頼度（良好戦略パターン）
-                base_confidence = 0.38
-                condition_bonus = (buy_count - 1) * 0.12  # 2条件で+0.12
-                position_bonus = (0.5 - bb_position) * 0.15 if bb_buy_condition else 0.0
-                confidence = min(base_confidence + condition_bonus + position_bonus, 0.58)
-                # 強度: BB位置の偏り度合い
-                strength = (0.5 - bb_position) * 2.0
-
+            elif buy_strength > sell_strength and buy_strength >= signal_threshold:
                 return {
                     "action": EntryAction.BUY,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"BB反転BUY (BB={bb_position:.2f}, RSI={rsi:.1f}, 条件数={buy_count})",
-                    "analysis": "BB下限付近またはRSI売られすぎ→反転上昇期待",
+                    "confidence": dynamic_confidence,
+                    "strength": buy_strength,
+                    "reason": f"BB反転BUY (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"強度={buy_strength:.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                    "analysis": "BB下方+RSI売られすぎ傾向→反転上昇期待",
                 }
-
-            # HOLD信号
             else:
+                # HOLDでも動的信頼度を使用（フォールバック値不使用）
                 return {
                     "action": EntryAction.HOLD,
-                    "confidence": self.config["hold_confidence"],
-                    "strength": 0.0,
-                    "reason": f"BB反転条件未達成 (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB中央付近またはRSI中立→エントリー見送り",
+                    "confidence": dynamic_confidence,
+                    "strength": max(sell_strength, buy_strength),
+                    "reason": f"BB中立 (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"強度={max(sell_strength, buy_strength):.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                    "analysis": "BB・RSI共に中央付近→方向性不明確",
                 }
 
         except Exception as e:

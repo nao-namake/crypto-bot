@@ -451,19 +451,21 @@ strategies:
     weak_di_threshold: 1.0
     weak_trend_threshold: 12
   atr_based:
-    # Phase 59.10: ATRBased設定（最終最適化・バランス重視）
+    # Phase 60.14: BBReversalパターン統一（完全リファクタリング）
+    min_confidence: 0.15              # 最小信頼度（BBReversalと同じ）
+    max_confidence: 0.55              # 最大信頼度（BBReversalと同じ）
+    signal_threshold: 0.4             # シグナル発火閾値
+    bb_weight: 0.6                    # BB位置の重み
+    rsi_weight: 0.4                   # RSIの重み
+    # 既存設定（互換性維持）
     bb_overbought: 0.70               # Phase 59.10: バランス
     bb_oversold: 0.30                 # Phase 59.10: バランス
-    high_volatility_strength: 0.5
-    hold_confidence: 0.10             # Phase 59.10: 低め維持
-    low_volatility_strength: 0.2
-    min_confidence: 0.25              # Phase 59.10: バランス
-    normal_volatility_strength: 0.25
     rsi_overbought: 65                # Phase 59.10: バランス
     rsi_oversold: 35                  # Phase 59.10: バランス
-    strength_fallback: 0.3
-    base_confidence: 0.25             # Phase 59.10: バランス
-    confidence_multiplier: 0.3
+    # 旧設定（参照用・削除予定）
+    high_volatility_strength: 0.5
+    low_volatility_strength: 0.2
+    normal_volatility_strength: 0.25
   donchian_channel:
     # Phase 60.6b: 貢献度-19.9% → 完全無効化
     breakout_threshold: 0.003         # 維持
@@ -476,20 +478,29 @@ strategies:
     weak_signal_max: 0.65             # 維持
     weak_signal_min: 0.25
   bb_reversal:
-    # Phase 60.7: タイトレンジ最適化（HOLD率82.6%→改善目標）
-    min_confidence: 0.38            # Phase 60.7: 発火可能に（0.95→0.38）
-    hold_confidence: 0.25           # Phase 60.7: HOLD抑制（0.95→0.25）
+    # Phase 60.11: 動的信頼度計算対応（フォールバック値廃止）
+    signal_threshold: 0.4           # シグナル発火閾値（強度がこれ以上でBUY/SELL）
+    bb_weight: 0.6                  # BB位置の重み（動的信頼度計算用）
+    rsi_weight: 0.4                 # RSIの重み（動的信頼度計算用）
+    min_confidence: 0.15            # 最小信頼度（中央付近）
+    max_confidence: 0.55            # 最大信頼度（極端値）
+    # レンジ判定設定
     bb_width_threshold: 0.03        # Phase 60.7: 0.02→0.03（緩和）
-    rsi_overbought: 68              # Phase 60.7: 75→68（緩和）
-    rsi_oversold: 32                # Phase 60.7: 25→32（緩和）
-    bb_upper_threshold: 0.80        # Phase 60.7: 0.90→0.80（緩和）
-    bb_lower_threshold: 0.20        # Phase 60.7: 0.10→0.20（緩和）
-    adx_range_threshold: 30         # Phase 60.7: 25→30（レンジ判定拡大）
+    adx_range_threshold: 45         # Phase 60.10: 30→45（レンジ判定大幅拡大）
+    # 参考閾値（旧ロジック互換・現在未使用）
+    rsi_overbought: 65
+    rsi_oversold: 35
+    bb_upper_threshold: 0.75
+    bb_lower_threshold: 0.25
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 59.10: Stochastic Reversal戦略設定（最終最適化・バランス重視）
-    min_confidence: 0.28            # Phase 59.10: バランス
-    hold_confidence: 0.12           # Phase 59.10: 低め維持
+    # Phase 60.12: 動的信頼度計算対応
+    signal_threshold: 0.4           # シグナル発火閾値
+    stoch_weight: 0.6               # Stochastic %Kの重み
+    rsi_weight: 0.4                 # RSIの重み
+    min_confidence: 0.15            # 最小信頼度（中央付近）
+    max_confidence: 0.55            # 最大信頼度（極端値）
+    # 既存設定は参考値として維持
     stoch_overbought: 75            # Phase 59.10: バランス
     stoch_oversold: 25              # Phase 59.10: バランス
     rsi_overbought: 65              # Phase 59.10: バランス
@@ -506,15 +517,20 @@ strategies:
     ema_divergence_threshold: 0.003 # 維持
     sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）
   mean_reversion:
-    # Phase 60.7: タイトレンジ最適化（HOLD率84.5%→改善目標）
-    min_confidence: 0.30            # シグナル発火最小信頼度
-    hold_confidence: 0.15           # HOLD判定信頼度（低め設定で発火促進）
-    sma_deviation_threshold: 0.012  # Phase 60.7: 0.015→0.012（さらに緩和）
-    rsi_overbought: 68              # Phase 60.7: 65→68（緩和）
-    rsi_oversold: 32                # Phase 60.7: 35→32（緩和）
-    bb_upper_threshold: 0.82        # Phase 60.7: 0.85→0.82（緩和）
-    bb_lower_threshold: 0.18        # Phase 60.7: 0.15→0.18（緩和）
-    adx_range_threshold: 35         # Phase 60.7: 30→35（レンジ判定拡大）
+    # Phase 60.15: BBReversalパターン統一（動的信頼度計算）
+    min_confidence: 0.15              # 最小信頼度（中央付近）
+    max_confidence: 0.55              # 最大信頼度（極端値）
+    signal_threshold: 0.4             # シグナル発火閾値
+    bb_weight: 0.3                    # BB位置の重み
+    rsi_weight: 0.3                   # RSIの重み
+    sma_weight: 0.4                   # SMA乖離の重み
+    # 既存設定（互換性維持）
+    sma_deviation_threshold: 0.008  # Phase 60.10: 0.012→0.008
+    rsi_overbought: 60              # 参考値（未使用）
+    rsi_oversold: 40                # 参考値（未使用）
+    bb_upper_threshold: 0.70        # 参考値（未使用）
+    bb_lower_threshold: 0.30        # 参考値（未使用）
+    adx_range_threshold: 45         # Phase 60.10: 35→45（レンジ判定大幅拡大）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
 
 # ========================================

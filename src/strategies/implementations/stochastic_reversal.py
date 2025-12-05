@@ -177,7 +177,11 @@ class StochasticReversalStrategy(StrategyBase):
 
     def _analyze_stochastic_reversal_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        Stochastic反転シグナル分析
+        Stochastic反転シグナル分析（Phase 60.12: 動的信頼度計算）
+
+        全ての状況で動的信頼度を計算:
+        - Stochastic %K・%Dの中央（50）からの乖離度に基づく
+        - クロスオーバーで追加ボーナス
 
         Args:
             df: 市場データ
@@ -193,68 +197,81 @@ class StochasticReversalStrategy(StrategyBase):
         # クロスオーバー検出
         crossover = self._detect_stochastic_crossover(df)
 
-        # Phase 56.4.3: 条件緩和 - クロスオーバー必須条件を削除、過買い/過売り判定のみでもシグナル発生
-        # SELL信号（過買い領域）
-        stoch_sell_condition = (
-            stoch_k > self.config["stoch_overbought"] and stoch_d > self.config["stoch_overbought"]
-        )
-        rsi_sell_condition = rsi > self.config["rsi_overbought"]
+        # === Phase 60.12: 動的信頼度計算（常に実行） ===
 
-        if stoch_sell_condition:
-            # Phase 57.4.3: 信頼度計算改善（発火率向上）
-            # クロスオーバーあり + RSI条件 = 高信頼度
-            if crossover == "bear" and rsi_sell_condition:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 60.0, 0.60)
-            # クロスオーバーのみ or RSI条件のみ = 中信頼度
-            elif crossover == "bear" or rsi_sell_condition:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 90.0, 0.50)
-            # 過買い領域のみ = やや低めの中信頼度
-            else:
-                confidence = min(self.config["min_confidence"] + (stoch_k - 70) / 120.0, 0.42)
+        # 設定から重みを取得
+        stoch_weight = self.config.get("stoch_weight", 0.6)
+        rsi_weight = self.config.get("rsi_weight", 0.4)
+        min_confidence = self.config.get("min_confidence", 0.15)
+        max_confidence = self.config.get("max_confidence", 0.55)
+        signal_threshold = self.config.get("signal_threshold", 0.4)
 
-            strength = (stoch_k - 50) / 50.0  # 0.5-1.0の範囲
+        # Stochastic %Kの偏り度合い（0-50スケール、50が中央）→ 0-1に正規化
+        stoch_deviation = abs(stoch_k - 50) / 50  # 0 ~ 1
 
+        # RSIの偏り度合い
+        rsi_deviation = abs(rsi - 50) / 50  # 0 ~ 1
+
+        # 総合偏り度合い（重み付け平均）
+        total_deviation = stoch_deviation * stoch_weight + rsi_deviation * rsi_weight
+
+        # 動的信頼度計算
+        confidence_range = max_confidence - min_confidence
+        dynamic_confidence = min_confidence + total_deviation * confidence_range
+
+        # === 方向判定 ===
+
+        # SELL方向の強さ
+        sell_strength = 0.0
+        if stoch_k > 50:
+            sell_strength += (stoch_k - 50) / 50  # 0 ~ 1
+        if stoch_d > 50:
+            sell_strength += (stoch_d - 50) / 100  # 0 ~ 0.5 (補助)
+        if rsi > 50:
+            sell_strength += (rsi - 50) / 100  # 0 ~ 0.5 (補助)
+        if crossover == "bear":
+            sell_strength += 0.2  # クロスオーバーボーナス
+
+        # BUY方向の強さ
+        buy_strength = 0.0
+        if stoch_k < 50:
+            buy_strength += (50 - stoch_k) / 50  # 0 ~ 1
+        if stoch_d < 50:
+            buy_strength += (50 - stoch_d) / 100  # 0 ~ 0.5 (補助)
+        if rsi < 50:
+            buy_strength += (50 - rsi) / 100  # 0 ~ 0.5 (補助)
+        if crossover == "golden":
+            buy_strength += 0.2  # クロスオーバーボーナス
+
+        # === シグナル決定 ===
+
+        if sell_strength > buy_strength and sell_strength >= signal_threshold:
             return {
                 "action": EntryAction.SELL,
-                "confidence": confidence,
-                "strength": strength,
-                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, クロス={'あり' if crossover == 'bear' else 'なし'})",
+                "confidence": dynamic_confidence,
+                "strength": sell_strength,
+                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, "
+                f"強度={sell_strength:.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                "analysis": "Stochastic上方傾向→反転下落期待",
             }
-
-        # BUY信号（過売り領域）
-        stoch_buy_condition = (
-            stoch_k < self.config["stoch_oversold"] and stoch_d < self.config["stoch_oversold"]
-        )
-        rsi_buy_condition = rsi < self.config["rsi_oversold"]
-
-        if stoch_buy_condition:
-            # Phase 57.4.3: 信頼度計算改善（発火率向上）
-            # クロスオーバーあり + RSI条件 = 高信頼度
-            if crossover == "golden" and rsi_buy_condition:
-                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 60.0, 0.60)
-            # クロスオーバーのみ or RSI条件のみ = 中信頼度
-            elif crossover == "golden" or rsi_buy_condition:
-                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 90.0, 0.50)
-            # 過売り領域のみ = やや低めの中信頼度
-            else:
-                confidence = min(self.config["min_confidence"] + (30 - stoch_k) / 120.0, 0.42)
-
-            strength = (50 - stoch_k) / 50.0  # 0.5-1.0の範囲
-
+        elif buy_strength > sell_strength and buy_strength >= signal_threshold:
             return {
                 "action": EntryAction.BUY,
-                "confidence": confidence,
-                "strength": strength,
-                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, クロス={'あり' if crossover == 'golden' else 'なし'})",
+                "confidence": dynamic_confidence,
+                "strength": buy_strength,
+                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, "
+                f"強度={buy_strength:.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                "analysis": "Stochastic下方傾向→反転上昇期待",
             }
-
-        # HOLD信号
         else:
+            # HOLDでも動的信頼度を使用（フォールバック値不使用）
             return {
                 "action": EntryAction.HOLD,
-                "confidence": self.config["hold_confidence"],
-                "strength": 0.0,
-                "reason": "Stochastic反転条件未達成",
+                "confidence": dynamic_confidence,
+                "strength": max(sell_strength, buy_strength),
+                "reason": f"Stochastic中立 (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, "
+                f"強度={max(sell_strength, buy_strength):.2f}, 動的信頼度={dynamic_confidence:.3f})",
+                "analysis": "Stochastic・RSI共に中央付近→方向性不明確",
             }
 
     def _create_hold_signal(self, reason: str, df: pd.DataFrame) -> StrategySignal:

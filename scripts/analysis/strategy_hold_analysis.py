@@ -362,7 +362,8 @@ class StrategyHoldAnalyzer:
 
         print("\n📊 MACD EMA Crossover条件を分析中...")
 
-        required_cols = ["macd_histogram", "adx_14", "ema_short", "ema_long", "close"]
+        # 実際の特徴量名: ema_20（短期）, ema_50（長期）
+        required_cols = ["macd_histogram", "adx_14", "ema_20", "ema_50", "close"]
         df = self.df.dropna(subset=required_cols)
         total = len(df)
 
@@ -377,24 +378,24 @@ class StrategyHoldAnalyzer:
             "MACD正": sum(1 for _, r in df.iterrows() if r["macd_histogram"] > 0),
             "MACD負": sum(1 for _, r in df.iterrows() if r["macd_histogram"] < 0),
             "EMA上向き (short > long)": sum(
-                1 for _, r in df.iterrows() if r["ema_short"] > r["ema_long"]
+                1 for _, r in df.iterrows() if r["ema_20"] > r["ema_50"]
             ),
             "EMA下向き (short < long)": sum(
-                1 for _, r in df.iterrows() if r["ema_short"] < r["ema_long"]
+                1 for _, r in df.iterrows() if r["ema_20"] < r["ema_50"]
             ),
             "トレンド(20) + MACD正 + EMA上向き": sum(
                 1
                 for _, r in df.iterrows()
                 if r["adx_14"] >= adx_trend_threshold
                 and r["macd_histogram"] > 0
-                and r["ema_short"] > r["ema_long"]
+                and r["ema_20"] > r["ema_50"]
             ),
             "トレンド(20) + MACD負 + EMA下向き": sum(
                 1
                 for _, r in df.iterrows()
                 if r["adx_14"] >= adx_trend_threshold
                 and r["macd_histogram"] < 0
-                and r["ema_short"] < r["ema_long"]
+                and r["ema_20"] < r["ema_50"]
             ),
         }
 

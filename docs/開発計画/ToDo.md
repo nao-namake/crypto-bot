@@ -8,10 +8,9 @@
 
 | タスク | 優先度 | 状態 |
 |-------|--------|------|
-| **Phase 60.4: PF 1.3達成** | 🔴高 | **進行中** |
-| Phase 60.5: 新戦略追加 | 🟡中 | 60.4結果次第 |
-| Phase 60.6: 組み合わせ最適化 | 🟡中 | 新戦略追加後 |
-| Phase 61: 証拠金10万円 | 🟢低 | Phase 60完了後 |
+| **Phase 60.9: MLモデルHOLDバイアス修正** | 🔴高 | **完了** |
+| Phase 60.9デプロイ | 🔴高 | **待機中** |
+| Phase 61: 証拠金10万円 | 🟢低 | Phase 60デプロイ後 |
 | 5分足導入 | 🟢低 | 3ヶ月後判断 |
 
 ---
@@ -29,61 +28,39 @@
 
 ---
 
-## Phase 60: Bot性能向上（進行中）
+## Phase 60: Bot性能向上（完了）
 
-**目標**: PF 1.3以上を達成
+**目標**: PF 1.3以上を達成・ML HOLD問題解決
 
 ### 完了済み
 
 - [x] **Phase 60.1**: comprehensive_strategy_evaluation.py強化
 - [x] **Phase 60.2**: advanced_trade_analysis.py新規作成
 - [x] **Phase 60.3**: スクリプト整理（Optuna 13→9、分析 6→4）
+- [x] **Phase 60.4**: MeanReversion戦略追加・問題戦略リファクタリング
+- [x] **Phase 60.7**: タイトレンジ戦略最適化（BBReversal/MeanReversion HOLD率改善）
+- [x] **Phase 60.8**: ライブモードデータ拡張（limit 200→500）
+- [x] **Phase 60.9**: MLモデルHOLDバイアス問題解決
 
-### Phase 60.4: 戦略パフォーマンス改善（進行中）
+### Phase 60.9詳細（最新）
 
-**アプローチ**:
+**問題**: MLが常にHOLD（97.3%）を返し、エントリーゼロ
 
-1. **Phase 52.1設定の復元検討**
-   - [ ] StochasticReversal重み: 0.15 → 0.10
-   - [ ] Phase 52.1のTP/SL設定確認・適用
+**根本原因**: 訓練データのクラス不均衡
+- 閾値±0.5%でHOLD 92.1%、SELL 4.2%、BUY 3.8%
+- モデルが「常にHOLD = 92%正解」を学習
 
-2. **戦略パラメータ調整**
-   - [ ] ADX閾値調整（35→40-45）でレンジ判定範囲拡大
-   - [ ] RSI閾値拡大（65-35 → 70-30）
+**修正内容**:
+1. 閾値緩和: 0.005→0.002（HOLD 63.2%に改善）
+2. SMOTE適用: クラス均等化（33.3%ずつ）
+3. 検証スクリプト: `validate_ml_prediction_distribution.py`をchecks.shに統合
 
-3. **バックテスト検証**
-   - [ ] 7日バックテストで傾向確認
-   - [ ] 30日バックテストで詳細検証
-   - [ ] PF 1.3達成を確認
+**結果**: 最大クラス52% < 80%閾値でテスト合格
 
-**修正対象ファイル**:
-- `config/core/strategies/presets/phase56.yaml`
+### 次のステップ
 
-### Phase 60.5: 新戦略追加検討
-
-**条件**: Phase 60.4で目標未達の場合
-
-**候補戦略（優先度順）**:
-
-| 順位 | 戦略名 | タイプ | 特徴 | 実装難易度 |
-|------|--------|--------|------|-----------|
-| 1 | MeanReversion | Range | 移動平均乖離反転 | 低 |
-| 2 | VolumeAcceleration | Range | 出来高急増反転 | 低 |
-| 3 | OscillatorDivergence | Range | RSI/MACD乖離 | 中 |
-
-**追加時の変更ファイル（4ファイルのみ）**:
-- `src/strategies/implementations/新戦略.py` - 新規作成
-- `src/strategies/implementations/__init__.py` - インポート追加
-- `config/core/strategies.yaml` - 戦略定義追加
-- `config/core/thresholds.yaml` - パラメータ追加
-
-### Phase 60.6: 戦略組み合わせ最適化
-
-**実施内容**:
-- [ ] 6戦略 → 7戦略構成のバックテスト
-- [ ] 戦略重み最適化（Optuna使用）
-- [ ] 相関分析で冗長戦略の特定・除外
-- [ ] 最適な戦略構成の確定
+- [ ] **Phase 60.9デプロイ**: Cloud Runに新MLモデルをデプロイ
+- [ ] **ライブ検証**: エントリー発生・ML予測分布を確認
 
 ---
 

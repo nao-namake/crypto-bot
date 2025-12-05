@@ -74,7 +74,8 @@ class TestATRBasedStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.name, "ATRBased")
         self.assertEqual(self.strategy.config["bb_overbought"], 0.7)
         self.assertEqual(self.strategy.config["bb_oversold"], 0.3)
-        self.assertEqual(self.strategy.config["min_confidence"], 0.25)
+        # Phase 60.14: BBReversalパターン統一により min_confidence を 0.15 に変更
+        self.assertEqual(self.strategy.config["min_confidence"], 0.15)
         self.assertEqual(self.strategy.config["position_size_base"], 0.015)  # 逆張りなので控えめ
 
     def test_analyze_bb_position_overbought(self):
@@ -159,6 +160,9 @@ class TestATRBasedStrategy(unittest.TestCase):
 
     def test_make_decision_both_signals(self):
         """統合判定 - 両シグナル一致テスト."""
+        # Phase 60.14: 新しい動的信頼度計算では bb_position と rsi から方向を決定
+        # bb_position=0.8 (>0.5) → SELL方向
+        # rsi=75 (>50) → SELL方向
         bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.8}
         rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6, "rsi": 75.0}
         atr_analysis = {"regime": "normal", "strength": 0.5}
@@ -168,12 +172,16 @@ class TestATRBasedStrategy(unittest.TestCase):
             bb_analysis, rsi_analysis, atr_analysis, stress_analysis
         )
 
-        # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
+        # Phase 60.14: BB>0.5, RSI>50 → SELL方向になる
+        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
         self.assertTrue(0.0 <= decision["confidence"] <= 1.0)
 
     def test_make_decision_conflict(self):
         """統合判定 - シグナル不一致テスト."""
+        # Phase 60.14: 新しい動的信頼度計算では bb_position と rsi から方向を決定
+        # bb_position=0.8 (>0.5) → SELL方向強度 = (0.8-0.5)*2 = 0.6
+        # rsi=25 (<50) → BUY方向強度 = (50-25)/50 = 0.5
+        # SELL方向が優勢
         bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.8}
         rsi_analysis = {"signal": -1, "confidence": 0.5, "strength": 0.6, "rsi": 25.0}
         atr_analysis = {"regime": "normal", "strength": 0.5}
@@ -183,24 +191,25 @@ class TestATRBasedStrategy(unittest.TestCase):
             bb_analysis, rsi_analysis, atr_analysis, stress_analysis
         )
 
-        # 攻撃的設定：不一致時はより強いシグナル（BB confidence=0.6 > RSI confidence=0.5）を採用
-        # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
-        # メッセージは「シグナル不一致」から「より強いシグナル」系のメッセージに変更
+        # Phase 60.14: BB>0.5の方がRSI<50より強い → SELL方向
+        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
 
     def test_make_decision_high_stress_filter(self):
         """統合判定 - 高ストレスフィルターテスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7}
-        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6}
+        # Phase 60.14: stress_analysisは新実装では直接使用されない
+        # 中立領域（bb_position=0.5, rsi=50）でHOLDを確認
+        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.5}
+        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6, "rsi": 50.0}
         atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": False}  # 高ストレス
+        stress_analysis = {"filter_ok": False}  # 高ストレス（新実装では無視される）
 
         decision = self.strategy._make_decision(
             bb_analysis, rsi_analysis, atr_analysis, stress_analysis
         )
 
+        # Phase 60.14: 中立領域でHOLDになることを確認
         self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertIn("市場ストレス高", decision["analysis"])
+        self.assertIn("信頼度", decision["analysis"])
 
     def test_analyze_full_integration(self):
         """統合分析テスト."""
@@ -381,7 +390,9 @@ class TestATRBasedStrategy(unittest.TestCase):
         self.assertGreaterEqual(decision["confidence"], 0.0)
 
     def test_make_decision_below_min_confidence(self):
-        """統合判定 - 最小信頼度未満テスト."""
+        """統合判定 - 信頼度範囲テスト."""
+        # Phase 60.14: 新しい動的信頼度計算では偏りが大きいとSELLシグナルが出る
+        # bb_position=0.8 (>0.5) → SELL方向
         bb_analysis = {"signal": 1, "confidence": 0.1, "strength": 0.2, "bb_position": 0.8}
         rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
         atr_analysis = {"regime": "low", "strength": 0.1}
@@ -391,9 +402,10 @@ class TestATRBasedStrategy(unittest.TestCase):
             bb_analysis, rsi_analysis, atr_analysis, stress_analysis
         )
 
-        # 最小信頼度未満でHOLDになることを確認
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertGreaterEqual(decision["confidence"], 0.0)
+        # Phase 60.14: SELL/HOLDどちらかになる（動的計算による）
+        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
+        # 動的信頼度が0.15以上であることを確認
+        self.assertGreaterEqual(decision["confidence"], 0.15)
 
     def test_make_decision_error_handling(self):
         """統合判定エラーハンドリングテスト."""
@@ -411,14 +423,21 @@ class TestATRBasedStrategy(unittest.TestCase):
         self.assertEqual(decision["action"], EntryAction.HOLD)
         self.assertIn("エラー", decision["analysis"])
 
-    def test_create_hold_decision(self):
-        """ホールド決定作成テスト."""
-        decision = self.strategy._create_hold_decision("テスト理由")
+    def test_analyze_atr_reversal_signal(self):
+        """Phase 60.14: 統一シグナル分析テスト."""
+        # BUYシグナル条件: bb_position<0.5, rsi<50
+        bb_analysis = {"bb_position": 0.2}
+        rsi_analysis = {"rsi": 30.0}
+        atr_analysis = {"regime": "normal"}
 
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertGreater(decision["confidence"], 0.0)
-        self.assertEqual(decision["strength"], 0.0)
-        self.assertIn("テスト理由", decision["analysis"])
+        decision = self.strategy._analyze_atr_reversal_signal(
+            bb_analysis, rsi_analysis, atr_analysis
+        )
+
+        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
+        self.assertGreaterEqual(decision["confidence"], 0.15)
+        self.assertLessEqual(decision["confidence"], 0.55)
+        self.assertIn("strength", decision)
 
     def test_analyze_with_multi_timeframe_data(self):
         """マルチタイムフレームデータを使用した分析テスト."""

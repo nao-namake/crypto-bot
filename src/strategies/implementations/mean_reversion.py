@@ -1,18 +1,18 @@
 """
-MeanReversion戦略実装 - Phase 61
+MeanReversion戦略実装 - Phase 60.15
 
-移動平均乖離反転戦略:
-- 価格がSMA20から±2%以上乖離 → 反転エントリー
-- BB位置の極端値（<0.1または>0.9）でも発火
-- RSI過買い/過売りでも発火
+移動平均乖離反転戦略（BBReversalパターン統一）:
+- BB位置・RSI・SMA乖離の中央からの偏り度に基づく動的信頼度
+- 0.5/50/0を中央として、乖離が大きいほど信頼度が高い
+- レンジ相場特化（ADX < 45）
 
 特徴:
-- OR条件で発火率向上（良好戦略パターン踏襲）
-- 極端値のみ判定（ノイズ回避）
-- レンジ相場特化（ADX < 25）
-- シンプルな信頼度計算
+- Phase 60.15: BBReversalパターン統一（動的信頼度計算）
+- 3指標（BB/RSI/SMA乖離）の重み付け偏り計算
+- HOLDでも動的信頼度使用（0.15~0.55範囲）
+- 4戦略統一アーキテクチャ
 
-Phase 61: 新規戦略として追加（ADX/MACD/Donchianの代替）
+Phase 60.15: BBReversal/StochasticReversal/ATRBasedと同一パターン
 """
 
 from typing import Any, Dict, List, Optional
@@ -49,31 +49,26 @@ class MeanReversionStrategy(StrategyBase):
             config: 戦略固有設定（Noneの場合はthresholds.yamlから取得）
         """
         # thresholds.yamlから設定読み込み
-        # Phase 60.5: 閾値緩和で発火率向上（HOLD率93.6%→目標60%）
+        # Phase 60.15: BBReversalパターン統一（動的信頼度計算）
         default_config = {
-            "min_confidence": get_threshold("strategies.mean_reversion.min_confidence", 0.30),
-            "hold_confidence": get_threshold("strategies.mean_reversion.hold_confidence", 0.15),
-            # Phase 60.5: SMA乖離閾値緩和（0.02→0.015）
+            # Phase 60.15: 動的信頼度計算パラメータ
+            "min_confidence": get_threshold("strategies.mean_reversion.min_confidence", 0.15),
+            "max_confidence": get_threshold("strategies.mean_reversion.max_confidence", 0.55),
+            "signal_threshold": get_threshold("strategies.mean_reversion.signal_threshold", 0.4),
+            "bb_weight": get_threshold("strategies.mean_reversion.bb_weight", 0.3),
+            "rsi_weight": get_threshold("strategies.mean_reversion.rsi_weight", 0.3),
+            "sma_weight": get_threshold("strategies.mean_reversion.sma_weight", 0.4),
+            # SMA乖離閾値
             "sma_deviation_threshold": get_threshold(
-                "strategies.mean_reversion.sma_deviation_threshold", 0.015
+                "strategies.mean_reversion.sma_deviation_threshold", 0.008
             ),
-            # Phase 60.5: RSI閾値緩和（70/30→65/35）
-            "rsi_overbought": get_threshold("strategies.mean_reversion.rsi_overbought", 65),
-            "rsi_oversold": get_threshold("strategies.mean_reversion.rsi_oversold", 35),
-            # Phase 60.5: BB閾値緩和（0.9/0.1→0.85/0.15）
-            "bb_upper_threshold": get_threshold(
-                "strategies.mean_reversion.bb_upper_threshold", 0.85
-            ),
-            "bb_lower_threshold": get_threshold(
-                "strategies.mean_reversion.bb_lower_threshold", 0.15
-            ),
-            # Phase 60.5: レンジ相場判定拡大（25→30）
+            # レンジ相場判定
             "adx_range_threshold": get_threshold(
-                "strategies.mean_reversion.adx_range_threshold", 30
+                "strategies.mean_reversion.adx_range_threshold", 45
             ),
             # SL設定
             "sl_multiplier": get_threshold("strategies.mean_reversion.sl_multiplier", 1.5),
-            # Phase 52.4-B: TP/SL設定（thresholds.yaml優先）
+            # TP/SL設定（thresholds.yaml優先）
             "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
             "min_profit_ratio": get_threshold(
                 "position_management.take_profit.min_profit_ratio", 0.010
@@ -91,7 +86,7 @@ class MeanReversionStrategy(StrategyBase):
         self.logger.info(
             f"MeanReversion戦略初期化: SMA乖離閾値={self.config['sma_deviation_threshold']}, "
             f"ADX閾値={self.config['adx_range_threshold']}, "
-            f"RSI閾値=({self.config['rsi_oversold']}, {self.config['rsi_overbought']})"
+            f"信頼度範囲=({self.config['min_confidence']}-{self.config['max_confidence']})"
         )
 
     def analyze(
@@ -201,18 +196,11 @@ class MeanReversionStrategy(StrategyBase):
 
     def _analyze_mean_reversion_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        MeanReversionシグナル分析（OR条件）
+        MeanReversionシグナル分析（Phase 60.15: BBReversalパターン統一）
 
-        シグナル生成ロジック:
-        BUY（OR条件）:
-          - RSI < 30
-          - bb_position < 0.1
-          - price < SMA20 * 0.98（乖離-2%以下）
-
-        SELL（OR条件）:
-          - RSI > 70
-          - bb_position > 0.9
-          - price > SMA20 * 1.02（乖離+2%以上）
+        全ての状況で統一された動的信頼度計算を実行:
+        - BB位置・RSI・SMA乖離の中央からの偏り度に基づく
+        - 0.5/50/0を中央として、乖離が大きいほど信頼度が高い
 
         Args:
             df: 市場データ
@@ -227,80 +215,86 @@ class MeanReversionStrategy(StrategyBase):
             sma_deviation = self._calculate_sma_deviation(df)
             threshold = self.config["sma_deviation_threshold"]
 
-            # BUY条件（OR条件）
-            rsi_buy = rsi < self.config["rsi_oversold"]
-            bb_buy = bb_position < self.config["bb_lower_threshold"]
-            sma_buy = sma_deviation < -threshold  # 下方乖離
+            # === Phase 60.15: 統一動的信頼度計算 ===
 
-            buy_conditions = [rsi_buy, bb_buy, sma_buy]
-            buy_count = sum(buy_conditions)
+            # 設定から重みを取得
+            bb_weight = self.config.get("bb_weight", 0.3)
+            rsi_weight = self.config.get("rsi_weight", 0.3)
+            sma_weight = self.config.get("sma_weight", 0.4)
+            min_confidence = self.config.get("min_confidence", 0.15)
+            max_confidence = self.config.get("max_confidence", 0.55)
+            signal_threshold = self.config.get("signal_threshold", 0.4)
 
-            if buy_count > 0:
-                # 信頼度: 条件数に応じて増加
-                base_confidence = 0.30
-                confidence = min(base_confidence + (buy_count - 1) * 0.10, 0.55)
+            # BB位置の偏り度合い（0-1スケールに正規化）
+            bb_deviation = abs(bb_position - 0.5) * 2  # 0 ~ 1
 
-                # 強度: 乖離度合いに基づく
-                strength = min(abs(sma_deviation) / threshold, 1.0) * 0.8
+            # RSIの偏り度合い（0-1スケールに正規化）
+            rsi_deviation = abs(rsi - 50) / 50  # 0 ~ 1
 
-                # 発火条件の記録
-                conditions_met = []
-                if rsi_buy:
-                    conditions_met.append(f"RSI={rsi:.1f}")
-                if bb_buy:
-                    conditions_met.append(f"BB={bb_position:.2f}")
-                if sma_buy:
-                    conditions_met.append(f"SMA乖離={sma_deviation*100:.2f}%")
+            # SMA乖離の偏り度合い（閾値に対する比率、上限1.0）
+            sma_dev_normalized = min(abs(sma_deviation) / threshold, 1.0)  # 0 ~ 1
 
-                return {
-                    "action": EntryAction.BUY,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"MeanReversion BUY ({', '.join(conditions_met)})",
-                    "analysis": f"平均回帰シグナル: {buy_count}条件成立→反転上昇期待",
-                }
+            # 総合偏り度合い（重み付け平均）
+            total_deviation = (
+                bb_deviation * bb_weight
+                + rsi_deviation * rsi_weight
+                + sma_dev_normalized * sma_weight
+            )
 
-            # SELL条件（OR条件）
-            rsi_sell = rsi > self.config["rsi_overbought"]
-            bb_sell = bb_position > self.config["bb_upper_threshold"]
-            sma_sell = sma_deviation > threshold  # 上方乖離
+            # 動的信頼度計算（偏りが大きいほど高い）
+            confidence_range = max_confidence - min_confidence
+            dynamic_confidence = min_confidence + total_deviation * confidence_range
 
-            sell_conditions = [rsi_sell, bb_sell, sma_sell]
-            sell_count = sum(sell_conditions)
+            # === 方向判定 ===
 
-            if sell_count > 0:
-                # 信頼度: 条件数に応じて増加
-                base_confidence = 0.30
-                confidence = min(base_confidence + (sell_count - 1) * 0.10, 0.55)
+            # SELL方向の強さ（正の値）
+            sell_strength = 0.0
+            if bb_position > 0.5:
+                sell_strength += (bb_position - 0.5) * 2  # 0 ~ 1
+            if rsi > 50:
+                sell_strength += (rsi - 50) / 50  # 0 ~ 1
+            if sma_deviation > 0:
+                sell_strength += min(sma_deviation / threshold, 1.0)  # 0 ~ 1
 
-                # 強度: 乖離度合いに基づく
-                strength = min(abs(sma_deviation) / threshold, 1.0) * 0.8
+            # BUY方向の強さ（正の値）
+            buy_strength = 0.0
+            if bb_position < 0.5:
+                buy_strength += (0.5 - bb_position) * 2  # 0 ~ 1
+            if rsi < 50:
+                buy_strength += (50 - rsi) / 50  # 0 ~ 1
+            if sma_deviation < 0:
+                buy_strength += min(abs(sma_deviation) / threshold, 1.0)  # 0 ~ 1
 
-                # 発火条件の記録
-                conditions_met = []
-                if rsi_sell:
-                    conditions_met.append(f"RSI={rsi:.1f}")
-                if bb_sell:
-                    conditions_met.append(f"BB={bb_position:.2f}")
-                if sma_sell:
-                    conditions_met.append(f"SMA乖離=+{sma_deviation*100:.2f}%")
+            # === シグナル決定 ===
 
+            if sell_strength > buy_strength and sell_strength >= signal_threshold:
                 return {
                     "action": EntryAction.SELL,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"MeanReversion SELL ({', '.join(conditions_met)})",
-                    "analysis": f"平均回帰シグナル: {sell_count}条件成立→反転下落期待",
+                    "confidence": dynamic_confidence,
+                    "strength": sell_strength,
+                    "reason": f"MeanReversion SELL (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"SMA乖離={sma_deviation*100:.2f}%, 強度={sell_strength:.2f})",
+                    "analysis": f"過買い圏→平均回帰期待 (信頼度={dynamic_confidence:.3f})",
                 }
-
-            # HOLD信号
-            return {
-                "action": EntryAction.HOLD,
-                "confidence": self.config["hold_confidence"],
-                "strength": 0.0,
-                "reason": f"MeanReversion条件未達成 (RSI={rsi:.1f}, BB={bb_position:.2f}, SMA乖離={sma_deviation*100:.2f}%)",
-                "analysis": "極端値未到達→エントリー見送り",
-            }
+            elif buy_strength > sell_strength and buy_strength >= signal_threshold:
+                return {
+                    "action": EntryAction.BUY,
+                    "confidence": dynamic_confidence,
+                    "strength": buy_strength,
+                    "reason": f"MeanReversion BUY (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"SMA乖離={sma_deviation*100:.2f}%, 強度={buy_strength:.2f})",
+                    "analysis": f"過売り圏→平均回帰期待 (信頼度={dynamic_confidence:.3f})",
+                }
+            else:
+                # HOLDでも動的信頼度を使用（フォールバック値不使用）
+                return {
+                    "action": EntryAction.HOLD,
+                    "confidence": dynamic_confidence,
+                    "strength": max(sell_strength, buy_strength),
+                    "reason": f"MeanReversion中立 (BB={bb_position:.2f}, RSI={rsi:.1f}, "
+                    f"SMA乖離={sma_deviation*100:.2f}%, 強度={max(sell_strength, buy_strength):.2f})",
+                    "analysis": f"方向性不明確 (信頼度={dynamic_confidence:.3f})",
+                }
 
         except Exception as e:
             self.logger.error(f"MeanReversionシグナル分析エラー: {e}")

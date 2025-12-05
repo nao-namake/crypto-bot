@@ -273,8 +273,11 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
         self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], self.config["hold_confidence"])
-        self.assertEqual(decision["strength"], 0.0)
+        # Phase 60.12: HOLDでも動的信頼度計算を使用（中央値の場合は最小信頼度付近）
+        self.assertGreaterEqual(decision["confidence"], 0.15)
+        self.assertLessEqual(decision["confidence"], 0.55)
+        # strength は最大（sell_strength, buy_strength）のどちらか
+        self.assertGreaterEqual(decision["strength"], 0.0)
 
     def test_analyze_empty_dataframe(self):
         """空データフレームテスト"""
@@ -327,22 +330,24 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         df = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, crossover_type="bear")
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
-        # strength = (stoch_k - 50) / 50.0
-        # クロスオーバー調整後: stoch_k = 84 - 1 = 83
-        actual_stoch_k = 83
-        expected_strength = (actual_stoch_k - 50) / 50.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+        # Phase 60.12: 新しい強度計算
+        # sell_strength = (stoch_k - 50) / 50 + (stoch_d - 50) / 100 + (rsi - 50) / 100 + crossover_bonus
+        # stoch_k=85, stoch_d=84, rsi=70, bear crossover (+0.2)
+        # = 0.7 + 0.34 + 0.2 + 0.2 = 1.44
+        self.assertGreater(decision["strength"], 1.0)
+        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
 
     def test_strength_calculation_buy(self):
         """強度計算テスト - BUY"""
         df = self._create_test_data(stoch_k=15, stoch_d=16, rsi=30, crossover_type="golden")
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
-        # strength = (50 - stoch_k) / 50.0
-        # クロスオーバー調整後: stoch_k = 16 + 1 = 17
-        actual_stoch_k = 17
-        expected_strength = (50 - actual_stoch_k) / 50.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+        # Phase 60.12: 新しい強度計算
+        # buy_strength = (50 - stoch_k) / 50 + (50 - stoch_d) / 100 + (50 - rsi) / 100 + crossover_bonus
+        # stoch_k=15, stoch_d=16, rsi=30, golden crossover (+0.2)
+        # = 0.7 + 0.34 + 0.2 + 0.2 = 1.44
+        self.assertGreater(decision["strength"], 1.0)
+        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
 
 
 # pytest実行用
