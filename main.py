@@ -166,8 +166,8 @@ def setup_auto_shutdown():
         sys.exit(0)
 
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout_seconds)
-    print(f"⏰ 自動タイムアウト設定: {timeout_seconds}秒")
+    # signal.alarm(timeout_seconds)  # 無効化: ライブトレードは無限ループで24時間稼働する設計
+    print(f"⏰ 自動タイムアウト設定: 無効（24時間稼働モード）")
 
 
 def setup_signal_handlers():
