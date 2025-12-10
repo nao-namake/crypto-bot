@@ -543,7 +543,7 @@ async def _get_actual_balance(config, logger) -> float:
         bitbank_client = BitbankClient()
         logger.info("🔐 BitbankClient初期化完了、残高取得API呼び出し実行")
 
-        balance_data = bitbank_client.fetch_balance()
+        balance_data = await bitbank_client.fetch_balance()
         logger.info(f"📊 Bitbank残高データ受信: キー={list(balance_data.keys())}")
 
         # JPY残高（自由残高）を取得

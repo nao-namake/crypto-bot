@@ -1496,24 +1496,34 @@ class BitbankClient:
             # Phase 37.2: GETメソッドで呼び出し（エラー20003修正）
             response = await self._call_private_api("/user/margin/status", method="GET")
 
+            # Phase 53.4: bitbank API仕様に準拠したフィールド名に修正
             # 保証金維持率とリスク情報を含む完全な状況を返す
+            data = response.get("data", {})
             margin_data = {
-                "margin_ratio": response.get("data", {}).get("maintenance_margin_ratio"),
-                "available_balance": response.get("data", {}).get("available_margin"),
-                "used_margin": response.get("data", {}).get("used_margin"),
-                "unrealized_pnl": response.get("data", {}).get("unrealized_pnl"),
-                "margin_call_status": response.get("data", {}).get("margin_call_status"),
+                "margin_ratio": data.get("total_margin_balance_percentage"),
+                "available_balances": data.get("available_balances", {}),
+                "total_margin_balance": data.get("total_margin_balance"),
+                "unrealized_pnl": data.get("margin_position_profit_loss"),
+                "status": data.get("status"),
+                "maintenance_margin": data.get("total_position_maintenance_margin"),
                 "raw_response": response,
             }
 
-            self.logger.info(
-                f"📊 信用取引口座状況取得成功 - 維持率: {margin_data['margin_ratio']:.1f}%",
-                extra_data={
-                    "margin_ratio": margin_data["margin_ratio"],
-                    "available_balance": margin_data["available_balance"],
-                    "margin_call_status": margin_data["margin_call_status"],
-                },
-            )
+            # Phase 53.4: margin_ratioがNoneの場合の安全なログ出力
+            margin_ratio = margin_data.get("margin_ratio")
+            if margin_ratio is not None:
+                self.logger.info(
+                    f"📊 信用取引口座状況取得成功 - 維持率: {margin_ratio:.1f}%",
+                    extra_data={
+                        "margin_ratio": margin_ratio,
+                        "status": margin_data.get("status"),
+                    },
+                )
+            else:
+                self.logger.info(
+                    "📊 信用取引口座状況取得成功 - 維持率: N/A（ポジションなし）",
+                    extra_data={"status": margin_data.get("status")},
+                )
 
             return margin_data
 
@@ -1607,10 +1617,11 @@ class BitbankClient:
             nonce = timestamp
 
             # Phase 37.2: GET/POSTで署名ロジック分岐
+            # Phase 53.4: GET署名には/v1プレフィックスが必須（bitbank API仕様）
             if method.upper() == "GET":
-                # GETリクエスト署名: nonce + endpoint (+ query parameters)
-                # 現時点でquery parametersは使用しないため、endpointのみ
-                message = f"{nonce}{endpoint}"
+                # GETリクエスト署名: nonce + /v1 + endpoint (+ query parameters)
+                # bitbank公式仕様: message = "{nonce}/v1{endpoint}"
+                message = f"{nonce}/v1{endpoint}"
                 body = None
             else:
                 # POSTリクエスト署名: nonce + request body
