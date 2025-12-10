@@ -1,0 +1,119 @@
+# 週間レポート自動送信ワークフロー - Phase 53.1
+# 毎週月曜日 9:00 JST に取引統計レポートをDiscordに送信
+# Cloud Storage統合で実データ使用
+
+name: Weekly Trading Report
+
+on:
+  workflow_dispatch:  # 手動実行
+  schedule:
+    - cron: '0 0 * * 1'  # 毎週月曜 09:00 JST (UTC 00:00)
+
+env:
+  PROJECT_ID: my-crypto-bot-project
+  BUCKET_NAME: crypto-bot-trade-data
+  DB_PATH: tax/trade_history.db
+
+jobs:
+  report:
+    name: Generate Weekly Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: Install dependencies
+        run: |
+          echo "Python環境セットアップ"
+          python --version
+          pip --version
+
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install matplotlib Pillow
+
+          echo "依存関係インストール完了"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@my-crypto-bot-project.iam.gserviceaccount.com
+          access_token_lifetime: 1800s
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Download trade history from Cloud Storage
+        run: |
+          echo "Cloud Storageから取引履歴DB取得"
+          mkdir -p tax
+
+          # Cloud StorageからDB取得
+          if gsutil -q stat gs://${{ env.BUCKET_NAME }}/${{ env.DB_PATH }}; then
+            gsutil cp gs://${{ env.BUCKET_NAME }}/${{ env.DB_PATH }} ${{ env.DB_PATH }}
+            echo "取引履歴DB取得完了"
+            ls -lh ${{ env.DB_PATH }}
+          else
+            echo "警告: Cloud StorageにDBが存在しません"
+            echo "空のDBで続行します（レポートは限定的）"
+            touch ${{ env.DB_PATH }}
+          fi
+
+      - name: Get Discord Webhook URL
+        id: get-webhook
+        run: |
+          echo "Discord Webhook URL取得中..."
+          DISCORD_WEBHOOK_URL=$(gcloud secrets versions access 6 --secret="discord-webhook-url")
+          echo "DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL" >> $GITHUB_ENV
+          echo "Discord Webhook URL取得完了"
+
+      - name: Generate and send weekly report
+        env:
+          DISCORD_WEBHOOK_URL: ${{ env.DISCORD_WEBHOOK_URL }}
+        run: |
+          echo "週間レポート生成・送信開始"
+
+          python scripts/reports/weekly_report.py \
+            --db-path ${{ env.DB_PATH }} \
+            --discord-webhook-url "$DISCORD_WEBHOOK_URL"
+
+          if [ $? -eq 0 ]; then
+            echo "週間レポート送信成功"
+          else
+            echo "週間レポート送信失敗"
+            exit 1
+          fi
+
+      - name: Report Summary
+        if: always()
+        run: |
+          echo "=== Weekly Report Summary ==="
+          echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "実行タイプ: ${{ github.event_name }}"
+          echo "ステータス: ${{ job.status }}"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/weekly_pnl_curve.png
+          echo "クリーンアップ完了"
+
+# 注意事項:
+# 1. 週次自動実行: 毎週月曜日 9:00 JST（UTC 00:00）
+# 2. 手動実行可能: workflow_dispatch対応
+# 3. Cloud Storage統合: gs://crypto-bot-trade-data/tax/trade_history.db
+# 4. レポート内容: 損益統計・Discord送信

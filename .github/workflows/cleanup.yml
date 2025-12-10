@@ -1,15 +1,13 @@
 # GCPリソースクリーンアップワークフロー
-# 古いリソース自動削除・コスト30%削減・運用最適化（Phase 51.5-E完了・Phase 52.4品質改善）
+# 古いリソース自動削除・コスト30%削減・運用最適化（Phase 53.1改善）
+# - Dockerイメージ: SHA256ベース削除・--delete-tagsオプション追加
+# - Cloud Runリビジョン: 最新3個保持
+# - スケジュール: 毎月第1日曜日 JST 2:00 AM
 
 name: GCP Resource Cleanup
 
 on:
-  # push実行防止（GitHub内部バリデーション対策）
-  push:
-    paths-ignore:
-      - '**'  # すべてのファイル変更を無視（push時は実行しない）
-
-  # 手動実行（推奨）
+  # 手動実行のみ（安全性確保）
   workflow_dispatch:
     inputs:
       cleanup_level:
@@ -24,13 +22,12 @@ on:
 
   # 月次自動実行（第1日曜日 JST 2:00 AM）
   schedule:
-    - cron: '0 17 * * 0'  # UTC 17:00 = JST 02:00（日曜日）
+    - cron: '0 17 1-7 * 0'  # UTC 17:00 = JST 02:00（月の第1日曜日のみ）
 
 env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
   REPOSITORY: crypto-bot-repo
-  WORKFLOW_TIMEOUT: 20
   IMAGE_RETENTION_COUNT: 5
   REVISION_RETENTION_COUNT: 3
   IMAGE_LIST_LIMIT: 100
@@ -41,11 +38,11 @@ jobs:
   cleanup-gcp-resources:
     name: GCP Resource Cleanup
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(env.WORKFLOW_TIMEOUT) }}
-    
+    timeout-minutes: 20
+
     # mainブランチのみ実行（安全性確保）
     if: github.ref == 'refs/heads/main'
-    
+
     permissions:
       contents: read
       id-token: write
@@ -64,33 +61,41 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: 🧹 Safe Cleanup - Artifact Registry古いイメージ削除
+      - name: 🧹 Safe Cleanup - Artifact Registry古いDockerイメージ削除
         run: |
           echo "🐳 Artifact Registry古いDockerイメージクリーンアップ"
-          
-          # 現在のイメージ一覧取得（最新${IMAGE_RETENTION_COUNT}個を保持）
-          IMAGES=$(gcloud artifacts docker images list \
+          echo "保持数: 最新${{ env.IMAGE_RETENTION_COUNT }}個"
+
+          # SHA256ダイジェストベースでイメージ一覧取得（最新順）
+          DIGESTS=$(gcloud artifacts docker images list \
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
             --sort-by=~CREATE_TIME \
-            --format="value(version)" \
-            --limit=${{ env.IMAGE_LIST_LIMIT }})
+            --format="value(digest)" \
+            --limit=${{ env.IMAGE_LIST_LIMIT }} 2>/dev/null || echo "")
 
-          # 削除対象イメージを特定（最新${IMAGE_RETENTION_COUNT}個以外）
-          DELETE_IMAGES=$(echo "$IMAGES" | tail -n +$((${{ env.IMAGE_RETENTION_COUNT }} + 1)))
-          
-          if [ -n "$DELETE_IMAGES" ]; then
-            echo "🗑️ 削除対象イメージ数: $(echo "$DELETE_IMAGES" | wc -l)"
-            
-            for IMAGE_VERSION in $DELETE_IMAGES; do
-              if [[ "$IMAGE_VERSION" != *"latest"* ]]; then
-                echo "削除中: crypto-bot:$IMAGE_VERSION"
-                gcloud artifacts docker images delete \
-                  ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:$IMAGE_VERSION \
-                  --quiet --delete-tags || echo "⚠️ 削除失敗: $IMAGE_VERSION"
-              fi
+          if [ -z "$DIGESTS" ]; then
+            echo "📋 イメージなし、スキップ"
+            exit 0
+          fi
+
+          TOTAL_COUNT=$(echo "$DIGESTS" | wc -l | tr -d ' ')
+          echo "📊 現在のイメージ総数: $TOTAL_COUNT"
+
+          # 削除対象イメージを特定（最新N個以外）
+          DELETE_DIGESTS=$(echo "$DIGESTS" | tail -n +$((${{ env.IMAGE_RETENTION_COUNT }} + 1)))
+
+          if [ -n "$DELETE_DIGESTS" ]; then
+            DELETE_COUNT=$(echo "$DELETE_DIGESTS" | wc -l | tr -d ' ')
+            echo "🗑️ 削除対象イメージ数: $DELETE_COUNT"
+
+            for DIGEST in $DELETE_DIGESTS; do
+              echo "削除中: $DIGEST"
+              gcloud artifacts docker images delete \
+                "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot@$DIGEST" \
+                --delete-tags --quiet || echo "⚠️ 削除失敗: $DIGEST"
             done
-            
-            echo "✅ 古いDockerイメージ削除完了"
+
+            echo "✅ 古いDockerイメージ削除完了（$DELETE_COUNT個）"
           else
             echo "📋 削除対象イメージなし（最新${{ env.IMAGE_RETENTION_COUNT }}個のみ存在）"
           fi
@@ -99,22 +104,27 @@ jobs:
         if: github.event.inputs.cleanup_level == 'moderate' || github.event.inputs.cleanup_level == 'aggressive' || github.event_name == 'schedule'
         run: |
           echo "☁️ Cloud Run古いリビジョンクリーンアップ"
-          
+
           # 現在のサービス一覧
-          SERVICES=$(gcloud run services list --region=${{ env.REGION }} --format="value(metadata.name)")
-          
+          SERVICES=$(gcloud run services list --region=${{ env.REGION }} --format="value(metadata.name)" 2>/dev/null || echo "")
+
+          if [ -z "$SERVICES" ]; then
+            echo "📋 サービスなし、スキップ"
+            exit 0
+          fi
+
           for SERVICE in $SERVICES; do
             if [[ "$SERVICE" == *"crypto-bot-service"* ]]; then
               echo "🔍 サービス確認: $SERVICE"
-              
-              # 古いリビジョン取得（最新${REVISION_RETENTION_COUNT}個以外）
+
+              # 古いリビジョン取得（最新3個以外）
               OLD_REVISIONS=$(gcloud run revisions list \
                 --service="$SERVICE" \
                 --region=${{ env.REGION }} \
                 --format="value(metadata.name)" \
-                --sort-by=~metadata.creationTimestamp \
-                | tail -n +$((${{ env.REVISION_RETENTION_COUNT }} + 1)))
-              
+                --sort-by=~metadata.creationTimestamp 2>/dev/null \
+                | tail -n +$((${{ env.REVISION_RETENTION_COUNT }} + 1)) || echo "")
+
               if [ -n "$OLD_REVISIONS" ]; then
                 echo "🗑️ 古いリビジョン削除開始"
                 for REVISION in $OLD_REVISIONS; do
@@ -133,12 +143,12 @@ jobs:
         if: github.event.inputs.cleanup_level == 'moderate' || github.event.inputs.cleanup_level == 'aggressive'
         run: |
           echo "🏗️ Cloud Build履歴クリーンアップ"
-          
-          # ${BUILD_RETENTION_DAYS}日以上古いビルドを取得
+
+          # 30日以上古いビルドを取得
           OLD_BUILDS=$(gcloud builds list \
             --filter="createTime<-P${{ env.BUILD_RETENTION_DAYS }}D" \
             --format="value(id)" \
-            --limit=${{ env.BUILD_DELETE_LIMIT }})
+            --limit=${{ env.BUILD_DELETE_LIMIT }} 2>/dev/null || echo "")
 
           if [ -n "$OLD_BUILDS" ]; then
             echo "🗑️ ${{ env.BUILD_RETENTION_DAYS }}日以上古いビルド削除"
@@ -162,12 +172,12 @@ jobs:
           gcloud artifacts docker images list \
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot \
             --format="table(version,createTime)" \
-            --limit=10 || echo "⚠️ イメージ一覧取得失敗"
+            --limit=10 2>/dev/null || echo "⚠️ イメージ一覧取得失敗"
 
           echo ""
           echo "☁️ 現在のCloud Runサービス:"
           gcloud run services list --region=${{ env.REGION }} \
-            --format="table(metadata.name,status.url,status.conditions[0].lastTransitionTime)" \
+            --format="table(metadata.name,status.url)" 2>/dev/null \
             || echo "⚠️ サービス一覧取得失敗"
 
           echo ""
@@ -183,8 +193,8 @@ jobs:
           echo "⚠️ ========================================="
 
 # 注意事項:
-# 1. このワークフローは手動実行を推奨します
-# 2. aggressive レベルは慎重に使用してください
-# 3. 本番環境に影響する可能性があります
+# 1. このワークフローは手動実行またはスケジュール実行のみ
+# 2. pushイベントでは起動しません（安全性確保）
+# 3. aggressive レベルは慎重に使用してください
 # 4. 定期実行は月1回の安全な削除のみです（毎月第1日曜日 JST 2:00 AM）
-# 5. Phase 51.5-E完了・Phase 52.4品質改善環境での実行を前提
+# 5. Phase 53.1改善: SHA256ダイジェストベース削除・--delete-tags追加

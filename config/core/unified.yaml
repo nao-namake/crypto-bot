@@ -36,7 +36,7 @@ mode_balances:
     initial_balance: 10000.0      # ライブトレード（1万円・本番運用）
     description: "本番運用・API取得ベース"
   backtest:
-    initial_balance: 100000.0     # バックテスト（10万円）
+    initial_balance: 10000.0      # バックテスト（1万円・Phase 53.3統一）
     description: "過去データ検証用"
 
 # 取引所設定（bitbank信用取引専用）

@@ -1,12 +1,12 @@
-# Phase 52.4-B完了 Production Dockerfile
-# 6戦略55特徴量システム・コード品質改善・企業級AI自動取引システム
+# Phase 53.2 Production Dockerfile
+# 6戦略55特徴量システム・Python 3.11統一・GCP gVisor安定性
 
-FROM python:3.13-slim-bullseye
+FROM python:3.11-slim-bullseye
 
-# メタデータ（Phase 52.4-B完了）
-LABEL maintainer="crypto-bot-phase52.4-b-system"
-LABEL version="52.4.0"
-LABEL description="Phase 52.4-B完了: コード品質改善・6戦略55特徴量システム・Phase参照統一67%削減"
+# メタデータ（Phase 53.2）
+LABEL maintainer="crypto-bot-phase53.2-system"
+LABEL version="53.2.0"
+LABEL description="Phase 53.2: Python 3.11統一・GCP gVisor安定性・6戦略55特徴量システム"
 
 WORKDIR /app
 
@@ -43,7 +43,7 @@ RUN useradd --create-home --shell /bin/bash cryptobot \
     && chown -R cryptobot:cryptobot /app
 USER cryptobot
 
-# 環境変数（Phase 52.4-B完了）
+# 環境変数（Phase 53.2）
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app

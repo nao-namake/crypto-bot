@@ -1,36 +1,39 @@
-# 週次バックテスト自動化ワークフロー - Phase 52.4
-# 目的: 毎週日曜日00:00(JST)にバックテストを自動実行し、Markdownレポートをリポジトリにコミット
+# バックテスト実行ワークフロー - Phase 53.1
+# 目的: 手動トリガーでバックテストを実行し、Markdownレポートをリポジトリにコミット
 
-name: Weekly Backtest Automation
+name: Backtest Execution
 
 on:
-  # push実行防止（GitHub内部バリデーション対策）
-  push:
-    paths-ignore:
-      - '**'  # すべてのファイル変更を無視（push時は実行しない）
-
-  # 毎週日曜日00:00 JST = 土曜日15:00 UTC
-  schedule:
-    - cron: '0 15 * * 6'
-
-  # 手動実行も可能
+  # 手動実行専用
   workflow_dispatch:
     inputs:
       phase_name:
         description: 'Phase名（レポートファイル名用）'
         required: false
-        default: '52.4'
+        default: '53.1'
+      backtest_days:
+        description: 'バックテスト日数'
+        required: false
+        default: '180'
+        type: choice
+        options:
+          - '30'
+          - '60'
+          - '90'
+          - '180'
+          - '365'
 
 env:
-  PYTHON_VERSION: '3.13'
-  BACKTEST_TIMEOUT_MINUTES: 180  # 3時間（バックテスト実行時間: 約2h43m）
-  HISTORICAL_DATA_DAYS: 180  # 履歴データ収集日数
+  PYTHON_VERSION: '3.11'
+  BACKTEST_TIMEOUT_MINUTES: 300  # 5時間（バックテスト実行時間: 約2h43m + バッファ）
 
 jobs:
-  weekly-backtest:
-    name: Weekly Backtest Execution
+  backtest:
+    name: Backtest Execution
+    env:
+      HISTORICAL_DATA_DAYS: ${{ github.event.inputs.backtest_days || '180' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # 全体タイムアウト: 3時間
+    timeout-minutes: 360  # 全体タイムアウト: 6時間
 
     permissions:
       contents: write  # Git commitとpushに必要
@@ -65,7 +68,7 @@ jobs:
           echo "✅ 依存関係インストール完了"
 
       # ========================================
-      # Step 4: 履歴データ収集（Phase 52.2対応）
+      # Step 4: 履歴データ収集
       # ========================================
       - name: Collect historical data
         run: |
@@ -97,18 +100,18 @@ jobs:
           echo "✅ 履歴データ収集完了"
 
       # ========================================
-      # Step 5: テスト環境準備（Phase 52.0対応）
+      # Step 5: テスト環境準備
       # ========================================
       - name: Setup backtest environment
         run: |
           echo "🔧 バックテスト環境準備開始..."
 
           # 必要なディレクトリ作成
-          mkdir -p logs cache src/backtest/logs docs/バックテスト記録
+          mkdir -p logs cache src/backtest/logs docs/検証記録
 
-          # モデルメタデータ作成（Phase 52.4対応・特徴量数一元管理）
+          # モデルメタデータ作成（特徴量数一元管理）
           FEATURE_COUNT=$(python3 -c "import sys; sys.path.insert(0, '.'); from src.core.config.feature_manager import get_feature_count; print(get_feature_count())")
-          echo '{"version": "weekly-backtest", "features": '$FEATURE_COUNT', "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
+          echo '{"version": "backtest", "features": '$FEATURE_COUNT', "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
 
           # モデルファイル確認
           if [ -f "models/production/ensemble_full.pkl" ]; then
@@ -134,6 +137,10 @@ jobs:
           echo "🚀 バックテスト実行開始..."
           echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
           echo "実行時刻（UTC）: $(date -u '+%Y/%m/%d %H:%M:%S')"
+          echo "バックテスト日数: ${{ env.HISTORICAL_DATA_DAYS }}日"
+
+          # Phase 53.1: PYTHONPATH設定（src モジュール認識）
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
           # バックテスト実行（タイムアウト対策: timeoutコマンド使用）
           timeout $((BACKTEST_TIMEOUT_MINUTES * 60)) python3 main.py --mode backtest 2>&1 | tee backtest_run.log
@@ -168,17 +175,20 @@ jobs:
           echo "📝 Markdownレポート生成開始..."
 
           # Phase名取得（手動実行時は入力値、定期実行時はデフォルト）
-          PHASE_NAME="${{ github.event.inputs.phase_name || '52.4' }}"
+          PHASE_NAME="${{ github.event.inputs.phase_name || '53.1' }}"
           echo "Phase名: $PHASE_NAME"
+
+          # PYTHONPATH設定（src モジュール認識）
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
           # Markdownレポート生成
           python3 scripts/backtest/generate_markdown_report.py \
             "$LATEST_JSON" \
             --phase "$PHASE_NAME" \
-            --output-dir "docs/バックテスト記録"
+            --output-dir "docs/検証記録"
 
           # 生成されたMarkdownファイル確認
-          LATEST_MARKDOWN=$(ls -t docs/バックテスト記録/Phase_*.md 2>/dev/null | head -1)
+          LATEST_MARKDOWN=$(ls -t docs/検証記録/Phase_*.md 2>/dev/null | head -1)
           if [ -n "$LATEST_MARKDOWN" ]; then
             echo "✅ Markdownレポート生成確認: $LATEST_MARKDOWN"
             echo "LATEST_MARKDOWN=$LATEST_MARKDOWN" >> $GITHUB_ENV
@@ -208,15 +218,16 @@ jobs:
           git status --short
 
           # Markdownレポートのみコミット（JSONは除外）
-          git add "docs/バックテスト記録/Phase_*.md"
+          git add "docs/検証記録/Phase_*.md"
 
           # コミット（変更がある場合のみ）
           if git diff --staged --quiet; then
             echo "ℹ️ コミット対象なし（変更なし）"
           else
             REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y/%m/%d')
-            COMMIT_MSG="docs: 週次バックテストレポート追加 ${REPORT_DATE}"
-            COMMIT_BODY="週次自動バックテスト結果 (Phase 52.4) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
+            PHASE_NAME="${{ github.event.inputs.phase_name || '53.1' }}"
+            COMMIT_MSG="docs: バックテストレポート追加 ${REPORT_DATE}"
+            COMMIT_BODY="バックテスト結果 (Phase ${PHASE_NAME}) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
 
             git commit -m "${COMMIT_MSG}" -m "${COMMIT_BODY}"
             echo "✅ コミット完了"
@@ -249,9 +260,11 @@ jobs:
       - name: Execution summary
         if: always()
         run: |
-          echo "=" * 60
-          echo "📊 週次バックテスト実行サマリー（Phase 52.4）"
-          echo "=" * 60
+          echo "========================================"
+          echo "📊 バックテスト実行サマリー"
+          echo "========================================"
+          echo "Phase: ${{ github.event.inputs.phase_name || '53.1' }}"
+          echo "期間: ${{ env.HISTORICAL_DATA_DAYS }}日間"
 
           if [ "${{ job.status }}" == "success" ]; then
             echo "✅ ステータス: 成功"
@@ -263,13 +276,13 @@ jobs:
             echo "🔍 ログを確認してください"
           fi
 
-          echo "=" * 60
+          echo "========================================"
           echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
-          echo "=" * 60
+          echo "========================================"
 
 # ========================================
 # 同時実行制御
 # ========================================
 concurrency:
-  group: weekly-backtest
+  group: backtest
   cancel-in-progress: false  # 実行中のバックテストは中断しない

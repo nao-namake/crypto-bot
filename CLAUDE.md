@@ -84,7 +84,7 @@
 **AI自動取引システム**: 6戦略 + ML統合（**55特徴量システム**）による真のハイブリッドMLbot
 
 **技術構成**:
-- Python 3.13・MLライブラリ互換性最適化
+- Python 3.11・GCP gVisor安定性最適化
 - **6戦略統合**（Phase 51.7）:
   - レンジ型3個: ATRBased・DonchianChannel・BBReversal
   - トレンド型3個: ADXTrendStrength・StochasticReversal・MACDEMACrossover
