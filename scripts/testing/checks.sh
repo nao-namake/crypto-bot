@@ -181,9 +181,9 @@ python3 -m pytest \
     exit 1
 }
 
-# 実際のテスト数とカバレッジを抽出
-TEST_COUNT=$(grep -oP '\d+(?= passed)' "${PYTEST_OUTPUT}" | head -1)
-COV_PERCENT=$(grep -oP 'TOTAL\s+\d+\s+\d+\s+\d+\s+\d+\s+\K\d+%' "${PYTEST_OUTPUT}" | tr -d '%')
+# 実際のテスト数とカバレッジを抽出（POSIX互換）
+TEST_COUNT=$(grep -E '[0-9]+ passed' "${PYTEST_OUTPUT}" | head -1 | sed -E 's/.*([0-9]+) passed.*/\1/' || echo "")
+COV_PERCENT=$(grep "TOTAL" "${PYTEST_OUTPUT}" | tail -1 | awk '{print $(NF)}' | tr -d '%' || echo "")
 
 # デフォルト値設定（抽出失敗時）
 TEST_COUNT=${TEST_COUNT:-"N/A"}
