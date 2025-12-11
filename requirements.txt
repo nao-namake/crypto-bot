@@ -15,6 +15,8 @@ requests==2.31.0        # HTTP クライアント・外部API通信
 ccxt>=2.10.0            # 暗号資産取引所API・Bitbank接続・版互換性確保
 yfinance==0.2.32        # Yahoo Finance API・Phase 50.3外部API統合・マクロ経済指標取得
 aiohttp>=3.9.0          # 非同期HTTPクライアント・Phase 50.3外部API統合・Alternative.me API接続
+aiodns==3.2.0           # DNS解決・aiohttp依存・pycares互換性確保（Phase 53.8）
+pycares==4.4.0          # C-ares DNS解決・aiodns依存・API安定版（Phase 53.8）
 
 # --- Cloud Storage・永続化 -------------------------------------------
 google-cloud-storage==2.10.0  # GCP Cloud Storage・ドローダウン状態永続化・GCP統合対応
