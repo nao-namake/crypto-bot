@@ -1226,8 +1226,8 @@ class BacktestRunner(BaseRunner):
                 mode="backtest",  # バックテストモード（状態永続化は無効）
             )
 
-            # 初期残高設定（unified.yamlから取得・Phase 53.3: 1万円統一）
-            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 10000.0)
+            # 初期残高設定（unified.yamlから取得・Phase 53.6: 10万円戦略評価用）
+            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
             self.drawdown_manager.initialize_balance(initial_balance)
 
             self.logger.warning(
