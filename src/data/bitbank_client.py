@@ -1497,12 +1497,16 @@ class BitbankClient:
             response = await self._call_private_api("/user/margin/status", method="GET")
 
             # Phase 53.4: bitbank API仕様に準拠したフィールド名に修正
+            # Phase 53.7: 呼び出し元で使用するキーを明記
             # 保証金維持率とリスク情報を含む完全な状況を返す
+            #
+            # 重要: 利用可能証拠金を取得する場合は "total_margin_balance" を使用すること
+            #       "available_balances" は配列形式 [{pair, long, short}] なので直接使用不可
             data = response.get("data", {})
             margin_data = {
                 "margin_ratio": data.get("total_margin_balance_percentage"),
-                "available_balances": data.get("available_balances", {}),
-                "total_margin_balance": data.get("total_margin_balance"),
+                "available_balances": data.get("available_balances", []),  # 配列形式
+                "total_margin_balance": data.get("total_margin_balance"),  # 利用可能証拠金（円）
                 "unrealized_pnl": data.get("margin_position_profit_loss"),
                 "status": data.get("status"),
                 "maintenance_margin": data.get("total_position_maintenance_margin"),
