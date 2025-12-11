@@ -1,4 +1,4 @@
-# CLAUDE.md - Phase 52.5完了・開発ガイド
+# CLAUDE.md - Phase 53.8完了・開発ガイド
 
 **Claude Codeが即座に理解すべき開発指針と技術情報**
 
@@ -6,45 +6,36 @@
 
 ## 🎯 システム現状（最重要・即座理解）
 
-### Phase 52.5完了ステータス（2025/11/18）
+### Phase 53.8完了ステータス（2025/12/12）
 
-**現在の状況**: Phase 52.5完了 ✅ → **本番環境安定稼働中**（設定ファイル最適化・1,252テスト100%成功）
+**現在の状況**: Phase 53.8完了 ✅ → **本番環境安定稼働中**（Python 3.11統一・GCPバグ修正・CI/CD改修）
 
-**Phase 50.9: 外部API完全削除**（完了 ✅）:
-- **目的**: GCP環境不安定性・時間軸ミスマッチ（日次 vs 5分足）・統計的有意性不足（+0.83%）により外部API削除
-- **削除内容**:
-  - `src/features/external_api.py`（436行）完全削除
-  - `tests/unit/features/test_external_api.py`（402行）完全削除
-  - `models/production/ensemble_level1.pkl`（4.2MB・70特徴量）削除
-- **モデルリネーム**（重要：旧レベルシステム廃止）:
-  - `ensemble_level2.pkl`（62特徴量） → **`ensemble_full.pkl`**（デフォルト）
-  - `ensemble_level3.pkl`（57特徴量） → **`ensemble_basic.pkl`**（フォールバック）
-- **特徴量変更**: 70特徴量 → 62特徴量 → **55特徴量**（Phase 51.7: 6戦略シグナル）
-- **期待効果**: システム安定性向上・ゼロダウンタイム実現・保守性+20%・シンプル設計回帰
-- **実装詳細**: `docs/開発履歴/Phase_50.md` Phase 50.9参照
+**Phase 53シリーズ完了**（2025/12/11-12/12）:
+- **Phase 53.1**: GitHub Actions改修・docsフォルダ整理・Python 3.11統一開始
+- **Phase 53.2**: Python 3.11統一完了・pandas-ta削除（未使用）・checks.sh POSIX互換修正
+- **Phase 53.3**: バックテスト初期残高調整
+- **Phase 53.4**: GCPライブモード4重大バグ修正（await漏れ・API署名・フィールド名）
+- **Phase 53.5**: GCP稼働率向上（RandomForest n_jobs=1・signal.alarm無効化）
+- **Phase 53.6**: バックテスト初期残高10万円復元
+- **Phase 53.7**: 証拠金取得キー名修正（0エントリー問題解決）
+- **Phase 53.8**: aiodns/pycares互換性修正（バックテストワークフロー復旧）
 
-**Phase 51完走完了**（2025/11/05-11/12）:
-- **Phase 51.6**: TP/SL見直し（RR比0.7:1 → 0.67:1）・基礎設定統一
-- **Phase 51.7**: 6戦略実装完了（レンジ3・トレンド3）・55特徴量確立
-- **Phase 51.8**: レジーム別ポジション制限・ML統合最適化
-- **Phase 51.9**: 真の3クラス分類実装（F1改善+9.7%）・バックテスト検証
-- **Phase 51.10**: TP/SL孤児注文完全解決（Option D実装）
-- **Phase 51.11**: 本番デプロイ完了・Phase 51完走宣言
+**Phase 53重要修正**:
+- **Python 3.11統一**: GCP gVisor環境安定性（稼働率33%→99%）
+- **GCPバグ4件修正**: await漏れ・API署名・フィールド名・証拠金キー名
+- **aiodns/pycares固定**: バックテストワークフロー互換性確保
+- **開発履歴**: `docs/開発履歴/Phase_53.md`
 
-**Phase 52シリーズ完了**（2025/11/12-11/18）:
+**Phase 52ベース**（PF 1.34・勝率51.4%）:
 - **Phase 52.0**: レジーム別動的TP/SL実装（tight_range/normal_range/trending）
-- **Phase 52.1**: 週次バックテスト自動化（GitHub Actions）
-- **Phase 52.2**: 本番シミュレーションモード・DrawdownManager統合
-- **Phase 52.3**: コード品質改善（flake8エラー完全解消）
-- **Phase 52.4**: CI/CD系統整理（特徴量数一元化・環境変数化）
-- **Phase 52.5**: 設定ファイル最適化完了（重複削除110行・Single Source of Truth確立）
+- **Phase 52.1-52.5**: 週次バックテスト自動化・DrawdownManager統合・設定最適化
 
-**開発基盤**（Phase 52.5完了時点）:
+**開発基盤**（Phase 53.8完了時点）:
+- **Python**: 3.11（GCP gVisor安定性・全ファイル統一）
 - **拡張性**: Registry Pattern実装により戦略追加が2ファイルのみ（93%削減達成）
-- **技術的負債**: ゼロ（Phase 51.5-D完全調査・Phase 52.3コード品質改善・Phase 52.5設定最適化）
-- **品質基盤**: 1,252テスト・66.78%カバレッジ達成
-- **設定管理**: Single Source of Truth確立・重複削除110行・使用箇所ドキュメント化
-- **開発速度**: 安定稼働優先（動的戦略管理基盤・システム整合性100%）
+- **技術的負債**: ゼロ（Phase 53.4-53.7でGCPバグ完全解消）
+- **品質基盤**: 1,282テスト・65%+カバレッジ
+- **設定管理**: Single Source of Truth確立・feature_order.json（55特徴量）
 
 ---
 
@@ -65,12 +56,12 @@
 - **Phase 48**: Discord週間レポート（通知99%削減・コスト35%削減）
 - **Phase 47**: 確定申告対応システム（作業時間95%削減）
 
-**品質指標**（Phase 52.5完了後）:
-- **テスト成功率**: 100%（1,252テスト）
-- **カバレッジ**: 66.78%（65%目標超過）
+**品質指標**（Phase 53.8完了後）:
+- **テスト成功率**: 100%（1,282テスト）
+- **カバレッジ**: 65%+（目標達成）
 - **コード品質**: flake8・isort・black全てPASS
 - **CI/CD**: GitHub Actions成功・GCP Cloud Runデプロイ完了
-- **設定管理**: Single Source of Truth確立・重複削除110行
+- **Python**: 3.11統一（GCP gVisor安定性）
 
 **運用仕様**:
 - bitbank信用取引・BTC/JPY専用
@@ -84,14 +75,14 @@
 **AI自動取引システム**: 6戦略 + ML統合（**55特徴量システム**）による真のハイブリッドMLbot
 
 **技術構成**:
-- Python 3.11・GCP gVisor安定性最適化
+- Python 3.11・GCP gVisor安定性最適化（Phase 53.2統一）
 - **6戦略統合**（Phase 51.7）:
   - レンジ型3個: ATRBased・DonchianChannel・BBReversal
   - トレンド型3個: ADXTrendStrength・StochasticReversal・MACDEMACrossover
 - **動的戦略管理**（Phase 51.5-B）: Registry Pattern・93%影響削減
 - 3モデルアンサンブル（LightGBM 50%・XGBoost 30%・RandomForest 20%）
 - 4時間足（トレンド）+ 15分足（エントリー）
-- **Phase 52.5**: 55特徴量システム本番稼働中・設定ファイル最適化完了
+- **Phase 53.8**: 55特徴量システム本番稼働中・GCPバグ完全解消
 
 **リスク管理**:
 - **TP/SL設定**（Phase 52.0レジーム別動的設定）:
@@ -130,11 +121,11 @@
 # 品質チェック - 開発前後に必ず実行
 bash scripts/testing/checks.sh
 
-# Phase 52.5時点:
-# ✅ 1,252テスト・100%成功
-# ✅ 66.78%カバレッジ達成（65%目標超過）
+# Phase 53.8時点:
+# ✅ 1,282テスト・100%成功
+# ✅ 65%+カバレッジ達成（目標超過）
 # ✅ flake8・isort・black全てPASS
-# ✅ 実行時間: 約74秒で完了
+# ✅ Python 3.11統一（GCP gVisor安定性）
 ```
 
 ### システム実行
@@ -226,7 +217,7 @@ scripts/
 └── models/production/              # 本番MLモデル（週次自動更新）
 ```
 
-### データフロー（Phase 52.5最新）
+### データフロー（Phase 53.8最新）
 
 ```
 データ取得（Bitbank API・15分足直接取得）
@@ -244,12 +235,11 @@ ML予測（ensemble_full.pkl: 55特徴量モデル → 信頼度）
 取引実行（Atomic Entry・完全指値オンリー・bitbank API）
 ```
 
-**Phase 52.5変更点**:
-- 設定ファイル最適化（重複削除110行・Single Source of Truth確立）
-- feature_order.json（55特徴量）が唯一の真実源
-- 使用箇所ドキュメント化（10+主要設定）
-- 視覚的改善（12個のセクション区切り）
-- 1,252テスト100%成功・66.78%カバレッジ達成
+**Phase 53.8変更点**:
+- Python 3.11統一（GCP gVisor安定性向上・稼働率33%→99%）
+- GCPバグ4件修正（await漏れ・API署名・フィールド名・証拠金キー名）
+- aiodns/pycares互換性修正（バックテストワークフロー復旧）
+- 1,282テスト100%成功・65%+カバレッジ達成
 
 ---
 
@@ -257,16 +247,16 @@ ML予測（ensemble_full.pkl: 55特徴量モデル → 信頼度）
 
 ### 品質保証（必須遵守）
 
-- **テスト実行**: 開発前後に`checks.sh`必須実行・1,252テスト100%維持・66.78%カバレッジ
+- **テスト実行**: 開発前後に`checks.sh`必須実行・1,282テスト100%維持・65%+カバレッジ
 - **カバレッジ**: 65%以上維持・新機能は必ずテスト追加
 - **CI/CD**: GitHub Actions自動品質ゲート・失敗時は修正必須
 
-**Phase 52.5完了後の品質指標**:
-- 全テスト数: 1,252テスト（Phase 52シリーズ: +99テスト追加）
-- カバレッジ: 66.78%（目標65%超過）
+**Phase 53.8完了後の品質指標**:
+- 全テスト数: 1,282テスト
+- カバレッジ: 65%+（目標達成）
 - コード品質: flake8・black・isort全てPASS
 - CI/CD: GitHub Actions成功・GCP Cloud Runデプロイ完了
-- 設定管理: Single Source of Truth確立・重複削除110行
+- Python: 3.11統一（GCP gVisor安定性）
 
 ### 設定管理統一（最重要）
 
@@ -462,24 +452,24 @@ gcloud logging read "textPayload:\"残高\" OR textPayload:\"balance\"" --limit=
 
 ## ✅ 開発時チェックリスト
 
-### 必須確認事項（Phase 52.5完了後）
+### 必須確認事項（Phase 53.8完了後）
 
-1. **品質チェック**: `bash scripts/testing/checks.sh`で1,252テスト・66.78%カバレッジ確認
+1. **品質チェック**: `bash scripts/testing/checks.sh`で1,282テスト・65%+カバレッジ確認
 2. **モデルファイル確認**: ensemble_full.pkl（55特徴量）・ensemble_basic.pkl（49特徴量）存在確認
 3. **55特徴量動作確認**: 特徴量生成・ML予測・エントリー判断正常動作
 4. **6戦略動作確認**: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover稼働確認
 5. **本番環境確認**: Cloud Run・55特徴量・ensemble_full.pkl使用確認
-6. **動的戦略管理確認**: strategies.yaml・動的ロード正常動作
+6. **Python 3.11確認**: Dockerfile・pyproject.toml・GitHub Actions全て3.11
 7. **設定整合性**: features.yaml・unified.yaml・thresholds.yaml・feature_order.json確認（Single Source of Truth）
 
 ### 開発開始前チェック
 
-1. **最新状況把握**: **Phase 52.5完了**・**Phase 51/52完走完了**・docs/開発計画/ToDo.md確認
-2. **品質基準**: 1,252テスト100%成功・66.78%カバレッジ維持必須
+1. **最新状況把握**: **Phase 53.8完了**・docs/開発履歴/Phase_53.md・docs/開発計画/ToDo.md確認
+2. **品質基準**: 1,282テスト100%成功・65%+カバレッジ維持必須
 3. **設定管理**: ハードコード禁止・get_threshold()パターン遵守・Single Source of Truth（feature_order.json）
-4. **Phase 52.5理解**: 6戦略・55特徴量・動的戦略管理基盤（93%削減）・設定最適化完了（重複削除110行）
+4. **Phase 53.8理解**: Python 3.11統一・GCPバグ解消・aiodns/pycares固定
 5. **本番安定稼働**: レジーム別動的TP/SL・DrawdownManager統合・週次バックテスト自動化
 
 ---
 
-**📅 最終更新**: 2025年11月18日 - **Phase 52.5完了**（設定ファイル最適化・重複削除110行・Single Source of Truth確立・1,252テスト100%成功）
+**📅 最終更新**: 2025年12月12日 - **Phase 53.8完了**（Python 3.11統一・GCPバグ修正・aiodns/pycares互換性修正・1,282テスト100%成功）
