@@ -373,12 +373,116 @@ print(f"⏰ 自動タイムアウト設定: 無効（24時間稼働モード）"
 
 ---
 
-## 今後の予定
+## Phase 53.6: バックテスト初期残高を10万円に戻す
 
-### Phase 53.6以降（検討中）
-- GCPデプロイ・ログ監視で修正効果確認
-- 稼働率99%維持の検証
+**実施日**: 2025年12月11日
+**目的**: バックテスト初期残高を本来の10万円に戻す
+
+### 背景
+
+Phase 53.3で誤って全モードを1万円に統一したが、バックテストは戦略評価用のため10万円が適切。
+
+### 変更内容
+
+| ファイル | 変更内容 |
+|----------|----------|
+| config/core/unified.yaml | `mode_balances.backtest.initial_balance: 10000.0` → `100000.0` |
+| src/core/execution/backtest_runner.py | フォールバック値 `10000.0` → `100000.0` |
+
+### 結果
+
+- **コミット**: `67c81be1`
+- バックテスト初期残高10万円に復元
 
 ---
 
-**最終更新**: 2025年12月11日
+## Phase 53.7: 証拠金取得キー名修正（0エントリー問題解決）
+
+**実施日**: 2025年12月11日
+**目的**: ライブモードで1日0エントリーだった問題の修正
+
+### 問題発見
+
+GCPログ分析で発見:
+```
+📊 Phase 52.4 維持率チェック: 残高=21297円, 現在ポジション=0円
+⚠️ 証拠金不足検出: 利用可能=0円 < 必要=14000円
+🚀 取引実行開始 - モード: live, アクション: sell
+🚨 証拠金不足検出 - 新規注文スキップ中
+❌ 注文実行失敗 - エラー: 証拠金不足: 0円 < 14000円
+```
+
+**重要**: 戦略シグナルは正常に生成されていた
+```
+[ATRBased] シグナル取得成功: sell (0.352)
+[DonchianChannel] シグナル取得成功: sell (0.548)
+統合シグナル生成: sell (信頼度: 0.213)
+コンフリクト解決: SELL選択 (比率: 0.516, 2票)
+```
+
+### 根本原因
+
+Phase 53.4で`bitbank_client.py`を修正した際、呼び出し側の`monitor.py`を更新し忘れた。
+
+| ファイル | 問題のコード | 正しいコード |
+|----------|-------------|-------------|
+| `monitor.py:544` | `margin_status.get("available_balance", 0)` | `margin_status.get("total_margin_balance", 0)` |
+
+bitbank API仕様（[公式ドキュメント](https://github.com/bitbankinc/bitbank-api-docs/blob/master/rest-api_JP.md)）:
+- `total_margin_balance`: 総証拠金残高（利用可能証拠金として使用すべき）
+- `available_balances`: 配列形式 `[{pair, long, short}]`（直接使用不可）
+
+### 修正内容
+
+#### 1. monitor.py - キー名修正
+
+```python
+# 修正前（誤り）
+available_balance = float(margin_status.get("available_balance", 0))
+
+# 修正後（正しい）
+# Phase 53.7: bitbank API仕様に準拠 - total_margin_balance を使用
+available_balance = float(margin_status.get("total_margin_balance", 0))
+```
+
+#### 2. bitbank_client.py - コメント追加（再発防止）
+
+```python
+# 重要: 利用可能証拠金を取得する場合は "total_margin_balance" を使用すること
+#       "available_balances" は配列形式 [{pair, long, short}] なので直接使用不可
+margin_data = {
+    "available_balances": data.get("available_balances", []),  # 配列形式
+    "total_margin_balance": data.get("total_margin_balance"),  # 利用可能証拠金（円）
+    ...
+}
+```
+
+### 結果
+
+- **テスト**: 全成功（65.81%カバレッジ）
+- **コード品質**: flake8・black・isort全てPASS
+- **コミット**: `bc9a5454`
+
+### 期待効果
+
+| 項目 | 修正前 | 修正後 |
+|------|--------|--------|
+| 利用可能証拠金 | 0円（誤） | 21,297円（正） |
+| 注文実行 | スキップ | 実行 |
+| エントリー | 0件/日 | 通常通り |
+
+### 教訓
+
+API修正時は必ず呼び出し元も確認すること。今回は`grep -r "available_balance" src/`で呼び出し元を検索すべきだった。
+
+---
+
+## 今後の予定
+
+### Phase 53.8以降（検討中）
+- GCPデプロイ・ログ監視でPhase 53.7修正効果確認
+- エントリー正常実行の検証
+
+---
+
+**最終更新**: 2025年12月12日
