@@ -6,7 +6,6 @@ ML信頼度・市場条件・設定に基づいて成行/指値注文を選択�
 指値注文の場合は最適価格を計算する。
 """
 
-import asyncio
 from typing import Any, Dict, Optional
 
 from ...core.config import get_threshold
@@ -55,10 +54,8 @@ class OrderStrategy:
                 # Phase 29.6: 指値注文の場合は簡易価格計算
                 if default_order_type == "limit" and bitbank_client:
                     try:
-                        # 板情報取得
-                        orderbook = await asyncio.to_thread(
-                            bitbank_client.fetch_order_book, "BTC/JPY", 5
-                        )
+                        # 板情報取得（Phase 53.9: await直接呼び出し - 非同期メソッド対応）
+                        orderbook = await bitbank_client.fetch_order_book("BTC/JPY", 5)
 
                         if orderbook and "bids" in orderbook and "asks" in orderbook:
                             best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
@@ -144,9 +141,9 @@ class OrderStrategy:
                 conditions["assessment"] = "unable_to_assess"
                 return conditions
 
-            # 板情報取得（スプレッド・流動性確認）
+            # 板情報取得（スプレッド・流動性確認）（Phase 53.9: await直接呼び出し）
             try:
-                orderbook = await asyncio.to_thread(bitbank_client.fetch_order_book, "BTC/JPY", 10)
+                orderbook = await bitbank_client.fetch_order_book("BTC/JPY", 10)
 
                 if orderbook and "bids" in orderbook and "asks" in orderbook:
                     best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0

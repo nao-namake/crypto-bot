@@ -34,10 +34,10 @@ from src.trading import (
 
 @pytest.fixture
 def mock_bitbank_client():
-    """BitbankClientモック"""
+    """BitbankClientモック（Phase 53.9: create_orderをAsyncMockに変更）"""
     client = AsyncMock()
     client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
-    client.create_order = MagicMock(
+    client.create_order = AsyncMock(
         return_value={
             "id": "order_123",
             "price": 14000000.0,
@@ -1129,12 +1129,14 @@ class TestPhase516AtomicEntry:
 
     @pytest.fixture
     def mock_bitbank_client(self):
-        """BitbankClientのモック"""
-        client = MagicMock()
-        client.create_order = MagicMock(
+        """BitbankClientのモック（Phase 53.9: 非同期メソッドをAsyncMockに変更）"""
+        client = AsyncMock()
+        client.create_order = AsyncMock(
             return_value={"order_id": "entry123", "price": 14000000.0, "amount": 0.0001}
         )
-        client.cancel_order = MagicMock(return_value={"success": True})
+        client.cancel_order = AsyncMock(return_value={"success": True})
+        # Phase 53.9: fetch_active_ordersを追加（get_active_ordersから名前変更）
+        client.fetch_active_orders = AsyncMock(return_value={"orders": []})
         return client
 
     @pytest.fixture
@@ -1377,8 +1379,8 @@ class TestPhase516AtomicEntry:
         mock_stop_manager = AsyncMock()
         service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック（BUYエントリー想定）
-        mock_bitbank_client.get_active_orders.return_value = {
+        # アクティブ注文モック（BUYエントリー想定）（Phase 53.9: fetch_active_ordersに変更）
+        mock_bitbank_client.fetch_active_orders.return_value = {
             "orders": [
                 # 削除対象: 古いBUY側のTP（SELL limit注文）
                 {"order_id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
@@ -1411,8 +1413,8 @@ class TestPhase516AtomicEntry:
         mock_stop_manager = AsyncMock()
         service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック
-        mock_bitbank_client.get_active_orders.return_value = {
+        # アクティブ注文モック（Phase 53.9: fetch_active_ordersに変更）
+        mock_bitbank_client.fetch_active_orders.return_value = {
             "orders": [
                 # 保護対象: アクティブポジションのTP
                 {"order_id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
@@ -1451,8 +1453,8 @@ class TestPhase516AtomicEntry:
         mock_stop_manager = AsyncMock()
         service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文なし
-        mock_bitbank_client.get_active_orders.return_value = {"orders": []}
+        # アクティブ注文なし（Phase 53.9: fetch_active_ordersに変更）
+        mock_bitbank_client.fetch_active_orders.return_value = {"orders": []}
 
         await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
             side="buy",
@@ -1471,8 +1473,8 @@ class TestPhase516AtomicEntry:
         mock_stop_manager = AsyncMock()
         service.inject_services(stop_manager=mock_stop_manager)
 
-        # get_active_orders失敗
-        mock_bitbank_client.get_active_orders.side_effect = Exception("API error")
+        # fetch_active_orders失敗（Phase 53.9: メソッド名変更）
+        mock_bitbank_client.fetch_active_orders.side_effect = Exception("API error")
 
         # エラーが発生してもクリーンアップメソッド自体は例外をraiseしない
         # （警告ログのみ・処理継続）
@@ -1494,8 +1496,8 @@ class TestPhase516AtomicEntry:
         mock_stop_manager = AsyncMock()
         service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック（SELLエントリー想定）
-        mock_bitbank_client.get_active_orders.return_value = {
+        # アクティブ注文モック（SELLエントリー想定）（Phase 53.9: fetch_active_ordersに変更）
+        mock_bitbank_client.fetch_active_orders.return_value = {
             "orders": [
                 # 削除対象: 古いSELL側のTP（BUY limit注文）
                 {"order_id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},

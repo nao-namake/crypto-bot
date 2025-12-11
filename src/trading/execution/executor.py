@@ -267,8 +267,8 @@ class ExecutionService:
             if order_type == "limit" and price:
                 order_params["price"] = price
 
-            # 実際の注文実行
-            order_result = self.bitbank_client.create_order(**order_params)
+            # 実際の注文実行（Phase 53.9: await追加 - 非同期メソッド対応）
+            order_result = await self.bitbank_client.create_order(**order_params)
 
             # 実行結果作成（Phase 32.1: NoneType対策強化）
             result = ExecutionResult(
