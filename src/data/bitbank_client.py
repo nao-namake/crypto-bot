@@ -1062,7 +1062,7 @@ class BitbankClient:
                 },
             )
 
-    def create_take_profit_order(
+    async def create_take_profit_order(
         self,
         entry_side: str,
         amount: float,
@@ -1070,7 +1070,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        テイクプロフィット指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
+        テイクプロフィット指値注文作成（Phase 53.8: async対応・Phase 33.1: 決済注文対応・両建て防止修正）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -1101,7 +1101,8 @@ class BitbankClient:
             },
         )
 
-        return self.create_order(
+        # Phase 53.8: awaitを追加（create_orderは非同期メソッド）
+        return await self.create_order(
             symbol=symbol,
             side=tp_side,
             order_type="limit",
@@ -1111,7 +1112,7 @@ class BitbankClient:
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
-    def create_stop_loss_order(
+    async def create_stop_loss_order(
         self,
         entry_side: str,
         amount: float,
@@ -1119,7 +1120,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス逆指値成行注文作成（Phase 38.7.1: stop対応・確実な損切り実行）
+        ストップロス逆指値成行注文作成（Phase 53.8: async対応・Phase 38.7.1: stop対応・確実な損切り実行）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -1153,7 +1154,8 @@ class BitbankClient:
             },
         )
 
-        return self.create_order(
+        # Phase 53.8: awaitを追加（create_orderは非同期メソッド）
+        return await self.create_order(
             symbol=symbol,
             side=sl_side,
             order_type="stop",  # ✅ Phase 38.7.1: 逆指値成行注文（stop）に変更

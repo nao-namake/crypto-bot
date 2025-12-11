@@ -740,8 +740,8 @@ class StopManager:
                 self.logger.warning("⚠️ TP価格が不正（0以下）")
                 return None
 
-            # TP注文配置
-            tp_order = bitbank_client.create_take_profit_order(
+            # TP注文配置（Phase 53.8: await追加）
+            tp_order = await bitbank_client.create_take_profit_order(
                 entry_side=side,
                 amount=amount,
                 take_profit_price=take_profit_price,
@@ -834,8 +834,8 @@ class StopManager:
                     f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
                 )
 
-            # SL注文配置
-            sl_order = bitbank_client.create_stop_loss_order(
+            # SL注文配置（Phase 53.9: await追加）
+            sl_order = await bitbank_client.create_stop_loss_order(
                 entry_side=side,
                 amount=amount,
                 stop_loss_price=stop_loss_price,
