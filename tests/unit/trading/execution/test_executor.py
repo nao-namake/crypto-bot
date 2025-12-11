@@ -485,9 +485,9 @@ class TestExecuteTradePaperMode:
             entry_price=0.0,  # 価格なし
         )
 
-        # AsyncMock with proper return value
-        mock_client = MagicMock()
-        mock_client.fetch_ticker = MagicMock(return_value={"last": 14000000.0})
+        # Phase 53.8: fetch_tickerをAsyncMockに変更
+        mock_client = AsyncMock()
+        mock_client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
 
         service = ExecutionService(mode="paper", bitbank_client=mock_client)
         result = await service.execute_trade(eval_no_price)

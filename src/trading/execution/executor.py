@@ -559,8 +559,8 @@ class ExecutionService:
             price = float(getattr(evaluation, "entry_price", 0))
             if price == 0 and self.bitbank_client:
                 try:
-                    # Bitbank公開APIから現在価格取得（認証不要・ペーパーモードでも使用可能）
-                    ticker = await asyncio.to_thread(self.bitbank_client.fetch_ticker, "BTC/JPY")
+                    # Bitbank公開APIから現在価格取得（Phase 53.8: await直接呼び出し）
+                    ticker = await self.bitbank_client.fetch_ticker("BTC/JPY")
                     if ticker and "last" in ticker:
                         price = float(ticker["last"])
                         self.logger.info(f"📊 ペーパートレード実価格取得: {price:.0f}円")

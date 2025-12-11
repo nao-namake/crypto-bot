@@ -519,10 +519,10 @@ class StopManager:
         cancelled_count = 0
         errors = []
 
-        # TP注文キャンセル（SL到達時・手動決済時）
+        # TP注文キャンセル（SL到達時・手動決済時）（Phase 53.9: await直接呼び出し）
         if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
             try:
-                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
+                await bitbank_client.cancel_order(tp_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
                     f"✅ Phase 52.4-B: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
@@ -536,10 +536,10 @@ class StopManager:
                 else:
                     self.logger.warning(f"⚠️ {error_msg}")
 
-        # SL注文キャンセル（TP到達時・手動決済時）
+        # SL注文キャンセル（TP到達時・手動決済時）（Phase 53.9: await直接呼び出し）
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
             try:
-                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+                await bitbank_client.cancel_order(sl_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
                     f"✅ Phase 52.4-B: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
@@ -666,10 +666,10 @@ class StopManager:
             return 0.0
 
     async def _get_current_price(self, bitbank_client: Optional[BitbankClient]) -> float:
-        """現在価格取得（緊急時用）"""
+        """現在価格取得（緊急時用）（Phase 53.8: await直接呼び出し）"""
         try:
             if bitbank_client:
-                ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, "BTC/JPY")
+                ticker = await bitbank_client.fetch_ticker("BTC/JPY")
                 if ticker and "last" in ticker:
                     return float(ticker["last"])
 
@@ -903,10 +903,8 @@ class StopManager:
             Dict: {"cancelled_count": int, "order_count": int, "errors": List[str]}
         """
         try:
-            # アクティブ注文取得
-            active_orders = await asyncio.to_thread(
-                bitbank_client.fetch_active_orders, symbol, limit=100
-            )
+            # アクティブ注文取得（Phase 53.8: await直接呼び出し）
+            active_orders = await bitbank_client.fetch_active_orders(symbol, limit=100)
             order_count = len(active_orders)
 
             # 閾値未満なら何もしない
@@ -974,7 +972,8 @@ class StopManager:
             for order in old_orphan_orders:
                 order_id = order.get("id")
                 try:
-                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                    # Phase 53.8: await直接呼び出し
+                    await bitbank_client.cancel_order(order_id, symbol)
                     cancelled_count += 1
                     self.logger.info(
                         f"✅ Phase 52.4-B: 古いTP注文キャンセル成功 - ID: {order_id}, "
