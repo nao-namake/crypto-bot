@@ -1,3 +1,0 @@
-"""
-Backtest data module tests
-"""

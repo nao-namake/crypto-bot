@@ -1,3 +1,0 @@
-"""
-Backtest scripts module tests
-"""
