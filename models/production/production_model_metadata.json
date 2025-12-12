@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-11-18T06:53:38.122254",
+  "created_at": "2025-12-12T11:07:18.968693",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
@@ -74,38 +74,38 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.45454545454545453,
-      "f1_score": 0.46427704192280045,
-      "precision": 0.48633591938933585,
-      "recall": 0.45454545454545453,
-      "cv_f1_mean": 0.5137284730401157,
-      "cv_f1_std": 0.056305904970158596
+      "accuracy": 0.35185185185185186,
+      "f1_score": 0.36766134432373276,
+      "precision": 0.4184665155586311,
+      "recall": 0.35185185185185186,
+      "cv_f1_mean": 0.4460633673393408,
+      "cv_f1_std": 0.08030190391996918
     },
     "xgboost": {
-      "accuracy": 0.487012987012987,
-      "f1_score": 0.41267806071623675,
-      "precision": 0.4432024155355922,
-      "recall": 0.487012987012987,
-      "cv_f1_mean": 0.5514999575709069,
-      "cv_f1_std": 0.05878141793264984
+      "accuracy": 0.4691358024691358,
+      "f1_score": 0.38949290283612004,
+      "precision": 0.3675995754427127,
+      "recall": 0.4691358024691358,
+      "cv_f1_mean": 0.5318510900860046,
+      "cv_f1_std": 0.09100251312211873
     },
     "random_forest": {
-      "accuracy": 0.44805194805194803,
-      "f1_score": 0.4342364462846391,
-      "precision": 0.4343006418868488,
-      "recall": 0.44805194805194803,
-      "cv_f1_mean": 0.5510803947111145,
-      "cv_f1_std": 0.05410783088917189
+      "accuracy": 0.42592592592592593,
+      "f1_score": 0.4382651086408513,
+      "precision": 0.4772396264078624,
+      "recall": 0.42592592592592593,
+      "cv_f1_mean": 0.5370848623538639,
+      "cv_f1_std": 0.10930597135515761
     }
   },
   "training_info": {
-    "samples": 1019,
+    "samples": 1080,
     "feature_count": 55,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "49004583cb9b8945c2aba28284c967222145511a",
-    "commit_short": "49004583",
+    "commit": "4d218e160c29ea8af071b88635bda760c589b281",
+    "commit_short": "4d218e16",
     "branch": "main"
   },
   "notes": "Phase 52.4完了・6戦略統合・55特徴量システム・真の3クラス分類・2段階Graceful Degradation・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
