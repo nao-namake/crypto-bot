@@ -200,7 +200,9 @@ class RiskManager:
             # ========================================
             # Phase 52.0: レジーム別TP/SL設定の適用
             # ========================================
-            if regime and get_threshold("position_management.take_profit.regime_based.enabled", False):
+            if regime and get_threshold(
+                "position_management.take_profit.regime_based.enabled", False
+            ):
                 # レジーム別TP設定取得
                 regime_tp = get_threshold(
                     f"position_management.take_profit.regime_based.{regime}.min_profit_ratio", None
