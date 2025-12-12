@@ -1,7 +1,5 @@
 """
-バックテスト可視化システム
-
-最終更新: 2025/11/16 (Phase 52.4-B)
+バックテスト可視化システム - Phase 49.4完了
 
 matplotlib使用してバックテスト結果をグラフ化。
 直感的なパフォーマンス理解と問題箇所の視覚的特定を実現。
@@ -11,9 +9,6 @@ matplotlib使用してバックテスト結果をグラフ化。
 - 損益分布ヒストグラム
 - 価格チャート + エントリー/エグジットマーカー
 - ドローダウンチャート
-
-開発履歴:
-- Phase 49.4: matplotlib可視化実装（4種類のグラフ）
 """
 
 from datetime import datetime
@@ -32,14 +27,9 @@ matplotlib.use("Agg")
 
 class BacktestVisualizer:
     """
-    バックテスト可視化システム
-
-    最終更新: 2025/11/16 (Phase 52.4-B)
+    バックテスト可視化システム（Phase 49.4: matplotlib可視化実装）
 
     TradeTrackerのデータを使用してパフォーマンスグラフを生成。
-
-    実装履歴:
-    - Phase 49.4: matplotlib可視化実装（4種類のグラフ）
     """
 
     def __init__(self, output_dir: Optional[str] = None):

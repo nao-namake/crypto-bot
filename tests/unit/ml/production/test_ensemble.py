@@ -112,7 +112,7 @@ class TestProductionEnsemble:
         assert "lightgbm" in info["individual_models"]
         assert info["n_features"] == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
         assert len(info["feature_names"]) == 55  # Phase 51.7 Day 7: 55特徴量固定（6戦略シグナル）
-        assert info["phase"] == "Phase 52.4-B"  # Phase 52.5: ML訓練最新Phase
+        assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
 

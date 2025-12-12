@@ -1,7 +1,7 @@
 # GCP統合設定ファイル
 #
-# bitbank信用取引・ML統合システム・段階的デプロイ（paper→live）
-# Phase 52.4
+# bitbank信用取引・55特徴量システム・段階的デプロイ（paper→live）
+# Phase 49完了（品質指標: config/core/feature_order.json参照）
 #
 # 使用方法:
 #   - CI/CD環境変数の統一管理
@@ -66,21 +66,21 @@ services:
   secret_manager:
     secrets:
       - name: "bitbank-api-key"
-        version: "3"  # 具体的バージョン使用
+        version: "3"  # CI/CDで使用中の具体的バージョン
         description: "Bitbank API キー"
         labels:
           managed-by: "crypto-bot"
           environment: "production"
 
       - name: "bitbank-api-secret"
-        version: "3"  # 具体的バージョン使用
+        version: "3"  # CI/CDで使用中の具体的バージョン
         description: "Bitbank API シークレット"
         labels:
           managed-by: "crypto-bot"
           environment: "production"
 
       - name: "discord-webhook-url"
-        version: "5"  # 具体的バージョン使用
+        version: "5"  # CI/CDで使用中の具体的バージョン
         description: "Discord Webhook URL"
         labels:
           managed-by: "crypto-bot"
@@ -135,7 +135,7 @@ iam:
         attribute.repository: "assertion.repository"
 
 # ========================================
-# API設定
+# API設定（必要最小限）
 # ========================================
 apis:
   required:
@@ -263,10 +263,10 @@ cost_optimization:
 # バージョン・メタデータ
 # ========================================
 metadata:
-  version: "52.4.0"
+  version: "49.0.0"
   created_date: "2025-08-29"
-  last_updated: "2025-11-15"
-  description: "Phase 52.4完了（ML統合システム・レジーム別最適化）"
+  last_updated: "2025-10-22"
+  description: "Phase 49完了（品質指標: config/core/feature_order.json参照）"
 
 # ========================================
 # bitbank信用取引制約
@@ -278,5 +278,5 @@ trading_constraints:
   currency_pair: "BTC/JPY"
   initial_capital: 10000  # 1万円スタート
   target_capital: 500000  # 最終目標50万円
+  features_count: 55      # 現在の特徴量数（feature_order.json参照）
   timeframes: ["15m", "4h"]  # マルチタイムフレーム
-  # 注: 特徴量数はfeature_order.json、戦略数はstrategies.yamlを参照

@@ -1,5 +1,5 @@
 """
-MACD + EMA Crossover戦略 - Phase 52.4-B
+MACD + EMA Crossover戦略 - Phase 51.7 Day 5
 
 トレンド転換期の押し目買い・戻り売り戦略。
 MACDクロスオーバー + EMAトレンド確認による高精度エントリー。
@@ -10,7 +10,7 @@ MACDクロスオーバー + EMAトレンド確認による高精度エントリ�
 - SELL信号: MACDデッドクロス + EMA 20 < EMA 50 + 出来高増加
 - Dynamic confidence: 0.35-0.65（MACD強度 + EMA乖離に基づく）
 
-Phase 52.4-B実装
+Phase 51.7 Day 5実装
 """
 
 from typing import Any, Dict, List, Optional

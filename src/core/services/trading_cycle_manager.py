@@ -1,16 +1,22 @@
 """
-取引サイクルマネージャー - Phase 52.4
+取引サイクルマネージャー - Phase 51.3完了（最重要・1,100行）
 
-取引サイクル実行の中核機能。
+orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行のフロー全体を担当。
 
-主要機能:
-- Phase 51.9: レジーム別ML統合最適化（市場状況に応じた動的ML統合）
-- Phase 51.8: レジーム別ポジション制限（tight_range/normal_range/trending/high_volatility）
-- Phase 51.3: 動的戦略選択（市場レジーム連動戦略重み最適化）
-- バックテスト完全対応（戦略シグナル事前計算・TP/SL決済・TradeTracker・matplotlib可視化）
-- 証拠金維持率80%遵守・TP/SL設定（thresholds.yaml完全準拠）
-- ML統合率100%達成（min_ml_confidence: 0.45・3段階統合ロジック）
+Phase 51.3: Dynamic Strategy Selection実装（市場レジーム連動戦略重み最適化）
+Phase 49完了:
+- バックテスト完全改修統合（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker・matplotlib可視化）
+- 証拠金維持率80%遵守ロジック統合（critical: 100.0 → 80.0変更）
+- TP/SL設定完全同期（thresholds.yaml完全準拠・ハードコード値削除）
+
+Phase 49.16: TP/SL設定完全見直し
+Phase 42.3: ML Agreement Logic修正（strict matching）・Feature Warning抑制・証拠金チェックリトライ
+Phase 42.1-42.2: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ実装
+Phase 41.8.5: ML統合閾値最適化（min_ml_confidence: 0.45・ML統合率100%達成）
+Phase 41.8: Strategy-Aware ML実装（55特徴量・実戦略信号学習）
+Phase 35: バックテスト最適化（特徴量事前計算・ML予測キャッシュ）
+Phase 29.5: ML予測統合実装（戦略70% + ML30%・一致ボーナス/不一致ペナルティ）
 """
 
 from __future__ import annotations
@@ -475,12 +481,12 @@ class TradingCycleManager:
         """Phase 6: 追加情報取得（リスク管理のため）"""
         try:
             # 現在の残高取得
-            balance_info = await self.orchestrator.data_service.client.fetch_balance()
+            balance_info = self.orchestrator.data_service.client.fetch_balance()
             current_balance = balance_info.get("JPY", {}).get("total", 0.0)
 
             # 現在のティッカー情報取得（bid/ask価格）
             start_time = time.time()
-            ticker_info = await self.orchestrator.data_service.client.fetch_ticker("BTC/JPY")
+            ticker_info = self.orchestrator.data_service.client.fetch_ticker("BTC/JPY")
             api_latency_ms = (time.time() - start_time) * 1000
 
             bid = ticker_info.get("bid", 0.0)

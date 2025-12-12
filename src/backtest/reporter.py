@@ -1,21 +1,23 @@
 """
-バックテストレポートシステム
+バックテストレポートシステム - Phase 49.3完了
 
-最終更新: 2025/11/16 (Phase 52.4-B)
+Phase 34-35完了実績:
+- バックテスト10倍高速化対応（6-8時間→45分実行）
+- 特徴量・ML予測バッチ化レポート対応
+- 15分足データ収集80倍改善レポート対応
+
+Phase 49.3新機能:
+- TradeTracker: 取引ペア追跡（エントリー/エグジットペアリング）
+- 損益計算（取引毎・合計）
+- パフォーマンス指標計算（勝率・プロフィットファクター・最大DD等）
+- 詳細テキストレポート生成
 
 主要機能:
-- TradeTracker: 取引ペア追跡（エントリー/エグジットペアリング）
-- 損益計算（取引毎・合計）・パフォーマンス指標計算
-- JSON/テキスト形式レポート生成
-- 週次レポート対応（Phase 48統合）
-- Phase 51-52: ML統合・レジーム分類対応レポート
-
-開発履歴:
-- Phase 52.4-B: コード整理・ドキュメント統一
-- Phase 52.3: 最大ドローダウン計算バグ修正
-- Phase 51.8: レジーム分類レポート対応
-- Phase 49.3: TradeTracker実装・完全損益分析
-- Phase 34-35: バックテスト10倍高速化対応
+- JSON形式レポート生成（構造化・時系列対応）
+- 進捗レポート（時系列バックテスト用）
+- エラーレポート（デバッグ用）
+- 実行統計レポート（勝率・PnL・取引回数）
+- Phase 49: 完全な損益分析レポート
 """
 
 import json
@@ -30,30 +32,18 @@ from ..core.logger import get_logger
 
 class TradeTracker:
     """
-    取引ペア追跡システム
-
-    最終更新: 2025/11/16 (Phase 52.4-B)
+    取引ペア追跡システム（Phase 49.3: 損益計算・レポート実装）
 
     エントリー/エグジットをペアリングし、取引毎の損益を計算。
     パフォーマンス指標（勝率・プロフィットファクター・最大DD等）を提供。
-
-    実装履歴:
-    - Phase 52.3: 最大ドローダウン計算バグ修正
-    - Phase 49.3: 初回実装（損益計算・レポート機能）
     """
 
-    def __init__(self, initial_balance: float = 100000.0):
-        """
-        TradeTracker初期化
-
-        Args:
-            initial_balance: 初期残高（デフォルト: ¥100,000）
-        """
+    def __init__(self):
+        """TradeTracker初期化"""
         self.logger = get_logger(__name__)
         self.open_entries: Dict[str, Dict] = {}  # オープンエントリー（order_id → entry info）
         self.completed_trades: List[Dict] = []  # 完了した取引ペア
         self.total_pnl = 0.0
-        self.initial_balance = initial_balance  # Phase 52.3: 初期残高記録
         self.equity_curve: List[float] = [0.0]  # エクイティカーブ（累積損益）
 
     def record_entry(
@@ -272,10 +262,7 @@ class TradeTracker:
 
     def _calculate_max_drawdown(self) -> tuple:
         """
-        最大ドローダウン計算（Phase 52.3修正: 初期残高を考慮）
-
-        equity_curveは累積損益を記録しているため、初期残高を加算して
-        絶対残高ベースでドローダウンを計算する。
+        最大ドローダウン計算
 
         Returns:
             (max_drawdown, max_drawdown_pct): 最大ドローダウン（円）、最大ドローダウン（%）
@@ -283,19 +270,15 @@ class TradeTracker:
         if len(self.equity_curve) < 2:
             return (0.0, 0.0)
 
-        # Phase 52.3修正: 初期残高から開始
-        max_equity = self.initial_balance
+        max_equity = self.equity_curve[0]
         max_dd = 0.0
         max_dd_pct = 0.0
 
-        for cumulative_pnl in self.equity_curve:
-            # 累積損益を絶対残高に変換
-            current_equity = self.initial_balance + cumulative_pnl
+        for equity in self.equity_curve:
+            if equity > max_equity:
+                max_equity = equity
 
-            if current_equity > max_equity:
-                max_equity = current_equity
-
-            dd = max_equity - current_equity
+            dd = max_equity - equity
             if dd > max_dd:
                 max_dd = dd
                 max_dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
@@ -366,18 +349,10 @@ class TradeTracker:
 
 class BacktestReporter:
     """
-    バックテストレポート生成システム
+    バックテストレポート生成システム（Phase 38.4完了）
 
-    最終更新: 2025/11/16 (Phase 52.4-B)
-
-    本番同一ロジックバックテスト用のレポート生成機能。
-    TradeTracker統合・週次レポート対応。
-
-    実装履歴:
-    - Phase 52.3: ドローダウン計算バグ修正
-    - Phase 51.8: レジーム分類レポート対応
-    - Phase 49.3: TradeTracker統合
-    - Phase 34-35: バックテスト高速化対応
+    本番同一ロジックバックテスト用のシンプルなレポート機能。
+    Phase 34-35高速化対応完了。
     """
 
     def __init__(self, output_dir: Optional[str] = None):
@@ -537,7 +512,7 @@ class BacktestReporter:
         self, filepath: Path, report_data: Dict, start_date: str, end_date: str
     ):
         """
-        テキストレポート生成（詳細な損益レポート）
+        テキストレポート生成（Phase 49.3: 詳細な損益レポート）
 
         Args:
             filepath: 出力ファイルパス

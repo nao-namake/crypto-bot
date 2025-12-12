@@ -1,7 +1,7 @@
 """
 戦略マネージャー実装 - 複数戦略の統合管理
 
-6つの戦略を統合し、シグナルの優先度付けと
+5つの戦略を統合し、シグナルの優先度付けと
 最適な戦略選択を行う管理システム。
 
 主要機能:
@@ -10,7 +10,7 @@
 - 戦略パフォーマンス追跡
 - 動的戦略重み付け
 
-Phase 52.4-B完了
+Phase 49完了
 """
 
 from collections import defaultdict
@@ -24,15 +24,6 @@ from ...core.config import get_threshold
 from ...core.exceptions import StrategyError
 from ...core.logger import get_logger
 from .strategy_base import StrategyBase, StrategySignal
-
-# ボラティリティベース信頼度調整の定数（Phase 52.4-B）
-MIN_VOLATILITY_WINDOW = 20  # ボラティリティ計算に必要な最小データ数
-HIGH_VOLATILITY_THRESHOLD = 0.02  # 高ボラティリティ判定閾値
-LOW_VOLATILITY_THRESHOLD = 0.005  # 低ボラティリティ判定閾値
-HIGH_VOL_CONFIDENCE_MULTIPLIER = 0.8  # 高ボラティリティ時の信頼度乗数
-LOW_VOL_CONFIDENCE_MULTIPLIER = 1.2  # 低ボラティリティ時の信頼度乗数
-MIN_HOLD_CONFIDENCE = 0.1  # HOLD信頼度の最小値
-MAX_HOLD_CONFIDENCE = 0.8  # HOLD信頼度の最大値
 
 
 class StrategyManager:
@@ -229,7 +220,7 @@ class StrategyManager:
         df: pd.DataFrame,
     ) -> StrategySignal:
         """
-        シグナルコンフリクトの解決（Phase 38.5: 全戦略票統合ロジック実装）
+        シグナルコンフリクトの解決（Phase 38.5: 全5票統合ロジック実装）
 
         従来のbuy vs sell比較を廃止し、全アクション（buy/sell/hold）の
         重み付け信頼度を計算して最高スコアのアクションを選択する。
@@ -240,9 +231,7 @@ class StrategyManager:
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         if not is_backtest:  # Phase 35.5: バックテストモード時はログ出力しない
-            self.logger.warning(
-                f"シグナルコンフリクト検出 - 全{len(all_signals)}戦略統合ロジック実行"
-            )
+            self.logger.warning("シグナルコンフリクト検出 - 全5票統合ロジック実行")
 
         # Phase 38.5: 全アクション（buy/sell/hold）の信号を取得
         buy_signals = signal_groups.get("buy", [])
@@ -266,9 +255,8 @@ class StrategyManager:
             # すべて0の場合はhold選択
             return self._create_hold_signal(df, reason="全戦略信頼度ゼロ")
 
-        total_votes = len(buy_signals) + len(sell_signals) + len(hold_signals)
         self.logger.debug(
-            f"全{total_votes}票統合: BUY={buy_ratio:.3f}({len(buy_signals)}票) "
+            f"全5票統合: BUY={buy_ratio:.3f}({len(buy_signals)}票) "
             f"SELL={sell_ratio:.3f}({len(sell_signals)}票) "
             f"HOLD={hold_ratio:.3f}({len(hold_signals)}票)"
         )
@@ -293,7 +281,7 @@ class StrategyManager:
             )
             return self._create_hold_signal(
                 df,
-                reason=f"全戦略統合結果 - HOLD優勢 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)",
+                reason=f"全5票統合結果 - HOLD優勢 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)",
             )
 
         self.logger.info(
@@ -315,7 +303,7 @@ class StrategyManager:
             take_profit=best_signal.take_profit,
             position_size=best_signal.position_size,
             risk_ratio=best_signal.risk_ratio,
-            reason=f"全戦略統合結果 - {len(winning_group)}戦略 (比率: {ratio:.3f})",
+            reason=f"全5票統合結果 - {len(winning_group)}戦略 (比率: {ratio:.3f})",
             metadata={
                 "conflict_resolved": True,
                 "total_signals": len(buy_signals) + len(sell_signals) + len(hold_signals),
@@ -390,7 +378,7 @@ class StrategyManager:
 
     def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
         """
-        重み付け信頼度計算（Phase 52.4-B: 平均→合計に修正）
+        重み付け信頼度計算（Phase 49.8: 平均→合計に修正）
 
         複数戦略が同じアクションを推奨している場合、その総合的な確信度を
         正しく反映するため、平均ではなく合計を返す。
@@ -408,7 +396,7 @@ class StrategyManager:
             weighted_confidence = signal.confidence * weight
             total_weighted_confidence += weighted_confidence
 
-        # Phase 52.4-B: 合計値を返す（平均ではなく）
+        # Phase 49.8: 合計値を返す（平均ではなく）
         # 信頼度が1.0を超える場合は1.0でクリップ（ML統合との整合性）
         return min(total_weighted_confidence, 1.0)
 
@@ -421,16 +409,16 @@ class StrategyManager:
 
         # 市場ボラティリティに応じた調整
         try:
-            if len(df) >= MIN_VOLATILITY_WINDOW and "close" in df.columns:
-                # 過去N期間のボラティリティ計算
-                returns = df["close"].pct_change().tail(MIN_VOLATILITY_WINDOW)
+            if len(df) >= 20 and "close" in df.columns:
+                # 過去20期間のボラティリティ計算
+                returns = df["close"].pct_change().tail(20)
                 volatility = returns.std()
 
                 # ボラティリティが高い = 取引機会多い = HOLD信頼度下げる（攻撃的）
-                if volatility > HIGH_VOLATILITY_THRESHOLD:  # 高ボラティリティ
-                    confidence = base_confidence * HIGH_VOL_CONFIDENCE_MULTIPLIER
-                elif volatility < LOW_VOLATILITY_THRESHOLD:  # 低ボラティリティ
-                    confidence = base_confidence * LOW_VOL_CONFIDENCE_MULTIPLIER
+                if volatility > 0.02:  # 高ボラティリティ
+                    confidence = base_confidence * 0.8  # さらに下げる
+                elif volatility < 0.005:  # 低ボラティリティ
+                    confidence = base_confidence * 1.2  # 少し上げる
                 else:
                     confidence = base_confidence
             else:
@@ -439,8 +427,8 @@ class StrategyManager:
             # エラー時はフォールバック値
             confidence = get_threshold("ml.dynamic_confidence.error_fallback", 0.2)
 
-        # 信頼度を定数範囲にクランプ
-        confidence = max(MIN_HOLD_CONFIDENCE, min(MAX_HOLD_CONFIDENCE, confidence))
+        # 信頼度を0.1-0.8の範囲にクランプ
+        confidence = max(0.1, min(0.8, confidence))
 
         return StrategySignal(
             strategy_name="StrategyManager",

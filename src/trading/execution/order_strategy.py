@@ -1,11 +1,12 @@
 """
-注文戦略決定サービス - Phase 52.4-B完了
+注文戦略決定サービス - Phase 49完了
 Phase 26: 指値注文オプション機能
 
 ML信頼度・市場条件・設定に基づいて成行/指値注文を選択し、
 指値注文の場合は最適価格を計算する。
 """
 
+import asyncio
 from typing import Any, Dict, Optional
 
 from ...core.config import get_threshold
@@ -54,8 +55,10 @@ class OrderStrategy:
                 # Phase 29.6: 指値注文の場合は簡易価格計算
                 if default_order_type == "limit" and bitbank_client:
                     try:
-                        # 板情報取得（Phase 53.9: await直接呼び出し - 非同期メソッド対応）
-                        orderbook = await bitbank_client.fetch_order_book("BTC/JPY", 5)
+                        # 板情報取得
+                        orderbook = await asyncio.to_thread(
+                            bitbank_client.fetch_order_book, "BTC/JPY", 5
+                        )
 
                         if orderbook and "bids" in orderbook and "asks" in orderbook:
                             best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
@@ -141,9 +144,9 @@ class OrderStrategy:
                 conditions["assessment"] = "unable_to_assess"
                 return conditions
 
-            # 板情報取得（スプレッド・流動性確認）（Phase 53.9: await直接呼び出し）
+            # 板情報取得（スプレッド・流動性確認）
             try:
-                orderbook = await bitbank_client.fetch_order_book("BTC/JPY", 10)
+                orderbook = await asyncio.to_thread(bitbank_client.fetch_order_book, "BTC/JPY", 10)
 
                 if orderbook and "bids" in orderbook and "asks" in orderbook:
                     best_bid = float(orderbook["bids"][0][0]) if orderbook["bids"] else 0
@@ -242,7 +245,7 @@ class OrderStrategy:
         self, evaluation: TradeEvaluation, market_conditions: Dict[str, Any]
     ) -> float:
         """
-        指値注文価格計算（Phase 52.4-B: 確実約定戦略対応）
+        指値注文価格計算（Phase 38.7.1: 確実約定戦略対応）
 
         約定確率を最優先しつつ、メイカー手数料リベート獲得を目指す指値価格を計算。
 
@@ -262,7 +265,7 @@ class OrderStrategy:
                 self.logger.warning("⚠️ 最良気配なし、指値価格計算不可")
                 return 0
 
-            # Phase 52.4-B: 確実約定戦略設定
+            # Phase 38.7.1: 確実約定戦略設定
             entry_price_strategy = get_threshold(
                 "order_execution.entry_price_strategy", "unfavorable"
             )  # "favorable" or "unfavorable"

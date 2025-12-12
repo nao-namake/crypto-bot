@@ -1,8 +1,8 @@
 """
-ストップ条件管理サービス - Phase 52.4-Bリファクタリング完了
-Phase 52.4-B: TP/SL機能、Phase 52.4-B: 柔軟クールダウン、Phase 52.4-B: 残注文クリーンアップ
-Phase 46: 個別TP/SL配置、Phase 52.4-B: ポジション決済時クリーンアップ
-Phase 52.4-B: Discord通知削除・SL価格検証強化・エラー30101対策
+ストップ条件管理サービス - Phase 51.6リファクタリング完了
+Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
+Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
+Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -39,7 +39,7 @@ class StopManager:
         session_pnl: float,
     ) -> Optional[ExecutionResult]:
         """
-        ストップ条件チェック（Phase 52.4-B: テイクプロフィット/ストップロス実装）
+        ストップ条件チェック（Phase 28: テイクプロフィット/ストップロス実装）
 
         Args:
             virtual_positions: 保有ポジションリスト
@@ -52,7 +52,7 @@ class StopManager:
             ExecutionResult: ストップ実行結果（実行しない場合はNone）
         """
         try:
-            # Phase 52.4-B-J4-D再修正: バックテストモードでは決済処理をスキップ
+            # Phase 51.8-J4-D再修正: バックテストモードでは決済処理をスキップ
             # backtest_runner.py の _check_tp_sl_triggers() が唯一の決済ルート（証拠金返還含む）
             # stop_manager.py で重複決済すると証拠金が返還されず残高が減る問題を回避
             if mode == "backtest":
@@ -68,8 +68,8 @@ class StopManager:
                 self.logger.warning("⚠️ 現在価格取得失敗、ストップ条件チェックスキップ")
                 return None
 
-            # Phase 52.4-B: 通常のテイクプロフィット/ストップロスチェック
-            # Phase 52.4-B: bitbank_clientを渡してクリーンアップ対応
+            # Phase 28: 通常のテイクプロフィット/ストップロスチェック
+            # Phase 49.6: bitbank_clientを渡してクリーンアップ対応
             tp_sl_result = await self._check_take_profit_stop_loss(
                 current_price, virtual_positions, mode, executed_trades, session_pnl, bitbank_client
             )
@@ -83,9 +83,9 @@ class StopManager:
             if emergency_result:
                 return emergency_result
 
-            # Phase 52.4-B: Phase 52.4-Bコメントアウトコード削除
-            # Phase 52.4-Bクリーンアップ機能は、virtual_positionsにsl_order_id保存必須のため
-            # 現時点で安全に動作するまで無効化維持（Phase 52.4-Bで個別クリーンアップ実装済み）
+            # Phase 51.6: Phase 50.5コメントアウトコード削除
+            # Phase 37.5.3クリーンアップ機能は、virtual_positionsにsl_order_id保存必須のため
+            # 現時点で安全に動作するまで無効化維持（Phase 49.6で個別クリーンアップ実装済み）
 
             return None
 
@@ -103,7 +103,7 @@ class StopManager:
         bitbank_client: Optional[BitbankClient] = None,
     ) -> Optional[ExecutionResult]:
         """
-        Phase 52.4-B: 通常のテイクプロフィット/ストップロスチェック
+        Phase 28: 通常のテイクプロフィット/ストップロスチェック
 
         Args:
             current_price: 現在のBTC価格
@@ -188,7 +188,7 @@ class StopManager:
                     self.logger.info(
                         f"🎯 テイクプロフィット到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (TP:{take_profit:.0f}円)"
                     )
-                    # Phase 52.4-B: bitbank_clientを渡してクリーンアップ実行
+                    # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
                     return await self._execute_position_exit(
                         position, current_price, "take_profit", mode, bitbank_client
                     )
@@ -205,7 +205,7 @@ class StopManager:
                     self.logger.warning(
                         f"🛑 ストップロス到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (SL:{stop_loss:.0f}円)"
                     )
-                    # Phase 52.4-B: bitbank_clientを渡してクリーンアップ実行
+                    # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
                     return await self._execute_position_exit(
                         position, current_price, "stop_loss", mode, bitbank_client
                     )
@@ -232,7 +232,7 @@ class StopManager:
             current_price: 決済価格
             exit_reason: 決済理由 ("take_profit", "stop_loss", "emergency")
             mode: 実行モード
-            bitbank_client: BitbankClientインスタンス（Phase 52.4-B: クリーンアップ用）
+            bitbank_client: BitbankClientインスタンス（Phase 49.6: クリーンアップ用）
 
         Returns:
             ExecutionResult: 決済実行結果
@@ -251,7 +251,7 @@ class StopManager:
             else:
                 pnl = (entry_price - current_price) * amount
 
-            # Phase 52.4-B: ポジション決済時にTP/SL注文クリーンアップ
+            # Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
             if bitbank_client and mode == "live":
                 tp_order_id = position.get("tp_order_id")
                 sl_order_id = position.get("sl_order_id")
@@ -268,13 +268,11 @@ class StopManager:
                         )
                         if cleanup_result["cancelled_count"] > 0:
                             self.logger.info(
-                                f"🧹 Phase 52.4-B: ポジション決済時クリーンアップ実行 - "
+                                f"🧹 Phase 49.6: ポジション決済時クリーンアップ実行 - "
                                 f"{cleanup_result['cancelled_count']}件キャンセル"
                             )
                     except Exception as e:
-                        self.logger.warning(
-                            f"⚠️ Phase 52.4-B: クリーンアップエラー（処理継続）: {e}"
-                        )
+                        self.logger.warning(f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}")
 
             # ExecutionResult作成
             result = ExecutionResult(
@@ -488,8 +486,8 @@ class StopManager:
                 status=OrderStatus.FAILED,
             )
 
-    # Phase 52.4-B: _cleanup_orphaned_orders()/_cancel_orphaned_tp_sl_orders()削除（約160行）
-    # 理由: Phase 52.4-Bで無効化済み・Phase 52.4-Bでcleanup_position_orders()に置き換え済み
+    # Phase 51.6: _cleanup_orphaned_orders()/_cancel_orphaned_tp_sl_orders()削除（約160行）
+    # 理由: Phase 50.5で無効化済み・Phase 49.6でcleanup_position_orders()に置き換え済み
 
     async def cleanup_position_orders(
         self,
@@ -500,7 +498,7 @@ class StopManager:
         reason: str = "position_exit",
     ) -> Dict[str, Any]:
         """
-        Phase 52.4-B: ポジション決済時のTP/SL注文クリーンアップ
+        Phase 49.6: ポジション決済時のTP/SL注文クリーンアップ
 
         TP到達時: 残SL注文を自動削除
         SL到達時: 残TP注文を自動削除
@@ -519,35 +517,35 @@ class StopManager:
         cancelled_count = 0
         errors = []
 
-        # TP注文キャンセル（SL到達時・手動決済時）（Phase 53.9: await直接呼び出し）
+        # TP注文キャンセル（SL到達時・手動決済時）
         if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
             try:
-                await bitbank_client.cancel_order(tp_order_id, symbol)
+                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
-                    f"✅ Phase 52.4-B: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
+                    f"✅ Phase 49.6: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
                 )
             except Exception as e:
                 error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
-                # Phase 52.4-B: Discord通知削除（週間レポートのみ）
+                # Phase 51.6: Discord通知削除（週間レポートのみ）
                 if "OrderNotFound" in str(e) or "not found" in str(e).lower():
                     self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
                 else:
                     self.logger.warning(f"⚠️ {error_msg}")
 
-        # SL注文キャンセル（TP到達時・手動決済時）（Phase 53.9: await直接呼び出し）
+        # SL注文キャンセル（TP到達時・手動決済時）
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
             try:
-                await bitbank_client.cancel_order(sl_order_id, symbol)
+                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
                 cancelled_count += 1
                 self.logger.info(
-                    f"✅ Phase 52.4-B: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
+                    f"✅ Phase 49.6: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
                 )
             except Exception as e:
                 error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
                 errors.append(error_msg)
-                # Phase 52.4-B: Discord通知削除（週間レポートのみ）
+                # Phase 51.6: Discord通知削除（週間レポートのみ）
                 if "OrderNotFound" in str(e) or "not found" in str(e).lower():
                     self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
                 else:
@@ -555,7 +553,7 @@ class StopManager:
 
         if cancelled_count > 0:
             self.logger.info(
-                f"🧹 Phase 52.4-B: ポジション決済時クリーンアップ完了 - "
+                f"🧹 Phase 49.6: ポジション決済時クリーンアップ完了 - "
                 f"{cancelled_count}件キャンセル, 理由: {reason}"
             )
 
@@ -563,7 +561,7 @@ class StopManager:
 
     def should_apply_cooldown(self, evaluation: TradeEvaluation) -> bool:
         """
-        Phase 52.4-B: 柔軟なクールダウン判定
+        Phase 31.1: 柔軟なクールダウン判定
 
         強いトレンド発生時はクールダウンをスキップし、
         機会損失を防ぐ。
@@ -575,7 +573,7 @@ class StopManager:
             bool: クールダウンを適用するか
         """
         try:
-            # features.yaml から設定取得（Phase 52.4-B修正: 正しいAPI使用）
+            # features.yaml から設定取得（Phase 31.1修正: 正しいAPI使用）
             from ...core.config import get_features_config
 
             features = get_features_config()
@@ -613,7 +611,7 @@ class StopManager:
 
     def _calculate_trend_strength(self, market_data: Dict) -> float:
         """
-        Phase 52.4-B: トレンド強度計算（ADX・DI・EMA総合判定）
+        Phase 31.1: トレンド強度計算（ADX・DI・EMA総合判定）
 
         Args:
             market_data: 市場データ（特徴量含む）
@@ -666,10 +664,10 @@ class StopManager:
             return 0.0
 
     async def _get_current_price(self, bitbank_client: Optional[BitbankClient]) -> float:
-        """現在価格取得（緊急時用）（Phase 53.8: await直接呼び出し）"""
+        """現在価格取得（緊急時用）"""
         try:
             if bitbank_client:
-                ticker = await bitbank_client.fetch_ticker("BTC/JPY")
+                ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, "BTC/JPY")
                 if ticker and "last" in ticker:
                     return float(ticker["last"])
 
@@ -692,6 +690,7 @@ class StopManager:
         try:
             # 簡易実装: 設定された閾値以上の変動を検出
             # 実際の実装では過去5分間の価格履歴を確認する
+            price_change_threshold = config.get("price_change_threshold", 0.03)
 
             # TODO: 実際の価格履歴データベースから過去5分間の価格変動を計算
             # 現在は簡易実装として、大きな価格変動があったと仮定した場合の処理のみ
@@ -740,8 +739,8 @@ class StopManager:
                 self.logger.warning("⚠️ TP価格が不正（0以下）")
                 return None
 
-            # TP注文配置（Phase 53.8: await追加）
-            tp_order = await bitbank_client.create_take_profit_order(
+            # TP注文配置
+            tp_order = bitbank_client.create_take_profit_order(
                 entry_side=side,
                 amount=amount,
                 take_profit_price=take_profit_price,
@@ -774,7 +773,7 @@ class StopManager:
         bitbank_client: BitbankClient,
     ) -> Optional[Dict[str, Any]]:
         """
-        個別SL注文配置（Phase 52.4-B強化: SL価格検証・エラー30101対策）
+        個別SL注文配置（Phase 51.6強化: SL価格検証・エラー30101対策）
 
         Args:
             side: エントリーサイド (buy/sell)
@@ -794,7 +793,7 @@ class StopManager:
                 self.logger.debug("SL配置無効（設定オフ）")
                 return None
 
-            # Phase 52.4-B: SL価格検証強化（None/0/負の値チェック）
+            # Phase 51.6: SL価格検証強化（None/0/負の値チェック）
             if stop_loss_price is None:
                 self.logger.error("❌ SL価格がNone（エラー30101対策）")
                 return None
@@ -805,7 +804,7 @@ class StopManager:
                 )
                 return None
 
-            # Phase 52.4-B: エントリー価格との妥当性チェック
+            # Phase 51.6: エントリー価格との妥当性チェック
             if side.lower() == "buy" and stop_loss_price >= entry_price:
                 self.logger.error(
                     f"❌ SL価格が不正（BUY時はエントリー価格より低い必要）: "
@@ -819,7 +818,7 @@ class StopManager:
                 )
                 return None
 
-            # Phase 52.4-B: SL距離の合理性チェック（極端な値の検出）
+            # Phase 51.6: SL距離の合理性チェック（極端な値の検出）
             sl_distance_ratio = abs(stop_loss_price - entry_price) / entry_price
             max_sl_ratio = get_threshold("position_management.stop_loss.max_loss_ratio", 0.007)
 
@@ -834,8 +833,8 @@ class StopManager:
                     f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
                 )
 
-            # SL注文配置（Phase 53.9: await追加）
-            sl_order = await bitbank_client.create_stop_loss_order(
+            # SL注文配置
+            sl_order = bitbank_client.create_stop_loss_order(
                 entry_side=side,
                 amount=amount,
                 stop_loss_price=stop_loss_price,
@@ -858,7 +857,7 @@ class StopManager:
 
         except Exception as e:
             error_message = str(e)
-            # Phase 52.4-B: Discord通知削除（週間レポートのみ）
+            # Phase 51.6: Discord通知削除（週間レポートのみ）
             if "30101" in error_message:
                 self.logger.error(
                     f"❌ SL配置失敗（トリガー価格未指定）: エラーコード30101 - {error_message}"
@@ -874,7 +873,7 @@ class StopManager:
             return None
 
     # ========================================
-    # Phase 52.4-B: 古い注文クリーンアップ（bitbank 30件制限対策）
+    # Phase 51.6: 古い注文クリーンアップ（bitbank 30件制限対策）
     # ========================================
 
     async def cleanup_old_unfilled_orders(
@@ -886,7 +885,7 @@ class StopManager:
         threshold_count: int = 25,
     ) -> Dict[str, Any]:
         """
-        Phase 52.4-B: 古い未約定注文クリーンアップ（bitbank 30件制限対策）
+        Phase 51.6: 古い未約定注文クリーンアップ（bitbank 30件制限対策）
 
         bitbank API仕様: 同一取引ペアで30件制限（エラー60011）
         「孤児注文」（ポジションが存在しない古い注文）のみを削除し、
@@ -903,19 +902,21 @@ class StopManager:
             Dict: {"cancelled_count": int, "order_count": int, "errors": List[str]}
         """
         try:
-            # アクティブ注文取得（Phase 53.8: await直接呼び出し）
-            active_orders = await bitbank_client.fetch_active_orders(symbol, limit=100)
+            # アクティブ注文取得
+            active_orders = await asyncio.to_thread(
+                bitbank_client.fetch_active_orders, symbol, limit=100
+            )
             order_count = len(active_orders)
 
             # 閾値未満なら何もしない
             if order_count < threshold_count:
                 self.logger.debug(
-                    f"📊 Phase 52.4-B: アクティブ注文数{order_count}件（{threshold_count}件未満・クリーンアップ不要）"
+                    f"📊 Phase 51.6: アクティブ注文数{order_count}件（{threshold_count}件未満・クリーンアップ不要）"
                 )
                 return {"cancelled_count": 0, "order_count": order_count, "errors": []}
 
             self.logger.warning(
-                f"⚠️ Phase 52.4-B: アクティブ注文数{order_count}件（{threshold_count}件以上）- 古い注文クリーンアップ開始"
+                f"⚠️ Phase 51.6: アクティブ注文数{order_count}件（{threshold_count}件以上）- 古い注文クリーンアップ開始"
             )
 
             # アクティブポジションのTP/SL注文IDを収集（削除対象から除外）
@@ -930,11 +931,11 @@ class StopManager:
 
             if protected_order_ids:
                 self.logger.info(
-                    f"🛡️ Phase 52.4-B: {len(protected_order_ids)}件の注文を保護（アクティブポジション）"
+                    f"🛡️ Phase 51.6: {len(protected_order_ids)}件の注文を保護（アクティブポジション）"
                 )
 
             # 24時間以上経過した孤児注文を抽出
-            # 削除: 重複import timedelta（line 938）
+            from datetime import datetime, timedelta
 
             cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
             old_orphan_orders = []
@@ -961,7 +962,7 @@ class StopManager:
 
             if not old_orphan_orders:
                 self.logger.info(
-                    f"ℹ️ Phase 52.4-B: 24時間以上経過した孤児注文なし（{order_count}件中0件）"
+                    f"ℹ️ Phase 51.6: 24時間以上経過した孤児注文なし（{order_count}件中0件）"
                 )
                 return {"cancelled_count": 0, "order_count": order_count, "errors": []}
 
@@ -972,11 +973,10 @@ class StopManager:
             for order in old_orphan_orders:
                 order_id = order.get("id")
                 try:
-                    # Phase 53.8: await直接呼び出し
-                    await bitbank_client.cancel_order(order_id, symbol)
+                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
                     cancelled_count += 1
                     self.logger.info(
-                        f"✅ Phase 52.4-B: 古いTP注文キャンセル成功 - ID: {order_id}, "
+                        f"✅ Phase 51.6: 古いTP注文キャンセル成功 - ID: {order_id}, "
                         f"経過時間: {(datetime.now() - datetime.fromtimestamp(order['timestamp'] / 1000)).total_seconds() / 3600:.1f}時間"
                     )
                 except Exception as e:
@@ -989,7 +989,7 @@ class StopManager:
                         self.logger.warning(f"⚠️ {error_msg}")
 
             self.logger.info(
-                f"🧹 Phase 52.4-B: 古い孤児注文クリーンアップ完了 - "
+                f"🧹 Phase 51.6: 古い孤児注文クリーンアップ完了 - "
                 f"{cancelled_count}件キャンセル（{order_count}件中{len(old_orphan_orders)}件対象・保護{len(protected_order_ids)}件）"
             )
 
@@ -1000,5 +1000,5 @@ class StopManager:
             }
 
         except Exception as e:
-            self.logger.error(f"❌ Phase 52.4-B: 古い注文クリーンアップエラー: {e}")
+            self.logger.error(f"❌ Phase 51.6: 古い注文クリーンアップエラー: {e}")
             return {"cancelled_count": 0, "order_count": 0, "errors": [str(e)]}

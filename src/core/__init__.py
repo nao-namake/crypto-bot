@@ -1,16 +1,17 @@
 """
-core/ - 基盤システム - Phase 52.4完了
+core/ - 基盤システム - Phase 49完了
 
 システム全体を支える核心的な基盤機能を提供するディレクトリです。
 責任分離・コード最適化・保守性向上を実現した企業級個人向けAI自動取引システムの基盤を提供します。
 
-Phase 52.4: コード品質改善・設定ファイル統合
-- Phase参照統一（67%削減達成）・ハードコード値設定ファイル化
-- logging設定完全外部化・設定一元化による保守性向上
-
-Phase 49-51: バックテスト完全改修・動的戦略管理・証拠金維持率80%遵守
-Phase 48-47: Discord週間レポート（通知99%削減）・確定申告対応システム
-Phase 42-38: 統合TP/SL・Strategy-Aware ML・レイヤードアーキテクチャ
+Phase 49完了:
+- バックテスト完全改修（信頼性100%達成・TradeTracker統合・matplotlib可視化）
+- 証拠金維持率80%遵守・TP/SL設定完全同期（thresholds.yaml完全準拠）
+- Phase 48: Discord週間レポート（通知99%削減・コスト35%削減）
+- Phase 47: 確定申告対応システム（作業時間95%削減）
+- Phase 42: 統合TP/SL（注文数91.7%削減）・トレーリングストップ実装
+- Phase 41.8: Strategy-Aware ML（55特徴量・訓練/推論一貫性確保）
+- Phase 38: trading層レイヤードアーキテクチャ実装完了
 """
 
 # 設定管理
@@ -53,7 +54,7 @@ from .logger import CryptoBotLogger, JSONFormatter, LogLevel, get_logger, setup_
 # 統合制御システム
 from .orchestration import MLServiceAdapter, TradingOrchestrator, create_trading_orchestrator
 
-# Phase 52.4 エクスポート定義
+# Phase 49完了 エクスポート定義
 __all__ = [
     # 設定管理
     "Config",
@@ -95,7 +96,7 @@ __all__ = [
     "MLServiceAdapter",
 ]
 
-# Phase 52.4 メタ情報
-__version__ = "52.4"
-__author__ = "CryptoBot Phase 52.4"
-__description__ = "統合基盤システム - コード品質改善・設定ファイル統合・Phase参照67%削減・logging設定外部化・保守性向上"
+# Phase 49完了メタ情報
+__version__ = "49.0"
+__author__ = "CryptoBot Phase 49完了"
+__description__ = "統合基盤システム - バックテスト完全改修・証拠金維持率80%遵守・週間レポート・確定申告対応・統合TP/SL・Strategy-Aware ML・企業級品質達成"

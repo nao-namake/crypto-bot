@@ -522,8 +522,8 @@ class TestIntegratedRiskManager:
 
         # 利用率超過ケース（30%以上使用）
         result_over = self.risk_manager._check_capital_usage_limits(
-            current_balance=6500, btc_price=6000000
-        )  # 35%使用
+            current_balance=6500, btc_price=6000000  # 35%使用
+        )
         assert result_over["allowed"] == False
         assert "資金利用率上限超過" in result_over["reason"]
 

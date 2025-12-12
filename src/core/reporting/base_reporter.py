@@ -1,14 +1,16 @@
 """
-基底レポートクラス - Phase 52.4
+基底レポートクラス - Phase 49完了
 
 レポート生成の共通機能・インターフェースを提供。
-各種レポート生成クラスの基底クラス。
+orchestrator.pyから分離したレポート機能の基盤。
 
-主要機能:
+Phase 49完了:
 - 統一レポート保存インターフェース（save_report・generate_error_report）
+- 3種類レポート対応（backtest/paper_trading/error）
 - JSON・Markdown両形式出力
-- Discord埋め込み形式生成（format_discord_embed）
-- 設定駆動型（thresholds.yaml: reporting.base_dir）
+- thresholds.yaml設定準拠（reporting.base_dir: logs/reports）
+
+Phase 28-29: レポート基底クラス設計・共通機能抽出
 """
 
 import json
@@ -97,7 +99,7 @@ class BaseReporter:
         return markdown
 
     def format_discord_embed(
-        self, data: Dict, title: str = "レポート", color: Optional[int] = None
+        self, data: Dict, title: str = "レポート", color: int = 0x00FF00
     ) -> Dict:
         """
         Discord通知用embed生成
@@ -105,17 +107,11 @@ class BaseReporter:
         Args:
             data: レポートデータ
             title: embedタイトル
-            color: embed色（Noneの場合はthresholds.yamlから取得）
+            color: embed色（デフォルト: 緑）
 
         Returns:
             Discord embed辞書
         """
-        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
-        if color is None:
-            from ..config import get_threshold
-
-            color = get_threshold("reporting.discord.colors.success", 0x00FF00)
-
         embed = {
             "title": title,
             "color": color,

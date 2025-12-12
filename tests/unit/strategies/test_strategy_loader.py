@@ -28,7 +28,7 @@ class TestStrategyLoaderBasic:
     def test_init_with_default_path(self):
         """デフォルトパスでの初期化"""
         loader = StrategyLoader()
-        assert loader.config_path == Path("config/core/strategies.yaml")
+        assert loader.config_path == Path("config/strategies.yaml")
 
     def test_init_with_custom_path(self):
         """カスタムパスでの初期化"""

@@ -1,5 +1,5 @@
 """
-BB Reversal戦略実装 - Phase 52.4-B
+BB Reversal戦略実装 - Phase 51.7 Day 3
 
 レンジ相場での平均回帰戦略:
 - BB上限タッチ + RSI買われすぎ → SELL信号
@@ -11,7 +11,7 @@ BB Reversal戦略実装 - Phase 52.4-B
 - RSIとBBの組み合わせで反転ポイントを検出
 - トレンド相場ではシグナル発生を抑制
 
-Phase 52.4-B実装
+Phase 51.7 Day 3実装
 """
 
 from typing import Any, Dict, List, Optional
@@ -59,7 +59,7 @@ class BBReversalStrategy(StrategyBase):
             "bb_lower_threshold": get_threshold("strategies.bb_reversal.bb_lower_threshold", 0.05),
             "adx_range_threshold": get_threshold("strategies.bb_reversal.adx_range_threshold", 20),
             "sl_multiplier": get_threshold("strategies.bb_reversal.sl_multiplier", 1.5),
-            # Phase 52.4-B: TP/SL設定（thresholds.yaml優先）
+            # Phase 49.16: TP/SL設定（thresholds.yaml優先）
             "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio", 0.015),
             "min_profit_ratio": get_threshold(
                 "position_management.take_profit.min_profit_ratio", 0.010
@@ -256,7 +256,7 @@ class BBReversalStrategy(StrategyBase):
                     "confidence": confidence,
                     "strength": strength,
                     "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB上限タッチ・RSI買われすぎ→反転下落期待",
+                    "analysis": f"BB上限タッチ・RSI買われすぎ→反転下落期待",
                 }
 
             # BUY信号（BB下限タッチ + RSI売られすぎ）
@@ -274,7 +274,7 @@ class BBReversalStrategy(StrategyBase):
                     "confidence": confidence,
                     "strength": strength,
                     "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB下限タッチ・RSI売られすぎ→反転上昇期待",
+                    "analysis": f"BB下限タッチ・RSI売られすぎ→反転上昇期待",
                 }
 
             # HOLD信号

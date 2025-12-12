@@ -10,7 +10,7 @@ ATRとボリンジャーバンドを使用したシンプルな逆張り戦略�
 3. RSIで追加確認
 4. 市場ストレスで異常状況フィルター
 
-Phase 52.4-B完了: 市場不確実性計算統合・重複コード削減
+Phase 49完了: 市場不確実性計算統合・重複コード削減
 """
 
 from datetime import datetime
@@ -46,14 +46,14 @@ class ATRBasedStrategy(StrategyBase):
             "rsi_overbought": get_threshold("strategies.atr_based.rsi_overbought", 65),
             "rsi_oversold": get_threshold("strategies.atr_based.rsi_oversold", 35),
             "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
-            # Phase 52.4-B: リスク管理（ハードコード削除・設定ファイル一元管理）
+            # Phase 51.6: リスク管理（ハードコード削除・設定ファイル一元管理）
             "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
             "take_profit_ratio": get_threshold(
                 "position_management.take_profit.default_ratio"
-            ),  # Phase 52.4-B: TP設定
+            ),  # Phase 51.6: TP 0.9%・RR比1.29:1
             "position_size_base": get_threshold(
                 "ml.dynamic_confidence.strategies.atr_based.position_size_base", 0.015
-            ),  # Phase 52.4-B: mlプレフィックス・設定ファイルから取得
+            ),  # Phase 51.9-5: mlプレフィックス追加・設定ファイルから取得
             # フィルター設定
             "market_stress_threshold": get_threshold(
                 "ml.dynamic_confidence.strategies.atr_based.market_stress_threshold", 0.7

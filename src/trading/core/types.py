@@ -1,5 +1,5 @@
 """
-Trading Core Types - Phase 52.4-B完了
+Trading Core Types - Phase 49完了
 
 すべての取引関連データクラスの一元管理
 """
@@ -63,7 +63,7 @@ class TradeEvaluation:
     anomaly_alerts: List[str]
     market_conditions: Dict[str, Any]
 
-    # 後方互換性のためのオプションフィールド（デフォルト値あり）
+    # Phase 35.3: オプションフィールド（デフォルト値あり）
     entry_price: Optional[float] = None  # バックテスト用エントリー価格
 
     # 後方互換性のためのactionプロパティ（Silent Failure修正）

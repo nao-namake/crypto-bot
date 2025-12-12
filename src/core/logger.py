@@ -1,15 +1,11 @@
 """
-統合ログシステム - Phase 52.4完了
+統合ログシステム - Phase 49完了
 
 JSTタイムゾーン・ファイル・コンソール・Discord通知の統合ログシステム。
 構造化ログ・JSONフォーマット・カラー出力・重要度ベース通知を実現。
-
-Phase 52.4: 設定ファイル統合・ハードコード削除
-- logging設定外部化（default_level・retention_days・backtest_env_var）
-- get_file_config()パターン適用・設定一元化達成
-
-Phase 49-35: バックテストモード最適化・環境変数制御
-Phase 38-22: conditional_log・Discord統合
+Phase 38.4: バックテストモード自動判定ロギング（conditional_log）・戦略重複コード削減。
+Phase 35: 環境変数ログレベル制御・バックテストモード最適化（INFO完全スキップ・Discord通知スキップ）。
+Phase 22: Discord通知マネージャー統合。
 """
 
 import json
@@ -163,14 +159,12 @@ class CryptoBotLogger:
             if isinstance(e, RecursionError):
                 # 循環参照の場合は追加ログを出力しない（さらなる循環を防ぐ）
                 pass
-            # Phase 52.4: デフォルト設定を設定ファイルから取得
-            # 設定ファイル読み込み失敗時のフォールバック値
-            from .config import get_file_config
+            # デフォルト設定オブジェクトを作成（型安全）
 
             class DefaultLoggingConfig:
-                level: str = get_file_config("logging.default_level", "INFO")
+                level: str = "INFO"
                 file_enabled: bool = True
-                retention_days: int = get_file_config("logging.retention_days", 7)
+                retention_days: int = 7
 
             logging_config = DefaultLoggingConfig()
 
@@ -260,11 +254,10 @@ class CryptoBotLogger:
         discord_notify: bool = False,
     ) -> None:
         """コンテキスト付きログ出力."""
-        # Phase 52.4: バックテストモード判定を設定ファイル化
+        # Phase 35.7: バックテストモード時のログフィルタ（高速化）
         import os
 
-        backtest_env_var = get_file_config("backtest.env_var_name", "BACKTEST_MODE")
-        is_backtest = os.environ.get(backtest_env_var) == "true"
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         # バックテストモード時は不要なログをスキップ
         if is_backtest and level == logging.INFO:
@@ -375,9 +368,7 @@ class CryptoBotLogger:
         """
         import os
 
-        # Phase 52.4: バックテストモード判定を設定ファイル化
-        backtest_env_var = get_file_config("backtest.env_var_name", "BACKTEST_MODE")
-        is_backtest = os.environ.get(backtest_env_var) == "true"
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         # バックテストモード判定
         effective_level = backtest_level if is_backtest else level

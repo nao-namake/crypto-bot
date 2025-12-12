@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-過去データCSV収集スクリプト
-
-最終更新: 2025/11/16 (Phase 52.4-B)
+過去データCSV収集スクリプト - Phase 38.4完了
 
 本番環境と同じBitbank APIから過去データを取得してCSV形式で保存。
 バックテストの高速化とAPI依存削減を実現。
 
-主要機能:
-- 15分足データ収集（大量データ対応・99.95%成功率）
+Phase 34完了実績:
+- 15分足データ収集80倍改善（216件→17,271件・99.95%成功率）
 - Bitbank Public API直接使用実装（4時間足・15分足）
 - 期間統一機能実装（--match-4hオプション）
 - 日別イテレーション実装（ccxt制限回避）
@@ -41,14 +39,9 @@ from src.data.bitbank_client import BitbankClient
 
 class HistoricalDataCollector:
     """
-    過去データCSV収集システム
+    過去データCSV収集システム（Phase 38.4完了）
 
-    最終更新: 2025/11/16 (Phase 52.4-B)
-
-    主要機能:
-    - Bitbank Public API直接使用（4時間足・15分足）
-    - 期間統一機能（--match-4hオプション）
-    - 大量データ対応（日別イテレーション）
+    Phase 34実装: Bitbank Public API直接使用・期間統一機能。
     """
 
     def __init__(self):
@@ -108,7 +101,7 @@ class HistoricalDataCollector:
     ) -> None:
         """タイムフレーム別データ収集"""
 
-        # 4時間足と15分足は直接API、それ以外はBitbankClient使用
+        # Phase 34.1修正: 4時間足と15分足は直接API、それ以外はBitbankClient使用
         if timeframe == "4h":
             data = await self._collect_4h_direct(symbol, days, start_timestamp, end_timestamp)
         elif timeframe == "15m":
@@ -200,7 +193,7 @@ class HistoricalDataCollector:
     async def _collect_15m_direct(
         self, symbol: str, days: int, start_timestamp: int = None, end_timestamp: int = None
     ) -> List[List]:
-        """15分足データ直接取得（日別イテレーション実装）"""
+        """15分足データ直接取得（Phase 34.1実装）"""
         try:
             # 日付範囲を計算
             if start_timestamp and end_timestamp:
@@ -245,7 +238,7 @@ class HistoricalDataCollector:
             return []
 
     async def _fetch_15m_day_data(self, symbol: str, date: datetime) -> List[List]:
-        """日別15分足データ取得"""
+        """日別15分足データ取得（Phase 34.1実装）"""
         try:
             pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
             date_str = date.strftime("%Y%m%d")  # YYYYMMDD形式

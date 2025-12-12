@@ -1,13 +1,16 @@
 """
-閾値設定管理システム - Phase 52.4
+閾値設定管理システム - Phase 49完了
 
-thresholds.yaml統合管理・8専用アクセス関数・実行時オーバーライド対応。
+thresholds.yaml統合管理・8専用アクセス関数・実行時オーバーライド対応
 
-機能:
+Phase 49完了:
 - get_threshold(): 階層キーアクセス（"position_management.stop_loss.max_loss_ratio"）
 - 8専用アクセス関数: get_trading_thresholds・get_monitoring_config等
-- 実行時オーバーライド（Optuna最適化対応）
+- 実行時オーバーライド（Phase 40.1 Optuna最適化対応）
 - thresholds.yamlキャッシュ・reload_thresholds()再読み込み
+
+Phase 40.1: 実行時パラメータオーバーライド実装（Optuna最適化用）
+Phase 28-29: 閾値設定管理システム確立
 """
 
 import copy
@@ -61,6 +64,12 @@ def get_threshold(key_path: str, default_value: Any = None) -> Any:
 
     Returns:
         設定値またはデフォルト値
+
+    Examples:
+        >>> get_threshold("ml.default_confidence", 0.5)
+        0.5
+        >>> get_threshold("trading.default_balance_jpy", 1000000.0)
+        1000000.0
     """
     # Phase 40.1: 実行時オーバーライドを最優先でチェック
     if key_path in _runtime_overrides:
@@ -105,6 +114,12 @@ def get_monitoring_config(key: str, default: Any = None) -> Any:
     Args:
         key: 監視設定のキー（例: "discord.min_interval"）
         default: デフォルト値
+
+    Examples:
+        >>> get_monitoring_config("discord.min_interval", 2)
+        2
+        >>> get_monitoring_config("health_check.interval_seconds", 60.0)
+        60.0
     """
     return get_threshold(f"monitoring.{key}", default)
 
@@ -116,6 +131,12 @@ def get_anomaly_config(key: str, default: Any = None) -> Any:
     Args:
         key: 異常検知設定のキー（例: "spread.warning_threshold"）
         default: デフォルト値
+
+    Examples:
+        >>> get_anomaly_config("spread.warning_threshold", 0.003)
+        0.003
+        >>> get_anomaly_config("spike_detection.price_zscore_threshold", 3.0)
+        3.0
     """
     return get_threshold(f"anomaly_detection.{key}", default)
 
@@ -127,6 +148,12 @@ def get_position_config(key: str, default: Any = None) -> Any:
     Args:
         key: ポジション管理設定のキー（例: "kelly_criterion.max_position_ratio"）
         default: デフォルト値
+
+    Examples:
+        >>> get_position_config("kelly_criterion.max_position_ratio", 0.03)
+        0.03
+        >>> get_position_config("drawdown.consecutive_loss_limit", 5)
+        5
     """
     return get_threshold(f"position_management.{key}", default)
 
@@ -138,6 +165,12 @@ def get_backtest_config(key: str, default: Any = None) -> Any:
     Args:
         key: バックテスト設定のキー（例: "stop_loss.default_rate"）
         default: デフォルト値
+
+    Examples:
+        >>> get_backtest_config("stop_loss.default_rate", 0.02)
+        0.02
+        >>> get_backtest_config("data.bitbank_limit", 2000)
+        2000
     """
     return get_threshold(f"backtest.{key}", default)
 
@@ -149,6 +182,12 @@ def get_data_config(key: str, default: Any = None) -> Any:
     Args:
         key: データ取得設定のキー（例: "limits.default"）
         default: デフォルト値
+
+    Examples:
+        >>> get_data_config("limits.default", 100)
+        100
+        >>> get_data_config("timeframes.default", ["15m", "1h", "4h"])
+        ["15m", "1h", "4h"]
     """
     return get_threshold(f"data_fetching.{key}", default)
 
@@ -160,6 +199,12 @@ def get_file_config(key: str, default: Any = None) -> Any:
     Args:
         key: ファイルI/O設定のキー（例: "logging.retention_days"）
         default: デフォルト値
+
+    Examples:
+        >>> get_file_config("logging.retention_days", 7)
+        7
+        >>> get_file_config("reports.max_files", 100)
+        100
     """
     return get_threshold(f"file_io.{key}", default)
 
@@ -184,8 +229,13 @@ def set_runtime_override(key_path: str, value: Any) -> None:
     実行時パラメータオーバーライド設定（Optuna最適化用）
 
     Args:
-        key_path: ドット記法のキー
+        key_path: ドット記法のキー（例: "position_management.stop_loss.default_atr_multiplier"）
         value: 設定する値
+
+    Examples:
+        >>> set_runtime_override("position_management.stop_loss.default_atr_multiplier", 2.5)
+        >>> get_threshold("position_management.stop_loss.default_atr_multiplier")
+        2.5
     """
     _runtime_overrides[key_path] = value
 
@@ -196,6 +246,12 @@ def set_runtime_overrides_batch(overrides: Dict[str, Any]) -> None:
 
     Args:
         overrides: キーと値の辞書
+
+    Examples:
+        >>> set_runtime_overrides_batch({
+        ...     "position_management.stop_loss.default_atr_multiplier": 2.5,
+        ...     "position_management.take_profit.default_ratio": 3.0,
+        ... })
     """
     _runtime_overrides.update(overrides)
 

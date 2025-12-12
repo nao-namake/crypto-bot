@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
-バックテストMarkdownレポート生成スクリプト - Phase 52.4
+バックテストMarkdownレポート生成スクリプト - Phase 52.1
 
 目的: JSON形式のバックテストレポートをPhase 51.10-B形式のMarkdownに変換
-
-設定管理: thresholds.yamlから動的に設定値を取得
 
 使用方法:
     python scripts/backtest/generate_markdown_report.py <json_report_path> [--phase <phase_name>]
@@ -18,8 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
-from src.core.config.threshold_manager import get_threshold
-
 
 def load_json_report(json_path: Path) -> Dict[str, Any]:
     """JSONレポート読み込み"""
@@ -27,7 +23,9 @@ def load_json_report(json_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.1") -> str:
+def generate_markdown_report(
+    report_data: Dict[str, Any], phase_name: str = "52.1"
+) -> str:
     """
     Phase 51.10-B形式のMarkdownレポート生成
 
@@ -42,6 +40,7 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     backtest_info = report_data.get("backtest_info", {})
     perf = report_data.get("performance_metrics", {})
     regime_perf = report_data.get("regime_performance", {})
+    exec_stats = report_data.get("execution_stats", {})
 
     # 実行日時
     start_date = backtest_info.get("start_date", "N/A")
@@ -74,25 +73,6 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
 
     # 1取引あたり損益
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
-
-    # 設定値取得（thresholds.yamlから動的取得）
-    tp_tight = get_threshold("risk.regime_based_tp_sl.tight_range.tp_ratio", 0.008) * 100
-    sl_tight = get_threshold("risk.regime_based_tp_sl.tight_range.sl_ratio", 0.006) * 100
-    tp_normal = get_threshold("risk.regime_based_tp_sl.normal_range.tp_ratio", 0.010) * 100
-    sl_normal = get_threshold("risk.regime_based_tp_sl.normal_range.sl_ratio", 0.007) * 100
-    tp_trending = get_threshold("risk.regime_based_tp_sl.trending.tp_ratio", 0.015) * 100
-    sl_trending = get_threshold("risk.regime_based_tp_sl.trending.sl_ratio", 0.010) * 100
-
-    max_positions_tight = get_threshold("trading.position_limits.tight_range", 1)
-    max_positions_normal = get_threshold("trading.position_limits.normal_range", 2)
-    max_positions_trending = get_threshold("trading.position_limits.trending", 3)
-
-    lgbm_weight = get_threshold("ml.ensemble.model_weights.lgbm", 0.5) * 100
-    xgb_weight = get_threshold("ml.ensemble.model_weights.xgb", 0.3) * 100
-    rf_weight = get_threshold("ml.ensemble.model_weights.rf", 0.2) * 100
-
-    min_ml_confidence = get_threshold("ml.ensemble.min_ml_confidence", 0.45)
-    high_confidence_threshold = get_threshold("ml.ensemble.high_confidence_threshold", 0.60)
 
     # Markdown生成
     lines = [
@@ -127,21 +107,21 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
         "",
         "| レジーム | TP | SL | 適用ケース |",
         "|----------|----|----|-----------|",
-        f"| tight_range | {tp_tight:.1f}% | {sl_tight:.1f}% | レンジ相場（狭い値動き） |",
-        f"| normal_range | {tp_normal:.1f}% | {sl_normal:.1f}% | 通常相場 |",
-        f"| trending | {tp_trending:.1f}% | {sl_trending:.1f}% | トレンド相場 |",
+        "| tight_range | 0.8% | 0.6% | レンジ相場（狭い値動き） |",
+        "| normal_range | 1.0% | 0.7% | 通常相場 |",
+        "| trending | 1.5% | 1.0% | トレンド相場 |",
         "",
         "### レジーム別エントリー制限",
         "",
-        f"- tight_range: 最大{max_positions_tight}ポジション（Phase 51.8実装）",
-        f"- normal_range: 最大{max_positions_normal}ポジション",
-        f"- trending: 最大{max_positions_trending}ポジション",
+        "- tight_range: 最大1ポジション（Phase 51.8実装）",
+        "- normal_range: 最大2ポジション",
+        "- trending: 最大3ポジション",
         "",
         "### ML統合設定",
         "",
-        f"- アンサンブルモデル: LightGBM ({lgbm_weight:.0f}%) + XGBoost ({xgb_weight:.0f}%) + RandomForest ({rf_weight:.0f}%)",
-        f"- 最小信頼度閾値: {min_ml_confidence:.2f}",
-        f"- 高信頼度閾値: {high_confidence_threshold:.2f}",
+        "- アンサンブルモデル: LightGBM (50%) + XGBoost (30%) + RandomForest (20%)",
+        "- 最小信頼度閾値: 0.45",
+        "- 高信頼度閾値: 0.60",
         "",
         "---",
         "",
@@ -156,16 +136,14 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
 
     # レジーム別パフォーマンス
     if regime_perf:
-        lines.extend(
-            [
-                "---",
-                "",
-                "## レジーム別パフォーマンス（Phase 51.8-J4-G）",
-                "",
-                "| レジーム | エントリー数 | 勝率 | 平均損益/取引 | 総損益 |",
-                "|---------|------------|------|-------------|--------|",
-            ]
-        )
+        lines.extend([
+            "---",
+            "",
+            "## レジーム別パフォーマンス（Phase 51.8-J4-G）",
+            "",
+            "| レジーム | エントリー数 | 勝率 | 平均損益/取引 | 総損益 |",
+            "|---------|------------|------|-------------|--------|",
+        ])
 
         for regime, stats in regime_perf.items():
             regime_total = stats.get("total_trades", 0)
@@ -188,41 +166,35 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
         lines.extend(["", ""])
 
     # パフォーマンス指標
-    lines.extend(
-        [
-            "---",
-            "",
-            "## パフォーマンス指標",
-            "",
-            "### 損益サマリー",
-            "",
-            f"- **総損益**: ¥{total_pnl:+,.0f}",
-            f"- **総利益**: ¥{total_profit:+,.0f}",
-            f"- **総損失**: ¥{total_loss:+,.0f}",
-            f"- **平均損益/取引**: ¥{avg_pnl_per_trade:+,.0f}",
-            "",
-            "### リスク指標",
-            "",
-            f"- **最大ドローダウン**: ¥{max_dd:,.0f} ({max_dd_pct:.2f}%)",
-            f"- **プロフィットファクター**: {profit_factor:.2f}",
-            f"- **平均勝ちトレード**: ¥{avg_win:+,.0f}",
-            f"- **平均負けトレード**: ¥{avg_loss:+,.0f}",
-            "",
-            "### 取引品質",
-            "",
-            f"- **勝率**: {win_rate:.1f}%",
-            (
-                f"- **リスクリワード比**: {abs(avg_win / avg_loss):.2f}:1 (平均)"
-                if avg_loss != 0
-                else "- **リスクリワード比**: N/A"
-            ),
-            "",
-            "---",
-            "",
-            "## 結論",
-            "",
-        ]
-    )
+    lines.extend([
+        "---",
+        "",
+        "## パフォーマンス指標",
+        "",
+        "### 損益サマリー",
+        "",
+        f"- **総損益**: ¥{total_pnl:+,.0f}",
+        f"- **総利益**: ¥{total_profit:+,.0f}",
+        f"- **総損失**: ¥{total_loss:+,.0f}",
+        f"- **平均損益/取引**: ¥{avg_pnl_per_trade:+,.0f}",
+        "",
+        "### リスク指標",
+        "",
+        f"- **最大ドローダウン**: ¥{max_dd:,.0f} ({max_dd_pct:.2f}%)",
+        f"- **プロフィットファクター**: {profit_factor:.2f}",
+        f"- **平均勝ちトレード**: ¥{avg_win:+,.0f}",
+        f"- **平均負けトレード**: ¥{avg_loss:+,.0f}",
+        "",
+        "### 取引品質",
+        "",
+        f"- **勝率**: {win_rate:.1f}%",
+        f"- **リスクリワード比**: {abs(avg_win / avg_loss):.2f}:1 (平均)" if avg_loss != 0 else "- **リスクリワード比**: N/A",
+        "",
+        "---",
+        "",
+        "## 結論",
+        "",
+    ])
 
     # 自動結論生成（Phase 52.0の効果評価）
     if total_trades > 0:
@@ -231,16 +203,14 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
         pf_eval = "優秀" if profit_factor >= 1.5 else "良好" if profit_factor >= 1.0 else "要改善"
         win_rate_eval = "高い" if win_rate >= 50 else "中程度" if win_rate >= 40 else "低い"
 
-        lines.extend(
-            [
-                f"### 総合評価: {profitability}",
-                "",
-                f"- **プロフィットファクター {profit_factor:.2f}**: {pf_eval}",
-                f"- **勝率 {win_rate:.1f}%**: {win_rate_eval}",
-                f"- **最大DD {max_dd_pct:.2f}%**: {'許容範囲内' if max_dd_pct < 30 else '要注意'}",
-                "",
-            ]
-        )
+        lines.extend([
+            f"### 総合評価: {profitability}",
+            "",
+            f"- **プロフィットファクター {profit_factor:.2f}**: {pf_eval}",
+            f"- **勝率 {win_rate:.1f}%**: {win_rate_eval}",
+            f"- **最大DD {max_dd_pct:.2f}%**: {'許容範囲内' if max_dd_pct < 30 else '要注意'}",
+            "",
+        ])
 
         # レジーム別評価
         if regime_perf:
@@ -248,7 +218,7 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
             lines.append("")
 
             best_regime = None
-            best_avg_pnl = float("-inf")
+            best_avg_pnl = float('-inf')
 
             for regime, stats in regime_perf.items():
                 regime_avg = stats.get("average_pnl", 0.0)
@@ -263,40 +233,32 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
                     "trending": "トレンド",
                 }.get(best_regime, best_regime)
 
-                lines.append(
-                    f"最も収益性が高いレジーム: **{regime_display}** (平均¥{best_avg_pnl:+,.0f}/取引)"
-                )
+                lines.append(f"最も収益性が高いレジーム: **{regime_display}** (平均¥{best_avg_pnl:+,.0f}/取引)")
                 lines.append("")
 
         # Phase 52.0効果評価
-        lines.extend(
-            [
-                "### Phase 52.0実装効果",
-                "",
-                "レジーム別動的TP/SL調整の効果を検証。",
-                "",
-                "- tight_rangeでのTP 0.8%/SL 0.6%設定による早期利確・損切り",
-                "- trendingでのTP 1.5%/SL 1.0%設定によるトレンドフォロー",
-                "",
-            ]
-        )
-    else:
-        lines.extend(
-            [
-                "### エントリーなし",
-                "",
-                "バックテスト期間中、エントリー条件を満たす取引機会が検出されませんでした。",
-                "",
-            ]
-        )
-
-    lines.extend(
-        [
-            "---",
+        lines.extend([
+            "### Phase 52.0実装効果",
             "",
-            f"**レポート生成日時**: {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
-        ]
-    )
+            "レジーム別動的TP/SL調整の効果を検証。",
+            "",
+            "- tight_rangeでのTP 0.8%/SL 0.6%設定による早期利確・損切り",
+            "- trendingでのTP 1.5%/SL 1.0%設定によるトレンドフォロー",
+            "",
+        ])
+    else:
+        lines.extend([
+            "### エントリーなし",
+            "",
+            "バックテスト期間中、エントリー条件を満たす取引機会が検出されませんでした。",
+            "",
+        ])
+
+    lines.extend([
+        "---",
+        "",
+        f"**レポート生成日時**: {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}",
+    ])
 
     return "\n".join(lines)
 
@@ -329,7 +291,7 @@ def save_markdown_report(markdown_content: str, phase_name: str, output_dir: Pat
 def main():
     """メイン処理"""
     parser = argparse.ArgumentParser(
-        description="バックテストJSONレポートをMarkdownに変換（Phase 52.4）"
+        description="バックテストJSONレポートをMarkdownに変換（Phase 52.1）"
     )
     parser.add_argument(
         "json_path",
@@ -339,8 +301,8 @@ def main():
     parser.add_argument(
         "--phase",
         type=str,
-        default="52.4",
-        help="Phase名（デフォルト: 52.4）",
+        default="52.1",
+        help="Phase名（デフォルト: 52.1）",
     )
     parser.add_argument(
         "--output-dir",

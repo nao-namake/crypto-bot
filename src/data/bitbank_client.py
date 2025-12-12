@@ -1,21 +1,9 @@
 """
-Bitbank 信用取引専用APIクライアント
+Bitbank 信用取引専用APIクライアント - Phase 49完了
 
-最終更新: 2025/11/16 (Phase 52.4-B)
-
-信用取引（ロング・ショート）に特化したBitbank APIクライアント。
-ccxtライブラリを使用したシンプル実装・証拠金維持率監視・SSL証明書対応。
-
-主要機能:
-- 信用取引注文（成行・指値・stop_limit）
-- 証拠金維持率監視（80%遵守）
-- OHLCVデータ取得（マルチタイムフレーム対応）
-- GET/POST API対応・エラーハンドリング
-
-開発履歴:
-- Phase 52.4-B: コード整理・ドキュメント統一
-- Phase 49: バックテストモード・維持率80%遵守
-- Phase 35: stop_limit注文・GET/POST API対応
+信用取引（ロング・ショート）に特化したBitbank APIクライアント
+ccxtライブラリを使用してシンプルな実装に特化。
+Phase 35-49で機能追加完了（バックテストモード・stop_limit注文・GET/POST API対応・維持率80%遵守）
 """
 
 import asyncio
@@ -24,7 +12,7 @@ import time
 from typing import Any, Dict, List, Optional, Union
 
 import aiohttp
-import ccxt.async_support as ccxt
+import ccxt
 
 from ..core.config import get_config, get_threshold
 from ..core.exceptions import DataFetchError, ExchangeAPIError
@@ -54,20 +42,26 @@ class BitbankClient:
         self.api_key = api_key or os.getenv("BITBANK_API_KEY")
         self.api_secret = api_secret or os.getenv("BITBANK_API_SECRET")
 
-        # CRIT-2 Fix: API Secret露出防止（MD5ハッシュ削除・安全な情報のみログ出力）
+        # Cloud Run環境変数読み込み状況をデバッグ
+        import hashlib
+
         if self.api_key:
-            self.logger.info(f"🔑 BITBANK_API_KEY読み込み確認: 存在=True, 長さ={len(self.api_key)}")
+            key_hash = hashlib.md5(self.api_key.encode()).hexdigest()[:8]
+            self.logger.info(
+                f"🔑 BITBANK_API_KEY読み込み確認: 存在={bool(self.api_key)}, 長さ={len(self.api_key)}, ハッシュ={key_hash}"
+            )
         else:
             self.logger.error("❌ BITBANK_API_KEY読み込み失敗: 環境変数が空またはNone")
 
         if self.api_secret:
+            secret_hash = hashlib.md5(self.api_secret.encode()).hexdigest()[:8]
             self.logger.info(
-                f"🔐 BITBANK_API_SECRET読み込み確認: 存在=True, 長さ={len(self.api_secret)}"
+                f"🔐 BITBANK_API_SECRET読み込み確認: 存在={bool(self.api_secret)}, 長さ={len(self.api_secret)}, ハッシュ={secret_hash}"
             )
         else:
             self.logger.error("❌ BITBANK_API_SECRET読み込み失敗: 環境変数が空またはNone")
 
-        # レバレッジ検証（bitbank信用取引仕様: 1.0-2.0）
+        # レバレッジ検証
         if not (1.0 <= leverage <= 2.0):
             raise ValueError(f"レバレッジは1.0-2.0の範囲で設定してください: {leverage}")
 
@@ -92,9 +86,9 @@ class BitbankClient:
                     "apiKey": self.api_key,
                     "secret": self.api_secret,
                     "sandbox": False,  # 本番環境
-                    "rateLimit": get_config().exchange.rate_limit_ms,  # HIGH-3 Fix: Config統合
+                    "rateLimit": 1000,  # API制限対応
                     "enableRateLimit": True,
-                    "timeout": get_config().exchange.timeout_ms,  # HIGH-3 Fix: Config統合
+                    "timeout": 30000,  # 30秒タイムアウト
                 }
             )
 
@@ -109,12 +103,8 @@ class BitbankClient:
                 },
             )
 
-    async def test_connection(self) -> bool:
-        """
-        API接続テスト
-
-        CRIT-1 Fix: async/await対応（ccxt.async_support使用）
-        """
+    def test_connection(self) -> bool:
+        """API接続テスト."""
         try:
             # 公開API（認証不要）でテスト（設定から取得）
             try:
@@ -123,7 +113,7 @@ class BitbankClient:
             except Exception:
                 symbol = "BTC/JPY"  # フォールバック
 
-            ticker = await self.exchange.fetch_ticker(symbol)
+            ticker = self.exchange.fetch_ticker(symbol)
             self.logger.info(
                 f"Bitbank API接続テスト成功 - {symbol}価格: ¥{ticker['last']:,.0f}",
                 extra_data={"price": ticker["last"]},
@@ -180,7 +170,7 @@ class BitbankClient:
         # 4時間足の場合は直接API実装を使用（ccxt制約回避）
         if timeframe == "4h":
             self.logger.debug("4時間足検出: 直接API実装を使用")
-            # Phase 52.5: 重複import asyncio削除（モジュール先頭でimport済み）
+            import asyncio
             from datetime import datetime
 
             # 現在年を取得
@@ -197,14 +187,14 @@ class BitbankClient:
                 if limit and len(ohlcv) > limit:
                     ohlcv = ohlcv[-limit:]
                     self.logger.info(
-                        "📊 4時間足limit適用 - "
+                        f"📊 4時間足limit適用 - "
                         f"取得件数={original_count}件, "
                         f"limit={limit}件, "
                         f"適用後={len(ohlcv)}件"
                     )
                 else:
                     self.logger.info(
-                        "📊 4時間足limit適用なし - "
+                        f"📊 4時間足limit適用なし - "
                         f"取得件数={original_count}件 (limit={limit}件)"
                     )
 
@@ -213,7 +203,7 @@ class BitbankClient:
                 if len(ohlcv) < min_required_rows:
                     self.logger.warning(
                         f"⚠️ 4時間足直接API取得件数不足: {len(ohlcv)}件 < {min_required_rows}件必要 "
-                        "- ccxtリトライ"
+                        f"- ccxtリトライ"
                     )
                     raise ValueError(
                         f"データ不足: {len(ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
@@ -229,7 +219,7 @@ class BitbankClient:
         # Phase 51.5-C Fix: 15分足の場合は直接API実装を使用（YYYYMMDD形式・since=None問題回避）
         if timeframe == "15m":
             self.logger.debug("15分足検出: 直接API実装を使用（Phase 51.5-C）")
-            # 削除: 重複import asyncio (line 222)
+            import asyncio
             from datetime import datetime, timedelta
 
             try:
@@ -277,14 +267,15 @@ class BitbankClient:
                 if limit and len(all_ohlcv) > limit:
                     all_ohlcv = all_ohlcv[-limit:]
                     self.logger.info(
-                        "📊 15分足limit適用 - "
+                        f"📊 15分足limit適用 - "
                         f"取得件数={original_count}件, "
                         f"limit={limit}件, "
                         f"適用後={len(all_ohlcv)}件"
                     )
                 else:
                     self.logger.info(
-                        "📊 15分足limit適用なし - " f"取得件数={original_count}件 (limit={limit}件)"
+                        f"📊 15分足limit適用なし - "
+                        f"取得件数={original_count}件 (limit={limit}件)"
                     )
 
                 # Phase 51.5-C: 最小行数チェック（戦略要求20行未満ならエラー）
@@ -292,14 +283,14 @@ class BitbankClient:
                 if len(all_ohlcv) < min_required_rows:
                     self.logger.warning(
                         f"⚠️ 15分足直接API取得件数不足: {len(all_ohlcv)}件 < {min_required_rows}件必要 "
-                        "- ccxtリトライ"
+                        f"- ccxtリトライ"
                     )
                     raise ValueError(
                         f"データ不足: {len(all_ohlcv)}件 < {min_required_rows}件（戦略要求最小行数）"
                     )
 
                 self.logger.info(
-                    "✅ Phase 51.5-C: 15分足直接API実装成功 - "
+                    f"✅ Phase 51.5-C: 15分足直接API実装成功 - "
                     f"{days_needed}日分 → {len(all_ohlcv)}件取得完了"
                 )
 
@@ -315,7 +306,7 @@ class BitbankClient:
         # Phase 51.5-C Fix: 15m足等でもリトライロジック適用
         max_retries = 3
         last_exception = None
-        min_required_rows = 20  # Phase 52.5: 戦略要求最小行数（ハードコード統一）
+        min_required_rows = 20  # 戦略要求最小行数
 
         for attempt in range(max_retries):
             try:
@@ -324,10 +315,9 @@ class BitbankClient:
                     f"{symbol} {timeframe} limit={limit}"
                 )
 
-                # CRIT-1 Fix: async/await対応（イベントループブロッキング解消）
                 # Phase 51.5-C Fix: タイムアウト設定（既存のexchange設定を利用）
                 # ccxtのexchangeインスタンスは既にtimeout設定済み（30秒）
-                ohlcv = await self.exchange.fetch_ohlcv(
+                ohlcv = self.exchange.fetch_ohlcv(
                     symbol=symbol, timeframe=timeframe, since=since, limit=limit
                 )
 
@@ -347,7 +337,7 @@ class BitbankClient:
                         self.logger.warning(
                             f"⚠️ {error_msg} - {wait_time}秒後にリトライ（試行{attempt + 1}/{max_retries}）"
                         )
-                        # 削除: 重複import asyncio（line 340）
+                        import asyncio
 
                         await asyncio.sleep(wait_time)
                         continue
@@ -375,7 +365,8 @@ class BitbankClient:
                         f"⚠️ {timeframe}足取得失敗（試行{attempt + 1}/{max_retries}）: "
                         f"{type(e).__name__}: {e} - {wait_time}秒後にリトライ"
                     )
-                    # Phase 52.5: 重複import asyncio削除（モジュール先頭でimport済み）
+                    import asyncio
+
                     await asyncio.sleep(wait_time)
                 else:
                     self.logger.error(
@@ -464,7 +455,7 @@ class BitbankClient:
 
                         # Phase 51.5 Fix: Raw Responseログ追加（デバッグ強化）
                         self.logger.debug(
-                            "📊 API Response確認 - "
+                            f"📊 API Response確認 - "
                             f"success={data.get('success')}, "
                             f"has_data={bool(data.get('data'))}, "
                             f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
@@ -626,7 +617,7 @@ class BitbankClient:
 
                         # API Response確認
                         self.logger.debug(
-                            "📊 15m足API Response確認 - "
+                            f"📊 15m足API Response確認 - "
                             f"success={data.get('success')}, "
                             f"has_data={bool(data.get('data'))}, "
                             f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
@@ -720,11 +711,9 @@ class BitbankClient:
             context={"symbol": symbol, "date": date, "last_exception": str(last_exception)},
         )
 
-    async def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         ティッカー情報取得
-
-        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -733,7 +722,7 @@ class BitbankClient:
             ティッカー情報.
         """
         try:
-            ticker = await self.exchange.fetch_ticker(symbol)
+            ticker = self.exchange.fetch_ticker(symbol)
 
             self.logger.debug(
                 f"ティッカー取得成功: {symbol} = ¥{ticker['last']:,.0f}",
@@ -753,11 +742,9 @@ class BitbankClient:
                 context={"symbol": symbol},
             )
 
-    async def fetch_order_book(self, symbol: str = "BTC/JPY", limit: int = 20) -> Dict[str, Any]:
+    def fetch_order_book(self, symbol: str = "BTC/JPY", limit: int = 20) -> Dict[str, Any]:
         """
         板情報取得（Phase 33: スマート注文機能用）
-
-        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -767,7 +754,7 @@ class BitbankClient:
             板情報（bids: 買い板, asks: 売り板）
         """
         try:
-            orderbook = await self.exchange.fetch_order_book(symbol, limit)
+            orderbook = self.exchange.fetch_order_book(symbol, limit)
 
             self.logger.debug(
                 f"板情報取得成功: {symbol} (depth={limit})",
@@ -786,7 +773,7 @@ class BitbankClient:
                 context={"symbol": symbol},
             )
 
-    async def fetch_balance(self) -> Dict[str, Any]:
+    def fetch_balance(self) -> Dict[str, Any]:
         """
         残高情報取得（Phase 35: バックテストモックデータ対応）
 
@@ -795,7 +782,7 @@ class BitbankClient:
         """
         # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
         if self._backtest_mode:
-            # 削除: 重複import get_threshold (line 785)
+            from ..core.config import get_threshold
 
             mock_enabled = get_threshold("backtest.mock_api_calls", True)
             if mock_enabled:
@@ -813,7 +800,7 @@ class BitbankClient:
                     context={"operation": "fetch_balance"},
                 )
 
-            balance = await self.exchange.fetch_balance()
+            balance = self.exchange.fetch_balance()
 
             self.logger.debug(
                 "信用取引残高取得成功",
@@ -833,7 +820,7 @@ class BitbankClient:
                 context={"operation": "fetch_balance"},
             )
 
-    async def create_order(
+    def create_order(
         self,
         symbol: str,
         side: str,
@@ -908,9 +895,8 @@ class BitbankClient:
 
             # Phase 37.5: stop/stop_limit注文のトリガー価格・執行価格設定
             if trigger_price is not None:
-                # HIGH-5 Fix: str(int()) → str(round()) - 価格精度保持
                 # bitbank API仕様: 整数文字列を期待
-                params["trigger_price"] = str(round(trigger_price))
+                params["trigger_price"] = str(int(trigger_price))
                 self.logger.info(
                     f"🎯 逆指値注文トリガー設定: {trigger_price:.0f}円",
                     extra_data={"trigger_price": trigger_price, "order_type": order_type},
@@ -918,8 +904,7 @@ class BitbankClient:
 
             # Phase 37.5.2: stop_limit注文の場合、執行価格もparams内に明示的に設定
             if order_type == "stop_limit" and price is not None:
-                # HIGH-5 Fix: str(int()) → str(round()) - 価格精度保持
-                params["price"] = str(round(price))  # bitbank APIは整数文字列を期待
+                params["price"] = str(int(price))  # bitbank APIは整数文字列を期待
                 self.logger.info(
                     f"💰 逆指値指値注文執行価格設定: {price:.0f}円",
                     extra_data={"price": price, "order_type": order_type},
@@ -975,7 +960,7 @@ class BitbankClient:
             # Phase 37.5: デバッグログ（stop_limit注文パラメータ確認）
             if order_type == "stop_limit":
                 self.logger.info(
-                    "📋 stop_limit注文パラメータ確認",
+                    f"📋 stop_limit注文パラメータ確認",
                     extra_data={
                         "symbol": symbol,
                         "type": order_type,
@@ -991,7 +976,7 @@ class BitbankClient:
 
             # 注文実行
             start_time = time.time()
-            order = await self.exchange.create_order(
+            order = self.exchange.create_order(
                 symbol=symbol,
                 type=order_type,
                 side=side,
@@ -1062,7 +1047,7 @@ class BitbankClient:
                 },
             )
 
-    async def create_take_profit_order(
+    def create_take_profit_order(
         self,
         entry_side: str,
         amount: float,
@@ -1070,7 +1055,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        テイクプロフィット指値注文作成（Phase 53.8: async対応・Phase 33.1: 決済注文対応・両建て防止修正）
+        テイクプロフィット指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -1101,8 +1086,7 @@ class BitbankClient:
             },
         )
 
-        # Phase 53.8: awaitを追加（create_orderは非同期メソッド）
-        return await self.create_order(
+        return self.create_order(
             symbol=symbol,
             side=tp_side,
             order_type="limit",
@@ -1112,7 +1096,7 @@ class BitbankClient:
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
-    async def create_stop_loss_order(
+    def create_stop_loss_order(
         self,
         entry_side: str,
         amount: float,
@@ -1120,7 +1104,7 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        ストップロス逆指値成行注文作成（Phase 53.8: async対応・Phase 38.7.1: stop対応・確実な損切り実行）
+        ストップロス逆指値成行注文作成（Phase 38.7.1: stop対応・確実な損切り実行）
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -1154,8 +1138,7 @@ class BitbankClient:
             },
         )
 
-        # Phase 53.8: awaitを追加（create_orderは非同期メソッド）
-        return await self.create_order(
+        return self.create_order(
             symbol=symbol,
             side=sl_side,
             order_type="stop",  # ✅ Phase 38.7.1: 逆指値成行注文（stop）に変更
@@ -1166,7 +1149,7 @@ class BitbankClient:
             entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
         )
 
-    async def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文キャンセル
 
@@ -1187,7 +1170,7 @@ class BitbankClient:
                     context={"operation": "cancel_order"},
                 )
 
-            cancel_result = await self.exchange.cancel_order(order_id, symbol)
+            cancel_result = self.exchange.cancel_order(order_id, symbol)
 
             self.logger.info(
                 f"注文キャンセル成功: {order_id}",
@@ -1212,7 +1195,7 @@ class BitbankClient:
                 context={"operation": "cancel_order", "order_id": order_id},
             )
 
-    async def fetch_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    def fetch_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         注文状況確認
 
@@ -1233,7 +1216,7 @@ class BitbankClient:
                     context={"operation": "fetch_order"},
                 )
 
-            order = await self.exchange.fetch_order(order_id, symbol)
+            order = self.exchange.fetch_order(order_id, symbol)
 
             self.logger.debug(
                 f"注文情報取得成功: {order_id} - {order['status']}",
@@ -1263,13 +1246,11 @@ class BitbankClient:
                 context={"operation": "fetch_order", "order_id": order_id},
             )
 
-    async def fetch_active_orders(
+    def fetch_active_orders(
         self, symbol: str = "BTC/JPY", limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         アクティブな注文一覧取得（Phase 33.2: TP/SL配置確認用）
-
-        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -1289,7 +1270,7 @@ class BitbankClient:
                 )
 
             # ccxtのfetch_open_ordersを使用
-            active_orders = await self.exchange.fetch_open_orders(symbol, limit=limit)
+            active_orders = self.exchange.fetch_open_orders(symbol, limit=limit)
 
             self.logger.info(
                 f"アクティブ注文取得成功: {len(active_orders)}件",
@@ -1321,7 +1302,7 @@ class BitbankClient:
                 context={"operation": "fetch_active_orders", "symbol": symbol},
             )
 
-    async def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
+    def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
         """
         ポジション情報取得（信用取引）
 
@@ -1341,7 +1322,7 @@ class BitbankClient:
                     context={"operation": "fetch_positions"},
                 )
 
-            positions = await self.exchange.fetch_positions([symbol])
+            positions = self.exchange.fetch_positions([symbol])
 
             # 有効なポジションのみフィルタ
             active_positions = [pos for pos in positions if pos["contracts"] > 0]
@@ -1367,7 +1348,7 @@ class BitbankClient:
                 context={"operation": "fetch_positions", "symbol": symbol},
             )
 
-    async def set_leverage(self, symbol: str, leverage: float) -> Dict[str, Any]:
+    def set_leverage(self, symbol: str, leverage: float) -> Dict[str, Any]:
         """
         レバレッジ設定（信用取引）
 
@@ -1382,9 +1363,7 @@ class BitbankClient:
             ExchangeAPIError: 設定失敗時.
         """
         try:
-            cfg = get_config()
-            # HIGH-3 Fix: Config統合
-            if not (cfg.exchange.leverage_min <= leverage <= cfg.exchange.leverage_max):
+            if not (1.0 <= leverage <= 2.0):
                 raise ExchangeAPIError(
                     f"Bitbankでは1.0-2.0倍のレバレッジのみサポートされています: {leverage}",
                     context={"leverage": leverage},
@@ -1396,7 +1375,7 @@ class BitbankClient:
                     context={"operation": "set_leverage"},
                 )
 
-            result = await self.exchange.set_leverage(leverage, symbol)
+            result = self.exchange.set_leverage(leverage, symbol)
             self.leverage = leverage  # 内部状態更新
 
             self.logger.info(
@@ -1421,11 +1400,9 @@ class BitbankClient:
                 },
             )
 
-    async def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
+    def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         市場情報取得
-
-        CRIT-1 Fix: async/await対応
 
         Args:
             symbol: 通貨ペア
@@ -1434,7 +1411,7 @@ class BitbankClient:
             市場情報（最小注文単位、手数料等）.
         """
         try:
-            markets = await self.exchange.load_markets()
+            markets = self.exchange.load_markets()
             market = markets.get(symbol)
 
             if not market:
@@ -1472,7 +1449,7 @@ class BitbankClient:
         """
         # Phase 35: バックテストモード時はモックデータ返却（API呼び出しスキップ）
         if self._backtest_mode:
-            # 削除: 重複import get_threshold (line 1452)
+            from ..core.config import get_threshold
 
             mock_enabled = get_threshold("backtest.mock_api_calls", True)
             if mock_enabled:
@@ -1498,38 +1475,24 @@ class BitbankClient:
             # Phase 37.2: GETメソッドで呼び出し（エラー20003修正）
             response = await self._call_private_api("/user/margin/status", method="GET")
 
-            # Phase 53.4: bitbank API仕様に準拠したフィールド名に修正
-            # Phase 53.7: 呼び出し元で使用するキーを明記
             # 保証金維持率とリスク情報を含む完全な状況を返す
-            #
-            # 重要: 利用可能証拠金を取得する場合は "total_margin_balance" を使用すること
-            #       "available_balances" は配列形式 [{pair, long, short}] なので直接使用不可
-            data = response.get("data", {})
             margin_data = {
-                "margin_ratio": data.get("total_margin_balance_percentage"),
-                "available_balances": data.get("available_balances", []),  # 配列形式
-                "total_margin_balance": data.get("total_margin_balance"),  # 利用可能証拠金（円）
-                "unrealized_pnl": data.get("margin_position_profit_loss"),
-                "status": data.get("status"),
-                "maintenance_margin": data.get("total_position_maintenance_margin"),
+                "margin_ratio": response.get("data", {}).get("maintenance_margin_ratio"),
+                "available_balance": response.get("data", {}).get("available_margin"),
+                "used_margin": response.get("data", {}).get("used_margin"),
+                "unrealized_pnl": response.get("data", {}).get("unrealized_pnl"),
+                "margin_call_status": response.get("data", {}).get("margin_call_status"),
                 "raw_response": response,
             }
 
-            # Phase 53.4: margin_ratioがNoneの場合の安全なログ出力
-            margin_ratio = margin_data.get("margin_ratio")
-            if margin_ratio is not None:
-                self.logger.info(
-                    f"📊 信用取引口座状況取得成功 - 維持率: {margin_ratio:.1f}%",
-                    extra_data={
-                        "margin_ratio": margin_ratio,
-                        "status": margin_data.get("status"),
-                    },
-                )
-            else:
-                self.logger.info(
-                    "📊 信用取引口座状況取得成功 - 維持率: N/A（ポジションなし）",
-                    extra_data={"status": margin_data.get("status")},
-                )
+            self.logger.info(
+                f"📊 信用取引口座状況取得成功 - 維持率: {margin_data['margin_ratio']:.1f}%",
+                extra_data={
+                    "margin_ratio": margin_data["margin_ratio"],
+                    "available_balance": margin_data["available_balance"],
+                    "margin_call_status": margin_data["margin_call_status"],
+                },
+            )
 
             return margin_data
 
@@ -1623,11 +1586,10 @@ class BitbankClient:
             nonce = timestamp
 
             # Phase 37.2: GET/POSTで署名ロジック分岐
-            # Phase 53.4: GET署名には/v1プレフィックスが必須（bitbank API仕様）
             if method.upper() == "GET":
-                # GETリクエスト署名: nonce + /v1 + endpoint (+ query parameters)
-                # bitbank公式仕様: message = "{nonce}/v1{endpoint}"
-                message = f"{nonce}/v1{endpoint}"
+                # GETリクエスト署名: nonce + endpoint (+ query parameters)
+                # 現時点でquery parametersは使用しないため、endpointのみ
+                message = f"{nonce}{endpoint}"
                 body = None
             else:
                 # POSTリクエスト署名: nonce + request body

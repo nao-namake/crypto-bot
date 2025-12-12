@@ -1,17 +1,18 @@
 """
-Discord通知システム - Phase 52.4（週間レポート専用）
+Discord通知システム - Phase 49完了（週間レポート専用）
 
-週間レポート送信に特化したシンプルなDiscord通知システム。
-Phase 48で複雑な通知機能を削除し、通知99%削減を達成。
-
-主要機能:
+Phase 49完了:
 - DiscordClient: シンプルWebhook通知クライアント（画像ファイル送信対応）
 - DiscordManager: 週間レポート専用通知マネージャー
 - 損益グラフ送信機能（matplotlib・Pillow統合）
 - レート制限対応（rate_limit_ms: 1000ms）
-- Webhook URL自動取得（.env優先）
 
-Phase 48簡略化: 300-1,500通知/月 → 4通知/月（99%削減・コスト35%削減）
+Phase 48: Discord週間レポート実装（通知99%削減達成）
+- 既存の複雑な通知システムを完全削除（300-1,500回/月 → 4回/月）
+- 週間レポート送信機能のみに特化（コスト35%削減・月額700-900円削減）
+- シンプルな設計で保守性向上
+
+削除された機能: エラー通知・取引シグナル通知・取引実行結果通知・システム状態通知・バッチ処理・日次サマリー
 """
 
 import json
@@ -97,7 +98,7 @@ class DiscordClient:
                 env_url = os.getenv("DISCORD_WEBHOOK_URL")
                 if env_url and env_url.strip():
                     cleaned_url = env_url.strip().rstrip("\n\r").strip("\"'")
-                    self.logger.info("📁 Discord Webhook URLを.envファイルから読み込み")
+                    self.logger.info(f"📁 Discord Webhook URLを.envファイルから読み込み")
                     return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ .envファイル読み込み失敗: {e}")
@@ -116,7 +117,7 @@ class DiscordClient:
                 txt_url = txt_path.read_text().strip()
                 if txt_url:
                     cleaned_url = txt_url.strip().rstrip("\n\r").strip("\"'")
-                    self.logger.info("📄 Discord Webhook URLをtxtファイルから読み込み")
+                    self.logger.info(f"📄 Discord Webhook URLをtxtファイルから読み込み")
                     return cleaned_url
             except Exception as e:
                 self.logger.warning(f"⚠️ txtファイル読み込み失敗: {e}")
@@ -176,13 +177,11 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
-        from ..config import get_threshold
-
+        # 色設定
         colors = {
-            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
-            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
-            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
+            "info": 0x3498DB,  # 青色
+            "warning": 0xF39C12,  # 黄色
+            "critical": 0xE74C3C,  # 赤色
         }
 
         # 絵文字設定
@@ -229,14 +228,8 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
-        from ..config import get_threshold
-
-        colors = {
-            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
-            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
-            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
-        }
+        # 色・絵文字設定
+        colors = {"info": 0x3498DB, "warning": 0xF39C12, "critical": 0xE74C3C}
         emojis = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}
 
         # embed構築
@@ -283,14 +276,8 @@ class DiscordClient:
         if not self.enabled:
             return False
 
-        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
-        from ..config import get_threshold
-
-        colors = {
-            "info": get_threshold("reporting.discord.colors.info", 0x3498DB),
-            "warning": get_threshold("reporting.discord.colors.warning", 0xF39C12),
-            "critical": get_threshold("reporting.discord.colors.critical", 0xE74C3C),
-        }
+        # 色・絵文字設定
+        colors = {"info": 0x3498DB, "warning": 0xF39C12, "critical": 0xE74C3C}
         emojis = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}
 
         # embed構築

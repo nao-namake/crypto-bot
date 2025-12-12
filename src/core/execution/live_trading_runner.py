@@ -1,14 +1,17 @@
 """
-ライブトレードランナー - Phase 52.4
+ライブトレードランナー - Phase 49完了
 
+orchestrator.pyから分離したライブトレード実行機能。
 ライブトレードモードの専用処理・実取引管理を担当。
 
-機能:
+Phase 49完了:
 - 実取引管理（trading_cycle_manager統合・取引サイクル実行）
 - 残高確認・証拠金維持率監視
 - セッション統計（cycle_count・trade_count・total_pnl）
 - Discord通知統合（取引開始・取引実行・エラー通知）
-- 定期実行制御（thresholds.yaml設定・デフォルト5分間隔）
+- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
+
+Phase 28-29: ライブトレードモード専用処理・残高確認・実取引管理確立
 """
 
 import asyncio
@@ -133,7 +136,7 @@ class LiveTradingRunner(BaseRunner):
                     from ..config import get_threshold
 
                     client = BitbankClient()
-                    balance_data = await client.fetch_balance()
+                    balance_data = client.fetch_balance()
                     jpy_balance = balance_data.get("JPY", {}).get("free", 0.0)
 
                     if jpy_balance > 0:
@@ -187,9 +190,8 @@ class LiveTradingRunner(BaseRunner):
                 await self._execute_trading_cycle()
                 self.cycle_count += 1
 
-                # 定期的に統計出力
-                cycle_interval = get_threshold("live.progress_log_cycle_interval", 50)
-                if self.cycle_count % cycle_interval == 0:
+                # 50サイクルごとに統計出力（約2.5時間）
+                if self.cycle_count % 50 == 0:
                     await self._log_progress_statistics()
 
                 # ライブトレード実行間隔（外部化・収益性重視）

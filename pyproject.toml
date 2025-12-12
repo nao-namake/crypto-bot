@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crypto-bot"
-version = "53.2.0"
-description = "AI-powered cryptocurrency trading bot - Phase 53.2・Python 3.11統一・6戦略55特徴量システム"
+version = "49.15.0"
+description = "AI-powered cryptocurrency trading bot - Phase 49.15完了・システム整合性検証7項目拡張・1,117テスト100%・68.32%カバレッジ達成"
 authors = [{name = "Crypto Bot Team", email = "team@crypto-bot.local"}]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
+    "Intended Audience :: Developers", 
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [project.optional-dependencies]
@@ -94,7 +94,7 @@ output = ".cache/coverage/coverage.xml"
 
 [tool.black]
 line-length = 100
-target-version = ["py311"]
+target-version = ["py313"]
 include = '\.pyi?$'
 extend-exclude = '''
 /(

@@ -1,37 +1,43 @@
-# MLモデル自動再学習ワークフロー - Phase 53.1
+# MLモデル自動再学習ワークフロー
+# 週次自動実行（日曜18:00 JST）・Phase 49完了（55特徴量・3クラス分類）
+
 name: ML Model Training
 
 on:
+  # 手動実行（推奨）
   workflow_dispatch:
     inputs:
       n_trials:
-        description: 'Optuna試行回数'
+        description: 'Optuna最適化試行回数'
         required: true
         default: '50'
         type: choice
         options:
-          - '30'
-          - '50'
-          - '100'
+          - '50'   # 推奨（約4分・コスパ最良）
+          - '100'  # 高精度（約8分・+1-3%改善）
+          - '30'   # 高速テスト用
       dry_run:
-        description: 'ドライラン（モデル保存なし）'
+        description: 'ドライラン実行（モデル保存なし）'
         required: false
         default: false
         type: boolean
 
+  # 週次自動実行（日曜18:00 JST = 日曜09:00 UTC）
   schedule:
-    - cron: '0 9 * * 0'
+    - cron: '0 9 * * 0'  # UTC 09:00 = JST 18:00（日曜日）
 
 env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
-  MIN_FEATURE_COUNT: 50
+  SERVICE_NAME: crypto-bot-service-prod
 
 jobs:
-  train:
-    name: ML Model Training
+  model-training:
+    name: ML Model Training & Deployment
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 30  # ML学習約4-8分+α（60分→30分に短縮）
+
+    # mainブランチのみ実行
     if: github.ref == 'refs/heads/main'
 
     permissions:
@@ -39,96 +45,286 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
 
       - name: Install dependencies
         run: |
+          echo "🔧 Python環境セットアップ"
+          python --version
+          pip --version
+
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Setup directories
+          echo "✅ 依存関係インストール完了"
+
+      - name: Pre-training Environment Setup
         run: |
-          mkdir -p models/{production,training,archive} logs cache src/backtest/data/historical
+          echo "🚀 モデル学習環境セットアップ"
+
+          # 必要なディレクトリ作成
+          mkdir -p models/{production,training,archive,optuna} logs cache
+
+          # Git設定（コミット用）
           git config --global user.name "GitHub Actions ML Training"
           git config --global user.email "actions@github.com"
 
-      - name: Collect training data
-        run: |
-          echo "📊 180日分データ収集"
-          python3 src/backtest/scripts/collect_historical_csv.py --days 180 --symbol BTC/JPY
-          ls -lh src/backtest/data/historical/
+          echo "✅ 環境セットアップ完了"
 
-      - name: Train ML model
+      - name: Execute ML Model Training
         id: training
         run: |
           N_TRIALS=${{ github.event.inputs.n_trials || '50' }}
-          echo "🎯 モデル学習開始（${N_TRIALS}試行）"
+          DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}
 
-          python3 scripts/ml/create_ml_models.py \
-            --n-classes 3 \
-            --threshold 0.005 \
-            --optimize \
-            --n-trials "$N_TRIALS" \
-            --verbose
+          echo "🎯 Phase 51.5-A Fix: MLモデル学習実行開始（一括生成システム）"
+          echo "📊 Optuna試行回数: ${N_TRIALS}"
+          echo "📊 3クラス分類（SELL/HOLD/BUY）・60特徴量（50基本+3戦略信号+7時間的）"
+          echo "📊 閾値: ±0.5%・Optunaハイパーパラメータ最適化"
+          echo "📊 訓練対象: ensemble_full.pkl (60特徴量) + ensemble_basic.pkl (57特徴量)"
 
-          echo "training_success=true" >> $GITHUB_OUTPUT
+          # 統合運用ガイド準拠の標準コマンド使用
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "🧪 ドライランモード（モデル保存なし）"
+            python3 scripts/ml/create_ml_models.py \
+              --n-classes 3 \
+              --threshold 0.005 \
+              --optimize \
+              --n-trials "$N_TRIALS" \
+              --verbose \
+              2>&1 | tee /tmp/training.log
+          else
+            echo "🚀 本番学習モード"
+            python3 scripts/ml/create_ml_models.py \
+              --n-classes 3 \
+              --threshold 0.005 \
+              --optimize \
+              --n-trials "$N_TRIALS" \
+              --verbose \
+              2>&1 | tee /tmp/training.log
+          fi
 
-      - name: Validate model
-        if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
-        run: |
-          echo "🔍 モデル検証"
-
-          if [ ! -f "models/production/ensemble_full.pkl" ]; then
-            echo "❌ ensemble_full.pkl不存在"
+          # 学習成功確認
+          if [ $? -eq 0 ]; then
+            echo "training_success=true" >> $GITHUB_OUTPUT
+            echo "✅ モデル学習完了"
+          else
+            echo "training_success=false" >> $GITHUB_OUTPUT
+            echo "❌ モデル学習失敗"
             exit 1
           fi
 
-          FEATURE_COUNT=$(python3 -c "
+      - name: Model Validation
+        if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
+        run: |
+          echo "🔍 モデル品質検証開始"
+
+          # Phase 51.5-A Fix: 1. ファイル存在確認（両モデル）
+          if [ ! -f "models/production/ensemble_full.pkl" ]; then
+            echo "❌ モデルファイル不存在: ensemble_full.pkl"
+            exit 1
+          fi
+
+          if [ ! -f "models/production/ensemble_basic.pkl" ]; then
+            echo "❌ モデルファイル不存在: ensemble_basic.pkl"
+            exit 1
+          fi
+
+          if [ ! -f "models/production/production_model_metadata.json" ]; then
+            echo "❌ メタデータファイル不存在: production_model_metadata.json"
+            exit 1
+          fi
+
+          echo "✅ モデルファイル存在確認完了（ensemble_full.pkl・ensemble_basic.pkl）"
+
+          # 2. メタデータ検証
+          MODEL_TYPE=$(python3 -c "
           import json
-          m = json.load(open('models/production/production_model_metadata.json'))
-          print(len(m.get('feature_names', [])))
+          import sys
+          try:
+              metadata = json.load(open('models/production/production_model_metadata.json'))
+              print(metadata.get('model_type', 'unknown'))
+          except Exception as e:
+              print(f'error: {e}', file=sys.stderr)
+              sys.exit(1)
           ")
 
-          if [ "$FEATURE_COUNT" -lt "$MIN_FEATURE_COUNT" ]; then
-            echo "❌ 特徴量不足: $FEATURE_COUNT < $MIN_FEATURE_COUNT"
+          if [ "$MODEL_TYPE" != "ProductionEnsemble" ]; then
+            echo "❌ モデルタイプ不正: $MODEL_TYPE != ProductionEnsemble"
             exit 1
           fi
 
-          echo "✅ 検証完了: ${FEATURE_COUNT}特徴量"
+          echo "✅ モデルタイプ検証完了: ProductionEnsemble"
 
-      - name: Commit and push
+          # 3. 特徴量検証（柔軟な検証・将来の特徴量数変更に対応）
+          FEATURE_COUNT=$(python3 -c "
+          import json
+          import sys
+          try:
+              metadata = json.load(open('models/production/production_model_metadata.json'))
+              feature_names = metadata.get('feature_names', [])
+              print(len(feature_names))
+          except Exception as e:
+              print(f'error: {e}', file=sys.stderr)
+              sys.exit(1)
+          ")
+
+          # 特徴量数が妥当な範囲か確認（最小値チェックのみ・将来の拡張に対応）
+          if [ "$FEATURE_COUNT" -lt "50" ]; then
+            echo "❌ 特徴量数不足: $FEATURE_COUNT < 50（最小50特徴量必要）"
+            exit 1
+          fi
+
+          echo "✅ 特徴量検証完了: ${FEATURE_COUNT}特徴量（Phase 51.5-A: 60特徴量）"
+
+          # Phase 51.5-A Fix: 4. モデルサイズ確認（両モデル）
+          FULL_SIZE=$(du -h models/production/ensemble_full.pkl | awk '{print $1}')
+          BASIC_SIZE=$(du -h models/production/ensemble_basic.pkl | awk '{print $1}')
+          echo "📊 モデルサイズ: full=${FULL_SIZE}, basic=${BASIC_SIZE}"
+
+          echo "✅ モデル品質検証完了"
+
+      - name: Commit New Models
         if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
+        id: commit
         run: |
-          if git diff --quiet models/; then
-            echo "📋 変更なし"
+          echo "📝 モデル自動バージョン管理・コミット"
+
+          # 変更確認
+          if git diff --quiet models/ && git diff --staged --quiet models/; then
+            echo "📋 モデル変更なし - コミットスキップ"
+            echo "commit_created=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          git add models/production/ models/training/
-          git commit -m "feat: MLモデル自動更新（週次再学習）"
-          git push origin main
+          # モデルバージョン取得
+          MODEL_VERSION=$(python3 -c "
+          import json
+          try:
+              metadata = json.load(open('models/production/production_model_metadata.json'))
+              created_at = metadata.get('created_at', 'unknown')
+              print(f'ML_{created_at[:10]}')
+          except:
+              print('ML_auto')
+          " 2>/dev/null || echo "ML_auto")
 
-      - name: Trigger deployment
-        if: github.event.inputs.dry_run != 'true'
+          # Gitステージング
+          git add models/production/ models/training/ models/optuna/
+
+          # アーカイブ存在時追加
+          if ls models/archive/*.pkl 1> /dev/null 2>&1; then
+            git add models/archive/
+          fi
+
+          # コミット作成
+          git commit -m "feat: ${MODEL_VERSION} モデル自動更新（週次再学習）" \
+            -m "" \
+            -m "- 55特徴量Strategy-Aware ML再学習完了" \
+            -m "- 3クラス分類（SELL/HOLD/BUY）・閾値±0.5%" \
+            -m "- Optuna最適化（${{ github.event.inputs.n_trials || '50' }}試行）" \
+            -m "- ProductionEnsembleアンサンブル（LightGBM/XGBoost/RandomForest）" \
+            -m "- 自動バージョン管理・アーカイブ実行" \
+            -m "" \
+            -m "🤖 Generated with [Claude Code](https://claude.com/claude-code)" \
+            -m "" \
+            -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+
+          echo "commit_created=true" >> $GITHUB_OUTPUT
+          echo "✅ モデル自動コミット完了"
+
+      - name: Push Updated Models
+        if: github.event.inputs.dry_run != 'true' && steps.commit.outputs.commit_created == 'true'
+        run: |
+          echo "🚀 更新モデルプッシュ"
+
+          # プッシュ実行（リトライ付き）
+          for i in {1..3}; do
+            if git push origin main; then
+              echo "✅ モデル更新プッシュ完了"
+              exit 0
+            else
+              echo "⚠️ プッシュ失敗（試行 $i/3）"
+              sleep 5
+            fi
+          done
+
+          echo "❌ プッシュ失敗（3回リトライ）"
+          exit 1
+
+      - name: Trigger Production Deployment
+        if: github.event.inputs.dry_run != 'true' && steps.commit.outputs.commit_created == 'true'
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: model-updated
 
-      - name: Summary
+      - name: Training Summary Report
         if: always()
         run: |
-          echo "📊 === サマリー ==="
-          echo "実行: ${{ github.event_name }}"
-          echo "試行: ${{ github.event.inputs.n_trials || '50' }}"
+          echo "📊 === MLモデル学習サマリー ==="
+          echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "実行タイプ: ${{ github.event_name }}"
+          echo "Optuna試行回数: ${{ github.event.inputs.n_trials || '50' }}"
           echo "ドライラン: ${{ github.event.inputs.dry_run || 'false' }}"
-          echo "成功: ${{ steps.training.outputs.training_success || 'unknown' }}"
+          echo "学習成功: ${{ steps.training.outputs.training_success || 'unknown' }}"
+          echo "コミット作成: ${{ steps.commit.outputs.commit_created || 'false' }}"
+
+          if [ -f "models/production/production_model_metadata.json" ]; then
+            echo ""
+            echo "🎯 新モデル詳細:"
+            python3 -c "
+import json
+try:
+    metadata = json.load(open('models/production/production_model_metadata.json'))
+    print(f'  モデルタイプ: {metadata.get(\"model_type\", \"unknown\")}')
+    print(f'  特徴量数: {len(metadata.get(\"feature_names\", []))}')
+    print(f'  作成日時: {metadata.get(\"created_at\", \"unknown\")}')
+    print(f'  ステータス: {metadata.get(\"status\", \"unknown\")}')
+
+    # パフォーマンスメトリクス
+    perf = metadata.get('performance_metrics', {})
+    if perf:
+        print(f'  F1スコア（LightGBM）: {perf.get(\"lightgbm\", {}).get(\"test_f1\", \"N/A\")}')
+        print(f'  F1スコア（XGBoost）: {perf.get(\"xgboost\", {}).get(\"test_f1\", \"N/A\")}')
+        print(f'  F1スコア（RandomForest）: {perf.get(\"random_forest\", {}).get(\"test_f1\", \"N/A\")}')
+except Exception as e:
+    print(f'  メタデータ読み取りエラー: {e}')
+            "
+          fi
+
+          echo ""
+          echo "📈 Phase 49完了: 55特徴量Strategy-Aware ML・3クラス分類・Optuna最適化"
+          echo "✅ モデル定期学習: ${{ job.status == 'success' && '完了' || '失敗' }}"
+
+      - name: Training Failure Alert
+        if: failure()
+        run: |
+          echo "🚨 ========================================="
+          echo "🚨 警告: モデル学習が失敗しました"
+          echo "🚨 既存モデルが継続使用されます"
+          echo "🚨 手動確認・修正が必要です"
+          echo "🚨 ========================================="
+
+          # 学習ログ出力（デバッグ用）
+          if [ -f "/tmp/training.log" ]; then
+            echo ""
+            echo "📋 学習ログ（最後の50行）:"
+            tail -50 /tmp/training.log
+          fi
+
+# 注意事項:
+# 1. 週次自動実行: 毎週日曜18:00 JST（UTC 09:00）
+# 2. 手動実行推奨: n_trials調整可能（50推奨・100高精度・30テスト用）
+# 3. ドライランモード: モデル保存なしでテスト可能
+# 4. Phase 49完了: 55特徴量（50基本+5戦略信号）・3クラス分類・Optuna最適化
+# 5. 実行時間: 約4-8分（50-100 trials）・タイムアウト30分

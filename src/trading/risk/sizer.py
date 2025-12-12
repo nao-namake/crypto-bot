@@ -56,7 +56,7 @@ class PositionSizeIntegrator:
             統合ポジションサイズ（動的調整済み）
         """
         try:
-            # 削除: 重複import get_threshold（line 59）
+            from ...core.config import get_threshold
 
             # 動的ポジションサイジングが有効かチェック
             dynamic_enabled = get_threshold(
@@ -114,9 +114,7 @@ class PositionSizeIntegrator:
 
         except Exception as e:
             self.logger.error(f"統合ポジションサイズ計算エラー: {e}")
-            # Phase 52.4: フォールバック値を設定化（ハードコード削減）
-            fallback = get_threshold("position_management.fallback_position_size", 0.01)
-            return fallback
+            return 0.01  # フォールバック値
 
     def _calculate_dynamic_position_size(
         self, ml_confidence: float, current_balance: float, btc_price: float
@@ -133,18 +131,10 @@ class PositionSizeIntegrator:
             ポジションサイズ（BTC）
         """
         try:
-            # 削除: 重複import get_threshold（line 134）
-
-            # Phase 52.4-B: ML信頼度境界値を設定化（limits.pyと統一）
-            low_threshold = get_threshold(
-                "position_management.confidence_thresholds.low_to_medium", 0.60
-            )
-            medium_threshold = get_threshold(
-                "position_management.confidence_thresholds.medium_to_high", 0.75
-            )
+            from ...core.config import get_threshold
 
             # ML信頼度によるカテゴリー決定と比率範囲取得
-            if ml_confidence < low_threshold:
+            if ml_confidence < 0.6:
                 # 低信頼度
                 min_ratio = get_threshold(
                     "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
@@ -153,7 +143,7 @@ class PositionSizeIntegrator:
                     "position_management.dynamic_position_sizing.low_confidence.max_ratio", 0.03
                 )
                 confidence_category = "low"
-            elif ml_confidence < medium_threshold:
+            elif ml_confidence < 0.75:
                 # 中信頼度
                 min_ratio = get_threshold(
                     "position_management.dynamic_position_sizing.medium_confidence.min_ratio", 0.03
@@ -173,18 +163,12 @@ class PositionSizeIntegrator:
                 confidence_category = "high"
 
             # 信頼度に応じた線形補間で比率を計算
-            if ml_confidence < low_threshold:
-                normalized_confidence = (ml_confidence - 0.5) / (
-                    low_threshold - 0.5
-                )  # 0.5-low -> 0-1
-            elif ml_confidence < medium_threshold:
-                normalized_confidence = (ml_confidence - low_threshold) / (
-                    medium_threshold - low_threshold
-                )  # low-medium -> 0-1
+            if ml_confidence < 0.6:
+                normalized_confidence = (ml_confidence - 0.5) / 0.1  # 0.5-0.6 -> 0-1
+            elif ml_confidence < 0.75:
+                normalized_confidence = (ml_confidence - 0.6) / 0.15  # 0.6-0.75 -> 0-1
             else:
-                normalized_confidence = min(
-                    (ml_confidence - medium_threshold) / (1.0 - medium_threshold), 1.0
-                )  # medium-1.0 -> 0-1
+                normalized_confidence = min((ml_confidence - 0.75) / 0.25, 1.0)  # 0.75-1.0 -> 0-1
 
             normalized_confidence = max(0.0, min(1.0, normalized_confidence))
             position_ratio = min_ratio + (max_ratio - min_ratio) * normalized_confidence

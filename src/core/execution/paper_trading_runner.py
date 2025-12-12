@@ -1,14 +1,17 @@
 """
-ペーパートレードランナー - Phase 52.4
+ペーパートレードランナー - Phase 49完了
 
+orchestrator.pyから分離したペーパートレード実行機能。
 ペーパートレードモードの専用処理・セッション管理を担当。
 
-機能:
+Phase 49完了:
 - ペーパートレード管理（trading_cycle_manager統合・仮想取引実行）
 - セッション統計（cycle_count・session_stats）
 - レポート生成（PaperTradingReporter統合）
-- 定期実行制御（thresholds.yaml設定・デフォルト5分間隔）
+- 定期実行制御（interval_minutes設定・5分間隔デフォルト）
 - Discord通知統合（セッション開始・エラー通知）
+
+Phase 28-29: ペーパートレードモード専用処理・レポート生成確立
 """
 
 import asyncio

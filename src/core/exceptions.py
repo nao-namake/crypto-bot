@@ -1,14 +1,15 @@
 """
-カスタム例外クラス - Phase 52.4完了
+カスタム例外クラス - Phase 49完了
 
 エラーの種類を明確に分類し、適切なエラーハンドリングと
 重要度ベースのログ出力を可能にします。
 
-Phase 52.4: コード品質改善・Phase参照統一
-- Phase参照集約（67%削減達成）・ドキュメント最新化
-
-Phase 49-28: 例外システム確立
-- 11種類カスタム例外・重要度マッピング・構造化エラーコンテキスト
+Phase 49完了:
+- 11種類のカスタム例外クラス（CryptoBotError基底・10派生クラス）
+- エラー重要度自動マッピング（LOW/MEDIUM/HIGH/CRITICAL）
+- 構造化エラーコンテキスト（to_dict()メソッド）
+Phase 28-29: 企業級品質の例外システム確立
+Phase 22: スリム化・実使用例外のみ残存（DataQualityError・StrategyError追加）
 """
 
 from typing import Any, Dict, Optional

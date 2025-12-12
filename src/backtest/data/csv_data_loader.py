@@ -1,16 +1,14 @@
 """
-CSVデータローダー - バックテスト用高速データ読み込みシステム
+CSVデータローダー - Phase 38.4完了
 
-最終更新: 2025/11/16 (Phase 52.4-B)
-
+バックテスト用の高速CSVデータ読み込みシステム。
 API依存を排除し、安定した過去データ取得を実現。
 
-主要機能:
-- 大量データの高速読み込み（数万件のOHLCV処理）
-- キャッシュ機構による読み込み最適化
-- 固定ファイル名対応・日付付きファイルへのフォールバック
-- 期間フィルタリング・行数制限機能
-- データ整合性チェック（8種類の検証）
+Phase 34-35完了実績:
+- 15分足データ収集80倍改善対応（17,271件処理）
+- バックテスト10倍高速化対応（キャッシュ最適化）
+- 固定ファイル名対応・期間フィルタリング機能
+- データ整合性チェック機能実装
 """
 
 import csv
@@ -20,41 +18,31 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from ...core.config import get_config
 from ...core.exceptions import DataFetchError
 from ...core.logger import get_logger
 
 
 class BacktestCSVLoader:
     """
-    バックテスト用CSVデータローダー
+    バックテスト用CSV データローダー（Phase 38.4完了）
 
-    高速化・固定ファイル名対応・キャッシュ機能実装済み。
+    Phase 34-35対応: 高速化・固定ファイル名・キャッシュ機能。
     """
 
     def __init__(self, data_dir: Optional[Path] = None):
         self.logger = get_logger(__name__)
 
-        # Config読み込み
-        config = get_config()
-
-        # デフォルトデータディレクトリ（優先順: 引数 > config > デフォルト）
+        # デフォルトデータディレクトリ
         if data_dir is None:
-            config_dir = getattr(config, "backtest", {}).get("data", {}).get("data_directory")
-            if config_dir:
-                data_dir = Path(config_dir)
-            else:
-                data_dir = Path(__file__).parent / "historical"
+            data_dir = Path(__file__).parent / "historical"
 
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
-        # キャッシュ設定
-        cache_enabled = getattr(config, "backtest", {}).get("data", {}).get("cache_enabled", True)
-        self._cache: Dict[str, pd.DataFrame] = {} if cache_enabled else None
-        self._cache_enabled = cache_enabled
+        # キャッシュ
+        self._cache: Dict[str, pd.DataFrame] = {}
 
-        self.logger.info(f"CSVローダー初期化: {self.data_dir} (cache={cache_enabled})")
+        self.logger.info(f"CSVローダー初期化: {self.data_dir}")
 
     def load_historical_data(
         self,
@@ -81,15 +69,14 @@ class BacktestCSVLoader:
             # キャッシュキー生成
             cache_key = f"{symbol}_{timeframe}"
 
-            # キャッシュチェック（キャッシュ有効時のみ）
-            if self._cache_enabled and cache_key in self._cache:
+            # キャッシュチェック
+            if cache_key in self._cache:
                 df = self._cache[cache_key]
                 self.logger.debug(f"キャッシュからデータ取得: {cache_key}")
             else:
                 # CSV読み込み
                 df = self._load_csv_data(symbol, timeframe)
-                if self._cache_enabled:
-                    self._cache[cache_key] = df
+                self._cache[cache_key] = df
 
             # データフィルタリング
             filtered_df = self._filter_data(df, start_date, end_date, limit)
@@ -236,11 +223,8 @@ class BacktestCSVLoader:
 
     def clear_cache(self) -> None:
         """キャッシュクリア"""
-        if self._cache_enabled and self._cache is not None:
-            self._cache.clear()
-            self.logger.info("CSVキャッシュをクリアしました")
-        else:
-            self.logger.debug("キャッシュ無効のためクリア不要")
+        self._cache.clear()
+        self.logger.info("CSVキャッシュをクリアしました")
 
     def validate_data_integrity(self, symbol: str, timeframe: str) -> Dict[str, bool]:
         """データ整合性チェック"""

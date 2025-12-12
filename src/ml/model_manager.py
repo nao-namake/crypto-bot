@@ -13,7 +13,7 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -187,7 +187,7 @@ class ModelManager:
             if len(predictions) > 0:
                 prediction = int(predictions[-1])  # 最新の予測
                 confidence = float(probabilities[-1].max()) if len(probabilities) > 0 else 0.5
-                # Phase 52.4-B: 3クラス専用（0=sell, 1=hold, 2=buy）
+                # Phase 51.9-6D: 3クラス専用（0=sell, 1=hold, 2=buy）
                 action_map = {0: "sell", 1: "hold", 2: "buy"}
                 action = action_map.get(prediction, "hold")
             else:
@@ -287,7 +287,7 @@ class ModelManager:
         except Exception as e:
             self.logger.error(f"Failed to save metadata: {e}")
 
-    def get_storage_info(self) -> Dict[str, Any]:
+    def get_storage_info(self) -> Dict[str, any]:
         """ストレージ使用量情報の取得."""
         try:
             total_size = 0

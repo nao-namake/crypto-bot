@@ -1,5 +1,5 @@
 """
-戦略動的ローダー - Phase 52.4-B完了
+戦略動的ローダー - Phase 51.5-B実装
 
 Facade Patternによる戦略動的ロードシステム。
 strategies.yamlから戦略を読み込み、動的にインスタンス化。
@@ -10,7 +10,7 @@ strategies.yamlから戦略を読み込み、動的にインスタンス化。
 - thresholds.yaml連携
 - 優先度順ソート
 
-Phase 52.4-B完了
+Phase 51.5-B: 動的戦略管理基盤実装
 """
 
 from pathlib import Path
@@ -33,7 +33,7 @@ class StrategyLoader:
     Registry Patternと連携して、設定ファイル主導の戦略管理を実現。
 
     使用例:
-        loader = StrategyLoader("config/core/strategies.yaml")
+        loader = StrategyLoader("config/strategies.yaml")
         strategies = loader.load_strategies()
 
         for strategy_data in strategies:
@@ -44,7 +44,7 @@ class StrategyLoader:
     Phase 51.5-B完了
     """
 
-    def __init__(self, config_path: str = "config/core/strategies.yaml"):
+    def __init__(self, config_path: str = "config/strategies.yaml"):
         """
         戦略ローダー初期化
 

@@ -7,13 +7,13 @@
 - StrategySignal: 戦略シグナルデータクラス
 - StrategyBase: 全戦略の基底クラス
 
-Phase 52.4-B完了
+Phase 49完了
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 

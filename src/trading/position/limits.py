@@ -1,5 +1,5 @@
 """
-ポジション制限管理サービス - Phase 52.4-B完了
+ポジション制限管理サービス - Phase 49完了
 
 ポジション数、資金利用率、日次取引回数などの制限をチェック。
 """
@@ -246,12 +246,11 @@ class PositionLimits:
         mode_balance_config = mode_balances.get(mode, {})
         initial_balance = mode_balance_config.get("initial_balance", 10000.0)
 
-        # 現在の使用率計算（使用額 / 初期残高）
-        # 例: 初期10万円 → 現在7万円 → 使用率30%（3万円使用）
+        # 現在の使用率計算
         if initial_balance > 0:
             current_usage_ratio = (initial_balance - current_balance) / initial_balance
         else:
-            current_usage_ratio = 1.0  # 初期残高0の場合は100%使用扱い
+            current_usage_ratio = 1.0
 
         if current_usage_ratio >= max_capital_usage:
             return {
@@ -323,21 +322,13 @@ class PositionLimits:
         min_trade_amount = min_trade_size * estimated_btc_price
 
         # ML信頼度に基づく制限比率を決定
-        # Phase 52.4: 閾値をthresholds.yamlから取得（ハードコード削除）
-        low_threshold = get_threshold(
-            "position_management.confidence_thresholds.low_to_medium", 0.60
-        )
-        medium_threshold = get_threshold(
-            "position_management.confidence_thresholds.medium_to_high", 0.75
-        )
-
-        if ml_confidence < low_threshold:
+        if ml_confidence < 0.60:
             # 低信頼度
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.low_confidence", 0.03
             )
             confidence_category = "low"
-        elif ml_confidence < medium_threshold:
+        elif ml_confidence < 0.75:
             # 中信頼度
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.medium_confidence", 0.05

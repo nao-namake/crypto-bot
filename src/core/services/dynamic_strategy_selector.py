@@ -1,14 +1,10 @@
 """
-動的戦略選択器 - Phase 52.4
+動的戦略選択器 - Phase 51.3
 
-市場レジームに応じて戦略の重みを動的に選択。
-MarketRegimeClassifierの分類結果に基づき、最適な戦略重みを返却。
+市場レジームに応じて戦略の重みを動的に選択するシステム。
+MarketRegimeClassifierの分類結果に基づき、最適な戦略重みを返却する。
 
-主要機能:
-- Phase 51.3: 動的戦略選択システム実装
-- レジーム別戦略重み取得（thresholds.yaml設定駆動）
-- 重み検証・正規化（合計1.0保証）
-- フォールバック機能（設定未定義時のデフォルト重み）
+Phase 51.3: Dynamic Strategy Selection実装
 """
 
 from typing import Dict
@@ -72,7 +68,7 @@ class DynamicStrategySelector:
         # 高ボラティリティは空辞書（全戦略無効化）
         if regime == RegimeType.HIGH_VOLATILITY and not weights:
             # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
-            self.logger.warning("⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
+            self.logger.warning(f"⚠️ 高ボラティリティ検出: 全戦略無効化（待機モード）")
             return {}
 
         # 重み検証
@@ -247,7 +243,7 @@ class DynamicStrategySelector:
 
         # Phase 51.8-J4-G: バックテストモードで可視化するためWARNINGレベルに変更
         self.logger.warning(
-            "📊 Phase 51.8: レジーム別ポジション制限 - " f"regime={regime.value}, 上限={limit}件"
+            f"📊 Phase 51.8: レジーム別ポジション制限 - " f"regime={regime.value}, 上限={limit}件"
         )
 
         return limit

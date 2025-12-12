@@ -10,7 +10,7 @@ Average Directional Index (ADX) を用いたトレンド強度判定と
 - トレンド強度適応型信頼度調整
 - レンジ相場での取引抑制
 
-Phase 52.4-B完了: 市場不確実性計算統合・バックテストログ統合
+Phase 49完了: 市場不確実性計算統合・バックテストログ統合
 """
 
 from datetime import datetime

@@ -1,22 +1,15 @@
 """
-データ取得パイプライン
+データ取得パイプライン - Phase 49完了
 
-最終更新: 2025/11/16 (Phase 52.4-B)
+15分足と4時間足のデータを効率的に取得・管理する
+シンプルで高速なデータパイプライン実装。
 
-15分足・4時間足データを効率的に取得・管理するデータパイプライン。
-マルチタイムフレーム対応・高速キャッシング・自動リトライ機構を実装。
-
-主要機能:
+主な特徴:
 - マルチタイムフレーム対応（15m, 4h）2軸構成
-- 効率的なデータキャッシング（LRUキャッシュ統合）
-- エラーハンドリング・自動リトライ（指数バックオフ）
-- データ品質チェック機能（欠損値・異常値検出）
-- バックテストモード対応（CSV読み込み）
-
-開発履歴:
-- Phase 52.4-B: コード整理・ドキュメント統一
-- Phase 49: バックテストモード対応完了
-- Phase 34: 高速キャッシング実装
+- 効率的なデータキャッシング
+- エラーハンドリングと自動リトライ
+- データ品質チェック機能
+- Phase 34-49でバックテストモード対応完了
 """
 
 import asyncio
@@ -179,14 +172,10 @@ class DataPipeline:
 
         cache_key = self._generate_cache_key(request)
 
-        # CRIT-5 Fix: Race condition修正（キャッシュ存在チェック追加）
-        # キャッシュチェック - 存在確認とアクセスをアトミックに
+        # キャッシュチェック
         if use_cache and self._is_cache_valid(cache_key):
-            cached_data = self._cache.get(cache_key)
-            if cached_data is not None:
-                self.logger.debug(f"キャッシュからデータ取得: {cache_key}")
-                return cached_data.copy()
-            # キャッシュが削除されていた場合は、通常のデータ取得へフォールスルー
+            self.logger.debug(f"キャッシュからデータ取得: {cache_key}")
+            return self._cache[cache_key].copy()
 
         # データ取得（リトライ機能付き）
         for attempt in range(self.max_retries):
@@ -250,8 +239,7 @@ class DataPipeline:
                 self.logger.warning(f"データ取得失敗 (試行 {attempt + 1}/{self.max_retries}): {e}")
 
                 if attempt < self.max_retries - 1:
-                    # CRIT-6 Fix: time.sleep → await asyncio.sleep（イベントループブロッキング解消）
-                    await asyncio.sleep(self.retry_delay)
+                    time.sleep(self.retry_delay)
                 else:
                     raise DataFetchError(
                         f"データ取得に失敗しました: {request.symbol} {request.timeframe.value}",

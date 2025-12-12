@@ -1,23 +1,15 @@
 """
-週間レポート生成・Discord送信スクリプト - Phase 52.4更新
-
-Phase 48.2実装・Phase 52.3バグ修正適用・Phase 52.4ハードコード削除
+週間レポート生成・Discord送信スクリプト - Phase 48.2実装
 
 過去7日間の取引統計を集計し、損益曲線グラフを生成してDiscordに送信。
-
-Phase 52.4更新内容:
-- Phase 52.3最大ドローダウン計算バグ修正適用（累積損益基準 → ピーク残高基準）
-- ハードコード値をconfig/core/unified.yamlに移行
-- テストカバレッジ追加（0% → 80%+）
 """
 
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import matplotlib
-import yaml
 
 matplotlib.use("Agg")  # ヘッドレス環境対応
 import matplotlib.dates as mdates
@@ -32,37 +24,6 @@ from tax.pnl_calculator import PnLCalculator
 from tax.trade_history_recorder import TradeHistoryRecorder
 
 
-def _load_config_value(key_path: str, default: Any = None) -> Any:
-    """
-    unified.yamlから設定値を取得（Phase 52.4: ヘルパー関数）
-
-    Args:
-        key_path: ドット区切りのキーパス（例: "reporting.weekly_report_days"）
-        default: デフォルト値
-
-    Returns:
-        設定値（存在しない場合はdefault）
-    """
-    config_path = Path(__file__).parent.parent.parent / "config" / "core" / "unified.yaml"
-
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f) or {}
-
-        # ドット区切りキーでネストされた辞書を探索
-        keys = key_path.split(".")
-        value = config_data
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                return default
-
-        return value
-    except Exception:
-        return default
-
-
 class WeeklyReportGenerator:
     """
     週間レポート生成システム
@@ -72,22 +33,17 @@ class WeeklyReportGenerator:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
+        db_path: str = "tax/trade_history.db",
         discord_webhook_url: Optional[str] = None,
     ):
         """
-        WeeklyReportGenerator初期化（Phase 52.4: config統合）
+        WeeklyReportGenerator初期化
 
         Args:
-            db_path: TradeHistoryRecorderデータベースパス（Noneの場合はconfigから取得）
+            db_path: TradeHistoryRecorderデータベースパス
             discord_webhook_url: Discord Webhook URL（None時は環境変数から取得）
         """
         self.logger = get_logger()
-
-        # Phase 52.4: db_pathをconfigから取得（ハードコード削除）
-        if db_path is None:
-            db_path = _load_config_value("tax.database_path", "tax/trade_history.db")
-
         self.recorder = TradeHistoryRecorder(db_path=db_path)
         self.calculator = PnLCalculator(db_path=db_path)
         self.discord = DiscordManager(webhook_url=discord_webhook_url)
@@ -96,7 +52,7 @@ class WeeklyReportGenerator:
 
     def generate_and_send_report(self) -> bool:
         """
-        週間レポート生成・Discord送信（Phase 52.4: config統合）
+        週間レポート生成・Discord送信
 
         Returns:
             bool: 送信成功時True
@@ -104,14 +60,9 @@ class WeeklyReportGenerator:
         try:
             self.logger.info("📈 週間レポート生成開始...")
 
-            # Phase 52.4: レポート期間をconfigから取得（ハードコード削除）
-            report_days = _load_config_value("reporting.weekly_report_days", 7)
+            # 過去7日間のデータ取得
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=report_days)
-
-            self.logger.info(
-                f"📅 レポート期間: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')} ({report_days}日間)"
-            )
+            start_date = end_date - timedelta(days=7)
 
             stats = self._calculate_weekly_stats(start_date, end_date)
 
@@ -201,15 +152,7 @@ class WeeklyReportGenerator:
 
     def _calculate_max_drawdown(self, trades: List[Dict]) -> float:
         """
-        最大ドローダウン計算（Phase 52.3バグ修正適用）
-
-        Phase 52.3修正内容:
-        - Before: 累積損益基準で計算（間違い） → 60.73% DD
-        - After: ピーク残高基準で計算（正しい） → 0.37% DD
-
-        修正理由:
-        ドローダウンは「ピーク残高からの下落率」であり、
-        「累積損益のピークからの下落率」ではない。
+        最大ドローダウン計算
 
         Args:
             trades: 取引リスト
@@ -220,32 +163,26 @@ class WeeklyReportGenerator:
         if not trades:
             return 0.0
 
-        # Phase 52.3修正: 初期残高を取得
-        initial_balance = _load_config_value("reporting.initial_balance", 10000)
-
-        # Phase 52.3修正: ピーク残高を初期残高から開始
-        max_equity = initial_balance
-        max_dd_pct = 0.0
-        cumulative_pnl = 0.0
+        # 累積損益曲線作成
+        cumulative = 0.0
+        peak = 0.0
+        max_dd = 0.0
 
         for trade in sorted(trades, key=lambda t: t["timestamp"]):
             if trade["trade_type"] in ["exit", "tp", "sl"]:
                 pnl = trade.get("pnl", 0.0) or 0.0
-                cumulative_pnl += pnl
+                cumulative += pnl
 
-                # 現在残高 = 初期残高 + 累積損益
-                current_equity = initial_balance + cumulative_pnl
+                # 最高値更新
+                if cumulative > peak:
+                    peak = cumulative
 
-                # ピーク残高更新
-                if current_equity > max_equity:
-                    max_equity = current_equity
+                # ドローダウン計算
+                if peak > 0:
+                    drawdown = (peak - cumulative) / abs(peak) * 100
+                    max_dd = max(max_dd, drawdown)
 
-                # ドローダウン計算（ピーク残高基準）
-                dd = max_equity - current_equity
-                dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
-                max_dd_pct = max(max_dd_pct, dd_pct)
-
-        return max_dd_pct
+        return max_dd
 
     def _calculate_daily_pnl(
         self, trades: List[Dict], start_date: datetime, end_date: datetime
@@ -327,9 +264,8 @@ class WeeklyReportGenerator:
             ]
             plt.rcParams["axes.unicode_minus"] = False
 
-            # Phase 52.4: チャートサイズをconfigから取得（ハードコード削除）
-            figsize = _load_config_value("reporting.chart_figsize", [12, 8])
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=tuple(figsize))
+            # グラフ作成
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
 
             dates = [d["date"] for d in daily_pnl]
             daily_values = [d["pnl"] for d in daily_pnl]
@@ -361,16 +297,12 @@ class WeeklyReportGenerator:
 
             plt.tight_layout()
 
-            # Phase 52.4: チャートパス・DPIをconfigから取得（ハードコード削除）
-            output_path = _load_config_value(
-                "reporting.temp_chart_path", "/tmp/weekly_pnl_curve.png"
-            )
-            chart_dpi = _load_config_value("reporting.chart_dpi", 150)
-
-            plt.savefig(output_path, dpi=chart_dpi, bbox_inches="tight")
+            # PNG保存
+            output_path = "/tmp/weekly_pnl_curve.png"
+            plt.savefig(output_path, dpi=150, bbox_inches="tight")
             plt.close()
 
-            self.logger.info(f"📊 グラフ生成完了: {output_path} (DPI: {chart_dpi})")
+            self.logger.info(f"📊 グラフ生成完了: {output_path}")
             return output_path
 
         except Exception as e:
@@ -467,11 +399,11 @@ def main():
     """週間レポート生成メインエントリーポイント"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="週間レポート生成・Discord送信（Phase 52.4更新）")
+    parser = argparse.ArgumentParser(description="週間レポート生成・Discord送信")
     parser.add_argument(
         "--db-path",
-        default=None,
-        help="TradeHistoryRecorderデータベースパス（未指定時はconfigから取得）",
+        default="tax/trade_history.db",
+        help="TradeHistoryRecorderデータベースパス",
     )
     parser.add_argument(
         "--discord-webhook-url",

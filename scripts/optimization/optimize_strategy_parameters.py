@@ -1,30 +1,6 @@
 #!/usr/bin/env python3
 """
-⚠️ DEPRECATED - Phase 52.4非対応
-
-このファイルは5戦略システム用に設計されています。
-Phase 52.4では6戦略を使用しているため、このファイルを実行するとエラーになります。
-
-【旧システム（5戦略）】:
-- MochipoyAlert ❌ Phase 52.4では削除済み
-- MultiTimeframe ❌ Phase 52.4では削除済み
-- DonchianChannel ✅ Phase 52.4でも使用中
-- ADXTrend → ADXTrendStrength（名前変更）
-- ATRBased ✅ Phase 52.4でも使用中
-
-【Phase 52.4システム（6戦略）】:
-- ATRBased ✅
-- DonchianChannel ✅
-- ADXTrendStrength ✅
-- BBReversal ❌ このファイルには未実装
-- MACDEMACrossover ❌ このファイルには未実装
-- StochasticReversal ❌ このファイルには未実装
-
-Phase 53以降で6戦略対応版の実装を検討予定。
-
----
-
-Phase 40.2: 戦略パラメータ最適化スクリプト（Phase 40設計・Phase 52.4非対応）
+Phase 40.2: 戦略パラメータ最適化スクリプト
 
 Optunaを使用して5戦略のパラメータを最適化：
 - MochipoyAlert: 動的信頼度パラメータ（buy_strong/weak, sell_strong/weak等）

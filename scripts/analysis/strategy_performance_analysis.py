@@ -1,7 +1,8 @@
 """
-戦略個別パフォーマンス分析 - Phase 52.4
+戦略個別パフォーマンス分析 - Phase 51.4
 
-strategies.yamlに定義された戦略の個別パフォーマンスを定量的に評価する。
+既存3戦略（ATRBased・DonchianChannel・ADXTrendStrength）の
+個別パフォーマンスを定量的に評価し、削除候補を特定する。
 
 主要機能:
 - 単一戦略のパフォーマンス分析（勝率・損益率・シャープレシオ・最大DD）
@@ -10,7 +11,10 @@ strategies.yamlに定義された戦略の個別パフォーマンスを定量�
 - アンサンブル貢献度測定（除外時の性能変化）
 - レポート生成・可視化
 
-設定管理: thresholds.yamlに分析パラメータ定義
+Phase 51.4実装計画:
+- Day 1（今回）: 基本骨格・メトリクス計算・簡易テスト
+- Day 2（次回）: レジーム別分析・相関分析・貢献度測定
+- Day 3（次回）: 可視化・レポート生成・完全テスト・実データ検証
 """
 
 import asyncio
@@ -27,13 +31,18 @@ import pandas as pd
 # プロジェクトルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from src.backtest.reporter import TradeTracker
-from src.core.config.threshold_manager import get_threshold
+from src.backtest.reporter import TradeTracker  # Phase 51.4-Day2追加
+from src.core.config.threshold_manager import get_threshold  # Phase 51.4-Day2追加
 from src.core.logger import get_logger
 from src.core.services.market_regime_classifier import MarketRegimeClassifier
 from src.core.services.regime_types import RegimeType
-from src.features.feature_generator import FeatureGenerator
-from src.strategies.utils import EntryAction
+from src.features.feature_generator import FeatureGenerator  # Phase 51.5-A追加
+from src.strategies.implementations.adx_trend import ADXTrendStrengthStrategy  # Phase 51.4-Day2追加
+from src.strategies.implementations.atr_based import ATRBasedStrategy  # Phase 51.4-Day2追加
+from src.strategies.implementations.donchian_channel import (  # Phase 51.4-Day2追加
+    DonchianChannelStrategy,
+)
+from src.strategies.utils import EntryAction  # Phase 51.4-Day2追加
 
 
 @dataclass
@@ -66,7 +75,7 @@ class StrategyPerformanceAnalyzer:
     """
     戦略個別パフォーマンス分析器
 
-    Phase 52.4: strategies.yamlに定義された戦略の個別評価
+    Phase 51.4: 既存5戦略の個別評価・削除候補特定
     """
 
     def __init__(self, data_file: Optional[Path] = None):
@@ -74,19 +83,16 @@ class StrategyPerformanceAnalyzer:
         初期化
 
         Args:
-            data_file: 履歴データファイルパス（Noneの場合はthresholds.yamlのデフォルトパス使用）
+            data_file: 履歴データファイルパス（Noneの場合はデフォルトパス使用）
         """
         self.logger = get_logger(__name__)
-
-        # デフォルトパスをthresholds.yamlから取得
-        default_path = get_threshold(
-            "analysis.strategy_performance.default_data_path",
-            "src/backtest/data/historical/BTC_JPY_4h.csv",
+        self.data_file = (
+            data_file
+            or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_4h.csv"
         )
-        self.data_file = data_file or Path(__file__).parent.parent.parent / default_path
         self.regime_classifier = MarketRegimeClassifier()
 
-        # 戦略リストを動的取得（設定駆動型）
+        # Phase 51.7 Day 7: 戦略リストを動的取得（設定駆動型）
         from src.strategies.strategy_loader import StrategyLoader
 
         loader = StrategyLoader()
@@ -171,30 +177,19 @@ class StrategyPerformanceAnalyzer:
             avg_holding_period=avg_holding_period,
         )
 
-    def _calculate_sharpe_ratio(
-        self, pnls: List[float], risk_free_rate: Optional[float] = None
-    ) -> float:
+    def _calculate_sharpe_ratio(self, pnls: List[float], risk_free_rate: float = 0.0) -> float:
         """
         シャープレシオを計算
 
         Args:
             pnls: 損益リスト
-            risk_free_rate: リスクフリーレート（Noneの場合はthresholds.yamlから取得）
+            risk_free_rate: リスクフリーレート（デフォルト0%）
 
         Returns:
             シャープレシオ（年率換算）
         """
         if not pnls or len(pnls) < 2:
             return 0.0
-
-        # thresholds.yamlから設定取得
-        if risk_free_rate is None:
-            risk_free_rate = get_threshold(
-                "analysis.strategy_performance.sharpe_ratio.risk_free_rate", 0.0
-            )
-        annualization_factor = get_threshold(
-            "analysis.strategy_performance.sharpe_ratio.annualization_factor", 365
-        )
 
         returns = np.array(pnls)
         mean_return = np.mean(returns)
@@ -204,8 +199,9 @@ class StrategyPerformanceAnalyzer:
             return 0.0
 
         # シャープレシオ = (平均リターン - リスクフリーレート) / リターンの標準偏差
+        # 年率換算: √(取引頻度) を乗算（仮定: 1日1取引 → √365）
         sharpe = (mean_return - risk_free_rate) / std_return
-        annualized_sharpe = sharpe * np.sqrt(annualization_factor)
+        annualized_sharpe = sharpe * np.sqrt(365)  # 年率換算
 
         return float(annualized_sharpe)
 

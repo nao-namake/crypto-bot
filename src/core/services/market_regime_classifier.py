@@ -1,16 +1,16 @@
 """
-市場レジーム分類器 - Phase 52.4
+市場レジーム分類器 - Phase 51.2-New
 
-市場状況を4段階に分類し、動的戦略選択とML統合最適化を実現。
-レンジ型bot最適化のための核心システム（Phase 51.2-51.9）。
+市場状況を4段階に分類し、動的戦略選択とML統合最適化を実現する。
+レンジ型bot最適化のための核心システム。
 
-市場レジーム分類:
-- tight_range: BB幅 < 3% AND 価格変動 < 2% （超狭レンジ）
-- normal_range: BB幅 < 5% AND ADX < 20 （通常レンジ）
-- trending: ADX > 25 AND EMA傾き > 1% （トレンド）
-- high_volatility: ATR比 > 3% （高ボラティリティ）
+判定ロジック:
+- tight_range: BB幅 < 3% AND 価格変動 < 2%
+- normal_range: BB幅 < 5% AND ADX < 20
+- trending: ADX > 25 AND EMA傾き > 1%
+- high_volatility: ATR比 > 3%
 
-主要機能: Phase 51.3-51.9対応（動的戦略選択・レジーム別ポジション制限・レジーム別ML統合）
+Phase 51.2-New: 市場状況分類器実装
 """
 
 import os
@@ -18,7 +18,6 @@ from typing import Optional
 
 import pandas as pd
 
-from ...core.config import get_threshold
 from ...core.logger import get_logger
 from .regime_types import RegimeType
 
@@ -34,41 +33,37 @@ class MarketRegimeClassifier:
 
     Attributes:
         logger: ロガー
-        bb_period: ボリンジャーバンド期間
-        donchian_period: Donchianチャネル期間
-        ema_period: EMA期間
-        ema_lookback: EMA傾き計算参照期間
-        price_range_lookback: 価格変動率計算参照期間
+        bb_period: ボリンジャーバンド期間（デフォルト: 20）
+        donchian_period: Donchianチャネル期間（デフォルト: 20）
+        ema_period: EMA期間（デフォルト: 20）
+        ema_lookback: EMA傾き計算参照期間（デフォルト: 5）
+        price_range_lookback: 価格変動率計算参照期間（デフォルト: 20）
     """
 
     def __init__(
         self,
-        bb_period: Optional[int] = None,
-        donchian_period: Optional[int] = None,
-        ema_period: Optional[int] = None,
-        ema_lookback: Optional[int] = None,
-        price_range_lookback: Optional[int] = None,
+        bb_period: int = 20,
+        donchian_period: int = 20,
+        ema_period: int = 20,
+        ema_lookback: int = 5,
+        price_range_lookback: int = 20,
     ):
         """
         初期化
 
         Args:
-            bb_period: ボリンジャーバンド期間（Noneの場合thresholds.yaml使用）
-            donchian_period: Donchianチャネル期間（Noneの場合thresholds.yaml使用）
-            ema_period: EMA期間（Noneの場合thresholds.yaml使用）
-            ema_lookback: EMA傾き計算参照期間（Noneの場合thresholds.yaml使用）
-            price_range_lookback: 価格変動率計算参照期間（Noneの場合thresholds.yaml使用）
+            bb_period: ボリンジャーバンド期間
+            donchian_period: Donchianチャネル期間
+            ema_period: EMA期間
+            ema_lookback: EMA傾き計算参照期間
+            price_range_lookback: 価格変動率計算参照期間
         """
         self.logger = get_logger()
-        self.bb_period = bb_period or get_threshold("market_regime.periods.bb_period", 20)
-        self.donchian_period = donchian_period or get_threshold(
-            "market_regime.periods.donchian_period", 20
-        )
-        self.ema_period = ema_period or get_threshold("market_regime.periods.ema_period", 20)
-        self.ema_lookback = ema_lookback or get_threshold("market_regime.periods.ema_lookback", 5)
-        self.price_range_lookback = price_range_lookback or get_threshold(
-            "market_regime.periods.price_range_lookback", 20
-        )
+        self.bb_period = bb_period
+        self.donchian_period = donchian_period
+        self.ema_period = ema_period
+        self.ema_lookback = ema_lookback
+        self.price_range_lookback = price_range_lookback
 
     def classify(self, df: pd.DataFrame) -> RegimeType:
         """
@@ -99,7 +94,7 @@ class MarketRegimeClassifier:
 
             # レンジ判定指標計算
             bb_width = self._calc_bb_width(df)
-            # 未使用: donchian_width = self._calc_donchian_width(df)
+            donchian_width = self._calc_donchian_width(df)
             price_range = self._calc_price_range(df, lookback=self.price_range_lookback)
 
             # トレンド判定指標計算
@@ -290,7 +285,7 @@ class MarketRegimeClassifier:
         """
         狭いレンジ相場判定
 
-        判定基準: thresholds.yaml設定値使用
+        判定基準: BB幅 < 3% AND 価格変動 < 2%
 
         Args:
             bb_width: BB幅
@@ -299,15 +294,13 @@ class MarketRegimeClassifier:
         Returns:
             bool: 狭いレンジの場合True
         """
-        bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.03)
-        price_threshold = get_threshold("market_regime.tight_range.price_range_threshold", 0.02)
-        return bb_width < bb_threshold and price_range < price_threshold
+        return bb_width < 0.03 and price_range < 0.02
 
     def _is_normal_range(self, bb_width: float, adx: float) -> bool:
         """
         通常レンジ相場判定
 
-        判定基準: thresholds.yaml設定値使用
+        判定基準: BB幅 < 5% AND ADX < 20
 
         Args:
             bb_width: BB幅
@@ -316,15 +309,13 @@ class MarketRegimeClassifier:
         Returns:
             bool: 通常レンジの場合True
         """
-        bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
-        adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 20)
-        return bb_width < bb_threshold and adx < adx_threshold
+        return bb_width < 0.05 and adx < 20
 
     def _is_trending(self, adx: float, ema_slope: float) -> bool:
         """
         トレンド相場判定
 
-        判定基準: thresholds.yaml設定値使用
+        判定基準: ADX > 25 AND |EMA傾き| > 1%
 
         Args:
             adx: ADX値
@@ -333,15 +324,17 @@ class MarketRegimeClassifier:
         Returns:
             bool: トレンド相場の場合True
         """
-        adx_threshold = get_threshold("market_regime.trending.adx_threshold", 25)
-        ema_slope_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.01)
-        return adx > adx_threshold and abs(ema_slope) > ema_slope_threshold
+        return adx > 25 and abs(ema_slope) > 0.01
 
     def _is_high_volatility(self, atr_ratio: float) -> bool:
         """
         高ボラティリティ判定
 
-        判定基準: thresholds.yaml設定値使用
+        判定基準: ATR比 > 1.8%（ATRが終値の1.8%以上）
+
+        Phase 51.2-Fix: 3.0% → 1.8%（4時間足最適化）
+        - 根拠: 全期間最大2.20%・10月11日暴落1.97%を確実に検出
+        - Phase 52.2: 1.8% → 2.2%に再調整予定（5分足最適化）
 
         Args:
             atr_ratio: ATR比（ATR / 終値）
@@ -349,8 +342,7 @@ class MarketRegimeClassifier:
         Returns:
             bool: 高ボラティリティの場合True
         """
-        atr_threshold = get_threshold("market_regime.high_volatility.atr_ratio_threshold", 0.018)
-        return atr_ratio > atr_threshold
+        return atr_ratio > 0.018
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # ユーティリティメソッド

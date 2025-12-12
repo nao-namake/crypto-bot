@@ -1,28 +1,35 @@
 #!/usr/bin/env python3
 """
-新システム用MLモデル作成スクリプト - Phase 52.4（6戦略・55特徴量・3クラス分類）
+新システム用MLモデル作成スクリプト - Phase 51.9完了版（6戦略・55特徴量・3クラス分類）
+
+Phase 51.9対応: 真の3クラス分類実装・55特徴量システム（6戦略統合）
+Phase 51.7 Day 7対応: 6戦略統合・動的ストラテジーローダー・55特徴量システム
+Phase 50.9対応: 外部API完全削除・シンプル設計回帰・2段階Graceful Degradation
+Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確保）
 
 機能:
 - **2段階MLモデル生成** - full（55特徴量）・basic（49特徴量）
 - **設定駆動型** - feature_order.json完全準拠・strategies.yaml動的ロード・ハードコードゼロ
 - **6戦略統合** - StrategyLoader動的ロード（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）
+- **外部API完全削除** - システム安定性向上・ゼロダウンタイム実現
 - **モデル別特徴量選択** - feature_order.jsonカテゴリー定義に基づく自動選択
 - **統合メタデータ生成** - 全モデル情報を1つのJSONに集約（ensemble_metadata.json）
-- **真の3クラス分類** - 0=sell, 1=hold, 2=buy
-- **Strategy-Aware ML** - 実戦略信号学習（訓練時と推論時の一貫性確保）
-- **TimeSeriesSplit・SMOTE・Optuna最適化**
+- Phase 41.8: 実戦略信号学習 - 過去データから実際に戦略を実行して学習データ生成
+- Phase 40.6: Feature Engineering拡張 - 15→49基本特徴量
+- Phase 39.1-39.5: 実データ学習・TimeSeriesSplit・SMOTE・Optuna最適化
+- 新システム src/ 構造対応
 - models/production/ にモデル保存（full/basic）
 
-Phase 52.4完了成果: 6戦略統合・55特徴量システム・真の3クラス分類・設定駆動型アーキテクチャ
+Phase 51.9完了成果: 55特徴量固定システム（6戦略統合）・真の3クラス分類・動的ストラテジーローダー・設定駆動型アーキテクチャ
 
 使用方法:
-    # 両モデル一括学習（デフォルト・推奨）
+    # Phase 51.5-B: 両モデル一括学習（デフォルト・推奨）
     python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # fullモデルのみ学習（緊急時）
+    # Phase 51.5-B: fullモデルのみ学習（緊急時）
     python scripts/ml/create_ml_models.py --model full --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 
-    # basicモデルのみ学習（緊急時）
+    # Phase 51.5-B: basicモデルのみ学習（緊急時）
     python scripts/ml/create_ml_models.py --model basic --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
 """
 
@@ -59,7 +66,7 @@ try:
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
     from src.ml.ensemble import ProductionEnsemble
-    from src.strategies.base.strategy_manager import StrategyManager
+    from src.strategies.base.strategy_manager import StrategyManager  # Phase 41.8
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
     print("プロジェクトルートから実行してください。")
@@ -81,16 +88,16 @@ class NewSystemMLModelCreator:
         models_to_train: list = None,
     ):
         """
-        初期化（Phase 52.4対応・一括生成システム）
+        初期化（Phase 51.5-B対応・一括生成システム）
 
         Args:
             config_path: 設定ファイルパス
             verbose: 詳細ログ出力
-            target_threshold: ターゲット閾値
-            n_classes: クラス数 2 or 3
-            use_smote: SMOTEオーバーサンプリング使用
-            optimize: Optunaハイパーパラメータ最適化使用
-            n_trials: Optuna試行回数
+            target_threshold: ターゲット閾値（Phase 39.2）
+            n_classes: クラス数 2 or 3（Phase 39.2）
+            use_smote: SMOTEオーバーサンプリング使用（Phase 39.4）
+            optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
+            n_trials: Optuna試行回数（Phase 39.5）
             models_to_train: 訓練するモデルリスト ["full", "basic"] デフォルトは両方
         """
         self.config_path = config_path
@@ -130,8 +137,10 @@ class NewSystemMLModelCreator:
         # モデル保存先ディレクトリ
         self.training_dir = Path("models/training")
         self.production_dir = Path("models/production")
+        self.optuna_dir = Path("models/optuna")  # Phase 39.5
         self.training_dir.mkdir(parents=True, exist_ok=True)
         self.production_dir.mkdir(parents=True, exist_ok=True)
+        self.optuna_dir.mkdir(parents=True, exist_ok=True)  # Phase 39.5
 
         # データパイプライン初期化
         try:
@@ -189,7 +198,7 @@ class NewSystemMLModelCreator:
             "n_estimators": 200,
             "max_depth": 12,
             "random_state": 42,
-            "n_jobs": 1,  # GCP gVisor環境でのfork()制限対応
+            "n_jobs": -1,
             "class_weight": "balanced",  # Phase 39.4
         }
 
@@ -271,7 +280,7 @@ class NewSystemMLModelCreator:
 
             self.logger.info(f"✅ 基本データ取得完了: {len(df)}行")
 
-            # 特徴量エンジニアリング（55特徴量システム）
+            # Phase 50.9: 特徴量エンジニアリング（62特徴量・外部API完全削除済み）
             features_df = await self.feature_generator.generate_features(df)
 
             # Phase 41.8: 戦略シグナル特徴量を削除（後で実戦略信号で置き換える）
@@ -299,8 +308,8 @@ class NewSystemMLModelCreator:
             # Phase 51.9: 特徴量整合性確保（55特徴量固定システム）
             features_df = self._ensure_feature_consistency(features_df)
 
-            # Phase 52.4 CRITICAL FIX: 特徴量選択はrun()内のループで実行
-            # ここでは全55特徴量を生成し、run()でモデル別に選択する
+            # Phase 50.9: モデル別特徴量選択（2段階システム）
+            features_df = self._select_features_by_level(features_df)
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
             target = self._generate_target(df, self.target_threshold, self.n_classes)
@@ -309,7 +318,7 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 52.4: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（全特徴量）"
+                f"✅ Phase 50.9: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（{model_name}）"
             )
             return features_df, target
 
@@ -359,21 +368,21 @@ class NewSystemMLModelCreator:
 
     async def _generate_real_strategy_signals_for_training(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Strategy-Aware ML: 実際の戦略信号を生成（過去データから）
+        Phase 41.8: 実際の戦略信号を生成（過去データから）
 
-        各時点で6戦略を実行し、本物の戦略信号を計算。
+        各時点で5戦略を実行し、本物の戦略信号を計算。
         これにより訓練時と推論時の一貫性を確保。
 
         Args:
             df: OHLCV価格データ
 
         Returns:
-            pd.DataFrame: 戦略信号6列のDataFrame (index aligned with df)
+            pd.DataFrame: 戦略信号5列のDataFrame (index aligned with df)
         """
-        # strategies.yamlから動的ロード（6戦略対応）
+        # Phase 51.7 Day 7: strategies.yamlから動的ロード（6戦略対応）
         from src.strategies.strategy_loader import StrategyLoader
 
-        strategy_loader = StrategyLoader("config/core/strategies.yaml")
+        strategy_loader = StrategyLoader("config/strategies.yaml")
         loaded_strategies = strategy_loader.load_strategies()
         strategy_names = [s["metadata"]["name"] for s in loaded_strategies]
 
@@ -705,7 +714,7 @@ class NewSystemMLModelCreator:
             "max_depth": trial.suggest_int("max_depth", 5, 20),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "random_state": 42,
-            "n_jobs": 1,  # GCP gVisor環境でのfork()制限対応
+            "n_jobs": -1,
             "class_weight": "balanced",
         }
 
@@ -790,9 +799,14 @@ class NewSystemMLModelCreator:
                 self.logger.error(f"❌ {model_name} 最適化エラー: {e}")
                 optimization_results["models"][model_name] = {"error": str(e)}
 
-        # Phase 52.4: Optuna結果はthresholds.yaml:optuna_optimizedセクションに統合済み
-        # ファイル保存は不要（設定一元化）
-        self.logger.info("💾 Optuna最適化完了（結果はthresholds.yaml:optuna_optimizedに統合済み）")
+        # 結果保存
+        try:
+            results_file = self.optuna_dir / "phase39_5_results.json"
+            with open(results_file, "w", encoding="utf-8") as f:
+                json.dump(optimization_results, f, indent=2, ensure_ascii=False)
+            self.logger.info(f"💾 最適化結果保存: {results_file}")
+        except Exception as e:
+            self.logger.error(f"❌ 最適化結果保存エラー: {e}")
 
         return optimal_params
 
@@ -1103,7 +1117,7 @@ class NewSystemMLModelCreator:
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
                         },
                         "git_info": git_commit,
-                        "notes": "Phase 52.4完了・6戦略統合・55特徴量システム・真の3クラス分類・2段階Graceful Degradation・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
+                        "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
                     }
 
                     # Phase 51.5-A Fix: メタデータファイル名決定
@@ -1276,14 +1290,14 @@ class NewSystemMLModelCreator:
 
     def _archive_existing_models(self) -> bool:
         """
-        既存モデルを自動アーカイブ（Phase 52.4: 2段階システム）
+        既存モデルを自動アーカイブ（Phase 50.9: 2段階システム）
 
-        Phase 52.4対応モデル：
-        - ensemble_full.pkl（55特徴量）
-        - ensemble_basic.pkl（49特徴量）
+        Phase 50.9対応モデル：
+        - ensemble_full.pkl（62特徴量）
+        - ensemble_basic.pkl（57特徴量）
         """
         try:
-            # 2段階モデルシステム対応
+            # Phase 50.9: 2段階モデルシステム対応
             level_files = [
                 "ensemble_full.pkl",
                 "ensemble_basic.pkl",
@@ -1345,10 +1359,8 @@ class NewSystemMLModelCreator:
 
             # 1. 学習データ準備（1回のみ・全55特徴量生成）
             # 戦略信号生成が最も時間がかかるため、1回だけ実行
-            self.logger.info("📊 Phase 52.4: 学習データ準備開始（全モデル共通）")
-            # 一時的にcurrent_model_typeを"full"に設定して全特徴量生成
-            self.current_model_type = "full"
-            features_full, target = self.prepare_training_data(days)
+            self.logger.info("📊 Phase 51.9: 学習データ準備開始（全モデル共通）")
+            features, target = self.prepare_training_data(days)
             self.logger.info("✅ 学習データ準備完了（全55特徴量生成済み）")
 
             # 2. 各モデルを訓練（ループ処理）
@@ -1359,16 +1371,10 @@ class NewSystemMLModelCreator:
 
                 self.logger.info("")
                 self.logger.info("=" * 80)
-                self.logger.info(f"📊 Phase 52.4: {model_name}モデル訓練開始")
+                self.logger.info(f"📊 Phase 51.9: {model_name}モデル訓練開始")
                 self.logger.info("=" * 80)
 
-                # モデル別特徴量選択（CRITICAL FIX: ループ内で再実行）
-                features = self._select_features_by_level(features_full.copy())
-                self.logger.info(
-                    f"✅ 特徴量選択完了: {len(features.columns)}個（{model_type}モデル用）"
-                )
-
-                # モデル訓練
+                # モデル訓練（_select_features_by_levelで特徴量絞り込み）
                 training_results = self.train_models(features, target, dry_run)
 
                 if dry_run:

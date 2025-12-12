@@ -1,14 +1,10 @@
 """
-ドローダウン状態永続化システム - Phase 52.4完了
+ドローダウン状態永続化システム - Phase 49完了
 
 ローカルファイルとCloud Storageの両方に対応した
 統一的な永続化インターフェースを提供。
 GCP/ローカル環境の自動判定により適切な実装を選択。
 モード別（paper/live/backtest）状態分離による安全性確保。
-
-Phase 52.4: 設定ファイル統合・ハードコード削除
-- unified.yamlからパステンプレート取得（local_path_template/gcs_path_template）
-- get_config()パターン適用によるハードコード値削除
 
 Phase 49完了:
 - 統一永続化インターフェース（DrawdownPersistence基底クラス）
@@ -28,7 +24,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ...core.logger import get_logger
-from ..config import get_config
 
 
 class DrawdownPersistence(ABC):
@@ -269,19 +264,11 @@ def create_persistence(
     """
     logger = get_logger()
 
-    # モード別デフォルトパス設定（unified.yamlから取得）
+    # モード別デフォルトパス設定
     if local_path is None:
-        path_template = get_config(
-            "risk.drawdown_manager.persistence.local_path_template",
-            "src/core/state/{mode}/drawdown_state.json",
-        )
-        local_path = path_template.format(mode=mode)
+        local_path = f"src/core/state/{mode}/drawdown_state.json"
     if gcs_path is None:
-        path_template = get_config(
-            "risk.drawdown_manager.persistence.gcs_path_template",
-            "drawdown/{mode}/state.json",
-        )
-        gcs_path = path_template.format(mode=mode)
+        gcs_path = f"drawdown/{mode}/state.json"
 
     # GCP環境判定
     is_gcp = os.getenv("RUNNING_ON_GCP", "false").lower() == "true"

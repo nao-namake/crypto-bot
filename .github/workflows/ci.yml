@@ -1,5 +1,5 @@
 # CI/CDパイプライン
-# Phase 53.1: GCP安定稼働修正（n_jobs=1・API署名・タイムアウト無効化）
+# 1,117テスト100%成功・68.32%カバレッジ達成・Phase 49完了（SELL Only問題解決・証拠金維持率80%遵守）
 
 name: CI/CD Pipeline
 
@@ -22,20 +22,20 @@ jobs:
   # ========================================
   # 品質チェック（checks.sh統合版）
   # ========================================
-
+  
   quality-check:
     name: Quality Check (checks.sh)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
 
@@ -46,9 +46,9 @@ jobs:
 
       - name: Setup test environment
         run: |
-          # Phase 53.1: 実モデルファイルがGitに含まれるため、ダミー作成不要
+          # Phase 50.9: 実モデルファイルがGitに含まれるため、ダミー作成不要
           mkdir -p logs cache
-          echo '{"version": "ci-test", "features": 55}' > models/production/model_metadata.json
+          echo '{"version": "ci-test", "features": 62}' > models/production/model_metadata.json
           echo "✅ テスト環境準備完了（実モデルファイル使用）"
 
       - name: Run quality checks (checks.sh)
@@ -62,10 +62,10 @@ jobs:
     needs: quality-check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
+    
     # mainブランチプッシュ時のみ実行（デプロイ前検証）
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
+    
     permissions:
       contents: read
       id-token: write
@@ -91,7 +91,7 @@ jobs:
 
           # レガシー方式：認証確認強化版（権限反映ラグ対応）
           echo "🔍 レガシー方式：軽量GCP検証実行"
-
+          
           # 1. 認証状態詳細確認（Service Account偽装確認）
           echo "🔐 認証状態確認..."
           ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format="value(account)" | head -n1)
@@ -108,7 +108,7 @@ jobs:
             echo "❌ gcloud認証失敗"
             exit 1
           fi
-
+          
           # 2. プロジェクト設定確実化
           echo "🏗️ プロジェクト設定確実化..."
           if gcloud config set project ${{ env.PROJECT_ID }}; then
@@ -124,17 +124,17 @@ jobs:
             echo "❌ プロジェクト設定失敗: ${{ env.PROJECT_ID }}"
             exit 1
           fi
-
+          
           # 3. 権限反映待機（認証ラグ対応）
           echo "⏳ 権限反映待機（3秒）..."
           sleep 3
-
+          
           echo "✅ GCP環境基本確認完了 - リソース確認へ移行"
 
       - name: Verify Critical GCP Resources
         run: |
           echo "🏗️ 重要なGCPリソース確認 - 必須リソース確認強化（権限反映ラグ対応版）"
-
+          
           # 認証状態再確認
           echo "🔐 認証状態再確認..."
           CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null)
@@ -143,7 +143,7 @@ jobs:
             exit 1
           fi
           echo "✅ プロジェクト設定正常: $CURRENT_PROJECT"
-
+          
           # Artifact Registry確認（必須・エラーハンドリング強化）
           echo "📦 Artifact Registry確認..."
           if gcloud artifacts repositories describe ${{ env.REPOSITORY }} \
@@ -162,12 +162,12 @@ jobs:
             echo "- 認証アカウント: $(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n1)"
             exit 1
           fi
-
+          
           # Secret Manager確認（必須・詳細エラー）
           echo "🔐 Secret Manager確認..."
           required_secrets=("bitbank-api-key" "bitbank-api-secret")
           missing_secrets=()
-
+          
           for secret in "${required_secrets[@]}"; do
             if gcloud secrets describe "$secret" --project=${{ env.PROJECT_ID }} 2>/tmp/secret_error_${secret}.log; then
               echo "✅ Secret設定済み: $secret"
@@ -178,7 +178,7 @@ jobs:
               missing_secrets+=("$secret")
             fi
           done
-
+          
           if [ ${#missing_secrets[@]} -eq 0 ]; then
             echo "✅ 必須Secret Manager設定完了"
           else
@@ -186,7 +186,7 @@ jobs:
             echo "未設定Secret: ${missing_secrets[*]}"
             exit 1
           fi
-
+          
           echo "🎯 統一設定管理体系: 全必須リソース確認完了 - デプロイ実行準備完了"
 
   # ========================================
@@ -197,10 +197,10 @@ jobs:
     needs: [quality-check, gcp-environment-check]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
+    
     # mainブランチプッシュ時のみ実行
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
+    
     permissions:
       contents: read
       id-token: write
@@ -214,8 +214,8 @@ jobs:
           # Docker用の必要なディレクトリ作成
           mkdir -p models/production logs cache
           echo '{"version": "production", "features": 55, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
-
-          # Phase 53.1: 本番用モデル確認（CI環境では作成済み）
+          
+          # Phase 50.9: 本番用モデル確認（CI環境では作成済み）
           if [ -f "models/production/ensemble_full.pkl" ]; then
             echo "✅ 本番用モデル確認済み: models/production/ensemble_full.pkl"
           else
@@ -256,16 +256,16 @@ jobs:
           # イメージタグ設定
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot"
           COMMIT_SHA="${{ github.sha }}"
-
+          
           echo "🐳 Dockerイメージビルド開始: ${IMAGE_TAG}:${COMMIT_SHA}"
-
+          
           # Dockerビルド（Phase 7最適化版使用）
           docker build -t "${IMAGE_TAG}:${COMMIT_SHA}" -t "${IMAGE_TAG}:latest" .
-
+          
           # プッシュ
           docker push "${IMAGE_TAG}:${COMMIT_SHA}"
           docker push "${IMAGE_TAG}:latest"
-
+          
           echo "✅ Dockerイメージプッシュ完了"
 
       - name: Docker Container Startup Test (Phase 49.14)
@@ -304,12 +304,12 @@ jobs:
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
 
           echo "🚀 段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "Phase 53.1: GCP安定稼働・Python 3.11統一"
-
+          echo "Phase 49完了: 1,117テスト100%成功・68.32%カバレッジ達成・SELL Only問題解決・証拠金維持率80%遵守"
+          
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
           echo "📊 デプロイモード: $DEPLOY_MODE"
-
+          
           # Phase 16-B統一設定（本番モード固定・設定一元化対応）
           SERVICE_SUFFIX=""
           MEMORY="1Gi"
@@ -319,10 +319,10 @@ jobs:
           TIMEOUT="3600"
           DEPLOY_MODE="live"
           echo "📋 本番モード（ライブトレード）"
-
+          
           FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}"
           echo "📍 デプロイサービス名: $FULL_SERVICE_NAME"
-
+          
           # Cloud Runデプロイ実行（Phase 16-B段階的対応・設定一元化対応）
           echo "🔍 サービス存在確認: $FULL_SERVICE_NAME"
           if gcloud run services describe "$FULL_SERVICE_NAME" --region=${{ env.REGION }} >/dev/null 2>&1; then
@@ -332,7 +332,7 @@ jobs:
             echo "🆕 新規サービス作成（--no-traffic不可）"
             TRAFFIC_FLAG=""
           fi
-
+          
           gcloud run deploy "$FULL_SERVICE_NAME" \
             --image="${IMAGE_TAG}" \
             --region=${{ env.REGION }} \
@@ -349,30 +349,30 @@ jobs:
             --port=8080 \
             --revision-suffix="unified-system-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG
-
+          
           # 本番トラフィック移行
           echo "🔄 100%本番トラフィック移行"
           gcloud run services update-traffic "$FULL_SERVICE_NAME" \
             --to-latest \
             --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
 
-          echo "✅ Phase 53.1本番デプロイ完了・システム稼働開始"
+          echo "✅ Phase 49本番デプロイ完了・システム稼働開始"
 
       - name: Verify Deployment Health Check
         run: |
           echo "🏥 デプロイ後ヘルスチェック実行"
-
+          
           # 本番サービス名統一
           FULL_SERVICE_NAME="${{ env.SERVICE_NAME }}"
           echo "📍 ヘルスチェック対象: $FULL_SERVICE_NAME"
-
+          
           # サービスURL取得
           SERVICE_URL=$(gcloud run services describe "$FULL_SERVICE_NAME" \
             --region=${{ env.REGION }} \
             --format='value(status.url)')
-
+          
           echo "📍 サービスURL: ${SERVICE_URL}"
-
+          
           # デプロイ状態確認（Cloud Run認証によりcurlは使用不可）
           echo "📊 デプロイ状態確認中..."
 
@@ -414,11 +414,11 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Phase 53.1本番デプロイ成功！"
+            echo "🎉 Phase 49本番デプロイ成功！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: Python 3.11・GCP安定稼働"
+            echo "📈 品質保証: 1,117テスト100%成功・68.32%カバレッジ・SELL Only問題解決・証拠金維持率80%遵守"
           else
             echo "❌ デプロイ失敗"
             echo "🔍 ログを確認してください"

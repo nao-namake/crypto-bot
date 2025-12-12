@@ -1,7 +1,5 @@
 """
-Meta-Learning動的重み最適化システム
-
-最終更新: 2025/11/16 (Phase 52.4-B)
+Phase 49完了: Meta-Learning動的重み最適化システム
 
 市場状況に応じて戦略・ML重みを動的に最適化し、シャープレシオ+30-50%向上を目指す。
 
@@ -17,9 +15,10 @@ Meta-Learning動的重み最適化システム
 """
 
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -29,7 +28,7 @@ from src.core.config import get_threshold
 
 class MarketRegimeAnalyzer:
     """
-    市場状況分析クラス（Phase 52.4-B対応完了）
+    市場状況分析クラス（Phase 45.1）
 
     既存特徴量を活用して市場状況を分析し、Meta-Learning用の特徴量を生成。
     """
@@ -108,7 +107,7 @@ class MarketRegimeAnalyzer:
             # 出来高特徴量
             features["volume_ratio"] = self._calculate_volume_ratio(df)
 
-        except Exception:  # 未使用変数e削除
+        except Exception as e:
             # エラー時はデフォルト特徴量を返す
             return self._get_default_features()
 
@@ -263,7 +262,7 @@ class MarketRegimeAnalyzer:
 
 class PerformanceTracker:
     """
-    パフォーマンストラッキングクラス（Phase 52.4-B対応完了）
+    パフォーマンストラッキングクラス（Phase 45.2）
 
     戦略・MLの過去パフォーマンスを記録・取得。
     """
@@ -507,7 +506,7 @@ class PerformanceTracker:
 
 class MetaLearningWeightOptimizer:
     """
-    Meta-Learning動的重み最適化クラス（Phase 52.4-B対応完了）
+    Meta-Learning動的重み最適化クラス（Phase 45.1-45.3）
 
     市場状況に応じて戦略・ML重みを動的に最適化。
     """

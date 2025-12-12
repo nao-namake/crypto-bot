@@ -1,0 +1,160 @@
+# ========================================
+# 戦略定義ファイル (strategies.yaml)
+# ========================================
+# Phase 51.5-B: 動的戦略管理基盤実装
+#
+# 目的: 戦略の宣言的設定・動的管理
+# 管理項目: 有効化・重み・優先度・設定参照
+# 効果: 戦略追加・削除の影響範囲を93%削減（27ファイル→4ファイル）
+#
+# 戦略追加手順:
+#   1. 戦略クラスに@StrategyRegistry.register()追加
+#   2. このファイルに戦略定義追加
+#   3. config/core/thresholds.yamlに設定追加
+#   → 完了！（orchestrator.py等の修正不要）
+# ========================================
+
+strategy_system_version: "2.0.0"
+last_updated: "2025-11-10"
+phase: "Phase 51.9"
+
+# ========================================
+# 戦略定義（Phase 51.7: 6戦略体制）
+# ========================================
+
+strategies:
+  # 戦略1: ATRベース逆張り戦略
+  atr_based:
+    enabled: true
+    class_name: "ATRBased"                        # StrategyRegistry登録名
+    module_path: "src.strategies.implementations.atr_based"
+    strategy_type: "atr_based"                    # StrategyType定数値
+    weight: 0.17                                   # 戦略重み（17%・Phase 51.7: 6戦略均等配分）
+    priority: 1                                    # 優先度（低いほど優先）
+    regime_affinity: "range"                       # レジーム適性（range/trend/both）
+    indicators: ["ATR", "BB", "RSI"]               # 主要指標（分析用）
+    description: "ATRベース逆張り戦略 - ボラティリティベース平均回帰"
+    config_section: "strategies.atr_based"        # thresholds.yaml参照セクション
+
+  # 戦略2: Donchianチャネルブレイクアウト戦略
+  donchian_channel:
+    enabled: true
+    class_name: "DonchianChannel"
+    module_path: "src.strategies.implementations.donchian_channel"
+    strategy_type: "donchian_channel"
+    weight: 0.17                                   # 戦略重み（17%・Phase 51.7: 6戦略均等配分）
+    priority: 2
+    regime_affinity: "range"                       # レジーム適性（range/trend/both）
+    indicators: ["Donchian", "Breakout"]           # 主要指標（分析用）
+    description: "Donchianチャネルブレイクアウト戦略 - 高値/安値ブレイクアウト検知"
+    config_section: "strategies.donchian_channel"
+
+  # 戦略3: ADXトレンド強度戦略
+  adx_trend:
+    enabled: true
+    class_name: "ADXTrendStrength"
+    module_path: "src.strategies.implementations.adx_trend"
+    strategy_type: "adx_trend"
+    weight: 0.17                                   # 戦略重み（17%・Phase 51.7: 6戦略均等配分）
+    priority: 3
+    regime_affinity: "trend"                       # レジーム適性（range/trend/both）
+    indicators: ["ADX", "DI"]                      # 主要指標（分析用）
+    description: "ADXトレンド強度戦略 - トレンド方向性とDI判定"
+    config_section: "strategies.adx_trend"
+
+  # 戦略4: BB Reversal戦略（Phase 51.7 Day 3追加）
+  bb_reversal:
+    enabled: true
+    class_name: "BBReversal"
+    module_path: "src.strategies.implementations.bb_reversal"
+    strategy_type: "bb_reversal"
+    weight: 0.17                                   # 戦略重み（17%・Phase 51.7: 6戦略均等配分）
+    priority: 4
+    regime_affinity: "range"                       # レジーム適性（range/trend/both）
+    indicators: ["BB", "RSI"]                      # 主要指標（分析用）
+    description: "BB Reversal戦略 - レンジ相場での平均回帰"
+    config_section: "strategies.bb_reversal"
+
+  # 戦略5: Stochastic Reversal戦略（Phase 51.7 Day 4追加）
+  stochastic_reversal:
+    enabled: true
+    class_name: "StochasticReversal"
+    module_path: "src.strategies.implementations.stochastic_reversal"
+    strategy_type: "stochastic_reversal"
+    weight: 0.17                                   # 戦略重み（17%・Phase 51.7: 6戦略均等配分）
+    priority: 5
+    regime_affinity: "range"                       # レジーム適性（range/trend/both）
+    indicators: ["Stochastic", "RSI"]              # 主要指標（分析用）
+    description: "Stochastic Reversal戦略 - レンジ相場でのモメンタム逆張り"
+    config_section: "strategies.stochastic_reversal"
+
+  # 戦略6: MACD+EMA Crossover戦略（Phase 51.7 Day 5追加）
+  macd_ema_crossover:
+    enabled: true
+    class_name: "MACDEMACrossover"
+    module_path: "src.strategies.implementations.macd_ema_crossover"
+    strategy_type: "macd_ema_crossover"
+    weight: 0.15                                   # 戦略重み（15%・Phase 51.7: 6戦略合計1.00）
+    priority: 6
+    regime_affinity: "trend"                       # レジーム適性（range/trend/both）
+    indicators: ["MACD", "EMA"]                    # 主要指標（分析用）
+    description: "MACD+EMA Crossover戦略 - トレンド転換期の押し目買い・戻り売り"
+    config_section: "strategies.macd_ema_crossover"
+
+# ========================================
+# 統合設定（全戦略共通）
+# ========================================
+
+integration:
+  # コンセンサスアルゴリズム設定
+  consensus_required: 0.4                         # 必要合意度（40%）
+  confidence_threshold: 0.3                       # 最小信頼度（30%）
+  signal_conflict_resolution: "weighted_vote"     # シグナル衝突解決方法
+
+  # シグナル統合ロジック
+  signal_aggregation: "weighted_average"          # 加重平均
+  min_active_strategies: 1                        # 最小有効戦略数
+
+# ========================================
+# ML特徴量生成設定
+# ========================================
+
+ml_features:
+  # 戦略シグナル特徴量
+  strategy_signals_enabled: true                  # 戦略シグナル特徴量を生成
+  signal_encoding: "action_times_confidence"      # エンコーディング方式
+                                                   # buy=+confidence, hold=0, sell=-confidence
+
+  # 特徴量自動更新（Phase 51.5-B: 将来機能）
+  feature_order_auto_update: false                # 自動更新無効（手動管理）
+
+# ========================================
+# 戦略管理機能設定
+# ========================================
+
+management:
+  # 動的戦略ロード
+  dynamic_loading: true                           # StrategyLoader使用
+  registry_pattern: true                          # Registry Pattern使用
+
+  # ホットリロード（Phase 51.5-B: 将来機能）
+  hot_reload_enabled: false                       # ホットリロード無効
+
+  # 戦略検証
+  validate_on_load: true                          # ロード時検証
+  fail_fast: true                                 # エラー時即座に失敗
+
+# ========================================
+# ログ設定
+# ========================================
+
+logging:
+  strategy_load: true                             # 戦略ロードログ出力
+  strategy_decision: true                         # 戦略判断ログ出力
+  verbose: false                                   # 詳細ログ無効
+
+# ========================================
+# Phase 51.5-B効果:
+# - 戦略追加: このファイルに定義追加のみ
+# - 戦略削除: enabled: false に変更のみ
+# - 修正ファイル数: 27 → 4（93%削減）

@@ -1,14 +1,16 @@
 """
-MLサービス フォールバック機能 - Phase 52.4
+MLサービス フォールバック機能 - Phase 49完了
 
+ダミーモデル・フォールバック機能・安全ネット機能を提供。
 MLモデル読み込み失敗時の最終的な安全装置。
-DummyModelによる最終フォールバック機能を提供。
 
-機能:
-- DummyModel: 全予測でhold（信頼度0.5）を返却
+Phase 49完了:
+- DummyModel: 全予測でhold信頼度0.5返却（フォールバック用）
+- 55特徴量対応（feature_manager統合）
 - 3クラス分類対応（buy/hold/sell）
 - is_fitted=True固定（常に利用可能状態）
-- 特徴量数任意対応（任意の特徴量数でhold返却）
+
+Phase 28-29: ダミーモデル分離・フォールバック機能専門化
 """
 
 from typing import Union

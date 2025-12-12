@@ -1,25 +1,25 @@
-# scripts/management/ - Bot管理スクリプト（Phase 52.4）
+# scripts/management/ - Bot管理スクリプト（Phase 49完了版）
 
-**最終更新**: 2025年11月15日 - Phase 52.4コード整理完了
+**最終更新**: 2025年10月25日 - Phase 49完了・1,117テスト・68.32%カバレッジ・バックテスト完全改修・確定申告対応・週間レポート実装
 
 ## 🎯 概要
 
-暗号資産取引Botの安全で効率的な実行・管理を支援するスクリプト群です。プロセス重複防止、環境別実行制御、強制停止機能など、運用上の問題を根本的に解決します。
+暗号資産取引Botの安全で効率的な実行・管理を支援するスクリプト群です。Discord通知無限ループ問題を完全解決し、プロセス重複防止、環境別実行制御、強制停止機能など、運用上の問題を根本的に解決します。
 
-**Phase 52.4完了成果**: 6戦略統合・55特徴量システム・動的戦略管理基盤・コード品質改善完了
+**Phase 49完了成果**: 1,117テスト100%成功・68.32%カバレッジ達成・バックテスト完全改修（TradeTracker・matplotlib可視化）・確定申告対応システム・週間レポート実装・55特徴量Strategy-Aware ML
 
 ## 📂 ファイル構成
 
 ```
 scripts/management/
-├── README.md         # このファイル（Phase 52.4）
-├── run_safe.sh       # 統合実行スクリプト（Phase 52.4対応済み・タイムアウト・Claude Code対応）
+├── README.md         # このファイル（Phase 49完了版）
+├── run_safe.sh       # 統合実行スクリプト（Phase 49.14対応済み・タイムアウト・Claude Code対応）
 └── bot_manager.sh    # 統合管理スクリプト（状況確認・プロセス停止・Claude Code誤認識検出）
 ```
 
-**注**: run_backtest.shは`scripts/backtest/`に移動（Phase 52.4整理・バックテスト専用ツールとして分離）
+**注**: run_backtest.shは`scripts/backtest/`に移動（Phase 49整理・バックテスト専用ツールとして分離）
 
-## 🚀 run_safe.sh - 安全実行スクリプト（Phase 52.4対応済み）
+## 🚀 run_safe.sh - 安全実行スクリプト（Phase 49.14対応済み）
 
 ### **主要機能**
 
@@ -27,8 +27,8 @@ scripts/management/
 |------|------|------|
 | **プロセス重複防止** | PIDファイル・ロックファイル使用 | Discord通知無限ループ問題を根本防止 |
 | **Claude Code完全対応** | フォアグラウンド実行デフォルト | バックグラウンド誤認識問題完全解決 |
-| **タイムアウト管理** | macOS対応タイムアウト実装 | 無制限実行防止・性能影響ゼロ |
-| **Phase 52.4システム検証** | validate_system.sh統合 | Dockerfile・特徴量・戦略整合性確認 |
+| **タイムアウト管理** | macOS対応タイムアウト実装（2時間） | 無制限実行防止・性能影響ゼロ |
+| **Phase 49.14システム検証** | validate_system.sh統合 | Dockerfile・特徴量・戦略整合性確認 |
 | **環境自動判定** | ローカル/GCP環境の自動切り替え | 実行環境の混乱を防止 |
 | **ドローダウンリセット** | ペーパーモード時自動リセット | クリーンな検証環境確保 |
 | **詳細プロセス監視** | 実行状況・子プロセス・動作モード表示 | 運用効率向上 |
@@ -78,19 +78,19 @@ $ bash scripts/management/run_safe.sh status
    └─ 動作モード: paper
 ```
 
-### **Phase 52.4機能：システム整合性検証**
+### **Phase 49.14新機能：システム整合性検証**
 ```bash
 # ペーパートレード実行時に自動実行される検証
-🔍 Phase 52.4: システム整合性検証実行中...
+🔍 Phase 49.14: システム整合性検証実行中...
 ✅ システム整合性検証完了
 
 # 検証内容:
 # - Dockerfile内の特徴量数（55個）確認
 # - 特徴量定義とStrategy-Aware ML整合性
-# - 6戦略実装とシグナル生成整合性
+# - 5戦略実装とシグナル生成整合性
 ```
 
-## 🔧 bot_manager.sh - 統合管理スクリプト（Phase 52.4）
+## 🔧 bot_manager.sh - 統合管理スクリプト（Phase 49完了版）
 
 ### **主要機能**
 
@@ -208,7 +208,7 @@ $ bash scripts/management/bot_manager.sh stop --dry-run
 |---------|------|------|------|
 | **crypto_bot_${USER}.lock** | `/tmp/` | PID + 開始時刻 | 重複起動防止 |
 | **crypto_bot_${USER}.pid** | `/tmp/` | PID + 開始時刻 + モード | 実行状況確認 |
-| **drawdown_state.json** | `src/core/state/` | ドローダウン状態 | Phase 52.4管理（ペーパーモード自動リセット） |
+| **drawdown_state.json** | `src/core/state/` | ドローダウン状態 | Phase 49管理（ペーパーモード自動リセット） |
 | **consolidated_tp_sl_state.json** | `src/core/state/` | 統合TP/SL ID | Phase 42.4実装（永続化） |
 
 ### **プロセスグループ管理**
@@ -218,7 +218,7 @@ $ bash scripts/management/bot_manager.sh stop --dry-run
 - 停止時のプロセスグループ全体への SIGTERM/SIGKILL 送信
 - 子プロセス情報の詳細表示
 - bot_manager.sh との連携統合
-- Phase 52.4: システム整合性検証統合
+- Phase 49.14: システム整合性検証統合
 
 #### **bot_manager.sh 統合機能**
 - 3段階プロセス検索（pgrep・ps・ファイル）
@@ -265,7 +265,7 @@ bash scripts/management/bot_manager.sh stop --verbose
 bash scripts/management/bot_manager.sh stop
 ```
 
-#### **4. Phase 52.4: システム整合性検証失敗**
+#### **4. Phase 49.14: システム整合性検証失敗**
 ```bash
 # 原因: Dockerfile・特徴量・戦略の不整合
 # 確認: 手動検証実行
@@ -297,18 +297,18 @@ cat src/core/state/consolidated_tp_sl_state.json
 
 ## 🔧 従来実行との比較
 
-| 実行方法 | プロセス管理 | プロセスグループ | 強制停止 | 誤認防止 | Phase 52.4検証 | 推奨度 |
+| 実行方法 | プロセス管理 | プロセスグループ | 強制停止 | 誤認防止 | Phase 49.14検証 | 推奨度 |
 |---------|-------------|----------------|---------|---------|----------------|--------|
 | **従来**: `python main.py` | ❌ なし | ❌ なし | ❌ 不完全 | ❌ なし | ❌ なし | 🚫 **非推奨** |
 | **run_safe.sh** | ✅ 自動 | ✅ 対応 | ✅ 基本対応 | ❌ なし | ✅ **自動実行** | ✅ **推奨** |
 | **bot_manager.sh** | ✅ 完全 | ✅ 完全対応 | ✅ 完全対応 | ✅ **完全対応** | - | ✅ **管理必須** |
 
-### **推奨運用フロー（Phase 52.4）**
+### **推奨運用フロー（Phase 49完了版）**
 ```bash
 # 1. 実行状況確認（誤認防止）
 bash scripts/management/bot_manager.sh check
 
-# 2. 通常起動（Phase 52.4システム検証自動実行）
+# 2. 通常起動（Phase 49.14システム検証自動実行）
 bash scripts/management/run_safe.sh local paper
 
 # 3. 通常停止
@@ -337,7 +337,7 @@ bash scripts/management/bot_manager.sh stop
 - **原因**: 子プロセス・プロセスグループ管理不備
 - **解決**: bot_manager.sh による完全停止機能
 
-#### **4. Phase 52.4: システム整合性自動検証**
+#### **4. Phase 49.14: システム整合性自動検証**
 - **問題**: Dockerfile・特徴量・戦略の不整合による実行時エラー
 - **原因**: 手動管理による同期漏れ
 - **解決**: validate_system.sh自動実行・ペーパートレード起動時検証
@@ -351,7 +351,7 @@ bash scripts/management/bot_manager.sh stop
 | **プロセス重複** | 可能性あり | 完全防止 | 100%解決 |
 | **停止失敗率** | 30-50% | 0% | **完全解消** |
 | **トラブル解決時間** | 10-30分 | 1分以内 | **95%短縮** |
-| **システム整合性エラー** | 手動発見 | **自動検出（Phase 52.4）** | **100%事前防止** |
+| **システム整合性エラー** | 手動発見 | **自動検出（Phase 49.14）** | **100%事前防止** |
 
 ## 🔄 技術仕様
 
@@ -362,20 +362,20 @@ bash scripts/management/bot_manager.sh stop
 - **停止方式**: SIGTERM(10s) → SIGKILL(5s)
 - **統合機能**: プロセス確認・完全停止・誤認防止を一元化
 
-### **run_safe.sh 技術詳細（Phase 52.4対応）**
+### **run_safe.sh 技術詳細（Phase 49.14対応）**
 - **macOS完全対応**: OS判定による実行方式切り替え
 - **PYTHONPATH最適化**: 実行環境別パス設定
 - **プロセスグループ**: OS別実行制御（Linux: setsid、macOS: 直接実行）
 - **停止改善**: プロセスグループ単位停止
 - **情報表示**: 子プロセス・モード詳細表示
 - **連携**: bot_manager.sh 統合機能
-- **Phase 52.4機能**: validate_system.sh自動実行・Dockerfile/特徴量/戦略整合性検証
+- **Phase 49.14新機能**: validate_system.sh自動実行・Dockerfile/特徴量/戦略整合性検証
 
-### **Phase 52.4の重要ファイル**
+### **Phase 49完了時点の重要ファイル**
 - `src/core/state/drawdown_state.json`: ドローダウン状態管理
-- `src/core/state/consolidated_tp_sl_state.json`: 統合TP/SL ID永続化
-- `scripts/testing/validate_system.sh`: システム整合性検証
-- `scripts/backtest/run_backtest.sh`: バックテスト実行
+- `src/core/state/consolidated_tp_sl_state.json`: 統合TP/SL ID永続化（Phase 42.4実装）
+- `scripts/testing/validate_system.sh`: システム整合性検証（Phase 49.14実装）
+- `scripts/backtest/run_backtest.sh`: バックテスト実行（Phase 49整理で移動）
 
 ## 🔗 関連ファイル・依存関係
 
@@ -386,23 +386,23 @@ bash scripts/management/bot_manager.sh stop
 - `config/core/`: 設定管理・特徴量管理・unified.yaml・thresholds.yaml
 
 ### **品質保証・テスト**
-- `scripts/testing/checks.sh`: 品質チェック（Phase 52.4）
-- `scripts/testing/validate_system.sh`: システム整合性検証（Phase 52.4）
-- `tests/`: 単体テスト・統合テスト
-- `coverage-reports/`: カバレッジレポート
+- `scripts/testing/checks.sh`: 品質チェック（Phase 49完了版）・1,117テスト実行
+- `scripts/testing/validate_system.sh`: システム整合性検証（Phase 49.14実装）
+- `tests/`: 単体テスト・統合テスト・1,117テスト100%成功
+- `coverage-reports/`: カバレッジレポート・68.32%達成
 
 ### **バックテストシステム**
-- `scripts/backtest/run_backtest.sh`: バックテスト実行
+- `scripts/backtest/run_backtest.sh`: バックテスト実行（Phase 49整理で移動）
 - `src/backtest/`: バックテストエンジン・TradeTracker・可視化システム
 
 ### **状態管理・データ**
 - `src/core/state/`: 状態ファイル管理・ドローダウン・統合TP/SL・クールダウン
 - `logs/`: システムログ・実行ログ・エラーログ・デバッグ情報
 - `data/`: 市場データ・キャッシュ・履歴データ・バックテストデータ
-- `tax/`: 確定申告システム・取引履歴DB・損益計算
+- `tax/`: 確定申告システム・取引履歴DB・損益計算（Phase 47実装）
 
 ### **レポーティング**
-- `src/core/reporting/`: 週間レポート生成
+- `src/core/reporting/`: 週間レポート生成（Phase 48実装）
 - `scripts/reports/`: レポートスクリプト・Discord通知統合
 
 ---
@@ -410,10 +410,10 @@ bash scripts/management/bot_manager.sh stop
 **🎯 重要**:
 - **Discord通知無限ループ問題**: bot_manager.sh により完全解決
 - **Claude Codeバックグラウンド誤認識問題**: run_safe.sh フォアグラウンドデフォルトで完全解決
-- **Phase 52.4システム整合性検証**: validate_system.sh自動実行・Dockerfile/特徴量/戦略整合性確保
-- **バックテスト実行**: scripts/backtest/に移動
+- **Phase 49.14システム整合性検証**: validate_system.sh自動実行・Dockerfile/特徴量/戦略整合性確保
+- **バックテスト実行**: scripts/backtest/に移動（Phase 49整理）
 
 **推奨運用方法**:
-1. **通常実行**: `bash scripts/management/run_safe.sh local paper` (フォアグラウンド・デフォルト・Phase 52.4検証自動実行)
+1. **通常実行**: `bash scripts/management/run_safe.sh local paper` (フォアグラウンド・デフォルト・Phase 49.14検証自動実行)
 2. **状況確認**: `bash scripts/management/bot_manager.sh check` (実プロセス確認)
 3. **緊急停止**: `bash scripts/management/bot_manager.sh stop` (Discord通知ループ解決)

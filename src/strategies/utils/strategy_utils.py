@@ -1,5 +1,5 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 52.4-B完了
+戦略共通ユーティリティ統合モジュール - Phase 49完了
 
 戦略関連のユーティリティ機能を統合管理：
 - 戦略定数：EntryAction、StrategyType統一
@@ -8,7 +8,7 @@
 
 統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 52.4-B完了
+Phase 49完了
 """
 
 from datetime import datetime
@@ -32,22 +32,23 @@ class EntryAction:
 
 
 class StrategyType:
-    """戦略タイプ定数 - Phase 52.4-B: 6戦略システム."""
+    """戦略タイプ定数 - Phase 51.5-A: 3戦略構成 + Phase 51.7: 3戦略追加."""
 
     ATR_BASED = "atr_based"
+    BOLLINGER_BANDS = "bollinger_bands"
     DONCHIAN_CHANNEL = "donchian_channel"
     ADX_TREND = "adx_trend"
-    BB_REVERSAL = "bb_reversal"
-    STOCHASTIC_REVERSAL = "stochastic_reversal"
-    MACD_EMA_CROSSOVER = "macd_ema_crossover"
+    BB_REVERSAL = "bb_reversal"  # Phase 51.7 Day 3: BB Reversal strategy
+    STOCHASTIC_REVERSAL = "stochastic_reversal"  # Phase 51.7 Day 4: Stochastic Reversal strategy
+    MACD_EMA_CROSSOVER = "macd_ema_crossover"  # Phase 51.7 Day 5: MACD+EMA Crossover strategy
 
 
 # 基本リスク管理パラメータ（戦略で上書き可能）
-# Phase 52.4-B: フォールバック値のみ・実際の値は設定ファイル（thresholds.yaml）優先
+# Phase 51.6: フォールバック値のみ・実際の値は設定ファイル（thresholds.yaml）優先
 DEFAULT_RISK_PARAMS: Dict[str, Any] = {
-    # ストップロス・テイクプロフィット（Phase 52.4-B: 設定ファイル優先）
+    # ストップロス・テイクプロフィット（Phase 51.6: 設定ファイル優先）
     "stop_loss_atr_multiplier": 2.0,  # フォールバック値
-    "take_profit_ratio": 1.29,  # Phase 52.4-B: RR比1.29:1（フォールバック値）
+    "take_profit_ratio": 1.29,  # Phase 51.6: RR比1.29:1（フォールバック値）
     # ポジションサイズ
     "position_size_base": 0.02,  # 2%の基本設定
     # 計算設定
@@ -175,7 +176,8 @@ class RiskManager:
         regime: Optional[str] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
-        Phase 52.4-B: TP/SL計算 - thresholds.yaml完全準拠・レジーム別動的調整
+        Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
+        Phase 52.0: レジーム別動的TP/SL調整実装
 
         Args:
             action: エントリーアクション（buy/sell）
@@ -196,11 +198,9 @@ class RiskManager:
                 return None, None
 
             # ========================================
-            # Phase 52.4-B: レジーム別TP/SL設定の適用
+            # Phase 52.0: レジーム別TP/SL設定の適用
             # ========================================
-            if regime and get_threshold(
-                "position_management.take_profit.regime_based.enabled", False
-            ):
+            if regime and get_threshold("position_management.take_profit.regime_based.enabled", False):
                 # レジーム別TP設定取得
                 regime_tp = get_threshold(
                     f"position_management.take_profit.regime_based.{regime}.min_profit_ratio", None
@@ -221,19 +221,19 @@ class RiskManager:
                     config["max_loss_ratio"] = regime_sl
 
                     logger.info(
-                        f"🎯 Phase 52.4-B: レジーム別TP/SL適用 - {regime}: "
-                        f"TP={regime_tp * 100:.1f}%, SL={regime_sl * 100:.1f}%, "
+                        f"🎯 Phase 52.0: レジーム別TP/SL適用 - {regime}: "
+                        f"TP={regime_tp*100:.1f}%, SL={regime_sl*100:.1f}%, "
                         f"RR比={regime_tp_ratio:.2f}:1"
                     )
                 else:
                     logger.warning(
-                        f"⚠️ Phase 52.4-B: レジーム別TP/SL設定が不完全 - {regime}: "
+                        f"⚠️ Phase 52.0: レジーム別TP/SL設定が不完全 - {regime}: "
                         f"TP={regime_tp}, SL={regime_sl} → デフォルト設定使用"
                     )
 
             # === SL距離計算（max_loss_ratio優先） ===
-            # Phase 52.4-B: ハードコード削除・設定ファイル一元管理（SL 0.7%）
-            # Phase 52.4-B: レジーム別設定が適用済み（上記で反映）
+            # Phase 51.6: ハードコード削除・設定ファイル一元管理（SL 0.7%）
+            # Phase 52.0: レジーム別設定が適用済み（上記で反映）
             max_loss_ratio = config.get(
                 "max_loss_ratio",
                 get_threshold("position_management.stop_loss.max_loss_ratio"),
@@ -252,14 +252,14 @@ class RiskManager:
             stop_loss_distance = sl_distance_from_ratio
 
             logger.info(
-                f"🎯 Phase 52.4-B SL距離計算: "
+                f"🎯 Phase 49.16 SL距離計算: "
                 f"max_loss={max_loss_ratio * 100:.1f}% → {sl_distance_from_ratio:.0f}円（固定採用）, "
                 f"ATR×{stop_loss_multiplier:.2f} → {sl_distance_from_atr:.0f}円（参考値） "
                 f"→ 採用={stop_loss_distance:.0f}円({stop_loss_distance / current_price * 100:.2f}%)"
             )
 
             # === TP距離計算（min_profit_ratio優先） ===
-            # Phase 52.4-B: ハードコード削除・設定ファイル一元管理（TP 0.9%・RR比1.29:1）
+            # Phase 51.6: ハードコード削除・設定ファイル一元管理（TP 0.9%・RR比1.29:1）
             min_profit_ratio = config.get(
                 "min_profit_ratio",
                 get_threshold("position_management.take_profit.min_profit_ratio"),
@@ -279,7 +279,7 @@ class RiskManager:
             take_profit_distance = max(tp_distance_from_ratio, tp_distance_from_sl)
 
             logger.info(
-                f"🎯 Phase 52.4-B TP距離計算: "
+                f"🎯 Phase 49.16 TP距離計算: "
                 f"min_profit={min_profit_ratio * 100:.1f}% → {tp_distance_from_ratio:.0f}円, "
                 f"SL×{default_tp_ratio:.2f} → {tp_distance_from_sl:.0f}円 "
                 f"→ 採用={take_profit_distance:.0f}円({take_profit_distance / current_price * 100:.2f}%)"
@@ -305,7 +305,7 @@ class RiskManager:
                 else abs((current_price - take_profit) / (stop_loss - current_price))
             )
             logger.info(
-                f"✅ Phase 52.4-B TP/SL確定: "
+                f"✅ Phase 49.16 TP/SL確定: "
                 f"エントリー={current_price:.0f}円, "
                 f"SL={stop_loss:.0f}円({abs(stop_loss - current_price) / current_price * 100:.2f}%), "
                 f"TP={take_profit:.0f}円({abs(take_profit - current_price) / current_price * 100:.2f}%), "

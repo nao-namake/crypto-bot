@@ -1,20 +1,23 @@
 """
-バックテストランナー - Phase 52.4
+バックテストランナー - Phase 49完了
 
-バックテストモード実行・戦略検証・パフォーマンス分析を担当。
+Phase 49完了: バックテスト完全改修（信頼性100%達成）
+- 戦略シグナル事前計算: 全時点で実戦略を実行・look-ahead bias完全防止
+- TP/SL決済ロジック実装: 各時点の高値・安値でTP/SL判定・リアル取引完全再現
+- TradeTracker統合: エントリー/エグジットペアリング・損益計算・パフォーマンス指標算出
+- matplotlib可視化システム: 4種類グラフ（エクイティカーブ・損益分布・ドローダウン・価格チャート）
+- ライブモード完全一致: バックテスト結果とライブモード取引判定が100%一致・SELL判定正常化
+- 品質保証: 1,097テスト100%成功・66.72%カバレッジ達成
 
-機能:
-- 戦略シグナル事前計算（look-ahead bias完全防止）
-- TP/SL決済ロジック（高値・安値判定・リアル取引再現）
-- TradeTracker統合（エントリー/エグジットペアリング・損益計算）
-- matplotlib可視化（エクイティカーブ・損益分布・ドローダウン・価格チャート）
-- CSV履歴データ読込（4h足・15m足）
-- バックテスト高速化（特徴量事前計算・ML予測事前計算）
+Phase 35: バックテスト10倍高速化実装（6-8時間→45分）
+- 特徴量事前計算: 288分→0秒（無限倍高速化）・265,130件/秒処理
+- ML予測事前計算: 15分→0.3秒（3,000倍高速化）・10,063件/秒処理
 
 設計原則:
-- Look-ahead bias完全防止
-- リアル取引完全再現
-- 正確な損益計算・パフォーマンス指標
+- Look-ahead bias完全防止（実戦略シグナル事前計算）
+- リアル取引完全再現（TP/SL決済ロジック実装）
+- TradeTrackerによる正確な損益計算
+- matplotlib詳細可視化レポート生成
 """
 
 import asyncio
@@ -193,7 +196,7 @@ class BacktestRunner(BaseRunner):
 
         self.logger.warning(
             f"🔬 データサンプリング開始: {sampling_ratio * 100:.0f}% "
-            "(Optuna最適化高速化・Phase 40.5)"
+            f"(Optuna最適化高速化・Phase 40.5)"
         )
 
         for timeframe in self.csv_data.keys():
@@ -251,7 +254,7 @@ class BacktestRunner(BaseRunner):
                     continue
 
                 # Phase 35.2: 詳細ログ削除（高速化）
-                # 未使用: tf_start = time.time()
+                tf_start = time.time()
 
                 # 同期版特徴量生成（全データ一括計算）
                 features_df = feature_gen.generate_features_sync(df)
@@ -334,8 +337,7 @@ class BacktestRunner(BaseRunner):
             self.logger.warning(f"✅ {len(strategy_names)}戦略でバックテスト実行: {strategy_names}")
 
             # 進捗報告用
-            progress_percentage = get_threshold("backtest.progress_report_percentage", 10)
-            progress_interval = max(1, total_rows // progress_percentage)
+            progress_interval = max(1, total_rows // 10)  # 10%ごとに報告
 
             # 各タイムスタンプで過去データのみ使用して戦略実行
             for i in range(total_rows):
@@ -353,8 +355,7 @@ class BacktestRunner(BaseRunner):
                     )
 
                 # データ不足時は0.0で埋める（最初の数行）
-                min_data_rows = get_threshold("backtest.strategy_signal_min_data_rows", 20)
-                if len(historical_data) < min_data_rows:
+                if len(historical_data) < 20:  # 最小データ数チェック
                     for col in strategy_signal_columns.keys():
                         strategy_signal_columns[col].append(0.0)
                     continue
@@ -590,7 +591,7 @@ class BacktestRunner(BaseRunner):
                         if not self.drawdown_manager.check_trading_allowed(self.current_timestamp):
                             # 取引停止中（cooldown期間）
                             self.logger.debug(
-                                "⏸️ Phase 52.2: DrawdownManager制限により取引スキップ "
+                                f"⏸️ Phase 52.2: DrawdownManager制限により取引スキップ "
                                 f"({self.current_timestamp})"
                             )
                             continue  # 次の5分間隔へスキップ
@@ -682,7 +683,7 @@ class BacktestRunner(BaseRunner):
 
         finally:
             # Phase 51.8-J4-H: クリーンアップ保証（成功・失敗問わず実行）
-            self.logger.warning("🔄 バックテスト後処理開始: 残ポジション決済・最終レポート生成")
+            self.logger.warning(f"🔄 バックテスト後処理開始: 残ポジション決済・最終レポート生成")
 
             # 残ポジション強制決済
             await self._force_close_remaining_positions()
@@ -826,14 +827,14 @@ class BacktestRunner(BaseRunner):
                                 pnl, strategy_name, current_time=timestamp
                             )
                             self.logger.debug(
-                                "📊 Phase 52.2: DrawdownManager更新 - "
+                                f"📊 Phase 52.2: DrawdownManager更新 - "
                                 f"残高: ¥{new_balance:,.0f}, PnL: {pnl:+.0f}円, 戦略: {strategy_name}, "
                                 f"時刻: {timestamp}"
                             )
 
                         # Phase 51.8-J4-D再修正: WARNINGレベルでログ出力（バックテストモードで可視化）
                         self.logger.warning(
-                            "💰 Phase 51.8-J4-D/E: 決済処理 - "
+                            f"💰 Phase 51.8-J4-D/E: 決済処理 - "
                             f"証拠金返還: +¥{margin_to_return:,.0f}, "
                             f"手数料リベート: +¥{abs(exit_fee_amount):,.2f}, "
                             f"{trigger_type}決済損益: {pnl:+.0f}円 → 残高: ¥{new_balance:,.0f} "
@@ -875,7 +876,7 @@ class BacktestRunner(BaseRunner):
                             )
 
                         self.logger.info(
-                            "✅ Phase 49.2: ポジション決済完了 - "
+                            f"✅ Phase 49.2: ポジション決済完了 - "
                             f"ID: {order_id}, {trigger_type}価格: {exit_price:.0f}円"
                         )
 
@@ -923,7 +924,7 @@ class BacktestRunner(BaseRunner):
                 return
 
             self.logger.warning(
-                "🔄 Phase 51.8-J4-H: 残ポジション強制決済開始 - "
+                f"🔄 Phase 51.8-J4-H: 残ポジション強制決済開始 - "
                 f"残{len(positions)}件 @ {final_price:.0f}円 ({final_timestamp})"
             )
 
@@ -934,14 +935,14 @@ class BacktestRunner(BaseRunner):
                 side = position.get("side")  # "buy" or "sell"
                 amount = position.get("amount")
                 entry_price = position.get("price")
-                # 未使用: strategy_name = position.get("strategy_name", "unknown")
+                strategy_name = position.get("strategy_name", "unknown")
 
                 try:
                     # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
                     # Phase 51.8-J4-D: 証拠金返還処理
                     entry_order_total = entry_price * amount
                     margin_to_return = entry_order_total / 4  # エントリー時の証拠金
-                    # 未使用: current_balance = self.orchestrator.execution_service.virtual_balance
+                    current_balance = self.orchestrator.execution_service.virtual_balance
                     self.orchestrator.execution_service.virtual_balance += margin_to_return
 
                     # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
@@ -1203,21 +1204,25 @@ class BacktestRunner(BaseRunner):
         enabled=false: 戦略評価モード（制限なし）
         enabled=true: 本番シミュレーションモード（-20%制限適用）
         """
-        from ...core.config import get_features_config
+        from ...core.config.feature_flags import get_feature_flag
         from ...trading.risk.drawdown import DrawdownManager
 
         # features.yamlから設定読み込み
-        features_config = get_features_config()
-        backtest_config = features_config.get("development", {}).get("backtest", {})
-        drawdown_config = backtest_config.get("drawdown_limits", {})
-
-        drawdown_enabled = drawdown_config.get("enabled", False)
+        drawdown_enabled = get_feature_flag(
+            "development.backtest.drawdown_limits.enabled", False
+        )
 
         if drawdown_enabled:
             # 本番シミュレーションモード: DrawdownManager有効化
-            max_drawdown_ratio = drawdown_config.get("max_drawdown_ratio", 0.2)
-            consecutive_loss_limit = drawdown_config.get("consecutive_loss_limit", 8)
-            cooldown_hours = drawdown_config.get("cooldown_hours", 6)
+            max_drawdown_ratio = get_feature_flag(
+                "development.backtest.drawdown_limits.max_drawdown_ratio", 0.2
+            )
+            consecutive_loss_limit = get_feature_flag(
+                "development.backtest.drawdown_limits.consecutive_loss_limit", 8
+            )
+            cooldown_hours = get_feature_flag(
+                "development.backtest.drawdown_limits.cooldown_hours", 6
+            )
 
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=max_drawdown_ratio,
@@ -1226,13 +1231,13 @@ class BacktestRunner(BaseRunner):
                 mode="backtest",  # バックテストモード（状態永続化は無効）
             )
 
-            # 初期残高設定（unified.yamlから取得・Phase 53.6: 10万円戦略評価用）
+            # 初期残高設定（unified.yamlから取得）
             initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
             self.drawdown_manager.initialize_balance(initial_balance)
 
             self.logger.warning(
-                "✅ DrawdownManager有効化（本番シミュレーションモード）: "
-                f"DD制限={max_drawdown_ratio * 100:.0f}%, "
+                f"✅ DrawdownManager有効化（本番シミュレーションモード）: "
+                f"DD制限={max_drawdown_ratio*100:.0f}%, "
                 f"連敗制限={consecutive_loss_limit}回, "
                 f"クールダウン={cooldown_hours}時間"
             )

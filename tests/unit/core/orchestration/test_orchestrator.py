@@ -423,8 +423,8 @@ class TestGetActualBalance:
         mock_config = Mock()
         mock_config.mode = "live"
 
-        # BitbankClient モック（Phase 53.4: AsyncMockに変更）
-        mock_client = AsyncMock()
+        # BitbankClient モック
+        mock_client = Mock()
         mock_client.fetch_balance.return_value = {"JPY": {"free": 15000.0, "total": 15000.0}}
         mock_bitbank_class.return_value = mock_client
 
@@ -448,8 +448,8 @@ class TestGetActualBalance:
         unified_config.mode_balances = {"live": {"initial_balance": 10000.0}}
         mock_load_config.return_value = unified_config
 
-        # BitbankClient モック（残高0円）（Phase 53.4: AsyncMockに変更）
-        mock_client = AsyncMock()
+        # BitbankClient モック（残高0円）
+        mock_client = Mock()
         mock_client.fetch_balance.return_value = {"JPY": {"free": 0.0, "total": 0.0}}
         mock_bitbank_class.return_value = mock_client
 
@@ -475,8 +475,8 @@ class TestGetActualBalance:
         unified_config.mode_balances = {"live": {"initial_balance": 10000.0}}
         mock_load_config.return_value = unified_config
 
-        # BitbankClient モック（API Error）（Phase 53.4: AsyncMockに変更）
-        mock_client = AsyncMock()
+        # BitbankClient モック（API Error）
+        mock_client = Mock()
         mock_client.fetch_balance.side_effect = ExchangeAPIError("Auth failed")
         mock_bitbank_class.return_value = mock_client
 

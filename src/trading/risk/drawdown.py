@@ -1,11 +1,11 @@
 """
-ドローダウン管理システム - Phase 52.4-B完了
+ドローダウン管理システム - Phase 49完了
 
-主要機能：
+Phase 26完了・Phase 36 Graceful Degradation統合：
 - 最大ドローダウン監視（20%制限）
-- 連続損失管理（8回制限）
-- クールダウン機能（6時間）
-- 状態永続化（Local Storage）
+- 連続損失管理（8回制限・Phase 26最適化）
+- クールダウン機能（6時間・Phase 26短縮）
+- 状態永続化（Local + GCS）
 """
 
 import json
@@ -45,7 +45,7 @@ class DrawdownManager:
     - 最大ドローダウン監視
     - 連続損失カウント
     - クールダウン期間管理
-    - 状態永続化（ローカルストレージ）
+    - 状態永続化（ローカル + GCS）
     """
 
     def __init__(
@@ -89,25 +89,13 @@ class DrawdownManager:
 
         self.logger = get_logger()
 
-        # 状態永続化設定（Phase 52.4: モード別パス対応）
+        # 状態永続化設定
         persistence_config = self.config.get("persistence", {})
-
-        # モード別パステンプレート取得（unified.yamlから）
-        # Config objectは取得できないため、persistence_configから直接取得
-        # フォールバックとしてハードコード値を使用
-        local_path_template = persistence_config.get(
-            "local_path_template", "src/core/state/{mode}/drawdown_state.json"
-        )
-        gcs_path_template = persistence_config.get(
-            "gcs_path_template", "drawdown/{mode}/state.json"
-        )
-
-        # パステンプレートを実モードで置換
         self.local_state_path = persistence_config.get(
-            "local_path", local_path_template.format(mode=self.mode)
+            "local_path", "src/core/state/drawdown_state.json"
         )
         self.gcs_bucket = persistence_config.get("gcs_bucket")
-        self.gcs_path = persistence_config.get("gcs_path", gcs_path_template.format(mode=self.mode))
+        self.gcs_path = persistence_config.get("gcs_path")
 
         # 状態復元
         self._load_state()
@@ -262,7 +250,7 @@ class DrawdownManager:
         }
 
     def _save_state(self) -> None:
-        """状態保存（ローカルストレージ）"""
+        """状態保存（ローカル + GCS）"""
         try:
             # バックテストモードでは保存しない
             if self.mode == "backtest":

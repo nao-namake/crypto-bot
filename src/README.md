@@ -1,24 +1,6 @@
 # src/ - AI自動取引システム実装
 
-**Phase 52.4-B完了**のAI自動取引システム実装。55特徴量→6戦略→ML予測→リスク管理→取引実行の完全自動化レイヤードアーキテクチャ。コード品質改善・Phase参照統一67%削減・設定ファイル統合により、保守性+25%向上を達成。
-
-## 📋 Phase 52.4-B完了（2025/11/17）
-
-**改善内容**:
-- **Phase参照統一**: src/フォルダ全50ファイル・Phase参照67%削減達成
-- **ハードコード値削減**: 設定ファイル化・`get_file_config()`パターン完全適用
-- **Docstring更新**: Phase 52.4-B対応内容反映・最新アーキテクチャ文書化
-- **コード品質**: 1,153テスト100%成功・68.77%カバレッジ達成
-
-**設定ファイル統合**:
-- `unified.yaml`: logging設定集約・デフォルト値明示
-- `thresholds.yaml`: ML閾値・リスク管理設定集約
-- `features.yaml`: 機能トグル・バックテスト設定集約
-
-**効果**:
-- **保守性**: +25%向上（Phase参照削減・設定外部化）
-- **可読性**: +30%向上（Docstring最新化・構造明確化）
-- **開発速度**: +20%向上（設定一元化・変更容易性向上）
+**Phase 49完了**のAI自動取引システム実装。55特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化レイヤードアーキテクチャ。バックテスト完全改修・確定申告対応・週間レポート実装により、企業級AI自動取引システムを実現。
 
 ## 📂 システム構成
 
@@ -40,7 +22,7 @@ src/
 │   └── feature_generator.py          # 15特徴量生成・統合管理
 ├── strategies/                    # 戦略システム → [詳細](strategies/README.md)
 │   ├── base/                          # 戦略基盤・統合管理
-│   ├── implementations/               # 6戦略実装（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）
+│   ├── implementations/               # 5戦略実装（ATR・MochiPoy・MTF・Donchian・ADX）
 │   └── utils/                         # 戦略共通処理
 ├── ml/                           # 機械学習システム
 │   ├── models.py                      # 個別MLモデル実装
@@ -89,7 +71,7 @@ src/
         ↓
 3. 【ml/】ProductionEnsemble → 3モデル予測統合
         ↓
-4. 【strategies/】6戦略実行 → シグナル統合・重み付け
+4. 【strategies/】5戦略実行 → シグナル統合・重み付け
         ↓
 5. 【trading/】リスク評価 → 3段階判定（APPROVED/CONDITIONAL/DENIED）
         ↓
@@ -123,23 +105,20 @@ src/
 **主要モジュール**:
 - `feature_generator.py`: 50基本特徴量生成・feature_manager連携・全システム統合
 
-**生成特徴量（55特徴量 = 49基本 + 6戦略信号）**:
-- **基本特徴量（49個）**: close・volume・RSI・MACD・ATR・ボリンジャーバンド・EMA・出来高比率・Donchianチャネル・ADX・DI・時間的特徴量等
-- **戦略信号特徴量（6個）**: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
-- **Strategy-Aware ML**: 訓練時と推論時の完全一貫性確保・look-ahead bias防止
+**生成特徴量（55特徴量 = 50基本 + 5戦略信号）**:
+- **基本特徴量（50個）**: close・volume・RSI・MACD・ATR・ボリンジャーバンド・EMA・出来高比率・Donchianチャネル・ADX・DI等
+- **戦略信号特徴量（5個・Phase 41.8）**: ATRBased・MochiPoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength
+- **Phase 41.8 Strategy-Aware ML**: 訓練時と推論時の完全一貫性確保・look-ahead bias防止
 
 ### **4. strategies/ - 戦略システム** → **[詳細ドキュメント](strategies/README.md)**
-**目的**: 6戦略統合・シグナル生成・重み付け統合・動的戦略管理
+**目的**: 5戦略統合・シグナル生成・重み付け統合・競合解決
 
-**戦略実装（Phase 52.4）**:
+**戦略実装**:
 - **ATRBasedStrategy**: ボラティリティ分析・ボリンジャーバンド・RSI統合
+- **MochiPoyAlertStrategy**: 複合指標・EMA・MACD・RCI統合
+- **MultiTimeframeStrategy**: 4時間足トレンド・15分足タイミング統合
 - **DonchianChannelStrategy**: ブレイクアウト戦略・チャネル上下限突破
 - **ADXTrendStrengthStrategy**: トレンド強度分析・方向性指標統合
-- **BBReversalStrategy**: BB Reversal戦略・レンジ相場での平均回帰
-- **StochasticReversalStrategy**: Stochastic Reversal戦略・レンジ相場でのモメンタム逆張り
-- **MACDEMACrossoverStrategy**: MACD+EMA Crossover戦略・トレンド転換期の押し目買い・戻り売り
-
-**動的戦略管理基盤**: Registry Pattern・93%影響削減・拡張性大幅向上
 
 ### **5. ml/ - 機械学習システム**
 **目的**: 機械学習予測・アンサンブルモデル・モデル管理
@@ -149,10 +128,10 @@ src/
 - `ensemble.py`: ProductionEnsemble・3モデル統合（LightGBM 40%・XGBoost 40%・RandomForest 20%）
 - `model_manager.py`: モデル管理・バージョニング・週次学習対応
 
-**Strategy-Aware ML（Phase 52.4）**:
-- **55特徴量学習**: 49基本 + 6戦略信号特徴量
+**Phase 41.8 Strategy-Aware ML**:
+- **55特徴量学習**: 50基本特徴量 + 5戦略信号特徴量
 - **訓練/推論一貫性**: 実戦略シグナルを訓練時に生成・look-ahead bias完全防止
-- **2段階Graceful Degradation**: ensemble_full.pkl（55特徴量）→ ensemble_basic.pkl（49特徴量）→ DummyModel
+- **F1スコア**: XGBoost 0.593・RandomForest 0.614・LightGBM 0.489達成
 
 ### **6. trading/ - 取引実行・リスク管理層** → **[詳細ドキュメント](trading/README.md)**
 **目的**: リスク管理・異常検知・ドローダウン管理・注文実行
@@ -172,12 +151,12 @@ src/
 - `reporter.py`: JSON形式レポート生成・統計分析
 - `logs/`: バックテスト結果出力先（空・実行時自動作成）
 
-**バックテスト完全改修（Phase 49-52）**:
+**Phase 49完了 - バックテスト完全改修**:
 - **戦略シグナル事前計算**: 全時点で実戦略を実行・look-ahead bias完全防止
-- **TP/SL決済ロジック**: 各時点の高値・安値でTP/SL判定・リアル取引完全再現
-- **TradeTracker統合**: エントリー/エグジットペアリング・損益計算
-- **matplotlib可視化**: 4種類グラフ（エクイティカーブ・損益分布・ドローダウン・価格チャート）
-- **信頼性100%達成**: ライブモード完全一致・SELL判定正常化
+- **TP/SL決済ロジック実装**: 各時点の高値・安値でTP/SL判定・リアル取引完全再現
+- **TradeTracker統合**: エントリー/エグジットペアリング・損益計算・パフォーマンス指標算出
+- **matplotlib可視化システム**: 4種類グラフ（エクイティカーブ・損益分布・ドローダウン・価格チャート）
+- **バックテスト信頼性100%達成**: ライブモード完全一致・SELL判定正常化
 
 ## 🚀 使用方法
 
@@ -261,9 +240,9 @@ python -m pytest tests/unit/ml/ -v
 python -m pytest tests/ --cov=src --cov-report=html
 ```
 
-### **品質指標（Phase 52.4-B更新）**
-- **テスト成功率**: 1,153テスト100%成功
-- **コードカバレッジ**: 68.77%達成
+### **品質指標（Phase 49更新）**
+- **テスト成功率**: 1,065テスト100%成功
+- **コードカバレッジ**: 66.72%達成
 - **実行時間**: システム全体テスト80秒以内
 
 ### **継続的品質保証**
@@ -303,7 +282,7 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 ## 📈 パフォーマンス指標
 
 ### **実行パフォーマンス**
-- **取引サイクル**: 55特徴量生成→6戦略→ML予測→リスク評価→実行（2秒以内）
+- **取引サイクル**: 15特徴量生成→5戦略→ML予測→リスク評価→実行（2秒以内）
 - **データ取得**: Bitbank API・35秒間隔・レート制限遵守
 - **メモリ使用量**: 通常運用500MB・バックテスト時1GB以下
 
@@ -314,24 +293,24 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ## ⚠️ 重要事項
 
-### **システム要件（Phase 52.4-B完了）**
+### **システム要件（Phase 49完了）**
 - **Python**: 3.13推奨（最新MLライブラリ対応）・async/await完全対応・型ヒント拡充
 - **メモリ**: 本番運用1GB・バックテスト2GB推奨
 - **ディスク**: キャッシュ・ログ・モデル用に5GB以上
-- **可視化ライブラリ**: matplotlib・Pillow（週間レポート・バックテストグラフ用）
-- **コード品質**: 1,153テスト100%成功・68.77%カバレッジ達成
+- **可視化ライブラリ**: matplotlib・Pillow（Phase 48-49週間レポート・バックテストグラフ用）
+- **コード品質**: Phase 49完了・バックテスト完全改修・確定申告対応・週間レポート実装
 
 ### **運用制約**
 - **API制限**: Bitbank 35秒間隔・接続数制限・レート制限対応
 - **リスク管理**: Kelly基準・20%ドローダウン制限・連続5損失停止
 - **監視必須**: Discord 3階層通知・Cloud Run監視・ヘルスチェック
 
-### **開発制約（Phase 52.4-B完了）**
-- **テスト必須**: scripts/testing/checks.sh実行・カバレッジ68.77%維持
-- **品質ゲート**: CI/CD自動チェック・1,153テスト100%成功必須
+### **開発制約（Phase 49完了）**
+- **テスト必須**: scripts/testing/checks.sh実行・カバレッジ66.72%維持
+- **品質ゲート**: CI/CD自動チェック・1,065テスト100%成功必須
 - **コード品質**: flake8・black・isort通過・SSL証明書セキュリティ対応
 - **設定分離**: 本番・バックテスト・開発環境完全分離
-- **Phase参照統一**: 67%削減達成・設定ファイル統合・保守性+25%向上
+- **Phase 49完了**: バックテスト完全改修・確定申告対応・週間レポート実装
 
 ### **依存関係**
 - **外部ライブラリ**: pandas・numpy・ccxt・lightgbm・xgboost・scikit-learn
@@ -348,17 +327,13 @@ LOG_LEVEL=INFO      # DEBUG/INFO/WARNING/ERROR
 
 ---
 
-**AI自動取引システム（Phase 52.4-B完了）**: 55特徴量→6戦略→ML予測→リスク管理→取引実行の完全自動化。
+**AI自動取引システム（Phase 49完了）**: 55特徴量→5戦略→ML予測→リスク管理→取引実行の完全自動化。
 
-**Phase 52.4-B成果**:
-- **コード品質改善**: Phase参照統一67%削減・ハードコード値設定ファイル化・保守性+25%向上
-- **src/フォルダ完了**: 50ファイル完全改善・設定外部化・可読性+30%向上
-- **品質基準達成**: 1,153テスト100%成功・68.77%カバレッジ達成・開発速度+20%向上
+**Phase 49成果**:
+- **バックテスト完全改修**: 戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker統合・matplotlib可視化・信頼性100%達成
+- **確定申告対応**: SQLite取引記録・移動平均法損益計算・CSV出力・作業時間95%削減（10時間→30分）
+- **週間レポート**: Discord週間レポート・損益グラフ・通知99%削減（300-1,500回/月→4回/月）・コスト35%削減
+- **統合TP/SL**: 注文数91.7%削減（24注文→2注文）・トレーリングストップ・状態永続化
+- **Strategy-Aware ML**: 55特徴量学習・ML統合率100%達成・訓練/推論一貫性確保
 
-**Phase 52-49主要機能**:
-- **動的戦略管理**: Registry Pattern・6戦略統合・93%影響削減・拡張性大幅向上
-- **バックテスト完全改修**: 戦略シグナル事前計算・TP/SL決済ロジック・matplotlib可視化・信頼性100%達成
-- **週間レポート**: Discord週間レポート・損益グラフ・通知99%削減・コスト35%削減
-- **確定申告対応**: SQLite取引記録・移動平均法損益計算・作業時間95%削減
-
-1,153テスト100%成功・68.77%カバレッジ達成・企業級AI自動取引システム完成。
+1,065テスト100%成功・66.72%カバレッジ達成・企業級AI自動取引システム完成。

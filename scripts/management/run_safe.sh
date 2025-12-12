@@ -281,9 +281,9 @@ setup_environment() {
 
     log_info "🎯 動作モード: $mode"
 
-    # Phase 52.4: ペーパートレード時のシステム整合性検証
+    # Phase 49.14: ペーパートレード時のシステム整合性検証
     if [ "$mode" == "paper" ] && [ -f "$PROJECT_ROOT/scripts/testing/validate_system.sh" ]; then
-        log_info "🔍 Phase 52.4: システム整合性検証実行中..."
+        log_info "🔍 Phase 49.14: システム整合性検証実行中..."
         if bash "$PROJECT_ROOT/scripts/testing/validate_system.sh" >/dev/null 2>&1; then
             log_info "✅ システム整合性検証完了"
         else
@@ -325,8 +325,8 @@ run_bot() {
 
     # ペーパーモード時のドローダウン自動リセット
     if [ "$mode" = "paper" ]; then
-        # Phase 52.4: モード別パス対応
-        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/${mode}/drawdown_state.json"
+        # Phase 38修正: DrawdownManagerが実際に使用するパスに統一
+        DRAWDOWN_FILE="$PROJECT_ROOT/src/core/state/drawdown_state.json"
         if [ -f "$DRAWDOWN_FILE" ]; then
             log_info "🔄 ドローダウン状態リセット（ペーパーモード）"
             rm -f "$DRAWDOWN_FILE"

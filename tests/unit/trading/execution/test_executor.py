@@ -34,10 +34,10 @@ from src.trading import (
 
 @pytest.fixture
 def mock_bitbank_client():
-    """BitbankClientモック（Phase 53.9: create_orderをAsyncMockに変更）"""
+    """BitbankClientモック"""
     client = AsyncMock()
     client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
-    client.create_order = AsyncMock(
+    client.create_order = MagicMock(
         return_value={
             "id": "order_123",
             "price": 14000000.0,
@@ -485,9 +485,9 @@ class TestExecuteTradePaperMode:
             entry_price=0.0,  # 価格なし
         )
 
-        # Phase 53.8: fetch_tickerをAsyncMockに変更
-        mock_client = AsyncMock()
-        mock_client.fetch_ticker = AsyncMock(return_value={"last": 14000000.0})
+        # AsyncMock with proper return value
+        mock_client = MagicMock()
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 14000000.0})
 
         service = ExecutionService(mode="paper", bitbank_client=mock_client)
         result = await service.execute_trade(eval_no_price)
@@ -1129,14 +1129,12 @@ class TestPhase516AtomicEntry:
 
     @pytest.fixture
     def mock_bitbank_client(self):
-        """BitbankClientのモック（Phase 53.9: 非同期メソッドをAsyncMockに変更）"""
-        client = AsyncMock()
-        client.create_order = AsyncMock(
+        """BitbankClientのモック"""
+        client = MagicMock()
+        client.create_order = MagicMock(
             return_value={"order_id": "entry123", "price": 14000000.0, "amount": 0.0001}
         )
-        client.cancel_order = AsyncMock(return_value={"success": True})
-        # Phase 53.9: fetch_active_ordersを追加（get_active_ordersから名前変更）
-        client.fetch_active_orders = AsyncMock(return_value={"orders": []})
+        client.cancel_order = MagicMock(return_value={"success": True})
         return client
 
     @pytest.fixture
@@ -1187,16 +1185,13 @@ class TestPhase516AtomicEntry:
         """Phase 51.6: TP注文配置リトライ - 初回成功"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         service.stop_manager = mock_stop_manager
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # TP注文成功をモック
         mock_stop_manager.place_take_profit = AsyncMock(
             return_value={"order_id": "tp123", "price": 14126000.0}
         )
 
-        # Phase 52.5: _place_tp_with_retryはatomic_entry_managerに移動
-        result = await service.atomic_entry_manager.place_tp_with_retry(
+        result = await service._place_tp_with_retry(
             side="buy",
             amount=0.0001,
             entry_price=14000000.0,
@@ -1215,8 +1210,6 @@ class TestPhase516AtomicEntry:
         """Phase 51.6: TP注文配置リトライ - 2回目成功"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         service.stop_manager = mock_stop_manager
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # 1回目失敗、2回目成功をモック
         mock_stop_manager.place_take_profit = AsyncMock(
@@ -1226,8 +1219,7 @@ class TestPhase516AtomicEntry:
             ]
         )
 
-        # Phase 52.5: _place_tp_with_retryはatomic_entry_managerに移動
-        result = await service.atomic_entry_manager.place_tp_with_retry(
+        result = await service._place_tp_with_retry(
             side="buy",
             amount=0.0001,
             entry_price=14000000.0,
@@ -1246,15 +1238,12 @@ class TestPhase516AtomicEntry:
         """Phase 51.6: TP注文配置リトライ - 全て失敗"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         service.stop_manager = mock_stop_manager
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # 全ての試行で失敗
         mock_stop_manager.place_take_profit = AsyncMock(side_effect=Exception("永続的エラー"))
 
         with pytest.raises(Exception, match="永続的エラー"):
-            # Phase 52.5: _place_tp_with_retryはatomic_entry_managerに移動
-            await service.atomic_entry_manager.place_tp_with_retry(
+            await service._place_tp_with_retry(
                 side="buy",
                 amount=0.0001,
                 entry_price=14000000.0,
@@ -1269,16 +1258,13 @@ class TestPhase516AtomicEntry:
         """Phase 51.6: SL注文配置リトライ - 成功"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         service.stop_manager = mock_stop_manager
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # SL注文成功をモック
         mock_stop_manager.place_stop_loss = AsyncMock(
             return_value={"order_id": "sl123", "trigger_price": 13900000.0}
         )
 
-        # Phase 52.5: _place_sl_with_retryはatomic_entry_managerに移動
-        result = await service.atomic_entry_manager.place_sl_with_retry(
+        result = await service._place_sl_with_retry(
             side="buy",
             amount=0.0001,
             entry_price=14000000.0,
@@ -1294,15 +1280,11 @@ class TestPhase516AtomicEntry:
     async def test_rollback_entry_cancels_all_orders(self, mock_bitbank_client):
         """Phase 51.6: Atomic Entryロールバック - 全注文キャンセル"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # キャンセル成功をモック
-        mock_bitbank_client.cancel_order = AsyncMock(return_value={"success": True})
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
 
-        # Phase 52.5: _rollback_entryはatomic_entry_managerに移動
-        await service.atomic_entry_manager.rollback_entry(
+        await service._rollback_entry(
             entry_order_id="entry123",
             tp_order_id="tp123",
             sl_order_id="sl123",
@@ -1319,13 +1301,9 @@ class TestPhase516AtomicEntry:
     async def test_rollback_entry_partial_orders(self, mock_bitbank_client):
         """Phase 51.6: Atomic Entryロールバック - 部分的な注文のみキャンセル"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
         # TP注文のみ存在（SLは配置前に失敗）
-        # Phase 52.5: _rollback_entryはatomic_entry_managerに移動
-        await service.atomic_entry_manager.rollback_entry(
+        await service._rollback_entry(
             entry_order_id="entry123",
             tp_order_id="tp123",
             sl_order_id=None,  # SL未配置
@@ -1355,7 +1333,7 @@ class TestPhase516AtomicEntry:
             "risk.require_tpsl_recalculation": False,  # 任意モード
         }.get(key, default)
 
-        final_tp, final_sl = await service.tp_sl_calculator.calculate(
+        final_tp, final_sl = await service._calculate_tp_sl_for_live_trade(
             evaluation=sample_evaluation,
             result=sample_execution_result,
             side="buy",
@@ -1375,12 +1353,9 @@ class TestPhase516AtomicEntry:
     async def test_cleanup_old_tp_sl_before_entry_success(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - 古いTP/SL削除成功"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック（BUYエントリー想定）（Phase 53.9: fetch_active_ordersに変更）
-        mock_bitbank_client.fetch_active_orders.return_value = {
+        # アクティブ注文モック（BUYエントリー想定）
+        mock_bitbank_client.get_active_orders.return_value = {
             "orders": [
                 # 削除対象: 古いBUY側のTP（SELL limit注文）
                 {"order_id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
@@ -1394,11 +1369,10 @@ class TestPhase516AtomicEntry:
         # virtual_positionsは空（新規エントリー想定）
         service.virtual_positions = []
 
-        await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
+        await service._cleanup_old_tp_sl_before_entry(
             side="buy",
             symbol="BTC/JPY",
             entry_order_id="entry123",
-            virtual_positions=service.virtual_positions,
         )
 
         # 2件の古いTP/SL注文が削除される
@@ -1409,12 +1383,9 @@ class TestPhase516AtomicEntry:
     async def test_cleanup_old_tp_sl_before_entry_with_protected_orders(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブポジションのTP/SL保護"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック（Phase 53.9: fetch_active_ordersに変更）
-        mock_bitbank_client.fetch_active_orders.return_value = {
+        # アクティブ注文モック
+        mock_bitbank_client.get_active_orders.return_value = {
             "orders": [
                 # 保護対象: アクティブポジションのTP
                 {"order_id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
@@ -1435,11 +1406,10 @@ class TestPhase516AtomicEntry:
             }
         ]
 
-        await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
+        await service._cleanup_old_tp_sl_before_entry(
             side="buy",
             symbol="BTC/JPY",
             entry_order_id="entry123",
-            virtual_positions=service.virtual_positions,
         )
 
         # 古いTP注文のみ削除（アクティブポジションのTP/SLは保護）
@@ -1449,18 +1419,14 @@ class TestPhase516AtomicEntry:
     async def test_cleanup_old_tp_sl_before_entry_no_orders(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブ注文なし"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文なし（Phase 53.9: fetch_active_ordersに変更）
-        mock_bitbank_client.fetch_active_orders.return_value = {"orders": []}
+        # アクティブ注文なし
+        mock_bitbank_client.get_active_orders.return_value = {"orders": []}
 
-        await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
+        await service._cleanup_old_tp_sl_before_entry(
             side="buy",
             symbol="BTC/JPY",
             entry_order_id="entry123",
-            virtual_positions=service.virtual_positions,
         )
 
         # 削除実行されない
@@ -1469,21 +1435,17 @@ class TestPhase516AtomicEntry:
     async def test_cleanup_old_tp_sl_before_entry_error_handling(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - エラーハンドリング"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
-        # fetch_active_orders失敗（Phase 53.9: メソッド名変更）
-        mock_bitbank_client.fetch_active_orders.side_effect = Exception("API error")
+        # get_active_orders失敗
+        mock_bitbank_client.get_active_orders.side_effect = Exception("API error")
 
         # エラーが発生してもクリーンアップメソッド自体は例外をraiseしない
         # （警告ログのみ・処理継続）
         try:
-            await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
+            await service._cleanup_old_tp_sl_before_entry(
                 side="buy",
                 symbol="BTC/JPY",
                 entry_order_id="entry123",
-                virtual_positions=service.virtual_positions,
             )
             # 正常終了（例外raiseされない）
         except Exception:
@@ -1492,12 +1454,9 @@ class TestPhase516AtomicEntry:
     async def test_cleanup_old_tp_sl_before_entry_sell_side(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - SELLエントリー側"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
-        # Phase 52.5: inject_servicesでatomic_entry_managerを初期化
-        mock_stop_manager = AsyncMock()
-        service.inject_services(stop_manager=mock_stop_manager)
 
-        # アクティブ注文モック（SELLエントリー想定）（Phase 53.9: fetch_active_ordersに変更）
-        mock_bitbank_client.fetch_active_orders.return_value = {
+        # アクティブ注文モック（SELLエントリー想定）
+        mock_bitbank_client.get_active_orders.return_value = {
             "orders": [
                 # 削除対象: 古いSELL側のTP（BUY limit注文）
                 {"order_id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},
@@ -1510,11 +1469,10 @@ class TestPhase516AtomicEntry:
 
         service.virtual_positions = []
 
-        await service.atomic_entry_manager.cleanup_old_tp_sl_before_entry(
+        await service._cleanup_old_tp_sl_before_entry(
             side="sell",  # SELLエントリー
             symbol="BTC/JPY",
             entry_order_id="entry123",
-            virtual_positions=service.virtual_positions,
         )
 
         # SELL側の古いTP/SL注文（BUY側）のみ削除

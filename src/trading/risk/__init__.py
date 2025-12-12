@@ -1,7 +1,7 @@
 """
 trading/risk層 - 統合リスク管理システム
 
-Phase 52.4-B完了
+Phase 49完了
 """
 
 from .anomaly import AnomalyAlert, AnomalyLevel, TradingAnomalyDetector

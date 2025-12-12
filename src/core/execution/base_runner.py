@@ -1,13 +1,15 @@
 """
-基底ランナークラス - Phase 52.4
+基底ランナークラス - Phase 49完了
 
 実行モードの共通機能・インターフェースを提供。
-3モード（backtest/paper/live）の共通基盤クラス。
+orchestrator.pyから分離した実行モード機能の基盤。
 
-機能:
+Phase 49完了:
 - 共通インターフェース定義（run・initialize_mode・cleanup_mode抽象メソッド）
-- 3モード共通機能（orchestrator参照・logger統合・config取得）
+- 3モード共通機能（orchestrator参照・logger統合・config取得・モード名自動設定）
 - ABC（Abstract Base Class）型安全設計
+
+Phase 28-29: 実行モード基底クラス設計・共通機能抽出完了
 """
 
 import asyncio
@@ -126,7 +128,7 @@ class BaseRunner(ABC):
         elif self.config.mode == "live":
             return get_threshold("execution.live_mode_interval_seconds", 180)
         else:
-            return get_threshold("execution.backtest_mode_interval_seconds", 1)
+            return 1  # バックテスト用
 
     async def _save_final_statistics(self):
         """最終統計保存（共通処理）"""

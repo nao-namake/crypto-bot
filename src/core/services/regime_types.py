@@ -1,14 +1,10 @@
 """
-市場レジーム分類定義 - Phase 52.4
+市場レジーム分類定義 - Phase 51.2-New
 
 市場状況を4段階に分類するEnum定義。
-レンジ型bot最適化のための市場状況分類システム（Phase 51.2-51.9）。
+レンジ型bot最適化のための市場状況分類システム。
 
-市場レジーム:
-- TIGHT_RANGE: 超狭レンジ
-- NORMAL_RANGE: 通常レンジ
-- TRENDING: トレンド
-- HIGH_VOLATILITY: 高ボラティリティ
+Phase 51.2-New: 市場状況分類器実装
 """
 
 from enum import Enum

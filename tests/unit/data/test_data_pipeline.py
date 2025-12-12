@@ -143,15 +143,15 @@ class TestDataValidation:
     def test_validate_ohlcv_data_high_lower_than_low(self, pipeline):
         """high < low は検証失敗"""
         invalid_data = [
-            [1704067200000, 14000000.0, 13900000.0, 14100000.0, 14050000.0, 1000.0]
-        ]  # high < low
+            [1704067200000, 14000000.0, 13900000.0, 14100000.0, 14050000.0, 1000.0]  # high < low
+        ]
         assert pipeline._validate_ohlcv_data(invalid_data) is False
 
     def test_validate_ohlcv_data_negative_volume(self, pipeline):
         """負のvolumeは検証失敗"""
         invalid_data = [
-            [1704067200000, 14000000.0, 14100000.0, 13900000.0, 14050000.0, -1000.0]
-        ]  # 負volume
+            [1704067200000, 14000000.0, 14100000.0, 13900000.0, 14050000.0, -1000.0]  # 負volume
+        ]
         assert pipeline._validate_ohlcv_data(invalid_data) is False
 
     def test_validate_ohlcv_data_non_numeric(self, pipeline):

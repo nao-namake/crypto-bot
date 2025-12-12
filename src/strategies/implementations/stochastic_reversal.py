@@ -1,5 +1,5 @@
 """
-Stochastic Reversal戦略 - Phase 52.4-B
+Stochastic Reversal戦略 - Phase 51.7 Day 4
 
 レンジ相場におけるモメンタム逆張り戦略。
 Stochastic指標の過買い・過売り領域からの反転を捉える。
@@ -10,7 +10,7 @@ Stochastic指標の過買い・過売り領域からの反転を捉える。
 - BUY信号: Stochastic過売り（K<20, D<20）+ ゴールデンクロス + RSI < 35
 - Dynamic confidence: 0.30-0.50（Stochastic値に基づく）
 
-Phase 52.4-B実装
+Phase 51.7 Day 4実装
 """
 
 from typing import Any, Dict, List, Optional

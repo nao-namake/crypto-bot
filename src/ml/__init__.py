@@ -1,10 +1,8 @@
 """
 ML層 - 機械学習システム統合
 
-最終更新: 2025/11/16 (Phase 52.4-B)
-
-CI/CD統合・手動実行監視・段階的デプロイ対応の包括的機械学習システム。
-保守性と性能のバランスを重視したシンプル設計。
+Phase 49完了: CI/CD統合・手動実行監視・段階的デプロイ対応の包括的機械学習システム
+保守性と性能のバランスを重視したシンプル設計
 
 構成:
 - models/: 個別モデル実装（LightGBM、XGBoost、RandomForest）
@@ -22,7 +20,7 @@ CI/CD統合・手動実行監視・段階的デプロイ対応の包括的機械
 
     # モデル管理
     manager = ModelManager()
-    version = manager.save_model(ensemble, description="Production ensemble")
+    version = manager.save_model(ensemble, description="Phase 49 ensemble")
 """
 
 from .ensemble import EnsembleModel, ProductionEnsemble, VotingMethod, VotingSystem

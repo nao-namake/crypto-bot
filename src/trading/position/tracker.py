@@ -1,5 +1,5 @@
 """
-ポジション追跡サービス - Phase 52.4-B完了
+ポジション追跡サービス - Phase 49完了
 
 仮想ポジションの管理と追跡を行う。
 """
@@ -12,8 +12,6 @@ from typing import Any, Dict, List, Optional
 from ...core.logger import get_logger
 
 # Sentinel value for explicitly clearing fields
-# Phase 42.2.7で導入・Phase 46で統合TP/SL削除により未使用
-# APIシグネチャ変更を避けるため保持（将来的な拡張用）
 _UNSET = object()
 
 
@@ -401,5 +399,6 @@ class PositionTracker:
         return self._average_entry_price
 
     # ========================================
-    # 個別TP/SL実装（デイトレード特化・Phase 52.4）
+    # Phase 46: 個別TP/SL実装（デイトレード特化）
     # ========================================
+    # デイトレード特化設計では個別TP/SL配置を採用

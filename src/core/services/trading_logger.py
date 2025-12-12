@@ -1,15 +1,17 @@
 """
-取引ログサービス - Phase 52.4
+取引ログサービス - Phase 49完了
 
-取引関連ログ機能。
+orchestrator.pyから分離した取引関連ログ機能。
 取引決定・実行結果・統計情報のログ出力を担当。
 
-主要機能:
+Phase 49完了:
 - 取引判定ログ出力（log_trade_decision・approved/conditional/denied）
 - 取引実行結果ログ（log_trade_execution・success/failure）
 - セッション統計ログ（log_session_stats・total_trades/pnl/win_rate）
 - decision_map（🟢取引承認・🟡条件付き承認・🔴取引拒否）
 - thresholds.yaml準拠設定管理
+
+Phase 28-29: 取引ログ機能分離・統計情報出力実装
 """
 
 from ..config import get_threshold

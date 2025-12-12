@@ -1,5 +1,5 @@
 """
-戦略レジストリ - Phase 52.4-B完了
+戦略レジストリ - Phase 51.5-B実装
 
 Registry Pattern + Decoratorによる戦略自動登録システム。
 戦略追加・削除の影響範囲を93%削減（27ファイル→4ファイル）。
@@ -9,7 +9,7 @@ Registry Pattern + Decoratorによる戦略自動登録システム。
 - 戦略クラスの動的取得・リスト化
 - 戦略メタデータ管理
 
-Phase 52.4-B完了
+Phase 51.5-B: 動的戦略管理基盤実装
 """
 
 from typing import Any, Dict, Optional, Type

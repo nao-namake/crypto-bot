@@ -1,5 +1,5 @@
 """
-統合リスク管理システム - Phase 52.4-B完了
+統合リスク管理システム - Phase 49完了
 
 IntegratedRiskManagerの新構造実装。
 Kelly基準ポジションサイジング、ドローダウン管理、異常検知を統合し、
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class IntegratedRiskManager:
     """
-    統合リスク管理システム（Phase 52.4-B完了）
+    統合リスク管理システム（Phase 38リファクタリング版）
 
     Kelly基準ポジションサイジング、ドローダウン管理、異常検知を統合し、
     包括的なリスク管理とトレード評価を提供
@@ -251,13 +251,13 @@ class IntegratedRiskManager:
                 denial_reasons.append(capital_usage_check["reason"])
                 self.logger.warning(f"🚫 残高利用率制限: {capital_usage_check['reason']}")
 
-            # 5. 保証金維持率監視（Phase 52.4: 80%未満でエントリー拒否）
+            # 5. 保証金維持率監視（Phase 43: 拒否機能追加）
             should_deny, margin_message = await self._check_margin_ratio(
                 current_balance, last_price, ml_prediction, strategy_signal
             )
             if should_deny and margin_message:
                 denial_reasons.append(margin_message)  # 拒否
-                self.logger.warning(f"🚫 Phase 52.4: 維持率制限: {margin_message}")
+                self.logger.warning(f"🚫 Phase 43: 維持率制限: {margin_message}")
             elif margin_message:
                 warnings.append(margin_message)  # 警告のみ
 
@@ -649,7 +649,7 @@ class IntegratedRiskManager:
         strategy_signal: Any,
     ) -> Tuple[bool, Optional[str]]:
         """
-        保証金維持率監視チェック（Phase 52.4: 80%未満でエントリー拒否）
+        保証金維持率監視チェック（Phase 50.4: API直接取得方式に変更）
 
         Args:
             current_balance: 現在の口座残高（円）
@@ -702,12 +702,12 @@ class IntegratedRiskManager:
             current_margin_ratio = margin_prediction.current_margin.margin_ratio
             estimated_position_value = margin_prediction.current_margin.position_value_jpy
 
-            # Phase 52.4: 維持率80%未満で新規エントリー拒否（確実な遵守）
+            # Phase 49.5: 維持率80%未満で新規エントリー拒否（確実な遵守）
             critical_threshold = get_threshold("margin.thresholds.critical", 80.0)
 
-            # Phase 52.4: 詳細ログ出力（ポジション価値追加）
+            # Phase 50.4: 詳細ログ出力（ポジション価値追加）
             self.logger.info(
-                f"📊 Phase 52.4 維持率チェック: "
+                f"📊 Phase 50.4 維持率チェック: "
                 f"残高={current_balance:.0f}円, "
                 f"現在ポジション={estimated_position_value:.0f}円, "
                 f"新規サイズ={estimated_new_position_size:.4f}BTC, "
@@ -718,7 +718,7 @@ class IntegratedRiskManager:
 
             if future_margin_ratio < critical_threshold:
                 deny_message = (
-                    f"🚨 Phase 52.4: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
+                    f"🚨 Phase 50.4: 維持率{critical_threshold:.0f}%未満予測 - エントリー拒否 "
                     f"(現在={current_margin_ratio:.1f}% → 予測={future_margin_ratio:.1f}% < {critical_threshold:.0f}%)"
                 )
                 self.logger.warning(deny_message)
@@ -734,12 +734,15 @@ class IntegratedRiskManager:
             return False, None  # 問題なし
 
         except Exception as e:
-            # Phase 52.4: エラー時は拒否（安全側に倒す）
+            # Phase 50.4: エラー時は拒否（安全側に倒す）
             self.logger.error(
-                f"❌ Phase 52.4: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
+                f"❌ Phase 50.4: 保証金監視チェックエラー - 安全のためエントリー拒否: {e}"
             )
             error_msg = f"🚨 保証金監視システムエラー - 安全のためエントリー拒否: {str(e)}"
-            return True, error_msg  # Phase 52.4: エラー時は拒否（安全側に倒す）
+            return True, error_msg  # Phase 50.4: エラー時は拒否（安全側に倒す）
+
+    # Phase 50.4: _get_current_position_value() と _estimate_current_position_value() を削除
+    # 理由: predict_future_margin()がAPI直接取得方式に変更されたため不要
 
     def _estimate_new_position_size(
         self, ml_confidence: float, btc_price: float, current_balance: float

@@ -1,230 +1,124 @@
-# 📈 特徴量生成システム
+# src/features/ - 特徴量生成システム
 
-**最終更新**: 2025/11/16 (Phase 52.4-B)
-
-## 🎯 概要
-
-AI自動取引システムの特徴量生成層。55特徴量固定システム（49基本+6戦略シグナル）。
-
-### 現状（Phase 52.4-B）
-
-- ✅ **55特徴量固定**: 49基本特徴量+6戦略シグナル特徴量
-- ✅ **設定駆動型**: feature_order.json単一真実源連携
-- ✅ **統合効率**: 重複排除・pandasネイティブ最適化
-- ✅ **品質保証**: 55特徴量完全確認・NaN値統一処理
-
-### 開発履歴
-
-**Phase 52.4-B（2025/11/16）**: コード整理・ドキュメント統一完了
-**Phase 51.7 Day 7（2025/11/07）**: 6戦略統合・55特徴量システム確立
-**Phase 51.7 Day 2**: Feature Importance分析に基づく最適化（60→51特徴量）
-**Phase 50.9**: 外部API完全削除・シンプル設計回帰（60特徴量固定）
-**Phase 50.2**: 時間的特徴量拡張（55→60特徴量）
-**Phase 50.1**: 確実な特徴量生成実装
-**Phase 41**: Strategy-Aware ML実装（50→55特徴量）
-**Phase 40.6**: Feature Engineering拡張（15→50特徴量）
-**Phase 38.4**: 97→15特徴量最適化
-
----
+**Phase 49完了**: 50基本特徴量生成システム（15→50特徴量）・feature_order.json単一真実源連携・11カテゴリ分類による統合特徴量エンジニアリング。5戦略信号特徴量はML学習時に別途生成され、合計55特徴量としてMLモデルに入力されます。
 
 ## 📂 ファイル構成
 
 ```
 src/features/
-├── __init__.py            # 遅延インポート・循環インポート回避
-└── feature_generator.py   # 統合特徴量生成システム
+├── __init__.py            # 特徴量システムエクスポート（27行・Phase 49完了）
+└── feature_generator.py   # 統合特徴量生成システム（826行・Phase 49完了）
 ```
-
----
 
 ## 🔧 主要コンポーネント
 
-### **feature_generator.py**
+### **feature_generator.py（826行・Phase 49完了）**
 
-統合特徴量生成システム（55特徴量固定）
+**目的**: 50特徴量拡張システム・feature_order.json連携・統合特徴量生成
 
-#### 主要クラス
-
+**主要クラス**:
 ```python
 class FeatureGenerator:
-    """統合特徴量生成クラス"""
+    def __init__(self, lookback_period: Optional[int] = None)  # 初期化
+    async def generate_features(self, market_data) -> pd.DataFrame  # 統合特徴量生成（50特徴量）
+    def _generate_basic_features(self) -> pd.DataFrame        # 基本特徴量（15個・従来システム）
+    def _generate_lag_features(self) -> pd.DataFrame          # ラグ特徴量（10個・Phase 40.6）
+    def _generate_rolling_features(self) -> pd.DataFrame      # 移動統計量（12個・Phase 40.6）
+    def _generate_interaction_features(self) -> pd.DataFrame  # 交互作用特徴量（6個・Phase 40.6）
+    def _generate_time_features(self) -> pd.DataFrame         # 時間ベース特徴量（7個・Phase 40.6）
+    def get_feature_info(self) -> Dict                        # 特徴量情報取得
+    def _validate_feature_generation(self)                    # 50特徴量確認
 
-    def __init__(self, lookback_period: Optional[int] = None)
-
-    # 非同期版（ライブトレード・ペーパートレード用）
-    async def generate_features(
-        self, market_data, strategy_signals=None
-    ) -> pd.DataFrame
-
-    # 同期版（バックテスト事前計算用）
-    def generate_features_sync(
-        self, df, strategy_signals=None
-    ) -> pd.DataFrame
-
-    # 内部メソッド（特徴量カテゴリ別）
-    def _generate_basic_features() -> pd.DataFrame        # 基本（2個）
-    def _generate_technical_indicators() -> pd.DataFrame  # テクニカル（17個）
-    def _generate_anomaly_indicators() -> pd.DataFrame    # 異常検知（1個）
-    def _generate_lag_features() -> pd.DataFrame          # ラグ（9個）
-    def _generate_rolling_statistics() -> pd.DataFrame    # 移動統計（5個）
-    def _generate_interaction_features() -> pd.DataFrame  # 交互作用（5個）
-    def _generate_time_features() -> pd.DataFrame         # 時間的（7個）
-    def _add_strategy_signal_features() -> pd.DataFrame   # 戦略シグナル（6個）
-
-    # ユーティリティ
-    def get_feature_info() -> Dict  # 特徴量情報取得
+# グローバル変数
+OPTIMIZED_FEATURES = get_feature_names()     # feature_order.jsonから取得
+FEATURE_CATEGORIES = get_feature_categories() # カテゴリ定義
 ```
 
-#### グローバル定数
-
-**Phase 52.4-B: Magic number抽出**
-
+**50特徴量システム（11カテゴリ分類・Phase 40.6）**:
 ```python
-# テクニカル指標パラメータ
-RSI_PERIOD = 14
-MACD_FAST_PERIOD = 12
-MACD_SLOW_PERIOD = 26
-MACD_SIGNAL_PERIOD = 9
-ATR_PERIOD = 14
-BB_PERIOD = 20
-BB_STD_MULTIPLIER = 2
-EMA_SHORT_PERIOD = 20
-EMA_LONG_PERIOD = 50
-DONCHIAN_PERIOD = 20
-ADX_PERIOD = 14
-STOCHASTIC_PERIOD = 14
-STOCHASTIC_SMOOTH_K = 3
-STOCHASTIC_SMOOTH_D = 3
-VOLUME_EMA_PERIOD = 20
-
-# ラグ・ローリング設定
-LAG_PERIODS_CLOSE = [1, 2, 3, 10]
-LAG_PERIODS_VOLUME = [1, 2, 3]
-LAG_PERIODS_INDICATOR = [1]
-ROLLING_WINDOWS_MA = [10, 20]
-ROLLING_WINDOWS_STD = [5, 10, 20]
-
-# 市場時間（JST）
-MARKET_OPEN_HOUR = 9
-MARKET_CLOSE_HOUR = 15
-EUROPE_SESSION_START = 16
-EUROPE_SESSION_END_HOUR = 23
-EUROPE_SESSION_EARLY_HOUR = 1
-
-# 数値安定性・周期性
-EPSILON = 1e-8
-HOURS_PER_DAY = 24
-DAYS_PER_WEEK = 7
+FEATURE_ORDER = [
+    # 基本データ（2個）: close, volume
+    # モメンタム（2個）: rsi_14, macd
+    # ボラティリティ（2個）: atr_14, bb_position
+    # トレンド（2個）: ema_20, ema_50
+    # 出来高（1個）: volume_ratio
+    # ブレイクアウト（3個）: donchian_high_20, donchian_low_20, channel_position
+    # 市場レジーム（3個）: adx_14, plus_di_14, minus_di_14
+    # 【Phase 40.6拡張】
+    # ラグ特徴量（10個）: close_lag_1〜5, volume_lag_1〜5
+    # 移動統計量（12個）: close_rolling_mean_5/20, std_5/20, max_5/20, min_5/20, volume_rolling_mean_5/20, std_5/20
+    # 交互作用特徴量（6個）: rsi_atr, macd_volume, ema_spread, bb_width, volatility_trend, momentum_volume
+    # 時間ベース特徴量（7個）: hour, day_of_week, day_of_month, is_weekend, hour_sin, hour_cos, day_sin
+]
 ```
 
----
+**使用例**:
+```python
+from src.features.feature_generator import FeatureGenerator
 
-## 📊 55特徴量システム構成
-
-### **49基本特徴量**
-
-1. **基本データ（2個）**: close, volume
-2. **テクニカル指標（17個）**:
-   - RSI: rsi_14
-   - MACD: macd, macd_signal, macd_histogram
-   - ATR: atr_14
-   - Bollinger Bands: bb_upper, bb_lower, bb_position
-   - EMA: ema_20, ema_50
-   - Donchian Channel: donchian_high_20, donchian_low_20, channel_position
-   - ADX: adx_14, plus_di_14, minus_di_14
-   - Stochastic: stoch_k, stoch_d
-   - Volume: volume_ema, atr_ratio
-3. **異常検知（1個）**: volume_ratio
-4. **ラグ特徴量（9個）**: close_lag_1/2/3/10, volume_lag_1/2/3, rsi_lag_1, macd_lag_1
-5. **移動統計量（5個）**: close_ma_10/20, close_std_5/10/20
-6. **交互作用特徴量（5個）**: rsi_x_atr, macd_x_volume, bb_position_x_volume_ratio, close_x_atr, volume_x_bb_position
-7. **時間的特徴量（7個）**: hour, day_of_week, is_market_open_hour, is_europe_session, hour_cos, day_sin, day_cos
-
-### **6戦略シグナル特徴量**
-
-Phase 52.4-B: strategies.yamlから動的取得
-
-- strategy_signal_ATRBased
-- strategy_signal_DonchianChannel
-- strategy_signal_ADXTrendStrength
-- strategy_signal_BBReversal
-- strategy_signal_StochasticReversal
-- strategy_signal_MACDEMACrossover
-
----
+generator = FeatureGenerator()
+features_df = await generator.generate_features(market_data)
+# 結果: 50特徴量を含むDataFrame（OHLCV + 50特徴量・Phase 40.6拡張完了）
+```
 
 ## 🚀 使用例
 
-### 基本的な使い方
-
 ```python
+# 基本特徴量生成
 from src.features import FeatureGenerator
-
-# インスタンス生成
 generator = FeatureGenerator()
+features_df = await generator.generate_features(market_data_df)
 
-# 非同期版（ライブトレード・ペーパートレード）
-features_df = await generator.generate_features(
-    market_data=market_data_dict,
-    strategy_signals=strategy_signals_dict  # オプション
-)
-
-# 同期版（バックテスト事前計算）
-features_df = generator.generate_features_sync(
-    df=ohlcv_df,
-    strategy_signals=strategy_signals_dict  # オプション
-)
+# feature_order.json整合性確認
+from src.core.config.feature_manager import get_feature_names
+expected_features = get_feature_names()
+generated_features = [col for col in features_df.columns
+                     if col not in ['open', 'high', 'low', 'close', 'volume']]
+assert generated_features == expected_features  # 順序・整合性確認
 
 # 特徴量情報取得
 feature_info = generator.get_feature_info()
 print(f"生成特徴量数: {feature_info['total_features']}")
 ```
 
-### feature_order.json整合性確認
+## 🔧 設定
 
-```python
-from src.core.config.feature_manager import get_feature_names
-
-expected_features = get_feature_names()
-generated_features = [col for col in features_df.columns
-                     if col not in ['open', 'high', 'low', 'close', 'volume']]
-assert generated_features == expected_features  # 順序・整合性確認
-```
-
----
-
-## ⚙️ 設定
-
-### データ要件
-
-- **必須列**: open, high, low, close, volume
-- **推奨行数**: 100行以上（ラグ・移動統計量計算のため）
-- **形式**: pandas.DataFrame または dict
-
-### 依存関係
-
-- **設定ファイル**: config/core/feature_order.json（55特徴量定義）
-- **ライブラリ**: pandas, numpy
-- **内部依存**: src.core.config.feature_manager, src.core.logger, src.strategies.strategy_loader
-
----
+**環境変数**: 不要（設定ファイルから自動取得）
+**データ要件**: OHLCV必須・100行以上推奨（Phase 40.6: ラグ・移動統計量計算のため増加）
+**依存関係**: config/core/feature_order.json（50特徴量定義・Phase 40.6拡張済み）
 
 ## ⚠️ 重要事項
 
-### 特性・制約
-
-- **55特徴量固定**: feature_order.json単一真実源による全システム整合性
-- **設定駆動型**: strategies.yamlから戦略シグナル特徴量を動的取得
-- **確実な生成**: strategy_signals=None時も0.0埋めで6特徴量追加
+### **特性・制約**
+- **50基本特徴量統一**: feature_order.json単一真実源による全システム整合性（Phase 40.6拡張完了）
+- **11カテゴリ分類**: 従来7カテゴリ + 新規4カテゴリ（lag・rolling・interaction・time）
 - **統合効率**: 重複排除・pandasネイティブ最適化・高速計算
-- **品質保証**: 55特徴量完全確認・NaN値統一処理・エラーハンドリング
+- **品質保証**: 50特徴量完全確認・NaN値統一処理・エラーハンドリング
+- **Phase 40.6完了**: 15→50特徴量拡張・ML予測精度+8-15%・ロバスト性+10-20%向上
+- **Phase 41.8戦略信号**: ML学習時に5戦略信号を別途生成（合計55特徴量システム）
+- **依存**: pandas・numpy・src.core.config.feature_manager・src.core.*
 
-### Phase 52.4-B: コード品質改善
+## 📊 Phase 41.8-49: Strategy-Aware ML対応
 
-- Magic number完全抽出（グローバル定数化）
-- Phase参照統一（Phase 52.4-B対応完了）
-- ドキュメント整理（開発履歴・使用例・設定明確化）
+**Phase 49完了**: ML学習システムにおいて、本システムが生成する50基本特徴量に加えて、5戦略信号特徴量がML学習時に生成されます。
+
+### **55特徴量システム構成**
+- **50基本特徴量**（本モジュール生成）: 従来の特徴量生成システム
+- **5戦略信号特徴量**（ML学習時生成）: `scripts/ml/create_ml_models.py`で実戦略実行により生成
+  - `strategy_signal_ATRBased`
+  - `strategy_signal_MochipoyAlert`
+  - `strategy_signal_MultiTimeframe`
+  - `strategy_signal_DonchianChannel`
+  - `strategy_signal_ADXTrendStrength`
+
+### **推論時の特徴量**
+推論時（実取引判断時）は、TradingOrchestratorが:
+1. 本モジュールで50基本特徴量を生成
+2. 5戦略を実行して5戦略信号を生成
+3. 合計55特徴量をMLモデルに入力
+
+これにより、訓練時と推論時の特徴量構造が完全に一致します（Phase 41.8実装済み）。
 
 ---
 
-**Phase 52.4-B完了**: コード整理・ドキュメント統一・55特徴量固定システム（49基本+6戦略シグナル）・設定駆動型特徴量生成
+**特徴量生成システム（Phase 49完了）**: feature_order.json単一真実源連携・50基本特徴量拡張システム（15→50）・11カテゴリ分類による統合特徴量エンジニアリング機能。Phase 41.8でML学習時に5戦略信号が追加され、合計55特徴量システムを構成。

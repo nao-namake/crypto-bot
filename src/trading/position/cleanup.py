@@ -1,5 +1,5 @@
 """
-ポジションクリーンアップサービス - Phase 52.4-B完了
+ポジションクリーンアップサービス - Phase 49完了
 Phase 37.5.3: 孤児ポジションクリーンアップ
 
 bitbankがOCO注文をサポートしていないため、
@@ -100,13 +100,13 @@ class PositionCleanup:
                 self.logger.warning(f"⚠️ 一部注文削除失敗: {', '.join(failed_cancels)}")
 
             self.logger.info(
-                "✅ 孤児ポジションクリーンアップ完了: "
+                f"✅ 孤児ポジションクリーンアップ完了: "
                 f"{len(orphaned)}ポジション検出, {cleaned_count}注文削除"
             )
 
             return {
                 "success": True,
-                "message": "クリーンアップ完了",
+                "message": f"クリーンアップ完了",
                 "cleaned": cleaned_count,
                 "orphaned_positions": len(orphaned),
                 "failed_cancels": failed_cancels,
@@ -180,8 +180,7 @@ class PositionCleanup:
 
         except Exception as e:
             # 注文が存在しない場合も成功扱い（既に削除済み）
-            # bitbank APIエラーコード60002: Order not found
-            if "60002" in str(e):
+            if "60002" in str(e):  # Order not found
                 self.logger.debug(f"📝 注文既に削除済み: {order_id}")
                 return True
 
@@ -289,7 +288,7 @@ class PositionCleanup:
             cleared_count = self.position_tracker.clear_all_positions()
 
             self.logger.warning(
-                "⚠️ 緊急クリーンアップ実行: "
+                f"⚠️ 緊急クリーンアップ実行: "
                 f"{cleared_count}ポジション削除, {canceled_orders}注文キャンセル"
             )
 

@@ -1,21 +1,23 @@
 """
-統合取引システム制御 - TradingOrchestrator - Phase 52.4
+統合取引システム制御 - TradingOrchestrator - Phase 49完了
 
-Application Service Layerとして高レベル統合制御を担当。
-システム全体のデータフロー統合・各サービス層の協調制御を実現。
+Application Service Layer として、高レベル統合制御のみを担当。
+具体的なビジネスロジックは各Phase層に委譲し、真のレイヤー分離を実現。
 
-機能:
+Phase 49完了:
 - 高レベルフロー制御（データ取得→特徴量生成→戦略実行→ML予測→リスク評価→取引判断）
 - 依存性注入基盤（DataService・FeatureService・StrategyManager・ExecutionService等）
 - バックテストモード対応（ログレベル動的変更・Discord無効化・API呼び出しモック化）
 - エラーハンドリング階層化（DataFetchError・ModelPredictionError・TradingError等）
-- 3モード実行システム統合（backtest/paper/live）
 
 設計原則:
-- Application Service Pattern（高レベルフロー制御のみ）
-- 依存性注入（Protocol型ヒント・テスト容易性確保）
-- 責任分離（具体的実装は各層に委譲）
-- エラーハンドリング階層化（適切なレベルでの例外処理）
+- Application Service Pattern: 高レベルフロー制御のみ
+- 依存性注入: テスト容易性の確保
+- 責任分離: 具体的実装は各Phaseに委譲
+- エラーハンドリング階層化: 適切なレベルでの例外処理
+
+Phase 35: バックテスト最適化実装
+Phase 28-29: Application Service Pattern確立・責任分離・依存性注入基盤
 """
 
 import asyncio
@@ -248,13 +250,15 @@ class TradingOrchestrator:
         """
         import logging
 
+        from ..config import get_threshold
+
         # Phase 35: バックテスト最適化設定取得
         backtest_log_level = get_threshold("backtest.log_level", "WARNING")
         discord_enabled = get_threshold("backtest.discord_enabled", False)
 
         # 元の設定を保存（復元用）
         original_log_level = self.logger.logger.level
-        # 未使用変数削除: original_discord_enabled
+        original_discord_enabled = getattr(self.logger, "_discord_manager", None) is not None
 
         try:
             # Phase 35: ログレベルを動的変更（大量ログ出力を抑制）
@@ -376,23 +380,16 @@ async def create_trading_orchestrator(
         discord_manager = DiscordManager(webhook_url=webhook_url)
         logger.set_discord_manager(discord_manager)
 
-        # Phase 52.4: Discord接続テスト無効化（25分毎の不要な通知削減）
-        # 週間レポート送信のみに特化するため、接続テスト通知は不要
-        # if discord_manager.enabled:
-        #     logger.info("🧪 Discord接続テスト実行中...")
-        #     test_result = discord_manager.test_connection()
-        #     if test_result:
-        #         logger.info("✅ Discord接続テスト成功")
-        #     else:
-        #         logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
-        # else:
-        #     logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
-
-        # Discord初期化ログのみ（接続テストなし）
+        # Discord接続テストの実行
         if discord_manager.enabled:
-            logger.info("✅ Discord通知システム初期化完了（接続テストスキップ）")
+            logger.info("🧪 Discord接続テスト実行中...")
+            test_result = discord_manager.test_connection()
+            if test_result:
+                logger.info("✅ Discord接続テスト成功")
+            else:
+                logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
         else:
-            logger.warning("⚠️ Discord通知は無効化されています")
+            logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
 
         # Phase 28-29最適化: データサービス
         bitbank_client = BitbankClient()
@@ -404,7 +401,7 @@ async def create_trading_orchestrator(
 
         # Phase 51.5-B: 動的戦略管理システム（StrategyLoader使用）
         strategy_service = StrategyManager()
-        strategy_loader = StrategyLoader("config/core/strategies.yaml")
+        strategy_loader = StrategyLoader("config/strategies.yaml")
         loaded_strategies = strategy_loader.load_strategies()
 
         logger.info(f"✅ Phase 51.5-B: {len(loaded_strategies)}戦略をロードしました")
@@ -543,7 +540,7 @@ async def _get_actual_balance(config, logger) -> float:
         bitbank_client = BitbankClient()
         logger.info("🔐 BitbankClient初期化完了、残高取得API呼び出し実行")
 
-        balance_data = await bitbank_client.fetch_balance()
+        balance_data = bitbank_client.fetch_balance()
         logger.info(f"📊 Bitbank残高データ受信: キー={list(balance_data.keys())}")
 
         # JPY残高（自由残高）を取得

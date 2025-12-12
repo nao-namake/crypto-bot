@@ -1,21 +1,27 @@
 """
-MLサービス統合アダプター - Phase 52.4
+MLサービス統合アダプター - Phase 50.9完了
 
-ProductionEnsembleの統一インターフェースを提供。
-MLモデル読み込み・予測・フォールバックを統合管理。
+ProductionEnsembleとEnsembleModelの統一インターフェースを提供し、
+MLモデル未学習エラーを根本的に解決するアダプター。
 
-機能:
+Phase 50.9完了:
+- 2段階Graceful Degradation対応（full 62 → basic 57 → Dummy）
+- 外部API完全削除・シンプル設計回帰
+- ml_loaderへの完全委譲によるモデル読み込み処理統一
+
+Phase 50.8完了:
+- ensure_correct_model()実装（特徴量数に応じた動的モデル切り替え）
+
+Phase 49完了:
 - ProductionEnsemble統一インターフェース（3モデルアンサンブル予測）
-- 3段階Graceful Degradation（full → basic → Dummy）
-- 特徴量数自動判定・動的モデル切り替え（ensure_correct_model）
-- DummyModelフォールバック（ML失敗時の安全装置）
+- DummyModelフォールバック（MLモデル未学習時の安全装置）
 - 予測信頼度自動計算（確率分布ベース）
 - 3クラス分類対応（buy/hold/sell）
 
-設計原則:
-- ml_loaderへの完全委譲（モデル読み込み）
-- ml_fallbackへの完全委譲（フォールバック）
-- 単一責任原則（予測インターフェースのみ）
+Phase 28-29: MLサービス3層分離設計確立
+- ml_loader.py: モデル読み込み専門
+- ml_fallback.py: フォールバック機能専門
+- ml_adapter.py: 統合インターフェース・予測機能
 """
 
 from typing import Any, Dict, Union

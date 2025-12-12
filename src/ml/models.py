@@ -1,16 +1,16 @@
 """
-統合MLモデル実装
-
-最終更新: 2025/11/16 (Phase 52.4-B)
+統合MLモデル実装 - Phase 49完了
 
 BaseMLModel基底クラスと個別モデル（LightGBM、XGBoost、RandomForest）を統合。
 重複コードを排除し、保守性とコードの可読性を向上。
+
+Phase 49完了
 """
 
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import joblib
 import numpy as np
@@ -104,7 +104,7 @@ class BaseMLModel(ABC):
                 # predict_probaがない場合は予測値を確率風に変換
                 predictions = self.estimator.predict(X_aligned)
                 n_samples = len(predictions)
-                # Phase 52.4-B: クラス数自動検出（3クラス想定）
+                # Phase 51.9-6D: クラス数自動検出（3クラス想定）
                 n_classes = len(np.unique(predictions))
                 if n_classes < 2:
                     n_classes = 2  # 最小2クラス
@@ -291,7 +291,7 @@ class LGBMModel(BaseMLModel):
         """LightGBMモデルの初期化"""
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.lgbm", {})
-        # Phase 52.4-B: 3クラス専用（デフォルトをmulticlassに変更）
+        # Phase 51.9-6D: 3クラス専用（デフォルトをmulticlassに変更）
         default_params = {
             "objective": config_params.get("objective", "multiclass"),
             "num_class": config_params.get("num_class", 3),
@@ -383,7 +383,7 @@ class XGBModel(BaseMLModel):
         """XGBoostモデルの初期化"""
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.xgb", {})
-        # Phase 52.4-B: 3クラス専用（デフォルトをmulti:softprobに変更）
+        # Phase 51.9-6D: 3クラス専用（デフォルトをmulti:softprobに変更）
         default_params = {
             "objective": config_params.get("objective", "multi:softprob"),
             "num_class": config_params.get("num_class", 3),

@@ -1,7 +1,7 @@
 """
 trading/position層 - ポジション管理
 
-Phase 52.4-B完了
+Phase 49完了
 """
 
 from .cleanup import PositionCleanup

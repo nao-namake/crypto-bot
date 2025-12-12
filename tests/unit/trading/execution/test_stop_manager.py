@@ -168,7 +168,7 @@ class TestCheckStopConditions:
 
         # SL価格到達（13,700,000円以下）
         # _get_current_price()が呼ばれるのでfetch_tickerをmock
-        mock_bitbank_client.fetch_ticker = AsyncMock(return_value={"last": 13650000.0})
+        mock_bitbank_client.fetch_ticker = Mock(return_value={"last": 13650000.0})
 
         result = await stop_manager.check_stop_conditions(
             virtual_positions=[sample_position],
@@ -584,7 +584,7 @@ class TestGetCurrentPrice:
     @pytest.mark.asyncio
     async def test_fetch_ticker_success(self, stop_manager, mock_bitbank_client):
         """ticker取得成功"""
-        mock_bitbank_client.fetch_ticker = AsyncMock(return_value={"last": 14500000.0})
+        mock_bitbank_client.fetch_ticker = Mock(return_value={"last": 14500000.0})
 
         price = await stop_manager._get_current_price(mock_bitbank_client)
 
@@ -930,7 +930,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック（31件・30件制限超過）
-        mock_bitbank_client.fetch_active_orders = AsyncMock(
+        mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
                 # 古い孤児TP注文（削除対象）
                 {
@@ -975,7 +975,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         ]
 
         # キャンセル成功をモック
-        mock_bitbank_client.cancel_order = AsyncMock(return_value={"success": True})
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
 
         result = await stop_manager.cleanup_old_unfilled_orders(
             symbol="BTC/JPY",
@@ -996,7 +996,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック
-        mock_bitbank_client.fetch_active_orders = AsyncMock(
+        mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
                 # アクティブポジションのTP/SL注文（保護対象・削除しない）
                 {
@@ -1025,7 +1025,7 @@ class TestPhase516CleanupOldUnfilledOrders:
             }
         ]
 
-        mock_bitbank_client.cancel_order = AsyncMock(return_value={"success": True})
+        mock_bitbank_client.cancel_order = MagicMock(return_value={"success": True})
 
         result = await stop_manager.cleanup_old_unfilled_orders(
             symbol="BTC/JPY",
@@ -1046,7 +1046,7 @@ class TestPhase516CleanupOldUnfilledOrders:
         old_time = (datetime.now() - timedelta(hours=25)).timestamp() * 1000
 
         # アクティブ注文をモック（2件のみ）
-        mock_bitbank_client.fetch_active_orders = AsyncMock(
+        mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
                 {
                     "id": "old_tp_1",

@@ -1,20 +1,14 @@
 """
-データキャッシング機能
+データキャッシング機能 - Phase 49完了
 
-最終更新: 2025/11/16 (Phase 52.4-B)
+高速アクセスとメモリ効率を両立した
+データキャッシングシステムの実装。
 
-高速アクセス・メモリ効率を両立したデータキャッシングシステム。
-LRUキャッシュ・長期保存・スレッドセーフ実装。
-
-主要機能:
-- インメモリLRUキャッシュ（高速アクセス・自動削除）
-- 長期保存対応（3ヶ月間・gzip圧縮）
-- スレッドセーフ実装（threading.Lock）
-- データ整合性チェック（メタデータ管理）
-
-開発履歴:
-- Phase 52.4-B: コード整理・ドキュメント統一
-- Phase 49: LRUキャッシュ実装・長期保存対応
+主な特徴:
+- インメモリキャッシュによる高速アクセス
+- LRU（Least Recently Used）方式での自動削除
+- 3ヶ月間の長期保存対応
+- データ整合性チェック機能.
 """
 
 import gzip
@@ -63,16 +57,12 @@ class LRUCache:
         self.logger = get_logger()
 
     def get(self, key: str) -> Optional[Any]:
-        """
-        データ取得
-
-        CRIT-3 Fix: move_to_end()使用（pop/set非アトミック操作をアトミック化）
-        """
+        """データ取得."""
         with self._lock:
             if key in self._cache:
-                # アクセス時刻更新（LRU）- アトミック操作
-                self._cache.move_to_end(key)
-                value = self._cache[key]
+                # アクセス時刻更新（LRU）
+                value = self._cache.pop(key)
+                self._cache[key] = value
 
                 # メタデータ更新
                 if key in self._metadata:

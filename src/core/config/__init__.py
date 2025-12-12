@@ -1,13 +1,14 @@
 """
-統合設定管理システム - Phase 52.4
+統合設定管理システム - Phase 49完了
 
-3層設定体系（features.yaml・unified.yaml・thresholds.yaml）統合管理。
-環境変数とYAMLファイルの統一制御により、モード設定・閾値管理・特徴量定義を一元化。
+環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 
-主要機能:
-- threshold_manager: 8専用アクセス関数・実行時オーバーライド対応（Optuna最適化）
-- feature_manager: 特徴量管理（feature_order.json準拠）
-- runtime_flags: バックテストモード・ペーパーモード制御
+Phase 49完了:
+- 3層設定体系（features.yaml・unified.yaml・thresholds.yaml）
+- threshold_manager: 8専用アクセス関数・実行時オーバーライド対応（Phase 40.1 Optuna最適化）
+- feature_manager: 55特徴量管理（Phase 41 Strategy-Aware ML）
+- runtime_flags: バックテストモード・ペーパーモード制御（Phase 35）
+Phase 28-29: 統合設定管理システム確立
 """
 
 import os
@@ -19,7 +20,7 @@ import yaml
 
 from .config_classes import DataConfig, ExchangeConfig, LoggingConfig, MLConfig, RiskConfig
 
-# ランタイムフラグシステム
+# Phase 35: ランタイムフラグシステム
 from .runtime_flags import (
     get_all_flags,
     get_backtest_log_level,
@@ -253,22 +254,11 @@ class Config:
                 errors.append("BITBANK_API_SECRET環境変数が設定されていません")
 
         # リスク設定チェック
-        from .threshold_manager import get_threshold
+        if self.risk.risk_per_trade <= 0 or self.risk.risk_per_trade > 0.05:
+            errors.append("risk_per_tradeは0.001-0.05の範囲で設定してください")
 
-        risk_per_trade_min = get_threshold("validation.risk.risk_per_trade.min", 0.001)
-        risk_per_trade_max = get_threshold("validation.risk.risk_per_trade.max", 0.05)
-        max_drawdown_min = get_threshold("validation.risk.max_drawdown.min", 0.01)
-        max_drawdown_max = get_threshold("validation.risk.max_drawdown.max", 0.5)
-
-        if self.risk.risk_per_trade <= 0 or self.risk.risk_per_trade > risk_per_trade_max:
-            errors.append(
-                f"risk_per_tradeは{risk_per_trade_min}-{risk_per_trade_max}の範囲で設定してください"
-            )
-
-        if self.risk.max_drawdown <= 0 or self.risk.max_drawdown > max_drawdown_max:
-            errors.append(
-                f"max_drawdownは{max_drawdown_min}-{max_drawdown_max}の範囲で設定してください"
-            )
+        if self.risk.max_drawdown <= 0 or self.risk.max_drawdown > 0.5:
+            errors.append("max_drawdownは0.01-0.5の範囲で設定してください")
 
         # エラーがある場合は出力して失敗
         if errors:

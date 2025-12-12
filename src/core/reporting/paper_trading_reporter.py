@@ -1,15 +1,17 @@
 """
-ペーパートレードレポーター - Phase 52.4
+ペーパートレードレポーター - Phase 49完了
 
-ペーパートレードセッションのレポート生成機能。
-BaseReporter継承による統一インターフェース実装。
+orchestrator.pyから分離したペーパートレードレポート生成機能。
+ペーパートレードセッションの統計・レポート作成を担当。
 
-主要機能:
+Phase 49完了:
 - セッションレポート生成（cycle数・取引統計・session_stats）
 - 取引履歴レポート生成（trade_history・時系列記録）
 - パフォーマンスレポート生成（勝率・損益・ドローダウン）
 - Markdown・JSON両形式出力
-- 設定駆動型（thresholds.yaml: reporting.paper_trading_dir）
+- thresholds.yaml設定準拠（reporting.paper_trading_dir: logs/paper_trading_reports）
+
+Phase 28-29: ペーパートレードレポート専門化・Markdown/JSON生成
 """
 
 import json
@@ -133,7 +135,8 @@ class PaperTradingReporter(BaseReporter):
 - **実行結果**: ✅ SUCCESS
 
 ## 🎯 システム情報
-- **レポーター**: PaperTradingReporter
+- **Phase**: 22（リファクタリング・責任分離対応）
+- **レポーター**: PaperTradingReporter（分離済み）
 - **取引モード**: Paper Trading（仮想取引）
 - **実行環境**: TradingOrchestrator
 
@@ -186,7 +189,7 @@ class PaperTradingReporter(BaseReporter):
 - パフォーマンス改善の余地
 
 ---
-*このレポートは PaperTradingReporter により自動生成されました*
+*このレポートは PaperTradingReporter により自動生成されました（Phase 22分離版）*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
@@ -242,6 +245,7 @@ class PaperTradingReporter(BaseReporter):
 - **エラーメッセージ**: {error_message}
 
 ## 🎯 システム情報
+- **Phase**: 22（PaperTradingReporter分離版）
 - **レポーター**: PaperTradingReporter
 - **エラー種別**: ペーパートレードセッションエラー
 
@@ -294,16 +298,11 @@ class PaperTradingReporter(BaseReporter):
         Returns:
             Discord embed形式データ
         """
-        # Phase 52.4: 色設定外部化（thresholds.yaml: reporting.discord.colors）
-        from ..config import get_threshold
-
-        success_color = get_threshold("reporting.discord.colors.success", 0x00FF00)
-        error_color = get_threshold("reporting.discord.colors.error", 0xFF0000)
-        color = success_color if performance_stats["session_pnl"] > 0 else error_color
+        color = 0x00FF00 if performance_stats["session_pnl"] > 0 else 0xFF0000
 
         embed = {
             "title": "📊 ペーパートレードセッション報告",
-            "description": "ペーパートレードセッションが完了しました",
+            "description": "ペーパートレードセッションが完了しました（Phase 22分離版）",
             "color": color,
             "timestamp": datetime.now().isoformat(),
             "fields": [

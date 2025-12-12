@@ -1,19 +1,21 @@
 """
-Graceful Shutdown管理 - Phase 52.4
+Graceful Shutdown管理 - Phase 49完了
 
-Gracefulシャットダウン処理専用サービス。
+main.py軽量化方針に従い、shutdown処理を専用サービスとして分離。
 
-主要機能:
+Phase 49完了:
 - シグナルハンドリング設定（SIGINT・SIGTERM・KeyboardInterrupt）
 - orchestrator・runner正常終了
 - 30秒タイムアウト管理
 - shutdown_event協調的終了
 - thresholds.yaml準拠設定管理
 
-設計原則:
+設計原則：
 - Single Responsibility: shutdown処理のみ担当
 - 依存性注入: orchestratorを外部から受け取り
 - エラーハンドリング: 適切なログ出力・例外処理
+
+Phase 28-29: Graceful Shutdown専門サービス・シグナルハンドリング実装
 """
 
 import asyncio
@@ -21,7 +23,6 @@ import signal
 import sys
 from typing import Optional
 
-from ..config import get_threshold
 from ..logger import CryptoBotLogger
 
 
@@ -46,7 +47,7 @@ class GracefulShutdownManager:
         self.logger = logger
         self.orchestrator: Optional[object] = None
         self.shutdown_event: Optional[asyncio.Event] = None
-        self._shutdown_timeout = get_threshold("services.graceful_shutdown.timeout_seconds", 30)
+        self._shutdown_timeout = 30  # 30秒タイムアウト
 
     def initialize(self, orchestrator: object) -> None:
         """

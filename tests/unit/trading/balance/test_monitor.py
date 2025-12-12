@@ -484,11 +484,11 @@ class TestMarginSummary:
 
         # 維持率が改善するデータ追加
         await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=1000000
-        )  # 100%
+            balance_jpy=1000000, position_value_jpy=1000000  # 100%
+        )
         await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=500000
-        )  # 200%
+            balance_jpy=1000000, position_value_jpy=500000  # 200%
+        )
 
         summary = self.monitor.get_margin_summary()
         assert summary["trend"] == "improving"
@@ -507,11 +507,11 @@ class TestMarginSummary:
 
         # 維持率が悪化するデータ追加
         await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=500000
-        )  # 200%
+            balance_jpy=1000000, position_value_jpy=500000  # 200%
+        )
         await self.monitor.analyze_current_margin(
-            balance_jpy=1000000, position_value_jpy=1000000
-        )  # 100%
+            balance_jpy=1000000, position_value_jpy=1000000  # 100%
+        )
 
         summary = self.monitor.get_margin_summary()
         assert summary["trend"] == "declining"

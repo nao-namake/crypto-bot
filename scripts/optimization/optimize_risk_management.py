@@ -39,18 +39,18 @@ from src.core.logger import CryptoBotLogger
 
 
 class RiskManagementOptimizer:
-    """リスク管理パラメータ最適化クラス（Phase 52.4更新）"""
+    """リスク管理パラメータ最適化クラス"""
 
-    # Phase 52.4: thresholds.yaml完全同期（Phase 49設定継続）
-    # 短スパン利確戦略（SL 1.5%・TP 1.0%）
+    # Phase 49: thresholds.yaml完全同期（少額運用・頻繁エントリー対応）
+    # 短スパン利確戦略（SL 1.5%・TP 2%）
     FIXED_TP_SL_PARAMS = {
         "sl_atr_low_vol": 2.1,
         "sl_atr_normal_vol": 2.0,
         "sl_atr_high_vol": 1.2,
-        "sl_min_distance_ratio": 0.015,  # SL 1.5%（少額運用・適切な余裕確保）
+        "sl_min_distance_ratio": 0.015,  # Phase 49.18: SL 1.5%（少額運用・適切な余裕確保）
         "sl_min_atr_multiplier": 1.3,
-        "tp_default_ratio": 0.67,  # RR比0.67:1（TP 1.0% / SL 1.5%）
-        "tp_min_profit_ratio": 0.01,  # TP 1.0%（現実的な利確ライン・2-3時間到達）
+        "tp_default_ratio": 0.67,  # Phase 49.18: RR比0.67:1（TP 1.0% / SL 1.5%）
+        "tp_min_profit_ratio": 0.01,  # Phase 49.18: TP 1.0%（現実的な利確ライン・2-3時間到達）
     }
 
     def __init__(self, logger: CryptoBotLogger):
@@ -295,7 +295,7 @@ class RiskManagementOptimizer:
             Dict: 最適化結果
         """
         self.logger.warning(
-            "🚀 Phase 40.1: リスク管理パラメータ最適化開始（シミュレーションベース）"
+            f"🚀 Phase 40.1: リスク管理パラメータ最適化開始（シミュレーションベース）"
         )
         self.logger.info(f"試行回数: {n_trials}回、タイムアウト: {timeout}秒")
 

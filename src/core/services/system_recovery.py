@@ -1,20 +1,21 @@
 """
-システム復旧サービス - Phase 52.4
+システム復旧サービス - Phase 49完了
 
-システム復旧・エラー処理機能。
+orchestrator.pyから分離したシステム復旧・エラー処理機能。
 MLサービス復旧・システム再起動・エラー記録を担当。
 
-主要機能:
+Phase 49完了:
 - MLサービス自動復旧（recover_ml_service・最大3回試行）
 - システム再起動スケジュール（schedule_system_restart）
-- エラー記録（logs/errors/{date}/error_{timestamp}.json）
+- エラー記録（record_error・logs/errors/{date}/error_{timestamp}.json）
 - 復旧試行回数管理（recovery_attempts辞書）
 - CryptoBotError階層化対応
+
+Phase 28-29: システム復旧機能分離・自動復旧実装
 """
 
 from datetime import datetime
 
-from ..config import get_threshold
 from ..exceptions import CryptoBotError
 from ..logger import CryptoBotLogger
 
@@ -33,9 +34,7 @@ class SystemRecoveryService:
         self.orchestrator = orchestrator_ref
         self.logger = logger
         self.recovery_attempts = {}
-        self.max_recovery_attempts = get_threshold(
-            "services.system_recovery.max_recovery_attempts", 3
-        )
+        self.max_recovery_attempts = 3
 
     async def recover_ml_service(self) -> bool:
         """
