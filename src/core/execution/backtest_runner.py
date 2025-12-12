@@ -1237,7 +1237,7 @@ class BacktestRunner(BaseRunner):
 
             self.logger.warning(
                 f"✅ DrawdownManager有効化（本番シミュレーションモード）: "
-                f"DD制限={max_drawdown_ratio*100:.0f}%, "
+                f"DD制限={max_drawdown_ratio * 100:.0f}%, "
                 f"連敗制限={consecutive_loss_limit}回, "
                 f"クールダウン={cooldown_hours}時間"
             )

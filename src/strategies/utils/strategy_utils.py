@@ -222,7 +222,7 @@ class RiskManager:
 
                     logger.info(
                         f"🎯 Phase 52.0: レジーム別TP/SL適用 - {regime}: "
-                        f"TP={regime_tp*100:.1f}%, SL={regime_sl*100:.1f}%, "
+                        f"TP={regime_tp * 100:.1f}%, SL={regime_sl * 100:.1f}%, "
                         f"RR比={regime_tp_ratio:.2f}:1"
                     )
                 else:
