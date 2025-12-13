@@ -1476,12 +1476,29 @@ class BitbankClient:
             response = await self._call_private_api("/user/margin/status", method="GET")
 
             # 保証金維持率とリスク情報を含む完全な状況を返す
+            # Phase 53.4: margin_ratioのNone/型変換エラー対策
+            data = response.get("data", {})
+            raw_margin_ratio = data.get("maintenance_margin_ratio")
+
+            # margin_ratioの安全な型変換
+            if raw_margin_ratio is not None:
+                try:
+                    margin_ratio = float(raw_margin_ratio)
+                except (ValueError, TypeError):
+                    self.logger.warning(
+                        f"⚠️ margin_ratio型変換失敗: {raw_margin_ratio}, デフォルト500.0%使用"
+                    )
+                    margin_ratio = 500.0  # 安全なデフォルト値（取引許可）
+            else:
+                self.logger.warning("⚠️ margin_ratioがNone, デフォルト500.0%使用")
+                margin_ratio = 500.0  # 安全なデフォルト値
+
             margin_data = {
-                "margin_ratio": response.get("data", {}).get("maintenance_margin_ratio"),
-                "available_balance": response.get("data", {}).get("available_margin"),
-                "used_margin": response.get("data", {}).get("used_margin"),
-                "unrealized_pnl": response.get("data", {}).get("unrealized_pnl"),
-                "margin_call_status": response.get("data", {}).get("margin_call_status"),
+                "margin_ratio": margin_ratio,
+                "available_balance": data.get("available_margin"),
+                "used_margin": data.get("used_margin"),
+                "unrealized_pnl": data.get("unrealized_pnl"),
+                "margin_call_status": data.get("margin_call_status"),
                 "raw_response": response,
             }
 
