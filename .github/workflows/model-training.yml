@@ -3,10 +3,16 @@
 # - データ収集ステップ追加（180日分）
 # - MIN_FEATURE_COUNT環境変数追加
 # - Python 3.13維持（Phase 52.1ベース）
+# - pushトリガー無効化（Phase 53.9）
 
 name: ML Model Training
 
 on:
+  # pushトリガー無効化（コミット時の誤実行防止）
+  push:
+    branches-ignore:
+      - '**'
+
   # 手動実行（推奨）
   workflow_dispatch:
     inputs:
