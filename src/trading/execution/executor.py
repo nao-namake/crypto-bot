@@ -99,6 +99,59 @@ class ExecutionService:
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
+    async def restore_positions_from_api(self):
+        """
+        Phase 53.6: 起動時にbitbank APIからポジションを復元
+        再起動時にvirtual_positionsがリセットされる問題を解決
+
+        Cloud Run環境では5分毎にコンテナが再起動される可能性があり、
+        その際にvirtual_positions = []にリセットされてしまう。
+        これにより、既存のTP/SL注文を認識できず、ポジション制限が機能しなくなる。
+
+        この関数は起動時にbitbank APIからアクティブ注文を取得し、
+        virtual_positionsを復元することで、ポジション制限を正しく機能させる。
+        """
+        if self.mode != "live":
+            return  # ライブモード以外は復元不要
+
+        try:
+            # アクティブ注文を取得
+            active_orders = await asyncio.to_thread(
+                self.bitbank_client.fetch_active_orders, "BTC/JPY", 100
+            )
+
+            if not active_orders:
+                self.logger.info("📊 Phase 53.6: アクティブ注文なし、復元スキップ")
+                return
+
+            # TP/SL注文をvirtual_positionsに復元
+            restored_count = 0
+            for order in active_orders:
+                order_type = order.get("type", "")
+                order_id = order.get("id")
+
+                # TP注文またはSL注文を検出して復元
+                if order_type in ["stop", "stop_limit", "limit"]:
+                    self.virtual_positions.append(
+                        {
+                            "order_id": order_id,
+                            "type": order_type,
+                            "side": order.get("side"),
+                            "amount": order.get("amount"),
+                            "price": order.get("price"),
+                            "restored": True,  # 復元フラグ
+                        }
+                    )
+                    restored_count += 1
+
+            self.logger.info(
+                f"✅ Phase 53.6: {restored_count}件のポジション/注文を復元 "
+                f"(アクティブ注文: {len(active_orders)}件)"
+            )
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 53.6: ポジション復元失敗: {e}")
+
     async def execute_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
         取引実行メイン処理
@@ -1240,16 +1293,15 @@ class ExecutionService:
             entry_order_id: 今回のエントリー注文ID（ログ用）
         """
         try:
+            # Phase 53.7: メソッド名修正（get_active_orders → fetch_active_orders）
             # 全アクティブ注文取得
-            active_orders_resp = await asyncio.to_thread(
-                self.bitbank_client.get_active_orders, symbol
+            active_orders = await asyncio.to_thread(
+                self.bitbank_client.fetch_active_orders, symbol, 100
             )
 
-            if not active_orders_resp or not active_orders_resp.get("orders"):
+            if not active_orders:
                 self.logger.debug(f"📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
                 return
-
-            active_orders = active_orders_resp["orders"]
 
             # 同一ポジション側の古いTP/SL注文を検索
             # - BUYエントリー → SELL側のTP（利確）・SELL側のSL（損切）
@@ -1271,10 +1323,11 @@ class ExecutionService:
                             protected_order_ids.add(str(sl_id))
 
             # 削除対象の注文を収集
+            # Phase 53.7: CCXTの戻り値形式に合わせてキー名修正（order_id → id）
             orders_to_cancel = []
             for order in active_orders:
-                order_id = str(order["order_id"])
-                order_side = order["side"]
+                order_id = str(order.get("id", order.get("order_id", "")))
+                order_side = order.get("side", "")
                 order_type = order.get("type", "")
 
                 # 保護対象の注文はスキップ

@@ -113,6 +113,10 @@ class LiveTradingRunner(BaseRunner):
                 self.logger.warning(f"⚠️ 残高確認エラー（継続稼働）: {e}")
                 # エラーが発生してもシステム停止させない
 
+            # Phase 53.6: 起動時にポジションを復元（ポジション制限の正常動作のため）
+            if hasattr(self.orchestrator.execution_service, "restore_positions_from_api"):
+                await self.orchestrator.execution_service.restore_positions_from_api()
+
             self.logger.info("✅ ライブトレード実行条件確認完了")
             return True
 

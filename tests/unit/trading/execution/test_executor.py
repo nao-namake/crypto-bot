@@ -1354,17 +1354,15 @@ class TestPhase516AtomicEntry:
         """Phase 51.10-A: エントリー前クリーンアップ - 古いTP/SL削除成功"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
-        # アクティブ注文モック（BUYエントリー想定）
-        mock_bitbank_client.get_active_orders.return_value = {
-            "orders": [
-                # 削除対象: 古いBUY側のTP（SELL limit注文）
-                {"order_id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
-                # 削除対象: 古いBUY側のSL（SELL stop注文）
-                {"order_id": "old_sl_1", "side": "sell", "type": "stop", "price": 15400000},
-                # 保護対象: 他のエントリー注文（BUY limit）
-                {"order_id": "other_entry", "side": "buy", "type": "limit", "price": 15500000},
-            ]
-        }
+        # Phase 53.7: fetch_active_ordersに変更（リスト形式・idキー）
+        mock_bitbank_client.fetch_active_orders.return_value = [
+            # 削除対象: 古いBUY側のTP（SELL limit注文）
+            {"id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
+            # 削除対象: 古いBUY側のSL（SELL stop注文）
+            {"id": "old_sl_1", "side": "sell", "type": "stop", "price": 15400000},
+            # 保護対象: 他のエントリー注文（BUY limit）
+            {"id": "other_entry", "side": "buy", "type": "limit", "price": 15500000},
+        ]
 
         # virtual_positionsは空（新規エントリー想定）
         service.virtual_positions = []
@@ -1384,17 +1382,15 @@ class TestPhase516AtomicEntry:
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブポジションのTP/SL保護"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
-        # アクティブ注文モック
-        mock_bitbank_client.get_active_orders.return_value = {
-            "orders": [
-                # 保護対象: アクティブポジションのTP
-                {"order_id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
-                # 保護対象: アクティブポジションのSL
-                {"order_id": "active_sl", "side": "sell", "type": "stop", "price": 15400000},
-                # 削除対象: 古いTP
-                {"order_id": "old_tp", "side": "sell", "type": "limit", "price": 15550000},
-            ]
-        }
+        # Phase 53.7: fetch_active_ordersに変更（リスト形式・idキー）
+        mock_bitbank_client.fetch_active_orders.return_value = [
+            # 保護対象: アクティブポジションのTP
+            {"id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
+            # 保護対象: アクティブポジションのSL
+            {"id": "active_sl", "side": "sell", "type": "stop", "price": 15400000},
+            # 削除対象: 古いTP
+            {"id": "old_tp", "side": "sell", "type": "limit", "price": 15550000},
+        ]
 
         # アクティブポジションのTP/SL注文ID（保護対象）
         service.virtual_positions = [
@@ -1420,8 +1416,8 @@ class TestPhase516AtomicEntry:
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブ注文なし"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
-        # アクティブ注文なし
-        mock_bitbank_client.get_active_orders.return_value = {"orders": []}
+        # アクティブ注文なし - Phase 53.7: fetch_active_ordersに変更、リスト形式
+        mock_bitbank_client.fetch_active_orders.return_value = []
 
         await service._cleanup_old_tp_sl_before_entry(
             side="buy",
@@ -1436,8 +1432,8 @@ class TestPhase516AtomicEntry:
         """Phase 51.10-A: エントリー前クリーンアップ - エラーハンドリング"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
-        # get_active_orders失敗
-        mock_bitbank_client.get_active_orders.side_effect = Exception("API error")
+        # fetch_active_orders失敗 - Phase 53.7: メソッド名変更
+        mock_bitbank_client.fetch_active_orders.side_effect = Exception("API error")
 
         # エラーが発生してもクリーンアップメソッド自体は例外をraiseしない
         # （警告ログのみ・処理継続）
@@ -1455,17 +1451,15 @@ class TestPhase516AtomicEntry:
         """Phase 51.10-A: エントリー前クリーンアップ - SELLエントリー側"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
-        # アクティブ注文モック（SELLエントリー想定）
-        mock_bitbank_client.get_active_orders.return_value = {
-            "orders": [
-                # 削除対象: 古いSELL側のTP（BUY limit注文）
-                {"order_id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},
-                # 削除対象: 古いSELL側のSL（BUY stop注文）
-                {"order_id": "old_sl_sell", "side": "buy", "type": "stop", "price": 15600000},
-                # 非対象: BUY側のTP（SELL limit）
-                {"order_id": "buy_tp", "side": "sell", "type": "limit", "price": 15700000},
-            ]
-        }
+        # アクティブ注文モック（SELLエントリー想定）- Phase 53.7: fetch_active_ordersに変更、リスト形式
+        mock_bitbank_client.fetch_active_orders.return_value = [
+            # 削除対象: 古いSELL側のTP（BUY limit注文）
+            {"id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},
+            # 削除対象: 古いSELL側のSL（BUY stop注文）
+            {"id": "old_sl_sell", "side": "buy", "type": "stop", "price": 15600000},
+            # 非対象: BUY側のTP（SELL limit）
+            {"id": "buy_tp", "side": "sell", "type": "limit", "price": 15700000},
+        ]
 
         service.virtual_positions = []
 

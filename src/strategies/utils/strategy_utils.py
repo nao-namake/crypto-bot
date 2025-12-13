@@ -200,9 +200,13 @@ class RiskManager:
             # ========================================
             # Phase 52.0: レジーム別TP/SL設定の適用
             # ========================================
-            if regime and get_threshold(
+            # Phase 52.0: レジーム別設定の有効化確認
+            regime_enabled = get_threshold(
                 "position_management.take_profit.regime_based.enabled", False
-            ):
+            )
+            logger.debug(f"🔍 レジーム別TP/SL確認 - regime={regime}, enabled={regime_enabled}")
+
+            if regime and regime_enabled:
                 # レジーム別TP設定取得
                 regime_tp = get_threshold(
                     f"position_management.take_profit.regime_based.{regime}.min_profit_ratio", None
@@ -213,6 +217,12 @@ class RiskManager:
                 # レジーム別SL設定取得
                 regime_sl = get_threshold(
                     f"position_management.stop_loss.regime_based.{regime}.max_loss_ratio", None
+                )
+
+                # レジーム別設定取得をログ出力（DEBUG）
+                logger.debug(
+                    f"🔍 レジーム別設定取得 - {regime}: "
+                    f"TP={regime_tp}, TP_ratio={regime_tp_ratio}, SL={regime_sl}"
                 )
 
                 if regime_tp and regime_sl:
@@ -481,9 +491,24 @@ class SignalBuilder:
                     except Exception:
                         pass
 
-                # ストップロス・テイクプロフィット計算
+                # Phase 53.9: SignalBuilder内でレジーム自動判定（一元化）
+                regime = None
+                try:
+                    from src.core.services.market_regime_classifier import (
+                        MarketRegimeClassifier,
+                    )
+
+                    regime_classifier = MarketRegimeClassifier()
+                    regime_type = regime_classifier.classify(df)
+                    regime = (
+                        regime_type.value if hasattr(regime_type, "value") else str(regime_type)
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Phase 53.9: レジーム判定失敗（デフォルト使用）: {e}")
+
+                # ストップロス・テイクプロフィット計算（レジーム別設定適用）
                 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
-                    action, current_price, current_atr, config, atr_history
+                    action, current_price, current_atr, config, atr_history, regime=regime
                 )
 
                 # ポジションサイズ計算
