@@ -2,7 +2,7 @@
 
 ## 🎯 役割
 
-このディレクトリには、AI自動取引システムのCI/CD、ML自動再学習、リソース管理、レポート自動送信を実現する4つのワークフローが含まれています。
+このディレクトリには、AI自動取引システムのCI/CD、ML自動再学習、緊急停止、リソース管理、レポート自動送信を実現する6つのワークフローが含まれています。
 
 ## 📂 ファイル構成
 
@@ -10,8 +10,10 @@
 .github/workflows/
 ├── ci.yml               # CI/CDパイプライン（品質チェック・ビルド・デプロイ）
 ├── model-training.yml   # ML自動再学習（週次・55特徴量Strategy-Aware ML）
+├── backtest.yml         # バックテスト実行（手動・Markdownレポート生成）
 ├── cleanup.yml          # GCPリソースクリーンアップ（月次・コスト最適化）
 ├── weekly_report.yml    # 週間レポート自動送信（Phase 48実装）
+├── emergency-stop.yml   # 🚨 緊急停止（iPhoneワンタップ対応）
 └── README.md            # このファイル
 ```
 
@@ -28,14 +30,12 @@
 - ML学習完了時（`model-updated`イベント）
 
 **実行フロー**:
-1. **品質チェック**: 1,117テスト実行・68.32%カバレッジ・コード品質確認（Phase 49完了）
+1. **品質チェック**: テスト実行・カバレッジ・コード品質確認
 2. **GCP環境確認**: Secret Manager・Workload Identity・必要リソース確認
 3. **Dockerビルド**: イメージ構築とArtifact Registryプッシュ
-4. **Docker起動テスト**: Phase 49.14実装（モジュールimport検証）
+4. **Docker起動テスト**: モジュールimport検証
 5. **本番デプロイ**: Cloud Runサービスデプロイ（MODE=live）
 6. **ヘルスチェック**: デプロイ成功確認
-
-**品質保証**: 1,117テスト100%成功・68.32%カバレッジ達成（Phase 49完了）
 
 ---
 
@@ -53,15 +53,36 @@
 
 **実行フロー**:
 1. **環境セットアップ**: Python3.13・依存関係インストール
-2. **ML学習実行**: 統合運用ガイド準拠コマンド
+2. **データ収集**: 180日分の履歴データ取得
+3. **ML学習実行**:
    ```bash
    --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
    ```
-3. **品質検証**: 55特徴量検証（最小50特徴量・将来の拡張対応）・モデルタイプ確認
-4. **バージョン管理**: 自動コミット・プッシュ・Git情報追跡
-5. **デプロイトリガー**: `model-updated`イベント送信 → ci.yml自動実行
+4. **品質検証**: MIN_FEATURE_COUNT（50）以上確認
+5. **バージョン管理**: 自動コミット・プッシュ
+6. **デプロイトリガー**: `model-updated`イベント送信 → ci.yml自動実行
 
 **実行時間**: 約4-8分（50-100 trials）・タイムアウト30分
+
+---
+
+### **backtest.yml - バックテスト実行**
+
+**役割**: バックテスト実行とMarkdownレポート生成
+
+**実行条件**:
+- 手動実行のみ（`workflow_dispatch`）
+
+**パラメータ**:
+- `phase_name`: Phase名（例: 52.1）
+- `backtest_days`: バックテスト日数（デフォルト: 180）
+
+**実行フロー**:
+1. **環境セットアップ**: Python3.13・依存関係インストール
+2. **履歴データ収集**: 15分足・4時間足データ取得
+3. **バックテスト実行**: main.py --mode backtest
+4. **Markdownレポート生成**: docs/バックテスト記録/に保存
+5. **Git自動コミット**: レポートをリポジトリにプッシュ
 
 ---
 
@@ -81,7 +102,9 @@
 - **Moderate**: Safe + Cloud Build履歴（30日以上）
 - **Aggressive**: より積極的な大量削除（要注意）
 
-**コスト削減効果**: 月30%削減・年間コスト最適化
+**Phase 52.2改善**:
+- SHA256ダイジェストベース削除（より確実）
+- 環境変数によるマジックナンバー排除
 
 ---
 
@@ -98,9 +121,28 @@
 - 損益曲線グラフ（matplotlib生成）
 - Discord自動送信
 
-**現状制限**: Cloud Storage未統合（将来実装予定・Phase 50以降）
+**Phase 52.2改善**:
+- Cloud Storage統合（gs://crypto-bot-trade-data/tax/trade_history.db）
+- 環境変数化（BUCKET_NAME, DB_PATH）
 
-**通知削減効果**: 99%削減（300-1,500回/月 → 4回/月）
+---
+
+### **🚨 emergency-stop.yml - 緊急停止**
+
+**役割**: iPhoneからワンタップで実行可能な緊急停止/復旧
+
+**実行条件**:
+- 手動実行のみ（`workflow_dispatch`）
+
+**アクション**:
+- **stop**: トラフィック0%に設定（即時停止・リソース保持で復旧簡単）
+- **resume**: トラフィック100%に設定（復旧）
+- **status**: 現在の状態確認のみ
+
+**使い方**:
+1. iPhoneのGitHubアプリを開く
+2. Actions → 🚨 Emergency Stop → Run workflow
+3. アクションを選択して実行
 
 ---
 
@@ -112,15 +154,15 @@
 🗓️  毎週日曜18:00 JST
     ↓
 🤖 model-training.yml 自動実行
-    ├── Python3.13環境セットアップ
+    ├── 180日分データ収集
     ├── ProductionEnsemble学習（LightGBM・XGBoost・RandomForest）
-    ├── 55特徴量品質検証（最小50特徴量・将来拡張対応）
+    ├── 55特徴量品質検証（MIN_FEATURE_COUNT: 50）
     └── Git自動コミット・model-updatedイベント送信
     ↓
 🚀 ci.yml 自動トリガー
-    ├── 1,117テスト・品質チェック・68.32%カバレッジ確認
+    ├── テスト・品質チェック
     ├── Docker Build・Artifact Registry プッシュ
-    └── Cloud Run本番デプロイ・新MLモデル適用（MODE=live）
+    └── Cloud Run本番デプロイ（MODE=live）
     ↓
 ✅ 週次完全自動モデル更新完了
 
@@ -140,14 +182,18 @@
 ```bash
 # GitHub CLI使用
 gh workflow run ci.yml                                    # CI/CDパイプライン
-gh workflow run model-training.yml                       # MLモデル学習（50 trials）
-gh workflow run cleanup.yml -f cleanup_level=safe        # リソースクリーンアップ
-gh workflow run weekly_report.yml                        # 週間レポート即座送信
+gh workflow run model-training.yml                        # MLモデル学習（50 trials）
+gh workflow run backtest.yml -f phase_name=52.2           # バックテスト実行
+gh workflow run cleanup.yml -f cleanup_level=safe         # リソースクリーンアップ
+gh workflow run weekly_report.yml                         # 週間レポート即座送信
+gh workflow run emergency-stop.yml -f action=status       # 状態確認
 
 # パラメータ付き実行
-gh workflow run model-training.yml -f n_trials=100       # 高精度学習（100 trials）
-gh workflow run model-training.yml -f dry_run=true       # ドライラン（モデル保存なし）
-gh workflow run cleanup.yml -f cleanup_level=moderate    # 中程度クリーンアップ
+gh workflow run model-training.yml -f n_trials=100        # 高精度学習（100 trials）
+gh workflow run model-training.yml -f dry_run=true        # ドライラン（モデル保存なし）
+gh workflow run cleanup.yml -f cleanup_level=moderate     # 中程度クリーンアップ
+gh workflow run emergency-stop.yml -f action=stop         # 緊急停止
+gh workflow run emergency-stop.yml -f action=resume       # 復旧
 ```
 
 ### **実行状況確認**
@@ -156,8 +202,8 @@ gh workflow run cleanup.yml -f cleanup_level=moderate    # 中程度クリーン
 # 実行履歴確認
 gh run list --workflow=ci.yml --limit 5
 gh run list --workflow=model-training.yml --limit 5
+gh run list --workflow=backtest.yml --limit 5
 gh run list --workflow=cleanup.yml --limit 5
-gh run list --workflow=weekly_report.yml --limit 5
 
 # 詳細ログ確認
 gh run view [RUN_ID] --log
@@ -172,9 +218,15 @@ gh run list --limit 1
 
 ### **実行制約**
 - **同時実行制限**: mainブランチでは順次実行（競合回避）
-- **実行時間制限**: CI/CD 30分・ML学習 30分・クリーンアップ 20分・週間レポート 10分
-- **Python版**: 3.13（全ワークフロー統一・MLライブラリ互換性最適化）
+- **実行時間制限**: CI/CD 30分・ML学習 30分・クリーンアップ 20分・週間レポート 15分
+- **Python版**: 3.13（全ワークフロー統一）
 - **実行制限**: mainブランチでの実行に制限（安全性確保）
+
+### **環境変数（Phase 52.2追加）**
+- **MIN_FEATURE_COUNT**: 50（model-training.yml）
+- **IMAGE_RETENTION_COUNT**: 5（cleanup.yml）
+- **REVISION_RETENTION_COUNT**: 3（cleanup.yml）
+- **BUCKET_NAME**: crypto-bot-trade-data（weekly_report.yml）
 
 ### **GCP認証・権限**
 - **Workload Identity**: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
@@ -184,71 +236,21 @@ gh run list --limit 1
   - `bitbank-api-secret:3`
   - `discord-webhook-url:6`
 
-### **環境変数**
-- **MODE**: CI/CD時自動的に `live`
-- **LOG_LEVEL**: `INFO`
-- **PYTHONPATH**: `/app`
-- **FEATURE_MODE**: `full`
-- **DEPLOY_STAGE**: `live`
-
-### **依存関係**
-- GCPプロジェクト設定とリソースの事前準備が必要
-- 各ワークフローは他のプロジェクトファイル（`scripts/`, `src/`, `models/` など）に依存
-- 全設定ファイル（`config/core/*.yaml`）との整合性が必要
-
 ---
 
-## 🔧 重要な修正履歴
+## 🔧 更新履歴
 
-### **2025-10-25: Phase 49完了対応**
+### **2025-12-13: Phase 52.2整理**
 
 **更新内容**:
-- 1,117テスト・68.32%カバレッジ達成
-- 55特徴量Strategy-Aware ML対応（model-training.yml）
-- 特徴量検証を柔軟化（最小50特徴量・将来拡張対応）
-- ML学習パラメータ修正（`training_days` → `n_trials`）
-- Docker起動テスト実装（Phase 49.14）
+- 全ワークフローのPhase参照更新
+- emergency-stop.yml追加（緊急停止/復旧）
+- 環境変数によるマジックナンバー排除
+- cleanup.yml: SHA256ダイジェストベース削除
+- model-training.yml: データ収集ステップ追加
+- weekly_report.yml: Cloud Storage統合
+- 55特徴量システム対応
 
 ---
 
-### **2025-09-18: CI/CD統一・設定不整合解消**
-
-**実現内容**: CI/CD・GCP・設定ファイルの完全統一
-
-**主要改善**:
-- **cloudbuild.yaml削除**: GitHub Actions統一・Cloud Build廃止
-- **Secret Manager最適化**: `:latest`廃止→具体的バージョン（:3, :6）
-- **MODE設定統一**: CI/CD時自動的に `MODE=live`
-- **Kelly基準最適化**: min_trades 20→5・初期position_size 0.0002 BTC
-- **Python版統一**: 全ワークフローで3.13統一
-
-**技術的詳細**:
-- 3層優先順位：CLI引数 > 環境変数 > YAML設定
-- Secret Manager具体的バージョン使用でCloud Run環境の動的参照問題解決
-
----
-
-### **2025-09-19: Discord Webhook 401エラー修正**
-
-**問題**: Secret Manager version 5のDiscord Webhook URLが122文字（余分な文字）で401エラー発生
-
-**解決方法**: 正確な121文字URLでSecret Manager version 6作成
-
-```bash
-# 新バージョン作成
-echo -n "正確な121文字URL" | gcloud secrets versions add discord-webhook-url --data-file=-
-
-# CI/CD設定更新（ci.yml）
-DISCORD_WEBHOOK_URL=discord-webhook-url:6  # version 5 → 6
-```
-
-**確認結果**:
-- ✅ Secret Manager version 6: 121文字（正確）
-- ✅ Webhook テスト: HTTP 204 成功
-- ✅ CI/CD設定更新: `discord-webhook-url:6`
-
-**教訓**: Secret Managerの文字数精度が重要、テスト環境での文字数検証必須
-
----
-
-**Phase 49完了**: 1,117テスト100%成功・68.32%カバレッジ達成・55特徴量Strategy-Aware ML・SELL Only問題解決・証拠金維持率80%遵守により、企業級品質のAI自動取引システムが完全自動化されています。
+**Phase 52.2完了**: 55特徴量Strategy-Aware ML・Python 3.13統一・緊急停止機能追加により、堅牢なCI/CD基盤が整備されています。

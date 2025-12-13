@@ -1,5 +1,5 @@
 # CI/CDパイプライン
-# 1,117テスト100%成功・68.32%カバレッジ達成・Phase 49完了（SELL Only問題解決・証拠金維持率80%遵守）
+# Phase 52.2整理（55特徴量・Python 3.13・Phase 49ベース）
 
 name: CI/CD Pipeline
 
@@ -46,9 +46,9 @@ jobs:
 
       - name: Setup test environment
         run: |
-          # Phase 50.9: 実モデルファイルがGitに含まれるため、ダミー作成不要
+          # Phase 52.2: 実モデルファイルがGitに含まれるため、ダミー作成不要
           mkdir -p logs cache
-          echo '{"version": "ci-test", "features": 62}' > models/production/model_metadata.json
+          echo '{"version": "ci-test", "features": 55}' > models/production/model_metadata.json
           echo "✅ テスト環境準備完了（実モデルファイル使用）"
 
       - name: Run quality checks (checks.sh)
@@ -304,7 +304,7 @@ jobs:
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
 
           echo "🚀 段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "Phase 49完了: 1,117テスト100%成功・68.32%カバレッジ達成・SELL Only問題解決・証拠金維持率80%遵守"
+          echo "Phase 52.2: 55特徴量・Python 3.13"
           
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
@@ -356,7 +356,7 @@ jobs:
             --to-latest \
             --region=${{ env.REGION }} || echo "⚠️ トラフィック移行失敗"
 
-          echo "✅ Phase 49本番デプロイ完了・システム稼働開始"
+          echo "✅ Phase 52.2本番デプロイ完了・システム稼働開始"
 
       - name: Verify Deployment Health Check
         run: |
@@ -414,11 +414,11 @@ jobs:
         if: always()
         run: |
           if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Phase 49本番デプロイ成功！"
+            echo "🎉 Phase 52.2本番デプロイ成功！"
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: 1,117テスト100%成功・68.32%カバレッジ・SELL Only問題解決・証拠金維持率80%遵守"
+            echo "📈 品質保証: 55特徴量・Python 3.13"
           else
             echo "❌ デプロイ失敗"
             echo "🔍 ログを確認してください"

@@ -1,23 +1,25 @@
 # 週間レポート自動送信ワークフロー
-# 毎週月曜日 9:00 JST に取引統計レポート（損益曲線グラフ付き）をDiscordに送信
+# 毎週月曜日 9:00 JST に取引統計レポートをDiscordに送信
+# Phase 52.2整理: Cloud Storage統合・環境変数化
 
 name: Weekly Trading Report
 
 on:
+  workflow_dispatch:  # 手動実行
   schedule:
-    # 毎週月曜日 00:00 UTC = 09:00 JST
-    - cron: '0 0 * * 1'
-  workflow_dispatch:  # 手動実行も可能
+    - cron: '0 0 * * 1'  # 毎週月曜 09:00 JST (UTC 00:00)
 
 env:
   PROJECT_ID: my-crypto-bot-project
   PYTHON_VERSION: '3.13'
+  BUCKET_NAME: crypto-bot-trade-data
+  DB_PATH: tax/trade_history.db
 
 jobs:
   send-weekly-report:
     name: Generate and Send Weekly Report
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     permissions:
       contents: read
@@ -52,32 +54,28 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Download trade history database
+      - name: Download trade history from Cloud Storage
         run: |
-          echo "📥 取引履歴データベース取得中..."
-
-          # 現状: Cloud Runはステートレスのため、データ永続化が課題
-          # 将来実装: Cloud StorageまたはCloud SQLに取引履歴を永続化予定
-
-          # 一時的な対応: ローカルでダミーデータベース作成
+          echo "📥 Cloud Storageから取引履歴DB取得"
           mkdir -p tax
 
-          # TODO: 将来実装（Phase 50以降）
-          # gsutil cp gs://crypto-bot-data/trade_history.db tax/trade_history.db
-
-          echo "⚠️ 注意: Cloud Storage統合未実装（将来実装予定）"
-          echo "現在は週間レポート機能は制限付きで動作します"
+          # Cloud StorageからDB取得
+          if gsutil -q stat gs://${{ env.BUCKET_NAME }}/${{ env.DB_PATH }}; then
+            gsutil cp gs://${{ env.BUCKET_NAME }}/${{ env.DB_PATH }} ${{ env.DB_PATH }}
+            echo "✅ 取引履歴DB取得完了"
+            ls -lh ${{ env.DB_PATH }}
+          else
+            echo "⚠️ Cloud StorageにDBが存在しません"
+            echo "空のDBで続行します（レポートは限定的）"
+            touch ${{ env.DB_PATH }}
+          fi
 
       - name: Get Discord Webhook URL from Secret Manager
         id: get-webhook
         run: |
           echo "🔑 Discord Webhook URL取得中..."
-
           DISCORD_WEBHOOK_URL=$(gcloud secrets versions access 6 --secret="discord-webhook-url")
-
-          # GitHub Actions環境変数に設定
           echo "DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL" >> $GITHUB_ENV
-
           echo "✅ Discord Webhook URL取得完了"
 
       - name: Generate and send weekly report
@@ -86,9 +84,8 @@ jobs:
         run: |
           echo "📊 週間レポート生成・送信開始..."
 
-          # 週間レポートスクリプト実行（損益統計・グラフ生成・Discord送信）
           python scripts/reports/weekly_report.py \
-            --db-path tax/trade_history.db \
+            --db-path ${{ env.DB_PATH }} \
             --discord-webhook-url "$DISCORD_WEBHOOK_URL"
 
           if [ $? -eq 0 ]; then
@@ -97,6 +94,14 @@ jobs:
             echo "❌ 週間レポート送信失敗"
             exit 1
           fi
+
+      - name: Report Summary
+        if: always()
+        run: |
+          echo "📊 === Weekly Report Summary ==="
+          echo "実行時間: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "実行タイプ: ${{ github.event_name }}"
+          echo "ステータス: ${{ job.status }}"
 
       - name: Cleanup temporary files
         if: always()
@@ -108,5 +113,5 @@ jobs:
 # 注意事項:
 # 1. 週次自動実行: 毎週月曜日 9:00 JST（UTC 00:00）
 # 2. 手動実行可能: workflow_dispatch対応
-# 3. 現状制限: Cloud Storage未統合（将来実装予定・Phase 50以降）
+# 3. Phase 52.2整理: Cloud Storage統合（gs://crypto-bot-trade-data/tax/trade_history.db）
 # 4. レポート内容: 損益統計・損益曲線グラフ（matplotlib生成）・Discord送信
