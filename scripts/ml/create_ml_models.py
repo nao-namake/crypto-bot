@@ -193,12 +193,12 @@ class NewSystemMLModelCreator:
         else:
             xgb_params["eval_metric"] = "logloss"
 
-        # RandomForest設定（自動検出するが明示的に設定）
+        # RandomForest設定（Phase 53.2: GCP gVisor互換性のためn_jobs=1）
         rf_params = {
             "n_estimators": 200,
             "max_depth": 12,
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
             "class_weight": "balanced",  # Phase 39.4
         }
 
@@ -714,7 +714,7 @@ class NewSystemMLModelCreator:
             "max_depth": trial.suggest_int("max_depth", 5, 20),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
             "class_weight": "balanced",
         }
 

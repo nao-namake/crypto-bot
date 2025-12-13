@@ -158,9 +158,20 @@ def detect_environment():
 def setup_auto_shutdown():
     """
     GCP環境での自動シャットダウン設定
+
+    Phase 53.2: Cloud Run環境ではsignal.alarmを無効化
+    Cloud Runは独自のタイムアウト管理を行うため、signal.alarmと競合する
     """
-    # 15分（900秒）でタイムアウト
-    timeout_seconds = 900
+    # Phase 53.2: Cloud Run環境検出
+    is_cloud_run = os.getenv("K_SERVICE") is not None
+
+    if is_cloud_run:
+        # Cloud Runでは無効化（Cloud Run自体がタイムアウト管理）
+        print("☁️ Cloud Run環境検出: signal.alarmを無効化（Cloud Runタイムアウトに委任）")
+        return
+
+    # ローカル環境のみ自動タイムアウト設定
+    timeout_seconds = 900  # 15分
 
     def timeout_handler(signum, frame):
         print(f"⏰ タイムアウト（{timeout_seconds}秒）によりシステムを終了します")

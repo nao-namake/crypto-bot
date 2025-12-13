@@ -1585,11 +1585,12 @@ class BitbankClient:
             timestamp = str(int(time.time() * 1000))
             nonce = timestamp
 
-            # Phase 37.2: GET/POSTで署名ロジック分岐
+            # Phase 53.2: GET/POSTで署名ロジック分岐
+            # 重要: GETリクエストの署名には /v1 プレフィックスが必要
             if method.upper() == "GET":
-                # GETリクエスト署名: nonce + endpoint (+ query parameters)
-                # 現時点でquery parametersは使用しないため、endpointのみ
-                message = f"{nonce}{endpoint}"
+                # GETリクエスト署名: nonce + /v1 + endpoint
+                # Phase 53.2修正: bitbank APIはGET署名に /v1 プレフィックスを要求
+                message = f"{nonce}/v1{endpoint}"
                 body = None
             else:
                 # POSTリクエスト署名: nonce + request body
