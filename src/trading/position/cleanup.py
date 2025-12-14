@@ -74,23 +74,33 @@ class PositionCleanup:
             failed_cancels = []
 
             for position in orphaned:
-                # TP注文削除
-                tp_order_id = position.get("tp_order_id")
-                if tp_order_id:
-                    if await self._cancel_order(bitbank_client, tp_order_id):
-                        cleaned_count += 1
-                        self.logger.info(f"🧹 TP注文削除成功: {tp_order_id}")
-                    else:
-                        failed_cancels.append(f"TP:{tp_order_id}")
+                # Phase 53.12: 復元されたポジションはorder_idを使用
+                if position.get("restored"):
+                    order_id = position.get("order_id")
+                    if order_id:
+                        if await self._cancel_order(bitbank_client, order_id):
+                            cleaned_count += 1
+                            self.logger.info(f"🧹 Phase 53.12: 復元注文削除成功: {order_id}")
+                        else:
+                            failed_cancels.append(f"Restored:{order_id}")
+                else:
+                    # TP注文削除
+                    tp_order_id = position.get("tp_order_id")
+                    if tp_order_id:
+                        if await self._cancel_order(bitbank_client, tp_order_id):
+                            cleaned_count += 1
+                            self.logger.info(f"🧹 TP注文削除成功: {tp_order_id}")
+                        else:
+                            failed_cancels.append(f"TP:{tp_order_id}")
 
-                # SL注文削除
-                sl_order_id = position.get("sl_order_id")
-                if sl_order_id:
-                    if await self._cancel_order(bitbank_client, sl_order_id):
-                        cleaned_count += 1
-                        self.logger.info(f"🧹 SL注文削除成功: {sl_order_id}")
-                    else:
-                        failed_cancels.append(f"SL:{sl_order_id}")
+                    # SL注文削除
+                    sl_order_id = position.get("sl_order_id")
+                    if sl_order_id:
+                        if await self._cancel_order(bitbank_client, sl_order_id):
+                            cleaned_count += 1
+                            self.logger.info(f"🧹 SL注文削除成功: {sl_order_id}")
+                        else:
+                            failed_cancels.append(f"SL:{sl_order_id}")
 
                 # 仮想ポジション削除
                 self.position_tracker.remove_position(position["order_id"])
@@ -272,17 +282,24 @@ class PositionCleanup:
             canceled_orders = 0
             if bitbank_client:
                 for position in all_positions:
-                    # TP注文削除
-                    tp_order_id = position.get("tp_order_id")
-                    if tp_order_id:
-                        if await self._cancel_order(bitbank_client, tp_order_id):
-                            canceled_orders += 1
+                    # Phase 53.12: 復元されたポジションはorder_idを使用
+                    if position.get("restored"):
+                        order_id = position.get("order_id")
+                        if order_id:
+                            if await self._cancel_order(bitbank_client, order_id):
+                                canceled_orders += 1
+                    else:
+                        # TP注文削除
+                        tp_order_id = position.get("tp_order_id")
+                        if tp_order_id:
+                            if await self._cancel_order(bitbank_client, tp_order_id):
+                                canceled_orders += 1
 
-                    # SL注文削除
-                    sl_order_id = position.get("sl_order_id")
-                    if sl_order_id:
-                        if await self._cancel_order(bitbank_client, sl_order_id):
-                            canceled_orders += 1
+                        # SL注文削除
+                        sl_order_id = position.get("sl_order_id")
+                        if sl_order_id:
+                            if await self._cancel_order(bitbank_client, sl_order_id):
+                                canceled_orders += 1
 
             # 全仮想ポジションクリア
             cleared_count = self.position_tracker.clear_all_positions()

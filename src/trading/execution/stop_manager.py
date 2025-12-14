@@ -940,12 +940,19 @@ class StopManager:
             # アクティブポジションのTP/SL注文IDを収集（削除対象から除外）
             protected_order_ids = set()
             for position in virtual_positions:
-                tp_id = position.get("tp_order_id")
-                sl_id = position.get("sl_order_id")
-                if tp_id:
-                    protected_order_ids.add(str(tp_id))
-                if sl_id:
-                    protected_order_ids.add(str(sl_id))
+                # Phase 53.12: 復元されたポジションのorder_idを保護
+                if position.get("restored"):
+                    order_id = position.get("order_id")
+                    if order_id:
+                        protected_order_ids.add(str(order_id))
+                # 通常のポジションのTP/SL注文を保護
+                else:
+                    tp_id = position.get("tp_order_id")
+                    sl_id = position.get("sl_order_id")
+                    if tp_id:
+                        protected_order_ids.add(str(tp_id))
+                    if sl_id:
+                        protected_order_ids.add(str(sl_id))
 
             if protected_order_ids:
                 self.logger.info(

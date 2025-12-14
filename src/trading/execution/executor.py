@@ -1325,14 +1325,29 @@ class ExecutionService:
             protected_order_ids = set()
             if self.virtual_positions:
                 for pos in self.virtual_positions:
-                    # 同じ側のポジションのTP/SL注文は保護
-                    if pos.get("side") == side:
+                    # Phase 53.12: 復元されたポジションのorder_idを保護
+                    # Phase 53.6で復元されたポジションはorder_idにTP/SL注文IDが格納されている
+                    if pos.get("restored"):
+                        order_id = pos.get("order_id")
+                        if order_id:
+                            protected_order_ids.add(str(order_id))
+                            self.logger.debug(
+                                f"🛡️ Phase 53.12: 復元ポジション保護 - order_id={order_id}"
+                            )
+                    # 通常のポジション（新規エントリー）のTP/SL注文は同一側のみ保護
+                    elif pos.get("side") == side:
                         tp_id = pos.get("tp_order_id")
                         sl_id = pos.get("sl_order_id")
                         if tp_id:
                             protected_order_ids.add(str(tp_id))
                         if sl_id:
                             protected_order_ids.add(str(sl_id))
+
+            # Phase 53.12: 保護対象の注文IDをログ出力
+            if protected_order_ids:
+                self.logger.info(
+                    f"🛡️ Phase 53.12: {len(protected_order_ids)}件の注文を保護対象に設定"
+                )
 
             # 削除対象の注文を収集
             # Phase 53.7: CCXTの戻り値形式に合わせてキー名修正（order_id → id）
