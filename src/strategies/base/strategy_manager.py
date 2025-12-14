@@ -264,24 +264,25 @@ class StrategyManager:
         # 最高比率のアクションを選択
         max_ratio = max(buy_ratio, sell_ratio, hold_ratio)
 
-        if buy_ratio == max_ratio:
+        # Phase 53.13: BUY/SELL同率時はHOLDに変更（BUYバイアス除去）
+        if buy_ratio == max_ratio and buy_ratio > sell_ratio:
             winning_group = buy_signals
             action = "buy"
             confidence = buy_weighted_confidence
             ratio = buy_ratio
-        elif sell_ratio == max_ratio:
+        elif sell_ratio == max_ratio and sell_ratio > buy_ratio:
             winning_group = sell_signals
             action = "sell"
             confidence = sell_weighted_confidence
             ratio = sell_ratio
-        else:  # hold_ratio == max_ratio
-            # hold が最高スコア → _create_hold_signalで動的confidence計算
+        else:  # hold_ratio == max_ratio または BUY/SELL同率
+            # Phase 53.13: BUY/SELL同率の場合もHOLDに
             self.logger.info(
-                f"コンフリクト解決: HOLD選択 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)"
+                f"コンフリクト解決: HOLD選択 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f}, HOLD={hold_ratio:.3f})"
             )
             return self._create_hold_signal(
                 df,
-                reason=f"全5票統合結果 - HOLD優勢 (比率: {hold_ratio:.3f}, {len(hold_signals)}票)",
+                reason=f"全5票統合結果 - HOLD/同率 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f})",
             )
 
         self.logger.info(

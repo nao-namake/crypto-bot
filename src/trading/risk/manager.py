@@ -229,9 +229,10 @@ class IntegratedRiskManager:
                     strategy_signal, "side", None
                 )
 
-            # side属性を"buy"/"sell"のみに正規化
+            # Phase 53.13: side属性を"buy"/"sell"/"hold"に正規化
+            # デフォルトを"hold"に変更（BUYバイアス除去）
             raw_side = (
-                strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "buy"
+                strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "hold"
             )
 
             # holdの場合は実取引しないため、適切なside値を設定

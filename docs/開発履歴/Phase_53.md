@@ -26,6 +26,7 @@ Phase 52.1ロールバック後、GCP稼働に必要な修正を適用し、発�
 | **53.10** | バックテスト評価指標追加（9指標） | ✅ 完了 |
 | **53.11** | Noneエラー修正・DD%計算修正 | ✅ 完了 |
 | **53.12** | TP/SL保護バグ修正【緊急】 | ✅ 完了 |
+| **53.13** | BUYバイアス除去 | ✅ 完了 |
 
 ### ⚠️ ロールバックポイント
 **Phase 53.1がロールバック基準点**。Phase 53.2以降で問題が発生した場合、このポイントに戻す。
@@ -1339,8 +1340,77 @@ for position in orphaned:
 
 ---
 
+## 🔧 Phase 53.13: BUYバイアス除去
+
+### 発見日
+2025年12月15日
+
+### 調査結果
+
+ライブモードでロング（BUY）のみエントリーしている原因を調査
+
+**✅ バイアスなしと判明した箇所**:
+- 6戦略のBUY/SELL条件: 完全対称
+- 信頼度計算・戦略重み・TP/SL設定: 全て公平
+
+**⚠️ 潜在的な問題（2件）**:
+
+### 問題1: リスク管理層のデフォルト値
+
+**ファイル**: `src/trading/risk/manager.py` (Line 234)
+
+```python
+# 修正前
+raw_side = strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "buy"
+
+# 修正後
+raw_side = strategy_action or ml_prediction.get("action") or ml_prediction.get("side") or "hold"
+```
+
+### 問題2: 戦略統合の同率時処理
+
+**ファイル**: `src/strategies/base/strategy_manager.py` (Line 267-286)
+
+```python
+# 修正前
+if buy_ratio == max_ratio:
+    action = "buy"
+elif sell_ratio == max_ratio:
+    action = "sell"
+
+# 修正後（同率時はHOLD）
+if buy_ratio == max_ratio and buy_ratio > sell_ratio:
+    action = "buy"
+elif sell_ratio == max_ratio and sell_ratio > buy_ratio:
+    action = "sell"
+else:  # hold_ratio == max_ratio または BUY/SELL同率
+    return self._create_hold_signal(...)
+```
+
+### 修正対象ファイル
+
+| ファイル | 修正箇所 | 内容 |
+|---------|---------|------|
+| `src/trading/risk/manager.py` | Line 234 | デフォルト値を"hold"に変更 |
+| `src/strategies/base/strategy_manager.py` | Line 267-286 | 同率時HOLD処理追加 |
+
+### テスト結果
+
+```
+1,201 passed, 36 skipped, 12 xfailed, 1 xpassed in 49.30s
+```
+
+### 期待される効果
+
+| 問題 | 修正前 | 修正後 |
+|-----|--------|--------|
+| シグナルなし時のデフォルト | BUY | **HOLD** |
+| BUY/SELL同率時 | BUY優先 | **HOLD** |
+
+---
+
 **📅 最終更新**: 2025年12月15日
-**✅ ステータス**: Phase 53シリーズ完了（53.1-53.12）
+**✅ ステータス**: Phase 53シリーズ完了（53.1-53.13）
 **📊 テスト結果**: 1,201テスト・100%成功
 **🔍 レビュー結果**: 全Phase ⭐⭐⭐⭐⭐（問題なし）
-**🎯 Phase 53成果**: GCP稼働率100%・バックテスト評価指標9項目追加・Noneエラー解消・DD%計算修正・TP/SL保護バグ修正
+**🎯 Phase 53成果**: GCP稼働率100%・バックテスト評価指標9項目追加・Noneエラー解消・DD%計算修正・TP/SL保護バグ修正・BUYバイアス除去
