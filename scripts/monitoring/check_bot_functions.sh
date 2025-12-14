@@ -6,7 +6,7 @@
 # 使用方法:
 #   bash scripts/monitoring/check_bot_functions.sh
 #
-# 前提条件:
+# 前提条:
 #   check_infrastructure.sh が正常終了していること
 #
 # 終了コード:
@@ -38,8 +38,10 @@ fi
 count_logs() {
     local query="$1"
     local limit="${2:-50}"
+    local result
     if [ -n "$DEPLOY_TIME" ]; then
-        gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND ($query) AND timestamp>=\"$DEPLOY_TIME\"" --limit="$limit" --format="value(textPayload)" 2>/dev/null | grep -c . || echo "0"
+        result=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND ($query) AND timestamp>=\"$DEPLOY_TIME\"" --limit="$limit" --format="value(textPayload)" 2>/dev/null | grep -c . 2>/dev/null) || result=0
+        echo "$result"
     else
         echo "0"
     fi
@@ -60,9 +62,9 @@ FEATURE_55_COUNT=$(count_logs "textPayload:\"55特徴量\" OR textPayload:\"55�
 FEATURE_49_COUNT=$(count_logs "textPayload:\"49特徴量\" OR textPayload:\"基本特徴量のみ\"" 15)
 DUMMY_MODEL_COUNT=$(count_logs "textPayload:\"DummyModel\"" 15)
 
-echo "   55特徴量（完全セット）: $FEATURE_55_COUNT回"
-echo "   49特徴量（フォールバック）: $FEATURE_49_COUNT回"
-echo "   DummyModel: $DUMMY_MODEL_COUNT回"
+echo "   55特徴量（完全セット）: $FEATURE_55_COUNT"
+echo "   49特徴量（フォールバック）: $FEATURE_49_COUNT"
+echo "   DummyModel: $DUMMY_MODEL_COUNT"
 
 if [ "$FEATURE_55_COUNT" -gt 0 ] && [ "$DUMMY_MODEL_COUNT" -eq 0 ]; then
     echo "✅ 55特徴量システム: 正常稼働"
@@ -86,15 +88,15 @@ echo "🔍 Silent Failure 検出"
 SIGNAL_COUNT=$(count_logs "textPayload:\"統合シグナル生成: buy\" OR textPayload:\"統合シグナル生成: sell\"" 30)
 ORDER_COUNT=$(count_logs "textPayload:\"注文実行\" OR textPayload:\"order_executed\" OR textPayload:\"create_order\"" 30)
 
-echo "   シグナル生成: $SIGNAL_COUNT件"
-echo "   注文実行: $ORDER_COUNT件"
+echo "   シグナル生成: $SIGNAL_COUNT"
+echo "   注文実行: $ORDER_COUNT"
 
 if [ "$SIGNAL_COUNT" -eq 0 ]; then
     echo "⚠️ シグナル生成なし（Bot機能動作要確認）"
     WARNING_ISSUES=$((WARNING_ISSUES + 1))
 elif [ "$SIGNAL_COUNT" -gt 0 ] && [ "$ORDER_COUNT" -eq 0 ]; then
     echo "❌ 完全Silent Failure検出（致命的）"
-    echo "   → シグナル${SIGNAL_COUNT}件生成されるも注文実行0件"
+    echo "   → シグナル${SIGNAL_COUNT}生成されるも注文実行0"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 3))
 else
     SUCCESS_RATE=$(python3 -c "print(int(($ORDER_COUNT / $SIGNAL_COUNT) * 100))" 2>/dev/null || echo "0")
@@ -122,7 +124,7 @@ ACTIVE_STRATEGIES=0
 for strategy in "${STRATEGIES[@]}"; do
     count=$(count_logs "textPayload:\"\\[$strategy\\]\"" 10)
     if [ "$count" -gt 0 ]; then
-        echo "   $strategy: ✅ ($count回)"
+        echo "   $strategy: ✅ ($count)"
         ACTIVE_STRATEGIES=$((ACTIVE_STRATEGIES + 1))
     else
         echo "   $strategy: ℹ️ 未検出"
@@ -147,7 +149,7 @@ echo ""
 echo "🤖 ML予測システム確認"
 
 ML_PREDICTION_COUNT=$(count_logs "textPayload:\"ProductionEnsemble\" OR textPayload:\"ML予測\" OR textPayload:\"アンサンブル予測\"" 20)
-echo "   ML予測実行: $ML_PREDICTION_COUNT回"
+echo "   ML予測実行: $ML_PREDICTION_COUNT"
 
 if [ "$ML_PREDICTION_COUNT" -gt 0 ]; then
     echo "✅ ML予測: 正常実行中"
@@ -168,10 +170,10 @@ TIGHT_RANGE=$(count_logs "textPayload:\"TIGHT_RANGE\" OR textPayload:\"tight_ran
 NORMAL_RANGE=$(count_logs "textPayload:\"NORMAL_RANGE\" OR textPayload:\"normal_range\"" 10)
 TRENDING=$(count_logs "textPayload:\"TRENDING\" OR textPayload:\"trending\"" 10)
 
-echo "   市場状況分類: $REGIME_COUNT回"
-echo "   TIGHT_RANGE: $TIGHT_RANGE回"
-echo "   NORMAL_RANGE: $NORMAL_RANGE回"
-echo "   TRENDING: $TRENDING回"
+echo "   市場状況分類: $REGIME_COUNT"
+echo "   TIGHT_RANGE: $TIGHT_RANGE"
+echo "   NORMAL_RANGE: $NORMAL_RANGE"
+echo "   TRENDING: $TRENDING"
 
 TOTAL_REGIME=$((TIGHT_RANGE + NORMAL_RANGE + TRENDING))
 if [ "$TOTAL_REGIME" -gt 0 ]; then
@@ -188,7 +190,7 @@ echo ""
 echo "💱 Kelly基準確認"
 
 KELLY_COUNT=$(count_logs "textPayload:\"Kelly基準\" OR textPayload:\"kelly_fraction\"" 15)
-echo "   Kelly計算実行: $KELLY_COUNT回"
+echo "   Kelly計算実行: $KELLY_COUNT"
 
 if [ "$KELLY_COUNT" -gt 0 ]; then
     echo "✅ Kelly基準: 正常動作"
@@ -206,8 +208,8 @@ echo "🎯 Atomic Entry Pattern確認（Phase 51.6）"
 ATOMIC_SUCCESS=$(count_logs "textPayload:\"Atomic Entry完了\"" 10)
 ATOMIC_ROLLBACK=$(count_logs "textPayload:\"ロールバック実行\" OR textPayload:\"Atomic Entry rollback\"" 10)
 
-echo "   Atomic Entry成功: $ATOMIC_SUCCESS回"
-echo "   ロールバック: $ATOMIC_ROLLBACK回"
+echo "   Atomic Entry成功: $ATOMIC_SUCCESS"
+echo "   ロールバック: $ATOMIC_ROLLBACK"
 
 if [ "$ATOMIC_SUCCESS" -gt 0 ] && [ "$ATOMIC_ROLLBACK" -le 2 ]; then
     echo "✅ Atomic Entry Pattern: 正常稼働"
@@ -230,7 +232,7 @@ echo "⚠️ 警告項目: $WARNING_ISSUES"
 echo "❌ 致命的問題: $CRITICAL_ISSUES"
 
 TOTAL_SCORE=$((NORMAL_CHECKS * 10 - WARNING_ISSUES * 3 - CRITICAL_ISSUES * 20))
-echo "🏆 総合スコア: $TOTAL_SCORE点"
+echo "🏆 総合スコア: ${TOTAL_SCORE}点"
 
 echo ""
 echo "🎯 最終判定"

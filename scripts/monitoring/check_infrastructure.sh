@@ -43,8 +43,10 @@ fi
 count_logs() {
     local query="$1"
     local limit="${2:-50}"
+    local result
     if [ -n "$DEPLOY_TIME" ]; then
-        gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND ($query) AND timestamp>=\"$DEPLOY_TIME\"" --limit="$limit" --format="value(textPayload)" 2>/dev/null | grep -c . || echo "0"
+        result=$(gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"crypto-bot-service-prod\" AND ($query) AND timestamp>=\"$DEPLOY_TIME\"" --limit="$limit" --format="value(textPayload)" 2>/dev/null | grep -c . 2>/dev/null) || result=0
+        echo "$result"
     else
         echo "0"
     fi
@@ -122,8 +124,8 @@ echo "🔥 Container 安定性確認"
 CONTAINER_EXIT_COUNT=$(count_logs "textPayload:\"Container called exit(1)\"" 20)
 RUNTIME_WARNING_COUNT=$(count_logs "textPayload:\"RuntimeWarning\" AND textPayload:\"never awaited\"" 20)
 
-echo "   Container exit(1): $CONTAINER_EXIT_COUNT回"
-echo "   RuntimeWarning: $RUNTIME_WARNING_COUNT回"
+echo "   Container exit(1): $CONTAINER_EXIT_COUNT"
+echo "   RuntimeWarning: $RUNTIME_WARNING_COUNT"
 
 if [ "$CONTAINER_EXIT_COUNT" -lt 5 ] && [ "$RUNTIME_WARNING_COUNT" -eq 0 ]; then
     echo "✅ Container安定性: 正常"
@@ -147,7 +149,7 @@ if [ "$DISCORD_ERROR_COUNT" -eq 0 ]; then
     echo "✅ Discord: 正常（Webhook有効）"
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 else
-    echo "❌ Discord: エラー検出（${DISCORD_ERROR_COUNT}回）"
+    echo "❌ Discord: エラー検出（${DISCORD_ERROR_COUNT}）"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 fi
 
@@ -160,8 +162,8 @@ echo "💰 API 残高取得確認"
 API_BALANCE_COUNT=$(count_logs "textPayload:\"残高\"" 15)
 FALLBACK_COUNT=$(count_logs "textPayload:\"フォールバック\"" 15)
 
-echo "   残高取得ログ: $API_BALANCE_COUNT回"
-echo "   フォールバック使用: $FALLBACK_COUNT回"
+echo "   残高取得ログ: $API_BALANCE_COUNT"
+echo "   フォールバック使用: $FALLBACK_COUNT"
 
 if [ "$API_BALANCE_COUNT" -gt 0 ] && [ "$FALLBACK_COUNT" -lt 3 ]; then
     echo "✅ API残高取得: 正常"
@@ -181,7 +183,7 @@ echo ""
 echo "📊 Phase 53.6 ポジション復元確認"
 
 POSITION_RESTORE_COUNT=$(count_logs "textPayload:\"Phase 53.6\"" 10)
-echo "   ポジション復元ログ: $POSITION_RESTORE_COUNT回"
+echo "   ポジション復元ログ: $POSITION_RESTORE_COUNT"
 
 if [ "$POSITION_RESTORE_COUNT" -gt 0 ]; then
     echo "✅ ポジション復元: 正常動作"
@@ -199,8 +201,8 @@ echo "🛡️ 取引阻害エラー検出"
 NONETYPE_ERROR_COUNT=$(count_logs "textPayload:\"NoneType\"" 20)
 API_ERROR_COUNT=$(count_logs "textPayload:\"bitbank API エラー\" OR textPayload:\"API.*エラー.*20\"" 20)
 
-echo "   NoneTypeエラー: $NONETYPE_ERROR_COUNT回"
-echo "   API異常: $API_ERROR_COUNT回"
+echo "   NoneTypeエラー: $NONETYPE_ERROR_COUNT"
+echo "   API異常: $API_ERROR_COUNT"
 
 if [ "$NONETYPE_ERROR_COUNT" -eq 0 ] && [ "$API_ERROR_COUNT" -lt 3 ]; then
     echo "✅ 取引阻害エラー: なし"
@@ -224,7 +226,7 @@ echo "⚠️ 警告項目: $WARNING_ISSUES"
 echo "❌ 致命的問題: $CRITICAL_ISSUES"
 
 TOTAL_SCORE=$((NORMAL_CHECKS * 10 - WARNING_ISSUES * 3 - CRITICAL_ISSUES * 20))
-echo "🏆 総合スコア: $TOTAL_SCORE点"
+echo "🏆 総合スコア: ${TOTAL_SCORE}点"
 
 echo ""
 echo "🎯 最終判定"
