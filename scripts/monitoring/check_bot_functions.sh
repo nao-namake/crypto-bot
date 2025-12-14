@@ -122,7 +122,7 @@ STRATEGIES=("ATRBased" "BBReversal" "StochasticReversal" "DonchianChannel" "ADXT
 ACTIVE_STRATEGIES=0
 
 for strategy in "${STRATEGIES[@]}"; do
-    count=$(count_logs "textPayload:\"\\[$strategy\\]\"" 10)
+    count=$(count_logs "textPayload:\"$strategy\"" 10)
     if [ "$count" -gt 0 ]; then
         echo "   $strategy: ✅ ($count)"
         ACTIVE_STRATEGIES=$((ACTIVE_STRATEGIES + 1))
