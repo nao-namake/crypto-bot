@@ -352,7 +352,9 @@ class TradeTracker:
                 max_dd = dd
                 # Phase 53.11: DD%は実残高（初期資金+累積損益のピーク）で計算
                 actual_balance_at_peak = initial_capital + max_equity
-                max_dd_pct = (dd / actual_balance_at_peak * 100) if actual_balance_at_peak > 0 else 0.0
+                max_dd_pct = (
+                    (dd / actual_balance_at_peak * 100) if actual_balance_at_peak > 0 else 0.0
+                )
 
         return (max_dd, max_dd_pct)
 
