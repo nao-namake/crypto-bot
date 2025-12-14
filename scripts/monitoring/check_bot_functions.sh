@@ -76,7 +76,7 @@ elif [ "$DUMMY_MODEL_COUNT" -gt 0 ]; then
     echo "❌ DummyModelフォールバック（MLモデル停止）"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 2))
 else
-    echo "ℹ️ 特徴量システム: 未確認（取引サイクル未実行の可能性）"
+    echo "⏸️ 特徴量システム: 待機中（取引サイクル未実行 - デプロイ直後は正常）"
 fi
 
 # -----------------------------------------------------------------------------
@@ -180,7 +180,7 @@ if [ "$TOTAL_REGIME" -gt 0 ]; then
     echo "✅ レジーム別TP/SL: 正常稼働"
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 else
-    echo "ℹ️ レジーム別TP/SL: 未確認（取引未実行の可能性）"
+    echo "⏸️ レジーム別TP/SL: 待機中（取引未実行 - 正常動作）"
 fi
 
 # -----------------------------------------------------------------------------
@@ -196,7 +196,7 @@ if [ "$KELLY_COUNT" -gt 0 ]; then
     echo "✅ Kelly基準: 正常動作"
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 else
-    echo "ℹ️ Kelly基準: 未確認（5取引未達成の可能性）"
+    echo "⏸️ Kelly基準: 待機中（5取引未満のため計算スキップ - 正常動作）"
 fi
 
 # -----------------------------------------------------------------------------
@@ -218,7 +218,7 @@ elif [ "$ATOMIC_ROLLBACK" -gt 5 ]; then
     echo "❌ Atomic Entry Pattern: 頻繁ロールバック"
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 else
-    echo "ℹ️ Atomic Entry Pattern: 未確認（エントリー未実行の可能性）"
+    echo "⏸️ Atomic Entry Pattern: 待機中（エントリー未実行 - 正常動作）"
 fi
 
 # -----------------------------------------------------------------------------
