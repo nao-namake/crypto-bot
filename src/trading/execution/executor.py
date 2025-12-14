@@ -132,13 +132,25 @@ class ExecutionService:
 
                 # TP注文またはSL注文を検出して復元
                 if order_type in ["stop", "stop_limit", "limit"]:
+                    # Phase 53.11: None値チェック（不完全なデータは復元しない）
+                    side = order.get("side")
+                    amount = order.get("amount")
+                    price = order.get("price")
+
+                    if side is None or amount is None or price is None:
+                        self.logger.warning(
+                            f"⚠️ Phase 53.11: 不完全な注文スキップ - id={order_id}, "
+                            f"side={side}, amount={amount}, price={price}"
+                        )
+                        continue
+
                     self.virtual_positions.append(
                         {
                             "order_id": order_id,
                             "type": order_type,
-                            "side": order.get("side"),
-                            "amount": order.get("amount"),
-                            "price": order.get("price"),
+                            "side": side,
+                            "amount": float(amount),
+                            "price": float(price),
                             "restored": True,  # 復元フラグ
                         }
                     )

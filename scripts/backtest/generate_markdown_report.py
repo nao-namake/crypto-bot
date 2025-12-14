@@ -224,7 +224,11 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     )
 
     # シャープレシオ評価
-    sharpe_eval = "優秀" if sharpe_ratio >= 2.0 else "良好" if sharpe_ratio >= 1.0 else "普通" if sharpe_ratio >= 0 else "要注意"
+    sharpe_eval = (
+        "優秀"
+        if sharpe_ratio >= 2.0
+        else "良好" if sharpe_ratio >= 1.0 else "普通" if sharpe_ratio >= 0 else "要注意"
+    )
     lines.append(f"| シャープレシオ | {sharpe_ratio:.2f} | {sharpe_eval}（≥1.0で良好） |")
 
     # 期待値評価

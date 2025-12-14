@@ -167,9 +167,20 @@ class StopManager:
             ExecutionResult: 決済結果（決済しない場合はNone）
         """
         try:
-            entry_price = float(position.get("price", 0))
+            # Phase 53.11: None値の防御的処理
+            raw_price = position.get("price")
+            raw_amount = position.get("amount")
             entry_side = position.get("side", "")
-            amount = float(position.get("amount", 0))
+
+            if raw_price is None or raw_amount is None:
+                self.logger.debug(
+                    f"⏭️ Phase 53.11: 不完全ポジションスキップ - "
+                    f"price={raw_price}, amount={raw_amount}"
+                )
+                return None
+
+            entry_price = float(raw_price)
+            amount = float(raw_amount)
             take_profit = position.get("take_profit")
             stop_loss = position.get("stop_loss")
 
@@ -389,9 +400,16 @@ class StopManager:
             bool: 緊急決済が必要か
         """
         try:
-            entry_price = float(position.get("price", 0))
+            # Phase 53.11: None値の防御的処理
+            raw_price = position.get("price")
             entry_side = position.get("side", "")
             entry_time = position.get("timestamp")
+
+            if raw_price is None:
+                self.logger.debug(f"⏭️ Phase 53.11: 不完全ポジションスキップ（緊急） - price=None")
+                return False
+
+            entry_price = float(raw_price)
 
             if entry_price <= 0:
                 return False
