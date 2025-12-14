@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..core.config import get_threshold
 from ..core.logger import get_logger
 
 # Phase 49.4: BacktestVisualizer統合（遅延インポート）
@@ -327,13 +328,16 @@ class TradeTracker:
 
     def _calculate_max_drawdown(self) -> tuple:
         """
-        最大ドローダウン計算
+        最大ドローダウン計算（Phase 53.11修正: 実残高ベースDD%計算）
 
         Returns:
             (max_drawdown, max_drawdown_pct): 最大ドローダウン（円）、最大ドローダウン（%）
         """
         if len(self.equity_curve) < 2:
             return (0.0, 0.0)
+
+        # Phase 53.11: 初期資金を設定から取得（ハードコード回避）
+        initial_capital = get_threshold("backtest.initial_balance", 100000.0)
 
         max_equity = self.equity_curve[0]
         max_dd = 0.0
@@ -346,7 +350,9 @@ class TradeTracker:
             dd = max_equity - equity
             if dd > max_dd:
                 max_dd = dd
-                max_dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
+                # Phase 53.11: DD%は実残高（初期資金+累積損益のピーク）で計算
+                actual_balance_at_peak = initial_capital + max_equity
+                max_dd_pct = (dd / actual_balance_at_peak * 100) if actual_balance_at_peak > 0 else 0.0
 
         return (max_dd, max_dd_pct)
 
