@@ -170,6 +170,8 @@ if [ "$API_BALANCE_COUNT" -gt 0 ] && [ "$FALLBACK_COUNT" -lt 3 ]; then
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 elif [ "$FALLBACK_COUNT" -gt 5 ]; then
     echo "⚠️ フォールバック多用中（API認証問題の可能性）"
+    echo "   📋 最新ログ:"
+    show_logs "textPayload:\"フォールバック\"" 3 | sed 's/^/      /'
     WARNING_ISSUES=$((WARNING_ISSUES + 1))
 else
     echo "⚠️ 残高取得: 要確認"
@@ -209,9 +211,15 @@ if [ "$NONETYPE_ERROR_COUNT" -eq 0 ] && [ "$API_ERROR_COUNT" -lt 3 ]; then
     NORMAL_CHECKS=$((NORMAL_CHECKS + 1))
 elif [ "$NONETYPE_ERROR_COUNT" -lt 5 ] && [ "$API_ERROR_COUNT" -lt 10 ]; then
     echo "⚠️ 取引阻害エラー: 軽微（要監視）"
+    if [ "$NONETYPE_ERROR_COUNT" -gt 0 ]; then
+        echo "   📋 NoneTypeエラー詳細:"
+        show_logs "textPayload:\"NoneType\"" 3 | sed 's/^/      /'
+    fi
     WARNING_ISSUES=$((WARNING_ISSUES + 1))
 else
     echo "❌ 取引阻害エラー: 多発"
+    echo "   📋 エラー詳細:"
+    show_logs "textPayload:\"NoneType\" OR textPayload:\"API.*エラー\"" 5 | sed 's/^/      /'
     CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
 fi
 

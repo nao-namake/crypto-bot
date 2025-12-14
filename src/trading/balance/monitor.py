@@ -543,7 +543,7 @@ class BalanceMonitor:
 
             # 証拠金状況取得
             margin_status = await bitbank_client.fetch_margin_status()
-            available_balance = float(margin_status.get("available_balance", 0))
+            available_balance = float(margin_status.get("available_balance") or 0)
 
             # 最小取引必要額
             min_required = get_threshold("balance_alert.min_required_margin", 14000.0)
