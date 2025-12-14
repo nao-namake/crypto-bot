@@ -8,11 +8,6 @@
 name: ML Model Training
 
 on:
-  # pushトリガー無効化（コミット時の誤実行防止）
-  push:
-    branches-ignore:
-      - '**'
-
   # 手動実行（推奨）
   workflow_dispatch:
     inputs:
