@@ -1117,7 +1117,113 @@ e04d270d style: black整形（reporter.py）
 
 ---
 
-**📅 最終更新**: 2025年12月14日
+## ✅ Phase 53.11続: 証拠金チェックNoneエラー + 診断スクリプト改善【完了】
+
+### 実施日
+2025年12月15日
+
+### 問題3: 証拠金チェックでNoneTypeエラー
+
+**GCPログで確認されたエラー**:
+```
+⚠️ 証拠金チェック一時的失敗（ネットワーク/タイムアウト）: float() argument must be a string or a real number, not 'NoneType'
+```
+
+**原因**:
+1. bitbank APIが`available_margin`にNoneを返すケースがある
+2. `float(margin_status.get("available_balance", 0))`で、キーが存在しても値がNoneの場合はデフォルト値が使われない
+
+### 問題4: 維持率500%問題（APIフィールド名違い）
+
+**GCPログで確認された警告**:
+```
+⚠️ margin_ratioがNone, デフォルト500.0%使用
+```
+
+**原因**:
+- コードは`maintenance_margin_ratio`を参照
+- 実際のbitbank API: `total_margin_balance_percentage`
+- ポジションがない場合はAPIがnullを返す（仕様）
+
+### 修正内容
+
+#### 1. bitbank_client.py: APIフィールド名修正 + None対策
+
+**ファイル**: `src/data/bitbank_client.py`（Line 1478-1503）
+
+```python
+# Phase 53.4/53.11: margin_ratioのNone/型変換エラー対策
+# 正しいフィールド名: total_margin_balance_percentage（ポジションなし時はnull）
+data = response.get("data", {})
+raw_margin_ratio = data.get("total_margin_balance_percentage")  # ← 修正
+
+# margin_ratioの安全な型変換
+if raw_margin_ratio is not None:
+    # ... 変換処理
+else:
+    # ポジションがない場合はnullが返る（API仕様）- 正常動作
+    self.logger.debug("⏸️ margin_ratioがNone（ポジションなし）, デフォルト500.0%使用")
+    margin_ratio = 500.0
+
+margin_data = {
+    "margin_ratio": margin_ratio,
+    "available_balance": data.get("available_margin") or 0,  # ← or 0 追加
+    "used_margin": data.get("used_margin") or 0,             # ← or 0 追加
+    "unrealized_pnl": data.get("unrealized_pnl") or 0,       # ← or 0 追加
+    # ...
+}
+```
+
+#### 2. monitor.py: 防御的コーディング追加
+
+**ファイル**: `src/trading/balance/monitor.py`（Line 546）
+
+```python
+# 修正前
+available_balance = float(margin_status.get("available_balance", 0))
+
+# 修正後
+available_balance = float(margin_status.get("available_balance") or 0)
+```
+
+#### 3. check_infrastructure.sh: エラー詳細表示機能追加
+
+**ファイル**: `scripts/monitoring/check_infrastructure.sh`
+
+```bash
+# フォールバック多用時に詳細表示
+elif [ "$FALLBACK_COUNT" -gt 5 ]; then
+    echo "⚠️ フォールバック多用中（API認証問題の可能性）"
+    echo "   📋 最新ログ:"
+    show_logs "textPayload:\"フォールバック\"" 3 | sed 's/^/      /'
+    WARNING_ISSUES=$((WARNING_ISSUES + 1))
+
+# NoneTypeエラー検出時に詳細表示
+elif [ "$NONETYPE_ERROR_COUNT" -lt 5 ] && [ "$API_ERROR_COUNT" -lt 10 ]; then
+    echo "⚠️ 取引阻害エラー: 軽微（要監視）"
+    if [ "$NONETYPE_ERROR_COUNT" -gt 0 ]; then
+        echo "   📋 NoneTypeエラー詳細:"
+        show_logs "textPayload:\"NoneType\"" 3 | sed 's/^/      /'
+    fi
+```
+
+### 期待される効果
+
+| 問題 | 修正前 | 修正後 |
+|-----|--------|--------|
+| 証拠金チェックfloat(None) | 毎サイクル発生 | **0回** |
+| 維持率500%警告 | WARNING毎回 | **DEBUG（ポジションなし時のみ）** |
+| 診断スクリプト | 詳細不明 | **ログ詳細表示** |
+
+### コミット
+
+```
+dfbb3b40 fix: Phase 53.11 証拠金チェックNoneTypeエラー修正 + 診断スクリプト改善
+```
+
+---
+
+**📅 最終更新**: 2025年12月15日
 **✅ ステータス**: Phase 53シリーズ完了（53.1-53.11）
 **📊 テスト結果**: 1,201テスト・100%成功・64.72%カバレッジ
 **🔍 レビュー結果**: 全Phase ⭐⭐⭐⭐⭐（問題なし）
