@@ -1,6 +1,6 @@
 # bitbank API クイックリファレンス
 
-**最終更新**: 2025年12月11日
+**最終更新**: 2025年12月14日
 
 ## このドキュメントの役割
 
@@ -103,6 +103,8 @@ ACCESS-SIGNATURE: <HMAC-SHA256 signature>
 
 **実装参照**: `src/trading/balance/monitor.py`、`src/data/bitbank_client.py`
 
+**Phase 53.4対応**: `maintenance_margin_ratio`がNullまたは型変換失敗時、デフォルト500.0%を使用（安全な取引継続）
+
 ### 注文管理
 | エンドポイント | メソッド | 説明 |
 |--------------|---------|------|
@@ -110,6 +112,31 @@ ACCESS-SIGNATURE: <HMAC-SHA256 signature>
 | `/user/spot/cancel_order` | POST | 注文キャンセル |
 | `/user/spot/orders_info` | POST | 注文詳細取得 |
 | `/user/spot/trade_history` | GET | 取引履歴 |
+
+#### `/user/spot/active_orders` レスポンス詳細
+
+**メソッド**: GET（CCXT経由: `fetch_open_orders`）
+**認証**: 必須
+
+**レスポンス形式**（CCXT統一形式）:
+```json
+[
+  {
+    "id": "12345678",
+    "symbol": "BTC/JPY",
+    "side": "buy",
+    "type": "limit",
+    "price": 15000000.0,
+    "amount": 0.001,
+    "status": "open"
+  }
+]
+```
+
+**注意**:
+- CCXT形式ではリスト（配列）で返却
+- 注文IDは`id`キー（bitbank独自形式の`order_id`ではない）
+- **実装参照**: `src/data/bitbank_client.py:fetch_active_orders()`
 
 ### 資産情報
 | エンドポイント | メソッド | 説明 |

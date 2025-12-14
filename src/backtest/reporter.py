@@ -191,10 +191,11 @@ class TradeTracker:
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """
-        パフォーマンス指標計算
+        パフォーマンス指標計算（Phase 53: 追加指標含む）
 
         Returns:
             パフォーマンス指標辞書:
+                基本指標:
                 - total_trades: 総取引数
                 - winning_trades: 勝ちトレード数
                 - losing_trades: 負けトレード数
@@ -207,6 +208,21 @@ class TradeTracker:
                 - max_drawdown_pct: 最大ドローダウン（%）
                 - average_win: 平均勝ちトレード
                 - average_loss: 平均負けトレード
+
+                Phase 53追加（重要度: 高）:
+                - sharpe_ratio: シャープレシオ（年率換算）
+                - expectancy: 期待値（1取引あたり期待収益）
+                - recovery_factor: リカバリーファクター（DD回復力）
+
+                Phase 53追加（重要度: 中）:
+                - sortino_ratio: ソルティノレシオ（下方リスク調整）
+                - calmar_ratio: カルマーレシオ（年率/DD%）
+                - payoff_ratio: ペイオフレシオ（勝ち負け比）
+
+                Phase 53追加（重要度: 低）:
+                - max_consecutive_wins: 最大連勝数
+                - max_consecutive_losses: 最大連敗数
+                - trades_per_month: 月間取引頻度
         """
         if not self.completed_trades:
             return {
@@ -222,6 +238,16 @@ class TradeTracker:
                 "max_drawdown_pct": 0.0,
                 "average_win": 0.0,
                 "average_loss": 0.0,
+                # Phase 53: 追加指標
+                "sharpe_ratio": 0.0,
+                "expectancy": 0.0,
+                "recovery_factor": 0.0,
+                "sortino_ratio": 0.0,
+                "calmar_ratio": 0.0,
+                "payoff_ratio": 0.0,
+                "max_consecutive_wins": 0,
+                "max_consecutive_losses": 0,
+                "trades_per_month": 0.0,
             }
 
         # 基本統計
@@ -245,6 +271,35 @@ class TradeTracker:
         avg_win = (total_profit / len(winning_trades)) if winning_trades else 0.0
         avg_loss = (total_loss / len(losing_trades)) if losing_trades else 0.0
 
+        # Phase 53: 追加評価指標（重要度別）
+        # === 重要度: 高 ===
+        # シャープレシオ（リスク調整後リターン）
+        sharpe_ratio = self._calculate_sharpe_ratio()
+
+        # 期待値（1取引あたり期待収益）
+        win_rate_decimal = win_rate / 100
+        expectancy = (win_rate_decimal * avg_win) + ((1 - win_rate_decimal) * avg_loss)
+
+        # リカバリーファクター（DD回復力）
+        recovery_factor = (total_profit / max_dd) if max_dd > 0 else 0.0
+
+        # === 重要度: 中 ===
+        # ソルティノレシオ（下方リスク調整リターン）
+        sortino_ratio = self._calculate_sortino_ratio()
+
+        # カルマーレシオ（年率リターン / 最大DD%）
+        calmar_ratio = self._calculate_calmar_ratio(max_dd_pct)
+
+        # ペイオフレシオ（勝ち負け比率）
+        payoff_ratio = (avg_win / abs(avg_loss)) if avg_loss != 0 else 0.0
+
+        # === 重要度: 低 ===
+        # 連勝・連敗数
+        max_consecutive_wins, max_consecutive_losses = self._calculate_consecutive_streaks()
+
+        # 取引頻度（月間）
+        trades_per_month = self._calculate_trades_per_month()
+
         return {
             "total_trades": total_trades,
             "winning_trades": len(winning_trades),
@@ -258,6 +313,16 @@ class TradeTracker:
             "max_drawdown_pct": max_dd_pct,
             "average_win": avg_win,
             "average_loss": avg_loss,
+            # Phase 53: 追加指標
+            "sharpe_ratio": sharpe_ratio,
+            "expectancy": expectancy,
+            "recovery_factor": recovery_factor,
+            "sortino_ratio": sortino_ratio,
+            "calmar_ratio": calmar_ratio,
+            "payoff_ratio": payoff_ratio,
+            "max_consecutive_wins": max_consecutive_wins,
+            "max_consecutive_losses": max_consecutive_losses,
+            "trades_per_month": trades_per_month,
         }
 
     def _calculate_max_drawdown(self) -> tuple:
@@ -284,6 +349,188 @@ class TradeTracker:
                 max_dd_pct = (dd / max_equity * 100) if max_equity > 0 else 0.0
 
         return (max_dd, max_dd_pct)
+
+    def _calculate_sharpe_ratio(self) -> float:
+        """
+        Phase 53: シャープレシオ計算（重要度: 高）
+
+        リスク調整後リターンを測定。
+        計算式: (平均リターン / リターンの標準偏差) × √252
+
+        Returns:
+            シャープレシオ（年率換算）
+        """
+        import math
+
+        if len(self.completed_trades) < 2:
+            return 0.0
+
+        # 各取引のリターン（損益）
+        returns = [t["pnl"] for t in self.completed_trades]
+
+        # 平均リターン
+        mean_return = sum(returns) / len(returns)
+
+        # 標準偏差
+        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+        std_dev = math.sqrt(variance) if variance > 0 else 0.0
+
+        if std_dev == 0:
+            return 0.0
+
+        # 年率換算（252営業日ベース、5分足なので調整）
+        # 1日約96取引（24時間 × 60分 / 5分 × 取引確率）として概算
+        annualization_factor = math.sqrt(252 * 20)  # 約71
+        sharpe = (mean_return / std_dev) * annualization_factor
+
+        return round(sharpe, 2)
+
+    def _calculate_sortino_ratio(self) -> float:
+        """
+        Phase 53: ソルティノレシオ計算（重要度: 中）
+
+        下方リスクのみを考慮したリスク調整後リターン。
+        計算式: 平均リターン / 下方偏差 × √252
+
+        Returns:
+            ソルティノレシオ（年率換算）
+        """
+        import math
+
+        if len(self.completed_trades) < 2:
+            return 0.0
+
+        returns = [t["pnl"] for t in self.completed_trades]
+        mean_return = sum(returns) / len(returns)
+
+        # 下方偏差（負のリターンのみ）
+        negative_returns = [r for r in returns if r < 0]
+        if not negative_returns:
+            return 0.0  # 負のリターンがない場合
+
+        downside_variance = sum(r**2 for r in negative_returns) / len(returns)
+        downside_dev = math.sqrt(downside_variance) if downside_variance > 0 else 0.0
+
+        if downside_dev == 0:
+            return 0.0
+
+        annualization_factor = math.sqrt(252 * 20)
+        sortino = (mean_return / downside_dev) * annualization_factor
+
+        return round(sortino, 2)
+
+    def _calculate_calmar_ratio(self, max_dd_pct: float) -> float:
+        """
+        Phase 53: カルマーレシオ計算（重要度: 中）
+
+        年率リターン / 最大ドローダウン%
+        DD対比のリターン効率を測定。
+
+        Args:
+            max_dd_pct: 最大ドローダウン（%）
+
+        Returns:
+            カルマーレシオ
+        """
+        if max_dd_pct == 0 or not self.completed_trades:
+            return 0.0
+
+        # 総リターン率（初期資金100,000円ベース）
+        initial_capital = 100000.0
+        total_return_pct = (self.total_pnl / initial_capital) * 100
+
+        # 年率換算（バックテスト期間から推定）
+        # 完了取引数から取引日数を推定
+        if len(self.completed_trades) >= 2:
+            first_trade = self.completed_trades[0]
+            last_trade = self.completed_trades[-1]
+            try:
+                from datetime import datetime
+
+                # タイムスタンプ取得
+                first_ts = first_trade.get("entry_timestamp")
+                last_ts = last_trade.get("exit_timestamp")
+                if first_ts and last_ts:
+                    if hasattr(first_ts, "timestamp"):
+                        days = (last_ts - first_ts).days
+                    else:
+                        days = 180  # デフォルト
+                else:
+                    days = 180
+            except Exception:
+                days = 180
+        else:
+            days = 180
+
+        # 年率換算
+        annual_return_pct = (total_return_pct / days) * 365 if days > 0 else 0.0
+
+        calmar = annual_return_pct / max_dd_pct if max_dd_pct > 0 else 0.0
+
+        return round(calmar, 2)
+
+    def _calculate_consecutive_streaks(self) -> tuple:
+        """
+        Phase 53: 連勝・連敗数計算（重要度: 低）
+
+        Returns:
+            (max_consecutive_wins, max_consecutive_losses): 最大連勝数、最大連敗数
+        """
+        if not self.completed_trades:
+            return (0, 0)
+
+        max_wins = 0
+        max_losses = 0
+        current_wins = 0
+        current_losses = 0
+
+        for trade in self.completed_trades:
+            pnl = trade.get("pnl", 0)
+            if pnl > 0:
+                current_wins += 1
+                current_losses = 0
+                max_wins = max(max_wins, current_wins)
+            elif pnl < 0:
+                current_losses += 1
+                current_wins = 0
+                max_losses = max(max_losses, current_losses)
+            else:
+                # 損益0の場合はリセットしない
+                pass
+
+        return (max_wins, max_losses)
+
+    def _calculate_trades_per_month(self) -> float:
+        """
+        Phase 53: 月間取引頻度計算（重要度: 低）
+
+        Returns:
+            月間平均取引数
+        """
+        if len(self.completed_trades) < 2:
+            return 0.0
+
+        try:
+            first_trade = self.completed_trades[0]
+            last_trade = self.completed_trades[-1]
+
+            first_ts = first_trade.get("entry_timestamp")
+            last_ts = last_trade.get("exit_timestamp")
+
+            if first_ts and last_ts:
+                if hasattr(first_ts, "timestamp"):
+                    days = (last_ts - first_ts).days
+                else:
+                    days = 180  # デフォルト
+            else:
+                days = 180
+
+            months = days / 30.0 if days > 0 else 1.0
+            trades_per_month = len(self.completed_trades) / months
+
+            return round(trades_per_month, 1)
+        except Exception:
+            return 0.0
 
     def get_regime_performance(self) -> Dict[str, Dict[str, Any]]:
         """

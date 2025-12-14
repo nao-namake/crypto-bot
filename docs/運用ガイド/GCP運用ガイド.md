@@ -1,6 +1,6 @@
 # GCP運用ガイド
 
-**最終更新**: 2025年12月11日
+**最終更新**: 2025年12月14日
 
 ## このドキュメントの役割
 
@@ -321,6 +321,28 @@ gcloud run revisions delete OLD_REVISION_NAME \
 
 ---
 
+## 2.8 GCP gVisor制限事項と対策
+
+### GCPバグ修正一覧（Phase 53.4-53.7）
+
+| Phase | 問題 | 修正 |
+|-------|------|------|
+| 53.4 | margin_ratio型変換エラー | Null/型変換失敗時デフォルト500.0% |
+| 53.5 | RandomForest並列処理クラッシュ | `n_jobs=1`固定 |
+| 53.5 | signal.alarmタイムアウト | gVisor非対応のため無効化 |
+| 53.7 | 証拠金取得キー名不一致 | `free` → `available`修正 |
+
+### gVisor制限事項
+GCP Cloud Run（gVisor環境）では以下の機能が制限される:
+
+| 機能 | 制限 | 対策 |
+|------|------|------|
+| `signal.alarm()` | 動作しない | タイムアウト処理を別実装 |
+| マルチプロセス | 不安定 | `n_jobs=1`で直列化 |
+
+---
+
 ## 関連リンク
 
 - 自動クリーンアップCI: `.github/workflows/cleanup.yml`
+- Phase 53開発履歴: `docs/開発履歴/Phase_53.md`

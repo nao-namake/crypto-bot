@@ -69,6 +69,17 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     avg_win = perf.get("average_win", 0.0)
     avg_loss = perf.get("average_loss", 0.0)
 
+    # Phase 53: 追加指標（重要度別）
+    sharpe_ratio = perf.get("sharpe_ratio", 0.0)
+    expectancy = perf.get("expectancy", 0.0)
+    recovery_factor = perf.get("recovery_factor", 0.0)
+    sortino_ratio = perf.get("sortino_ratio", 0.0)
+    calmar_ratio = perf.get("calmar_ratio", 0.0)
+    payoff_ratio = perf.get("payoff_ratio", 0.0)
+    max_consecutive_wins = perf.get("max_consecutive_wins", 0)
+    max_consecutive_losses = perf.get("max_consecutive_losses", 0)
+    trades_per_month = perf.get("trades_per_month", 0.0)
+
     # 1取引あたり損益
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
 
@@ -194,6 +205,65 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
                 if avg_loss != 0
                 else "- **リスクリワード比**: N/A"
             ),
+            "",
+        ]
+    )
+
+    # Phase 53: 詳細評価指標（重要度別）
+    lines.extend(
+        [
+            "---",
+            "",
+            "## 詳細評価指標（Phase 53追加）",
+            "",
+            "### 重要指標（必須確認）",
+            "",
+            "| 指標 | 値 | 判定基準 |",
+            "|------|-----|---------|",
+        ]
+    )
+
+    # シャープレシオ評価
+    sharpe_eval = "優秀" if sharpe_ratio >= 2.0 else "良好" if sharpe_ratio >= 1.0 else "普通" if sharpe_ratio >= 0 else "要注意"
+    lines.append(f"| シャープレシオ | {sharpe_ratio:.2f} | {sharpe_eval}（≥1.0で良好） |")
+
+    # 期待値評価
+    exp_eval = "良好" if expectancy > 0 else "要改善"
+    lines.append(f"| 期待値 | ¥{expectancy:+,.0f} | {exp_eval}（>0で収益期待） |")
+
+    # リカバリーファクター評価
+    rf_eval = "優秀" if recovery_factor >= 3.0 else "良好" if recovery_factor >= 1.0 else "要注意"
+    lines.append(f"| リカバリーファクター | {recovery_factor:.2f} | {rf_eval}（≥1.0でDD回復） |")
+
+    lines.extend(
+        [
+            "",
+            "### 参考指標",
+            "",
+            "| 指標 | 値 | 説明 |",
+            "|------|-----|------|",
+        ]
+    )
+
+    # ソルティノレシオ
+    lines.append(f"| ソルティノレシオ | {sortino_ratio:.2f} | 下方リスク調整リターン |")
+
+    # カルマーレシオ
+    lines.append(f"| カルマーレシオ | {calmar_ratio:.2f} | 年率リターン/最大DD |")
+
+    # ペイオフレシオ
+    lines.append(f"| ペイオフレシオ | {payoff_ratio:.2f} | 平均勝ち/平均負け比 |")
+
+    lines.extend(
+        [
+            "",
+            "### 補助指標",
+            "",
+            "| 指標 | 値 |",
+            "|------|-----|",
+            f"| 最大連勝数 | {max_consecutive_wins}回 |",
+            f"| 最大連敗数 | {max_consecutive_losses}回 |",
+            f"| 月間取引頻度 | {trades_per_month:.1f}回/月 |",
             "",
             "---",
             "",
