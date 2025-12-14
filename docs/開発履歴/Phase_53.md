@@ -1407,6 +1407,13 @@ else:  # hold_ratio == max_ratio または BUY/SELL同率
 | シグナルなし時のデフォルト | BUY | **HOLD** |
 | BUY/SELL同率時 | BUY優先 | **HOLD** |
 
+### コミット
+
+```
+e9f44e3b fix: Phase 53.13 BUYバイアス除去
+b7b552b9 style: black formatting fix for Phase 53.13
+```
+
 ---
 
 **📅 最終更新**: 2025年12月15日
