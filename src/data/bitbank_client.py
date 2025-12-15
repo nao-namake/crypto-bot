@@ -1476,36 +1476,42 @@ class BitbankClient:
             response = await self._call_private_api("/user/margin/status", method="GET")
 
             # 保証金維持率とリスク情報を含む完全な状況を返す
-            # Phase 53.4/53.11: margin_ratioのNone/型変換エラー対策
-            # 正しいフィールド名: total_margin_balance_percentage（ポジションなし時はnull）
+            # Phase 53.14: APIフィールド名修正・計算方式追加
             data = response.get("data", {})
 
-            # Phase 53.14: APIレスポンス全体をログ出力（フィールド名確認用）
-            self.logger.warning(f"🔍 Phase 53.14: margin_status data keys: {list(data.keys())}")
-            self.logger.warning(f"🔍 Phase 53.14: margin_status data: {data}")
-
+            # Phase 53.14: 維持率計算（ポジションがある場合のみ計算可能）
+            # API仕様: total_margin_balance_percentage はポジションなし時にnull
             raw_margin_ratio = data.get("total_margin_balance_percentage")
+            total_margin_balance = float(data.get("total_margin_balance") or 0)
+            maintenance_margin = float(data.get("total_position_maintenance_margin") or 0)
 
-            # margin_ratioの安全な型変換
             if raw_margin_ratio is not None:
+                # APIが値を返した場合はそれを使用
                 try:
                     margin_ratio = float(raw_margin_ratio)
                 except (ValueError, TypeError):
                     self.logger.warning(
-                        f"⚠️ margin_ratio型変換失敗: {raw_margin_ratio}, デフォルト500.0%使用"
+                        f"⚠️ margin_ratio型変換失敗: {raw_margin_ratio}, 計算方式使用"
                     )
-                    margin_ratio = 500.0  # 安全なデフォルト値（取引許可）
+                    margin_ratio = 500.0
+            elif maintenance_margin > 0:
+                # ポジションがあるが維持率がnullの場合は計算
+                margin_ratio = (total_margin_balance / maintenance_margin) * 100
+                self.logger.info(
+                    f"📊 Phase 53.14: 維持率計算 - "
+                    f"残高={total_margin_balance:.0f}円 / 必要証拠金={maintenance_margin:.0f}円 "
+                    f"= {margin_ratio:.1f}%"
+                )
             else:
-                # ポジションがない場合はnullが返る（API仕様）- 正常動作
-                self.logger.debug("⏸️ margin_ratioがNone（ポジションなし）, デフォルト500.0%使用")
+                # ポジションがない場合（正常）
                 margin_ratio = 500.0  # 安全なデフォルト値
 
             margin_data = {
                 "margin_ratio": margin_ratio,
-                "available_balance": data.get("available_margin") or 0,
-                "used_margin": data.get("used_margin") or 0,
-                "unrealized_pnl": data.get("unrealized_pnl") or 0,
-                "margin_call_status": data.get("margin_call_status"),
+                "available_balance": total_margin_balance,
+                "used_margin": maintenance_margin,
+                "unrealized_pnl": float(data.get("margin_position_profit_loss") or 0),
+                "margin_call_status": data.get("status"),
                 "raw_response": response,
             }
 
