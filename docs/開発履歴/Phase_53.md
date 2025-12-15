@@ -95,31 +95,7 @@ POST署名: {nonce}{request_body}
 
 #### 最終docs構造
 
-```
-docs/
-├── README.md
-├── 検証記録/           # 4ファイル
-│   ├── README.md
-│   ├── Phase_51.10-B_20251111.md
-│   ├── Phase_52.1_20251115.md
-│   └── Phase_52.2-production-simulation-final_20251112.md
-├── 運用ガイド/         # 6ファイル
-│   ├── GCP運用ガイド.md
-│   ├── bitbank_APIリファレンス.md
-│   ├── システム機能一覧.md
-│   ├── システム要件定義.md
-│   ├── 税務対応ガイド.md
-│   └── 統合運用ガイド.md
-├── 運用監視/           # 4ファイル
-│   ├── README.md
-│   ├── 01_システム稼働診断.md
-│   ├── 02_Bot機能診断.md
-│   └── 03_緊急対応マニュアル.md
-├── 開発履歴/           # 19ファイル
-│   └── Phase_*.md
-└── 開発計画/           # 1ファイル
-    └── ToDo.md
-```
+`docs/` 配下: 検証記録(4), 運用ガイド(6), 運用監視(4), 開発履歴(19), 開発計画(1)
 
 ### コミット
 ```
@@ -440,65 +416,12 @@ self.virtual_positions = []  # ← 毎起動時に空にリセット
 
 ### 修正内容
 
-#### 1. ポジション復元メソッド追加（executor.py）
+| ファイル | 修正内容 |
+|---------|---------|
+| `executor.py` | `restore_positions_from_api()`メソッド追加（APIからアクティブ注文を取得し復元） |
+| `live_trading_runner.py` | 起動時に`restore_positions_from_api()`を呼び出し |
 
-**ファイル**: `src/trading/execution/executor.py`（Line 100付近に追加）
-
-```python
-async def restore_positions_from_api(self):
-    """
-    Phase 53.6: 起動時にbitbank APIからポジションを復元
-    再起動時にvirtual_positionsがリセットされる問題を解決
-    """
-    if self.mode != "live":
-        return  # ライブモード以外は復元不要
-
-    try:
-        # アクティブ注文を取得
-        active_orders = await asyncio.to_thread(
-            self.bitbank_client.fetch_active_orders, "BTC/JPY", 100
-        )
-
-        if not active_orders:
-            self.logger.info("📊 Phase 53.6: アクティブ注文なし、復元スキップ")
-            return
-
-        # TP/SL注文をvirtual_positionsに復元
-        restored_count = 0
-        for order in active_orders:
-            order_type = order.get("type", "")
-            order_id = order.get("id")
-
-            # TP注文またはSL注文を検出して復元
-            if order_type in ["stop", "stop_limit", "limit"]:
-                self.virtual_positions.append({
-                    "order_id": order_id,
-                    "type": order_type,
-                    "side": order.get("side"),
-                    "amount": order.get("amount"),
-                    "price": order.get("price"),
-                    "restored": True  # 復元フラグ
-                })
-                restored_count += 1
-
-        self.logger.info(
-            f"✅ Phase 53.6: {restored_count}件のポジション/注文を復元 "
-            f"(アクティブ注文: {len(active_orders)}件)"
-        )
-
-    except Exception as e:
-        self.logger.warning(f"⚠️ Phase 53.6: ポジション復元失敗: {e}")
-```
-
-#### 2. 起動時呼び出し追加（live_trading_runner.py）
-
-**ファイル**: `src/core/execution/live_trading_runner.py`（Line 116-118）
-
-```python
-# Phase 53.6: 起動時にポジションを復元（ポジション制限の正常動作のため）
-if hasattr(self.orchestrator.execution_service, "restore_positions_from_api"):
-    await self.orchestrator.execution_service.restore_positions_from_api()
-```
+**ポイント**: 復元されたポジションには`restored: True`フラグを付与
 
 ### 期待される効果
 
@@ -534,62 +457,13 @@ get_active_ordersメソッド名不一致
 
 **ファイル**: `src/trading/execution/executor.py`
 
-#### 修正1: メソッド名変更（Line 1296）
+| 修正項目 | 修正前 | 修正後 |
+|---------|--------|--------|
+| メソッド名 | `get_active_orders` | `fetch_active_orders` |
+| 戻り値形式 | dict形式 `{orders: [...]}` | リスト形式 `[...]` |
+| IDキー名 | `order["order_id"]` | `order.get("id", order.get("order_id", ""))` |
 
-```python
-# 修正前
-active_orders_resp = await asyncio.to_thread(
-    self.bitbank_client.get_active_orders, symbol
-)
-
-# 修正後
-active_orders_resp = await asyncio.to_thread(
-    self.bitbank_client.fetch_active_orders, symbol, 100
-)
-```
-
-#### 修正2: 戻り値形式対応（Line 1298-1300）
-
-```python
-# 修正前（dict形式）
-active_orders = active_orders_resp.get("orders", [])
-
-# 修正後（リスト形式）
-active_orders = active_orders_resp if active_orders_resp else []
-```
-
-#### 修正3: order_idキー名対応（Line 1327）
-
-```python
-# 修正前
-order["order_id"]
-
-# 修正後（CCXT形式対応）
-order.get("id", order.get("order_id", ""))
-```
-
-### テスト修正
-
-**ファイル**: `tests/unit/trading/execution/test_executor.py`
-
-以下5テストを修正:
-- `test_cleanup_old_tp_sl_before_entry_success`
-- `test_cleanup_old_tp_sl_before_entry_with_protected_orders`
-- `test_cleanup_old_tp_sl_before_entry_sell_side`
-- `test_cleanup_old_tp_sl_before_entry_no_orders`
-- `test_cleanup_old_tp_sl_before_entry_error_handling`
-
-変更内容:
-- `get_active_orders` → `fetch_active_orders`
-- `{"orders": [...]}` → `[...]`（リスト形式）
-- `{"order_id": "xxx"}` → `{"id": "xxx"}`
-
-### テスト結果
-
-```
-✅ 1,191テスト・100%成功
-✅ 65.42%カバレッジ達成
-```
+**テスト修正**: `test_executor.py`の5テストを新形式に更新（✅ 1,191テスト成功）
 
 ---
 
@@ -618,39 +492,10 @@ thresholds.yamlのレジーム別TP/SL設定が適用されていない可能性
 
 ### 修正内容
 
-原因特定のためデバッグログを追加
+**ファイル**: `src/strategies/utils/strategy_utils.py`
 
-**ファイル**: `src/strategies/utils/strategy_utils.py`（Line 203-229）
-
-```python
-# Phase 53.8: デバッグログ追加（設定が適用されない原因を特定）
-regime_enabled = get_threshold(
-    "position_management.take_profit.regime_based.enabled", False
-)
-logger.info(
-    f"🔍 Phase 53.8: レジーム別TP/SL確認 - regime={regime}, enabled={regime_enabled}"
-)
-
-if regime and regime_enabled:
-    # レジーム別設定を取得
-    regime_tp = get_threshold(
-        f"position_management.take_profit.regime_based.{regime}.min_profit_ratio", None
-    )
-    regime_tp_ratio = get_threshold(
-        f"position_management.take_profit.regime_based.{regime}.tp_ratio", None
-    )
-    regime_sl = get_threshold(
-        f"position_management.stop_loss.regime_based.{regime}.sl_ratio", None
-    )
-
-    # Phase 53.8: 取得した値をログ出力
-    logger.info(
-        f"🔍 Phase 53.8: レジーム別設定取得 - {regime}: "
-        f"TP={regime_tp}, TP_ratio={regime_tp_ratio}, SL={regime_sl}"
-    )
-```
-
-### 次のステップ
+- DEBUGレベルでregime値・enabled状態・取得値をログ出力
+- Phase 53.9の根本原因特定に貢献
 
 ---
 
@@ -674,44 +519,11 @@ Phase 53.8の調査で判明した根本原因:
 
 ### 修正内容
 
-**ファイル**: `src/strategies/utils/strategy_utils.py`（Line 496-515）
+**ファイル**: `src/strategies/utils/strategy_utils.py`
 
-```python
-# Phase 53.9: SignalBuilder内でレジーム自動判定（一元化）
-regime = None
-try:
-    from src.core.services.market_regime_classifier import (
-        MarketRegimeClassifier,
-    )
+SignalBuilder内で`MarketRegimeClassifier`を呼び出し、regimeを自動判定して`RiskManager.calculate_stop_loss_take_profit(regime=regime)`に渡す。
 
-    regime_classifier = MarketRegimeClassifier()
-    regime_type = regime_classifier.classify(df)
-    regime = (
-        regime_type.value if hasattr(regime_type, "value") else str(regime_type)
-    )
-except Exception as e:
-    logger.warning(f"⚠️ Phase 53.9: レジーム判定失敗（デフォルト使用）: {e}")
-
-# ストップロス・テイクプロフィット計算（レジーム別設定適用）
-stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
-    action, current_price, current_atr, config, atr_history, regime=regime
-)
-```
-
-### 修正後のデータフロー
-
-```
-SignalBuilder.create_signal_with_risk_management()
-    ├─ regime = MarketRegimeClassifier().classify(df) ← 新規追加
-    ↓
-RiskManager.calculate_stop_loss_take_profit(regime="tight_range") ← ✅
-    ↓
-レジーム別設定適用（TP 0.8% / SL 0.6%）
-```
-
-### 追加変更
-
-- Phase 53.8デバッグログをDEBUGレベルに変更（本番ログ削減）
+**データフロー**: SignalBuilder → MarketRegimeClassifier.classify(df) → RiskManager(regime=xxx) → レジーム別設定適用
 
 ### 期待される効果
 
@@ -721,13 +533,7 @@ RiskManager.calculate_stop_loss_take_profit(regime="tight_range") ← ✅
 | normal_range | 0.9% | **1.0%** | 0.7% | **0.7%** |
 | trending | 0.9% | **1.5%** | 0.7% | **1.0%** |
 
-### テスト結果
-
-```
-✅ 1,191テスト・100%成功
-✅ 65.42%カバレッジ達成
-✅ flake8・isort・black全てPASS
-```
+**テスト**: ✅ 1,191テスト成功・65.42%カバレッジ
 
 ---
 
@@ -782,77 +588,10 @@ RiskManager.calculate_stop_loss_take_profit(regime="tight_range") ← ✅
 
 | ファイル | 変更内容 |
 |---------|---------|
-| `src/backtest/reporter.py` | `get_performance_metrics()`に9指標追加 + 5ヘルパーメソッド追加 |
-| `scripts/backtest/generate_markdown_report.py` | 重要度別セクション表示追加 |
+| `reporter.py` | 5ヘルパーメソッド追加（sharpe/sortino/calmar/streaks/trades_per_month） |
+| `generate_markdown_report.py` | 重要度別セクション表示追加 |
 
-### 実装詳細
-
-#### 1. reporter.py変更
-
-**新規ヘルパーメソッド（5個）**:
-- `_calculate_sharpe_ratio()`: シャープレシオ計算
-- `_calculate_sortino_ratio()`: ソルティノレシオ計算
-- `_calculate_calmar_ratio()`: カルマーレシオ計算
-- `_calculate_consecutive_streaks()`: 連勝/連敗数計算
-- `_calculate_trades_per_month()`: 月間取引頻度計算
-
-**get_performance_metrics()追加項目**:
-```python
-# Phase 53.10: 追加評価指標（重要度別）
-# === 重要度: 高 ===
-"sharpe_ratio": sharpe_ratio,
-"expectancy": expectancy,
-"recovery_factor": recovery_factor,
-# === 重要度: 中 ===
-"sortino_ratio": sortino_ratio,
-"calmar_ratio": calmar_ratio,
-"payoff_ratio": payoff_ratio,
-# === 重要度: 低 ===
-"max_consecutive_wins": max_consecutive_wins,
-"max_consecutive_losses": max_consecutive_losses,
-"trades_per_month": trades_per_month,
-```
-
-#### 2. generate_markdown_report.py変更
-
-**重要度別セクション追加**:
-```markdown
-## 詳細評価指標（Phase 53.10追加）
-
-### 重要指標（必須確認）
-| 指標 | 値 | 判定基準 |
-|------|-----|---------|
-| シャープレシオ | X.XX | 優秀/良好/普通/要注意 |
-| 期待値 | ¥XXX | 良好/要注意 |
-| リカバリーファクター | X.XX | 優秀/良好/普通/要注意 |
-
-### 参考指標
-| 指標 | 値 | 判定基準 |
-|------|-----|---------|
-| ソルティノレシオ | X.XX | 良好/普通 |
-| カルマーレシオ | X.XX | 良好/普通 |
-| ペイオフレシオ | X.XX | 良好/普通 |
-
-### 補助指標
-| 指標 | 値 |
-|------|-----|
-| 最大連勝数 | X回 |
-| 最大連敗数 | X回 |
-| 取引頻度 | X.X回/月 |
-```
-
-### テスト結果
-
-```
-✅ 1,201テスト・100%成功
-✅ 既存バックテストテスト26件全て成功
-✅ 手動検証でメトリクス計算正常動作確認
-```
-
-### 次回バックテスト実行時の出力例
-
-Markdownレポートに「詳細評価指標」セクションが追加され、
-重要度別に整理された9つの評価指標が表示される。
+**テスト**: ✅ 1,201テスト・100%成功
 
 ---
 
@@ -869,71 +608,6 @@ Markdownレポートに「詳細評価指標」セクションが追加され、
 - **対象**: bitbank_client.py
 - **状態**: 現在問題発生していないため保留
 - **理由**: Phase 53.4でmargin_ratio修正済み
-
----
-
-## 📊 Phase 53.6-53.9 実装レビュー
-
-### レビュー日
-2025年12月14日
-
-### 実装品質スコア
-
-| Phase | 内容 | 評価 |
-|-------|------|------|
-| **53.6** | ポジション管理バグ修正 | ⭐⭐⭐⭐⭐ |
-| **53.7** | fetch_active_ordersメソッド名修正 | ⭐⭐⭐⭐⭐ |
-| **53.8** | TP/SLデバッグログ追加 | ⭐⭐⭐⭐⭐ |
-| **53.9** | レジーム別TP/SL自動適用 | ⭐⭐⭐⭐⭐ |
-
-### 評価項目別スコア
-
-| 項目 | スコア |
-|------|--------|
-| **コード品質** | ⭐⭐⭐⭐⭐ |
-| **エラーハンドリング** | ⭐⭐⭐⭐⭐ |
-| **後方互換性** | ⭐⭐⭐⭐⭐ |
-| **テスト対応** | ⭐⭐⭐⭐⭐ |
-| **ドキュメント** | ⭐⭐⭐⭐⭐ |
-
-### レビュー詳細
-
-#### Phase 53.6: ポジション管理バグ修正
-- ✅ 5分毎の再起動でvirtual_positionsリセット問題を解決
-- ✅ 復元失敗時も警告ログのみで継続（システム停止しない）
-- ✅ ライブモード以外はスキップ（モード分岐適切）
-- ✅ hasattr確認で後方互換性を確保
-
-#### Phase 53.7: fetch_active_ordersメソッド名修正
-- ✅ bitbank_clientの実際のメソッド名に統一
-- ✅ CCXT形式（リスト）に対応
-- ✅ id優先、order_idフォールバックで互換性確保
-- ✅ 5テストを新形式に更新
-
-#### Phase 53.8: TP/SLデバッグログ追加
-- ✅ DEBUGレベルで本番ログ削減
-- ✅ regime値とenabled状態を出力
-- ✅ Phase 53.9の根本原因特定に貢献
-
-#### Phase 53.9: レジーム別TP/SL自動適用
-- ✅ 9ファイル→1ファイルに修正を一元化
-- ✅ 判定失敗時はNoneでフォールバック
-- ✅ enum対応（.value属性確認で文字列化）
-- ⚠️ 関数内import（パフォーマンス軽微影響、許容範囲）
-
-### 結論
-
-**全Phase（53.6-53.9）の実装に問題なし**
-
-- 各修正は適切なエラーハンドリングを含む
-- 後方互換性が確保されている
-- テストが全て成功している
-- コード品質基準（flake8/isort/black）をパス
-
-### 改善提案（任意）
-
-1. Phase 53.9のimportをモジュールレベルに移動可能（パフォーマンス微改善）
-2. Phase番号付きログの統一
 
 ---
 
@@ -959,76 +633,12 @@ Phase 53.6の`restore_positions_from_api`がAPIから復元したポジション
 
 ### 修正内容（Noneエラー）
 
-#### 1. executor.py: restore_positions_from_api修正
+| ファイル | 修正内容 |
+|---------|---------|
+| `executor.py` | `restore_positions_from_api`でNone値チェック追加（不完全データはスキップ） |
+| `stop_manager.py` | `_evaluate_position_exit`/`_evaluate_emergency_exit`でNone値防御追加 |
 
-**ファイル**: `src/trading/execution/executor.py`（Line 133-157）
-
-```python
-# TP注文またはSL注文を検出して復元
-if order_type in ["stop", "stop_limit", "limit"]:
-    # Phase 53.11: None値チェック（不完全なデータは復元しない）
-    side = order.get("side")
-    amount = order.get("amount")
-    price = order.get("price")
-
-    if side is None or amount is None or price is None:
-        self.logger.warning(
-            f"⚠️ Phase 53.11: 不完全な注文スキップ - id={order_id}, "
-            f"side={side}, amount={amount}, price={price}"
-        )
-        continue
-
-    self.virtual_positions.append({
-        "order_id": order_id,
-        "type": order_type,
-        "side": side,
-        "amount": float(amount),
-        "price": float(price),
-        "restored": True,
-    })
-```
-
-#### 2. stop_manager.py: _evaluate_position_exit修正
-
-**ファイル**: `src/trading/execution/stop_manager.py`（Line 169-188）
-
-```python
-try:
-    # Phase 53.11: None値の防御的処理
-    raw_price = position.get("price")
-    raw_amount = position.get("amount")
-    entry_side = position.get("side", "")
-
-    if raw_price is None or raw_amount is None:
-        self.logger.debug(
-            f"⏭️ Phase 53.11: 不完全ポジションスキップ - "
-            f"price={raw_price}, amount={raw_amount}"
-        )
-        return None
-
-    entry_price = float(raw_price)
-    amount = float(raw_amount)
-```
-
-#### 3. stop_manager.py: _evaluate_emergency_exit修正
-
-**ファイル**: `src/trading/execution/stop_manager.py`（Line 402-416）
-
-```python
-try:
-    # Phase 53.11: None値の防御的処理
-    raw_price = position.get("price")
-    entry_side = position.get("side", "")
-    entry_time = position.get("timestamp")
-
-    if raw_price is None:
-        self.logger.debug(
-            f"⏭️ Phase 53.11: 不完全ポジションスキップ（緊急） - price=None"
-        )
-        return False
-
-    entry_price = float(raw_price)
-```
+**ポイント**: `price`/`amount`がNoneの場合はスキップし、float()エラーを防止
 
 ### 問題2: DD%計算が異常（211%表示）
 
@@ -1048,57 +658,13 @@ try:
 
 ### 修正内容（DD%計算）
 
-**ファイル**: `src/backtest/reporter.py`（Line 328-356）
+**ファイル**: `src/backtest/reporter.py`
 
-```python
-def _calculate_max_drawdown(self) -> tuple:
-    """
-    最大ドローダウン計算（Phase 53.11修正: 実残高ベースDD%計算）
-    """
-    if len(self.equity_curve) < 2:
-        return (0.0, 0.0)
+DD%計算を実残高ベースに変更: `DD% = dd / (initial_capital + max_equity) × 100`
 
-    # Phase 53.11: 初期資金を設定から取得（ハードコード回避）
-    initial_capital = get_threshold("backtest.initial_balance", 100000.0)
+**追加**: `checks.sh`のカバレッジ閾値を64%に調整
 
-    max_equity = self.equity_curve[0]
-    max_dd = 0.0
-    max_dd_pct = 0.0
-
-    for equity in self.equity_curve:
-        if equity > max_equity:
-            max_equity = equity
-
-        dd = max_equity - equity
-        if dd > max_dd:
-            max_dd = dd
-            # Phase 53.11: DD%は実残高（初期資金+累積損益のピーク）で計算
-            actual_balance_at_peak = initial_capital + max_equity
-            max_dd_pct = (
-                (dd / actual_balance_at_peak * 100) if actual_balance_at_peak > 0 else 0.0
-            )
-
-    return (max_dd, max_dd_pct)
-```
-
-### 追加修正: カバレッジ閾値調整
-
-**ファイル**: `scripts/testing/checks.sh`（Line 28-29）
-
-```bash
-# カバレッジ最低ライン（Phase 53.11: 64%に調整・実測64.72%）
-COV_FAIL_UNDER=64
-```
-
-### テスト結果
-
-```
-✅ 1,201テスト・100%成功
-✅ 64.72%カバレッジ達成
-✅ flake8・isort・black全てPASS
-✅ CI/CDパイプライン成功
-✅ GCPデプロイ成功
-```
+**テスト**: ✅ 1,201テスト・100%成功・64.72%カバレッジ
 
 ### 期待される効果
 
@@ -1149,65 +715,11 @@ e04d270d style: black整形（reporter.py）
 
 ### 修正内容
 
-#### 1. bitbank_client.py: APIフィールド名修正 + None対策
-
-**ファイル**: `src/data/bitbank_client.py`（Line 1478-1503）
-
-```python
-# Phase 53.4/53.11: margin_ratioのNone/型変換エラー対策
-# 正しいフィールド名: total_margin_balance_percentage（ポジションなし時はnull）
-data = response.get("data", {})
-raw_margin_ratio = data.get("total_margin_balance_percentage")  # ← 修正
-
-# margin_ratioの安全な型変換
-if raw_margin_ratio is not None:
-    # ... 変換処理
-else:
-    # ポジションがない場合はnullが返る（API仕様）- 正常動作
-    self.logger.debug("⏸️ margin_ratioがNone（ポジションなし）, デフォルト500.0%使用")
-    margin_ratio = 500.0
-
-margin_data = {
-    "margin_ratio": margin_ratio,
-    "available_balance": data.get("available_margin") or 0,  # ← or 0 追加
-    "used_margin": data.get("used_margin") or 0,             # ← or 0 追加
-    "unrealized_pnl": data.get("unrealized_pnl") or 0,       # ← or 0 追加
-    # ...
-}
-```
-
-#### 2. monitor.py: 防御的コーディング追加
-
-**ファイル**: `src/trading/balance/monitor.py`（Line 546）
-
-```python
-# 修正前
-available_balance = float(margin_status.get("available_balance", 0))
-
-# 修正後
-available_balance = float(margin_status.get("available_balance") or 0)
-```
-
-#### 3. check_infrastructure.sh: エラー詳細表示機能追加
-
-**ファイル**: `scripts/monitoring/check_infrastructure.sh`
-
-```bash
-# フォールバック多用時に詳細表示
-elif [ "$FALLBACK_COUNT" -gt 5 ]; then
-    echo "⚠️ フォールバック多用中（API認証問題の可能性）"
-    echo "   📋 最新ログ:"
-    show_logs "textPayload:\"フォールバック\"" 3 | sed 's/^/      /'
-    WARNING_ISSUES=$((WARNING_ISSUES + 1))
-
-# NoneTypeエラー検出時に詳細表示
-elif [ "$NONETYPE_ERROR_COUNT" -lt 5 ] && [ "$API_ERROR_COUNT" -lt 10 ]; then
-    echo "⚠️ 取引阻害エラー: 軽微（要監視）"
-    if [ "$NONETYPE_ERROR_COUNT" -gt 0 ]; then
-        echo "   📋 NoneTypeエラー詳細:"
-        show_logs "textPayload:\"NoneType\"" 3 | sed 's/^/      /'
-    fi
-```
+| ファイル | 修正内容 |
+|---------|---------|
+| `bitbank_client.py` | APIフィールド名修正（`total_margin_balance_percentage`）+ None対策（`or 0`） |
+| `monitor.py` | 防御的コーディング（`.get() or 0`パターン） |
+| `check_infrastructure.sh` | フォールバック/NoneTypeエラー時の詳細ログ表示追加 |
 
 ### 期待される効果
 
@@ -1416,8 +928,50 @@ b7b552b9 style: black formatting fix for Phase 53.13
 
 ---
 
-**📅 最終更新**: 2025年12月15日
-**✅ ステータス**: Phase 53シリーズ完了（53.1-53.13）
+## Phase 53.14: 証拠金維持率取得修正
+
+**実施日**: 2025/12/16
+
+### 問題
+
+- **症状**: 証拠金維持率が常に500%（フォールバック値）
+- **ログ**: `⚠️ margin_ratioがNone, デフォルト500.0%使用`
+- **原因**: bitbank API `/user/margin/status` の `total_margin_balance_percentage` がポジションなし時にnullを返す
+
+### 調査結果
+
+APIレスポンス確認により以下のフィールドを特定:
+
+| フィールド | 説明 |
+|-----------|------|
+| `total_margin_balance_percentage` | 保証金率（ポジションなし時null） |
+| `total_margin_balance` | 受入保証金合計 |
+| `total_position_maintenance_margin` | 維持必要保証金 |
+| `margin_position_profit_loss` | 評価損益 |
+| `status` | 口座状態（NORMAL等） |
+
+### 修正内容
+
+1. **APIフィールド名修正**: 正しいフィールド名を使用
+2. **計算方式追加**: ポジションがある場合は `(残高 / 必要証拠金) * 100` で計算
+3. **フォールバック維持**: ポジションなし時は500%（正常動作）
+
+### 修正対象ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `src/data/bitbank_client.py` | fetch_margin_status() フィールド名修正・計算方式追加 |
+
+### コミット
+
+```
+b4d2f99c fix: Phase 53.14 証拠金維持率取得修正
+```
+
+---
+
+**📅 最終更新**: 2025年12月16日
+**✅ ステータス**: Phase 53シリーズ完了（53.1-53.14）
 **📊 テスト結果**: 1,201テスト・100%成功
 **🔍 レビュー結果**: 全Phase ⭐⭐⭐⭐⭐（問題なし）
-**🎯 Phase 53成果**: GCP稼働率100%・バックテスト評価指標9項目追加・Noneエラー解消・DD%計算修正・TP/SL保護バグ修正・BUYバイアス除去
+**🎯 Phase 53成果**: GCP稼働率100%・バックテスト評価指標9項目追加・Noneエラー解消・DD%計算修正・TP/SL保護バグ修正・BUYバイアス除去・証拠金維持率取得修正

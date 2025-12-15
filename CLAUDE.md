@@ -1,28 +1,50 @@
-# CLAUDE.md - Phase 53完了・開発ガイド
+# CLAUDE.md - Phase 54開発ガイド
 
-**最終更新**: 2025年12月14日
+**最終更新**: 2025年12月16日
 
 ---
 
-## システム現状（Phase 53完了）
+## システム現状（Phase 54開始）
 
 ### 概要
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 53（GCP安定化・本番稼働中） |
+| **Phase** | 54（ML性能検証・戦略最適化） |
+| **前Phase** | 53完了（GCP安定化・本番稼働中） |
 | **戦略数** | 6戦略（レンジ型3 + トレンド型3） |
 | **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
 | **MLモデル** | 3モデルアンサンブル（LightGBM 50% / XGBoost 30% / RF 20%） |
 | **分類方式** | 真の3クラス分類（BUY / HOLD / SELL） |
 
+### 最新バックテスト結果（Phase 53.13 - 2025/12/15）
+
+| 指標 | 現在値 | 目標値 |
+|------|--------|--------|
+| **PF** | 1.25 | ≥1.34 |
+| **勝率** | 47.9% | ≥51% |
+| **取引数** | 697件 | - |
+| **シャープレシオ** | 7.83 | - |
+| **最大DD** | 0.33% | ≤0.5% |
+
+### Phase 54計画（慎重な段階的実装）
+
+| ステージ | Phase | 内容 | 状態 |
+|----------|-------|------|------|
+| 分析 | 54.0 | ML予測分析（コード変更なし） | ← 現在 |
+| 分析 | 54.1 | 戦略別性能分析（コード変更なし） | 予定 |
+| 実装 | 54.2 | 設定調整（thresholds.yamlのみ） | 予定 |
+| 実装 | 54.3 | コード変更（必要な場合のみ） | 予定 |
+| 検証 | 54.4 | 最終検証 | 予定 |
+
+**詳細計画**: [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md)
+
 ### 品質指標
 
 | 指標 | 値 |
 |------|-----|
-| **テスト数** | 1,191テスト |
-| **成功率** | 100% |
-| **カバレッジ** | 65.42% |
+| **テスト** | 全テスト成功 |
+| **カバレッジ** | 64%以上 |
 | **コード品質** | flake8 / black / isort 全てPASS |
 
 ### 運用仕様
@@ -31,7 +53,6 @@
 |------|-----|
 | **対象** | bitbank信用取引・BTC/JPY専用 |
 | **稼働** | 24時間（GCP Cloud Run） |
-| **GCP稼働率** | 100%（14時間+連続） |
 | **月額コスト** | 700-900円 |
 | **実行間隔** | 5分 |
 
@@ -62,7 +83,7 @@
 
 ```bash
 bash scripts/testing/checks.sh
-# 期待結果: 1,191テスト成功・65%+カバレッジ・flake8/black/isort PASS
+# 期待結果: 全テスト成功・64%+カバレッジ・flake8/black/isort PASS
 ```
 
 ### システム実行
@@ -196,8 +217,8 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 ### 品質基準
 
 - **開発前後**: `bash scripts/testing/checks.sh`必須実行
-- **テスト**: 1,191テスト100%維持
-- **カバレッジ**: 65%以上維持
+- **テスト**: 全テスト100%成功維持
+- **カバレッジ**: 64%以上維持
 - **コード品質**: flake8 / black / isort通過必須
 - **CI/CD**: GitHub Actions自動品質ゲート
 
@@ -215,6 +236,22 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 | gVisor fork()制限 | RandomForest `n_jobs=1`固定 |
 | Cloud Runタイムアウト | `signal.alarm`無効化 |
 | Container再起動 | 起動時ポジション復元（Phase 53.6） |
+
+### Git運用規則
+
+| 規則 | 内容 | 理由 |
+|------|------|------|
+| **全体コミット必須** | `git add .`を使用 | コミット漏れ防止 |
+| **個別add禁止** | `git add <file>`禁止 | 修正漏れによる不具合防止 |
+| **コミット前確認** | `git status`必須 | 未追跡ファイルの確認 |
+
+```bash
+# 正しいコミット手順
+git status              # 変更内容確認
+git add .               # 全体追加（個別addは禁止）
+git commit -m "..."     # コミット
+git push origin main    # プッシュ → CI/CD自動デプロイ
+```
 
 ---
 
@@ -247,22 +284,25 @@ sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 | Phase_50.md | 基盤強化・シンプル化期 |
 | Phase_51.*.md | レンジ型最適化・3クラス分類期（6ファイル） |
 | Phase_52.md | レジーム別TP/SL・自動化期 |
-| Phase_53.md | **GCP安定化・本番稼働期**（最新） |
+| Phase_53.md | GCP安定化・本番稼働期 |
 
-### docs/検証記録/（4ファイル）
+### docs/検証記録/
 
 | ファイル | 内容 |
 |---------|------|
 | Phase_51.10-B_20251111.md | Phase 51.10-B検証結果 |
-| Phase_52.1_20251115.md | PF 1.34・勝率51.4% |
+| Phase_52.1_20251115.md | PF 1.34・勝率51.4%（ベースライン） |
+| Phase_52.1_20251213.md | Phase 52.1再検証 |
+| Phase_52.1_20251214.md | Phase 52.1再検証（最新） |
 | Phase_52.2_20251213.md | ベースライン（PF 1.22） |
-| Phase_52.2-production-simulation-final_20251112.md | 本番シミュレーション |
+| Phase_53.2_20251213.md | Phase 53.2検証 |
+| Phase_53.13_verification_20251214.md | Phase 53.13検証（PF 1.25） |
 
 ### docs/開発計画/
 
 | ファイル | 内容 |
 |---------|------|
-| [ToDo.md](docs/開発計画/ToDo.md) | 現在の開発計画・次期Phase |
+| [ToDo.md](docs/開発計画/ToDo.md) | **Phase 54計画**（慎重な段階的実装） |
 
 ---
 
@@ -296,6 +336,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 | エラー | 原因 | 対策 |
 |--------|------|------|
 | `NoneType.__format__` | margin_ratioがNone | Phase 53.4で修正済み |
+| `証拠金不足: 0円` | available_marginフィールド不存在 | Phase 53.14で修正済み |
 | `'BitbankClient' has no attribute 'get_active_orders'` | メソッド名不一致 | `fetch_active_orders`を使用 |
 | Container exit(1) | n_jobs並列処理 or signal.alarm | GCP制約対策適用確認 |
 | bitbank API 20001 | GET署名に/v1プレフィックス不足 | Phase 53.2で修正済み |
@@ -304,7 +345,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ## 開発開始前チェックリスト
 
-1. **最新状況把握**: Phase 53完了・本番稼働中
+1. **最新状況把握**: Phase 54開始・ToDo.md確認
 2. **品質チェック**: `bash scripts/testing/checks.sh`実行
 3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
 4. **GCP確認**: サービス稼働状況・最新リビジョン
@@ -312,4 +353,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2025年12月14日 - **Phase 53完了**（GCP稼働率100%・1,191テスト・65.42%カバレッジ）
+**📅 最終更新**: 2025年12月16日 - **Phase 54開始**（ML性能検証・戦略最適化・慎重な段階的実装）
