@@ -1479,6 +1479,11 @@ class BitbankClient:
             # Phase 53.4/53.11: margin_ratioのNone/型変換エラー対策
             # 正しいフィールド名: total_margin_balance_percentage（ポジションなし時はnull）
             data = response.get("data", {})
+
+            # Phase 53.14: APIレスポンス全体をログ出力（フィールド名確認用）
+            self.logger.warning(f"🔍 Phase 53.14: margin_status data keys: {list(data.keys())}")
+            self.logger.warning(f"🔍 Phase 53.14: margin_status data: {data}")
+
             raw_margin_ratio = data.get("total_margin_balance_percentage")
 
             # margin_ratioの安全な型変換
