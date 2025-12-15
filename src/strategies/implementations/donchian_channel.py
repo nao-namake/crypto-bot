@@ -277,32 +277,37 @@ class DonchianChannelStrategy(StrategyBase):
                     multi_timeframe_data=multi_timeframe_data,
                 )
         # 3. 弱シグナル（中央域手前）- 動的信頼度計算
-        if analysis["in_weak_buy_zone"]:
-            # 下方向への動きを示唆する弱いbuyシグナル
-            confidence = self._calculate_weak_signal_confidence(analysis, "buy")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"弱買いシグナル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        if analysis["in_weak_sell_zone"]:
-            # 上方向への動きを示唆する弱いsellシグナル
-            confidence = self._calculate_weak_signal_confidence(analysis, "sell")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
+        # Phase 54.2: 弱シグナル無効化設定の確認
+        weak_signal_enabled = get_threshold(
+            "strategies.donchian_channel.weak_signal_enabled", True
+        )
+        if weak_signal_enabled:
+            if analysis["in_weak_buy_zone"]:
+                # 下方向への動きを示唆する弱いbuyシグナル
+                confidence = self._calculate_weak_signal_confidence(analysis, "buy")
+                if confidence >= self.min_confidence:
+                    return self._create_signal(
+                        action="buy",
+                        confidence=confidence,
+                        reason=f"弱買いシグナル（位置: {channel_pos:.3f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
+            if analysis["in_weak_sell_zone"]:
+                # 上方向への動きを示唆する弱いsellシグナル
+                confidence = self._calculate_weak_signal_confidence(analysis, "sell")
+                if confidence >= self.min_confidence:
+                    return self._create_signal(
+                        action="sell",
+                        confidence=confidence,
+                        reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
         # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避・市場データ統合）
         if analysis["in_middle_zone"]:
             # 完全な中央域でもモメンタムに基づく微弱な方向性を計算

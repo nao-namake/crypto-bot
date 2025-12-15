@@ -17,11 +17,12 @@ Phase 51.4実装計画:
 - Day 3（次回）: 可視化・レポート生成・完全テスト・実データ検証
 """
 
+import argparse
 import asyncio
 import json
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -78,18 +79,20 @@ class StrategyPerformanceAnalyzer:
     Phase 51.4: 既存5戦略の個別評価・削除候補特定
     """
 
-    def __init__(self, data_file: Optional[Path] = None):
+    def __init__(self, data_file: Optional[Path] = None, days: int = 60):
         """
         初期化
 
         Args:
             data_file: 履歴データファイルパス（Noneの場合はデフォルトパス使用）
+            days: 分析対象日数（デフォルト60日）
         """
         self.logger = get_logger(__name__)
         self.data_file = (
             data_file
-            or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_4h.csv"
+            or Path(__file__).parent.parent.parent / "src/backtest/data/historical/BTC_JPY_15m.csv"
         )
+        self.days = days
         self.regime_classifier = MarketRegimeClassifier()
 
         # Phase 51.7 Day 7: 戦略リストを動的取得（設定駆動型）
@@ -247,6 +250,13 @@ class StrategyPerformanceAnalyzer:
         # datetime列をindexとして設定（Phase 51.5-A修正）
         df = pd.read_csv(self.data_file, parse_dates=["datetime"], index_col="datetime")
         self.logger.info(f"✅ データロード完了: {len(df)}行")
+
+        # Phase 54.1: 日数でフィルタリング
+        if self.days > 0:
+            cutoff_date = datetime.now() - timedelta(days=self.days)
+            original_len = len(df)
+            df = df[df.index >= cutoff_date]
+            self.logger.info(f"📊 {self.days}日分にフィルタリング: {original_len}行 → {len(df)}行")
 
         return df
 
@@ -786,10 +796,32 @@ class StrategyPerformanceAnalyzer:
 
 async def main():
     """メイン実行関数（Phase 51.4-Day3完全版）"""
-    analyzer = StrategyPerformanceAnalyzer()
+    # Phase 54.1: コマンドライン引数対応
+    parser = argparse.ArgumentParser(description="戦略個別パフォーマンス分析")
+    parser.add_argument(
+        "--days", type=int, default=60, help="分析対象日数（デフォルト: 60）"
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=None,
+        help="データファイルパス（デフォルト: BTC_JPY_15m.csv）",
+    )
+    args = parser.parse_args()
+
+    # データファイルパスの構築
+    if args.data:
+        data_path = Path(args.data)
+        # フルパスでない場合は履歴データディレクトリからの相対パスとして扱う
+        if not data_path.is_absolute() and not data_path.exists():
+            data_path = Path(__file__).parent.parent.parent / "src/backtest/data/historical" / args.data
+        data_file = data_path
+    else:
+        data_file = None
+    analyzer = StrategyPerformanceAnalyzer(data_file=data_file, days=args.days)
 
     print("=" * 80)
-    print("📊 Phase 51.4-Day3: 戦略個別パフォーマンス分析（完全版）")
+    print(f"📊 Phase 54.1: 戦略個別パフォーマンス分析（{args.days}日分）")
     print("=" * 80)
     print()
 

@@ -273,11 +273,11 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 51.8-10: レンジ型戦略95%集中（理論的初期値）
-      ATRBased: 0.45            # ↑ 0.40→0.45（主力強化）
-      BBReversal: 0.35          # ↑ 0.30→0.35（BB反転強化）
-      DonchianChannel: 0.10     # ↓ 0.20→0.10（ブレイクアウト削減）
-      StochasticReversal: 0.10  # = 0.10（維持）
+      # Phase 54.2: エントリー基準厳格化（Phase 54.3-Aは逆効果で取消）
+      ATRBased: 0.30            # = 0.30（PF 0.96）
+      BBReversal: 0.50          # = 0.50（PF 1.92）
+      DonchianChannel: 0.20     # = 0.20（PF 0.89）
+      StochasticReversal: 0.0   # = 0.0（PF 0.02・無効化）
       ADXTrendStrength: 0.0     # = 0.0（トレンド専用・無効化）
       MACDEMACrossover: 0.0     # = 0.0（トレンド専用・無効化）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
@@ -354,37 +354,42 @@ strategies:
     weak_di_threshold: 1.0
     weak_trend_threshold: 15
   atr_based:
-    bb_overbought: 0.7
-    bb_oversold: 0.3
+    # Phase 54.2: エントリー基準厳格化（Phase 54.3-Bで過剰厳格化→戻す）
+    bb_overbought: 0.85       # = 0.85（Phase 54.2維持・0.90は過剰）
+    bb_oversold: 0.15         # = 0.15（Phase 54.2維持・0.10は過剰）
     high_volatility_strength: 0.5
     hold_confidence: 0.15
     low_volatility_strength: 0.2
-    min_confidence: 0.25
+    min_confidence: 0.35      # = 0.35（Phase 54.2維持・0.40は過剰）
     normal_volatility_strength: 0.25
-    rsi_overbought: 65
-    rsi_oversold: 35
+    rsi_overbought: 70        # = 70（Phase 54.2維持・75は過剰）
+    rsi_oversold: 30          # = 30（Phase 54.2維持・25は過剰）
     strength_fallback: 0.3
     base_confidence: 0.25
     confidence_multiplier: 0.3
+    weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
   donchian_channel:
+    # Phase 54.3-B: エントリー基準厳格化（PF 0.89→1.0+目標）
     breakout_threshold: 0.002
     hold_confidence: 0.4
     middle_zone_max: 0.6
     middle_zone_min: 0.4
-    min_confidence: 0.25
-    reversal_threshold: 0.05
+    min_confidence: 0.40           # ↑ 0.35→0.40（最低信頼度引き上げ）
+    reversal_threshold: 0.03       # ↓ 0.05→0.03（リバーサル厳格化）
     weak_signal_confidence: 0.35
     weak_signal_max: 0.75
     weak_signal_min: 0.25
+    weak_signal_enabled: false     # Phase 54.2: 弱シグナル無効化
   bb_reversal:
     # Phase 51.7 Day 3: BB Reversal戦略設定
+    # Phase 54.3-A結果: 閾値緩和は逆効果（PF 1.92→1.12）→オリジナル維持
     min_confidence: 0.30
     hold_confidence: 0.25
     bb_width_threshold: 0.02        # BB幅閾値（2% = レンジ相場判定）
     rsi_overbought: 70              # RSI買われすぎ閾値
     rsi_oversold: 30                # RSI売られすぎ閾値
-    bb_upper_threshold: 0.95        # BB上限タッチ閾値（95%以上）
-    bb_lower_threshold: 0.05        # BB下限タッチ閾値（5%以下）
+    bb_upper_threshold: 0.95        # BB上限位置閾値（厳格維持）
+    bb_lower_threshold: 0.05        # BB下限位置閾値（厳格維持）
     adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:

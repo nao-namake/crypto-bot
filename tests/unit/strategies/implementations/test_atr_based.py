@@ -70,17 +70,17 @@ class TestATRBasedStrategy(unittest.TestCase):
 
     def test_strategy_initialization(self):
         """戦略初期化テスト."""
-        # デフォルト設定確認
+        # デフォルト設定確認（Phase 54.2: 閾値厳格化後の値）
         self.assertEqual(self.strategy.name, "ATRBased")
-        self.assertEqual(self.strategy.config["bb_overbought"], 0.7)
-        self.assertEqual(self.strategy.config["bb_oversold"], 0.3)
-        self.assertEqual(self.strategy.config["min_confidence"], 0.25)
+        self.assertEqual(self.strategy.config["bb_overbought"], 0.85)
+        self.assertEqual(self.strategy.config["bb_oversold"], 0.15)
+        self.assertEqual(self.strategy.config["min_confidence"], 0.35)
         self.assertEqual(self.strategy.config["position_size_base"], 0.015)  # 逆張りなので控えめ
 
     def test_analyze_bb_position_overbought(self):
         """ボリンジャーバンド位置分析 - 過買いテスト."""
         overbought_df = self.test_df.copy()
-        overbought_df["bb_position"] = 0.85  # 過買い領域
+        overbought_df["bb_position"] = 0.90  # 過買い領域（Phase 54.2: 閾値0.85超）
 
         result = self.strategy._analyze_bb_position(overbought_df)
 
@@ -91,7 +91,7 @@ class TestATRBasedStrategy(unittest.TestCase):
     def test_analyze_bb_position_oversold(self):
         """ボリンジャーバンド位置分析 - 過売りテスト."""
         oversold_df = self.test_df.copy()
-        oversold_df["bb_position"] = 0.15  # 過売り領域
+        oversold_df["bb_position"] = 0.10  # 過売り領域（Phase 54.2: 閾値0.15未満）
 
         result = self.strategy._analyze_bb_position(oversold_df)
 

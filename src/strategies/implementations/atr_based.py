@@ -323,6 +323,18 @@ class ATRBasedStrategy(StrategyBase):
                 reason = f"RSI単独シグナル ({rsi_analysis['rsi']:.1f})"
             # ケース4: 明確なシグナルなし - 微弱な動的信頼度を計算
             else:
+                # Phase 54.2: 微弱シグナル無効化設定の確認
+                from ...core.config.threshold_manager import get_threshold
+                weak_signal_enabled = get_threshold(
+                    "strategies.atr_based.weak_signal_enabled", True
+                )
+                if not weak_signal_enabled:
+                    # 微弱シグナル無効化時は即座にHOLD
+                    bb_pos = bb_analysis["bb_position"]
+                    rsi_val = rsi_analysis["rsi"]
+                    return self._create_hold_decision(
+                        f"微弱シグナル無効（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
+                    )
                 # ニュートラル状態でも市場状況に基づく微弱なシグナルを生成
                 bb_pos = bb_analysis["bb_position"]
                 rsi_val = rsi_analysis["rsi"]
