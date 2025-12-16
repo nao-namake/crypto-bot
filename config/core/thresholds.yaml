@@ -273,10 +273,10 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 54.2: エントリー基準厳格化（Phase 54.3-Aは逆効果で取消）
-      ATRBased: 0.30            # = 0.30（PF 0.96）
-      BBReversal: 0.50          # = 0.50（PF 1.92）
-      DonchianChannel: 0.20     # = 0.20（PF 0.89）
+      # Phase 54.2: 重み配分最適化（54.3-Bでロールバック）
+      ATRBased: 0.30            # = 0.30（Phase 54.2維持）
+      BBReversal: 0.50          # = 0.50（Phase 54.2維持）
+      DonchianChannel: 0.20     # = 0.20（PF 1.08）
       StochasticReversal: 0.0   # = 0.0（PF 0.02・無効化）
       ADXTrendStrength: 0.0     # = 0.0（トレンド専用・無効化）
       MACDEMACrossover: 0.0     # = 0.0（トレンド専用・無効化）
@@ -368,6 +368,9 @@ strategies:
     base_confidence: 0.25
     confidence_multiplier: 0.3
     weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
+    # Phase 54.4: シグナル条件厳格化・ADXフィルタ追加
+    require_both_signals: true  # BB+RSI両方必須（BBReversal同様）
+    adx_filter_threshold: 25    # ADX > 25 でHOLD（トレンド回避）
   donchian_channel:
     # Phase 54.3-B: エントリー基準厳格化（PF 0.89→1.0+目標）
     breakout_threshold: 0.002

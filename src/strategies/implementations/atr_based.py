@@ -79,6 +79,24 @@ class ATRBasedStrategy(StrategyBase):
             )
             self.logger.debug("[ATRBased] 分析開始")
             current_price = float(df["close"].iloc[-1])
+
+            # Phase 54.4: ADXフィルタ（トレンド相場での逆張り回避）
+            from ...core.config.threshold_manager import get_threshold
+            adx_filter_threshold = get_threshold("strategies.atr_based.adx_filter_threshold", 25)
+            if "adx_14" in df.columns:
+                current_adx = float(df["adx_14"].iloc[-1])
+                if current_adx > adx_filter_threshold:
+                    self.logger.info(
+                        f"[ATRBased] ADXフィルタ発動: ADX={current_adx:.1f} > {adx_filter_threshold}（トレンド相場）"
+                    )
+                    # トレンド相場では逆張り回避 → HOLD
+                    return SignalBuilder.create_hold_signal(
+                        strategy_name=self.name,
+                        current_price=current_price,
+                        reason=f"ADXフィルタ（ADX={current_adx:.1f} > {adx_filter_threshold}）",
+                        strategy_type=StrategyType.ATR_BASED,
+                    )
+
             # 各指標分析
             bb_analysis = self._analyze_bb_position(df)
             rsi_analysis = self._analyze_rsi_momentum(df)
@@ -268,128 +286,129 @@ class ATRBasedStrategy(StrategyBase):
         stress_analysis: Dict[str, Any] = None,
         market_uncertainty: float = 0.02,
     ) -> Dict[str, Any]:
-        """統合判定（動的信頼度計算・早期リターン回避）."""
+        """統合判定（Phase 54.4: BB+RSI両方必須）."""
         try:
+            # 循環インポート回避のため遅延インポート
+            from ...core.config.threshold_manager import get_threshold
+
             # フィルター確認（Phase 28完了・Phase 29最適化: market_stress無効化）
             if stress_analysis and not stress_analysis["filter_ok"]:
                 return self._create_hold_decision("市場ストレス高")
+
             # 低ボラティリティでも動的信頼度を計算（早期リターン回避）
             volatility_penalty = 0.8 if atr_analysis["regime"] == "low" else 1.0
-            # シグナル統合（すべてのケースで動的計算実行）
+
+            # シグナル統合
             bb_signal = bb_analysis["signal"]
             rsi_signal = rsi_analysis["signal"]
-            # ケース1: 両方にシグナルがある
-            if bb_signal != 0 and rsi_signal != 0:
-                if bb_signal == rsi_signal:
-                    # 両方一致 - 適度な信頼度（過度な信頼度を回避）
-                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                    # 循環インポート回避のため遅延インポート
-                    from ...core.config.threshold_manager import get_threshold
+            bb_pos = bb_analysis["bb_position"]
+            rsi_val = rsi_analysis["rsi"]
 
+            # Phase 54.4: BB+RSI両方必須設定の確認
+            require_both_signals = get_threshold(
+                "strategies.atr_based.require_both_signals", True
+            )
+
+            if require_both_signals:
+                # ========================================
+                # Phase 54.4: 厳格モード（BBReversal同様）
+                # BB AND RSI 両方のシグナルが一致する場合のみエントリー
+                # ========================================
+                if bb_signal != 0 and rsi_signal != 0 and bb_signal == rsi_signal:
+                    # 両方一致 - シグナル生成
+                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
                     base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
                     confidence_max = get_threshold(
                         "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
                     )
                     confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
                     strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
-                    reason = f"BB+RSI一致シグナル ({bb_analysis['bb_position']:.2f}, RSI:{rsi_analysis['rsi']:.1f})"
+                    reason = f"BB+RSI一致シグナル (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
                 else:
-                    # 不一致時はより強いシグナルを採用
-                    if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
-                        action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                        base_confidence = bb_analysis["confidence"] * 0.8  # 不一致ペナルティ
-                        confidence = base_confidence * (1 + market_uncertainty)
-                        strength = bb_analysis["strength"]
-                        reason = f"BB優勢シグナル ({bb_analysis['bb_position']:.2f})"
+                    # 条件未達成 → HOLD
+                    if bb_signal != 0 and rsi_signal != 0:
+                        # 両方あるが不一致
+                        return self._create_hold_decision(
+                            f"BB/RSI不一致 (BB:{bb_pos:.2f}→{'買い' if bb_signal > 0 else '売り'}, RSI:{rsi_val:.1f}→{'買い' if rsi_signal > 0 else '売り'})"
+                        )
+                    elif bb_signal != 0:
+                        # BBのみ
+                        return self._create_hold_decision(
+                            f"BB単独シグナル不可 (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}中立)"
+                        )
+                    elif rsi_signal != 0:
+                        # RSIのみ
+                        return self._create_hold_decision(
+                            f"RSI単独シグナル不可 (BB:{bb_pos:.2f}中立, RSI:{rsi_val:.1f})"
+                        )
                     else:
-                        action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                        base_confidence = rsi_analysis["confidence"] * 0.8
-                        confidence = base_confidence * (1 + market_uncertainty)
-                        strength = rsi_analysis["strength"]
-                        reason = f"RSI優勢シグナル ({rsi_analysis['rsi']:.1f})"
-            # ケース2: BBシグナルのみ
-            elif bb_signal != 0:
-                action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                base_confidence = bb_analysis["confidence"] * 0.7  # 単一シグナル減額
-                confidence = base_confidence * (1 + market_uncertainty)
-                strength = bb_analysis["strength"]
-                reason = f"BB単独シグナル ({bb_analysis['bb_position']:.2f})"
-            # ケース3: RSIシグナルのみ
-            elif rsi_signal != 0:
-                action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                base_confidence = rsi_analysis["confidence"] * 0.7
-                confidence = base_confidence * (1 + market_uncertainty)
-                strength = rsi_analysis["strength"]
-                reason = f"RSI単独シグナル ({rsi_analysis['rsi']:.1f})"
-            # ケース4: 明確なシグナルなし - 微弱な動的信頼度を計算
+                        # 両方なし
+                        return self._create_hold_decision(
+                            f"シグナルなし (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
+                        )
             else:
-                # Phase 54.2: 微弱シグナル無効化設定の確認
-                from ...core.config.threshold_manager import get_threshold
-                weak_signal_enabled = get_threshold(
-                    "strategies.atr_based.weak_signal_enabled", True
-                )
-                if not weak_signal_enabled:
-                    # 微弱シグナル無効化時は即座にHOLD
-                    bb_pos = bb_analysis["bb_position"]
-                    rsi_val = rsi_analysis["rsi"]
-                    return self._create_hold_decision(
-                        f"微弱シグナル無効（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
-                    )
-                # ニュートラル状態でも市場状況に基づく微弱なシグナルを生成
-                bb_pos = bb_analysis["bb_position"]
-                rsi_val = rsi_analysis["rsi"]
-                # 中央値からの乖離に基づく微弱シグナル
-                bb_deviation = abs(bb_pos - 0.5)  # 中央(0.5)からの乖離度
-                rsi_deviation = abs(rsi_val - 50) / 50  # RSI中央値からの乖離度
-                total_deviation = (bb_deviation + rsi_deviation) / 2
-                if total_deviation > 0.25:  # 25%以上の大きな乖離でのみシグナル（抑制強化）
-                    # 循環インポート回避のため遅延インポート
-                    from ...core.config.threshold_manager import get_threshold
-
-                    weak_base = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.weak_base", 0.08
-                    )
-                    weak_multiplier = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.weak_multiplier", 0.1
-                    )
-
-                    # より乖離の大きい指標を採用
-                    if bb_deviation > rsi_deviation:
-                        action = EntryAction.BUY if bb_pos < 0.5 else EntryAction.SELL
-                        base_confidence = (
-                            weak_base + total_deviation * weak_multiplier
-                        )  # 設定ベース計算
+                # ========================================
+                # 従来モード（互換性維持用）
+                # ========================================
+                # ケース1: 両方にシグナルがある
+                if bb_signal != 0 and rsi_signal != 0:
+                    if bb_signal == rsi_signal:
+                        action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
+                        base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
+                        confidence_max = get_threshold(
+                            "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
+                        )
+                        confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
+                        strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
+                        reason = f"BB+RSI一致シグナル (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
                     else:
-                        action = EntryAction.BUY if rsi_val < 50 else EntryAction.SELL
-                        base_confidence = (
-                            weak_base + total_deviation * weak_multiplier
-                        )  # 設定ベース計算
-                    confidence = base_confidence
-                    strength = total_deviation
-                    reason = f"極微弱逆張り（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}, 乖離:{total_deviation:.2f}）"
+                        if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
+                            action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
+                            base_confidence = bb_analysis["confidence"] * 0.8
+                            confidence = base_confidence * (1 + market_uncertainty)
+                            strength = bb_analysis["strength"]
+                            reason = f"BB優勢シグナル (BB:{bb_pos:.2f})"
+                        else:
+                            action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
+                            base_confidence = rsi_analysis["confidence"] * 0.8
+                            confidence = base_confidence * (1 + market_uncertainty)
+                            strength = rsi_analysis["strength"]
+                            reason = f"RSI優勢シグナル (RSI:{rsi_val:.1f})"
+                # ケース2: BBシグナルのみ
+                elif bb_signal != 0:
+                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
+                    base_confidence = bb_analysis["confidence"] * 0.7
+                    confidence = base_confidence * (1 + market_uncertainty)
+                    strength = bb_analysis["strength"]
+                    reason = f"BB単独シグナル (BB:{bb_pos:.2f})"
+                # ケース3: RSIシグナルのみ
+                elif rsi_signal != 0:
+                    action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
+                    base_confidence = rsi_analysis["confidence"] * 0.7
+                    confidence = base_confidence * (1 + market_uncertainty)
+                    strength = rsi_analysis["strength"]
+                    reason = f"RSI単独シグナル (RSI:{rsi_val:.1f})"
+                # ケース4: シグナルなし
                 else:
                     return self._create_hold_decision(
-                        f"中立状態（BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}）"
+                        f"シグナルなし (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
                     )
+
             # ボラティリティ調整適用
             confidence *= volatility_penalty
+
             # 高ボラティリティボーナス（抑制）
             if atr_analysis["regime"] == "high":
-                # 循環インポート回避のため遅延インポート
-                from ...core.config.threshold_manager import get_threshold
-
                 volatility_bonus = get_threshold(
                     "ml.dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02
                 )
                 volatility_max = get_threshold(
                     "ml.dynamic_confidence.strategies.atr_based.volatility_max", 0.65
                 )
-                confidence = min(
-                    confidence * volatility_bonus, volatility_max
-                )  # 設定ベースボーナス・上限
-            # 最小信頼度チェック（緩和済み）
+                confidence = min(confidence * volatility_bonus, volatility_max)
+
+            # 最小信頼度チェック
             if confidence < self.config["min_confidence"]:
-                # 完全拒否ではなく、動的に調整された信頼度を記録
                 adjusted_confidence = max(confidence, self.config["min_confidence"] * 0.8)
                 return {
                     "action": EntryAction.HOLD,
@@ -397,6 +416,7 @@ class ATRBasedStrategy(StrategyBase):
                     "strength": strength if "strength" in locals() else 0.0,
                     "analysis": f"ATR動的HOLD: {reason} (調整信頼度: {adjusted_confidence:.3f})",
                 }
+
             return {
                 "action": action,
                 "confidence": confidence,
@@ -448,5 +468,6 @@ class ATRBasedStrategy(StrategyBase):
             "atr_14",  # メイン指標
             "bb_position",  # ボリンジャーバンド位置
             "rsi_14",  # RSI
+            "adx_14",  # Phase 54.4: ADXフィルタ用
             # Phase 28完了・Phase 29最適化: market_stress削除（15特徴量統一）
         ]
