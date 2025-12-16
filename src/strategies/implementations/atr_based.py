@@ -82,6 +82,7 @@ class ATRBasedStrategy(StrategyBase):
 
             # Phase 54.4: ADXフィルタ（トレンド相場での逆張り回避）
             from ...core.config.threshold_manager import get_threshold
+
             adx_filter_threshold = get_threshold("strategies.atr_based.adx_filter_threshold", 25)
             if "adx_14" in df.columns:
                 current_adx = float(df["adx_14"].iloc[-1])
@@ -305,9 +306,7 @@ class ATRBasedStrategy(StrategyBase):
             rsi_val = rsi_analysis["rsi"]
 
             # Phase 54.4: BB+RSI両方必須設定の確認
-            require_both_signals = get_threshold(
-                "strategies.atr_based.require_both_signals", True
-            )
+            require_both_signals = get_threshold("strategies.atr_based.require_both_signals", True)
 
             if require_both_signals:
                 # ========================================
@@ -354,7 +353,9 @@ class ATRBasedStrategy(StrategyBase):
                 if bb_signal != 0 and rsi_signal != 0:
                     if bb_signal == rsi_signal:
                         action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                        base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
+                        base_confidence = (
+                            bb_analysis["confidence"] + rsi_analysis["confidence"]
+                        ) * 0.7
                         confidence_max = get_threshold(
                             "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
                         )

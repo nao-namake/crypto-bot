@@ -278,9 +278,7 @@ class DonchianChannelStrategy(StrategyBase):
                 )
         # 3. 弱シグナル（中央域手前）- 動的信頼度計算
         # Phase 54.2: 弱シグナル無効化設定の確認
-        weak_signal_enabled = get_threshold(
-            "strategies.donchian_channel.weak_signal_enabled", True
-        )
+        weak_signal_enabled = get_threshold("strategies.donchian_channel.weak_signal_enabled", True)
         if weak_signal_enabled:
             if analysis["in_weak_buy_zone"]:
                 # 下方向への動きを示唆する弱いbuyシグナル

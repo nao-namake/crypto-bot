@@ -172,8 +172,9 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         df = self._create_test_data(50)
 
         # 上限付近リバーサル条件設定
+        # Phase 54.3-B: reversal_threshold 0.05→0.03変更対応（上限域: > 0.97）
         latest_idx = df.index[-1]
-        df.loc[latest_idx, "channel_position"] = 0.96  # 上部4%
+        df.loc[latest_idx, "channel_position"] = 0.98  # 上部2%（Phase 54.3-B: 0.96→0.98）
         df.loc[latest_idx, "volume_ratio"] = 1.2
 
         signal = self.strategy.generate_signal(df)
@@ -187,8 +188,9 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         df = self._create_test_data(50)
 
         # 下限付近リバーサル条件設定
+        # Phase 54.3-B: reversal_threshold 0.05→0.03変更対応（下限域: < 0.03）
         latest_idx = df.index[-1]
-        df.loc[latest_idx, "channel_position"] = 0.04  # 下部4%
+        df.loc[latest_idx, "channel_position"] = 0.02  # 下部2%（Phase 54.3-B: 0.04→0.02）
         df.loc[latest_idx, "volume_ratio"] = 1.2
 
         signal = self.strategy.generate_signal(df)
@@ -500,7 +502,8 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         latest_idx = df.index[-1]
 
         # 上限付近だがブレイクアウトしていない
-        df.loc[latest_idx, "channel_position"] = 0.96
+        # Phase 54.3-B: reversal_threshold 0.05→0.03変更対応
+        df.loc[latest_idx, "channel_position"] = 0.98  # Phase 54.3-B: 0.96→0.98
         df.loc[latest_idx, "volume_ratio"] = 1.1
 
         signal = self.strategy.generate_signal(df)
@@ -514,7 +517,8 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         latest_idx = df.index[-1]
 
         # 下限付近だがブレイクアウトしていない
-        df.loc[latest_idx, "channel_position"] = 0.04
+        # Phase 54.3-B: reversal_threshold 0.05→0.03変更対応
+        df.loc[latest_idx, "channel_position"] = 0.02  # Phase 54.3-B: 0.04→0.02
         df.loc[latest_idx, "volume_ratio"] = 1.1
 
         signal = self.strategy.generate_signal(df)

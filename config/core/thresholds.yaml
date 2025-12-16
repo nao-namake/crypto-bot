@@ -273,10 +273,10 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 54.2: 重み配分最適化（54.3-Bでロールバック）
-      ATRBased: 0.30            # = 0.30（Phase 54.2維持）
-      BBReversal: 0.50          # = 0.50（Phase 54.2維持）
-      DonchianChannel: 0.20     # = 0.20（PF 1.08）
+      # Phase 54.6: 取引数回復のためweight調整
+      ATRBased: 0.35            # Phase 54.6: 0.30→0.35（取引数回復）
+      BBReversal: 0.40          # Phase 54.6: 0.50→0.40（バランス調整）
+      DonchianChannel: 0.25     # Phase 54.6: 0.20→0.25（取引数回復）
       StochasticReversal: 0.0   # = 0.0（PF 0.02・無効化）
       ADXTrendStrength: 0.0     # = 0.0（トレンド専用・無効化）
       MACDEMACrossover: 0.0     # = 0.0（トレンド専用・無効化）
@@ -360,7 +360,7 @@ strategies:
     high_volatility_strength: 0.5
     hold_confidence: 0.15
     low_volatility_strength: 0.2
-    min_confidence: 0.35      # = 0.35（Phase 54.2維持・0.40は過剰）
+    min_confidence: 0.32      # Phase 54.6: 0.35→0.32（取引数回復）
     normal_volatility_strength: 0.25
     rsi_overbought: 70        # = 70（Phase 54.2維持・75は過剰）
     rsi_oversold: 30          # = 30（Phase 54.2維持・25は過剰）
@@ -370,15 +370,15 @@ strategies:
     weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
     # Phase 54.5: 条件緩和（取引数回復）
     require_both_signals: false  # Phase 54.4 true → false（単独シグナル許可）
-    adx_filter_threshold: 25     # 25維持（ADXフィルタは厳格のまま）
+    adx_filter_threshold: 30     # Phase 54.6: 25→30（取引数回復）
   donchian_channel:
     # Phase 54.3-B: エントリー基準厳格化（PF 0.89→1.0+目標）
     breakout_threshold: 0.002
     hold_confidence: 0.4
     middle_zone_max: 0.6
     middle_zone_min: 0.4
-    min_confidence: 0.40           # ↑ 0.35→0.40（最低信頼度引き上げ）
-    reversal_threshold: 0.03       # ↓ 0.05→0.03（リバーサル厳格化）
+    min_confidence: 0.35           # Phase 54.6: 0.40→0.35（取引数回復）
+    reversal_threshold: 0.04       # Phase 54.6: 0.03→0.04（取引数回復）
     weak_signal_confidence: 0.35
     weak_signal_max: 0.75
     weak_signal_min: 0.25
@@ -443,14 +443,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.03
+    max_position_ratio: 0.10    # Phase 54.6: 3% → 10%（積極的ポジションサイズ）
     safety_factor: 0.7
   min_trade_size: 0.0001
   initial_position_size: 0.0001
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.05
+    max_position_ratio: 0.10    # Phase 54.6: 5% → 10%（積極的ポジションサイズ）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -559,15 +559,16 @@ position_management:
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
+    # Phase 54.6: ポジション比率引き上げ（総損益改善）
     low_confidence:
-      min_ratio: 0.01
-      max_ratio: 0.03
+      min_ratio: 0.03    # 1% → 3%
+      max_ratio: 0.05    # 3% → 5%
     medium_confidence:
-      min_ratio: 0.03
-      max_ratio: 0.05
+      min_ratio: 0.05    # 3% → 5%
+      max_ratio: 0.08    # 5% → 8%
     high_confidence:
-      min_ratio: 0.05
-      max_ratio: 0.1
+      min_ratio: 0.08    # 5% → 8%
+      max_ratio: 0.10    # 10%維持
   account_size_adjustments:
     small:
       threshold: 50000

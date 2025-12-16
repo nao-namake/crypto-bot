@@ -197,9 +197,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
     def test_analyze_sell_signal(self, mock_signal_builder):
         """SELL信号生成テスト - Phase 54.5: stoch > 90, RSI > 70（クロスオーバー不要）"""
         # SELL条件: stoch_k > 90, stoch_d > 90, rsi > 70, ADX < 20, BB幅 < 2%
-        df = self._create_test_data(
-            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015
-        )
+        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015)
 
         mock_signal = Mock()
         mock_signal.action = EntryAction.SELL
@@ -223,9 +221,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
     def test_analyze_buy_signal(self, mock_signal_builder):
         """BUY信号生成テスト - Phase 54.5: stoch < 10, RSI < 30（クロスオーバー不要）"""
         # BUY条件: stoch_k < 10, stoch_d < 10, rsi < 30, ADX < 20, BB幅 < 2%
-        df = self._create_test_data(
-            stoch_k=8, stoch_d=9, rsi=25, adx=15, bb_width_ratio=0.015
-        )
+        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25, adx=15, bb_width_ratio=0.015)
 
         mock_signal = Mock()
         mock_signal.action = EntryAction.BUY
@@ -368,18 +364,14 @@ class TestStochasticReversalStrategy(unittest.TestCase):
     def test_bb_width_filter(self):
         """Phase 54.5: BB幅フィルタテスト - BB幅が広いとHOLD"""
         # BB幅 3% > 2% なのでトレンド相場と判定
-        df = self._create_test_data(
-            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.03
-        )
+        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.03)
         is_range = self.strategy._is_range_market(df)
         self.assertFalse(is_range)  # BB幅が広いのでレンジ相場ではない
 
     def test_bb_width_filter_range_ok(self):
         """Phase 54.5: BB幅フィルタテスト - BB幅が狭いとレンジ"""
         # BB幅 1.5% < 2% なのでレンジ相場と判定
-        df = self._create_test_data(
-            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015
-        )
+        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015)
         is_range = self.strategy._is_range_market(df)
         self.assertTrue(is_range)  # BB幅が狭いのでレンジ相場
 

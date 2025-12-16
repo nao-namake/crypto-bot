@@ -798,9 +798,7 @@ async def main():
     """メイン実行関数（Phase 51.4-Day3完全版）"""
     # Phase 54.1: コマンドライン引数対応
     parser = argparse.ArgumentParser(description="戦略個別パフォーマンス分析")
-    parser.add_argument(
-        "--days", type=int, default=60, help="分析対象日数（デフォルト: 60）"
-    )
+    parser.add_argument("--days", type=int, default=60, help="分析対象日数（デフォルト: 60）")
     parser.add_argument(
         "--data",
         type=str,
@@ -814,7 +812,9 @@ async def main():
         data_path = Path(args.data)
         # フルパスでない場合は履歴データディレクトリからの相対パスとして扱う
         if not data_path.is_absolute() and not data_path.exists():
-            data_path = Path(__file__).parent.parent.parent / "src/backtest/data/historical" / args.data
+            data_path = (
+                Path(__file__).parent.parent.parent / "src/backtest/data/historical" / args.data
+            )
         data_file = data_path
     else:
         data_file = None

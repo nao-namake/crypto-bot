@@ -226,8 +226,7 @@ class StochasticReversalStrategy(StrategyBase):
 
         # SELL信号条件
         sell_stoch_ok = (
-            stoch_k > self.config["stoch_overbought"]
-            and stoch_d > self.config["stoch_overbought"]
+            stoch_k > self.config["stoch_overbought"] and stoch_d > self.config["stoch_overbought"]
         )
         sell_rsi_ok = rsi > self.config["rsi_overbought"]
         sell_crossover_ok = (not require_crossover) or (crossover == "bear")
@@ -246,8 +245,7 @@ class StochasticReversalStrategy(StrategyBase):
 
         # BUY信号条件
         buy_stoch_ok = (
-            stoch_k < self.config["stoch_oversold"]
-            and stoch_d < self.config["stoch_oversold"]
+            stoch_k < self.config["stoch_oversold"] and stoch_d < self.config["stoch_oversold"]
         )
         buy_rsi_ok = rsi < self.config["rsi_oversold"]
         buy_crossover_ok = (not require_crossover) or (crossover == "golden")
