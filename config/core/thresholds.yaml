@@ -368,9 +368,9 @@ strategies:
     base_confidence: 0.25
     confidence_multiplier: 0.3
     weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
-    # Phase 54.4: シグナル条件厳格化・ADXフィルタ追加
-    require_both_signals: true  # BB+RSI両方必須（BBReversal同様）
-    adx_filter_threshold: 25    # ADX > 25 でHOLD（トレンド回避）
+    # Phase 54.5: 条件緩和（取引数回復）
+    require_both_signals: false  # Phase 54.4 true → false（単独シグナル許可）
+    adx_filter_threshold: 25     # 25維持（ADXフィルタは厳格のまま）
   donchian_channel:
     # Phase 54.3-B: エントリー基準厳格化（PF 0.89→1.0+目標）
     breakout_threshold: 0.002
@@ -397,13 +397,16 @@ strategies:
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # Phase 51.7 Day 4: Stochastic Reversal戦略設定
+    # Phase 54.5: 閾値厳格化・BB幅フィルタ追加・クロスオーバー削除
     min_confidence: 0.30
     hold_confidence: 0.25
-    stoch_overbought: 80            # Stochastic過買い閾値
-    stoch_oversold: 20              # Stochastic過売り閾値
-    rsi_overbought: 65              # RSI買われすぎ閾値
-    rsi_oversold: 35                # RSI売られすぎ閾値
+    stoch_overbought: 90            # 80 → 90（Phase 54.5: 厳格化）
+    stoch_oversold: 10              # 20 → 10（Phase 54.5: 厳格化）
+    rsi_overbought: 70              # 65 → 70（Phase 54.5: BBReversal同様）
+    rsi_oversold: 30                # 35 → 30（Phase 54.5: BBReversal同様）
     adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    bb_width_threshold: 0.02        # Phase 54.5: BB幅 < 2%フィルタ追加
+    require_crossover: false        # Phase 54.5: クロスオーバー要件削除
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
     # Phase 51.7 Day 5: MACD + EMA Crossover戦略設定

@@ -35,14 +35,17 @@ class TestStochasticReversalStrategy(unittest.TestCase):
 
     def setUp(self):
         """テスト前処理"""
+        # Phase 54.5: 新閾値対応（stoch 90/10, RSI 70/30, require_crossover=False）
         self.config = {
             "min_confidence": 0.30,
             "hold_confidence": 0.25,
-            "stoch_overbought": 80,
-            "stoch_oversold": 20,
-            "rsi_overbought": 65,
-            "rsi_oversold": 35,
+            "stoch_overbought": 90,  # Phase 54.5: 80→90
+            "stoch_oversold": 10,  # Phase 54.5: 20→10
+            "rsi_overbought": 70,  # Phase 54.5: 65→70
+            "rsi_oversold": 30,  # Phase 54.5: 35→30
             "adx_range_threshold": 20,
+            "bb_width_threshold": 0.02,  # Phase 54.5: BB幅フィルタ
+            "require_crossover": False,  # Phase 54.5: クロスオーバー不要
             "sl_multiplier": 1.5,
         }
         self.strategy = StochasticReversalStrategy(config=self.config)
@@ -55,6 +58,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         rsi: float = 50,
         adx: float = 15,
         crossover_type: str = "none",
+        bb_width_ratio: float = 0.015,  # Phase 54.5: BB幅（デフォルト1.5% = レンジ相場）
     ) -> pd.DataFrame:
         """
         テスト用データ生成
@@ -66,6 +70,7 @@ class TestStochasticReversalStrategy(unittest.TestCase):
             rsi: RSI値（0-100）
             adx: ADX値（0-100）
             crossover_type: クロスオーバータイプ（"golden", "bear", "none"）
+            bb_width_ratio: BB幅（価格に対する比率）- Phase 54.5
 
         Returns:
             テストデータ
@@ -96,6 +101,11 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         rsi_14 = np.full(length, rsi)
         adx_14 = np.full(length, adx)
 
+        # Phase 54.5: BB幅フィルタ用
+        bb_middle = prices
+        bb_upper = prices * (1 + bb_width_ratio / 2)
+        bb_lower = prices * (1 - bb_width_ratio / 2)
+
         return pd.DataFrame(
             {
                 "timestamp": dates,
@@ -105,6 +115,8 @@ class TestStochasticReversalStrategy(unittest.TestCase):
                 "rsi_14": rsi_14,
                 "adx_14": adx_14,
                 "atr_14": atr_14,
+                "bb_upper": bb_upper,  # Phase 54.5
+                "bb_lower": bb_lower,  # Phase 54.5
             }
         )
 
@@ -115,16 +127,20 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         self.assertEqual(default_strategy.name, "StochasticReversal")
         self.assertIsNotNone(default_strategy.config)
 
-        # カスタム設定
-        self.assertEqual(self.strategy.config["stoch_overbought"], 80)
-        self.assertEqual(self.strategy.config["stoch_oversold"], 20)
-        self.assertEqual(self.strategy.config["rsi_overbought"], 65)
-        self.assertEqual(self.strategy.config["rsi_oversold"], 35)
+        # カスタム設定（Phase 54.5: 新閾値）
+        self.assertEqual(self.strategy.config["stoch_overbought"], 90)  # 80→90
+        self.assertEqual(self.strategy.config["stoch_oversold"], 10)  # 20→10
+        self.assertEqual(self.strategy.config["rsi_overbought"], 70)  # 65→70
+        self.assertEqual(self.strategy.config["rsi_oversold"], 30)  # 35→30
         self.assertEqual(self.strategy.config["adx_range_threshold"], 20)
+        # Phase 54.5: 新設定
+        self.assertEqual(self.strategy.config["bb_width_threshold"], 0.02)
+        self.assertEqual(self.strategy.config["require_crossover"], False)
 
     def test_required_features(self):
         """必須特徴量テスト"""
         required = self.strategy.get_required_features()
+        # Phase 54.5: bb_upper, bb_lower追加
         expected = [
             "close",
             "stoch_k",
@@ -132,6 +148,8 @@ class TestStochasticReversalStrategy(unittest.TestCase):
             "rsi_14",
             "adx_14",
             "atr_14",
+            "bb_upper",  # Phase 54.5
+            "bb_lower",  # Phase 54.5
         ]
         self.assertEqual(set(required), set(expected))
 
@@ -177,9 +195,11 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
     )
     def test_analyze_sell_signal(self, mock_signal_builder):
-        """SELL信号生成テスト - 過買い + ベアクロス + RSI買われすぎ"""
-        # SELL条件: stoch_k > 80, stoch_d > 80, ベアクロス, rsi > 65, ADX < 20
-        df = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, adx=15, crossover_type="bear")
+        """SELL信号生成テスト - Phase 54.5: stoch > 90, RSI > 70（クロスオーバー不要）"""
+        # SELL条件: stoch_k > 90, stoch_d > 90, rsi > 70, ADX < 20, BB幅 < 2%
+        df = self._create_test_data(
+            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015
+        )
 
         mock_signal = Mock()
         mock_signal.action = EntryAction.SELL
@@ -201,9 +221,11 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
     )
     def test_analyze_buy_signal(self, mock_signal_builder):
-        """BUY信号生成テスト - 過売り + ゴールデンクロス + RSI売られすぎ"""
-        # BUY条件: stoch_k < 20, stoch_d < 20, ゴールデンクロス, rsi < 35, ADX < 20
-        df = self._create_test_data(stoch_k=15, stoch_d=16, rsi=30, adx=15, crossover_type="golden")
+        """BUY信号生成テスト - Phase 54.5: stoch < 10, RSI < 30（クロスオーバー不要）"""
+        # BUY条件: stoch_k < 10, stoch_d < 10, rsi < 30, ADX < 20, BB幅 < 2%
+        df = self._create_test_data(
+            stoch_k=8, stoch_d=9, rsi=25, adx=15, bb_width_ratio=0.015
+        )
 
         mock_signal = Mock()
         mock_signal.action = EntryAction.BUY
@@ -248,8 +270,9 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         self.assertIn("not_range_market", signal.reason)
 
     def test_analyze_stochastic_reversal_signal_sell(self):
-        """Stochastic反転シグナル分析テスト - SELL"""
-        df = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, crossover_type="bear")
+        """Stochastic反転シグナル分析テスト - SELL（Phase 54.5: stoch > 90, RSI > 70）"""
+        # Phase 54.5: クロスオーバー不要
+        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
         self.assertEqual(decision["action"], EntryAction.SELL)
@@ -258,8 +281,9 @@ class TestStochasticReversalStrategy(unittest.TestCase):
         self.assertIn("Stochastic反転SELL", decision["reason"])
 
     def test_analyze_stochastic_reversal_signal_buy(self):
-        """Stochastic反転シグナル分析テスト - BUY"""
-        df = self._create_test_data(stoch_k=15, stoch_d=16, rsi=30, crossover_type="golden")
+        """Stochastic反転シグナル分析テスト - BUY（Phase 54.5: stoch < 10, RSI < 30）"""
+        # Phase 54.5: クロスオーバー不要
+        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
         self.assertEqual(decision["action"], EntryAction.BUY)
@@ -300,49 +324,64 @@ class TestStochasticReversalStrategy(unittest.TestCase):
 
     def test_confidence_increases_with_extreme_stochastic_sell(self):
         """信頼度テスト - 極端なStochastic値で信頼度上昇（SELL）"""
-        # Stochastic値が極端なほど信頼度が高い
+        # Phase 54.5: Stochastic値が極端なほど信頼度が高い
+        # SELL: stoch_k = 92 vs 95
+        df_92 = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
+        decision_92 = self.strategy._analyze_stochastic_reversal_signal(df_92)
 
-        # SELL: stoch_k = 85 vs 90
-        df_85 = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, crossover_type="bear")
-        decision_85 = self.strategy._analyze_stochastic_reversal_signal(df_85)
+        df_95 = self._create_test_data(stoch_k=95, stoch_d=94, rsi=75)
+        decision_95 = self.strategy._analyze_stochastic_reversal_signal(df_95)
 
-        df_90 = self._create_test_data(stoch_k=90, stoch_d=89, rsi=70, crossover_type="bear")
-        decision_90 = self.strategy._analyze_stochastic_reversal_signal(df_90)
-
-        self.assertGreater(decision_90["confidence"], decision_85["confidence"])
+        self.assertGreater(decision_95["confidence"], decision_92["confidence"])
 
     def test_confidence_increases_with_extreme_stochastic_buy(self):
         """信頼度テスト - 極端なStochastic値で信頼度上昇（BUY）"""
-        # BUY: stoch_k = 15 vs 10
-        df_15 = self._create_test_data(stoch_k=15, stoch_d=16, rsi=30, crossover_type="golden")
-        decision_15 = self.strategy._analyze_stochastic_reversal_signal(df_15)
+        # Phase 54.5: BUY: stoch_k = 8 vs 5
+        df_8 = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
+        decision_8 = self.strategy._analyze_stochastic_reversal_signal(df_8)
 
-        df_10 = self._create_test_data(stoch_k=10, stoch_d=11, rsi=30, crossover_type="golden")
-        decision_10 = self.strategy._analyze_stochastic_reversal_signal(df_10)
+        df_5 = self._create_test_data(stoch_k=5, stoch_d=6, rsi=25)
+        decision_5 = self.strategy._analyze_stochastic_reversal_signal(df_5)
 
-        self.assertGreater(decision_10["confidence"], decision_15["confidence"])
+        self.assertGreater(decision_5["confidence"], decision_8["confidence"])
 
     def test_strength_calculation_sell(self):
-        """強度計算テスト - SELL"""
-        df = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, crossover_type="bear")
+        """強度計算テスト - SELL（Phase 54.5）"""
+        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
         # strength = (stoch_k - 50) / 50.0
-        # クロスオーバー調整後: stoch_k = 84 - 1 = 83
-        actual_stoch_k = 83
+        actual_stoch_k = 92
         expected_strength = (actual_stoch_k - 50) / 50.0
         self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
 
     def test_strength_calculation_buy(self):
-        """強度計算テスト - BUY"""
-        df = self._create_test_data(stoch_k=15, stoch_d=16, rsi=30, crossover_type="golden")
+        """強度計算テスト - BUY（Phase 54.5）"""
+        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
         decision = self.strategy._analyze_stochastic_reversal_signal(df)
 
         # strength = (50 - stoch_k) / 50.0
-        # クロスオーバー調整後: stoch_k = 16 + 1 = 17
-        actual_stoch_k = 17
+        actual_stoch_k = 8
         expected_strength = (50 - actual_stoch_k) / 50.0
         self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+
+    def test_bb_width_filter(self):
+        """Phase 54.5: BB幅フィルタテスト - BB幅が広いとHOLD"""
+        # BB幅 3% > 2% なのでトレンド相場と判定
+        df = self._create_test_data(
+            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.03
+        )
+        is_range = self.strategy._is_range_market(df)
+        self.assertFalse(is_range)  # BB幅が広いのでレンジ相場ではない
+
+    def test_bb_width_filter_range_ok(self):
+        """Phase 54.5: BB幅フィルタテスト - BB幅が狭いとレンジ"""
+        # BB幅 1.5% < 2% なのでレンジ相場と判定
+        df = self._create_test_data(
+            stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015
+        )
+        is_range = self.strategy._is_range_market(df)
+        self.assertTrue(is_range)  # BB幅が狭いのでレンジ相場
 
 
 # pytest実行用

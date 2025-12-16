@@ -56,13 +56,26 @@ class StochasticReversalStrategy(StrategyBase):
                 "strategies.stochastic_reversal.hold_confidence", 0.25
             ),
             "stoch_overbought": get_threshold(
-                "strategies.stochastic_reversal.stoch_overbought", 80
+                "strategies.stochastic_reversal.stoch_overbought", 90  # Phase 54.5: 80→90
             ),
-            "stoch_oversold": get_threshold("strategies.stochastic_reversal.stoch_oversold", 20),
-            "rsi_overbought": get_threshold("strategies.stochastic_reversal.rsi_overbought", 65),
-            "rsi_oversold": get_threshold("strategies.stochastic_reversal.rsi_oversold", 35),
+            "stoch_oversold": get_threshold(
+                "strategies.stochastic_reversal.stoch_oversold", 10  # Phase 54.5: 20→10
+            ),
+            "rsi_overbought": get_threshold(
+                "strategies.stochastic_reversal.rsi_overbought", 70  # Phase 54.5: 65→70
+            ),
+            "rsi_oversold": get_threshold(
+                "strategies.stochastic_reversal.rsi_oversold", 30  # Phase 54.5: 35→30
+            ),
             "adx_range_threshold": get_threshold(
                 "strategies.stochastic_reversal.adx_range_threshold", 20
+            ),
+            # Phase 54.5: BB幅フィルタ・クロスオーバー制御
+            "bb_width_threshold": get_threshold(
+                "strategies.stochastic_reversal.bb_width_threshold", 0.02
+            ),
+            "require_crossover": get_threshold(
+                "strategies.stochastic_reversal.require_crossover", False
             ),
             "sl_multiplier": get_threshold("strategies.stochastic_reversal.sl_multiplier", 1.5),
         }
@@ -125,11 +138,13 @@ class StochasticReversalStrategy(StrategyBase):
             "rsi_14",  # RSI
             "adx_14",  # ADX（レンジ判定用）
             "atr_14",  # ATR（リスク管理用）
+            "bb_upper",  # Phase 54.5: BB幅フィルタ用
+            "bb_lower",  # Phase 54.5: BB幅フィルタ用
         ]
 
     def _is_range_market(self, df: pd.DataFrame) -> bool:
         """
-        レンジ相場判定
+        レンジ相場判定（Phase 54.5: BB幅フィルタ追加）
 
         Args:
             df: 市場データ
@@ -140,8 +155,19 @@ class StochasticReversalStrategy(StrategyBase):
         latest = df.iloc[-1]
         adx = float(latest["adx_14"])
 
-        # ADX < 20 = レンジ相場
-        return adx < self.config["adx_range_threshold"]
+        # ADXチェック: ADX < 20 = レンジ相場
+        adx_ok = adx < self.config["adx_range_threshold"]
+
+        # Phase 54.5: BB幅チェック追加（BBReversal同様）
+        bb_width_threshold = self.config.get("bb_width_threshold", 0.02)
+        if "bb_upper" in df.columns and "bb_lower" in df.columns:
+            bb_width = (float(latest["bb_upper"]) - float(latest["bb_lower"])) / float(
+                latest["close"]
+            )
+            bb_width_ok = bb_width < bb_width_threshold
+            return adx_ok and bb_width_ok
+
+        return adx_ok
 
     def _detect_stochastic_crossover(self, df: pd.DataFrame) -> str:
         """
@@ -177,7 +203,7 @@ class StochasticReversalStrategy(StrategyBase):
 
     def _analyze_stochastic_reversal_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        Stochastic反転シグナル分析
+        Stochastic反転シグナル分析（Phase 54.5: クロスオーバー制御追加）
 
         Args:
             df: 市場データ
@@ -190,16 +216,23 @@ class StochasticReversalStrategy(StrategyBase):
         stoch_d = float(latest["stoch_d"])
         rsi = float(latest["rsi_14"])
 
-        # クロスオーバー検出
-        crossover = self._detect_stochastic_crossover(df)
+        # Phase 54.5: クロスオーバー要件を設定で制御
+        require_crossover = self.config.get("require_crossover", True)
 
-        # SELL信号（過買い領域 + ベアクロス + RSI買われすぎ）
-        if (
+        if require_crossover:
+            crossover = self._detect_stochastic_crossover(df)
+        else:
+            crossover = None  # クロスオーバー不要
+
+        # SELL信号条件
+        sell_stoch_ok = (
             stoch_k > self.config["stoch_overbought"]
             and stoch_d > self.config["stoch_overbought"]
-            and crossover == "bear"
-            and rsi > self.config["rsi_overbought"]
-        ):
+        )
+        sell_rsi_ok = rsi > self.config["rsi_overbought"]
+        sell_crossover_ok = (not require_crossover) or (crossover == "bear")
+
+        if sell_stoch_ok and sell_rsi_ok and sell_crossover_ok:
             # 信頼度：Stochastic値が極端なほど高い
             confidence = min(self.config["min_confidence"] + (stoch_k - 80) / 100.0, 0.50)
             strength = (stoch_k - 50) / 50.0  # 0.6-1.0の範囲
@@ -208,16 +241,18 @@ class StochasticReversalStrategy(StrategyBase):
                 "action": EntryAction.SELL,
                 "confidence": confidence,
                 "strength": strength,
-                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, ベアクロス)",
+                "reason": f"Stochastic反転SELL (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f})",
             }
 
-        # BUY信号（過売り領域 + ゴールデンクロス + RSI売られすぎ）
-        elif (
+        # BUY信号条件
+        buy_stoch_ok = (
             stoch_k < self.config["stoch_oversold"]
             and stoch_d < self.config["stoch_oversold"]
-            and crossover == "golden"
-            and rsi < self.config["rsi_oversold"]
-        ):
+        )
+        buy_rsi_ok = rsi < self.config["rsi_oversold"]
+        buy_crossover_ok = (not require_crossover) or (crossover == "golden")
+
+        if buy_stoch_ok and buy_rsi_ok and buy_crossover_ok:
             # 信頼度：Stochastic値が極端なほど高い
             confidence = min(self.config["min_confidence"] + (20 - stoch_k) / 100.0, 0.50)
             strength = (50 - stoch_k) / 50.0  # 0.6-1.0の範囲
@@ -226,17 +261,16 @@ class StochasticReversalStrategy(StrategyBase):
                 "action": EntryAction.BUY,
                 "confidence": confidence,
                 "strength": strength,
-                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f}, ゴールデンクロス)",
+                "reason": f"Stochastic反転BUY (K={stoch_k:.1f}, D={stoch_d:.1f}, RSI={rsi:.1f})",
             }
 
         # HOLD信号
-        else:
-            return {
-                "action": EntryAction.HOLD,
-                "confidence": self.config["hold_confidence"],
-                "strength": 0.0,
-                "reason": "Stochastic反転条件未達成",
-            }
+        return {
+            "action": EntryAction.HOLD,
+            "confidence": self.config["hold_confidence"],
+            "strength": 0.0,
+            "reason": "Stochastic反転条件未達成",
+        }
 
     def _create_hold_signal(self, reason: str, df: pd.DataFrame) -> StrategySignal:
         """
