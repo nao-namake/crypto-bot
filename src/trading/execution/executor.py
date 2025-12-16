@@ -96,6 +96,7 @@ class ExecutionService:
         self.position_limits = None
         self.balance_monitor = None
         self.position_tracker = None  # Phase 42: 統合TP/SL用ポジション追跡
+        self.data_service = None  # Phase 54.6: ATR取得Level 2用
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
@@ -933,6 +934,7 @@ class ExecutionService:
         position_limits: Optional[Any] = None,
         balance_monitor: Optional[Any] = None,
         position_tracker: Optional[Any] = None,
+        data_service: Optional[Any] = None,
     ) -> None:
         """
         関連サービスを注入
@@ -943,6 +945,7 @@ class ExecutionService:
             position_limits: PositionLimitsインスタンス
             balance_monitor: BalanceMonitorインスタンス
             position_tracker: PositionTrackerインスタンス (Phase 42)
+            data_service: DataServiceインスタンス (Phase 54.6: ATR取得Level 2用)
         """
         if order_strategy:
             self.order_strategy = order_strategy
@@ -954,6 +957,8 @@ class ExecutionService:
             self.balance_monitor = balance_monitor
         if position_tracker:
             self.position_tracker = position_tracker
+        if data_service:
+            self.data_service = data_service
 
     # ========================================
     # Phase 46: 統合TP/SL・トレーリングストップ削除（デイトレード特化）

@@ -468,9 +468,10 @@ async def create_trading_orchestrator(
             order_strategy=order_strategy,
             stop_manager=stop_manager,
             position_tracker=position_tracker,
+            data_service=data_service,  # Phase 54.6: ATR取得Level 2用
         )
         logger.info(
-            "✅ ExecutionService依存サービス注入完了（PositionLimits・BalanceMonitor・OrderStrategy・StopManager・PositionTracker）"
+            "✅ ExecutionService依存サービス注入完了（PositionLimits・BalanceMonitor・OrderStrategy・StopManager・PositionTracker・DataService）"
         )
 
         # TradingOrchestrator組み立て

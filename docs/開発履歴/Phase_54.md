@@ -643,6 +643,86 @@ dynamic_strategy_selection:
 - **カバレッジ**: 65.42%
 - **品質チェック**: flake8/isort/black全てPASS
 
+### 追加修正: DataService注入（フォールバックATR問題修正）
+
+#### 発見した問題
+
+GCP本番環境診断中に、フォールバックATRが過去24時間で12回使用（約12%）されていることを確認。
+
+**ATR取得の3段階フロー**:
+
+| Level | 方法 | 状況 |
+|-------|------|------|
+| Level 1 | `evaluation.market_conditions`から取得 | 88%成功 |
+| Level 2 | `DataService`経由で取得 | ❌ **未接続（常にスキップ）** |
+| Level 3 | フォールバック（500,000円） | 12%発生 |
+
+**根本原因**: `ExecutionService`に`data_service`が注入されておらず、Level 2が無効化状態
+
+#### 修正内容
+
+**1. executor.py: data_service初期化追加**
+
+```python
+# 関連サービスの初期化（後で注入される）
+self.order_strategy = None
+self.stop_manager = None
+self.position_limits = None
+self.balance_monitor = None
+self.position_tracker = None
+self.data_service = None  # Phase 54.6: ATR取得Level 2用（追加）
+```
+
+**2. executor.py: inject_services更新**
+
+```python
+def inject_services(
+    self,
+    order_strategy=None,
+    stop_manager=None,
+    position_limits=None,
+    balance_monitor=None,
+    position_tracker=None,
+    data_service=None,  # Phase 54.6追加
+) -> None:
+    # ...
+    if data_service:
+        self.data_service = data_service
+```
+
+**3. orchestrator.py: data_service注入追加**
+
+```python
+execution_service.inject_services(
+    position_limits=position_limits,
+    balance_monitor=balance_monitor,
+    order_strategy=order_strategy,
+    stop_manager=stop_manager,
+    position_tracker=position_tracker,
+    data_service=data_service,  # Phase 54.6: ATR取得Level 2用
+)
+```
+
+#### 期待効果
+
+| 指標 | 修正前 | 修正後見込み |
+|------|--------|-------------|
+| フォールバック率 | 12% | **<2%** |
+| ATR取得成功率 | 88% | **>98%** |
+| TP/SL精度 | やや保守的 | 最適化 |
+
+#### 影響範囲
+
+- **BUY/SELL/HOLD判断**: 影響なし（ATRは判断後のTP/SL計算のみに使用）
+- **TP/SL計算**: 精度向上（フォールバック500,000円ではなく実ATR使用）
+
+### 関連コミット
+
+| コミット | 内容 |
+|---------|------|
+| `0b86ab13` | Phase 54.6: 取引数回復 + ポジションサイズ10% |
+| （未コミット） | fix: Phase 54.6 DataService注入（フォールバックATR修正） |
+
 ---
 
-**📅 最終更新**: 2025年12月17日 - **Phase 54.6完了**（ポジションサイズ10%・取引数回復設定・180日バックテスト準備完了）
+**📅 最終更新**: 2025年12月17日 - **Phase 54.6完了**（ポジションサイズ10%・取引数回復・DataService注入修正）
