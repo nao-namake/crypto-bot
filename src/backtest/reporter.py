@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from ..core.config import get_threshold
 from ..core.logger import get_logger
 
@@ -56,6 +58,8 @@ class TradeTracker:
         timestamp,
         strategy: str = "unknown",
         regime: Optional[str] = None,  # Phase 51.8-J4-G: レジーム情報追加
+        ml_prediction: Optional[int] = None,  # Phase 54.8: ML予測クラス（0=SELL, 1=HOLD, 2=BUY）
+        ml_confidence: Optional[float] = None,  # Phase 54.8: ML信頼度
     ):
         """
         エントリー注文記録
@@ -68,6 +72,8 @@ class TradeTracker:
             timestamp: タイムスタンプ
             strategy: 戦略名
             regime: 市場レジーム（Phase 51.8-J4-G追加）
+            ml_prediction: ML予測クラス（Phase 54.8追加）
+            ml_confidence: ML信頼度（Phase 54.8追加）
         """
         # Phase 51.8-9準備: Timestamp serialization対応
         timestamp_str = str(timestamp) if hasattr(timestamp, "__str__") else timestamp
@@ -89,6 +95,8 @@ class TradeTracker:
             "entry_timestamp_str": timestamp_str,  # JSON出力用（文字列）
             "strategy": strategy,
             "regime": regime,  # Phase 51.8-J4-G: レジーム情報保存
+            "ml_prediction": ml_prediction,  # Phase 54.8: ML予測クラス
+            "ml_confidence": ml_confidence,  # Phase 54.8: ML信頼度
         }
         self.logger.debug(
             f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})"
@@ -152,6 +160,8 @@ class TradeTracker:
             "pnl": pnl,
             "holding_period": holding_period,  # Phase 51.4-Day2追加
             "regime": entry.get("regime"),  # Phase 51.8-J4-G: レジーム情報追加
+            "ml_prediction": entry.get("ml_prediction"),  # Phase 54.8: ML予測クラス
+            "ml_confidence": entry.get("ml_confidence"),  # Phase 54.8: ML信頼度
         }
 
         self.completed_trades.append(trade)
@@ -602,6 +612,269 @@ class TradeTracker:
         return regime_stats
 
 
+class MLAnalyzer:
+    """
+    ML予測分析システム（Phase 54.8: バックテストML分析）
+
+    バックテストのML予測結果を分析し、レポートに追加。
+
+    分析項目:
+    - 予測分布（SELL/HOLD/BUY件数・比率）
+    - 信頼度統計（平均・高信頼度比率）
+    - ML vs 戦略一致率
+    """
+
+    def __init__(self):
+        """MLAnalyzer初期化"""
+        self.logger = get_logger(__name__)
+
+    def analyze_predictions(
+        self,
+        predictions: np.ndarray,
+        probabilities: np.ndarray,
+        completed_trades: List[Dict],
+    ) -> Dict[str, Any]:
+        """
+        ML予測全体分析
+
+        Args:
+            predictions: 全予測クラス配列（0=SELL, 1=HOLD, 2=BUY）
+            probabilities: 全予測確率配列（shape: [n_samples, 3]）
+            completed_trades: 完了した取引リスト（ML情報含む）
+
+        Returns:
+            ML分析結果辞書
+        """
+        result = {}
+
+        # 1. 予測分布分析
+        result["prediction_distribution"] = self._analyze_prediction_distribution(predictions)
+
+        # 2. 信頼度統計分析
+        result["confidence_statistics"] = self._analyze_confidence_statistics(probabilities)
+
+        # 3. ML vs 戦略一致率分析（取引にML情報がある場合のみ）
+        result["ml_strategy_agreement"] = self._analyze_ml_strategy_agreement(completed_trades)
+
+        return result
+
+    def _analyze_prediction_distribution(self, predictions: np.ndarray) -> Dict[str, Any]:
+        """
+        ML予測分布分析
+
+        Args:
+            predictions: 予測クラス配列
+
+        Returns:
+            予測分布統計
+        """
+        if len(predictions) == 0:
+            return {
+                "sell_count": 0,
+                "hold_count": 0,
+                "buy_count": 0,
+                "sell_pct": 0.0,
+                "hold_pct": 0.0,
+                "buy_pct": 0.0,
+                "hold_target_met": True,
+                "total_predictions": 0,
+            }
+
+        total = len(predictions)
+        sell_count = int(np.sum(predictions == 0))
+        hold_count = int(np.sum(predictions == 1))
+        buy_count = int(np.sum(predictions == 2))
+
+        sell_pct = (sell_count / total) * 100
+        hold_pct = (hold_count / total) * 100
+        buy_pct = (buy_count / total) * 100
+
+        # Phase 54.8: HOLD ≤ 60% 目標達成チェック
+        hold_target_met = hold_pct <= 60.0
+
+        return {
+            "sell_count": sell_count,
+            "hold_count": hold_count,
+            "buy_count": buy_count,
+            "sell_pct": round(sell_pct, 1),
+            "hold_pct": round(hold_pct, 1),
+            "buy_pct": round(buy_pct, 1),
+            "hold_target_met": hold_target_met,
+            "total_predictions": total,
+        }
+
+    def _analyze_confidence_statistics(self, probabilities: np.ndarray) -> Dict[str, Any]:
+        """
+        ML信頼度統計分析
+
+        Args:
+            probabilities: 予測確率配列（shape: [n_samples, 3]）
+
+        Returns:
+            信頼度統計
+        """
+        if len(probabilities) == 0:
+            return {
+                "avg_confidence": 0.0,
+                "min_confidence": 0.0,
+                "max_confidence": 0.0,
+                "std_confidence": 0.0,
+                "high_confidence_ratio": 0.0,
+                "high_confidence_threshold": 0.60,
+            }
+
+        # 各予測の最大確率（信頼度）を取得
+        max_probs = np.max(probabilities, axis=1)
+
+        avg_confidence = float(np.mean(max_probs))
+        min_confidence = float(np.min(max_probs))
+        max_confidence = float(np.max(max_probs))
+        std_confidence = float(np.std(max_probs))
+
+        # 高信頼度（>60%）の割合
+        high_conf_threshold = 0.60
+        high_confidence_ratio = float(np.sum(max_probs > high_conf_threshold) / len(max_probs))
+
+        return {
+            "avg_confidence": round(avg_confidence, 3),
+            "min_confidence": round(min_confidence, 3),
+            "max_confidence": round(max_confidence, 3),
+            "std_confidence": round(std_confidence, 3),
+            "high_confidence_ratio": round(high_confidence_ratio * 100, 1),
+            "high_confidence_threshold": high_conf_threshold,
+        }
+
+    def _analyze_ml_strategy_agreement(self, completed_trades: List[Dict]) -> Dict[str, Any]:
+        """
+        ML vs 戦略一致率分析
+
+        Args:
+            completed_trades: 完了した取引リスト（ml_prediction含む）
+
+        Returns:
+            一致率統計
+        """
+        # ML情報を持つ取引を抽出
+        trades_with_ml = [t for t in completed_trades if t.get("ml_prediction") is not None]
+
+        if len(trades_with_ml) == 0:
+            return {
+                "total_trades_with_ml": 0,
+                "agreement_count": 0,
+                "disagreement_count": 0,
+                "agreement_rate": 0.0,
+                "agreement_win_rate": 0.0,
+                "disagreement_win_rate": 0.0,
+                "agreement_avg_pnl": 0.0,
+                "disagreement_avg_pnl": 0.0,
+            }
+
+        agreement_trades = []
+        disagreement_trades = []
+
+        for trade in trades_with_ml:
+            ml_pred = trade.get("ml_prediction")
+            side = trade.get("side")
+
+            # ML予測と取引方向の一致判定
+            # BUY(2) と buy、SELL(0) と sell が一致
+            if (ml_pred == 2 and side == "buy") or (ml_pred == 0 and side == "sell"):
+                agreement_trades.append(trade)
+            else:
+                disagreement_trades.append(trade)
+
+        total = len(trades_with_ml)
+        agreement_count = len(agreement_trades)
+        disagreement_count = len(disagreement_trades)
+
+        # 勝率計算
+        agreement_wins = [t for t in agreement_trades if t.get("pnl", 0) > 0]
+        disagreement_wins = [t for t in disagreement_trades if t.get("pnl", 0) > 0]
+
+        agreement_win_rate = (
+            (len(agreement_wins) / agreement_count * 100) if agreement_count > 0 else 0.0
+        )
+        disagreement_win_rate = (
+            (len(disagreement_wins) / disagreement_count * 100) if disagreement_count > 0 else 0.0
+        )
+
+        # 平均損益計算
+        agreement_avg_pnl = (
+            sum(t.get("pnl", 0) for t in agreement_trades) / agreement_count
+            if agreement_count > 0
+            else 0.0
+        )
+        disagreement_avg_pnl = (
+            sum(t.get("pnl", 0) for t in disagreement_trades) / disagreement_count
+            if disagreement_count > 0
+            else 0.0
+        )
+
+        return {
+            "total_trades_with_ml": total,
+            "agreement_count": agreement_count,
+            "disagreement_count": disagreement_count,
+            "agreement_rate": round((agreement_count / total) * 100, 1) if total > 0 else 0.0,
+            "agreement_win_rate": round(agreement_win_rate, 1),
+            "disagreement_win_rate": round(disagreement_win_rate, 1),
+            "agreement_avg_pnl": round(agreement_avg_pnl, 0),
+            "disagreement_avg_pnl": round(disagreement_avg_pnl, 0),
+        }
+
+    def log_analysis_summary(self, analysis: Dict[str, Any]) -> None:
+        """
+        ML分析サマリーをログ出力
+
+        Args:
+            analysis: ML分析結果
+        """
+        pred_dist = analysis.get("prediction_distribution", {})
+        conf_stats = analysis.get("confidence_statistics", {})
+        agreement = analysis.get("ml_strategy_agreement", {})
+
+        self.logger.warning("")
+        self.logger.warning("=" * 60)
+        self.logger.warning("📊 ML Analysis (Phase 54.8)")
+        self.logger.warning("=" * 60)
+
+        # 予測分布
+        self.logger.warning("Prediction Distribution:")
+        hold_status = "[PASS]" if pred_dist.get("hold_target_met", False) else "[FAIL]"
+        self.logger.warning(
+            f"  SELL: {pred_dist.get('sell_count', 0):,} ({pred_dist.get('sell_pct', 0):.1f}%)"
+        )
+        self.logger.warning(
+            f"  HOLD: {pred_dist.get('hold_count', 0):,} ({pred_dist.get('hold_pct', 0):.1f}%)  "
+            f"← Target ≤60% {hold_status}"
+        )
+        self.logger.warning(
+            f"  BUY:  {pred_dist.get('buy_count', 0):,} ({pred_dist.get('buy_pct', 0):.1f}%)"
+        )
+
+        # 信頼度統計
+        self.logger.warning("")
+        self.logger.warning("Confidence Statistics:")
+        self.logger.warning(
+            f"  Average: {conf_stats.get('avg_confidence', 0):.3f} | "
+            f"High (>60%): {conf_stats.get('high_confidence_ratio', 0):.1f}%"
+        )
+
+        # ML vs 戦略一致率
+        if agreement.get("total_trades_with_ml", 0) > 0:
+            self.logger.warning("")
+            self.logger.warning("ML vs Strategy Agreement:")
+            self.logger.warning(
+                f"  Agreement Rate: {agreement.get('agreement_rate', 0):.1f}% "
+                f"({agreement.get('agreement_count', 0)}/{agreement.get('total_trades_with_ml', 0)} trades)"
+            )
+            self.logger.warning(
+                f"  Agreement Win Rate: {agreement.get('agreement_win_rate', 0):.1f}% | "
+                f"Disagreement Win Rate: {agreement.get('disagreement_win_rate', 0):.1f}%"
+            )
+
+        self.logger.warning("=" * 60)
+
+
 class BacktestReporter:
     """
     バックテストレポート生成システム（Phase 38.4完了）
@@ -628,7 +901,11 @@ class BacktestReporter:
         self.logger.info(f"BacktestReporter初期化完了: {self.output_dir}")
 
     async def generate_backtest_report(
-        self, final_stats: Dict[str, Any], start_date: datetime, end_date: datetime
+        self,
+        final_stats: Dict[str, Any],
+        start_date: datetime,
+        end_date: datetime,
+        ml_predictions_data: Optional[Dict[str, np.ndarray]] = None,  # Phase 54.8: ML分析用
     ) -> str:
         """
         バックテストレポート生成（Phase 49.3拡張: 損益分析統合）
@@ -637,6 +914,8 @@ class BacktestReporter:
             final_stats: バックテスト統計データ
             start_date: バックテスト開始日
             end_date: バックテスト終了日
+            ml_predictions_data: ML予測データ（Phase 54.8追加）
+                {"predictions": np.ndarray, "probabilities": np.ndarray}
 
         Returns:
             生成されたレポートファイルパス
@@ -659,6 +938,19 @@ class BacktestReporter:
             start_date_str = start_date if isinstance(start_date, str) else start_date.isoformat()
             end_date_str = end_date if isinstance(end_date, str) else end_date.isoformat()
 
+            # Phase 54.8: ML分析実行
+            ml_analysis = {}
+            if ml_predictions_data is not None:
+                try:
+                    ml_analyzer = MLAnalyzer()
+                    ml_analysis = ml_analyzer.analyze_predictions(
+                        predictions=ml_predictions_data.get("predictions", np.array([])),
+                        probabilities=ml_predictions_data.get("probabilities", np.array([])),
+                        completed_trades=self.trade_tracker.completed_trades,
+                    )
+                except Exception as ml_error:
+                    self.logger.warning(f"⚠️ ML分析エラー（処理継続）: {ml_error}")
+
             report_data = {
                 "backtest_info": {
                     "start_date": start_date_str,
@@ -669,7 +961,7 @@ class BacktestReporter:
                         else 0
                     ),
                     "generated_at": datetime.now().isoformat(),
-                    "phase": "Phase_49.3_損益分析完了",
+                    "phase": "Phase_54.8_ML分析追加",
                 },
                 "execution_stats": final_stats,
                 "system_info": {
@@ -682,6 +974,8 @@ class BacktestReporter:
                 "completed_trades": len(self.trade_tracker.completed_trades),
                 # Phase 51.8-J4-G: レジーム別パフォーマンス追加
                 "regime_performance": regime_performance,
+                # Phase 54.8: ML分析追加
+                "ml_analysis": ml_analysis,
             }
 
             # JSONファイル保存
@@ -730,6 +1024,11 @@ class BacktestReporter:
                     self.logger.warning(f"  総損益: ¥{stats.get('total_pnl', 0.0):,.0f}")
                     self.logger.warning(f"  平均損益: ¥{stats.get('average_pnl', 0.0):,.0f}")
                 self.logger.warning("=" * 60)
+
+            # Phase 54.8: ML分析サマリー出力
+            if ml_analysis:
+                ml_analyzer = MLAnalyzer()
+                ml_analyzer.log_analysis_summary(ml_analysis)
 
             # Phase 49.3: テキストレポート生成
             text_filename = f"backtest_{timestamp}.txt"

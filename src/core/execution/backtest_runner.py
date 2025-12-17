@@ -630,6 +630,25 @@ class BacktestRunner(BaseRunner):
                                             f"⚠️ レジーム分類エラー（デフォルト'unknown'使用）: {regime_error}"
                                         )
 
+                                    # Phase 54.8: 現在のML予測を取得
+                                    ml_prediction = None
+                                    ml_confidence = None
+                                    main_timeframe = (
+                                        self.timeframes[0] if self.timeframes else "15m"
+                                    )
+                                    if main_timeframe in self.precomputed_ml_predictions:
+                                        import numpy as np
+
+                                        predictions = self.precomputed_ml_predictions[
+                                            main_timeframe
+                                        ]["predictions"]
+                                        probabilities = self.precomputed_ml_predictions[
+                                            main_timeframe
+                                        ]["probabilities"]
+                                        if i < len(predictions):
+                                            ml_prediction = int(predictions[i])
+                                            ml_confidence = float(np.max(probabilities[i]))
+
                                     self.orchestrator.backtest_reporter.trade_tracker.record_entry(
                                         order_id=order_id,
                                         side=position.get("side"),
@@ -638,6 +657,8 @@ class BacktestRunner(BaseRunner):
                                         timestamp=self.current_timestamp,
                                         strategy=position.get("strategy_name", "unknown"),
                                         regime=regime_str,  # Phase 51.8-J4-G: レジーム情報追加
+                                        ml_prediction=ml_prediction,  # Phase 54.8: ML予測
+                                        ml_confidence=ml_confidence,  # Phase 54.8: ML信頼度
                                     )
 
                     except Exception as e:
@@ -1154,10 +1175,15 @@ class BacktestRunner(BaseRunner):
 
             # バックテストレポーター経由で詳細レポート生成
             # Phase 35: datetime→ISO文字列変換
+            # Phase 54.8: ML予測データを渡す
+            main_timeframe = self.timeframes[0] if self.timeframes else "15m"
+            ml_predictions_data = self.precomputed_ml_predictions.get(main_timeframe)
+
             await self.orchestrator.backtest_reporter.generate_backtest_report(
                 final_stats,
                 self.backtest_start.isoformat() if self.backtest_start else None,
                 self.backtest_end.isoformat() if self.backtest_end else None,
+                ml_predictions_data=ml_predictions_data,  # Phase 54.8: ML分析用
             )
 
         except Exception as e:
