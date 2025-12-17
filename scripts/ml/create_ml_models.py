@@ -883,10 +883,11 @@ class NewSystemMLModelCreator:
                     X_cv_val = X_train.iloc[val_idx]
                     y_cv_val = y_train.iloc[val_idx]
 
-                    # Phase 39.4: SMOTE Oversampling (CV fold)
-                    if self.use_smote and self.n_classes == 2:
+                    # Phase 39.4: SMOTE Oversampling (CV fold) - Phase 54.8: 3クラス対応
+                    if self.use_smote:
                         try:
-                            smote = SMOTE(random_state=42)
+                            # Phase 54.8: sampling_strategy='auto'で全クラスをmajorityクラス数に揃える
+                            smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
                             X_cv_train_resampled, y_cv_train_resampled = smote.fit_resample(
                                 X_cv_train, y_cv_train
                             )
@@ -895,11 +896,18 @@ class NewSystemMLModelCreator:
                                 X_cv_train_resampled, columns=X_cv_train.columns
                             )
                             y_cv_train = pd.Series(y_cv_train_resampled)
-                            if len(X_cv_train_resampled) > len(X_cv_train):
-                                self.logger.debug(
-                                    f"📊 Phase 39.4: SMOTE適用 - CV fold "
-                                    f"{len(train_idx)}→{len(X_cv_train_resampled)}サンプル"
-                                )
+                            # Phase 54.8: クラス分布確認ログ
+                            class_dist = pd.Series(y_cv_train_resampled).value_counts(
+                                normalize=True
+                            )
+                            self.logger.debug(
+                                f"📊 Phase 54.8: SMOTE適用（CV fold） - "
+                                f"{len(train_idx)}→{len(X_cv_train_resampled)}サンプル"
+                            )
+                            self.logger.debug(
+                                f"   SMOTE後クラス分布: "
+                                + ", ".join([f"Class {k}: {v:.1%}" for k, v in class_dist.items()])
+                            )
                         except Exception as e:
                             self.logger.warning(
                                 f"⚠️ SMOTE適用失敗（CV fold）: {e}, 元データで学習継続"
@@ -953,10 +961,11 @@ class NewSystemMLModelCreator:
                 X_train_val = pd.concat([X_train, X_val])
                 y_train_val = pd.concat([y_train, y_val])
 
-                # Phase 39.4: SMOTE Oversampling (Final training)
-                if self.use_smote and self.n_classes == 2:
+                # Phase 39.4: SMOTE Oversampling (Final training) - Phase 54.8: 3クラス対応
+                if self.use_smote:
                     try:
-                        smote = SMOTE(random_state=42)
+                        # Phase 54.8: sampling_strategy='auto'で全クラスをmajorityクラス数に揃える
+                        smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
                         X_train_val_resampled, y_train_val_resampled = smote.fit_resample(
                             X_train_val, y_train_val
                         )
@@ -965,9 +974,15 @@ class NewSystemMLModelCreator:
                             X_train_val_resampled, columns=X_train_val.columns
                         )
                         y_train_val = pd.Series(y_train_val_resampled)
+                        # Phase 54.8: クラス分布確認ログ
+                        class_dist = pd.Series(y_train_val_resampled).value_counts(normalize=True)
                         self.logger.info(
-                            f"📊 Phase 39.4: SMOTE適用（Final training） - "
+                            f"📊 Phase 54.8: SMOTE適用（Final training） - "
                             f"{len(X_train) + len(X_val)}→{len(X_train_val_resampled)}サンプル"
+                        )
+                        self.logger.info(
+                            f"   SMOTE後クラス分布: "
+                            + ", ".join([f"Class {k}: {v:.1%}" for k, v in class_dist.items()])
                         )
                     except Exception as e:
                         self.logger.warning(
