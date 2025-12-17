@@ -220,14 +220,14 @@ class NewSystemMLModelCreator:
         """
         self.logger.info(f"📊 Phase 39.1: 実データ読み込み開始（過去{days}日分）")
 
-        csv_path = Path("src/backtest/data/historical/BTC_JPY_4h.csv")
+        csv_path = Path("src/backtest/data/historical/btc_jpy_15m.csv")
 
         # データ収集（存在しない、または古い場合）
         if not csv_path.exists():
             self.logger.info("💾 履歴データ未存在 - 自動収集開始")
             try:
                 collector = HistoricalDataCollector()
-                await collector.collect_data(symbol="BTC/JPY", days=days, timeframes=["4h"])
+                await collector.collect_data(symbol="BTC/JPY", days=days, timeframes=["15m"])
                 self.logger.info("✅ データ収集完了")
             except Exception as e:
                 self.logger.error(f"❌ データ収集失敗: {e}")
@@ -407,7 +407,7 @@ class NewSystemMLModelCreator:
             self.logger.info(f"✅ StrategyManager初期化完了 - {len(loaded_strategies)}戦略登録")
 
             # バックテストモード有効化
-            self.data_pipeline.set_backtest_data({"4h": df.copy()})
+            self.data_pipeline.set_backtest_data({"15m": df.copy()})
             self.logger.info("✅ DataPipelineバックテストモード設定完了")
 
             # 各時点で戦略実行（look-ahead bias回避のため順次処理）
@@ -429,7 +429,7 @@ class NewSystemMLModelCreator:
 
                 try:
                     # DataPipeline更新（マルチタイムフレーム形式）
-                    self.data_pipeline.set_backtest_data({"4h": current_data.copy()})
+                    self.data_pipeline.set_backtest_data({"15m": current_data.copy()})
 
                     # 個別戦略信号取得（Phase 51.7 Day 7: 単一DataFrameとして渡す）
                     signals = strategy_manager.get_individual_strategy_signals(current_data)

@@ -95,6 +95,7 @@ jobs:
           python3 scripts/ml/create_ml_models.py \
             --n-classes 3 \
             --threshold 0.005 \
+            --use-smote \
             --optimize \
             --n-trials "$N_TRIALS" \
             --verbose

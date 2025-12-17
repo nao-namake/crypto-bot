@@ -832,6 +832,26 @@ class BacktestRunner(BaseRunner):
                                 f"時刻: {timestamp}"
                             )
 
+                        # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
+                        if (
+                            hasattr(self.orchestrator, "risk_manager")
+                            and self.orchestrator.risk_manager
+                        ):
+                            try:
+                                self.orchestrator.risk_manager.record_trade_result(
+                                    profit_loss=pnl,
+                                    strategy_name=strategy_name,
+                                    confidence=0.5,  # デフォルト信頼度
+                                )
+                                self.logger.debug(
+                                    f"📊 Phase 54.7: Kelly履歴記録 - "
+                                    f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}"
+                                )
+                            except Exception as kelly_error:
+                                self.logger.debug(
+                                    f"⚠️ Phase 54.7: Kelly履歴記録エラー: {kelly_error}"
+                                )
+
                         # Phase 51.8-J4-D再修正: WARNINGレベルでログ出力（バックテストモードで可視化）
                         self.logger.warning(
                             f"💰 Phase 51.8-J4-D/E: 決済処理 - "
@@ -957,6 +977,24 @@ class BacktestRunner(BaseRunner):
                     pnl = self._calculate_pnl(side, entry_price, final_price, amount)
                     self.orchestrator.execution_service.virtual_balance += pnl
                     new_balance = self.orchestrator.execution_service.virtual_balance
+
+                    # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
+                    if (
+                        hasattr(self.orchestrator, "risk_manager")
+                        and self.orchestrator.risk_manager
+                    ):
+                        try:
+                            self.orchestrator.risk_manager.record_trade_result(
+                                profit_loss=pnl,
+                                strategy_name=strategy_name,
+                                confidence=0.5,  # デフォルト信頼度
+                            )
+                            self.logger.debug(
+                                f"📊 Phase 54.7: Kelly履歴記録（強制決済） - "
+                                f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}"
+                            )
+                        except Exception as kelly_error:
+                            self.logger.debug(f"⚠️ Phase 54.7: Kelly履歴記録エラー: {kelly_error}")
 
                     self.logger.warning(
                         f"💰 Phase 51.8-J4-H: 強制決済 - {side} {amount} BTC "

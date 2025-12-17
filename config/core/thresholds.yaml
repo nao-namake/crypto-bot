@@ -67,7 +67,7 @@ ml:
     agreement_bonus: 1.2
     disagreement_penalty: 0.90  # Phase 51.8-J2: ペナルティ緩和（0.85→0.90）
     min_ml_confidence: 0.35      # Phase 51.8-J2: 閾値緩和（0.45→0.35）
-    hold_conversion_threshold: 0.30  # Phase 51.8-J2: hold変換を厳しく（0.40→0.30）
+    hold_conversion_threshold: 0.25  # Phase 54.7: 0.30→0.25（取引数回復・HOLD変換緩和）
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -91,24 +91,26 @@ ml:
     # tight_range（狭いレンジ）: 戦略重視型
     # Phase 51.8結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
     # → 戦略シグナルが強い → ML補完は控えめ
+    # Phase 54.7: 取引数回復のためML閾値緩和
     tight_range:
-      min_ml_confidence: 0.50           # 高閾値（戦略重視）
+      min_ml_confidence: 0.45           # Phase 54.7: 0.50→0.45（取引数回復）
       high_confidence_threshold: 0.65
       ml_weight: 0.25                   # ML 25%
       strategy_weight: 0.75             # 戦略 75%
       agreement_bonus: 1.15             # ML・戦略一致時ボーナス控えめ
-      disagreement_penalty: 0.92        # ML・戦略不一致時ペナルティ緩和
+      disagreement_penalty: 0.95        # Phase 54.7: 0.92→0.95（不一致ペナルティ緩和）
 
     # normal_range（通常レンジ）: バランス型
     # Phase 51.8結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
     # → ほぼbreakeven → MLとのバランス重視
+    # Phase 54.7: 取引数回復のためML閾値緩和
     normal_range:
       min_ml_confidence: 0.40           # 中閾値（バランス型）
       high_confidence_threshold: 0.60
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
       agreement_bonus: 1.20             # ML・戦略一致時ボーナス標準
-      disagreement_penalty: 0.90        # ML・戦略不一致時ペナルティ標準
+      disagreement_penalty: 0.95        # Phase 54.7: 0.90→0.95（不一致ペナルティ緩和）
 
     # trending（トレンド）: ML補完重視型
     # Phase 51.8結果: 0件（未発生）
