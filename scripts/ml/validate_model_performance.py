@@ -65,14 +65,23 @@ class ModelPerformanceValidator:
         print("📊 テストデータ読み込み")
         print("=" * 60)
 
-        # 4h足データを使用
-        data_path = self.project_root / "src/backtest/data/historical/btc_jpy_4h.csv"
+        # 15分足データを使用（学習データと一致）
+        data_path = self.project_root / "src/backtest/data/historical/btc_jpy_15m.csv"
 
         try:
             df = pd.read_csv(data_path)
             print(f"✅ データ読み込み成功: {data_path.name}")
             print(f"   行数: {len(df)}")
-            print(f"   期間: {df['timestamp'].iloc[0]} 〜 {df['timestamp'].iloc[-1]}")
+
+            # タイムスタンプをdatetimeに変換してインデックスに設定
+            if "timestamp" in df.columns:
+                # Unixタイムスタンプ（ミリ秒）をdatetimeに変換
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                # DatetimeIndexとして設定（FeatureGeneratorが期待）
+                df = df.set_index("timestamp")
+                df.index = pd.DatetimeIndex(df.index)
+                print(f"   期間: {df.index[0]} 〜 {df.index[-1]}")
+
             return df
         except Exception as e:
             print(f"❌ データ読み込みエラー: {e}")
