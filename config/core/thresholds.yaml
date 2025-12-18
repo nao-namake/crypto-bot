@@ -275,13 +275,13 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 54.6: 取引数回復のためweight調整
-      ATRBased: 0.35            # Phase 54.6: 0.30→0.35（取引数回復）
-      BBReversal: 0.40          # Phase 54.6: 0.50→0.40（バランス調整）
-      DonchianChannel: 0.25     # Phase 54.6: 0.20→0.25（取引数回復）
-      StochasticReversal: 0.0   # = 0.0（PF 0.02・無効化）
-      ADXTrendStrength: 0.0     # = 0.0（トレンド専用・無効化）
-      MACDEMACrossover: 0.0     # = 0.0（トレンド専用・無効化）
+      # Phase 54.10: 0ベース最適化 - PF > 1.0戦略のみ有効化
+      BBReversal: 0.40          # PF 1.92（維持・最強戦略）
+      MACDEMACrossover: 0.30    # PF 1.50（0.0→0.30復活）
+      ADXTrendStrength: 0.20    # PF 1.04（0.05→0.20強化）
+      StochasticReversal: 0.10  # PF 0.02→再評価（閾値緩和後）
+      ATRBased: 0.0             # PF 0.86（0.30→0.0無効化）
+      DonchianChannel: 0.0      # PF 0.91（0.20→0.0無効化）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
       # Phase 51.8-10: バランス型70/20配分（理論的初期値）
       ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
@@ -346,6 +346,7 @@ position_limits:
 # ========================================
 strategies:
   adx_trend:
+    # Phase 54.10: HOLD率削減のため閾値緩和
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
     hold_confidence: 0.45
@@ -353,69 +354,67 @@ strategies:
     moderate_trend_max: 25
     moderate_trend_min: 15
     strong_trend_threshold: 25
-    weak_di_threshold: 1.0
+    weak_di_threshold: 0.8          # Phase 54.10: 1.0→0.8（シグナル増加）
     weak_trend_threshold: 15
   atr_based:
-    # Phase 54.2: エントリー基準厳格化（Phase 54.3-Bで過剰厳格化→戻す）
-    bb_overbought: 0.85       # = 0.85（Phase 54.2維持・0.90は過剰）
-    bb_oversold: 0.15         # = 0.15（Phase 54.2維持・0.10は過剰）
+    # Phase 54.10: HOLD率削減のため閾値緩和
+    bb_overbought: 0.80       # Phase 54.10: 0.85→0.80（シグナル+33%）
+    bb_oversold: 0.20         # Phase 54.10: 0.15→0.20（シグナル+33%）
     high_volatility_strength: 0.5
     hold_confidence: 0.15
     low_volatility_strength: 0.2
-    min_confidence: 0.32      # Phase 54.6: 0.35→0.32（取引数回復）
+    min_confidence: 0.28      # Phase 54.10: 0.32→0.28（取引数増加）
     normal_volatility_strength: 0.25
-    rsi_overbought: 70        # = 70（Phase 54.2維持・75は過剰）
-    rsi_oversold: 30          # = 30（Phase 54.2維持・25は過剰）
+    rsi_overbought: 65        # Phase 54.10: 70→65（シグナル+25%）
+    rsi_oversold: 35          # Phase 54.10: 30→35（シグナル+25%）
     strength_fallback: 0.3
     base_confidence: 0.25
     confidence_multiplier: 0.3
     weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
     # Phase 54.5: 条件緩和（取引数回復）
     require_both_signals: false  # Phase 54.4 true → false（単独シグナル許可）
-    adx_filter_threshold: 30     # Phase 54.6: 25→30（取引数回復）
+    adx_filter_threshold: 35     # Phase 54.10: 30→35（より多くの相場で機能）
   donchian_channel:
-    # Phase 54.3-B: エントリー基準厳格化（PF 0.89→1.0+目標）
+    # Phase 54.10: HOLD率削減のため閾値緩和
     breakout_threshold: 0.002
     hold_confidence: 0.4
     middle_zone_max: 0.6
     middle_zone_min: 0.4
-    min_confidence: 0.35           # Phase 54.6: 0.40→0.35（取引数回復）
+    min_confidence: 0.30           # Phase 54.10: 0.35→0.30（取引数増加）
     reversal_threshold: 0.04       # Phase 54.6: 0.03→0.04（取引数回復）
     weak_signal_confidence: 0.35
     weak_signal_max: 0.75
     weak_signal_min: 0.25
-    weak_signal_enabled: false     # Phase 54.2: 弱シグナル無効化
+    weak_signal_enabled: true      # Phase 54.10: false→true（弱シグナル有効化）
   bb_reversal:
-    # Phase 51.7 Day 3: BB Reversal戦略設定
-    # Phase 54.3-A結果: 閾値緩和は逆効果（PF 1.92→1.12）→オリジナル維持
+    # Phase 54.10: HOLD率削減のため閾値緩和（PF 1.92活用増）
     min_confidence: 0.30
     hold_confidence: 0.25
-    bb_width_threshold: 0.02        # BB幅閾値（2% = レンジ相場判定）
-    rsi_overbought: 70              # RSI買われすぎ閾値
-    rsi_oversold: 30                # RSI売られすぎ閾値
-    bb_upper_threshold: 0.95        # BB上限位置閾値（厳格維持）
-    bb_lower_threshold: 0.05        # BB下限位置閾値（厳格維持）
-    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
+    bb_width_threshold: 0.025       # Phase 54.10: 0.02→0.025（より多くの相場でレンジ判定）
+    rsi_overbought: 65              # Phase 54.10: 70→65（シグナル増加）
+    rsi_oversold: 35                # Phase 54.10: 30→35（シグナル増加）
+    bb_upper_threshold: 0.92        # Phase 54.10: 0.95→0.92（シグナル+60%）
+    bb_lower_threshold: 0.08        # Phase 54.10: 0.05→0.08（シグナル+60%）
+    adx_range_threshold: 25         # Phase 54.10: 20→25（より多くの相場で機能）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 51.7 Day 4: Stochastic Reversal戦略設定
-    # Phase 54.5: 閾値厳格化・BB幅フィルタ追加・クロスオーバー削除
-    min_confidence: 0.30
-    hold_confidence: 0.25
-    stoch_overbought: 90            # 80 → 90（Phase 54.5: 厳格化）
-    stoch_oversold: 10              # 20 → 10（Phase 54.5: 厳格化）
-    rsi_overbought: 70              # 65 → 70（Phase 54.5: BBReversal同様）
-    rsi_oversold: 30                # 35 → 30（Phase 54.5: BBReversal同様）
-    adx_range_threshold: 20         # ADXレンジ相場閾値（20未満）
-    bb_width_threshold: 0.02        # Phase 54.5: BB幅 < 2%フィルタ追加
-    require_crossover: false        # Phase 54.5: クロスオーバー要件削除
+    # Phase 54.10: 0ベース最適化 - 再評価のためさらに閾値緩和
+    min_confidence: 0.28            # Phase 54.10: 0.30→0.28（取引数増加）
+    hold_confidence: 0.22           # Phase 54.10: 0.25→0.22（HOLD削減）
+    stoch_overbought: 80            # Phase 54.10: 85→80（さらに緩和）
+    stoch_oversold: 20              # Phase 54.10: 15→20（さらに緩和）
+    rsi_overbought: 65              # 維持
+    rsi_oversold: 35                # 維持
+    adx_range_threshold: 30         # Phase 54.10: 25→30（さらに緩和）
+    bb_width_threshold: 0.03        # Phase 54.10: 0.025→0.03（さらに緩和）
+    require_crossover: false        # クロスオーバー要件削除
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   macd_ema_crossover:
-    # Phase 51.7 Day 5: MACD + EMA Crossover戦略設定
-    min_confidence: 0.35
+    # Phase 54.10: HOLD率削減のため閾値緩和
+    min_confidence: 0.30            # Phase 54.10: 0.35→0.30（取引数増加）
     hold_confidence: 0.25
-    adx_trend_threshold: 25         # ADXトレンド相場閾値（25以上）
-    volume_ratio_threshold: 1.1     # 出来高増加閾値
+    adx_trend_threshold: 22         # Phase 54.10: 25→22（より多くの相場で機能）
+    volume_ratio_threshold: 1.0     # Phase 54.10: 1.1→1.0（出来高要件緩和）
     macd_strong_threshold: 50000    # MACD強い閾値（ヒストグラム正規化用）
     ema_divergence_threshold: 0.01  # EMA乖離度閾値（1%）
     sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）

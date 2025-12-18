@@ -70,11 +70,11 @@ class TestATRBasedStrategy(unittest.TestCase):
 
     def test_strategy_initialization(self):
         """戦略初期化テスト."""
-        # デフォルト設定確認（Phase 54.6: 取引数回復のため緩和後の値）
+        # デフォルト設定確認（Phase 54.10: HOLD率削減のため緩和後の値）
         self.assertEqual(self.strategy.name, "ATRBased")
-        self.assertEqual(self.strategy.config["bb_overbought"], 0.85)
-        self.assertEqual(self.strategy.config["bb_oversold"], 0.15)
-        self.assertEqual(self.strategy.config["min_confidence"], 0.32)
+        self.assertEqual(self.strategy.config["bb_overbought"], 0.80)  # Phase 54.10: 0.85→0.80
+        self.assertEqual(self.strategy.config["bb_oversold"], 0.20)    # Phase 54.10: 0.15→0.20
+        self.assertEqual(self.strategy.config["min_confidence"], 0.28) # Phase 54.10: 0.32→0.28
         self.assertEqual(self.strategy.config["position_size_base"], 0.015)  # 逆張りなので控えめ
 
     def test_analyze_bb_position_overbought(self):

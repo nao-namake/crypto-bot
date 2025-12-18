@@ -24,13 +24,13 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_get_regime_weights_tight_range(self, selector):
-        """tight_range レジームの重み取得が正しいことを確認（Phase 54.2: StochasticReversal無効化）"""
+        """tight_range レジームの重み取得が正しいことを確認（Phase 54.10: 0ベース最適化）"""
         weights = selector.get_regime_weights(RegimeType.TIGHT_RANGE)
 
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
 
-        # tight_rangeはレンジ型戦略に集中（ATRBased・BBReversal・DonchianChannel）
+        # Phase 54.10: 0ベース最適化 - PF > 1.0戦略のみ有効化
         assert "ATRBased" in weights
         assert "BBReversal" in weights
         assert "DonchianChannel" in weights
@@ -38,15 +38,15 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # レンジ型戦略は正の重み（Phase 54.2: StochasticReversalは0.0）
-        assert weights["ATRBased"] > 0
-        assert weights["BBReversal"] > 0
-        assert weights["DonchianChannel"] > 0
-        assert weights["StochasticReversal"] == 0.0  # Phase 54.2: PF 0.02で無効化
+        # Phase 54.10: PF > 1.0戦略に重み集中
+        assert weights["BBReversal"] == 0.40          # PF 1.92（最強）
+        assert weights["MACDEMACrossover"] == 0.30    # PF 1.50（復活）
+        assert weights["ADXTrendStrength"] == 0.20    # PF 1.04（強化）
+        assert weights["StochasticReversal"] == 0.10  # 再評価中
 
-        # トレンド型戦略は0.0（無効化）
-        assert weights["ADXTrendStrength"] == 0.0
-        assert weights["MACDEMACrossover"] == 0.0
+        # Phase 54.10: PF < 1.0戦略は無効化
+        assert weights["ATRBased"] == 0.0             # PF 0.86（無効化）
+        assert weights["DonchianChannel"] == 0.0      # PF 0.91（無効化）
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
