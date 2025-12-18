@@ -592,6 +592,19 @@ class TradingCycleManager:
                 ml_prediction, strategy_signal, regime=regime
             )
 
+            # Phase 54.9: バックテスト用基準時刻を取得
+            # market_dataの最後のインデックスを使用（バックテストでは正しい時刻、ライブでは現在に近い時刻）
+            reference_timestamp = None
+            try:
+                if (
+                    hasattr(main_features, "index")
+                    and len(main_features.index) > 0
+                    and hasattr(main_features.index[-1], "to_pydatetime")
+                ):
+                    reference_timestamp = main_features.index[-1].to_pydatetime()
+            except Exception:
+                pass  # ライブモードではNone（datetime.now()が使用される）
+
             return await self.orchestrator.risk_service.evaluate_trade_opportunity(
                 ml_prediction=ml_prediction,
                 strategy_signal=integrated_signal,  # 統合後のシグナルを使用
@@ -600,6 +613,7 @@ class TradingCycleManager:
                 bid=trading_info["bid"],
                 ask=trading_info["ask"],
                 api_latency_ms=trading_info["api_latency_ms"],
+                reference_timestamp=reference_timestamp,  # Phase 54.9: Kelly基準用
             )
         except Exception as e:
             self.logger.error(f"リスク評価エラー: {e}")

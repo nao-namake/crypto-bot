@@ -160,7 +160,10 @@ class KellyCriterion:
             return 0.0
 
     def calculate_from_history(
-        self, lookback_days: Optional[int] = None, strategy_filter: Optional[str] = None
+        self,
+        lookback_days: Optional[int] = None,
+        strategy_filter: Optional[str] = None,
+        reference_timestamp: Optional[datetime] = None,
     ) -> Optional[KellyCalculationResult]:
         """
         取引履歴からKelly値を計算
@@ -168,6 +171,7 @@ class KellyCriterion:
         Args:
             lookback_days: 遡る日数
             strategy_filter: 特定戦略のみでフィルタ（Noneで全戦略）
+            reference_timestamp: 基準時刻（バックテスト用、Noneの場合は現在時刻）
 
         Returns:
             Kelly計算結果（データ不足の場合はNone）
@@ -177,8 +181,9 @@ class KellyCriterion:
             if lookback_days is None:
                 lookback_days = get_threshold("risk.kelly_lookback_days", 30)
 
-            # 期間フィルタ
-            cutoff_date = datetime.now() - timedelta(days=lookback_days)
+            # 期間フィルタ（バックテストモードでは参照タイムスタンプを使用）
+            base_time = reference_timestamp if reference_timestamp else datetime.now()
+            cutoff_date = base_time - timedelta(days=lookback_days)
             filtered_trades = [
                 trade for trade in self.trade_history if trade.timestamp >= cutoff_date
             ]
@@ -247,6 +252,7 @@ class KellyCriterion:
         ml_confidence: float,
         strategy_name: str = "default",
         expected_return: Optional[float] = None,
+        reference_timestamp: Optional[datetime] = None,
     ) -> float:
         """
         ML予測信頼度を考慮した最適ポジションサイズ計算
@@ -255,13 +261,17 @@ class KellyCriterion:
             ml_confidence: ML予測の信頼度（0.0-1.0）
             strategy_name: 戦略名
             expected_return: 期待リターン（Noneの場合は履歴ベース）
+            reference_timestamp: 基準時刻（バックテスト用、Noneの場合は現在時刻）
 
         Returns:
             推奨ポジションサイズ（最大3%制限済み）
         """
         try:
             # 履歴ベースのKelly値取得
-            kelly_result = self.calculate_from_history(strategy_filter=strategy_name)
+            kelly_result = self.calculate_from_history(
+                strategy_filter=strategy_name,
+                reference_timestamp=reference_timestamp,
+            )
 
             if kelly_result is None:
                 # Silent failure修正: Kelly履歴不足時は固定で最小取引単位使用
@@ -344,6 +354,7 @@ class KellyCriterion:
         ml_confidence: float,
         target_volatility: float = 0.01,
         max_scale: float = 3.0,
+        reference_timestamp: Optional[datetime] = None,
     ) -> Tuple[float, float]:
         """
         ボラティリティ連動ダイナミックポジションサイジング
@@ -358,6 +369,7 @@ class KellyCriterion:
             ml_confidence: ML予測信頼度
             target_volatility: 目標ボラティリティ（0.01 = 1%）
             max_scale: 最大スケール倍率
+            reference_timestamp: 基準時刻（バックテスト用、Noneの場合は現在時刻）
 
         Returns:
             (調整済みポジションサイズ, ストップロス価格)
@@ -373,9 +385,11 @@ class KellyCriterion:
             if not 0 < target_volatility <= 1.0:
                 raise ValueError(f"目標ボラティリティは0-1.0の範囲: {target_volatility}")
 
-            # 1) ベースKellyサイズ計算
+            # 1) ベースKellyサイズ計算（バックテスト用タイムスタンプを渡す）
             base_kelly_size = self.calculate_optimal_size(
-                ml_confidence=ml_confidence, strategy_name="dynamic"
+                ml_confidence=ml_confidence,
+                strategy_name="dynamic",
+                reference_timestamp=reference_timestamp,
             )
 
             # 2) ATRベースのストップロス計算（設定ファイルから取得）

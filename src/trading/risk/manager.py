@@ -154,6 +154,7 @@ class IntegratedRiskManager:
         bid: float,
         ask: float,
         api_latency_ms: float = 0,
+        reference_timestamp: Optional[datetime] = None,
     ) -> TradeEvaluation:
         """
         取引機会の包括的評価
@@ -166,6 +167,7 @@ class IntegratedRiskManager:
             bid: 買い価格
             ask: 売り価格
             api_latency_ms: API応答時間
+            reference_timestamp: 基準時刻（バックテスト用、Phase 54.9追加）
 
         Returns:
             包括的な取引評価結果
@@ -282,6 +284,7 @@ class IntegratedRiskManager:
                             strategy_signal, "confidence", default_confidence
                         )
 
+                    # Phase 54.9: バックテスト用タイムスタンプを渡す
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
                         risk_manager_confidence=strategy_confidence,
@@ -293,10 +296,13 @@ class IntegratedRiskManager:
                         config=self.config,
                         current_balance=current_balance,
                         btc_price=last_price,
+                        reference_timestamp=reference_timestamp,
                     )
 
-                    # Kelly推奨値取得
-                    kelly_result = self.kelly.calculate_from_history()
+                    # Kelly推奨値取得（Phase 54.9: タイムスタンプ渡し）
+                    kelly_result = self.kelly.calculate_from_history(
+                        reference_timestamp=reference_timestamp
+                    )
                     if kelly_result:
                         kelly_recommendation = kelly_result.kelly_fraction
 

@@ -1,8 +1,12 @@
 """
-ポジションサイジング統合システム - Phase 49完了
+ポジションサイジング統合システム - Phase 54.9更新
 
 Phase 28完了・Kelly基準と既存RiskManagerの統合クラス
 動的ポジションサイジング対応・ML信頼度連動
+
+Phase 54.9: バックテスト用タイムスタンプ対応追加
+- reference_timestamp引数でバックテスト時刻を渡せるように
+- Kelly履歴lookbackフィルターがバックテストでも正常動作
 
 設計思想:
 - Kelly基準と既存RiskManagerの統合
@@ -10,6 +14,7 @@ Phase 28完了・Kelly基準と既存RiskManagerの統合クラス
 - 3つの値（Dynamic, Kelly, RiskManager）から最も保守的な値を採用
 """
 
+from datetime import datetime
 from typing import Dict, Optional
 
 from ...core.config import get_threshold
@@ -40,6 +45,7 @@ class PositionSizeIntegrator:
         config: Dict,
         current_balance: float = None,
         btc_price: float = None,
+        reference_timestamp: Optional[datetime] = None,
     ) -> float:
         """
         Kelly基準と既存RiskManagerの統合ポジションサイズ計算（動的サイジング対応）
@@ -51,6 +57,7 @@ class PositionSizeIntegrator:
             config: 戦略設定
             current_balance: 現在残高（動的サイジング用）
             btc_price: BTC価格（動的サイジング用）
+            reference_timestamp: 基準時刻（バックテスト用、Phase 54.9追加）
 
         Returns:
             統合ポジションサイズ（動的調整済み）
@@ -70,8 +77,11 @@ class PositionSizeIntegrator:
                 )
 
                 # 従来のKelly+RiskManagerと比較して最小値を採用
+                # Phase 54.9: バックテスト用タイムスタンプを渡す
                 kelly_size = self.kelly.calculate_optimal_size(
-                    ml_confidence=ml_confidence, strategy_name=strategy_name
+                    ml_confidence=ml_confidence,
+                    strategy_name=strategy_name,
+                    reference_timestamp=reference_timestamp,
                 )
 
                 from ...strategies.utils import RiskManager
@@ -83,18 +93,29 @@ class PositionSizeIntegrator:
                 # 3つの値のうち最も保守的な値を採用
                 integrated_size = min(dynamic_size, kelly_size, risk_manager_size)
 
+                # Phase 54.9: ボトルネック特定ログ
+                if integrated_size == kelly_size:
+                    bottleneck = "Kelly"
+                elif integrated_size == dynamic_size:
+                    bottleneck = "Dynamic"
+                else:
+                    bottleneck = "RiskManager"
+
                 self.logger.info(
                     f"動的統合ポジションサイズ計算: Dynamic={dynamic_size:.6f}, "
                     f"Kelly={kelly_size:.6f}, RiskManager={risk_manager_size:.6f}, "
-                    f"採用={integrated_size:.6f} BTC (信頼度={ml_confidence:.1%})"
+                    f"採用={integrated_size:.6f} BTC (信頼度={ml_confidence:.1%}, ボトルネック={bottleneck})"
                 )
 
                 return integrated_size
 
             else:
                 # 従来の方法を使用
+                # Phase 54.9: バックテスト用タイムスタンプを渡す
                 kelly_size = self.kelly.calculate_optimal_size(
-                    ml_confidence=ml_confidence, strategy_name=strategy_name
+                    ml_confidence=ml_confidence,
+                    strategy_name=strategy_name,
+                    reference_timestamp=reference_timestamp,
                 )
 
                 from ...strategies.utils import RiskManager
@@ -105,9 +126,13 @@ class PositionSizeIntegrator:
 
                 integrated_size = min(kelly_size, risk_manager_size)
 
+                # Phase 54.9: ボトルネック特定ログ
+                bottleneck = "Kelly" if integrated_size == kelly_size else "RiskManager"
+
                 self.logger.info(
                     f"統合ポジションサイズ計算: Kelly={kelly_size:.6f}, "
-                    f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC"
+                    f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC "
+                    f"(ボトルネック={bottleneck})"
                 )
 
                 return integrated_size
