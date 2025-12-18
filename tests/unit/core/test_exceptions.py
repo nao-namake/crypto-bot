@@ -49,9 +49,7 @@ class TestCryptoBotError:
 
     def test_to_dict(self):
         """to_dict()メソッドテスト"""
-        error = CryptoBotError(
-            "test error", error_code="E001", context={"key": "value"}
-        )
+        error = CryptoBotError("test error", error_code="E001", context={"key": "value"})
         result = error.to_dict()
         assert result["error_type"] == "CryptoBotError"
         assert result["message"] == "test error"
@@ -76,9 +74,7 @@ class TestDerivedExceptions:
 
     def test_exchange_api_error(self):
         """ExchangeAPIErrorテスト"""
-        error = ExchangeAPIError(
-            "api error", api_endpoint="/api/v1/test", status_code=500
-        )
+        error = ExchangeAPIError("api error", api_endpoint="/api/v1/test", status_code=500)
         assert isinstance(error, CryptoBotError)
         assert error.api_endpoint == "/api/v1/test"
         assert error.status_code == 500
@@ -94,9 +90,7 @@ class TestDerivedExceptions:
 
     def test_risk_management_error(self):
         """RiskManagementErrorテスト"""
-        error = RiskManagementError(
-            "risk error", risk_level="HIGH", position_size=0.5
-        )
+        error = RiskManagementError("risk error", risk_level="HIGH", position_size=0.5)
         assert isinstance(error, CryptoBotError)
         assert error.risk_level == "HIGH"
         assert error.position_size == 0.5
