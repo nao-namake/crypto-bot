@@ -854,12 +854,13 @@ class BacktestRunner(BaseRunner):
                             )
 
                         # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
+                        # Phase 54.11: risk_manager → risk_service（属性名修正）
                         if (
-                            hasattr(self.orchestrator, "risk_manager")
-                            and self.orchestrator.risk_manager
+                            hasattr(self.orchestrator, "risk_service")
+                            and self.orchestrator.risk_service
                         ):
                             try:
-                                self.orchestrator.risk_manager.record_trade_result(
+                                self.orchestrator.risk_service.record_trade_result(
                                     profit_loss=pnl,
                                     strategy_name=strategy_name,
                                     confidence=0.5,  # デフォルト信頼度
@@ -1000,12 +1001,13 @@ class BacktestRunner(BaseRunner):
                     new_balance = self.orchestrator.execution_service.virtual_balance
 
                     # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
+                    # Phase 54.11: risk_manager → risk_service（属性名修正）
                     if (
-                        hasattr(self.orchestrator, "risk_manager")
-                        and self.orchestrator.risk_manager
+                        hasattr(self.orchestrator, "risk_service")
+                        and self.orchestrator.risk_service
                     ):
                         try:
-                            self.orchestrator.risk_manager.record_trade_result(
+                            self.orchestrator.risk_service.record_trade_result(
                                 profit_loss=pnl,
                                 strategy_name=strategy_name,
                                 confidence=0.5,  # デフォルト信頼度
