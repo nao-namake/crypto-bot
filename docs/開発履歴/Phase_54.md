@@ -1,7 +1,7 @@
 # Phase 54 開発記録
 
-**期間**: 2025/12/16-19
-**状況**: Phase 54.11完了（Kelly履歴記録属性名修正・バックテスト検証中）
+**期間**: 2025/12/16-20
+**状況**: Phase 54.11完了（Kelly基準修正3部作・バックテスト検証中）
 
 ---
 
@@ -31,7 +31,7 @@ ML予測と戦略の最適化による性能回復（PF 1.25 → 1.34+）
 | 54.8 | ML HOLDバイアス解決 | ✅ | **HOLD 96%→38.6%** |
 | 54.9 | Kellyタイムスタンプ修正 | ✅ | reference_timestamp追加 |
 | 54.10 | tight_range 0ベース最適化 | ✅ | **PF>1.0戦略のみ有効化** |
-| 54.11 | Kelly履歴記録属性名修正 | ✅ | risk_manager→risk_service |
+| 54.11 | Kelly基準修正3部作 | ✅ | 属性名修正・タイムスタンプ伝播・フォールバック |
 
 ---
 
@@ -815,17 +815,31 @@ stochastic_reversal:
 
 ---
 
-## ✅ Phase 54.11: Kelly履歴記録属性名修正【完了】
+## ✅ Phase 54.11: Kelly基準修正3部作【完了】
 
-### 実施日: 2025/12/19
+### 実施日: 2025/12/19-20
 
-### 問題発見
+### 概要
+
+バックテストでポジションサイズが0.0001 BTC固定になる問題を3段階で解決。
+
+| 修正 | 問題 | 解決策 |
+|------|------|--------|
+| A | 属性名不一致 | risk_manager → risk_service |
+| B | タイムスタンプ不一致 | バックテスト時刻を伝播 |
+| C | 戦略別履歴不足 | 全戦略履歴へフォールバック |
+
+---
+
+### 修正A: 属性名不一致の修正
+
+#### 問題発見
 
 Phase 54.9のバックテスト結果（Run 20340076976）を確認:
 - **全取引が0.0001 BTC固定**（終盤含め）
 - Kelly履歴が蓄積されていない
 
-### 根本原因
+#### 根本原因
 
 ```python
 # backtest_runner.py Line 858-862
@@ -841,7 +855,7 @@ if (
 - `backtest_runner.py`では`self.orchestrator.risk_manager`を参照
 - 属性名不一致でKelly履歴記録が呼ばれていなかった
 
-### 修正内容
+#### 修正内容
 
 ```python
 # 修正後（2箇所）
@@ -852,9 +866,138 @@ if (
     self.orchestrator.risk_service.record_trade_result(...)
 ```
 
-**修正箇所**:
-1. Line 858-863: TP/SL決済時
-2. Line 1005-1010: バックテスト終了時強制決済
+#### コミット
+
+- `e83d6a53`: fix: Phase 54.11 Kelly履歴記録の属性名修正
+
+---
+
+### 修正B: タイムスタンプ伝播の修正
+
+#### 問題分析
+
+修正A後もポジションサイズが0.0001 BTC固定。
+ログを確認すると「Kelly計算エラー、保守的サイズ使用」が頻発。
+
+**根本原因**: タイムスタンプの時間軸不一致
+
+```
+1. record_trade_result()でKelly履歴に記録
+   → timestamp引数なし → datetime.now()（2025/12/19）で記録
+
+2. calculate_from_history()でKelly計算
+   → reference_timestamp（バックテストデータ: 2025/06～12）を使用
+   → lookback期間（30日）で過去履歴をフィルター
+
+3. 結果
+   → 履歴のタイムスタンプ（2025/12/19）が未来扱い
+   → フィルター後の履歴がゼロ
+   → Kelly計算失敗 → 最小サイズ0.0001 BTC
+```
+
+#### 修正内容
+
+1. `manager.py`: record_trade_resultにtimestamp引数追加
+2. `backtest_runner.py`: 2箇所でtimestampを渡す
+
+#### コミット
+
+- `a5ff6361`: fix: Phase 54.11 Kelly履歴タイムスタンプ伝播修正
+
+---
+
+### 修正C: 戦略別履歴不足時のフォールバック
+
+#### 問題分析
+
+修正B後もポジションサイズが0.0001 BTC固定。
+ログを確認すると「Kelly計算エラー、保守的サイズ使用: 0.000100」が頻発。
+
+**根本原因**: 戦略別フィルタリングにより各戦略の履歴が5件未満
+
+```
+1. record_trade_result(strategy_name="BBReversal")
+   → Kelly履歴に戦略名付きで追加
+
+2. calculate_from_history(strategy_filter="BBReversal")
+   → 30日以内 + 同じ戦略のみフィルタ
+   → 2件しかない → 5件未満 → None返却
+
+3. calculate_optimal_size()
+   → kelly_result is None
+   → 「Kelly計算エラー」 → 0.0001 BTC
+```
+
+**具体的な数字（バックテスト180日結果）**:
+
+| 戦略 | 180日取引数 | 30日平均 | 5件確保 |
+|------|------------|---------|--------|
+| BBReversal | 14件 | ~2件 | ❌ |
+| MACDEMACrossover | 24件 | ~4件 | ❌ |
+| ADXTrendStrength | 30件 | ~5件 | △ |
+| **全戦略合計** | **90件** | **~15件** | **✅** |
+
+→ 個別戦略では5件未満になるが、全戦略合計なら十分
+
+#### 修正内容
+
+`kelly.py` Line 191-205にフォールバックロジック追加:
+
+```python
+# 戦略フィルタ
+all_period_trades = filtered_trades  # Phase 54.11: フォールバック用に保持
+if strategy_filter:
+    filtered_trades = [
+        trade for trade in filtered_trades if trade.strategy == strategy_filter
+    ]
+
+# Phase 54.11: フォールバックロジック
+# 特定戦略で履歴不足の場合、全戦略の履歴を使用
+if len(filtered_trades) < self.min_trades_for_kelly and strategy_filter:
+    self.logger.info(
+        f"Kelly計算: 戦略別履歴不足({strategy_filter}={len(filtered_trades)}件)、"
+        f"全戦略履歴を使用({len(all_period_trades)}件)"
+    )
+    filtered_trades = all_period_trades
+
+# 最小取引数チェック
+if len(filtered_trades) < self.min_trades_for_kelly:
+    return None
+```
+
+#### テスト追加
+
+`test_kelly_criterion.py`に3件のテストケース追加:
+- `test_calculate_from_history_strategy_fallback`: フォールバック動作確認
+- `test_calculate_from_history_no_fallback_needed`: 履歴十分時はフォールバック不要
+- `test_calculate_from_history_fallback_still_insufficient`: 全戦略でも不足時はNone
+
+#### ローカル検証結果（30日バックテスト）
+
+```
+以前: 「Kelly計算エラー、保守的サイズ使用: 0.000100」頻発
+修正後: 「Kelly計算済みポジションサイズ制限超過: 計算値=0.0233」
+```
+
+→ **Kelly計算が成功し、0.02+ BTCを算出**（フォールバック正常動作）
+
+#### コミット
+
+- `b003a01f`: fix: Phase 54.11 Kelly戦略別履歴不足時のフォールバック
+
+---
+
+### ライブモードへの影響
+
+**影響なし**
+
+| 修正 | ライブへの影響 | 理由 |
+|------|---------------|------|
+| A | なし | ライブでは属性名問題は発生していなかった |
+| B | なし | ライブではdatetime.now()で整合性あり |
+| C | 運用初期のみ | 履歴蓄積後は戦略別統計を使用 |
+
+---
 
 ### テスト結果
 
@@ -862,32 +1005,40 @@ if (
 - **カバレッジ**: 65.42%
 - **品質チェック**: flake8/black/isort全てPASS
 
+---
+
+### 修正ファイル一覧
+
+| ファイル | 修正A | 修正B | 修正C |
+|---------|-------|-------|-------|
+| `src/core/execution/backtest_runner.py` | ✅ | ✅ | - |
+| `src/trading/risk/manager.py` | - | ✅ | - |
+| `src/trading/risk/kelly.py` | - | - | ✅ |
+| `tests/unit/trading/test_kelly_criterion.py` | - | - | ✅ |
+
+---
+
 ### 期待効果
 
 | 指標 | 修正前 | 修正後見込み |
 |------|--------|-------------|
-| ポジションサイズ | 0.0001 BTC固定 | 0.001〜0.01 BTC |
-| 1取引損益 | +3円 | +30〜300円 |
-| 総損益 | +675円 | +6,750〜67,500円 |
+| ポジションサイズ | 0.0001 BTC固定 | 0.02 BTC（Kelly計算値） |
+| 1取引損益 | +6円 | +1,200円（200倍） |
+| 総損益 | +504円 | +100,000円以上 |
 
-### 修正ファイル
+---
 
-| ファイル | 変更内容 |
-|---------|---------|
-| `src/core/execution/backtest_runner.py` | risk_manager → risk_service（2箇所） |
+### コミット一覧
 
-### コミット・CI
+| コミット | 内容 |
+|---------|------|
+| `e83d6a53` | 修正A: Kelly履歴属性名修正 |
+| `a5ff6361` | 修正B: Kelly履歴タイムスタンプ伝播 |
+| `b003a01f` | 修正C: Kelly戦略別履歴フォールバック |
 
-- `e83d6a53`: fix: Phase 54.11 Kelly履歴記録の属性名修正
-- CI Run 20353401119: 実行中
-- Backtest Run 20353497626: 実行中（約2時間）
+### バックテスト
 
-### 検証予定
-
-バックテスト完了後に確認:
-1. ポジションサイズが動的に変化しているか
-2. Phase 54.10の戦略重み変更の効果
-3. 総損益の改善
+- Run 20384105902: 180日バックテスト実行中（約2時間）
 
 ---
 
@@ -906,6 +1057,8 @@ if (
 | `ae62c6fb` | Phase 54.9 Kellyタイムスタンプ修正 |
 | `6358f9e1` | Phase 54.10 カバレッジ向上 |
 | `e83d6a53` | Phase 54.11 Kelly履歴属性名修正 |
+| `a5ff6361` | Phase 54.11 Kelly履歴タイムスタンプ伝播 |
+| `b003a01f` | Phase 54.11 Kelly戦略別履歴フォールバック |
 
 ---
 
@@ -917,7 +1070,9 @@ if (
 4. **SMOTEは全クラスで適用必要** - 2クラス限定バグがあった
 5. **バックテストのタイムスタンプ注意** - datetime.now()は本番時刻
 6. **属性名の一貫性** - risk_manager vs risk_serviceの不一致に注意
+7. **タイムスタンプの伝播漏れに注意** - Kelly履歴記録時もバックテスト時刻を渡す必要あり
+8. **戦略別フィルタリングの落とし穴** - 30日lookback + 戦略フィルタ = 履歴不足になりやすい
 
 ---
 
-**📅 最終更新**: 2025年12月19日 - Phase 54.11完了（バックテスト検証中）
+**📅 最終更新**: 2025年12月20日 - Phase 54.11完了（Kelly基準修正3部作・バックテスト検証中）
