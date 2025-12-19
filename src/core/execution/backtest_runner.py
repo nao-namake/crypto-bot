@@ -855,6 +855,7 @@ class BacktestRunner(BaseRunner):
 
                         # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
                         # Phase 54.11: risk_manager → risk_service（属性名修正）
+                        # Phase 54.12: timestampを渡してKelly計算の時間軸を正しく
                         if (
                             hasattr(self.orchestrator, "risk_service")
                             and self.orchestrator.risk_service
@@ -864,10 +865,11 @@ class BacktestRunner(BaseRunner):
                                     profit_loss=pnl,
                                     strategy_name=strategy_name,
                                     confidence=0.5,  # デフォルト信頼度
+                                    timestamp=timestamp,  # Phase 54.12: バックテスト時刻
                                 )
                                 self.logger.debug(
                                     f"📊 Phase 54.7: Kelly履歴記録 - "
-                                    f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}"
+                                    f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}, 時刻: {timestamp}"
                                 )
                             except Exception as kelly_error:
                                 self.logger.debug(
@@ -1002,6 +1004,7 @@ class BacktestRunner(BaseRunner):
 
                     # Phase 54.7: Kelly履歴に取引結果記録（バックテスト＝ライブモード一致化）
                     # Phase 54.11: risk_manager → risk_service（属性名修正）
+                    # Phase 54.12: timestampを渡してKelly計算の時間軸を正しく
                     if (
                         hasattr(self.orchestrator, "risk_service")
                         and self.orchestrator.risk_service
@@ -1011,10 +1014,11 @@ class BacktestRunner(BaseRunner):
                                 profit_loss=pnl,
                                 strategy_name=strategy_name,
                                 confidence=0.5,  # デフォルト信頼度
+                                timestamp=final_timestamp,  # Phase 54.12: バックテスト終了時刻
                             )
                             self.logger.debug(
                                 f"📊 Phase 54.7: Kelly履歴記録（強制決済） - "
-                                f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}"
+                                f"PnL: {pnl:+.0f}円, 戦略: {strategy_name}, 時刻: {final_timestamp}"
                             )
                         except Exception as kelly_error:
                             self.logger.debug(f"⚠️ Phase 54.7: Kelly履歴記録エラー: {kelly_error}")

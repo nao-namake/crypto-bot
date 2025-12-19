@@ -425,6 +425,7 @@ class IntegratedRiskManager:
         profit_loss: float,
         strategy_name: str = "default",
         confidence: float = 0.5,
+        timestamp: Optional[datetime] = None,
     ) -> None:
         """
         取引結果記録（全コンポーネント更新）
@@ -433,6 +434,7 @@ class IntegratedRiskManager:
             profit_loss: 損益
             strategy_name: 戦略名
             confidence: 取引時の信頼度
+            timestamp: 取引時刻（バックテスト用、Phase 54.12追加）
         """
         try:
             # Kelly基準用の取引履歴追加
@@ -440,6 +442,7 @@ class IntegratedRiskManager:
                 profit_loss=profit_loss,
                 strategy=strategy_name,
                 confidence=confidence,
+                timestamp=timestamp,
             )
 
             # ドローダウン管理への取引結果記録
