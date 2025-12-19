@@ -252,8 +252,10 @@ class TestKellyCriterion:
 
         # strategy_bのみでKelly計算
         result_b = self.kelly.calculate_from_history(strategy_filter="strategy_b")
-        # strategy_bはデータ不足でNone
-        assert result_b is None
+        # Phase 54.11: strategy_bはデータ不足（3件）のため全戦略履歴（8件）にフォールバック
+        assert result_b is not None
+        assert result_b.sample_size == 8  # 全戦略の合計: 5件(a) + 3件(b) = 8件
+        assert result_b.win_rate == 0.5  # 8件中4勝（50%）
 
 
 class TestPositionSizeIntegrator:
@@ -514,3 +516,57 @@ class TestKellyCriterionAdvanced:
         ):
             result = self.kelly.calculate_from_history()
             assert result is None
+
+    def test_calculate_from_history_strategy_fallback(self):
+        """Phase 54.11: 戦略別履歴不足時のフォールバックテスト."""
+        # 複数戦略の取引追加（各戦略は5件未満、全体で5件以上）
+        # strategy_aは2件のみ（勝ち負け両方）
+        self.kelly.add_trade_result(100, "strategy_a")
+        self.kelly.add_trade_result(-50, "strategy_a")
+
+        # strategy_bは2件
+        self.kelly.add_trade_result(80, "strategy_b")
+        self.kelly.add_trade_result(-30, "strategy_b")
+
+        # strategy_cは2件
+        self.kelly.add_trade_result(60, "strategy_c")
+        self.kelly.add_trade_result(-40, "strategy_c")
+
+        # 全戦略合計: 6件 >= 5件（min_trades）
+
+        # strategy_aのみでKelly計算 → フォールバック発生
+        result_a = self.kelly.calculate_from_history(strategy_filter="strategy_a")
+
+        # フォールバックにより全戦略履歴（6件）でKelly計算が実行される
+        assert result_a is not None
+        assert result_a.sample_size == 6  # 全戦略の履歴数
+
+    def test_calculate_from_history_no_fallback_needed(self):
+        """Phase 54.11: 戦略別履歴が十分な場合はフォールバック不要."""
+        # strategy_aは6件（min_trades_for_kelly=5以上）- 勝ち負け両方含む
+        for i in range(6):
+            profit = 100 if i < 4 else -50  # 4勝2敗
+            self.kelly.add_trade_result(profit, "strategy_a")
+
+        # strategy_bは2件
+        self.kelly.add_trade_result(50, "strategy_b")
+        self.kelly.add_trade_result(-30, "strategy_b")
+
+        # strategy_aのみでKelly計算 → フォールバック不要
+        result_a = self.kelly.calculate_from_history(strategy_filter="strategy_a")
+
+        # 戦略別履歴（6件）でKelly計算が実行される
+        assert result_a is not None
+        assert result_a.sample_size == 6  # strategy_aのみの履歴数
+
+    def test_calculate_from_history_fallback_still_insufficient(self):
+        """Phase 54.11: フォールバックしても履歴不足の場合."""
+        # 全体でも5件未満
+        self.kelly.add_trade_result(100, "strategy_a")
+        self.kelly.add_trade_result(-50, "strategy_b")
+
+        # strategy_aでKelly計算 → フォールバック発動 → それでも2件で不足
+        result_a = self.kelly.calculate_from_history(strategy_filter="strategy_a")
+
+        # 全戦略でも不足のためNone
+        assert result_a is None

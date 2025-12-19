@@ -189,10 +189,20 @@ class KellyCriterion:
             ]
 
             # 戦略フィルタ
+            all_period_trades = filtered_trades  # Phase 54.11: フォールバック用に保持
             if strategy_filter:
                 filtered_trades = [
                     trade for trade in filtered_trades if trade.strategy == strategy_filter
                 ]
+
+            # Phase 54.11: フォールバックロジック
+            # 特定戦略で履歴不足の場合、全戦略の履歴を使用
+            if len(filtered_trades) < self.min_trades_for_kelly and strategy_filter:
+                self.logger.info(
+                    f"Kelly計算: 戦略別履歴不足({strategy_filter}={len(filtered_trades)}件)、"
+                    f"全戦略履歴を使用({len(all_period_trades)}件)"
+                )
+                filtered_trades = all_period_trades
 
             # 最小取引数チェック
             if len(filtered_trades) < self.min_trades_for_kelly:
