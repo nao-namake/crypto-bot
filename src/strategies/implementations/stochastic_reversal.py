@@ -177,14 +177,18 @@ class StochasticReversalStrategy(StrategyBase):
         """
         ダイバージェンス検出（核心機能）
 
+        Phase 55.3: 同時性要件緩和
+        - 従来: 5期間前と現在を直接比較（同時性要求・厳しすぎ）
+        - 改善: 期間内の最大/最小を使用（時間軸分離・柔軟に）
+
         Bearish Divergence（SELL信号）:
-          - 価格: 高値切り上げ（close[i] > close[i-n]）
-          - Stochastic: 高値切り下げ（stoch_k[i] < stoch_k[i-n]）
+          - 価格: 期間内で上昇トレンド（現在が高値付近）
+          - Stochastic: 期間内で下降トレンド（現在が安値付近）
           - 意味: 価格は上がっているがモメンタム弱化 → 反転下落期待
 
         Bullish Divergence（BUY信号）:
-          - 価格: 安値切り下げ（close[i] < close[i-n]）
-          - Stochastic: 安値切り上げ（stoch_k[i] > stoch_k[i-n]）
+          - 価格: 期間内で下降トレンド（現在が安値付近）
+          - Stochastic: 期間内で上昇トレンド（現在が高値付近）
           - 意味: 価格は下がっているがモメンタム回復 → 反転上昇期待
 
         Args:
@@ -201,47 +205,84 @@ class StochasticReversalStrategy(StrategyBase):
             if len(df) < lookback + 1:
                 return {"type": "none", "action": EntryAction.HOLD, "strength": 0.0}
 
-            # 現在と過去のデータ取得
-            current_close = float(df["close"].iloc[-1])
-            previous_close = float(df["close"].iloc[-lookback])
-            current_stoch = float(df["stoch_k"].iloc[-1])
-            previous_stoch = float(df["stoch_k"].iloc[-lookback])
+            # Phase 55.3: 期間内のデータを取得（同時性緩和）
+            period_closes = df["close"].iloc[-lookback-1:].values
+            period_stochs = df["stoch_k"].iloc[-lookback-1:].values
 
-            # 価格変化率とStochastic変化量
-            price_change_ratio = (current_close - previous_close) / previous_close
-            stoch_change = current_stoch - previous_stoch
+            current_close = float(period_closes[-1])
+            current_stoch = float(period_stochs[-1])
 
-            # Bearish Divergence検出
-            # 価格上昇（+0.2%以上）+ Stochastic低下（-5pt以上）
-            if price_change_ratio > price_threshold and stoch_change < -stoch_threshold:
-                strength = min(abs(stoch_change) / 50.0, 1.0)
+            # 期間内の最大・最小値
+            min_close = float(min(period_closes))
+            max_close = float(max(period_closes))
+            min_stoch = float(min(period_stochs))
+            max_stoch = float(max(period_stochs))
+
+            # 価格の位置（0=最安値、1=最高値）
+            price_range = max_close - min_close
+            if price_range > 0:
+                price_position = (current_close - min_close) / price_range
+            else:
+                price_position = 0.5
+
+            # Stochasticの位置（0=最安値、1=最高値）
+            stoch_range = max_stoch - min_stoch
+            if stoch_range > 0:
+                stoch_position = (current_stoch - min_stoch) / stoch_range
+            else:
+                stoch_position = 0.5
+
+            # 価格変化率（期間全体）
+            period_start_close = float(period_closes[0])
+            price_change_ratio = (current_close - period_start_close) / period_start_close
+
+            # Stochastic変化量（期間全体）
+            period_start_stoch = float(period_stochs[0])
+            stoch_change = current_stoch - period_start_stoch
+
+            # Bearish Divergence検出（Phase 55.3: 緩和条件）
+            # 条件1: 価格が高値付近（位置 > 0.6）AND Stochasticが安値付近（位置 < 0.4）
+            # 条件2: または従来条件（価格上昇 + Stochastic下降）
+            bearish_new = (price_position > 0.6 and stoch_position < 0.4)
+            bearish_old = (price_change_ratio > price_threshold and stoch_change < -stoch_threshold)
+
+            if bearish_new or bearish_old:
+                strength = 0.3 + abs(price_position - stoch_position) * 0.4
                 return {
                     "type": "bearish",
                     "action": EntryAction.SELL,
-                    "strength": strength,
+                    "strength": min(strength, 1.0),
                     "price_change": price_change_ratio * 100,
                     "stoch_change": stoch_change,
-                    "reason": f"Bearish Divergence (価格+{price_change_ratio*100:.1f}% vs Stoch{stoch_change:.0f})",
+                    "price_position": price_position,
+                    "stoch_position": stoch_position,
+                    "reason": f"Bearish Div (価格位置:{price_position:.1%} vs Stoch位置:{stoch_position:.1%})",
                 }
 
-            # Bullish Divergence検出
-            # 価格下落（-0.2%以上）+ Stochastic上昇（+5pt以上）
-            if price_change_ratio < -price_threshold and stoch_change > stoch_threshold:
-                strength = min(abs(stoch_change) / 50.0, 1.0)
+            # Bullish Divergence検出（Phase 55.3: 緩和条件）
+            # 条件1: 価格が安値付近（位置 < 0.4）AND Stochasticが高値付近（位置 > 0.6）
+            # 条件2: または従来条件（価格下落 + Stochastic上昇）
+            bullish_new = (price_position < 0.4 and stoch_position > 0.6)
+            bullish_old = (price_change_ratio < -price_threshold and stoch_change > stoch_threshold)
+
+            if bullish_new or bullish_old:
+                strength = 0.3 + abs(stoch_position - price_position) * 0.4
                 return {
                     "type": "bullish",
                     "action": EntryAction.BUY,
-                    "strength": strength,
+                    "strength": min(strength, 1.0),
                     "price_change": price_change_ratio * 100,
                     "stoch_change": stoch_change,
-                    "reason": f"Bullish Divergence (価格{price_change_ratio*100:.1f}% vs Stoch+{stoch_change:.0f})",
+                    "price_position": price_position,
+                    "stoch_position": stoch_position,
+                    "reason": f"Bullish Div (価格位置:{price_position:.1%} vs Stoch位置:{stoch_position:.1%})",
                 }
 
             return {
                 "type": "none",
                 "action": EntryAction.HOLD,
                 "strength": 0.0,
-                "reason": "ダイバージェンス未検出",
+                "reason": f"ダイバージェンス未検出 (価格:{price_position:.1%}, Stoch:{stoch_position:.1%})",
             }
 
         except (KeyError, TypeError, ValueError, IndexError) as e:

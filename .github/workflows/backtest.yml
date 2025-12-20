@@ -1,4 +1,4 @@
-# バックテスト自動化ワークフロー - Phase 52.1改修版
+# バックテスト自動化ワークフロー
 # 目的: 履歴データ収集→バックテスト実行→Markdownレポート生成
 
 name: Backtest Automation
@@ -7,10 +7,6 @@ on:
   # 手動実行専用（週次スケジュールは一旦無効化）
   workflow_dispatch:
     inputs:
-      phase_name:
-        description: 'Phase名（レポートファイル名用）'
-        required: false
-        default: '52.1'
       backtest_days:
         description: 'バックテスト日数'
         required: false
@@ -173,21 +169,16 @@ jobs:
         run: |
           echo "📝 Markdownレポート生成開始..."
 
-          # Phase名取得（手動実行時は入力値、定期実行時はデフォルト）
-          PHASE_NAME="${{ github.event.inputs.phase_name || '52.1' }}"
-          echo "Phase名: $PHASE_NAME"
-
           # PYTHONPATH設定
           export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
-          # Markdownレポート生成
+          # Markdownレポート生成（日付ベースのファイル名）
           python3 scripts/backtest/generate_markdown_report.py \
             "$LATEST_JSON" \
-            --phase "$PHASE_NAME" \
             --output-dir "docs/検証記録"
 
           # 生成されたMarkdownファイル確認
-          LATEST_MARKDOWN=$(ls -t docs/検証記録/Phase_*.md 2>/dev/null | head -1)
+          LATEST_MARKDOWN=$(ls -t docs/検証記録/backtest_*.md 2>/dev/null | head -1)
           if [ -n "$LATEST_MARKDOWN" ]; then
             echo "✅ Markdownレポート生成確認: $LATEST_MARKDOWN"
             echo "LATEST_MARKDOWN=$LATEST_MARKDOWN" >> $GITHUB_ENV
@@ -217,7 +208,7 @@ jobs:
           git status --short
 
           # Markdownレポートのみコミット（JSONは除外）
-          git add "docs/検証記録/Phase_*.md"
+          git add "docs/検証記録/backtest_*.md"
 
           # コミット（変更がある場合のみ）
           if git diff --staged --quiet; then
@@ -225,7 +216,7 @@ jobs:
           else
             REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y/%m/%d')
             COMMIT_MSG="docs: 週次バックテストレポート追加 ${REPORT_DATE}"
-            COMMIT_BODY="週次自動バックテスト結果 (Phase 52.1) | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
+            COMMIT_BODY="週次自動バックテスト結果 | 実行日時: ${REPORT_DATE} | レポート: ${LATEST_MARKDOWN} | 自動生成: GitHub Actions"
 
             git commit -m "${COMMIT_MSG}" -m "${COMMIT_BODY}"
             echo "✅ コミット完了"
@@ -281,7 +272,7 @@ jobs:
           echo "========================================"
           echo "📊 バックテスト実行サマリー"
           echo "========================================"
-          echo "Phase: ${{ github.event.inputs.phase_name || '52.1' }}"
+          echo "レポート: ${LATEST_MARKDOWN:-N/A}"
           echo "期間: ${{ env.HISTORICAL_DATA_DAYS }}日間"
 
           if [ "${{ job.status }}" == "success" ]; then

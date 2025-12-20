@@ -27,7 +27,7 @@
 # 実行設定（Execution Settings）
 # ========================================
 execution:
-  backtest_period_days: 180  # Phase 51.8-10: フル期間バックテスト（理論的設定値検証）
+  backtest_period_days: 60  # Phase 55.3: 60日間検証（取引数回復確認）
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
 
@@ -76,9 +76,9 @@ ml:
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.90  # Phase 51.8-J2: ペナルティ緩和（0.85→0.90）
-    min_ml_confidence: 0.35      # Phase 51.8-J2: 閾値緩和（0.45→0.35）
-    hold_conversion_threshold: 0.25  # Phase 54.7: 0.30→0.25（取引数回復・HOLD変換緩和）
+    disagreement_penalty: 0.95  # Phase 55.3: 0.90→0.95（ペナルティ緩和）
+    min_ml_confidence: 0.32      # Phase 55.3: 0.35→0.32（閾値緩和）
+    hold_conversion_threshold: 0.20  # Phase 55.3: 0.25→0.20（HOLD変換さらに緩和）
   # Meta-Learning動的重み最適化システム
   meta_learning:
     enabled: false  # デフォルト無効（慎重な段階的有効化）
@@ -100,28 +100,24 @@ ml:
     enabled: true  # Phase 51.9: レジーム別ML統合有効化
 
     # tight_range（狭いレンジ）: 戦略重視型
-    # Phase 51.8結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
-    # → 戦略シグナルが強い → ML補完は控えめ
-    # Phase 54.12: 取引数大幅回復のためML閾値緩和
+    # Phase 55.3: 取引数回復のためML閾値さらに緩和
     tight_range:
-      min_ml_confidence: 0.38           # Phase 54.12: 0.45→0.38（取引数8-12倍増期待）
-      high_confidence_threshold: 0.65
+      min_ml_confidence: 0.33           # Phase 55.3: 0.38→0.33（取引数増加）
+      high_confidence_threshold: 0.60   # 0.65→0.60（緩和）
       ml_weight: 0.25                   # ML 25%
       strategy_weight: 0.75             # 戦略 75%
-      agreement_bonus: 1.15             # ML・戦略一致時ボーナス控えめ
-      disagreement_penalty: 0.95        # Phase 54.7: 0.92→0.95（不一致ペナルティ緩和）
+      agreement_bonus: 1.18             # 1.15→1.18（ボーナス増加）
+      disagreement_penalty: 0.96        # Phase 55.3: 0.95→0.96（ペナルティさらに緩和）
 
     # normal_range（通常レンジ）: バランス型
-    # Phase 51.8結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
-    # → ほぼbreakeven → MLとのバランス重視
-    # Phase 54.12: 取引数大幅回復のためML閾値緩和
+    # Phase 55.3: 取引数回復のためML閾値さらに緩和
     normal_range:
-      min_ml_confidence: 0.35           # Phase 54.12: 0.40→0.35（取引数増加）
-      high_confidence_threshold: 0.60
+      min_ml_confidence: 0.30           # Phase 55.3: 0.35→0.30（取引数増加）
+      high_confidence_threshold: 0.55   # 0.60→0.55（緩和）
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
-      agreement_bonus: 1.20             # ML・戦略一致時ボーナス標準
-      disagreement_penalty: 0.95        # Phase 54.7: 0.90→0.95（不一致ペナルティ緩和）
+      agreement_bonus: 1.22             # 1.20→1.22（ボーナス増加）
+      disagreement_penalty: 0.96        # Phase 55.3: 0.95→0.96（ペナルティさらに緩和）
 
     # trending（トレンド）: ML補完重視型
     # Phase 51.8結果: 0件（未発生）
@@ -369,24 +365,24 @@ strategies:
     weak_trend_threshold: 15
   atr_based:
     # ========================================
-    # Phase 55.1: ATRレンジ消尽戦略（取引数増加版 v3）
+    # Phase 55.3: ATRレンジ消尽戦略（並列評価版）
     # ========================================
-    # 目標: PF≥1.2維持 + 取引数増加
+    # Phase 55.3: 直列→並列評価に変更、閾値緩和
     # バックアップ: config/core/atr_based_backup_pf146.yaml
     # ========================================
-    # ATR消尽率パラメータ（微調整のみ）
-    exhaustion_threshold: 0.60       # 0.70→0.60
-    high_exhaustion_threshold: 0.80  # 0.85→0.80
+    # ATR消尽率パラメータ（Phase 55.3: 緩和）
+    exhaustion_threshold: 0.50       # 0.60→0.50（緩和）
+    high_exhaustion_threshold: 0.70  # 0.80→0.70（緩和）
     # レンジ相場フィルタ（維持）
     adx_range_threshold: 25          # 維持
-    # 反転方向判定（微調整のみ）
-    rsi_upper: 57                    # 60→57
-    rsi_lower: 43                    # 40→43
-    # 信頼度設定
-    min_confidence: 0.33             # 0.35→0.33（微調整）
-    hold_confidence: 0.20            # HOLD時の信頼度
-    base_confidence: 0.40            # 維持
-    high_confidence: 0.58            # 0.60→0.58（微調整）
+    # 反転方向判定（Phase 55.3: 緩和）
+    rsi_upper: 60                    # 57→60（緩和）
+    rsi_lower: 40                    # 43→40（緩和）
+    # 信頼度設定（Phase 55.3: 緩和）
+    min_confidence: 0.28             # 0.33→0.28（緩和）
+    hold_confidence: 0.20            # HOLD時の信頼度（維持）
+    base_confidence: 0.38            # 0.40→0.38（微調整）
+    high_confidence: 0.55            # 0.58→0.55（微調整）
     # ストップロス設定
     sl_atr_multiplier: 1.5           # SL = 1.5 × ATR
   donchian_channel:
@@ -402,42 +398,42 @@ strategies:
     weak_signal_min: 0.25
     weak_signal_enabled: true      # Phase 54.10: false→true（弱シグナル有効化）
   bb_reversal:
-    # Phase 54.10: HOLD率削減のため閾値緩和（PF 1.92活用増）
-    min_confidence: 0.30
-    hold_confidence: 0.25
-    bb_width_threshold: 0.025       # Phase 54.10: 0.02→0.025（より多くの相場でレンジ判定）
-    rsi_overbought: 65              # Phase 54.10: 70→65（シグナル増加）
-    rsi_oversold: 35                # Phase 54.10: 30→35（シグナル増加）
-    bb_upper_threshold: 0.92        # Phase 54.10: 0.95→0.92（シグナル+60%）
-    bb_lower_threshold: 0.08        # Phase 54.10: 0.05→0.08（シグナル+60%）
-    adx_range_threshold: 25         # Phase 54.10: 20→25（より多くの相場で機能）
+    # Phase 55.3: 取引数回復のため閾値緩和
+    min_confidence: 0.25            # 0.30→0.25（緩和）
+    hold_confidence: 0.22           # 0.25→0.22（緩和）
+    bb_width_threshold: 0.028       # 0.025→0.028（より多くの相場でレンジ判定）
+    rsi_overbought: 62              # 65→62（シグナル増加）
+    rsi_oversold: 38                # 35→38（シグナル増加）
+    bb_upper_threshold: 0.88        # 0.92→0.88（シグナル増加）
+    bb_lower_threshold: 0.12        # 0.08→0.12（シグナル増加）
+    adx_range_threshold: 28         # 25→28（より多くの相場で機能）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # ========================================
-    # Phase 55.2: Stochastic Divergence戦略（完全リファクタリング）
+    # Phase 55.3: Stochastic Divergence戦略（同時性緩和版）
     # ========================================
+    # Phase 55.3: 同時性要件緩和、位置ベース検出追加
     # 核心思想: 「価格が上昇しているのにStochasticは低下 = モメンタム弱化 = 反転間近」
-    # 差別化: 価格とモメンタムの乖離（複数期間）を見る
     # ========================================
 
-    # === Divergence設定（新規・核心機能） ===
+    # === Divergence設定（Phase 55.3: 緩和） ===
     divergence_lookback: 5              # ダイバージェンス検出期間
-    divergence_price_threshold: 0.0015  # Phase 55.2 v2採用: 0.15%（PF1.25維持・取引数+26%）
-    divergence_stoch_threshold: 5       # Stochastic変化閾値（5pt維持）
+    divergence_price_threshold: 0.0010  # 0.0015→0.0010（緩和）
+    divergence_stoch_threshold: 4       # 5→4（緩和）
 
-    # === 極端領域設定（緩和） ===
-    stoch_overbought: 70                # 80→70に緩和（取引数増加）
-    stoch_oversold: 30                  # 20→30に緩和（取引数増加）
+    # === 極端領域設定（Phase 55.3: 拡大） ===
+    stoch_overbought: 75                # 70→75（極端領域拡大）
+    stoch_oversold: 25                  # 30→25（極端領域拡大）
 
-    # === ADX設定（大幅緩和） ===
-    adx_max_threshold: 50               # 30→50に緩和（強トレンド除外のみ）
+    # === ADX設定（維持） ===
+    adx_max_threshold: 50               # 維持（強トレンド除外のみ）
 
-    # === 信頼度設定 ===
-    min_confidence: 0.30
-    hold_confidence: 0.22
-    base_confidence: 0.35
-    max_confidence: 0.60
-    zone_bonus: 0.10                    # 極端領域ボーナス
+    # === 信頼度設定（Phase 55.3: 緩和） ===
+    min_confidence: 0.25                # 0.30→0.25（緩和）
+    hold_confidence: 0.20               # 0.22→0.20（緩和）
+    base_confidence: 0.32               # 0.35→0.32（緩和）
+    max_confidence: 0.60                # 維持
+    zone_bonus: 0.12                    # 0.10→0.12（ボーナス増加）
 
     # === SL設定 ===
     sl_multiplier: 1.5                  # SL ATR倍率

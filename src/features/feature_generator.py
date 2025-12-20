@@ -480,7 +480,8 @@ class FeatureGenerator:
         if isinstance(result_df.index, pd.DatetimeIndex):
             dt_index = result_df.index
         elif "timestamp" in result_df.columns:
-            dt_index = pd.to_datetime(result_df["timestamp"])
+            # SeriesをDatetimeIndexに変換（.hour等のアクセスを可能にする）
+            dt_index = pd.DatetimeIndex(pd.to_datetime(result_df["timestamp"]))
         else:
             # 日時情報がない場合はゼロ埋め（削減後の8特徴量のみ）
             self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")

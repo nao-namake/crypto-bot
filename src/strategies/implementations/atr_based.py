@@ -87,52 +87,76 @@ class ATRBasedStrategy(StrategyBase):
         市場分析とシグナル生成
 
         ATRレンジ消尽に基づく反転シグナルを生成。
+
+        Phase 55.3: 並列評価方式に変更
+        - 3つの条件を独立に評価しスコア化
+        - スコア合計 >= 0.5 でシグナル生成
+        - 直列評価（1つ失敗→全HOLD）から脱却
         """
         try:
             self.logger.debug("[ATRレンジ] 分析開始")
             current_price = float(df["close"].iloc[-1])
 
-            # Step 1: ATR消尽率計算
+            # Step 1: 各条件を並列に評価
             exhaustion_analysis = self._calculate_exhaustion_ratio(df)
-
-            # Step 2: レンジ相場確認（ADXフィルタ）
             range_check = self._check_range_market(df)
-            if not range_check["is_range"]:
-                return SignalBuilder.create_hold_signal(
-                    strategy_name=self.name,
-                    current_price=current_price,
-                    reason=range_check["reason"],
-                    strategy_type=StrategyType.ATR_BASED,
-                )
-
-            # Step 3: 消尽率判定
-            if not exhaustion_analysis["is_exhausted"]:
-                return SignalBuilder.create_hold_signal(
-                    strategy_name=self.name,
-                    current_price=current_price,
-                    reason=exhaustion_analysis["reason"],
-                    strategy_type=StrategyType.ATR_BASED,
-                )
-
-            # Step 4: 反転方向判定（RSI使用）
             direction_analysis = self._determine_reversal_direction(df)
-            if direction_analysis["action"] == EntryAction.HOLD:
+
+            # Step 2: 並列スコア計算（Phase 55.3: 直列→並列評価に変更）
+            score = 0.0
+            score_details = []
+
+            # レンジ相場スコア (0.35)
+            if range_check["is_range"]:
+                score += 0.35
+                score_details.append(f"レンジ+0.35")
+
+            # 消尽率スコア (0.35-0.45)
+            if exhaustion_analysis["is_high_exhaustion"]:
+                score += 0.45
+                score_details.append(f"高消尽+0.45")
+            elif exhaustion_analysis["is_exhausted"]:
+                score += 0.35
+                score_details.append(f"消尽+0.35")
+
+            # RSI方向スコア (0.30)
+            if direction_analysis["action"] != EntryAction.HOLD:
+                score += 0.30
+                score_details.append(f"RSI方向+0.30")
+
+            # Step 3: スコア閾値判定（0.5以上でシグナル生成）
+            min_score_threshold = 0.50
+
+            if score < min_score_threshold:
                 return SignalBuilder.create_hold_signal(
                     strategy_name=self.name,
                     current_price=current_price,
-                    reason=direction_analysis["reason"],
+                    reason=f"スコア不足({score:.2f}<{min_score_threshold}): {', '.join(score_details) if score_details else '条件未達'}",
                     strategy_type=StrategyType.ATR_BASED,
                 )
 
-            # シグナル生成
-            decision = self._create_decision(
-                exhaustion_analysis, direction_analysis, range_check
+            # Step 4: 方向決定（RSIが中間の場合は消尽率の傾きから推定）
+            if direction_analysis["action"] == EntryAction.HOLD:
+                # RSIが中間でも他の条件が強ければ方向を推定
+                direction_analysis = self._infer_direction_from_price(df)
+                if direction_analysis["action"] == EntryAction.HOLD:
+                    return SignalBuilder.create_hold_signal(
+                        strategy_name=self.name,
+                        current_price=current_price,
+                        reason=f"スコア{score:.2f}だが方向不明",
+                        strategy_type=StrategyType.ATR_BASED,
+                    )
+
+            # シグナル生成（スコアを信頼度に反映）
+            decision = self._create_decision_with_score(
+                exhaustion_analysis, direction_analysis, range_check, score
             )
             signal = self._create_signal(decision, current_price, df, multi_timeframe_data)
 
             self.logger.info(
                 f"[ATRレンジ] シグナル生成: {signal.action} "
-                f"(信頼度: {signal.confidence:.3f}, 消尽率: {exhaustion_analysis['ratio']:.1%})"
+                f"(スコア: {score:.2f}, 信頼度: {signal.confidence:.3f}, "
+                f"消尽率: {exhaustion_analysis['ratio']:.1%})"
             )
             return signal
 
@@ -265,13 +289,104 @@ class ATRBasedStrategy(StrategyBase):
                 "reason": "判定エラー",
             }
 
+    def _infer_direction_from_price(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        価格変動から方向を推定（RSIが中間の場合のフォールバック）
+
+        Phase 55.3: RSIが中間でもシグナル生成可能に
+        - 直近の価格変動から方向を推定
+        - 上昇後なら下落反転、下落後なら上昇反転を期待
+        """
+        try:
+            # 直近5本の価格変動を確認
+            closes = df["close"].iloc[-5:].values
+            price_change = (closes[-1] - closes[0]) / closes[0]
+
+            # 閾値（0.3%以上の変動で方向判定）
+            change_threshold = 0.003
+
+            if price_change > change_threshold:
+                # 上昇後 → 下落反転期待
+                return {
+                    "action": EntryAction.SELL,
+                    "rsi": 50.0,
+                    "strength": min(abs(price_change) * 100, 0.5),
+                    "reason": f"価格上昇後({price_change:.2%})→下落反転期待",
+                }
+            elif price_change < -change_threshold:
+                # 下落後 → 上昇反転期待
+                return {
+                    "action": EntryAction.BUY,
+                    "rsi": 50.0,
+                    "strength": min(abs(price_change) * 100, 0.5),
+                    "reason": f"価格下落後({price_change:.2%})→上昇反転期待",
+                }
+            else:
+                return {
+                    "action": EntryAction.HOLD,
+                    "rsi": 50.0,
+                    "strength": 0.0,
+                    "reason": "価格変動不足で方向不明",
+                }
+        except Exception as e:
+            self.logger.error(f"方向推定エラー: {e}")
+            return {
+                "action": EntryAction.HOLD,
+                "rsi": 50.0,
+                "strength": 0.0,
+                "reason": "推定エラー",
+            }
+
+    def _create_decision_with_score(
+        self,
+        exhaustion: Dict[str, Any],
+        direction: Dict[str, Any],
+        range_check: Dict[str, Any],
+        score: float,
+    ) -> Dict[str, Any]:
+        """
+        スコアベースの統合判定を作成（Phase 55.3）
+
+        スコアを信頼度に反映し、より柔軟なシグナル生成を実現
+        """
+        # スコアから信頼度を計算（スコア0.5→信頼度0.35、スコア1.0→信頼度0.65）
+        confidence = 0.35 + (score - 0.5) * 0.6
+
+        # 高消尽時はボーナス
+        if exhaustion.get("is_high_exhaustion"):
+            confidence += 0.05
+
+        # RSI強度で追加調整
+        confidence += direction.get("strength", 0) * 0.10
+
+        # 最小・最大制限
+        confidence = max(self.config["min_confidence"], min(confidence, 0.75))
+
+        # action値を取得
+        action = direction["action"]
+        action_str = action.value if hasattr(action, 'value') else str(action)
+
+        analysis = (
+            f"ATRレンジ消尽: {action_str} "
+            f"(スコア={score:.2f}, 消尽率={exhaustion['ratio']:.1%}, "
+            f"RSI={direction.get('rsi', 50):.1f}, ADX={range_check.get('adx', 0):.1f}, "
+            f"信頼度={confidence:.3f})"
+        )
+
+        return {
+            "action": direction["action"],
+            "confidence": confidence,
+            "strength": direction.get("strength", 0),
+            "analysis": analysis,
+        }
+
     def _create_decision(
         self,
         exhaustion: Dict[str, Any],
         direction: Dict[str, Any],
         range_check: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """統合判定を作成"""
+        """統合判定を作成（後方互換性のため維持）"""
         # 信頼度計算
         if exhaustion["is_high_exhaustion"]:
             base_conf = self.config["high_confidence"]

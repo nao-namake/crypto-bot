@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-バックテストMarkdownレポート生成スクリプト - Phase 52.1
+バックテストMarkdownレポート生成スクリプト
 
-目的: JSON形式のバックテストレポートをPhase 51.10-B形式のMarkdownに変換
+目的: JSON形式のバックテストレポートをMarkdownに変換
 
 使用方法:
-    python scripts/backtest/generate_markdown_report.py <json_report_path> [--phase <phase_name>]
+    python scripts/backtest/generate_markdown_report.py <json_report_path>
 
-出力先: docs/バックテスト記録/Phase_<phase_name>_<YYYYMMDD>.md
+出力先: docs/検証記録/backtest_<YYYYMMDD>.md
 """
 
 import argparse
@@ -23,13 +23,12 @@ def load_json_report(json_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.1") -> str:
+def generate_markdown_report(report_data: Dict[str, Any]) -> str:
     """
-    Phase 51.10-B形式のMarkdownレポート生成
+    Markdownレポート生成
 
     Args:
         report_data: JSONレポートデータ
-        phase_name: Phase名（ファイル名用）
 
     Returns:
         Markdown形式の文字列
@@ -84,17 +83,18 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
 
     # Markdown生成
+    report_date = datetime.now().strftime('%Y/%m/%d')
     lines = [
-        f"# Phase {phase_name} バックテスト記録",
+        f"# バックテスト記録 - {report_date}",
         "",
-        f"**実施日**: {datetime.now().strftime('%Y/%m/%d')}",
+        f"**実施日**: {report_date}",
         "",
         "---",
         "",
         "## 実施目的",
         "",
-        f"Phase {phase_name}実装の効果検証を目的としたバックテスト実行。",
-        "過去180日間のBTC/JPY 15分足データを使用し、本番環境と同一ロジックで検証。",
+        "定期バックテスト実行による戦略パフォーマンス検証。",
+        f"{duration_days}日間のBTC/JPY 15分足データを使用し、本番環境と同一ロジックで検証。",
         "",
         "---",
         "",
@@ -353,18 +353,17 @@ def generate_markdown_report(report_data: Dict[str, Any], phase_name: str = "52.
     return "\n".join(lines)
 
 
-def save_markdown_report(markdown_content: str, phase_name: str, output_dir: Path):
+def save_markdown_report(markdown_content: str, output_dir: Path):
     """
     Markdownレポート保存
 
     Args:
         markdown_content: Markdown内容
-        phase_name: Phase名
         output_dir: 出力ディレクトリ
     """
-    # ファイル名生成: Phase_52.1_20251112.md
+    # ファイル名生成: backtest_20251221.md
     date_str = datetime.now().strftime("%Y%m%d")
-    filename = f"Phase_{phase_name}_{date_str}.md"
+    filename = f"backtest_{date_str}.md"
     filepath = output_dir / filename
 
     # ディレクトリ作成
@@ -381,7 +380,7 @@ def save_markdown_report(markdown_content: str, phase_name: str, output_dir: Pat
 def main():
     """メイン処理"""
     parser = argparse.ArgumentParser(
-        description="バックテストJSONレポートをMarkdownに変換（Phase 52.1）"
+        description="バックテストJSONレポートをMarkdownに変換"
     )
     parser.add_argument(
         "json_path",
@@ -389,16 +388,10 @@ def main():
         help="JSONレポートファイルパス（例: src/backtest/logs/backtest_20251112_120000.json）",
     )
     parser.add_argument(
-        "--phase",
-        type=str,
-        default="52.1",
-        help="Phase名（デフォルト: 52.1）",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
-        default="docs/バックテスト記録",
-        help="出力ディレクトリ（デフォルト: docs/バックテスト記録）",
+        default="docs/検証記録",
+        help="出力ディレクトリ（デフォルト: docs/検証記録）",
     )
 
     args = parser.parse_args()
@@ -416,11 +409,11 @@ def main():
     report_data = load_json_report(json_path)
 
     # Markdown生成
-    print(f"🔧 Markdownレポート生成中（Phase {args.phase}）...")
-    markdown_content = generate_markdown_report(report_data, args.phase)
+    print("🔧 Markdownレポート生成中...")
+    markdown_content = generate_markdown_report(report_data)
 
     # Markdown保存
-    save_markdown_report(markdown_content, args.phase, output_dir)
+    save_markdown_report(markdown_content, output_dir)
 
     return 0
 
