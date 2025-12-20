@@ -1,51 +1,62 @@
-# CLAUDE.md - Phase 54開発ガイド
+# CLAUDE.md - Phase 55開発ガイド
 
-**最終更新**: 2025年12月16日
+**最終更新**: 2025年12月20日
 
 ---
 
-## システム現状（Phase 54開始）
+## システム現状（Phase 55）
 
 ### 概要
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 54（ML性能検証・戦略最適化） |
-| **前Phase** | 53完了（GCP安定化・本番稼働中） |
-| **戦略数** | 6戦略（レンジ型3 + トレンド型3） |
+| **Phase** | 55（戦略最適化・重みづけ調整） |
+| **前Phase** | 54完了（ATRレンジ消尽戦略リファクタリング） |
+| **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
 | **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
 | **MLモデル** | 3モデルアンサンブル（LightGBM 50% / XGBoost 30% / RF 20%） |
 | **分類方式** | 真の3クラス分類（BUY / HOLD / SELL） |
 
-### 最新バックテスト結果（Phase 53.13 - 2025/12/15）
+### Phase 55 成果
 
-| 指標 | 現在値 | 目標値 |
-|------|--------|--------|
-| **PF** | 1.25 | ≥1.34 |
-| **勝率** | 47.9% | ≥51% |
-| **取引数** | 697件 | - |
-| **シャープレシオ** | 7.83 | - |
-| **最大DD** | 0.33% | ≤0.5% |
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| 55.1 | ATRレンジ消尽閾値調整 | 取引数+30%、PF 1.16維持 |
+| 55.2 | StochasticDivergence戦略 | PF 0.77→1.25（+62%）大成功 |
+| 55.2 | タイトレンジ重みづけ最適化 | レンジ型3戦略に集中 |
 
-### Phase 54計画（慎重な段階的実装）
+### 6戦略構成（Phase 55.2更新）
 
-| ステージ | Phase | 内容 | 状態 |
-|----------|-------|------|------|
-| 分析 | 54.0 | ML予測分析（コード変更なし） | ← 現在 |
-| 分析 | 54.1 | 戦略別性能分析（コード変更なし） | 予定 |
-| 実装 | 54.2 | 設定調整（thresholds.yamlのみ） | 予定 |
-| 実装 | 54.3 | コード変更（必要な場合のみ） | 予定 |
-| 検証 | 54.4 | 最終検証 | 予定 |
+| 区分 | 戦略名 | 核心ロジック | 60日PF |
+|------|--------|-------------|--------|
+| **レンジ型** | BBReversal | BB上下限タッチ + RSI極端値 → 平均回帰 | 1.32 |
+| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 | 1.25 |
+| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待 | 1.16 |
+| **レンジ型** | DonchianChannel | チャネル端部反転（赤字・無効化） | 0.85 |
+| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | 1.50 |
+| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | 1.01 |
 
-**詳細計画**: [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md)
+### タイトレンジ重みづけ（Phase 55.2）
 
-### 品質指標
+```yaml
+tight_range:
+  BBReversal: 0.40          # PF 1.32（最高PF・タイトレンジ特化）
+  StochasticReversal: 0.35  # PF 1.25（Divergence戦略・復活！）
+  ATRBased: 0.25            # PF 1.16（消尽率ロジック効果的）
+  ADXTrendStrength: 0.0     # トレンド型・タイトレンジ不向き
+  MACDEMACrossover: 0.0     # ADX>25条件でタイトレンジ不発
+  DonchianChannel: 0.0      # 赤字継続
+```
 
-| 指標 | 値 |
-|------|-----|
-| **テスト** | 全テスト成功 |
-| **カバレッジ** | 64%以上 |
-| **コード品質** | flake8 / black / isort 全てPASS |
+**設計思想**: タイトレンジではレンジ型戦略3つに集中、トレンド型は除外
+
+### レジーム別TP/SL設定
+
+| レジーム | TP | SL | RR比 |
+|---------|-----|-----|------|
+| tight_range | 0.8% | 0.6% | 1.33:1 |
+| normal_range | 1.0% | 0.7% | 1.43:1 |
+| trending | 1.5% | 1.0% | 1.50:1 |
 
 ### 運用仕様
 
@@ -55,25 +66,6 @@
 | **稼働** | 24時間（GCP Cloud Run） |
 | **月額コスト** | 700-900円 |
 | **実行間隔** | 5分 |
-
-### 6戦略構成
-
-| 区分 | 戦略名 | 特性 |
-|------|--------|------|
-| レンジ型 | ATRBased | ATRベース逆張り |
-| レンジ型 | DonchianChannel | チャネルブレイクアウト |
-| レンジ型 | BBReversal | ボリンジャーバンド反転 |
-| トレンド型 | ADXTrendStrength | ADXトレンド強度 |
-| トレンド型 | StochasticReversal | ストキャスティクス反転 |
-| トレンド型 | MACDEMACrossover | MACD・EMAクロス |
-
-### レジーム別TP/SL設定
-
-| レジーム | TP | SL | RR比 |
-|---------|-----|-----|------|
-| tight_range | 0.8% | 0.6% | 1.33:1 |
-| normal_range | 1.0% | 0.7% | 1.43:1 |
-| trending | 1.5% | 1.0% | 1.50:1 |
 
 ---
 
@@ -132,6 +124,13 @@ bash scripts/backtest/run_backtest.sh
 python3 main.py --mode backtest
 ```
 
+### 戦略分析
+
+```bash
+# 戦略個別パフォーマンス分析（60日）
+python3 scripts/analysis/strategy_performance_analysis.py
+```
+
 ---
 
 ## アーキテクチャ概要
@@ -178,6 +177,8 @@ ML予測（ensemble_full.pkl → 信頼度）
     ↓
 レジーム判定（tight_range / normal_range / trending）
     ↓
+動的戦略選択（レジーム別重みづけ適用）
+    ↓
 リスク評価（Kelly基準・ポジション制限）
     ↓
 取引判断（レジーム別TP/SL適用）
@@ -195,7 +196,20 @@ ML予測（ensemble_full.pkl → 信頼度）
 |---------|------|
 | `config/core/features.yaml` | 機能トグル設定 |
 | `config/core/unified.yaml` | 基本設定（残高・実行間隔等） |
-| `config/core/thresholds.yaml` | 動的値（ML閾値・リスク設定・レジーム別TP/SL） |
+| `config/core/thresholds.yaml` | 動的値（ML閾値・リスク設定・レジーム別重み・TP/SL） |
+
+### 動的戦略選択
+
+```yaml
+# thresholds.yaml
+dynamic_strategy_selection:
+  enabled: true
+  regime_strategy_mapping:
+    tight_range:    # レンジ型3戦略に集中
+    normal_range:   # バランス型配分
+    trending:       # トレンド型優先
+    high_volatility: # 全戦略無効化
+```
 
 ### 設定参照パターン
 
@@ -263,46 +277,24 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 |---------|------|
 | [統合運用ガイド.md](docs/運用ガイド/統合運用ガイド.md) | デプロイ・日常運用・緊急対応 |
 | [GCP運用ガイド.md](docs/運用ガイド/GCP運用ガイド.md) | IAM権限・リソースクリーンアップ |
-| [システム機能一覧.md](docs/運用ガイド/システム機能一覧.md) | 実装機能リファレンス（577行） |
-| [システム要件定義.md](docs/運用ガイド/システム要件定義.md) | 判断基準・制約定義（354行） |
+| [システム機能一覧.md](docs/運用ガイド/システム機能一覧.md) | 実装機能リファレンス |
+| [システム要件定義.md](docs/運用ガイド/システム要件定義.md) | 判断基準・制約定義 |
 | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
 
-### docs/開発履歴/（19ファイル）
+### docs/開発履歴/
 
 | ファイル | 内容 |
 |---------|------|
 | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-53サマリー） |
-| Phase_01-10.md | 基盤構築期 |
-| Phase_11-20.md | システム統合期 |
-| Phase_21-30.md | 運用最適化期 |
-| Phase_31-37.md | 収益最適化期 |
-| Phase_38-39.md | 品質強化期 |
-| Phase_40-46.md | 最適化・デイトレード特化期 |
-| Phase_47-48.md | 付加機能期 |
-| Phase_49.md | SELL Only問題解決 |
-| Phase_50.md | 基盤強化・シンプル化期 |
-| Phase_51.*.md | レンジ型最適化・3クラス分類期（6ファイル） |
-| Phase_52.md | レジーム別TP/SL・自動化期 |
-| Phase_53.md | GCP安定化・本番稼働期 |
-
-### docs/検証記録/
-
-| ファイル | 内容 |
-|---------|------|
-| Phase_51.10-B_20251111.md | Phase 51.10-B検証結果 |
-| Phase_52.1_20251115.md | PF 1.34・勝率51.4%（ベースライン） |
-| Phase_52.1_20251213.md | Phase 52.1再検証 |
-| Phase_52.1_20251214.md | Phase 52.1再検証（最新） |
-| Phase_52.2_20251213.md | ベースライン（PF 1.22） |
-| Phase_53.2_20251213.md | Phase 53.2検証 |
-| Phase_53.13_verification_20251214.md | Phase 53.13検証（PF 1.25） |
+| Phase_54.md | ATRレンジ消尽戦略リファクタリング |
+| **Phase_55.md** | **戦略最適化・重みづけ調整（現在）** |
 
 ### docs/開発計画/
 
 | ファイル | 内容 |
 |---------|------|
-| [ToDo.md](docs/開発計画/ToDo.md) | **Phase 54計画**（慎重な段階的実装） |
+| [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |
 
 ---
 
@@ -345,7 +337,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ## 開発開始前チェックリスト
 
-1. **最新状況把握**: Phase 54開始・ToDo.md確認
+1. **最新状況把握**: Phase 55・Phase_55.md確認
 2. **品質チェック**: `bash scripts/testing/checks.sh`実行
 3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
 4. **GCP確認**: サービス稼働状況・最新リビジョン
@@ -353,4 +345,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2025年12月16日 - **Phase 54開始**（ML性能検証・戦略最適化・慎重な段階的実装）
+**📅 最終更新**: 2025年12月20日 - **Phase 55.2完了**（StochasticDivergence PF 1.25・タイトレンジ重みづけ最適化）
