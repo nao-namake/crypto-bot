@@ -459,7 +459,7 @@ class TestKellyCriterionAdvanced:
         size = self.kelly.calculate_optimal_size(ml_confidence=1.0, strategy_name="test")
 
         # max_order_size制限が適用される
-        assert size <= 0.02  # デフォルトのmax_order_size
+        assert size <= 0.03  # Phase 55.2: 0.02→0.03（10万円証拠金対応）
 
     def test_dynamic_position_sizing_scale_limits(self):
         """ダイナミックサイジングスケール制限テスト."""
