@@ -38,15 +38,15 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 54.10: PF > 1.0戦略に重み集中
-        assert weights["BBReversal"] == 0.40  # PF 1.92（最強）
-        assert weights["MACDEMACrossover"] == 0.30  # PF 1.50（復活）
-        assert weights["ADXTrendStrength"] == 0.20  # PF 1.04（強化）
-        assert weights["StochasticReversal"] == 0.10  # 再評価中
+        # Phase 55.2: レンジ型3戦略に集中・トレンド型除外
+        assert weights["BBReversal"] == 0.40  # PF 1.32（最高PF・タイトレンジ特化）
+        assert weights["StochasticReversal"] == 0.35  # PF 1.25（Divergence化・復活）
+        assert weights["ATRBased"] == 0.25  # PF 1.16（消尽率ロジック効果的）
 
-        # Phase 54.10: PF < 1.0戦略は無効化
-        assert weights["ATRBased"] == 0.0  # PF 0.86（無効化）
-        assert weights["DonchianChannel"] == 0.0  # PF 0.91（無効化）
+        # Phase 55.2: トレンド型・赤字戦略は無効化
+        assert weights["ADXTrendStrength"] == 0.0  # トレンド型・タイトレンジ不向き
+        assert weights["MACDEMACrossover"] == 0.0  # ADX>25条件でタイトレンジ不発
+        assert weights["DonchianChannel"] == 0.0  # PF 0.85（赤字維持）
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)

@@ -34,9 +34,12 @@ execution:
 # ========================================
 # 本番運用設定（Production Settings）
 # ========================================
-# Phase 55.2: Kelly基準がget_threshold()で参照するため追加
+# Phase 55.2: ポジションサイズ設定の一元管理
+# - Kelly基準・ExecutionService等がget_threshold()で参照
+# - unified.yamlから移動（設定重複解消）
+# ========================================
 production:
-  min_order_size: 0.0001  # Bitbank最小取引単位
+  min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
   max_order_size: 0.03    # 10万円証拠金×レバ3倍対応（約50万円相当）
 
 # ========================================

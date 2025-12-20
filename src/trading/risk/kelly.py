@@ -284,22 +284,18 @@ class KellyCriterion:
             )
 
             if kelly_result is None:
-                # Silent failure修正: Kelly履歴不足時は固定で最小取引単位使用
-                # 最初の5取引は最小ロット（0.0001 BTC）で確実に取引実行
-                min_trade_size = get_threshold("trading.min_trade_size", 0.0001)  # Bitbank最小単位
+                # Phase 55.3: Kelly履歴不足時は合理的な初期値を使用
+                # 問題: min_trade_size(0.0001 BTC)を使うとmin()で採用され、ポジションが極小化
+                # 解決: initial_position_size(0.01 BTC)を使用し、動的サイジングがボトルネックになるように
                 trade_history_count = len(self.trade_history)
 
                 if trade_history_count < self.min_trades_for_kelly:
-                    # 最初の5取引は固定サイズ（Kelly適用前）
-                    fixed_initial_size = min_trade_size
+                    # Phase 55.3: 履歴不足時は合理的な初期値（0.01 BTC）を使用
+                    fixed_initial_size = get_threshold("trading.initial_position_size", 0.01)
 
                     # max_order_size制限チェック
-                    max_order_size = get_threshold("production.max_order_size", 0.02)
-                    if fixed_initial_size > max_order_size:
-                        fixed_initial_size = max_order_size
-                        self.logger.warning(
-                            f"初期固定サイズをmax_order_size制限: {fixed_initial_size:.6f} BTC"
-                        )
+                    max_order_size = get_threshold("production.max_order_size", 0.03)
+                    fixed_initial_size = min(fixed_initial_size, max_order_size)
 
                     self.logger.info(
                         f"Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
