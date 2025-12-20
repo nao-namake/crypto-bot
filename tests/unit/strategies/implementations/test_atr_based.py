@@ -1,14 +1,15 @@
 """
-ATRベース戦略のテスト
+ATRレンジ消尽戦略のテスト
 
-リファクタリング後の逆張り戦略が正しく動作することを確認。
-ボラティリティベースの判定ロジックを検証。.
+Phase 54.12: 完全リファクタリング
+
+核心思想:
+「今日の価格変動がATRの大部分を消費した → これ以上動かない → 反転を狙う」
 """
 
 import os
 import sys
 import unittest
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,7 @@ def init_config():
 
         config_manager._config = {
             "trading": {"mode": "paper"},
-            "features": {"selected": ["close", "rsi_14", "atr_14"]},
+            "features": {"selected": ["close", "high", "low", "rsi_14", "atr_14", "adx_14"]},
             "strategies": {"default_config": {}},
             "ml": {"models": {}},
             "data": {"timeframes": ["15m", "1h", "4h"]},
@@ -42,414 +43,319 @@ def init_config():
 
 
 class TestATRBasedStrategy(unittest.TestCase):
-    """ATRベース戦略テストクラス."""
+    """ATRレンジ消尽戦略テストクラス"""
 
     def setUp(self):
-        """テスト前準備."""
-        # テスト用データ作成（横ばい相場）
+        """テスト前準備"""
         dates = pd.date_range(start="2025-08-01", periods=100, freq="1h")
-
-        # 横ばい相場のテストデータ（逆張り向き）
         base_price = 10000000
-        prices = base_price + np.sin(np.linspace(0, 4 * np.pi, 100)) * 500000  # ±50万円の振動
 
+        # レンジ相場のテストデータ
         self.test_df = pd.DataFrame(
             {
                 "timestamp": dates,
-                "close": prices,
+                "close": np.full(100, base_price),
+                "high": np.full(100, base_price + 300000),  # +30万
+                "low": np.full(100, base_price - 300000),   # -30万
+                "atr_14": np.full(100, 500000),             # ATR 50万円
+                "adx_14": np.full(100, 20),                 # レンジ相場（ADX < 25）
+                "rsi_14": np.full(100, 50),                 # 中立
                 "volume": np.random.uniform(100, 200, 100),
-                "atr_14": np.full(100, 500000),  # ATR 50万円
-                "bb_position": np.linspace(0.1, 0.9, 100),  # BBポジション変動
-                "rsi_14": np.linspace(25, 75, 100),  # RSI変動
-                "market_stress": np.full(100, 0.3),  # 低ストレス
             }
         )
 
-        # 戦略インスタンス
         self.strategy = ATRBasedStrategy()
 
     def test_strategy_initialization(self):
-        """戦略初期化テスト."""
-        # デフォルト設定確認（Phase 54.10: HOLD率削減のため緩和後の値）
+        """戦略初期化テスト"""
         self.assertEqual(self.strategy.name, "ATRBased")
-        self.assertEqual(self.strategy.config["bb_overbought"], 0.80)  # Phase 54.10: 0.85→0.80
-        self.assertEqual(self.strategy.config["bb_oversold"], 0.20)  # Phase 54.10: 0.15→0.20
-        self.assertEqual(self.strategy.config["min_confidence"], 0.28)  # Phase 54.10: 0.32→0.28
-        self.assertEqual(self.strategy.config["position_size_base"], 0.015)  # 逆張りなので控えめ
+        # Phase 55.1: 閾値はthresholds.yamlから読み込まれる
+        # 値の存在確認のみ行う（具体的な値はyaml設定に依存）
+        self.assertIn("exhaustion_threshold", self.strategy.config)
+        self.assertIn("high_exhaustion_threshold", self.strategy.config)
+        self.assertIn("adx_range_threshold", self.strategy.config)
+        self.assertIn("rsi_upper", self.strategy.config)
+        self.assertIn("rsi_lower", self.strategy.config)
 
-    def test_analyze_bb_position_overbought(self):
-        """ボリンジャーバンド位置分析 - 過買いテスト."""
-        overbought_df = self.test_df.copy()
-        overbought_df["bb_position"] = 0.90  # 過買い領域（Phase 54.2: 閾値0.85超）
+    def test_calculate_exhaustion_ratio_low(self):
+        """消尽率計算テスト - 低消尽"""
+        # 値幅 = 60万（30万 - (-30万)）、ATR = 50万 → 消尽率 = 1.2（120%）
+        result = self.strategy._calculate_exhaustion_ratio(self.test_df)
 
-        result = self.strategy._analyze_bb_position(overbought_df)
+        self.assertGreater(result["ratio"], 0)
+        self.assertEqual(result["daily_range"], 600000)  # 60万
+        self.assertEqual(result["atr_14"], 500000)       # 50万
 
-        self.assertEqual(result["signal"], -1)  # 売りシグナル（逆張り）
-        self.assertGreater(result["strength"], 0)
-        self.assertGreater(result["confidence"], 0)
+    def test_calculate_exhaustion_ratio_exhausted(self):
+        """消尽率計算テスト - 消尽"""
+        # 消尽率 80%のデータ
+        exhausted_df = self.test_df.copy()
+        exhausted_df["high"] = 10200000   # +20万
+        exhausted_df["low"] = 9800000     # -20万
+        # 値幅 = 40万、ATR = 50万 → 消尽率 = 0.8（80%）
 
-    def test_analyze_bb_position_oversold(self):
-        """ボリンジャーバンド位置分析 - 過売りテスト."""
-        oversold_df = self.test_df.copy()
-        oversold_df["bb_position"] = 0.10  # 過売り領域（Phase 54.2: 閾値0.15未満）
+        result = self.strategy._calculate_exhaustion_ratio(exhausted_df)
 
-        result = self.strategy._analyze_bb_position(oversold_df)
+        self.assertAlmostEqual(result["ratio"], 0.8, places=1)
+        self.assertTrue(result["is_exhausted"])
 
-        self.assertEqual(result["signal"], 1)  # 買いシグナル（逆張り）
-        self.assertGreater(result["strength"], 0)
-        self.assertGreater(result["confidence"], 0)
+    def test_calculate_exhaustion_ratio_high_exhaustion(self):
+        """消尽率計算テスト - 高消尽"""
+        # 消尽率 90%のデータ
+        high_exhausted_df = self.test_df.copy()
+        high_exhausted_df["high"] = 10225000   # +22.5万
+        high_exhausted_df["low"] = 9775000     # -22.5万
+        # 値幅 = 45万、ATR = 50万 → 消尽率 = 0.9（90%）
 
-    def test_analyze_bb_position_neutral(self):
-        """ボリンジャーバンド位置分析 - 中立テスト."""
+        result = self.strategy._calculate_exhaustion_ratio(high_exhausted_df)
+
+        self.assertAlmostEqual(result["ratio"], 0.9, places=1)
+        self.assertTrue(result["is_exhausted"])
+        self.assertTrue(result["is_high_exhaustion"])
+
+    def test_check_range_market_range(self):
+        """レンジ相場判定テスト - レンジ"""
+        result = self.strategy._check_range_market(self.test_df)
+
+        self.assertTrue(result["is_range"])
+        self.assertEqual(result["adx"], 20)
+        self.assertIn("レンジ相場", result["reason"])
+
+    def test_check_range_market_trend(self):
+        """レンジ相場判定テスト - トレンド"""
+        trend_df = self.test_df.copy()
+        trend_df["adx_14"] = 35  # トレンド相場
+
+        result = self.strategy._check_range_market(trend_df)
+
+        self.assertFalse(result["is_range"])
+        self.assertIn("トレンド相場", result["reason"])
+
+    def test_check_range_market_no_adx(self):
+        """レンジ相場判定テスト - ADXなし"""
+        no_adx_df = self.test_df.drop(columns=["adx_14"])
+
+        result = self.strategy._check_range_market(no_adx_df)
+
+        self.assertTrue(result["is_range"])  # デフォルトでレンジと仮定
+
+    def test_determine_reversal_direction_sell(self):
+        """反転方向判定テスト - SELL"""
+        sell_df = self.test_df.copy()
+        sell_df["rsi_14"] = 70  # RSI > 60
+
+        result = self.strategy._determine_reversal_direction(sell_df)
+
+        self.assertEqual(result["action"], EntryAction.SELL)
+        self.assertIn("下への反転期待", result["reason"])
+
+    def test_determine_reversal_direction_buy(self):
+        """反転方向判定テスト - BUY"""
+        buy_df = self.test_df.copy()
+        buy_df["rsi_14"] = 30  # RSI < 40
+
+        result = self.strategy._determine_reversal_direction(buy_df)
+
+        self.assertEqual(result["action"], EntryAction.BUY)
+        self.assertIn("上への反転期待", result["reason"])
+
+    def test_determine_reversal_direction_hold(self):
+        """反転方向判定テスト - HOLD"""
+        hold_df = self.test_df.copy()
+        hold_df["rsi_14"] = 50  # 40 < RSI < 60
+
+        result = self.strategy._determine_reversal_direction(hold_df)
+
+        self.assertEqual(result["action"], EntryAction.HOLD)
+        self.assertIn("方向不明", result["reason"])
+
+    def test_analyze_full_buy_signal(self):
+        """統合分析テスト - BUYシグナル"""
+        # 条件: レンジ相場 + 消尽 + RSI低い → BUY
+        buy_df = self.test_df.copy()
+        buy_df["adx_14"] = 20       # レンジ相場
+        buy_df["high"] = 10225000   # 消尽率 90%
+        buy_df["low"] = 9775000
+        buy_df["rsi_14"] = 30       # RSI低い → BUY方向
+
+        signal = self.strategy.analyze(buy_df)
+
+        self.assertEqual(signal.action, EntryAction.BUY)
+        self.assertGreater(signal.confidence, 0.35)
+
+    def test_analyze_full_sell_signal(self):
+        """統合分析テスト - SELLシグナル"""
+        # 条件: レンジ相場 + 消尽 + RSI高い → SELL
+        sell_df = self.test_df.copy()
+        sell_df["adx_14"] = 20       # レンジ相場
+        sell_df["high"] = 10225000   # 消尽率 90%
+        sell_df["low"] = 9775000
+        sell_df["rsi_14"] = 70       # RSI高い → SELL方向
+
+        signal = self.strategy.analyze(sell_df)
+
+        self.assertEqual(signal.action, EntryAction.SELL)
+        self.assertGreater(signal.confidence, 0.35)
+
+    def test_analyze_hold_trend_market(self):
+        """統合分析テスト - トレンド相場でHOLD"""
+        trend_df = self.test_df.copy()
+        trend_df["adx_14"] = 35  # トレンド相場
+
+        signal = self.strategy.analyze(trend_df)
+
+        self.assertEqual(signal.action, EntryAction.HOLD)
+
+    def test_analyze_hold_not_exhausted(self):
+        """統合分析テスト - 未消尽でHOLD"""
+        not_exhausted_df = self.test_df.copy()
+        not_exhausted_df["high"] = 10100000   # 消尽率 40%
+        not_exhausted_df["low"] = 9900000
+
+        signal = self.strategy.analyze(not_exhausted_df)
+
+        self.assertEqual(signal.action, EntryAction.HOLD)
+
+    def test_analyze_hold_neutral_rsi(self):
+        """統合分析テスト - RSI中立でHOLD"""
         neutral_df = self.test_df.copy()
-        neutral_df["bb_position"] = 0.5  # 中立領域
+        neutral_df["adx_14"] = 20        # レンジ相場
+        neutral_df["high"] = 10225000    # 消尽率 90%
+        neutral_df["low"] = 9775000
+        neutral_df["rsi_14"] = 50        # RSI中立
 
-        result = self.strategy._analyze_bb_position(neutral_df)
+        signal = self.strategy.analyze(neutral_df)
 
-        self.assertEqual(result["signal"], 0)  # ニュートラル
-        self.assertEqual(result["strength"], 0.0)
-        self.assertEqual(result["confidence"], 0.0)
-
-    def test_analyze_rsi_momentum_overbought(self):
-        """RSIモメンタム分析 - 過買いテスト."""
-        overbought_df = self.test_df.copy()
-        overbought_df["rsi_14"] = 75  # 過買い
-
-        result = self.strategy._analyze_rsi_momentum(overbought_df)
-
-        self.assertEqual(result["signal"], -1)  # 売りシグナル（逆張り）
-        self.assertGreater(result["confidence"], 0)
-
-    def test_analyze_rsi_momentum_oversold(self):
-        """RSIモメンタム分析 - 過売りテスト."""
-        oversold_df = self.test_df.copy()
-        oversold_df["rsi_14"] = 25  # 過売り
-
-        result = self.strategy._analyze_rsi_momentum(oversold_df)
-
-        self.assertEqual(result["signal"], 1)  # 買いシグナル（逆張り）
-        self.assertGreater(result["confidence"], 0)
-
-    def test_analyze_atr_volatility(self):
-        """ATRボラティリティ分析テスト."""
-        result = self.strategy._analyze_atr_volatility(self.test_df)
-
-        # 結果の妥当性確認
-        self.assertIn(result["regime"], ["low", "normal", "high"])
-        self.assertGreaterEqual(result["strength"], 0.0)
-        self.assertGreater(result["atr_ratio"], 0)
-        self.assertIsNotNone(result["volatility_multiplier"])
-
-    def test_analyze_market_stress_high(self):
-        """市場ストレス分析 - 高ストレステスト."""
-        high_stress_df = self.test_df.copy()
-        high_stress_df["market_stress"] = 0.8  # 高ストレス
-
-        result = self.strategy._analyze_market_stress(high_stress_df)
-
-        self.assertEqual(result["state"], "high")
-        self.assertFalse(result["filter_ok"])  # 取引回避
-
-    def test_analyze_market_stress_normal(self):
-        """市場ストレス分析 - 通常テスト."""
-        result = self.strategy._analyze_market_stress(self.test_df)
-
-        self.assertEqual(result["state"], "normal")
-        self.assertTrue(result["filter_ok"])  # 取引可能
-
-    def test_make_decision_both_signals(self):
-        """統合判定 - 両シグナル一致テスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.8}
-        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6, "rsi": 75.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
-        self.assertTrue(0.0 <= decision["confidence"] <= 1.0)
-
-    def test_make_decision_conflict(self):
-        """統合判定 - シグナル不一致テスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.8}
-        rsi_analysis = {"signal": -1, "confidence": 0.5, "strength": 0.6, "rsi": 25.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 攻撃的設定：不一致時はより強いシグナル（BB confidence=0.6 > RSI confidence=0.5）を採用
-        # 実装では動的信頼度計算により、必ずしもBUYにならない場合がある
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
-        # メッセージは「シグナル不一致」から「より強いシグナル」系のメッセージに変更
-
-    def test_make_decision_high_stress_filter(self):
-        """統合判定 - 高ストレスフィルターテスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7}
-        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": False}  # 高ストレス
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertIn("市場ストレス高", decision["analysis"])
-
-    def test_analyze_full_integration(self):
-        """統合分析テスト."""
-        signal = self.strategy.analyze(self.test_df)
-
-        # 基本的なプロパティ確認
-        self.assertEqual(signal.strategy_name, "ATRBased")
-        self.assertIn(signal.action, [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
-        self.assertGreaterEqual(signal.confidence, 0.0)
-        self.assertLessEqual(signal.confidence, 1.0)
-
-        # リスク管理が適切に計算されているか
-        if signal.action in [EntryAction.BUY, EntryAction.SELL]:
-            self.assertIsNotNone(signal.stop_loss)
-            self.assertIsNotNone(signal.take_profit)
-            self.assertIsNotNone(signal.position_size)
+        self.assertEqual(signal.action, EntryAction.HOLD)
 
     def test_get_required_features(self):
-        """必要特徴量リスト取得テスト."""
+        """必要特徴量リスト取得テスト"""
         features = self.strategy.get_required_features()
 
-        # 必須特徴量が含まれていることを確認（Phase 19: market_stress削除）
-        required = ["close", "atr_14", "bb_position", "rsi_14"]
+        required = ["close", "high", "low", "atr_14", "adx_14", "rsi_14"]
         for feature in required:
             self.assertIn(feature, features)
 
-        # 特徴量数が適切（最小限）
-        self.assertLessEqual(len(features), 10)
+        self.assertEqual(len(features), 6)
 
-    def test_high_volatility_bonus(self):
-        """高ボラティリティボーナステスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.7, "bb_position": 0.8}
-        rsi_analysis = {"signal": 1, "confidence": 0.4, "strength": 0.6, "rsi": 75.0}
-        atr_analysis = {"regime": "high", "strength": 0.8}  # 高ボラティリティ
-        stress_analysis = {"filter_ok": True}
+    def test_create_decision_high_exhaustion(self):
+        """統合判定テスト - 高消尽"""
+        exhaustion = {
+            "ratio": 0.90,
+            "is_exhausted": True,
+            "is_high_exhaustion": True,
+            "reason": "高消尽",
+        }
+        direction = {
+            "action": EntryAction.BUY,
+            "rsi": 30,
+            "strength": 0.5,
+            "reason": "BUY方向",
+        }
+        range_check = {"is_range": True, "adx": 20, "reason": "レンジ"}
 
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
+        decision = self.strategy._create_decision(exhaustion, direction, range_check)
 
-        # 実装に合わせた動的信頼度の検証
-        # 動的計算により期待値よりも低くなる可能性があることを考慮
-        self.assertTrue(0.0 <= decision["confidence"] <= 1.0, "信頼度が範囲内であることを確認")
-        self.assertIn("action", decision)
-        self.assertIn("strength", decision)
+        self.assertEqual(decision["action"], EntryAction.BUY)
+        self.assertGreaterEqual(decision["confidence"], 0.60)  # 高信頼度
 
-    def test_bb_analysis_error_handling(self):
-        """BB位置分析エラーハンドリングテスト."""
-        error_df = self.test_df.copy()
-        error_df["bb_position"] = "invalid"  # 不正データ
+    def test_create_decision_normal_exhaustion(self):
+        """統合判定テスト - 通常消尽"""
+        exhaustion = {
+            "ratio": 0.75,
+            "is_exhausted": True,
+            "is_high_exhaustion": False,
+            "reason": "消尽",
+        }
+        direction = {
+            "action": EntryAction.SELL,
+            "rsi": 70,
+            "strength": 0.5,
+            "reason": "SELL方向",
+        }
+        range_check = {"is_range": True, "adx": 20, "reason": "レンジ"}
 
-        result = self.strategy._analyze_bb_position(error_df)
+        decision = self.strategy._create_decision(exhaustion, direction, range_check)
 
-        self.assertEqual(result["signal"], 0)
-        self.assertEqual(result["strength"], 0.0)
-        self.assertEqual(result["confidence"], 0.0)
-        self.assertIn("エラー", result["analysis"])
-
-    def test_rsi_analysis_error_handling(self):
-        """RSI分析エラーハンドリングテスト."""
-        error_df = self.test_df.copy()
-        error_df["rsi_14"] = None  # 不正データ
-
-        result = self.strategy._analyze_rsi_momentum(error_df)
-
-        self.assertEqual(result["signal"], 0)
-        self.assertEqual(result["strength"], 0.0)
-        self.assertEqual(result["confidence"], 0.0)
-        self.assertIn("エラー", result["analysis"])
-
-    def test_atr_volatility_short_data(self):
-        """ATRボラティリティ分析 - 短期データテスト."""
-        short_df = self.test_df.iloc[:10].copy()  # 20期間未満
-        result = self.strategy._analyze_atr_volatility(short_df)
-
-        self.assertIn(result["regime"], ["low", "normal", "high"])
-        self.assertEqual(result["volatility_multiplier"], 1.0)  # デフォルト値
-
-    def test_atr_volatility_error_handling(self):
-        """ATRボラティリティ分析エラーハンドリングテスト."""
-        error_df = self.test_df.copy()
-        error_df["atr_14"] = None
-
-        result = self.strategy._analyze_atr_volatility(error_df)
-
-        self.assertEqual(result["regime"], "normal")
-        self.assertEqual(result["strength"], 0.0)
-        self.assertIn("エラー", result["analysis"])
-
-    def test_calculate_market_uncertainty(self):
-        """市場不確実性計算テスト."""
-        uncertainty = self.strategy._calculate_market_uncertainty(self.test_df)
-
-        # 0-0.1の範囲内であることを確認
-        self.assertGreaterEqual(uncertainty, 0.0)
-        self.assertLessEqual(uncertainty, 0.1)
-
-    def test_calculate_market_uncertainty_error(self):
-        """市場不確実性計算エラーハンドリングテスト."""
-        error_df = self.test_df.copy()
-        error_df["close"] = None
-
-        uncertainty = self.strategy._calculate_market_uncertainty(error_df)
-
-        # デフォルト値が返されることを確認
-        self.assertEqual(uncertainty, 0.02)
-
-    def test_make_decision_bb_only(self):
-        """統合判定 - BBシグナルのみテスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.6, "strength": 0.7, "bb_position": 0.15}
-        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # BB単独シグナルが処理されることを確認
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.HOLD])
-        self.assertGreaterEqual(decision["confidence"], 0.0)
-
-    def test_make_decision_rsi_only(self):
-        """統合判定 - RSIシグナルのみテスト."""
-        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.5}
-        rsi_analysis = {"signal": -1, "confidence": 0.5, "strength": 0.6, "rsi": 70.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # RSI単独シグナルが処理されることを確認
-        self.assertIn(decision["action"], [EntryAction.SELL, EntryAction.HOLD])
-        self.assertGreaterEqual(decision["confidence"], 0.0)
-
-    def test_make_decision_weak_neutral_signal(self):
-        """統合判定 - 微弱中立シグナルテスト."""
-        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.5}
-        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 中立状態でHOLDになることを確認
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-
-    def test_make_decision_large_deviation(self):
-        """統合判定 - 大きな乖離による微弱シグナルテスト."""
-        bb_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "bb_position": 0.2}
-        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 35.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 大きな乖離で微弱シグナルが生成されることを確認
-        self.assertIn(decision["action"], [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
-
-    def test_make_decision_low_volatility_penalty(self):
-        """統合判定 - 低ボラティリティペナルティテスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.7, "bb_position": 0.8}
-        rsi_analysis = {"signal": 1, "confidence": 0.4, "strength": 0.6, "rsi": 75.0}
-        atr_analysis = {"regime": "low", "strength": 0.1}  # 低ボラティリティ
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 低ボラティリティペナルティが適用されることを確認
-        self.assertGreaterEqual(decision["confidence"], 0.0)
-
-    def test_make_decision_below_min_confidence(self):
-        """統合判定 - 最小信頼度未満テスト."""
-        bb_analysis = {"signal": 1, "confidence": 0.1, "strength": 0.2, "bb_position": 0.8}
-        rsi_analysis = {"signal": 0, "confidence": 0.0, "strength": 0.0, "rsi": 50.0}
-        atr_analysis = {"regime": "low", "strength": 0.1}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # 最小信頼度未満でHOLDになることを確認
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertGreaterEqual(decision["confidence"], 0.0)
-
-    def test_make_decision_error_handling(self):
-        """統合判定エラーハンドリングテスト."""
-        # 不正な分析結果
-        bb_analysis = None
-        rsi_analysis = {"signal": 1, "confidence": 0.5, "strength": 0.6, "rsi": 75.0}
-        atr_analysis = {"regime": "normal", "strength": 0.5}
-        stress_analysis = {"filter_ok": True}
-
-        decision = self.strategy._make_decision(
-            bb_analysis, rsi_analysis, atr_analysis, stress_analysis
-        )
-
-        # エラー時はHOLDが返されることを確認
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertIn("エラー", decision["analysis"])
-
-    def test_create_hold_decision(self):
-        """ホールド決定作成テスト."""
-        decision = self.strategy._create_hold_decision("テスト理由")
-
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertGreater(decision["confidence"], 0.0)
-        self.assertEqual(decision["strength"], 0.0)
-        self.assertIn("テスト理由", decision["analysis"])
+        self.assertEqual(decision["action"], EntryAction.SELL)
+        self.assertGreaterEqual(decision["confidence"], 0.40)  # 基本信頼度
+        self.assertLess(decision["confidence"], 0.60)
 
     def test_analyze_with_multi_timeframe_data(self):
-        """マルチタイムフレームデータを使用した分析テスト."""
-        # 15分足データ作成
+        """マルチタイムフレームデータを使用した分析テスト"""
         multi_tf_data = {
             "15m": pd.DataFrame(
                 {
                     "close": [10500000],
-                    "atr_14": [300000],  # 15分足のATR
+                    "atr_14": [300000],
                 }
             )
         }
 
-        signal = self.strategy.analyze(self.test_df, multi_timeframe_data=multi_tf_data)
+        # BUYシグナル条件
+        buy_df = self.test_df.copy()
+        buy_df["adx_14"] = 20
+        buy_df["high"] = 10225000
+        buy_df["low"] = 9775000
+        buy_df["rsi_14"] = 30
 
-        # シグナルが正常に生成されることを確認
+        signal = self.strategy.analyze(buy_df, multi_timeframe_data=multi_tf_data)
+
         self.assertIsNotNone(signal)
-        self.assertIn(signal.action, [EntryAction.BUY, EntryAction.SELL, EntryAction.HOLD])
+        self.assertEqual(signal.action, EntryAction.BUY)
+
+    def test_calculate_exhaustion_ratio_error_handling(self):
+        """消尽率計算エラーハンドリングテスト"""
+        error_df = self.test_df.copy()
+        error_df["atr_14"] = None
+
+        result = self.strategy._calculate_exhaustion_ratio(error_df)
+
+        self.assertEqual(result["ratio"], 0.0)
+        self.assertFalse(result["is_exhausted"])
+        self.assertIn("計算エラー", result["reason"])
+
+    def test_determine_reversal_direction_error_handling(self):
+        """反転方向判定エラーハンドリングテスト"""
+        error_df = self.test_df.copy()
+        error_df["rsi_14"] = None
+
+        result = self.strategy._determine_reversal_direction(error_df)
+
+        self.assertEqual(result["action"], EntryAction.HOLD)
+        self.assertIn("判定エラー", result["reason"])
+
+    def test_confidence_max_limit(self):
+        """信頼度上限テスト"""
+        exhaustion = {
+            "ratio": 0.95,
+            "is_exhausted": True,
+            "is_high_exhaustion": True,
+            "reason": "高消尽",
+        }
+        direction = {
+            "action": EntryAction.BUY,
+            "rsi": 20,  # 非常に強いシグナル
+            "strength": 1.0,
+            "reason": "BUY方向",
+        }
+        range_check = {"is_range": True, "adx": 15, "reason": "レンジ"}
+
+        decision = self.strategy._create_decision(exhaustion, direction, range_check)
+
+        self.assertLessEqual(decision["confidence"], 0.75)  # 上限0.75
 
 
 def run_atr_based_tests():
-    """ATRベース戦略テスト実行関数."""
+    """ATRレンジ消尽戦略テスト実行関数"""
     print("=" * 50)
-    print("ATRベース戦略 テスト開始")
+    print("ATRレンジ消尽戦略 テスト開始")
     print("=" * 50)
 
-    # テスト実行
     unittest.main(verbosity=2, exit=False)
 
     print("\n" + "=" * 50)
-    print("ATRベース戦略 テスト完了")
+    print("ATRレンジ消尽戦略 テスト完了")
     print("=" * 50)
 
 

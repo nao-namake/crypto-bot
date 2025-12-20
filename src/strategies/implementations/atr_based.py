@@ -1,16 +1,20 @@
 """
-ATRベース戦略実装 - シンプル逆張り戦略
+ATRレンジ消尽戦略実装
 
-ATRとボリンジャーバンドを使用したシンプルな逆張り戦略。
-過度な価格変動時の平均回帰を狙う。
+Phase 54.12: 完全リファクタリング
+
+核心思想:
+「今日の価格変動がATRの大部分を消費した → これ以上動かない → 反転を狙う」
+
+BBReversalとの違い:
+- BBReversal: 価格位置（バンド端）で判断 → 「価格が極端な位置にいる」
+- ATRレンジ: 変動量（ATR消尽率）で判断 → 「今日の動きは十分だった」
 
 戦略ロジック:
-1. ATRで市場ボラティリティを測定
-2. ボリンジャーバンド位置で過買い・過売り判定
-3. RSIで追加確認
-4. 市場ストレスで異常状況フィルター
-
-Phase 49完了: 市場不確実性計算統合・重複コード削減
+1. ATR消尽率計算（当日値幅 / ATR14）
+2. レンジ相場確認（ADX < 25）
+3. 消尽率閾値判定（70%以上で反転狙い）
+4. RSIで反転方向決定
 """
 
 from datetime import datetime
@@ -22,423 +26,283 @@ from ...core.exceptions import StrategyError
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils import EntryAction, MarketUncertaintyCalculator, SignalBuilder, StrategyType
+from ..utils import EntryAction, SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="ATRBased", strategy_type=StrategyType.ATR_BASED)
 class ATRBasedStrategy(StrategyBase):
     """
-    ATRベース戦略
-    シンプルなボラティリティベース逆張り戦略。
-    平均回帰理論に基づく。.
+    ATRレンジ消尽戦略
+
+    ATRの消尽率に基づく逆張り戦略。
+    価格がATRの大部分を消費した時点で反転を狙う。
+    レンジ相場に特化。
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """戦略初期化."""
-        # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
 
-        # デフォルト設定（thresholds.yaml統合・動的設定対応）
         default_config = {
-            # シグナル設定（thresholds.yamlから動的取得）
-            "bb_overbought": get_threshold("strategies.atr_based.bb_overbought", 0.7),
-            "bb_oversold": get_threshold("strategies.atr_based.bb_oversold", 0.3),
-            "rsi_overbought": get_threshold("strategies.atr_based.rsi_overbought", 65),
-            "rsi_oversold": get_threshold("strategies.atr_based.rsi_oversold", 35),
-            "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.3),
-            # Phase 51.6: リスク管理（ハードコード削除・設定ファイル一元管理）
+            # ATR消尽率パラメータ
+            "exhaustion_threshold": get_threshold(
+                "strategies.atr_based.exhaustion_threshold", 0.70
+            ),
+            "high_exhaustion_threshold": get_threshold(
+                "strategies.atr_based.high_exhaustion_threshold", 0.85
+            ),
+            # レンジ相場フィルタ
+            "adx_range_threshold": get_threshold(
+                "strategies.atr_based.adx_range_threshold", 25
+            ),
+            # RSI反転判定
+            "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 60),
+            "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 40),
+            # 信頼度設定
+            "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.35),
+            "hold_confidence": get_threshold("strategies.atr_based.hold_confidence", 0.20),
+            "base_confidence": get_threshold("strategies.atr_based.base_confidence", 0.40),
+            "high_confidence": get_threshold("strategies.atr_based.high_confidence", 0.60),
+            # ストップロス設定
+            "sl_atr_multiplier": get_threshold(
+                "strategies.atr_based.sl_atr_multiplier", 1.5
+            ),
+            # リスク管理（共通設定から取得）
             "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
             "take_profit_ratio": get_threshold(
-                "position_management.take_profit.default_ratio"
-            ),  # Phase 51.6: TP 0.9%・RR比1.29:1
-            "position_size_base": get_threshold(
-                "ml.dynamic_confidence.strategies.atr_based.position_size_base", 0.015
-            ),  # Phase 51.9-5: mlプレフィックス追加・設定ファイルから取得
-            # フィルター設定
-            "market_stress_threshold": get_threshold(
-                "ml.dynamic_confidence.strategies.atr_based.market_stress_threshold", 0.7
-            ),  # 市場ストレス閾値
-            "min_atr_ratio": get_threshold(
-                "ml.dynamic_confidence.strategies.atr_based.min_atr_ratio", 0.5
-            ),  # 最小ATR比率（低ボラ回避）
-            # Phase 28完了・Phase 29最適化対応（thresholds.yaml統合）
-            "normal_volatility_strength": get_threshold(
-                "strategies.atr_based.normal_volatility_strength", 0.3
+                "position_management.take_profit.default_ratio", 1.29
             ),
         }
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="ATRBased", config=merged_config)
+        self.logger.info(
+            f"ATRレンジ消尽戦略初期化: 消尽閾値={self.config['exhaustion_threshold']}, "
+            f"ADX閾値={self.config['adx_range_threshold']}"
+        )
 
     def analyze(
         self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
     ) -> StrategySignal:
-        """市場分析とシグナル生成."""
+        """
+        市場分析とシグナル生成
+
+        ATRレンジ消尽に基づく反転シグナルを生成。
+        """
         try:
-            self.logger.info(
-                f"[ATRBased] 分析開始 - データシェイプ: {df.shape}, 利用可能列: {list(df.columns)[:10]}..."
-            )
-            self.logger.debug("[ATRBased] 分析開始")
+            self.logger.debug("[ATRレンジ] 分析開始")
             current_price = float(df["close"].iloc[-1])
 
-            # Phase 54.4: ADXフィルタ（トレンド相場での逆張り回避）
-            from ...core.config.threshold_manager import get_threshold
+            # Step 1: ATR消尽率計算
+            exhaustion_analysis = self._calculate_exhaustion_ratio(df)
 
-            adx_filter_threshold = get_threshold("strategies.atr_based.adx_filter_threshold", 25)
-            if "adx_14" in df.columns:
-                current_adx = float(df["adx_14"].iloc[-1])
-                if current_adx > adx_filter_threshold:
-                    self.logger.info(
-                        f"[ATRBased] ADXフィルタ発動: ADX={current_adx:.1f} > {adx_filter_threshold}（トレンド相場）"
-                    )
-                    # トレンド相場では逆張り回避 → HOLD
-                    return SignalBuilder.create_hold_signal(
-                        strategy_name=self.name,
-                        current_price=current_price,
-                        reason=f"ADXフィルタ（ADX={current_adx:.1f} > {adx_filter_threshold}）",
-                        strategy_type=StrategyType.ATR_BASED,
-                    )
+            # Step 2: レンジ相場確認（ADXフィルタ）
+            range_check = self._check_range_market(df)
+            if not range_check["is_range"]:
+                return SignalBuilder.create_hold_signal(
+                    strategy_name=self.name,
+                    current_price=current_price,
+                    reason=range_check["reason"],
+                    strategy_type=StrategyType.ATR_BASED,
+                )
 
-            # 各指標分析
-            bb_analysis = self._analyze_bb_position(df)
-            rsi_analysis = self._analyze_rsi_momentum(df)
-            atr_analysis = self._analyze_atr_volatility(df)
-            # Phase 28完了・Phase 29最適化: market_stress削除（15特徴量統一）
-            # stress_analysis = self._analyze_market_stress(df)
-            # 市場不確実性計算（統一ロジック）
-            market_uncertainty = self._calculate_market_uncertainty(df)
-            # 統合判定（市場データ基づく動的調整）
-            signal_decision = self._make_decision(
-                bb_analysis, rsi_analysis, atr_analysis, None, market_uncertainty
+            # Step 3: 消尽率判定
+            if not exhaustion_analysis["is_exhausted"]:
+                return SignalBuilder.create_hold_signal(
+                    strategy_name=self.name,
+                    current_price=current_price,
+                    reason=exhaustion_analysis["reason"],
+                    strategy_type=StrategyType.ATR_BASED,
+                )
+
+            # Step 4: 反転方向判定（RSI使用）
+            direction_analysis = self._determine_reversal_direction(df)
+            if direction_analysis["action"] == EntryAction.HOLD:
+                return SignalBuilder.create_hold_signal(
+                    strategy_name=self.name,
+                    current_price=current_price,
+                    reason=direction_analysis["reason"],
+                    strategy_type=StrategyType.ATR_BASED,
+                )
+
+            # シグナル生成
+            decision = self._create_decision(
+                exhaustion_analysis, direction_analysis, range_check
             )
-            # シグナル生成（Phase 31: multi_timeframe_data渡し）
-            signal = self._create_signal(signal_decision, current_price, df, multi_timeframe_data)
-            self.logger.debug(
-                f"[ATRBased] シグナル: {signal.action} (信頼度: {signal.confidence:.3f})"
+            signal = self._create_signal(decision, current_price, df, multi_timeframe_data)
+
+            self.logger.info(
+                f"[ATRレンジ] シグナル生成: {signal.action} "
+                f"(信頼度: {signal.confidence:.3f}, 消尽率: {exhaustion_analysis['ratio']:.1%})"
             )
             return signal
+
         except Exception as e:
-            self.logger.error(f"[ATRBased] 分析エラー: {e}")
-            raise StrategyError(f"ATRベース分析失敗: {e}", strategy_name=self.name)
+            self.logger.error(f"[ATRレンジ] 分析エラー: {e}")
+            raise StrategyError(f"ATRレンジ分析失敗: {e}", strategy_name=self.name)
 
-    def _analyze_bb_position(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """ボリンジャーバンド位置分析."""
-        try:
-            current_bb_pos = float(df["bb_position"].iloc[-1])
-            # BB位置によるシグナル判定（逆張り）
-            if current_bb_pos >= self.config["bb_overbought"]:
-                signal = -1  # 売りシグナル（過買い）
-                strength = min((current_bb_pos - self.config["bb_overbought"]) / 0.2, 1.0)
-            elif current_bb_pos <= self.config["bb_oversold"]:
-                signal = 1  # 買いシグナル（過売り）
-                strength = min((self.config["bb_oversold"] - current_bb_pos) / 0.2, 1.0)
-            else:
-                signal = 0  # ニュートラル
-                strength = 0.0
-            # 設定から信頼度パラメータを取得
-            from ...core.config import get_threshold
-
-            base_confidence = get_threshold("strategies.atr_based.base_confidence", 0.3)
-            confidence_multiplier = get_threshold("strategies.atr_based.confidence_multiplier", 0.4)
-            confidence = (
-                base_confidence + strength * confidence_multiplier if abs(signal) > 0 else 0.0
-            )
-            return {
-                "signal": signal,
-                "strength": strength,
-                "confidence": confidence,
-                "bb_position": current_bb_pos,
-                "analysis": f"BB位置: {current_bb_pos:.2f} -> {['売り', 'なし', '買い'][signal + 1]}",
-            }
-        except Exception as e:
-            self.logger.error(f"BB位置分析エラー: {e}")
-            return {
-                "signal": 0,
-                "strength": 0.0,
-                "confidence": 0.0,
-                "analysis": "エラー",
-            }
-
-    def _analyze_rsi_momentum(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """RSIモメンタム分析."""
-        try:
-            current_rsi = float(df["rsi_14"].iloc[-1])
-            # RSI逆張りシグナル
-            if current_rsi >= self.config["rsi_overbought"]:
-                signal = -1  # 売りシグナル
-                # 循環インポート回避のため遅延インポート
-                from ...core.config.threshold_manager import get_threshold
-
-                strength_normalize = get_threshold(
-                    "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
-                )
-                strength = min(
-                    (current_rsi - self.config["rsi_overbought"]) / strength_normalize, 1.0
-                )
-            elif current_rsi <= self.config["rsi_oversold"]:
-                signal = 1  # 買いシグナル
-                # 循環インポート回避のため遅延インポート
-                from ...core.config.threshold_manager import get_threshold
-
-                strength_normalize = get_threshold(
-                    "ml.dynamic_confidence.strategies.atr_based.strength_normalize", 30.0
-                )
-                strength = min(
-                    (self.config["rsi_oversold"] - current_rsi) / strength_normalize, 1.0
-                )
-            else:
-                signal = 0
-                strength = 0.0
-            # 循環インポート回避のため遅延インポート
-            from ...core.config.threshold_manager import get_threshold
-
-            rsi_base = get_threshold("ml.dynamic_confidence.strategies.atr_based.rsi_base", 0.2)
-            rsi_multiplier = get_threshold(
-                "ml.dynamic_confidence.strategies.atr_based.rsi_multiplier", 0.3
-            )
-            confidence = rsi_base + strength * rsi_multiplier if abs(signal) > 0 else 0.0
-            return {
-                "signal": signal,
-                "strength": strength,
-                "confidence": confidence,
-                "rsi": current_rsi,
-                "analysis": f"RSI: {current_rsi:.1f} -> {['売り', 'なし', '買い'][signal + 1]}",
-            }
-        except Exception as e:
-            self.logger.error(f"RSI分析エラー: {e}")
-            return {
-                "signal": 0,
-                "strength": 0.0,
-                "confidence": 0.0,
-                "analysis": "エラー",
-            }
-
-    def _analyze_atr_volatility(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """ATRボラティリティ分析."""
-        try:
-            current_atr = float(df["atr_14"].iloc[-1])
-            current_price = float(df["close"].iloc[-1])
-            atr_ratio = current_atr / current_price
-            # 過去20期間の平均ATR比率と比較
-            if len(df) >= 20:
-                historical_atr = df["atr_14"].iloc[-20:] / df["close"].iloc[-20:]
-                avg_atr_ratio = historical_atr.mean()
-                volatility_multiplier = atr_ratio / (avg_atr_ratio + 1e-8)
-            else:
-                volatility_multiplier = 1.0
-            # ボラティリティ状態判定
-            if volatility_multiplier < self.config["min_atr_ratio"]:
-                regime = "low"  # 低ボラ（取引回避）
-                strength = 0.0
-            elif volatility_multiplier > 1.5:
-                regime = "high"  # 高ボラ（逆張り好機）
-                strength = min((volatility_multiplier - 1.5) / 0.5, 1.0)
-            else:
-                regime = "normal"  # 通常ボラ
-                strength = self.config["normal_volatility_strength"]  # thresholds.yaml設定使用
-            return {
-                "regime": regime,
-                "strength": strength,
-                "atr_ratio": atr_ratio,
-                "volatility_multiplier": volatility_multiplier,
-                "analysis": f"ボラティリティ: {regime} (倍率: {volatility_multiplier:.2f})",
-            }
-        except Exception as e:
-            self.logger.error(f"ATR分析エラー: {e}")
-            return {"regime": "normal", "strength": 0.0, "analysis": "エラー"}
-
-    def _analyze_market_stress(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """市場ストレス分析."""
-        try:
-            current_stress = float(df["market_stress"].iloc[-1])
-            # ストレス状態判定
-            if current_stress >= self.config["market_stress_threshold"]:
-                state = "high"  # 高ストレス（取引回避）
-                filter_ok = False
-            else:
-                state = "normal"  # 通常（取引可能）
-                filter_ok = True
-            return {
-                "state": state,
-                "level": current_stress,
-                "filter_ok": filter_ok,
-                "analysis": f"市場ストレス: {state} ({current_stress:.2f})",
-            }
-        except Exception as e:
-            self.logger.error(f"市場ストレス分析エラー: {e}")
-            return {"state": "normal", "filter_ok": True, "analysis": "エラー"}
-
-    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
+    def _calculate_exhaustion_ratio(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        市場データ基づく不確実性計算（Phase 38.4: 統合ユーティリティ使用）
+        ATR消尽率を計算
 
-        Args:
-            df: 市場データ
-
-        Returns:
-            float: 市場不確実性係数（0-0.1の範囲）
+        消尽率 = 当日の値幅 / ATR14
         """
-        return MarketUncertaintyCalculator.calculate(df)
-
-    def _make_decision(
-        self,
-        bb_analysis: Dict[str, Any],
-        rsi_analysis: Dict[str, Any],
-        atr_analysis: Dict[str, Any],
-        stress_analysis: Dict[str, Any] = None,
-        market_uncertainty: float = 0.02,
-    ) -> Dict[str, Any]:
-        """統合判定（Phase 54.4: BB+RSI両方必須）."""
         try:
-            # 循環インポート回避のため遅延インポート
-            from ...core.config.threshold_manager import get_threshold
+            # 当日の値幅（High - Low）
+            current_high = float(df["high"].iloc[-1])
+            current_low = float(df["low"].iloc[-1])
+            daily_range = current_high - current_low
 
-            # フィルター確認（Phase 28完了・Phase 29最適化: market_stress無効化）
-            if stress_analysis and not stress_analysis["filter_ok"]:
-                return self._create_hold_decision("市場ストレス高")
+            # ATR14
+            atr_14 = float(df["atr_14"].iloc[-1])
 
-            # 低ボラティリティでも動的信頼度を計算（早期リターン回避）
-            volatility_penalty = 0.8 if atr_analysis["regime"] == "low" else 1.0
-
-            # シグナル統合
-            bb_signal = bb_analysis["signal"]
-            rsi_signal = rsi_analysis["signal"]
-            bb_pos = bb_analysis["bb_position"]
-            rsi_val = rsi_analysis["rsi"]
-
-            # Phase 54.4: BB+RSI両方必須設定の確認
-            require_both_signals = get_threshold("strategies.atr_based.require_both_signals", True)
-
-            if require_both_signals:
-                # ========================================
-                # Phase 54.4: 厳格モード（BBReversal同様）
-                # BB AND RSI 両方のシグナルが一致する場合のみエントリー
-                # ========================================
-                if bb_signal != 0 and rsi_signal != 0 and bb_signal == rsi_signal:
-                    # 両方一致 - シグナル生成
-                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                    base_confidence = (bb_analysis["confidence"] + rsi_analysis["confidence"]) * 0.7
-                    confidence_max = get_threshold(
-                        "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
-                    )
-                    confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
-                    strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
-                    reason = f"BB+RSI一致シグナル (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
-                else:
-                    # 条件未達成 → HOLD
-                    if bb_signal != 0 and rsi_signal != 0:
-                        # 両方あるが不一致
-                        return self._create_hold_decision(
-                            f"BB/RSI不一致 (BB:{bb_pos:.2f}→{'買い' if bb_signal > 0 else '売り'}, RSI:{rsi_val:.1f}→{'買い' if rsi_signal > 0 else '売り'})"
-                        )
-                    elif bb_signal != 0:
-                        # BBのみ
-                        return self._create_hold_decision(
-                            f"BB単独シグナル不可 (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f}中立)"
-                        )
-                    elif rsi_signal != 0:
-                        # RSIのみ
-                        return self._create_hold_decision(
-                            f"RSI単独シグナル不可 (BB:{bb_pos:.2f}中立, RSI:{rsi_val:.1f})"
-                        )
-                    else:
-                        # 両方なし
-                        return self._create_hold_decision(
-                            f"シグナルなし (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
-                        )
+            # 消尽率計算
+            if atr_14 > 0:
+                exhaustion_ratio = daily_range / atr_14
             else:
-                # ========================================
-                # 従来モード（互換性維持用）
-                # ========================================
-                # ケース1: 両方にシグナルがある
-                if bb_signal != 0 and rsi_signal != 0:
-                    if bb_signal == rsi_signal:
-                        action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                        base_confidence = (
-                            bb_analysis["confidence"] + rsi_analysis["confidence"]
-                        ) * 0.7
-                        confidence_max = get_threshold(
-                            "ml.dynamic_confidence.strategies.atr_based.agreement_max", 0.65
-                        )
-                        confidence = min(base_confidence * (1 + market_uncertainty), confidence_max)
-                        strength = (bb_analysis["strength"] + rsi_analysis["strength"]) / 2
-                        reason = f"BB+RSI一致シグナル (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
-                    else:
-                        if bb_analysis["confidence"] >= rsi_analysis["confidence"]:
-                            action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                            base_confidence = bb_analysis["confidence"] * 0.8
-                            confidence = base_confidence * (1 + market_uncertainty)
-                            strength = bb_analysis["strength"]
-                            reason = f"BB優勢シグナル (BB:{bb_pos:.2f})"
-                        else:
-                            action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                            base_confidence = rsi_analysis["confidence"] * 0.8
-                            confidence = base_confidence * (1 + market_uncertainty)
-                            strength = rsi_analysis["strength"]
-                            reason = f"RSI優勢シグナル (RSI:{rsi_val:.1f})"
-                # ケース2: BBシグナルのみ
-                elif bb_signal != 0:
-                    action = EntryAction.BUY if bb_signal > 0 else EntryAction.SELL
-                    base_confidence = bb_analysis["confidence"] * 0.7
-                    confidence = base_confidence * (1 + market_uncertainty)
-                    strength = bb_analysis["strength"]
-                    reason = f"BB単独シグナル (BB:{bb_pos:.2f})"
-                # ケース3: RSIシグナルのみ
-                elif rsi_signal != 0:
-                    action = EntryAction.BUY if rsi_signal > 0 else EntryAction.SELL
-                    base_confidence = rsi_analysis["confidence"] * 0.7
-                    confidence = base_confidence * (1 + market_uncertainty)
-                    strength = rsi_analysis["strength"]
-                    reason = f"RSI単独シグナル (RSI:{rsi_val:.1f})"
-                # ケース4: シグナルなし
-                else:
-                    return self._create_hold_decision(
-                        f"シグナルなし (BB:{bb_pos:.2f}, RSI:{rsi_val:.1f})"
-                    )
+                exhaustion_ratio = 0.0
 
-            # ボラティリティ調整適用
-            confidence *= volatility_penalty
+            # 閾値判定
+            is_exhausted = exhaustion_ratio >= self.config["exhaustion_threshold"]
+            is_high_exhaustion = exhaustion_ratio >= self.config["high_exhaustion_threshold"]
 
-            # 高ボラティリティボーナス（抑制）
-            if atr_analysis["regime"] == "high":
-                volatility_bonus = get_threshold(
-                    "ml.dynamic_confidence.strategies.atr_based.volatility_bonus", 1.02
-                )
-                volatility_max = get_threshold(
-                    "ml.dynamic_confidence.strategies.atr_based.volatility_max", 0.65
-                )
-                confidence = min(confidence * volatility_bonus, volatility_max)
+            # 理由生成
+            if is_high_exhaustion:
+                reason = f"高消尽（{exhaustion_ratio:.1%} >= {self.config['high_exhaustion_threshold']:.0%}）"
+            elif is_exhausted:
+                reason = f"消尽（{exhaustion_ratio:.1%} >= {self.config['exhaustion_threshold']:.0%}）"
+            else:
+                reason = f"未消尽（{exhaustion_ratio:.1%} < {self.config['exhaustion_threshold']:.0%}）"
 
-            # 最小信頼度チェック
-            if confidence < self.config["min_confidence"]:
-                adjusted_confidence = max(confidence, self.config["min_confidence"] * 0.8)
+            return {
+                "ratio": exhaustion_ratio,
+                "daily_range": daily_range,
+                "atr_14": atr_14,
+                "is_exhausted": is_exhausted,
+                "is_high_exhaustion": is_high_exhaustion,
+                "reason": reason,
+            }
+
+        except Exception as e:
+            self.logger.error(f"消尽率計算エラー: {e}")
+            return {
+                "ratio": 0.0,
+                "is_exhausted": False,
+                "is_high_exhaustion": False,
+                "reason": "計算エラー",
+            }
+
+    def _check_range_market(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        レンジ相場かどうかを確認（ADXフィルタ）
+
+        ADX < 閾値 → レンジ相場と判定
+        """
+        try:
+            if "adx_14" not in df.columns:
+                return {"is_range": True, "adx": 0.0, "reason": "ADXデータなし（レンジと仮定）"}
+
+            current_adx = float(df["adx_14"].iloc[-1])
+            adx_threshold = self.config["adx_range_threshold"]
+
+            if current_adx < adx_threshold:
                 return {
-                    "action": EntryAction.HOLD,
-                    "confidence": adjusted_confidence,
-                    "strength": strength if "strength" in locals() else 0.0,
-                    "analysis": f"ATR動的HOLD: {reason} (調整信頼度: {adjusted_confidence:.3f})",
+                    "is_range": True,
+                    "adx": current_adx,
+                    "reason": f"レンジ相場（ADX={current_adx:.1f} < {adx_threshold}）",
+                }
+            else:
+                return {
+                    "is_range": False,
+                    "adx": current_adx,
+                    "reason": f"トレンド相場（ADX={current_adx:.1f} >= {adx_threshold}）→ 逆張り回避",
                 }
 
-            return {
-                "action": action,
-                "confidence": confidence,
-                "strength": strength,
-                "analysis": f"ATR動的判定: {action} (信頼度: {confidence:.3f}, {reason})",
-            }
         except Exception as e:
-            self.logger.error(f"統合判定エラー: {e}")
-            return self._create_hold_decision("判定エラー")
+            self.logger.error(f"レンジ判定エラー: {e}")
+            return {"is_range": True, "adx": 0.0, "reason": "判定エラー（レンジと仮定）"}
 
-    def _create_hold_decision(self, reason: str) -> Dict[str, Any]:
-        """ホールド決定作成."""
-        # 循環インポート回避のため遅延インポート
-        from ...core.config.threshold_manager import get_threshold
+    def _determine_reversal_direction(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        反転方向を決定（RSI使用）
 
-        hold_confidence = get_threshold("strategies.atr_based.hold_confidence", 0.5)
+        RSI > 上限 → 上に動いた後 → SELL（下への反転期待）
+        RSI < 下限 → 下に動いた後 → BUY（上への反転期待）
+        中間 → HOLD（方向不明）
+        """
+        try:
+            current_rsi = float(df["rsi_14"].iloc[-1])
+            rsi_upper = self.config["rsi_upper"]
+            rsi_lower = self.config["rsi_lower"]
+
+            if current_rsi > rsi_upper:
+                return {
+                    "action": EntryAction.SELL,
+                    "rsi": current_rsi,
+                    "strength": min((current_rsi - rsi_upper) / 20.0, 1.0),
+                    "reason": f"RSI={current_rsi:.1f} > {rsi_upper} → 下への反転期待",
+                }
+            elif current_rsi < rsi_lower:
+                return {
+                    "action": EntryAction.BUY,
+                    "rsi": current_rsi,
+                    "strength": min((rsi_lower - current_rsi) / 20.0, 1.0),
+                    "reason": f"RSI={current_rsi:.1f} < {rsi_lower} → 上への反転期待",
+                }
+            else:
+                return {
+                    "action": EntryAction.HOLD,
+                    "rsi": current_rsi,
+                    "strength": 0.0,
+                    "reason": f"RSI={current_rsi:.1f}（{rsi_lower}〜{rsi_upper}の中間）→ 方向不明",
+                }
+
+        except Exception as e:
+            self.logger.error(f"反転方向判定エラー: {e}")
+            return {
+                "action": EntryAction.HOLD,
+                "rsi": 50.0,
+                "strength": 0.0,
+                "reason": "判定エラー",
+            }
+
+    def _create_decision(
+        self,
+        exhaustion: Dict[str, Any],
+        direction: Dict[str, Any],
+        range_check: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """統合判定を作成"""
+        # 信頼度計算
+        if exhaustion["is_high_exhaustion"]:
+            base_conf = self.config["high_confidence"]
+        else:
+            base_conf = self.config["base_confidence"]
+
+        # RSI強度で調整
+        confidence = base_conf + direction["strength"] * 0.15
+
+        # 最小信頼度チェック
+        if confidence < self.config["min_confidence"]:
+            confidence = self.config["min_confidence"]
+
+        # 最大0.75に制限
+        confidence = min(confidence, 0.75)
+
+        # action値を取得（Enumまたは文字列に対応）
+        action = direction["action"]
+        action_str = action.value if hasattr(action, 'value') else str(action)
+
+        analysis = (
+            f"ATRレンジ消尽: {action_str} "
+            f"(消尽率={exhaustion['ratio']:.1%}, RSI={direction['rsi']:.1f}, "
+            f"ADX={range_check['adx']:.1f}, 信頼度={confidence:.3f})"
+        )
+
         return {
-            "action": EntryAction.HOLD,
-            "confidence": hold_confidence,
-            "strength": 0.0,
-            "analysis": f"ATR逆張り: hold ({reason}) [confidence={hold_confidence}]",
+            "action": direction["action"],
+            "confidence": confidence,
+            "strength": direction["strength"],
+            "analysis": analysis,
         }
 
     def _create_signal(
@@ -448,8 +312,7 @@ class ATRBasedStrategy(StrategyBase):
         df: pd.DataFrame,
         multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
-        """シグナル作成 - 共通モジュール利用（Phase 31: マルチタイムフレーム対応）."""
-        # Phase 31: multi_timeframe_dataを渡して15m足ATR取得
+        """シグナル作成"""
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,
@@ -461,14 +324,12 @@ class ATRBasedStrategy(StrategyBase):
         )
 
     def get_required_features(self) -> List[str]:
-        """必要特徴量リスト取得."""
+        """必要特徴量リスト取得"""
         return [
-            # 基本データ
             "close",
-            # ATR戦略用指標
-            "atr_14",  # メイン指標
-            "bb_position",  # ボリンジャーバンド位置
-            "rsi_14",  # RSI
-            "adx_14",  # Phase 54.4: ADXフィルタ用
-            # Phase 28完了・Phase 29最適化: market_stress削除（15特徴量統一）
+            "high",
+            "low",
+            "atr_14",
+            "adx_14",
+            "rsi_14",
         ]

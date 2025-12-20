@@ -91,9 +91,9 @@ ml:
     # tight_range（狭いレンジ）: 戦略重視型
     # Phase 51.8結果: 1,380件（91.8%）、PF=1.065、利益寄与99.4%
     # → 戦略シグナルが強い → ML補完は控えめ
-    # Phase 54.7: 取引数回復のためML閾値緩和
+    # Phase 54.12: 取引数大幅回復のためML閾値緩和
     tight_range:
-      min_ml_confidence: 0.45           # Phase 54.7: 0.50→0.45（取引数回復）
+      min_ml_confidence: 0.38           # Phase 54.12: 0.45→0.38（取引数8-12倍増期待）
       high_confidence_threshold: 0.65
       ml_weight: 0.25                   # ML 25%
       strategy_weight: 0.75             # 戦略 75%
@@ -103,9 +103,9 @@ ml:
     # normal_range（通常レンジ）: バランス型
     # Phase 51.8結果: 124件（8.2%）、PF=1.005、利益寄与0.6%
     # → ほぼbreakeven → MLとのバランス重視
-    # Phase 54.7: 取引数回復のためML閾値緩和
+    # Phase 54.12: 取引数大幅回復のためML閾値緩和
     normal_range:
-      min_ml_confidence: 0.40           # 中閾値（バランス型）
+      min_ml_confidence: 0.35           # Phase 54.12: 0.40→0.35（取引数増加）
       high_confidence_threshold: 0.60
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
@@ -275,13 +275,13 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 54.10: 0ベース最適化 - PF > 1.0戦略のみ有効化
-      BBReversal: 0.40          # PF 1.92（維持・最強戦略）
-      MACDEMACrossover: 0.30    # PF 1.50（0.0→0.30復活）
-      ADXTrendStrength: 0.20    # PF 1.04（0.05→0.20強化）
-      StochasticReversal: 0.10  # PF 0.02→再評価（閾値緩和後）
-      ATRBased: 0.0             # PF 0.86（0.30→0.0無効化）
-      DonchianChannel: 0.0      # PF 0.91（0.20→0.0無効化）
+      # Phase 55.1: ATRレンジ消尽戦略復活・PF>1.0戦略のみ有効化
+      BBReversal: 0.35          # PF 1.32（最強戦略）
+      ATRBased: 0.30            # PF 1.16（Phase 55.1で復活！）
+      MACDEMACrossover: 0.20    # PF 1.38
+      ADXTrendStrength: 0.15    # PF 1.01（ほぼトントン）
+      StochasticReversal: 0.0   # PF 0.77（赤字→無効化）
+      DonchianChannel: 0.0      # PF 0.89（赤字維持）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
       # Phase 51.8-10: バランス型70/20配分（理論的初期値）
       ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
@@ -357,23 +357,27 @@ strategies:
     weak_di_threshold: 0.8          # Phase 54.10: 1.0→0.8（シグナル増加）
     weak_trend_threshold: 15
   atr_based:
-    # Phase 54.10: HOLD率削減のため閾値緩和
-    bb_overbought: 0.80       # Phase 54.10: 0.85→0.80（シグナル+33%）
-    bb_oversold: 0.20         # Phase 54.10: 0.15→0.20（シグナル+33%）
-    high_volatility_strength: 0.5
-    hold_confidence: 0.15
-    low_volatility_strength: 0.2
-    min_confidence: 0.28      # Phase 54.10: 0.32→0.28（取引数増加）
-    normal_volatility_strength: 0.25
-    rsi_overbought: 65        # Phase 54.10: 70→65（シグナル+25%）
-    rsi_oversold: 35          # Phase 54.10: 30→35（シグナル+25%）
-    strength_fallback: 0.3
-    base_confidence: 0.25
-    confidence_multiplier: 0.3
-    weak_signal_enabled: false  # Phase 54.2: 微弱シグナル無効化
-    # Phase 54.5: 条件緩和（取引数回復）
-    require_both_signals: false  # Phase 54.4 true → false（単独シグナル許可）
-    adx_filter_threshold: 35     # Phase 54.10: 30→35（より多くの相場で機能）
+    # ========================================
+    # Phase 55.1: ATRレンジ消尽戦略（取引数増加版 v3）
+    # ========================================
+    # 目標: PF≥1.2維持 + 取引数増加
+    # バックアップ: config/core/atr_based_backup_pf146.yaml
+    # ========================================
+    # ATR消尽率パラメータ（微調整のみ）
+    exhaustion_threshold: 0.60       # 0.70→0.60
+    high_exhaustion_threshold: 0.80  # 0.85→0.80
+    # レンジ相場フィルタ（維持）
+    adx_range_threshold: 25          # 維持
+    # 反転方向判定（微調整のみ）
+    rsi_upper: 57                    # 60→57
+    rsi_lower: 43                    # 40→43
+    # 信頼度設定
+    min_confidence: 0.33             # 0.35→0.33（微調整）
+    hold_confidence: 0.20            # HOLD時の信頼度
+    base_confidence: 0.40            # 維持
+    high_confidence: 0.58            # 0.60→0.58（微調整）
+    # ストップロス設定
+    sl_atr_multiplier: 1.5           # SL = 1.5 × ATR
   donchian_channel:
     # Phase 54.10: HOLD率削減のため閾値緩和
     breakout_threshold: 0.002
