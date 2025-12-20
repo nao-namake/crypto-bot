@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 54開発中・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 55完了・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2054-In%20Progress-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2055-Complete-blue)](docs/)
 
 ---
 
@@ -45,7 +45,7 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。
 
-**6つの取引戦略**と**機械学習**を統合し、**55の特徴量**を総合分析することで24時間自動取引を実現。**真の3クラス分類**（BUY/HOLD/SELL）と**レジーム別動的TP/SL**により、市場状況に適応した取引を行います。
+**6つの取引戦略**と**機械学習**を統合し、**55の特徴量**を総合分析することで24時間自動取引を実現。**真の3クラス分類**（BUY/HOLD/SELL）と**レジーム別動的戦略選択**により、市場状況に適応した取引を行います。
 
 ### 運用仕様
 
@@ -57,26 +57,25 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 | **稼働体制** | 24時間・GCP Cloud Run |
 | **月額コスト** | 700-900円 |
 
-### 最新バックテスト結果（Phase 53.13）
+### 6戦略構成（Phase 55.2更新）
 
-| 指標 | 値 | 目標 |
-|------|-----|------|
-| **PF** | 1.25 | ≥1.34 |
-| **勝率** | 47.9% | ≥51% |
-| **取引数** | 697件 | - |
-| **シャープレシオ** | 7.83 | - |
-| **最大DD** | 0.33% | ≤0.5% |
+| 区分 | 戦略名 | 核心ロジック | 60日PF |
+|------|--------|-------------|--------|
+| **レンジ型** | BBReversal | BB上下限タッチ + RSI極端値 → 平均回帰 | 1.32 |
+| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 | 1.25 |
+| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待 | 1.16 |
+| **レンジ型** | DonchianChannel | チャネル端部反転（無効化） | 0.85 |
+| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | 1.50 |
+| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | 1.01 |
 
-### 6戦略構成
+### タイトレンジ重みづけ（Phase 55.2）
 
-| 区分 | 戦略名 | 特性 |
-|------|--------|------|
-| レンジ型 | ATRBased | ATRベース逆張り |
-| レンジ型 | DonchianChannel | チャネルブレイクアウト |
-| レンジ型 | BBReversal | ボリンジャーバンド反転 |
-| トレンド型 | ADXTrendStrength | ADXトレンド強度 |
-| トレンド型 | StochasticReversal | ストキャスティクス反転 |
-| トレンド型 | MACDEMACrossover | MACD・EMAクロス |
+| 戦略 | 重み | 理由 |
+|------|------|------|
+| BBReversal | 0.40 | PF 1.32・タイトレンジ特化 |
+| StochasticDivergence | 0.35 | PF 1.25・Divergence検出 |
+| ATRBased | 0.25 | PF 1.16・消尽率ロジック |
+| トレンド型 | 0.0 | タイトレンジで機能しない |
 
 ### レジーム別TP/SL設定
 
@@ -92,7 +91,8 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 
 ### AI取引システム
 
-- **6戦略統合**: レンジ型3 + トレンド型3・Registry Pattern
+- **6戦略統合**: レンジ型4 + トレンド型2・Registry Pattern
+- **動的戦略選択**: レジーム別重みづけ自動適用
 - **55特徴量**: 49基本 + 6戦略シグナル
 - **真の3クラス分類**: BUY / HOLD / SELL直接予測
 - **3モデルアンサンブル**: LightGBM 50% / XGBoost 30% / RandomForest 20%
@@ -182,7 +182,7 @@ models/production/  # MLモデル（週次更新）
 ```
 config/core/
 ├── unified.yaml      # 統合設定（残高・実行間隔）
-├── thresholds.yaml   # 閾値・パラメータ（ML統合・レジーム別TP/SL）
+├── thresholds.yaml   # 閾値・パラメータ（ML統合・レジーム別重み・TP/SL）
 ├── features.yaml     # 機能トグル
 └── feature_order.json # 特徴量定義
 ```
@@ -199,7 +199,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 54計画
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 55計画
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -211,32 +211,24 @@ config/core/
 
 ---
 
-## パフォーマンス・品質指標
+## 開発状況
+
+### Phase 55（完了）: 戦略最適化・重みづけ調整
+
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| 55.1 | ATRレンジ消尽閾値調整 | 取引数+30%、PF 1.16維持 |
+| 55.2 | StochasticDivergence戦略 | PF 0.77→1.25（+62%）大成功 |
+| 55.2 | タイトレンジ重みづけ最適化 | レンジ型3戦略に集中 |
+
+### パフォーマンス指標
 
 | 指標 | 値 |
 |------|-----|
 | **テスト成功率** | 100% |
 | **カバレッジ** | 64%以上 |
-| **バックテストPF** | 1.25 |
-| **バックテスト勝率** | 47.9% |
 | **月額コスト** | 700-900円 |
 | **手数料削減** | 年間¥150,000 |
-
----
-
-## 開発状況
-
-### Phase 54（現在）: ML性能検証・戦略最適化
-
-| ステージ | Phase | 内容 | 状態 |
-|----------|-------|------|------|
-| 分析 | 54.0 | ML予測分析 | 進行中 |
-| 分析 | 54.1 | 戦略別性能分析 | 予定 |
-| 実装 | 54.2 | 設定調整 | 予定 |
-| 実装 | 54.3 | コード変更 | 予定 |
-| 検証 | 54.4 | 最終検証 | 予定 |
-
-**目標**: PF 1.25 → 1.34+、勝率 47.9% → 51%+
 
 ---
 
@@ -259,4 +251,4 @@ config/core/
 
 ---
 
-**最終更新**: 2025年12月16日 - **Phase 54開発中**（ML性能検証・戦略最適化）
+**最終更新**: 2025年12月20日 - **Phase 55.2完了**（StochasticDivergence PF 1.25・タイトレンジ重みづけ最適化）
