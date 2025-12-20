@@ -275,13 +275,13 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 55.1: ATRレンジ消尽戦略復活・PF>1.0戦略のみ有効化
-      BBReversal: 0.35          # PF 1.32（最強戦略）
-      ATRBased: 0.30            # PF 1.16（Phase 55.1で復活！）
-      MACDEMACrossover: 0.20    # PF 1.38
-      ADXTrendStrength: 0.15    # PF 1.01（ほぼトントン）
-      StochasticReversal: 0.0   # PF 0.77（赤字→無効化）
-      DonchianChannel: 0.0      # PF 0.89（赤字維持）
+      # Phase 55.2: レンジ型戦略3つに集中・トレンド型除外
+      BBReversal: 0.40          # ↑ PF 1.32（最高PF・タイトレンジ特化）
+      StochasticReversal: 0.35  # ↑ PF 1.25（Phase 55.2でDivergence化・復活！）
+      ATRBased: 0.25            # ↓ PF 1.16（消尽率ロジック効果的）
+      ADXTrendStrength: 0.0     # ↓ 無効化（トレンド型・タイトレンジ不向き）
+      MACDEMACrossover: 0.0     # ↓ 無効化（ADX>25条件でタイトレンジ不発）
+      DonchianChannel: 0.0      # = PF 0.85（赤字維持）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
       # Phase 51.8-10: バランス型70/20配分（理論的初期値）
       ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
@@ -402,17 +402,34 @@ strategies:
     adx_range_threshold: 25         # Phase 54.10: 20→25（より多くの相場で機能）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
-    # Phase 54.10: 0ベース最適化 - 再評価のためさらに閾値緩和
-    min_confidence: 0.28            # Phase 54.10: 0.30→0.28（取引数増加）
-    hold_confidence: 0.22           # Phase 54.10: 0.25→0.22（HOLD削減）
-    stoch_overbought: 80            # Phase 54.10: 85→80（さらに緩和）
-    stoch_oversold: 20              # Phase 54.10: 15→20（さらに緩和）
-    rsi_overbought: 65              # 維持
-    rsi_oversold: 35                # 維持
-    adx_range_threshold: 30         # Phase 54.10: 25→30（さらに緩和）
-    bb_width_threshold: 0.03        # Phase 54.10: 0.025→0.03（さらに緩和）
-    require_crossover: false        # クロスオーバー要件削除
-    sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
+    # ========================================
+    # Phase 55.2: Stochastic Divergence戦略（完全リファクタリング）
+    # ========================================
+    # 核心思想: 「価格が上昇しているのにStochasticは低下 = モメンタム弱化 = 反転間近」
+    # 差別化: 価格とモメンタムの乖離（複数期間）を見る
+    # ========================================
+
+    # === Divergence設定（新規・核心機能） ===
+    divergence_lookback: 5              # ダイバージェンス検出期間
+    divergence_price_threshold: 0.0015  # Phase 55.2 v2採用: 0.15%（PF1.25維持・取引数+26%）
+    divergence_stoch_threshold: 5       # Stochastic変化閾値（5pt維持）
+
+    # === 極端領域設定（緩和） ===
+    stoch_overbought: 70                # 80→70に緩和（取引数増加）
+    stoch_oversold: 30                  # 20→30に緩和（取引数増加）
+
+    # === ADX設定（大幅緩和） ===
+    adx_max_threshold: 50               # 30→50に緩和（強トレンド除外のみ）
+
+    # === 信頼度設定 ===
+    min_confidence: 0.30
+    hold_confidence: 0.22
+    base_confidence: 0.35
+    max_confidence: 0.60
+    zone_bonus: 0.10                    # 極端領域ボーナス
+
+    # === SL設定 ===
+    sl_multiplier: 1.5                  # SL ATR倍率
   macd_ema_crossover:
     # Phase 54.10: HOLD率削減のため閾値緩和
     min_confidence: 0.30            # Phase 54.10: 0.35→0.30（取引数増加）

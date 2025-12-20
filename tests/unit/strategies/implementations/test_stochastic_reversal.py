@@ -1,381 +1,374 @@
 """
-Stochastic Reversal戦略のテストモジュール - Phase 51.7 Day 4
+Stochastic Divergence戦略のテストモジュール - Phase 55.2
 
 StochasticReversalStrategyクラスの単体テスト。
-レンジ相場でのモメンタム逆張りシグナル検出、クロスオーバー判定、エラーハンドリングを検証。
+モメンタム乖離（ダイバージェンス）検出を検証。
+
+核心思想:
+「価格は高値更新しているがStochasticは低下している = モメンタム弱化 = 反転間近」
 
 テスト項目:
 - 初期化・設定テスト
-- レンジ相場判定テスト
-- Stochasticクロスオーバー検出テスト（ゴールデン/ベア）
-- SELL信号生成テスト（過買い + ベアクロス + RSI買われすぎ）
-- BUY信号生成テスト（過売り + ゴールデンクロス + RSI売られすぎ）
+- ダイバージェンス検出テスト（Bearish/Bullish）
+- 極端領域判定テスト（過買い/過売り）
+- 信頼度ボーナステスト
+- ADXフィルタテスト
+- SELL信号生成テスト（Bearish Divergence）
+- BUY信号生成テスト（Bullish Divergence）
 - HOLD信号生成テスト
-- トレンド相場フィルタリングテスト
-- データ検証テスト
 - エラーハンドリングテスト
 
-Phase 51.7 Day 4実装: 2025年11月
+Phase 55.2 完全リファクタリング: 2025年12月
 """
 
+import os
+import sys
 import unittest
-from datetime import datetime
-from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
+# プロジェクトルートをパスに追加
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
+
 from src.strategies.implementations.stochastic_reversal import StochasticReversalStrategy
-from src.strategies.utils.strategy_utils import EntryAction
+from src.strategies.utils import EntryAction
 
 
-class TestStochasticReversalStrategy(unittest.TestCase):
-    """StochasticReversalStrategyクラスのテスト"""
+@pytest.fixture(scope="session", autouse=True)
+def init_config():
+    """テスト用設定初期化"""
+    try:
+        from src.core.config import load_config
+
+        load_config("config/core/unified.yaml")
+    except Exception:
+        from src.core.config import config_manager
+
+        config_manager._config = {
+            "trading": {"mode": "paper"},
+            "features": {"selected": ["close", "stoch_k", "stoch_d", "adx_14", "atr_14"]},
+            "strategies": {"default_config": {}},
+            "ml": {"models": {}},
+            "data": {"timeframes": ["15m", "1h", "4h"]},
+            "monitoring": {"enabled": False},
+        }
+
+
+class TestStochasticDivergenceStrategy(unittest.TestCase):
+    """Stochastic Divergence戦略テストクラス"""
 
     def setUp(self):
-        """テスト前処理"""
-        # Phase 54.5: 新閾値対応（stoch 90/10, RSI 70/30, require_crossover=False）
-        self.config = {
-            "min_confidence": 0.30,
-            "hold_confidence": 0.25,
-            "stoch_overbought": 90,  # Phase 54.5: 80→90
-            "stoch_oversold": 10,  # Phase 54.5: 20→10
-            "rsi_overbought": 70,  # Phase 54.5: 65→70
-            "rsi_oversold": 30,  # Phase 54.5: 35→30
-            "adx_range_threshold": 20,
-            "bb_width_threshold": 0.02,  # Phase 54.5: BB幅フィルタ
-            "require_crossover": False,  # Phase 54.5: クロスオーバー不要
-            "sl_multiplier": 1.5,
-        }
-        self.strategy = StochasticReversalStrategy(config=self.config)
-
-    def _create_test_data(
-        self,
-        length: int = 50,
-        stoch_k: float = 50,
-        stoch_d: float = 50,
-        rsi: float = 50,
-        adx: float = 15,
-        crossover_type: str = "none",
-        bb_width_ratio: float = 0.015,  # Phase 54.5: BB幅（デフォルト1.5% = レンジ相場）
-    ) -> pd.DataFrame:
-        """
-        テスト用データ生成
-
-        Args:
-            length: データ長
-            stoch_k: Stochastic %K値（0-100）
-            stoch_d: Stochastic %D値（0-100）
-            rsi: RSI値（0-100）
-            adx: ADX値（0-100）
-            crossover_type: クロスオーバータイプ（"golden", "bear", "none"）
-            bb_width_ratio: BB幅（価格に対する比率）- Phase 54.5
-
-        Returns:
-            テストデータ
-        """
-        np.random.seed(42)
-        dates = pd.date_range(start="2025-01-01", periods=length, freq="4h")
-
-        # 基本価格データ
+        """テスト前準備"""
+        dates = pd.date_range(start="2025-08-01", periods=100, freq="4h")
         base_price = 15000000
-        prices = base_price + np.cumsum(np.random.randn(length) * 10000)
 
-        # Stochastic特徴量
-        stoch_k_values = np.full(length, stoch_k)
-        stoch_d_values = np.full(length, stoch_d)
-
-        # クロスオーバー設定（最新2行のみ調整）
-        if crossover_type == "golden" and length >= 2:
-            # ゴールデンクロス: %Kが%Dを下から上に抜ける
-            stoch_k_values[-2] = stoch_d - 1  # 前: K < D
-            stoch_k_values[-1] = stoch_d + 1  # 現: K > D
-        elif crossover_type == "bear" and length >= 2:
-            # ベアクロス: %Kが%Dを上から下に抜ける
-            stoch_k_values[-2] = stoch_d + 1  # 前: K > D
-            stoch_k_values[-1] = stoch_d - 1  # 現: K < D
-
-        # その他特徴量
-        atr_14 = np.full(length, base_price * 0.01)
-        rsi_14 = np.full(length, rsi)
-        adx_14 = np.full(length, adx)
-
-        # Phase 54.5: BB幅フィルタ用
-        bb_middle = prices
-        bb_upper = prices * (1 + bb_width_ratio / 2)
-        bb_lower = prices * (1 - bb_width_ratio / 2)
-
-        return pd.DataFrame(
+        # 基本テストデータ（ダイバージェンスなし）
+        self.test_df = pd.DataFrame(
             {
                 "timestamp": dates,
-                "close": prices,
-                "stoch_k": stoch_k_values,
-                "stoch_d": stoch_d_values,
-                "rsi_14": rsi_14,
-                "adx_14": adx_14,
-                "atr_14": atr_14,
-                "bb_upper": bb_upper,  # Phase 54.5
-                "bb_lower": bb_lower,  # Phase 54.5
+                "close": np.full(100, base_price),
+                "stoch_k": np.full(100, 50.0),  # 中立
+                "stoch_d": np.full(100, 50.0),
+                "adx_14": np.full(100, 25.0),   # 中程度
+                "atr_14": np.full(100, 150000),
             }
         )
 
+        self.strategy = StochasticReversalStrategy()
+
     def test_strategy_initialization(self):
         """戦略初期化テスト"""
-        # デフォルト設定
-        default_strategy = StochasticReversalStrategy()
-        self.assertEqual(default_strategy.name, "StochasticReversal")
-        self.assertIsNotNone(default_strategy.config)
-
-        # カスタム設定（Phase 54.5: 新閾値）
-        self.assertEqual(self.strategy.config["stoch_overbought"], 90)  # 80→90
-        self.assertEqual(self.strategy.config["stoch_oversold"], 10)  # 20→10
-        self.assertEqual(self.strategy.config["rsi_overbought"], 70)  # 65→70
-        self.assertEqual(self.strategy.config["rsi_oversold"], 30)  # 35→30
-        self.assertEqual(self.strategy.config["adx_range_threshold"], 20)
-        # Phase 54.5: 新設定
-        self.assertEqual(self.strategy.config["bb_width_threshold"], 0.02)
-        self.assertEqual(self.strategy.config["require_crossover"], False)
+        self.assertEqual(self.strategy.name, "StochasticReversal")
+        # Phase 55.2: 閾値はthresholds.yamlから読み込まれる
+        # 値の存在確認のみ行う
+        self.assertIn("divergence_lookback", self.strategy.config)
+        self.assertIn("divergence_price_threshold", self.strategy.config)
+        self.assertIn("divergence_stoch_threshold", self.strategy.config)
+        self.assertIn("stoch_overbought", self.strategy.config)
+        self.assertIn("stoch_oversold", self.strategy.config)
+        self.assertIn("adx_max_threshold", self.strategy.config)
+        self.assertIn("zone_bonus", self.strategy.config)
 
     def test_required_features(self):
         """必須特徴量テスト"""
-        required = self.strategy.get_required_features()
-        # Phase 54.5: bb_upper, bb_lower追加
-        expected = [
-            "close",
-            "stoch_k",
-            "stoch_d",
-            "rsi_14",
-            "adx_14",
-            "atr_14",
-            "bb_upper",  # Phase 54.5
-            "bb_lower",  # Phase 54.5
-        ]
-        self.assertEqual(set(required), set(expected))
+        features = self.strategy.get_required_features()
 
-    def test_is_range_market_true(self):
-        """レンジ相場判定テスト - レンジ相場"""
-        # レンジ相場条件: ADX < 20
-        df = self._create_test_data(adx=15)
-        is_range = self.strategy._is_range_market(df)
-        self.assertTrue(is_range)
+        required = ["close", "stoch_k", "stoch_d", "adx_14", "atr_14"]
+        for feature in required:
+            self.assertIn(feature, features)
 
-    def test_is_range_market_false_high_adx(self):
-        """レンジ相場判定テスト - トレンド相場（ADX高）"""
-        # トレンド相場条件: ADX >= 20
-        df = self._create_test_data(adx=25)
-        is_range = self.strategy._is_range_market(df)
-        self.assertFalse(is_range)
+        self.assertEqual(len(features), 5)
 
-    def test_detect_stochastic_crossover_golden(self):
-        """Stochasticクロスオーバー検出テスト - ゴールデンクロス"""
-        df = self._create_test_data(length=50, stoch_k=25, stoch_d=24, crossover_type="golden")
-        crossover = self.strategy._detect_stochastic_crossover(df)
-        self.assertEqual(crossover, "golden")
+    def test_check_market_condition_ok(self):
+        """市場条件テスト - ADX低（取引可能）"""
+        result = self.strategy._check_market_condition(self.test_df)
+        self.assertTrue(result)  # ADX 25 < 50
 
-    def test_detect_stochastic_crossover_bear(self):
-        """Stochasticクロスオーバー検出テスト - ベアクロス"""
-        df = self._create_test_data(length=50, stoch_k=75, stoch_d=76, crossover_type="bear")
-        crossover = self.strategy._detect_stochastic_crossover(df)
-        self.assertEqual(crossover, "bear")
+    def test_check_market_condition_strong_trend(self):
+        """市場条件テスト - 強トレンド（取引不可）"""
+        strong_trend_df = self.test_df.copy()
+        strong_trend_df["adx_14"] = 55  # ADX > 50
 
-    def test_detect_stochastic_crossover_none(self):
-        """Stochasticクロスオーバー検出テスト - クロスなし"""
-        df = self._create_test_data(length=50, stoch_k=50, stoch_d=50, crossover_type="none")
-        crossover = self.strategy._detect_stochastic_crossover(df)
-        self.assertEqual(crossover, "none")
+        result = self.strategy._check_market_condition(strong_trend_df)
+        self.assertFalse(result)
 
-    def test_detect_stochastic_crossover_insufficient_data(self):
-        """Stochasticクロスオーバー検出テスト - データ不足"""
-        df = self._create_test_data(length=1)
-        crossover = self.strategy._detect_stochastic_crossover(df)
-        self.assertEqual(crossover, "none")
+    def test_detect_divergence_bearish(self):
+        """Bearish Divergence検出テスト"""
+        # 価格上昇 + Stochastic低下 = Bearish Divergence
+        bearish_df = self.test_df.copy()
 
-    @patch(
-        "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
-    )
-    def test_analyze_sell_signal(self, mock_signal_builder):
-        """SELL信号生成テスト - Phase 54.5: stoch > 90, RSI > 70（クロスオーバー不要）"""
-        # SELL条件: stoch_k > 90, stoch_d > 90, rsi > 70, ADX < 20, BB幅 < 2%
-        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015)
+        # lookback=5なのでiloc[-5]と比較
+        # 5期間前: 価格低、Stoch高
+        bearish_df.iloc[-5, bearish_df.columns.get_loc("close")] = 15000000
+        bearish_df.iloc[-5, bearish_df.columns.get_loc("stoch_k")] = 75.0
 
-        mock_signal = Mock()
-        mock_signal.action = EntryAction.SELL
-        mock_signal_builder.return_value = mock_signal
+        # 現在: 価格高、Stoch低
+        bearish_df.iloc[-1, bearish_df.columns.get_loc("close")] = 15100000  # +0.67%
+        bearish_df.iloc[-1, bearish_df.columns.get_loc("stoch_k")] = 60.0    # -15pt
 
-        signal = self.strategy.analyze(df)
+        result = self.strategy._detect_divergence(bearish_df)
 
-        # SignalBuilderが呼ばれたことを確認
-        mock_signal_builder.assert_called_once()
-        call_args = mock_signal_builder.call_args
+        self.assertEqual(result["type"], "bearish")
+        self.assertEqual(result["action"], EntryAction.SELL)
+        self.assertIn("Bearish Divergence", result["reason"])
 
-        # decision引数を確認
-        decision = call_args[1]["decision"]
-        self.assertEqual(decision["action"], EntryAction.SELL)
-        self.assertGreater(decision["confidence"], 0.25)
-        self.assertGreater(decision["strength"], 0)
+    def test_detect_divergence_bullish(self):
+        """Bullish Divergence検出テスト"""
+        # 価格下落 + Stochastic上昇 = Bullish Divergence
+        bullish_df = self.test_df.copy()
 
-    @patch(
-        "src.strategies.implementations.stochastic_reversal.SignalBuilder.create_signal_with_risk_management"
-    )
-    def test_analyze_buy_signal(self, mock_signal_builder):
-        """BUY信号生成テスト - Phase 54.5: stoch < 10, RSI < 30（クロスオーバー不要）"""
-        # BUY条件: stoch_k < 10, stoch_d < 10, rsi < 30, ADX < 20, BB幅 < 2%
-        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25, adx=15, bb_width_ratio=0.015)
+        # lookback=5なのでiloc[-5]と比較
+        # 5期間前: 価格高、Stoch低
+        bullish_df.iloc[-5, bullish_df.columns.get_loc("close")] = 15000000
+        bullish_df.iloc[-5, bullish_df.columns.get_loc("stoch_k")] = 25.0
 
-        mock_signal = Mock()
-        mock_signal.action = EntryAction.BUY
-        mock_signal_builder.return_value = mock_signal
+        # 現在: 価格低、Stoch高
+        bullish_df.iloc[-1, bullish_df.columns.get_loc("close")] = 14900000  # -0.67%
+        bullish_df.iloc[-1, bullish_df.columns.get_loc("stoch_k")] = 40.0    # +15pt
 
-        signal = self.strategy.analyze(df)
+        result = self.strategy._detect_divergence(bullish_df)
 
-        # SignalBuilderが呼ばれたことを確認
-        mock_signal_builder.assert_called_once()
-        call_args = mock_signal_builder.call_args
+        self.assertEqual(result["type"], "bullish")
+        self.assertEqual(result["action"], EntryAction.BUY)
+        self.assertIn("Bullish Divergence", result["reason"])
 
-        # decision引数を確認
-        decision = call_args[1]["decision"]
-        self.assertEqual(decision["action"], EntryAction.BUY)
-        self.assertGreater(decision["confidence"], 0.25)
-        self.assertGreater(decision["strength"], 0)
+    def test_detect_divergence_none(self):
+        """ダイバージェンスなしテスト"""
+        # 価格・Stochastic両方上昇（通常の上昇トレンド）
+        no_div_df = self.test_df.copy()
 
-    @patch("src.strategies.implementations.stochastic_reversal.SignalBuilder.create_hold_signal")
-    def test_analyze_hold_signal_middle_range(self, mock_hold_signal):
-        """HOLD信号生成テスト - Stochastic中央付近"""
-        # HOLD条件: stoch_k/d = 50（中央）
-        df = self._create_test_data(stoch_k=50, stoch_d=50, rsi=50, adx=15)
+        # lookback=5なのでiloc[-5]と比較
+        # 5期間前
+        no_div_df.iloc[-5, no_div_df.columns.get_loc("close")] = 15000000
+        no_div_df.iloc[-5, no_div_df.columns.get_loc("stoch_k")] = 40.0
 
-        mock_signal = Mock()
-        mock_signal.action = EntryAction.HOLD
-        mock_hold_signal.return_value = mock_signal
+        # 現在（価格も Stochも上昇）
+        no_div_df.iloc[-1, no_div_df.columns.get_loc("close")] = 15100000  # +0.67%
+        no_div_df.iloc[-1, no_div_df.columns.get_loc("stoch_k")] = 55.0    # +15pt
 
-        # レンジ相場だがStochastic中央なのでHOLD
-        signal = self.strategy.analyze(df)
+        result = self.strategy._detect_divergence(no_div_df)
 
-        # SignalBuilderが呼ばれる（HOLDシグナル生成）
+        self.assertEqual(result["type"], "none")
+        self.assertEqual(result["action"], EntryAction.HOLD)
+
+    def test_check_extreme_zone_overbought(self):
+        """過買い領域テスト"""
+        result = self.strategy._check_extreme_zone(75.0, 74.0)
+
+        self.assertEqual(result["zone"], "overbought")
+        self.assertGreater(result["bonus"], 0)
+
+    def test_check_extreme_zone_oversold(self):
+        """過売り領域テスト"""
+        result = self.strategy._check_extreme_zone(25.0, 26.0)
+
+        self.assertEqual(result["zone"], "oversold")
+        self.assertGreater(result["bonus"], 0)
+
+    def test_check_extreme_zone_neutral(self):
+        """中立領域テスト"""
+        result = self.strategy._check_extreme_zone(50.0, 50.0)
+
+        self.assertEqual(result["zone"], "neutral")
+        self.assertEqual(result["bonus"], 0.0)
+
+    def test_analyze_full_sell_signal(self):
+        """統合分析テスト - SELLシグナル"""
+        # 条件: Bearish Divergence + 過買い領域
+        sell_df = self.test_df.copy()
+
+        # lookback=5なのでiloc[-5]と比較
+        # Bearish Divergence設定
+        sell_df.iloc[-5, sell_df.columns.get_loc("close")] = 15000000
+        sell_df.iloc[-5, sell_df.columns.get_loc("stoch_k")] = 80.0
+
+        sell_df.iloc[-1, sell_df.columns.get_loc("close")] = 15100000  # 価格上昇
+        sell_df.iloc[-1, sell_df.columns.get_loc("stoch_k")] = 72.0    # Stoch低下（でも過買い領域）
+        sell_df.iloc[-1, sell_df.columns.get_loc("stoch_d")] = 71.0
+
+        signal = self.strategy.analyze(sell_df)
+
+        self.assertEqual(signal.action, EntryAction.SELL)
+        self.assertGreater(signal.confidence, 0.30)
+
+    def test_analyze_full_buy_signal(self):
+        """統合分析テスト - BUYシグナル"""
+        # 条件: Bullish Divergence + 過売り領域
+        buy_df = self.test_df.copy()
+
+        # lookback=5なのでiloc[-5]と比較
+        # Bullish Divergence設定
+        buy_df.iloc[-5, buy_df.columns.get_loc("close")] = 15000000
+        buy_df.iloc[-5, buy_df.columns.get_loc("stoch_k")] = 20.0
+
+        buy_df.iloc[-1, buy_df.columns.get_loc("close")] = 14900000  # 価格下落
+        buy_df.iloc[-1, buy_df.columns.get_loc("stoch_k")] = 28.0    # Stoch上昇（でも過売り領域）
+        buy_df.iloc[-1, buy_df.columns.get_loc("stoch_d")] = 27.0
+
+        signal = self.strategy.analyze(buy_df)
+
+        self.assertEqual(signal.action, EntryAction.BUY)
+        self.assertGreater(signal.confidence, 0.30)
+
+    def test_analyze_hold_no_divergence(self):
+        """統合分析テスト - ダイバージェンスなしでHOLD"""
+        signal = self.strategy.analyze(self.test_df)
+
         self.assertEqual(signal.action, EntryAction.HOLD)
 
-    def test_analyze_hold_signal_trend_market(self):
-        """HOLD信号生成テスト - トレンド相場"""
-        # トレンド相場条件: ADX >= 20
-        df = self._create_test_data(stoch_k=85, stoch_d=84, rsi=70, adx=30, crossover_type="bear")
+    def test_analyze_hold_strong_trend(self):
+        """統合分析テスト - 強トレンドでHOLD"""
+        strong_trend_df = self.test_df.copy()
+        strong_trend_df["adx_14"] = 55  # ADX > 50
 
-        # トレンド相場なので即HOLD
-        signal = self.strategy.analyze(df)
+        signal = self.strategy.analyze(strong_trend_df)
+
         self.assertEqual(signal.action, EntryAction.HOLD)
-        self.assertIn("not_range_market", signal.reason)
+        self.assertIn("strong_trend_excluded", signal.reason)
 
-    def test_analyze_stochastic_reversal_signal_sell(self):
-        """Stochastic反転シグナル分析テスト - SELL（Phase 54.5: stoch > 90, RSI > 70）"""
-        # Phase 54.5: クロスオーバー不要
-        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
-        decision = self.strategy._analyze_stochastic_reversal_signal(df)
+    def test_zone_bonus_applied(self):
+        """ゾーンボーナス適用テスト"""
+        # Bearish Divergence + 過買い領域 → ボーナス適用
+        overbought_df = self.test_df.copy()
 
+        # lookback=5なのでiloc[-5]と比較
+        # 5期間前
+        overbought_df.iloc[-5, overbought_df.columns.get_loc("close")] = 15000000
+        overbought_df.iloc[-5, overbought_df.columns.get_loc("stoch_k")] = 85.0
+
+        # 現在（過買い領域でのBearish Divergence）
+        overbought_df.iloc[-1, overbought_df.columns.get_loc("close")] = 15100000
+        overbought_df.iloc[-1, overbought_df.columns.get_loc("stoch_k")] = 75.0
+        overbought_df.iloc[-1, overbought_df.columns.get_loc("stoch_d")] = 74.0
+
+        decision = self.strategy._analyze_stochastic_divergence_signal(overbought_df)
+
+        # ゾーンマッチでボーナス適用
         self.assertEqual(decision["action"], EntryAction.SELL)
-        self.assertGreater(decision["confidence"], 0.25)
-        self.assertGreater(decision["strength"], 0)
-        self.assertIn("Stochastic反転SELL", decision["reason"])
+        self.assertIn("overbought", decision["reason"])
 
-    def test_analyze_stochastic_reversal_signal_buy(self):
-        """Stochastic反転シグナル分析テスト - BUY（Phase 54.5: stoch < 10, RSI < 30）"""
-        # Phase 54.5: クロスオーバー不要
-        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
-        decision = self.strategy._analyze_stochastic_reversal_signal(df)
+    def test_confidence_max_limit(self):
+        """信頼度上限テスト"""
+        # 強いダイバージェンス + ゾーンマッチでも上限0.60
+        strong_div_df = self.test_df.copy()
 
-        self.assertEqual(decision["action"], EntryAction.BUY)
-        self.assertGreater(decision["confidence"], 0.25)
-        self.assertGreater(decision["strength"], 0)
-        self.assertIn("Stochastic反転BUY", decision["reason"])
+        # lookback=5なのでiloc[-5]と比較
+        # 極端なダイバージェンス
+        strong_div_df.iloc[-5, strong_div_df.columns.get_loc("close")] = 15000000
+        strong_div_df.iloc[-5, strong_div_df.columns.get_loc("stoch_k")] = 95.0
 
-    def test_analyze_stochastic_reversal_signal_hold(self):
-        """Stochastic反転シグナル分析テスト - HOLD"""
-        df = self._create_test_data(stoch_k=50, stoch_d=50, rsi=50)
-        decision = self.strategy._analyze_stochastic_reversal_signal(df)
+        strong_div_df.iloc[-1, strong_div_df.columns.get_loc("close")] = 15200000  # +1.3%
+        strong_div_df.iloc[-1, strong_div_df.columns.get_loc("stoch_k")] = 72.0    # -23pt
+        strong_div_df.iloc[-1, strong_div_df.columns.get_loc("stoch_d")] = 71.0
 
-        self.assertEqual(decision["action"], EntryAction.HOLD)
-        self.assertEqual(decision["confidence"], self.config["hold_confidence"])
-        self.assertEqual(decision["strength"], 0.0)
+        decision = self.strategy._analyze_stochastic_divergence_signal(strong_div_df)
+
+        self.assertLessEqual(decision["confidence"], 0.60)
 
     def test_analyze_empty_dataframe(self):
-        """空データフレームテスト"""
-        df = pd.DataFrame()
-        signal = self.strategy.analyze(df)
+        """空データテスト"""
+        empty_df = pd.DataFrame()
+        signal = self.strategy.analyze(empty_df)
 
         self.assertEqual(signal.action, EntryAction.HOLD)
         self.assertIn("insufficient_data", signal.reason)
 
     def test_analyze_missing_features(self):
         """必須特徴量欠落テスト"""
-        df = pd.DataFrame(
-            {
-                "close": [15000000],
-                "stoch_k": [50],
-                # 他の特徴量が欠落
-            }
-        )
-        signal = self.strategy.analyze(df)
+        incomplete_df = pd.DataFrame({
+            "close": [15000000],
+            "stoch_k": [50.0],
+            # stoch_d, adx_14, atr_14 が欠落
+        })
+        signal = self.strategy.analyze(incomplete_df)
 
         self.assertEqual(signal.action, EntryAction.HOLD)
         self.assertIn("insufficient_data", signal.reason)
 
-    def test_confidence_increases_with_extreme_stochastic_sell(self):
-        """信頼度テスト - 極端なStochastic値で信頼度上昇（SELL）"""
-        # Phase 54.5: Stochastic値が極端なほど信頼度が高い
-        # SELL: stoch_k = 92 vs 95
-        df_92 = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
-        decision_92 = self.strategy._analyze_stochastic_reversal_signal(df_92)
+    def test_detect_divergence_insufficient_data(self):
+        """ダイバージェンス検出 - データ不足テスト"""
+        short_df = self.test_df.head(3)  # 3行のみ
+        result = self.strategy._detect_divergence(short_df)
 
-        df_95 = self._create_test_data(stoch_k=95, stoch_d=94, rsi=75)
-        decision_95 = self.strategy._analyze_stochastic_reversal_signal(df_95)
+        self.assertEqual(result["type"], "none")
+        self.assertEqual(result["action"], EntryAction.HOLD)
 
-        self.assertGreater(decision_95["confidence"], decision_92["confidence"])
+    def test_strength_calculation(self):
+        """シグナル強度計算テスト"""
+        # Stochastic変化量に基づく強度
+        div_df = self.test_df.copy()
 
-    def test_confidence_increases_with_extreme_stochastic_buy(self):
-        """信頼度テスト - 極端なStochastic値で信頼度上昇（BUY）"""
-        # Phase 54.5: BUY: stoch_k = 8 vs 5
-        df_8 = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
-        decision_8 = self.strategy._analyze_stochastic_reversal_signal(df_8)
+        # lookback=5なのでiloc[-5]と比較
+        div_df.iloc[-5, div_df.columns.get_loc("close")] = 15000000
+        div_df.iloc[-5, div_df.columns.get_loc("stoch_k")] = 80.0
 
-        df_5 = self._create_test_data(stoch_k=5, stoch_d=6, rsi=25)
-        decision_5 = self.strategy._analyze_stochastic_reversal_signal(df_5)
+        div_df.iloc[-1, div_df.columns.get_loc("close")] = 15100000
+        div_df.iloc[-1, div_df.columns.get_loc("stoch_k")] = 55.0  # -25pt
 
-        self.assertGreater(decision_5["confidence"], decision_8["confidence"])
+        result = self.strategy._detect_divergence(div_df)
 
-    def test_strength_calculation_sell(self):
-        """強度計算テスト - SELL（Phase 54.5）"""
-        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75)
-        decision = self.strategy._analyze_stochastic_reversal_signal(df)
+        # strength = min(abs(-25) / 50.0, 1.0) = 0.5
+        self.assertEqual(result["type"], "bearish")
+        self.assertAlmostEqual(result["strength"], 0.5, places=1)
 
-        # strength = (stoch_k - 50) / 50.0
-        actual_stoch_k = 92
-        expected_strength = (actual_stoch_k - 50) / 50.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+    def test_with_multi_timeframe_data(self):
+        """マルチタイムフレームデータを使用した分析テスト"""
+        multi_tf_data = {
+            "15m": pd.DataFrame({
+                "close": [15050000],
+                "atr_14": [100000],
+            })
+        }
 
-    def test_strength_calculation_buy(self):
-        """強度計算テスト - BUY（Phase 54.5）"""
-        df = self._create_test_data(stoch_k=8, stoch_d=9, rsi=25)
-        decision = self.strategy._analyze_stochastic_reversal_signal(df)
+        # lookback=5なのでiloc[-5]と比較
+        # Bearish Divergence条件
+        sell_df = self.test_df.copy()
+        sell_df.iloc[-5, sell_df.columns.get_loc("close")] = 15000000
+        sell_df.iloc[-5, sell_df.columns.get_loc("stoch_k")] = 80.0
+        sell_df.iloc[-1, sell_df.columns.get_loc("close")] = 15100000
+        sell_df.iloc[-1, sell_df.columns.get_loc("stoch_k")] = 70.0
+        sell_df.iloc[-1, sell_df.columns.get_loc("stoch_d")] = 69.0
 
-        # strength = (50 - stoch_k) / 50.0
-        actual_stoch_k = 8
-        expected_strength = (50 - actual_stoch_k) / 50.0
-        self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
+        signal = self.strategy.analyze(sell_df, multi_timeframe_data=multi_tf_data)
 
-    def test_bb_width_filter(self):
-        """Phase 54.5: BB幅フィルタテスト - BB幅が広いとHOLD"""
-        # BB幅 3% > 2% なのでトレンド相場と判定
-        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.03)
-        is_range = self.strategy._is_range_market(df)
-        self.assertFalse(is_range)  # BB幅が広いのでレンジ相場ではない
-
-    def test_bb_width_filter_range_ok(self):
-        """Phase 54.5: BB幅フィルタテスト - BB幅が狭いとレンジ"""
-        # BB幅 1.5% < 2% なのでレンジ相場と判定
-        df = self._create_test_data(stoch_k=92, stoch_d=91, rsi=75, adx=15, bb_width_ratio=0.015)
-        is_range = self.strategy._is_range_market(df)
-        self.assertTrue(is_range)  # BB幅が狭いのでレンジ相場
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.action, EntryAction.SELL)
 
 
-# pytest実行用
+def run_stochastic_divergence_tests():
+    """Stochastic Divergence戦略テスト実行関数"""
+    print("=" * 50)
+    print("Stochastic Divergence戦略 テスト開始")
+    print("=" * 50)
+
+    unittest.main(verbosity=2, exit=False)
+
+    print("\n" + "=" * 50)
+    print("Stochastic Divergence戦略 テスト完了")
+    print("=" * 50)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    run_stochastic_divergence_tests()
