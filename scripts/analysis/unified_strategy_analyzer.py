@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-統合戦略分析スクリプト - Phase 61
+統合戦略分析スクリプト v1.0
 
 5つの分析スクリプトを統合した包括的分析ツール:
 - comprehensive_strategy_evaluation.py → 包括的評価機能
@@ -236,11 +236,19 @@ class UnifiedStrategyAnalyzer:
 
         self.regime_stats.total_rows = len(self.df_with_features)
 
+        # BB幅計算に必要な最小行数（MarketRegimeClassifierのbb_period=20）
+        min_period = 20
+
         for idx in range(len(self.df_with_features)):
-            # iloc[[idx]]で1行のDataFrameを取得（SeriesではなくDataFrame）
-            row_df = self.df_with_features.iloc[[idx]]
+            if idx < min_period:
+                # データ不足時はnormal_rangeとしてカウント
+                self.regime_stats.normal_range_count += 1
+                continue
+
+            # その時点までの履歴データを渡す（BB幅計算に必要な行数を確保）
+            df_slice = self.df_with_features.iloc[max(0, idx - 100) : idx + 1]
             try:
-                regime = self.regime_classifier.classify(row_df)
+                regime = self.regime_classifier.classify(df_slice)
                 if regime == RegimeType.TIGHT_RANGE:
                     self.regime_stats.tight_range_count += 1
                 elif regime == RegimeType.NORMAL_RANGE:
@@ -1002,7 +1010,7 @@ async def main():
     args = parser.parse_args()
 
     print("=" * 80)
-    print("🔍 統合戦略分析スクリプト - Phase 61")
+    print("🔍 統合戦略分析スクリプト v1.0")
     print("=" * 80)
 
     try:

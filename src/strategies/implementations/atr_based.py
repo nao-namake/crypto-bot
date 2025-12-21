@@ -63,6 +63,17 @@ class ATRBasedStrategy(StrategyBase):
             "hold_confidence": get_threshold("strategies.atr_based.hold_confidence", 0.20),
             "base_confidence": get_threshold("strategies.atr_based.base_confidence", 0.40),
             "high_confidence": get_threshold("strategies.atr_based.high_confidence", 0.60),
+            # スコア閾値（Phase 55.4 Approach B: BB確認込みで0.65）
+            "min_score_threshold": get_threshold(
+                "strategies.atr_based.min_score_threshold", 0.65
+            ),
+            # BB位置確認（Phase 55.4 Approach B: 新規追加）
+            "bb_position_enabled": get_threshold(
+                "strategies.atr_based.bb_position_enabled", True
+            ),
+            "bb_position_threshold": get_threshold(
+                "strategies.atr_based.bb_position_threshold", 0.20
+            ),
             # ストップロス設定
             "sl_atr_multiplier": get_threshold(
                 "strategies.atr_based.sl_atr_multiplier", 1.5
@@ -88,75 +99,69 @@ class ATRBasedStrategy(StrategyBase):
 
         ATRレンジ消尽に基づく反転シグナルを生成。
 
-        Phase 55.3: 並列評価方式に変更
-        - 3つの条件を独立に評価しスコア化
-        - スコア合計 >= 0.5 でシグナル生成
-        - 直列評価（1つ失敗→全HOLD）から脱却
+        Phase 55.4: 直列評価方式に戻す（高PF設定ベース）
+        - 消尽率 → レンジ相場 → RSI方向 の順にチェック
+        - すべて満たした場合のみシグナル生成
+        - BB位置確認は信頼度ボーナスとして使用
         """
         try:
             self.logger.debug("[ATRレンジ] 分析開始")
             current_price = float(df["close"].iloc[-1])
 
-            # Step 1: 各条件を並列に評価
+            # Step 1: 消尽率チェック（必須条件）
             exhaustion_analysis = self._calculate_exhaustion_ratio(df)
-            range_check = self._check_range_market(df)
-            direction_analysis = self._determine_reversal_direction(df)
-
-            # Step 2: 並列スコア計算（Phase 55.3: 直列→並列評価に変更）
-            score = 0.0
-            score_details = []
-
-            # レンジ相場スコア (0.35)
-            if range_check["is_range"]:
-                score += 0.35
-                score_details.append(f"レンジ+0.35")
-
-            # 消尽率スコア (0.35-0.45)
-            if exhaustion_analysis["is_high_exhaustion"]:
-                score += 0.45
-                score_details.append(f"高消尽+0.45")
-            elif exhaustion_analysis["is_exhausted"]:
-                score += 0.35
-                score_details.append(f"消尽+0.35")
-
-            # RSI方向スコア (0.30)
-            if direction_analysis["action"] != EntryAction.HOLD:
-                score += 0.30
-                score_details.append(f"RSI方向+0.30")
-
-            # Step 3: スコア閾値判定（0.5以上でシグナル生成）
-            min_score_threshold = 0.50
-
-            if score < min_score_threshold:
+            if not exhaustion_analysis["is_exhausted"]:
                 return SignalBuilder.create_hold_signal(
                     strategy_name=self.name,
                     current_price=current_price,
-                    reason=f"スコア不足({score:.2f}<{min_score_threshold}): {', '.join(score_details) if score_details else '条件未達'}",
+                    reason=exhaustion_analysis["reason"],
                     strategy_type=StrategyType.ATR_BASED,
                 )
 
-            # Step 4: 方向決定（RSIが中間の場合は消尽率の傾きから推定）
-            if direction_analysis["action"] == EntryAction.HOLD:
-                # RSIが中間でも他の条件が強ければ方向を推定
-                direction_analysis = self._infer_direction_from_price(df)
-                if direction_analysis["action"] == EntryAction.HOLD:
-                    return SignalBuilder.create_hold_signal(
-                        strategy_name=self.name,
-                        current_price=current_price,
-                        reason=f"スコア{score:.2f}だが方向不明",
-                        strategy_type=StrategyType.ATR_BASED,
-                    )
+            # Step 2: レンジ相場チェック（必須条件）
+            range_check = self._check_range_market(df)
+            if not range_check["is_range"]:
+                return SignalBuilder.create_hold_signal(
+                    strategy_name=self.name,
+                    current_price=current_price,
+                    reason=range_check["reason"],
+                    strategy_type=StrategyType.ATR_BASED,
+                )
 
-            # シグナル生成（スコアを信頼度に反映）
-            decision = self._create_decision_with_score(
-                exhaustion_analysis, direction_analysis, range_check, score
-            )
+            # Step 3: 反転方向決定（必須条件）
+            direction_analysis = self._determine_reversal_direction(df)
+            if direction_analysis["action"] == EntryAction.HOLD:
+                return SignalBuilder.create_hold_signal(
+                    strategy_name=self.name,
+                    current_price=current_price,
+                    reason=direction_analysis["reason"],
+                    strategy_type=StrategyType.ATR_BASED,
+                )
+
+            # Step 4: BB位置確認（オプション：信頼度ボーナス）
+            bb_check = self._check_bb_position(df)
+
+            # Step 5: 統合判定とシグナル生成
+            decision = self._create_decision(exhaustion_analysis, direction_analysis, range_check)
+
+            # BB帯端にいる場合は信頼度を上げる
+            if self.config.get("bb_position_enabled", True) and bb_check["at_band_edge"]:
+                # RSI方向とBB方向が一致していれば更にボーナス
+                rsi_direction = direction_analysis["action"]
+                bb_direction = bb_check["direction"]
+                if (rsi_direction == EntryAction.BUY and bb_direction == "BUY") or \
+                   (rsi_direction == EntryAction.SELL and bb_direction == "SELL"):
+                    decision["confidence"] = min(decision["confidence"] + 0.10, 0.80)
+                    decision["analysis"] += f" | BB帯端一致+0.10"
+                else:
+                    decision["confidence"] = min(decision["confidence"] + 0.05, 0.75)
+                    decision["analysis"] += f" | BB帯端+0.05"
+
             signal = self._create_signal(decision, current_price, df, multi_timeframe_data)
 
             self.logger.info(
                 f"[ATRレンジ] シグナル生成: {signal.action} "
-                f"(スコア: {score:.2f}, 信頼度: {signal.confidence:.3f}, "
-                f"消尽率: {exhaustion_analysis['ratio']:.1%})"
+                f"(信頼度: {signal.confidence:.3f}, 消尽率: {exhaustion_analysis['ratio']:.1%})"
             )
             return signal
 
@@ -244,6 +249,80 @@ class ATRBasedStrategy(StrategyBase):
         except Exception as e:
             self.logger.error(f"レンジ判定エラー: {e}")
             return {"is_range": True, "adx": 0.0, "reason": "判定エラー（レンジと仮定）"}
+
+    def _check_bb_position(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        ボリンジャーバンド位置確認（Phase 55.4 Approach B）
+
+        15分足レンジ相場向けの追加フィルタ。
+        価格がBB帯端にいる場合、反転の信頼性が高い。
+
+        Returns:
+            at_band_edge: True if price is near band edge
+            direction: Expected reversal direction ("BUY", "SELL", or "HOLD")
+            position: Price position within BB (0=lower, 1=upper)
+        """
+        try:
+            # BB関連データを取得
+            if "bb_upper" not in df.columns or "bb_lower" not in df.columns:
+                return {
+                    "at_band_edge": False,
+                    "direction": "HOLD",
+                    "position": 0.5,
+                    "reason": "BBデータなし",
+                }
+
+            close = float(df["close"].iloc[-1])
+            bb_upper = float(df["bb_upper"].iloc[-1])
+            bb_lower = float(df["bb_lower"].iloc[-1])
+            bb_width = bb_upper - bb_lower
+
+            if bb_width <= 0:
+                return {
+                    "at_band_edge": False,
+                    "direction": "HOLD",
+                    "position": 0.5,
+                    "reason": "BB幅ゼロ",
+                }
+
+            # 価格のBB内位置（0=下端、1=上端）
+            bb_position = (close - bb_lower) / bb_width
+            threshold = self.config.get("bb_position_threshold", 0.20)
+
+            # 帯端判定
+            at_lower = bb_position < threshold      # 下端付近 → BUY期待
+            at_upper = bb_position > (1 - threshold)  # 上端付近 → SELL期待
+
+            if at_lower:
+                return {
+                    "at_band_edge": True,
+                    "direction": "BUY",
+                    "position": bb_position,
+                    "reason": f"BB下端({bb_position:.1%} < {threshold:.0%}) → 上昇反転期待",
+                }
+            elif at_upper:
+                return {
+                    "at_band_edge": True,
+                    "direction": "SELL",
+                    "position": bb_position,
+                    "reason": f"BB上端({bb_position:.1%} > {1-threshold:.0%}) → 下落反転期待",
+                }
+            else:
+                return {
+                    "at_band_edge": False,
+                    "direction": "HOLD",
+                    "position": bb_position,
+                    "reason": f"BB中間({bb_position:.1%}) → 帯端フィルタ未達",
+                }
+
+        except Exception as e:
+            self.logger.error(f"BB位置確認エラー: {e}")
+            return {
+                "at_band_edge": False,
+                "direction": "HOLD",
+                "position": 0.5,
+                "reason": "判定エラー",
+            }
 
     def _determine_reversal_direction(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -447,4 +526,6 @@ class ATRBasedStrategy(StrategyBase):
             "atr_14",
             "adx_14",
             "rsi_14",
+            "bb_upper",   # Phase 55.4 Approach B: BB位置確認用
+            "bb_lower",   # Phase 55.4 Approach B: BB位置確認用
         ]

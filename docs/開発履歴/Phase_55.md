@@ -1,7 +1,7 @@
 # Phase 55 開発記録
 
 **期間**: 2025/12/20-
-**状況**: Phase 55.3検証中
+**状況**: Phase 55.4進行中
 
 ---
 
@@ -21,8 +21,9 @@
 |-------|------|------|----------|
 | 55.1 | ATRレンジ消尽戦略の閾値調整 | ✅ | 取引数+30%、PF 1.16維持 |
 | 55.2 | StochasticReversal → Divergence戦略 | ✅ | PF 0.77→1.53（+99%）大成功 |
-| 55.3 | 取引数回復（ロジック並列化・閾値緩和） | 🔄 検証中 | シグナル生成改善確認 |
-| 55.4 | - | 予定 | - |
+| 55.3 | 取引数回復（ロジック並列化・閾値緩和） | ✅ | シグナル生成改善 |
+| 55.4 | 戦略分析・重み最適化 | 🔄 進行中 | ADX無効化・レンジ重視重み |
+| 55.5 | 最終検証・本番適用 | 予定 | - |
 
 ---
 
@@ -356,9 +357,163 @@ tight_range.min_ml_confidence: 0.33  # 0.38→0.33
 
 ### 次のステップ
 
-1. 60日バックテスト完了待ち
-2. 取引数・PF・勝率の確認
-3. 結果に応じて閾値微調整
+→ Phase 55.4で分析結果に基づく調整を実施
+
+---
+
+## ✅ Phase 55.4: 戦略分析・重み最適化【完了】
+
+### 実施日: 2025/12/21-22
+
+### 目的
+180日分析結果に基づき、各戦略の重みと設定を最適化する。
+
+### 分析結果（180日・unified_strategy_analyzer）
+
+| 戦略 | 取引数 | 勝率 | PF | 損益 | レジーム適性 |
+|------|--------|------|-----|------|-------------|
+| MACDEMACrossover | 131 | 45.0% | **1.22** | +21,243円 | trend |
+| BBReversal | 237 | 46.4% | **1.12** | +22,245円 | range |
+| DonchianChannel | 586 | 44.2% | **1.02** | +10,603円 | range |
+| StochasticReversal | 401 | 43.4% | **1.02** | +5,310円 | range |
+| ATRBased | 621 | 43.6% | 0.99 | -7,221円 | range |
+| ADXTrendStrength | 273 | 38.1% | 0.85 | -36,432円 | trend |
+
+**レジーム分布**: tight_range 90.0%、normal_range 9.5%、trending 0.4%
+
+### 修正内容
+
+#### 1. ADXTrendStrength無効化
+
+**理由**:
+- PF 0.85（赤字戦略）
+- 損失 -36,432円
+- トレンド型だがtight_range 90%の相場に不向き
+
+**変更（strategies.yaml）:**
+```yaml
+adx_trend:
+  enabled: false  # Phase 55.4: 無効化
+  weight: 0.00
+```
+
+#### 2. レジーム適性ベースの重み再設計
+
+| 戦略 | 旧重み | 新重み | 理由 |
+|------|--------|--------|------|
+| BBReversal | 0.17 | **0.30** | 最良レンジ戦略（PF 1.12） |
+| DonchianChannel | 0.17 | **0.25** | レンジ戦略（PF 1.02） |
+| StochasticReversal | 0.17 | **0.25** | レンジ戦略（PF 1.02） |
+| ATRBased | 0.17 | **0.15** | レンジ戦略（PF 1.11達成） |
+| MACDEMACrossover | 0.15 | **0.05** | トレンド戦略（trending 0.4%のみ） |
+| ADXTrendStrength | 0.17 | **0.00** | 無効化 |
+
+**設計思想**:
+- tight_range 90%の相場に合わせてレンジ戦略を重視
+- MACDは高PF（1.22）だがトレンド向け → 重みを5%に制限
+
+#### 3. ATR戦略: 並列評価→直列評価への復帰
+
+**問題**: Phase 55.3で導入した並列スコアリングでPF悪化（0.99→0.91）
+
+**原因分析**:
+- Range（0.35）+ RSI（0.30）= 0.65 ≥ 0.50 → 消尽率不要でシグナル生成
+- 消尽率なしの低品質シグナルが混入
+
+**解決策**: 直列評価方式（必須条件チェック）に復帰
+
+```python
+# Step 1: 消尽率チェック（必須条件）
+exhaustion_analysis = self._calculate_exhaustion_ratio(df)
+if not exhaustion_analysis["is_exhausted"]:
+    return SignalBuilder.create_hold_signal(...)
+
+# Step 2: レンジ相場チェック（必須条件）
+range_check = self._check_range_market(df)
+if not range_check["is_range"]:
+    return SignalBuilder.create_hold_signal(...)
+
+# Step 3: 反転方向決定（必須条件）
+direction_analysis = self._determine_reversal_direction(df)
+if direction_analysis["action"] == EntryAction.HOLD:
+    return SignalBuilder.create_hold_signal(...)
+
+# Step 4: BB位置確認（オプション：信頼度ボーナス）
+bb_check = self._check_bb_position(df)
+```
+
+#### 4. BB位置確認の追加
+
+**新規追加メソッド（atr_based.py）:**
+```python
+def _check_bb_position(self, df: pd.DataFrame) -> Dict[str, Any]:
+    """BB位置確認（15分足レンジ向け）"""
+    close = float(df["close"].iloc[-1])
+    bb_upper = float(df["bb_upper"].iloc[-1])
+    bb_lower = float(df["bb_lower"].iloc[-1])
+    bb_width = bb_upper - bb_lower
+    bb_position = (close - bb_lower) / bb_width if bb_width > 0 else 0.5
+    threshold = self.config.get("bb_position_threshold", 0.20)
+    at_lower = bb_position < threshold
+    at_upper = bb_position > (1 - threshold)
+    return {
+        "at_band_edge": at_lower or at_upper,
+        "direction": "BUY" if at_lower else ("SELL" if at_upper else "HOLD"),
+        "position": bb_position
+    }
+```
+
+**信頼度ボーナス適用**:
+- BB帯端にいる場合: +0.05の信頼度ボーナス
+- 方向一致の場合: さらに+0.03のボーナス
+
+#### 5. ATR閾値の最終調整
+
+```yaml
+# thresholds.yaml - Phase 55.4最終設定
+strategies:
+  atr_based:
+    exhaustion_threshold: 0.60       # バランス設定
+    high_exhaustion_threshold: 0.75  # 高消尽率
+    adx_range_threshold: 25          # レンジ判定
+    rsi_upper: 58                    # 取引数増加
+    rsi_lower: 42                    # 取引数増加
+    min_confidence: 0.35
+    bb_position_enabled: true        # BB確認有効
+    bb_position_threshold: 0.20      # バンド端20%
+```
+
+### 最終結果（60日分析）
+
+| 指標 | 改善前（並列） | 改善後（直列+BB） | 変化 |
+|------|---------------|------------------|------|
+| **PF** | 0.99 | **1.11** | **+12%** |
+| 取引数 | 621件/180日 | 378件/180日 | -39% |
+| **勝率** | 43.6% | **46.0%** | **+2.4pt** |
+| **損益** | -7,221円 | **+10,129円** | **黒字化** |
+
+### 180日バックテスト結果
+
+**Run ID:** 20401710348（旧設定で実行）
+
+| 指標 | 結果 |
+|------|------|
+| 取引数 | 11件 |
+| 勝率 | 36.36% |
+| 損益 | -18円 |
+
+**分析結果**:
+- 戦略HOLDが77.6%（4473件/5760件）と多すぎる
+- ポジションサイズが0.0001 BTCに固定（min()ロジック問題）
+- ML統合でBUY/SELLがHOLDに変換されるケースが多い
+
+→ Phase 55.5でポジションサイズ・ML統合問題を修正
+
+### 学習事項
+
+1. **並列スコアリングは品質低下を招く** - 必須条件は直列チェックが正解
+2. **BB位置確認は信頼度ボーナスとして有効** - 必須条件ではなく補助的に活用
+3. **消尽率は最重要条件** - これを満たさないシグナルは低品質
 
 ---
 

@@ -1,5 +1,5 @@
 """
-ポジションサイジング統合システム - Phase 54.9更新
+ポジションサイジング統合システム - Phase 55.5更新
 
 Phase 28完了・Kelly基準と既存RiskManagerの統合クラス
 動的ポジションサイジング対応・ML信頼度連動
@@ -8,10 +8,15 @@ Phase 54.9: バックテスト用タイムスタンプ対応追加
 - reference_timestamp引数でバックテスト時刻を渡せるように
 - Kelly履歴lookbackフィルターがバックテストでも正常動作
 
+Phase 55.5: min()から加重平均方式に変更
+- 問題: min()だとDynamic（BTC高価格で極小化）が常にボトルネック化
+- 解決: Kelly 50% / Dynamic 30% / RiskManager 20%の加重平均
+- 効果: 0.0001 BTC → 約0.009 BTC（Kelly基準が活かされる）
+
 設計思想:
 - Kelly基準と既存RiskManagerの統合
 - ML信頼度に基づく動的ポジションサイジング
-- 3つの値（Dynamic, Kelly, RiskManager）から最も保守的な値を採用
+- 加重平均方式でKelly基準を活かしつつ安全上限で制限
 """
 
 from datetime import datetime
@@ -90,21 +95,31 @@ class PositionSizeIntegrator:
                     confidence=risk_manager_confidence, config=config
                 )
 
-                # 3つの値のうち最も保守的な値を採用
-                integrated_size = min(dynamic_size, kelly_size, risk_manager_size)
+                # Phase 55.5: 加重平均方式（Kelly基準を活かす）
+                # min()だとDynamic（BTC高価格で極小化）がボトルネックになる問題を解消
+                kelly_weight = get_threshold("position_integrator.kelly_weight", 0.5)
+                dynamic_weight = get_threshold("position_integrator.dynamic_weight", 0.3)
+                risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
 
-                # Phase 54.9: ボトルネック特定ログ
-                if integrated_size == kelly_size:
-                    bottleneck = "Kelly"
-                elif integrated_size == dynamic_size:
-                    bottleneck = "Dynamic"
-                else:
-                    bottleneck = "RiskManager"
+                integrated_size = (
+                    kelly_size * kelly_weight +
+                    dynamic_size * dynamic_weight +
+                    risk_manager_size * risk_weight
+                )
+
+                # 安全上限チェック（max_order_sizeを超えない）
+                max_order_size = get_threshold("production.max_order_size", 0.03)
+                integrated_size = min(integrated_size, max_order_size)
+
+                # 最小取引単位チェック
+                min_trade_size = get_threshold("production.min_order_size", 0.0001)
+                integrated_size = max(integrated_size, min_trade_size)
 
                 self.logger.info(
                     f"動的統合ポジションサイズ計算: Dynamic={dynamic_size:.6f}, "
                     f"Kelly={kelly_size:.6f}, RiskManager={risk_manager_size:.6f}, "
-                    f"採用={integrated_size:.6f} BTC (信頼度={ml_confidence:.1%}, ボトルネック={bottleneck})"
+                    f"採用={integrated_size:.6f} BTC (信頼度={ml_confidence:.1%}, "
+                    f"重み: Kelly={kelly_weight:.0%}/Dynamic={dynamic_weight:.0%}/Risk={risk_weight:.0%})"
                 )
 
                 return integrated_size
@@ -124,15 +139,31 @@ class PositionSizeIntegrator:
                     confidence=risk_manager_confidence, config=config
                 )
 
-                integrated_size = min(kelly_size, risk_manager_size)
+                # Phase 55.5: 加重平均方式（Dynamic無しの場合）
+                kelly_weight = get_threshold("position_integrator.kelly_weight", 0.5)
+                risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
+                # Dynamic分の重みをKellyに加算
+                total_weight = kelly_weight + risk_weight
+                kelly_normalized = kelly_weight / total_weight
+                risk_normalized = risk_weight / total_weight
 
-                # Phase 54.9: ボトルネック特定ログ
-                bottleneck = "Kelly" if integrated_size == kelly_size else "RiskManager"
+                integrated_size = (
+                    kelly_size * kelly_normalized +
+                    risk_manager_size * risk_normalized
+                )
+
+                # 安全上限チェック
+                max_order_size = get_threshold("production.max_order_size", 0.03)
+                integrated_size = min(integrated_size, max_order_size)
+
+                # 最小取引単位チェック
+                min_trade_size = get_threshold("production.min_order_size", 0.0001)
+                integrated_size = max(integrated_size, min_trade_size)
 
                 self.logger.info(
                     f"統合ポジションサイズ計算: Kelly={kelly_size:.6f}, "
                     f"RiskManager={risk_manager_size:.6f}, 採用={integrated_size:.6f} BTC "
-                    f"(ボトルネック={bottleneck})"
+                    f"(重み: Kelly={kelly_normalized:.0%}/Risk={risk_normalized:.0%})"
                 )
 
                 return integrated_size
