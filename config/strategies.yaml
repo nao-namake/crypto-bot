@@ -15,8 +15,8 @@
 # ========================================
 
 strategy_system_version: "2.0.0"
-last_updated: "2025-12-21"
-phase: "Phase 55.4"
+last_updated: "2025-12-22"
+phase: "Phase 55.6"
 
 # ========================================
 # 戦略定義（Phase 51.7: 6戦略体制）
@@ -29,10 +29,10 @@ strategies:
     class_name: "ATRBased"                        # StrategyRegistry登録名
     module_path: "src.strategies.implementations.atr_based"
     strategy_type: "atr_based"                    # StrategyType定数値
-    weight: 0.15                                   # 戦略重み（15%・Phase 55.4: レンジ戦略、PF 0.99要改善）
-    priority: 1                                    # 優先度（低いほど優先）
-    regime_affinity: "range"                       # レジーム適性（range/trend/both）
-    indicators: ["ATR", "BB", "RSI"]               # 主要指標（分析用）
+    weight: 0.15                                  # 戦略重み（15%・PF 0.99）
+    priority: 1                                   # 優先度（低いほど優先）
+    regime_affinity: "range"                      # レジーム適性（range/trend/both）
+    indicators: ["ATR", "BB", "RSI"]              # 主要指標（分析用）
     description: "ATRベース逆張り戦略 - ボラティリティベース平均回帰"
     config_section: "strategies.atr_based"        # thresholds.yaml参照セクション
 
@@ -42,24 +42,24 @@ strategies:
     class_name: "DonchianChannel"
     module_path: "src.strategies.implementations.donchian_channel"
     strategy_type: "donchian_channel"
-    weight: 0.25                                   # 戦略重み（25%・Phase 55.4: レンジ戦略、PF 1.02）
+    weight: 0.20                                  # 戦略重み（20%・PF 1.02）
     priority: 2
-    regime_affinity: "range"                       # レジーム適性（range/trend/both）
-    indicators: ["Donchian", "Breakout"]           # 主要指標（分析用）
+    regime_affinity: "range"                      # レジーム適性（range/trend/both）
+    indicators: ["Donchian", "Breakout"]          # 主要指標（分析用）
     description: "Donchianチャネルブレイクアウト戦略 - 高値/安値ブレイクアウト検知"
     config_section: "strategies.donchian_channel"
 
-  # 戦略3: ADXトレンド強度戦略【Phase 55.4で無効化: PF 0.85、損失-36,432円】
+  # 戦略3: ADXレンジ逆張り戦略【Phase 55.6: タイトレンジ適応型 PF1.01達成】
   adx_trend:
-    enabled: false                                  # Phase 55.4: 無効化（PF 0.85は許容範囲外）
+    enabled: true                                 # Phase 55.6: 有効化（レンジ逆張りモード）
     class_name: "ADXTrendStrength"
     module_path: "src.strategies.implementations.adx_trend"
     strategy_type: "adx_trend"
-    weight: 0.00                                   # 戦略重み（0%・Phase 55.4: 無効化）
+    weight: 0.10                                  # 戦略重み（10%・PF 1.01）
     priority: 3
-    regime_affinity: "trend"                       # レジーム適性（range/trend/both）
-    indicators: ["ADX", "DI"]                      # 主要指標（分析用）
-    description: "ADXトレンド強度戦略 - トレンド方向性とDI判定"
+    regime_affinity: "range"                      # Phase 55.6: trend→range（タイトレンジ適応）
+    indicators: ["ADX", "DI", "BB", "RSI"]        # Phase 55.6: BB+RSIフィルタ追加
+    description: "ADXレンジ逆張り戦略 - DI急変+BB位置+RSI+動的閾値"
     config_section: "strategies.adx_trend"
 
   # 戦略4: BB Reversal戦略（Phase 51.7 Day 3追加）
@@ -68,10 +68,10 @@ strategies:
     class_name: "BBReversal"
     module_path: "src.strategies.implementations.bb_reversal"
     strategy_type: "bb_reversal"
-    weight: 0.30                                   # 戦略重み（30%・Phase 55.4: 最良レンジ戦略、PF 1.12）
+    weight: 0.30                                  # 戦略重み（30%・PF 1.12 最良）
     priority: 4
-    regime_affinity: "range"                       # レジーム適性（range/trend/both）
-    indicators: ["BB", "RSI"]                      # 主要指標（分析用）
+    regime_affinity: "range"                      # レジーム適性（range/trend/both）
+    indicators: ["BB", "RSI"]                     # 主要指標（分析用）
     description: "BB Reversal戦略 - レンジ相場での平均回帰"
     config_section: "strategies.bb_reversal"
 
@@ -81,10 +81,10 @@ strategies:
     class_name: "StochasticReversal"
     module_path: "src.strategies.implementations.stochastic_reversal"
     strategy_type: "stochastic_reversal"
-    weight: 0.25                                   # 戦略重み（25%・Phase 55.4: レンジ戦略、PF 1.02）
+    weight: 0.20                                  # 戦略重み（20%・PF 1.02）
     priority: 5
-    regime_affinity: "range"                       # レジーム適性（range/trend/both）
-    indicators: ["Stochastic", "RSI"]              # 主要指標（分析用）
+    regime_affinity: "range"                      # レジーム適性（range/trend/both）
+    indicators: ["Stochastic", "RSI"]             # 主要指標（分析用）
     description: "Stochastic Reversal戦略 - レンジ相場でのモメンタム逆張り"
     config_section: "strategies.stochastic_reversal"
 
@@ -94,10 +94,10 @@ strategies:
     class_name: "MACDEMACrossover"
     module_path: "src.strategies.implementations.macd_ema_crossover"
     strategy_type: "macd_ema_crossover"
-    weight: 0.05                                   # 戦略重み（5%・Phase 55.4: トレンド戦略、trending 0.4%のみ）
+    weight: 0.05                                  # 戦略重み（5%・トレンド専用）
     priority: 6
-    regime_affinity: "trend"                       # レジーム適性（range/trend/both）
-    indicators: ["MACD", "EMA"]                    # 主要指標（分析用）
+    regime_affinity: "trend"                      # レジーム適性（range/trend/both）
+    indicators: ["MACD", "EMA"]                   # 主要指標（分析用）
     description: "MACD+EMA Crossover戦略 - トレンド転換期の押し目買い・戻り売り"
     config_section: "strategies.macd_ema_crossover"
 

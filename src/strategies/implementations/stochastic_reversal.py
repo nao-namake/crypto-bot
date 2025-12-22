@@ -65,33 +65,23 @@ class StochasticReversalStrategy(StrategyBase):
             "stoch_overbought": get_threshold(
                 "strategies.stochastic_reversal.stoch_overbought", 70
             ),
-            "stoch_oversold": get_threshold(
-                "strategies.stochastic_reversal.stoch_oversold", 30
-            ),
+            "stoch_oversold": get_threshold("strategies.stochastic_reversal.stoch_oversold", 30),
             # ADX設定
             "adx_max_threshold": get_threshold(
                 "strategies.stochastic_reversal.adx_max_threshold", 50
             ),
             # 信頼度設定
-            "min_confidence": get_threshold(
-                "strategies.stochastic_reversal.min_confidence", 0.30
-            ),
+            "min_confidence": get_threshold("strategies.stochastic_reversal.min_confidence", 0.30),
             "hold_confidence": get_threshold(
                 "strategies.stochastic_reversal.hold_confidence", 0.22
             ),
             "base_confidence": get_threshold(
                 "strategies.stochastic_reversal.base_confidence", 0.35
             ),
-            "max_confidence": get_threshold(
-                "strategies.stochastic_reversal.max_confidence", 0.60
-            ),
-            "zone_bonus": get_threshold(
-                "strategies.stochastic_reversal.zone_bonus", 0.10
-            ),
+            "max_confidence": get_threshold("strategies.stochastic_reversal.max_confidence", 0.60),
+            "zone_bonus": get_threshold("strategies.stochastic_reversal.zone_bonus", 0.10),
             # SL設定
-            "sl_multiplier": get_threshold(
-                "strategies.stochastic_reversal.sl_multiplier", 1.5
-            ),
+            "sl_multiplier": get_threshold("strategies.stochastic_reversal.sl_multiplier", 1.5),
         }
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="StochasticReversal", config=merged_config)
@@ -149,8 +139,8 @@ class StochasticReversalStrategy(StrategyBase):
             "close",
             "stoch_k",  # Stochastic %K（14期間）
             "stoch_d",  # Stochastic %D（3期間SMA）
-            "adx_14",   # ADX（強トレンド除外用）
-            "atr_14",   # ATR（リスク管理用）
+            "adx_14",  # ADX（強トレンド除外用）
+            "atr_14",  # ATR（リスク管理用）
         ]
 
     def _check_market_condition(self, df: pd.DataFrame) -> bool:
@@ -206,8 +196,8 @@ class StochasticReversalStrategy(StrategyBase):
                 return {"type": "none", "action": EntryAction.HOLD, "strength": 0.0}
 
             # Phase 55.3: 期間内のデータを取得（同時性緩和）
-            period_closes = df["close"].iloc[-lookback-1:].values
-            period_stochs = df["stoch_k"].iloc[-lookback-1:].values
+            period_closes = df["close"].iloc[-lookback - 1 :].values
+            period_stochs = df["stoch_k"].iloc[-lookback - 1 :].values
 
             current_close = float(period_closes[-1])
             current_stoch = float(period_stochs[-1])
@@ -243,8 +233,8 @@ class StochasticReversalStrategy(StrategyBase):
             # Bearish Divergence検出（Phase 55.3: 緩和条件）
             # 条件1: 価格が高値付近（位置 > 0.6）AND Stochasticが安値付近（位置 < 0.4）
             # 条件2: または従来条件（価格上昇 + Stochastic下降）
-            bearish_new = (price_position > 0.6 and stoch_position < 0.4)
-            bearish_old = (price_change_ratio > price_threshold and stoch_change < -stoch_threshold)
+            bearish_new = price_position > 0.6 and stoch_position < 0.4
+            bearish_old = price_change_ratio > price_threshold and stoch_change < -stoch_threshold
 
             if bearish_new or bearish_old:
                 strength = 0.3 + abs(price_position - stoch_position) * 0.4
@@ -262,8 +252,8 @@ class StochasticReversalStrategy(StrategyBase):
             # Bullish Divergence検出（Phase 55.3: 緩和条件）
             # 条件1: 価格が安値付近（位置 < 0.4）AND Stochasticが高値付近（位置 > 0.6）
             # 条件2: または従来条件（価格下落 + Stochastic上昇）
-            bullish_new = (price_position < 0.4 and stoch_position > 0.6)
-            bullish_old = (price_change_ratio < -price_threshold and stoch_change > stoch_threshold)
+            bullish_new = price_position < 0.4 and stoch_position > 0.6
+            bullish_old = price_change_ratio < -price_threshold and stoch_change > stoch_threshold
 
             if bullish_new or bullish_old:
                 strength = 0.3 + abs(stoch_position - price_position) * 0.4
@@ -353,9 +343,8 @@ class StochasticReversalStrategy(StrategyBase):
 
         # Bearish Divergence + 過買い領域 = 強いSELL信号
         # Bullish Divergence + 過売り領域 = 強いBUY信号
-        zone_match = (
-            (divergence["type"] == "bearish" and zone_check["zone"] == "overbought")
-            or (divergence["type"] == "bullish" and zone_check["zone"] == "oversold")
+        zone_match = (divergence["type"] == "bearish" and zone_check["zone"] == "overbought") or (
+            divergence["type"] == "bullish" and zone_check["zone"] == "oversold"
         )
 
         # Step 3: 信頼度計算

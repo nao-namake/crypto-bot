@@ -71,7 +71,7 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
                 "close": np.full(100, base_price),
                 "stoch_k": np.full(100, 50.0),  # 中立
                 "stoch_d": np.full(100, 50.0),
-                "adx_14": np.full(100, 25.0),   # 中程度
+                "adx_14": np.full(100, 25.0),  # 中程度
                 "atr_14": np.full(100, 150000),
             }
         )
@@ -168,7 +168,7 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
 
         # 現在（価格も Stochも上昇）
         no_div_df.iloc[-1, no_div_df.columns.get_loc("close")] = 15100000  # +0.67%
-        no_div_df.iloc[-1, no_div_df.columns.get_loc("stoch_k")] = 55.0    # +15pt
+        no_div_df.iloc[-1, no_div_df.columns.get_loc("stoch_k")] = 55.0  # +15pt
 
         result = self.strategy._detect_divergence(no_div_df)
 
@@ -261,7 +261,9 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
 
         # 期間内のデータを設定
         for i in range(-6, 0):
-            overbought_df.iloc[i, overbought_df.columns.get_loc("close")] = 15000000 + (i + 6) * 20000
+            overbought_df.iloc[i, overbought_df.columns.get_loc("close")] = (
+                15000000 + (i + 6) * 20000
+            )
             overbought_df.iloc[i, overbought_df.columns.get_loc("stoch_k")] = 90.0 - (i + 6) * 3
 
         # 現在: 価格最高、Stoch低下だがまだ過買い領域内(>75)
@@ -285,7 +287,7 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
         strong_div_df.iloc[-5, strong_div_df.columns.get_loc("stoch_k")] = 95.0
 
         strong_div_df.iloc[-1, strong_div_df.columns.get_loc("close")] = 15200000  # +1.3%
-        strong_div_df.iloc[-1, strong_div_df.columns.get_loc("stoch_k")] = 72.0    # -23pt
+        strong_div_df.iloc[-1, strong_div_df.columns.get_loc("stoch_k")] = 72.0  # -23pt
         strong_div_df.iloc[-1, strong_div_df.columns.get_loc("stoch_d")] = 71.0
 
         decision = self.strategy._analyze_stochastic_divergence_signal(strong_div_df)
@@ -302,11 +304,13 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
 
     def test_analyze_missing_features(self):
         """必須特徴量欠落テスト"""
-        incomplete_df = pd.DataFrame({
-            "close": [15000000],
-            "stoch_k": [50.0],
-            # stoch_d, adx_14, atr_14 が欠落
-        })
+        incomplete_df = pd.DataFrame(
+            {
+                "close": [15000000],
+                "stoch_k": [50.0],
+                # stoch_d, adx_14, atr_14 が欠落
+            }
+        )
         signal = self.strategy.analyze(incomplete_df)
 
         self.assertEqual(signal.action, EntryAction.HOLD)
@@ -344,10 +348,12 @@ class TestStochasticDivergenceStrategy(unittest.TestCase):
     def test_with_multi_timeframe_data(self):
         """マルチタイムフレームデータを使用した分析テスト - Phase 55.3"""
         multi_tf_data = {
-            "15m": pd.DataFrame({
-                "close": [15050000],
-                "atr_14": [100000],
-            })
+            "15m": pd.DataFrame(
+                {
+                    "close": [15050000],
+                    "atr_14": [100000],
+                }
+            )
         }
 
         # Bearish Divergence条件（位置ベース）

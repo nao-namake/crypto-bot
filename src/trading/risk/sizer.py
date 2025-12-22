@@ -102,9 +102,9 @@ class PositionSizeIntegrator:
                 risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
 
                 integrated_size = (
-                    kelly_size * kelly_weight +
-                    dynamic_size * dynamic_weight +
-                    risk_manager_size * risk_weight
+                    kelly_size * kelly_weight
+                    + dynamic_size * dynamic_weight
+                    + risk_manager_size * risk_weight
                 )
 
                 # 安全上限チェック（max_order_sizeを超えない）
@@ -148,8 +148,7 @@ class PositionSizeIntegrator:
                 risk_normalized = risk_weight / total_weight
 
                 integrated_size = (
-                    kelly_size * kelly_normalized +
-                    risk_manager_size * risk_normalized
+                    kelly_size * kelly_normalized + risk_manager_size * risk_normalized
                 )
 
                 # 安全上限チェック

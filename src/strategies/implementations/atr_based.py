@@ -52,9 +52,7 @@ class ATRBasedStrategy(StrategyBase):
                 "strategies.atr_based.high_exhaustion_threshold", 0.85
             ),
             # レンジ相場フィルタ
-            "adx_range_threshold": get_threshold(
-                "strategies.atr_based.adx_range_threshold", 25
-            ),
+            "adx_range_threshold": get_threshold("strategies.atr_based.adx_range_threshold", 25),
             # RSI反転判定
             "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 60),
             "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 40),
@@ -64,20 +62,14 @@ class ATRBasedStrategy(StrategyBase):
             "base_confidence": get_threshold("strategies.atr_based.base_confidence", 0.40),
             "high_confidence": get_threshold("strategies.atr_based.high_confidence", 0.60),
             # スコア閾値（Phase 55.4 Approach B: BB確認込みで0.65）
-            "min_score_threshold": get_threshold(
-                "strategies.atr_based.min_score_threshold", 0.65
-            ),
+            "min_score_threshold": get_threshold("strategies.atr_based.min_score_threshold", 0.65),
             # BB位置確認（Phase 55.4 Approach B: 新規追加）
-            "bb_position_enabled": get_threshold(
-                "strategies.atr_based.bb_position_enabled", True
-            ),
+            "bb_position_enabled": get_threshold("strategies.atr_based.bb_position_enabled", True),
             "bb_position_threshold": get_threshold(
                 "strategies.atr_based.bb_position_threshold", 0.20
             ),
             # ストップロス設定
-            "sl_atr_multiplier": get_threshold(
-                "strategies.atr_based.sl_atr_multiplier", 1.5
-            ),
+            "sl_atr_multiplier": get_threshold("strategies.atr_based.sl_atr_multiplier", 1.5),
             # リスク管理（共通設定から取得）
             "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
             "take_profit_ratio": get_threshold(
@@ -149,8 +141,9 @@ class ATRBasedStrategy(StrategyBase):
                 # RSI方向とBB方向が一致していれば更にボーナス
                 rsi_direction = direction_analysis["action"]
                 bb_direction = bb_check["direction"]
-                if (rsi_direction == EntryAction.BUY and bb_direction == "BUY") or \
-                   (rsi_direction == EntryAction.SELL and bb_direction == "SELL"):
+                if (rsi_direction == EntryAction.BUY and bb_direction == "BUY") or (
+                    rsi_direction == EntryAction.SELL and bb_direction == "SELL"
+                ):
                     decision["confidence"] = min(decision["confidence"] + 0.10, 0.80)
                     decision["analysis"] += f" | BB帯端一致+0.10"
                 else:
@@ -198,9 +191,13 @@ class ATRBasedStrategy(StrategyBase):
             if is_high_exhaustion:
                 reason = f"高消尽（{exhaustion_ratio:.1%} >= {self.config['high_exhaustion_threshold']:.0%}）"
             elif is_exhausted:
-                reason = f"消尽（{exhaustion_ratio:.1%} >= {self.config['exhaustion_threshold']:.0%}）"
+                reason = (
+                    f"消尽（{exhaustion_ratio:.1%} >= {self.config['exhaustion_threshold']:.0%}）"
+                )
             else:
-                reason = f"未消尽（{exhaustion_ratio:.1%} < {self.config['exhaustion_threshold']:.0%}）"
+                reason = (
+                    f"未消尽（{exhaustion_ratio:.1%} < {self.config['exhaustion_threshold']:.0%}）"
+                )
 
             return {
                 "ratio": exhaustion_ratio,
@@ -290,7 +287,7 @@ class ATRBasedStrategy(StrategyBase):
             threshold = self.config.get("bb_position_threshold", 0.20)
 
             # 帯端判定
-            at_lower = bb_position < threshold      # 下端付近 → BUY期待
+            at_lower = bb_position < threshold  # 下端付近 → BUY期待
             at_upper = bb_position > (1 - threshold)  # 上端付近 → SELL期待
 
             if at_lower:
@@ -305,7 +302,7 @@ class ATRBasedStrategy(StrategyBase):
                     "at_band_edge": True,
                     "direction": "SELL",
                     "position": bb_position,
-                    "reason": f"BB上端({bb_position:.1%} > {1-threshold:.0%}) → 下落反転期待",
+                    "reason": f"BB上端({bb_position:.1%} > {1 - threshold:.0%}) → 下落反転期待",
                 }
             else:
                 return {
@@ -443,7 +440,7 @@ class ATRBasedStrategy(StrategyBase):
 
         # action値を取得
         action = direction["action"]
-        action_str = action.value if hasattr(action, 'value') else str(action)
+        action_str = action.value if hasattr(action, "value") else str(action)
 
         analysis = (
             f"ATRレンジ消尽: {action_str} "
@@ -484,7 +481,7 @@ class ATRBasedStrategy(StrategyBase):
 
         # action値を取得（Enumまたは文字列に対応）
         action = direction["action"]
-        action_str = action.value if hasattr(action, 'value') else str(action)
+        action_str = action.value if hasattr(action, "value") else str(action)
 
         analysis = (
             f"ATRレンジ消尽: {action_str} "
@@ -526,6 +523,6 @@ class ATRBasedStrategy(StrategyBase):
             "atr_14",
             "adx_14",
             "rsi_14",
-            "bb_upper",   # Phase 55.4 Approach B: BB位置確認用
-            "bb_lower",   # Phase 55.4 Approach B: BB位置確認用
+            "bb_upper",  # Phase 55.4 Approach B: BB位置確認用
+            "bb_lower",  # Phase 55.4 Approach B: BB位置確認用
         ]

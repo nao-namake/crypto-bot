@@ -1,7 +1,7 @@
 # Phase 55 開発記録
 
-**期間**: 2025/12/20-
-**状況**: Phase 55.4進行中
+**期間**: 2025/12/20-22
+**状況**: Phase 55.6完了
 
 ---
 
@@ -22,8 +22,9 @@
 | 55.1 | ATRレンジ消尽戦略の閾値調整 | ✅ | 取引数+30%、PF 1.16維持 |
 | 55.2 | StochasticReversal → Divergence戦略 | ✅ | PF 0.77→1.53（+99%）大成功 |
 | 55.3 | 取引数回復（ロジック並列化・閾値緩和） | ✅ | シグナル生成改善 |
-| 55.4 | 戦略分析・重み最適化 | 🔄 進行中 | ADX無効化・レンジ重視重み |
-| 55.5 | 最終検証・本番適用 | 予定 | - |
+| 55.4 | 戦略分析・重み最適化 | ✅ | ADX無効化・レンジ重視重み |
+| 55.5 | ポジションサイズ統合・ML閾値緩和 | ✅ | 加重平均方式・取引数回復 |
+| 55.6 | ADXTrendStrength PF≥1.0達成 | ✅ | PF 0.96→1.01（+5%） |
 
 ---
 
@@ -517,47 +518,263 @@ strategies:
 
 ---
 
+## ✅ Phase 55.5: ポジションサイズ統合・ML閾値緩和【完了】
+
+### 実施日: 2025/12/21
+
+### 目的
+ポジションサイズが0.0001 BTCに固定される問題を解決し、取引数を回復させる。
+
+### 背景
+- Phase 55.4完了後、180日バックテストで取引数11件と極端に少ない
+- ポジションサイズが常に最小値（0.0001 BTC）に固定される問題
+- ML統合でBUY/SELLがHOLDに変換されるケースが多い
+
+### 根本原因
+
+**ポジションサイズ問題**:
+```python
+# 旧ロジック: min()でボトルネック発生
+integrated_size = min(kelly_size, dynamic_size, risk_manager_size)
+# → Dynamic（BTC高価格で極小化）が常にボトルネック
+```
+
+**ML統合問題**:
+- `hold_conversion_threshold: 0.20` が厳しすぎる
+- 信頼度が低いとすぐHOLDに変換
+
+### 修正内容
+
+#### 1. ポジションサイズ: min()→加重平均方式
+
+```python
+# 新ロジック: 加重平均
+kelly_weight = 0.5    # Kelly基準 50%
+dynamic_weight = 0.3  # 動的サイジング 30%
+risk_weight = 0.2     # RiskManager 20%
+
+integrated_size = (
+    kelly_size * kelly_weight +
+    dynamic_size * dynamic_weight +
+    risk_manager_size * risk_weight
+)
+# → Kelly基準が活かされる
+```
+
+**設定（thresholds.yaml）**:
+```yaml
+position_integrator:
+  kelly_weight: 0.5
+  dynamic_weight: 0.3
+  risk_manager_weight: 0.2
+```
+
+#### 2. ML統合閾値緩和
+
+```yaml
+ml:
+  strategy_integration:
+    disagreement_penalty: 0.95    # 0.90→0.95
+    min_ml_confidence: 0.32       # 0.35→0.32
+    hold_conversion_threshold: 0.15  # 0.20→0.15
+
+  regime_ml_integration:
+    tight_range:
+      min_ml_confidence: 0.33     # 0.38→0.33
+      disagreement_penalty: 0.96  # 0.95→0.96
+    normal_range:
+      min_ml_confidence: 0.30     # 0.35→0.30
+      disagreement_penalty: 0.96  # 0.95→0.96
+```
+
+### 結果
+
+- ポジションサイズ: 0.0001 BTC → 約0.009 BTC（Kelly基準活用）
+- 取引数: 回復（HOLD変換削減）
+
+### 変更ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `src/trading/risk/sizer.py` | 加重平均方式に変更 |
+| `config/core/thresholds.yaml` | position_integrator設定追加、ML閾値緩和 |
+
+---
+
+## ✅ Phase 55.6: ADXTrendStrength PF≥1.0達成【完了】
+
+### 実施日: 2025/12/22
+
+### 目的
+無効化されていたADXTrendStrength戦略をレンジ逆張り戦略として復活させ、PF≥1.0を達成する。
+
+### 背景
+- Phase 55.4でADXTrendStrength（PF 0.85）を無効化
+- しかしtight_range 90%の市場でDI指標を活用できる可能性
+- 他戦略（ATR消尽, BB帯端, Stochastic）と異なる視点での差別化
+
+### 設計思想
+
+**旧ロジック（トレンド追従）:**
+- ADX≥25でトレンド発生時にDIクロスオーバーでエントリー
+- 問題: tight_range 90%の市場ではADX≥25がほとんど発生しない
+
+**新ロジック（レンジ逆張り）:**
+- ADX<20のレンジ相場でDI急変を検出
+- DI差分が大きくなったら「行き過ぎ」として逆張り
+- 核心思想: 「レンジ内でのDI極端な偏りは反転のサイン」
+
+### 体系的改善パターン
+
+| パターン | 内容 | 期待効果 | 実際結果 |
+|----------|------|---------|---------|
+| A | 閾値緩和のみ | PF+6% | PF 0.89 ❌ 悪化 |
+| **B** | BB位置フィルタ追加 | PF+12% | **PF 1.01 ✅** |
+| C | B + RSI反転検証 | PF+20% | PF 1.01（Bと同等） |
+| **D** | B + C + ADX動的閾値 | PF+25% | **PF 1.01, +3,288円 ✅** |
+
+### 採用設定（パターンD: 全フィルタ有効）
+
+```yaml
+strategies:
+  adx_trend:
+    # レンジ逆張りモード
+    range_mode_enabled: true
+    range_adx_threshold: 20
+    di_reversal_threshold: 5.0
+    di_diff_threshold: 8.0
+    range_signal_confidence: 0.45
+
+    # パターンB: BB位置フィルタ
+    use_bb_position_filter: true
+    bb_position_upper: 0.80        # SELL時: BB位置>0.80で信頼度+0.10
+    bb_position_lower: 0.20        # BUY時: BB位置<0.20で信頼度+0.10
+    bb_filter_confidence_bonus: 0.10
+
+    # パターンC: RSI反転検証
+    use_rsi_filter: true
+    rsi_sell_threshold: 60         # SELL時: RSI>60で信頼度+0.08
+    rsi_buy_threshold: 40          # BUY時: RSI<40で信頼度+0.08
+    rsi_filter_confidence_bonus: 0.08
+
+    # パターンD: ADX動的閾値
+    use_dynamic_thresholds: true
+    dynamic_adx_ultra_low: 10      # ADX<10: 厳格閾値、高信頼度
+    dynamic_adx_low: 15            # ADX 10-15: 標準閾値
+    dynamic_di_strict: 6.0         # 超安定時DI閾値
+    dynamic_di_normal: 5.0         # 標準時DI閾値
+    dynamic_di_loose: 4.0          # 境界時DI閾値
+    dynamic_conf_high: 0.55        # 超安定時信頼度
+    dynamic_conf_mid: 0.48         # 標準時信頼度
+    dynamic_conf_low: 0.42         # 境界時信頼度
+```
+
+### 実装詳細
+
+#### 1. BB位置フィルタ（パターンB）
+
+```python
+# SELL時: BB上端付近なら信頼度UP
+if di_diff > 0 and bb_position > 0.80:
+    confidence += 0.10
+
+# BUY時: BB下端付近なら信頼度UP
+elif di_diff < 0 and bb_position < 0.20:
+    confidence += 0.10
+```
+
+#### 2. RSI反転検証（パターンC）
+
+```python
+# SELL時: RSI高い（買われすぎ）なら信頼度UP
+if di_diff > 0 and rsi > 60:
+    confidence += 0.08
+
+# BUY時: RSI低い（売られすぎ）なら信頼度UP
+elif di_diff < 0 and rsi < 40:
+    confidence += 0.08
+```
+
+#### 3. ADX動的閾値（パターンD）
+
+```python
+def _get_dynamic_thresholds(self, adx_value):
+    if adx_value < 10:      # 超安定レンジ
+        return {"di_threshold": 6.0, "confidence_base": 0.55}
+    elif adx_value < 15:    # 標準レンジ
+        return {"di_threshold": 5.0, "confidence_base": 0.48}
+    else:                   # 境界レンジ（15-20）
+        return {"di_threshold": 4.0, "confidence_base": 0.42}
+```
+
+### 最終結果（180日分析）
+
+| 指標 | 改善前 | 改善後 | 変化 |
+|------|--------|--------|------|
+| **PF** | 0.96 | **1.01** | **+5%** |
+| 取引数 | - | 276件 | - |
+| 勝率 | 43.6% | 42.4% | -1.2pt |
+| **損益** | - | **+3,288円** | **黒字化** |
+
+### 学習事項
+
+1. **閾値緩和は逆効果の場合がある** - パターンAで悪化（PF 0.89）
+2. **複数指標の確認が有効** - BBReversal/ATRBasedの成功パターン適用
+3. **収穫逓減に注意** - パターンB→C→Dと追加しても効果が薄れる
+4. **ADX/DIはトレンド指標** - tight_range 90%では限界がある
+
+### 今後の方針
+
+- ADXTrendStrengthは現状のPF 1.01で維持
+- これ以上の調整は費用対効果が低い
+- 重み10%で他戦略との分散効果を活用
+
+### 変更ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `src/strategies/implementations/adx_trend.py` | 3層フィルタ実装（BB+RSI+動的閾値） |
+| `config/core/thresholds.yaml` | パターンB/C/D設定追加 |
+| `config/strategies.yaml` | ADX戦略定義更新（PF1.01達成） |
+
+---
+
 ## 🔗 関連ファイル
 
 | ファイル | 内容 |
 |---------|------|
-| `src/strategies/implementations/atr_based.py` | ATRレンジ消尽戦略（Phase 55.3: 並列評価に変更） |
-| `src/strategies/implementations/stochastic_reversal.py` | Stochastic Divergence戦略（Phase 55.3: 位置ベース検出追加） |
-| `config/core/thresholds.yaml` | 現在の閾値設定（Phase 55.3: 緩和済み） |
-| `config/core/atr_based_backup_pf146.yaml` | 高PF設定バックアップ |
-| `tests/unit/strategies/implementations/test_atr_based.py` | 22テスト全PASS |
-| `tests/unit/strategies/implementations/test_stochastic_reversal.py` | 21テスト全PASS（Phase 55.3更新） |
+| `src/strategies/implementations/atr_based.py` | ATRレンジ消尽戦略（Phase 55.4: 直列評価+BB確認） |
+| `src/strategies/implementations/stochastic_reversal.py` | Stochastic Divergence戦略（Phase 55.2: 位置ベース検出） |
+| `src/strategies/implementations/adx_trend.py` | ADXレンジ逆張り戦略（Phase 55.6: 3層フィルタ） |
+| `src/trading/risk/sizer.py` | ポジションサイズ統合（Phase 55.5: 加重平均方式） |
+| `config/core/thresholds.yaml` | 現在の閾値設定（Phase 55.6: 全パターン適用） |
+| `config/strategies.yaml` | 戦略定義（Phase 55.6更新） |
 
 ---
 
-## 📝 Phase 55 計画
+## 📊 Phase 55 最終成果
 
-### 戦略見直し結果
+### 6戦略パフォーマンス（180日分析）
 
-| 戦略 | 旧PF | 新PF | 取引数 | 状態 | 備考 |
-|------|------|------|--------|------|------|
-| **ATRレンジ消尽** | 0.86 | **1.16** | 126件 | ✅ 55.1完了 | 取引数+30% |
-| **StochasticDivergence** | 0.77 | **1.25** | 120件 | ✅ 55.2完了 | 取引数+26%・PF維持 |
-| BBReversal | 1.32 | 1.32 | 43件 | 維持 | 最強戦略 |
-| MACDEMACrossover | 1.50 | 1.50 | 24件 | 維持 | 安定 |
-| ADXTrendStrength | 1.01 | 1.01 | 162件 | 維持 | トントン |
-| DonchianChannel | 0.85 | 0.85 | 394件 | 無効化 | 赤字継続 |
+| 戦略 | PF | 取引数 | 損益 | 重み | 状態 |
+|------|-----|--------|------|------|------|
+| MACDEMACrossover | **1.22** | 131 | +21,243円 | 5% | ✅ |
+| ATRBased | **1.13** | 272 | +28,149円 | 15% | ✅ |
+| BBReversal | **1.12** | 237 | +22,245円 | 30% | ✅ |
+| DonchianChannel | **1.02** | 586 | +10,603円 | 25% | ✅ |
+| StochasticReversal | **1.02** | 401 | +5,310円 | 25% | ✅ |
+| ADXTrendStrength | **1.01** | 276 | +3,288円 | 10% | ✅ |
 
-**6戦略合計（DonchianChannel除く）**: 475件/60日 → 180日で1,425件
+**全6戦略がPF≥1.0達成！**
 
-### 次のステップ
+### Phase 55 達成事項
 
-- Phase 55.3で重みづけ最終調整
-- DonchianChannel無効化の確定
-- 180日バックテスト結果確認後に最終判断
-
-### 全体目標
-
-- 6戦略それぞれが独自の思想で機能 ✅
-- 戦略間の相関を低減 ✅
-- レンジ相場でコツコツ利益を積み上げる構成 ✅
-- 取引数増加（目標500件/180日達成） ✅
+1. ✅ **ATRBased**: PF 0.86→1.13（+31%）
+2. ✅ **StochasticReversal**: PF 0.77→1.02（+32%）- Divergence戦略に転換
+3. ✅ **ADXTrendStrength**: PF 0.85→1.01（+19%）- レンジ逆張り戦略に転換
+4. ✅ **ポジションサイズ**: min()→加重平均方式で改善
+5. ✅ **ML統合**: 閾値緩和でHOLD変換削減
 
 ---
 
-**📅 最終更新**: 2025年12月21日 - Phase 55.3検証中（ロジック並列化・閾値緩和・シグナル生成改善確認）
+**📅 最終更新**: 2025年12月22日 - Phase 55.6完了（全6戦略PF≥1.0達成）

@@ -83,7 +83,7 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
     avg_pnl_per_trade = total_pnl / total_trades if total_trades > 0 else 0.0
 
     # Markdown生成
-    report_date = datetime.now().strftime('%Y/%m/%d')
+    report_date = datetime.now().strftime("%Y/%m/%d")
     lines = [
         f"# バックテスト記録 - {report_date}",
         "",
@@ -379,9 +379,7 @@ def save_markdown_report(markdown_content: str, output_dir: Path):
 
 def main():
     """メイン処理"""
-    parser = argparse.ArgumentParser(
-        description="バックテストJSONレポートをMarkdownに変換"
-    )
+    parser = argparse.ArgumentParser(description="バックテストJSONレポートをMarkdownに変換")
     parser.add_argument(
         "json_path",
         type=str,

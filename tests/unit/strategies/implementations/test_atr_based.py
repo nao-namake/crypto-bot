@@ -56,10 +56,10 @@ class TestATRBasedStrategy(unittest.TestCase):
                 "timestamp": dates,
                 "close": np.full(100, base_price),
                 "high": np.full(100, base_price + 300000),  # +30万
-                "low": np.full(100, base_price - 300000),   # -30万
-                "atr_14": np.full(100, 500000),             # ATR 50万円
-                "adx_14": np.full(100, 20),                 # レンジ相場（ADX < 25）
-                "rsi_14": np.full(100, 50),                 # 中立
+                "low": np.full(100, base_price - 300000),  # -30万
+                "atr_14": np.full(100, 500000),  # ATR 50万円
+                "adx_14": np.full(100, 20),  # レンジ相場（ADX < 25）
+                "rsi_14": np.full(100, 50),  # 中立
                 "volume": np.random.uniform(100, 200, 100),
             }
         )
@@ -84,14 +84,14 @@ class TestATRBasedStrategy(unittest.TestCase):
 
         self.assertGreater(result["ratio"], 0)
         self.assertEqual(result["daily_range"], 600000)  # 60万
-        self.assertEqual(result["atr_14"], 500000)       # 50万
+        self.assertEqual(result["atr_14"], 500000)  # 50万
 
     def test_calculate_exhaustion_ratio_exhausted(self):
         """消尽率計算テスト - 消尽"""
         # 消尽率 80%のデータ
         exhausted_df = self.test_df.copy()
-        exhausted_df["high"] = 10200000   # +20万
-        exhausted_df["low"] = 9800000     # -20万
+        exhausted_df["high"] = 10200000  # +20万
+        exhausted_df["low"] = 9800000  # -20万
         # 値幅 = 40万、ATR = 50万 → 消尽率 = 0.8（80%）
 
         result = self.strategy._calculate_exhaustion_ratio(exhausted_df)
@@ -103,8 +103,8 @@ class TestATRBasedStrategy(unittest.TestCase):
         """消尽率計算テスト - 高消尽"""
         # 消尽率 90%のデータ
         high_exhausted_df = self.test_df.copy()
-        high_exhausted_df["high"] = 10225000   # +22.5万
-        high_exhausted_df["low"] = 9775000     # -22.5万
+        high_exhausted_df["high"] = 10225000  # +22.5万
+        high_exhausted_df["low"] = 9775000  # -22.5万
         # 値幅 = 45万、ATR = 50万 → 消尽率 = 0.9（90%）
 
         result = self.strategy._calculate_exhaustion_ratio(high_exhausted_df)
@@ -173,10 +173,10 @@ class TestATRBasedStrategy(unittest.TestCase):
         """統合分析テスト - BUYシグナル"""
         # 条件: レンジ相場 + 消尽 + RSI低い → BUY
         buy_df = self.test_df.copy()
-        buy_df["adx_14"] = 20       # レンジ相場
-        buy_df["high"] = 10225000   # 消尽率 90%
+        buy_df["adx_14"] = 20  # レンジ相場
+        buy_df["high"] = 10225000  # 消尽率 90%
         buy_df["low"] = 9775000
-        buy_df["rsi_14"] = 30       # RSI低い → BUY方向
+        buy_df["rsi_14"] = 30  # RSI低い → BUY方向
 
         signal = self.strategy.analyze(buy_df)
 
@@ -187,10 +187,10 @@ class TestATRBasedStrategy(unittest.TestCase):
         """統合分析テスト - SELLシグナル"""
         # 条件: レンジ相場 + 消尽 + RSI高い → SELL
         sell_df = self.test_df.copy()
-        sell_df["adx_14"] = 20       # レンジ相場
-        sell_df["high"] = 10225000   # 消尽率 90%
+        sell_df["adx_14"] = 20  # レンジ相場
+        sell_df["high"] = 10225000  # 消尽率 90%
         sell_df["low"] = 9775000
-        sell_df["rsi_14"] = 70       # RSI高い → SELL方向
+        sell_df["rsi_14"] = 70  # RSI高い → SELL方向
 
         signal = self.strategy.analyze(sell_df)
 
@@ -209,7 +209,7 @@ class TestATRBasedStrategy(unittest.TestCase):
     def test_analyze_hold_not_exhausted(self):
         """統合分析テスト - 未消尽でHOLD"""
         not_exhausted_df = self.test_df.copy()
-        not_exhausted_df["high"] = 10100000   # 消尽率 40%
+        not_exhausted_df["high"] = 10100000  # 消尽率 40%
         not_exhausted_df["low"] = 9900000
 
         signal = self.strategy.analyze(not_exhausted_df)
@@ -219,10 +219,10 @@ class TestATRBasedStrategy(unittest.TestCase):
     def test_analyze_hold_neutral_rsi(self):
         """統合分析テスト - RSI中立でHOLD"""
         neutral_df = self.test_df.copy()
-        neutral_df["adx_14"] = 20        # レンジ相場
-        neutral_df["high"] = 10225000    # 消尽率 90%
+        neutral_df["adx_14"] = 20  # レンジ相場
+        neutral_df["high"] = 10225000  # 消尽率 90%
         neutral_df["low"] = 9775000
-        neutral_df["rsi_14"] = 50        # RSI中立
+        neutral_df["rsi_14"] = 50  # RSI中立
 
         signal = self.strategy.analyze(neutral_df)
 
@@ -232,11 +232,12 @@ class TestATRBasedStrategy(unittest.TestCase):
         """必要特徴量リスト取得テスト"""
         features = self.strategy.get_required_features()
 
-        required = ["close", "high", "low", "atr_14", "adx_14", "rsi_14"]
+        # Phase 55.4 Approach B: BB位置確認用にbb_upper, bb_lower追加
+        required = ["close", "high", "low", "atr_14", "adx_14", "rsi_14", "bb_upper", "bb_lower"]
         for feature in required:
             self.assertIn(feature, features)
 
-        self.assertEqual(len(features), 6)
+        self.assertEqual(len(features), 8)
 
     def test_create_decision_high_exhaustion(self):
         """統合判定テスト - 高消尽"""

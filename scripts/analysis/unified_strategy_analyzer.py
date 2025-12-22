@@ -52,7 +52,6 @@ from src.core.services.regime_types import RegimeType
 from src.features.feature_generator import FeatureGenerator
 from src.strategies.utils import EntryAction
 
-
 # ============================================================================
 # データモデル
 # ============================================================================
@@ -409,16 +408,18 @@ class UnifiedStrategyAnalyzer:
                 if exit_reason:
                     # 累積損益を更新
                     equity_curve.append(equity_curve[-1] + pnl)
-                    trades.append({
-                        "entry_idx": entry_idx,
-                        "exit_idx": idx,
-                        "position": position,
-                        "entry_price": entry_price,
-                        "exit_price": current_price,
-                        "pnl": pnl,
-                        "exit_reason": exit_reason,
-                        "hour": row.get("hour", 0) if hasattr(row, "get") else 0,
-                    })
+                    trades.append(
+                        {
+                            "entry_idx": entry_idx,
+                            "exit_idx": idx,
+                            "position": position,
+                            "entry_price": entry_price,
+                            "exit_price": current_price,
+                            "pnl": pnl,
+                            "exit_reason": exit_reason,
+                            "hour": row.get("hour", 0) if hasattr(row, "get") else 0,
+                        }
+                    )
                     position = None
 
             # 新規エントリー
@@ -626,7 +627,9 @@ class UnifiedStrategyAnalyzer:
         # 最低100行から開始（指標計算に必要）
         min_start = min(100, len(self.df_with_features) - 1)
         sample_size = min(500, len(self.df_with_features) - min_start)
-        sample_indices = np.linspace(min_start, len(self.df_with_features) - 1, sample_size, dtype=int)
+        sample_indices = np.linspace(
+            min_start, len(self.df_with_features) - 1, sample_size, dtype=int
+        )
 
         for name, strategy in self.strategies.items():
             signal_array = []
@@ -651,9 +654,9 @@ class UnifiedStrategyAnalyzer:
             for other_name in names:
                 if other_name != metrics.strategy_name:
                     if metrics.strategy_name in signals and other_name in signals:
-                        corr = np.corrcoef(
-                            signals[metrics.strategy_name], signals[other_name]
-                        )[0, 1]
+                        corr = np.corrcoef(signals[metrics.strategy_name], signals[other_name])[
+                            0, 1
+                        ]
                         metrics.correlation_with_others[other_name] = float(corr)
 
     def _measure_ensemble_contribution(self) -> None:
@@ -744,9 +747,7 @@ class UnifiedStrategyAnalyzer:
 
             # 基準3: 他戦略と高相関（>0.7）
             high_corr = [
-                (name, corr)
-                for name, corr in metrics.correlation_with_others.items()
-                if corr > 0.7
+                (name, corr) for name, corr in metrics.correlation_with_others.items() if corr > 0.7
             ]
             if high_corr:
                 for name, corr in high_corr:
@@ -760,22 +761,24 @@ class UnifiedStrategyAnalyzer:
 
     def generate_result(self, days: int, mode: str) -> AnalysisResult:
         """分析結果オブジェクト生成"""
-        deletion_candidates = [
-            m.strategy_name for m in self.strategy_metrics if m.deletion_reasons
-        ]
+        deletion_candidates = [m.strategy_name for m in self.strategy_metrics if m.deletion_reasons]
 
         recommendations = []
         if deletion_candidates:
             recommendations.append(f"削除候補: {', '.join(deletion_candidates)}")
 
         best_strategy = max(self.strategy_metrics, key=lambda m: m.overall_score)
-        recommendations.append(f"最優秀戦略: {best_strategy.strategy_name} (スコア: {best_strategy.overall_score})")
+        recommendations.append(
+            f"最優秀戦略: {best_strategy.strategy_name} (スコア: {best_strategy.overall_score})"
+        )
 
         return AnalysisResult(
             analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             analysis_days=days,
             mode=mode,
-            total_data_points=len(self.df_with_features) if self.df_with_features is not None else 0,
+            total_data_points=(
+                len(self.df_with_features) if self.df_with_features is not None else 0
+            ),
             regime_stats=self.regime_stats,
             strategy_metrics=self.strategy_metrics,
             deletion_candidates=deletion_candidates,
@@ -802,7 +805,9 @@ class UnifiedStrategyAnalyzer:
         print(f"  normal_range:    {rs.normal_range_count:5,} ({rs.normal_range_pct:5.1f}%)")
         print(f"  trending:        {rs.trending_count:5,} ({rs.trending_pct:5.1f}%)")
         print(f"  high_volatility: {rs.high_volatility_count:5,} ({rs.high_volatility_pct:5.1f}%)")
-        print(f"  レンジ合計:      {rs.tight_range_count + rs.normal_range_count:5,} ({rs.range_total_pct:5.1f}%)")
+        print(
+            f"  レンジ合計:      {rs.tight_range_count + rs.normal_range_count:5,} ({rs.range_total_pct:5.1f}%)"
+        )
 
         # 戦略別パフォーマンス
         print("\n" + "-" * 40)
@@ -918,17 +923,19 @@ class UnifiedStrategyAnalyzer:
         ]
 
         rs = result.regime_stats
-        lines.extend([
-            f"| tight_range | {rs.tight_range_count:,} | {rs.tight_range_pct:.1f}% |",
-            f"| normal_range | {rs.normal_range_count:,} | {rs.normal_range_pct:.1f}% |",
-            f"| trending | {rs.trending_count:,} | {rs.trending_pct:.1f}% |",
-            f"| high_volatility | {rs.high_volatility_count:,} | {rs.high_volatility_pct:.1f}% |",
-            "",
-            "## 3. 戦略別パフォーマンス",
-            "",
-            "| 戦略 | 取引数 | 勝率 | PF | 損益 | スコア | 評価 |",
-            "|------|--------|------|-----|------|--------|------|",
-        ])
+        lines.extend(
+            [
+                f"| tight_range | {rs.tight_range_count:,} | {rs.tight_range_pct:.1f}% |",
+                f"| normal_range | {rs.normal_range_count:,} | {rs.normal_range_pct:.1f}% |",
+                f"| trending | {rs.trending_count:,} | {rs.trending_pct:.1f}% |",
+                f"| high_volatility | {rs.high_volatility_count:,} | {rs.high_volatility_pct:.1f}% |",
+                "",
+                "## 3. 戦略別パフォーマンス",
+                "",
+                "| 戦略 | 取引数 | 勝率 | PF | 損益 | スコア | 評価 |",
+                "|------|--------|------|-----|------|--------|------|",
+            ]
+        )
 
         for m in sorted(result.strategy_metrics, key=lambda x: x.overall_score, reverse=True):
             pnl_str = f"+{m.total_pnl:,.0f}" if m.total_pnl >= 0 else f"{m.total_pnl:,.0f}"
@@ -939,11 +946,13 @@ class UnifiedStrategyAnalyzer:
             )
 
         if result.deletion_candidates:
-            lines.extend([
-                "",
-                "## 4. 削除候補",
-                "",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## 4. 削除候補",
+                    "",
+                ]
+            )
             for m in result.strategy_metrics:
                 if m.deletion_reasons:
                     lines.append(f"### {m.strategy_name}")
@@ -951,19 +960,23 @@ class UnifiedStrategyAnalyzer:
                         lines.append(f"- {reason}")
                     lines.append("")
 
-        lines.extend([
-            "",
-            "## 5. 推奨事項",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 5. 推奨事項",
+                "",
+            ]
+        )
         for rec in result.overall_recommendations:
             lines.append(f"- {rec}")
 
-        lines.extend([
-            "",
-            "---",
-            f"*Generated by unified_strategy_analyzer.py at {result.analysis_date}*",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                f"*Generated by unified_strategy_analyzer.py at {result.analysis_date}*",
+            ]
+        )
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -1051,6 +1064,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ エラー: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

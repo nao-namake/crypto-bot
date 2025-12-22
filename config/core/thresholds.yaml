@@ -376,6 +376,43 @@ strategies:
     strong_trend_threshold: 25
     weak_di_threshold: 0.8          # Phase 54.10: 1.0→0.8（シグナル増加）
     weak_trend_threshold: 15
+
+    # ========================================
+    # Phase 55.6: タイトレンジ逆張りモード（パターンB/C/D適用）
+    # ========================================
+    # 目的: tight_range（90%の市場）でADX戦略を活用
+    # 手法: DI急変 + BB位置 + RSI + 動的閾値で精度向上
+    # 差別化: ATR消尽, BB帯端, Stochasticと異なるDI強度指標
+    # 結果: PF 0.96 → 1.01（+5%改善）
+    # ========================================
+    range_mode_enabled: true          # レンジ逆張りモード有効化
+    range_adx_threshold: 20           # ADX < 20でレンジモード発動
+    di_reversal_threshold: 5.0        # Phase 55.6最良値維持
+    di_diff_threshold: 8.0            # Phase 55.6最良値維持
+    range_signal_confidence: 0.45     # 基本信頼度
+    # DI乖離逆張りモード
+    di_divergence_threshold: 12.0     # DI差分絶対値閾値
+    use_di_divergence: false          # 無効化（DI変化量モードのみ使用）
+    # Phase 55.6 パターンB: BB位置フィルタ
+    use_bb_position_filter: true      # BB位置確認有効化
+    bb_position_upper: 0.80           # SELL時: BB位置>0.80で信頼度ボーナス
+    bb_position_lower: 0.20           # BUY時: BB位置<0.20で信頼度ボーナス
+    bb_filter_confidence_bonus: 0.10  # BB一致時の信頼度ボーナス
+    # Phase 55.6 パターンC: RSI反転検証
+    use_rsi_filter: true              # RSI反転確認有効化
+    rsi_sell_threshold: 60            # SELL時: RSI>60で信頼度ボーナス
+    rsi_buy_threshold: 40             # BUY時: RSI<40で信頼度ボーナス
+    rsi_filter_confidence_bonus: 0.08 # RSI一致時の信頼度ボーナス
+    # Phase 55.6 パターンD: ADX動的閾値
+    use_dynamic_thresholds: true      # 動的閾値有効化
+    dynamic_adx_ultra_low: 10         # 超安定レンジ（ADX<10）
+    dynamic_adx_low: 15               # 標準レンジ（ADX<15）
+    dynamic_di_strict: 6.0            # 超安定時DI閾値（厳格）
+    dynamic_di_normal: 5.0            # 標準時DI閾値
+    dynamic_di_loose: 4.0             # 境界時DI閾値（緩い）
+    dynamic_conf_high: 0.55           # 超安定時信頼度
+    dynamic_conf_mid: 0.48            # 標準時信頼度
+    dynamic_conf_low: 0.42            # 境界時信頼度
   atr_based:
     # ========================================
     # Phase 55.4: 高PF設定ベース + BB確認

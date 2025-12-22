@@ -305,6 +305,7 @@ class KellyCriterion:
                 else:
                     # 取引履歴があるがKelly計算エラーの場合
                     base_initial_size = get_threshold("trading.initial_position_size", 0.01)
+                    min_trade_size = get_threshold("production.min_order_size", 0.0001)
                     conservative_size = max(base_initial_size * ml_confidence, min_trade_size)
 
                     # max_order_size制限チェック

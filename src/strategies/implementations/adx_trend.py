@@ -11,6 +11,11 @@ Average Directional Index (ADX) を用いたトレンド強度判定と
 - レンジ相場での取引抑制
 
 Phase 49完了: 市場不確実性計算統合・バックテストログ統合
+
+Phase 55.6: タイトレンジ逆張りモード追加
+- tight_range（90%の市場）でDI急変を逆張りシグナルとして使用
+- ADX低下＋DI急変 → 反転予測
+- 他戦略（ATR, BB, Stochastic）と異なるDI強度指標を使用
 """
 
 from datetime import datetime
@@ -62,8 +67,58 @@ class ADXTrendStrengthStrategy(StrategyBase):
         self.di_weak_signal_confidence = get_threshold(
             "strategies.adx_trend.di_weak_signal_confidence", 0.35
         )
+
+        # Phase 55.6: レンジ逆張りモード設定
+        self.range_mode_enabled = get_threshold("strategies.adx_trend.range_mode_enabled", True)
+        self.range_adx_threshold = get_threshold("strategies.adx_trend.range_adx_threshold", 20)
+        self.di_reversal_threshold = get_threshold(
+            "strategies.adx_trend.di_reversal_threshold", 5.0
+        )
+        self.di_diff_threshold = get_threshold("strategies.adx_trend.di_diff_threshold", 8.0)
+        self.range_signal_confidence = get_threshold(
+            "strategies.adx_trend.range_signal_confidence", 0.45
+        )
+        # Phase 55.6: DI乖離逆張りモード
+        self.use_di_divergence = get_threshold("strategies.adx_trend.use_di_divergence", True)
+        self.di_divergence_threshold = get_threshold(
+            "strategies.adx_trend.di_divergence_threshold", 12.0
+        )
+        # Phase 55.6 パターンB: BB位置フィルタ
+        self.use_bb_position_filter = get_threshold(
+            "strategies.adx_trend.use_bb_position_filter", False
+        )
+        self.bb_position_upper = get_threshold("strategies.adx_trend.bb_position_upper", 0.80)
+        self.bb_position_lower = get_threshold("strategies.adx_trend.bb_position_lower", 0.20)
+        self.bb_filter_confidence_bonus = get_threshold(
+            "strategies.adx_trend.bb_filter_confidence_bonus", 0.10
+        )
+        # Phase 55.6 パターンC: RSI反転検証
+        self.use_rsi_filter = get_threshold("strategies.adx_trend.use_rsi_filter", False)
+        self.rsi_sell_threshold = get_threshold("strategies.adx_trend.rsi_sell_threshold", 60)
+        self.rsi_buy_threshold = get_threshold("strategies.adx_trend.rsi_buy_threshold", 40)
+        self.rsi_filter_confidence_bonus = get_threshold(
+            "strategies.adx_trend.rsi_filter_confidence_bonus", 0.08
+        )
+        # Phase 55.6 パターンD: ADX動的閾値
+        self.use_dynamic_thresholds = get_threshold(
+            "strategies.adx_trend.use_dynamic_thresholds", False
+        )
+        self.dynamic_adx_ultra_low = get_threshold("strategies.adx_trend.dynamic_adx_ultra_low", 10)
+        self.dynamic_adx_low = get_threshold("strategies.adx_trend.dynamic_adx_low", 15)
+        self.dynamic_di_strict = get_threshold("strategies.adx_trend.dynamic_di_strict", 6.0)
+        self.dynamic_di_normal = get_threshold("strategies.adx_trend.dynamic_di_normal", 5.0)
+        self.dynamic_di_loose = get_threshold("strategies.adx_trend.dynamic_di_loose", 4.0)
+        self.dynamic_conf_high = get_threshold("strategies.adx_trend.dynamic_conf_high", 0.55)
+        self.dynamic_conf_mid = get_threshold("strategies.adx_trend.dynamic_conf_mid", 0.48)
+        self.dynamic_conf_low = get_threshold("strategies.adx_trend.dynamic_conf_low", 0.42)
+
         self.logger.info(
-            f"ADX Trend戦略初期化完了 - 期間: {self.adx_period}, 強いトレンド閾値: {self.strong_trend_threshold}"
+            f"ADX Trend戦略初期化完了 - 期間: {self.adx_period}, "
+            f"強いトレンド閾値: {self.strong_trend_threshold}, "
+            f"レンジモード: {self.range_mode_enabled}, "
+            f"BBフィルタ: {self.use_bb_position_filter}, "
+            f"RSIフィルタ: {self.use_rsi_filter}, "
+            f"動的閾値: {self.use_dynamic_thresholds}"
         )
 
     def get_required_features(self) -> list[str]:
@@ -78,6 +133,8 @@ class ADXTrendStrengthStrategy(StrategyBase):
             "minus_di_14",
             "atr_14",
             "volume_ratio",
+            "rsi_14",  # Phase 55.6 パターンC: RSI反転検証用
+            "bb_position",  # Phase 55.6 パターンB: BB位置フィルタ用
         ]
 
     def analyze(
@@ -233,6 +290,7 @@ class ADXTrendStrengthStrategy(StrategyBase):
         シグナル判定ロジック
 
         Phase 32: multi_timeframe_data対応
+        Phase 55.6: レンジ逆張りモード追加
 
         Args:
             df: 市場データ
@@ -243,6 +301,13 @@ class ADXTrendStrengthStrategy(StrategyBase):
             最終シグナル
         """
         current_price = analysis["current_price"]
+
+        # Phase 55.6: レンジ逆張りモード（最優先）
+        # tight_rangeで90%の市場環境に適応
+        if self.range_mode_enabled and analysis["adx"] < self.range_adx_threshold:
+            range_signal = self._analyze_range_reversal(df, analysis, multi_timeframe_data)
+            if range_signal is not None:
+                return range_signal
 
         # 1. 強いトレンド + DIクロスオーバー（最優先）
         if analysis["is_strong_trend"] and analysis["adx_rising"]:
@@ -406,6 +471,296 @@ class ADXTrendStrengthStrategy(StrategyBase):
             f"レンジ相場動的（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
             dynamic_confidence,
         )
+
+    def _get_dynamic_thresholds(self, adx_value: float) -> Dict[str, float]:
+        """
+        Phase 55.6 パターンD: ADX値に基づく動的閾値取得
+
+        Args:
+            adx_value: 現在のADX値
+
+        Returns:
+            動的閾値辞書 {di_threshold, confidence_base}
+        """
+        if adx_value < self.dynamic_adx_ultra_low:
+            # 超安定レンジ（ADX<10）: 厳格な閾値、高信頼度
+            return {
+                "di_threshold": self.dynamic_di_strict,
+                "confidence_base": self.dynamic_conf_high,
+            }
+        elif adx_value < self.dynamic_adx_low:
+            # 標準レンジ（ADX 10-15）: 通常閾値
+            return {
+                "di_threshold": self.dynamic_di_normal,
+                "confidence_base": self.dynamic_conf_mid,
+            }
+        else:
+            # 境界レンジ（ADX 15-20）: 緩い閾値、控えめ信頼度
+            return {
+                "di_threshold": self.dynamic_di_loose,
+                "confidence_base": self.dynamic_conf_low,
+            }
+
+    def _analyze_range_reversal(
+        self,
+        df: pd.DataFrame,
+        analysis: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> Optional[StrategySignal]:
+        """
+        Phase 55.6: レンジ内DI逆張り分析
+
+        tight_range市場（90%）でDI急変を検出し、逆張りシグナルを生成。
+        他戦略（ATR消尽, BB帯端, Stochastic）と異なるDI強度指標を使用。
+
+        パターンB: BB位置フィルタ（DI + BB確認）
+        パターンC: RSI反転検証（DI + BB + RSI確認）
+        パターンD: ADX動的閾値（ADX値に応じて閾値変更）
+
+        Args:
+            df: 市場データ
+            analysis: ADX分析結果
+            multi_timeframe_data: マルチタイムフレームデータ
+
+        Returns:
+            逆張りシグナル、またはNone（条件不適合時）
+        """
+        try:
+            current_price = analysis["current_price"]
+            di_diff = analysis["di_difference"]  # +DI - -DI
+            prev_di_diff = analysis["prev_di_difference"]
+            adx_value = analysis["adx"]
+
+            # DI変化量（加速度）を計算
+            di_change = abs(di_diff - prev_di_diff)
+
+            # DI差分の絶対値
+            di_diff_abs = abs(di_diff)
+
+            # Phase 55.6 パターンD: 動的閾値取得
+            if self.use_dynamic_thresholds:
+                dynamic = self._get_dynamic_thresholds(adx_value)
+                effective_di_threshold = dynamic["di_threshold"]
+                effective_confidence_base = dynamic["confidence_base"]
+            else:
+                effective_di_threshold = self.di_diff_threshold
+                effective_confidence_base = self.range_signal_confidence
+
+            self.logger.debug(
+                f"[ADXTrend Range] DI分析: diff={di_diff:.2f}, "
+                f"prev_diff={prev_di_diff:.2f}, change={di_change:.2f}, "
+                f"ADX={adx_value:.1f}, "
+                f"閾値: reversal={self.di_reversal_threshold}, "
+                f"diff={effective_di_threshold}, 動的={self.use_dynamic_thresholds}"
+            )
+
+            # モード1: DI乖離逆張り（優先）
+            # DI差分の絶対値が閾値を超えた場合、極端な偏りからの平均回帰を狙う
+            if self.use_di_divergence and di_diff_abs >= self.di_divergence_threshold:
+                confidence = self._calculate_di_divergence_confidence(analysis, di_diff_abs)
+
+                if di_diff > 0:
+                    # +DI大きく優勢 → 上昇行き過ぎ → SELL
+                    self.logger.info(
+                        f"[ADXTrend DI乖離] SELL検出: +DI乖離({di_diff:.1f}), "
+                        f"ADX={analysis['adx']:.1f}"
+                    )
+                    return self._create_signal(
+                        action="sell",
+                        confidence=confidence,
+                        reason=f"DI乖離売り（DI差: {di_diff:.1f}, ADX: {analysis['adx']:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
+                else:
+                    # -DI大きく優勢 → 下落行き過ぎ → BUY
+                    self.logger.info(
+                        f"[ADXTrend DI乖離] BUY検出: -DI乖離({di_diff:.1f}), "
+                        f"ADX={analysis['adx']:.1f}"
+                    )
+                    return self._create_signal(
+                        action="buy",
+                        confidence=confidence,
+                        reason=f"DI乖離買い（DI差: {di_diff:.1f}, ADX: {analysis['adx']:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
+
+            # モード2: DI変化量逆張り（パターンB/C/D適用）
+            # DI変化量が閾値を超え、かつDI差分が十分大きい場合
+            if di_change >= self.di_reversal_threshold and di_diff_abs >= effective_di_threshold:
+                # 基本信頼度（パターンD適用時は動的値）
+                confidence = self._calculate_range_reversal_confidence(
+                    analysis, di_change, di_diff_abs, effective_confidence_base
+                )
+
+                # Phase 55.6 パターンB: BB位置フィルタ適用
+                bb_bonus = 0.0
+                bb_confirms = False
+                if self.use_bb_position_filter and "bb_position" in df.columns:
+                    bb_position = float(df["bb_position"].iloc[-1])
+                    if di_diff > 0 and bb_position > self.bb_position_upper:
+                        # SELL時: BB上端付近なら信頼度UP
+                        bb_bonus = self.bb_filter_confidence_bonus
+                        bb_confirms = True
+                    elif di_diff < 0 and bb_position < self.bb_position_lower:
+                        # BUY時: BB下端付近なら信頼度UP
+                        bb_bonus = self.bb_filter_confidence_bonus
+                        bb_confirms = True
+
+                # Phase 55.6 パターンC: RSI反転検証
+                rsi_bonus = 0.0
+                rsi_confirms = False
+                if self.use_rsi_filter and "rsi_14" in df.columns:
+                    rsi = float(df["rsi_14"].iloc[-1])
+                    if di_diff > 0 and rsi > self.rsi_sell_threshold:
+                        # SELL時: RSI高い（買われすぎ）なら信頼度UP
+                        rsi_bonus = self.rsi_filter_confidence_bonus
+                        rsi_confirms = True
+                    elif di_diff < 0 and rsi < self.rsi_buy_threshold:
+                        # BUY時: RSI低い（売られすぎ）なら信頼度UP
+                        rsi_bonus = self.rsi_filter_confidence_bonus
+                        rsi_confirms = True
+
+                # 信頼度を積算（上限0.70）
+                confidence = min(0.70, confidence + bb_bonus + rsi_bonus)
+
+                if di_diff > 0:
+                    # +DI優勢 → 上昇行き過ぎ → SELL（反転予測）
+                    filters_info = []
+                    if self.use_bb_position_filter:
+                        filters_info.append(f"BB={bb_confirms}")
+                    if self.use_rsi_filter:
+                        filters_info.append(f"RSI={rsi_confirms}")
+                    filter_str = ", ".join(filters_info) if filters_info else ""
+                    self.logger.info(
+                        f"[ADXTrend Range] SELL検出: +DI優勢({di_diff:.1f}), "
+                        f"変化量={di_change:.1f}, ADX={adx_value:.1f}, "
+                        f"信頼度={confidence:.2f}, {filter_str}"
+                    )
+                    return self._create_signal(
+                        action="sell",
+                        confidence=confidence,
+                        reason=f"レンジDI逆張り売り（DI変化: {di_change:.1f}, ADX: {adx_value:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
+                else:
+                    # -DI優勢 → 下落行き過ぎ → BUY（反転予測）
+                    filters_info = []
+                    if self.use_bb_position_filter:
+                        filters_info.append(f"BB={bb_confirms}")
+                    if self.use_rsi_filter:
+                        filters_info.append(f"RSI={rsi_confirms}")
+                    filter_str = ", ".join(filters_info) if filters_info else ""
+                    self.logger.info(
+                        f"[ADXTrend Range] BUY検出: -DI優勢({di_diff:.1f}), "
+                        f"変化量={di_change:.1f}, ADX={adx_value:.1f}, "
+                        f"信頼度={confidence:.2f}, {filter_str}"
+                    )
+                    return self._create_signal(
+                        action="buy",
+                        confidence=confidence,
+                        reason=f"レンジDI逆張り買い（DI変化: {di_change:.1f}, ADX: {adx_value:.1f}）",
+                        current_price=current_price,
+                        df=df,
+                        analysis=analysis,
+                        multi_timeframe_data=multi_timeframe_data,
+                    )
+
+            # 条件不適合 → None（従来ロジックへフォールスルー）
+            return None
+
+        except Exception as e:
+            self.logger.error(f"[ADXTrend Range] 逆張り分析エラー: {e}")
+            return None
+
+    def _calculate_di_divergence_confidence(
+        self, analysis: Dict[str, Any], di_diff_abs: float
+    ) -> float:
+        """
+        Phase 55.6: DI乖離逆張り信頼度計算
+
+        Args:
+            analysis: ADX分析結果
+            di_diff_abs: DI差分の絶対値
+
+        Returns:
+            信頼度 (0.40-0.60)
+        """
+        base_confidence = self.range_signal_confidence
+
+        # DI乖離ボーナス（乖離が大きいほど信頼度UP）
+        divergence_bonus = min(0.15, (di_diff_abs - self.di_divergence_threshold) / 20 * 0.15)
+
+        # ADX低さボーナス（ADXが低いほどレンジ確定）
+        adx_bonus = 0.0
+        if analysis["adx"] < 12:
+            adx_bonus = 0.05
+        elif analysis["adx"] < 15:
+            adx_bonus = 0.03
+        elif analysis["adx"] < 18:
+            adx_bonus = 0.01
+
+        # 出来高ボーナス
+        volume_bonus = 0.0
+        if analysis["volume_ratio"] > 1.2:
+            volume_bonus = min(0.05, (analysis["volume_ratio"] - 1.0) * 0.1)
+
+        confidence = base_confidence + divergence_bonus + adx_bonus + volume_bonus
+
+        # 範囲制限
+        return max(0.40, min(0.60, confidence))
+
+    def _calculate_range_reversal_confidence(
+        self,
+        analysis: Dict[str, Any],
+        di_change: float,
+        di_diff_abs: float,
+        confidence_base: float = None,
+    ) -> float:
+        """
+        Phase 55.6: レンジ逆張り信頼度計算
+
+        Args:
+            analysis: ADX分析結果
+            di_change: DI変化量
+            di_diff_abs: DI差分の絶対値
+            confidence_base: 基本信頼度（パターンD動的閾値用）
+
+        Returns:
+            信頼度 (0.35-0.55)
+        """
+        base_confidence = confidence_base if confidence_base else self.range_signal_confidence
+
+        # DI変化量ボーナス（変化が大きいほど信頼度UP）
+        change_bonus = min(0.10, (di_change - self.di_reversal_threshold) / 10 * 0.10)
+
+        # DI差分ボーナス（差分が大きいほど方向性明確）
+        diff_bonus = min(0.05, (di_diff_abs - self.di_diff_threshold) / 10 * 0.05)
+
+        # ADX低さボーナス（ADXが低いほどレンジ確定）
+        adx_bonus = 0.0
+        if analysis["adx"] < 15:
+            adx_bonus = 0.03
+        elif analysis["adx"] < 18:
+            adx_bonus = 0.01
+
+        # 出来高ボーナス
+        volume_bonus = 0.0
+        if analysis["volume_ratio"] > 1.2:
+            volume_bonus = min(0.05, (analysis["volume_ratio"] - 1.0) * 0.1)
+
+        confidence = base_confidence + change_bonus + diff_bonus + adx_bonus + volume_bonus
+
+        # 範囲制限
+        return max(0.35, min(0.55, confidence))
 
     def _calculate_weak_trend_confidence(self, analysis: Dict[str, Any], direction: str) -> float:
         """
