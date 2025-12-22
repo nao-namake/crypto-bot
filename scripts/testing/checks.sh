@@ -50,8 +50,8 @@ fi
 
 # Phase 55.8: ML検証統合スクリプト（quickモード）
 echo ">>> 🤖 Phase 55.8 ML検証統合スクリプト（55特徴量システム）"
-if [[ -f "scripts/ml/validate_ml_models.py" ]]; then
-    python3 scripts/ml/validate_ml_models.py --quick || {
+if [[ -f "scripts/testing/validate_ml_models.py" ]]; then
+    python3 scripts/testing/validate_ml_models.py --quick || {
         echo "❌ エラー: ML検証失敗"
         echo "モデルメタデータと実装の特徴量数に不一致があります"
         echo "→ モデル再訓練が必要: python3 scripts/ml/create_ml_models.py --model both --threshold 0.005 --optimize --n-trials 50"
@@ -59,7 +59,7 @@ if [[ -f "scripts/ml/validate_ml_models.py" ]]; then
     }
 else
     # フォールバック: 基本的なファイル存在確認のみ
-    echo "⚠️  警告: validate_ml_models.py not found - 基本チェックのみ実行"
+    echo "⚠️  警告: scripts/testing/validate_ml_models.py not found - 基本チェックのみ実行"
     MISSING_MODELS=()
     [[ ! -f "models/production/ensemble_full.pkl" ]] && MISSING_MODELS+=("ensemble_full (55特徴量)")
     [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (49特徴量)")
