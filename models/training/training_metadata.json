@@ -1,5 +1,5 @@
 {
-  "created_at": "2025-12-18T07:07:53.212227",
+  "created_at": "2025-12-23T07:35:48.261844",
   "feature_names": [
     "close",
     "volume",
@@ -49,39 +49,33 @@
     "is_europe_session",
     "hour_cos",
     "day_sin",
-    "day_cos",
-    "strategy_signal_ATRBased",
-    "strategy_signal_DonchianChannel",
-    "strategy_signal_ADXTrendStrength",
-    "strategy_signal_BBReversal",
-    "strategy_signal_StochasticReversal",
-    "strategy_signal_MACDEMACrossover"
+    "day_cos"
   ],
-  "training_samples": 5748,
+  "training_samples": 17060,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.4264194669756663,
-      "f1_score": 0.4223833341816168,
-      "precision": 0.4211579685152897,
-      "recall": 0.4264194669756663,
-      "cv_f1_mean": 0.34496808644253835,
-      "cv_f1_std": 0.05249812887821005
+      "accuracy": 0.9273153575615475,
+      "f1_score": 0.9089833428615999,
+      "precision": 0.8942086579018153,
+      "recall": 0.9273153575615475,
+      "cv_f1_mean": 0.9650871134469504,
+      "cv_f1_std": 0.022541882281194234
     },
     "xgboost": {
-      "accuracy": 0.4206257242178447,
-      "f1_score": 0.4226713270761823,
-      "precision": 0.4278207903383303,
-      "recall": 0.4206257242178447,
-      "cv_f1_mean": 0.3213590521857954,
-      "cv_f1_std": 0.06447931835129722
+      "accuracy": 0.8944900351699883,
+      "f1_score": 0.8942144671286366,
+      "precision": 0.8939869135331864,
+      "recall": 0.8944900351699883,
+      "cv_f1_mean": 0.9648490162219641,
+      "cv_f1_std": 0.02224383464404945
     },
     "random_forest": {
-      "accuracy": 0.45538818076477405,
-      "f1_score": 0.4455181519786723,
-      "precision": 0.445946715047014,
-      "recall": 0.45538818076477405,
-      "cv_f1_mean": 0.3039597331989348,
-      "cv_f1_std": 0.07114695341780161
+      "accuracy": 0.8561938257131692,
+      "f1_score": 0.8760346253773473,
+      "precision": 0.8979400067772096,
+      "recall": 0.8561938257131692,
+      "cv_f1_mean": 0.963239197003892,
+      "cv_f1_std": 0.0266230241316426
     }
   },
   "model_files": {

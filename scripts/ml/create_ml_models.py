@@ -81,8 +81,8 @@ class NewSystemMLModelCreator:
         config_path: str = "config/core/unified.yaml",
         verbose: bool = False,
         target_threshold: float = 0.005,
-        n_classes: int = 2,
-        use_smote: bool = False,
+        n_classes: int = 3,  # Phase 55.6: デフォルト3クラス（BUY/HOLD/SELL）
+        use_smote: bool = True,  # Phase 55.6: SMOTEデフォルト有効（クラス不均衡対策）
         optimize: bool = False,
         n_trials: int = 20,
         models_to_train: list = None,
@@ -163,7 +163,16 @@ class NewSystemMLModelCreator:
             f"🎯 Phase 39.2 ターゲット設定: 閾値={target_threshold:.1%}, クラス数={n_classes}"
         )
 
-        # MLモデル設定（Phase 39.3-39.4対応・Phase 51.9-6A: 3クラス対応）
+        # Phase 55.6: モデル初期化を別メソッドに分離
+        self._initialize_models()
+
+    def _initialize_models(self):
+        """
+        Phase 55.6: MLモデルインスタンス初期化
+
+        各モデルタイプの訓練前に呼び出すことで、
+        前回の訓練状態がリークしないことを保証する。
+        """
         # LightGBM設定
         lgb_params = {
             "n_estimators": 200,
@@ -308,8 +317,8 @@ class NewSystemMLModelCreator:
             # Phase 51.9: 特徴量整合性確保（55特徴量固定システム）
             features_df = self._ensure_feature_consistency(features_df)
 
-            # Phase 50.9: モデル別特徴量選択（2段階システム）
-            features_df = self._select_features_by_level(features_df)
+            # Phase 55.6 Fix: モデル別特徴量選択はrun()内のループで実行
+            # ここでは全55特徴量を返す
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
             target = self._generate_target(df, self.target_threshold, self.n_classes)
@@ -318,7 +327,7 @@ class NewSystemMLModelCreator:
             features_df, target = self._clean_data(features_df, target)
 
             self.logger.info(
-                f"✅ Phase 50.9: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（{model_name}）"
+                f"✅ Phase 55.6: 実データ準備完了 - {len(features_df)}サンプル、{len(features_df.columns)}特徴量（全モデル共通）"
             )
             return features_df, target
 
@@ -555,7 +564,7 @@ class NewSystemMLModelCreator:
         self,
         df: pd.DataFrame,
         threshold: float = 0.005,
-        n_classes: int = 2,
+        n_classes: int = 3,  # Phase 55.6: デフォルト3クラス
     ) -> pd.Series:
         """
         ターゲット生成（Phase 39.2: 閾値最適化・3クラス分類対応）
@@ -1389,8 +1398,21 @@ class NewSystemMLModelCreator:
                 self.logger.info(f"📊 Phase 51.9: {model_name}モデル訓練開始")
                 self.logger.info("=" * 80)
 
-                # モデル訓練（_select_features_by_levelで特徴量絞り込み）
-                training_results = self.train_models(features, target, dry_run)
+                # Phase 55.6 Fix: ループ内で特徴量選択を実行
+                # 以前は prepare_training_data() 内で1回だけ選択されていたため
+                # 両モデルが同一特徴量で訓練される問題があった
+                model_features = self._select_features_by_level(features.copy())
+                self.logger.info(
+                    f"📊 Phase 55.6: {model_type}モデル用特徴量選択 - "
+                    f"{len(model_features.columns)}特徴量"
+                )
+
+                # Phase 55.6 Fix: モデルインスタンスを再初期化
+                # 前回の訓練状態がリークしないようにクリーンな状態から訓練
+                self._initialize_models()
+
+                # モデル訓練
+                training_results = self.train_models(model_features, target, dry_run)
 
                 if dry_run:
                     self.logger.info(f"🔍 {model_name}モデル ドライラン完了")
@@ -1454,19 +1476,26 @@ def main():
         default=0.005,
         help="Phase 39.2: ターゲット閾値（デフォルト: 0.5%%）",
     )
+    # Phase 55.6: デフォルトを3クラスに変更（2クラスは非推奨）
     parser.add_argument(
         "--n-classes",
         type=int,
-        default=2,
+        default=3,
         choices=[2, 3],
-        help="Phase 39.2: クラス数 2（BUY/OTHER） or 3（BUY/HOLD/SELL）",
+        help="Phase 55.6: クラス数 3（BUY/HOLD/SELL）推奨、2は後方互換用",
     )
 
-    # Phase 39.4: SMOTE設定引数
+    # Phase 55.6: SMOTEデフォルト有効（--no-smoteで無効化可能）
     parser.add_argument(
         "--use-smote",
         action="store_true",
-        help="Phase 39.4: SMOTEオーバーサンプリング有効化（クラス不均衡対策）",
+        default=True,
+        help="Phase 55.6: SMOTEオーバーサンプリング（デフォルト有効）",
+    )
+    parser.add_argument(
+        "--no-smote",
+        action="store_true",
+        help="Phase 55.6: SMOTE無効化オプション",
     )
 
     # Phase 39.5: Optuna最適化設定引数
@@ -1503,6 +1532,9 @@ def main():
     else:
         models_to_train = ["full", "basic"]
 
+    # Phase 55.6: --no-smoteが指定された場合はSMOTE無効化
+    use_smote = args.use_smote and not args.no_smote
+
     # モデル作成実行（Phase 51.5-B対応）
     creator = NewSystemMLModelCreator(
         config_path=args.config,
@@ -1510,7 +1542,7 @@ def main():
         verbose=args.verbose,
         target_threshold=args.threshold,
         n_classes=args.n_classes,
-        use_smote=args.use_smote,
+        use_smote=use_smote,
         optimize=args.optimize,
         n_trials=args.n_trials,
     )
