@@ -231,7 +231,11 @@ class ExecutionService:
                     evaluation,
                     self.virtual_positions,
                     self.last_order_time,
-                    self.virtual_balance if self.mode in ["paper", "backtest"] else self.current_balance,
+                    (
+                        self.virtual_balance
+                        if self.mode in ["paper", "backtest"]
+                        else self.current_balance
+                    ),
                     regime=regime,  # Phase 51.8: レジーム別制限適用
                 )
                 if not position_check_result["allowed"]:
