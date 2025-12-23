@@ -2,28 +2,27 @@
 set -euo pipefail
 
 # =============================================================================
-# ファイル名: scripts/checks.sh
+# ファイル名: scripts/testing/checks.sh
 # 説明:
-# 新システムの品質チェックを一括実行するシェルスクリプトです。
-# Phase 51.9完了版：真の3クラス分類実装・6戦略統合・55特徴量Strategy-Aware ML・1,153テスト・68.77%カバレッジ品質保証
+# システム全体の品質チェックを一括実行するシェルスクリプト
+# Phase 55.8完了版：1,256テスト・65.42%カバレッジ・ML検証統合・HOLD率54.7%
 #
 # - flake8: コードスタイルチェック（PEP8違反検出）
-# - isort: import順チェック（自動修正せず、--check-only）
-# - black: コード整形チェック（自動修正せず、--checkのみ）
-# - pytest: テスト実行とカバレッジ計測（新システム全テスト対応）
-# - ML学習データ: 実データ存在確認（17,271件・180日分15分足）
-# - 必須ライブラリ: imbalanced-learn・optuna・matplotlib・Pillow確認
+# - isort: import順チェック（--check-only）
+# - black: コード整形チェック（--checkのみ）
+# - pytest: テスト実行とカバレッジ計測（1,256テスト）
+# - ML検証: validate_ml_models.py --quick（55特徴量・3クラス分類）
+# - システム検証: validate_system.sh統合（7項目チェック）
 #
-# 使い方（ターミナルでプロジェクトルートから実行）:
+# 使い方（プロジェクトルートから実行）:
 #   bash scripts/testing/checks.sh
-#   ./scripts/testing/checks.sh
 # =============================================================================
 
 # スクリプト開始時刻記録
 START_TIME=$(date +%s)
 
-echo "🚀 新システム品質チェック開始 (Phase 51.9完了版)"
-echo "================================================="
+echo "🚀 品質チェック開始 (Phase 55.8完了版)"
+echo "============================================="
 
 # カバレッジ最低ライン（Phase 55.6: 63.5%に調整・実測63.85%）
 COV_FAIL_UNDER=63
@@ -65,7 +64,7 @@ else
     [[ ! -f "models/production/ensemble_basic.pkl" ]] && MISSING_MODELS+=("ensemble_basic (49特徴量)")
 
     if [ ${#MISSING_MODELS[@]} -eq 0 ]; then
-        echo "✅ 本番用2段階モデル存在確認（Phase 51.9 真の3クラス分類）"
+        echo "✅ 本番用2段階モデル存在確認（Phase 55.8・3クラス分類）"
         echo "   ensemble_full.pkl: 55特徴量（6戦略信号含む・デフォルト）"
         echo "   ensemble_basic.pkl: 49特徴量（戦略信号なし・フォールバック）"
     else
@@ -159,9 +158,9 @@ python3 -m black --check --diff src/ tests/ scripts/ \
 
 echo "✅ blackチェック完了"
 
-# Phase 51.9: 新システム全テスト実行（1,191テスト・65.42%カバレッジ）
-echo ">>> 🧪 pytest: 新システム全テスト実行"
-echo "対象テスト: 全テストスイート（Phase 51.9完了・1,191テスト）"
+# Phase 55.8: 全テスト実行（1,256テスト・65.42%カバレッジ）
+echo ">>> 🧪 pytest: 全テスト実行"
+echo "対象テスト: 全テストスイート（Phase 55.8・1,256テスト）"
 
 python3 -m pytest \
   tests/ \
@@ -206,19 +205,16 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
-echo "🎉 新システム品質チェック完了！ (Phase 51.9完了版)"
-echo "================================================="
+echo "🎉 品質チェック完了！ (Phase 55.8)"
+echo "============================================="
 echo "📊 チェック結果:"
 echo "  - flake8: ✅ PASS"
 echo "  - isort: ✅ PASS"
 echo "  - black: ✅ PASS"
-echo "  - pytest: ✅ PASS (1,191テスト・65.42%カバレッジ達成・${COV_FAIL_UNDER}%目標達成)"
-echo "  - ML学習データ: ✅ Phase 51.9実データ対応（17,272件・180日分15分足）"
-echo "  - 必須ライブラリ: ✅ Phase 51.9対応（imbalanced-learn・optuna・matplotlib・Pillow）"
-echo "  - 機能トグル設定: ✅ Phase 31.1対応（features.yaml）"
-echo "  - trading層アーキテクチャ: ✅ Phase 38完了（5層分離）"
-echo "  - システム整合性: ✅ Phase 51.9対応（Dockerfile・特徴量・戦略検証）"
+echo "  - pytest: ✅ PASS (1,256テスト・65%+カバレッジ・${COV_FAIL_UNDER}%閾値)"
+echo "  - ML検証: ✅ PASS (55特徴量・3クラス分類・HOLD率54.7%)"
+echo "  - システム整合性: ✅ PASS (7項目チェック)"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: .cache/coverage/htmlcov/index.html"
-echo "🚀 システム品質: Phase 51.9完了・真の3クラス分類実装・6戦略統合・55特徴量Strategy-Aware ML・企業級品質保証体制確立"
+echo "🚀 Phase 55.8完了・6戦略・55特徴量・3クラス分類・品質保証体制確立"

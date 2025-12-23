@@ -513,13 +513,16 @@ async def _get_actual_balance(config, logger) -> float:
 
     # モード別初期残高をunified.yamlから取得（Phase 28-29最適化）
     def _get_mode_balance(mode: str) -> float:
-        """mode_balancesから該当モードの初期残高を取得"""
-        from ..config import load_config
+        """mode_balancesから該当モードの初期残高を取得（Phase 55.9: get_threshold使用）"""
+        from ..config import get_threshold
 
-        unified_config = load_config("config/core/unified.yaml")
-        mode_balances = getattr(unified_config, "mode_balances", {})
-        mode_balance_config = mode_balances.get(mode, {})
-        return mode_balance_config.get("initial_balance", 10000.0)
+        # Phase 55.9: load_config()ではmode_balances属性が取得できないバグを修正
+        if mode == "backtest":
+            return get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+        elif mode == "paper":
+            return get_threshold("mode_balances.paper.initial_balance", 100000.0)
+        else:
+            return get_threshold("mode_balances.live.initial_balance", 100000.0)
 
     # Phase 35: ペーパー/バックテストモード時はAPI呼び出しをスキップ
     current_mode = getattr(config, "mode", "paper").lower()  # 大文字小文字統一

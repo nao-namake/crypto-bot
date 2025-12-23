@@ -205,13 +205,16 @@ def create_risk_manager(
         config = get_risk_profile_config(risk_profile)
 
     # Phase 23一元管理: initial_balanceがNoneの場合はmode_balancesから取得
+    # Phase 55.9: get_threshold()使用に変更（load_config()ではmode_balances属性が取得できないバグ修正）
     if initial_balance is None:
-        from ..core.config import load_config
+        from ..core.config import get_threshold
 
-        unified_config = load_config("config/core/unified.yaml")
-        mode_balances = getattr(unified_config, "mode_balances", {})
-        mode_balance_config = mode_balances.get(mode, {})
-        initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+        if mode == "backtest":
+            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+        elif mode == "paper":
+            initial_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
+        else:
+            initial_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
     return IntegratedRiskManager(
         config=config,

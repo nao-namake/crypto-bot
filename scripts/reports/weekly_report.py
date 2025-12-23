@@ -1,5 +1,5 @@
 """
-週間レポート生成・Discord送信スクリプト - Phase 48.2実装
+週間レポート生成・Discord送信スクリプト - Phase 55.8修正
 
 過去7日間の取引統計を集計し、損益曲線グラフを生成してDiscordに送信。
 """
@@ -45,7 +45,7 @@ class WeeklyReportGenerator:
         """
         self.logger = get_logger()
         self.recorder = TradeHistoryRecorder(db_path=db_path)
-        self.calculator = PnLCalculator(db_path=db_path)
+        self.calculator = PnLCalculator(trade_recorder=self.recorder)
         self.discord = DiscordManager(webhook_url=discord_webhook_url)
 
         self.logger.info("📊 WeeklyReportGenerator初期化完了")

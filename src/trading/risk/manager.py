@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from ...core.config import get_threshold, load_config
+from ...core.config import get_threshold
 from ...core.exceptions import RiskManagementError
 from ...core.logger import get_logger
 from ...core.reporting.discord_notifier import DiscordManager
@@ -63,10 +63,10 @@ class IntegratedRiskManager:
         self.execution_service = execution_service  # Phase 51.7: バックテスト対応
         self.logger = get_logger()
 
-        # 初期残高設定（統一設定管理体系）
+        # 初期残高設定（統一設定管理体系）- Phase 55.9: フォールバック¥100,000に統一
         if initial_balance is None:
             drawdown_config = config.get("drawdown_manager", {}) if config else {}
-            initial_balance = drawdown_config.get("initial_balance", 10000.0)
+            initial_balance = drawdown_config.get("initial_balance", 100000.0)
         self.initial_balance = initial_balance
 
         # Discord通知システム初期化
@@ -462,20 +462,21 @@ class IntegratedRiskManager:
         try:
             max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)
 
-            # 初期残高取得
-            config = load_config("config/core/unified.yaml")
-            mode_balances = getattr(config, "mode_balances", {})
-
+            # 初期残高取得（Phase 55.9: get_threshold()使用に変更）
             # 実行モード判定
             if current_balance >= 90000:
                 mode = "live"
             elif current_balance >= 8000:
                 mode = "paper"
             else:
-                mode = "paper"
+                mode = "backtest"
 
-            mode_balance_config = mode_balances.get(mode, {})
-            initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+            if mode == "backtest":
+                initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+            elif mode == "paper":
+                initial_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
+            else:
+                initial_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
             # 使用済み資金計算
             used_capital = initial_balance - current_balance

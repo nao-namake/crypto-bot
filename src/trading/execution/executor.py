@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from tax.trade_history_recorder import TradeHistoryRecorder
 
 from ...backtest.reporter import TradeTracker
-from ...core.config import get_threshold, load_config
+from ...core.config import get_threshold
 from ...core.exceptions import CryptoBotError
 from ...core.logger import get_logger
 from ...core.reporting.discord_notifier import DiscordManager
@@ -74,12 +74,21 @@ class ExecutionService:
         # Phase 30: 指値注文タイムアウト管理
         self.pending_limit_orders: List[Dict[str, Any]] = []
 
-        # モード別初期残高取得（Phase 23一元管理対応）
-        config = load_config("config/core/unified.yaml")
-        # mode_balancesから該当モードの初期残高を取得
-        mode_balances = getattr(config, "mode_balances", {})
-        mode_balance_config = mode_balances.get(self.mode, {})
-        self.virtual_balance = mode_balance_config.get("initial_balance", 10000.0)
+        # モード別初期残高取得（Phase 55.9: get_threshold()使用に変更）
+        # 旧方式: load_config()ではmode_balances属性が取得できないバグがあった
+        # フォールバック値はすべて¥100,000（バックテスト基準）
+        if self.mode == "backtest":
+            self.virtual_balance = get_threshold(
+                "mode_balances.backtest.initial_balance", 100000.0
+            )
+        elif self.mode == "paper":
+            self.virtual_balance = get_threshold(
+                "mode_balances.paper.initial_balance", 100000.0
+            )
+        else:
+            self.virtual_balance = get_threshold(
+                "mode_balances.live.initial_balance", 100000.0
+            )
 
         # Phase 37: Discord通知初期化（ライブモードのみ）
         self.discord_notifier = None
@@ -919,7 +928,7 @@ class ExecutionService:
     def update_balance(self, new_balance: float) -> None:
         """残高更新"""
         self.current_balance = new_balance
-        if self.mode == "paper":
+        if self.mode in ["paper", "backtest"]:  # Phase 55.9: backtestモード追加
             self.virtual_balance = new_balance
 
     def get_position_summary(self) -> Dict[str, Any]:

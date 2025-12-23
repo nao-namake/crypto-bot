@@ -229,22 +229,21 @@ class PositionLimits:
         """
         max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)
 
-        # 初期残高の取得（設定ファイルから）
-        from ...core.config import load_config
-
-        config = load_config("config/core/unified.yaml")
-        mode_balances = getattr(config, "mode_balances", {})
-
+        # 初期残高の取得（Phase 55.9: get_threshold()使用に変更）
         # 簡易的なモード判定
         if current_balance >= 90000:
             mode = "live"
         elif current_balance >= 8000:
             mode = "paper"
         else:
-            mode = "paper"
+            mode = "backtest"
 
-        mode_balance_config = mode_balances.get(mode, {})
-        initial_balance = mode_balance_config.get("initial_balance", 10000.0)
+        if mode == "backtest":
+            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+        elif mode == "paper":
+            initial_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
+        else:
+            initial_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
         # 現在の使用率計算
         if initial_balance > 0:

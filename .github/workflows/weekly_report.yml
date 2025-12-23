@@ -1,6 +1,6 @@
 # 週間レポート自動送信ワークフロー
 # 毎週月曜日 9:00 JST に取引統計レポートをDiscordに送信
-# Phase 52.2整理: Cloud Storage統合・環境変数化
+# Phase 55.8修正: PnLCalculator引数修正
 
 name: Weekly Trading Report
 

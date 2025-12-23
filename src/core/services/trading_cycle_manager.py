@@ -524,10 +524,13 @@ class TradingCycleManager:
             # 実行モードを判定（orchestratorの設定から取得）
             config_mode = getattr(self.orchestrator.config, "mode", "paper")
 
-            # mode_balancesから適切な初期残高を取得
-            mode_balances = getattr(self.orchestrator.config, "mode_balances", {})
-            mode_config = mode_balances.get(config_mode, {})
-            appropriate_balance = mode_config.get("initial_balance", 10000.0)
+            # mode_balancesから適切な初期残高を取得（Phase 55.9: get_threshold()使用）
+            if config_mode == "backtest":
+                appropriate_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+            elif config_mode == "paper":
+                appropriate_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
+            else:
+                appropriate_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
             current_balance = appropriate_balance
             self.logger.warning(
@@ -535,8 +538,8 @@ class TradingCycleManager:
             )
 
         except Exception as e:
-            # 最終フォールバック
-            current_balance = get_threshold("trading.default_balance_jpy", 10000.0)
+            # 最終フォールバック（Phase 55.9: ¥100,000に統一）
+            current_balance = get_threshold("trading.default_balance_jpy", 100000.0)
             self.logger.error(
                 f"フォールバック値取得エラー - デフォルト使用: {current_balance:.0f}円, エラー: {e}"
             )

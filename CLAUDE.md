@@ -1,6 +1,6 @@
 # CLAUDE.md - Phase 55開発ガイド
 
-**最終更新**: 2025年12月20日
+**最終更新**: 2025年12月23日
 
 ---
 
@@ -82,16 +82,16 @@ bash scripts/testing/checks.sh
 
 ```bash
 # ペーパートレード
-bash scripts/management/run_safe.sh local paper
-
-# ライブトレード
-bash scripts/management/run_safe.sh local live
+bash scripts/management/run_paper.sh
 
 # 停止
-bash scripts/management/run_safe.sh stop
+bash scripts/management/run_paper.sh stop
 
 # 状況確認
-bash scripts/management/bot_manager.sh check
+bash scripts/management/run_paper.sh status
+
+# ライブトレード（直接実行）
+python3 main.py --mode live
 ```
 
 ### GCP確認

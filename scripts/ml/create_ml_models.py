@@ -23,14 +23,14 @@ Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確�
 Phase 51.9完了成果: 55特徴量固定システム（6戦略統合）・真の3クラス分類・動的ストラテジーローダー・設定駆動型アーキテクチャ
 
 使用方法:
-    # Phase 51.5-B: 両モデル一括学習（デフォルト・推奨）
-    python scripts/ml/create_ml_models.py --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # 推奨: 両モデル一括学習（デフォルト設定で実行）
+    python scripts/ml/create_ml_models.py --optimize --n-trials 50 --verbose
 
-    # Phase 51.5-B: fullモデルのみ学習（緊急時）
-    python scripts/ml/create_ml_models.py --model full --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # fullモデルのみ学習（緊急時）
+    python scripts/ml/create_ml_models.py --model full --optimize --n-trials 50 --verbose
 
-    # Phase 51.5-B: basicモデルのみ学習（緊急時）
-    python scripts/ml/create_ml_models.py --model basic --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
+    # basicモデルのみ学習（緊急時）
+    python scripts/ml/create_ml_models.py --model basic --optimize --n-trials 50 --verbose
 """
 
 import argparse
@@ -80,7 +80,7 @@ class NewSystemMLModelCreator:
         self,
         config_path: str = "config/core/unified.yaml",
         verbose: bool = False,
-        target_threshold: float = 0.005,
+        target_threshold: float = 0.0005,  # Phase 55.8: 0.05%推奨（HOLD率適正化）
         n_classes: int = 3,  # Phase 55.6: デフォルト3クラス（BUY/HOLD/SELL）
         use_smote: bool = True,  # Phase 55.6: SMOTEデフォルト有効（クラス不均衡対策）
         optimize: bool = False,
@@ -563,7 +563,7 @@ class NewSystemMLModelCreator:
     def _generate_target(
         self,
         df: pd.DataFrame,
-        threshold: float = 0.005,
+        threshold: float = 0.0005,  # Phase 55.8: 0.05%推奨
         n_classes: int = 3,  # Phase 55.6: デフォルト3クラス
     ) -> pd.Series:
         """
@@ -1473,8 +1473,8 @@ def main():
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.005,
-        help="Phase 39.2: ターゲット閾値（デフォルト: 0.5%%）",
+        default=0.0005,
+        help="Phase 55.8: ターゲット閾値（デフォルト: 0.05%%・HOLD率適正化）",
     )
     # Phase 55.6: デフォルトを3クラスに変更（2クラスは非推奨）
     parser.add_argument(
