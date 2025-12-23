@@ -51,6 +51,24 @@ jobs:
           echo '{"version": "ci-test", "features": 55}' > models/production/model_metadata.json
           echo "✅ テスト環境準備完了（実モデルファイル使用）"
 
+      - name: Collect historical data for ML validation
+        run: |
+          # Phase 55.8: MLフル検証用データ収集（7日分・軽量）
+          echo "📥 ML検証用履歴データ収集開始（7日分）..."
+          mkdir -p src/backtest/data/historical
+
+          python3 src/backtest/scripts/collect_historical_csv.py --days 7
+
+          # データ収集確認
+          if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/BTC_JPY_15m.csv)
+            echo "✅ 15分足データ収集完了: ${CSV_LINES}行"
+            # 小文字ファイル名にもコピー（検証スクリプト互換性）
+            cp src/backtest/data/historical/BTC_JPY_15m.csv src/backtest/data/historical/btc_jpy_15m.csv
+          else
+            echo "⚠️ 15分足データ収集失敗（検証スキップ）"
+          fi
+
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
 
