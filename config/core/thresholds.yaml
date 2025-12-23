@@ -638,10 +638,10 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 55.11: 制限値緩和（Kelly/Dynamic計算結果が通るように）
-    low_confidence: 0.10    # 3% → 10%（¥10,000制限）
-    medium_confidence: 0.15  # 5% → 15%（¥15,000制限）
-    high_confidence: 0.25    # 10% → 25%（¥25,000制限）
+    # Phase 55.11: 制限値大幅緩和（ログ分析: 要求¥27,000超）
+    low_confidence: 0.30    # 10% → 30%（¥30,000制限）
+    medium_confidence: 0.40  # 15% → 40%（¥40,000制限）
+    high_confidence: 0.50    # 25% → 50%（¥50,000制限）
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
