@@ -402,30 +402,36 @@ class StrategyManager:
         return min(total_weighted_confidence, 1.0)
 
     def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合") -> StrategySignal:
-        """ホールドシグナル生成 - 動的confidence実装."""
+        """ホールドシグナル生成 - Phase 55.11: 動的confidence改善."""
         current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
 
-        # 動的confidence計算（攻撃的設定・市場状況反映）
+        # Phase 55.11: ボラティリティを直接信頼度に反映（第3位が0にならないように）
         base_confidence = get_threshold("ml.dynamic_confidence.base_hold", 0.3)
 
-        # 市場ボラティリティに応じた調整
         try:
             if len(df) >= 20 and "close" in df.columns:
                 # 過去20期間のボラティリティ計算
                 returns = df["close"].pct_change().tail(20)
-                volatility = returns.std()
+                volatility = float(returns.std())
 
-                # ボラティリティが高い = 取引機会多い = HOLD信頼度下げる（攻撃的）
-                if volatility > 0.02:  # 高ボラティリティ
-                    confidence = base_confidence * 0.8  # さらに下げる
-                elif volatility < 0.005:  # 低ボラティリティ
-                    confidence = base_confidence * 1.2  # 少し上げる
+                # ボラティリティを直接信頼度に反映（連続的な調整）
+                # volatility 0.005-0.02 の範囲で 0.8-1.2 の乗数を線形補間
+                if volatility <= 0.005:
+                    multiplier = 1.2
+                elif volatility >= 0.02:
+                    multiplier = 0.8
                 else:
-                    confidence = base_confidence
+                    # 線形補間: 0.005→1.2, 0.02→0.8
+                    multiplier = 1.2 - ((volatility - 0.005) / 0.015) * 0.4
+
+                # ボラティリティの具体的な値を信頼度に加算（第3位が0にならないように）
+                volatility_adjustment = volatility * 10  # 0.01 → 0.1の調整幅
+                confidence = base_confidence * multiplier + volatility_adjustment
+
             else:
                 confidence = base_confidence
         except Exception:
-            # エラー時はフォールバック値
+            # エラー時はフォールバック値（第3位が0）
             confidence = get_threshold("ml.dynamic_confidence.error_fallback", 0.2)
 
         # 信頼度を0.1-0.8の範囲にクランプ

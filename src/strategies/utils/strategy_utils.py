@@ -49,8 +49,8 @@ DEFAULT_RISK_PARAMS: Dict[str, Any] = {
     # ストップロス・テイクプロフィット（Phase 51.6: 設定ファイル優先）
     "stop_loss_atr_multiplier": 2.0,  # フォールバック値
     "take_profit_ratio": 1.29,  # Phase 51.6: RR比1.29:1（フォールバック値）
-    # ポジションサイズ
-    "position_size_base": 0.02,  # 2%の基本設定
+    # ポジションサイズ（Phase 55.11: 証拠金比率に修正）
+    "position_size_base": 0.001,  # 0.001 BTC（約1,650円 = 証拠金10万円の約1.7%）
     # 計算設定
     "min_atr_threshold": 0.001,  # ATRの最小値（ゼロ除算回避）
     "max_position_size": 0.05,  # 最大ポジションサイズ（5%）

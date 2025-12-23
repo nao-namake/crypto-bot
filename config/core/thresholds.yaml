@@ -531,7 +531,7 @@ trading:
     max_position_ratio: 0.10    # Phase 54.6: 3% → 10%（積極的ポジションサイズ）
     safety_factor: 0.7
   min_trade_size: 0.0001
-  initial_position_size: 0.01    # Phase 55.2: 0.0001→0.01（Kelly計算エラー時の合理的フォールバック）
+  initial_position_size: 0.003    # Phase 55.11: 0.01→0.003（証拠金10万円の約50%相当）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
@@ -638,9 +638,10 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    low_confidence: 0.03
-    medium_confidence: 0.05
-    high_confidence: 0.1
+    # Phase 55.11: 制限値緩和（Kelly/Dynamic計算結果が通るように）
+    low_confidence: 0.10    # 3% → 10%（¥10,000制限）
+    medium_confidence: 0.15  # 5% → 15%（¥15,000制限）
+    high_confidence: 0.25    # 10% → 25%（¥25,000制限）
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true

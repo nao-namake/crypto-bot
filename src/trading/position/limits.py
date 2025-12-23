@@ -315,10 +315,16 @@ class PositionLimits:
         ml_confidence = getattr(evaluation, "confidence_level", 0.5)
         min_trade_size = get_threshold("position_management.min_trade_size", 0.0001)
 
-        # BTC価格概算
-        estimated_btc_price = get_threshold("trading.fallback_btc_jpy", 10000000.0)
-        trade_amount = float(evaluation.position_size) * estimated_btc_price
-        min_trade_amount = min_trade_size * estimated_btc_price
+        # Phase 55.11: 実BTC価格を取得（フォールバックは緊急時のみ）
+        btc_price = None
+        if hasattr(evaluation, "market_conditions") and evaluation.market_conditions:
+            btc_price = evaluation.market_conditions.get("last_price")
+        if not btc_price or btc_price <= 0:
+            btc_price = get_threshold("trading.fallback_btc_jpy", 10000000.0)
+            self.logger.debug(f"BTC価格フォールバック使用: ¥{btc_price:,.0f}")
+
+        trade_amount = float(evaluation.position_size) * btc_price
+        min_trade_amount = min_trade_size * btc_price
 
         # ML信頼度に基づく制限比率を決定
         if ml_confidence < 0.60:
