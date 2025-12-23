@@ -29,7 +29,7 @@
 | 55.8 | ML検証統合・CIフル検証・HOLD率修正 | ✅ | HOLD率97.7%→54.7%、CI品質保証 |
 | 55.9 | 不要スクリプト削除・コードベース整理 | ✅ | Phase 40最適化フレームワーク削除 |
 | 55.10 | mode_balances残高取得バグ修正 | ✅ | バックテスト0件問題の根本原因修正 |
-| 55.12 | ポジションサイズ適正化・クールダウン修正 | ✅ | 0.003→0.0005 BTC、クールダウン24→6時間 |
+| 55.12 | ポジションサイズ適正化・クールダウン修正・BB幅NaN修正 | ✅ | 0.003→0.0005 BTC、クールダウン24→6時間、NaN伝播防止 |
 
 ---
 
@@ -1515,6 +1515,31 @@ cooldown_hours=drawdown_config.get("cooldown_hours", 6)  # Phase 55.12: 6時間
 2. **ハードコード値は設定ファイルと乖離しやすい** - デフォルト値は設定と一致させる
 3. **7層リスク管理の理解が重要** - Kelly/Dynamic/RiskManagerの加重平均で最終サイズが決まる
 4. **バックテストの短期実行で検証** - 180日待たずに7日で動作確認できる
+5. **NaN値はサイレントに伝播する** - 比較演算でFalseになり、意図しないフォールバック発生
+
+### BB幅NaN問題修正
+
+バックテスト実行時に`BB幅=nan`がログに出力される問題を発見・修正。
+
+**原因**:
+- `_calc_bb_width()`でデータ不足時（period=20本未満）に`close.std()`がNaNを返す
+- NaNチェックがなく、そのまま戻り値に
+
+**影響**:
+- `NaN < 0.03` = False（レジーム判定で TIGHT_RANGE を検出できない）
+- 本来TIGHT_RANGEであるべき状況でNORMAL_RANGEにフォールバック
+- 戦略重みづけが正しく適用されない
+
+**修正**:
+```python
+# src/core/services/market_regime_classifier.py
+if pd.isna(bb_std_dev) or pd.isna(bb_middle):
+    return 0.04  # TIGHT_RANGE(0.03)とNORMAL_RANGE(0.05)の中間値
+
+# src/strategies/implementations/bb_reversal.py
+if pd.isna(bb_width):
+    return 0.0
+```
 
 ### 完了事項
 
@@ -1524,6 +1549,7 @@ cooldown_hours=drawdown_config.get("cooldown_hours", 6)  # Phase 55.12: 6時間
 - [x] 7日間バックテストで取引数6件を確認
 - [x] 全テスト修正（1,256テストPASS）
 - [x] 品質チェック全項目PASS
+- [x] BB幅NaN問題修正（market_regime_classifier.py、bb_reversal.py）
 
 ---
 

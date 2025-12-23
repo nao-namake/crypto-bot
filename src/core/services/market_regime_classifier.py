@@ -193,6 +193,11 @@ class MarketRegimeClassifier:
 
         bb_middle = close.mean()
         bb_std_dev = close.std()
+
+        # Phase 55.12: NaN値チェック（データ不足時のフォールバック）
+        if pd.isna(bb_std_dev) or pd.isna(bb_middle):
+            return 0.04  # TIGHT_RANGE閾値(0.03)とNORMAL_RANGE閾値(0.05)の中間値
+
         bb_upper = bb_middle + (bb_std_dev * 2)
         bb_lower = bb_middle - (bb_std_dev * 2)
 

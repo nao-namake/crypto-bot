@@ -177,6 +177,9 @@ class BBReversalStrategy(StrategyBase):
         try:
             latest = df.iloc[-1]
             bb_width = (latest["bb_upper"] - latest["bb_lower"]) / latest["close"]
+            # Phase 55.12: NaN値チェック
+            if pd.isna(bb_width):
+                return 0.0
             return float(bb_width)
         except Exception as e:
             self.logger.error(f"BB幅計算エラー: {e}")
