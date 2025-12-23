@@ -788,7 +788,9 @@ class BitbankClient:
             if mock_enabled:
                 # Phase 55.10: バックテスト残高をmode_balancesから取得
                 backtest_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
-                self.logger.debug(f"🎯 バックテストモック: fetch_balance スキップ（残高: ¥{backtest_balance:,.0f}）")
+                self.logger.debug(
+                    f"🎯 バックテストモック: fetch_balance スキップ（残高: ¥{backtest_balance:,.0f}）"
+                )
                 return {
                     "JPY": {"total": backtest_balance, "free": backtest_balance, "used": 0.0},
                     "BTC": {"total": 0.0, "free": 0.0, "used": 0.0},
@@ -1457,7 +1459,9 @@ class BitbankClient:
             if mock_enabled:
                 # Phase 55.10: バックテスト残高をmode_balancesから取得
                 backtest_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
-                self.logger.debug(f"🎯 バックテストモック: fetch_margin_status スキップ（残高: ¥{backtest_balance:,.0f}）")
+                self.logger.debug(
+                    f"🎯 バックテストモック: fetch_margin_status スキップ（残高: ¥{backtest_balance:,.0f}）"
+                )
                 return {
                     "margin_ratio": 500.0,  # 維持率500%（安全な値）
                     "available_balance": backtest_balance,  # Phase 55.10: mode_balancesから取得

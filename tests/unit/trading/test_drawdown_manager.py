@@ -44,7 +44,7 @@ class TestDrawdownManager:
         self.manager = DrawdownManager(
             max_drawdown_ratio=0.20,
             consecutive_loss_limit=5,
-            cooldown_hours=24,
+            cooldown_hours=6,  # Phase 55.12: 6時間に変更
             config={
                 "persistence": {
                     "local_path": self.temp_file.name,
@@ -65,7 +65,7 @@ class TestDrawdownManager:
         """ドローダウン管理器初期化テスト."""
         assert self.manager.max_drawdown_ratio == 0.20
         assert self.manager.consecutive_loss_limit == 5
-        assert self.manager.cooldown_hours == 24
+        assert self.manager.cooldown_hours == 6  # Phase 55.12: 6時間に変更
         # Phase 38: 初期残高はデフォルト10000.0に変更
         assert self.manager.current_balance == 10000.0
         assert self.manager.peak_balance == 10000.0

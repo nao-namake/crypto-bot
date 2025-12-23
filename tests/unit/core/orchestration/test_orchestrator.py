@@ -403,12 +403,12 @@ class TestGetActualBalance:
 
         # unified.yamlモック
         unified_config = Mock()
-        unified_config.mode_balances = {"backtest": {"initial_balance": 10000.0}}
+        unified_config.mode_balances = {"backtest": {"initial_balance": 100000.0}}
         mock_load_config.return_value = unified_config
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 10000.0
+        assert balance == 100000.0
         mock_logger.info.assert_any_call(
             "📝 バックテストモード: API呼び出しをスキップ、mode_balances残高使用"
         )
@@ -445,7 +445,7 @@ class TestGetActualBalance:
 
         # unified.yamlモック
         unified_config = Mock()
-        unified_config.mode_balances = {"live": {"initial_balance": 10000.0}}
+        unified_config.mode_balances = {"live": {"initial_balance": 100000.0}}
         mock_load_config.return_value = unified_config
 
         # BitbankClient モック（残高0円）
@@ -455,7 +455,7 @@ class TestGetActualBalance:
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 10000.0
+        assert balance == 100000.0
         mock_logger.warning.assert_any_call("⚠️ Bitbank残高が0円以下（0.0円）、mode_balances値使用")
 
     @pytest.mark.asyncio
@@ -472,7 +472,7 @@ class TestGetActualBalance:
 
         # unified.yamlモック
         unified_config = Mock()
-        unified_config.mode_balances = {"live": {"initial_balance": 10000.0}}
+        unified_config.mode_balances = {"live": {"initial_balance": 100000.0}}
         mock_load_config.return_value = unified_config
 
         # BitbankClient モック（API Error）
@@ -482,8 +482,8 @@ class TestGetActualBalance:
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 10000.0
-        mock_logger.warning.assert_any_call("💰 認証エラーのためmode_balances残高使用: 10000.0円")
+        assert balance == 100000.0
+        mock_logger.warning.assert_any_call("💰 認証エラーのためmode_balances残高使用: 100000.0円")
 
 
 class TestCreateTradingOrchestrator:

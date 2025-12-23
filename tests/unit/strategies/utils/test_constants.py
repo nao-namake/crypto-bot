@@ -68,7 +68,8 @@ class TestConstants(unittest.TestCase):
         self.assertGreaterEqual(DEFAULT_RISK_PARAMS["take_profit_ratio"], 0.5)
         self.assertLessEqual(DEFAULT_RISK_PARAMS["take_profit_ratio"], 10.0)
 
-        self.assertGreaterEqual(DEFAULT_RISK_PARAMS["position_size_base"], 0.001)
+        # Phase 55.12: ポジションサイズ適正化により0.0003に変更
+        self.assertGreaterEqual(DEFAULT_RISK_PARAMS["position_size_base"], 0.0001)
         self.assertLessEqual(DEFAULT_RISK_PARAMS["position_size_base"], 0.1)
 
     def test_entry_action_immutability(self):

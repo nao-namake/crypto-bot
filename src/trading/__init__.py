@@ -161,7 +161,7 @@ DEFAULT_RISK_CONFIG = {
     "drawdown_manager": {
         "max_drawdown_ratio": 0.20,  # 最大ドローダウン20%
         "consecutive_loss_limit": 5,  # 連続5損失で停止
-        "cooldown_hours": 24,  # 24時間クールダウン
+        "cooldown_hours": 6,  # Phase 55.12: 6時間クールダウン（unified.yaml/features.yaml準拠）
     },
     "anomaly_detector": {
         "spread_warning_threshold": 0.003,  # 0.3%スプレッド警告

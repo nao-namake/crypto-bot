@@ -78,17 +78,11 @@ class ExecutionService:
         # 旧方式: load_config()ではmode_balances属性が取得できないバグがあった
         # フォールバック値はすべて¥100,000（バックテスト基準）
         if self.mode == "backtest":
-            self.virtual_balance = get_threshold(
-                "mode_balances.backtest.initial_balance", 100000.0
-            )
+            self.virtual_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
         elif self.mode == "paper":
-            self.virtual_balance = get_threshold(
-                "mode_balances.paper.initial_balance", 100000.0
-            )
+            self.virtual_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
         else:
-            self.virtual_balance = get_threshold(
-                "mode_balances.live.initial_balance", 100000.0
-            )
+            self.virtual_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
         # Phase 37: Discord通知初期化（ライブモードのみ）
         self.discord_notifier = None

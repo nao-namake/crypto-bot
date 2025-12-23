@@ -978,7 +978,7 @@ class TestInitializationModes:
 
         assert service.mode == "paper"
         assert service.discord_notifier is None
-        assert service.virtual_balance == 10000.0  # デフォルト初期残高
+        assert service.virtual_balance == 100000.0  # Phase 55.12: デフォルト初期残高10万円
 
     @patch("src.trading.execution.executor.DiscordManager")
     def test_live_mode_initialization(self, mock_discord):
@@ -998,14 +998,16 @@ class TestInitializationModes:
         assert service.mode == "backtest"
         assert service.discord_notifier is None
 
-    @patch("src.trading.execution.executor.load_config")
-    def test_custom_initial_balance(self, mock_load_config):
-        """カスタム初期残高設定テスト"""
+    @patch("src.trading.execution.executor.get_threshold")
+    def test_custom_initial_balance(self, mock_get_threshold):
+        """カスタム初期残高設定テスト（Phase 55.9: get_threshold使用）"""
 
-        class MockConfig:
-            mode_balances = {"paper": {"initial_balance": 50000.0}}
+        def threshold_side_effect(key, default):
+            if key == "mode_balances.paper.initial_balance":
+                return 50000.0
+            return default
 
-        mock_load_config.return_value = MockConfig()
+        mock_get_threshold.side_effect = threshold_side_effect
 
         service = ExecutionService(mode="paper")
 
@@ -1087,11 +1089,10 @@ class TestMinimumTradeSizeEdgeCases:
         assert result.amount == 0.0001
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.get_threshold")
-    async def test_minimum_trade_size_error_handling(self, mock_threshold):
-        """最小ロット保証処理エラー時のハンドリング"""
-        # get_thresholdでエラー発生
-        mock_threshold.side_effect = Exception("設定取得エラー")
+    async def test_minimum_trade_size_error_handling(self):
+        """最小ロット保証処理エラー時のハンドリング（Phase 55.12: テスト修正）"""
+        # サービスを先に作成してから、execute_trade時のみエラーを発生させる
+        service = ExecutionService(mode="backtest")
 
         eval_obj = TradeEvaluation(
             decision=RiskDecision.APPROVED,
@@ -1111,8 +1112,9 @@ class TestMinimumTradeSizeEdgeCases:
             entry_price=14000000.0,
         )
 
-        service = ExecutionService(mode="backtest")
-        result = await service.execute_trade(eval_obj)
+        with patch("src.trading.execution.executor.get_threshold") as mock_threshold:
+            mock_threshold.side_effect = Exception("設定取得エラー")
+            result = await service.execute_trade(eval_obj)
 
         # エラー時も元のサイズで実行される
         assert result.amount == 0.00005

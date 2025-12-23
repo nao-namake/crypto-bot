@@ -116,4 +116,4 @@ class TestTradingInitUtilities:
         drawdown_config = DEFAULT_RISK_CONFIG["drawdown_manager"]
         assert drawdown_config["max_drawdown_ratio"] == 0.20
         assert drawdown_config["consecutive_loss_limit"] == 5
-        assert drawdown_config["cooldown_hours"] == 24
+        assert drawdown_config["cooldown_hours"] == 6  # Phase 55.12: 6時間に変更

@@ -48,7 +48,7 @@ class TestIntegratedRiskManager:
             "drawdown_manager": {
                 "max_drawdown_ratio": 0.20,
                 "consecutive_loss_limit": 5,
-                "cooldown_hours": 24,
+                "cooldown_hours": 6,  # Phase 55.12: 6時間に変更
             },
             "anomaly_detector": {
                 "spread_warning_threshold": 0.003,
@@ -513,16 +513,18 @@ class TestIntegratedRiskManager:
 
     @pytest.mark.asyncio
     async def test_capital_usage_limits(self):
-        """残高利用率制限チェックテスト."""
-        # 正常ケース
+        """残高利用率制限チェックテスト（Phase 55.12: 値修正）."""
+        # 正常ケース: live mode (>90000) で initial_balance=100000
+        # 95000円 = 5%使用 < 30%制限 → 許可
         result = self.risk_manager._check_capital_usage_limits(
-            current_balance=9500, btc_price=6000000
+            current_balance=95000, btc_price=6000000
         )
         assert result["allowed"] == True
 
         # 利用率超過ケース（30%以上使用）
+        # 60000円 = 40%使用 > 30%制限 → 拒否
         result_over = self.risk_manager._check_capital_usage_limits(
-            current_balance=6500, btc_price=6000000  # 35%使用
+            current_balance=60000, btc_price=6000000
         )
         assert result_over["allowed"] == False
         assert "資金利用率上限超過" in result_over["reason"]

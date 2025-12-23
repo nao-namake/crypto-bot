@@ -310,17 +310,19 @@ class TestCheckCapitalUsage:
         assert result["allowed"] is True
         assert "資金利用率OK" in result["reason"]
 
-    @patch("src.core.config.load_config")
     @patch("src.trading.position.limits.get_threshold")
-    def test_capital_usage_at_limit(self, mock_threshold, mock_load_config, limits):
-        """資金利用率制限到達"""
-        mock_threshold.return_value = 0.3
-        mock_config = Mock()
-        mock_config.mode_balances = {
-            "paper": {"initial_balance": 10000.0},
-            "live": {"initial_balance": 100000.0},
-        }
-        mock_load_config.return_value = mock_config
+    def test_capital_usage_at_limit(self, mock_threshold, limits):
+        """資金利用率制限到達（Phase 55.12: get_threshold使用に修正）"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "risk.max_capital_usage":
+                return 0.3
+            # 6800円残高はbacktestモードと判定される
+            if key == "mode_balances.backtest.initial_balance":
+                return 10000.0  # 初期残高を10,000円に設定
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 10,000円初期残高、6,800円現在残高 = 32%使用
         result = limits._check_capital_usage(6800.0)
@@ -573,8 +575,31 @@ class TestCheckLimits:
         assert "最大ポジション数制限" in result["reason"]
 
     @pytest.mark.asyncio
-    async def test_exception_handling(self, limits, sample_evaluation):
-        """例外ハンドリング"""
+    @patch("src.trading.position.limits.get_threshold")
+    async def test_exception_handling(self, mock_threshold, limits, sample_evaluation):
+        """例外ハンドリング（Phase 55.12: 適切なモック設定）"""
+
+        def threshold_side_effect(key, default=None):
+            # 資金チェックを通過させるための設定
+            if key == "risk.max_capital_usage":
+                return 0.9  # 90%まで許可（50%使用率がパス）
+            if key.startswith("mode_balances."):
+                return 100000.0
+            if key == "position_management.min_account_balance":
+                return 1000.0
+            if key == "position_management.cooldown_minutes":
+                return 0
+            if key == "position_management.max_open_positions":
+                return 10
+            if key == "position_management.max_daily_trades":
+                return 100
+            # position_size=Noneでエラーを発生させる
+            if key == "position_management.max_position_ratio_per_trade":
+                raise Exception("テスト用例外")
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
         # 不正なevaluation（position_size未設定）
         sample_evaluation.position_size = None
 

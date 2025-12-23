@@ -116,7 +116,7 @@ class IntegratedRiskManager:
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=drawdown_config.get("max_drawdown_ratio", 0.20),
                 consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
-                cooldown_hours=drawdown_config.get("cooldown_hours", 24),
+                cooldown_hours=drawdown_config.get("cooldown_hours", 6),  # Phase 55.12: 6時間
                 config=drawdown_config,
                 mode=self.mode,
             )

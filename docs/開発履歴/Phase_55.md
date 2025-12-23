@@ -1,7 +1,7 @@
 # Phase 55 開発記録
 
-**期間**: 2025/12/20-23
-**状況**: Phase 55.10完了
+**期間**: 2025/12/20-24
+**状況**: Phase 55.12完了
 
 ---
 
@@ -29,6 +29,7 @@
 | 55.8 | ML検証統合・CIフル検証・HOLD率修正 | ✅ | HOLD率97.7%→54.7%、CI品質保証 |
 | 55.9 | 不要スクリプト削除・コードベース整理 | ✅ | Phase 40最適化フレームワーク削除 |
 | 55.10 | mode_balances残高取得バグ修正 | ✅ | バックテスト0件問題の根本原因修正 |
+| 55.12 | ポジションサイズ適正化・クールダウン修正 | ✅ | 0.003→0.0005 BTC、クールダウン24→6時間 |
 
 ---
 
@@ -1397,4 +1398,133 @@ if self.mode in ["paper", "backtest"]:  # Phase 55.10: backtestモード追加
 
 ---
 
-**📅 最終更新**: 2025年12月23日 - Phase 55.10完了（mode_balances残高取得バグ修正 + モックデータ修正）
+## ✅ Phase 55.12: ポジションサイズ適正化・クールダウン修正【完了】
+
+### 実施日: 2025/12/24
+
+### 目的
+バックテスト0件問題の最終修正として、ポジションサイズを適正化し、クールダウン時間のハードコード値を設定ファイル準拠に修正する。
+
+### 背景
+- Phase 55.10でmode_balances残高取得バグを修正したが、バックテストは依然0件
+- 原因調査の結果、ポジションサイズが大きすぎてmax_position_ratio制限を超過
+- クールダウン時間が設定ファイルの6時間ではなく、コードのハードコード24時間が使用されていた
+
+### 根本原因
+
+**ポジションサイズ問題:**
+
+| 項目 | 旧値 | 問題 |
+|------|------|------|
+| `initial_position_size` | 0.003 BTC | ¥49,500（証拠金10万円の50%） |
+| `position_size_base` | 0.001 BTC | Kelly基準の基礎値が大きすぎ |
+| `max_position_ratio_per_trade.high_confidence` | 0.25 | 上限¥25,000 |
+
+**結果:** ¥49,500 > ¥25,000 → 全BUY/SELL信号が拒否
+
+**クールダウン問題:**
+
+| 場所 | 設定値 |
+|------|--------|
+| `config/core/unified.yaml` | 6時間 |
+| `config/core/features.yaml` | 6時間 |
+| `src/trading/__init__.py` | **24時間（ハードコード）** |
+| `src/trading/risk/manager.py` | **24時間（デフォルト）** |
+
+### 修正内容
+
+#### 1. ポジションサイズ適正化
+
+**thresholds.yaml:**
+```yaml
+trading:
+  initial_position_size: 0.0005  # 0.003→0.0005（証拠金10万円の約8%）
+```
+
+**strategy_utils.py:**
+```python
+"position_size_base": 0.0003  # 0.001→0.0003（約5,000円）
+```
+
+**計算根拠:**
+- 旧: 0.003 BTC = ¥49,500（証拠金の50%）→ 制限超過
+- 新: 0.0005 BTC = ¥8,250（証拠金の8%）→ 制限内
+
+#### 2. クールダウン時間のハードコード削除
+
+**src/trading/__init__.py:**
+```python
+# 旧: "cooldown_hours": 24
+"cooldown_hours": 6,  # Phase 55.12: 6時間（unified.yaml準拠）
+```
+
+**src/trading/risk/manager.py:**
+```python
+# 旧: cooldown_hours=drawdown_config.get("cooldown_hours", 24)
+cooldown_hours=drawdown_config.get("cooldown_hours", 6)  # Phase 55.12: 6時間
+```
+
+### バックテスト結果（7日間）
+
+| 項目 | 修正前 | 修正後 | 変化 |
+|------|--------|--------|------|
+| **取引数** | 0件 | **6件** | **修正成功** |
+| 初期残高 | ¥100,000 | ¥100,000 | - |
+| 最終残高 | - | ¥99,845 | -¥155 |
+| ポジションサイズ | 50%超過 | 0.0003 BTC | 約8% |
+
+### テスト修正
+
+ポジションサイズと残高の変更に伴い、以下のテストを更新：
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `test_orchestrator.py` | 残高期待値 10000→100000 |
+| `test_executor.py` | 残高期待値、get_thresholdモック修正 |
+| `test_constants.py` | position_size_base下限 0.001→0.0001 |
+| `test_limits.py` | 資金利用率チェックのモック修正 |
+| `test_integrated_risk_manager.py` | 残高期待値修正、cooldown_hours 24→6 |
+| `test_init.py` | cooldown_hours 24→6 |
+| `test_drawdown_manager.py` | cooldown_hours 24→6 |
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | `initial_position_size: 0.0005` |
+| `src/strategies/utils/strategy_utils.py` | `position_size_base: 0.0003` |
+| `src/trading/__init__.py` | `cooldown_hours: 6` |
+| `src/trading/risk/manager.py` | `cooldown_hours: 6` |
+| 7つのテストファイル | テスト期待値を修正 |
+
+### 品質チェック結果
+
+```
+📊 チェック結果:
+  - flake8: ✅ PASS
+  - isort: ✅ PASS
+  - black: ✅ PASS
+  - pytest: ✅ PASS (1,256テスト・65%+カバレッジ)
+  - ML検証: ✅ PASS (55特徴量・3クラス分類・HOLD率54.7%)
+  - システム整合性: ✅ PASS (7項目チェック)
+```
+
+### 学習事項
+
+1. **ポジションサイズは証拠金の5-10%が適正** - 50%は制限超過を招く
+2. **ハードコード値は設定ファイルと乖離しやすい** - デフォルト値は設定と一致させる
+3. **7層リスク管理の理解が重要** - Kelly/Dynamic/RiskManagerの加重平均で最終サイズが決まる
+4. **バックテストの短期実行で検証** - 180日待たずに7日で動作確認できる
+
+### 完了事項
+
+- [x] `initial_position_size: 0.0005` に修正
+- [x] `position_size_base: 0.0003` に修正
+- [x] クールダウン時間のハードコード（24時間）を設定値（6時間）に統一
+- [x] 7日間バックテストで取引数6件を確認
+- [x] 全テスト修正（1,256テストPASS）
+- [x] 品質チェック全項目PASS
+
+---
+
+**📅 最終更新**: 2025年12月24日 - Phase 55.12完了（ポジションサイズ適正化・クールダウン修正）

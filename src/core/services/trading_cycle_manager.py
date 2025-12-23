@@ -526,7 +526,9 @@ class TradingCycleManager:
 
             # mode_balancesから適切な初期残高を取得（Phase 55.9: get_threshold()使用）
             if config_mode == "backtest":
-                appropriate_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+                appropriate_balance = get_threshold(
+                    "mode_balances.backtest.initial_balance", 100000.0
+                )
             elif config_mode == "paper":
                 appropriate_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
             else:
