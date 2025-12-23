@@ -26,8 +26,8 @@ jobs:
   quality-check:
     name: Quality Check (checks.sh)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
+    timeout-minutes: 15  # Phase 55.8: MLフル検証追加のため延長
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,6 +53,18 @@ jobs:
 
       - name: Run quality checks (checks.sh)
         run: bash scripts/testing/checks.sh
+
+      - name: ML Model Validation (Full)
+        run: |
+          # Phase 55.8: MLモデルフル検証（予測分布・HOLD率チェック含む）
+          echo "🤖 Phase 55.8: MLモデルフル検証開始"
+          python3 scripts/testing/validate_ml_models.py || {
+            echo "❌ MLモデル検証失敗"
+            echo "→ HOLD率が90%以上の場合、モデル再訓練が必要です"
+            echo "→ コマンド: python scripts/ml/create_ml_models.py --threshold 0.0005 --n-classes 3 --use-smote --optimize --n-trials 30"
+            exit 1
+          }
+          echo "✅ MLモデルフル検証完了"
 
   # ========================================
   # GCP環境検証（Phase 16-B対応）

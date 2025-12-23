@@ -1,7 +1,7 @@
 # Phase 55 開発記録
 
 **期間**: 2025/12/20-23
-**状況**: Phase 55.7完了
+**状況**: Phase 55.8完了
 
 ---
 
@@ -26,6 +26,7 @@
 | 55.5 | ポジションサイズ統合・ML閾値緩和 | ✅ | 加重平均方式・取引数回復 |
 | 55.6 | ADXTrendStrength PF≥1.0達成 | ✅ | PF 0.96→1.01（+5%） |
 | 55.7 | MLモデル作成バグ修正 | ✅ | 2クラス→3クラス、full/basic分離 |
+| 55.8 | ML検証統合・CIフル検証・HOLD率修正 | ✅ | HOLD率97.7%→54.7%、CI品質保証 |
 
 ---
 
@@ -949,4 +950,161 @@ self.virtual_balance if self.mode in ["paper", "backtest"] else self.current_bal
 
 ---
 
-**📅 最終更新**: 2025年12月23日 - Phase 55.7完了（MLモデル作成バグ修正・検証スクリプト拡張）
+## ✅ Phase 55.8: ML検証スクリプト統合 + CIフル検証 + HOLD率修正【完了】
+
+### 実施日: 2025/12/23
+
+### 目的
+1. 3つのML検証スクリプトを1つに統合
+2. CIにフル検証を組み込む
+3. HOLD率97.7%問題を解決
+
+### 背景
+- Phase 55.7でモデル再訓練したが、HOLD率が97.7%に再発
+- 原因: 閾値0.005（デフォルト）で訓練 → 正しくは0.0005が必要
+- 複数のML検証スクリプトが分散していて保守性が低い
+
+### 問題分析
+
+**HOLD率97.7%の根本原因:**
+
+| 閾値 | 訓練データHOLD比率 | 予測HOLD率 |
+|------|-------------------|-----------|
+| 0.005（±0.5%） | 92-94% | **97.7%** ← 問題 |
+| 0.0005（±0.05%） | 25.9% | **54.7%** ← 解決 |
+
+閾値0.005では「価格変動±0.5%未満をHOLD」とラベル付けするため、
+ほとんどの15分足データがHOLDにラベル付けされ、
+モデルがHOLDを予測しすぎる問題が発生。
+
+### 修正内容
+
+#### 1. ML検証スクリプト統合
+
+**削除した3ファイル:**
+- `scripts/ml/validate_model_performance.py`
+- `scripts/testing/validate_ml_prediction_distribution.py`
+- `scripts/testing/validate_model_consistency.py`
+
+**作成した統合スクリプト:**
+- `scripts/testing/validate_ml_models.py`（676行）
+
+**統合スクリプトの機能:**
+- モデル存在確認
+- 特徴量整合性チェック
+- 予測分布検証（HOLD率チェック）
+- 信頼度統計検証
+- full/basicモデル差異検証
+- 3クラス分類検証
+- 個別モデル性能表示
+
+**CLIオプション:**
+```bash
+# フル検証（デフォルト）
+python3 scripts/testing/validate_ml_models.py
+
+# クイック検証（checks.sh用）
+python3 scripts/testing/validate_ml_models.py --quick
+```
+
+#### 2. CIにフル検証追加
+
+**変更ファイル:** `.github/workflows/ci.yml`
+
+```yaml
+quality-check:
+  timeout-minutes: 15  # 10→15に延長
+
+  # ... existing steps ...
+
+  - name: ML Model Validation (Full)
+    run: |
+      echo "🤖 Phase 55.8: MLモデルフル検証開始"
+      python3 scripts/testing/validate_ml_models.py || {
+        echo "❌ MLモデル検証失敗"
+        echo "→ HOLD率が90%以上の場合、モデル再訓練が必要です"
+        exit 1
+      }
+      echo "✅ MLモデルフル検証完了"
+```
+
+#### 3. モデル再訓練（閾値0.0005）
+
+**訓練コマンド:**
+```bash
+python3 scripts/ml/create_ml_models.py \
+  --model both \
+  --threshold 0.0005 \
+  --n-classes 3 \
+  --use-smote \
+  --optimize \
+  --n-trials 30
+```
+
+**訓練結果:**
+
+| モデル | Test F1 | CV F1 | 特徴量数 |
+|--------|---------|-------|---------|
+| LightGBM | 0.412 | 0.422±0.015 | 55 |
+| XGBoost | 0.419 | 0.422±0.012 | 55 |
+| Random Forest | 0.400 | 0.426±0.014 | 55 |
+
+**SMOTEクラス分布:**
+- Class 0 (BUY): 33.3%
+- Class 1 (HOLD): 33.3%
+- Class 2 (SELL): 33.3%
+
+### 最終結果
+
+**HOLD率改善:**
+
+| 指標 | 改善前 | 改善後 | 変化 |
+|------|--------|--------|------|
+| **HOLD率** | 97.7% | **54.7%** | **-43pt** |
+| 最大クラス比率 | 97.7% | 54.7% | OK（< 80%） |
+
+**ML検証結果:**
+```
+✅ モデル整合性検証完了
+✅ クラスバランス良好（最大クラス: 54.7% < 80%）
+✅ 信頼度統計正常
+✅ 個別モデル検証完了
+```
+
+### 修正ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `scripts/testing/validate_ml_models.py` | 統合ML検証スクリプト（新規作成） |
+| `scripts/testing/checks.sh` | `--quick`モードで呼び出し |
+| `.github/workflows/ci.yml` | フル検証ステップ追加、timeout延長 |
+| `models/production/ensemble_full.pkl` | 再訓練（threshold 0.0005） |
+| `models/production/ensemble_basic.pkl` | 再訓練（threshold 0.0005） |
+
+### モデルファイル情報
+
+| モデル | サイズ | MD5 |
+|--------|--------|-----|
+| ensemble_full.pkl | 4.2MB | 9905296a706a0766bd0ff04ef2c45787 |
+| ensemble_basic.pkl | 20.8MB | ed8af67efe1ae830059d5df99a485e83 |
+
+### 学習事項
+
+1. **閾値設定は訓練時に重要** - デフォルト値を間違えるとHOLD率が極端になる
+2. **CI検証は本番品質を保証** - checks.shだけでなくフル検証も必要
+3. **スクリプト統合で保守性向上** - 3ファイル→1ファイルで管理しやすく
+4. **SMOTEはクラス不均衡を解決** - 33.3%均等でバランス良い訓練
+
+### 完了事項
+
+- [x] 3スクリプトの全機能を統合
+- [x] CLI引数で検証項目を選択可能
+- [x] `--quick` モードで軽量検証
+- [x] checks.shから正常に呼び出し可能
+- [x] HOLD率 ≤ 60%（目標55%）達成: **54.7%**
+- [x] CIでフル検証が実行される
+- [x] モデル再訓練完了
+
+---
+
+**📅 最終更新**: 2025年12月23日 - Phase 55.8完了（ML検証スクリプト統合・CIフル検証・HOLD率54.7%達成）
