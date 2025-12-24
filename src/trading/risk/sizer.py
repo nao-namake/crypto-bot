@@ -111,6 +111,37 @@ class PositionSizeIntegrator:
                 max_order_size = get_threshold("production.max_order_size", 0.03)
                 integrated_size = min(integrated_size, max_order_size)
 
+                # Phase 56: 信頼度別ポジション制限を事前適用（limits.pyでの拒否を防ぐ）
+                if current_balance and btc_price and btc_price > 0:
+                    if ml_confidence < 0.60:
+                        confidence_ratio = get_threshold(
+                            "position_management.max_position_ratio_per_trade.low_confidence", 0.10
+                        )
+                        confidence_category = "low"
+                    elif ml_confidence < 0.75:
+                        confidence_ratio = get_threshold(
+                            "position_management.max_position_ratio_per_trade.medium_confidence",
+                            0.15,
+                        )
+                        confidence_category = "medium"
+                    else:
+                        confidence_ratio = get_threshold(
+                            "position_management.max_position_ratio_per_trade.high_confidence", 0.25
+                        )
+                        confidence_category = "high"
+
+                    # Phase 56.3: 0.5%マージン追加（limits.pyでの境界値超過を防ぐ）
+                    margin_factor = 0.995  # 0.5%マージン
+                    confidence_limit = (
+                        current_balance * confidence_ratio * margin_factor / btc_price
+                    )
+                    if integrated_size > confidence_limit:
+                        self.logger.info(
+                            f"Phase 56: 信頼度別制限適用 - {confidence_category}信頼度 "
+                            f"({ml_confidence:.1%}): {integrated_size:.6f}→{confidence_limit:.6f} BTC"
+                        )
+                        integrated_size = confidence_limit
+
                 # 最小取引単位チェック
                 min_trade_size = get_threshold("production.min_order_size", 0.0001)
                 integrated_size = max(integrated_size, min_trade_size)

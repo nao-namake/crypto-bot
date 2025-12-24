@@ -290,8 +290,8 @@ class KellyCriterion:
                 trade_history_count = len(self.trade_history)
 
                 if trade_history_count < self.min_trades_for_kelly:
-                    # Phase 55.3: 履歴不足時は合理的な初期値（0.01 BTC）を使用
-                    fixed_initial_size = get_threshold("trading.initial_position_size", 0.01)
+                    # Phase 56: 履歴不足時は設定値を使用（フォールバック0.0005に修正）
+                    fixed_initial_size = get_threshold("trading.initial_position_size", 0.0005)
 
                     # max_order_size制限チェック
                     max_order_size = get_threshold("production.max_order_size", 0.03)
@@ -304,16 +304,18 @@ class KellyCriterion:
                     return fixed_initial_size
                 else:
                     # 取引履歴があるがKelly計算エラーの場合
-                    base_initial_size = get_threshold("trading.initial_position_size", 0.01)
+                    # Phase 56: フォールバック0.0005に修正
+                    base_initial_size = get_threshold("trading.initial_position_size", 0.0005)
                     min_trade_size = get_threshold("production.min_order_size", 0.0001)
                     conservative_size = max(base_initial_size * ml_confidence, min_trade_size)
 
                     # max_order_size制限チェック
+                    # Phase 56.3: ログレベルをERROR→DEBUGに変更（正常動作のため）
                     max_order_size = get_threshold("production.max_order_size", 0.02)
                     if conservative_size > max_order_size:
-                        self.logger.error(
-                            f"ポジションサイズ制限超過検出: 計算値={conservative_size:.6f} > "
-                            f"max_order_size={max_order_size:.6f} - 制限値適用"
+                        self.logger.debug(
+                            f"ポジションサイズ制限適用: 計算値={conservative_size:.6f} > "
+                            f"max_order_size={max_order_size:.6f} → 制限値使用"
                         )
                         conservative_size = max_order_size
 
@@ -334,9 +336,10 @@ class KellyCriterion:
             # Silent failure対策: max_order_size制限チェック（Kelly履歴がある場合も）
             max_order_size = get_threshold("production.max_order_size", 0.02)
             if final_size > max_order_size:
-                self.logger.error(
-                    f"Kelly計算済みポジションサイズ制限超過: 計算値={final_size:.4f} > "
-                    f"max_order_size={max_order_size:.4f} - Silent failure発生可能性"
+                # Phase 56.3: ログレベルをERROR→DEBUGに変更（正常動作のため）
+                self.logger.debug(
+                    f"Kelly計算済みポジションサイズ制限適用: 計算値={final_size:.4f} > "
+                    f"max_order_size={max_order_size:.4f} → 制限値使用"
                 )
                 final_size = min(final_size, max_order_size)
 
@@ -349,8 +352,8 @@ class KellyCriterion:
 
         except Exception as e:
             self.logger.error(f"最適サイズ計算エラー: {e}")
-            # フォールバック値も設定から取得
-            fallback_size = get_threshold("trading.initial_position_size", 0.01)
+            # Phase 56: フォールバック値0.0005に修正
+            fallback_size = get_threshold("trading.initial_position_size", 0.0005)
             return fallback_size
 
     def calculate_dynamic_position_size(

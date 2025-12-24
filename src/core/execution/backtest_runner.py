@@ -581,6 +581,10 @@ class BacktestRunner(BaseRunner):
                         minutes=exec_offset * live_interval_minutes
                     )
 
+                    # Phase 56.3: ExecutionServiceにシミュレーション時刻を設定
+                    if hasattr(self.orchestrator, "execution_service"):
+                        self.orchestrator.execution_service.current_time = self.current_timestamp
+
                     # Phase 49.3: サイクル前のポジション数記録（エントリー検出用）
                     positions_before = set(
                         p["order_id"] for p in self.orchestrator.execution_service.virtual_positions

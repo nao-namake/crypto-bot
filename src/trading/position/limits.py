@@ -41,6 +41,7 @@ class PositionLimits:
         last_order_time: Optional[datetime],
         current_balance: float,
         regime: Optional[RegimeType] = None,
+        current_time: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         ポジション管理制限チェック（口座残高使い切り問題対策）
@@ -51,6 +52,7 @@ class PositionLimits:
             last_order_time: 最後の注文時刻
             current_balance: 現在の残高
             regime: 市場レジーム（Phase 51.8: レジーム別ポジション制限）
+            current_time: 判定基準時刻（Phase 56.3: バックテスト時刻対応）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
@@ -62,7 +64,8 @@ class PositionLimits:
                 return min_balance_check
 
             # Phase 29.6 + Phase 31.1: クールダウンチェック（柔軟な判定）
-            cooldown_check = await self._check_cooldown(evaluation, last_order_time)
+            # Phase 56.3: current_time対応（バックテスト時刻）
+            cooldown_check = await self._check_cooldown(evaluation, last_order_time, current_time)
             if not cooldown_check["allowed"]:
                 return cooldown_check
 
@@ -132,14 +135,19 @@ class PositionLimits:
         return {"allowed": True, "reason": "資金要件OK"}
 
     async def _check_cooldown(
-        self, evaluation: TradeEvaluation, last_order_time: Optional[datetime]
+        self,
+        evaluation: TradeEvaluation,
+        last_order_time: Optional[datetime],
+        current_time: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         クールダウンチェック（Phase 31.1: 柔軟な判定）
+        Phase 56.3: バックテスト時刻対応
 
         Args:
             evaluation: 取引評価結果
             last_order_time: 最後の注文時刻
+            current_time: 判定基準時刻（Noneの場合はdatetime.now()使用）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
@@ -149,7 +157,9 @@ class PositionLimits:
         if not last_order_time or cooldown_minutes <= 0:
             return {"allowed": True, "reason": "クールダウンなし"}
 
-        time_since_last_order = datetime.now() - last_order_time
+        # Phase 56.3: バックテスト時はcurrent_time使用、本番時はdatetime.now()
+        now = current_time if current_time is not None else datetime.now()
+        time_since_last_order = now - last_order_time
         required_cooldown = timedelta(minutes=cooldown_minutes)
 
         if time_since_last_order < required_cooldown:

@@ -71,6 +71,9 @@ class ExecutionService:
         # Phase 29.6: クールダウン管理
         self.last_order_time = None
 
+        # Phase 56.3: バックテスト時刻管理（バックテスト時にシミュレーション時刻を使用）
+        self.current_time: Optional[datetime] = None
+
         # Phase 30: 指値注文タイムアウト管理
         self.pending_limit_orders: List[Dict[str, Any]] = []
 
@@ -230,6 +233,7 @@ class ExecutionService:
                 regime = evaluation.market_conditions.get("regime", None)
 
                 # Phase 55.6: backtestモードでもvirtual_balanceを使用
+                # Phase 56.3: current_time追加（バックテスト時刻対応）
                 position_check_result = await self.position_limits.check_limits(
                     evaluation,
                     self.virtual_positions,
@@ -240,6 +244,7 @@ class ExecutionService:
                         else self.current_balance
                     ),
                     regime=regime,  # Phase 51.8: レジーム別制限適用
+                    current_time=self.current_time,  # Phase 56.3: バックテスト時刻
                 )
                 if not position_check_result["allowed"]:
                     self.logger.warning(
@@ -803,12 +808,14 @@ class ExecutionService:
             )
 
             # Phase 51.7: 仮想ポジション記録（TP/SL価格追加 - ライブモード一致化）
+            # Phase 56.3: バックテスト時はcurrent_time使用
+            trade_timestamp = self.current_time if self.current_time else datetime.now()
             virtual_position = {
                 "order_id": virtual_order_id,
                 "side": side,
                 "amount": amount,
                 "price": price,
-                "timestamp": datetime.now(),
+                "timestamp": trade_timestamp,
                 "take_profit": getattr(evaluation, "take_profit", None),
                 "stop_loss": getattr(evaluation, "stop_loss", None),
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
@@ -846,12 +853,15 @@ class ExecutionService:
                         side=side,
                         amount=amount,
                         price=price,
-                        timestamp=datetime.now(),
+                        timestamp=trade_timestamp,  # Phase 56.3: バックテスト時刻使用
                         strategy=getattr(evaluation, "strategy_name", "unknown"),
                         regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
+
+            # Phase 56.3: クールダウン時刻更新（バックテスト時刻使用）
+            self.last_order_time = trade_timestamp
 
             return result
 
