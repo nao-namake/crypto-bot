@@ -1,7 +1,7 @@
 # Phase 56 開発記録
 
-**期間**: 2025/12/25
-**状況**: Phase 56進行中
+**期間**: 2025/12/25 - 2025/12/26
+**状況**: Phase 56.4完了
 
 ---
 
@@ -22,7 +22,8 @@
 | 56.0 | バックテスト0取引問題の調査 | ✅ | 根本原因特定（Kelly支配） |
 | 56.1 | ポジションサイズ修正 | ✅ | sizer.py/kelly.py修正 |
 | 56.2 | 戦略閾値軽度緩和 | ✅ | BBReversal/Stochastic調整 |
-| 56.3 | リスク管理問題対応 | 🔄 | リスクスコア/Kelly/ポジション制限 |
+| 56.3 | リスク管理問題対応 | ✅ | リスクスコア/Kelly/ポジション制限 |
+| 56.4 | tight_range重み設定最適化 | ✅ | 全6戦略に適切な重み配分 |
 
 ---
 
@@ -264,13 +265,109 @@ confidence_limit = current_balance * confidence_ratio * margin_factor / btc_pric
 
 ---
 
+## 🎯 Phase 56.4: tight_range重み設定最適化【完了】
+
+### 実施日: 2025/12/26
+
+### 問題
+- CIバックテストで45取引/180日（目標: 400-500取引/180日）
+- tight_rangeで3戦略（ADX, MACD, Donchian）がweight=0で完全無視
+- 462件/60日のシグナルが統合結果に反映されていない
+
+### 網羅的調査結果
+
+#### 1. MLモデル検証 ✅ 正常
+```
+予測分布（300サンプル）:
+- SELL: 54.7%, HOLD: 36.7%, BUY: 8.7%
+- BUY/SELL合計: 63.3%（正常）
+```
+
+#### 2. 個別戦略検証 ✅ 正常
+| 戦略 | 取引数/60日 | PF |
+|------|-------------|-----|
+| ADXTrendStrength | 120 | 1.05 |
+| StochasticReversal | 181 | 1.06 |
+| ATRBased | 126 | 1.11 |
+| DonchianChannel | 294 | 1.00 |
+| MACDEMACrossover | 48 | 1.20 |
+| BBReversal | 123 | 0.99 |
+| **合計** | **892** | - |
+
+#### 3. ML統合検証 ✅ 重み0の影響なし
+- `strategy_signal_*`特徴量は全6戦略から生成
+- 重みは統合時のみ適用、ML入力には影響しない
+
+#### 4. 根本原因特定 ❌ 戦略統合層
+```python
+# strategy_manager.py _calculate_weighted_confidence()
+weight = self.strategy_weights.get(strategy_name, 1.0)
+weighted_confidence = signal.confidence * weight  # weight=0 → 貢献度0!
+```
+
+### 戦略特性分析
+
+| 戦略 | Phase | 変更内容 | 現在の区分 |
+|------|-------|----------|-----------|
+| **ADXTrendStrength** | 55.6 | トレンド→**レンジ逆張り**に変換 | **レンジ型** |
+| StochasticReversal | 55.2 | Divergence検出強化 | レンジ型 |
+| ATRBased | 54 | ATR消尽率ロジック導入 | レンジ型 |
+| BBReversal | - | BB端+RSI極端値 | レンジ型 |
+| DonchianChannel | - | チャネル端反転 | レンジ型 |
+| MACDEMACrossover | - | MACDクロス（ADX>25条件） | **トレンド型** |
+
+**重要**: ADXTrendStrengthはPhase 55.6でレンジ型に変換済み → weight復活が適切
+
+### 修正内容（thresholds.yaml）
+
+```yaml
+# 修正前（3戦略がweight=0で無視）
+tight_range:
+  BBReversal: 0.40
+  StochasticReversal: 0.35
+  ATRBased: 0.25
+  ADXTrendStrength: 0.0      # ← 完全無視
+  MACDEMACrossover: 0.0      # ← 完全無視
+  DonchianChannel: 0.0       # ← 完全無視
+
+# 修正後（全戦略に適切な重み配分）
+tight_range:
+  BBReversal: 0.25           # PF 1.32（最高PF）
+  StochasticReversal: 0.25   # PF 1.25（Divergence特化）
+  ATRBased: 0.20             # PF 1.16（消尽率ロジック）
+  ADXTrendStrength: 0.15     # PF 1.05（Phase 55.6でレンジ型に変換済み）
+  DonchianChannel: 0.10      # PF 1.00（損益分岐）
+  MACDEMACrossover: 0.05     # PF 1.50（トレンド型・最小限）
+```
+
+### 重み設計方針
+- PFが高い戦略に高重み（BBReversal, Stochastic）
+- レンジ型に変換されたADXにも適切な重み復活
+- トレンド型MACDは最小限（tight_rangeではADX>25条件で自然に不発）
+- 合計 = 1.0
+
+### 期待効果
+- 取引数: 45件/180日 → 400-500件/180日（目標）
+- 無視されていた462件/60日のシグナルが部分的に反映
+
+### 修正ファイル
+| ファイル | 修正内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | tight_range重み設定更新（Line 297-304） |
+| `tests/unit/services/test_dynamic_strategy_selector.py` | テスト期待値更新 |
+
+---
+
 ## 📝 学習事項
 
 1. **Kellyフォールバック値の重要性**: 0.01 BTCは¥150,000相当で、小額運用には大きすぎる
 2. **加重平均方式の落とし穴**: 一つの要素が極端だと全体を支配する
 3. **リスク管理のバランス**: 過度な制限は取引機会の損失につながる
 4. **tight_range特化の有効性**: このレジームでPF 1.15を達成
+5. **weight=0の危険性**: 戦略統合で完全無視され、取引機会を大幅に失う
+6. **戦略進化の追跡**: ADXがPhase 55.6でレンジ型に変換されたことを重み設定に反映し忘れていた
+7. **網羅的調査の重要性**: ML・戦略・統合層を個別検証することで根本原因を特定
 
 ---
 
-**📅 最終更新**: 2025年12月25日
+**📅 最終更新**: 2025年12月26日
