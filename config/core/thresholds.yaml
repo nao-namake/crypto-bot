@@ -295,13 +295,13 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 55.2: レンジ型戦略3つに集中・トレンド型除外
-      BBReversal: 0.40          # ↑ PF 1.32（最高PF・タイトレンジ特化）
-      StochasticReversal: 0.35  # ↑ PF 1.25（Phase 55.2でDivergence化・復活！）
-      ATRBased: 0.25            # ↓ PF 1.16（消尽率ロジック効果的）
-      ADXTrendStrength: 0.0     # ↓ 無効化（トレンド型・タイトレンジ不向き）
-      MACDEMACrossover: 0.0     # ↓ 無効化（ADX>25条件でタイトレンジ不発）
-      DonchianChannel: 0.0      # = PF 0.85（赤字維持）
+      # Phase 56.4: 全戦略に適切な重み配分（取引数増加対策）
+      BBReversal: 0.25          # PF 1.32（最高PF）
+      StochasticReversal: 0.25  # PF 1.25（Divergence特化）
+      ATRBased: 0.20            # PF 1.16（消尽率ロジック）
+      ADXTrendStrength: 0.15    # PF 1.05（Phase 55.6でレンジ型に変換済み）
+      DonchianChannel: 0.10     # PF 1.00（損益分岐）
+      MACDEMACrossover: 0.05    # PF 1.50（トレンド型・最小限）
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
       # Phase 51.8-10: バランス型70/20配分（理論的初期値）
       ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
