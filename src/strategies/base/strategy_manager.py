@@ -220,10 +220,13 @@ class StrategyManager:
         df: pd.DataFrame,
     ) -> StrategySignal:
         """
-        シグナルコンフリクトの解決（Phase 38.5: 全5票統合ロジック実装）
+        シグナルコンフリクトの解決（Phase 56.7: 2票ルール導入）
 
-        従来のbuy vs sell比較を廃止し、全アクション（buy/sell/hold）の
-        重み付け信頼度を計算して最高スコアのアクションを選択する。
+        Phase 56.7: BUY/SELLが2票以上あればHOLDを無視して選択。
+        - BUY 2票以上 かつ SELL 1票以下 → BUY選択
+        - SELL 2票以上 かつ BUY 1票以下 → SELL選択
+        - BUY/SELL両方2票以上 → HOLD（矛盾）
+        - BUY/SELL両方1票以下 → 従来ロジック（重み付け比較）
         """
         # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
         import os
@@ -231,13 +234,92 @@ class StrategyManager:
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         if not is_backtest:  # Phase 35.5: バックテストモード時はログ出力しない
-            self.logger.warning("シグナルコンフリクト検出 - 全5票統合ロジック実行")
+            self.logger.warning("シグナルコンフリクト検出 - Phase 56.7 2票ルール適用")
 
         # Phase 38.5: 全アクション（buy/sell/hold）の信号を取得
         buy_signals = signal_groups.get("buy", [])
         sell_signals = signal_groups.get("sell", [])
         hold_signals = signal_groups.get("hold", [])
 
+        buy_count = len(buy_signals)
+        sell_count = len(sell_signals)
+
+        # Phase 56.7: 2票以上ルール（コンセンサス重視）
+        buy_has_quorum = buy_count >= 2
+        sell_has_quorum = sell_count >= 2
+
+        # 両方2票以上 → 矛盾 → HOLD
+        if buy_has_quorum and sell_has_quorum:
+            self.logger.info(
+                f"Phase 56.7: BUY/SELL両方2票以上で矛盾 → HOLD "
+                f"(BUY={buy_count}票, SELL={sell_count}票)"
+            )
+            return self._create_hold_signal(
+                df,
+                reason=f"Phase 56.7: BUY/SELL両方2票以上で矛盾 (BUY={buy_count}, SELL={sell_count})",
+            )
+
+        # BUY 2票以上 → BUY選択（HOLD無視）
+        if buy_has_quorum:
+            buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
+            best_signal = max(buy_signals, key=lambda x: x[1].confidence)[1]
+            self.logger.info(
+                f"Phase 56.7: BUY {buy_count}票でクオーラム達成 → BUY選択 "
+                f"(信頼度: {buy_weighted_confidence:.3f})"
+            )
+            return StrategySignal(
+                strategy_name="StrategyManager",
+                timestamp=datetime.now(),
+                action="buy",
+                confidence=buy_weighted_confidence,
+                strength=best_signal.strength,
+                current_price=best_signal.current_price,
+                entry_price=best_signal.entry_price,
+                stop_loss=best_signal.stop_loss,
+                take_profit=best_signal.take_profit,
+                position_size=best_signal.position_size,
+                risk_ratio=best_signal.risk_ratio,
+                reason=f"Phase 56.7: BUY {buy_count}票でクオーラム達成",
+                metadata={
+                    "conflict_resolved": True,
+                    "resolution_method": "quorum_rule",
+                    "buy_votes": buy_count,
+                    "sell_votes": sell_count,
+                    "hold_votes": len(hold_signals),
+                },
+            )
+
+        # SELL 2票以上 → SELL選択（HOLD無視）
+        if sell_has_quorum:
+            sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
+            best_signal = max(sell_signals, key=lambda x: x[1].confidence)[1]
+            self.logger.info(
+                f"Phase 56.7: SELL {sell_count}票でクオーラム達成 → SELL選択 "
+                f"(信頼度: {sell_weighted_confidence:.3f})"
+            )
+            return StrategySignal(
+                strategy_name="StrategyManager",
+                timestamp=datetime.now(),
+                action="sell",
+                confidence=sell_weighted_confidence,
+                strength=best_signal.strength,
+                current_price=best_signal.current_price,
+                entry_price=best_signal.entry_price,
+                stop_loss=best_signal.stop_loss,
+                take_profit=best_signal.take_profit,
+                position_size=best_signal.position_size,
+                risk_ratio=best_signal.risk_ratio,
+                reason=f"Phase 56.7: SELL {sell_count}票でクオーラム達成",
+                metadata={
+                    "conflict_resolved": True,
+                    "resolution_method": "quorum_rule",
+                    "buy_votes": buy_count,
+                    "sell_votes": sell_count,
+                    "hold_votes": len(hold_signals),
+                },
+            )
+
+        # BUY/SELL両方1票以下 → 従来ロジック（重み付け比較）
         # 各グループの重み付け信頼度計算
         buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
         sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
@@ -256,8 +338,8 @@ class StrategyManager:
             return self._create_hold_signal(df, reason="全戦略信頼度ゼロ")
 
         self.logger.debug(
-            f"全5票統合: BUY={buy_ratio:.3f}({len(buy_signals)}票) "
-            f"SELL={sell_ratio:.3f}({len(sell_signals)}票) "
+            f"従来ロジック適用: BUY={buy_ratio:.3f}({buy_count}票) "
+            f"SELL={sell_ratio:.3f}({sell_count}票) "
             f"HOLD={hold_ratio:.3f}({len(hold_signals)}票)"
         )
 
@@ -282,11 +364,11 @@ class StrategyManager:
             )
             return self._create_hold_signal(
                 df,
-                reason=f"全5票統合結果 - HOLD/同率 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f})",
+                reason=f"従来ロジック - HOLD/同率 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f})",
             )
 
         self.logger.info(
-            f"コンフリクト解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)"
+            f"従来ロジック解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)"
         )
 
         # 勝利グループから最も信頼度の高いシグナルをベースに統合

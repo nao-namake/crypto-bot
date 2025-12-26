@@ -27,7 +27,7 @@
 # 実行設定（Execution Settings）
 # ========================================
 execution:
-  backtest_period_days: 60  # Phase 55.3: 60日間検証（取引数回復確認）
+  backtest_period_days: 180  # Phase 56.7: 180日間検証（2票ルール効果検証）
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
 

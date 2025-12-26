@@ -516,12 +516,10 @@ class TestStrategyManager(unittest.TestCase):
 
         result = self.manager.analyze_market(self.test_df)
 
-        # Phase 38.8: 重み付き信頼度で判定されるため、sellが選択される
-        # hold合計: 0.150 + 0.453 + 0.489 = 1.092
-        # sell合計: 0.760 + 0.651 = 1.411
-        # sell > hold なので sell選択
+        # Phase 56.7: 2票ルール導入 - SELL 2票以上でクオーラム達成
+        # SELL 2票（Sell1, Sell2）があるため、HOLD票を無視してSELL選択
         self.assertEqual(result.action, EntryAction.SELL)
-        self.assertIn("全5票統合", result.reason)
+        self.assertIn("Phase 56.7", result.reason)
         self.assertEqual(self.manager.signal_conflicts, 1)
 
     def test_phase_38_8_hold_vs_buy_conflict_detection(self):
@@ -536,8 +534,11 @@ class TestStrategyManager(unittest.TestCase):
 
         # コンフリクトとして検出される
         self.assertEqual(self.manager.signal_conflicts, 1)
+        # Phase 56.7: 1票ずつの場合は従来ロジック（重み付け比較）
         self.assertTrue(
-            result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
+            result.metadata.get("conflict_resolved", False)
+            or "全2票統合" in result.reason
+            or "Phase 56.7" in result.reason
         )
 
 
