@@ -1,7 +1,7 @@
 # Phase 56 開発記録
 
 **期間**: 2025/12/25 - 2025/12/27
-**状況**: Phase 56.5完了
+**状況**: Phase 56.6完了
 
 ---
 
@@ -25,6 +25,7 @@
 | 56.3 | リスク管理問題対応 | ✅ | リスクスコア/Kelly/ポジション制限 |
 | 56.4 | tight_range重み設定最適化 | ✅ | 全6戦略に適切な重み配分 |
 | 56.5 | TP/SLバグ修正 | ✅ | 既存ポジションのTP/SL自動設定 |
+| 56.6 | 資金アロケーション上限 | ✅ | ポジションサイズ計算用残高を10万円に制限 |
 
 ---
 
@@ -471,6 +472,102 @@ Phase 56.5: ensure_tp_sl_for_existing_positions() ← 新規追加
 
 ---
 
+## 💰 Phase 56.6: 資金アロケーション上限機能【完了】
+
+### 実施日: 2025/12/27
+
+### 背景
+
+ライブモードでは実際の残高（33万円）がポジションサイズ計算に使用されていた。
+設定値`mode_balances.live.initial_balance: 10000.0`はAPIエラー時のフォールバックのみで、
+実運用時は実残高ベースで計算されていた。
+
+#### 調査結果：意図した設計動作だが、制限機能を追加
+
+**残高取得フロー（修正前）**:
+```
+[ライブモード起動]
+    ↓
+trading_cycle_manager.py:_fetch_trading_info()
+    ↓
+balance_info = data_service.client.fetch_balance()  ← bitbank APIから取得
+current_balance = balance_info["JPY"]["total"]       ← 実際の残高（33万円）
+    ↓
+risk/sizer.py:_calculate_dynamic_position_size()
+    ↓
+calculated_size = (current_balance * position_ratio) / btc_price
+```
+
+### 修正内容
+
+#### 1. thresholds.yaml: 新設定追加
+
+```yaml
+trading:
+  # Phase 56.6: 資金アロケーション上限（ポジションサイズ計算に使用する残高上限）
+  # null/0で無制限（実残高をそのまま使用）、正の値で上限設定
+  capital_allocation_limit: 100000.0  # 10万円に制限
+```
+
+#### 2. trading_cycle_manager.py: 上限適用ロジック追加
+
+```python
+async def _fetch_trading_info(self, market_data):
+    # 現在の残高取得
+    balance_info = self.orchestrator.data_service.client.fetch_balance()
+    actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
+
+    # Phase 56.6: 資金アロケーション上限を適用
+    capital_limit = get_threshold("trading.capital_allocation_limit", None)
+    if capital_limit and capital_limit > 0:
+        current_balance = min(actual_balance, capital_limit)
+        if actual_balance > capital_limit:
+            self.logger.debug(
+                f"Phase 56.6: 資金アロケーション上限適用 - "
+                f"実残高: ¥{actual_balance:,.0f} → 計算用: ¥{current_balance:,.0f}"
+            )
+    else:
+        current_balance = actual_balance
+```
+
+### 動作
+
+```
+実残高: 33万円
+    ↓
+資金アロケーション上限適用: min(330000, 100000) = 100000
+    ↓
+ポジションサイズ計算: 10万円ベース
+    ↓
+結果: ~0.01 BTC相当まで（以前の1/3程度に縮小）
+```
+
+### ポジションサイズ計算の影響
+
+| 信頼度 | 比率範囲 | 33万円での計算 | 10万円での計算（修正後） |
+|--------|---------|---------------|----------------------|
+| 低（<60%） | 1-3% | 0.00036-0.00108 BTC | 0.00011-0.00032 BTC |
+| 中（60-75%） | 3-5% | 0.00108-0.00180 BTC | 0.00032-0.00054 BTC |
+| 高（>75%） | 5-10% | 0.00180-0.00360 BTC | 0.00054-0.00108 BTC |
+
+### 修正ファイル
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | `trading.capital_allocation_limit: 100000.0` 追加 |
+| `src/core/services/trading_cycle_manager.py` | 残高取得時に上限適用ロジック追加（2箇所） |
+
+### 設定変更方法
+
+上限を変更したい場合は `config/core/thresholds.yaml` の値を編集:
+```yaml
+capital_allocation_limit: 50000.0   # 5万円に変更
+capital_allocation_limit: null      # 無制限（実残高使用）
+capital_allocation_limit: 0         # 無制限（実残高使用）
+```
+
+---
+
 ## 📝 学習事項
 
 1. **Kellyフォールバック値の重要性**: 0.01 BTCは¥150,000相当で、小額運用には大きすぎる
@@ -483,7 +580,9 @@ Phase 56.5: ensure_tp_sl_for_existing_positions() ← 新規追加
 8. **ポジション復元の限界**: Phase 53.6の「アクティブ注文ベース」復元では、TP/SLなしポジションを検出できない
 9. **BUY/SELL同率問題の誤認**: 実際はHOLD票が多いだけで、同率問題ではなかった（調査重要）
 10. **信用建玉API活用**: `/user/margin/positions`で直接ポジション情報を取得することで確実な状態把握
+11. **設定値の用途明確化**: `initial_balance`はフォールバック用で、実運用は別の制限機構が必要
+12. **資金アロケーション分離**: 実残高とポジションサイズ計算用残高を分離することでリスク管理を柔軟化
 
 ---
 
-**📅 最終更新**: 2025年12月27日
+**📅 最終更新**: 2025年12月27日 - Phase 56.6完了
