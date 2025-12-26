@@ -117,6 +117,10 @@ class LiveTradingRunner(BaseRunner):
             if hasattr(self.orchestrator.execution_service, "restore_positions_from_api"):
                 await self.orchestrator.execution_service.restore_positions_from_api()
 
+            # Phase 56.5: 既存ポジションのTP/SL確保（TP/SLなしポジション対策）
+            if hasattr(self.orchestrator.execution_service, "ensure_tp_sl_for_existing_positions"):
+                await self.orchestrator.execution_service.ensure_tp_sl_for_existing_positions()
+
             self.logger.info("✅ ライブトレード実行条件確認完了")
             return True
 

@@ -1,7 +1,7 @@
 # Phase 56 開発記録
 
-**期間**: 2025/12/25 - 2025/12/26
-**状況**: Phase 56.4完了
+**期間**: 2025/12/25 - 2025/12/27
+**状況**: Phase 56.5完了
 
 ---
 
@@ -24,6 +24,7 @@
 | 56.2 | 戦略閾値軽度緩和 | ✅ | BBReversal/Stochastic調整 |
 | 56.3 | リスク管理問題対応 | ✅ | リスクスコア/Kelly/ポジション制限 |
 | 56.4 | tight_range重み設定最適化 | ✅ | 全6戦略に適切な重み配分 |
+| 56.5 | TP/SLバグ修正 | ✅ | 既存ポジションのTP/SL自動設定 |
 
 ---
 
@@ -358,6 +359,118 @@ tight_range:
 
 ---
 
+## 🔧 Phase 56.5: TP/SLバグ修正【完了】
+
+### 実施日: 2025/12/27
+
+### 問題
+
+ライブモードで既存ポジション（約0.0024 BTC）にTP/SL注文が設定されていない。
+
+#### 証拠（ログ分析）
+```
+📊 Phase 50.4: 現在ポジション=33034円 ← ポジションあり
+📊 Phase 53.6: アクティブ注文なし、復元スキップ ← TP/SL注文なし
+アクティブ注文取得成功: 0件 ← 本当にTP/SL注文がない
+```
+
+### 原因分析
+
+1. **過去に作成されたポジション**にTP/SL注文が設定されなかった
+2. **Phase 53.6のポジション復元**は「アクティブ注文」ベース
+3. TP/SL注文がない場合 → 復元スキップ → ポジション放置
+
+### 調査結果（BUY/SELL同率時のHOLD変換について）
+
+計画段階で「BUY/SELL同率時に信頼度で決定」案を検討したが、**導入すべきではない**と判断。
+
+#### 実際のログ分析
+```
+コンフリクト解決: HOLD選択 (BUY=0.000, SELL=0.458, HOLD=0.542)
+```
+
+| 戦略 | シグナル | 信頼度 |
+|------|---------|--------|
+| ATRBased | hold | 0.500 |
+| DonchianChannel | hold | 0.447 |
+| ADXTrendStrength | hold | 0.464 |
+| BBReversal | sell | 0.212 |
+| StochasticReversal | sell | 0.556 |
+| MACDEMACrossover | hold | 0.250 |
+
+**分析結果**:
+- **BUY/SELL完全同率ケースはほぼ存在しない**
+- HOLDになる理由は「HOLD票が多い」（6戦略中4戦略がHOLD）
+- これは市場信号が不明確な時の**適切な保守的判断**
+
+### 修正内容
+
+#### 1. executor.py: 3メソッド追加
+
+```python
+async def ensure_tp_sl_for_existing_positions(self):
+    """
+    Phase 56.5: 既存ポジションのTP/SL確保
+    起動時にTP/SL注文がないポジションを検出し、自動配置する。
+    """
+    # Step 1: 信用建玉情報取得（/user/margin/positions）
+    margin_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+
+    # Step 2: アクティブ注文取得（TP/SL存在確認用）
+    active_orders = await asyncio.to_thread(...)
+
+    # Step 3: 各ポジションのTP/SL存在確認
+    for position in margin_positions:
+        has_tp, has_sl = self._check_tp_sl_orders_exist(...)
+        if not has_tp or not has_sl:
+            await self._place_missing_tp_sl(...)
+
+def _check_tp_sl_orders_exist(...) -> Tuple[bool, bool]:
+    """既存注文からTP/SL注文の存在確認"""
+
+async def _place_missing_tp_sl(...):
+    """不足しているTP/SL注文を配置"""
+```
+
+#### 2. live_trading_runner.py: 起動時呼び出し追加
+
+```python
+# Phase 53.6: 起動時にポジションを復元
+await self.orchestrator.execution_service.restore_positions_from_api()
+
+# Phase 56.5: 既存ポジションのTP/SL確保（新規追加）
+await self.orchestrator.execution_service.ensure_tp_sl_for_existing_positions()
+```
+
+### 処理フロー
+
+```
+システム起動
+    ↓
+Phase 53.6: restore_positions_from_api()
+    ↓ アクティブ注文からポジション復元
+Phase 56.5: ensure_tp_sl_for_existing_positions() ← 新規追加
+    ↓ 信用建玉API取得（/user/margin/positions）
+    ↓ アクティブ注文とマッチング
+    ↓ TP/SLがないポジションにTP/SL配置
+取引サイクル開始
+```
+
+### 修正ファイル
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/executor.py` | 3メソッド新規追加（174-371行） |
+| `src/core/execution/live_trading_runner.py` | 起動時呼び出し追加（120-122行） |
+
+### 期待効果
+
+- 全ポジションにTP/SL設定済み
+- 起動時にTP/SLなしポジションを自動検出・設定
+- リスク管理の正常化
+
+---
+
 ## 📝 学習事項
 
 1. **Kellyフォールバック値の重要性**: 0.01 BTCは¥150,000相当で、小額運用には大きすぎる
@@ -367,7 +480,10 @@ tight_range:
 5. **weight=0の危険性**: 戦略統合で完全無視され、取引機会を大幅に失う
 6. **戦略進化の追跡**: ADXがPhase 55.6でレンジ型に変換されたことを重み設定に反映し忘れていた
 7. **網羅的調査の重要性**: ML・戦略・統合層を個別検証することで根本原因を特定
+8. **ポジション復元の限界**: Phase 53.6の「アクティブ注文ベース」復元では、TP/SLなしポジションを検出できない
+9. **BUY/SELL同率問題の誤認**: 実際はHOLD票が多いだけで、同率問題ではなかった（調査重要）
+10. **信用建玉API活用**: `/user/margin/positions`で直接ポジション情報を取得することで確実な状態把握
 
 ---
 
-**📅 最終更新**: 2025年12月26日
+**📅 最終更新**: 2025年12月27日
