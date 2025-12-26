@@ -482,7 +482,19 @@ class TradingCycleManager:
         try:
             # 現在の残高取得
             balance_info = self.orchestrator.data_service.client.fetch_balance()
-            current_balance = balance_info.get("JPY", {}).get("total", 0.0)
+            actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
+
+            # Phase 56.6: 資金アロケーション上限を適用
+            capital_limit = get_threshold("trading.capital_allocation_limit", None)
+            if capital_limit and capital_limit > 0:
+                current_balance = min(actual_balance, capital_limit)
+                if actual_balance > capital_limit:
+                    self.logger.debug(
+                        f"Phase 56.6: 資金アロケーション上限適用 - "
+                        f"実残高: ¥{actual_balance:,.0f} → 計算用: ¥{current_balance:,.0f}"
+                    )
+            else:
+                current_balance = actual_balance
 
             # 現在のティッカー情報取得（bid/ask価格）
             start_time = time.time()
@@ -534,7 +546,12 @@ class TradingCycleManager:
             else:
                 appropriate_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
 
-            current_balance = appropriate_balance
+            # Phase 56.6: 資金アロケーション上限を適用（フォールバック時も）
+            capital_limit = get_threshold("trading.capital_allocation_limit", None)
+            if capital_limit and capital_limit > 0:
+                current_balance = min(appropriate_balance, capital_limit)
+            else:
+                current_balance = appropriate_balance
             self.logger.warning(
                 f"⚠️ API取得失敗 - {config_mode}モード適正フォールバック残高使用: {current_balance:.0f}円"
             )

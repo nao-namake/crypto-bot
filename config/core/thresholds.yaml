@@ -509,6 +509,9 @@ strategies:
 # 取引実行・信頼度レベル・Kelly基準設定
 # ========================================
 trading:
+  # Phase 56.6: 資金アロケーション上限（ポジションサイズ計算に使用する残高上限）
+  # null/0で無制限（実残高をそのまま使用）、正の値で上限設定
+  capital_allocation_limit: 100000.0  # 10万円に制限
   anomaly:
     spread_critical_threshold: 0.005
     spread_warning_threshold: 0.003
