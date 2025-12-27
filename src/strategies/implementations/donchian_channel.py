@@ -1,111 +1,172 @@
 """
-Donchian Channel戦略実装 - ブレイクアウト検出
+Donchian Channel戦略実装 - Phase 56.8 平均回帰戦略リファクタリング
 
-レンジ相場対応ブレイクアウト戦略。
-20期間チャネルを用いた反転・ブレイクアウト判定を行う。
+タイトレンジ向け平均回帰戦略。
+直列評価方式でシンプルかつ高品質なシグナル生成。
 
-主要機能:
-- 20期間高値・安値チャネル計算
-- ブレイクアウト・リバーサル検出
-- レンジ相場適応（70-80%市場対応）
-- チャネル位置による強度判定
+設計思想:
+- ADXフィルタ: トレンド相場を除外（ADX < 25）
+- 極端位置: チャネル端部（< 0.10 or > 0.90）でのみシグナル
+- RSIフィルタ: 方向確認で偽シグナル削減
 
-Phase 49完了: 市場不確実性計算統合・バックテストログ統合
+Phase 56.8:
+- 5段階判定 → 直列評価方式にシンプル化
+- ブレイクアウトロジック削除（タイトレンジ不要）
+- 中央域・弱シグナル複雑計算削除
+- コード550行 → 約280行に圧縮
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import numpy as np
 import pandas as pd
 
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils import MarketUncertaintyCalculator
 from ..utils.strategy_utils import SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="DonchianChannel", strategy_type=StrategyType.DONCHIAN_CHANNEL)
 class DonchianChannelStrategy(StrategyBase):
     """
-    Donchian Channel戦略クラス
-    20期間の高値・安値チャネルを用いてブレイクアウトと
-    リバーサルシグナルを検出する。
-    レンジ相場に最適化された設計。
+    Donchian Channel平均回帰戦略
+
+    Phase 56.8: 直列評価方式
+    1. ADXフィルタ（レンジ相場確認）
+    2. 極端位置確認（チャネル端部）
+    3. RSIフィルタ（方向確認）
+    4. シグナル発生（信頼度計算）
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Donchian Channel戦略の初期化
-        Args:
-            config: 戦略設定辞書
-        """
+        """戦略初期化"""
         super().__init__("DonchianChannel")
         self.config = config or {}
         self.logger = get_logger()
-        # 戦略パラメータ（動的信頼度計算対応）
-        self.channel_period = self.config.get("channel_period", 20)
-        self.breakout_threshold = get_threshold(
-            "strategies.donchian_channel.breakout_threshold", 0.002
-        )  # 0.2%
-        self.reversal_threshold = get_threshold(
-            "strategies.donchian_channel.reversal_threshold", 0.05
-        )  # 5%位置
-        self.min_confidence = get_threshold(
-            "strategies.donchian_channel.min_confidence", 0.3
-        )  # 緩和設定
-        # 中央域・弱シグナル設定（動的計算用）
-        self.middle_zone_min = get_threshold("strategies.donchian_channel.middle_zone_min", 0.4)
-        self.middle_zone_max = get_threshold("strategies.donchian_channel.middle_zone_max", 0.6)
-        self.weak_signal_confidence = get_threshold(
-            "strategies.donchian_channel.weak_signal_confidence", 0.35
+
+        # 直列評価パラメータ
+        self.adx_max_threshold = get_threshold("strategies.donchian_channel.adx_max_threshold", 25)
+        self.extreme_zone_threshold = get_threshold(
+            "strategies.donchian_channel.extreme_zone_threshold", 0.10
         )
-        self.logger.info(f"Donchian Channel戦略初期化完了 - 期間: {self.channel_period}")
+        self.rsi_oversold = get_threshold("strategies.donchian_channel.rsi_oversold", 40)
+        self.rsi_overbought = get_threshold("strategies.donchian_channel.rsi_overbought", 60)
+
+        # 信頼度設定
+        self.base_confidence = get_threshold("strategies.donchian_channel.base_confidence", 0.40)
+        self.max_confidence = get_threshold("strategies.donchian_channel.max_confidence", 0.60)
+        self.min_confidence = get_threshold("strategies.donchian_channel.min_confidence", 0.30)
+        self.hold_confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
+
+        # 信頼度ボーナス
+        self.extreme_position_bonus = get_threshold(
+            "strategies.donchian_channel.extreme_position_bonus", 0.10
+        )
+        self.rsi_confirmation_bonus = get_threshold(
+            "strategies.donchian_channel.rsi_confirmation_bonus", 0.05
+        )
+
+        self.logger.info(
+            f"Donchian Channel戦略初期化完了 - "
+            f"ADX閾値: {self.adx_max_threshold}, "
+            f"極端位置: {self.extreme_zone_threshold}"
+        )
 
     def get_required_features(self) -> list[str]:
-        """必要特徴量リスト取得"""
+        """必要特徴量リスト"""
         return [
             "close",
             "high",
             "low",
-            "volume",
             "donchian_high_20",
             "donchian_low_20",
             "channel_position",
             "atr_14",
-            "volume_ratio",
+            "adx_14",
+            "rsi_14",
         ]
 
     def analyze(
         self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
     ) -> StrategySignal:
         """
-        Donchian Channelシグナル生成（抽象メソッド実装）
+        シグナル生成（直列評価方式）
+
         Args:
-            df: 市場データ（特徴量含む）
+            df: 市場データ
+            multi_timeframe_data: マルチタイムフレームデータ
+
         Returns:
-            戦略シグナル
+            StrategySignal
         """
         try:
-            self.logger.debug(f"[DonchianChannel] シグナル生成開始 - データ: {len(df)}行")
             # データ検証
             if not self._validate_data(df):
                 return self._create_hold_signal(df, "データ不足")
-            # チャネル分析
-            channel_analysis = self._analyze_donchian_channel(df)
-            if not channel_analysis:
-                return self._create_hold_signal(df, "チャネル分析失敗")
-            # シグナル判定（Phase 32: multi_timeframe_data渡す）
-            signal = self._determine_signal(df, channel_analysis, multi_timeframe_data)
-            self.logger.debug(
-                f"[DonchianChannel] シグナル生成完了: {signal.action} "
-                f"(信頼度: {signal.confidence:.3f})"
+
+            latest = df.iloc[-1]
+            current_price = float(latest["close"])
+
+            # チャネル情報取得
+            channel_position = float(latest["channel_position"])
+            adx = float(latest["adx_14"]) if pd.notna(latest["adx_14"]) else 0
+            rsi = float(latest["rsi_14"]) if pd.notna(latest["rsi_14"]) else 50
+
+            # ========================================
+            # 直列評価: Step 1 - レンジ相場確認
+            # ========================================
+            if adx > self.adx_max_threshold:
+                return self._create_hold_signal(
+                    df, f"トレンド相場除外（ADX={adx:.1f} > {self.adx_max_threshold}）"
+                )
+
+            # ========================================
+            # 直列評価: Step 2 - 極端位置確認
+            # ========================================
+            if channel_position < self.extreme_zone_threshold:
+                direction = "buy"
+            elif channel_position > (1 - self.extreme_zone_threshold):
+                direction = "sell"
+            else:
+                return self._create_hold_signal(df, f"中央域HOLD（位置={channel_position:.3f}）")
+
+            # ========================================
+            # 直列評価: Step 3 - RSIフィルタ
+            # ========================================
+            if direction == "buy" and rsi > self.rsi_oversold:
+                return self._create_hold_signal(
+                    df, f"RSI高すぎ（RSI={rsi:.1f} > {self.rsi_oversold}）"
+                )
+            if direction == "sell" and rsi < self.rsi_overbought:
+                return self._create_hold_signal(
+                    df, f"RSI低すぎ（RSI={rsi:.1f} < {self.rsi_overbought}）"
+                )
+
+            # ========================================
+            # 直列評価: Step 4 - シグナル発生
+            # ========================================
+            confidence = self._calculate_confidence(channel_position, rsi, direction)
+
+            if confidence < self.min_confidence:
+                return self._create_hold_signal(
+                    df, f"信頼度不足（{confidence:.3f} < {self.min_confidence}）"
+                )
+
+            # シグナル生成
+            reason = self._create_reason(direction, channel_position, rsi, adx)
+            return self._create_signal(
+                action=direction,
+                confidence=confidence,
+                reason=reason,
+                current_price=current_price,
+                df=df,
+                channel_position=channel_position,
+                multi_timeframe_data=multi_timeframe_data,
             )
-            return signal
+
         except Exception as e:
-            # Phase 38.4: バックテストログ統合
             self.logger.conditional_log(
                 f"[DonchianChannel] シグナル生成エラー: {e}",
                 level="error",
@@ -115,385 +176,80 @@ class DonchianChannelStrategy(StrategyBase):
 
     def _validate_data(self, df: pd.DataFrame) -> bool:
         """データ検証"""
-        required_features = self.get_required_features()
-        # 必要列の存在確認
-        missing_cols = [col for col in required_features if col not in df.columns]
-        if missing_cols:
-            self.logger.warning(f"[DonchianChannel] 不足特徴量: {missing_cols}")
+        required = self.get_required_features()
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            self.logger.warning(f"[DonchianChannel] 不足特徴量: {missing}")
             return False
-        # データ長確認
-        if len(df) < self.channel_period:
-            self.logger.warning(f"[DonchianChannel] データ不足: {len(df)} < {self.channel_period}")
+
+        if len(df) < 20:
+            self.logger.warning(f"[DonchianChannel] データ不足: {len(df)} < 20")
             return False
-        # NaN確認（最新データ）
+
         latest = df.iloc[-1]
-        required_non_nan = ["close", "donchian_high_20", "donchian_low_20", "channel_position"]
-        if latest[required_non_nan].isna().any():
-            self.logger.warning("[DonchianChannel] 最新データにNaN値")
+        critical = ["close", "donchian_high_20", "donchian_low_20", "channel_position"]
+        if latest[critical].isna().any():
+            self.logger.warning("[DonchianChannel] 最新データにNaN")
             return False
+
         return True
 
-    def _analyze_donchian_channel(self, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    def _calculate_confidence(self, channel_position: float, rsi: float, direction: str) -> float:
         """
-        Donchian Channelチャネル分析
-        Returns:
-            チャネル分析結果辞書
-        """
-        try:
-            latest = df.iloc[-1]
-            current_price = float(latest["close"])
-            # チャネル値取得
-            donchian_high = float(latest["donchian_high_20"])
-            donchian_low = float(latest["donchian_low_20"])
-            channel_position = float(latest["channel_position"])
-            # チャネル幅計算
-            channel_width = donchian_high - donchian_low
-            channel_mid = (donchian_high + donchian_low) / 2
-            # 価格位置分析
-            price_to_high = (
-                (donchian_high - current_price) / channel_width if channel_width > 0 else 0
-            )
-            price_to_low = (
-                (current_price - donchian_low) / channel_width if channel_width > 0 else 0
-            )
-            # ブレイクアウト検出
-            is_upper_breakout = current_price > donchian_high * (1 + self.breakout_threshold)
-            is_lower_breakout = current_price < donchian_low * (1 - self.breakout_threshold)
-            # チャネル位置による判定（動的範囲対応）
-            in_upper_zone = channel_position > (1 - self.reversal_threshold)  # 上部5%
-            in_lower_zone = channel_position < self.reversal_threshold  # 下部5%
-            in_middle_zone = self.middle_zone_min <= channel_position <= self.middle_zone_max
-            # 弱シグナル範囲（中央域外の準備信号）
-            in_weak_buy_zone = 0.25 <= channel_position < self.middle_zone_min
-            in_weak_sell_zone = self.middle_zone_max < channel_position <= 0.75
-            # analysis辞書の初期化と追加
-            analysis = {}
-            analysis["in_weak_buy_zone"] = in_weak_buy_zone
-            analysis["in_weak_sell_zone"] = in_weak_sell_zone
-            # ボラティリティ分析（ATR使用）
-            atr = (
-                float(latest["atr_14"])
-                if "atr_14" in latest and not pd.isna(latest["atr_14"])
-                else 0
-            )
-            volatility_ratio = atr / current_price if current_price > 0 else 0
-            # 出来高分析
-            volume_ratio = float(latest["volume_ratio"]) if "volume_ratio" in latest else 1.0
-            analysis = {
-                "current_price": current_price,
-                "donchian_high": donchian_high,
-                "donchian_low": donchian_low,
-                "channel_position": channel_position,
-                "channel_width": channel_width,
-                "channel_mid": channel_mid,
-                "price_to_high": price_to_high,
-                "price_to_low": price_to_low,
-                "is_upper_breakout": is_upper_breakout,
-                "is_lower_breakout": is_lower_breakout,
-                "in_upper_zone": in_upper_zone,
-                "in_lower_zone": in_lower_zone,
-                "in_middle_zone": in_middle_zone,
-                "in_weak_buy_zone": in_weak_buy_zone,
-                "in_weak_sell_zone": in_weak_sell_zone,
-                "volatility_ratio": volatility_ratio,
-                "volume_ratio": volume_ratio,
-            }
-            self.logger.debug(
-                f"[DonchianChannel] チャネル分析: 位置={channel_position:.3f}, "
-                f"幅={channel_width:.0f}, 上部BRK={is_upper_breakout}, 下部BRK={is_lower_breakout}"
-            )
-            return analysis
-        except Exception as e:
-            self.logger.error(f"[DonchianChannel] チャネル分析エラー: {e}")
-            return None
-
-    def _determine_signal(
-        self,
-        df: pd.DataFrame,
-        analysis: Dict[str, Any],
-        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
-    ) -> StrategySignal:
-        """
-        シグナル判定ロジック（動的信頼度計算・中央域対応）
-
-        Phase 32: multi_timeframe_data対応
+        信頼度計算（シンプル化）
 
         Args:
-            df: 市場データ
-            analysis: チャネル分析結果
-            multi_timeframe_data: マルチタイムフレームデータ（Phase 32）
+            channel_position: チャネル位置（0-1）
+            rsi: RSI値
+            direction: "buy" or "sell"
 
         Returns:
-            最終シグナル
+            信頼度（0.0-1.0）
         """
-        channel_pos = analysis["channel_position"]
-        volume_ratio = analysis["volume_ratio"]
-        current_price = analysis["current_price"]
+        confidence = self.base_confidence
 
-        # 1. ブレイクアウトシグナル（強いトレンド）
-        if analysis["is_upper_breakout"] and volume_ratio > 1.2:
-            return self._create_signal(
-                action="buy",
-                confidence=0.75,
-                reason="上方ブレイクアウト（出来高増加）",
-                current_price=current_price,
-                df=df,
-                analysis=analysis,
-                multi_timeframe_data=multi_timeframe_data,
-            )
-        if analysis["is_lower_breakout"] and volume_ratio > 1.2:
-            return self._create_signal(
-                action="sell",
-                confidence=0.75,
-                reason="下方ブレイクアウト（出来高増加）",
-                current_price=current_price,
-                df=df,
-                analysis=analysis,
-                multi_timeframe_data=multi_timeframe_data,
-            )
-        # 2. リバーサルシグナル（レンジ相場対応）
-        if analysis["in_lower_zone"] and not analysis["is_lower_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "buy")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="buy",
-                    confidence=confidence,
-                    reason=f"下限リバーサル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        if analysis["in_upper_zone"] and not analysis["is_upper_breakout"]:
-            confidence = self._calculate_reversal_confidence(analysis, "sell")
-            if confidence >= self.min_confidence:
-                return self._create_signal(
-                    action="sell",
-                    confidence=confidence,
-                    reason=f"上限リバーサル（位置: {channel_pos:.3f}）",
-                    current_price=current_price,
-                    df=df,
-                    analysis=analysis,
-                    multi_timeframe_data=multi_timeframe_data,
-                )
-        # 3. 弱シグナル（中央域手前）- 動的信頼度計算
-        # Phase 54.2: 弱シグナル無効化設定の確認
-        weak_signal_enabled = get_threshold("strategies.donchian_channel.weak_signal_enabled", True)
-        if weak_signal_enabled:
-            if analysis["in_weak_buy_zone"]:
-                # 下方向への動きを示唆する弱いbuyシグナル
-                confidence = self._calculate_weak_signal_confidence(analysis, "buy")
-                if confidence >= self.min_confidence:
-                    return self._create_signal(
-                        action="buy",
-                        confidence=confidence,
-                        reason=f"弱買いシグナル（位置: {channel_pos:.3f}）",
-                        current_price=current_price,
-                        df=df,
-                        analysis=analysis,
-                        multi_timeframe_data=multi_timeframe_data,
-                    )
-            if analysis["in_weak_sell_zone"]:
-                # 上方向への動きを示唆する弱いsellシグナル
-                confidence = self._calculate_weak_signal_confidence(analysis, "sell")
-                if confidence >= self.min_confidence:
-                    return self._create_signal(
-                        action="sell",
-                        confidence=confidence,
-                        reason=f"弱売りシグナル（位置: {channel_pos:.3f}）",
-                        current_price=current_price,
-                        df=df,
-                        analysis=analysis,
-                        multi_timeframe_data=multi_timeframe_data,
-                    )
-        # 4. 中央域 - 動的HOLD信頼度計算（フォールバック回避・市場データ統合）
-        if analysis["in_middle_zone"]:
-            # 完全な中央域でもモメンタムに基づく微弱な方向性を計算
-            dynamic_confidence = self._calculate_middle_zone_confidence(analysis, df)
-            return self._create_hold_signal(
-                df,
-                f"中央域動的判定（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
-                dynamic_confidence,
-            )
-        # 5. その他のケース - 動的HOLD（市場データ統合）
-        dynamic_confidence = self._calculate_default_confidence(analysis, df)
-        return self._create_hold_signal(
-            df,
-            f"動的HOLD（位置: {channel_pos:.3f}, 信頼度: {dynamic_confidence:.3f}）",
-            dynamic_confidence,
-        )
+        # 極端位置ボーナス（< 0.05 or > 0.95）
+        if direction == "buy" and channel_position < 0.05:
+            confidence += self.extreme_position_bonus
+        elif direction == "sell" and channel_position > 0.95:
+            confidence += self.extreme_position_bonus
 
-    def _calculate_reversal_confidence(self, analysis: Dict[str, Any], direction: str) -> float:
-        """
-        リバーサル信頼度計算
-        Args:
-            analysis: チャネル分析結果
-            direction: "buy" または "sell"
-        Returns:
-            信頼度 (0.0-1.0)
-        """
-        base_confidence = self.min_confidence
-        # チャネル位置による調整
+        # RSI確認ボーナス（< 30 or > 70）
+        if direction == "buy" and rsi < 30:
+            confidence += self.rsi_confirmation_bonus
+        elif direction == "sell" and rsi > 70:
+            confidence += self.rsi_confirmation_bonus
+
+        # 位置に応じた追加ボーナス
         if direction == "buy":
-            # 下限に近いほど信頼度上昇
-            position_bonus = (1 - analysis["channel_position"]) * 0.3
+            position_bonus = (self.extreme_zone_threshold - channel_position) * 0.5
         else:
-            # 上限に近いほど信頼度上昇
-            position_bonus = analysis["channel_position"] * 0.3
-        # ボラティリティによる調整
-        volatility_bonus = 0.0
-        if 0.01 <= analysis["volatility_ratio"] <= 0.03:  # 適度なボラティリティ
-            volatility_bonus = 0.1
-        # 出来高による調整
-        volume_bonus = 0.0
-        if analysis["volume_ratio"] > 1.0:  # 平均以上の出来高
-            volume_bonus = min(0.1, (analysis["volume_ratio"] - 1.0) * 0.2)
-        confidence = base_confidence + position_bonus + volatility_bonus + volume_bonus
-        # 0.2-0.9の範囲にクランプ
-        return max(0.2, min(0.9, confidence))
+            position_bonus = (channel_position - (1 - self.extreme_zone_threshold)) * 0.5
+        confidence += max(0, position_bonus)
 
-    def _calculate_weak_signal_confidence(self, analysis: Dict[str, Any], direction: str) -> float:
-        """
-        弱シグナル信頼度計算（中央域手前）
-        Args:
-            analysis: チャネル分析結果
-            direction: "buy" または "sell"
-        Returns:
-            信頼度 (0.0-1.0)
-        """
-        base_confidence = self.weak_signal_confidence
-        # チャネル位置による調整
-        channel_pos = analysis["channel_position"]
+        return min(self.max_confidence, max(self.min_confidence, confidence))
+
+    def _create_reason(
+        self, direction: str, channel_position: float, rsi: float, adx: float
+    ) -> str:
+        """シグナル理由生成"""
         if direction == "buy":
-            # 下方向に近いほど信頼度上昇（0.25-0.4の範囲）
-            position_factor = (self.middle_zone_min - channel_pos) / (self.middle_zone_min - 0.25)
+            return f"下限平均回帰（位置={channel_position:.3f}, " f"RSI={rsi:.1f}, ADX={adx:.1f}）"
         else:
-            # 上方向に近いほど信頼度上昇（0.6-0.75の範囲）
-            position_factor = (channel_pos - self.middle_zone_max) / (0.75 - self.middle_zone_max)
-        position_bonus = position_factor * 0.2
-        # ボラティリティ・出来高による調整
-        volatility_bonus = 0.0
-        if 0.01 <= analysis["volatility_ratio"] <= 0.03:
-            volatility_bonus = 0.1
-        volume_bonus = 0.0
-        if analysis["volume_ratio"] > 1.0:
-            volume_bonus = min(0.1, (analysis["volume_ratio"] - 1.0) * 0.2)
-        confidence = base_confidence + position_bonus + volatility_bonus + volume_bonus
-        return max(0.25, min(0.6, confidence))
+            return f"上限平均回帰（位置={channel_position:.3f}, " f"RSI={rsi:.1f}, ADX={adx:.1f}）"
 
-    def _calculate_middle_zone_confidence(
-        self, analysis: Dict[str, Any], df: pd.DataFrame = None
-    ) -> float:
-        """
-        中央域動的信頼度計算（市場データ統合版）
-        Args:
-            analysis: チャネル分析結果
-            df: 市場データ（市場不確実性計算用）
-        Returns:
-            動的信頼度 (0.2-0.4)
-        """
-        # 循環インポート回避のため遅延インポート
-        from ...core.config.threshold_manager import get_threshold
-
-        # 基本信頼度
-        base_confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
-        # 市場データ基づく動的信頼度調整システム
-        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
-
-        # チャネル位置による微調整（完全中央=0.5から離れるほど信頼度上昇）
-        channel_pos = analysis["channel_position"]
-        center_deviation = abs(channel_pos - 0.5)
-        deviation_bonus = center_deviation * 0.2
-
-        # 基本信頼度と位置補正を市場不確実性で動的調整（固定値回避）
-        raw_confidence = (base_confidence + deviation_bonus) * (1 + market_uncertainty)
-
-        # 循環インポート回避のため遅延インポート
-        from ...core.config.threshold_manager import get_threshold
-
-        hold_min = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_min", 0.20)
-        hold_max = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_max", 0.45)
-        confidence = max(hold_min, min(hold_max, raw_confidence))
-
-        return confidence
-
-    def _calculate_market_uncertainty(self, df: pd.DataFrame) -> float:
-        """
-        市場データ基づく不確実性計算（Phase 38.4: 統合ユーティリティ使用）
-
-        Args:
-            df: 市場データ
-
-        Returns:
-            float: 市場不確実性係数（0-0.1の範囲）
-        """
-        return MarketUncertaintyCalculator.calculate(df)
-
-    def _calculate_default_confidence(
-        self, analysis: Dict[str, Any], df: pd.DataFrame = None
-    ) -> float:
-        """
-        デフォルト動的信頼度計算（その他のケース・市場データ統合版）
-        Args:
-            analysis: チャネル分析結果
-            df: 市場データ（市場不確実性計算用）
-        Returns:
-            動的信頼度 (0.15-0.35)
-        """
-        # 循環インポート回避のため遅延インポート
-        from ...core.config.threshold_manager import get_threshold
-
-        # 基本信頼度
-        base_confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
-        # 市場データ基づく動的信頼度調整システム（強化版）
-        market_uncertainty = self._calculate_market_uncertainty(df) if df is not None else 0.02
-
-        # チャネル幅による調整（幅が大きいほど不確実性増加）
-        width_adjustment = 0.0
-        if analysis["channel_width"] > 0:
-            width_factor = min(1.0, analysis["channel_width"] / (analysis["current_price"] * 0.1))
-            width_adjustment = width_factor * 0.05
-
-        # ボラティリティと出来高による追加動的調整
-        volatility_adjustment = analysis.get("volatility_ratio", 0.02) * 2.0
-        volume_adjustment = abs(analysis.get("volume_ratio", 1.0) - 1.0) * 0.1
-
-        # 総合動的調整（固定値回避・確実な変動確保）
-        total_adjustment = market_uncertainty + volatility_adjustment + volume_adjustment
-        raw_confidence = base_confidence * (1 + total_adjustment) - width_adjustment
-
-        # 循環インポート回避のため遅延インポート
-        from ...core.config.threshold_manager import get_threshold
-
-        hold_min = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_min", 0.20)
-        hold_max = get_threshold("dynamic_confidence.strategies.donchian_channel.hold_max", 0.45)
-        confidence = max(hold_min, min(hold_max, raw_confidence))
-
-        return confidence
-
-    def _create_hold_signal(
-        self, df: pd.DataFrame, reason: str, dynamic_confidence: float = None
-    ) -> StrategySignal:
-        """HOLDシグナル生成（動的信頼度対応）"""
+    def _create_hold_signal(self, df: pd.DataFrame, reason: str) -> StrategySignal:
+        """HOLDシグナル生成"""
         current_price = float(df["close"].iloc[-1]) if "close" in df.columns else 0.0
-        # 動的信頼度優先、なければ設定値使用
-        if dynamic_confidence is not None:
-            confidence = dynamic_confidence
-        else:
-            confidence = get_threshold("strategies.donchian_channel.hold_confidence", 0.25)
         return StrategySignal(
             strategy_name=self.name,
             timestamp=datetime.now(),
             action="hold",
-            confidence=confidence,
-            strength=confidence * 0.5,  # 強度は信頼度の50%
+            confidence=self.hold_confidence,
+            strength=self.hold_confidence * 0.5,
             current_price=current_price,
-            reason=f"Donchian動的: {reason}",
-            metadata={
-                "signal_type": "donchian_dynamic_hold",
-                "is_dynamic": dynamic_confidence is not None,
-                "confidence_source": "dynamic" if dynamic_confidence is not None else "config",
-            },
+            reason=f"Donchian: {reason}",
+            metadata={"signal_type": "donchian_hold"},
         )
 
     def _create_signal(
@@ -503,41 +259,21 @@ class DonchianChannelStrategy(StrategyBase):
         reason: str,
         current_price: float,
         df: pd.DataFrame,
-        analysis: Dict[str, Any],
+        channel_position: float,
         multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
     ) -> StrategySignal:
-        """
-        Phase 32: SignalBuilder統合 - 15m足ATR使用
-
-        Args:
-            action: シグナルアクション（buy/sell）
-            confidence: 信頼度
-            reason: シグナル理由
-            current_price: 現在価格
-            df: 市場データ（4h足）
-            analysis: チャネル分析結果
-            multi_timeframe_data: マルチタイムフレームデータ
-
-        Returns:
-            StrategySignal
-        """
-        # 決定辞書作成
+        """シグナル生成（SignalBuilder使用）"""
         decision = {
             "action": action,
             "confidence": confidence,
-            "strength": confidence,  # DonchianChannelでは信頼度=強度
+            "strength": confidence,
             "reason": reason,
             "metadata": {
-                "channel_position": analysis["channel_position"],
-                "channel_width": analysis["channel_width"],
-                "volume_ratio": analysis["volume_ratio"],
-                "signal_type": (
-                    "donchian_breakout" if "ブレイクアウト" in reason else "donchian_reversal"
-                ),
+                "channel_position": channel_position,
+                "signal_type": "donchian_mean_reversion",
             },
         }
 
-        # Phase 32: SignalBuilder使用（15m足ATR優先取得）
         return SignalBuilder.create_signal_with_risk_management(
             strategy_name=self.name,
             decision=decision,

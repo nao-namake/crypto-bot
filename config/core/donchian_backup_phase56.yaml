@@ -1,0 +1,14 @@
+# DonchianChannel Phase 56 バックアップ（リファクタリング前）
+# 作成日: 2025-12-27
+
+donchian_channel:
+  breakout_threshold: 0.002
+  hold_confidence: 0.4
+  middle_zone_max: 0.6
+  middle_zone_min: 0.4
+  min_confidence: 0.30
+  reversal_threshold: 0.04
+  weak_signal_confidence: 0.35
+  weak_signal_max: 0.75
+  weak_signal_min: 0.25
+  weak_signal_enabled: true

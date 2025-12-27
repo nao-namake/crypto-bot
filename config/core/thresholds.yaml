@@ -442,17 +442,30 @@ strategies:
     # ストップロス設定
     sl_atr_multiplier: 1.5           # SL = 1.5 × ATR
   donchian_channel:
-    # Phase 54.10: HOLD率削減のため閾値緩和
-    breakout_threshold: 0.002
-    hold_confidence: 0.4
-    middle_zone_max: 0.6
-    middle_zone_min: 0.4
-    min_confidence: 0.30           # Phase 54.10: 0.35→0.30（取引数増加）
-    reversal_threshold: 0.04       # Phase 54.6: 0.03→0.04（取引数回復）
-    weak_signal_confidence: 0.35
-    weak_signal_max: 0.75
-    weak_signal_min: 0.25
-    weak_signal_enabled: true      # Phase 54.10: false→true（弱シグナル有効化）
+    # ========================================
+    # Phase 56.8: 平均回帰戦略リファクタリング
+    # ========================================
+    # 設計思想: タイトレンジ向け直列評価方式
+    # - ブレイクアウトロジック削除（タイトレンジ不要）
+    # - RSIフィルタで偽シグナル削減
+    # - 極端位置でのみシグナル発生
+    # ========================================
+
+    # === 直列評価パラメータ ===
+    adx_max_threshold: 28           # レンジ判定（ADX < 28でレンジ）
+    extreme_zone_threshold: 0.12    # 極端位置（< 0.12 or > 0.88）
+    rsi_oversold: 42                # 買いRSI上限
+    rsi_overbought: 58              # 売りRSI下限
+
+    # === 信頼度設定（シンプル化） ===
+    base_confidence: 0.40
+    max_confidence: 0.60
+    min_confidence: 0.30
+    hold_confidence: 0.25
+
+    # === 信頼度ボーナス ===
+    extreme_position_bonus: 0.10    # 位置が極端（< 0.05 or > 0.95）
+    rsi_confirmation_bonus: 0.05   # RSI極端値（< 30 or > 70）
   bb_reversal:
     # Phase 56: 取引数回復のため閾値さらに緩和
     min_confidence: 0.22            # 0.25→0.22（緩和）

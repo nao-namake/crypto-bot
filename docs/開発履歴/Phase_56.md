@@ -1,7 +1,7 @@
 # Phase 56 開発記録
 
 **期間**: 2025/12/25 - 2025/12/27
-**状況**: Phase 56.6完了
+**状況**: Phase 56.8完了
 
 ---
 
@@ -26,6 +26,8 @@
 | 56.4 | tight_range重み設定最適化 | ✅ | 全6戦略に適切な重み配分 |
 | 56.5 | TP/SLバグ修正 | ✅ | 既存ポジションのTP/SL自動設定 |
 | 56.6 | 資金アロケーション上限 | ✅ | ポジションサイズ計算用残高を10万円に制限 |
+| 56.7 | HOLD率過多問題対策 | ✅ | 2票ルール導入（BUY/SELL 2票以上でHOLD無視） |
+| 56.8 | DonchianChannel戦略リファクタリング | ✅ | 直列評価方式、PF 1.00→1.14 |
 
 ---
 
@@ -568,6 +570,237 @@ capital_allocation_limit: 0         # 無制限（実残高使用）
 
 ---
 
+## 🎯 Phase 56.7: HOLD率過多問題対策【進行中】
+
+### 実施日: 2025/12/27
+
+### 問題
+
+バックテストでHOLD率が高すぎて取引数が少ない。
+
+| 指標 | 現状 | 目標 |
+|------|------|------|
+| 取引数/60日 | 54件 | 100-200件 |
+| 月間取引 | 9回/月 | 17-33回/月 |
+
+### 調査結果
+
+#### 1. 戦略単体検証 ✅ 問題なし
+
+| 戦略 | 60日シグナル数 | PF |
+|------|---------------|-----|
+| ATRBased | 126件 | 1.11 |
+| DonchianChannel | 294件 | 1.00 |
+| ADXTrendStrength | 120件 | 1.05 |
+| BBReversal | 123件 | 0.99 |
+| StochasticReversal | 181件 | 1.06 |
+| MACDEMACrossover | 48件 | 1.20 |
+| **合計** | **892件** | - |
+
+#### 2. ML予測分布 ✅ 問題なし
+
+```
+BUY: 8.7%, HOLD: 36.7%, SELL: 54.7%
+→ BUY+SELL = 63.4%（正常）
+```
+
+#### 3. 根本原因 ❌ 戦略統合ロジック
+
+**各戦略が97%の時間HOLDを出している**
+
+| 計算 | 値 |
+|------|-----|
+| データポイント | 5,760件（60日×96本/日） |
+| 戦略シグナル合計 | 892件 |
+| 1戦略平均 | 149件/60日 |
+| **非HOLD率** | **2.6%/戦略** |
+
+#### 4. 統合時の問題
+
+```
+例:
+ATRBased: hold (0.500)         ← 重み 0.20
+DonchianChannel: hold (0.447)  ← 重み 0.10
+ADXTrendStrength: hold (0.464) ← 重み 0.15
+BBReversal: sell (0.212)       ← 重み 0.25
+StochasticReversal: sell (0.556) ← 重み 0.25
+MACDEMACrossover: hold (0.250) ← 重み 0.05
+
+HOLD重み付け信頼度: 0.5×0.20 + 0.447×0.10 + 0.464×0.15 + 0.25×0.05 = 0.227
+SELL重み付け信頼度: 0.212×0.25 + 0.556×0.25 = 0.192
+
+→ HOLD > SELL → HOLDが選択される
+```
+
+**問題**: 少数のBUY/SELL票が、多数のHOLD票に負ける
+
+### バックテスト vs ライブモード検証
+
+| 項目 | バックテスト | ライブモード | 影響 |
+|------|------------|-------------|------|
+| ポジションサイズ | 固定値 | Kelly動的 | バックテスト有利 |
+| 手数料 | -0.02%固定 | 変動 | バックテスト有利 |
+| スリッページ | なし | あり | バックテスト有利 |
+| TP/SL約定 | high/low使用 | close価格 | バックテスト有利 |
+| **戦略統合** | ✅ 同じ | ✅ 同じ | **一致** |
+| **ML予測** | ✅ 同じ | ✅ 同じ | **一致** |
+| **クールダウン** | ✅ 同じ | ✅ 同じ | **一致** |
+
+**結論**: 取引判断ロジックは一致。バックテストで相対比較が有効。
+
+### 修正内容: 2票ルール導入
+
+#### strategy_manager.py: `_resolve_signal_conflict`修正
+
+```python
+def _resolve_signal_conflict(self, signal_groups, all_signals, df) -> StrategySignal:
+    buy_signals = signal_groups.get("buy", [])
+    sell_signals = signal_groups.get("sell", [])
+    hold_signals = signal_groups.get("hold", [])
+
+    buy_count = len(buy_signals)
+    sell_count = len(sell_signals)
+
+    # Phase 56.7: 2票以上ルール（コンセンサス重視）
+    buy_has_quorum = buy_count >= 2
+    sell_has_quorum = sell_count >= 2
+
+    # 両方2票以上 → 矛盾 → HOLD
+    if buy_has_quorum and sell_has_quorum:
+        return self._create_hold_signal(df, reason="Phase 56.7: BUY/SELL両方2票以上で矛盾")
+
+    # BUY 2票以上 → BUY選択（HOLD無視）
+    if buy_has_quorum:
+        buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
+        best_signal = max(buy_signals, key=lambda x: x[1].confidence)[1]
+        return StrategySignal(action="buy", confidence=buy_weighted_confidence, ...)
+
+    # SELL 2票以上 → SELL選択（HOLD無視）
+    if sell_has_quorum:
+        sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
+        best_signal = max(sell_signals, key=lambda x: x[1].confidence)[1]
+        return StrategySignal(action="sell", confidence=sell_weighted_confidence, ...)
+
+    # BUY/SELL両方1票以下 → 従来ロジック（重み付け比較）
+    # ...
+```
+
+### 設計思想
+
+1. **コンセンサス重視**: 2戦略以上の合意でHOLD無視
+2. **矛盾検出**: BUY 2票以上かつSELL 2票以上 → HOLD
+3. **重み活用継続**: 2票以上ルール適用時も重み付け信頼度を計算
+4. **保守的フォールバック**: 1票以下なら従来ロジック
+
+### 修正ファイル
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/strategies/base/strategy_manager.py` | 2票ルール追加（`_resolve_signal_conflict`） |
+| `config/core/thresholds.yaml` | バックテスト期間180日に変更 |
+| `tests/unit/strategies/test_strategy_manager.py` | テスト期待値更新 |
+
+### 期待効果
+
+| 指標 | 変更前 | 期待値 |
+|------|--------|--------|
+| 取引数/180日 | 162件予測 | 300-600件 |
+| HOLD率 | ~90% | ~70-80% |
+| PF | 1.64 | 維持（重み付けで品質維持） |
+
+### 検証状況
+
+- GitHub Actionsで180日間バックテスト実行中
+- Run ID: `20530881012`
+- 結果待ち
+
+---
+
+## 🔧 Phase 56.8: DonchianChannel戦略リファクタリング【完了】
+
+### 実施日: 2025/12/27
+
+### 目的
+
+DonchianChannel戦略をタイトレンジ向け平均回帰戦略にリファクタリング
+- 現状: PF 0.85（赤字）、HOLD率高、コード550行
+- 目標: PF ≥ 1.0、取引数維持、コード簡素化
+
+### 問題分析
+
+| 問題 | 箇所 | 影響 |
+|------|------|------|
+| 5段階判定が複雑 | 行234-324 | 信頼度が分散、判定曖昧 |
+| 中央域広すぎ | 0.4-0.6（20%） | HOLD率30-40% |
+| 出来高フィルタ無効 | volume > 1.2 | ブレイクアウト発生0件 |
+| reversal_threshold未使用 | 設定0.04がコード未反映 | 技術負債 |
+
+### 設計変更
+
+**変更前（5段階判定）:**
+```
+ブレイクアウト → リバーサル → 弱シグナル → 中央域 → デフォルト
+```
+
+**変更後（直列評価方式）:**
+```
+ADXフィルタ（< 28）→ 極端位置（< 0.12 or > 0.88）→ RSIフィルタ → シグナル
+```
+
+### 採用設定（thresholds.yaml）
+
+```yaml
+donchian_channel:
+  # 直列評価パラメータ
+  adx_max_threshold: 28           # レンジ判定
+  extreme_zone_threshold: 0.12    # 極端位置
+  rsi_oversold: 42                # 買いRSI上限
+  rsi_overbought: 58              # 売りRSI下限
+
+  # 信頼度設定
+  base_confidence: 0.40
+  max_confidence: 0.60
+  min_confidence: 0.30
+  hold_confidence: 0.25
+
+  # 信頼度ボーナス
+  extreme_position_bonus: 0.10
+  rsi_confirmation_bonus: 0.05
+```
+
+### バックテスト結果
+
+| 期間 | 取引数 | 勝率 | PF | 損益 |
+|------|--------|------|-----|------|
+| 60日 | 107件 | 46.7% | **1.12** | +9,866円 |
+| 180日 | 254件 | 46.9% | **1.14** | +27,999円 |
+
+**改善効果（60日比較）:**
+| 指標 | 旧 | 新 | 変化 |
+|------|-----|-----|------|
+| 取引数 | 294件 | 107件 | -64%（品質重視） |
+| 勝率 | 43.9% | **46.7%** | **+2.8pt** |
+| PF | 1.00 | **1.12** | **+12%** |
+| 損益 | -171円 | **+9,866円** | **黒字化** |
+
+### 修正ファイル
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/strategies/implementations/donchian_channel.py` | 直列評価方式に全面リファクタリング（550行→310行） |
+| `config/core/thresholds.yaml` | 新パラメータ追加 |
+| `tests/unit/strategies/implementations/test_donchian_channel.py` | テスト更新（24テスト全パス） |
+| `config/core/donchian_backup_phase56.yaml` | バックアップ作成 |
+
+### 学習事項
+
+1. **直列評価の有効性**: 複雑な5段階判定より、シンプルな直列評価が保守性・性能両方で優れる
+2. **RSIフィルタの重要性**: 方向確認で偽シグナル削減、PF向上に貢献
+3. **取引数vs品質**: 取引数が減っても、勝率・PFが上がれば収益改善
+4. **短期・長期両方で検証**: 60日と180日両方で成果を確認することで信頼性向上
+
+---
+
 ## 📝 学習事項
 
 1. **Kellyフォールバック値の重要性**: 0.01 BTCは¥150,000相当で、小額運用には大きすぎる
@@ -582,7 +815,13 @@ capital_allocation_limit: 0         # 無制限（実残高使用）
 10. **信用建玉API活用**: `/user/margin/positions`で直接ポジション情報を取得することで確実な状態把握
 11. **設定値の用途明確化**: `initial_balance`はフォールバック用で、実運用は別の制限機構が必要
 12. **資金アロケーション分離**: 実残高とポジションサイズ計算用残高を分離することでリスク管理を柔軟化
+13. **HOLD投票の支配問題**: 各戦略が97%の時間HOLDを出すため、重み付け多数決ではHOLDが常勝
+14. **2票ルールの導入**: コンセンサス（2戦略以上の合意）でHOLD無視、矛盾時はHOLD
+15. **バックテストと実運用の差異**: 取引判断ロジックは一致、損益は楽観的（相対比較は有効）
+16. **直列評価の有効性**: 複雑な5段階判定より、シンプルな直列評価が保守性・性能両方で優れる
+17. **RSIフィルタの重要性**: 方向確認で偽シグナル削減、PF向上に貢献
+18. **取引数vs品質トレードオフ**: 取引数が減っても、勝率・PFが上がれば収益改善
 
 ---
 
-**📅 最終更新**: 2025年12月27日 - Phase 56.6完了
+**📅 最終更新**: 2025年12月27日 - Phase 56.8完了（DonchianChannel戦略リファクタリング）
