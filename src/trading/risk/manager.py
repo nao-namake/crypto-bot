@@ -526,12 +526,12 @@ class IntegratedRiskManager:
             anomaly_risk = min(1.0, (critical_count * 0.5 + warning_count * 0.2))
             risk_components.append(("anomaly", anomaly_risk, 0.25))
 
-            # ドローダウンリスク
-            drawdown_risk = drawdown_ratio / 0.20
+            # ドローダウンリスク（Phase 57.2: min(1.0, ...)で正規化）
+            drawdown_risk = min(1.0, drawdown_ratio / 0.20)
             risk_components.append(("drawdown", drawdown_risk, 0.25))
 
-            # 連続損失リスク
-            consecutive_risk = consecutive_losses / 5.0
+            # 連続損失リスク（Phase 57.2: min(1.0, ...)で正規化）
+            consecutive_risk = min(1.0, consecutive_losses / 5.0)
             risk_components.append(("consecutive_losses", consecutive_risk, 0.1))
 
             # 市場ボラティリティリスク
@@ -541,6 +541,17 @@ class IntegratedRiskManager:
             # 重み付き平均
             total_risk = sum(score * weight for _, score, weight in risk_components)
             total_risk = min(1.0, max(0.0, total_risk))
+
+            # Phase 57.2: リスクスコア詳細ログ（診断用）
+            if total_risk >= 0.85:
+                self.logger.warning(
+                    f"🔍 リスクスコア詳細: total={total_risk:.3f}, "
+                    f"ml_risk={ml_risk:.3f}×0.3={ml_risk*0.3:.3f}, "
+                    f"anomaly={anomaly_risk:.3f}×0.25={anomaly_risk*0.25:.3f}, "
+                    f"drawdown={drawdown_risk:.3f}×0.25={drawdown_risk*0.25:.3f}, "
+                    f"consecutive={consecutive_risk:.3f}×0.1={consecutive_risk*0.1:.3f}, "
+                    f"volatility={volatility_risk:.3f}×0.1={volatility_risk*0.1:.3f}"
+                )
 
             return total_risk
 

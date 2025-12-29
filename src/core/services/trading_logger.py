@@ -48,8 +48,13 @@ class TradingLoggerService:
             cycle_id: サイクルID
         """
         try:
-            decision_str = getattr(evaluation, "decision", "unknown")
-            decision_label = self.decision_map.get(str(decision_str).lower(), "❓ 不明")
+            decision_raw = getattr(evaluation, "decision", "unknown")
+            # Phase 57.2: RiskDecision Enum対応（.valueで文字列取得）
+            if hasattr(decision_raw, "value"):
+                decision_str = decision_raw.value
+            else:
+                decision_str = str(decision_raw)
+            decision_label = self.decision_map.get(decision_str.lower(), "❓ 不明")
 
             self.logger.info(
                 f"{decision_label} - サイクル: {cycle_id}, "
