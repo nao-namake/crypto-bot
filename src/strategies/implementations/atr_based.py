@@ -46,27 +46,33 @@ class ATRBasedStrategy(StrategyBase):
         default_config = {
             # ATR消尽率パラメータ
             "exhaustion_threshold": get_threshold(
-                "strategies.atr_based.exhaustion_threshold", 0.70
+                "strategies.atr_based.exhaustion_threshold", 0.50
             ),
             "high_exhaustion_threshold": get_threshold(
-                "strategies.atr_based.high_exhaustion_threshold", 0.85
+                "strategies.atr_based.high_exhaustion_threshold", 0.65
             ),
             # レンジ相場フィルタ
-            "adx_range_threshold": get_threshold("strategies.atr_based.adx_range_threshold", 25),
-            # RSI反転判定
-            "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 60),
-            "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 40),
+            "adx_range_threshold": get_threshold("strategies.atr_based.adx_range_threshold", 30),
+            # RSI反転判定（Phase 56.10: ボーナスに格下げ）
+            "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 55),
+            "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 45),
+            "rsi_confirmation_bonus": get_threshold(
+                "strategies.atr_based.rsi_confirmation_bonus", 0.05
+            ),
             # 信頼度設定
             "min_confidence": get_threshold("strategies.atr_based.min_confidence", 0.35),
             "hold_confidence": get_threshold("strategies.atr_based.hold_confidence", 0.20),
             "base_confidence": get_threshold("strategies.atr_based.base_confidence", 0.40),
             "high_confidence": get_threshold("strategies.atr_based.high_confidence", 0.60),
-            # スコア閾値（Phase 55.4 Approach B: BB確認込みで0.65）
-            "min_score_threshold": get_threshold("strategies.atr_based.min_score_threshold", 0.65),
-            # BB位置確認（Phase 55.4 Approach B: 新規追加）
+            # スコア閾値
+            "min_score_threshold": get_threshold("strategies.atr_based.min_score_threshold", 0.55),
+            # BB位置確認（Phase 56.10: メイン条件に昇格）
             "bb_position_enabled": get_threshold("strategies.atr_based.bb_position_enabled", True),
             "bb_position_threshold": get_threshold(
-                "strategies.atr_based.bb_position_threshold", 0.20
+                "strategies.atr_based.bb_position_threshold", 0.25
+            ),
+            "bb_as_main_condition": get_threshold(
+                "strategies.atr_based.bb_as_main_condition", True
             ),
             # ストップロス設定
             "sl_atr_multiplier": get_threshold("strategies.atr_based.sl_atr_multiplier", 1.5),
@@ -80,7 +86,8 @@ class ATRBasedStrategy(StrategyBase):
         super().__init__(name="ATRBased", config=merged_config)
         self.logger.info(
             f"ATRレンジ消尽戦略初期化: 消尽閾値={self.config['exhaustion_threshold']}, "
-            f"ADX閾値={self.config['adx_range_threshold']}"
+            f"ADX閾値={self.config['adx_range_threshold']}, "
+            f"BB条件メイン={self.config['bb_as_main_condition']}"
         )
 
     def analyze(
@@ -91,10 +98,10 @@ class ATRBasedStrategy(StrategyBase):
 
         ATRレンジ消尽に基づく反転シグナルを生成。
 
-        Phase 55.4: 直列評価方式に戻す（高PF設定ベース）
-        - 消尽率 → レンジ相場 → RSI方向 の順にチェック
-        - すべて満たした場合のみシグナル生成
-        - BB位置確認は信頼度ボーナスとして使用
+        Phase 56.10: BB位置メイン条件化
+        - 消尽率 → レンジ相場 → BB位置 の順にチェック
+        - BB位置でシグナル方向を決定
+        - RSI確認は信頼度ボーナスとして使用
         """
         try:
             self.logger.debug("[ATRレンジ] 分析開始")
@@ -120,7 +127,13 @@ class ATRBasedStrategy(StrategyBase):
                     strategy_type=StrategyType.ATR_BASED,
                 )
 
-            # Step 3: 反転方向決定（必須条件）
+            # Phase 56.10: BB位置メイン条件モード
+            if self.config.get("bb_as_main_condition", True):
+                return self._analyze_bb_main_mode(
+                    df, current_price, exhaustion_analysis, range_check, multi_timeframe_data
+                )
+
+            # 従来モード: RSI方向決定（必須条件）
             direction_analysis = self._determine_reversal_direction(df)
             if direction_analysis["action"] == EntryAction.HOLD:
                 return SignalBuilder.create_hold_signal(
@@ -130,15 +143,14 @@ class ATRBasedStrategy(StrategyBase):
                     strategy_type=StrategyType.ATR_BASED,
                 )
 
-            # Step 4: BB位置確認（オプション：信頼度ボーナス）
+            # BB位置確認（オプション：信頼度ボーナス）
             bb_check = self._check_bb_position(df)
 
-            # Step 5: 統合判定とシグナル生成
+            # 統合判定とシグナル生成
             decision = self._create_decision(exhaustion_analysis, direction_analysis, range_check)
 
             # BB帯端にいる場合は信頼度を上げる
             if self.config.get("bb_position_enabled", True) and bb_check["at_band_edge"]:
-                # RSI方向とBB方向が一致していれば更にボーナス
                 rsi_direction = direction_analysis["action"]
                 bb_direction = bb_check["direction"]
                 if (rsi_direction == EntryAction.BUY and bb_direction == "BUY") or (
@@ -161,6 +173,107 @@ class ATRBasedStrategy(StrategyBase):
         except Exception as e:
             self.logger.error(f"[ATRレンジ] 分析エラー: {e}")
             raise StrategyError(f"ATRレンジ分析失敗: {e}", strategy_name=self.name)
+
+    def _analyze_bb_main_mode(
+        self,
+        df: pd.DataFrame,
+        current_price: float,
+        exhaustion_analysis: Dict[str, Any],
+        range_check: Dict[str, Any],
+        multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None,
+    ) -> StrategySignal:
+        """
+        Phase 56.10: BB位置メイン条件モード
+
+        BB位置で反転方向を決定し、RSI確認はボーナスとして使用。
+        """
+        # Step 3: BB位置で方向決定（必須条件）
+        bb_check = self._check_bb_position(df)
+        if not bb_check["at_band_edge"]:
+            return SignalBuilder.create_hold_signal(
+                strategy_name=self.name,
+                current_price=current_price,
+                reason=bb_check["reason"],
+                strategy_type=StrategyType.ATR_BASED,
+            )
+
+        # BB方向からEntryActionに変換
+        if bb_check["direction"] == "BUY":
+            action = EntryAction.BUY
+        elif bb_check["direction"] == "SELL":
+            action = EntryAction.SELL
+        else:
+            return SignalBuilder.create_hold_signal(
+                strategy_name=self.name,
+                current_price=current_price,
+                reason="BB方向不明",
+                strategy_type=StrategyType.ATR_BASED,
+            )
+
+        # Step 4: 信頼度計算
+        if exhaustion_analysis["is_high_exhaustion"]:
+            base_conf = self.config["high_confidence"]
+        else:
+            base_conf = self.config["base_confidence"]
+
+        confidence = base_conf
+
+        # Step 5: RSI確認（ボーナス）
+        rsi_bonus = self._check_rsi_confirmation(df, bb_check["direction"])
+        if rsi_bonus["confirms"]:
+            confidence += self.config.get("rsi_confirmation_bonus", 0.05)
+
+        # 最小・最大制限
+        confidence = max(self.config["min_confidence"], min(confidence, 0.75))
+
+        # 分析テキスト生成
+        action_str = action.value if hasattr(action, "value") else str(action)
+        analysis = (
+            f"ATRレンジ消尽（BB主導）: {action_str} "
+            f"(消尽率={exhaustion_analysis['ratio']:.1%}, "
+            f"BB位置={bb_check['position']:.1%}, ADX={range_check['adx']:.1f}"
+        )
+        if rsi_bonus["confirms"]:
+            analysis += f", RSI確認+{self.config.get('rsi_confirmation_bonus', 0.05):.2f}"
+        analysis += ")"
+
+        decision = {
+            "action": action,
+            "confidence": confidence,
+            "strength": 1.0 - bb_check["position"] if action == EntryAction.BUY else bb_check["position"],
+            "analysis": analysis,
+        }
+
+        signal = self._create_signal(decision, current_price, df, multi_timeframe_data)
+
+        self.logger.info(
+            f"[ATRレンジ] シグナル生成（BB主導）: {signal.action} "
+            f"(信頼度: {signal.confidence:.3f}, 消尽率: {exhaustion_analysis['ratio']:.1%}, "
+            f"BB位置: {bb_check['position']:.1%})"
+        )
+        return signal
+
+    def _check_rsi_confirmation(self, df: pd.DataFrame, expected_direction: str) -> Dict[str, Any]:
+        """
+        Phase 56.10: RSI確認（ボーナス用）
+
+        BB方向とRSI方向が一致するか確認。
+        """
+        try:
+            current_rsi = float(df["rsi_14"].iloc[-1])
+            rsi_upper = self.config["rsi_upper"]
+            rsi_lower = self.config["rsi_lower"]
+
+            if expected_direction == "BUY" and current_rsi < rsi_lower:
+                return {"confirms": True, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f} < {rsi_lower}"}
+            elif expected_direction == "SELL" and current_rsi > rsi_upper:
+                return {"confirms": True, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f} > {rsi_upper}"}
+            else:
+                return {"confirms": False, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f}（中間）"}
+
+        except Exception as e:
+            self.logger.error(f"RSI確認エラー: {e}")
+            return {"confirms": False, "rsi": 50.0, "reason": "確認エラー"}
 
     def _calculate_exhaustion_ratio(self, df: pd.DataFrame) -> Dict[str, Any]:
         """

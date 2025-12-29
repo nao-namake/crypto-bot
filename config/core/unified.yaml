@@ -25,13 +25,13 @@ mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 # 参照: ExecutionService、IntegratedRiskManager、DrawdownManager
 mode_balances:
   paper:
-    initial_balance: 10000.0      # ペーパートレード初期残高（1万円）
-    description: "ペーパートレード用初期残高（実験・検証用）"
+    initial_balance: 500000.0     # Phase 57: ペーパートレード初期残高（50万円）
+    description: "ペーパートレード用初期残高（年利10%目標検証用）"
   live:
-    initial_balance: 10000.0      # ライブトレード初期残高（1万円・実運用）
+    initial_balance: 500000.0     # Phase 57: ライブトレード初期残高（50万円・実運用）
     description: "ライブトレード用初期残高（本番運用・API取得ベース）"
   backtest:
-    initial_balance: 100000.0     # バックテスト初期残高（10万円・実運用想定検証）
+    initial_balance: 500000.0     # Phase 57: バックテスト初期残高（50万円・年利10%目標）
     description: "バックテスト用初期残高（過去データ検証用・ライブモードと独立）"
 
 # 取引所設定（bitbank信用取引専用）

@@ -826,9 +826,9 @@ class BacktestRunner(BaseRunner):
                     # Phase 51.8-J4-E: 手数料シミュレーション追加
                     # バックテストモードではbitbank API呼び出し不要（残高更新とTradeTracker記録のみ）
                     try:
-                        # Phase 51.8-J4-D: 証拠金返還（エントリー時に控除した証拠金を戻す）
+                        # Phase 57: 証拠金返還（エントリー時に控除した証拠金を戻す）
                         entry_order_total = entry_price * amount
-                        margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                        margin_to_return = entry_order_total / 2  # エントリー時の証拠金（2倍レバレッジ）
                         current_balance = self.orchestrator.execution_service.virtual_balance
                         self.orchestrator.execution_service.virtual_balance += margin_to_return
 
@@ -987,9 +987,9 @@ class BacktestRunner(BaseRunner):
 
                 try:
                     # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
-                    # Phase 51.8-J4-D: 証拠金返還処理
+                    # Phase 57: 証拠金返還処理
                     entry_order_total = entry_price * amount
-                    margin_to_return = entry_order_total / 4  # エントリー時の証拠金
+                    margin_to_return = entry_order_total / 2  # エントリー時の証拠金（2倍レバレッジ）
                     current_balance = self.orchestrator.execution_service.virtual_balance
                     self.orchestrator.execution_service.virtual_balance += margin_to_return
 

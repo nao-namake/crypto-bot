@@ -953,9 +953,9 @@ class ExecutionService:
             amount = float(evaluation.position_size)
             price = float(getattr(evaluation, "entry_price", 0))
 
-            # Phase 51.8-J4-D: 必要証拠金計算（bitbank信用取引は4倍レバレッジ固定）
+            # Phase 57: 必要証拠金計算（bitbank信用取引は2倍レバレッジ）
             order_total = price * amount  # 注文総額
-            required_margin = order_total / 4  # 必要証拠金（25%）
+            required_margin = order_total / 2  # 必要証拠金（50%）
 
             # Phase 51.8-J4-D: 残高チェック
             if self.virtual_balance < required_margin:

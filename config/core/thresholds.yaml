@@ -295,21 +295,21 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 56.4: 全戦略に適切な重み配分（取引数増加対策）
-      BBReversal: 0.25          # PF 1.32（最高PF）
-      StochasticReversal: 0.25  # PF 1.25（Divergence特化）
+      # Phase 56.9: トレンド型戦略をレンジ相場で無効化
+      BBReversal: 0.35          # PF 1.32（最高PF）
+      StochasticReversal: 0.35  # PF 1.25（Divergence特化）
       ATRBased: 0.20            # PF 1.16（消尽率ロジック）
-      ADXTrendStrength: 0.15    # PF 1.05（Phase 55.6でレンジ型に変換済み）
       DonchianChannel: 0.10     # PF 1.00（損益分岐）
-      MACDEMACrossover: 0.05    # PF 1.50（トレンド型・最小限）
+      ADXTrendStrength: 0.0     # トレンド型→無効化
+      MACDEMACrossover: 0.0     # トレンド型→無効化
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 51.8-10: バランス型70/20配分（理論的初期値）
-      ATRBased: 0.35            # ↑ 0.30→0.35（主力強化）
-      BBReversal: 0.20          # = 0.20（維持）
-      DonchianChannel: 0.10     # ↓ 0.15→0.10（削減）
-      StochasticReversal: 0.15  # = 0.15（維持）
-      ADXTrendStrength: 0.15    # = 0.15（弱トレンド検出）
-      MACDEMACrossover: 0.05    # = 0.05（補助維持）
+      # Phase 56.9: トレンド型戦略をレンジ相場で無効化
+      ATRBased: 0.40            # 主力
+      BBReversal: 0.25          # 高PF
+      StochasticReversal: 0.25  # Divergence特化
+      DonchianChannel: 0.10     # 補助
+      ADXTrendStrength: 0.0     # トレンド型→無効化
+      MACDEMACrossover: 0.0     # トレンド型→無効化
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
       # Phase 51.8-10: トレンド型80/20配分（理論的初期値）
       ADXTrendStrength: 0.50    # ↑ 0.40→0.50（トレンド主力強化）
@@ -378,69 +378,72 @@ strategies:
     weak_trend_threshold: 15
 
     # ========================================
-    # Phase 55.6: タイトレンジ逆張りモード（パターンB/C/D適用）
+    # Phase 56.9: RSI主導型レンジ逆張りモード
     # ========================================
-    # 目的: tight_range（90%の市場）でADX戦略を活用
-    # 手法: DI急変 + BB位置 + RSI + 動的閾値で精度向上
-    # 差別化: ATR消尽, BB帯端, Stochasticと異なるDI強度指標
-    # 結果: PF 0.96 → 1.01（+5%改善）
+    # Web調査: レンジ相場ではDIよりRSI+BBが有効
+    # 変更: DI条件からRSI+BB主導に変更しシグナル増加
     # ========================================
     range_mode_enabled: true          # レンジ逆張りモード有効化
-    range_adx_threshold: 20           # ADX < 20でレンジモード発動
-    di_reversal_threshold: 5.0        # Phase 55.6最良値維持
-    di_diff_threshold: 8.0            # Phase 55.6最良値維持
-    range_signal_confidence: 0.45     # 基本信頼度
-    # DI乖離逆張りモード
-    di_divergence_threshold: 12.0     # DI差分絶対値閾値
-    use_di_divergence: false          # 無効化（DI変化量モードのみ使用）
-    # Phase 55.6 パターンB: BB位置フィルタ
-    use_bb_position_filter: true      # BB位置確認有効化
-    bb_position_upper: 0.80           # SELL時: BB位置>0.80で信頼度ボーナス
-    bb_position_lower: 0.20           # BUY時: BB位置<0.20で信頼度ボーナス
-    bb_filter_confidence_bonus: 0.10  # BB一致時の信頼度ボーナス
-    # Phase 55.6 パターンC: RSI反転検証
-    use_rsi_filter: true              # RSI反転確認有効化
-    rsi_sell_threshold: 60            # SELL時: RSI>60で信頼度ボーナス
-    rsi_buy_threshold: 40             # BUY時: RSI<40で信頼度ボーナス
-    rsi_filter_confidence_bonus: 0.08 # RSI一致時の信頼度ボーナス
-    # Phase 55.6 パターンD: ADX動的閾値
-    use_dynamic_thresholds: true      # 動的閾値有効化
-    dynamic_adx_ultra_low: 10         # 超安定レンジ（ADX<10）
-    dynamic_adx_low: 15               # 標準レンジ（ADX<15）
-    dynamic_di_strict: 6.0            # 超安定時DI閾値（厳格）
-    dynamic_di_normal: 5.0            # 標準時DI閾値
-    dynamic_di_loose: 4.0             # 境界時DI閾値（緩い）
-    dynamic_conf_high: 0.55           # 超安定時信頼度
-    dynamic_conf_mid: 0.48            # 標準時信頼度
-    dynamic_conf_low: 0.42            # 境界時信頼度
+    range_adx_threshold: 20           # ADX < 20 でレンジモード（元に戻す）
+
+    # Phase 56.9: RSI主導トリガー（無効化・DIロジックに戻す）
+    use_rsi_driven_mode: false        # RSI主導モード無効化
+    rsi_oversold_trigger: 40          # RSI < 40 で買いシグナル
+    rsi_overbought_trigger: 60        # RSI > 60 で売りシグナル
+    bb_lower_trigger: 0.30            # BB位置 < 0.30 で買い（データ分析に基づく）
+    bb_upper_trigger: 0.70            # BB位置 > 0.70 で売り（データ分析に基づく）
+
+    # 信頼度設定
+    range_signal_confidence: 0.40     # 基本信頼度
+    rsi_extreme_bonus: 0.10           # RSI < 25 or > 75 ボーナス
+    bb_extreme_bonus: 0.05            # BB < 0.15 or > 0.85 ボーナス
+    adx_falling_bonus: 0.05           # ADX下降中ボーナス
+
+    # 従来DI設定（フォールバック用）
+    di_reversal_threshold: 5.0        # DI変化量閾値
+    di_diff_threshold: 8.0            # DI差分閾値
+    di_divergence_threshold: 12.0     # DI乖離閾値
+    use_di_divergence: false          # DI乖離モード無効
+
+    # ADX動的閾値（維持）
+    use_dynamic_thresholds: false     # RSI主導モードでは無効化
+    dynamic_adx_ultra_low: 10
+    dynamic_adx_low: 15
+    dynamic_di_strict: 6.0
+    dynamic_di_normal: 5.0
+    dynamic_di_loose: 4.0
+    dynamic_conf_high: 0.55
+    dynamic_conf_mid: 0.48
+    dynamic_conf_low: 0.42
   atr_based:
     # ========================================
-    # Phase 55.4: 高PF設定ベース + BB確認
+    # Phase 56.10: 元設定に戻す（BB条件化でPF低下のため）
     # ========================================
-    # 目標: PF≥1.0, 取引数≥400件/180日
-    # ベース: config/core/atr_based_backup_pf146.yaml (PF 1.46)
-    # 追加: BB位置確認で品質強化
+    # BB位置メイン条件化を試行したが、PF 1.11→0.78に低下
+    # 元のRSI方向+消尽率ロジックに戻す
     # ========================================
-    # ATR消尽率パラメータ（Phase 55.4: 取引数最適化）
-    exhaustion_threshold: 0.60       # 0.65→0.60（取引数増加）
-    high_exhaustion_threshold: 0.75  # 0.80→0.75
+    # ATR消尽率パラメータ
+    exhaustion_threshold: 0.55       # 元に戻す
+    high_exhaustion_threshold: 0.70  # 元に戻す
     # レンジ相場フィルタ
-    adx_range_threshold: 25          # 25維持（PF重視）
-    # 反転方向判定（Phase 55.4: 取引数増加）
-    rsi_upper: 58                    # 60→58（緩和）
-    rsi_lower: 42                    # 40→42（緩和）
-    # 信頼度設定（高PF設定）
-    min_confidence: 0.35             # 高PF設定の値
-    hold_confidence: 0.20            # 維持
-    base_confidence: 0.40            # 維持
-    high_confidence: 0.60            # 高PF設定の値
-    # スコア閾値（消尽率必須 + レンジ必須）
-    min_score_threshold: 0.55        # 消尽率+1条件で達成
-    # BB位置確認（品質強化用）
-    bb_position_enabled: true        # BB位置確認有効化
-    bb_position_threshold: 0.20      # バンド端20%以内でスコア加算
+    adx_range_threshold: 28          # 元に戻す
+    # 反転方向判定（RSIメイン条件）
+    rsi_upper: 55
+    rsi_lower: 45
+    rsi_confirmation_bonus: 0.05
+    # 信頼度設定
+    min_confidence: 0.35
+    hold_confidence: 0.20
+    base_confidence: 0.40
+    high_confidence: 0.60
+    # スコア閾値
+    min_score_threshold: 0.55
+    # BB位置確認（ボーナスとして使用）
+    bb_position_enabled: true
+    bb_position_threshold: 0.20      # 元に戻す
+    bb_as_main_condition: false      # メイン条件ではなくボーナスとして使用
     # ストップロス設定
-    sl_atr_multiplier: 1.5           # SL = 1.5 × ATR
+    sl_atr_multiplier: 1.5
   donchian_channel:
     # ========================================
     # Phase 56.8: 平均回帰戦略リファクタリング
@@ -451,11 +454,11 @@ strategies:
     # - 極端位置でのみシグナル発生
     # ========================================
 
-    # === 直列評価パラメータ ===
-    adx_max_threshold: 28           # レンジ判定（ADX < 28でレンジ）
-    extreme_zone_threshold: 0.12    # 極端位置（< 0.12 or > 0.88）
-    rsi_oversold: 42                # 買いRSI上限
-    rsi_overbought: 58              # 売りRSI下限
+    # === 直列評価パラメータ（Phase 56.9: 元に戻す） ===
+    adx_max_threshold: 28           # 元に戻す（PF維持）
+    extreme_zone_threshold: 0.12    # 元に戻す（PF維持）
+    rsi_oversold: 42                # 元に戻す（PF維持）
+    rsi_overbought: 58              # 元に戻す（PF維持）
 
     # === 信頼度設定（シンプル化） ===
     base_confidence: 0.40
@@ -467,15 +470,15 @@ strategies:
     extreme_position_bonus: 0.10    # 位置が極端（< 0.05 or > 0.95）
     rsi_confirmation_bonus: 0.05   # RSI極端値（< 30 or > 70）
   bb_reversal:
-    # Phase 56: 取引数回復のため閾値さらに緩和
-    min_confidence: 0.22            # 0.25→0.22（緩和）
-    hold_confidence: 0.20           # 0.22→0.20（緩和）
-    bb_width_threshold: 0.030       # 0.028→0.030（より多くの相場でレンジ判定）
-    rsi_overbought: 60              # 62→60（シグナル増加）
-    rsi_oversold: 40                # 38→40（シグナル増加）
-    bb_upper_threshold: 0.85        # 0.88→0.85（シグナル増加）
-    bb_lower_threshold: 0.15        # 0.12→0.15（シグナル増加）
-    adx_range_threshold: 30         # 28→30（より多くの相場で機能）
+    # Phase 56.9: 中間設定（シグナル数とPFのバランス）
+    min_confidence: 0.25            # やや厳格化
+    hold_confidence: 0.20           # やや厳格化
+    bb_width_threshold: 0.035       # 維持
+    rsi_overbought: 62              # 58→62（やや厳格化）
+    rsi_oversold: 38                # 42→38（やや厳格化）
+    bb_upper_threshold: 0.85        # 0.82→0.85（やや厳格化）
+    bb_lower_threshold: 0.15        # 0.18→0.15（やや厳格化）
+    adx_range_threshold: 30         # 32→30（やや厳格化）
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # ========================================
@@ -507,10 +510,10 @@ strategies:
     # === SL設定 ===
     sl_multiplier: 1.5                  # SL ATR倍率
   macd_ema_crossover:
-    # Phase 54.10: HOLD率削減のため閾値緩和
+    # Phase 56.9: 取引数増加のため閾値さらに緩和
     min_confidence: 0.30            # Phase 54.10: 0.35→0.30（取引数増加）
     hold_confidence: 0.25
-    adx_trend_threshold: 22         # Phase 54.10: 25→22（より多くの相場で機能）
+    adx_trend_threshold: 18         # Phase 56.9: 22→18（トレンド検出感度UP）
     volume_ratio_threshold: 1.0     # Phase 54.10: 1.1→1.0（出来高要件緩和）
     macd_strong_threshold: 50000    # MACD強い閾値（ヒストグラム正規化用）
     ema_divergence_threshold: 0.01  # EMA乖離度閾値（1%）
@@ -544,14 +547,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.10    # Phase 54.6: 3% → 10%（積極的ポジションサイズ）
-    safety_factor: 0.7
+    max_position_ratio: 0.25    # Phase 57: 10% → 25%（年利10%目標）
+    safety_factor: 0.8          # Phase 57: 0.7 → 0.8（安全係数緩和）
   min_trade_size: 0.0001
-  initial_position_size: 0.0005   # Phase 55.12: 0.003→0.0005（証拠金10万円の約8%・制限内）
+  initial_position_size: 0.002    # Phase 57: 0.0005→0.002（証拠金50万円対応・4倍）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.10    # Phase 54.6: 5% → 10%（積極的ポジションサイズ）
+    max_position_ratio: 0.25    # Phase 57: 10% → 25%（年利10%目標）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -630,8 +633,8 @@ risk:
   kelly_lookback_days: 30
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
-  max_capital_usage: 0.3
-  reserve_ratio: 0.7
+  max_capital_usage: 0.5     # Phase 57: 0.3 → 0.5（資金利用率50%）
+  reserve_ratio: 0.5         # Phase 57: 0.7 → 0.5（reserve 50%）
 
   # Phase 51.5-C: TP/SL再計算フォールバック設定
   fallback_atr: 500000                   # ATR取得失敗時のフォールバックATR値（500,000円）
@@ -654,23 +657,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 55.11: 制限値緩和（Kelly/Dynamic計算結果が通るように）
-    low_confidence: 0.10    # 3% → 10%（¥10,000制限）
-    medium_confidence: 0.15  # 5% → 15%（¥15,000制限）
-    high_confidence: 0.25    # 10% → 25%（¥25,000制限）
+    # Phase 57: 年利10%目標に向けた制限値緩和
+    low_confidence: 0.15    # Phase 57: 10% → 15%
+    medium_confidence: 0.25  # Phase 57: 15% → 25%
+    high_confidence: 0.40    # Phase 57: 25% → 40%
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 54.6: ポジション比率引き上げ（総損益改善）
+    # Phase 57: 年利10%目標に向けたポジション比率引き上げ
     low_confidence:
-      min_ratio: 0.03    # 1% → 3%
-      max_ratio: 0.05    # 3% → 5%
+      min_ratio: 0.05    # Phase 57: 3% → 5%
+      max_ratio: 0.10    # Phase 57: 5% → 10%
     medium_confidence:
-      min_ratio: 0.05    # 3% → 5%
-      max_ratio: 0.08    # 5% → 8%
+      min_ratio: 0.08    # Phase 57: 5% → 8%
+      max_ratio: 0.15    # Phase 57: 8% → 15%
     high_confidence:
-      min_ratio: 0.08    # 5% → 8%
-      max_ratio: 0.10    # 10%維持
+      min_ratio: 0.12    # Phase 57: 8% → 12%
+      max_ratio: 0.20    # Phase 57: 10% → 20%
   account_size_adjustments:
     small:
       threshold: 50000
