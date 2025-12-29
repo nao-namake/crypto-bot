@@ -337,20 +337,21 @@ class PositionLimits:
         min_trade_amount = min_trade_size * btc_price
 
         # ML信頼度に基づく制限比率を決定
-        if ml_confidence < 0.60:
+        # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
+        if ml_confidence < 0.50:
             # 低信頼度
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.low_confidence", 0.03
             )
             confidence_category = "low"
-        elif ml_confidence < 0.75:
-            # 中信頼度
+        elif ml_confidence < 0.65:
+            # 中信頼度（Phase 57.2: 50-65%）
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.medium_confidence", 0.05
             )
             confidence_category = "medium"
         else:
-            # 高信頼度
+            # 高信頼度（Phase 57.2: 65%以上）
             max_position_ratio = get_threshold(
                 "position_management.max_position_ratio_per_trade.high_confidence", 0.10
             )

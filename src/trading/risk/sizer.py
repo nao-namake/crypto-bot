@@ -112,13 +112,14 @@ class PositionSizeIntegrator:
                 integrated_size = min(integrated_size, max_order_size)
 
                 # Phase 56: 信頼度別ポジション制限を事前適用（limits.pyでの拒否を防ぐ）
+                # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
                 if current_balance and btc_price and btc_price > 0:
-                    if ml_confidence < 0.60:
+                    if ml_confidence < 0.50:
                         confidence_ratio = get_threshold(
                             "position_management.max_position_ratio_per_trade.low_confidence", 0.10
                         )
                         confidence_category = "low"
-                    elif ml_confidence < 0.75:
+                    elif ml_confidence < 0.65:
                         confidence_ratio = get_threshold(
                             "position_management.max_position_ratio_per_trade.medium_confidence",
                             0.15,
@@ -220,7 +221,8 @@ class PositionSizeIntegrator:
             from ...core.config import get_threshold
 
             # ML信頼度によるカテゴリー決定と比率範囲取得
-            if ml_confidence < 0.6:
+            # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
+            if ml_confidence < 0.50:
                 # 低信頼度
                 min_ratio = get_threshold(
                     "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
@@ -229,8 +231,8 @@ class PositionSizeIntegrator:
                     "position_management.dynamic_position_sizing.low_confidence.max_ratio", 0.03
                 )
                 confidence_category = "low"
-            elif ml_confidence < 0.75:
-                # 中信頼度
+            elif ml_confidence < 0.65:
+                # 中信頼度（Phase 57.2: 50-65%）
                 min_ratio = get_threshold(
                     "position_management.dynamic_position_sizing.medium_confidence.min_ratio", 0.03
                 )
@@ -239,7 +241,7 @@ class PositionSizeIntegrator:
                 )
                 confidence_category = "medium"
             else:
-                # 高信頼度
+                # 高信頼度（Phase 57.2: 65%以上）
                 min_ratio = get_threshold(
                     "position_management.dynamic_position_sizing.high_confidence.min_ratio", 0.05
                 )
@@ -249,12 +251,13 @@ class PositionSizeIntegrator:
                 confidence_category = "high"
 
             # 信頼度に応じた線形補間で比率を計算
-            if ml_confidence < 0.6:
-                normalized_confidence = (ml_confidence - 0.5) / 0.1  # 0.5-0.6 -> 0-1
-            elif ml_confidence < 0.75:
-                normalized_confidence = (ml_confidence - 0.6) / 0.15  # 0.6-0.75 -> 0-1
+            # Phase 57.2: 閾値調整（50%/65%/100%）
+            if ml_confidence < 0.50:
+                normalized_confidence = (ml_confidence - 0.4) / 0.1  # 0.4-0.5 -> 0-1
+            elif ml_confidence < 0.65:
+                normalized_confidence = (ml_confidence - 0.50) / 0.15  # 0.5-0.65 -> 0-1
             else:
-                normalized_confidence = min((ml_confidence - 0.75) / 0.25, 1.0)  # 0.75-1.0 -> 0-1
+                normalized_confidence = min((ml_confidence - 0.65) / 0.35, 1.0)  # 0.65-1.0 -> 0-1
 
             normalized_confidence = max(0.0, min(1.0, normalized_confidence))
             position_ratio = min_ratio + (max_ratio - min_ratio) * normalized_confidence

@@ -40,7 +40,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.03    # 10万円証拠金×レバ3倍対応（約50万円相当）
+  max_order_size: 0.05    # Phase 57.2: 50万円証拠金×レバ2倍対応（DD 5%目標）
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -417,19 +417,19 @@ strategies:
     dynamic_conf_low: 0.42
   atr_based:
     # ========================================
-    # Phase 56.10: 元設定に戻す（BB条件化でPF低下のため）
+    # Phase 57: Phase 55.4設定に復元（PF > 1実績）
     # ========================================
-    # BB位置メイン条件化を試行したが、PF 1.11→0.78に低下
-    # 元のRSI方向+消尽率ロジックに戻す
+    # Phase 56.10でBB条件化実験→PF低下→元に戻す
+    # Phase 55.4の高閾値設定でPF 1.16を達成
     # ========================================
-    # ATR消尽率パラメータ
-    exhaustion_threshold: 0.55       # 元に戻す
-    high_exhaustion_threshold: 0.70  # 元に戻す
+    # ATR消尽率パラメータ（Phase 55.4: 高閾値）
+    exhaustion_threshold: 0.70       # Phase 55.4: 0.55→0.70（高品質シグナルのみ）
+    high_exhaustion_threshold: 0.85  # Phase 55.4: 0.70→0.85（高確信シグナル）
     # レンジ相場フィルタ
-    adx_range_threshold: 28          # 元に戻す
+    adx_range_threshold: 25          # Phase 55.4: 28→25（レンジ判定緩和）
     # 反転方向判定（RSIメイン条件）
-    rsi_upper: 55
-    rsi_lower: 45
+    rsi_upper: 60                    # Phase 55.4: 55→60（明確な過熱のみ）
+    rsi_lower: 40                    # Phase 55.4: 45→40（明確な売られすぎのみ）
     rsi_confirmation_bonus: 0.05
     # 信頼度設定
     min_confidence: 0.35
@@ -437,10 +437,10 @@ strategies:
     base_confidence: 0.40
     high_confidence: 0.60
     # スコア閾値
-    min_score_threshold: 0.55
+    min_score_threshold: 0.65        # Phase 55.4: 0.55→0.65（高品質シグナルのみ）
     # BB位置確認（ボーナスとして使用）
     bb_position_enabled: true
-    bb_position_threshold: 0.20      # 元に戻す
+    bb_position_threshold: 0.20
     bb_as_main_condition: false      # メイン条件ではなくボーナスとして使用
     # ストップロス設定
     sl_atr_multiplier: 1.5
@@ -547,14 +547,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.25    # Phase 57: 10% → 25%（年利10%目標）
-    safety_factor: 0.8          # Phase 57: 0.7 → 0.8（安全係数緩和）
+    max_position_ratio: 0.35    # Phase 57.2: 25% → 35%（DD 5%目標）
+    safety_factor: 0.9          # Phase 57.2: 0.8 → 0.9（さらに緩和）
   min_trade_size: 0.0001
-  initial_position_size: 0.002    # Phase 57: 0.0005→0.002（証拠金50万円対応・4倍）
+  initial_position_size: 0.005    # Phase 57.2: 0.002→0.005（DD 5%目標）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.25    # Phase 57: 10% → 25%（年利10%目標）
+    max_position_ratio: 0.35    # Phase 57.2: 25% → 35%（DD 5%目標）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -657,23 +657,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 57: 年利10%目標に向けた制限値緩和
-    low_confidence: 0.15    # Phase 57: 10% → 15%
-    medium_confidence: 0.25  # Phase 57: 15% → 25%
-    high_confidence: 0.40    # Phase 57: 25% → 40%
+    # Phase 57.2: DD 5%目標に向けた制限値さらに緩和
+    low_confidence: 0.25    # Phase 57.2: 15% → 25%
+    medium_confidence: 0.35  # Phase 57.2: 25% → 35%
+    high_confidence: 0.50    # Phase 57.2: 40% → 50%
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 57: 年利10%目標に向けたポジション比率引き上げ
+    # Phase 57.2: DD 5%目標に向けたポジション比率さらに引き上げ
     low_confidence:
-      min_ratio: 0.05    # Phase 57: 3% → 5%
-      max_ratio: 0.10    # Phase 57: 5% → 10%
+      min_ratio: 0.10    # Phase 57.2: 5% → 10%
+      max_ratio: 0.20    # Phase 57.2: 10% → 20%
     medium_confidence:
-      min_ratio: 0.08    # Phase 57: 5% → 8%
-      max_ratio: 0.15    # Phase 57: 8% → 15%
+      min_ratio: 0.15    # Phase 57.2: 8% → 15%
+      max_ratio: 0.25    # Phase 57.2: 15% → 25%
     high_confidence:
-      min_ratio: 0.12    # Phase 57: 8% → 12%
-      max_ratio: 0.20    # Phase 57: 10% → 20%
+      min_ratio: 0.20    # Phase 57.2: 12% → 20%
+      max_ratio: 0.35    # Phase 57.2: 20% → 35%
   account_size_adjustments:
     small:
       threshold: 50000

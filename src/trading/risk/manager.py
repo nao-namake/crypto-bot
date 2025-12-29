@@ -778,11 +778,12 @@ class IntegratedRiskManager:
             )
 
             if dynamic_enabled:
-                if ml_confidence < 0.6:
+                # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
+                if ml_confidence < 0.50:
                     estimated_ratio = get_threshold(
                         "position_management.dynamic_position_sizing.low_confidence.min_ratio", 0.01
                     )
-                elif ml_confidence < 0.75:
+                elif ml_confidence < 0.65:
                     estimated_ratio = get_threshold(
                         "position_management.dynamic_position_sizing.medium_confidence.min_ratio",
                         0.03,

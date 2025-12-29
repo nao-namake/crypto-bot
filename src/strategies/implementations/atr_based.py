@@ -44,18 +44,18 @@ class ATRBasedStrategy(StrategyBase):
         from ...core.config.threshold_manager import get_threshold
 
         default_config = {
-            # ATR消尽率パラメータ
+            # ATR消尽率パラメータ（Phase 55.4: PF1以上の設定）
             "exhaustion_threshold": get_threshold(
-                "strategies.atr_based.exhaustion_threshold", 0.50
+                "strategies.atr_based.exhaustion_threshold", 0.70
             ),
             "high_exhaustion_threshold": get_threshold(
-                "strategies.atr_based.high_exhaustion_threshold", 0.65
+                "strategies.atr_based.high_exhaustion_threshold", 0.85
             ),
             # レンジ相場フィルタ
-            "adx_range_threshold": get_threshold("strategies.atr_based.adx_range_threshold", 30),
-            # RSI反転判定（Phase 56.10: ボーナスに格下げ）
-            "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 55),
-            "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 45),
+            "adx_range_threshold": get_threshold("strategies.atr_based.adx_range_threshold", 25),
+            # RSI反転判定（メイン条件）
+            "rsi_upper": get_threshold("strategies.atr_based.rsi_upper", 60),
+            "rsi_lower": get_threshold("strategies.atr_based.rsi_lower", 40),
             "rsi_confirmation_bonus": get_threshold(
                 "strategies.atr_based.rsi_confirmation_bonus", 0.05
             ),
@@ -64,15 +64,15 @@ class ATRBasedStrategy(StrategyBase):
             "hold_confidence": get_threshold("strategies.atr_based.hold_confidence", 0.20),
             "base_confidence": get_threshold("strategies.atr_based.base_confidence", 0.40),
             "high_confidence": get_threshold("strategies.atr_based.high_confidence", 0.60),
-            # スコア閾値
-            "min_score_threshold": get_threshold("strategies.atr_based.min_score_threshold", 0.55),
-            # BB位置確認（Phase 56.10: メイン条件に昇格）
+            # スコア閾値（Phase 55.4: BB確認込みで0.65）
+            "min_score_threshold": get_threshold("strategies.atr_based.min_score_threshold", 0.65),
+            # BB位置確認（ボーナスとして使用、メイン条件ではない）
             "bb_position_enabled": get_threshold("strategies.atr_based.bb_position_enabled", True),
             "bb_position_threshold": get_threshold(
-                "strategies.atr_based.bb_position_threshold", 0.25
+                "strategies.atr_based.bb_position_threshold", 0.20
             ),
             "bb_as_main_condition": get_threshold(
-                "strategies.atr_based.bb_as_main_condition", True
+                "strategies.atr_based.bb_as_main_condition", False
             ),
             # ストップロス設定
             "sl_atr_multiplier": get_threshold("strategies.atr_based.sl_atr_multiplier", 1.5),
