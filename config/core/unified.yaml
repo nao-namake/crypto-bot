@@ -153,8 +153,8 @@ risk:
     lookback_period: 20
     spread_warning_threshold: 0.003
     spread_critical_threshold: 0.005
-    api_latency_warning: 1.0
-    api_latency_critical: 3.0
+    api_latency_warning: 5.0    # Phase 57.4: 1秒→5秒（実測5-7秒に対応）
+    api_latency_critical: 10.0  # Phase 57.4: 3秒→10秒（過剰拒否防止）
 
 # ========================================
 # 注文実行設定

@@ -40,7 +40,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.05    # Phase 57.2: 50万円証拠金×レバ2倍対応（DD 5%目標）
+  max_order_size: 0.20    # Phase 57.5: 0.05→0.20（DD 10%許容・年利5%目標）
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -547,14 +547,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.35    # Phase 57.2: 25% → 35%（DD 5%目標）
-    safety_factor: 0.9          # Phase 57.2: 0.8 → 0.9（さらに緩和）
+    max_position_ratio: 1.00    # Phase 57.5: 35% → 100%（DD 10%許容・年利5%目標）
+    safety_factor: 1.0          # Phase 57.5: 0.9 → 1.0（安全係数撤廃）
   min_trade_size: 0.0001
-  initial_position_size: 0.005    # Phase 57.2: 0.002→0.005（DD 5%目標）
+  initial_position_size: 0.02     # Phase 57.5: 0.005→0.02（DD 10%許容・年利5%目標）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.35    # Phase 57.2: 25% → 35%（DD 5%目標）
+    max_position_ratio: 1.00    # Phase 57.5: 35% → 100%（DD 10%許容・年利5%目標）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -657,23 +657,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 57.2: DD 5%目標に向けた制限値さらに緩和
-    low_confidence: 0.25    # Phase 57.2: 15% → 25%
-    medium_confidence: 0.35  # Phase 57.2: 25% → 35%
-    high_confidence: 0.50    # Phase 57.2: 40% → 50%
+    # Phase 57.5: DD 10%許容・年利5%目標
+    low_confidence: 0.80    # Phase 57.5: 25% → 80%
+    medium_confidence: 0.90  # Phase 57.5: 35% → 90%
+    high_confidence: 1.00    # Phase 57.5: 50% → 100%
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 57.2: DD 5%目標に向けたポジション比率さらに引き上げ
+    # Phase 57.5: DD 10%許容・年利5%目標（約10倍拡大）
     low_confidence:
-      min_ratio: 0.10    # Phase 57.2: 5% → 10%
-      max_ratio: 0.20    # Phase 57.2: 10% → 20%
+      min_ratio: 0.50    # Phase 57.5: 10% → 50%
+      max_ratio: 0.80    # Phase 57.5: 20% → 80%
     medium_confidence:
-      min_ratio: 0.15    # Phase 57.2: 8% → 15%
-      max_ratio: 0.25    # Phase 57.2: 15% → 25%
+      min_ratio: 0.60    # Phase 57.5: 15% → 60%
+      max_ratio: 0.90    # Phase 57.5: 25% → 90%
     high_confidence:
-      min_ratio: 0.20    # Phase 57.2: 12% → 20%
-      max_ratio: 0.35    # Phase 57.2: 20% → 35%
+      min_ratio: 0.70    # Phase 57.5: 20% → 70%
+      max_ratio: 1.00    # Phase 57.5: 35% → 100%
   account_size_adjustments:
     small:
       threshold: 50000

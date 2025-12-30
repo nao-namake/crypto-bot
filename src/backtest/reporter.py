@@ -346,8 +346,8 @@ class TradeTracker:
         if len(self.equity_curve) < 2:
             return (0.0, 0.0)
 
-        # Phase 53.11: 初期資金を設定から取得（ハードコード回避）
-        initial_capital = get_threshold("backtest.initial_balance", 100000.0)
+        # Phase 57.5: 設定キー修正（mode_balances.backtest.initial_balance）
+        initial_capital = get_threshold("mode_balances.backtest.initial_balance", 500000.0)
 
         max_equity = self.equity_curve[0]
         max_dd = 0.0
