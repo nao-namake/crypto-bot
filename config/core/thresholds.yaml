@@ -40,7 +40,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.20    # Phase 57.5: 0.05→0.20（DD 10%許容・年利5%目標）
+  max_order_size: 0.40    # Phase 57.6: 0.20→0.40（DD 10%許容・年利10%目標）
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -51,9 +51,9 @@ production:
 # 効果: 0.0001 BTC → 約0.009 BTC（Kelly基準が活かされる）
 # ========================================
 position_integrator:
-  kelly_weight: 0.5          # Kelly基準の重み（50%）
-  dynamic_weight: 0.3        # 動的サイジングの重み（30%）
-  risk_manager_weight: 0.2   # RiskManagerの重み（20%）
+  kelly_weight: 0.7          # Phase 57.6: 50%→70%（Kelly基準重視）
+  dynamic_weight: 0.2        # Phase 57.6: 30%→20%
+  risk_manager_weight: 0.1   # Phase 57.6: 20%→10%
 
 # ========================================
 # バックテスト設定（Backtest Settings）
@@ -527,7 +527,7 @@ strategies:
 trading:
   # Phase 56.6: 資金アロケーション上限（ポジションサイズ計算に使用する残高上限）
   # null/0で無制限（実残高をそのまま使用）、正の値で上限設定
-  capital_allocation_limit: 100000.0  # 10万円に制限
+  capital_allocation_limit: 500000.0  # Phase 57.6: 50万円全額使用（年利10%目標）
   anomaly:
     spread_critical_threshold: 0.005
     spread_warning_threshold: 0.003
@@ -550,7 +550,7 @@ trading:
     max_position_ratio: 1.00    # Phase 57.5: 35% → 100%（DD 10%許容・年利5%目標）
     safety_factor: 1.0          # Phase 57.5: 0.9 → 1.0（安全係数撤廃）
   min_trade_size: 0.0001
-  initial_position_size: 0.02     # Phase 57.5: 0.005→0.02（DD 10%許容・年利5%目標）
+  initial_position_size: 0.04     # Phase 57.6: 0.02→0.04（DD 10%許容・年利10%目標）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
