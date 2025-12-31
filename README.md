@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 55完了・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 57完了・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2055-Complete-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2057-Complete-blue)](docs/)
 
 ---
 
@@ -199,7 +199,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 55計画
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 57計画
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -213,15 +213,16 @@ config/core/
 
 ## 開発状況
 
-### Phase 55（完了）: 戦略最適化・重みづけ調整
+### Phase 57（完了）: 年利10%目標・リスク最大化
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| 55.1 | ATRレンジ消尽閾値調整 | 取引数+30%、PF 1.16維持 |
-| 55.2 | StochasticDivergence戦略 | PF 0.77→1.25（+62%）大成功 |
-| 55.2 | タイトレンジ重みづけ最適化 | レンジ型3戦略に集中 |
-| 55.12 | ポジションサイズ適正化 | 0.003→0.0005 BTC・バックテスト0取引問題解決 |
-| 55.12 | クールダウン統一 | ハードコード排除・6時間統一 |
+| 57.1 | レバレッジ・Kelly・ポジション緩和 | 4倍→2倍修正、各種制限緩和 |
+| 57.2 | DD 5%攻撃的設定 | 信頼度閾値50%、ポジション2倍 |
+| 57.3 | ライブモード診断・修正 | リスクスコア正規化バグ修正 |
+| 57.5 | DD 10%許容・年利5%目標 | ポジション10倍拡大 |
+| 57.6 | リスク最大化・年利10%目標 | ボトルネック解消・Kelly重視 |
+| 57.7 | 設定ファイル体系整理・レポート計算修正 | unified.yaml統合・7件のレポートバグ修正 |
 
 ### パフォーマンス指標
 
@@ -253,4 +254,4 @@ config/core/
 
 ---
 
-**最終更新**: 2025年12月24日 - **Phase 55.12完了**（ポジションサイズ適正化・クールダウン統一・バックテスト0取引問題解決）
+**最終更新**: 2026年1月1日 - **Phase 57.7完了**（設定ファイル体系整理・レポート計算バグ修正）
