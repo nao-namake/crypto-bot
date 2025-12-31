@@ -480,9 +480,17 @@ class TradingCycleManager:
     async def _fetch_trading_info(self, market_data):
         """Phase 6: 追加情報取得（リスク管理のため）"""
         try:
-            # 現在の残高取得
-            balance_info = self.orchestrator.data_service.client.fetch_balance()
-            actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
+            # Phase 57.6: バックテストモードではExecutionServiceのvirtual_balanceを使用
+            execution_service = getattr(self.orchestrator, "execution_service", None)
+            if execution_service and execution_service.mode == "backtest":
+                actual_balance = execution_service.virtual_balance
+                self.logger.debug(
+                    f"Phase 57.6: バックテストモード - virtual_balance使用: ¥{actual_balance:,.0f}"
+                )
+            else:
+                # 現在の残高取得（ライブ/ペーパーモード）
+                balance_info = self.orchestrator.data_service.client.fetch_balance()
+                actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
 
             # Phase 56.6: 資金アロケーション上限を適用
             capital_limit = get_threshold("trading.capital_allocation_limit", None)

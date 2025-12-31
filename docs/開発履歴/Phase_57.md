@@ -597,6 +597,25 @@ position_integrator:
 | 大損失 | max_order_size 0.40 BTC制限 |
 | 証拠金維持率 | 80%維持必須 |
 
+### バックテストモード残高参照バグ修正（12/31追加）
+
+**問題**: バックテスト結果が設定変更後も変化しなかった
+
+**根本原因**: `trading_cycle_manager.py`の`_fetch_trading_info()`がバックテストモードでもAPIを呼び出し、`ExecutionService.virtual_balance`を参照していなかった
+
+**修正内容**:
+```python
+# Phase 57.6: バックテストモードではExecutionServiceのvirtual_balanceを使用
+execution_service = getattr(self.orchestrator, "execution_service", None)
+if execution_service and execution_service.mode == "backtest":
+    actual_balance = execution_service.virtual_balance
+else:
+    balance_info = self.orchestrator.data_service.client.fetch_balance()
+    actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
+```
+
+**修正ファイル**: `src/core/services/trading_cycle_manager.py:480-493`
+
 ---
 
 ## 📝 学習事項
