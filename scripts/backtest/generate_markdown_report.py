@@ -12,15 +12,41 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+
+# プロジェクトルートをパスに追加
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.core.config.threshold_manager import get_threshold
 
 
 def load_json_report(json_path: Path) -> Dict[str, Any]:
     """JSONレポート読み込み"""
     with open(json_path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def format_metric(value: float, decimals: int = 2) -> str:
+    """
+    Phase 57.7: 指標値のフォーマット（∞対応）
+
+    Args:
+        value: 指標値（float or inf）
+        decimals: 小数点以下桁数
+
+    Returns:
+        フォーマット済み文字列（∞はそのまま表示）
+    """
+    import math
+
+    if value is None:
+        return "N/A"
+    if math.isinf(value):
+        return "∞" if value > 0 else "-∞"
+    return f"{value:.{decimals}f}"
 
 
 def generate_markdown_report(report_data: Dict[str, Any]) -> str:
@@ -122,9 +148,9 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
         "",
         "### レジーム別エントリー制限",
         "",
-        "- tight_range: 最大1ポジション（Phase 51.8実装）",
-        "- normal_range: 最大2ポジション",
-        "- trending: 最大3ポジション",
+        f"- tight_range: 最大{get_threshold('position_limits.tight_range', 6)}ポジション",
+        f"- normal_range: 最大{get_threshold('position_limits.normal_range', 4)}ポジション",
+        f"- trending: 最大{get_threshold('position_limits.trending', 2)}ポジション",
         "",
         "### ML統合設定",
         "",
@@ -193,7 +219,7 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
             "### リスク指標",
             "",
             f"- **最大ドローダウン**: ¥{max_dd:,.0f} ({max_dd_pct:.2f}%)",
-            f"- **プロフィットファクター**: {profit_factor:.2f}",
+            f"- **プロフィットファクター**: {format_metric(profit_factor)}",
             f"- **平均勝ちトレード**: ¥{avg_win:+,.0f}",
             f"- **平均負けトレード**: ¥{avg_loss:+,.0f}",
             "",
@@ -223,21 +249,35 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
         ]
     )
 
-    # シャープレシオ評価
-    sharpe_eval = (
-        "優秀"
-        if sharpe_ratio >= 2.0
-        else "良好" if sharpe_ratio >= 1.0 else "普通" if sharpe_ratio >= 0 else "要注意"
+    # シャープレシオ評価（Phase 57.7: ∞対応）
+    import math
+
+    if math.isinf(sharpe_ratio):
+        sharpe_eval = "優秀（∞）"
+    else:
+        sharpe_eval = (
+            "優秀"
+            if sharpe_ratio >= 2.0
+            else "良好" if sharpe_ratio >= 1.0 else "普通" if sharpe_ratio >= 0 else "要注意"
+        )
+    lines.append(
+        f"| シャープレシオ | {format_metric(sharpe_ratio)} | {sharpe_eval}（≥1.0で良好） |"
     )
-    lines.append(f"| シャープレシオ | {sharpe_ratio:.2f} | {sharpe_eval}（≥1.0で良好） |")
 
     # 期待値評価
     exp_eval = "良好" if expectancy > 0 else "要改善"
     lines.append(f"| 期待値 | ¥{expectancy:+,.0f} | {exp_eval}（>0で収益期待） |")
 
-    # リカバリーファクター評価
-    rf_eval = "優秀" if recovery_factor >= 3.0 else "良好" if recovery_factor >= 1.0 else "要注意"
-    lines.append(f"| リカバリーファクター | {recovery_factor:.2f} | {rf_eval}（≥1.0でDD回復） |")
+    # リカバリーファクター評価（Phase 57.7: ∞対応）
+    if math.isinf(recovery_factor):
+        rf_eval = "優秀（DD=0）"
+    else:
+        rf_eval = (
+            "優秀" if recovery_factor >= 3.0 else "良好" if recovery_factor >= 1.0 else "要注意"
+        )
+    lines.append(
+        f"| リカバリーファクター | {format_metric(recovery_factor)} | {rf_eval}（≥1.0でDD回復） |"
+    )
 
     lines.extend(
         [
@@ -249,14 +289,14 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
         ]
     )
 
-    # ソルティノレシオ
-    lines.append(f"| ソルティノレシオ | {sortino_ratio:.2f} | 下方リスク調整リターン |")
+    # ソルティノレシオ（Phase 57.7: ∞対応）
+    lines.append(f"| ソルティノレシオ | {format_metric(sortino_ratio)} | 下方リスク調整リターン |")
 
-    # カルマーレシオ
-    lines.append(f"| カルマーレシオ | {calmar_ratio:.2f} | 年率リターン/最大DD |")
+    # カルマーレシオ（Phase 57.7: ∞対応）
+    lines.append(f"| カルマーレシオ | {format_metric(calmar_ratio)} | 年率リターン/最大DD |")
 
-    # ペイオフレシオ
-    lines.append(f"| ペイオフレシオ | {payoff_ratio:.2f} | 平均勝ち/平均負け比 |")
+    # ペイオフレシオ（Phase 57.7: ∞対応）
+    lines.append(f"| ペイオフレシオ | {format_metric(payoff_ratio)} | 平均勝ち/平均負け比 |")
 
     lines.extend(
         [
@@ -278,16 +318,21 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
 
     # 自動結論生成（Phase 52.0の効果評価）
     if total_trades > 0:
-        # 収益性評価
+        # 収益性評価（Phase 57.7: ∞対応）
         profitability = "収益性あり" if total_pnl > 0 else "損失発生"
-        pf_eval = "優秀" if profit_factor >= 1.5 else "良好" if profit_factor >= 1.0 else "要改善"
+        if math.isinf(profit_factor):
+            pf_eval = "優秀（損失なし）"
+        else:
+            pf_eval = (
+                "優秀" if profit_factor >= 1.5 else "良好" if profit_factor >= 1.0 else "要改善"
+            )
         win_rate_eval = "高い" if win_rate >= 50 else "中程度" if win_rate >= 40 else "低い"
 
         lines.extend(
             [
                 f"### 総合評価: {profitability}",
                 "",
-                f"- **プロフィットファクター {profit_factor:.2f}**: {pf_eval}",
+                f"- **プロフィットファクター {format_metric(profit_factor)}**: {pf_eval}",
                 f"- **勝率 {win_rate:.1f}%**: {win_rate_eval}",
                 f"- **最大DD {max_dd_pct:.2f}%**: {'許容範囲内' if max_dd_pct < 30 else '要注意'}",
                 "",

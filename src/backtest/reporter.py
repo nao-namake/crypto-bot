@@ -273,7 +273,11 @@ class TradeTracker:
         win_rate = (len(winning_trades) / total_trades * 100) if total_trades > 0 else 0.0
 
         # プロフィットファクター
-        profit_factor = (total_profit / abs(total_loss)) if total_loss != 0 else 0.0
+        # Phase 57.7: 損失0で利益ありの場合は∞（計算不能）として扱う
+        if total_loss == 0:
+            profit_factor = float("inf") if total_profit > 0 else 0.0
+        else:
+            profit_factor = total_profit / abs(total_loss)
 
         # 最大ドローダウン計算
         max_dd, max_dd_pct = self._calculate_max_drawdown()
@@ -292,7 +296,11 @@ class TradeTracker:
         expectancy = (win_rate_decimal * avg_win) + ((1 - win_rate_decimal) * avg_loss)
 
         # リカバリーファクター（DD回復力）
-        recovery_factor = (total_profit / max_dd) if max_dd > 0 else 0.0
+        # Phase 57.7: DD=0で利益ありの場合は∞として扱う
+        if max_dd == 0:
+            recovery_factor = float("inf") if total_profit > 0 else 0.0
+        else:
+            recovery_factor = total_profit / max_dd
 
         # === 重要度: 中 ===
         # ソルティノレシオ（下方リスク調整リターン）
@@ -302,7 +310,11 @@ class TradeTracker:
         calmar_ratio = self._calculate_calmar_ratio(max_dd_pct)
 
         # ペイオフレシオ（勝ち負け比率）
-        payoff_ratio = (avg_win / abs(avg_loss)) if avg_loss != 0 else 0.0
+        # Phase 57.7: 損失0で勝ちありの場合は∞として扱う
+        if avg_loss == 0:
+            payoff_ratio = float("inf") if avg_win > 0 else 0.0
+        else:
+            payoff_ratio = avg_win / abs(avg_loss)
 
         # === 重要度: 低 ===
         # 連勝・連敗数
@@ -424,7 +436,8 @@ class TradeTracker:
         # 下方偏差（負のリターンのみ）
         negative_returns = [r for r in returns if r < 0]
         if not negative_returns:
-            return 0.0  # 負のリターンがない場合
+            # Phase 57.7: 負のリターンがなく利益がある場合は∞として扱う
+            return float("inf") if mean_return > 0 else 0.0
 
         downside_variance = sum(r**2 for r in negative_returns) / len(returns)
         downside_dev = math.sqrt(downside_variance) if downside_variance > 0 else 0.0
@@ -450,8 +463,13 @@ class TradeTracker:
         Returns:
             カルマーレシオ
         """
-        if max_dd_pct == 0 or not self.completed_trades:
+        if not self.completed_trades:
             return 0.0
+
+        # Phase 57.7: DD=0で利益ありの場合は∞として扱う
+        if max_dd_pct == 0:
+            total_pnl = sum(t.get("pnl", 0) for t in self.completed_trades)
+            return float("inf") if total_pnl > 0 else 0.0
 
         # 総リターン率（初期資金100,000円ベース）
         initial_capital = 100000.0
@@ -518,30 +536,56 @@ class TradeTracker:
 
         return (max_wins, max_losses)
 
-    def _calculate_trades_per_month(self) -> float:
+    def _calculate_trades_per_month(self, start_date=None, end_date=None) -> float:
         """
-        Phase 53: 月間取引頻度計算（重要度: 低）
+        Phase 53/57.7: 月間取引頻度計算（重要度: 低）
+
+        Phase 57.7: 期間引数を追加し、1件でも計算可能に
+
+        Args:
+            start_date: バックテスト開始日（datetime or ISO string）
+            end_date: バックテスト終了日（datetime or ISO string）
 
         Returns:
             月間平均取引数
         """
-        if len(self.completed_trades) < 2:
+        if not self.completed_trades:
             return 0.0
 
         try:
-            first_trade = self.completed_trades[0]
-            last_trade = self.completed_trades[-1]
+            # Phase 57.7: 期間から計算（1件でも計算可能）
+            days = None
 
-            first_ts = first_trade.get("entry_timestamp")
-            last_ts = last_trade.get("exit_timestamp")
+            # 引数から期間計算
+            if start_date and end_date:
+                from datetime import datetime
 
-            if first_ts and last_ts:
-                if hasattr(first_ts, "timestamp"):
-                    days = (last_ts - first_ts).days
+                start_dt = start_date
+                end_dt = end_date
+                if isinstance(start_date, str):
+                    start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+                if isinstance(end_date, str):
+                    end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+                days = (end_dt - start_dt).days
+
+            # 引数がない場合、取引データから推定
+            if days is None or days <= 0:
+                if len(self.completed_trades) >= 2:
+                    first_trade = self.completed_trades[0]
+                    last_trade = self.completed_trades[-1]
+
+                    first_ts = first_trade.get("entry_timestamp")
+                    last_ts = last_trade.get("exit_timestamp")
+
+                    if first_ts and last_ts:
+                        if hasattr(first_ts, "timestamp"):
+                            days = (last_ts - first_ts).days
+                        else:
+                            days = 180  # デフォルト
+                    else:
+                        days = 180
                 else:
-                    days = 180  # デフォルト
-            else:
-                days = 180
+                    days = 180  # 1件の場合はデフォルト
 
             months = days / 30.0 if days > 0 else 1.0
             trades_per_month = len(self.completed_trades) / months
@@ -935,6 +979,14 @@ class BacktestReporter:
 
             # レポートデータ構築
             # Phase 35.5: 型チェック追加（文字列/datetime両対応）
+            # Phase 57.7: ISO文字列をdatetimeに変換して期間計算を正確に
+            start_date_dt = start_date
+            end_date_dt = end_date
+            if isinstance(start_date, str):
+                start_date_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            if isinstance(end_date, str):
+                end_date_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+
             start_date_str = start_date if isinstance(start_date, str) else start_date.isoformat()
             end_date_str = end_date if isinstance(end_date, str) else end_date.isoformat()
 
@@ -955,13 +1007,12 @@ class BacktestReporter:
                 "backtest_info": {
                     "start_date": start_date_str,
                     "end_date": end_date_str,
+                    # Phase 57.7: 変換済みdatetimeを使用して正確な期間計算
                     "duration_days": (
-                        (end_date - start_date).days
-                        if isinstance(start_date, datetime) and isinstance(end_date, datetime)
-                        else 0
+                        (end_date_dt - start_date_dt).days if start_date_dt and end_date_dt else 0
                     ),
                     "generated_at": datetime.now().isoformat(),
-                    "phase": "Phase_54.8_ML分析追加",
+                    "phase": "Phase_57.7_レポート計算修正",
                 },
                 "execution_stats": final_stats,
                 "system_info": {
