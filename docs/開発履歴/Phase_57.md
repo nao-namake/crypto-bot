@@ -1,7 +1,7 @@
 # Phase 57 開発記録
 
-**期間**: 2025/12/29 - 2025/12/30
-**状況**: Phase 57.6 リスク最大化・年利10%目標
+**期間**: 2025/12/29 - 2026/01/01
+**状況**: Phase 57.7 設定ファイル体系整理・レポート計算修正【完了】
 
 ---
 
@@ -28,6 +28,7 @@
 | 57.4 | API遅延対策 | ✅ | API閾値緩和（3秒→10秒） |
 | 57.5 | DD 10%許容・年利5%目標 | ✅ | ポジション10倍拡大 |
 | 57.6 | リスク最大化・年利10%目標 | ✅ | ボトルネック解消・Kelly重視 |
+| 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・7件のレポートバグ修正 |
 
 ---
 
@@ -618,7 +619,7 @@ else:
 
 ---
 
-## 🔧 Phase 57.7: 設定ファイル体系整理【実装中】
+## 🔧 Phase 57.7: 設定ファイル体系整理・レポート計算修正【完了】
 
 ### 実施日: 2026/01/01
 
@@ -629,9 +630,13 @@ Phase 57.6バックテスト結果:
 - 原因: 初期残高が¥100,000のまま（¥500,000のはず）
 - 理由: `get_threshold()`が`thresholds.yaml`のみ参照し、`unified.yaml`の`mode_balances`を読めていなかった
 
-### 問題1: 設定ファイルの役割混乱
+---
 
-#### 3つの設定ファイルの正しい役割
+### Part 1: 設定ファイル体系整理
+
+#### 問題1: 設定ファイルの役割混乱
+
+##### 3つの設定ファイルの正しい役割
 
 | ファイル | 役割 | 読み込み関数 |
 |---------|------|-------------|
@@ -639,7 +644,7 @@ Phase 57.6バックテスト結果:
 | `unified.yaml` | 基本設定（残高・取引所等） | `load_config()` → `Config` |
 | `thresholds.yaml` | 動的閾値（ML・リスク等） | `get_threshold()` |
 
-#### 発生していた問題
+##### 発生していた問題
 
 `mode_balances`は`unified.yaml`に定義されているが、コードは`get_threshold()`で参照:
 ```python
@@ -649,24 +654,15 @@ self.virtual_balance = get_threshold("mode_balances.backtest.initial_balance", 1
 
 `get_threshold()`は`thresholds.yaml`のみ読み込むため、フォールバック値（¥100,000）が使用されていた。
 
-### 問題2: バックテスト取引1件の原因
+#### 問題2: バックテスト取引1件の原因
 
 1. **初期残高**: ¥100,000（本来¥500,000）
 2. **ポジションサイズ**: 残高不足で極小化（0.00006 BTC < 最小0.0001 BTC）
 3. **取引拒否**: `holdシグナルまたは無効なポジションサイズ`
 
-**1件成功の理由**: 初期残高がまだ減っていない最初のタイミングで、ML信頼度が高く、ポジションサイズがギリギリ最小値を超えた。
+#### 修正内容
 
-### 問題3: バックテストとライブの不一致
-
-| 問題 | 影響 | 優先度 |
-|------|------|--------|
-| レジーム情報取得失敗 | 常に"unknown"になる | 中 |
-| 複数の残高管理システム | 不整合発生の可能性 | 中 |
-
-### 修正計画
-
-#### 修正1: threshold_manager.py拡張（設定重複回避）
+##### threshold_manager.py拡張（設定重複回避）
 
 **方針**: `thresholds.yaml`に`mode_balances`を追加しない（重複回避）。代わりに`get_threshold()`を拡張して`unified.yaml`もフォールバック参照。
 
@@ -678,33 +674,144 @@ self.virtual_balance = get_threshold("mode_balances.backtest.initial_balance", 1
 3. **unified.yaml（新規追加）**
 4. default_value
 
-#### 修正2: レジーム情報取得修正
+```python
+def load_thresholds() -> Dict[str, Any]:
+    """閾値設定をYAMLファイルから読み込み（unified.yaml統合）"""
+    # thresholds.yaml読み込み
+    thresholds_data = yaml.safe_load(thresholds_path) or {}
 
-**ファイル**: `src/core/execution/backtest_runner.py` (行619-635)
+    # Phase 57.7: unified.yamlをフォールバックとしてマージ
+    unified_data = yaml.safe_load(unified_path) or {}
+    thresholds_data = _deep_merge(unified_data, thresholds_data)
+```
+
+---
+
+### Part 2: バックテストレポート計算バグ修正
+
+#### 発見経緯
+
+バックテスト結果ファイル `docs/検証記録/backtest_20251231.md` を分析中に、レポート生成ロジックに複数のバグを発見。これらのバグはレポートシステム導入時から存在していたが、今回初めて発見・修正。
+
+#### 発見した問題一覧
+
+| # | 問題 | 現在の値 | 正しい値 | 重要度 |
+|---|------|---------|---------|--------|
+| 1 | バックテスト期間が0日間 | 0日間 | 約180日間 | 高 |
+| 2 | プロフィットファクター | 0.00 | ∞（損失0時） | 高 |
+| 3 | リカバリーファクター | 0.00 | ∞（DD=0時） | 中 |
+| 4 | ソルティノレシオ | 0.00 | ∞（負リターンなし時） | 中 |
+| 5 | カルマーレシオ | 0.00 | ∞（DD=0時） | 中 |
+| 6 | ペイオフレシオ | 0.00 | ∞（損失0時） | 中 |
+| 7 | レジーム別制限ハードコード | 古い値 | thresholds.yaml参照 | 低 |
+
+#### 問題1: バックテスト期間が0日間
+
+**原因**: `src/backtest/reporter.py` 958-962行目
 
 ```python
-# 修正前（常にNone）
-current_features = self.precomputed_features.get(self.current_timestamp)
-
-# 修正後
-main_tf = "15m"
-if main_tf in self.precomputed_features:
-    features_df = self.precomputed_features[main_tf]
-    current_features = features_df.iloc[current_index] if current_index < len(features_df) else None
+"duration_days": (
+    (end_date - start_date).days
+    if isinstance(start_date, datetime) and isinstance(end_date, datetime)
+    else 0
+),
 ```
+
+**問題点**: `backtest_runner.py`が`start_date.isoformat()`で文字列を渡しているが、`isinstance(start_date, datetime)`が常にFalseになり0が返される。
+
+**修正**:
+```python
+# Phase 57.7: ISO文字列をdatetimeに変換
+if isinstance(start_date, str):
+    start_date_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+if isinstance(end_date, str):
+    end_date_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+```
+
+#### 問題2-6: ゼロ分母での計算問題
+
+**共通原因**: 損失0、DD0、負リターンなし等のエッジケースで一律0.0を返していた。
+
+**修正パターン**:
+```python
+# 修正前
+profit_factor = (total_profit / abs(total_loss)) if total_loss != 0 else 0.0
+
+# 修正後（Phase 57.7）
+if total_loss == 0:
+    profit_factor = float("inf") if total_profit > 0 else 0.0
+else:
+    profit_factor = total_profit / abs(total_loss)
+```
+
+同様の修正を以下に適用:
+- `recovery_factor`: DD=0で利益あり→∞
+- `sortino_ratio`: 負リターンなしで利益あり→∞
+- `calmar_ratio`: DD=0で利益あり→∞
+- `payoff_ratio`: 損失0で勝ちあり→∞
+
+#### 問題7: レジーム別エントリー制限ハードコード
+
+**原因**: `scripts/backtest/generate_markdown_report.py` 125-127行目
+
+```python
+"- tight_range: 最大1ポジション（Phase 51.8実装）",  # 古い値
+"- normal_range: 最大2ポジション",
+"- trending: 最大3ポジション",
+```
+
+**実際の設定** (thresholds.yaml):
+- tight_range: 6
+- normal_range: 4
+- trending: 2
+
+**修正**: `get_threshold()`から動的に読み込み
+```python
+f"- tight_range: 最大{get_threshold('position_limits.tight_range', 6)}ポジション",
+f"- normal_range: 最大{get_threshold('position_limits.normal_range', 4)}ポジション",
+f"- trending: 最大{get_threshold('position_limits.trending', 2)}ポジション",
+```
+
+#### ∞表示対応
+
+Markdownレポートで`float("inf")`を適切に表示するヘルパー関数を追加:
+
+```python
+def format_metric(value: float, decimals: int = 2) -> str:
+    """Phase 57.7: 指標値のフォーマット（∞対応）"""
+    import math
+    if value is None:
+        return "N/A"
+    if math.isinf(value):
+        return "∞" if value > 0 else "-∞"
+    return f"{value:.{decimals}f}"
+```
+
+---
 
 ### 修正ファイル一覧
 
 | ファイル | 修正内容 |
 |---------|---------|
 | `src/core/config/threshold_manager.py` | unified.yamlフォールバック追加 |
-| `src/core/execution/backtest_runner.py` | レジーム取得修正 |
+| `src/backtest/reporter.py` | 期間計算・PF・RF・各種リスク指標修正 |
+| `scripts/backtest/generate_markdown_report.py` | ∞表示対応・動的設定読み込み |
 
-### 期待結果
+### コミット情報
+
+```
+commit 1bf3ec5f - fix: Phase 57.7 設定ファイル体系整理・unified.yamlフォールバック
+commit a4d64792 - fix: Phase 57.8 バックテストレポート計算バグ修正
+  ※コミットメッセージは57.8となっているが、内容はPhase 57.7の一部
+```
+
+### 結果
 
 - 初期残高: ¥500,000（正しく読み込み）
-- 取引数: 約60件（Phase 57.5と同等）
-- 設定重複: なし（unified.yamlのみにmode_balances）
+- 期間計算: 正確な日数を表示
+- PF・RF等: 適切な値または∞を表示
+- レジーム制限: thresholds.yamlから動的読み込み
+- バックテスト: 実行中（Run ID: 20628142748）
 
 ---
 
@@ -734,4 +841,4 @@ if main_tf in self.precomputed_features:
 
 ---
 
-**📅 最終更新**: 2025年12月31日 - Phase 57.6 リスク最大化・年利10%目標完了
+**📅 最終更新**: 2026年1月1日 - Phase 57.7 設定ファイル体系整理・レポート計算修正完了
