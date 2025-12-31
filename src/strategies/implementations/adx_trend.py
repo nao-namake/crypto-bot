@@ -113,30 +113,16 @@ class ADXTrendStrengthStrategy(StrategyBase):
         self.dynamic_conf_low = get_threshold("strategies.adx_trend.dynamic_conf_low", 0.42)
 
         # Phase 56.9: RSI主導型レンジ逆張りモード
-        self.use_rsi_driven_mode = get_threshold(
-            "strategies.adx_trend.use_rsi_driven_mode", True
-        )
-        self.rsi_oversold_trigger = get_threshold(
-            "strategies.adx_trend.rsi_oversold_trigger", 35
-        )
+        self.use_rsi_driven_mode = get_threshold("strategies.adx_trend.use_rsi_driven_mode", True)
+        self.rsi_oversold_trigger = get_threshold("strategies.adx_trend.rsi_oversold_trigger", 35)
         self.rsi_overbought_trigger = get_threshold(
             "strategies.adx_trend.rsi_overbought_trigger", 65
         )
-        self.bb_lower_trigger = get_threshold(
-            "strategies.adx_trend.bb_lower_trigger", 0.25
-        )
-        self.bb_upper_trigger = get_threshold(
-            "strategies.adx_trend.bb_upper_trigger", 0.75
-        )
-        self.rsi_extreme_bonus = get_threshold(
-            "strategies.adx_trend.rsi_extreme_bonus", 0.10
-        )
-        self.bb_extreme_bonus = get_threshold(
-            "strategies.adx_trend.bb_extreme_bonus", 0.05
-        )
-        self.adx_falling_bonus = get_threshold(
-            "strategies.adx_trend.adx_falling_bonus", 0.05
-        )
+        self.bb_lower_trigger = get_threshold("strategies.adx_trend.bb_lower_trigger", 0.25)
+        self.bb_upper_trigger = get_threshold("strategies.adx_trend.bb_upper_trigger", 0.75)
+        self.rsi_extreme_bonus = get_threshold("strategies.adx_trend.rsi_extreme_bonus", 0.10)
+        self.bb_extreme_bonus = get_threshold("strategies.adx_trend.bb_extreme_bonus", 0.05)
+        self.adx_falling_bonus = get_threshold("strategies.adx_trend.adx_falling_bonus", 0.05)
 
         self.logger.info(
             f"ADX Trend戦略初期化完了 - 期間: {self.adx_period}, "

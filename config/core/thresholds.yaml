@@ -631,6 +631,7 @@ risk:
   fallback_min_ratio: 0.01
   fallback_stop_ratio: 0.95
   kelly_lookback_days: 30
+  kelly_max_fraction: 1.00   # Phase 57.7: Kelly最大ポジション比率（initial_position_sizeと整合）
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
   max_capital_usage: 0.5     # Phase 57: 0.3 → 0.5（資金利用率50%）

@@ -271,18 +271,17 @@ class TestPositionSizeIntegrator:
         # テスト用設定
         config = {"position_size_base": 0.02, "max_position_size": 0.05}
 
-        # 実際のインポートパスでRiskManagerをモック
-        with patch("src.strategies.utils.strategy_utils.RiskManager") as mock_risk_manager_class:
-            # calculate_position_sizeをクラスメソッドとしてモック
-            mock_risk_manager_class.calculate_position_size.return_value = 0.025
+        # Phase 57.7: 実際のRiskManagerを使用（モック削除）
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.8, risk_manager_confidence=0.7, strategy_name="test", config=config
+        )
 
-            size = self.integrator.calculate_integrated_position_size(
-                ml_confidence=0.8, risk_manager_confidence=0.7, strategy_name="test", config=config
-            )
-
-            assert size > 0
-            # より保守的な値（Kelly vs RiskManagerの小さい方）が採用される
-            assert size <= 0.025
+        assert size > 0
+        # Phase 55.5: 加重平均方式でKellyとRiskManagerを統合
+        # max_order_size(0.40)で制限
+        assert size <= 0.40  # max_order_size以下であること
+        # 最小取引単位(0.0001)以上であること
+        assert size >= 0.0001
 
 
 # テスト実行時のフィクスチャ
@@ -361,9 +360,9 @@ class TestKellyCriterionAdvanced:
         """Kelly履歴不足時の固定サイズテスト."""
         # 取引履歴なし（min_trades_for_kelly=5未満）
         size = self.kelly.calculate_optimal_size(ml_confidence=0.8)
-        # 初期固定サイズが返される
+        # 初期固定サイズが返される（max_position_ratio=0.03で制限）
         assert size > 0
-        assert size <= 0.02  # max_order_size制限内
+        assert size <= self.kelly.max_position_ratio  # Phase 57.7: max_position_ratio制限
 
         # 取引履歴を3件追加（まだmin_trades_for_kelly未満）
         for _i in range(3):

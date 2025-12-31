@@ -618,6 +618,96 @@ else:
 
 ---
 
+## 🔧 Phase 57.7: 設定ファイル体系整理【実装中】
+
+### 実施日: 2026/01/01
+
+### 背景
+
+Phase 57.6バックテスト結果:
+- 取引数: **1件**（本来60件程度）
+- 原因: 初期残高が¥100,000のまま（¥500,000のはず）
+- 理由: `get_threshold()`が`thresholds.yaml`のみ参照し、`unified.yaml`の`mode_balances`を読めていなかった
+
+### 問題1: 設定ファイルの役割混乱
+
+#### 3つの設定ファイルの正しい役割
+
+| ファイル | 役割 | 読み込み関数 |
+|---------|------|-------------|
+| `features.yaml` | 機能オンオフ | `load_features_config()` |
+| `unified.yaml` | 基本設定（残高・取引所等） | `load_config()` → `Config` |
+| `thresholds.yaml` | 動的閾値（ML・リスク等） | `get_threshold()` |
+
+#### 発生していた問題
+
+`mode_balances`は`unified.yaml`に定義されているが、コードは`get_threshold()`で参照:
+```python
+# ExecutionService (executor.py:84)
+self.virtual_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+```
+
+`get_threshold()`は`thresholds.yaml`のみ読み込むため、フォールバック値（¥100,000）が使用されていた。
+
+### 問題2: バックテスト取引1件の原因
+
+1. **初期残高**: ¥100,000（本来¥500,000）
+2. **ポジションサイズ**: 残高不足で極小化（0.00006 BTC < 最小0.0001 BTC）
+3. **取引拒否**: `holdシグナルまたは無効なポジションサイズ`
+
+**1件成功の理由**: 初期残高がまだ減っていない最初のタイミングで、ML信頼度が高く、ポジションサイズがギリギリ最小値を超えた。
+
+### 問題3: バックテストとライブの不一致
+
+| 問題 | 影響 | 優先度 |
+|------|------|--------|
+| レジーム情報取得失敗 | 常に"unknown"になる | 中 |
+| 複数の残高管理システム | 不整合発生の可能性 | 中 |
+
+### 修正計画
+
+#### 修正1: threshold_manager.py拡張（設定重複回避）
+
+**方針**: `thresholds.yaml`に`mode_balances`を追加しない（重複回避）。代わりに`get_threshold()`を拡張して`unified.yaml`もフォールバック参照。
+
+**ファイル**: `src/core/config/threshold_manager.py`
+
+`get_threshold()`の優先順位を拡張:
+1. 実行時オーバーライド
+2. thresholds.yaml
+3. **unified.yaml（新規追加）**
+4. default_value
+
+#### 修正2: レジーム情報取得修正
+
+**ファイル**: `src/core/execution/backtest_runner.py` (行619-635)
+
+```python
+# 修正前（常にNone）
+current_features = self.precomputed_features.get(self.current_timestamp)
+
+# 修正後
+main_tf = "15m"
+if main_tf in self.precomputed_features:
+    features_df = self.precomputed_features[main_tf]
+    current_features = features_df.iloc[current_index] if current_index < len(features_df) else None
+```
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/core/config/threshold_manager.py` | unified.yamlフォールバック追加 |
+| `src/core/execution/backtest_runner.py` | レジーム取得修正 |
+
+### 期待結果
+
+- 初期残高: ¥500,000（正しく読み込み）
+- 取引数: 約60件（Phase 57.5と同等）
+- 設定重複: なし（unified.yamlのみにmode_balances）
+
+---
+
 ## 📝 学習事項
 
 1. **レバレッジ計算の重要性**: バックテストと実運用で一致させる必要あり
@@ -628,6 +718,8 @@ else:
 6. **リスクコンポーネント正規化の重要性**: min(1.0, ...)でキャップしないと予期しない高スコアが発生
 7. **Enum値のログ出力**: `.value`属性を使用して文字列値を取得する必要がある
 8. **API閾値の適正化**: 実測値に基づいた閾値設定が必要（過度に厳しい閾値は正常なトレードを拒否する）
+9. **設定ファイル役割の分離**: `features.yaml`（機能）/ `unified.yaml`（基本設定）/ `thresholds.yaml`（動的閾値）を明確に分離し、読み込み関数を正しく使い分ける
+10. **設定読み込みの優先順位**: `get_threshold()`で`unified.yaml`をフォールバック参照することで、設定の重複を避けつつ柔軟性を確保
 
 ---
 

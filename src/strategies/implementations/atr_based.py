@@ -240,7 +240,9 @@ class ATRBasedStrategy(StrategyBase):
         decision = {
             "action": action,
             "confidence": confidence,
-            "strength": 1.0 - bb_check["position"] if action == EntryAction.BUY else bb_check["position"],
+            "strength": (
+                1.0 - bb_check["position"] if action == EntryAction.BUY else bb_check["position"]
+            ),
             "analysis": analysis,
         }
 
@@ -265,11 +267,23 @@ class ATRBasedStrategy(StrategyBase):
             rsi_lower = self.config["rsi_lower"]
 
             if expected_direction == "BUY" and current_rsi < rsi_lower:
-                return {"confirms": True, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f} < {rsi_lower}"}
+                return {
+                    "confirms": True,
+                    "rsi": current_rsi,
+                    "reason": f"RSI={current_rsi:.1f} < {rsi_lower}",
+                }
             elif expected_direction == "SELL" and current_rsi > rsi_upper:
-                return {"confirms": True, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f} > {rsi_upper}"}
+                return {
+                    "confirms": True,
+                    "rsi": current_rsi,
+                    "reason": f"RSI={current_rsi:.1f} > {rsi_upper}",
+                }
             else:
-                return {"confirms": False, "rsi": current_rsi, "reason": f"RSI={current_rsi:.1f}（中間）"}
+                return {
+                    "confirms": False,
+                    "rsi": current_rsi,
+                    "reason": f"RSI={current_rsi:.1f}（中間）",
+                }
 
         except Exception as e:
             self.logger.error(f"RSI確認エラー: {e}")

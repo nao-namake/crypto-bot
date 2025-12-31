@@ -376,39 +376,35 @@ class TestGetActualBalance:
     """残高取得機能テスト"""
 
     @pytest.mark.asyncio
-    @patch("src.core.config.load_config")
-    async def test_get_actual_balance_paper_mode(self, mock_load_config, mock_logger):
+    @patch("src.core.orchestration.orchestrator.get_threshold")
+    async def test_get_actual_balance_paper_mode(self, mock_get_threshold, mock_logger):
         """ペーパーモード時はAPI呼び出しスキップ"""
         mock_config = Mock()
         mock_config.mode = "paper"
 
-        # unified.yamlモック
-        unified_config = Mock()
-        unified_config.mode_balances = {"paper": {"initial_balance": 100000.0}}
-        mock_load_config.return_value = unified_config
+        # Phase 57.7: get_thresholdモック（unified.yamlから取得）
+        mock_get_threshold.return_value = 500000.0
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 100000.0
+        assert balance == 500000.0
         mock_logger.info.assert_any_call(
             "📝 ペーパーモード: API呼び出しをスキップ、mode_balances残高使用"
         )
 
     @pytest.mark.asyncio
-    @patch("src.core.config.load_config")
-    async def test_get_actual_balance_backtest_mode(self, mock_load_config, mock_logger):
+    @patch("src.core.orchestration.orchestrator.get_threshold")
+    async def test_get_actual_balance_backtest_mode(self, mock_get_threshold, mock_logger):
         """バックテストモード時はAPI呼び出しスキップ"""
         mock_config = Mock()
         mock_config.mode = "backtest"
 
-        # unified.yamlモック
-        unified_config = Mock()
-        unified_config.mode_balances = {"backtest": {"initial_balance": 100000.0}}
-        mock_load_config.return_value = unified_config
+        # Phase 57.7: get_thresholdモック（unified.yamlから取得）
+        mock_get_threshold.return_value = 500000.0
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 100000.0
+        assert balance == 500000.0
         mock_logger.info.assert_any_call(
             "📝 バックテストモード: API呼び出しをスキップ、mode_balances残高使用"
         )
@@ -434,19 +430,17 @@ class TestGetActualBalance:
         mock_logger.info.assert_any_call("✅ Bitbank実残高取得成功: 15,000円")
 
     @pytest.mark.asyncio
-    @patch("src.core.config.load_config")
+    @patch("src.core.orchestration.orchestrator.get_threshold")
     @patch("src.data.bitbank_client.BitbankClient")
     async def test_get_actual_balance_live_mode_zero_balance(
-        self, mock_bitbank_class, mock_load_config, mock_logger
+        self, mock_bitbank_class, mock_get_threshold, mock_logger
     ):
         """ライブモード時の残高0円時のフォールバック"""
         mock_config = Mock()
         mock_config.mode = "live"
 
-        # unified.yamlモック
-        unified_config = Mock()
-        unified_config.mode_balances = {"live": {"initial_balance": 100000.0}}
-        mock_load_config.return_value = unified_config
+        # Phase 57.7: get_thresholdモック（unified.yamlから取得）
+        mock_get_threshold.return_value = 500000.0
 
         # BitbankClient モック（残高0円）
         mock_client = Mock()
@@ -455,14 +449,14 @@ class TestGetActualBalance:
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 100000.0
+        assert balance == 500000.0
         mock_logger.warning.assert_any_call("⚠️ Bitbank残高が0円以下（0.0円）、mode_balances値使用")
 
     @pytest.mark.asyncio
-    @patch("src.core.config.load_config")
+    @patch("src.core.orchestration.orchestrator.get_threshold")
     @patch("src.data.bitbank_client.BitbankClient")
     async def test_get_actual_balance_api_error(
-        self, mock_bitbank_class, mock_load_config, mock_logger
+        self, mock_bitbank_class, mock_get_threshold, mock_logger
     ):
         """API認証エラー時のフォールバック"""
         from src.core.exceptions import ExchangeAPIError
@@ -470,10 +464,8 @@ class TestGetActualBalance:
         mock_config = Mock()
         mock_config.mode = "live"
 
-        # unified.yamlモック
-        unified_config = Mock()
-        unified_config.mode_balances = {"live": {"initial_balance": 100000.0}}
-        mock_load_config.return_value = unified_config
+        # Phase 57.7: get_thresholdモック（unified.yamlから取得）
+        mock_get_threshold.return_value = 500000.0
 
         # BitbankClient モック（API Error）
         mock_client = Mock()
@@ -482,8 +474,8 @@ class TestGetActualBalance:
 
         balance = await _get_actual_balance(mock_config, mock_logger)
 
-        assert balance == 100000.0
-        mock_logger.warning.assert_any_call("💰 認証エラーのためmode_balances残高使用: 100000.0円")
+        assert balance == 500000.0
+        mock_logger.warning.assert_any_call("💰 認証エラーのためmode_balances残高使用: 500000.0円")
 
 
 class TestCreateTradingOrchestrator:

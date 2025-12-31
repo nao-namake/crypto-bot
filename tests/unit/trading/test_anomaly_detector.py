@@ -678,24 +678,26 @@ def test_realistic_anomaly_scenario():
     assert len(normal_alerts) == 0
 
     # 徐々に悪化する市場状況
+    # Phase 57.7: API遅延閾値がPhase 57.4で変更（1秒→5秒）
     warning_alerts = detector.comprehensive_anomaly_check(
         bid=50000,
         ask=50200,
         last_price=50100,  # 警告スプレッド
         volume=1000,
-        api_latency_ms=1200,  # 警告遅延
+        api_latency_ms=6000,  # 警告遅延（5秒以上で警告）
         market_data=market_data,
     )
     assert len(warning_alerts) == 2
     assert all(alert.level == AnomalyLevel.WARNING for alert in warning_alerts)
 
     # 危険な市場状況
+    # Phase 57.7: API遅延閾値がPhase 57.4で変更（3秒→10秒）
     critical_alerts = detector.comprehensive_anomaly_check(
         bid=50000,
         ask=50300,
         last_price=50150,  # 重大スプレッド
         volume=1000,
-        api_latency_ms=4000,  # 重大遅延
+        api_latency_ms=11000,  # 重大遅延（10秒以上で危険）
         market_data=market_data,
     )
     assert len(critical_alerts) >= 2

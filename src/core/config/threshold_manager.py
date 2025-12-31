@@ -1,7 +1,11 @@
 """
-閾値設定管理システム - Phase 49完了
+閾値設定管理システム - Phase 57.7完了
 
 thresholds.yaml統合管理・8専用アクセス関数・実行時オーバーライド対応
+
+Phase 57.7:
+- unified.yamlをフォールバックとしてマージ（設定重複回避）
+- 優先順位: 実行時オーバーライド > thresholds.yaml > unified.yaml > default_value
 
 Phase 49完了:
 - get_threshold(): 階層キーアクセス（"position_management.stop_loss.max_loss_ratio"）
@@ -26,37 +30,86 @@ _thresholds_cache: Dict[str, Any] = None
 _runtime_overrides: Dict[str, Any] = {}
 
 
+def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Phase 57.7: 辞書の深いマージ
+
+    baseの値をoverrideの値で上書き。overrideに存在しないキーはbaseの値を保持。
+
+    Args:
+        base: ベース辞書（unified.yaml）
+        override: 上書き辞書（thresholds.yaml）
+
+    Returns:
+        マージ済み辞書
+    """
+    result = copy.deepcopy(base)
+
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # 両方とも辞書の場合は再帰的にマージ
+            result[key] = _deep_merge(result[key], value)
+        else:
+            # それ以外はoverrideの値で上書き
+            result[key] = copy.deepcopy(value)
+
+    return result
+
+
 def load_thresholds() -> Dict[str, Any]:
-    """閾値設定をYAMLファイルから読み込み."""
+    """
+    閾値設定をYAMLファイルから読み込み（Phase 57.7: unified.yaml統合）
+
+    読み込み優先順位:
+    1. thresholds.yaml（動的閾値）
+    2. unified.yaml（基本設定・フォールバック）
+
+    Returns:
+        マージ済み設定辞書
+    """
     global _thresholds_cache
 
     if _thresholds_cache is not None:
         return _thresholds_cache
 
-    thresholds_path = Path("config/core/thresholds.yaml")
+    merged_config = {}
 
+    # Phase 57.7: まずunified.yamlをベースとして読み込み
+    unified_path = Path("config/core/unified.yaml")
+    try:
+        if unified_path.exists():
+            with open(unified_path, "r", encoding="utf-8") as f:
+                unified_data = yaml.safe_load(f) or {}
+                merged_config = unified_data
+    except Exception as e:
+        print(f"⚠️ unified.yaml読み込みエラー（続行）: {e}")
+
+    # thresholds.yamlで上書き（優先）
+    thresholds_path = Path("config/core/thresholds.yaml")
     try:
         if thresholds_path.exists():
             with open(thresholds_path, "r", encoding="utf-8") as f:
-                _thresholds_cache = yaml.safe_load(f) or {}
+                thresholds_data = yaml.safe_load(f) or {}
+                # thresholds.yamlの値で上書き
+                merged_config = _deep_merge(merged_config, thresholds_data)
         else:
             print(f"⚠️ 閾値設定ファイルが存在しません: {thresholds_path}")
-            _thresholds_cache = {}
     except Exception as e:
         print(f"⚠️ 閾値設定読み込みエラー: {e}")
-        _thresholds_cache = {}
 
+    _thresholds_cache = merged_config
     return _thresholds_cache
 
 
 def get_threshold(key_path: str, default_value: Any = None) -> Any:
     """
-    階層キーで閾値設定を取得（Phase 40.1: 実行時オーバーライド対応）
+    階層キーで閾値設定を取得（Phase 57.7: unified.yamlフォールバック対応）
 
     優先順位:
     1. 実行時オーバーライド（Optuna最適化時）
     2. thresholds.yaml設定値
-    3. default_value
+    3. unified.yaml設定値（Phase 57.7追加）
+    4. default_value
 
     Args:
         key_path: ドット記法のキー（例: "ml.default_confidence"）
@@ -68,8 +121,8 @@ def get_threshold(key_path: str, default_value: Any = None) -> Any:
     Examples:
         >>> get_threshold("ml.default_confidence", 0.5)
         0.5
-        >>> get_threshold("trading.default_balance_jpy", 1000000.0)
-        1000000.0
+        >>> get_threshold("mode_balances.backtest.initial_balance", 100000.0)
+        500000.0  # Phase 57.7: unified.yamlから取得
     """
     # Phase 40.1: 実行時オーバーライドを最優先でチェック
     if key_path in _runtime_overrides:

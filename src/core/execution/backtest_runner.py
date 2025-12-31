@@ -617,18 +617,19 @@ class BacktestRunner(BaseRunner):
                                     and self.orchestrator.backtest_reporter
                                 ):
                                     # Phase 51.8-J4-G: レジーム情報取得（エントリー時点の市場状況）
+                                    # Phase 57.7: 修正 - precomputed_featuresはタイムフレームでキー化
                                     regime_str = "unknown"
                                     try:
-                                        # 現在時点までの特徴量データを取得してregime分類
-                                        current_features = self.precomputed_features.get(
-                                            self.current_timestamp
-                                        )
-                                        if current_features is not None:
-                                            # 現在時点のデータフレームを構築（最低限の必要カラム）
-                                            regime = self.regime_classifier.classify(
-                                                current_features
-                                            )
-                                            regime_str = regime.value
+                                        main_tf = self.timeframes[0] if self.timeframes else "15m"
+                                        if main_tf in self.precomputed_features:
+                                            features_df = self.precomputed_features[main_tf]
+                                            if i < len(features_df):
+                                                current_features = features_df.iloc[i]
+                                                # 現在時点のデータで regime分類
+                                                regime = self.regime_classifier.classify(
+                                                    current_features
+                                                )
+                                                regime_str = regime.value
                                     except Exception as regime_error:
                                         self.logger.debug(
                                             f"⚠️ レジーム分類エラー（デフォルト'unknown'使用）: {regime_error}"
@@ -828,7 +829,9 @@ class BacktestRunner(BaseRunner):
                     try:
                         # Phase 57: 証拠金返還（エントリー時に控除した証拠金を戻す）
                         entry_order_total = entry_price * amount
-                        margin_to_return = entry_order_total / 2  # エントリー時の証拠金（2倍レバレッジ）
+                        margin_to_return = (
+                            entry_order_total / 2
+                        )  # エントリー時の証拠金（2倍レバレッジ）
                         current_balance = self.orchestrator.execution_service.virtual_balance
                         self.orchestrator.execution_service.virtual_balance += margin_to_return
 
@@ -989,7 +992,9 @@ class BacktestRunner(BaseRunner):
                     # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
                     # Phase 57: 証拠金返還処理
                     entry_order_total = entry_price * amount
-                    margin_to_return = entry_order_total / 2  # エントリー時の証拠金（2倍レバレッジ）
+                    margin_to_return = (
+                        entry_order_total / 2
+                    )  # エントリー時の証拠金（2倍レバレッジ）
                     current_balance = self.orchestrator.execution_service.virtual_balance
                     self.orchestrator.execution_service.virtual_balance += margin_to_return
 

@@ -38,13 +38,13 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 56.4: 全戦略に適切な重み配分（取引数増加対策）
-        assert weights["BBReversal"] == 0.25  # PF 1.32（最高PF）
-        assert weights["StochasticReversal"] == 0.25  # PF 1.25（Divergence特化）
+        # Phase 56.9: トレンド型戦略をレンジ相場で無効化
+        assert weights["BBReversal"] == 0.35  # PF 1.32（最高PF）
+        assert weights["StochasticReversal"] == 0.35  # PF 1.25（Divergence特化）
         assert weights["ATRBased"] == 0.20  # PF 1.16（消尽率ロジック）
-        assert weights["ADXTrendStrength"] == 0.15  # PF 1.05（Phase 55.6でレンジ型に変換済み）
         assert weights["DonchianChannel"] == 0.10  # PF 1.00（損益分岐）
-        assert weights["MACDEMACrossover"] == 0.05  # PF 1.50（トレンド型・最小限）
+        assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
+        assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
@@ -56,7 +56,7 @@ class TestDynamicStrategySelector:
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
 
-        # normal_rangeはバランス型配分（全6戦略使用）
+        # normal_rangeは全6戦略を含む（トレンド型は0.0）
         assert "ATRBased" in weights
         assert "BBReversal" in weights
         assert "DonchianChannel" in weights
@@ -64,13 +64,13 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # 全戦略が正の重み（バランス型）
+        # Phase 56.9: レンジ型戦略が正の重み（トレンド型は0.0）
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] > 0
         assert weights["DonchianChannel"] > 0
         assert weights["StochasticReversal"] > 0
-        assert weights["ADXTrendStrength"] > 0
-        assert weights["MACDEMACrossover"] > 0
+        assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
+        assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)

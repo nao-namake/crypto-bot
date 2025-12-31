@@ -344,10 +344,10 @@ class TestExecuteTradeLiveMode:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_success_market_order(
+    async def test_live_trade_success_limit_order(
         self, mock_discord, sample_evaluation, mock_bitbank_client
     ):
-        """ライブ成行注文成功テスト"""
+        """ライブ指値注文成功テスト（デフォルト指値注文）"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         result = await service.execute_trade(sample_evaluation)
@@ -356,7 +356,8 @@ class TestExecuteTradeLiveMode:
         assert result.success is True
         assert result.mode == ExecutionMode.LIVE
         assert result.order_id == "order_123"
-        assert result.status == OrderStatus.FILLED
+        # Phase 57.7: デフォルトで指値注文を使用するためSUBMITTEDステータス
+        assert result.status == OrderStatus.SUBMITTED
         assert service.executed_trades == 1
         assert service.last_order_time is not None
 
@@ -972,13 +973,17 @@ class TestModeSpecificBehavior:
 class TestInitializationModes:
     """初期化モード別テスト"""
 
-    def test_paper_mode_initialization(self):
+    @patch("src.trading.execution.executor.get_threshold")
+    def test_paper_mode_initialization(self, mock_get_threshold):
         """ペーパーモード初期化テスト"""
+        # Phase 57.7: get_thresholdをモック（unified.yamlから読み込み）
+        mock_get_threshold.return_value = 500000.0
+
         service = ExecutionService(mode="paper")
 
         assert service.mode == "paper"
         assert service.discord_notifier is None
-        assert service.virtual_balance == 100000.0  # Phase 55.12: デフォルト初期残高10万円
+        assert service.virtual_balance == 500000.0  # Phase 57.7: unified.yamlから読み込み
 
     @patch("src.trading.execution.executor.DiscordManager")
     def test_live_mode_initialization(self, mock_discord):

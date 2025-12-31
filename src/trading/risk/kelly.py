@@ -293,9 +293,11 @@ class KellyCriterion:
                     # Phase 56: 履歴不足時は設定値を使用（フォールバック0.0005に修正）
                     fixed_initial_size = get_threshold("trading.initial_position_size", 0.0005)
 
-                    # max_order_size制限チェック
+                    # Phase 57.7: max_order_size・max_position_ratio両方で制限
                     max_order_size = get_threshold("production.max_order_size", 0.03)
-                    fixed_initial_size = min(fixed_initial_size, max_order_size)
+                    fixed_initial_size = min(
+                        fixed_initial_size, max_order_size, self.max_position_ratio
+                    )
 
                     self.logger.info(
                         f"Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
