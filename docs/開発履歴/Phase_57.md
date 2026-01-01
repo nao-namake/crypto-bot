@@ -1,7 +1,7 @@
 # Phase 57 開発記録
 
-**期間**: 2025/12/29 - 2026/01/01
-**状況**: Phase 57.7 設定ファイル体系整理・レポート計算修正【完了】
+**期間**: 2025/12/29 - 2026/01/02
+**状況**: Phase 57.10 バックテストDrawdownManagerタイムスタンプバグ修正【完了】
 
 ---
 
@@ -29,6 +29,7 @@
 | 57.5 | DD 10%許容・年利5%目標 | ✅ | ポジション10倍拡大 |
 | 57.6 | リスク最大化・年利10%目標 | ✅ | ボトルネック解消・Kelly重視 |
 | 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・7件のレポートバグ修正 |
+| 57.10 | バックテストDrawdownManagerタイムスタンプバグ修正 | ✅ | IntegratedRiskManagerのDD時刻処理修正 |
 
 ---
 
@@ -815,6 +816,149 @@ commit a4d64792 - fix: Phase 57.8 バックテストレポート計算バグ修�
 
 ---
 
+## 🐛 Phase 57.10: バックテストDrawdownManagerタイムスタンプバグ修正【完了】
+
+### 実施日: 2026/01/02
+
+### 背景
+
+Phase 57.7（設定整理）完了後のバックテスト結果:
+- **12/30実行**: 58件の取引成功
+- **01/01実行**: わずか5件の取引（93%減少）
+
+同一設定でバックテストを実行しても、取引数が激減する問題が発生。
+
+### 問題分析
+
+#### ログ比較
+
+| 日付 | 取引数 | 維持率拒否 | paused_drawdown拒否 |
+|------|--------|----------|-------------------|
+| 12/30 | 58件 | 4,125件 | **0件** |
+| 01/01 | 5件 | 30件 | **9,721件** |
+
+**発見**: 01/01は`paused_drawdown`によるエントリー拒否が9,721件発生していた。
+
+#### 矛盾点
+
+```
+連続損失更新: 2/8  ← 閾値8に未到達
+DD: 0.17%         ← 閾値20%に未到達（1%未満）
+クールダウン開始: paused_drawdown  ← なぜか発動！
+```
+
+どちらの条件も閾値に達していないのに`paused_drawdown`が発動。
+
+### 根本原因
+
+**IntegratedRiskManagerのDrawdownManagerがバックテストタイムスタンプを使用していなかった**
+
+バックテストでは2つのDrawdownManagerが存在:
+
+| インスタンス | 場所 | タイムスタンプ処理 |
+|------------|------|-----------------|
+| backtest_runner | line 1362 | ✅ シミュレート時刻使用 |
+| IntegratedRiskManager | line 117 | ❌ `datetime.now()`（実時刻）使用 |
+
+#### 問題のコード（修正前）
+
+```python
+# src/trading/risk/manager.py
+
+# 問題1: check_trading_allowed() (line 199)
+trading_allowed = self.drawdown_manager.check_trading_allowed()  # current_timeなし
+
+# 問題2: record_trade_result() (line 449-451)
+self.drawdown_manager.record_trade_result(
+    profit_loss=profit_loss, strategy=strategy_name
+)  # current_timeなし
+```
+
+#### バグの影響
+
+1. 損失発生 → `record_trade_result()`が`datetime.now()`（実時刻: 2026-01-02 14:00）でクールダウン設定
+2. クールダウン終了時刻 = 2026-01-02 20:00（6時間後）
+3. 次の取引チェック → `check_trading_allowed()`も`datetime.now()`を使用
+4. バックテスト実行中（数分間）は実時刻が進まない
+5. **6時間のクールダウンが解除されず、残り全ての取引がブロック**
+
+#### 追加発見: 連敗制限デフォルト値の不一致
+
+| ファイル | デフォルト値 |
+|---------|------------|
+| `manager.py:119` | 5 |
+| `drawdown.py:73` | 8 |
+| `thresholds.yaml` | 8 |
+
+`manager.py`のデフォルト5が`thresholds.yaml`の8と不一致。
+
+### 修正内容
+
+#### 1. タイムスタンプ引き渡し修正
+
+**ファイル**: `src/trading/risk/manager.py`
+
+```python
+# 修正1: check_trading_allowed() (line 199-200)
+# Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
+trading_allowed = self.drawdown_manager.check_trading_allowed(reference_timestamp)
+
+# 修正2: record_trade_result() (line 449-452)
+# Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
+self.drawdown_manager.record_trade_result(
+    profit_loss=profit_loss, strategy=strategy_name, current_time=timestamp
+)
+```
+
+#### 2. 連敗制限デフォルト値統一
+
+```python
+# 修正前 (line 119)
+consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
+
+# 修正後 (Phase 57.10)
+# Phase 57.10: デフォルト値をthresholds.yaml (8回) と統一
+consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 8),
+```
+
+### 追加調査結果
+
+他のコンポーネントに同様のバグがないか調査:
+
+| コンポーネント | 状態 | 備考 |
+|--------------|------|------|
+| Kelly基準 | ✅ | `reference_timestamp`を正しく使用 (line 185) |
+| `update_balance` | ✅ | 時刻処理不要（残高更新のみ） |
+| Anomaly検出 | ✅ | バックテストへの影響軽微 |
+| backtest_runner | ✅ | シミュレート時刻を正しく使用 |
+
+→ **他に同様のバグは発見されなかった**
+
+### 修正ファイル一覧
+
+| ファイル | 行 | 修正内容 |
+|---------|-----|---------|
+| `src/trading/risk/manager.py` | 199-200 | `check_trading_allowed(reference_timestamp)` |
+| `src/trading/risk/manager.py` | 449-452 | `record_trade_result(..., current_time=timestamp)` |
+| `src/trading/risk/manager.py` | 119 | デフォルト連敗制限: 5→8 |
+
+### テスト結果
+
+```
+= 1195 passed, 36 skipped, 12 xfailed, 1 xpassed =
+Coverage: 62.49%
+```
+
+全テスト成功。
+
+### 期待効果
+
+- バックテスト取引数: 5件 → 58件程度に回復
+- DrawdownManagerがシミュレート時刻で正しく動作
+- 12/30と01/01で同等の結果が得られるはず
+
+---
+
 ## 📝 学習事項
 
 1. **レバレッジ計算の重要性**: バックテストと実運用で一致させる必要あり
@@ -827,6 +971,8 @@ commit a4d64792 - fix: Phase 57.8 バックテストレポート計算バグ修�
 8. **API閾値の適正化**: 実測値に基づいた閾値設定が必要（過度に厳しい閾値は正常なトレードを拒否する）
 9. **設定ファイル役割の分離**: `features.yaml`（機能）/ `unified.yaml`（基本設定）/ `thresholds.yaml`（動的閾値）を明確に分離し、読み込み関数を正しく使い分ける
 10. **設定読み込みの優先順位**: `get_threshold()`で`unified.yaml`をフォールバック参照することで、設定の重複を避けつつ柔軟性を確保
+11. **バックテストでの時刻処理**: 複数のコンポーネントがDrawdownManagerを持つ場合、全てにシミュレート時刻を渡す必要がある。`datetime.now()`を使うと実時刻とシミュレート時刻の混同でクールダウンが永続化する
+12. **デフォルト値の統一**: 同じ設定項目のデフォルト値は全ファイルで統一する（例: consecutive_loss_limit 5 vs 8）
 
 ---
 
@@ -841,4 +987,4 @@ commit a4d64792 - fix: Phase 57.8 バックテストレポート計算バグ修�
 
 ---
 
-**📅 最終更新**: 2026年1月1日 - Phase 57.7 設定ファイル体系整理・レポート計算修正完了
+**📅 最終更新**: 2026年1月2日 - Phase 57.10 バックテストDrawdownManagerタイムスタンプバグ修正完了

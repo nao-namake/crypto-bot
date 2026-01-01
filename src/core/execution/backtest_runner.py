@@ -535,12 +535,14 @@ class BacktestRunner(BaseRunner):
 
         # Phase 57.9: 初期残高記録
         initial_balance = self.orchestrator.execution_service.virtual_balance
-        self.balance_history.append({
-            "timestamp": main_data.index[self.lookback_window].isoformat(),
-            "balance": initial_balance,
-            "event": "初期残高",
-            "details": None,
-        })
+        self.balance_history.append(
+            {
+                "timestamp": main_data.index[self.lookback_window].isoformat(),
+                "balance": initial_balance,
+                "event": "初期残高",
+                "details": None,
+            }
+        )
         self.logger.warning(f"💰 Phase 57.9: 初期残高 ¥{initial_balance:,.0f}")
 
         try:
@@ -680,13 +682,17 @@ class BacktestRunner(BaseRunner):
                                     )
 
                                     # Phase 57.9: エントリー時の残高記録
-                                    current_balance = self.orchestrator.execution_service.virtual_balance
-                                    self.balance_history.append({
-                                        "timestamp": self.current_timestamp.isoformat(),
-                                        "balance": current_balance,
-                                        "event": "エントリー",
-                                        "details": f"{position.get('side')} {position.get('amount'):.6f} BTC @ ¥{position.get('price'):,.0f}",
-                                    })
+                                    current_balance = (
+                                        self.orchestrator.execution_service.virtual_balance
+                                    )
+                                    self.balance_history.append(
+                                        {
+                                            "timestamp": self.current_timestamp.isoformat(),
+                                            "balance": current_balance,
+                                            "event": "エントリー",
+                                            "details": f"{position.get('side')} {position.get('amount'):.6f} BTC @ ¥{position.get('price'):,.0f}",
+                                        }
+                                    )
 
                     except Exception as e:
                         self.logger.warning(f"⚠️ 取引サイクルエラー ({self.current_timestamp}): {e}")
@@ -738,17 +744,23 @@ class BacktestRunner(BaseRunner):
 
             # Phase 57.9: 最終残高記録
             final_balance = self.orchestrator.execution_service.virtual_balance
-            self.balance_history.append({
-                "timestamp": str(self.current_timestamp) if self.current_timestamp else "end",
-                "balance": final_balance,
-                "event": "最終残高",
-                "details": None,
-            })
-            self.logger.warning(f"💰 Phase 57.9: 最終残高 ¥{final_balance:,.0f} (初期: ¥{initial_balance:,.0f}, 損益: ¥{final_balance - initial_balance:+,.0f})")
+            self.balance_history.append(
+                {
+                    "timestamp": str(self.current_timestamp) if self.current_timestamp else "end",
+                    "balance": final_balance,
+                    "event": "最終残高",
+                    "details": None,
+                }
+            )
+            self.logger.warning(
+                f"💰 Phase 57.9: 最終残高 ¥{final_balance:,.0f} (初期: ¥{initial_balance:,.0f}, 損益: ¥{final_balance - initial_balance:+,.0f})"
+            )
 
             # Phase 57.9: 残高推移サマリー出力
             if len(self.balance_history) > 2:
-                self.logger.warning(f"📊 Phase 57.9: 残高推移イベント数 {len(self.balance_history)}件")
+                self.logger.warning(
+                    f"📊 Phase 57.9: 残高推移イベント数 {len(self.balance_history)}件"
+                )
 
             # 最終レポート生成保証は run() メソッドで実施（既存ロジック維持）
             self.logger.warning(
@@ -929,12 +941,14 @@ class BacktestRunner(BaseRunner):
                         )
 
                         # Phase 57.9: 決済時の残高記録
-                        self.balance_history.append({
-                            "timestamp": str(timestamp),
-                            "balance": new_balance,
-                            "event": f"{trigger_type}決済",
-                            "details": f"PnL: ¥{pnl:+,.0f}",
-                        })
+                        self.balance_history.append(
+                            {
+                                "timestamp": str(timestamp),
+                                "balance": new_balance,
+                                "event": f"{trigger_type}決済",
+                                "details": f"PnL: ¥{pnl:+,.0f}",
+                            }
+                        )
 
                         # 6. ポジション削除（Phase 51.8-J4-A: ゴーストポジションバグ修正）
                         # position_trackerとexecutor.virtual_positionsの両方から削除

@@ -112,10 +112,11 @@ class IntegratedRiskManager:
             self.position_integrator = PositionSizeIntegrator(self.kelly)
 
             # ドローダウン管理
+            # Phase 57.10: デフォルト値をthresholds.yaml (8回) と統一
             drawdown_config = config.get("drawdown_manager", {})
             self.drawdown_manager = DrawdownManager(
                 max_drawdown_ratio=drawdown_config.get("max_drawdown_ratio", 0.20),
-                consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
+                consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 8),
                 cooldown_hours=drawdown_config.get("cooldown_hours", 6),  # Phase 55.12: 6時間
                 config=drawdown_config,
                 mode=self.mode,
@@ -196,7 +197,8 @@ class IntegratedRiskManager:
             volume = float(market_data["volume"].iloc[-1])
 
             # 1. ドローダウン制限チェック
-            trading_allowed = self.drawdown_manager.check_trading_allowed()
+            # Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
+            trading_allowed = self.drawdown_manager.check_trading_allowed(reference_timestamp)
             if not trading_allowed:
                 drawdown_stats = self.drawdown_manager.get_drawdown_statistics()
                 denial_reasons.append(f"ドローダウン制限: {drawdown_stats['trading_status']}")
@@ -446,8 +448,9 @@ class IntegratedRiskManager:
             )
 
             # ドローダウン管理への取引結果記録
+            # Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
             self.drawdown_manager.record_trade_result(
-                profit_loss=profit_loss, strategy=strategy_name
+                profit_loss=profit_loss, strategy=strategy_name, current_time=timestamp
             )
 
             self.logger.info(f"取引結果記録完了: P&L={profit_loss:.2f}, 戦略={strategy_name}")
