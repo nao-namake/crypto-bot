@@ -128,7 +128,7 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
         "",
         f"- **バックテスト期間**: {start_date_str} ~ {end_date_str} ({duration_days}日間)",
         "- **データソース**: CSV (15分足 + 4時間足)",
-        "- **初期残高**: ¥100,000",
+        f"- **初期残高**: ¥{get_threshold('mode_balances.backtest.initial_balance', 100000):,.0f}",
         "- **取引ペア**: BTC/JPY",
         "- **レバレッジ**: 1.0倍",
         "",

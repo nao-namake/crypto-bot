@@ -1,14 +1,13 @@
 """
-戦略理論的分析 - Phase 51.4-Day3 → Phase 51.5-A更新
+戦略理論的分析 - Phase 58更新
 
-既存3戦略（Phase 51.5-A）の理論的特性に基づく分析。
-MochipoyAlert・MultiTimeframe削除済み。
+6戦略構成（Phase 57）の理論的特性に基づく分析。
 
 分析軸:
 1. 戦略の設計思想（レンジ型 vs トレンド型）
-2. Phase 51.3動的戦略選択結果（レジーム別重み）
+2. 動的戦略選択結果（レジーム別重み）
 3. 戦略の役割重複度
-4. システムシンプル化への貢献度
+4. 冗長戦略の特定
 """
 
 import sys
@@ -36,16 +35,13 @@ class StrategyTheoreticalAnalyzer:
         # 戦略リスト
         self.strategies = [s["metadata"]["name"] for s in strategies_data]
 
-        # 戦略の設計思想（regime_affinityから取得）
+        # 戦略の設計思想（regime_affinityから取得）- Phase 58修正
         self.strategy_types = {
-            s["metadata"]["name"]: s["config"].get("regime_affinity", "both")
-            for s in strategies_data
+            s["metadata"]["name"]: s.get("regime_affinity", "both") for s in strategies_data
         }
 
-        # 戦略の主要指標（indicatorsから取得）
-        self.strategy_indicators = {
-            s["metadata"]["name"]: s["config"].get("indicators", []) for s in strategies_data
-        }
+        # 戦略の主要指標（現在は未使用のため空リスト）
+        self.strategy_indicators = {s["metadata"]["name"]: [] for s in strategies_data}
 
         self.logger.info("✅ StrategyTheoreticalAnalyzer初期化完了")
 
@@ -177,20 +173,19 @@ class StrategyTheoreticalAnalyzer:
         """包括的レポート生成"""
         lines = []
         lines.append("=" * 80)
-        lines.append("📊 Phase 51.5-A: 戦略理論的分析レポート（3戦略構成）")
+        lines.append("📊 Phase 58: 戦略理論的分析レポート（6戦略構成）")
         lines.append("=" * 80)
         lines.append("")
 
-        # 1. 戦略一覧 - Phase 51.5-A
-        lines.append("【既存3戦略】（MochipoyAlert・MultiTimeframe削除済み）")
+        # 1. 戦略一覧
+        lines.append("【現行6戦略】")
         for strategy in self.strategies:
             strategy_type = self.strategy_types[strategy]
-            indicators = ", ".join(self.strategy_indicators[strategy])
-            lines.append(f"  - {strategy}: {strategy_type}型 (指標: {indicators})")
+            lines.append(f"  - {strategy}: {strategy_type}型")
         lines.append("")
 
         # 2. レジーム別カバレッジ
-        lines.append("【レジーム別戦略カバレッジ】（Phase 51.3動的戦略選択結果）")
+        lines.append("【レジーム別戦略カバレッジ】")
         for regime, data in coverage.items():
             lines.append(f"  {regime}:")
             lines.append(f"    有効戦略数: {data['active_count']}戦略")
@@ -239,14 +234,13 @@ class StrategyTheoreticalAnalyzer:
 
         # 6. 次のアクション
         lines.append("【次のアクション】")
-        lines.append("  Phase 51.5: 実データバックテスト検証")
-        lines.append("    - 削除候補戦略の実パフォーマンス測定")
-        lines.append("    - 削除前後のアンサンブル性能比較")
-        lines.append("    - 最終削除判断")
+        lines.append("  - 削除候補戦略の実パフォーマンス測定")
+        lines.append("  - 削除前後のアンサンブル性能比較")
+        lines.append("  - 最終削除判断")
         lines.append("")
 
         lines.append("=" * 80)
-        lines.append("✅ Phase 51.4-Day3完了（理論的分析）")
+        lines.append("✅ 戦略理論的分析完了")
         lines.append("=" * 80)
 
         return "\n".join(lines)
@@ -272,12 +266,12 @@ def main():
     analyzer = StrategyTheoreticalAnalyzer()
 
     print("=" * 80)
-    print("📊 Phase 51.4-Day3: 戦略理論的分析（推奨方針）")
+    print("📊 Phase 58: 戦略理論的分析")
     print("=" * 80)
     print()
 
     # 1. レジーム別重み取得
-    print("📂 Phase 51.3レジーム別戦略重みを取得中...")
+    print("📂 レジーム別戦略重みを取得中...")
     regime_weights = analyzer.get_regime_weights()
     print("✅ レジーム別重み取得完了")
     print()
@@ -314,9 +308,8 @@ def main():
     print()
 
     print("=" * 80)
-    print("✅ Phase 51.4-Day3完了")
+    print("✅ 戦略理論的分析完了")
     print("   理論的分析に基づく削除候補特定完了")
-    print("   Phase 51.5で実データ検証を実施します")
     print("=" * 80)
 
 
