@@ -40,7 +40,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.10    # Phase 57.11: 0.05→0.10（DD 5%許容・年利10%目標）
+  max_order_size: 0.05    # Phase 57.12: 0.10→0.05（57.10復元・段階的攻撃）
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -51,9 +51,9 @@ production:
 # 効果: 0.0001 BTC → 約0.009 BTC（Kelly基準が活かされる）
 # ========================================
 position_integrator:
-  kelly_weight: 0.7          # Phase 57.11: 50%→70%（Kelly基準重視・DD 5%許容）
-  dynamic_weight: 0.2        # Phase 57.11: 30%→20%
-  risk_manager_weight: 0.1   # Phase 57.11: 20%→10%
+  kelly_weight: 0.5          # Phase 57.12: 70%→50%（57.10復元）
+  dynamic_weight: 0.3        # Phase 57.12: 20%→30%（57.10復元）
+  risk_manager_weight: 0.2   # Phase 57.12: 10%→20%（57.10復元）
 
 # ========================================
 # バックテスト設定（Backtest Settings）
@@ -547,14 +547,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.60    # Phase 57.11: 35%→60%（DD 5%許容・年利10%目標）
-    safety_factor: 0.95         # Phase 57.11: 0.9→0.95（安全係数緩和）
+    max_position_ratio: 0.35    # Phase 57.12: 60%→35%（57.10復元）
+    safety_factor: 0.9          # Phase 57.12: 0.95→0.9（57.10復元）
   min_trade_size: 0.0001
-  initial_position_size: 0.01     # Phase 57.11: 0.005→0.01（DD 5%許容）
+  initial_position_size: 0.005    # Phase 57.12: 0.01→0.005（57.10復元）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.60    # Phase 57.11: 35%→60%（DD 5%許容・年利10%目標）
+    max_position_ratio: 0.35    # Phase 57.12: 60%→35%（57.10復元）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -658,23 +658,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 57.11: DD 5%許容・年利10%目標
-    low_confidence: 0.40    # Phase 57.11: 25%→40%
-    medium_confidence: 0.55  # Phase 57.11: 35%→55%
-    high_confidence: 0.70    # Phase 57.11: 50%→70%
+    # Phase 57.12: 信頼度リンク方式（低=据置・中/高=攻撃的）
+    low_confidence: 0.25    # Phase 57.12: 57.10据置（保守的維持）
+    medium_confidence: 0.40  # Phase 57.12: 35%→40%（+14%慎重拡大）
+    high_confidence: 0.60    # Phase 57.12: 50%→60%（+20%攻撃的）
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 57.11: DD 5%許容・年利10%目標
+    # Phase 57.12: 信頼度リンク方式
     low_confidence:
-      min_ratio: 0.20    # Phase 57.11: 10%→20%
-      max_ratio: 0.35    # Phase 57.11: 20%→35%
+      min_ratio: 0.10    # Phase 57.12: 57.10据置
+      max_ratio: 0.20    # Phase 57.12: 57.10据置
     medium_confidence:
-      min_ratio: 0.30    # Phase 57.11: 15%→30%
-      max_ratio: 0.45    # Phase 57.11: 25%→45%
+      min_ratio: 0.18    # Phase 57.12: 15%→18%（+20%拡大）
+      max_ratio: 0.30    # Phase 57.12: 25%→30%（+20%拡大）
     high_confidence:
-      min_ratio: 0.40    # Phase 57.11: 20%→40%
-      max_ratio: 0.60    # Phase 57.11: 35%→60%
+      min_ratio: 0.25    # Phase 57.12: 20%→25%（+25%拡大）
+      max_ratio: 0.45    # Phase 57.12: 35%→45%（+29%拡大）
   account_size_adjustments:
     small:
       threshold: 50000
