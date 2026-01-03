@@ -40,7 +40,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.067   # Phase 57.13: 0.05×1.34（年利10%目標）
+  max_order_size: 0.05    # Phase 57.10復元: 再現性検証
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -547,14 +547,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.47    # Phase 57.13: 0.35×1.34（年利10%目標）
+    max_position_ratio: 0.35    # Phase 57.10復元: 再現性検証
     safety_factor: 0.9          # 57.10維持
   min_trade_size: 0.0001
-  initial_position_size: 0.0067   # Phase 57.13: 0.005×1.34（年利10%目標）
+  initial_position_size: 0.005    # Phase 57.10復元: 再現性検証
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.47    # Phase 57.13: 0.35×1.34（年利10%目標）
+    max_position_ratio: 0.35    # Phase 57.10復元: 再現性検証
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -658,23 +658,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 57.13: 57.10ベース×1.34（年利10%目標・均一拡大）
-    low_confidence: 0.34     # 0.25×1.34
-    medium_confidence: 0.47  # 0.35×1.34
-    high_confidence: 0.67    # 0.50×1.34
+    # Phase 57.10復元: 再現性検証
+    low_confidence: 0.25     # 57.10設定
+    medium_confidence: 0.35  # 57.10設定
+    high_confidence: 0.50    # 57.10設定
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 57.13: 57.10ベース×1.34
+    # Phase 57.10復元: 再現性検証
     low_confidence:
-      min_ratio: 0.13    # 0.10×1.34
-      max_ratio: 0.27    # 0.20×1.34
+      min_ratio: 0.10    # 57.10設定
+      max_ratio: 0.20    # 57.10設定
     medium_confidence:
-      min_ratio: 0.20    # 0.15×1.34
-      max_ratio: 0.34    # 0.25×1.34
+      min_ratio: 0.15    # 57.10設定
+      max_ratio: 0.25    # 57.10設定
     high_confidence:
-      min_ratio: 0.27    # 0.20×1.34
-      max_ratio: 0.47    # 0.35×1.34
+      min_ratio: 0.20    # 57.10設定
+      max_ratio: 0.35    # 57.10設定
   account_size_adjustments:
     small:
       threshold: 50000
