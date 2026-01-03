@@ -1,7 +1,7 @@
 # Phase 57 開発記録
 
-**期間**: 2025/12/29 - 2026/01/02
-**状況**: Phase 57.10 バックテストDrawdownManagerタイムスタンプバグ修正【完了】
+**期間**: 2025/12/29 - 2026/01/04
+**状況**: Phase 57.11 ローカルバックテスト機能強化・レポート改修【完了】
 
 ---
 
@@ -30,6 +30,7 @@
 | 57.6 | リスク最大化・年利10%目標 | ✅ | ボトルネック解消・Kelly重視 |
 | 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・7件のレポートバグ修正 |
 | 57.10 | バックテストDrawdownManagerタイムスタンプバグ修正 | ✅ | IntegratedRiskManagerのDD時刻処理修正 |
+| 57.11 | ローカルバックテスト機能強化・レポート改修 | ✅ | CSV収集・日数指定・日毎損益分析・TP/SL改修 |
 
 ---
 
@@ -987,4 +988,159 @@ Coverage: 62.49%
 
 ---
 
-**📅 最終更新**: 2026年1月2日 - Phase 57.10 バックテストDrawdownManagerタイムスタンプバグ修正完了
+---
+
+## 🔧 Phase 57.11: ローカルバックテスト機能強化・レポート改修【完了】
+
+### 実施日: 2026/01/04
+
+### 背景
+
+1. **CSVデータ管理の手間**: ローカルバックテストでCSVデータが古いと正しくテストできない
+2. **設定変更の手間**: バックテスト日数を変更するたびに`thresholds.yaml`を編集する必要があった
+3. **分析機能の不足**: 日毎の損益推移が見えず、パフォーマンスのムラを把握できなかった
+4. **TP/SL安定性**: ライブ運用でorder_id空の問題やロールバック失敗のリスクがあった
+
+### 実装内容
+
+#### Part 1: TP/SL改修
+
+##### 1.1 stop_manager.py - 注文ID null check強化
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+TP注文・SL注文配置後にorder_idが空の場合、明示的に例外を発生させる。
+
+```python
+# TP注文後
+order_id = tp_order.get("id")
+if not order_id:
+    raise Exception(
+        f"TP注文配置失敗（order_idが空）: API応答={tp_order}, "
+        f"サイド={side}, 数量={amount:.6f} BTC, TP価格={take_profit_price:.0f}円"
+    )
+
+# SL注文後（同様）
+order_id = sl_order.get("id")
+if not order_id:
+    raise Exception(
+        f"SL注文配置失敗（order_idが空）: API応答={sl_order}, ..."
+    )
+```
+
+##### 1.2 executor.py - ロールバックリトライ追加
+
+**ファイル**: `src/trading/execution/executor.py`
+
+エントリー注文キャンセル失敗時に3回リトライ（Exponential Backoff: 1秒, 2秒）。
+
+```python
+max_retries = 3
+for attempt in range(max_retries):
+    try:
+        await asyncio.to_thread(self.bitbank_client.cancel_order, entry_order_id, symbol)
+        self.logger.error(f"🚨 Phase 51.6: エントリー注文ロールバック成功 - ID: {entry_order_id}")
+        break
+    except Exception as e:
+        if attempt < max_retries - 1:
+            wait_time = 2**attempt  # 1秒, 2秒
+            self.logger.warning(f"⚠️ Phase 57.11: リトライ{attempt + 1}/{max_retries}: {e}")
+            await asyncio.sleep(wait_time)
+        else:
+            self.logger.critical(f"❌ CRITICAL: 手動介入必要 - 全{max_retries}回失敗")
+```
+
+#### Part 2: レポート改修
+
+##### 2.1 generate_markdown_report.py - 分析機能追加
+
+**ファイル**: `scripts/backtest/generate_markdown_report.py`
+
+以下の分析機能を追加:
+
+| 関数 | 機能 |
+|------|------|
+| `extract_all_trades()` | 全レジームから取引リスト抽出 |
+| `generate_confidence_stats()` | 信頼度帯別統計（低/中/高） |
+| `generate_position_stats()` | ポジションサイズ統計 |
+| `generate_strategy_regime_matrix()` | 戦略×レジーム クロス集計 |
+| `generate_daily_pnl()` | 日毎損益分析 |
+| `generate_monthly_pnl()` | 月別パフォーマンス集計 |
+| `generate_equity_curve_ascii()` | ASCII損益曲線生成 |
+
+##### レポートに追加されるセクション
+
+- 信頼度帯別パフォーマンス
+- ポジションサイズ統計
+- 戦略×レジーム クロス集計
+- **日毎損益分析**（ASCII損益曲線・日別サマリー・月別パフォーマンス）
+
+#### Part 3: ローカルバックテストスクリプト改修
+
+##### 3.1 run_backtest.sh - CI同等機能追加
+
+**ファイル**: `scripts/backtest/run_backtest.sh`
+
+| 機能 | CI (backtest.yml) | ローカル (改修後) |
+|------|-------------------|-----------------|
+| CSVデータ収集 | ✅ | ✅ |
+| 日数指定 | ✅ workflow_dispatch | ✅ --days N |
+| Markdownレポート生成 | ✅ | ✅ |
+| 設定ファイル自動復元 | N/A | ✅ trap処理 |
+
+##### 使い方
+
+```bash
+# 基本（180日・CSV収集あり）
+bash scripts/backtest/run_backtest.sh
+
+# 30日間テスト
+bash scripts/backtest/run_backtest.sh --days 30
+
+# 既存CSVを使用（収集スキップ）
+bash scripts/backtest/run_backtest.sh --days 60 --skip-collect
+
+# カスタムログ名
+bash scripts/backtest/run_backtest.sh --days 60 --prefix phase57
+
+# ヘルプ
+bash scripts/backtest/run_backtest.sh --help
+```
+
+##### 処理フロー
+
+1. **Step 1**: CSVデータ収集（`--skip-collect`でスキップ可能）
+2. **Step 2**: 設定ファイル（thresholds.yaml）の日数を一時変更
+3. **Step 3**: バックテスト実行
+4. **Step 4**: 設定ファイル復元（trap処理でエラー時も復元）
+5. **Step 5**: Markdownレポート自動生成
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/stop_manager.py` | TP/SL order_id null check追加 |
+| `src/trading/execution/executor.py` | エントリーロールバックリトライ追加 |
+| `scripts/backtest/generate_markdown_report.py` | 分析機能追加・日毎損益分析 |
+| `scripts/backtest/run_backtest.sh` | CSV収集・日数指定・レポート生成 |
+
+### テスト結果
+
+```
+= 1195 passed, 36 skipped, 12 xfailed, 1 xpassed =
+✅ flake8チェック完了
+✅ isortチェック完了
+✅ blackチェック完了
+Coverage: 62.39%
+```
+
+### 期待効果
+
+1. **開発効率向上**: 日数指定で設定ファイル編集不要
+2. **データ鮮度**: CSVデータを常に最新化可能
+3. **分析精度向上**: 日毎・月毎のパフォーマンス把握で改善ポイント特定
+4. **運用安定性**: TP/SL配置失敗・ロールバック失敗の早期検出
+
+---
+
+**📅 最終更新**: 2026年1月4日 - Phase 57.11 ローカルバックテスト機能強化・レポート改修完了

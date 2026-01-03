@@ -1685,17 +1685,30 @@ class ExecutionService:
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 51.6: SL注文キャンセル失敗: {e}")
 
-        # エントリー注文キャンセル（最重要）
+        # エントリー注文キャンセル（最重要・Phase 57.11: リトライ追加）
         if entry_order_id:
-            try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, entry_order_id, symbol)
-                self.logger.error(
-                    f"🚨 Phase 51.6: エントリー注文ロールバック成功 - "
-                    f"ID: {entry_order_id}, 理由: {error}"
-                )
-            except Exception as e:
-                # エントリー注文キャンセル失敗は致命的エラー
-                self.logger.critical(
-                    f"❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
-                    f"ID: {entry_order_id}, エラー: {e}"
-                )
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await asyncio.to_thread(
+                        self.bitbank_client.cancel_order, entry_order_id, symbol
+                    )
+                    self.logger.error(
+                        f"🚨 Phase 51.6: エントリー注文ロールバック成功 - "
+                        f"ID: {entry_order_id}, 理由: {error}"
+                        + (f" (試行{attempt + 1}回目)" if attempt > 0 else "")
+                    )
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt  # 1秒, 2秒
+                        self.logger.warning(
+                            f"⚠️ Phase 57.11: エントリーロールバック失敗（リトライ{attempt + 1}/{max_retries}）: {e}"
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        # 全リトライ失敗は致命的エラー
+                        self.logger.critical(
+                            f"❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
+                            f"ID: {entry_order_id}, 全{max_retries}回試行失敗, エラー: {e}"
+                        )

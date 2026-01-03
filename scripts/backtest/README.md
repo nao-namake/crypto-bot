@@ -1,6 +1,6 @@
-# scripts/backtest/ - バックテスト実行システム（Phase 49完了版）
+# scripts/backtest/ - バックテスト実行システム（Phase 57.11完了版）
 
-**最終更新**: 2025年10月25日 - Phase 49完了・バックテスト完全改修・TradeTracker実装・matplotlib可視化システム
+**最終更新**: 2026年1月4日 - Phase 57.11完了・ローカルバックテスト機能強化・日毎損益分析・CSV収集統合
 
 ## 🎯 役割・責任
 
@@ -8,28 +8,42 @@
 
 **Phase 49完了成果**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック実装・TradeTrackerエントリー/エグジットペアリング・損益計算・matplotlib可視化システム・信頼性100%達成）
 
-## 📂 ファイル構成（Phase 49完了版）
+## 📂 ファイル構成（Phase 57.11完了版）
 
 ```
 scripts/backtest/
-├── README.md          # このファイル（Phase 49完了版）
-└── run_backtest.sh    # バックテスト実行スクリプト（Phase 34実装・Phase 49移動）
+├── README.md                      # このファイル（Phase 57.11完了版）
+├── run_backtest.sh                # バックテスト実行スクリプト（Phase 57.11改修）
+└── generate_markdown_report.py    # Markdownレポート生成（Phase 57.11追加）
 ```
 
-**注**: Phase 49整理でscripts/management/から移動（バックテスト専用ツールとして分離）
+**Phase 57.11改修**: CSV収集・日数指定・Markdownレポート自動生成を追加
 
 ## 📋 主要ファイルの役割
 
-### **run_backtest.sh**（Phase 34実装・Phase 49整理）
-バックテスト実行スクリプトで、システム動作検証と過去データ分析を実現します。
-- **3モード実行**: quick（7日）・standard（30日）・full（180日）
-- **Phase 35高速化**: バッチ処理・10倍高速化達成（45分実行）
+### **run_backtest.sh**（Phase 57.11改修）
+バックテスト実行スクリプトで、CI同等の機能をローカルで実現します。
+
+**Phase 57.11 新機能**:
+- **CSVデータ収集**: Bitbank APIから履歴データを自動取得
+- **日数指定**: `--days N`オプションで設定ファイル編集不要
+- **Markdownレポート自動生成**: バックテスト後に分析レポート生成
+- **設定ファイル自動復元**: trap処理でエラー時も設定を復元
+
+**従来機能**:
 - **Phase 44-49完全改修**: 戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker実装
 - **履歴データ収集**: Bitbank Public API・15分足データ取得（17,271件）
-- **検証機能**: テスト実行・品質確認・バックテスト実行
 - **レポート生成**: matplotlib可視化・統計分析・パフォーマンス評価
-- **Phase 34完成**: 実用的環境確立・80倍データ収集改善
-- 約7KBの簡潔な実装ファイル
+
+### **generate_markdown_report.py**（Phase 57.11追加）
+JSONレポートをMarkdownに変換し、詳細な分析レポートを生成します。
+
+**Phase 57.11 新機能**:
+- **日毎損益分析**: 取引を日付でグループ化し損益推移を表示
+- **ASCII損益曲線**: GitHub Markdownで可視化できるグラフ生成
+- **月別パフォーマンス**: 月毎の取引数・勝率・損益を集計
+- **信頼度帯別統計**: ML信頼度（低/中/高）別のパフォーマンス
+- **戦略×レジーム クロス集計**: 戦略とレジームの組み合わせ分析
 
 ### **Phase 49バックテスト完全改修の主要機能**
 - **戦略シグナル事前計算**: 全5戦略のシグナルを事前に計算・ルックアヘッドバイアス防止
@@ -40,11 +54,40 @@ scripts/backtest/
 
 ## 📝 使用方法・例
 
-### **基本的なバックテスト実行**（Phase 49完了版）
+### **Phase 57.11 新コマンド（推奨）**
 ```bash
 # プロジェクトルートから実行（必須）
 cd /Users/nao/Desktop/bot
 
+# 基本実行（180日・CSV収集あり・Markdownレポート生成）
+bash scripts/backtest/run_backtest.sh
+
+# 日数指定（30日間テスト）
+bash scripts/backtest/run_backtest.sh --days 30
+
+# 日数指定（60日間テスト）
+bash scripts/backtest/run_backtest.sh --days 60
+
+# 既存CSVを使用（収集スキップ・高速）
+bash scripts/backtest/run_backtest.sh --days 30 --skip-collect
+
+# カスタムログ名
+bash scripts/backtest/run_backtest.sh --days 60 --prefix phase57
+
+# ヘルプ表示
+bash scripts/backtest/run_backtest.sh --help
+```
+
+### **オプション一覧**
+| オプション | 説明 | デフォルト |
+|-----------|------|----------|
+| `--days N` | バックテスト日数 | 180 |
+| `--prefix NAME` | ログファイル名の接頭辞 | backtest |
+| `--skip-collect` | CSVデータ収集をスキップ | false |
+| `--help`, `-h` | ヘルプ表示 | - |
+
+### **旧コマンド（互換性維持）**
+```bash
 # クイックバックテスト（7日間・動作確認用）
 bash scripts/backtest/run_backtest.sh quick
 
@@ -53,46 +96,67 @@ bash scripts/backtest/run_backtest.sh standard
 
 # フルバックテスト（180日間・推奨・完全検証）
 bash scripts/backtest/run_backtest.sh full
-
-# カスタム期間バックテスト
-bash scripts/backtest/run_backtest.sh full 90  # 90日間
 ```
 
-### **実行例と出力**
+### **実行例と出力（Phase 57.11）**
 ```bash
-$ bash scripts/backtest/run_backtest.sh full
+$ bash scripts/backtest/run_backtest.sh --days 60
 
-🚀 crypto-bot バックテストシステム起動
-========================================
+🚀 バックテスト実行開始（Phase 57.11）
+📅 バックテスト期間: 60日間
+📂 ログ保存先: src/backtest/logs/backtest_20260104_123456.log
+=================================================
 
-📊 Phase 49完了: バックテスト完全改修
-- 戦略シグナル事前計算: ✅ 有効
-- TP/SL決済ロジック: ✅ 実装済み
-- TradeTracker: ✅ エントリー/エグジットペアリング
-- matplotlib可視化: ✅ 4種類グラフ生成
+📥 Step 1: CSVデータ収集開始（60日間）...
+✅ 15分足データ収集完了: 5,761行
 
-🔍 1. 品質チェック実行中...
-✅ 1,117テスト100%成功・68.32%カバレッジ
+⚙️ Step 2: バックテスト期間設定（60日間）...
+✅ 設定ファイル更新完了
 
-📥 2. 履歴データ収集中...
-✅ 15分足データ: 17,271件取得（180日間）
+🔄 Step 3: バックテスト実行中...
+✅ バックテスト完了
 
-🔄 3. バックテスト実行中...
-✅ 戦略シグナル事前計算完了: 5戦略
-✅ バックテスト完了: 45分実行
+🔧 Step 4: 設定ファイル復元...
+✅ 設定ファイル復元完了
 
-📊 4. パフォーマンス分析...
-✅ TradeTracker: 取引ペア分析完了
-✅ 損益計算: 正確な実現損益・未実現損益
+📝 Step 5: Markdownレポート生成...
+✅ Markdownレポート生成完了: docs/検証記録/backtest_20260104.md
 
-📈 5. 可視化レポート生成...
-✅ エクイティカーブ: equity_curve.png
-✅ 損益分布: profit_distribution.png
-✅ ドローダウン: drawdown.png
-✅ 価格チャート: price_chart.png
+=================================================
+✅ バックテスト実行完了
+📁 ログファイル: src/backtest/logs/backtest_20260104_123456.log
+📊 バックテスト期間: 60日間
+📝 レポート: docs/検証記録/backtest_20260104.md
+```
 
-🎉 バックテスト完了
-レポート: logs/backtest_report_20251025_HHMMSS.html
+### **Markdownレポートに追加されるセクション（Phase 57.11）**
+```markdown
+## 日毎損益分析（Phase 57.11追加）
+
+### 損益曲線
+¥ +4,000 |                              ****
+¥ +3,000 |                    ****  ****
+¥ +2,000 |          ****  ****
+¥ +1,000 |    ****
+¥      0 |----****------------------------------------
+         +--------------------------------------------
+           2025-07                            2025-09
+
+### 日別サマリー
+| 指標 | 値 |
+|------|-----|
+| 取引日数 | 45日 |
+| 利益日数 | 28日 |
+| 損失日数 | 17日 |
+| 最良日 | 2025-08-15 (+¥1,500) |
+| 最悪日 | 2025-07-20 (-¥800) |
+| 平均日次損益 | ¥+90 |
+
+### 月別パフォーマンス
+| 月 | 取引数 | 勝率 | 総損益 |
+|----|--------|------|--------|
+| 2025-07 | 85 | 45.0% | +¥3,200 |
+| 2025-08 | 92 | 48.0% | +¥800 |
 ```
 
 ### **Phase 49完了版の改善点**
@@ -187,13 +251,14 @@ $ bash scripts/backtest/run_backtest.sh full
 ---
 
 **🎯 重要**:
-- **Phase 49完了**: バックテスト完全改修・TradeTracker実装・matplotlib可視化・信頼性100%達成
+- **Phase 57.11完了**: CSV収集・日数指定・日毎損益分析・Markdownレポート自動生成
 - **実行場所**: プロジェクトルートディレクトリから必ず実行
 - **Phase 44-49改修**: 戦略シグナル事前計算・TP/SL決済ロジック・エントリー/エグジットペアリング・4種類グラフ
-- **Phase 49移動**: scripts/management/から分離・バックテスト専用ツールとして独立
+- **設定自動復元**: エラー時もtrap処理で設定ファイルを自動復元
 
 **推奨運用方法**:
-1. **品質確認**: `bash scripts/testing/checks.sh` で1,117テスト確認
-2. **バックテスト実行**: `bash scripts/backtest/run_backtest.sh full` でフル検証
-3. **レポート確認**: `logs/backtest_report_*.html` で結果分析
-4. **可視化確認**: 4種類グラフ（equity_curve.png・profit_distribution.png・drawdown.png・price_chart.png）で視覚的分析
+1. **品質確認**: `bash scripts/testing/checks.sh` でテスト確認
+2. **バックテスト実行**: `bash scripts/backtest/run_backtest.sh --days 180` でフル検証
+3. **短期テスト**: `bash scripts/backtest/run_backtest.sh --days 30` で素早く確認
+4. **レポート確認**: `docs/検証記録/backtest_*.md` で結果分析
+5. **日毎分析**: ASCII損益曲線・月別パフォーマンスで改善ポイント特定
