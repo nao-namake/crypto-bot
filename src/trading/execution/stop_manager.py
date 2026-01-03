@@ -766,14 +766,6 @@ class StopManager:
             )
 
             order_id = tp_order.get("id")
-
-            # Phase 57.11: 注文ID null check強化（TP/SL未設置問題対策）
-            if not order_id:
-                raise Exception(
-                    f"TP注文配置失敗（order_idが空）: API応答={tp_order}, "
-                    f"サイド={side}, 数量={amount:.6f} BTC, TP価格={take_profit_price:.0f}円"
-                )
-
             self.logger.info(
                 f"✅ Phase 46: 個別TP配置成功 - ID: {order_id}, "
                 f"サイド: {side}, 数量: {amount:.6f} BTC, TP価格: {take_profit_price:.0f}円"
@@ -868,14 +860,6 @@ class StopManager:
             )
 
             order_id = sl_order.get("id")
-
-            # Phase 57.11: 注文ID null check強化（TP/SL未設置問題対策）
-            if not order_id:
-                raise Exception(
-                    f"SL注文配置失敗（order_idが空）: API応答={sl_order}, "
-                    f"サイド={side}, 数量={amount:.6f} BTC, SL価格={stop_loss_price:.0f}円"
-                )
-
             self.logger.info(
                 f"✅ Phase 46: 個別SL配置成功 - ID: {order_id}, "
                 f"サイド: {side}, 数量: {amount:.6f} BTC, SL価格: {stop_loss_price:.0f}円",
