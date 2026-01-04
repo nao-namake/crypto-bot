@@ -1057,6 +1057,8 @@ class ExecutionService:
                         timestamp=trade_timestamp,  # Phase 56.3: バックテスト時刻使用
                         strategy=getattr(evaluation, "strategy_name", "unknown"),
                         regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
+                        ml_prediction=getattr(evaluation, "ml_prediction", None),  # Phase 57.12
+                        ml_confidence=getattr(evaluation, "ml_confidence", None),  # Phase 57.12
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")

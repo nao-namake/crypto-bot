@@ -1,7 +1,7 @@
 # Phase 57 開発記録
 
 **期間**: 2025/12/29 - 2026/01/04
-**状況**: Phase 57.11 ローカルバックテスト機能強化・レポート改修【完了】
+**状況**: Phase 57.12 バックテストデータ拡充・分析レポート強化【完了】
 
 ---
 
@@ -31,6 +31,7 @@
 | 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・7件のレポートバグ修正 |
 | 57.10 | バックテストDrawdownManagerタイムスタンプバグ修正 | ✅ | IntegratedRiskManagerのDD時刻処理修正 |
 | 57.11 | ローカルバックテスト機能強化・レポート改修 | ✅ | CSV収集・日数指定・日毎損益分析・TP/SL改修 |
+| 57.12 | バックテストデータ拡充・分析レポート強化 | ✅ | 個別戦略名記録・ML予測記録・分析統計追加 |
 
 ---
 
@@ -1143,4 +1144,189 @@ Coverage: 62.39%
 
 ---
 
-**📅 最終更新**: 2026年1月4日 - Phase 57.11 ローカルバックテスト機能強化・レポート改修完了
+## 📊 Phase 57.12: バックテストデータ拡充・分析レポート強化【完了】
+
+### 実施日: 2026/01/04
+
+### 背景
+
+Phase 57.11で日毎損益分析を追加したが、PDCA分析に必要なデータが不足していた:
+
+1. **戦略名が記録されない**: JSONレポートで全取引が`"strategy": "unknown"`
+2. **ML予測が記録されない**: `"ml_prediction": null`, `"ml_confidence": null`
+3. **分析統計の不足**: 戦略別・ML別の詳細統計がない
+
+### 問題分析
+
+#### 根本原因1: TradeEvaluation dataclassにstrategy_nameフィールドがない
+
+```
+StrategySignal (has strategy_name)
+    ↓
+RiskManager.evaluate_trade_opportunity()
+    ↓ (extracts strategy_name but doesn't pass to TradeEvaluation)
+TradeEvaluation (MISSING strategy_name) ❌
+    ↓
+ExecutionService (getattr returns "unknown")
+    ↓
+BacktestRunner.record_entry()
+    ↓
+TradeTracker ❌ Records as "unknown"
+```
+
+#### 根本原因2: StrategyManagerが自身の名前をハードコード
+
+```python
+# 修正前: strategy_manager.py
+return StrategySignal(
+    strategy_name="StrategyManager",  # ← 個別戦略名ではなくハードコード
+    ...
+)
+```
+
+### 修正内容
+
+#### Part 1: TradeEvaluation dataclass修正
+
+**ファイル**: `src/trading/core/types.py`
+
+```python
+@dataclass
+class TradeEvaluation:
+    # ... existing fields ...
+    entry_price: Optional[float] = None
+    strategy_name: str = "unknown"  # ← Phase 57.12追加
+```
+
+#### Part 2: RiskManager修正
+
+**ファイル**: `src/trading/risk/manager.py`
+
+TradeEvaluation構築時にstrategy_nameを渡す:
+
+```python
+evaluation = TradeEvaluation(
+    decision=decision,
+    side=trade_side,
+    # ... other fields ...
+    entry_price=last_price,
+    strategy_name=strategy_name,  # ← Phase 57.12追加
+)
+```
+
+#### Part 3: StrategyManager修正（個別戦略名記録）
+
+**ファイル**: `src/strategies/base/strategy_manager.py`
+
+4箇所で個別戦略名を取得するよう修正:
+
+##### BUY quorum rule (lines 265-274)
+
+```python
+# Phase 57.12: 最高信頼度の戦略名も取得
+best_strategy_name, best_signal = max(
+    buy_signals, key=lambda x: x[1].confidence
+)
+return StrategySignal(
+    strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
+    ...
+    metadata={
+        ...
+        "contributing_strategies": [name for name, _ in buy_signals],  # 投票した全戦略
+    },
+)
+```
+
+##### SELL quorum rule (lines 298-307)
+
+同様のパターンで`sell_signals`から最高信頼度の戦略を取得。
+
+##### Weighted voting (lines 376-386)
+
+```python
+# Phase 57.12: 最高信頼度の戦略名も取得
+best_strategy_name, best_signal = max(
+    winning_group, key=lambda x: x[1].confidence
+)
+```
+
+##### Consistent signals integration (lines 446-453)
+
+```python
+# Phase 57.12: 最高信頼度の戦略名も取得
+best_strategy_name, best_signal = max(
+    same_action_signals, key=lambda x: x[1].confidence
+)
+```
+
+### 検証結果
+
+5日間バックテストで確認:
+
+```
+取引数: 22
+戦略名分布: {'DonchianChannel': 3, 'ATRBased': 15, 'StochasticReversal': 1, 'ADXTrendStrength': 3}
+
+Trade 1: strategy: DonchianChannel, ml_prediction: 1, ml_confidence: 0.4117
+Trade 2: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3719
+Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
+...
+```
+
+**成功**: 個別戦略名・ML予測・ML信頼度が正しく記録されるようになった。
+
+### Part 4: 分析レポート強化【完了】
+
+以下のセクションを追加:
+
+| セクション | 内容 |
+|-----------|------|
+| 戦略別統計 | 戦略ごとの取引数・勝率・平均損益・総損益（総損益降順でソート） |
+| ML予測別統計 | BUY/HOLD/SELLごとの取引数・勝率・平均損益 |
+
+#### 追加関数
+
+| 関数 | 機能 |
+|------|------|
+| `generate_strategy_stats()` | 戦略別統計生成（レジーム問わず） |
+| `generate_ml_prediction_stats()` | ML予測別統計生成（BUY/HOLD/SELL/不明） |
+
+#### 出力例
+
+```markdown
+## 戦略別パフォーマンス（Phase 57.12追加）
+
+| 戦略 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |
+|------|--------|------|-------------|--------|
+| StochasticReversal | 1件 | 100.0% | ¥+381 | ¥+381 |
+| DonchianChannel | 3件 | 33.3% | ¥+70 | ¥+211 |
+| ATRBased | 15件 | 40.0% | ¥-35 | ¥-528 |
+| ADXTrendStrength | 3件 | 0.0% | ¥-179 | ¥-538 |
+
+## ML予測別パフォーマンス（Phase 57.12追加）
+
+| ML予測 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |
+|--------|--------|------|-------------|--------|
+| BUY | 4件 | 75.0% | ¥+84 | ¥+335 |
+| SELL | 1件 | 100.0% | ¥+117 | ¥+117 |
+| HOLD | 17件 | 23.5% | ¥-54 | ¥-926 |
+```
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 | 状態 |
+|---------|---------|------|
+| `src/trading/core/types.py` | TradeEvaluationに`strategy_name`フィールド追加 | ✅ |
+| `src/trading/risk/manager.py` | TradeEvaluation構築時にstrategy_name渡す | ✅ |
+| `src/strategies/base/strategy_manager.py` | 個別戦略名記録（4箇所）+ contributing_strategies追加 | ✅ |
+| `scripts/backtest/generate_markdown_report.py` | 戦略別・ML別統計セクション追加 | ✅ |
+
+### 期待効果
+
+1. **PDCA分析精度向上**: どの戦略が利益を出しているか特定可能
+2. **ML予測評価**: ML予測と実績の相関を分析可能
+3. **戦略最適化**: パフォーマンスの低い戦略を特定・改善
+
+---
+
+**📅 最終更新**: 2026年1月4日 - Phase 57.12 バックテストデータ拡充・分析レポート強化完了

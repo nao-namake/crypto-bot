@@ -223,6 +223,7 @@ class IntegratedRiskManager:
 
             # 3. ML信頼度チェック・取引方向取得
             ml_confidence = ml_prediction.get("confidence", 0.0)
+            ml_prediction_class = ml_prediction.get("prediction", None)  # Phase 57.12: 0=SELL, 1=HOLD, 2=BUY
             min_ml_confidence = get_threshold("trading.risk_thresholds.min_ml_confidence", 0.25)
 
             # 取引方向（side）の決定
@@ -275,6 +276,13 @@ class IntegratedRiskManager:
             stop_loss = None
             take_profit = None
 
+            # Phase 57.12: 戦略名を抽出して保存（TradeEvaluation用）
+            strategy_name = (
+                strategy_signal.get("strategy_name", "unknown")
+                if isinstance(strategy_signal, dict)
+                else getattr(strategy_signal, "strategy_name", "unknown")
+            )
+
             if trading_allowed and not critical_anomalies:
                 try:
                     # 統合ポジションサイズ計算
@@ -290,11 +298,7 @@ class IntegratedRiskManager:
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
                         risk_manager_confidence=strategy_confidence,
-                        strategy_name=(
-                            strategy_signal.get("strategy_name", "unknown")
-                            if isinstance(strategy_signal, dict)
-                            else getattr(strategy_signal, "strategy_name", "unknown")
-                        ),
+                        strategy_name=strategy_name,
                         config=self.config,
                         current_balance=current_balance,
                         btc_price=last_price,
@@ -382,6 +386,9 @@ class IntegratedRiskManager:
                 drawdown_status=self.drawdown_manager.trading_status.value,
                 anomaly_alerts=[a.message for a in anomaly_alerts],
                 market_conditions=market_conditions,
+                strategy_name=strategy_name,  # Phase 57.12: 戦略名記録
+                ml_prediction=ml_prediction_class,  # Phase 57.12: ML予測クラス
+                ml_confidence=ml_confidence,  # Phase 57.12: ML信頼度
             )
 
             # 11. 統計更新

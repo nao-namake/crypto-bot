@@ -136,6 +136,76 @@ def generate_position_stats(trades: list) -> Dict[str, Any]:
     }
 
 
+def generate_strategy_stats(trades: list) -> Dict[str, Any]:
+    """
+    Phase 57.12: 戦略別統計を生成（レジーム問わず）
+
+    Args:
+        trades: 取引リスト
+
+    Returns:
+        戦略別のパフォーマンス統計
+    """
+    stats = {}
+    for t in trades:
+        strategy = t.get("strategy", "unknown")
+        pnl = t.get("pnl", 0)
+
+        if strategy not in stats:
+            stats[strategy] = {"count": 0, "wins": 0, "total_pnl": 0.0}
+
+        stats[strategy]["count"] += 1
+        if pnl > 0:
+            stats[strategy]["wins"] += 1
+        stats[strategy]["total_pnl"] += pnl
+
+    # 勝率・平均損益計算
+    for strategy, data in stats.items():
+        data["win_rate"] = (data["wins"] / data["count"] * 100) if data["count"] > 0 else 0.0
+        data["avg_pnl"] = data["total_pnl"] / data["count"] if data["count"] > 0 else 0.0
+
+    return stats
+
+
+def generate_ml_prediction_stats(trades: list) -> Dict[str, Any]:
+    """
+    Phase 57.12: ML予測別統計を生成
+
+    Args:
+        trades: 取引リスト
+
+    Returns:
+        ML予測別のパフォーマンス統計（BUY/HOLD/SELL）
+    """
+    # ml_prediction: 0=SELL, 1=HOLD, 2=BUY
+    prediction_labels = {0: "SELL", 1: "HOLD", 2: "BUY"}
+    stats = {
+        label: {"count": 0, "wins": 0, "total_pnl": 0.0} for label in prediction_labels.values()
+    }
+    stats["不明"] = {"count": 0, "wins": 0, "total_pnl": 0.0}
+
+    for t in trades:
+        ml_pred = t.get("ml_prediction")
+        pnl = t.get("pnl", 0)
+
+        if ml_pred is not None and ml_pred in prediction_labels:
+            label = prediction_labels[ml_pred]
+        else:
+            label = "不明"
+
+        stats[label]["count"] += 1
+        if pnl > 0:
+            stats[label]["wins"] += 1
+        stats[label]["total_pnl"] += pnl
+
+    # 勝率・平均損益計算
+    for label, data in stats.items():
+        data["win_rate"] = (data["wins"] / data["count"] * 100) if data["count"] > 0 else 0.0
+        data["avg_pnl"] = data["total_pnl"] / data["count"] if data["count"] > 0 else 0.0
+
+    return stats
+
+
 def generate_strategy_regime_matrix(trades: list) -> Dict[str, Dict[str, Any]]:
     """
     Phase 57.12: 戦略×レジーム クロス集計を生成
@@ -595,11 +665,67 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
             ]
         )
 
+    # Phase 57.12: 戦略別パフォーマンス
+    strategy_stats = generate_strategy_stats(all_trades)
+    non_unknown_strategies = [s for s in strategy_stats.keys() if s != "unknown"]
+    if non_unknown_strategies:
+        lines.extend(
+            [
+                "---",
+                "",
+                "## 戦略別パフォーマンス（Phase 57.12追加）",
+                "",
+                "| 戦略 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |",
+                "|------|--------|------|-------------|--------|",
+            ]
+        )
+        # 総損益の降順でソート
+        sorted_strategies = sorted(
+            [(s, d) for s, d in strategy_stats.items() if s != "unknown"],
+            key=lambda x: x[1]["total_pnl"],
+            reverse=True,
+        )
+        for strategy, data in sorted_strategies:
+            lines.append(
+                f"| {strategy} | {data['count']}件 | "
+                f"{data['win_rate']:.1f}% | ¥{data['avg_pnl']:+,.0f} | ¥{data['total_pnl']:+,.0f} |"
+            )
+        lines.extend(["", ""])
+
+    # Phase 57.12: ML予測別パフォーマンス
+    ml_stats = generate_ml_prediction_stats(all_trades)
+    has_ml_data = any(ml_stats[label]["count"] > 0 for label in ["BUY", "SELL", "HOLD"])
+    if has_ml_data:
+        lines.extend(
+            [
+                "---",
+                "",
+                "## ML予測別パフォーマンス（Phase 57.12追加）",
+                "",
+                "| ML予測 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |",
+                "|--------|--------|------|-------------|--------|",
+            ]
+        )
+        for label in ["BUY", "SELL", "HOLD"]:
+            data = ml_stats[label]
+            if data["count"] > 0:
+                lines.append(
+                    f"| {label} | {data['count']}件 | "
+                    f"{data['win_rate']:.1f}% | ¥{data['avg_pnl']:+,.0f} | ¥{data['total_pnl']:+,.0f} |"
+                )
+        if ml_stats["不明"]["count"] > 0:
+            data = ml_stats["不明"]
+            lines.append(
+                f"| 不明 | {data['count']}件 | "
+                f"{data['win_rate']:.1f}% | ¥{data['avg_pnl']:+,.0f} | ¥{data['total_pnl']:+,.0f} |"
+            )
+        lines.extend(["", ""])
+
     # Phase 57.12: 戦略×レジーム クロス集計
     strategy_matrix = generate_strategy_regime_matrix(all_trades)
     # unknownのみの場合はスキップ
-    non_unknown_strategies = [s for s in strategy_matrix.keys() if s != "unknown"]
-    if non_unknown_strategies:
+    non_unknown_strategies_matrix = [s for s in strategy_matrix.keys() if s != "unknown"]
+    if non_unknown_strategies_matrix:
         lines.extend(
             [
                 "---",

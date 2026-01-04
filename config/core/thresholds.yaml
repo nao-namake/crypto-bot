@@ -27,7 +27,7 @@
 # 実行設定（Execution Settings）
 # ========================================
 execution:
-  backtest_period_days: 180  # Phase 57.11: 180日間検証
+  backtest_period_days: 20  # Phase 57.11: スクリプト指定
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
 

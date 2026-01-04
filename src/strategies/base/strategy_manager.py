@@ -262,13 +262,16 @@ class StrategyManager:
         # BUY 2票以上 → BUY選択（HOLD無視）
         if buy_has_quorum:
             buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
-            best_signal = max(buy_signals, key=lambda x: x[1].confidence)[1]
+            # Phase 57.12: 最高信頼度の戦略名も取得
+            best_strategy_name, best_signal = max(
+                buy_signals, key=lambda x: x[1].confidence
+            )
             self.logger.info(
                 f"Phase 56.7: BUY {buy_count}票でクオーラム達成 → BUY選択 "
-                f"(信頼度: {buy_weighted_confidence:.3f})"
+                f"(信頼度: {buy_weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
             )
             return StrategySignal(
-                strategy_name="StrategyManager",
+                strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
                 timestamp=datetime.now(),
                 action="buy",
                 confidence=buy_weighted_confidence,
@@ -286,19 +289,24 @@ class StrategyManager:
                     "buy_votes": buy_count,
                     "sell_votes": sell_count,
                     "hold_votes": len(hold_signals),
+                    # Phase 57.12: 投票した全戦略名を記録
+                    "contributing_strategies": [name for name, _ in buy_signals],
                 },
             )
 
         # SELL 2票以上 → SELL選択（HOLD無視）
         if sell_has_quorum:
             sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
-            best_signal = max(sell_signals, key=lambda x: x[1].confidence)[1]
+            # Phase 57.12: 最高信頼度の戦略名も取得
+            best_strategy_name, best_signal = max(
+                sell_signals, key=lambda x: x[1].confidence
+            )
             self.logger.info(
                 f"Phase 56.7: SELL {sell_count}票でクオーラム達成 → SELL選択 "
-                f"(信頼度: {sell_weighted_confidence:.3f})"
+                f"(信頼度: {sell_weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
             )
             return StrategySignal(
-                strategy_name="StrategyManager",
+                strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
                 timestamp=datetime.now(),
                 action="sell",
                 confidence=sell_weighted_confidence,
@@ -316,6 +324,8 @@ class StrategyManager:
                     "buy_votes": buy_count,
                     "sell_votes": sell_count,
                     "hold_votes": len(hold_signals),
+                    # Phase 57.12: 投票した全戦略名を記録
+                    "contributing_strategies": [name for name, _ in sell_signals],
                 },
             )
 
@@ -367,15 +377,17 @@ class StrategyManager:
                 reason=f"従来ロジック - HOLD/同率 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f})",
             )
 
-        self.logger.info(
-            f"従来ロジック解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票)"
+        # Phase 57.12: 最高信頼度の戦略名も取得
+        best_strategy_name, best_signal = max(
+            winning_group, key=lambda x: x[1].confidence
         )
 
-        # 勝利グループから最も信頼度の高いシグナルをベースに統合
-        best_signal = max(winning_group, key=lambda x: x[1].confidence)[1]
+        self.logger.info(
+            f"従来ロジック解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票, 主戦略: {best_strategy_name})"
+        )
 
         return StrategySignal(
-            strategy_name="StrategyManager",
+            strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
             timestamp=datetime.now(),
             action=action,
             confidence=confidence,
@@ -397,6 +409,8 @@ class StrategyManager:
                 "sell_ratio": sell_ratio,
                 "hold_ratio": hold_ratio,
                 "resolution_method": "all_votes_weighted_integration",  # Phase 38.5
+                # Phase 57.12: 投票した全戦略名を記録
+                "contributing_strategies": [name for name, _ in winning_group],
             },
         )
 
@@ -435,12 +449,14 @@ class StrategyManager:
         # 重み付け信頼度計算
         weighted_confidence = self._calculate_weighted_confidence(same_action_signals)
 
-        # 最も信頼度の高いシグナルをベースとして使用
-        best_signal = max(same_action_signals, key=lambda x: x[1].confidence)[1]
+        # Phase 57.12: 最高信頼度の戦略名も取得
+        best_strategy_name, best_signal = max(
+            same_action_signals, key=lambda x: x[1].confidence
+        )
 
         # 統合シグナル生成
         return StrategySignal(
-            strategy_name="StrategyManager",
+            strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
             timestamp=datetime.now(),
             action=dominant_action,
             confidence=weighted_confidence,

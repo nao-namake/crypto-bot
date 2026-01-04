@@ -65,6 +65,9 @@ class TradeEvaluation:
 
     # Phase 35.3: オプションフィールド（デフォルト値あり）
     entry_price: Optional[float] = None  # バックテスト用エントリー価格
+    strategy_name: str = "unknown"  # Phase 57.12: 戦略名記録
+    ml_prediction: Optional[int] = None  # Phase 57.12: ML予測クラス（0=SELL, 1=HOLD, 2=BUY）
+    ml_confidence: Optional[float] = None  # Phase 57.12: ML信頼度
 
     # 後方互換性のためのactionプロパティ（Silent Failure修正）
     @property
