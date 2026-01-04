@@ -1312,6 +1312,42 @@ Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
 | HOLD | 17件 | 23.5% | ¥-54 | ¥-926 |
 ```
 
+### Part 5: ML×戦略一致率分析【完了】
+
+戦略シグナルとML予測の一致/不一致による勝率・損益の違いを分析する機能を追加。
+
+#### 追加関数
+
+| 関数 | 機能 |
+|------|------|
+| `generate_ml_strategy_agreement()` | ML×戦略一致率分析生成 |
+
+#### 判定ロジック
+
+- **一致**: 戦略BUY + ML BUY、または 戦略SELL + ML SELL
+- **不一致**: 上記以外（ML HOLDを含む）
+
+#### 出力例（5日間テスト）
+
+```markdown
+## ML×戦略一致率分析（Phase 57.12追加）
+
+| 区分 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |
+|------|--------|------|-------------|--------|
+| **一致**（戦略=ML） | 2件 | 100.0% | ¥+120 | ¥+241 |
+| 不一致（戦略≠ML） | 20件 | 30.0% | ¥-36 | ¥-715 |
+| └ ML HOLD時 | 17件 | 23.5% | ¥-54 | ¥-926 |
+
+**一致率**: 9.1% (2/22件)
+**評価**: 一致時の勝率が70.0pt高い → ML予測を重視すべき
+```
+
+#### 分析ポイント
+
+- 一致時は100%勝率、不一致時は30%勝率 → **70pt差**
+- ML HOLD時の取引は特に低勝率（23.5%）
+- 改善案: MLがHOLD予測時は取引をスキップするフィルター検討
+
 ### 修正ファイル一覧
 
 | ファイル | 修正内容 | 状態 |
@@ -1319,14 +1355,15 @@ Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
 | `src/trading/core/types.py` | TradeEvaluationに`strategy_name`フィールド追加 | ✅ |
 | `src/trading/risk/manager.py` | TradeEvaluation構築時にstrategy_name渡す | ✅ |
 | `src/strategies/base/strategy_manager.py` | 個別戦略名記録（4箇所）+ contributing_strategies追加 | ✅ |
-| `scripts/backtest/generate_markdown_report.py` | 戦略別・ML別統計セクション追加 | ✅ |
+| `scripts/backtest/generate_markdown_report.py` | 戦略別・ML別・一致率統計セクション追加 | ✅ |
 
 ### 期待効果
 
 1. **PDCA分析精度向上**: どの戦略が利益を出しているか特定可能
 2. **ML予測評価**: ML予測と実績の相関を分析可能
 3. **戦略最適化**: パフォーマンスの低い戦略を特定・改善
+4. **ML×戦略一致率**: 一致時と不一致時の勝率差を可視化
 
 ---
 
-**📅 最終更新**: 2026年1月4日 - Phase 57.12 バックテストデータ拡充・分析レポート強化完了
+**📅 最終更新**: 2026年1月5日 - Phase 57.12 完全完了（ML×戦略一致率分析追加）

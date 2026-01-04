@@ -206,6 +206,67 @@ def generate_ml_prediction_stats(trades: list) -> Dict[str, Any]:
     return stats
 
 
+def generate_ml_strategy_agreement(trades: list) -> Dict[str, Any]:
+    """
+    Phase 57.12: ML×戦略一致率分析を生成
+
+    戦略のBUY/SELL決定とML予測が一致しているかを分析。
+    - 一致: 戦略BUY + ML BUY、または 戦略SELL + ML SELL
+    - 不一致: 上記以外（ML HOLDを含む）
+
+    Args:
+        trades: 取引リスト
+
+    Returns:
+        一致/不一致時のパフォーマンス統計
+    """
+    # ml_prediction: 0=SELL, 1=HOLD, 2=BUY
+    match_trades = []
+    mismatch_trades = []
+    ml_hold_trades = []
+
+    for t in trades:
+        side = t.get("side", "").lower()
+        ml_pred = t.get("ml_prediction")
+
+        if ml_pred is None:
+            continue
+
+        # ML HOLDの場合は別カウント
+        if ml_pred == 1:
+            ml_hold_trades.append(t)
+            mismatch_trades.append(t)
+            continue
+
+        # 一致判定: 戦略BUY + ML BUY(2)、または 戦略SELL + ML SELL(0)
+        is_match = (side == "buy" and ml_pred == 2) or (side == "sell" and ml_pred == 0)
+
+        if is_match:
+            match_trades.append(t)
+        else:
+            mismatch_trades.append(t)
+
+    def calc_stats(trade_list: list) -> Dict[str, Any]:
+        if not trade_list:
+            return {"count": 0, "wins": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_pnl": 0.0}
+        wins = len([t for t in trade_list if t.get("pnl", 0) > 0])
+        total_pnl = sum(t.get("pnl", 0) for t in trade_list)
+        return {
+            "count": len(trade_list),
+            "wins": wins,
+            "win_rate": (wins / len(trade_list) * 100) if trade_list else 0.0,
+            "total_pnl": total_pnl,
+            "avg_pnl": total_pnl / len(trade_list) if trade_list else 0.0,
+        }
+
+    return {
+        "match": calc_stats(match_trades),
+        "mismatch": calc_stats(mismatch_trades),
+        "ml_hold": calc_stats(ml_hold_trades),
+        "has_data": len(match_trades) + len(mismatch_trades) > 0,
+    }
+
+
 def generate_strategy_regime_matrix(trades: list) -> Dict[str, Dict[str, Any]]:
     """
     Phase 57.12: 戦略×レジーム クロス集計を生成
@@ -719,6 +780,68 @@ def generate_markdown_report(report_data: Dict[str, Any]) -> str:
                 f"| 不明 | {data['count']}件 | "
                 f"{data['win_rate']:.1f}% | ¥{data['avg_pnl']:+,.0f} | ¥{data['total_pnl']:+,.0f} |"
             )
+        lines.extend(["", ""])
+
+    # Phase 57.12: ML×戦略一致率分析
+    agreement_stats = generate_ml_strategy_agreement(all_trades)
+    if agreement_stats["has_data"]:
+        match = agreement_stats["match"]
+        mismatch = agreement_stats["mismatch"]
+        ml_hold = agreement_stats["ml_hold"]
+
+        lines.extend(
+            [
+                "---",
+                "",
+                "## ML×戦略一致率分析（Phase 57.12追加）",
+                "",
+                "戦略シグナルとML予測の一致/不一致による勝率・損益の違いを分析。",
+                "",
+                "| 区分 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |",
+                "|------|--------|------|-------------|--------|",
+            ]
+        )
+        if match["count"] > 0:
+            lines.append(
+                f"| **一致**（戦略=ML） | {match['count']}件 | "
+                f"{match['win_rate']:.1f}% | ¥{match['avg_pnl']:+,.0f} | ¥{match['total_pnl']:+,.0f} |"
+            )
+        if mismatch["count"] > 0:
+            lines.append(
+                f"| 不一致（戦略≠ML） | {mismatch['count']}件 | "
+                f"{mismatch['win_rate']:.1f}% | ¥{mismatch['avg_pnl']:+,.0f} | ¥{mismatch['total_pnl']:+,.0f} |"
+            )
+        if ml_hold["count"] > 0:
+            lines.append(
+                f"| └ ML HOLD時 | {ml_hold['count']}件 | "
+                f"{ml_hold['win_rate']:.1f}% | ¥{ml_hold['avg_pnl']:+,.0f} | ¥{ml_hold['total_pnl']:+,.0f} |"
+            )
+
+        # 一致率計算
+        total_with_ml = match["count"] + mismatch["count"]
+        if total_with_ml > 0:
+            match_rate = match["count"] / total_with_ml * 100
+            lines.extend(
+                [
+                    "",
+                    f"**一致率**: {match_rate:.1f}% ({match['count']}/{total_with_ml}件)",
+                ]
+            )
+
+            # 勝率差の評価
+            if match["count"] > 0 and mismatch["count"] > 0:
+                win_rate_diff = match["win_rate"] - mismatch["win_rate"]
+                if win_rate_diff > 5:
+                    lines.append(
+                        f"**評価**: 一致時の勝率が{win_rate_diff:.1f}pt高い → ML予測を重視すべき"
+                    )
+                elif win_rate_diff < -5:
+                    lines.append(
+                        f"**評価**: 不一致時の勝率が{-win_rate_diff:.1f}pt高い → 戦略シグナルを重視すべき"
+                    )
+                else:
+                    lines.append("**評価**: 勝率差は小さい → 両者の相関は弱い")
+
         lines.extend(["", ""])
 
     # Phase 57.12: 戦略×レジーム クロス集計
