@@ -2,18 +2,23 @@
 set -euo pipefail
 
 # =============================================================================
-# バックテスト実行スクリプト - Phase 57.11改修
+# バックテスト実行スクリプト - Phase 57.13改修
 #
 # 機能:
 #   - CSVデータ収集（Bitbank APIから履歴データ取得）
-#   - 日数指定オプション（設定ファイル変更不要）
+#   - 固定期間モード対応（thresholds.yamlで設定）
+#   - 日数指定オプション（ローリングウィンドウモード用）
 #   - Markdownレポート自動生成
 #
 # 使い方:
-#   bash scripts/backtest/run_backtest.sh                    # 180日・CSV収集あり
-#   bash scripts/backtest/run_backtest.sh --days 30          # 30日・CSV収集あり
-#   bash scripts/backtest/run_backtest.sh --days 60 --skip-collect  # 60日・既存CSV使用
+#   bash scripts/backtest/run_backtest.sh                    # 設定ファイル準拠
+#   bash scripts/backtest/run_backtest.sh --days 30          # 30日・ローリング
+#   bash scripts/backtest/run_backtest.sh --skip-collect     # 既存CSV使用
 #   bash scripts/backtest/run_backtest.sh --prefix phase57   # カスタムログ名
+#
+# Phase 57.13: 固定期間モード
+#   thresholds.yamlで backtest_use_fixed_dates: true の場合、
+#   backtest_start_date / backtest_end_date を使用
 # =============================================================================
 
 # ログ保存ディレクトリ
@@ -91,10 +96,37 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Step 1: CSVデータ収集
+# Step 1: CSVデータ収集（Phase 57.13: 固定期間対応）
 if [ "$SKIP_COLLECT" = false ]; then
-    echo "📥 Step 1: CSVデータ収集開始（${DAYS}日間）..."
-    python3 src/backtest/scripts/collect_historical_csv.py --days "$DAYS"
+    # Phase 57.13: 固定期間モード判定
+    USE_FIXED=$(python3 -c "
+import yaml
+with open('config/core/thresholds.yaml') as f:
+    config = yaml.safe_load(f)
+print('true' if config.get('execution', {}).get('backtest_use_fixed_dates', False) else 'false')
+")
+
+    if [ "$USE_FIXED" = "true" ]; then
+        # 固定期間モード: 設定ファイルから日付を取得
+        START_DATE=$(python3 -c "
+import yaml
+with open('config/core/thresholds.yaml') as f:
+    config = yaml.safe_load(f)
+print(config.get('execution', {}).get('backtest_start_date', '2025-07-01'))
+")
+        END_DATE=$(python3 -c "
+import yaml
+with open('config/core/thresholds.yaml') as f:
+    config = yaml.safe_load(f)
+print(config.get('execution', {}).get('backtest_end_date', '2025-12-31'))
+")
+        echo "📥 Step 1: CSVデータ収集開始（固定期間: ${START_DATE} ~ ${END_DATE}）..."
+        python3 src/backtest/scripts/collect_historical_csv.py --start-date "$START_DATE" --end-date "$END_DATE"
+    else
+        # ローリングウィンドウモード: 日数指定
+        echo "📥 Step 1: CSVデータ収集開始（${DAYS}日間）..."
+        python3 src/backtest/scripts/collect_historical_csv.py --days "$DAYS"
+    fi
 
     # データ収集確認
     if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
@@ -110,12 +142,17 @@ else
     echo ""
 fi
 
-# Step 2: 設定ファイルの日数を一時変更
-echo "⚙️ Step 2: バックテスト期間設定（${DAYS}日間）..."
-cp "$CONFIG_FILE" "$CONFIG_BACKUP"
-sed -i.tmp "s/backtest_period_days:.*/backtest_period_days: ${DAYS}  # Phase 57.11: スクリプト指定/" "$CONFIG_FILE"
-rm -f "${CONFIG_FILE}.tmp"
-echo "✅ 設定ファイル更新完了"
+# Step 2: 設定ファイル確認（Phase 57.13: 固定期間時は変更不要）
+if [ "${USE_FIXED:-false}" = "true" ]; then
+    echo "⚙️ Step 2: 固定期間モード - 設定ファイル変更不要"
+    echo "📅 期間: ${START_DATE:-2025-07-01} ~ ${END_DATE:-2025-12-31}"
+else
+    echo "⚙️ Step 2: バックテスト期間設定（${DAYS}日間）..."
+    cp "$CONFIG_FILE" "$CONFIG_BACKUP"
+    sed -i.tmp "s/backtest_period_days:.*/backtest_period_days: ${DAYS}  # Phase 57.11: スクリプト指定/" "$CONFIG_FILE"
+    rm -f "${CONFIG_FILE}.tmp"
+    echo "✅ 設定ファイル更新完了"
+fi
 echo ""
 
 # Step 3: バックテスト実行
@@ -124,11 +161,17 @@ python3 main.py --mode backtest 2>&1 | tee "${LOG_FILE}"
 BACKTEST_EXIT_CODE=${PIPESTATUS[0]}
 echo ""
 
-# Step 4: 設定ファイル復元
-echo "🔧 Step 4: 設定ファイル復元..."
-mv "$CONFIG_BACKUP" "$CONFIG_FILE"
+# Step 4: 設定ファイル復元（Phase 57.13: 固定期間時はスキップ）
+if [ "${USE_FIXED:-false}" = "true" ]; then
+    echo "🔧 Step 4: 固定期間モード - 復元不要"
+else
+    echo "🔧 Step 4: 設定ファイル復元..."
+    if [ -f "$CONFIG_BACKUP" ]; then
+        mv "$CONFIG_BACKUP" "$CONFIG_FILE"
+        echo "✅ 設定ファイル復元完了"
+    fi
+fi
 trap - EXIT  # trapを解除
-echo "✅ 設定ファイル復元完了"
 echo ""
 
 # バックテスト失敗時は終了
@@ -148,6 +191,19 @@ if [ -n "$LATEST_JSON" ]; then
     fi
 else
     echo "⚠️ JSONレポートが見つかりません（Markdownレポート生成スキップ）"
+fi
+
+# Step 6: ローカル結果を検証記録に保存（Phase 57.13）
+echo ""
+echo "📁 Step 6: ローカル結果を検証記録に保存..."
+if [ -n "$LATEST_JSON" ]; then
+    REPORT_DATE=$(TZ=Asia/Tokyo date +"%Y%m%d")
+    LOCAL_JSON="docs/検証記録/local_backtest_${REPORT_DATE}.json"
+    cp "$LATEST_JSON" "$LOCAL_JSON"
+    echo "✅ ローカル結果保存: $LOCAL_JSON"
+    echo "   → 分析: python3 scripts/backtest/standard_analysis.py --local"
+else
+    echo "⚠️ JSONファイルが見つかりません（保存スキップ）"
 fi
 
 # 実行時間計算

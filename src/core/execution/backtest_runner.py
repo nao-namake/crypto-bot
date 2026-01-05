@@ -121,17 +121,31 @@ class BacktestRunner(BaseRunner):
             raise
 
     async def _setup_backtest_period(self):
-        """バックテスト期間設定"""
-        # 外部設定から期間を取得
-        backtest_days = get_threshold("execution.backtest_period_days", 30)
+        """バックテスト期間設定（Phase 57.13: 固定期間対応）"""
+        # Phase 57.13: 固定期間モード判定
+        use_fixed = get_threshold("execution.backtest_use_fixed_dates", False)
 
-        self.backtest_end = datetime.now()
-        self.backtest_start = self.backtest_end - timedelta(days=backtest_days)
-
-        self.logger.info(
-            f"📅 バックテスト期間: {self.backtest_start.strftime('%Y-%m-%d')} "
-            f"~ {self.backtest_end.strftime('%Y-%m-%d')} ({backtest_days}日間)"
-        )
+        if use_fixed:
+            # 固定期間モード
+            start_str = get_threshold("execution.backtest_start_date", "2025-07-01")
+            end_str = get_threshold("execution.backtest_end_date", "2025-12-31")
+            self.backtest_start = datetime.strptime(start_str, "%Y-%m-%d")
+            self.backtest_end = datetime.strptime(end_str, "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59
+            )
+            duration_days = (self.backtest_end - self.backtest_start).days
+            self.logger.warning(
+                f"📅 Phase 57.13: 固定期間モード - {start_str} ~ {end_str} ({duration_days}日間)"
+            )
+        else:
+            # 従来のローリングウィンドウモード
+            backtest_days = get_threshold("execution.backtest_period_days", 30)
+            self.backtest_end = datetime.now()
+            self.backtest_start = self.backtest_end - timedelta(days=backtest_days)
+            self.logger.info(
+                f"📅 バックテスト期間: {self.backtest_start.strftime('%Y-%m-%d')} "
+                f"~ {self.backtest_end.strftime('%Y-%m-%d')} ({backtest_days}日間)"
+            )
 
     async def _load_csv_data(self):
         """CSVデータ読み込み"""

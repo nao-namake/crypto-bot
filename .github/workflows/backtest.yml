@@ -1,5 +1,6 @@
 # バックテスト自動化ワークフロー
 # 目的: 履歴データ収集→バックテスト実行→Markdownレポート生成
+# Phase 57.13: 固定期間モード対応
 
 name: Backtest Automation
 
@@ -8,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       backtest_days:
-        description: 'バックテスト日数'
+        description: 'バックテスト日数（固定期間モード時は無視）'
         required: false
         default: '180'
         type: choice
@@ -64,7 +65,7 @@ jobs:
           echo "✅ 依存関係インストール完了"
 
       # ========================================
-      # Step 4: 履歴データ収集
+      # Step 4: 履歴データ収集（Phase 57.13: 固定期間対応）
       # ========================================
       - name: Collect historical data
         run: |
@@ -73,8 +74,35 @@ jobs:
           # 必要なディレクトリ作成
           mkdir -p src/backtest/data/historical
 
-          # 履歴データ収集（${HISTORICAL_DATA_DAYS}日分）
-          python3 src/backtest/scripts/collect_historical_csv.py --days ${{ env.HISTORICAL_DATA_DAYS }}
+          # Phase 57.13: 固定期間モード判定
+          USE_FIXED=$(python3 -c "
+          import yaml
+          with open('config/core/thresholds.yaml') as f:
+              config = yaml.safe_load(f)
+          print('true' if config.get('execution', {}).get('backtest_use_fixed_dates', False) else 'false')
+          ")
+
+          if [ "$USE_FIXED" = "true" ]; then
+            # 固定期間モード: 設定ファイルから日付を取得
+            START_DATE=$(python3 -c "
+          import yaml
+          with open('config/core/thresholds.yaml') as f:
+              config = yaml.safe_load(f)
+          print(config.get('execution', {}).get('backtest_start_date', '2025-07-01'))
+          ")
+            END_DATE=$(python3 -c "
+          import yaml
+          with open('config/core/thresholds.yaml') as f:
+              config = yaml.safe_load(f)
+          print(config.get('execution', {}).get('backtest_end_date', '2025-12-31'))
+          ")
+            echo "📅 Phase 57.13: 固定期間モード - ${START_DATE} ~ ${END_DATE}"
+            python3 src/backtest/scripts/collect_historical_csv.py --start-date "$START_DATE" --end-date "$END_DATE"
+          else
+            # ローリングウィンドウモード: 日数指定
+            echo "📅 ローリングウィンドウモード - ${HISTORICAL_DATA_DAYS}日間"
+            python3 src/backtest/scripts/collect_historical_csv.py --days ${{ env.HISTORICAL_DATA_DAYS }}
+          fi
 
           # データ収集確認（大文字ファイル名）
           if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
@@ -186,6 +214,18 @@ jobs:
             echo "❌ Markdownレポート未生成"
             exit 1
           fi
+
+      # ========================================
+      # Step 7.5: バックテスト結果をArtifactとして保存
+      # ========================================
+      - name: Upload backtest results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results
+          path: |
+            src/backtest/logs/backtest_*.json
+            backtest_run.log
+          retention-days: 90
 
       # ========================================
       # Step 8: Git設定

@@ -1,23 +1,24 @@
-# scripts/backtest/ - バックテスト実行システム（Phase 57.11完了版）
+# scripts/backtest/ - バックテスト実行システム（Phase 57.13完了版）
 
-**最終更新**: 2026年1月4日 - Phase 57.11完了・ローカルバックテスト機能強化・日毎損益分析・CSV収集統合
+**最終更新**: 2026年1月6日 - Phase 57.13完了・固定期間バックテスト・標準分析スクリプト・CI/ローカル連携
 
 ## 🎯 役割・責任
 
 バックテストシステムの実行・管理を支援するディレクトリです。過去データを使用した取引システムの検証、パフォーマンス評価、戦略最適化を実現します。
 
-**Phase 49完了成果**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック実装・TradeTrackerエントリー/エグジットペアリング・損益計算・matplotlib可視化システム・信頼性100%達成）
+**Phase 57.13成果**: 固定期間バックテスト（2025/07/01〜12/31）・標準分析スクリプト（84項目固定）・CI/ローカル連携
 
-## 📂 ファイル構成（Phase 57.11完了版）
+## 📂 ファイル構成（Phase 57.13完了版）
 
 ```
 scripts/backtest/
-├── README.md                      # このファイル（Phase 57.11完了版）
-├── run_backtest.sh                # バックテスト実行スクリプト（Phase 57.11改修）
-└── generate_markdown_report.py    # Markdownレポート生成（Phase 57.11追加）
+├── README.md                      # このファイル（Phase 57.13完了版）
+├── run_backtest.sh                # バックテスト実行スクリプト（Phase 57.13改修）
+├── generate_markdown_report.py    # Markdownレポート生成（Phase 57.11追加）
+└── standard_analysis.py           # 標準分析スクリプト（Phase 57.13新規）
 ```
 
-**Phase 57.11改修**: CSV収集・日数指定・Markdownレポート自動生成を追加
+**Phase 57.13新機能**: 固定期間モード・標準分析スクリプト・CI artifact連携・ローカル結果自動保存
 
 ## 📋 主要ファイルの役割
 
@@ -34,6 +35,33 @@ scripts/backtest/
 - **Phase 44-49完全改修**: 戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker実装
 - **履歴データ収集**: Bitbank Public API・15分足データ取得（17,271件）
 - **レポート生成**: matplotlib可視化・統計分析・パフォーマンス評価
+
+### **standard_analysis.py**（Phase 57.13新規）
+標準化された分析を実行し、毎回同一の84項目で比較可能な分析レポートを生成します。
+
+**Phase 57.13 機能**:
+- **84項目の固定指標**: 基本指標・戦略別・ML別・レジーム別・時系列統計
+- **CI連携**: `--from-ci`で最新のCI結果を自動取得・分析
+- **ローカル連携**: `--local`で最新のローカル結果を自動検出・分析
+- **履歴CSV**: 変更前後の比較が一目瞭然
+- **改善提案**: 分析結果から自動的に改善案を生成
+
+```bash
+# CI結果を分析
+python3 scripts/backtest/standard_analysis.py --from-ci --phase 57.13
+
+# ローカル結果を分析
+python3 scripts/backtest/standard_analysis.py --local --phase 57.13
+
+# 特定ファイルを分析
+python3 scripts/backtest/standard_analysis.py <json_path> --phase 57.13
+```
+
+**出力**:
+1. コンソール: サマリーテーブル
+2. JSON: `results/analysis_YYYYMMDD_HHMMSS.json`
+3. Markdown: `results/analysis_YYYYMMDD_HHMMSS.md`
+4. CSV: `results/analysis_history.csv`（履歴追記）
 
 ### **generate_markdown_report.py**（Phase 57.11追加）
 JSONレポートをMarkdownに変換し、詳細な分析レポートを生成します。

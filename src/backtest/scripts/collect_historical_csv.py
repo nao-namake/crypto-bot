@@ -394,9 +394,28 @@ async def main():
     )
     parser.add_argument("--start-timestamp", type=int, help="開始タイムスタンプ（ミリ秒）")
     parser.add_argument("--end-timestamp", type=int, help="終了タイムスタンプ（ミリ秒）")
+    # Phase 57.13: 日付形式での期間指定
+    parser.add_argument(
+        "--start-date", type=str, help="開始日（ISO形式: 2025-07-01）"
+    )
+    parser.add_argument(
+        "--end-date", type=str, help="終了日（ISO形式: 2025-12-31）"
+    )
     parser.add_argument("--match-4h", action="store_true", help="既存の4時間足データと期間を揃える")
 
     args = parser.parse_args()
+
+    # Phase 57.13: 日付形式から timestamp に変換
+    if args.start_date:
+        start_dt = datetime.strptime(args.start_date, "%Y-%m-%d")
+        args.start_timestamp = int(start_dt.timestamp() * 1000)
+        print(f"開始日: {args.start_date} → {args.start_timestamp}")
+    if args.end_date:
+        end_dt = datetime.strptime(args.end_date, "%Y-%m-%d").replace(
+            hour=23, minute=59, second=59
+        )
+        args.end_timestamp = int(end_dt.timestamp() * 1000)
+        print(f"終了日: {args.end_date} → {args.end_timestamp}")
 
     # 既存4時間足データと期間を揃える場合
     if args.match_4h:

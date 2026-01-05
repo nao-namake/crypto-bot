@@ -28,6 +28,10 @@
 # ========================================
 execution:
   backtest_period_days: 180  # Phase 57.11: スクリプト指定
+  # Phase 57.13: 固定期間バックテスト設定
+  backtest_use_fixed_dates: true       # true: 固定期間, false: ローリングウィンドウ
+  backtest_start_date: "2025-07-01"    # 固定期間開始日（ISO形式）
+  backtest_end_date: "2025-12-31"      # 固定期間終了日（ISO形式）
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
 
