@@ -193,20 +193,14 @@ class StandardAnalyzer:
     def _calc_strategy_stats(self):
         """戦略別指標計算"""
         for strategy in self.STRATEGIES:
-            strategy_trades = [
-                t for t in self.trades if t.get("strategy") == strategy
-            ]
+            strategy_trades = [t for t in self.trades if t.get("strategy") == strategy]
             count = len(strategy_trades)
             wins = sum(1 for t in strategy_trades if t.get("pnl", 0) > 0)
             total_pnl = sum(t.get("pnl", 0) for t in strategy_trades)
 
             # BUY/SELL比率
-            buy_count = sum(
-                1 for t in strategy_trades if t.get("side", "").lower() == "buy"
-            )
-            sell_count = sum(
-                1 for t in strategy_trades if t.get("side", "").lower() == "sell"
-            )
+            buy_count = sum(1 for t in strategy_trades if t.get("side", "").lower() == "buy")
+            sell_count = sum(1 for t in strategy_trades if t.get("side", "").lower() == "sell")
 
             self.result.strategy_stats[strategy] = {
                 "trades": count,
@@ -223,9 +217,7 @@ class StandardAnalyzer:
 
         for pred_name in self.ML_PREDICTIONS:
             pred_value = {"SELL": 0, "HOLD": 1, "BUY": 2}.get(pred_name)
-            ml_trades = [
-                t for t in self.trades if t.get("ml_prediction") == pred_value
-            ]
+            ml_trades = [t for t in self.trades if t.get("ml_prediction") == pred_value]
             count = len(ml_trades)
             wins = sum(1 for t in ml_trades if t.get("pnl", 0) > 0)
             total_pnl = sum(t.get("pnl", 0) for t in ml_trades)
@@ -255,9 +247,7 @@ class StandardAnalyzer:
                 mismatch_trades.append(t)
                 continue
 
-            is_match = (side == "buy" and ml_pred == 2) or (
-                side == "sell" and ml_pred == 0
-            )
+            is_match = (side == "buy" and ml_pred == 2) or (side == "sell" and ml_pred == 0)
             if is_match:
                 match_trades.append(t)
             else:
@@ -277,9 +267,7 @@ class StandardAnalyzer:
             (match_wins / len(match_trades) * 100) if len(match_trades) > 0 else 0.0
         )
         self.result.disagreement_win_rate = (
-            (mismatch_wins / len(mismatch_trades) * 100)
-            if len(mismatch_trades) > 0
-            else 0.0
+            (mismatch_wins / len(mismatch_trades) * 100) if len(mismatch_trades) > 0 else 0.0
         )
         self.result.ml_hold_win_rate = (
             (hold_wins / len(ml_hold_trades) * 100) if len(ml_hold_trades) > 0 else 0.0
@@ -339,12 +327,8 @@ class StandardAnalyzer:
                 self.result.best_strategy_pnl = best[1]["pnl"]
 
         # 信頼度帯別勝率
-        low_conf_trades = [
-            t for t in self.trades if (t.get("ml_confidence") or 0) < 0.5
-        ]
-        high_conf_trades = [
-            t for t in self.trades if (t.get("ml_confidence") or 0) >= 0.65
-        ]
+        low_conf_trades = [t for t in self.trades if (t.get("ml_confidence") or 0) < 0.5]
+        high_conf_trades = [t for t in self.trades if (t.get("ml_confidence") or 0) >= 0.65]
 
         low_wins = sum(1 for t in low_conf_trades if t.get("pnl", 0) > 0)
         high_wins = sum(1 for t in high_conf_trades if t.get("pnl", 0) > 0)
@@ -470,8 +454,7 @@ class ReportGenerator:
         # レジーム寄与度
         if r.tight_range_contribution > 100:
             suggestions.append(
-                f"4. tight_rangeの寄与度が{r.tight_range_contribution:.0f}%"
-                f" → 損失をカバー"
+                f"4. tight_rangeの寄与度が{r.tight_range_contribution:.0f}%" f" → 損失をカバー"
             )
 
         if not suggestions:
@@ -949,9 +932,7 @@ def main():
         action="store_true",
         help="最新のローカルバックテスト結果を自動検出して分析",
     )
-    parser.add_argument(
-        "--no-console", action="store_true", help="コンソール出力を抑制"
-    )
+    parser.add_argument("--no-console", action="store_true", help="コンソール出力を抑制")
     parser.add_argument("--no-json", action="store_true", help="JSON出力を抑制")
     parser.add_argument("--no-markdown", action="store_true", help="Markdown出力を抑制")
     parser.add_argument("--no-csv", action="store_true", help="履歴CSV出力を抑制")
