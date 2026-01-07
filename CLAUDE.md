@@ -1,6 +1,6 @@
 # CLAUDE.md - Phase 57開発ガイド
 
-**最終更新**: 2026年1月1日
+**最終更新**: 2026年1月7日
 
 ---
 
@@ -29,6 +29,10 @@
 | 57.5 | DD 10%許容・年利5%目標 | ポジション10倍拡大 |
 | 57.6 | リスク最大化・年利10%目標 | ボトルネック解消・Kelly重視 |
 | 57.7 | 設定ファイル体系整理・レポート計算修正 | unified.yaml統合・7件のレポートバグ修正 |
+| 57.10 | バックテストDDタイムスタンプバグ修正 | IntegratedRiskManagerのDD時刻処理修正 |
+| 57.11-12 | ローカルバックテスト機能強化 | CSV収集・日数指定・戦略別/ML別分析 |
+| 57.13 | 固定期間バックテスト・標準分析スクリプト | 84項目分析・CI/ローカル連携 |
+| 57.14 | ライブモード標準分析スクリプト | 35固定指標・bitbank API/GCPログ連携 |
 
 ### 6戦略構成（Phase 55.2更新）
 
@@ -116,6 +120,27 @@ TZ='Asia/Tokyo' gcloud run revisions list \
 gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 
+### ライブモード標準分析
+
+```bash
+# 基本実行（24時間分析）
+python3 scripts/live/standard_analysis.py
+
+# 期間指定（48時間）
+python3 scripts/live/standard_analysis.py --hours 48
+
+# 出力先指定
+python3 scripts/live/standard_analysis.py --output results/live/
+```
+
+**35固定指標**:
+- アカウント状態（5指標）: 証拠金維持率、利用可能残高、使用中証拠金、未実現損益、マージンコール状態
+- ポジション状態（5指標）: オープンポジション数、未約定注文数、注文内訳、ロスカット価格
+- 取引履歴分析（12指標）: 取引数、勝率、総損益、戦略別統計、TP/SL発動数
+- システム健全性（6指標）: API応答時間、エラー数、サービス状態、Container再起動数
+- TP/SL適切性（4指標）: TP/SL距離%、設置状態
+- 稼働率（3指標）: 稼働時間率（目標90%）、ダウンタイム
+
 ### バックテスト
 
 ```bash
@@ -128,6 +153,21 @@ bash scripts/backtest/run_backtest.sh
 # または
 python3 main.py --mode backtest
 ```
+
+### バックテスト標準分析
+
+```bash
+# CIの最新バックテスト結果を取得して分析
+python3 scripts/backtest/standard_analysis.py --from-ci
+
+# ローカルJSONファイルを分析
+python3 scripts/backtest/standard_analysis.py results/backtest_result.json
+
+# Phase指定付き
+python3 scripts/backtest/standard_analysis.py --from-ci --phase 57.13
+```
+
+**84固定指標**: 基本指標(10) + 戦略別(36) + ML予測別(9) + 一致率(4) + レジーム別(12) + 時系列(6) + 改善示唆(8)
 
 ### 戦略分析
 
@@ -352,4 +392,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月1日 - **Phase 57.7完了**（設定ファイル体系整理・レポート計算バグ修正）
+**📅 最終更新**: 2026年1月7日 - **Phase 57.14完了**（ライブモード標準分析スクリプト）

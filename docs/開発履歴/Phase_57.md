@@ -1,7 +1,7 @@
 # Phase 57 開発記録
 
-**期間**: 2025/12/29 - 2026/01/06
-**状況**: Phase 57.13 固定期間バックテスト・標準分析スクリプト【完了】
+**期間**: 2025/12/29 - 2026/01/07
+**状況**: ✅ Phase 57完了
 
 ---
 
@@ -28,11 +28,12 @@
 | 57.4 | API遅延対策 | ✅ | API閾値緩和（3秒→10秒） |
 | 57.5 | DD 10%許容・年利5%目標 | ✅ | ポジション10倍拡大 |
 | 57.6 | リスク最大化・年利10%目標 | ✅ | ボトルネック解消・Kelly重視 |
-| 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・7件のレポートバグ修正 |
-| 57.10 | バックテストDrawdownManagerタイムスタンプバグ修正 | ✅ | IntegratedRiskManagerのDD時刻処理修正 |
-| 57.11 | ローカルバックテスト機能強化・レポート改修 | ✅ | CSV収集・日数指定・日毎損益分析・TP/SL改修 |
-| 57.12 | バックテストデータ拡充・分析レポート強化 | ✅ | 個別戦略名記録・ML予測記録・分析統計追加 |
-| 57.13 | 固定期間バックテスト・標準分析スクリプト | ✅ | 固定期間(2025/07/01-12/31)・84項目分析・CI/ローカル連携 |
+| 57.7 | 設定ファイル体系整理・レポート計算修正 | ✅ | unified.yaml統合・レポートバグ修正 |
+| 57.10 | バックテストDDタイムスタンプバグ修正 | ✅ | IntegratedRiskManagerのDD時刻処理修正 |
+| 57.11 | ローカルバックテスト機能強化 | ✅ | CSV収集・日数指定・日毎損益分析 |
+| 57.12 | バックテストデータ拡充・分析レポート強化 | ✅ | 個別戦略名記録・ML予測記録 |
+| 57.13 | 固定期間バックテスト・標準分析スクリプト | ✅ | 固定期間・84項目分析・CI/ローカル連携 |
+| 57.14 | ライブモード標準分析スクリプト | ✅ | 35固定指標・bitbank API/GCPログ連携 |
 
 ---
 
@@ -42,8 +43,6 @@
 
 ### 調査結果
 
-#### 現状分析
-
 | 指標 | 値 | 評価 |
 |------|-----|------|
 | 証拠金 | ¥100,000（設定） | 少額 |
@@ -51,15 +50,15 @@
 | DD | 0.79% | 過度に保守的 |
 | max_drawdown設定 | 20% | 余裕大 |
 
-#### 制約の発見
+### 発見した制約
 
 1. **レバレッジ計算バグ**: コードで4倍計算、bitbankは2倍まで
 2. **Kelly基準が厳しい**: max_position_ratio 10%、safety_factor 0.7
 3. **ポジションサイズ制限**: 多層制限で極小化
 
-### 計画策定
+### 計画
 
-- 証拠金: 10万円 → 50万円（設定変更）
+- 証拠金: 10万円 → 50万円
 - 年利目標: 10%（年間¥50,000）
 - 想定DD: 2-5%
 
@@ -73,16 +72,10 @@
 
 #### 1. レバレッジ計算バグ修正
 
-| ファイル | 行 | 変更 |
-|---------|-----|------|
-| `src/trading/execution/executor.py` | 956-958 | `/ 4` → `/ 2` |
-| `src/core/execution/backtest_runner.py` | 831, 992 | `/ 4` → `/ 2` |
-
-```python
-# Phase 57: 必要証拠金計算（bitbank信用取引は2倍レバレッジ）
-order_total = price * amount  # 注文総額
-required_margin = order_total / 2  # 必要証拠金（50%）
-```
+| ファイル | 変更 |
+|---------|------|
+| `src/trading/execution/executor.py:956-958` | `/ 4` → `/ 2` |
+| `src/core/execution/backtest_runner.py:831, 992` | `/ 4` → `/ 2` |
 
 #### 2. Kelly基準緩和（thresholds.yaml）
 
@@ -90,29 +83,16 @@ required_margin = order_total / 2  # 必要証拠金（50%）
 kelly_criterion:
   max_position_ratio: 0.25    # 10% → 25%
   safety_factor: 0.8          # 0.7 → 0.8
-
-initial_position_size: 0.002   # 0.0005 → 0.002（4倍）
+initial_position_size: 0.002   # 0.0005 → 0.002
 ```
 
-#### 3. ポジションサイズ制限緩和（thresholds.yaml）
+#### 3. ポジションサイズ制限緩和
 
 ```yaml
 max_position_ratio_per_trade:
   low_confidence: 0.15    # 10% → 15%
   medium_confidence: 0.25  # 15% → 25%
   high_confidence: 0.40    # 25% → 40%
-
-dynamic_position_sizing:
-  low_confidence:
-    min_ratio: 0.05    # 3% → 5%
-    max_ratio: 0.10    # 5% → 10%
-  medium_confidence:
-    min_ratio: 0.08    # 5% → 8%
-    max_ratio: 0.15    # 8% → 15%
-  high_confidence:
-    min_ratio: 0.12    # 8% → 12%
-    max_ratio: 0.20    # 10% → 20%
-
 max_capital_usage: 0.5     # 0.3 → 0.5
 ```
 
@@ -120,13 +100,14 @@ max_capital_usage: 0.5     # 0.3 → 0.5
 
 ```yaml
 mode_balances:
-  paper:
-    initial_balance: 500000.0     # 10万 → 50万
-  live:
-    initial_balance: 500000.0     # 10万 → 50万
-  backtest:
-    initial_balance: 500000.0     # 10万 → 50万
+  paper/live/backtest:
+    initial_balance: 500000.0  # 10万 → 50万
 ```
+
+### 発見された問題
+
+ATR戦略のコードデフォルト値がPhase 56.10の実験設定のまま残っていた。
+- `bb_as_main_condition: True` → `False`に修正
 
 ### バックテスト結果（12/29）
 
@@ -142,97 +123,44 @@ mode_balances:
 
 **分析**:
 - ポジションサイズは増加（平均勝ち+65%）
-- しかし勝率が低下（ATR戦略のコード設定問題）
+- 勝率が低下（ATR戦略のコード設定問題）
 - DD 0.79%は目標5%に遠い
-
-### 発見された問題
-
-#### ATR戦略コードのデフォルト値問題
-
-atr_based.pyのコードデフォルト値がPhase 56.10の実験設定のまま残っていた。
-
-```python
-# 問題のあったデフォルト値（Phase 56.10）
-"bb_as_main_condition": True  # PF 0.78の原因
-
-# 修正後（Phase 55.4設定）
-"bb_as_main_condition": False  # PF 1.16の設定
-```
-
-修正内容:
-- `src/strategies/implementations/atr_based.py`: デフォルト値をPhase 55.4に復元
-- `config/core/thresholds.yaml`: ATR設定をPhase 55.4に復元
 
 ---
 
-## 🚀 Phase 57.2: DD 5%攻撃的設定【実装完了】
+## 🚀 Phase 57.2: DD 5%攻撃的設定【完了】
 
 ### 実施日: 2025/12/30
 
 ### 目的
 
-DD 5%まで許容してポジションサイズを大幅拡大（年利10%達成）
+DD 5%まで許容してポジションサイズを大幅拡大
 
-### 調査結果
-
-#### MLモデルの実態
-
-```
-ML検証スクリプト実行結果:
-
-🎯 信頼度統計:
-   平均: 0.518
-   最小: 0.349
-   最大: 0.717
-   高信頼度(>60%): 23.0%
-
-📊 個別モデル性能:
-   LightGBM:     Accuracy 41.5%, F1 0.412
-   XGBoost:      Accuracy 41.9%, F1 0.419
-   RandomForest: Accuracy 41.3%, F1 0.400
-```
+### MLモデルの実態
 
 | 指標 | 値 | 問題点 |
 |------|-----|--------|
-| 平均信頼度 | **51.8%** | 60%閾値を下回る |
-| 高信頼度(>60%) | **23%** | 77%が低信頼度扱い |
-| モデル精度 | **41%** | ランダム33%よりわずかに良い程度 |
+| 平均信頼度 | 51.8% | 60%閾値を下回る |
+| 高信頼度(>60%) | 23% | 77%が低信頼度扱い |
+| モデル精度 | 41% | ランダム33%よりわずかに良い程度 |
 
-**問題**: 77%の取引が「低信頼度」（<60%）に分類され、ポジションサイズが制限される
+### 修正内容
 
-### 変更計画
+#### 1. 信頼度閾値変更（60%→50%）
 
-#### 1. 信頼度閾値を60%→50%に変更
-
-**理由**: 平均信頼度51.8%なので、50%閾値なら約半数が「中信頼度」に分類
-
-**変更ファイル**:
-
-| ファイル | 行 | 変更 |
-|---------|-----|------|
-| `src/trading/risk/sizer.py` | 116, 223, 252 | `0.60` → `0.50` |
-| `src/trading/risk/manager.py` | 781 | `0.60` → `0.50` |
-| `src/trading/position/limits.py` | 340 | `0.60` → `0.50` |
+| ファイル | 箇所 |
+|---------|------|
+| `src/trading/risk/sizer.py` | 116, 223, 252行 |
+| `src/trading/risk/manager.py` | 781行 |
+| `src/trading/position/limits.py` | 340行 |
 
 #### 2. ポジションサイズ制限のさらなる緩和
 
 ```yaml
-# thresholds.yaml
 max_position_ratio_per_trade:
   low_confidence: 0.25     # 0.15 → 0.25
   medium_confidence: 0.35   # 0.25 → 0.35
   high_confidence: 0.50     # 0.40 → 0.50
-
-dynamic_position_sizing:
-  low_confidence:
-    min_ratio: 0.10        # 0.05 → 0.10（2倍）
-    max_ratio: 0.20        # 0.10 → 0.20（2倍）
-  medium_confidence:
-    min_ratio: 0.15        # 0.08 → 0.15
-    max_ratio: 0.25        # 0.15 → 0.25
-  high_confidence:
-    min_ratio: 0.20        # 0.12 → 0.20
-    max_ratio: 0.35        # 0.20 → 0.35
 ```
 
 #### 3. Kelly基準のさらなる緩和
@@ -241,7 +169,6 @@ dynamic_position_sizing:
 kelly_criterion:
   max_position_ratio: 0.35    # 0.25 → 0.35
   safety_factor: 0.9          # 0.8 → 0.9
-
 initial_position_size: 0.005   # 0.002 → 0.005
 ```
 
@@ -260,44 +187,6 @@ production:
 | 最大DD | 0.79% | ~4.7% | 5% |
 | 年利 | 1.5% | ~9% | 10% |
 
-### 修正ファイル一覧
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `config/core/thresholds.yaml` | ポジションサイズ・Kelly緩和 |
-| `src/trading/risk/sizer.py` | 信頼度閾値60%→50% |
-| `src/trading/risk/manager.py` | 信頼度閾値60%→50% |
-| `src/trading/position/limits.py` | 信頼度閾値60%→50% |
-
-### 実装状況
-
-- [x] thresholds.yaml更新（Kelly緩和・ポジション制限拡大）
-- [x] sizer.py修正（0.60→0.50、3箇所）
-- [x] manager.py修正（0.60→0.50、1箇所）
-- [x] limits.py修正（0.60→0.50、1箇所）
-- [x] atr_based.py修正（Phase 55.4設定復元）
-- [x] thresholds.yaml ATR設定復元
-- [x] コミット・プッシュ（744a0dc1）
-- [ ] バックテスト結果検証（Run ID: 20583684251）
-
-### コミット情報
-
-```
-commit 744a0dc1
-Author: Claude Code
-Date: 2025/12/30
-
-fix: Phase 57.2 DD 5%攻撃的設定
-
-- 信頼度閾値60%→50%に変更（5ファイル）
-- Kelly max_position_ratio: 25%→35%
-- Kelly safety_factor: 0.8→0.9
-- initial_position_size: 0.002→0.005
-- max_order_size: 0.03→0.05
-- ポジション制限約2倍に拡大
-- ATR戦略Phase 55.4設定復元
-```
-
 ### 期待効果
 
 | 指標 | Phase 57.1 | Phase 57.2予測 | 目標 |
@@ -315,54 +204,31 @@ fix: Phase 57.2 DD 5%攻撃的設定
 
 ### 問題
 
-Phase 56.8デプロイ後、ライブモードで取引が発生しない。全ての取引が`リスクスコア=100.0%`で拒否されている。
+Phase 56.8デプロイ後、ライブモードで取引が発生しない。全ての取引が`リスクスコア=100.0%`で拒否。
 
-### 調査結果
+### 根本原因
 
-#### GCPログ分析
-
-```
-取引拒否: リスクスコア=100.0%, 理由=
-取引拒否: リスクスコア=100.0%, 理由=重大なAPI遅延: 5600ms
-```
-
-- 全ての取引がrisk_score=1.0で拒否
-- 「理由」が空のケースが多い（denial_reasonsが空）
-- API遅延警告（3000ms超過）が時々発生
-
-#### 根本原因
-
-1. **リスクスコア計算のバグ**: `drawdown_risk`と`consecutive_risk`が1.0でキャップされていなかった
+リスクスコア計算のバグ: `drawdown_risk`と`consecutive_risk`が1.0でキャップされていなかった
 
 ```python
-# 問題のあったコード
+# 修正前
 drawdown_risk = drawdown_ratio / 0.20          # キャップなし
-consecutive_risk = consecutive_losses / 5.0   # キャップなし
 
 # 修正後（Phase 57.3）
 drawdown_risk = min(1.0, drawdown_ratio / 0.20)
 consecutive_risk = min(1.0, consecutive_losses / 5.0)
 ```
 
-2. **ログ表示バグ**: RiskDecision列挙型が正しく処理されず「❓ 不明」と表示
-
-```python
-# 問題: str(RiskDecision.DENIED) → "RiskDecision.DENIED"
-# 修正: decision_raw.value → "denied"
-```
-
-### 修正内容
+### 修正ファイル
 
 | ファイル | 修正内容 |
 |---------|---------|
 | `src/trading/risk/manager.py` | リスクコンポーネントのmin(1.0, ...)正規化追加 |
-| `src/trading/risk/manager.py` | リスクスコア詳細ログ追加（診断用） |
 | `src/core/services/trading_logger.py` | RiskDecision Enum対応（.value使用） |
 
 ### 追加診断ログ
 
-高リスクスコア（≥85%）時に詳細ログを出力：
-
+高リスクスコア（≥85%）時に詳細ログを出力するよう追加:
 ```
 🔍 リスクスコア詳細: total=0.850, ml_risk=0.607×0.3=0.182,
 anomaly=0.500×0.25=0.125, drawdown=0.000×0.25=0.000,
@@ -373,7 +239,7 @@ consecutive=0.000×0.1=0.000, volatility=0.400×0.1=0.040
 
 - リスクスコアが適切な範囲（0-100%）に正規化
 - denial_reasonsが空でも正確なリスクスコアを計算
-- ログで判定結果が正しく表示される（🟢 取引承認 / 🔴 取引拒否）
+- ログで判定結果が正しく表示される
 
 ---
 
@@ -383,52 +249,17 @@ consecutive=0.000×0.1=0.000, volatility=0.400×0.1=0.040
 
 ### 問題
 
-GCPログで5000-7500msのAPI遅延が継続的に発生し、critical anomaly（閾値3000ms）として検出されていた。
+GCPログで5000-7500msのAPI遅延が継続的に発生し、critical anomaly（閾値3000ms）として検出。
 
-```
-取引拒否: リスクスコア=100.0%, 理由=重大なAPI遅延: 5600ms
-取引拒否: リスクスコア=100.0%, 理由=重大なAPI遅延: 6600ms
-```
-
-### 調査結果
-
-#### API遅延パターン
-
-| 項目 | 値 |
-|------|-----|
-| 遅延範囲 | 5000-7500ms |
-| 発生頻度 | 継続的 |
-| 閾値（warning） | 1秒 |
-| 閾値（critical） | 3秒 |
-
-#### 遅延の原因
-
-| 原因 | 可能性 | 備考 |
-|------|--------|------|
-| bitbank API応答 | 中〜高 | 外部要因、制御不可 |
-| Cloud Run cold start | 中 | コンテナ起動時の初期遅延 |
-| ccxt rate limiting | 低 | 1秒制限で5秒遅延は説明不可 |
-| ネットワーク遅延 | 低 | 両方とも東京リージョン |
-
-### 修正内容
-
-#### unified.yaml の変更
+### 修正内容（unified.yaml）
 
 ```yaml
-# Before
 anomaly_detector:
-  api_latency_warning: 1.0    # 1秒
-  api_latency_critical: 3.0   # 3秒
-
-# After (Phase 57.4)
-anomaly_detector:
-  api_latency_warning: 5.0    # 5秒（実測5-7秒に対応）
-  api_latency_critical: 10.0  # 10秒（過剰拒否防止）
+  api_latency_warning: 5.0    # 1秒 → 5秒
+  api_latency_critical: 10.0  # 3秒 → 10秒
 ```
 
-### システムへの影響
-
-#### 変更前後の動作比較
+### 変更前後の動作比較
 
 | API応答時間 | 変更前 | 変更後 |
 |------------|--------|--------|
@@ -437,17 +268,13 @@ anomaly_detector:
 | 5-10秒 | critical → 拒否 | warning（取引可能） |
 | 10秒以上 | critical → 拒否 | critical → 拒否 |
 
-#### リスク評価
+### リスク評価
 
 | 項目 | 影響 |
 |------|------|
-| **利点** | 5-7秒のAPI応答で取引が拒否されなくなる |
-| **リスク** | API障害時の検出が10秒に遅延 |
-| **緩和策** | 10秒でも十分に異常検出可能（通常は<1秒） |
-
-### 補足
-
-Phase 57.3の修正（リスクコンポーネントの正規化）により、API遅延があってもrisk_scoreが100%まで上がることはなくなる。両方の修正を併用することで安定した運用が可能。
+| 利点 | 5-7秒のAPI応答で取引が拒否されなくなる |
+| リスク | API障害時の検出が10秒に遅延 |
+| 緩和策 | 10秒でも十分に異常検出可能（通常は<1秒） |
 
 ---
 
@@ -455,67 +282,53 @@ Phase 57.3の修正（リスクコンポーネントの正規化）により、A
 
 ### 実施日: 2025/12/30
 
-### 背景
-
-Phase 57.2バックテスト結果:
-- DD 0.91%、利益 ¥1,264（半年）
-- 50万円で半年¥1,264は年利0.5%
-- 目標: 年利5%（半年で¥12,500）
-
-### 目標設定
+### 目標
 
 | 指標 | 現在 | 目標 |
 |------|------|------|
-| DD上限 | 0.91% | **≤10%** |
-| 年利 | 0.5% | **5%** |
-| 半年利益 | ¥1,264 | **¥12,500** |
-| ポジション倍率 | 1x | **10x** |
+| DD上限 | 0.91% | ≤10% |
+| 年利 | 0.5% | 5% |
+| ポジション倍率 | 1x | 10x |
 
 ### 修正内容
 
 #### 1. バグ修正: reporter.py設定キー
 
-バックテストレポートが¥100,000で計算されていた問題を修正。
-
 ```python
-# Before (src/backtest/reporter.py:350)
+# 修正前
 initial_capital = get_threshold("backtest.initial_balance", 100000.0)
 
-# After (Phase 57.5)
+# 修正後
 initial_capital = get_threshold("mode_balances.backtest.initial_balance", 500000.0)
 ```
 
 #### 2. ポジションサイズ10倍拡大（thresholds.yaml）
 
 ```yaml
-# production
-max_order_size: 0.20        # 0.05 → 0.20（4倍）
-
-# Kelly基準
+production:
+  max_order_size: 0.20        # 0.05 → 0.20
 kelly_criterion:
-  max_position_ratio: 1.00  # 0.35 → 1.00（2.9倍）
-  safety_factor: 1.0        # 0.9 → 1.0（安全係数撤廃）
-
-# 初期ポジション
-initial_position_size: 0.02  # 0.005 → 0.02（4倍）
+  max_position_ratio: 1.00    # 0.35 → 1.00
+  safety_factor: 1.0          # 0.9 → 1.0
+initial_position_size: 0.02   # 0.005 → 0.02
 
 # 信頼度別最大比率
 max_position_ratio_per_trade:
-  low_confidence: 0.80      # 0.25 → 0.80（3.2倍）
-  medium_confidence: 0.90   # 0.35 → 0.90（2.6倍）
-  high_confidence: 1.00     # 0.50 → 1.00（2倍）
+  low_confidence: 0.80      # 0.25 → 0.80
+  medium_confidence: 0.90   # 0.35 → 0.90
+  high_confidence: 1.00     # 0.50 → 1.00
 
 # 動的ポジションサイジング
 dynamic_position_sizing:
   low_confidence:
-    min_ratio: 0.50         # 0.10 → 0.50（5倍）
-    max_ratio: 0.80         # 0.20 → 0.80（4倍）
+    min_ratio: 0.50         # 0.10 → 0.50
+    max_ratio: 0.80         # 0.20 → 0.80
   medium_confidence:
-    min_ratio: 0.60         # 0.15 → 0.60（4倍）
-    max_ratio: 0.90         # 0.25 → 0.90（3.6倍）
+    min_ratio: 0.60         # 0.15 → 0.60
+    max_ratio: 0.90         # 0.25 → 0.90
   high_confidence:
-    min_ratio: 0.70         # 0.20 → 0.70（3.5倍）
-    max_ratio: 1.00         # 0.35 → 1.00（2.9倍）
+    min_ratio: 0.70         # 0.20 → 0.70
+    max_ratio: 1.00         # 0.35 → 1.00
 ```
 
 ### 期待効果
@@ -525,8 +338,6 @@ dynamic_position_sizing:
 | DD | 0.91% | ~9% | ≤10% ✅ |
 | 半年利益 | ¥1,264 | ~¥12,600 | ¥12,500 ✅ |
 | 年利 | 0.5% | ~5% | 5% ✅ |
-| 平均勝ち | ¥211 | ~¥2,100 | - |
-| 平均負け | ¥156 | ~¥1,560 | - |
 
 ### リスク管理
 
@@ -536,29 +347,13 @@ dynamic_position_sizing:
 | 連続損失 | consecutive_loss_limit 8回 |
 | 大損失 | max_order_size 0.20 BTC制限 |
 
-### 修正ファイル一覧
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `src/backtest/reporter.py` | 設定キー修正（mode_balances.backtest.initial_balance） |
-| `config/core/thresholds.yaml` | ポジション設定10倍拡大 |
-
 ---
 
 ## 🚀 Phase 57.6: リスク最大化・年利10%目標【完了】
 
 ### 実施日: 2025/12/31
 
-### 背景
-
-Phase 57.5バックテスト結果:
-- DD 0.56%、利益 ¥3,623（半年）
-- 10倍設定でも利益は3倍にしか増えなかった
-- DD余裕が17.8倍（0.56% vs 目標10%）
-
 ### ボトルネック分析
-
-徹底調査により3つの主要ボトルネックを特定:
 
 | ボトルネック | 原因 | 影響 |
 |-------------|------|------|
@@ -569,46 +364,23 @@ Phase 57.5バックテスト結果:
 ### 修正内容
 
 ```yaml
-# thresholds.yaml
 trading:
-  capital_allocation_limit: 500000.0  # 10万→50万（5倍）
-
-trading:
-  initial_position_size: 0.04  # 0.02→0.04（2倍）
-
+  capital_allocation_limit: 500000.0  # 10万→50万
+  initial_position_size: 0.04         # 0.02→0.04
 production:
-  max_order_size: 0.40  # 0.20→0.40（2倍）
-
+  max_order_size: 0.40                # 0.20→0.40
 position_integrator:
-  kelly_weight: 0.7      # 50%→70%
-  dynamic_weight: 0.2    # 30%→20%
-  risk_manager_weight: 0.1  # 20%→10%
+  kelly_weight: 0.7                   # 50%→70%
+  dynamic_weight: 0.2                 # 30%→20%
+  risk_manager_weight: 0.1            # 20%→10%
 ```
 
-### 期待効果
+### バックテストモード残高参照バグ修正
 
-| 指標 | Phase 57.5 | Phase 57.6予測 | 目標 |
-|------|-----------|---------------|------|
-| 半年利益 | ¥3,623 | ¥36,000 | ¥25,000 ✅ |
-| DD | 0.56% | ~5.6% | ≤10% ✅ |
-| 年利 | 1.4% | ~14% | 10% ✅ |
+**問題**: `trading_cycle_manager.py`がバックテストモードでもAPIを呼び出し
 
-### リスク管理
+**修正**: `ExecutionService.virtual_balance`を参照するよう変更（`trading_cycle_manager.py:480-493`）
 
-| リスク | 対策 |
-|--------|------|
-| DD 10%超過 | max_drawdown 20%でハード制限 |
-| 連続損失 | consecutive_loss_limit 8回 |
-| 大損失 | max_order_size 0.40 BTC制限 |
-| 証拠金維持率 | 80%維持必須 |
-
-### バックテストモード残高参照バグ修正（12/31追加）
-
-**問題**: バックテスト結果が設定変更後も変化しなかった
-
-**根本原因**: `trading_cycle_manager.py`の`_fetch_trading_info()`がバックテストモードでもAPIを呼び出し、`ExecutionService.virtual_balance`を参照していなかった
-
-**修正内容**:
 ```python
 # Phase 57.6: バックテストモードではExecutionServiceのvirtual_balanceを使用
 execution_service = getattr(self.orchestrator, "execution_service", None)
@@ -619,7 +391,13 @@ else:
     actual_balance = balance_info.get("JPY", {}).get("total", 0.0)
 ```
 
-**修正ファイル**: `src/core/services/trading_cycle_manager.py:480-493`
+### 期待効果
+
+| 指標 | Phase 57.5 | Phase 57.6予測 | 目標 |
+|------|-----------|---------------|------|
+| 半年利益 | ¥3,623 | ¥36,000 | ¥25,000 ✅ |
+| DD | 0.56% | ~5.6% | ≤10% ✅ |
+| 年利 | 1.4% | ~14% | 10% ✅ |
 
 ---
 
@@ -627,116 +405,39 @@ else:
 
 ### 実施日: 2026/01/01
 
-### 背景
-
-Phase 57.6バックテスト結果:
-- 取引数: **1件**（本来60件程度）
-- 原因: 初期残高が¥100,000のまま（¥500,000のはず）
-- 理由: `get_threshold()`が`thresholds.yaml`のみ参照し、`unified.yaml`の`mode_balances`を読めていなかった
-
----
-
 ### Part 1: 設定ファイル体系整理
 
-#### 問題1: 設定ファイルの役割混乱
+#### 問題
 
-##### 3つの設定ファイルの正しい役割
+`mode_balances`は`unified.yaml`に定義されているが、コードは`get_threshold()`（thresholds.yamlのみ参照）で読み込もうとしていた。
 
-| ファイル | 役割 | 読み込み関数 |
-|---------|------|-------------|
-| `features.yaml` | 機能オンオフ | `load_features_config()` |
-| `unified.yaml` | 基本設定（残高・取引所等） | `load_config()` → `Config` |
-| `thresholds.yaml` | 動的閾値（ML・リスク等） | `get_threshold()` |
+#### 解決策
 
-##### 発生していた問題
-
-`mode_balances`は`unified.yaml`に定義されているが、コードは`get_threshold()`で参照:
-```python
-# ExecutionService (executor.py:84)
-self.virtual_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
-```
-
-`get_threshold()`は`thresholds.yaml`のみ読み込むため、フォールバック値（¥100,000）が使用されていた。
-
-#### 問題2: バックテスト取引1件の原因
-
-1. **初期残高**: ¥100,000（本来¥500,000）
-2. **ポジションサイズ**: 残高不足で極小化（0.00006 BTC < 最小0.0001 BTC）
-3. **取引拒否**: `holdシグナルまたは無効なポジションサイズ`
-
-#### 修正内容
-
-##### threshold_manager.py拡張（設定重複回避）
-
-**方針**: `thresholds.yaml`に`mode_balances`を追加しない（重複回避）。代わりに`get_threshold()`を拡張して`unified.yaml`もフォールバック参照。
-
-**ファイル**: `src/core/config/threshold_manager.py`
-
-`get_threshold()`の優先順位を拡張:
-1. 実行時オーバーライド
-2. thresholds.yaml
-3. **unified.yaml（新規追加）**
-4. default_value
+`threshold_manager.py`を拡張して`unified.yaml`もフォールバック参照:
 
 ```python
 def load_thresholds() -> Dict[str, Any]:
-    """閾値設定をYAMLファイルから読み込み（unified.yaml統合）"""
     # thresholds.yaml読み込み
     thresholds_data = yaml.safe_load(thresholds_path) or {}
-
     # Phase 57.7: unified.yamlをフォールバックとしてマージ
     unified_data = yaml.safe_load(unified_path) or {}
     thresholds_data = _deep_merge(unified_data, thresholds_data)
 ```
 
----
-
 ### Part 2: バックテストレポート計算バグ修正
 
-#### 発見経緯
+| # | 問題 | 修正内容 |
+|---|------|---------|
+| 1 | バックテスト期間が0日間 | ISO文字列をdatetimeに変換 |
+| 2 | PFが0.0（損失0時） | `float("inf")`を返すよう修正 |
+| 3 | リカバリーファクターが0.0（DD=0時） | `float("inf")`を返すよう修正 |
+| 4 | ソルティノレシオが0.0（負リターンなし時） | `float("inf")`を返すよう修正 |
+| 5 | カルマーレシオが0.0（DD=0時） | `float("inf")`を返すよう修正 |
+| 6 | ペイオフレシオが0.0（損失0時） | `float("inf")`を返すよう修正 |
+| 7 | レジーム別制限ハードコード | `get_threshold()`から動的読み込み |
 
-バックテスト結果ファイル `docs/検証記録/backtest_20251231.md` を分析中に、レポート生成ロジックに複数のバグを発見。これらのバグはレポートシステム導入時から存在していたが、今回初めて発見・修正。
+### 修正例（PF計算）
 
-#### 発見した問題一覧
-
-| # | 問題 | 現在の値 | 正しい値 | 重要度 |
-|---|------|---------|---------|--------|
-| 1 | バックテスト期間が0日間 | 0日間 | 約180日間 | 高 |
-| 2 | プロフィットファクター | 0.00 | ∞（損失0時） | 高 |
-| 3 | リカバリーファクター | 0.00 | ∞（DD=0時） | 中 |
-| 4 | ソルティノレシオ | 0.00 | ∞（負リターンなし時） | 中 |
-| 5 | カルマーレシオ | 0.00 | ∞（DD=0時） | 中 |
-| 6 | ペイオフレシオ | 0.00 | ∞（損失0時） | 中 |
-| 7 | レジーム別制限ハードコード | 古い値 | thresholds.yaml参照 | 低 |
-
-#### 問題1: バックテスト期間が0日間
-
-**原因**: `src/backtest/reporter.py` 958-962行目
-
-```python
-"duration_days": (
-    (end_date - start_date).days
-    if isinstance(start_date, datetime) and isinstance(end_date, datetime)
-    else 0
-),
-```
-
-**問題点**: `backtest_runner.py`が`start_date.isoformat()`で文字列を渡しているが、`isinstance(start_date, datetime)`が常にFalseになり0が返される。
-
-**修正**:
-```python
-# Phase 57.7: ISO文字列をdatetimeに変換
-if isinstance(start_date, str):
-    start_date_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-if isinstance(end_date, str):
-    end_date_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-```
-
-#### 問題2-6: ゼロ分母での計算問題
-
-**共通原因**: 損失0、DD0、負リターンなし等のエッジケースで一律0.0を返していた。
-
-**修正パターン**:
 ```python
 # 修正前
 profit_factor = (total_profit / abs(total_loss)) if total_loss != 0 else 0.0
@@ -748,35 +449,7 @@ else:
     profit_factor = total_profit / abs(total_loss)
 ```
 
-同様の修正を以下に適用:
-- `recovery_factor`: DD=0で利益あり→∞
-- `sortino_ratio`: 負リターンなしで利益あり→∞
-- `calmar_ratio`: DD=0で利益あり→∞
-- `payoff_ratio`: 損失0で勝ちあり→∞
-
-#### 問題7: レジーム別エントリー制限ハードコード
-
-**原因**: `scripts/backtest/generate_markdown_report.py` 125-127行目
-
-```python
-"- tight_range: 最大1ポジション（Phase 51.8実装）",  # 古い値
-"- normal_range: 最大2ポジション",
-"- trending: 最大3ポジション",
-```
-
-**実際の設定** (thresholds.yaml):
-- tight_range: 6
-- normal_range: 4
-- trending: 2
-
-**修正**: `get_threshold()`から動的に読み込み
-```python
-f"- tight_range: 最大{get_threshold('position_limits.tight_range', 6)}ポジション",
-f"- normal_range: 最大{get_threshold('position_limits.normal_range', 4)}ポジション",
-f"- trending: 最大{get_threshold('position_limits.trending', 2)}ポジション",
-```
-
-#### ∞表示対応
+### ∞表示対応
 
 Markdownレポートで`float("inf")`を適切に表示するヘルパー関数を追加:
 
@@ -791,93 +464,42 @@ def format_metric(value: float, decimals: int = 2) -> str:
     return f"{value:.{decimals}f}"
 ```
 
----
-
-### 修正ファイル一覧
+### 修正ファイル
 
 | ファイル | 修正内容 |
 |---------|---------|
 | `src/core/config/threshold_manager.py` | unified.yamlフォールバック追加 |
-| `src/backtest/reporter.py` | 期間計算・PF・RF・各種リスク指標修正 |
+| `src/backtest/reporter.py` | 期間計算・PF・RF等修正 |
 | `scripts/backtest/generate_markdown_report.py` | ∞表示対応・動的設定読み込み |
-
-### コミット情報
-
-```
-commit 1bf3ec5f - fix: Phase 57.7 設定ファイル体系整理・unified.yamlフォールバック
-commit a4d64792 - fix: Phase 57.8 バックテストレポート計算バグ修正
-  ※コミットメッセージは57.8となっているが、内容はPhase 57.7の一部
-```
-
-### 結果
-
-- 初期残高: ¥500,000（正しく読み込み）
-- 期間計算: 正確な日数を表示
-- PF・RF等: 適切な値または∞を表示
-- レジーム制限: thresholds.yamlから動的読み込み
-- バックテスト: 実行中（Run ID: 20628142748）
 
 ---
 
-## 🐛 Phase 57.10: バックテストDrawdownManagerタイムスタンプバグ修正【完了】
+## Phase 57.8-57.9: スキップ
+
+Phase 57.8と57.9は、Phase 57.7のコミットメッセージ番号の誤りによりスキップされた。
+
+---
+
+## 🐛 Phase 57.10: バックテストDDタイムスタンプバグ修正【完了】
 
 ### 実施日: 2026/01/02
 
-### 背景
+### 問題
 
-Phase 57.7（設定整理）完了後のバックテスト結果:
-- **12/30実行**: 58件の取引成功
-- **01/01実行**: わずか5件の取引（93%減少）
-
-同一設定でバックテストを実行しても、取引数が激減する問題が発生。
-
-### 問題分析
-
-#### ログ比較
-
-| 日付 | 取引数 | 維持率拒否 | paused_drawdown拒否 |
-|------|--------|----------|-------------------|
-| 12/30 | 58件 | 4,125件 | **0件** |
-| 01/01 | 5件 | 30件 | **9,721件** |
-
-**発見**: 01/01は`paused_drawdown`によるエントリー拒否が9,721件発生していた。
-
-#### 矛盾点
-
-```
-連続損失更新: 2/8  ← 閾値8に未到達
-DD: 0.17%         ← 閾値20%に未到達（1%未満）
-クールダウン開始: paused_drawdown  ← なぜか発動！
-```
-
-どちらの条件も閾値に達していないのに`paused_drawdown`が発動。
+同一設定でバックテストを実行しても、取引数が激減（58件→5件）
 
 ### 根本原因
 
 **IntegratedRiskManagerのDrawdownManagerがバックテストタイムスタンプを使用していなかった**
 
-バックテストでは2つのDrawdownManagerが存在:
+| インスタンス | タイムスタンプ処理 |
+|------------|-----------------|
+| backtest_runner | ✅ シミュレート時刻使用 |
+| IntegratedRiskManager | ❌ `datetime.now()`（実時刻）使用 |
 
-| インスタンス | 場所 | タイムスタンプ処理 |
-|------------|------|-----------------|
-| backtest_runner | line 1362 | ✅ シミュレート時刻使用 |
-| IntegratedRiskManager | line 117 | ❌ `datetime.now()`（実時刻）使用 |
+損失発生時に`datetime.now()`でクールダウン設定 → 実時刻が進まないため6時間のクールダウンが永続化
 
-#### 問題のコード（修正前）
-
-```python
-# src/trading/risk/manager.py
-
-# 問題1: check_trading_allowed() (line 199)
-trading_allowed = self.drawdown_manager.check_trading_allowed()  # current_timeなし
-
-# 問題2: record_trade_result() (line 449-451)
-self.drawdown_manager.record_trade_result(
-    profit_loss=profit_loss, strategy=strategy_name
-)  # current_timeなし
-```
-
-#### バグの影響
+### バグの影響フロー
 
 1. 損失発生 → `record_trade_result()`が`datetime.now()`（実時刻: 2026-01-02 14:00）でクールダウン設定
 2. クールダウン終了時刻 = 2026-01-02 20:00（6時間後）
@@ -885,59 +507,7 @@ self.drawdown_manager.record_trade_result(
 4. バックテスト実行中（数分間）は実時刻が進まない
 5. **6時間のクールダウンが解除されず、残り全ての取引がブロック**
 
-#### 追加発見: 連敗制限デフォルト値の不一致
-
-| ファイル | デフォルト値 |
-|---------|------------|
-| `manager.py:119` | 5 |
-| `drawdown.py:73` | 8 |
-| `thresholds.yaml` | 8 |
-
-`manager.py`のデフォルト5が`thresholds.yaml`の8と不一致。
-
 ### 修正内容
-
-#### 1. タイムスタンプ引き渡し修正
-
-**ファイル**: `src/trading/risk/manager.py`
-
-```python
-# 修正1: check_trading_allowed() (line 199-200)
-# Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
-trading_allowed = self.drawdown_manager.check_trading_allowed(reference_timestamp)
-
-# 修正2: record_trade_result() (line 449-452)
-# Phase 57.10: バックテスト時刻を渡す（datetime.now()ではなくシミュレート時刻使用）
-self.drawdown_manager.record_trade_result(
-    profit_loss=profit_loss, strategy=strategy_name, current_time=timestamp
-)
-```
-
-#### 2. 連敗制限デフォルト値統一
-
-```python
-# 修正前 (line 119)
-consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 5),
-
-# 修正後 (Phase 57.10)
-# Phase 57.10: デフォルト値をthresholds.yaml (8回) と統一
-consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 8),
-```
-
-### 追加調査結果
-
-他のコンポーネントに同様のバグがないか調査:
-
-| コンポーネント | 状態 | 備考 |
-|--------------|------|------|
-| Kelly基準 | ✅ | `reference_timestamp`を正しく使用 (line 185) |
-| `update_balance` | ✅ | 時刻処理不要（残高更新のみ） |
-| Anomaly検出 | ✅ | バックテストへの影響軽微 |
-| backtest_runner | ✅ | シミュレート時刻を正しく使用 |
-
-→ **他に同様のバグは発見されなかった**
-
-### 修正ファイル一覧
 
 | ファイル | 行 | 修正内容 |
 |---------|-----|---------|
@@ -945,108 +515,58 @@ consecutive_loss_limit=drawdown_config.get("consecutive_loss_limit", 8),
 | `src/trading/risk/manager.py` | 449-452 | `record_trade_result(..., current_time=timestamp)` |
 | `src/trading/risk/manager.py` | 119 | デフォルト連敗制限: 5→8 |
 
-### テスト結果
+### 追加調査結果
 
-```
-= 1195 passed, 36 skipped, 12 xfailed, 1 xpassed =
-Coverage: 62.49%
-```
+他のコンポーネントに同様のバグがないか調査:
 
-全テスト成功。
+| コンポーネント | 状態 | 備考 |
+|--------------|------|------|
+| Kelly基準 | ✅ | `reference_timestamp`を正しく使用 |
+| `update_balance` | ✅ | 時刻処理不要（残高更新のみ） |
+| Anomaly検出 | ✅ | バックテストへの影響軽微 |
+| backtest_runner | ✅ | シミュレート時刻を正しく使用 |
 
 ### 期待効果
 
 - バックテスト取引数: 5件 → 58件程度に回復
 - DrawdownManagerがシミュレート時刻で正しく動作
-- 12/30と01/01で同等の結果が得られるはず
 
 ---
 
-## 📝 学習事項
-
-1. **レバレッジ計算の重要性**: バックテストと実運用で一致させる必要あり
-2. **ML信頼度閾値の影響**: 60%閾値が厳しすぎると大半が低信頼度扱いに
-3. **コードデフォルト値の問題**: 設定ファイルよりコードデフォルトが優先される場合がある
-4. **MLモデル精度の限界**: 41%精度では高信頼度予測が少ない
-5. **DD目標の設定**: 過度に保守的な設定は収益性を犠牲にする
-6. **リスクコンポーネント正規化の重要性**: min(1.0, ...)でキャップしないと予期しない高スコアが発生
-7. **Enum値のログ出力**: `.value`属性を使用して文字列値を取得する必要がある
-8. **API閾値の適正化**: 実測値に基づいた閾値設定が必要（過度に厳しい閾値は正常なトレードを拒否する）
-9. **設定ファイル役割の分離**: `features.yaml`（機能）/ `unified.yaml`（基本設定）/ `thresholds.yaml`（動的閾値）を明確に分離し、読み込み関数を正しく使い分ける
-10. **設定読み込みの優先順位**: `get_threshold()`で`unified.yaml`をフォールバック参照することで、設定の重複を避けつつ柔軟性を確保
-11. **バックテストでの時刻処理**: 複数のコンポーネントがDrawdownManagerを持つ場合、全てにシミュレート時刻を渡す必要がある。`datetime.now()`を使うと実時刻とシミュレート時刻の混同でクールダウンが永続化する
-12. **デフォルト値の統一**: 同じ設定項目のデフォルト値は全ファイルで統一する（例: consecutive_loss_limit 5 vs 8）
-
----
-
-## 📊 MLモデル性能改善の検討（将来課題）
-
-現在のモデル精度41%は低い。改善候補:
-
-1. **特徴量エンジニアリング**: 追加特徴量の検討
-2. **ハイパーパラメータチューニング**: GridSearch/Optuna
-3. **訓練データ拡充**: より長期の過去データ
-4. **アンサンブル重み調整**: 現在LGB50%/XGB30%/RF20%
-
----
-
----
-
-## 🔧 Phase 57.11: ローカルバックテスト機能強化・レポート改修【完了】
+## 📝 Phase 57.11: ローカルバックテスト機能強化【完了】
 
 ### 実施日: 2026/01/04
-
-### 背景
-
-1. **CSVデータ管理の手間**: ローカルバックテストでCSVデータが古いと正しくテストできない
-2. **設定変更の手間**: バックテスト日数を変更するたびに`thresholds.yaml`を編集する必要があった
-3. **分析機能の不足**: 日毎の損益推移が見えず、パフォーマンスのムラを把握できなかった
-4. **TP/SL安定性**: ライブ運用でorder_id空の問題やロールバック失敗のリスクがあった
 
 ### 実装内容
 
 #### Part 1: TP/SL改修
 
-##### 1.1 stop_manager.py - 注文ID null check強化
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/stop_manager.py` | TP/SL order_id null check追加 |
+| `src/trading/execution/executor.py` | エントリーロールバックリトライ追加（3回） |
 
-**ファイル**: `src/trading/execution/stop_manager.py`
-
-TP注文・SL注文配置後にorder_idが空の場合、明示的に例外を発生させる。
-
+**TP/SL order_id null check例**:
 ```python
-# TP注文後
 order_id = tp_order.get("id")
 if not order_id:
     raise Exception(
         f"TP注文配置失敗（order_idが空）: API応答={tp_order}, "
         f"サイド={side}, 数量={amount:.6f} BTC, TP価格={take_profit_price:.0f}円"
     )
-
-# SL注文後（同様）
-order_id = sl_order.get("id")
-if not order_id:
-    raise Exception(
-        f"SL注文配置失敗（order_idが空）: API応答={sl_order}, ..."
-    )
 ```
 
-##### 1.2 executor.py - ロールバックリトライ追加
-
-**ファイル**: `src/trading/execution/executor.py`
-
-エントリー注文キャンセル失敗時に3回リトライ（Exponential Backoff: 1秒, 2秒）。
-
+**ロールバックリトライ例**:
 ```python
 max_retries = 3
 for attempt in range(max_retries):
     try:
         await asyncio.to_thread(self.bitbank_client.cancel_order, entry_order_id, symbol)
-        self.logger.error(f"🚨 Phase 51.6: エントリー注文ロールバック成功 - ID: {entry_order_id}")
+        self.logger.error(f"🚨 エントリー注文ロールバック成功 - ID: {entry_order_id}")
         break
     except Exception as e:
         if attempt < max_retries - 1:
             wait_time = 2**attempt  # 1秒, 2秒
-            self.logger.warning(f"⚠️ Phase 57.11: リトライ{attempt + 1}/{max_retries}: {e}")
             await asyncio.sleep(wait_time)
         else:
             self.logger.critical(f"❌ CRITICAL: 手動介入必要 - 全{max_retries}回失敗")
@@ -1054,94 +574,25 @@ for attempt in range(max_retries):
 
 #### Part 2: レポート改修
 
-##### 2.1 generate_markdown_report.py - 分析機能追加
-
-**ファイル**: `scripts/backtest/generate_markdown_report.py`
-
-以下の分析機能を追加:
-
-| 関数 | 機能 |
-|------|------|
-| `extract_all_trades()` | 全レジームから取引リスト抽出 |
-| `generate_confidence_stats()` | 信頼度帯別統計（低/中/高） |
-| `generate_position_stats()` | ポジションサイズ統計 |
-| `generate_strategy_regime_matrix()` | 戦略×レジーム クロス集計 |
-| `generate_daily_pnl()` | 日毎損益分析 |
-| `generate_monthly_pnl()` | 月別パフォーマンス集計 |
-| `generate_equity_curve_ascii()` | ASCII損益曲線生成 |
-
-##### レポートに追加されるセクション
-
-- 信頼度帯別パフォーマンス
+`scripts/backtest/generate_markdown_report.py`に以下を追加:
+- 信頼度帯別統計
 - ポジションサイズ統計
 - 戦略×レジーム クロス集計
-- **日毎損益分析**（ASCII損益曲線・日別サマリー・月別パフォーマンス）
+- **日毎損益分析**（ASCII損益曲線・月別パフォーマンス）
 
-#### Part 3: ローカルバックテストスクリプト改修
+#### Part 3: run_backtest.sh改修
 
-##### 3.1 run_backtest.sh - CI同等機能追加
+| 機能 | 実装 |
+|------|------|
+| CSVデータ収集 | ✅ |
+| 日数指定 | `--days N` |
+| Markdownレポート生成 | ✅ |
+| 設定ファイル自動復元 | trap処理 |
 
-**ファイル**: `scripts/backtest/run_backtest.sh`
-
-| 機能 | CI (backtest.yml) | ローカル (改修後) |
-|------|-------------------|-----------------|
-| CSVデータ収集 | ✅ | ✅ |
-| 日数指定 | ✅ workflow_dispatch | ✅ --days N |
-| Markdownレポート生成 | ✅ | ✅ |
-| 設定ファイル自動復元 | N/A | ✅ trap処理 |
-
-##### 使い方
-
+使い方:
 ```bash
-# 基本（180日・CSV収集あり）
-bash scripts/backtest/run_backtest.sh
-
-# 30日間テスト
-bash scripts/backtest/run_backtest.sh --days 30
-
-# 既存CSVを使用（収集スキップ）
 bash scripts/backtest/run_backtest.sh --days 60 --skip-collect
-
-# カスタムログ名
-bash scripts/backtest/run_backtest.sh --days 60 --prefix phase57
-
-# ヘルプ
-bash scripts/backtest/run_backtest.sh --help
 ```
-
-##### 処理フロー
-
-1. **Step 1**: CSVデータ収集（`--skip-collect`でスキップ可能）
-2. **Step 2**: 設定ファイル（thresholds.yaml）の日数を一時変更
-3. **Step 3**: バックテスト実行
-4. **Step 4**: 設定ファイル復元（trap処理でエラー時も復元）
-5. **Step 5**: Markdownレポート自動生成
-
-### 修正ファイル一覧
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `src/trading/execution/stop_manager.py` | TP/SL order_id null check追加 |
-| `src/trading/execution/executor.py` | エントリーロールバックリトライ追加 |
-| `scripts/backtest/generate_markdown_report.py` | 分析機能追加・日毎損益分析 |
-| `scripts/backtest/run_backtest.sh` | CSV収集・日数指定・レポート生成 |
-
-### テスト結果
-
-```
-= 1195 passed, 36 skipped, 12 xfailed, 1 xpassed =
-✅ flake8チェック完了
-✅ isortチェック完了
-✅ blackチェック完了
-Coverage: 62.39%
-```
-
-### 期待効果
-
-1. **開発効率向上**: 日数指定で設定ファイル編集不要
-2. **データ鮮度**: CSVデータを常に最新化可能
-3. **分析精度向上**: 日毎・月毎のパフォーマンス把握で改善ポイント特定
-4. **運用安定性**: TP/SL配置失敗・ロールバック失敗の早期検出
 
 ---
 
@@ -1149,150 +600,32 @@ Coverage: 62.39%
 
 ### 実施日: 2026/01/04
 
-### 背景
+### 問題
 
-Phase 57.11で日毎損益分析を追加したが、PDCA分析に必要なデータが不足していた:
+- 戦略名が記録されない（全取引が`"strategy": "unknown"`）
+- ML予測が記録されない
 
-1. **戦略名が記録されない**: JSONレポートで全取引が`"strategy": "unknown"`
-2. **ML予測が記録されない**: `"ml_prediction": null`, `"ml_confidence": null`
-3. **分析統計の不足**: 戦略別・ML別の詳細統計がない
+### 根本原因
 
-### 問題分析
-
-#### 根本原因1: TradeEvaluation dataclassにstrategy_nameフィールドがない
-
-```
-StrategySignal (has strategy_name)
-    ↓
-RiskManager.evaluate_trade_opportunity()
-    ↓ (extracts strategy_name but doesn't pass to TradeEvaluation)
-TradeEvaluation (MISSING strategy_name) ❌
-    ↓
-ExecutionService (getattr returns "unknown")
-    ↓
-BacktestRunner.record_entry()
-    ↓
-TradeTracker ❌ Records as "unknown"
-```
-
-#### 根本原因2: StrategyManagerが自身の名前をハードコード
-
-```python
-# 修正前: strategy_manager.py
-return StrategySignal(
-    strategy_name="StrategyManager",  # ← 個別戦略名ではなくハードコード
-    ...
-)
-```
+1. TradeEvaluation dataclassにstrategy_nameフィールドがない
+2. StrategyManagerが自身の名前をハードコード（"StrategyManager"）
 
 ### 修正内容
 
-#### Part 1: TradeEvaluation dataclass修正
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/core/types.py` | TradeEvaluationに`strategy_name`フィールド追加 |
+| `src/trading/risk/manager.py` | TradeEvaluation構築時にstrategy_name渡す |
+| `src/strategies/base/strategy_manager.py` | 個別戦略名記録（4箇所）+ contributing_strategies追加 |
+| `scripts/backtest/generate_markdown_report.py` | 戦略別・ML別・一致率統計セクション追加 |
 
-**ファイル**: `src/trading/core/types.py`
+### 追加分析機能
 
-```python
-@dataclass
-class TradeEvaluation:
-    # ... existing fields ...
-    entry_price: Optional[float] = None
-    strategy_name: str = "unknown"  # ← Phase 57.12追加
-```
+- 戦略別統計（取引数・勝率・平均損益・総損益）
+- ML予測別統計（BUY/HOLD/SELLごと）
+- ML×戦略一致率分析
 
-#### Part 2: RiskManager修正
-
-**ファイル**: `src/trading/risk/manager.py`
-
-TradeEvaluation構築時にstrategy_nameを渡す:
-
-```python
-evaluation = TradeEvaluation(
-    decision=decision,
-    side=trade_side,
-    # ... other fields ...
-    entry_price=last_price,
-    strategy_name=strategy_name,  # ← Phase 57.12追加
-)
-```
-
-#### Part 3: StrategyManager修正（個別戦略名記録）
-
-**ファイル**: `src/strategies/base/strategy_manager.py`
-
-4箇所で個別戦略名を取得するよう修正:
-
-##### BUY quorum rule (lines 265-274)
-
-```python
-# Phase 57.12: 最高信頼度の戦略名も取得
-best_strategy_name, best_signal = max(
-    buy_signals, key=lambda x: x[1].confidence
-)
-return StrategySignal(
-    strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
-    ...
-    metadata={
-        ...
-        "contributing_strategies": [name for name, _ in buy_signals],  # 投票した全戦略
-    },
-)
-```
-
-##### SELL quorum rule (lines 298-307)
-
-同様のパターンで`sell_signals`から最高信頼度の戦略を取得。
-
-##### Weighted voting (lines 376-386)
-
-```python
-# Phase 57.12: 最高信頼度の戦略名も取得
-best_strategy_name, best_signal = max(
-    winning_group, key=lambda x: x[1].confidence
-)
-```
-
-##### Consistent signals integration (lines 446-453)
-
-```python
-# Phase 57.12: 最高信頼度の戦略名も取得
-best_strategy_name, best_signal = max(
-    same_action_signals, key=lambda x: x[1].confidence
-)
-```
-
-### 検証結果
-
-5日間バックテストで確認:
-
-```
-取引数: 22
-戦略名分布: {'DonchianChannel': 3, 'ATRBased': 15, 'StochasticReversal': 1, 'ADXTrendStrength': 3}
-
-Trade 1: strategy: DonchianChannel, ml_prediction: 1, ml_confidence: 0.4117
-Trade 2: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3719
-Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
-...
-```
-
-**成功**: 個別戦略名・ML予測・ML信頼度が正しく記録されるようになった。
-
-### Part 4: 分析レポート強化【完了】
-
-以下のセクションを追加:
-
-| セクション | 内容 |
-|-----------|------|
-| 戦略別統計 | 戦略ごとの取引数・勝率・平均損益・総損益（総損益降順でソート） |
-| ML予測別統計 | BUY/HOLD/SELLごとの取引数・勝率・平均損益 |
-
-#### 追加関数
-
-| 関数 | 機能 |
-|------|------|
-| `generate_strategy_stats()` | 戦略別統計生成（レジーム問わず） |
-| `generate_ml_prediction_stats()` | ML予測別統計生成（BUY/HOLD/SELL/不明） |
-
-#### 出力例
+### 出力例（戦略別）
 
 ```markdown
 ## 戦略別パフォーマンス（Phase 57.12追加）
@@ -1302,68 +635,22 @@ Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
 | StochasticReversal | 1件 | 100.0% | ¥+381 | ¥+381 |
 | DonchianChannel | 3件 | 33.3% | ¥+70 | ¥+211 |
 | ATRBased | 15件 | 40.0% | ¥-35 | ¥-528 |
-| ADXTrendStrength | 3件 | 0.0% | ¥-179 | ¥-538 |
-
-## ML予測別パフォーマンス（Phase 57.12追加）
-
-| ML予測 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |
-|--------|--------|------|-------------|--------|
-| BUY | 4件 | 75.0% | ¥+84 | ¥+335 |
-| SELL | 1件 | 100.0% | ¥+117 | ¥+117 |
-| HOLD | 17件 | 23.5% | ¥-54 | ¥-926 |
 ```
 
-### Part 5: ML×戦略一致率分析【完了】
-
-戦略シグナルとML予測の一致/不一致による勝率・損益の違いを分析する機能を追加。
-
-#### 追加関数
-
-| 関数 | 機能 |
-|------|------|
-| `generate_ml_strategy_agreement()` | ML×戦略一致率分析生成 |
-
-#### 判定ロジック
-
-- **一致**: 戦略BUY + ML BUY、または 戦略SELL + ML SELL
-- **不一致**: 上記以外（ML HOLDを含む）
-
-#### 出力例（5日間テスト）
+### 出力例（ML×戦略一致率）
 
 ```markdown
 ## ML×戦略一致率分析（Phase 57.12追加）
 
-| 区分 | 取引数 | 勝率 | 平均損益/取引 | 総損益 |
-|------|--------|------|-------------|--------|
-| **一致**（戦略=ML） | 2件 | 100.0% | ¥+120 | ¥+241 |
-| 不一致（戦略≠ML） | 20件 | 30.0% | ¥-36 | ¥-715 |
-| └ ML HOLD時 | 17件 | 23.5% | ¥-54 | ¥-926 |
+| 区分 | 取引数 | 勝率 | 総損益 |
+|------|--------|------|--------|
+| **一致**（戦略=ML） | 2件 | 100.0% | ¥+241 |
+| 不一致（戦略≠ML） | 20件 | 30.0% | ¥-715 |
+| └ ML HOLD時 | 17件 | 23.5% | ¥-926 |
 
 **一致率**: 9.1% (2/22件)
 **評価**: 一致時の勝率が70.0pt高い → ML予測を重視すべき
 ```
-
-#### 分析ポイント
-
-- 一致時は100%勝率、不一致時は30%勝率 → **70pt差**
-- ML HOLD時の取引は特に低勝率（23.5%）
-- 改善案: MLがHOLD予測時は取引をスキップするフィルター検討
-
-### 修正ファイル一覧
-
-| ファイル | 修正内容 | 状態 |
-|---------|---------|------|
-| `src/trading/core/types.py` | TradeEvaluationに`strategy_name`フィールド追加 | ✅ |
-| `src/trading/risk/manager.py` | TradeEvaluation構築時にstrategy_name渡す | ✅ |
-| `src/strategies/base/strategy_manager.py` | 個別戦略名記録（4箇所）+ contributing_strategies追加 | ✅ |
-| `scripts/backtest/generate_markdown_report.py` | 戦略別・ML別・一致率統計セクション追加 | ✅ |
-
-### 期待効果
-
-1. **PDCA分析精度向上**: どの戦略が利益を出しているか特定可能
-2. **ML予測評価**: ML予測と実績の相関を分析可能
-3. **戦略最適化**: パフォーマンスの低い戦略を特定・改善
-4. **ML×戦略一致率**: 一致時と不一致時の勝率差を可視化
 
 ---
 
@@ -1371,112 +658,61 @@ Trade 3: strategy: ATRBased, ml_prediction: 2, ml_confidence: 0.3654
 
 ### 実施日: 2026/01/06
 
-### 背景
+### 解決した問題
 
-1. **バックテスト結果の変動**: ローリングウィンドウ方式により毎日結果が変わる
-2. **分析のブレ**: 毎回異なる観点で分析するため比較が困難
-3. **CI/ローカル間の連携不足**: CIで実行した結果をローカルで分析する手段がなかった
+1. ローリングウィンドウ方式により毎日結果が変わる
+2. 毎回異なる観点で分析するため比較が困難
+3. CI/ローカル間の連携不足
 
-### 解決策
-
-#### Part 1: 固定期間バックテスト
+### Part 1: 固定期間バックテスト
 
 **thresholds.yaml設定追加**:
-
 ```yaml
 execution:
-  backtest_period_days: 180
-  backtest_use_fixed_dates: true       # 固定期間モード有効化
-  backtest_start_date: "2025-07-01"    # 開始日
-  backtest_end_date: "2025-12-31"      # 終了日
+  backtest_use_fixed_dates: true
+  backtest_start_date: "2025-07-01"
+  backtest_end_date: "2025-12-31"
 ```
 
-**backtest_runner.py修正**:
+**backtest_runner.py修正**: `_setup_backtest_period()`で固定期間モード対応
 
-```python
-async def _setup_backtest_period(self):
-    """バックテスト期間設定（Phase 57.13: 固定期間対応）"""
-    use_fixed = get_threshold("execution.backtest_use_fixed_dates", False)
-
-    if use_fixed:
-        # 固定期間モード
-        start_str = get_threshold("execution.backtest_start_date", "2025-07-01")
-        end_str = get_threshold("execution.backtest_end_date", "2025-12-31")
-        self.backtest_start = datetime.strptime(start_str, "%Y-%m-%d")
-        self.backtest_end = datetime.strptime(end_str, "%Y-%m-%d").replace(
-            hour=23, minute=59, second=59
-        )
-    else:
-        # 従来のローリングウィンドウモード
-        backtest_days = get_threshold("execution.backtest_period_days", 30)
-        self.backtest_end = datetime.now()
-        self.backtest_start = self.backtest_end - timedelta(days=backtest_days)
-```
-
-#### Part 2: 標準分析スクリプト
+### Part 2: 標準分析スクリプト
 
 **新規作成**: `scripts/backtest/standard_analysis.py`
 
-**84項目の固定指標**:
+84項目の固定指標:
+| カテゴリ | 項目数 |
+|---------|--------|
+| 基本指標 | 10 |
+| 戦略別 | 36 |
+| ML予測別 | 12 |
+| ML×戦略一致率 | 4 |
+| レジーム別 | 8 |
+| 時系列 | 6 |
+| 改善示唆 | 8 |
 
-| カテゴリ | 項目数 | 内容 |
-|---------|--------|------|
-| 基本指標 | 10 | 取引数・勝率・PF・SR・DD等 |
-| 戦略別 | 36 | 6戦略 × 6項目（取引数・勝率・損益・BUY/SELL比率） |
-| ML予測別 | 12 | 3予測 × 4項目（取引数・勝率・損益） |
-| ML×戦略一致率 | 4 | 一致率・一致時勝率・不一致時勝率 |
-| レジーム別 | 8 | 2レジーム × 4項目 |
-| 時系列 | 6 | 利益日数・損失日数・連勝連敗 |
-| 改善示唆 | 8 | 最良/最悪戦略・信頼度帯別勝率 |
-
-**使い方**:
-
+使い方:
 ```bash
-# CI結果を分析（artifactから自動取得）
 python3 scripts/backtest/standard_analysis.py --from-ci --phase 57.13
-
-# ローカル結果を分析（docs/検証記録/local_backtest_*.jsonから自動検出）
 python3 scripts/backtest/standard_analysis.py --local --phase 57.13
-
-# 特定ファイルを分析
-python3 scripts/backtest/standard_analysis.py <json_path> --phase 57.13
 ```
 
-**出力**:
-1. コンソール: サマリーテーブル
-2. JSON: `results/analysis_YYYYMMDD_HHMMSS.json`
-3. Markdown: `results/analysis_YYYYMMDD_HHMMSS.md`
-4. CSV: `results/analysis_history.csv`（履歴追記）
-
-#### Part 3: CI連携
+### Part 3: CI/ローカル連携
 
 **backtest.yml修正**:
-
 - Step 7.5追加: バックテスト結果をartifactとして保存（90日保存）
-- 固定期間モード対応: `backtest_use_fixed_dates`フラグで切り替え
-
-**artifact内容**:
-- `src/backtest/logs/backtest_*.json`
-- `backtest_run.log`
-
-#### Part 4: ローカル連携
+- artifact内容: `src/backtest/logs/backtest_*.json`, `backtest_run.log`
 
 **run_backtest.sh修正**:
+```bash
+# Step 6: ローカル結果を検証記録に保存
+REPORT_DATE=$(TZ=Asia/Tokyo date +"%Y%m%d")
+LOCAL_JSON="docs/検証記録/local_backtest_${REPORT_DATE}.json"
+cp "$LATEST_JSON" "$LOCAL_JSON"
+echo "📁 ローカル結果保存: $LOCAL_JSON"
+```
 
-- Step 6追加: バックテスト後、JSONを`docs/検証記録/local_backtest_YYYYMMDD.json`に自動コピー
-
-### 修正ファイル一覧
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `config/core/thresholds.yaml` | 固定期間設定追加 |
-| `src/core/execution/backtest_runner.py` | 固定期間モード実装 |
-| `src/backtest/scripts/collect_historical_csv.py` | --start-date/--end-date引数追加 |
-| `.github/workflows/backtest.yml` | 固定期間対応・artifact保存追加 |
-| `scripts/backtest/run_backtest.sh` | 固定期間対応・ローカル結果保存追加 |
-| `scripts/backtest/standard_analysis.py` | **新規作成** - 標準分析スクリプト |
-
-### 期待効果
+### 期待される成果
 
 1. **再現性**: 同一コードで同一結果が保証される
 2. **比較容易性**: 履歴CSVで変更前後を即座に比較
@@ -1486,4 +722,324 @@ python3 scripts/backtest/standard_analysis.py <json_path> --phase 57.13
 
 ---
 
-**📅 最終更新**: 2026年1月6日 - Phase 57.13 完了（固定期間バックテスト・標準分析スクリプト）
+## 📊 Phase 57 最終結果分析
+
+### 固定期間バックテスト結果（2025/07/01〜2025/12/31）
+
+| 指標 | 値 | 評価 |
+|------|-----|------|
+| 総取引数 | 501件 | 約2.74件/日 |
+| 勝率 | 44.7% | 標準的 |
+| 総損益 | **¥+23,073** | **基準値として設定** |
+| PF | 1.18 | 良好 |
+| SR | 4.78 | 優秀 |
+| 最大DD | ¥15,638 (2.93%) | 低リスク |
+| 期待値 | ¥+46/取引 | 安定 |
+
+### 戦略別パフォーマンス
+
+| 戦略 | 取引数 | 勝率 | 損益 | 評価 |
+|------|--------|------|------|------|
+| ATRBased | 274 (54.7%) | 45.3% | ¥+21,205 | ◎ 主力 |
+| StochasticReversal | 59 (11.8%) | 54.2% | ¥+6,909 | ◎ 最高勝率 |
+| ADXTrendStrength | 68 (13.6%) | 44.1% | ¥+3,969 | ○ 安定 |
+| DonchianChannel | 88 (17.6%) | 42.0% | ¥-3,560 | △ 要検討 |
+| BBReversal | 12 (2.4%) | 8.3% | ¥-5,451 | ✗ 問題あり |
+
+### ML予測別パフォーマンス
+
+| ML予測 | 取引数 | 勝率 | 損益 |
+|--------|--------|------|------|
+| BUY | 152 | 43.4% | ¥+5,710 |
+| HOLD | 87 | **55.2%** | **¥+15,255** |
+| SELL | 262 | 42.0% | ¥+2,108 |
+
+**重要発見**: ML HOLD時の勝率55.2%が全体44.7%を大幅に上回る
+
+### 信頼度帯別パフォーマンス
+
+| 信頼度帯 | 勝率 | 評価 |
+|---------|------|------|
+| 低（<50%） | 43.8% | 標準 |
+| 高（≥65%） | **36.4%** | **低い** |
+
+**問題**: 高信頼度帯の勝率が低信頼度帯より低い逆転現象
+
+### レジーム別パフォーマンス
+
+| レジーム | 取引数 | 勝率 | 損益 |
+|----------|--------|------|------|
+| tight_range | 442 | 45.2% | ¥+20,977 |
+| normal_range | 59 | 40.7% | ¥+2,096 |
+| trending | 0 | - | - |
+| high_volatility | 0 | - | - |
+
+**発見**: tight_rangeが全体の88%を占め、利益の91%を生成
+
+### 時系列指標
+
+| 指標 | 値 |
+|------|-----|
+| 利益日数 | 46日 |
+| 損失日数 | 43日 |
+| 最良日 | ¥+5,557 |
+| 最悪日 | ¥-3,546 |
+| 最大連勝 | 9回 |
+| 最大連敗 | 13回 |
+
+### 2票ルール評価
+
+Phase 56.7で導入された「2票ルール」を分析した結果:
+
+#### 2票ルールのロジック
+
+```
+BUY 2票以上 かつ SELL 1票以下 → BUY選択（HOLD無視）
+SELL 2票以上 かつ BUY 1票以下 → SELL選択（HOLD無視）
+BUY/SELL両方2票以上 → HOLD（矛盾）
+BUY/SELL両方1票以下 → 従来ロジック（重み付け比較）
+```
+
+#### 従来方式との比較
+
+| 観点 | 従来方式 | 2票ルール |
+|------|---------|----------|
+| 設計思想 | 「確信がなければ待つ」 | 「コンセンサスがあれば行動」 |
+| リスク | 機会損失 | 低品質取引の混入 |
+| HOLD問題 | HOLD支配で取引激減 | HOLDを無視して解決 |
+
+#### 結論
+
+**2票ルールを維持すべき**（条件付き）
+
+理由:
+1. シャープレシオ4.78は非常に優秀
+2. 最大DD 2.93%は低リスク
+3. 総損益¥+23,073は黒字を維持
+4. HOLD支配問題を解決している
+
+**発見された問題**:
+- BBReversal: 勝率8.3%で¥-5,451の損失 → **無効化推奨**
+- DonchianChannel: ¥-3,560の赤字 → **重み削減検討**
+- 高信頼度帯の勝率(36.4%)が低信頼度帯(43.8%)より低い → **フィルター見直し**
+
+#### 推奨アクション（Phase 58へ）
+
+| 優先度 | アクション | 期待効果 |
+|--------|-----------|---------|
+| 高 | BBReversal無効化 | +¥5,451 |
+| 中 | DonchianChannel重み削減 | +¥1,000〜3,000 |
+| 低 | 信頼度フィルター見直し | 勝率改善 |
+
+---
+
+## 📊 Phase 57.14: ライブモード標準分析スクリプト【完了】
+
+### 実施日: 2026/01/07
+
+### 目的
+
+バックテストの`standard_analysis.py`と同様に、ライブモードでも固定指標で分析できるスクリプトを作成。
+毎回の診断で評価方法がブレないようにする。
+
+### 実装内容
+
+#### 35固定指標
+
+| カテゴリ | 指標数 | 主要項目 |
+|---------|--------|----------|
+| アカウント状態 | 5 | 証拠金維持率、利用可能残高、未実現損益 |
+| ポジション状態 | 5 | オープンポジション、未約定注文、ロスカット価格 |
+| 取引履歴分析 | 12 | 勝率、損益、戦略別統計、TP/SL発動数 |
+| システム健全性 | 6 | API応答時間、エラー数、Container再起動 |
+| TP/SL適切性 | 4 | TP/SL距離%、設置状態 |
+| 稼働率 | 3 | 稼働時間率（90%目標）、ダウンタイム |
+
+#### データ取得方法
+
+| データ | 取得方法 |
+|--------|---------|
+| アカウント状態 | `BitbankClient.fetch_margin_status()` |
+| ポジション | `BitbankClient.fetch_positions()` |
+| アクティブ注文 | `BitbankClient.fetch_active_orders()` |
+| 取引履歴 | `tax/trade_history.db` SQLite |
+| GCPログ | `gcloud logging read` subprocess |
+| サービス状態 | `gcloud run services describe` |
+
+### 作成ファイル
+
+| ファイル | 内容 |
+|---------|------|
+| `scripts/live/standard_analysis.py` | メインスクリプト（741行） |
+| `scripts/live/__init__.py` | パッケージ初期化 |
+| `CLAUDE.md` | 使用方法追記 |
+
+### 使用方法
+
+```bash
+# 基本実行（24時間分析）
+python3 scripts/live/standard_analysis.py
+
+# 期間指定（48時間）
+python3 scripts/live/standard_analysis.py --hours 48
+
+# 出力先指定
+python3 scripts/live/standard_analysis.py --output results/live/
+```
+
+### 出力形式
+
+- **JSON**: `results/live/live_analysis_YYYYMMDD_HHMMSS.json`
+- **Markdown**: `results/live/live_analysis_YYYYMMDD_HHMMSS.md`
+- **CSV履歴**: `results/live/live_analysis_history.csv`
+
+---
+
+## 📝 学習事項
+
+### リスク管理
+
+1. **レバレッジ計算の重要性**: バックテストと実運用で一致させる必要あり
+2. **リスクコンポーネント正規化**: min(1.0, ...)でキャップしないと予期しない高スコアが発生
+3. **DD目標の設定**: 過度に保守的な設定は収益性を犠牲にする
+
+### ML・信頼度
+
+4. **ML信頼度閾値の影響**: 60%閾値が厳しすぎると大半が低信頼度扱いに
+5. **MLモデル精度の限界**: 41%精度では高信頼度予測が少ない
+
+### 設定管理
+
+6. **設定ファイル役割の分離**: features.yaml / unified.yaml / thresholds.yaml を明確に分離
+7. **設定読み込みの優先順位**: get_threshold()でunified.yamlをフォールバック参照
+
+### バックテスト
+
+8. **時刻処理の重要性**: 複数コンポーネントがDrawdownManagerを持つ場合、全てにシミュレート時刻を渡す
+9. **デフォルト値の統一**: 同じ設定項目のデフォルト値は全ファイルで統一する
+10. **固定期間の重要性**: ローリングウィンドウでは比較困難、固定期間で再現性確保
+
+### API・GCP
+
+11. **API閾値の適正化**: 実測値に基づいた閾値設定が必要
+12. **Enum値のログ出力**: `.value`属性を使用して文字列値を取得
+
+### 戦略分析
+
+13. **BBReversal問題**: 勝率8.3%は統計的に異常 → 無効化検討
+14. **ATRBased優位性**: 全利益の92%を生成する主力戦略
+15. **レジーム集中**: tight_rangeが全体の88%、利益の91%を占める
+
+### ML活用
+
+16. **ML HOLD予測の価値**: HOLD時勝率55.2%は全体より高い
+17. **信頼度フィルターの逆転**: 高信頼度帯の勝率が低信頼度帯より低い
+
+---
+
+## 📁 修正ファイル一覧（主要）
+
+### 設定ファイル
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `config/core/thresholds.yaml` | Kelly緩和・ポジション制限・固定期間設定 |
+| `config/core/unified.yaml` | 証拠金50万円・API閾値緩和 |
+
+### リスク管理
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `src/trading/risk/manager.py` | リスクスコア正規化・タイムスタンプ修正 |
+| `src/trading/risk/sizer.py` | 信頼度閾値60%→50% |
+| `src/trading/position/limits.py` | 信頼度閾値60%→50% |
+
+### バックテスト
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `src/core/execution/backtest_runner.py` | レバレッジ修正・固定期間対応 |
+| `src/backtest/reporter.py` | 設定キー修正・計算バグ修正 |
+| `scripts/backtest/standard_analysis.py` | **新規** - 標準分析スクリプト |
+| `scripts/backtest/run_backtest.sh` | CSV収集・日数指定・レポート生成 |
+| `scripts/backtest/generate_markdown_report.py` | 分析機能追加 |
+| `scripts/live/standard_analysis.py` | **新規** - ライブモード標準分析スクリプト |
+| `scripts/live/__init__.py` | **新規** - パッケージ初期化 |
+
+### 取引実行
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `src/trading/execution/executor.py` | レバレッジ修正・ロールバックリトライ |
+| `src/trading/execution/stop_manager.py` | order_id null check |
+
+### その他
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `src/core/config/threshold_manager.py` | unified.yamlフォールバック |
+| `src/core/services/trading_cycle_manager.py` | バックテスト残高参照修正 |
+| `src/core/services/trading_logger.py` | RiskDecision Enum対応 |
+| `src/strategies/base/strategy_manager.py` | 個別戦略名記録 |
+| `src/trading/core/types.py` | TradeEvaluationにstrategy_name追加 |
+
+### CI/CD
+
+| ファイル | 主な変更 |
+|---------|---------|
+| `.github/workflows/backtest.yml` | 固定期間対応・artifact保存追加 |
+
+---
+
+## 📊 Phase 57 全体評価
+
+### 目標達成状況
+
+| 目標 | 設定値 | 結果 | 達成 |
+|------|--------|------|------|
+| 年利 | 10% | 約9.2%（半年¥23,073×2） | △ |
+| 最大DD | ≤10% | 2.93% | ✅ |
+| PF | ≥1.15 | 1.18 | ✅ |
+| SR | - | 4.78 | ✅ |
+
+### 成果サマリー
+
+**Phase 57.0-57.6**: リスク設定最適化
+- レバレッジ計算バグ修正（4倍→2倍）
+- ポジションサイズ10倍拡大
+- Kelly基準緩和・capital_allocation_limit修正
+
+**Phase 57.7**: 設定管理改善
+- unified.yamlフォールバック実装
+- レポート計算バグ7件修正
+
+**Phase 57.10**: バックテスト安定化
+- DrawdownManagerタイムスタンプバグ修正
+- デフォルト値統一
+
+**Phase 57.11-57.12**: 分析機能強化
+- TP/SL安定性改善
+- 戦略別・ML別分析追加
+- 個別戦略名記録対応
+
+**Phase 57.13**: 再現性確保
+- 固定期間バックテスト実装
+- 標準分析スクリプト作成
+- CI/ローカル連携強化
+
+**Phase 57.14**: ライブモード分析標準化
+- 35固定指標の標準分析スクリプト作成
+- bitbank API/GCPログ連携
+- JSON/Markdown/CSV出力対応
+
+### 次フェーズへの引き継ぎ（Phase 58）
+
+1. **BBReversal無効化**: 勝率8.3%・¥-5,451 → 期待効果+¥5,451
+2. **DonchianChannel重み削減**: ¥-3,560 → 期待効果+¥1,000〜3,000
+3. **信頼度フィルター見直し**: 高信頼度帯の逆転現象解消
+
+**Phase 58目標**: 総損益 ≥¥+28,000（+21%）、PF ≥1.25
+
+---
+
+**📅 最終更新**: 2026年1月7日 - Phase 57.14完了（ライブモード標準分析スクリプト）

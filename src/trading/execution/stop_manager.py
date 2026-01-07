@@ -123,22 +123,33 @@ class StopManager:
             if not tp_config.get("enabled", True) and not sl_config.get("enabled", True):
                 return None
 
-            # 各ポジションのTP/SLチェック
-            for position in virtual_positions:
+            # Phase 58.1: 全ポジションのTP/SLチェック（単一決済パターン修正）
+            # 価格急変時に複数ポジションが同時にTP/SL到達した場合、全て処理する
+            positions_to_remove = []
+            first_result = None
+
+            for position in list(virtual_positions):  # コピーでイテレート（削除安全）
                 exit_result = await self._evaluate_position_exit(
                     position, current_price, tp_config, sl_config, mode, bitbank_client
                 )
                 if exit_result:
-                    # ポジションリストから削除
-                    virtual_positions.remove(position)
-
+                    positions_to_remove.append(position)
                     # 統計更新（P&L計算）
                     if hasattr(exit_result, "paper_pnl") and exit_result.paper_pnl:
                         session_pnl += exit_result.paper_pnl
+                    # 最初の結果を保持（戻り値用）
+                    if first_result is None:
+                        first_result = exit_result
 
-                    return exit_result
+            # Phase 58.1: まとめて削除（イテレーション終了後）
+            for pos in positions_to_remove:
+                if pos in virtual_positions:
+                    virtual_positions.remove(pos)
 
-            return None
+            if positions_to_remove:
+                self.logger.info(f"🔄 Phase 58.1: {len(positions_to_remove)}件のポジション決済完了")
+
+            return first_result
 
         except Exception as e:
             self.logger.error(f"❌ テイクプロフィット/ストップロスチェックエラー: {e}")
@@ -284,6 +295,29 @@ class StopManager:
                             )
                     except Exception as e:
                         self.logger.warning(f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}")
+
+                # Phase 58.1: 実際の決済注文をbitbankに発行
+                try:
+                    entry_position_side = "long" if entry_side.lower() == "buy" else "short"
+                    close_order = await asyncio.to_thread(
+                        bitbank_client.create_order,
+                        symbol="BTC/JPY",
+                        side=exit_side,
+                        order_type="market",
+                        amount=amount,
+                        is_closing_order=True,
+                        entry_position_side=entry_position_side,
+                    )
+                    close_order_id = close_order.get("id", "unknown")
+                    self.logger.info(
+                        f"✅ Phase 58.1: bitbank決済注文発行成功 - "
+                        f"ID: {close_order_id}, {exit_side} {amount:.6f} BTC"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"❌ Phase 58.1: bitbank決済注文発行失敗: {e} - "
+                        f"手動決済が必要な可能性があります"
+                    )
 
             # ExecutionResult作成
             result = ExecutionResult(

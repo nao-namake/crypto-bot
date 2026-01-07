@@ -1548,26 +1548,26 @@ class ExecutionService:
             target_sl_side = "sell" if side == "buy" else "buy"
 
             # 現在のアクティブポジションのTP/SL注文IDを取得（保護対象）
+            # Phase 58.1: 全ポジションのTP/SL注文を保護（同一側制限を撤廃）
             protected_order_ids = set()
             if self.virtual_positions:
                 for pos in self.virtual_positions:
-                    # Phase 53.12: 復元されたポジションのorder_idを保護
-                    # Phase 53.6で復元されたポジションはorder_idにTP/SL注文IDが格納されている
+                    # Phase 58.1: 全ポジションのtp_order_id/sl_order_idを保護
+                    tp_id = pos.get("tp_order_id")
+                    sl_id = pos.get("sl_order_id")
+                    if tp_id:
+                        protected_order_ids.add(str(tp_id))
+                    if sl_id:
+                        protected_order_ids.add(str(sl_id))
+
+                    # Phase 53.12: 復元されたポジションのorder_idも保護
                     if pos.get("restored"):
                         order_id = pos.get("order_id")
                         if order_id:
                             protected_order_ids.add(str(order_id))
                             self.logger.debug(
-                                f"🛡️ Phase 53.12: 復元ポジション保護 - order_id={order_id}"
+                                f"🛡️ Phase 58.1: 復元ポジション保護 - order_id={order_id}"
                             )
-                    # 通常のポジション（新規エントリー）のTP/SL注文は同一側のみ保護
-                    elif pos.get("side") == side:
-                        tp_id = pos.get("tp_order_id")
-                        sl_id = pos.get("sl_order_id")
-                        if tp_id:
-                            protected_order_ids.add(str(tp_id))
-                        if sl_id:
-                            protected_order_ids.add(str(sl_id))
 
             # Phase 53.12: 保護対象の注文IDをログ出力
             if protected_order_ids:
