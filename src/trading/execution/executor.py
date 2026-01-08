@@ -109,6 +109,7 @@ class ExecutionService:
     async def restore_positions_from_api(self):
         """
         Phase 53.6: 起動時にbitbank APIからポジションを復元
+        Phase 58.3: 実ポジション同期を追加
         再起動時にvirtual_positionsがリセットされる問題を解決
 
         Cloud Run環境では5分毎にコンテナが再起動される可能性があり、
@@ -122,6 +123,25 @@ class ExecutionService:
             return  # ライブモード以外は復元不要
 
         try:
+            # Phase 58.3: まず実ポジションを確認してログ出力
+            margin_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+            if margin_positions:
+                total_position_value = sum(
+                    p.get("amount", 0) * p.get("average_price", 0) for p in margin_positions
+                )
+                self.logger.info(
+                    f"📊 Phase 58.3: 実ポジション確認 - {len(margin_positions)}件, "
+                    f"総額: {total_position_value:.0f}円"
+                )
+                for pos in margin_positions:
+                    self.logger.info(
+                        f"  └ {pos.get('side')} {pos.get('amount', 0):.4f} BTC "
+                        f"@ {pos.get('average_price', 0):.0f}円 "
+                        f"(含み損益: {pos.get('unrealized_pnl', 0):.0f}円)"
+                    )
+            else:
+                self.logger.info("📊 Phase 58.3: 実ポジションなし（ノーポジション）")
+
             # アクティブ注文を取得
             active_orders = await asyncio.to_thread(
                 self.bitbank_client.fetch_active_orders, "BTC/JPY", 100

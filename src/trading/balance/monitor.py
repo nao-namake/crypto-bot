@@ -214,8 +214,23 @@ class BalanceMonitor:
         if bitbank_client and not is_backtest_mode():
             current_margin_ratio_from_api = await self._fetch_margin_ratio_from_api(bitbank_client)
 
+        # Phase 58.3: 実ポジション確認（維持率からの逆算前に必ず確認）
+        has_positions = False
+        if bitbank_client and not is_backtest_mode():
+            try:
+                has_positions = await bitbank_client.has_open_positions("BTC/JPY")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 58.3: ポジション確認エラー: {e}")
+
+        # Phase 58.3: ポジションなしの場合は推定スキップ
+        if not has_positions and bitbank_client and not is_backtest_mode():
+            estimated_current_position_value = 0.0
+            self.logger.info(
+                f"📊 Phase 58.3: ポジションなし確認済み - 推定スキップ "
+                f"(API維持率: {current_margin_ratio_from_api}%)"
+            )
         # Phase 50.4: API取得が成功した場合、そこから逆算して現在のポジション価値を推定
-        if current_margin_ratio_from_api is not None and current_margin_ratio_from_api < 10000.0:
+        elif current_margin_ratio_from_api is not None and current_margin_ratio_from_api < 10000.0:
             # 維持率 = (残高 / ポジション価値) × 100
             # → ポジション価値 = 残高 / (維持率 / 100)
             estimated_current_position_value = current_balance_jpy / (

@@ -396,7 +396,7 @@ class LiveAnalyzer:
         )
 
     async def _check_tp_sl_placement(self):
-        """TP/SL設置適切性確認（4指標）"""
+        """TP/SL設置適切性確認（4指標）- Phase 58.1改善版"""
         try:
             if self.current_price <= 0:
                 return
@@ -427,6 +427,55 @@ class LiveAnalyzer:
                 if not tp_orders or not sl_orders:
                     self.result.tp_sl_placement_ok = False
                     self.logger.warning("ポジションがあるがTP/SLが設定されていません")
+
+            # Phase 58.1: ポジション量とTP/SL注文量の整合性チェック
+            if self.result.position_details and self.result.open_position_count > 0:
+                # ポジション総量を計算
+                total_position_amount = sum(
+                    abs(float(pos.get("amount", 0))) for pos in self.result.position_details
+                )
+
+                # TP注文総量
+                total_tp_amount = sum(
+                    abs(float(o.get("amount", 0) or o.get("remaining", 0))) for o in tp_orders
+                )
+
+                # SL注文総量
+                total_sl_amount = sum(
+                    abs(float(o.get("amount", 0) or o.get("remaining", 0))) for o in sl_orders
+                )
+
+                # 許容誤差（0.1%）
+                tolerance = 0.001
+
+                # TP量不足チェック
+                if total_position_amount > 0 and total_tp_amount > 0:
+                    tp_coverage = total_tp_amount / total_position_amount
+                    if tp_coverage < (1.0 - tolerance):
+                        self.result.tp_sl_placement_ok = False
+                        tp_pct = tp_coverage * 100
+                        self.logger.warning(
+                            f"⚠️ TP注文量不足: ポジション{total_position_amount:.4f}BTC vs "
+                            f"TP注文{total_tp_amount:.4f}BTC (カバー率: {tp_pct:.1f}%)"
+                        )
+
+                # SL量不足チェック
+                if total_position_amount > 0 and total_sl_amount > 0:
+                    sl_coverage = total_sl_amount / total_position_amount
+                    if sl_coverage < (1.0 - tolerance):
+                        self.result.tp_sl_placement_ok = False
+                        sl_pct = sl_coverage * 100
+                        self.logger.warning(
+                            f"⚠️ SL注文量不足: ポジション{total_position_amount:.4f}BTC vs "
+                            f"SL注文{total_sl_amount:.4f}BTC (カバー率: {sl_pct:.1f}%)"
+                        )
+
+                # 注文数の記録（デバッグ用）
+                self.logger.info(
+                    f"TP/SL詳細 - ポジション: {total_position_amount:.4f}BTC, "
+                    f"TP: {len(tp_orders)}件({total_tp_amount:.4f}BTC), "
+                    f"SL: {len(sl_orders)}件({total_sl_amount:.4f}BTC)"
+                )
 
             self.logger.info(
                 f"TP/SL確認完了 - TP距離: {self.result.tp_distance_pct or 'N/A'}%, "
@@ -688,7 +737,9 @@ async def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(description="ライブモード標準分析")
     parser.add_argument("--hours", type=int, default=24, help="分析対象期間（時間）")
-    parser.add_argument("--output", type=str, default="results/live", help="出力先ディレクトリ")
+    parser.add_argument(
+        "--output", type=str, default="docs/検証記録/live", help="出力先ディレクトリ"
+    )
     args = parser.parse_args()
 
     # 出力ディレクトリ作成

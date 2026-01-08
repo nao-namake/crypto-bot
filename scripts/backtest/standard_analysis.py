@@ -354,7 +354,7 @@ class ReportGenerator:
 
     def __init__(self, result: AnalysisResult):
         self.result = result
-        self.output_dir = Path("results")
+        self.output_dir = Path("docs/検証記録")
         self.output_dir.mkdir(exist_ok=True)
 
     def print_console(self):

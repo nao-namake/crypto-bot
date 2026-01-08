@@ -265,7 +265,18 @@ from src.core.config.threshold_manager import get_threshold
 sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
 ```
 
-### Secret Manager
+### ローカルシークレット
+
+```
+config/secrets/
+├── .env              # 機密情報（API キー等）
+├── .env.example      # テンプレート
+└── README.md         # 設定手順
+```
+
+**注意**: `.gitignore`で除外済み。Git管理外。
+
+### Secret Manager（GCP）
 
 具体的バージョン番号使用（`key:3`など）。`key:latest`は禁止。
 
@@ -392,4 +403,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月7日 - **Phase 57.14完了**（ライブモード標準分析スクリプト）
+**📅 最終更新**: 2026年1月9日 - **Phase 58.2完了**（TP/SL管理バグ修正・ライブ分析改善）

@@ -1511,8 +1511,13 @@ class BitbankClient:
                     f"= {margin_ratio:.1f}%"
                 )
             else:
-                # ポジションがない場合（正常）
-                margin_ratio = 500.0  # 安全なデフォルト値
+                # Phase 58.3: ポジションがない場合（正常）
+                # 500%は安全なデフォルト値だが、ポジションなしを明示的にログ出力
+                margin_ratio = 500.0
+                self.logger.info(
+                    "📊 Phase 58.3: ポジションなし（維持率=500%デフォルト） "
+                    "- 実際のポジション確認にはfetch_margin_positions()を使用"
+                )
 
             margin_data = {
                 "margin_ratio": margin_ratio,
@@ -1591,6 +1596,27 @@ class BitbankClient:
                 f"信用建玉情報取得に失敗しました: {e}",
                 context={"operation": "fetch_margin_positions", "symbol": symbol},
             )
+
+    async def has_open_positions(self, symbol: str = "BTC/JPY") -> bool:
+        """
+        Phase 58.3: 実ポジションがあるかどうかを確認
+
+        Args:
+            symbol: 通貨ペア
+
+        Returns:
+            True: ポジションあり, False: ポジションなし
+        """
+        try:
+            positions = await self.fetch_margin_positions(symbol)
+            has_positions = len(positions) > 0 and any(p.get("amount", 0) > 0 for p in positions)
+            self.logger.debug(
+                f"📊 Phase 58.3: ポジション確認 - {symbol}: {'あり' if has_positions else 'なし'}"
+            )
+            return has_positions
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 58.3: ポジション確認失敗: {e}")
+            return False  # エラー時は安全側（ポジションなしと仮定）
 
     async def _call_private_api(
         self, endpoint: str, params: Optional[Dict] = None, method: str = "POST"

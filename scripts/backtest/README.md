@@ -59,9 +59,9 @@ python3 scripts/backtest/standard_analysis.py <json_path> --phase 57.13
 
 **出力**:
 1. コンソール: サマリーテーブル
-2. JSON: `results/analysis_YYYYMMDD_HHMMSS.json`
-3. Markdown: `results/analysis_YYYYMMDD_HHMMSS.md`
-4. CSV: `results/analysis_history.csv`（履歴追記）
+2. JSON: `docs/検証記録/analysis_YYYYMMDD_HHMMSS.json`
+3. Markdown: `docs/検証記録/analysis_YYYYMMDD_HHMMSS.md`
+4. CSV: `docs/検証記録/analysis_history.csv`（履歴追記）
 
 ### **generate_markdown_report.py**（Phase 57.11追加）
 JSONレポートをMarkdownに変換し、詳細な分析レポートを生成します。
