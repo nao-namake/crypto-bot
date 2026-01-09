@@ -15,6 +15,7 @@
 | 58.1 | TP/SL管理バグ修正（3件） | 決済注文発行・保護ロジック・複数処理対応 |
 | 58.2 | ライブ分析スクリプト改善 | TP/SL量整合性チェック追加 |
 | 58.3 | ポジション同期問題修正 | 実ポジション確認ロジック追加 |
+| 58.4 | fetch_margin_positions APIエラー修正 | GETメソッド修正（エラー20003解消） |
 
 ### Phase 58.1: TP/SL管理バグ修正
 
@@ -39,6 +40,20 @@
 - `bitbank_client.py`: `has_open_positions()`メソッド追加
 - `monitor.py`: 実ポジション確認ロジック追加
 - `executor.py`: 起動時の実ポジション確認ログ追加
+
+### Phase 58.4: fetch_margin_positions APIエラー修正
+
+| 問題 | 原因 | 修正 |
+|------|------|------|
+| API エラー20003 | `fetch_margin_positions()`がPOSTで呼び出し | GETメソッドに修正 |
+
+影響していた機能:
+- Phase 56.5: 既存ポジションTP/SL設置
+- Phase 53.6: コンテナ再起動時復元
+- 孤児注文クリーンアップ
+
+修正ファイル:
+- `bitbank_client.py`: `fetch_margin_positions()`にGETメソッド指定
 
 ---
 
@@ -132,4 +147,4 @@ Phase 57分析結果に基づき、パフォーマンスを低下させている
 
 ---
 
-**最終更新**: 2026年1月9日 - Phase 58完了・Phase 59計画作成
+**最終更新**: 2026年1月10日 - Phase 58.4完了・Phase 59計画準備中

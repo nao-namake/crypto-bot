@@ -1,7 +1,7 @@
 # Phase 58 開発記録
 
-**期間**: 2026/01/07 - 進行中
-**状況**: 🔄 Phase 58進行中
+**期間**: 2026/01/07 - 2026/01/10
+**状況**: ✅ Phase 58完了
 
 ---
 
@@ -24,6 +24,7 @@ TP/SL管理の致命的バグ修正と運用安定化
 | 58.1 | TP/SL管理バグ修正（3件） | ✅ | 決済注文発行・保護ロジック・複数処理対応 |
 | 58.2 | ライブ分析スクリプト改善 | ✅ | TP/SL量整合性チェック追加 |
 | 58.3 | ポジション同期問題修正 | ✅ | 実ポジション確認ロジック追加 |
+| 58.4 | fetch_margin_positions APIエラー修正 | ✅ | GETメソッド修正 |
 
 ---
 
@@ -436,6 +437,79 @@ flake8/black/isort: PASS
 
 ---
 
+## 🔧 Phase 58.4: fetch_margin_positions APIエラー修正【完了】
+
+### 実施日: 2026/01/10
+
+### 問題発覚経緯
+
+Phase 58.3デプロイ後のGCPログ確認中に、`fetch_margin_positions()`でAPI エラー20003が発生していることを発見。
+
+```
+❌ 信用取引ポジション取得失敗: API Error 20003: ACCESS-KEY not found
+```
+
+### 根本原因分析
+
+#### bitbank APIの署名方式
+
+| メソッド | 署名対象 |
+|---------|---------|
+| **GET** | URLパス + クエリパラメータ |
+| **POST** | リクエストボディ |
+
+`fetch_margin_positions()`はPOSTメソッドで呼び出されていたが、実際にはGETメソッドが必要なエンドポイント。
+
+#### 同様のバグ（Phase 37.2で修正済み）
+
+`fetch_margin_status()`で同じ問題が発生し、Phase 37.2で修正されていた：
+```python
+# Phase 37.2修正
+response = await self._call_private_api("/user/margin/status", method="GET")
+```
+
+しかし、`fetch_margin_positions()`は同様の修正が漏れていた。
+
+### 影響範囲
+
+| 機能 | 影響 | 深刻度 |
+|------|------|--------|
+| Phase 58.3 ポジション確認 | フォールバックで動作（影響軽微） | 低 |
+| Phase 56.5 既存ポジションTP/SL設置 | **完全に機能しない** | 高 |
+| Phase 53.6 コンテナ再起動時復元 | **完全に機能しない** | 高 |
+| 孤児注文クリーンアップ | **完全に機能しない** | 高 |
+
+### 修正内容
+
+**ファイル**: `src/data/bitbank_client.py` L1569-1571
+
+```python
+# 修正前
+response = await self._call_private_api("/user/margin/positions")
+
+# 修正後（Phase 58.4）
+# bitbank独自のprivate APIを直接呼び出し
+# Phase 58.4: GETメソッドで呼び出し（エラー20003修正）
+response = await self._call_private_api("/user/margin/positions", method="GET")
+```
+
+### テスト結果
+
+```
+============================================
+pytest結果: 1,195 passed, 36 skipped
+flake8/black/isort: PASS
+============================================
+```
+
+### 追加対応
+
+**孤児TP注文の手動削除**:
+- bitbank UIで確認された孤児TP注文（ポジションなしで残存）は手動でキャンセル
+- 今後はfix後の自動クリーンアップが機能
+
+---
+
 ## 📊 ライブポジション検証
 
 ### 検証日: 2026/01/08
@@ -525,8 +599,9 @@ Phase 58.1デプロイ前に、現行ポジションの正当性を確認。
 - [x] ライブ分析スクリプト改善（Phase 58.2）
 - [x] 現行ポジション正当性検証
 - [x] ポジション同期問題修正（Phase 58.3）
+- [x] fetch_margin_positions APIエラー修正（Phase 58.4）
 
-### 保留項目（Phase 57から引き継ぎ）
+### 保留項目（Phase 59へ引き継ぎ）
 
 - [ ] BBReversal無効化（勝率8.3%・¥-5,451）
 - [ ] DonchianChannel重み削減（¥-3,560）
@@ -534,4 +609,4 @@ Phase 58.1デプロイ前に、現行ポジションの正当性を確認。
 
 ---
 
-**📅 最終更新**: 2026年1月9日 - Phase 58.3完了（ポジション同期問題修正）
+**📅 最終更新**: 2026年1月10日 - Phase 58.4完了（fetch_margin_positions APIエラー修正）

@@ -1567,7 +1567,8 @@ class BitbankClient:
                 )
 
             # bitbank独自のprivate APIを直接呼び出し
-            response = await self._call_private_api("/user/margin/positions")
+            # Phase 58.4: GETメソッドで呼び出し（エラー20003修正）
+            response = await self._call_private_api("/user/margin/positions", method="GET")
 
             positions = []
             for position_data in response.get("data", {}).get("positions", []):
