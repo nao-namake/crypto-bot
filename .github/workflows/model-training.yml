@@ -3,7 +3,7 @@
 # - データ収集ステップ追加（180日分）
 # - MIN_FEATURE_COUNT環境変数追加
 # - Python 3.13維持（Phase 52.1ベース）
-# - pushトリガー無効化（Phase 53.9）
+# - pushトリガー完全除外（Phase 58.4）: if条件でevent_nameチェック
 
 name: ML Model Training
 
@@ -42,8 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # mainブランチのみ実行
-    if: github.ref == 'refs/heads/main'
+    # scheduleまたはworkflow_dispatchのみ実行（pushトリガー完全除外）
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     permissions:
       contents: write
@@ -207,3 +207,4 @@ except Exception as e:
 # 3. ドライランモード: モデル保存なしでテスト可能
 # 4. Phase 52.2整理: データ収集ステップ追加・MIN_FEATURE_COUNT環境変数
 # 5. 実行時間: 約4-8分（50-100 trials）・タイムアウト30分
+# 6. Phase 58.4: pushイベント完全除外（if条件でevent_nameチェック）
