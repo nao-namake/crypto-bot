@@ -185,14 +185,14 @@ jobs:
             echo ""
             echo "🎯 モデル詳細:"
             python3 -c "
-import json
-try:
-    m = json.load(open('models/production/production_model_metadata.json'))
-    print(f'  特徴量数: {len(m.get(\"feature_names\", []))}')
-    print(f'  作成日時: {m.get(\"created_at\", \"unknown\")}')
-except Exception as e:
-    print(f'  読み取りエラー: {e}')
-            "
+          import json
+          try:
+              m = json.load(open('models/production/production_model_metadata.json'))
+              print(f'  特徴量数: {len(m.get(\"feature_names\", []))}')
+              print(f'  作成日時: {m.get(\"created_at\", \"unknown\")}')
+          except Exception as e:
+              print(f'  読み取りエラー: {e}')
+          "
           fi
 
       - name: Training Failure Alert
