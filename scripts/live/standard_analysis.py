@@ -38,7 +38,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # プロジェクトルートをパスに追加
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# .envファイルからAPIキー読み込み（ローカル実行用）
+from dotenv import load_dotenv
+
+env_path = PROJECT_ROOT / "config" / "secrets" / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    # 読み込み確認用ログは後で出力（logger初期化後）
 
 from src.core.logger import get_logger
 from src.data.bitbank_client import BitbankClient
@@ -121,6 +130,14 @@ class LiveAnalyzer:
         self.result.timestamp = datetime.now().isoformat()
         self.logger.info(f"ライブモード分析開始 - 対象期間: {self.period_hours}時間")
 
+        # .env読み込み確認
+        if env_path.exists():
+            api_key = os.getenv("BITBANK_API_KEY", "")
+            if api_key and len(api_key) > 8:
+                self.logger.info(f"✅ .envからAPIキー読み込み成功: {api_key[:8]}...")
+            else:
+                self.logger.warning("⚠️ .envファイル存在するがAPIキーが空")
+
         try:
             # bitbankクライアント初期化
             self.bitbank_client = BitbankClient()
@@ -174,8 +191,8 @@ class LiveAnalyzer:
     async def _fetch_position_status(self):
         """ポジション状態取得（5指標）"""
         try:
-            # ポジション取得
-            positions = self.bitbank_client.fetch_positions("BTC/JPY")
+            # ポジション取得（Phase 58.4: fetch_margin_positions使用）
+            positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
             self.result.open_position_count = len(positions)
 
             # ポジション詳細
@@ -183,15 +200,15 @@ class LiveAnalyzer:
             for pos in positions:
                 detail = {
                     "side": pos.get("side", "unknown"),
-                    "amount": pos.get("contracts", 0),
-                    "avg_price": pos.get("entryPrice", 0),
-                    "unrealized_pnl": pos.get("unrealizedPnl", 0),
+                    "amount": pos.get("amount", 0),
+                    "avg_price": pos.get("average_price", 0),
+                    "unrealized_pnl": pos.get("unrealized_pnl", 0),
                 }
                 self.result.position_details.append(detail)
 
                 # ロスカット価格
-                if pos.get("liquidationPrice"):
-                    self.result.losscut_price = pos.get("liquidationPrice")
+                if pos.get("losscut_price"):
+                    self.result.losscut_price = pos.get("losscut_price")
 
             # アクティブ注文取得
             active_orders = self.bitbank_client.fetch_active_orders("BTC/JPY")
