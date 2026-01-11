@@ -237,17 +237,18 @@ class TestRiskManager(unittest.TestCase):
 
     @patch("src.core.config.threshold_manager.get_threshold")
     def test_regime_based_tp_sl_tight_range(self, mock_get_threshold):
-        """Phase 52.0: tight_rangeレジームでのTP/SL計算テスト."""
+        """Phase 58.5: tight_rangeレジームでのTP/SL計算テスト（TP 0.4%, SL 0.3%）."""
 
         def threshold_side_effect(key, default=None):
             thresholds = {
                 "position_management.take_profit.regime_based.enabled": True,
-                "position_management.take_profit.regime_based.tight_range.min_profit_ratio": 0.008,  # TP 0.8%
+                "position_management.take_profit.regime_based.tight_range.min_profit_ratio": 0.004,  # Phase 58.5: TP 0.4%
                 "position_management.take_profit.regime_based.tight_range.default_ratio": 1.33,
-                "position_management.stop_loss.regime_based.tight_range.max_loss_ratio": 0.006,  # SL 0.6%
+                "position_management.stop_loss.regime_based.tight_range.max_loss_ratio": 0.003,  # Phase 58.5: SL 0.3%
                 "position_management.stop_loss.max_loss_ratio": 0.007,  # デフォルト（使用されない）
                 "position_management.take_profit.min_profit_ratio": 0.009,  # デフォルト（使用されない）
                 "position_management.take_profit.default_ratio": 1.29,  # デフォルト（使用されない）
+                "position_management.weekend_adjustment.enabled": False,  # Phase 58.6: 土日調整（テストでは無効）
             }
             return thresholds.get(key, default)
 
@@ -262,11 +263,11 @@ class TestRiskManager(unittest.TestCase):
             regime="tight_range",
         )
 
-        # Phase 52.0: tight_range TP 0.8%, SL 0.6%, RR比1.33:1
-        # SL距離 = 60000円[0.6%]
-        # TP距離 = max(80000円[0.8%], 79800円[SL×1.33]) = 80000円
-        expected_sl_distance = self.current_price * 0.006  # 60000円
-        expected_tp_distance = self.current_price * 0.008  # 80000円
+        # Phase 58.5: tight_range TP 0.4%, SL 0.3%, RR比1.33:1
+        # SL距離 = 30000円[0.3%]
+        # TP距離 = max(40000円[0.4%], 39900円[SL×1.33]) = 40000円
+        expected_sl_distance = self.current_price * 0.003  # 30000円
+        expected_tp_distance = self.current_price * 0.004  # 40000円
         expected_stop_loss = self.current_price - expected_sl_distance
         expected_take_profit = self.current_price + expected_tp_distance
 
@@ -286,6 +287,7 @@ class TestRiskManager(unittest.TestCase):
                 "position_management.stop_loss.max_loss_ratio": 0.007,
                 "position_management.take_profit.min_profit_ratio": 0.009,
                 "position_management.take_profit.default_ratio": 1.29,
+                "position_management.weekend_adjustment.enabled": False,  # Phase 58.6
             }
             return thresholds.get(key, default)
 
@@ -326,6 +328,7 @@ class TestRiskManager(unittest.TestCase):
                 "position_management.stop_loss.max_loss_ratio": 0.007,
                 "position_management.take_profit.min_profit_ratio": 0.009,
                 "position_management.take_profit.default_ratio": 1.29,
+                "position_management.weekend_adjustment.enabled": False,  # Phase 58.6
             }
             return thresholds.get(key, default)
 
@@ -361,6 +364,7 @@ class TestRiskManager(unittest.TestCase):
                 "position_management.stop_loss.max_loss_ratio": 0.007,  # デフォルト使用
                 "position_management.take_profit.min_profit_ratio": 0.009,  # デフォルト使用
                 "position_management.take_profit.default_ratio": 1.29,  # デフォルト使用
+                "position_management.weekend_adjustment.enabled": False,  # Phase 58.6
             }
             return thresholds.get(key, default)
 
@@ -399,6 +403,8 @@ class TestRiskManager(unittest.TestCase):
             # Phase 52.0: enabled=Falseの場合はレジーム別設定を使わない
             if key == "position_management.take_profit.regime_based.enabled":
                 return False  # 無効化
+            elif key == "position_management.weekend_adjustment.enabled":
+                return False  # Phase 58.6: 土日調整も無効
             elif "regime_based" in key:
                 # レジーム別の設定キーは全てNoneを返す（使われない）
                 return None

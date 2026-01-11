@@ -174,10 +174,12 @@ class RiskManager:
         config: Dict[str, Any],
         atr_history: Optional[List[float]] = None,
         regime: Optional[str] = None,
+        current_time: Optional[datetime] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
         Phase 52.0: レジーム別動的TP/SL調整実装
+        Phase 58.6: 土日TP/SL縮小対応
 
         Args:
             action: エントリーアクション（buy/sell）
@@ -186,6 +188,7 @@ class RiskManager:
             config: 完全なTP/SL設定（executor.pyから渡される）
             atr_history: ATR履歴（適応型ATR用）
             regime: 市場レジーム（tight_range/normal_range/trending/high_volatility）
+            current_time: 現在時刻（バックテスト対応、土日判定用）
 
         Returns:
             (stop_loss, take_profit)のタプル
@@ -241,6 +244,40 @@ class RiskManager:
                     logger.warning(
                         f"⚠️ Phase 52.0: レジーム別TP/SL設定が不完全 - {regime}: "
                         f"TP={regime_tp}, SL={regime_sl} → デフォルト設定使用"
+                    )
+
+            # ========================================
+            # Phase 58.6: 土日TP/SL縮小対応
+            # ========================================
+            weekend_enabled = get_threshold("position_management.weekend_adjustment.enabled", False)
+            if weekend_enabled and regime:
+                # 土日判定（バックテスト対応）
+                check_time = current_time if current_time else datetime.now()
+                is_weekend = check_time.weekday() >= 5  # 5=土, 6=日
+
+                if is_weekend:
+                    # 土日用TP設定取得
+                    weekend_tp = get_threshold(
+                        f"position_management.take_profit.regime_based.{regime}.weekend_ratio",
+                        None,
+                    )
+                    # 土日用SL設定取得
+                    weekend_sl = get_threshold(
+                        f"position_management.stop_loss.regime_based.{regime}.weekend_ratio",
+                        None,
+                    )
+
+                    if weekend_tp:
+                        config["min_profit_ratio"] = weekend_tp
+                    if weekend_sl:
+                        config["max_loss_ratio"] = weekend_sl
+
+                    logger.info(
+                        f"📅 Phase 58.6: 土日TP/SL縮小適用 - {regime}: "
+                        f"TP={weekend_tp * 100:.2f}% ({check_time.strftime('%a')}), "
+                        f"SL={weekend_sl * 100:.2f}%"
+                        if weekend_tp and weekend_sl
+                        else f"📅 Phase 58.6: 土日判定 ({check_time.strftime('%a')}) - 設定なし"
                     )
 
             # === SL距離計算（max_loss_ratio優先） ===
@@ -507,8 +544,21 @@ class SignalBuilder:
                     logger.warning(f"⚠️ Phase 53.9: レジーム判定失敗（デフォルト使用）: {e}")
 
                 # ストップロス・テイクプロフィット計算（レジーム別設定適用）
+                # Phase 58.6: 土日判定用にcurrent_time追加（dfのindexから取得）
+                signal_time = None
+                if df is not None and len(df) > 0 and df.index is not None:
+                    try:
+                        signal_time = pd.to_datetime(df.index[-1])
+                    except Exception:
+                        signal_time = None
                 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
-                    action, current_price, current_atr, config, atr_history, regime=regime
+                    action,
+                    current_price,
+                    current_atr,
+                    config,
+                    atr_history,
+                    regime=regime,
+                    current_time=signal_time,
                 )
 
                 # ポジションサイズ計算

@@ -1343,8 +1343,15 @@ class ExecutionService:
                     self.logger.info(f"🎯 Phase 52.0: レジーム情報取得 - {regime_str}")
 
                 # Phase 52.0: レジーム情報を含めてTP/SL計算
+                # Phase 58.6: 土日判定用にcurrent_time追加
                 recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
-                    side, actual_filled_price, current_atr, config, atr_history, regime=regime_str
+                    side,
+                    actual_filled_price,
+                    current_atr,
+                    config,
+                    atr_history,
+                    regime=regime_str,
+                    current_time=self.current_time,
                 )
 
                 # 再計算成功時、ログ出力

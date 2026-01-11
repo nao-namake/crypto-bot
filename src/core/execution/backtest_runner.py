@@ -782,20 +782,27 @@ class BacktestRunner(BaseRunner):
             )
 
     def _calculate_pnl(
-        self, side: str, entry_price: float, exit_price: float, amount: float
+        self,
+        side: str,
+        entry_price: float,
+        exit_price: float,
+        amount: float,
+        hold_minutes: float = 0,
     ) -> float:
         """
-        損益計算（Phase 51.7 Phase 3-2: ライブモード一致化）
+        損益計算（Phase 58.6: 手数料・利息追加）
 
         Args:
             side: エントリーサイド（"buy" or "sell"）
             entry_price: エントリー価格
             exit_price: 決済価格
             amount: 取引量（BTC）
+            hold_minutes: 保有時間（分）- 利息計算用
 
         Returns:
-            損益（円）
+            損益（円）- 手数料リベート・利息込み
         """
+        # 基本損益計算
         if side == "buy":
             # ロングポジション決済: (決済価格 - エントリー価格) × 数量
             pnl = (exit_price - entry_price) * amount
@@ -803,7 +810,18 @@ class BacktestRunner(BaseRunner):
             # ショートポジション決済: (エントリー価格 - 決済価格) × 数量
             pnl = (entry_price - exit_price) * amount
 
-        return pnl
+        # Phase 58.6: 簡易手数料・利息計算
+        position_value = entry_price * amount
+
+        # エントリー手数料リベート（Maker -0.02%）
+        # ※エグジット手数料は既存処理（L900-906等）で加算済み
+        entry_fee_rebate = position_value * 0.0002
+
+        # 建玉利息（0.04%/日）
+        hold_days = hold_minutes / 60 / 24
+        interest_cost = position_value * 0.0004 * hold_days
+
+        return pnl + entry_fee_rebate - interest_cost
 
     async def _check_tp_sl_triggers(
         self, close_price: float, high_price: float, low_price: float, timestamp
@@ -847,6 +865,7 @@ class BacktestRunner(BaseRunner):
                 take_profit = position.get("take_profit")
                 stop_loss = position.get("stop_loss")
                 strategy_name = position.get("strategy_name", "unknown")
+                entry_timestamp = position.get("timestamp")  # Phase 58.6: 利息計算用
 
                 # TP/SL価格がない場合はスキップ
                 if take_profit is None and stop_loss is None:
@@ -905,8 +924,16 @@ class BacktestRunner(BaseRunner):
                             exit_fee_amount  # リベート加算
                         )
 
+                        # Phase 58.6: 保有期間計算（利息計算用）
+                        hold_minutes = 0
+                        if entry_timestamp and timestamp:
+                            hold_minutes = (timestamp - entry_timestamp).total_seconds() / 60
+
                         # Phase 51.7 Phase 3-2: 仮想残高更新（ライブモード一致化）
-                        pnl = self._calculate_pnl(side, entry_price, exit_price, amount)
+                        # Phase 58.6: 手数料・利息込み損益計算
+                        pnl = self._calculate_pnl(
+                            side, entry_price, exit_price, amount, hold_minutes
+                        )
                         self.orchestrator.execution_service.virtual_balance += pnl
                         new_balance = self.orchestrator.execution_service.virtual_balance
 
@@ -1059,6 +1086,7 @@ class BacktestRunner(BaseRunner):
                 amount = position.get("amount")
                 entry_price = position.get("price")
                 strategy_name = position.get("strategy_name", "unknown")
+                entry_timestamp = position.get("timestamp")  # Phase 58.6: 利息計算用
 
                 try:
                     # 3. 決済処理（_check_tp_sl_triggersと同じロジック）
@@ -1078,8 +1106,13 @@ class BacktestRunner(BaseRunner):
                         exit_fee_amount  # リベート加算
                     )
 
-                    # 損益計算・仮想残高更新
-                    pnl = self._calculate_pnl(side, entry_price, final_price, amount)
+                    # Phase 58.6: 保有期間計算（利息計算用）
+                    hold_minutes = 0
+                    if entry_timestamp and final_timestamp:
+                        hold_minutes = (final_timestamp - entry_timestamp).total_seconds() / 60
+
+                    # 損益計算・仮想残高更新（Phase 58.6: 手数料・利息込み）
+                    pnl = self._calculate_pnl(side, entry_price, final_price, amount, hold_minutes)
                     self.orchestrator.execution_service.virtual_balance += pnl
                     new_balance = self.orchestrator.execution_service.virtual_balance
 

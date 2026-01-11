@@ -562,14 +562,10 @@ class LiveAnalyzer:
                 )
                 if restart_result.returncode == 0:
                     restart_logs = (
-                        json.loads(restart_result.stdout)
-                        if restart_result.stdout.strip()
-                        else []
+                        json.loads(restart_result.stdout) if restart_result.stdout.strip() else []
                     )
                     self.result.container_restart_count = len(restart_logs)
-                    self.logger.info(
-                        f"コンテナ起動回数: {self.result.container_restart_count}回"
-                    )
+                    self.logger.info(f"コンテナ起動回数: {self.result.container_restart_count}回")
             else:
                 # GCPログ取得失敗時
                 self.result.uptime_rate = -1
@@ -737,9 +733,7 @@ class LiveReportGenerator:
 
         if result.uptime_rate >= 0:
             uptime_status = "達成" if result.uptime_rate >= 90 else "未達"
-            lines.append(
-                f"| 稼働時間率 | {result.uptime_rate:.1f}% | {uptime_status} (目標90%) |"
-            )
+            lines.append(f"| 稼働時間率 | {result.uptime_rate:.1f}% | {uptime_status} (目標90%) |")
             lines.append(
                 f"| 実行回数 | {result.actual_cycle_count}回 / {result.expected_cycle_count}回 | - |"
             )

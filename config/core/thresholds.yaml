@@ -716,12 +716,15 @@ position_management:
       enabled: true
       tight_range:
         min_profit_ratio: 0.004      # Phase 58.5: 0.8%→0.4%（利息対策・短期決済）
+        weekend_ratio: 0.0025        # Phase 58.6: 土日 TP 0.25%（ATR65%対応）
         default_ratio: 1.33
       normal_range:
         min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
+        weekend_ratio: 0.0065        # Phase 58.6: 土日 TP 0.65%
         default_ratio: 1.43
       trending:
         min_profit_ratio: 0.015      # TP 1.5%（RR比1.50:1）
+        weekend_ratio: 0.010         # Phase 58.6: 土日 TP 1.0%
         default_ratio: 1.50
       high_volatility:
         min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
@@ -747,10 +750,13 @@ position_management:
       enabled: true
       tight_range:
         max_loss_ratio: 0.003        # Phase 58.5: 0.6%→0.3%（利息対策・短期決済）
+        weekend_ratio: 0.002         # Phase 58.6: 土日 SL 0.2%（ATR65%対応）
       normal_range:
         max_loss_ratio: 0.007        # SL 0.7%（RR比1.43:1）
+        weekend_ratio: 0.0045        # Phase 58.6: 土日 SL 0.45%
       trending:
         max_loss_ratio: 0.010        # SL 1.0%（RR比1.50:1）
+        weekend_ratio: 0.0065        # Phase 58.6: 土日 SL 0.65%
       high_volatility:
         max_loss_ratio: 0.015        # SL 1.5%（参考値・実際はエントリーなし）
 
@@ -778,6 +784,19 @@ position_management:
       min_update_distance: 200
       min_profit_lock: 0.005
       cancel_tp_when_exceeds: true
+
+  # ========================================
+  # Phase 58.6: 土日TP/SL調整設定
+  # ========================================
+  # 根拠: 半年間のCSV分析（2025/7-12）
+  #   - 土日ATR: 平日の65%
+  #   - 土日レンジ: 平日の60%
+  #   - 0.40%到達率: 平日15.2%→土日7.0%（46%低下）
+  # 対策: 土日はTP/SLを62.5%に縮小
+  # ========================================
+  weekend_adjustment:
+    enabled: true
+    reduction_factor: 0.625          # 土日は平日の62.5%
 
 # ========================================
 # 💰 証拠金管理設定（Margin Management Settings）
