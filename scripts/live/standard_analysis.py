@@ -100,10 +100,12 @@ class LiveAnalysisResult:
     tp_sl_placement_ok: bool = True
     tp_sl_config_deviation: Optional[float] = None
 
-    # 稼働率（3指標）
+    # 稼働率（5指標）
     uptime_rate: float = 0.0
     total_downtime_minutes: float = 0.0
     last_incident_time: Optional[str] = None
+    actual_cycle_count: int = 0
+    expected_cycle_count: int = 0
 
 
 class LiveAnalyzer:
@@ -502,19 +504,19 @@ class LiveAnalyzer:
             self.logger.error(f"TP/SL確認失敗: {e}")
 
     async def _calculate_uptime(self):
-        """稼働率計算（3指標）"""
+        """稼働率計算（5指標）"""
         try:
             since_time = (datetime.now() - timedelta(hours=self.period_hours)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
 
-            # 5分間隔のログ数から稼働率を推定
+            # ML予測完了ログ数から稼働率を推定
             result = subprocess.run(
                 [
                     "gcloud",
                     "logging",
                     "read",
-                    f'resource.type="cloud_run_revision" AND textPayload:"実行サイクル" AND timestamp>="{since_time}"',
+                    f'resource.type="cloud_run_revision" AND textPayload:"ML予測完了" AND timestamp>="{since_time}"',
                     "--format=json",
                     "--limit=500",
                 ],
@@ -530,6 +532,10 @@ class LiveAnalyzer:
                 # 期待される実行回数（5分間隔）
                 expected_runs = self.period_hours * 12  # 1時間に12回
 
+                # 結果を保存
+                self.result.actual_cycle_count = actual_runs
+                self.result.expected_cycle_count = expected_runs
+
                 if expected_runs > 0:
                     self.result.uptime_rate = min(100.0, (actual_runs / expected_runs) * 100)
                     missed_runs = max(0, expected_runs - actual_runs)
@@ -539,13 +545,38 @@ class LiveAnalyzer:
                     f"稼働率計算完了 - {self.result.uptime_rate:.1f}% "
                     f"(実行{actual_runs}回/期待{expected_runs}回)"
                 )
+
+                # コンテナ再起動回数を取得
+                restart_result = subprocess.run(
+                    [
+                        "gcloud",
+                        "logging",
+                        "read",
+                        f'resource.type="cloud_run_revision" AND textPayload:"TradingOrchestrator依存性組み立て開始" AND timestamp>="{since_time}"',
+                        "--format=json",
+                        "--limit=50",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if restart_result.returncode == 0:
+                    restart_logs = (
+                        json.loads(restart_result.stdout)
+                        if restart_result.stdout.strip()
+                        else []
+                    )
+                    self.result.container_restart_count = len(restart_logs)
+                    self.logger.info(
+                        f"コンテナ起動回数: {self.result.container_restart_count}回"
+                    )
             else:
                 # GCPログ取得失敗時
                 self.result.uptime_rate = -1
                 self.logger.warning("稼働率計算不可（GCPログ取得失敗）")
 
         except FileNotFoundError:
-            # ローカル実行時
+            # ローカル実行時（gcloudコマンドなし）
             self.result.uptime_rate = -1
             self.logger.info("稼働率計算スキップ（ローカル実行）")
         except Exception as e:
@@ -706,8 +737,14 @@ class LiveReportGenerator:
 
         if result.uptime_rate >= 0:
             uptime_status = "達成" if result.uptime_rate >= 90 else "未達"
-            lines.append(f"| 稼働時間率 | {result.uptime_rate:.1f}% | {uptime_status} (目標90%) |")
+            lines.append(
+                f"| 稼働時間率 | {result.uptime_rate:.1f}% | {uptime_status} (目標90%) |"
+            )
+            lines.append(
+                f"| 実行回数 | {result.actual_cycle_count}回 / {result.expected_cycle_count}回 | - |"
+            )
             lines.append(f"| ダウンタイム | {result.total_downtime_minutes:.0f}分 | - |")
+            lines.append(f"| 再起動回数 | {result.container_restart_count}回 | - |")
         else:
             lines.append("| 稼働時間率 | 計測不可 | - |")
 
@@ -739,6 +776,8 @@ class LiveReportGenerator:
             "error_count": result.recent_error_count,
             "restart_count": result.container_restart_count,
             "uptime_rate": result.uptime_rate,
+            "actual_cycles": result.actual_cycle_count,
+            "expected_cycles": result.expected_cycle_count,
             "service_status": result.service_status,
             "tp_sl_ok": result.tp_sl_placement_ok,
         }

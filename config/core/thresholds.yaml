@@ -715,7 +715,7 @@ position_management:
     regime_based:
       enabled: true
       tight_range:
-        min_profit_ratio: 0.008      # TP 0.8%（RR比1.33:1）
+        min_profit_ratio: 0.004      # Phase 58.5: 0.8%→0.4%（利息対策・短期決済）
         default_ratio: 1.33
       normal_range:
         min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
@@ -746,7 +746,7 @@ position_management:
     regime_based:
       enabled: true
       tight_range:
-        max_loss_ratio: 0.006        # SL 0.6%（RR比1.33:1）
+        max_loss_ratio: 0.003        # Phase 58.5: 0.6%→0.3%（利息対策・短期決済）
       normal_range:
         max_loss_ratio: 0.007        # SL 0.7%（RR比1.43:1）
       trending:
