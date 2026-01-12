@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 58.6完了・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 58.8完了・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2058.6-Complete-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2058.8-Complete-blue)](docs/)
 
 ---
 
@@ -215,7 +215,7 @@ config/core/
 
 ## 開発状況
 
-### Phase 58（完了）: TP/SL管理・バックテスト精度向上
+### Phase 58（完了）: TP/SL管理・運用安定化
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
@@ -223,6 +223,8 @@ config/core/
 | 58.4 | API修正 | fetch_margin_positions GETメソッド修正 |
 | 58.5 | TP/SL縮小 | 0.8%/0.6% → 0.4%/0.3%（滞留問題対応） |
 | 58.6 | バックテスト精度向上 | 手数料・利息追加、土日TP/SL縮小（62.5%） |
+| 58.7 | 稼働率・維持率表示 | 検索パターン修正・N/A表示追加 |
+| 58.8 | ポジションカウント・孤児SL防止 | BTC/JPYフィルタ・リトライ機能・孤児検出 |
 
 ### Phase 57（完了）: 年利10%目標・リスク最大化
 
@@ -261,4 +263,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月12日 - **Phase 58.6完了**（バックテスト手数料・土日TP/SL縮小）
+**最終更新**: 2026年1月13日 - **Phase 58.8完了**（ポジションカウント修正・孤児SL防止）
