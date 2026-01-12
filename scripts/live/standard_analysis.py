@@ -100,6 +100,10 @@ class LiveAnalysisResult:
     tp_sl_placement_ok: bool = True
     tp_sl_config_deviation: Optional[float] = None
 
+    # Phase 58.8: 孤児注文検出（2指標）
+    orphan_sl_detected: bool = False
+    orphan_order_count: int = 0
+
     # 稼働率（5指標）
     uptime_rate: float = 0.0
     total_downtime_minutes: float = 0.0
@@ -195,11 +199,20 @@ class LiveAnalyzer:
         try:
             # ポジション取得（Phase 58.4: fetch_margin_positions使用）
             positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
-            self.result.open_position_count = len(positions)
 
-            # ポジション詳細
+            # Phase 58.8: 有効ポジションのみフィルタ（BTC/JPY + Amount > 0）
+            # bitbank APIは全通貨ペアのスロットを返却するため、フィルタ必須
+            active_positions = [
+                p
+                for p in positions
+                if p.get("amount", 0) > 0
+                and p.get("symbol", "").lower().replace("/", "_") == "btc_jpy"
+            ]
+            self.result.open_position_count = len(active_positions)
+
+            # ポジション詳細（有効ポジションのみ）
             self.result.position_details = []
-            for pos in positions:
+            for pos in active_positions:
                 detail = {
                     "side": pos.get("side", "unknown"),
                     "amount": pos.get("amount", 0),
@@ -225,6 +238,17 @@ class LiveAnalyzer:
                 else:
                     breakdown["limit"] += 1
             self.result.order_breakdown = breakdown
+
+            # Phase 58.8: 孤児SL/TP検出
+            # ポジションがないのにstop/stop_limit注文がある場合は孤児
+            sl_tp_count = breakdown.get("stop", 0) + breakdown.get("stop_limit", 0)
+            if self.result.open_position_count == 0 and sl_tp_count > 0:
+                self.result.orphan_sl_detected = True
+                self.result.orphan_order_count = sl_tp_count
+                self.logger.warning(
+                    f"⚠️ Phase 58.8: 孤児SL/TP注文検出 - {sl_tp_count}件 "
+                    "(ポジションなしでSL/TP注文が残存)"
+                )
 
             self.logger.info(
                 f"ポジション状態取得完了 - ポジション: {self.result.open_position_count}件, "
@@ -642,6 +666,10 @@ class LiveReportGenerator:
 
         if result.losscut_price:
             lines.append(f"| ロスカット価格 | ¥{result.losscut_price:,.0f} |")
+
+        # Phase 58.8: 孤児SL/TP警告
+        if result.orphan_sl_detected:
+            lines.append(f"| ⚠️ **孤児SL/TP注文** | **{result.orphan_order_count}件検出** |")
 
         lines.extend(
             [

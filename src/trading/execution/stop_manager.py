@@ -294,7 +294,18 @@ class StopManager:
                                 f"{cleanup_result['cancelled_count']}件キャンセル"
                             )
                     except Exception as e:
-                        self.logger.warning(f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}")
+                        # Phase 58.8: SLキャンセル失敗時は孤児化防止のため処理中断
+                        if "孤児SL防止" in str(e):
+                            self.logger.error(
+                                f"❌ Phase 58.8: SLキャンセル失敗 - "
+                                f"孤児SL防止のためポジション決済を中断: {e}"
+                            )
+                            raise  # 上位に例外を伝播
+                        else:
+                            # TP注文キャンセル失敗等は処理継続可
+                            self.logger.warning(
+                                f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}"
+                            )
 
                 # Phase 58.1: 実際の決済注文をbitbankに発行
                 try:
@@ -551,6 +562,7 @@ class StopManager:
     ) -> Dict[str, Any]:
         """
         Phase 49.6: ポジション決済時のTP/SL注文クリーンアップ
+        Phase 58.8: リトライ+検証ロジック追加（孤児SL防止）
 
         TP到達時: 残SL注文を自動削除
         SL到達時: 残TP注文を自動削除
@@ -564,52 +576,72 @@ class StopManager:
             reason: クリーンアップ理由（"take_profit", "stop_loss", "manual"）
 
         Returns:
-            Dict: {"cancelled_count": int, "errors": List[str]}
+            Dict: {"cancelled_count": int, "errors": List[str], "success": bool}
+
+        Raises:
+            Exception: SL注文キャンセル失敗時（孤児SL防止）
         """
         cancelled_count = 0
         errors = []
+        max_retries = 3
+        retry_delay = 0.5  # 500ms
+
+        async def _cancel_with_retry(order_id: str, order_type: str) -> bool:
+            """リトライ付きキャンセル（Phase 58.8）"""
+            for attempt in range(max_retries):
+                try:
+                    # キャンセル試行
+                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                    self.logger.info(
+                        f"✅ Phase 58.8: {order_type}注文キャンセル成功 - "
+                        f"ID: {order_id}, 試行: {attempt + 1}/{max_retries}"
+                    )
+                    return True
+                except Exception as e:
+                    error_str = str(e)
+                    # 既にキャンセル/約定済みの場合は成功扱い
+                    if "OrderNotFound" in error_str or "not found" in error_str.lower():
+                        self.logger.debug(f"ℹ️ {order_type}注文{order_id}は既にキャンセル/約定済み")
+                        return True
+
+                    if attempt < max_retries - 1:
+                        self.logger.warning(
+                            f"⚠️ Phase 58.8: {order_type}注文キャンセル失敗 - "
+                            f"ID: {order_id}, 試行: {attempt + 1}/{max_retries}, "
+                            f"エラー: {e}, リトライ中..."
+                        )
+                        await asyncio.sleep(retry_delay)
+                    else:
+                        self.logger.error(
+                            f"❌ Phase 58.8: {order_type}注文キャンセル最終失敗 - "
+                            f"ID: {order_id}, 全{max_retries}回試行失敗: {e}"
+                        )
+            return False
 
         # TP注文キャンセル（SL到達時・手動決済時）
         if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
-            try:
-                await asyncio.to_thread(bitbank_client.cancel_order, tp_order_id, symbol)
+            if await _cancel_with_retry(tp_order_id, "TP"):
                 cancelled_count += 1
-                self.logger.info(
-                    f"✅ Phase 49.6: TP注文クリーンアップ成功 - ID: {tp_order_id}, 理由: {reason}"
-                )
-            except Exception as e:
-                error_msg = f"TP注文{tp_order_id}キャンセル失敗: {e}"
-                errors.append(error_msg)
-                # Phase 51.6: Discord通知削除（週間レポートのみ）
-                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
-                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
-                else:
-                    self.logger.warning(f"⚠️ {error_msg}")
+            else:
+                errors.append(f"TP注文{tp_order_id}キャンセル失敗")
 
-        # SL注文キャンセル（TP到達時・手動決済時）
+        # SL注文キャンセル（TP到達時・手動決済時）- 失敗時は例外
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
-            try:
-                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+            if await _cancel_with_retry(sl_order_id, "SL"):
                 cancelled_count += 1
-                self.logger.info(
-                    f"✅ Phase 49.6: SL注文クリーンアップ成功 - ID: {sl_order_id}, 理由: {reason}"
-                )
-            except Exception as e:
-                error_msg = f"SL注文{sl_order_id}キャンセル失敗: {e}"
+            else:
+                error_msg = f"SL注文{sl_order_id}キャンセル失敗（孤児SL防止のため処理中断）"
                 errors.append(error_msg)
-                # Phase 51.6: Discord通知削除（週間レポートのみ）
-                if "OrderNotFound" in str(e) or "not found" in str(e).lower():
-                    self.logger.debug(f"ℹ️ {error_msg}（既にキャンセル/約定済み）")
-                else:
-                    self.logger.warning(f"⚠️ {error_msg}")
+                # Phase 58.8: SLキャンセル失敗は孤児化の原因なので例外を投げる
+                raise Exception(error_msg)
 
         if cancelled_count > 0:
             self.logger.info(
-                f"🧹 Phase 49.6: ポジション決済時クリーンアップ完了 - "
+                f"🧹 Phase 58.8: ポジション決済時クリーンアップ完了 - "
                 f"{cancelled_count}件キャンセル, 理由: {reason}"
             )
 
-        return {"cancelled_count": cancelled_count, "errors": errors}
+        return {"cancelled_count": cancelled_count, "errors": errors, "success": True}
 
     def should_apply_cooldown(self, evaluation: TradeEvaluation) -> bool:
         """
