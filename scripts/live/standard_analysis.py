@@ -510,13 +510,13 @@ class LiveAnalyzer:
                 "%Y-%m-%dT%H:%M:%SZ"
             )
 
-            # ML予測完了ログ数から稼働率を推定
+            # 取引サイクル開始ログ数から稼働率を推定
             result = subprocess.run(
                 [
                     "gcloud",
                     "logging",
                     "read",
-                    f'resource.type="cloud_run_revision" AND textPayload:"ML予測完了" AND timestamp>="{since_time}"',
+                    f'resource.type="cloud_run_revision" AND textPayload:"取引サイクル開始" AND timestamp>="{since_time}"',
                     "--format=json",
                     "--limit=500",
                 ],
@@ -603,13 +603,18 @@ class LiveReportGenerator:
             "|------|-----|------|",
         ]
 
-        # 証拠金維持率の状態判定
-        margin_status = (
-            "正常"
-            if result.margin_ratio >= 100
-            else "注意" if result.margin_ratio >= 80 else "危険"
-        )
-        lines.append(f"| 証拠金維持率 | {result.margin_ratio:.1f}% | {margin_status} |")
+        # 証拠金維持率の状態判定（ノーポジション時は明示的に表示）
+        if result.open_position_count == 0 and result.margin_ratio >= 500:
+            margin_display = "N/A"
+            margin_status = "ポジションなし"
+        else:
+            margin_display = f"{result.margin_ratio:.1f}%"
+            margin_status = (
+                "正常"
+                if result.margin_ratio >= 100
+                else "注意" if result.margin_ratio >= 80 else "危険"
+            )
+        lines.append(f"| 証拠金維持率 | {margin_display} | {margin_status} |")
         lines.append(f"| 利用可能残高 | ¥{result.available_balance:,.0f} | - |")
         lines.append(f"| 使用中証拠金 | ¥{result.used_margin:,.0f} | - |")
         lines.append(f"| 未実現損益 | ¥{result.unrealized_pnl:+,.0f} | - |")
@@ -828,7 +833,10 @@ async def main():
     print("ライブモード分析サマリー")
     print("=" * 50)
     print(f"分析期間: 直近{args.hours}時間")
-    print(f"証拠金維持率: {result.margin_ratio:.1f}%")
+    if result.open_position_count == 0 and result.margin_ratio >= 500:
+        print("証拠金維持率: N/A (ポジションなし)")
+    else:
+        print(f"証拠金維持率: {result.margin_ratio:.1f}%")
     print(f"取引数: {result.trades_count}件")
     print(f"勝率: {result.win_rate:.1f}%")
     print(f"総損益: ¥{result.total_pnl:+,.0f}")

@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 58完了・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 58.6完了・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2058-Complete-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2058.6-Complete-blue)](docs/)
 
 ---
 
@@ -77,13 +77,15 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 | ATRBased | 0.25 | PF 1.16・消尽率ロジック |
 | トレンド型 | 0.0 | タイトレンジで機能しない |
 
-### レジーム別TP/SL設定
+### レジーム別TP/SL設定（Phase 58.5/58.6更新）
 
-| レジーム | TP | SL | RR比 |
-|---------|-----|-----|------|
-| tight_range | 0.8% | 0.6% | 1.33:1 |
-| normal_range | 1.0% | 0.7% | 1.43:1 |
-| trending | 1.5% | 1.0% | 1.50:1 |
+| レジーム | 平日TP | 平日SL | 土日TP | 土日SL |
+|---------|--------|--------|--------|--------|
+| tight_range | 0.4% | 0.3% | 0.25% | 0.2% |
+| normal_range | 0.6% | 0.4% | 0.4% | 0.25% |
+| trending | 1.0% | 0.6% | 0.6% | 0.4% |
+
+**土日縮小根拠**: 半年分CSV分析で土日ATRは平日の65%
 
 ---
 
@@ -213,13 +215,14 @@ config/core/
 
 ## 開発状況
 
-### Phase 58（完了）: TP/SL管理・ポジション同期修正
+### Phase 58（完了）: TP/SL管理・バックテスト精度向上
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| 58.1 | TP/SL管理バグ修正（3件） | 決済注文発行・保護ロジック・複数処理対応 |
-| 58.2 | ライブ分析スクリプト改善 | TP/SL量整合性チェック追加 |
-| 58.3 | ポジション同期問題修正 | 実ポジション確認ロジック追加 |
+| 58.1-58.3 | TP/SL管理バグ修正 | 決済注文発行・保護ロジック・ポジション同期 |
+| 58.4 | API修正 | fetch_margin_positions GETメソッド修正 |
+| 58.5 | TP/SL縮小 | 0.8%/0.6% → 0.4%/0.3%（滞留問題対応） |
+| 58.6 | バックテスト精度向上 | 手数料・利息追加、土日TP/SL縮小（62.5%） |
 
 ### Phase 57（完了）: 年利10%目標・リスク最大化
 
@@ -258,4 +261,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月9日 - **Phase 58.3完了**（ポジション同期問題修正）
+**最終更新**: 2026年1月12日 - **Phase 58.6完了**（バックテスト手数料・土日TP/SL縮小）
