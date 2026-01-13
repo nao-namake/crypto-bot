@@ -50,13 +50,13 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights)
 
     def test_get_regime_weights_normal_range(self, selector):
-        """normal_range レジームの重み取得が正しいことを確認（Phase 51.8: 6戦略）"""
+        """normal_range レジームの重み取得が正しいことを確認（Phase 59.1: BBReversal無効化）"""
         weights = selector.get_regime_weights(RegimeType.NORMAL_RANGE)
 
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
 
-        # normal_rangeは全6戦略を含む（トレンド型は0.0）
+        # normal_rangeは全6戦略を含む（BBReversal・トレンド型は0.0）
         assert "ATRBased" in weights
         assert "BBReversal" in weights
         assert "DonchianChannel" in weights
@@ -64,9 +64,9 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 56.9: レンジ型戦略が正の重み（トレンド型は0.0）
+        # Phase 59.1: BBReversal無効化（normal_rangeで0%勝率）
         assert weights["ATRBased"] > 0
-        assert weights["BBReversal"] > 0
+        assert weights["BBReversal"] == 0.0  # Phase 59.1: normal_rangeで無効化
         assert weights["DonchianChannel"] > 0
         assert weights["StochasticReversal"] > 0
         assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化

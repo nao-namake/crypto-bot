@@ -117,24 +117,24 @@ ml:
     enabled: true  # Phase 51.9: レジーム別ML統合有効化
 
     # tight_range（狭いレンジ）: 戦略重視型
-    # Phase 55.3: 取引数回復のためML閾値さらに緩和
+    # Phase 59.2: 信頼度逆転問題修正（penalty強化・bonus抑制）
     tight_range:
       min_ml_confidence: 0.33           # Phase 55.3: 0.38→0.33（取引数増加）
-      high_confidence_threshold: 0.60   # 0.65→0.60（緩和）
+      high_confidence_threshold: 0.70   # Phase 59.2: 0.60→0.70（閾値引き上げ）
       ml_weight: 0.25                   # ML 25%
       strategy_weight: 0.75             # 戦略 75%
-      agreement_bonus: 1.18             # 1.15→1.18（ボーナス増加）
-      disagreement_penalty: 0.96        # Phase 55.3: 0.95→0.96（ペナルティさらに緩和）
+      agreement_bonus: 1.10             # Phase 59.2: 1.18→1.10（ボーナス抑制）
+      disagreement_penalty: 0.80        # Phase 59.2: 0.96→0.80（ペナルティ強化）
 
     # normal_range（通常レンジ）: バランス型
-    # Phase 55.3: 取引数回復のためML閾値さらに緩和
+    # Phase 59.2: 信頼度逆転問題修正（penalty強化・bonus抑制）
     normal_range:
       min_ml_confidence: 0.30           # Phase 55.3: 0.35→0.30（取引数増加）
-      high_confidence_threshold: 0.55   # 0.60→0.55（緩和）
+      high_confidence_threshold: 0.65   # Phase 59.2: 0.55→0.65（閾値引き上げ）
       ml_weight: 0.30                   # ML 30%
       strategy_weight: 0.70             # 戦略 70%
-      agreement_bonus: 1.22             # 1.20→1.22（ボーナス増加）
-      disagreement_penalty: 0.96        # Phase 55.3: 0.95→0.96（ペナルティさらに緩和）
+      agreement_bonus: 1.10             # Phase 59.2: 1.22→1.10（ボーナス抑制）
+      disagreement_penalty: 0.80        # Phase 59.2: 0.96→0.80（ペナルティ強化）
 
     # trending（トレンド）: ML補完重視型
     # Phase 51.8結果: 0件（未発生）
@@ -307,11 +307,11 @@ dynamic_strategy_selection:
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 56.9: トレンド型戦略をレンジ相場で無効化
-      ATRBased: 0.40            # 主力
-      BBReversal: 0.25          # 高PF
-      StochasticReversal: 0.25  # Divergence特化
-      DonchianChannel: 0.10     # 補助
+      # Phase 59.1: BBReversal無効化（0%勝率）・ATRBased主力化
+      ATRBased: 0.50            # Phase 59.1: 0.40→0.50（主力強化）
+      BBReversal: 0.0           # Phase 59.1: 0.25→0.0（normal_rangeで0%勝率）
+      StochasticReversal: 0.30  # Phase 59.1: 0.25→0.30
+      DonchianChannel: 0.20     # Phase 59.1: 0.10→0.20（黒字化）
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
