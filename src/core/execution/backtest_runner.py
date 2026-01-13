@@ -683,6 +683,11 @@ class BacktestRunner(BaseRunner):
                                             ml_prediction = int(predictions[i])
                                             ml_confidence = float(np.max(probabilities[i]))
 
+                                    # Phase 59.3: 調整済み信頼度を取得（positionから）
+                                    adjusted_confidence = position.get(
+                                        "adjusted_confidence", ml_confidence
+                                    )
+
                                     self.orchestrator.backtest_reporter.trade_tracker.record_entry(
                                         order_id=order_id,
                                         side=position.get("side"),
@@ -692,7 +697,8 @@ class BacktestRunner(BaseRunner):
                                         strategy=position.get("strategy_name", "unknown"),
                                         regime=regime_str,  # Phase 51.8-J4-G: レジーム情報追加
                                         ml_prediction=ml_prediction,  # Phase 54.8: ML予測
-                                        ml_confidence=ml_confidence,  # Phase 54.8: ML信頼度
+                                        ml_confidence=ml_confidence,  # Phase 54.8: ML信頼度（生）
+                                        adjusted_confidence=adjusted_confidence,  # Phase 59.3: 調整済み
                                     )
 
                                     # Phase 57.9: エントリー時の残高記録

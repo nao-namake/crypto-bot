@@ -137,12 +137,25 @@ regime_ml_integration:
 
 ## 修正ファイル一覧
 
+### Phase 59.1-59.2
+
 | ファイル | 修正内容 |
 |---------|---------|
 | `config/core/thresholds.yaml` | BBReversal normal_range無効化 |
 | `config/core/thresholds.yaml` | 信頼度penalty/bonus調整 |
 | `tests/unit/services/test_dynamic_strategy_selector.py` | テスト期待値更新 |
 | `docs/開発計画/ToDo.md` | Phase 59計画反映 |
+
+### Phase 59.3
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/core/types.py` | TradeEvaluationにadjusted_confidence追加 |
+| `src/trading/risk/manager.py` | adjusted_confidenceを保存 |
+| `src/trading/execution/executor.py` | virtual_positionに追加 |
+| `src/core/execution/backtest_runner.py` | adjusted_confidenceを記録 |
+| `src/backtest/reporter.py` | パラメータ追加 |
+| `scripts/backtest/standard_analysis.py` | 統計計算をadjusted_confidenceで実行 |
 
 ---
 
@@ -193,6 +206,40 @@ regime_ml_integration:
 
 ---
 
+## Phase 59.3: 信頼度記録バグ修正
+
+### 背景
+
+Phase 59.2で信頼度逆転問題が解消しなかった原因を調査。
+
+### 根本原因
+
+| 層 | 処理内容 | 記録される値 |
+|---|---|---|
+| 取引判断 | adjusted_confidence使用 | 正常 |
+| 統計記録 | 生のML確率（ml_confidence）を記録 | **問題** |
+
+**実際の取引動作は正しいが、統計分析用の記録が誤っていた**
+
+### 実装内容
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/core/types.py` | TradeEvaluationにadjusted_confidenceフィールド追加 |
+| `src/trading/risk/manager.py` | strategy_confidenceをadjusted_confidenceとして保存 |
+| `src/trading/execution/executor.py` | virtual_positionにadjusted_confidence追加 |
+| `src/core/execution/backtest_runner.py` | position["adjusted_confidence"]を記録 |
+| `src/backtest/reporter.py` | adjusted_confidenceパラメータ追加 |
+| `scripts/backtest/standard_analysis.py` | adjusted_confidenceで統計計算 |
+
+### 期待効果
+
+- 信頼度統計が実際の取引判断と一致
+- Phase 59.2のpenalty/bonus調整効果が統計に反映
+- 信頼度逆転問題の解消（要バックテスト検証）
+
+---
+
 ## 撤回・変更した計画
 
 | 旧計画 | 新方針 | 理由 |
@@ -225,4 +272,4 @@ BBReversalの全体パフォーマンス（50%勝率、¥-1,331）だけでは�
 ---
 
 **最終更新**: 2026年1月14日
-**ステータス**: Phase 59完了・バックテスト検証済み
+**ステータス**: Phase 59.3完了・バックテスト検証待ち

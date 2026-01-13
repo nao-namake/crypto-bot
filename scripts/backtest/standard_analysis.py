@@ -327,8 +327,12 @@ class StandardAnalyzer:
                 self.result.best_strategy_pnl = best[1]["pnl"]
 
         # 信頼度帯別勝率
-        low_conf_trades = [t for t in self.trades if (t.get("ml_confidence") or 0) < 0.5]
-        high_conf_trades = [t for t in self.trades if (t.get("ml_confidence") or 0) >= 0.65]
+        # Phase 59.3: adjusted_confidenceを優先、フォールバックとしてml_confidence
+        def get_confidence(t):
+            return t.get("adjusted_confidence") or t.get("ml_confidence") or 0
+
+        low_conf_trades = [t for t in self.trades if get_confidence(t) < 0.5]
+        high_conf_trades = [t for t in self.trades if get_confidence(t) >= 0.65]
 
         low_wins = sum(1 for t in low_conf_trades if t.get("pnl", 0) > 0)
         high_wins = sum(1 for t in high_conf_trades if t.get("pnl", 0) > 0)

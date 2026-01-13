@@ -60,6 +60,7 @@ class TradeTracker:
         regime: Optional[str] = None,  # Phase 51.8-J4-G: レジーム情報追加
         ml_prediction: Optional[int] = None,  # Phase 54.8: ML予測クラス（0=SELL, 1=HOLD, 2=BUY）
         ml_confidence: Optional[float] = None,  # Phase 54.8: ML信頼度
+        adjusted_confidence: Optional[float] = None,  # Phase 59.3: 調整済み信頼度
     ):
         """
         エントリー注文記録
@@ -74,6 +75,7 @@ class TradeTracker:
             regime: 市場レジーム（Phase 51.8-J4-G追加）
             ml_prediction: ML予測クラス（Phase 54.8追加）
             ml_confidence: ML信頼度（Phase 54.8追加）
+            adjusted_confidence: 調整済み信頼度（Phase 59.3追加）
         """
         # Phase 51.8-9準備: Timestamp serialization対応
         timestamp_str = str(timestamp) if hasattr(timestamp, "__str__") else timestamp
@@ -97,6 +99,7 @@ class TradeTracker:
             "regime": regime,  # Phase 51.8-J4-G: レジーム情報保存
             "ml_prediction": ml_prediction,  # Phase 54.8: ML予測クラス
             "ml_confidence": ml_confidence,  # Phase 54.8: ML信頼度
+            "adjusted_confidence": adjusted_confidence,  # Phase 59.3: 調整済み信頼度
         }
         self.logger.debug(
             f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})"
@@ -162,6 +165,7 @@ class TradeTracker:
             "regime": entry.get("regime"),  # Phase 51.8-J4-G: レジーム情報追加
             "ml_prediction": entry.get("ml_prediction"),  # Phase 54.8: ML予測クラス
             "ml_confidence": entry.get("ml_confidence"),  # Phase 54.8: ML信頼度
+            "adjusted_confidence": entry.get("adjusted_confidence"),  # Phase 59.3: 調整済み
         }
 
         self.completed_trades.append(trade)

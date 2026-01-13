@@ -278,6 +278,13 @@ class IntegratedRiskManager:
             stop_loss = None
             take_profit = None
 
+            # Phase 59.3: デフォルト信頼度（trading_allowed=Falseの場合に使用）
+            default_confidence = get_threshold("trading.confidence_levels.medium", 0.5)
+            if isinstance(strategy_signal, dict):
+                strategy_confidence = strategy_signal.get("confidence", default_confidence)
+            else:
+                strategy_confidence = getattr(strategy_signal, "confidence", default_confidence)
+
             # Phase 57.12: 戦略名を抽出して保存（TradeEvaluation用）
             strategy_name = (
                 strategy_signal.get("strategy_name", "unknown")
@@ -287,15 +294,6 @@ class IntegratedRiskManager:
 
             if trading_allowed and not critical_anomalies:
                 try:
-                    # 統合ポジションサイズ計算
-                    default_confidence = get_threshold("trading.confidence_levels.medium", 0.5)
-                    if isinstance(strategy_signal, dict):
-                        strategy_confidence = strategy_signal.get("confidence", default_confidence)
-                    else:
-                        strategy_confidence = getattr(
-                            strategy_signal, "confidence", default_confidence
-                        )
-
                     # Phase 54.9: バックテスト用タイムスタンプを渡す
                     position_size = self.position_integrator.calculate_integrated_position_size(
                         ml_confidence=ml_confidence,
@@ -391,6 +389,7 @@ class IntegratedRiskManager:
                 strategy_name=strategy_name,  # Phase 57.12: 戦略名記録
                 ml_prediction=ml_prediction_class,  # Phase 57.12: ML予測クラス
                 ml_confidence=ml_confidence,  # Phase 57.12: ML信頼度
+                adjusted_confidence=strategy_confidence,  # Phase 59.3: 調整済み信頼度
             )
 
             # 11. 統計更新

@@ -68,6 +68,7 @@ class TradeEvaluation:
     strategy_name: str = "unknown"  # Phase 57.12: 戦略名記録
     ml_prediction: Optional[int] = None  # Phase 57.12: ML予測クラス（0=SELL, 1=HOLD, 2=BUY）
     ml_confidence: Optional[float] = None  # Phase 57.12: ML信頼度
+    adjusted_confidence: Optional[float] = None  # Phase 59.3: 調整済み信頼度（penalty/bonus適用後）
 
     # 後方互換性のためのactionプロパティ（Silent Failure修正）
     @property

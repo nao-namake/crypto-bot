@@ -883,6 +883,9 @@ class ExecutionService:
                 "take_profit": getattr(evaluation, "take_profit", None),
                 "stop_loss": getattr(evaluation, "stop_loss", None),
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
+                "adjusted_confidence": getattr(
+                    evaluation, "adjusted_confidence", None
+                ),  # Phase 59.3
             }
             self.virtual_positions.append(virtual_position)
 
