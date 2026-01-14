@@ -163,11 +163,13 @@ strategies:
     note: "動的信頼度計算・フォールバック回避"
 
   # コンセンサス判定
+  # Phase 59.4-A: 2票ルール無効化（従来の重み付けルールに戻す）
+  # 理由: 2票ルールは重み設定を無視するため、重み0の戦略が取引に参加していた
   consensus:
-    enabled: true  # コンセンサス判定
+    enabled: false  # Phase 59.4-A: true → false（2票ルール無効化）
     required_agreement: 0.4  # 必要な合意度（40%）
     confidence_threshold: 0.3  # 信頼度閾値（30%）
-    note: "5戦略の重み付け統合判定"
+    note: "Phase 59.4-A: 2票ルール無効化・従来の重み付け統合に戻す"
 
   # 動的戦略選択（Phase 51.3実装）
   dynamic_selection:
