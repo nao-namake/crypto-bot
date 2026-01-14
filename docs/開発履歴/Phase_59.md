@@ -121,7 +121,7 @@ regime_ml_integration:
 
 ---
 
-## Phase 59.3: DonchianChannel（対応不要）
+## DonchianChannel（対応不要・計画撤回）
 
 ### 旧計画との差異
 
@@ -132,42 +132,6 @@ regime_ml_integration:
 | 判断 | 無効化予定 | **維持** |
 
 **結論**: TP/SL変更により黒字化。無効化計画を撤回。
-
----
-
-## 修正ファイル一覧
-
-### Phase 59.1-59.2
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `config/core/thresholds.yaml` | BBReversal normal_range無効化 |
-| `config/core/thresholds.yaml` | 信頼度penalty/bonus調整 |
-| `tests/unit/services/test_dynamic_strategy_selector.py` | テスト期待値更新 |
-| `docs/開発計画/ToDo.md` | Phase 59計画反映 |
-
-### Phase 59.3
-
-| ファイル | 修正内容 |
-|---------|---------|
-| `src/trading/core/types.py` | TradeEvaluationにadjusted_confidence追加 |
-| `src/trading/risk/manager.py` | adjusted_confidenceを保存 |
-| `src/trading/execution/executor.py` | virtual_positionに追加 |
-| `src/core/execution/backtest_runner.py` | adjusted_confidenceを記録 |
-| `src/backtest/reporter.py` | パラメータ追加 |
-| `scripts/backtest/standard_analysis.py` | 統計計算をadjusted_confidenceで実行 |
-
----
-
-## テスト結果
-
-| 項目 | 結果 |
-|------|------|
-| pytest | 1,195件全て通過 |
-| flake8 | PASS |
-| black | PASS |
-| isort | PASS |
-| カバレッジ | 62.17% |
 
 ---
 
@@ -206,7 +170,16 @@ regime_ml_integration:
 
 ---
 
-## Phase 59.3: 信頼度記録バグ修正
+## Phase 59.3: adjusted_confidence記録修正
+
+### サマリー
+
+| 項目 | 内容 |
+|------|------|
+| 目的 | バックテスト統計でadjusted_confidence（調整済み信頼度）を正しく記録 |
+| 問題 | 統計記録が生のML確率を使用 → penalty/bonus効果が見えなかった |
+| 解決 | 6ファイル修正でadjusted_confidenceを記録パスに追加 |
+| 結果 | ✅ 信頼度逆転問題の解消を確認（高信頼度帯61-67% > 低信頼度帯48.5%） |
 
 ### 背景
 
@@ -221,41 +194,18 @@ Phase 59.2で信頼度逆転問題が解消しなかった原因を調査。
 
 **実際の取引動作は正しいが、統計分析用の記録が誤っていた**
 
-### 実装内容
+### 修正ファイル一覧
 
 | ファイル | 修正内容 |
 |---------|---------|
 | `src/trading/core/types.py` | TradeEvaluationにadjusted_confidenceフィールド追加 |
 | `src/trading/risk/manager.py` | strategy_confidenceをadjusted_confidenceとして保存 |
-| `src/trading/execution/executor.py` | virtual_positionにadjusted_confidence追加 |
+| `src/trading/execution/executor.py` | virtual_positionにadjusted_confidence追加（2箇所） |
 | `src/core/execution/backtest_runner.py` | position["adjusted_confidence"]を記録 |
 | `src/backtest/reporter.py` | adjusted_confidenceパラメータ追加 |
 | `scripts/backtest/standard_analysis.py` | adjusted_confidenceで統計計算 |
 
-### 期待効果
-
-- 信頼度統計が実際の取引判断と一致
-- Phase 59.2のpenalty/bonus調整効果が統計に反映
-- 信頼度逆転問題の解消（要バックテスト検証）
-
-### バックテスト結果（Phase 59.3 - 1回目）
-
-**実行**: GitHub Actions（run ID: 20974639732）
-**結果**: adjusted_confidenceが全てNone
-
-**原因**: バックテスト専用コードパス（`execute_backtest_entry`）に
-adjusted_confidenceを追加し忘れていた。
-- ペーパートレード用（行890）は修正済み
-- バックテスト用（行1046）が未修正
-
-### 追加修正
-
-| ファイル | 行番号 | 修正内容 |
-|---------|--------|----------|
-| `src/trading/execution/executor.py` | 1046 | virtual_positionにadjusted_confidence追加 |
-| `src/trading/execution/executor.py` | 1088 | trade_tracker.record_entryにadjusted_confidence追加 |
-
-### バックテスト結果（Phase 59.3 - 2回目）
+### バックテスト結果
 
 **実行**: GitHub Actions（run ID: 20989212052）
 **完了**: 2026年1月15日
@@ -299,6 +249,15 @@ adjusted_confidenceを追加し忘れていた。
 | 勝率 | 50.9% |
 
 **注**: Phase 59.3は記録修正のみ。取引判断ロジック変更なし。
+
+### テスト結果
+
+| 項目 | 結果 |
+|------|------|
+| pytest | 1,195件全て通過 |
+| flake8 | PASS |
+| black | PASS |
+| isort | PASS |
 
 ---
 
