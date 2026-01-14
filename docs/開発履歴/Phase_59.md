@@ -238,9 +238,26 @@ Phase 59.2で信頼度逆転問題が解消しなかった原因を調査。
 - Phase 59.2のpenalty/bonus調整効果が統計に反映
 - 信頼度逆転問題の解消（要バックテスト検証）
 
-### バックテスト結果（Phase 59.3）
+### バックテスト結果（Phase 59.3 - 1回目）
 
 **実行**: GitHub Actions（run ID: 20974639732）
+**結果**: adjusted_confidenceが全てNone
+
+**原因**: バックテスト専用コードパス（`execute_backtest_entry`）に
+adjusted_confidenceを追加し忘れていた。
+- ペーパートレード用（行890）は修正済み
+- バックテスト用（行1046）が未修正
+
+### 追加修正
+
+| ファイル | 行番号 | 修正内容 |
+|---------|--------|----------|
+| `src/trading/execution/executor.py` | 1046 | virtual_positionにadjusted_confidence追加 |
+| `src/trading/execution/executor.py` | 1088 | trade_tracker.record_entryにadjusted_confidence追加 |
+
+### バックテスト結果（Phase 59.3 - 2回目）
+
+**実行**: GitHub Actions（run ID: 20989212052）
 **ステータス**: 実行中
 
 *結果待ち*
@@ -278,5 +295,5 @@ BBReversalの全体パフォーマンス（50%勝率、¥-1,331）だけでは�
 
 ---
 
-**最終更新**: 2026年1月14日
-**ステータス**: Phase 59.3完了・バックテスト検証待ち
+**最終更新**: 2026年1月14日 18:32
+**ステータス**: Phase 59.3追加修正完了・バックテスト検証待ち（run ID: 20989212052）
