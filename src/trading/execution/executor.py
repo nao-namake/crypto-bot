@@ -1043,6 +1043,9 @@ class ExecutionService:
                 "take_profit": getattr(evaluation, "take_profit", None),
                 "stop_loss": getattr(evaluation, "stop_loss", None),
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
+                "adjusted_confidence": getattr(
+                    evaluation, "adjusted_confidence", None
+                ),  # Phase 59.3: バックテスト用
             }
             self.virtual_positions.append(virtual_position)
 
@@ -1082,6 +1085,9 @@ class ExecutionService:
                         regime=regime_value,  # Phase 51.8-10: レジーム情報（文字列）
                         ml_prediction=getattr(evaluation, "ml_prediction", None),  # Phase 57.12
                         ml_confidence=getattr(evaluation, "ml_confidence", None),  # Phase 57.12
+                        adjusted_confidence=getattr(
+                            evaluation, "adjusted_confidence", None
+                        ),  # Phase 59.3: 調整済み信頼度
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ TradeTracker記録失敗: {e}")
