@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 58.8完了・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 59.4実装中・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2058.8-Complete-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2059.4-In_Progress-yellow)](docs/)
 
 ---
 
@@ -201,7 +201,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 57計画
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 59計画
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -215,23 +215,29 @@ config/core/
 
 ## 開発状況
 
+### Phase 59（実装中）: 戦略判定・ML統合改善
+
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| 59.1 | BBReversal調整 | normal_range無効化（0%勝率問題） |
+| 59.2 | 信頼度逆転対策 | penalty/bonus調整 |
+| 59.3 | adjusted_confidence記録 | 6ファイル修正・統計可視化 |
+| 59.4-A | 2票ルール無効化 | 重み0戦略が取引参加するバグ解消（検証中） |
+
 ### Phase 58（完了）: TP/SL管理・運用安定化
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| 58.1-58.3 | TP/SL管理バグ修正 | 決済注文発行・保護ロジック・ポジション同期 |
-| 58.4 | API修正 | fetch_margin_positions GETメソッド修正 |
-| 58.5 | TP/SL縮小 | 0.8%/0.6% → 0.4%/0.3%（滞留問題対応） |
-| 58.6 | バックテスト精度向上 | 手数料・利息追加、土日TP/SL縮小（62.5%） |
-| 58.7 | 稼働率・維持率表示 | 検索パターン修正・N/A表示追加 |
-| 58.8 | ポジションカウント・孤児SL防止 | BTC/JPYフィルタ・リトライ機能・孤児検出 |
+| 58.1-58.4 | TP/SL管理・API修正 | 決済注文発行・ポジション同期 |
+| 58.5-58.6 | TP/SL縮小・精度向上 | 0.4%/0.3%・土日62.5% |
+| 58.7-58.8 | 稼働率・孤児SL防止 | BTC/JPYフィルタ・リトライ |
 
 ### Phase 57（完了）: 年利10%目標・リスク最大化
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| 57.1-57.7 | リスク設定最適化・設定ファイル整理 | レバレッジ修正、ポジション拡大 |
-| 57.10-57.14 | バックテスト・ライブ分析機能強化 | 84項目/35項目標準分析スクリプト |
+| 57.1-57.7 | リスク設定最適化 | レバレッジ修正、ポジション拡大 |
+| 57.10-57.14 | 分析機能強化 | 84項目/35項目標準分析スクリプト |
 
 ### パフォーマンス指標
 
@@ -263,4 +269,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月13日 - **Phase 58.8完了**（ポジションカウント修正・孤児SL防止）
+**最終更新**: 2026年1月15日 - **Phase 59.4実装中**（戦略判定・ML統合改善）

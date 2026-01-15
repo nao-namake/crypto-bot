@@ -451,8 +451,15 @@ class TestStrategyManager(unittest.TestCase):
             result.metadata.get("conflict_resolved", False) or "全5票統合" in result.reason
         )
 
-    def test_phase_38_8_weighted_confidence_over_vote_count(self):
+    @patch("src.strategies.base.strategy_manager.get_features_config")
+    def test_phase_38_8_weighted_confidence_over_vote_count(self, mock_get_features_config):
         """Phase 38.8: 重み付き信頼度優先テスト（票数カウント廃止）."""
+        # Phase 59.4-A: このテストは2票ルールが有効な場合をテストするため、
+        # consensus.enabled=trueをモック
+        mock_get_features_config.return_value = {
+            "strategies": {"consensus": {"enabled": True}}
+        }
+
         # ペーパートレード分析で発見された問題の再現テスト
         # 票数: 3 hold > 2 sell
         # 信頼度: hold 1.092 < sell 1.411

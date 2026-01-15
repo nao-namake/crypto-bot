@@ -130,6 +130,8 @@ class LiveAnalyzer:
         self.result = LiveAnalysisResult(analysis_period_hours=period_hours)
         self.bitbank_client: Optional[BitbankClient] = None
         self.current_price: float = 0.0
+        # Phase 59.5: 注文フェッチ一元化（タイミング差による不整合防止）
+        self._cached_active_orders: List[Dict[str, Any]] = []
 
     async def analyze(self) -> LiveAnalysisResult:
         """分析実行"""
@@ -225,8 +227,9 @@ class LiveAnalyzer:
                 if pos.get("losscut_price"):
                     self.result.losscut_price = pos.get("losscut_price")
 
-            # アクティブ注文取得
+            # アクティブ注文取得（Phase 59.5: キャッシュに保存）
             active_orders = self.bitbank_client.fetch_active_orders("BTC/JPY")
+            self._cached_active_orders = active_orders  # 他メソッドで再利用
             self.result.pending_order_count = len(active_orders)
 
             # 注文内訳
@@ -444,7 +447,8 @@ class LiveAnalyzer:
             if self.current_price <= 0:
                 return
 
-            active_orders = self.bitbank_client.fetch_active_orders("BTC/JPY")
+            # Phase 59.5: キャッシュされた注文を使用（API呼び出し削減＆タイミング整合性確保）
+            active_orders = self._cached_active_orders or []
 
             tp_orders = [o for o in active_orders if o.get("type") == "limit"]
             sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit"]]
@@ -530,7 +534,11 @@ class LiveAnalyzer:
     async def _calculate_uptime(self):
         """稼働率計算（5指標）"""
         try:
-            since_time = (datetime.now() - timedelta(hours=self.period_hours)).strftime(
+            # Phase 59.5 Fix: UTC時刻を使用（GCPログはUTC保存）
+            from datetime import timezone
+
+            utc_now = datetime.now(timezone.utc)
+            since_time = (utc_now - timedelta(hours=self.period_hours)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
 

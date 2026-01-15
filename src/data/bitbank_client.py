@@ -177,8 +177,29 @@ class BitbankClient:
             current_year = datetime.now().year
 
             try:
-                # 既存のイベントループ内で直接awaitを使用
-                ohlcv = await self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
+                # Phase 59.5 Fix: 年跨ぎ対応 - 現在年 + 前年を取得してマージ
+                ohlcv_current = await self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
+
+                # Phase 59.5: データが不足している場合、前年も取得
+                if len(ohlcv_current) < limit:
+                    self.logger.debug(
+                        f"📊 4時間足年跨ぎ取得: 現在年{len(ohlcv_current)}件 < limit{limit}件 → 前年も取得"
+                    )
+                    try:
+                        ohlcv_prev = await self.fetch_ohlcv_4h_direct(
+                            symbol=symbol, year=current_year - 1
+                        )
+                        # 時系列順にマージ（前年 + 現在年）
+                        ohlcv = ohlcv_prev + ohlcv_current
+                        self.logger.info(
+                            f"📊 4時間足年跨ぎ取得成功: {current_year - 1}年={len(ohlcv_prev)}件 + "
+                            f"{current_year}年={len(ohlcv_current)}件 = 合計{len(ohlcv)}件"
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"前年データ取得失敗: {e} - 現在年のみ使用")
+                        ohlcv = ohlcv_current
+                else:
+                    ohlcv = ohlcv_current
 
                 # Phase 51.5 Fix: limit適用前の件数ログ
                 original_count = len(ohlcv)
@@ -1285,13 +1306,13 @@ class BitbankClient:
             )
 
             # TP/SL注文の統計情報をログ出力
-            tp_orders = [o for o in active_orders if o.get("type") == "take_profit"]
-            sl_orders = [o for o in active_orders if o.get("type") == "stop_loss"]
+            # Phase 59.5 Fix: CCXTはstop_loss/take_profitではなくstop/limitを返す
+            # - limit: エントリー指値注文 または TP注文（区別不可）
+            # - stop/stop_limit: SL注文
             limit_orders = [o for o in active_orders if o.get("type") == "limit"]
+            sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit"]]
 
-            self.logger.info(
-                f"📊 注文タイプ内訳: limit={len(limit_orders)}, TP={len(tp_orders)}, SL={len(sl_orders)}"
-            )
+            self.logger.info(f"📊 注文タイプ内訳: limit={len(limit_orders)}, stop={len(sl_orders)}")
 
             return active_orders
 

@@ -351,5 +351,94 @@ consensus:
 
 ---
 
+## Phase 59.5: ライブモード分析修正
+
+### 背景
+
+ライブモード分析（`scripts/live/standard_analysis.py`）で3つの問題が発見された。
+
+| 問題 | 症状 | 重要度 |
+|------|------|--------|
+| 孤児SL検出不一致 | UIで3件、スクリプトで1件 | HIGH |
+| データ取得不足 | 200件要求→84件取得 | HIGH |
+| 稼働率計算誤り | 41.7%表示（実際は正常） | MEDIUM |
+
+### 修正内容
+
+#### 1. 注文タイプ判定修正（bitbank_client.py）
+
+**根本原因**: CCXTは`stop_loss`/`take_profit`ではなく`stop`/`limit`を返す
+
+```python
+# 修正前（L1288-1293）
+tp_orders = [o for o in active_orders if o.get("type") == "take_profit"]
+sl_orders = [o for o in active_orders if o.get("type") == "stop_loss"]
+
+# 修正後
+limit_orders = [o for o in active_orders if o.get("type") == "limit"]
+sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit"]]
+```
+
+#### 2. 注文フェッチ一元化（standard_analysis.py）
+
+**根本原因**: `_fetch_position_status()`と`_check_tp_sl_placement()`が別々にAPI呼び出し → タイミング差で不整合
+
+```python
+# 修正: キャッシュ変数追加
+self._cached_active_orders: List[Dict[str, Any]] = []
+
+# _fetch_position_status()でキャッシュに保存
+self._cached_active_orders = active_orders
+
+# _check_tp_sl_placement()でキャッシュを再利用
+active_orders = self._cached_active_orders or []
+```
+
+#### 3. 稼働率タイムゾーン修正（standard_analysis.py）
+
+**根本原因**: ローカルJST時刻を使用 → GCPログはUTC → 9時間ズレ
+
+```python
+# 修正前
+since_time = (datetime.now() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+# 修正後
+from datetime import timezone
+utc_now = datetime.now(timezone.utc)
+since_time = (utc_now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+```
+
+#### 4. 4時間足年跨ぎ対応（bitbank_client.py）
+
+**根本原因**: 現在年のみ取得 → 2026年1月は84件のみ（2025年を取得していない）
+
+```python
+# 修正: 年跨ぎ対応追加（L179-204）
+ohlcv_current = await self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year)
+
+if len(ohlcv_current) < limit:
+    # 前年も取得してマージ
+    ohlcv_prev = await self.fetch_ohlcv_4h_direct(symbol=symbol, year=current_year - 1)
+    ohlcv = ohlcv_prev + ohlcv_current
+```
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/data/bitbank_client.py` | 注文タイプ判定修正（L1288-1298） |
+| `src/data/bitbank_client.py` | 4時間足年跨ぎ対応（L179-204） |
+| `scripts/live/standard_analysis.py` | キャッシュ変数追加（L133-134） |
+| `scripts/live/standard_analysis.py` | 注文フェッチ一元化（L230-232, L450-451） |
+| `scripts/live/standard_analysis.py` | タイムゾーン修正（L537-542） |
+
+### テスト結果
+
+| 項目 | 結果 |
+|------|------|
+| pytest | 1,195件全て通過 |
+
+---
+
 **最終更新**: 2026年1月15日
-**ステータス**: Phase 59.4-A実装完了・バックテスト検証中
+**ステータス**: Phase 59.5実装完了・Phase 59.4-Aバックテスト検証中
