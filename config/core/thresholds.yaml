@@ -299,19 +299,21 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 56.9: トレンド型戦略をレンジ相場で無効化
-      BBReversal: 0.35          # PF 1.32（最高PF）
-      StochasticReversal: 0.35  # PF 1.25（Divergence特化）
-      ATRBased: 0.20            # PF 1.16（消尽率ロジック）
-      DonchianChannel: 0.10     # PF 1.00（損益分岐）
+      # Phase 59.4-B: バックテスト結果に基づく重み最適化
+      # ATRBased: 勝率55.7%・損益¥36,504（最高パフォーマンス）→主力強化
+      ATRBased: 0.45            # ↑ 0.20→0.45（主力強化）
+      BBReversal: 0.25          # ↓ 0.35→0.25（取引数少）
+      StochasticReversal: 0.20  # ↓ 0.35→0.20（勝率47.9%）
+      DonchianChannel: 0.10     # = 維持
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
-      # Phase 59.1: BBReversal無効化（0%勝率）・ATRBased主力化
-      ATRBased: 0.50            # Phase 59.1: 0.40→0.50（主力強化）
-      BBReversal: 0.0           # Phase 59.1: 0.25→0.0（normal_rangeで0%勝率）
-      StochasticReversal: 0.30  # Phase 59.1: 0.25→0.30
-      DonchianChannel: 0.20     # Phase 59.1: 0.10→0.20（黒字化）
+      # Phase 59.4-B: バックテスト結果に基づく重み最適化
+      # normal_range平均損益¥167（tight_rangeの2倍）
+      ATRBased: 0.60            # ↑ 0.50→0.60（主力強化）
+      BBReversal: 0.0           # = 維持（0%勝率問題）
+      StochasticReversal: 0.25  # ↓ 0.30→0.25
+      DonchianChannel: 0.15     # ↓ 0.20→0.15
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     trending:  # トレンド相場（ADX > 25, EMA傾き > 1%）
