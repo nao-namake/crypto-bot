@@ -1127,15 +1127,19 @@ class BitbankClient:
         amount: float,
         stop_loss_price: float,
         symbol: str = "BTC/JPY",
+        order_type: str = "stop",
+        limit_price: float = None,
     ) -> Dict[str, Any]:
         """
-        ストップロス逆指値成行注文作成（Phase 38.7.1: stop対応・確実な損切り実行）
+        ストップロス注文作成（Phase 59.6: stop_limit対応・手数料削減）
 
         Args:
             entry_side: エントリー方向（buy/sell）
             amount: 注文量（BTC）
             stop_loss_price: 損切りトリガー価格（JPY）
             symbol: 通貨ペア
+            order_type: "stop"（成行）or "stop_limit"（指値）
+            limit_price: 指値価格（stop_limit時のみ必須）
 
         Returns:
             注文情報（order_id含む）
@@ -1149,30 +1153,58 @@ class BitbankClient:
         # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
-        # ✅ Phase 38.7.1: stop注文（逆指値成行）で確実な損切り実行
-        # トリガー到達後は即座に成行注文として執行される（執行価格指定不要）
-        self.logger.info(
-            f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
-            extra_data={
-                "entry_side": entry_side,
-                "sl_side": sl_side,
-                "entry_position_side": entry_position_side,
-                "amount": amount,
-                "trigger_price": stop_loss_price,
-                "order_type": "stop",
-            },
-        )
+        # Phase 59.6: stop_limit対応
+        if order_type == "stop_limit":
+            if limit_price is None:
+                raise ValueError("stop_limit注文にはlimit_priceが必須です")
 
-        return self.create_order(
-            symbol=symbol,
-            side=sl_side,
-            order_type="stop",  # ✅ Phase 38.7.1: 逆指値成行注文（stop）に変更
-            amount=amount,
-            price=None,  # ✅ stop注文には執行価格不要（成行執行）
-            trigger_price=stop_loss_price,  # ✅ トリガー価格
-            is_closing_order=True,  # ✅ 決済注文フラグ
-            entry_position_side=entry_position_side,  # ✅ エントリー時のposition_side
-        )
+            self.logger.info(
+                f"🛡️ ストップロス逆指値指値注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円 (position_side={entry_position_side})",
+                extra_data={
+                    "entry_side": entry_side,
+                    "sl_side": sl_side,
+                    "entry_position_side": entry_position_side,
+                    "amount": amount,
+                    "trigger_price": stop_loss_price,
+                    "limit_price": limit_price,
+                    "order_type": "stop_limit",
+                },
+            )
+
+            return self.create_order(
+                symbol=symbol,
+                side=sl_side,
+                order_type="stop_limit",
+                amount=amount,
+                price=limit_price,
+                trigger_price=stop_loss_price,
+                is_closing_order=True,
+                entry_position_side=entry_position_side,
+            )
+        else:
+            # 従来のstop（成行）注文
+            self.logger.info(
+                f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
+                extra_data={
+                    "entry_side": entry_side,
+                    "sl_side": sl_side,
+                    "entry_position_side": entry_position_side,
+                    "amount": amount,
+                    "trigger_price": stop_loss_price,
+                    "order_type": "stop",
+                },
+            )
+
+            return self.create_order(
+                symbol=symbol,
+                side=sl_side,
+                order_type="stop",
+                amount=amount,
+                price=None,
+                trigger_price=stop_loss_price,
+                is_closing_order=True,
+                entry_position_side=entry_position_side,
+            )
 
     def cancel_order(self, order_id: str, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """

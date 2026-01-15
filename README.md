@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 59.4実装中・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 59.4-A完了・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2059.4-In_Progress-yellow)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2059.4--A-Complete-brightgreen)](docs/)
 
 ---
 
@@ -68,13 +68,14 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 | **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | 1.50 |
 | **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | 1.01 |
 
-### タイトレンジ重みづけ（Phase 55.2）
+### タイトレンジ重みづけ（Phase 59.4-A）
 
 | 戦略 | 重み | 理由 |
 |------|------|------|
-| BBReversal | 0.40 | PF 1.32・タイトレンジ特化 |
-| StochasticDivergence | 0.35 | PF 1.25・Divergence検出 |
-| ATRBased | 0.25 | PF 1.16・消尽率ロジック |
+| BBReversal | 0.35 | レンジ型主力 |
+| StochasticReversal | 0.35 | レンジ型主力 |
+| ATRBased | 0.20 | 補助 |
+| DonchianChannel | 0.10 | 補助 |
 | トレンド型 | 0.0 | タイトレンジで機能しない |
 
 ### レジーム別TP/SL設定（Phase 58.5/58.6更新）
@@ -215,14 +216,16 @@ config/core/
 
 ## 開発状況
 
-### Phase 59（実装中）: 戦略判定・ML統合改善
+### Phase 59（59.4-A完了）: 戦略判定・ML統合改善
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
 | 59.1 | BBReversal調整 | normal_range無効化（0%勝率問題） |
 | 59.2 | 信頼度逆転対策 | penalty/bonus調整 |
 | 59.3 | adjusted_confidence記録 | 6ファイル修正・統計可視化 |
-| 59.4-A | 2票ルール無効化 | 重み0戦略が取引参加するバグ解消（検証中） |
+| **59.4-A** | **2票ルール無効化** | **✅ 勝率53.8%、PF 1.55、損益¥+44,506** |
+| 59.4-B | レジーム別重み調整 | ❌失敗→リバート（分散効果低下） |
+| 59.5 | ライブモード分析修正 | 注文タイプ・年跨ぎ・TZ修正 |
 
 ### Phase 58（完了）: TP/SL管理・運用安定化
 
@@ -269,4 +272,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月15日 - **Phase 59.4実装中**（戦略判定・ML統合改善）
+**最終更新**: 2026年1月16日 - **Phase 59.4-A完了**（59.4-B失敗→リバート）

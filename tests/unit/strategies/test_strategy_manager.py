@@ -456,9 +456,7 @@ class TestStrategyManager(unittest.TestCase):
         """Phase 38.8: 重み付き信頼度優先テスト（票数カウント廃止）."""
         # Phase 59.4-A: このテストは2票ルールが有効な場合をテストするため、
         # consensus.enabled=trueをモック
-        mock_get_features_config.return_value = {
-            "strategies": {"consensus": {"enabled": True}}
-        }
+        mock_get_features_config.return_value = {"strategies": {"consensus": {"enabled": True}}}
 
         # ペーパートレード分析で発見された問題の再現テスト
         # 票数: 3 hold > 2 sell

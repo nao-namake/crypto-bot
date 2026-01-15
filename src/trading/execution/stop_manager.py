@@ -8,7 +8,9 @@ Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 """
 
 import asyncio
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -294,18 +296,8 @@ class StopManager:
                                 f"{cleanup_result['cancelled_count']}件キャンセル"
                             )
                     except Exception as e:
-                        # Phase 58.8: SLキャンセル失敗時は孤児化防止のため処理中断
-                        if "孤児SL防止" in str(e):
-                            self.logger.error(
-                                f"❌ Phase 58.8: SLキャンセル失敗 - "
-                                f"孤児SL防止のためポジション決済を中断: {e}"
-                            )
-                            raise  # 上位に例外を伝播
-                        else:
-                            # TP注文キャンセル失敗等は処理継続可
-                            self.logger.warning(
-                                f"⚠️ Phase 49.6: クリーンアップエラー（処理継続）: {e}"
-                            )
+                        # Phase 59.6: クリーンアップエラーは処理継続（孤児SLは別途記録済み）
+                        self.logger.warning(f"⚠️ Phase 59.6: クリーンアップエラー（処理継続）: {e}")
 
                 # Phase 58.1: 実際の決済注文をbitbankに発行
                 try:
@@ -625,15 +617,19 @@ class StopManager:
             else:
                 errors.append(f"TP注文{tp_order_id}キャンセル失敗")
 
-        # SL注文キャンセル（TP到達時・手動決済時）- 失敗時は例外
+        # SL注文キャンセル（TP到達時・手動決済時）
+        # Phase 59.6: 失敗時は例外を発生させず、孤児SL候補として記録（決済処理は続行）
         if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
             if await _cancel_with_retry(sl_order_id, "SL"):
                 cancelled_count += 1
             else:
-                error_msg = f"SL注文{sl_order_id}キャンセル失敗（孤児SL防止のため処理中断）"
+                error_msg = f"SL注文{sl_order_id}キャンセル失敗"
                 errors.append(error_msg)
-                # Phase 58.8: SLキャンセル失敗は孤児化の原因なので例外を投げる
-                raise Exception(error_msg)
+                # Phase 59.6: 例外ではなく孤児SL候補として記録（起動時クリーンアップ対象）
+                self.logger.error(
+                    f"⚠️ Phase 59.6: SL注文{sl_order_id}キャンセル失敗 - 孤児SL候補として記録"
+                )
+                self._mark_orphan_sl(sl_order_id, reason)
 
         if cancelled_count > 0:
             self.logger.info(
@@ -925,12 +921,33 @@ class StopManager:
                     f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
                 )
 
+            # Phase 59.6: SL指値化設定取得
+            sl_order_type = sl_config.get("order_type", "stop")
+            slippage_buffer = sl_config.get("slippage_buffer", 0.001)
+
+            # stop_limit時の指値価格計算
+            limit_price = None
+            if sl_order_type == "stop_limit":
+                if side.lower() == "buy":
+                    # ロングポジションのSL（売り決済）：トリガー価格より低い指値
+                    limit_price = stop_loss_price * (1 - slippage_buffer)
+                else:
+                    # ショートポジションのSL（買い決済）：トリガー価格より高い指値
+                    limit_price = stop_loss_price * (1 + slippage_buffer)
+
+                self.logger.info(
+                    f"📊 Phase 59.6: SL指値化 - order_type={sl_order_type}, "
+                    f"trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円"
+                )
+
             # SL注文配置
             sl_order = bitbank_client.create_stop_loss_order(
                 entry_side=side,
                 amount=amount,
                 stop_loss_price=stop_loss_price,
                 symbol=symbol,
+                order_type=sl_order_type,
+                limit_price=limit_price,
             )
 
             order_id = sl_order.get("id")
@@ -1109,3 +1126,111 @@ class StopManager:
         except Exception as e:
             self.logger.error(f"❌ Phase 51.6: 古い注文クリーンアップエラー: {e}")
             return {"cancelled_count": 0, "order_count": 0, "errors": [str(e)]}
+
+    def _mark_orphan_sl(self, sl_order_id: str, reason: str) -> None:
+        """
+        Phase 59.6: 孤児SL候補をファイルに記録（次回起動時にクリーンアップ）
+
+        Args:
+            sl_order_id: キャンセルに失敗したSL注文ID
+            reason: 失敗理由（take_profit, manual, position_exit等）
+        """
+        try:
+            orphan_file = Path("data/orphan_sl_orders.json")
+            orphan_file.parent.mkdir(parents=True, exist_ok=True)
+
+            orphans = []
+            if orphan_file.exists():
+                try:
+                    orphans = json.loads(orphan_file.read_text())
+                except json.JSONDecodeError:
+                    orphans = []
+
+            # 重複チェック
+            existing_ids = {o.get("sl_order_id") for o in orphans}
+            if sl_order_id not in existing_ids:
+                orphans.append(
+                    {
+                        "sl_order_id": sl_order_id,
+                        "reason": reason,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+                orphan_file.write_text(json.dumps(orphans, indent=2, ensure_ascii=False))
+                self.logger.info(
+                    f"📝 Phase 59.6: 孤児SL候補記録 - ID: {sl_order_id}, 理由: {reason}"
+                )
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 59.6: 孤児SL記録失敗: {e}")
+
+    async def cleanup_orphan_sl_orders(
+        self,
+        bitbank_client: BitbankClient,
+        symbol: str = "BTC/JPY",
+    ) -> Dict[str, Any]:
+        """
+        Phase 59.6: 起動時に孤児SL候補をクリーンアップ
+
+        前回実行時にキャンセルに失敗したSL注文を削除する。
+
+        Args:
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+
+        Returns:
+            Dict: {"cleaned": int, "failed": int, "errors": List[str]}
+        """
+        orphan_file = Path("data/orphan_sl_orders.json")
+
+        if not orphan_file.exists():
+            self.logger.debug("📊 Phase 59.6: 孤児SL候補なし")
+            return {"cleaned": 0, "failed": 0, "errors": []}
+
+        try:
+            orphans = json.loads(orphan_file.read_text())
+        except json.JSONDecodeError:
+            orphan_file.unlink()
+            return {"cleaned": 0, "failed": 0, "errors": ["JSONデコードエラー"]}
+
+        if not orphans:
+            orphan_file.unlink()
+            return {"cleaned": 0, "failed": 0, "errors": []}
+
+        self.logger.info(f"🧹 Phase 59.6: 孤児SLクリーンアップ開始 - {len(orphans)}件")
+
+        cleaned = 0
+        failed = 0
+        errors = []
+
+        for orphan in orphans:
+            sl_order_id = orphan.get("sl_order_id")
+            if not sl_order_id:
+                continue
+
+            try:
+                await asyncio.to_thread(bitbank_client.cancel_order, sl_order_id, symbol)
+                cleaned += 1
+                self.logger.info(f"✅ Phase 59.6: 孤児SL削除成功 - ID: {sl_order_id}")
+            except Exception as e:
+                error_str = str(e)
+                # OrderNotFoundは許容（既にキャンセル/約定済み）
+                if "OrderNotFound" in error_str or "not found" in error_str.lower():
+                    cleaned += 1  # 既に削除済みなのでcleanedにカウント
+                    self.logger.debug(f"ℹ️ Phase 59.6: 孤児SL既に削除済み - ID: {sl_order_id}")
+                else:
+                    failed += 1
+                    errors.append(f"SL {sl_order_id}: {error_str}")
+                    self.logger.warning(f"⚠️ Phase 59.6: 孤児SL削除失敗 - ID: {sl_order_id}: {e}")
+
+        # ファイル削除
+        try:
+            orphan_file.unlink()
+        except Exception:
+            pass
+
+        self.logger.info(
+            f"🧹 Phase 59.6: 孤児SLクリーンアップ完了 - " f"成功: {cleaned}件, 失敗: {failed}件"
+        )
+
+        return {"cleaned": cleaned, "failed": failed, "errors": errors}
