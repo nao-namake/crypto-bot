@@ -6,6 +6,14 @@
   "description": "55特徴量（6戦略完全対応・Phase 51.9戦略シグナルエンコーディング改善）",
 
   "feature_levels": {
+    "stacking": {
+      "count": 55,
+      "description": "Phase 59.8: Stackingアンサンブル（55特徴量・6戦略信号含む）",
+      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
+      "model_file": "stacking_ensemble.pkl",
+      "meta_learner_file": "meta_learner.pkl",
+      "phase": "Phase 59.8"
+    },
     "full": {
       "count": 55,
       "description": "完全特徴量（6戦略信号含む・49基本+6戦略）- デフォルトモデル",

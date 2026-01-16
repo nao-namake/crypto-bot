@@ -73,6 +73,21 @@ else
     fi
 fi
 
+# Phase 59.8: Stackingモデル存在確認
+echo ">>> 🤖 Phase 59.8 Stackingモデル存在確認"
+if [[ -f "models/production/stacking_ensemble.pkl" ]]; then
+    echo "✅ Stackingモデル存在確認（Phase 59.7）"
+    echo "   stacking_ensemble.pkl: StackingEnsemble（Meta-Learner + 3ベースモデル）"
+    if [[ -f "models/production/meta_learner.pkl" ]]; then
+        echo "   meta_learner.pkl: Meta-Learner（LightGBM）"
+    else
+        echo "⚠️  警告: meta_learner.pklが見つかりません"
+    fi
+else
+    echo "ℹ️  Stackingモデル未検出（stacking_enabled=false時は正常）"
+    echo "   Stackingモデル作成: python3 scripts/ml/create_ml_models.py"
+fi
+
 # Phase 49: 必須ライブラリ確認
 echo ">>> 📦 Phase 49必須ライブラリ確認"
 python3 -c "import imblearn; print('✅ imbalanced-learn インストール確認（Phase 39.4 SMOTE対応）')" 2>/dev/null || {
@@ -205,7 +220,7 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
-echo "🎉 品質チェック完了！ (Phase 55.8)"
+echo "🎉 品質チェック完了！ (Phase 59.8)"
 echo "============================================="
 echo "📊 チェック結果:"
 echo "  - flake8: ✅ PASS"
@@ -213,8 +228,9 @@ echo "  - isort: ✅ PASS"
 echo "  - black: ✅ PASS"
 echo "  - pytest: ✅ PASS (1,256テスト・65%+カバレッジ・${COV_FAIL_UNDER}%閾値)"
 echo "  - ML検証: ✅ PASS (55特徴量・3クラス分類・HOLD率54.7%)"
+echo "  - Stacking: ℹ️  確認済み（Phase 59.7: Meta-Learner実装）"
 echo "  - システム整合性: ✅ PASS (7項目チェック)"
 echo "  - 実行時間: ${DURATION}秒"
 echo ""
 echo "📁 カバレッジレポート: .cache/coverage/htmlcov/index.html"
-echo "🚀 Phase 55.8完了・6戦略・55特徴量・3クラス分類・品質保証体制確立"
+echo "🚀 Phase 59.8完了・Stacking本番環境統合・55特徴量・3クラス分類"

@@ -1,8 +1,9 @@
 """
-Phase 51.5-A 統合テスト: 2段階Graceful Degradation
+Phase 59.8 統合テスト: 3段階Graceful Degradation（Stacking対応）
 
-MLモデルの2段階Graceful Degradation (full 60 → basic 57 → Dummy) を検証。
-Phase 51.5-A: 5戦略→3戦略削減により60特徴量に更新。
+MLモデルの3段階Graceful Degradation
+(Stacking → full 55 → basic 49 → Dummy) を検証。
+Phase 59.8: Stacking本番環境統合追加。
 """
 
 from pathlib import Path
@@ -86,9 +87,12 @@ class TestMLLoader2StageGracefulDegradation:
         loader = MLModelLoader(logger=logger)
 
         # 全てのモデルファイルが存在しないことをシミュレート
-        with patch.object(loader, "_load_production_ensemble", return_value=False):
-            with patch.object(loader, "_load_from_individual_models", return_value=False):
-                model = loader.load_model_with_priority(feature_count=60)
+        # Phase 59.8: Stackingも含めて全てのモデルをモック
+        with patch.object(loader, "_is_stacking_enabled", return_value=False):
+            with patch.object(loader, "_load_stacking_ensemble", return_value=False):
+                with patch.object(loader, "_load_production_ensemble", return_value=False):
+                    with patch.object(loader, "_load_from_individual_models", return_value=False):
+                        model = loader.load_model_with_priority(feature_count=60)
 
         # ダミーモデルにフォールバック
         assert model is not None
@@ -102,8 +106,9 @@ class TestMLLoader2StageGracefulDegradation:
         model_info = loader.get_model_info()
 
         assert "feature_level" in model_info
-        # Phase 50.9: full, basic, unknownのいずれか（full_with_external削除）
+        # Phase 59.8: stacking, full, basic, unknownのいずれか
         assert model_info["feature_level"] in [
+            "stacking",
             "full",
             "basic",
             "unknown",

@@ -23,7 +23,13 @@ Phase 49完了: CI/CD統合・手動実行監視・段階的デプロイ対応�
     version = manager.save_model(ensemble, description="Phase 49 ensemble")
 """
 
-from .ensemble import EnsembleModel, ProductionEnsemble, VotingMethod, VotingSystem
+from .ensemble import StackingEnsemble  # Phase 59.7: Stacking Meta-Learner
+from .ensemble import (
+    EnsembleModel,
+    ProductionEnsemble,
+    VotingMethod,
+    VotingSystem,
+)
 from .model_manager import ModelManager
 from .models import BaseMLModel, LGBMModel, RFModel, XGBModel
 
@@ -36,6 +42,7 @@ __all__ = [
     # Ensemble system
     "EnsembleModel",
     "ProductionEnsemble",  # 後方互換性維持
+    "StackingEnsemble",  # Phase 59.7: Stacking Meta-Learner
     "VotingSystem",
     "VotingMethod",
     # Model management

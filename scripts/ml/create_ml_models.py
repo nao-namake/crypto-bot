@@ -41,7 +41,7 @@ import pickle
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import optuna
@@ -65,7 +65,7 @@ try:
     from src.core.logger import get_logger
     from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
-    from src.ml.ensemble import ProductionEnsemble
+    from src.ml.ensemble import ProductionEnsemble, StackingEnsemble  # Phase 59.7: Stacking追加
     from src.strategies.base.strategy_manager import StrategyManager  # Phase 41.8
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
@@ -86,6 +86,7 @@ class NewSystemMLModelCreator:
         optimize: bool = False,
         n_trials: int = 20,
         models_to_train: list = None,
+        stacking: bool = False,  # Phase 59.7: Stacking Meta-Learner有効化
     ):
         """
         初期化（Phase 51.5-B対応・一括生成システム）
@@ -99,6 +100,7 @@ class NewSystemMLModelCreator:
             optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
             n_trials: Optuna試行回数（Phase 39.5）
             models_to_train: 訓練するモデルリスト ["full", "basic"] デフォルトは両方
+            stacking: Phase 59.7 Stacking Meta-Learner有効化
         """
         self.config_path = config_path
         self.models_to_train = models_to_train or ["full", "basic"]
@@ -109,6 +111,7 @@ class NewSystemMLModelCreator:
         self.use_smote = use_smote  # Phase 39.4
         self.optimize = optimize  # Phase 39.5
         self.n_trials = n_trials  # Phase 39.5
+        self.stacking = stacking  # Phase 59.7: Stacking Meta-Learner
 
         # ログ設定
         self.logger = get_logger()
@@ -1072,6 +1075,22 @@ class NewSystemMLModelCreator:
                 ensemble_model = self._create_ensemble(individual_models_only)
                 trained_models["production_ensemble"] = ensemble_model
                 self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
+
+                # Phase 59.7: Stacking Meta-Learner訓練
+                if self.stacking:
+                    try:
+                        stacking_ensemble, stacking_metadata = self._train_stacking_ensemble(
+                            features, target, individual_models_only
+                        )
+                        trained_models["stacking_ensemble"] = stacking_ensemble
+                        results["stacking"] = stacking_metadata
+                        self.logger.info("✅ Phase 59.7: Stacking Ensemble作成完了")
+                    except Exception as e:
+                        self.logger.error(f"❌ Phase 59.7: Stacking Ensemble作成エラー: {e}")
+                        import traceback
+
+                        traceback.print_exc()
+
             except Exception as e:
                 self.logger.error(f"❌ アンサンブル作成エラー: {e}")
 
@@ -1092,6 +1111,283 @@ class NewSystemMLModelCreator:
         except Exception as e:
             self.logger.error(f"❌ アンサンブル作成エラー: {e}")
             raise
+
+    # ========================================
+    # Phase 59.7: Stacking Meta-Learner
+    # ========================================
+
+    def _generate_oof_predictions(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        base_models: Dict[str, Any],
+        n_splits: int = 5,
+    ) -> np.ndarray:
+        """
+        Phase 59.7: Out-of-Fold予測を生成してメタ特徴量を作成
+
+        TimeSeriesSplit CVを使用して各ベースモデルの予測確率を生成。
+        これによりデータリークを防ぎつつMeta-Learner用の特徴量を作成。
+
+        Args:
+            X: 特徴量データ
+            y: ターゲットデータ
+            base_models: ベースモデル辞書（未訓練）
+            n_splits: CVの分割数
+
+        Returns:
+            np.ndarray: OOF予測 (n_samples, n_models * n_classes)
+        """
+        self.logger.info(f"📊 Phase 59.7: OOF予測生成開始（n_splits={n_splits}）")
+
+        n_samples = len(X)
+        n_models = len(base_models)
+        n_classes = self.n_classes
+
+        # OOF予測格納配列（n_samples × (n_models × n_classes)）
+        oof_preds = np.zeros((n_samples, n_models * n_classes))
+        model_names = list(base_models.keys())
+
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+
+        for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
+            self.logger.info(
+                f"   Fold {fold + 1}/{n_splits}: train={len(train_idx)}, val={len(val_idx)}"
+            )
+
+            X_train_fold = X.iloc[train_idx]
+            y_train_fold = y.iloc[train_idx]
+            X_val_fold = X.iloc[val_idx]
+
+            # SMOTE適用（Fold毎）
+            if self.use_smote:
+                try:
+                    smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
+                    X_train_resampled, y_train_resampled = smote.fit_resample(
+                        X_train_fold, y_train_fold
+                    )
+                    X_train_fold = pd.DataFrame(X_train_resampled, columns=X_train_fold.columns)
+                    y_train_fold = pd.Series(y_train_resampled)
+                except Exception as e:
+                    self.logger.warning(f"⚠️ SMOTE適用失敗（Fold {fold + 1}）: {e}")
+
+            # 各モデルで予測
+            for i, (model_name, model_template) in enumerate(base_models.items()):
+                # モデルを複製（前のFoldの学習状態を引き継がないため）
+                model = self._clone_model(model_template, model_name)
+
+                try:
+                    model.fit(X_train_fold, y_train_fold)
+                    proba = model.predict_proba(X_val_fold)
+
+                    # OOF予測を格納
+                    start_col = i * n_classes
+                    end_col = (i + 1) * n_classes
+                    oof_preds[val_idx, start_col:end_col] = proba
+
+                except Exception as e:
+                    self.logger.warning(f"⚠️ {model_name} Fold {fold + 1} 予測失敗: {e}")
+                    # 失敗時は均一確率で埋める
+                    uniform_proba = 1.0 / n_classes
+                    oof_preds[val_idx, i * n_classes : (i + 1) * n_classes] = uniform_proba
+
+        self.logger.info(f"✅ Phase 59.7: OOF予測生成完了 - 形状: {oof_preds.shape}")
+        return oof_preds
+
+    def _clone_model(self, model: Any, model_name: str) -> Any:
+        """
+        Phase 59.7: モデルを複製（Fold毎に新しいインスタンスを作成）
+
+        Args:
+            model: 元のモデル
+            model_name: モデル名
+
+        Returns:
+            複製されたモデル
+        """
+        if model_name == "lightgbm":
+            params = model.get_params()
+            return LGBMClassifier(**params)
+        elif model_name == "xgboost":
+            params = model.get_params()
+            return XGBClassifier(**params)
+        elif model_name == "random_forest":
+            params = model.get_params()
+            return RandomForestClassifier(**params)
+        else:
+            # フォールバック: sklearn clone
+            from sklearn.base import clone
+
+            return clone(model)
+
+    def _train_meta_learner(
+        self,
+        oof_preds: np.ndarray,
+        y: pd.Series,
+        meta_features: Optional[pd.DataFrame] = None,
+    ) -> LGBMClassifier:
+        """
+        Phase 59.7: Meta-Learner（LightGBM）を訓練
+
+        OOF予測をメタ特徴量としてMeta-Learnerを訓練。
+
+        Args:
+            oof_preds: OOF予測 (n_samples, n_models * n_classes)
+            y: ターゲットデータ
+            meta_features: 追加メタ特徴量（オプション）
+
+        Returns:
+            LGBMClassifier: 訓練済みMeta-Learner
+        """
+        self.logger.info("📊 Phase 59.7: Meta-Learner訓練開始")
+
+        # メタ特徴量のDataFrame化
+        n_models = len(self.models)
+        n_classes = self.n_classes
+        meta_feature_names = []
+        for model_name in self.models.keys():
+            for cls in range(n_classes):
+                meta_feature_names.append(f"{model_name}_class{cls}")
+
+        X_meta = pd.DataFrame(oof_preds, columns=meta_feature_names)
+
+        # 追加メタ特徴量がある場合は結合
+        if meta_features is not None:
+            X_meta = pd.concat([X_meta, meta_features], axis=1)
+
+        # 欠損値チェック（TimeSeriesSplit初期Foldで未カバーの行）
+        valid_mask = ~(X_meta.isna().any(axis=1) | (X_meta.sum(axis=1) == 0))
+        valid_mask_arr = valid_mask.values  # numpy arrayに変換
+        X_meta_valid = X_meta[valid_mask_arr]
+        # yのインデックスをリセットしてからマスク適用
+        y_reset = y.reset_index(drop=True)
+        y_valid = y_reset[valid_mask_arr]
+
+        self.logger.info(
+            f"   Meta-Learner訓練データ: {len(X_meta_valid)}サンプル（{len(X_meta) - len(X_meta_valid)}サンプル除外）"
+        )
+
+        # Meta-Learnerパラメータ（軽量設定）
+        meta_params = {
+            "n_estimators": 50,
+            "learning_rate": 0.05,
+            "max_depth": 4,
+            "num_leaves": 15,
+            "random_state": 42,
+            "verbose": -1,
+            "class_weight": "balanced",
+        }
+
+        if self.n_classes == 3:
+            meta_params["objective"] = "multiclass"
+            meta_params["num_class"] = 3
+
+        meta_model = LGBMClassifier(**meta_params)
+
+        # Train/Test split for Meta-Learner
+        n_train = int(len(X_meta_valid) * 0.85)
+        X_meta_train = X_meta_valid.iloc[:n_train]
+        y_meta_train = y_valid.iloc[:n_train]
+        X_meta_test = X_meta_valid.iloc[n_train:]
+        y_meta_test = y_valid.iloc[n_train:]
+
+        # SMOTE適用
+        if self.use_smote:
+            try:
+                smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
+                X_meta_resampled, y_meta_resampled = smote.fit_resample(X_meta_train, y_meta_train)
+                X_meta_train = pd.DataFrame(X_meta_resampled, columns=X_meta_train.columns)
+                y_meta_train = pd.Series(y_meta_resampled)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Meta-Learner SMOTE適用失敗: {e}")
+
+        # 訓練
+        try:
+            meta_model.fit(
+                X_meta_train,
+                y_meta_train,
+                eval_set=[(X_meta_test, y_meta_test)],
+                callbacks=[
+                    __import__("lightgbm").early_stopping(stopping_rounds=10, verbose=False)
+                ],
+            )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Early Stopping失敗: {e}, 通常訓練に切り替え")
+            meta_model.fit(X_meta_train, y_meta_train)
+
+        # 評価
+        y_pred = meta_model.predict(X_meta_test)
+        meta_f1 = f1_score(y_meta_test, y_pred, average="weighted")
+        meta_acc = accuracy_score(y_meta_test, y_pred)
+
+        self.logger.info(f"✅ Phase 59.7: Meta-Learner訓練完了")
+        self.logger.info(f"   Meta-Learner F1: {meta_f1:.4f}, Accuracy: {meta_acc:.4f}")
+
+        return meta_model
+
+    def _train_stacking_ensemble(
+        self,
+        features: pd.DataFrame,
+        target: pd.Series,
+        trained_base_models: Dict[str, Any],
+    ) -> Tuple[Any, Dict[str, Any]]:
+        """
+        Phase 59.7: Stacking Ensemble訓練
+
+        1. OOF予測を生成
+        2. Meta-Learnerを訓練
+        3. StackingEnsembleを作成
+
+        Args:
+            features: 特徴量データ
+            target: ターゲットデータ
+            trained_base_models: 訓練済みベースモデル
+
+        Returns:
+            Tuple[StackingEnsemble, Dict]: (Stackingアンサンブル, メタデータ)
+        """
+        self.logger.info("=" * 60)
+        self.logger.info("📊 Phase 59.7: Stacking Ensemble訓練開始")
+        self.logger.info("=" * 60)
+
+        # 1. OOF予測生成（未訓練モデルを使用）
+        # 注意: OOFは未訓練モデルで生成する必要がある
+        untrained_models = {}
+        for name, model in self.models.items():
+            untrained_models[name] = self._clone_model(model, name)
+
+        oof_preds = self._generate_oof_predictions(features, target, untrained_models)
+
+        # 2. Meta-Learner訓練
+        meta_learner = self._train_meta_learner(oof_preds, target)
+
+        # 3. StackingEnsemble作成
+        stacking_ensemble = StackingEnsemble(
+            base_models=trained_base_models,
+            meta_model=meta_learner,
+        )
+
+        # 4. 評価（Train/Test split）
+        n_test = int(len(features) * 0.15)
+        X_test = features.iloc[-n_test:]
+        y_test = target.iloc[-n_test:]
+
+        y_pred_stacking = stacking_ensemble.predict(X_test)
+        stacking_f1 = f1_score(y_test, y_pred_stacking, average="weighted")
+        stacking_acc = accuracy_score(y_test, y_pred_stacking)
+
+        self.logger.info(f"📊 Stacking Ensemble評価:")
+        self.logger.info(f"   F1 Score: {stacking_f1:.4f}")
+        self.logger.info(f"   Accuracy: {stacking_acc:.4f}")
+
+        stacking_metadata = {
+            "stacking_f1": float(stacking_f1),
+            "stacking_accuracy": float(stacking_acc),
+            "meta_features_count": oof_preds.shape[1],
+            "base_models": list(trained_base_models.keys()),
+        }
+
+        return stacking_ensemble, stacking_metadata
 
     def save_models(self, training_results: Dict[str, Any]) -> Dict[str, str]:
         """モデル保存（個別モデル：training、統合モデル：production）."""
@@ -1166,6 +1462,24 @@ class NewSystemMLModelCreator:
                         )
 
                     self.logger.info(f"✅ 本番用統合モデル保存: {model_file}")
+
+                elif model_name == "stacking_ensemble":
+                    # Phase 59.7: Stacking Ensembleをproductionフォルダに保存
+                    stacking_file = self.production_dir / "stacking_ensemble.pkl"
+                    with open(stacking_file, "wb") as f:
+                        pickle.dump(model, f)
+
+                    # Meta-Learnerも個別に保存（デバッグ用）
+                    if hasattr(model, "meta_model"):
+                        meta_learner_file = self.production_dir / "meta_learner.pkl"
+                        with open(meta_learner_file, "wb") as f:
+                            pickle.dump(model.meta_model, f)
+                        self.logger.info(f"✅ Meta-Learner保存: {meta_learner_file}")
+
+                    self.logger.info(f"✅ Phase 59.7: Stacking Ensemble保存: {stacking_file}")
+                    saved_files[model_name] = str(stacking_file)
+                    continue  # saved_filesへの追加は上で行ったのでスキップ
+
                 else:
                     # 個別モデルはtrainingフォルダに保存
                     model_file = self.training_dir / f"{model_name}_model.pkl"
@@ -1520,6 +1834,13 @@ def main():
         help="Phase 51.5-B: 訓練するモデル both=両方（デフォルト推奨）/full=fullのみ/basic=basicのみ",
     )
 
+    # Phase 59.7: Stacking Meta-Learner
+    parser.add_argument(
+        "--stacking",
+        action="store_true",
+        help="Phase 59.7: Stacking Meta-Learner有効化（OOF予測 + Meta-Learner訓練）",
+    )
+
     args = parser.parse_args()
 
     # モデル選択をリストに変換
@@ -1545,6 +1866,7 @@ def main():
         use_smote=use_smote,
         optimize=args.optimize,
         n_trials=args.n_trials,
+        stacking=args.stacking,  # Phase 59.7: Stacking Meta-Learner
     )
 
     success = creator.run(dry_run=args.dry_run, days=args.days)

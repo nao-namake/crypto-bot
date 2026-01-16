@@ -1,8 +1,16 @@
 """
-MLサービス モデル読み込み機能 - Phase 50.9完了
+MLサービス モデル読み込み機能 - Phase 59.8: Stacking本番環境統合
 
 ProductionEnsemble読み込み・個別モデル再構築・モデル管理機能を提供。
 ml_adapter.pyから分離したモデル読み込み専用モジュール。
+
+Phase 59.8:
+- Stacking本番環境統合
+  - Level 0（Stacking）: stacking_ensemble.pkl（stacking_enabled=true時）
+  - Level 1（完全）: ensemble_full.pkl（55特徴量）
+  - Level 2（基本）: ensemble_basic.pkl（49特徴量）
+  - Level 2.5（再構築）: 個別モデルから再構築
+  - Level 3（ダミー）: DummyModel（最終フォールバック）
 
 Phase 51.7 Day 7完了:
 - 6戦略統合・54特徴量システム確立
@@ -57,11 +65,16 @@ from .ml_fallback import DummyModel
 
 class MLModelLoader:
     """
-    MLモデル読み込み管理クラス - Phase 51.7 Day 7: 6戦略統合対応
+    MLモデル読み込み管理クラス - Phase 59.8: Stacking本番環境統合
 
     設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
-    6戦略統合により、full（54特徴量）→basic（48特徴量）→Dummyの2段階フォールバックで
-    システム継続性を保証。
+
+    モデル読み込み優先順位:
+    - Level 0: StackingEnsemble（stacking_enabled=true時）
+    - Level 1: ProductionEnsemble full（55特徴量）
+    - Level 2: ProductionEnsemble basic（49特徴量）
+    - Level 2.5: 個別モデル再構築
+    - Level 3: DummyModel（最終フォールバック）
     """
 
     def __init__(self, logger: CryptoBotLogger):
@@ -73,10 +86,12 @@ class MLModelLoader:
 
     def load_model_with_priority(self, feature_count: Optional[int] = None) -> Any:
         """
-        Phase 51.7 Day 7: 6戦略統合MLモデルシステム優先順位読み込み
+        Phase 59.8: Stacking本番環境統合 - モデル優先順位読み込み
 
-        Level 1（完全）: 54特徴量モデル → ensemble_full.pkl（48基本+6戦略シグナル）
-        Level 2（基本）: 48特徴量モデル → ensemble_basic.pkl（48基本のみ）
+        Level 0（Stacking）: stacking_ensemble.pkl → StackingEnsemble（stacking_enabled時）
+        Level 1（完全）: ensemble_full.pkl → ProductionEnsemble（55特徴量）
+        Level 2（基本）: ensemble_basic.pkl → ProductionEnsemble（49特徴量）
+        Level 2.5（再構築）: 個別モデルから再構築
         Level 3（ダミー）: DummyModel → 最終フォールバック
 
         Args:
@@ -85,17 +100,23 @@ class MLModelLoader:
         Returns:
             読み込まれたモデルインスタンス
         """
-        self.logger.info("🤖 MLモデル読み込み開始 - Phase 51.7 Day 7: 6戦略統合システム")
+        self.logger.info("🤖 MLモデル読み込み開始 - Phase 59.8: Stacking本番環境統合")
 
         # Phase 51.7: 特徴量レベル判定
         target_level = self._determine_feature_level(feature_count)
         self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
 
-        # Level 1: 完全特徴量モデル読み込み試行（54特徴量）
+        # Phase 59.8: Level 0 - Stacking試行（stacking_enabled時のみ）
+        if self._is_stacking_enabled():
+            if self._load_stacking_ensemble():
+                return self.model
+            self.logger.info("Stackingモデル読み込み失敗 → Level 1にフォールバック")
+
+        # Level 1: 完全特徴量モデル読み込み試行（55特徴量）
         if target_level == "full" and self._load_production_ensemble(level="full"):
             return self.model
 
-        # Level 2: 基本特徴量モデル読み込み試行（48特徴量）
+        # Level 2: 基本特徴量モデル読み込み試行（49特徴量）
         if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
             if target_level == "full":
                 self.logger.info("Level 2（基本）モデルにフォールバック")
@@ -141,6 +162,117 @@ class MLModelLoader:
         # その他の場合はfullを試行（フォールバック）
         self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全54特徴量）を試行")
         return "full"
+
+    def _is_stacking_enabled(self) -> bool:
+        """
+        Phase 59.8: Stacking有効化判定
+
+        thresholds.yamlのensemble.stacking_enabled設定を参照。
+
+        Returns:
+            Stacking有効の可否
+        """
+        return get_threshold("ensemble.stacking_enabled", False)
+
+    def _load_stacking_ensemble(self) -> bool:
+        """
+        Phase 59.8: StackingEnsemble読み込み
+
+        stacking_ensemble.pklをロードしてStackingEnsembleインスタンスを作成。
+
+        Returns:
+            読み込み成功の可否
+        """
+        import os
+
+        # Cloud Run環境とローカル環境の両方に対応
+        cloud_base_path = get_threshold("ml.model_paths.base_path", "/app")
+        local_base_path = get_threshold("ml.model_paths.local_path", ".")
+        base_path = (
+            cloud_base_path if os.path.exists(f"{cloud_base_path}/models") else local_base_path
+        )
+
+        # feature_order.jsonからStacking設定を取得
+        from ..config.feature_manager import _feature_manager
+
+        level_info = _feature_manager.get_feature_level_info()
+
+        if "stacking" not in level_info:
+            self.logger.warning("Stackingレベル定義がfeature_order.jsonにありません")
+            return False
+
+        stacking_info = level_info["stacking"]
+        model_filename = stacking_info.get("model_file", "stacking_ensemble.pkl")
+        model_path = Path(base_path) / "models" / "production" / model_filename
+
+        if not model_path.exists():
+            self.logger.warning(f"StackingEnsemble未発見: {model_path}")
+            return False
+
+        try:
+            # StackingEnsembleクラスの互換性レイヤー
+            class StackingModule:
+                """StackingEnsemble互換性モジュール"""
+
+                def __init__(self):
+                    from src.ml.ensemble import StackingEnsemble
+
+                    self.StackingEnsemble = StackingEnsemble
+
+            class EnsembleModule:
+                """ensemble サブモジュールのエミュレート"""
+
+                def __init__(self):
+                    from src.ml.ensemble import ProductionEnsemble, StackingEnsemble
+
+                    self.ProductionEnsemble = ProductionEnsemble
+                    self.StackingEnsemble = StackingEnsemble
+
+            class ProductionModule:
+                """src.ml.production モジュールのエミュレート"""
+
+                def __init__(self):
+                    self.ensemble = EnsembleModule()
+
+            # 階層的モジュールリダイレクト設定
+            old_production = sys.modules.get("src.ml.production")
+            old_ensemble = sys.modules.get("src.ml.production.ensemble")
+
+            sys.modules["src.ml.production"] = ProductionModule()
+            sys.modules["src.ml.production.ensemble"] = EnsembleModule()
+
+            try:
+                with open(model_path, "rb") as f:
+                    self.model = pickle.load(f)
+            finally:
+                # リダイレクト後片付け
+                if old_production is None:
+                    sys.modules.pop("src.ml.production", None)
+                else:
+                    sys.modules["src.ml.production"] = old_production
+
+                if old_ensemble is None:
+                    sys.modules.pop("src.ml.production.ensemble", None)
+                else:
+                    sys.modules["src.ml.production.ensemble"] = old_ensemble
+
+            # モデルの妥当性チェック
+            if hasattr(self.model, "predict") and hasattr(self.model, "predict_proba"):
+                self.model_type = "StackingEnsemble"
+                self.is_fitted = getattr(self.model, "is_fitted", True)
+                self.feature_level = "stacking"
+                feature_count = stacking_info.get("count", 55)
+                self.logger.info(
+                    f"✅ StackingEnsemble読み込み成功 (Level 0, {feature_count}特徴量)"
+                )
+                return True
+            else:
+                self.logger.error("StackingEnsembleに必須メソッドが不足")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"StackingEnsemble読み込みエラー: {e}")
+            return False
 
     def _load_production_ensemble(self, level: str = "full") -> bool:
         """

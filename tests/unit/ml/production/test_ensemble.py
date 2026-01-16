@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from src.ml.ensemble import ProductionEnsemble
+from src.ml.ensemble import ProductionEnsemble, StackingEnsemble
 
 
 class TestProductionEnsemble:
@@ -372,3 +372,183 @@ class TestProductionEnsembleEdgeCases:
 
         assert len(predictions) == 1000
         assert probabilities.shape == (1000, 2)
+
+
+# ========================================
+# Phase 59.7: StackingEnsemble テスト
+# ========================================
+
+
+class TestStackingEnsemble:
+    """Phase 59.7: StackingEnsemble テストクラス"""
+
+    @pytest.fixture
+    def mock_base_models(self):
+        """3クラス分類用モックベースモデル作成"""
+        mock_lgbm = MagicMock()
+        mock_lgbm.predict.return_value = np.array([2, 1, 0])
+        mock_lgbm.predict_proba.return_value = np.array(
+            [[0.1, 0.2, 0.7], [0.2, 0.6, 0.2], [0.7, 0.2, 0.1]]
+        )
+        mock_lgbm.n_features_in_ = 55
+
+        mock_xgb = MagicMock()
+        mock_xgb.predict.return_value = np.array([2, 1, 1])
+        mock_xgb.predict_proba.return_value = np.array(
+            [[0.1, 0.3, 0.6], [0.3, 0.5, 0.2], [0.4, 0.4, 0.2]]
+        )
+        mock_xgb.n_features_in_ = 55
+
+        mock_rf = MagicMock()
+        mock_rf.predict.return_value = np.array([1, 1, 0])
+        mock_rf.predict_proba.return_value = np.array(
+            [[0.3, 0.4, 0.3], [0.2, 0.5, 0.3], [0.5, 0.3, 0.2]]
+        )
+        mock_rf.n_features_in_ = 55
+
+        return {
+            "lightgbm": mock_lgbm,
+            "xgboost": mock_xgb,
+            "random_forest": mock_rf,
+        }
+
+    @pytest.fixture
+    def mock_meta_model(self):
+        """モックMeta-Learner作成"""
+        mock_meta = MagicMock()
+        mock_meta.predict.return_value = np.array([2, 1, 0])
+        mock_meta.predict_proba.return_value = np.array(
+            [[0.1, 0.2, 0.7], [0.2, 0.7, 0.1], [0.8, 0.1, 0.1]]
+        )
+        mock_meta.n_classes_ = 3
+        mock_meta.classes_ = np.array([0, 1, 2])
+        return mock_meta
+
+    @pytest.fixture
+    def sample_data(self):
+        """55特徴量サンプルデータ作成"""
+        return np.random.random((3, 55))
+
+    @pytest.fixture
+    def stacking_ensemble(self, mock_base_models, mock_meta_model):
+        """StackingEnsemble インスタンス作成"""
+        return StackingEnsemble(mock_base_models, mock_meta_model)
+
+    def test_init_success(self, mock_base_models, mock_meta_model):
+        """Phase 59.7: 正常初期化テスト"""
+        stacking = StackingEnsemble(mock_base_models, mock_meta_model)
+
+        assert len(stacking.models) == 3
+        assert stacking.meta_model is not None
+        assert stacking.stacking_enabled is True
+        assert stacking.n_features_ == 55
+        assert len(stacking._meta_feature_names) == 9  # 3モデル × 3クラス
+
+    def test_init_stacking_disabled(self, mock_base_models, mock_meta_model):
+        """Phase 59.7: Stacking無効化テスト"""
+        stacking = StackingEnsemble(mock_base_models, mock_meta_model, stacking_enabled=False)
+
+        assert stacking.stacking_enabled is False
+
+    def test_predict_stacking_enabled(self, stacking_ensemble, sample_data):
+        """Phase 59.7: Stacking有効時の予測テスト"""
+        predictions = stacking_ensemble.predict(sample_data)
+
+        assert isinstance(predictions, np.ndarray)
+        assert len(predictions) == 3
+        # 3クラス分類
+        assert np.all((predictions >= 0) & (predictions <= 2))
+
+    def test_predict_stacking_disabled(self, mock_base_models, mock_meta_model, sample_data):
+        """Phase 59.7: Stacking無効時のフォールバックテスト"""
+        # ベースモデルの戻り値を調整（2クラス用）
+        for model in mock_base_models.values():
+            model.predict_proba.return_value = np.array([[0.3, 0.7], [0.6, 0.4], [0.4, 0.6]])
+
+        stacking = StackingEnsemble(mock_base_models, mock_meta_model, stacking_enabled=False)
+        predictions = stacking.predict(sample_data)
+
+        assert isinstance(predictions, np.ndarray)
+        assert len(predictions) == 3
+
+    def test_predict_proba_stacking_enabled(self, stacking_ensemble, sample_data):
+        """Phase 59.7: Stacking有効時の確率予測テスト"""
+        probabilities = stacking_ensemble.predict_proba(sample_data)
+
+        assert isinstance(probabilities, np.ndarray)
+        assert probabilities.shape == (3, 3)  # 3サンプル × 3クラス
+        # 確率の合計が1に近い
+        assert np.allclose(probabilities.sum(axis=1), 1.0, rtol=1e-1)
+
+    def test_predict_proba_stacking_disabled(self, mock_base_models, mock_meta_model, sample_data):
+        """Phase 59.7: Stacking無効時の確率予測フォールバックテスト"""
+        # ベースモデルの戻り値を調整（3クラス用）
+        for model in mock_base_models.values():
+            model.predict_proba.return_value = np.array(
+                [[0.3, 0.4, 0.3], [0.4, 0.3, 0.3], [0.2, 0.5, 0.3]]
+            )
+
+        stacking = StackingEnsemble(mock_base_models, mock_meta_model, stacking_enabled=False)
+        probabilities = stacking.predict_proba(sample_data)
+
+        assert isinstance(probabilities, np.ndarray)
+        assert probabilities.shape == (3, 3)
+
+    def test_generate_meta_features(self, stacking_ensemble, sample_data):
+        """Phase 59.7: メタ特徴量生成テスト"""
+        import pandas as pd
+
+        from src.core.config.feature_manager import get_feature_names
+
+        feature_names = get_feature_names()
+        df_data = pd.DataFrame(sample_data, columns=feature_names)
+
+        meta_features = stacking_ensemble._generate_meta_features(df_data)
+
+        assert isinstance(meta_features, np.ndarray)
+        # 3モデル × 3クラス = 9特徴量
+        assert meta_features.shape == (3, 9)
+
+    def test_get_model_info(self, stacking_ensemble):
+        """Phase 59.7: モデル情報取得テスト"""
+        info = stacking_ensemble.get_model_info()
+
+        assert info["type"] == "StackingEnsemble"
+        assert info["stacking_enabled"] is True
+        assert info["meta_features_count"] == 9
+        assert info["phase"] == "Phase 59.7"
+        assert "meta_feature_names" in info
+        assert len(info["meta_feature_names"]) == 9
+
+    def test_repr(self, stacking_ensemble):
+        """Phase 59.7: 文字列表現テスト"""
+        repr_str = repr(stacking_ensemble)
+
+        assert "StackingEnsemble" in repr_str
+        assert "base_models=3" in repr_str
+        assert "stacking_enabled=True" in repr_str
+
+    def test_wrong_feature_count(self, stacking_ensemble):
+        """Phase 59.7: 特徴量数不一致エラーテスト"""
+        wrong_data = np.random.random((3, 10))  # 10特徴量（55必要）
+
+        with pytest.raises(ValueError, match="特徴量数不一致"):
+            stacking_ensemble.predict(wrong_data)
+
+    def test_meta_feature_names_generation(self, mock_base_models, mock_meta_model):
+        """Phase 59.7: メタ特徴量名生成テスト"""
+        stacking = StackingEnsemble(mock_base_models, mock_meta_model)
+
+        expected_names = [
+            "lightgbm_class0",
+            "lightgbm_class1",
+            "lightgbm_class2",
+            "xgboost_class0",
+            "xgboost_class1",
+            "xgboost_class2",
+            "random_forest_class0",
+            "random_forest_class1",
+            "random_forest_class2",
+        ]
+
+        assert stacking._meta_feature_names == expected_names

@@ -10,7 +10,7 @@ Phase 49完了
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union  # noqa: F401
 
 import numpy as np
 import pandas as pd
@@ -778,4 +778,187 @@ class ProductionEnsemble:
             f"models={len(self.models)}, "
             f"features={self.n_features_}, "
             f"weights={self.weights})"
+        )
+
+
+class StackingEnsemble(ProductionEnsemble):
+    """
+    Phase 59.7: Stacking Meta-Learnerアンサンブル
+
+    2段階予測システム:
+    1. ベースモデル（LightGBM, XGBoost, RF）が各クラスの確率を予測
+    2. Meta-Learner（LightGBM）がベースモデルの予測確率を入力として最終予測
+
+    期待効果:
+    - F1スコア: 0.41 → 0.50+（+20%以上）
+    - 各ベースモデルの長所を最適に組み合わせ
+
+    使用方法:
+        # 訓練時（create_ml_models.py）
+        stacking = StackingEnsemble(base_models, meta_model)
+
+        # 推論時
+        predictions = stacking.predict(X)
+        probabilities = stacking.predict_proba(X)
+    """
+
+    def __init__(
+        self,
+        base_models: Dict[str, Any],
+        meta_model: Any,
+        stacking_enabled: bool = True,
+    ):
+        """
+        Phase 59.7: StackingEnsemble初期化
+
+        Args:
+            base_models: ベースモデル辞書（lightgbm, xgboost, random_forest）
+            meta_model: Meta-Learner（LightGBMClassifier）
+            stacking_enabled: Stacking有効化フラグ（False時は従来方式にフォールバック）
+        """
+        # 親クラス（ProductionEnsemble）初期化
+        super().__init__(base_models)
+
+        self.meta_model = meta_model
+        self.stacking_enabled = stacking_enabled
+
+        # メタ特徴量名を生成（モデル名 × クラス数）
+        self._meta_feature_names = self._generate_meta_feature_names()
+
+        logger = get_logger()
+        logger.info(
+            f"✅ Phase 59.7: StackingEnsemble初期化完了 "
+            f"(base_models={len(base_models)}, stacking_enabled={stacking_enabled})"
+        )
+
+    def _generate_meta_feature_names(self) -> List[str]:
+        """
+        メタ特徴量名を生成
+
+        Returns:
+            List[str]: メタ特徴量名リスト（例: ["lightgbm_class0", "lightgbm_class1", ...]）
+        """
+        feature_names = []
+        # n_classesはmeta_modelから推定
+        if hasattr(self.meta_model, "n_classes_"):
+            n_classes = self.meta_model.n_classes_
+        elif hasattr(self.meta_model, "classes_"):
+            n_classes = len(self.meta_model.classes_)
+        else:
+            n_classes = 3  # デフォルト3クラス
+
+        for model_name in self.models.keys():
+            for cls in range(n_classes):
+                feature_names.append(f"{model_name}_class{cls}")
+
+        return feature_names
+
+    def _generate_meta_features(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
+        """
+        ベースモデルの予測確率を連結してメタ特徴量を生成
+
+        Args:
+            X: 入力特徴量
+
+        Returns:
+            np.ndarray: メタ特徴量 (n_samples, n_models * n_classes)
+        """
+        meta_features = []
+
+        for name, model in self.models.items():
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X)
+                meta_features.append(proba)
+            else:
+                # predict_probaがない場合はone-hot encoding
+                pred = model.predict(X).astype(int)
+                n_classes = len(self._meta_feature_names) // len(self.models)
+                proba = np.zeros((len(pred), n_classes))
+                proba[np.arange(len(pred)), pred] = 1.0
+                meta_features.append(proba)
+
+        return np.hstack(meta_features)
+
+    def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
+        """
+        Phase 59.7: Stacking予測実行
+
+        stacking_enabled=True: Meta-Learnerによる2段階予測
+        stacking_enabled=False: 従来の重み付け平均（フォールバック）
+
+        Args:
+            X: 入力特徴量
+
+        Returns:
+            np.ndarray: 予測クラス
+        """
+        if not self.stacking_enabled:
+            # フォールバック: 従来方式
+            return super().predict(X)
+
+        # Stacking予測
+        probas = self.predict_proba(X)
+        return np.argmax(probas, axis=1)
+
+    def predict_proba(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
+        """
+        Phase 59.7: Stacking確率予測
+
+        stacking_enabled=True: Meta-Learnerによる2段階予測
+        stacking_enabled=False: 従来の重み付け平均（フォールバック）
+
+        Args:
+            X: 入力特徴量
+
+        Returns:
+            np.ndarray: 予測確率 (n_samples, n_classes)
+        """
+        if not self.stacking_enabled:
+            # フォールバック: 従来方式
+            return super().predict_proba(X)
+
+        # 入力検証
+        if hasattr(X, "values"):
+            X_array = X.values
+        else:
+            X_array = X
+
+        if X_array.shape[1] != self.n_features_:
+            raise ValueError(f"特徴量数不一致: {X_array.shape[1]} != {self.n_features_}")
+
+        # sklearn警告回避のため特徴量名付きDataFrameを作成
+        if not isinstance(X, pd.DataFrame):
+            X_with_names = pd.DataFrame(X_array, columns=self.feature_names)
+        else:
+            X_with_names = X
+
+        # 第1段階: ベースモデルの予測確率を取得
+        meta_features = self._generate_meta_features(X_with_names)
+
+        # 第2段階: Meta-Learnerで最終予測
+        return self.meta_model.predict_proba(meta_features)
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """モデル情報取得"""
+        info = super().get_model_info()
+        info.update(
+            {
+                "type": "StackingEnsemble",
+                "stacking_enabled": self.stacking_enabled,
+                "meta_model_type": type(self.meta_model).__name__,
+                "meta_features_count": len(self._meta_feature_names),
+                "meta_feature_names": self._meta_feature_names,
+                "phase": "Phase 59.7",
+            }
+        )
+        return info
+
+    def __repr__(self) -> str:
+        """文字列表現"""
+        return (
+            f"StackingEnsemble("
+            f"base_models={len(self.models)}, "
+            f"meta_model={type(self.meta_model).__name__}, "
+            f"features={self.n_features_}, "
+            f"stacking_enabled={self.stacking_enabled})"
         )
