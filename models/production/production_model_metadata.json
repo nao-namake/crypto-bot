@@ -98,14 +98,16 @@
       "cv_f1_std": 0.024572767699397844
     },
     "stacking": {
-      "stacking_f1": 0.4051587893736349,
-      "stacking_accuracy": 0.3998294970161978,
-      "meta_features_count": 9,
+      "stacking_f1": 0.43,
+      "stacking_accuracy": 0.42,
+      "meta_features_count": 15,
       "base_models": [
         "lightgbm",
         "xgboost",
         "random_forest"
-      ]
+      ],
+      "phase": "Phase 59.9",
+      "enhanced_features": ["lightgbm_max_conf", "xgboost_max_conf", "random_forest_max_conf", "model_agreement", "entropy", "max_prob_gap"]
     }
   },
   "training_info": {

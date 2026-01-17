@@ -1027,14 +1027,96 @@ Stackingモデル未使用時のCI/CDバックテスト結果（参考値）:
 
 **注**: このバックテストはフォールバック（ProductionEnsemble）での結果。Stackingモデルの効果検証は再実行バックテスト待ち。
 
+### Phase 59.8バックテスト結果（Stacking v1）
+
+| 指標 | Stacking | ProductionEnsemble | 比較 |
+|------|----------|-------------------|------|
+| 総取引数 | 473件 | 466件 | +7 |
+| 勝率 | 54.3% | 53.4% | +0.9% |
+| PF | 1.54 | 1.59 | -0.05 |
+| 総損益 | ¥+41,327 | ¥+49,327 | **-¥8,000** |
+| 最大DD | 1.17% | 1.27% | -0.1% |
+
+**問題点**:
+- SELL予測が少なすぎる（21.7% vs 41.9%）
+- ML×戦略一致率が低い（32.6% vs 49.6%）
+- 一致時勝率が低い（49.4% vs 62.8%）
+
+---
+
+## Phase 59.9: Meta-Learner改善
+
+### 背景
+
+Phase 59.8バックテストでStackingモデルがProductionEnsembleを下回ったため、Meta-Learnerを改善。
+
+### 実装内容（2026-01-17）
+
+#### 59.9-A: 動的クラス重み計算
+
+```python
+# クラス別重み調整（3クラス: 0=SELL, 1=HOLD, 2=BUY）
+if cls == 0:  # SELL
+    computed_weights[cls] = base_weight * 1.15  # 15%強化
+elif cls == 1:  # HOLD
+    computed_weights[cls] = base_weight * 0.85  # 15%抑制
+else:  # BUY
+    computed_weights[cls] = base_weight * 1.15  # 15%強化
+```
+
+**効果**: 予測分布がバランス化（SELL 42%, HOLD 27%, BUY 31%）
+
+#### 59.9-B: 拡張メタ特徴量（9→15特徴量）
+
+| 特徴量 | 説明 |
+|--------|------|
+| `{model}_max_conf` (×3) | 各モデルの最大確率 |
+| `model_agreement` | 3モデル予測一致度（1.0/0.5/0.0） |
+| `entropy` | 予測不確実性 |
+| `max_prob_gap` | 最大確率と2番目の差 |
+
+**修正ファイル**:
+- `scripts/ml/create_ml_models.py` - 訓練時に拡張特徴量生成
+- `src/ml/ensemble.py` - 予測時にも拡張特徴量生成
+
+#### 59.9-C: Meta-Learnerパラメータ調整
+
+| パラメータ | 変更前 | 変更後 |
+|-----------|--------|--------|
+| n_estimators | 50 | 100 |
+| max_depth | 4 | 5 |
+| num_leaves | 15 | 20 |
+| feature_fraction | なし | 0.8 |
+| bagging_fraction | なし | 0.8 |
+
+#### その他の修正
+
+- Stackingをfullモデル（55特徴量）でのみ訓練するよう修正
+- テストを15特徴量に対応
+
+### 結果
+
+| 指標 | Phase 59.8 | Phase 59.9 | 改善 |
+|------|-----------|------------|------|
+| Meta-Learner F1 | 0.36 | **0.43** | **+19%** |
+| SELL予測率 | 21.7% | **42%** | +20.3% |
+| BUY予測率 | 0.5% | **31%** | +30.5% |
+
+### 180日バックテスト
+
+Run ID: 21090763797（実行中）
+
+---
+
 ### 次のステップ
 
 - [x] Stackingモデルファイルをgitに追加
-- [ ] 180日間バックテスト（CI/CD）- Stackingモデル込み
+- [x] Phase 59.9 Meta-Learner改善
+- [ ] 180日間バックテスト（CI/CD）- Phase 59.9
 - [ ] Stackingの効果比較分析
 - [ ] 本番デプロイ
 
 ---
 
 **最終更新**: 2026年1月17日
-**ステータス**: Phase 59.4完了・Phase 59.5完了・Phase 59.6完了・**Phase 59.7完了**・**Phase 59.8完了**（Stackingバックテスト実行中）
+**ステータス**: Phase 59.4完了・Phase 59.5完了・Phase 59.6完了・Phase 59.7完了・Phase 59.8完了・**Phase 59.9完了**（バックテスト実行中）

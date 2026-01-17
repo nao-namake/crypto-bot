@@ -1471,10 +1471,17 @@ class NewSystemMLModelCreator:
         self.logger.info(f"   F1 Score: {stacking_f1:.4f}")
         self.logger.info(f"   Accuracy: {stacking_acc:.4f}")
 
+        # Phase 59.9: 実際のメタ特徴量数を取得（9基本 + 6拡張 = 15）
+        actual_meta_features = (
+            meta_learner.n_features_in_
+            if hasattr(meta_learner, "n_features_in_")
+            else oof_preds.shape[1]
+        )
+
         stacking_metadata = {
             "stacking_f1": float(stacking_f1),
             "stacking_accuracy": float(stacking_acc),
-            "meta_features_count": oof_preds.shape[1],
+            "meta_features_count": actual_meta_features,
             "base_models": list(trained_base_models.keys()),
         }
 
