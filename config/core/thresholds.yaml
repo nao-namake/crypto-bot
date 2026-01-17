@@ -584,7 +584,7 @@ ensemble:
   # 期待効果: F1スコア 0.41 → 0.50+（+20%以上）
   # フォールバック: stacking_enabled=falseで従来の重み付け平均に戻せる
   # ========================================
-  stacking_enabled: true   # Stacking有効化（false時は従来方式にフォールバック）
+  stacking_enabled: false  # PE比較バックテスト用（一時的に無効化）
   meta_learner:
     type: "lightgbm"       # Meta-Learnerモデルタイプ
     params:
