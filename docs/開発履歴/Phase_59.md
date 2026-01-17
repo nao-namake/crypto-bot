@@ -916,12 +916,125 @@ n_features: 55
 | Stackingモデル読み込み | ✅ StackingEnsemble使用中 |
 | フォールバック順序 | ✅ 正常動作確認 |
 
+### CI/CDバックテスト問題と解決
+
+#### 発覚した問題
+
+180日間バックテスト実行時、CIログで以下の警告が出力:
+
+```
+StackingEnsemble未発見: models/production/stacking_ensemble.pkl
+```
+
+**原因**: Stackingモデルファイルが`.gitignore`で除外されていた
+
+```bash
+# ローカル
+models/production/stacking_ensemble.pkl (20MB) → 存在
+models/production/meta_learner.pkl (255KB) → 存在
+
+# Git管理
+→ なし（.gitignoreで除外）
+```
+
+**結果**: CI/CDではフォールバックのProductionEnsemble（ensemble_full.pkl）が使用された
+
+#### 解決策
+
+```bash
+# Stackingモデルをgitに強制追加
+git add -f models/production/stacking_ensemble.pkl models/production/meta_learner.pkl
+git commit -m "fix: Stackingモデルファイル追加（CI/CD対応）"
+git push origin main
+```
+
+#### 180日間バックテスト再実行
+
+Stackingモデル追加後、バックテストを再トリガー。
+
+### ライブモード分析: MLモデル状態確認機能
+
+#### 背景
+
+Stackingモデルが使用されているか、フォールバックしているかをライブモード分析で確認できる機能が必要。
+
+#### 追加指標（4項目）
+
+| 指標 | 説明 |
+|------|------|
+| `ml_model_type` | 使用中のモデルタイプ（StackingEnsemble / ProductionEnsemble / DummyModel） |
+| `ml_model_level` | フォールバックレベル（0=Stacking, 1=Full, 2=Basic, 3=Dummy） |
+| `ml_feature_count` | モデルの特徴量数（55 / 49 / N/A） |
+| `stacking_enabled` | thresholds.yamlのstacking_enabled設定値 |
+
+#### 実装内容
+
+| 修正箇所 | 内容 |
+|---------|------|
+| `LiveAnalysisResult` | 4フィールド追加 |
+| `_check_ml_model_status()` | 新規メソッド（約40行） |
+| `generate_markdown()` | MLモデル状態セクション追加 |
+| `append_to_csv()` | 4カラム追加 |
+| `main()` | サマリー表示追加 |
+
+#### 出力例
+
+```markdown
+## MLモデル状態
+
+| 指標 | 値 | 状態 |
+|------|-----|------|
+| モデルタイプ | StackingEnsemble | 正常 |
+| フォールバックレベル | Level 0 (Stacking) | 正常 |
+| 特徴量数 | 55 | 正常 |
+| Stacking設定 | 有効 | - |
+```
+
+```
+==================================================
+ライブモード分析サマリー
+==================================================
+...
+MLモデル: StackingEnsemble (Level 0)
+==================================================
+```
+
+#### 検証結果
+
+```bash
+python3 scripts/live/standard_analysis.py --hours 1
+```
+
+```
+2026-01-17 12:48:33 [INFO] MLモデル状態確認完了 - StackingEnsemble (Level 0, 55特徴量)
+```
+
+✅ ローカル環境でStackingモデルが正常に使用されていることを確認
+
+---
+
+### バックテスト結果（ProductionEnsemble単体）
+
+Stackingモデル未使用時のCI/CDバックテスト結果（参考値）:
+
+| 指標 | 値 |
+|------|-----|
+| 総取引数 | 466件 |
+| 勝率 | 53.4% |
+| PF | 1.59 |
+| 総損益 | ¥+49,327 |
+| 最大DD | 1.27% |
+
+**注**: このバックテストはフォールバック（ProductionEnsemble）での結果。Stackingモデルの効果検証は再実行バックテスト待ち。
+
 ### 次のステップ
 
-- 180日間バックテスト（CI/CD）で本格的な性能検証
-- 本番デプロイ
+- [x] Stackingモデルファイルをgitに追加
+- [ ] 180日間バックテスト（CI/CD）- Stackingモデル込み
+- [ ] Stackingの効果比較分析
+- [ ] 本番デプロイ
 
 ---
 
 **最終更新**: 2026年1月17日
-**ステータス**: Phase 59.4完了・Phase 59.5完了・Phase 59.6完了・**Phase 59.7完了**・**Phase 59.8完了**（180日間バックテスト待ち）
+**ステータス**: Phase 59.4完了・Phase 59.5完了・Phase 59.6完了・**Phase 59.7完了**・**Phase 59.8完了**（Stackingバックテスト実行中）

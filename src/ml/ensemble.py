@@ -847,37 +847,92 @@ class StackingEnsemble(ProductionEnsemble):
         else:
             n_classes = 3  # デフォルト3クラス
 
+        # 基本メタ特徴量（9特徴量）
         for model_name in self.models.keys():
             for cls in range(n_classes):
                 feature_names.append(f"{model_name}_class{cls}")
+
+        # Phase 59.9-B: 拡張メタ特徴量（6特徴量）
+        for model_name in self.models.keys():
+            feature_names.append(f"{model_name}_max_conf")
+        feature_names.extend(["model_agreement", "entropy", "max_prob_gap"])
 
         return feature_names
 
     def _generate_meta_features(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
         """
-        ベースモデルの予測確率を連結してメタ特徴量を生成
+        Phase 59.9: ベースモデルの予測確率と拡張メタ特徴量を生成
+
+        拡張メタ特徴量（Phase 59.9-B）:
+        - {model}_max_conf: 各モデルの最大確率
+        - model_agreement: 3モデル予測一致度
+        - entropy: 予測不確実性
+        - max_prob_gap: 最大確率と2番目の差
 
         Args:
             X: 入力特徴量
 
         Returns:
-            np.ndarray: メタ特徴量 (n_samples, n_models * n_classes)
+            np.ndarray: メタ特徴量 (n_samples, 15) - 9基本 + 6拡張
         """
-        meta_features = []
+        base_meta_features = []
+        model_probas = []  # 拡張特徴量計算用
 
         for name, model in self.models.items():
             if hasattr(model, "predict_proba"):
                 proba = model.predict_proba(X)
-                meta_features.append(proba)
+                base_meta_features.append(proba)
+                model_probas.append(proba)
             else:
                 # predict_probaがない場合はone-hot encoding
                 pred = model.predict(X).astype(int)
                 n_classes = len(self._meta_feature_names) // len(self.models)
                 proba = np.zeros((len(pred), n_classes))
                 proba[np.arange(len(pred)), pred] = 1.0
-                meta_features.append(proba)
+                base_meta_features.append(proba)
+                model_probas.append(proba)
 
-        return np.hstack(meta_features)
+        # 基本メタ特徴量（9特徴量）
+        base_features = np.hstack(base_meta_features)
+
+        # Phase 59.9-B: 拡張メタ特徴量（6特徴量）
+        n_samples = base_features.shape[0]
+        n_models = len(self.models)
+        enhanced_features = []
+
+        for i in range(n_samples):
+            row_features = []
+
+            # 各モデルの最大確率
+            model_predictions = []
+            for j in range(n_models):
+                max_prob = model_probas[j][i].max()
+                pred_class = model_probas[j][i].argmax()
+                row_features.append(max_prob)  # {model}_max_conf
+                model_predictions.append(pred_class)
+
+            # 3モデル間の予測一致度
+            unique_preds = len(set(model_predictions))
+            agreement = 1.0 if unique_preds == 1 else (0.5 if unique_preds == 2 else 0.0)
+            row_features.append(agreement)
+
+            # 確率分布のエントロピー
+            all_probs = base_features[i]
+            all_probs_safe = np.clip(all_probs, 1e-10, 1.0)
+            entropy = -np.mean(all_probs_safe * np.log(all_probs_safe))
+            row_features.append(entropy)
+
+            # 最大確率と2番目の確率の差
+            sorted_probs = np.sort(all_probs)[::-1]
+            max_prob_gap = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0
+            row_features.append(max_prob_gap)
+
+            enhanced_features.append(row_features)
+
+        enhanced_array = np.array(enhanced_features)
+
+        # 基本 + 拡張を結合（15特徴量）
+        return np.hstack([base_features, enhanced_array])
 
     def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
         """

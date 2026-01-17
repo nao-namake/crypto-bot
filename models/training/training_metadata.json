@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-01-17T06:39:22.447704",
+  "created_at": "2026-01-17T16:27:20.538907",
   "feature_names": [
     "close",
     "volume",
@@ -49,57 +49,40 @@
     "is_europe_session",
     "hour_cos",
     "day_sin",
-    "day_cos",
-    "strategy_signal_ATRBased",
-    "strategy_signal_DonchianChannel",
-    "strategy_signal_ADXTrendStrength",
-    "strategy_signal_BBReversal",
-    "strategy_signal_StochasticReversal",
-    "strategy_signal_MACDEMACrossover"
+    "day_cos"
   ],
-  "training_samples": 15682,
+  "training_samples": 15642,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.43263918402039947,
-      "f1_score": 0.4319809407606434,
-      "precision": 0.43137177520386755,
-      "recall": 0.43263918402039947,
-      "cv_f1_mean": 0.40953470591237534,
-      "cv_f1_std": 0.02157532987991907
+      "accuracy": 0.4576054537707712,
+      "f1_score": 0.45831621727544103,
+      "precision": 0.46108573021579835,
+      "recall": 0.4576054537707712,
+      "cv_f1_mean": 0.4219696243046235,
+      "cv_f1_std": 0.020791331647483795
     },
     "xgboost": {
-      "accuracy": 0.43901402464938377,
-      "f1_score": 0.4427271147870572,
-      "precision": 0.45032792538639876,
-      "recall": 0.43901402464938377,
-      "cv_f1_mean": 0.41329423961262907,
-      "cv_f1_std": 0.023657031905664892
+      "accuracy": 0.40860673199829567,
+      "f1_score": 0.4125458840521919,
+      "precision": 0.4324720999132009,
+      "recall": 0.40860673199829567,
+      "cv_f1_mean": 0.4025648048507603,
+      "cv_f1_std": 0.02147586360131244
     },
     "random_forest": {
-      "accuracy": 0.4717382065448364,
-      "f1_score": 0.4621436048742524,
-      "precision": 0.4634852320859724,
-      "recall": 0.4717382065448364,
-      "cv_f1_mean": 0.41840014580594415,
-      "cv_f1_std": 0.030065761194909266
-    },
-    "stacking": {
-      "stacking_f1": 0.4614844433104335,
-      "stacking_accuracy": 0.4732142857142857,
-      "meta_features_count": 9,
-      "base_models": [
-        "lightgbm",
-        "xgboost",
-        "random_forest"
-      ]
+      "accuracy": 0.45547507456327224,
+      "f1_score": 0.455712971309594,
+      "precision": 0.46036699338277653,
+      "recall": 0.45547507456327224,
+      "cv_f1_mean": 0.4151677902323363,
+      "cv_f1_std": 0.026868850275880613
     }
   },
   "model_files": {
     "lightgbm": "models/training/lightgbm_model.pkl",
     "xgboost": "models/training/xgboost_model.pkl",
     "random_forest": "models/training/random_forest_model.pkl",
-    "production_ensemble": "models/production/ensemble_full.pkl",
-    "stacking_ensemble": "models/production/stacking_ensemble.pkl"
+    "production_ensemble": "models/production/ensemble_basic.pkl"
   },
   "config_path": "config/core/unified.yaml",
   "phase": "Phase 51.9",

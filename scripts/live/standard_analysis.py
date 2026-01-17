@@ -111,6 +111,12 @@ class LiveAnalysisResult:
     actual_cycle_count: int = 0
     expected_cycle_count: int = 0
 
+    # MLモデル状態（4指標）- Phase 59.8追加
+    ml_model_type: str = ""  # StackingEnsemble / ProductionEnsemble / DummyModel
+    ml_model_level: int = -1  # 0=Stacking, 1=Full, 2=Basic, 3=Dummy
+    ml_feature_count: int = 0  # 55 / 49 / 0
+    stacking_enabled: bool = False  # thresholds.yaml設定値
+
 
 class LiveAnalyzer:
     """ライブモード標準分析"""
@@ -160,6 +166,7 @@ class LiveAnalyzer:
             await self._check_system_health()
             await self._check_tp_sl_placement()
             await self._calculate_uptime()
+            await self._check_ml_model_status()
 
         except Exception as e:
             self.logger.error(f"分析中にエラー発生: {e}")
@@ -611,6 +618,47 @@ class LiveAnalyzer:
             self.logger.error(f"稼働率計算失敗: {e}")
             self.result.uptime_rate = -1
 
+    async def _check_ml_model_status(self):
+        """MLモデル使用状況確認（4指標）- Phase 59.8追加"""
+        try:
+            from src.core.config.threshold_manager import get_threshold
+            from src.core.orchestration.ml_loader import MLModelLoader
+
+            # stacking_enabled設定確認
+            self.result.stacking_enabled = get_threshold("ensemble.stacking_enabled", False)
+
+            # MLModelLoaderでモデルロード
+            loader = MLModelLoader(self.logger)
+            model = loader.load_model_with_priority()
+
+            # モデルタイプ判定
+            model_type = type(model).__name__
+            self.result.ml_model_type = model_type
+
+            # フォールバックレベル判定
+            if model_type == "StackingEnsemble":
+                self.result.ml_model_level = 0
+            elif model_type == "ProductionEnsemble":
+                n_features = getattr(model, "n_features_", 0)
+                self.result.ml_model_level = 1 if n_features >= 55 else 2
+            elif model_type == "DummyModel":
+                self.result.ml_model_level = 3
+            else:
+                self.result.ml_model_level = -1
+
+            # 特徴量数
+            self.result.ml_feature_count = getattr(
+                model, "n_features_", getattr(model, "n_features_in_", 0)
+            )
+
+            self.logger.info(
+                f"MLモデル状態確認完了 - {self.result.ml_model_type} "
+                f"(Level {self.result.ml_model_level}, {self.result.ml_feature_count}特徴量)"
+            )
+        except Exception as e:
+            self.logger.error(f"MLモデル状態確認失敗: {e}")
+            self.result.ml_model_type = "error"
+
 
 class LiveReportGenerator:
     """レポート生成"""
@@ -786,6 +834,43 @@ class LiveReportGenerator:
         if result.last_incident_time:
             lines.append(f"| 直近障害 | {result.last_incident_time} | - |")
 
+        # Phase 59.8: MLモデル状態セクション追加
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                "## MLモデル状態",
+                "",
+                "| 指標 | 値 | 状態 |",
+                "|------|-----|------|",
+            ]
+        )
+
+        # モデルタイプ
+        model_status = (
+            "正常"
+            if result.ml_model_type in ["StackingEnsemble", "ProductionEnsemble"]
+            else "要確認"
+        )
+        lines.append(f"| モデルタイプ | {result.ml_model_type} | {model_status} |")
+
+        # フォールバックレベル
+        level_names = {0: "Stacking", 1: "Full(55)", 2: "Basic(49)", 3: "Dummy"}
+        level_name = level_names.get(result.ml_model_level, "不明")
+        level_status = "正常" if result.ml_model_level <= 1 else "フォールバック中"
+        lines.append(
+            f"| フォールバックレベル | Level {result.ml_model_level} ({level_name}) | {level_status} |"
+        )
+
+        # 特徴量数
+        feature_status = "正常" if result.ml_feature_count >= 55 else "縮退"
+        lines.append(f"| 特徴量数 | {result.ml_feature_count} | {feature_status} |")
+
+        # Stacking設定
+        stacking_status = "有効" if result.stacking_enabled else "無効"
+        lines.append(f"| Stacking設定 | {stacking_status} | - |")
+
         return "\n".join(lines)
 
     def append_to_csv(self, result: LiveAnalysisResult, csv_path: str):
@@ -815,6 +900,11 @@ class LiveReportGenerator:
             "expected_cycles": result.expected_cycle_count,
             "service_status": result.service_status,
             "tp_sl_ok": result.tp_sl_placement_ok,
+            # Phase 59.8: MLモデル状態追加
+            "ml_model_type": result.ml_model_type,
+            "ml_model_level": result.ml_model_level,
+            "ml_feature_count": result.ml_feature_count,
+            "stacking_enabled": result.stacking_enabled,
         }
 
         with open(csv_path, "a", newline="", encoding="utf-8") as f:
@@ -879,6 +969,7 @@ async def main():
     if result.uptime_rate >= 0:
         print(f"稼働率: {result.uptime_rate:.1f}%")
     print(f"サービス状態: {result.service_status}")
+    print(f"MLモデル: {result.ml_model_type} (Level {result.ml_model_level})")
     print("=" * 50)
 
 

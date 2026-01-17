@@ -1076,8 +1076,9 @@ class NewSystemMLModelCreator:
                 trained_models["production_ensemble"] = ensemble_model
                 self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
 
-                # Phase 59.7: Stacking Meta-Learner訓練
-                if self.stacking:
+                # Phase 59.7/59.9: Stacking Meta-Learner訓練（fullモデルのみ）
+                # basicモデルでは訓練しない（55特徴量でのみ動作保証）
+                if self.stacking and self.current_model_type == "full":
                     try:
                         stacking_ensemble, stacking_metadata = self._train_stacking_ensemble(
                             features, target, individual_models_only
@@ -1220,6 +1221,64 @@ class NewSystemMLModelCreator:
 
             return clone(model)
 
+    def _add_enhanced_meta_features(
+        self, X_meta_base: pd.DataFrame, oof_preds: np.ndarray
+    ) -> pd.DataFrame:
+        """
+        Phase 59.9-B: 拡張メタ特徴量を追加
+
+        Args:
+            X_meta_base: 基本メタ特徴量（OOF予測）
+            oof_preds: OOF予測配列 (n_samples, n_models * n_classes)
+
+        Returns:
+            pd.DataFrame: 拡張メタ特徴量を含むDataFrame
+        """
+        n_samples = len(oof_preds)
+        n_models = len(self.models)
+        n_classes = self.n_classes
+        enhanced_features = []
+
+        model_names = list(self.models.keys())
+
+        for i in range(n_samples):
+            features = {}
+
+            # 各モデルの予測の信頼度（最大確率）
+            model_predictions = []
+            model_max_probs = []
+            for j, model_name in enumerate(model_names):
+                start_idx = j * n_classes
+                end_idx = start_idx + n_classes
+                probs = oof_preds[i, start_idx:end_idx]
+                max_prob = probs.max()
+                pred_class = probs.argmax()
+                features[f"{model_name}_max_conf"] = max_prob
+                model_predictions.append(pred_class)
+                model_max_probs.append(max_prob)
+
+            # 3モデル間の予測一致度
+            unique_preds = len(set(model_predictions))
+            agreement = 1.0 if unique_preds == 1 else (0.5 if unique_preds == 2 else 0.0)
+            features["model_agreement"] = agreement
+
+            # 確率分布のエントロピー（全9確率の平均エントロピー）
+            all_probs = oof_preds[i]
+            # 0での除算を避ける
+            all_probs_safe = np.clip(all_probs, 1e-10, 1.0)
+            entropy = -np.mean(all_probs_safe * np.log(all_probs_safe))
+            features["entropy"] = entropy
+
+            # 最大確率と2番目の確率の差（確信度の差）
+            sorted_probs = np.sort(all_probs)[::-1]
+            max_prob_gap = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0
+            features["max_prob_gap"] = max_prob_gap
+
+            enhanced_features.append(features)
+
+        enhanced_df = pd.DataFrame(enhanced_features)
+        return pd.concat([X_meta_base, enhanced_df], axis=1)
+
     def _train_meta_learner(
         self,
         oof_preds: np.ndarray,
@@ -1227,9 +1286,10 @@ class NewSystemMLModelCreator:
         meta_features: Optional[pd.DataFrame] = None,
     ) -> LGBMClassifier:
         """
-        Phase 59.7: Meta-Learner（LightGBM）を訓練
+        Phase 59.7/59.9: Meta-Learner（LightGBM）を訓練
 
         OOF予測をメタ特徴量としてMeta-Learnerを訓練。
+        Phase 59.9で拡張メタ特徴量と動的クラス重みを追加。
 
         Args:
             oof_preds: OOF予測 (n_samples, n_models * n_classes)
@@ -1239,7 +1299,7 @@ class NewSystemMLModelCreator:
         Returns:
             LGBMClassifier: 訓練済みMeta-Learner
         """
-        self.logger.info("📊 Phase 59.7: Meta-Learner訓練開始")
+        self.logger.info("📊 Phase 59.9: Meta-Learner訓練開始（改善版）")
 
         # メタ特徴量のDataFrame化
         n_models = len(self.models)
@@ -1250,6 +1310,10 @@ class NewSystemMLModelCreator:
                 meta_feature_names.append(f"{model_name}_class{cls}")
 
         X_meta = pd.DataFrame(oof_preds, columns=meta_feature_names)
+
+        # Phase 59.9-B: 拡張メタ特徴量を追加
+        X_meta = self._add_enhanced_meta_features(X_meta, oof_preds)
+        self.logger.info(f"   拡張メタ特徴量: {len(X_meta.columns)}特徴量")
 
         # 追加メタ特徴量がある場合は結合
         if meta_features is not None:
@@ -1267,15 +1331,44 @@ class NewSystemMLModelCreator:
             f"   Meta-Learner訓練データ: {len(X_meta_valid)}サンプル（{len(X_meta) - len(X_meta_valid)}サンプル除外）"
         )
 
-        # Meta-Learnerパラメータ（軽量設定）
+        # Train/Test split for Meta-Learner
+        n_train = int(len(X_meta_valid) * 0.85)
+        X_meta_train = X_meta_valid.iloc[:n_train]
+        y_meta_train = y_valid.iloc[:n_train]
+        X_meta_test = X_meta_valid.iloc[n_train:]
+        y_meta_test = y_valid.iloc[n_train:]
+
+        # Phase 59.9-A: 動的クラス重み計算（SELL/BUY強化、HOLD抑制）
+        class_counts = y_meta_train.value_counts().sort_index()
+        computed_weights = {}
+        for cls in range(n_classes):
+            if cls in class_counts.index:
+                ratio = class_counts[cls] / len(y_meta_train)
+                base_weight = 1.0 / (n_classes * ratio + 1e-8)
+                # クラス別重み調整（3クラス: 0=SELL, 1=HOLD, 2=BUY）
+                if cls == 0:  # SELL
+                    computed_weights[cls] = base_weight * 1.15  # 15%強化
+                elif cls == 1:  # HOLD
+                    computed_weights[cls] = base_weight * 0.85  # 15%抑制
+                else:  # BUY
+                    computed_weights[cls] = base_weight * 1.15  # 15%強化
+            else:
+                computed_weights[cls] = 1.0
+
+        self.logger.info(f"   動的クラス重み: {computed_weights}")
+
+        # Phase 59.9-C: Meta-Learnerパラメータ（改善版）
         meta_params = {
-            "n_estimators": 50,
+            "n_estimators": 100,  # 50→100
             "learning_rate": 0.05,
-            "max_depth": 4,
-            "num_leaves": 15,
+            "max_depth": 5,  # 4→5
+            "num_leaves": 20,  # 15→20
             "random_state": 42,
             "verbose": -1,
-            "class_weight": "balanced",
+            "class_weight": computed_weights,  # balanced→動的計算
+            "feature_fraction": 0.8,  # 新規追加
+            "bagging_fraction": 0.8,  # 新規追加
+            "bagging_freq": 5,  # 新規追加
         }
 
         if self.n_classes == 3:
@@ -1284,13 +1377,6 @@ class NewSystemMLModelCreator:
 
         meta_model = LGBMClassifier(**meta_params)
 
-        # Train/Test split for Meta-Learner
-        n_train = int(len(X_meta_valid) * 0.85)
-        X_meta_train = X_meta_valid.iloc[:n_train]
-        y_meta_train = y_valid.iloc[:n_train]
-        X_meta_test = X_meta_valid.iloc[n_train:]
-        y_meta_test = y_valid.iloc[n_train:]
-
         # SMOTE適用
         if self.use_smote:
             try:
@@ -1298,6 +1384,7 @@ class NewSystemMLModelCreator:
                 X_meta_resampled, y_meta_resampled = smote.fit_resample(X_meta_train, y_meta_train)
                 X_meta_train = pd.DataFrame(X_meta_resampled, columns=X_meta_train.columns)
                 y_meta_train = pd.Series(y_meta_resampled)
+                self.logger.info(f"   SMOTE後クラス分布: {y_meta_train.value_counts().to_dict()}")
             except Exception as e:
                 self.logger.warning(f"⚠️ Meta-Learner SMOTE適用失敗: {e}")
 
@@ -1320,7 +1407,11 @@ class NewSystemMLModelCreator:
         meta_f1 = f1_score(y_meta_test, y_pred, average="weighted")
         meta_acc = accuracy_score(y_meta_test, y_pred)
 
-        self.logger.info(f"✅ Phase 59.7: Meta-Learner訓練完了")
+        # Phase 59.9: 予測分布の確認
+        pred_dist = pd.Series(y_pred).value_counts().sort_index()
+        self.logger.info(f"   予測分布: {pred_dist.to_dict()}")
+
+        self.logger.info(f"✅ Phase 59.9: Meta-Learner訓練完了")
         self.logger.info(f"   Meta-Learner F1: {meta_f1:.4f}, Accuracy: {meta_acc:.4f}")
 
         return meta_model
