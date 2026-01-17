@@ -857,23 +857,42 @@ class StackingEnsemble(ProductionEnsemble):
             feature_names.append(f"{model_name}_max_conf")
         feature_names.extend(["model_agreement", "entropy", "max_prob_gap"])
 
+        # Phase 59.10: 追加メタ特徴量（6特徴量）
+        feature_names.extend([
+            "prob_std",
+            "prob_range",
+            "avg_max_conf",
+            "conf_std",
+            "sell_prob_mean",
+            "buy_prob_mean",
+        ])
+
         return feature_names
 
     def _generate_meta_features(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
         """
-        Phase 59.9: ベースモデルの予測確率と拡張メタ特徴量を生成
+        Phase 59.9 + 59.10: ベースモデルの予測確率と拡張メタ特徴量を生成
 
-        拡張メタ特徴量（Phase 59.9-B）:
-        - {model}_max_conf: 各モデルの最大確率
+        拡張メタ特徴量:
+        Phase 59.9（6特徴量）:
+        - {model}_max_conf: 各モデルの最大確率（×3）
         - model_agreement: 3モデル予測一致度
         - entropy: 予測不確実性
         - max_prob_gap: 最大確率と2番目の差
+
+        Phase 59.10（6特徴量）:
+        - prob_std: 全確率の標準偏差
+        - prob_range: 全確率の範囲
+        - avg_max_conf: 平均最大確信度
+        - conf_std: 確信度の標準偏差
+        - sell_prob_mean: SELL確率の平均
+        - buy_prob_mean: BUY確率の平均
 
         Args:
             X: 入力特徴量
 
         Returns:
-            np.ndarray: メタ特徴量 (n_samples, 15) - 9基本 + 6拡張
+            np.ndarray: メタ特徴量 (n_samples, 21) - 9基本 + 12拡張
         """
         base_meta_features = []
         model_probas = []  # 拡張特徴量計算用
@@ -895,21 +914,31 @@ class StackingEnsemble(ProductionEnsemble):
         # 基本メタ特徴量（9特徴量）
         base_features = np.hstack(base_meta_features)
 
-        # Phase 59.9-B: 拡張メタ特徴量（6特徴量）
+        # Phase 59.9-B + 59.10: 拡張メタ特徴量（12特徴量）
         n_samples = base_features.shape[0]
         n_models = len(self.models)
+        n_classes = 3  # SELL, HOLD, BUY
         enhanced_features = []
 
         for i in range(n_samples):
             row_features = []
 
-            # 各モデルの最大確率
+            # 各モデルの最大確率と予測クラス
             model_predictions = []
+            model_max_probs = []
+            class_probs_by_class = {c: [] for c in range(n_classes)}
+
             for j in range(n_models):
-                max_prob = model_probas[j][i].max()
-                pred_class = model_probas[j][i].argmax()
+                probs = model_probas[j][i]
+                max_prob = probs.max()
+                pred_class = probs.argmax()
                 row_features.append(max_prob)  # {model}_max_conf
                 model_predictions.append(pred_class)
+                model_max_probs.append(max_prob)
+
+                # Phase 59.10: クラス別確率を記録
+                for c in range(n_classes):
+                    class_probs_by_class[c].append(probs[c])
 
             # 3モデル間の予測一致度
             unique_preds = len(set(model_predictions))
@@ -927,11 +956,31 @@ class StackingEnsemble(ProductionEnsemble):
             max_prob_gap = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0
             row_features.append(max_prob_gap)
 
+            # === Phase 59.10: 追加メタ特徴量（6特徴量）===
+
+            # 全確率の標準偏差
+            row_features.append(float(np.std(all_probs)))
+
+            # 全確率の範囲（max - min）
+            row_features.append(float(np.max(all_probs) - np.min(all_probs)))
+
+            # 平均最大確信度
+            row_features.append(float(np.mean(model_max_probs)))
+
+            # 確信度の標準偏差
+            row_features.append(float(np.std(model_max_probs)))
+
+            # SELL確率の平均（class 0）
+            row_features.append(float(np.mean(class_probs_by_class[0])))
+
+            # BUY確率の平均（class 2）
+            row_features.append(float(np.mean(class_probs_by_class[2])))
+
             enhanced_features.append(row_features)
 
         enhanced_array = np.array(enhanced_features)
 
-        # 基本 + 拡張を結合（15特徴量）
+        # 基本 + 拡張を結合（21特徴量）
         return np.hstack([base_features, enhanced_array])
 
     def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:

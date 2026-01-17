@@ -442,7 +442,7 @@ class TestStackingEnsemble:
         assert stacking.meta_model is not None
         assert stacking.stacking_enabled is True
         assert stacking.n_features_ == 55
-        assert len(stacking._meta_feature_names) == 15  # Phase 59.9: 9基本 + 6拡張
+        assert len(stacking._meta_feature_names) == 21  # Phase 59.10: 9基本 + 12拡張
 
     def test_init_stacking_disabled(self, mock_base_models, mock_meta_model):
         """Phase 59.7: Stacking無効化テスト"""
@@ -506,8 +506,8 @@ class TestStackingEnsemble:
         meta_features = stacking_ensemble._generate_meta_features(df_data)
 
         assert isinstance(meta_features, np.ndarray)
-        # Phase 59.9: 9基本（3モデル×3クラス）+ 6拡張 = 15特徴量
-        assert meta_features.shape == (3, 15)
+        # Phase 59.10: 9基本（3モデル×3クラス）+ 12拡張 = 21特徴量
+        assert meta_features.shape == (3, 21)
 
     def test_get_model_info(self, stacking_ensemble):
         """Phase 59.7: モデル情報取得テスト"""
@@ -515,10 +515,10 @@ class TestStackingEnsemble:
 
         assert info["type"] == "StackingEnsemble"
         assert info["stacking_enabled"] is True
-        assert info["meta_features_count"] == 15  # Phase 59.9: 9基本 + 6拡張
+        assert info["meta_features_count"] == 21  # Phase 59.10: 9基本 + 12拡張
         assert info["phase"] == "Phase 59.7"
         assert "meta_feature_names" in info
-        assert len(info["meta_feature_names"]) == 15  # Phase 59.9: 9基本 + 6拡張
+        assert len(info["meta_feature_names"]) == 21  # Phase 59.10: 9基本 + 12拡張
 
     def test_repr(self, stacking_ensemble):
         """Phase 59.7: 文字列表現テスト"""
@@ -536,10 +536,10 @@ class TestStackingEnsemble:
             stacking_ensemble.predict(wrong_data)
 
     def test_meta_feature_names_generation(self, mock_base_models, mock_meta_model):
-        """Phase 59.7/59.9: メタ特徴量名生成テスト"""
+        """Phase 59.7/59.9/59.10: メタ特徴量名生成テスト"""
         stacking = StackingEnsemble(mock_base_models, mock_meta_model)
 
-        # Phase 59.9: 9基本 + 6拡張 = 15特徴量
+        # Phase 59.10: 9基本 + 12拡張 = 21特徴量
         expected_names = [
             # 基本メタ特徴量（9個）
             "lightgbm_class0",
@@ -551,13 +551,20 @@ class TestStackingEnsemble:
             "random_forest_class0",
             "random_forest_class1",
             "random_forest_class2",
-            # 拡張メタ特徴量（6個）
+            # Phase 59.9拡張メタ特徴量（6個）
             "lightgbm_max_conf",
             "xgboost_max_conf",
             "random_forest_max_conf",
             "model_agreement",
             "entropy",
             "max_prob_gap",
+            # Phase 59.10追加メタ特徴量（6個）
+            "prob_std",
+            "prob_range",
+            "avg_max_conf",
+            "conf_std",
+            "sell_prob_mean",
+            "buy_prob_mean",
         ]
 
         assert stacking._meta_feature_names == expected_names

@@ -1225,7 +1225,12 @@ class NewSystemMLModelCreator:
         self, X_meta_base: pd.DataFrame, oof_preds: np.ndarray
     ) -> pd.DataFrame:
         """
-        Phase 59.9-B: 拡張メタ特徴量を追加
+        Phase 59.9-B + 59.10: 拡張メタ特徴量を追加
+
+        Phase 59.9: 6特徴量（max_conf×3, model_agreement, entropy, max_prob_gap）
+        Phase 59.10: +6特徴量（prob_std, prob_range, avg_max_conf, conf_std,
+                              sell_prob_mean, buy_prob_mean）
+        合計: 9基本 + 12拡張 = 21特徴量
 
         Args:
             X_meta_base: 基本メタ特徴量（OOF予測）
@@ -1247,6 +1252,8 @@ class NewSystemMLModelCreator:
             # 各モデルの予測の信頼度（最大確率）
             model_predictions = []
             model_max_probs = []
+            class_probs_by_class = {c: [] for c in range(n_classes)}  # Phase 59.10用
+
             for j, model_name in enumerate(model_names):
                 start_idx = j * n_classes
                 end_idx = start_idx + n_classes
@@ -1256,6 +1263,10 @@ class NewSystemMLModelCreator:
                 features[f"{model_name}_max_conf"] = max_prob
                 model_predictions.append(pred_class)
                 model_max_probs.append(max_prob)
+
+                # Phase 59.10: クラス別確率を記録
+                for c in range(n_classes):
+                    class_probs_by_class[c].append(probs[c])
 
             # 3モデル間の予測一致度
             unique_preds = len(set(model_predictions))
@@ -1273,6 +1284,26 @@ class NewSystemMLModelCreator:
             sorted_probs = np.sort(all_probs)[::-1]
             max_prob_gap = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0
             features["max_prob_gap"] = max_prob_gap
+
+            # === Phase 59.10: 追加メタ特徴量（6特徴量）===
+
+            # 全確率の標準偏差（予測のばらつき）
+            features["prob_std"] = float(np.std(all_probs))
+
+            # 全確率の範囲（max - min）
+            features["prob_range"] = float(np.max(all_probs) - np.min(all_probs))
+
+            # 平均最大確信度（3モデルの平均）
+            features["avg_max_conf"] = float(np.mean(model_max_probs))
+
+            # 確信度の標準偏差（モデル間のばらつき）
+            features["conf_std"] = float(np.std(model_max_probs))
+
+            # SELL確率の平均（class 0）
+            features["sell_prob_mean"] = float(np.mean(class_probs_by_class[0]))
+
+            # BUY確率の平均（class 2）
+            features["buy_prob_mean"] = float(np.mean(class_probs_by_class[2]))
 
             enhanced_features.append(features)
 
