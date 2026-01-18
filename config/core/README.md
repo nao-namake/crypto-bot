@@ -357,6 +357,58 @@ vim config/core/unified.yaml
 
 ---
 
+## 💹 レバレッジ変更ガイド（Phase 60.1追加）
+
+### 実効レバレッジ変更時の修正箇所一覧
+
+実効レバレッジを変更する際は、以下の14箇所を一括で修正する必要があります。すべて `thresholds.yaml` 内にあります。
+
+| # | 行番号 | パラメータ | 説明 | 0.15倍 | 0.5倍 | 1.0倍 |
+|---|--------|-----------|------|--------|-------|-------|
+| 1 | L47 | `production.max_order_size` | 最大注文サイズ(BTC) | 0.05 | 0.15 | 0.30 |
+| 2 | L554 | `kelly_criterion.max_position_ratio` | Kelly最大ポジション比率 | 0.35 | 1.00 | 2.00 |
+| 3 | L557 | `initial_position_size` | 初期ポジションサイズ(BTC) | 0.005 | 0.015 | 0.030 |
+| 4 | L561 | `position_sizing.max_position_ratio` | ポジションサイジング上限 | 0.35 | 1.00 | 2.00 |
+| 5 | L659 | `risk.max_capital_usage` | 資金利用率上限 | 0.5 | 1.5 | 3.0 |
+| 6 | L684 | `max_position_ratio_per_trade.low_confidence` | 低信頼度時上限 | 0.25 | 0.80 | 1.60 |
+| 7 | L685 | `max_position_ratio_per_trade.medium_confidence` | 中信頼度時上限 | 0.35 | 1.00 | 2.00 |
+| 8 | L686 | `max_position_ratio_per_trade.high_confidence` | 高信頼度時上限 | 0.50 | 1.50 | 3.00 |
+| 9 | L692 | `dynamic_position_sizing.low_confidence.min_ratio` | 動的サイジング低下限 | 0.10 | 0.30 | 0.60 |
+| 10 | L693 | `dynamic_position_sizing.low_confidence.max_ratio` | 動的サイジング低上限 | 0.20 | 0.60 | 1.20 |
+| 11 | L695 | `dynamic_position_sizing.medium_confidence.min_ratio` | 動的サイジング中下限 | 0.15 | 0.45 | 0.90 |
+| 12 | L696 | `dynamic_position_sizing.medium_confidence.max_ratio` | 動的サイジング中上限 | 0.25 | 0.75 | 1.50 |
+| 13 | L698 | `dynamic_position_sizing.high_confidence.min_ratio` | 動的サイジング高下限 | 0.20 | 0.60 | 1.20 |
+| 14 | L699 | `dynamic_position_sizing.high_confidence.max_ratio` | 動的サイジング高上限 | 0.35 | 1.05 | 2.10 |
+
+### スケーリング計算式
+
+```
+新値 = 現在値 × (目標レバレッジ / 現在レバレッジ)
+```
+
+例: 0.15倍 → 0.5倍 = 約3.3倍スケール
+例: 0.5倍 → 1.0倍 = 2倍スケール
+
+### 変更時のテスト修正
+
+レバレッジ変更時は以下のテストも更新が必要です：
+
+| ファイル | テスト | 修正内容 |
+|---------|-------|---------|
+| `tests/unit/trading/test_integrated_risk_manager.py` | `test_capital_usage_limits` | `max_capital_usage`に応じた期待値変更 |
+
+### リスク検証基準
+
+| 実効レバレッジ | 最大DD目安 | 年利目安 | リスク評価 |
+|--------------|----------|---------|----------|
+| 0.15倍 | 1.5% | 23% | 超保守的 |
+| 0.5倍 | 5% | 75% | 中程度 |
+| 1.0倍 | 10% | 150% | 積極的 |
+
+**重要**: DD目標10%を超えないよう、バックテストで事前検証必須
+
+---
+
 ## ⚠️ 重要な注意事項
 
 ### 1. **設定ファイル間の同期**

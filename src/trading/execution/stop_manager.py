@@ -300,13 +300,15 @@ class StopManager:
                         self.logger.warning(f"⚠️ Phase 59.6: クリーンアップエラー（処理継続）: {e}")
 
                 # Phase 58.1: 実際の決済注文をbitbankに発行
+                # Phase 60: 指値化（手数料削減 0.12%→0.02%）
                 try:
                     entry_position_side = "long" if entry_side.lower() == "buy" else "short"
                     close_order = await asyncio.to_thread(
                         bitbank_client.create_order,
                         symbol="BTC/JPY",
                         side=exit_side,
-                        order_type="market",
+                        order_type="limit",
+                        price=current_price,
                         amount=amount,
                         is_closing_order=True,
                         entry_position_side=entry_position_side,

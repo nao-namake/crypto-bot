@@ -513,19 +513,20 @@ class TestIntegratedRiskManager:
 
     @pytest.mark.asyncio
     async def test_capital_usage_limits(self):
-        """残高利用率制限チェックテスト（Phase 57.7: unified.yaml統合対応）."""
-        # Phase 57.7: unified.yamlからinitial_balance=500000, max_capital_usage=0.5
+        """残高利用率制限チェックテスト（Phase 60.1: 実効レバレッジ0.5倍移行対応）."""
+        # Phase 60.1: max_capital_usage=1.5（150%）に変更
         # 正常ケース: live mode (>90000) で initial_balance=500000
-        # 475000円 = 5%使用 < 50%制限 → 許可
+        # 475000円 = 5%使用 < 150%制限 → 許可
         result = self.risk_manager._check_capital_usage_limits(
             current_balance=475000, btc_price=6000000
         )
         assert result["allowed"] == True
 
-        # 利用率超過ケース（50%以上使用）
-        # 200000円 = 60%使用 > 50%制限 → 拒否
+        # 利用率超過ケース（150%以上使用）
+        # -300000円 = 160%使用 > 150%制限 → 拒否
+        # 計算: (500000 - (-300000)) / 500000 = 1.6 = 160%
         result_over = self.risk_manager._check_capital_usage_limits(
-            current_balance=200000, btc_price=6000000
+            current_balance=-300000, btc_price=6000000
         )
         assert result_over["allowed"] == False
         assert "資金利用率上限超過" in result_over["reason"]

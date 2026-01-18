@@ -44,7 +44,7 @@ execution:
 # ========================================
 production:
   min_order_size: 0.0001  # Bitbank最小取引単位（約1,650円@BTC=16,500,000円）
-  max_order_size: 0.05    # Phase 57.9: 0.40→0.05（12/30設定に復元）
+  max_order_size: 0.15    # Phase 60.1: 0.05→0.15（実効レバレッジ0.5倍移行）
 
 # ========================================
 # Phase 55.5: ポジションサイズ統合設定
@@ -551,14 +551,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 0.35    # Phase 57.9: 100% → 35%（12/30設定に復元）
+    max_position_ratio: 1.00    # Phase 60.1: 0.35→1.00（実効レバレッジ0.5倍移行）
     safety_factor: 0.9          # Phase 57.9: 1.0 → 0.9（12/30設定に復元）
   min_trade_size: 0.0001
-  initial_position_size: 0.005    # Phase 57.9: 0.04→0.005（12/30設定に復元）
+  initial_position_size: 0.015    # Phase 60.1: 0.005→0.015（実効レバレッジ0.5倍移行）
   fee_rate: 0.0012
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 0.35    # Phase 57.9: 100% → 35%（12/30設定に復元）
+    max_position_ratio: 1.00    # Phase 60.1: 0.35→1.00（実効レバレッジ0.5倍移行）
     stop_loss_atr_multiplier: 1.2
     stop_loss_rate: 0.02
     take_profit_rate: 0.04
@@ -656,7 +656,7 @@ risk:
   kelly_max_fraction: 1.00   # Phase 57.7: Kelly最大ポジション比率（initial_position_sizeと整合）
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
-  max_capital_usage: 0.5     # Phase 57: 0.3 → 0.5（資金利用率50%）
+  max_capital_usage: 1.5     # Phase 60.1: 0.5→1.5（実効レバレッジ0.5倍移行）
   reserve_ratio: 0.5         # Phase 57: 0.7 → 0.5（reserve 50%）
 
   # Phase 51.5-C: TP/SL再計算フォールバック設定
@@ -680,23 +680,23 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    # Phase 57.9: 12/30設定に復元（バックテスト取引数激減問題修正）
-    low_confidence: 0.25    # Phase 57.9: 80% → 25%
-    medium_confidence: 0.35  # Phase 57.9: 90% → 35%
-    high_confidence: 0.50    # Phase 57.9: 100% → 50%
+    # Phase 60.1: 実効レバレッジ0.5倍移行（約3倍引き上げ）
+    low_confidence: 0.80    # Phase 60.1: 0.25→0.80
+    medium_confidence: 1.00  # Phase 60.1: 0.35→1.00
+    high_confidence: 1.50    # Phase 60.1: 0.50→1.50
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
-    # Phase 57.9: 12/30設定に復元（バックテスト取引数激減問題修正）
+    # Phase 60.1: 実効レバレッジ0.5倍移行（約3倍引き上げ）
     low_confidence:
-      min_ratio: 0.10    # Phase 57.9: 50% → 10%
-      max_ratio: 0.20    # Phase 57.9: 80% → 20%
+      min_ratio: 0.30    # Phase 60.1: 0.10→0.30
+      max_ratio: 0.60    # Phase 60.1: 0.20→0.60
     medium_confidence:
-      min_ratio: 0.15    # Phase 57.9: 60% → 15%
-      max_ratio: 0.25    # Phase 57.9: 90% → 25%
+      min_ratio: 0.45    # Phase 60.1: 0.15→0.45
+      max_ratio: 0.75    # Phase 60.1: 0.25→0.75
     high_confidence:
-      min_ratio: 0.20    # Phase 57.9: 70% → 20%
-      max_ratio: 0.35    # Phase 57.9: 100% → 35%
+      min_ratio: 0.60    # Phase 60.1: 0.20→0.60
+      max_ratio: 1.05    # Phase 60.1: 0.35→1.05
   account_size_adjustments:
     small:
       threshold: 50000
