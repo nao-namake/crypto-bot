@@ -858,14 +858,16 @@ class StackingEnsemble(ProductionEnsemble):
         feature_names.extend(["model_agreement", "entropy", "max_prob_gap"])
 
         # Phase 59.10: 追加メタ特徴量（6特徴量）
-        feature_names.extend([
-            "prob_std",
-            "prob_range",
-            "avg_max_conf",
-            "conf_std",
-            "sell_prob_mean",
-            "buy_prob_mean",
-        ])
+        feature_names.extend(
+            [
+                "prob_std",
+                "prob_range",
+                "avg_max_conf",
+                "conf_std",
+                "sell_prob_mean",
+                "buy_prob_mean",
+            ]
+        )
 
         return feature_names
 

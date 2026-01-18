@@ -235,7 +235,7 @@ class TestRiskManager(unittest.TestCase):
     # Phase 52.0: レジーム別TP/SLテスト
     # ========================================
 
-    @patch("src.core.config.threshold_manager.get_threshold")
+    @patch("src.core.config.get_threshold")
     def test_regime_based_tp_sl_tight_range(self, mock_get_threshold):
         """Phase 58.5: tight_rangeレジームでのTP/SL計算テスト（TP 0.4%, SL 0.3%）."""
 
@@ -274,7 +274,7 @@ class TestRiskManager(unittest.TestCase):
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
+    @patch("src.core.config.get_threshold")
     def test_regime_based_tp_sl_normal_range(self, mock_get_threshold):
         """Phase 52.0: normal_rangeレジームでのTP/SL計算テスト."""
 
@@ -315,7 +315,7 @@ class TestRiskManager(unittest.TestCase):
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
+    @patch("src.core.config.get_threshold")
     def test_regime_based_tp_sl_trending(self, mock_get_threshold):
         """Phase 52.0: trendingレジームでのTP/SL計算テスト."""
 
@@ -354,7 +354,7 @@ class TestRiskManager(unittest.TestCase):
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
+    @patch("src.core.config.get_threshold")
     def test_regime_based_tp_sl_no_regime(self, mock_get_threshold):
         """Phase 52.0: レジーム情報なしの場合のフォールバックテスト."""
 
@@ -395,7 +395,7 @@ class TestRiskManager(unittest.TestCase):
         self.assertEqual(stop_loss, expected_stop_loss)
         self.assertEqual(take_profit, expected_take_profit)
 
-    @patch("src.core.config.threshold_manager.get_threshold")
+    @patch("src.core.config.get_threshold")
     def test_regime_based_tp_sl_disabled(self, mock_get_threshold):
         """Phase 52.0: レジーム別TP/SL無効時のフォールバックテスト."""
 
