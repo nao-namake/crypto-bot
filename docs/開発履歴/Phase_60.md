@@ -164,27 +164,84 @@ expected_runs = int(self.period_hours * runs_per_hour)
 
 ---
 
-## Phase 60.3: （予定）Walk-Forward検証
+## Phase 60.3: Walk-Forward検証実装 ⏳実行中
+
+**実施日**: 2026年1月19日
+**コミット**: `15863e15`
+
+### 背景
+
+現在のバックテストは訓練データとテストデータが100%重複（2025/7-12月）しており、ML予測部分の信頼性が低い。Walk-Forward検証を実装し、過学習を排除した信頼できるバックテスト結果を得る。
+
+### 実装内容
+
+| ファイル | 内容 |
+|---------|------|
+| `scripts/backtest/walk_forward_validation.py` | メイン検証スクリプト |
+| `scripts/backtest/wf_config.yaml` | 設定ファイル |
+| `.github/workflows/walk_forward.yml` | GitHub Actionsワークフロー |
+| `docs/検証記録/walk_forward/` | 結果出力ディレクトリ |
+
+### ウィンドウ構成
+
+データ期間: 2025-07-01 〜 2025-12-31（183日）
+設定: Train 60日、Test 30日、Step 30日
+
+| Window | Train期間 | Test期間 |
+|--------|----------|----------|
+| 1 | 7/1 - 8/30 | 8/31 - 9/29 |
+| 2 | 7/31 - 9/29 | 9/30 - 10/29 |
+| 3 | 8/30 - 10/29 | 10/30 - 11/28 |
+| 4 | 9/29 - 11/28 | 11/29 - 12/28 |
+
+### 処理フロー
+
+```
+1. 設定読み込み・データロード
+2. ウィンドウ生成（4ウィンドウ）
+3. 各ウィンドウで順次実行:
+   ├─ 訓練データ抽出
+   ├─ MLモデル訓練（NewSystemMLModelCreator使用）
+   ├─ テスト期間でバックテスト実行
+   └─ 結果収集
+4. 全ウィンドウ結果集計
+5. レポート生成（JSON + Markdown）
+```
+
+### 検証基準
+
+| 指標 | 良好 | 注意 | 危険 |
+|------|------|------|------|
+| PF標準偏差 | < 0.2 | 0.2-0.4 | > 0.4 |
+| 全Window PF | 全て > 1.0 | 1つ < 1.0 | 複数 < 1.0 |
+| WF vs Full差 | < 10% | 10-20% | > 20% |
+
+### 使用方法
+
+```bash
+# GitHub Actionsから実行
+# Actions → Walk-Forward Validation → Run workflow
+
+# ドライラン（ウィンドウ確認のみ）
+python scripts/backtest/walk_forward_validation.py --dry-run
+```
+
+### 実行状況
+
+**ステータス**: ⏳ キュー待機中（バックテスト完了後に自動開始）
+**URL**: https://github.com/nao-namake/crypto-bot/actions/runs/21119429243
+
+予想実行時間: 2-4時間
+
+<!-- Walk-Forward完了後に結果を記入 -->
+
+---
+
+## Phase 60.4: （予定）コードベース整理
 
 - 未使用コード削除
 - ドキュメント整理
 - 依存関係更新
-
----
-
-## Phase 60.3: （予定）稼働率改善
-
-- 目標: 稼働率90%以上
-- Container再起動対策
-- API障害対応強化
-
----
-
-## Phase 60.4: （予定）Walk-Forward検証実装
-
-- 期間分割バックテスト
-- 過学習検出
-- モデル安定性評価
 
 ---
 
@@ -213,4 +270,4 @@ expected_runs = int(self.period_hours * runs_per_hour)
 
 ---
 
-**最終更新**: 2026年1月19日
+**最終更新**: 2026年1月19日 - Phase 60.3 Walk-Forward検証実装
