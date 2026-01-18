@@ -169,17 +169,7 @@ jobs:
             # サマリー表示
             echo ""
             echo "=== 結果サマリー ==="
-            python3 -c "
-import json
-with open('$LATEST_JSON', 'r') as f:
-    data = json.load(f)
-    metrics = data.get('aggregate_metrics', {})
-    stability = data.get('stability_assessment', {})
-    print(f\"平均PF: {metrics.get('mean_pf', 0):.2f} (±{metrics.get('std_pf', 0):.3f})\")
-    print(f\"総損益: ¥{metrics.get('total_pnl', 0):,.0f}\")
-    print(f\"安定性: {stability.get('stability_level', 'N/A')}\")
-    print(f\"過学習リスク: {stability.get('overfitting_risk', 'N/A')}\")
-"
+            cat "$LATEST_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); m=d.get('aggregate_metrics',{}); s=d.get('stability_assessment',{}); print(f'平均PF: {m.get(\"mean_pf\",0):.2f}'); print(f'安定性: {s.get(\"stability_level\",\"N/A\")}'); print(f'過学習リスク: {s.get(\"overfitting_risk\",\"N/A\")}')"
           else
             echo "⚠️ JSONレポート未生成"
           fi
