@@ -568,8 +568,10 @@ class LiveAnalyzer:
                 logs = json.loads(result.stdout) if result.stdout.strip() else []
                 actual_runs = len(logs)
 
-                # 期待される実行回数（5分間隔）
-                expected_runs = self.period_hours * 12  # 1時間に12回
+                # 期待される実行回数（7分間隔: 処理時間2分+待機5分）
+                # Phase 60.2: 5分→7分に修正（実測値に基づく）
+                runs_per_hour = 60 / 7  # 約8.57回/時間
+                expected_runs = int(self.period_hours * runs_per_hour)
 
                 # 結果を保存
                 self.result.actual_cycle_count = actual_runs
@@ -578,7 +580,7 @@ class LiveAnalyzer:
                 if expected_runs > 0:
                     self.result.uptime_rate = min(100.0, (actual_runs / expected_runs) * 100)
                     missed_runs = max(0, expected_runs - actual_runs)
-                    self.result.total_downtime_minutes = missed_runs * 5  # 5分間隔
+                    self.result.total_downtime_minutes = missed_runs * 7  # 7分間隔
 
                 self.logger.info(
                     f"稼働率計算完了 - {self.result.uptime_rate:.1f}% "

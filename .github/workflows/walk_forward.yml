@@ -1,0 +1,311 @@
+# Walk-Forward Validation ワークフロー
+# Phase 60.3: 過学習検出・真のML予測力評価
+#
+# 実行方法:
+#   GitHub → Actions → Walk-Forward Validation → Run workflow
+
+name: Walk-Forward Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ドライラン（ウィンドウ確認のみ）'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+env:
+  PYTHON_VERSION: '3.13'
+  # 長時間実行のためタイムアウトを長めに設定
+  WF_TIMEOUT_MINUTES: 360  # 6時間
+
+jobs:
+  walk-forward:
+    name: Walk-Forward Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 420  # 全体タイムアウト: 7時間
+
+    permissions:
+      contents: write  # Git commitとpushに必要
+
+    steps:
+      # ========================================
+      # Step 1: コードチェックアウト
+      # ========================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 全履歴取得（Git操作用）
+
+      # ========================================
+      # Step 2: Python環境セットアップ
+      # ========================================
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      # ========================================
+      # Step 3: 依存関係インストール
+      # ========================================
+      - name: Install dependencies
+        run: |
+          echo "📦 依存関係インストール開始..."
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "✅ 依存関係インストール完了"
+
+      # ========================================
+      # Step 4: 履歴データ収集
+      # ========================================
+      - name: Collect historical data
+        run: |
+          echo "📥 履歴データ収集開始..."
+
+          # 必要なディレクトリ作成
+          mkdir -p src/backtest/data/historical
+          mkdir -p models/walk_forward
+          mkdir -p docs/検証記録/walk_forward
+
+          # Walk-Forward用の期間でデータ収集（2025-07-01 ~ 2025-12-31）
+          echo "📅 Walk-Forward期間: 2025-07-01 ~ 2025-12-31"
+          python3 src/backtest/scripts/collect_historical_csv.py \
+            --start-date "2025-07-01" \
+            --end-date "2025-12-31"
+
+          # データ収集確認
+          if [ -f "src/backtest/data/historical/BTC_JPY_15m.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/BTC_JPY_15m.csv)
+            echo "✅ 15分足データ収集完了: ${CSV_LINES}行"
+          else
+            echo "❌ 15分足データ収集失敗"
+            exit 1
+          fi
+
+          if [ -f "src/backtest/data/historical/BTC_JPY_4h.csv" ]; then
+            CSV_LINES=$(wc -l < src/backtest/data/historical/BTC_JPY_4h.csv)
+            echo "✅ 4時間足データ収集完了: ${CSV_LINES}行"
+          else
+            echo "❌ 4時間足データ収集失敗"
+            exit 1
+          fi
+
+          echo "✅ 履歴データ収集完了"
+
+      # ========================================
+      # Step 5: 環境準備
+      # ========================================
+      - name: Setup environment
+        run: |
+          echo "🔧 環境準備開始..."
+
+          # 必要なディレクトリ作成
+          mkdir -p logs cache src/backtest/logs
+
+          # モデルメタデータ作成
+          echo '{"version": "walk_forward", "features": 55, "created": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > models/production/model_metadata.json
+
+          # モデルファイル確認
+          if [ -f "models/production/ensemble_full.pkl" ]; then
+            echo "✅ ensemble_full.pkl確認済み"
+          else
+            echo "⚠️ ensemble_full.pkl未確認（Walk-Forwardで生成されます）"
+          fi
+
+          echo "✅ 環境準備完了"
+
+      # ========================================
+      # Step 6: Walk-Forward Validation 実行
+      # ========================================
+      - name: Run Walk-Forward Validation
+        run: |
+          echo "🚀 Walk-Forward Validation 開始..."
+          echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
+
+          # PYTHONPATH設定
+          export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+
+          # ドライラン判定
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "📋 ドライランモード"
+            timeout $((WF_TIMEOUT_MINUTES * 60)) python3 scripts/backtest/walk_forward_validation.py --dry-run --verbose 2>&1 | tee walk_forward_run.log
+          else
+            echo "🔄 本実行モード"
+            timeout $((WF_TIMEOUT_MINUTES * 60)) python3 scripts/backtest/walk_forward_validation.py --verbose 2>&1 | tee walk_forward_run.log
+          fi
+
+          WF_EXIT_CODE=${PIPESTATUS[0]}
+
+          if [ $WF_EXIT_CODE -eq 0 ]; then
+            echo "✅ Walk-Forward Validation 完了"
+          elif [ $WF_EXIT_CODE -eq 124 ]; then
+            echo "⏱️ タイムアウト（${WF_TIMEOUT_MINUTES}分超過）"
+            exit 1
+          else
+            echo "❌ 実行失敗（終了コード: $WF_EXIT_CODE）"
+            exit 1
+          fi
+
+      # ========================================
+      # Step 7: 結果確認
+      # ========================================
+      - name: Check results
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "📊 結果確認..."
+
+          # 結果ファイル確認
+          LATEST_JSON=$(ls -t docs/検証記録/walk_forward/walk_forward_*.json 2>/dev/null | head -1)
+          if [ -n "$LATEST_JSON" ]; then
+            echo "✅ JSONレポート生成確認: $LATEST_JSON"
+            echo "LATEST_JSON=$LATEST_JSON" >> $GITHUB_ENV
+
+            # サマリー表示
+            echo ""
+            echo "=== 結果サマリー ==="
+            python3 -c "
+import json
+with open('$LATEST_JSON', 'r') as f:
+    data = json.load(f)
+    metrics = data.get('aggregate_metrics', {})
+    stability = data.get('stability_assessment', {})
+    print(f\"平均PF: {metrics.get('mean_pf', 0):.2f} (±{metrics.get('std_pf', 0):.3f})\")
+    print(f\"総損益: ¥{metrics.get('total_pnl', 0):,.0f}\")
+    print(f\"安定性: {stability.get('stability_level', 'N/A')}\")
+    print(f\"過学習リスク: {stability.get('overfitting_risk', 'N/A')}\")
+"
+          else
+            echo "⚠️ JSONレポート未生成"
+          fi
+
+          LATEST_MD=$(ls -t docs/検証記録/walk_forward/walk_forward_*.md 2>/dev/null | head -1)
+          if [ -n "$LATEST_MD" ]; then
+            echo "✅ Markdownレポート生成確認: $LATEST_MD"
+            echo "LATEST_MD=$LATEST_MD" >> $GITHUB_ENV
+          fi
+
+      # ========================================
+      # Step 8: Artifact保存
+      # ========================================
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: walk-forward-results
+          path: |
+            docs/検証記録/walk_forward/
+            walk_forward_run.log
+            models/walk_forward/
+          retention-days: 90
+
+      # ========================================
+      # Step 9: Git設定
+      # ========================================
+      - name: Configure Git
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "⚙️ Git設定..."
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+
+      # ========================================
+      # Step 10: レポートコミット
+      # ========================================
+      - name: Commit results
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "📤 レポートコミット..."
+
+          # 変更ファイル確認
+          git status --short
+
+          # Walk-Forwardレポートをコミット
+          git add "docs/検証記録/walk_forward/"
+
+          # コミット（変更がある場合のみ）
+          if git diff --staged --quiet; then
+            echo "ℹ️ コミット対象なし"
+          else
+            REPORT_DATE=$(TZ=Asia/Tokyo date '+%Y/%m/%d')
+            COMMIT_MSG="docs: Walk-Forward Validation レポート追加 ${REPORT_DATE}"
+            git commit -m "${COMMIT_MSG}"
+            echo "✅ コミット完了"
+          fi
+
+      # ========================================
+      # Step 11: プッシュ
+      # ========================================
+      - name: Push to repository
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "🚀 プッシュ..."
+
+          # リモート変更取得
+          git fetch origin main
+          git rebase origin/main || {
+            echo "⚠️ rebase競合 - 自動解決試行"
+            git rebase --abort
+            git pull --rebase origin main
+          }
+
+          # プッシュ（リトライ付き）
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if git push origin main; then
+              echo "✅ プッシュ完了"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "⚠️ プッシュ失敗（試行 $RETRY_COUNT/$MAX_RETRIES）"
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                git pull --rebase origin main
+              fi
+            fi
+          done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "❌ プッシュ失敗（${MAX_RETRIES}回リトライ後）"
+            exit 1
+          fi
+
+      # ========================================
+      # Step 12: 実行サマリー
+      # ========================================
+      - name: Execution summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "📊 Walk-Forward Validation サマリー"
+          echo "========================================"
+          echo "モード: ${{ github.event.inputs.dry_run == 'true' && 'ドライラン' || '本実行' }}"
+          echo "ステータス: ${{ job.status }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ 完了"
+            if [ -n "$LATEST_MD" ]; then
+              echo "📝 レポート: $LATEST_MD"
+            fi
+          else
+            echo "❌ 失敗"
+            echo "🔍 ログを確認してください"
+          fi
+
+          echo "========================================"
+          echo "実行時刻（JST）: $(TZ=Asia/Tokyo date '+%Y/%m/%d %H:%M:%S')"
+          echo "========================================"
+
+# ========================================
+# 同時実行制御
+# ========================================
+# backtest.yml と同じグループを使用して同時実行を防止
+# （thresholds.yaml / models/ / logs/ の競合回避）
+concurrency:
+  group: weekly-backtest
+  cancel-in-progress: false
