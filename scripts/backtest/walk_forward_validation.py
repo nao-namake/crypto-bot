@@ -305,7 +305,7 @@ class WalkForwardValidator:
                 temp_model_path.mkdir(parents=True, exist_ok=True)
 
                 # ProductionEnsembleとして保存
-                ensemble = creator._create_production_ensemble()
+                ensemble = creator._create_ensemble(creator.models)
                 ensemble_path = temp_model_path / "ensemble_full.pkl"
                 with open(ensemble_path, "wb") as f:
                     pickle.dump(ensemble, f)
