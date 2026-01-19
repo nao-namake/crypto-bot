@@ -73,20 +73,23 @@ else
     fi
 fi
 
-# Phase 59.8: Stackingモデル存在確認
-echo ">>> 🤖 Phase 59.8 Stackingモデル存在確認"
-if [[ -f "models/production/stacking_ensemble.pkl" ]]; then
-    echo "✅ Stackingモデル存在確認（Phase 59.7）"
-    echo "   stacking_ensemble.pkl: StackingEnsemble（Meta-Learner + 3ベースモデル）"
-    if [[ -f "models/production/meta_learner.pkl" ]]; then
-        echo "   meta_learner.pkl: Meta-Learner（LightGBM）"
-    else
-        echo "⚠️  警告: meta_learner.pklが見つかりません"
-    fi
-else
-    echo "ℹ️  Stackingモデル未検出（stacking_enabled=false時は正常）"
-    echo "   Stackingモデル作成: python3 scripts/ml/create_ml_models.py"
-fi
+# Phase 60.5: Walk-Forward検証スクリプト整合性チェック
+echo ">>> 🔄 Phase 60.5 Walk-Forward検証スクリプト整合性チェック"
+python3 -c "
+from scripts.backtest.walk_forward_validation import WalkForwardValidator
+from scripts.ml.create_ml_models import NewSystemMLModelCreator
+
+# メソッド存在確認（内部メソッド依存箇所）
+creator = NewSystemMLModelCreator(verbose=False)
+assert hasattr(creator, '_create_ensemble'), '_create_ensemble method not found'
+assert hasattr(creator, 'models'), 'models attribute not found'
+print('✅ Walk-Forward検証スクリプト整合性確認完了')
+" 2>/dev/null || {
+    echo "❌ エラー: Walk-Forward検証スクリプトの整合性エラー"
+    echo "   create_ml_models.pyとwalk_forward_validation.pyのメソッド名が不一致です"
+    echo "   walk_forward_validation.pyを確認してください"
+    exit 1
+}
 
 # Phase 49: 必須ライブラリ確認
 echo ">>> 📦 Phase 49必須ライブラリ確認"
