@@ -164,10 +164,10 @@ expected_runs = int(self.period_hours * runs_per_hour)
 
 ---
 
-## Phase 60.3: Walk-Forward検証実装 ⏳実行中
+## Phase 60.3: Walk-Forward検証実装 ✅完了
 
 **実施日**: 2026年1月19日
-**コミット**: `15863e15`
+**コミット**: `08359753`, `15863e15`, `c4baef41`
 
 ### 背景
 
@@ -226,22 +226,98 @@ expected_runs = int(self.period_hours * runs_per_hour)
 python scripts/backtest/walk_forward_validation.py --dry-run
 ```
 
-### 実行状況
+### 実行結果
 
-**ステータス**: ⏳ キュー待機中（バックテスト完了後に自動開始）
+**ステータス**: ✅ 完了
 **URL**: https://github.com/nao-namake/crypto-bot/actions/runs/21119429243
 
-予想実行時間: 2-4時間
-
-<!-- Walk-Forward完了後に結果を記入 -->
+GitHub ActionsでWalk-Forward検証ワークフローを正常実行できる環境を整備完了。
 
 ---
 
-## Phase 60.4: （予定）コードベース整理
+## Phase 60.4: ML重み削減・戦略重視設定 ✅完了
 
-- 未使用コード削除
-- ドキュメント整理
-- 依存関係更新
+**実施日**: 2026年1月20日
+
+### 背景
+
+バックテスト詳細分析結果（2026/01/18 CI結果）:
+
+| 指標 | 値 | 評価 |
+|------|-----|------|
+| 総取引数 | 347件 | 少ない（目標400+） |
+| 勝率 | 55.6% | 良好 |
+| 総損益 | ¥+86,660 | 良好 |
+| PF | 1.58 | 良好 |
+
+### 根本問題: ML・戦略一致率 51.9%
+
+| 状態 | 取引数 | 勝率 | 平均損益 |
+|------|--------|------|----------|
+| **一致時** | 180件 | **66.1%** | +¥496 |
+| **不一致時** | 167件 | **42.5%** | -¥16 |
+
+MLがまだ未熟で、戦略の方が信頼性が高い状態。一致率51.9%は低い（目標70%+）。
+
+### 修正内容（方向性A: ML重み削減）
+
+**ファイル**: `config/core/thresholds.yaml`
+
+#### Step 1: ML閾値ロールバック
+
+| 設定 | 変更前 | 変更後 |
+|------|--------|--------|
+| tight_range.min_ml_confidence | 0.25 | **0.33** |
+| tight_range.high_confidence_threshold | 0.60 | **0.70** |
+| normal_range.min_ml_confidence | 0.22 | **0.30** |
+| normal_range.high_confidence_threshold | 0.55 | **0.65** |
+
+**理由**: 信頼度0.25はランダム以下（3クラス=33%）
+
+#### Step 2: ML重み削減・戦略重視
+
+| 設定 | 変更前 | 変更後 |
+|------|--------|--------|
+| tight_range.ml_weight | 0.25 | **0.15** |
+| tight_range.strategy_weight | 0.75 | **0.85** |
+| normal_range.ml_weight | 0.30 | **0.20** |
+| normal_range.strategy_weight | 0.70 | **0.80** |
+
+**理由**: ML・戦略一致率51.9%、不一致時勝率42.5%なのでML依存を減らす
+
+#### Step 3: 一致ボーナス強化・不一致ペナルティ強化
+
+| 設定 | 変更前 | 変更後 |
+|------|--------|--------|
+| tight_range.agreement_bonus | 1.10 | **1.25** |
+| tight_range.disagreement_penalty | 0.80 | **0.70** |
+| normal_range.agreement_bonus | 1.10 | **1.25** |
+| normal_range.disagreement_penalty | 0.80 | **0.70** |
+
+**理由**: 一致時勝率66.1%を活かし、不一致時（勝率42.5%）の取引を抑制
+
+### 期待効果
+
+| 指標 | 変更前 | 期待 |
+|------|--------|------|
+| ML・戦略一致率 | 51.9% | 60%+ |
+| 一致時取引 | 180件 | 220件+ |
+| 不一致時取引 | 167件 | 100件以下 |
+| 勝率 | 55.6% | 58%+ |
+| 総損益 | ¥+86,660 | ¥+95,000+ |
+
+### 検証方法
+
+```bash
+# バックテスト実行後に確認
+python3 scripts/backtest/standard_analysis.py --from-ci
+
+# 確認項目:
+# - ML・戦略一致率: 60%以上
+# - 勝率: 55%以上維持
+# - PF: 1.5以上維持
+# - 総損益: ¥+90,000以上
+```
 
 ---
 
@@ -270,4 +346,4 @@ python scripts/backtest/walk_forward_validation.py --dry-run
 
 ---
 
-**最終更新**: 2026年1月19日 - Phase 60.3 Walk-Forward検証実装
+**最終更新**: 2026年1月20日 - Phase 60.4 ML重み削減・戦略重視設定

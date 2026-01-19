@@ -117,24 +117,24 @@ ml:
     enabled: true  # Phase 51.9: レジーム別ML統合有効化
 
     # tight_range（狭いレンジ）: 戦略重視型
-    # Phase 59.2: 信頼度逆転問題修正（penalty強化・bonus抑制）
+    # Phase 60.4: ML重み削減・戦略重視設定（一致率51.9%→60%+目標）
     tight_range:
-      min_ml_confidence: 0.33           # Phase 55.3: 0.38→0.33（取引数増加）
-      high_confidence_threshold: 0.70   # Phase 59.2: 0.60→0.70（閾値引き上げ）
-      ml_weight: 0.25                   # ML 25%
-      strategy_weight: 0.75             # 戦略 75%
-      agreement_bonus: 1.10             # Phase 59.2: 1.18→1.10（ボーナス抑制）
-      disagreement_penalty: 0.80        # Phase 59.2: 0.96→0.80（ペナルティ強化）
+      min_ml_confidence: 0.33           # Phase 60.4: 0.25→0.33（ロールバック・3クラス最低閾値）
+      high_confidence_threshold: 0.70   # Phase 60.4: 0.60→0.70（ロールバック）
+      ml_weight: 0.15                   # Phase 60.4: 0.25→0.15（ML重み削減）
+      strategy_weight: 0.85             # Phase 60.4: 0.75→0.85（戦略重視）
+      agreement_bonus: 1.25             # Phase 60.4: 1.10→1.25（一致時勝率66.1%活用）
+      disagreement_penalty: 0.70        # Phase 60.4: 0.80→0.70（不一致時勝率42.5%抑制）
 
     # normal_range（通常レンジ）: バランス型
-    # Phase 59.2: 信頼度逆転問題修正（penalty強化・bonus抑制）
+    # Phase 60.4: ML重み削減・戦略重視設定（一致率51.9%→60%+目標）
     normal_range:
-      min_ml_confidence: 0.30           # Phase 55.3: 0.35→0.30（取引数増加）
-      high_confidence_threshold: 0.65   # Phase 59.2: 0.55→0.65（閾値引き上げ）
-      ml_weight: 0.30                   # ML 30%
-      strategy_weight: 0.70             # 戦略 70%
-      agreement_bonus: 1.10             # Phase 59.2: 1.22→1.10（ボーナス抑制）
-      disagreement_penalty: 0.80        # Phase 59.2: 0.96→0.80（ペナルティ強化）
+      min_ml_confidence: 0.30           # Phase 60.4: 0.22→0.30（ロールバック・3クラス最低閾値）
+      high_confidence_threshold: 0.65   # Phase 60.4: 0.55→0.65（ロールバック）
+      ml_weight: 0.20                   # Phase 60.4: 0.30→0.20（ML重み削減）
+      strategy_weight: 0.80             # Phase 60.4: 0.70→0.80（戦略重視）
+      agreement_bonus: 1.25             # Phase 60.4: 1.10→1.25（一致時勝率66.1%活用）
+      disagreement_penalty: 0.70        # Phase 60.4: 0.80→0.70（不一致時勝率42.5%抑制）
 
     # trending（トレンド）: ML補完重視型
     # Phase 51.8結果: 0件（未発生）
