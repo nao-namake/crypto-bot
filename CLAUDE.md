@@ -1,23 +1,33 @@
-# CLAUDE.md - Phase 59開発ガイド
+# CLAUDE.md - Phase 60開発ガイド
 
-**最終更新**: 2026年1月18日
+**最終更新**: 2026年1月20日
 
 ---
 
-## システム現状（Phase 59完了）
+## システム現状（Phase 60進行中）
 
 ### 概要
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 59完了（ML最適化・Stacking検証）|
-| **前Phase** | 58完了（TP/SL管理・ポジション同期修正） |
+| **Phase** | 60進行中（実効レバレッジ最適化・MLモデル差別化）|
+| **前Phase** | 59完了（ML最適化・Stacking検証） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
 | **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
-| **MLモデル** | ProductionEnsemble（LightGBM 40% / XGBoost 40% / RF 20%）※Stacking無効 |
+| **MLモデル** | ProductionEnsemble（動的重み・シード差別化）※Stacking無効 |
 | **分類方式** | 真の3クラス分類（BUY / HOLD / SELL） |
 | **証拠金** | 50万円（Phase 57で10万→50万に変更） |
 | **年利目標** | 10%（DD 10%許容） |
+
+### Phase 60 成果
+
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| 60.1 | 実効レバレッジ0.5倍移行 | 14箇所設定変更・年利75%目標 |
+| 60.2 | 稼働率計算修正 | 7分間隔対応・稼働率100%表示 |
+| 60.3 | Walk-Forward検証実装 | 過学習排除・信頼性向上 |
+| 60.4 | ML重み削減・戦略重視設定 | 一致率向上・不一致ペナルティ強化 |
+| **60.5** | **MLモデル差別化** | **シード差別化・特徴量サンプリング・動的重み計算** |
 
 ### Phase 59 成果
 
@@ -367,13 +377,14 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 
 | ファイル | 内容 |
 |---------|------|
-| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-59サマリー） |
+| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-60サマリー） |
 | Phase_54.md | ATRレンジ消尽戦略リファクタリング |
 | Phase_55.md | 戦略最適化・重みづけ調整 |
 | Phase_56.md | リスク管理問題対応 |
 | Phase_57.md | 年利10%目標・リスク最大化 |
 | Phase_58.md | TP/SL管理・ポジション同期修正 |
-| **Phase_59.md** | **ML最適化・Stacking検証（完了）** |
+| Phase_59.md | ML最適化・Stacking検証（完了） |
+| **Phase_60.md** | **実効レバレッジ最適化・MLモデル差別化（進行中）** |
 
 ### docs/開発計画/
 
@@ -422,7 +433,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ## 開発開始前チェックリスト
 
-1. **最新状況把握**: Phase 59・Phase_59.md確認
+1. **最新状況把握**: Phase 60・Phase_60.md確認
 2. **品質チェック**: `bash scripts/testing/checks.sh`実行
 3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
 4. **GCP確認**: サービス稼働状況・最新リビジョン
@@ -430,4 +441,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月18日 - **Phase 59完了**（Stacking無効化・PE採用・過去最高¥+54,526）
+**📅 最終更新**: 2026年1月20日 - **Phase 60.5完了**（MLモデル差別化・シード差別化・動的重み計算）

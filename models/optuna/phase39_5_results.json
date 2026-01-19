@@ -1,0 +1,35 @@
+{
+  "created_at": "2026-01-20T06:55:29.035159",
+  "n_trials": 50,
+  "models": {
+    "lightgbm": {
+      "best_params": {
+        "learning_rate": 0.010036594069456697,
+        "max_depth": 10,
+        "n_estimators": 222,
+        "num_leaves": 24
+      },
+      "best_score": 0.38957966323479615,
+      "n_trials": 50
+    },
+    "xgboost": {
+      "best_params": {
+        "learning_rate": 0.011842981177017911,
+        "max_depth": 12,
+        "n_estimators": 111,
+        "min_child_weight": 7
+      },
+      "best_score": 0.39254097737914734,
+      "n_trials": 50
+    },
+    "random_forest": {
+      "best_params": {
+        "n_estimators": 72,
+        "max_depth": 9,
+        "min_samples_split": 9
+      },
+      "best_score": 0.39544638271462446,
+      "n_trials": 50
+    }
+  }
+}

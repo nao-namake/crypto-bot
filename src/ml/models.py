@@ -288,7 +288,11 @@ class LGBMModel(BaseMLModel):
     """LightGBM分類モデル"""
 
     def __init__(self, **kwargs):
-        """LightGBMモデルの初期化"""
+        """
+        LightGBMモデルの初期化
+
+        Phase 60.5: 設定ファイルからシード値を取得（モデル差別化対応）
+        """
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.lgbm", {})
         # Phase 51.9-6D: 3クラス専用（デフォルトをmulticlassに変更）
@@ -302,8 +306,11 @@ class LGBMModel(BaseMLModel):
 
         merged_params = {**default_params, **kwargs}
 
-        # シード値設定（再現性確保）
-        seed = int(os.environ.get("CRYPTO_BOT_SEED", 42))
+        # Phase 60.5: シード値設定（kwargs > 設定ファイル > 環境変数 > デフォルト）
+        if "random_state" in kwargs:
+            seed = kwargs["random_state"]  # kwargsで明示的に指定された場合はそれを使用
+        else:
+            seed = config_params.get("random_state", int(os.environ.get("CRYPTO_BOT_SEED", 42)))
         merged_params.update(
             {
                 "random_state": seed,
@@ -380,7 +387,11 @@ class XGBModel(BaseMLModel):
     """XGBoost分類モデル"""
 
     def __init__(self, **kwargs):
-        """XGBoostモデルの初期化"""
+        """
+        XGBoostモデルの初期化
+
+        Phase 60.5: 設定ファイルからシード値を取得（モデル差別化対応）
+        """
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.xgb", {})
         # Phase 51.9-6D: 3クラス専用（デフォルトをmulti:softprobに変更）
@@ -397,8 +408,11 @@ class XGBModel(BaseMLModel):
 
         merged_params = {**default_params, **kwargs}
 
-        # シード値設定（再現性確保）
-        seed = int(os.environ.get("CRYPTO_BOT_SEED", 42))
+        # Phase 60.5: シード値設定（kwargs > 設定ファイル > 環境変数 > デフォルト）
+        if "random_state" in kwargs:
+            seed = kwargs["random_state"]  # kwargsで明示的に指定された場合はそれを使用
+        else:
+            seed = config_params.get("random_state", int(os.environ.get("CRYPTO_BOT_SEED", 123)))
         merged_params.update({"random_state": seed, "seed": seed})
 
         super().__init__(model_name="XGBoost", **merged_params)
@@ -469,7 +483,11 @@ class RFModel(BaseMLModel):
     """RandomForest分類モデル"""
 
     def __init__(self, **kwargs):
-        """RandomForestモデルの初期化"""
+        """
+        RandomForestモデルの初期化
+
+        Phase 60.5: 設定ファイルからシード値を取得（モデル差別化対応）
+        """
         # デフォルトパラメータ（設定ファイルから取得）
         config_params = get_threshold("models.rf", {})
         default_params = {
@@ -486,8 +504,11 @@ class RFModel(BaseMLModel):
 
         merged_params = {**default_params, **kwargs}
 
-        # シード値設定（再現性確保）
-        seed = int(os.environ.get("CRYPTO_BOT_SEED", 42))
+        # Phase 60.5: シード値設定（kwargs > 設定ファイル > 環境変数 > デフォルト）
+        if "random_state" in kwargs:
+            seed = kwargs["random_state"]  # kwargsで明示的に指定された場合はそれを使用
+        else:
+            seed = config_params.get("random_state", int(os.environ.get("CRYPTO_BOT_SEED", 456)))
         merged_params["random_state"] = seed
 
         super().__init__(model_name="RandomForest", **merged_params)

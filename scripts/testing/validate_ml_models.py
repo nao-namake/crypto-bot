@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Phase 59.8: ML検証統合スクリプト（Stacking対応）
+Phase 60.5: ML検証統合スクリプト（多様性検証対応）
 
 統合元:
 - Phase 54.7: validate_model_performance.py
 - Phase 54.8: validate_ml_prediction_distribution.py
 - Phase 51.5-A/55.7: validate_model_consistency.py
 - Phase 59.8: Stacking検証追加
+- Phase 60.5: モデル多様性検証追加
 
 検証項目:
 1. モデルファイル整合性
@@ -17,18 +18,24 @@ Phase 59.8: ML検証統合スクリプト（Stacking対応）
 6. 信頼度統計
 7. 個別モデル性能
 8. Stackingモデル検証（Phase 59.8追加）
+9. モデル多様性検証（Phase 60.5追加）
+   - モデル間予測一致率
+   - 予測確率の相関係数
+   - クラス確率の分散
+   - シード値確認
 
 使用方法:
     # 全検証
-    python scripts/ml/validate_ml_models.py
+    python scripts/testing/validate_ml_models.py
 
     # 特定検証のみ
-    python scripts/ml/validate_ml_models.py --check consistency
-    python scripts/ml/validate_ml_models.py --check distribution
-    python scripts/ml/validate_ml_models.py --check performance
+    python scripts/testing/validate_ml_models.py --check consistency
+    python scripts/testing/validate_ml_models.py --check distribution
+    python scripts/testing/validate_ml_models.py --check performance
+    python scripts/testing/validate_ml_models.py --check diversity
 
     # 軽量モード（実データ読み込みなし・高速）
-    python scripts/ml/validate_ml_models.py --quick
+    python scripts/testing/validate_ml_models.py --quick
 """
 
 import argparse
@@ -465,6 +472,160 @@ class MLModelValidator:
         print(f"\n✅ Stackingモデル検証完了")
 
     # ========================================
+    # Phase 60.5: モデル多様性検証（diversity）
+    # ========================================
+
+    def validate_model_diversity(self) -> None:
+        """
+        Phase 60.5: モデル間予測多様性検証
+
+        検証項目:
+        1. モデル間予測一致率（Agreement Rate）
+        2. 予測確率の相関係数
+        3. クラス確率の分散
+        4. シード値確認
+        """
+        print("\n" + "=" * 60)
+        print("🎯 Phase 60.5: モデル多様性検証")
+        print("=" * 60)
+
+        if self.model is None:
+            if not self._load_model():
+                return
+
+        # データ準備
+        df = self._load_real_data(n_samples=200)
+        if df is None:
+            return
+
+        features_df = self._generate_features(df)
+        if features_df is None:
+            return
+
+        if not hasattr(self.model, "models"):
+            print("⚠️ 個別モデルへのアクセス不可")
+            return
+
+        try:
+            expected_features = (
+                self.model.feature_names if hasattr(self.model, "feature_names") else []
+            )
+
+            test_df = features_df.copy()
+            for f in expected_features:
+                if f not in test_df.columns:
+                    test_df[f] = 0.0
+
+            X_test = test_df[expected_features].values
+            X_test = np.nan_to_num(X_test, nan=0.0)
+
+            # 各モデルから予測を取得
+            model_predictions = {}
+            model_probas = {}
+
+            for name, model in self.model.models.items():
+                try:
+                    predictions = model.predict(X_test)
+                    model_predictions[name] = predictions
+
+                    if hasattr(model, "predict_proba"):
+                        probas = model.predict_proba(X_test)
+                        model_probas[name] = np.max(probas, axis=1)
+                except Exception as e:
+                    self.warnings.append(f"⚠️  {name}の予測取得失敗: {e}")
+
+            if len(model_predictions) < 2:
+                self.errors.append("❌ 多様性検証に必要なモデル数が不足")
+                return
+
+            # 1. モデル間予測一致率
+            print(f"\n🎯 1. モデル間予測一致率（Agreement Rate）:")
+            model_names = list(model_predictions.keys())
+            agreement_rates = {}
+
+            for i in range(len(model_names)):
+                for j in range(i + 1, len(model_names)):
+                    name_i = model_names[i]
+                    name_j = model_names[j]
+                    preds_i = model_predictions[name_i]
+                    preds_j = model_predictions[name_j]
+                    agreement = np.mean(preds_i == preds_j) * 100
+                    key = f"{name_i} vs {name_j}"
+                    agreement_rates[key] = agreement
+                    print(f"   {key}: {agreement:.1f}%")
+
+            # 3モデル全一致率
+            if len(model_names) == 3:
+                preds_all = [model_predictions[n] for n in model_names]
+                all_agree = (
+                    np.mean((preds_all[0] == preds_all[1]) & (preds_all[1] == preds_all[2])) * 100
+                )
+                print(f"   3モデル全一致率: {all_agree:.1f}%")
+
+                if all_agree >= 70:
+                    self.warnings.append(
+                        f"⚠️  3モデル全一致率が高すぎます: {all_agree:.1f}% >= 70%（多様性不足）"
+                    )
+                else:
+                    print(f"   ✅ 多様性良好（全一致率: {all_agree:.1f}% < 70%）")
+
+            # 2. 予測確率の相関係数
+            if len(model_probas) >= 2:
+                print(f"\n🎯 2. 予測確率の相関係数:")
+                proba_names = list(model_probas.keys())
+
+                for i in range(len(proba_names)):
+                    for j in range(i + 1, len(proba_names)):
+                        name_i = proba_names[i]
+                        name_j = proba_names[j]
+                        corr = np.corrcoef(model_probas[name_i], model_probas[name_j])[0, 1]
+                        print(f"   {name_i} vs {name_j}: r={corr:.3f}")
+
+                        if corr > 0.95:
+                            self.warnings.append(
+                                f"⚠️  {name_i} vs {name_j}の相関が高すぎます: r={corr:.3f} > 0.95"
+                            )
+
+            # 3. クラス確率の分散
+            print(f"\n🎯 3. モデル別予測分布:")
+            for name, predictions in model_predictions.items():
+                unique, counts = np.unique(predictions, return_counts=True)
+                distribution = dict(zip(unique, counts))
+                total = len(predictions)
+                sell_pct = distribution.get(0, 0) / total * 100
+                hold_pct = distribution.get(1, 0) / total * 100
+                buy_pct = distribution.get(2, 0) / total * 100
+                print(f"   {name}: SELL {sell_pct:.1f}%, HOLD {hold_pct:.1f}%, BUY {buy_pct:.1f}%")
+
+            # 4. シード値確認
+            print(f"\n🎯 4. モデルシード値確認:")
+            for name, model in self.model.models.items():
+                seed = "unknown"
+                if hasattr(model, "random_state"):
+                    seed = model.random_state
+                elif hasattr(model, "get_params"):
+                    params = model.get_params()
+                    seed = params.get("random_state", "unknown")
+                print(f"   {name}: random_state={seed}")
+
+            # シード値が全て同じかチェック
+            seeds = []
+            for name, model in self.model.models.items():
+                if hasattr(model, "get_params"):
+                    params = model.get_params()
+                    seeds.append(params.get("random_state"))
+
+            if len(set(seeds)) == 1 and len(seeds) > 1:
+                self.warnings.append(
+                    f"⚠️  全モデルのシード値が同一: {seeds[0]}（多様性確保のため異なるシード推奨）"
+                )
+
+            print(f"\n✅ モデル多様性検証完了")
+
+        except Exception as e:
+            self.errors.append(f"❌ モデル多様性検証失敗: {e}")
+
+    # ========================================
     # 予測分布検証（distribution）
     # ========================================
 
@@ -709,6 +870,10 @@ class MLModelValidator:
         self.validate_confidence_stats()
         self.validate_individual_models()
 
+    def run_diversity(self) -> None:
+        """Phase 60.5: 多様性検証を実行"""
+        self.validate_model_diversity()
+
     def run_all(self, quick: bool = False) -> bool:
         """全検証を実行"""
         print("\n" + "=" * 60)
@@ -756,10 +921,12 @@ class MLModelValidator:
 
 def main() -> int:
     """メイン処理"""
-    parser = argparse.ArgumentParser(description="Phase 59.8: ML検証統合スクリプト（Stacking対応）")
+    parser = argparse.ArgumentParser(
+        description="Phase 60.5: ML検証統合スクリプト（多様性検証対応）"
+    )
     parser.add_argument(
         "--check",
-        choices=["all", "consistency", "distribution", "performance"],
+        choices=["all", "consistency", "distribution", "performance", "diversity"],
         default="all",
         help="検証タイプを指定（デフォルト: all）",
     )
@@ -784,6 +951,10 @@ def main() -> int:
     elif args.check == "performance":
         validator.metadata = validator._load_model_metadata()
         validator.run_performance()
+        success = validator._print_results()
+    elif args.check == "diversity":
+        # Phase 60.5: 多様性検証
+        validator.run_diversity()
         success = validator._print_results()
     else:
         success = False
