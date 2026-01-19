@@ -215,7 +215,16 @@ jobs:
           # 変更ファイル確認
           git status --short
 
-          # Walk-Forwardレポートをコミット
+          # Walk-Forward検証で変更された設定ファイルをリセット
+          # （thresholds.yamlはML訓練時に一時的に変更されるが、コミット対象外）
+          echo "🔄 一時変更ファイルをリセット..."
+          git checkout -- config/core/thresholds.yaml 2>/dev/null || true
+          git checkout -- config/core/*.yaml 2>/dev/null || true
+
+          # 一時生成ファイルを削除（model_metadata.json等）
+          rm -f models/production/model_metadata.json 2>/dev/null || true
+
+          # Walk-Forwardレポートのみをコミット
           git add "docs/検証記録/walk_forward/"
 
           # コミット（変更がある場合のみ）
@@ -227,6 +236,10 @@ jobs:
             git commit -m "${COMMIT_MSG}"
             echo "✅ コミット完了"
           fi
+
+          # 残りの未ステージ変更を確認
+          echo "📋 未ステージ変更確認:"
+          git status --short
 
       # ========================================
       # Step 11: プッシュ
@@ -242,6 +255,11 @@ jobs:
             exit 0
           fi
 
+          # rebase前に未ステージ変更をクリーンアップ
+          echo "🧹 未ステージ変更をクリーンアップ..."
+          git checkout -- . 2>/dev/null || true
+          git clean -fd 2>/dev/null || true
+
           # プッシュ（リトライ付き）
           MAX_RETRIES=3
           RETRY_COUNT=0
@@ -249,7 +267,7 @@ jobs:
             # リモート最新取得
             git fetch origin main
 
-            # rebase試行（競合時はtheirs戦略でWalk-Forward結果を優先）
+            # rebase試行
             if git rebase origin/main; then
               echo "✅ rebase成功"
             else
