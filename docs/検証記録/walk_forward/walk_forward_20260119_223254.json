@@ -1,0 +1,75 @@
+{
+  "status": "no_successful_windows",
+  "window_results": [
+    {
+      "window_id": 1,
+      "train_period": {
+        "start": "2025-07-01T00:00:00",
+        "end": "2025-08-30T00:00:00"
+      },
+      "test_period": {
+        "start": "2025-08-31T00:00:00",
+        "end": "2025-09-29T00:00:00"
+      },
+      "ml_training": {
+        "status": "insufficient_data",
+        "train_period": "2025-07-01 ~ 2025-08-30"
+      },
+      "backtest": {},
+      "status": "ml_training_failed"
+    },
+    {
+      "window_id": 2,
+      "train_period": {
+        "start": "2025-07-31T00:00:00",
+        "end": "2025-09-29T00:00:00"
+      },
+      "test_period": {
+        "start": "2025-09-30T00:00:00",
+        "end": "2025-10-29T00:00:00"
+      },
+      "ml_training": {
+        "status": "insufficient_data",
+        "train_period": "2025-07-31 ~ 2025-09-29"
+      },
+      "backtest": {},
+      "status": "ml_training_failed"
+    },
+    {
+      "window_id": 3,
+      "train_period": {
+        "start": "2025-08-30T00:00:00",
+        "end": "2025-10-29T00:00:00"
+      },
+      "test_period": {
+        "start": "2025-10-30T00:00:00",
+        "end": "2025-11-28T00:00:00"
+      },
+      "ml_training": {
+        "status": "error",
+        "train_period": "2025-08-30 ~ 2025-10-29",
+        "error": "'NewSystemMLModelCreator' object has no attribute '_create_production_ensemble'"
+      },
+      "backtest": {},
+      "status": "ml_training_failed"
+    },
+    {
+      "window_id": 4,
+      "train_period": {
+        "start": "2025-09-29T00:00:00",
+        "end": "2025-11-28T00:00:00"
+      },
+      "test_period": {
+        "start": "2025-11-29T00:00:00",
+        "end": "2025-12-28T00:00:00"
+      },
+      "ml_training": {
+        "status": "error",
+        "train_period": "2025-09-29 ~ 2025-11-28",
+        "error": "'NewSystemMLModelCreator' object has no attribute '_create_production_ensemble'"
+      },
+      "backtest": {},
+      "status": "ml_training_failed"
+    }
+  ]
+}
