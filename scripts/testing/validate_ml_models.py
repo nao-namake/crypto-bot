@@ -470,7 +470,7 @@ class MLModelValidator:
 
     def _load_real_data(self, n_samples: int = 200) -> Optional[pd.DataFrame]:
         """実データを読み込む"""
-        data_path = self.project_root / "src/backtest/data/historical/btc_jpy_15m.csv"
+        data_path = self.project_root / "src/backtest/data/historical/BTC_JPY_15m.csv"
         if not data_path.exists():
             self.errors.append(f"❌ データファイルが見つかりません: {data_path}")
             return None

@@ -232,7 +232,7 @@ class NewSystemMLModelCreator:
         """
         self.logger.info(f"📊 Phase 39.1: 実データ読み込み開始（過去{days}日分）")
 
-        csv_path = Path("src/backtest/data/historical/btc_jpy_15m.csv")
+        csv_path = Path("src/backtest/data/historical/BTC_JPY_15m.csv")
 
         # データ収集（存在しない、または古い場合）
         if not csv_path.exists():

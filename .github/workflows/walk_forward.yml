@@ -236,34 +236,48 @@ jobs:
         run: |
           echo "🚀 プッシュ..."
 
-          # リモート変更取得
-          git fetch origin main
-          git rebase origin/main || {
-            echo "⚠️ rebase競合 - 自動解決試行"
-            git rebase --abort
-            git pull --rebase origin main
-          }
+          # コミットがあるか確認
+          if ! git log origin/main..HEAD --oneline | grep -q .; then
+            echo "ℹ️ プッシュ対象のコミットなし"
+            exit 0
+          fi
 
           # プッシュ（リトライ付き）
           MAX_RETRIES=3
           RETRY_COUNT=0
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            # リモート最新取得
+            git fetch origin main
+
+            # rebase試行（競合時はtheirs戦略でWalk-Forward結果を優先）
+            if git rebase origin/main; then
+              echo "✅ rebase成功"
+            else
+              echo "⚠️ rebase競合検出 - Walk-Forward結果を優先して解決"
+              # 競合ファイルをWalk-Forward結果で上書き
+              git checkout --theirs . 2>/dev/null || true
+              git add -A
+              git rebase --continue 2>/dev/null || git rebase --skip 2>/dev/null || {
+                echo "⚠️ rebase解決不可 - abort して merge で再試行"
+                git rebase --abort
+                git merge origin/main -X ours -m "Merge origin/main with Walk-Forward results"
+              }
+            fi
+
+            # プッシュ
             if git push origin main; then
               echo "✅ プッシュ完了"
-              break
+              exit 0
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
               echo "⚠️ プッシュ失敗（試行 $RETRY_COUNT/$MAX_RETRIES）"
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                git pull --rebase origin main
-              fi
+              sleep 5
             fi
           done
 
-          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-            echo "❌ プッシュ失敗（${MAX_RETRIES}回リトライ後）"
-            exit 1
-          fi
+          echo "❌ プッシュ失敗（${MAX_RETRIES}回リトライ後）"
+          echo "📋 Artifactにレポートは保存されています"
+          exit 1
 
       # ========================================
       # Step 12: 実行サマリー

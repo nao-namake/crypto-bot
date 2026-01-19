@@ -170,8 +170,8 @@ python3 scripts/live/standard_analysis.py --output results/live/
 
 ```bash
 # データ確認
-wc -l src/backtest/data/historical/btc_jpy_4h.csv   # 期待: 1,081行
-wc -l src/backtest/data/historical/btc_jpy_15m.csv  # 期待: 17,272行
+wc -l src/backtest/data/historical/BTC_JPY_4h.csv   # 期待: 1,081行
+wc -l src/backtest/data/historical/BTC_JPY_15m.csv  # 期待: 17,272行
 
 # 実行
 bash scripts/backtest/run_backtest.sh
