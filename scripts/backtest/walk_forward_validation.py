@@ -272,7 +272,6 @@ class WalkForwardValidator:
                 optimize=self.optimize,
                 n_trials=self.n_trials,
                 models_to_train=["full"],  # fullモデルのみ
-                stacking=False,
             )
 
             # 訓練データ準備（期間フィルタはcreator内部で実施）

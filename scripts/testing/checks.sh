@@ -79,14 +79,23 @@ python3 -c "
 from scripts.backtest.walk_forward_validation import WalkForwardValidator
 from scripts.ml.create_ml_models import NewSystemMLModelCreator
 
+# Walk-Forwardと同じ引数でインスタンス化テスト
+creator = NewSystemMLModelCreator(
+    verbose=False,
+    target_threshold=0.001,
+    n_classes=3,
+    use_smote=True,
+    optimize=False,
+    n_trials=10,
+    models_to_train=['full'],
+)
 # メソッド存在確認（内部メソッド依存箇所）
-creator = NewSystemMLModelCreator(verbose=False)
 assert hasattr(creator, '_create_ensemble'), '_create_ensemble method not found'
 assert hasattr(creator, 'models'), 'models attribute not found'
 print('✅ Walk-Forward検証スクリプト整合性確認完了')
 " 2>/dev/null || {
     echo "❌ エラー: Walk-Forward検証スクリプトの整合性エラー"
-    echo "   create_ml_models.pyとwalk_forward_validation.pyのメソッド名が不一致です"
+    echo "   create_ml_models.pyとwalk_forward_validation.pyの引数/メソッド名が不一致です"
     echo "   walk_forward_validation.pyを確認してください"
     exit 1
 }
