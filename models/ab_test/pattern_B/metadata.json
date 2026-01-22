@@ -1,0 +1,92 @@
+{
+  "created_at": "2026-01-22T07:01:25.302352",
+  "pattern": "B",
+  "config": {
+    "fixed_weights": false,
+    "unified_seeds": true,
+    "use_optuna": true,
+    "seeds": {
+      "lgb": 42,
+      "xgb": 42,
+      "rf": 42
+    },
+    "weights": null,
+    "feature_fraction": 0.7,
+    "colsample_bytree": 0.7
+  },
+  "results": {
+    "lightgbm": {
+      "f1_score": 0.4533208257892398,
+      "cv_f1_mean": 0.41446976108180034,
+      "cv_f1_std": 0.021718413444855877
+    },
+    "xgboost": {
+      "f1_score": 0.4606736928136157,
+      "cv_f1_mean": 0.4175451213382436,
+      "cv_f1_std": 0.023772928931838442
+    },
+    "random_forest": {
+      "f1_score": 0.4678927233142883,
+      "cv_f1_mean": 0.42040889351342176,
+      "cv_f1_std": 0.01741836591918328
+    }
+  },
+  "feature_names": [
+    "close",
+    "volume",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "macd_histogram",
+    "stoch_k",
+    "stoch_d",
+    "atr_14",
+    "bb_upper",
+    "bb_lower",
+    "bb_position",
+    "atr_ratio",
+    "ema_20",
+    "ema_50",
+    "volume_ratio",
+    "volume_ema",
+    "donchian_high_20",
+    "donchian_low_20",
+    "channel_position",
+    "adx_14",
+    "plus_di_14",
+    "minus_di_14",
+    "close_lag_1",
+    "close_lag_2",
+    "close_lag_3",
+    "close_lag_10",
+    "volume_lag_1",
+    "volume_lag_2",
+    "volume_lag_3",
+    "rsi_lag_1",
+    "macd_lag_1",
+    "close_ma_10",
+    "close_ma_20",
+    "close_std_5",
+    "close_std_10",
+    "close_std_20",
+    "rsi_x_atr",
+    "macd_x_volume",
+    "bb_position_x_volume_ratio",
+    "close_x_atr",
+    "volume_x_bb_position",
+    "hour",
+    "day_of_week",
+    "is_market_open_hour",
+    "is_europe_session",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "strategy_signal_ATRBased",
+    "strategy_signal_DonchianChannel",
+    "strategy_signal_ADXTrendStrength",
+    "strategy_signal_BBReversal",
+    "strategy_signal_StochasticReversal",
+    "strategy_signal_MACDEMACrossover"
+  ],
+  "training_samples": 15201
+}

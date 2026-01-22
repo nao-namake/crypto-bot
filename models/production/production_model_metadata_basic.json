@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-01-20T07:14:30.446054",
+  "created_at": "2026-01-22T19:17:40.111124",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_basic.pkl",
   "version": "1.0.0",
@@ -62,49 +62,49 @@
     "random_forest"
   ],
   "model_weights": {
-    "lightgbm": 0.333,
-    "xgboost": 0.333,
-    "random_forest": 0.334
+    "lightgbm": 0.4,
+    "xgboost": 0.4,
+    "random_forest": 0.2
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.45714285714285713,
-      "f1_score": 0.4526086434825316,
-      "precision": 0.451061886689103,
-      "recall": 0.45714285714285713,
-      "cv_f1_mean": 0.41446185339099306,
-      "cv_f1_std": 0.019807676515852374
+      "accuracy": 0.470976253298153,
+      "f1_score": 0.46038467758498225,
+      "precision": 0.45869343537421015,
+      "recall": 0.470976253298153,
+      "cv_f1_mean": 0.41961796351243785,
+      "cv_f1_std": 0.025684490197156698
     },
     "xgboost": {
-      "accuracy": 0.4536796536796537,
-      "f1_score": 0.4536255706517368,
-      "precision": 0.4552995326087421,
-      "recall": 0.4536796536796537,
-      "cv_f1_mean": 0.4090305731708079,
-      "cv_f1_std": 0.02291351750850239
+      "accuracy": 0.455584872471416,
+      "f1_score": 0.4568789318020735,
+      "precision": 0.46082329438395636,
+      "recall": 0.455584872471416,
+      "cv_f1_mean": 0.4154407935289052,
+      "cv_f1_std": 0.021048068562382952
     },
     "random_forest": {
-      "accuracy": 0.45541125541125543,
-      "f1_score": 0.4537370411274002,
-      "precision": 0.4544191296918367,
-      "recall": 0.45541125541125543,
-      "cv_f1_mean": 0.41580164563023797,
-      "cv_f1_std": 0.026041237013991456
+      "accuracy": 0.46701846965699206,
+      "f1_score": 0.4484737893960348,
+      "precision": 0.45233259810736354,
+      "recall": 0.46701846965699206,
+      "cv_f1_mean": 0.4125458006507685,
+      "cv_f1_std": 0.01959669539557772
     },
     "optimal_weights": {
-      "lightgbm": 0.333,
-      "xgboost": 0.333,
-      "random_forest": 0.334
+      "lightgbm": 0.4,
+      "xgboost": 0.4,
+      "random_forest": 0.2
     }
   },
   "training_info": {
-    "samples": 15393,
+    "samples": 15152,
     "feature_count": 49,
     "training_duration_seconds": 0
   },
   "git_info": {
-    "commit": "8f81b464d5f0c0a5e7e953c933a4ffda77a4a153",
-    "commit_short": "8f81b464",
+    "commit": "61bf0e19483797107a41909c56287c43bf1553d3",
+    "commit_short": "61bf0e19",
     "branch": "main"
   },
   "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"

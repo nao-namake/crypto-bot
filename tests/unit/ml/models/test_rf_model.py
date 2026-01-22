@@ -61,8 +61,8 @@ class TestRFModel:
             model.model_params["n_jobs"] == 1
         )  # Python 3.13 Parallel処理エラー回避のため単一スレッド化
         assert model.model_params["criterion"] == "gini"
-        # Phase 60.5: 設定ファイルからシード値取得（モデル差別化対応）
-        assert model.model_params["random_state"] == 456  # config/core/thresholds.yamlから設定
+        # Phase 60.6: 設定ファイルからシード値取得（Phase 60.4復元: シード統一）
+        assert model.model_params["random_state"] == 42  # config/core/thresholds.yamlから設定
         assert model.model_params["warm_start"] is False
         assert model.model_params["ccp_alpha"] == 0.0
 

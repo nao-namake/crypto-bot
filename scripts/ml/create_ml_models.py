@@ -1073,13 +1073,17 @@ class NewSystemMLModelCreator:
                     k: v for k, v in trained_models.items() if k != "production_ensemble"
                 }
 
-                # Phase 60.5: 性能ベース動的重み計算
-                optimal_weights = self._calculate_optimal_weights(results)
-                results["optimal_weights"] = optimal_weights  # メタデータに保存
+                # Phase 60.6: 固定重み使用（Phase 60.4復元）
+                fixed_weights = {
+                    "lightgbm": 0.4,
+                    "xgboost": 0.4,
+                    "random_forest": 0.2,
+                }
+                results["optimal_weights"] = fixed_weights  # メタデータに保存
 
-                ensemble_model = self._create_ensemble(individual_models_only, optimal_weights)
+                ensemble_model = self._create_ensemble(individual_models_only, fixed_weights)
                 trained_models["production_ensemble"] = ensemble_model
-                self.logger.info("✅ アンサンブルモデル作成完了（Phase 60.5: 動的重み対応）")
+                self.logger.info("✅ Phase 60.6復元: 固定重み使用 - LGB:40%, XGB:40%, RF:20%")
 
             except Exception as e:
                 self.logger.error(f"❌ アンサンブル作成エラー: {e}")
