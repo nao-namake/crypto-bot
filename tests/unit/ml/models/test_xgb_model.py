@@ -65,8 +65,7 @@ class TestXGBModel:
         assert model.model_params["eval_metric"] == "mlogloss"  # Phase 51.9: multiclass logloss
         assert model.model_params["use_label_encoder"] is False
         assert model.model_params["tree_method"] == "hist"
-        # Phase 60.6: 設定ファイルからシード値取得（Phase 60.4復元: シード統一）
-        assert model.model_params["random_state"] == 42  # config/core/thresholds.yamlから設定
+        assert model.model_params["random_state"] == 42  # 環境変数から設定
         # early_stopping_roundsはデフォルトで設定されない
 
     def test_initialization_with_custom_params(self):

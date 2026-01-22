@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """
-新システム用MLモデル作成スクリプト - Phase 60.5-B版（Stacking削除・軽量化）
+新システム用MLモデル作成スクリプト - Phase 51.9完了版（6戦略・55特徴量・3クラス分類）
 
-Phase 60.5-B対応: Stacking関連コード削除（~400行削減）・保守性向上
-Phase 60.5対応: MLモデル差別化・シード差別化・動的重み計算
 Phase 51.9対応: 真の3クラス分類実装・55特徴量システム（6戦略統合）
+Phase 51.7 Day 7対応: 6戦略統合・動的ストラテジーローダー・55特徴量システム
+Phase 50.9対応: 外部API完全削除・シンプル設計回帰・2段階Graceful Degradation
+Phase 41.8対応: 実戦略信号学習（訓練時と推論時の一貫性確保）
 
 機能:
 - **2段階MLモデル生成** - full（55特徴量）・basic（49特徴量）
-- **ProductionEnsemble** - 3モデルアンサンブル（LightGBM/XGBoost/RandomForest）
-- **動的重み計算** - F1スコアに基づく性能ベース重み（Phase 60.5）
-- **モデル差別化** - シード・特徴量サンプリング・L2正則化差別化（Phase 60.5）
-- **設定駆動型** - feature_order.json完全準拠・strategies.yaml動的ロード
-- **6戦略統合** - StrategyLoader動的ロード
-- **Optuna最適化** - ハイパーパラメータ自動チューニング（週次使用）
-- **TimeSeriesSplit・SMOTE** - 時系列CV・クラス不均衡対策
+- **設定駆動型** - feature_order.json完全準拠・strategies.yaml動的ロード・ハードコードゼロ
+- **6戦略統合** - StrategyLoader動的ロード（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）
+- **外部API完全削除** - システム安定性向上・ゼロダウンタイム実現
+- **モデル別特徴量選択** - feature_order.jsonカテゴリー定義に基づく自動選択
+- **統合メタデータ生成** - 全モデル情報を1つのJSONに集約（ensemble_metadata.json）
+- Phase 41.8: 実戦略信号学習 - 過去データから実際に戦略を実行して学習データ生成
+- Phase 40.6: Feature Engineering拡張 - 15→49基本特徴量
+- Phase 39.1-39.5: 実データ学習・TimeSeriesSplit・SMOTE・Optuna最適化
+- 新システム src/ 構造対応
 - models/production/ にモデル保存（full/basic）
+
+Phase 51.9完了成果: 55特徴量固定システム（6戦略統合）・真の3クラス分類・動的ストラテジーローダー・設定駆動型アーキテクチャ
 
 使用方法:
     # 推奨: 両モデル一括学習（デフォルト設定で実行）
@@ -55,12 +60,12 @@ sys.path.insert(0, str(project_root))
 
 try:
     from src.backtest.scripts.collect_historical_csv import HistoricalDataCollector
-    from src.core.config import get_threshold, load_config  # Phase 60.5: get_threshold追加
+    from src.core.config import load_config
     from src.core.config.feature_manager import _feature_manager  # Phase 50.7
     from src.core.logger import get_logger
-    from src.data.data_pipeline import DataPipeline
+    from src.data.data_pipeline import DataPipeline, DataRequest, TimeFrame
     from src.features.feature_generator import FeatureGenerator
-    from src.ml.ensemble import ProductionEnsemble
+    from src.ml.ensemble import ProductionEnsemble, StackingEnsemble  # Phase 59.7: Stacking追加
     from src.strategies.base.strategy_manager import StrategyManager  # Phase 41.8
 except ImportError as e:
     print(f"❌ 新システムモジュールのインポートに失敗: {e}")
@@ -81,6 +86,7 @@ class NewSystemMLModelCreator:
         optimize: bool = False,
         n_trials: int = 20,
         models_to_train: list = None,
+        stacking: bool = False,  # Phase 59.7: Stacking Meta-Learner有効化
     ):
         """
         初期化（Phase 51.5-B対応・一括生成システム）
@@ -94,6 +100,7 @@ class NewSystemMLModelCreator:
             optimize: Optunaハイパーパラメータ最適化使用（Phase 39.5）
             n_trials: Optuna試行回数（Phase 39.5）
             models_to_train: 訓練するモデルリスト ["full", "basic"] デフォルトは両方
+            stacking: Phase 59.7 Stacking Meta-Learner有効化
         """
         self.config_path = config_path
         self.models_to_train = models_to_train or ["full", "basic"]
@@ -104,6 +111,7 @@ class NewSystemMLModelCreator:
         self.use_smote = use_smote  # Phase 39.4
         self.optimize = optimize  # Phase 39.5
         self.n_trials = n_trials  # Phase 39.5
+        self.stacking = stacking  # Phase 59.7: Stacking Meta-Learner
 
         # ログ設定
         self.logger = get_logger()
@@ -163,50 +171,32 @@ class NewSystemMLModelCreator:
 
     def _initialize_models(self):
         """
-        Phase 60.5: MLモデルインスタンス初期化（差別化対応）
+        Phase 55.6: MLモデルインスタンス初期化
 
         各モデルタイプの訓練前に呼び出すことで、
         前回の訓練状態がリークしないことを保証する。
-
-        Phase 60.5変更点:
-        - 設定ファイルからシード値を取得（モデル別差別化）
-        - 特徴量サンプリングパラメータを設定ファイルから取得
         """
-        # Phase 60.5: 設定ファイルからモデル別パラメータを取得
-        lgbm_config = get_threshold("models.lgbm", {})
-        xgb_config = get_threshold("models.xgb", {})
-        rf_config = get_threshold("models.rf", {})
-
-        # LightGBM設定: シード42、特徴量70%
-        lgb_seed = lgbm_config.get("random_state", 42)
+        # LightGBM設定
         lgb_params = {
             "n_estimators": 200,
             "learning_rate": 0.1,
             "max_depth": 8,
             "num_leaves": 31,
-            "random_state": lgb_seed,
+            "random_state": 42,
             "verbose": -1,
             "class_weight": "balanced",  # Phase 39.4
-            # Phase 60.5: 特徴量サンプリング（多様性確保）
-            "feature_fraction": lgbm_config.get("feature_fraction", 0.7),
-            "bagging_fraction": lgbm_config.get("bagging_fraction", 0.8),
-            "bagging_freq": lgbm_config.get("bagging_freq", 5),
         }
         if self.n_classes == 3:
             lgb_params["objective"] = "multiclass"
             lgb_params["num_class"] = 3
 
-        # XGBoost設定: シード123、特徴量70%
-        xgb_seed = xgb_config.get("random_state", 123)
+        # XGBoost設定
         xgb_params = {
             "n_estimators": 200,
             "learning_rate": 0.1,
             "max_depth": 8,
-            "random_state": xgb_seed,
+            "random_state": 42,
             "verbosity": 0,
-            # Phase 60.5: 特徴量サンプリング（多様性確保）
-            "subsample": xgb_config.get("subsample", 0.8),
-            "colsample_bytree": xgb_config.get("colsample_bytree", 0.7),
         }
         if self.n_classes == 3:
             xgb_params["objective"] = "multi:softprob"
@@ -215,22 +205,14 @@ class NewSystemMLModelCreator:
         else:
             xgb_params["eval_metric"] = "logloss"
 
-        # RandomForest設定: シード456、特徴量sqrt（Phase 53.2: GCP gVisor互換性のためn_jobs=1）
-        rf_seed = rf_config.get("random_state", 456)
+        # RandomForest設定（Phase 53.2: GCP gVisor互換性のためn_jobs=1）
         rf_params = {
             "n_estimators": 200,
             "max_depth": 12,
-            "random_state": rf_seed,
+            "random_state": 42,
             "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
             "class_weight": "balanced",  # Phase 39.4
-            # Phase 60.5: 特徴量サンプリング（多様性確保）
-            "max_features": rf_config.get("max_features", "sqrt"),
         }
-
-        self.logger.info(
-            f"🎯 Phase 60.5: モデル差別化 - "
-            f"LGB seed={lgb_seed}, XGB seed={xgb_seed}, RF seed={rf_seed}"
-        )
 
         self.models = {
             "lightgbm": LGBMClassifier(**lgb_params),
@@ -359,6 +341,42 @@ class NewSystemMLModelCreator:
     def prepare_training_data(self, days: int = 180) -> Tuple[pd.DataFrame, pd.Series]:
         """学習用データ準備（同期ラッパー・後方互換性）"""
         return asyncio.run(self.prepare_training_data_async(days))
+
+    def _generate_sample_data(self, samples: int) -> pd.DataFrame:
+        """サンプルデータ生成（実データ取得失敗時のフォールバック）."""
+        self.logger.info(f"🔧 サンプルデータ生成: {samples}サンプル")
+
+        # 時系列インデックス
+        dates = pd.date_range(end=datetime.now(), periods=samples, freq="h")
+
+        # リアルなBTC価格動向を模擬
+        np.random.seed(42)
+        base_price = 5000000  # 5M JPY
+        prices = []
+        current_price = base_price
+
+        for i in range(samples):
+            # ランダムウォーク（時間帯による変動幅調整）
+            hour = dates[i].hour
+            volatility = 0.015 if 8 <= hour <= 20 else 0.008  # 日中高ボラティリティ
+            change = np.random.normal(0, volatility)
+            current_price *= 1 + change
+            prices.append(current_price)
+
+        # OHLCV データ生成
+        df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": prices,
+                "high": [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+                "low": [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+                "close": prices,
+                "volume": np.random.lognormal(8, 1, samples),  # リアルな出来高分布
+            }
+        )
+
+        df.set_index("timestamp", inplace=True)
+        return df
 
     async def _generate_real_strategy_signals_for_training(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -621,22 +639,15 @@ class NewSystemMLModelCreator:
     def _objective_lightgbm(
         self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
     ) -> float:
-        """Phase 60.5: LightGBM最適化objective関数（シード差別化対応）"""
-        lgbm_config = get_threshold("models.lgbm", {})
-        lgb_seed = lgbm_config.get("random_state", 42)
-
+        """Phase 39.5: LightGBM最適化objective関数（Phase 51.9-6A: 3クラス対応）"""
         params = {
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "max_depth": trial.suggest_int("max_depth", 3, 15),
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
             "num_leaves": trial.suggest_int("num_leaves", 20, 100),
-            "random_state": lgb_seed,  # Phase 60.5: 設定ファイルから取得
+            "random_state": 42,
             "verbose": -1,
             "class_weight": "balanced",
-            # Phase 60.5: 特徴量サンプリング
-            "feature_fraction": lgbm_config.get("feature_fraction", 0.7),
-            "bagging_fraction": lgbm_config.get("bagging_fraction", 0.8),
-            "bagging_freq": lgbm_config.get("bagging_freq", 5),
         }
 
         # Phase 51.9-6A: 3クラス分類対応
@@ -665,20 +676,14 @@ class NewSystemMLModelCreator:
     def _objective_xgboost(
         self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
     ) -> float:
-        """Phase 60.5: XGBoost最適化objective関数（シード差別化対応）"""
-        xgb_config = get_threshold("models.xgb", {})
-        xgb_seed = xgb_config.get("random_state", 123)
-
+        """Phase 39.5: XGBoost最適化objective関数（Phase 51.9-6A: 3クラス対応）"""
         params = {
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "max_depth": trial.suggest_int("max_depth", 3, 15),
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
             "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
-            "random_state": xgb_seed,  # Phase 60.5: 設定ファイルから取得
+            "random_state": 42,
             "verbosity": 0,
-            # Phase 60.5: 特徴量サンプリング
-            "subsample": xgb_config.get("subsample", 0.8),
-            "colsample_bytree": xgb_config.get("colsample_bytree", 0.7),
         }
 
         # Phase 51.9-6A: 3クラス分類対応
@@ -715,19 +720,14 @@ class NewSystemMLModelCreator:
     def _objective_random_forest(
         self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
     ) -> float:
-        """Phase 60.5: RandomForest最適化objective関数（シード差別化対応）"""
-        rf_config = get_threshold("models.rf", {})
-        rf_seed = rf_config.get("random_state", 456)
-
+        """Phase 39.5: RandomForest最適化objective関数"""
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
             "max_depth": trial.suggest_int("max_depth", 5, 20),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
-            "random_state": rf_seed,  # Phase 60.5: 設定ファイルから取得
+            "random_state": 42,
             "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
             "class_weight": "balanced",
-            # Phase 60.5: 特徴量サンプリング
-            "max_features": rf_config.get("max_features", "sqrt"),
         }
 
         model = RandomForestClassifier(**params)
@@ -1072,18 +1072,25 @@ class NewSystemMLModelCreator:
                 individual_models_only = {
                     k: v for k, v in trained_models.items() if k != "production_ensemble"
                 }
-
-                # Phase 60.6: 固定重み使用（Phase 60.4復元）
-                fixed_weights = {
-                    "lightgbm": 0.4,
-                    "xgboost": 0.4,
-                    "random_forest": 0.2,
-                }
-                results["optimal_weights"] = fixed_weights  # メタデータに保存
-
-                ensemble_model = self._create_ensemble(individual_models_only, fixed_weights)
+                ensemble_model = self._create_ensemble(individual_models_only)
                 trained_models["production_ensemble"] = ensemble_model
-                self.logger.info("✅ Phase 60.6復元: 固定重み使用 - LGB:40%, XGB:40%, RF:20%")
+                self.logger.info("✅ アンサンブルモデル作成完了（循環参照防止対応）")
+
+                # Phase 59.7/59.9: Stacking Meta-Learner訓練（fullモデルのみ）
+                # basicモデルでは訓練しない（55特徴量でのみ動作保証）
+                if self.stacking and self.current_model_type == "full":
+                    try:
+                        stacking_ensemble, stacking_metadata = self._train_stacking_ensemble(
+                            features, target, individual_models_only
+                        )
+                        trained_models["stacking_ensemble"] = stacking_ensemble
+                        results["stacking"] = stacking_metadata
+                        self.logger.info("✅ Phase 59.7: Stacking Ensemble作成完了")
+                    except Exception as e:
+                        self.logger.error(f"❌ Phase 59.7: Stacking Ensemble作成エラー: {e}")
+                        import traceback
+
+                        traceback.print_exc()
 
             except Exception as e:
                 self.logger.error(f"❌ アンサンブル作成エラー: {e}")
@@ -1095,109 +1102,421 @@ class NewSystemMLModelCreator:
             "training_samples": len(features),
         }
 
-    def _calculate_optimal_weights(self, results: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Phase 60.5: 性能ベースの動的重み計算
-
-        各モデルのF1スコアに基づいて最適な重みを計算。
-        重みはF1スコアの正規化値として計算される。
-
-        Args:
-            results: train_models()から得られるモデル性能辞書
-
-        Returns:
-            Dict[str, float]: モデル名 -> 重み（合計1.0）
-        """
-        self.logger.info("⚖️ Phase 60.5: 性能ベース動的重み計算開始")
-
-        model_scores = {}
-        for model_name in ["lightgbm", "xgboost", "random_forest"]:
-            if model_name in results and "f1_score" in results[model_name]:
-                model_scores[model_name] = results[model_name]["f1_score"]
-            else:
-                # F1スコアが取得できない場合はデフォルト値
-                model_scores[model_name] = 0.33
-
-        # スコアの合計
-        total_score = sum(model_scores.values())
-
-        if total_score <= 0:
-            # スコアが全て0の場合は均等割
-            self.logger.warning("⚠️ 全モデルのF1スコアが0または取得不可 - 均等重みを使用")
-            return {
-                "lightgbm": 0.33,
-                "xgboost": 0.33,
-                "random_forest": 0.34,
-            }
-
-        # 正規化して重みを計算
-        weights = {}
-        for model_name, score in model_scores.items():
-            weights[model_name] = score / total_score
-
-        # 最小重みを確保（0.1以上）
-        min_weight = 0.1
-        for model_name in weights:
-            if weights[model_name] < min_weight:
-                weights[model_name] = min_weight
-
-        # 再正規化
-        total_weight = sum(weights.values())
-        for model_name in weights:
-            weights[model_name] = round(weights[model_name] / total_weight, 3)
-
-        # 合計を1.0に調整（丸め誤差対応）
-        weight_sum = sum(weights.values())
-        if weight_sum != 1.0:
-            # 最も重みが大きいモデルで調整
-            max_model = max(weights, key=weights.get)
-            weights[max_model] = round(weights[max_model] + (1.0 - weight_sum), 3)
-
-        self.logger.info(
-            f"⚖️ Phase 60.5: 最適重み計算完了 - "
-            f"LGB: {weights.get('lightgbm', 0):.1%}, "
-            f"XGB: {weights.get('xgboost', 0):.1%}, "
-            f"RF: {weights.get('random_forest', 0):.1%}"
-        )
-
-        # 性能比較ログ
-        self.logger.info("📊 Phase 60.5: モデル性能比較:")
-        for model_name, score in model_scores.items():
-            self.logger.info(f"   {model_name}: F1={score:.3f} → 重み={weights[model_name]:.1%}")
-
-        return weights
-
-    def _create_ensemble(
-        self, models: Dict, weights: Optional[Dict[str, float]] = None
-    ) -> ProductionEnsemble:
-        """
-        アンサンブルモデル作成（ProductionEnsembleクラス使用）
-
-        Phase 60.5: 動的重み対応追加
-
-        Args:
-            models: 個別モデル辞書
-            weights: 各モデルの重み（Noneの場合はデフォルト使用）
-        """
+    def _create_ensemble(self, models: Dict) -> ProductionEnsemble:
+        """アンサンブルモデル作成（ProductionEnsembleクラス使用）."""
         try:
             self.logger.info("🔧 ProductionEnsembleアンサンブルモデル作成中...")
             ensemble_model = ProductionEnsemble(models)
-
-            # Phase 60.5: 動的重み設定
-            if weights is not None:
-                ensemble_model.weights = weights
-                self.logger.info(
-                    f"⚖️ Phase 60.5: 動的重み設定 - "
-                    f"LGB: {weights.get('lightgbm', 0):.1%}, "
-                    f"XGB: {weights.get('xgboost', 0):.1%}, "
-                    f"RF: {weights.get('random_forest', 0):.1%}"
-                )
-
             self.logger.info("✅ ProductionEnsembleアンサンブルモデル作成完了")
             return ensemble_model
         except Exception as e:
             self.logger.error(f"❌ アンサンブル作成エラー: {e}")
             raise
+
+    # ========================================
+    # Phase 59.7: Stacking Meta-Learner
+    # ========================================
+
+    def _generate_oof_predictions(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        base_models: Dict[str, Any],
+        n_splits: int = 5,
+    ) -> np.ndarray:
+        """
+        Phase 59.7: Out-of-Fold予測を生成してメタ特徴量を作成
+
+        TimeSeriesSplit CVを使用して各ベースモデルの予測確率を生成。
+        これによりデータリークを防ぎつつMeta-Learner用の特徴量を作成。
+
+        Args:
+            X: 特徴量データ
+            y: ターゲットデータ
+            base_models: ベースモデル辞書（未訓練）
+            n_splits: CVの分割数
+
+        Returns:
+            np.ndarray: OOF予測 (n_samples, n_models * n_classes)
+        """
+        self.logger.info(f"📊 Phase 59.7: OOF予測生成開始（n_splits={n_splits}）")
+
+        n_samples = len(X)
+        n_models = len(base_models)
+        n_classes = self.n_classes
+
+        # OOF予測格納配列（n_samples × (n_models × n_classes)）
+        oof_preds = np.zeros((n_samples, n_models * n_classes))
+        model_names = list(base_models.keys())
+
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+
+        for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
+            self.logger.info(
+                f"   Fold {fold + 1}/{n_splits}: train={len(train_idx)}, val={len(val_idx)}"
+            )
+
+            X_train_fold = X.iloc[train_idx]
+            y_train_fold = y.iloc[train_idx]
+            X_val_fold = X.iloc[val_idx]
+
+            # SMOTE適用（Fold毎）
+            if self.use_smote:
+                try:
+                    smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
+                    X_train_resampled, y_train_resampled = smote.fit_resample(
+                        X_train_fold, y_train_fold
+                    )
+                    X_train_fold = pd.DataFrame(X_train_resampled, columns=X_train_fold.columns)
+                    y_train_fold = pd.Series(y_train_resampled)
+                except Exception as e:
+                    self.logger.warning(f"⚠️ SMOTE適用失敗（Fold {fold + 1}）: {e}")
+
+            # 各モデルで予測
+            for i, (model_name, model_template) in enumerate(base_models.items()):
+                # モデルを複製（前のFoldの学習状態を引き継がないため）
+                model = self._clone_model(model_template, model_name)
+
+                try:
+                    model.fit(X_train_fold, y_train_fold)
+                    proba = model.predict_proba(X_val_fold)
+
+                    # OOF予測を格納
+                    start_col = i * n_classes
+                    end_col = (i + 1) * n_classes
+                    oof_preds[val_idx, start_col:end_col] = proba
+
+                except Exception as e:
+                    self.logger.warning(f"⚠️ {model_name} Fold {fold + 1} 予測失敗: {e}")
+                    # 失敗時は均一確率で埋める
+                    uniform_proba = 1.0 / n_classes
+                    oof_preds[val_idx, i * n_classes : (i + 1) * n_classes] = uniform_proba
+
+        self.logger.info(f"✅ Phase 59.7: OOF予測生成完了 - 形状: {oof_preds.shape}")
+        return oof_preds
+
+    def _clone_model(self, model: Any, model_name: str) -> Any:
+        """
+        Phase 59.7: モデルを複製（Fold毎に新しいインスタンスを作成）
+
+        Args:
+            model: 元のモデル
+            model_name: モデル名
+
+        Returns:
+            複製されたモデル
+        """
+        if model_name == "lightgbm":
+            params = model.get_params()
+            return LGBMClassifier(**params)
+        elif model_name == "xgboost":
+            params = model.get_params()
+            return XGBClassifier(**params)
+        elif model_name == "random_forest":
+            params = model.get_params()
+            return RandomForestClassifier(**params)
+        else:
+            # フォールバック: sklearn clone
+            from sklearn.base import clone
+
+            return clone(model)
+
+    def _add_enhanced_meta_features(
+        self, X_meta_base: pd.DataFrame, oof_preds: np.ndarray
+    ) -> pd.DataFrame:
+        """
+        Phase 59.9-B + 59.10: 拡張メタ特徴量を追加
+
+        Phase 59.9: 6特徴量（max_conf×3, model_agreement, entropy, max_prob_gap）
+        Phase 59.10: +6特徴量（prob_std, prob_range, avg_max_conf, conf_std,
+                              sell_prob_mean, buy_prob_mean）
+        合計: 9基本 + 12拡張 = 21特徴量
+
+        Args:
+            X_meta_base: 基本メタ特徴量（OOF予測）
+            oof_preds: OOF予測配列 (n_samples, n_models * n_classes)
+
+        Returns:
+            pd.DataFrame: 拡張メタ特徴量を含むDataFrame
+        """
+        n_samples = len(oof_preds)
+        n_models = len(self.models)
+        n_classes = self.n_classes
+        enhanced_features = []
+
+        model_names = list(self.models.keys())
+
+        for i in range(n_samples):
+            features = {}
+
+            # 各モデルの予測の信頼度（最大確率）
+            model_predictions = []
+            model_max_probs = []
+            class_probs_by_class = {c: [] for c in range(n_classes)}  # Phase 59.10用
+
+            for j, model_name in enumerate(model_names):
+                start_idx = j * n_classes
+                end_idx = start_idx + n_classes
+                probs = oof_preds[i, start_idx:end_idx]
+                max_prob = probs.max()
+                pred_class = probs.argmax()
+                features[f"{model_name}_max_conf"] = max_prob
+                model_predictions.append(pred_class)
+                model_max_probs.append(max_prob)
+
+                # Phase 59.10: クラス別確率を記録
+                for c in range(n_classes):
+                    class_probs_by_class[c].append(probs[c])
+
+            # 3モデル間の予測一致度
+            unique_preds = len(set(model_predictions))
+            agreement = 1.0 if unique_preds == 1 else (0.5 if unique_preds == 2 else 0.0)
+            features["model_agreement"] = agreement
+
+            # 確率分布のエントロピー（全9確率の平均エントロピー）
+            all_probs = oof_preds[i]
+            # 0での除算を避ける
+            all_probs_safe = np.clip(all_probs, 1e-10, 1.0)
+            entropy = -np.mean(all_probs_safe * np.log(all_probs_safe))
+            features["entropy"] = entropy
+
+            # 最大確率と2番目の確率の差（確信度の差）
+            sorted_probs = np.sort(all_probs)[::-1]
+            max_prob_gap = sorted_probs[0] - sorted_probs[1] if len(sorted_probs) > 1 else 0
+            features["max_prob_gap"] = max_prob_gap
+
+            # === Phase 59.10: 追加メタ特徴量（6特徴量）===
+
+            # 全確率の標準偏差（予測のばらつき）
+            features["prob_std"] = float(np.std(all_probs))
+
+            # 全確率の範囲（max - min）
+            features["prob_range"] = float(np.max(all_probs) - np.min(all_probs))
+
+            # 平均最大確信度（3モデルの平均）
+            features["avg_max_conf"] = float(np.mean(model_max_probs))
+
+            # 確信度の標準偏差（モデル間のばらつき）
+            features["conf_std"] = float(np.std(model_max_probs))
+
+            # SELL確率の平均（class 0）
+            features["sell_prob_mean"] = float(np.mean(class_probs_by_class[0]))
+
+            # BUY確率の平均（class 2）
+            features["buy_prob_mean"] = float(np.mean(class_probs_by_class[2]))
+
+            enhanced_features.append(features)
+
+        enhanced_df = pd.DataFrame(enhanced_features)
+        return pd.concat([X_meta_base, enhanced_df], axis=1)
+
+    def _train_meta_learner(
+        self,
+        oof_preds: np.ndarray,
+        y: pd.Series,
+        meta_features: Optional[pd.DataFrame] = None,
+    ) -> LGBMClassifier:
+        """
+        Phase 59.7/59.9: Meta-Learner（LightGBM）を訓練
+
+        OOF予測をメタ特徴量としてMeta-Learnerを訓練。
+        Phase 59.9で拡張メタ特徴量と動的クラス重みを追加。
+
+        Args:
+            oof_preds: OOF予測 (n_samples, n_models * n_classes)
+            y: ターゲットデータ
+            meta_features: 追加メタ特徴量（オプション）
+
+        Returns:
+            LGBMClassifier: 訓練済みMeta-Learner
+        """
+        self.logger.info("📊 Phase 59.9: Meta-Learner訓練開始（改善版）")
+
+        # メタ特徴量のDataFrame化
+        n_models = len(self.models)
+        n_classes = self.n_classes
+        meta_feature_names = []
+        for model_name in self.models.keys():
+            for cls in range(n_classes):
+                meta_feature_names.append(f"{model_name}_class{cls}")
+
+        X_meta = pd.DataFrame(oof_preds, columns=meta_feature_names)
+
+        # Phase 59.9-B: 拡張メタ特徴量を追加
+        X_meta = self._add_enhanced_meta_features(X_meta, oof_preds)
+        self.logger.info(f"   拡張メタ特徴量: {len(X_meta.columns)}特徴量")
+
+        # 追加メタ特徴量がある場合は結合
+        if meta_features is not None:
+            X_meta = pd.concat([X_meta, meta_features], axis=1)
+
+        # 欠損値チェック（TimeSeriesSplit初期Foldで未カバーの行）
+        valid_mask = ~(X_meta.isna().any(axis=1) | (X_meta.sum(axis=1) == 0))
+        valid_mask_arr = valid_mask.values  # numpy arrayに変換
+        X_meta_valid = X_meta[valid_mask_arr]
+        # yのインデックスをリセットしてからマスク適用
+        y_reset = y.reset_index(drop=True)
+        y_valid = y_reset[valid_mask_arr]
+
+        self.logger.info(
+            f"   Meta-Learner訓練データ: {len(X_meta_valid)}サンプル（{len(X_meta) - len(X_meta_valid)}サンプル除外）"
+        )
+
+        # Train/Test split for Meta-Learner
+        n_train = int(len(X_meta_valid) * 0.85)
+        X_meta_train = X_meta_valid.iloc[:n_train]
+        y_meta_train = y_valid.iloc[:n_train]
+        X_meta_test = X_meta_valid.iloc[n_train:]
+        y_meta_test = y_valid.iloc[n_train:]
+
+        # Phase 59.9-A: 動的クラス重み計算（SELL/BUY強化、HOLD抑制）
+        class_counts = y_meta_train.value_counts().sort_index()
+        computed_weights = {}
+        for cls in range(n_classes):
+            if cls in class_counts.index:
+                ratio = class_counts[cls] / len(y_meta_train)
+                base_weight = 1.0 / (n_classes * ratio + 1e-8)
+                # クラス別重み調整（3クラス: 0=SELL, 1=HOLD, 2=BUY）
+                if cls == 0:  # SELL
+                    computed_weights[cls] = base_weight * 1.15  # 15%強化
+                elif cls == 1:  # HOLD
+                    computed_weights[cls] = base_weight * 0.85  # 15%抑制
+                else:  # BUY
+                    computed_weights[cls] = base_weight * 1.15  # 15%強化
+            else:
+                computed_weights[cls] = 1.0
+
+        self.logger.info(f"   動的クラス重み: {computed_weights}")
+
+        # Phase 59.9-C: Meta-Learnerパラメータ（改善版）
+        meta_params = {
+            "n_estimators": 100,  # 50→100
+            "learning_rate": 0.05,
+            "max_depth": 5,  # 4→5
+            "num_leaves": 20,  # 15→20
+            "random_state": 42,
+            "verbose": -1,
+            "class_weight": computed_weights,  # balanced→動的計算
+            "feature_fraction": 0.8,  # 新規追加
+            "bagging_fraction": 0.8,  # 新規追加
+            "bagging_freq": 5,  # 新規追加
+        }
+
+        if self.n_classes == 3:
+            meta_params["objective"] = "multiclass"
+            meta_params["num_class"] = 3
+
+        meta_model = LGBMClassifier(**meta_params)
+
+        # SMOTE適用
+        if self.use_smote:
+            try:
+                smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
+                X_meta_resampled, y_meta_resampled = smote.fit_resample(X_meta_train, y_meta_train)
+                X_meta_train = pd.DataFrame(X_meta_resampled, columns=X_meta_train.columns)
+                y_meta_train = pd.Series(y_meta_resampled)
+                self.logger.info(f"   SMOTE後クラス分布: {y_meta_train.value_counts().to_dict()}")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Meta-Learner SMOTE適用失敗: {e}")
+
+        # 訓練
+        try:
+            meta_model.fit(
+                X_meta_train,
+                y_meta_train,
+                eval_set=[(X_meta_test, y_meta_test)],
+                callbacks=[
+                    __import__("lightgbm").early_stopping(stopping_rounds=10, verbose=False)
+                ],
+            )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Early Stopping失敗: {e}, 通常訓練に切り替え")
+            meta_model.fit(X_meta_train, y_meta_train)
+
+        # 評価
+        y_pred = meta_model.predict(X_meta_test)
+        meta_f1 = f1_score(y_meta_test, y_pred, average="weighted")
+        meta_acc = accuracy_score(y_meta_test, y_pred)
+
+        # Phase 59.9: 予測分布の確認
+        pred_dist = pd.Series(y_pred).value_counts().sort_index()
+        self.logger.info(f"   予測分布: {pred_dist.to_dict()}")
+
+        self.logger.info(f"✅ Phase 59.9: Meta-Learner訓練完了")
+        self.logger.info(f"   Meta-Learner F1: {meta_f1:.4f}, Accuracy: {meta_acc:.4f}")
+
+        return meta_model
+
+    def _train_stacking_ensemble(
+        self,
+        features: pd.DataFrame,
+        target: pd.Series,
+        trained_base_models: Dict[str, Any],
+    ) -> Tuple[Any, Dict[str, Any]]:
+        """
+        Phase 59.7: Stacking Ensemble訓練
+
+        1. OOF予測を生成
+        2. Meta-Learnerを訓練
+        3. StackingEnsembleを作成
+
+        Args:
+            features: 特徴量データ
+            target: ターゲットデータ
+            trained_base_models: 訓練済みベースモデル
+
+        Returns:
+            Tuple[StackingEnsemble, Dict]: (Stackingアンサンブル, メタデータ)
+        """
+        self.logger.info("=" * 60)
+        self.logger.info("📊 Phase 59.7: Stacking Ensemble訓練開始")
+        self.logger.info("=" * 60)
+
+        # 1. OOF予測生成（未訓練モデルを使用）
+        # 注意: OOFは未訓練モデルで生成する必要がある
+        untrained_models = {}
+        for name, model in self.models.items():
+            untrained_models[name] = self._clone_model(model, name)
+
+        oof_preds = self._generate_oof_predictions(features, target, untrained_models)
+
+        # 2. Meta-Learner訓練
+        meta_learner = self._train_meta_learner(oof_preds, target)
+
+        # 3. StackingEnsemble作成
+        stacking_ensemble = StackingEnsemble(
+            base_models=trained_base_models,
+            meta_model=meta_learner,
+        )
+
+        # 4. 評価（Train/Test split）
+        n_test = int(len(features) * 0.15)
+        X_test = features.iloc[-n_test:]
+        y_test = target.iloc[-n_test:]
+
+        y_pred_stacking = stacking_ensemble.predict(X_test)
+        stacking_f1 = f1_score(y_test, y_pred_stacking, average="weighted")
+        stacking_acc = accuracy_score(y_test, y_pred_stacking)
+
+        self.logger.info(f"📊 Stacking Ensemble評価:")
+        self.logger.info(f"   F1 Score: {stacking_f1:.4f}")
+        self.logger.info(f"   Accuracy: {stacking_acc:.4f}")
+
+        # Phase 59.9: 実際のメタ特徴量数を取得（9基本 + 6拡張 = 15）
+        actual_meta_features = (
+            meta_learner.n_features_in_
+            if hasattr(meta_learner, "n_features_in_")
+            else oof_preds.shape[1]
+        )
+
+        stacking_metadata = {
+            "stacking_f1": float(stacking_f1),
+            "stacking_accuracy": float(stacking_acc),
+            "meta_features_count": actual_meta_features,
+            "base_models": list(trained_base_models.keys()),
+        }
+
+        return stacking_ensemble, stacking_metadata
 
     def save_models(self, training_results: Dict[str, Any]) -> Dict[str, str]:
         """モデル保存（個別モデル：training、統合モデル：production）."""
@@ -1272,6 +1591,23 @@ class NewSystemMLModelCreator:
                         )
 
                     self.logger.info(f"✅ 本番用統合モデル保存: {model_file}")
+
+                elif model_name == "stacking_ensemble":
+                    # Phase 59.7: Stacking Ensembleをproductionフォルダに保存
+                    stacking_file = self.production_dir / "stacking_ensemble.pkl"
+                    with open(stacking_file, "wb") as f:
+                        pickle.dump(model, f)
+
+                    # Meta-Learnerも個別に保存（デバッグ用）
+                    if hasattr(model, "meta_model"):
+                        meta_learner_file = self.production_dir / "meta_learner.pkl"
+                        with open(meta_learner_file, "wb") as f:
+                            pickle.dump(model.meta_model, f)
+                        self.logger.info(f"✅ Meta-Learner保存: {meta_learner_file}")
+
+                    self.logger.info(f"✅ Phase 59.7: Stacking Ensemble保存: {stacking_file}")
+                    saved_files[model_name] = str(stacking_file)
+                    continue  # saved_filesへの追加は上で行ったのでスキップ
 
                 else:
                     # 個別モデルはtrainingフォルダに保存
@@ -1627,6 +1963,13 @@ def main():
         help="Phase 51.5-B: 訓練するモデル both=両方（デフォルト推奨）/full=fullのみ/basic=basicのみ",
     )
 
+    # Phase 59.7: Stacking Meta-Learner
+    parser.add_argument(
+        "--stacking",
+        action="store_true",
+        help="Phase 59.7: Stacking Meta-Learner有効化（OOF予測 + Meta-Learner訓練）",
+    )
+
     args = parser.parse_args()
 
     # モデル選択をリストに変換
@@ -1652,6 +1995,7 @@ def main():
         use_smote=use_smote,
         optimize=args.optimize,
         n_trials=args.n_trials,
+        stacking=args.stacking,  # Phase 59.7: Stacking Meta-Learner
     )
 
     success = creator.run(dry_run=args.dry_run, days=args.days)
