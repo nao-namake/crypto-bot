@@ -272,8 +272,8 @@ jobs:
               echo "✅ rebase成功"
             else
               echo "⚠️ rebase競合検出 - Walk-Forward結果を優先して解決"
-              # 競合ファイルをWalk-Forward結果で上書き
-              git checkout --theirs . 2>/dev/null || true
+              # rebaseでは --ours がrebaseするコミット（Walk-Forward結果）を指す
+              git checkout --ours . 2>/dev/null || true
               git add -A
               git rebase --continue 2>/dev/null || git rebase --skip 2>/dev/null || {
                 echo "⚠️ rebase解決不可 - abort して merge で再試行"
