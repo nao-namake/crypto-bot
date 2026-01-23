@@ -1138,7 +1138,7 @@ class StopManager:
             reason: 失敗理由（take_profit, manual, position_exit等）
         """
         try:
-            orphan_file = Path("data/orphan_sl_orders.json")
+            orphan_file = Path("logs/orphan_sl_orders.json")
             orphan_file.parent.mkdir(parents=True, exist_ok=True)
 
             orphans = []
@@ -1183,7 +1183,7 @@ class StopManager:
         Returns:
             Dict: {"cleaned": int, "failed": int, "errors": List[str]}
         """
-        orphan_file = Path("data/orphan_sl_orders.json")
+        orphan_file = Path("logs/orphan_sl_orders.json")
 
         if not orphan_file.exists():
             self.logger.debug("📊 Phase 59.6: 孤児SL候補なし")
