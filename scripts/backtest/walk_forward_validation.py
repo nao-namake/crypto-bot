@@ -372,13 +372,23 @@ class WalkForwardValidator:
                 self._set_backtest_period(test_start, test_end)
 
                 # バックテスト実行（main.py --mode backtest相当）
-                from src.core.config import load_config
+                # Phase 61.1: バックテストモード設定を正しく行う
+                from src.core.config import (
+                    load_config,
+                    set_backtest_log_level,
+                    set_backtest_mode,
+                )
                 from src.core.orchestration import create_trading_orchestrator
 
-                config = load_config("config/core/unified.yaml")
-                orchestrator = await create_trading_orchestrator(
-                    config=config, logger=self.logger, mode="backtest"
-                )
+                # バックテストモード設定（main.pyと同じ方法）
+                os.environ["LOG_LEVEL"] = "WARNING"
+                os.environ["BACKTEST_MODE"] = "true"
+                set_backtest_mode(True)
+                set_backtest_log_level("WARNING")
+
+                # cmdline_mode="backtest"でconfig.mode=backtestになる
+                config = load_config("config/core/unified.yaml", cmdline_mode="backtest")
+                orchestrator = await create_trading_orchestrator(config=config, logger=self.logger)
 
                 # バックテスト実行
                 success = await orchestrator.runner.run()
