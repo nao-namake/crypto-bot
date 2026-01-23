@@ -282,7 +282,9 @@ class WalkForwardValidator:
 
             try:
                 # モデル訓練実行
-                features, target = await creator.prepare_training_data_async(days=train_days + 30)
+                # Note: days=365で全期間データを取得（cutoff_dateフィルタ対策）
+                # 実際のフィルタリングは下のmaskで行う
+                features, target = await creator.prepare_training_data_async(days=365)
 
                 # 期間でフィルタリング
                 if hasattr(features, "index") and len(features) > 0:
@@ -305,7 +307,7 @@ class WalkForwardValidator:
                 temp_model_path.mkdir(parents=True, exist_ok=True)
 
                 # ProductionEnsembleとして保存
-                ensemble = creator._create_production_ensemble()
+                ensemble = creator._create_ensemble(creator.models)
                 ensemble_path = temp_model_path / "ensemble_full.pkl"
                 with open(ensemble_path, "wb") as f:
                     pickle.dump(ensemble, f)
