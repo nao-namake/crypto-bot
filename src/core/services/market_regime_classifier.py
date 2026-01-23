@@ -1,16 +1,17 @@
 """
-市場レジーム分類器 - Phase 51.2-New
+市場レジーム分類器 - Phase 61.1
 
 市場状況を4段階に分類し、動的戦略選択とML統合最適化を実現する。
 レンジ型bot最適化のための核心システム。
 
-判定ロジック:
-- tight_range: BB幅 < 3% AND 価格変動 < 2%
+判定ロジック（thresholds.yamlから読み込み）:
+- tight_range: BB幅 < 2.5% AND 価格変動 < 1.5%（Phase 61.1: 厳格化）
 - normal_range: BB幅 < 5% AND ADX < 20
-- trending: ADX > 25 AND EMA傾き > 1%
-- high_volatility: ATR比 > 3%
+- trending: ADX > 20 AND EMA傾き > 0.7%（Phase 61.1: 緩和）
+- high_volatility: ATR比 > 1.8%
 
 Phase 51.2-New: 市場状況分類器実装
+Phase 61.1: ハードコード値をthresholds.yamlから読み込むように変更
 """
 
 import os
@@ -18,6 +19,7 @@ from typing import Optional
 
 import pandas as pd
 
+from ...core.config.threshold_manager import get_threshold
 from ...core.logger import get_logger
 from .regime_types import RegimeType
 
@@ -94,7 +96,7 @@ class MarketRegimeClassifier:
 
             # レンジ判定指標計算
             bb_width = self._calc_bb_width(df)
-            donchian_width = self._calc_donchian_width(df)
+            _donchian_width = self._calc_donchian_width(df)  # noqa: F841 将来の拡張用
             price_range = self._calc_price_range(df, lookback=self.price_range_lookback)
 
             # トレンド判定指標計算
@@ -104,14 +106,29 @@ class MarketRegimeClassifier:
             # ボラティリティ判定指標計算
             atr_ratio = df["atr_14"].iloc[-1] / df["close"].iloc[-1]
 
+            # 閾値を設定ファイルから取得（ログ表示用）
+            hv_threshold = get_threshold("market_regime.high_volatility.atr_ratio_threshold", 0.018)
+            tr_bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.025)
+            tr_price_threshold = get_threshold(
+                "market_regime.tight_range.price_range_threshold", 0.015
+            )
+            trend_adx_threshold = get_threshold("market_regime.trending.adx_threshold", 20)
+            trend_ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.007)
+            nr_bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
+            nr_adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 20)
+
             # 分類ロジック（優先順位順）
             # 1. 高ボラティリティ判定（最優先）
             if self._is_high_volatility(atr_ratio):
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
-                    self.logger.debug(f"⚠️ 高ボラティリティ検出: ATR比={atr_ratio:.4f} (> 0.018)")
+                    self.logger.debug(
+                        f"⚠️ 高ボラティリティ検出: ATR比={atr_ratio:.4f} (> {hv_threshold})"
+                    )
                 else:
-                    self.logger.warning(f"⚠️ 高ボラティリティ検出: ATR比={atr_ratio:.4f} (> 0.018)")
+                    self.logger.warning(
+                        f"⚠️ 高ボラティリティ検出: ATR比={atr_ratio:.4f} (> {hv_threshold})"
+                    )
                 return RegimeType.HIGH_VOLATILITY
 
             # 2. 狭いレンジ判定
@@ -119,13 +136,13 @@ class MarketRegimeClassifier:
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), "
-                        f"価格変動={price_range:.4f} (< 0.02)"
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
+                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
                     )
                 else:
                     self.logger.warning(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< 0.03), "
-                        f"価格変動={price_range:.4f} (< 0.02)"
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
+                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
                     )
                 return RegimeType.TIGHT_RANGE
 
@@ -134,13 +151,13 @@ class MarketRegimeClassifier:
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
-                        f"📈 トレンド検出: ADX={adx:.2f} (> 25), "
-                        f"EMA傾き={ema_slope:.4f} (> 0.01)"
+                        f"📈 トレンド検出: ADX={adx:.2f} (> {trend_adx_threshold}), "
+                        f"EMA傾き={ema_slope:.4f} (> {trend_ema_threshold})"
                     )
                 else:
                     self.logger.warning(
-                        f"📈 トレンド検出: ADX={adx:.2f} (> 25), "
-                        f"EMA傾き={ema_slope:.4f} (> 0.01)"
+                        f"📈 トレンド検出: ADX={adx:.2f} (> {trend_adx_threshold}), "
+                        f"EMA傾き={ema_slope:.4f} (> {trend_ema_threshold})"
                     )
                 return RegimeType.TRENDING
 
@@ -149,11 +166,13 @@ class MarketRegimeClassifier:
                 # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
-                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)"
+                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< {nr_bb_threshold}), "
+                        f"ADX={adx:.2f} (< {nr_adx_threshold})"
                     )
                 else:
                     self.logger.warning(
-                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< 0.05), " f"ADX={adx:.2f} (< 20)"
+                        f"📊 通常レンジ検出: BB幅={bb_width:.4f} (< {nr_bb_threshold}), "
+                        f"ADX={adx:.2f} (< {nr_adx_threshold})"
                     )
                 return RegimeType.NORMAL_RANGE
 
@@ -290,7 +309,8 @@ class MarketRegimeClassifier:
         """
         狭いレンジ相場判定
 
-        判定基準: BB幅 < 3% AND 価格変動 < 2%
+        判定基準: BB幅 < threshold AND 価格変動 < threshold
+        Phase 61.1: thresholds.yamlから閾値を読み込み
 
         Args:
             bb_width: BB幅
@@ -299,13 +319,16 @@ class MarketRegimeClassifier:
         Returns:
             bool: 狭いレンジの場合True
         """
-        return bb_width < 0.03 and price_range < 0.02
+        bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.025)
+        price_threshold = get_threshold("market_regime.tight_range.price_range_threshold", 0.015)
+        return bb_width < bb_threshold and price_range < price_threshold
 
     def _is_normal_range(self, bb_width: float, adx: float) -> bool:
         """
         通常レンジ相場判定
 
-        判定基準: BB幅 < 5% AND ADX < 20
+        判定基準: BB幅 < threshold AND ADX < threshold
+        Phase 61.1: thresholds.yamlから閾値を読み込み
 
         Args:
             bb_width: BB幅
@@ -314,13 +337,16 @@ class MarketRegimeClassifier:
         Returns:
             bool: 通常レンジの場合True
         """
-        return bb_width < 0.05 and adx < 20
+        bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
+        adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 20)
+        return bb_width < bb_threshold and adx < adx_threshold
 
     def _is_trending(self, adx: float, ema_slope: float) -> bool:
         """
         トレンド相場判定
 
-        判定基準: ADX > 25 AND |EMA傾き| > 1%
+        判定基準: ADX > threshold AND |EMA傾き| > threshold
+        Phase 61.1: thresholds.yamlから閾値を読み込み（緩和して発生率増加）
 
         Args:
             adx: ADX値
@@ -329,17 +355,19 @@ class MarketRegimeClassifier:
         Returns:
             bool: トレンド相場の場合True
         """
-        return adx > 25 and abs(ema_slope) > 0.01
+        adx_threshold = get_threshold("market_regime.trending.adx_threshold", 20)
+        ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.007)
+        return adx > adx_threshold and abs(ema_slope) > ema_threshold
 
     def _is_high_volatility(self, atr_ratio: float) -> bool:
         """
         高ボラティリティ判定
 
-        判定基準: ATR比 > 1.8%（ATRが終値の1.8%以上）
+        判定基準: ATR比 > threshold
+        Phase 61.1: thresholds.yamlから閾値を読み込み
 
         Phase 51.2-Fix: 3.0% → 1.8%（4時間足最適化）
         - 根拠: 全期間最大2.20%・10月11日暴落1.97%を確実に検出
-        - Phase 52.2: 1.8% → 2.2%に再調整予定（5分足最適化）
 
         Args:
             atr_ratio: ATR比（ATR / 終値）
@@ -347,7 +375,8 @@ class MarketRegimeClassifier:
         Returns:
             bool: 高ボラティリティの場合True
         """
-        return atr_ratio > 0.018
+        threshold = get_threshold("market_regime.high_volatility.atr_ratio_threshold", 0.018)
+        return atr_ratio > threshold
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # ユーティリティメソッド

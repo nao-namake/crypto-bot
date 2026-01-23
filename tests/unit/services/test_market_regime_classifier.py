@@ -1,14 +1,40 @@
 """
-市場レジーム分類器のテスト - Phase 51.2-New
+市場レジーム分類器のテスト - Phase 61.1
 
 MarketRegimeClassifierの分類精度・計算ロジックをテスト。
+Phase 61.1: thresholds.yamlから閾値を読み込む方式に対応。
 """
+
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from src.core.services.market_regime_classifier import MarketRegimeClassifier
 from src.core.services.regime_types import RegimeType
+
+# Phase 61.1: 新しい閾値（設定ファイルと同じ値）
+TIGHT_RANGE_BB_THRESHOLD = 0.025
+TIGHT_RANGE_PRICE_THRESHOLD = 0.015
+TRENDING_ADX_THRESHOLD = 20
+TRENDING_EMA_THRESHOLD = 0.007
+NORMAL_RANGE_BB_THRESHOLD = 0.05
+NORMAL_RANGE_ADX_THRESHOLD = 20
+HIGH_VOLATILITY_ATR_THRESHOLD = 0.018
+
+
+def mock_get_threshold(key, default=None):
+    """テスト用のget_thresholdモック"""
+    thresholds = {
+        "market_regime.tight_range.bb_width_threshold": TIGHT_RANGE_BB_THRESHOLD,
+        "market_regime.tight_range.price_range_threshold": TIGHT_RANGE_PRICE_THRESHOLD,
+        "market_regime.trending.adx_threshold": TRENDING_ADX_THRESHOLD,
+        "market_regime.trending.ema_slope_threshold": TRENDING_EMA_THRESHOLD,
+        "market_regime.normal_range.bb_width_threshold": NORMAL_RANGE_BB_THRESHOLD,
+        "market_regime.normal_range.adx_threshold": NORMAL_RANGE_ADX_THRESHOLD,
+        "market_regime.high_volatility.atr_ratio_threshold": HIGH_VOLATILITY_ATR_THRESHOLD,
+    }
+    return thresholds.get(key, default)
 
 
 class TestMarketRegimeClassifier:
@@ -41,20 +67,26 @@ class TestMarketRegimeClassifier:
     # 分類テスト
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def test_classify_tight_range(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_tight_range(self, mock_threshold, classifier, base_df):
         """狭いレンジ相場を正しく検出することを確認"""
-        # BB幅 < 0.03, 価格変動 < 0.02になるように設定
+        # BB幅 < 0.025, 価格変動 < 0.015になるように設定
         df = base_df.copy()
-        df["close"] = [100.0 + i * 0.01 for i in range(50)]  # 微小な変動
-        df["high"] = df["close"] + 0.5
-        df["low"] = df["close"] - 0.5
+        df["close"] = [100.0 + i * 0.005 for i in range(50)]  # 微小な変動
+        df["high"] = df["close"] + 0.3
+        df["low"] = df["close"] - 0.3
         df["atr_14"] = [0.5] * 50  # 低ボラティリティ
         df["adx_14"] = [10.0] * 50  # 低ADX
 
         regime = classifier.classify(df)
         assert regime == RegimeType.TIGHT_RANGE
 
-    def test_classify_normal_range(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_normal_range(self, mock_threshold, classifier, base_df):
         """通常レンジ相場を正しく検出することを確認"""
         # BB幅 < 0.05, ADX < 20になるように設定
         df = base_df.copy()
@@ -67,36 +99,45 @@ class TestMarketRegimeClassifier:
         regime = classifier.classify(df)
         assert regime == RegimeType.NORMAL_RANGE
 
-    def test_classify_trending(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_trending(self, mock_threshold, classifier, base_df):
         """トレンド相場を正しく検出することを確認"""
-        # ADX > 25, EMA傾き > 0.01になるように設定
+        # ADX > 20, EMA傾き > 0.007になるように設定
         df = base_df.copy()
         df["close"] = [100.0 + i * 0.5 for i in range(50)]  # 上昇トレンド
         df["high"] = df["close"] + 1.0
         df["low"] = df["close"] - 1.0
-        df["atr_14"] = [2.0] * 50
-        df["adx_14"] = [30.0] * 50  # ADX > 25
+        df["atr_14"] = [1.5] * 50
+        df["adx_14"] = [25.0] * 50  # ADX > 20
         df["ema_20"] = [100.0 + i * 0.5 for i in range(50)]  # EMA上昇
 
         regime = classifier.classify(df)
         assert regime == RegimeType.TRENDING
 
-    def test_classify_high_volatility(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_high_volatility(self, mock_threshold, classifier, base_df):
         """高ボラティリティを正しく検出することを確認"""
-        # ATR比 > 0.03になるように設定
+        # ATR比 > 0.018になるように設定
         df = base_df.copy()
         df["close"] = [100.0] * 50
-        df["atr_14"] = [3.5] * 50  # ATR / close = 3.5 / 100 = 0.035 > 0.03
+        df["atr_14"] = [2.5] * 50  # ATR / close = 2.5 / 100 = 0.025 > 0.018
 
         regime = classifier.classify(df)
         assert regime == RegimeType.HIGH_VOLATILITY
 
-    def test_classify_priority_high_volatility(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_priority_high_volatility(self, mock_threshold, classifier, base_df):
         """高ボラティリティが最優先で検出されることを確認"""
         # 複数条件を満たすがhigh_volatilityが優先
         df = base_df.copy()
-        df["close"] = [100.0 + i * 0.01 for i in range(50)]
-        df["atr_14"] = [3.5] * 50  # 高ボラ条件満たす
+        df["close"] = [100.0 + i * 0.005 for i in range(50)]
+        df["atr_14"] = [2.5] * 50  # 高ボラ条件満たす
         df["adx_14"] = [10.0] * 50  # レンジ条件も満たす
 
         regime = classifier.classify(df)
@@ -106,19 +147,25 @@ class TestMarketRegimeClassifier:
     # 境界値テスト
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def test_boundary_tight_range_bb_width(self, classifier, base_df):
-        """tight_range境界値テスト: BB幅が0.03より大きい場合"""
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_boundary_tight_range_bb_width(self, mock_threshold, classifier, base_df):
+        """tight_range境界値テスト: BB幅が0.025より大きい場合"""
         df = base_df.copy()
-        # BB幅が0.03より大きくなるように大きな変動を設定
+        # BB幅が0.025より大きくなるように大きな変動を設定
         df["close"] = [100.0 + i * 2.0 for i in range(50)]  # 大きな変動
         df["atr_14"] = [0.5] * 50
         df["adx_14"] = [10.0] * 50
 
         regime = classifier.classify(df)
-        # BB幅 >= 0.03なのでtight_rangeではない
+        # BB幅 >= 0.025なのでtight_rangeではない
         assert regime != RegimeType.TIGHT_RANGE
 
-    def test_boundary_normal_range_adx(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_boundary_normal_range_adx(self, mock_threshold, classifier, base_df):
         """normal_range境界値テスト: ADX = 19.9（ギリギリ範囲内）"""
         df = base_df.copy()
         df["close"] = [100.0 + (i % 10) * 0.3 for i in range(50)]
@@ -130,20 +177,25 @@ class TestMarketRegimeClassifier:
         # ただし実際のBB幅次第でtight_rangeになる可能性もある
         assert regime in (RegimeType.NORMAL_RANGE, RegimeType.TIGHT_RANGE)
 
-    def test_boundary_trending_adx(self, classifier, base_df):
-        """trending境界値テスト: ADX = 25（境界）"""
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_boundary_trending_adx(self, mock_threshold, classifier, base_df):
+        """trending境界値テスト: ADX = 20（境界）"""
         df = base_df.copy()
         df["close"] = [100.0 + i * 0.5 for i in range(50)]
-        df["atr_14"] = [2.0] * 50
-        df["adx_14"] = [25.0] * 50  # ADX = 25（境界・ギリギリOK）
+        df["atr_14"] = [1.5] * 50
+        df["adx_14"] = [20.0] * 50  # ADX = 20（境界・ギリギリOK）
         df["ema_20"] = [100.0 + i * 0.5 for i in range(50)]
 
-        # ADX > 25条件は「25.0は不含」だが、実装では「25以上」なので要確認
-        # 実装コードを見ると adx > 25 なので 25.0は含まれない
+        # adx > 20条件は「20.0は不含」なのでtrendingにならない
         regime = classifier.classify(df)
-        assert regime != RegimeType.TRENDING  # ADX=25はtrendingにならない
+        assert regime != RegimeType.TRENDING  # ADX=20はtrendingにならない
 
-    def test_boundary_high_volatility_atr_ratio(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_boundary_high_volatility_atr_ratio(self, mock_threshold, classifier, base_df):
         """high_volatility境界値テスト: ATR比 = 0.017（境界以下）"""
         df = base_df.copy()
         df["close"] = [100.0] * 50
@@ -205,7 +257,10 @@ class TestMarketRegimeClassifier:
     # エラーハンドリングテスト
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def test_classify_missing_required_columns(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_missing_required_columns(self, mock_threshold, classifier):
         """必須カラムが不足している場合にValueErrorが発生することを確認"""
         df = pd.DataFrame(
             {
@@ -218,7 +273,10 @@ class TestMarketRegimeClassifier:
         regime = classifier.classify(df)
         assert regime == RegimeType.NORMAL_RANGE  # デフォルト
 
-    def test_classify_empty_dataframe(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_classify_empty_dataframe(self, mock_threshold, classifier):
         """空のDataFrameでエラーハンドリングが動作することを確認"""
         df = pd.DataFrame()
 
@@ -229,7 +287,10 @@ class TestMarketRegimeClassifier:
     # ユーティリティメソッドテスト
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def test_get_regime_stats(self, classifier, base_df):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_get_regime_stats(self, mock_threshold, classifier, base_df):
         """get_regime_stats()が詳細統計を返すことを確認"""
         df = base_df.copy()
 
@@ -251,32 +312,48 @@ class TestMarketRegimeClassifier:
     # 判定メソッドテスト
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def test_is_tight_range(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_is_tight_range(self, mock_threshold, classifier):
         """_is_tight_range()判定ロジックが正しいことを確認"""
+        # 閾値: bb_width < 0.025, price_range < 0.015
         assert classifier._is_tight_range(0.02, 0.01) is True  # 両方満たす
-        assert classifier._is_tight_range(0.04, 0.01) is False  # BB幅が大きい
-        assert classifier._is_tight_range(0.02, 0.03) is False  # 価格変動が大きい
-        assert classifier._is_tight_range(0.04, 0.03) is False  # 両方満たさない
+        assert classifier._is_tight_range(0.03, 0.01) is False  # BB幅が大きい
+        assert classifier._is_tight_range(0.02, 0.02) is False  # 価格変動が大きい
+        assert classifier._is_tight_range(0.03, 0.02) is False  # 両方満たさない
 
-    def test_is_normal_range(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_is_normal_range(self, mock_threshold, classifier):
         """_is_normal_range()判定ロジックが正しいことを確認"""
+        # 閾値: bb_width < 0.05, adx < 20
         assert classifier._is_normal_range(0.04, 15.0) is True  # 両方満たす
         assert classifier._is_normal_range(0.06, 15.0) is False  # BB幅が大きい
         assert classifier._is_normal_range(0.04, 25.0) is False  # ADXが高い
         assert classifier._is_normal_range(0.06, 25.0) is False  # 両方満たさない
 
-    def test_is_trending(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_is_trending(self, mock_threshold, classifier):
         """_is_trending()判定ロジックが正しいことを確認"""
-        assert classifier._is_trending(30.0, 0.02) is True  # 両方満たす
-        assert classifier._is_trending(20.0, 0.02) is False  # ADXが低い
-        assert classifier._is_trending(30.0, 0.005) is False  # EMA傾きが小さい
-        assert classifier._is_trending(20.0, 0.005) is False  # 両方満たさない
+        # 閾値: adx > 20, abs(ema_slope) > 0.007
+        assert classifier._is_trending(25.0, 0.015) is True  # 両方満たす
+        assert classifier._is_trending(15.0, 0.015) is False  # ADXが低い
+        assert classifier._is_trending(25.0, 0.005) is False  # EMA傾きが小さい
+        assert classifier._is_trending(15.0, 0.005) is False  # 両方満たさない
 
-        # 下降トレンドもOK（abs(ema_slope) > 0.01）
-        assert classifier._is_trending(30.0, -0.02) is True
+        # 下降トレンドもOK（abs(ema_slope) > 0.007）
+        assert classifier._is_trending(25.0, -0.015) is True
 
-    def test_is_high_volatility(self, classifier):
+    @patch(
+        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
+    )
+    def test_is_high_volatility(self, mock_threshold, classifier):
         """_is_high_volatility()判定ロジックが正しいことを確認"""
+        # 閾値: atr_ratio > 0.018
         assert classifier._is_high_volatility(0.02) is True  # 高ボラ
         assert classifier._is_high_volatility(0.01) is False  # 低ボラ
         assert classifier._is_high_volatility(0.018) is False  # 境界値（含まない）
