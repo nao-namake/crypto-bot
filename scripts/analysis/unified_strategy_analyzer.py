@@ -863,7 +863,11 @@ class UnifiedStrategyAnalyzer:
             )
             if used_count == 0:
                 redundant.append(
-                    {"strategy": strategy, "reason": "全レジームで重み0（未使用）", "severity": "high"}
+                    {
+                        "strategy": strategy,
+                        "reason": "全レジームで重み0（未使用）",
+                        "severity": "high",
+                    }
                 )
 
         # 基準2: 使用頻度が極めて低い戦略（1レジームのみ）
@@ -887,9 +891,7 @@ class UnifiedStrategyAnalyzer:
         if len(trend_strategies) >= 3:
             trend_usage = {}
             for strategy in trend_strategies:
-                total_weight = sum(
-                    data["weights"].get(strategy, 0) for data in coverage.values()
-                )
+                total_weight = sum(data["weights"].get(strategy, 0) for data in coverage.values())
                 trend_usage[strategy] = total_weight
             min_weight_strategy = min(trend_usage, key=trend_usage.get)
             if trend_usage[min_weight_strategy] < 0.5:
@@ -908,10 +910,10 @@ class UnifiedStrategyAnalyzer:
     ) -> Tuple[List[Dict[str, str]], List[str]]:
         """削除推奨リスト生成"""
         sorted_redundant = sorted(redundant, key=lambda x: 0 if x["severity"] == "high" else 1)
-        deletion_candidates = sorted_redundant[:4] if len(sorted_redundant) >= 4 else sorted_redundant
-        remaining = [
-            s for s in strategies if s not in [c["strategy"] for c in deletion_candidates]
-        ]
+        deletion_candidates = (
+            sorted_redundant[:4] if len(sorted_redundant) >= 4 else sorted_redundant
+        )
+        remaining = [s for s in strategies if s not in [c["strategy"] for c in deletion_candidates]]
         return deletion_candidates, remaining
 
     def print_theoretical_report(self, result: TheoreticalResult) -> None:
