@@ -1,5 +1,5 @@
 # Walk-Forward Validation ワークフロー
-# Phase 60.3: 過学習検出・真のML予測力評価
+# Phase 61: 過学習検出・真のML予測力評価
 #
 # 実行方法:
 #   GitHub → Actions → Walk-Forward Validation → Run workflow

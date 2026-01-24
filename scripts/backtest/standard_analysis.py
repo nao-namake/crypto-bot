@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-標準分析スクリプト - Phase 57.13
+標準分析スクリプト - Phase 61
 
 目的:
   バックテスト結果の標準化された分析を実行し、毎回同一の分析項目で
@@ -365,7 +365,7 @@ class ReportGenerator:
         """コンソール出力"""
         r = self.result
         print("\n" + "=" * 60)
-        print("📊 Phase 57.13 標準分析レポート")
+        print("📊 Phase 61 標準分析レポート")
         print("=" * 60)
         print(f"分析日時: {r.timestamp}")
         print(f"Phase: {r.phase}")
@@ -490,7 +490,7 @@ class ReportGenerator:
         r = self.result
 
         lines = [
-            f"# Phase 57.13 標準分析レポート",
+            f"# Phase 61 標準分析レポート",
             f"",
             f"**分析日時**: {r.timestamp}",
             f"**Phase**: {r.phase}",
@@ -921,7 +921,7 @@ class CIIntegration:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Phase 57.13 標準分析スクリプト")
+    parser = argparse.ArgumentParser(description="Phase 61 標準分析スクリプト")
     parser.add_argument(
         "json_path", nargs="?", help="バックテストJSONファイルパス（--from-ci/--local時は不要）"
     )
@@ -993,7 +993,7 @@ def main():
     if not args.no_csv:
         reporter.append_csv()
 
-    print("\n✅ Phase 57.13 標準分析完了")
+    print("\n✅ Phase 61 標準分析完了")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 59完了・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 61・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-64%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2059-Complete-brightgreen)](docs/)
+[![Coverage](https://img.shields.io/badge/coverage-62%25%2B-green)](coverage-reports/)
+[![Phase](https://img.shields.io/badge/Phase%2061-InProgress-blue)](docs/)
 
 ---
 
@@ -202,7 +202,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 59計画
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 61計画
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -210,38 +210,37 @@ config/core/
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
 - **[GCP運用ガイド](docs/運用ガイド/GCP運用ガイド.md)**: IAM権限・リソース管理
 - **[システム機能一覧](docs/運用ガイド/システム機能一覧.md)**: 実装機能リファレンス
-- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-59総括
+- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-61総括
 
 ---
 
 ## 開発状況
 
+### Phase 61（進行中）: 戦略分析・コードベース整理
+
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| **61.1** | **レジーム判定閾値調整** | **tight_range/trending閾値を設定ファイル化** |
+| **61.2** | **デプロイ関連ファイル整理** | **Dockerfile/main.py等Phase 61更新** |
+| 61.3 | ADXTrendStrength評価 | 📋予定 |
+| 61.4 | MACDEMACrossover改善 | 📋予定 |
+
+### Phase 60（完了）: 実効レバレッジ最適化・MLモデル差別化
+
+| Phase | 内容 | 成果 |
+|-------|------|------|
+| 60.1-60.2 | 実効レバレッジ0.5倍移行 | 14箇所設定変更・稼働率100% |
+| 60.3-60.4 | Walk-Forward検証 | 過学習排除・一致率向上 |
+| 60.5-60.6 | MLモデル差別化 | シード差別化・動的重み計算 |
+| **60.7** | **pandas 3.0互換性修正** | **¥86,639・PF 1.58達成** |
+
 ### Phase 59（完了）: ML最適化・Stacking検証
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| 59.1 | BBReversal調整 | normal_range無効化（0%勝率問題） |
-| 59.2 | 信頼度逆転対策 | penalty/bonus調整 |
-| 59.3 | adjusted_confidence記録 | 6ファイル修正・統計可視化 |
+| 59.1-59.3 | BBReversal調整・信頼度対策 | normal_range無効化・penalty/bonus調整 |
 | 59.4-A | 2票ルール無効化 | 勝率53.8%、PF 1.55、損益¥+44,506 |
-| 59.4-B | レジーム別重み調整 | ❌失敗→リバート（分散効果低下） |
-| 59.5 | ライブモード分析修正 | 注文タイプ・年跨ぎ・TZ修正 |
-| **59.10** | **Stacking無効化・PE採用** | **✅ 過去最高¥+54,526、PF 1.60、年利22.9%** |
-
-### Phase 58（完了）: TP/SL管理・運用安定化
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 58.1-58.4 | TP/SL管理・API修正 | 決済注文発行・ポジション同期 |
-| 58.5-58.6 | TP/SL縮小・精度向上 | 0.4%/0.3%・土日62.5% |
-| 58.7-58.8 | 稼働率・孤児SL防止 | BTC/JPYフィルタ・リトライ |
-
-### Phase 57（完了）: 年利10%目標・リスク最大化
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 57.1-57.7 | リスク設定最適化 | レバレッジ修正、ポジション拡大 |
-| 57.10-57.14 | 分析機能強化 | 84項目/35項目標準分析スクリプト |
+| **59.10** | **Stacking無効化・PE採用** | **✅ 過去最高¥+54,526、PF 1.60** |
 
 ### パフォーマンス指標
 
@@ -273,4 +272,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月18日 - **Phase 59完了**（Stacking無効化・PE採用・過去最高¥+54,526）
+**最終更新**: 2026年1月24日 - **Phase 61進行中**（戦略分析・コードベース整理・レジーム判定最適化）

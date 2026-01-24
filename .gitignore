@@ -65,7 +65,6 @@ config/production.yml
 
 # Discord Webhook設定（機密情報）
 config/secrets/
-*.txt
 
 # GCP IAMポリシーバックアップ（機密情報・自動生成）
 config/infrastructure/iam_policy_backup.json
@@ -110,7 +109,7 @@ docs/検証記録/analysis_history.csv
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# Phase 50.9: 本番用2段階モデルは例外（62特徴量固定システム）
+# 本番用2段階モデルは例外（55特徴量）
 !models/production/ensemble_full.pkl
 !models/production/ensemble_basic.pkl
 *.model
@@ -128,10 +127,8 @@ training_logs/
 model_artifacts/
 
 # ただし、管理対象のモデルファイルは保持
-!models/archive/                  # モデルアーカイブディレクトリ（管理対象）
-!models/production/*.pkl          # 本番用モデル（管理対象）
-!models/training/*.pkl            # 学習用モデル（管理対象）
-!models/**/*.pkl                  # その他管理対象モデル
+!models/archive/                  # モデルアーカイブディレクトリ
+!models/**/*.pkl                  # 本番・学習用モデル
 
 # モデル評価・実験の一時結果
 model_evaluation_*.json

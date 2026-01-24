@@ -28,7 +28,8 @@ ERRORS=0
 echo "📦 [1/7] Dockerfile整合性チェック..."
 
 # 必須ディレクトリリスト（Phase 49.13で追加されたtax/を含む）
-REQUIRED_DIRS=("src" "config" "models" "tax" "tests/manual")
+# Phase 61.2: tests/manual削除済みのため除外
+REQUIRED_DIRS=("src" "config" "models" "tax")
 
 for dir in "${REQUIRED_DIRS[@]}"; do
     # ディレクトリの存在確認

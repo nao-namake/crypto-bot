@@ -24,8 +24,9 @@
 | Phase | 内容 | 成果 |
 |-------|------|------|
 | **61.1** | **レジーム判定閾値調整** | **tight_range/trending閾値を設定ファイル化・発生率調整** |
-| 61.2 | ADXTrendStrength評価 | 📋予定（CI結果待ち） |
-| 61.3 | MACDEMACrossover改善 | 📋予定（CI結果待ち） |
+| **61.2** | **デプロイ関連ファイル整理** | **Dockerfile/main.py/pyproject.toml等Phase 61更新** |
+| 61.3 | ADXTrendStrength評価 | 📋予定（CI結果待ち） |
+| 61.4 | MACDEMACrossover改善 | 📋予定（CI結果待ち） |
 
 ### Phase 60 成果
 
@@ -387,14 +388,14 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 
 | ファイル | 内容 |
 |---------|------|
-| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-60サマリー） |
-| Phase_54.md | ATRレンジ消尽戦略リファクタリング |
+| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-61サマリー） |
 | Phase_55.md | 戦略最適化・重みづけ調整 |
 | Phase_56.md | リスク管理問題対応 |
 | Phase_57.md | 年利10%目標・リスク最大化 |
 | Phase_58.md | TP/SL管理・ポジション同期修正 |
-| Phase_59.md | ML最適化・Stacking検証（完了） |
-| **Phase_60.md** | **実効レバレッジ最適化・MLモデル差別化（進行中）** |
+| Phase_59.md | ML最適化・Stacking検証 |
+| Phase_60.md | 実効レバレッジ最適化・MLモデル差別化 |
+| **Phase_61.md** | **戦略分析・コードベース整理・レジーム判定最適化（進行中）** |
 
 ### docs/開発計画/
 
@@ -443,7 +444,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ## 開発開始前チェックリスト
 
-1. **最新状況把握**: Phase 60・Phase_60.md確認
+1. **最新状況把握**: Phase 61・Phase_61.md確認
 2. **品質チェック**: `bash scripts/testing/checks.sh`実行
 3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
 4. **GCP確認**: サービス稼働状況・最新リビジョン
@@ -451,4 +452,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月20日 - **Phase 60.5完了**（MLモデル差別化・シード差別化・動的重み計算）
+**📅 最終更新**: 2026年1月24日 - **Phase 61.2完了**（デプロイ関連ファイル整理・メタデータPhase 61更新）

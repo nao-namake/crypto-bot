@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-バックテストMarkdownレポート生成スクリプト
+バックテストMarkdownレポート生成スクリプト - Phase 61
 
 目的: JSON形式のバックテストレポートをMarkdownに変換
 

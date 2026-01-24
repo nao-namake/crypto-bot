@@ -4,7 +4,7 @@
 
 実際の取引で使用される本番用機械学習モデルを管理します。**Phase 59: ProductionEnsemble採用**により、Stacking無効化・重み付き平均方式で安定した高収益を実現します。
 
-## ファイル構成（Phase 59完了版）
+## ファイル構成（Phase 61更新）
 
 ```
 models/production/
@@ -12,12 +12,10 @@ models/production/
 ├── ensemble_full.pkl                      # メイン: 55特徴量モデル（32MB）
 ├── ensemble_basic.pkl                     # フォールバック: 49特徴量モデル（33MB）
 ├── production_model_metadata.json         # メインモデルのメタデータ
-├── production_model_metadata_basic.json   # Basicモデルのメタデータ
-│
-# 以下はStacking用（Phase 59で無効化・参照のみ）
-├── stacking_ensemble.pkl                  # Stackingモデル（無効）
-└── meta_learner.pkl                       # メタ学習器（無効）
+└── production_model_metadata_basic.json   # Basicモデルのメタデータ
 ```
+
+※ Stackingモデル（stacking_ensemble.pkl, meta_learner.pkl）はPhase 61で削除済み
 
 ## 主要モデル
 
@@ -115,8 +113,8 @@ python3 scripts/ml/create_ml_models.py
 - メモリ使用量: モデル読み込み時約100-150MB
 - 読み込み時間: 初回数秒
 
-### Stackingファイル
-`stacking_ensemble.pkl`と`meta_learner.pkl`はPhase 59で無効化されましたが、将来の比較検証用に保持しています。`stacking_enabled: true`に戻すと使用可能です。
+### Stackingについて
+Stackingモデルは**Phase 61で完全削除**されました。ProductionEnsemble（重み付き平均）がStackingより高収益であることがPhase 59で確認されたため、Stacking機能は使用しません。
 
 ## 関連ファイル
 
@@ -130,4 +128,4 @@ python3 scripts/ml/create_ml_models.py
 
 ---
 
-**最終更新**: 2026年1月18日（Phase 59完了）
+**最終更新**: 2026年1月24日（Phase 61: Stackingモデル削除）

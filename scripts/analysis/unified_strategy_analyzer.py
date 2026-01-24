@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
-統合戦略分析スクリプト v1.0
+統合戦略分析スクリプト v2.0 - Phase 61
 
-5つの分析スクリプトを統合した包括的分析ツール:
-- comprehensive_strategy_evaluation.py → 包括的評価機能
-- strategy_performance_analysis.py → 基本メトリクス・削除候補特定
-- extract_regime_stats.py → レジーム別統計
-- verify_regime_classification.py → レジーム分類精度検証
-- strategy_theoretical_analysis.py → 独立維持（理論分析）
+戦略分析の統合ツール。Phase 61.3/61.4の戦略評価・改善に使用。
 
 使用方法:
-    python scripts/analysis/unified_strategy_analyzer.py --days 60
-    python scripts/analysis/unified_strategy_analyzer.py --days 30 --mode quick
-    python scripts/analysis/unified_strategy_analyzer.py --days 60 --strategy ATRBased
+    python scripts/analysis/unified_strategy_analyzer.py --mode theoretical  # 理論分析（数秒）
+    python scripts/analysis/unified_strategy_analyzer.py --mode quick        # 簡易実証（30秒）
+    python scripts/analysis/unified_strategy_analyzer.py --mode full         # 完全実証（3分）
+    python scripts/analysis/unified_strategy_analyzer.py --mode regime-only  # レジーム統計のみ
     python scripts/analysis/unified_strategy_analyzer.py --days 60 --export ./output --format all
 
 分析モード:
-    quick      - 基本メトリクスのみ（~30秒）
-    full       - 全分析（時間帯別・連敗・相関）（~3分）
+    theoretical - 設定ベース理論分析（レジームカバレッジ・冗長性）（~数秒）
+    quick       - 基本メトリクスのみ（~30秒）
+    full        - 全分析（時間帯別・連敗・相関）（~3分）
     regime-only - レジーム分類精度のみ（~10秒）
 """
 
@@ -45,7 +42,6 @@ try:
 except Exception:
     pass
 
-from src.backtest.reporter import TradeTracker
 from src.core.config.threshold_manager import get_threshold
 from src.core.services.market_regime_classifier import MarketRegimeClassifier
 from src.core.services.regime_types import RegimeType
@@ -142,6 +138,20 @@ class AnalysisResult:
     strategy_metrics: List[StrategyMetrics]
     deletion_candidates: List[str]
     overall_recommendations: List[str]
+
+
+@dataclass
+class TheoreticalResult:
+    """理論分析結果"""
+
+    analysis_date: str
+    strategies: List[str]
+    strategy_types: Dict[str, str]
+    regime_weights: Dict[str, Dict[str, float]]
+    regime_coverage: Dict[str, Dict[str, Any]]
+    redundant_strategies: List[Dict[str, str]]
+    deletion_candidates: List[Dict[str, str]]
+    remaining_strategies: List[str]
 
 
 # ============================================================================
@@ -756,6 +766,220 @@ class UnifiedStrategyAnalyzer:
             metrics.deletion_reasons = reasons
 
     # ========================================================================
+    # Phase 3b: 理論分析（設定ベース）
+    # ========================================================================
+
+    def run_theoretical_analysis(self) -> TheoreticalResult:
+        """設定ファイルベースの理論分析"""
+        print("\n📊 理論分析開始...")
+
+        # 戦略情報取得
+        from src.strategies.strategy_loader import StrategyLoader
+
+        loader = StrategyLoader()
+        strategies_data = loader.load_strategies()
+
+        strategies = [s["metadata"]["name"] for s in strategies_data]
+        strategy_types = {
+            s["metadata"]["name"]: s.get("regime_affinity", "both") for s in strategies_data
+        }
+
+        print(f"   ✅ {len(strategies)}戦略を取得")
+
+        # レジーム別重み取得
+        regime_weights = self._get_regime_weights()
+        print("   ✅ レジーム別重みを取得")
+
+        # レジームカバレッジ分析
+        coverage = self._analyze_regime_coverage(regime_weights)
+        print("   ✅ レジームカバレッジ分析完了")
+
+        # 冗長性分析
+        redundant = self._identify_theoretical_redundancy(strategies, strategy_types, coverage)
+        print(f"   ✅ 冗長性分析完了: {len(redundant)}件検出")
+
+        # 削除推奨生成
+        deletion_candidates, remaining = self._generate_theoretical_recommendation(
+            strategies, redundant
+        )
+        print(f"   ✅ 削除候補: {len(deletion_candidates)}戦略")
+
+        return TheoreticalResult(
+            analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            strategies=strategies,
+            strategy_types=strategy_types,
+            regime_weights=regime_weights,
+            regime_coverage=coverage,
+            redundant_strategies=redundant,
+            deletion_candidates=deletion_candidates,
+            remaining_strategies=remaining,
+        )
+
+    def _get_regime_weights(self) -> Dict[str, Dict[str, float]]:
+        """レジーム別戦略重みを取得"""
+        regime_weights = {}
+        for regime in [
+            RegimeType.TIGHT_RANGE,
+            RegimeType.NORMAL_RANGE,
+            RegimeType.TRENDING,
+            RegimeType.HIGH_VOLATILITY,
+        ]:
+            weights = get_threshold(
+                f"dynamic_strategy_selection.regime_strategy_mapping.{regime.value}",
+                {},
+            )
+            regime_weights[regime.value] = weights
+        return regime_weights
+
+    def _analyze_regime_coverage(
+        self, regime_weights: Dict[str, Dict[str, float]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """レジーム別の戦略カバレッジ分析"""
+        coverage = {}
+        for regime, weights in regime_weights.items():
+            active_strategies = [s for s, w in weights.items() if w > 0]
+            coverage[regime] = {
+                "active_count": len(active_strategies),
+                "active_strategies": active_strategies,
+                "weights": weights,
+            }
+        return coverage
+
+    def _identify_theoretical_redundancy(
+        self,
+        strategies: List[str],
+        strategy_types: Dict[str, str],
+        coverage: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, str]]:
+        """理論的冗長性を特定"""
+        redundant = []
+
+        # 基準1: 全レジームで重みが0の戦略
+        for strategy in strategies:
+            used_count = sum(
+                1
+                for regime_data in coverage.values()
+                if strategy in regime_data["active_strategies"]
+            )
+            if used_count == 0:
+                redundant.append(
+                    {"strategy": strategy, "reason": "全レジームで重み0（未使用）", "severity": "high"}
+                )
+
+        # 基準2: 使用頻度が極めて低い戦略（1レジームのみ）
+        for strategy in strategies:
+            used_count = sum(
+                1
+                for regime_data in coverage.values()
+                if strategy in regime_data["active_strategies"]
+            )
+            if 0 < used_count <= 1:
+                redundant.append(
+                    {
+                        "strategy": strategy,
+                        "reason": f"使用レジーム数が少ない（{used_count}/4レジーム）",
+                        "severity": "medium",
+                    }
+                )
+
+        # 基準3: 同じタイプの戦略が複数存在（トレンド型3つ以上）
+        trend_strategies = [s for s, t in strategy_types.items() if t == "trend"]
+        if len(trend_strategies) >= 3:
+            trend_usage = {}
+            for strategy in trend_strategies:
+                total_weight = sum(
+                    data["weights"].get(strategy, 0) for data in coverage.values()
+                )
+                trend_usage[strategy] = total_weight
+            min_weight_strategy = min(trend_usage, key=trend_usage.get)
+            if trend_usage[min_weight_strategy] < 0.5:
+                redundant.append(
+                    {
+                        "strategy": min_weight_strategy,
+                        "reason": f"トレンド型で最も使用頻度が低い（合計重み: {trend_usage[min_weight_strategy]:.2f}）",
+                        "severity": "medium",
+                    }
+                )
+
+        return redundant
+
+    def _generate_theoretical_recommendation(
+        self, strategies: List[str], redundant: List[Dict[str, str]]
+    ) -> Tuple[List[Dict[str, str]], List[str]]:
+        """削除推奨リスト生成"""
+        sorted_redundant = sorted(redundant, key=lambda x: 0 if x["severity"] == "high" else 1)
+        deletion_candidates = sorted_redundant[:4] if len(sorted_redundant) >= 4 else sorted_redundant
+        remaining = [
+            s for s in strategies if s not in [c["strategy"] for c in deletion_candidates]
+        ]
+        return deletion_candidates, remaining
+
+    def print_theoretical_report(self, result: TheoreticalResult) -> None:
+        """理論分析レポート出力"""
+        print("\n" + "=" * 80)
+        print("📊 理論分析レポート（設定ベース）")
+        print("=" * 80)
+
+        print(f"\n📅 分析日時: {result.analysis_date}")
+
+        # 戦略一覧
+        print("\n" + "-" * 40)
+        print("📋 現行戦略")
+        print("-" * 40)
+        for strategy in result.strategies:
+            stype = result.strategy_types.get(strategy, "unknown")
+            print(f"  - {strategy}: {stype}型")
+
+        # レジーム別カバレッジ
+        print("\n" + "-" * 40)
+        print("🎯 レジーム別戦略カバレッジ")
+        print("-" * 40)
+        for regime, data in result.regime_coverage.items():
+            print(f"  {regime}:")
+            print(f"    有効戦略数: {data['active_count']}戦略")
+            if data["active_strategies"]:
+                for strategy in data["active_strategies"]:
+                    weight = data["weights"].get(strategy, 0)
+                    print(f"      - {strategy}: {weight:.0%}")
+            else:
+                print("      - なし（全戦略無効化）")
+
+        # 冗長性分析
+        print("\n" + "-" * 40)
+        print("🔍 冗長性分析")
+        print("-" * 40)
+        if result.redundant_strategies:
+            for item in result.redundant_strategies:
+                severity_mark = "⚠️" if item["severity"] == "high" else "📋"
+                print(f"  {severity_mark} {item['strategy']}: {item['reason']}")
+        else:
+            print("  ✅ 冗長な戦略なし")
+
+        # 削除推奨
+        print("\n" + "-" * 40)
+        print("🗑️ 削除候補")
+        print("-" * 40)
+        if result.deletion_candidates:
+            for i, candidate in enumerate(result.deletion_candidates, 1):
+                print(f"  {i}. {candidate['strategy']}")
+                print(f"     理由: {candidate['reason']}")
+                print(f"     重要度: {candidate['severity']}")
+        else:
+            print("  ✅ 削除推奨戦略なし")
+
+        # 残存戦略
+        print("\n" + "-" * 40)
+        print("✅ 削除後の残存戦略")
+        print("-" * 40)
+        if result.remaining_strategies:
+            print(f"  残存戦略数: {len(result.remaining_strategies)}戦略")
+            for strategy in result.remaining_strategies:
+                stype = result.strategy_types.get(strategy, "unknown")
+                print(f"    - {strategy} ({stype}型)")
+
+        print("\n" + "=" * 80)
+
+    # ========================================================================
     # Phase 4: レポート出力
     # ========================================================================
 
@@ -996,8 +1220,9 @@ async def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
-  python scripts/analysis/unified_strategy_analyzer.py --days 60
-  python scripts/analysis/unified_strategy_analyzer.py --days 30 --mode quick
+  python scripts/analysis/unified_strategy_analyzer.py --mode theoretical       # 理論分析（数秒）
+  python scripts/analysis/unified_strategy_analyzer.py --mode quick             # 簡易実証（30秒）
+  python scripts/analysis/unified_strategy_analyzer.py --mode full              # 完全実証（3分）
   python scripts/analysis/unified_strategy_analyzer.py --days 60 --strategy ATRBased
   python scripts/analysis/unified_strategy_analyzer.py --days 60 --export ./output --format all
         """,
@@ -1008,8 +1233,8 @@ async def main():
         "--mode",
         type=str,
         default="full",
-        choices=["quick", "full", "regime-only"],
-        help="分析モード（quick/full/regime-only）",
+        choices=["theoretical", "quick", "full", "regime-only"],
+        help="分析モード（theoretical/quick/full/regime-only）",
     )
     parser.add_argument("--export", type=str, default=None, help="出力ディレクトリ")
     parser.add_argument(
@@ -1023,21 +1248,27 @@ async def main():
     args = parser.parse_args()
 
     print("=" * 80)
-    print("🔍 統合戦略分析スクリプト v1.0")
+    print("🔍 統合戦略分析スクリプト v2.0")
     print("=" * 80)
 
     try:
         analyzer = UnifiedStrategyAnalyzer(verbose=args.verbose)
 
-        # Phase 1: データ準備
-        await analyzer.load_data(days=args.days)
-        analyzer.classify_regimes()
-
-        if args.mode == "regime-only":
+        if args.mode == "theoretical":
+            # 理論分析モード（設定ファイルベース、データ不要）
+            result = analyzer.run_theoretical_analysis()
+            analyzer.print_theoretical_report(result)
+        elif args.mode == "regime-only":
             # レジーム分類のみの場合
+            await analyzer.load_data(days=args.days)
+            analyzer.classify_regimes()
             result = analyzer.generate_result(args.days, args.mode)
             analyzer.print_console_report(result)
         else:
+            # Phase 1: データ準備
+            await analyzer.load_data(days=args.days)
+            analyzer.classify_regimes()
+
             # Phase 2: 戦略評価
             analyzer.load_strategies(target_strategy=args.strategy)
             await analyzer.evaluate_strategies(mode=args.mode)

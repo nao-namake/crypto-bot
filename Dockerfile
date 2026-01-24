@@ -1,12 +1,12 @@
-# Phase 49完了 Production Dockerfile
-# 1,065テスト100%成功・66.72%カバレッジ・企業級AI自動取引システム
+# Phase 61 Production Dockerfile
+# 戦略分析・コードベース整理・レジーム判定最適化
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 49完了）
-LABEL maintainer="crypto-bot-phase49-system"
-LABEL version="49.0.0"
-LABEL description="Phase 49完了: バックテスト完全改修・確定申告対応・週間レポート・統合TP/SL・Strategy-Aware ML実装完了"
+# メタデータ（Phase 61）
+LABEL maintainer="crypto-bot-phase61-system"
+LABEL version="61.0.0"
+LABEL description="Phase 61: 戦略分析・コードベース整理"
 
 WORKDIR /app
 
@@ -29,7 +29,6 @@ COPY config/ /app/config/
 COPY models/ /app/models/
 COPY tax/ /app/tax/
 COPY main.py /app/
-COPY tests/manual/ /app/tests/manual/
 
 # ログ・統合キャッシュディレクトリ（統一設定管理体系パターン）
 RUN mkdir -p /app/.cache/pycache /app/.cache/coverage /app/.cache/pytest /app/cache /app/logs/trading \

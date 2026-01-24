@@ -1,59 +1,55 @@
-# 戦略分析スクリプト
+# 戦略分析スクリプト - Phase 61
 
 ## 概要
 
-このディレクトリには、取引戦略の分析・評価ツールが含まれています。
+取引戦略の分析・評価ツール。Phase 61.3/61.4の戦略評価・改善に使用。
 
-## メインスクリプト
+---
 
-### unified_strategy_analyzer.py
+## unified_strategy_analyzer.py (v2.0)
 
-統合戦略分析スクリプト。5つの旧スクリプトの機能を統合した包括的な分析ツール。
+統合戦略分析スクリプト。理論分析から実証分析まで4つのモードを提供。
 
-#### 基本使用法
-
-```bash
-# 60日分析（デフォルト: quickモード）
-python scripts/analysis/unified_strategy_analyzer.py --days 60
-
-# 30日分析
-python scripts/analysis/unified_strategy_analyzer.py --days 30
-```
-
-#### 分析モード
+### 分析モード
 
 | モード | 内容 | 所要時間 |
 |--------|------|----------|
+| `theoretical` | 設定ベース理論分析（レジームカバレッジ・冗長性） | 数秒 |
 | `quick` | 基本メトリクス・バックテスト | 約30秒 |
 | `full` | 全分析（時間帯別・連敗・相関） | 約3分 |
-| `regime-only` | レジーム分類精度のみ | 約10秒 |
+| `regime-only` | レジーム分類統計のみ | 約10秒 |
+
+### 基本使用法
 
 ```bash
-# quickモード（デフォルト）
+# 理論分析（設定ファイルベース、データ不要）
+python scripts/analysis/unified_strategy_analyzer.py --mode theoretical
+
+# 簡易実証分析（30秒）
+python scripts/analysis/unified_strategy_analyzer.py --mode quick
+
+# 完全実証分析（3分）
+python scripts/analysis/unified_strategy_analyzer.py --mode full
+
+# レジーム統計のみ
+python scripts/analysis/unified_strategy_analyzer.py --mode regime-only
+```
+
+### 期間・戦略指定
+
+```bash
+# 60日分析
 python scripts/analysis/unified_strategy_analyzer.py --days 60 --mode quick
 
-# fullモード
-python scripts/analysis/unified_strategy_analyzer.py --days 60 --mode full
-
-# レジーム分類のみ
-python scripts/analysis/unified_strategy_analyzer.py --days 60 --mode regime-only
+# 特定戦略のみ（ADXTrendStrength）
+python scripts/analysis/unified_strategy_analyzer.py --days 60 --strategy ADXTrendStrength
 ```
 
-#### 特定戦略の分析
-
-```bash
-# ATRBasedのみ分析
-python scripts/analysis/unified_strategy_analyzer.py --days 60 --strategy ATRBased
-
-# StochasticReversalのみ分析
-python scripts/analysis/unified_strategy_analyzer.py --days 60 --strategy StochasticReversal
-```
-
-#### 出力形式
+### 出力形式
 
 ```bash
 # コンソール出力のみ（デフォルト）
-python scripts/analysis/unified_strategy_analyzer.py --days 60
+python scripts/analysis/unified_strategy_analyzer.py --mode quick
 
 # JSON出力
 python scripts/analysis/unified_strategy_analyzer.py --days 60 --export ./output --format json
@@ -65,62 +61,42 @@ python scripts/analysis/unified_strategy_analyzer.py --days 60 --export ./output
 python scripts/analysis/unified_strategy_analyzer.py --days 60 --export ./output --format all
 ```
 
-#### 出力例
+### 出力例（theoreticalモード）
 
 ```
 ================================================================================
-統合戦略分析レポート
+📊 理論分析レポート（設定ベース）
 ================================================================================
 
-分析日時: 2025-12-21 08:15:27
-分析期間: 60日
-分析モード: quick
-データポイント: 5,748
+📅 分析日時: 2026-01-24 07:57:31
 
 ----------------------------------------
-レジーム分布
+📋 現行戦略
 ----------------------------------------
-  tight_range:         0 (  0.0%)
-  normal_range:    5,748 (100.0%)
-  trending:            0 (  0.0%)
-  high_volatility:     0 (  0.0%)
+  - ATRBased: range型
+  - DonchianChannel: range型
+  - ADXTrendStrength: range型
+  - BBReversal: range型
+  - StochasticReversal: range型
+  - MACDEMACrossover: trend型
 
 ----------------------------------------
-戦略別パフォーマンス
+🎯 レジーム別戦略カバレッジ
 ----------------------------------------
-戦略                      取引数      勝率     PF         損益    スコア
-------------------------------------------------------------
-ATRBased             322   44.7%  1.03     +6,375円    50
-DonchianChannel      294   44.2%  1.03     +7,855円    50
-StochasticReversal   177   45.8%  1.10    +13,236円    45
-MACDEMACrossover      49   49.0%  1.42    +14,629円    40
-ADXTrendStrength     111   42.3%  0.92     -7,384円    35
-BBReversal            93   47.3%  1.16    +11,231円    35
+  tight_range:
+    有効戦略数: 4戦略
+      - BBReversal: 35%
+      - StochasticReversal: 35%
+      - ATRBased: 20%
+      - DonchianChannel: 10%
+  ...
+
+----------------------------------------
+🔍 冗長性分析
+----------------------------------------
+  📋 ADXTrendStrength: 使用レジーム数が少ない（1/4レジーム）
+  📋 MACDEMACrossover: 使用レジーム数が少ない（1/4レジーム）
 ```
-
----
-
-### strategy_theoretical_analysis.py
-
-設定駆動型の理論分析ツール（独立維持）。
-strategies.yamlの設定値に基づく理論的な分析を行います。
-
-```bash
-python scripts/analysis/strategy_theoretical_analysis.py
-```
-
----
-
-## アーカイブ（archive/）
-
-統合前の旧スクリプト。参照用に保持。
-
-| ファイル | 旧機能 |
-|---------|--------|
-| `comprehensive_strategy_evaluation.py` | 包括的評価（時間帯別・連敗・感度） |
-| `strategy_performance_analysis.py` | 基本メトリクス・削除候補特定 |
-| `extract_regime_stats.py` | ログからレジーム統計抽出 |
-| `verify_regime_classification.py` | レジーム分類精度検証 |
 
 ---
 
@@ -140,15 +116,24 @@ python scripts/analysis/strategy_theoretical_analysis.py
 
 ## 削除候補の判定基準
 
+### 理論分析（theoreticalモード）
+- 全レジームで重み0（未使用）
+- 使用レジーム数が1つのみ
+- 同タイプ戦略の中で最低使用頻度
+
+### 実証分析（quick/fullモード）
 - PF < 0.9
 - 全レジームで勝率 < 50%
-- 最大DD > 50,000円
-- 取引数 < 10
+- 他戦略と高相関（>0.7）
 
 ---
 
 ## 注意事項
 
-- PYTHONPATH設定が必要: `PYTHONPATH=/Users/nao/Desktop/bot python3 ...`
 - データは `src/backtest/data/historical/BTC_JPY_15m.csv` から読み込み
+- theoreticalモードはデータ不要（設定ファイルのみ参照）
 - 分析期間はCSVデータの範囲内で指定
+
+---
+
+**最終更新**: 2026年1月24日 - Phase 61（v2.0統合）

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Walk-Forward Validation スクリプト - Phase 60.3
+Walk-Forward Validation スクリプト - Phase 61
 
 過学習を排除したバックテスト検証システム。
 ローリングウィンドウ方式で訓練・テストを分離し、
@@ -15,6 +15,9 @@ Walk-Forward Validation スクリプト - Phase 60.3
 
     # 詳細ログ
     python scripts/backtest/walk_forward_validation.py --verbose
+
+    # CIの最新Walk-Forward結果を取得して分析
+    python scripts/backtest/walk_forward_validation.py --from-ci
 """
 
 import argparse
@@ -67,7 +70,7 @@ class WalkForwardValidator:
 
         # 設定読み込み
         if config_path is None:
-            config_path = Path(__file__).parent / "wf_config.yaml"
+            config_path = project_root / "config/core/wf_config.yaml"
         self.config = self._load_config(config_path)
 
         # ウィンドウ設定
@@ -718,14 +721,275 @@ class WalkForwardValidator:
         self.logger.info(f"予想実行時間: {len(windows) * 30}分 ~ {len(windows) * 60}分")
 
 
+class CIIntegration:
+    """GitHub Actions CI連携クラス"""
+
+    WORKFLOW_NAME = "walk_forward.yml"
+    ARTIFACT_NAME = "walk-forward-results"
+    DOWNLOAD_DIR = Path("docs/検証記録/ci_downloads/walk_forward")
+
+    @classmethod
+    def fetch_latest_result(cls) -> Tuple[Optional[str], Optional[str]]:
+        """
+        最新のCI Walk-Forward結果を取得
+
+        Returns:
+            (json_path, run_info): JSONファイルパスと実行情報のタプル
+            失敗時は (None, error_message)
+        """
+        import subprocess
+
+        print("🔍 CI最新Walk-Forward結果を検索中...")
+
+        # gh CLI確認
+        if not cls._check_gh_cli():
+            return None, "gh CLI がインストールされていません"
+
+        # 最新の成功した実行を取得
+        run_id, run_info = cls._get_latest_successful_run()
+        if not run_id:
+            return None, run_info
+
+        print(f"✅ 最新実行を検出: Run ID {run_id}")
+        print(f"   {run_info}")
+
+        # artifactダウンロード
+        json_path = cls._download_artifact(run_id)
+        if not json_path:
+            return None, "artifactのダウンロードに失敗しました"
+
+        return json_path, run_info
+
+    @classmethod
+    def _check_gh_cli(cls) -> bool:
+        """gh CLI インストール確認"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["gh", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return result.returncode == 0
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return False
+
+    @classmethod
+    def _get_latest_successful_run(cls) -> Tuple[Optional[str], str]:
+        """最新の成功した実行を取得"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "run",
+                    "list",
+                    "--workflow",
+                    cls.WORKFLOW_NAME,
+                    "--status",
+                    "success",
+                    "--limit",
+                    "1",
+                    "--json",
+                    "databaseId,createdAt,displayTitle",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                return None, f"gh run list 失敗: {result.stderr}"
+
+            runs = json.loads(result.stdout)
+            if not runs:
+                return None, "成功したWalk-Forward実行が見つかりません"
+
+            run = runs[0]
+            run_id = str(run["databaseId"])
+            created_at = run["createdAt"]
+            title = run.get("displayTitle", "Walk-Forward Validation")
+
+            return run_id, f"実行日時: {created_at}, タイトル: {title}"
+
+        except subprocess.TimeoutExpired:
+            return None, "gh run list タイムアウト"
+        except json.JSONDecodeError:
+            return None, "gh run list の出力パースに失敗"
+        except Exception as e:
+            return None, f"予期せぬエラー: {e}"
+
+    @classmethod
+    def _download_artifact(cls, run_id: str) -> Optional[str]:
+        """artifactをダウンロードしてJSONパスを返す"""
+        import subprocess
+
+        # ダウンロードディレクトリ準備
+        cls.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+        # 既存のファイルをクリア
+        for f in cls.DOWNLOAD_DIR.glob("*"):
+            if f.is_file():
+                f.unlink()
+            elif f.is_dir():
+                shutil.rmtree(f)
+
+        print(f"📥 artifact ダウンロード中 (Run ID: {run_id})...")
+
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "run",
+                    "download",
+                    run_id,
+                    "--name",
+                    cls.ARTIFACT_NAME,
+                    "--dir",
+                    str(cls.DOWNLOAD_DIR),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if result.returncode != 0:
+                print(f"❌ ダウンロード失敗: {result.stderr}")
+                return None
+
+            # JSONファイルを探す
+            json_files = list(cls.DOWNLOAD_DIR.glob("**/walk_forward_*.json"))
+            if not json_files:
+                print("❌ JSONファイルが見つかりません")
+                return None
+
+            # 最新のJSONファイルを選択
+            json_path = max(json_files, key=lambda p: p.stat().st_mtime)
+            print(f"✅ JSONファイル取得: {json_path}")
+
+            return str(json_path)
+
+        except subprocess.TimeoutExpired:
+            print("❌ ダウンロードタイムアウト")
+            return None
+        except Exception as e:
+            print(f"❌ ダウンロードエラー: {e}")
+            return None
+
+
+def analyze_ci_result(json_path: str):
+    """CI結果を分析して表示"""
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    print("\n" + "=" * 60)
+    print("📊 Walk-Forward Validation 分析レポート")
+    print("=" * 60)
+
+    # 基本情報
+    print(f"\n実行日時: {data.get('execution_time', 'N/A')}")
+    print(f"総ウィンドウ数: {data.get('total_windows', 0)}")
+    print(f"成功ウィンドウ: {data.get('successful_windows', 0)}")
+    print(f"失敗ウィンドウ: {data.get('failed_windows', 0)}")
+
+    # 集計指標
+    metrics = data.get("aggregate_metrics", {})
+    if metrics:
+        print("\n【集計指標】")
+        print(f"  平均PF: {metrics.get('mean_pf', 0):.2f} (±{metrics.get('std_pf', 0):.3f})")
+        print(f"  最小PF: {metrics.get('min_pf', 0):.2f}")
+        print(f"  最大PF: {metrics.get('max_pf', 0):.2f}")
+        print(f"  平均勝率: {metrics.get('mean_win_rate', 0) * 100:.1f}%")
+        print(f"  総損益: ¥{metrics.get('total_pnl', 0):,.0f}")
+        print(f"  ウィンドウ平均損益: ¥{metrics.get('mean_pnl_per_window', 0):,.0f}")
+
+    # 安定性評価
+    stability = data.get("stability_assessment", {})
+    if stability:
+        print("\n【安定性評価】")
+        print(f"  安定性レベル: {stability.get('stability_level', 'N/A')}")
+        print(f"  過学習リスク: {stability.get('overfitting_risk', 'N/A')}")
+        print(f"  全ウィンドウ黒字: {'Yes' if stability.get('all_windows_profitable') else 'No'}")
+        print(f"  低分散: {'Yes' if stability.get('low_variance') else 'No'}")
+
+    # ウィンドウ別結果
+    window_details = data.get("window_details", [])
+    if window_details:
+        print("\n【ウィンドウ別結果】")
+        print("-" * 60)
+        for w in window_details:
+            bt = w.get("backtest", {})
+            test_period = w.get("test_period", {})
+            test_str = f"{test_period.get('start', '')[:10]} ~ {test_period.get('end', '')[:10]}"
+            status_emoji = "✅" if w.get("status") == "success" else "❌"
+            print(
+                f"  {status_emoji} Window {w.get('window_id', 'N/A')}: "
+                f"PF={bt.get('profit_factor', 0):.2f}, "
+                f"勝率={bt.get('win_rate', 0) * 100:.1f}%, "
+                f"¥{bt.get('total_pnl', 0):+,.0f} "
+                f"({test_str})"
+            )
+
+    # 評価サマリー
+    print("\n" + "=" * 60)
+    print("💡 評価サマリー")
+    print("=" * 60)
+
+    if stability.get("is_stable"):
+        print("  ✅ 安定性: 良好 - 過学習リスクは低いと評価")
+    elif stability.get("stability_level") == "moderate":
+        print("  ⚠️ 安定性: 中程度 - 一部ウィンドウで不安定")
+    else:
+        print("  ❌ 安定性: 不安定 - 過学習の可能性あり")
+
+    if metrics.get("mean_pf", 0) >= 1.5:
+        print("  ✅ 収益性: 優良 (平均PF ≥ 1.5)")
+    elif metrics.get("mean_pf", 0) >= 1.0:
+        print("  ⚠️ 収益性: 許容範囲 (平均PF ≥ 1.0)")
+    else:
+        print("  ❌ 収益性: 要改善 (平均PF < 1.0)")
+
+    print("=" * 60 + "\n")
+
+
 async def main():
     """メイン処理"""
-    parser = argparse.ArgumentParser(description="Walk-Forward Validation")
+    parser = argparse.ArgumentParser(description="Walk-Forward Validation - Phase 61")
     parser.add_argument("--dry-run", action="store_true", help="ドライラン（ウィンドウ確認のみ）")
     parser.add_argument("--verbose", "-v", action="store_true", help="詳細ログ出力")
     parser.add_argument("--config", type=str, help="設定ファイルパス")
+    parser.add_argument(
+        "--from-ci",
+        action="store_true",
+        help="CIの最新Walk-Forward結果を自動取得して分析",
+    )
+    parser.add_argument(
+        "json_path",
+        nargs="?",
+        help="分析するJSONファイルパス（--from-ci時は不要）",
+    )
     args = parser.parse_args()
 
+    # CI連携モード or ローカルJSON分析モード
+    if args.from_ci or args.json_path:
+        json_path = args.json_path
+
+        if args.from_ci:
+            json_path, run_info = CIIntegration.fetch_latest_result()
+            if not json_path:
+                print(f"❌ CIからの取得に失敗: {run_info}")
+                sys.exit(1)
+            print(f"📊 CI実行情報: {run_info}")
+
+        if json_path:
+            analyze_ci_result(json_path)
+            print("✅ Walk-Forward 分析完了")
+        return
+
+    # 通常実行モード
     validator = WalkForwardValidator(config_path=args.config, verbose=args.verbose)
 
     if args.dry_run:

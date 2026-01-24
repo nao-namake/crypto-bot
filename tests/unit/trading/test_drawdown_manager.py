@@ -25,8 +25,6 @@ import pytest
 
 from src.trading import (
     DrawdownManager,
-    DrawdownSnapshot,
-    TradingSession,
     TradingStatus,
 )
 
@@ -60,7 +58,6 @@ class TestDrawdownManager:
         except OSError:
             pass
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_drawdown_manager_initialization(self):
         """ドローダウン管理器初期化テスト."""
         assert self.manager.max_drawdown_ratio == 0.20
@@ -72,7 +69,6 @@ class TestDrawdownManager:
         assert self.manager.consecutive_losses == 0
         assert self.manager.trading_status == TradingStatus.ACTIVE
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_initialize_balance(self):
         """初期残高設定テスト."""
         initial_balance = 1000000  # 100万円
@@ -82,7 +78,6 @@ class TestDrawdownManager:
         assert self.manager.current_balance == initial_balance
         assert self.manager.peak_balance == initial_balance
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_invalid_initial_balance(self):
         """無効初期残高のエラーハンドリングテスト."""
         # Phase 38: 負の残高はそのまま設定される（バリデーションなし）
@@ -91,7 +86,6 @@ class TestDrawdownManager:
         # 負の残高も設定可能
         assert self.manager.current_balance == -100000
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_update_balance_normal(self):
         """通常の残高更新テスト."""
         self.manager.initialize_balance(1000000)
@@ -108,7 +102,6 @@ class TestDrawdownManager:
         expected_drawdown = (1100000 - 1050000) / 1100000  # 約4.5%
         assert abs(drawdown - expected_drawdown) < 0.001
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_drawdown_calculation(self):
         """ドローダウン計算テスト."""
         self.manager.initialize_balance(1000000)
@@ -127,7 +120,6 @@ class TestDrawdownManager:
         assert abs(drawdown - expected) < 0.001
         assert drawdown >= 0.20
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_trading_allowed_normal(self):
         """通常時の取引許可テスト."""
         self.manager.initialize_balance(1000000)
@@ -139,7 +131,6 @@ class TestDrawdownManager:
         self.manager.update_balance(850000)
         assert self.manager.check_trading_allowed() == True
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_drawdown_limit_exceeded(self):
         """ドローダウン制限超過テスト."""
         self.manager.initialize_balance(1000000)
@@ -153,7 +144,6 @@ class TestDrawdownManager:
         assert self.manager.trading_status == TradingStatus.PAUSED_DRAWDOWN
         assert self.manager.check_trading_allowed() == False
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_record_trade_result_wins(self):
         """勝ち取引記録テスト."""
         self.manager.initialize_balance(1000000)
@@ -166,7 +156,6 @@ class TestDrawdownManager:
         # 勝ち取引で連続損失リセット
         assert self.manager.consecutive_losses == 0
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_record_trade_result_losses(self):
         """負け取引記録テスト."""
         self.manager.initialize_balance(1000000)
@@ -177,7 +166,6 @@ class TestDrawdownManager:
         assert self.manager.consecutive_losses == 1
         assert self.manager.trading_status == TradingStatus.ACTIVE  # まだ制限内
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_consecutive_loss_limit(self):
         """連続損失制限テスト."""
         self.manager.initialize_balance(1000000)
@@ -193,7 +181,6 @@ class TestDrawdownManager:
         # 取引停止確認
         assert self.manager.check_trading_allowed() == False
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_cooldown_period(self):
         """クールダウン期間テスト."""
         self.manager.initialize_balance(1000000)
@@ -216,7 +203,6 @@ class TestDrawdownManager:
             assert self.manager.trading_status == TradingStatus.ACTIVE
             assert self.manager.consecutive_losses == 0  # リセット確認
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_drawdown_statistics(self):
         """ドローダウン統計情報テスト."""
         self.manager.initialize_balance(1000000)
@@ -240,31 +226,6 @@ class TestDrawdownManager:
         assert stats["peak_balance"] == 1200000
         assert stats["consecutive_losses"] == 1  # 最後が損失
 
-    @pytest.mark.xfail(reason="Phase 38: セッション管理機能は未実装（current_session属性なし）")
-    def test_session_management(self):
-        """セッション管理テスト - 未実装機能."""
-        self.manager.initialize_balance(1000000)
-
-        # セッション開始確認
-        assert self.manager.current_session is not None
-        assert self.manager.current_session.total_trades == 0
-
-        # 取引記録
-        self.manager.record_trade_result(30000, "test")
-        self.manager.record_trade_result(-20000, "test")
-        self.manager.record_trade_result(40000, "test")
-
-        # セッション統計確認
-        session = self.manager.current_session
-        assert session.total_trades == 3
-        assert session.profitable_trades == 2
-
-        # 勝率計算
-        stats = self.manager.get_drawdown_statistics()
-        win_rate = stats["session_statistics"]["win_rate"]
-        assert abs(win_rate - 2 / 3) < 0.001
-
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_state_persistence(self):
         """状態永続化テスト."""
         # Phase 38: modeをliveに変更して永続化テスト
@@ -300,26 +261,6 @@ class TestDrawdownManager:
         assert manager2.peak_balance == 1100000
         assert manager2.consecutive_losses == 1
 
-    @pytest.mark.xfail(reason="Phase 38: drawdown_history属性は未実装（スナップショット機能なし）")
-    def test_drawdown_history(self):
-        """ドローダウン履歴テスト - 未実装機能."""
-        self.manager.initialize_balance(1000000)
-
-        # 複数回の残高更新
-        balances = [1100000, 1050000, 1200000, 950000]
-        for balance in balances:
-            self.manager.update_balance(balance)
-
-        # 履歴確認
-        assert len(self.manager.drawdown_history) == len(balances)
-
-        # 最新のスナップショット確認
-        latest = self.manager.drawdown_history[-1]
-        assert isinstance(latest, DrawdownSnapshot)
-        assert latest.current_balance == 950000
-        assert latest.peak_balance == 1200000
-
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_edge_cases(self):
         """エッジケーステスト."""
         # ゼロ残高
@@ -333,7 +274,6 @@ class TestDrawdownManager:
         drawdown = self.manager.calculate_current_drawdown()
         assert drawdown > 1.0  # 100%超のドローダウン
 
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_error_handling(self):
         """エラーハンドリングテスト."""
         # 初期化前の操作（一時ファイルで独立状態）
@@ -356,24 +296,8 @@ class TestDrawdownManager:
         stats = new_manager.get_drawdown_statistics()
         assert "current_balance" in stats
 
-    @pytest.mark.xfail(reason="Phase 38: pause_until属性名がcooldown_untilに変更")
-    def test_manual_pause_resume(self):
-        """手動停止・再開テスト - API変更."""
-        self.manager.initialize_balance(1000000)
-
-        # 手動停止（Phase 38: manual_pause_tradingメソッドは未実装）
-        self.manager.manual_pause_trading("テスト停止")
-        assert self.manager.trading_status == TradingStatus.PAUSED_MANUAL
-        assert self.manager.check_trading_allowed() == False
-
-        # 手動再開
-        self.manager.manual_resume_trading("テスト再開")
-        assert self.manager.trading_status == TradingStatus.ACTIVE
-        assert self.manager.check_trading_allowed() == True
-
 
 # パフォーマンステスト
-@pytest.mark.xfail(False, reason="Phase 38対応済み")
 def test_large_trade_history():
     """大量取引履歴のパフォーマンステスト."""
     manager = DrawdownManager(mode="backtest")
@@ -398,7 +322,6 @@ def test_large_trade_history():
 
 
 # 統合テスト
-@pytest.mark.xfail(False, reason="Phase 38対応済み")
 def test_realistic_trading_scenario():
     """現実的な取引シナリオテスト."""
     manager = DrawdownManager(

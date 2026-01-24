@@ -1,0 +1,46 @@
+# Walk-Forward Validation 設定ファイル
+# Phase 61: 過学習検出・真のML予測力評価
+
+walk_forward:
+  # ウィンドウ設定
+  train_days: 60          # 訓練期間（日）
+  test_days: 30           # テスト期間（日）
+  step_days: 30           # ステップサイズ（日）
+
+  # データ期間（固定）
+  data_start: "2025-07-01"
+  data_end: "2025-12-31"
+
+  # ML訓練設定
+  ml_training:
+    n_classes: 3          # BUY / HOLD / SELL
+    use_smote: true       # クラス不均衡対策
+    optimize: false       # Optuna無効（高速化）
+    n_trials: 10          # 最適化時の試行回数
+    target_threshold: 0.0005  # 0.05%閾値
+
+  # バックテスト設定
+  backtest:
+    symbol: "BTC/JPY"
+    timeframes:
+      - "15m"
+      - "4h"
+    initial_balance: 500000  # 50万円
+
+  # 出力設定
+  output:
+    dir: "docs/検証記録/walk_forward"
+    summary_file: "walk_forward_summary.json"
+    markdown_file: "walk_forward_report.md"
+
+  # 安定性評価閾値
+  stability_thresholds:
+    min_pf: 1.0           # 最低PF
+    max_pf_std: 0.3       # PF標準偏差上限
+    min_win_rate: 0.45    # 最低勝率
+    max_wf_vs_full_diff: 0.20  # WF vs Fullの許容差（20%）
+
+  # 評価基準
+  assessment:
+    overfitting_warning_diff: 0.10  # 10%差で警告
+    overfitting_danger_diff: 0.20   # 20%差で危険判定

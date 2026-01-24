@@ -171,7 +171,124 @@ orchestrator = await create_trading_orchestrator(config=config, logger=self.logg
 
 ---
 
-## Phase 61.2: ADXTrendStrength評価・対応 📋予定
+## Phase 61.2: コードベース整理 🔄進行中
+
+### 実施日
+2026年1月24日
+
+### 目的
+バックテスト結果を待つ間にコードベースを整理し、不要なファイルを削除。
+
+---
+
+### 実施内容
+
+#### 1. ログ整理
+
+**削除対象**:
+- `logs/crypto_bot.log.2026-01-14` 〜 `2026-01-20`（約197MB）
+- `logs/ml/ab_test_*.log`、`ml_training_*.log`（約310MB）
+- `logs/test*.log.*`（古いテストログ）
+
+**削減効果**: 約500MB
+
+#### 2. 不要モデル削除
+
+Phase 59でStacking無効化が確定したため、以下を削除：
+
+| ファイル | サイズ | 理由 |
+|---------|--------|------|
+| `models/production/stacking_ensemble.pkl` | 31MB | Stacking無効化済み |
+| `models/production/meta_learner.pkl` | 364KB | Stacking無効化済み |
+
+**削減効果**: 約31MB
+
+#### 3. テスト整理
+
+**削除したディレクトリ/ファイル**:
+
+| 対象 | 理由 |
+|------|------|
+| `tests/manual/` | 壊れたスクリプト、必要時に再作成 |
+| `tests/unit/analysis/` | 全テストスキップ |
+| `tests/integration/test_phase_51_3_regime_strategy_integration.py` | 全テストスキップ |
+
+**整理したテストファイル**:
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `tests/unit/features/test_feature_generator.py` | 14件のスキップテスト（旧Day2）削除 |
+| `tests/unit/trading/test_anomaly_detector.py` | Phase 38削除機能のxfailテスト9件削除 |
+| `tests/unit/trading/test_drawdown_manager.py` | 未実装機能のxfailテスト3件削除 |
+
+**移動したファイル**:
+- `tests/test_execution_service_simple.py` → `tests/unit/services/test_execution_service.py`
+
+**xfailマーカー削除**:
+- `@pytest.mark.xfail(False, reason="Phase 38対応済み")` を全削除（不要なマーカー）
+
+#### 4. README更新
+
+| ファイル | 内容 |
+|---------|------|
+| `models/README.md` | Stacking削除反映、構成更新 |
+| `models/production/README.md` | Stackingファイル削除反映 |
+| `models/training/README.md` | Git管理方針明確化 |
+| `tests/README.md` | Phase 61更新、manual/削除反映 |
+| `tests/unit/README.md` | テスト統計・構成更新 |
+
+---
+
+### テスト結果（整理後）
+
+| カテゴリ | Before | After | 変更 |
+|---------|--------|-------|------|
+| trading/ xfailed | 12 | 1 | -11 |
+| trading/ xpassed | 1 | 0 | -1 |
+| trading/ passed | 437 | 437 | 維持 |
+| features/ skipped | 14 | 0 | -14 |
+| 全体 | 約1,200 | 約1,200 | 維持 |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `tests/unit/trading/test_anomaly_detector.py` | 9テスト削除、xfailマーカー削除 |
+| `tests/unit/trading/test_drawdown_manager.py` | 3テスト削除、xfailマーカー削除 |
+| `tests/unit/features/test_feature_generator.py` | TestPhase517Day2NewFeaturesクラス削除 |
+| `models/README.md` | Phase 61更新 |
+| `models/production/README.md` | Stacking削除反映 |
+| `models/training/README.md` | Git管理方針更新 |
+| `tests/README.md` | Phase 61更新 |
+| `tests/unit/README.md` | テスト統計更新 |
+
+---
+
+#### 5. デプロイ関連ファイル更新（2026年1月24日追加）
+
+Phase 49からPhase 61へのメタデータ更新。
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `Dockerfile` | ✅完了済み（Phase 61メタデータ、tests/manual COPY削除） |
+| `main.py` | docstring/argparse/起動ログをPhase 61に更新 |
+| `pyproject.toml` | version 49.15.0→61.0.0、description更新 |
+| `requirements.txt` | ヘッダーをv61・2026年1月に更新 |
+| `CLAUDE.md` | Phase 61成果表更新、最終更新日更新 |
+| `README.md` | Phase 61バッジ、開発状況にPhase 60-61追加 |
+| `scripts/testing/validate_system.sh` | tests/manualを必須ディレクトリから削除 |
+| `tests/unit/features/test_feature_generator.py` | 末尾空行削除（flake8修正） |
+
+**品質チェック結果**:
+- flake8/isort/black: PASS
+- pytest: 1,214 passed（62.28%カバレッジ）
+- システム整合性: 7項目チェック完了
+
+---
+
+## Phase 61.3: ADXTrendStrength評価・対応 📋予定
 
 ### 判断フロー
 1. 61.1バックテスト結果を分析
@@ -184,7 +301,7 @@ orchestrator = await create_trading_orchestrator(config=config, logger=self.logg
 
 ---
 
-## Phase 61.3: MACDEMACrossover発動改善 📋予定
+## Phase 61.4: MACDEMACrossover発動改善 📋予定
 
 ### 判断フロー
 1. 61.1でtrending発生後、自動的に発動機会増加を確認
@@ -204,8 +321,9 @@ orchestrator = await create_trading_orchestrator(config=config, logger=self.logg
 |-------|------|--------|------|
 | 61.1 | trending発生率 | ≥ 5% | バックテスト検証中 |
 | 61.1 | tight_range発生率 | ≤ 70% | バックテスト検証中 |
-| 61.2 | ADXTrendStrength勝率 | ≥ 50% or 無効化 | 📋予定 |
-| 61.3 | MACDEMACrossover取引数 | ≥ 10件 | 📋予定 |
+| 61.2 | デプロイ関連ファイル整理 | 品質チェックPASS | 🔄進行中 |
+| 61.3 | ADXTrendStrength勝率 | ≥ 50% or 無効化 | 📋予定 |
+| 61.4 | MACDEMACrossover取引数 | ≥ 10件 | 📋予定 |
 | **全体** | **PF** | **≥ 1.50維持** | バックテスト検証中 |
 | **全体** | **総損益** | **≥ ¥80,000維持** | バックテスト検証中 |
 
@@ -231,4 +349,4 @@ Phase 61.1でMarketRegimeClassifierに`get_threshold()`パターンを導入：
 
 ---
 
-**最終更新**: 2026年1月24日 - Phase 61.1完了（バックテスト検証中）
+**最終更新**: 2026年1月24日 - Phase 61.2デプロイ関連ファイル整理（進行中）
