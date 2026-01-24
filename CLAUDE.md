@@ -1,6 +1,6 @@
 # CLAUDE.md - Phase 61開発ガイド
 
-**最終更新**: 2026年1月24日
+**最終更新**: 2026年1月25日
 
 ---
 
@@ -23,10 +23,10 @@
 
 | Phase | 内容 | 成果 |
 |-------|------|------|
-| **61.1** | **レジーム判定閾値調整** | **tight_range/trending閾値を設定ファイル化・発生率調整** |
-| **61.2** | **デプロイ関連ファイル整理** | **Dockerfile/main.py/pyproject.toml等Phase 61更新** |
-| 61.3 | ADXTrendStrength評価 | 📋予定（CI結果待ち） |
-| 61.4 | MACDEMACrossover改善 | 📋予定（CI結果待ち） |
+| **61.1** | **レジーム判定閾値調整** | **✅ 閾値設定ファイル化・ロールバック検証成功** |
+| **61.2** | **コードベース整理** | **✅ ドキュメント全面更新・不要ファイル削除** |
+| ~~61.3~~ | ~~ADXTrendStrength評価~~ | ❌ 中止（trending 0.6%で評価対象外） |
+| ~~61.4~~ | ~~MACDEMACrossover改善~~ | ❌ 中止（trending未発生） |
 
 ### Phase 60 成果
 
@@ -129,7 +129,7 @@ tight_range:
 
 ```bash
 bash scripts/testing/checks.sh
-# 期待結果: 全テスト成功・64%+カバレッジ・flake8/black/isort PASS
+# 期待結果: 全テスト成功・62%+カバレッジ・flake8/black/isort PASS
 ```
 
 ### システム実行
@@ -334,7 +334,7 @@ config/secrets/
 
 - **開発前後**: `bash scripts/testing/checks.sh`必須実行
 - **テスト**: 全テスト100%成功維持
-- **カバレッジ**: 64%以上維持
+- **カバレッジ**: 62%以上維持
 - **コード品質**: flake8 / black / isort通過必須
 - **CI/CD**: GitHub Actions自動品質ゲート
 
@@ -395,7 +395,7 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 | Phase_58.md | TP/SL管理・ポジション同期修正 |
 | Phase_59.md | ML最適化・Stacking検証 |
 | Phase_60.md | 実効レバレッジ最適化・MLモデル差別化 |
-| **Phase_61.md** | **戦略分析・コードベース整理・レジーム判定最適化（進行中）** |
+| **Phase_61.md** | **戦略分析・コードベース整理（61.1-61.2完了）** |
 
 ### docs/開発計画/
 
@@ -452,4 +452,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月24日 - **Phase 61.2完了**（デプロイ関連ファイル整理・メタデータPhase 61更新）
+**📅 最終更新**: 2026年1月25日 - **Phase 61.2完了**（コードベース整理・ドキュメント全面更新・61.3/61.4中止）

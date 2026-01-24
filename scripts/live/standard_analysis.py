@@ -1,27 +1,53 @@
 #!/usr/bin/env python3
 """
-ライブモード標準分析スクリプト - Phase 58
+ライブモード統合診断スクリプト - Phase 61.2
 
 目的:
-  ライブ運用の標準化された分析を実行し、毎回同一の35指標で
-  ブレのない診断を実現。
+  ライブ運用の標準化された分析とインフラ・Bot機能診断を
+  統合し、単一スクリプトで完全な診断を実現。
 
 機能:
-  - 35項目の固定指標計算
+  - 39項目の固定指標計算（LiveAnalyzer）
+  - インフラ基盤診断（InfrastructureChecker）
+    - Cloud Run稼働状況
+    - Secret Manager権限確認
+    - Container安定性
+    - Discord通知確認
+    - API残高取得確認
+    - ポジション復元確認
+    - 取引阻害エラー検出
+  - Bot機能診断（BotFunctionChecker）
+    - 55特徴量システム確認
+    - Silent Failure検出
+    - 6戦略動作確認
+    - ML予測確認
+    - レジーム別TP/SL確認
+    - Kelly基準確認
+    - Atomic Entry Pattern確認
   - JSON/Markdown/CSV出力
-  - bitbank API連携（アカウント・ポジション・注文情報）
-  - GCPログ連携（システム健全性・稼働率）
-  - 履歴CSV追記（変更前後比較用）
+  - 終了コード対応（CI/CD連携用）
 
 使い方:
-  # 基本実行（24時間分析）
+  # 基本実行（全診断 + 39指標）
   python3 scripts/live/standard_analysis.py
 
-  # 期間指定
+  # 期間指定（48時間）
   python3 scripts/live/standard_analysis.py --hours 48
 
   # 出力先指定
   python3 scripts/live/standard_analysis.py --output results/live/
+
+  # CI/CD連携（終了コード返却）
+  python3 scripts/live/standard_analysis.py --exit-code
+
+  # 簡易チェック（GCPログのみ、API呼び出しなし）
+  python3 scripts/live/standard_analysis.py --quick
+
+終了コード:
+  0: 正常
+  1: 致命的問題（即座対応必須）
+  2: 要注意（詳細診断推奨）
+  3: 監視継続（軽微な問題）
 """
 
 import argparse
@@ -51,6 +77,538 @@ if env_path.exists():
 
 from src.core.logger import get_logger
 from src.data.bitbank_client import BitbankClient
+
+# =============================================================================
+# インフラ基盤診断（check_infrastructure.sh 移植）
+# =============================================================================
+
+
+@dataclass
+class InfrastructureCheckResult:
+    """インフラ基盤診断結果"""
+
+    # Cloud Run状態
+    cloud_run_status: str = ""  # True/False/Unknown
+    latest_revisions: List[str] = field(default_factory=list)
+
+    # Secret Manager
+    service_account: str = ""
+    bitbank_key_ok: bool = False
+    bitbank_secret_ok: bool = False
+    discord_ok: bool = False
+
+    # Container安定性
+    container_exit_count: int = 0
+    runtime_warning_count: int = 0
+
+    # Discord通知
+    discord_error_count: int = 0
+
+    # API残高取得
+    api_balance_count: int = 0
+    fallback_count: int = 0
+
+    # ポジション復元
+    position_restore_count: int = 0
+
+    # 取引阻害エラー
+    nonetype_error_count: int = 0
+    api_error_count: int = 0
+
+    # スコア
+    normal_checks: int = 0
+    warning_issues: int = 0
+    critical_issues: int = 0
+    total_score: int = 0
+
+
+class InfrastructureChecker:
+    """インフラ基盤診断クラス"""
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.result = InfrastructureCheckResult()
+        self.deploy_time = self._get_deploy_time()
+
+    def _get_deploy_time(self) -> str:
+        """最新CI時刻またはフォールバック時刻を取得"""
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "run",
+                    "list",
+                    "--limit=1",
+                    "--workflow=CI/CD Pipeline",
+                    "--status=success",
+                    "--json=createdAt",
+                    "--jq=.[0].createdAt",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+
+        # フォールバック: 過去24時間
+        from datetime import timezone
+
+        utc_time = datetime.now(timezone.utc) - timedelta(days=1)
+        return utc_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    def _count_gcp_logs(self, query: str, limit: int = 50) -> int:
+        """GCPログをカウント"""
+        if not self.deploy_time:
+            return 0
+
+        try:
+            full_query = (
+                f'resource.type="cloud_run_revision" AND '
+                f'resource.labels.service_name="crypto-bot-service-prod" AND '
+                f"({query}) AND "
+                f'timestamp>="{self.deploy_time}"'
+            )
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "logging",
+                    "read",
+                    full_query,
+                    f"--limit={limit}",
+                    "--format=value(textPayload)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                lines = [line for line in result.stdout.strip().split("\n") if line]
+                return len(lines)
+        except Exception:
+            pass
+        return 0
+
+    def _fetch_gcp_logs(self, query: str, limit: int = 5) -> List[str]:
+        """GCPログを取得"""
+        if not self.deploy_time:
+            return []
+
+        try:
+            full_query = (
+                f'resource.type="cloud_run_revision" AND '
+                f'resource.labels.service_name="crypto-bot-service-prod" AND '
+                f"({query}) AND "
+                f'timestamp>="{self.deploy_time}"'
+            )
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "logging",
+                    "read",
+                    full_query,
+                    f"--limit={limit}",
+                    "--format=value(timestamp.date(tz='Asia/Tokyo'),textPayload)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                return [line for line in result.stdout.strip().split("\n") if line]
+        except Exception:
+            pass
+        return []
+
+    def check(self) -> InfrastructureCheckResult:
+        """インフラ基盤診断実行"""
+        self.logger.info("🚀 インフラ基盤診断開始")
+
+        self._check_cloud_run()
+        self._check_secret_manager()
+        self._check_container_stability()
+        self._check_discord()
+        self._check_api_balance()
+        self._check_position_restore()
+        self._check_trade_blocking_errors()
+
+        # 総合スコア計算
+        self.result.total_score = (
+            self.result.normal_checks * 10
+            - self.result.warning_issues * 3
+            - self.result.critical_issues * 20
+        )
+
+        self.logger.info(
+            f"📊 インフラ診断完了 - 正常:{self.result.normal_checks} "
+            f"警告:{self.result.warning_issues} 致命的:{self.result.critical_issues}"
+        )
+        return self.result
+
+    def _check_cloud_run(self):
+        """Cloud Runサービス稼働確認"""
+        self.logger.info("🔧 Cloud Run サービス稼働確認")
+        try:
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "run",
+                    "services",
+                    "describe",
+                    "crypto-bot-service-prod",
+                    "--region=asia-northeast1",
+                    "--format=value(status.conditions[0].status)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.result.cloud_run_status = (
+                result.stdout.strip() if result.returncode == 0 else "Unknown"
+            )
+            if self.result.cloud_run_status == "True":
+                self.result.normal_checks += 1
+            else:
+                self.result.critical_issues += 2
+        except Exception as e:
+            self.logger.warning(f"Cloud Run確認失敗: {e}")
+            self.result.cloud_run_status = "Error"
+
+    def _check_secret_manager(self):
+        """Secret Manager権限確認"""
+        self.logger.info("🔐 Secret Manager 権限確認")
+        try:
+            # サービスアカウント取得
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "run",
+                    "services",
+                    "describe",
+                    "crypto-bot-service-prod",
+                    "--region=asia-northeast1",
+                    "--format=value(spec.template.spec.serviceAccountName)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.result.service_account = result.stdout.strip() if result.returncode == 0 else ""
+
+            if self.result.service_account:
+                # 各シークレットの権限確認
+                for secret, attr in [
+                    ("bitbank-api-key", "bitbank_key_ok"),
+                    ("bitbank-api-secret", "bitbank_secret_ok"),
+                    ("discord-webhook-url", "discord_ok"),
+                ]:
+                    check = subprocess.run(
+                        [
+                            "gcloud",
+                            "secrets",
+                            "get-iam-policy",
+                            secret,
+                            "--format=value(bindings[].members)",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    if check.returncode == 0 and self.result.service_account in check.stdout:
+                        setattr(self.result, attr, True)
+
+                if (
+                    self.result.bitbank_key_ok
+                    and self.result.bitbank_secret_ok
+                    and self.result.discord_ok
+                ):
+                    self.result.normal_checks += 1
+                else:
+                    self.result.critical_issues += 2
+        except Exception as e:
+            self.logger.warning(f"Secret Manager確認失敗: {e}")
+
+    def _check_container_stability(self):
+        """Container安定性確認"""
+        self.logger.info("🔥 Container 安定性確認")
+        self.result.container_exit_count = self._count_gcp_logs(
+            'textPayload:"Container called exit(1)"', 20
+        )
+        self.result.runtime_warning_count = self._count_gcp_logs(
+            'textPayload:"RuntimeWarning" AND textPayload:"never awaited"', 20
+        )
+
+        if self.result.container_exit_count < 5 and self.result.runtime_warning_count == 0:
+            self.result.normal_checks += 1
+        elif self.result.container_exit_count < 10 and self.result.runtime_warning_count < 5:
+            self.result.warning_issues += 1
+        else:
+            self.result.critical_issues += 1
+
+    def _check_discord(self):
+        """Discord通知確認"""
+        self.logger.info("📨 Discord 通知確認")
+        self.result.discord_error_count = self._count_gcp_logs(
+            'textPayload:"code: 50027" OR textPayload:"Invalid Webhook Token"', 5
+        )
+        if self.result.discord_error_count == 0:
+            self.result.normal_checks += 1
+        else:
+            self.result.critical_issues += 1
+
+    def _check_api_balance(self):
+        """API残高取得確認"""
+        self.logger.info("💰 API 残高取得確認")
+        self.result.api_balance_count = self._count_gcp_logs('textPayload:"残高"', 15)
+        self.result.fallback_count = self._count_gcp_logs('textPayload:"フォールバック"', 15)
+
+        if self.result.api_balance_count > 0 and self.result.fallback_count < 3:
+            self.result.normal_checks += 1
+        elif self.result.fallback_count > 5:
+            self.result.warning_issues += 1
+        else:
+            self.result.warning_issues += 1
+
+    def _check_position_restore(self):
+        """ポジション復元確認"""
+        self.logger.info("📊 ポジション復元確認")
+        self.result.position_restore_count = self._count_gcp_logs(
+            'textPayload:"ポジション復元" OR textPayload:"Position restored"', 10
+        )
+        if self.result.position_restore_count > 0:
+            self.result.normal_checks += 1
+
+    def _check_trade_blocking_errors(self):
+        """取引阻害エラー検出"""
+        self.logger.info("🛡️ 取引阻害エラー検出")
+        self.result.nonetype_error_count = self._count_gcp_logs('textPayload:"NoneType"', 20)
+        self.result.api_error_count = self._count_gcp_logs(
+            'textPayload:"bitbank API エラー" OR textPayload:"API.*エラー.*20"', 20
+        )
+
+        if self.result.nonetype_error_count == 0 and self.result.api_error_count < 3:
+            self.result.normal_checks += 1
+        elif self.result.nonetype_error_count < 5 and self.result.api_error_count < 10:
+            self.result.warning_issues += 1
+        else:
+            self.result.critical_issues += 1
+
+
+# =============================================================================
+# Bot機能診断（check_bot_functions.sh 移植）
+# =============================================================================
+
+
+@dataclass
+class BotFunctionCheckResult:
+    """Bot機能診断結果"""
+
+    # 55特徴量システム
+    feature_55_count: int = 0
+    feature_49_count: int = 0
+    dummy_model_count: int = 0
+
+    # Silent Failure
+    signal_count: int = 0
+    order_count: int = 0
+    success_rate: int = 0
+
+    # 6戦略動作
+    strategy_counts: Dict[str, int] = field(default_factory=dict)
+    active_strategy_count: int = 0
+
+    # ML予測
+    ml_prediction_count: int = 0
+
+    # レジーム別TP/SL
+    regime_count: int = 0
+    tight_range_count: int = 0
+    normal_range_count: int = 0
+    trending_count: int = 0
+
+    # Kelly基準
+    kelly_count: int = 0
+
+    # Atomic Entry Pattern
+    atomic_success_count: int = 0
+    atomic_rollback_count: int = 0
+
+    # スコア
+    normal_checks: int = 0
+    warning_issues: int = 0
+    critical_issues: int = 0
+    total_score: int = 0
+
+
+class BotFunctionChecker:
+    """Bot機能診断クラス"""
+
+    STRATEGIES = [
+        "ATRBased",
+        "BBReversal",
+        "StochasticReversal",
+        "DonchianChannel",
+        "ADXTrendStrength",
+        "MACDEMACrossover",
+    ]
+
+    def __init__(self, logger, infra_checker: InfrastructureChecker):
+        self.logger = logger
+        self.infra_checker = infra_checker
+        self.result = BotFunctionCheckResult()
+
+    def check(self) -> BotFunctionCheckResult:
+        """Bot機能診断実行"""
+        self.logger.info("🤖 Bot機能診断開始")
+
+        self._check_feature_system()
+        self._detect_silent_failure()
+        self._check_strategy_activation()
+        self._check_ml_prediction()
+        self._check_regime_tp_sl()
+        self._check_kelly_criterion()
+        self._check_atomic_entry()
+
+        # 総合スコア計算
+        self.result.total_score = (
+            self.result.normal_checks * 10
+            - self.result.warning_issues * 3
+            - self.result.critical_issues * 20
+        )
+
+        self.logger.info(
+            f"📊 Bot機能診断完了 - 正常:{self.result.normal_checks} "
+            f"警告:{self.result.warning_issues} 致命的:{self.result.critical_issues}"
+        )
+        return self.result
+
+    def _count_logs(self, query: str, limit: int = 50) -> int:
+        """GCPログをカウント（InfrastructureCheckerのメソッドを再利用）"""
+        return self.infra_checker._count_gcp_logs(query, limit)
+
+    def _check_feature_system(self):
+        """55特徴量システム確認"""
+        self.logger.info("📊 55特徴量システム確認")
+        self.result.feature_55_count = self._count_logs(
+            'textPayload:"55特徴量" OR textPayload:"55個の特徴量"', 15
+        )
+        self.result.feature_49_count = self._count_logs(
+            'textPayload:"49特徴量" OR textPayload:"基本特徴量のみ"', 15
+        )
+        self.result.dummy_model_count = self._count_logs('textPayload:"DummyModel"', 15)
+
+        if self.result.feature_55_count > 0 and self.result.dummy_model_count == 0:
+            self.result.normal_checks += 1
+        elif self.result.feature_49_count > 0 and self.result.dummy_model_count == 0:
+            self.result.warning_issues += 1
+        elif self.result.dummy_model_count > 0:
+            self.result.critical_issues += 2
+
+    def _detect_silent_failure(self):
+        """Silent Failure検出"""
+        self.logger.info("🔍 Silent Failure 検出")
+        self.result.signal_count = self._count_logs(
+            'textPayload:"統合シグナル生成: buy" OR textPayload:"統合シグナル生成: sell"',
+            30,
+        )
+        self.result.order_count = self._count_logs(
+            'textPayload:"注文実行" OR textPayload:"order_executed" OR textPayload:"create_order"',
+            30,
+        )
+
+        if self.result.signal_count == 0:
+            self.result.warning_issues += 1
+        elif self.result.signal_count > 0 and self.result.order_count == 0:
+            # 完全Silent Failure
+            self.result.critical_issues += 3
+        else:
+            self.result.success_rate = int(
+                (self.result.order_count / self.result.signal_count) * 100
+            )
+            if self.result.success_rate >= 40:
+                self.result.normal_checks += 1
+            elif self.result.success_rate >= 20:
+                self.result.warning_issues += 1
+            else:
+                self.result.critical_issues += 1
+
+    def _check_strategy_activation(self):
+        """6戦略動作確認"""
+        self.logger.info("🎯 6戦略動作確認")
+        for strategy in self.STRATEGIES:
+            count = self._count_logs(f'textPayload:"{strategy}"', 10)
+            self.result.strategy_counts[strategy] = count
+            if count > 0:
+                self.result.active_strategy_count += 1
+
+        if self.result.active_strategy_count == 6:
+            self.result.normal_checks += 1
+        elif self.result.active_strategy_count >= 4:
+            self.result.warning_issues += 1
+        else:
+            self.result.critical_issues += 1
+
+    def _check_ml_prediction(self):
+        """ML予測確認"""
+        self.logger.info("🤖 ML予測システム確認")
+        self.result.ml_prediction_count = self._count_logs(
+            'textPayload:"ProductionEnsemble" OR textPayload:"ML予測" OR textPayload:"アンサンブル予測"',
+            20,
+        )
+
+        if self.result.ml_prediction_count > 0:
+            self.result.normal_checks += 1
+        else:
+            self.result.critical_issues += 1
+
+    def _check_regime_tp_sl(self):
+        """レジーム別TP/SL確認"""
+        self.logger.info("📈 レジーム別TP/SL確認")
+        self.result.regime_count = self._count_logs(
+            'textPayload:"市場状況:" OR textPayload:"RegimeType" OR textPayload:"レジーム"',
+            10,
+        )
+        self.result.tight_range_count = self._count_logs(
+            'textPayload:"TIGHT_RANGE" OR textPayload:"tight_range"', 10
+        )
+        self.result.normal_range_count = self._count_logs(
+            'textPayload:"NORMAL_RANGE" OR textPayload:"normal_range"', 10
+        )
+        self.result.trending_count = self._count_logs(
+            'textPayload:"TRENDING" OR textPayload:"trending"', 10
+        )
+
+        total = (
+            self.result.tight_range_count
+            + self.result.normal_range_count
+            + self.result.trending_count
+        )
+        if total > 0:
+            self.result.normal_checks += 1
+
+    def _check_kelly_criterion(self):
+        """Kelly基準確認"""
+        self.logger.info("💱 Kelly基準確認")
+        self.result.kelly_count = self._count_logs(
+            'textPayload:"Kelly基準" OR textPayload:"kelly_fraction"', 15
+        )
+        if self.result.kelly_count > 0:
+            self.result.normal_checks += 1
+
+    def _check_atomic_entry(self):
+        """Atomic Entry Pattern確認"""
+        self.logger.info("🎯 Atomic Entry Pattern確認")
+        self.result.atomic_success_count = self._count_logs('textPayload:"Atomic Entry完了"', 10)
+        self.result.atomic_rollback_count = self._count_logs(
+            'textPayload:"ロールバック実行" OR textPayload:"Atomic Entry rollback"', 10
+        )
+
+        if self.result.atomic_success_count > 0 and self.result.atomic_rollback_count <= 2:
+            self.result.normal_checks += 1
+        elif self.result.atomic_rollback_count > 5:
+            self.result.critical_issues += 1
 
 
 @dataclass
@@ -916,20 +1474,100 @@ class LiveReportGenerator:
             writer.writerow(row)
 
 
+def determine_exit_code(
+    infra_result: InfrastructureCheckResult,
+    bot_result: BotFunctionCheckResult,
+) -> int:
+    """終了コードを決定
+
+    Returns:
+        0: 正常
+        1: 致命的問題（即座対応必須）
+        2: 要注意（詳細診断推奨）
+        3: 監視継続（軽微な問題）
+    """
+    total_critical = infra_result.critical_issues + bot_result.critical_issues
+    total_warning = infra_result.warning_issues + bot_result.warning_issues
+
+    # Silent Failure検出（最重要）
+    if bot_result.signal_count > 0 and bot_result.order_count == 0:
+        return 1
+
+    if total_critical >= 2:
+        return 1
+    elif total_critical >= 1:
+        return 2
+    elif total_warning >= 3:
+        return 3
+    else:
+        return 0
+
+
 async def main():
     """メイン関数"""
-    parser = argparse.ArgumentParser(description="ライブモード標準分析")
+    parser = argparse.ArgumentParser(description="ライブモード統合診断スクリプト")
     parser.add_argument("--hours", type=int, default=24, help="分析対象期間（時間）")
     parser.add_argument(
         "--output", type=str, default="docs/検証記録/live", help="出力先ディレクトリ"
     )
+    parser.add_argument(
+        "--exit-code",
+        action="store_true",
+        help="終了コードを返却（CI/CD連携用）",
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="簡易チェック（GCPログのみ、API呼び出しなし）",
+    )
     args = parser.parse_args()
+
+    logger = get_logger()
 
     # 出力ディレクトリ作成
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 分析実行
+    # インフラ基盤診断（常に実行）
+    infra_checker = InfrastructureChecker(logger)
+    infra_result = infra_checker.check()
+
+    # Bot機能診断（常に実行）
+    bot_checker = BotFunctionChecker(logger, infra_checker)
+    bot_result = bot_checker.check()
+
+    # 簡易チェックモードの場合はここで終了
+    if args.quick:
+        print("\n" + "=" * 60)
+        print("簡易診断結果")
+        print("=" * 60)
+        print(f"\n🔧 インフラ基盤診断:")
+        print(f"   ✅ 正常項目: {infra_result.normal_checks}")
+        print(f"   ⚠️  警告項目: {infra_result.warning_issues}")
+        print(f"   ❌ 致命的問題: {infra_result.critical_issues}")
+        print(f"   🏆 スコア: {infra_result.total_score}点")
+
+        print(f"\n🤖 Bot機能診断:")
+        print(f"   ✅ 正常項目: {bot_result.normal_checks}")
+        print(f"   ⚠️  警告項目: {bot_result.warning_issues}")
+        print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
+        print(f"   🏆 スコア: {bot_result.total_score}点")
+
+        exit_code = determine_exit_code(infra_result, bot_result)
+        status_map = {
+            0: "🟢 正常",
+            1: "💀 致命的問題",
+            2: "🟠 要注意",
+            3: "🟡 監視継続",
+        }
+        print(f"\n🎯 最終判定: {status_map.get(exit_code, '不明')}")
+        print("=" * 60)
+
+        if args.exit_code:
+            sys.exit(exit_code)
+        return
+
+    # 分析実行（API呼び出しあり）
     analyzer = LiveAnalyzer(period_hours=args.hours)
     result = await analyzer.analyze()
 
@@ -939,16 +1577,23 @@ async def main():
     # ファイル名生成
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # JSON出力
+    # JSON出力（診断結果も含める）
+    combined_result = {
+        "live_analysis": generator.generate_json(result),
+        "infrastructure_check": asdict(infra_result),
+        "bot_function_check": asdict(bot_result),
+    }
     json_path = output_dir / f"live_analysis_{timestamp}.json"
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(generator.generate_json(result), f, ensure_ascii=False, indent=2)
+        json.dump(combined_result, f, ensure_ascii=False, indent=2)
     print(f"JSON出力: {json_path}")
 
-    # Markdown出力
+    # Markdown出力（診断結果も含める）
+    md_content = generator.generate_markdown(result)
+    md_content += _generate_diagnostic_markdown(infra_result, bot_result)
     md_path = output_dir / f"live_analysis_{timestamp}.md"
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write(generator.generate_markdown(result))
+        f.write(md_content)
     print(f"Markdown出力: {md_path}")
 
     # CSV履歴追記
@@ -957,9 +1602,9 @@ async def main():
     print(f"CSV履歴追記: {csv_path}")
 
     # サマリー表示
-    print("\n" + "=" * 50)
-    print("ライブモード分析サマリー")
-    print("=" * 50)
+    print("\n" + "=" * 60)
+    print("ライブモード統合診断サマリー")
+    print("=" * 60)
     print(f"分析期間: 直近{args.hours}時間")
     if result.open_position_count == 0 and result.margin_ratio >= 500:
         print("証拠金維持率: N/A (ポジションなし)")
@@ -972,7 +1617,95 @@ async def main():
         print(f"稼働率: {result.uptime_rate:.1f}%")
     print(f"サービス状態: {result.service_status}")
     print(f"MLモデル: {result.ml_model_type} (Level {result.ml_model_level})")
-    print("=" * 50)
+
+    print(f"\n🔧 インフラ基盤診断:")
+    print(f"   ✅ 正常項目: {infra_result.normal_checks}")
+    print(f"   ⚠️  警告項目: {infra_result.warning_issues}")
+    print(f"   ❌ 致命的問題: {infra_result.critical_issues}")
+    print(f"   🏆 スコア: {infra_result.total_score}点")
+
+    print(f"\n🤖 Bot機能診断:")
+    print(f"   ✅ 正常項目: {bot_result.normal_checks}")
+    print(f"   ⚠️  警告項目: {bot_result.warning_issues}")
+    print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
+    print(f"   🏆 スコア: {bot_result.total_score}点")
+
+    exit_code = determine_exit_code(infra_result, bot_result)
+    status_map = {
+        0: "🟢 正常",
+        1: "💀 致命的問題 - 即座対応必須",
+        2: "🟠 要注意 - 詳細診断推奨",
+        3: "🟡 監視継続 - 軽微な問題",
+    }
+    print(f"\n🎯 最終判定: {status_map.get(exit_code, '不明')}")
+    print("=" * 60)
+
+    if args.exit_code:
+        sys.exit(exit_code)
+
+
+def _generate_diagnostic_markdown(
+    infra_result: InfrastructureCheckResult,
+    bot_result: BotFunctionCheckResult,
+) -> str:
+    """診断結果のMarkdown生成"""
+    lines = [
+        "",
+        "---",
+        "",
+        "## インフラ基盤診断",
+        "",
+        "| 項目 | 結果 |",
+        "|------|------|",
+        f"| Cloud Run状態 | {infra_result.cloud_run_status} |",
+        f"| Secret Manager権限 | {'✅ 全正常' if infra_result.bitbank_key_ok and infra_result.bitbank_secret_ok and infra_result.discord_ok else '❌ 欠如あり'} |",
+        f"| Container exit(1) | {infra_result.container_exit_count}回 |",
+        f"| RuntimeWarning | {infra_result.runtime_warning_count}回 |",
+        f"| Discordエラー | {infra_result.discord_error_count}回 |",
+        f"| API残高取得 | {infra_result.api_balance_count}回 |",
+        f"| フォールバック使用 | {infra_result.fallback_count}回 |",
+        f"| NoneTypeエラー | {infra_result.nonetype_error_count}回 |",
+        f"| APIエラー | {infra_result.api_error_count}回 |",
+        "",
+        f"**スコア**: {infra_result.total_score}点 (正常:{infra_result.normal_checks} 警告:{infra_result.warning_issues} 致命的:{infra_result.critical_issues})",
+        "",
+        "---",
+        "",
+        "## Bot機能診断",
+        "",
+        "| 項目 | 結果 |",
+        "|------|------|",
+        f"| 55特徴量検出 | {bot_result.feature_55_count}回 |",
+        f"| 49特徴量（フォールバック） | {bot_result.feature_49_count}回 |",
+        f"| DummyModel使用 | {bot_result.dummy_model_count}回 |",
+        f"| シグナル生成 | {bot_result.signal_count}回 |",
+        f"| 注文実行 | {bot_result.order_count}回 |",
+        f"| 成功率 | {bot_result.success_rate}% |",
+        f"| アクティブ戦略数 | {bot_result.active_strategy_count}/6 |",
+        f"| ML予測実行 | {bot_result.ml_prediction_count}回 |",
+        f"| Kelly基準計算 | {bot_result.kelly_count}回 |",
+        f"| Atomic Entry成功 | {bot_result.atomic_success_count}回 |",
+        f"| ロールバック | {bot_result.atomic_rollback_count}回 |",
+        "",
+        "### 戦略別検出状況",
+        "",
+        "| 戦略 | 検出数 |",
+        "|------|--------|",
+    ]
+
+    for strategy, count in bot_result.strategy_counts.items():
+        status = "✅" if count > 0 else "ℹ️ 未検出"
+        lines.append(f"| {strategy} | {count} {status} |")
+
+    lines.extend(
+        [
+            "",
+            f"**スコア**: {bot_result.total_score}点 (正常:{bot_result.normal_checks} 警告:{bot_result.warning_issues} 致命的:{bot_result.critical_issues})",
+            "",
+        ]
+    )
+
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

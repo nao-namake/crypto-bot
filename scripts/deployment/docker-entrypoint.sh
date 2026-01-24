@@ -1,6 +1,6 @@
 #!/bin/bash
-# Phase 49完了 Docker統合エントリポイント
-# 1,117テスト100%成功・68.32%カバレッジ・バックテスト完全改修・確定申告対応・週間レポート実装
+# Phase 61 Docker統合エントリポイント
+# 1,214テスト100%成功・62%カバレッジ・レジーム判定最適化・コードベース整理
 
 set -e
 
@@ -16,7 +16,7 @@ echo "  CI: ${CI:-false}"
 # 統一設定管理体系: 基本ヘルスチェックサーバー起動（設定不整合完全解消）
 echo "🌐 ヘルスチェックサーバー起動準備..."
 
-# 統一設定管理体系: 起動時MLモデルチェック（Phase 49完了・55特徴量Strategy-Aware ML）
+# 統一設定管理体系: 起動時MLモデルチェック（Phase 61）
 echo "🤖 起動時MLモデル検証実行..."
 python3 -c "
 import sys
@@ -33,7 +33,7 @@ try:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
 
-        # 簡易予測テスト（Phase 50.9: 62特徴量固定システム - feature_order.json準拠）
+        # 簡易予測テスト（55特徴量 - feature_order.json準拠）
         import numpy as np
         from src.core.config.feature_manager import get_feature_count
         feature_count = get_feature_count()
@@ -66,8 +66,8 @@ fi
 cat > /app/health_server.py << 'EOF'
 #!/usr/bin/env python3
 """
-Phase 49完了 シンプルヘルスチェックサーバー
-1,117テスト100%成功・68.32%カバレッジ・バックテスト完全改修・確定申告対応・週間レポート実装
+Phase 61 シンプルヘルスチェックサーバー
+1,214テスト100%成功・62%カバレッジ・レジーム判定最適化
 importエラー回避・Cloud Run最適化版
 """
 import json
@@ -84,14 +84,14 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # シンプルヘルスチェック（importエラー回避）
             health_data = {
                 "status": "healthy",
-                "phase": "Phase 50.9 Complete",
+                "phase": "Phase 61",
                 "mode": os.environ.get('MODE', 'paper'),
                 "timestamp": datetime.now().isoformat(),
                 "service": "crypto-bot-service-prod",
-                "tests": "1,056 passed (100%)",
-                "coverage": "64.99%",
-                "features": "Phase 50.9: 62特徴量固定システム・外部API完全削除・2段階Graceful Degradation・シンプル設計回帰",
-                "models": "ProductionEnsemble ready (62 features - Phase 50.9)"
+                "tests": "1,214 passed (100%)",
+                "coverage": "62%",
+                "features": "Phase 61: レジーム判定最適化・コードベース整理",
+                "models": "ProductionEnsemble ready (55 features)"
             }
             
             self.send_response(200)
@@ -103,12 +103,12 @@ class HealthHandler(http.server.BaseHTTPRequestHandler):
             # 基本動作確認エンドポイント
             basic_info = {
                 "service": "crypto-bot-service-prod",
-                "version": "49.0.0",
+                "version": "61.0.0",
                 "status": "operational",
                 "timestamp": datetime.now().isoformat(),
                 "mode": os.environ.get('MODE', 'paper'),
                 "health_endpoint": "/health",
-                "description": "Phase 49完了 AI自動取引システム（バックテスト完全改修・確定申告対応・週間レポート実装）"
+                "description": "Phase 61 AI自動取引システム"
             }
             
             self.send_response(200)

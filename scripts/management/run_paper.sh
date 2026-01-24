@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# ペーパートレード実行スクリプト（Phase 55.9簡素化版）
+# ペーパートレード実行スクリプト（Phase 61）
 #
 # 使用方法:
 #   bash scripts/management/run_paper.sh         # ペーパートレード開始

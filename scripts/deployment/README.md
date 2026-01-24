@@ -1,6 +1,6 @@
-# scripts/deployment/ - デプロイメント管理（Phase 55.9更新）
+# scripts/deployment/ - デプロイメント管理（Phase 61）
 
-**最終更新**: 2025年12月23日
+**最終更新**: 2026年1月24日
 
 ## 役割
 

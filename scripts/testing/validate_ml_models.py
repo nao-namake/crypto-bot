@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phase 59.8: ML検証統合スクリプト（Stacking対応）
+Phase 61: ML検証統合スクリプト
 
 統合元:
 - Phase 54.7: validate_model_performance.py
@@ -20,15 +20,15 @@ Phase 59.8: ML検証統合スクリプト（Stacking対応）
 
 使用方法:
     # 全検証
-    python scripts/ml/validate_ml_models.py
+    python scripts/testing/validate_ml_models.py
 
     # 特定検証のみ
-    python scripts/ml/validate_ml_models.py --check consistency
-    python scripts/ml/validate_ml_models.py --check distribution
-    python scripts/ml/validate_ml_models.py --check performance
+    python scripts/testing/validate_ml_models.py --check consistency
+    python scripts/testing/validate_ml_models.py --check distribution
+    python scripts/testing/validate_ml_models.py --check performance
 
     # 軽量モード（実データ読み込みなし・高速）
-    python scripts/ml/validate_ml_models.py --quick
+    python scripts/testing/validate_ml_models.py --quick
 """
 
 import argparse
@@ -712,7 +712,7 @@ class MLModelValidator:
     def run_all(self, quick: bool = False) -> bool:
         """全検証を実行"""
         print("\n" + "=" * 60)
-        print("🚀 Phase 59.8: ML検証統合スクリプト開始（Stacking対応）")
+        print("🚀 Phase 61: ML検証統合スクリプト開始")
         print("=" * 60)
 
         # 整合性検証（常に実行）
@@ -756,7 +756,7 @@ class MLModelValidator:
 
 def main() -> int:
     """メイン処理"""
-    parser = argparse.ArgumentParser(description="Phase 59.8: ML検証統合スクリプト（Stacking対応）")
+    parser = argparse.ArgumentParser(description="Phase 61: ML検証統合スクリプト")
     parser.add_argument(
         "--check",
         choices=["all", "consistency", "distribution", "performance"],
