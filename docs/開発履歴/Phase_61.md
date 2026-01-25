@@ -491,4 +491,135 @@ Phase 61.1でMarketRegimeClassifierに`get_threshold()`パターンを導入（�
 
 ---
 
-**最終更新**: 2026年1月26日 - Phase 61.3完了・本番デプロイ（全機能有効化）
+## Phase 61.4: MFE/MAE分析機能 ✅実装完了
+
+### 実施日
+2026年1月26日
+
+### 目的
+バックテストの「What-if分析」を可能にする。
+- 例: 「¥500で決済していたらどうなっていたか？」を正確に分析
+- TPに到達せず逆行してしまう取引の定量評価
+
+---
+
+### MFE/MAE とは
+
+| 指標 | 説明 | 活用 |
+|------|------|------|
+| **MFE** (Maximum Favorable Excursion) | トレード中の最大含み益 | 利益逃しの定量化 |
+| **MAE** (Maximum Adverse Excursion) | トレード中の最大含み損 | リスク耐性の評価 |
+
+**例**:
+- エントリー: ¥15,000,000
+- 最高値: ¥15,200,000（MFE = ¥200利益可能）
+- 最安値: ¥14,800,000（MAE = ¥-200損失リスク）
+- 決済: ¥15,050,000（実際のPnL = ¥50）
+- MFE捕捉率: 25%（¥200のうち¥50しか獲得できなかった）
+
+---
+
+### 実装内容
+
+#### 1. TradeTracker拡張（reporter.py）
+
+| 変更 | 内容 |
+|------|------|
+| エントリー記録 | mfe/mae/mfe_price/mae_priceフィールド追加 |
+| `update_price_excursions()` | 新規メソッド: ローソク足ごとにMFE/MAE更新 |
+| 取引完了記録 | MFE/MAEをcompeted_tradesに保存 |
+| `_calculate_mfe_mae_statistics()` | 新規メソッド: MFE/MAE統計計算 |
+| パフォーマンス指標 | 7つのMFE/MAE指標を追加 |
+
+#### 2. BacktestRunner連携（backtest_runner.py）
+
+```python
+# Phase 61.4: MFE/MAE更新（TP/SLチェック前に実行）
+if hasattr(self.orchestrator, "backtest_reporter"):
+    self.orchestrator.backtest_reporter.trade_tracker.update_price_excursions(
+        high_price, low_price
+    )
+```
+
+---
+
+### 出力される指標
+
+| 指標 | 説明 |
+|------|------|
+| `avg_mfe` | 平均MFE（最大含み益） |
+| `avg_mae` | 平均MAE（最大含み損） |
+| `mfe_capture_ratio` | MFE捕捉率（実PnL / MFE合計 × 100%） |
+| `trades_with_missed_profit` | 利益逃し取引数（MFE > PnL） |
+| `missed_profit_total` | 逃した利益の合計 |
+| `theoretical_profit_at_mfe` | MFE時に全決済した場合の理論利益 |
+| `mfe_mae_ratio` | MFE/MAE比率（リスク/リワード効率） |
+
+---
+
+### バックテストレポート出力例
+
+```
+【MFE/MAE分析（Phase 61.4）】
+平均MFE（最大含み益）: ¥1,200
+平均MAE（最大含み損）: ¥-800
+MFE捕捉率: 45.5%
+MFE時理論利益: ¥420,000
+利益逃し取引数: 185件 (計¥230,000)
+MFE/MAE比率: 1.50
+```
+
+---
+
+### 活用方法
+
+1. **TP設定の最適化**
+   - MFE捕捉率が低い → TP価格が高すぎる可能性
+   - 利益逃し取引数が多い → TP到達前に逆行するケースが多い
+
+2. **SL設定の評価**
+   - MAEが小さいのに損失取引 → SLが適切
+   - MAEが大きい → SLが広すぎる可能性
+
+3. **What-if分析**
+   - 「¥500で決済」などの仮説をMFEデータで検証可能
+   - MFE ≥ ¥500の取引数を集計
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/backtest/reporter.py` | TradeTrackerにMFE/MAE追跡機能追加 |
+| `src/core/execution/backtest_runner.py` | `update_price_excursions()`呼び出し追加 |
+
+---
+
+## 結論
+
+### Phase 61.1: レジーム閾値調整
+**結果**: 失敗
+- 閾値変更だけでは市場特性を変えられない
+- PFが1.58→1.13に大幅低下（-75%損益）
+
+**対応**: Phase 60オリジナル値にロールバックし、Phase 60.7相当の性能を維持。
+
+今後のレジーム改善は、より慎重なアプローチ（ローカル事前検証、段階的変更）が必要。
+
+### Phase 61.3: TP/SL注文改善
+**結果**: 実装完了・本番デプロイ
+- bitbank APIのtake_profit/stop_lossタイプに対応（UIで「利確」「損切り」表示）
+- 決済注文の約定確認機能を追加（30秒タイムアウト）
+- 未約定時の自動リトライ機能を追加（最大3回）
+- フォールバック設計により安全性を確保
+
+### Phase 61.4: MFE/MAE分析機能
+**結果**: 実装完了
+- バックテストでのWhat-if分析が可能に
+- MFE捕捉率・利益逃し取引数などの新指標追加
+- TP/SL設定の最適化判断材料を提供
+
+---
+
+**最終更新**: 2026年1月26日 - Phase 61.4完了（MFE/MAE分析機能実装）

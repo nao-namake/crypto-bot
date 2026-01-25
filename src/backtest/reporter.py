@@ -49,6 +49,10 @@ class TradeTracker:
         self.total_pnl = 0.0
         self.equity_curve: List[float] = [0.0]  # エクイティカーブ（累積損益）
 
+        # Phase 61.4: MFE/MAE追跡（What-if分析用）
+        # MFE (Maximum Favorable Excursion): トレード中の最大利益
+        # MAE (Maximum Adverse Excursion): トレード中の最大損失
+
     def record_entry(
         self,
         order_id: str,
@@ -100,10 +104,57 @@ class TradeTracker:
             "ml_prediction": ml_prediction,  # Phase 54.8: ML予測クラス
             "ml_confidence": ml_confidence,  # Phase 54.8: ML信頼度
             "adjusted_confidence": adjusted_confidence,  # Phase 59.3: 調整済み信頼度
+            # Phase 61.4: MFE/MAE追跡
+            "mfe": 0.0,  # Maximum Favorable Excursion（最大含み益）
+            "mae": 0.0,  # Maximum Adverse Excursion（最大含み損）
+            "mfe_price": price,  # MFE時の価格
+            "mae_price": price,  # MAE時の価格
         }
         self.logger.debug(
             f"📝 エントリー記録: {order_id} - {side} {amount} BTC @ {price:.0f}円 (regime={regime})"
         )
+
+    def update_price_excursions(self, high_price: float, low_price: float):
+        """
+        Phase 61.4: MFE/MAE更新（ローソク足ごとに呼び出し）
+
+        各オープンポジションについて、ローソク足の高値・安値から
+        MFE（最大含み益）とMAE（最大含み損）を更新。
+
+        Args:
+            high_price: ローソク足の高値
+            low_price: ローソク足の安値
+        """
+        for order_id, entry in self.open_entries.items():
+            side = entry.get("side")
+            entry_price = entry.get("entry_price")
+            amount = entry.get("amount", 0)
+
+            if side == "buy":
+                # ロングポジション: 高値でMFE、安値でMAE
+                favorable_pnl = (high_price - entry_price) * amount
+                adverse_pnl = (low_price - entry_price) * amount
+
+                if favorable_pnl > entry.get("mfe", 0):
+                    entry["mfe"] = favorable_pnl
+                    entry["mfe_price"] = high_price
+
+                if adverse_pnl < entry.get("mae", 0):
+                    entry["mae"] = adverse_pnl
+                    entry["mae_price"] = low_price
+
+            elif side == "sell":
+                # ショートポジション: 安値でMFE、高値でMAE
+                favorable_pnl = (entry_price - low_price) * amount
+                adverse_pnl = (entry_price - high_price) * amount
+
+                if favorable_pnl > entry.get("mfe", 0):
+                    entry["mfe"] = favorable_pnl
+                    entry["mfe_price"] = low_price
+
+                if adverse_pnl < entry.get("mae", 0):
+                    entry["mae"] = adverse_pnl
+                    entry["mae_price"] = high_price
 
     def record_exit(
         self, order_id: str, exit_price: float, exit_timestamp, exit_reason: str = "unknown"
@@ -166,6 +217,11 @@ class TradeTracker:
             "ml_prediction": entry.get("ml_prediction"),  # Phase 54.8: ML予測クラス
             "ml_confidence": entry.get("ml_confidence"),  # Phase 54.8: ML信頼度
             "adjusted_confidence": entry.get("adjusted_confidence"),  # Phase 59.3: 調整済み
+            # Phase 61.4: MFE/MAE追跡
+            "mfe": entry.get("mfe", 0.0),  # 最大含み益
+            "mae": entry.get("mae", 0.0),  # 最大含み損
+            "mfe_price": entry.get("mfe_price"),  # MFE時の価格
+            "mae_price": entry.get("mae_price"),  # MAE時の価格
         }
 
         self.completed_trades.append(trade)
@@ -263,6 +319,14 @@ class TradeTracker:
                 "max_consecutive_wins": 0,
                 "max_consecutive_losses": 0,
                 "trades_per_month": 0.0,
+                # Phase 61.4: MFE/MAE統計
+                "avg_mfe": 0.0,
+                "avg_mae": 0.0,
+                "mfe_capture_ratio": 0.0,
+                "trades_with_missed_profit": 0,
+                "missed_profit_total": 0.0,
+                "theoretical_profit_at_mfe": 0.0,
+                "mfe_mae_ratio": 0.0,
             }
 
         # 基本統計
@@ -327,6 +391,9 @@ class TradeTracker:
         # 取引頻度（月間）
         trades_per_month = self._calculate_trades_per_month()
 
+        # Phase 61.4: MFE/MAE統計計算
+        mfe_mae_stats = self._calculate_mfe_mae_statistics()
+
         return {
             "total_trades": total_trades,
             "winning_trades": len(winning_trades),
@@ -350,6 +417,8 @@ class TradeTracker:
             "max_consecutive_wins": max_consecutive_wins,
             "max_consecutive_losses": max_consecutive_losses,
             "trades_per_month": trades_per_month,
+            # Phase 61.4: MFE/MAE統計
+            **mfe_mae_stats,
         }
 
     def _calculate_max_drawdown(self) -> tuple:
@@ -597,6 +666,86 @@ class TradeTracker:
             return round(trades_per_month, 1)
         except Exception:
             return 0.0
+
+    def _calculate_mfe_mae_statistics(self) -> Dict[str, Any]:
+        """
+        Phase 61.4: MFE/MAE統計計算
+
+        MFE/MAEデータから以下を分析:
+        - 平均MFE/MAE
+        - MFE到達時に決済していた場合の理論利益
+        - 利益を逃した取引（MFE > pnl）の分析
+        - 損失拡大取引（MAE < pnl）の分析
+
+        Returns:
+            MFE/MAE統計辞書
+        """
+        if not self.completed_trades:
+            return {
+                "avg_mfe": 0.0,
+                "avg_mae": 0.0,
+                "mfe_capture_ratio": 0.0,
+                "trades_with_missed_profit": 0,
+                "missed_profit_total": 0.0,
+                "theoretical_profit_at_mfe": 0.0,
+                "mfe_mae_ratio": 0.0,
+            }
+
+        # MFE/MAEデータを持つ取引を抽出
+        trades_with_excursion = [t for t in self.completed_trades if t.get("mfe") is not None]
+
+        if not trades_with_excursion:
+            return {
+                "avg_mfe": 0.0,
+                "avg_mae": 0.0,
+                "mfe_capture_ratio": 0.0,
+                "trades_with_missed_profit": 0,
+                "missed_profit_total": 0.0,
+                "theoretical_profit_at_mfe": 0.0,
+                "mfe_mae_ratio": 0.0,
+            }
+
+        # 基本統計
+        mfe_values = [t.get("mfe", 0) for t in trades_with_excursion]
+        mae_values = [t.get("mae", 0) for t in trades_with_excursion]
+
+        avg_mfe = sum(mfe_values) / len(mfe_values)
+        avg_mae = sum(mae_values) / len(mae_values)
+
+        # MFE時に決済していた場合の理論利益
+        theoretical_profit_at_mfe = sum(mfe_values)
+
+        # 実際のPnL合計
+        actual_pnl = sum(t.get("pnl", 0) for t in trades_with_excursion)
+
+        # MFE捕捉率（実際の利益 / MFEの合計）
+        # MFEが全てプラスの場合のみ意味がある
+        if theoretical_profit_at_mfe > 0:
+            mfe_capture_ratio = (actual_pnl / theoretical_profit_at_mfe) * 100
+        else:
+            mfe_capture_ratio = 0.0
+
+        # 利益を逃した取引（MFE > 実際のpnl）
+        missed_profit_trades = [
+            t for t in trades_with_excursion if t.get("mfe", 0) > t.get("pnl", 0)
+        ]
+        missed_profit_total = sum(t.get("mfe", 0) - t.get("pnl", 0) for t in missed_profit_trades)
+
+        # MFE/MAE比率（リスク/リワード効率）
+        # MAEは負の値なので絶対値で計算
+        total_mfe = sum(abs(m) for m in mfe_values)
+        total_mae = sum(abs(m) for m in mae_values)
+        mfe_mae_ratio = (total_mfe / total_mae) if total_mae > 0 else 0.0
+
+        return {
+            "avg_mfe": round(avg_mfe, 0),
+            "avg_mae": round(avg_mae, 0),
+            "mfe_capture_ratio": round(mfe_capture_ratio, 1),
+            "trades_with_missed_profit": len(missed_profit_trades),
+            "missed_profit_total": round(missed_profit_total, 0),
+            "theoretical_profit_at_mfe": round(theoretical_profit_at_mfe, 0),
+            "mfe_mae_ratio": round(mfe_mae_ratio, 2),
+        }
 
     def get_regime_performance(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -1062,6 +1211,32 @@ class BacktestReporter:
             self.logger.warning(
                 f"平均負けトレード: ¥{performance_metrics.get('average_loss', 0.0):,.0f}"
             )
+            # Phase 61.4: MFE/MAE統計出力
+            if (
+                performance_metrics.get("avg_mfe", 0) != 0
+                or performance_metrics.get("avg_mae", 0) != 0
+            ):
+                self.logger.warning("")
+                self.logger.warning("【MFE/MAE分析（Phase 61.4）】")
+                self.logger.warning(
+                    f"平均MFE（最大含み益）: ¥{performance_metrics.get('avg_mfe', 0):,.0f}"
+                )
+                self.logger.warning(
+                    f"平均MAE（最大含み損）: ¥{performance_metrics.get('avg_mae', 0):,.0f}"
+                )
+                self.logger.warning(
+                    f"MFE捕捉率: {performance_metrics.get('mfe_capture_ratio', 0):.1f}%"
+                )
+                self.logger.warning(
+                    f"MFE時理論利益: ¥{performance_metrics.get('theoretical_profit_at_mfe', 0):,.0f}"
+                )
+                self.logger.warning(
+                    f"利益逃し取引数: {performance_metrics.get('trades_with_missed_profit', 0)}件 "
+                    f"(計¥{performance_metrics.get('missed_profit_total', 0):,.0f})"
+                )
+                self.logger.warning(
+                    f"MFE/MAE比率: {performance_metrics.get('mfe_mae_ratio', 0):.2f}"
+                )
             self.logger.warning("=" * 60)
 
             # Phase 51.8-J4-G: レジーム別パフォーマンスサマリー

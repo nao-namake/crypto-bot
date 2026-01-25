@@ -728,6 +728,15 @@ class BacktestRunner(BaseRunner):
                     low_price = candle.get("low", None)
 
                     if close_price is not None and high_price is not None and low_price is not None:
+                        # Phase 61.4: MFE/MAE更新（TP/SLチェック前に実行）
+                        if (
+                            hasattr(self.orchestrator, "backtest_reporter")
+                            and self.orchestrator.backtest_reporter
+                        ):
+                            self.orchestrator.backtest_reporter.trade_tracker.update_price_excursions(
+                                high_price, low_price
+                            )
+
                         await self._check_tp_sl_triggers(
                             close_price, high_price, low_price, self.current_timestamp
                         )
