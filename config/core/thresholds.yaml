@@ -746,6 +746,15 @@ position_management:
     min_profit_ratio: 0.009          # Phase 51.6: TP 0.9%（こまめ利確・maker手数料込み1.1%利益）
     override_strategy_tp: false
     position_partial_exit: false
+    # ========================================
+    # Phase 61.3: TP注文タイプ設定
+    # ========================================
+    # use_native_type: true → bitbank API直接呼び出し（type="take_profit"）
+    #                        → UIで「利確」と表示される
+    # use_native_type: false → 従来のlimit注文（type="limit"）
+    #                        → UIで「指値」と表示される
+    # ========================================
+    use_native_type: true
 
     # ========================================
     # Phase 52.0: レジーム別TP設定
@@ -776,13 +785,43 @@ position_management:
   stop_loss:
     enabled: true
     # Phase 59.6: SL指値化設定（手数料削減）
-    order_type: "stop_limit"         # "stop"（成行）or "stop_limit"（指値）
+    order_type: "stop_limit"         # "stop"（成行）or "stop_limit"（指値）※use_native_type=false時のみ
     slippage_buffer: 0.001           # 0.1% 指値価格バッファ（stop_limit時のみ）
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007            # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
+
+    # ========================================
+    # Phase 61.3: SL注文タイプ設定
+    # ========================================
+    # use_native_type: true → bitbank API直接呼び出し（type="stop_loss"）
+    #                        → UIで「損切り」と表示される
+    # use_native_type: false → 従来のstop/stop_limit注文
+    #                        → UIで「逆指値」と表示される
+    # ========================================
+    use_native_type: true
+
+    # ========================================
+    # Phase 61.3: 決済注文の約定確認設定
+    # ========================================
+    # 決済注文発行後、約定を確認する
+    # ========================================
+    fill_confirmation:
+      enabled: true                  # 約定確認機能ON
+      timeout_seconds: 30            # 約定待機タイムアウト
+      check_interval_seconds: 3      # 約定確認間隔
+
+    # ========================================
+    # Phase 61.3: 未約定時リトライ設定
+    # ========================================
+    # 決済注文が未約定の場合、価格を調整してリトライする
+    # ========================================
+    retry_on_unfilled:
+      enabled: true                  # リトライ機能ON
+      max_retries: 3                 # 最大リトライ回数
+      slippage_increase_per_retry: 0.001  # リトライ毎のスリッページ増加（0.1%）
 
     # ========================================
     # Phase 52.0: レジーム別SL設定

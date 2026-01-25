@@ -72,7 +72,7 @@ from dotenv import load_dotenv
 
 env_path = PROJECT_ROOT / "config" / "secrets" / ".env"
 if env_path.exists():
-    load_dotenv(env_path)
+    load_dotenv(env_path, override=True)
     # 読み込み確認用ログは後で出力（logger初期化後）
 
 from src.core.logger import get_logger

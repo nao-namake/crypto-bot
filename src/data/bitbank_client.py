@@ -1080,7 +1080,15 @@ class BitbankClient:
         symbol: str = "BTC/JPY",
     ) -> Dict[str, Any]:
         """
-        テイクプロフィット指値注文作成（Phase 33.1: 決済注文対応・両建て防止修正）
+        テイクプロフィット指値注文作成（Phase 61.3: take_profitタイプ対応）
+
+        Phase 61.3:
+        - use_native_tp_sl=true: bitbank API直接呼び出し（type="take_profit"）
+        - use_native_tp_sl=false: 従来のlimit注文
+
+        bitbank UI表示:
+        - type="take_profit": 「利確」と表示
+        - type="limit": 「指値」と表示
 
         Args:
             entry_side: エントリー方向（buy/sell）
@@ -1111,6 +1119,54 @@ class BitbankClient:
             },
         )
 
+        # Phase 61.3: take_profitタイプ使用設定を確認
+        use_native_tp_sl = get_threshold("position_management.take_profit.use_native_type", False)
+
+        if use_native_tp_sl:
+            # Phase 61.3: bitbank API直接呼び出し（take_profitタイプ）
+            try:
+                import asyncio
+
+                self.logger.info(
+                    f"📡 Phase 61.3: take_profitタイプで注文作成（UI「利確」表示期待）"
+                )
+                # 同期コンテキストから非同期メソッドを呼び出し
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 既に実行中のイベントループ内の場合
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._create_order_direct(
+                                symbol=symbol,
+                                side=tp_side,
+                                order_type="take_profit",
+                                amount=amount,
+                                price=take_profit_price,
+                                is_closing_order=True,
+                                entry_position_side=entry_position_side,
+                            ),
+                        )
+                        return future.result()
+                else:
+                    return asyncio.run(
+                        self._create_order_direct(
+                            symbol=symbol,
+                            side=tp_side,
+                            order_type="take_profit",
+                            amount=amount,
+                            price=take_profit_price,
+                            is_closing_order=True,
+                            entry_position_side=entry_position_side,
+                        )
+                    )
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 61.3: take_profitタイプ失敗 - フォールバック: {e}")
+                # フォールバック: 従来のlimit注文
+
+        # 従来方式: limit注文（type="limit"）
         return self.create_order(
             symbol=symbol,
             side=tp_side,
@@ -1131,14 +1187,22 @@ class BitbankClient:
         limit_price: float = None,
     ) -> Dict[str, Any]:
         """
-        ストップロス注文作成（Phase 59.6: stop_limit対応・手数料削減）
+        ストップロス注文作成（Phase 61.3: stop_lossタイプ対応）
+
+        Phase 61.3:
+        - use_native_tp_sl=true: bitbank API直接呼び出し（type="stop_loss"）
+        - use_native_tp_sl=false: 従来のstop/stop_limit注文
+
+        bitbank UI表示:
+        - type="stop_loss": 「損切り」と表示
+        - type="stop"/"stop_limit": 「逆指値」と表示
 
         Args:
             entry_side: エントリー方向（buy/sell）
             amount: 注文量（BTC）
             stop_loss_price: 損切りトリガー価格（JPY）
             symbol: 通貨ペア
-            order_type: "stop"（成行）or "stop_limit"（指値）
+            order_type: "stop"（成行）or "stop_limit"（指値）※use_native_tp_sl=false時のみ
             limit_price: 指値価格（stop_limit時のみ必須）
 
         Returns:
@@ -1153,21 +1217,81 @@ class BitbankClient:
         # ✅ Phase 33.1修正：元のポジションと同じposition_sideで決済注文として作成
         entry_position_side = "long" if entry_side.lower() == "buy" else "short"
 
-        # Phase 59.6: stop_limit対応
+        self.logger.info(
+            f"🛡️ ストップロス注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
+            extra_data={
+                "entry_side": entry_side,
+                "sl_side": sl_side,
+                "entry_position_side": entry_position_side,
+                "amount": amount,
+                "trigger_price": stop_loss_price,
+            },
+        )
+
+        # Phase 61.3: stop_lossタイプ使用設定を確認
+        use_native_tp_sl = get_threshold("position_management.stop_loss.use_native_type", False)
+
+        if use_native_tp_sl:
+            # Phase 61.3: bitbank API直接呼び出し（stop_lossタイプ）
+            try:
+                import asyncio
+
+                # stop_lossタイプでは、priceは指値約定価格（トリガー価格ではない）
+                # トリガー価格はtrigger_priceパラメータで指定
+                sl_limit_price = limit_price if limit_price else stop_loss_price
+
+                self.logger.info(
+                    f"📡 Phase 61.3: stop_lossタイプで注文作成（UI「損切り」表示期待）"
+                )
+
+                # 同期コンテキストから非同期メソッドを呼び出し
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self._create_order_direct(
+                                symbol=symbol,
+                                side=sl_side,
+                                order_type="stop_loss",
+                                amount=amount,
+                                price=sl_limit_price,
+                                trigger_price=stop_loss_price,
+                                is_closing_order=True,
+                                entry_position_side=entry_position_side,
+                            ),
+                        )
+                        return future.result()
+                else:
+                    return asyncio.run(
+                        self._create_order_direct(
+                            symbol=symbol,
+                            side=sl_side,
+                            order_type="stop_loss",
+                            amount=amount,
+                            price=sl_limit_price,
+                            trigger_price=stop_loss_price,
+                            is_closing_order=True,
+                            entry_position_side=entry_position_side,
+                        )
+                    )
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 61.3: stop_lossタイプ失敗 - フォールバック: {e}")
+                # フォールバック: 従来のstop/stop_limit注文
+
+        # 従来方式: stop/stop_limit注文
         if order_type == "stop_limit":
             if limit_price is None:
                 raise ValueError("stop_limit注文にはlimit_priceが必須です")
 
             self.logger.info(
-                f"🛡️ ストップロス逆指値指値注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円 (position_side={entry_position_side})",
+                f"🛡️ ストップロス逆指値指値注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円",
                 extra_data={
-                    "entry_side": entry_side,
-                    "sl_side": sl_side,
-                    "entry_position_side": entry_position_side,
-                    "amount": amount,
+                    "order_type": "stop_limit",
                     "trigger_price": stop_loss_price,
                     "limit_price": limit_price,
-                    "order_type": "stop_limit",
                 },
             )
 
@@ -1184,14 +1308,10 @@ class BitbankClient:
         else:
             # 従来のstop（成行）注文
             self.logger.info(
-                f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円 (position_side={entry_position_side})",
+                f"🛡️ ストップロス逆指値成行注文作成: {sl_side} {amount:.4f} BTC @ trigger={stop_loss_price:.0f}円",
                 extra_data={
-                    "entry_side": entry_side,
-                    "sl_side": sl_side,
-                    "entry_position_side": entry_position_side,
-                    "amount": amount,
-                    "trigger_price": stop_loss_price,
                     "order_type": "stop",
+                    "trigger_price": stop_loss_price,
                 },
             )
 
@@ -1671,6 +1791,124 @@ class BitbankClient:
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 58.3: ポジション確認失敗: {e}")
             return False  # エラー時は安全側（ポジションなしと仮定）
+
+    async def _create_order_direct(
+        self,
+        symbol: str,
+        side: str,
+        order_type: str,
+        amount: float,
+        price: Optional[float] = None,
+        trigger_price: Optional[float] = None,
+        is_closing_order: bool = False,
+        entry_position_side: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 61.3: bitbank APIを直接呼び出す注文作成（ccxt非対応タイプ用）
+
+        take_profit / stop_loss タイプはccxtがサポートしていないため、
+        _call_private_api()を使用して直接注文する。
+
+        bitbank API仕様参照:
+        - エンドポイント: POST /user/spot/order
+        - typeパラメータ: "limit", "market", "stop", "stop_limit", "take_profit", "stop_loss"
+        - take_profit/stop_lossではamountがオプション（ポジション全量決済）
+        - パラメータは全て文字列型
+
+        Args:
+            symbol: 通貨ペア（例: "BTC/JPY"）
+            side: 売買方向（"buy" / "sell"）
+            order_type: 注文タイプ（"take_profit" / "stop_loss"）
+            amount: 注文量（BTC）
+            price: 指値価格（JPY・take_profitとstop_lossで必須）
+            trigger_price: トリガー価格（JPY・stop_lossで必須）
+            is_closing_order: 決済注文フラグ
+            entry_position_side: エントリー時のposition_side（"long" / "short"）
+
+        Returns:
+            注文情報（id, status等を含む）
+
+        Raises:
+            ExchangeAPIError: 注文作成失敗時
+        """
+        try:
+            pair = symbol.lower().replace("/", "_")
+
+            # bitbank API仕様: パラメータは全て文字列型
+            params = {
+                "pair": pair,
+                "side": side,
+                "type": order_type,
+            }
+
+            # amount: take_profit/stop_lossではオプション（明示的に指定する方が安全）
+            if amount is not None and amount > 0:
+                params["amount"] = str(amount)
+
+            # 価格設定（整数文字列）
+            if price is not None:
+                params["price"] = str(int(price))
+
+            # トリガー価格設定（stop_loss用・整数文字列）
+            if trigger_price is not None:
+                params["trigger_price"] = str(int(trigger_price))
+
+            # 信用取引パラメータ: position_side（"long" / "short"）
+            # bitbank API仕様: 信用取引時のみ有効
+            if entry_position_side:
+                params["position_side"] = entry_position_side
+
+            self.logger.info(
+                f"📡 Phase 61.3: 直接API注文作成 - type={order_type}, side={side}, "
+                f"amount={amount:.6f} BTC, price={price}, trigger={trigger_price}",
+                extra_data={
+                    "order_type": order_type,
+                    "side": side,
+                    "amount": amount,
+                    "price": price,
+                    "trigger_price": trigger_price,
+                    "params": params,
+                },
+            )
+
+            # 直接API呼び出し
+            response = await self._call_private_api(
+                "/user/spot/order", params=params, method="POST"
+            )
+
+            order_data = response.get("data", {})
+
+            # ccxt形式に変換して返す
+            result = {
+                "id": str(order_data.get("order_id", "")),
+                "symbol": symbol,
+                "type": order_type,
+                "side": side,
+                "amount": amount,
+                "price": price,
+                "trigger_price": trigger_price,
+                "status": order_data.get("status", "open"),
+                "raw_response": response,
+            }
+
+            self.logger.info(
+                f"✅ Phase 61.3: 直接API注文成功 - ID: {result['id']}, type={order_type}",
+                extra_data={"order_id": result["id"], "order_type": order_type},
+            )
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"❌ Phase 61.3: 直接API注文失敗: {e}")
+            raise ExchangeAPIError(
+                f"直接API注文作成に失敗しました: {e}",
+                context={
+                    "symbol": symbol,
+                    "side": side,
+                    "order_type": order_type,
+                    "amount": amount,
+                },
+            )
 
     async def _call_private_api(
         self, endpoint: str, params: Optional[Dict] = None, method: str = "POST"

@@ -2,135 +2,162 @@
 
 ## 現在の状態
 
-**Phase 60完了・Phase 61進行中** - 戦略分析・改修
+**Phase 61進行中** - コードベース整理・戦略改修
 
 ※ 完了済みタスクの詳細は `docs/開発履歴/` を参照
 
 ---
 
-## Phase 61: 戦略分析・改修（進行中）
+## Phase 61: コードベース整理・戦略改修
 
-**目的**: レジーム判定の最適化とトレンド型戦略の活性化
+### 背景と方針転換
 
-### 背景
+Phase 61.1でレジーム閾値調整を試行したが**失敗**：
+- PF: 1.58 → 1.13（-28%）
+- 総損益: ¥86,639 → ¥21,781（-75%）
+- trending発生率: 0% → 0.6%（目標5-15%に大幅未達）
 
-Phase 60.7完了時点で総損益¥86,639（PF 1.58）を達成。しかし以下の課題が判明：
+**教訓**:
+1. レジーム閾値変更だけでは市場特性は変えられない
+2. 2025年下半期のBTC/JPYは本質的にtrendingが少ない
+3. 閾値変更は取引パターン全体に影響し、リスクが高い
 
-| 課題 | 詳細 | 影響 |
-|------|------|------|
-| **ADXTrendStrength赤字** | 7取引、勝率42.9%、¥-2,511損失 | 全体PFを低下 |
-| **MACDEMACrossover発動0件** | 183日間で0取引 | トレンド型戦略が機能していない |
-| **レジーム偏り** | tight_range 88.2%、trending 0% | 戦略多様性が活かされていない |
+**新方針**: レジーム改修は断念し、**既存環境（tight_range 88%）での戦略最適化**に注力
 
-**根本原因**: `MarketRegimeClassifier`のハードコード閾値
-- tight_range: BB幅 < 3% AND 価格変動 < 2% → 緩すぎて88%がここに吸収
-- trending: ADX > 25 AND EMA傾き > 1% → 厳しすぎて0件
+---
 
 ### 実装計画
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| 61.1 | レジーム判定閾値調整（thresholds.yaml + MarketRegimeClassifier） | ✅完了 |
-| 61.2 | コードベース整理 + ADXTrendStrength評価・対応 | 🔄進行中 |
-| 61.3 | MACDEMACrossover発動改善 | 📋予定（バックテスト結果待ち） |
+| 61.1 | レジーム判定閾値調整 | ✅完了（失敗→ロールバック） |
+| 61.2 | コードベース整理・ドキュメント更新 | ✅完了 |
+| 61.3 | 残フォルダ整理（src/、.github/、config/） | 📋予定 |
+| 61.4 | 戦略パフォーマンス詳細分析 | 📋予定 |
+| 61.5 | DonchianChannel無効化検討 | 📋予定 |
+| 61.6 | レンジ型戦略パラメータ最適化 | 📋予定 |
 
 ---
 
-### Phase 61.1: レジーム判定閾値調整 ✅完了
-
-**目標**: trending発生率 0% → 5-15%、tight_range 88% → 60-70%
+### Phase 61.1: レジーム判定閾値調整 ✅完了（失敗）
 
 **実施内容**:
-- thresholds.yamlにmarket_regimeセクション追加（27行）
+- thresholds.yamlにmarket_regimeセクション追加
 - MarketRegimeClassifier修正（`get_threshold()`対応）
-- テスト更新（モック関数対応、21件全成功）
-- Walk-Forward Validationバグ修正（mode引数エラー）
 
-**検証結果**:
-- 単体テスト: 21件成功
-- 全体テスト: 1206件成功（回帰なし）
-- CI/CD: 成功（Run ID: 21300967165）
-- バックテスト: CI実行中（Run ID: 21301254775）
+**結果**: PF大幅低下のためPhase 60オリジナル値にロールバック
 
-**変更ファイル**:
-
-| ファイル | 変更内容 |
-|---------|---------|
-| `config/core/thresholds.yaml` | market_regimeセクション追加 |
-| `src/core/services/market_regime_classifier.py` | get_threshold()読み込み対応 |
-| `tests/unit/services/test_market_regime_classifier.py` | モック関数対応テスト |
-| `scripts/backtest/walk_forward_validation.py` | バックテストモード設定修正 |
+**成果**: 閾値の設定ファイル化は維持（将来の再検討用）
 
 ---
 
-### Phase 61.2: コードベース整理 🔄進行中
-
-**目的**: バックテスト結果を待つ間に不要ファイルを整理
+### Phase 61.2: コードベース整理 ✅完了
 
 **実施内容**:
 
-| 項目 | 削減量 | 内容 |
-|------|--------|------|
-| ログ整理 | 約500MB | 古いログファイル削除 |
-| モデル整理 | 約31MB | Stacking関連モデル削除 |
-| テスト整理 | 26テスト | dead code削除、xfailテスト整理 |
-| README更新 | 5ファイル | models/、tests/ 配下 |
+| 項目 | 内容 |
+|------|------|
+| ログ整理 | 約500MB削減 |
+| モデル整理 | Stacking関連31MB削除 |
+| テスト整理 | dead code・xfailテスト整理 |
+| スクリプト統合 | monitoring/→live/standard_analysis.py統合 |
+| ドキュメント更新 | docs/運用ガイド/（6ファイル）、scripts/README等 |
 
 **削除ファイル**:
-- `logs/crypto_bot.log.2026-01-14` 〜 `2026-01-20`
-- `logs/ml/ab_test_*.log`、`ml_training_*.log`
-- `models/production/stacking_ensemble.pkl`、`meta_learner.pkl`
-- `tests/manual/`（ディレクトリ）
-- `tests/unit/analysis/`（ディレクトリ）
-- `tests/integration/test_phase_51_3_regime_strategy_integration.py`
-
-**テスト整理結果**:
-- trading/ xfailed: 12 → 1（-11）
-- features/ skipped: 14 → 0（-14）
-- 全体テスト数: 約1,200維持
+- `.github/workflows/weekly_report.yml`
+- `scripts/monitoring/`（check_bot_functions.sh等）
+- `scripts/reports/`（weekly_report.py等）
+- `scripts/testing/validate_system.sh`
 
 ---
 
-### Phase 61.2続き: ADXTrendStrength評価・対応 📋予定
+### Phase 61.3: 残フォルダ整理 📋予定
 
-**判断フロー**:
-1. 61.1完了後にバックテスト実行
-2. ADXTrendStrength勝率を確認
-   - 勝率 ≥ 50%: パラメータ微調整で継続
-   - 勝率 < 50%: 全レジームで重み0.0に設定（無効化）
+**目的**: src/、.github/、config/内のPhase参照・メタデータ更新
 
----
+**対象ファイル（予定）**:
 
-### Phase 61.3: MACDEMACrossover発動改善
+| ディレクトリ | 対象 |
+|-------------|------|
+| `src/` | docstring内のPhase参照更新 |
+| `.github/workflows/` | ci.yml等のコメント・バージョン更新 |
+| `config/` | 設定ファイルのコメント・バージョン更新 |
 
-**判断フロー**:
-1. 61.1でtrending発生後、自動的に発動機会増加を確認
-2. まだ発動が少ない場合:
-   - `adx_trend_threshold`: 18→15に緩和
-   - または`_is_trend_market()`にEMA乖離条件を追加
+**注意**: ライブモードに影響するため、慎重に実施
 
 ---
 
-### 検証方法
+### Phase 61.4: 戦略パフォーマンス詳細分析 📋予定
 
-```bash
-# バックテスト実行
-python3 main.py --mode backtest
+**目的**: 改修すべき戦略の特定と優先順位付け
 
-# 結果分析
-python3 scripts/backtest/standard_analysis.py --from-ci
-```
+**分析項目**:
 
-### 成功基準
+| 戦略 | 現状PF | 取引数 | 分析ポイント |
+|------|--------|--------|--------------|
+| BBReversal | 1.32 | 多 | レンジ型主力・最適化余地確認 |
+| StochasticReversal | 1.25 | 多 | レンジ型主力・パラメータ検証 |
+| ATRBased | 1.16 | 最多 | 補助・精度向上余地確認 |
+| DonchianChannel | **0.85** | 中 | **赤字・無効化検討** |
+| ADXTrendStrength | 1.01 | 7件 | 発動少・影響小 |
+| MACDEMACrossover | N/A | 0件 | 発動なし・改修効果なし |
 
-| Phase | 指標 | 目標値 |
-|-------|------|--------|
-| 61.1 | trending発生率 | ≥ 5% |
-| 61.1 | tight_range発生率 | ≤ 70% |
-| 61.2 | ADXTrendStrength勝率 | ≥ 50% or 無効化 |
-| 61.3 | MACDEMACrossover取引数 | ≥ 10件 |
-| **全体** | **PF** | **≥ 1.50維持** |
-| **全体** | **総損益** | **≥ ¥80,000維持** |
+**実施内容**:
+1. 直近180日の戦略別詳細分析
+2. レジーム別勝率・PF算出
+3. エントリー条件の妥当性検証
+4. 改修優先順位の決定
+
+---
+
+### Phase 61.5: DonchianChannel無効化検討 📋予定
+
+**背景**:
+- 60日PF: 0.85（赤字）
+- tight_rangeでの有効性が低い
+
+**判断基準**:
+- 直近180日でPF < 1.0 継続 → 全レジームで重み0.0に設定
+- 特定レジームでのみPF > 1.0 → そのレジームでのみ有効化
+
+**実施内容**:
+1. Phase 61.4の分析結果を基に判断
+2. thresholds.yamlの重み設定変更
+3. バックテストで効果検証
+
+---
+
+### Phase 61.6: レンジ型戦略パラメータ最適化 📋予定
+
+**目的**: tight_range環境（88%）での収益最大化
+
+**対象戦略**:
+
+| 戦略 | 最適化ポイント |
+|------|---------------|
+| BBReversal | RSI閾値、BB期間、信頼度計算 |
+| StochasticReversal | K/D期間、過買/過売閾値 |
+| ATRBased | 消尽率閾値、ATR期間 |
+
+**実施方法**:
+1. Optunaによるパラメータ探索
+2. Walk-Forward Validationで過学習検証
+3. 段階的パラメータ変更（±10%ずつ）
+
+**成功基準**:
+- PF ≥ 1.60維持
+- 総損益 ≥ ¥80,000維持
+
+---
+
+### 成功基準（Phase 61全体）
+
+| 指標 | 目標値 | 備考 |
+|------|--------|------|
+| **PF** | **≥ 1.55** | Phase 60.7: 1.58基準 |
+| **総損益** | **≥ ¥80,000** | Phase 60.7: ¥86,639基準 |
+| 勝率 | ≥ 53% | 現状54.8% |
+| コードベース | 整理完了 | Phase参照統一 |
 
 ---
 
@@ -156,7 +183,8 @@ python3 scripts/backtest/standard_analysis.py --from-ci
 |--------|--------|------|
 | CatBoost追加 | 低 | 4モデルアンサンブル化 |
 | SL指値非約定時の成行フォールバック | 中 | 急落時リスク対策 |
-| 実効レバレッジ1.0倍移行 | 中 | 61完了後・結果良好な場合 |
+| 実効レバレッジ1.0倍移行 | 中 | Phase 61完了後・結果良好な場合 |
+| トレンド型戦略改修 | 低 | trending発生率改善後に再検討 |
 
 ---
 
@@ -171,4 +199,4 @@ python3 scripts/backtest/standard_analysis.py --from-ci
 
 ---
 
-**最終更新**: 2026年1月24日 - Phase 61.2コードベース整理（進行中）
+**最終更新**: 2026年1月25日 - Phase 61.2完了・61.3以降計画策定

@@ -1,8 +1,9 @@
 """
-ストップ条件管理サービス - Phase 51.6リファクタリング完了
+ストップ条件管理サービス - Phase 61.3: 約定確認機能追加
 Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
 Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
 Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
+Phase 61.3: 決済注文の約定確認・リトライ機能
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -11,7 +12,7 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -31,6 +32,183 @@ class StopManager:
     def __init__(self):
         """StopManager初期化"""
         self.logger = get_logger()
+
+    async def _wait_for_fill(
+        self,
+        order_id: str,
+        bitbank_client: BitbankClient,
+        symbol: str = "BTC/JPY",
+        timeout_seconds: int = 30,
+        check_interval: int = 3,
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Phase 61.3: 決済注文の約定を待機
+
+        決済注文発行後、約定するまで待機する。
+        タイムアウトした場合は未約定として返す。
+
+        Args:
+            order_id: 確認対象の注文ID
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+            timeout_seconds: タイムアウト秒数（デフォルト30秒）
+            check_interval: 確認間隔秒数（デフォルト3秒）
+
+        Returns:
+            Tuple[bool, Optional[Dict]]:
+                - bool: 約定完了ならTrue、未約定ならFalse
+                - Dict: 注文情報（約定時）またはNone
+        """
+        max_checks = timeout_seconds // check_interval
+
+        self.logger.info(
+            f"🔄 Phase 61.3: 約定確認開始 - order_id={order_id}, "
+            f"timeout={timeout_seconds}秒, interval={check_interval}秒"
+        )
+
+        for i in range(max_checks):
+            try:
+                order = await asyncio.to_thread(bitbank_client.fetch_order, order_id, symbol)
+                status = order.get("status", "")
+
+                self.logger.debug(
+                    f"📊 Phase 61.3: 約定確認中 ({i + 1}/{max_checks}) - "
+                    f"order_id={order_id}, status={status}"
+                )
+
+                if status == "closed":  # ccxtでは"closed"が約定済み
+                    self.logger.info(
+                        f"✅ Phase 61.3: 約定確認完了 - order_id={order_id}, "
+                        f"filled={order.get('filled', 0):.6f} BTC"
+                    )
+                    return True, order
+                elif status == "canceled":
+                    self.logger.warning(f"⚠️ Phase 61.3: 注文キャンセル検出 - order_id={order_id}")
+                    return False, order
+                elif status == "expired":
+                    self.logger.warning(f"⚠️ Phase 61.3: 注文期限切れ検出 - order_id={order_id}")
+                    return False, order
+
+                # まだオープン状態、次の確認まで待機
+                await asyncio.sleep(check_interval)
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 61.3: 約定確認エラー ({i + 1}/{max_checks}): {e}")
+                await asyncio.sleep(check_interval)
+
+        # タイムアウト
+        self.logger.warning(
+            f"⏰ Phase 61.3: 約定確認タイムアウト - order_id={order_id}, "
+            f"{timeout_seconds}秒経過"
+        )
+        return False, None
+
+    async def _retry_close_order_with_price_update(
+        self,
+        bitbank_client: BitbankClient,
+        symbol: str,
+        exit_side: str,
+        amount: float,
+        entry_position_side: str,
+        original_order_id: str,
+        max_retries: int = 3,
+        slippage_increase_per_retry: float = 0.001,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Phase 61.3: 決済注文リトライ（価格更新付き）
+
+        未約定の決済注文をキャンセルし、より有利な価格で再注文する。
+
+        Args:
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+            exit_side: 決済方向（"buy" / "sell"）
+            amount: 決済数量
+            entry_position_side: エントリー時のposition_side
+            original_order_id: 元の注文ID（キャンセル用）
+            max_retries: 最大リトライ回数
+            slippage_increase_per_retry: リトライ毎のスリッページ増加量
+
+        Returns:
+            Tuple[bool, Optional[str]]:
+                - bool: 約定成功ならTrue
+                - str: 約定した注文ID（成功時）またはNone
+        """
+        for retry in range(max_retries):
+            try:
+                # 元の注文をキャンセル
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, original_order_id, symbol)
+                    self.logger.info(
+                        f"🔄 Phase 61.3: 未約定注文キャンセル成功 - "
+                        f"order_id={original_order_id}"
+                    )
+                except Exception as cancel_error:
+                    # キャンセル失敗（既に約定/キャンセル済み）は許容
+                    self.logger.debug(f"ℹ️ Phase 61.3: 注文キャンセル失敗（許容）: {cancel_error}")
+
+                # 現在価格を取得
+                ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
+                current_price = float(ticker.get("last", 0))
+
+                if current_price <= 0:
+                    self.logger.warning(f"⚠️ Phase 61.3: 現在価格取得失敗 - リトライスキップ")
+                    continue
+
+                # スリッページを加味した価格計算
+                slippage = slippage_increase_per_retry * (retry + 1)
+                if exit_side.lower() == "sell":
+                    # 売り決済: 少し安い価格で約定しやすく
+                    new_price = current_price * (1 - slippage)
+                else:
+                    # 買い決済: 少し高い価格で約定しやすく
+                    new_price = current_price * (1 + slippage)
+
+                self.logger.info(
+                    f"🔄 Phase 61.3: リトライ {retry + 1}/{max_retries} - "
+                    f"新価格={new_price:.0f}円 (slippage={slippage * 100:.2f}%)"
+                )
+
+                # 新しい決済注文を発行
+                new_order = await asyncio.to_thread(
+                    bitbank_client.create_order,
+                    symbol=symbol,
+                    side=exit_side,
+                    order_type="limit",
+                    price=new_price,
+                    amount=amount,
+                    is_closing_order=True,
+                    entry_position_side=entry_position_side,
+                )
+                new_order_id = new_order.get("id")
+
+                if not new_order_id:
+                    self.logger.warning(f"⚠️ Phase 61.3: リトライ注文ID取得失敗")
+                    continue
+
+                # 約定確認
+                fill_config = get_threshold("position_management.stop_loss.fill_confirmation", {})
+                timeout = fill_config.get("timeout_seconds", 30)
+                interval = fill_config.get("check_interval_seconds", 3)
+
+                is_filled, _ = await self._wait_for_fill(
+                    new_order_id, bitbank_client, symbol, timeout, interval
+                )
+
+                if is_filled:
+                    self.logger.info(
+                        f"✅ Phase 61.3: リトライ約定成功 - " f"order_id={new_order_id}"
+                    )
+                    return True, new_order_id
+
+                # 次のリトライのために注文IDを更新
+                original_order_id = new_order_id
+
+            except Exception as e:
+                self.logger.error(f"❌ Phase 61.3: リトライエラー ({retry + 1}/{max_retries}): {e}")
+
+        self.logger.error(f"❌ Phase 61.3: 全{max_retries}回リトライ失敗 - 手動決済が必要")
+        return False, None
 
     async def check_stop_conditions(
         self,
@@ -301,11 +479,14 @@ class StopManager:
 
                 # Phase 58.1: 実際の決済注文をbitbankに発行
                 # Phase 60: 指値化（手数料削減 0.12%→0.02%）
+                # Phase 61.3: 約定確認・リトライ機能追加
                 try:
                     entry_position_side = "long" if entry_side.lower() == "buy" else "short"
+                    symbol = "BTC/JPY"
+
                     close_order = await asyncio.to_thread(
                         bitbank_client.create_order,
-                        symbol="BTC/JPY",
+                        symbol=symbol,
                         side=exit_side,
                         order_type="limit",
                         price=current_price,
@@ -318,6 +499,69 @@ class StopManager:
                         f"✅ Phase 58.1: bitbank決済注文発行成功 - "
                         f"ID: {close_order_id}, {exit_side} {amount:.6f} BTC"
                     )
+
+                    # Phase 61.3: 約定確認（設定で有効化時のみ）
+                    fill_config = get_threshold(
+                        "position_management.stop_loss.fill_confirmation", {}
+                    )
+                    if fill_config.get("enabled", False):
+                        timeout = fill_config.get("timeout_seconds", 30)
+                        interval = fill_config.get("check_interval_seconds", 3)
+
+                        is_filled, _ = await self._wait_for_fill(
+                            close_order_id, bitbank_client, symbol, timeout, interval
+                        )
+
+                        if not is_filled:
+                            # 未約定の場合、リトライ設定を確認
+                            retry_config = get_threshold(
+                                "position_management.stop_loss.retry_on_unfilled", {}
+                            )
+                            if retry_config.get("enabled", False):
+                                max_retries = retry_config.get("max_retries", 3)
+                                slippage_inc = retry_config.get(
+                                    "slippage_increase_per_retry", 0.001
+                                )
+
+                                self.logger.warning(
+                                    f"⚠️ Phase 61.3: 決済注文未約定 - リトライ開始 "
+                                    f"(max_retries={max_retries})"
+                                )
+
+                                (
+                                    retry_success,
+                                    retry_order_id,
+                                ) = await self._retry_close_order_with_price_update(
+                                    bitbank_client=bitbank_client,
+                                    symbol=symbol,
+                                    exit_side=exit_side,
+                                    amount=amount,
+                                    entry_position_side=entry_position_side,
+                                    original_order_id=close_order_id,
+                                    max_retries=max_retries,
+                                    slippage_increase_per_retry=slippage_inc,
+                                )
+
+                                if retry_success:
+                                    self.logger.info(
+                                        f"✅ Phase 61.3: リトライ約定成功 - "
+                                        f"ID: {retry_order_id}"
+                                    )
+                                else:
+                                    self.logger.error(
+                                        f"❌ Phase 61.3: リトライ失敗 - "
+                                        f"手動決済が必要な可能性があります"
+                                    )
+                            else:
+                                self.logger.warning(
+                                    f"⚠️ Phase 61.3: 決済注文未約定 - "
+                                    f"リトライ無効（手動確認推奨）"
+                                )
+                        else:
+                            self.logger.info(
+                                f"✅ Phase 61.3: 決済注文約定確認完了 - " f"ID: {close_order_id}"
+                            )
+
                 except Exception as e:
                     self.logger.error(
                         f"❌ Phase 58.1: bitbank決済注文発行失敗: {e} - "

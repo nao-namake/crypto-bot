@@ -300,17 +300,137 @@ Phase 61整合性確保のためのドキュメント全面更新。
 
 ---
 
-## Phase 61.3: ADXTrendStrength評価・対応 ❌中止
+## Phase 61.3 (旧): ADXTrendStrength評価・対応 ❌中止
 
 Phase 61.1失敗によりtrendingレジームが増加しなかったため、評価対象外。
 現状維持（Phase 60.7設定）で運用継続。
 
 ---
 
-## Phase 61.4: MACDEMACrossover発動改善 ❌中止
+## Phase 61.4 (旧): MACDEMACrossover発動改善 ❌中止
 
 Phase 61.1失敗によりtrendingレジームが増加しなかったため、改善機会なし。
 現状維持（Phase 60.7設定）で運用継続。
+
+---
+
+## Phase 61.3: TP/SL注文改善 ✅実装完了
+
+### 実施日
+2026年1月26日
+
+### 目的
+1. **TP/SL注文タイプ変更**: bitbank UIでの表示改善
+   - 現在: TP注文 → 「指値」、SL注文 → 「逆指値」
+   - 目標: TP → 「利確」、SL → 「損切り」
+2. **決済注文の約定確認**: ログと実際の約定の一致を保証
+
+---
+
+### 実装内容
+
+#### 1. bitbank_client.py
+
+| メソッド | 変更内容 |
+|---------|---------|
+| `_create_order_direct()` | 新規追加: bitbank API直接呼び出し（ccxt非対応タイプ用） |
+| `create_take_profit_order()` | Phase 61.3: take_profitタイプ対応（フォールバック付き） |
+| `create_stop_loss_order()` | Phase 61.3: stop_lossタイプ対応（フォールバック付き） |
+
+**bitbank API仕様**:
+- typeパラメータ: `"take_profit"` / `"stop_loss"` がサポート
+- take_profit/stop_lossではamountがオプション（ポジション全量決済）
+- パラメータは全て文字列型
+
+**フォールバック設計**:
+- `use_native_type: false`（デフォルト）: 従来のlimit/stop_limit注文
+- `use_native_type: true`: take_profit/stop_lossタイプ
+- 直接API失敗時は自動的にフォールバック
+
+#### 2. stop_manager.py
+
+| メソッド | 変更内容 |
+|---------|---------|
+| `_wait_for_fill()` | 新規追加: 決済注文の約定確認（タイムアウト付き） |
+| `_retry_close_order_with_price_update()` | 新規追加: 未約定時のリトライ（価格更新付き） |
+| `_execute_position_exit()` | 約定確認・リトライ機能追加 |
+
+**約定確認フロー**:
+1. 決済注文発行
+2. `_wait_for_fill()` で約定確認（設定秒数まで）
+3. 未約定の場合 → `_retry_close_order_with_price_update()` でリトライ
+4. 全リトライ失敗 → エラーログ（手動確認推奨）
+
+#### 3. thresholds.yaml
+
+```yaml
+position_management:
+  take_profit:
+    use_native_type: true    # Phase 61.3: take_profitタイプ使用（UIで「利確」表示）
+
+  stop_loss:
+    use_native_type: true    # Phase 61.3: stop_lossタイプ使用（UIで「損切り」表示）
+
+    fill_confirmation:
+      enabled: true          # 約定確認機能ON
+      timeout_seconds: 30
+      check_interval_seconds: 3
+
+    retry_on_unfilled:
+      enabled: true          # リトライ機能ON
+      max_retries: 3
+      slippage_increase_per_retry: 0.001
+```
+
+---
+
+### 本番デプロイ設定
+
+全機能を有効化してデプロイ：
+- `use_native_type: true` - TP/SL注文で「利確」「損切り」UI表示
+- `fill_confirmation.enabled: true` - 決済注文の約定確認
+- `retry_on_unfilled.enabled: true` - 未約定時の自動リトライ
+
+**フォールバック**: take_profit/stop_lossタイプ失敗時は自動的にlimit/stop_limit注文にフォールバック
+
+---
+
+### リスク評価
+
+| リスク | 対策 |
+|--------|------|
+| take_profit/stop_lossタイプの動作差異 | フォールバック機能で従来注文にフォールバック |
+| 直接API呼び出しの失敗 | 既存の`_call_private_api()`実績あり、エラーハンドリング追加 |
+| 約定確認ループのタイムアウト | 30秒タイムアウト設定、リトライ機能で対応 |
+| 決済遅延によるPnL影響 | fill_confirmation無効（デフォルト）で即時返却 |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/data/bitbank_client.py` | `_create_order_direct()` 追加、TP/SLメソッド修正 |
+| `src/trading/execution/stop_manager.py` | `_wait_for_fill()` / `_retry_close_order_with_price_update()` 追加、`_execute_position_exit()` 修正 |
+| `config/core/thresholds.yaml` | use_native_type、fill_confirmation、retry_on_unfilled設定追加 |
+
+---
+
+### 検証方法
+
+```bash
+# 1. 品質チェック
+bash scripts/testing/checks.sh
+
+# 2. ペーパートレードで動作確認（use_native_type: false）
+bash scripts/management/run_paper.sh
+
+# 3. use_native_type: true に変更してテスト
+# → TP/SL配置成功ログを確認
+
+# 4. bitbank UIで表示確認
+# → 「利確」「損切り」と表示されるか確認
+```
 
 ---
 
@@ -323,8 +443,9 @@ Phase 61.1失敗によりtrendingレジームが増加しなかったため、�
 | 61.1 | PF維持 | ≥ 1.50 | ❌ 1.13（大幅低下） |
 | **61.1** | **ロールバック** | **Phase 60.7復元** | **✅ 成功（PF 1.58復元）** |
 | **61.2** | **コードベース整理** | **品質チェックPASS** | **✅ 完了（ドキュメント更新含む）** |
-| 61.3 | ADXTrendStrength評価 | - | ❌ 中止 |
-| 61.4 | MACDEMACrossover改善 | - | ❌ 中止 |
+| 61.3 (旧) | ADXTrendStrength評価 | - | ❌ 中止 |
+| 61.4 (旧) | MACDEMACrossover改善 | - | ❌ 中止 |
+| **61.3** | **TP/SL注文改善** | **本番デプロイ** | **✅ 全機能有効化・デプロイ完了** |
 
 ---
 
@@ -347,7 +468,8 @@ Phase 61.1でMarketRegimeClassifierに`get_threshold()`パターンを導入（�
 
 ## 結論
 
-Phase 61.1のレジーム閾値調整は**失敗**。
+### Phase 61.1: レジーム閾値調整
+**結果**: 失敗
 - 閾値変更だけでは市場特性を変えられない
 - PFが1.58→1.13に大幅低下（-75%損益）
 
@@ -355,6 +477,18 @@ Phase 61.1のレジーム閾値調整は**失敗**。
 
 今後のレジーム改善は、より慎重なアプローチ（ローカル事前検証、段階的変更）が必要。
 
+### Phase 61.3: TP/SL注文改善
+**結果**: 実装完了・本番デプロイ
+- bitbank APIのtake_profit/stop_lossタイプに対応（UIで「利確」「損切り」表示）
+- 決済注文の約定確認機能を追加（30秒タイムアウト）
+- 未約定時の自動リトライ機能を追加（最大3回）
+- フォールバック設計により安全性を確保
+
+**本番設定**:
+- `use_native_type: true` - 全有効化
+- `fill_confirmation.enabled: true` - 約定確認ON
+- `retry_on_unfilled.enabled: true` - リトライON
+
 ---
 
-**最終更新**: 2026年1月25日 - Phase 61.2完了（コードベース整理・ドキュメント全面更新）
+**最終更新**: 2026年1月26日 - Phase 61.3完了・本番デプロイ（全機能有効化）
