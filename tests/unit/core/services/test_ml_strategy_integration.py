@@ -453,3 +453,150 @@ class TestMetaLearningDynamicWeights:
         # expected_confidence = 0.6 * 0.4 + 0.7 * 0.6 = 0.24 + 0.42 = 0.66
         assert result.action == "buy"
         assert 0.65 < result.confidence < 0.67
+
+
+class TestMinStrategyConfidence:
+    """Phase 61.5: 戦略信頼度最低閾値テスト"""
+
+    @pytest.fixture
+    def mock_orchestrator(self):
+        """モックOrchestratorを作成"""
+        orchestrator = Mock()
+        orchestrator.config = Mock()
+        orchestrator.config.mode = "paper"
+        return orchestrator
+
+    @pytest.fixture
+    def trading_cycle_manager(self, mock_orchestrator):
+        """TradingCycleManager初期化"""
+        logger = CryptoBotLogger(name="test_min_strategy_confidence")
+        return TradingCycleManager(mock_orchestrator, logger)
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_low_confidence_forced_hold(self, mock_get_threshold, trading_cycle_manager):
+        """Phase 61.5: 信頼度0.25未満で強制HOLD"""
+
+        def threshold_side_effect(key, default):
+            thresholds = {
+                "ml.strategy_integration.enabled": True,
+                "ml.strategy_integration.min_strategy_confidence": 0.25,
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        ml_prediction = {"prediction": 2, "confidence": 0.9}  # buy, 高信頼度
+        strategy_signal = StrategySignal(
+            strategy_name="test_strategy",
+            timestamp=datetime.now(),
+            action="buy",
+            confidence=0.20,  # 0.20 < 0.25 → HOLD変換
+            strength=0.20,
+            current_price=17000000.0,
+        )
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+        # 強制HOLD変換
+        assert result.action == "hold"
+        assert result.metadata["forced_hold_reason"] == "min_strategy_confidence"
+        assert result.metadata["original_action"] == "buy"
+        assert result.metadata["original_confidence"] == 0.20
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_normal_confidence_passes(self, mock_get_threshold, trading_cycle_manager):
+        """Phase 61.5: 信頼度0.25以上は通常処理"""
+
+        def threshold_side_effect(key, default):
+            thresholds = {
+                "ml.strategy_integration.enabled": True,
+                "ml.strategy_integration.min_strategy_confidence": 0.25,
+                "ml.strategy_integration.min_ml_confidence": 0.3,
+                "ml.strategy_integration.ml_weight": 0.3,
+                "ml.strategy_integration.strategy_weight": 0.7,
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        ml_prediction = {"prediction": 2, "confidence": 0.5}  # buy
+        strategy_signal = StrategySignal(
+            strategy_name="test_strategy",
+            timestamp=datetime.now(),
+            action="buy",
+            confidence=0.40,  # 0.40 >= 0.25 → 通常処理
+            strength=0.40,
+            current_price=17000000.0,
+        )
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+        # 通常のML統合処理が行われる
+        assert result.action == "buy"
+        assert result.metadata["ml_adjusted"] is True
+        assert "forced_hold_reason" not in result.metadata
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_boundary_confidence_passes(self, mock_get_threshold, trading_cycle_manager):
+        """Phase 61.5: 境界値0.25は通常処理（>= なので）"""
+
+        def threshold_side_effect(key, default):
+            thresholds = {
+                "ml.strategy_integration.enabled": True,
+                "ml.strategy_integration.min_strategy_confidence": 0.25,
+                "ml.strategy_integration.min_ml_confidence": 0.3,
+                "ml.strategy_integration.ml_weight": 0.3,
+                "ml.strategy_integration.strategy_weight": 0.7,
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        ml_prediction = {"prediction": 0, "confidence": 0.5}  # sell
+        strategy_signal = StrategySignal(
+            strategy_name="test_strategy",
+            timestamp=datetime.now(),
+            action="sell",
+            confidence=0.25,  # 境界値0.25 → 通常処理（>= なので）
+            strength=0.25,
+            current_price=17000000.0,
+        )
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+        # 境界値は通常処理
+        assert result.action == "sell"
+        assert result.metadata["ml_adjusted"] is True
+        assert "forced_hold_reason" not in result.metadata
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_sell_signal_low_confidence_forced_hold(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """Phase 61.5: SELL信号も低信頼度で強制HOLD"""
+
+        def threshold_side_effect(key, default):
+            thresholds = {
+                "ml.strategy_integration.enabled": True,
+                "ml.strategy_integration.min_strategy_confidence": 0.25,
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        ml_prediction = {"prediction": 2, "confidence": 0.8}  # buy（戦略と不一致）
+        strategy_signal = StrategySignal(
+            strategy_name="test_strategy",
+            timestamp=datetime.now(),
+            action="sell",
+            confidence=0.239,  # 1/27の実際の値（0.239 < 0.25）
+            strength=0.239,
+            current_price=17000000.0,
+        )
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(ml_prediction, strategy_signal)
+
+        # 強制HOLD変換
+        assert result.action == "hold"
+        assert result.metadata["forced_hold_reason"] == "min_strategy_confidence"
+        assert result.metadata["original_action"] == "sell"

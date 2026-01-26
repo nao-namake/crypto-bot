@@ -723,6 +723,42 @@ class TradingCycleManager:
                 self.logger.debug("ML統合無効 - 戦略シグナルをそのまま使用")
                 return strategy_signal
 
+            # Phase 61.5: 戦略信頼度の最低閾値チェック（異常低信頼度エントリー防止）
+            min_strategy_confidence = get_threshold(
+                "ml.strategy_integration.min_strategy_confidence", 0.25
+            )
+            strategy_confidence = strategy_signal.confidence
+
+            if strategy_confidence < min_strategy_confidence:
+                self.logger.warning(
+                    f"⛔ Phase 61.5: 戦略信頼度不足 ({strategy_confidence:.3f} < "
+                    f"{min_strategy_confidence:.3f}) - 強制HOLD変換"
+                )
+                # HOLDシグナルを返す
+                from ...strategies.base.strategy_base import StrategySignal as SS
+
+                return SS(
+                    strategy_name=strategy_signal.strategy_name,
+                    timestamp=strategy_signal.timestamp,
+                    action="hold",
+                    confidence=strategy_confidence,
+                    strength=0.0,
+                    current_price=strategy_signal.current_price,
+                    entry_price=strategy_signal.entry_price,
+                    stop_loss=None,
+                    take_profit=None,
+                    position_size=strategy_signal.position_size,
+                    risk_ratio=strategy_signal.risk_ratio,
+                    indicators=strategy_signal.indicators,
+                    reason=f"Phase 61.5: 信頼度不足（{strategy_confidence:.3f} < {min_strategy_confidence:.3f}）",
+                    metadata={
+                        **(strategy_signal.metadata or {}),
+                        "original_action": strategy_signal.action,
+                        "original_confidence": strategy_confidence,
+                        "forced_hold_reason": "min_strategy_confidence",
+                    },
+                )
+
             # Phase 51.9: レジーム別ML統合パラメータ読み込み
             regime_ml_enabled = get_threshold("ml.regime_ml_integration.enabled", False)
             if regime_ml_enabled and regime != "unknown":
