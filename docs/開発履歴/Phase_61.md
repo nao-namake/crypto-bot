@@ -629,6 +629,140 @@ MFE/MAE比率: 1.50
 
 ---
 
+## Phase 61.5: 低信頼度エントリー対策・ML閾値修正 ✅実装完了
+
+### 実施日
+2026年1月27日
+
+### 背景
+
+#### 問題の発見（1/25-27の損失分析）
+
+| 日時 | 方向 | 戦略信頼度 | ML予測 | 結果 | 損失 |
+|------|------|-----------|--------|------|------|
+| 1/25 00:41 | BUY | **0.194** | HOLD | SL | -346円 |
+| 1/25 15:55 | BUY | **0.184** | BUY | SL | -460円 |
+| 1/27 00:11 | SELL | **0.239** | BUY | SL | -412円 |
+| 1/27 00:12 | SELL | **0.239** | BUY | SL | -495円 |
+
+**合計損失**: -1,713円（すべて0.25未満の異常低信頼度）
+
+#### 根本原因
+
+1. **戦略信頼度の下限チェックが存在しない**
+   - 0.18〜0.24の異常値でもそのまま取引実行
+
+2. **ML高信頼度閾値が高すぎる**
+   - `high_confidence_threshold: 0.70` に設定
+   - 実際のML信頼度分布: **70%以上は0件（0%）**
+   - ペナルティ/HOLD変換が一度も発動していない
+
+#### ML信頼度の実態（直近500サンプル）
+
+| 信頼度範囲 | 件数 | 割合 |
+|-----------|------|------|
+| < 50% | 269件 | 53% |
+| 50-60% | 186件 | 37% |
+| 60-70% | 45件 | 9% |
+| **>= 70%** | **0件** | **0%** |
+
+---
+
+### 実装内容
+
+#### 1. thresholds.yaml設定変更
+
+```yaml
+ml:
+  strategy_integration:
+    # 新規追加: 戦略信頼度の最低閾値
+    min_strategy_confidence: 0.25  # Phase 61.5: 異常低信頼度エントリー防止
+
+  regime_ml_integration:
+    tight_range:
+      high_confidence_threshold: 0.55  # Phase 61.5: 0.70→0.55（9%→46%が対象）
+
+    normal_range:
+      high_confidence_threshold: 0.55  # Phase 61.5: 0.65→0.55
+```
+
+#### 2. trading_cycle_manager.py修正
+
+`_integrate_ml_with_strategy()`メソッドに最低信頼度チェックを追加：
+
+```python
+# Phase 61.5: 戦略信頼度の最低閾値チェック（異常低信頼度エントリー防止）
+min_strategy_confidence = get_threshold(
+    "ml.strategy_integration.min_strategy_confidence", 0.25
+)
+
+if strategy_confidence < min_strategy_confidence:
+    self.logger.warning(
+        f"⛔ Phase 61.5: 戦略信頼度不足 ({strategy_confidence:.3f} < "
+        f"{min_strategy_confidence:.3f}) - 強制HOLD変換"
+    )
+    # HOLDシグナルを返す
+    return StrategySignal(action="hold", ...)
+```
+
+#### 3. テスト追加
+
+`tests/unit/core/services/test_ml_strategy_integration.py`に4テスト追加：
+- `test_low_confidence_forced_hold`: 0.20 → HOLD
+- `test_normal_confidence_passes`: 0.40 → 通常処理
+- `test_boundary_confidence_passes`: 0.25 → 通常処理
+- `test_sell_signal_low_confidence_forced_hold`: 0.239 → HOLD
+
+---
+
+### 期待効果
+
+| 指標 | 変更前 | 変更後 |
+|------|--------|--------|
+| 0.25未満エントリー | 約4%（8件/200件） | **0件** |
+| ML高信頼度発動率 | 0%（閾値0.70） | **約46%**（閾値0.55） |
+| 1/25-27の損失 | -1,713円 | **回避可能** |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | `min_strategy_confidence: 0.25`追加、`high_confidence_threshold`引き下げ |
+| `src/core/services/trading_cycle_manager.py` | `_integrate_ml_with_strategy()`に最低信頼度チェック追加 |
+| `tests/unit/core/services/test_ml_strategy_integration.py` | Phase 61.5テスト4件追加 |
+
+---
+
+### 検証結果
+
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1235件パス |
+| カバレッジ | ✅ 63.08%（62%基準クリア） |
+| バックテスト | 📊 実行中 |
+
+---
+
+## 成功基準
+
+| Phase | 指標 | 目標値 | 結果 |
+|-------|------|--------|------|
+| 61.1 | trending発生率 | ≥ 5% | ❌ 0.6%（未達） |
+| 61.1 | tight_range発生率 | ≤ 70% | ⚠️ 72.6%（やや高い） |
+| 61.1 | PF維持 | ≥ 1.50 | ❌ 1.13（大幅低下） |
+| **61.1** | **ロールバック** | **Phase 60.7復元** | **✅ 成功（PF 1.58復元）** |
+| **61.2** | **コードベース整理** | **品質チェックPASS** | **✅ 完了（ドキュメント更新含む）** |
+| 61.3 (旧) | ADXTrendStrength評価 | - | ❌ 中止 |
+| 61.4 (旧) | MACDEMACrossover改善 | - | ❌ 中止 |
+| **61.3** | **TP/SL注文改善** | **本番デプロイ** | **✅ 全機能有効化・デプロイ完了** |
+| **61.4** | **MFE/MAE分析機能** | **実装・分析完了** | **✅ What-if分析完了・改善方向性特定** |
+| **61.5** | **低信頼度対策** | **PF ≥ 1.55維持・異常エントリー0件** | **📊 バックテスト検証中** |
+
+---
+
 ## 結論
 
 ### Phase 61.1: レジーム閾値調整
@@ -654,6 +788,12 @@ MFE/MAE比率: 1.50
 - **分析結論**: TPを浅くしても改善しない。真の問題は「利益から逆行して損失」パターン
 - **今後の検討**: トレーリングストップ機能の実装
 
+### Phase 61.5: 低信頼度エントリー対策
+**結果**: 実装完了・バックテスト検証中
+- 戦略信頼度の最低閾値（0.25）追加
+- ML高信頼度閾値を0.55に引き下げ
+- 1/25-27の損失（-1,713円）を回避可能に
+
 ---
 
-**最終更新**: 2026年1月27日 - Phase 61.4完了（MFE/MAE分析機能実装・分析完了）
+**最終更新**: 2026年1月27日 - Phase 61.5実装完了（バックテスト検証中）
