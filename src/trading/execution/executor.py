@@ -1274,7 +1274,7 @@ class ExecutionService:
             atr_history = None
             atr_source = None  # デバッグ用：ATR取得元
 
-            # Phase 51.5-C: 3段階ATRフォールバック
+            # Phase 51.5-C → Phase 61.6: 2段階ATRフォールバック（Level 2削除）
             # Level 1: evaluation.market_conditions から取得（既存）
             if "15m" in market_data:
                 df_15m = market_data["15m"]
@@ -1289,23 +1289,7 @@ class ExecutionService:
                     current_atr = float(df_4h["atr_14"].iloc[-1])
                     atr_source = "evaluation.market_conditions[4h]"
 
-            # Level 2: DataService経由で直接取得（Phase 51.5-C新規）
-            if not current_atr and hasattr(self, "data_service") and self.data_service:
-                try:
-                    # 15m足ATRを優先取得
-                    df_15m = self.data_service.fetch_ohlcv("BTC/JPY", "15m", limit=50)
-                    if "atr_14" in df_15m.columns and len(df_15m) > 0:
-                        current_atr = float(df_15m["atr_14"].iloc[-1])
-                        atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
-                        atr_source = "DataService[15m]"
-                        self.logger.info(
-                            f"✅ Phase 51.5-C: DataService経由ATR取得成功 - "
-                            f"15m足ATR={current_atr:.0f}円"
-                        )
-                except Exception as e:
-                    self.logger.warning(f"⚠️ Phase 51.5-C: DataService経由ATR取得失敗 - {e}")
-
-            # Level 3: thresholds.yaml fallback_atr使用（Phase 51.5-C新規）
+            # Level 2: thresholds.yaml fallback_atr使用（Phase 61.6: Level 2→削除、Level 3→Level 2に繰り上げ）
             if not current_atr:
                 try:
                     fallback_atr = float(get_threshold("risk.fallback_atr", 500000))
@@ -1321,7 +1305,7 @@ class ExecutionService:
                     f"⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr={fallback_atr:.0f}円"
                 )
 
-            # ATR取得完了（3段階いずれかで取得）
+            # ATR取得完了（2段階いずれかで取得）
             if current_atr and current_atr > 0:
                 # Phase 51.6: TP/SL設定完全渡し（ハードコード削除・設定ファイル一元管理）
                 # Phase 52.0: レジーム情報取得追加

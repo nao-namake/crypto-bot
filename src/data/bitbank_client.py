@@ -1145,6 +1145,7 @@ class BitbankClient:
                                 order_type="take_profit",
                                 amount=amount,
                                 price=take_profit_price,
+                                trigger_price=take_profit_price,  # Phase 61.6: TPにはtrigger_price必須
                                 is_closing_order=True,
                                 entry_position_side=entry_position_side,
                             ),
@@ -1158,6 +1159,7 @@ class BitbankClient:
                             order_type="take_profit",
                             amount=amount,
                             price=take_profit_price,
+                            trigger_price=take_profit_price,  # Phase 61.6: TPにはtrigger_price必須
                             is_closing_order=True,
                             entry_position_side=entry_position_side,
                         )

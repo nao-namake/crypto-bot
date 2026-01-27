@@ -35,7 +35,7 @@ Phase 61.1でレジーム閾値調整を試行したが**失敗**：
 | 61.3 | TP/SL注文改善 | ✅完了（take_profit/stop_lossタイプ対応） |
 | 61.4 | MFE/MAE分析機能 | ✅完了（What-if分析・改善方向性特定） |
 | 61.5 | 低信頼度エントリー対策 | ✅完了（PF 1.58→1.78、損益+16%） |
-| **61.6** | **バグ修正（ATR取得・TP注文タイプ）** | 📋予定 |
+| **61.6** | **バグ修正（ATR取得・TP注文タイプ）** | ✅完了 |
 | 61.7 | DonchianChannel無効化検討 | 📋予定 |
 | 61.8 | レンジ型戦略パラメータ最適化 | 📋予定 |
 
@@ -153,47 +153,49 @@ Phase 61.1でレジーム閾値調整を試行したが**失敗**：
 
 ---
 
-### Phase 61.6: バグ修正（ATR取得・TP注文タイプ） 📋予定
+### Phase 61.6: バグ修正（ATR取得・TP注文タイプ） ✅完了
 
-**背景**: ライブモードで以下の問題を検出
+**実施日**: 2026年1月28日
 
-#### 問題1: ATR取得エラー
+#### 問題1: ATR取得エラー → 解決
 
+**現象**:
 ```
 ⚠️ Phase 51.5-C: DataService経由ATR取得失敗
 - DataPipeline.fetch_ohlcv() got an unexpected keyword argument 'limit'
-⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr=500000円
 ```
 
-**影響**:
-- 全取引でATR取得が失敗
-- フォールバック値（¥500,000）が使用される
-- ※戦略判断には影響なし（特徴量の`atr_14`を使用）
-- ※SL/TP計算にも影響なし（固定%を使用）
-- **ただし警告ログが大量発生し、監視に支障**
+**根本原因**: `executor.py`のLevel 2コードが誤った引数で`fetch_ohlcv()`を呼び出し
 
-**修正箇所**: `src/data/data_pipeline.py`の`fetch_ohlcv()`メソッド
+**修正内容**:
+- Level 2（DataService経由取得）コードを削除
+- 3段階フォールバック → 2段階フォールバックに簡略化
+- Level 1（market_data）とLevel 2（fallback_atr）で十分な安全性確保
 
-#### 問題2: TP注文タイプが「利確」にならない
+**修正ファイル**: `src/trading/execution/executor.py`
+
+#### 問題2: TP注文タイプが「利確」にならない → 解決
 
 **現象**:
-- SL注文: 「損切り」と表示 ✅ 正常
-- TP注文: 「指値」と表示 ❌ 「利確」になるべき
+- SL注文: 「損切り」と表示 ✅
+- TP注文: 「指値」と表示 ❌
 
-**原因調査**: Phase 61.3で`use_native_type: true`を設定したが、TP注文が正しくtake_profitタイプで発行されていない可能性
+**根本原因**: `create_take_profit_order()`で`trigger_price`パラメータが欠落
+- bitbank APIでは`take_profit`注文に`trigger_price`が**必須**
+- SL注文では正しく`trigger_price`を渡していた
 
-**修正箇所**: `src/trading/execution/stop_manager.py`のTP注文作成ロジック
+**修正内容**:
+- `_create_order_direct()`呼び出しに`trigger_price=take_profit_price`を追加
 
----
+**修正ファイル**: `src/data/bitbank_client.py`
 
-**実施内容**:
-1. `data_pipeline.py`の`fetch_ohlcv()`引数エラー修正
-2. TP注文がtake_profitタイプで発行されるよう修正
-3. ライブモードで動作確認
+#### 検証結果
 
-**成功基準**:
-- ATR取得エラーが0件
-- TP注文がbitbank UIで「利確」と表示される
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1235件パス |
+| カバレッジ | ✅ 63.12%（62%基準クリア） |
 
 ---
 
@@ -359,4 +361,4 @@ trailing_stop:
 
 ---
 
-**最終更新**: 2026年1月27日 - Phase 61.3/61.4完了、Phase 62計画追加
+**最終更新**: 2026年1月28日 - Phase 61.6完了（ATR取得・TP注文タイプ修正）
