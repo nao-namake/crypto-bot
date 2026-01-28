@@ -761,6 +761,7 @@ if strategy_confidence < min_strategy_confidence:
 | **61.4** | **MFE/MAE分析機能** | **実装・分析完了** | **✅ What-if分析完了・改善方向性特定** |
 | **61.5** | **低信頼度対策** | **PF ≥ 1.55維持・異常エントリー0件** | **✅ PF 1.78達成** |
 | **61.6** | **バグ修正（ATR取得・TP注文）** | **エラー0件・TP「利確」表示** | **✅ 完了** |
+| **61.7** | **固定金額TP実装** | **純利益1,000円保証** | **✅ 完了** |
 
 ---
 
@@ -885,6 +886,172 @@ self._create_order_direct(
 
 ---
 
+## Phase 61.7: 固定金額TP実装 ✅実装完了
+
+### 実施日
+2026年1月28日
+
+### 目的
+TPを%ベースから固定金額（純利益1,000円保証）に変更し、手数料を考慮した実質利益を保証する。
+
+---
+
+### 背景・根拠
+
+#### 現状の問題
+- 現在のTP設定: tight_range 0.4%（含み益約1,155円）
+- 手数料控除後の純利益: **866円**（目標未達）
+- 実質RR比: 866円 / 1,154円 = **0.75:1**（不利）
+
+#### 目標
+- 固定金額TP: 純利益 **1,000円** を保証
+- 手数料（エントリー+決済）を計算に反映
+- 後方互換性維持（%ベースも選択可能）
+
+---
+
+### 計算式
+
+```
+目標純利益 = 1,000円
+エントリー手数料 = APIから取得（unrealized_fee_amount）
+決済手数料リベート = ポジション評価額 × 0.02%（Maker）
+利息 = APIから取得（unrealized_interest_amount、現在0円）
+
+必要含み益 = 目標純利益 + エントリー手数料 + 利息 - 決済リベート
+TP価格 = エントリー価格 ± (必要含み益 / 数量)
+```
+
+### 計算例（現在のポジション）
+```
+目標純利益: 1,000円
+エントリー手数料: 346円
+利息: 0円
+決済リベート: 58円
+
+必要含み益 = 1,000 + 346 + 0 - 58 = 1,288円
+TP価格 = 13,618,976 - (1,288 / 0.0212) = 13,558,200円（SHORT）
+```
+
+---
+
+### 実装内容
+
+#### 1. thresholds.yaml 設定追加
+
+```yaml
+position_management:
+  take_profit:
+    fixed_amount:
+      enabled: true                     # 有効化
+      target_net_profit: 1000           # 目標純利益（円）
+      include_entry_fee: true           # エントリー手数料を考慮
+      include_exit_fee_rebate: true     # 決済リベートを考慮
+      include_interest: true            # 利息を考慮
+      fallback_entry_fee_rate: 0.0012   # API失敗時フォールバック（Taker 0.12%）
+      fallback_exit_fee_rate: -0.0002   # 決済（Maker -0.02%）
+
+    regime_based:
+      tight_range:
+        fixed_amount_target: 1000       # 固定金額モード用
+      normal_range:
+        fixed_amount_target: 1000
+      trending:
+        fixed_amount_target: 1000
+```
+
+#### 2. PositionFeeData クラス追加
+
+`src/trading/core/types.py`に新規データクラス追加：
+
+```python
+@dataclass
+class PositionFeeData:
+    """Phase 61.7: ポジション手数料データ"""
+    unrealized_fee_amount: float = 0.0      # 未収手数料（エントリー時）
+    unrealized_interest_amount: float = 0.0  # 未収利息
+    average_price: float = 0.0               # 平均建値
+    open_amount: float = 0.0                 # 保有数量
+
+    @classmethod
+    def from_api_response(cls, raw_data: Dict[str, Any]) -> "PositionFeeData":
+        """bitbank API raw_dataから生成"""
+```
+
+#### 3. calculate_fixed_amount_tp() 新規メソッド
+
+`src/strategies/utils/strategy_utils.py`にRiskManagerクラスの静的メソッドとして追加：
+
+```python
+@staticmethod
+def calculate_fixed_amount_tp(
+    action: str,
+    entry_price: float,
+    amount: float,
+    fee_data: Optional[PositionFeeData],
+    config: Dict[str, Any],
+) -> Optional[float]:
+    """Phase 61.7: 固定金額TP価格計算"""
+```
+
+#### 4. calculate_stop_loss_take_profit() 修正
+
+既存メソッドに固定金額モード分岐を追加：
+- `fee_data`パラメータ追加
+- `position_amount`パラメータ追加
+- 固定金額モードが有効な場合、`calculate_fixed_amount_tp()`を呼び出し
+
+#### 5. executor.py 修正
+
+`_calculate_tp_sl_for_live_trade()`にAPI手数料取得を追加：
+- bitbank APIからポジション情報取得
+- `PositionFeeData.from_api_response()`で手数料データ生成
+- RiskManager呼び出しに`fee_data`と`amount`を追加
+
+---
+
+### テスト
+
+`tests/unit/strategies/utils/test_fixed_amount_tp.py`に12テスト追加：
+
+| テストクラス | テスト数 | 内容 |
+|-------------|----------|------|
+| TestCalculateFixedAmountTP | 8件 | BUY/SELL計算、フォールバック、ゼロ数量、利息、オプション無効化 |
+| TestPositionFeeData | 3件 | APIレスポンスパース、欠損データ、None値処理 |
+| TestCalculateStopLossTakeProfitWithFixedAmount | 2件 | 固定金額モード統合テスト |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | 固定金額TP設定追加 |
+| `src/trading/core/types.py` | `PositionFeeData`クラス追加 |
+| `src/strategies/utils/strategy_utils.py` | `calculate_fixed_amount_tp()`追加、既存メソッド修正 |
+| `src/trading/execution/executor.py` | API手数料取得ロジック追加 |
+| `tests/unit/strategies/utils/test_fixed_amount_tp.py` | 12テスト新規作成 |
+
+---
+
+### 検証結果
+
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1247件パス |
+| カバレッジ | ✅ 63.25%（62%基準クリア） |
+
+---
+
+### 後方互換性
+
+- `enabled: false`で%ベースTPに戻る
+- SL設定は%ベースのまま維持
+- `position_amount`がNoneの場合も%ベースにフォールバック
+
+---
+
 ## 結論
 
 ### Phase 61.1: レジーム閾値調整
@@ -921,6 +1088,14 @@ self._create_order_direct(
 - ATR取得エラー解消（Level 2コード削除、2段階フォールバックに簡略化）
 - TP注文に`trigger_price`パラメータ追加（bitbank UIで「利確」表示）
 
+### Phase 61.7: 固定金額TP実装
+**結果**: 実装完了
+- TPを%ベースから固定金額（純利益1,000円保証）に変更
+- 手数料を考慮した計算式: `必要含み益 = 目標純利益 + エントリー手数料 + 利息 - 決済リベート`
+- bitbank APIから手数料データ取得（フォールバック機能付き）
+- `PositionFeeData`クラスと`calculate_fixed_amount_tp()`メソッド新規追加
+- 後方互換性維持（`enabled: false`で%ベースに戻る）
+
 ---
 
-**最終更新**: 2026年1月28日 - Phase 61.6完了（ATR取得・TP注文タイプ修正）
+**最終更新**: 2026年1月28日 - Phase 61.7完了（固定金額TP実装）

@@ -1,15 +1,16 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 61.7
+戦略共通ユーティリティ統合モジュール - Phase 61.8
 
 戦略関連のユーティリティ機能を統合管理：
 - 戦略定数：EntryAction、StrategyType統一
 - リスク管理：戦略レベルリスク評価
 - シグナル生成：統一的なシグナル構築
 - Phase 61.7: 固定金額TP計算
+- Phase 61.8: 固定金額TPのバックテスト対応
 
 統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 61.7更新: 固定金額TP機能追加
+Phase 61.8更新: バックテスト時の固定金額TP対応（手数料推定計算）
 """
 
 from datetime import datetime
@@ -241,10 +242,29 @@ class RiskManager:
 
             price_distance = required_gross_profit / amount
 
+            # Phase 61.8: 妥当性チェック - price_distanceがエントリー価格の10%を超える場合は異常値
+            # （ポジションサイズが小さすぎる場合に発生）
+            max_distance_ratio = 0.10  # 10%
+            if price_distance > entry_price * max_distance_ratio:
+                logger.warning(
+                    f"⚠️ Phase 61.8: 固定金額TP計算異常 - "
+                    f"price_distance={price_distance:.0f}円 > エントリー価格の{max_distance_ratio * 100:.0f}% "
+                    f"(数量={amount:.6f}が小さすぎる可能性) - %ベースにフォールバック"
+                )
+                return None
+
             if action.lower() == "buy":
                 tp_price = entry_price + price_distance
             else:
                 tp_price = entry_price - price_distance
+
+            # Phase 61.8: TP価格の妥当性チェック
+            if tp_price <= 0:
+                logger.warning(
+                    f"⚠️ Phase 61.8: 固定金額TP計算結果が負 - "
+                    f"TP={tp_price:.0f}円 - %ベースにフォールバック"
+                )
+                return None
 
             # デバッグログ
             logger.info(
@@ -444,7 +464,7 @@ class RiskManager:
                         f"TP={fixed_tp:.0f}円"
                     )
                 else:
-                    logger.warning(f"⚠️ Phase 61.7: 固定金額TP計算失敗 - %ベースにフォールバック")
+                    logger.warning("⚠️ Phase 61.7: 固定金額TP計算失敗 - %ベースにフォールバック")
                     # フォールバック: 従来の%ベース計算へ
 
             # 固定金額TPが設定されなかった場合、従来の%ベース計算
@@ -688,6 +708,9 @@ class SignalBuilder:
                 except Exception as e:
                     logger.warning(f"⚠️ Phase 53.9: レジーム判定失敗（デフォルト使用）: {e}")
 
+                # Phase 61.8: ポジションサイズ計算を先に行う（固定金額TP計算に必要）
+                position_size = RiskManager.calculate_position_size(confidence, config)
+
                 # ストップロス・テイクプロフィット計算（レジーム別設定適用）
                 # Phase 58.6: 土日判定用にcurrent_time追加（dfのindexから取得）
                 signal_time = None
@@ -696,6 +719,7 @@ class SignalBuilder:
                         signal_time = pd.to_datetime(df.index[-1])
                     except Exception:
                         signal_time = None
+                # Phase 61.8: position_amountを渡して固定金額TP計算を有効化（バックテスト対応）
                 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
                     action,
                     current_price,
@@ -704,10 +728,9 @@ class SignalBuilder:
                     atr_history,
                     regime=regime,
                     current_time=signal_time,
+                    fee_data=None,  # バックテスト時はNone（フォールバックレート使用）
+                    position_amount=position_size,  # Phase 61.8: 固定金額TP用
                 )
-
-                # ポジションサイズ計算
-                position_size = RiskManager.calculate_position_size(confidence, config)
 
                 # リスク比率計算
                 risk_ratio = RiskManager.calculate_risk_ratio(current_price, stop_loss)

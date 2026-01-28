@@ -1,7 +1,8 @@
 """
-Phase 61.7: 固定金額TP計算テスト
+Phase 61.7/61.8: 固定金額TP計算テスト
 
 固定金額TP（目標純利益1,000円）の計算ロジックをテスト
+Phase 61.8: バックテスト対応（fee_data=Noneでの手数料推定）
 """
 
 from src.strategies.utils.strategy_utils import RiskManager
@@ -306,3 +307,104 @@ class TestCalculateStopLossTakeProfitWithFixedAmount:
         assert take_profit is not None
         # %ベースで計算されていることを確認
         # TP距離 = max(price * 0.009, SL距離 * 1.29)
+
+
+class TestPhase618BacktestSupport:
+    """Phase 61.8: バックテスト対応テスト"""
+
+    def test_backtest_mode_fee_estimation(self):
+        """バックテストモード: fee_data=Noneでも固定金額TPが計算される"""
+        config = {
+            "max_loss_ratio": 0.003,
+            "min_profit_ratio": 0.004,
+            "take_profit_ratio": 1.33,
+        }
+
+        # バックテストモード: fee_data=None, position_amount=有効値
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action="buy",
+            current_price=13618976.0,
+            current_atr=100000.0,
+            config=config,
+            regime="tight_range",
+            fee_data=None,  # バックテストではAPIデータなし
+            position_amount=0.0212,  # Phase 61.8: ポジション数量を指定
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+        # BUYなのでSLはエントリーより低い、TPは高い
+        assert stop_loss < 13618976.0
+        assert take_profit > 13618976.0
+
+    def test_backtest_sell_with_fee_estimation(self):
+        """バックテストモード: SELLポジションの手数料推定"""
+        config = {
+            "max_loss_ratio": 0.003,
+            "min_profit_ratio": 0.004,
+            "take_profit_ratio": 1.33,
+        }
+
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action="sell",
+            current_price=13618976.0,
+            current_atr=100000.0,
+            config=config,
+            regime="tight_range",
+            fee_data=None,
+            position_amount=0.0212,
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+        # SELLなのでSLはエントリーより高い、TPは低い
+        assert stop_loss > 13618976.0
+        assert take_profit < 13618976.0
+
+    def test_backtest_vs_live_consistency(self):
+        """バックテストとライブモードの計算結果が近似"""
+        config = {
+            "max_loss_ratio": 0.003,
+            "min_profit_ratio": 0.004,
+            "take_profit_ratio": 1.33,
+        }
+
+        entry_price = 13618976.0
+        amount = 0.0212
+
+        # ライブモード（fee_data指定）
+        fee_data = PositionFeeData(
+            unrealized_fee_amount=346.0,  # 実際のAPI値（Taker 0.12%相当）
+            unrealized_interest_amount=0.0,
+            average_price=entry_price,
+            open_amount=amount,
+        )
+
+        _, tp_live = RiskManager.calculate_stop_loss_take_profit(
+            action="buy",
+            current_price=entry_price,
+            current_atr=100000.0,
+            config=config,
+            regime="tight_range",
+            fee_data=fee_data,
+            position_amount=amount,
+        )
+
+        # バックテストモード（fee_data=None、フォールバックレートで推定）
+        _, tp_backtest = RiskManager.calculate_stop_loss_take_profit(
+            action="buy",
+            current_price=entry_price,
+            current_atr=100000.0,
+            config=config,
+            regime="tight_range",
+            fee_data=None,  # フォールバックレート 0.12% で推定
+            position_amount=amount,
+        )
+
+        assert tp_live is not None
+        assert tp_backtest is not None
+
+        # 両者の差が1%以内であることを確認
+        # (手数料推定と実際の値の差異は許容)
+        diff_pct = abs(tp_live - tp_backtest) / entry_price * 100
+        assert diff_pct < 1.0, f"TP差異が大きすぎます: {diff_pct:.2f}%"
