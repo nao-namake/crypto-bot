@@ -762,6 +762,7 @@ if strategy_confidence < min_strategy_confidence:
 | **61.5** | **低信頼度対策** | **PF ≥ 1.55維持・異常エントリー0件** | **✅ PF 1.78達成** |
 | **61.6** | **バグ修正（ATR取得・TP注文）** | **エラー0件・TP「利確」表示** | **✅ 完了** |
 | **61.7** | **固定金額TP実装** | **純利益1,000円保証** | **✅ 完了** |
+| **61.8** | **固定金額TPバックテスト対応** | **バックテストで検証可能** | **✅ 完了** |
 
 ---
 
@@ -1052,6 +1053,109 @@ def calculate_fixed_amount_tp(
 
 ---
 
+## Phase 61.8: 固定金額TPバックテスト対応 ✅実装完了
+
+### 実施日
+2026年1月29日
+
+### 目的
+バックテストでも固定金額TP（純利益1,000円保証）を検証可能にする。
+
+---
+
+### 背景
+
+Phase 61.7で実装した固定金額TPはライブモード専用だった：
+
+| モード | 手数料取得 | 固定金額TP |
+|--------|-----------|------------|
+| ライブ | bitbank APIから実データ取得 | ✅ 有効 |
+| バックテスト | データなし（fee_data=None） | ❌ 無効（%ベースにフォールバック） |
+
+バックテストで効果を検証するには、手数料推定計算が必要。
+
+---
+
+### 実装内容
+
+#### 1. SignalBuilder修正
+
+`src/strategies/utils/strategy_utils.py`の`create_signal_with_risk_management()`を修正：
+
+```python
+# Phase 61.8: ポジションサイズ計算を先に行う（固定金額TP計算に必要）
+position_size = RiskManager.calculate_position_size(confidence, config)
+
+# Phase 61.8: position_amountを渡して固定金額TP計算を有効化
+stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+    action, current_price, current_atr, config, atr_history,
+    regime=regime, current_time=signal_time,
+    fee_data=None,  # バックテスト時はNone（フォールバックレート使用）
+    position_amount=position_size,  # Phase 61.8追加
+)
+```
+
+#### 2. 妥当性チェック追加
+
+`calculate_fixed_amount_tp()`に異常値チェックを追加：
+
+```python
+# Phase 61.8: price_distanceがエントリー価格の10%を超える場合は異常値
+max_distance_ratio = 0.10
+if price_distance > entry_price * max_distance_ratio:
+    logger.warning("固定金額TP計算異常 - %ベースにフォールバック")
+    return None
+
+# TP価格が負の場合もフォールバック
+if tp_price <= 0:
+    return None
+```
+
+**理由**: ポジションサイズが小さすぎる場合、price_distanceが巨大になり、TP価格がマイナスになる問題を防止。
+
+---
+
+### 手数料推定ロジック
+
+| 項目 | ライブ | バックテスト（推定） |
+|------|--------|---------------------|
+| エントリー手数料 | API取得 | `価格 × 数量 × 0.12%`（Taker） |
+| 決済リベート | API計算 | `価格 × 数量 × 0.02%`（Maker） |
+| 利息 | API取得 | `0円`（短期保有前提） |
+
+---
+
+### テスト追加
+
+`tests/unit/strategies/utils/test_fixed_amount_tp.py`に3テスト追加：
+
+| テスト名 | 内容 |
+|---------|------|
+| `test_backtest_mode_fee_estimation` | fee_data=Noneでも固定金額TP計算 |
+| `test_backtest_sell_with_fee_estimation` | SELLポジションの手数料推定 |
+| `test_backtest_vs_live_consistency` | ライブとバックテストの計算結果が近似 |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/strategies/utils/strategy_utils.py` | SignalBuilder修正、妥当性チェック追加 |
+| `tests/unit/strategies/utils/test_fixed_amount_tp.py` | 3テスト追加（計15テスト） |
+
+---
+
+### 検証結果
+
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1250件パス |
+| カバレッジ | ✅ 63.27%（62%基準クリア） |
+
+---
+
 ## 結論
 
 ### Phase 61.1: レジーム閾値調整
@@ -1096,6 +1200,14 @@ def calculate_fixed_amount_tp(
 - `PositionFeeData`クラスと`calculate_fixed_amount_tp()`メソッド新規追加
 - 後方互換性維持（`enabled: false`で%ベースに戻る）
 
+### Phase 61.8: 固定金額TPバックテスト対応
+**結果**: 実装完了
+- バックテストでも固定金額TPを検証可能に
+- SignalBuilderで`position_amount`をTP/SL計算に渡すよう修正
+- 手数料推定計算（fee_data=Noneでもフォールバックレートで計算）
+- 妥当性チェック追加（price_distance > 10%で%ベースにフォールバック）
+- テスト3件追加
+
 ---
 
-**最終更新**: 2026年1月28日 - Phase 61.7完了（固定金額TP実装）
+**最終更新**: 2026年1月29日 - Phase 61.8完了（固定金額TPバックテスト対応）
