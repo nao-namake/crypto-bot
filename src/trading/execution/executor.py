@@ -1265,10 +1265,39 @@ class ExecutionService:
 
         if actual_filled_price > 0 and evaluation.take_profit and evaluation.stop_loss:
             from ...strategies.utils.strategy_utils import RiskManager
+            from ..core.types import PositionFeeData
 
             # ATR値とATR履歴を取得（3段階フォールバック）
             market_conditions = getattr(evaluation, "market_conditions", {})
             market_data = market_conditions.get("market_data", {})
+
+            # Phase 61.7: 固定金額TPモード用の手数料データ取得
+            fee_data = None
+            fixed_amount_enabled = get_threshold(
+                "position_management.take_profit.fixed_amount.enabled", False
+            )
+
+            if fixed_amount_enabled and self.bitbank_client:
+                try:
+                    positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+                    for pos in positions:
+                        raw_data = pos.get("raw_data", {})
+                        pos_side = raw_data.get("position_side", "")
+                        # ポジション方向でマッチング（buy→long, sell→short）
+                        if (side == "buy" and pos_side == "long") or (
+                            side == "sell" and pos_side == "short"
+                        ):
+                            fee_data = PositionFeeData.from_api_response(raw_data)
+                            self.logger.info(
+                                f"📊 Phase 61.7: 手数料データ取得成功 - "
+                                f"エントリー手数料={fee_data.unrealized_fee_amount:.0f}円, "
+                                f"利息={fee_data.unrealized_interest_amount:.0f}円"
+                            )
+                            break
+                except Exception as e:
+                    self.logger.warning(
+                        f"⚠️ Phase 61.7: 手数料データ取得失敗 - フォールバック使用: {e}"
+                    )
 
             current_atr = None
             atr_history = None
@@ -1337,6 +1366,7 @@ class ExecutionService:
 
                 # Phase 52.0: レジーム情報を含めてTP/SL計算
                 # Phase 58.6: 土日判定用にcurrent_time追加
+                # Phase 61.7: 固定金額TP用にfee_data, position_amount追加
                 recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
                     side,
                     actual_filled_price,
@@ -1345,6 +1375,8 @@ class ExecutionService:
                     atr_history,
                     regime=regime_str,
                     current_time=self.current_time,
+                    fee_data=fee_data,
+                    position_amount=amount,
                 )
 
                 # 再計算成功時、ログ出力

@@ -205,6 +205,41 @@ class MarginPrediction:
     recommendation: str  # 推奨アクション
 
 
+# === Phase 61.7: 固定金額TP用データクラス ===
+
+
+@dataclass
+class PositionFeeData:
+    """
+    Phase 61.7: ポジション手数料データ
+
+    固定金額TP計算に使用するAPIから取得した手数料情報
+    """
+
+    unrealized_fee_amount: float = 0.0  # 未収手数料（エントリー時）
+    unrealized_interest_amount: float = 0.0  # 未収利息
+    average_price: float = 0.0  # 平均建値
+    open_amount: float = 0.0  # 保有数量
+
+    @classmethod
+    def from_api_response(cls, raw_data: Dict[str, Any]) -> "PositionFeeData":
+        """
+        bitbank API raw_dataから生成
+
+        Args:
+            raw_data: bitbank APIレスポンスのraw_dataフィールド
+
+        Returns:
+            PositionFeeData: 手数料データ
+        """
+        return cls(
+            unrealized_fee_amount=float(raw_data.get("unrealized_fee_amount", 0) or 0),
+            unrealized_interest_amount=float(raw_data.get("unrealized_interest_amount", 0) or 0),
+            average_price=float(raw_data.get("average_price", 0) or 0),
+            open_amount=float(raw_data.get("open_amount", 0) or 0),
+        )
+
+
 __all__ = [
     # Risk Manager
     "TradeResult",
@@ -220,4 +255,6 @@ __all__ = [
     # Margin Monitor
     "MarginData",
     "MarginPrediction",
+    # Phase 61.7: 固定金額TP
+    "PositionFeeData",
 ]

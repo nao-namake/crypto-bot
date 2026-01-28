@@ -1,23 +1,27 @@
 """
-戦略共通ユーティリティ統合モジュール - Phase 49完了
+戦略共通ユーティリティ統合モジュール - Phase 61.7
 
 戦略関連のユーティリティ機能を統合管理：
 - 戦略定数：EntryAction、StrategyType統一
 - リスク管理：戦略レベルリスク評価
 - シグナル生成：統一的なシグナル構築
+- Phase 61.7: 固定金額TP計算
 
 統合により関連機能を一元化し、管理しやすい構造を提供。
 
-Phase 49完了
+Phase 61.7更新: 固定金額TP機能追加
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategySignal
+
+if TYPE_CHECKING:
+    from ...trading.core.types import PositionFeeData
 
 # === 戦略共通定数定義 ===
 
@@ -167,6 +171,99 @@ class RiskManager:
             )
 
     @staticmethod
+    def calculate_fixed_amount_tp(
+        action: str,
+        entry_price: float,
+        amount: float,
+        fee_data: Optional["PositionFeeData"],
+        config: Dict[str, Any],
+    ) -> Optional[float]:
+        """
+        Phase 61.7: 固定金額TP価格計算
+
+        手数料を考慮して、目標純利益を確保するTP価格を計算する。
+
+        計算式:
+            必要含み益 = 目標純利益 + エントリー手数料 + 利息 - 決済リベート
+            TP価格 = エントリー価格 ± (必要含み益 / 数量)
+
+        Args:
+            action: "buy" or "sell"
+            entry_price: エントリー価格（円）
+            amount: ポジション数量（BTC）
+            fee_data: API手数料データ（Noneの場合フォールバック使用）
+            config: 固定金額設定（thresholds.yamlから取得）
+
+        Returns:
+            TP価格（円）、計算失敗時はNone
+        """
+        logger = get_logger()
+
+        try:
+            target_net_profit = config.get("target_net_profit", 1000)
+
+            # エントリー手数料
+            include_entry_fee = config.get("include_entry_fee", True)
+            if include_entry_fee:
+                if fee_data:
+                    entry_fee = fee_data.unrealized_fee_amount
+                else:
+                    # API失敗時はフォールバックレートで推定
+                    fallback_rate = config.get("fallback_entry_fee_rate", 0.0012)
+                    entry_fee = entry_price * amount * fallback_rate
+            else:
+                entry_fee = 0
+
+            # 利息
+            include_interest = config.get("include_interest", True)
+            if include_interest:
+                if fee_data:
+                    interest = fee_data.unrealized_interest_amount
+                else:
+                    interest = 0
+            else:
+                interest = 0
+
+            # 決済リベート推定（Maker -0.02%）
+            if config.get("include_exit_fee_rebate", True):
+                exit_fee_rate = config.get("fallback_exit_fee_rate", -0.0002)
+                # exit_fee_rateは負（リベート）なので、absで正の値にして減算
+                exit_fee_rebate = abs(entry_price * amount * exit_fee_rate)
+            else:
+                exit_fee_rebate = 0
+
+            # 必要含み益計算
+            required_gross_profit = target_net_profit + entry_fee + interest - exit_fee_rebate
+
+            if amount <= 0:
+                logger.warning("⚠️ Phase 61.7: 数量が0以下のためTP計算不可")
+                return None
+
+            price_distance = required_gross_profit / amount
+
+            if action.lower() == "buy":
+                tp_price = entry_price + price_distance
+            else:
+                tp_price = entry_price - price_distance
+
+            # デバッグログ
+            logger.info(
+                f"🎯 Phase 61.7: 固定金額TP計算 - "
+                f"目標純利益={target_net_profit:.0f}円, "
+                f"エントリー手数料={entry_fee:.0f}円, "
+                f"利息={interest:.0f}円, "
+                f"決済リベート={exit_fee_rebate:.0f}円, "
+                f"必要含み益={required_gross_profit:.0f}円, "
+                f"TP価格={tp_price:.0f}円 ({action})"
+            )
+
+            return tp_price
+
+        except Exception as e:
+            logger.error(f"❌ Phase 61.7: 固定金額TP計算エラー: {e}")
+            return None
+
+    @staticmethod
     def calculate_stop_loss_take_profit(
         action: str,
         current_price: float,
@@ -175,11 +272,14 @@ class RiskManager:
         atr_history: Optional[List[float]] = None,
         regime: Optional[str] = None,
         current_time: Optional[datetime] = None,
+        fee_data: Optional["PositionFeeData"] = None,
+        position_amount: Optional[float] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
         Phase 52.0: レジーム別動的TP/SL調整実装
         Phase 58.6: 土日TP/SL縮小対応
+        Phase 61.7: 固定金額TPモード対応
 
         Args:
             action: エントリーアクション（buy/sell）
@@ -189,6 +289,8 @@ class RiskManager:
             atr_history: ATR履歴（適応型ATR用）
             regime: 市場レジーム（tight_range/normal_range/trending/high_volatility）
             current_time: 現在時刻（バックテスト対応、土日判定用）
+            fee_data: Phase 61.7: ポジション手数料データ（固定金額TP用）
+            position_amount: Phase 61.7: ポジション数量（固定金額TP用）
 
         Returns:
             (stop_loss, take_profit)のタプル
@@ -307,40 +409,83 @@ class RiskManager:
                 f"→ 採用={stop_loss_distance:.0f}円({stop_loss_distance / current_price * 100:.2f}%)"
             )
 
-            # === TP距離計算（min_profit_ratio優先） ===
-            # Phase 51.6: ハードコード削除・設定ファイル一元管理（TP 0.9%・RR比1.29:1）
-            min_profit_ratio = config.get(
-                "min_profit_ratio",
-                get_threshold("position_management.take_profit.min_profit_ratio"),
-            )
-            default_tp_ratio = config.get(
-                "take_profit_ratio",
-                get_threshold("position_management.take_profit.default_ratio"),
-            )
+            # === TP距離計算 ===
+            # Phase 61.7: 固定金額TPモードチェック
+            fixed_amount_config = get_threshold("position_management.take_profit.fixed_amount", {})
+            fixed_amount_enabled = fixed_amount_config.get("enabled", False)
 
-            # min_profit_ratioベースのTP距離
-            tp_distance_from_ratio = current_price * min_profit_ratio
+            take_profit = None  # 後で計算
 
-            # SL距離×TP比率ベースのTP距離
-            tp_distance_from_sl = stop_loss_distance * default_tp_ratio
+            if fixed_amount_enabled and position_amount and position_amount > 0:
+                # Phase 61.7: 固定金額TPモード
+                # レジーム別目標取得
+                if regime:
+                    regime_target = get_threshold(
+                        f"position_management.take_profit.regime_based.{regime}.fixed_amount_target",
+                        fixed_amount_config.get("target_net_profit", 1000),
+                    )
+                    # レジーム別目標をconfigにコピー
+                    fixed_amount_config = dict(fixed_amount_config)  # コピーして変更
+                    fixed_amount_config["target_net_profit"] = regime_target
 
-            # 大きい方を採用（利益確保優先）
-            take_profit_distance = max(tp_distance_from_ratio, tp_distance_from_sl)
+                fixed_tp = RiskManager.calculate_fixed_amount_tp(
+                    action=action,
+                    entry_price=current_price,
+                    amount=position_amount,
+                    fee_data=fee_data,
+                    config=fixed_amount_config,
+                )
 
-            logger.info(
-                f"🎯 Phase 49.16 TP距離計算: "
-                f"min_profit={min_profit_ratio * 100:.1f}% → {tp_distance_from_ratio:.0f}円, "
-                f"SL×{default_tp_ratio:.2f} → {tp_distance_from_sl:.0f}円 "
-                f"→ 採用={take_profit_distance:.0f}円({take_profit_distance / current_price * 100:.2f}%)"
-            )
+                if fixed_tp:
+                    take_profit = fixed_tp
+                    logger.info(
+                        f"🎯 Phase 61.7: 固定金額TP適用 - "
+                        f"目標純利益={fixed_amount_config.get('target_net_profit', 1000):.0f}円, "
+                        f"TP={fixed_tp:.0f}円"
+                    )
+                else:
+                    logger.warning(f"⚠️ Phase 61.7: 固定金額TP計算失敗 - %ベースにフォールバック")
+                    # フォールバック: 従来の%ベース計算へ
 
-            # === 価格計算 ===
+            # 固定金額TPが設定されなかった場合、従来の%ベース計算
+            if take_profit is None:
+                # Phase 51.6: ハードコード削除・設定ファイル一元管理（TP 0.9%・RR比1.29:1）
+                min_profit_ratio = config.get(
+                    "min_profit_ratio",
+                    get_threshold("position_management.take_profit.min_profit_ratio"),
+                )
+                default_tp_ratio = config.get(
+                    "take_profit_ratio",
+                    get_threshold("position_management.take_profit.default_ratio"),
+                )
+
+                # min_profit_ratioベースのTP距離
+                tp_distance_from_ratio = current_price * min_profit_ratio
+
+                # SL距離×TP比率ベースのTP距離
+                tp_distance_from_sl = stop_loss_distance * default_tp_ratio
+
+                # 大きい方を採用（利益確保優先）
+                take_profit_distance = max(tp_distance_from_ratio, tp_distance_from_sl)
+
+                logger.info(
+                    f"🎯 Phase 49.16 TP距離計算: "
+                    f"min_profit={min_profit_ratio * 100:.1f}% → {tp_distance_from_ratio:.0f}円, "
+                    f"SL×{default_tp_ratio:.2f} → {tp_distance_from_sl:.0f}円 "
+                    f"→ 採用={take_profit_distance:.0f}円({take_profit_distance / current_price * 100:.2f}%)"
+                )
+
+                # TP価格計算（%ベース）
+                if action == EntryAction.BUY:
+                    take_profit = current_price + take_profit_distance
+                else:  # SELL
+                    take_profit = current_price - take_profit_distance
+
+            # === SL価格計算 ===
             if action == EntryAction.BUY:
                 stop_loss = current_price - stop_loss_distance
-                take_profit = current_price + take_profit_distance
             else:  # SELL
                 stop_loss = current_price + stop_loss_distance
-                take_profit = current_price - take_profit_distance
 
             # 妥当性確認
             if stop_loss <= 0 or take_profit <= 0:
