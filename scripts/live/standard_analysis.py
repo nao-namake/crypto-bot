@@ -1015,21 +1015,38 @@ class LiveAnalyzer:
             # Phase 59.5: キャッシュされた注文を使用（API呼び出し削減＆タイミング整合性確保）
             active_orders = self._cached_active_orders or []
 
-            tp_orders = [o for o in active_orders if o.get("type") == "limit"]
-            sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit"]]
+            # Phase 61.8: take_profit/stop_lossタイプに対応（Phase 61.3で追加されたタイプ）
+            tp_orders = [o for o in active_orders if o.get("type") in ["limit", "take_profit"]]
+            sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit", "stop_loss"]]
 
             # TP距離計算
+            # Phase 61.8: take_profit注文はtrigger_priceを使用
             if tp_orders and self.result.position_details:
-                tp_price = tp_orders[0].get("price", 0)
+                tp_order = tp_orders[0]
+                tp_price = (
+                    tp_order.get("price")
+                    or tp_order.get("info", {}).get("trigger_price")
+                    or tp_order.get("triggerPrice")
+                    or 0
+                )
                 if tp_price:
+                    tp_price = float(tp_price)
                     self.result.tp_distance_pct = (
                         abs(tp_price - self.current_price) / self.current_price * 100
                     )
 
             # SL距離計算
+            # Phase 61.8: stop_loss注文はtrigger_priceを使用
             if sl_orders and self.result.position_details:
-                sl_price = sl_orders[0].get("stopPrice") or sl_orders[0].get("triggerPrice", 0)
+                sl_order = sl_orders[0]
+                sl_price = (
+                    sl_order.get("stopPrice")
+                    or sl_order.get("info", {}).get("trigger_price")
+                    or sl_order.get("triggerPrice")
+                    or 0
+                )
                 if sl_price:
+                    sl_price = float(sl_price)
                     self.result.sl_distance_pct = (
                         abs(sl_price - self.current_price) / self.current_price * 100
                     )
@@ -1041,26 +1058,32 @@ class LiveAnalyzer:
                     self.logger.warning("ポジションがあるがTP/SLが設定されていません")
 
             # Phase 58.1: ポジション量とTP/SL注文量の整合性チェック
+            # Phase 61.8: take_profit/stop_loss注文はamountがNoneの場合があるため、注文存在のみチェック
             if self.result.position_details and self.result.open_position_count > 0:
                 # ポジション総量を計算
                 total_position_amount = sum(
                     abs(float(pos.get("amount", 0))) for pos in self.result.position_details
                 )
 
-                # TP注文総量
+                # TP注文総量（NoneやNoneTypeを0として処理）
                 total_tp_amount = sum(
-                    abs(float(o.get("amount", 0) or o.get("remaining", 0))) for o in tp_orders
+                    abs(float(o.get("amount") or o.get("remaining") or 0))
+                    for o in tp_orders
+                    if o.get("amount") is not None or o.get("remaining") is not None
                 )
 
-                # SL注文総量
+                # SL注文総量（NoneやNoneTypeを0として処理）
                 total_sl_amount = sum(
-                    abs(float(o.get("amount", 0) or o.get("remaining", 0))) for o in sl_orders
+                    abs(float(o.get("amount") or o.get("remaining") or 0))
+                    for o in sl_orders
+                    if o.get("amount") is not None or o.get("remaining") is not None
                 )
 
-                # 許容誤差（0.1%）
+                # Phase 61.8: take_profit/stop_loss注文はamountがないため、注文存在でOKとする
+                # 注文量チェックはamountがある場合のみ実行
                 tolerance = 0.001
 
-                # TP量不足チェック
+                # TP量不足チェック（amountがある場合のみ）
                 if total_position_amount > 0 and total_tp_amount > 0:
                     tp_coverage = total_tp_amount / total_position_amount
                     if tp_coverage < (1.0 - tolerance):
@@ -1071,7 +1094,7 @@ class LiveAnalyzer:
                             f"TP注文{total_tp_amount:.4f}BTC (カバー率: {tp_pct:.1f}%)"
                         )
 
-                # SL量不足チェック
+                # SL量不足チェック（amountがある場合のみ）
                 if total_position_amount > 0 and total_sl_amount > 0:
                     sl_coverage = total_sl_amount / total_position_amount
                     if sl_coverage < (1.0 - tolerance):
