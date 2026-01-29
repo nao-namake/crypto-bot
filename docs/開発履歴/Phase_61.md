@@ -568,7 +568,7 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 | `dfe74a48` | feat: Phase 61.10 バックテスト・ライブモード ポジションサイズ統一 |
 | `edd102e8` | fix: Phase 61.11 ライブモード診断バグ修正 |
 | `3bc1df27` | docs: Phase 61.11 開発履歴追加 |
-| `xxxxxxxx` | feat: Phase 61.12 取引履歴exit記録追加 |
+| `584a1486` | feat: Phase 61.12 取引履歴exit記録追加 |
 
 ---
 
