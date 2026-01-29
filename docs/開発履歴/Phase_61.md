@@ -1,6 +1,6 @@
 # Phase 61: 戦略分析・改修
 
-**期間**: 2026年1月24日〜29日
+**期間**: 2026年1月24日〜30日
 **目的**: レジーム判定の最適化と低信頼度エントリー対策
 
 ---
@@ -33,6 +33,7 @@ Phase 60.7完了時点で総損益¥86,639（PF 1.58）を達成したが、以�
 | **61.8** | 固定金額TPバックテスト対応 | ✅ SignalBuilderにposition_amount連携 |
 | **61.9** | TP/SL自動執行検知 | ✅ SL約定ログ記録・分析可能化 |
 | **61.10** | ポジションサイズ統一 | ✅ バックテスト・ライブ互換Dynamic Sizing |
+| **61.11** | ライブモード診断バグ修正 | ✅ RuntimeWarning修正・Kelly検索・勝率N/A対応 |
 | ~~61.3旧~~ | ~~ADXTrendStrength評価~~ | ❌ 中止（trending 0.6%で評価対象外） |
 | ~~61.4旧~~ | ~~MACDEMACrossover改善~~ | ❌ 中止（trending未発生） |
 
@@ -360,6 +361,76 @@ bitbankがTP/SL注文を自動執行した際の検知・記録
 
 ---
 
+## Phase 61.11: ライブモード診断バグ修正 ✅完了
+
+### 実施日: 2026年1月30日
+
+### 発見した問題
+
+| # | バグ | 原因 | 重大度 |
+|---|------|------|--------|
+| 1 | RuntimeWarning: coroutine was never awaited | `asyncio.to_thread()`でasync関数呼び出し | 高 |
+| 2 | 取引履歴95件勝率0% | DB pnlがすべてNULL（entry記録のみ） | 中 |
+| 3 | Kelly基準検索0件 | ログパターン不一致 | 低 |
+| 4 | `_count_logs`未定義エラー | LiveAnalyzerにメソッドなし | 高 |
+
+### 修正内容
+
+#### 1. RuntimeWarning修正（executor.py:1230）
+```python
+# 修正前（エラー）
+actual_positions = await asyncio.to_thread(
+    self.bitbank_client.fetch_margin_positions, "BTC/JPY"
+)
+
+# 修正後
+actual_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+```
+
+#### 2. Kelly検索パターン修正
+```python
+# 修正前
+'textPayload:"Kelly基準" OR textPayload:"kelly_fraction"'
+
+# 修正後
+'textPayload:"Kelly計算" OR textPayload:"Kelly履歴"'
+```
+
+#### 3. LiveAnalyzerに`_count_logs`メソッド追加
+GCPログカウント機能をLiveAnalyzerクラスに追加（BotFunctionCheckerと同等機能）
+
+#### 4. TP/SL検索パターン修正
+```python
+# 修正前
+'textPayload:"TP約定" OR textPayload:"利確"'
+
+# 修正後（Phase 61.9の自動執行検知ログ対応）
+'textPayload:"TP自動執行検知"'
+```
+
+#### 5. 勝率N/A対応
+- pnlがすべてNULLの場合: 「N/A (pnlデータなし)」表示
+- TP/SL発動数から勝率推定: 「XX.X% (TP/SL推定)」表示
+
+### 診断結果（修正後）
+
+| 項目 | 修正前 | 修正後 |
+|------|--------|--------|
+| Kelly基準計算 | 0回 | 4回 |
+| 勝率表示 | 0% | N/A (pnlデータなし) |
+| RuntimeWarning | 発生 | デプロイ後解消予定 |
+
+### 残課題（別Phase対応）
+- 取引履歴DBにexit/tp/slレコードが記録されない問題
+- Entry/Exit記録システムの改修が必要
+
+| ファイル | 変更 |
+|---------|------|
+| executor.py | `asyncio.to_thread()`削除 |
+| standard_analysis.py | 4箇所修正（Kelly・_count_logs・TP/SL・勝率N/A） |
+
+---
+
 ## 技術的成果
 
 ### get_threshold()パターン導入（Phase 61.1から継続）
@@ -386,6 +457,7 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 | **61.8** | バックテスト対応 | 検証可能化 | **✅ 完了** |
 | **61.9** | 自動執行検知 | SL約定記録 | **✅ 完了** |
 | **61.10** | サイズ統一 | バックテスト互換 | **✅ 完了** |
+| **61.11** | 診断バグ修正 | RuntimeWarning解消 | **✅ 完了** |
 
 ---
 
@@ -411,12 +483,13 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 - 戦略信頼度0.25未満を強制HOLD
 - ML高信頼度閾値0.55に引き下げ
 
-### Phase 61.6-61.10: 実装完了
+### Phase 61.6-61.11: 実装完了
 - 61.6: ATR取得エラー解消、TP「利確」表示
 - 61.7: 固定金額TP（純利益1,000円保証）
 - 61.8: バックテストでの固定金額TP検証
 - 61.9: TP/SL自動執行検知・ログ記録
 - 61.10: ポジションサイズ統一（バグ修正含む）
+- 61.11: ライブモード診断バグ修正（RuntimeWarning・Kelly検索・勝率N/A）
 
 ---
 
@@ -435,7 +508,8 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 | `g7h8i9j0` | feat: Phase 61.9 TP/SL自動執行検知機能 |
 | `440dbd2a` | docs: Phase 61.10 開発履歴追加 |
 | `dfe74a48` | feat: Phase 61.10 バックテスト・ライブモード ポジションサイズ統一 |
+| `edd102e8` | fix: Phase 61.11 ライブモード診断バグ修正 |
 
 ---
 
-**最終更新**: 2026年1月29日 - Phase 61.10完了
+**最終更新**: 2026年1月30日 - Phase 61.11完了
