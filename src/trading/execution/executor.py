@@ -1227,9 +1227,7 @@ class ExecutionService:
         # Phase 61.9: 自動執行検知（毎サイクル先頭、ライブモードのみ）
         if self.mode == "live" and self.bitbank_client and self.stop_manager:
             try:
-                actual_positions = await asyncio.to_thread(
-                    self.bitbank_client.fetch_margin_positions, "BTC/JPY"
-                )
+                actual_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
                 detected = await self.stop_manager.detect_auto_executed_orders(
                     virtual_positions=self.virtual_positions,
                     actual_positions=actual_positions,

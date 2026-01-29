@@ -592,7 +592,7 @@ class BotFunctionChecker:
         """Kelly基準確認"""
         self.logger.info("💱 Kelly基準確認")
         self.result.kelly_count = self._count_logs(
-            'textPayload:"Kelly基準" OR textPayload:"kelly_fraction"', 15
+            'textPayload:"Kelly計算" OR textPayload:"Kelly履歴"', 15
         )
         if self.result.kelly_count > 0:
             self.result.normal_checks += 1
@@ -733,6 +733,46 @@ class LiveAnalyzer:
         self.logger.info("ライブモード分析完了")
         return self.result
 
+    def _count_logs(self, query: str, limit: int = 50) -> int:
+        """GCPログをカウント（Phase 61.11追加）"""
+        try:
+            # デプロイ時刻を取得
+            from datetime import timezone
+
+            utc_now = datetime.now(timezone.utc)
+            since_time = (utc_now - timedelta(hours=self.period_hours)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+
+            full_query = (
+                f'resource.type="cloud_run_revision" AND '
+                f'resource.labels.service_name="crypto-bot-service-prod" AND '
+                f"({query}) AND "
+                f'timestamp>="{since_time}"'
+            )
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "logging",
+                    "read",
+                    full_query,
+                    f"--limit={limit}",
+                    "--format=value(textPayload)",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode == 0:
+                lines = [line for line in result.stdout.strip().split("\n") if line]
+                return len(lines)
+        except FileNotFoundError:
+            # ローカル実行時（gcloudコマンドなし）
+            self.logger.debug("GCPログカウントスキップ（ローカル実行）")
+        except Exception as e:
+            self.logger.debug(f"GCPログカウント失敗: {e}")
+        return 0
+
     async def _fetch_current_price(self):
         """現在価格取得"""
         try:
@@ -856,42 +896,58 @@ class LiveAnalyzer:
 
             self.result.trades_count = len(trades)
 
+            # Phase 61.11: GCPログからTP/SL発動数を取得（DBにexit記録がないため）
+            # Phase 61.9の自動執行検知ログを使用
+            tp_from_logs = self._count_logs('textPayload:"TP自動執行検知"', 50)
+            sl_from_logs = self._count_logs('textPayload:"SL自動執行検知"', 50)
+            self.result.tp_triggered_count = tp_from_logs
+            self.result.sl_triggered_count = sl_from_logs
+
             if trades:
-                # 勝率・損益計算
-                wins = [t for t in trades if (t.get("pnl") or 0) > 0]
-                self.result.win_rate = len(wins) / len(trades) * 100 if trades else 0.0
+                # Phase 61.11: pnlがすべてNULLかどうか確認
+                pnls_with_value = [t.get("pnl") for t in trades if t.get("pnl") is not None]
+                has_pnl_data = len(pnls_with_value) > 0
 
-                pnls = [t.get("pnl", 0) or 0 for t in trades]
-                self.result.total_pnl = sum(pnls)
-                self.result.avg_pnl = self.result.total_pnl / len(trades) if trades else 0.0
+                if has_pnl_data:
+                    # pnlデータがある場合は従来のロジック
+                    wins = [t for t in trades if (t.get("pnl") or 0) > 0]
+                    self.result.win_rate = len(wins) / len(trades) * 100 if trades else 0.0
 
-                # 最大利益/損失
-                if pnls:
-                    self.result.max_profit = max(pnls) if max(pnls) > 0 else 0
-                    self.result.max_loss = min(pnls) if min(pnls) < 0 else 0
+                    pnls = [t.get("pnl", 0) or 0 for t in trades]
+                    self.result.total_pnl = sum(pnls)
+                    self.result.avg_pnl = self.result.total_pnl / len(trades) if trades else 0.0
 
-                # TP/SL発動数
-                self.result.tp_triggered_count = len(
-                    [t for t in trades if t.get("trade_type") == "tp"]
-                )
-                self.result.sl_triggered_count = len(
-                    [t for t in trades if t.get("trade_type") == "sl"]
-                )
+                    # 最大利益/損失
+                    if pnls:
+                        self.result.max_profit = max(pnls) if max(pnls) > 0 else 0
+                        self.result.max_loss = min(pnls) if min(pnls) < 0 else 0
+
+                    # 戦略別統計（notesフィールドから戦略名を抽出）
+                    for strategy in self.STRATEGIES:
+                        strategy_trades = [t for t in trades if strategy in (t.get("notes") or "")]
+                        if strategy_trades:
+                            s_pnls = [t.get("pnl", 0) or 0 for t in strategy_trades]
+                            s_wins = [p for p in s_pnls if p > 0]
+                            self.result.strategy_stats[strategy] = {
+                                "trades": len(strategy_trades),
+                                "win_rate": len(s_wins) / len(strategy_trades) * 100,
+                                "pnl": sum(s_pnls),
+                            }
+                else:
+                    # Phase 61.11: pnlがすべてNULLの場合はGCPログベースで推定
+                    # TP発動=勝ち、SL発動=負けとして推定
+                    total_exits = tp_from_logs + sl_from_logs
+                    if total_exits > 0:
+                        self.result.win_rate = (tp_from_logs / total_exits) * 100
+                    else:
+                        # 決済記録がない場合は勝率を-1（N/A表示用）に設定
+                        self.result.win_rate = -1.0
+                    self.result.total_pnl = 0.0
+                    self.result.avg_pnl = 0.0
+                    self.logger.info("pnlデータなし - GCPログからTP/SL発動数で勝率推定")
 
                 # 最終取引時刻
                 self.result.last_trade_time = trades[0].get("timestamp")
-
-                # 戦略別統計（notesフィールドから戦略名を抽出）
-                for strategy in self.STRATEGIES:
-                    strategy_trades = [t for t in trades if strategy in (t.get("notes") or "")]
-                    if strategy_trades:
-                        s_pnls = [t.get("pnl", 0) or 0 for t in strategy_trades]
-                        s_wins = [p for p in s_pnls if p > 0]
-                        self.result.strategy_stats[strategy] = {
-                            "trades": len(strategy_trades),
-                            "win_rate": len(s_wins) / len(strategy_trades) * 100,
-                            "pnl": sum(s_pnls),
-                        }
 
             self.logger.info(
                 f"取引履歴分析完了 - {self.result.trades_count}件, "
@@ -1312,6 +1368,16 @@ class LiveReportGenerator:
         if result.orphan_sl_detected:
             lines.append(f"| ⚠️ **孤児SL/TP注文** | **{result.orphan_order_count}件検出** |")
 
+        # Phase 61.11: 勝率がN/A（-1）の場合の表示対応
+        win_rate_str = "N/A (pnlデータなし)" if result.win_rate < 0 else f"{result.win_rate:.1f}%"
+        # 推定勝率の場合は注記を追加
+        if (
+            result.win_rate >= 0
+            and result.total_pnl == 0
+            and (result.tp_triggered_count > 0 or result.sl_triggered_count > 0)
+        ):
+            win_rate_str += " (TP/SL推定)"
+
         lines.extend(
             [
                 "",
@@ -1322,7 +1388,7 @@ class LiveReportGenerator:
                 "| 指標 | 値 |",
                 "|------|-----|",
                 f"| 取引数 | {result.trades_count}件 |",
-                f"| 勝率 | {result.win_rate:.1f}% |",
+                f"| 勝率 | {win_rate_str} |",
                 f"| 総損益 | ¥{result.total_pnl:+,.0f} |",
                 f"| 平均損益 | ¥{result.avg_pnl:+,.0f} |",
                 f"| 最大利益 | ¥{result.max_profit:+,.0f} |",
@@ -1566,13 +1632,13 @@ async def main():
         print("\n" + "=" * 60)
         print("簡易診断結果")
         print("=" * 60)
-        print(f"\n🔧 インフラ基盤診断:")
+        print("\n🔧 インフラ基盤診断:")
         print(f"   ✅ 正常項目: {infra_result.normal_checks}")
         print(f"   ⚠️  警告項目: {infra_result.warning_issues}")
         print(f"   ❌ 致命的問題: {infra_result.critical_issues}")
         print(f"   🏆 スコア: {infra_result.total_score}点")
 
-        print(f"\n🤖 Bot機能診断:")
+        print("\n🤖 Bot機能診断:")
         print(f"   ✅ 正常項目: {bot_result.normal_checks}")
         print(f"   ⚠️  警告項目: {bot_result.warning_issues}")
         print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
@@ -1636,20 +1702,26 @@ async def main():
     else:
         print(f"証拠金維持率: {result.margin_ratio:.1f}%")
     print(f"取引数: {result.trades_count}件")
-    print(f"勝率: {result.win_rate:.1f}%")
+    # Phase 61.11: 勝率N/A対応
+    if result.win_rate < 0:
+        print("勝率: N/A (pnlデータなし)")
+    elif result.total_pnl == 0 and (result.tp_triggered_count > 0 or result.sl_triggered_count > 0):
+        print(f"勝率: {result.win_rate:.1f}% (TP/SL推定)")
+    else:
+        print(f"勝率: {result.win_rate:.1f}%")
     print(f"総損益: ¥{result.total_pnl:+,.0f}")
     if result.uptime_rate >= 0:
         print(f"稼働率: {result.uptime_rate:.1f}%")
     print(f"サービス状態: {result.service_status}")
     print(f"MLモデル: {result.ml_model_type} (Level {result.ml_model_level})")
 
-    print(f"\n🔧 インフラ基盤診断:")
+    print("\n🔧 インフラ基盤診断:")
     print(f"   ✅ 正常項目: {infra_result.normal_checks}")
     print(f"   ⚠️  警告項目: {infra_result.warning_issues}")
     print(f"   ❌ 致命的問題: {infra_result.critical_issues}")
     print(f"   🏆 スコア: {infra_result.total_score}点")
 
-    print(f"\n🤖 Bot機能診断:")
+    print("\n🤖 Bot機能診断:")
     print(f"   ✅ 正常項目: {bot_result.normal_checks}")
     print(f"   ⚠️  警告項目: {bot_result.warning_issues}")
     print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
