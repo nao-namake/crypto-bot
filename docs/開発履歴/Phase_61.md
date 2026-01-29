@@ -764,6 +764,7 @@ if strategy_confidence < min_strategy_confidence:
 | **61.7** | **固定金額TP実装** | **純利益1,000円保証** | **✅ 完了** |
 | **61.8** | **固定金額TPバックテスト対応** | **バックテストで検証可能** | **✅ 完了** |
 | **61.9** | **TP/SL自動執行検知** | **SL約定ログ記録・分析可能化** | **✅ 完了** |
+| **61.10** | **ポジションサイズ統一** | **バックテスト・ライブモード互換** | **✅ 完了** |
 
 ---
 
@@ -1385,4 +1386,153 @@ status="closed"の注文を特定 → TP約定 or SL約定を判定
 
 ---
 
-**最終更新**: 2026年1月29日 - Phase 61.9完了（TP/SL自動執行検知機能）
+## Phase 61.10: バックテスト・ライブモード ポジションサイズ統一 ✅実装完了
+
+### 実施日
+2026年1月29日
+
+### 目的
+バックテストとライブモードでポジションサイズ計算を統一し、固定金額TPがバックテストでも正常に機能するようにする。
+
+---
+
+### 背景・問題
+
+#### 発見された問題
+バックテストで固定金額TP（1,000円）が機能していない。
+
+| モード | 計算箇所 | position_size | 固定金額TP |
+|--------|---------|---------------|-----------|
+| **ライブ** | IntegratedRiskManager → executor.py | 0.15〜0.2 BTC | ✅ 有効 |
+| **バックテスト** | SignalBuilder（RiskManager.calculate_position_size） | **0.00015 BTC** | ❌ フォールバック |
+
+#### 根本原因
+1. **SignalBuilder**で`RiskManager.calculate_position_size()`を使用
+   - `base_size × confidence = 0.0003 × 0.5 = 0.00015 BTC`
+2. 固定金額TP計算で`position_amount`が小さすぎる
+   - `price_distance = 1,288円 / 0.00015 BTC = 8,586,667円`（約44%）
+3. 妥当性チェック（10%上限）でフォールバック
+
+---
+
+### 実装内容
+
+#### 1. SignalBuilder._calculate_dynamic_position_size() 新規追加
+
+`src/strategies/utils/strategy_utils.py`にDynamic Position Sizingメソッドを追加：
+
+```python
+@staticmethod
+def _calculate_dynamic_position_size(
+    confidence: float,
+    current_balance: float,
+    btc_price: float,
+    config: Dict[str, Any],
+) -> float:
+    """
+    Phase 61.10: Dynamic Position Sizing（ライブ互換）
+
+    PositionSizeIntegratorと同等のDynamic Sizing計算。
+    thresholds.yamlのdynamic_position_sizing設定を使用。
+    """
+```
+
+**計算ロジック**:
+- 信頼度別比率（`thresholds.yaml`から取得）:
+  - low_confidence（<50%）: 0.30〜0.60%
+  - medium_confidence（50-65%）: 0.45〜0.75%
+  - high_confidence（>65%）: 0.60〜1.05%
+- 信頼度による線形補間
+- min_size/max_size制限適用
+
+#### 2. create_signal_with_risk_management() 修正
+
+position_size計算部分を修正：
+
+```python
+# Phase 61.10: Dynamic Position Sizing（ライブ互換）
+btc_price = None
+current_balance = None
+try:
+    if df is not None and "close" in df.columns and len(df) > 0:
+        btc_price = float(df["close"].iloc[-1])
+    current_balance = get_threshold(
+        "mode_balances.backtest.initial_balance", 500000.0
+    )
+except Exception:
+    pass
+
+if btc_price and current_balance and btc_price > 0 and current_balance > 0:
+    position_size = SignalBuilder._calculate_dynamic_position_size(
+        confidence=confidence,
+        current_balance=current_balance,
+        btc_price=btc_price,
+        config=config,
+    )
+else:
+    # フォールバック（既存計算）
+    position_size = RiskManager.calculate_position_size(confidence, config)
+```
+
+---
+
+### テスト追加
+
+`tests/unit/strategies/utils/test_fixed_amount_tp.py`に`TestDynamicPositionSizing`クラス追加：
+
+| テスト名 | 内容 |
+|---------|------|
+| `test_low_confidence_sizing` | 低信頼度（<50%）でのサイズ計算 |
+| `test_medium_confidence_sizing` | 中信頼度（50-65%）でのサイズ計算 |
+| `test_high_confidence_sizing` | 高信頼度（>65%）でのサイズ計算 |
+| `test_max_size_limit` | 最大サイズ制限（0.15 BTC）適用確認 |
+| `test_min_size_guarantee` | 最小サイズ保証（0.0001 BTC） |
+| `test_fixed_amount_tp_with_dynamic_size` | Dynamic Sizingでの固定金額TP計算 |
+| `test_backtest_live_size_consistency` | 同じ入力で同じ結果の確認 |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/strategies/utils/strategy_utils.py` | `_calculate_dynamic_position_size()`追加、position_size計算ロジック修正 |
+| `tests/unit/strategies/utils/test_fixed_amount_tp.py` | 7テスト追加（計22テスト） |
+
+---
+
+### 検証結果
+
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1271件パス |
+| カバレッジ | ✅ 63.45%（62%基準クリア） |
+
+---
+
+### 期待効果
+
+| 指標 | 修正前 | 修正後 |
+|------|--------|--------|
+| バックテストposition_size | 0.00015 BTC | **0.015〜0.03 BTC** |
+| 固定金額TP price_distance | 44%（異常） | **0.4-0.8%（正常）** |
+| 固定金額TP適用率 | 0%（全フォールバック） | **100%** |
+| バックテスト結果 | 旧%ベースTP | **固定金額TP反映** |
+
+---
+
+### バックテスト/ライブモードの差異
+
+| 項目 | バックテスト | ライブモード |
+|------|------------|-------------|
+| **残高** | 固定50万円 | 実API残高（変動） |
+| **価格** | DataFrame `close`値 | リアルタイムticker |
+| **手数料** | フォールバックレート | API実データ |
+| **position_size** | Dynamic Sizing | Kelly/Dynamic/RiskManager加重平均 |
+
+**結論**: 主要な計算ロジック（Dynamic Sizing）は統一され、固定金額TPがバックテストで正常機能。
+
+---
+
+**最終更新**: 2026年1月29日 - Phase 61.10完了（ポジションサイズ統一）
