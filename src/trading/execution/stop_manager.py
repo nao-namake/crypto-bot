@@ -33,6 +33,314 @@ class StopManager:
         """StopManager初期化"""
         self.logger = get_logger()
 
+    # ========================================
+    # Phase 61.9: TP/SL自動執行検知機能
+    # ========================================
+
+    async def detect_auto_executed_orders(
+        self,
+        virtual_positions: List[Dict[str, Any]],
+        actual_positions: List[Dict[str, Any]],
+        bitbank_client: BitbankClient,
+        symbol: str = "BTC/JPY",
+    ) -> List[Dict[str, Any]]:
+        """
+        Phase 61.9: TP/SL自動執行検知
+
+        bitbankがTP/SL注文を自動執行した際に、その約定を検知・記録する。
+
+        処理フロー:
+        1. virtual_positionsと実ポジションを照合し消失検出
+        2. 消失ポジションのtp_order_id/sl_order_idをfetch_order()で確認
+        3. status="closed"ならTP/SL約定と判定
+        4. ログ出力・残注文キャンセル
+
+        Args:
+            virtual_positions: 仮想ポジションリスト
+            actual_positions: 実ポジションリスト（bitbank API取得済み）
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+
+        Returns:
+            検知された自動執行リスト
+        """
+        # 設定取得
+        config = get_threshold("tp_sl_auto_detection", {})
+        if not config.get("enabled", True):
+            return []
+
+        detected_executions = []
+
+        try:
+            # Step 1: 消失ポジション検出
+            disappeared = self._find_disappeared_positions(virtual_positions, actual_positions)
+
+            if not disappeared:
+                self.logger.debug("📊 Phase 61.9: 消失ポジションなし")
+                return []
+
+            self.logger.info(f"🔍 Phase 61.9: 消失ポジション検出 - {len(disappeared)}件")
+
+            # Step 2: 各消失ポジションのTP/SL注文ステータス確認
+            for vpos in disappeared:
+                execution_info = await self._check_tp_sl_execution(vpos, bitbank_client, symbol)
+
+                if execution_info:
+                    detected_executions.append(execution_info)
+
+                    # ログ出力
+                    self._log_auto_execution(execution_info, config)
+
+                    # 残注文キャンセル
+                    await self._cancel_remaining_order(execution_info, bitbank_client, symbol)
+
+            return detected_executions
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
+            return []
+
+    def _find_disappeared_positions(
+        self,
+        virtual_positions: List[Dict[str, Any]],
+        actual_positions: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Phase 61.9: 消失ポジション検出
+
+        virtual_positionsにあるが、actual_positionsにないポジションを検出する。
+
+        Args:
+            virtual_positions: 仮想ポジションリスト
+            actual_positions: 実ポジションリスト
+
+        Returns:
+            消失ポジションリスト
+        """
+        disappeared = []
+
+        for vpos in virtual_positions:
+            # TP/SL注文IDを持つポジションのみ対象
+            if not vpos.get("tp_order_id") and not vpos.get("sl_order_id"):
+                continue
+
+            vside = vpos.get("side", "").lower()
+            vamt = float(vpos.get("amount", 0))
+
+            if vamt <= 0:
+                continue
+
+            # 実ポジションとマッチング
+            matched = False
+            for apos in actual_positions:
+                # actual_positionsはfetch_margin_positions()の結果
+                # side: "long" or "short"
+                apos_side = apos.get("side", "")
+                # long -> buy, short -> sell に変換
+                if apos_side == "long":
+                    aside = "buy"
+                elif apos_side == "short":
+                    aside = "sell"
+                else:
+                    aside = apos_side.lower()
+
+                aamt = float(apos.get("amount", 0))
+
+                # サイドと数量でマッチング（10%許容誤差）
+                if aside == vside and aamt > 0:
+                    if abs(aamt - vamt) / vamt < 0.10:
+                        matched = True
+                        break
+
+            if not matched:
+                disappeared.append(vpos)
+
+        return disappeared
+
+    async def _check_tp_sl_execution(
+        self,
+        vpos: Dict[str, Any],
+        bitbank_client: BitbankClient,
+        symbol: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Phase 61.9: TP/SL注文のステータス確認
+
+        消失ポジションのTP/SL注文を確認し、約定情報を取得する。
+
+        Args:
+            vpos: 消失した仮想ポジション
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+
+        Returns:
+            約定情報（TP/SL約定なしの場合はNone）
+        """
+        tp_order_id = vpos.get("tp_order_id")
+        sl_order_id = vpos.get("sl_order_id")
+        entry_price = float(vpos.get("price", 0))
+        amount = float(vpos.get("amount", 0))
+        side = vpos.get("side", "")
+
+        execution_type = None
+        exit_price = None
+        executed_order_id = None
+        remaining_order_id = None
+
+        # TP注文確認
+        if tp_order_id:
+            try:
+                tp_order = await asyncio.to_thread(bitbank_client.fetch_order, tp_order_id, symbol)
+                if tp_order.get("status") == "closed":
+                    execution_type = "take_profit"
+                    exit_price = float(tp_order.get("average", tp_order.get("price", 0)))
+                    executed_order_id = tp_order_id
+                    remaining_order_id = sl_order_id
+            except Exception as e:
+                self.logger.debug(f"📊 Phase 61.9: TP注文確認エラー（許容）: {e}")
+
+        # SL注文確認（TPが約定していない場合）
+        if not execution_type and sl_order_id:
+            try:
+                sl_order = await asyncio.to_thread(bitbank_client.fetch_order, sl_order_id, symbol)
+                if sl_order.get("status") == "closed":
+                    execution_type = "stop_loss"
+                    exit_price = float(sl_order.get("average", sl_order.get("price", 0)))
+                    executed_order_id = sl_order_id
+                    remaining_order_id = tp_order_id
+            except Exception as e:
+                self.logger.debug(f"📊 Phase 61.9: SL注文確認エラー（許容）: {e}")
+
+        if not execution_type:
+            return None
+
+        # 損益計算
+        pnl = self._calc_pnl(entry_price, exit_price, amount, side)
+
+        return {
+            "execution_type": execution_type,
+            "order_id": vpos.get("order_id"),
+            "tp_order_id": tp_order_id,
+            "sl_order_id": sl_order_id,
+            "executed_order_id": executed_order_id,
+            "remaining_order_id": remaining_order_id,
+            "side": side,
+            "amount": amount,
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "pnl": pnl,
+            "strategy_name": vpos.get("strategy_name", "unknown"),
+            "timestamp": datetime.now(),
+        }
+
+    def _calc_pnl(
+        self,
+        entry_price: float,
+        exit_price: float,
+        amount: float,
+        side: str,
+    ) -> float:
+        """
+        Phase 61.9: 損益計算
+
+        Args:
+            entry_price: エントリー価格
+            exit_price: 決済価格
+            amount: 数量
+            side: エントリーサイド（buy/sell）
+
+        Returns:
+            損益（円）
+        """
+        if entry_price <= 0 or exit_price <= 0 or amount <= 0:
+            return 0.0
+
+        if side.lower() == "buy":
+            # ロング: 価格上昇で利益
+            return (exit_price - entry_price) * amount
+        else:
+            # ショート: 価格下落で利益
+            return (entry_price - exit_price) * amount
+
+    def _log_auto_execution(
+        self,
+        execution_info: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> None:
+        """
+        Phase 61.9: 自動執行のログ出力
+
+        Args:
+            execution_info: 約定情報
+            config: 設定
+        """
+        exec_type = execution_info["execution_type"]
+        side = execution_info["side"]
+        amount = execution_info["amount"]
+        exit_price = execution_info["exit_price"]
+        pnl = execution_info["pnl"]
+        strategy = execution_info["strategy_name"]
+
+        if exec_type == "take_profit":
+            pnl_str = f"利益: +{pnl:.0f}円" if pnl > 0 else f"損益: {pnl:.0f}円"
+            log_msg = (
+                f"🎯 Phase 61.9: TP自動執行検知 - "
+                f"{side.upper()} {amount:.6f} BTC @ {exit_price:.0f}円 "
+                f"({pnl_str}) 戦略: {strategy}"
+            )
+            self.logger.info(log_msg)
+        else:  # stop_loss
+            pnl_str = f"損失: {pnl:.0f}円" if pnl < 0 else f"損益: +{pnl:.0f}円"
+            log_msg = (
+                f"🛑 Phase 61.9: SL自動執行検知 - "
+                f"{side.upper()} {amount:.6f} BTC @ {exit_price:.0f}円 "
+                f"({pnl_str}) 戦略: {strategy}"
+            )
+            self.logger.warning(log_msg)
+
+    async def _cancel_remaining_order(
+        self,
+        execution_info: Dict[str, Any],
+        bitbank_client: BitbankClient,
+        symbol: str,
+    ) -> None:
+        """
+        Phase 61.9: 残注文キャンセル
+
+        TP約定時は残SLをキャンセル、SL約定時は残TPをキャンセル
+
+        Args:
+            execution_info: 約定情報
+            bitbank_client: BitbankClientインスタンス
+            symbol: 通貨ペア
+        """
+        remaining_order_id = execution_info.get("remaining_order_id")
+        if not remaining_order_id:
+            return
+
+        exec_type = execution_info["execution_type"]
+        remaining_type = "SL" if exec_type == "take_profit" else "TP"
+
+        try:
+            await asyncio.to_thread(bitbank_client.cancel_order, remaining_order_id, symbol)
+            self.logger.info(
+                f"✅ Phase 61.9: 残{remaining_type}注文キャンセル成功 - "
+                f"ID: {remaining_order_id}"
+            )
+        except Exception as e:
+            error_str = str(e)
+            # OrderNotFoundは許容（既にキャンセル/約定済み）
+            if "OrderNotFound" in error_str or "not found" in error_str.lower():
+                self.logger.debug(
+                    f"ℹ️ Phase 61.9: 残{remaining_type}注文は既にキャンセル/約定済み - "
+                    f"ID: {remaining_order_id}"
+                )
+            else:
+                self.logger.warning(
+                    f"⚠️ Phase 61.9: 残{remaining_type}注文キャンセル失敗 - "
+                    f"ID: {remaining_order_id}, エラー: {e}"
+                )
+
     async def _wait_for_fill(
         self,
         order_id: str,

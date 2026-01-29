@@ -763,6 +763,7 @@ if strategy_confidence < min_strategy_confidence:
 | **61.6** | **バグ修正（ATR取得・TP注文）** | **エラー0件・TP「利確」表示** | **✅ 完了** |
 | **61.7** | **固定金額TP実装** | **純利益1,000円保証** | **✅ 完了** |
 | **61.8** | **固定金額TPバックテスト対応** | **バックテストで検証可能** | **✅ 完了** |
+| **61.9** | **TP/SL自動執行検知** | **SL約定ログ記録・分析可能化** | **✅ 完了** |
 
 ---
 
@@ -1208,6 +1209,180 @@ if tp_price <= 0:
 - 妥当性チェック追加（price_distance > 10%で%ベースにフォールバック）
 - テスト3件追加
 
+### Phase 61.9: TP/SL自動執行検知
+**結果**: 実装完了
+- bitbankがTP/SL注文を自動執行した際に、botがその約定を検知・記録
+- 消失ポジション検出ロジック（virtual_positions vs 実ポジション照合）
+- TP/SL注文ステータス確認（fetch_order API）
+- ログ出力（TP:🎯、SL:🛑）+ 残注文自動キャンセル
+- テスト14件追加
+
 ---
 
-**最終更新**: 2026年1月29日 - Phase 61.8完了（固定金額TPバックテスト対応）
+## Phase 61.9: TP/SL自動執行検知機能 ✅実装完了
+
+### 実施日
+2026年1月29日
+
+### 目的
+bitbankがTP/SL注文を自動執行した際に、botがその約定を検知・記録する機能を追加。
+
+---
+
+### 背景・問題
+
+| 問題 | 詳細 |
+|------|------|
+| **TP/SL自動執行の見落とし** | bitbankはTP/SL注文を価格到達時に自動執行する |
+| **実行間隔のギャップ** | botは5-7分間隔で実行されるため、執行タイミングを逃す |
+| **現状の限界** | ポジション消滅は検知するが「TP約定かSL約定か」を調査しない |
+| **分析への影響** | SL約定がログに残らず、分析・改善ができない |
+
+---
+
+### 実装内容
+
+#### 1. thresholds.yaml 設定追加
+
+```yaml
+# Phase 61.9: TP/SL自動執行検知設定
+tp_sl_auto_detection:
+  enabled: true                    # 自動執行検知機能ON/OFF
+  log_level: "info"                # ログレベル
+  discord_notify: true             # Discord通知ON/OFF
+```
+
+#### 2. stop_manager.py 新規メソッド追加
+
+| メソッド | 役割 |
+|---------|------|
+| `detect_auto_executed_orders()` | メイン検知ロジック（毎サイクル呼び出し） |
+| `_find_disappeared_positions()` | 消失ポジション検出（サイド・数量マッチング） |
+| `_check_tp_sl_execution()` | TP/SL注文ステータス確認（fetch_order API） |
+| `_calc_pnl()` | 損益計算（BUY/SELLに対応） |
+| `_log_auto_execution()` | ログ出力（🎯TP / 🛑SL） |
+| `_cancel_remaining_order()` | 残注文キャンセル（TP約定時は残SL、SL約定時は残TP） |
+
+#### 3. executor.py 統合
+
+`check_stop_conditions()`メソッドの先頭で自動執行検知を呼び出し：
+- ライブモードのみ
+- 消失ポジション検出後、virtual_positionsから自動削除
+
+#### 4. tracker.py ヘルパーメソッド追加
+
+| メソッド | 役割 |
+|---------|------|
+| `find_position_by_tp_order_id()` | TP注文IDでポジション検索 |
+| `find_position_by_sl_order_id()` | SL注文IDでポジション検索 |
+| `remove_position_by_tp_or_sl_order_id()` | TP/SL注文IDでポジション削除 |
+
+---
+
+### 処理フロー
+
+```
+毎サイクル開始時（check_stop_conditions先頭、ライブモードのみ）
+  ↓
+fetch_margin_positions()で実ポジション取得
+  ↓
+virtual_positionsと実ポジションを照合
+  ↓
+消失ポジション検出（サイド・数量でマッチング、10%許容誤差）
+  ↓
+tp_order_id/sl_order_idのステータス確認（fetch_order）
+  ↓
+status="closed"の注文を特定 → TP約定 or SL約定を判定
+  ↓
+ログ出力：
+  - TP: 🎯 Phase 61.9: TP自動執行検知 - BUY 0.001 BTC @ 14,300,000円 (利益: +300円)
+  - SL: 🛑 Phase 61.9: SL自動執行検知 - BUY 0.001 BTC @ 13,700,000円 (損失: -300円)
+  ↓
+残注文キャンセル + virtual_positions削除
+```
+
+---
+
+### API呼び出し最適化
+
+| 状況 | 追加API呼び出し |
+|------|----------------|
+| 消失なし | 0回 |
+| 消失1件 | 最大2回（tp_order + sl_order確認） |
+
+※ `fetch_margin_positions()`は既存処理で呼び出し済みを再利用（可能な場合）
+
+---
+
+### ログ出力例
+
+```
+# TP自動執行
+🎯 Phase 61.9: TP自動執行検知 - BUY 0.001000 BTC @ 14300000円 (利益: +300円) 戦略: BBReversal
+✅ Phase 61.9: 残SL注文キャンセル成功 - ID: sl_001
+🗑️ Phase 61.9: 自動執行ポジション削除 - order_id=entry_001
+
+# SL自動執行
+🛑 Phase 61.9: SL自動執行検知 - BUY 0.001000 BTC @ 13700000円 (損失: -300円) 戦略: ATRBased
+✅ Phase 61.9: 残TP注文キャンセル成功 - ID: tp_002
+🗑️ Phase 61.9: 自動執行ポジション削除 - order_id=entry_002
+```
+
+---
+
+### テスト追加
+
+`tests/unit/trading/execution/test_stop_manager.py`に14テスト追加：
+
+| テストクラス | テスト名 | 内容 |
+|-------------|---------|------|
+| TestPhase619AutoExecutionDetection | test_detect_tp_auto_execution | TP自動執行検知（買いポジション） |
+| | test_detect_sl_auto_execution | SL自動執行検知（買いポジション） |
+| | test_no_disappeared_positions | 消失なし時は何もしない |
+| | test_api_error_handling | APIエラー時も処理継続 |
+| | test_disabled_feature | 機能無効時はスキップ |
+| | test_sell_position_tp_execution | 売りポジションのTP自動執行検知 |
+| | test_calc_pnl_buy_profit | 損益計算（買い利益） |
+| | test_calc_pnl_buy_loss | 損益計算（買い損失） |
+| | test_calc_pnl_sell_profit | 損益計算（売り利益） |
+| | test_calc_pnl_sell_loss | 損益計算（売り損失） |
+| | test_find_disappeared_positions_matching | 消失検出（マッチあり） |
+| | test_find_disappeared_positions_not_matching | 消失検出（マッチなし） |
+| | test_find_disappeared_positions_amount_tolerance | 消失検出（数量許容誤差） |
+| | test_find_disappeared_positions_no_tp_sl_orders | TP/SL注文IDなしは対象外 |
+
+---
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | `tp_sl_auto_detection`設定追加 |
+| `src/trading/execution/stop_manager.py` | 6メソッド追加（自動執行検知機能） |
+| `src/trading/execution/executor.py` | `check_stop_conditions()`に自動執行検知呼び出し追加 |
+| `src/trading/position/tracker.py` | 3ヘルパーメソッド追加 |
+| `tests/unit/trading/execution/test_stop_manager.py` | 14テスト追加 |
+
+---
+
+### 検証結果
+
+| チェック | 結果 |
+|---------|------|
+| 品質チェック | ✅ PASS（flake8/black/isort/pytest） |
+| テスト | ✅ 1264件パス |
+| カバレッジ | ✅ 63.37%（62%基準クリア） |
+
+---
+
+### 期待効果
+
+| 指標 | 修正前 | 修正後 |
+|------|--------|--------|
+| SL約定ログ | ❌ 記録なし | **✅ 詳細ログ記録** |
+| TP/SL到達率統計 | 不正確 | **正確** |
+| ポジション消滅理由 | 不明 | **追跡可能** |
+
+---
+
+**最終更新**: 2026年1月29日 - Phase 61.9完了（TP/SL自動執行検知機能）

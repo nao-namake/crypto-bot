@@ -1411,3 +1411,378 @@ class TestPhase596SLStopLimit:
         # stopの場合はlimit_priceはNone
         assert call_kwargs["order_type"] == "stop"
         assert call_kwargs["limit_price"] is None
+
+
+# ========================================
+# Phase 61.9: TP/SL自動執行検知テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPhase619AutoExecutionDetection:
+    """Phase 61.9: TP/SL自動執行検知テスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        """StopManagerインスタンス"""
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientのモック"""
+        client = MagicMock()
+        client.fetch_order = MagicMock()
+        client.cancel_order = MagicMock(return_value={"success": True})
+        return client
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_detect_tp_auto_execution(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 61.9: TP自動執行検知テスト"""
+        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # 仮想ポジション（買いポジション・TP/SL注文ID付き）
+        virtual_positions = [
+            {
+                "order_id": "entry_001",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_001",
+                "sl_order_id": "sl_001",
+                "strategy_name": "BBReversal",
+            }
+        ]
+
+        # 実ポジション（空 = ポジション決済済み）
+        actual_positions = []
+
+        # TP注文が約定済み（status="closed"）
+        mock_bitbank_client.fetch_order = MagicMock(
+            side_effect=lambda order_id, symbol: (
+                {
+                    "status": "closed",
+                    "average": 14300000.0,
+                    "price": 14300000.0,
+                }
+                if order_id == "tp_001"
+                else {"status": "open", "price": 13700000.0}
+            )
+        )
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # TP自動執行が検知される
+        assert len(result) == 1
+        assert result[0]["execution_type"] == "take_profit"
+        assert result[0]["order_id"] == "entry_001"
+        assert result[0]["exit_price"] == 14300000.0
+        assert result[0]["pnl"] == 300.0  # (14300000 - 14000000) * 0.001
+
+        # 残SL注文がキャンセルされる
+        mock_bitbank_client.cancel_order.assert_called_once_with("sl_001", "BTC/JPY")
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_detect_sl_auto_execution(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 61.9: SL自動執行検知テスト"""
+        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # 仮想ポジション（買いポジション・TP/SL注文ID付き）
+        virtual_positions = [
+            {
+                "order_id": "entry_002",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_002",
+                "sl_order_id": "sl_002",
+                "strategy_name": "ATRBased",
+            }
+        ]
+
+        # 実ポジション（空 = ポジション決済済み）
+        actual_positions = []
+
+        # TP注文は未約定、SL注文が約定済み
+        def mock_fetch_order(order_id, symbol):
+            if order_id == "tp_002":
+                return {"status": "open", "price": 14300000.0}
+            elif order_id == "sl_002":
+                return {"status": "closed", "average": 13700000.0, "price": 13700000.0}
+            return {}
+
+        mock_bitbank_client.fetch_order = MagicMock(side_effect=mock_fetch_order)
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # SL自動執行が検知される
+        assert len(result) == 1
+        assert result[0]["execution_type"] == "stop_loss"
+        assert result[0]["order_id"] == "entry_002"
+        assert result[0]["exit_price"] == 13700000.0
+        assert result[0]["pnl"] == -300.0  # (13700000 - 14000000) * 0.001
+
+        # 残TP注文がキャンセルされる
+        mock_bitbank_client.cancel_order.assert_called_once_with("tp_002", "BTC/JPY")
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_no_disappeared_positions(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 61.9: 消失なし時は何もしない"""
+        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # 仮想ポジション
+        virtual_positions = [
+            {
+                "order_id": "entry_003",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_003",
+                "sl_order_id": "sl_003",
+            }
+        ]
+
+        # 実ポジション（同じポジションが存在）
+        actual_positions = [
+            {
+                "side": "long",  # buy -> long
+                "amount": 0.001,
+                "average_price": 14000000.0,
+            }
+        ]
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # 消失なしのため空リスト
+        assert len(result) == 0
+        mock_bitbank_client.fetch_order.assert_not_called()
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_api_error_handling(self, mock_threshold, stop_manager, mock_bitbank_client):
+        """Phase 61.9: APIエラー時も処理継続"""
+        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # 仮想ポジション
+        virtual_positions = [
+            {
+                "order_id": "entry_004",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_004",
+                "sl_order_id": "sl_004",
+            }
+        ]
+
+        # 実ポジション（空 = ポジション決済済み）
+        actual_positions = []
+
+        # APIエラー
+        mock_bitbank_client.fetch_order = MagicMock(side_effect=Exception("API Error"))
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # エラー時は空リスト（処理継続）
+        assert len(result) == 0
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_disabled_feature(self, mock_threshold, stop_manager, mock_bitbank_client):
+        """Phase 61.9: 機能無効時はスキップ"""
+        mock_threshold.return_value = {"enabled": False}
+
+        virtual_positions = [
+            {
+                "order_id": "entry_005",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_005",
+                "sl_order_id": "sl_005",
+            }
+        ]
+        actual_positions = []
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # 機能無効時は空リスト
+        assert len(result) == 0
+        mock_bitbank_client.fetch_order.assert_not_called()
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sell_position_tp_execution(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 61.9: 売りポジションのTP自動執行検知"""
+        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # 仮想ポジション（売りポジション）
+        virtual_positions = [
+            {
+                "order_id": "entry_006",
+                "side": "sell",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_006",
+                "sl_order_id": "sl_006",
+                "strategy_name": "MACDEMACrossover",
+            }
+        ]
+
+        # 実ポジション（空）
+        actual_positions = []
+
+        # TP注文が約定済み（売りポジションのTPは価格下落で約定）
+        mock_bitbank_client.fetch_order = MagicMock(
+            return_value={"status": "closed", "average": 13700000.0, "price": 13700000.0}
+        )
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # TP自動執行が検知される
+        assert len(result) == 1
+        assert result[0]["execution_type"] == "take_profit"
+        assert result[0]["pnl"] == 300.0  # (14000000 - 13700000) * 0.001 = 利益
+
+    def test_calc_pnl_buy_profit(self, stop_manager):
+        """Phase 61.9: 損益計算 - 買いポジション利益"""
+        pnl = stop_manager._calc_pnl(
+            entry_price=14000000.0,
+            exit_price=14300000.0,
+            amount=0.001,
+            side="buy",
+        )
+        assert pnl == 300.0
+
+    def test_calc_pnl_buy_loss(self, stop_manager):
+        """Phase 61.9: 損益計算 - 買いポジション損失"""
+        pnl = stop_manager._calc_pnl(
+            entry_price=14000000.0,
+            exit_price=13700000.0,
+            amount=0.001,
+            side="buy",
+        )
+        assert pnl == -300.0
+
+    def test_calc_pnl_sell_profit(self, stop_manager):
+        """Phase 61.9: 損益計算 - 売りポジション利益"""
+        pnl = stop_manager._calc_pnl(
+            entry_price=14000000.0,
+            exit_price=13700000.0,
+            amount=0.001,
+            side="sell",
+        )
+        assert pnl == 300.0
+
+    def test_calc_pnl_sell_loss(self, stop_manager):
+        """Phase 61.9: 損益計算 - 売りポジション損失"""
+        pnl = stop_manager._calc_pnl(
+            entry_price=14000000.0,
+            exit_price=14300000.0,
+            amount=0.001,
+            side="sell",
+        )
+        assert pnl == -300.0
+
+    def test_find_disappeared_positions_matching(self, stop_manager):
+        """Phase 61.9: 消失ポジション検出 - マッチング"""
+        virtual_positions = [
+            {
+                "order_id": "entry_007",
+                "side": "buy",
+                "amount": 0.001,
+                "tp_order_id": "tp_007",
+                "sl_order_id": "sl_007",
+            }
+        ]
+        actual_positions = [{"side": "long", "amount": 0.001}]  # マッチ
+
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
+
+        assert len(disappeared) == 0
+
+    def test_find_disappeared_positions_not_matching(self, stop_manager):
+        """Phase 61.9: 消失ポジション検出 - マッチなし"""
+        virtual_positions = [
+            {
+                "order_id": "entry_008",
+                "side": "buy",
+                "amount": 0.001,
+                "tp_order_id": "tp_008",
+                "sl_order_id": "sl_008",
+            }
+        ]
+        actual_positions = []  # 実ポジションなし
+
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
+
+        assert len(disappeared) == 1
+        assert disappeared[0]["order_id"] == "entry_008"
+
+    def test_find_disappeared_positions_amount_tolerance(self, stop_manager):
+        """Phase 61.9: 消失ポジション検出 - 数量許容誤差"""
+        virtual_positions = [
+            {
+                "order_id": "entry_009",
+                "side": "buy",
+                "amount": 0.001,
+                "tp_order_id": "tp_009",
+                "sl_order_id": "sl_009",
+            }
+        ]
+        actual_positions = [{"side": "long", "amount": 0.00105}]  # 5%誤差（10%以内なのでマッチ）
+
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
+
+        assert len(disappeared) == 0  # 許容誤差内なのでマッチ
+
+    def test_find_disappeared_positions_no_tp_sl_orders(self, stop_manager):
+        """Phase 61.9: TP/SL注文IDなしのポジションは対象外"""
+        virtual_positions = [
+            {
+                "order_id": "entry_010",
+                "side": "buy",
+                "amount": 0.001,
+                # tp_order_id, sl_order_idなし
+            }
+        ]
+        actual_positions = []
+
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
+
+        # TP/SL注文IDがないので対象外
+        assert len(disappeared) == 0

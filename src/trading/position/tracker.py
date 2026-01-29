@@ -399,6 +399,61 @@ class PositionTracker:
         return self._average_entry_price
 
     # ========================================
+    # Phase 61.9: TP/SL自動執行検知用ヘルパー
+    # ========================================
+
+    def find_position_by_tp_order_id(self, tp_order_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Phase 61.9: TP注文IDでポジションを検索
+
+        Args:
+            tp_order_id: TP注文ID
+
+        Returns:
+            ポジション情報（存在しない場合はNone）
+        """
+        for position in self.virtual_positions:
+            if position.get("tp_order_id") == tp_order_id:
+                return position
+        return None
+
+    def find_position_by_sl_order_id(self, sl_order_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Phase 61.9: SL注文IDでポジションを検索
+
+        Args:
+            sl_order_id: SL注文ID
+
+        Returns:
+            ポジション情報（存在しない場合はNone）
+        """
+        for position in self.virtual_positions:
+            if position.get("sl_order_id") == sl_order_id:
+                return position
+        return None
+
+    def remove_position_by_tp_or_sl_order_id(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Phase 61.9: TP注文IDまたはSL注文IDでポジション削除
+
+        Args:
+            order_id: TP注文IDまたはSL注文ID
+
+        Returns:
+            削除されたポジション情報（存在しない場合はNone）
+        """
+        for position in self.virtual_positions:
+            if position.get("tp_order_id") == order_id or position.get("sl_order_id") == order_id:
+                self.virtual_positions.remove(position)
+                self.logger.info(
+                    f"🗑️ Phase 61.9: ポジション削除（TP/SL約定）- order_id={position.get('order_id')}"
+                )
+                return position
+
+        self.logger.warning(f"⚠️ Phase 61.9: ポジション未検出 - tp_or_sl_order_id={order_id}")
+        return None
+
+    # ========================================
     # Phase 46: 個別TP/SL実装（デイトレード特化）
     # ========================================
     # デイトレード特化設計では個別TP/SL配置を採用

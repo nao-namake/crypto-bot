@@ -1017,7 +1017,9 @@ class LiveAnalyzer:
 
             # Phase 61.8: take_profit/stop_lossタイプに対応（Phase 61.3で追加されたタイプ）
             tp_orders = [o for o in active_orders if o.get("type") in ["limit", "take_profit"]]
-            sl_orders = [o for o in active_orders if o.get("type") in ["stop", "stop_limit", "stop_loss"]]
+            sl_orders = [
+                o for o in active_orders if o.get("type") in ["stop", "stop_limit", "stop_loss"]
+            ]
 
             # TP距離計算
             # Phase 61.8: take_profit注文はtrigger_priceを使用

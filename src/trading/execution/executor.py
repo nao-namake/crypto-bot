@@ -1219,10 +1219,37 @@ class ExecutionService:
     async def check_stop_conditions(self) -> Optional[ExecutionResult]:
         """
         ストップ条件チェック（StopManagerに委譲）
+        Phase 61.9: TP/SL自動執行検知を追加
 
         Returns:
             ExecutionResult: ストップ実行結果（実行しない場合はNone）
         """
+        # Phase 61.9: 自動執行検知（毎サイクル先頭、ライブモードのみ）
+        if self.mode == "live" and self.bitbank_client and self.stop_manager:
+            try:
+                actual_positions = await asyncio.to_thread(
+                    self.bitbank_client.fetch_margin_positions, "BTC/JPY"
+                )
+                detected = await self.stop_manager.detect_auto_executed_orders(
+                    virtual_positions=self.virtual_positions,
+                    actual_positions=actual_positions,
+                    bitbank_client=self.bitbank_client,
+                )
+                # 検知されたポジションをvirtual_positionsから削除
+                if detected:
+                    for exec_info in detected:
+                        order_id = exec_info.get("order_id")
+                        if order_id:
+                            # order_idでポジション削除
+                            self.virtual_positions = [
+                                p for p in self.virtual_positions if p.get("order_id") != order_id
+                            ]
+                            self.logger.info(
+                                f"🗑️ Phase 61.9: 自動執行ポジション削除 - order_id={order_id}"
+                            )
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
+
         if self.stop_manager:
             return await self.stop_manager.check_stop_conditions(
                 self.virtual_positions,
