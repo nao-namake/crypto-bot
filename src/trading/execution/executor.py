@@ -1245,6 +1245,31 @@ class ExecutionService:
                             self.logger.info(
                                 f"🗑️ Phase 61.9: 自動執行ポジション削除 - order_id={order_id}"
                             )
+
+                            # Phase 61.12: 取引履歴にexit記録を追加
+                            if self.trade_recorder:
+                                try:
+                                    exec_type = exec_info.get("execution_type", "exit")
+                                    # trade_type変換: take_profit→tp, stop_loss→sl
+                                    trade_type = "tp" if exec_type == "take_profit" else "sl"
+                                    exit_side = exec_info.get("side", "unknown")
+                                    # 決済は反対売買なので反転
+                                    record_side = "sell" if exit_side == "buy" else "buy"
+
+                                    self.trade_recorder.record_trade(
+                                        trade_type=trade_type,
+                                        side=record_side,
+                                        amount=exec_info.get("amount", 0),
+                                        price=exec_info.get("exit_price", 0),
+                                        pnl=exec_info.get("pnl", 0),
+                                        order_id=order_id,
+                                        notes=f"Phase 61.12: {exec_type} - {exec_info.get('strategy_name', 'unknown')}",
+                                    )
+                                    self.logger.info(
+                                        f"📝 Phase 61.12: exit記録追加 - type={trade_type}, pnl={exec_info.get('pnl', 0):.0f}円"
+                                    )
+                                except Exception as e:
+                                    self.logger.warning(f"⚠️ Phase 61.12: exit記録失敗: {e}")
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
 

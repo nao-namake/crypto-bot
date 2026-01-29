@@ -34,6 +34,7 @@ Phase 60.7完了時点で総損益¥86,639（PF 1.58）を達成したが、以�
 | **61.9** | TP/SL自動執行検知 | ✅ SL約定ログ記録・分析可能化 |
 | **61.10** | ポジションサイズ統一 | ✅ バックテスト・ライブ互換Dynamic Sizing |
 | **61.11** | ライブモード診断バグ修正 | ✅ RuntimeWarning修正・Kelly検索・勝率N/A対応 |
+| **61.12** | 取引履歴exit記録追加 | ✅ TP/SL自動執行時にpnl記録・勝率計算可能化 |
 | ~~61.3旧~~ | ~~ADXTrendStrength評価~~ | ❌ 中止（trending 0.6%で評価対象外） |
 | ~~61.4旧~~ | ~~MACDEMACrossover改善~~ | ❌ 中止（trending未発生） |
 
@@ -431,6 +432,61 @@ GCPログカウント機能をLiveAnalyzerクラスに追加（BotFunctionChecke
 
 ---
 
+## Phase 61.12: 取引履歴exit記録追加 ✅完了
+
+### 実施日: 2026年1月30日
+
+### 問題
+- 取引履歴DBに1,463件のentry記録があるが、pnlが全てNULL
+- 決済時に`record_trade()`が呼ばれていない
+- ライブモード診断で勝率・損益が計算できない
+
+### 原因分析（bitbank取引履歴CSV）
+| 期間 | 取引数 | 勝率 | 総損益 |
+|------|--------|------|--------|
+| Phase 60.7 (1/12-1/23) | 48件 | 64.6% | +¥7,400 |
+| Phase 61.1-61.5 (1/24-1/27) | 14件 | 35.7% | +¥3,342 |
+| Phase 61.6-61.10 (1/28-1/29) | 3件 | 33.3% | -¥1,582 |
+
+### 実装内容
+`executor.py`の`_check_stop_conditions()`メソッドに、Phase 61.9の自動執行検知後にexit記録を追加。
+
+```python
+# Phase 61.12: 取引履歴にexit記録を追加
+if self.trade_recorder:
+    trade_type = "tp" if exec_type == "take_profit" else "sl"
+    self.trade_recorder.record_trade(
+        trade_type=trade_type,
+        side=record_side,
+        amount=exec_info.get("amount", 0),
+        price=exec_info.get("exit_price", 0),
+        pnl=exec_info.get("pnl", 0),
+        order_id=order_id,
+        notes=f"Phase 61.12: {exec_type} - {strategy_name}",
+    )
+```
+
+### 記録される情報
+| フィールド | 値 |
+|-----------|-----|
+| trade_type | "tp" or "sl" |
+| side | 決済方向（エントリーの反対） |
+| amount | 決済数量 |
+| price | 決済価格 |
+| pnl | 損益（円） |
+| order_id | 注文ID |
+| notes | Phase 61.12: {execution_type} - {strategy_name} |
+
+### 期待効果
+- ライブモード診断で正確な勝率・損益が計算可能
+- TP/SL発動履歴の追跡が可能
+
+| ファイル | 変更 |
+|---------|------|
+| executor.py | 自動執行検知後にrecord_trade()追加 |
+
+---
+
 ## 技術的成果
 
 ### get_threshold()パターン導入（Phase 61.1から継続）
@@ -458,6 +514,7 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 | **61.9** | 自動執行検知 | SL約定記録 | **✅ 完了** |
 | **61.10** | サイズ統一 | バックテスト互換 | **✅ 完了** |
 | **61.11** | 診断バグ修正 | RuntimeWarning解消 | **✅ 完了** |
+| **61.12** | exit記録追加 | 勝率計算可能化 | **✅ 完了** |
 
 ---
 
@@ -483,13 +540,14 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 - 戦略信頼度0.25未満を強制HOLD
 - ML高信頼度閾値0.55に引き下げ
 
-### Phase 61.6-61.11: 実装完了
+### Phase 61.6-61.12: 実装完了
 - 61.6: ATR取得エラー解消、TP「利確」表示
 - 61.7: 固定金額TP（純利益1,000円保証）
 - 61.8: バックテストでの固定金額TP検証
 - 61.9: TP/SL自動執行検知・ログ記録
 - 61.10: ポジションサイズ統一（バグ修正含む）
 - 61.11: ライブモード診断バグ修正（RuntimeWarning・Kelly検索・勝率N/A）
+- 61.12: 取引履歴exit記録追加（勝率計算可能化）
 
 ---
 
@@ -509,7 +567,9 @@ MarketRegimeClassifierに設定ファイル参照パターンを導入：
 | `440dbd2a` | docs: Phase 61.10 開発履歴追加 |
 | `dfe74a48` | feat: Phase 61.10 バックテスト・ライブモード ポジションサイズ統一 |
 | `edd102e8` | fix: Phase 61.11 ライブモード診断バグ修正 |
+| `3bc1df27` | docs: Phase 61.11 開発履歴追加 |
+| `xxxxxxxx` | feat: Phase 61.12 取引履歴exit記録追加 |
 
 ---
 
-**最終更新**: 2026年1月30日 - Phase 61.11完了
+**最終更新**: 2026年1月30日 - Phase 61.12完了
