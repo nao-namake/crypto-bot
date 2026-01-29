@@ -870,15 +870,16 @@ class SignalBuilder:
             # 信頼度別比率（Phase 60.1設定と同一）
             dps_config = get_threshold("position_management.dynamic_position_sizing", {})
 
+            # 設定値は比率（0.45 = 45%）として既に定義されている（PositionSizeIntegratorと同一）
             if confidence < 0.50:
-                min_ratio = dps_config.get("low_confidence", {}).get("min_ratio", 0.30) / 100
-                max_ratio = dps_config.get("low_confidence", {}).get("max_ratio", 0.60) / 100
+                min_ratio = dps_config.get("low_confidence", {}).get("min_ratio", 0.30)
+                max_ratio = dps_config.get("low_confidence", {}).get("max_ratio", 0.60)
             elif confidence < 0.65:
-                min_ratio = dps_config.get("medium_confidence", {}).get("min_ratio", 0.45) / 100
-                max_ratio = dps_config.get("medium_confidence", {}).get("max_ratio", 0.75) / 100
+                min_ratio = dps_config.get("medium_confidence", {}).get("min_ratio", 0.45)
+                max_ratio = dps_config.get("medium_confidence", {}).get("max_ratio", 0.75)
             else:
-                min_ratio = dps_config.get("high_confidence", {}).get("min_ratio", 0.60) / 100
-                max_ratio = dps_config.get("high_confidence", {}).get("max_ratio", 1.05) / 100
+                min_ratio = dps_config.get("high_confidence", {}).get("min_ratio", 0.60)
+                max_ratio = dps_config.get("high_confidence", {}).get("max_ratio", 1.05)
 
             # 信頼度による線形補間
             if confidence < 0.50:

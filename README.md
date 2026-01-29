@@ -4,7 +4,7 @@
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-63%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2061.7-Complete-blue)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2061.10-Complete-blue)](docs/)
 
 ---
 
@@ -227,6 +227,9 @@ config/core/
 | **61.5** | **低信頼度エントリー対策** | **✅ PF 1.58→1.78、損益¥100,629（+16%）** |
 | **61.6** | **バグ修正（ATR取得・TP注文タイプ）** | **✅ エラー解消・TP「利確」表示対応** |
 | **61.7** | **固定金額TP実装** | **✅ 純利益1,000円保証・手数料考慮計算** |
+| **61.8** | **固定金額TPバックテスト対応** | **✅ SignalBuilderにposition_amount連携** |
+| **61.9** | **TP/SL自動執行検知** | **✅ SL約定ログ記録・分析可能化** |
+| **61.10** | **ポジションサイズ統一** | **✅ バックテスト・ライブ互換Dynamic Sizing** |
 
 ### Phase 60（完了）: 実効レバレッジ最適化・MLモデル差別化
 
@@ -275,4 +278,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年1月28日 - **Phase 61.7完了**（固定金額TP実装・純利益1,000円保証）
+**最終更新**: 2026年1月29日 - **Phase 61.10完了**（バックテスト・ライブ ポジションサイズ統一）

@@ -33,6 +33,7 @@
 | **61.7** | **固定金額TP実装** | **✅ 純利益1,000円保証・手数料考慮計算** |
 | **61.8** | **固定金額TPバックテスト対応** | **✅ SignalBuilderにposition_amount連携** |
 | **61.9** | **TP/SL自動執行検知** | **✅ SL約定ログ記録・分析可能化** |
+| **61.10** | **ポジションサイズ統一** | **✅ バックテスト・ライブ互換Dynamic Sizing** |
 | ~~61.3旧~~ | ~~ADXTrendStrength評価~~ | ❌ 中止（trending 0.6%で評価対象外） |
 | ~~61.4旧~~ | ~~MACDEMACrossover改善~~ | ❌ 中止（trending未発生） |
 
@@ -233,7 +234,8 @@ python3 scripts/backtest/standard_analysis.py results/backtest_result.json
 python3 scripts/backtest/standard_analysis.py --from-ci --phase 57.13
 ```
 
-**84固定指標**: 基本指標(10) + 戦略別(36) + ML予測別(9) + 一致率(4) + レジーム別(12) + 時系列(6) + 改善示唆(8)
+**85固定指標**: 基本指標(11) + 戦略別(36) + ML予測別(9) + 一致率(4) + レジーム別(12) + 時系列(6) + 改善示唆(8)
+- Phase 61.10: 平均ポジションサイズ追加（異常検知付き）
 
 ### 戦略分析
 
@@ -415,7 +417,7 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 | Phase_58.md | TP/SL管理・ポジション同期修正 |
 | Phase_59.md | ML最適化・Stacking検証 |
 | Phase_60.md | 実効レバレッジ最適化・MLモデル差別化 |
-| **Phase_61.md** | **低信頼度対策・固定金額TP（61.1-61.7完了）** |
+| **Phase_61.md** | **低信頼度対策・固定金額TP・ポジションサイズ統一（61.1-61.10完了）** |
 
 ### docs/開発計画/
 
@@ -472,4 +474,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年1月28日 - **Phase 61.7完了**（固定金額TP実装・純利益1,000円保証）
+**📅 最終更新**: 2026年1月29日 - **Phase 61.10完了**（バックテスト・ライブ ポジションサイズ統一）

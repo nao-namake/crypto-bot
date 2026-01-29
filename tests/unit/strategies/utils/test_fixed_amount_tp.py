@@ -422,12 +422,11 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # low_confidence: min_ratio=0.30%, max_ratio=0.60%
+        # low_confidence: min_ratio=0.30 (30%), max_ratio=0.60 (60%)
         # 0.40 confidence → normalized = (0.40 - 0.35) / 0.15 = 0.333
-        # position_ratio = 0.003 + (0.006 - 0.003) * 0.333 ≈ 0.004
-        # size = 500000 * 0.004 / 15000000 ≈ 0.000133 BTC
-        # min_size=0.0001なので最低保証
-        assert 0.0001 <= size <= 0.003
+        # position_ratio = 0.30 + (0.60 - 0.30) * 0.333 ≈ 0.40 (40%)
+        # size = 500000 * 0.40 / 15000000 ≈ 0.0133 BTC
+        assert 0.005 <= size <= 0.03
 
     def test_medium_confidence_sizing(self):
         """中信頼度（50-65%）でのポジションサイズ"""
@@ -437,11 +436,11 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # medium_confidence: min_ratio=0.45%, max_ratio=0.75%
+        # medium_confidence: min_ratio=0.45 (45%), max_ratio=0.75 (75%)
         # 0.60 confidence → normalized = (0.60 - 0.50) / 0.15 = 0.667
-        # position_ratio = 0.0045 + (0.0075 - 0.0045) * 0.667 ≈ 0.0065
-        # size = 500000 * 0.0065 / 15000000 ≈ 0.000217 BTC
-        assert 0.0001 <= size <= 0.003
+        # position_ratio = 0.45 + (0.75 - 0.45) * 0.667 ≈ 0.65 (65%)
+        # size = 500000 * 0.65 / 15000000 ≈ 0.0217 BTC
+        assert 0.015 <= size <= 0.03
 
     def test_high_confidence_sizing(self):
         """高信頼度（>65%）でのポジションサイズ"""
@@ -451,11 +450,11 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # high_confidence: min_ratio=0.60%, max_ratio=1.05%
+        # high_confidence: min_ratio=0.60 (60%), max_ratio=1.05 (105%)
         # 0.80 confidence → normalized = (0.80 - 0.65) / 0.35 = 0.429
-        # position_ratio = 0.006 + (0.0105 - 0.006) * 0.429 ≈ 0.00793
-        # size = 500000 * 0.00793 / 15000000 ≈ 0.000264 BTC
-        assert 0.0001 <= size <= 0.004
+        # position_ratio = 0.60 + (1.05 - 0.60) * 0.429 ≈ 0.793 (79.3%)
+        # size = 500000 * 0.793 / 15000000 ≈ 0.0264 BTC
+        assert 0.02 <= size <= 0.04
 
     def test_max_size_limit(self):
         """最大サイズ制限が適用される"""

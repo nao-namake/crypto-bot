@@ -7,7 +7,7 @@
   ブレのない比較を実現。
 
 機能:
-  - 84項目の固定指標計算
+  - 85項目の固定指標計算（Phase 61.10: 平均ポジションサイズ追加）
   - JSON/Markdown/CSV出力
   - 履歴CSV追記（変更前後比較用）
   - 改善提案自動生成
@@ -51,7 +51,7 @@ class AnalysisResult:
     backtest_start: str = ""
     backtest_end: str = ""
 
-    # 基本指標（10項目）
+    # 基本指標（11項目）
     total_trades: int = 0
     win_rate: float = 0.0
     total_pnl: float = 0.0
@@ -62,6 +62,7 @@ class AnalysisResult:
     expectancy: float = 0.0
     payoff_ratio: float = 0.0
     recovery_factor: float = 0.0
+    avg_position_size: float = 0.0  # Phase 61.10: 平均ポジションサイズ（BTC）
 
     # 戦略別指標（6戦略）
     strategy_stats: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -189,6 +190,18 @@ class StandardAnalyzer:
         # max_consecutive_wins/losses
         self.result.max_consecutive_wins = perf.get("max_consecutive_wins", 0)
         self.result.max_consecutive_losses = perf.get("max_consecutive_losses", 0)
+
+        # Phase 61.10: 平均ポジションサイズ計算
+        # position_size または amount フィールドを使用
+        position_sizes = []
+        for t in self.trades:
+            size = t.get("position_size") or t.get("amount") or 0
+            if size > 0:
+                position_sizes.append(size)
+        if position_sizes:
+            self.result.avg_position_size = sum(position_sizes) / len(position_sizes)
+        else:
+            self.result.avg_position_size = 0.0
 
     def _calc_strategy_stats(self):
         """戦略別指標計算"""
@@ -380,6 +393,9 @@ class ReportGenerator:
         print(f"  SR: {r.sharpe_ratio:.2f}")
         print(f"  最大DD: ¥{r.max_drawdown:,.0f} ({r.max_drawdown_pct:.2f}%)")
         print(f"  期待値: ¥{r.expectancy:+,.0f}")
+        # Phase 61.10: 平均ポジションサイズ（異常検知付き）
+        pos_size_warning = " ⚠️ 異常に小さい" if r.avg_position_size < 0.001 else ""
+        print(f"  平均ポジションサイズ: {r.avg_position_size:.6f} BTC{pos_size_warning}")
 
         print("\n【戦略別パフォーマンス】")
         for strategy, stats in r.strategy_stats.items():
@@ -461,6 +477,13 @@ class ReportGenerator:
                 f"4. tight_rangeの寄与度が{r.tight_range_contribution:.0f}%" f" → 損失をカバー"
             )
 
+        # Phase 61.10: ポジションサイズ異常検知
+        if r.avg_position_size > 0 and r.avg_position_size < 0.001:
+            suggestions.append(
+                f"5. ⚠️ 平均ポジションサイズが異常に小さい: {r.avg_position_size:.6f} BTC"
+                f" → Dynamic Position Sizing設定を確認"
+            )
+
         if not suggestions:
             suggestions.append("特に重大な問題は検出されませんでした。")
 
@@ -511,6 +534,7 @@ class ReportGenerator:
             f"| 期待値 | ¥{r.expectancy:+,.0f} |",
             f"| ペイオフレシオ | {r.payoff_ratio:.2f} |",
             f"| リカバリーファクター | {r.recovery_factor:.2f} |",
+            f"| 平均ポジションサイズ | {r.avg_position_size:.6f} BTC |",
             f"",
             f"---",
             f"",
@@ -619,6 +643,7 @@ class ReportGenerator:
             "expectancy",
             "payoff_ratio",
             "recovery_factor",
+            "avg_position_size",
             "best_strategy",
             "best_strategy_pnl",
             "worst_strategy",
@@ -669,6 +694,7 @@ class ReportGenerator:
             f"{r.expectancy:.0f}",
             f"{r.payoff_ratio:.2f}",
             f"{r.recovery_factor:.2f}",
+            f"{r.avg_position_size:.6f}",
             r.best_strategy,
             f"{r.best_strategy_pnl:.0f}",
             r.worst_strategy,
@@ -738,6 +764,7 @@ class ReportGenerator:
                 "expectancy": r.expectancy,
                 "payoff_ratio": r.payoff_ratio,
                 "recovery_factor": r.recovery_factor,
+                "avg_position_size": r.avg_position_size,
             },
             "strategy_stats": r.strategy_stats,
             "ml_stats": r.ml_stats,
