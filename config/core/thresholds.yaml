@@ -777,7 +777,7 @@ position_management:
     # ========================================
     fixed_amount:
       enabled: true                     # 固定金額TPモード有効化
-      target_net_profit: 1000           # 目標純利益（円）
+      target_net_profit: 500            # 目標純利益（円）※比較テスト用
       include_entry_fee: true           # エントリー手数料を考慮
       include_exit_fee_rebate: true     # 決済リベートを考慮
       include_interest: true            # 利息を考慮
@@ -799,21 +799,21 @@ position_management:
         min_profit_ratio: 0.004      # Phase 58.5: 0.8%→0.4%（利息対策・短期決済）
         weekend_ratio: 0.0025        # Phase 58.6: 土日 TP 0.25%（ATR65%対応）
         default_ratio: 1.33
-        fixed_amount_target: 1000    # Phase 61.7: 固定金額モード用
+        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
       normal_range:
         min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
         weekend_ratio: 0.0065        # Phase 58.6: 土日 TP 0.65%
         default_ratio: 1.43
-        fixed_amount_target: 1000    # Phase 61.7: 固定金額モード用
+        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
       trending:
         min_profit_ratio: 0.015      # TP 1.5%（RR比1.50:1）
         weekend_ratio: 0.010         # Phase 58.6: 土日 TP 1.0%
         default_ratio: 1.50
-        fixed_amount_target: 1000    # Phase 61.7: 固定金額モード用
+        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
       high_volatility:
         min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
         default_ratio: 1.33
-        fixed_amount_target: 1000    # Phase 61.7: 固定金額モード用
+        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
   stop_loss:
     enabled: true
     # Phase 59.6: SL指値化設定（手数料削減）
