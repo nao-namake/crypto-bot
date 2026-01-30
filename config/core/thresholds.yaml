@@ -477,19 +477,18 @@ strategies:
     sl_atr_multiplier: 1.5
   donchian_channel:
     # ========================================
-    # Phase 56.8: 平均回帰戦略リファクタリング
+    # Phase 62.1: 閾値緩和（13件・69.2%勝率 → 活用強化）
     # ========================================
     # 設計思想: タイトレンジ向け直列評価方式
-    # - ブレイクアウトロジック削除（タイトレンジ不要）
-    # - RSIフィルタで偽シグナル削減
-    # - 極端位置でのみシグナル発生
+    # - 高勝率（69.2%）を維持しつつ取引数増加
+    # - 極端位置の閾値を緩和してシグナル増加
     # ========================================
 
-    # === 直列評価パラメータ（Phase 56.9: 元に戻す） ===
-    adx_max_threshold: 28           # 元に戻す（PF維持）
-    extreme_zone_threshold: 0.12    # 元に戻す（PF維持）
-    rsi_oversold: 42                # 元に戻す（PF維持）
-    rsi_overbought: 58              # 元に戻す（PF維持）
+    # === 直列評価パラメータ（Phase 62.1: 緩和） ===
+    adx_max_threshold: 28           # 維持
+    extreme_zone_threshold: 0.15    # Phase 62.1: 0.12→0.15（緩和）
+    rsi_oversold: 45                # Phase 62.1: 42→45（緩和）
+    rsi_overbought: 55              # Phase 62.1: 58→55（緩和）
 
     # === 信頼度設定（シンプル化） ===
     base_confidence: 0.40
@@ -501,32 +500,31 @@ strategies:
     extreme_position_bonus: 0.10    # 位置が極端（< 0.05 or > 0.95）
     rsi_confirmation_bonus: 0.05   # RSI極端値（< 30 or > 70）
   bb_reversal:
-    # Phase 56.9: 中間設定（シグナル数とPFのバランス）
-    min_confidence: 0.25            # やや厳格化
-    hold_confidence: 0.20           # やや厳格化
+    # Phase 62.1: 閾値緩和（1件・0%勝率 → シグナル増加目的）
+    min_confidence: 0.25            # 維持
+    hold_confidence: 0.20           # 維持
     bb_width_threshold: 0.035       # 維持
-    rsi_overbought: 62              # 58→62（やや厳格化）
-    rsi_oversold: 38                # 42→38（やや厳格化）
-    bb_upper_threshold: 0.85        # 0.82→0.85（やや厳格化）
-    bb_lower_threshold: 0.15        # 0.18→0.15（やや厳格化）
-    adx_range_threshold: 30         # 32→30（やや厳格化）
+    rsi_overbought: 58              # Phase 62.1: 62→58（緩和）
+    rsi_oversold: 42                # Phase 62.1: 38→42（緩和）
+    bb_upper_threshold: 0.75        # Phase 62.1: 0.85→0.75（緩和）
+    bb_lower_threshold: 0.25        # Phase 62.1: 0.15→0.25（緩和）
+    adx_range_threshold: 30         # 維持
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # ========================================
-    # Phase 55.3: Stochastic Divergence戦略（同時性緩和版）
+    # Phase 62.1: 閾値緩和（29件・51.7%勝率 → シグナル増加目的）
     # ========================================
-    # Phase 55.3: 同時性要件緩和、位置ベース検出追加
     # 核心思想: 「価格が上昇しているのにStochasticは低下 = モメンタム弱化 = 反転間近」
     # ========================================
 
     # === Divergence設定（Phase 55.3: 緩和） ===
     divergence_lookback: 5              # ダイバージェンス検出期間
-    divergence_price_threshold: 0.0010  # 0.0015→0.0010（緩和）
-    divergence_stoch_threshold: 4       # 5→4（緩和）
+    divergence_price_threshold: 0.0010  # 維持
+    divergence_stoch_threshold: 4       # 維持
 
-    # === 極端領域設定（Phase 56: さらに緩和） ===
-    stoch_overbought: 72                # 75→72（シグナル増加）
-    stoch_oversold: 28                  # 25→28（シグナル増加）
+    # === 極端領域設定（Phase 62.1: 緩和） ===
+    stoch_overbought: 65                # Phase 62.1: 72→65（緩和）
+    stoch_oversold: 35                  # Phase 62.1: 28→35（緩和）
 
     # === ADX設定（維持） ===
     adx_max_threshold: 50               # 維持（強トレンド除外のみ）
