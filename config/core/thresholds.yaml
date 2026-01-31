@@ -477,18 +477,18 @@ strategies:
     sl_atr_multiplier: 1.5
   donchian_channel:
     # ========================================
-    # Phase 62.1: 閾値緩和（13件・69.2%勝率 → 活用強化）
+    # Phase 62.1-B: さらなる閾値緩和（21件・71.4%勝率 → 活用強化継続）
     # ========================================
     # 設計思想: タイトレンジ向け直列評価方式
-    # - 高勝率（69.2%）を維持しつつ取引数増加
-    # - 極端位置の閾値を緩和してシグナル増加
+    # - 高勝率を維持しつつ取引数増加
+    # - 極端位置の閾値をさらに緩和
     # ========================================
 
-    # === 直列評価パラメータ（Phase 62.1: 緩和） ===
+    # === 直列評価パラメータ（Phase 62.1-B: さらに緩和） ===
     adx_max_threshold: 28           # 維持
-    extreme_zone_threshold: 0.15    # Phase 62.1: 0.12→0.15（緩和）
-    rsi_oversold: 45                # Phase 62.1: 42→45（緩和）
-    rsi_overbought: 55              # Phase 62.1: 58→55（緩和）
+    extreme_zone_threshold: 0.18    # Phase 62.1-B: 0.15→0.18（さらに緩和）
+    rsi_oversold: 48                # Phase 62.1-B: 45→48（さらに緩和）
+    rsi_overbought: 52              # Phase 62.1-B: 55→52（さらに緩和）
 
     # === 信頼度設定（シンプル化） ===
     base_confidence: 0.40
@@ -500,19 +500,19 @@ strategies:
     extreme_position_bonus: 0.10    # 位置が極端（< 0.05 or > 0.95）
     rsi_confirmation_bonus: 0.05   # RSI極端値（< 30 or > 70）
   bb_reversal:
-    # Phase 62.1: 閾値緩和（1件・0%勝率 → シグナル増加目的）
+    # Phase 62.1-B: さらなる閾値緩和（3件・33%勝率 → シグナル増加継続）
     min_confidence: 0.25            # 維持
     hold_confidence: 0.20           # 維持
     bb_width_threshold: 0.035       # 維持
-    rsi_overbought: 58              # Phase 62.1: 62→58（緩和）
-    rsi_oversold: 42                # Phase 62.1: 38→42（緩和）
-    bb_upper_threshold: 0.75        # Phase 62.1: 0.85→0.75（緩和）
-    bb_lower_threshold: 0.25        # Phase 62.1: 0.15→0.25（緩和）
+    rsi_overbought: 55              # Phase 62.1-B: 58→55（さらに緩和）
+    rsi_oversold: 45                # Phase 62.1-B: 42→45（さらに緩和）
+    bb_upper_threshold: 0.70        # Phase 62.1-B: 0.75→0.70（さらに緩和）
+    bb_lower_threshold: 0.30        # Phase 62.1-B: 0.25→0.30（さらに緩和）
     adx_range_threshold: 30         # 維持
     sl_multiplier: 1.5              # SL ATR倍率（レンジ相場用）
   stochastic_reversal:
     # ========================================
-    # Phase 62.1: 閾値緩和（29件・51.7%勝率 → シグナル増加目的）
+    # Phase 62.1-B: さらなる閾値緩和（44件・54.5%勝率 → シグナル増加継続）
     # ========================================
     # 核心思想: 「価格が上昇しているのにStochasticは低下 = モメンタム弱化 = 反転間近」
     # ========================================
@@ -522,9 +522,9 @@ strategies:
     divergence_price_threshold: 0.0010  # 維持
     divergence_stoch_threshold: 4       # 維持
 
-    # === 極端領域設定（Phase 62.1: 緩和） ===
-    stoch_overbought: 65                # Phase 62.1: 72→65（緩和）
-    stoch_oversold: 35                  # Phase 62.1: 28→35（緩和）
+    # === 極端領域設定（Phase 62.1-B: さらに緩和） ===
+    stoch_overbought: 60                # Phase 62.1-B: 65→60（さらに緩和）
+    stoch_oversold: 40                  # Phase 62.1-B: 35→40（さらに緩和）
 
     # === ADX設定（維持） ===
     adx_max_threshold: 50               # 維持（強トレンド除外のみ）

@@ -24,11 +24,15 @@
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| **62.1** | **閾値緩和（BBReversal/StochasticReversal）** | 📋実装中 |
-| 62.2 | HOLD動的信頼度実装 | 📋62.1結果次第 |
-| 62.3 | レンジ高速回転戦略（新戦略） | 📋保留 |
+| **62.1** | **3戦略閾値一括緩和** | ✅完了（バックテスト実行中） |
+| 62.2 | HOLD動的信頼度実装 | 📋保留（62.1結果次第） |
 
-**目標**: ATRBased一強問題解消（現在84%→50%以下）、取引数増加（298件→350件+）
+**目標**: ATRBased一強問題解消（83%→50%以下）、取引数増加（298件→350件+）
+
+**62.1変更内容**:
+- BBReversal: bb_threshold 0.85/0.15→0.75/0.25, RSI 62/38→58/42
+- StochasticReversal: stoch 72/28→65/35
+- DonchianChannel: extreme_zone 0.12→0.15, RSI 58/42→55/45
 
 ### Phase 61 成果（✅完了）
 
@@ -95,7 +99,7 @@
 | **レンジ型** | BBReversal | BB上下限タッチ + RSI極端値 → 平均回帰 | 1.32 |
 | **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 | 1.25 |
 | **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待 | 1.16 |
-| **レンジ型** | DonchianChannel | チャネル端部反転（赤字・無効化） | 0.85 |
+| **レンジ型** | DonchianChannel | チャネル端部反転（69.2%勝率・活用強化） | 0.85 |
 | **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | 1.50 |
 | **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | 1.01 |
 
