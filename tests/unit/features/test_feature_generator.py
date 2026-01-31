@@ -543,3 +543,753 @@ class TestFeatureGeneratorPrivateMethods:
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
+
+
+class TestFeatureGeneratorSyncMethod:
+    """generate_features_sync メソッドのテスト（同期版特徴量生成）"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    @pytest.fixture
+    def sample_ohlcv_data(self):
+        """サンプルOHLCVデータ作成"""
+        np.random.seed(42)
+        base_price = 5000000
+        n_periods = 100
+
+        returns = np.random.normal(0, 0.01, n_periods)
+        prices = [base_price]
+        for i in range(n_periods - 1):
+            next_price = prices[-1] * (1 + returns[i])
+            prices.append(max(next_price, 100))
+
+        highs = [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices]
+        lows = [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices]
+        volumes = np.random.lognormal(7, 0.3, n_periods)
+
+        return pd.DataFrame(
+            {"open": prices, "high": highs, "low": lows, "close": prices, "volume": volumes}
+        )
+
+    def test_generate_features_sync_basic(self, generator, sample_ohlcv_data):
+        """同期版特徴量生成基本テスト"""
+        result_df = generator.generate_features_sync(sample_ohlcv_data)
+
+        assert isinstance(result_df, pd.DataFrame)
+        assert len(result_df) == len(sample_ohlcv_data)
+
+        # 基本特徴量が生成されているかチェック
+        for feature in BASE_FEATURES:
+            assert feature in result_df.columns, f"特徴量{feature}が不足"
+
+    def test_generate_features_sync_with_strategy_signals(self, generator, sample_ohlcv_data):
+        """同期版特徴量生成 - 戦略シグナル付きテスト"""
+        strategy_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.7, "encoded": 0.7},
+            "DonchianChannel": {"action": "sell", "confidence": 0.6, "encoded": -0.6},
+            "BBReversal": {"action": "hold", "confidence": 0.5, "encoded": 0.0},
+        }
+
+        result_df = generator.generate_features_sync(sample_ohlcv_data, strategy_signals)
+
+        assert isinstance(result_df, pd.DataFrame)
+        assert len(result_df) == len(sample_ohlcv_data)
+
+        # 戦略シグナル特徴量が生成されているかチェック
+        assert "strategy_signal_ATRBased" in result_df.columns
+        assert "strategy_signal_DonchianChannel" in result_df.columns
+
+    def test_generate_features_sync_error_handling(self, generator):
+        """同期版特徴量生成エラーハンドリングテスト"""
+        incomplete_df = pd.DataFrame(
+            {
+                "close": [100, 101],
+                "volume": [1000, 1100],
+                # open, high, low が不足
+            }
+        )
+
+        with pytest.raises(DataProcessingError, match="必要列が不足"):
+            generator.generate_features_sync(incomplete_df)
+
+    def test_generate_features_sync_nan_handling(self, generator):
+        """同期版特徴量生成NaN処理テスト"""
+        data_with_nan = pd.DataFrame(
+            {
+                "open": [5000000, np.nan, 5100000, 4900000, 5050000],
+                "high": [5050000, 5150000, np.nan, 4950000, 5100000],
+                "low": [4950000, 4950000, 4950000, np.nan, 4900000],
+                "close": [5000000, 5100000, 5000000, 4900000, np.nan],
+                "volume": [1000, 1100, np.nan, 900, 1050],
+            }
+        )
+
+        result_df = generator.generate_features_sync(data_with_nan)
+
+        assert isinstance(result_df, pd.DataFrame)
+        # NaN値が処理されているかチェック
+        for feature in BASE_FEATURES:
+            if feature in result_df.columns:
+                assert not result_df[feature].isnull().any(), f"{feature}にNaN残存"
+
+
+class TestTimeFeatures:
+    """時間ベース特徴量生成テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_time_features_with_datetime_index(self, generator):
+        """DatetimeIndexを持つデータでの時間特徴量生成テスト"""
+        # DatetimeIndexを持つDataFrame作成
+        dates = pd.date_range("2025-01-01 09:00", periods=50, freq="h")
+        df = pd.DataFrame(
+            {
+                "open": np.random.uniform(5000000, 5100000, 50),
+                "high": np.random.uniform(5050000, 5150000, 50),
+                "low": np.random.uniform(4950000, 5000000, 50),
+                "close": np.random.uniform(5000000, 5100000, 50),
+                "volume": np.random.uniform(1000, 2000, 50),
+            },
+            index=dates,
+        )
+
+        result_df = generator._generate_time_features(df)
+
+        # 時間特徴量が生成されているかチェック
+        assert "hour" in result_df.columns
+        assert "day_of_week" in result_df.columns
+        assert "is_market_open_hour" in result_df.columns
+        assert "is_europe_session" in result_df.columns
+        assert "hour_cos" in result_df.columns
+        assert "day_sin" in result_df.columns
+        assert "day_cos" in result_df.columns
+
+        # 時間値が正しいかチェック
+        assert result_df["hour"].iloc[0] == 9  # 最初の時間は9時
+        assert all(0 <= h <= 23 for h in result_df["hour"])
+        assert all(0 <= d <= 6 for d in result_df["day_of_week"])
+
+    def test_time_features_with_timestamp_column(self, generator):
+        """timestamp列を持つデータでの時間特徴量生成テスト"""
+        dates = pd.date_range("2025-01-01 09:00", periods=50, freq="h")
+        df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": np.random.uniform(5000000, 5100000, 50),
+                "high": np.random.uniform(5050000, 5150000, 50),
+                "low": np.random.uniform(4950000, 5000000, 50),
+                "close": np.random.uniform(5000000, 5100000, 50),
+                "volume": np.random.uniform(1000, 2000, 50),
+            }
+        )
+
+        result_df = generator._generate_time_features(df)
+
+        # 時間特徴量が生成されているかチェック
+        assert "hour" in result_df.columns
+        assert "day_of_week" in result_df.columns
+        assert "is_market_open_hour" in result_df.columns
+        assert "is_europe_session" in result_df.columns
+
+    def test_time_features_europe_session(self, generator):
+        """欧州セッション判定テスト（日をまたぐ処理）"""
+        # 欧州セッション時間帯を含むデータ作成
+        hours = [15, 16, 17, 22, 23, 0, 1, 2, 6, 12]
+        dates = [pd.Timestamp(f"2025-01-01 {h:02d}:00") for h in hours]
+        df = pd.DataFrame(
+            {
+                "open": [100] * 10,
+                "high": [105] * 10,
+                "low": [95] * 10,
+                "close": [103] * 10,
+                "volume": [1000] * 10,
+            },
+            index=pd.DatetimeIndex(dates),
+        )
+
+        result_df = generator._generate_time_features(df)
+
+        # 欧州セッション判定チェック（16:00-01:00がTrue）
+        expected_europe = [0, 1, 1, 1, 1, 1, 0, 0, 0, 0]
+        assert list(result_df["is_europe_session"]) == expected_europe
+
+    def test_time_features_market_open_hour(self, generator):
+        """市場オープン時間判定テスト（9-15時）"""
+        hours = [8, 9, 10, 14, 15, 16, 20]
+        dates = [pd.Timestamp(f"2025-01-01 {h:02d}:00") for h in hours]
+        df = pd.DataFrame(
+            {
+                "open": [100] * 7,
+                "high": [105] * 7,
+                "low": [95] * 7,
+                "close": [103] * 7,
+                "volume": [1000] * 7,
+            },
+            index=pd.DatetimeIndex(dates),
+        )
+
+        result_df = generator._generate_time_features(df)
+
+        # 市場オープン時間判定チェック（9-15時がTrue）
+        expected_market_open = [0, 1, 1, 1, 1, 0, 0]
+        assert list(result_df["is_market_open_hour"]) == expected_market_open
+
+    def test_time_features_cyclic_encoding(self, generator):
+        """周期性エンコーディングテスト"""
+        dates = pd.date_range("2025-01-01", periods=24, freq="h")
+        df = pd.DataFrame(
+            {
+                "open": [100] * 24,
+                "high": [105] * 24,
+                "low": [95] * 24,
+                "close": [103] * 24,
+                "volume": [1000] * 24,
+            },
+            index=dates,
+        )
+
+        result_df = generator._generate_time_features(df)
+
+        # 周期性エンコーディング値の範囲チェック
+        assert all(-1 <= v <= 1 for v in result_df["hour_cos"])
+        assert all(-1 <= v <= 1 for v in result_df["day_sin"])
+        assert all(-1 <= v <= 1 for v in result_df["day_cos"])
+
+
+class TestStrategySignalFeatures:
+    """戦略シグナル特徴量テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    @pytest.fixture
+    def sample_df(self):
+        """サンプルDataFrame"""
+        return pd.DataFrame(
+            {
+                "open": [100, 101, 102],
+                "high": [105, 106, 107],
+                "low": [95, 96, 97],
+                "close": [103, 104, 105],
+                "volume": [1000, 1100, 1200],
+            }
+        )
+
+    def test_add_strategy_signal_features_with_full_signals(self, generator, sample_df):
+        """完全な戦略シグナルでの特徴量追加テスト"""
+        strategy_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.8, "encoded": 0.8},
+            "DonchianChannel": {"action": "sell", "confidence": 0.7, "encoded": -0.7},
+            "BBReversal": {"action": "hold", "confidence": 0.5, "encoded": 0.0},
+            "StochasticReversal": {"action": "buy", "confidence": 0.65, "encoded": 0.65},
+            "ADXTrendStrength": {"action": "sell", "confidence": 0.55, "encoded": -0.55},
+            "MACDEMACrossover": {"action": "buy", "confidence": 0.72, "encoded": 0.72},
+        }
+
+        result_df = generator._add_strategy_signal_features(sample_df, strategy_signals)
+
+        # 戦略シグナル特徴量がエンコード値で設定されているかチェック
+        assert "strategy_signal_ATRBased" in result_df.columns
+        assert result_df["strategy_signal_ATRBased"].iloc[0] == 0.8
+
+        assert "strategy_signal_DonchianChannel" in result_df.columns
+        assert result_df["strategy_signal_DonchianChannel"].iloc[0] == -0.7
+
+    def test_add_strategy_signal_features_partial_signals(self, generator, sample_df):
+        """一部戦略シグナルのみの場合のテスト"""
+        strategy_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.8, "encoded": 0.8},
+            # 他の戦略シグナルがない
+        }
+
+        result_df = generator._add_strategy_signal_features(sample_df, strategy_signals)
+
+        # ATRBasedは設定された値、他は0.0で補完
+        assert "strategy_signal_ATRBased" in result_df.columns
+        assert result_df["strategy_signal_ATRBased"].iloc[0] == 0.8
+
+    def test_add_strategy_signal_features_none_signals(self, generator, sample_df):
+        """戦略シグナルがNoneの場合のテスト"""
+        result_df = generator._add_strategy_signal_features(sample_df, None)
+
+        # 全戦略シグナルが0.0で生成されているかチェック
+        assert "strategy_signal_ATRBased" in result_df.columns
+        assert (result_df["strategy_signal_ATRBased"] == 0.0).all()
+
+    def test_add_strategy_signal_features_empty_signals(self, generator, sample_df):
+        """戦略シグナルが空辞書の場合のテスト"""
+        result_df = generator._add_strategy_signal_features(sample_df, {})
+
+        # 全戦略シグナルが0.0で生成されているかチェック
+        assert "strategy_signal_ATRBased" in result_df.columns
+        assert (result_df["strategy_signal_ATRBased"] == 0.0).all()
+
+
+class TestConvertToDataFrameEdgeCases:
+    """_convert_to_dataframe エッジケーステスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_convert_to_dataframe_unsupported_type(self, generator):
+        """サポートされていない型でのエラーテスト"""
+        with pytest.raises(ValueError, match="Unsupported market_data type"):
+            generator._convert_to_dataframe([1, 2, 3])  # リスト型は非サポート
+
+    def test_convert_to_dataframe_complex_dict_structure(self, generator):
+        """複雑な辞書構造での変換テスト"""
+        # DataFrameを含まない辞書
+        complex_dict = {
+            "some_key": {"nested": "value"},
+            "another_key": [1, 2, 3],
+        }
+
+        # DataProcessingErrorが発生するはず
+        with pytest.raises(DataProcessingError):
+            generator._convert_to_dataframe(complex_dict)
+
+
+class TestNormalizeMethod:
+    """_normalize メソッドテスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_normalize_basic(self, generator):
+        """基本正規化テスト"""
+        series = pd.Series([0, 50, 100, 150, 200])
+        result = generator._normalize(series)
+
+        # 0-1の範囲になるかチェック
+        assert all(0 <= v <= 1 for v in result)
+
+    def test_normalize_constant_values(self, generator):
+        """定数値の正規化テスト（分母がゼロになるケース）"""
+        series = pd.Series([100, 100, 100, 100, 100])
+        result = generator._normalize(series)
+
+        # 定数の場合は全てゼロになる
+        assert all(v == 0 for v in result)
+
+    def test_normalize_with_outliers(self, generator):
+        """外れ値を含むデータの正規化テスト"""
+        series = pd.Series([1, 2, 3, 4, 5, 1000])  # 1000は外れ値
+        result = generator._normalize(series)
+
+        # 外れ値がクリップされて0-1範囲になる
+        assert all(0 <= v <= 1 for v in result)
+
+
+class TestVolumeRatioEdgeCases:
+    """_calculate_volume_ratio エッジケーステスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_volume_ratio_custom_period(self, generator):
+        """カスタム期間での出来高比率計算テスト"""
+        volume = pd.Series([1000, 1100, 1200, 1300, 1400, 1500])
+        result = generator._calculate_volume_ratio(volume, period=3)
+
+        assert len(result) == len(volume)
+        assert all(v > 0 for v in result)
+
+
+class TestDonchianChannelEdgeCases:
+    """_calculate_donchian_channel エッジケーステスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_donchian_channel_error_handling(self, generator):
+        """Donchian Channel計算エラーハンドリングテスト"""
+        # 不正なデータでエラーをトリガー
+        # 注: 実際にはpandasがエラーを適切にハンドルするため、
+        # このテストは正常動作を確認
+        df = pd.DataFrame(
+            {
+                "high": [100, 101, 102],
+                "low": [95, 96, 97],
+                "close": [98, 99, 100],
+            }
+        )
+
+        high, low, position = generator._calculate_donchian_channel(df, period=2)
+
+        assert len(high) == 3
+        assert len(low) == 3
+        assert len(position) == 3
+
+
+class TestGetFeatureInfo:
+    """get_feature_info メソッドテスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator(lookback_period=15)
+
+    @pytest.mark.asyncio
+    async def test_get_feature_info_after_generation(self, generator):
+        """特徴量生成後の情報取得テスト"""
+        # 先に特徴量を生成
+        df = pd.DataFrame(
+            {
+                "open": [100, 101, 102, 103, 104],
+                "high": [105, 106, 107, 108, 109],
+                "low": [95, 96, 97, 98, 99],
+                "close": [103, 104, 105, 106, 107],
+                "volume": [1000, 1100, 1200, 1300, 1400],
+            }
+        )
+        await generator.generate_features(df)
+
+        info = generator.get_feature_info()
+
+        assert "total_features" in info
+        assert "computed_features" in info
+        assert "feature_categories" in info
+        assert "optimized_features" in info
+        assert "parameters" in info
+        assert "feature_descriptions" in info
+
+        assert info["parameters"]["lookback_period"] == 15
+        assert isinstance(info["computed_features"], list)
+        assert len(info["computed_features"]) > 0
+
+    def test_get_feature_info_before_generation(self, generator):
+        """特徴量生成前の情報取得テスト"""
+        info = generator.get_feature_info()
+
+        assert info["total_features"] == 0
+        assert info["computed_features"] == []
+        assert info["parameters"]["lookback_period"] == 15
+
+
+class TestADXIndicatorsEdgeCases:
+    """_calculate_adx_indicators エッジケーステスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_adx_calculation_basic(self, generator):
+        """ADX計算基本テスト"""
+        np.random.seed(42)
+        df = pd.DataFrame(
+            {
+                "high": np.random.uniform(105, 110, 30),
+                "low": np.random.uniform(95, 100, 30),
+                "close": np.random.uniform(100, 105, 30),
+            }
+        )
+
+        adx, plus_di, minus_di = generator._calculate_adx_indicators(df)
+
+        assert len(adx) == 30
+        assert len(plus_di) == 30
+        assert len(minus_di) == 30
+
+        # 全ての値が有限（NaNや無限値でない）
+        assert not adx.isnull().any()
+        assert not plus_di.isnull().any()
+        assert not minus_di.isnull().any()
+
+    def test_adx_calculation_short_period(self, generator):
+        """短期間データでのADX計算テスト"""
+        df = pd.DataFrame(
+            {
+                "high": [105, 106, 107],
+                "low": [95, 96, 97],
+                "close": [100, 101, 102],
+            }
+        )
+
+        adx, plus_di, minus_di = generator._calculate_adx_indicators(df, period=2)
+
+        # 短いデータでも計算が完了すること
+        assert len(adx) == 3
+        assert len(plus_di) == 3
+        assert len(minus_di) == 3
+
+
+class TestValidateFeatureGenerationWarning:
+    """_validate_feature_generation 不足特徴量警告テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_validate_with_missing_features(self, generator, caplog):
+        """不足特徴量がある場合の警告テスト"""
+        import logging
+
+        # 一部の特徴量のみ持つDataFrame
+        df = pd.DataFrame(
+            {
+                "close": [100, 101, 102],
+                "volume": [1000, 1100, 1200],
+                "rsi_14": [50, 55, 60],
+                # 他の必要特徴量が不足
+            }
+        )
+
+        # computed_featuresにいくつかの特徴量を追加
+        generator.computed_features = {"close", "volume", "rsi_14"}
+
+        with caplog.at_level(logging.WARNING):
+            generator._validate_feature_generation(df, expected_count=55)
+
+        # 警告メッセージが出力されているかチェック
+        assert any("特徴量不足検出" in record.message for record in caplog.records)
+
+
+class TestExceptionHandlingEdgeCases:
+    """例外処理のエッジケーステスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_normalize_exception_handling(self, generator):
+        """_normalizeの例外処理テスト"""
+        from unittest.mock import patch
+
+        # quantileメソッドで例外を発生させる
+        with patch.object(pd.Series, 'quantile', side_effect=Exception("Quantile error")):
+            series = pd.Series([1, 2, 3, 4, 5])
+            result = generator._normalize(series)
+
+            # 例外発生時はゼロ系列が返される
+            assert len(result) == 5
+            assert all(v == 0 for v in result)
+
+    def test_volume_ratio_exception_handling(self, generator):
+        """_calculate_volume_ratioの例外処理テスト"""
+        from unittest.mock import patch
+
+        # rollingメソッドで例外を発生させる
+        with patch.object(pd.Series, 'rolling', side_effect=Exception("Rolling error")):
+            volume = pd.Series([1000, 1100, 1200], index=[0, 1, 2])
+            result = generator._calculate_volume_ratio(volume)
+
+            # 例外発生時はゼロ系列が返される
+            assert len(result) == 3
+            assert all(v == 0 for v in result)
+
+    def test_adx_exception_handling(self, generator):
+        """_calculate_adx_indicatorsの例外処理テスト"""
+        from unittest.mock import patch
+
+        df = pd.DataFrame(
+            {
+                "high": [105, 106, 107],
+                "low": [95, 96, 97],
+                "close": [100, 101, 102],
+            }
+        )
+
+        # rolling計算で例外を発生させる
+        with patch.object(pd.Series, 'rolling', side_effect=Exception("Rolling error")):
+            adx, plus_di, minus_di = generator._calculate_adx_indicators(df)
+
+            # 例外発生時はゼロ系列が返される
+            assert len(adx) == 3
+            assert len(plus_di) == 3
+            assert len(minus_di) == 3
+            assert all(v == 0 for v in adx)
+            assert all(v == 0 for v in plus_di)
+            assert all(v == 0 for v in minus_di)
+
+
+class TestStochasticCalculation:
+    """Stochastic Oscillator計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_stochastic_basic(self, generator):
+        """Stochastic基本計算テスト"""
+        df = pd.DataFrame(
+            {
+                "high": [110, 112, 115, 113, 118, 120],
+                "low": [100, 102, 105, 103, 108, 110],
+                "close": [105, 108, 112, 108, 115, 118],
+            }
+        )
+
+        stoch_k, stoch_d = generator._calculate_stochastic(df, period=3)
+
+        assert len(stoch_k) == 6
+        assert len(stoch_d) == 6
+
+        # Stochasticは0-100の範囲
+        assert all(0 <= v <= 100 for v in stoch_k.dropna())
+        assert all(0 <= v <= 100 for v in stoch_d.dropna())
+
+
+class TestBollingerBandsCalculation:
+    """Bollinger Bands計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_bollinger_bands_basic(self, generator):
+        """Bollinger Bands基本計算テスト"""
+        close = pd.Series([100, 101, 102, 103, 104, 105, 106, 107, 108, 109])
+
+        bb_upper, bb_lower, bb_position = generator._calculate_bb_bands(close, period=5)
+
+        assert len(bb_upper) == 10
+        assert len(bb_lower) == 10
+        assert len(bb_position) == 10
+
+        # 上限は下限より大きい（NaN値を除く）
+        valid_indices = (~bb_upper.isna()) & (~bb_lower.isna())
+        assert all(bb_upper[valid_indices].iloc[i] >= bb_lower[valid_indices].iloc[i]
+                   for i in range(sum(valid_indices)))
+
+        # 位置は0-1の範囲（概ね）
+        assert all(-0.5 <= v <= 1.5 for v in bb_position.dropna())
+
+
+class TestMACDCalculation:
+    """MACD計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_macd_basic(self, generator):
+        """MACD基本計算テスト"""
+        close = pd.Series([100 + i for i in range(50)])
+
+        macd_line, macd_signal = generator._calculate_macd(close)
+
+        assert len(macd_line) == 50
+        assert len(macd_signal) == 50
+
+        # トレンドが上昇の場合、MACDはプラスになるはず
+        assert macd_line.iloc[-1] > 0
+
+
+class TestRSICalculation:
+    """RSI計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_rsi_basic(self, generator):
+        """RSI基本計算テスト"""
+        # 上昇トレンドのデータ
+        close = pd.Series([100 + i for i in range(20)])
+        rsi = generator._calculate_rsi(close, period=14)
+
+        assert len(rsi) == 20
+        # 上昇トレンドなのでRSIは高い値になるはず
+        assert rsi.iloc[-1] > 50
+
+    def test_rsi_downtrend(self, generator):
+        """RSI下降トレンド計算テスト"""
+        # 下降トレンドのデータ
+        close = pd.Series([100 - i for i in range(20)])
+        rsi = generator._calculate_rsi(close, period=14)
+
+        assert len(rsi) == 20
+        # 下降トレンドなのでRSIは低い値になるはず
+        assert rsi.iloc[-1] < 50
+
+
+class TestATRCalculation:
+    """ATR計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_atr_basic(self, generator):
+        """ATR基本計算テスト"""
+        df = pd.DataFrame(
+            {
+                "high": [110, 112, 115, 113, 118],
+                "low": [100, 102, 105, 103, 108],
+                "close": [105, 108, 112, 108, 115],
+            }
+        )
+
+        atr = generator._calculate_atr(df, period=3)
+
+        assert len(atr) == 5
+        # ATRは常に正の値
+        assert all(v > 0 for v in atr.dropna())
+
+
+class TestVolumeEMACalculation:
+    """Volume EMA計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_volume_ema_basic(self, generator):
+        """Volume EMA基本計算テスト"""
+        volume = pd.Series([1000, 1100, 1200, 1300, 1400])
+        volume_ema = generator._calculate_volume_ema(volume, period=3)
+
+        assert len(volume_ema) == 5
+        # EMAは常に正の値
+        assert all(v > 0 for v in volume_ema)
+
+
+class TestATRRatioCalculation:
+    """ATR Ratio計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    def test_atr_ratio_basic(self, generator):
+        """ATR Ratio基本計算テスト"""
+        df = pd.DataFrame(
+            {
+                "close": [5000000, 5100000, 5200000],
+                "atr_14": [50000, 51000, 52000],
+            }
+        )
+
+        atr_ratio = generator._calculate_atr_ratio(df)
+
+        assert len(atr_ratio) == 3
+        # ATR比率は正の値
+        assert all(v > 0 for v in atr_ratio)
+        # ATR比率は小さい値（1%程度）
+        assert all(v < 0.02 for v in atr_ratio)

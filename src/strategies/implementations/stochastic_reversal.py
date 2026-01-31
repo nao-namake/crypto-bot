@@ -1,5 +1,5 @@
 """
-Stochastic Divergence戦略 - Phase 55.2
+Stochastic Divergence戦略 - Phase 62.2 品質フィルタ強化
 
 レンジ・トレンド両相場で機能するモメンタム乖離戦略。
 価格とStochasticの乖離（ダイバージェンス）から反転を捉える。
@@ -7,12 +7,15 @@ Stochastic Divergence戦略 - Phase 55.2
 核心思想:
 「価格は高値更新しているがStochasticは低下している = モメンタム弱化 = 反転間近」
 
+Phase 62.2変更:
+- 最小価格変化チェック追加（0.5%以上）
+- 弱いダイバージェンス（0.3%未満）をフィルタリング
+- 期待: 44件→50-55件（品質向上）
+
 差別化:
 - BBReversal: 価格の現在位置（静的）
 - ATRBased: 今日の変動量（1期間）
 - StochasticDivergence: 価格とモメンタムの乖離（複数期間）
-
-Phase 55.2 完全リファクタリング
 """
 
 from typing import Any, Dict, List, Optional
@@ -60,6 +63,13 @@ class StochasticReversalStrategy(StrategyBase):
             ),
             "divergence_stoch_threshold": get_threshold(
                 "strategies.stochastic_reversal.divergence_stoch_threshold", 5
+            ),
+            # Phase 62.2: 最小価格変化チェック
+            "min_price_change_ratio": get_threshold(
+                "strategies.stochastic_reversal.min_price_change_ratio", 0.005
+            ),
+            "enable_min_price_filter": get_threshold(
+                "strategies.stochastic_reversal.enable_min_price_filter", True
             ),
             # 極端領域設定
             "stoch_overbought": get_threshold(
@@ -230,14 +240,36 @@ class StochasticReversalStrategy(StrategyBase):
             period_start_stoch = float(period_stochs[0])
             stoch_change = current_stoch - period_start_stoch
 
-            # Bearish Divergence検出（Phase 55.3: 緩和条件）
+            # Phase 62.2: 最小価格変化チェック
+            min_price_change = self.config.get("min_price_change_ratio", 0.005)
+            enable_min_filter = self.config.get("enable_min_price_filter", True)
+
+            # 価格変動の絶対値チェック
+            price_range_ratio = price_range / min_close if min_close > 0 else 0
+            has_sufficient_price_move = price_range_ratio >= min_price_change
+
+            # Bearish Divergence検出（Phase 55.3: 緩和条件 + Phase 62.2: 価格変化フィルタ）
             # 条件1: 価格が高値付近（位置 > 0.6）AND Stochasticが安値付近（位置 < 0.4）
             # 条件2: または従来条件（価格上昇 + Stochastic下降）
             bearish_new = price_position > 0.6 and stoch_position < 0.4
             bearish_old = price_change_ratio > price_threshold and stoch_change < -stoch_threshold
 
             if bearish_new or bearish_old:
+                # Phase 62.2: 弱いダイバージェンスをフィルタリング
+                if enable_min_filter and not has_sufficient_price_move:
+                    return {
+                        "type": "weak_bearish",
+                        "action": EntryAction.HOLD,
+                        "strength": 0.0,
+                        "price_change": price_change_ratio * 100,
+                        "stoch_change": stoch_change,
+                        "reason": f"弱Bearish除外 (価格変動{price_range_ratio:.2%}<{min_price_change:.2%})",
+                    }
+
                 strength = 0.3 + abs(price_position - stoch_position) * 0.4
+                # 価格変動が大きいほど信頼度ボーナス
+                if price_range_ratio > min_price_change * 2:
+                    strength += 0.1
                 return {
                     "type": "bearish",
                     "action": EntryAction.SELL,
@@ -249,14 +281,28 @@ class StochasticReversalStrategy(StrategyBase):
                     "reason": f"Bearish Div (価格位置:{price_position:.1%} vs Stoch位置:{stoch_position:.1%})",
                 }
 
-            # Bullish Divergence検出（Phase 55.3: 緩和条件）
+            # Bullish Divergence検出（Phase 55.3: 緩和条件 + Phase 62.2: 価格変化フィルタ）
             # 条件1: 価格が安値付近（位置 < 0.4）AND Stochasticが高値付近（位置 > 0.6）
             # 条件2: または従来条件（価格下落 + Stochastic上昇）
             bullish_new = price_position < 0.4 and stoch_position > 0.6
             bullish_old = price_change_ratio < -price_threshold and stoch_change > stoch_threshold
 
             if bullish_new or bullish_old:
+                # Phase 62.2: 弱いダイバージェンスをフィルタリング
+                if enable_min_filter and not has_sufficient_price_move:
+                    return {
+                        "type": "weak_bullish",
+                        "action": EntryAction.HOLD,
+                        "strength": 0.0,
+                        "price_change": price_change_ratio * 100,
+                        "stoch_change": stoch_change,
+                        "reason": f"弱Bullish除外 (価格変動{price_range_ratio:.2%}<{min_price_change:.2%})",
+                    }
+
                 strength = 0.3 + abs(stoch_position - price_position) * 0.4
+                # 価格変動が大きいほど信頼度ボーナス
+                if price_range_ratio > min_price_change * 2:
+                    strength += 0.1
                 return {
                     "type": "bullish",
                     "action": EntryAction.BUY,

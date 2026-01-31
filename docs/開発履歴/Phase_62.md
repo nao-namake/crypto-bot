@@ -36,7 +36,7 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 |-------|------|------|
 | **62.1** | 3戦略閾値一括緩和 | ✅完了 |
 | **62.1-B** | さらなる閾値緩和 | 📋バックテスト実行中 |
-| 62.2 | HOLD動的信頼度 | 📋保留（62.1結果次第） |
+| **62.2** | 戦略条件型変更（RSIボーナス・BB主導） | ✅実装完了（バックテスト待ち） |
 
 ### 成功基準
 
@@ -145,13 +145,114 @@ Phase 62.1で改善したが目標未達のため、さらに閾値を緩和
 
 ---
 
-## Phase 62.2: HOLD動的信頼度 📋保留
+## Phase 62.2: 戦略条件型変更 ✅完了
 
-### 条件
-Phase 62.1/62.1-Bで改善不十分な場合のみ実装
+### 実施日: 2026年1月31日
 
-### 概要
-固定信頼度（0.200, 0.250, 0.500）を動的計算に変更
+### 背景
+
+Phase 62.1-Bの閾値緩和だけでは限界がある。構造的な問題（AND条件・RSIフィルタ）を解決しないとATRBased一強問題（79.5%）は完全解消できない。
+
+### 問題点と解決策
+
+| 戦略 | 問題 | 解決策 |
+|------|------|--------|
+| DonchianChannel | RSIフィルタでHOLD判定 | RSIをボーナス制度に変更 |
+| BBReversal | AND条件（BB+RSI）が厳しすぎ | BB位置主導に変更、RSIはボーナス |
+| StochasticReversal | 弱いダイバージェンスを検出 | 最小価格変化フィルタ追加 |
+
+### 実施内容
+
+#### 1. DonchianChannel: RSIボーナス制度
+
+**変更ファイル**: `src/strategies/implementations/donchian_channel.py`
+
+| Before | After |
+|--------|-------|
+| RSI不一致 → HOLD | RSI不一致 → シグナル発生（ペナルティ適用） |
+| RSI一致 → シグナル | RSI一致 → シグナル（ボーナス適用） |
+
+**新パラメータ**:
+```yaml
+rsi_as_bonus: true           # RSIをHOLD→ボーナス制度に
+rsi_mismatch_penalty: 0.08   # RSI不一致時の信頼度ペナルティ
+```
+
+**信頼度計算**:
+- RSI一致: `+rsi_confirmation_bonus`（0.05）
+- RSI極端値（<30 or >70）: 追加ボーナス（0.05）
+- RSI不一致: `-rsi_mismatch_penalty`（0.08）
+
+**期待効果**: 21件 → 28-32件
+
+#### 2. BBReversal: BB位置主導モード
+
+**変更ファイル**: `src/strategies/implementations/bb_reversal.py`
+
+| Before | After |
+|--------|-------|
+| BB位置 AND RSI → シグナル | BB位置のみ → シグナル |
+| RSI不一致 → HOLD | RSI不一致 → シグナル（ペナルティ適用） |
+
+**新パラメータ**:
+```yaml
+bb_primary_mode: true        # BB位置主導モード
+rsi_match_bonus: 0.08        # RSI一致時ボーナス
+rsi_extreme_bonus: 0.05      # RSI極端値（<30, >70）追加ボーナス
+rsi_mismatch_penalty: 0.05   # RSI不一致時ペナルティ
+```
+
+**期待効果**: 3件 → 8-12件
+
+#### 3. StochasticReversal: 最小価格変化フィルタ
+
+**変更ファイル**: `src/strategies/implementations/stochastic_reversal.py`
+
+| Before | After |
+|--------|-------|
+| 弱いダイバージェンスも検出 | 価格変動0.5%未満はフィルタリング |
+
+**新パラメータ**:
+```yaml
+min_price_change_ratio: 0.005    # 最小価格変化（0.5%以上）
+enable_min_price_filter: true    # フィルタ有効化
+```
+
+**信頼度ボーナス**:
+- 価格変動が大きい（1%以上）: `+0.1`
+
+**期待効果**: 品質向上（弱いダイバージェンス除外）
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 |
+| `src/strategies/implementations/bb_reversal.py` | BB位置主導モード実装 |
+| `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ追加 |
+| `config/core/thresholds.yaml` | 新パラメータ追加 |
+| `tests/unit/strategies/implementations/test_donchian_channel.py` | テスト更新 |
+
+### 品質チェック結果
+
+```
+✅ 全テスト: 1272 passed
+✅ カバレッジ: 63.47%
+✅ flake8/isort/black: PASS
+```
+
+### 期待される改善
+
+| 指標 | Phase 62.1-B | Phase 62.2目標 |
+|------|-------------|----------------|
+| 取引数 | 332件 | 380件以上 |
+| ATRBased比率 | 79.5% | 65%以下 |
+| PF | 2.72 | 2.5以上維持 |
+| 勝率 | 74.7% | 72%以上維持 |
+
+### バックテスト結果
+
+**待機中**（Phase 62.1-Bバックテスト完了後に実行予定）
 
 ---
 
@@ -159,10 +260,13 @@ Phase 62.1/62.1-Bで改善不十分な場合のみ実装
 
 | ファイル | 内容 |
 |---------|------|
-| `config/core/thresholds.yaml` | 戦略閾値設定 |
+| `config/core/thresholds.yaml` | 戦略閾値設定（Phase 62.2パラメータ追加） |
+| `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 |
+| `src/strategies/implementations/bb_reversal.py` | BB位置主導モード実装 |
+| `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ追加 |
 | `docs/開発計画/ToDo.md` | Phase 62計画 |
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 
 ---
 
-**最終更新**: 2026年1月31日 - Phase 62.1-B実行中
+**最終更新**: 2026年1月31日 - Phase 62.2実装完了（バックテスト待ち）

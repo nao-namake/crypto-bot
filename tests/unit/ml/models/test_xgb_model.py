@@ -451,3 +451,35 @@ class TestXGBModel:
             assert result is xgb_model  # fitは学習済みモデル自身を返す
         except MemoryError:
             pytest.skip("メモリ不足でスキップ")
+
+    def test_get_model_info_xgb_specific(self, xgb_model, sample_features, sample_targets):
+        """XGBModel固有のモデル情報テスト"""
+        xgb_model.fit(sample_features, sample_targets)
+
+        info = xgb_model.get_model_info()
+
+        assert "xgb_specific" in info
+        xgb_info = info["xgb_specific"]
+
+        assert "objective" in xgb_info
+        assert "max_depth" in xgb_info
+        assert "learning_rate" in xgb_info
+        assert "n_estimators" in xgb_info
+        assert "subsample" in xgb_info
+        assert "colsample_bytree" in xgb_info
+
+    def test_clean_xgb_params_nthread(self):
+        """ntreadパラメータのクリーンアップテスト"""
+        model = XGBModel(nthread=4, n_jobs=None)
+
+        # ntreadはn_jobsに変換される
+        estimator_params = model.estimator.get_params()
+        assert "nthread" not in estimator_params or estimator_params.get("n_jobs") is not None
+
+    def test_clean_xgb_params_silent(self):
+        """silentパラメータのクリーンアップテスト"""
+        model = XGBModel(silent=True)
+
+        # silentはverbosityに変換される
+        estimator_params = model.estimator.get_params()
+        assert estimator_params.get("verbosity") == 0

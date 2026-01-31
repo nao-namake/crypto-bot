@@ -406,3 +406,73 @@ class TestRFModel:
         probabilities = rf_model.predict_proba(features.iloc[:10])
         assert probabilities is not None
         assert probabilities.shape == (10, 3)  # 10サンプル、3クラス
+
+    def test_get_oob_score_fitted(self, sample_features, sample_targets):
+        """OOBスコア取得テスト（学習後）"""
+        rf_model = RFModel(n_estimators=50, oob_score=True, random_state=42)
+        rf_model.fit(sample_features, sample_targets)
+
+        oob_score = rf_model.get_oob_score()
+        assert isinstance(oob_score, float)
+        assert 0 <= oob_score <= 1
+
+    def test_get_oob_score_not_fitted(self):
+        """OOBスコア取得テスト（未学習）"""
+        rf_model = RFModel(n_estimators=10)
+
+        oob_score = rf_model.get_oob_score()
+        assert oob_score == 0.0
+
+    def test_get_oob_score_disabled(self, sample_features, sample_targets):
+        """OOBスコア取得テスト（oob_score=False）"""
+        rf_model = RFModel(n_estimators=10, oob_score=False, random_state=42)
+        rf_model.fit(sample_features, sample_targets)
+
+        oob_score = rf_model.get_oob_score()
+        assert oob_score == 0.0
+
+    def test_get_tree_count_fitted(self, sample_features, sample_targets):
+        """決定木数取得テスト（学習後）"""
+        rf_model = RFModel(n_estimators=10, random_state=42)
+        rf_model.fit(sample_features, sample_targets)
+
+        tree_count = rf_model.get_tree_count()
+        assert tree_count == 10
+
+    def test_get_tree_count_not_fitted(self):
+        """決定木数取得テスト（未学習）"""
+        rf_model = RFModel(n_estimators=15)
+
+        tree_count = rf_model.get_tree_count()
+        assert tree_count == 15  # model_paramsから取得
+
+    def test_get_model_info_rf_specific(self, sample_features, sample_targets):
+        """RFModel固有のモデル情報テスト"""
+        rf_model = RFModel(n_estimators=20, max_depth=5, oob_score=True, random_state=42)
+        rf_model.fit(sample_features, sample_targets)
+
+        info = rf_model.get_model_info()
+
+        assert "rf_specific" in info
+        rf_info = info["rf_specific"]
+
+        assert rf_info["n_estimators"] == 20
+        assert rf_info["max_depth"] == 5
+        assert rf_info["oob_score_enabled"] is True
+        assert "actual_tree_count" in rf_info
+        assert "oob_score" in rf_info
+
+    def test_clean_rf_params_invalid_max_features(self):
+        """無効なmax_featuresパラメータのクリーンアップテスト"""
+        rf_model = RFModel(max_features="invalid_value", n_estimators=10)
+
+        # 無効な値は'sqrt'に変更される
+        # estimatorのパラメータを確認
+        assert rf_model.estimator.max_features == "sqrt"
+
+    def test_clean_rf_params_invalid_n_estimators(self):
+        """無効なn_estimatorsパラメータのクリーンアップテスト"""
+        rf_model = RFModel(n_estimators=0)
+
+        # 0は10に変更される
+        assert rf_model.estimator.n_estimators == 10

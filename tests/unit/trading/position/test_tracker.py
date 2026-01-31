@@ -655,10 +655,677 @@ class TestUpdateAverageOnExit:
 
 
 # ========================================
-# Phase 46: 統合TP/SL機能テスト削除（デイトレード特化）
+# Phase 49.6: remove_position_with_cleanup() テスト
 # ========================================
-# 以下のテストクラスを削除（統合TP/SL機能削除に伴い）:
-# - TestGetConsolidatedTpSlIds
-# - TestSetConsolidatedTpSlIds
-# - TestGetConsolidatedPositionInfo
-# - TestClearConsolidatedTpSl
+
+
+class TestRemovePositionWithCleanup:
+    """remove_position_with_cleanup() テスト - Phase 49.6"""
+
+    def test_remove_with_cleanup_existing_position(self, tracker):
+        """存在するポジションの削除とTP/SL情報取得"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_001",
+            sl_order_id="sl_001",
+        )
+
+        result = tracker.remove_position_with_cleanup("order_123")
+
+        assert result is not None
+        assert result["position"]["order_id"] == "order_123"
+        assert result["tp_order_id"] == "tp_001"
+        assert result["sl_order_id"] == "sl_001"
+        assert len(tracker.virtual_positions) == 0
+
+    def test_remove_with_cleanup_no_tp_sl(self, tracker):
+        """TP/SLなしのポジション削除"""
+        tracker.add_position("order_456", "sell", 0.002, 14500000.0)
+
+        result = tracker.remove_position_with_cleanup("order_456")
+
+        assert result is not None
+        assert result["position"]["order_id"] == "order_456"
+        assert result["tp_order_id"] is None
+        assert result["sl_order_id"] is None
+
+    def test_remove_with_cleanup_only_tp(self, tracker):
+        """TPのみ設定されたポジション削除"""
+        tracker.add_position(
+            "order_789", "buy", 0.001, 14000000.0, tp_order_id="tp_only_001"
+        )
+
+        result = tracker.remove_position_with_cleanup("order_789")
+
+        assert result["tp_order_id"] == "tp_only_001"
+        assert result["sl_order_id"] is None
+
+    def test_remove_with_cleanup_only_sl(self, tracker):
+        """SLのみ設定されたポジション削除"""
+        tracker.add_position(
+            "order_abc", "sell", 0.003, 14200000.0, sl_order_id="sl_only_001"
+        )
+
+        result = tracker.remove_position_with_cleanup("order_abc")
+
+        assert result["tp_order_id"] is None
+        assert result["sl_order_id"] == "sl_only_001"
+
+    def test_remove_with_cleanup_nonexistent(self, tracker):
+        """存在しないポジションの削除"""
+        tracker.add_position("order_123", "buy", 0.001, 14000000.0)
+
+        result = tracker.remove_position_with_cleanup("nonexistent_order")
+
+        assert result is None
+        assert len(tracker.virtual_positions) == 1
+
+    def test_remove_with_cleanup_from_multiple(self, tracker):
+        """複数ポジションから1つを削除"""
+        tracker.add_position(
+            "order_1", "buy", 0.001, 14000000.0, tp_order_id="tp_1", sl_order_id="sl_1"
+        )
+        tracker.add_position(
+            "order_2", "sell", 0.002, 14500000.0, tp_order_id="tp_2", sl_order_id="sl_2"
+        )
+        tracker.add_position(
+            "order_3", "buy", 0.003, 14200000.0, tp_order_id="tp_3", sl_order_id="sl_3"
+        )
+
+        result = tracker.remove_position_with_cleanup("order_2")
+
+        assert result["position"]["order_id"] == "order_2"
+        assert result["tp_order_id"] == "tp_2"
+        assert result["sl_order_id"] == "sl_2"
+        assert len(tracker.virtual_positions) == 2
+        assert tracker.find_position("order_1") is not None
+        assert tracker.find_position("order_3") is not None
+
+
+# ========================================
+# Phase 61.9: TP/SL注文ID検索テスト
+# ========================================
+
+
+class TestFindPositionByTpOrderId:
+    """find_position_by_tp_order_id() テスト - Phase 61.9"""
+
+    def test_find_by_tp_order_id_exists(self, tracker):
+        """TP注文IDでポジション検索（存在する場合）"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_001",
+            sl_order_id="sl_001",
+        )
+
+        result = tracker.find_position_by_tp_order_id("tp_001")
+
+        assert result is not None
+        assert result["order_id"] == "order_123"
+        assert result["tp_order_id"] == "tp_001"
+
+    def test_find_by_tp_order_id_not_exists(self, tracker):
+        """TP注文IDでポジション検索（存在しない場合）"""
+        tracker.add_position(
+            "order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001"
+        )
+
+        result = tracker.find_position_by_tp_order_id("tp_nonexistent")
+
+        assert result is None
+
+    def test_find_by_tp_order_id_empty_tracker(self, tracker):
+        """空トラッカーでTP注文ID検索"""
+        result = tracker.find_position_by_tp_order_id("tp_001")
+
+        assert result is None
+
+    def test_find_by_tp_order_id_multiple_positions(self, tracker):
+        """複数ポジションからTP注文IDで検索"""
+        tracker.add_position(
+            "order_1", "buy", 0.001, 14000000.0, tp_order_id="tp_1"
+        )
+        tracker.add_position(
+            "order_2", "sell", 0.002, 14500000.0, tp_order_id="tp_2"
+        )
+        tracker.add_position(
+            "order_3", "buy", 0.003, 14200000.0, tp_order_id="tp_3"
+        )
+
+        result = tracker.find_position_by_tp_order_id("tp_2")
+
+        assert result is not None
+        assert result["order_id"] == "order_2"
+
+
+class TestFindPositionBySlOrderId:
+    """find_position_by_sl_order_id() テスト - Phase 61.9"""
+
+    def test_find_by_sl_order_id_exists(self, tracker):
+        """SL注文IDでポジション検索（存在する場合）"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_001",
+            sl_order_id="sl_001",
+        )
+
+        result = tracker.find_position_by_sl_order_id("sl_001")
+
+        assert result is not None
+        assert result["order_id"] == "order_123"
+        assert result["sl_order_id"] == "sl_001"
+
+    def test_find_by_sl_order_id_not_exists(self, tracker):
+        """SL注文IDでポジション検索（存在しない場合）"""
+        tracker.add_position(
+            "order_123", "buy", 0.001, 14000000.0, sl_order_id="sl_001"
+        )
+
+        result = tracker.find_position_by_sl_order_id("sl_nonexistent")
+
+        assert result is None
+
+    def test_find_by_sl_order_id_empty_tracker(self, tracker):
+        """空トラッカーでSL注文ID検索"""
+        result = tracker.find_position_by_sl_order_id("sl_001")
+
+        assert result is None
+
+    def test_find_by_sl_order_id_multiple_positions(self, tracker):
+        """複数ポジションからSL注文IDで検索"""
+        tracker.add_position(
+            "order_1", "buy", 0.001, 14000000.0, sl_order_id="sl_1"
+        )
+        tracker.add_position(
+            "order_2", "sell", 0.002, 14500000.0, sl_order_id="sl_2"
+        )
+        tracker.add_position(
+            "order_3", "buy", 0.003, 14200000.0, sl_order_id="sl_3"
+        )
+
+        result = tracker.find_position_by_sl_order_id("sl_3")
+
+        assert result is not None
+        assert result["order_id"] == "order_3"
+
+
+class TestRemovePositionByTpOrSlOrderId:
+    """remove_position_by_tp_or_sl_order_id() テスト - Phase 61.9"""
+
+    def test_remove_by_tp_order_id(self, tracker):
+        """TP注文IDでポジション削除"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_001",
+            sl_order_id="sl_001",
+        )
+
+        result = tracker.remove_position_by_tp_or_sl_order_id("tp_001")
+
+        assert result is not None
+        assert result["order_id"] == "order_123"
+        assert len(tracker.virtual_positions) == 0
+
+    def test_remove_by_sl_order_id(self, tracker):
+        """SL注文IDでポジション削除"""
+        tracker.add_position(
+            "order_456",
+            "sell",
+            0.002,
+            14500000.0,
+            tp_order_id="tp_002",
+            sl_order_id="sl_002",
+        )
+
+        result = tracker.remove_position_by_tp_or_sl_order_id("sl_002")
+
+        assert result is not None
+        assert result["order_id"] == "order_456"
+        assert len(tracker.virtual_positions) == 0
+
+    def test_remove_by_tp_or_sl_nonexistent(self, tracker):
+        """存在しないTP/SL注文IDで削除"""
+        tracker.add_position(
+            "order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001"
+        )
+
+        result = tracker.remove_position_by_tp_or_sl_order_id("nonexistent")
+
+        assert result is None
+        assert len(tracker.virtual_positions) == 1
+
+    def test_remove_by_tp_or_sl_empty_tracker(self, tracker):
+        """空トラッカーでTP/SL削除"""
+        result = tracker.remove_position_by_tp_or_sl_order_id("tp_001")
+
+        assert result is None
+
+    def test_remove_by_tp_or_sl_from_multiple(self, tracker):
+        """複数ポジションからTP/SL注文IDで削除"""
+        tracker.add_position(
+            "order_1", "buy", 0.001, 14000000.0, tp_order_id="tp_1", sl_order_id="sl_1"
+        )
+        tracker.add_position(
+            "order_2", "sell", 0.002, 14500000.0, tp_order_id="tp_2", sl_order_id="sl_2"
+        )
+        tracker.add_position(
+            "order_3", "buy", 0.003, 14200000.0, tp_order_id="tp_3", sl_order_id="sl_3"
+        )
+
+        result = tracker.remove_position_by_tp_or_sl_order_id("sl_2")
+
+        assert result["order_id"] == "order_2"
+        assert len(tracker.virtual_positions) == 2
+
+
+# ========================================
+# 追加テスト: エッジケース・カバレッジ向上
+# ========================================
+
+
+class TestCalculateAverageEntryPriceEdgeCases:
+    """calculate_average_entry_price() エッジケーステスト"""
+
+    def test_calculate_average_zero_amount_positions(self, tracker):
+        """数量0のポジションがある場合"""
+        # 内部的にamount=0のポジションを直接追加（通常はありえないが防御的テスト）
+        tracker.virtual_positions.append({
+            "order_id": "order_zero",
+            "side": "buy",
+            "amount": 0,
+            "price": 10000000.0,
+        })
+
+        average = tracker.calculate_average_entry_price()
+
+        assert average == 0.0  # total_size == 0の場合
+
+    def test_calculate_average_missing_price_field(self, tracker):
+        """priceフィールドがない場合のデフォルト値"""
+        tracker.virtual_positions.append({
+            "order_id": "order_no_price",
+            "side": "buy",
+            "amount": 0.001,
+        })
+
+        average = tracker.calculate_average_entry_price()
+
+        assert average == 0.0  # price=0, amount=0.001 -> average=0
+
+    def test_calculate_average_missing_amount_field(self, tracker):
+        """amountフィールドがない場合のデフォルト値"""
+        tracker.virtual_positions.append({
+            "order_id": "order_no_amount",
+            "side": "buy",
+            "price": 10000000.0,
+        })
+
+        average = tracker.calculate_average_entry_price()
+
+        assert average == 0.0  # amount=0なのでtotal_size=0
+
+
+class TestUpdateAverageOnExitEdgeCases:
+    """update_average_on_exit() エッジケーステスト"""
+
+    def test_update_average_exit_more_than_size(self, tracker):
+        """決済数量がポジション数量を超える場合"""
+        tracker.update_average_on_entry(price=10_000_000.0, amount=0.001)
+
+        # 0.002 BTCを決済（実際は0.001 BTCしかない）
+        new_average = tracker.update_average_on_exit(amount=0.002)
+
+        # max(0, 0.001 - 0.002) = 0 なので全決済扱い
+        assert new_average == 0.0
+        assert tracker._average_entry_price == 0.0
+        assert tracker._total_position_size == 0.0
+
+    def test_update_average_exit_zero_amount(self, tracker):
+        """決済数量0の場合"""
+        tracker.update_average_on_entry(price=10_000_000.0, amount=0.003)
+
+        new_average = tracker.update_average_on_exit(amount=0)
+
+        # 0を決済しても変わらない
+        assert new_average == pytest.approx(10_000_000.0, abs=0.01)
+        assert tracker._total_position_size == pytest.approx(0.003, abs=0.000001)
+
+
+class TestUpdateAverageOnEntryEdgeCases:
+    """update_average_on_entry() エッジケーステスト"""
+
+    def test_update_average_entry_zero_amount(self, tracker):
+        """エントリー数量0の場合"""
+        tracker.update_average_on_entry(price=10_000_000.0, amount=0.001)
+
+        # 0 BTCを追加エントリー
+        new_average = tracker.update_average_on_entry(price=15_000_000.0, amount=0)
+
+        # 平均価格は変わらないはず
+        assert new_average == pytest.approx(10_000_000.0, abs=0.01)
+        assert tracker._total_position_size == pytest.approx(0.001, abs=0.000001)
+
+    def test_update_average_entry_negative_amount_results_zero_total(self, tracker):
+        """負のamountでnew_total_sizeが0以下になる場合（防御的コードのテスト）"""
+        # 初期値を設定せずに負のamountを渡す
+        # old_size = 0, amount = -0.001 -> new_total_size = -0.001 < 0
+        new_average = tracker.update_average_on_entry(price=10_000_000.0, amount=-0.001)
+
+        # new_total_size <= 0 なのでリセット
+        assert new_average == 0.0
+        assert tracker._average_entry_price == 0.0
+        assert tracker._total_position_size == 0.0
+
+    def test_update_average_entry_negative_cancels_positive(self, tracker):
+        """負のamountがちょうど既存サイズを打ち消す場合"""
+        # 0.001 BTCをエントリー
+        tracker.update_average_on_entry(price=10_000_000.0, amount=0.001)
+
+        # -0.001 BTCで打ち消し -> new_total_size = 0
+        new_average = tracker.update_average_on_entry(price=15_000_000.0, amount=-0.001)
+
+        # new_total_size = 0 なのでリセット
+        assert new_average == 0.0
+        assert tracker._average_entry_price == 0.0
+        assert tracker._total_position_size == 0.0
+
+
+class TestUpdatePositionTpSlEdgeCases:
+    """update_position_tp_sl() エッジケーステスト"""
+
+    def test_update_with_none_values(self, tracker):
+        """Noneを渡した場合は更新しない"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_old",
+            sl_order_id="sl_old",
+        )
+
+        # Noneを渡す（更新しない）
+        success = tracker.update_position_tp_sl("order_123", tp_order_id=None, sl_order_id=None)
+
+        assert success is True
+        position = tracker.find_position("order_123")
+        # 既存の値が維持されている
+        assert position["tp_order_id"] == "tp_old"
+        assert position["sl_order_id"] == "sl_old"
+
+    def test_update_tp_only_preserves_sl(self, tracker):
+        """TPのみ更新時にSLは維持"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_old",
+            sl_order_id="sl_old",
+        )
+
+        success = tracker.update_position_tp_sl("order_123", tp_order_id="tp_new")
+
+        assert success is True
+        position = tracker.find_position("order_123")
+        assert position["tp_order_id"] == "tp_new"
+        assert position["sl_order_id"] == "sl_old"
+
+    def test_update_sl_only_preserves_tp(self, tracker):
+        """SLのみ更新時にTPは維持"""
+        tracker.add_position(
+            "order_123",
+            "buy",
+            0.001,
+            14000000.0,
+            tp_order_id="tp_old",
+            sl_order_id="sl_old",
+        )
+
+        success = tracker.update_position_tp_sl("order_123", sl_order_id="sl_new")
+
+        assert success is True
+        position = tracker.find_position("order_123")
+        assert position["tp_order_id"] == "tp_old"
+        assert position["sl_order_id"] == "sl_new"
+
+
+class TestTrackerInternalState:
+    """内部状態の初期化確認テスト"""
+
+    def test_average_price_initial_state(self, tracker):
+        """平均価格の初期状態"""
+        assert tracker._average_entry_price == 0.0
+        assert tracker._total_position_size == 0.0
+
+    def test_internal_state_after_clear(self, tracker):
+        """clear_all_positions後の内部状態"""
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0)
+        tracker.update_average_on_entry(price=14000000.0, amount=0.001)
+
+        tracker.clear_all_positions()
+
+        # virtual_positionsはクリアされるが、内部統計は別管理
+        assert len(tracker.virtual_positions) == 0
+        # 注意: clear_all_positionsは_average_entry_priceをリセットしない
+        assert tracker._average_entry_price == pytest.approx(14000000.0, abs=0.01)
+
+
+class TestGetOrphanedPositionsEdgeCases:
+    """get_orphaned_positions() エッジケーステスト"""
+
+    def test_orphaned_with_empty_side(self, tracker):
+        """sideが空文字のポジション"""
+        tracker.virtual_positions.append({
+            "order_id": "order_empty_side",
+            "side": "",
+            "amount": 0.001,
+            "price": 14000000.0,
+        })
+
+        actual_positions = [{"side": "", "amount": 0.001, "price": 14000000.0}]
+
+        orphaned = tracker.get_orphaned_positions(actual_positions)
+
+        assert len(orphaned) == 0  # 空文字同士で一致
+
+    def test_orphaned_with_missing_side(self, tracker):
+        """sideフィールドがないポジション"""
+        tracker.virtual_positions.append({
+            "order_id": "order_no_side",
+            "amount": 0.001,
+            "price": 14000000.0,
+        })
+
+        actual_positions = [{"amount": 0.001, "price": 14000000.0}]
+
+        orphaned = tracker.get_orphaned_positions(actual_positions)
+
+        assert len(orphaned) == 0  # sideなし同士で一致（""として扱われる）
+
+    def test_orphaned_with_missing_amount(self, tracker):
+        """amountフィールドがないポジション"""
+        tracker.virtual_positions.append({
+            "order_id": "order_no_amount",
+            "side": "buy",
+            "price": 14000000.0,
+        })
+
+        actual_positions = [{"side": "buy", "price": 14000000.0}]
+
+        orphaned = tracker.get_orphaned_positions(actual_positions)
+
+        assert len(orphaned) == 0  # amount=0同士で一致
+
+
+class TestFindPositionsBySideEdgeCases:
+    """find_positions_by_side() エッジケーステスト"""
+
+    def test_find_positions_empty_side(self, tracker):
+        """空文字sideで検索"""
+        tracker.virtual_positions.append({
+            "order_id": "order_empty_side",
+            "side": "",
+            "amount": 0.001,
+            "price": 14000000.0,
+        })
+
+        result = tracker.find_positions_by_side("")
+
+        assert len(result) == 1
+        assert result[0]["order_id"] == "order_empty_side"
+
+    def test_find_positions_missing_side(self, tracker):
+        """sideフィールドがないポジションの検索"""
+        tracker.virtual_positions.append({
+            "order_id": "order_no_side",
+            "amount": 0.001,
+            "price": 14000000.0,
+        })
+
+        # sideが存在しない場合は空文字として扱われる
+        result = tracker.find_positions_by_side("")
+
+        assert len(result) == 1
+
+
+class TestGetTotalExposureEdgeCases:
+    """get_total_exposure() エッジケーステスト"""
+
+    def test_exposure_with_uppercase_side(self, tracker):
+        """大文字sideのエクスポージャー計算"""
+        tracker.add_position("order_1", "BUY", 0.001, 14000000.0)
+        tracker.add_position("order_2", "SELL", 0.002, 14500000.0)
+
+        exposure = tracker.get_total_exposure()
+
+        assert exposure["buy"] == pytest.approx(14000.0)
+        assert exposure["sell"] == pytest.approx(29000.0)
+        assert exposure["total"] == pytest.approx(43000.0)
+
+    def test_exposure_with_mixed_case_side(self, tracker):
+        """大文字小文字混在sideのエクスポージャー計算"""
+        tracker.add_position("order_1", "Buy", 0.001, 14000000.0)
+        tracker.add_position("order_2", "Sell", 0.002, 14500000.0)
+
+        exposure = tracker.get_total_exposure()
+
+        assert exposure["buy"] == pytest.approx(14000.0)
+        assert exposure["sell"] == pytest.approx(29000.0)
+
+
+class TestGetLatestPositionsEdgeCases:
+    """get_latest_positions() エッジケーステスト"""
+
+    def test_latest_positions_count_zero(self, tracker):
+        """count=0の場合（Pythonスライス: [-0:]は全リストを返す）"""
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0)
+        tracker.add_position("order_2", "sell", 0.002, 14500000.0)
+
+        latest = tracker.get_latest_positions(0)
+
+        # Python slicing: [-0:] は全リストを返す（[-0] = [0]と同じ）
+        assert len(latest) == 2
+
+    def test_latest_positions_negative_count(self, tracker):
+        """count負数の場合"""
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0)
+        tracker.add_position("order_2", "sell", 0.002, 14500000.0)
+
+        latest = tracker.get_latest_positions(-1)
+
+        # Python slicing: [-1:] は最後の1つを返す
+        assert len(latest) == 1
+        assert latest[0]["order_id"] == "order_2"
+
+
+class TestAddPositionDefaultStrategy:
+    """add_position() デフォルト値テスト"""
+
+    def test_add_position_default_strategy_name(self, tracker):
+        """strategy_nameのデフォルト値"""
+        result = tracker.add_position(
+            order_id="order_123",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+        )
+
+        assert result["strategy_name"] == "unknown"
+
+
+class TestRemovePositionFromEmptyTracker:
+    """空トラッカーでのremove_position()テスト"""
+
+    def test_remove_from_empty_tracker(self, tracker):
+        """空トラッカーからの削除"""
+        result = tracker.remove_position("nonexistent")
+
+        assert result is None
+        assert len(tracker.virtual_positions) == 0
+
+
+class TestMultipleOperationsIntegration:
+    """複数操作の統合テスト"""
+
+    def test_add_find_update_remove_flow(self, tracker):
+        """追加→検索→更新→削除の一連の流れ"""
+        # 追加
+        tracker.add_position(
+            "order_flow", "buy", 0.001, 14000000.0, strategy_name="TestStrategy"
+        )
+        assert tracker.get_position_count() == 1
+
+        # 検索
+        pos = tracker.find_position("order_flow")
+        assert pos is not None
+        assert pos["strategy_name"] == "TestStrategy"
+
+        # TP/SL更新
+        success = tracker.update_position_tp_sl(
+            "order_flow", tp_order_id="tp_flow", sl_order_id="sl_flow"
+        )
+        assert success is True
+
+        # 再検索して確認
+        pos = tracker.find_position("order_flow")
+        assert pos["tp_order_id"] == "tp_flow"
+        assert pos["sl_order_id"] == "sl_flow"
+
+        # クリーンアップ付き削除
+        result = tracker.remove_position_with_cleanup("order_flow")
+        assert result["tp_order_id"] == "tp_flow"
+        assert result["sl_order_id"] == "sl_flow"
+        assert tracker.get_position_count() == 0
+
+    def test_average_price_entry_exit_cycle(self, tracker):
+        """平均価格のエントリー→決済サイクル"""
+        # 初回エントリー
+        avg1 = tracker.update_average_on_entry(price=10_000_000.0, amount=0.001)
+        assert avg1 == pytest.approx(10_000_000.0, abs=0.01)
+
+        # 追加エントリー
+        avg2 = tracker.update_average_on_entry(price=11_000_000.0, amount=0.001)
+        assert avg2 == pytest.approx(10_500_000.0, abs=0.01)
+
+        # 部分決済
+        avg3 = tracker.update_average_on_exit(amount=0.001)
+        assert avg3 == pytest.approx(10_500_000.0, abs=0.01)  # 平均価格維持
+        assert tracker._total_position_size == pytest.approx(0.001, abs=0.000001)
+
+        # 全決済
+        avg4 = tracker.update_average_on_exit(amount=0.001)
+        assert avg4 == 0.0
+        assert tracker._total_position_size == 0.0

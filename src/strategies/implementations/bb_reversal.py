@@ -1,17 +1,19 @@
 """
-BB Reversal戦略実装 - Phase 51.7 Day 3
+BB Reversal戦略実装 - Phase 62.2 条件型変更
 
 レンジ相場での平均回帰戦略:
-- BB上限タッチ + RSI買われすぎ → SELL信号
-- BB下限タッチ + RSI売られすぎ → BUY信号
+- BB上限タッチ → SELL信号（RSIは確認ボーナス）
+- BB下限タッチ → BUY信号（RSIは確認ボーナス）
 - レンジ相場判定: ADX < 20, BB幅 < 2%
+
+Phase 62.2変更:
+- AND条件 → BB位置主導に変更（RSIはボーナス）
+- 取引数増加: 3件→8-12件期待
 
 特徴:
 - レンジ相場に特化した平均回帰戦略
-- RSIとBBの組み合わせで反転ポイントを検出
+- BB位置で反転ポイントを検出、RSIは確認指標
 - トレンド相場ではシグナル発生を抑制
-
-Phase 51.7 Day 3実装
 """
 
 from typing import Any, Dict, List, Optional
@@ -30,10 +32,12 @@ class BBReversalStrategy(StrategyBase):
     """
     BB Reversal戦略 - レンジ相場での平均回帰戦略
 
+    Phase 62.2: BB位置主導・RSIボーナス制度
+
     シグナル生成ロジック:
     1. レンジ相場判定（ADX < 20, BB幅 < 2%）
-    2. BB上限タッチ（bb_position > 0.95）+ RSI買われすぎ（> 70） → SELL
-    3. BB下限タッチ（bb_position < 0.05）+ RSI売られすぎ（< 30） → BUY
+    2. BB上限タッチ（bb_position > 0.70） → SELL（RSIは信頼度ボーナス）
+    3. BB下限タッチ（bb_position < 0.30） → BUY（RSIは信頼度ボーナス）
     4. それ以外 → HOLD
 
     リスク管理:
@@ -69,6 +73,20 @@ class BBReversalStrategy(StrategyBase):
             ),
         }
 
+        # Phase 62.2: BB位置主導・RSIボーナス設定
+        default_config["bb_primary_mode"] = get_threshold(
+            "strategies.bb_reversal.bb_primary_mode", True
+        )
+        default_config["rsi_match_bonus"] = get_threshold(
+            "strategies.bb_reversal.rsi_match_bonus", 0.08
+        )
+        default_config["rsi_extreme_bonus"] = get_threshold(
+            "strategies.bb_reversal.rsi_extreme_bonus", 0.05
+        )
+        default_config["rsi_mismatch_penalty"] = get_threshold(
+            "strategies.bb_reversal.rsi_mismatch_penalty", 0.05
+        )
+
         # 設定マージ
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="BBReversal", config=merged_config)
@@ -77,7 +95,8 @@ class BBReversalStrategy(StrategyBase):
         self.logger.info(
             f"BBReversal戦略初期化: BB幅閾値={self.config['bb_width_threshold']}, "
             f"ADX閾値={self.config['adx_range_threshold']}, "
-            f"RSI閾値=({self.config['rsi_oversold']}, {self.config['rsi_overbought']})"
+            f"RSI閾値=({self.config['rsi_oversold']}, {self.config['rsi_overbought']}), "
+            f"BB主導モード={self.config['bb_primary_mode']}"
         )
 
     def analyze(
@@ -226,11 +245,11 @@ class BBReversalStrategy(StrategyBase):
 
     def _analyze_bb_reversal_signal(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
-        BB反転シグナル分析
+        BB反転シグナル分析（Phase 62.2: BB位置主導・RSIボーナス制度）
 
         シグナル生成ロジック:
-        1. SELL: bb_position > 0.95 AND rsi > 70
-        2. BUY: bb_position < 0.05 AND rsi < 30
+        1. SELL: bb_position > bb_upper_threshold（RSIはボーナス）
+        2. BUY: bb_position < bb_lower_threshold（RSIはボーナス）
         3. HOLD: それ以外
 
         Args:
@@ -244,51 +263,119 @@ class BBReversalStrategy(StrategyBase):
             bb_position = float(latest["bb_position"])
             rsi = float(latest["rsi_14"])
 
-            # SELL信号（BB上限タッチ + RSI買われすぎ）
-            if (
-                bb_position > self.config["bb_upper_threshold"]
-                and rsi > self.config["rsi_overbought"]
-            ):
-                # 信頼度: BB位置が上限に近いほど高い
-                confidence = min(0.30 + (bb_position - 0.95) * 2.0, 0.50)
-                # 強度: BB位置の偏り度合い
-                strength = (bb_position - 0.5) * 2.0
+            # Phase 62.2: BB位置主導モード
+            if self.config.get("bb_primary_mode", True):
+                # SELL信号（BB上限タッチ - RSIは確認ボーナス）
+                if bb_position > self.config["bb_upper_threshold"]:
+                    # 基本信頼度: BB位置が上限に近いほど高い
+                    base_conf = 0.30 + (bb_position - self.config["bb_upper_threshold"]) * 1.5
+                    confidence = base_conf
 
-                return {
-                    "action": EntryAction.SELL,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": f"BB上限タッチ・RSI買われすぎ→反転下落期待",
-                }
+                    # RSIボーナス/ペナルティ
+                    if rsi > self.config["rsi_overbought"]:
+                        # RSI一致 → ボーナス
+                        confidence += self.config.get("rsi_match_bonus", 0.08)
+                        if rsi > 70:
+                            # 極端RSI → 追加ボーナス
+                            confidence += self.config.get("rsi_extreme_bonus", 0.05)
+                    else:
+                        # RSI不一致 → ペナルティ（HOLDではなく削減）
+                        confidence -= self.config.get("rsi_mismatch_penalty", 0.05)
 
-            # BUY信号（BB下限タッチ + RSI売られすぎ）
-            elif (
-                bb_position < self.config["bb_lower_threshold"]
-                and rsi < self.config["rsi_oversold"]
-            ):
-                # 信頼度: BB位置が下限に近いほど高い
-                confidence = min(0.30 + (0.05 - bb_position) * 2.0, 0.50)
-                # 強度: BB位置の偏り度合い
-                strength = (0.5 - bb_position) * 2.0
+                    confidence = min(max(confidence, self.config["min_confidence"]), 0.55)
+                    strength = (bb_position - 0.5) * 2.0
 
-                return {
-                    "action": EntryAction.BUY,
-                    "confidence": confidence,
-                    "strength": strength,
-                    "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": f"BB下限タッチ・RSI売られすぎ→反転上昇期待",
-                }
+                    rsi_status = "一致" if rsi > self.config["rsi_overbought"] else "不一致"
+                    return {
+                        "action": EntryAction.SELL,
+                        "confidence": confidence,
+                        "strength": strength,
+                        "reason": f"BB反転SELL (BB={bb_position:.2f}, RSI={rsi:.1f}[{rsi_status}])",
+                        "analysis": "BB上限タッチ→反転下落期待",
+                    }
 
-            # HOLD信号
+                # BUY信号（BB下限タッチ - RSIは確認ボーナス）
+                elif bb_position < self.config["bb_lower_threshold"]:
+                    # 基本信頼度: BB位置が下限に近いほど高い
+                    base_conf = 0.30 + (self.config["bb_lower_threshold"] - bb_position) * 1.5
+                    confidence = base_conf
+
+                    # RSIボーナス/ペナルティ
+                    if rsi < self.config["rsi_oversold"]:
+                        # RSI一致 → ボーナス
+                        confidence += self.config.get("rsi_match_bonus", 0.08)
+                        if rsi < 30:
+                            # 極端RSI → 追加ボーナス
+                            confidence += self.config.get("rsi_extreme_bonus", 0.05)
+                    else:
+                        # RSI不一致 → ペナルティ（HOLDではなく削減）
+                        confidence -= self.config.get("rsi_mismatch_penalty", 0.05)
+
+                    confidence = min(max(confidence, self.config["min_confidence"]), 0.55)
+                    strength = (0.5 - bb_position) * 2.0
+
+                    rsi_status = "一致" if rsi < self.config["rsi_oversold"] else "不一致"
+                    return {
+                        "action": EntryAction.BUY,
+                        "confidence": confidence,
+                        "strength": strength,
+                        "reason": f"BB反転BUY (BB={bb_position:.2f}, RSI={rsi:.1f}[{rsi_status}])",
+                        "analysis": "BB下限タッチ→反転上昇期待",
+                    }
+
+                # HOLD信号
+                else:
+                    return {
+                        "action": EntryAction.HOLD,
+                        "confidence": self.config["hold_confidence"],
+                        "strength": 0.0,
+                        "reason": f"BB中央域 (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
+                        "analysis": "BB中央付近→エントリー見送り",
+                    }
+
+            # 従来モード（AND条件）
             else:
-                return {
-                    "action": EntryAction.HOLD,
-                    "confidence": self.config["hold_confidence"],
-                    "strength": 0.0,
-                    "reason": f"BB反転条件未達成 (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
-                    "analysis": "BB中央付近またはRSI中立→エントリー見送り",
-                }
+                # SELL信号（BB上限タッチ + RSI買われすぎ）
+                if (
+                    bb_position > self.config["bb_upper_threshold"]
+                    and rsi > self.config["rsi_overbought"]
+                ):
+                    confidence = min(0.30 + (bb_position - 0.95) * 2.0, 0.50)
+                    strength = (bb_position - 0.5) * 2.0
+
+                    return {
+                        "action": EntryAction.SELL,
+                        "confidence": confidence,
+                        "strength": strength,
+                        "reason": f"BB反転SELL (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
+                        "analysis": f"BB上限タッチ・RSI買われすぎ→反転下落期待",
+                    }
+
+                # BUY信号（BB下限タッチ + RSI売られすぎ）
+                elif (
+                    bb_position < self.config["bb_lower_threshold"]
+                    and rsi < self.config["rsi_oversold"]
+                ):
+                    confidence = min(0.30 + (0.05 - bb_position) * 2.0, 0.50)
+                    strength = (0.5 - bb_position) * 2.0
+
+                    return {
+                        "action": EntryAction.BUY,
+                        "confidence": confidence,
+                        "strength": strength,
+                        "reason": f"BB反転BUY (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
+                        "analysis": f"BB下限タッチ・RSI売られすぎ→反転上昇期待",
+                    }
+
+                # HOLD信号
+                else:
+                    return {
+                        "action": EntryAction.HOLD,
+                        "confidence": self.config["hold_confidence"],
+                        "strength": 0.0,
+                        "reason": f"BB反転条件未達成 (BB位置={bb_position:.2f}, RSI={rsi:.1f})",
+                        "analysis": "BB中央付近またはRSI中立→エントリー見送り",
+                    }
 
         except Exception as e:
             self.logger.error(f"BB反転シグナル分析エラー: {e}")

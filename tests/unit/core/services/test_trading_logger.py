@@ -410,3 +410,428 @@ class TestTradingLoggerService:
         trading_logger.logger.debug.assert_called_once_with(
             "✅ 取引サイクル完了 - ID: cycle-end-001, 実行時間: 15.67秒"
         )
+
+    # ========== 追加テストケース（カバレッジ向上用） ==========
+
+    @pytest.mark.asyncio
+    async def test_log_trade_decision_with_enum(self, trading_logger):
+        """取引決定ログ - Enum型decisionテスト（Phase 57.2対応）"""
+        # Enum型のdecisionをモック
+        evaluation = MagicMock()
+        mock_decision = MagicMock()
+        mock_decision.value = "approved"
+        evaluation.decision = mock_decision
+        evaluation.risk_score = 0.250
+        cycle_id = "test-cycle-enum"
+
+        await trading_logger.log_trade_decision(evaluation, cycle_id)
+
+        trading_logger.logger.info.assert_called_once_with(
+            "🟢 取引承認 - サイクル: test-cycle-enum, リスクスコア: 0.250", discord_notify=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_dict_success(self, trading_logger):
+        """実行結果ログ - 辞書型成功テスト"""
+        execution_result = {"success": True}
+
+        with patch.object(trading_logger, "_log_successful_execution") as mock_success:
+            await trading_logger.log_execution_result(execution_result, "test-cycle-dict")
+
+            mock_success.assert_called_once_with(execution_result, "test-cycle-dict", "", "✅")
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_dict_failure(self, trading_logger):
+        """実行結果ログ - 辞書型失敗テスト"""
+        execution_result = {"success": False, "error_message": "API Error"}
+
+        with patch.object(trading_logger, "_log_failed_execution") as mock_failure:
+            await trading_logger.log_execution_result(execution_result, "test-cycle-dict-fail")
+
+            mock_failure.assert_called_once_with(
+                execution_result, "test-cycle-dict-fail", "", "❌"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_unexpected_type(self, trading_logger):
+        """実行結果ログ - 予期しない型テスト"""
+        # success属性を持たず、辞書でもない型
+        execution_result = "unexpected_string"
+
+        with patch.object(trading_logger, "_log_failed_execution") as mock_failure:
+            await trading_logger.log_execution_result(execution_result, "test-cycle-unexpected")
+
+            # 予期しない型の場合、warningログ出力後、success=Falseとして処理
+            trading_logger.logger.warning.assert_called_once()
+            mock_failure.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_key_error(self, trading_logger):
+        """実行結果ログ - KeyError例外テスト"""
+        execution_result = MagicMock()
+        execution_result.success = True
+
+        with patch.object(
+            trading_logger, "_log_successful_execution", side_effect=KeyError("missing_key")
+        ):
+            await trading_logger.log_execution_result(execution_result, "test-cycle-keyerror")
+
+            trading_logger.logger.error.assert_called_once_with(
+                "実行結果ログデータアクセスエラー: 'missing_key'"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_attribute_error(self, trading_logger):
+        """実行結果ログ - AttributeError例外テスト"""
+        execution_result = MagicMock()
+        execution_result.success = True
+
+        with patch.object(
+            trading_logger,
+            "_log_successful_execution",
+            side_effect=AttributeError("missing_attr"),
+        ):
+            await trading_logger.log_execution_result(
+                execution_result, "test-cycle-attrerror"
+            )
+
+            trading_logger.logger.error.assert_called_once_with(
+                "実行結果ログデータアクセスエラー: missing_attr"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_value_error(self, trading_logger):
+        """実行結果ログ - ValueError例外テスト"""
+        execution_result = MagicMock()
+        execution_result.success = True
+
+        with patch.object(
+            trading_logger,
+            "_log_successful_execution",
+            side_effect=ValueError("invalid_value"),
+        ):
+            await trading_logger.log_execution_result(
+                execution_result, "test-cycle-valerror"
+            )
+
+            trading_logger.logger.error.assert_called_once_with(
+                "実行結果ログデータ変換エラー: invalid_value"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_type_error(self, trading_logger):
+        """実行結果ログ - TypeError例外テスト"""
+        execution_result = MagicMock()
+        execution_result.success = True
+
+        with patch.object(
+            trading_logger,
+            "_log_successful_execution",
+            side_effect=TypeError("type_mismatch"),
+        ):
+            await trading_logger.log_execution_result(
+                execution_result, "test-cycle-typeerror"
+            )
+
+            trading_logger.logger.error.assert_called_once_with(
+                "実行結果ログデータ変換エラー: type_mismatch"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_execution_result_general_exception(self, trading_logger):
+        """実行結果ログ - 一般例外テスト"""
+        execution_result = MagicMock()
+        execution_result.success = True
+
+        with patch.object(
+            trading_logger,
+            "_log_successful_execution",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            await trading_logger.log_execution_result(
+                execution_result, "test-cycle-general"
+            )
+
+            trading_logger.logger.error.assert_called_once_with(
+                "実行結果ログ出力予期しないエラー: unexpected"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_successful_execution_backtest_mode(self, trading_logger):
+        """成功時実行ログ - バックテストモードテスト"""
+        execution_result = MagicMock()
+        execution_result.side = "buy"
+        execution_result.amount = 0.1000
+        execution_result.price = 3000000
+        del execution_result.paper_pnl
+        del execution_result.fee
+
+        with patch.object(trading_logger, "_check_and_log_statistics"):
+            with patch.dict("os.environ", {"BACKTEST_MODE": "true"}):
+                await trading_logger._log_successful_execution(
+                    execution_result, "test-cycle-backtest", "", "✅"
+                )
+
+                # バックテスト時はwarningレベルで出力
+                trading_logger.logger.warning.assert_called_once()
+                trading_logger.logger.info.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_log_successful_execution_exception(self, trading_logger):
+        """成功時実行ログ - 例外処理テスト"""
+        execution_result = MagicMock()
+        # side属性アクセスで例外発生
+        type(execution_result).side = property(
+            lambda self: (_ for _ in ()).throw(Exception("side_error"))
+        )
+
+        with patch.object(trading_logger, "_check_and_log_statistics"):
+            await trading_logger._log_successful_execution(
+                execution_result, "test-cycle-exc", "", "✅"
+            )
+
+            trading_logger.logger.error.assert_called_once_with(
+                "❌ 成功時実行ログエラー: side_error"
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_failed_execution_dict(self, trading_logger):
+        """失敗時実行ログ - 辞書型テスト"""
+        execution_result = {"error_message": "Connection timeout"}
+
+        await trading_logger._log_failed_execution(
+            execution_result, "test-cycle-dict-fail", "", "❌"
+        )
+
+        expected_message = "❌ 注文実行失敗 - サイクル: test-cycle-dict-fail, エラー: Connection timeout"
+        trading_logger.logger.warning.assert_called_once_with(
+            expected_message, discord_notify=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_failed_execution_dict_no_error_message(self, trading_logger):
+        """失敗時実行ログ - 辞書型エラーメッセージなしテスト"""
+        execution_result = {}
+
+        await trading_logger._log_failed_execution(
+            execution_result, "test-cycle-dict-no-err", "", "❌"
+        )
+
+        expected_message = "❌ 注文実行失敗 - サイクル: test-cycle-dict-no-err, エラー: 不明"
+        trading_logger.logger.warning.assert_called_once_with(
+            expected_message, discord_notify=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_failed_execution_exception(self, trading_logger):
+        """失敗時実行ログ - 例外処理テスト"""
+        execution_result = MagicMock()
+        # error_message属性アクセスで例外発生
+        type(execution_result).error_message = property(
+            lambda self: (_ for _ in ()).throw(Exception("attr_error"))
+        )
+
+        await trading_logger._log_failed_execution(
+            execution_result, "test-cycle-fail-exc", "", "❌"
+        )
+
+        trading_logger.logger.error.assert_called_once_with(
+            "❌ 失敗時実行ログエラー: attr_error"
+        )
+
+    @pytest.mark.asyncio
+    async def test_check_and_log_statistics_zero_trades(self, trading_logger):
+        """統計チェック - 取引数0テスト"""
+        stats = {"statistics": {"total_trades": 0}}
+        trading_logger.orchestrator.execution_service.get_trading_statistics.return_value = stats
+
+        with patch.object(trading_logger, "log_trading_statistics") as mock_log_stats:
+            await trading_logger._check_and_log_statistics()
+
+            # total_trades=0は10の倍数だが、0は出力対象外
+            mock_log_stats.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_check_and_log_statistics_no_execution_service_attr(self, trading_logger):
+        """統計チェック - execution_service属性なしテスト"""
+        del trading_logger.orchestrator.execution_service
+
+        # 例外が発生しないことを確認
+        await trading_logger._check_and_log_statistics()
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_key_error(self, trading_logger):
+        """取引統計ログ - KeyError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = KeyError("missing_key")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログデータアクセスエラー: 'missing_key'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_attribute_error(self, trading_logger):
+        """取引統計ログ - AttributeError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = AttributeError("missing_attr")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログデータアクセスエラー: missing_attr"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_value_error(self, trading_logger):
+        """取引統計ログ - ValueError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = ValueError("invalid_value")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログデータ変換エラー: invalid_value"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_type_error(self, trading_logger):
+        """取引統計ログ - TypeError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = TypeError("type_mismatch")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログデータ変換エラー: type_mismatch"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_zero_division_error(self, trading_logger):
+        """取引統計ログ - ZeroDivisionError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = ZeroDivisionError("division by zero")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログ計算エラー: division by zero"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_arithmetic_error(self, trading_logger):
+        """取引統計ログ - ArithmeticError例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = ArithmeticError("arithmetic error")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログ計算エラー: arithmetic error"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_trading_statistics_general_exception(self, trading_logger):
+        """取引統計ログ - 一般例外テスト"""
+        stats = MagicMock()
+        stats.get.side_effect = RuntimeError("unexpected")
+
+        await trading_logger.log_trading_statistics(stats)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "統計ログ出力予期しないエラー: unexpected"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_cycle_start_exception(self, trading_logger):
+        """サイクル開始ログ - 例外処理テスト"""
+        trading_logger.logger.debug.side_effect = Exception("debug_error")
+
+        await trading_logger.log_cycle_start("test-cycle-exc")
+
+        trading_logger.logger.error.assert_called_once_with(
+            "❌ サイクル開始ログエラー: debug_error"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_cycle_end_exception(self, trading_logger):
+        """サイクル終了ログ - 例外処理テスト"""
+        trading_logger.logger.debug.side_effect = Exception("debug_error")
+
+        await trading_logger.log_cycle_end("test-cycle-exc", 10.5)
+
+        trading_logger.logger.error.assert_called_once_with(
+            "❌ サイクル終了ログエラー: debug_error"
+        )
+
+    @pytest.mark.asyncio
+    async def test_log_successful_execution_pnl_zero(self, trading_logger):
+        """成功時実行ログ - PnL=0テスト（エッジケース）"""
+        execution_result = MagicMock()
+        execution_result.side = "sell"
+        execution_result.amount = 0.0500
+        execution_result.price = 3200000
+        execution_result.paper_pnl = 0  # PnL=0
+        execution_result.fee = 500
+
+        with patch.object(trading_logger, "_check_and_log_statistics"):
+            await trading_logger._log_successful_execution(
+                execution_result, "test-cycle-zero-pnl", "", "✅"
+            )
+
+            # PnL=0の場合、条件は False (0 > 0 は False) なので💸が使われる
+            expected_message = (
+                "✅ 📉 注文実行成功 - サイクル: test-cycle-zero-pnl, "
+                "サイド: SELL, 数量: 0.0500 BTC, 価格: ¥3,200,000, "
+                "PnL: 💸¥0, 手数料: ¥500.00"
+            )
+            trading_logger.logger.info.assert_called_once_with(
+                expected_message, discord_notify=True
+            )
+
+    @pytest.mark.asyncio
+    async def test_log_successful_execution_pnl_none(self, trading_logger):
+        """成功時実行ログ - PnL=Noneテスト"""
+        execution_result = MagicMock()
+        execution_result.side = "buy"
+        execution_result.amount = 0.0300
+        execution_result.price = 3100000
+        execution_result.paper_pnl = None  # 明示的にNone
+        execution_result.fee = None  # 手数料もNone
+
+        with patch.object(trading_logger, "_check_and_log_statistics"):
+            await trading_logger._log_successful_execution(
+                execution_result, "test-cycle-none-pnl", "", "✅"
+            )
+
+            # PnLがNoneの場合は出力されない
+            expected_message = (
+                "✅ 📈 注文実行成功 - サイクル: test-cycle-none-pnl, "
+                "サイド: BUY, 数量: 0.0300 BTC, 価格: ¥3,100,000"
+            )
+            trading_logger.logger.info.assert_called_once_with(
+                expected_message, discord_notify=True
+            )
+
+    def test_format_performance_summary_with_initial_balance(self, trading_logger):
+        """パフォーマンスサマリーフォーマット - initial_balance指定ありテスト"""
+        stats = {
+            "statistics": {"total_trades": 100, "winning_trades": 65, "win_rate": 0.65},
+            "current_balance": 550000,
+            "initial_balance": 500000,
+            "return_rate": 0.10,
+        }
+
+        result = trading_logger.format_performance_summary(stats)
+
+        expected = {
+            "total_trades": 100,
+            "winning_trades": 65,
+            "win_rate_percent": 65.0,
+            "current_balance": 550000,
+            "return_rate_percent": 10.0,
+            "profit_loss": 50000,
+        }
+
+        assert result == expected

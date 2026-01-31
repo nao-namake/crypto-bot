@@ -1,5 +1,5 @@
 """
-Donchian Channel戦略実装 - Phase 56.8 平均回帰戦略リファクタリング
+Donchian Channel戦略実装 - Phase 62.2 条件型変更
 
 タイトレンジ向け平均回帰戦略。
 直列評価方式でシンプルかつ高品質なシグナル生成。
@@ -7,7 +7,11 @@ Donchian Channel戦略実装 - Phase 56.8 平均回帰戦略リファクタリ�
 設計思想:
 - ADXフィルタ: トレンド相場を除外（ADX < 25）
 - 極端位置: チャネル端部（< 0.10 or > 0.90）でのみシグナル
-- RSIフィルタ: 方向確認で偽シグナル削減
+- RSIボーナス: RSIは確認指標として信頼度ボーナスに使用（HOLDではなく）
+
+Phase 62.2:
+- RSIフィルタをボーナス制度に変更（HOLD→信頼度調整）
+- 取引数増加: 21件→28-32件期待
 
 Phase 56.8:
 - 5段階判定 → 直列評価方式にシンプル化
@@ -33,10 +37,10 @@ class DonchianChannelStrategy(StrategyBase):
     """
     Donchian Channel平均回帰戦略
 
-    Phase 56.8: 直列評価方式
+    Phase 62.2: RSIボーナス制度
     1. ADXフィルタ（レンジ相場確認）
     2. 極端位置確認（チャネル端部）
-    3. RSIフィルタ（方向確認）
+    3. RSIボーナス（方向確認→信頼度調整、HOLDしない）
     4. シグナル発生（信頼度計算）
     """
 
@@ -66,6 +70,12 @@ class DonchianChannelStrategy(StrategyBase):
         )
         self.rsi_confirmation_bonus = get_threshold(
             "strategies.donchian_channel.rsi_confirmation_bonus", 0.05
+        )
+
+        # Phase 62.2: RSIボーナス制度設定
+        self.rsi_as_bonus = get_threshold("strategies.donchian_channel.rsi_as_bonus", True)
+        self.rsi_mismatch_penalty = get_threshold(
+            "strategies.donchian_channel.rsi_mismatch_penalty", 0.08
         )
 
         self.logger.info(
@@ -133,21 +143,19 @@ class DonchianChannelStrategy(StrategyBase):
                 return self._create_hold_signal(df, f"中央域HOLD（位置={channel_position:.3f}）")
 
             # ========================================
-            # 直列評価: Step 3 - RSIフィルタ
+            # 直列評価: Step 3 - RSI評価（Phase 62.2: ボーナス制度）
             # ========================================
-            if direction == "buy" and rsi > self.rsi_oversold:
-                return self._create_hold_signal(
-                    df, f"RSI高すぎ（RSI={rsi:.1f} > {self.rsi_oversold}）"
-                )
-            if direction == "sell" and rsi < self.rsi_overbought:
-                return self._create_hold_signal(
-                    df, f"RSI低すぎ（RSI={rsi:.1f} < {self.rsi_overbought}）"
-                )
+            # Phase 62.2: RSIはHOLD判定ではなく、信頼度調整に使用
+            rsi_matches = False
+            if direction == "buy" and rsi <= self.rsi_oversold:
+                rsi_matches = True
+            elif direction == "sell" and rsi >= self.rsi_overbought:
+                rsi_matches = True
 
             # ========================================
             # 直列評価: Step 4 - シグナル発生
             # ========================================
-            confidence = self._calculate_confidence(channel_position, rsi, direction)
+            confidence = self._calculate_confidence(channel_position, rsi, direction, rsi_matches)
 
             if confidence < self.min_confidence:
                 return self._create_hold_signal(
@@ -194,14 +202,17 @@ class DonchianChannelStrategy(StrategyBase):
 
         return True
 
-    def _calculate_confidence(self, channel_position: float, rsi: float, direction: str) -> float:
+    def _calculate_confidence(
+        self, channel_position: float, rsi: float, direction: str, rsi_matches: bool = True
+    ) -> float:
         """
-        信頼度計算（シンプル化）
+        信頼度計算（Phase 62.2: RSIボーナス制度対応）
 
         Args:
             channel_position: チャネル位置（0-1）
             rsi: RSI値
             direction: "buy" or "sell"
+            rsi_matches: RSIが方向と一致しているか
 
         Returns:
             信頼度（0.0-1.0）
@@ -214,11 +225,25 @@ class DonchianChannelStrategy(StrategyBase):
         elif direction == "sell" and channel_position > 0.95:
             confidence += self.extreme_position_bonus
 
-        # RSI確認ボーナス（< 30 or > 70）
-        if direction == "buy" and rsi < 30:
-            confidence += self.rsi_confirmation_bonus
-        elif direction == "sell" and rsi > 70:
-            confidence += self.rsi_confirmation_bonus
+        # Phase 62.2: RSIボーナス/ペナルティ制度
+        if self.rsi_as_bonus:
+            if rsi_matches:
+                # RSIが方向と一致 → ボーナス
+                confidence += self.rsi_confirmation_bonus
+                # 極端RSIでさらにボーナス
+                if direction == "buy" and rsi < 30:
+                    confidence += self.rsi_confirmation_bonus
+                elif direction == "sell" and rsi > 70:
+                    confidence += self.rsi_confirmation_bonus
+            else:
+                # RSIが方向と不一致 → ペナルティ（HOLDではなく信頼度削減）
+                confidence -= self.rsi_mismatch_penalty
+        else:
+            # 従来方式: RSI確認ボーナスのみ（< 30 or > 70）
+            if direction == "buy" and rsi < 30:
+                confidence += self.rsi_confirmation_bonus
+            elif direction == "sell" and rsi > 70:
+                confidence += self.rsi_confirmation_bonus
 
         # 位置に応じた追加ボーナス
         if direction == "buy":

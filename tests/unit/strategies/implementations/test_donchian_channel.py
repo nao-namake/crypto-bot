@@ -1,14 +1,18 @@
 """
-Donchian Channel戦略のテストモジュール - Phase 56.8リファクタリング対応
+Donchian Channel戦略のテストモジュール - Phase 62.2 RSIボーナス制度対応
 
 DonchianChannelStrategyクラスの単体テスト。
-直列評価方式（ADX→極端位置→RSI）を検証。
+直列評価方式（ADX→極端位置→RSIボーナス）を検証。
 
 テスト項目:
 - 初期化・設定テスト
 - 直列評価方式テスト
 - データ検証テスト
 - シグナル生成テスト
+
+Phase 62.2:
+- RSIフィルタをボーナス制度に変更（HOLD→信頼度調整）
+- test_rsi_filter_buy_rejected, test_rsi_filter_sell_rejectedをRSIボーナステストに変更
 
 Phase 56.8:
 - ブレイクアウトテスト削除（ブレイクアウトロジック削除）
@@ -198,38 +202,60 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         self.assertIn("中央域HOLD", signal.reason)
 
     # ========================================
-    # 直列評価: Step 3 - RSIフィルタテスト
+    # 直列評価: Step 3 - RSIボーナステスト（Phase 62.2）
     # ========================================
 
     def test_rsi_filter_buy_rejected(self):
-        """RSI高すぎで買い拒否"""
+        """Phase 62.2: RSI不一致でも買いシグナル発生（ペナルティ適用）"""
         df = self._create_test_data(50)
         latest_idx = df.index[-1]
 
-        # 下限極端位置だがRSI高い
+        # 下限極端位置だがRSI高い → Phase 62.2ではHOLDではなく買い（ペナルティ適用）
         df.loc[latest_idx, "channel_position"] = 0.05
         df.loc[latest_idx, "adx_14"] = 20.0  # レンジ
-        df.loc[latest_idx, "rsi_14"] = 55.0  # RSI > 42（買い拒否）
+        df.loc[latest_idx, "rsi_14"] = 55.0  # RSI > 48（不一致）
 
         signal = self.strategy.generate_signal(df)
 
-        self.assertEqual(signal.action, "hold")
-        self.assertIn("RSI高すぎ", signal.reason)
+        # Phase 62.2: RSIボーナス制度ではHOLDではなくシグナル発生
+        self.assertEqual(signal.action, "buy")
+        self.assertIn("下限平均回帰", signal.reason)
 
     def test_rsi_filter_sell_rejected(self):
-        """RSI低すぎで売り拒否"""
+        """Phase 62.2: RSI不一致でも売りシグナル発生（ペナルティ適用）"""
         df = self._create_test_data(50)
         latest_idx = df.index[-1]
 
-        # 上限極端位置だがRSI低い
+        # 上限極端位置だがRSI低い → Phase 62.2ではHOLDではなく売り（ペナルティ適用）
         df.loc[latest_idx, "channel_position"] = 0.95
         df.loc[latest_idx, "adx_14"] = 20.0  # レンジ
-        df.loc[latest_idx, "rsi_14"] = 45.0  # RSI < 58（売り拒否）
+        df.loc[latest_idx, "rsi_14"] = 45.0  # RSI < 52（不一致）
 
         signal = self.strategy.generate_signal(df)
 
-        self.assertEqual(signal.action, "hold")
-        self.assertIn("RSI低すぎ", signal.reason)
+        # Phase 62.2: RSIボーナス制度ではHOLDではなくシグナル発生
+        self.assertEqual(signal.action, "sell")
+        self.assertIn("上限平均回帰", signal.reason)
+
+    def test_rsi_match_bonus_confidence(self):
+        """Phase 62.2: RSI一致時は信頼度にボーナスが適用される"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+
+        # RSI一致ケース
+        df.loc[latest_idx, "channel_position"] = 0.05
+        df.loc[latest_idx, "adx_14"] = 20.0
+        df.loc[latest_idx, "rsi_14"] = 30.0  # RSI <= 48（一致）
+
+        signal_match = self.strategy.generate_signal(df)
+
+        # RSI不一致ケース
+        df.loc[latest_idx, "rsi_14"] = 55.0  # RSI > 48（不一致）
+
+        signal_mismatch = self.strategy.generate_signal(df)
+
+        # RSI一致時の方が信頼度が高い
+        self.assertGreater(signal_match.confidence, signal_mismatch.confidence)
 
     # ========================================
     # 信頼度計算テスト
@@ -237,7 +263,8 @@ class TestDonchianChannelStrategy(unittest.TestCase):
 
     def test_confidence_calculation_basic(self):
         """基本信頼度計算テスト"""
-        confidence = self.strategy._calculate_confidence(0.05, 30.0, "buy")
+        # Phase 62.2: rsi_matches引数追加
+        confidence = self.strategy._calculate_confidence(0.05, 30.0, "buy", rsi_matches=True)
 
         self.assertGreaterEqual(confidence, self.strategy.min_confidence)
         self.assertLessEqual(confidence, self.strategy.max_confidence)
@@ -245,18 +272,18 @@ class TestDonchianChannelStrategy(unittest.TestCase):
     def test_confidence_extreme_position_bonus(self):
         """極端位置ボーナステスト"""
         # 極端位置（< 0.05）
-        conf_extreme = self.strategy._calculate_confidence(0.03, 30.0, "buy")
+        conf_extreme = self.strategy._calculate_confidence(0.03, 30.0, "buy", rsi_matches=True)
         # 通常位置（0.05-0.12）
-        conf_normal = self.strategy._calculate_confidence(0.10, 30.0, "buy")
+        conf_normal = self.strategy._calculate_confidence(0.10, 30.0, "buy", rsi_matches=True)
 
         self.assertGreater(conf_extreme, conf_normal)
 
     def test_confidence_rsi_bonus(self):
         """RSI確認ボーナステスト"""
-        # 極端RSI（< 30）
-        conf_extreme_rsi = self.strategy._calculate_confidence(0.05, 25.0, "buy")
-        # 通常RSI（30-42）
-        conf_normal_rsi = self.strategy._calculate_confidence(0.05, 35.0, "buy")
+        # 極端RSI（< 30）+ RSI一致
+        conf_extreme_rsi = self.strategy._calculate_confidence(0.05, 25.0, "buy", rsi_matches=True)
+        # 通常RSI（30-42）+ RSI一致
+        conf_normal_rsi = self.strategy._calculate_confidence(0.05, 35.0, "buy", rsi_matches=True)
 
         self.assertGreater(conf_extreme_rsi, conf_normal_rsi)
 

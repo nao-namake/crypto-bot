@@ -1480,3 +1480,927 @@ class TestPhase516AtomicEntry:
         assert mock_bitbank_client.cancel_order.call_count == 2
         mock_bitbank_client.cancel_order.assert_any_call("old_tp_sell", "BTC/JPY")
         mock_bitbank_client.cancel_order.assert_any_call("old_sl_sell", "BTC/JPY")
+
+
+# ========================================
+# Phase 53.6: ポジション復元テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestRestorePositionsFromAPI:
+    """Phase 53.6: 起動時ポジション復元テスト"""
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientモック"""
+        client = AsyncMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        client.fetch_active_orders = MagicMock(return_value=[])
+        return client
+
+    async def test_restore_positions_paper_mode_skips(self, mock_bitbank_client):
+        """ペーパーモードは復元スキップ"""
+        service = ExecutionService(mode="paper", bitbank_client=mock_bitbank_client)
+
+        await service.restore_positions_from_api()
+
+        # ペーパーモードではAPI呼び出しなし
+        mock_bitbank_client.fetch_margin_positions.assert_not_called()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_restore_positions_no_active_orders(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """アクティブ注文なし時のスキップ"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
+        mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        await service.restore_positions_from_api()
+
+        assert len(service.virtual_positions) == 0
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_restore_positions_with_active_orders(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """アクティブ注文ありの復元"""
+        # 信用建玉
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            return_value=[
+                {
+                    "side": "long",
+                    "amount": 0.0001,
+                    "average_price": 14000000,
+                    "unrealized_pnl": 100,
+                }
+            ]
+        )
+        # アクティブ注文
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_123",
+                    "type": "limit",
+                    "side": "sell",
+                    "amount": 0.0001,
+                    "price": 14500000,
+                },
+                {
+                    "id": "sl_123",
+                    "type": "stop",
+                    "side": "sell",
+                    "amount": 0.0001,
+                    "price": 13500000,
+                },
+            ]
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        await service.restore_positions_from_api()
+
+        # 2件復元される
+        assert len(service.virtual_positions) == 2
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_restore_positions_skips_incomplete_orders(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """Phase 53.11: 不完全な注文はスキップ"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
+        # 不完全なデータ（side, amount, priceがNone）
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "incomplete_1", "type": "limit", "side": None, "amount": 0.0001, "price": 14000000},
+                {"id": "incomplete_2", "type": "limit", "side": "sell", "amount": None, "price": 14000000},
+                {"id": "incomplete_3", "type": "limit", "side": "sell", "amount": 0.0001, "price": None},
+                {"id": "valid_order", "type": "limit", "side": "sell", "amount": 0.0001, "price": 14500000},
+            ]
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        await service.restore_positions_from_api()
+
+        # 有効な注文のみ復元
+        assert len(service.virtual_positions) == 1
+        assert service.virtual_positions[0]["order_id"] == "valid_order"
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_restore_positions_api_error_handling(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """API呼び出しエラー時のハンドリング"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            side_effect=Exception("API error")
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # エラーでも例外発生しない
+        await service.restore_positions_from_api()
+        assert len(service.virtual_positions) == 0
+
+
+# ========================================
+# Phase 56.5: 既存ポジションTP/SL確保テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestEnsureTpSlForExistingPositions:
+    """Phase 56.5: 既存ポジションTP/SL確保テスト"""
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientモック"""
+        client = AsyncMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        client.fetch_active_orders = MagicMock(return_value=[])
+        return client
+
+    async def test_ensure_tp_sl_paper_mode_skips(self, mock_bitbank_client):
+        """ペーパーモードはスキップ"""
+        service = ExecutionService(mode="paper", bitbank_client=mock_bitbank_client)
+
+        await service.ensure_tp_sl_for_existing_positions()
+
+        mock_bitbank_client.fetch_margin_positions.assert_not_called()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_ensure_tp_sl_no_positions(self, mock_discord, mock_bitbank_client):
+        """ポジションなし時のスキップ"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        await service.ensure_tp_sl_for_existing_positions()
+
+        mock_bitbank_client.fetch_active_orders.assert_not_called()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_ensure_tp_sl_position_with_existing_tp_sl(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """TP/SL既存のポジションはスキップ"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
+        )
+        # TP/SL注文存在
+        mock_bitbank_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "tp", "side": "sell", "type": "limit", "amount": 0.0001},
+                {"id": "sl", "side": "sell", "type": "stop", "amount": 0.0001},
+            ]
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        service.stop_manager = AsyncMock()
+
+        await service.ensure_tp_sl_for_existing_positions()
+
+        # TP/SL配置はスキップ
+        service.stop_manager.place_take_profit.assert_not_called()
+        service.stop_manager.place_stop_loss.assert_not_called()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_ensure_tp_sl_places_missing_orders(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """TP/SLなしポジションに注文配置"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
+        )
+        # TP/SL注文なし
+        mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        mock_stop_manager = AsyncMock()
+        mock_stop_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_new"})
+        mock_stop_manager.place_stop_loss = AsyncMock(return_value={"order_id": "sl_new"})
+        service.stop_manager = mock_stop_manager
+
+        await service.ensure_tp_sl_for_existing_positions()
+
+        # TP/SL両方配置される
+        mock_stop_manager.place_take_profit.assert_called_once()
+        mock_stop_manager.place_stop_loss.assert_called_once()
+        # virtual_positionsにも追加される
+        assert len(service.virtual_positions) == 1
+        assert service.virtual_positions[0]["recovered"] is True
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_ensure_tp_sl_short_position(self, mock_discord, mock_bitbank_client):
+        """Shortポジションのtp/sl配置テスト"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "short", "amount": 0.0001, "average_price": 14000000}]
+        )
+        mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        mock_stop_manager = AsyncMock()
+        mock_stop_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_short"})
+        mock_stop_manager.place_stop_loss = AsyncMock(return_value={"order_id": "sl_short"})
+        service.stop_manager = mock_stop_manager
+
+        await service.ensure_tp_sl_for_existing_positions()
+
+        # shortポジションの場合はentry_side="sell"が渡される
+        call_args = mock_stop_manager.place_take_profit.call_args
+        assert call_args.kwargs["side"] == "sell"
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_ensure_tp_sl_api_error_handling(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """API呼び出しエラー時のハンドリング"""
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(
+            side_effect=Exception("API error")
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # エラーでも例外発生しない
+        await service.ensure_tp_sl_for_existing_positions()
+
+
+# ========================================
+# TP/SL存在確認テスト
+# ========================================
+
+
+class TestCheckTpSlOrdersExist:
+    """_check_tp_sl_orders_existテスト"""
+
+    def test_check_tp_sl_exist_long_position_both_exist(self):
+        """Longポジション: TP/SL両方存在"""
+        service = ExecutionService(mode="paper")
+
+        active_orders = [
+            {"side": "sell", "type": "limit", "amount": 0.0001},  # TP
+            {"side": "sell", "type": "stop", "amount": 0.0001},  # SL
+        ]
+
+        has_tp, has_sl = service._check_tp_sl_orders_exist(
+            position_side="long", position_amount=0.0001, active_orders=active_orders
+        )
+
+        assert has_tp is True
+        assert has_sl is True
+
+    def test_check_tp_sl_exist_long_position_only_tp(self):
+        """Longポジション: TPのみ存在"""
+        service = ExecutionService(mode="paper")
+
+        active_orders = [
+            {"side": "sell", "type": "limit", "amount": 0.0001},  # TP
+        ]
+
+        has_tp, has_sl = service._check_tp_sl_orders_exist(
+            position_side="long", position_amount=0.0001, active_orders=active_orders
+        )
+
+        assert has_tp is True
+        assert has_sl is False
+
+    def test_check_tp_sl_exist_short_position(self):
+        """Shortポジション: TP/SL確認"""
+        service = ExecutionService(mode="paper")
+
+        active_orders = [
+            {"side": "buy", "type": "limit", "amount": 0.0001},  # TP
+            {"side": "buy", "type": "stop", "amount": 0.0001},  # SL
+        ]
+
+        has_tp, has_sl = service._check_tp_sl_orders_exist(
+            position_side="short", position_amount=0.0001, active_orders=active_orders
+        )
+
+        assert has_tp is True
+        assert has_sl is True
+
+    def test_check_tp_sl_exist_amount_mismatch(self):
+        """数量不一致（10%以上の差）は対象外"""
+        service = ExecutionService(mode="paper")
+
+        active_orders = [
+            {"side": "sell", "type": "limit", "amount": 0.0002},  # 2倍の数量
+        ]
+
+        has_tp, has_sl = service._check_tp_sl_orders_exist(
+            position_side="long", position_amount=0.0001, active_orders=active_orders
+        )
+
+        assert has_tp is False
+
+
+# ========================================
+# Phase 61.9: TP/SL自動執行検知テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestCheckStopConditionsWithAutoExecution:
+    """Phase 61.9: 自動執行検知を含むcheck_stop_conditionsテスト"""
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientモック"""
+        client = AsyncMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        return client
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_check_stop_conditions_detects_auto_execution(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """自動執行検知テスト"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # StopManager設定
+        mock_stop_manager = AsyncMock()
+        mock_stop_manager.detect_auto_executed_orders = AsyncMock(
+            return_value=[
+                {
+                    "order_id": "auto_exec_1",
+                    "execution_type": "take_profit",
+                    "side": "buy",
+                    "amount": 0.0001,
+                    "exit_price": 14500000,
+                    "pnl": 500,
+                    "strategy_name": "BBReversal",
+                }
+            ]
+        )
+        mock_stop_manager.check_stop_conditions = AsyncMock(return_value=None)
+        service.stop_manager = mock_stop_manager
+
+        # TradeRecorderモック
+        service.trade_recorder = MagicMock()
+        service.trade_recorder.record_trade = MagicMock()
+
+        # virtual_positionsに対象ポジション追加
+        service.virtual_positions = [{"order_id": "auto_exec_1", "side": "buy", "amount": 0.0001}]
+
+        await service.check_stop_conditions()
+
+        # 自動執行検知が呼ばれる
+        mock_stop_manager.detect_auto_executed_orders.assert_called_once()
+        # virtual_positionsから削除される
+        assert len(service.virtual_positions) == 0
+        # Phase 61.12: exit記録が追加される
+        service.trade_recorder.record_trade.assert_called_once()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_check_stop_conditions_auto_execution_error_handling(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """自動執行検知エラー時のハンドリング"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        mock_stop_manager = AsyncMock()
+        mock_stop_manager.detect_auto_executed_orders = AsyncMock(
+            side_effect=Exception("Detection error")
+        )
+        mock_stop_manager.check_stop_conditions = AsyncMock(return_value=None)
+        service.stop_manager = mock_stop_manager
+
+        # エラーでも例外発生しない
+        result = await service.check_stop_conditions()
+
+        # check_stop_conditionsは呼ばれる
+        mock_stop_manager.check_stop_conditions.assert_called_once()
+
+
+# ========================================
+# 初期化・設定テスト追加
+# ========================================
+
+
+class TestExecutionServiceInitialization:
+    """ExecutionService初期化詳細テスト"""
+
+    @patch("src.trading.execution.executor.TradeHistoryRecorder")
+    @patch("src.trading.execution.executor.TradeTracker")
+    def test_trade_recorder_init_failure(self, mock_tracker, mock_recorder):
+        """TradeHistoryRecorder初期化失敗時のハンドリング"""
+        mock_recorder.side_effect = Exception("DB connection failed")
+        mock_tracker.return_value = MagicMock()
+
+        service = ExecutionService(mode="paper")
+
+        # 初期化失敗してもサービスは起動
+        assert service.trade_recorder is None
+        assert service.trade_tracker is not None
+
+    @patch("src.trading.execution.executor.TradeHistoryRecorder")
+    @patch("src.trading.execution.executor.TradeTracker")
+    def test_trade_tracker_init_failure(self, mock_tracker, mock_recorder):
+        """TradeTracker初期化失敗時のハンドリング"""
+        mock_recorder.return_value = MagicMock()
+        mock_tracker.side_effect = Exception("Tracker init failed")
+
+        service = ExecutionService(mode="paper")
+
+        # 初期化失敗してもサービスは起動
+        assert service.trade_recorder is not None
+        assert service.trade_tracker is None
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    def test_discord_notifier_init_failure(self, mock_discord):
+        """Discord通知初期化失敗時のハンドリング"""
+        mock_discord.side_effect = Exception("Discord connection failed")
+
+        service = ExecutionService(mode="live", bitbank_client=MagicMock())
+
+        # 初期化失敗してもサービスは起動
+        assert service.discord_notifier is None
+
+
+# ========================================
+# バックテストモード詳細テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestBacktestModeDetailedBehavior:
+    """バックテストモード詳細動作テスト"""
+
+    async def test_backtest_insufficient_balance_rejection(self):
+        """残高不足時の取引拒否"""
+        service = ExecutionService(mode="backtest")
+        service.virtual_balance = 100  # 非常に少ない残高
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.001,  # 大きなポジション
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,  # 高い価格
+        )
+
+        result = await service.execute_trade(eval_obj)
+
+        # 残高不足で拒否
+        assert result.success is False
+        assert "残高不足" in result.error_message
+
+    async def test_backtest_uses_current_time_for_timestamp(self):
+        """バックテスト時のcurrent_time使用テスト"""
+        service = ExecutionService(mode="backtest")
+        service.current_time = datetime(2026, 1, 15, 12, 0, 0)
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        result = await service.execute_trade(eval_obj)
+
+        # 成功
+        assert result.success is True
+        # virtual_positionsにcurrent_timeが使用される
+        assert service.virtual_positions[0]["timestamp"] == service.current_time
+
+    async def test_backtest_position_tracker_integration(self):
+        """バックテストでのPositionTracker連携テスト"""
+        service = ExecutionService(mode="backtest")
+
+        # PositionTrackerモック
+        mock_tracker = MagicMock()
+        mock_tracker.add_position = MagicMock()
+        service.position_tracker = mock_tracker
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="sell",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14200000.0,
+            take_profit=13800000.0,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # PositionTrackerに追加される
+        mock_tracker.add_position.assert_called_once()
+
+
+# ========================================
+# データサービス注入テスト
+# ========================================
+
+
+class TestDataServiceInjection:
+    """Phase 54.6: DataService注入テスト"""
+
+    def test_inject_data_service(self):
+        """DataService注入テスト"""
+        service = ExecutionService(mode="paper")
+        mock_data_service = MagicMock()
+
+        service.inject_services(data_service=mock_data_service)
+
+        assert service.data_service is mock_data_service
+
+    def test_inject_position_tracker(self):
+        """PositionTracker注入テスト"""
+        service = ExecutionService(mode="paper")
+        mock_tracker = MagicMock()
+
+        service.inject_services(position_tracker=mock_tracker)
+
+        assert service.position_tracker is mock_tracker
+
+
+# ========================================
+# ライブモード追加テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestLiveModeAdditionalBehavior:
+    """ライブモード追加動作テスト"""
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientモック"""
+        client = MagicMock()
+        client.create_order = MagicMock(
+            return_value={
+                "id": "order_123",
+                "price": 14000000.0,
+                "amount": 0.0001,
+                "filled_price": 14000000.0,
+                "filled_amount": 0.0001,
+                "fee": 168.0,
+            }
+        )
+        return client
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_live_trade_with_position_tracker(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """PositionTracker連携テスト"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        mock_tracker = MagicMock()
+        mock_tracker.add_position = MagicMock()
+        service.position_tracker = mock_tracker
+
+        # StopManager設定（Atomic Entry用）
+        mock_stop_manager = AsyncMock()
+        mock_stop_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_123"})
+        mock_stop_manager.place_stop_loss = AsyncMock(return_value={"order_id": "sl_123"})
+        mock_stop_manager.cleanup_old_unfilled_orders = AsyncMock(return_value={"cancelled_count": 0})
+        service.stop_manager = mock_stop_manager
+
+        # fetch_active_ordersモック追加
+        mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=13900000.0,
+            take_profit=14100000.0,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # PositionTrackerに追加
+        mock_tracker.add_position.assert_called_once()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_live_trade_records_to_trade_tracker(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """TradeTracker記録テスト"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # TradeTrackerモック
+        mock_trade_tracker = MagicMock()
+        mock_trade_tracker.record_entry = MagicMock()
+        service.trade_tracker = mock_trade_tracker
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={"regime_value": "tight_range"},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # TradeTrackerに記録
+        mock_trade_tracker.record_entry.assert_called_once()
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_live_trade_records_to_trade_recorder(
+        self, mock_discord, mock_bitbank_client
+    ):
+        """TradeHistoryRecorder記録テスト"""
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+
+        # TradeRecorderモック
+        mock_recorder = MagicMock()
+        mock_recorder.record_trade = MagicMock()
+        service.trade_recorder = mock_recorder
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # TradeRecorderに記録
+        mock_recorder.record_trade.assert_called_once()
+
+
+# ========================================
+# ペーパーモード追加テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPaperModeAdditionalBehavior:
+    """ペーパーモード追加動作テスト"""
+
+    async def test_paper_trade_records_to_trade_tracker(self):
+        """ペーパートレードのTradeTracker記録テスト"""
+        mock_client = MagicMock()
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 14000000.0})
+
+        service = ExecutionService(mode="paper", bitbank_client=mock_client)
+
+        # TradeTrackerモック
+        mock_trade_tracker = MagicMock()
+        mock_trade_tracker.record_entry = MagicMock()
+        service.trade_tracker = mock_trade_tracker
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={"regime_value": "normal_range"},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # TradeTrackerに記録
+        mock_trade_tracker.record_entry.assert_called_once()
+
+    async def test_paper_trade_records_to_trade_recorder(self):
+        """ペーパートレードのTradeHistoryRecorder記録テスト"""
+        mock_client = MagicMock()
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 14000000.0})
+
+        service = ExecutionService(mode="paper", bitbank_client=mock_client)
+
+        # TradeRecorderモック
+        mock_recorder = MagicMock()
+        mock_recorder.record_trade = MagicMock()
+        service.trade_recorder = mock_recorder
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="sell",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        await service.execute_trade(eval_obj)
+
+        # TradeRecorderに記録
+        mock_recorder.record_trade.assert_called_once()
+
+    async def test_paper_trade_position_tracker_error_handling(self):
+        """ペーパートレードのPositionTrackerエラーハンドリング"""
+        mock_client = MagicMock()
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 14000000.0})
+
+        service = ExecutionService(mode="paper", bitbank_client=mock_client)
+
+        # PositionTrackerモック（エラー発生）
+        mock_tracker = MagicMock()
+        mock_tracker.add_position = MagicMock(side_effect=Exception("Tracker error"))
+        service.position_tracker = mock_tracker
+
+        eval_obj = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        # エラーが発生してもトレードは成功
+        result = await service.execute_trade(eval_obj)
+        assert result.success is True
+
+
+# ========================================
+# クリーンアップ関連追加テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestCleanupOldTpSlAdditional:
+    """Phase 51.10-A: クリーンアップ追加テスト"""
+
+    async def test_cleanup_cancel_order_failure_handling(self):
+        """注文キャンセル失敗時のハンドリング"""
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "order_1", "side": "sell", "type": "limit", "price": 14500000},
+            ]
+        )
+        # キャンセル失敗
+        mock_client.cancel_order = MagicMock(side_effect=Exception("Cancel failed"))
+
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+        service.virtual_positions = []
+
+        # エラーでも例外発生しない
+        await service._cleanup_old_tp_sl_before_entry(
+            side="buy", symbol="BTC/JPY", entry_order_id="entry123"
+        )
+
+    async def test_cleanup_protected_restored_positions(self):
+        """Phase 53.12: 復元されたポジションの保護"""
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "restored_order", "side": "sell", "type": "limit", "price": 14500000},
+            ]
+        )
+        mock_client.cancel_order = MagicMock()
+
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+        # 復元されたポジション
+        service.virtual_positions = [
+            {"order_id": "restored_order", "restored": True}
+        ]
+
+        await service._cleanup_old_tp_sl_before_entry(
+            side="buy", symbol="BTC/JPY", entry_order_id="entry123"
+        )
+
+        # 復元されたポジションは保護される
+        mock_client.cancel_order.assert_not_called()
+
+
+# ========================================
+# ロールバック追加テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestRollbackEntryAdditional:
+    """Phase 51.6: ロールバック追加テスト"""
+
+    async def test_rollback_entry_cancel_failure_continues(self):
+        """キャンセル失敗しても処理継続"""
+        mock_client = MagicMock()
+        # TPキャンセル失敗
+        mock_client.cancel_order = MagicMock(
+            side_effect=[
+                Exception("TP cancel failed"),  # TP失敗
+                {"success": True},  # SL成功
+                {"success": True},  # Entry成功
+            ]
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+
+        await service._rollback_entry(
+            entry_order_id="entry123",
+            tp_order_id="tp123",
+            sl_order_id="sl123",
+            symbol="BTC/JPY",
+            error=Exception("Test error"),
+        )
+
+        # 3回呼ばれる（失敗しても続行）
+        assert mock_client.cancel_order.call_count == 3
+
+    async def test_rollback_entry_retries_on_entry_cancel_failure(self):
+        """Phase 57.11: エントリー注文キャンセルのリトライ"""
+        mock_client = MagicMock()
+        # エントリーキャンセル3回失敗
+        mock_client.cancel_order = MagicMock(
+            side_effect=Exception("Entry cancel failed")
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+
+        await service._rollback_entry(
+            entry_order_id="entry123",
+            tp_order_id=None,
+            sl_order_id=None,
+            symbol="BTC/JPY",
+            error=Exception("Test error"),
+        )
+
+        # エントリーキャンセルは3回リトライ
+        assert mock_client.cancel_order.call_count == 3
