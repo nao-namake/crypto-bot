@@ -19,10 +19,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.core.logger import (
+    JST,
     ColorFormatter,
     CryptoBotLogger,
     JSONFormatter,
-    JST,
     LogLevel,
     get_logger,
     setup_logging,
@@ -943,7 +943,8 @@ class TestFileHandler:
 
         # ファイルハンドラーが追加されていることを確認
         file_handlers = [
-            h for h in logger.logger.handlers
+            h
+            for h in logger.logger.handlers
             if isinstance(h, logging.handlers.TimedRotatingFileHandler)
         ]
         assert len(file_handlers) == 1
@@ -962,7 +963,8 @@ class TestFileHandler:
         logger = CryptoBotLogger("test_retention_bot")
 
         file_handlers = [
-            h for h in logger.logger.handlers
+            h
+            for h in logger.logger.handlers
             if isinstance(h, logging.handlers.TimedRotatingFileHandler)
         ]
         assert len(file_handlers) == 1
@@ -1075,7 +1077,8 @@ class TestSetupFileHandlerRetentionDaysNone:
         assert mock_get_file_config.called
 
         file_handlers = [
-            h for h in logger.logger.handlers
+            h
+            for h in logger.logger.handlers
             if isinstance(h, logging.handlers.TimedRotatingFileHandler)
         ]
         assert len(file_handlers) == 1

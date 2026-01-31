@@ -19,15 +19,15 @@ MLモデル読み込み機能のテスト。
 import pickle
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.core.logger import CryptoBotLogger
-from src.core.orchestration.ml_loader import MLModelLoader
 from src.core.orchestration.ml_fallback import DummyModel
+from src.core.orchestration.ml_loader import MLModelLoader
 
 
 @pytest.fixture
@@ -66,9 +66,7 @@ class TestDetermineFeatureLevel:
     """特徴量レベル判定テスト"""
 
     @patch("src.core.config.feature_manager._feature_manager")
-    def test_determine_feature_level_none_returns_full(
-        self, mock_feature_manager, ml_loader
-    ):
+    def test_determine_feature_level_none_returns_full(self, mock_feature_manager, ml_loader):
         """特徴量数未指定時はfullを返す"""
         mock_feature_manager.get_feature_level_counts.return_value = {
             "full": 55,
@@ -81,9 +79,7 @@ class TestDetermineFeatureLevel:
         ml_loader.logger.debug.assert_called()
 
     @patch("src.core.config.feature_manager._feature_manager")
-    def test_determine_feature_level_full_count(
-        self, mock_feature_manager, ml_loader
-    ):
+    def test_determine_feature_level_full_count(self, mock_feature_manager, ml_loader):
         """55特徴量でfullを返す"""
         mock_feature_manager.get_feature_level_counts.return_value = {
             "full": 55,
@@ -95,9 +91,7 @@ class TestDetermineFeatureLevel:
         assert result == "full"
 
     @patch("src.core.config.feature_manager._feature_manager")
-    def test_determine_feature_level_basic_count(
-        self, mock_feature_manager, ml_loader
-    ):
+    def test_determine_feature_level_basic_count(self, mock_feature_manager, ml_loader):
         """49特徴量でbasicを返す"""
         mock_feature_manager.get_feature_level_counts.return_value = {
             "full": 55,
@@ -109,9 +103,7 @@ class TestDetermineFeatureLevel:
         assert result == "basic"
 
     @patch("src.core.config.feature_manager._feature_manager")
-    def test_determine_feature_level_unexpected_count(
-        self, mock_feature_manager, ml_loader
-    ):
+    def test_determine_feature_level_unexpected_count(self, mock_feature_manager, ml_loader):
         """想定外の特徴量数ではfullを返す（警告付き）"""
         mock_feature_manager.get_feature_level_counts.return_value = {
             "full": 55,
@@ -524,9 +516,7 @@ class TestReloadModel:
     """モデル再読み込みテスト"""
 
     @patch.object(MLModelLoader, "load_model_with_priority")
-    def test_reload_model_success_with_type_change(
-        self, mock_load_model, ml_loader
-    ):
+    def test_reload_model_success_with_type_change(self, mock_load_model, ml_loader):
         """モデル再読み込み成功（タイプ変更あり）"""
         ml_loader.model_type = "OldModel"
         mock_load_model.return_value = Mock()
@@ -640,9 +630,7 @@ class TestDummyModel:
 
     @patch("src.core.config.feature_manager.get_feature_count")
     @patch("src.core.config.get_threshold")
-    def test_dummy_model_predict_proba(
-        self, mock_get_threshold, mock_get_feature_count
-    ):
+    def test_dummy_model_predict_proba(self, mock_get_threshold, mock_get_feature_count):
         """DummyModelのpredict_proba"""
         mock_get_feature_count.return_value = 55
         mock_get_threshold.return_value = 0.5
@@ -728,10 +716,9 @@ class TestLoadModelWithPriorityIntegration:
         mock_load_stacking.return_value = False
 
         # ダミーモデルにフォールバック
-        with patch.object(
-            MLModelLoader, "_load_production_ensemble", return_value=False
-        ), patch.object(
-            MLModelLoader, "_load_from_individual_models", return_value=False
+        with (
+            patch.object(MLModelLoader, "_load_production_ensemble", return_value=False),
+            patch.object(MLModelLoader, "_load_from_individual_models", return_value=False),
         ):
             ml_loader.load_model_with_priority(55)
 

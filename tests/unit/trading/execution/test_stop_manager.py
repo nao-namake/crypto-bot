@@ -1829,9 +1829,7 @@ class TestPhase613WaitForFill:
 
     async def test_wait_for_fill_canceled(self, stop_manager, mock_bitbank_client):
         """Phase 61.3: 注文キャンセル検出"""
-        mock_bitbank_client.fetch_order = MagicMock(
-            return_value={"status": "canceled"}
-        )
+        mock_bitbank_client.fetch_order = MagicMock(return_value={"status": "canceled"})
 
         is_filled, order = await stop_manager._wait_for_fill(
             order_id="order_123",
@@ -1847,9 +1845,7 @@ class TestPhase613WaitForFill:
 
     async def test_wait_for_fill_expired(self, stop_manager, mock_bitbank_client):
         """Phase 61.3: 注文期限切れ検出"""
-        mock_bitbank_client.fetch_order = MagicMock(
-            return_value={"status": "expired"}
-        )
+        mock_bitbank_client.fetch_order = MagicMock(return_value={"status": "expired"})
 
         is_filled, order = await stop_manager._wait_for_fill(
             order_id="order_123",
@@ -1866,9 +1862,7 @@ class TestPhase613WaitForFill:
     async def test_wait_for_fill_timeout(self, stop_manager, mock_bitbank_client):
         """Phase 61.3: タイムアウト"""
         # 常にopenを返す
-        mock_bitbank_client.fetch_order = MagicMock(
-            return_value={"status": "open"}
-        )
+        mock_bitbank_client.fetch_order = MagicMock(return_value={"status": "open"})
 
         is_filled, order = await stop_manager._wait_for_fill(
             order_id="order_123",
@@ -1949,16 +1943,12 @@ class TestPhase613RetryCloseOrder:
         assert order_id == "new_order_123"
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_retry_all_failed(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_retry_all_failed(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 61.3: 全リトライ失敗"""
         mock_threshold.return_value = {"timeout_seconds": 1, "check_interval_seconds": 1}
 
         # 常にopenを返す（約定しない）
-        mock_bitbank_client.fetch_order = MagicMock(
-            return_value={"status": "open"}
-        )
+        mock_bitbank_client.fetch_order = MagicMock(return_value={"status": "open"})
 
         success, order_id = await stop_manager._retry_close_order_with_price_update(
             bitbank_client=mock_bitbank_client,
@@ -1975,9 +1965,7 @@ class TestPhase613RetryCloseOrder:
         assert order_id is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_retry_with_buy_side(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_retry_with_buy_side(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 61.3: 買い決済のリトライ（価格上乗せ）"""
         mock_threshold.return_value = {"timeout_seconds": 3, "check_interval_seconds": 1}
 
@@ -2004,9 +1992,7 @@ class TestPhase613RetryCloseOrder:
         assert abs(call_kwargs["price"] - expected_price) < 1
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_retry_invalid_price(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_retry_invalid_price(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 61.3: 価格取得失敗時のリトライスキップ"""
         mock_threshold.return_value = {"timeout_seconds": 3, "check_interval_seconds": 1}
 
@@ -2117,9 +2103,7 @@ class TestCleanupPositionOrders:
         client.cancel_order = MagicMock(return_value={"success": True})
         return client
 
-    async def test_cleanup_tp_on_stop_loss_reason(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_tp_on_stop_loss_reason(self, stop_manager, mock_bitbank_client):
         """Phase 49.6: SL理由でTP注文キャンセル"""
         result = await stop_manager.cleanup_position_orders(
             tp_order_id="tp_123",
@@ -2133,9 +2117,7 @@ class TestCleanupPositionOrders:
         assert result["success"] is True
         mock_bitbank_client.cancel_order.assert_called_once_with("tp_123", "BTC/JPY")
 
-    async def test_cleanup_sl_on_take_profit_reason(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_sl_on_take_profit_reason(self, stop_manager, mock_bitbank_client):
         """Phase 49.6: TP理由でSL注文キャンセル"""
         result = await stop_manager.cleanup_position_orders(
             tp_order_id=None,
@@ -2149,9 +2131,7 @@ class TestCleanupPositionOrders:
         assert result["success"] is True
         mock_bitbank_client.cancel_order.assert_called_once_with("sl_456", "BTC/JPY")
 
-    async def test_cleanup_both_on_manual_reason(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_both_on_manual_reason(self, stop_manager, mock_bitbank_client):
         """Phase 49.6: 手動決済で両方キャンセル"""
         result = await stop_manager.cleanup_position_orders(
             tp_order_id="tp_123",
@@ -2165,9 +2145,7 @@ class TestCleanupPositionOrders:
         assert result["success"] is True
         assert mock_bitbank_client.cancel_order.call_count == 2
 
-    async def test_cleanup_order_not_found_success(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_order_not_found_success(self, stop_manager, mock_bitbank_client):
         """Phase 58.8: OrderNotFoundは成功扱い"""
         mock_bitbank_client.cancel_order = MagicMock(
             side_effect=Exception("OrderNotFound: order not found")
@@ -2185,9 +2163,7 @@ class TestCleanupPositionOrders:
         assert result["cancelled_count"] == 1
         assert result["success"] is True
 
-    async def test_cleanup_retry_on_failure(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_retry_on_failure(self, stop_manager, mock_bitbank_client):
         """Phase 58.8: キャンセル失敗時のリトライ"""
         # 2回失敗後、3回目で成功
         mock_bitbank_client.cancel_order = MagicMock(
@@ -2209,14 +2185,10 @@ class TestCleanupPositionOrders:
         assert result["cancelled_count"] == 1
         assert mock_bitbank_client.cancel_order.call_count == 3
 
-    async def test_cleanup_sl_failure_marks_orphan(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_sl_failure_marks_orphan(self, stop_manager, mock_bitbank_client):
         """Phase 59.6: SLキャンセル失敗時は孤児SLとして記録"""
         # 全リトライ失敗
-        mock_bitbank_client.cancel_order = MagicMock(
-            side_effect=Exception("Permanent Error")
-        )
+        mock_bitbank_client.cancel_order = MagicMock(side_effect=Exception("Permanent Error"))
 
         with patch.object(stop_manager, "_mark_orphan_sl") as mock_mark:
             result = await stop_manager.cleanup_position_orders(
@@ -2249,15 +2221,11 @@ class TestPlaceTakeProfit:
     def mock_bitbank_client(self):
         """BitbankClientのモック"""
         client = MagicMock()
-        client.create_take_profit_order = MagicMock(
-            return_value={"id": "tp_order_123"}
-        )
+        client.create_take_profit_order = MagicMock(return_value={"id": "tp_order_123"})
         return client
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_place_tp_success(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_place_tp_success(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 46: TP注文配置成功"""
         mock_threshold.return_value = {"enabled": True}
 
@@ -2275,9 +2243,7 @@ class TestPlaceTakeProfit:
         assert result["price"] == 14300000.0
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_place_tp_disabled(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_place_tp_disabled(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 46: TP無効時はNone"""
         mock_threshold.return_value = {"enabled": False}
 
@@ -2293,9 +2259,7 @@ class TestPlaceTakeProfit:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_place_tp_invalid_price(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_place_tp_invalid_price(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 46: TP価格0以下はNone"""
         mock_threshold.return_value = {"enabled": True}
 
@@ -2311,9 +2275,7 @@ class TestPlaceTakeProfit:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_place_tp_no_order_id(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_place_tp_no_order_id(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 57.11: order_idが空の場合は例外"""
         mock_threshold.return_value = {"enabled": True}
         mock_bitbank_client.create_take_profit_order = MagicMock(
@@ -2333,9 +2295,7 @@ class TestPlaceTakeProfit:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_place_tp_error_50061(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_place_tp_error_50061(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 46: エラーコード50061（残高不足）"""
         mock_threshold.return_value = {"enabled": True}
         mock_bitbank_client.create_take_profit_order = MagicMock(
@@ -2374,9 +2334,7 @@ class TestCleanupOldUnfilledOrdersDetailed:
         client = MagicMock()
         return client
 
-    async def test_cleanup_cancel_failure_non_not_found(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_cancel_failure_non_not_found(self, stop_manager, mock_bitbank_client):
         """Phase 51.6: キャンセル失敗（OrderNotFound以外）はエラー記録"""
         from datetime import datetime, timedelta
 
@@ -2407,13 +2365,9 @@ class TestCleanupOldUnfilledOrdersDetailed:
         assert len(result["errors"]) == 1
         assert "API Rate Limit" in result["errors"][0]
 
-    async def test_cleanup_exception_handling(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_exception_handling(self, stop_manager, mock_bitbank_client):
         """Phase 51.6: 例外発生時のエラーハンドリング"""
-        mock_bitbank_client.fetch_active_orders = MagicMock(
-            side_effect=Exception("API Error")
-        )
+        mock_bitbank_client.fetch_active_orders = MagicMock(side_effect=Exception("API Error"))
 
         result = await stop_manager.cleanup_old_unfilled_orders(
             symbol="BTC/JPY",
@@ -2428,9 +2382,7 @@ class TestCleanupOldUnfilledOrdersDetailed:
         assert result["order_count"] == 0
         assert "API Error" in result["errors"][0]
 
-    async def test_cleanup_no_old_orphan_orders(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_no_old_orphan_orders(self, stop_manager, mock_bitbank_client):
         """Phase 51.6: 古い孤児注文なし"""
         from datetime import datetime, timedelta
 
@@ -2444,7 +2396,8 @@ class TestCleanupOldUnfilledOrdersDetailed:
                     "type": "limit",
                     "timestamp": recent_time,
                 }
-            ] * 30  # 30件（閾値超過）
+            ]
+            * 30  # 30件（閾値超過）
         )
 
         result = await stop_manager.cleanup_old_unfilled_orders(
@@ -2459,9 +2412,7 @@ class TestCleanupOldUnfilledOrdersDetailed:
         assert result["cancelled_count"] == 0
         assert result["order_count"] == 30
 
-    async def test_cleanup_restored_positions_protected(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_restored_positions_protected(self, stop_manager, mock_bitbank_client):
         """Phase 53.12: 復元されたポジションのorder_idを保護"""
         from datetime import datetime, timedelta
 
@@ -2498,9 +2449,7 @@ class TestCleanupOldUnfilledOrdersDetailed:
         # 復元されたポジションのorder_idは保護される
         assert result["cancelled_count"] == 0
 
-    async def test_cleanup_skips_non_limit_orders(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_skips_non_limit_orders(self, stop_manager, mock_bitbank_client):
         """Phase 51.6: limit以外の注文タイプはスキップ"""
         from datetime import datetime, timedelta
 
@@ -2534,9 +2483,7 @@ class TestCleanupOldUnfilledOrdersDetailed:
         # limit以外はスキップ
         assert result["cancelled_count"] == 0
 
-    async def test_cleanup_cancel_order_not_found(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cleanup_cancel_order_not_found(self, stop_manager, mock_bitbank_client):
         """Phase 51.6: OrderNotFoundは許容（キャンセル成功扱い）"""
         from datetime import datetime, timedelta
 
@@ -2713,54 +2660,40 @@ class TestCancelRemainingOrder:
         client.cancel_order = MagicMock(return_value={"success": True})
         return client
 
-    async def test_cancel_remaining_sl_after_tp(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cancel_remaining_sl_after_tp(self, stop_manager, mock_bitbank_client):
         """Phase 61.9: TP約定後にSLキャンセル"""
         execution_info = {
             "execution_type": "take_profit",
             "remaining_order_id": "sl_123",
         }
 
-        await stop_manager._cancel_remaining_order(
-            execution_info, mock_bitbank_client, "BTC/JPY"
-        )
+        await stop_manager._cancel_remaining_order(execution_info, mock_bitbank_client, "BTC/JPY")
 
         mock_bitbank_client.cancel_order.assert_called_once_with("sl_123", "BTC/JPY")
 
-    async def test_cancel_remaining_tp_after_sl(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cancel_remaining_tp_after_sl(self, stop_manager, mock_bitbank_client):
         """Phase 61.9: SL約定後にTPキャンセル"""
         execution_info = {
             "execution_type": "stop_loss",
             "remaining_order_id": "tp_456",
         }
 
-        await stop_manager._cancel_remaining_order(
-            execution_info, mock_bitbank_client, "BTC/JPY"
-        )
+        await stop_manager._cancel_remaining_order(execution_info, mock_bitbank_client, "BTC/JPY")
 
         mock_bitbank_client.cancel_order.assert_called_once_with("tp_456", "BTC/JPY")
 
-    async def test_cancel_remaining_no_order_id(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cancel_remaining_no_order_id(self, stop_manager, mock_bitbank_client):
         """Phase 61.9: remaining_order_idがない場合は何もしない"""
         execution_info = {
             "execution_type": "take_profit",
             "remaining_order_id": None,
         }
 
-        await stop_manager._cancel_remaining_order(
-            execution_info, mock_bitbank_client, "BTC/JPY"
-        )
+        await stop_manager._cancel_remaining_order(execution_info, mock_bitbank_client, "BTC/JPY")
 
         mock_bitbank_client.cancel_order.assert_not_called()
 
-    async def test_cancel_remaining_order_not_found(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cancel_remaining_order_not_found(self, stop_manager, mock_bitbank_client):
         """Phase 61.9: OrderNotFoundは許容"""
         mock_bitbank_client.cancel_order = MagicMock(
             side_effect=Exception("OrderNotFound: not found")
@@ -2771,26 +2704,18 @@ class TestCancelRemainingOrder:
         }
 
         # 例外が発生しない
-        await stop_manager._cancel_remaining_order(
-            execution_info, mock_bitbank_client, "BTC/JPY"
-        )
+        await stop_manager._cancel_remaining_order(execution_info, mock_bitbank_client, "BTC/JPY")
 
-    async def test_cancel_remaining_api_error(
-        self, stop_manager, mock_bitbank_client
-    ):
+    async def test_cancel_remaining_api_error(self, stop_manager, mock_bitbank_client):
         """Phase 61.9: APIエラーは警告ログ"""
-        mock_bitbank_client.cancel_order = MagicMock(
-            side_effect=Exception("API Rate Limit")
-        )
+        mock_bitbank_client.cancel_order = MagicMock(side_effect=Exception("API Rate Limit"))
         execution_info = {
             "execution_type": "take_profit",
             "remaining_order_id": "sl_123",
         }
 
         # 例外が発生しない（警告ログのみ）
-        await stop_manager._cancel_remaining_order(
-            execution_info, mock_bitbank_client, "BTC/JPY"
-        )
+        await stop_manager._cancel_remaining_order(execution_info, mock_bitbank_client, "BTC/JPY")
 
 
 # ========================================
@@ -3090,9 +3015,7 @@ class TestExecutePositionExitLiveMode:
             "position_management.stop_loss.fill_confirmation": {"enabled": False},
         }.get(key, default)
 
-        mock_bitbank_client.create_order = MagicMock(
-            side_effect=Exception("API Error")
-        )
+        mock_bitbank_client.create_order = MagicMock(side_effect=Exception("API Error"))
 
         position = {
             "order_id": "order_123",
@@ -3124,9 +3047,7 @@ class TestExecutePositionExitLiveMode:
         }.get(key, default)
 
         # cancel_orderでエラー発生
-        mock_bitbank_client.cancel_order = MagicMock(
-            side_effect=Exception("Cancel Failed")
-        )
+        mock_bitbank_client.cancel_order = MagicMock(side_effect=Exception("Cancel Failed"))
 
         position = {
             "order_id": "order_123",
@@ -3164,9 +3085,7 @@ class TestCheckEmergencyStopLossDetailed:
         return StopManager()
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_emergency_exit_removes_position(
-        self, mock_threshold, stop_manager
-    ):
+    async def test_emergency_exit_removes_position(self, mock_threshold, stop_manager):
         """緊急決済後にポジションが削除される"""
         mock_threshold.return_value = {
             "enable": True,
@@ -3195,9 +3114,7 @@ class TestCheckEmergencyStopLossDetailed:
         assert len(virtual_positions) == 0  # ポジション削除
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_emergency_no_position_triggered(
-        self, mock_threshold, stop_manager
-    ):
+    async def test_emergency_no_position_triggered(self, mock_threshold, stop_manager):
         """損失閾値未満では緊急決済しない"""
         mock_threshold.return_value = {
             "enable": True,
@@ -3252,9 +3169,7 @@ class TestEvaluateEmergencyExitDetailed:
             "min_hold_minutes": 1,
         }
 
-        result = await stop_manager._evaluate_emergency_exit(
-            position, 13200000.0, config
-        )
+        result = await stop_manager._evaluate_emergency_exit(position, 13200000.0, config)
 
         assert result is False
 
@@ -3272,9 +3187,7 @@ class TestEvaluateEmergencyExitDetailed:
         }
 
         # 5%損失（閾値未満だが_check_rapid_price_movementで処理）
-        result = await stop_manager._evaluate_emergency_exit(
-            position, 13300000.0, config
-        )
+        result = await stop_manager._evaluate_emergency_exit(position, 13300000.0, config)
 
         # 現在の実装では_check_rapid_price_movementが常にNoneを返すためFalse
         assert result is False
@@ -3292,9 +3205,7 @@ class TestEvaluateEmergencyExitDetailed:
         }
 
         # 保有時間チェックがスキップされる
-        result = await stop_manager._evaluate_emergency_exit(
-            position, 13200000.0, config
-        )
+        result = await stop_manager._evaluate_emergency_exit(position, 13200000.0, config)
 
         # 5%超の損失なので緊急決済
         assert result is True
@@ -3318,15 +3229,11 @@ class TestPlaceStopLossDetailed:
     def mock_bitbank_client(self):
         """BitbankClientのモック"""
         client = MagicMock()
-        client.create_stop_loss_order = MagicMock(
-            return_value={"id": "sl_order_123"}
-        )
+        client.create_stop_loss_order = MagicMock(return_value={"id": "sl_order_123"})
         return client
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_disabled(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_sl_disabled(self, mock_threshold, stop_manager, mock_bitbank_client):
         """SL無効時はNone"""
         mock_threshold.return_value = {"enabled": False}
 
@@ -3410,9 +3317,7 @@ class TestPlaceStopLossDetailed:
         assert result is not None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_no_order_id(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_sl_no_order_id(self, mock_threshold, stop_manager, mock_bitbank_client):
         """Phase 57.11: order_idが空の場合はNone"""
         mock_threshold.side_effect = lambda key, default=None: {
             "position_management.stop_loss": {
@@ -3421,9 +3326,7 @@ class TestPlaceStopLossDetailed:
             }
         }.get(key, default)
 
-        mock_bitbank_client.create_stop_loss_order = MagicMock(
-            return_value={"id": None}
-        )
+        mock_bitbank_client.create_stop_loss_order = MagicMock(return_value={"id": None})
 
         result = await stop_manager.place_stop_loss(
             side="buy",
@@ -3437,9 +3340,7 @@ class TestPlaceStopLossDetailed:
         assert result is None
 
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_error_50062(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
+    async def test_sl_error_50062(self, mock_threshold, stop_manager, mock_bitbank_client):
         """エラーコード50062（注文タイプ不正）"""
         mock_threshold.side_effect = lambda key, default=None: {
             "position_management.stop_loss": {
@@ -3705,9 +3606,7 @@ class TestFindDisappearedPositionsEdgeCases:
         ]
         actual_positions = []
 
-        disappeared = stop_manager._find_disappeared_positions(
-            virtual_positions, actual_positions
-        )
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
 
         assert len(disappeared) == 0
 
@@ -3722,13 +3621,9 @@ class TestFindDisappearedPositionsEdgeCases:
                 "sl_order_id": "sl_001",
             }
         ]
-        actual_positions = [
-            {"side": "short", "amount": 0.001}  # マッチ
-        ]
+        actual_positions = [{"side": "short", "amount": 0.001}]  # マッチ
 
-        disappeared = stop_manager._find_disappeared_positions(
-            virtual_positions, actual_positions
-        )
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
 
         assert len(disappeared) == 0
 
@@ -3743,13 +3638,9 @@ class TestFindDisappearedPositionsEdgeCases:
                 "sl_order_id": "sl_001",
             }
         ]
-        actual_positions = [
-            {"side": "long", "amount": 0}  # amount=0
-        ]
+        actual_positions = [{"side": "long", "amount": 0}]  # amount=0
 
-        disappeared = stop_manager._find_disappeared_positions(
-            virtual_positions, actual_positions
-        )
+        disappeared = stop_manager._find_disappeared_positions(virtual_positions, actual_positions)
 
         # 実ポジションのamount=0なのでマッチしない
         assert len(disappeared) == 1

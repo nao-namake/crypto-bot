@@ -912,11 +912,13 @@ class TestATRBasedStrategyAdvanced(unittest.TestCase):
     def test_legacy_mode_min_confidence_floor(self):
         """従来モード - 最小信頼度フロア適用"""
         # strengthが0で信頼度が低くなるケース
-        legacy_strategy = ATRBasedStrategy({
-            "bb_as_main_condition": False,
-            "base_confidence": 0.30,  # 低い基本信頼度
-            "min_confidence": 0.35,   # 最小信頼度
-        })
+        legacy_strategy = ATRBasedStrategy(
+            {
+                "bb_as_main_condition": False,
+                "base_confidence": 0.30,  # 低い基本信頼度
+                "min_confidence": 0.35,  # 最小信頼度
+            }
+        )
 
         exhaustion = {
             "ratio": 0.72,

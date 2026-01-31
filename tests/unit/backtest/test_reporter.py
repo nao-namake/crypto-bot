@@ -84,12 +84,14 @@ class TestMLAnalyzerConfidenceStatistics:
         """基本的な信頼度統計テスト"""
         analyzer = MLAnalyzer()
         # 3クラスの確率分布
-        probabilities = np.array([
-            [0.1, 0.2, 0.7],  # confidence=0.7
-            [0.2, 0.6, 0.2],  # confidence=0.6
-            [0.8, 0.1, 0.1],  # confidence=0.8
-            [0.3, 0.5, 0.2],  # confidence=0.5
-        ])
+        probabilities = np.array(
+            [
+                [0.1, 0.2, 0.7],  # confidence=0.7
+                [0.2, 0.6, 0.2],  # confidence=0.6
+                [0.8, 0.1, 0.1],  # confidence=0.8
+                [0.3, 0.5, 0.2],  # confidence=0.5
+            ]
+        )
 
         result = analyzer._analyze_confidence_statistics(probabilities)
 
@@ -102,11 +104,13 @@ class TestMLAnalyzerConfidenceStatistics:
     def test_analyze_confidence_all_high(self):
         """全て高信頼度のテスト"""
         analyzer = MLAnalyzer()
-        probabilities = np.array([
-            [0.1, 0.1, 0.8],
-            [0.1, 0.8, 0.1],
-            [0.9, 0.05, 0.05],
-        ])
+        probabilities = np.array(
+            [
+                [0.1, 0.1, 0.8],
+                [0.1, 0.8, 0.1],
+                [0.9, 0.05, 0.05],
+            ]
+        )
 
         result = analyzer._analyze_confidence_statistics(probabilities)
 
@@ -141,9 +145,9 @@ class TestMLAnalyzerStrategyAgreement:
         """基本的な一致率テスト"""
         analyzer = MLAnalyzer()
         trades = [
-            {"side": "buy", "ml_prediction": 2, "pnl": 100},   # BUY一致・勝ち
-            {"side": "sell", "ml_prediction": 0, "pnl": 50},   # SELL一致・勝ち
-            {"side": "buy", "ml_prediction": 0, "pnl": -30},   # 不一致・負け
+            {"side": "buy", "ml_prediction": 2, "pnl": 100},  # BUY一致・勝ち
+            {"side": "sell", "ml_prediction": 0, "pnl": 50},  # SELL一致・勝ち
+            {"side": "buy", "ml_prediction": 0, "pnl": -30},  # 不一致・負け
             {"side": "sell", "ml_prediction": 2, "pnl": -20},  # 不一致・負け
         ]
 
@@ -153,10 +157,10 @@ class TestMLAnalyzerStrategyAgreement:
         assert result["agreement_count"] == 2
         assert result["disagreement_count"] == 2
         assert result["agreement_rate"] == 50.0
-        assert result["agreement_win_rate"] == 100.0   # 2勝/2取引
+        assert result["agreement_win_rate"] == 100.0  # 2勝/2取引
         assert result["disagreement_win_rate"] == 0.0  # 0勝/2取引
-        assert result["agreement_avg_pnl"] == 75.0     # (100+50)/2
-        assert result["disagreement_avg_pnl"] == -25.0 # (-30-20)/2
+        assert result["agreement_avg_pnl"] == 75.0  # (100+50)/2
+        assert result["disagreement_avg_pnl"] == -25.0  # (-30-20)/2
 
 
 class TestMLAnalyzerFullAnalysis:
@@ -167,13 +171,15 @@ class TestMLAnalyzerFullAnalysis:
         analyzer = MLAnalyzer()
 
         predictions = np.array([0, 1, 2, 2, 2])
-        probabilities = np.array([
-            [0.7, 0.2, 0.1],
-            [0.2, 0.6, 0.2],
-            [0.1, 0.2, 0.7],
-            [0.1, 0.1, 0.8],
-            [0.2, 0.3, 0.5],
-        ])
+        probabilities = np.array(
+            [
+                [0.7, 0.2, 0.1],
+                [0.2, 0.6, 0.2],
+                [0.1, 0.2, 0.7],
+                [0.1, 0.1, 0.8],
+                [0.2, 0.3, 0.5],
+            ]
+        )
         trades = [
             {"side": "buy", "ml_prediction": 2, "pnl": 100},
         ]
@@ -444,9 +450,7 @@ class TestTradeTrackerAdditionalMetrics:
             tracker.record_entry(f"t{i}", "buy", 0.001, 15000000, datetime.now(), "Test")
             tracker.record_exit(f"t{i}", 15100000, datetime.now(), "TP")
 
-        result = tracker._calculate_trades_per_month(
-            "2025-01-01T00:00:00", "2025-02-01T00:00:00"
-        )
+        result = tracker._calculate_trades_per_month("2025-01-01T00:00:00", "2025-02-01T00:00:00")
 
         # 6取引 / 1ヶ月 = 6取引/月
         assert result == pytest.approx(6.0, rel=0.2)
@@ -589,8 +593,7 @@ class TestBacktestReporterErrorReport:
             reporter = BacktestReporter(output_dir=tmpdir)
 
             filepath = await reporter.save_error_report(
-                error_message="Test error occurred",
-                context={"phase": "test", "step": 1}
+                error_message="Test error occurred", context={"phase": "test", "step": 1}
             )
 
             assert Path(filepath).exists()
@@ -637,9 +640,7 @@ class TestBacktestReporterTextReport:
             }
 
             filepath = Path(tmpdir) / "test_report.txt"
-            await reporter._generate_text_report(
-                filepath, report_data, "2025-01-01", "2025-03-01"
-            )
+            await reporter._generate_text_report(filepath, report_data, "2025-01-01", "2025-03-01")
 
             assert filepath.exists()
             content = filepath.read_text()
@@ -694,8 +695,14 @@ class TestBacktestReporterFullReport:
 
             # 取引を記録
             reporter.trade_tracker.record_entry(
-                "t1", "buy", 0.001, 15000000, datetime.now(), "Test",
-                ml_prediction=2, ml_confidence=0.75
+                "t1",
+                "buy",
+                0.001,
+                15000000,
+                datetime.now(),
+                "Test",
+                ml_prediction=2,
+                ml_confidence=0.75,
             )
             reporter.trade_tracker.record_exit("t1", 15100000, datetime.now(), "TP")
 
@@ -703,13 +710,15 @@ class TestBacktestReporterFullReport:
 
             ml_predictions_data = {
                 "predictions": np.array([0, 1, 2, 2, 2]),
-                "probabilities": np.array([
-                    [0.7, 0.2, 0.1],
-                    [0.2, 0.6, 0.2],
-                    [0.1, 0.2, 0.7],
-                    [0.1, 0.1, 0.8],
-                    [0.2, 0.2, 0.6],
-                ]),
+                "probabilities": np.array(
+                    [
+                        [0.7, 0.2, 0.1],
+                        [0.2, 0.6, 0.2],
+                        [0.1, 0.2, 0.7],
+                        [0.1, 0.1, 0.8],
+                        [0.2, 0.2, 0.6],
+                    ]
+                ),
             }
 
             with patch.object(reporter, "_generate_text_report", return_value=None):
@@ -804,8 +813,15 @@ class TestTradeTrackerMLInfo:
         tracker = TradeTracker()
 
         tracker.record_entry(
-            "t1", "buy", 0.001, 15000000, datetime.now(), "Test",
-            ml_prediction=2, ml_confidence=0.85, adjusted_confidence=0.80
+            "t1",
+            "buy",
+            0.001,
+            15000000,
+            datetime.now(),
+            "Test",
+            ml_prediction=2,
+            ml_confidence=0.85,
+            adjusted_confidence=0.80,
         )
         trade = tracker.record_exit("t1", 15100000, datetime.now(), "TP")
 

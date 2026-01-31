@@ -355,18 +355,13 @@ class TestFeatureManagerCategoryOrder:
         manager = FeatureManager()
         names = manager.get_feature_names()
 
-        strategy_indices = [
-            names.index(f)
-            for f in names
-            if f.startswith("strategy_signal_")
-        ]
+        strategy_indices = [names.index(f) for f in names if f.startswith("strategy_signal_")]
 
         if strategy_indices:
             # 戦略シグナルは末尾に位置する
             min_strategy_idx = min(strategy_indices)
             non_strategy_indices = [
-                i for i, f in enumerate(names)
-                if not f.startswith("strategy_signal_")
+                i for i, f in enumerate(names) if not f.startswith("strategy_signal_")
             ]
             if non_strategy_indices:
                 max_non_strategy_idx = max(non_strategy_indices)

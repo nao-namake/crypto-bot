@@ -344,9 +344,7 @@ class TestCreatePersistence:
     def test_create_local_persistence_with_custom_path(self):
         """カスタムパスでローカル永続化が作成されること"""
         with patch.dict(os.environ, {"RUNNING_ON_GCP": "false"}, clear=False):
-            persistence = create_persistence(
-                mode="live", local_path="/tmp/custom_state.json"
-            )
+            persistence = create_persistence(mode="live", local_path="/tmp/custom_state.json")
         assert isinstance(persistence, LocalFilePersistence)
         assert str(persistence.file_path) == "/tmp/custom_state.json"
 

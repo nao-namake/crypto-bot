@@ -49,9 +49,7 @@ class TestLGBMModel:
     @pytest.fixture
     def lgbm_model(self):
         """LGBMModelインスタンス"""
-        return LGBMModel(
-            n_estimators=10, max_depth=3, learning_rate=0.1
-        )
+        return LGBMModel(n_estimators=10, max_depth=3, learning_rate=0.1)
 
     def test_model_initialization(self, lgbm_model):
         """モデル初期化テスト"""
@@ -334,21 +332,28 @@ class TestLGBMModel:
         # estimatorのパラメータを確認
         estimator_params = model.estimator.get_params()
         # クリーンアップ後はlambda_l1に変換されているはず
-        assert "reg_alpha" not in model.model_params or model.model_params.get("reg_alpha") is not None
+        assert (
+            "reg_alpha" not in model.model_params or model.model_params.get("reg_alpha") is not None
+        )
 
     def test_clean_lgbm_params_reg_lambda(self):
         """LGBMパラメータクリーンアップ - reg_lambda変換テスト"""
         model = LGBMModel(reg_lambda=0.2)
 
         # reg_lambdaはlambda_l2に変換される
-        assert "reg_lambda" not in model.model_params or model.model_params.get("reg_lambda") is not None
+        assert (
+            "reg_lambda" not in model.model_params
+            or model.model_params.get("reg_lambda") is not None
+        )
 
     def test_clean_lgbm_params_subsample(self):
         """LGBMパラメータクリーンアップ - subsample変換テスト"""
         model = LGBMModel(subsample=0.8)
 
         # subsampleはbagging_fractionに変換される
-        assert "subsample" not in model.model_params or model.model_params.get("subsample") is not None
+        assert (
+            "subsample" not in model.model_params or model.model_params.get("subsample") is not None
+        )
 
     def test_clean_lgbm_params_default_removal(self):
         """LGBMパラメータクリーンアップ - デフォルト値削除テスト"""

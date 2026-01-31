@@ -448,9 +448,7 @@ class TestTradingLoggerService:
         with patch.object(trading_logger, "_log_failed_execution") as mock_failure:
             await trading_logger.log_execution_result(execution_result, "test-cycle-dict-fail")
 
-            mock_failure.assert_called_once_with(
-                execution_result, "test-cycle-dict-fail", "", "❌"
-            )
+            mock_failure.assert_called_once_with(execution_result, "test-cycle-dict-fail", "", "❌")
 
     @pytest.mark.asyncio
     async def test_log_execution_result_unexpected_type(self, trading_logger):
@@ -491,9 +489,7 @@ class TestTradingLoggerService:
             "_log_successful_execution",
             side_effect=AttributeError("missing_attr"),
         ):
-            await trading_logger.log_execution_result(
-                execution_result, "test-cycle-attrerror"
-            )
+            await trading_logger.log_execution_result(execution_result, "test-cycle-attrerror")
 
             trading_logger.logger.error.assert_called_once_with(
                 "実行結果ログデータアクセスエラー: missing_attr"
@@ -510,9 +506,7 @@ class TestTradingLoggerService:
             "_log_successful_execution",
             side_effect=ValueError("invalid_value"),
         ):
-            await trading_logger.log_execution_result(
-                execution_result, "test-cycle-valerror"
-            )
+            await trading_logger.log_execution_result(execution_result, "test-cycle-valerror")
 
             trading_logger.logger.error.assert_called_once_with(
                 "実行結果ログデータ変換エラー: invalid_value"
@@ -529,9 +523,7 @@ class TestTradingLoggerService:
             "_log_successful_execution",
             side_effect=TypeError("type_mismatch"),
         ):
-            await trading_logger.log_execution_result(
-                execution_result, "test-cycle-typeerror"
-            )
+            await trading_logger.log_execution_result(execution_result, "test-cycle-typeerror")
 
             trading_logger.logger.error.assert_called_once_with(
                 "実行結果ログデータ変換エラー: type_mismatch"
@@ -548,9 +540,7 @@ class TestTradingLoggerService:
             "_log_successful_execution",
             side_effect=RuntimeError("unexpected"),
         ):
-            await trading_logger.log_execution_result(
-                execution_result, "test-cycle-general"
-            )
+            await trading_logger.log_execution_result(execution_result, "test-cycle-general")
 
             trading_logger.logger.error.assert_called_once_with(
                 "実行結果ログ出力予期しないエラー: unexpected"
@@ -603,10 +593,10 @@ class TestTradingLoggerService:
             execution_result, "test-cycle-dict-fail", "", "❌"
         )
 
-        expected_message = "❌ 注文実行失敗 - サイクル: test-cycle-dict-fail, エラー: Connection timeout"
-        trading_logger.logger.warning.assert_called_once_with(
-            expected_message, discord_notify=True
+        expected_message = (
+            "❌ 注文実行失敗 - サイクル: test-cycle-dict-fail, エラー: Connection timeout"
         )
+        trading_logger.logger.warning.assert_called_once_with(expected_message, discord_notify=True)
 
     @pytest.mark.asyncio
     async def test_log_failed_execution_dict_no_error_message(self, trading_logger):
@@ -618,9 +608,7 @@ class TestTradingLoggerService:
         )
 
         expected_message = "❌ 注文実行失敗 - サイクル: test-cycle-dict-no-err, エラー: 不明"
-        trading_logger.logger.warning.assert_called_once_with(
-            expected_message, discord_notify=True
-        )
+        trading_logger.logger.warning.assert_called_once_with(expected_message, discord_notify=True)
 
     @pytest.mark.asyncio
     async def test_log_failed_execution_exception(self, trading_logger):
@@ -635,9 +623,7 @@ class TestTradingLoggerService:
             execution_result, "test-cycle-fail-exc", "", "❌"
         )
 
-        trading_logger.logger.error.assert_called_once_with(
-            "❌ 失敗時実行ログエラー: attr_error"
-        )
+        trading_logger.logger.error.assert_called_once_with("❌ 失敗時実行ログエラー: attr_error")
 
     @pytest.mark.asyncio
     async def test_check_and_log_statistics_zero_trades(self, trading_logger):
@@ -715,9 +701,7 @@ class TestTradingLoggerService:
 
         await trading_logger.log_trading_statistics(stats)
 
-        trading_logger.logger.error.assert_called_once_with(
-            "統計ログ計算エラー: division by zero"
-        )
+        trading_logger.logger.error.assert_called_once_with("統計ログ計算エラー: division by zero")
 
     @pytest.mark.asyncio
     async def test_log_trading_statistics_arithmetic_error(self, trading_logger):
@@ -727,9 +711,7 @@ class TestTradingLoggerService:
 
         await trading_logger.log_trading_statistics(stats)
 
-        trading_logger.logger.error.assert_called_once_with(
-            "統計ログ計算エラー: arithmetic error"
-        )
+        trading_logger.logger.error.assert_called_once_with("統計ログ計算エラー: arithmetic error")
 
     @pytest.mark.asyncio
     async def test_log_trading_statistics_general_exception(self, trading_logger):

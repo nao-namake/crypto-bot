@@ -45,11 +45,13 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
         if volume_values is None:
             volume_values = [100.0] * num_rows
 
-        return pd.DataFrame({
-            "close": close_values,
-            "atr_14": atr_values,
-            "volume": volume_values,
-        })
+        return pd.DataFrame(
+            {
+                "close": close_values,
+                "atr_14": atr_values,
+                "volume": volume_values,
+            }
+        )
 
     def _get_mock_threshold(self, key, default):
         """テスト用のget_threshold関数."""
@@ -180,30 +182,36 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
     def test_calculate_missing_columns(self):
         """必要な列が不足している場合のテスト."""
         # close列がない
-        df_no_close = pd.DataFrame({
-            "atr_14": [100000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df_no_close = pd.DataFrame(
+            {
+                "atr_14": [100000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df_no_close)
         self.assertEqual(result, 0.02)  # デフォルト値
 
     def test_calculate_missing_atr_column(self):
         """ATR列が不足している場合のテスト."""
-        df_no_atr = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df_no_atr = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df_no_atr)
         self.assertEqual(result, 0.02)  # デフォルト値
 
     def test_calculate_missing_volume_column(self):
         """volume列が不足している場合のテスト."""
-        df_no_volume = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "atr_14": [100000.0] * 25,
-        })
+        df_no_volume = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "atr_14": [100000.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df_no_volume)
         self.assertEqual(result, 0.02)  # デフォルト値
@@ -217,11 +225,13 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
 
     def test_calculate_single_row_dataframe(self):
         """1行のみのDataFrameの場合のテスト."""
-        single_row_df = pd.DataFrame({
-            "close": [10000000.0],
-            "atr_14": [100000.0],
-            "volume": [100.0],
-        })
+        single_row_df = pd.DataFrame(
+            {
+                "close": [10000000.0],
+                "atr_14": [100000.0],
+                "volume": [100.0],
+            }
+        )
 
         # rolling(20)の計算でNaNが発生する可能性がある
         result = MarketUncertaintyCalculator.calculate(single_row_df)
@@ -277,6 +287,7 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
     @patch("src.core.config.threshold_manager.get_threshold")
     def test_calculate_with_breakdown_sum_equals_total(self, mock_get_threshold):
         """内訳の合計がtotalと一致するか（上限前）のテスト."""
+
         def high_limit_threshold(key, default):
             threshold_values = {
                 "dynamic_confidence.market_uncertainty.volatility_factor_max": 0.05,
@@ -354,10 +365,12 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
 
     def test_calculate_with_breakdown_missing_columns(self):
         """必要な列が不足している場合の内訳計算テスト."""
-        df_incomplete = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            # atr_14とvolumeが不足
-        })
+        df_incomplete = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                # atr_14とvolumeが不足
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate_with_breakdown(df_incomplete)
 
@@ -421,11 +434,13 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
         atr_values = [abs(np.random.normal(100000, 10000)) for _ in range(25)]
         volume_values = [abs(np.random.normal(100, 20)) for _ in range(25)]
 
-        df = pd.DataFrame({
-            "close": close_values,
-            "atr_14": atr_values,
-            "volume": volume_values,
-        })
+        df = pd.DataFrame(
+            {
+                "close": close_values,
+                "atr_14": atr_values,
+                "volume": volume_values,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
 
@@ -485,11 +500,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
 
     def test_calculate_with_inf_values(self):
         """無限大の値を含むDataFrameのテスト."""
-        df = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "atr_14": [float("inf")] * 25,
-            "volume": [100.0] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "atr_14": [float("inf")] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
         # 無限大の場合、volatility_factor = inf / price = inf
@@ -499,11 +516,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
 
     def test_calculate_with_negative_atr(self):
         """負のATR値のテスト（異常データ）."""
-        df = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "atr_14": [-100000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "atr_14": [-100000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         # 負のATRでも計算は続行される（ボラティリティは負になる可能性）
         result = MarketUncertaintyCalculator.calculate(df)
@@ -511,11 +530,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
 
     def test_calculate_with_zero_price(self):
         """価格がゼロの場合のテスト."""
-        df = pd.DataFrame({
-            "close": [0.0] * 25,
-            "atr_14": [100000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [0.0] * 25,
+                "atr_14": [100000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
         # ゼロ除算でエラー→デフォルト値
@@ -526,11 +547,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
         """非常に小さい値でのテスト."""
         mock_get_threshold.side_effect = self._get_mock_threshold
 
-        df = pd.DataFrame({
-            "close": [1e-10] * 25,
-            "atr_14": [1e-12] * 25,
-            "volume": [1e-10] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [1e-10] * 25,
+                "atr_14": [1e-12] * 25,
+                "volume": [1e-10] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
         self.assertIsInstance(result, float)
@@ -541,11 +564,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
         mock_get_threshold.side_effect = self._get_mock_threshold
 
         # 全て同じ値（価格変動なし、ボリューム乖離なし）
-        df = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "atr_14": [100000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "atr_14": [100000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
 
@@ -561,11 +586,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
 
         # 最新ボリュームが10倍
         volumes = [100.0] * 24 + [1000.0]
-        df = pd.DataFrame({
-            "close": [10000000.0] * 25,
-            "atr_14": [100000.0] * 25,
-            "volume": volumes,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [10000000.0] * 25,
+                "atr_14": [100000.0] * 25,
+                "volume": volumes,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
 
@@ -580,11 +607,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
 
         # 10%の価格下落
         close_values = [10000000.0] * 24 + [9000000.0]
-        df = pd.DataFrame({
-            "close": close_values,
-            "atr_14": [100000.0] * 25,
-            "volume": [100.0] * 25,
-        })
+        df = pd.DataFrame(
+            {
+                "close": close_values,
+                "atr_14": [100000.0] * 25,
+                "volume": [100.0] * 25,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
 
@@ -600,11 +629,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
         # 全ての要因が極端
         volumes = [100.0] * 24 + [1000.0]  # 10倍のボリューム
         close_values = [10000000.0] * 24 + [11000000.0]  # 10%上昇
-        df = pd.DataFrame({
-            "close": close_values,
-            "atr_14": [1000000.0] * 25,  # 10%のATR
-            "volume": volumes,
-        })
+        df = pd.DataFrame(
+            {
+                "close": close_values,
+                "atr_14": [1000000.0] * 25,  # 10%のATR
+                "volume": volumes,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate_with_breakdown(df)
 
@@ -617,11 +648,13 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
     def test_calculate_with_insufficient_data_for_rolling(self):
         """rollingに必要なデータが不足している場合のテスト."""
         # 19行（rolling(20)に足りない）
-        df = pd.DataFrame({
-            "close": [10000000.0] * 19,
-            "atr_14": [100000.0] * 19,
-            "volume": [100.0] * 19,
-        })
+        df = pd.DataFrame(
+            {
+                "close": [10000000.0] * 19,
+                "atr_14": [100000.0] * 19,
+                "volume": [100.0] * 19,
+            }
+        )
 
         result = MarketUncertaintyCalculator.calculate(df)
         # rolling(20)でNaNになるが、avg_volume > 0の条件で1.0が使用される

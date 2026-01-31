@@ -19,7 +19,6 @@ from src.core.reporting.discord_notifier import (
     notify,
 )
 
-
 # =============================================================================
 # フィクスチャ
 # =============================================================================
@@ -28,7 +27,9 @@ from src.core.reporting.discord_notifier import (
 @pytest.fixture
 def valid_webhook_url():
     """有効なWebhook URLを返すフィクスチャ"""
-    return "https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwxyz1234567890"
+    return (
+        "https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwxyz1234567890"
+    )
 
 
 @pytest.fixture
@@ -203,7 +204,10 @@ class TestGetWebhookUrl:
         """envファイル読み込みエラー時"""
         with patch("logging.getLogger", return_value=mock_logger):
             with patch("src.core.reporting.discord_notifier.DOTENV_AVAILABLE", True):
-                with patch("src.core.reporting.discord_notifier.load_dotenv", side_effect=Exception("Load error")):
+                with patch(
+                    "src.core.reporting.discord_notifier.load_dotenv",
+                    side_effect=Exception("Load error"),
+                ):
                     with patch.object(Path, "exists", return_value=True):
                         with patch.dict(os.environ, {}, clear=True):
                             client = DiscordClient.__new__(DiscordClient)
@@ -258,7 +262,10 @@ class TestValidateWebhookUrl:
 
     def test_validate_wrong_prefix_url(self, discord_client):
         """誤ったプレフィックスのURLの検証"""
-        assert discord_client._validate_webhook_url("https://example.com/api/webhooks/123/abc") is False
+        assert (
+            discord_client._validate_webhook_url("https://example.com/api/webhooks/123/abc")
+            is False
+        )
 
     def test_validate_short_url(self, discord_client):
         """短すぎるURLの検証"""
@@ -266,19 +273,35 @@ class TestValidateWebhookUrl:
 
     def test_validate_missing_token(self, discord_client):
         """トークンがないURLの検証"""
-        assert discord_client._validate_webhook_url("https://discord.com/api/webhooks/1234567890123456789") is False
+        assert (
+            discord_client._validate_webhook_url(
+                "https://discord.com/api/webhooks/1234567890123456789"
+            )
+            is False
+        )
 
     def test_validate_invalid_id_format(self, discord_client):
         """IDが数字でないURLの検証"""
-        assert discord_client._validate_webhook_url("https://discord.com/api/webhooks/abc/token123") is False
+        assert (
+            discord_client._validate_webhook_url("https://discord.com/api/webhooks/abc/token123")
+            is False
+        )
 
     def test_validate_short_id(self, discord_client):
         """IDが短すぎるURLの検証"""
-        assert discord_client._validate_webhook_url("https://discord.com/api/webhooks/123/token123456") is False
+        assert (
+            discord_client._validate_webhook_url("https://discord.com/api/webhooks/123/token123456")
+            is False
+        )
 
     def test_validate_short_token(self, discord_client):
         """トークンが短すぎるURLの検証"""
-        assert discord_client._validate_webhook_url("https://discord.com/api/webhooks/1234567890123456789/ab") is False
+        assert (
+            discord_client._validate_webhook_url(
+                "https://discord.com/api/webhooks/1234567890123456789/ab"
+            )
+            is False
+        )
 
 
 # =============================================================================
@@ -599,7 +622,9 @@ class TestSendWebhook:
 
     def test_send_webhook_network_error(self, discord_client):
         """ネットワークエラー"""
-        with patch("requests.post", side_effect=requests.exceptions.RequestException("Network error")):
+        with patch(
+            "requests.post", side_effect=requests.exceptions.RequestException("Network error")
+        ):
             with patch(
                 "src.core.reporting.discord_notifier.get_monitoring_config", return_value=10
             ):
@@ -623,9 +648,7 @@ class TestSendWebhook:
         circular_data = {}
         circular_data["self"] = circular_data
 
-        with patch(
-            "src.core.reporting.discord_notifier.get_monitoring_config", return_value=10
-        ):
+        with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=10):
             result = discord_client._send_webhook(circular_data)
 
         assert result is False
@@ -682,9 +705,7 @@ class TestDiscordManagerInit:
     def test_init_enabled(self, valid_webhook_url, mock_logger):
         """有効な状態で初期化"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 manager = DiscordManager(valid_webhook_url)
 
         assert manager.enabled is True
@@ -693,9 +714,7 @@ class TestDiscordManagerInit:
     def test_init_disabled(self, mock_logger):
         """無効な状態で初期化"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 with patch.object(DiscordClient, "_get_webhook_url", return_value=None):
                     manager = DiscordManager()
 
@@ -729,9 +748,7 @@ class TestSendSimpleMessage:
     def test_send_simple_message_disabled(self, mock_logger):
         """無効化されている場合"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 with patch.object(DiscordClient, "_get_webhook_url", return_value=None):
                     manager = DiscordManager()
 
@@ -805,9 +822,7 @@ class TestManagerTestConnection:
     def test_connection_disabled(self, mock_logger):
         """無効化されている場合"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 with patch.object(DiscordClient, "_get_webhook_url", return_value=None):
                     manager = DiscordManager()
 
@@ -840,9 +855,7 @@ class TestRateLimitCheck:
     def test_rate_limit_check_disabled(self, mock_logger):
         """無効化されている場合"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 with patch.object(DiscordClient, "_get_webhook_url", return_value=None):
                     manager = DiscordManager()
 
@@ -881,10 +894,10 @@ class TestNotifyFunction:
     def test_notify_success(self, valid_webhook_url, mock_logger):
         """notify関数成功"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
-                with patch.object(DiscordClient, "_get_webhook_url", return_value=valid_webhook_url):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
+                with patch.object(
+                    DiscordClient, "_get_webhook_url", return_value=valid_webhook_url
+                ):
                     with patch.object(DiscordClient, "_send_webhook", return_value=True):
                         result = notify("Test message")
 
@@ -893,9 +906,7 @@ class TestNotifyFunction:
     def test_notify_disabled(self, mock_logger):
         """notify関数（無効化）"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=2
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=2):
                 with patch.object(DiscordClient, "_get_webhook_url", return_value=None):
                     result = notify("Test message")
 
@@ -940,9 +951,7 @@ class TestDiscordNotifierIntegration:
     def test_error_handling_workflow(self, valid_webhook_url, mock_logger):
         """エラーハンドリングワークフロー"""
         with patch("logging.getLogger", return_value=mock_logger):
-            with patch(
-                "src.core.reporting.discord_notifier.get_monitoring_config", return_value=0
-            ):
+            with patch("src.core.reporting.discord_notifier.get_monitoring_config", return_value=0):
                 manager = DiscordManager(valid_webhook_url)
 
         # 各種エラーレスポンス

@@ -1075,7 +1075,7 @@ class TestExceptionHandlingEdgeCases:
         from unittest.mock import patch
 
         # quantileメソッドで例外を発生させる
-        with patch.object(pd.Series, 'quantile', side_effect=Exception("Quantile error")):
+        with patch.object(pd.Series, "quantile", side_effect=Exception("Quantile error")):
             series = pd.Series([1, 2, 3, 4, 5])
             result = generator._normalize(series)
 
@@ -1088,7 +1088,7 @@ class TestExceptionHandlingEdgeCases:
         from unittest.mock import patch
 
         # rollingメソッドで例外を発生させる
-        with patch.object(pd.Series, 'rolling', side_effect=Exception("Rolling error")):
+        with patch.object(pd.Series, "rolling", side_effect=Exception("Rolling error")):
             volume = pd.Series([1000, 1100, 1200], index=[0, 1, 2])
             result = generator._calculate_volume_ratio(volume)
 
@@ -1109,7 +1109,7 @@ class TestExceptionHandlingEdgeCases:
         )
 
         # rolling計算で例外を発生させる
-        with patch.object(pd.Series, 'rolling', side_effect=Exception("Rolling error")):
+        with patch.object(pd.Series, "rolling", side_effect=Exception("Rolling error")):
             adx, plus_di, minus_di = generator._calculate_adx_indicators(df)
 
             # 例外発生時はゼロ系列が返される
@@ -1169,8 +1169,10 @@ class TestBollingerBandsCalculation:
 
         # 上限は下限より大きい（NaN値を除く）
         valid_indices = (~bb_upper.isna()) & (~bb_lower.isna())
-        assert all(bb_upper[valid_indices].iloc[i] >= bb_lower[valid_indices].iloc[i]
-                   for i in range(sum(valid_indices)))
+        assert all(
+            bb_upper[valid_indices].iloc[i] >= bb_lower[valid_indices].iloc[i]
+            for i in range(sum(valid_indices))
+        )
 
         # 位置は0-1の範囲（概ね）
         assert all(-0.5 <= v <= 1.5 for v in bb_position.dropna())

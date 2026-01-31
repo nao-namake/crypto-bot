@@ -694,9 +694,7 @@ class TestRemovePositionWithCleanup:
 
     def test_remove_with_cleanup_only_tp(self, tracker):
         """TPのみ設定されたポジション削除"""
-        tracker.add_position(
-            "order_789", "buy", 0.001, 14000000.0, tp_order_id="tp_only_001"
-        )
+        tracker.add_position("order_789", "buy", 0.001, 14000000.0, tp_order_id="tp_only_001")
 
         result = tracker.remove_position_with_cleanup("order_789")
 
@@ -705,9 +703,7 @@ class TestRemovePositionWithCleanup:
 
     def test_remove_with_cleanup_only_sl(self, tracker):
         """SLのみ設定されたポジション削除"""
-        tracker.add_position(
-            "order_abc", "sell", 0.003, 14200000.0, sl_order_id="sl_only_001"
-        )
+        tracker.add_position("order_abc", "sell", 0.003, 14200000.0, sl_order_id="sl_only_001")
 
         result = tracker.remove_position_with_cleanup("order_abc")
 
@@ -772,9 +768,7 @@ class TestFindPositionByTpOrderId:
 
     def test_find_by_tp_order_id_not_exists(self, tracker):
         """TP注文IDでポジション検索（存在しない場合）"""
-        tracker.add_position(
-            "order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001"
-        )
+        tracker.add_position("order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001")
 
         result = tracker.find_position_by_tp_order_id("tp_nonexistent")
 
@@ -788,15 +782,9 @@ class TestFindPositionByTpOrderId:
 
     def test_find_by_tp_order_id_multiple_positions(self, tracker):
         """複数ポジションからTP注文IDで検索"""
-        tracker.add_position(
-            "order_1", "buy", 0.001, 14000000.0, tp_order_id="tp_1"
-        )
-        tracker.add_position(
-            "order_2", "sell", 0.002, 14500000.0, tp_order_id="tp_2"
-        )
-        tracker.add_position(
-            "order_3", "buy", 0.003, 14200000.0, tp_order_id="tp_3"
-        )
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0, tp_order_id="tp_1")
+        tracker.add_position("order_2", "sell", 0.002, 14500000.0, tp_order_id="tp_2")
+        tracker.add_position("order_3", "buy", 0.003, 14200000.0, tp_order_id="tp_3")
 
         result = tracker.find_position_by_tp_order_id("tp_2")
 
@@ -826,9 +814,7 @@ class TestFindPositionBySlOrderId:
 
     def test_find_by_sl_order_id_not_exists(self, tracker):
         """SL注文IDでポジション検索（存在しない場合）"""
-        tracker.add_position(
-            "order_123", "buy", 0.001, 14000000.0, sl_order_id="sl_001"
-        )
+        tracker.add_position("order_123", "buy", 0.001, 14000000.0, sl_order_id="sl_001")
 
         result = tracker.find_position_by_sl_order_id("sl_nonexistent")
 
@@ -842,15 +828,9 @@ class TestFindPositionBySlOrderId:
 
     def test_find_by_sl_order_id_multiple_positions(self, tracker):
         """複数ポジションからSL注文IDで検索"""
-        tracker.add_position(
-            "order_1", "buy", 0.001, 14000000.0, sl_order_id="sl_1"
-        )
-        tracker.add_position(
-            "order_2", "sell", 0.002, 14500000.0, sl_order_id="sl_2"
-        )
-        tracker.add_position(
-            "order_3", "buy", 0.003, 14200000.0, sl_order_id="sl_3"
-        )
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0, sl_order_id="sl_1")
+        tracker.add_position("order_2", "sell", 0.002, 14500000.0, sl_order_id="sl_2")
+        tracker.add_position("order_3", "buy", 0.003, 14200000.0, sl_order_id="sl_3")
 
         result = tracker.find_position_by_sl_order_id("sl_3")
 
@@ -897,9 +877,7 @@ class TestRemovePositionByTpOrSlOrderId:
 
     def test_remove_by_tp_or_sl_nonexistent(self, tracker):
         """存在しないTP/SL注文IDで削除"""
-        tracker.add_position(
-            "order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001"
-        )
+        tracker.add_position("order_123", "buy", 0.001, 14000000.0, tp_order_id="tp_001")
 
         result = tracker.remove_position_by_tp_or_sl_order_id("nonexistent")
 
@@ -941,12 +919,14 @@ class TestCalculateAverageEntryPriceEdgeCases:
     def test_calculate_average_zero_amount_positions(self, tracker):
         """数量0のポジションがある場合"""
         # 内部的にamount=0のポジションを直接追加（通常はありえないが防御的テスト）
-        tracker.virtual_positions.append({
-            "order_id": "order_zero",
-            "side": "buy",
-            "amount": 0,
-            "price": 10000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_zero",
+                "side": "buy",
+                "amount": 0,
+                "price": 10000000.0,
+            }
+        )
 
         average = tracker.calculate_average_entry_price()
 
@@ -954,11 +934,13 @@ class TestCalculateAverageEntryPriceEdgeCases:
 
     def test_calculate_average_missing_price_field(self, tracker):
         """priceフィールドがない場合のデフォルト値"""
-        tracker.virtual_positions.append({
-            "order_id": "order_no_price",
-            "side": "buy",
-            "amount": 0.001,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_no_price",
+                "side": "buy",
+                "amount": 0.001,
+            }
+        )
 
         average = tracker.calculate_average_entry_price()
 
@@ -966,11 +948,13 @@ class TestCalculateAverageEntryPriceEdgeCases:
 
     def test_calculate_average_missing_amount_field(self, tracker):
         """amountフィールドがない場合のデフォルト値"""
-        tracker.virtual_positions.append({
-            "order_id": "order_no_amount",
-            "side": "buy",
-            "price": 10000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_no_amount",
+                "side": "buy",
+                "price": 10000000.0,
+            }
+        )
 
         average = tracker.calculate_average_entry_price()
 
@@ -1128,12 +1112,14 @@ class TestGetOrphanedPositionsEdgeCases:
 
     def test_orphaned_with_empty_side(self, tracker):
         """sideが空文字のポジション"""
-        tracker.virtual_positions.append({
-            "order_id": "order_empty_side",
-            "side": "",
-            "amount": 0.001,
-            "price": 14000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_empty_side",
+                "side": "",
+                "amount": 0.001,
+                "price": 14000000.0,
+            }
+        )
 
         actual_positions = [{"side": "", "amount": 0.001, "price": 14000000.0}]
 
@@ -1143,11 +1129,13 @@ class TestGetOrphanedPositionsEdgeCases:
 
     def test_orphaned_with_missing_side(self, tracker):
         """sideフィールドがないポジション"""
-        tracker.virtual_positions.append({
-            "order_id": "order_no_side",
-            "amount": 0.001,
-            "price": 14000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_no_side",
+                "amount": 0.001,
+                "price": 14000000.0,
+            }
+        )
 
         actual_positions = [{"amount": 0.001, "price": 14000000.0}]
 
@@ -1157,11 +1145,13 @@ class TestGetOrphanedPositionsEdgeCases:
 
     def test_orphaned_with_missing_amount(self, tracker):
         """amountフィールドがないポジション"""
-        tracker.virtual_positions.append({
-            "order_id": "order_no_amount",
-            "side": "buy",
-            "price": 14000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_no_amount",
+                "side": "buy",
+                "price": 14000000.0,
+            }
+        )
 
         actual_positions = [{"side": "buy", "price": 14000000.0}]
 
@@ -1175,12 +1165,14 @@ class TestFindPositionsBySideEdgeCases:
 
     def test_find_positions_empty_side(self, tracker):
         """空文字sideで検索"""
-        tracker.virtual_positions.append({
-            "order_id": "order_empty_side",
-            "side": "",
-            "amount": 0.001,
-            "price": 14000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_empty_side",
+                "side": "",
+                "amount": 0.001,
+                "price": 14000000.0,
+            }
+        )
 
         result = tracker.find_positions_by_side("")
 
@@ -1189,11 +1181,13 @@ class TestFindPositionsBySideEdgeCases:
 
     def test_find_positions_missing_side(self, tracker):
         """sideフィールドがないポジションの検索"""
-        tracker.virtual_positions.append({
-            "order_id": "order_no_side",
-            "amount": 0.001,
-            "price": 14000000.0,
-        })
+        tracker.virtual_positions.append(
+            {
+                "order_id": "order_no_side",
+                "amount": 0.001,
+                "price": 14000000.0,
+            }
+        )
 
         # sideが存在しない場合は空文字として扱われる
         result = tracker.find_positions_by_side("")
@@ -1283,9 +1277,7 @@ class TestMultipleOperationsIntegration:
     def test_add_find_update_remove_flow(self, tracker):
         """追加→検索→更新→削除の一連の流れ"""
         # 追加
-        tracker.add_position(
-            "order_flow", "buy", 0.001, 14000000.0, strategy_name="TestStrategy"
-        )
+        tracker.add_position("order_flow", "buy", 0.001, 14000000.0, strategy_name="TestStrategy")
         assert tracker.get_position_count() == 1
 
         # 検索

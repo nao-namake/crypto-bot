@@ -1509,9 +1509,7 @@ class TestRestorePositionsFromAPI:
         mock_bitbank_client.fetch_margin_positions.assert_not_called()
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_no_active_orders(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_restore_positions_no_active_orders(self, mock_discord, mock_bitbank_client):
         """アクティブ注文なし時のスキップ"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
         mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
@@ -1522,9 +1520,7 @@ class TestRestorePositionsFromAPI:
         assert len(service.virtual_positions) == 0
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_with_active_orders(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_restore_positions_with_active_orders(self, mock_discord, mock_bitbank_client):
         """アクティブ注文ありの復元"""
         # 信用建玉
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
@@ -1572,10 +1568,34 @@ class TestRestorePositionsFromAPI:
         # 不完全なデータ（side, amount, priceがNone）
         mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
-                {"id": "incomplete_1", "type": "limit", "side": None, "amount": 0.0001, "price": 14000000},
-                {"id": "incomplete_2", "type": "limit", "side": "sell", "amount": None, "price": 14000000},
-                {"id": "incomplete_3", "type": "limit", "side": "sell", "amount": 0.0001, "price": None},
-                {"id": "valid_order", "type": "limit", "side": "sell", "amount": 0.0001, "price": 14500000},
+                {
+                    "id": "incomplete_1",
+                    "type": "limit",
+                    "side": None,
+                    "amount": 0.0001,
+                    "price": 14000000,
+                },
+                {
+                    "id": "incomplete_2",
+                    "type": "limit",
+                    "side": "sell",
+                    "amount": None,
+                    "price": 14000000,
+                },
+                {
+                    "id": "incomplete_3",
+                    "type": "limit",
+                    "side": "sell",
+                    "amount": 0.0001,
+                    "price": None,
+                },
+                {
+                    "id": "valid_order",
+                    "type": "limit",
+                    "side": "sell",
+                    "amount": 0.0001,
+                    "price": 14500000,
+                },
             ]
         )
 
@@ -1587,13 +1607,9 @@ class TestRestorePositionsFromAPI:
         assert service.virtual_positions[0]["order_id"] == "valid_order"
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_api_error_handling(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_restore_positions_api_error_handling(self, mock_discord, mock_bitbank_client):
         """API呼び出しエラー時のハンドリング"""
-        mock_bitbank_client.fetch_margin_positions = AsyncMock(
-            side_effect=Exception("API error")
-        )
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API error"))
 
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -1663,9 +1679,7 @@ class TestEnsureTpSlForExistingPositions:
         service.stop_manager.place_stop_loss.assert_not_called()
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_places_missing_orders(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_ensure_tp_sl_places_missing_orders(self, mock_discord, mock_bitbank_client):
         """TP/SLなしポジションに注文配置"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
             return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
@@ -1709,13 +1723,9 @@ class TestEnsureTpSlForExistingPositions:
         assert call_args.kwargs["side"] == "sell"
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_api_error_handling(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_ensure_tp_sl_api_error_handling(self, mock_discord, mock_bitbank_client):
         """API呼び出しエラー時のハンドリング"""
-        mock_bitbank_client.fetch_margin_positions = AsyncMock(
-            side_effect=Exception("API error")
-        )
+        mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API error"))
 
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2070,9 +2080,7 @@ class TestLiveModeAdditionalBehavior:
         return client
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_with_position_tracker(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_live_trade_with_position_tracker(self, mock_discord, mock_bitbank_client):
         """PositionTracker連携テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2084,7 +2092,9 @@ class TestLiveModeAdditionalBehavior:
         mock_stop_manager = AsyncMock()
         mock_stop_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_123"})
         mock_stop_manager.place_stop_loss = AsyncMock(return_value={"order_id": "sl_123"})
-        mock_stop_manager.cleanup_old_unfilled_orders = AsyncMock(return_value={"cancelled_count": 0})
+        mock_stop_manager.cleanup_old_unfilled_orders = AsyncMock(
+            return_value={"cancelled_count": 0}
+        )
         service.stop_manager = mock_stop_manager
 
         # fetch_active_ordersモック追加
@@ -2114,9 +2124,7 @@ class TestLiveModeAdditionalBehavior:
         mock_tracker.add_position.assert_called_once()
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_records_to_trade_tracker(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_live_trade_records_to_trade_tracker(self, mock_discord, mock_bitbank_client):
         """TradeTracker記録テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2149,9 +2157,7 @@ class TestLiveModeAdditionalBehavior:
         mock_trade_tracker.record_entry.assert_called_once()
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_records_to_trade_recorder(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_live_trade_records_to_trade_recorder(self, mock_discord, mock_bitbank_client):
         """TradeHistoryRecorder記録テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2338,9 +2344,7 @@ class TestCleanupOldTpSlAdditional:
 
         service = ExecutionService(mode="live", bitbank_client=mock_client)
         # 復元されたポジション
-        service.virtual_positions = [
-            {"order_id": "restored_order", "restored": True}
-        ]
+        service.virtual_positions = [{"order_id": "restored_order", "restored": True}]
 
         await service._cleanup_old_tp_sl_before_entry(
             side="buy", symbol="BTC/JPY", entry_order_id="entry123"
@@ -2388,9 +2392,7 @@ class TestRollbackEntryAdditional:
         """Phase 57.11: エントリー注文キャンセルのリトライ"""
         mock_client = MagicMock()
         # エントリーキャンセル3回失敗
-        mock_client.cancel_order = MagicMock(
-            side_effect=Exception("Entry cancel failed")
-        )
+        mock_client.cancel_order = MagicMock(side_effect=Exception("Entry cancel failed"))
 
         service = ExecutionService(mode="live", bitbank_client=mock_client)
 

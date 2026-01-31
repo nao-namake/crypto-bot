@@ -92,14 +92,7 @@ class TestSaveReport:
     @pytest.mark.asyncio
     async def test_save_report_handles_nested_data(self, reporter):
         """ネストしたデータが正常に保存される"""
-        test_data = {
-            "level1": {
-                "level2": {
-                    "value": 42
-                }
-            },
-            "list_data": [1, 2, 3]
-        }
+        test_data = {"level1": {"level2": {"value": 42}}, "list_data": [1, 2, 3]}
         result_path = await reporter.save_report(test_data, "nested_test")
 
         with open(result_path, "r", encoding="utf-8") as f:
@@ -152,12 +145,7 @@ class TestFormatMarkdown:
 
     def test_format_markdown_with_nested_dict(self, reporter):
         """ネストした辞書の変換"""
-        data = {
-            "section": {
-                "item1": "A",
-                "item2": "B"
-            }
-        }
+        data = {"section": {"item1": "A", "item2": "B"}}
         result = reporter.format_markdown(data, "Nested Report")
 
         assert "## section" in result
@@ -184,10 +172,8 @@ class TestFormatMarkdown:
         """トップレベルの値と辞書が混在するデータ"""
         data = {
             "simple_key": "simple_value",
-            "nested_section": {
-                "nested_key": "nested_value"
-            },
-            "another_simple": 123
+            "nested_section": {"nested_key": "nested_value"},
+            "another_simple": 123,
         }
         result = reporter.format_markdown(data, "Mixed Report")
 
@@ -219,13 +205,7 @@ class TestFormatDiscordEmbed:
 
     def test_format_discord_embed_nested_dict_summary(self, reporter):
         """ネストした辞書がサマリーに変換される"""
-        data = {
-            "metrics": {
-                "a": 1,
-                "b": 2,
-                "c": 3
-            }
-        }
+        data = {"metrics": {"a": 1, "b": 2, "c": 3}}
         result = reporter.format_discord_embed(data, "Metrics")
 
         fields = result["fields"]
@@ -237,15 +217,7 @@ class TestFormatDiscordEmbed:
 
     def test_format_discord_embed_nested_dict_truncation(self, reporter):
         """4項目以上のネスト辞書が省略される"""
-        data = {
-            "many_items": {
-                "a": 1,
-                "b": 2,
-                "c": 3,
-                "d": 4,
-                "e": 5
-            }
-        }
+        data = {"many_items": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}}
         result = reporter.format_discord_embed(data, "Many Items")
 
         fields = result["fields"]
@@ -364,7 +336,7 @@ class TestSaveErrorReport:
         context = {
             "stack_trace": ["line1", "line2"],
             "variables": {"x": 10, "y": 20},
-            "nested": {"level": 1}
+            "nested": {"level": 1},
         }
         result_path = await reporter.save_error_report("Complex error", context)
 
@@ -390,10 +362,7 @@ class TestGetReportSummary:
 
     def test_get_report_summary_with_nested_data(self, reporter):
         """ネストしたデータを検出"""
-        data = {
-            "simple": "value",
-            "nested": {"inner": "data"}
-        }
+        data = {"simple": "value", "nested": {"inner": "data"}}
         result = reporter.get_report_summary(data)
 
         assert result["has_nested_data"] is True
@@ -437,7 +406,7 @@ class TestEdgeCases:
             "japanese": "日本語テスト",
             "emoji": "テスト",  # 絵文字なし（規約に従う）
             "special": "!@#$%^&*()",
-            "newline": "line1\nline2"
+            "newline": "line1\nline2",
         }
         result_path = await reporter.save_report(data, "special_chars")
 
@@ -477,13 +446,7 @@ class TestEdgeCases:
 
     def test_format_discord_embed_exactly_three_items(self, reporter):
         """ちょうど3項目のネスト辞書（省略なし）"""
-        data = {
-            "three_items": {
-                "a": 1,
-                "b": 2,
-                "c": 3
-            }
-        }
+        data = {"three_items": {"a": 1, "b": 2, "c": 3}}
         result = reporter.format_discord_embed(data, "Three Items")
 
         fields = result["fields"]
@@ -497,13 +460,7 @@ class TestReportIntegration:
     async def test_full_workflow(self, reporter):
         """完全なワークフローテスト"""
         # 1. データ作成
-        test_data = {
-            "metrics": {
-                "profit": 1000,
-                "trades": 50
-            },
-            "summary": "Test run completed"
-        }
+        test_data = {"metrics": {"profit": 1000, "trades": 50}, "summary": "Test run completed"}
 
         # 2. JSONレポート保存
         json_path = await reporter.save_report(test_data, "integration", "workflow")
@@ -527,8 +484,7 @@ class TestReportIntegration:
         """エラー発生時のワークフロー"""
         # エラーレポート保存
         error_path = await reporter.save_error_report(
-            "Integration test error",
-            {"step": "test_step", "iteration": 5}
+            "Integration test error", {"step": "test_step", "iteration": 5}
         )
         assert error_path.exists()
 

@@ -799,9 +799,7 @@ class TestFetchOhlcvEdgeCases:
     """fetch_ohlcv() 追加テスト"""
 
     @pytest.mark.asyncio
-    async def test_fetch_ohlcv_low_data_count_warning(
-        self, pipeline, mock_bitbank_client
-    ):
+    async def test_fetch_ohlcv_low_data_count_warning(self, pipeline, mock_bitbank_client):
         """取得件数が要求の半分以下の場合の警告"""
         # 要求100件に対して20件しか返さない
         small_data = [[1704067200000, 14000000.0, 14100000.0, 13900000.0, 14050000.0, 1000.0]]
@@ -831,8 +829,8 @@ class TestGlobalFunctions:
 
     def test_fetch_market_data_returns_coroutine(self, pipeline, mock_bitbank_client):
         """fetch_market_data() はCoroutineを返す"""
-        from src.data.data_pipeline import fetch_market_data
         import src.data.data_pipeline as dp_module
+        from src.data.data_pipeline import fetch_market_data
 
         # グローバルパイプラインを設定
         original = dp_module._data_pipeline
@@ -851,8 +849,8 @@ class TestGlobalFunctions:
 
     def test_fetch_market_data_symbol_from_config(self, pipeline, mock_bitbank_client):
         """fetch_market_data() symbol未指定時は設定から取得"""
-        from src.data.data_pipeline import fetch_market_data
         import src.data.data_pipeline as dp_module
+        from src.data.data_pipeline import fetch_market_data
 
         original = dp_module._data_pipeline
         dp_module._data_pipeline = pipeline
@@ -874,8 +872,8 @@ class TestGlobalFunctions:
 
     def test_fetch_market_data_config_exception(self, pipeline, mock_bitbank_client):
         """fetch_market_data() 設定取得失敗時はBTC/JPYフォールバック"""
-        from src.data.data_pipeline import fetch_market_data
         import src.data.data_pipeline as dp_module
+        from src.data.data_pipeline import fetch_market_data
 
         original = dp_module._data_pipeline
         dp_module._data_pipeline = pipeline
