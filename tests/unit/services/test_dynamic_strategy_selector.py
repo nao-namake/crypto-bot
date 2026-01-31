@@ -24,7 +24,7 @@ class TestDynamicStrategySelector:
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def test_get_regime_weights_tight_range(self, selector):
-        """tight_range レジームの重み取得が正しいことを確認（Phase 62.3: BBReversal無効化）"""
+        """tight_range レジームの重み取得が正しいことを確認（Phase 62.4: DonchianChannel重み増加）"""
         weights = selector.get_regime_weights(RegimeType.TIGHT_RANGE)
 
         # Phase 51.8: 6戦略全てを含む
@@ -38,11 +38,11 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 62.3: BBReversal無効化（歴史的に損失傾向・改善コスト非効率）
-        assert weights["BBReversal"] == 0.0  # Phase 62.3: 無効化（35%→0%）
-        assert weights["StochasticReversal"] == 0.45  # Phase 62.3: 増加（35%→45%）
-        assert weights["ATRBased"] == 0.45  # Phase 62.3: 増加（20%→45%）
-        assert weights["DonchianChannel"] == 0.10  # 補助（維持）
+        # Phase 62.4: DonchianChannel重み増加（競争力回復）
+        assert weights["BBReversal"] == 0.0  # Phase 62.3: 無効化維持
+        assert weights["StochasticReversal"] == 0.35  # Phase 62.4: 45%→35%
+        assert weights["ATRBased"] == 0.35  # Phase 62.4: 45%→35%
+        assert weights["DonchianChannel"] == 0.30  # Phase 62.4: 10%→30%
         assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
         assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
 

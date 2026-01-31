@@ -326,11 +326,11 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 62.3: BBReversal無効化（歴史的に損失傾向・改善コスト非効率）
-      BBReversal: 0.0           # Phase 62.3: 無効化（35%→0%）
-      StochasticReversal: 0.45  # Phase 62.3: 増加（35%→45%）
-      ATRBased: 0.45            # Phase 62.3: 増加（20%→45%）
-      DonchianChannel: 0.10     # 補助（維持）
+      # Phase 62.4: DonchianChannel重み増加（競争力回復）
+      BBReversal: 0.0           # Phase 62.3: 無効化維持
+      StochasticReversal: 0.35  # Phase 62.4: 45%→35%（均等配分）
+      ATRBased: 0.35            # Phase 62.4: 45%→35%（均等配分）
+      DonchianChannel: 0.30     # Phase 62.4: 10%→30%（競争力3倍向上）
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
