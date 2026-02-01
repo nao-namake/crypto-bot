@@ -277,6 +277,122 @@ class DonchianChannelStrategy(StrategyBase):
             metadata={"signal_type": "donchian_hold"},
         )
 
+    def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        シグナルまでの距離を計算（HOLD診断機能）
+
+        チャネル位置・ADX・RSIの現在値と閾値の差を計算し、
+        「あとどれくらいでシグナルが出るか」を診断する。
+
+        Returns:
+            Dict[str, Any]: 診断情報
+                - channel_position: 現在のチャネル位置（0=下端、1=上端）
+                - extreme_threshold: 極端位置閾値
+                - gap_to_buy: BUYシグナル（下端）までの距離
+                - gap_to_sell: SELLシグナル（上端）までの距離
+                - adx: 現在のADX値
+                - adx_threshold: ADX閾値
+                - adx_ok: ADXがレンジ相場を示しているか
+                - rsi: 現在のRSI値
+                - nearest_action: 最も近いシグナル方向
+                - diagnosis: 診断テキスト
+        """
+        try:
+            if not self._validate_data(df):
+                return {
+                    "channel_position": 0.5,
+                    "gap_to_buy": 0.5,
+                    "gap_to_sell": 0.5,
+                    "adx": 0.0,
+                    "adx_ok": True,
+                    "rsi": 50.0,
+                    "nearest_action": "unknown",
+                    "diagnosis": "データ不足",
+                }
+
+            latest = df.iloc[-1]
+            channel_position = float(latest["channel_position"])
+            adx = float(latest["adx_14"]) if pd.notna(latest["adx_14"]) else 0
+            rsi = float(latest["rsi_14"]) if pd.notna(latest["rsi_14"]) else 50
+
+            # 閾値
+            extreme_threshold = self.extreme_zone_threshold
+            adx_threshold = self.adx_max_threshold
+
+            # シグナルまでの距離計算
+            # BUY: チャネル位置 < extreme_threshold (例: < 0.10)
+            # SELL: チャネル位置 > (1 - extreme_threshold) (例: > 0.90)
+            gap_to_buy = max(0, channel_position - extreme_threshold)
+            gap_to_sell = max(0, (1 - extreme_threshold) - channel_position)
+
+            # ADX確認
+            adx_ok = adx <= adx_threshold
+
+            # 最も近いシグナル方向
+            if gap_to_buy <= gap_to_sell:
+                nearest_action = "buy"
+                nearest_gap = gap_to_buy
+            else:
+                nearest_action = "sell"
+                nearest_gap = gap_to_sell
+
+            # 診断テキスト生成
+            diagnosis_parts = []
+
+            # チャネル位置診断
+            if channel_position < extreme_threshold:
+                diagnosis_parts.append(f"位置={channel_position:.0%}(BUY端)✓")
+            elif channel_position > (1 - extreme_threshold):
+                diagnosis_parts.append(f"位置={channel_position:.0%}(SELL端)✓")
+            else:
+                diagnosis_parts.append(
+                    f"位置={channel_position:.0%}({nearest_action.upper()}端まで{nearest_gap:.0%})"
+                )
+
+            # ADX診断
+            if adx_ok:
+                diagnosis_parts.append(f"ADX={adx:.1f}✓")
+            else:
+                diagnosis_parts.append(f"ADX={adx:.1f}(閾値{adx_threshold}超過)")
+
+            # RSI診断
+            if rsi <= self.rsi_oversold:
+                diagnosis_parts.append(f"RSI={rsi:.1f}(過売り)✓")
+            elif rsi >= self.rsi_overbought:
+                diagnosis_parts.append(f"RSI={rsi:.1f}(過買い)✓")
+            else:
+                diagnosis_parts.append(f"RSI={rsi:.1f}(中立)")
+
+            return {
+                "channel_position": channel_position,
+                "extreme_threshold": extreme_threshold,
+                "gap_to_buy": gap_to_buy,
+                "gap_to_sell": gap_to_sell,
+                "adx": adx,
+                "adx_threshold": adx_threshold,
+                "adx_ok": adx_ok,
+                "rsi": rsi,
+                "nearest_action": nearest_action,
+                "diagnosis": " | ".join(diagnosis_parts),
+            }
+
+        except Exception as e:
+            self.logger.conditional_log(
+                f"[DonchianChannel] 診断エラー: {e}",
+                level="error",
+                backtest_level="debug",
+            )
+            return {
+                "channel_position": 0.5,
+                "gap_to_buy": 0.5,
+                "gap_to_sell": 0.5,
+                "adx": 0.0,
+                "adx_ok": True,
+                "rsi": 50.0,
+                "nearest_action": "unknown",
+                "diagnosis": f"診断エラー: {e}",
+            }
+
     def _create_signal(
         self,
         action: str,

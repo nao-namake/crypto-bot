@@ -37,6 +37,9 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 | **62.1** | 3戦略閾値一括緩和 | ✅完了 |
 | **62.1-B** | さらなる閾値緩和 | ✅完了（効果なし） |
 | **62.2** | 戦略条件型変更（RSIボーナス・BB主導） | ✅完了（部分成功） |
+| **62.3** | BBReversal無効化（tight_range） | ✅完了 |
+| **62.4** | DonchianChannel重み増加（10%→30%） | ✅完了 |
+| **62.5** | HOLD診断機能実装 | ✅完了 |
 
 ### 成功基準
 
@@ -323,17 +326,271 @@ enable_min_price_filter: true    # フィルタ有効化
 
 ---
 
+## Phase 62.3: BBReversal無効化（tight_range） ✅完了
+
+### 実施日: 2026年1月31日
+
+### 目的
+
+Phase 62.2でBBReversalが損失（¥-2,025・勝率50%）を発生させたため、tight_rangeレジームでBBReversalを無効化する。
+
+### 実施内容
+
+**変更ファイル**: `config/core/thresholds.yaml`
+
+```yaml
+dynamic_strategy_selection:
+  regime_strategy_mapping:
+    tight_range:
+      BBReversal: 0.0  # 無効化（0.35 → 0.0）
+```
+
+### 根拠
+
+- Phase 62.2でBBReversalは44件・勝率50%・¥-2,025損失
+- BB主導モードがtight_rangeでは機能しない
+- 他の戦略は全て利益を出している
+
+---
+
+## Phase 62.4: DonchianChannel重み増加（10%→30%） ✅完了
+
+### 実施日: 2026年1月31日
+
+### 目的
+
+BBReversal無効化分の重みをDonchianChannelに振り分け、RSIボーナス制度の効果を活用する。
+
+### 実施内容
+
+**変更ファイル**: `config/core/thresholds.yaml`
+
+```yaml
+dynamic_strategy_selection:
+  regime_strategy_mapping:
+    tight_range:
+      BBReversal: 0.0       # 無効化
+      DonchianChannel: 0.30  # 重み増加（0.10 → 0.30）
+      StochasticReversal: 0.35
+      ATRBased: 0.35
+```
+
+### 根拠
+
+- Phase 62.2でDonchianChannelは118件・勝率64.4%・¥+36,406と良好
+- RSIボーナス制度が成功している戦略に重みを移行
+- ATRBasedとStochasticReversalは維持
+
+---
+
+## Phase 62.3-62.4 統合バックテスト結果 ✅成功
+
+### バックテスト実行日: 2026年2月1日
+
+### 結果サマリー
+
+| 指標 | Phase 62.2 | Phase 62.3-62.4 | 変化 | 評価 |
+|------|-----------|-----------------|------|------|
+| **取引数** | 478件 | 346件 | -28% | 品質重視 |
+| **総損益** | ¥172,643 | **¥177,025** | **+3%** | ✅ |
+| **PF** | 2.03 | **2.75** | **+36%** | ✅大幅改善 |
+| **勝率** | 68.2% | **75.7%** | **+7.5pt** | ✅回復 |
+| **最大DD** | ¥6,152 | **¥4,925** | **-20%** | ✅改善 |
+| SR | - | 35.15 | - | 良好 |
+| 期待値 | - | ¥512/取引 | - | 良好 |
+
+### 戦略別パフォーマンス
+
+| 戦略 | 取引数 | 比率 | 勝率 | 損益 | 評価 |
+|------|--------|------|------|------|------|
+| ATRBased | 280件 | 81% | 75.4% | ¥+141,766 | 主力 |
+| DonchianChannel | 25件 | 7% | 76.0% | ¥+11,045 | 良好 |
+| **BBReversal** | 22件 | 6% | **72.7%** | **¥+9,506** | **改善✅** |
+| StochasticReversal | 15件 | 4% | 80.0% | ¥+9,777 | 良好 |
+| ADXTrendStrength | 4件 | 1% | 100% | ¥+4,931 | 良好 |
+
+### レジーム別パフォーマンス
+
+| レジーム | 取引数 | 勝率 | 損益 |
+|---------|--------|------|------|
+| tight_range | 293件 | 73.0% | ¥+139,400 |
+| normal_range | 53件 | 90.6% | ¥+37,625 |
+
+### ML×戦略一致率
+
+| 指標 | 値 |
+|------|-----|
+| 一致率 | 54.6% |
+| 一致時勝率 | 80.4% |
+| 不一致時勝率 | 70.1% |
+| ML HOLD時勝率 | 64.3% |
+
+### 評価
+
+**成功点**:
+- ✅ BBReversal: 損失(¥-2,025) → **利益(¥+9,506)** に転換
+- ✅ PF大幅改善: 2.03 → 2.75（+36%）
+- ✅ 勝率回復: 68.2% → 75.7%（+7.5pt）
+- ✅ 最大DD改善: ¥6,152 → ¥4,925（-20%）
+- ✅ **全戦略が利益を出している**
+- ✅ Phase 61水準を超える成果（¥177,025）
+
+**トレードオフ**:
+- 取引数減少: 478件 → 346件（BBReversal無効化の影響）
+- ATRBased比率上昇: 58% → 81%（分散は後退）
+
+### 結論
+
+**品質重視の調整が成功**。取引数は減少したが、全戦略が利益を出す健全な状態に。
+Phase 61最高水準（¥149,195・PF 2.68）を大きく超える成果を達成。
+
+| 比較 | Phase 61最終 | Phase 62.3-62.4 | 改善率 |
+|------|-------------|-----------------|--------|
+| 総損益 | ¥149,195 | ¥177,025 | +19% |
+| PF | 2.68 | 2.75 | +3% |
+| 勝率 | 75.8% | 75.7% | -0.1pt |
+
+---
+
+## Phase 62.5: HOLD診断機能実装 ✅完了
+
+### 実施日: 2026年2月1日
+
+### 目的
+
+ライブモードで「なぜHOLDなのか」「あとどれくらいでシグナルが出るか」を可視化し、システムの動作状況を把握しやすくする。
+
+### 背景
+
+Phase 62.2完了後、ライブモードでの取引頻度がバックテストと乖離しているように見える問題を調査。調査の結果、乖離ではなく記録方法の違い（シグナル生成数 vs 実際の約定数）であることが判明。ただし、HOLDが続く状況を診断する機能がないため、「なぜシグナルが出ないのか」を把握できない問題があった。
+
+### 実施内容
+
+#### 1. ATRBased戦略に診断メソッド追加
+
+**ファイル**: `src/strategies/implementations/atr_based.py`
+
+```python
+def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+    """シグナルまでの距離を計算"""
+    # ATR消尽率、BB位置、ADXの現在値と閾値の差を計算
+```
+
+**出力例**:
+```
+消尽率=55%(閾値70%まで15%) | BB=45%(BUY端まで25%) | ADX=18.0✓
+```
+
+#### 2. DonchianChannel戦略に診断メソッド追加
+
+**ファイル**: `src/strategies/implementations/donchian_channel.py`
+
+```python
+def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+    """シグナルまでの距離を計算"""
+    # チャネル位置、ADX、RSIの現在値と閾値の差を計算
+```
+
+**出力例**:
+```
+位置=45%(BUY端まで27%) | ADX=20.0✓ | RSI=50.0(中立)
+```
+
+#### 3. StochasticReversal戦略に診断メソッド追加
+
+**ファイル**: `src/strategies/implementations/stochastic_reversal.py`
+
+```python
+def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+    """シグナルまでの距離を計算"""
+    # ダイバージェンス検出状態、価格変動、Stochastic、ADXを計算
+```
+
+**出力例**:
+```
+Div=未検出(位置差10%<20%) | 変動=0.61%✓ | Stoch=55.0(中立) | ADX=20.0✓
+```
+
+#### 4. StrategyManagerに診断ログ出力追加
+
+**ファイル**: `src/strategies/base/strategy_manager.py`
+
+```python
+def _output_hold_diagnosis(self, df: pd.DataFrame) -> None:
+    """HOLD診断情報を出力"""
+    # HOLDシグナル時に各戦略のget_signal_proximity()を呼び出し
+    # 診断情報をログ出力
+```
+
+**ログ出力例**:
+```
+=== HOLD診断 ===
+[ATRBased] 消尽率=55%(閾値70%まで15%) | BB=45%(BUY端まで25%) | ADX=18.0✓
+[DonchianChannel] 位置=45%(BUY端まで27%) | ADX=20.0✓ | RSI=50.0(中立)
+[StochasticReversal] Div=未検出(位置差10%<20%) | 変動=0.61%✓ | Stoch=55.0(中立) | ADX=20.0✓
+================
+```
+
+### 診断項目一覧
+
+| 戦略 | 診断項目 | 説明 |
+|------|---------|------|
+| **ATRBased** | 消尽率 | ATR消尽率と閾値70%までの差 |
+| | BB位置 | ボリンジャーバンド内位置とBUY/SELL端までの距離 |
+| | ADX | レンジ相場判定（< 25でOK） |
+| **DonchianChannel** | チャネル位置 | Donchianチャネル内位置と極端位置までの距離 |
+| | ADX | レンジ相場判定（< 28でOK） |
+| | RSI | 過買い/過売り状態 |
+| **StochasticReversal** | ダイバージェンス | 検出状態と価格/Stochastic位置差 |
+| | 価格変動 | 価格変動率と最小閾値0.5%までの差 |
+| | Stochastic | 過買い/過売り状態 |
+| | ADX | 強トレンド除外判定（< 50でOK） |
+
+### 設計上の配慮
+
+1. **バックテストモードでは診断出力を抑制**: パフォーマンスへの影響を最小化
+2. **既存ロジックに影響なし**: 診断機能は読み取り専用で、シグナル生成には影響しない
+3. **エラー耐性**: 診断エラーが発生してもシステム動作に影響しない
+
+### 品質チェック結果
+
+```
+✅ 全テスト: 2074 passed
+✅ カバレッジ: 74.77%
+✅ flake8/isort/black: PASS
+```
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `src/strategies/implementations/atr_based.py` | `get_signal_proximity()`追加 |
+| `src/strategies/implementations/donchian_channel.py` | `get_signal_proximity()`追加 |
+| `src/strategies/implementations/stochastic_reversal.py` | `get_signal_proximity()`追加 |
+| `src/strategies/base/strategy_manager.py` | `_output_hold_diagnosis()`追加・HOLD時に診断出力 |
+
+### 効果
+
+- ✅ ライブモードで「なぜHOLDなのか」を即座に把握可能
+- ✅ 「あとどれくらいでシグナルが出るか」を定量的に表示
+- ✅ デバッグ・運用監視が容易に
+- ✅ 戦略の動作状況を可視化
+
+---
+
 ## 関連ファイル
 
 | ファイル | 内容 |
 |---------|------|
 | `config/core/thresholds.yaml` | 戦略閾値設定（Phase 62.2パラメータ追加） |
-| `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 |
+| `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 + HOLD診断機能 |
 | `src/strategies/implementations/bb_reversal.py` | BB位置主導モード実装 |
-| `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ追加 |
+| `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ + HOLD診断機能 |
+| `src/strategies/implementations/atr_based.py` | HOLD診断機能追加 |
+| `src/strategies/base/strategy_manager.py` | HOLD診断ログ出力機能 |
 | `docs/開発計画/ToDo.md` | Phase 62計画 |
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 
 ---
 
-**最終更新**: 2026年1月31日 19:52 - Phase 62.2完了（部分成功：ATRBased比率58%達成、BBReversal損失問題）
+**最終更新**: 2026年2月1日 13:25 - Phase 62.3-62.4バックテスト結果追加（¥177,025・PF 2.75達成）

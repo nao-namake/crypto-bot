@@ -653,3 +653,107 @@ class ATRBasedStrategy(StrategyBase):
             "bb_upper",  # Phase 55.4 Approach B: BB位置確認用
             "bb_lower",  # Phase 55.4 Approach B: BB位置確認用
         ]
+
+    def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        シグナルまでの距離を計算（HOLD診断機能）
+
+        ATR消尽率・BB位置・ADXの現在値と閾値の差を計算し、
+        「あとどれくらいでシグナルが出るか」を診断する。
+
+        Returns:
+            Dict[str, Any]: 診断情報
+                - exhaustion_rate: 現在のATR消尽率
+                - exhaustion_threshold: 消尽率閾値
+                - exhaustion_gap: 閾値までの差（正=未達、負=到達）
+                - bb_position: 現在のBB位置（0=下端、1=上端）
+                - bb_threshold: BB位置閾値
+                - bb_gap_to_buy: BUYシグナルまでの距離
+                - bb_gap_to_sell: SELLシグナルまでの距離
+                - adx: 現在のADX値
+                - adx_threshold: ADX閾値
+                - adx_ok: ADXがレンジ相場を示しているか
+                - nearest_action: 最も近いシグナル方向
+                - diagnosis: 診断テキスト
+        """
+        try:
+            # ATR消尽率計算
+            exhaustion_analysis = self._calculate_exhaustion_ratio(df)
+            exhaustion_rate = exhaustion_analysis.get("ratio", 0.0)
+            exhaustion_threshold = self.config["exhaustion_threshold"]
+            exhaustion_gap = exhaustion_threshold - exhaustion_rate
+
+            # BB位置計算
+            bb_check = self._check_bb_position(df)
+            bb_position = bb_check.get("position", 0.5)
+            bb_threshold = self.config.get("bb_position_threshold", 0.20)
+            bb_gap_to_buy = max(0, bb_position - bb_threshold)  # 下端(0)に近いほど0
+            bb_gap_to_sell = max(0, (1 - bb_threshold) - bb_position)  # 上端(1)に近いほど0
+
+            # ADX確認
+            range_check = self._check_range_market(df)
+            adx = range_check.get("adx", 0.0)
+            adx_threshold = self.config["adx_range_threshold"]
+            adx_ok = adx < adx_threshold
+
+            # 最も近いシグナル方向を判定
+            if bb_gap_to_buy <= bb_gap_to_sell:
+                nearest_action = "buy"
+                nearest_bb_gap = bb_gap_to_buy
+            else:
+                nearest_action = "sell"
+                nearest_bb_gap = bb_gap_to_sell
+
+            # 診断テキスト生成
+            diagnosis_parts = []
+
+            # 消尽率診断
+            if exhaustion_gap > 0:
+                diagnosis_parts.append(
+                    f"消尽率={exhaustion_rate:.0%}(閾値{exhaustion_threshold:.0%}まで{exhaustion_gap:.0%})"
+                )
+            else:
+                diagnosis_parts.append(f"消尽率={exhaustion_rate:.0%}✓")
+
+            # BB位置診断
+            if bb_check.get("at_band_edge"):
+                diagnosis_parts.append(f"BB={bb_position:.0%}({bb_check.get('direction', '?')})✓")
+            else:
+                diagnosis_parts.append(
+                    f"BB={bb_position:.0%}({nearest_action.upper()}端まで{nearest_bb_gap:.0%})"
+                )
+
+            # ADX診断
+            if adx_ok:
+                diagnosis_parts.append(f"ADX={adx:.1f}✓")
+            else:
+                diagnosis_parts.append(f"ADX={adx:.1f}(閾値{adx_threshold}超過)")
+
+            return {
+                "exhaustion_rate": exhaustion_rate,
+                "exhaustion_threshold": exhaustion_threshold,
+                "exhaustion_gap": exhaustion_gap,
+                "bb_position": bb_position,
+                "bb_threshold": bb_threshold,
+                "bb_gap_to_buy": bb_gap_to_buy,
+                "bb_gap_to_sell": bb_gap_to_sell,
+                "adx": adx,
+                "adx_threshold": adx_threshold,
+                "adx_ok": adx_ok,
+                "nearest_action": nearest_action,
+                "diagnosis": " | ".join(diagnosis_parts),
+            }
+
+        except Exception as e:
+            self.logger.error(f"[ATRBased] 診断エラー: {e}")
+            return {
+                "exhaustion_rate": 0.0,
+                "exhaustion_gap": 1.0,
+                "bb_position": 0.5,
+                "bb_gap_to_buy": 0.5,
+                "bb_gap_to_sell": 0.5,
+                "adx": 0.0,
+                "adx_ok": True,
+                "nearest_action": "unknown",
+                "diagnosis": f"診断エラー: {e}",
+            }

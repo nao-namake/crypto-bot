@@ -183,10 +183,16 @@ class StrategyManager:
         # コンフリクト検出
         if self._has_signal_conflict(signal_groups):
             self.signal_conflicts += 1
-            return self._resolve_signal_conflict(signal_groups, signals, df)
+            result = self._resolve_signal_conflict(signal_groups, signals, df)
+        else:
+            # 統合ロジック実行
+            result = self._integrate_consistent_signals(signal_groups, signals, df)
 
-        # 統合ロジック実行
-        return self._integrate_consistent_signals(signal_groups, signals, df)
+        # HOLD診断: シグナルがHOLDの場合、診断情報を出力
+        if result.action == "hold":
+            self._output_hold_diagnosis(df)
+
+        return result
 
     def _group_signals_by_action(
         self, signals: Dict[str, StrategySignal]
@@ -506,6 +512,49 @@ class StrategyManager:
         # Phase 49.8: 合計値を返す（平均ではなく）
         # 信頼度が1.0を超える場合は1.0でクリップ（ML統合との整合性）
         return min(total_weighted_confidence, 1.0)
+
+    def _output_hold_diagnosis(self, df: pd.DataFrame) -> None:
+        """
+        HOLD診断情報を出力（Phase 62: HOLD診断機能）
+
+        各戦略のget_signal_proximity()メソッドを呼び出し、
+        「なぜHOLDなのか」「あとどれくらいでシグナルが出るか」をログ出力する。
+
+        Args:
+            df: 市場データ
+        """
+        import os
+
+        # バックテストモードでは診断出力を抑制
+        is_backtest = os.environ.get("BACKTEST_MODE") == "true"
+        if is_backtest:
+            return
+
+        try:
+            diagnosis_lines = []
+
+            for name, strategy in self.strategies.items():
+                if not strategy.is_enabled:
+                    continue
+
+                # get_signal_proximityメソッドが存在するか確認
+                if hasattr(strategy, "get_signal_proximity"):
+                    try:
+                        proximity = strategy.get_signal_proximity(df)
+                        diagnosis = proximity.get("diagnosis", "診断情報なし")
+                        diagnosis_lines.append(f"[{name}] {diagnosis}")
+                    except Exception as e:
+                        diagnosis_lines.append(f"[{name}] 診断エラー: {e}")
+
+            # 診断結果をログ出力
+            if diagnosis_lines:
+                self.logger.info("=== HOLD診断 ===")
+                for line in diagnosis_lines:
+                    self.logger.info(line)
+                self.logger.info("================")
+
+        except Exception as e:
+            self.logger.debug(f"HOLD診断出力エラー: {e}")
 
     def _create_hold_signal(self, df: pd.DataFrame, reason: str = "条件不適合") -> StrategySignal:
         """ホールドシグナル生成 - Phase 55.11: 動的confidence改善."""

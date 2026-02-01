@@ -417,6 +417,150 @@ class StochasticReversalStrategy(StrategyBase):
             "reason": reason,
         }
 
+    def get_signal_proximity(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        シグナルまでの距離を計算（HOLD診断機能）
+
+        ダイバージェンス検出状態・Stochastic値・ADXの現在値を計算し、
+        「あとどれくらいでシグナルが出るか」を診断する。
+
+        Returns:
+            Dict[str, Any]: 診断情報
+                - divergence_detected: ダイバージェンスが検出されたか
+                - divergence_type: ダイバージェンスタイプ（bullish/bearish/none）
+                - price_position: 価格の相対位置（0=最安値、1=最高値）
+                - stoch_position: Stochasticの相対位置
+                - stoch_k: 現在のStochastic %K
+                - adx: 現在のADX値
+                - adx_ok: ADXが閾値以下か
+                - price_range_ratio: 価格変動率
+                - min_price_change: 最小価格変化閾値
+                - nearest_action: 最も近いシグナル方向
+                - diagnosis: 診断テキスト
+        """
+        try:
+            if df is None or df.empty:
+                return {
+                    "divergence_detected": False,
+                    "divergence_type": "none",
+                    "stoch_k": 50.0,
+                    "adx": 0.0,
+                    "adx_ok": True,
+                    "nearest_action": "unknown",
+                    "diagnosis": "データ不足",
+                }
+
+            latest = df.iloc[-1]
+            stoch_k = float(latest["stoch_k"])
+            stoch_d = float(latest["stoch_d"])
+            adx = float(latest["adx_14"]) if pd.notna(latest["adx_14"]) else 0
+
+            # ADX確認
+            adx_threshold = self.config["adx_max_threshold"]
+            adx_ok = adx < adx_threshold
+
+            # ダイバージェンス検出
+            divergence = self._detect_divergence(df)
+            divergence_detected = divergence["type"] in ("bullish", "bearish")
+            divergence_type = divergence["type"]
+
+            # 価格位置とStochastic位置
+            price_position = divergence.get("price_position", 0.5)
+            stoch_position = divergence.get("stoch_position", 0.5)
+
+            # 価格変動率計算
+            lookback = self.config["divergence_lookback"]
+            if len(df) >= lookback + 1:
+                period_closes = df["close"].iloc[-lookback - 1 :].values
+                min_close = float(min(period_closes))
+                max_close = float(max(period_closes))
+                price_range = max_close - min_close
+                price_range_ratio = price_range / min_close if min_close > 0 else 0
+            else:
+                price_range_ratio = 0
+
+            min_price_change = self.config.get("min_price_change_ratio", 0.005)
+
+            # 極端領域確認
+            zone_check = self._check_extreme_zone(stoch_k, stoch_d)
+
+            # 最も近いシグナル方向を推定
+            if stoch_k < 30:
+                nearest_action = "buy"
+            elif stoch_k > 70:
+                nearest_action = "sell"
+            else:
+                # 位置差から推定
+                if price_position < stoch_position:
+                    nearest_action = "buy"  # Bullish Divergence候補
+                else:
+                    nearest_action = "sell"  # Bearish Divergence候補
+
+            # 診断テキスト生成
+            diagnosis_parts = []
+
+            # ダイバージェンス診断
+            if divergence_detected:
+                diagnosis_parts.append(f"Div={divergence_type}✓")
+            else:
+                position_diff = abs(price_position - stoch_position)
+                if position_diff < 0.2:
+                    diagnosis_parts.append(f"Div=未検出(位置差{position_diff:.0%}<20%)")
+                else:
+                    diagnosis_parts.append(
+                        f"Div=未検出(価格{price_position:.0%}/Stoch{stoch_position:.0%})"
+                    )
+
+            # 価格変動診断
+            if price_range_ratio >= min_price_change:
+                diagnosis_parts.append(f"変動={price_range_ratio:.2%}✓")
+            else:
+                gap = min_price_change - price_range_ratio
+                diagnosis_parts.append(
+                    f"変動={price_range_ratio:.2%}(閾値{min_price_change:.2%}まで{gap:.2%})"
+                )
+
+            # Stochastic診断
+            if zone_check["zone"] == "overbought":
+                diagnosis_parts.append(f"Stoch={stoch_k:.1f}(過買い)✓")
+            elif zone_check["zone"] == "oversold":
+                diagnosis_parts.append(f"Stoch={stoch_k:.1f}(過売り)✓")
+            else:
+                diagnosis_parts.append(f"Stoch={stoch_k:.1f}(中立)")
+
+            # ADX診断
+            if adx_ok:
+                diagnosis_parts.append(f"ADX={adx:.1f}✓")
+            else:
+                diagnosis_parts.append(f"ADX={adx:.1f}(閾値{adx_threshold}超過)")
+
+            return {
+                "divergence_detected": divergence_detected,
+                "divergence_type": divergence_type,
+                "price_position": price_position,
+                "stoch_position": stoch_position,
+                "stoch_k": stoch_k,
+                "adx": adx,
+                "adx_threshold": adx_threshold,
+                "adx_ok": adx_ok,
+                "price_range_ratio": price_range_ratio,
+                "min_price_change": min_price_change,
+                "nearest_action": nearest_action,
+                "diagnosis": " | ".join(diagnosis_parts),
+            }
+
+        except Exception as e:
+            self.logger.error(f"[StochasticReversal] 診断エラー: {e}")
+            return {
+                "divergence_detected": False,
+                "divergence_type": "none",
+                "stoch_k": 50.0,
+                "adx": 0.0,
+                "adx_ok": True,
+                "nearest_action": "unknown",
+                "diagnosis": f"診断エラー: {e}",
+            }
+
     def _create_hold_signal(self, reason: str, df: pd.DataFrame) -> StrategySignal:
         """
         HOLDシグナル生成
