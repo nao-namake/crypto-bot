@@ -1440,7 +1440,18 @@ class TestPhase619AutoExecutionDetection:
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
         """Phase 61.9: TP自動執行検知テスト"""
-        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # Phase 62.6: 手数料設定も含めてモック
+        def threshold_side_effect(key, default=None):
+            if key == "tp_sl_auto_detection":
+                return {"enabled": True, "log_level": "info"}
+            elif key == "trading.fees.entry_taker_rate":
+                return 0.0012
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.0012
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 仮想ポジション（買いポジション・TP/SL注文ID付き）
         virtual_positions = [
@@ -1483,7 +1494,13 @@ class TestPhase619AutoExecutionDetection:
         assert result[0]["execution_type"] == "take_profit"
         assert result[0]["order_id"] == "entry_001"
         assert result[0]["exit_price"] == 14300000.0
-        assert result[0]["pnl"] == 300.0  # (14300000 - 14000000) * 0.001
+        # Phase 62.6: 手数料考慮後の損益
+        # 粗利益: (14300000 - 14000000) * 0.001 = 300円
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 14300000 * 0.001 * 0.0012 = 17.16円
+        # 実現損益: 300 - 16.8 - 17.16 = 266.04円
+        expected_pnl = 300.0 - 16.8 - 17.16
+        assert abs(result[0]["pnl"] - expected_pnl) < 0.1
 
         # 残SL注文がキャンセルされる
         mock_bitbank_client.cancel_order.assert_called_once_with("sl_001", "BTC/JPY")
@@ -1493,7 +1510,18 @@ class TestPhase619AutoExecutionDetection:
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
         """Phase 61.9: SL自動執行検知テスト"""
-        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # Phase 62.6: 手数料設定も含めてモック
+        def threshold_side_effect(key, default=None):
+            if key == "tp_sl_auto_detection":
+                return {"enabled": True, "log_level": "info"}
+            elif key == "trading.fees.entry_taker_rate":
+                return 0.0012
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.0012
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 仮想ポジション（買いポジション・TP/SL注文ID付き）
         virtual_positions = [
@@ -1533,7 +1561,13 @@ class TestPhase619AutoExecutionDetection:
         assert result[0]["execution_type"] == "stop_loss"
         assert result[0]["order_id"] == "entry_002"
         assert result[0]["exit_price"] == 13700000.0
-        assert result[0]["pnl"] == -300.0  # (13700000 - 14000000) * 0.001
+        # Phase 62.6: 手数料考慮後の損益
+        # 粗利益: (13700000 - 14000000) * 0.001 = -300円
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 13700000 * 0.001 * 0.0012 = 16.44円
+        # 実現損益: -300 - 16.8 - 16.44 = -333.24円
+        expected_pnl = -300.0 - 16.8 - 16.44
+        assert abs(result[0]["pnl"] - expected_pnl) < 0.1
 
         # 残TP注文がキャンセルされる
         mock_bitbank_client.cancel_order.assert_called_once_with("tp_002", "BTC/JPY")
@@ -1643,7 +1677,18 @@ class TestPhase619AutoExecutionDetection:
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
         """Phase 61.9: 売りポジションのTP自動執行検知"""
-        mock_threshold.return_value = {"enabled": True, "log_level": "info"}
+
+        # Phase 62.6: 手数料設定も含めてモック
+        def threshold_side_effect(key, default=None):
+            if key == "tp_sl_auto_detection":
+                return {"enabled": True, "log_level": "info"}
+            elif key == "trading.fees.entry_taker_rate":
+                return 0.0012
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.0012
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 仮想ポジション（売りポジション）
         virtual_positions = [
@@ -1676,47 +1721,85 @@ class TestPhase619AutoExecutionDetection:
         # TP自動執行が検知される
         assert len(result) == 1
         assert result[0]["execution_type"] == "take_profit"
-        assert result[0]["pnl"] == 300.0  # (14000000 - 13700000) * 0.001 = 利益
+        # Phase 62.6: 手数料考慮後の損益
+        # 粗利益: (14000000 - 13700000) * 0.001 = 300円（ショート利益）
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 13700000 * 0.001 * 0.0012 = 16.44円
+        # 実現損益: 300 - 16.8 - 16.44 = 266.76円
+        expected_pnl = 300.0 - 16.8 - 16.44
+        assert abs(result[0]["pnl"] - expected_pnl) < 0.1
 
-    def test_calc_pnl_buy_profit(self, stop_manager):
-        """Phase 61.9: 損益計算 - 買いポジション利益"""
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_buy_profit(self, mock_threshold, stop_manager):
+        """Phase 61.9 / Phase 62.6: 損益計算 - 買いポジション利益（手数料考慮）"""
+        mock_threshold.side_effect = lambda key, default=None: (0.0012 if "fee" in key else default)
         pnl = stop_manager._calc_pnl(
             entry_price=14000000.0,
             exit_price=14300000.0,
             amount=0.001,
             side="buy",
         )
-        assert pnl == 300.0
+        # Phase 62.6: 手数料考慮
+        # 粗利益: 300円
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 14300000 * 0.001 * 0.0012 = 17.16円
+        # 実現損益: 300 - 16.8 - 17.16 = 266.04円
+        expected_pnl = 300.0 - 16.8 - 17.16
+        assert abs(pnl - expected_pnl) < 0.1
 
-    def test_calc_pnl_buy_loss(self, stop_manager):
-        """Phase 61.9: 損益計算 - 買いポジション損失"""
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_buy_loss(self, mock_threshold, stop_manager):
+        """Phase 61.9 / Phase 62.6: 損益計算 - 買いポジション損失（手数料考慮）"""
+        mock_threshold.side_effect = lambda key, default=None: (0.0012 if "fee" in key else default)
         pnl = stop_manager._calc_pnl(
             entry_price=14000000.0,
             exit_price=13700000.0,
             amount=0.001,
             side="buy",
         )
-        assert pnl == -300.0
+        # Phase 62.6: 手数料考慮
+        # 粗利益: -300円
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 13700000 * 0.001 * 0.0012 = 16.44円
+        # 実現損益: -300 - 16.8 - 16.44 = -333.24円
+        expected_pnl = -300.0 - 16.8 - 16.44
+        assert abs(pnl - expected_pnl) < 0.1
 
-    def test_calc_pnl_sell_profit(self, stop_manager):
-        """Phase 61.9: 損益計算 - 売りポジション利益"""
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_sell_profit(self, mock_threshold, stop_manager):
+        """Phase 61.9 / Phase 62.6: 損益計算 - 売りポジション利益（手数料考慮）"""
+        mock_threshold.side_effect = lambda key, default=None: (0.0012 if "fee" in key else default)
         pnl = stop_manager._calc_pnl(
             entry_price=14000000.0,
             exit_price=13700000.0,
             amount=0.001,
             side="sell",
         )
-        assert pnl == 300.0
+        # Phase 62.6: 手数料考慮
+        # 粗利益: 300円（ショート）
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 13700000 * 0.001 * 0.0012 = 16.44円
+        # 実現損益: 300 - 16.8 - 16.44 = 266.76円
+        expected_pnl = 300.0 - 16.8 - 16.44
+        assert abs(pnl - expected_pnl) < 0.1
 
-    def test_calc_pnl_sell_loss(self, stop_manager):
-        """Phase 61.9: 損益計算 - 売りポジション損失"""
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_sell_loss(self, mock_threshold, stop_manager):
+        """Phase 61.9 / Phase 62.6: 損益計算 - 売りポジション損失（手数料考慮）"""
+        mock_threshold.side_effect = lambda key, default=None: (0.0012 if "fee" in key else default)
         pnl = stop_manager._calc_pnl(
             entry_price=14000000.0,
             exit_price=14300000.0,
             amount=0.001,
             side="sell",
         )
-        assert pnl == -300.0
+        # Phase 62.6: 手数料考慮
+        # 粗利益: -300円（ショート損失）
+        # エントリー手数料: 14000000 * 0.001 * 0.0012 = 16.8円
+        # 決済手数料: 14300000 * 0.001 * 0.0012 = 17.16円
+        # 実現損益: -300 - 16.8 - 17.16 = -333.96円
+        expected_pnl = -300.0 - 16.8 - 17.16
+        assert abs(pnl - expected_pnl) < 0.1
 
     def test_find_disappeared_positions_matching(self, stop_manager):
         """Phase 61.9: 消失ポジション検出 - マッチング"""
@@ -2637,6 +2720,196 @@ class TestCalcPnlEdgeCases:
             side="buy",
         )
         assert pnl == 0.0
+
+
+# ========================================
+# Phase 62.6: 手数料考慮した損益計算テスト
+# ========================================
+
+
+class TestCalcPnlWithFees:
+    """Phase 62.6: _calc_pnl() 手数料考慮テスト
+
+    検証データ: 2026/02/01 取引（bitbank UI実現損益と照合済み）
+      - エントリー: 12,276,840円 × 0.0108 BTC = 132,589.87円
+      - 決済: 12,219,839円 × 0.0108 BTC = 131,974.26円
+      - エントリー手数料(Taker 0.12%): 159.11円
+      - 決済手数料(Taker 0.12%): 158.37円
+      - 粗利益: 615.61円
+      - 実現損益: 298.13円 ✓
+    """
+
+    @pytest.fixture
+    def stop_manager(self):
+        """StopManagerインスタンス"""
+        return StopManager()
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_with_fees_real_trade_data(self, mock_get_threshold, stop_manager):
+        """実取引データでの検証（2026/02/01 19:14→19:35 利確）"""
+
+        # 手数料設定モック
+        def threshold_side_effect(key, default=None):
+            if key == "trading.fees.entry_taker_rate":
+                return 0.0012  # Taker 0.12%
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.0012  # Taker 0.12%
+            return default
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        # 実取引データ
+        entry_price = 12276840  # エントリー価格
+        exit_price = 12219839  # 決済価格（TP約定）
+        amount = 0.0108  # 数量
+
+        # 計算実行
+        pnl = stop_manager._calc_pnl(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            amount=amount,
+            side="sell",  # ショートポジション（価格下落で利益）
+        )
+
+        # 期待値計算（手動検証済み）
+        # 粗利益: (12,276,840 - 12,219,839) × 0.0108 = 615.61円
+        # エントリー手数料: 12,276,840 × 0.0108 × 0.0012 = 159.11円
+        # 決済手数料: 12,219,839 × 0.0108 × 0.0012 = 158.37円
+        # 実現損益: 615.61 - 159.11 - 158.37 = 298.13円
+        expected_pnl = 298.13
+
+        # 許容誤差±1円で検証（bitbank UIの値と一致）
+        assert abs(pnl - expected_pnl) < 1.0, f"Expected ~{expected_pnl}, got {pnl}"
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_long_profit(self, mock_get_threshold, stop_manager):
+        """ロングポジション利確の手数料計算"""
+        mock_get_threshold.side_effect = lambda key, default=None: (
+            0.0012 if "fee" in key else default
+        )
+
+        # ロング: 14,000,000円 → 14,100,000円（+100,000円の粗利益）
+        entry_price = 14000000
+        exit_price = 14100000
+        amount = 0.01
+
+        pnl = stop_manager._calc_pnl(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            amount=amount,
+            side="buy",
+        )
+
+        # 期待値計算
+        gross_pnl = (exit_price - entry_price) * amount  # 1,000円
+        entry_fee = entry_price * amount * 0.0012  # 168円
+        exit_fee = exit_price * amount * 0.0012  # 169.2円
+        expected_net_pnl = gross_pnl - entry_fee - exit_fee  # 662.8円
+
+        assert abs(pnl - expected_net_pnl) < 0.1
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_long_loss(self, mock_get_threshold, stop_manager):
+        """ロングポジション損切の手数料計算"""
+        mock_get_threshold.side_effect = lambda key, default=None: (
+            0.0012 if "fee" in key else default
+        )
+
+        # ロング: 14,000,000円 → 13,900,000円（-100,000円の粗損失）
+        entry_price = 14000000
+        exit_price = 13900000
+        amount = 0.01
+
+        pnl = stop_manager._calc_pnl(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            amount=amount,
+            side="buy",
+        )
+
+        # 期待値計算
+        gross_pnl = (exit_price - entry_price) * amount  # -1,000円
+        entry_fee = entry_price * amount * 0.0012  # 168円
+        exit_fee = exit_price * amount * 0.0012  # 166.8円
+        expected_net_pnl = gross_pnl - entry_fee - exit_fee  # -1,334.8円
+
+        assert abs(pnl - expected_net_pnl) < 0.1
+        assert pnl < 0  # 損失確認
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_short_profit(self, mock_get_threshold, stop_manager):
+        """ショートポジション利確の手数料計算"""
+        mock_get_threshold.side_effect = lambda key, default=None: (
+            0.0012 if "fee" in key else default
+        )
+
+        # ショート: 14,000,000円 → 13,900,000円（+100,000円の粗利益）
+        entry_price = 14000000
+        exit_price = 13900000
+        amount = 0.01
+
+        pnl = stop_manager._calc_pnl(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            amount=amount,
+            side="sell",
+        )
+
+        # 期待値計算
+        gross_pnl = (entry_price - exit_price) * amount  # 1,000円
+        entry_fee = entry_price * amount * 0.0012  # 168円
+        exit_fee = exit_price * amount * 0.0012  # 166.8円
+        expected_net_pnl = gross_pnl - entry_fee - exit_fee  # 665.2円
+
+        assert abs(pnl - expected_net_pnl) < 0.1
+        assert pnl > 0  # 利益確認
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_short_loss(self, mock_get_threshold, stop_manager):
+        """ショートポジション損切の手数料計算"""
+        mock_get_threshold.side_effect = lambda key, default=None: (
+            0.0012 if "fee" in key else default
+        )
+
+        # ショート: 14,000,000円 → 14,100,000円（-100,000円の粗損失）
+        entry_price = 14000000
+        exit_price = 14100000
+        amount = 0.01
+
+        pnl = stop_manager._calc_pnl(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            amount=amount,
+            side="sell",
+        )
+
+        # 期待値計算
+        gross_pnl = (entry_price - exit_price) * amount  # -1,000円
+        entry_fee = entry_price * amount * 0.0012  # 168円
+        exit_fee = exit_price * amount * 0.0012  # 169.2円
+        expected_net_pnl = gross_pnl - entry_fee - exit_fee  # -1,337.2円
+
+        assert abs(pnl - expected_net_pnl) < 0.1
+        assert pnl < 0  # 損失確認
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_calc_pnl_uses_config_values(self, mock_get_threshold, stop_manager):
+        """設定ファイルから手数料率を取得することを確認"""
+        mock_get_threshold.side_effect = lambda key, default=None: (
+            0.0012 if "fee" in key else default
+        )
+
+        stop_manager._calc_pnl(
+            entry_price=14000000,
+            exit_price=14100000,
+            amount=0.01,
+            side="buy",
+        )
+
+        # get_threshold が適切なキーで呼び出されたことを確認
+        call_keys = [call[0][0] for call in mock_get_threshold.call_args_list]
+        assert "trading.fees.entry_taker_rate" in call_keys
+        assert "trading.fees.exit_taker_rate" in call_keys
 
 
 # ========================================

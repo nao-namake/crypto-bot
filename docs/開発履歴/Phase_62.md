@@ -40,6 +40,7 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 | **62.3** | BBReversal無効化（tight_range） | ✅完了 |
 | **62.4** | DonchianChannel重み増加（10%→30%） | ✅完了 |
 | **62.5** | HOLD診断機能実装 | ✅完了 |
+| **62.6** | 手数料考慮した実現損益計算 | ✅完了 |
 
 ### 成功基準
 
@@ -576,6 +577,139 @@ def _output_hold_diagnosis(self, df: pd.DataFrame) -> None:
 - ✅ デバッグ・運用監視が容易に
 - ✅ 戦略の動作状況を可視化
 
+### バックテスト検証結果
+
+**目的**: Phase 62.5が戦略ロジックに影響を与えていないことを確認
+
+| 指標 | Phase 62.3-62.4 | Phase 62.5 | 差分 |
+|------|-----------------|------------|------|
+| 総取引数 | 346件 | 346件 | **0** ✅ |
+| 勝率 | 75.7% | 75.7% | **0** ✅ |
+| 総損益 | ¥177,025 | ¥177,025 | **0** ✅ |
+| PF | 2.75 | 2.75 | **0** ✅ |
+| 最大DD | ¥4,925 | ¥4,925 | **0** ✅ |
+
+**結論**: ✅ 結果は完全に同一。HOLD診断機能は戦略ロジックに影響を与えていないことを確認。
+
+---
+
+## Phase 62.6: 手数料考慮した実現損益計算 ✅完了
+
+### 実施日: 2026年2月2日
+
+### 背景
+
+GCPログのpnl値とbitbank UI「実現損益」に差異があり、調査の結果、手数料計算の改善が必要と判明。
+
+### 対象取引での検証（2026/02/01 19:14→19:35 利確）
+
+| 項目 | bitbank UI | 計算検証 |
+|------|-----------|----------|
+| 発生手数料 | 158.3691円 | 159.11円 ✓ |
+| 実現手数料 | 317.4770円 | 317.48円 ✓ |
+| 実現損益 | 298.1338円 | 298.13円 ✓ |
+
+### 手数料の仕組み（bitbank公式）
+
+| 種別 | 手数料率 | 説明 |
+|------|----------|------|
+| **Maker** | **-0.02%** | 板に注文を残して約定（報酬を受け取る） |
+| **Taker** | **0.12%** | 既存の板から即時約定（手数料を支払う） |
+
+**重要**: 指値注文 ≠ Makerではない。指値でもbest priceより有利な価格で発注すると即時約定し、Takerとして扱われる。
+
+### 本システムの約定パターン
+
+| 注文タイプ | 約定種別 | 手数料率 | 理由 |
+|-----------|----------|----------|------|
+| エントリー（limit） | Taker | 0.12% | 即時約定価格で発注 |
+| TP/SL決済 | Taker | 0.12% | 条件到達時に自動執行 |
+
+### 実施内容
+
+#### 1. thresholds.yaml に手数料設定追加
+
+```yaml
+trading:
+  fees:
+    maker_rate: -0.0002       # Maker -0.02%（リベート）
+    taker_rate: 0.0012        # Taker 0.12%
+    entry_taker_rate: 0.0012  # エントリー Taker 0.12%
+    exit_taker_rate: 0.0012   # 決済 Taker 0.12%（TP/SL自動執行）
+```
+
+#### 2. stop_manager.py の `_calc_pnl` 関数修正
+
+```python
+def _calc_pnl(self, entry_price, exit_price, amount, side) -> float:
+    """Phase 62.6: 手数料考慮した実現損益計算"""
+    # 粗利益計算
+    if side.lower() == "buy":
+        gross_pnl = (exit_price - entry_price) * amount
+    else:
+        gross_pnl = (entry_price - exit_price) * amount
+
+    # 手数料計算（TP/SL約定はTaker扱い）
+    entry_fee_rate = get_threshold("trading.fees.entry_taker_rate", 0.0012)
+    exit_fee_rate = get_threshold("trading.fees.exit_taker_rate", 0.0012)
+
+    entry_fee = entry_price * amount * entry_fee_rate
+    exit_fee = exit_price * amount * exit_fee_rate
+
+    # 実現損益 = 粗利益 - 手数料
+    return gross_pnl - entry_fee - exit_fee
+```
+
+### 計算式検証
+
+```
+エントリー約定金額: 12,276,840 × 0.0108 = 132,589.87円
+決済約定金額: 12,219,839 × 0.0108 = 131,974.26円
+
+エントリー手数料 (Taker 0.12%): 132,589.87 × 0.0012 = 159.11円
+決済手数料 (Taker 0.12%): 131,974.26 × 0.0012 = 158.37円
+実現手数料合計: 317.48円 ✓
+
+粗利益: (12,276,840 - 12,219,839) × 0.0108 = 615.61円
+実現損益: 615.61 - 317.48 = 298.13円 ✓（bitbank UIと一致）
+```
+
+### 単体テスト追加
+
+**ファイル**: `tests/unit/trading/execution/test_stop_manager.py`
+
+- `TestCalcPnlWithFees`: 手数料考慮した損益計算テスト
+  - `test_calc_pnl_with_fees_real_trade_data`: 実取引データでの検証
+  - `test_calc_pnl_long_profit`: ロング利確
+  - `test_calc_pnl_long_loss`: ロング損切
+  - `test_calc_pnl_short_profit`: ショート利確
+  - `test_calc_pnl_short_loss`: ショート損切
+  - `test_calc_pnl_uses_config_values`: 設定ファイル参照確認
+
+### 品質チェック結果
+
+```
+✅ 全テスト: 2080 passed
+✅ カバレッジ: 74.73%
+✅ flake8/isort/black: PASS
+```
+
+### 影響範囲
+
+| 項目 | 影響 |
+|------|------|
+| バックテスト | なし（別の計算ロジック使用） |
+| ライブモード | GCPログのpnl値が正確になる |
+| Discord通知 | より正確な損益表示 |
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `config/core/thresholds.yaml` | 手数料設定追加 |
+| `src/trading/execution/stop_manager.py` | `_calc_pnl()`関数修正 |
+| `tests/unit/trading/execution/test_stop_manager.py` | 手数料計算テスト追加・既存テスト更新 |
+
 ---
 
 ## 関連ファイル
@@ -593,4 +727,4 @@ def _output_hold_diagnosis(self, df: pd.DataFrame) -> None:
 
 ---
 
-**最終更新**: 2026年2月1日 13:25 - Phase 62.3-62.4バックテスト結果追加（¥177,025・PF 2.75達成）
+**最終更新**: 2026年2月2日 - Phase 62.6手数料計算改善完了

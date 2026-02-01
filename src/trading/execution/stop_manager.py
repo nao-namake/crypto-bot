@@ -241,7 +241,17 @@ class StopManager:
         side: str,
     ) -> float:
         """
-        Phase 61.9: 損益計算
+        Phase 62.6: 手数料考慮した実現損益計算
+
+        bitbank手数料:
+          - エントリー（limit即時約定）: Taker 0.12%
+          - TP/SL決済（自動執行）: Taker 0.12%
+
+        計算式:
+          粗利益 = (決済価格 - エントリー価格) × 数量  ※ロングの場合
+          エントリー手数料 = エントリー約定金額 × 0.0012
+          決済手数料 = 決済約定金額 × 0.0012
+          実現損益 = 粗利益 - エントリー手数料 - 決済手数料
 
         Args:
             entry_price: エントリー価格
@@ -250,17 +260,39 @@ class StopManager:
             side: エントリーサイド（buy/sell）
 
         Returns:
-            損益（円）
+            実現損益（円）※手数料差引後
         """
         if entry_price <= 0 or exit_price <= 0 or amount <= 0:
             return 0.0
 
+        # 粗利益計算
         if side.lower() == "buy":
             # ロング: 価格上昇で利益
-            return (exit_price - entry_price) * amount
+            gross_pnl = (exit_price - entry_price) * amount
         else:
             # ショート: 価格下落で利益
-            return (entry_price - exit_price) * amount
+            gross_pnl = (entry_price - exit_price) * amount
+
+        # 手数料計算（TP/SL約定はTaker扱い）
+        entry_fee_rate = get_threshold("trading.fees.entry_taker_rate", 0.0012)
+        exit_fee_rate = get_threshold("trading.fees.exit_taker_rate", 0.0012)
+
+        entry_notional = entry_price * amount  # エントリー約定金額
+        exit_notional = exit_price * amount  # 決済約定金額
+
+        entry_fee = entry_notional * entry_fee_rate
+        exit_fee = exit_notional * exit_fee_rate
+
+        # 実現損益 = 粗利益 - 手数料
+        net_pnl = gross_pnl - entry_fee - exit_fee
+
+        self.logger.debug(
+            f"📊 Phase 62.6: 損益計算 - 粗利益={gross_pnl:.0f}円, "
+            f"エントリー手数料={entry_fee:.2f}円, 決済手数料={exit_fee:.2f}円, "
+            f"実現損益={net_pnl:.0f}円"
+        )
+
+        return net_pnl
 
     def _log_auto_execution(
         self,
