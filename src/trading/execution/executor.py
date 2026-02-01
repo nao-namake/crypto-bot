@@ -1004,15 +1004,16 @@ class ExecutionService:
             # Phase 51.8-J4-D: エントリー時に証拠金を控除
             self.virtual_balance -= required_margin
 
-            # Phase 51.8-J4-E: 手数料シミュレーション（Maker: -0.02%リベート）
-            fee_rate = -0.0002  # Maker手数料（指値注文）
-            fee_amount = order_total * fee_rate  # 負の値（リベート）
-            self.virtual_balance -= fee_amount  # 負の手数料なので残高増加
+            # Phase 62.7: 手数料シミュレーション（Taker 0.12%に統一）
+            # 修正前: Maker -0.02%（リベート）→ 修正後: Taker 0.12%（実費用）
+            fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
+            fee_amount = order_total * fee_rate  # 正の値（費用）
+            self.virtual_balance -= fee_amount  # 手数料控除
 
             self.logger.info(
-                f"💰 Phase 51.8-J4-D/E: エントリー処理 - "
+                f"💰 Phase 62.7: エントリー処理 - "
                 f"証拠金控除: -¥{required_margin:,.0f}, "
-                f"手数料リベート: +¥{abs(fee_amount):,.2f} → 残高: ¥{self.virtual_balance:,.0f}"
+                f"手数料: -¥{fee_amount:,.2f} → 残高: ¥{self.virtual_balance:,.0f}"
             )
 
             virtual_order_id = f"backtest_{self.executed_trades + 1}"

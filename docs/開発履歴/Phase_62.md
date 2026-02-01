@@ -41,6 +41,7 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 | **62.4** | DonchianChannel重み増加（10%→30%） | ✅完了 |
 | **62.5** | HOLD診断機能実装 | ✅完了 |
 | **62.6** | 手数料考慮した実現損益計算 | ✅完了 |
+| **62.7** | バックテスト手数料修正（Taker統一） | ✅完了 |
 
 ### 成功基準
 
@@ -712,19 +713,181 @@ def _calc_pnl(self, entry_price, exit_price, amount, side) -> float:
 
 ---
 
+## Phase 62.7: バックテスト手数料修正（Taker統一） ✅完了
+
+### 実施日: 2026年2月2日
+
+### 背景
+
+Phase 62.6でライブモードの手数料計算を修正したが、バックテストとライブモードで手数料計算が異なっていることが判明。
+
+| 項目 | バックテスト（修正前） | ライブモード | 乖離 |
+|------|---------------------|-------------|------|
+| エントリー手数料 | Maker -0.02%（リベート） | Taker 0.12% | **0.14%差** |
+| 決済手数料 | Maker -0.02%（リベート） | Taker 0.12% | **0.14%差** |
+| 往復手数料 | -0.04%（報酬） | +0.24%（費用） | **0.28%差** |
+
+**問題**: バックテストは「全てMaker約定」を前提としていたが、実際のライブモードは「全てTaker」で運用中。これによりバックテスト結果が楽観的になっていた。
+
+### 180日バックテスト影響試算
+
+| 項目 | 修正前（Maker前提） | 修正後（Taker前提） | 差額 |
+|------|-------------------|-------------------|------|
+| 取引346件の手数料 | -¥1,384（報酬） | +¥119,024（費用） | **¥120,408** |
+| 総損益 | +¥177,025 | **約¥57,000** | -68% |
+
+### 実施内容
+
+#### 1. thresholds.yaml にバックテスト用手数料設定追加
+
+```yaml
+trading:
+  fees:
+    # Phase 62.7: バックテスト用手数料（ライブと同一 = Taker）
+    backtest_entry_rate: 0.0012 # バックテストエントリー Taker 0.12%
+    backtest_exit_rate: 0.0012  # バックテスト決済 Taker 0.12%
+```
+
+#### 2. executor.py のエントリー手数料修正
+
+**場所**: `src/trading/execution/executor.py` L1007-1016
+
+```python
+# Before
+fee_rate = -0.0002  # Maker手数料リベート
+fee_amount = order_total * fee_rate  # 負の値（リベート）
+self.virtual_balance -= fee_amount  # 負の手数料なので残高増加
+
+# After
+fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
+fee_amount = order_total * fee_rate  # 正の値（費用）
+self.virtual_balance -= fee_amount  # 手数料控除
+```
+
+#### 3. backtest_runner.py の決済手数料修正
+
+**場所**: `src/core/execution/backtest_runner.py` L934-940
+
+```python
+# Before
+exit_fee_rate = -0.0002  # Maker手数料
+exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
+self.orchestrator.execution_service.virtual_balance -= exit_fee_amount  # リベート加算
+
+# After
+exit_fee_rate = get_threshold("trading.fees.backtest_exit_rate", 0.0012)  # Taker 0.12%
+exit_fee_amount = exit_order_total * exit_fee_rate  # 正の値（費用）
+self.orchestrator.execution_service.virtual_balance -= exit_fee_amount  # 手数料控除
+```
+
+#### 4. backtest_runner.py の `_calculate_pnl()` 修正
+
+**場所**: `src/core/execution/backtest_runner.py` L828-839
+
+```python
+# Before
+entry_fee_rebate = position_value * 0.0002  # Makerリベート加算
+return pnl + entry_fee_rebate - interest_cost
+
+# After
+entry_fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)
+entry_fee = position_value * entry_fee_rate
+return pnl - entry_fee - interest_cost
+```
+
+#### 5. reporter.py の `_calculate_pnl()` 修正
+
+**場所**: `src/backtest/reporter.py` L239-261
+
+```python
+# Before（手数料なし）
+if side == "buy":
+    pnl = (exit_price - entry_price) * amount
+else:
+    pnl = (entry_price - exit_price) * amount
+return pnl
+
+# After（Taker手数料込み）
+if side == "buy":
+    gross_pnl = (exit_price - entry_price) * amount
+else:
+    gross_pnl = (entry_price - exit_price) * amount
+
+fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)
+entry_fee = entry_price * amount * fee_rate
+exit_fee = exit_price * amount * fee_rate
+
+return gross_pnl - entry_fee - exit_fee
+```
+
+### テスト更新
+
+手数料計算の変更により、以下のテストを手数料考慮した期待値に更新：
+
+| テストファイル | 更新内容 |
+|--------------|----------|
+| `tests/unit/backtest/test_reporter.py` | 手数料込み損益・DD・MFE捕捉率の期待値更新 |
+| `tests/unit/backtest/test_trade_tracker.py` | 手数料込み損益の期待値更新 |
+| `tests/unit/trading/execution/test_executor.py` | バックテスト手数料の期待値更新 |
+
+### 品質チェック結果
+
+```
+✅ 全テスト: 2080 passed
+✅ カバレッジ: 74.72%
+✅ flake8/isort/black: PASS
+```
+
+### 期待されるバックテスト結果の変化
+
+| 指標 | 修正前（Maker前提） | 修正後（Taker統一） |
+|------|-------------------|-------------------|
+| 180日総損益 | ¥177,025 | **約¥57,000** |
+| PF | 2.75 | **1.5-2.0** |
+| 年利 | 35% | **約11%** |
+
+**重要**: 修正後が「現実的な」バックテスト結果。ライブ実績と比較しやすくなる。
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `config/core/thresholds.yaml` | バックテスト用手数料設定追加 |
+| `src/trading/execution/executor.py` | エントリー手数料をTakerに変更 |
+| `src/core/execution/backtest_runner.py` | 決済手数料・PnL計算をTakerに変更 |
+| `src/backtest/reporter.py` | PnL計算に手数料追加 |
+| `tests/unit/backtest/test_reporter.py` | テスト期待値更新 |
+| `tests/unit/backtest/test_trade_tracker.py` | テスト期待値更新 |
+| `tests/unit/trading/execution/test_executor.py` | テスト期待値更新 |
+
+### Maker戦略（将来検討メモ）
+
+| 項目 | 内容 |
+|------|------|
+| bitbank対応 | `post_only`パラメータサポート済み |
+| 約定漏れリスク | 高（自動キャンセル発生） |
+| 手数料削減効果 | 往復0.28%（Taker→Maker） |
+| 実装難易度 | 中（リトライ機構必要） |
+| 推奨 | 別Phaseで慎重に検討 |
+
+---
+
 ## 関連ファイル
 
 | ファイル | 内容 |
 |---------|------|
-| `config/core/thresholds.yaml` | 戦略閾値設定（Phase 62.2パラメータ追加） |
+| `config/core/thresholds.yaml` | 戦略閾値設定・手数料設定 |
 | `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 + HOLD診断機能 |
 | `src/strategies/implementations/bb_reversal.py` | BB位置主導モード実装 |
 | `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ + HOLD診断機能 |
 | `src/strategies/implementations/atr_based.py` | HOLD診断機能追加 |
 | `src/strategies/base/strategy_manager.py` | HOLD診断ログ出力機能 |
+| `src/trading/execution/executor.py` | バックテスト手数料計算 |
+| `src/core/execution/backtest_runner.py` | バックテスト決済手数料計算 |
+| `src/backtest/reporter.py` | バックテストレポート損益計算 |
 | `docs/開発計画/ToDo.md` | Phase 62計画 |
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 
 ---
 
-**最終更新**: 2026年2月2日 - Phase 62.6手数料計算改善完了
+**最終更新**: 2026年2月2日 - Phase 62.7バックテスト手数料修正完了

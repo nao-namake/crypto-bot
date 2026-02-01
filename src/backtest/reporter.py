@@ -240,7 +240,7 @@ class TradeTracker:
         self, side: str, amount: float, entry_price: float, exit_price: float
     ) -> float:
         """
-        損益計算（手数料考慮なし・簡易版）
+        損益計算（Phase 62.7: Taker手数料込み）
 
         Args:
             side: "buy" or "sell"
@@ -249,16 +249,23 @@ class TradeTracker:
             exit_price: エグジット価格
 
         Returns:
-            損益（円）
+            損益（円）- 手数料込み
         """
+        # 基本損益計算
         if side == "buy":
             # ロング: (エグジット価格 - エントリー価格) × 数量
-            pnl = (exit_price - entry_price) * amount
+            gross_pnl = (exit_price - entry_price) * amount
         else:
             # ショート: (エントリー価格 - エグジット価格) × 数量
-            pnl = (entry_price - exit_price) * amount
+            gross_pnl = (entry_price - exit_price) * amount
 
-        return pnl
+        # Phase 62.7: Taker手数料（往復）
+        # 修正前: 手数料なし → 修正後: Taker 0.12% × 2（往復）
+        fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
+        entry_fee = entry_price * amount * fee_rate
+        exit_fee = exit_price * amount * fee_rate
+
+        return gross_pnl - entry_fee - exit_fee
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """

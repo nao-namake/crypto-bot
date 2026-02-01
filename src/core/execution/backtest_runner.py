@@ -825,18 +825,20 @@ class BacktestRunner(BaseRunner):
             # ショートポジション決済: (エントリー価格 - 決済価格) × 数量
             pnl = (entry_price - exit_price) * amount
 
-        # Phase 58.6: 簡易手数料・利息計算
+        # Phase 62.7: 手数料・利息計算（Taker統一）
+        # 修正前: Maker -0.02%（リベート加算）→ 修正後: Taker 0.12%（費用控除）
         position_value = entry_price * amount
 
-        # エントリー手数料リベート（Maker -0.02%）
-        # ※エグジット手数料は既存処理（L900-906等）で加算済み
-        entry_fee_rebate = position_value * 0.0002
+        # エントリー手数料（Taker 0.12%）
+        # 注: エグジット手数料は既存処理（L934-940等）で別途控除済み
+        entry_fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)
+        entry_fee = position_value * entry_fee_rate
 
         # 建玉利息（0.04%/日）
         hold_days = hold_minutes / 60 / 24
         interest_cost = position_value * 0.0004 * hold_days
 
-        return pnl + entry_fee_rebate - interest_cost
+        return pnl - entry_fee - interest_cost
 
     async def _check_tp_sl_triggers(
         self, close_price: float, high_price: float, low_price: float, timestamp
@@ -931,12 +933,15 @@ class BacktestRunner(BaseRunner):
                         current_balance = self.orchestrator.execution_service.virtual_balance
                         self.orchestrator.execution_service.virtual_balance += margin_to_return
 
-                        # Phase 51.8-J4-E: エグジット手数料シミュレーション（Maker: -0.02%リベート）
+                        # Phase 62.7: エグジット手数料シミュレーション（Taker 0.12%に統一）
+                        # 修正前: Maker -0.02%（リベート）→ 修正後: Taker 0.12%（実費用）
                         exit_order_total = exit_price * amount
-                        exit_fee_rate = -0.0002  # Maker手数料（指値注文）
-                        exit_fee_amount = exit_order_total * exit_fee_rate  # 負の値（リベート）
+                        exit_fee_rate = get_threshold(
+                            "trading.fees.backtest_exit_rate", 0.0012
+                        )  # Taker 0.12%
+                        exit_fee_amount = exit_order_total * exit_fee_rate  # 正の値（費用）
                         self.orchestrator.execution_service.virtual_balance -= (
-                            exit_fee_amount  # リベート加算
+                            exit_fee_amount  # 手数料控除
                         )
 
                         # Phase 58.6: 保有期間計算（利息計算用）

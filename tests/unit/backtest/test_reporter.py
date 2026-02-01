@@ -400,23 +400,25 @@ class TestTradeTrackerAdditionalMetrics:
         assert losses == 2
 
     def test_calculate_consecutive_streaks_zero_pnl(self):
-        """損益0の取引がある場合"""
+        """損益0の取引がある場合（Phase 62.7: 手数料考慮で実際は損失）"""
         tracker = TradeTracker()
 
         tracker.record_entry("t1", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.record_exit("t1", 15100000, datetime.now(), "TP")
 
         tracker.record_entry("t2", "buy", 0.001, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t2", 15000000, datetime.now(), "close")  # 損益0
+        tracker.record_exit("t2", 15000000, datetime.now(), "close")  # 価格変動0だが手数料で損失
 
         tracker.record_entry("t3", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.record_exit("t3", 15100000, datetime.now(), "TP")
 
         wins, losses = tracker._calculate_consecutive_streaks()
 
-        # 損益0はカウントしないため、連勝が継続
-        assert wins == 2
-        assert losses == 0
+        # Phase 62.7: 手数料(Taker 0.12%×2)により、価格変動0でも損失になる
+        # t1: +64円（勝ち）, t2: -36円（負け）, t3: +64円（勝ち）
+        # 連勝1（t1のみ）、連敗1（t2のみ）
+        assert wins == 1
+        assert losses == 1
 
     def test_calculate_trades_per_month_empty(self):
         """取引なし時の月間取引数"""
@@ -482,23 +484,25 @@ class TestTradeTrackerMaxDrawdown:
         assert dd_pct == 0.0
 
     def test_max_drawdown_with_loss(self):
-        """損失ありのDD計算"""
+        """損失ありのDD計算（Phase 62.7: 手数料込み）"""
         tracker = TradeTracker()
 
-        # 勝ち→負け→勝ち
+        # 勝ち→負け→勝ち（手数料込み損益）
+        # Phase 62.7: Taker手数料 0.12%×2（往復）が適用される
         tracker.record_entry("t1", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t1", 15100000, datetime.now(), "TP")  # +1000
+        tracker.record_exit("t1", 15100000, datetime.now(), "TP")  # 粗利+1000 - 手数料361 = +639
 
         tracker.record_entry("t2", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t2", 14800000, datetime.now(), "SL")  # -2000
+        tracker.record_exit("t2", 14800000, datetime.now(), "SL")  # 粗損-2000 - 手数料358 = -2358
 
         tracker.record_entry("t3", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t3", 15100000, datetime.now(), "TP")  # +1000
+        tracker.record_exit("t3", 15100000, datetime.now(), "TP")  # +639
 
         dd, dd_pct = tracker._calculate_max_drawdown()
 
-        # ピーク1000から-1000まで下落 = DD 2000
-        assert dd == 2000
+        # Phase 62.7: ピーク+639から最低-1719まで = DD約2358
+        # 累積: +639 → -1719 → -1080
+        assert dd == pytest.approx(2358, rel=0.01)
         assert dd_pct > 0
 
 
@@ -527,18 +531,20 @@ class TestTradeTrackerMFEMAEStatistics:
         assert result["avg_mfe"] == 0.0
 
     def test_mfe_mae_capture_ratio(self):
-        """MFE捕捉率計算"""
+        """MFE捕捉率計算（Phase 62.7: 手数料込み）"""
         tracker = TradeTracker()
 
-        # MFE 200, 実際のPnL 100 → 捕捉率 50%
+        # Phase 62.7: 手数料込みでMFE捕捉率を計算
+        # MFE: (15200000 - 15000000) × 0.001 = +200円（手数料前）
+        # 実際PnL: +100円 - 手数料36円 = +64円
         tracker.record_entry("t1", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.update_price_excursions(15200000, 14900000)
         tracker.record_exit("t1", 15100000, datetime.now(), "TP")
 
         result = tracker._calculate_mfe_mae_statistics()
 
-        # 実際PnL 100、MFE 200 → 捕捉率 50%
-        assert result["mfe_capture_ratio"] == pytest.approx(50.0, rel=0.1)
+        # Phase 62.7: 実際PnL +64円、MFE 200円 → 捕捉率 32%
+        assert result["mfe_capture_ratio"] == pytest.approx(32.0, rel=0.1)
 
 
 class TestBacktestReporterInit:
