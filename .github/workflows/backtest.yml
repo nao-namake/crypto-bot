@@ -29,7 +29,7 @@ jobs:
     name: Backtest Execution
     env:
       HISTORICAL_DATA_DAYS: ${{ github.event.inputs.backtest_days || '180' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latestからの変更（ランナー取得問題対策）
     timeout-minutes: 360  # 全体タイムアウト: 6時間
 
     permissions:
