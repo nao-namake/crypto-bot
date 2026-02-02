@@ -827,7 +827,7 @@ position_management:
     # ========================================
     fixed_amount:
       enabled: true                     # 固定金額TPモード有効化
-      target_net_profit: 500            # 目標純利益（円）※比較テスト用
+      target_net_profit: 1000           # 目標純利益（円）※比較テスト用
       include_entry_fee: true           # エントリー手数料を考慮
       include_exit_fee_rebate: true     # 決済リベートを考慮
       include_interest: true            # 利息を考慮
