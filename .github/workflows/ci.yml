@@ -25,7 +25,7 @@ jobs:
   
   quality-check:
     name: Quality Check (checks.sh)
-    runs-on: ubuntu-24.04  # ランナー取得問題対策
+    runs-on: ubuntu-latest
     timeout-minutes: 15  # Phase 55.8: MLフル検証追加のため延長
 
     steps:
@@ -90,7 +90,7 @@ jobs:
   gcp-environment-check:
     name: GCP Environment Verification
     needs: quality-check
-    runs-on: ubuntu-24.04  # ランナー取得問題対策
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     
     # mainブランチプッシュ時のみ実行（デプロイ前検証）
@@ -225,7 +225,7 @@ jobs:
   build-deploy:
     name: Build & Deploy to GCP
     needs: [quality-check, gcp-environment-check]
-    runs-on: ubuntu-24.04  # ランナー取得問題対策
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     
     # mainブランチプッシュ時のみ実行
