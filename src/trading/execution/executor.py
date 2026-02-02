@@ -1004,16 +1004,14 @@ class ExecutionService:
             # Phase 51.8-J4-D: エントリー時に証拠金を控除
             self.virtual_balance -= required_margin
 
-            # Phase 62.7: 手数料シミュレーション（Taker 0.12%に統一）
-            # 修正前: Maker -0.02%（リベート）→ 修正後: Taker 0.12%（実費用）
-            fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
-            fee_amount = order_total * fee_rate  # 正の値（費用）
-            self.virtual_balance -= fee_amount  # 手数料控除
+            # Phase 62.8: 手数料はreporter.pyで一括計算（多重計算バグ修正）
+            # 修正前: executor.py/backtest_runner.py/reporter.pyで4箇所計算 → 2.5倍過剰控除
+            # 修正後: reporter.pyのみで往復手数料を計算
+            fee_amount = 0  # ログ出力用（実際の控除はreporter.pyで実施）
 
             self.logger.info(
-                f"💰 Phase 62.7: エントリー処理 - "
-                f"証拠金控除: -¥{required_margin:,.0f}, "
-                f"手数料: -¥{fee_amount:,.2f} → 残高: ¥{self.virtual_balance:,.0f}"
+                f"💰 Phase 62.8: エントリー処理 - "
+                f"証拠金控除: -¥{required_margin:,.0f} → 残高: ¥{self.virtual_balance:,.0f}"
             )
 
             virtual_order_id = f"backtest_{self.executed_trades + 1}"

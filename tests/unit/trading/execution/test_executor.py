@@ -564,7 +564,7 @@ class TestExecuteTradeBacktestMode:
 
     @pytest.mark.asyncio
     async def test_backtest_trade_success(self, sample_evaluation):
-        """バックテスト成功テスト（Phase 62.7: Taker手数料）"""
+        """バックテスト成功テスト（Phase 62.8: 手数料はreporter.pyで一括計算）"""
         service = ExecutionService(mode="backtest")
 
         result = await service.execute_trade(sample_evaluation)
@@ -575,9 +575,9 @@ class TestExecuteTradeBacktestMode:
         assert result.status == OrderStatus.FILLED
         assert result.order_id == "backtest_1"
         assert result.price == 14000000.0
-        # Phase 62.7: Taker手数料（0.12%）に変更
-        # 14000000 × 0.0001 × 0.0012 = 1.68円
-        assert abs(result.fee - 1.68) < 0.1
+        # Phase 62.8: 手数料はreporter.pyで一括計算（多重計算バグ修正）
+        # executor.pyでは手数料控除しない（fee=0）
+        assert result.fee == 0
 
     @pytest.mark.asyncio
     async def test_backtest_multiple_trades(self, sample_evaluation):
@@ -1096,7 +1096,7 @@ class TestMinimumTradeSizeEdgeCases:
 
     @pytest.mark.asyncio
     async def test_minimum_trade_size_error_handling(self):
-        """最小ロット保証処理エラー時のハンドリング（Phase 55.12: テスト修正）"""
+        """最小ロット保証処理エラー時のハンドリング（Phase 62.8: テスト修正）"""
         # サービスを先に作成してから、execute_trade時のみエラーを発生させる
         service = ExecutionService(mode="backtest")
 
@@ -1122,10 +1122,11 @@ class TestMinimumTradeSizeEdgeCases:
             mock_threshold.side_effect = Exception("設定取得エラー")
             result = await service.execute_trade(eval_obj)
 
-        # Phase 62.7: get_threshold例外時は設定取得エラーでFAILED
-        # result.amountは0.0になる（エラー時のデフォルト）
-        assert result.success is False
-        assert "設定取得エラー" in str(result.error_message)
+        # Phase 62.8: get_threshold例外時は最小サイズ調整がスキップされる
+        # バックテストモードでは手数料計算もスキップされるため、取引自体は成功する
+        # ただし、最小サイズへの調整は行われず、元のposition_sizeがそのまま使われる
+        assert result.success is True
+        assert result.amount == 0.00005  # 最小サイズ調整スキップ（エラー時のフォールバック）
 
 
 # ========================================
