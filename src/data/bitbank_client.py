@@ -855,6 +855,7 @@ class BitbankClient:
         trigger_price: Optional[float] = None,
         is_closing_order: bool = False,
         entry_position_side: Optional[str] = None,
+        post_only: bool = False,  # Phase 62.9: Maker戦略用
     ) -> Dict[str, Any]:
         """
         注文作成（信用取引対応・Phase 37.5: stop_limit対応）
@@ -941,6 +942,13 @@ class BitbankClient:
                 f"📦 注文数量設定: {amount} BTC (文字列形式)",
                 extra_data={"amount": amount, "order_type": order_type},
             )
+
+            # Phase 62.9: post_onlyパラメータ追加（Maker戦略）
+            if post_only and order_type == "limit":
+                params["postOnly"] = True
+                self.logger.info(
+                    f"📡 Phase 62.9: post_only注文 - {side} {amount:.4f} BTC @ {price:.0f}円"
+                )
 
             if is_closing_order:
                 # ✅ 決済注文：既存ポジションと同じposition_sideでreduceOnly指定
@@ -1062,6 +1070,29 @@ class BitbankClient:
                     "side": side,
                 },
             )
+        except ccxt.InvalidOrder as e:
+            # Phase 62.9: post_onlyキャンセル検知
+            error_str = str(e).lower()
+            if post_only and (
+                "post_only" in error_str
+                or "would immediately" in error_str
+                or "postonly" in error_str
+            ):
+                from src.core.exceptions import PostOnlyCancelledException
+
+                raise PostOnlyCancelledException(
+                    f"post_only注文キャンセル: {e}",
+                    symbol=symbol,
+                    price=price,
+                )
+            raise ExchangeAPIError(
+                f"無効な注文: {e}",
+                context={
+                    "operation": "create_order",
+                    "symbol": symbol,
+                    "side": side,
+                },
+            )
         except Exception as e:
             raise ExchangeAPIError(
                 f"注文作成に失敗しました: {e}",
@@ -1078,6 +1109,7 @@ class BitbankClient:
         amount: float,
         take_profit_price: float,
         symbol: str = "BTC/JPY",
+        post_only: bool = False,  # Phase 62.10: Maker戦略用
     ) -> Dict[str, Any]:
         """
         テイクプロフィット指値注文作成（Phase 61.3: take_profitタイプ対応）
@@ -1085,6 +1117,10 @@ class BitbankClient:
         Phase 61.3:
         - use_native_tp_sl=true: bitbank API直接呼び出し（type="take_profit"）
         - use_native_tp_sl=false: 従来のlimit注文
+
+        Phase 62.10:
+        - post_only=true: limit + post_only注文（Maker約定のみ）
+        - post_only=false: 従来のtake_profit/limit注文
 
         bitbank UI表示:
         - type="take_profit": 「利確」と表示
@@ -1095,12 +1131,14 @@ class BitbankClient:
             amount: 注文量（BTC）
             take_profit_price: 利確価格（JPY）
             symbol: 通貨ペア
+            post_only: Maker約定のみを許可（Phase 62.10追加）
 
         Returns:
             注文情報（order_id含む）
 
         Raises:
             ExchangeAPIError: 注文作成失敗時
+            PostOnlyCancelledException: post_only注文がキャンセルされた場合
         """
         # TP注文の方向：エントリーと逆方向（決済するため）
         tp_side = "sell" if entry_side.lower() == "buy" else "buy"
@@ -1116,8 +1154,26 @@ class BitbankClient:
                 "entry_position_side": entry_position_side,
                 "amount": amount,
                 "price": take_profit_price,
+                "post_only": post_only,
             },
         )
+
+        # Phase 62.10: Maker戦略（post_only）優先
+        if post_only:
+            self.logger.info(
+                f"📡 Phase 62.10: TP Maker戦略 - limit + post_only注文 "
+                f"@ {take_profit_price:.0f}円"
+            )
+            return self.create_order(
+                symbol=symbol,
+                side=tp_side,
+                order_type="limit",
+                amount=amount,
+                price=take_profit_price,
+                is_closing_order=True,
+                entry_position_side=entry_position_side,
+                post_only=True,
+            )
 
         # Phase 61.3: take_profitタイプ使用設定を確認
         use_native_tp_sl = get_threshold("position_management.take_profit.use_native_type", False)

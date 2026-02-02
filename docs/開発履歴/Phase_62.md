@@ -42,6 +42,9 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 | **62.5** | HOLD診断機能実装 | ✅完了 |
 | **62.6** | 手数料考慮した実現損益計算 | ✅完了 |
 | **62.7** | バックテスト手数料修正（Taker統一） | ✅完了 |
+| **62.8** | バックテスト手数料多重計算バグ修正 | ✅完了 |
+| **62.9** | エントリーMaker戦略実装 | ✅完了 |
+| **62.10** | TP決済Maker戦略実装 | ✅完了 |
 
 ### 成功基準
 
@@ -872,22 +875,328 @@ return gross_pnl - entry_fee - exit_fee
 
 ---
 
+## Phase 62.8: バックテスト手数料多重計算バグ修正 ✅完了
+
+### 実施日: 2026年2月3日
+
+### 背景
+
+Phase 62.7でTaker手数料を導入した際、**手数料が4箇所で計算され多重控除**されていることが判明。
+
+| 結果 | 修正前（1/31） | 修正後（2/2） | 差額 |
+|------|--------------|--------------|------|
+| 総損益 | ¥177,025 | ¥-64,845 | **-¥241,870** |
+| 勝率 | 75.7% | 39.9% | **-35.8pt** |
+| PF | 2.75 | 0.04 | **-98.5%** |
+
+**問題**: 手数料だけでは説明不可能な損益悪化。勝率35pt低下は「利益トレードが損失に変わった」ことを示す。
+
+### 根本原因：手数料の多重計算
+
+| # | ファイル | 処理 | 手数料 |
+|---|---------|------|--------|
+| 1 | executor.py | エントリー時残高控除 | **-0.12%** |
+| 2 | backtest_runner.py | _calculate_pnl()でエントリー手数料 | **-0.12%** |
+| 3 | backtest_runner.py | TP/SL決済時残高控除 | **-0.12%** |
+| 4 | reporter.py | 往復手数料計算 | **-0.24%** |
+
+**影響計算**:
+```
+正しい計算: 0.12% × 2 = 0.24%（往復）
+実際の計算: 0.12% + 0.12% + 0.12% + 0.24% = 0.60%（2.5倍！）
+
+323取引 × 平均100万円 × (0.60% - 0.24%) = ¥116,280の過剰控除
+```
+
+### 修正方針
+
+**原則**: 手数料は**reporter.pyのみ**で計算（後処理で一括）
+
+| ファイル | 修正前 | 修正後 |
+|---------|--------|--------|
+| executor.py | エントリー手数料控除 | **削除** |
+| backtest_runner.py _calculate_pnl() | エントリー手数料控除 | **削除**（利息のみ） |
+| backtest_runner.py TP/SL | 決済手数料控除 | **削除** |
+| backtest_runner.py 強制決済 | Maker手数料リベート | **削除** |
+| reporter.py | 往復手数料計算 | **維持（唯一の計算箇所）** |
+
+### 実施内容
+
+#### 1. executor.py エントリー手数料削除
+
+```python
+# Before
+fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)
+fee_amount = order_total * fee_rate
+self.virtual_balance -= fee_amount
+
+# After
+# Phase 62.8: 手数料はreporter.pyで一括計算
+fee_amount = 0  # ログ出力用
+```
+
+#### 2. backtest_runner.py _calculate_pnl()修正
+
+```python
+# Before
+entry_fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)
+entry_fee = position_value * entry_fee_rate
+return pnl - entry_fee - interest_cost
+
+# After
+# Phase 62.8: 手数料はreporter.pyで一括計算（利息のみ）
+return pnl - interest_cost
+```
+
+#### 3. backtest_runner.py TP/SL決済手数料削除
+
+```python
+# Before
+exit_fee_rate = get_threshold("trading.fees.backtest_exit_rate", 0.0012)
+exit_fee_amount = exit_order_total * exit_fee_rate
+self.orchestrator.execution_service.virtual_balance -= exit_fee_amount
+
+# After
+exit_fee_amount = 0  # ログ出力用
+```
+
+#### 4. backtest_runner.py 強制決済手数料削除
+
+```python
+# Before
+exit_fee_rate = -0.0002  # Maker手数料（古いハードコード）
+exit_fee_amount = exit_order_total * exit_fee_rate
+self.orchestrator.execution_service.virtual_balance -= exit_fee_amount
+
+# After
+exit_fee_amount = 0  # ログ出力用
+```
+
+### テスト更新
+
+| テストファイル | 更新内容 |
+|--------------|----------|
+| `tests/unit/trading/execution/test_executor.py` | バックテスト手数料の期待値を0に更新 |
+
+### 品質チェック結果
+
+```
+✅ 全テスト: 2080 passed
+✅ カバレッジ: 74.76%
+✅ flake8/isort/black: PASS
+```
+
+### 期待される結果
+
+| 指標 | バグあり（2/2） | 修正後（予測） |
+|------|----------------|---------------|
+| 総損益 | ¥-64,845 | **¥50,000〜80,000** |
+| 勝率 | 39.9% | **70%+** |
+| PF | 0.04 | **1.5〜2.0** |
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `src/trading/execution/executor.py` | エントリー手数料控除削除 |
+| `src/core/execution/backtest_runner.py` | _calculate_pnl()・TP/SL・強制決済の手数料削除 |
+| `tests/unit/trading/execution/test_executor.py` | テスト期待値更新 |
+
+### 500円TP vs 1000円TP 比較（手数料修正前の正しいデータ）
+
+| 設定 | 日付 | 総損益 | 勝率 | PF |
+|------|------|--------|------|-----|
+| **1000円TP** | 1/25（Phase 61） | ¥86,639 | 54.8% | 1.58 |
+| **500円TP** | 1/31（Phase 62.6以前） | ¥177,025 | 75.7% | 2.75 |
+| **改善** | - | **+¥90,386 (+104%)** | **+20.9pt** | **+1.17 (+74%)** |
+
+**結論**: 500円TPは1000円TPより大幅に優れている
+
+---
+
+## Phase 62.9: エントリーMaker戦略実装 ✅完了
+
+### 実施日: 2026年2月3日
+
+### 概要
+
+エントリー注文をMaker約定（-0.02%リベート）で行うことで、手数料を0.14%削減する。
+
+### 実装内容
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `config/core/thresholds.yaml` | `order_execution.maker_strategy`設定追加 |
+| `src/data/bitbank_client.py` | `create_order()`にpost_onlyパラメータ追加 |
+| `src/trading/execution/order_strategy.py` | Maker戦略実装（リトライ・フォールバック） |
+| `src/core/exceptions.py` | `PostOnlyCancelledException`追加 |
+
+### 設定
+
+```yaml
+order_execution:
+  maker_strategy:
+    enabled: true                      # Maker戦略有効化
+    max_retries: 3                     # 最大リトライ回数
+    retry_interval_ms: 500             # リトライ間隔
+    timeout_seconds: 30                # タイムアウト
+    fallback_to_taker: true            # Takerフォールバック
+```
+
+### 期待効果
+
+| 項目 | Taker前提 | Maker実装後 |
+|------|----------|-------------|
+| エントリー手数料 | 0.12% | **-0.02%** |
+| 削減効果 | - | **0.14%** |
+
+---
+
+## Phase 62.10: TP決済Maker戦略実装 ✅完了
+
+### 実施日: 2026年2月3日
+
+### 概要
+
+TP（テイクプロフィット）決済注文をMaker約定で行うことで、決済手数料を0.14%削減する。
+bitbank APIの制限により、`take_profit`タイプはpost_only非対応のため、`limit + post_only`で代替実装。
+
+### 実装内容
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `config/core/thresholds.yaml` | `position_management.take_profit.maker_strategy`設定追加 |
+| `src/data/bitbank_client.py` | `create_take_profit_order()`にpost_onlyパラメータ追加 |
+| `src/trading/execution/stop_manager.py` | `_place_tp_maker()`・`_place_tp_native()`実装 |
+| `tests/unit/trading/execution/test_stop_manager.py` | Phase 62.10テスト追加 |
+
+### 設定
+
+```yaml
+take_profit:
+  maker_strategy:
+    enabled: true                      # TP Maker戦略有効化
+    max_retries: 2                     # 最大リトライ回数（TPは速度優先）
+    retry_interval_ms: 300             # リトライ間隔
+    timeout_seconds: 10                # タイムアウト（短め）
+    fallback_to_native: true           # take_profitタイプにフォールバック
+```
+
+### 動作フロー
+
+```
+TP注文配置
+    ↓
+Maker戦略有効？
+    ↓ Yes
+limit + post_only注文試行（最大2回）
+    ↓
+成功 → Maker約定（-0.02%リベート）✅
+    ↓ 失敗
+fallback_to_native有効？
+    ↓ Yes
+take_profitタイプで配置（従来方式・Taker 0.12%）
+    ↓
+完了
+```
+
+### 期待効果
+
+| 項目 | Taker前提 | Maker実装後 | 削減効果 |
+|------|----------|-------------|---------|
+| TP決済手数料 | 0.12% | **-0.02%** | **0.14%** |
+
+### Phase 62.9 + 62.10 総合効果
+
+| 項目 | Taker前提 | Maker実装後 | 削減効果 |
+|------|----------|-------------|---------|
+| エントリー | 0.12% | -0.02% | 0.14% |
+| TP決済 | 0.12% | -0.02% | 0.14% |
+| SL決済 | 0.12% | 0.12% | 0%（API制限） |
+| **往復（TP時）** | 0.24% | **-0.04%** | **0.28%** |
+
+### 年間削減額（推定）
+
+| 取引数/月 | 年間削減額（TP約定70%想定） |
+|----------|---------------------------|
+| 30件 | ¥20,160 |
+| 60件 | ¥40,320 |
+| 100件 | ¥67,200 |
+
+### テスト結果
+
+```
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210TPMakerStrategy::test_tp_maker_success PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210TPMakerStrategy::test_tp_maker_fallback_to_native PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210TPMakerStrategy::test_tp_maker_disabled PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210TPMakerStrategy::test_tp_maker_no_fallback PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210TPMakerStrategy::test_tp_maker_timeout PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210BitbankClientTPMaker::test_create_tp_order_with_post_only PASSED
+tests/unit/trading/execution/test_stop_manager.py::TestPhase6210BitbankClientTPMaker::test_create_tp_order_without_post_only PASSED
+```
+
+### 運用確認方法
+
+`scripts/live/standard_analysis.py`にMaker戦略確認機能を追加。
+
+```bash
+# 基本実行（全診断 + Maker戦略確認）
+python3 scripts/live/standard_analysis.py
+
+# 簡易チェック（GCPログのみ）
+python3 scripts/live/standard_analysis.py --quick
+```
+
+**出力例**:
+```
+💰 Phase 62.9-62.10: Maker戦略:
+   エントリー: 10成功/2FB (83%)
+   TP決済: 8成功/1FB (89%)
+   推定手数料削減: ¥25,200
+```
+
+**確認される指標**:
+
+| 指標 | 説明 |
+|------|------|
+| エントリーMaker成功数 | Phase 62.9 Maker注文成功 |
+| エントリーMakerフォールバック数 | Phase 62.9 Takerフォールバック |
+| エントリーpost_onlyキャンセル数 | Phase 62.9 即時約定回避キャンセル |
+| TP Maker成功数 | Phase 62.10 TP Maker注文成功 |
+| TP Makerフォールバック数 | Phase 62.10 take_profitフォールバック |
+| TP post_onlyキャンセル数 | Phase 62.10 即時約定回避キャンセル |
+
+**検索されるGCPログキーワード**:
+
+| Phase | ログキーワード |
+|-------|---------------|
+| 62.9（成功） | `Phase 62.9: Maker注文配置成功` |
+| 62.9（FB） | `Phase 62.9: Maker失敗` / `Phase 62.9: Takerフォールバック` |
+| 62.10（成功） | `Phase 62.10: TP Maker配置成功` |
+| 62.10（FB） | `Phase 62.10: TP Maker失敗` / `take_profitフォールバック` |
+
+---
+
 ## 関連ファイル
 
 | ファイル | 内容 |
 |---------|------|
-| `config/core/thresholds.yaml` | 戦略閾値設定・手数料設定 |
+| `config/core/thresholds.yaml` | 戦略閾値設定・手数料設定・Maker戦略設定 |
 | `src/strategies/implementations/donchian_channel.py` | RSIボーナス制度実装 + HOLD診断機能 |
 | `src/strategies/implementations/bb_reversal.py` | BB位置主導モード実装 |
 | `src/strategies/implementations/stochastic_reversal.py` | 最小価格変化フィルタ + HOLD診断機能 |
 | `src/strategies/implementations/atr_based.py` | HOLD診断機能追加 |
 | `src/strategies/base/strategy_manager.py` | HOLD診断ログ出力機能 |
-| `src/trading/execution/executor.py` | バックテスト手数料計算 |
-| `src/core/execution/backtest_runner.py` | バックテスト決済手数料計算 |
-| `src/backtest/reporter.py` | バックテストレポート損益計算 |
+| `src/trading/execution/executor.py` | バックテストエントリー処理（手数料はreporter.pyで計算） |
+| `src/trading/execution/order_strategy.py` | エントリーMaker戦略実装（Phase 62.9） |
+| `src/trading/execution/stop_manager.py` | TP Maker戦略実装（Phase 62.10） |
+| `src/data/bitbank_client.py` | post_only対応（Phase 62.9・62.10） |
+| `src/core/execution/backtest_runner.py` | バックテスト決済処理・利息計算（手数料はreporter.pyで計算） |
+| `src/backtest/reporter.py` | バックテストレポート損益計算（**唯一の手数料計算箇所**） |
+| `scripts/live/standard_analysis.py` | **Maker戦略確認機能追加（Phase 62.9-62.10）** |
 | `docs/開発計画/ToDo.md` | Phase 62計画 |
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 
 ---
 
-**最終更新**: 2026年2月2日 - Phase 62.7バックテスト手数料修正完了
+**最終更新**: 2026年2月3日 - Phase 62.10 TP決済Maker戦略実装・運用確認スクリプト更新完了

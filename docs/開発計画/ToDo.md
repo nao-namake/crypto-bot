@@ -2,96 +2,78 @@
 
 ## 現在の状態
 
-**Phase 62進行中** - レンジ高速回転bot改善
+**Phase 62.10完了** - Maker戦略実装完了
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 61: ¥149,195・PF 2.68・勝率75.8% |
-| 手数料 | Taker統一（0.12%往復0.24%） |
-| 固定TP | 500円（Phase 61で採用） |
+| 最新成果 | Phase 62.9-62.10: エントリー/TP決済Maker戦略実装完了 |
+| 手数料 | Maker時: 往復-0.04%（リベート）、Taker時: 往復0.24% |
+| 年間削減効果 | ¥40,000〜84,000（取引量依存） |
+| 固定TP | 500円採用（Phase 61完了時点で決定） |
 
 ---
 
-## 進行中タスク
+## 完了タスク（Phase 62.9-62.10）
 
-### Phase 62.8: 500円TP vs 1000円TP比較バックテスト
+### Phase 62.9: エントリーMaker戦略実装 ✅完了
 
-**目的**: Taker手数料(0.24%往復)環境で最適なTP額を決定
-
-**背景**:
-- Phase 62.7でバックテスト手数料をTaker統一
-- 往復手数料0.28%増加により損益構造が変化
-- 最適なTP額の再検証が必要
-
-**手順**:
-1. 現在の500円TPでバックテスト結果確認
-2. 1000円TPに変更してバックテスト実行
-3. 結果比較・最適値決定
-
-**比較指標**:
-| 指標 | 成功基準 |
-|------|---------|
-| 総損益 | 正（手数料負けしない） |
-| PF | 1.5以上必須 |
-| 勝率 | 60%以上 |
-| 取引数 | 300件以上 |
-| 最大DD | 10%以下 |
-
-**変更ファイル**: `config/core/thresholds.yaml`
-```yaml
-position_management.take_profit.fixed_amount:
-  target_net_profit: 500 → 1000  # 比較テスト時
-```
-
-**判断分岐**:
-- 500円TPでPF >= 1.5 → 500円TP維持
-- 500円TPでPF < 1.5 → 1000円TP採用検討
-
----
-
-### Phase 62.9: Maker戦略実装
-
-**目的**: 往復手数料0.28%削減（年間¥40,000+節約）
-
-**bitbank Post-Only機能**:
-- `post_only: true`で確実にMaker約定
-- 即時約定時は自動キャンセル
-- Maker手数料: -0.02%（リベート）
+**実施日**: 2026年2月3日
 
 **実装内容**:
-
-| コンポーネント | 内容 |
-|--------------|------|
-| Post-Only基本実装 | `post_only: true`オプション追加 |
-| 価格調整リトライ | キャンセル時に1tick有利な価格で再発注（3回まで） |
-| Takerフォールバック | リトライ失敗時に成行で約定 |
-
-**実装例**:
-```python
-for retry in range(3):
-    result = place_order(post_only=True, price=adjusted_price)
-    if result.status != "CANCELED":
-        break
-    adjusted_price -= tick_size  # 価格調整
-else:
-    place_order(post_only=False)  # Takerフォールバック
-```
+- `create_order()`に`post_only`パラメータ追加
+- `PostOnlyCancelledException`例外追加
+- Maker戦略リトライ・フォールバック実装
 
 **変更ファイル**:
-- `src/trading/execution/executor.py`
-- `src/data/bitbank/client.py`
 - `config/core/thresholds.yaml`
+- `src/data/bitbank_client.py`
+- `src/trading/execution/order_strategy.py`
+- `src/core/exceptions.py`
 
-**成功基準**:
-- Maker約定率80%以上
-- 約定遅延5分以内
-- 約定漏れ率1%未満
+**効果**: エントリー手数料 0.12% → -0.02%（0.14%削減）
 
 ---
 
-## 短期計画（Phase 62.10-62.11）
+### Phase 62.10: TP決済Maker戦略実装 ✅完了
 
-### Phase 62.10: SL成行フォールバック
+**実施日**: 2026年2月3日
+
+**実装内容**:
+- `create_take_profit_order()`に`post_only`パラメータ追加
+- `_place_tp_maker()` / `_place_tp_native()`メソッド実装
+- 運用確認スクリプト更新
+
+**変更ファイル**:
+- `config/core/thresholds.yaml`
+- `src/data/bitbank_client.py`
+- `src/trading/execution/stop_manager.py`
+- `scripts/live/standard_analysis.py`
+- `tests/unit/trading/execution/test_stop_manager.py`
+
+**効果**: TP決済手数料 0.12% → -0.02%（0.14%削減）
+
+**総合効果（Phase 62.9 + 62.10）**:
+
+| 項目 | Taker前提 | Maker実装後 | 削減効果 |
+|------|----------|-------------|---------|
+| エントリー | 0.12% | -0.02% | 0.14% |
+| TP決済 | 0.12% | -0.02% | 0.14% |
+| SL決済 | 0.12% | 0.12% | 0%（API制限） |
+| **往復（TP時）** | 0.24% | **-0.04%** | **0.28%** |
+
+---
+
+### Phase 62.8: バックテスト手数料多重計算バグ修正 ✅完了
+
+**問題**: Phase 62.7で手数料が4箇所で計算され、2.5倍の過剰控除が発生
+**修正**: reporter.pyのみで手数料計算するよう統一
+**結果**: 品質チェック通過、バックテスト精度向上
+
+---
+
+## 短期計画（Phase 62.11-62.12）
+
+### Phase 62.11: SL成行フォールバック
 
 **目的**: 急落時の損失を50%削減
 
@@ -105,7 +87,7 @@ else:
 3. 緊急成行実行のログ記録
 
 **変更ファイル**:
-- `src/trading/execution/executor.py`
+- `src/trading/execution/stop_manager.py`
 - `src/trading/position/tracker.py`
 
 **成功基準**:
@@ -113,7 +95,7 @@ else:
 
 ---
 
-### Phase 62.11: 1年バックテスト並行実施
+### Phase 62.12: 1年バックテスト並行実施
 
 **目的**: 戦略の長期信頼性検証
 
@@ -132,9 +114,9 @@ else:
 
 ---
 
-## 中期計画（Phase 62.12以降）
+## 中期計画（Phase 62.13以降）
 
-### Phase 62.12: WebSocket板情報導入
+### Phase 62.13: WebSocket板情報導入
 
 **目的**: スリッページ削減・約定精度向上
 
@@ -149,7 +131,7 @@ else:
 
 ---
 
-### Phase 62.13: スリッページ分析機能
+### Phase 62.14: スリッページ分析機能
 
 **目的**: 改善点の可視化
 
@@ -282,16 +264,29 @@ bash scripts/backtest/run_backtest.sh
 ### ライブモード確認
 
 ```bash
-# 標準分析（24時間）
+# 標準分析（24時間）- Maker戦略確認含む
 python3 scripts/live/standard_analysis.py
 
 # 期間指定
 python3 scripts/live/standard_analysis.py --hours 48
 
+# 簡易チェック（GCPログのみ）
+python3 scripts/live/standard_analysis.py --quick
+
 # GCPサービス状態
 gcloud run services describe crypto-bot-service-prod \
   --region=asia-northeast1 \
   --format="value(status.conditions[0].status)"
+```
+
+### Maker戦略確認
+
+```bash
+# standard_analysis.pyの出力に含まれる:
+# 💰 Phase 62.9-62.10: Maker戦略:
+#    エントリー: 10成功/2FB (83%)
+#    TP決済: 8成功/1FB (89%)
+#    推定手数料削減: ¥25,200
 ```
 
 ---
@@ -303,9 +298,10 @@ gcloud run services describe crypto-bot-service-prod \
 | `docs/開発履歴/Phase_62.md` | Phase 62開発記録 |
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 | `docs/開発履歴/SUMMARY.md` | 全Phase総括 |
-| `config/core/thresholds.yaml` | 戦略閾値・TP/SL設定 |
+| `config/core/thresholds.yaml` | 戦略閾値・TP/SL・Maker戦略設定 |
+| `scripts/live/standard_analysis.py` | ライブ分析（Maker戦略確認含む） |
 | `CLAUDE.md` | 開発ガイド |
 
 ---
 
-**最終更新**: 2026年2月2日 - Phase 63マルチペア対応計画追加
+**最終更新**: 2026年2月3日 - Phase 62.9-62.10 Maker戦略実装完了

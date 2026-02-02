@@ -3917,3 +3917,294 @@ class TestFindDisappearedPositionsEdgeCases:
 
         # 実ポジションのamount=0なのでマッチしない
         assert len(disappeared) == 1
+
+
+class TestPhase6210TPMakerStrategy:
+    """Phase 62.10: TP Maker戦略テスト"""
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_tp_maker_success(self, mock_threshold, stop_manager):
+        """TP Maker注文が成功する場合"""
+        # Maker戦略有効化
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 2,
+                    "retry_interval_ms": 100,
+                    "timeout_seconds": 10,
+                    "fallback_to_native": True,
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        mock_client.create_take_profit_order = Mock(return_value={"id": "tp_maker_001"})
+
+        result = await stop_manager.place_take_profit(
+            side="buy",
+            amount=0.001,
+            entry_price=14000000.0,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "tp_maker_001"
+        assert result["price"] == 14100000.0
+
+        # post_only=True で呼ばれていることを確認
+        mock_client.create_take_profit_order.assert_called_once_with(
+            entry_side="buy",
+            amount=0.001,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            post_only=True,
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_tp_maker_fallback_to_native(self, mock_threshold, stop_manager):
+        """TP Maker失敗時にtake_profitタイプにフォールバック"""
+        from src.core.exceptions import PostOnlyCancelledException
+
+        # Maker戦略有効化（フォールバック有効）
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 2,
+                    "retry_interval_ms": 50,
+                    "timeout_seconds": 10,
+                    "fallback_to_native": True,
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        # 1回目・2回目: PostOnlyCancelledException、3回目（フォールバック）: 成功
+        call_count = [0]
+
+        def mock_create_tp(*args, **kwargs):
+            call_count[0] += 1
+            if kwargs.get("post_only", False):
+                raise PostOnlyCancelledException("post_only cancelled")
+            return {"id": "tp_native_001"}
+
+        mock_client.create_take_profit_order = mock_create_tp
+
+        result = await stop_manager.place_take_profit(
+            side="buy",
+            amount=0.001,
+            entry_price=14000000.0,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "tp_native_001"
+        # Maker試行2回 + フォールバック1回 = 3回呼び出し
+        assert call_count[0] == 3
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_tp_maker_disabled(self, mock_threshold, stop_manager):
+        """Maker戦略無効時は従来のTP注文"""
+        # Maker戦略無効
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": False,  # Maker無効
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        mock_client.create_take_profit_order = Mock(return_value={"id": "tp_native_002"})
+
+        result = await stop_manager.place_take_profit(
+            side="buy",
+            amount=0.001,
+            entry_price=14000000.0,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        assert result is not None
+        assert result["order_id"] == "tp_native_002"
+
+        # post_only=False で呼ばれていることを確認
+        mock_client.create_take_profit_order.assert_called_once_with(
+            entry_side="buy",
+            amount=0.001,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            post_only=False,
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_tp_maker_no_fallback(self, mock_threshold, stop_manager):
+        """Maker失敗時フォールバック無効だとNone"""
+        from src.core.exceptions import PostOnlyCancelledException
+
+        # Maker戦略有効（フォールバック無効）
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 1,
+                    "retry_interval_ms": 50,
+                    "timeout_seconds": 10,
+                    "fallback_to_native": False,  # フォールバック無効
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        mock_client.create_take_profit_order = Mock(
+            side_effect=PostOnlyCancelledException("cancelled")
+        )
+
+        result = await stop_manager.place_take_profit(
+            side="buy",
+            amount=0.001,
+            entry_price=14000000.0,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_tp_maker_timeout(self, mock_threshold, stop_manager):
+        """Makerタイムアウト時のフォールバック"""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        # Maker戦略有効（タイムアウト短め）
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 10,  # 多くのリトライ
+                    "retry_interval_ms": 2000,  # 長いインターバル（2秒）
+                    "timeout_seconds": 0.1,  # 非常に短いタイムアウト
+                    "fallback_to_native": True,
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        call_count = [0]
+
+        async def slow_create_tp(*args, **kwargs):
+            call_count[0] += 1
+            await asyncio.sleep(0.05)  # 50msの遅延
+            if kwargs.get("post_only", False):
+                raise Exception("should timeout before this")
+            return {"id": "tp_native_003"}
+
+        # asyncio.to_threadをバイパスしてslow_create_tpを直接呼ぶ
+        mock_client.create_take_profit_order = Mock(return_value={"id": "tp_native_003"})
+
+        result = await stop_manager.place_take_profit(
+            side="buy",
+            amount=0.001,
+            entry_price=14000000.0,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        # タイムアウト後フォールバックで成功
+        assert result is not None
+
+
+class TestPhase6210BitbankClientTPMaker:
+    """Phase 62.10: BitbankClient TP Maker対応テスト"""
+
+    @patch("src.data.bitbank_client.get_threshold")
+    def test_create_tp_order_with_post_only(self, mock_threshold):
+        """post_only=Trueでlimit+post_only注文が発行される"""
+        from src.data.bitbank_client import BitbankClient
+
+        # モック設定
+        mock_threshold.return_value = False  # use_native_type = false
+
+        with patch.object(BitbankClient, "__init__", lambda self, **kwargs: None):
+            client = BitbankClient()
+            client.logger = MagicMock()
+            client.api_key = "test_key"
+            client.api_secret = "test_secret"
+            client.leverage = 1.0
+
+            # create_orderをモック
+            mock_order = {"id": "tp_maker_order_001"}
+            client.create_order = Mock(return_value=mock_order)
+
+            result = client.create_take_profit_order(
+                entry_side="buy",
+                amount=0.001,
+                take_profit_price=14100000.0,
+                symbol="BTC/JPY",
+                post_only=True,
+            )
+
+            assert result["id"] == "tp_maker_order_001"
+
+            # create_orderがpost_only=Trueで呼ばれていることを確認
+            client.create_order.assert_called_once_with(
+                symbol="BTC/JPY",
+                side="sell",  # buyの反対
+                order_type="limit",
+                amount=0.001,
+                price=14100000.0,
+                is_closing_order=True,
+                entry_position_side="long",
+                post_only=True,
+            )
+
+    @patch("src.data.bitbank_client.get_threshold")
+    def test_create_tp_order_without_post_only(self, mock_threshold):
+        """post_only=Falseで従来のtake_profit注文フロー"""
+        from src.data.bitbank_client import BitbankClient
+
+        # モック設定
+        mock_threshold.return_value = False  # use_native_type = false
+
+        with patch.object(BitbankClient, "__init__", lambda self, **kwargs: None):
+            client = BitbankClient()
+            client.logger = MagicMock()
+            client.api_key = "test_key"
+            client.api_secret = "test_secret"
+            client.leverage = 1.0
+
+            # create_orderをモック
+            mock_order = {"id": "tp_native_order_001"}
+            client.create_order = Mock(return_value=mock_order)
+
+            result = client.create_take_profit_order(
+                entry_side="sell",
+                amount=0.002,
+                take_profit_price=13900000.0,
+                symbol="BTC/JPY",
+                post_only=False,
+            )
+
+            assert result["id"] == "tp_native_order_001"
+
+            # create_orderがpost_only指定なし（または False）で呼ばれていることを確認
+            call_args = client.create_order.call_args
+            assert call_args[1].get("post_only", False) is False

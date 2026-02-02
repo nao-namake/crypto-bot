@@ -216,6 +216,20 @@ class StrategyError(CryptoBotError):
         self.context.update({"strategy_name": strategy_name})
 
 
+class PostOnlyCancelledException(TradingError):
+    """Phase 62.9: post_only注文が即時約定回避のためキャンセルされた例外."""
+
+    def __init__(
+        self,
+        message: str,
+        price: Optional[float] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.price = price
+        self.context.update({"price": price})
+
+
 # エラー重要度レベル
 class ErrorSeverity:
     """エラー重要度定義."""
@@ -241,6 +255,7 @@ ERROR_SEVERITY_MAP = {
     HealthCheckError: ErrorSeverity.MEDIUM,
     DataQualityError: ErrorSeverity.MEDIUM,
     StrategyError: ErrorSeverity.HIGH,  # Phase 22で再追加・戦略システム重要度高
+    PostOnlyCancelledException: ErrorSeverity.LOW,  # Phase 62.9: 正常動作（リトライ対象）
 }
 
 

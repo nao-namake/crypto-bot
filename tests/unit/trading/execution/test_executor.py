@@ -390,6 +390,10 @@ class TestExecuteTradeLiveMode:
                 "strategy": "limit_maker",
             }
         )
+        # Phase 62.9: Maker戦略モック（無効化）
+        mock_order_strategy.get_maker_execution_config = AsyncMock(
+            return_value={"use_maker": False, "disable_reason": "test_disabled"}
+        )
         service.inject_services(order_strategy=mock_order_strategy)
 
         # 指値注文レスポンス設定

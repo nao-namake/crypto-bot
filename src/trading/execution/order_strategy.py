@@ -353,3 +353,159 @@ class OrderStrategy:
     #
     # デイトレード特化設計では個別TP/SL配置に回帰・シンプル性重視
     # 個別TP/SL計算は calculate_take_profit_price() / calculate_stop_loss_price() を使用
+
+    # ========================================
+    # Phase 62.9: Maker戦略メソッド
+    # ========================================
+
+    async def get_maker_execution_config(
+        self,
+        evaluation: TradeEvaluation,
+        bitbank_client: Optional[BitbankClient] = None,
+    ) -> Dict[str, Any]:
+        """
+        Phase 62.9: Maker注文設定取得
+
+        Args:
+            evaluation: 取引評価結果
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            Dict: Maker注文設定 {"use_maker": bool, "price": float, ...}
+        """
+        config = get_threshold("order_execution.maker_strategy", {})
+
+        # Maker戦略無効時
+        if not config.get("enabled", False):
+            return {"use_maker": False, "disable_reason": "disabled"}
+
+        # クライアントなし
+        if not bitbank_client:
+            return {"use_maker": False, "disable_reason": "no_client"}
+
+        # 市場条件評価
+        conditions = await self._assess_maker_conditions(bitbank_client, config)
+        if not conditions.get("maker_viable", False):
+            return {
+                "use_maker": False,
+                "disable_reason": conditions.get("disable_reason", "unknown"),
+            }
+
+        # Maker価格計算
+        price = self._calculate_maker_price(
+            evaluation.side, conditions["best_bid"], conditions["best_ask"]
+        )
+
+        if price <= 0:
+            return {"use_maker": False, "disable_reason": "price_calculation_failed"}
+
+        self.logger.info(
+            f"📡 Phase 62.9: Maker戦略有効 - {evaluation.side} @ {price:.0f}円 "
+            f"(スプレッド: {conditions['spread_ratio'] * 100:.3f}%)"
+        )
+
+        return {
+            "use_maker": True,
+            "price": price,
+            "best_bid": conditions["best_bid"],
+            "best_ask": conditions["best_ask"],
+            "spread_ratio": conditions["spread_ratio"],
+        }
+
+    async def _assess_maker_conditions(
+        self, client: BitbankClient, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Phase 62.9: Maker市場条件評価
+
+        Args:
+            client: BitbankClientインスタンス
+            config: Maker戦略設定
+
+        Returns:
+            Dict: 市場条件評価結果
+        """
+        try:
+            # 板情報取得
+            orderbook = await asyncio.to_thread(client.fetch_order_book, "BTC/JPY", 5)
+
+            if not orderbook or "bids" not in orderbook or "asks" not in orderbook:
+                return {"maker_viable": False, "disable_reason": "orderbook_unavailable"}
+
+            if not orderbook["bids"] or not orderbook["asks"]:
+                return {"maker_viable": False, "disable_reason": "empty_orderbook"}
+
+            best_bid = float(orderbook["bids"][0][0])
+            best_ask = float(orderbook["asks"][0][0])
+
+            if best_bid <= 0 or best_ask <= 0:
+                return {"maker_viable": False, "disable_reason": "invalid_prices"}
+
+            spread_ratio = (best_ask - best_bid) / best_bid
+
+            # スプレッド狭すぎ確認（Maker不利）
+            min_spread = config.get("min_spread_for_maker", 0.001)
+            if spread_ratio < min_spread:
+                self.logger.debug(
+                    f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.3f}% < {min_spread * 100:.1f}%"
+                )
+                return {"maker_viable": False, "disable_reason": "spread_too_narrow"}
+
+            # 高ボラティリティ確認（Maker危険）
+            volatility_threshold = config.get("volatility_threshold", 0.02)
+            if spread_ratio > volatility_threshold:
+                self.logger.debug(
+                    f"📡 Phase 62.9: 高ボラティリティ {spread_ratio * 100:.3f}% > {volatility_threshold * 100:.1f}%"
+                )
+                return {"maker_viable": False, "disable_reason": "high_volatility"}
+
+            return {
+                "maker_viable": True,
+                "best_bid": best_bid,
+                "best_ask": best_ask,
+                "spread_ratio": spread_ratio,
+            }
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 62.9: 市場条件評価エラー: {e}")
+            return {"maker_viable": False, "disable_reason": f"error: {e}"}
+
+    def _calculate_maker_price(self, side: str, best_bid: float, best_ask: float) -> float:
+        """
+        Phase 62.9: Maker価格計算（板の内側に配置）
+
+        Args:
+            side: 売買方向（buy/sell）
+            best_bid: 最良買い気配
+            best_ask: 最良売り気配
+
+        Returns:
+            float: Maker価格（0の場合は計算失敗）
+        """
+        tick = get_threshold("order_execution.maker_strategy.price_adjustment_tick", 1)
+
+        if side.lower() == "buy":
+            # 買い注文: bid直上（最良買い気配+1tick）
+            price = best_bid + tick
+            # ask以上になってはいけない（即時約定=Taker化）
+            if price >= best_ask:
+                self.logger.debug(
+                    f"📡 Phase 62.9: 買いMaker価格がask以上 {price:.0f} >= {best_ask:.0f}"
+                )
+                return 0
+            return round(price)
+
+        elif side.lower() == "sell":
+            # 売り注文: ask直下（最良売り気配-1tick）
+            price = best_ask - tick
+            # bid以下になってはいけない（即時約定=Taker化）
+            if price <= best_bid:
+                self.logger.debug(
+                    f"📡 Phase 62.9: 売りMaker価格がbid以下 {price:.0f} <= {best_bid:.0f}"
+                )
+                return 0
+            return round(price)
+
+        else:
+            self.logger.error(f"❌ Phase 62.9: 不正なside: {side}")
+            return 0

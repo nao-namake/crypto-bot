@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ライブモード統合診断スクリプト - Phase 61.2
+ライブモード統合診断スクリプト - Phase 62.10
 
 目的:
   ライブ運用の標準化された分析とインフラ・Bot機能診断を
@@ -24,6 +24,7 @@
     - レジーム別TP/SL確認
     - Kelly基準確認
     - Atomic Entry Pattern確認
+    - Phase 62.9-62.10: Maker戦略確認（エントリー/TP決済）
   - JSON/Markdown/CSV出力
   - 終了コード対応（CI/CD連携用）
 
@@ -435,6 +436,14 @@ class BotFunctionCheckResult:
     atomic_success_count: int = 0
     atomic_rollback_count: int = 0
 
+    # Phase 62.9-62.10: Maker戦略
+    entry_maker_success_count: int = 0
+    entry_maker_fallback_count: int = 0
+    entry_post_only_cancelled_count: int = 0
+    tp_maker_success_count: int = 0
+    tp_maker_fallback_count: int = 0
+    tp_post_only_cancelled_count: int = 0
+
     # スコア
     normal_checks: int = 0
     warning_issues: int = 0
@@ -470,6 +479,7 @@ class BotFunctionChecker:
         self._check_regime_tp_sl()
         self._check_kelly_criterion()
         self._check_atomic_entry()
+        self._check_maker_strategy()  # Phase 62.9-62.10
 
         # 総合スコア計算
         self.result.total_score = (
@@ -609,6 +619,67 @@ class BotFunctionChecker:
             self.result.normal_checks += 1
         elif self.result.atomic_rollback_count > 5:
             self.result.critical_issues += 1
+
+    def _check_maker_strategy(self):
+        """Phase 62.9-62.10: Maker戦略確認"""
+        self.logger.info("💰 Phase 62.9-62.10: Maker戦略確認")
+
+        # Phase 62.9: エントリーMaker戦略
+        self.result.entry_maker_success_count = self._count_logs(
+            'textPayload:"Phase 62.9: Maker注文配置成功"', 20
+        )
+        self.result.entry_maker_fallback_count = self._count_logs(
+            'textPayload:"Phase 62.9: Maker失敗" OR textPayload:"Phase 62.9: Takerフォールバック"',
+            20,
+        )
+        self.result.entry_post_only_cancelled_count = self._count_logs(
+            'textPayload:"Phase 62.9: post_onlyキャンセル"', 20
+        )
+
+        # Phase 62.10: TP Maker戦略
+        self.result.tp_maker_success_count = self._count_logs(
+            'textPayload:"Phase 62.10: TP Maker配置成功"', 20
+        )
+        self.result.tp_maker_fallback_count = self._count_logs(
+            'textPayload:"Phase 62.10: TP Maker失敗" OR textPayload:"take_profitフォールバック"',
+            20,
+        )
+        self.result.tp_post_only_cancelled_count = self._count_logs(
+            'textPayload:"Phase 62.10: TP post_onlyキャンセル"', 20
+        )
+
+        # 評価: Maker戦略が動作していれば正常
+        total_entry = self.result.entry_maker_success_count + self.result.entry_maker_fallback_count
+        total_tp = self.result.tp_maker_success_count + self.result.tp_maker_fallback_count
+
+        if total_entry > 0 or total_tp > 0:
+            # Maker戦略が動作中
+            entry_success_rate = (
+                self.result.entry_maker_success_count / total_entry * 100 if total_entry > 0 else 0
+            )
+            tp_success_rate = (
+                self.result.tp_maker_success_count / total_tp * 100 if total_tp > 0 else 0
+            )
+
+            self.logger.info(
+                f"📊 Maker戦略統計 - エントリー: {self.result.entry_maker_success_count}成功/"
+                f"{self.result.entry_maker_fallback_count}FB ({entry_success_rate:.0f}%), "
+                f"TP: {self.result.tp_maker_success_count}成功/"
+                f"{self.result.tp_maker_fallback_count}FB ({tp_success_rate:.0f}%)"
+            )
+
+            # 成功率80%以上なら正常
+            if entry_success_rate >= 80 or tp_success_rate >= 80:
+                self.result.normal_checks += 1
+            elif entry_success_rate >= 50 or tp_success_rate >= 50:
+                # 50%以上なら警告のみ
+                pass
+            else:
+                # 50%未満なら警告
+                self.result.warning_issues += 1
+        else:
+            # Maker戦略の動作記録なし（まだ取引がない可能性）
+            self.logger.info("ℹ️ Maker戦略: 動作記録なし（取引なし or 未有効化）")
 
 
 @dataclass
@@ -1644,6 +1715,18 @@ async def main():
         print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
         print(f"   🏆 スコア: {bot_result.total_score}点")
 
+        # Phase 62.9-62.10: Maker戦略サマリー（簡易モード）
+        entry_total = bot_result.entry_maker_success_count + bot_result.entry_maker_fallback_count
+        tp_total = bot_result.tp_maker_success_count + bot_result.tp_maker_fallback_count
+        if entry_total > 0 or tp_total > 0:
+            print("\n💰 Maker戦略:")
+            if entry_total > 0:
+                entry_rate = bot_result.entry_maker_success_count / entry_total * 100
+                print(f"   エントリー: {entry_rate:.0f}%成功")
+            if tp_total > 0:
+                tp_rate = bot_result.tp_maker_success_count / tp_total * 100
+                print(f"   TP決済: {tp_rate:.0f}%成功")
+
         exit_code = determine_exit_code(infra_result, bot_result)
         status_map = {
             0: "🟢 正常",
@@ -1727,6 +1810,29 @@ async def main():
     print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
     print(f"   🏆 スコア: {bot_result.total_score}点")
 
+    # Phase 62.9-62.10: Maker戦略サマリー
+    entry_total = bot_result.entry_maker_success_count + bot_result.entry_maker_fallback_count
+    tp_total = bot_result.tp_maker_success_count + bot_result.tp_maker_fallback_count
+    if entry_total > 0 or tp_total > 0:
+        print("\n💰 Phase 62.9-62.10: Maker戦略:")
+        if entry_total > 0:
+            entry_rate = bot_result.entry_maker_success_count / entry_total * 100
+            print(
+                f"   エントリー: {bot_result.entry_maker_success_count}成功/"
+                f"{bot_result.entry_maker_fallback_count}FB ({entry_rate:.0f}%)"
+            )
+        if tp_total > 0:
+            tp_rate = bot_result.tp_maker_success_count / tp_total * 100
+            print(
+                f"   TP決済: {bot_result.tp_maker_success_count}成功/"
+                f"{bot_result.tp_maker_fallback_count}FB ({tp_rate:.0f}%)"
+            )
+        # 推定削減額
+        maker_success = bot_result.entry_maker_success_count + bot_result.tp_maker_success_count
+        if maker_success > 0:
+            estimated = maker_success * 1000000 * 0.0014
+            print(f"   推定手数料削減: ¥{estimated:,.0f}")
+
     exit_code = determine_exit_code(infra_result, bot_result)
     status_map = {
         0: "🟢 正常",
@@ -1793,6 +1899,55 @@ def _generate_diagnostic_markdown(
     for strategy, count in bot_result.strategy_counts.items():
         status = "✅" if count > 0 else "ℹ️ 未検出"
         lines.append(f"| {strategy} | {count} {status} |")
+
+    # Phase 62.9-62.10: Maker戦略セクション
+    lines.extend(
+        [
+            "",
+            "### Phase 62.9-62.10: Maker戦略",
+            "",
+            "| 項目 | 成功 | フォールバック | post_onlyキャンセル |",
+            "|------|------|----------------|---------------------|",
+        ]
+    )
+
+    # エントリーMaker
+    entry_total = bot_result.entry_maker_success_count + bot_result.entry_maker_fallback_count
+    entry_rate = (
+        f"({bot_result.entry_maker_success_count / entry_total * 100:.0f}%)"
+        if entry_total > 0
+        else ""
+    )
+    lines.append(
+        f"| エントリーMaker | {bot_result.entry_maker_success_count}回 {entry_rate} | "
+        f"{bot_result.entry_maker_fallback_count}回 | "
+        f"{bot_result.entry_post_only_cancelled_count}回 |"
+    )
+
+    # TP Maker
+    tp_total = bot_result.tp_maker_success_count + bot_result.tp_maker_fallback_count
+    tp_rate = f"({bot_result.tp_maker_success_count / tp_total * 100:.0f}%)" if tp_total > 0 else ""
+    lines.append(
+        f"| TP Maker | {bot_result.tp_maker_success_count}回 {tp_rate} | "
+        f"{bot_result.tp_maker_fallback_count}回 | "
+        f"{bot_result.tp_post_only_cancelled_count}回 |"
+    )
+
+    # 手数料削減効果の推定
+    if entry_total > 0 or tp_total > 0:
+        # Maker成功1回あたり0.14%削減、取引金額を100万円と仮定
+        estimated_savings = (
+            (bot_result.entry_maker_success_count + bot_result.tp_maker_success_count)
+            * 1000000
+            * 0.0014
+        )
+        lines.extend(
+            [
+                "",
+                f"**推定手数料削減効果**: ¥{estimated_savings:,.0f} "
+                f"(Maker成功{bot_result.entry_maker_success_count + bot_result.tp_maker_success_count}回 × 0.14% × 100万円)",
+            ]
+        )
 
     lines.extend(
         [

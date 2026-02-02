@@ -1381,7 +1381,11 @@ class StopManager:
         bitbank_client: BitbankClient,
     ) -> Optional[Dict[str, Any]]:
         """
-        個別TP注文配置（Phase 46・デイトレード特化）
+        個別TP注文配置（Phase 46・Phase 62.10: Maker戦略対応）
+
+        Phase 62.10:
+        - Maker戦略有効時: limit + post_only注文を試行
+        - 失敗時: take_profitタイプにフォールバック
 
         Args:
             side: エントリーサイド (buy/sell)
@@ -1405,29 +1409,31 @@ class StopManager:
                 self.logger.warning("⚠️ TP価格が不正（0以下）")
                 return None
 
-            # TP注文配置
-            tp_order = bitbank_client.create_take_profit_order(
-                entry_side=side,
-                amount=amount,
-                take_profit_price=take_profit_price,
-                symbol=symbol,
-            )
+            # Phase 62.10: Maker戦略設定取得
+            maker_config = tp_config.get("maker_strategy", {})
+            use_maker = maker_config.get("enabled", False)
 
-            order_id = tp_order.get("id")
-
-            # Phase 57.11: 注文ID null check強化（TP未設置問題対策）
-            if not order_id:
-                raise Exception(
-                    f"TP注文配置失敗（order_idが空）: API応答={tp_order}, "
-                    f"サイド={side}, 数量={amount:.6f} BTC, TP価格={take_profit_price:.0f}円"
+            if use_maker:
+                # Maker戦略: limit + post_only
+                result = await self._place_tp_maker(
+                    side, amount, take_profit_price, symbol, bitbank_client, maker_config
                 )
+                if result:
+                    return result
 
-            self.logger.info(
-                f"✅ Phase 46: 個別TP配置成功 - ID: {order_id}, "
-                f"サイド: {side}, 数量: {amount:.6f} BTC, TP価格: {take_profit_price:.0f}円"
+                # Maker失敗時フォールバック
+                if maker_config.get("fallback_to_native", True):
+                    self.logger.info("📡 Phase 62.10: TP Maker失敗 → take_profitフォールバック")
+                else:
+                    self.logger.warning(
+                        "⚠️ Phase 62.10: TP Maker失敗・フォールバック無効 → TP未設置"
+                    )
+                    return None
+
+            # 従来方式: take_profitタイプ
+            return await self._place_tp_native(
+                side, amount, take_profit_price, symbol, bitbank_client
             )
-
-            return {"order_id": order_id, "price": take_profit_price}
 
         except Exception as e:
             error_message = str(e)
@@ -1436,6 +1442,132 @@ class StopManager:
             else:
                 self.logger.error(f"❌ TP配置失敗: {e}")
             return None
+
+    async def _place_tp_maker(
+        self,
+        side: str,
+        amount: float,
+        take_profit_price: float,
+        symbol: str,
+        bitbank_client: BitbankClient,
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Phase 62.10: TP Maker注文（limit + post_only）
+
+        Maker約定のみを許可する注文を発行し、リトライを行う。
+
+        Args:
+            side: エントリーサイド (buy/sell)
+            amount: 数量
+            take_profit_price: TP価格
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+            config: Maker戦略設定
+
+        Returns:
+            Dict: TP注文情報 {"order_id": str, "price": float} or None
+        """
+        from datetime import datetime
+
+        from src.core.exceptions import PostOnlyCancelledException
+
+        max_retries = config.get("max_retries", 2)
+        retry_interval = config.get("retry_interval_ms", 300) / 1000
+        timeout = config.get("timeout_seconds", 10)
+
+        start = datetime.now()
+
+        for attempt in range(max_retries):
+            if (datetime.now() - start).total_seconds() >= timeout:
+                self.logger.warning(f"⏰ Phase 62.10: TP Makerタイムアウト - {timeout}秒経過")
+                return None
+
+            try:
+                tp_order = await asyncio.to_thread(
+                    bitbank_client.create_take_profit_order,
+                    entry_side=side,
+                    amount=amount,
+                    take_profit_price=take_profit_price,
+                    symbol=symbol,
+                    post_only=True,
+                )
+
+                order_id = tp_order.get("id")
+
+                if not order_id:
+                    raise Exception(f"TP Maker注文配置失敗（order_idが空）: API応答={tp_order}")
+
+                self.logger.info(
+                    f"✅ Phase 62.10: TP Maker配置成功 - "
+                    f"ID: {order_id}, 価格: {take_profit_price:.0f}円, "
+                    f"試行: {attempt + 1}/{max_retries}"
+                )
+                return {"order_id": order_id, "price": take_profit_price}
+
+            except PostOnlyCancelledException:
+                self.logger.info(
+                    f"📡 Phase 62.10: TP post_onlyキャンセル "
+                    f"（試行{attempt + 1}/{max_retries}）"
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"⚠️ Phase 62.10: TP Makerエラー " f"（試行{attempt + 1}/{max_retries}）: {e}"
+                )
+
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_interval)
+
+        self.logger.warning(f"⚠️ Phase 62.10: TP Maker全{max_retries}回失敗")
+        return None
+
+    async def _place_tp_native(
+        self,
+        side: str,
+        amount: float,
+        take_profit_price: float,
+        symbol: str,
+        bitbank_client: BitbankClient,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Phase 62.10: TP従来注文（take_profitタイプ）
+
+        従来のtake_profit注文を発行する。
+
+        Args:
+            side: エントリーサイド (buy/sell)
+            amount: 数量
+            take_profit_price: TP価格
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            Dict: TP注文情報 {"order_id": str, "price": float} or None
+        """
+        tp_order = await asyncio.to_thread(
+            bitbank_client.create_take_profit_order,
+            entry_side=side,
+            amount=amount,
+            take_profit_price=take_profit_price,
+            symbol=symbol,
+            post_only=False,
+        )
+
+        order_id = tp_order.get("id")
+
+        # Phase 57.11: 注文ID null check強化
+        if not order_id:
+            raise Exception(
+                f"TP注文配置失敗（order_idが空）: API応答={tp_order}, "
+                f"サイド={side}, 数量={amount:.6f} BTC, TP価格={take_profit_price:.0f}円"
+            )
+
+        self.logger.info(
+            f"✅ Phase 46: 個別TP配置成功 - ID: {order_id}, "
+            f"サイド: {side}, 数量: {amount:.6f} BTC, TP価格: {take_profit_price:.0f}円"
+        )
+
+        return {"order_id": order_id, "price": take_profit_price}
 
     async def place_stop_loss(
         self,

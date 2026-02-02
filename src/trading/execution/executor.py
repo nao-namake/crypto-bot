@@ -518,41 +518,103 @@ class ExecutionService:
             side = evaluation.side  # "buy" or "sell"
             amount = float(evaluation.position_size)
 
-            # 指値注文オプション機能（Phase 26）
+            # Phase 62.9: Maker戦略判定
+            maker_result = None
+            use_maker = False
+            maker_config = None
+
             if self.order_strategy:
-                order_execution_config = await self.order_strategy.get_optimal_execution_config(
+                maker_config = await self.order_strategy.get_maker_execution_config(
                     evaluation, self.bitbank_client
                 )
+                use_maker = maker_config.get("use_maker", False)
+
+            if use_maker:
+                # Maker注文試行
+                maker_result = await self._execute_maker_order(
+                    symbol=symbol,
+                    side=side,
+                    amount=amount,
+                    maker_config=maker_config,
+                )
+
+                if maker_result and maker_result.success:
+                    self.logger.info("✅ Phase 62.9: Maker約定成功 → 後続処理へ")
+                else:
+                    # Maker失敗 → Takerフォールバック判定
+                    fallback_enabled = get_threshold(
+                        "order_execution.maker_strategy.fallback_to_taker", True
+                    )
+                    if fallback_enabled:
+                        self.logger.info("📡 Phase 62.9: Maker失敗 → Takerフォールバック")
+                        maker_result = None  # Takerロジックへ
+                    else:
+                        self.logger.warning(
+                            "⚠️ Phase 62.9: Maker失敗・フォールバック無効 → エントリー中止"
+                        )
+                        return ExecutionResult(
+                            success=False,
+                            mode=ExecutionMode.LIVE,
+                            order_id=None,
+                            price=0.0,
+                            amount=0.0,
+                            error_message="Phase 62.9: Maker失敗・フォールバック無効",
+                            side=side,
+                            fee=0.0,
+                            status=OrderStatus.FAILED,
+                        )
+
+            # Maker成功時はスキップ、それ以外はTaker注文
+            if maker_result and maker_result.success:
+                order_result = {
+                    "id": maker_result.order_id,
+                    "price": maker_result.price,
+                    "amount": maker_result.amount,
+                    "filled_price": maker_result.filled_price,
+                    "filled_amount": maker_result.filled_amount,
+                    "fee": maker_result.fee,
+                }
+                order_type = "limit"
+                price = maker_result.price
+                order_execution_config = {"strategy": "maker_post_only"}
             else:
-                # フォールバック: デフォルト注文タイプ使用
-                order_execution_config = {
-                    "order_type": get_threshold("trading_constraints.default_order_type", "market"),
-                    "price": None,
-                    "strategy": "default",
+                # 指値注文オプション機能（Phase 26）- Taker注文
+                if self.order_strategy:
+                    order_execution_config = await self.order_strategy.get_optimal_execution_config(
+                        evaluation, self.bitbank_client
+                    )
+                else:
+                    # フォールバック: デフォルト注文タイプ使用
+                    order_execution_config = {
+                        "order_type": get_threshold(
+                            "trading_constraints.default_order_type", "market"
+                        ),
+                        "price": None,
+                        "strategy": "default",
+                    }
+
+                order_type = order_execution_config["order_type"]
+                price = order_execution_config.get("price")
+
+                self.logger.info(
+                    f"💰 Bitbank注文実行: {side} {amount} BTC ({order_type}注文)"
+                    + (f" @ {price:.0f}円" if price else "")
+                )
+
+                # 注文パラメータ構築
+                order_params = {
+                    "symbol": symbol,
+                    "side": side,
+                    "order_type": order_type,
+                    "amount": amount,
                 }
 
-            order_type = order_execution_config["order_type"]
-            price = order_execution_config.get("price")
+                # 指値注文の場合は価格を追加
+                if order_type == "limit" and price:
+                    order_params["price"] = price
 
-            self.logger.info(
-                f"💰 Bitbank注文実行: {side} {amount} BTC ({order_type}注文)"
-                + (f" @ {price:.0f}円" if price else "")
-            )
-
-            # 注文パラメータ構築
-            order_params = {
-                "symbol": symbol,
-                "side": side,
-                "order_type": order_type,
-                "amount": amount,
-            }
-
-            # 指値注文の場合は価格を追加
-            if order_type == "limit" and price:
-                order_params["price"] = price
-
-            # 実際の注文実行
-            order_result = self.bitbank_client.create_order(**order_params)
+                # 実際の注文実行
+                order_result = self.bitbank_client.create_order(**order_params)
 
             # 実行結果作成（Phase 32.1: NoneType対策強化）
             result = ExecutionResult(
@@ -1815,3 +1877,205 @@ class ExecutionService:
                             f"❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
                             f"ID: {entry_order_id}, 全{max_retries}回試行失敗, エラー: {e}"
                         )
+
+    # ========================================
+    # Phase 62.9: Maker戦略実装
+    # ========================================
+
+    async def _execute_maker_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        maker_config: Dict[str, Any],
+    ) -> Optional[ExecutionResult]:
+        """
+        Phase 62.9: Maker注文実行（リトライ機構付き）
+
+        Args:
+            symbol: 通貨ペア
+            side: 売買方向
+            amount: 注文数量
+            maker_config: Maker戦略設定（price, best_bid, best_ask等）
+
+        Returns:
+            ExecutionResult: 成功時は約定結果、失敗時はNone
+        """
+        from src.core.exceptions import PostOnlyCancelledException
+
+        config = get_threshold("order_execution.maker_strategy", {})
+        max_retries = config.get("max_retries", 3)
+        retry_interval = config.get("retry_interval_ms", 500) / 1000
+        timeout = config.get("timeout_seconds", 30)
+        tick = config.get("price_adjustment_tick", 1)
+        max_adj = config.get("max_price_adjustment_ratio", 0.001)
+
+        initial_price = maker_config.get("price", 0)
+        if initial_price <= 0:
+            self.logger.warning("⚠️ Phase 62.9: Maker価格が無効")
+            return None
+
+        current_price = initial_price
+        start = datetime.now()
+
+        for attempt in range(max_retries):
+            elapsed = (datetime.now() - start).total_seconds()
+            if elapsed >= timeout:
+                self.logger.warning(
+                    f"⚠️ Phase 62.9: Makerタイムアウト ({elapsed:.1f}秒 >= {timeout}秒)"
+                )
+                return None
+
+            try:
+                self.logger.info(
+                    f"📡 Phase 62.9: Maker注文試行 {attempt + 1}/{max_retries} - "
+                    f"{side} {amount:.4f} BTC @ {current_price:.0f}円 (post_only)"
+                )
+
+                # post_only指値注文
+                order = self.bitbank_client.create_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type="limit",
+                    amount=amount,
+                    price=current_price,
+                    post_only=True,
+                )
+
+                order_id = order.get("id")
+                if not order_id:
+                    self.logger.warning("⚠️ Phase 62.9: 注文IDなし")
+                    continue
+
+                # 約定待機
+                remaining_timeout = timeout - (datetime.now() - start).total_seconds()
+                filled = await self._wait_for_maker_fill(
+                    order_id, symbol, max(remaining_timeout, 5)
+                )
+
+                if filled:
+                    filled_price = filled.get("price", current_price)
+                    filled_amount = filled.get("amount", amount)
+
+                    self.logger.info(
+                        f"✅ Phase 62.9: Maker約定成功 - "
+                        f"ID: {order_id}, 価格: {filled_price:.0f}円, "
+                        f"手数料: Maker(-0.02%)"
+                    )
+
+                    return ExecutionResult(
+                        success=True,
+                        mode=ExecutionMode.LIVE,
+                        order_id=order_id,
+                        price=filled_price,
+                        amount=filled_amount,
+                        filled_price=filled_price,
+                        filled_amount=filled_amount,
+                        error_message=None,
+                        side=side,
+                        fee=0.0,  # Makerリベートは後で計算
+                        status=OrderStatus.FILLED,
+                        notes="Phase 62.9: Maker約定",
+                    )
+
+                # 未約定 → キャンセル
+                self.logger.info(f"📡 Phase 62.9: 未約定 - 注文キャンセル試行 (ID: {order_id})")
+                try:
+                    await asyncio.to_thread(self.bitbank_client.cancel_order, order_id, symbol)
+                except Exception as cancel_e:
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: キャンセル失敗（約定済みの可能性）: {cancel_e}"
+                    )
+                    # キャンセル失敗=約定済みの可能性があるので再確認
+                    filled = await self._wait_for_maker_fill(order_id, symbol, 2)
+                    if filled:
+                        return ExecutionResult(
+                            success=True,
+                            mode=ExecutionMode.LIVE,
+                            order_id=order_id,
+                            price=filled.get("price", current_price),
+                            amount=filled.get("amount", amount),
+                            filled_price=filled.get("price", current_price),
+                            filled_amount=filled.get("amount", amount),
+                            error_message=None,
+                            side=side,
+                            fee=0.0,
+                            status=OrderStatus.FILLED,
+                            notes="Phase 62.9: Maker約定（キャンセル後確認）",
+                        )
+
+            except PostOnlyCancelledException as e:
+                self.logger.info(f"📡 Phase 62.9: post_onlyキャンセル（価格調整） - {e}")
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 62.9: Maker注文エラー: {e}")
+
+            # 価格調整（不利側へ1tick）
+            if side.lower() == "buy":
+                current_price += tick  # 買いは高く
+                if current_price > initial_price * (1 + max_adj):
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
+                    )
+                    return None
+            else:
+                current_price -= tick  # 売りは安く
+                if current_price < initial_price * (1 - max_adj):
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
+                    )
+                    return None
+
+            await asyncio.sleep(retry_interval)
+
+        self.logger.warning(f"⚠️ Phase 62.9: 最大リトライ回数到達 ({max_retries}回)")
+        return None
+
+    async def _wait_for_maker_fill(
+        self,
+        order_id: str,
+        symbol: str,
+        timeout: float,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Phase 62.9: Maker注文の約定待機
+
+        Args:
+            order_id: 注文ID
+            symbol: 通貨ペア
+            timeout: タイムアウト秒数
+
+        Returns:
+            Dict: 約定情報（約定時）、None（未約定時）
+        """
+        check_interval = 0.5  # 500ms間隔でチェック
+        start = datetime.now()
+
+        while (datetime.now() - start).total_seconds() < timeout:
+            try:
+                order = await asyncio.to_thread(self.bitbank_client.fetch_order, order_id, symbol)
+
+                if order:
+                    status = order.get("status", "").lower()
+                    filled_amount = float(order.get("filled", 0))
+                    order_amount = float(order.get("amount", 0))
+
+                    # 完全約定
+                    if status == "closed" or (
+                        filled_amount > 0 and filled_amount >= order_amount * 0.99
+                    ):
+                        return {
+                            "price": float(order.get("average", order.get("price", 0))),
+                            "amount": filled_amount,
+                        }
+
+                    # キャンセル済み
+                    if status == "canceled":
+                        return None
+
+            except Exception as e:
+                self.logger.debug(f"📡 Phase 62.9: 注文状態確認エラー: {e}")
+
+            await asyncio.sleep(check_interval)
+
+        return None
