@@ -236,11 +236,58 @@ class TradeTracker:
 
         return trade
 
+    @staticmethod
+    def calculate_pnl_with_fees(
+        side: str,
+        amount: float,
+        entry_price: float,
+        exit_price: float,
+        include_fees: bool = True,
+    ) -> float:
+        """
+        Phase 62.11: 手数料込み損益計算（唯一の計算箇所）
+
+        バックテストの損益計算を統一するための公開メソッド。
+        backtest_runner.pyとreporter.pyの両方からこのメソッドを使用することで、
+        手数料計算の二重化バグを防止。
+
+        Args:
+            side: "buy" or "sell"
+            amount: 数量
+            entry_price: エントリー価格
+            exit_price: エグジット価格
+            include_fees: 手数料を含めるか（デフォルト: True）
+
+        Returns:
+            損益（円）- 手数料込み（include_fees=Trueの場合）
+        """
+        # 基本損益計算
+        if side.lower() == "buy":
+            # ロング: (エグジット価格 - エントリー価格) × 数量
+            gross_pnl = (exit_price - entry_price) * amount
+        else:
+            # ショート: (エントリー価格 - エグジット価格) × 数量
+            gross_pnl = (entry_price - exit_price) * amount
+
+        if not include_fees:
+            return gross_pnl
+
+        # Phase 62.7: Taker手数料（往復）
+        # Taker 0.12% × 2（往復）= 0.24%
+        fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
+        entry_fee = entry_price * amount * fee_rate
+        exit_fee = exit_price * amount * fee_rate
+
+        return gross_pnl - entry_fee - exit_fee
+
     def _calculate_pnl(
         self, side: str, amount: float, entry_price: float, exit_price: float
     ) -> float:
         """
-        損益計算（Phase 62.7: Taker手数料込み）
+        損益計算（Phase 62.11: calculate_pnl_with_feesに委譲）
+
+        後方互換性のためのラッパーメソッド。
+        内部的にはcalculate_pnl_with_fees()を呼び出す。
 
         Args:
             side: "buy" or "sell"
@@ -251,21 +298,13 @@ class TradeTracker:
         Returns:
             損益（円）- 手数料込み
         """
-        # 基本損益計算
-        if side == "buy":
-            # ロング: (エグジット価格 - エントリー価格) × 数量
-            gross_pnl = (exit_price - entry_price) * amount
-        else:
-            # ショート: (エントリー価格 - エグジット価格) × 数量
-            gross_pnl = (entry_price - exit_price) * amount
-
-        # Phase 62.7: Taker手数料（往復）
-        # 修正前: 手数料なし → 修正後: Taker 0.12% × 2（往復）
-        fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
-        entry_fee = entry_price * amount * fee_rate
-        exit_fee = exit_price * amount * fee_rate
-
-        return gross_pnl - entry_fee - exit_fee
+        return TradeTracker.calculate_pnl_with_fees(
+            side=side,
+            amount=amount,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            include_fees=True,
+        )
 
     def get_performance_metrics(self) -> Dict[str, Any]:
         """

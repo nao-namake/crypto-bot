@@ -805,7 +805,11 @@ class BacktestRunner(BaseRunner):
         hold_minutes: float = 0,
     ) -> float:
         """
-        損益計算（Phase 58.6: 手数料・利息追加）
+        損益計算（Phase 62.11: reporter.pyに統一委譲）
+
+        Phase 62.11: 手数料計算二重化バグ修正
+        - 修正前: backtest_runner.pyとreporter.pyで別々の損益計算
+        - 修正後: reporter.pyのcalculate_pnl_with_fees()に委譲 + 利息計算
 
         Args:
             side: エントリーサイド（"buy" or "sell"）
@@ -815,26 +819,26 @@ class BacktestRunner(BaseRunner):
             hold_minutes: 保有時間（分）- 利息計算用
 
         Returns:
-            損益（円）- 手数料リベート・利息込み
+            損益（円）- 手数料・利息込み
         """
-        # 基本損益計算
-        if side == "buy":
-            # ロングポジション決済: (決済価格 - エントリー価格) × 数量
-            pnl = (exit_price - entry_price) * amount
-        else:  # side == "sell"
-            # ショートポジション決済: (エントリー価格 - 決済価格) × 数量
-            pnl = (entry_price - exit_price) * amount
+        from src.backtest.reporter import TradeTracker
 
-        # Phase 62.8: 手数料はreporter.pyで一括計算（多重計算バグ修正）
-        # 修正前: _calculate_pnl()でエントリー手数料控除 → reporter.pyと二重計算
-        # 修正後: 利息コストのみ計算（手数料はreporter.pyで往復一括）
+        # Phase 62.11: 手数料込み損益計算（reporter.pyに委譲）
+        # これによりvirtual_balanceとTradeTrackerの損益が一致
+        pnl_with_fees = TradeTracker.calculate_pnl_with_fees(
+            side=side,
+            amount=amount,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            include_fees=True,
+        )
+
+        # 建玉利息計算（0.04%/日）- backtest_runner固有
         position_value = entry_price * amount
-
-        # 建玉利息（0.04%/日）のみ
         hold_days = hold_minutes / 60 / 24
         interest_cost = position_value * 0.0004 * hold_days
 
-        return pnl - interest_cost
+        return pnl_with_fees - interest_cost
 
     async def _check_tp_sl_triggers(
         self, close_price: float, high_price: float, low_price: float, timestamp

@@ -836,6 +836,146 @@ class TestTradeTrackerMLInfo:
         assert trade["adjusted_confidence"] == 0.80
 
 
+class TestTradeTrackerCalculatePnlWithFees:
+    """Phase 62.11: calculate_pnl_with_fees() メソッドテスト"""
+
+    def test_calculate_pnl_with_fees_buy_profit(self):
+        """ロング利益時の手数料込み損益計算"""
+        # BUY: 15,000,000円でエントリー → 15,100,000円で決済
+        # 粗利益: (15100000 - 15000000) × 0.001 = 100円
+        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
+        # 決済手数料: 15100000 × 0.001 × 0.0012 = 18.12円
+        # 純利益: 100 - 18 - 18.12 = 63.88円
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+            include_fees=True,
+        )
+
+        assert result == pytest.approx(63.88, rel=0.01)
+
+    def test_calculate_pnl_with_fees_buy_loss(self):
+        """ロング損失時の手数料込み損益計算"""
+        # BUY: 15,000,000円でエントリー → 14,900,000円で決済
+        # 粗損失: (14900000 - 15000000) × 0.001 = -100円
+        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
+        # 決済手数料: 14900000 × 0.001 × 0.0012 = 17.88円
+        # 純損失: -100 - 18 - 17.88 = -135.88円
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=14900000,
+            include_fees=True,
+        )
+
+        assert result == pytest.approx(-135.88, rel=0.01)
+
+    def test_calculate_pnl_with_fees_sell_profit(self):
+        """ショート利益時の手数料込み損益計算"""
+        # SELL: 15,000,000円でエントリー → 14,900,000円で決済
+        # 粗利益: (15000000 - 14900000) × 0.001 = 100円
+        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
+        # 決済手数料: 14900000 × 0.001 × 0.0012 = 17.88円
+        # 純利益: 100 - 18 - 17.88 = 64.12円
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="sell",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=14900000,
+            include_fees=True,
+        )
+
+        assert result == pytest.approx(64.12, rel=0.01)
+
+    def test_calculate_pnl_with_fees_sell_loss(self):
+        """ショート損失時の手数料込み損益計算"""
+        # SELL: 15,000,000円でエントリー → 15,100,000円で決済
+        # 粗損失: (15000000 - 15100000) × 0.001 = -100円
+        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
+        # 決済手数料: 15100000 × 0.001 × 0.0012 = 18.12円
+        # 純損失: -100 - 18 - 18.12 = -136.12円
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="sell",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+            include_fees=True,
+        )
+
+        assert result == pytest.approx(-136.12, rel=0.01)
+
+    def test_calculate_pnl_with_fees_no_fees(self):
+        """手数料なしモードのテスト"""
+        # include_fees=Falseの場合、粗利益のみ
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+            include_fees=False,
+        )
+
+        assert result == pytest.approx(100, rel=0.01)
+
+    def test_calculate_pnl_with_fees_case_insensitive(self):
+        """side引数の大文字小文字テスト"""
+        # "BUY" と "buy" が同じ結果になること
+        result_lower = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+        )
+        result_upper = TradeTracker.calculate_pnl_with_fees(
+            side="BUY",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+        )
+
+        assert result_lower == result_upper
+
+    def test_calculate_pnl_with_fees_zero_price_change(self):
+        """価格変動なしの場合（手数料分のみ損失）"""
+        # 価格変動0でも往復手数料0.24%が発生
+        result = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15000000,
+            include_fees=True,
+        )
+
+        # 手数料: 15000000 × 0.001 × 0.0012 × 2 = 36円の損失
+        assert result == pytest.approx(-36, rel=0.01)
+
+    def test_private_calculate_pnl_delegates_to_static(self):
+        """プライベートメソッドが静的メソッドに委譲するテスト"""
+        tracker = TradeTracker()
+
+        # インスタンスメソッド経由
+        result_instance = tracker._calculate_pnl(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+        )
+
+        # 静的メソッド直接
+        result_static = TradeTracker.calculate_pnl_with_fees(
+            side="buy",
+            amount=0.001,
+            entry_price=15000000,
+            exit_price=15100000,
+            include_fees=True,
+        )
+
+        assert result_instance == result_static
+
+
 class TestTradeTrackerInfiniteValues:
     """無限大値のテスト（Phase 57.7）"""
 
