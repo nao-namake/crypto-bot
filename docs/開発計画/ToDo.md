@@ -2,14 +2,36 @@
 
 ## 現在の状態
 
-**Phase 62.12完了** - Maker戦略動作検証
+**Phase 62.11B完了** - バックテスト/ライブ手数料統一
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 62.12: Maker戦略100%正常動作確認 |
-| 手数料 | Maker時: 往復-0.04%（リベート）、Taker時: 往復0.24% |
-| 年間削減効果 | ¥40,000〜84,000（取引量依存） |
+| 最新成果 | Phase 62.11B: バックテストMaker手数料対応完了 |
+| 手数料 | エントリー/TP: Maker -0.02%、SL: Taker 0.12% |
+| バックテスト | ライブと同一の手数料計算に統一 |
 | 固定TP | 500円採用（Phase 61完了時点で決定） |
+
+---
+
+## 完了タスク（Phase 62.11B）
+
+### Phase 62.11B: バックテスト/ライブ手数料統一 ✅完了
+
+**実施日**: 2026年2月4日
+
+**目的**: バックテストをMaker手数料対応にし、ライブと一致させる
+
+**変更内容**:
+1. `thresholds.yaml`: バックテスト手数料をMaker対応
+   - `backtest_entry_rate`: -0.0002（Maker -0.02%リベート）
+   - `backtest_tp_exit_rate`: -0.0002（TP決済 Maker）
+   - `backtest_sl_exit_rate`: 0.0012（SL決済 Taker 0.12%）
+
+2. `reporter.py`: `calculate_pnl_with_fees`にexit_type引数追加
+
+3. `backtest_runner.py`: TP/SL判定をexit_typeに変換
+
+**期待効果**: バックテストPF・損益がMaker手数料反映で改善
 
 ---
 

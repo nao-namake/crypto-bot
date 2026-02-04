@@ -46,6 +46,7 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 | **62.9** | エントリーMaker戦略実装 | ✅完了 |
 | **62.10** | TP決済Maker戦略実装 | ✅完了 |
 | **62.11** | TP手数料計算バグ修正 | ✅完了 |
+| **62.11B** | バックテスト/ライブ手数料統一 | ✅完了 |
 | **62.12** | Maker戦略動作検証 | ✅完了 |
 
 ### 成功基準
@@ -1397,4 +1398,111 @@ Phase 62.11修正により、TP価格距離が約1.5倍（794円→1206円）に
 
 ---
 
-**最終更新**: 2026年2月4日 - Phase 62.12 Maker戦略動作検証完了
+## Phase 62.11B: バックテスト/ライブ手数料統一 ✅完了
+
+### 実施日: 2026年2月4日
+
+### 背景
+
+Phase 62.9-62.10でライブモードがMaker手数料対応になったが、バックテストはTaker手数料のままだった。
+
+| 項目 | バックテスト | ライブモード | 差分 |
+|------|-------------|--------------|------|
+| エントリー | Taker 0.12% | Maker -0.02% | 0.14% |
+| TP決済 | Taker 0.12% | Maker -0.02% | 0.14% |
+| SL決済 | Taker 0.12% | Taker 0.12% | 0% |
+| **往復（TP時）** | **0.24%** | **-0.04%** | **0.28%** |
+
+この差分により、バックテストは実際より悲観的な結果を表示していた。
+
+### 実施内容
+
+**1. thresholds.yaml: バックテスト手数料をMaker対応**
+
+```yaml
+# 変更前
+backtest_entry_rate: 0.0012  # Taker 0.12%
+backtest_exit_rate: 0.0012   # Taker 0.12%
+
+# 変更後
+backtest_entry_rate: -0.0002    # Maker -0.02%（リベート）
+backtest_tp_exit_rate: -0.0002  # TP決済 Maker -0.02%
+backtest_sl_exit_rate: 0.0012   # SL決済 Taker 0.12%
+backtest_exit_rate: 0.0012      # 後方互換用デフォルト
+```
+
+**2. reporter.py: calculate_pnl_with_fees にexit_type引数追加**
+
+```python
+def calculate_pnl_with_fees(
+    side, amount, entry_price, exit_price, include_fees=True, exit_type=None
+):
+    # exit_type="tp" → Maker手数料（リベート）
+    # exit_type="sl" → Taker手数料
+    # exit_type=None → デフォルト（Taker）後方互換
+```
+
+**3. record_exit でexit_reasonからexit_typeを判定**
+
+```python
+if "tp" in exit_reason.lower() or "take" in exit_reason.lower():
+    exit_type = "tp"
+elif "sl" in exit_reason.lower() or "stop" in exit_reason.lower():
+    exit_type = "sl"
+```
+
+**4. backtest_runner.py: _calculate_pnl にexit_type引数追加**
+
+TP/SLトリガー時に適切なexit_typeを渡すように修正。
+
+### 手数料計算例
+
+**TP決済時（BUY 0.01 BTC @ 15,000,000円 → 15,100,000円）**
+
+```
+粗利益: +1000円
+
+変更前（Taker統一）:
+  エントリー手数料: 180円
+  決済手数料: 181円
+  純利益: 1000 - 180 - 181 = 639円
+
+変更後（Maker対応）:
+  エントリーリベート: -30円（利益加算）
+  決済リベート(TP): -30円（利益加算）
+  純利益: 1000 + 30 + 30 = 1060円
+```
+
+**SL決済時（BUY 0.01 BTC @ 15,000,000円 → 14,800,000円）**
+
+```
+粗損失: -2000円
+
+変更前（Taker統一）:
+  エントリー手数料: 180円
+  決済手数料: 178円
+  純損失: -2000 - 180 - 178 = -2358円
+
+変更後（Maker対応）:
+  エントリーリベート: -30円（利益加算）
+  決済手数料(SL): 178円（Taker）
+  純損失: -2000 + 30 - 178 = -2148円
+```
+
+### 期待効果
+
+- バックテストPFがMaker手数料反映で改善
+- バックテスト結果がライブモードと一致
+- より正確なパフォーマンス予測が可能
+
+### テスト修正
+
+手数料計算変更に伴い、以下のテストを更新：
+- `test_reporter.py`: 手数料計算テスト（4件）
+- `test_trade_tracker.py`: 損益計算テスト（8件）
+
+全テスト通過確認済み。
+
+---
+
+**最終更新**: 2026年2月4日 - Phase 62.11B バックテスト/ライブ手数料統一完了
