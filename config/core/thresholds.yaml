@@ -846,7 +846,7 @@ position_management:
     # ========================================
     fixed_amount:
       enabled: true                     # 固定金額TPモード有効化
-      target_net_profit: 500            # Phase 62.11: 500円に統一（Phase 61完了時の決定）
+      target_net_profit: 700            # 700円固定TP（バックテスト比較用）
       include_entry_fee: true           # エントリー手数料を考慮
       include_exit_fee_rebate: true     # 決済リベートを考慮
       include_interest: true            # 利息を考慮
