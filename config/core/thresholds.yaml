@@ -868,21 +868,21 @@ position_management:
         min_profit_ratio: 0.004      # Phase 58.5: 0.8%→0.4%（利息対策・短期決済）
         weekend_ratio: 0.0025        # Phase 58.6: 土日 TP 0.25%（ATR65%対応）
         default_ratio: 1.33
-        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
+        fixed_amount_target: 700     # 700円固定TP（バックテスト比較用）
       normal_range:
         min_profit_ratio: 0.010      # TP 1.0%（RR比1.43:1）
         weekend_ratio: 0.0065        # Phase 58.6: 土日 TP 0.65%
         default_ratio: 1.43
-        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
+        fixed_amount_target: 700     # 700円固定TP（バックテスト比較用）
       trending:
         min_profit_ratio: 0.015      # TP 1.5%（RR比1.50:1）
         weekend_ratio: 0.010         # Phase 58.6: 土日 TP 1.0%
         default_ratio: 1.50
-        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
+        fixed_amount_target: 700     # 700円固定TP（バックテスト比較用）
       high_volatility:
         min_profit_ratio: 0.020      # TP 2.0%（参考値・実際はエントリーなし）
         default_ratio: 1.33
-        fixed_amount_target: 500     # Phase 61.7: 固定金額モード用（比較テスト）
+        fixed_amount_target: 700     # 700円固定TP（バックテスト比較用）
   stop_loss:
     enabled: true
     # Phase 59.6: SL指値化設定（手数料削減）
