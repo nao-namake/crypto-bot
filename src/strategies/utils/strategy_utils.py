@@ -226,16 +226,17 @@ class RiskManager:
             else:
                 interest = 0
 
-            # 決済リベート推定（Maker -0.02%）
+            # Phase 62.11: 決済手数料推定（Taker 0.12%統一）
+            # 修正理由: Maker想定(-0.02%)で計算→実際はTaker(0.12%)で決済され、TP純利益が不足していた
             if config.get("include_exit_fee_rebate", True):
-                exit_fee_rate = config.get("fallback_exit_fee_rate", -0.0002)
-                # exit_fee_rateは負（リベート）なので、absで正の値にして減算
-                exit_fee_rebate = abs(entry_price * amount * exit_fee_rate)
+                exit_fee_rate = config.get("fallback_exit_fee_rate", 0.0012)
+                # Phase 62.11: exit_fee_rateは正（Taker手数料）なので加算
+                exit_fee = entry_price * amount * exit_fee_rate
             else:
-                exit_fee_rebate = 0
+                exit_fee = 0
 
-            # 必要含み益計算
-            required_gross_profit = target_net_profit + entry_fee + interest - exit_fee_rebate
+            # 必要含み益計算（Phase 62.11: 決済手数料を加算に修正）
+            required_gross_profit = target_net_profit + entry_fee + interest + exit_fee
 
             if amount <= 0:
                 logger.warning("⚠️ Phase 61.7: 数量が0以下のためTP計算不可")
@@ -267,13 +268,13 @@ class RiskManager:
                 )
                 return None
 
-            # デバッグログ
+            # デバッグログ（Phase 62.11: 決済手数料に変更）
             logger.info(
-                f"🎯 Phase 61.7: 固定金額TP計算 - "
+                f"🎯 Phase 62.11: 固定金額TP計算 - "
                 f"目標純利益={target_net_profit:.0f}円, "
                 f"エントリー手数料={entry_fee:.0f}円, "
                 f"利息={interest:.0f}円, "
-                f"決済リベート={exit_fee_rebate:.0f}円, "
+                f"決済手数料={exit_fee:.0f}円, "
                 f"必要含み益={required_gross_profit:.0f}円, "
                 f"TP価格={tp_price:.0f}円 ({action})"
             )

@@ -2,14 +2,40 @@
 
 ## 現在の状態
 
-**Phase 62.10完了** - Maker戦略実装完了
+**Phase 62.12完了** - Maker戦略動作検証
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 62.9-62.10: エントリー/TP決済Maker戦略実装完了 |
+| 最新成果 | Phase 62.12: Maker戦略100%正常動作確認 |
 | 手数料 | Maker時: 往復-0.04%（リベート）、Taker時: 往復0.24% |
 | 年間削減効果 | ¥40,000〜84,000（取引量依存） |
 | 固定TP | 500円採用（Phase 61完了時点で決定） |
+
+---
+
+## 完了タスク（Phase 62.11）
+
+### Phase 62.11: 固定金額TP手数料計算バグ修正 ✅完了
+
+**実施日**: 2026年2月4日
+
+**問題**: TP純利益が300-400円程度（500円目標に未達）
+
+**根本原因**:
+- TP計算時: 決済手数料を`-0.02%`（Makerリベート）で計算
+- 決済時: 実際は`0.12%`（Taker）で決済
+- 差分: 約0.14%（約7円/取引）の損失
+
+**修正内容**:
+1. `thresholds.yaml`: `target_net_profit: 1000` → `500`に統一
+2. `thresholds.yaml`: `fallback_exit_fee_rate: -0.0002` → `0.0012`に修正
+3. `strategy_utils.py`: 決済リベート減算 → 決済手数料加算に修正
+
+**変更ファイル**:
+- `config/core/thresholds.yaml`
+- `src/strategies/utils/strategy_utils.py`
+
+**期待効果**: TP純利益が500円±50円に改善
 
 ---
 
@@ -71,31 +97,109 @@
 
 ---
 
-## 短期計画（Phase 62.11-62.12）
+## 完了タスク（Phase 62.12）
 
-### Phase 62.11: SL成行フォールバック
+### Phase 62.12: Maker戦略動作検証 ✅完了
 
-**目的**: 急落時の損失を50%削減
+**実施日**: 2026年2月4日
 
-**現状の問題**:
-- SLが指値のため急落時に約定しない可能性
-- ビットコイン急落時にロスカットリスク
+**調査結果**:
 
-**実装内容**:
-1. SL指値注文の監視機能追加
-2. 一定時間（30秒）約定しない場合に成行変更
-3. 緊急成行実行のログ記録
+| 項目 | 結果 |
+|------|------|
+| エントリーMaker成功 | 4件（100%） |
+| TP Maker配置成功 | 4件（100%） |
+| post_onlyキャンセル | 0件 |
+| Takerフォールバック | 0件 |
+| **結論** | **Maker戦略は正常動作** |
 
-**変更ファイル**:
-- `src/trading/execution/stop_manager.py`
-- `src/trading/position/tracker.py`
+**発見した課題**:
 
-**成功基準**:
-- 急落シナリオでのSL約定率99%以上
+1. **TP純利益問題（Phase 62.11で修正済み）**:
+   - GCPログ: `pnl=263円`, `pnl=306円`（500円目標に未達）
+   - 原因: TP計算時Maker(-0.02%)想定 vs 実際Taker(0.12%)
+   - 修正後: 必要含み益が794円→1206円に増加し、純利益500円を達成
+
+2. **CSV「ポストオンリー」列がFALSE**:
+   - bitbankのCSVは約定結果を出力
+   - post_only属性は注文時の設定であり、約定後CSVには反映されない仕様
+
+**GCPログ確認コマンド**:
+```bash
+# Maker戦略成功確認
+gcloud logging read "textPayload:\"予想手数料: Maker\"" --limit=20
+gcloud logging read "textPayload:\"TP Maker配置成功\"" --limit=20
+
+# exit記録（純利益確認）
+gcloud logging read "textPayload:\"exit記録追加\"" --limit=20
+```
 
 ---
 
-### Phase 62.12: 1年バックテスト並行実施
+## 短期計画（Phase 62.13-62.15）
+
+### Phase 62.13: SLスリッページ対策
+
+**問題**: 取引#7で0.68%のスリッページ発生（-1,581円損失）
+
+**現状**:
+```yaml
+stop_loss:
+  use_native_type: true  # bitbank stop_loss（成行）
+```
+
+**修正案**:
+```yaml
+stop_loss:
+  use_native_type: false  # stop_limit（指値）に変更
+  slippage_buffer: 0.002  # 0.2%バッファ（0.1%→0.2%に拡大）
+```
+
+**変更ファイル**:
+- `config/core/thresholds.yaml`
+
+**期待効果**:
+- スリッページ軽減: 0.68% → 0.2%程度
+- 最大損失軽減: -1,581円 → -800円程度
+
+**リスク**:
+- 急変時に約定しない可能性
+- `slippage_buffer: 0.002`で軽減
+
+**成功基準**:
+- 次回SL発動時にスリッページ0.3%以下
+
+---
+
+### Phase 62.14: SL幅見直し検討（要バックテスト）
+
+**問題**: tight_rangeのSL幅が狭すぎる可能性
+
+**現状**:
+- 設定: tight_range SL 0.3%
+- 実測: 取引#7では0.25%で刈られた
+
+**検討内容**:
+- tight_range: 0.3% → 0.4% への拡大検討
+- バックテストで効果検証
+
+**変更ファイル**:
+- `config/core/thresholds.yaml`
+
+**検証方法**:
+```bash
+# バックテスト実行
+bash scripts/backtest/run_backtest.sh
+python3 scripts/backtest/standard_analysis.py --from-ci
+```
+
+**成功基準**:
+- PF低下なし（または微増）
+- SL発動回数減少
+
+---
+
+### Phase 62.15: 1年バックテスト並行実施
 
 **目的**: 戦略の長期信頼性検証
 
@@ -114,9 +218,9 @@
 
 ---
 
-## 中期計画（Phase 62.13以降）
+## 中期計画（Phase 62.16以降）
 
-### Phase 62.13: WebSocket板情報導入
+### Phase 62.16: WebSocket板情報導入
 
 **目的**: スリッページ削減・約定精度向上
 
@@ -131,7 +235,7 @@
 
 ---
 
-### Phase 62.14: スリッページ分析機能
+### Phase 62.17: スリッページ分析機能
 
 **目的**: 改善点の可視化
 
@@ -304,4 +408,4 @@ gcloud run services describe crypto-bot-service-prod \
 
 ---
 
-**最終更新**: 2026年2月3日 - Phase 62.9-62.10 Maker戦略実装完了
+**最終更新**: 2026年2月4日 - Phase 62.12 Maker戦略動作検証完了
