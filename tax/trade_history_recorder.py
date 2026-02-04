@@ -57,10 +57,22 @@ class TradeHistoryRecorder:
                 pnl REAL,
                 order_id TEXT,
                 notes TEXT,
+                slippage REAL,
+                expected_price REAL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """
         )
+
+        # Phase 62.16: 既存テーブルにslippage, expected_price列がなければ追加
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN slippage REAL")
+        except sqlite3.OperationalError:
+            pass  # 既に存在する場合は無視
+        try:
+            cursor.execute("ALTER TABLE trades ADD COLUMN expected_price REAL")
+        except sqlite3.OperationalError:
+            pass  # 既に存在する場合は無視
 
         # インデックス作成
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON trades(timestamp)")
@@ -79,6 +91,8 @@ class TradeHistoryRecorder:
         pnl: Optional[float] = None,
         order_id: Optional[str] = None,
         notes: Optional[str] = None,
+        slippage: Optional[float] = None,
+        expected_price: Optional[float] = None,
     ) -> int:
         """
         取引記録
@@ -92,6 +106,8 @@ class TradeHistoryRecorder:
             pnl: 損益 (JPY) - exit時のみ
             order_id: 注文ID
             notes: 備考
+            slippage: スリッページ (JPY) - Phase 62.16追加
+            expected_price: 期待約定価格 (JPY) - Phase 62.16追加
 
         Returns:
             int: 記録ID
@@ -103,19 +119,24 @@ class TradeHistoryRecorder:
 
         cursor.execute(
             """
-            INSERT INTO trades (timestamp, trade_type, side, amount, price, fee, pnl, order_id, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO trades (timestamp, trade_type, side, amount, price, fee, pnl, order_id, notes, slippage, expected_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (timestamp, trade_type, side, amount, price, fee, pnl, order_id, notes),
+            (timestamp, trade_type, side, amount, price, fee, pnl, order_id, notes, slippage, expected_price),
         )
 
         record_id = cursor.lastrowid
         conn.commit()
         conn.close()
 
+        # Phase 62.16: スリッページ情報があればログ出力
+        slippage_info = ""
+        if slippage is not None:
+            slippage_info = f", slippage={slippage:.0f}円"
+
         self.logger.debug(
             f"📝 取引記録保存: ID={record_id}, type={trade_type}, side={side}, "
-            f"amount={amount:.8f} BTC, price={price:.0f}円"
+            f"amount={amount:.8f} BTC, price={price:.0f}円{slippage_info}"
         )
 
         return record_id

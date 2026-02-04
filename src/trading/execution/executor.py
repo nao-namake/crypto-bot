@@ -640,8 +640,15 @@ class ExecutionService:
             self.executed_trades += 1
 
             # Phase 47: 取引履歴記録（ライブモード）
+            # Phase 62.16: スリッページ記録追加
             if self.trade_recorder:
                 try:
+                    # Phase 62.16: スリッページ計算（期待価格 vs 約定価格）
+                    expected_price = float(getattr(evaluation, "entry_price", 0)) or price
+                    actual_price = result.filled_price
+                    # スリッページ = 約定価格 - 期待価格（buy時は正が不利、sell時は負が不利）
+                    slippage = actual_price - expected_price if expected_price > 0 else None
+
                     self.trade_recorder.record_trade(
                         trade_type="entry",
                         side=side,
@@ -650,6 +657,8 @@ class ExecutionService:
                         fee=result.fee,
                         order_id=result.order_id,
                         notes=f"Live {order_type}注文 - {order_execution_config.get('strategy', 'default')}",
+                        slippage=slippage,
+                        expected_price=expected_price,
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ 取引履歴記録失敗: {e}")

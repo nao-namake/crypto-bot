@@ -887,8 +887,9 @@ position_management:
   stop_loss:
     enabled: true
     # Phase 59.6: SL指値化設定（手数料削減）
+    # Phase 62.14: スリッページバッファ拡大（約定確実性向上）
     order_type: "stop_limit"         # "stop"（成行）or "stop_limit"（指値）※use_native_type=false時のみ
-    slippage_buffer: 0.001           # 0.1% 指値価格バッファ（stop_limit時のみ）
+    slippage_buffer: 0.002           # Phase 62.14: 0.1%→0.2%（約定確実性向上）
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007            # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false
@@ -897,13 +898,15 @@ position_management:
 
     # ========================================
     # Phase 61.3: SL注文タイプ設定
+    # Phase 62.14: 逆指値指値化（スリッページ対策）
     # ========================================
     # use_native_type: true → bitbank API直接呼び出し（type="stop_loss"）
-    #                        → UIで「損切り」と表示される
-    # use_native_type: false → 従来のstop/stop_limit注文
-    #                        → UIで「逆指値」と表示される
+    #                        → UIで「損切り」と表示される（成行決済）
+    # use_native_type: false → stop_limit注文（指値）
+    #                        → UIで「逆指値」と表示される（指値決済）
+    # Phase 62.14: false推奨（スリッページ抑制、slippage_buffer 0.2%で約定確実性確保）
     # ========================================
-    use_native_type: true
+    use_native_type: false
 
     # ========================================
     # Phase 61.3: 決済注文の約定確認設定
@@ -937,8 +940,8 @@ position_management:
     regime_based:
       enabled: true
       tight_range:
-        max_loss_ratio: 0.003        # Phase 58.5: 0.6%→0.3%（利息対策・短期決済）
-        weekend_ratio: 0.002         # Phase 58.6: 土日 SL 0.2%（ATR65%対応）
+        max_loss_ratio: 0.004        # Phase 62.15: 0.3%→0.4%（SL発動率低下・勝率改善）
+        weekend_ratio: 0.0025        # Phase 62.15: 0.2%→0.25%（平日比62.5%維持）
       normal_range:
         max_loss_ratio: 0.007        # SL 0.7%（RR比1.43:1）
         weekend_ratio: 0.0045        # Phase 58.6: 土日 SL 0.45%

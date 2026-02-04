@@ -2,235 +2,18 @@
 
 ## 現在の状態
 
-**Phase 62.12完了** - Maker戦略動作検証完了
+**Phase 62.16完了** - SL逆指値指値化・SL幅見直し・スリッページ分析機能実装完了
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 62.12: Maker戦略動作検証完了（100%成功率） |
+| 最新成果 | Phase 62.14-16: SL改善・スリッページ分析完了 |
 | 手数料 | エントリー/TP: Maker -0.02%、SL: Taker 0.12% |
-| バックテスト | ライブと同一の手数料計算に統一 |
-| 固定TP | 500円採用（Phase 61完了時点で決定） |
-| **発見した問題** | **ATRフォールバック常時発生（要修正）** |
+| SL注文 | 逆指値指値化（stop_limit、slippage_buffer 0.2%） |
+| SL幅 | tight_range 0.3%→0.4%に拡大 |
 
 ---
 
-## 🚨 Phase 62 残タスク（優先度順）
-
-### Phase 62.13: ATRフォールバック問題修正 ⚠️最優先
-
-**発見日**: 2026年2月4日（ライブモード分析時）
-
-**問題**: TP/SL再計算時にATR取得が常に失敗し、フォールバック値を使用
-
-**GCPログ証跡**:
-```
-ATR取得元=thresholds.yaml[fallback_atr], ATR=500000円
-```
-
-| 項目 | 値 |
-|------|-----|
-| フォールバックATR | **500,000円**（異常に大きい） |
-| 実際のATR推定値 | 約110,000円（0.9%相当） |
-| 発生頻度 | **100%**（全エントリーで発生） |
-
-**影響**:
-- 現在はSL距離0.3%固定が優先されているため直接的な損失はなし
-- ただし、ATRベースのTP/SL計算が機能していない
-
-**調査項目**:
-1. ATR取得が失敗する原因の特定
-2. `require_tpsl_recalculation`設定の確認
-3. データ取得タイミングの検証
-
-**変更ファイル候補**:
-- `src/trading/execution/stop_manager.py`（ATR取得ロジック）
-- `src/features/feature_generator.py`（ATR計算）
-- `config/core/thresholds.yaml`（フォールバック設定）
-
-**成功基準**:
-- GCPログで「ATR取得元=calculated」と表示される
-- ATR値が100,000〜150,000円程度の妥当な値
-
----
-
-### Phase 62.14: SL逆指値指値化（スリッページ対策）
-
-**調査日**: 2026年2月4日
-
-**問題**: SL注文が成行（`stop_loss`タイプ）のため、価格急変時に想定より不利な価格で約定
-
-**スリッページとは**:
-- 注文価格と実際の約定価格の差
-- 例: SL発動価格12,000,000円 → 実約定12,050,000円（5万円のスリッページ）
-- 損切り500円想定が800円になってしまう現象
-
----
-
-#### bitbank API調査結果
-
-| タイプ | 説明 | トリガー価格 | 約定方式 | UI表示 |
-|--------|------|-------------|---------|--------|
-| `stop` | 逆指値成行 | あり | **成行** | 「逆指値」 |
-| `stop_limit` | 逆指値指値 | あり | **指値** | 「逆指値」 |
-| `stop_loss` | 損切り | あり | **成行** | 「損切り」 |
-
-**発見**: `stop_loss`タイプは成行約定。指値約定するには`stop_limit`タイプを使用する必要がある。
-
-**既存実装**: `stop_limit`対応は**Phase 37.5で実装済み**（コード変更不要）
-
----
-
-#### SL Maker対応調査結果（業界全体）
-
-**調査日**: 2026年2月4日
-
-**結論**: SLでMaker約定は**業界全体で実用上不可能**（bitbank固有の制限ではない）
-
-| 取引所 | SL + Post-Only | 備考 |
-|--------|---------------|------|
-| **bitbank** | ❌不可 | `post_only`は`limit`のみ |
-| **Binance** | ❌不可 | `post_only`は`limit`のみ |
-| **Bybit** | ⚠️理論上可能 | Conditional Limit + Post-Only（実用上リスクあり） |
-| **Kraken** | ❌不可 | SLは即時執行 |
-| **Coinbase** | ❌不可 | SLはTaker扱い |
-
-**根本的な矛盾**:
-
-| 要件 | Maker（Post-Only） | SL（ストップロス） |
-|------|-------------------|-------------------|
-| 約定タイミング | 板に並んで待機 | **即座に約定が必要** |
-| 即時約定時 | **キャンセル** | 約定しないと危険 |
-| 目的 | 手数料削減 | **リスク管理（確実な決済）** |
-
-**理由**: SLがトリガーされた時点で価格はすでにSL価格に達しているため、Post-Only注文を出すと即座にマッチ → キャンセル → **SLが機能しない**
-
-**業界の見解**:
-> "TP/SL orders can only be executed with the Allow Taker flag."
-> — Kraken Support
-
-> "The trade-off is that stop-limit orders may not fill at all during fast-moving markets, which defeats the protective purpose of a stop loss."
-> — tastycrypto
-
-**最終判断**: SLはTaker手数料（0.12%）を受け入れ、**確実な決済を優先**
-
-| 項目 | TP | SL |
-|------|-----|-----|
-| Maker対応 | ✅可能 | ❌不可（業界標準） |
-| 手数料 | **-0.02%** | **0.12%** |
-
----
-
-#### 現状設定
-
-```yaml
-stop_loss:
-  use_native_type: true     # stop_lossタイプを使用（成行約定）
-  order_type: "stop_limit"  # ← use_native_type=false時のみ有効（現在未使用）
-  slippage_buffer: 0.001    # 0.1%バッファ
-```
-
----
-
-#### 修正内容
-
-```yaml
-stop_loss:
-  use_native_type: false    # stop_limit（逆指値指値）を使用
-  order_type: "stop_limit"  # 指値約定
-  slippage_buffer: 0.002    # 0.2%バッファ（スリッページ許容幅）
-```
-
-| 設定 | 注文タイプ | 約定方式 | UI表示 |
-|------|----------|---------|--------|
-| 変更前 | `stop_loss` | 成行 | 「損切り」 |
-| **変更後** | `stop_limit` | **指値** | 「逆指値」 |
-
----
-
-#### 変更ファイル
-
-- `config/core/thresholds.yaml`（設定変更のみ、コード変更不要）
-
----
-
-#### 期待効果
-
-- スリッページ軽減: 成行→指値で想定損失に近い約定
-- 最大損失の安定化: 損切り500円想定が800円になる問題を解消
-
----
-
-#### トレードオフ
-
-| 項目 | メリット | デメリット |
-|------|---------|-----------|
-| 約定方式 | 指値約定でスリッページ軽減 | - |
-| UI表示 | - | 「損切り」→「逆指値」に変わる |
-| 約定確実性 | - | 急変時に約定しない可能性（slippage_bufferで軽減） |
-
----
-
-#### リスク軽減策
-
-- `slippage_buffer: 0.002`（0.2%）で約定確実性を確保
-- 例: SL価格12,000,000円 → 指値11,976,000円（0.2%低い価格で指値）
-- これにより、0.2%以内のスリッページなら約定する
-
----
-
-#### 成功基準
-
-- SL発動時のスリッページ0.3%以下
-- GCPログで`stop_limit`注文が正常に発行される
-
-**優先度**: 中（ATRフォールバック修正後）
-
-**実装難易度**: 低（設定変更のみ）
-
----
-
-### Phase 62.15: SL幅見直し検討（要バックテスト）
-
-**問題**: tight_rangeのSL幅0.3%が狭すぎる可能性
-
-**現状**:
-- 設定: tight_range SL 0.3%
-- ATR×2.0 = 約220,000円（1.8%相当）との乖離が大きい
-
-**検討内容**:
-- tight_range: 0.3% → 0.4% への拡大検討
-- バックテストで効果検証
-
-**変更ファイル**:
-- `config/core/thresholds.yaml`
-
-**検証方法**:
-```bash
-# バックテスト実行
-bash scripts/backtest/run_backtest.sh
-python3 scripts/backtest/standard_analysis.py --from-ci
-```
-
-**成功基準**:
-- PF低下なし（または微増）
-- SL発動回数減少
-
-**優先度**: 低（Phase 62.13・62.14完了後）
-
----
-
-### Phase 62.16: スリッページ分析機能
-
-**目的**: スリッページの実態把握・改善点の可視化
-
-**実装内容**:
-- 発注価格 vs 約定価格の記録
-- スリッページ統計レポート
-- 時間帯・取引量との相関分析
-
-**優先度**: 低（情報収集のため）
-
----
+## Phase 62 残タスク（優先度順）
 
 ### Phase 62.17: 1年バックテスト並行実施
 
@@ -257,26 +40,43 @@ python3 scripts/backtest/standard_analysis.py --from-ci
 
 | Phase | 内容 | 優先度 | 難易度 | 状態 |
 |-------|------|--------|--------|------|
-| **62.13** | **ATRフォールバック問題修正** | **🚨最優先** | 中 | 📋未着手 |
-| 62.14 | SL逆指値指値化（スリッページ対策） | 中 | **低（設定のみ）** | 📋未着手 |
-| 62.15 | SL幅見直し検討 | 低 | 低 | 📋未着手 |
-| 62.16 | スリッページ分析機能 | 低 | 中 | 📋未着手 |
-| 62.17 | 1年バックテスト | 低 | 低 | 📋未着手 |
-
-### 調査完了状況
-
-| Phase | 調査 | 実装方針 |
-|-------|------|---------|
-| 62.13 | 📋未着手 | ATR取得失敗原因の特定が必要 |
-| **62.14** | **✅完了** | `use_native_type: false`に変更（設定のみ） |
-| 62.15 | 📋未着手 | バックテスト検証が必要 |
+| **62.17** | 1年バックテスト | 低 | 低 | 📋未着手 |
 
 ---
 
-## 完了タスク（Phase 62.1-62.12）
+## 完了タスク（Phase 62.1-62.16）
 
 <details>
 <summary>クリックして展開</summary>
+
+### Phase 62.14-62.16: SL改善・スリッページ分析 ✅完了
+
+**実施日**: 2026年2月5日
+
+**Phase 62.14: SL逆指値指値化**
+- `use_native_type: false` に変更（stop_limit使用）
+- `slippage_buffer: 0.002` に拡大（0.2%で約定確実性確保）
+
+**Phase 62.15: SL幅見直し**
+- tight_range: `max_loss_ratio: 0.004`（0.3%→0.4%）
+- weekend_ratio: 0.0025（平日比62.5%維持）
+
+**Phase 62.16: スリッページ分析機能**
+- TradeHistoryRecorderにslippage/expected_priceフィールド追加
+- executor.pyでエントリー時スリッページ記録
+- standard_analysis.pyにスリッページ統計レポート追加
+
+---
+
+### Phase 62.13: ATRフォールバック問題修正 ✅完了
+
+**実施日**: 2026年2月5日
+
+- executor.py: Level 0追加（atr_current直接参照）
+- thresholds.yaml: `fallback_atr: 500000` → `120000`
+- standard_analysis.py: ATR取得状況の検知・レポート機能追加
+
+---
 
 ### Phase 62.11B: バックテスト/ライブ手数料統一 ✅完了
 
@@ -423,7 +223,7 @@ bash scripts/backtest/run_backtest.sh
 ### ライブモード確認
 
 ```bash
-# 標準分析（24時間）- Maker戦略確認含む
+# 標準分析（24時間）- Maker戦略・スリッページ分析含む
 python3 scripts/live/standard_analysis.py
 
 # 期間指定
@@ -438,16 +238,6 @@ gcloud run services describe crypto-bot-service-prod \
   --format="value(status.conditions[0].status)"
 ```
 
-### ATRフォールバック確認
-
-```bash
-# ATR取得元の確認
-gcloud logging read "textPayload:\"ATR取得元\"" --limit=10
-
-# 期待される正常ログ
-# ATR取得元=calculated, ATR=110000円
-```
-
 ---
 
 ## 関連ファイル
@@ -458,9 +248,9 @@ gcloud logging read "textPayload:\"ATR取得元\"" --limit=10
 | `docs/開発履歴/Phase_61.md` | Phase 61完了記録 |
 | `docs/開発履歴/SUMMARY.md` | 全Phase総括 |
 | `config/core/thresholds.yaml` | 戦略閾値・TP/SL・Maker戦略設定 |
-| `scripts/live/standard_analysis.py` | ライブ分析（Maker戦略確認含む） |
+| `scripts/live/standard_analysis.py` | ライブ分析（Maker戦略・スリッページ分析含む） |
 | `CLAUDE.md` | 開発ガイド |
 
 ---
 
-**最終更新**: 2026年2月4日 - Phase 62.14調査完了（SL Maker不可は業界標準・stop_limitでスリッページ対策のみ実施）
+**最終更新**: 2026年2月5日 - Phase 62.14-16完了（SL逆指値指値化・SL幅見直し・スリッページ分析）
