@@ -444,6 +444,10 @@ class BotFunctionCheckResult:
     tp_maker_fallback_count: int = 0
     tp_post_only_cancelled_count: int = 0
 
+    # Phase 62.13: ATRフォールバック検知
+    atr_success_count: int = 0  # ATR取得成功数
+    atr_fallback_count: int = 0  # フォールバックATR使用数
+
     # スコア
     normal_checks: int = 0
     warning_issues: int = 0
@@ -480,6 +484,7 @@ class BotFunctionChecker:
         self._check_kelly_criterion()
         self._check_atomic_entry()
         self._check_maker_strategy()  # Phase 62.9-62.10
+        self._check_atr_fallback()  # Phase 62.13
 
         # 総合スコア計算
         self.result.total_score = (
@@ -680,6 +685,42 @@ class BotFunctionChecker:
         else:
             # Maker戦略の動作記録なし（まだ取引がない可能性）
             self.logger.info("ℹ️ Maker戦略: 動作記録なし（取引なし or 未有効化）")
+
+    def _check_atr_fallback(self):
+        """Phase 62.13: ATRフォールバック検知"""
+        self.logger.info("📊 Phase 62.13: ATRフォールバック検知")
+
+        # ATR取得成功数（Phase 62.13の新ログ）
+        self.result.atr_success_count = self._count_logs(
+            'textPayload:"Phase 62.13: ATR取得成功"', 20
+        )
+
+        # フォールバックATR使用数（既存のログ）
+        self.result.atr_fallback_count = self._count_logs(
+            'textPayload:"Phase 51.5-C: フォールバックATR使用"', 20
+        )
+
+        total = self.result.atr_success_count + self.result.atr_fallback_count
+        if total > 0:
+            success_rate = self.result.atr_success_count / total * 100
+            self.logger.info(
+                f"📊 ATR取得統計 - 成功: {self.result.atr_success_count}回, "
+                f"フォールバック: {self.result.atr_fallback_count}回 ({success_rate:.0f}%成功)"
+            )
+
+            # 100%成功なら正常
+            if success_rate == 100:
+                self.result.normal_checks += 1
+            # 80%以上なら警告
+            elif success_rate >= 80:
+                self.result.warning_issues += 1
+            # 80%未満なら致命的
+            else:
+                self.result.critical_issues += 1
+                self.logger.warning(f"⚠️ ATRフォールバック多発: {self.result.atr_fallback_count}回")
+        else:
+            # 記録なし（まだTP/SL再計算が発生していない）
+            self.logger.info("ℹ️ ATR取得: 記録なし（TP/SL再計算未発生）")
 
 
 @dataclass
@@ -1946,6 +1987,23 @@ def _generate_diagnostic_markdown(
                 "",
                 f"**推定手数料削減効果**: ¥{estimated_savings:,.0f} "
                 f"(Maker成功{bot_result.entry_maker_success_count + bot_result.tp_maker_success_count}回 × 0.14% × 100万円)",
+            ]
+        )
+
+    # Phase 62.13: ATRフォールバック統計
+    atr_total = bot_result.atr_success_count + bot_result.atr_fallback_count
+    if atr_total > 0:
+        atr_success_rate = bot_result.atr_success_count / atr_total * 100
+        atr_status = "✅" if atr_success_rate == 100 else ("⚠️" if atr_success_rate >= 80 else "❌")
+        lines.extend(
+            [
+                "",
+                "### Phase 62.13: ATR取得状況",
+                "",
+                f"| 項目 | 回数 | 状態 |",
+                f"|------|------|------|",
+                f"| ATR取得成功 | {bot_result.atr_success_count}回 | {atr_status} ({atr_success_rate:.0f}%) |",
+                f"| フォールバック使用 | {bot_result.atr_fallback_count}回 | - |",
             ]
         )
 

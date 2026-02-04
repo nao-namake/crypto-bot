@@ -753,7 +753,8 @@ risk:
   reserve_ratio: 0.5         # Phase 57: 0.7 → 0.5（reserve 50%）
 
   # Phase 51.5-C: TP/SL再計算フォールバック設定
-  fallback_atr: 500000                   # ATR取得失敗時のフォールバックATR値（500,000円）
+  # Phase 62.13: 500000→120000に修正（BTC 1400万円時の妥当なATR値）
+  fallback_atr: 120000                   # ATR取得失敗時のフォールバックATR値
   require_tpsl_recalculation: true       # TP/SL再計算必須化（false時は元のTP/SL使用）
 
 # ========================================

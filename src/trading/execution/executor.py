@@ -1414,9 +1414,17 @@ class ExecutionService:
             atr_history = None
             atr_source = None  # デバッグ用：ATR取得元
 
+            # Phase 62.13: Level 0（最優先）- market_conditions["atr_current"]から直接取得
+            # RiskManager.evaluate_trade_opportunity()で既に計算・格納済みの値を使用
+            atr_current_value = market_conditions.get("atr_current")
+            if atr_current_value and atr_current_value > 0:
+                current_atr = float(atr_current_value)
+                atr_source = "market_conditions[atr_current]"
+                self.logger.info(f"📊 Phase 62.13: ATR取得成功 - atr_current={current_atr:.0f}円")
+
             # Phase 51.5-C → Phase 61.6: 2段階ATRフォールバック（Level 2削除）
-            # Level 1: evaluation.market_conditions から取得（既存）
-            if "15m" in market_data:
+            # Level 1: evaluation.market_conditions から取得（後方互換）
+            if not current_atr and "15m" in market_data:
                 df_15m = market_data["15m"]
                 if "atr_14" in df_15m.columns and len(df_15m) > 0:
                     current_atr = float(df_15m["atr_14"].iloc[-1])
