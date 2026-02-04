@@ -160,7 +160,7 @@ class TradeTracker:
         self, order_id: str, exit_price: float, exit_timestamp, exit_reason: str = "unknown"
     ) -> Optional[Dict]:
         """
-        エグジット注文記録・損益計算
+        エグジット注文記録・損益計算（Phase 62.11B: TP/SL別手数料対応）
 
         Args:
             order_id: エントリー注文ID
@@ -177,8 +177,22 @@ class TradeTracker:
 
         entry = self.open_entries.pop(order_id)
 
-        # 損益計算
-        pnl = self._calculate_pnl(entry["side"], entry["amount"], entry["entry_price"], exit_price)
+        # Phase 62.11B: exit_reasonからexit_typeを判定
+        exit_reason_lower = exit_reason.lower()
+        if "tp" in exit_reason_lower or "take" in exit_reason_lower or "利確" in exit_reason_lower:
+            exit_type = "tp"
+        elif (
+            "sl" in exit_reason_lower or "stop" in exit_reason_lower or "損切" in exit_reason_lower
+        ):
+            exit_type = "sl"
+        else:
+            # 強制決済等はデフォルト（Taker）
+            exit_type = None
+
+        # 損益計算（Phase 62.11B: exit_type対応）
+        pnl = self._calculate_pnl(
+            entry["side"], entry["amount"], entry["entry_price"], exit_price, exit_type
+        )
 
         # 保有期間計算（分単位）- Phase 51.4-Day2追加
         if hasattr(entry["entry_timestamp"], "timestamp"):
@@ -243,13 +257,19 @@ class TradeTracker:
         entry_price: float,
         exit_price: float,
         include_fees: bool = True,
+        exit_type: str = None,
     ) -> float:
         """
-        Phase 62.11: 手数料込み損益計算（唯一の計算箇所）
+        Phase 62.11B: 手数料込み損益計算（TP/SL別手数料対応）
 
         バックテストの損益計算を統一するための公開メソッド。
         backtest_runner.pyとreporter.pyの両方からこのメソッドを使用することで、
         手数料計算の二重化バグを防止。
+
+        Phase 62.11B: Maker戦略対応
+        - エントリー: Maker -0.02%（リベート）
+        - TP決済: Maker -0.02%（リベート）
+        - SL決済: Taker 0.12%
 
         Args:
             side: "buy" or "sell"
@@ -257,6 +277,7 @@ class TradeTracker:
             entry_price: エントリー価格
             exit_price: エグジット価格
             include_fees: 手数料を含めるか（デフォルト: True）
+            exit_type: 決済タイプ "tp" / "sl" / None（デフォルト=Taker）
 
         Returns:
             損益（円）- 手数料込み（include_fees=Trueの場合）
@@ -272,19 +293,38 @@ class TradeTracker:
         if not include_fees:
             return gross_pnl
 
-        # Phase 62.7: Taker手数料（往復）
-        # Taker 0.12% × 2（往復）= 0.24%
-        fee_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0012)  # Taker 0.12%
-        entry_fee = entry_price * amount * fee_rate
-        exit_fee = exit_price * amount * fee_rate
+        # Phase 62.11B: エントリー手数料（Maker -0.02%）
+        entry_rate = get_threshold("trading.fees.backtest_entry_rate", -0.0002)
+        entry_fee = entry_price * amount * entry_rate
 
+        # Phase 62.11B: 決済手数料（TP/SL別）
+        if exit_type == "tp":
+            # TP: Maker -0.02%（リベート）
+            exit_rate = get_threshold("trading.fees.backtest_tp_exit_rate", -0.0002)
+        elif exit_type == "sl":
+            # SL: Taker 0.12%
+            exit_rate = get_threshold("trading.fees.backtest_sl_exit_rate", 0.0012)
+        else:
+            # デフォルト（後方互換）: Taker 0.12%
+            exit_rate = get_threshold("trading.fees.backtest_exit_rate", 0.0012)
+
+        exit_fee = exit_price * amount * exit_rate
+
+        # 手数料計算
+        # 負の値（リベート）の場合: 加算（利益増加）
+        # 正の値（手数料）の場合: 減算（利益減少）
         return gross_pnl - entry_fee - exit_fee
 
     def _calculate_pnl(
-        self, side: str, amount: float, entry_price: float, exit_price: float
+        self,
+        side: str,
+        amount: float,
+        entry_price: float,
+        exit_price: float,
+        exit_type: str = None,
     ) -> float:
         """
-        損益計算（Phase 62.11: calculate_pnl_with_feesに委譲）
+        損益計算（Phase 62.11B: TP/SL別手数料対応）
 
         後方互換性のためのラッパーメソッド。
         内部的にはcalculate_pnl_with_fees()を呼び出す。
@@ -294,6 +334,7 @@ class TradeTracker:
             amount: 数量
             entry_price: エントリー価格
             exit_price: エグジット価格
+            exit_type: 決済タイプ "tp" / "sl" / None（デフォルト=Taker）
 
         Returns:
             損益（円）- 手数料込み
@@ -304,6 +345,7 @@ class TradeTracker:
             entry_price=entry_price,
             exit_price=exit_price,
             include_fees=True,
+            exit_type=exit_type,
         )
 
     def get_performance_metrics(self) -> Dict[str, Any]:

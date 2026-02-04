@@ -484,25 +484,27 @@ class TestTradeTrackerMaxDrawdown:
         assert dd_pct == 0.0
 
     def test_max_drawdown_with_loss(self):
-        """損失ありのDD計算（Phase 62.7: 手数料込み）"""
+        """損失ありのDD計算（Phase 62.11B: Maker手数料対応）"""
         tracker = TradeTracker()
 
         # 勝ち→負け→勝ち（手数料込み損益）
-        # Phase 62.7: Taker手数料 0.12%×2（往復）が適用される
+        # Phase 62.11B: エントリーMaker(-0.02%)、TP決済Maker(-0.02%)、SL決済Taker(0.12%)
         tracker.record_entry("t1", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t1", 15100000, datetime.now(), "TP")  # 粗利+1000 - 手数料361 = +639
+        tracker.record_exit("t1", 15100000, datetime.now(), "TP")
+        # t1: 粗利+1000 + エントリーリベート30 + 決済リベート30.2 = +1060円
 
         tracker.record_entry("t2", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t2", 14800000, datetime.now(), "SL")  # 粗損-2000 - 手数料358 = -2358
+        tracker.record_exit("t2", 14800000, datetime.now(), "SL")
+        # t2: 粗損-2000 + エントリーリベート30 - 決済Taker177.6 = -2148円
 
         tracker.record_entry("t3", "buy", 0.01, 15000000, datetime.now(), "Test")
-        tracker.record_exit("t3", 15100000, datetime.now(), "TP")  # +639
+        tracker.record_exit("t3", 15100000, datetime.now(), "TP")  # +1060円
 
         dd, dd_pct = tracker._calculate_max_drawdown()
 
-        # Phase 62.7: ピーク+639から最低-1719まで = DD約2358
-        # 累積: +639 → -1719 → -1080
-        assert dd == pytest.approx(2358, rel=0.01)
+        # Phase 62.11B: 累積 +1060 → -1087 → -27
+        # ピーク+1060から最低-1087まで = DD約2147
+        assert dd == pytest.approx(2147, rel=0.01)
         assert dd_pct > 0
 
 
@@ -531,20 +533,20 @@ class TestTradeTrackerMFEMAEStatistics:
         assert result["avg_mfe"] == 0.0
 
     def test_mfe_mae_capture_ratio(self):
-        """MFE捕捉率計算（Phase 62.7: 手数料込み）"""
+        """MFE捕捉率計算（Phase 62.11B: Maker手数料対応）"""
         tracker = TradeTracker()
 
-        # Phase 62.7: 手数料込みでMFE捕捉率を計算
-        # MFE: (15200000 - 15000000) × 0.001 = +200円（手数料前）
-        # 実際PnL: +100円 - 手数料36円 = +64円
+        # Phase 62.11B: Maker手数料込みでMFE捕捉率を計算
+        # MFE: (15200000 - 15000000) × 0.001 = +200円（手数料前の含み益）
+        # 実際PnL: +100円 + エントリーリベート3円 + 決済リベート3円 = +106円
         tracker.record_entry("t1", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.update_price_excursions(15200000, 14900000)
         tracker.record_exit("t1", 15100000, datetime.now(), "TP")
 
         result = tracker._calculate_mfe_mae_statistics()
 
-        # Phase 62.7: 実際PnL +64円、MFE 200円 → 捕捉率 32%
-        assert result["mfe_capture_ratio"] == pytest.approx(32.0, rel=0.1)
+        # Phase 62.11B: 実際PnL +106円、MFE 200円 → 捕捉率 53%
+        assert result["mfe_capture_ratio"] == pytest.approx(53.0, rel=0.1)
 
 
 class TestBacktestReporterInit:
@@ -837,15 +839,15 @@ class TestTradeTrackerMLInfo:
 
 
 class TestTradeTrackerCalculatePnlWithFees:
-    """Phase 62.11: calculate_pnl_with_fees() メソッドテスト"""
+    """Phase 62.11B: calculate_pnl_with_fees() メソッドテスト（Maker手数料対応）"""
 
     def test_calculate_pnl_with_fees_buy_profit(self):
-        """ロング利益時の手数料込み損益計算"""
+        """ロング利益時の手数料込み損益計算（Phase 62.11B: Maker対応）"""
         # BUY: 15,000,000円でエントリー → 15,100,000円で決済
         # 粗利益: (15100000 - 15000000) × 0.001 = 100円
-        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
-        # 決済手数料: 15100000 × 0.001 × 0.0012 = 18.12円
-        # 純利益: 100 - 18 - 18.12 = 63.88円
+        # Phase 62.11B: エントリーMakerリベート: 15000000 × 0.001 × (-0.0002) = -3円（利益加算）
+        # 決済手数料（Taker、exit_type=None）: 15100000 × 0.001 × 0.0012 = 18.12円
+        # 純利益: 100 - (-3) - 18.12 = 84.88円
         result = TradeTracker.calculate_pnl_with_fees(
             side="buy",
             amount=0.001,
@@ -854,15 +856,15 @@ class TestTradeTrackerCalculatePnlWithFees:
             include_fees=True,
         )
 
-        assert result == pytest.approx(63.88, rel=0.01)
+        assert result == pytest.approx(84.88, rel=0.01)
 
     def test_calculate_pnl_with_fees_buy_loss(self):
-        """ロング損失時の手数料込み損益計算"""
+        """ロング損失時の手数料込み損益計算（Phase 62.11B: Maker対応）"""
         # BUY: 15,000,000円でエントリー → 14,900,000円で決済
         # 粗損失: (14900000 - 15000000) × 0.001 = -100円
-        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
-        # 決済手数料: 14900000 × 0.001 × 0.0012 = 17.88円
-        # 純損失: -100 - 18 - 17.88 = -135.88円
+        # Phase 62.11B: エントリーMakerリベート: 15000000 × 0.001 × (-0.0002) = -3円（利益加算）
+        # 決済手数料（Taker、exit_type=None）: 14900000 × 0.001 × 0.0012 = 17.88円
+        # 純損失: -100 - (-3) - 17.88 = -114.88円
         result = TradeTracker.calculate_pnl_with_fees(
             side="buy",
             amount=0.001,
@@ -871,15 +873,15 @@ class TestTradeTrackerCalculatePnlWithFees:
             include_fees=True,
         )
 
-        assert result == pytest.approx(-135.88, rel=0.01)
+        assert result == pytest.approx(-114.88, rel=0.01)
 
     def test_calculate_pnl_with_fees_sell_profit(self):
-        """ショート利益時の手数料込み損益計算"""
+        """ショート利益時の手数料込み損益計算（Phase 62.11B: Maker対応）"""
         # SELL: 15,000,000円でエントリー → 14,900,000円で決済
         # 粗利益: (15000000 - 14900000) × 0.001 = 100円
-        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
-        # 決済手数料: 14900000 × 0.001 × 0.0012 = 17.88円
-        # 純利益: 100 - 18 - 17.88 = 64.12円
+        # Phase 62.11B: エントリーMakerリベート: 15000000 × 0.001 × (-0.0002) = -3円（利益加算）
+        # 決済手数料（Taker、exit_type=None）: 14900000 × 0.001 × 0.0012 = 17.88円
+        # 純利益: 100 - (-3) - 17.88 = 85.12円
         result = TradeTracker.calculate_pnl_with_fees(
             side="sell",
             amount=0.001,
@@ -888,15 +890,15 @@ class TestTradeTrackerCalculatePnlWithFees:
             include_fees=True,
         )
 
-        assert result == pytest.approx(64.12, rel=0.01)
+        assert result == pytest.approx(85.12, rel=0.01)
 
     def test_calculate_pnl_with_fees_sell_loss(self):
-        """ショート損失時の手数料込み損益計算"""
+        """ショート損失時の手数料込み損益計算（Phase 62.11B: Maker対応）"""
         # SELL: 15,000,000円でエントリー → 15,100,000円で決済
         # 粗損失: (15000000 - 15100000) × 0.001 = -100円
-        # エントリー手数料: 15000000 × 0.001 × 0.0012 = 18円
-        # 決済手数料: 15100000 × 0.001 × 0.0012 = 18.12円
-        # 純損失: -100 - 18 - 18.12 = -136.12円
+        # Phase 62.11B: エントリーMakerリベート: 15000000 × 0.001 × (-0.0002) = -3円（利益加算）
+        # 決済手数料（Taker、exit_type=None）: 15100000 × 0.001 × 0.0012 = 18.12円
+        # 純損失: -100 - (-3) - 18.12 = -115.12円
         result = TradeTracker.calculate_pnl_with_fees(
             side="sell",
             amount=0.001,
@@ -905,7 +907,7 @@ class TestTradeTrackerCalculatePnlWithFees:
             include_fees=True,
         )
 
-        assert result == pytest.approx(-136.12, rel=0.01)
+        assert result == pytest.approx(-115.12, rel=0.01)
 
     def test_calculate_pnl_with_fees_no_fees(self):
         """手数料なしモードのテスト"""
@@ -939,8 +941,8 @@ class TestTradeTrackerCalculatePnlWithFees:
         assert result_lower == result_upper
 
     def test_calculate_pnl_with_fees_zero_price_change(self):
-        """価格変動なしの場合（手数料分のみ損失）"""
-        # 価格変動0でも往復手数料0.24%が発生
+        """価格変動なしの場合（Phase 62.11B: Maker手数料対応）"""
+        # Phase 62.11B: エントリーMaker(-0.02%)リベート + 決済Taker(0.12%)手数料
         result = TradeTracker.calculate_pnl_with_fees(
             side="buy",
             amount=0.001,
@@ -949,8 +951,10 @@ class TestTradeTrackerCalculatePnlWithFees:
             include_fees=True,
         )
 
-        # 手数料: 15000000 × 0.001 × 0.0012 × 2 = 36円の損失
-        assert result == pytest.approx(-36, rel=0.01)
+        # エントリーリベート: 15000000 × 0.001 × (-0.0002) = -3円（利益加算）
+        # 決済手数料: 15000000 × 0.001 × 0.0012 = 18円
+        # 純損益: 0 - (-3) - 18 = -15円
+        assert result == pytest.approx(-15, rel=0.01)
 
     def test_private_calculate_pnl_delegates_to_static(self):
         """プライベートメソッドが静的メソッドに委譲するテスト"""

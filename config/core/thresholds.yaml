@@ -614,10 +614,14 @@ trading:
     # 実際の計算に使用する設定（本システムは基本的にTaker約定）
     entry_taker_rate: 0.0012    # エントリー Taker 0.12%
     exit_taker_rate: 0.0012     # 決済 Taker 0.12%（TP/SL自動執行）
-    # Phase 62.7: バックテスト用手数料（ライブと同一 = Taker）
-    # 根拠: バックテストとライブの乖離解消（往復0.28%差の修正）
-    backtest_entry_rate: 0.0012 # バックテストエントリー Taker 0.12%
-    backtest_exit_rate: 0.0012  # バックテスト決済 Taker 0.12%
+    # Phase 62.11B: バックテスト用手数料（Maker対応・ライブと統一）
+    # エントリー: Maker -0.02%（リベート）
+    # TP決済: Maker -0.02%（リベート）
+    # SL決済: Taker 0.12%（bitbank APIでSLはpost_only非対応）
+    backtest_entry_rate: -0.0002  # Phase 62.11B: Maker -0.02%（リベート）
+    backtest_tp_exit_rate: -0.0002  # Phase 62.11B: TP決済 Maker -0.02%
+    backtest_sl_exit_rate: 0.0012   # Phase 62.11B: SL決済 Taker 0.12%
+    backtest_exit_rate: 0.0012  # 後方互換用（デフォルト=Taker）
   # Phase 56.6: 資金アロケーション上限（ポジションサイズ計算に使用する残高上限）
   # null/0で無制限（実残高をそのまま使用）、正の値で上限設定
   capital_allocation_limit: 500000.0  # Phase 57.6: 50万円全額使用（年利10%目標）

@@ -803,13 +803,15 @@ class BacktestRunner(BaseRunner):
         exit_price: float,
         amount: float,
         hold_minutes: float = 0,
+        exit_type: str = None,
     ) -> float:
         """
-        損益計算（Phase 62.11: reporter.pyに統一委譲）
+        損益計算（Phase 62.11B: TP/SL別手数料対応）
 
-        Phase 62.11: 手数料計算二重化バグ修正
-        - 修正前: backtest_runner.pyとreporter.pyで別々の損益計算
-        - 修正後: reporter.pyのcalculate_pnl_with_fees()に委譲 + 利息計算
+        Phase 62.11B: Maker戦略対応手数料計算
+        - エントリー: Maker -0.02%（リベート）
+        - TP決済: Maker -0.02%（リベート）
+        - SL決済: Taker 0.12%
 
         Args:
             side: エントリーサイド（"buy" or "sell"）
@@ -817,20 +819,22 @@ class BacktestRunner(BaseRunner):
             exit_price: 決済価格
             amount: 取引量（BTC）
             hold_minutes: 保有時間（分）- 利息計算用
+            exit_type: 決済タイプ "tp" / "sl" / None（デフォルト=Taker）
 
         Returns:
             損益（円）- 手数料・利息込み
         """
         from src.backtest.reporter import TradeTracker
 
-        # Phase 62.11: 手数料込み損益計算（reporter.pyに委譲）
-        # これによりvirtual_balanceとTradeTrackerの損益が一致
+        # Phase 62.11B: 手数料込み損益計算（reporter.pyに委譲）
+        # exit_typeでTP/SL別手数料を適用
         pnl_with_fees = TradeTracker.calculate_pnl_with_fees(
             side=side,
             amount=amount,
             entry_price=entry_price,
             exit_price=exit_price,
             include_fees=True,
+            exit_type=exit_type,
         )
 
         # 建玉利息計算（0.04%/日）- backtest_runner固有
@@ -943,10 +947,13 @@ class BacktestRunner(BaseRunner):
                         if entry_timestamp and timestamp:
                             hold_minutes = (timestamp - entry_timestamp).total_seconds() / 60
 
+                        # Phase 62.11B: exit_type判定（TP/SL別手数料）
+                        exit_type = "tp" if trigger_type == "TP" else "sl"
+
                         # Phase 51.7 Phase 3-2: 仮想残高更新（ライブモード一致化）
-                        # Phase 58.6: 手数料・利息込み損益計算
+                        # Phase 62.11B: TP/SL別手数料対応
                         pnl = self._calculate_pnl(
-                            side, entry_price, exit_price, amount, hold_minutes
+                            side, entry_price, exit_price, amount, hold_minutes, exit_type
                         )
                         self.orchestrator.execution_service.virtual_balance += pnl
                         new_balance = self.orchestrator.execution_service.virtual_balance
@@ -1122,8 +1129,11 @@ class BacktestRunner(BaseRunner):
                     if entry_timestamp and final_timestamp:
                         hold_minutes = (final_timestamp - entry_timestamp).total_seconds() / 60
 
+                    # Phase 62.11B: 強制決済はTaker手数料（exit_type=None）
                     # 損益計算・仮想残高更新（Phase 58.6: 手数料・利息込み）
-                    pnl = self._calculate_pnl(side, entry_price, final_price, amount, hold_minutes)
+                    pnl = self._calculate_pnl(
+                        side, entry_price, final_price, amount, hold_minutes, exit_type=None
+                    )
                     self.orchestrator.execution_service.virtual_balance += pnl
                     new_balance = self.orchestrator.execution_service.virtual_balance
 
