@@ -340,6 +340,10 @@ class ExecutionService:
             sl_price = avg_price * (1 + sl_ratio)
             entry_side = "sell"
 
+        # Phase 62.17: TP/SL注文結果を初期化
+        tp_order = None
+        sl_order = None
+
         # TP配置
         if not has_tp and self.stop_manager:
             try:
@@ -379,18 +383,21 @@ class ExecutionService:
                 self.logger.error(f"❌ Phase 56.5: SL配置失敗: {e}")
 
         # virtual_positionsに追加（ポジション制限管理用）
-        self.virtual_positions.append(
-            {
-                "order_id": f"recovered_{position_side}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "side": entry_side,
-                "amount": amount,
-                "price": avg_price,
-                "timestamp": datetime.now(),
-                "take_profit": tp_price if not has_tp else None,
-                "stop_loss": sl_price if not has_sl else None,
-                "recovered": True,  # 復旧フラグ
-            }
-        )
+        # Phase 62.17: sl_order_id, sl_placed_at追加（stop_limit監視用）
+        recovered_position = {
+            "order_id": f"recovered_{position_side}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "side": entry_side,
+            "amount": amount,
+            "price": avg_price,
+            "timestamp": datetime.now(),
+            "take_profit": tp_price if not has_tp else None,
+            "stop_loss": sl_price if not has_sl else None,
+            "recovered": True,  # 復旧フラグ
+            "tp_order_id": tp_order.get("order_id") if tp_order else None,
+            "sl_order_id": sl_order.get("order_id") if sl_order else None,
+            "sl_placed_at": sl_order.get("sl_placed_at") if sl_order else None,
+        }
+        self.virtual_positions.append(recovered_position)
 
     async def execute_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
@@ -822,6 +829,8 @@ class ExecutionService:
                         raise Exception("SL注文配置失敗（3回リトライ後）")
 
                     sl_order_id = sl_order.get("order_id")
+                    # Phase 62.17: SL配置時刻を取得（タイムアウトチェック用）
+                    sl_placed_at = sl_order.get("sl_placed_at")
                     self.logger.info(
                         f"✅ Phase 51.6 Step 3/3: SL配置成功 - "
                         f"ID: {sl_order_id}, 価格: {final_sl:.0f}円"
@@ -848,6 +857,8 @@ class ExecutionService:
                     # virtual_positionsにも保存（stop_manager互換性維持）
                     live_position["tp_order_id"] = tp_order_id
                     live_position["sl_order_id"] = sl_order_id
+                    # Phase 62.17: SL配置時刻を保存（タイムアウトチェック用）
+                    live_position["sl_placed_at"] = sl_placed_at
 
                 except Exception as e:
                     # Phase 51.6: Atomic Entry失敗 → 全ロールバック
@@ -1307,6 +1318,10 @@ class ExecutionService:
                 if detected:
                     for exec_info in detected:
                         order_id = exec_info.get("order_id")
+                        exec_type = exec_info.get("execution_type", "exit")
+                        strategy_name = exec_info.get("strategy_name", "unknown")
+                        pnl = exec_info.get("pnl", 0)
+
                         if order_id:
                             # order_idでポジション削除
                             self.virtual_positions = [
@@ -1316,30 +1331,40 @@ class ExecutionService:
                                 f"🗑️ Phase 61.9: 自動執行ポジション削除 - order_id={order_id}"
                             )
 
-                            # Phase 61.12: 取引履歴にexit記録を追加
-                            if self.trade_recorder:
-                                try:
-                                    exec_type = exec_info.get("execution_type", "exit")
-                                    # trade_type変換: take_profit→tp, stop_loss→sl
-                                    trade_type = "tp" if exec_type == "take_profit" else "sl"
-                                    exit_side = exec_info.get("side", "unknown")
-                                    # 決済は反対売買なので反転
-                                    record_side = "sell" if exit_side == "buy" else "buy"
+                        # Phase 62.18: 取引履歴にexit記録を追加（order_idがなくても記録）
+                        if self.trade_recorder:
+                            try:
+                                # trade_type変換: take_profit→tp, stop_loss→sl
+                                trade_type = "tp" if exec_type == "take_profit" else "sl"
+                                exit_side = exec_info.get("side", "unknown")
+                                # 決済は反対売買なので反転
+                                record_side = "sell" if exit_side == "buy" else "buy"
 
-                                    self.trade_recorder.record_trade(
-                                        trade_type=trade_type,
-                                        side=record_side,
-                                        amount=exec_info.get("amount", 0),
-                                        price=exec_info.get("exit_price", 0),
-                                        pnl=exec_info.get("pnl", 0),
-                                        order_id=order_id,
-                                        notes=f"Phase 61.12: {exec_type} - {exec_info.get('strategy_name', 'unknown')}",
-                                    )
-                                    self.logger.info(
-                                        f"📝 Phase 61.12: exit記録追加 - type={trade_type}, pnl={exec_info.get('pnl', 0):.0f}円"
-                                    )
-                                except Exception as e:
-                                    self.logger.warning(f"⚠️ Phase 61.12: exit記録失敗: {e}")
+                                # 一意なorder_id生成（なければtp/sl_order_idを使用）
+                                record_order_id = (
+                                    order_id
+                                    or exec_info.get("executed_order_id")
+                                    or f"auto_{exec_type}_{exec_info.get('tp_order_id', '') or exec_info.get('sl_order_id', '')}"
+                                )
+
+                                self.trade_recorder.record_trade(
+                                    trade_type=trade_type,
+                                    side=record_side,
+                                    amount=exec_info.get("amount", 0),
+                                    price=exec_info.get("exit_price", 0),
+                                    pnl=pnl,
+                                    order_id=record_order_id,
+                                    notes=f"Phase 62.18: {exec_type} - {strategy_name}",
+                                )
+                                self.logger.info(
+                                    f"📝 Phase 62.18: exit記録追加 - type={trade_type}, pnl={pnl:.0f}円, strategy={strategy_name}"
+                                )
+                            except Exception as e:
+                                self.logger.warning(f"⚠️ Phase 62.18: exit記録失敗: {e}")
+                        else:
+                            self.logger.warning(
+                                f"⚠️ Phase 62.18: trade_recorder未初期化のためexit記録スキップ"
+                            )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
 

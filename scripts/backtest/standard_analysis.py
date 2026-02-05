@@ -97,6 +97,20 @@ class AnalysisResult:
     tight_range_contribution: float = 0.0
     normal_range_contribution: float = 0.0
 
+    # Phase 62.18: SLパターン分析指標
+    sl_trades: int = 0
+    tp_trades: int = 0
+    sl_straight_loss_count: int = 0  # 一直線損切り（MFE <= 0）
+    sl_small_profit_count: int = 0  # 微益後損切り（0 < MFE < 200）
+    sl_profit_then_loss_count: int = 0  # プラス圏経由（200 <= MFE < 500）
+    sl_tp_reachable_count: int = 0  # 500円以上経由（MFE >= 500）
+    sl_mfe_avg: float = 0.0
+    sl_mfe_median: float = 0.0
+    sl_mfe_max: float = 0.0
+    sl_mae_avg: float = 0.0
+    sl_missed_profit_total: float = 0.0  # 逃した利益合計
+    sl_missed_profit_avg: float = 0.0  # 平均逃した利益
+
 
 class StandardAnalyzer:
     """標準分析クラス"""
@@ -169,6 +183,9 @@ class StandardAnalyzer:
 
         # 改善示唆用指標
         self._calc_improvement_hints()
+
+        # Phase 62.18: SLパターン分析
+        self._calc_sl_pattern_stats()
 
         return self.result
 
@@ -365,6 +382,65 @@ class StandardAnalyzer:
             self.result.tight_range_contribution = tight_pnl / abs(total_pnl) * 100
             self.result.normal_range_contribution = normal_pnl / abs(total_pnl) * 100
 
+    def _calc_sl_pattern_stats(self):
+        """Phase 62.18: SLパターン分析"""
+        # SL/TP分類
+        sl_trades = [t for t in self.trades if t.get("pnl", 0) < 0]
+        tp_trades = [t for t in self.trades if t.get("pnl", 0) >= 0]
+
+        self.result.sl_trades = len(sl_trades)
+        self.result.tp_trades = len(tp_trades)
+
+        if not sl_trades:
+            return
+
+        # TP目標額（thresholds.yamlから取得、フォールバック500円）
+        tp_target = 500.0
+
+        # パターン分類
+        straight_loss = []  # MFE <= 0
+        small_profit = []  # 0 < MFE < 200
+        profit_then_loss = []  # 200 <= MFE < tp_target
+        tp_reachable = []  # MFE >= tp_target
+
+        for trade in sl_trades:
+            mfe = trade.get("mfe", 0) or 0
+            if mfe <= 0:
+                straight_loss.append(trade)
+            elif mfe < 200:
+                small_profit.append(trade)
+            elif mfe < tp_target:
+                profit_then_loss.append(trade)
+            else:
+                tp_reachable.append(trade)
+
+        self.result.sl_straight_loss_count = len(straight_loss)
+        self.result.sl_small_profit_count = len(small_profit)
+        self.result.sl_profit_then_loss_count = len(profit_then_loss)
+        self.result.sl_tp_reachable_count = len(tp_reachable)
+
+        # MFE統計（SL決済のみ）
+        mfe_values = [t.get("mfe", 0) or 0 for t in sl_trades]
+        if mfe_values:
+            self.result.sl_mfe_avg = sum(mfe_values) / len(mfe_values)
+            sorted_mfe = sorted(mfe_values)
+            self.result.sl_mfe_median = sorted_mfe[len(sorted_mfe) // 2]
+            self.result.sl_mfe_max = max(mfe_values)
+
+        # MAE統計（SL決済のみ）
+        mae_values = [t.get("mae", 0) or 0 for t in sl_trades]
+        if mae_values:
+            self.result.sl_mae_avg = sum(mae_values) / len(mae_values)
+
+        # 逃した利益分析（TP到達可能だった取引）
+        if tp_reachable:
+            # 逃した利益 = MFE - 実際のPnL
+            missed_profits = [(t.get("mfe", 0) or 0) - (t.get("pnl", 0) or 0) for t in tp_reachable]
+            self.result.sl_missed_profit_total = sum(missed_profits)
+            self.result.sl_missed_profit_avg = self.result.sl_missed_profit_total / len(
+                tp_reachable
+            )
+
 
 class ReportGenerator:
     """レポート生成クラス"""
@@ -438,6 +514,9 @@ class ReportGenerator:
         print(f"  最大連勝: {r.max_consecutive_wins}回")
         print(f"  最大連敗: {r.max_consecutive_losses}回")
 
+        # Phase 62.18: SLパターン分析
+        self._print_sl_pattern_analysis()
+
         # 改善提案
         print("\n" + "=" * 60)
         print("💡 改善提案（自動生成）")
@@ -489,6 +568,88 @@ class ReportGenerator:
 
         for s in suggestions:
             print(f"  {s}")
+
+    def _print_sl_pattern_analysis(self):
+        """Phase 62.18: SLパターン分析出力"""
+        r = self.result
+
+        if r.sl_trades == 0:
+            return
+
+        print("\n" + "-" * 60)
+        print("📉 SL決済パターン分析")
+        print("-" * 60)
+
+        # 全体サマリー
+        total = r.sl_trades + r.tp_trades
+        sl_rate = (r.sl_trades / total * 100) if total > 0 else 0
+        tp_rate = (r.tp_trades / total * 100) if total > 0 else 0
+        print(f"  SL決済: {r.sl_trades}件 ({sl_rate:.1f}%)")
+        print(f"  TP決済: {r.tp_trades}件 ({tp_rate:.1f}%)")
+
+        # パターン分類
+        print("\n  【パターン分類】")
+        patterns = [
+            ("一直線損切り", r.sl_straight_loss_count, "MFE <= 0"),
+            ("微益後損切り", r.sl_small_profit_count, "0 < MFE < 200"),
+            ("プラス圏経由", r.sl_profit_then_loss_count, "200 <= MFE < 500"),
+            ("500円以上経由", r.sl_tp_reachable_count, "MFE >= 500"),
+        ]
+        for name, count, desc in patterns:
+            rate = (count / r.sl_trades * 100) if r.sl_trades > 0 else 0
+            warning = " ⚠️" if name == "500円以上経由" and count > 0 else ""
+            print(f"    {name}: {count:>3}件 ({rate:>5.1f}%) - {desc}{warning}")
+
+        # MFE/MAE統計
+        print("\n  【MFE/MAE統計（SL決済のみ）】")
+        print(f"    平均MFE: ¥{r.sl_mfe_avg:,.0f}")
+        print(f"    中央値MFE: ¥{r.sl_mfe_median:,.0f}")
+        print(f"    最大MFE: ¥{r.sl_mfe_max:,.0f}")
+        print(f"    平均MAE: ¥{r.sl_mae_avg:,.0f}")
+
+        # 逃した利益
+        if r.sl_tp_reachable_count > 0:
+            print("\n  【逃した利益分析】")
+            print(f"    500円以上MFEでSL決済: {r.sl_tp_reachable_count}件")
+            print(f"    逃した利益合計: ¥{r.sl_missed_profit_total:,.0f}")
+            print(f"    平均逃した利益: ¥{r.sl_missed_profit_avg:,.0f}/件")
+
+        # SL分析からの改善示唆
+        print("\n  【SL分析からの示唆】")
+        sl_suggestions = []
+
+        straight_rate = (r.sl_straight_loss_count / r.sl_trades * 100) if r.sl_trades > 0 else 0
+        if straight_rate > 15:
+            sl_suggestions.append(
+                f"    - 一直線損切り率{straight_rate:.1f}%が高い → エントリー改善余地"
+            )
+
+        tp_reachable_rate = (r.sl_tp_reachable_count / r.sl_trades * 100) if r.sl_trades > 0 else 0
+        if tp_reachable_rate > 10:
+            sl_suggestions.append(
+                f"    - 500円以上経由率{tp_reachable_rate:.1f}%が高い → トレーリングストップ検討"
+            )
+
+        if r.sl_missed_profit_total > 50000:
+            sl_suggestions.append(
+                f"    - 逃した利益¥{r.sl_missed_profit_total:,.0f} → 部分利確が効果的"
+            )
+
+        profit_via_rate = (
+            (r.sl_profit_then_loss_count + r.sl_tp_reachable_count) / r.sl_trades * 100
+            if r.sl_trades > 0
+            else 0
+        )
+        if profit_via_rate > 50:
+            sl_suggestions.append(
+                f"    - プラス圏経由{profit_via_rate:.1f}% → 利確ロジック改善が効果的"
+            )
+
+        if not sl_suggestions:
+            sl_suggestions.append("    - 特に重大な問題なし")
+
+        for s in sl_suggestions:
+            print(s)
 
     def save_json(self, filename: str = None) -> str:
         """JSON出力"""
@@ -792,6 +953,27 @@ class ReportGenerator:
                 "high_confidence_win_rate": r.high_confidence_win_rate,
                 "tight_range_contribution": r.tight_range_contribution,
                 "normal_range_contribution": r.normal_range_contribution,
+            },
+            # Phase 62.18: SLパターン分析
+            "sl_pattern_analysis": {
+                "sl_trades": r.sl_trades,
+                "tp_trades": r.tp_trades,
+                "patterns": {
+                    "straight_loss": r.sl_straight_loss_count,
+                    "small_profit": r.sl_small_profit_count,
+                    "profit_then_loss": r.sl_profit_then_loss_count,
+                    "tp_reachable": r.sl_tp_reachable_count,
+                },
+                "mfe_stats": {
+                    "avg": r.sl_mfe_avg,
+                    "median": r.sl_mfe_median,
+                    "max": r.sl_mfe_max,
+                },
+                "mae_avg": r.sl_mae_avg,
+                "missed_profit": {
+                    "total": r.sl_missed_profit_total,
+                    "avg": r.sl_missed_profit_avg,
+                },
             },
         }
 

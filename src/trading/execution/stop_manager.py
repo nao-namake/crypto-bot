@@ -1,16 +1,17 @@
 """
-ストップ条件管理サービス - Phase 61.3: 約定確認機能追加
+ストップ条件管理サービス - Phase 62.17: stop_limit未約定バグ修正
 Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
 Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
 Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 Phase 61.3: 決済注文の約定確認・リトライ機能
+Phase 62.17: stop_limit未約定バグ修正（Bot側SL監視スキップ・タイムアウトフォールバック）
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
 
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -687,6 +688,9 @@ class StopManager:
         """
         個別ポジションの決済判定
 
+        Phase 62.17: stop_limit配置済みの場合はBot側SL監視をスキップ
+        （bitbankのstop_limitトリガーに任せる）
+
         Args:
             position: ポジション情報
             current_price: 現在価格
@@ -735,8 +739,27 @@ class StopManager:
                         position, current_price, "take_profit", mode, bitbank_client
                     )
 
-            # ストップロスチェック
+            # ========================================
+            # Phase 62.17: stop_limit配置済み時のBot側SL監視スキップ
+            # ========================================
+            # stop_limit注文が配置済みの場合、Bot側のSL監視をスキップし
+            # bitbankのstop_limitトリガーに任せる（二重決済防止）
+            # ========================================
             if sl_config.get("enabled", True) and stop_loss:
+                # Phase 62.17: stop_limit配置済みかチェック
+                skip_bot_sl_monitoring = self._should_skip_bot_sl_monitoring(position, sl_config)
+
+                if skip_bot_sl_monitoring:
+                    # タイムアウトチェック（stop_limitが長時間未約定の場合のフォールバック）
+                    timeout_result = await self._check_stop_limit_timeout(
+                        position, current_price, sl_config, mode, bitbank_client
+                    )
+                    if timeout_result:
+                        return timeout_result
+                    # タイムアウトしていない場合は、bitbankのstop_limitトリガー待機
+                    return None
+
+                # 従来のBot側SLチェック（stop_limit未配置 or stop_limit以外の場合）
                 sl_triggered = False
                 if entry_side.lower() == "buy" and current_price <= float(stop_loss):
                     sl_triggered = True
@@ -757,6 +780,110 @@ class StopManager:
         except Exception as e:
             self.logger.error(f"❌ ポジション決済判定エラー: {e}")
             return None
+
+    def _should_skip_bot_sl_monitoring(
+        self,
+        position: dict,
+        sl_config: dict,
+    ) -> bool:
+        """
+        Phase 62.17: Bot側SL監視をスキップすべきか判定
+
+        stop_limit注文が配置済みで、skip_bot_monitoringが有効な場合は
+        Bot側のSL監視をスキップし、bitbankのトリガーに任せる。
+
+        Args:
+            position: ポジション情報
+            sl_config: SL設定
+
+        Returns:
+            bool: スキップすべき場合はTrue
+        """
+        # skip_bot_monitoringが無効な場合はスキップしない
+        if not sl_config.get("skip_bot_monitoring", True):
+            return False
+
+        # SL注文IDが存在しない場合はスキップしない
+        sl_order_id = position.get("sl_order_id")
+        if not sl_order_id:
+            return False
+
+        # order_typeがstop_limit以外の場合はスキップしない
+        order_type = sl_config.get("order_type", "stop")
+        if order_type != "stop_limit":
+            return False
+
+        self.logger.debug(
+            f"📊 Phase 62.17: stop_limit配置済み - Bot側SL監視スキップ "
+            f"(sl_order_id={sl_order_id})"
+        )
+        return True
+
+    async def _check_stop_limit_timeout(
+        self,
+        position: dict,
+        current_price: float,
+        sl_config: dict,
+        mode: str,
+        bitbank_client: Optional[BitbankClient] = None,
+    ) -> Optional[ExecutionResult]:
+        """
+        Phase 62.17: stop_limitタイムアウトチェック
+
+        stop_limit注文が配置後、一定時間経過しても約定しない場合、
+        成行でフォールバック決済を行う。
+
+        Args:
+            position: ポジション情報
+            current_price: 現在価格
+            sl_config: SL設定
+            mode: 実行モード
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            ExecutionResult: タイムアウト時の決済結果（タイムアウトしていない場合はNone）
+        """
+        # SL配置時刻を取得
+        sl_placed_at = position.get("sl_placed_at")
+        if not sl_placed_at:
+            # 配置時刻が記録されていない場合はタイムアウトチェックスキップ
+            return None
+
+        # タイムアウト秒数を取得
+        timeout_seconds = sl_config.get("stop_limit_timeout", 300)  # デフォルト5分
+
+        # 経過時間を計算
+        if isinstance(sl_placed_at, str):
+            sl_placed_at = datetime.fromisoformat(sl_placed_at.replace("Z", "+00:00"))
+        elif not isinstance(sl_placed_at, datetime):
+            return None
+
+        # タイムゾーン対応
+        now = datetime.now(timezone.utc)
+        if sl_placed_at.tzinfo is None:
+            sl_placed_at = sl_placed_at.replace(tzinfo=timezone.utc)
+
+        elapsed_seconds = (now - sl_placed_at).total_seconds()
+
+        if elapsed_seconds < timeout_seconds:
+            # タイムアウトしていない
+            return None
+
+        # タイムアウト発生 - フォールバック決済
+        entry_side = position.get("side", "")
+        amount = float(position.get("amount", 0))
+        stop_loss = position.get("stop_loss")
+
+        self.logger.warning(
+            f"⚠️ Phase 62.17: stop_limitタイムアウト ({elapsed_seconds:.0f}秒経過) - "
+            f"成行フォールバック実行 "
+            f"({entry_side} {amount:.6f} BTC, SL: {stop_loss:.0f}円, 現在: {current_price:.0f}円)"
+        )
+
+        # 成行でフォールバック決済
+        return await self._execute_position_exit(
+            position, current_price, "stop_loss_timeout", mode, bitbank_client
+        )
 
     async def _execute_position_exit(
         self,
@@ -925,11 +1052,19 @@ class StopManager:
                 timestamp=datetime.now(),
             )
 
-            # ログ出力
+            # ログ出力（Phase 62.17: 決済理由の詳細化）
             pnl_status = "利益" if pnl > 0 else "損失"
+            exit_reason_display = {
+                "take_profit": "TP到達",
+                "stop_loss": "SL到達",
+                "stop_loss_timeout": "SLタイムアウト",
+                "emergency": "緊急決済",
+            }.get(exit_reason, exit_reason)
+
             self.logger.info(
-                f"🔄 ポジション決済完了: {exit_side} {amount} BTC @ {current_price:.0f}円 "
-                f"({exit_reason}) {pnl_status}:{pnl:+.0f}円"
+                f"🔄 ポジション決済完了: {exit_side} {amount:.6f} BTC @ {current_price:.0f}円 "
+                f"(理由: {exit_reason_display}, エントリー: {entry_price:.0f}円) "
+                f"{pnl_status}:{pnl:+.0f}円"
             )
 
             return result
@@ -1580,6 +1715,7 @@ class StopManager:
     ) -> Optional[Dict[str, Any]]:
         """
         個別SL注文配置（Phase 51.6強化: SL価格検証・エラー30101対策）
+        Phase 62.17: sl_placed_at追加（タイムアウトチェック用）
 
         Args:
             side: エントリーサイド (buy/sell)
@@ -1590,7 +1726,7 @@ class StopManager:
             bitbank_client: BitbankClientインスタンス
 
         Returns:
-            Dict: SL注文情報 {"order_id": str, "price": float} or None
+            Dict: SL注文情報 {"order_id": str, "price": float, "sl_placed_at": str} or None
         """
         try:
             sl_config = get_threshold("position_management.stop_loss", {})
@@ -1677,6 +1813,9 @@ class StopManager:
                     f"サイド={side}, 数量={amount:.6f} BTC, SL価格={stop_loss_price:.0f}円"
                 )
 
+            # Phase 62.17: SL配置時刻を記録（タイムアウトチェック用）
+            sl_placed_at = datetime.now(timezone.utc).isoformat()
+
             self.logger.info(
                 f"✅ Phase 46: 個別SL配置成功 - ID: {order_id}, "
                 f"サイド: {side}, 数量: {amount:.6f} BTC, SL価格: {stop_loss_price:.0f}円",
@@ -1688,7 +1827,11 @@ class StopManager:
                 },
             )
 
-            return {"order_id": order_id, "price": stop_loss_price}
+            return {
+                "order_id": order_id,
+                "price": stop_loss_price,
+                "sl_placed_at": sl_placed_at,  # Phase 62.17: タイムアウトチェック用
+            }
 
         except Exception as e:
             error_message = str(e)

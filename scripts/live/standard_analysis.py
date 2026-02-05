@@ -795,6 +795,18 @@ class LiveAnalysisResult:
     slippage_entry_avg: float = 0.0  # エントリー時平均スリッページ
     slippage_exit_avg: float = 0.0  # 決済時平均スリッページ
 
+    # Phase 62.18: SLパターン分析（GCPログベース）
+    sl_pattern_total_executions: int = 0
+    sl_pattern_tp_count: int = 0
+    sl_pattern_sl_count: int = 0
+    sl_pattern_sl_pnl_total: float = 0.0
+    sl_pattern_sl_pnl_avg: float = 0.0
+    sl_pattern_tp_pnl_total: float = 0.0
+    sl_pattern_tp_pnl_avg: float = 0.0
+    sl_pattern_strategy_stats: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    sl_pattern_hourly_stats: Dict[int, int] = field(default_factory=dict)
+    sl_pattern_weekday_stats: Dict[str, int] = field(default_factory=dict)
+
 
 class LiveAnalyzer:
     """ライブモード標準分析"""
@@ -845,6 +857,8 @@ class LiveAnalyzer:
             await self._check_tp_sl_placement()
             await self._calculate_uptime()
             await self._check_ml_model_status()
+            # Phase 62.18: SLパターン分析
+            await self._analyze_sl_patterns()
 
         except Exception as e:
             self.logger.error(f"分析中にエラー発生: {e}")
@@ -1468,6 +1482,174 @@ class LiveAnalyzer:
             self.logger.error(f"MLモデル状態確認失敗: {e}")
             self.result.ml_model_type = "error"
 
+    async def _analyze_sl_patterns(self):
+        """Phase 62.18: SLパターン分析（GCPログベース）"""
+        import re
+        from collections import defaultdict
+        from datetime import timezone
+
+        self.logger.info("SLパターン分析開始...")
+
+        try:
+            # GCPログから自動執行検知ログを取得
+            logs = self._fetch_gcp_logs_json(
+                'textPayload:"Phase 61.9" AND textPayload:"自動執行検知"', limit=500
+            )
+
+            if not logs:
+                self.logger.info("ℹ️ SLパターン分析: 自動執行ログなし")
+                return
+
+            # ログをパース
+            tp_executions = []
+            sl_executions = []
+            weekday_names = ["月", "火", "水", "木", "金", "土", "日"]
+
+            for log_entry in logs:
+                text = log_entry.get("textPayload", "")
+                ts = log_entry.get("timestamp", "")
+
+                # TP自動執行検知
+                tp_match = re.search(
+                    r"Phase 61\.9: TP自動執行検知 - (\w+) ([\d.]+) BTC @ (\d+)円 "
+                    r"\((利益|損益): ([+-]?\d+)円\) 戦略: (\w+)",
+                    text,
+                )
+                if tp_match:
+                    tp_executions.append(
+                        {
+                            "pnl": float(tp_match.group(5)),
+                            "strategy": tp_match.group(6),
+                            "timestamp": ts,
+                        }
+                    )
+                    continue
+
+                # SL自動執行検知
+                sl_match = re.search(
+                    r"Phase 61\.9: SL自動執行検知 - (\w+) ([\d.]+) BTC @ (\d+)円 "
+                    r"\((損失|損益): ([+-]?\d+)円\) 戦略: (\w+)",
+                    text,
+                )
+                if sl_match:
+                    sl_executions.append(
+                        {
+                            "pnl": float(sl_match.group(5)),
+                            "strategy": sl_match.group(6),
+                            "timestamp": ts,
+                        }
+                    )
+
+            # 結果を格納
+            self.result.sl_pattern_tp_count = len(tp_executions)
+            self.result.sl_pattern_sl_count = len(sl_executions)
+            self.result.sl_pattern_total_executions = len(tp_executions) + len(sl_executions)
+
+            # SL損益統計
+            if sl_executions:
+                sl_pnls = [e["pnl"] for e in sl_executions]
+                self.result.sl_pattern_sl_pnl_total = sum(sl_pnls)
+                self.result.sl_pattern_sl_pnl_avg = sum(sl_pnls) / len(sl_pnls)
+
+            # TP損益統計
+            if tp_executions:
+                tp_pnls = [e["pnl"] for e in tp_executions]
+                self.result.sl_pattern_tp_pnl_total = sum(tp_pnls)
+                self.result.sl_pattern_tp_pnl_avg = sum(tp_pnls) / len(tp_pnls)
+
+            # 戦略別統計
+            strategy_data = defaultdict(
+                lambda: {"sl_count": 0, "tp_count": 0, "sl_pnl": 0.0, "tp_pnl": 0.0}
+            )
+            for e in sl_executions:
+                strategy_data[e["strategy"]]["sl_count"] += 1
+                strategy_data[e["strategy"]]["sl_pnl"] += e["pnl"]
+            for e in tp_executions:
+                strategy_data[e["strategy"]]["tp_count"] += 1
+                strategy_data[e["strategy"]]["tp_pnl"] += e["pnl"]
+
+            for strategy, data in strategy_data.items():
+                total = data["sl_count"] + data["tp_count"]
+                self.result.sl_pattern_strategy_stats[strategy] = {
+                    "sl_count": data["sl_count"],
+                    "tp_count": data["tp_count"],
+                    "total": total,
+                    "sl_rate": (data["sl_count"] / total * 100) if total > 0 else 0,
+                    "sl_pnl": data["sl_pnl"],
+                    "tp_pnl": data["tp_pnl"],
+                }
+
+            # 時間帯・曜日別統計
+            hourly = defaultdict(int)
+            weekday = defaultdict(int)
+            for e in sl_executions:
+                try:
+                    ts_str = e["timestamp"].replace("Z", "+00:00")
+                    ts = datetime.fromisoformat(ts_str)
+                    ts_jst = ts + timedelta(hours=9)
+                    hourly[ts_jst.hour] += 1
+                    weekday[weekday_names[ts_jst.weekday()]] += 1
+                except Exception:
+                    pass
+
+            self.result.sl_pattern_hourly_stats = dict(hourly)
+            self.result.sl_pattern_weekday_stats = dict(weekday)
+
+            self.logger.info(
+                f"SLパターン分析完了 - TP:{len(tp_executions)}件, SL:{len(sl_executions)}件"
+            )
+
+        except Exception as e:
+            self.logger.warning(f"SLパターン分析失敗: {e}")
+
+    def _fetch_gcp_logs_json(self, query: str, limit: int = 500) -> List[Dict[str, Any]]:
+        """GCPログをJSON形式で取得"""
+        try:
+            from datetime import timezone
+
+            utc_now = datetime.now(timezone.utc)
+            since_time = (utc_now - timedelta(hours=self.period_hours)).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+
+            full_query = (
+                f'resource.type="cloud_run_revision" AND '
+                f'resource.labels.service_name="crypto-bot-service-prod" AND '
+                f"({query}) AND "
+                f'timestamp>="{since_time}"'
+            )
+
+            result = subprocess.run(
+                [
+                    "gcloud",
+                    "logging",
+                    "read",
+                    full_query,
+                    f"--limit={limit}",
+                    "--format=json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if result.returncode == 0 and result.stdout.strip():
+                return json.loads(result.stdout)
+            return []
+
+        except subprocess.TimeoutExpired:
+            self.logger.warning("GCPログ取得タイムアウト")
+            return []
+        except json.JSONDecodeError:
+            self.logger.warning("GCPログJSONパースエラー")
+            return []
+        except FileNotFoundError:
+            self.logger.debug("GCPログ取得スキップ（ローカル実行）")
+            return []
+        except Exception as e:
+            self.logger.warning(f"GCPログ取得エラー: {e}")
+            return []
+
 
 class LiveReportGenerator:
     """レポート生成"""
@@ -1712,6 +1894,53 @@ class LiveReportGenerator:
             if result.slippage_exit_avg != 0:
                 lines.append(f"| 決済平均 | ¥{result.slippage_exit_avg:+,.0f} | - |")
 
+        # Phase 62.18: SLパターン分析セクション追加
+        if result.sl_pattern_total_executions > 0:
+            total = result.sl_pattern_total_executions
+            tp_rate = result.sl_pattern_tp_count / total * 100 if total > 0 else 0
+            sl_rate = result.sl_pattern_sl_count / total * 100 if total > 0 else 0
+
+            lines.extend(
+                [
+                    "",
+                    "---",
+                    "",
+                    "## SLパターン分析 (Phase 62.18)",
+                    "",
+                    "| 指標 | 値 | 備考 |",
+                    "|------|-----|------|",
+                    f"| 総執行数 | {total}件 | TP+SL |",
+                    f"| TP決済 | {result.sl_pattern_tp_count}件 ({tp_rate:.1f}%) | - |",
+                    f"| SL決済 | {result.sl_pattern_sl_count}件 ({sl_rate:.1f}%) | - |",
+                ]
+            )
+            if result.sl_pattern_sl_count > 0:
+                lines.append(f"| SL合計損益 | ¥{result.sl_pattern_sl_pnl_total:+,.0f} | - |")
+                lines.append(f"| SL平均損益 | ¥{result.sl_pattern_sl_pnl_avg:+,.0f} | - |")
+            if result.sl_pattern_tp_count > 0:
+                lines.append(f"| TP合計利益 | ¥{result.sl_pattern_tp_pnl_total:+,.0f} | - |")
+
+            # 戦略別統計
+            if result.sl_pattern_strategy_stats:
+                lines.extend(
+                    [
+                        "",
+                        "### 戦略別SL統計",
+                        "",
+                        "| 戦略 | SL数 | TP数 | SL率 | SL損益 |",
+                        "|------|------|------|------|--------|",
+                    ]
+                )
+                for strategy, stats in sorted(
+                    result.sl_pattern_strategy_stats.items(),
+                    key=lambda x: x[1]["sl_rate"],
+                    reverse=True,
+                ):
+                    lines.append(
+                        f"| {strategy} | {stats['sl_count']} | {stats['tp_count']} | "
+                        f"{stats['sl_rate']:.1f}% | ¥{stats['sl_pnl']:+,.0f} |"
+                    )
+
         return "\n".join(lines)
 
     def append_to_csv(self, result: LiveAnalysisResult, csv_path: str):
@@ -1951,6 +2180,31 @@ async def main():
         if maker_success > 0:
             estimated = maker_success * 1000000 * 0.0014
             print(f"   推定手数料削減: ¥{estimated:,.0f}")
+
+    # Phase 62.18: SLパターン分析サマリー
+    if result.sl_pattern_total_executions > 0:
+        total = result.sl_pattern_total_executions
+        tp_rate = result.sl_pattern_tp_count / total * 100 if total > 0 else 0
+        sl_rate = result.sl_pattern_sl_count / total * 100 if total > 0 else 0
+
+        print("\n📉 Phase 62.18: SLパターン分析:")
+        print(f"   TP決済: {result.sl_pattern_tp_count}件 ({tp_rate:.1f}%)")
+        print(f"   SL決済: {result.sl_pattern_sl_count}件 ({sl_rate:.1f}%)")
+        if result.sl_pattern_sl_count > 0:
+            print(f"   SL合計損益: ¥{result.sl_pattern_sl_pnl_total:+,.0f}")
+            print(f"   SL平均損益: ¥{result.sl_pattern_sl_pnl_avg:+,.0f}")
+        total_pnl = result.sl_pattern_tp_pnl_total + result.sl_pattern_sl_pnl_total
+        print(f"   総損益: ¥{total_pnl:+,.0f}")
+
+        # 高SL率戦略の警告
+        high_sl_strategies = [
+            (s, d)
+            for s, d in result.sl_pattern_strategy_stats.items()
+            if d["sl_rate"] > 50 and d["total"] >= 3
+        ]
+        if high_sl_strategies:
+            for strategy, data in high_sl_strategies:
+                print(f"   ⚠️ {strategy}: SL率{data['sl_rate']:.1f}%")
 
     exit_code = determine_exit_code(infra_result, bot_result)
     status_map = {

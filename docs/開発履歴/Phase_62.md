@@ -2,7 +2,7 @@
 
 **期間**: 2026年1月31日〜2月5日
 **状態**: ✅ 完了
-**成果**: バックテスト ¥+119,815（年利24%相当）、Maker戦略で往復手数料-0.04%実現
+**成果**: バックテスト ¥+120,837（年利24%相当）、Maker戦略で往復手数料-0.04%実現
 
 ---
 
@@ -28,6 +28,7 @@
 | **62.14** | **SL逆指値指値化** | **stop_limit使用、スリッページ抑制** | **✅完了** |
 | **62.15** | **SL幅見直し** | **tight_range 0.3%→0.4%** | **✅完了** |
 | **62.16** | **スリッページ分析機能** | **slippage記録・レポート追加** | **✅完了** |
+| **62.17** | **stop_limit未約定バグ修正** | **Bot側SL監視スキップ・タイムアウトフォールバック** | **✅完了** |
 
 ---
 
@@ -65,18 +66,19 @@ Phase 61完了時点で総損益¥149,195（PF 2.68）を達成したが、以�
 
 **年間削減額**: ¥40,000〜84,000（取引量依存）
 
-### 最終バックテスト結果（Phase 62.11B）
+### 最終バックテスト結果（Phase 62.14-62.16）
 
 | 指標 | 値 | 評価 |
 |------|-----|------|
 | **期間** | 2025-07-01 ~ 2025-12-31 | 6ヶ月 |
-| **総取引数** | 303件 | - |
-| **勝率** | 59.7% | ✅ |
-| **総損益** | **¥+119,815** | ✅ |
-| **PF** | **1.65** | ✅ |
-| **シャープレシオ** | 16.55 | ✅ |
-| **最大DD** | ¥13,352 (2.14%) | ✅ |
+| **総取引数** | 300件 | - |
+| **勝率** | 63.3% | ✅ |
+| **総損益** | **¥+120,837** | ✅ |
+| **PF** | **1.63** | ✅ |
+| **シャープレシオ** | 15.91 | ✅ |
+| **最大DD** | ¥12,833 (2.03%) | ✅ |
 | **年利換算** | **約24%** | ✅ |
+| **期待値** | ¥+403/取引 | ✅ |
 
 ### SL Maker業界調査結果
 
@@ -104,9 +106,10 @@ Phase 62を通じてのバックテスト結果の変化：
 | 62.3-62.4 | 346件 | 75.7% | ¥177,025 | 2.75 | ¥4,925 | BB調整成功 |
 | 62.7（Taker統一） | - | - | 約¥57,000 | 1.5-2.0 | - | 手数料反映 |
 | 62.8（バグ修正） | - | 39.9% | ¥-64,845 | 0.04 | - | ❌多重計算 |
-| **62.11B（最終）** | 303件 | 59.7% | **¥119,815** | **1.65** | ¥13,352 | Maker手数料反映 |
+| 62.11B | 303件 | 59.7% | ¥119,815 | 1.65 | ¥13,352 | Maker手数料反映 |
+| **62.14-16（最終）** | 300件 | **63.3%** | **¥120,837** | **1.63** | **¥12,833** | SL幅0.4%・勝率+3.6pt |
 
-**注**: 62.7-62.8は手数料計算の試行錯誤期間。最終的に62.11Bで正確な計算に到達。
+**注**: 62.7-62.8は手数料計算の試行錯誤期間。62.14-16でSL幅改善後、勝率・DD改善。
 
 ---
 
@@ -707,22 +710,30 @@ fallback_atr: 120000  # 現実的な値（約1%）
 
 **結論**: 500円TPが明確に優位。TPを広げると到達率が下がり、勝率低下→損益悪化。
 
-### 戦略別パフォーマンス（Phase 62.11B バックテスト最終）
+### 戦略別パフォーマンス（Phase 62.14-16 バックテスト最終）
 
 | 戦略 | 取引数 | 勝率 | 損益 |
 |------|--------|------|------|
-| ATRBased | 245件 | 58.8% | ¥+88,445 |
-| DonchianChannel | 20件 | 75.0% | ¥+13,785 |
-| StochasticReversal | 15件 | 60.0% | ¥+8,130 |
-| BBReversal | 19件 | 52.6% | ¥+4,695 |
-| ADXTrendStrength | 4件 | 75.0% | ¥+4,759 |
+| ATRBased | 244件 | 61.9% | ¥+81,247 |
+| DonchianChannel | 19件 | 73.7% | ¥+8,746 |
+| StochasticReversal | 15件 | 73.3% | ¥+12,995 |
+| BBReversal | 17件 | 58.8% | ¥+10,426 |
+| ADXTrendStrength | 5件 | 80.0% | ¥+7,424 |
 
-### TP/SL統計（Phase 62.11B）
+### ML予測別パフォーマンス
 
-| 項目 | 件数 | 平均PnL |
-|------|------|---------|
-| TP決済 | 181件 | ¥+1,674 |
-| SL決済 | 122件 | ¥-1,519 |
+| 予測 | 取引数 | 勝率 | 損益 |
+|------|--------|------|------|
+| BUY | 139件 | 58.3% | ¥+31,553 |
+| SELL | 122件 | 69.7% | ¥+75,886 |
+| HOLD | 39件 | 61.5% | ¥+13,398 |
+
+### レジーム別パフォーマンス
+
+| レジーム | 取引数 | 勝率 | 損益 |
+|---------|--------|------|------|
+| tight_range | 257件 | 59.9% | ¥+74,610 |
+| normal_range | 43件 | 83.7% | ¥+46,227 |
 
 ---
 
@@ -823,11 +834,17 @@ stop_loss:
       weekend_ratio: 0.0025   # 土日 SL 0.25%（平日比62.5%維持）
 ```
 
-### 期待効果
+### バックテスト効果（62.11B → 62.14-16）
 
-- SL発動率低下
-- 勝率改善
-- RR比の調整（TP 0.4% : SL 0.4% = 1:1）
+| 指標 | Phase 62.11B | Phase 62.14-16 | 変化 |
+|------|-------------|----------------|------|
+| 総取引数 | 303件 | 300件 | -3件 |
+| **勝率** | 59.7% | **63.3%** | **+3.6pt** |
+| **総損益** | ¥119,815 | **¥120,837** | **+¥1,022** |
+| PF | 1.65 | 1.63 | -0.02 |
+| **最大DD** | 2.14% | **2.03%** | **-0.11pt** |
+
+**評価**: SL幅拡大により勝率+3.6pt・DD改善。PF微減(-0.02)は許容範囲。
 
 ---
 
@@ -876,20 +893,231 @@ stop_loss:
 
 ---
 
+## Phase 62.17: stop_limit未約定バグ修正 ✅完了
+
+**実施日**: 2026年2月6日
+
+### 問題概要
+
+**発生日時**: 2026年2月5日 11:55〜13:06 JST
+
+**症状**:
+1. stop_limit SL注文が`CANCELED_UNFILLED`（トリガー前にキャンセル）
+2. 最終決済が「指値」で実行（「逆指値」ではない）
+3. 損失¥1,307（TP ¥500に対してRR比 2.6:1で悪い）
+
+**根本原因**:
+Botの内部SL監視がstop_limitより先にSL条件を検出し、stop_limitをキャンセルして手動決済に移行していた
+
+### 修正内容
+
+#### 1. Bot側SL監視の調整
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+- `_should_skip_bot_sl_monitoring()`: stop_limit配置済みかチェック
+- `_check_stop_limit_timeout()`: タイムアウト時フォールバック決済
+- `_evaluate_position_exit()`: stop_limit配置済み時はBot側SL監視をスキップ
+
+```python
+def _should_skip_bot_sl_monitoring(self, position, sl_config) -> bool:
+    """stop_limit配置済み時はBot側SL監視をスキップ"""
+    if not sl_config.get("skip_bot_monitoring", True):
+        return False
+    if not position.get("sl_order_id"):
+        return False
+    if sl_config.get("order_type", "stop") != "stop_limit":
+        return False
+    return True
+```
+
+#### 2. タイムアウトフォールバック
+
+stop_limitが一定時間未約定の場合、成行で強制決済：
+
+```python
+async def _check_stop_limit_timeout(self, position, ...):
+    """stop_limitタイムアウト時の成行フォールバック"""
+    sl_placed_at = position.get("sl_placed_at")
+    timeout_seconds = sl_config.get("stop_limit_timeout", 300)  # 5分
+
+    if elapsed_seconds >= timeout_seconds:
+        # 成行フォールバック決済
+        return await self._execute_position_exit(...)
+```
+
+#### 3. SL配置時刻記録
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+- `place_stop_loss()`: 戻り値に`sl_placed_at`追加
+
+**ファイル**: `src/trading/execution/executor.py`
+
+- ポジション作成時に`sl_placed_at`を保存
+
+#### 4. 設定追加
+
+**ファイル**: `config/core/thresholds.yaml`
+
+```yaml
+stop_loss:
+  order_type: "stop_limit"         # 維持
+  slippage_buffer: 0.002           # 維持
+  stop_limit_timeout: 300          # 新規: 5分タイムアウト
+  skip_bot_monitoring: true        # 新規: Bot側SL監視スキップ
+```
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `src/trading/execution/stop_manager.py` | Bot側SL監視スキップ + タイムアウト監視 + ログ改善 |
+| `src/trading/execution/executor.py` | sl_placed_at保存 |
+| `config/core/thresholds.yaml` | stop_limit_timeout, skip_bot_monitoring 追加 |
+
+### 期待効果
+
+| 項目 | 修正前 | 修正後 |
+|------|--------|--------|
+| SL決済方式 | Bot監視→手動指値 | bitbank stop_limitトリガー |
+| SL約定確実性 | 不安定 | 向上（+5分タイムアウトフォールバック） |
+| 二重決済リスク | あり | 解消 |
+
+---
+
+## Phase 62.18: SL決済パターン分析機能 ✅完了
+
+**実施日**: 2026年2月6日
+
+### 背景
+
+SL決済されたポジションの価格推移パターンを分析し、Bot改修に活かしたい：
+
+| パターン | 判定内容 | 改善示唆 |
+|---------|---------|---------|
+| **一直線損切り** | エントリー直後から損切り方向へ一直線 | エントリータイミングが悪い |
+| **プラス圏経由損切り** | 一時的にプラス→逆行→損切り | 500円固定TPでも足りない |
+
+### 実装内容
+
+#### 1. バックテスト用SLパターン分析スクリプト
+
+**新規ファイル**: `scripts/analysis/sl_pattern_analysis.py`
+
+```bash
+# CIの最新バックテスト結果を分析
+python3 scripts/analysis/sl_pattern_analysis.py --from-ci
+
+# 詳細出力
+python3 scripts/analysis/sl_pattern_analysis.py --from-ci --verbose
+```
+
+**分析指標**:
+- パターン分類（一直線損切り / 微益後損切り / プラス圏経由 / 500円以上経由）
+- MFE/MAE統計（平均・中央値・最大・最小）
+- 逃した利益分析（MFE >= 500円でSLになった件数・金額）
+- 改善示唆自動生成
+
+#### 2. ライブモード用SLパターン分析スクリプト
+
+**新規ファイル**: `scripts/live/sl_pattern_analysis.py`
+
+```bash
+# 過去24時間分析
+python3 scripts/live/sl_pattern_analysis.py
+
+# 過去7日間分析
+python3 scripts/live/sl_pattern_analysis.py --days 7
+```
+
+**分析指標**（GCPログベース）:
+- TP/SL発生件数・率
+- 損益統計（合計・平均・最大損失）
+- 戦略別SL統計
+- 時間帯別・曜日別SL発生分布
+
+#### 3. ライブモードexit記録欠損修正
+
+**問題**: Phase 61.12で実装したexit記録が動作していなかった（order_idがNoneの場合スキップ）
+
+**修正ファイル**: `src/trading/execution/executor.py`
+
+```python
+# 修正前: order_idがないとexit記録がスキップされていた
+if order_id:
+    self.trade_recorder.record_trade(...)
+
+# 修正後: order_idがなくてもexit記録を追加
+record_order_id = (
+    order_id
+    or exec_info.get("executed_order_id")
+    or f"auto_{exec_type}_{exec_info.get('tp_order_id', '') or exec_info.get('sl_order_id', '')}"
+)
+self.trade_recorder.record_trade(trade_type=..., order_id=record_order_id, ...)
+```
+
+### 分析結果サンプル（CI最新バックテスト）
+
+```
+【SL決済パターン分類】
+  一直線損切り:   2件 (  1.8%) - エントリー精度に問題
+  微益後損切り:  17件 ( 15.5%) - 小さなMFE経由
+  プラス圏経由:  12件 ( 10.9%) - 200-500円のMFE経由
+  500円以上経由:  79件 ( 71.8%) - TP到達可能だった ⚠️
+
+【逃した利益分析】
+  500円以上MFEでSL決済: 79件
+  逃した利益合計: ¥258,286
+  平均逃した利益: ¥3,269/件
+
+【改善示唆】
+  1. 一直線損切り率 1.8% は許容範囲内
+  2. 500円以上経由率 71.8% が高い → TP設定見直し/トレーリングストップ検討
+  3. 逃した利益 ¥258,286 が大きい → 部分利確/トレーリングストップが有効
+  4. プラス圏経由損切りが 82.7% → 利確ロジック改善が効果的
+```
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|----------|
+| `scripts/backtest/standard_analysis.py` | SLパターン分析を統合（Phase 62.18） |
+| `scripts/backtest/sl_pattern_analysis.py` | 新規: バックテスト用SLパターン分析（独立実行も可） |
+| `scripts/live/standard_analysis.py` | SLパターン分析を統合（Phase 62.18） |
+| `src/trading/execution/executor.py` | exit記録欠損修正（Phase 62.18） |
+
+### 使い方
+
+```bash
+# バックテスト: 標準分析（SLパターン分析統合済み）
+python3 scripts/backtest/standard_analysis.py --from-ci
+
+# バックテスト: SLパターン分析のみ（詳細版）
+python3 scripts/backtest/sl_pattern_analysis.py --from-ci --verbose
+
+# ライブモード: 標準分析（SLパターン分析統合済み）
+python3 scripts/live/standard_analysis.py --hours 168
+```
+
+---
+
 ## Phase 62 完了
 
-**完了日**: 2026年2月5日
+**完了日**: 2026年2月5日（62.17追加: 2月6日、62.18追加: 2月6日）
 
 ### 最終成果
 
 | 指標 | 値 |
 |------|-----|
 | バックテスト期間 | 2025-07-01 ~ 2025-12-31（6ヶ月） |
-| 総損益 | ¥+119,815 |
-| PF | 1.65 |
-| 勝率 | 59.7% |
+| 総取引数 | 300件 |
+| 勝率 | 63.3% |
+| 総損益 | ¥+120,837 |
+| PF | 1.63 |
 | 年利換算 | 約24% |
-| 最大DD | ¥13,352 (2.14%) |
+| 最大DD | ¥12,833 (2.03%) |
+| 期待値 | ¥+403/取引 |
 
 ### 主要実装
 
@@ -903,6 +1131,7 @@ stop_loss:
 | 62.13 | ATRフォールバック修正 | 正確なATR取得 |
 | 62.14-62.15 | SL逆指値指値化・幅見直し | スリッページ抑制 |
 | 62.16 | スリッページ分析機能 | 実態把握可能化 |
+| **62.17** | **stop_limit未約定バグ修正** | **二重決済リスク解消** |
 
 ### 保留タスク
 

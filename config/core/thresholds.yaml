@@ -890,6 +890,9 @@ position_management:
     # Phase 62.14: スリッページバッファ拡大（約定確実性向上）
     order_type: "stop_limit"         # "stop"（成行）or "stop_limit"（指値）※use_native_type=false時のみ
     slippage_buffer: 0.002           # Phase 62.14: 0.1%→0.2%（約定確実性向上）
+    # Phase 62.17: stop_limit未約定バグ修正
+    stop_limit_timeout: 300          # stop_limitタイムアウト（秒）- 5分
+    skip_bot_monitoring: true        # Bot側SL監視スキップ（bitbankトリガーに任せる）
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007            # Phase 51.6: SL 0.7%（被害最小化・1回約11円損失）
     override_strategy_sl: false
