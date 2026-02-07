@@ -210,8 +210,8 @@ class RiskManager:
                 if fee_data:
                     entry_fee = fee_data.unrealized_fee_amount
                 else:
-                    # API失敗時はフォールバックレートで推定
-                    fallback_rate = config.get("fallback_entry_fee_rate", 0.0012)
+                    # Phase 62.19: API失敗時はフォールバックレートで推定（Maker 0%）
+                    fallback_rate = config.get("fallback_entry_fee_rate", 0.0)
                     entry_fee = entry_price * amount * fallback_rate
             else:
                 entry_fee = 0
@@ -226,11 +226,11 @@ class RiskManager:
             else:
                 interest = 0
 
-            # Phase 62.11: 決済手数料推定（Taker 0.12%統一）
-            # 修正理由: Maker想定(-0.02%)で計算→実際はTaker(0.12%)で決済され、TP純利益が不足していた
+            # Phase 62.19: 決済手数料推定（Maker 0%）
+            # 2026年2月2日手数料改定: Maker 0%（リベート終了）、Taker 0.1%
             if config.get("include_exit_fee_rebate", True):
-                exit_fee_rate = config.get("fallback_exit_fee_rate", 0.0012)
-                # Phase 62.11: exit_fee_rateは正（Taker手数料）なので加算
+                exit_fee_rate = config.get("fallback_exit_fee_rate", 0.0)
+                # exit_fee_rateが正（手数料）の場合は加算
                 exit_fee = entry_price * amount * exit_fee_rate
             else:
                 exit_fee = 0
@@ -268,9 +268,9 @@ class RiskManager:
                 )
                 return None
 
-            # デバッグログ（Phase 62.11: 決済手数料に変更）
+            # デバッグログ（Phase 62.19: 手数料改定対応）
             logger.info(
-                f"🎯 Phase 62.11: 固定金額TP計算 - "
+                f"🎯 Phase 62.19: 固定金額TP計算 - "
                 f"目標純利益={target_net_profit:.0f}円, "
                 f"エントリー手数料={entry_fee:.0f}円, "
                 f"利息={interest:.0f}円, "

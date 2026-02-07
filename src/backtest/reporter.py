@@ -293,20 +293,20 @@ class TradeTracker:
         if not include_fees:
             return gross_pnl
 
-        # Phase 62.11B: エントリー手数料（Maker -0.02%）
-        entry_rate = get_threshold("trading.fees.backtest_entry_rate", -0.0002)
+        # Phase 62.19: エントリー手数料（Maker 0%）
+        entry_rate = get_threshold("trading.fees.backtest_entry_rate", 0.0)
         entry_fee = entry_price * amount * entry_rate
 
-        # Phase 62.11B: 決済手数料（TP/SL別）
+        # Phase 62.19: 決済手数料（TP/SL別）
         if exit_type == "tp":
-            # TP: Maker -0.02%（リベート）
-            exit_rate = get_threshold("trading.fees.backtest_tp_exit_rate", -0.0002)
+            # TP: Maker 0%
+            exit_rate = get_threshold("trading.fees.backtest_tp_exit_rate", 0.0)
         elif exit_type == "sl":
-            # SL: Taker 0.12%
-            exit_rate = get_threshold("trading.fees.backtest_sl_exit_rate", 0.0012)
+            # SL: Taker 0.1%
+            exit_rate = get_threshold("trading.fees.backtest_sl_exit_rate", 0.001)
         else:
-            # デフォルト（後方互換）: Taker 0.12%
-            exit_rate = get_threshold("trading.fees.backtest_exit_rate", 0.0012)
+            # デフォルト（後方互換）: Taker 0.1%
+            exit_rate = get_threshold("trading.fees.backtest_exit_rate", 0.001)
 
         exit_fee = exit_price * amount * exit_rate
 

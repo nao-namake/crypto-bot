@@ -47,7 +47,7 @@ class TestTradeTrackerBasic:
         assert entry["mae"] == 0.0
 
     def test_record_exit_long_profit(self):
-        """ロング利益決済テスト（Phase 62.11B: Maker手数料対応）"""
+        """ロング利益決済テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
         entry_time = datetime.now()
         exit_time = entry_time + timedelta(minutes=30)
@@ -56,14 +56,14 @@ class TestTradeTrackerBasic:
         trade = tracker.record_exit("test_001", 15100000, exit_time, "TP")
 
         assert trade is not None
-        # Phase 62.11B: 粗利100 + エントリーリベート3 + 決済リベート(TP=Maker)3 ≈ 106円
-        assert trade["pnl"] == pytest.approx(106, abs=2)
+        # Phase 62.19: 粗利100 + エントリーMaker 0 + 決済Maker(TP) 0 = 100円
+        assert trade["pnl"] == pytest.approx(100, abs=2)
         assert trade["exit_reason"] == "TP"
         assert len(tracker.completed_trades) == 1
-        assert tracker.total_pnl == pytest.approx(106, abs=2)
+        assert tracker.total_pnl == pytest.approx(100, abs=2)
 
     def test_record_exit_long_loss(self):
-        """ロング損失決済テスト（Phase 62.11B: Maker手数料対応）"""
+        """ロング損失決済テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
         entry_time = datetime.now()
         exit_time = entry_time + timedelta(minutes=30)
@@ -72,12 +72,13 @@ class TestTradeTrackerBasic:
         trade = tracker.record_exit("test_001", 14900000, exit_time, "SL")
 
         assert trade is not None
-        # Phase 62.11B: 粗損-100 + エントリーリベート3 - 決済Taker(SL)18 ≈ -115円
+        # Phase 62.19: 粗損-100 + エントリーMaker 0 - 決済Taker(SL) 15 ≈ -115円
+        # 15000000 * 0.001 * 0.001 = 15円 (Taker 0.1%)
         assert trade["pnl"] == pytest.approx(-115, abs=2)
         assert tracker.total_pnl == pytest.approx(-115, abs=2)
 
     def test_record_exit_short_profit(self):
-        """ショート利益決済テスト（Phase 62.11B: Maker手数料対応）"""
+        """ショート利益決済テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
         entry_time = datetime.now()
         exit_time = entry_time + timedelta(minutes=30)
@@ -86,11 +87,11 @@ class TestTradeTrackerBasic:
         trade = tracker.record_exit("test_001", 14900000, exit_time, "TP")
 
         assert trade is not None
-        # Phase 62.11B: 粗利100 + エントリーリベート3 + 決済リベート(TP=Maker)3 ≈ 106円
-        assert trade["pnl"] == pytest.approx(106, abs=2)
+        # Phase 62.19: 粗利100 + エントリーMaker 0 + 決済Maker(TP) 0 = 100円
+        assert trade["pnl"] == pytest.approx(100, abs=2)
 
     def test_record_exit_short_loss(self):
-        """ショート損失決済テスト（Phase 62.11B: Maker手数料対応）"""
+        """ショート損失決済テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
         entry_time = datetime.now()
         exit_time = entry_time + timedelta(minutes=30)
@@ -99,7 +100,7 @@ class TestTradeTrackerBasic:
         trade = tracker.record_exit("test_001", 15100000, exit_time, "SL")
 
         assert trade is not None
-        # Phase 62.11B: 粗損-100 + エントリーリベート3 - 決済Taker(SL)18 ≈ -115円
+        # Phase 62.19: 粗損-100 + エントリーMaker 0 - 決済Taker(SL) 15 ≈ -115円
         assert trade["pnl"] == pytest.approx(-115, abs=2)
 
     def test_record_exit_not_found(self):
@@ -181,7 +182,7 @@ class TestTradeTrackerMFEMAE:
         assert entry["mae"] == -300  # 更新
 
     def test_mfe_mae_recorded_on_exit(self):
-        """決済時にMFE/MAEが記録されるテスト（Phase 62.11B: Maker手数料対応）"""
+        """決済時にMFE/MAEが記録されるテスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
         entry_time = datetime.now()
         exit_time = entry_time + timedelta(minutes=30)
@@ -194,18 +195,18 @@ class TestTradeTrackerMFEMAE:
         assert trade["mae"] == -200
         assert trade["mfe_price"] == 15200000
         assert trade["mae_price"] == 14800000
-        # Phase 62.11B: 粗利50 + エントリーリベート3 + 決済リベート(TP=Maker)3 ≈ 56円
-        assert trade["pnl"] == pytest.approx(56, abs=2)
+        # Phase 62.19: 粗利50 + エントリーMaker 0 + 決済Maker(TP) 0 = 50円
+        assert trade["pnl"] == pytest.approx(50, abs=2)
 
     def test_mfe_mae_statistics(self):
-        """MFE/MAE統計計算テスト（Phase 62.11B: Maker手数料対応）"""
+        """MFE/MAE統計計算テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
 
         # 取引1: MFE到達後に逆行
         tracker.record_entry("test_001", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.update_price_excursions(15200000, 14900000)
         tracker.record_exit("test_001", 15050000, datetime.now(), "TP")
-        # 取引1 PnL: 粗利50 + エントリーリベート3 + 決済リベート(TP)3 ≈ 56円
+        # 取引1 PnL: 粗利50 + エントリーMaker 0 + 決済Maker(TP) 0 = 50円
 
         # 取引2: MFEをフル捕捉
         tracker.record_entry("test_002", "buy", 0.001, 15000000, datetime.now(), "Test")
@@ -259,24 +260,24 @@ class TestTradeTrackerPerformanceMetrics:
         assert metrics["win_rate"] == 60.0
 
     def test_profit_factor_calculation(self):
-        """プロフィットファクター計算テスト（Phase 62.11B: Maker手数料対応）"""
+        """プロフィットファクター計算テスト（Phase 62.19: Maker 0%手数料対応）"""
         tracker = TradeTracker()
 
-        # Phase 62.11B: Maker手数料込みで計算
+        # Phase 62.19: Maker 0%手数料で計算
         tracker.record_entry("win_1", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.record_exit("win_1", 15300000, datetime.now(), "TP")
-        # 粗利300 + エントリーリベート3 + 決済リベート(TP)3 = 306円
+        # 粗利300 + エントリーMaker 0 + 決済Maker(TP) 0 = 300円
 
         tracker.record_entry("loss_1", "buy", 0.001, 15000000, datetime.now(), "Test")
         tracker.record_exit("loss_1", 14900000, datetime.now(), "SL")
-        # 粗損-100 + エントリーリベート3 - 決済Taker(SL)18 = -115円
+        # 粗損-100 + エントリーMaker 0 - 決済Taker(SL) 15 = -115円
 
         metrics = tracker.get_performance_metrics()
-        # Phase 62.11B: Maker手数料反映後の値
-        assert metrics["total_profit"] == pytest.approx(306, abs=2)
+        # Phase 62.19: Maker 0%手数料反映後の値
+        assert metrics["total_profit"] == pytest.approx(300, abs=2)
         assert metrics["total_loss"] == pytest.approx(-115, abs=2)
-        # PF = 306 / 115 ≈ 2.66
-        assert metrics["profit_factor"] == pytest.approx(2.66, rel=0.1)
+        # PF = 300 / 115 ≈ 2.61
+        assert metrics["profit_factor"] == pytest.approx(2.61, rel=0.1)
 
 
 class TestTradeTrackerRegimePerformance:

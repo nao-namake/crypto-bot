@@ -242,16 +242,16 @@ class StopManager:
         side: str,
     ) -> float:
         """
-        Phase 62.6: 手数料考慮した実現損益計算
+        Phase 62.19: 手数料考慮した実現損益計算
 
-        bitbank手数料:
-          - エントリー（limit即時約定）: Taker 0.12%
-          - TP/SL決済（自動執行）: Taker 0.12%
+        bitbank手数料（2026年2月2日改定）:
+          - エントリー/TP決済: Maker 0%（post_only約定時）
+          - SL決済: Taker 0.1%（post_only非対応）
 
         計算式:
           粗利益 = (決済価格 - エントリー価格) × 数量  ※ロングの場合
-          エントリー手数料 = エントリー約定金額 × 0.0012
-          決済手数料 = 決済約定金額 × 0.0012
+          エントリー手数料 = エントリー約定金額 × Taker手数料率
+          決済手数料 = 決済約定金額 × Taker手数料率
           実現損益 = 粗利益 - エントリー手数料 - 決済手数料
 
         Args:
@@ -274,9 +274,9 @@ class StopManager:
             # ショート: 価格下落で利益
             gross_pnl = (entry_price - exit_price) * amount
 
-        # 手数料計算（TP/SL約定はTaker扱い）
-        entry_fee_rate = get_threshold("trading.fees.entry_taker_rate", 0.0012)
-        exit_fee_rate = get_threshold("trading.fees.exit_taker_rate", 0.0012)
+        # Phase 62.19: 手数料計算（SL約定はTaker扱い）
+        entry_fee_rate = get_threshold("trading.fees.entry_taker_rate", 0.001)
+        exit_fee_rate = get_threshold("trading.fees.exit_taker_rate", 0.001)
 
         entry_notional = entry_price * amount  # エントリー約定金額
         exit_notional = exit_price * amount  # 決済約定金額

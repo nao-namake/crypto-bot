@@ -15,13 +15,14 @@ class TestCalculateFixedAmountTP:
 
     def test_buy_position_basic(self):
         """BUYポジションの基本計算"""
+        # Phase 62.19: 手数料改定対応（Maker 0%）
         config = {
             "target_net_profit": 1000,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
             "include_interest": True,
-            "fallback_entry_fee_rate": 0.0012,
-            "fallback_exit_fee_rate": -0.0002,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
         }
 
         fee_data = PositionFeeData(
@@ -43,21 +44,22 @@ class TestCalculateFixedAmountTP:
         # BUYの場合、TPはエントリー価格より高い
         assert tp_price > 13618976.0
 
-        # 必要含み益 = 1000 + 346 + 0 - 58(リベート) = 1288円
-        # TP価格 = 13618976 + (1288 / 0.0212) ≈ 13679752
-        expected_required_profit = 1000 + 346 + 0 - (13618976.0 * 0.0212 * 0.0002)
+        # Phase 62.19: 必要含み益 = 1000 + 346 + 0 + 0 = 1346円（Maker 0%）
+        # TP価格 = 13618976 + (1346 / 0.0212)
+        expected_required_profit = 1000 + 346 + 0  # exit_fee = 0（Maker 0%）
         expected_tp = 13618976.0 + (expected_required_profit / 0.0212)
         assert abs(tp_price - expected_tp) < 1  # 1円以内の誤差
 
     def test_sell_position_basic(self):
         """SELLポジションの基本計算"""
+        # Phase 62.19: 手数料改定対応（Maker 0%）
         config = {
             "target_net_profit": 1000,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
             "include_interest": True,
-            "fallback_entry_fee_rate": 0.0012,
-            "fallback_exit_fee_rate": -0.0002,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
         }
 
         fee_data = PositionFeeData(
@@ -81,13 +83,14 @@ class TestCalculateFixedAmountTP:
 
     def test_fallback_when_no_fee_data(self):
         """fee_dataがNoneの場合のフォールバック"""
+        # Phase 62.19: 手数料改定対応（Maker 0%）
         config = {
             "target_net_profit": 1000,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
             "include_interest": True,
-            "fallback_entry_fee_rate": 0.0012,
-            "fallback_exit_fee_rate": -0.0002,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
         }
 
         tp_price = RiskManager.calculate_fixed_amount_tp(
@@ -99,7 +102,7 @@ class TestCalculateFixedAmountTP:
         )
 
         assert tp_price is not None
-        # フォールバック: エントリー手数料 = 13618976 * 0.0212 * 0.0012 ≈ 346
+        # Phase 62.19: フォールバック（Maker 0%）: エントリー手数料 = 0
         # 期待どおりに計算されることを確認
         assert tp_price > 13618976.0
 
@@ -490,13 +493,13 @@ class TestDynamicPositionSizing:
             config={},
         )
 
-        # 固定金額TP計算
+        # Phase 62.19: 固定金額TP計算（Maker 0%）
         config = {
             "target_net_profit": 1000,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
-            "fallback_entry_fee_rate": 0.0012,
-            "fallback_exit_fee_rate": -0.0002,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
         }
 
         # 計算されたサイズが小さすぎる場合のためにテスト用サイズを使用

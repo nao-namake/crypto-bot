@@ -2175,10 +2175,15 @@ async def main():
                 f"   TP決済: {bot_result.tp_maker_success_count}成功/"
                 f"{bot_result.tp_maker_fallback_count}FB ({tp_rate:.0f}%)"
             )
-        # 推定削減額
+        # Phase 62.19: 推定削減額（設定参照で一元化）
         maker_success = bot_result.entry_maker_success_count + bot_result.tp_maker_success_count
         if maker_success > 0:
-            estimated = maker_success * 1000000 * 0.0014
+            from src.core.config.threshold_manager import get_threshold
+
+            taker_rate = get_threshold("trading.fees.taker_rate", 0.001)
+            maker_rate = get_threshold("trading.fees.maker_rate", 0.0)
+            fee_reduction = taker_rate - maker_rate  # 0.1% - 0% = 0.1%
+            estimated = maker_success * 1000000 * fee_reduction
             print(f"   推定手数料削減: ¥{estimated:,.0f}")
 
     # Phase 62.18: SLパターン分析サマリー
@@ -2306,19 +2311,23 @@ def _generate_diagnostic_markdown(
         f"{bot_result.tp_post_only_cancelled_count}回 |"
     )
 
-    # 手数料削減効果の推定
+    # Phase 62.19: 手数料削減効果の推定（設定参照で一元化）
     if entry_total > 0 or tp_total > 0:
-        # Maker成功1回あたり0.14%削減、取引金額を100万円と仮定
-        estimated_savings = (
-            (bot_result.entry_maker_success_count + bot_result.tp_maker_success_count)
-            * 1000000
-            * 0.0014
+        from src.core.config.threshold_manager import get_threshold
+
+        taker_rate = get_threshold("trading.fees.taker_rate", 0.001)
+        maker_rate = get_threshold("trading.fees.maker_rate", 0.0)
+        fee_reduction = taker_rate - maker_rate  # Taker - Maker = 削減率
+        fee_reduction_pct = fee_reduction * 100  # 0.1%表示用
+        maker_success_total = (
+            bot_result.entry_maker_success_count + bot_result.tp_maker_success_count
         )
+        estimated_savings = maker_success_total * 1000000 * fee_reduction
         lines.extend(
             [
                 "",
                 f"**推定手数料削減効果**: ¥{estimated_savings:,.0f} "
-                f"(Maker成功{bot_result.entry_maker_success_count + bot_result.tp_maker_success_count}回 × 0.14% × 100万円)",
+                f"(Maker成功{maker_success_total}回 × {fee_reduction_pct:.2f}% × 100万円)",
             ]
         )
 
