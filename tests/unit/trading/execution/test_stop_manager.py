@@ -3282,7 +3282,7 @@ class TestExecutePositionExitLiveMode:
     async def test_live_mode_create_order_failure(
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
-        """Phase 58.1: 決済注文発行失敗時もresult返す"""
+        """Phase 62.21: 決済注文発行失敗時はsuccess=Falseで返す（バグ修正）"""
         mock_threshold.side_effect = lambda key, default=None: {
             "trading_constraints.currency_pair": "BTC/JPY",
             "position_management.stop_loss.fill_confirmation": {"enabled": False},
@@ -3305,9 +3305,11 @@ class TestExecutePositionExitLiveMode:
             bitbank_client=mock_bitbank_client,
         )
 
-        # エラーがあってもExecutionResultは返す
+        # Phase 62.21: エラー時はExecutionResult（success=False）を返す
         assert result is not None
-        assert result.success is True  # 損益計算は成功している
+        assert result.success is False  # Phase 62.21: 決済失敗時はFalse
+        assert result.error_message == "API Error"
+        assert result.order_id == "exit_error_order_123"
 
     @patch("src.trading.execution.stop_manager.get_threshold")
     async def test_live_mode_cleanup_error_continues(

@@ -619,6 +619,9 @@ class ExecutionService:
                 # 指値注文の場合は価格を追加
                 if order_type == "limit" and price:
                     order_params["price"] = price
+                    # Phase 62.21: フォールバックでもMaker優先（post_only追加）
+                    if get_threshold("order_execution.maker_strategy.enabled", True):
+                        order_params["post_only"] = True
 
                 # 実際の注文実行
                 order_result = self.bitbank_client.create_order(**order_params)

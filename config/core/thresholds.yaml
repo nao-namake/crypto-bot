@@ -590,7 +590,7 @@ tp_sl_auto_detection:
 # ========================================
 tp_sl_verification:
   enabled: true                    # TP/SL検証機能ON/OFF
-  delay_seconds: 300               # 検証までの待機時間（秒）- デフォルト5分
+  delay_seconds: 600               # Phase 62.21: 検証までの待機時間（秒）- 10分（stop_limitタイムアウト後）
   rebuild_on_missing: true         # 欠損時に自動再構築
   default_regime: "tight_range"    # 再構築時のデフォルトレジーム（保守的）
 

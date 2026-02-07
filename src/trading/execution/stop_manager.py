@@ -881,9 +881,17 @@ class StopManager:
         )
 
         # 成行でフォールバック決済
-        return await self._execute_position_exit(
+        result = await self._execute_position_exit(
             position, current_price, "stop_loss_timeout", mode, bitbank_client
         )
+
+        # Phase 62.21: 決済失敗時は警告ログ出力（10分後のTP/SL検証で再構築される）
+        if not result.success:
+            self.logger.warning(
+                f"⚠️ Phase 62.21: タイムアウト決済失敗 - " f"10分後のTP/SL検証でSL再設置される予定"
+            )
+
+        return result
 
     async def _execute_position_exit(
         self,
@@ -1030,9 +1038,34 @@ class StopManager:
                             )
 
                 except Exception as e:
+                    error_message = str(e)
                     self.logger.error(
-                        f"❌ Phase 58.1: bitbank決済注文発行失敗: {e} - "
+                        f"❌ Phase 58.1: bitbank決済注文発行失敗: {error_message} - "
                         f"手動決済が必要な可能性があります"
+                    )
+
+                    # Phase 62.21: エラー50062の場合、ポジション存在確認の可能性を示唆
+                    if "50062" in error_message:
+                        self.logger.info(
+                            "ℹ️ Phase 62.21: エラー50062 - "
+                            "ポジションが既に決済済み（TP約定等）の可能性あり"
+                        )
+
+                    # Phase 62.21: 決済失敗時はsuccess=Falseで返す（バグ修正）
+                    return ExecutionResult(
+                        success=False,
+                        mode=ExecutionMode.PAPER if mode == "paper" else ExecutionMode.LIVE,
+                        order_id=f"exit_error_{position.get('order_id', 'unknown')}",
+                        price=current_price,
+                        amount=0,
+                        filled_price=0,
+                        filled_amount=0,
+                        error_message=error_message,
+                        side=exit_side,
+                        fee=0.0,
+                        status=OrderStatus.FAILED,
+                        paper_pnl=0,
+                        timestamp=datetime.now(),
                     )
 
             # ExecutionResult作成

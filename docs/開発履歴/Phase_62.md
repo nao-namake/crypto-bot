@@ -1,8 +1,8 @@
 # Phase 62: Maker戦略実装・手数料最適化
 
-**期間**: 2026年1月31日〜2月5日
+**期間**: 2026年1月31日〜2月8日
 **状態**: ✅ 完了
-**成果**: バックテスト ¥+120,837（年利24%相当）、Maker戦略で往復手数料-0.04%実現
+**成果**: バックテスト ¥+119,815（年利24%相当）、Maker戦略で往復手数料0%実現
 
 ---
 
@@ -31,7 +31,8 @@
 | 62.17 | stop_limit未約定バグ修正 | Bot側SL監視スキップ・タイムアウトフォールバック | ✅完了 |
 | 62.18 | SLパターン分析機能 | MFE/MAE活用・改善示唆自動生成 | ✅完了 |
 | 62.19 | 手数料改定対応 | Maker 0%・Taker 0.1%に全面更新 | ✅完了 |
-| **62.20** | **TP/SL欠損自動復旧** | **5分後検証・自動再構築** | **✅完了** |
+| 62.20 | TP/SL欠損自動復旧 | 検証・自動再構築 | ✅完了 |
+| **62.21** | **SL検証10分化・バグ修正** | **検証タイミング最適化・決済失敗正しく検出** | **✅完了** |
 
 ---
 
@@ -1214,7 +1215,8 @@ python3 scripts/live/standard_analysis.py --hours 168
 | 62.17 | stop_limit未約定バグ修正 | 二重決済リスク解消 |
 | 62.18 | SLパターン分析機能 | 改善示唆自動生成 |
 | 62.19 | 手数料改定対応 | Maker 0%・Taker 0.1%に更新 |
-| **62.20** | **TP/SL欠損自動復旧** | **5分後検証・自動再構築** |
+| 62.20 | TP/SL欠損自動復旧 | 検証・自動再構築 |
+| **62.21** | **SL検証10分化・バグ修正** | **検証タイミング最適化・エントリーMaker修正** |
 
 ### 保留タスク
 
@@ -1283,4 +1285,78 @@ tp_sl_verification:
 
 ---
 
-**最終更新**: 2026年2月7日 - **Phase 62.20完了**（TP/SL欠損自動復旧）
+## Phase 62.21: SL検証10分化・タイムアウトバグ修正（2026年2月8日完了）
+
+### 背景
+
+Phase 62.20のTP/SL検証が5分後に設定されていたが、stop_limitタイムアウト（5分）と同じタイミングのため、タイムアウト処理前に検証が走る問題があった。
+
+また、`_execute_position_exit`で決済注文が失敗しても`success=True`を返すバグを発見。
+
+### 修正内容
+
+| 修正箇所 | 変更内容 |
+|---------|----------|
+| `thresholds.yaml` | `delay_seconds: 300` → `600`（5分→10分） |
+| `stop_manager.py` | 決済失敗時に`success=False`を返す（バグ修正） |
+| `stop_manager.py` | タイムアウト決済失敗時に警告ログ出力 |
+| `executor.py` | フォールバック時に`post_only=True`追加（Maker戦略適用） |
+
+### 1. SL検証を5分→10分に変更
+
+**理由**: stop_limitタイムアウト（5分）の後に検証を実行するため
+
+```yaml
+# 修正後
+tp_sl_verification:
+  enabled: true
+  delay_seconds: 600  # Phase 62.21: 10分（stop_limitタイムアウト後）
+```
+
+### 2. タイムアウトハンドラのバグ修正
+
+**問題**: `_execute_position_exit`のexcept節でreturnせず、`success=True`のExecutionResultに到達してしまう
+
+```python
+# 修正前（バグ）
+except Exception as e:
+    self.logger.error(f"❌ bitbank決済注文発行失敗: {e}")
+    # ← returnなし、次の行でsuccess=Trueを返してしまう
+
+# 修正後
+except Exception as e:
+    error_message = str(e)
+    self.logger.error(f"❌ bitbank決済注文発行失敗: {error_message}")
+
+    # エラー50062の場合は既に決済済みの可能性を示唆
+    if "50062" in error_message:
+        self.logger.info("ℹ️ Phase 62.21: エラー50062 - ポジション既決済の可能性")
+
+    # 決済失敗時はsuccess=Falseで返す
+    return ExecutionResult(success=False, ...)
+```
+
+### 3. フォールバック時Maker戦略適用
+
+**問題**: エントリーフォールバック（タイムアウト後の指値）でpost_onlyが未設定
+
+```python
+# 修正後
+if order_type == "limit" and price:
+    order_params["price"] = price
+    # Phase 62.21: フォールバックでもMaker優先
+    if get_threshold("order_execution.maker_strategy.enabled", True):
+        order_params["post_only"] = True
+```
+
+### 効果
+
+| 問題 | 修正前 | 修正後 |
+|------|--------|--------|
+| SL検証タイミング | 5分（タイムアウト前） | 10分（タイムアウト後） |
+| 決済失敗時の挙動 | success=True（バグ） | success=False（正常） |
+| エントリー手数料 | Taker 0.1%（フォールバック時） | Maker 0%（post_only） |
+
+---
+
+**最終更新**: 2026年2月8日 - **Phase 62.21完了**（SL検証10分化・タイムアウトバグ修正）
