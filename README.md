@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 62完了・Maker戦略・SL改善・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 63.2完了・TP/SL不具合修正・固定金額TP累積手数料バグ修正・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-74%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2062-Complete-success)](docs/)
+[![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
+[![Phase](https://img.shields.io/badge/Phase%2063.2-Complete-success)](docs/)
 
 ---
 
@@ -204,7 +204,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 62計画
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.2完了
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -212,23 +212,23 @@ config/core/
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
 - **[GCP運用ガイド](docs/運用ガイド/GCP運用ガイド.md)**: IAM権限・リソース管理
 - **[システム機能一覧](docs/運用ガイド/システム機能一覧.md)**: 実装機能リファレンス
-- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-62総括
+- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-63総括
 
 ---
 
 ## 開発状況
 
+### Phase 63/63.2（✅完了）: TP/SL不具合修正・固定金額TP累積手数料バグ修正
+
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| **63 Bug 1-2** | stop_limit検出対応・ポジション集約マッチング緩和 | ✅完了 |
+| **63 Bug 3** | asyncio.create_task廃止→pending_verifications方式 | ✅完了 |
+| **63 Bug 4** | stop_limitタイムアウト→SL状態確認追加（二重決済防止） | ✅完了 |
+| **63 Bug 5-6** | virtual_positions消失検知・整合性チェック追加 | ✅完了 |
+| **63.2** | **固定金額TP累積手数料バグ修正（TP膨張+48%→正常化）** | ✅完了 |
+
 ### Phase 62（✅完了）: Maker戦略・SL改善・スリッページ分析
-
-| 区分 | 内容 | 状態 |
-|------|------|------|
-| **62.1-62.5** | 戦略閾値緩和・条件型変更・HOLD診断 | ✅完了 |
-| **62.6-62.8** | 手数料計算修正・バックテスト精度向上 | ✅完了 |
-| **62.9-62.12** | **Maker戦略実装・検証** | ✅完了 |
-| **62.13** | ATRフォールバック修正 | ✅完了 |
-| **62.14-62.16** | **SL改善・スリッページ分析** | ✅完了 |
-
-**Phase 62 最終成果**:
 
 | 指標 | 値 |
 |------|-----|
@@ -298,4 +298,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月5日 - **Phase 62完了**（Maker戦略・SL改善・スリッページ分析）・カバレッジ74%達成
+**最終更新**: 2026年2月10日 - **Phase 63.2完了**（TP/SL不具合修正・固定金額TP累積手数料バグ修正）・カバレッジ73%達成
