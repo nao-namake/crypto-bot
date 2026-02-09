@@ -147,11 +147,12 @@ class StopManager:
 
                 aamt = float(apos.get("amount", 0))
 
-                # サイドと数量でマッチング（10%許容誤差）
+                # Phase 63: Bug 5修正 - サイド一致かつ実ポジション存在でマッチ
+                # ポジション集約時に個別数量と集約量が異なるため、
+                # サイド一致のみでマッチング
                 if aside == vside and aamt > 0:
-                    if abs(aamt - vamt) / vamt < 0.10:
-                        matched = True
-                        break
+                    matched = True
+                    break
 
             if not matched:
                 disappeared.append(vpos)
@@ -869,14 +870,39 @@ class StopManager:
             # タイムアウトしていない
             return None
 
-        # タイムアウト発生 - フォールバック決済
+        # Phase 63: Bug 4修正 - タイムアウト前にSL注文の存在を確認
+        # SLが既に約定済み/キャンセル済みの場合はフォールバック不要
+        sl_order_id = position.get("sl_order_id")
+        if sl_order_id and bitbank_client:
+            try:
+                symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
+                sl_order_status = await asyncio.to_thread(
+                    bitbank_client.fetch_order, sl_order_id, symbol
+                )
+                order_status = sl_order_status.get("status", "")
+                if order_status in ("closed", "canceled", "cancelled"):
+                    self.logger.info(
+                        f"📊 Phase 63: SL注文 {sl_order_id} は既に{order_status} - フォールバック不要"
+                    )
+                    return None
+                elif order_status == "open":
+                    self.logger.info(
+                        f"📊 Phase 63: SL注文 {sl_order_id} はまだアクティブ - "
+                        f"bitbankトリガー待機継続（フォールバックスキップ）"
+                    )
+                    return None
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 63: SL注文確認エラー: {e} - フォールバックスキップ")
+                return None  # API一時エラー時は安全側（フォールバックしない）
+
+        # タイムアウト発生 - フォールバック決済（SL注文が確認できない場合のみ）
         entry_side = position.get("side", "")
         amount = float(position.get("amount", 0))
         stop_loss = position.get("stop_loss")
 
         self.logger.warning(
-            f"⚠️ Phase 62.17: stop_limitタイムアウト ({elapsed_seconds:.0f}秒経過) - "
-            f"成行フォールバック実行 "
+            f"⚠️ Phase 63: stop_limitタイムアウト ({elapsed_seconds:.0f}秒経過) - "
+            f"SL注文確認不可のため成行フォールバック実行 "
             f"({entry_side} {amount:.6f} BTC, SL: {stop_loss:.0f}円, 現在: {current_price:.0f}円)"
         )
 

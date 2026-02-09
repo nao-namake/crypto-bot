@@ -207,22 +207,19 @@ class RiskManager:
             # エントリー手数料
             include_entry_fee = config.get("include_entry_fee", True)
             if include_entry_fee:
-                if fee_data:
-                    entry_fee = fee_data.unrealized_fee_amount
-                else:
-                    # Phase 62.19: API失敗時はフォールバックレートで推定（Maker 0%）
-                    fallback_rate = config.get("fallback_entry_fee_rate", 0.0)
-                    entry_fee = entry_price * amount * fallback_rate
+                # Phase 63.2: fee_data.unrealized_fee_amountは集約ポジション全体の
+                # 累積手数料を返すため使用しない。fallbackレートで個別計算。
+                fallback_rate = config.get("fallback_entry_fee_rate", 0.0)
+                entry_fee = entry_price * amount * fallback_rate
             else:
                 entry_fee = 0
 
             # 利息
             include_interest = config.get("include_interest", True)
             if include_interest:
-                if fee_data:
-                    interest = fee_data.unrealized_interest_amount
-                else:
-                    interest = 0
+                # Phase 63.2: fee_data.unrealized_interest_amountも集約ポジション
+                # 全体の累積値。新規エントリー時点では利息≈0円。
+                interest = 0
             else:
                 interest = 0
 

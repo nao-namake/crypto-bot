@@ -1,9 +1,10 @@
 """
-Phase 61.7/61.8/61.10: 固定金額TP計算テスト
+Phase 61.7/61.8/61.10/63.2: 固定金額TP計算テスト
 
 固定金額TP（目標純利益1,000円）の計算ロジックをテスト
 Phase 61.8: バックテスト対応（fee_data=Noneでの手数料推定）
 Phase 61.10: バックテスト・ライブモード ポジションサイズ統一
+Phase 63.2: fee_data累積手数料バグ修正（集約ポジション問題）
 """
 
 from src.strategies.utils.strategy_utils import RiskManager, SignalBuilder
@@ -26,8 +27,8 @@ class TestCalculateFixedAmountTP:
         }
 
         fee_data = PositionFeeData(
-            unrealized_fee_amount=346.0,  # エントリー手数料
-            unrealized_interest_amount=0.0,  # 利息（キャンペーン中0円）
+            unrealized_fee_amount=346.0,  # 累積手数料（Phase 63.2: 無視される）
+            unrealized_interest_amount=0.0,
             average_price=13618976.0,
             open_amount=0.0212,
         )
@@ -44,9 +45,9 @@ class TestCalculateFixedAmountTP:
         # BUYの場合、TPはエントリー価格より高い
         assert tp_price > 13618976.0
 
-        # Phase 62.19: 必要含み益 = 1000 + 346 + 0 + 0 = 1346円（Maker 0%）
-        # TP価格 = 13618976 + (1346 / 0.0212)
-        expected_required_profit = 1000 + 346 + 0  # exit_fee = 0（Maker 0%）
+        # Phase 63.2: fee_data.unrealized_fee_amount=346は無視される
+        # 必要含み益 = 1000 + 0 + 0 + 0 = 1000円（fallback_entry_fee_rate=0.0）
+        expected_required_profit = 1000 + 0 + 0  # entry_fee=0, interest=0, exit_fee=0
         expected_tp = 13618976.0 + (expected_required_profit / 0.0212)
         assert abs(tp_price - expected_tp) < 1  # 1円以内の誤差
 
@@ -141,17 +142,19 @@ class TestCalculateFixedAmountTP:
         assert tp_price is None
 
     def test_with_interest(self):
-        """利息がある場合の計算"""
+        """Phase 63.2: 利息がfee_dataにあってもTP計算に影響しない"""
         config = {
             "target_net_profit": 1000,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
             "include_interest": True,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
         }
 
         fee_data = PositionFeeData(
             unrealized_fee_amount=346.0,
-            unrealized_interest_amount=50.0,  # 利息50円
+            unrealized_interest_amount=50.0,  # 累積利息（Phase 63.2: 無視される）
             average_price=13618976.0,
             open_amount=0.0212,
         )
@@ -165,7 +168,10 @@ class TestCalculateFixedAmountTP:
         )
 
         assert tp_price is not None
-        # 利息があると必要含み益が増加するため、TPはより高くなる
+        # Phase 63.2: fee_data.unrealized_interest_amount=50は無視される
+        # 必要含み益 = 1000 + 0 + 0 = 1000円
+        expected_tp = 13618976.0 + (1000 / 0.0212)
+        assert abs(tp_price - expected_tp) < 1
 
     def test_disabled_fee_options(self):
         """手数料オプションを無効化した場合"""
@@ -366,7 +372,7 @@ class TestPhase618BacktestSupport:
         assert take_profit < 13618976.0
 
     def test_backtest_vs_live_consistency(self):
-        """バックテストとライブモードの計算結果が近似"""
+        """Phase 63.2: バックテストとライブモードの計算結果が完全一致"""
         config = {
             "max_loss_ratio": 0.003,
             "min_profit_ratio": 0.004,
@@ -376,9 +382,9 @@ class TestPhase618BacktestSupport:
         entry_price = 13618976.0
         amount = 0.0212
 
-        # ライブモード（fee_data指定）
+        # ライブモード（fee_data指定 - Phase 63.2で無視される）
         fee_data = PositionFeeData(
-            unrealized_fee_amount=346.0,  # 実際のAPI値（Taker 0.12%相当）
+            unrealized_fee_amount=346.0,  # 累積手数料（無視される）
             unrealized_interest_amount=0.0,
             average_price=entry_price,
             open_amount=amount,
@@ -394,24 +400,22 @@ class TestPhase618BacktestSupport:
             position_amount=amount,
         )
 
-        # バックテストモード（fee_data=None、フォールバックレートで推定）
+        # バックテストモード（fee_data=None）
         _, tp_backtest = RiskManager.calculate_stop_loss_take_profit(
             action="buy",
             current_price=entry_price,
             current_atr=100000.0,
             config=config,
             regime="tight_range",
-            fee_data=None,  # フォールバックレート 0.12% で推定
+            fee_data=None,
             position_amount=amount,
         )
 
         assert tp_live is not None
         assert tp_backtest is not None
 
-        # 両者の差が1%以内であることを確認
-        # (手数料推定と実際の値の差異は許容)
-        diff_pct = abs(tp_live - tp_backtest) / entry_price * 100
-        assert diff_pct < 1.0, f"TP差異が大きすぎます: {diff_pct:.2f}%"
+        # Phase 63.2: fee_dataが無視されるため完全一致
+        assert tp_live == tp_backtest
 
 
 class TestDynamicPositionSizing:
@@ -538,3 +542,78 @@ class TestDynamicPositionSizing:
         )
 
         assert size1 == size2
+
+
+class TestPhase632FeeDataIgnored:
+    """Phase 63.2: fee_dataの累積手数料がTP計算に使われないことを確認"""
+
+    def test_phase_63_2_fee_data_ignored(self):
+        """fee_dataの累積手数料がTP計算に影響しないことを検証"""
+        config = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "include_exit_fee_rebate": True,
+            "include_interest": True,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
+        }
+        # 集約ポジションの大きな累積手数料
+        fee_data = PositionFeeData(
+            unrealized_fee_amount=500.0,
+            unrealized_interest_amount=100.0,
+            average_price=11000000.0,
+            open_amount=0.0300,
+        )
+        tp_with_fee = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11000000.0,
+            amount=0.0100,
+            fee_data=fee_data,
+            config=config,
+        )
+        tp_without_fee = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11000000.0,
+            amount=0.0100,
+            fee_data=None,
+            config=config,
+        )
+        # Phase 63.2: fee_data有無で結果が同一
+        assert tp_with_fee == tp_without_fee
+        # 必要含み益=500円のみ → price_distance = 500/0.01 = 50000
+        assert abs(tp_with_fee - 11050000.0) < 1
+
+    def test_phase_63_2_sell_fee_data_ignored(self):
+        """SELLでもfee_dataが無視されることを検証"""
+        config = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "include_exit_fee_rebate": True,
+            "include_interest": True,
+            "fallback_entry_fee_rate": 0.0,
+            "fallback_exit_fee_rate": 0.0,
+        }
+        fee_data = PositionFeeData(
+            unrealized_fee_amount=300.0,
+            unrealized_interest_amount=50.0,
+            average_price=11000000.0,
+            open_amount=0.0200,
+        )
+        tp_with_fee = RiskManager.calculate_fixed_amount_tp(
+            action="sell",
+            entry_price=11000000.0,
+            amount=0.0100,
+            fee_data=fee_data,
+            config=config,
+        )
+        tp_without_fee = RiskManager.calculate_fixed_amount_tp(
+            action="sell",
+            entry_price=11000000.0,
+            amount=0.0100,
+            fee_data=None,
+            config=config,
+        )
+        # Phase 63.2: fee_data有無で結果が同一
+        assert tp_with_fee == tp_without_fee
+        # 必要含み益=500円 → price_distance = 500/0.01 = 50000
+        assert abs(tp_with_fee - 10950000.0) < 1

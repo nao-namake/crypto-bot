@@ -1797,7 +1797,7 @@ class TestCheckTpSlOrdersExist:
         assert has_sl is True
 
     def test_check_tp_sl_exist_amount_mismatch(self):
-        """数量不一致（10%以上の差）は対象外"""
+        """Phase 63: ポジション集約対応 - 数量不一致でもサイド一致ならマッチ"""
         service = ExecutionService(mode="paper")
 
         active_orders = [
@@ -1808,7 +1808,9 @@ class TestCheckTpSlOrdersExist:
             position_side="long", position_amount=0.0001, active_orders=active_orders
         )
 
-        assert has_tp is False
+        # Phase 63: Bug 2修正 - 集約ポジション対応のため数量マッチング緩和
+        # サイド一致のみでTP/SLとして検出
+        assert has_tp is True
 
 
 # ========================================

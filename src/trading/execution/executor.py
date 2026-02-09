@@ -11,7 +11,7 @@ Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
 
 import asyncio
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tax.trade_history_recorder import TradeHistoryRecorder
@@ -76,6 +76,9 @@ class ExecutionService:
 
         # Phase 30: 指値注文タイムアウト管理
         self.pending_limit_orders: List[Dict[str, Any]] = []
+
+        # Phase 63: TP/SL検証スケジュール管理（asyncio.create_task廃止）
+        self._pending_verifications: List[Dict[str, Any]] = []
 
         # モード別初期残高取得（Phase 55.9: get_threshold()使用に変更）
         # 旧方式: load_config()ではmode_balances属性が取得できないバグがあった
@@ -286,16 +289,18 @@ class ExecutionService:
             if order_side != exit_side:
                 continue
 
-            # 数量が一致（許容誤差10%）
-            if position_amount > 0 and abs(order_amount - position_amount) / position_amount > 0.1:
+            # Phase 63: Bug 2修正 - 数量マッチング緩和
+            # ポジション集約時に個別エントリー量と集約量が異なるため、
+            # サイド一致のみでマッチング（量チェック削除）
+            if order_amount <= 0:
                 continue
 
             # TP: limit注文
             if order_type == "limit":
                 has_tp = True
 
-            # SL: stop注文
-            if order_type == "stop":
+            # SL: stop注文またはstop_limit注文（Phase 63: Bug 1修正）
+            if order_type in ("stop", "stop_limit"):
                 has_sl = True
 
         return has_tp, has_sl
@@ -1319,10 +1324,39 @@ class ExecutionService:
         Returns:
             ExecutionResult: ストップ実行結果（実行しない場合はNone）
         """
+        # Phase 63: Bug 6修正 - virtual_positions整合性チェック
+        # 実ポジションが0件なのにvirtual_positionsにTP/SLエントリがある場合はクリーンアップ
+        actual_positions = None  # Phase 63: API呼び出し結果を再利用するための変数
+        if self.mode == "live" and self.bitbank_client:
+            try:
+                actual_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+
+                if not actual_positions and self.virtual_positions:
+                    tp_sl_entries = [
+                        v
+                        for v in self.virtual_positions
+                        if v.get("tp_order_id") or v.get("sl_order_id")
+                    ]
+                    if tp_sl_entries:
+                        self.logger.info(
+                            f"🧹 Phase 63: virtual_positions整合性クリーンアップ - "
+                            f"{len(tp_sl_entries)}件の孤立エントリ削除"
+                        )
+                        self.virtual_positions = [
+                            v
+                            for v in self.virtual_positions
+                            if not (v.get("tp_order_id") or v.get("sl_order_id"))
+                        ]
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 63: 整合性チェックエラー: {e}")
+                actual_positions = None
+
         # Phase 61.9: 自動執行検知（毎サイクル先頭、ライブモードのみ）
         if self.mode == "live" and self.bitbank_client and self.stop_manager:
             try:
-                actual_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+                # Phase 63: actual_positionsをBug 6で取得済みなら再利用
+                if actual_positions is None:
+                    actual_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
                 detected = await self.stop_manager.detect_auto_executed_orders(
                     virtual_positions=self.virtual_positions,
                     actual_positions=actual_positions,
@@ -1381,6 +1415,13 @@ class ExecutionService:
                             )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
+
+        # Phase 63: Bug 3修正 - pending_verificationsの期限到来分を処理
+        if self.mode == "live":
+            try:
+                await self._process_pending_verifications()
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 63: pending_verifications処理エラー: {e}")
 
         if self.stop_manager:
             return await self.stop_manager.check_stop_conditions(
@@ -1448,9 +1489,9 @@ class ExecutionService:
                         ):
                             fee_data = PositionFeeData.from_api_response(raw_data)
                             self.logger.info(
-                                f"📊 Phase 61.7: 手数料データ取得成功 - "
-                                f"エントリー手数料={fee_data.unrealized_fee_amount:.0f}円, "
-                                f"利息={fee_data.unrealized_interest_amount:.0f}円"
+                                f"📊 Phase 63.2: 手数料データ取得（参考値・TP計算には未使用） - "
+                                f"累積手数料={fee_data.unrealized_fee_amount:.0f}円, "
+                                f"累積利息={fee_data.unrealized_interest_amount:.0f}円"
                             )
                             break
                 except Exception as e:
@@ -2169,25 +2210,67 @@ class ExecutionService:
             sl_order_id: SL注文ID
             symbol: 通貨ペア
         """
-        delay_seconds = get_threshold("tp_sl_verification.delay_seconds", 300)  # デフォルト5分
+        delay_seconds = get_threshold("tp_sl_verification.delay_seconds", 600)  # デフォルト10分
 
-        asyncio.create_task(
-            self._verify_and_rebuild_tp_sl(
-                entry_order_id=entry_order_id,
-                side=side,
-                amount=amount,
-                entry_price=entry_price,
-                expected_tp_order_id=tp_order_id,
-                expected_sl_order_id=sl_order_id,
-                symbol=symbol,
-                delay_seconds=delay_seconds,
-            )
+        # Phase 63: Bug 3修正 - asyncio.create_task廃止
+        # fire-and-forgetではなく、pending_verificationsに保存し
+        # メインサイクルで期限到来分を処理する方式に変更
+        self._pending_verifications.append(
+            {
+                "scheduled_at": datetime.now(timezone.utc),
+                "verify_after": datetime.now(timezone.utc) + timedelta(seconds=delay_seconds),
+                "entry_order_id": entry_order_id,
+                "side": side,
+                "amount": amount,
+                "entry_price": entry_price,
+                "expected_tp_order_id": tp_order_id,
+                "expected_sl_order_id": sl_order_id,
+                "symbol": symbol,
+            }
         )
 
         self.logger.info(
-            f"📋 Phase 62.20: TP/SL検証スケジュール - {delay_seconds}秒後 "
-            f"(Entry: {entry_order_id})"
+            f"📋 Phase 63: TP/SL検証スケジュール - {delay_seconds}秒後 "
+            f"(Entry: {entry_order_id}, pending: {len(self._pending_verifications)}件)"
         )
+
+    async def _process_pending_verifications(self):
+        """
+        Phase 63: Bug 3修正 - メインサイクルで期限到来の検証を処理
+
+        asyncio.create_taskの代わりに、メインサイクルの各サイクルで
+        期限到来分のTP/SL検証を実行する。
+        Cloud Runの5分サイクル間でcontainer再起動やイベントループ終了で
+        タスクが消失する問題を解決。
+        """
+        if not self._pending_verifications:
+            return
+
+        now = datetime.now(timezone.utc)
+        due = [v for v in self._pending_verifications if now >= v["verify_after"]]
+        self._pending_verifications = [
+            v for v in self._pending_verifications if now < v["verify_after"]
+        ]
+
+        if due:
+            self.logger.info(f"🔍 Phase 63: TP/SL検証実行 - {len(due)}件期限到来")
+
+        for v in due:
+            try:
+                await self._verify_and_rebuild_tp_sl(
+                    entry_order_id=v["entry_order_id"],
+                    side=v["side"],
+                    amount=v["amount"],
+                    entry_price=v["entry_price"],
+                    expected_tp_order_id=v["expected_tp_order_id"],
+                    expected_sl_order_id=v["expected_sl_order_id"],
+                    symbol=v["symbol"],
+                    delay_seconds=0,  # 既に待機済み
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"❌ Phase 63: TP/SL検証エラー - Entry: {v['entry_order_id']}, {e}"
+                )
 
     async def _verify_and_rebuild_tp_sl(
         self,
@@ -2214,10 +2297,11 @@ class ExecutionService:
             delay_seconds: 待機秒数
         """
         try:
-            # Step 1: 指定時間待機
-            await asyncio.sleep(delay_seconds)
+            # Phase 63: Bug 3修正 - sleepはpending_verifications方式で代替済み
+            if delay_seconds > 0:
+                await asyncio.sleep(delay_seconds)
 
-            self.logger.info(f"🔍 Phase 62.20: TP/SL検証開始 - Entry: {entry_order_id}")
+            self.logger.info(f"🔍 Phase 63: TP/SL検証開始 - Entry: {entry_order_id}")
 
             # Step 2: ポジション存在確認
             positions = await self.bitbank_client.fetch_margin_positions(symbol)
@@ -2237,11 +2321,9 @@ class ExecutionService:
                 pos_side = pos.get("side", "")
                 pos_amount = float(pos.get("amount", 0))
 
-                # サイド一致 & 数量近似（10%許容）
-                if (
-                    pos_side == expected_pos_side
-                    and abs(pos_amount - amount) / max(amount, 0.0001) < 0.1
-                ):
+                # Phase 63: Bug 2修正 - サイド一致のみでマッチング
+                # ポジション集約時に個別エントリー量と集約ポジション量が異なるため
+                if pos_side == expected_pos_side and pos_amount > 0:
                     matching_position = pos
                     break
 
