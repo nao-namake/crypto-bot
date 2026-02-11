@@ -1529,7 +1529,7 @@ class TestRestorePositionsFromAPI:
 
     @patch("src.trading.execution.executor.DiscordManager")
     async def test_restore_positions_with_active_orders(self, mock_discord, mock_bitbank_client):
-        """アクティブ注文ありの復元"""
+        """Phase 63.4: 実ポジションベースの復元（1ポジション=1エントリ）"""
         # 信用建玉
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
             return_value=[
@@ -1541,7 +1541,7 @@ class TestRestorePositionsFromAPI:
                 }
             ]
         )
-        # アクティブ注文
+        # アクティブ注文（TP/SLマッチング用）
         mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
                 {
@@ -1564,41 +1564,28 @@ class TestRestorePositionsFromAPI:
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         await service.restore_positions_from_api()
 
-        # 2件復元される
-        assert len(service.virtual_positions) == 2
+        # Phase 63.4: 1実ポジション → 1 virtual_position
+        assert len(service.virtual_positions) == 1
+        vp = service.virtual_positions[0]
+        assert vp["side"] == "buy"  # long → buy
+        assert vp["amount"] == 0.0001
+        assert vp["price"] == 14000000
+        assert vp["tp_order_id"] == "tp_123"
+        assert vp["sl_order_id"] == "sl_123"
+        assert vp["take_profit"] == 14500000.0
+        assert vp["stop_loss"] == 13500000.0
+        assert vp["restored"] is True
+        assert vp["sl_placed_at"] is not None
 
     @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_skips_incomplete_orders(
-        self, mock_discord, mock_bitbank_client
-    ):
-        """Phase 53.11: 不完全な注文はスキップ"""
+    async def test_restore_positions_no_real_positions(self, mock_discord, mock_bitbank_client):
+        """Phase 63.4: 実ポジションなしの場合は復元なし"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
-        # 不完全なデータ（side, amount, priceがNone）
+        # アクティブ注文があっても実ポジションがなければ復元しない
         mock_bitbank_client.fetch_active_orders = MagicMock(
             return_value=[
                 {
-                    "id": "incomplete_1",
-                    "type": "limit",
-                    "side": None,
-                    "amount": 0.0001,
-                    "price": 14000000,
-                },
-                {
-                    "id": "incomplete_2",
-                    "type": "limit",
-                    "side": "sell",
-                    "amount": None,
-                    "price": 14000000,
-                },
-                {
-                    "id": "incomplete_3",
-                    "type": "limit",
-                    "side": "sell",
-                    "amount": 0.0001,
-                    "price": None,
-                },
-                {
-                    "id": "valid_order",
+                    "id": "orphan_order",
                     "type": "limit",
                     "side": "sell",
                     "amount": 0.0001,
@@ -1610,9 +1597,8 @@ class TestRestorePositionsFromAPI:
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
         await service.restore_positions_from_api()
 
-        # 有効な注文のみ復元
-        assert len(service.virtual_positions) == 1
-        assert service.virtual_positions[0]["order_id"] == "valid_order"
+        # 実ポジションなし → 復元なし
+        assert len(service.virtual_positions) == 0
 
     @patch("src.trading.execution.executor.DiscordManager")
     async def test_restore_positions_api_error_handling(self, mock_discord, mock_bitbank_client):

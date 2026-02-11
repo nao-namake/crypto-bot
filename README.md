@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 63.2完了・TP/SL不具合修正・固定金額TP累積手数料バグ修正・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 63.4完了・SLタイムアウト安全チェック・ポジション復元改善・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2063.2-Complete-success)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2063.4-Complete-success)](docs/)
 
 ---
 
@@ -78,16 +78,15 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 | DonchianChannel | 0.30 | RSIボーナス制度で強化 |
 | トレンド型 | 0.0 | タイトレンジで機能しない |
 
-### レジーム別TP/SL設定（Phase 62.15更新）
+### レジーム別TP/SL設定（Phase 63.3更新）
 
 | レジーム | 平日TP | 平日SL | 土日TP | 土日SL |
 |---------|--------|--------|--------|--------|
-| tight_range | 0.4% | **0.4%** | 0.25% | **0.25%** |
-| normal_range | 0.6% | 0.4% | 0.4% | 0.25% |
-| trending | 1.0% | 0.6% | 0.6% | 0.4% |
+| tight_range | 0.4% | 0.4% | 0.25% | 0.25% |
+| normal_range | 1.0% | 0.7% | 0.65% | 0.45% |
+| trending | 1.5% | 1.0% | 1.0% | 0.65% |
 
 **土日縮小根拠**: 半年分CSV分析で土日ATRは平日の65%
-**Phase 62.15**: tight_range SL 0.3%→0.4%に拡大（SL発動率低下・勝率改善）
 
 ---
 
@@ -204,7 +203,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.2完了
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.4完了
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -218,15 +217,15 @@ config/core/
 
 ## 開発状況
 
-### Phase 63/63.2（✅完了）: TP/SL不具合修正・固定金額TP累積手数料バグ修正
+### Phase 63/63.2/63.4（✅完了）: TP/SL不具合修正・ポジション復元改善
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| **63 Bug 1-2** | stop_limit検出対応・ポジション集約マッチング緩和 | ✅完了 |
-| **63 Bug 3** | asyncio.create_task廃止→pending_verifications方式 | ✅完了 |
-| **63 Bug 4** | stop_limitタイムアウト→SL状態確認追加（二重決済防止） | ✅完了 |
-| **63 Bug 5-6** | virtual_positions消失検知・整合性チェック追加 | ✅完了 |
-| **63.2** | **固定金額TP累積手数料バグ修正（TP膨張+48%→正常化）** | ✅完了 |
+| **63 Bug 1-6** | stop_limit検出・マッチング緩和・asyncio廃止・SL状態確認・整合性チェック | ✅完了 |
+| **63.2** | 固定金額TP累積手数料バグ修正（TP膨張+48%→正常化） | ✅完了 |
+| **63.4 Bug 1** | **SLタイムアウト価格安全チェック（利益圏での成行誤決済防止）** | ✅完了 |
+| **63.4 Bug 2** | **restore_positions_from_api実ポジションベース化（SL監視正常化）** | ✅完了 |
+| **63.4 Bug 3-5** | **TP/SL再構築amount修正・孤児sl_placed_at追加・重複防止** | ✅完了 |
 
 ### Phase 62（✅完了）: Maker戦略・SL改善・スリッページ分析
 
@@ -298,4 +297,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月10日 - **Phase 63.2完了**（TP/SL不具合修正・固定金額TP累積手数料バグ修正）・カバレッジ73%達成
+**最終更新**: 2026年2月12日 - **Phase 63.4完了**（SLタイムアウト安全チェック・ポジション復元改善・TP/SL再構築amount不整合修正）・カバレッジ73%達成

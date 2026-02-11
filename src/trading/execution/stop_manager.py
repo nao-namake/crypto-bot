@@ -900,6 +900,28 @@ class StopManager:
         amount = float(position.get("amount", 0))
         stop_loss = position.get("stop_loss")
 
+        # Phase 63.4: 価格安全チェック - SLゾーン外なら実行しない
+        if stop_loss and current_price > 0:
+            sl_price = float(stop_loss)
+            if entry_side.lower() == "buy":
+                # ロング: 現在価格がSL+1.5%以上なら、SL発動は不合理
+                if current_price > sl_price * 1.015:
+                    self.logger.warning(
+                        f"⚠️ Phase 63.4: SLタイムアウト中止 - "
+                        f"現在価格({current_price:.0f})がSL({sl_price:.0f})より"
+                        f"大幅に高い。bitbankトリガー待機継続。"
+                    )
+                    return None
+            elif entry_side.lower() == "sell":
+                # ショート: 現在価格がSL-1.5%以下なら不合理
+                if current_price < sl_price * 0.985:
+                    self.logger.warning(
+                        f"⚠️ Phase 63.4: SLタイムアウト中止 - "
+                        f"現在価格({current_price:.0f})がSL({sl_price:.0f})より"
+                        f"大幅に低い。bitbankトリガー待機継続。"
+                    )
+                    return None
+
         self.logger.warning(
             f"⚠️ Phase 63: stop_limitタイムアウト ({elapsed_seconds:.0f}秒経過) - "
             f"SL注文確認不可のため成行フォールバック実行 "

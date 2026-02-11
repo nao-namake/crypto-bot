@@ -1168,12 +1168,39 @@ class LiveAnalyzer:
                         )
                         break
 
-                # 最新リビジョン時刻
+                # Phase 63.3: Bug 6修正 - 最新リビジョンのタイムスタンプを取得
+                # 旧: service metadata.creationTimestamp（サービス作成日）を使用していた
                 latest_revision = service_info.get("status", {}).get("latestReadyRevisionName", "")
                 if latest_revision:
-                    self.result.last_deploy_time = service_info.get("metadata", {}).get(
-                        "creationTimestamp", ""
-                    )
+                    try:
+                        rev_result = subprocess.run(
+                            [
+                                "gcloud",
+                                "run",
+                                "revisions",
+                                "describe",
+                                latest_revision,
+                                "--region=asia-northeast1",
+                                "--format=json",
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                        )
+                        if rev_result.returncode == 0:
+                            rev_info = json.loads(rev_result.stdout)
+                            self.result.last_deploy_time = rev_info.get("metadata", {}).get(
+                                "creationTimestamp", ""
+                            )
+                        else:
+                            # フォールバック: サービス作成日
+                            self.result.last_deploy_time = service_info.get("metadata", {}).get(
+                                "creationTimestamp", ""
+                            )
+                    except Exception:
+                        self.result.last_deploy_time = service_info.get("metadata", {}).get(
+                            "creationTimestamp", ""
+                        )
             else:
                 self.result.service_status = "unknown"
                 self.logger.warning("GCPサービス状態取得失敗（gcloud未設定?）")
