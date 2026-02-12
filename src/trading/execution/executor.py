@@ -83,6 +83,9 @@ class ExecutionService:
         # Phase 63.3: 孤児ポジション定期スキャン（30分間隔）
         self._last_orphan_scan_time: Optional[datetime] = None
 
+        # Phase 63.6: TP/SL健全性定期チェック（10分間隔）
+        self._last_tp_sl_check_time: Optional[datetime] = None
+
         # モード別初期残高取得（Phase 55.9: get_threshold()使用に変更）
         # 旧方式: load_config()ではmode_balances属性が取得できないバグがあった
         # フォールバック値はすべて¥100,000（バックテスト基準）
@@ -248,15 +251,19 @@ class ExecutionService:
                 if amount <= 0:
                     continue
 
-                # Phase 63.4: Bug 2修正後、restore済みポジションの重複防止
+                # Phase 63.5: restore済み＋TP/SL設置済みの場合のみスキップ
+                # (Phase 63.4 Bug 5の重複防止が過剰でTP/SL未設置でもスキップしていた)
                 entry_side = "buy" if position_side == "long" else "sell"
                 already_restored = any(
-                    vp.get("side") == entry_side and vp.get("restored")
+                    vp.get("side") == entry_side
+                    and vp.get("restored")
+                    and vp.get("tp_order_id")
+                    and vp.get("sl_order_id")
                     for vp in self.virtual_positions
                 )
                 if already_restored:
                     self.logger.debug(
-                        f"✅ Phase 63.4: 既に復元済み - {position_side} {amount:.4f} BTC"
+                        f"✅ Phase 63.5: 復元済み＋TP/SL設置済み - {position_side} {amount:.4f} BTC"
                     )
                     continue
 
@@ -278,6 +285,18 @@ class ExecutionService:
                     f"{position_side} {amount:.4f} BTC @ {avg_price:.0f}円 "
                     f"(TP: {'あり' if has_tp else 'なし'}, SL: {'あり' if has_sl else 'なし'})"
                 )
+
+                # Phase 63.5/63.6: 復元済みだがTP/SLいずれか欠損のvirtual_positionを削除（重複防止）
+                # _place_missing_tp_sl()が新エントリをappendするため、古いエントリを除去
+                # Phase 63.6: and→or修正 - TP片方のみ設置済みの復元エントリも削除対象
+                self.virtual_positions = [
+                    vp
+                    for vp in self.virtual_positions
+                    if not (
+                        vp.get("side") == entry_side
+                        and (not vp.get("tp_order_id") or not vp.get("sl_order_id"))
+                    )
+                ]
 
                 await self._place_missing_tp_sl(
                     position_side=position_side,
@@ -362,11 +381,11 @@ class ExecutionService:
         # レジーム別TP/SL設定（デフォルト: normal_range）
         # Phase 52.0のレジーム別設定を使用
         tp_ratio = get_threshold(
-            "position_management.take_profit.regime_configs.normal_range.take_profit_ratio",
-            get_threshold("position_management.take_profit.default_ratio", 0.009),
+            "position_management.take_profit.regime_based.normal_range.min_profit_ratio",
+            get_threshold("position_management.take_profit.min_profit_ratio", 0.009),
         )
         sl_ratio = get_threshold(
-            "position_management.stop_loss.regime_configs.normal_range.max_loss_ratio",
+            "position_management.stop_loss.regime_based.normal_range.max_loss_ratio",
             get_threshold("position_management.stop_loss.max_loss_ratio", 0.007),
         )
 
@@ -1559,6 +1578,13 @@ class ExecutionService:
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63: pending_verifications処理エラー: {e}")
 
+        # Phase 63.6: TP/SL健全性定期チェック（10分間隔）
+        if self.mode == "live" and self.bitbank_client and self.stop_manager:
+            try:
+                await self._periodic_tp_sl_check()
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 63.6: TP/SL定期チェックエラー: {e}")
+
         # Phase 63.3: Bug 4修正 - 孤児ポジション定期スキャン（30分間隔）
         if self.mode == "live" and self.bitbank_client and self.stop_manager:
             try:
@@ -2596,6 +2622,35 @@ class ExecutionService:
             self.logger.error(f"❌ Phase 62.20: TP/SL検証エラー - Entry: {entry_order_id}, {e}")
 
     # ========================================
+    # Phase 63.6: TP/SL健全性定期チェック
+    # ========================================
+
+    async def _periodic_tp_sl_check(self) -> None:
+        """
+        Phase 63.6: TP/SL健全性定期チェック（10分間隔）
+
+        virtual_positionsに存在するポジションのTP/SL注文がbitbank上に存在するか確認。
+        証拠金不足・API障害等でTP/SLがキャンセルされたケースを検出・再設置する。
+
+        孤児スキャン（30分間隔）との役割分担:
+        - ensure_tp_sl: virtual_positionsに「存在する」ポジションのTP/SL確認
+        - 孤児スキャン: virtual_positionsに「存在しない」ポジションの検出
+        """
+        now = datetime.now()
+        check_interval = get_threshold("tp_sl_check.interval_seconds", 600)  # 10分
+
+        if (
+            self._last_tp_sl_check_time
+            and (now - self._last_tp_sl_check_time).total_seconds() < check_interval
+        ):
+            return
+
+        self._last_tp_sl_check_time = now
+
+        self.logger.debug("🔍 Phase 63.6: TP/SL健全性定期チェック開始")
+        await self.ensure_tp_sl_for_existing_positions()
+
+    # ========================================
     # Phase 63.3: 孤児ポジション定期スキャン
     # ========================================
 
@@ -2708,10 +2763,12 @@ class ExecutionService:
 
                 # デフォルトレジーム(tight_range)でTP/SL計算
                 tp_ratio = get_threshold(
-                    "risk.stop_loss.take_profit.regime_based.tight_range.min_profit_ratio", 0.004
+                    "position_management.take_profit.regime_based.tight_range.min_profit_ratio",
+                    0.004,
                 )
                 sl_ratio = get_threshold(
-                    "risk.stop_loss.regime_based.tight_range.max_loss_ratio", 0.004
+                    "position_management.stop_loss.regime_based.tight_range.max_loss_ratio",
+                    0.004,
                 )
 
                 if pos_side == "long":

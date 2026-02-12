@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 63.4完了・SLタイムアウト安全チェック・ポジション復元改善・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 63.6完了・TP/SL定期チェック・残存バグ修正・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2063.4-Complete-success)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2063.6-Complete-success)](docs/)
 
 ---
 
@@ -203,7 +203,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.4完了
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.6完了
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -217,7 +217,7 @@ config/core/
 
 ## 開発状況
 
-### Phase 63/63.2/63.4（✅完了）: TP/SL不具合修正・ポジション復元改善
+### Phase 63/63.2/63.4/63.5/63.6（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
@@ -226,6 +226,8 @@ config/core/
 | **63.4 Bug 1** | **SLタイムアウト価格安全チェック（利益圏での成行誤決済防止）** | ✅完了 |
 | **63.4 Bug 2** | **restore_positions_from_api実ポジションベース化（SL監視正常化）** | ✅完了 |
 | **63.4 Bug 3-5** | **TP/SL再構築amount修正・孤児sl_placed_at追加・重複防止** | ✅完了 |
+| **63.5** | **TP/SL定期チェック実装（10分間隔・メインサイクル内）** | ✅完了 |
+| **63.6 Bug 1-3** | **get_thresholdパス修正（CRITICAL）・設定パス修正・restoredフィルタ削除** | ✅完了 |
 
 ### Phase 62（✅完了）: Maker戦略・SL改善・スリッページ分析
 
@@ -297,4 +299,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月12日 - **Phase 63.4完了**（SLタイムアウト安全チェック・ポジション復元改善・TP/SL再構築amount不整合修正）・カバレッジ73%達成
+**最終更新**: 2026年2月13日 - **Phase 63.6完了**（TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認）・カバレッジ73%達成

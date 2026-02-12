@@ -1,8 +1,8 @@
 # Phase 63: TP/SL設置不具合修正・固定金額TP累積手数料バグ修正
 
-**期間**: 2026年2月10日〜12日
-**状態**: ✅ Phase 63.4完了
-**成果**: TP/SL関連の6つのバグを修正、固定金額TP計算の累積手数料バグ修正、SLタイムアウト誤発動・ポジション復元不完全・TP/SL再構築amount不整合修正
+**期間**: 2026年2月10日〜13日
+**状態**: ✅ Phase 63.6完了
+**成果**: TP/SL関連の6つのバグを修正、固定金額TP計算の累積手数料バグ修正、SLタイムアウト誤発動・ポジション復元不完全・TP/SL再構築amount不整合修正、TP/SL定期チェック実装、残存バグ3件修正
 
 ---
 
@@ -22,6 +22,10 @@
 | **63.4 Bug 3** | **_verify_and_rebuild_tp_slのamount不整合** | **ポジション集約時50062エラー** | **✅完了** |
 | **63.4 Bug 4** | **_scan_orphan_positionsにsl_placed_at欠如** | **孤児復元ポジションのSLタイムアウト無効** | **✅完了** |
 | **63.4 Bug 5** | **ensure_tp_sl_for_existing_positionsの重複防止** | **Bug 2修正後の重複エントリ作成リスク** | **✅完了** |
+| **63.5** | **TP/SL定期チェック実装（10分間隔）** | **メインサイクル内でTP/SL欠損を自動検知・復旧** | **✅完了** |
+| **63.6 Bug 1** | **_place_missing_tp_sl get_thresholdパス修正（CRITICAL）** | **TP +129%バグ → 正常なTP/SL設定値取得** | **✅完了** |
+| **63.6 Bug 2** | **_scan_orphan_positions 設定パス修正（HIGH）** | **孤児スキャンSL設定が正しいパスを参照** | **✅完了** |
+| **63.6 Bug 3** | **ensure_tp_sl restoredフィルタ削除（MEDIUM）** | **復元ポジションもTP/SL定期チェック対象化** | **✅完了** |
 
 ---
 
@@ -615,4 +619,116 @@ $ bash scripts/testing/checks.sh
 
 ---
 
-**最終更新**: 2026年2月12日 - **Phase 63.4完了**（SLタイムアウト誤発動・ポジション復元不完全・TP/SL再構築amount不整合修正）
+## Phase 63.5: TP/SL定期チェック実装
+
+**期間**: 2026年2月13日
+
+### 概要
+
+メインサイクル内で10分間隔のTP/SL定期チェックを実装。既存の`_process_pending_verifications()`（エントリー後10分検証）に加え、全ポジションを対象とした定期的なTP/SL欠損検知・自動復旧メカニズムを追加。
+
+### 実装内容
+
+**ファイル**: `src/trading/execution/executor.py`
+
+#### `_periodic_tp_sl_check()`
+
+- 10分間隔でメインサイクルから呼び出し
+- 全virtual_positionsのTP/SL設置状態を確認
+- 欠損検知時に`_place_missing_tp_sl()`で自動復旧
+- `_last_tp_sl_check`タイムスタンプで間隔管理
+
+#### `_place_missing_tp_sl()`
+
+- 個別ポジションのTP/SL欠損を復旧
+- レジーム別TP/SL設定値をget_thresholdで取得
+- 固定金額TP有効時はcalculate_fixed_amount_tpを使用
+
+---
+
+## Phase 63.6: 残存バグ3件修正（最終品質チェック）
+
+**期間**: 2026年2月13日
+
+### 概要
+
+Phase 63.5実装後のOpusエージェント最終監査により、executor.py全体で3件の残存バグを検出・修正。修正後の再監査で**実運用に影響するバグはもう存在しない**ことを確認。
+
+### Bug 1: _place_missing_tp_sl get_thresholdパス修正（CRITICAL）
+
+**ファイル**: `src/trading/execution/executor.py`
+
+**問題**: `_place_missing_tp_sl()`内でTP/SL設定値を取得する`get_threshold`のパスが`regime_configs`になっていたが、正しくは`regime_based`。これによりTP/SLが全てデフォルト値にフォールバックし、TP幅が+129%に膨張する。
+
+**修正前**:
+```python
+tp_rate = get_threshold(f"regime_configs.{regime}.take_profit", 0.004)
+sl_rate = get_threshold(f"regime_configs.{regime}.stop_loss", 0.004)
+```
+
+**修正後**:
+```python
+tp_rate = get_threshold(f"regime_based.{regime}.take_profit", 0.004)
+sl_rate = get_threshold(f"regime_based.{regime}.stop_loss", 0.004)
+```
+
+### Bug 2: _scan_orphan_positions 設定パス修正（HIGH）
+
+**ファイル**: `src/trading/execution/executor.py`
+
+**問題**: `_scan_orphan_positions()`内のSL設定パスが`risk.stop_loss.*`になっていたが、正しくは`position_management.*`。デフォルト値にフォールバックし、SL幅やバッファが意図と異なる値になる。
+
+**修正前**:
+```python
+sl_rate = get_threshold(f"risk.stop_loss.{regime}_rate", 0.004)
+sl_buffer = get_threshold("risk.stop_loss.slippage_buffer", 0.002)
+```
+
+**修正後**:
+```python
+sl_rate = get_threshold(f"position_management.stop_loss.{regime}_rate", 0.004)
+sl_buffer = get_threshold("position_management.stop_loss.slippage_buffer", 0.002)
+```
+
+### Bug 3: ensure_tp_sl restoredフィルタ削除（MEDIUM）
+
+**ファイル**: `src/trading/execution/executor.py`
+
+**問題**: `ensure_tp_sl_for_existing_positions()`が`restored`フラグを持つvirtual_positionsを削除フィルタで除外していたため、復元ポジションがTP/SL定期チェックの対象にならない。
+
+**修正**: `restored`条件の削除フィルタを撤去し、復元ポジションも含む全ポジションをTP/SL確認対象に。
+
+### 最終監査結果
+
+| 項目 | 結果 |
+|------|------|
+| get_thresholdパス整合性 | ✅ 全て正常（修正済み3件含む） |
+| TP/SL計算方向性 | ✅ long/short全箇所正常 |
+| amount整合性 | ✅ APIポジション量使用で正常 |
+| virtual_positions操作 | ✅ 二重エントリリスクなし |
+| 500円固定TP | ✅ Phase 63.2修正健在 |
+| 実運用影響バグ | **なし** |
+
+### 修正ファイル一覧
+
+| ファイル | Bug | 変更内容 |
+|---------|-----|----------|
+| `src/trading/execution/executor.py` | 1, 2, 3 | get_thresholdパス修正2件・restoredフィルタ削除 |
+
+### 検証結果
+
+```
+$ bash scripts/testing/checks.sh
+
+📊 チェック結果:
+  - システム整合性: ✅ PASS (6項目)
+  - ML検証: ✅ PASS (55特徴量・3クラス分類)
+  - flake8: ✅ PASS
+  - isort: ✅ PASS
+  - black: ✅ PASS
+  - pytest: ✅ PASS (2097 passed, 72.64%カバレッジ)
+```
+
+---
+
+**最終更新**: 2026年2月13日 - **Phase 63.6完了**（TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認）
