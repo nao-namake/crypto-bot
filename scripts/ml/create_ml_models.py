@@ -556,6 +556,13 @@ class NewSystemMLModelCreator:
                 f"BUY {distribution.get(2, 0):.1%}"
             )
 
+            # Phase 64: クラス分布をメタデータ用に保存
+            self._class_distribution = {
+                "sell": float(distribution.get(0, 0)),
+                "hold": float(distribution.get(1, 0)),
+                "buy": float(distribution.get(2, 0)),
+            }
+
         else:
             raise ValueError(f"Unsupported n_classes: {n_classes} (must be 2 or 3)")
 
@@ -1086,6 +1093,7 @@ class NewSystemMLModelCreator:
                             "samples": training_results.get("training_samples", 0),
                             "feature_count": len(training_results.get("feature_names", [])),
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
+                            "class_distribution": getattr(self, "_class_distribution", {}),
                         },
                         "git_info": git_commit,
                         "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",

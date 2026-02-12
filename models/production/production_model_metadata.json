@@ -101,7 +101,12 @@
   "training_info": {
     "samples": 17244,
     "feature_count": 55,
-    "training_duration_seconds": 0
+    "training_duration_seconds": 0,
+    "class_distribution": {
+      "sell": 0.177,
+      "hold": 0.283,
+      "buy": 0.540
+    }
   },
   "git_info": {
     "commit": "b226e49602319fe180bb0ae6f0f5b6aa6b95a367",
