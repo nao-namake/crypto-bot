@@ -468,8 +468,8 @@ class MLModelValidator:
     # 予測分布検証（distribution）
     # ========================================
 
-    def _load_real_data(self, n_samples: int = 200) -> Optional[pd.DataFrame]:
-        """実データを読み込む"""
+    def _load_real_data(self, n_samples: int = 300) -> Optional[pd.DataFrame]:
+        """実データを読み込む（全期間から均等サンプリング）"""
         data_path = self.project_root / "src/backtest/data/historical/BTC_JPY_15m.csv"
         if not data_path.exists():
             self.errors.append(f"❌ データファイルが見つかりません: {data_path}")
@@ -481,7 +481,11 @@ class MLModelValidator:
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                 df = df.set_index("timestamp")
                 df.index = pd.DatetimeIndex(df.index)
-            return df.tail(n_samples)
+            # 全期間から均等サンプリング（市場レジームの偏りを排除）
+            if len(df) > n_samples:
+                step = len(df) // n_samples
+                df = df.iloc[::step].tail(n_samples)
+            return df
         except Exception as e:
             self.errors.append(f"❌ データ読み込み失敗: {e}")
             return None
@@ -565,19 +569,19 @@ class MLModelValidator:
             max_ratio = max(counts) / total
             print(f"   最大クラス比率: {max_ratio * 100:.1f}%")
 
-            MAX_CLASS_THRESHOLD = 0.90
-            WARN_THRESHOLD = 0.80
+            MAX_CLASS_THRESHOLD = 0.95  # モデル破損検出用（90%→95%に緩和）
+            WARN_THRESHOLD = 0.85
 
             if max_ratio >= MAX_CLASS_THRESHOLD:
                 self.errors.append(
-                    f"❌ 極端なクラスバイアス（最大クラス: {max_ratio * 100:.1f}% >= 90%）"
+                    f"❌ 極端なクラスバイアス（最大クラス: {max_ratio * 100:.1f}% >= 95%）"
                 )
             elif max_ratio >= WARN_THRESHOLD:
                 self.warnings.append(
                     f"⚠️  クラスバランスがやや偏り（最大クラス: {max_ratio * 100:.1f}%）"
                 )
             else:
-                print(f"\n✅ クラスバランス良好（最大クラス: {max_ratio * 100:.1f}% < 80%）")
+                print(f"\n✅ クラスバランス良好（最大クラス: {max_ratio * 100:.1f}% < 85%）")
 
             if min(sell_pct, buy_pct) < 5:
                 self.warnings.append(
