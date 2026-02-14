@@ -1,18 +1,13 @@
 """
-ポジション追跡サービス - Phase 49完了
+ポジション追跡サービス - Phase 64
 
 仮想ポジションの管理と追跡を行う。
 """
 
-import json
-import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from ...core.logger import get_logger
-
-# Sentinel value for explicitly clearing fields
-_UNSET = object()
 
 
 class PositionTracker:

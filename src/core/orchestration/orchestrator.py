@@ -451,7 +451,7 @@ async def create_trading_orchestrator(
         # Phase 38.1: PositionLimits/CooldownManager/BalanceMonitor注入（クールダウン機能復活）
         # Phase 42: PositionTracker注入追加（統合TP/SL対応）
         from ...trading.balance import BalanceMonitor
-        from ...trading.execution import OrderStrategy, StopManager
+        from ...trading.execution import OrderStrategy, PositionRestorer, StopManager, TPSLManager
         from ...trading.position import CooldownManager, PositionLimits, PositionTracker
 
         position_limits = PositionLimits()  # 引数なし・内部でget_logger()使用
@@ -461,6 +461,8 @@ async def create_trading_orchestrator(
         order_strategy = OrderStrategy()  # Phase 38.6: 指値/成行注文戦略決定サービス
         stop_manager = StopManager()  # Phase 38.6: TP/SL注文配置サービス
         position_tracker = PositionTracker()  # Phase 42: 統合TP/SL用ポジション追跡
+        tp_sl_manager = TPSLManager()  # Phase 64: TP/SL統合管理
+        position_restorer = PositionRestorer()  # Phase 64: ポジション復元
 
         execution_service.inject_services(
             position_limits=position_limits,
@@ -469,6 +471,8 @@ async def create_trading_orchestrator(
             stop_manager=stop_manager,
             position_tracker=position_tracker,
             data_service=data_service,  # Phase 54.6: ATR取得Level 2用
+            tp_sl_manager=tp_sl_manager,  # Phase 64: TP/SL統合管理
+            position_restorer=position_restorer,  # Phase 64: ポジション復元
         )
         logger.info(
             "✅ ExecutionService依存サービス注入完了（PositionLimits・BalanceMonitor・OrderStrategy・StopManager・PositionTracker・DataService）"

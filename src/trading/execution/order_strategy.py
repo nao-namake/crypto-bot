@@ -1,5 +1,5 @@
 """
-注文戦略決定サービス - Phase 49完了
+注文戦略決定サービス - Phase 64
 Phase 26: 指値注文オプション機能
 
 ML信頼度・市場条件・設定に基づいて成行/指値注文を選択し、
@@ -7,12 +7,14 @@ ML信頼度・市場条件・設定に基づいて成行/指値注文を選択�
 """
 
 import asyncio
+from dataclasses import replace
 from typing import Any, Dict, Optional
 
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
-from ..core import TradeEvaluation
+from ..core import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
+from .tp_sl_config import TPSLConfig
 
 
 class OrderStrategy:
@@ -509,3 +511,257 @@ class OrderStrategy:
         else:
             self.logger.error(f"❌ Phase 62.9: 不正なside: {side}")
             return 0
+
+    # ========================================
+    # Phase 62.9: Maker注文実行（リトライ機構付き）
+    # ========================================
+
+    async def execute_maker_order(
+        self,
+        symbol: str,
+        side: str,
+        amount: float,
+        maker_config: Dict[str, Any],
+        bitbank_client: BitbankClient,
+    ) -> Optional[ExecutionResult]:
+        """
+        Phase 62.9: Maker注文実行（リトライ機構付き）
+
+        Args:
+            symbol: 通貨ペア
+            side: 売買方向
+            amount: 注文数量
+            maker_config: Maker戦略設定（price, best_bid, best_ask等）
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            ExecutionResult: 成功時は約定結果、失敗時はNone
+        """
+        from datetime import datetime
+
+        from src.core.exceptions import PostOnlyCancelledException
+
+        config = get_threshold(TPSLConfig.MAKER_STRATEGY, {})
+        max_retries = config.get("max_retries", 3)
+        retry_interval = config.get("retry_interval_ms", 500) / 1000
+        timeout = config.get("timeout_seconds", 30)
+        tick = config.get("price_adjustment_tick", 1)
+        max_adj = config.get("max_price_adjustment_ratio", 0.001)
+
+        initial_price = maker_config.get("price", 0)
+        if initial_price <= 0:
+            self.logger.warning("⚠️ Phase 62.9: Maker価格が無効")
+            return None
+
+        current_price = initial_price
+        start = datetime.now()
+
+        for attempt in range(max_retries):
+            elapsed = (datetime.now() - start).total_seconds()
+            if elapsed >= timeout:
+                self.logger.warning(
+                    f"⚠️ Phase 62.9: Makerタイムアウト ({elapsed:.1f}秒 >= {timeout}秒)"
+                )
+                return None
+
+            try:
+                self.logger.info(
+                    f"📡 Phase 62.9: Maker注文試行 {attempt + 1}/{max_retries} - "
+                    f"{side} {amount:.4f} BTC @ {current_price:.0f}円 (post_only)"
+                )
+
+                # post_only指値注文
+                order = bitbank_client.create_order(
+                    symbol=symbol,
+                    side=side,
+                    order_type="limit",
+                    amount=amount,
+                    price=current_price,
+                    post_only=True,
+                )
+
+                order_id = order.get("id")
+                if not order_id:
+                    self.logger.warning("⚠️ Phase 62.9: 注文IDなし")
+                    continue
+
+                # 約定待機
+                remaining_timeout = timeout - (datetime.now() - start).total_seconds()
+                filled = await self._wait_for_maker_fill(
+                    order_id, symbol, max(remaining_timeout, 5), bitbank_client
+                )
+
+                if filled:
+                    filled_price = filled.get("price", current_price)
+                    filled_amount = filled.get("amount", amount)
+
+                    self.logger.info(
+                        f"✅ Phase 62.9: Maker約定成功 - "
+                        f"ID: {order_id}, 価格: {filled_price:.0f}円, "
+                        f"手数料: Maker(0%)"
+                    )
+
+                    return ExecutionResult(
+                        success=True,
+                        mode=ExecutionMode.LIVE,
+                        order_id=order_id,
+                        price=filled_price,
+                        amount=filled_amount,
+                        filled_price=filled_price,
+                        filled_amount=filled_amount,
+                        error_message=None,
+                        side=side,
+                        fee=0.0,  # Makerリベートは後で計算
+                        status=OrderStatus.FILLED,
+                        notes="Phase 62.9: Maker約定",
+                    )
+
+                # 未約定 → キャンセル
+                self.logger.info(f"📡 Phase 62.9: 未約定 - 注文キャンセル試行 (ID: {order_id})")
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                except Exception as cancel_e:
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: キャンセル失敗（約定済みの可能性）: {cancel_e}"
+                    )
+                    # キャンセル失敗=約定済みの可能性があるので再確認
+                    filled = await self._wait_for_maker_fill(order_id, symbol, 2, bitbank_client)
+                    if filled:
+                        return ExecutionResult(
+                            success=True,
+                            mode=ExecutionMode.LIVE,
+                            order_id=order_id,
+                            price=filled.get("price", current_price),
+                            amount=filled.get("amount", amount),
+                            filled_price=filled.get("price", current_price),
+                            filled_amount=filled.get("amount", amount),
+                            error_message=None,
+                            side=side,
+                            fee=0.0,
+                            status=OrderStatus.FILLED,
+                            notes="Phase 62.9: Maker約定（キャンセル後確認）",
+                        )
+
+            except PostOnlyCancelledException as e:
+                self.logger.info(f"📡 Phase 62.9: post_onlyキャンセル（価格調整） - {e}")
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 62.9: Maker注文エラー: {e}")
+
+            # 価格調整（不利側へ1tick）
+            if side.lower() == "buy":
+                current_price += tick  # 買いは高く
+                if current_price > initial_price * (1 + max_adj):
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
+                    )
+                    return None
+            else:
+                current_price -= tick  # 売りは安く
+                if current_price < initial_price * (1 - max_adj):
+                    self.logger.warning(
+                        f"⚠️ Phase 62.9: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
+                    )
+                    return None
+
+            await asyncio.sleep(retry_interval)
+
+        self.logger.warning(f"⚠️ Phase 62.9: 最大リトライ回数到達 ({max_retries}回)")
+        return None
+
+    async def _wait_for_maker_fill(
+        self,
+        order_id: str,
+        symbol: str,
+        timeout: float,
+        bitbank_client: BitbankClient,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Phase 62.9: Maker注文の約定待機
+
+        Args:
+            order_id: 注文ID
+            symbol: 通貨ペア
+            timeout: タイムアウト秒数
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            Dict: 約定情報（約定時）、None（未約定時）
+        """
+        from datetime import datetime
+
+        check_interval = 0.5  # 500ms間隔でチェック
+        start = datetime.now()
+
+        while (datetime.now() - start).total_seconds() < timeout:
+            try:
+                order = await asyncio.to_thread(bitbank_client.fetch_order, order_id, symbol)
+
+                if order:
+                    status = order.get("status", "").lower()
+                    filled_amount = float(order.get("filled", 0))
+                    order_amount = float(order.get("amount", 0))
+
+                    # 完全約定
+                    if status == "closed" or (
+                        filled_amount > 0 and filled_amount >= order_amount * 0.99
+                    ):
+                        return {
+                            "price": float(order.get("average", order.get("price", 0))),
+                            "amount": filled_amount,
+                        }
+
+                    # キャンセル済み
+                    if status == "canceled":
+                        return None
+
+            except Exception as e:
+                self.logger.debug(f"📡 Phase 62.9: 注文状態確認エラー: {e}")
+
+            await asyncio.sleep(check_interval)
+
+        return None
+
+    def ensure_minimum_trade_size(self, evaluation: TradeEvaluation) -> TradeEvaluation:
+        """
+        最小ロットサイズを保証する（動的ポジションサイジング対応）
+
+        Args:
+            evaluation: 元の取引評価結果
+
+        Returns:
+            調整されたTradeEvaluation
+        """
+        try:
+            # 動的ポジションサイジングが有効かチェック
+            dynamic_enabled = get_threshold(
+                "position_management.dynamic_position_sizing.enabled", False
+            )
+
+            if not dynamic_enabled:
+                return evaluation  # 従来通り変更なし
+
+            # 最小取引サイズ取得
+            min_trade_size = get_threshold(TPSLConfig.MIN_TRADE_SIZE, 0.0001)
+
+            # 現在のポジションサイズと比較
+            current_position_size = float(getattr(evaluation, "position_size", 0))
+
+            if current_position_size < min_trade_size:
+                # 最小ロット保証適用
+                self.logger.info(
+                    f"📏 最小ロット保証適用: {current_position_size:.6f} -> {min_trade_size:.6f} BTC"
+                )
+
+                # evaluationのposition_sizeを更新（immutableなdataclassの場合を考慮）
+                if hasattr(evaluation, "__dict__"):
+                    evaluation.position_size = min_trade_size
+                else:
+                    # dataclassの場合は新しいインスタンスを作成
+                    evaluation = replace(evaluation, position_size=min_trade_size)
+
+            return evaluation
+
+        except Exception as e:
+            self.logger.error(f"最小ロット保証処理エラー: {e}")
+            return evaluation  # エラー時は元のevaluationを返す

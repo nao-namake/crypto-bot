@@ -1,5 +1,5 @@
 """
-ドローダウン管理システム - Phase 49完了
+ドローダウン管理システム - Phase 64
 
 Phase 26完了・Phase 36 Graceful Degradation統合：
 - 最大ドローダウン監視（20%制限）

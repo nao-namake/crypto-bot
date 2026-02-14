@@ -1,17 +1,17 @@
 # CLAUDE.md - Phase 64開発ガイド
 
-**最終更新**: 2026年2月13日
+**最終更新**: 2026年2月15日
 
 ---
 
-## システム現状（Phase 63.6完了）
+## システム現状（Phase 64進行中）
 
 ### 概要
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 63.6完了（+TP/SL定期チェック・残存バグ修正・最終監査バグなし確認）|
-| **前Phase** | 62完了（Maker戦略・SL改善・¥119,815達成） |
+| **Phase** | 64進行中（TP/SLシンプル化 + システム全体整理）|
+| **前Phase** | 63.6完了（TP/SL定期チェック・残存バグ修正・最終監査バグなし確認） |
 | **最新成果** | バックテスト ¥+119,815（年利24%相当） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
 | **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
@@ -20,26 +20,49 @@
 | **証拠金** | 50万円（Phase 57で10万→50万に変更） |
 | **年利目標** | 10%（DD 10%許容） |
 
-### Phase 63/63.2/63.4/63.5/63.6 成果サマリー
+### Phase 64 進行状況
+
+**目的**: TP/SLロジックのシンプル化 + `src/` `config/` 全体の過度な複雑性を整理
+**背景**: executor.py（2,844行）・stop_manager.py（2,178行）を中心にTP/SLロジックが3ファイルに分散。Phase 63.6で設定パスtypoがCRITICALバグ3件を引き起こした。
+
+| Phase | 内容 | 状態 |
+|-------|------|------|
+| **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
+| **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
+| **64.3** | PositionTracker拡張 — virtual_positions二重管理解消 | ⏳ 待機 |
+| **64.4** | 仕上げ — ドキュメント更新 | ⏳ 待機 |
+
+#### Phase 64.2 修正効果
+
+```
+Before: API失敗 → None返却 → 3回空回り → rollback（リトライ無意味）
+After:  API失敗 → 例外 → 1s→2s→4sリトライ → 最終失敗→rollback（リトライ正常動作）
+
+Before: 復旧失敗 → virtual_positionsにNoneエントリ追加 → ゾンビ化
+After:  復旧失敗 → 追加しない → 10分/30分後の定期チェックで再試行
+```
+
+#### ファイル構成（Phase 64.2完了時点）
+
+```
+src/trading/execution/
+├── executor.py           1,297行  エントリー実行に集中
+├── stop_manager.py       1,525行  TP/SL到達判定・決済のみ
+├── order_strategy.py       767行  注文タイプ決定・Maker実行・最小ロット保証
+├── tp_sl_config.py         125行  設定パス定数
+├── tp_sl_manager.py      1,489行  TP/SL配置・検証・復旧・計算・ロールバック統合
+└── position_restorer.py    555行  ポジション復元・孤児クリーンアップ統合
+```
+
+### Phase 63 成果サマリー（✅完了）
 
 | Phase | 内容 | 効果 |
 |-------|------|------|
-| **63 Bug 1** | stop_limit注文タイプ検出対応 | SL欠損誤検知の解消 |
-| **63 Bug 2** | ポジション集約時マッチング緩和（3箇所） | TP/SL/ポジション検出正常化 |
-| **63 Bug 3** | asyncio.create_task廃止→pending_verifications方式 | Cloud Run再起動耐性向上 |
-| **63 Bug 4** | stop_limitタイムアウト→SL状態確認追加 | 二重決済リスク解消 |
-| **63 Bug 5** | virtual_positions消失検知マッチング修正 | 孤児ポジション誤検知解消 |
-| **63 Bug 6** | virtual_positionsデータ整合性チェック追加 | メモリリーク防止 |
-| **63.2** | **固定金額TP累積手数料バグ修正** | **TP膨張+48%→正常化（500円固定）** |
-| **63.4 Bug 1** | **SLタイムアウト価格安全チェック追加** | **利益圏での成行誤決済防止** |
-| **63.4 Bug 2** | **restore_positions_from_api実ポジションベース化** | **復元後SL監視正常化・重複解消** |
-| **63.4 Bug 3** | **_verify_and_rebuild_tp_sl amount修正** | **ポジション集約時50062エラー防止** |
-| **63.4 Bug 4** | **孤児スキャンsl_placed_at追加** | **孤児復元ポジションSLタイムアウト有効化** |
-| **63.4 Bug 5** | **ensure_tp_sl重複防止チェック追加** | **復元済みポジション重複エントリ防止** |
-| **63.5** | **TP/SL定期チェック実装（10分間隔）** | **メインサイクル内でTP/SL欠損自動検知・復旧** |
-| **63.6 Bug 1** | **_place_missing_tp_sl get_thresholdパス修正（CRITICAL）** | **TP +129%バグ修正→正常なTP/SL設定値** |
-| **63.6 Bug 2** | **_scan_orphan_positions 設定パス修正（HIGH）** | **孤児スキャンSL設定パス正常化** |
-| **63.6 Bug 3** | **ensure_tp_sl restoredフィルタ削除（MEDIUM）** | **復元ポジションもTP/SL定期チェック対象化** |
+| **63 Bug 1-6** | stop_limit検出・マッチング緩和・asyncio廃止等 | TP/SL管理安定化 |
+| **63.2** | 固定金額TP累積手数料バグ修正 | TP膨張+48%→正常化 |
+| **63.4 Bug 1-5** | SL安全チェック・ポジション復元改善・重複防止 | 運用安全性向上 |
+| **63.5** | TP/SL定期チェック実装（10分間隔） | TP/SL欠損自動検知・復旧 |
+| **63.6 Bug 1-3** | 設定パス修正（CRITICAL）・restoredフィルタ削除 | 設定パスtypoバグ根絶 |
 
 ### Phase 62 バックテスト最終結果
 
@@ -329,7 +352,7 @@ src/
 ├── trading/                # 取引管理（5層分離）
 │   ├── core/               # enums・types
 │   ├── balance/            # MarginMonitor
-│   ├── execution/          # ExecutionService・OrderStrategy
+│   ├── execution/          # ExecutionService・OrderStrategy・TPSLManager・PositionRestorer
 │   ├── position/           # Tracker・Limits・Cleanup
 │   └── risk/               # IntegratedRiskManager
 ├── backtest/               # バックテストシステム
@@ -395,6 +418,13 @@ dynamic_strategy_selection:
 from src.core.config.threshold_manager import get_threshold
 
 sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
+
+# Phase 64: TP/SL設定はTPSLConfig定数を使用（文字列リテラル禁止）
+from src.trading.execution.tp_sl_config import TPSLConfig
+
+tp_ratio = get_threshold(TPSLConfig.TP_MIN_PROFIT_RATIO, 0.009)
+sl_ratio = get_threshold(TPSLConfig.SL_MAX_LOSS_RATIO, 0.007)
+regime_tp = get_threshold(TPSLConfig.tp_regime_path("tight_range", "min_profit_ratio"), 0.004)
 ```
 
 ### ローカルシークレット
@@ -474,14 +504,15 @@ git push origin main    # プッシュ → CI/CD自動デプロイ
 
 | ファイル | 内容 |
 |---------|------|
-| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-63サマリー） |
+| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-64サマリー） |
 | Phase_57.md | 年利10%目標・リスク最大化 |
 | Phase_58.md | TP/SL管理・ポジション同期修正 |
 | Phase_59.md | ML最適化・Stacking検証 |
 | Phase_60.md | 実効レバレッジ最適化・MLモデル差別化 |
 | Phase_61.md | ✅完了: 500円TP採用・PF 2.68・¥149,195達成 |
 | Phase_62.md | ✅完了: Maker戦略実装・手数料0.28%削減 |
-| **Phase_63.md** | **✅Phase 63.6完了: TP/SL定期チェック・残存バグ修正・最終監査バグなし確認** |
+| Phase_63.md | ✅完了: TP/SL定期チェック・残存バグ修正・最終監査バグなし確認 |
+| **Phase_64.md** | **🔄進行中: TP/SLシンプル化 + システム全体整理** |
 
 ### docs/開発計画/
 
@@ -530,7 +561,7 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ## 開発開始前チェックリスト
 
-1. **最新状況把握**: Phase 63.6・Phase_63.md確認
+1. **最新状況把握**: Phase 64進行状況・Phase_64.md確認
 2. **品質チェック**: `bash scripts/testing/checks.sh`実行
 3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
 4. **GCP確認**: サービス稼働状況・最新リビジョン
@@ -538,4 +569,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年2月13日 - **Phase 63.6完了**・TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認
+**📅 最終更新**: 2026年2月15日 - **Phase 64進行中**（64.1-64.2完了）・TP/SLシンプル化 + システム全体整理

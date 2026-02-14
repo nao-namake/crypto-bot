@@ -1,10 +1,10 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 63.6完了・TP/SL定期チェック・残存バグ修正・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 64進行中・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2063.6-Complete-success)](docs/)
+[![Phase](https://img.shields.io/badge/Phase%2064-In%20Progress-blue)](docs/)
 
 ---
 
@@ -203,7 +203,7 @@ config/core/
 
 ### 開発者向け
 
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 63.6完了
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 64進行中
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 
 ### 運用者向け
@@ -211,23 +211,30 @@ config/core/
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
 - **[GCP運用ガイド](docs/運用ガイド/GCP運用ガイド.md)**: IAM権限・リソース管理
 - **[システム機能一覧](docs/運用ガイド/システム機能一覧.md)**: 実装機能リファレンス
-- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-63総括
+- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-64総括
 
 ---
 
 ## 開発状況
 
-### Phase 63/63.2/63.4/63.5/63.6（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
+### Phase 64（🔄進行中）: TP/SLシンプル化 + システム全体整理
+
+**目的**: TP/SLロジックのシンプル化 + `src/` `config/` 全体の過度な複雑性を整理
 
 | Phase | 内容 | 状態 |
 |-------|------|------|
-| **63 Bug 1-6** | stop_limit検出・マッチング緩和・asyncio廃止・SL状態確認・整合性チェック | ✅完了 |
-| **63.2** | 固定金額TP累積手数料バグ修正（TP膨張+48%→正常化） | ✅完了 |
-| **63.4 Bug 1** | **SLタイムアウト価格安全チェック（利益圏での成行誤決済防止）** | ✅完了 |
-| **63.4 Bug 2** | **restore_positions_from_api実ポジションベース化（SL監視正常化）** | ✅完了 |
-| **63.4 Bug 3-5** | **TP/SL再構築amount修正・孤児sl_placed_at追加・重複防止** | ✅完了 |
-| **63.5** | **TP/SL定期チェック実装（10分間隔・メインサイクル内）** | ✅完了 |
-| **63.6 Bug 1-3** | **get_thresholdパス修正（CRITICAL）・設定パス修正・restoredフィルタ削除** | ✅完了 |
+| **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
+| **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
+| **64.3** | PositionTracker拡張 — virtual_positions二重管理解消 | ⏳ 待機 |
+| **64.4** | 仕上げ — ドキュメント更新 | ⏳ 待機 |
+
+**64.1成果**: executor.py -33%（1,943→1,297行）、stop_manager.py -30%（2,177→1,525行）
+**64.2成果**: 例外スワロー排除・リトライ正常化・ゾンビエントリ防止
+
+### Phase 63（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
+
+- **Bug修正14件**: stop_limit検出・マッチング緩和・SL安全チェック・設定パス修正（CRITICAL）等
+- **TP/SL定期チェック実装**: 10分間隔でTP/SL欠損自動検知・復旧
 
 ### Phase 62（✅完了）: Maker戦略・SL改善・スリッページ分析
 
@@ -299,4 +306,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月13日 - **Phase 63.6完了**（TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認）・カバレッジ73%達成
+**最終更新**: 2026年2月15日 - **Phase 64進行中**（64.1-64.2完了・TP/SLシンプル化 + システム全体整理）

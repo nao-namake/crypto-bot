@@ -1,7 +1,8 @@
 """
-Trading Core Types - Phase 49完了
+Trading Core Types - Phase 64整理
 
-すべての取引関連データクラスの一元管理
+取引関連データクラスの一元管理
+※ TradeResult・KellyCalculationResult・AnomalyAlert等はrisk/に正本あり（Phase 64で重複削除）
 """
 
 from dataclasses import dataclass
@@ -9,39 +10,13 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .enums import (
-    AnomalyLevel,
     ExecutionMode,
     MarginStatus,
     OrderStatus,
     RiskDecision,
-    TradingStatus,
 )
 
 # === Risk Manager関連 ===
-
-
-@dataclass
-class TradeResult:
-    """取引結果記録用データクラス."""
-
-    timestamp: datetime
-    profit_loss: float
-    is_win: bool
-    strategy: str
-    confidence: float
-
-
-@dataclass
-class KellyCalculationResult:
-    """Kelly計算結果格納用データクラス."""
-
-    kelly_fraction: float
-    win_rate: float
-    avg_win_loss_ratio: float
-    safety_adjusted_fraction: float
-    recommended_position_size: float
-    sample_size: int
-    confidence_level: float
 
 
 @dataclass
@@ -124,60 +99,6 @@ class RiskMetrics:
     denied_trades: int
 
 
-# === Risk Monitor関連 ===
-
-
-@dataclass
-class AnomalyAlert:
-    """異常アラート."""
-
-    timestamp: datetime
-    anomaly_type: str
-    level: AnomalyLevel
-    value: float
-    threshold: float
-    message: str
-    should_pause_trading: bool
-
-
-@dataclass
-class MarketCondition:
-    """市場状況記録."""
-
-    timestamp: datetime
-    bid: float
-    ask: float
-    last_price: float
-    volume: float
-    spread_pct: float
-    api_latency_ms: float
-
-
-@dataclass
-class DrawdownSnapshot:
-    """ドローダウン記録用スナップショット."""
-
-    timestamp: datetime
-    current_balance: float
-    peak_balance: float
-    drawdown_ratio: float
-    consecutive_losses: int
-    status: TradingStatus
-
-
-@dataclass
-class TradingSession:
-    """取引セッション記録."""
-
-    start_time: datetime
-    end_time: Optional[datetime]
-    reason: str
-    initial_balance: float
-    final_balance: Optional[float]
-    total_trades: int
-    profitable_trades: int
-
-
 # === Margin Monitor関連 ===
 
 
@@ -242,16 +163,9 @@ class PositionFeeData:
 
 __all__ = [
     # Risk Manager
-    "TradeResult",
-    "KellyCalculationResult",
     "TradeEvaluation",
     "ExecutionResult",
     "RiskMetrics",
-    # Risk Monitor
-    "AnomalyAlert",
-    "MarketCondition",
-    "DrawdownSnapshot",
-    "TradingSession",
     # Margin Monitor
     "MarginData",
     "MarginPrediction",

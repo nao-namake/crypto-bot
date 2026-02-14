@@ -846,71 +846,27 @@ class SignalBuilder:
         config: Dict[str, Any],
     ) -> float:
         """
-        Phase 61.10: Dynamic Position Sizing（ライブ互換）
-
-        PositionSizeIntegratorと同等のDynamic Sizing計算。
-        thresholds.yamlのdynamic_position_sizing設定を使用。
+        Phase 64: PositionSizeIntegratorに統合（ライブ/バックテスト統一）
 
         Args:
             confidence: シグナル信頼度（0.0-1.0）
             current_balance: 現在残高（円）
             btc_price: 現在のBTC価格（円）
-            config: 戦略設定（未使用だが将来拡張用）
+            config: 戦略設定（互換性維持用、未使用）
 
         Returns:
             計算されたポジションサイズ（BTC）
         """
         from ...core.config import get_threshold
+        from ...trading.risk.sizer import PositionSizeIntegrator
 
-        logger = get_logger()
-
-        try:
-            # 信頼度別比率（Phase 60.1設定と同一）
-            dps_config = get_threshold("position_management.dynamic_position_sizing", {})
-
-            # 設定値は比率（0.45 = 45%）として既に定義されている（PositionSizeIntegratorと同一）
-            if confidence < 0.50:
-                min_ratio = dps_config.get("low_confidence", {}).get("min_ratio", 0.30)
-                max_ratio = dps_config.get("low_confidence", {}).get("max_ratio", 0.60)
-            elif confidence < 0.65:
-                min_ratio = dps_config.get("medium_confidence", {}).get("min_ratio", 0.45)
-                max_ratio = dps_config.get("medium_confidence", {}).get("max_ratio", 0.75)
-            else:
-                min_ratio = dps_config.get("high_confidence", {}).get("min_ratio", 0.60)
-                max_ratio = dps_config.get("high_confidence", {}).get("max_ratio", 1.05)
-
-            # 信頼度による線形補間
-            if confidence < 0.50:
-                normalized = (confidence - 0.35) / 0.15  # 0.35-0.50
-            elif confidence < 0.65:
-                normalized = (confidence - 0.50) / 0.15  # 0.50-0.65
-            else:
-                normalized = (confidence - 0.65) / 0.35  # 0.65-1.00
-            normalized = max(0.0, min(1.0, normalized))
-
-            position_ratio = min_ratio + (max_ratio - min_ratio) * normalized
-
-            # ポジションサイズ計算
-            calculated_size = (current_balance * position_ratio) / btc_price
-
-            # 制限適用
-            min_size = get_threshold("position_management.min_trade_size", 0.0001)
-            max_size = get_threshold("production.max_order_size", 0.15)
-
-            final_size = max(min_size, min(max_size, calculated_size))
-
-            logger.debug(
-                f"🎯 Phase 61.10: Dynamic Position Sizing - "
-                f"confidence={confidence:.2f}, ratio={position_ratio:.4f}, "
-                f"size={final_size:.6f} BTC"
-            )
-
-            return final_size
-
-        except Exception as e:
-            logger.error(f"Dynamic Position Sizing計算エラー: {e}")
-            # フォールバック
-            return RiskManager.calculate_position_size(confidence, config)
+        max_size = get_threshold("production.max_order_size", 0.15)
+        return PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=confidence,
+            current_balance=current_balance,
+            btc_price=btc_price,
+            max_order_size=max_size,
+        )
 
     @staticmethod
     def _create_error_signal(

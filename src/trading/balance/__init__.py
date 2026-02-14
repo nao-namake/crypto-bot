@@ -1,7 +1,7 @@
 """
 trading/balance層 - 残高・保証金監視
 
-Phase 49完了
+Phase 64
 """
 
 from .monitor import BalanceMonitor

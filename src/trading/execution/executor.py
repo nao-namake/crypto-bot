@@ -10,7 +10,6 @@ Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
 """
 
 import asyncio
-from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -23,6 +22,7 @@ from ...core.logger import get_logger
 from ...core.reporting.discord_notifier import DiscordManager
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
+from .tp_sl_config import TPSLConfig
 
 
 class ExecutionService:
@@ -77,14 +77,8 @@ class ExecutionService:
         # Phase 30: 指値注文タイムアウト管理
         self.pending_limit_orders: List[Dict[str, Any]] = []
 
-        # Phase 63: TP/SL検証スケジュール管理（asyncio.create_task廃止）
-        self._pending_verifications: List[Dict[str, Any]] = []
-
-        # Phase 63.3: 孤児ポジション定期スキャン（30分間隔）
-        self._last_orphan_scan_time: Optional[datetime] = None
-
-        # Phase 63.6: TP/SL健全性定期チェック（10分間隔）
-        self._last_tp_sl_check_time: Optional[datetime] = None
+        # Phase 64: _pending_verifications, _last_tp_sl_check_time, _last_orphan_scan_time
+        # はTPSLManager / PositionRestorerに移動済み
 
         # モード別初期残高取得（Phase 55.9: get_threshold()使用に変更）
         # 旧方式: load_config()ではmode_balances属性が取得できないバグがあった
@@ -106,356 +100,45 @@ class ExecutionService:
                 self.logger.warning(f"⚠️ Discord通知初期化失敗: {e} - 残高アラートは無効化されます")
 
         # 関連サービスの初期化（後で注入される）
-        self.order_strategy = None
+        from .order_strategy import OrderStrategy
+
+        self.order_strategy = OrderStrategy()
         self.stop_manager = None
         self.position_limits = None
         self.balance_monitor = None
         self.position_tracker = None  # Phase 42: 統合TP/SL用ポジション追跡
         self.data_service = None  # Phase 54.6: ATR取得Level 2用
+        # Phase 64: TP/SL統合管理・ポジション復元（デフォルト生成。orchestratorから上書き注入可能）
+        from .position_restorer import PositionRestorer
+        from .tp_sl_manager import TPSLManager
+
+        self.tp_sl_manager = TPSLManager()
+        self.position_restorer = PositionRestorer()
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
     async def restore_positions_from_api(self):
-        """
-        Phase 63.4: 実ポジションベースの復元（旧: アクティブ注文ベース）
-
-        Cloud Run環境では5分毎にコンテナが再起動される可能性があり、
-        その際にvirtual_positions = []にリセットされてしまう。
-
-        Phase 63.4変更点:
-        - アクティブ注文ベース → 実ポジション（信用建玉）ベースの復元
-        - TP/SL注文をexit_side一致でマッチングしメタデータ設定
-        - 1ポジション = 1 virtual_positionエントリ（旧: 1注文 = 1エントリ）
-        """
-        if self.mode != "live":
-            return  # ライブモード以外は復元不要
-
-        try:
-            # Step 1: 実ポジション取得（信用建玉）
-            margin_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
-
-            if not margin_positions:
-                self.logger.info("📊 Phase 63.4: 実ポジションなし")
-                return
-
-            # ログ出力（既存Phase 58.3互換）
-            for pos in margin_positions:
-                self.logger.info(
-                    f"  └ {pos.get('side')} {pos.get('amount', 0):.4f} BTC "
-                    f"@ {pos.get('average_price', 0):.0f}円"
-                )
-
-            # Step 2: アクティブ注文取得（TP/SLマッチング用）
-            active_orders = await asyncio.to_thread(
-                self.bitbank_client.fetch_active_orders, "BTC/JPY", 100
+        """Phase 63.4: 実ポジションベースの復元（Phase 64: PositionRestorerに委譲）"""
+        if self.position_restorer:
+            await self.position_restorer.restore_positions_from_api(
+                virtual_positions=self.virtual_positions,
+                bitbank_client=self.bitbank_client,
+                position_tracker=self.position_tracker,
+                mode=self.mode,
             )
-
-            # Step 3: 各ポジションに対してvirtual_position作成
-            restored_count = 0
-            for pos in margin_positions:
-                pos_side = pos.get("side")  # "long" or "short"
-                pos_amount = float(pos.get("amount", 0))
-                avg_price = float(pos.get("average_price", pos.get("avg_price", 0)))
-
-                if pos_amount <= 0:
-                    continue
-
-                entry_side = "buy" if pos_side == "long" else "sell"
-                exit_side = "sell" if pos_side == "long" else "buy"
-
-                # TP/SL注文をマッチング
-                tp_order_id = None
-                sl_order_id = None
-                tp_price = None
-                sl_price = None
-                sl_placed_at = None
-
-                for order in active_orders or []:
-                    order_side = order.get("side", "").lower()
-                    order_type = order.get("type", "").lower()
-
-                    if order_side == exit_side:
-                        if order_type == "limit" and not tp_order_id:
-                            tp_order_id = str(order.get("id", ""))
-                            tp_price = float(order.get("price", 0))
-                        elif order_type in ("stop", "stop_limit") and not sl_order_id:
-                            sl_order_id = str(order.get("id", ""))
-                            sl_price = float(
-                                order.get(
-                                    "stopPrice", order.get("triggerPrice", order.get("price", 0))
-                                )
-                            )
-                            order_dt = order.get("datetime")
-                            sl_placed_at = (
-                                order_dt if order_dt else datetime.now(timezone.utc).isoformat()
-                            )
-
-                self.virtual_positions.append(
-                    {
-                        "order_id": f"restored_{pos_side}_{int(datetime.now().timestamp())}",
-                        "side": entry_side,
-                        "amount": pos_amount,
-                        "price": avg_price,
-                        "timestamp": datetime.now(),
-                        "take_profit": tp_price,
-                        "stop_loss": sl_price,
-                        "tp_order_id": tp_order_id,
-                        "sl_order_id": sl_order_id,
-                        "sl_placed_at": sl_placed_at,
-                        "restored": True,
-                    }
-                )
-                restored_count += 1
-
-                self.logger.info(
-                    f"✅ Phase 63.4: ポジション復元 - {pos_side} {pos_amount:.4f} BTC "
-                    f"@ {avg_price:.0f}円 "
-                    f"(TP: {'あり' if tp_order_id else 'なし'}, "
-                    f"SL: {'あり' if sl_order_id else 'なし'})"
-                )
-
-            self.logger.info(f"✅ Phase 63.4: {restored_count}件のポジション復元完了")
-
-        except Exception as e:
-            self.logger.warning(f"⚠️ Phase 63.4: ポジション復元失敗: {e}")
 
     async def ensure_tp_sl_for_existing_positions(self):
-        """
-        Phase 56.5: 既存ポジションのTP/SL確保
-
-        起動時にTP/SL注文がないポジションを検出し、自動配置する。
-        Phase 53.6の問題（アクティブ注文ベースの復元では検出できない）を解決。
-        """
-        if self.mode != "live":
-            return  # ライブモード以外はスキップ
-
-        try:
-            # Step 1: 信用建玉情報取得（/user/margin/positions）
-            margin_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
-
-            if not margin_positions:
-                self.logger.info("📊 Phase 56.5: 既存ポジションなし")
-                return
-
-            # Step 2: アクティブ注文取得（TP/SL存在確認用）
-            active_orders = await asyncio.to_thread(
-                self.bitbank_client.fetch_active_orders, "BTC/JPY", 100
+        """Phase 56.5: 既存ポジションのTP/SL確保（Phase 64: TPSLManagerに委譲）"""
+        if self.tp_sl_manager:
+            await self.tp_sl_manager.ensure_tp_sl_for_existing_positions(
+                virtual_positions=self.virtual_positions,
+                bitbank_client=self.bitbank_client,
+                position_tracker=self.position_tracker,
+                mode=self.mode,
             )
 
-            # Step 3: 各ポジションのTP/SL存在確認
-            for position in margin_positions:
-                position_side = position.get("side")  # "long" or "short"
-                amount = position.get("amount", 0)
-                avg_price = position.get("average_price", 0)
-
-                if amount <= 0:
-                    continue
-
-                # Phase 63.5: restore済み＋TP/SL設置済みの場合のみスキップ
-                # (Phase 63.4 Bug 5の重複防止が過剰でTP/SL未設置でもスキップしていた)
-                entry_side = "buy" if position_side == "long" else "sell"
-                already_restored = any(
-                    vp.get("side") == entry_side
-                    and vp.get("restored")
-                    and vp.get("tp_order_id")
-                    and vp.get("sl_order_id")
-                    for vp in self.virtual_positions
-                )
-                if already_restored:
-                    self.logger.debug(
-                        f"✅ Phase 63.5: 復元済み＋TP/SL設置済み - {position_side} {amount:.4f} BTC"
-                    )
-                    continue
-
-                # TP/SL注文の存在確認
-                has_tp, has_sl = self._check_tp_sl_orders_exist(
-                    position_side, amount, active_orders
-                )
-
-                if has_tp and has_sl:
-                    self.logger.debug(
-                        f"✅ Phase 56.5: 既存ポジション TP/SL確認済み - "
-                        f"{position_side} {amount:.4f} BTC"
-                    )
-                    continue
-
-                # Step 4: 不足しているTP/SL注文を配置
-                self.logger.info(
-                    f"⚠️ Phase 56.5: TP/SLなしポジション検出 - "
-                    f"{position_side} {amount:.4f} BTC @ {avg_price:.0f}円 "
-                    f"(TP: {'あり' if has_tp else 'なし'}, SL: {'あり' if has_sl else 'なし'})"
-                )
-
-                # Phase 63.5/63.6: 復元済みだがTP/SLいずれか欠損のvirtual_positionを削除（重複防止）
-                # _place_missing_tp_sl()が新エントリをappendするため、古いエントリを除去
-                # Phase 63.6: and→or修正 - TP片方のみ設置済みの復元エントリも削除対象
-                self.virtual_positions = [
-                    vp
-                    for vp in self.virtual_positions
-                    if not (
-                        vp.get("side") == entry_side
-                        and (not vp.get("tp_order_id") or not vp.get("sl_order_id"))
-                    )
-                ]
-
-                await self._place_missing_tp_sl(
-                    position_side=position_side,
-                    amount=amount,
-                    avg_price=avg_price,
-                    has_tp=has_tp,
-                    has_sl=has_sl,
-                )
-
-        except Exception as e:
-            self.logger.warning(f"⚠️ Phase 56.5: 既存ポジションTP/SL確保失敗: {e}")
-
-    def _check_tp_sl_orders_exist(
-        self,
-        position_side: str,
-        position_amount: float,
-        active_orders: List[Dict],
-    ) -> Tuple[bool, bool]:
-        """
-        Phase 56.5: 既存注文からTP/SL注文の存在確認
-
-        Args:
-            position_side: "long" or "short"
-            position_amount: ポジション数量
-            active_orders: アクティブ注文リスト
-
-        Returns:
-            Tuple[bool, bool]: (has_tp, has_sl)
-        """
-        has_tp = False
-        has_sl = False
-
-        # TP/SL注文の方向決定
-        # long position -> TP: sell, SL: sell
-        # short position -> TP: buy, SL: buy
-        exit_side = "sell" if position_side == "long" else "buy"
-
-        for order in active_orders:
-            order_side = order.get("side")
-            order_type = order.get("type")
-            order_amount = float(order.get("amount", 0))
-
-            if order_side != exit_side:
-                continue
-
-            # Phase 63: Bug 2修正 - 数量マッチング緩和
-            # ポジション集約時に個別エントリー量と集約量が異なるため、
-            # サイド一致のみでマッチング（量チェック削除）
-            if order_amount <= 0:
-                continue
-
-            # TP: limit注文
-            if order_type == "limit":
-                has_tp = True
-
-            # SL: stop注文またはstop_limit注文（Phase 63: Bug 1修正）
-            if order_type in ("stop", "stop_limit"):
-                has_sl = True
-
-        return has_tp, has_sl
-
-    async def _place_missing_tp_sl(
-        self,
-        position_side: str,
-        amount: float,
-        avg_price: float,
-        has_tp: bool,
-        has_sl: bool,
-    ):
-        """
-        Phase 56.5: 不足しているTP/SL注文を配置
-
-        Args:
-            position_side: "long" or "short"
-            amount: ポジション数量
-            avg_price: 平均取得価格
-            has_tp: TP注文が存在するか
-            has_sl: SL注文が存在するか
-        """
-        symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
-
-        # レジーム別TP/SL設定（デフォルト: normal_range）
-        # Phase 52.0のレジーム別設定を使用
-        tp_ratio = get_threshold(
-            "position_management.take_profit.regime_based.normal_range.min_profit_ratio",
-            get_threshold("position_management.take_profit.min_profit_ratio", 0.009),
-        )
-        sl_ratio = get_threshold(
-            "position_management.stop_loss.regime_based.normal_range.max_loss_ratio",
-            get_threshold("position_management.stop_loss.max_loss_ratio", 0.007),
-        )
-
-        if position_side == "long":
-            tp_price = avg_price * (1 + tp_ratio)
-            sl_price = avg_price * (1 - sl_ratio)
-            entry_side = "buy"
-        else:  # short
-            tp_price = avg_price * (1 - tp_ratio)
-            sl_price = avg_price * (1 + sl_ratio)
-            entry_side = "sell"
-
-        # Phase 62.17: TP/SL注文結果を初期化
-        tp_order = None
-        sl_order = None
-
-        # TP配置
-        if not has_tp and self.stop_manager:
-            try:
-                tp_order = await self.stop_manager.place_take_profit(
-                    side=entry_side,
-                    amount=amount,
-                    entry_price=avg_price,
-                    take_profit_price=tp_price,
-                    symbol=symbol,
-                    bitbank_client=self.bitbank_client,
-                )
-                if tp_order:
-                    self.logger.info(
-                        f"✅ Phase 56.5: TP注文配置成功 - "
-                        f"{position_side} {amount:.4f} BTC @ {tp_price:.0f}円"
-                    )
-            except Exception as e:
-                self.logger.error(f"❌ Phase 56.5: TP配置失敗: {e}")
-
-        # SL配置
-        if not has_sl and self.stop_manager:
-            try:
-                sl_order = await self.stop_manager.place_stop_loss(
-                    side=entry_side,
-                    amount=amount,
-                    entry_price=avg_price,
-                    stop_loss_price=sl_price,
-                    symbol=symbol,
-                    bitbank_client=self.bitbank_client,
-                )
-                if sl_order:
-                    self.logger.info(
-                        f"✅ Phase 56.5: SL注文配置成功 - "
-                        f"{position_side} {amount:.4f} BTC @ {sl_price:.0f}円"
-                    )
-            except Exception as e:
-                self.logger.error(f"❌ Phase 56.5: SL配置失敗: {e}")
-
-        # virtual_positionsに追加（ポジション制限管理用）
-        # Phase 62.17: sl_order_id, sl_placed_at追加（stop_limit監視用）
-        recovered_position = {
-            "order_id": f"recovered_{position_side}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "side": entry_side,
-            "amount": amount,
-            "price": avg_price,
-            "timestamp": datetime.now(),
-            "take_profit": tp_price if not has_tp else None,
-            "stop_loss": sl_price if not has_sl else None,
-            "recovered": True,  # 復旧フラグ
-            "tp_order_id": tp_order.get("order_id") if tp_order else None,
-            "sl_order_id": sl_order.get("order_id") if sl_order else None,
-            "sl_placed_at": sl_order.get("sl_placed_at") if sl_order else None,
-        }
-        self.virtual_positions.append(recovered_position)
+    # Phase 64: _check_tp_sl_orders_exist / _place_missing_tp_sl は
+    # tp_sl_manager.py (TPSLManager) に直接実装済み
 
     async def execute_trade(self, evaluation: TradeEvaluation) -> ExecutionResult:
         """
@@ -549,7 +232,7 @@ class ExecutionService:
                     )
 
             # 最小ロット保証（動的サイジング対応）
-            evaluation = self._ensure_minimum_trade_size(evaluation)
+            evaluation = self.order_strategy.ensure_minimum_trade_size(evaluation)
 
             if self.mode == "live":
                 return await self._execute_live_trade(evaluation)
@@ -579,7 +262,7 @@ class ExecutionService:
                 raise CryptoBotError("ライブトレードにはBitbankClientが必要です")
 
             # 注文パラメータ作成（設定ファイル化）
-            symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
+            symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
             side = evaluation.side  # "buy" or "sell"
             amount = float(evaluation.position_size)
 
@@ -596,11 +279,12 @@ class ExecutionService:
 
             if use_maker:
                 # Maker注文試行
-                maker_result = await self._execute_maker_order(
+                maker_result = await self.order_strategy.execute_maker_order(
                     symbol=symbol,
                     side=side,
                     amount=amount,
                     maker_config=maker_config,
+                    bitbank_client=self.bitbank_client,
                 )
 
                 if maker_result and maker_result.success:
@@ -769,8 +453,13 @@ class ExecutionService:
 
             # TP/SL再計算（3段階ATRフォールバック）
             try:
-                final_tp, final_sl = await self._calculate_tp_sl_for_live_trade(
-                    evaluation, result, side, amount
+                final_tp, final_sl = await self.tp_sl_manager.calculate_tp_sl_for_live_trade(
+                    evaluation,
+                    result,
+                    side,
+                    amount,
+                    bitbank_client=self.bitbank_client,
+                    current_time=self.current_time,
                 )
             except CryptoBotError as e:
                 # ATR取得失敗・TP/SL再計算失敗時のエントリー中止
@@ -806,15 +495,14 @@ class ExecutionService:
             self.virtual_positions.append(live_position)
 
             # Phase 51.6: 古い注文クリーンアップ（bitbank 30件制限対策）
-            if self.stop_manager:
+            if self.tp_sl_manager and self.position_restorer:
                 try:
-                    symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
-                    cleanup_result = await self.stop_manager.cleanup_old_unfilled_orders(
+                    symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
+                    cleanup_result = await self.tp_sl_manager.cleanup_old_unfilled_orders(
                         symbol=symbol,
                         bitbank_client=self.bitbank_client,
+                        position_restorer=self.position_restorer,
                         virtual_positions=self.virtual_positions,
-                        max_age_hours=24,
-                        threshold_count=25,
                     )
                     if cleanup_result["cancelled_count"] > 0:
                         self.logger.info(
@@ -829,12 +517,14 @@ class ExecutionService:
                     )
 
             # Phase 51.10-A: エントリー前の同一側TP/SL注文クリーンアップ
-            if self.stop_manager:
+            if self.tp_sl_manager:
                 try:
-                    await self._cleanup_old_tp_sl_before_entry(
+                    await self.tp_sl_manager.cleanup_old_tp_sl_before_entry(
                         side=side,
                         symbol=symbol,
                         entry_order_id=result.order_id,
+                        virtual_positions=self.virtual_positions,
+                        bitbank_client=self.bitbank_client,
                     )
                 except Exception as e:
                     # クリーンアップ失敗してもエントリーは継続（Phase 51.6思想維持）
@@ -866,12 +556,13 @@ class ExecutionService:
 
                     # Step 2/3: TP注文配置（リトライ付き）
                     # Phase 63.3: Bug 2修正 - actual_amount使用（部分約定対応）
-                    tp_order = await self._place_tp_with_retry(
+                    tp_order = await self.tp_sl_manager.place_tp_with_retry(
                         side=side,
                         amount=actual_amount,
                         entry_price=actual_filled_price,
                         take_profit_price=final_tp,
                         symbol=symbol,
+                        bitbank_client=self.bitbank_client,
                         max_retries=3,
                     )
                     if not tp_order:
@@ -885,12 +576,13 @@ class ExecutionService:
 
                     # Step 3/3: SL注文配置（リトライ付き）
                     # Phase 63.3: Bug 2修正 - actual_amount使用（部分約定対応）
-                    sl_order = await self._place_sl_with_retry(
+                    sl_order = await self.tp_sl_manager.place_sl_with_retry(
                         side=side,
                         amount=actual_amount,
                         entry_price=actual_filled_price,
                         stop_loss_price=final_sl,
                         symbol=symbol,
+                        bitbank_client=self.bitbank_client,
                         max_retries=3,
                     )
                     if not sl_order:
@@ -930,7 +622,7 @@ class ExecutionService:
 
                     # Phase 62.20: TP/SL欠損自動復旧 - 10分後検証をスケジュール
                     # Phase 63.3: Bug 2修正 - actual_amount使用
-                    self._schedule_tp_sl_verification(
+                    self.tp_sl_manager.schedule_tp_sl_verification(
                         entry_order_id=result.order_id,
                         side=side,
                         amount=actual_amount,
@@ -945,12 +637,13 @@ class ExecutionService:
                     self.logger.error(f"❌ Phase 51.6: Atomic Entry失敗 - ロールバック開始: {e}")
 
                     # ロールバック実行（TP/SL/Entry注文をすべてキャンセル）
-                    await self._rollback_entry(
+                    await self.tp_sl_manager.rollback_entry(
                         entry_order_id=result.order_id,
                         tp_order_id=tp_order_id,
                         sl_order_id=sl_order_id,
                         symbol=symbol,
                         error=e,
+                        bitbank_client=self.bitbank_client,
                     )
 
                     # Phase 63.3: Bug 3修正 - ロールバック後に部分約定チェック
@@ -992,20 +685,22 @@ class ExecutionService:
 
                         # TP/SL再配置試行
                         try:
-                            tp_retry = await self._place_tp_with_retry(
+                            tp_retry = await self.tp_sl_manager.place_tp_with_retry(
                                 side=side,
                                 amount=partial_filled,
                                 entry_price=actual_filled_price,
                                 take_profit_price=final_tp,
                                 symbol=symbol,
+                                bitbank_client=self.bitbank_client,
                                 max_retries=3,
                             )
-                            sl_retry = await self._place_sl_with_retry(
+                            sl_retry = await self.tp_sl_manager.place_sl_with_retry(
                                 side=side,
                                 amount=partial_filled,
                                 entry_price=actual_filled_price,
                                 stop_loss_price=final_sl,
                                 symbol=symbol,
+                                bitbank_client=self.bitbank_client,
                                 max_retries=3,
                             )
                             if tp_retry and sl_retry:
@@ -1099,17 +794,23 @@ class ExecutionService:
                         price = float(ticker["last"])
                         self.logger.info(f"📊 ペーパートレード実価格取得: {price:.0f}円")
                     else:
-                        price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                        price = get_threshold(
+                            TPSLConfig.FALLBACK_BTC_JPY, TPSLConfig.DEFAULT_FALLBACK_BTC_JPY
+                        )
                         self.logger.warning(
                             f"⚠️ ticker取得失敗、フォールバック価格使用: {price:.0f}円"
                         )
                 except Exception as e:
-                    price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                    price = get_threshold(
+                        TPSLConfig.FALLBACK_BTC_JPY, TPSLConfig.DEFAULT_FALLBACK_BTC_JPY
+                    )
                     self.logger.warning(
                         f"⚠️ 価格取得エラー、フォールバック価格使用: {price:.0f}円 - {e}"
                     )
             elif price == 0:
-                price = get_threshold("trading.fallback_btc_jpy", 16500000.0)
+                price = get_threshold(
+                    TPSLConfig.FALLBACK_BTC_JPY, TPSLConfig.DEFAULT_FALLBACK_BTC_JPY
+                )
                 self.logger.warning(f"⚠️ BitbankClient未設定、フォールバック価格使用: {price:.0f}円")
 
             # 仮想実行結果作成
@@ -1356,49 +1057,8 @@ class ExecutionService:
             self.logger.error(f"❌ バックテスト実行失敗: {e}")
             raise
 
-    def _ensure_minimum_trade_size(self, evaluation: TradeEvaluation) -> TradeEvaluation:
-        """
-        最小ロットサイズを保証する（動的ポジションサイジング対応）
-
-        Args:
-            evaluation: 元の取引評価結果
-
-        Returns:
-            調整されたTradeEvaluation
-        """
-        try:
-            # 動的ポジションサイジングが有効かチェック
-            dynamic_enabled = get_threshold(
-                "position_management.dynamic_position_sizing.enabled", False
-            )
-
-            if not dynamic_enabled:
-                return evaluation  # 従来通り変更なし
-
-            # 最小取引サイズ取得
-            min_trade_size = get_threshold("position_management.min_trade_size", 0.0001)
-
-            # 現在のポジションサイズと比較
-            current_position_size = float(getattr(evaluation, "position_size", 0))
-
-            if current_position_size < min_trade_size:
-                # 最小ロット保証適用
-                self.logger.info(
-                    f"📏 最小ロット保証適用: {current_position_size:.6f} -> {min_trade_size:.6f} BTC"
-                )
-
-                # evaluationのposition_sizeを更新（immutableなdataclassの場合を考慮）
-                if hasattr(evaluation, "__dict__"):
-                    evaluation.position_size = min_trade_size
-                else:
-                    # dataclassの場合は新しいインスタンスを作成
-                    evaluation = replace(evaluation, position_size=min_trade_size)
-
-            return evaluation
-
-        except Exception as e:
-            self.logger.error(f"最小ロット保証処理エラー: {e}")
-            return evaluation  # エラー時は元のevaluationを返す
+    # Phase 64: _ensure_minimum_trade_size は
+    # order_strategy.py (OrderStrategy) に移動
 
     def get_trading_statistics(self) -> Dict[str, Union[int, float, str]]:
         """
@@ -1440,6 +1100,8 @@ class ExecutionService:
         balance_monitor: Optional[Any] = None,
         position_tracker: Optional[Any] = None,
         data_service: Optional[Any] = None,
+        tp_sl_manager: Optional[Any] = None,
+        position_restorer: Optional[Any] = None,
     ) -> None:
         """
         関連サービスを注入
@@ -1451,6 +1113,8 @@ class ExecutionService:
             balance_monitor: BalanceMonitorインスタンス
             position_tracker: PositionTrackerインスタンス (Phase 42)
             data_service: DataServiceインスタンス (Phase 54.6: ATR取得Level 2用)
+            tp_sl_manager: TPSLManagerインスタンス (Phase 64)
+            position_restorer: PositionRestorerインスタンス (Phase 64)
         """
         if order_strategy:
             self.order_strategy = order_strategy
@@ -1464,6 +1128,10 @@ class ExecutionService:
             self.position_tracker = position_tracker
         if data_service:
             self.data_service = data_service
+        if tp_sl_manager:
+            self.tp_sl_manager = tp_sl_manager
+        if position_restorer:
+            self.position_restorer = position_restorer
 
     # ========================================
     # Phase 46: 統合TP/SL・トレーリングストップ削除（デイトレード特化）
@@ -1572,23 +1240,34 @@ class ExecutionService:
                 self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")
 
         # Phase 63: Bug 3修正 - pending_verificationsの期限到来分を処理
-        if self.mode == "live":
+        if self.mode == "live" and self.tp_sl_manager:
             try:
-                await self._process_pending_verifications()
+                await self.tp_sl_manager.process_pending_verifications(
+                    bitbank_client=self.bitbank_client,
+                )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63: pending_verifications処理エラー: {e}")
 
         # Phase 63.6: TP/SL健全性定期チェック（10分間隔）
-        if self.mode == "live" and self.bitbank_client and self.stop_manager:
+        if self.mode == "live" and self.bitbank_client and self.tp_sl_manager:
             try:
-                await self._periodic_tp_sl_check()
+                await self.tp_sl_manager.periodic_tp_sl_check(
+                    virtual_positions=self.virtual_positions,
+                    bitbank_client=self.bitbank_client,
+                    position_tracker=self.position_tracker,
+                    mode=self.mode,
+                )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63.6: TP/SL定期チェックエラー: {e}")
 
         # Phase 63.3: Bug 4修正 - 孤児ポジション定期スキャン（30分間隔）
-        if self.mode == "live" and self.bitbank_client and self.stop_manager:
+        if self.mode == "live" and self.bitbank_client and self.position_restorer:
             try:
-                await self._scan_orphan_positions()
+                await self.position_restorer.scan_orphan_positions(
+                    virtual_positions=self.virtual_positions,
+                    bitbank_client=self.bitbank_client,
+                    tp_sl_manager=self.tp_sl_manager,
+                )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63.3: 孤児スキャンエラー: {e}")
 
@@ -1602,1243 +1281,17 @@ class ExecutionService:
             )
         return None
 
-    async def _calculate_tp_sl_for_live_trade(
-        self,
-        evaluation: TradeEvaluation,
-        result: ExecutionResult,
-        side: str,
-        amount: float,
-    ) -> Tuple[float, float]:
-        """
-        Phase 51.6: ライブトレードTP/SL再計算（3段階ATRフォールバック）
+    # Phase 64: _calculate_tp_sl_for_live_trade は tp_sl_manager.py (TPSLManager) に移動
 
-        Args:
-            evaluation: 取引評価
-            result: 注文実行結果
-            side: 取引方向（buy/sell）
-            amount: 取引数量
+    # Phase 64: _place_tp_with_retry / _place_sl_with_retry / _cleanup_old_tp_sl_before_entry は
+    # 呼び出し元で直接 tp_sl_manager のメソッドを呼び出すようにインライン化
 
-        Returns:
-            Tuple[float, float]: (final_tp, final_sl)
+    # Phase 64: _rollback_entry は
+    # tp_sl_manager.py (TPSLManager) に移動
 
-        Raises:
-            CryptoBotError: ATR取得失敗・TP/SL再計算失敗時
-        """
-        # Phase 38.7: 実約定価格ベースでTP/SL再計算（SL距離5x誤差修正）
-        # Phase 51.5-C: TP/SL再計算強化（3段階ATRフォールバック + 再計算必須化）
-        actual_filled_price = result.filled_price or result.price
+    # Phase 64: _execute_maker_order / _wait_for_maker_fill は
+    # order_strategy.py (OrderStrategy) に移動
 
-        # 実約定価格でTP/SL価格を再計算
-        recalculated_tp = None
-        recalculated_sl = None
-
-        if actual_filled_price > 0 and evaluation.take_profit and evaluation.stop_loss:
-            from ...strategies.utils.strategy_utils import RiskManager
-            from ..core.types import PositionFeeData
-
-            # ATR値とATR履歴を取得（3段階フォールバック）
-            market_conditions = getattr(evaluation, "market_conditions", {})
-            market_data = market_conditions.get("market_data", {})
-
-            # Phase 61.7: 固定金額TPモード用の手数料データ取得
-            fee_data = None
-            fixed_amount_enabled = get_threshold(
-                "position_management.take_profit.fixed_amount.enabled", False
-            )
-
-            if fixed_amount_enabled and self.bitbank_client:
-                try:
-                    positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
-                    for pos in positions:
-                        raw_data = pos.get("raw_data", {})
-                        pos_side = raw_data.get("position_side", "")
-                        # ポジション方向でマッチング（buy→long, sell→short）
-                        if (side == "buy" and pos_side == "long") or (
-                            side == "sell" and pos_side == "short"
-                        ):
-                            fee_data = PositionFeeData.from_api_response(raw_data)
-                            self.logger.info(
-                                f"📊 Phase 63.2: 手数料データ取得（参考値・TP計算には未使用） - "
-                                f"累積手数料={fee_data.unrealized_fee_amount:.0f}円, "
-                                f"累積利息={fee_data.unrealized_interest_amount:.0f}円"
-                            )
-                            break
-                except Exception as e:
-                    self.logger.warning(
-                        f"⚠️ Phase 61.7: 手数料データ取得失敗 - フォールバック使用: {e}"
-                    )
-
-            current_atr = None
-            atr_history = None
-            atr_source = None  # デバッグ用：ATR取得元
-
-            # Phase 62.13: Level 0（最優先）- market_conditions["atr_current"]から直接取得
-            # RiskManager.evaluate_trade_opportunity()で既に計算・格納済みの値を使用
-            atr_current_value = market_conditions.get("atr_current")
-            if atr_current_value and atr_current_value > 0:
-                current_atr = float(atr_current_value)
-                atr_source = "market_conditions[atr_current]"
-                self.logger.info(f"📊 Phase 62.13: ATR取得成功 - atr_current={current_atr:.0f}円")
-
-            # Phase 51.5-C → Phase 61.6: 2段階ATRフォールバック（Level 2削除）
-            # Level 1: evaluation.market_conditions から取得（後方互換）
-            if not current_atr and "15m" in market_data:
-                df_15m = market_data["15m"]
-                if "atr_14" in df_15m.columns and len(df_15m) > 0:
-                    current_atr = float(df_15m["atr_14"].iloc[-1])
-                    atr_history = df_15m["atr_14"].dropna().tail(20).tolist()
-                    atr_source = "evaluation.market_conditions[15m]"
-
-            if not current_atr and "4h" in market_data:
-                df_4h = market_data["4h"]
-                if "atr_14" in df_4h.columns and len(df_4h) > 0:
-                    current_atr = float(df_4h["atr_14"].iloc[-1])
-                    atr_source = "evaluation.market_conditions[4h]"
-
-            # Level 2: thresholds.yaml fallback_atr使用（Phase 61.6: Level 2→削除、Level 3→Level 2に繰り上げ）
-            if not current_atr:
-                try:
-                    fallback_atr = float(get_threshold("risk.fallback_atr", 500000))
-                except (ValueError, TypeError):
-                    # 型変換失敗時はデフォルト値使用
-                    fallback_atr = 500000.0
-                    self.logger.warning(
-                        "⚠️ Phase 51.5-C: fallback_atr型変換失敗 - デフォルト値500,000円使用"
-                    )
-                current_atr = fallback_atr
-                atr_source = "thresholds.yaml[fallback_atr]"
-                self.logger.warning(
-                    f"⚠️ Phase 51.5-C: フォールバックATR使用 - fallback_atr={fallback_atr:.0f}円"
-                )
-
-            # ATR取得完了（2段階いずれかで取得）
-            if current_atr and current_atr > 0:
-                # Phase 51.6: TP/SL設定完全渡し（ハードコード削除・設定ファイル一元管理）
-                # Phase 52.0: レジーム情報取得追加
-                config = {
-                    # TP設定（Phase 51.6: TP 0.9%・RR比1.29:1）
-                    "take_profit_ratio": get_threshold(
-                        "position_management.take_profit.default_ratio"
-                    ),
-                    "min_profit_ratio": get_threshold(
-                        "position_management.take_profit.min_profit_ratio"
-                    ),
-                    # SL設定（Phase 51.6: SL 0.7%）
-                    "max_loss_ratio": get_threshold("position_management.stop_loss.max_loss_ratio"),
-                    "min_distance_ratio": get_threshold(
-                        "position_management.stop_loss.min_distance.ratio"
-                    ),
-                    "default_atr_multiplier": get_threshold(
-                        "position_management.stop_loss.default_atr_multiplier"
-                    ),
-                }
-
-                # Phase 52.0: レジーム情報取得
-                regime = market_conditions.get("regime", None)
-                regime_str = None
-                if regime:
-                    # RegimeType enumの場合は文字列に変換
-                    regime_str = regime.value if hasattr(regime, "value") else str(regime)
-                    self.logger.info(f"🎯 Phase 52.0: レジーム情報取得 - {regime_str}")
-
-                # Phase 52.0: レジーム情報を含めてTP/SL計算
-                # Phase 58.6: 土日判定用にcurrent_time追加
-                # Phase 61.7: 固定金額TP用にfee_data, position_amount追加
-                recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
-                    side,
-                    actual_filled_price,
-                    current_atr,
-                    config,
-                    atr_history,
-                    regime=regime_str,
-                    current_time=self.current_time,
-                    fee_data=fee_data,
-                    position_amount=amount,
-                )
-
-                # 再計算成功時、ログ出力
-                if recalculated_sl and recalculated_tp:
-                    original_sl = evaluation.stop_loss
-                    original_tp = evaluation.take_profit
-                    sl_diff = abs(recalculated_sl - original_sl)
-                    tp_diff = abs(recalculated_tp - original_tp)
-
-                    # 価格差異計算（entry_priceがある場合）
-                    if evaluation.entry_price is not None:
-                        entry_price_val = float(evaluation.entry_price)
-                        actual_price_val = float(actual_filled_price)
-                        price_diff = abs(actual_price_val - entry_price_val)
-                        price_info = (
-                            f"価格: シグナル時={entry_price_val:.0f}円"
-                            f"→実約定={actual_price_val:.0f}円 (差{price_diff:.0f}円) | "
-                        )
-                    else:
-                        actual_price_val = float(actual_filled_price)
-                        price_info = f"実約定価格={actual_price_val:.0f}円 | "
-
-                    self.logger.info(
-                        f"🔄 Phase 51.5-C: 実約定価格ベースTP/SL再計算完了 - "
-                        f"ATR取得元={atr_source}, ATR={current_atr:.0f}円 | "
-                        f"{price_info}"
-                        f"SL: {original_sl:.0f}円→{recalculated_sl:.0f}円 (差{sl_diff:.0f}円) | "
-                        f"TP: {original_tp:.0f}円→{recalculated_tp:.0f}円 (差{tp_diff:.0f}円)"
-                    )
-                else:
-                    # Phase 51.5-C: 再計算失敗時のハンドリング
-                    require_recalc = get_threshold("risk.require_tpsl_recalculation", True)
-                    if require_recalc:
-                        # 再計算必須モード：エントリー中止
-                        self.logger.error(
-                            f"❌ Phase 51.5-C: TP/SL再計算失敗（require_tpsl_recalculation=True） - "
-                            f"ATR={current_atr:.0f}円・エントリー中止"
-                        )
-                        raise CryptoBotError("TP/SL再計算失敗によりエントリー中止")
-                    else:
-                        # 再計算任意モード：元のTP/SL使用
-                        self.logger.warning(
-                            f"⚠️ Phase 51.5-C: TP/SL再計算失敗（RiskManager戻り値None） - "
-                            f"ATR={current_atr:.0f}円・元のTP/SL使用継続"
-                        )
-            else:
-                # Phase 51.5-C: ATR取得失敗時のハンドリング
-                require_recalc = get_threshold("risk.require_tpsl_recalculation", True)
-                if require_recalc:
-                    # 再計算必須モード：エントリー中止
-                    self.logger.error(
-                        f"❌ Phase 51.5-C: ATR取得失敗（require_tpsl_recalculation=True） - "
-                        f"current_atr={current_atr}・エントリー中止"
-                    )
-                    raise CryptoBotError("ATR取得失敗によりエントリー中止")
-                else:
-                    # 再計算任意モード：元のTP/SL使用
-                    self.logger.warning(
-                        f"⚠️ Phase 51.5-C: ATR取得失敗（current_atr={current_atr}） - "
-                        f"実約定価格ベースTP/SL再計算スキップ・元のTP/SL使用継続"
-                    )
-
-        # 再計算された値を使用（失敗時は元の値）
-        final_tp = recalculated_tp if recalculated_tp else evaluation.take_profit
-        final_sl = recalculated_sl if recalculated_sl else evaluation.stop_loss
-
-        return final_tp, final_sl
-
-    # ========================================
-    # Phase 51.6: 原子的エントリー実装（Atomic Entry Pattern）
-    # ========================================
-
-    async def _place_tp_with_retry(
-        self,
-        side: str,
-        amount: float,
-        entry_price: float,
-        take_profit_price: float,
-        symbol: str,
-        max_retries: int = 3,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Phase 51.6: TP注文配置（Exponential Backoff リトライ）
-
-        Args:
-            side: エントリーサイド (buy/sell)
-            amount: 数量
-            entry_price: エントリー価格
-            take_profit_price: TP価格
-            symbol: 通貨ペア
-            max_retries: 最大リトライ回数（デフォルト3回）
-
-        Returns:
-            Dict: TP注文情報 {"order_id": str, "price": float} or None
-        """
-        for attempt in range(max_retries):
-            try:
-                tp_order = await self.stop_manager.place_take_profit(
-                    side=side,
-                    amount=amount,
-                    entry_price=entry_price,
-                    take_profit_price=take_profit_price,
-                    symbol=symbol,
-                    bitbank_client=self.bitbank_client,
-                )
-                if tp_order:
-                    if attempt > 0:
-                        self.logger.info(
-                            f"✅ Phase 51.6: TP配置成功（試行{attempt + 1}回目） - ID: {tp_order.get('order_id')}"
-                        )
-                    return tp_order
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = 2**attempt  # 1秒, 2秒, 4秒
-                    self.logger.warning(
-                        f"⚠️ Phase 51.6: TP配置失敗（試行{attempt + 1}/{max_retries}）: {e} "
-                        f"- {wait_time}秒後にリトライ"
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    self.logger.error(f"❌ Phase 51.6: TP配置失敗（全{max_retries}回試行）: {e}")
-                    raise
-
-        return None
-
-    async def _place_sl_with_retry(
-        self,
-        side: str,
-        amount: float,
-        entry_price: float,
-        stop_loss_price: float,
-        symbol: str,
-        max_retries: int = 3,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Phase 51.6: SL注文配置（Exponential Backoff リトライ）
-
-        Args:
-            side: エントリーサイド (buy/sell)
-            amount: 数量
-            entry_price: エントリー価格
-            stop_loss_price: SL価格
-            symbol: 通貨ペア
-            max_retries: 最大リトライ回数（デフォルト3回）
-
-        Returns:
-            Dict: SL注文情報 {"order_id": str, "price": float} or None
-        """
-        for attempt in range(max_retries):
-            try:
-                sl_order = await self.stop_manager.place_stop_loss(
-                    side=side,
-                    amount=amount,
-                    entry_price=entry_price,
-                    stop_loss_price=stop_loss_price,
-                    symbol=symbol,
-                    bitbank_client=self.bitbank_client,
-                )
-                if sl_order:
-                    if attempt > 0:
-                        self.logger.info(
-                            f"✅ Phase 51.6: SL配置成功（試行{attempt + 1}回目） - ID: {sl_order.get('order_id')}"
-                        )
-                    return sl_order
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = 2**attempt  # 1秒, 2秒, 4秒
-                    self.logger.warning(
-                        f"⚠️ Phase 51.6: SL配置失敗（試行{attempt + 1}/{max_retries}）: {e} "
-                        f"- {wait_time}秒後にリトライ"
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    self.logger.error(f"❌ Phase 51.6: SL配置失敗（全{max_retries}回試行）: {e}")
-                    raise
-
-        return None
-
-    async def _cleanup_old_tp_sl_before_entry(
-        self,
-        side: str,
-        symbol: str,
-        entry_order_id: str,
-    ) -> None:
-        """
-        Phase 51.10-A: エントリー前の古いTP/SL注文クリーンアップ
-
-        同一ポジション側（BUY or SELL）の古い未約定TP/SL注文を削除する。
-        Phase 51.6で実装したAtomic Entry Patternを完全にするための追加機能。
-
-        背景:
-        - Phase 51.6実装後、14エントリー → 28個のTP/SL注文が蓄積
-        - 既存のcleanup_old_unfilled_orders()は全ポジションのTP/SLを保護するため削除されない
-        - bitbank API 30件制限により、古いTP/SL注文が新規注文をブロック（-1.22%異常配置率）
-
-        設計方針:
-        - Phase 46思想遵守: 個別TP/SL管理維持
-        - Phase 51.6思想完成: Atomic Entry Pattern維持
-        - 新規エントリー前に同一側の古いTP/SL注文のみ削除
-
-        Args:
-            side: エントリーサイド (buy/sell) - この側の古いTP/SL注文のみ削除
-            symbol: 通貨ペア
-            entry_order_id: 今回のエントリー注文ID（ログ用）
-        """
-        try:
-            # Phase 53.7: メソッド名修正（get_active_orders → fetch_active_orders）
-            # 全アクティブ注文取得
-            active_orders = await asyncio.to_thread(
-                self.bitbank_client.fetch_active_orders, symbol, 100
-            )
-
-            if not active_orders:
-                self.logger.debug(f"📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
-                return
-
-            # 同一ポジション側の古いTP/SL注文を検索
-            # - BUYエントリー → SELL側のTP（利確）・SELL側のSL（損切）
-            # - SELLエントリー → BUY側のTP（利確）・BUY側のSL（損切）
-            target_tp_side = "sell" if side == "buy" else "buy"
-            target_sl_side = "sell" if side == "buy" else "buy"
-
-            # 現在のアクティブポジションのTP/SL注文IDを取得（保護対象）
-            # Phase 58.1: 全ポジションのTP/SL注文を保護（同一側制限を撤廃）
-            protected_order_ids = set()
-            if self.virtual_positions:
-                for pos in self.virtual_positions:
-                    # Phase 58.1: 全ポジションのtp_order_id/sl_order_idを保護
-                    tp_id = pos.get("tp_order_id")
-                    sl_id = pos.get("sl_order_id")
-                    if tp_id:
-                        protected_order_ids.add(str(tp_id))
-                    if sl_id:
-                        protected_order_ids.add(str(sl_id))
-
-                    # Phase 53.12: 復元されたポジションのorder_idも保護
-                    if pos.get("restored"):
-                        order_id = pos.get("order_id")
-                        if order_id:
-                            protected_order_ids.add(str(order_id))
-                            self.logger.debug(
-                                f"🛡️ Phase 58.1: 復元ポジション保護 - order_id={order_id}"
-                            )
-
-            # Phase 53.12: 保護対象の注文IDをログ出力
-            if protected_order_ids:
-                self.logger.info(
-                    f"🛡️ Phase 53.12: {len(protected_order_ids)}件の注文を保護対象に設定"
-                )
-
-            # 削除対象の注文を収集
-            # Phase 53.7: CCXTの戻り値形式に合わせてキー名修正（order_id → id）
-            orders_to_cancel = []
-            for order in active_orders:
-                order_id = str(order.get("id", order.get("order_id", "")))
-                order_side = order.get("side", "")
-                order_type = order.get("type", "")
-
-                # 保護対象の注文はスキップ
-                if order_id in protected_order_ids:
-                    continue
-
-                # 同一側のTP/SL注文のみ削除対象
-                # TP: limit注文 & 反対サイド
-                # SL: stop注文 & 反対サイド
-                is_tp = order_type == "limit" and order_side == target_tp_side
-                is_sl = order_type == "stop" and order_side == target_sl_side
-
-                if is_tp or is_sl:
-                    orders_to_cancel.append(
-                        {
-                            "order_id": order_id,
-                            "side": order_side,
-                            "type": order_type,
-                            "price": order.get("price"),
-                        }
-                    )
-
-            # 削除実行
-            if not orders_to_cancel:
-                self.logger.info(
-                    f"✅ Phase 51.10-A: クリーンアップ不要 - "
-                    f"{side}側の古いTP/SL注文なし（Entry: {entry_order_id}）"
-                )
-                return
-
-            cancel_success = 0
-            cancel_fail = 0
-
-            for order in orders_to_cancel:
-                try:
-                    await asyncio.to_thread(
-                        self.bitbank_client.cancel_order, order["order_id"], symbol
-                    )
-                    cancel_success += 1
-                    self.logger.info(
-                        f"🗑️ Phase 51.10-A: 古いTP/SL削除成功 - "
-                        f"ID: {order['order_id']}, "
-                        f"Type: {order['type']}, "
-                        f"Price: {order.get('price', 'N/A')}"
-                    )
-                except Exception as e:
-                    cancel_fail += 1
-                    self.logger.warning(
-                        f"⚠️ Phase 51.10-A: TP/SL削除失敗（継続） - "
-                        f"ID: {order['order_id']}, エラー: {e}"
-                    )
-
-            self.logger.info(
-                f"✅ Phase 51.10-A: クリーンアップ完了 - "
-                f"{side}側 {cancel_success}件削除成功・{cancel_fail}件失敗 "
-                f"（Entry: {entry_order_id}）"
-            )
-
-        except Exception as e:
-            # クリーンアップ失敗してもエントリーは継続（Phase 51.6: L383-385と同様）
-            self.logger.warning(
-                f"⚠️ Phase 51.10-A: エントリー前クリーンアップ失敗（処理継続） - "
-                f"Entry: {entry_order_id}, エラー: {e}"
-            )
-
-    async def _rollback_entry(
-        self,
-        entry_order_id: Optional[str],
-        tp_order_id: Optional[str],
-        sl_order_id: Optional[str],
-        symbol: str,
-        error: Exception,
-    ) -> None:
-        """
-        Phase 51.6: Atomic Entry ロールバック
-
-        エントリー・TP・SLのいずれかが失敗した場合、全ての注文をキャンセルする。
-
-        Args:
-            entry_order_id: エントリー注文ID
-            tp_order_id: TP注文ID（配置済みの場合）
-            sl_order_id: SL注文ID（配置済みの場合）
-            symbol: 通貨ペア
-            error: 発生したエラー
-        """
-        self.logger.error(
-            f"🔄 Phase 51.6: Atomic Entry ロールバック開始 - "
-            f"Entry: {entry_order_id}, TP: {tp_order_id}, SL: {sl_order_id}"
-        )
-
-        # TP注文キャンセル（配置済みの場合）
-        if tp_order_id:
-            try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, tp_order_id, symbol)
-                self.logger.info(f"✅ Phase 51.6: TP注文キャンセル成功 - ID: {tp_order_id}")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Phase 51.6: TP注文キャンセル失敗: {e}")
-
-        # SL注文キャンセル（配置済みの場合）
-        if sl_order_id:
-            try:
-                await asyncio.to_thread(self.bitbank_client.cancel_order, sl_order_id, symbol)
-                self.logger.info(f"✅ Phase 51.6: SL注文キャンセル成功 - ID: {sl_order_id}")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Phase 51.6: SL注文キャンセル失敗: {e}")
-
-        # エントリー注文キャンセル（最重要・Phase 57.11: リトライ追加）
-        if entry_order_id:
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    await asyncio.to_thread(
-                        self.bitbank_client.cancel_order, entry_order_id, symbol
-                    )
-                    self.logger.error(
-                        f"🚨 Phase 51.6: エントリー注文ロールバック成功 - "
-                        f"ID: {entry_order_id}, 理由: {error}"
-                        + (f" (試行{attempt + 1}回目)" if attempt > 0 else "")
-                    )
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        wait_time = 2**attempt  # 1秒, 2秒
-                        self.logger.warning(
-                            f"⚠️ Phase 57.11: エントリーロールバック失敗（リトライ{attempt + 1}/{max_retries}）: {e}"
-                        )
-                        await asyncio.sleep(wait_time)
-                    else:
-                        # 全リトライ失敗は致命的エラー
-                        self.logger.critical(
-                            f"❌ CRITICAL: エントリー注文キャンセル失敗（手動介入必要） - "
-                            f"ID: {entry_order_id}, 全{max_retries}回試行失敗, エラー: {e}"
-                        )
-
-    # ========================================
-    # Phase 62.9: Maker戦略実装
-    # ========================================
-
-    async def _execute_maker_order(
-        self,
-        symbol: str,
-        side: str,
-        amount: float,
-        maker_config: Dict[str, Any],
-    ) -> Optional[ExecutionResult]:
-        """
-        Phase 62.9: Maker注文実行（リトライ機構付き）
-
-        Args:
-            symbol: 通貨ペア
-            side: 売買方向
-            amount: 注文数量
-            maker_config: Maker戦略設定（price, best_bid, best_ask等）
-
-        Returns:
-            ExecutionResult: 成功時は約定結果、失敗時はNone
-        """
-        from src.core.exceptions import PostOnlyCancelledException
-
-        config = get_threshold("order_execution.maker_strategy", {})
-        max_retries = config.get("max_retries", 3)
-        retry_interval = config.get("retry_interval_ms", 500) / 1000
-        timeout = config.get("timeout_seconds", 30)
-        tick = config.get("price_adjustment_tick", 1)
-        max_adj = config.get("max_price_adjustment_ratio", 0.001)
-
-        initial_price = maker_config.get("price", 0)
-        if initial_price <= 0:
-            self.logger.warning("⚠️ Phase 62.9: Maker価格が無効")
-            return None
-
-        current_price = initial_price
-        start = datetime.now()
-
-        for attempt in range(max_retries):
-            elapsed = (datetime.now() - start).total_seconds()
-            if elapsed >= timeout:
-                self.logger.warning(
-                    f"⚠️ Phase 62.9: Makerタイムアウト ({elapsed:.1f}秒 >= {timeout}秒)"
-                )
-                return None
-
-            try:
-                self.logger.info(
-                    f"📡 Phase 62.9: Maker注文試行 {attempt + 1}/{max_retries} - "
-                    f"{side} {amount:.4f} BTC @ {current_price:.0f}円 (post_only)"
-                )
-
-                # post_only指値注文
-                order = self.bitbank_client.create_order(
-                    symbol=symbol,
-                    side=side,
-                    order_type="limit",
-                    amount=amount,
-                    price=current_price,
-                    post_only=True,
-                )
-
-                order_id = order.get("id")
-                if not order_id:
-                    self.logger.warning("⚠️ Phase 62.9: 注文IDなし")
-                    continue
-
-                # 約定待機
-                remaining_timeout = timeout - (datetime.now() - start).total_seconds()
-                filled = await self._wait_for_maker_fill(
-                    order_id, symbol, max(remaining_timeout, 5)
-                )
-
-                if filled:
-                    filled_price = filled.get("price", current_price)
-                    filled_amount = filled.get("amount", amount)
-
-                    self.logger.info(
-                        f"✅ Phase 62.9: Maker約定成功 - "
-                        f"ID: {order_id}, 価格: {filled_price:.0f}円, "
-                        f"手数料: Maker(0%)"
-                    )
-
-                    return ExecutionResult(
-                        success=True,
-                        mode=ExecutionMode.LIVE,
-                        order_id=order_id,
-                        price=filled_price,
-                        amount=filled_amount,
-                        filled_price=filled_price,
-                        filled_amount=filled_amount,
-                        error_message=None,
-                        side=side,
-                        fee=0.0,  # Makerリベートは後で計算
-                        status=OrderStatus.FILLED,
-                        notes="Phase 62.9: Maker約定",
-                    )
-
-                # 未約定 → キャンセル
-                self.logger.info(f"📡 Phase 62.9: 未約定 - 注文キャンセル試行 (ID: {order_id})")
-                try:
-                    await asyncio.to_thread(self.bitbank_client.cancel_order, order_id, symbol)
-                except Exception as cancel_e:
-                    self.logger.warning(
-                        f"⚠️ Phase 62.9: キャンセル失敗（約定済みの可能性）: {cancel_e}"
-                    )
-                    # キャンセル失敗=約定済みの可能性があるので再確認
-                    filled = await self._wait_for_maker_fill(order_id, symbol, 2)
-                    if filled:
-                        return ExecutionResult(
-                            success=True,
-                            mode=ExecutionMode.LIVE,
-                            order_id=order_id,
-                            price=filled.get("price", current_price),
-                            amount=filled.get("amount", amount),
-                            filled_price=filled.get("price", current_price),
-                            filled_amount=filled.get("amount", amount),
-                            error_message=None,
-                            side=side,
-                            fee=0.0,
-                            status=OrderStatus.FILLED,
-                            notes="Phase 62.9: Maker約定（キャンセル後確認）",
-                        )
-
-            except PostOnlyCancelledException as e:
-                self.logger.info(f"📡 Phase 62.9: post_onlyキャンセル（価格調整） - {e}")
-
-            except Exception as e:
-                self.logger.warning(f"⚠️ Phase 62.9: Maker注文エラー: {e}")
-
-            # 価格調整（不利側へ1tick）
-            if side.lower() == "buy":
-                current_price += tick  # 買いは高く
-                if current_price > initial_price * (1 + max_adj):
-                    self.logger.warning(
-                        f"⚠️ Phase 62.9: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
-                    )
-                    return None
-            else:
-                current_price -= tick  # 売りは安く
-                if current_price < initial_price * (1 - max_adj):
-                    self.logger.warning(
-                        f"⚠️ Phase 62.9: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
-                    )
-                    return None
-
-            await asyncio.sleep(retry_interval)
-
-        self.logger.warning(f"⚠️ Phase 62.9: 最大リトライ回数到達 ({max_retries}回)")
-        return None
-
-    async def _wait_for_maker_fill(
-        self,
-        order_id: str,
-        symbol: str,
-        timeout: float,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Phase 62.9: Maker注文の約定待機
-
-        Args:
-            order_id: 注文ID
-            symbol: 通貨ペア
-            timeout: タイムアウト秒数
-
-        Returns:
-            Dict: 約定情報（約定時）、None（未約定時）
-        """
-        check_interval = 0.5  # 500ms間隔でチェック
-        start = datetime.now()
-
-        while (datetime.now() - start).total_seconds() < timeout:
-            try:
-                order = await asyncio.to_thread(self.bitbank_client.fetch_order, order_id, symbol)
-
-                if order:
-                    status = order.get("status", "").lower()
-                    filled_amount = float(order.get("filled", 0))
-                    order_amount = float(order.get("amount", 0))
-
-                    # 完全約定
-                    if status == "closed" or (
-                        filled_amount > 0 and filled_amount >= order_amount * 0.99
-                    ):
-                        return {
-                            "price": float(order.get("average", order.get("price", 0))),
-                            "amount": filled_amount,
-                        }
-
-                    # キャンセル済み
-                    if status == "canceled":
-                        return None
-
-            except Exception as e:
-                self.logger.debug(f"📡 Phase 62.9: 注文状態確認エラー: {e}")
-
-            await asyncio.sleep(check_interval)
-
-        return None
-
-    # ========================================
-    # Phase 62.20: TP/SL欠損自動復旧
-    # ========================================
-
-    def _schedule_tp_sl_verification(
-        self,
-        entry_order_id: str,
-        side: str,
-        amount: float,
-        entry_price: float,
-        tp_order_id: Optional[str],
-        sl_order_id: Optional[str],
-        symbol: str,
-    ) -> None:
-        """
-        Phase 62.20: TP/SL欠損検証をスケジュール
-
-        Atomic Entry完了後、5分後にTP/SL設置状態を再確認し、
-        欠損があれば自動的に再構築する。
-
-        背景:
-        - Phase 62.17のSLタイムアウトフォールバック失敗時にSL欠損が発生
-        - APIエラー50062などでBot内部状態とbitbank実態が乖離する可能性
-
-        Args:
-            entry_order_id: エントリー注文ID
-            side: 売買方向（buy/sell）
-            amount: ポジション数量
-            entry_price: エントリー価格
-            tp_order_id: TP注文ID
-            sl_order_id: SL注文ID
-            symbol: 通貨ペア
-        """
-        delay_seconds = get_threshold("tp_sl_verification.delay_seconds", 600)  # デフォルト10分
-
-        # Phase 63: Bug 3修正 - asyncio.create_task廃止
-        # fire-and-forgetではなく、pending_verificationsに保存し
-        # メインサイクルで期限到来分を処理する方式に変更
-        self._pending_verifications.append(
-            {
-                "scheduled_at": datetime.now(timezone.utc),
-                "verify_after": datetime.now(timezone.utc) + timedelta(seconds=delay_seconds),
-                "entry_order_id": entry_order_id,
-                "side": side,
-                "amount": amount,
-                "entry_price": entry_price,
-                "expected_tp_order_id": tp_order_id,
-                "expected_sl_order_id": sl_order_id,
-                "symbol": symbol,
-            }
-        )
-
-        self.logger.info(
-            f"📋 Phase 63: TP/SL検証スケジュール - {delay_seconds}秒後 "
-            f"(Entry: {entry_order_id}, pending: {len(self._pending_verifications)}件)"
-        )
-
-    async def _process_pending_verifications(self):
-        """
-        Phase 63: Bug 3修正 - メインサイクルで期限到来の検証を処理
-
-        asyncio.create_taskの代わりに、メインサイクルの各サイクルで
-        期限到来分のTP/SL検証を実行する。
-        Cloud Runの5分サイクル間でcontainer再起動やイベントループ終了で
-        タスクが消失する問題を解決。
-        """
-        if not self._pending_verifications:
-            return
-
-        now = datetime.now(timezone.utc)
-        due = [v for v in self._pending_verifications if now >= v["verify_after"]]
-        self._pending_verifications = [
-            v for v in self._pending_verifications if now < v["verify_after"]
-        ]
-
-        if due:
-            self.logger.info(f"🔍 Phase 63: TP/SL検証実行 - {len(due)}件期限到来")
-
-        for v in due:
-            try:
-                await self._verify_and_rebuild_tp_sl(
-                    entry_order_id=v["entry_order_id"],
-                    side=v["side"],
-                    amount=v["amount"],
-                    entry_price=v["entry_price"],
-                    expected_tp_order_id=v["expected_tp_order_id"],
-                    expected_sl_order_id=v["expected_sl_order_id"],
-                    symbol=v["symbol"],
-                    delay_seconds=0,  # 既に待機済み
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"❌ Phase 63: TP/SL検証エラー - Entry: {v['entry_order_id']}, {e}"
-                )
-
-    async def _verify_and_rebuild_tp_sl(
-        self,
-        entry_order_id: str,
-        side: str,
-        amount: float,
-        entry_price: float,
-        expected_tp_order_id: Optional[str],
-        expected_sl_order_id: Optional[str],
-        symbol: str,
-        delay_seconds: int,
-    ) -> None:
-        """
-        Phase 62.20: TP/SL欠損検証・自動再構築
-
-        Args:
-            entry_order_id: エントリー注文ID
-            side: 売買方向（buy/sell）
-            amount: ポジション数量
-            entry_price: エントリー価格
-            expected_tp_order_id: 期待されるTP注文ID
-            expected_sl_order_id: 期待されるSL注文ID
-            symbol: 通貨ペア
-            delay_seconds: 待機秒数
-        """
-        try:
-            # Phase 63: Bug 3修正 - sleepはpending_verifications方式で代替済み
-            if delay_seconds > 0:
-                await asyncio.sleep(delay_seconds)
-
-            self.logger.info(f"🔍 Phase 63: TP/SL検証開始 - Entry: {entry_order_id}")
-
-            # Step 2: ポジション存在確認
-            positions = await self.bitbank_client.fetch_margin_positions(symbol)
-            if not positions:
-                self.logger.info(
-                    f"✅ Phase 62.20: ポジションなし（既に決済済み） - Entry: {entry_order_id}"
-                )
-                return
-
-            # 該当ポジションを探す（side + amount でマッチング）
-            # side: buy -> short, sell -> long ではなく、信用取引では逆
-            # buy注文 -> longポジション, sell注文 -> shortポジション
-            expected_pos_side = "long" if side == "buy" else "short"
-
-            matching_position = None
-            for pos in positions:
-                pos_side = pos.get("side", "")
-                pos_amount = float(pos.get("amount", 0))
-
-                # Phase 63: Bug 2修正 - サイド一致のみでマッチング
-                # ポジション集約時に個別エントリー量と集約ポジション量が異なるため
-                if pos_side == expected_pos_side and pos_amount > 0:
-                    matching_position = pos
-                    break
-
-            if not matching_position:
-                self.logger.info(
-                    f"✅ Phase 62.20: 該当ポジションなし（決済済みまたは変更済み） - "
-                    f"Entry: {entry_order_id}"
-                )
-                return
-
-            # Phase 63.4: 実際のAPIポジション量を使用（ポジション集約対応）
-            actual_api_amount = float(matching_position.get("amount", 0))
-
-            # Step 3: アクティブ注文確認（TP/SL存在チェック）
-            active_orders = await asyncio.to_thread(self.bitbank_client.fetch_active_orders, symbol)
-
-            has_tp = False
-            has_sl = False
-
-            for order in active_orders:
-                order_type = order.get("type", "").lower()
-                order_id = str(order.get("id", ""))
-
-                # TP（limit注文）
-                if order_type == "limit":
-                    # 期待されるTP注文IDと一致、または反対方向の決済注文
-                    if order_id == expected_tp_order_id:
-                        has_tp = True
-                    else:
-                        # サイドチェック：ポジションと反対方向の指値 = TP候補
-                        order_side = order.get("side", "").lower()
-                        tp_side = "sell" if side == "buy" else "buy"
-                        if order_side == tp_side:
-                            has_tp = True
-
-                # SL（stop_limit注文）
-                if order_type in ("stop", "stop_limit"):
-                    if order_id == expected_sl_order_id:
-                        has_sl = True
-                    else:
-                        # サイドチェック：ポジションと反対方向のストップ = SL候補
-                        order_side = order.get("side", "").lower()
-                        sl_side = "sell" if side == "buy" else "buy"
-                        if order_side == sl_side:
-                            has_sl = True
-
-            # Step 4: 欠損があれば再構築
-            if has_tp and has_sl:
-                self.logger.info(f"✅ Phase 62.20: TP/SL正常設置確認 - Entry: {entry_order_id}")
-                return
-
-            # 欠損検出
-            missing = []
-            if not has_tp:
-                missing.append("TP")
-            if not has_sl:
-                missing.append("SL")
-
-            self.logger.warning(
-                f"⚠️ Phase 62.20: TP/SL欠損検出 - {', '.join(missing)} " f"- Entry: {entry_order_id}"
-            )
-
-            # エントリー価格をAPIから再取得（精度向上）
-            actual_entry_price = float(matching_position.get("avg_price", entry_price))
-
-            # レジーム別TP/SL幅を取得（デフォルト: tight_range）
-            regime = "tight_range"  # 保守的なデフォルト
-            tp_config = get_threshold(f"position_management.take_profit.regime_based.{regime}", {})
-            sl_config = get_threshold(f"position_management.stop_loss.regime_based.{regime}", {})
-
-            tp_ratio = tp_config.get("min_profit_ratio", 0.004)  # 0.4%
-            sl_ratio = sl_config.get("max_loss_ratio", 0.004)  # 0.4%
-
-            # Step 5: TP再構築
-            if not has_tp:
-                if side == "buy":
-                    tp_price = actual_entry_price * (1 + tp_ratio)
-                else:
-                    tp_price = actual_entry_price * (1 - tp_ratio)
-
-                try:
-                    tp_order = await self._place_tp_with_retry(
-                        side=side,
-                        amount=actual_api_amount,  # Phase 63.4: APIポジション量使用
-                        entry_price=actual_entry_price,
-                        take_profit_price=tp_price,
-                        symbol=symbol,
-                        max_retries=3,
-                    )
-                    if tp_order:
-                        self.logger.info(
-                            f"✅ Phase 62.20: TP再構築成功 - "
-                            f"ID: {tp_order.get('order_id')}, 価格: {tp_price:.0f}円"
-                        )
-                    else:
-                        self.logger.error(f"❌ Phase 62.20: TP再構築失敗 - Entry: {entry_order_id}")
-                except Exception as e:
-                    self.logger.error(f"❌ Phase 62.20: TP再構築エラー - {e}")
-
-            # Step 6: SL再構築
-            if not has_sl:
-                if side == "buy":
-                    sl_price = actual_entry_price * (1 - sl_ratio)
-                else:
-                    sl_price = actual_entry_price * (1 + sl_ratio)
-
-                try:
-                    sl_order = await self._place_sl_with_retry(
-                        side=side,
-                        amount=actual_api_amount,  # Phase 63.4: APIポジション量使用
-                        entry_price=actual_entry_price,
-                        stop_loss_price=sl_price,
-                        symbol=symbol,
-                        max_retries=3,
-                    )
-                    if sl_order:
-                        self.logger.info(
-                            f"✅ Phase 62.20: SL再構築成功 - "
-                            f"ID: {sl_order.get('order_id')}, 価格: {sl_price:.0f}円"
-                        )
-                    else:
-                        self.logger.error(f"❌ Phase 62.20: SL再構築失敗 - Entry: {entry_order_id}")
-                except Exception as e:
-                    self.logger.error(f"❌ Phase 62.20: SL再構築エラー - {e}")
-
-        except Exception as e:
-            self.logger.error(f"❌ Phase 62.20: TP/SL検証エラー - Entry: {entry_order_id}, {e}")
-
-    # ========================================
-    # Phase 63.6: TP/SL健全性定期チェック
-    # ========================================
-
-    async def _periodic_tp_sl_check(self) -> None:
-        """
-        Phase 63.6: TP/SL健全性定期チェック（10分間隔）
-
-        virtual_positionsに存在するポジションのTP/SL注文がbitbank上に存在するか確認。
-        証拠金不足・API障害等でTP/SLがキャンセルされたケースを検出・再設置する。
-
-        孤児スキャン（30分間隔）との役割分担:
-        - ensure_tp_sl: virtual_positionsに「存在する」ポジションのTP/SL確認
-        - 孤児スキャン: virtual_positionsに「存在しない」ポジションの検出
-        """
-        now = datetime.now()
-        check_interval = get_threshold("tp_sl_check.interval_seconds", 600)  # 10分
-
-        if (
-            self._last_tp_sl_check_time
-            and (now - self._last_tp_sl_check_time).total_seconds() < check_interval
-        ):
-            return
-
-        self._last_tp_sl_check_time = now
-
-        self.logger.debug("🔍 Phase 63.6: TP/SL健全性定期チェック開始")
-        await self.ensure_tp_sl_for_existing_positions()
-
-    # ========================================
-    # Phase 63.3: 孤児ポジション定期スキャン
-    # ========================================
-
-    async def _scan_orphan_positions(self) -> None:
-        """
-        Phase 63.3: Bug 4修正 - 孤児ポジション定期スキャン
-
-        bitbank上に実ポジションがあるがvirtual_positionsに存在しないケースを検出。
-        10分検証（pending_verifications）とは相互補完的:
-        - 10分検証: Atomic Entry成功後の「知っている」ポジションのTP/SL欠損復旧
-        - 30分スキャン: bot管理外の「知らない」ポジション（孤児）の検出・保護
-
-        実行頻度: 30分に1回（API負荷考慮）
-        """
-        now = datetime.now()
-        scan_interval = get_threshold("orphan_scan.interval_seconds", 1800)  # 30分
-
-        if (
-            self._last_orphan_scan_time
-            and (now - self._last_orphan_scan_time).total_seconds() < scan_interval
-        ):
-            return
-
-        self._last_orphan_scan_time = now
-
-        try:
-            symbol = get_threshold("trading_constraints.currency_pair", "BTC/JPY")
-            actual_positions = await self.bitbank_client.fetch_margin_positions(symbol)
-
-            if not actual_positions:
-                return
-
-            # virtual_positionsのside一覧を取得
-            vp_sides = set()
-            for vp in self.virtual_positions:
-                vp_side = "long" if vp.get("side") == "buy" else "short"
-                vp_sides.add(vp_side)
-
-            for pos in actual_positions:
-                pos_side = pos.get("side", "")
-                pos_amount = float(pos.get("amount", 0))
-
-                if pos_amount <= 0:
-                    continue
-
-                # virtual_positionsに同じサイドのエントリがあるかチェック
-                has_matching = False
-                for vp in self.virtual_positions:
-                    vp_side = "long" if vp.get("side") == "buy" else "short"
-                    if vp_side == pos_side:
-                        has_matching = True
-                        break
-
-                if has_matching:
-                    continue
-
-                # 孤児ポジション検出
-                self.logger.warning(
-                    f"🔍 Phase 63.3: 孤児ポジション検出 - "
-                    f"side={pos_side}, amount={pos_amount} BTC"
-                )
-
-                # アクティブ注文でTP/SLが既にあるか確認
-                active_orders = await asyncio.to_thread(
-                    self.bitbank_client.fetch_active_orders, symbol
-                )
-                entry_side = "buy" if pos_side == "long" else "sell"
-                exit_side = "sell" if pos_side == "long" else "buy"
-
-                has_tp = False
-                has_sl = False
-                for order in active_orders:
-                    order_type = order.get("type", "").lower()
-                    order_side = order.get("side", "").lower()
-                    if order_side == exit_side and order_type == "limit":
-                        has_tp = True
-                    if order_side == exit_side and order_type in ("stop", "stop_limit"):
-                        has_sl = True
-
-                if has_tp and has_sl:
-                    self.logger.info(
-                        f"✅ Phase 63.3: 孤児ポジションにTP/SL既設置 - "
-                        f"side={pos_side}, amount={pos_amount} BTC"
-                    )
-                    # virtual_positionsに復元
-                    avg_price = float(pos.get("avg_price", pos.get("price", 0)))
-                    orphan_entry = {
-                        "order_id": f"orphan_{pos_side}_{int(now.timestamp())}",
-                        "side": entry_side,
-                        "amount": pos_amount,
-                        "price": avg_price,
-                        "timestamp": now,
-                        "take_profit": None,
-                        "stop_loss": None,
-                        "tp_order_id": "existing",
-                        "sl_order_id": "existing",
-                        "sl_placed_at": datetime.now(timezone.utc).isoformat(),  # Phase 63.4
-                    }
-                    self.virtual_positions.append(orphan_entry)
-                    continue
-
-                # TP/SLがない場合は設置試行
-                avg_price = float(pos.get("avg_price", pos.get("price", 0)))
-                if avg_price <= 0:
-                    self.logger.critical(
-                        f"🚨 Phase 63.3: 孤児ポジションの平均価格取得失敗 - "
-                        f"手動介入必要。side={pos_side}, amount={pos_amount} BTC"
-                    )
-                    continue
-
-                # デフォルトレジーム(tight_range)でTP/SL計算
-                tp_ratio = get_threshold(
-                    "position_management.take_profit.regime_based.tight_range.min_profit_ratio",
-                    0.004,
-                )
-                sl_ratio = get_threshold(
-                    "position_management.stop_loss.regime_based.tight_range.max_loss_ratio",
-                    0.004,
-                )
-
-                if pos_side == "long":
-                    tp_price = avg_price * (1 + tp_ratio)
-                    sl_price = avg_price * (1 - sl_ratio)
-                else:
-                    tp_price = avg_price * (1 - tp_ratio)
-                    sl_price = avg_price * (1 + sl_ratio)
-
-                self.logger.warning(
-                    f"⚠️ Phase 63.3: 孤児ポジションTP/SL設置試行 - "
-                    f"side={pos_side}, amount={pos_amount} BTC, "
-                    f"avg_price={avg_price:.0f}円, TP={tp_price:.0f}円, SL={sl_price:.0f}円"
-                )
-
-                tp_result = None
-                sl_result = None
-                try:
-                    if not has_tp:
-                        tp_result = await self._place_tp_with_retry(
-                            side=entry_side,
-                            amount=pos_amount,
-                            entry_price=avg_price,
-                            take_profit_price=tp_price,
-                            symbol=symbol,
-                            max_retries=3,
-                        )
-                    if not has_sl:
-                        sl_result = await self._place_sl_with_retry(
-                            side=entry_side,
-                            amount=pos_amount,
-                            entry_price=avg_price,
-                            stop_loss_price=sl_price,
-                            symbol=symbol,
-                            max_retries=3,
-                        )
-                except Exception as tp_sl_err:
-                    self.logger.critical(
-                        f"🚨 Phase 63.3: 孤児TP/SL設置失敗 - "
-                        f"手動介入必要。side={pos_side}, amount={pos_amount} BTC, "
-                        f"error={tp_sl_err}"
-                    )
-                    continue
-
-                # virtual_positionsに追加
-                orphan_entry = {
-                    "order_id": f"orphan_{pos_side}_{int(now.timestamp())}",
-                    "side": entry_side,
-                    "amount": pos_amount,
-                    "price": avg_price,
-                    "timestamp": now,
-                    "take_profit": tp_price,
-                    "stop_loss": sl_price,
-                    "tp_order_id": tp_result.get("order_id") if tp_result else None,
-                    "sl_order_id": sl_result.get("order_id") if sl_result else None,
-                    "sl_placed_at": datetime.now(timezone.utc).isoformat(),  # Phase 63.4
-                }
-                self.virtual_positions.append(orphan_entry)
-
-                if tp_result and sl_result:
-                    self.logger.info(
-                        f"✅ Phase 63.3: 孤児ポジションTP/SL設置完了 - "
-                        f"side={pos_side}, amount={pos_amount} BTC"
-                    )
-                else:
-                    self.logger.critical(
-                        f"🚨 Phase 63.3: 孤児TP/SL部分設置 - "
-                        f"手動確認必要。TP={'OK' if tp_result else 'NG'}, "
-                        f"SL={'OK' if sl_result else 'NG'}"
-                    )
-
-        except Exception as e:
-            self.logger.warning(f"⚠️ Phase 63.3: 孤児スキャンエラー: {e}")
+    # Phase 64: _schedule_tp_sl_verification / _process_pending_verifications /
+    # _periodic_tp_sl_check / _scan_orphan_positions は
+    # 呼び出し元で直接 tp_sl_manager / position_restorer のメソッドを呼び出すようにインライン化

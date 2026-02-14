@@ -1,10 +1,11 @@
 """
-Phase 61.7/61.8/61.10/63.2: 固定金額TP計算テスト
+Phase 61.7/61.8/61.10/63.2/64: 固定金額TP計算テスト
 
 固定金額TP（目標純利益1,000円）の計算ロジックをテスト
 Phase 61.8: バックテスト対応（fee_data=Noneでの手数料推定）
 Phase 61.10: バックテスト・ライブモード ポジションサイズ統一
 Phase 63.2: fee_data累積手数料バグ修正（集約ポジション問題）
+Phase 64: Dynamic Position Sizing統合（sizer.pyに一本化）
 """
 
 from src.strategies.utils.strategy_utils import RiskManager, SignalBuilder
@@ -429,10 +430,10 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # low_confidence: min_ratio=0.30 (30%), max_ratio=0.60 (60%)
-        # 0.40 confidence → normalized = (0.40 - 0.35) / 0.15 = 0.333
-        # position_ratio = 0.30 + (0.60 - 0.30) * 0.333 ≈ 0.40 (40%)
-        # size = 500000 * 0.40 / 15000000 ≈ 0.0133 BTC
+        # Phase 64: sizer.py統合 - low_confidence設定使用
+        # 0.40 confidence → normalized = (0.40 - 0.40) / 0.10 = 0.0
+        # position_ratio = min_ratio（設定値依存）
+        # size = 500000 * ratio / 15000000
         assert 0.005 <= size <= 0.03
 
     def test_medium_confidence_sizing(self):
@@ -443,10 +444,10 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # medium_confidence: min_ratio=0.45 (45%), max_ratio=0.75 (75%)
+        # Phase 64: sizer.py統合 - medium_confidence設定使用
         # 0.60 confidence → normalized = (0.60 - 0.50) / 0.15 = 0.667
-        # position_ratio = 0.45 + (0.75 - 0.45) * 0.667 ≈ 0.65 (65%)
-        # size = 500000 * 0.65 / 15000000 ≈ 0.0217 BTC
+        # position_ratio = min_ratio + (max_ratio - min_ratio) * 0.667
+        # size = 500000 * ratio / 15000000
         assert 0.015 <= size <= 0.03
 
     def test_high_confidence_sizing(self):
@@ -457,10 +458,10 @@ class TestDynamicPositionSizing:
             btc_price=15000000,
             config={},
         )
-        # high_confidence: min_ratio=0.60 (60%), max_ratio=1.05 (105%)
+        # Phase 64: sizer.py統合 - high_confidence設定使用
         # 0.80 confidence → normalized = (0.80 - 0.65) / 0.35 = 0.429
-        # position_ratio = 0.60 + (1.05 - 0.60) * 0.429 ≈ 0.793 (79.3%)
-        # size = 500000 * 0.793 / 15000000 ≈ 0.0264 BTC
+        # position_ratio = min_ratio + (max_ratio - min_ratio) * 0.429
+        # size = 500000 * ratio / 15000000
         assert 0.02 <= size <= 0.04
 
     def test_max_size_limit(self):

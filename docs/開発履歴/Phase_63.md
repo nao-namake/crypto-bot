@@ -731,4 +731,18 @@ $ bash scripts/testing/checks.sh
 
 ---
 
-**最終更新**: 2026年2月13日 - **Phase 63.6完了**（TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認）
+---
+
+## 次Phase
+
+### Phase 64: TP/SLシンプル化 + システム全体整理
+
+**背景**: Phase 63.6で設定パスtypoがCRITICALバグ3件を引き起こしたことから、TP/SLロジックの構造的整理が必要と判断。executor.py（2,844行）・stop_manager.py（2,178行）のTP/SL関連コードを専用モジュールに分離。
+
+**サブフェーズ**: 64.1（TPSLConfig）→ 64.2（TPSLCalculator）→ 64.3（TPSLManager）→ 64.4（PositionRestorer）→ 64.5（PositionTracker拡張）→ 64.6（仕上げ）
+
+**詳細**: [Phase_64.md](Phase_64.md)
+
+---
+
+**最終更新**: 2026年2月14日 - **Phase 63.6完了**（TP/SL定期チェック実装・残存バグ3件修正・最終監査バグなし確認）→ Phase 64開始

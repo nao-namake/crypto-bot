@@ -1,5 +1,5 @@
 """
-Trading Layer - Phase 49完了
+Trading Layer - Phase 64
 
 統合リスク管理・監視・取引実行結果処理の包括的取引制御機能。
 レイヤードアーキテクチャによる責務分離実装。
@@ -7,41 +7,45 @@ Trading Layer - Phase 49完了
 主要コンポーネント:
 - IntegratedRiskManager: 統合リスク管理API
 - ExecutionService: 取引実行サービス
+- TPSLManager: TP/SL設置・検証・復旧統合管理
+- PositionRestorer: ポジション復元・孤児クリーンアップ
 - KellyCriterion: Kelly基準ポジションサイジング
 - DrawdownManager: ドローダウン管理・連続損失制御
 - TradingAnomalyDetector: 取引実行用異常検知
 - BalanceMonitor: 残高・保証金監視
-
-Phase 49完了
 """
 
-# Phase 38: 残高監視層
+# 残高監視層
 from .balance import BalanceMonitor
 
-# Phase 38: 後方互換性のためのインポート
-# Phase 38: コア層（列挙型・データクラス）
+# コア層（列挙型・データクラス）
 from .core import (
-    DrawdownSnapshot,
     ExecutionMode,
     ExecutionResult,
     MarginData,
     MarginPrediction,
     MarginStatus,
-    MarketCondition,
     OrderStatus,
+    PositionFeeData,
     RiskDecision,
     RiskMetrics,
     TradeEvaluation,
-    TradingSession,
 )
 
-# Phase 38: 実行層
-from .execution import ExecutionService, OrderStrategy, StopManager
+# 実行層
+from .execution import (
+    ExecutionService,
+    OrderStrategy,
+    PositionRestorer,
+    StopManager,
+    TPSLConfig,
+    TPSLManager,
+)
 
-# Phase 38: ポジション管理層
+# ポジション管理層
 from .position import CooldownManager, PositionCleanup, PositionLimits, PositionTracker
 
-# Phase 38: リスク管理層
+# リスク管理層
 from .risk import (
     AnomalyAlert,
     AnomalyLevel,
@@ -65,12 +69,17 @@ __all__ = [
     "MarginPrediction",
     "MarginStatus",
     "OrderStatus",
+    "PositionFeeData",
     "RiskDecision",
+    "RiskMetrics",
     "TradeEvaluation",
     # 実行層
     "ExecutionService",
     "OrderStrategy",
+    "PositionRestorer",
     "StopManager",
+    "TPSLConfig",
+    "TPSLManager",
     # ポジション管理層
     "PositionTracker",
     "PositionLimits",
@@ -89,12 +98,7 @@ __all__ = [
     "TradingAnomalyDetector",
     "AnomalyAlert",
     "AnomalyLevel",
-    # 後方互換性（廃止予定）
     "IntegratedRiskManager",
-    "RiskMetrics",
-    "DrawdownSnapshot",
-    "TradingSession",
-    "MarketCondition",
     # リスクプロファイル機能
     "RISK_PROFILES",
     "DEFAULT_RISK_CONFIG",
@@ -104,8 +108,8 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "38.0.0"
-__phase__ = "Phase 38リファクタリング"
+__version__ = "64.1.0"
+__phase__ = "Phase 64.1 src/trading/ 完全整理"
 __description__ = "レイヤードアーキテクチャによる統合取引管理層"
 
 # Phase 28/29最適化: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）

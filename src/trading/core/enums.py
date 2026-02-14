@@ -1,7 +1,8 @@
 """
-Trading Core Enums - Phase 49完了
+Trading Core Enums - Phase 64整理
 
-すべての取引関連列挙型の一元管理
+取引関連列挙型の一元管理
+※ AnomalyLevel・TradingStatusはrisk/に正本あり（Phase 64で重複削除）
 """
 
 from enum import Enum
@@ -35,26 +36,6 @@ class OrderStatus(Enum):
     REJECTED = "rejected"  # ポジション管理制限により拒否
 
 
-# === Risk Monitor関連 ===
-
-
-class AnomalyLevel(Enum):
-    """異常レベル."""
-
-    NORMAL = "normal"
-    WARNING = "warning"
-    CRITICAL = "critical"
-
-
-class TradingStatus(Enum):
-    """取引状態."""
-
-    ACTIVE = "active"
-    PAUSED_DRAWDOWN = "paused_drawdown"
-    PAUSED_CONSECUTIVE_LOSS = "paused_consecutive_loss"
-    PAUSED_MANUAL = "paused_manual"
-
-
 # === Margin Monitor関連 ===
 
 
@@ -71,7 +52,5 @@ __all__ = [
     "RiskDecision",
     "ExecutionMode",
     "OrderStatus",
-    "AnomalyLevel",
-    "TradingStatus",
     "MarginStatus",
 ]

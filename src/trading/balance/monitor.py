@@ -1,15 +1,16 @@
 """
-残高・保証金監視サービス - Phase 49.5完了版
+残高・保証金監視サービス - Phase 64整理版
 Phase 28/29: 保証金維持率監視システム
 Phase 43: 維持率拒否機能実装
 Phase 49.5: 維持率80%確実遵守ロジック実装
+Phase 64: デッドコード削除・Discord通知スタブインライン化
 
 保証金維持率を監視し、80%未満でのエントリーを確実に拒否。
 IntegratedRiskManager経由で全エントリーをチェック。
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from ...core.config import get_threshold, is_backtest_mode
 from ...core.logger import get_logger
@@ -27,7 +28,6 @@ class BalanceMonitor:
     def __init__(self):
         """BalanceMonitor初期化"""
         self.logger = get_logger()
-        self.margin_history: List[MarginData] = []
         # Phase 42.3.3: 証拠金チェック失敗時の取引中止機能
         self._margin_check_failure_count = 0
         self._max_margin_check_retries = 3
@@ -147,46 +147,6 @@ class BalanceMonitor:
             return MarginStatus.WARNING, "⚠️ 警告: 維持率が低い状態です"
         else:
             return MarginStatus.CRITICAL, "🚨 危険: 追証発生レベルです"
-
-    async def analyze_current_margin(
-        self,
-        balance_jpy: float,
-        position_value_jpy: float,
-        bitbank_client: Optional[BitbankClient] = None,
-    ) -> MarginData:
-        """
-        現在の保証金状況を分析
-
-        Args:
-            balance_jpy: 現在の口座残高（JPY）
-            position_value_jpy: 現在の建玉総額（JPY換算）
-            bitbank_client: Bitbank APIクライアント
-
-        Returns:
-            保証金分析結果
-        """
-        margin_ratio = await self.calculate_margin_ratio(
-            balance_jpy, position_value_jpy, bitbank_client
-        )
-
-        status, message = self.get_margin_status(margin_ratio)
-
-        margin_data = MarginData(
-            current_balance=balance_jpy,
-            position_value_jpy=position_value_jpy,
-            margin_ratio=margin_ratio,
-            status=status,
-            message=message,
-            timestamp=datetime.now(),
-        )
-
-        # 履歴に追加
-        self._add_to_history(margin_data)
-
-        # ログ出力
-        self.logger.info(f"📊 保証金維持率: {margin_ratio:.1f}% - {message}")
-
-        return margin_data
 
     async def predict_future_margin(
         self,
@@ -337,97 +297,6 @@ class BalanceMonitor:
         else:
             return "✅ 問題なし"
 
-    def _add_to_history(self, margin_data: MarginData) -> None:
-        """
-        履歴に追加（最新100件まで保持）
-
-        Args:
-            margin_data: 保証金データ
-        """
-        max_history = get_threshold("margin.max_history_count", 100)
-        self.margin_history.append(margin_data)
-        if len(self.margin_history) > max_history:
-            self.margin_history = self.margin_history[-max_history:]
-
-    def get_margin_summary(self) -> Dict[str, Any]:
-        """
-        保証金監視サマリーを取得
-
-        Returns:
-            監視サマリー情報
-        """
-        if not self.margin_history:
-            return {"status": "no_data", "message": "データがありません"}
-
-        latest = self.margin_history[-1]
-
-        # 過去の推移
-        recent_count = min(10, len(self.margin_history))
-        recent_history = self.margin_history[-recent_count:]
-
-        # トレンド分析
-        trend = "insufficient_data"
-        if len(recent_history) >= 2:
-            first_ratio = recent_history[0].margin_ratio
-            last_ratio = recent_history[-1].margin_ratio
-            if last_ratio > first_ratio:
-                trend = "improving"
-            elif last_ratio < first_ratio:
-                trend = "declining"
-            else:
-                trend = "stable"
-
-        return {
-            "current_status": {
-                "margin_ratio": latest.margin_ratio,
-                "status": latest.status.value,
-                "message": latest.message,
-                "timestamp": latest.timestamp.isoformat(),
-            },
-            "trend": trend,
-            "history_count": len(self.margin_history),
-            "recommendations": self._get_margin_recommendations(latest),
-        }
-
-    def _get_margin_recommendations(self, margin_data: MarginData) -> List[str]:
-        """
-        現在の維持率に基づく推奨アクション
-
-        Args:
-            margin_data: 保証金データ
-
-        Returns:
-            推奨アクションリスト
-        """
-        recommendations = []
-
-        if margin_data.status == MarginStatus.CRITICAL:
-            recommendations.extend(
-                [
-                    "🚨 緊急：追証が発生しています",
-                    "💰 入金を検討してください",
-                    "📉 ポジション縮小を検討してください",
-                    "⏱️ 新規エントリーは控えめに",
-                ]
-            )
-        elif margin_data.status == MarginStatus.WARNING:
-            recommendations.extend(
-                [
-                    "⚠️ 維持率が低下しています",
-                    "💰 追加入金を検討してください",
-                    "📊 ポジションサイズを控えめに",
-                    "👀 市場動向を注意深く監視",
-                ]
-            )
-        elif margin_data.status == MarginStatus.CAUTION:
-            recommendations.extend(
-                ["⚠️ 維持率に注意してください", "📊 大きなポジションは避ける", "👀 価格変動を監視"]
-            )
-        else:  # SAFE
-            recommendations.extend(["✅ 安全な維持率です", "💪 通常通りの取引が可能"])
-
-        return recommendations
-
     def should_warn_user(self, margin_prediction: MarginPrediction) -> Tuple[bool, str]:
         """
         ユーザー警告が必要かを判定（Phase 49.5更新）
@@ -474,54 +343,6 @@ class BalanceMonitor:
 
         return False, ""
 
-    async def check_balance_sufficiency(
-        self,
-        required_amount: float,
-        current_balance: float,
-        bitbank_client: Optional[BitbankClient] = None,
-    ) -> Dict[str, Any]:
-        """
-        残高充足性チェック
-
-        Args:
-            required_amount: 必要金額（JPY）
-            current_balance: 現在残高（JPY）
-            bitbank_client: Bitbank APIクライアント
-
-        Returns:
-            チェック結果
-        """
-        is_sufficient = current_balance >= required_amount
-
-        # APIから利用可能残高を取得
-        available_balance = current_balance
-        if bitbank_client and not is_backtest_mode():
-            try:
-                margin_status = await bitbank_client.fetch_margin_status()
-                if margin_status and "available_balance" in margin_status:
-                    available_balance = float(margin_status["available_balance"])
-            except Exception as e:
-                self.logger.warning(f"⚠️ 利用可能残高取得失敗: {e}")
-
-        is_available_sufficient = available_balance >= required_amount
-
-        result = {
-            "sufficient": is_sufficient and is_available_sufficient,
-            "current_balance": current_balance,
-            "available_balance": available_balance,
-            "required_amount": required_amount,
-            "shortage": max(0, required_amount - min(current_balance, available_balance)),
-        }
-
-        if not result["sufficient"]:
-            self.logger.warning(
-                f"⚠️ 残高不足: 必要 {required_amount:.0f}円, "
-                f"現在 {current_balance:.0f}円, "
-                f"利用可能 {available_balance:.0f}円"
-            )
-
-        return result
-
     async def validate_margin_balance(
         self,
         mode: str,
@@ -537,7 +358,7 @@ class BalanceMonitor:
         Args:
             mode: 実行モード (live/paper/backtest)
             bitbank_client: Bitbank APIクライアント
-            discord_notifier: Discord通知マネージャー
+            discord_notifier: Discord通知マネージャー（未使用・互換性維持）
 
         Returns:
             Dict: {
@@ -567,8 +388,12 @@ class BalanceMonitor:
                 self.logger.warning(
                     f"⚠️ 証拠金不足検出: 利用可能={available_balance:.0f}円 < 必要={min_required:.0f}円"
                 )
-                # Discord通知送信
-                await self._send_balance_alert(available_balance, min_required, discord_notifier)
+                shortage = min_required - available_balance
+                self.logger.critical(
+                    f"🚨 証拠金不足検出 - 新規注文スキップ中\n"
+                    f"利用可能: {available_balance:.0f}円 / 必要: {min_required:.0f}円\n"
+                    f"不足額: {shortage:.0f}円"
+                )
 
                 return {
                     "sufficient": False,
@@ -610,9 +435,11 @@ class BalanceMonitor:
                         f"🚨 証拠金チェック失敗リトライ上限到達 "
                         f"({self._max_margin_check_retries}回) - 取引を中止します"
                     )
-
-                    # Discord Critical通知送信
-                    await self._send_margin_check_failure_alert(e, discord_notifier)
+                    self.logger.critical(
+                        f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中\n"
+                        f"エラー詳細: {str(e)}\n"
+                        f"リトライ回数: {self._margin_check_failure_count}"
+                    )
 
                     return {
                         "sufficient": False,
@@ -635,41 +462,3 @@ class BalanceMonitor:
 
             # エラー時は既存動作を維持（取引続行・機会損失回避）
             return {"sufficient": True, "available": 0, "required": 0}
-
-    async def _send_margin_check_failure_alert(
-        self, error: Exception, discord_notifier: Optional[Any]
-    ) -> None:
-        """
-        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
-        証拠金チェック失敗時はログ出力のみ
-
-        Args:
-            error: 発生したエラー
-            discord_notifier: Discord通知マネージャー（未使用）
-        """
-        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
-        self.logger.critical(
-            f"🚨 証拠金チェック失敗（{self._max_margin_check_retries}回リトライ失敗） - 取引中止中\n"
-            f"エラー詳細: {str(error)}\n"
-            f"リトライ回数: {self._margin_check_failure_count}"
-        )
-
-    async def _send_balance_alert(
-        self, available: float, required: float, discord_notifier: Optional[Any]
-    ) -> None:
-        """
-        Phase 51.6: Discord通知削除済み（週間サマリーのみ）
-        残高不足検出時はログ出力のみ
-
-        Args:
-            available: 利用可能残高（円）
-            required: 必要最小残高（円）
-            discord_notifier: Discord通知マネージャー（未使用）
-        """
-        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
-        shortage = required - available
-        self.logger.critical(
-            f"🚨 証拠金不足検出 - 新規注文スキップ中\n"
-            f"利用可能: {available:.0f}円 / 必要: {required:.0f}円\n"
-            f"不足額: {shortage:.0f}円"
-        )

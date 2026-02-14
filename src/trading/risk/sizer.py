@@ -1,5 +1,5 @@
 """
-ポジションサイジング統合システム - Phase 55.5更新
+ポジションサイジング統合システム - Phase 64更新
 
 Phase 28完了・Kelly基準と既存RiskManagerの統合クラス
 動的ポジションサイジング対応・ML信頼度連動
@@ -203,20 +203,28 @@ class PositionSizeIntegrator:
             self.logger.error(f"統合ポジションサイズ計算エラー: {e}")
             return 0.01  # フォールバック値
 
+    @staticmethod
     def _calculate_dynamic_position_size(
-        self, ml_confidence: float, current_balance: float, btc_price: float
+        ml_confidence: float,
+        current_balance: float,
+        btc_price: float,
+        max_order_size: Optional[float] = None,
     ) -> float:
         """
         ML信頼度に基づく動的ポジションサイジング
+
+        Phase 64: @staticmethod化（バックテスト/ライブ統一呼び出し対応）
 
         Args:
             ml_confidence: ML予測信頼度 (0.0-1.0)
             current_balance: 現在の口座残高（円）
             btc_price: 現在のBTC価格（円）
+            max_order_size: 最大注文サイズ（BTC）。Noneの場合は設定値を使用
 
         Returns:
             ポジションサイズ（BTC）
         """
+        logger = get_logger()
         try:
             from ...core.config import get_threshold
 
@@ -280,7 +288,11 @@ class PositionSizeIntegrator:
                 if override_enabled:
                     final_size = max(final_size, min_trade_size)
 
-            self.logger.info(
+            # max_order_size制限適用
+            if max_order_size is not None:
+                final_size = min(final_size, max_order_size)
+
+            logger.info(
                 f"動的ポジションサイズ: {confidence_category}信頼度({ml_confidence:.1%}) -> "
                 f"比率={position_ratio:.1%}, サイズ={final_size:.6f} BTC, "
                 f"残高={current_balance:.0f}円"
@@ -289,6 +301,6 @@ class PositionSizeIntegrator:
             return final_size
 
         except Exception as e:
-            self.logger.error(f"動的ポジションサイズ計算エラー: {e}")
+            logger.error(f"動的ポジションサイズ計算エラー: {e}")
             # フォールバック：最小ロットを返す
             return get_threshold("position_management.min_trade_size", 0.0001)
