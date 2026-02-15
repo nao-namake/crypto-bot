@@ -1,7 +1,7 @@
 # Phase 64: TP/SLシンプル化 + システム全体整理
 
 **期間**: 2026年2月14日〜（進行中）
-**状態**: 🔄 Phase 64.1-64.2完了、64.3以降待機
+**状態**: 🔄 Phase 64.1-64.2, 64.4完了、64.3待機
 **目的**: TP/SLロジックの過度な複雑性を整理し、設置不具合の根本原因を解消する
 
 ---
@@ -13,7 +13,7 @@
 | **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
 | **64.3** | virtual_positions二重管理解消 | ⏳ 待機 |
-| **64.4** | 仕上げ・ドキュメント更新 | ⏳ 待機 |
+| **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
 
 ---
 
@@ -227,16 +227,145 @@ flake8 / black / isort: 全PASS ✅
 
 ---
 
-## 最終ファイル構成（Phase 64.2完了時点）
+## Phase 64.4: デッドコード削除・重複統合・整合性バグ修正（✅完了）
+
+**実施日**: 2026年2月16日
+**方針**: デッドコード・重複ロジック・整合性バグを一掃。動作変更は最小限・安全方向のみ。
+
+### 問題一覧と対応
+
+| # | 種別 | 内容 | 対応 |
+|---|------|------|------|
+| 1 | デッドコード | tp_sl_config.py 未使用定数4件 | 削除 |
+| 2 | デッドコード | `_check_tp_sl_orders_exist()` 43行（呼出元ゼロ） | 削除 |
+| 3 | 整合性バグ | scan_orphan_positionsのTP/SL検出がboolean方式（数量無視） | 数量ベース95%カバレッジに修正 |
+| 4 | 重複+バグ | TP/SL価格計算が3箇所に重複、regime選択が不統一 | ヘルパー抽出+regime修正 |
+| 5 | 重複 | SL超過→成行決済ロジックが2箇所に重複 | ヘルパー抽出 |
+| 6 | 冗長ラッパー | cleanup委譲メソッド2件（付加価値ゼロ） | 削除→直接呼出 |
+| 7 | レイヤー重複 | `_verify_and_rebuild_tp_sl`(169行)がensure_tp_slと同機能 | 委譲で30行に簡素化 |
+
+### Step 1: デッドコード削除 — tp_sl_config.py
+
+未使用定数4件を削除（grep確認済み・参照ゼロ）：
+- `CLEANUP_MAX_RETRIES`, `CLEANUP_RETRY_DELAY`, `MAKER_FILL_THRESHOLD`, `MAKER_POLL_INTERVAL`
+
+### Step 2: デッドコード削除 — `_check_tp_sl_orders_exist()`
+
+Phase 64.3で`ensure_tp_sl_for_existing_positions()`内にインライン化済み。本メソッドは本番コードから一切呼ばれていない（テストのみ）。
+
+- tp_sl_manager.py: メソッド本体43行を削除
+- test_tp_sl_manager.py: `TestPhase643QuantityBasedDetection`クラス（5テスト）を削除
+- test_executor.py: `TestCheckTpSlOrdersExist`クラス（4テスト）を削除
+
+### Step 3: 整合性バグ修正 — position_restorer.py TP/SL検出
+
+scan_orphan_positionsのTP/SL検出がboolean方式（1件でもあればTrue）で、0.001 BTCの注文で0.02 BTCポジションが「カバー済み」と誤判定されるバグを修正。
+
+```python
+# Before（boolean — バグ）:
+has_tp = False
+for order in active_orders:
+    if order_side == exit_side and order_type == "limit":
+        has_tp = True
+
+# After（数量ベース95%カバレッジ）:
+tp_total = sum(
+    float(o.get("amount", 0))
+    for o in active_orders
+    if o.get("side", "").lower() == exit_side
+    and o.get("type", "").lower() == "limit"
+)
+has_tp = tp_total >= pos_amount * 0.95
+```
+
+### Step 4: 重複統合 — TP/SL価格計算ヘルパー
+
+3箇所に重複するTP/SL価格計算を`calculate_recovery_tp_sl_prices()`に統合。
+
+**重複箇所**:
+1. `_place_missing_tp_sl()` — **normal_range使用（バグ：他2箇所はtight_range）**
+2. `_verify_and_rebuild_tp_sl()` — tight_range使用
+3. `position_restorer.py scan_orphan_positions()` — tight_range使用
+
+```python
+def calculate_recovery_tp_sl_prices(
+    self,
+    position_side: str,
+    avg_price: float,
+    regime: str = "tight_range",  # デフォルト: 最保守
+) -> Tuple[float, float]:
+```
+
+regime不統一バグも修正（`_place_missing_tp_sl`のnormal_range→tight_range = SL幅が狭くなり安全方向）。
+
+### Step 5: 重複統合 — SL超過→成行決済ヘルパー
+
+2箇所に重複するSL超過チェック+成行決済ロジックを`place_sl_or_market_close()`に統合。
+
+**重複箇所**:
+1. `tp_sl_manager.py _place_missing_tp_sl()`
+2. `position_restorer.py scan_orphan_positions()`
+
+### Step 6: ラッパー削除 — cleanup委譲メソッド
+
+tp_sl_manager.pyの純粋な委譲メソッド2件を削除し、executor.pyからposition_restorerを直接呼出に変更。
+
+- `cleanup_old_unfilled_orders()` → position_restorerに転送するだけ → 削除
+- `cleanup_orphan_sl_orders()` → position_restorerに転送するだけ（呼出元ゼロ）→ 削除
+
+### Step 7: レイヤー簡素化 — `_verify_and_rebuild_tp_sl`
+
+169行の`_verify_and_rebuild_tp_sl`を`ensure_tp_sl_for_existing_positions`に委譲して30行に簡素化。
+
+旧メソッドの問題:
+- boolean検出（数量ベースでない）
+- SL超過チェックなし
+- virtual_positions更新なし
+
+`process_pending_verifications()`にvirtual_positions/position_tracker引数を追加し、委譲先の統合チェックを活用。
+
+### ファイル行数変化
+
+| ファイル | Before (64.2) | After (64.4) | 変化 |
+|---------|---------------|--------------|------|
+| `executor.py` | 1,297 | ~1,300 | 微増（引数追加） |
+| `stop_manager.py` | 1,525 | 1,525 | 変更なし |
+| `order_strategy.py` | 767 | 767 | 変更なし |
+| `tp_sl_config.py` | 125 | ~120 | -5（定数削除） |
+| `tp_sl_manager.py` | 1,489 | ~1,250 | **-240** |
+| `position_restorer.py` | 555 | ~560 | +5（数量ベース検出） |
+| **合計** | **5,758** | **~5,522** | **-236** |
+
+### 削除・統合サマリー
+
+| 区分 | 件数 |
+|------|------|
+| デッドコード削除 | 5件（定数4+メソッド1） |
+| 重複コード統合 | 4箇所→ヘルパー2件 |
+| 整合性バグ修正 | 2件（boolean検出・regime不統一） |
+| ラッパー削除 | 2件 |
+| レイヤー簡素化 | 1件（169行→30行） |
+
+### 品質検証
+
+```
+全テスト: 2,068 passed, 1 skipped ✅
+カバレッジ: 72.96% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
+
+---
+
+## 最終ファイル構成（Phase 64.4完了時点）
 
 ```
 src/trading/execution/
-├── executor.py           1,297行  エントリー実行に集中
-├── stop_manager.py       1,525行  TP/SL到達判定・決済のみ
-├── order_strategy.py       767行  注文タイプ決定・Maker実行・最小ロット保証
-├── tp_sl_config.py         125行  設定パス定数（変更なし）
-├── tp_sl_manager.py      1,489行  TP/SL配置・検証・復旧・計算・ロールバック統合
-└── position_restorer.py    555行  ポジション復元・孤児クリーンアップ統合
+├── executor.py          ~1,300行  エントリー実行に集中
+├── stop_manager.py      ~1,525行  TP/SL到達判定・決済のみ
+├── order_strategy.py      ~770行  注文タイプ決定・Maker実行・最小ロット保証
+├── tp_sl_config.py        ~120行  設定パス定数
+├── tp_sl_manager.py     ~1,250行  TP/SL配置・検証・復旧・計算・ロールバック統合
+└── position_restorer.py   ~560行  ポジション復元・孤児クリーンアップ統合
 ```
 
 ---
@@ -247,8 +376,6 @@ src/trading/execution/
    - PositionTracker一元管理への移行
    - executor.virtual_positionsとの同期問題解消
 
-2. **Phase 64.4**: 仕上げ・ドキュメント更新
-
 ---
 
-**最終更新**: 2026年2月15日
+**最終更新**: 2026年2月16日
