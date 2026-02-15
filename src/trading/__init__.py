@@ -108,8 +108,8 @@ __all__ = [
 ]
 
 # バージョン情報
-__version__ = "64.1.0"
-__phase__ = "Phase 64.1 src/trading/ 完全整理"
+__version__ = "64.4.0"
+__phase__ = "Phase 64.4 TP/SLシンプル化・重複統合・デッドコード削除"
 __description__ = "レイヤードアーキテクチャによる統合取引管理層"
 
 # Phase 28/29最適化: 段階的リスクプロファイル機能（レガシーAggressiveRiskManager参考・CI/CD統合・手動実行監視・段階的デプロイ対応）

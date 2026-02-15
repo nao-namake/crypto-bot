@@ -116,10 +116,6 @@ class TPSLConfig:
     SL_SAFETY_MARGIN_BUY = 1.015  # SLタイムアウト時の安全マージン（買い）
     SL_SAFETY_MARGIN_SELL = 0.985  # SLタイムアウト時の安全マージン（売り）
     SL_MIN_DISTANCE_WARNING = 0.001  # SL距離警告閾値（0.1%）
-    CLEANUP_MAX_RETRIES = 3  # クリーンアップリトライ回数
-    CLEANUP_RETRY_DELAY = 0.5  # クリーンアップリトライ間隔（秒）
-    MAKER_FILL_THRESHOLD = 0.99  # Maker約定判定閾値（99%）
-    MAKER_POLL_INTERVAL = 0.5  # Maker約定ポーリング間隔（秒）
     DEFAULT_FALLBACK_BTC_JPY = 16500000.0  # フォールバックBTC/JPY価格
     CLEANUP_THRESHOLD_COUNT = 25  # クリーンアップ発動閾値（30件制限の83%）
     CLEANUP_MAX_AGE_HOURS = 24  # クリーンアップ対象注文経過時間

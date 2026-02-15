@@ -1,6 +1,6 @@
 # CLAUDE.md - Phase 64開発ガイド
 
-**最終更新**: 2026年2月15日
+**最終更新**: 2026年2月16日
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 64進行中（TP/SLシンプル化 + システム全体整理）|
+| **Phase** | 64進行中（64.1-64.2, 64.4完了・64.3待機）|
 | **前Phase** | 63.6完了（TP/SL定期チェック・残存バグ修正・最終監査バグなし確認） |
 | **最新成果** | バックテスト ¥+119,815（年利24%相当） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
@@ -30,7 +30,18 @@
 | **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
 | **64.3** | PositionTracker拡張 — virtual_positions二重管理解消 | ⏳ 待機 |
-| **64.4** | 仕上げ — ドキュメント更新 | ⏳ 待機 |
+| **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
+
+#### Phase 64.4 変更内容
+
+| 変更 | 内容 |
+|------|------|
+| デッドコード削除 | 未使用定数4件・`_check_tp_sl_orders_exist()`メソッド削除 |
+| 整合性バグ修正 | position_restorer TP/SL検出をboolean→数量ベース95%カバレッジに統一 |
+| 重複統合 | TP/SL価格計算→`calculate_recovery_tp_sl_prices()`、SL超過→`place_sl_or_market_close()` |
+| regime不統一修正 | `_place_missing_tp_sl`のregimeをnormal_range→tight_range（安全方向） |
+| ラッパー削除 | cleanup委譲メソッド2件削除→executor.pyからposition_restorer直接呼出 |
+| レイヤー簡素化 | `_verify_and_rebuild_tp_sl` 169行→30行（ensure_tp_slに委譲） |
 
 #### Phase 64.2 修正効果
 
@@ -42,16 +53,16 @@ Before: 復旧失敗 → virtual_positionsにNoneエントリ追加 → ゾン�
 After:  復旧失敗 → 追加しない → 10分/30分後の定期チェックで再試行
 ```
 
-#### ファイル構成（Phase 64.2完了時点）
+#### ファイル構成（Phase 64.4完了時点）
 
 ```
 src/trading/execution/
-├── executor.py           1,297行  エントリー実行に集中
-├── stop_manager.py       1,525行  TP/SL到達判定・決済のみ
-├── order_strategy.py       767行  注文タイプ決定・Maker実行・最小ロット保証
-├── tp_sl_config.py         125行  設定パス定数
-├── tp_sl_manager.py      1,489行  TP/SL配置・検証・復旧・計算・ロールバック統合
-└── position_restorer.py    555行  ポジション復元・孤児クリーンアップ統合
+├── executor.py           ~1,300行  エントリー実行に集中
+├── stop_manager.py       ~1,525行  TP/SL到達判定・決済のみ
+├── order_strategy.py       ~770行  注文タイプ決定・Maker実行・最小ロット保証
+├── tp_sl_config.py         ~120行  設定パス定数
+├── tp_sl_manager.py      ~1,250行  TP/SL配置・検証・復旧・計算・ロールバック統合
+└── position_restorer.py    ~560行  ポジション復元・孤児クリーンアップ統合
 ```
 
 ### Phase 63 成果サマリー（✅完了）
@@ -569,4 +580,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年2月15日 - **Phase 64進行中**（64.1-64.2完了）・TP/SLシンプル化 + システム全体整理
+**📅 最終更新**: 2026年2月16日 - **Phase 64進行中**（64.1-64.2, 64.4完了・64.3待機）・TP/SLシンプル化 + システム全体整理

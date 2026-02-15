@@ -6,6 +6,8 @@ Phase 64: stop_manager.pyから移動したTP/SL配置メソッドのテスト
 テスト範囲:
 - place_take_profit(): TP注文配置・Maker戦略・エラーハンドリング
 - place_stop_loss(): SL注文配置・価格検証・指値化
+- _place_missing_tp_sl(): Phase 64.3 SLトリガー超過成行決済
+- calculate_recovery_tp_sl_prices(): Phase 64.4 復旧用TP/SL価格計算
 """
 
 from unittest.mock import MagicMock, Mock, patch
@@ -667,3 +669,89 @@ class TestPhase6210TPMakerStrategy:
 
         # タイムアウト後フォールバックで成功
         assert result is not None
+
+
+class TestPhase643SLBreachMarketClose:
+    """Phase 64.3: SLトリガー超過成行決済テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_sl_breach_triggers_market_close_long(self, mock_threshold, tp_sl_manager):
+        """ロング: 現在価格がSL以下 → 成行決済"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "trading.tp_sl.currency_pair": "BTC/JPY",
+                "trading.tp_sl.regimes.normal_range.tp.min_profit_ratio": 0.01,
+                "trading.tp_sl.regimes.normal_range.sl.max_loss_ratio": 0.007,
+                "trading.tp_sl.min_profit_ratio": 0.009,
+                "trading.tp_sl.max_loss_ratio": 0.007,
+            }
+            return thresholds.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        mock_client = MagicMock()
+        # SL超過: avg_price=10,000,000, SL=9,930,000, 現在価格=9,900,000
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 9900000.0})
+        mock_client.create_margin_order = MagicMock(return_value={"id": "market_123"})
+
+        virtual_positions = []
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=10000000.0,
+            has_tp=True,  # TPはある
+            has_sl=False,  # SLがない
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+        # 成行決済が呼ばれた
+        mock_client.create_margin_order.assert_called_once()
+        call_kwargs = mock_client.create_margin_order.call_args
+        assert call_kwargs[1]["order_type"] == "market"
+        assert call_kwargs[1]["side"] == "sell"
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_sl_not_breached_places_normal_sl(self, mock_threshold, tp_sl_manager):
+        """SL未超過 → 通常のSL配置"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "trading.tp_sl.currency_pair": "BTC/JPY",
+                "trading.tp_sl.regimes.normal_range.tp.min_profit_ratio": 0.01,
+                "trading.tp_sl.regimes.normal_range.sl.max_loss_ratio": 0.007,
+                "trading.tp_sl.min_profit_ratio": 0.009,
+                "trading.tp_sl.max_loss_ratio": 0.007,
+                "trading.tp_sl.slippage_buffer": 0.002,
+                "trading.tp_sl.stop_limit": {"enabled": True},
+            }
+            return thresholds.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        mock_client = MagicMock()
+        # SL未超過: avg_price=10,000,000, SL=9,930,000, 現在価格=10,050,000
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 10050000.0})
+        mock_client.create_stop_loss_order = MagicMock(
+            return_value={"id": "sl_123", "trigger_price": 9930000.0}
+        )
+
+        virtual_positions = []
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=10000000.0,
+            has_tp=True,
+            has_sl=False,
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+        # 成行決済ではなくplace_stop_loss経由のcreate_stop_loss_orderが呼ばれた
+        mock_client.create_margin_order.assert_not_called()
+        mock_client.create_stop_loss_order.assert_called_once()

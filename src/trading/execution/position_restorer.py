@@ -210,23 +210,25 @@ class PositionRestorer:
                     f"side={pos_side}, amount={pos_amount} BTC"
                 )
 
-                # アクティブ注文でTP/SLが既にあるか確認
+                # アクティブ注文でTP/SLが既にあるか確認（Phase 64.4: 数量ベース95%カバレッジ）
                 active_orders = await asyncio.to_thread(bitbank_client.fetch_active_orders, symbol)
                 entry_side = "buy" if pos_side == "long" else "sell"
                 exit_side = "sell" if pos_side == "long" else "buy"
 
-                has_tp = False
-                has_sl = False
-                for order in active_orders:
-                    order_type = order.get("type", "").lower()
-                    order_side = order.get("side", "").lower()
-                    if order_side == exit_side and order_type == "limit":
-                        has_tp = True
-                    if order_side == exit_side and order_type in (
-                        "stop",
-                        "stop_limit",
-                    ):
-                        has_sl = True
+                tp_total = sum(
+                    float(o.get("amount", 0))
+                    for o in active_orders
+                    if o.get("side", "").lower() == exit_side
+                    and o.get("type", "").lower() == "limit"
+                )
+                sl_total = sum(
+                    float(o.get("amount", 0))
+                    for o in active_orders
+                    if o.get("side", "").lower() == exit_side
+                    and o.get("type", "").lower() in ("stop", "stop_limit")
+                )
+                has_tp = tp_total >= pos_amount * 0.95
+                has_sl = sl_total >= pos_amount * 0.95
 
                 if has_tp and has_sl:
                     self.logger.info(
@@ -258,22 +260,11 @@ class PositionRestorer:
                     )
                     continue
 
-                # デフォルトレジーム(tight_range)でTP/SL計算
-                tp_ratio = get_threshold(
-                    TPSLConfig.tp_regime_path("tight_range", "min_profit_ratio"),
-                    TPSLConfig.DEFAULT_TP_RATIO,
+                # Phase 64.4: 共通ヘルパーで計算（デフォルト: tight_range = 最保守）
+                tp_price, sl_price = tp_sl_manager.calculate_recovery_tp_sl_prices(
+                    position_side=pos_side,
+                    avg_price=avg_price,
                 )
-                sl_ratio = get_threshold(
-                    TPSLConfig.sl_regime_path("tight_range", "max_loss_ratio"),
-                    TPSLConfig.DEFAULT_SL_RATIO,
-                )
-
-                if pos_side == "long":
-                    tp_price = avg_price * (1 + tp_ratio)
-                    sl_price = avg_price * (1 - sl_ratio)
-                else:
-                    tp_price = avg_price * (1 - tp_ratio)
-                    sl_price = avg_price * (1 + sl_ratio)
 
                 self.logger.warning(
                     f"⚠️ Phase 63.3: 孤児ポジションTP/SL設置試行 - "
@@ -295,14 +286,15 @@ class PositionRestorer:
                             max_retries=3,
                         )
                     if not has_sl:
-                        sl_result = await tp_sl_manager.place_sl_with_retry(
-                            side=entry_side,
+                        # Phase 64.4: 共通ヘルパーに委譲
+                        sl_result = await tp_sl_manager.place_sl_or_market_close(
+                            entry_side=entry_side,
+                            position_side=pos_side,
                             amount=pos_amount,
-                            entry_price=avg_price,
-                            stop_loss_price=sl_price,
+                            avg_price=avg_price,
+                            sl_price=sl_price,
                             symbol=symbol,
                             bitbank_client=bitbank_client,
-                            max_retries=3,
                         )
                 except Exception as tp_sl_err:
                     self.logger.critical(

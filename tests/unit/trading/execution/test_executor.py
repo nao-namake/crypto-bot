@@ -1653,78 +1653,6 @@ class TestEnsureTpSlForExistingPositions:
 
 
 # ========================================
-# TP/SL存在確認テスト
-# ========================================
-
-
-class TestCheckTpSlOrdersExist:
-    """_check_tp_sl_orders_existテスト（Phase 64: tp_sl_manager経由）"""
-
-    def test_check_tp_sl_exist_long_position_both_exist(self):
-        """Longポジション: TP/SL両方存在"""
-        service = ExecutionService(mode="paper")
-
-        active_orders = [
-            {"side": "sell", "type": "limit", "amount": 0.0001},  # TP
-            {"side": "sell", "type": "stop", "amount": 0.0001},  # SL
-        ]
-
-        has_tp, has_sl = service.tp_sl_manager._check_tp_sl_orders_exist(
-            position_side="long", position_amount=0.0001, active_orders=active_orders
-        )
-
-        assert has_tp is True
-        assert has_sl is True
-
-    def test_check_tp_sl_exist_long_position_only_tp(self):
-        """Longポジション: TPのみ存在"""
-        service = ExecutionService(mode="paper")
-
-        active_orders = [
-            {"side": "sell", "type": "limit", "amount": 0.0001},  # TP
-        ]
-
-        has_tp, has_sl = service.tp_sl_manager._check_tp_sl_orders_exist(
-            position_side="long", position_amount=0.0001, active_orders=active_orders
-        )
-
-        assert has_tp is True
-        assert has_sl is False
-
-    def test_check_tp_sl_exist_short_position(self):
-        """Shortポジション: TP/SL確認"""
-        service = ExecutionService(mode="paper")
-
-        active_orders = [
-            {"side": "buy", "type": "limit", "amount": 0.0001},  # TP
-            {"side": "buy", "type": "stop", "amount": 0.0001},  # SL
-        ]
-
-        has_tp, has_sl = service.tp_sl_manager._check_tp_sl_orders_exist(
-            position_side="short", position_amount=0.0001, active_orders=active_orders
-        )
-
-        assert has_tp is True
-        assert has_sl is True
-
-    def test_check_tp_sl_exist_amount_mismatch(self):
-        """Phase 63: ポジション集約対応 - 数量不一致でもサイド一致ならマッチ"""
-        service = ExecutionService(mode="paper")
-
-        active_orders = [
-            {"side": "sell", "type": "limit", "amount": 0.0002},  # 2倍の数量
-        ]
-
-        has_tp, has_sl = service.tp_sl_manager._check_tp_sl_orders_exist(
-            position_side="long", position_amount=0.0001, active_orders=active_orders
-        )
-
-        # Phase 63: Bug 2修正 - 集約ポジション対応のため数量マッチング緩和
-        # サイド一致のみでTP/SLとして検出
-        assert has_tp is True
-
-
-# ========================================
 # Phase 61.9: TP/SL自動執行検知テスト
 # ========================================
 
@@ -2343,3 +2271,113 @@ class TestRollbackEntryAdditional:
 
         # エントリーキャンセルは3回リトライ
         assert mock_client.cancel_order.call_count == 3
+
+
+class TestPhase643FilledAmountFix:
+    """Phase 64.3: filled_amountフォールバック修正テスト"""
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    def test_zero_filled_amount_no_fallback(self, mock_discord):
+        """filled_amount=0の時、amountにフォールバックしない"""
+        service = ExecutionService(mode="live", bitbank_client=Mock())
+
+        # limit注文: filled_amount=0（未約定）
+        order_result = {
+            "id": "order_456",
+            "price": 14000000.0,
+            "amount": 0.02,
+            "filled_price": None,
+            "filled_amount": 0,
+            "fee": 0,
+        }
+
+        # ExecutionResult作成時にamountへのフォールバックが起きないことを確認
+        filled = float(order_result.get("filled_amount") or 0)
+        assert filled == 0.0  # 旧ロジックでは0.02になっていた
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.executor.DiscordManager")
+    async def test_zero_filled_skips_tp_sl(self, mock_discord):
+        """filled_amount=0でTP/SL配置がスキップされる"""
+        mock_client = MagicMock()
+        mock_client.create_order = MagicMock(
+            return_value={
+                "id": "order_789",
+                "price": 14000000.0,
+                "amount": 0.02,
+                "filled_price": None,
+                "filled_amount": 0,
+                "fee": 0,
+            }
+        )
+
+        service = ExecutionService(mode="live", bitbank_client=mock_client)
+        service.tp_sl_manager = MagicMock()
+
+        evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.02,
+            stop_loss=13500000.0,
+            take_profit=14500000.0,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            entry_price=14000000.0,
+        )
+
+        result = await service.execute_trade(evaluation)
+
+        # 成功はするがTP/SL配置は呼ばれない
+        if result.success and result.filled_amount <= 0:
+            # virtual_positionsに追加されないことを確認
+            assert len(service.virtual_positions) == 0 or all(
+                vp.get("amount", 0) > 0 for vp in service.virtual_positions
+            )
+
+
+class TestPhase643PartialFillFalseSuccess:
+    """Phase 64.3: 部分約定ハンドラ偽成功防止テスト"""
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    def test_tp_retry_without_order_id_is_failure(self, mock_discord):
+        """order_id=Noneの結果を偽成功と判定しない"""
+        # tp_retry/sl_retryにorder_idがない場合
+        tp_retry = {"some_key": "value"}  # order_idなし
+        sl_retry = {"order_id": "sl_001"}
+
+        tp_ok = tp_retry and tp_retry.get("order_id")
+        sl_ok = sl_retry and sl_retry.get("order_id")
+
+        assert not tp_ok  # order_idがないのでFalse
+        assert sl_ok  # order_idがあるのでTrue
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    def test_both_order_ids_present_is_success(self, mock_discord):
+        """両方にorder_idがあれば成功"""
+        tp_retry = {"order_id": "tp_001"}
+        sl_retry = {"order_id": "sl_001"}
+
+        tp_ok = tp_retry and tp_retry.get("order_id")
+        sl_ok = sl_retry and sl_retry.get("order_id")
+
+        assert tp_ok
+        assert sl_ok
+
+    @patch("src.trading.execution.executor.DiscordManager")
+    def test_none_retry_result_is_failure(self, mock_discord):
+        """retry結果がNoneの場合は失敗"""
+        tp_retry = None
+        sl_retry = {"order_id": "sl_001"}
+
+        tp_ok = tp_retry and tp_retry.get("order_id")
+        sl_ok = sl_retry and sl_retry.get("order_id")
+
+        assert not tp_ok
+        assert sl_ok

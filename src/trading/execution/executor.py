@@ -379,9 +379,8 @@ class ExecutionService:
                 filled_price=float(
                     order_result.get("filled_price") or order_result.get("price") or price or 0
                 ),
-                filled_amount=float(
-                    order_result.get("filled_amount") or order_result.get("amount") or 0
-                ),
+                # Phase 64.3: フォールバック廃止 - 未約定時に全量でTP/SL配置するバグを防止
+                filled_amount=float(order_result.get("filled_amount") or 0),
                 error_message=None,
                 side=side,
                 fee=float(order_result.get("fee") or 0),
@@ -476,9 +475,14 @@ class ExecutionService:
                     timestamp=datetime.now(),
                 )
 
-            # Phase 63.3: Bug 2修正 - TP/SL・virtual_positionsは約定量を使用
-            # 部分約定（99%判定）時にamount（要求量）だと保有量超過で50062エラー
-            actual_amount = result.filled_amount or amount
+            # Phase 64.3: filled_amount=0ならTP/SL配置スキップ（未約定limit注文）
+            # 約定待ちの注文は定期チェック（10分）で検出・補完される
+            actual_amount = result.filled_amount
+            if actual_amount <= 0:
+                self.logger.warning(
+                    f"⚠️ Phase 64.3: 約定量0 - TP/SL配置スキップ（注文状態: {result.status}）"
+                )
+                return result
 
             # virtual_positionsに追加
             live_position = {
@@ -495,13 +499,13 @@ class ExecutionService:
             self.virtual_positions.append(live_position)
 
             # Phase 51.6: 古い注文クリーンアップ（bitbank 30件制限対策）
-            if self.tp_sl_manager and self.position_restorer:
+            if self.position_restorer:
                 try:
                     symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
-                    cleanup_result = await self.tp_sl_manager.cleanup_old_unfilled_orders(
+                    # Phase 64.4: position_restorerに直接委譲（ラッパー削除）
+                    cleanup_result = await self.position_restorer.cleanup_old_unfilled_orders(
                         symbol=symbol,
                         bitbank_client=self.bitbank_client,
-                        position_restorer=self.position_restorer,
                         virtual_positions=self.virtual_positions,
                     )
                     if cleanup_result["cancelled_count"] > 0:
@@ -703,12 +707,15 @@ class ExecutionService:
                                 bitbank_client=self.bitbank_client,
                                 max_retries=3,
                             )
-                            if tp_retry and sl_retry:
+                            # Phase 64.3: order_idの存在確認（偽成功防止）
+                            tp_ok = tp_retry and tp_retry.get("order_id")
+                            sl_ok = sl_retry and sl_retry.get("order_id")
+                            if tp_ok and sl_ok:
                                 # 再配置成功 → virtual_positionsにTP/SL情報追加
                                 for vp in self.virtual_positions:
                                     if vp.get("order_id") == result.order_id:
-                                        vp["tp_order_id"] = tp_retry.get("order_id")
-                                        vp["sl_order_id"] = sl_retry.get("order_id")
+                                        vp["tp_order_id"] = tp_retry["order_id"]
+                                        vp["sl_order_id"] = sl_retry["order_id"]
                                         break
                                 self.logger.info(
                                     f"✅ Phase 63.3: 部分約定分TP/SL再配置成功 - "
@@ -716,8 +723,10 @@ class ExecutionService:
                                 )
                             else:
                                 self.logger.critical(
-                                    f"🚨 Phase 63.3: 部分約定分TP/SL再配置失敗 - "
-                                    f"手動介入必要。order_id={result.order_id}, "
+                                    f"🚨 Phase 64.3: 部分約定分TP/SL再配置失敗 - "
+                                    f"TP={'OK' if tp_ok else 'NG'}, "
+                                    f"SL={'OK' if sl_ok else 'NG'}, "
+                                    f"order_id={result.order_id}, "
                                     f"amount={partial_filled} BTC"
                                 )
                         except Exception as tp_sl_err:
@@ -1242,8 +1251,11 @@ class ExecutionService:
         # Phase 63: Bug 3修正 - pending_verificationsの期限到来分を処理
         if self.mode == "live" and self.tp_sl_manager:
             try:
+                # Phase 64.4: virtual_positions/position_tracker引数追加
                 await self.tp_sl_manager.process_pending_verifications(
                     bitbank_client=self.bitbank_client,
+                    virtual_positions=self.virtual_positions,
+                    position_tracker=self.position_tracker,
                 )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63: pending_verifications処理エラー: {e}")

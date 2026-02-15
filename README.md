@@ -1,6 +1,6 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 64進行中・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 64進行中（64.1-64.2, 64.4完了）・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
@@ -68,14 +68,14 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 | **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | - |
 | **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | - |
 
-### タイトレンジ重みづけ（Phase 62.4更新）
+### タイトレンジ重みづけ（Phase 59.4-A）
 
 | 戦略 | 重み | 理由 |
 |------|------|------|
-| BBReversal | 0.0 | 無効化（tight_range不向き） |
+| BBReversal | 0.35 | レンジ型主力 |
 | StochasticReversal | 0.35 | レンジ型主力 |
-| ATRBased | 0.35 | レンジ型主力 |
-| DonchianChannel | 0.30 | RSIボーナス制度で強化 |
+| ATRBased | 0.20 | 補助 |
+| DonchianChannel | 0.10 | 補助 |
 | トレンド型 | 0.0 | タイトレンジで機能しない |
 
 ### レジーム別TP/SL設定（Phase 63.3更新）
@@ -226,10 +226,11 @@ config/core/
 | **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
 | **64.3** | PositionTracker拡張 — virtual_positions二重管理解消 | ⏳ 待機 |
-| **64.4** | 仕上げ — ドキュメント更新 | ⏳ 待機 |
+| **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
 
 **64.1成果**: executor.py -33%（1,943→1,297行）、stop_manager.py -30%（2,177→1,525行）
 **64.2成果**: 例外スワロー排除・リトライ正常化・ゾンビエントリ防止
+**64.4成果**: デッドコード5件削除・重複4箇所統合・整合性バグ2件修正（tp_sl_manager.py -240行）
 
 ### Phase 63（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
 
@@ -306,4 +307,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月15日 - **Phase 64進行中**（64.1-64.2完了・TP/SLシンプル化 + システム全体整理）
+**最終更新**: 2026年2月16日 - **Phase 64進行中**（64.1-64.2, 64.4完了・64.3待機）
