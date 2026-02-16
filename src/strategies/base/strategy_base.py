@@ -7,13 +7,14 @@
 - StrategySignal: 戦略シグナルデータクラス
 - StrategyBase: 全戦略の基底クラス
 
-Phase 49完了
+Phase 64.5: デッドコード削除・import整理
 """
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -77,10 +78,6 @@ class StrategySignal:
         """エントリーシグナルかどうかを判定."""
         return self.action in ["buy", "sell"]
 
-    def is_exit_signal(self) -> bool:
-        """エグジットシグナルかどうかを判定."""
-        return self.action in ["close"]
-
     def is_hold_signal(self) -> bool:
         """ホールドシグナルかどうかを判定."""
         return self.action == "hold"
@@ -113,7 +110,6 @@ class StrategyBase(ABC):
 
         # パフォーマンス追跡
         self.total_signals = 0
-        self.successful_signals = 0
         self.last_update = datetime.now()
 
         self.logger.info(f"戦略初期化完了: {self.name}")
@@ -181,9 +177,7 @@ class StrategyBase(ABC):
             return signal
 
         except Exception as e:
-            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
-            import os
-
+            # Phase 35: バックテストモード時はDEBUGレベル
             if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.debug(f"[{self.name}] シグナル生成エラー: {e}")
             else:
@@ -226,20 +220,6 @@ class StrategyBase(ABC):
         if len(self.signal_history) > max_history:
             self.signal_history = self.signal_history[-max_history:]
 
-    def update_performance(self, signal_success: bool) -> None:
-        """パフォーマンス更新."""
-        if signal_success:
-            self.successful_signals += 1
-
-        success_rate = self.get_success_rate()
-        self.logger.info(f"[{self.name}] 成功率更新: {success_rate:.1f}%")
-
-    def get_success_rate(self) -> float:
-        """成功率取得."""
-        if self.total_signals == 0:
-            return 0.0
-        return (self.successful_signals / self.total_signals) * 100
-
     def get_signal_stats(self) -> Dict[str, Any]:
         """シグナル統計情報取得."""
         if not self.signal_history:
@@ -258,7 +238,6 @@ class StrategyBase(ABC):
             "total": len(self.signal_history),
             "by_action": action_counts,
             "avg_confidence": total_confidence / len(self.signal_history),
-            "success_rate": self.get_success_rate(),
             "last_signal_time": (
                 self.last_signal.timestamp.isoformat() if self.last_signal else None
             ),
@@ -273,22 +252,3 @@ class StrategyBase(ABC):
         """戦略を無効化."""
         self.is_enabled = False
         self.logger.info(f"[{self.name}] 戦略無効化")
-
-    def reset_history(self):
-        """シグナル履歴をリセット."""
-        self.signal_history.clear()
-        self.last_signal = None
-        self.total_signals = 0
-        self.successful_signals = 0
-        self.logger.info(f"[{self.name}] 履歴リセット完了")
-
-    def get_info(self) -> Dict[str, Any]:
-        """戦略情報取得."""
-        return {
-            "name": self.name,
-            "is_enabled": self.is_enabled,
-            "config": self.config,
-            "required_features": self.get_required_features(),
-            "stats": self.get_signal_stats(),
-            "last_update": self.last_update.isoformat(),
-        }

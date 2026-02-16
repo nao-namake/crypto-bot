@@ -1,27 +1,15 @@
 """
-MLサービス統合アダプター - Phase 50.9完了
+MLサービス統合アダプター - Phase 64.6
 
-ProductionEnsembleとEnsembleModelの統一インターフェースを提供し、
+ProductionEnsembleの統一インターフェースを提供し、
 MLモデル未学習エラーを根本的に解決するアダプター。
 
-Phase 50.9完了:
-- 2段階Graceful Degradation対応（full 62 → basic 57 → Dummy）
-- 外部API完全削除・シンプル設計回帰
+Phase 64.6: Stacking関連コメント削除
 - ml_loaderへの完全委譲によるモデル読み込み処理統一
-
-Phase 50.8完了:
-- ensure_correct_model()実装（特徴量数に応じた動的モデル切り替え）
-
-Phase 49完了:
+- 2段階Graceful Degradation対応（full 55 → basic 49 → Dummy）
 - ProductionEnsemble統一インターフェース（3モデルアンサンブル予測）
 - DummyModelフォールバック（MLモデル未学習時の安全装置）
-- 予測信頼度自動計算（確率分布ベース）
 - 3クラス分類対応（buy/hold/sell）
-
-Phase 28-29: MLサービス3層分離設計確立
-- ml_loader.py: モデル読み込み専門
-- ml_fallback.py: フォールバック機能専門
-- ml_adapter.py: 統合インターフェース・予測機能
 """
 
 from typing import Any, Dict, Union
@@ -68,7 +56,7 @@ class MLServiceAdapter:
 
         Args:
             X: 特徴量データ
-            use_confidence: 信頼度閾値使用（EnsembleModelのみ）
+            use_confidence: 信頼度閾値使用（ProductionEnsembleのみ）
 
         Returns:
             np.ndarray: 予測結果
@@ -77,7 +65,7 @@ class MLServiceAdapter:
             raise ValueError("モデルが学習されていません")
 
         try:
-            # EnsembleModelの場合は use_confidence パラメータを渡す
+            # ProductionEnsembleの場合は use_confidence パラメータを渡す
             if (
                 hasattr(self.model, "predict")
                 and "use_confidence" in self.model.predict.__code__.co_varnames

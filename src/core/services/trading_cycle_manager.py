@@ -50,18 +50,8 @@ class TradingCycleManager:
         self.orchestrator = orchestrator_ref
         self.logger = logger
 
-        # Phase 45: Meta-Learning動的重み最適化初期化
-        self.meta_optimizer = None
-        self.market_data_cache = None  # 市場データキャッシュ（Meta-ML用）
-        if get_threshold("ml.meta_learning.enabled", False):
-            try:
-                from ...ml.meta_learning import MetaLearningWeightOptimizer
-
-                self.meta_optimizer = MetaLearningWeightOptimizer(logger=logger)
-                self.logger.info("✅ Meta-Learning動的重み最適化: 有効")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Meta-Learning初期化失敗: {e} - フォールバック固定重み使用")
-                self.meta_optimizer = None
+        # 市場データキャッシュ
+        self.market_data_cache = None
 
         # Phase 51.3: Dynamic Strategy Selection初期化
         self.dynamic_strategy_selector = None
@@ -660,42 +650,17 @@ class TradingCycleManager:
 
     def _get_dynamic_weights(self) -> dict[str, float]:
         """
-        Phase 45.4: Meta-Learningで動的重みを取得
-
-        市場状況に応じて戦略・ML重みを動的に最適化。
-        Meta-ML無効時・エラー時はフォールバック固定重み使用。
+        ML・戦略の固定重みを取得
 
         Returns:
-            dict[str, float]: 動的重み
+            dict[str, float]: 重み
                 - ml: ML重み（0-1）
                 - strategy: 戦略重み（0-1）
-                ※合計1.0に正規化済み
         """
-        # Meta-Learning無効時はフォールバック固定重み
-        if self.meta_optimizer is None:
-            return {
-                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
-                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
-            }
-
-        # 市場データ未キャッシュ時はフォールバック
-        if self.market_data_cache is None:
-            self.logger.debug("市場データ未キャッシュ - フォールバック固定重み使用")
-            return {
-                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
-                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
-            }
-
-        try:
-            # Meta-ML推論
-            weights = self.meta_optimizer.predict_weights(self.market_data_cache)
-            return weights
-        except Exception as e:
-            self.logger.warning(f"⚠️ Meta-ML動的重み取得エラー: {e} - フォールバック固定重み使用")
-            return {
-                "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
-                "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
-            }
+        return {
+            "ml": get_threshold("ml.strategy_integration.ml_weight", 0.35),
+            "strategy": get_threshold("ml.strategy_integration.strategy_weight", 0.7),
+        }
 
     def _integrate_ml_with_strategy(
         self, ml_prediction: dict, strategy_signal: StrategySignal, regime: str = "unknown"
@@ -1032,7 +997,7 @@ class TradingCycleManager:
 
     async def _handle_value_error(self, e, cycle_id):
         """ValueError処理"""
-        if "not fitted" in str(e) or "EnsembleModel is not fitted" in str(e):
+        if "not fitted" in str(e):
             self.logger.error(f"🚨 MLモデル未学習エラー検出 - ID: {cycle_id}, エラー: {e}")
             # 自動復旧試行
             await self.orchestrator.system_recovery.recover_ml_service()

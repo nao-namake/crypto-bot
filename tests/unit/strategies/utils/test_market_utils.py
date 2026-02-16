@@ -250,133 +250,6 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
         self.assertIsInstance(result, float)
         self.assertGreaterEqual(result, 0.0)
 
-    # ==================== calculate_with_breakdown() テスト ====================
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_with_breakdown_normal(self, mock_get_threshold):
-        """内訳付き計算の正常系テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(self.test_df)
-
-        # 結果が辞書であること
-        self.assertIsInstance(result, dict)
-
-        # 必要なキーが含まれていること
-        self.assertIn("total", result)
-        self.assertIn("volatility", result)
-        self.assertIn("volume", result)
-        self.assertIn("price", result)
-
-        # 各値が数値であること
-        self.assertIsInstance(result["total"], float)
-        self.assertIsInstance(result["volatility"], float)
-        self.assertIsInstance(result["volume"], float)
-        self.assertIsInstance(result["price"], float)
-
-        # 各値が適切な範囲内であること
-        self.assertGreaterEqual(result["total"], 0.0)
-        self.assertLessEqual(result["total"], 0.10)
-        self.assertGreaterEqual(result["volatility"], 0.0)
-        self.assertLessEqual(result["volatility"], 0.05)
-        self.assertGreaterEqual(result["volume"], 0.0)
-        self.assertLessEqual(result["volume"], 0.03)
-        self.assertGreaterEqual(result["price"], 0.0)
-        self.assertLessEqual(result["price"], 0.02)
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_with_breakdown_sum_equals_total(self, mock_get_threshold):
-        """内訳の合計がtotalと一致するか（上限前）のテスト."""
-
-        def high_limit_threshold(key, default):
-            threshold_values = {
-                "dynamic_confidence.market_uncertainty.volatility_factor_max": 0.05,
-                "dynamic_confidence.market_uncertainty.volume_factor_max": 0.03,
-                "dynamic_confidence.market_uncertainty.volume_multiplier": 0.1,
-                "dynamic_confidence.market_uncertainty.price_factor_max": 0.02,
-                "dynamic_confidence.market_uncertainty.uncertainty_max": 1.00,  # 高い上限
-            }
-            return threshold_values.get(key, default)
-
-        mock_get_threshold.side_effect = high_limit_threshold
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(self.test_df)
-
-        # 内訳の合計がtotalと一致
-        expected_sum = result["volatility"] + result["volume"] + result["price"]
-        self.assertAlmostEqual(result["total"], expected_sum, places=10)
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_with_breakdown_high_volatility(self, mock_get_threshold):
-        """高ボラティリティ時の内訳テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        # 高ATR（10%）
-        df = self._create_test_dataframe(
-            atr_values=[1000000.0] * 25,  # 10%のATR
-        )
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(df)
-
-        # ボラティリティ要因が上限に達していること
-        self.assertEqual(result["volatility"], 0.05)
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_with_breakdown_high_volume_deviation(self, mock_get_threshold):
-        """ボリューム乖離が大きい場合の内訳テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        # 最新ボリュームが5倍
-        volumes = [100.0] * 24 + [500.0]
-        df = self._create_test_dataframe(volume_values=volumes)
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(df)
-
-        # ボリューム要因が上限に達していること
-        # |5.0 - 1.0| * 0.1 = 0.4 → min(0.03, 0.4) = 0.03
-        self.assertEqual(result["volume"], 0.03)
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_with_breakdown_high_price_change(self, mock_get_threshold):
-        """価格変動が大きい場合の内訳テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        # 5%の価格変動
-        close_values = [10000000.0] * 24 + [10500000.0]
-        df = self._create_test_dataframe(close_values=close_values)
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(df)
-
-        # 価格要因が上限に達していること
-        # 5%変動 → min(0.02, 0.05) = 0.02
-        self.assertEqual(result["price"], 0.02)
-
-    def test_calculate_with_breakdown_error_handling(self):
-        """内訳付き計算のエラーハンドリングテスト."""
-        empty_df = pd.DataFrame()
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(empty_df)
-
-        # デフォルト値が返されること
-        self.assertEqual(result["total"], 0.02)
-        self.assertEqual(result["volatility"], 0.01)
-        self.assertEqual(result["volume"], 0.005)
-        self.assertEqual(result["price"], 0.005)
-
-    def test_calculate_with_breakdown_missing_columns(self):
-        """必要な列が不足している場合の内訳計算テスト."""
-        df_incomplete = pd.DataFrame(
-            {
-                "close": [10000000.0] * 25,
-                # atr_14とvolumeが不足
-            }
-        )
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(df_incomplete)
-
-        # デフォルト値が返されること
-        self.assertEqual(result["total"], 0.02)
-
     # ==================== _get_logger() テスト ====================
 
     def test_get_logger_lazy_initialization(self):
@@ -408,19 +281,6 @@ class TestMarketUncertaintyCalculator(unittest.TestCase):
 
         # get_loggerは1回だけ呼ばれる
         mock_get_logger.assert_called_once()
-
-    # ==================== 統合テスト ====================
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_and_breakdown_consistency(self, mock_get_threshold):
-        """calculate()とcalculate_with_breakdown()の一貫性テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        # 両方のメソッドで同じ結果が返されること
-        simple_result = MarketUncertaintyCalculator.calculate(self.test_df)
-        breakdown_result = MarketUncertaintyCalculator.calculate_with_breakdown(self.test_df)
-
-        self.assertAlmostEqual(simple_result, breakdown_result["total"], places=10)
 
     @patch("src.core.config.threshold_manager.get_threshold")
     def test_calculate_with_real_world_like_data(self, mock_get_threshold):
@@ -620,30 +480,6 @@ class TestMarketUncertaintyCalculatorEdgeCases(unittest.TestCase):
         # 価格要因は上限0.02でキャップされる
         self.assertGreater(result, 0.0)
         self.assertLessEqual(result, 0.10)
-
-    @patch("src.core.config.threshold_manager.get_threshold")
-    def test_calculate_breakdown_with_extreme_values(self, mock_get_threshold):
-        """全ての要因が極端な値の場合の内訳テスト."""
-        mock_get_threshold.side_effect = self._get_mock_threshold
-
-        # 全ての要因が極端
-        volumes = [100.0] * 24 + [1000.0]  # 10倍のボリューム
-        close_values = [10000000.0] * 24 + [11000000.0]  # 10%上昇
-        df = pd.DataFrame(
-            {
-                "close": close_values,
-                "atr_14": [1000000.0] * 25,  # 10%のATR
-                "volume": volumes,
-            }
-        )
-
-        result = MarketUncertaintyCalculator.calculate_with_breakdown(df)
-
-        # 各要因が上限でキャップされていること
-        self.assertEqual(result["volatility"], 0.05)
-        self.assertEqual(result["volume"], 0.03)
-        self.assertEqual(result["price"], 0.02)
-        self.assertEqual(result["total"], 0.10)  # 総合上限でキャップ
 
     def test_calculate_with_insufficient_data_for_rolling(self):
         """rollingに必要なデータが不足している場合のテスト."""

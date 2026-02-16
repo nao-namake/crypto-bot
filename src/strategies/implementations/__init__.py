@@ -1,19 +1,18 @@
 """
-戦略実装 - Phase 51.7 Day 7完了
+戦略実装 - Phase 64.5
 
 6つの取引戦略の具体的実装を提供。
 各戦略は独立して動作し、StrategyManagerによって統合される。
 
-実装戦略:
-1. ATRBasedStrategy: ボラティリティベース逆張り戦略（range型）
-2. DonchianChannelStrategy: ブレイクアウト・反転戦略（range型）
-3. ADXTrendStrengthStrategy: トレンド強度・方向性分析戦略（trend型）
-4. BBReversalStrategy: ボリンジャーバンド反転戦略（range型）- Phase 51.7 Day 3
-5. StochasticReversalStrategy: ストキャスティクス反転戦略（range型）- Phase 51.7 Day 4
-6. MACDEMACrossoverStrategy: MACD/EMAクロスオーバー戦略（trend型）- Phase 51.7 Day 5
+レンジ型（4戦略）:
+1. ATRBasedStrategy: ATR消尽率ベース逆張り
+2. BBReversalStrategy: ボリンジャーバンド位置主導の平均回帰
+3. StochasticReversalStrategy: ストキャスティクス乖離検出
+4. DonchianChannelStrategy: チャネル端部反転
 
-Phase 51.7 Day 7完了: 6戦略統合・54特徴量システム完成
-Phase 49完了: 市場不確実性計算統合・重複コード削減・保守性向上
+トレンド型（2戦略）:
+5. MACDEMACrossoverStrategy: MACD/EMAクロスオーバー
+6. ADXTrendStrengthStrategy: ADX≥25 + DIクロスによるトレンドフォロー
 """
 
 from .adx_trend import ADXTrendStrengthStrategy

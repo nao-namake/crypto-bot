@@ -1,156 +1,93 @@
 # src/strategies/base/ - 戦略基盤システム
 
-**Phase 49完了**: 全戦略の統一インターフェース・競合解決システム・重み付け統合による戦略アーキテクチャ基盤。
+Phase 64.5: 6戦略の統一インターフェース・競合解決・重み付け統合。
 
-## 📂 ファイル構成
+## ファイル構成
 
 ```
 src/strategies/base/
-├── __init__.py          # 基盤エクスポート（17行）
-├── strategy_base.py     # 抽象基底クラス（294行）
-└── strategy_manager.py  # 戦略統合管理（557行）
+├── __init__.py          # エクスポート
+├── strategy_base.py     # 抽象基底クラス・StrategySignal（~260行）
+└── strategy_manager.py  # 戦略統合管理（~655行）
 ```
 
-## 🔧 主要コンポーネント
+## 主要コンポーネント
 
-### **strategy_base.py（294行）**
+### strategy_base.py
 
-**目的**: 全戦略（ATRBased・MochipoyAlert・MultiTimeframe・DonchianChannel・ADXTrendStrength）が継承する統一基底クラス
+全6戦略（BBReversal・StochasticDivergence・ATRBased・DonchianChannel・MACDEMACrossover・ADXTrendStrength）が継承する統一基底クラス。
 
-**主要クラス**:
 ```python
 @dataclass
 class StrategySignal:
-    strategy_name: str                      # 戦略名
-    timestamp: datetime                     # シグナル発生時刻
-    action: str                            # BUY/SELL/HOLD/CLOSE
-    confidence: float                      # 信頼度 (0.0-1.0)
-    strength: float                        # シグナル強度 (0.0-1.0)
-    current_price: float                   # 現在価格
-    stop_loss: Optional[float]             # ストップロス価格
-    take_profit: Optional[float]           # 利確価格
-    reason: Optional[str]                  # シグナル理由
+    strategy_name: str      # 戦略名
+    timestamp: datetime     # シグナル発生時刻
+    action: str            # buy/sell/hold
+    confidence: float      # 信頼度 (0.0-1.0)
+    strength: float        # シグナル強度 (0.0-1.0)
+    current_price: float   # 現在価格
+    # + entry_price, stop_loss, take_profit, position_size, risk_ratio, indicators, reason, metadata
 
 class StrategyBase(ABC):
-    def analyze(self, df: pd.DataFrame) -> StrategySignal      # 戦略固有分析（実装必須）
-    def get_required_features(self) -> List[str]              # 必要特徴量（実装必須）
-    def generate_signal(self, df: pd.DataFrame) -> StrategySignal  # 統一シグナル生成
+    def analyze(self, df, multi_timeframe_data=None) -> StrategySignal  # 戦略固有分析（実装必須）
+    def get_required_features(self) -> List[str]                        # 必要特徴量（実装必須）
+    def generate_signal(self, df, multi_timeframe_data=None)            # 統一エントリーポイント
 ```
 
-### **strategy_manager.py（557行）**
+### strategy_manager.py
 
-**目的**: 5戦略統合管理・競合解決・重み付け統合による最終シグナル生成
+6戦略の統合管理・競合解決・重み付け統合による最終シグナル生成。
 
-**主要クラス**:
 ```python
 class StrategyManager:
-    def register_strategy(self, strategy: StrategyBase, weight: float = 1.0)    # 戦略登録
-    def analyze_market(self, df: pd.DataFrame) -> StrategySignal              # 統合分析
-    def update_strategy_weights(self, new_weights: Dict[str, float])          # 重み調整
+    def register_strategy(self, strategy, weight=1.0)           # 戦略登録
+    def analyze_market(self, df, multi_timeframe_data=None)     # 統合分析
+    def update_strategy_weights(self, new_weights)              # 重み調整
+    def get_individual_strategy_signals(self, df, ...)          # ML特徴量用個別シグナル
 ```
 
-## 🚀 使用例
-
-```python
-# 基本的な戦略実装
-from src.strategies.base import StrategyBase, StrategySignal
-
-class CustomStrategy(StrategyBase):
-    def analyze(self, df: pd.DataFrame) -> StrategySignal:
-        # 戦略固有分析ロジック
-        decision = {
-            'action': 'BUY',
-            'confidence': 0.7,
-            'strength': 0.6,
-            'analysis': "戦略分析結果"
-        }
-        return self._create_signal(decision, df)
-
-    def get_required_features(self) -> List[str]:
-        return ['close', 'volume', 'rsi_14', 'atr_14', 'macd']
-
-# 戦略マネージャーでの統合
-from src.strategies.base import StrategyManager
-from src.strategies.implementations import *
-
-manager = StrategyManager()
-manager.register_strategy(ATRBasedStrategy(), weight=0.25)
-manager.register_strategy(MochiPoyAlertStrategy(), weight=0.25)
-manager.register_strategy(MultiTimeframeStrategy(), weight=0.20)
-manager.register_strategy(DonchianChannelStrategy(), weight=0.15)
-manager.register_strategy(ADXTrendStrengthStrategy(), weight=0.15)
-
-# 統合分析実行
-market_data = get_market_data()  # 15特徴量データ
-combined_signal = manager.analyze_market(market_data)
-```
-
-## 📊 競合解決システム
-
-### **競合検知・解決フロー**
+## 競合解決フロー
 
 ```
-【各戦略並行実行】→ 個別StrategySignal生成（5戦略）
-        ↓
-【アクション別グループ化】→ {"buy": [...], "sell": [...], "hold": [...]}
-        ↓
-【競合検知】→ BUY vs SELL同時存在チェック
-        ↓
-競合なし → 多数決＋重み付け統合
-競合あり → 重み付け信頼度比較＋閾値判定
-        ↓
-【最終統合シグナル】→ StrategySignal(strategy_name="StrategyManager")
+各戦略並行実行 → 個別StrategySignal生成（6戦略）
+    ↓
+アクション別グループ化 → {"buy": [...], "sell": [...], "hold": [...]}
+    ↓
+競合検知 → 2つ以上の異なるアクション存在チェック
+    ↓
+競合なし → 重み付き信頼度ベース判定
+競合あり → Phase 56.7 quorumルール or 従来ロジック
+    ↓
+最終統合シグナル
 ```
 
-**競合解決ロジック**:
-```python
-# ケース1: SELL 3 + HOLD 2 → 競合なし（積極的アクション優先）
-action_counts = {"sell": 3, "hold": 2}
-dominant_action = max(action_counts, key=action_counts.get)  # → "sell"
+### Phase 56.7 quorumルール（consensus.enabled=true時）
 
-# ケース2: SELL 3 + BUY 2 → 競合あり（重み付け信頼度比較）
-buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
-sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
+- BUY 2票以上 かつ SELL 1票以下 → BUY選択（HOLD無視）
+- SELL 2票以上 かつ BUY 1票以下 → SELL選択（HOLD無視）
+- BUY/SELL両方2票以上 → HOLD（矛盾）
+- それ以外 → 従来ロジック（重み付け信頼度比較）
 
-if abs(buy_weighted_confidence - sell_weighted_confidence) < 0.1:
-    return self._create_hold_signal(df, reason="信頼度差が小さいためコンフリクト回避")
-else:
-    return winner_group_signal  # 高信頼度グループが勝利
-```
+### 重み付け信頼度計算
 
-### **重み付け信頼度計算**
+Phase 49.8: 合計値（平均ではなく）。1.0でクリップ。
 
-```python
-def _calculate_weighted_confidence(self, signals: List[Tuple[str, StrategySignal]]) -> float:
-    total_weighted_confidence = 0.0
-    total_weight = 0.0
+## レジーム別戦略重み（thresholds.yaml: tight_range）
 
-    for strategy_name, signal in signals:
-        weight = self.strategy_weights.get(strategy_name, 1.0)
-        weighted_confidence = signal.confidence * weight
+| 戦略 | 重み |
+|------|------|
+| BBReversal | 0.35 |
+| StochasticDivergence | 0.35 |
+| ATRBased | 0.20 |
+| DonchianChannel | 0.10 |
+| MACDEMACrossover | 0.0 |
+| ADXTrendStrength | 0.0 |
 
-        total_weighted_confidence += weighted_confidence
-        total_weight += weight
+normal_range・trendingの詳細は `config/core/thresholds.yaml` 参照。
 
-    return total_weighted_confidence / total_weight if total_weight > 0 else 0.0
-```
+## 設定
 
-## 🔧 設定
-
-**環境変数**: 不要（設定ファイルから自動取得）
-**データ要件**: 15特徴量統一・feature_order.json準拠・最小データ数20以上
-**戦略重み**: ATRBased:0.25・MochipoyAlert:0.25・MultiTimeframe:0.20・DonchianChannel:0.15・ADXTrendStrength:0.15
-
-## ⚠️ 重要事項
-
-### **特性・制約**
-- **統一インターフェース**: 全戦略がStrategyBase継承・StrategySignal統一形式
-- **競合解決**: BUY vs SELL同時発生時の自動解決・安全性優先
-- **重み付け統合**: 戦略別重みでの信頼度統合・パフォーマンス反映
-- **15特徴量連携**: feature_order.json単一真実源との完全整合
-- **Phase 49完了**: Phaseマーカー統一・簡潔化・実用性重視
-- **依存**: pandas・datetime・abc・typing・src.strategies.utils.*
-
----
-
-**戦略基盤システム（Phase 49完了）**: 5戦略統一インターフェース・競合解決システム・重み付け統合による15特徴量連携戦略アーキテクチャ基盤。
+- **環境変数**: `BACKTEST_MODE=true` でログ抑制
+- **features.yaml**: `strategies.consensus.enabled`（2票ルール有効/無効）
+- **thresholds.yaml**: レジーム別重み・ML閾値
+- **データ要件**: 55特徴量（49基本 + 6戦略信号）・最小データ数20

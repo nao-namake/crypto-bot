@@ -1,18 +1,18 @@
 """
 戦略マネージャー実装 - 複数戦略の統合管理
 
-5つの戦略を統合し、シグナルの優先度付けと
+6つの戦略を統合し、シグナルの優先度付けと
 最適な戦略選択を行う管理システム。
 
 主要機能:
 - 複数戦略の同時実行
 - シグナル統合とコンフリクト解決
-- 戦略パフォーマンス追跡
 - 動的戦略重み付け
 
-Phase 49完了
+Phase 64.5: デッドコード削除・import整理・quorum重複統合
 """
 
+import os
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -76,15 +76,6 @@ class StrategyManager:
 
         self.logger.info(f"戦略登録: {strategy.name} (重み: {weight})")
 
-    def unregister_strategy(self, strategy_name: str) -> None:
-        """戦略の登録解除."""
-        if strategy_name in self.strategies:
-            del self.strategies[strategy_name]
-            del self.strategy_weights[strategy_name]
-            self.logger.info(f"戦略登録解除: {strategy_name}")
-        else:
-            self.logger.warning(f"未登録戦略の解除試行: {strategy_name}")
-
     def analyze_market(
         self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None
     ) -> StrategySignal:
@@ -117,9 +108,7 @@ class StrategyManager:
             return combined_signal
 
         except Exception as e:
-            # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
-            import os
-
+            # Phase 35: バックテストモード時はDEBUGレベル
             if os.environ.get("BACKTEST_MODE") == "true":
                 self.logger.debug(f"市場分析エラー: {e}")
             else:
@@ -153,9 +142,7 @@ class StrategyManager:
 
             except Exception as e:
                 error_msg = f"[{name}] シグナル生成エラー: {type(e).__name__}: {e}"
-                # Phase 35: バックテストモード時はDEBUGレベル（環境変数直接チェック）
-                import os
-
+                # Phase 35: バックテストモード時はDEBUGレベル
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(error_msg)
                     self.logger.debug(f"[{name}] 必要特徴量: {strategy.get_required_features()}")
@@ -238,9 +225,7 @@ class StrategyManager:
         - BUY/SELL両方2票以上 → HOLD（矛盾）
         - BUY/SELL両方1票以下 → 従来ロジック（重み付け比較）
         """
-        # Phase 35.5: バックテストモードではログ抑制（不要なI/Oオーバーヘッド削減）
-        import os
-
+        # Phase 35.5: バックテストモードではログ抑制
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         # Phase 59.4-A: 設定から2票ルール有効/無効を取得
@@ -279,68 +264,14 @@ class StrategyManager:
 
             # BUY 2票以上 → BUY選択（HOLD無視）
             if buy_has_quorum:
-                buy_weighted_confidence = self._calculate_weighted_confidence(buy_signals)
-                # Phase 57.12: 最高信頼度の戦略名も取得
-                best_strategy_name, best_signal = max(buy_signals, key=lambda x: x[1].confidence)
-                self.logger.info(
-                    f"Phase 56.7: BUY {buy_count}票でクオーラム達成 → BUY選択 "
-                    f"(信頼度: {buy_weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
-                )
-                return StrategySignal(
-                    strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
-                    timestamp=datetime.now(),
-                    action="buy",
-                    confidence=buy_weighted_confidence,
-                    strength=best_signal.strength,
-                    current_price=best_signal.current_price,
-                    entry_price=best_signal.entry_price,
-                    stop_loss=best_signal.stop_loss,
-                    take_profit=best_signal.take_profit,
-                    position_size=best_signal.position_size,
-                    risk_ratio=best_signal.risk_ratio,
-                    reason=f"Phase 56.7: BUY {buy_count}票でクオーラム達成",
-                    metadata={
-                        "conflict_resolved": True,
-                        "resolution_method": "quorum_rule",
-                        "buy_votes": buy_count,
-                        "sell_votes": sell_count,
-                        "hold_votes": len(hold_signals),
-                        # Phase 57.12: 投票した全戦略名を記録
-                        "contributing_strategies": [name for name, _ in buy_signals],
-                    },
+                return self._create_quorum_signal(
+                    "buy", buy_signals, hold_signals, buy_count, sell_count
                 )
 
             # SELL 2票以上 → SELL選択（HOLD無視）
             if sell_has_quorum:
-                sell_weighted_confidence = self._calculate_weighted_confidence(sell_signals)
-                # Phase 57.12: 最高信頼度の戦略名も取得
-                best_strategy_name, best_signal = max(sell_signals, key=lambda x: x[1].confidence)
-                self.logger.info(
-                    f"Phase 56.7: SELL {sell_count}票でクオーラム達成 → SELL選択 "
-                    f"(信頼度: {sell_weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
-                )
-                return StrategySignal(
-                    strategy_name=best_strategy_name,  # Phase 57.12: 個別戦略名を記録
-                    timestamp=datetime.now(),
-                    action="sell",
-                    confidence=sell_weighted_confidence,
-                    strength=best_signal.strength,
-                    current_price=best_signal.current_price,
-                    entry_price=best_signal.entry_price,
-                    stop_loss=best_signal.stop_loss,
-                    take_profit=best_signal.take_profit,
-                    position_size=best_signal.position_size,
-                    risk_ratio=best_signal.risk_ratio,
-                    reason=f"Phase 56.7: SELL {sell_count}票でクオーラム達成",
-                    metadata={
-                        "conflict_resolved": True,
-                        "resolution_method": "quorum_rule",
-                        "buy_votes": buy_count,
-                        "sell_votes": sell_count,
-                        "hold_votes": len(hold_signals),
-                        # Phase 57.12: 投票した全戦略名を記録
-                        "contributing_strategies": [name for name, _ in sell_signals],
-                    },
+                return self._create_quorum_signal(
+                    "sell", sell_signals, hold_signals, buy_count, sell_count
                 )
         else:
             # Phase 59.4-A: 2票ルール無効時はログ出力
@@ -427,6 +358,44 @@ class StrategyManager:
                 "resolution_method": "all_votes_weighted_integration",  # Phase 38.5
                 # Phase 57.12: 投票した全戦略名を記録
                 "contributing_strategies": [name for name, _ in winning_group],
+            },
+        )
+
+    def _create_quorum_signal(
+        self,
+        action: str,
+        winning_signals: List[Tuple[str, StrategySignal]],
+        hold_signals: List[Tuple[str, StrategySignal]],
+        buy_count: int,
+        sell_count: int,
+    ) -> StrategySignal:
+        """Phase 56.7: quorum達成時の統合シグナル生成."""
+        weighted_confidence = self._calculate_weighted_confidence(winning_signals)
+        best_strategy_name, best_signal = max(winning_signals, key=lambda x: x[1].confidence)
+        self.logger.info(
+            f"Phase 56.7: {action.upper()} {len(winning_signals)}票でクオーラム達成 → "
+            f"{action.upper()}選択 (信頼度: {weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
+        )
+        return StrategySignal(
+            strategy_name=best_strategy_name,
+            timestamp=datetime.now(),
+            action=action,
+            confidence=weighted_confidence,
+            strength=best_signal.strength,
+            current_price=best_signal.current_price,
+            entry_price=best_signal.entry_price,
+            stop_loss=best_signal.stop_loss,
+            take_profit=best_signal.take_profit,
+            position_size=best_signal.position_size,
+            risk_ratio=best_signal.risk_ratio,
+            reason=f"Phase 56.7: {action.upper()} {len(winning_signals)}票でクオーラム達成",
+            metadata={
+                "conflict_resolved": True,
+                "resolution_method": "quorum_rule",
+                "buy_votes": buy_count,
+                "sell_votes": sell_count,
+                "hold_votes": len(hold_signals),
+                "contributing_strategies": [name for name, _ in winning_signals],
             },
         )
 
@@ -523,8 +492,6 @@ class StrategyManager:
         Args:
             df: 市場データ
         """
-        import os
-
         # バックテストモードでは診断出力を抑制
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
         if is_backtest:
@@ -616,27 +583,6 @@ class StrategyManager:
             f"決定記録: {len(strategy_signals)}戦略 → {final_signal.action} (信頼度: {final_signal.confidence:.3f})"
         )
 
-    def get_strategy_performance(self) -> Dict[str, Any]:
-        """戦略パフォーマンス取得."""
-        return {
-            name: {
-                "stats": strategy.get_signal_stats(),
-                "weight": self.strategy_weights[name],
-                "enabled": strategy.is_enabled,
-            }
-            for name, strategy in self.strategies.items()
-        }
-
-    def get_manager_stats(self) -> Dict[str, Any]:
-        """マネージャー統計情報取得 - 簡素化版."""
-        return {
-            "total_strategies": len(self.strategies),
-            "enabled_strategies": sum(1 for s in self.strategies.values() if s.is_enabled),
-            "total_decisions": self.total_decisions,
-            "signal_conflicts": self.signal_conflicts,
-            "strategy_weights": self.strategy_weights.copy(),
-        }
-
     def update_strategy_weights(self, new_weights: Dict[str, float]) -> None:
         """戦略重み更新."""
         for name, weight in new_weights.items():
@@ -649,14 +595,6 @@ class StrategyManager:
 
             self.strategy_weights[name] = weight
             self.logger.info(f"重み更新: {name}={weight}")
-
-    def reset_stats(self) -> None:
-        """統計情報リセット - 簡素化版."""
-        self.last_combined_signal = None
-        self.signal_conflicts = 0
-        self.total_decisions = 0
-
-        self.logger.info("統計情報リセット完了")
 
     def get_individual_strategy_signals(
         self, df: pd.DataFrame, multi_timeframe_data: Optional[Dict[str, pd.DataFrame]] = None

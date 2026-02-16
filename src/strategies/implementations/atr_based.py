@@ -17,13 +17,11 @@ BBReversalとの違い:
 4. RSIで反転方向決定
 """
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
 from ...core.exceptions import StrategyError
-from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
 from ..utils import EntryAction, SignalBuilder, StrategyType
@@ -491,97 +489,6 @@ class ATRBasedStrategy(StrategyBase):
                 "strength": 0.0,
                 "reason": "判定エラー",
             }
-
-    def _infer_direction_from_price(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        価格変動から方向を推定（RSIが中間の場合のフォールバック）
-
-        Phase 55.3: RSIが中間でもシグナル生成可能に
-        - 直近の価格変動から方向を推定
-        - 上昇後なら下落反転、下落後なら上昇反転を期待
-        """
-        try:
-            # 直近5本の価格変動を確認
-            closes = df["close"].iloc[-5:].values
-            price_change = (closes[-1] - closes[0]) / closes[0]
-
-            # 閾値（0.3%以上の変動で方向判定）
-            change_threshold = 0.003
-
-            if price_change > change_threshold:
-                # 上昇後 → 下落反転期待
-                return {
-                    "action": EntryAction.SELL,
-                    "rsi": 50.0,
-                    "strength": min(abs(price_change) * 100, 0.5),
-                    "reason": f"価格上昇後({price_change:.2%})→下落反転期待",
-                }
-            elif price_change < -change_threshold:
-                # 下落後 → 上昇反転期待
-                return {
-                    "action": EntryAction.BUY,
-                    "rsi": 50.0,
-                    "strength": min(abs(price_change) * 100, 0.5),
-                    "reason": f"価格下落後({price_change:.2%})→上昇反転期待",
-                }
-            else:
-                return {
-                    "action": EntryAction.HOLD,
-                    "rsi": 50.0,
-                    "strength": 0.0,
-                    "reason": "価格変動不足で方向不明",
-                }
-        except Exception as e:
-            self.logger.error(f"方向推定エラー: {e}")
-            return {
-                "action": EntryAction.HOLD,
-                "rsi": 50.0,
-                "strength": 0.0,
-                "reason": "推定エラー",
-            }
-
-    def _create_decision_with_score(
-        self,
-        exhaustion: Dict[str, Any],
-        direction: Dict[str, Any],
-        range_check: Dict[str, Any],
-        score: float,
-    ) -> Dict[str, Any]:
-        """
-        スコアベースの統合判定を作成（Phase 55.3）
-
-        スコアを信頼度に反映し、より柔軟なシグナル生成を実現
-        """
-        # スコアから信頼度を計算（スコア0.5→信頼度0.35、スコア1.0→信頼度0.65）
-        confidence = 0.35 + (score - 0.5) * 0.6
-
-        # 高消尽時はボーナス
-        if exhaustion.get("is_high_exhaustion"):
-            confidence += 0.05
-
-        # RSI強度で追加調整
-        confidence += direction.get("strength", 0) * 0.10
-
-        # 最小・最大制限
-        confidence = max(self.config["min_confidence"], min(confidence, 0.75))
-
-        # action値を取得
-        action = direction["action"]
-        action_str = action.value if hasattr(action, "value") else str(action)
-
-        analysis = (
-            f"ATRレンジ消尽: {action_str} "
-            f"(スコア={score:.2f}, 消尽率={exhaustion['ratio']:.1%}, "
-            f"RSI={direction.get('rsi', 50):.1f}, ADX={range_check.get('adx', 0):.1f}, "
-            f"信頼度={confidence:.3f})"
-        )
-
-        return {
-            "action": direction["action"],
-            "confidence": confidence,
-            "strength": direction.get("strength", 0),
-            "analysis": analysis,
-        }
 
     def _create_decision(
         self,

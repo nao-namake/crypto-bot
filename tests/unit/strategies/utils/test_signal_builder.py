@@ -158,7 +158,7 @@ class TestSignalBuilder(unittest.TestCase):
             current_price=self.current_price,
             df=self.test_df,
             config=self.basic_config,
-            strategy_type=StrategyType.ATR_BASED,  # Phase 51.7 Day 7: MULTI_TIMEFRAME削除のためATR_BASED使用
+            strategy_type=StrategyType.ATR_BASED,  # ATR_BASED使用
         )
 
         # 決定メタデータが保持されていることを確認
@@ -227,24 +227,6 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertIsNone(signal.take_profit)
         self.assertIsNone(signal.position_size)
         self.assertIsNone(signal.risk_ratio)
-
-    def test_get_current_atr_success(self):
-        """ATR取得成功テスト."""
-        atr_value = SignalBuilder._get_current_atr(self.test_df)
-        self.assertEqual(atr_value, 500000.0)
-        self.assertIsInstance(atr_value, float)
-
-    def test_get_current_atr_missing_column(self):
-        """ATR列不足時のテスト."""
-        no_atr_df = pd.DataFrame({"close": [10000000]})
-        atr_value = SignalBuilder._get_current_atr(no_atr_df)
-        self.assertIsNone(atr_value)
-
-    def test_get_current_atr_zero_value(self):
-        """ATRゼロ値時のテスト."""
-        zero_atr_df = pd.DataFrame({"atr_14": [0.0]})
-        atr_value = SignalBuilder._get_current_atr(zero_atr_df)
-        self.assertIsNone(atr_value)
 
     def test_create_error_signal(self):
         """エラーシグナル生成テスト."""

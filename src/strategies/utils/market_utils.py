@@ -1,11 +1,9 @@
 """
-市場データ分析ユーティリティ - Phase 49完了
+市場データ分析ユーティリティ - Phase 64.5
 
 全戦略で共通する市場データ分析機能を統合管理：
 - 市場不確実性計算：ATR・ボリューム・価格変動率の統合分析
 - 設定ベース統一ロジック：thresholds.yaml設定値の一元管理
-
-Phase 49完了: 重複コード250-300行削減・保守性向上
 """
 
 import pandas as pd
@@ -108,73 +106,3 @@ class MarketUncertaintyCalculator:
         except Exception as e:
             logger.warning(f"[MarketUncertainty] 計算エラー: {e}")
             return 0.02  # デフォルト値（2%の軽微な調整）
-
-    @classmethod
-    def calculate_with_breakdown(cls, df: pd.DataFrame) -> dict:
-        """
-        市場不確実性計算（内訳付き）
-
-        デバッグ・分析用に、各要因の内訳を返す拡張版。
-
-        Args:
-            df: 市場データ
-
-        Returns:
-            dict: {
-                "total": 総合不確実性,
-                "volatility": ボラティリティ要因,
-                "volume": ボリューム要因,
-                "price": 価格変動要因
-            }
-        """
-        logger = cls._get_logger()
-
-        try:
-            from ...core.config.threshold_manager import get_threshold
-
-            volatility_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volatility_factor_max", 0.05
-            )
-            volume_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_factor_max", 0.03
-            )
-            volume_multiplier = get_threshold(
-                "dynamic_confidence.market_uncertainty.volume_multiplier", 0.1
-            )
-            price_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.price_factor_max", 0.02
-            )
-            uncertainty_max = get_threshold(
-                "dynamic_confidence.market_uncertainty.uncertainty_max", 0.10
-            )
-
-            # 各要因計算
-            current_price = float(df["close"].iloc[-1])
-            atr_value = float(df["atr_14"].iloc[-1])
-            volatility_factor = min(volatility_max, atr_value / current_price)
-
-            current_volume = float(df["volume"].iloc[-1])
-            avg_volume = float(df["volume"].rolling(20).mean().iloc[-1])
-            volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1.0
-            volume_factor = min(volume_max, abs(volume_ratio - 1.0) * volume_multiplier)
-
-            price_change = abs(float(df["close"].pct_change().iloc[-1]))
-            price_factor = min(price_max, price_change)
-
-            total = min(uncertainty_max, volatility_factor + volume_factor + price_factor)
-
-            return {
-                "total": total,
-                "volatility": volatility_factor,
-                "volume": volume_factor,
-                "price": price_factor,
-            }
-
-        except Exception as e:
-            logger.warning(f"[MarketUncertainty] 内訳計算エラー: {e}")
-            return {
-                "total": 0.02,
-                "volatility": 0.01,
-                "volume": 0.005,
-                "price": 0.005,
-            }

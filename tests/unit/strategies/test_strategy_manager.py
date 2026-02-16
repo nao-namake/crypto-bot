@@ -155,21 +155,6 @@ class TestStrategyManager(unittest.TestCase):
 
         self.assertIn("0.0-1.0", str(context.exception))
 
-    def test_unregister_strategy(self):
-        """戦略登録解除テスト."""
-        mock_strategy = MockStrategy("TestStrategy", self.buy_signal)
-
-        # 登録してから解除
-        self.manager.register_strategy(mock_strategy)
-        self.assertEqual(len(self.manager.strategies), 1)
-
-        self.manager.unregister_strategy("TestStrategy")
-        self.assertEqual(len(self.manager.strategies), 0)
-        self.assertNotIn("TestStrategy", self.manager.strategies)
-
-        # 未登録戦略の解除（エラーにならない）
-        self.manager.unregister_strategy("NonExistentStrategy")
-
     def test_analyze_market_single_strategy(self):
         """市場分析テスト - 単一戦略."""
         mock_strategy = MockStrategy("SingleStrategy", self.buy_signal)
@@ -354,41 +339,6 @@ class TestStrategyManager(unittest.TestCase):
         expected = (0.7 * 0.3 + 0.8 * 0.7) / (0.3 + 0.7)
         self.assertAlmostEqual(weighted_confidence, expected, places=2)
 
-    def test_get_strategy_performance(self):
-        """戦略パフォーマンス取得テスト."""
-        mock_strategy = MockStrategy("TestStrategy", self.buy_signal)
-        mock_strategy.get_signal_stats = Mock(return_value={"total": 10, "success": 7})
-
-        self.manager.register_strategy(mock_strategy, weight=0.8)
-
-        performance = self.manager.get_strategy_performance()
-
-        self.assertIn("TestStrategy", performance)
-        self.assertEqual(performance["TestStrategy"]["weight"], 0.8)
-        self.assertTrue(performance["TestStrategy"]["enabled"])
-        self.assertEqual(performance["TestStrategy"]["stats"]["total"], 10)
-
-    def test_get_manager_stats(self):
-        """マネージャー統計取得テスト."""
-        mock_strategy1 = MockStrategy("Strategy1", self.buy_signal)
-        mock_strategy2 = MockStrategy("Strategy2", self.sell_signal)
-        mock_strategy2.disable()  # 1つを無効化
-
-        self.manager.register_strategy(mock_strategy1)
-        self.manager.register_strategy(mock_strategy2)
-
-        # いくつかの決定を実行
-        self.manager.total_decisions = 5
-        self.manager.signal_conflicts = 2
-
-        stats = self.manager.get_manager_stats()
-
-        self.assertEqual(stats["total_strategies"], 2)
-        self.assertEqual(stats["enabled_strategies"], 1)
-        self.assertEqual(stats["total_decisions"], 5)
-        self.assertEqual(stats["signal_conflicts"], 2)
-        self.assertIn("Strategy1", stats["strategy_weights"])
-
     def test_update_strategy_weights(self):
         """戦略重み更新テスト."""
         mock_strategy = MockStrategy("TestStrategy", self.buy_signal)
@@ -404,21 +354,6 @@ class TestStrategyManager(unittest.TestCase):
         # 無効な重み（警告のみ）
         self.manager.update_strategy_weights({"TestStrategy": 1.5})
         self.assertEqual(self.manager.strategy_weights["TestStrategy"], 0.8)  # 変更されない
-
-    def test_reset_stats(self):
-        """統計リセットテスト."""
-        # 統計を設定
-        self.manager.total_decisions = 10
-        self.manager.signal_conflicts = 3
-        self.manager.last_combined_signal = self.buy_signal
-
-        # リセット実行
-        self.manager.reset_stats()
-
-        # リセット確認
-        self.assertEqual(self.manager.total_decisions, 0)
-        self.assertEqual(self.manager.signal_conflicts, 0)
-        self.assertIsNone(self.manager.last_combined_signal)
 
     def test_hold_signals_integration(self):
         """ホールドシグナル統合テスト."""
@@ -498,7 +433,7 @@ class TestStrategyManager(unittest.TestCase):
             strategy_name="Sell1",
             timestamp=datetime.now(),
             action=EntryAction.SELL,
-            confidence=0.760,  # MochipoyAlert相当
+            confidence=0.760,  # BBReversal相当
             strength=0.7,
             current_price=10250000,
             reason="Sell1",
@@ -507,7 +442,7 @@ class TestStrategyManager(unittest.TestCase):
             strategy_name="Sell2",
             timestamp=datetime.now(),
             action=EntryAction.SELL,
-            confidence=0.651,  # MultiTimeframe相当
+            confidence=0.651,  # StochasticReversal相当
             strength=0.6,
             current_price=10250000,
             reason="Sell2",

@@ -19,16 +19,13 @@ Phase 55.6: タイトレンジ逆張りモード追加
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import numpy as np
 import pandas as pd
 
-from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils import MarketUncertaintyCalculator
-from ..utils.strategy_utils import SignalBuilder, StrategyType
+from ..utils import MarketUncertaintyCalculator, SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="ADXTrendStrength", strategy_type=StrategyType.ADX_TREND)
@@ -47,7 +44,6 @@ class ADXTrendStrengthStrategy(StrategyBase):
         """
         super().__init__("ADXTrendStrength")
         self.config = config or {}
-        self.logger = get_logger()
 
         # 循環インポート回避のため遅延インポート
         from ...core.config.threshold_manager import get_threshold
@@ -83,35 +79,6 @@ class ADXTrendStrengthStrategy(StrategyBase):
         self.di_divergence_threshold = get_threshold(
             "strategies.adx_trend.di_divergence_threshold", 12.0
         )
-        # Phase 55.6 パターンB: BB位置フィルタ
-        self.use_bb_position_filter = get_threshold(
-            "strategies.adx_trend.use_bb_position_filter", False
-        )
-        self.bb_position_upper = get_threshold("strategies.adx_trend.bb_position_upper", 0.80)
-        self.bb_position_lower = get_threshold("strategies.adx_trend.bb_position_lower", 0.20)
-        self.bb_filter_confidence_bonus = get_threshold(
-            "strategies.adx_trend.bb_filter_confidence_bonus", 0.10
-        )
-        # Phase 55.6 パターンC: RSI反転検証
-        self.use_rsi_filter = get_threshold("strategies.adx_trend.use_rsi_filter", False)
-        self.rsi_sell_threshold = get_threshold("strategies.adx_trend.rsi_sell_threshold", 60)
-        self.rsi_buy_threshold = get_threshold("strategies.adx_trend.rsi_buy_threshold", 40)
-        self.rsi_filter_confidence_bonus = get_threshold(
-            "strategies.adx_trend.rsi_filter_confidence_bonus", 0.08
-        )
-        # Phase 55.6 パターンD: ADX動的閾値
-        self.use_dynamic_thresholds = get_threshold(
-            "strategies.adx_trend.use_dynamic_thresholds", False
-        )
-        self.dynamic_adx_ultra_low = get_threshold("strategies.adx_trend.dynamic_adx_ultra_low", 10)
-        self.dynamic_adx_low = get_threshold("strategies.adx_trend.dynamic_adx_low", 15)
-        self.dynamic_di_strict = get_threshold("strategies.adx_trend.dynamic_di_strict", 6.0)
-        self.dynamic_di_normal = get_threshold("strategies.adx_trend.dynamic_di_normal", 5.0)
-        self.dynamic_di_loose = get_threshold("strategies.adx_trend.dynamic_di_loose", 4.0)
-        self.dynamic_conf_high = get_threshold("strategies.adx_trend.dynamic_conf_high", 0.55)
-        self.dynamic_conf_mid = get_threshold("strategies.adx_trend.dynamic_conf_mid", 0.48)
-        self.dynamic_conf_low = get_threshold("strategies.adx_trend.dynamic_conf_low", 0.42)
-
         # Phase 56.9: RSI主導型レンジ逆張りモード
         self.use_rsi_driven_mode = get_threshold("strategies.adx_trend.use_rsi_driven_mode", True)
         self.rsi_oversold_trigger = get_threshold("strategies.adx_trend.rsi_oversold_trigger", 35)
@@ -481,35 +448,6 @@ class ADXTrendStrengthStrategy(StrategyBase):
             f"レンジ相場動的（ADX: {analysis['adx']:.1f}, DI差: {di_diff:.1f}）",
             dynamic_confidence,
         )
-
-    def _get_dynamic_thresholds(self, adx_value: float) -> Dict[str, float]:
-        """
-        Phase 55.6 パターンD: ADX値に基づく動的閾値取得
-
-        Args:
-            adx_value: 現在のADX値
-
-        Returns:
-            動的閾値辞書 {di_threshold, confidence_base}
-        """
-        if adx_value < self.dynamic_adx_ultra_low:
-            # 超安定レンジ（ADX<10）: 厳格な閾値、高信頼度
-            return {
-                "di_threshold": self.dynamic_di_strict,
-                "confidence_base": self.dynamic_conf_high,
-            }
-        elif adx_value < self.dynamic_adx_low:
-            # 標準レンジ（ADX 10-15）: 通常閾値
-            return {
-                "di_threshold": self.dynamic_di_normal,
-                "confidence_base": self.dynamic_conf_mid,
-            }
-        else:
-            # 境界レンジ（ADX 15-20）: 緩い閾値、控えめ信頼度
-            return {
-                "di_threshold": self.dynamic_di_loose,
-                "confidence_base": self.dynamic_conf_low,
-            }
 
     def _analyze_range_reversal(
         self,

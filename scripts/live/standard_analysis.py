@@ -782,10 +782,9 @@ class LiveAnalysisResult:
     expected_cycle_count: int = 0
 
     # MLモデル状態（4指標）- Phase 59.8追加
-    ml_model_type: str = ""  # StackingEnsemble / ProductionEnsemble / DummyModel
-    ml_model_level: int = -1  # 0=Stacking, 1=Full, 2=Basic, 3=Dummy
+    ml_model_type: str = ""  # ProductionEnsemble / DummyModel
+    ml_model_level: int = -1  # 1=Full, 2=Basic, 3=Dummy
     ml_feature_count: int = 0  # 55 / 49 / 0
-    stacking_enabled: bool = False  # thresholds.yaml設定値
 
     # Phase 62.16: スリッページ分析（6指標）
     slippage_avg: float = 0.0  # 平均スリッページ（円）
@@ -1486,9 +1485,7 @@ class LiveAnalyzer:
             self.result.ml_model_type = model_type
 
             # フォールバックレベル判定
-            if model_type == "StackingEnsemble":
-                self.result.ml_model_level = 0
-            elif model_type == "ProductionEnsemble":
+            if model_type == "ProductionEnsemble":
                 n_features = getattr(model, "n_features_", 0)
                 self.result.ml_model_level = 1 if n_features >= 55 else 2
             elif model_type == "DummyModel":
@@ -1876,15 +1873,11 @@ class LiveReportGenerator:
         )
 
         # モデルタイプ
-        model_status = (
-            "正常"
-            if result.ml_model_type in ["StackingEnsemble", "ProductionEnsemble"]
-            else "要確認"
-        )
+        model_status = "正常" if result.ml_model_type == "ProductionEnsemble" else "要確認"
         lines.append(f"| モデルタイプ | {result.ml_model_type} | {model_status} |")
 
         # フォールバックレベル
-        level_names = {0: "Stacking", 1: "Full(55)", 2: "Basic(49)", 3: "Dummy"}
+        level_names = {1: "Full(55)", 2: "Basic(49)", 3: "Dummy"}
         level_name = level_names.get(result.ml_model_level, "不明")
         level_status = "正常" if result.ml_model_level <= 1 else "フォールバック中"
         lines.append(

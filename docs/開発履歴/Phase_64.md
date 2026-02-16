@@ -1,7 +1,7 @@
 # Phase 64: TP/SLシンプル化 + システム全体整理
 
 **期間**: 2026年2月14日〜（進行中）
-**状態**: 🔄 Phase 64.1-64.2, 64.4完了、64.3待機
+**状態**: 🔄 Phase 64.1-64.2, 64.4-64.6完了、64.3待機
 **目的**: TP/SLロジックの過度な複雑性を整理し、設置不具合の根本原因を解消する
 
 ---
@@ -14,6 +14,8 @@
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
 | **64.3** | virtual_positions二重管理解消 | ⏳ 待機 |
 | **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
+| **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
+| **64.6** | `src/ml/`フォルダ監査・クリーンアップ | ✅ 完了 |
 
 ---
 
@@ -356,7 +358,209 @@ flake8 / black / isort: 全PASS ✅
 
 ---
 
-## 最終ファイル構成（Phase 64.4完了時点）
+## Phase 64.5: `src/strategies/`フォルダ全体監査・クリーンアップ（✅完了）
+
+**実施日**: 2026年2月16日
+**方針**: 3エージェント並行監査で全20ファイルを調査。ロジック変更不要。デッドimport・冗長コード・import統一・テストコメントの軽微クリーンアップのみ。
+
+### 監査結果
+
+**総合評価**: `src/strategies/`のアーキテクチャは良好。Registry Pattern・StrategyBase継承・utils分離の設計は適切。
+
+#### 修正不要と判断した項目
+
+| 項目 | 理由 |
+|------|------|
+| `_create_hold_signal`の引数順不統一 | 各戦略固有の動作（adx_trendはdynamic_confidence対応）。統一は過剰 |
+| `get_signal_proximity`が3/6戦略のみ | `hasattr()`チェックによる意図的設計。未実装戦略は該当指標なし |
+| Registry/Loaderのテスト専用メソッド群 | Registry Patternの標準公開API。テスト可能性に貢献 |
+| `regime_affinity`（格納のみ未使用） | Phase 51.8で将来用に追加。削除リスク > 保持コスト |
+| confidence計算メソッドの統合 | adx_trendの7メソッドは各々異なる条件分岐。抽象化は過剰 |
+| `List[str]` vs `list[str]`型ヒント混在 | flake8/mypy未検出・動作影響なし。全ファイル統一は変更範囲過大 |
+
+### 実施内容
+
+#### Step 1: デッドimport削除（4件）
+
+| ファイル | 削除対象 | 理由 |
+|---------|---------|------|
+| `adx_trend.py` | `import numpy as np` | `np.`の使用箇所ゼロ |
+| `adx_trend.py` | `Tuple`（from typing） | 使用箇所ゼロ |
+| `atr_based.py` | `from datetime import datetime` | SignalBuilder経由で使用、直接呼出なし |
+| `atr_based.py` | `from ...core.logger import get_logger` | base classが設定済み、直接呼出なし |
+
+#### Step 2: 冗長logger再代入の削除（3件）
+
+`StrategyBase.__init__()`（strategy_base.py:104）で`self.logger = get_logger()`が既に設定済み。サブクラスでの再代入は冗長。
+
+| ファイル | 削除対象 |
+|---------|---------|
+| `adx_trend.py` | `self.logger = get_logger()` + `from ...core.logger import get_logger` |
+| `donchian_channel.py` | `self.logger = get_logger()` + `from ...core.logger import get_logger` |
+| `bb_reversal.py` | `self.logger = get_logger()` + `from ...core.logger import get_logger` |
+
+#### Step 3: importパス統一（3件）
+
+`utils/__init__.py`で全て再エクスポート済みのため、`from ..utils.strategy_utils import` → `from ..utils import` に統一。
+
+| ファイル | 変更前 | 変更後 |
+|---------|--------|--------|
+| `adx_trend.py` | `from ..utils.strategy_utils import SignalBuilder, StrategyType` | `from ..utils import ...SignalBuilder, StrategyType` |
+| `donchian_channel.py` | `from ..utils.strategy_utils import SignalBuilder, StrategyType` | `from ..utils import SignalBuilder, StrategyType` |
+| `bb_reversal.py` | `from ..utils.strategy_utils import EntryAction, SignalBuilder, StrategyType` | `from ..utils import EntryAction, SignalBuilder, StrategyType` |
+
+#### Step 4: テストコメント更新（3件）
+
+削除済み戦略名の参照を現行戦略名に更新。
+
+| ファイル | 変更前 | 変更後 |
+|---------|--------|--------|
+| `test_strategy_manager.py` L436 | `# MochipoyAlert相当` | `# BBReversal相当` |
+| `test_strategy_manager.py` L445 | `# MultiTimeframe相当` | `# StochasticReversal相当` |
+| `test_signal_builder.py` L161 | `# Phase 51.7 Day 7: MULTI_TIMEFRAME削除のためATR_BASED使用` | `# ATR_BASED使用` |
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/strategies/implementations/adx_trend.py` | `numpy`・`Tuple`import削除、`get_logger`import+再代入削除、importパス統一 |
+| `src/strategies/implementations/atr_based.py` | `datetime`・`get_logger`import削除 |
+| `src/strategies/implementations/donchian_channel.py` | `get_logger`import+再代入削除、importパス統一 |
+| `src/strategies/implementations/bb_reversal.py` | `get_logger`import+再代入削除、importパス統一 |
+| `tests/unit/strategies/test_strategy_manager.py` | コメント更新（2箇所） |
+| `tests/unit/strategies/utils/test_signal_builder.py` | コメント更新（1箇所） |
+
+### 品質検証
+
+```
+全テスト: 2,045 passed, 1 skipped ✅
+カバレッジ: 72.96% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
+
+---
+
+## Phase 64.6: `src/ml/`フォルダ監査・クリーンアップ（✅完了）
+
+**実施日**: 2026年2月17日
+**方針**: 本番未使用のクラス・ファイルを削除し、`src/ml/`を70%削減。ProductionEnsemble + 3モデルのみ残す。
+
+### 背景
+
+`src/ml/`（2,712行・5ファイル）に4つのアンサンブルクラスが存在するが、本番使用はProductionEnsembleのみ。
+
+| クラス | 本番使用 | 判断 |
+|--------|---------|------|
+| **ProductionEnsemble** | ✅ ml_loader.pyから使用 | 維持 |
+| **StackingEnsemble** | ❌ `stacking_enabled: false`・pklファイル不在（Phase 59.10で無効化） | 削除 |
+| **EnsembleModel** | ❌ model_manager.pyの型ヒントのみ | 削除 |
+| **VotingSystem** | ❌ インスタンス化ゼロ | 削除 |
+| **ModelManager** | ❌ src/・scripts/からimportなし | 削除 |
+| **MetaLearningWeightOptimizer** | ❌ `meta_learning.enabled: false`（常にスキップ） | 削除 |
+| **MarketRegimeAnalyzer** | ❌ meta_learning.py内部のみ | 削除 |
+| **PerformanceTracker** | ❌ meta_learning.py内部のみ | 削除 |
+
+### 実施内容
+
+#### Step 1: ensemble.py — 未使用クラス3つ + enum削除（1,070行→~200行）
+
+| 削除対象 | 行数 | 理由 |
+|---------|------|------|
+| `VotingMethod` enum | 6行 | VotingSystemの引数型のみ |
+| `VotingSystem` | 165行 | インスタンス化ゼロ |
+| `EnsembleModel` | 380行 | 本番未使用 |
+| `StackingEnsemble` | 287行 | Phase 59.10で無効化済み |
+
+ProductionEnsembleの軽微修正:
+- `print()` → `self.logger.info()` に置換
+- 重複import削除・late-binding import整理
+- 未使用sklearn import削除
+
+#### Step 2: ファイル削除（2ファイル・1,006行）
+
+| ファイル | 行数 | 理由 |
+|---------|------|------|
+| `model_manager.py` | 337行 | 本番未使用（src/・scripts/からimportなし） |
+| `meta_learning.py` | 669行 | 全3クラス無効化済み |
+
+#### Step 3: ml_loader.py — Stacking関連コード削除
+
+| 削除対象 | 内容 |
+|---------|------|
+| `_is_stacking_enabled()` | 常にfalseを返すメソッド |
+| `_load_stacking_ensemble()` | StackingEnsemble読み込み全体（~90行） |
+| Level 0分岐 | `if stacking_enabled:` |
+
+フォールバック階層を簡素化:
+```
+Before: Level 0 (Stacking) → Level 1 (Full 55) → Level 2 (Basic 49) → Level 3 (再構築)
+After:  Level 1 (Full 55) → Level 2 (Basic 49) → Level 3 (再構築)
+```
+
+#### Step 4: trading_cycle_manager.py — Meta-Learning関連削除
+
+| 変更 | 内容 |
+|------|------|
+| Meta-Learning初期化ブロック削除 | `if get_threshold("ml.meta_learning.enabled", False)` + import |
+| `_get_dynamic_weights()` 簡素化 | Meta-Learning分岐削除→固定重み返却のみ |
+| `market_data_cache` 初期化追加 | `__init__`で`None`初期化（安全性向上） |
+| エラーチェック簡素化 | `"EnsembleModel is not fitted"` → `"not fitted"` |
+
+#### Step 5: その他参照箇所の更新
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/ml/__init__.py` | エクスポート10→5に削減 |
+| `src/core/orchestration/ml_adapter.py` | EnsembleModel→ProductionEnsembleコメント修正 |
+| `scripts/live/standard_analysis.py` | Stacking参照削除・モデルレベル判定簡素化 |
+| `scripts/testing/validate_ml_models.py` | Stacking検証メソッド削除 |
+| `src/README.md` | model_manager.py参照削除 |
+
+#### Step 6: テストファイル整理
+
+**削除（4ファイル）**:
+
+| テストファイル | 理由 |
+|---------------|------|
+| `tests/unit/ml/test_voting_system.py` | VotingSystem削除 |
+| `tests/unit/ml/test_model_manager.py` | ModelManager削除 |
+| `tests/unit/ml/test_ensemble_model.py` | EnsembleModel削除 |
+| `tests/unit/ml/test_meta_learning.py` | meta_learning.py削除 |
+
+**修正（4ファイル）**:
+
+| テストファイル | 修正内容 |
+|---------------|---------|
+| `tests/unit/ml/production/test_ensemble.py` | StackingEnsembleテストクラス削除 |
+| `tests/unit/ml/test_ml_integration.py` | EnsembleModel→ProductionEnsemble使用に書換え |
+| `tests/unit/core/orchestration/test_ml_loader.py` | Stacking関連テスト3クラス削除 |
+| `tests/unit/core/services/test_ml_strategy_integration.py` | Meta-Learningテスト→固定重みテストに簡素化 |
+| `tests/integration/test_phase_50_3_graceful_degradation.py` | Stacking参照削除 |
+| `tests/unit/README.md` | 削除テストファイル参照除去 |
+
+### ファイル行数変化
+
+| ファイル | Before | After | 変化 |
+|---------|--------|-------|------|
+| `src/ml/ensemble.py` | 1,070 | ~200 | **-870** |
+| `src/ml/model_manager.py` | 337 | 削除 | **-337** |
+| `src/ml/meta_learning.py` | 669 | 削除 | **-669** |
+| `src/ml/models.py` | 586 | 586 | 変更なし |
+| `src/ml/__init__.py` | 50 | ~27 | -23 |
+| `src/core/orchestration/ml_loader.py` | ~457 | ~298 | **-159** |
+| **src/ml/ 合計** | **2,712** | **~813** | **-1,899 (-70%)** |
+
+### 品質検証
+
+```
+全テスト: 1,952 passed, 1 skipped ✅
+カバレッジ: 72.32% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
+
+---
+
+## 最終ファイル構成（Phase 64.6完了時点）
 
 ```
 src/trading/execution/
@@ -366,16 +570,84 @@ src/trading/execution/
 ├── tp_sl_config.py        ~120行  設定パス定数
 ├── tp_sl_manager.py     ~1,250行  TP/SL配置・検証・復旧・計算・ロールバック統合
 └── position_restorer.py   ~560行  ポジション復元・孤児クリーンアップ統合
+
+src/ml/
+├── __init__.py            ~27行  エクスポート（5クラス）
+├── models.py             ~586行  BaseMLModel + LGBMModel + XGBModel + RFModel
+└── ensemble.py           ~200行  ProductionEnsemble（3モデル重み付け投票）
 ```
+
+---
+
+## Phase 64.5時点の検証結果
+
+### バックテスト結果（2026年2月16日 CI実行）
+
+**期間**: 2025-07-01 〜 2025-12-31（6ヶ月）
+
+| 指標 | 値 | 備考 |
+|------|-----|------|
+| 総取引数 | 400件 | Phase 62: 303件 → 64.5: 400件（TP500円化で取引増） |
+| 勝率 | 89.2% | Phase 62: 59.7% → 64.5: 89.2%（固定金額TP効果） |
+| 総損益 | **¥+102,135** | Phase 62: ¥+119,815（手数料改定影響） |
+| PF | **2.47** | Phase 62: 1.65 → 64.5: 2.47 |
+| 最大DD | ¥5,669 (0.94%) | Phase 62: ¥13,352 (2.14%) → 大幅改善 |
+| 期待値 | ¥+255/取引 | - |
+| リカバリーファクター | 30.26 | - |
+| 平均ポジションサイズ | 0.022 BTC | - |
+
+#### 戦略別パフォーマンス
+
+| 戦略 | 取引数 | 勝率 | 総損益 |
+|------|--------|------|--------|
+| ATRBased | 332件 | 89.5% | ¥+85,958 |
+| BBReversal | 22件 | 90.9% | ¥+6,885 |
+| DonchianChannel | 26件 | 88.5% | ¥+2,807 |
+| StochasticReversal | 16件 | 81.2% | ¥+3,680 |
+| ADXTrendStrength | 4件 | 100.0% | ¥+2,805 |
+| MACDEMACrossover | 0件 | - | ¥0 |
+
+#### レジーム別パフォーマンス
+
+| レジーム | 取引数 | 勝率 | 総損益 |
+|----------|--------|------|--------|
+| tight_range | 342件 | 88.6% | ¥+87,683 |
+| normal_range | 58件 | 93.1% | ¥+14,452 |
+
+### ライブ運用状態（2026年2月17日）
+
+**分析日時**: 2026-02-17T05:56:33（直近48時間）
+
+| 指標 | 値 | 状態 |
+|------|-----|------|
+| 利用可能残高 | ¥336,277 | 正常 |
+| 稼働率 | 98.1% | 達成（目標90%） |
+| API応答時間 | 220ms | 正常 |
+| サービス状態 | Ready | 正常 |
+| MLモデル | ProductionEnsemble (Level 1, 55特徴量) | 正常 |
+| 全6戦略 | アクティブ | 正常 |
+| TP決済 | 2件（+¥498） | TP正常動作 |
+| SL決済 | 0件 | - |
+
+#### 孤児注文問題（既知・手動対応）
+
+| 項目 | 詳細 |
+|------|------|
+| 検出数 | API上2件（stop_limit）、実際4件（limit 2件はAPI未検出） |
+| 原因 | TP約定→ポジション決済→Container再起動の順序でvirtual_positionsが消失し、残SL注文がキャンセルされない |
+| 発生頻度 | 数十日〜数ヶ月に1回（TP約定とContainer再起動のタイミングが重なった場合のみ） |
+| 実害 | 金銭的損失なし（対応ポジション不在のため発動しない）。注文枠を消費するのみ |
+| 対応 | 手動キャンセルで十分（発生頻度が低いため自動化は過剰） |
+| API検出問題 | bitbank `/user/spot/active_orders`が信用取引のlimit注文を返さない可能性あり（stop_limitは返す） |
 
 ---
 
 ## 次のステップ
 
-1. **Phase 64.3**: virtual_positions二重管理解消
-   - PositionTracker一元管理への移行
-   - executor.virtual_positionsとの同期問題解消
+1. **Phase 64.7**: `src/core/`フォルダ監査・クリーンアップ（10,237行）
+2. **Phase 64.8**: `src/data/` `src/features/` `src/backtest/`監査・クリーンアップ（6,728行）
+3. **Phase 64.3**: virtual_positions二重管理解消（待機）
 
 ---
 
-**最終更新**: 2026年2月16日
+**最終更新**: 2026年2月17日 — Phase 64.6完了・src/ml/ 70%削減（2,712行→813行）

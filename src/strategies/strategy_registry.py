@@ -39,7 +39,6 @@ class StrategyRegistry:
 
     # クラス変数: 登録済み戦略
     _strategies: Dict[str, Dict[str, Any]] = {}
-    _initialized: bool = False
 
     @classmethod
     def register(cls, name: str, strategy_type: str):
@@ -173,7 +172,6 @@ class StrategyRegistry:
         logger = get_logger()
         logger.warning("⚠️ StrategyRegistry.clear_registry()呼び出し - テスト用のみ使用")
         cls._strategies.clear()
-        cls._initialized = False
 
     @classmethod
     def get_all_metadata(cls) -> Dict[str, Dict[str, Any]]:

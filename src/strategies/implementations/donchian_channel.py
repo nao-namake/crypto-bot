@@ -26,10 +26,9 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from ...core.config import get_threshold
-from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils.strategy_utils import SignalBuilder, StrategyType
+from ..utils import SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="DonchianChannel", strategy_type=StrategyType.DONCHIAN_CHANNEL)
@@ -48,7 +47,6 @@ class DonchianChannelStrategy(StrategyBase):
         """戦略初期化"""
         super().__init__("DonchianChannel")
         self.config = config or {}
-        self.logger = get_logger()
 
         # 直列評価パラメータ
         self.adx_max_threshold = get_threshold("strategies.donchian_channel.adx_max_threshold", 25)

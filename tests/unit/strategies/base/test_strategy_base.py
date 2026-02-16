@@ -120,7 +120,6 @@ class TestStrategyBase:
         assert strategy.last_signal is None
         assert strategy.signal_history == []
         assert strategy.total_signals == 0
-        assert strategy.successful_signals == 0
 
     def test_strategy_initialization_with_params(self):
         """パラメータ付き戦略初期化テスト"""
@@ -256,14 +255,11 @@ class TestStrategyBase:
         """パフォーマンス追跡テスト"""
         # 初期状態
         assert strategy.total_signals == 0
-        assert strategy.successful_signals == 0
 
         # シグナルカウンタを手動で更新
         strategy.total_signals = 10
-        strategy.successful_signals = 7
 
         assert strategy.total_signals == 10
-        assert strategy.successful_signals == 7
 
     def test_calculate_confidence_adjustment(self, strategy):
         """信頼度調整計算テスト"""

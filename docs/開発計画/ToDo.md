@@ -2,13 +2,13 @@
 
 ## 現在の状態
 
-**Phase 64進行中**（64.1-64.2, 64.4完了・64.3待機）
+**Phase 64進行中**（64.1-64.2, 64.4-64.6完了・64.3待機）
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 64.4完了: デッドコード削除・重複統合・整合性バグ修正 |
+| 最新成果 | Phase 64.6完了: src/ml/ 70%削減（2,712行→813行） |
 | Phase 64目的 | **src/フォルダ全体のリファクタリング**（下記参照） |
-| バックテスト | ¥+119,815（PF 1.65、年利24%相当） |
+| バックテスト | ¥+102,135（PF 2.47、勝率89.2%） |
 
 ---
 
@@ -33,9 +33,9 @@
 | **64.2** | `src/trading/` | — | TP/SL例外スワロー排除・リトライ正常化 | ✅ 完了 |
 | **64.3** | `src/trading/` | — | PositionTracker拡張・virtual_positions二重管理解消 | ⏳ 待機 |
 | **64.4** | `src/trading/` | — | デッドコード削除・重複統合・整合性バグ修正 | ✅ 完了 |
-| **64.5** | `src/strategies/` | 6,200行 | 不要コード削除・重複統合・整理 | ⏳ 次 |
-| **64.6** | `src/ml/` | 2,712行 | 不要コード削除・重複統合・整理 | ⏳ 待機 |
-| **64.7** | `src/core/` | 10,237行 | 不要コード削除・重複統合・整理 | ⏳ 待機 |
+| **64.5** | `src/strategies/` | 6,200行 | デッドimport・冗長logger・importパス統一 | ✅ 完了 |
+| **64.6** | `src/ml/` | 2,712行→813行 | 未使用クラス8個削除・ファイル2個削除（-70%） | ✅ 完了 |
+| **64.7** | `src/core/` | 10,237行 | 不要コード削除・重複統合・整理 | ⏳ 次 |
 | **64.8** | `src/data/` `src/features/` `src/backtest/` | 6,728行 | 不要コード削除・重複統合・整理 | ⏳ 待機 |
 
 #### 64.1-64.2 成果（完了）
@@ -57,6 +57,26 @@
 | レイヤー簡素化 | `_verify_and_rebuild_tp_sl` 169行→30行 |
 | tp_sl_manager.py | 1,489行→~1,250行（-240行） |
 
+#### 64.5 成果（完了）
+
+| 項目 | 値 |
+|------|-----|
+| 対象 | `src/strategies/`（20ファイル） |
+| デッドimport削除 | 4件（numpy・Tuple・datetime・get_logger） |
+| 冗長logger再代入削除 | 3件（adx_trend・donchian_channel・bb_reversal） |
+| importパス統一 | 3件（`from ..utils.strategy_utils` → `from ..utils`） |
+
+#### 64.6 成果（完了）
+
+| 項目 | 値 |
+|------|-----|
+| src/ml/ | 2,712行→813行（**-70%**） |
+| 削除ファイル | model_manager.py（337行）・meta_learning.py（669行） |
+| 削除クラス | VotingSystem・EnsembleModel・StackingEnsemble・VotingMethod・ModelManager・MetaLearningWeightOptimizer・MarketRegimeAnalyzer・PerformanceTracker |
+| ml_loader.py | Stacking関連~160行削除・フォールバック3段階→2段階 |
+| trading_cycle_manager.py | Meta-Learning初期化削除・`_get_dynamic_weights`簡素化 |
+| テスト削除 | 4テストファイル削除 |
+
 #### 64.3 作業内容（待機）
 
 **対象**: `src/trading/` — PositionTracker拡張
@@ -69,32 +89,17 @@
 - 取引ロジックの変更
 - 新機能追加
 
-#### 64.5 作業内容（次回）
+#### 64.7 作業内容（次回）
 
-**対象**: `src/strategies/`（6,200行・16ファイル）
-
-**やること**:
-- 不要な戦略コード・無効化された戦略の削除
-- strategy_utils.py（939行）の重複ロジック統合
-- 各戦略ファイルの共通パターン抽出・簡素化
-
-**やらないこと**:
-- 戦略ロジックの変更（バックテスト結果に影響する変更は禁止）
-- 新戦略の追加
-- ドキュメントの大規模整理
-
-#### 64.6 作業内容
-
-**対象**: `src/ml/`（2,712行・5ファイル）
+**対象**: `src/core/`（10,237行）
 
 **やること**:
-- 無効化されたStacking関連コードの削除
-- モデルローダーの簡素化
-- 不要なフォールバック分岐の整理
+- 不要コード削除・重複統合・責務整理
+- orchestration/・config/・services/の監査
 
 **やらないこと**:
-- モデル構成の変更
-- 予測ロジックの変更
+- システムフローの変更
+- 新機能追加
 
 ---
 
@@ -286,4 +291,4 @@ gcloud run services describe crypto-bot-service-prod \
 
 ---
 
-**最終更新**: 2026年2月16日 - Phase 64進行中（64.1-64.2, 64.4完了・src/全体リファクタリング）
+**最終更新**: 2026年2月17日 - Phase 64進行中（64.1-64.2, 64.4-64.6完了・src/全体リファクタリング）

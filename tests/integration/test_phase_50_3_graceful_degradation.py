@@ -87,12 +87,9 @@ class TestMLLoader2StageGracefulDegradation:
         loader = MLModelLoader(logger=logger)
 
         # 全てのモデルファイルが存在しないことをシミュレート
-        # Phase 59.8: Stackingも含めて全てのモデルをモック
-        with patch.object(loader, "_is_stacking_enabled", return_value=False):
-            with patch.object(loader, "_load_stacking_ensemble", return_value=False):
-                with patch.object(loader, "_load_production_ensemble", return_value=False):
-                    with patch.object(loader, "_load_from_individual_models", return_value=False):
-                        model = loader.load_model_with_priority(feature_count=60)
+        with patch.object(loader, "_load_production_ensemble", return_value=False):
+            with patch.object(loader, "_load_from_individual_models", return_value=False):
+                model = loader.load_model_with_priority(feature_count=60)
 
         # ダミーモデルにフォールバック
         assert model is not None
@@ -106,9 +103,7 @@ class TestMLLoader2StageGracefulDegradation:
         model_info = loader.get_model_info()
 
         assert "feature_level" in model_info
-        # Phase 59.8: stacking, full, basic, unknownのいずれか
         assert model_info["feature_level"] in [
-            "stacking",
             "full",
             "basic",
             "unknown",

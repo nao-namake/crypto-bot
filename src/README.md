@@ -26,8 +26,7 @@ src/
 │   └── utils/                         # 戦略共通処理
 ├── ml/                           # 機械学習システム
 │   ├── models.py                      # 個別MLモデル実装
-│   ├── ensemble.py                    # ProductionEnsemble・3モデル統合
-│   └── model_manager.py               # モデル管理・週次学習対応
+│   └── ensemble.py                    # ProductionEnsemble・3モデル統合
 ├── trading/                      # 取引実行・リスク管理層 → [詳細](trading/README.md)
 │   ├── risk_manager.py                # 統合リスク管理・Kelly基準・TP/SL
 │   ├── position_manager.py            # ポジション管理・仮想ポジション
@@ -126,7 +125,6 @@ src/
 **主要モジュール**:
 - `models.py`: 個別MLモデル実装（LightGBM・XGBoost・RandomForest）
 - `ensemble.py`: ProductionEnsemble・3モデル統合（LightGBM 40%・XGBoost 40%・RandomForest 20%）
-- `model_manager.py`: モデル管理・バージョニング・週次学習対応
 
 **Phase 41.8 Strategy-Aware ML**:
 - **55特徴量学習**: 50基本特徴量 + 5戦略信号特徴量

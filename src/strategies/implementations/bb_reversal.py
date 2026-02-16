@@ -21,10 +21,9 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from ...core.config.threshold_manager import get_threshold
-from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils.strategy_utils import EntryAction, SignalBuilder, StrategyType
+from ..utils import EntryAction, SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="BBReversal", strategy_type=StrategyType.BB_REVERSAL)
@@ -91,7 +90,6 @@ class BBReversalStrategy(StrategyBase):
         merged_config = {**default_config, **(config or {})}
         super().__init__(name="BBReversal", config=merged_config)
 
-        self.logger = get_logger()
         self.logger.info(
             f"BBReversal戦略初期化: BB幅閾値={self.config['bb_width_threshold']}, "
             f"ADX閾値={self.config['adx_range_threshold']}, "

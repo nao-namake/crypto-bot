@@ -1,6 +1,6 @@
 # Crypto-Bot - AI自動取引システム
 
-**Phase 64進行中（64.1-64.2, 64.4完了）・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
+**Phase 64進行中（64.1-64.2, 64.4-64.6完了）・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
@@ -98,8 +98,8 @@ AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取�
 - **動的戦略選択**: レジーム別重みづけ自動適用（2票ルール無効化）
 - **55特徴量**: 49基本 + 6戦略シグナル
 - **真の3クラス分類**: BUY / HOLD / SELL直接予測
-- **ProductionEnsemble**: LightGBM 40% / XGBoost 40% / RandomForest 20%（Stacking無効）
-- **4段階Graceful Degradation**: Stacking無効 → ensemble_full.pkl → ensemble_basic.pkl → DummyModel
+- **ProductionEnsemble**: LightGBM 40% / XGBoost 40% / RandomForest 20%
+- **2段階Graceful Degradation**: ensemble_full.pkl（55特徴量） → ensemble_basic.pkl（49特徴量） → DummyModel
 
 ### リスク管理
 
@@ -227,10 +227,14 @@ config/core/
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
 | **64.3** | PositionTracker拡張 — virtual_positions二重管理解消 | ⏳ 待機 |
 | **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
+| **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
+| **64.6** | `src/ml/`フォルダ監査・クリーンアップ（-70%削減） | ✅ 完了 |
 
 **64.1成果**: executor.py -33%（1,943→1,297行）、stop_manager.py -30%（2,177→1,525行）
 **64.2成果**: 例外スワロー排除・リトライ正常化・ゾンビエントリ防止
 **64.4成果**: デッドコード5件削除・重複4箇所統合・整合性バグ2件修正（tp_sl_manager.py -240行）
+**64.5成果**: デッドimport4件・冗長logger3件削除・importパス統一
+**64.6成果**: src/ml/ 2,712行→813行（未使用クラス8個・ファイル2個削除・Stacking完全除去）
 
 ### Phase 63（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
 
@@ -307,4 +311,4 @@ config/core/
 
 ---
 
-**最終更新**: 2026年2月16日 - **Phase 64進行中**（64.1-64.2, 64.4完了・64.3待機）
+**最終更新**: 2026年2月17日 - **Phase 64進行中**（64.1-64.2, 64.4-64.6完了・64.3待機）

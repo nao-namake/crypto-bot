@@ -41,7 +41,6 @@ class StrategyType:
     """戦略タイプ定数 - Phase 51.5-A: 3戦略構成 + Phase 51.7: 3戦略追加."""
 
     ATR_BASED = "atr_based"
-    BOLLINGER_BANDS = "bollinger_bands"
     DONCHIAN_CHANNEL = "donchian_channel"
     ADX_TREND = "adx_trend"
     BB_REVERSAL = "bb_reversal"  # Phase 51.7 Day 3: BB Reversal strategy
@@ -584,44 +583,6 @@ class RiskManager:
         except Exception:
             return None
 
-    @staticmethod
-    def validate_risk_parameters(config: Dict[str, Any]) -> bool:
-        """
-        リスクパラメータの妥当性確認
-
-        Args:
-            config: 戦略設定
-
-        Returns:
-            パラメータが妥当かどうか
-        """
-        logger = get_logger()
-
-        try:
-            # 必須パラメータ確認
-            stop_loss_multiplier = config.get("stop_loss_atr_multiplier", 0)
-            take_profit_ratio = config.get("take_profit_ratio", 0)
-            position_size_base = config.get("position_size_base", 0)
-
-            # 範囲チェック
-            if not (0.5 <= stop_loss_multiplier <= 5.0):
-                logger.warning(f"stop_loss_atr_multiplier範囲外: {stop_loss_multiplier}")
-                return False
-
-            if not (1.0 <= take_profit_ratio <= 10.0):
-                logger.warning(f"take_profit_ratio範囲外: {take_profit_ratio}")
-                return False
-
-            if not (0.001 <= position_size_base <= 0.1):
-                logger.warning(f"position_size_base範囲外: {position_size_base}")
-                return False
-
-            return True
-
-        except Exception as e:
-            logger.error(f"リスクパラメータ検証エラー: {e}")
-            return False
-
 
 # === シグナル生成クラス ===
 
@@ -816,27 +777,6 @@ class SignalBuilder:
             reason=reason,
             metadata={"strategy_type": strategy_type},
         )
-
-    @staticmethod
-    def _get_current_atr(df: pd.DataFrame) -> Optional[float]:
-        """
-        現在のATR値取得
-
-        Args:
-            df: 市場データ
-
-        Returns:
-            ATR値（None if 取得失敗）
-        """
-        try:
-            if "atr_14" not in df.columns or len(df) == 0:
-                return None
-
-            atr_value = float(df["atr_14"].iloc[-1])
-            return atr_value if atr_value > 0 else None
-
-        except Exception:
-            return None
 
     @staticmethod
     def _calculate_dynamic_position_size(

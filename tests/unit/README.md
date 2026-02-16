@@ -35,17 +35,14 @@ tests/unit/
 │   └── ...
 ├── features/                    # 特徴量システムテスト（21テスト）
 │   └── test_feature_generator.py    # 55特徴量対応
-├── ml/                          # 機械学習システムテスト（168テスト）
+├── ml/                          # 機械学習システムテスト
 │   ├── models/                     # 個別モデルテスト
 │   │   ├── test_lgb_model.py
 │   │   ├── test_rf_model.py
 │   │   └── test_xgb_model.py
 │   ├── production/                 # 本番モデルテスト
 │   │   └── test_ensemble.py
-│   ├── test_ensemble_model.py
-│   ├── test_ml_integration.py
-│   ├── test_model_manager.py
-│   └── test_voting_system.py
+│   └── test_ml_integration.py
 ├── monitoring/                  # 監視システムテスト（28テスト）
 │   └── test_discord_client.py
 ├── services/                    # サービステスト（57テスト）

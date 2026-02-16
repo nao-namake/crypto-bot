@@ -6,8 +6,6 @@ Phase 61: ML検証統合スクリプト
 - Phase 54.7: validate_model_performance.py
 - Phase 54.8: validate_ml_prediction_distribution.py
 - Phase 51.5-A/55.7: validate_model_consistency.py
-- Phase 59.8: Stacking検証追加
-
 検証項目:
 1. モデルファイル整合性
 2. 特徴量数整合性
@@ -16,7 +14,6 @@ Phase 61: ML検証統合スクリプト
 5. 予測分布検証
 6. 信頼度統計
 7. 個別モデル性能
-8. Stackingモデル検証（Phase 59.8追加）
 
 使用方法:
     # 全検証
@@ -334,136 +331,6 @@ class MLModelValidator:
         else:
             self.warnings.append(f"⚠️  予期しないクラス数: {n_classes}")
 
-    def validate_stacking_model(self) -> None:
-        """Phase 59.8: Stackingモデル検証"""
-        print("\n" + "=" * 60)
-        print("🔬 Phase 59.8: Stackingモデル検証")
-        print("=" * 60)
-
-        if not self.feature_order_data:
-            return
-
-        # feature_order.jsonからStacking定義確認
-        stacking_info = self.feature_order_data.get("feature_levels", {}).get("stacking", {})
-
-        if not stacking_info:
-            print("\nℹ️  Stackingレベル定義がfeature_order.jsonにありません")
-            print("   → stacking_enabled=false時は正常")
-            return
-
-        print(f"\n🎯 Stacking定義 (feature_order.json):")
-        print(f"   特徴量数: {stacking_info.get('count', 'unknown')}")
-        print(f"   モデルファイル: {stacking_info.get('model_file', 'unknown')}")
-        print(f"   Meta-Learnerファイル: {stacking_info.get('meta_learner_file', 'unknown')}")
-        print(f"   Phase: {stacking_info.get('phase', 'unknown')}")
-
-        # モデルファイル存在確認
-        stacking_file = stacking_info.get("model_file", "stacking_ensemble.pkl")
-        meta_file = stacking_info.get("meta_learner_file", "meta_learner.pkl")
-
-        stacking_path = self.project_root / f"models/production/{stacking_file}"
-        meta_path = self.project_root / f"models/production/{meta_file}"
-
-        if stacking_path.exists():
-            print(f"\n✅ {stacking_file} 存在確認")
-            print(f"   サイズ: {stacking_path.stat().st_size / 1024 / 1024:.2f} MB")
-
-            # Stackingモデルのロードテスト
-            try:
-                with open(stacking_path, "rb") as f:
-                    stacking_model = pickle.load(f)
-
-                if hasattr(stacking_model, "predict") and hasattr(stacking_model, "predict_proba"):
-                    print(f"   predict/predict_proba: ✅ 存在")
-                else:
-                    self.errors.append("❌ Stackingモデルに必須メソッドが不足")
-
-                if hasattr(stacking_model, "meta_model"):
-                    print(f"   meta_model: ✅ 存在")
-                else:
-                    print(f"   meta_model: ⚠️  内蔵Meta-Learner不存在（外部ファイル使用）")
-
-                if hasattr(stacking_model, "stacking_enabled"):
-                    print(f"   stacking_enabled: {stacking_model.stacking_enabled}")
-
-                # Phase 59.8: 特徴量数整合性チェック（重要）
-                stacking_n_features = None
-                # StackingEnsembleはn_features_属性を直接持つ
-                if hasattr(stacking_model, "n_features_"):
-                    stacking_n_features = stacking_model.n_features_
-                elif hasattr(stacking_model, "models"):
-                    # フォールバック: ベースモデルから取得
-                    for model_name, base_model in stacking_model.models.items():
-                        if hasattr(base_model, "n_features_in_"):
-                            stacking_n_features = base_model.n_features_in_
-                            break
-
-                if stacking_n_features:
-                    print(f"   n_features_in_: {stacking_n_features}")
-                    expected_features = stacking_info.get("count", 55)
-
-                    # ensemble_full.pklとの比較
-                    full_path = self.project_root / "models/production/ensemble_full.pkl"
-                    if full_path.exists():
-                        with open(full_path, "rb") as f:
-                            full_model = pickle.load(f)
-                        full_n_features = None
-                        if hasattr(full_model, "models"):
-                            for _, base_model in full_model.models.items():
-                                if hasattr(base_model, "n_features_in_"):
-                                    full_n_features = base_model.n_features_in_
-                                    break
-
-                        if full_n_features and stacking_n_features != full_n_features:
-                            self.errors.append(
-                                f"❌ 特徴量数不一致: Stacking({stacking_n_features}) != Full({full_n_features}) "
-                                f"→ Stackingモデル再訓練が必要"
-                            )
-                            print(f"   ⛔ 特徴量不一致: {stacking_n_features} != {full_n_features}")
-                        elif full_n_features:
-                            print(
-                                f"   ✅ 特徴量一致: Stacking={stacking_n_features}, Full={full_n_features}"
-                            )
-
-                    if stacking_n_features != expected_features:
-                        self.warnings.append(
-                            f"⚠️  Stacking特徴量数が設定と不一致: 実際={stacking_n_features}, 期待={expected_features}"
-                        )
-                else:
-                    self.warnings.append("⚠️  Stackingモデルの特徴量数を取得できませんでした")
-
-            except Exception as e:
-                self.errors.append(f"❌ Stackingモデルロードエラー: {e}")
-        else:
-            print(f"\nℹ️  {stacking_file} 未検出")
-            print("   → Stackingモデル未訓練（stacking_enabled=false時は正常）")
-
-        if meta_path.exists():
-            print(f"\n✅ {meta_file} 存在確認")
-            print(f"   サイズ: {meta_path.stat().st_size / 1024:.2f} KB")
-        else:
-            print(f"\nℹ️  {meta_file} 未検出")
-
-        # thresholds.yamlからstacking_enabled確認
-        try:
-            import yaml
-
-            thresholds_path = self.project_root / "config/core/thresholds.yaml"
-            if thresholds_path.exists():
-                with open(thresholds_path, "r", encoding="utf-8") as f:
-                    thresholds = yaml.safe_load(f)
-
-                stacking_enabled = thresholds.get("ensemble", {}).get("stacking_enabled", False)
-                print(f"\n🎯 thresholds.yaml設定:")
-                print(f"   ensemble.stacking_enabled: {stacking_enabled}")
-
-                if stacking_enabled and not stacking_path.exists():
-                    self.errors.append("❌ stacking_enabled=trueだがStackingモデルが存在しません")
-        except Exception as e:
-            self.warnings.append(f"⚠️  thresholds.yaml読み込みエラー: {e}")
-
-        print(f"\n✅ Stackingモデル検証完了")
-
     # ========================================
     # 予測分布検証（distribution）
     # ========================================
@@ -688,7 +555,6 @@ class MLModelValidator:
         self.validate_model_files()
         self.validate_model_difference()
         self.validate_n_classes()
-        self.validate_stacking_model()  # Phase 59.8追加
 
     def run_distribution(self) -> None:
         """予測分布検証を実行"""
