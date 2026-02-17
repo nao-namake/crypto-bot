@@ -175,6 +175,97 @@ class TestExecutionServiceInjection:
         assert service.order_strategy is existing_strategy
 
 
+class TestPhase643SingleSource:
+    """Phase 64.3: virtual_positions単一ソース化テスト"""
+
+    def test_virtual_positions_property_returns_tracker_list(self):
+        """inject_services後、virtual_positionsはtracker.virtual_positionsと同一オブジェクト"""
+        from src.trading.position.tracker import PositionTracker
+
+        service = ExecutionService(mode="paper")
+        tracker = PositionTracker()
+        service.inject_services(position_tracker=tracker)
+
+        assert service.virtual_positions is tracker.virtual_positions
+
+    def test_virtual_positions_fallback_without_tracker(self):
+        """tracker未注入時はfallbackリストを返す"""
+        service = ExecutionService(mode="paper")
+
+        assert isinstance(service.virtual_positions, list)
+        service.virtual_positions.append({"order_id": "test"})
+        assert len(service.virtual_positions) == 1
+
+    def test_change_propagation_tracker_to_executor(self):
+        """tracker経由の追加がexecutor経由でも見える"""
+        from src.trading.position.tracker import PositionTracker
+
+        service = ExecutionService(mode="paper")
+        tracker = PositionTracker()
+        service.inject_services(position_tracker=tracker)
+
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0)
+
+        assert len(service.virtual_positions) == 1
+        assert service.virtual_positions[0]["order_id"] == "order_1"
+
+    def test_change_propagation_executor_to_tracker(self):
+        """executor経由の追加がtracker経由でも見える"""
+        from src.trading.position.tracker import PositionTracker
+
+        service = ExecutionService(mode="paper")
+        tracker = PositionTracker()
+        service.inject_services(position_tracker=tracker)
+
+        service.virtual_positions.append(
+            {"order_id": "order_2", "side": "sell", "amount": 0.002, "price": 14500000.0}
+        )
+
+        assert len(tracker.virtual_positions) == 1
+        assert tracker.virtual_positions[0]["order_id"] == "order_2"
+
+    def test_fallback_migration_on_inject(self):
+        """injection前に追加されたデータがinjection後も保持される"""
+        from src.trading.position.tracker import PositionTracker
+
+        service = ExecutionService(mode="paper")
+
+        # tracker注入前にデータ追加
+        service.virtual_positions.append(
+            {"order_id": "pre_inject", "side": "buy", "amount": 0.001, "price": 14000000.0}
+        )
+        assert len(service.virtual_positions) == 1
+
+        # tracker注入 → fallbackデータが移行される
+        tracker = PositionTracker()
+        service.inject_services(position_tracker=tracker)
+
+        assert len(service.virtual_positions) == 1
+        assert service.virtual_positions[0]["order_id"] == "pre_inject"
+        assert len(tracker.virtual_positions) == 1
+
+    def test_in_place_update_via_setter(self):
+        """list再代入がin-place更新として動作する"""
+        from src.trading.position.tracker import PositionTracker
+
+        service = ExecutionService(mode="paper")
+        tracker = PositionTracker()
+        service.inject_services(position_tracker=tracker)
+
+        # 初期データ追加
+        tracker.add_position("order_1", "buy", 0.001, 14000000.0)
+        tracker.add_position("order_2", "sell", 0.002, 14500000.0)
+
+        # setterでフィルタリング（[:]=に変換される）
+        service.virtual_positions = [
+            p for p in service.virtual_positions if p["order_id"] != "order_1"
+        ]
+
+        # trackerのリストも更新されている
+        assert len(tracker.virtual_positions) == 1
+        assert tracker.virtual_positions[0]["order_id"] == "order_2"
+
+
 class TestExecuteTradeHoldSignal:
     """holdシグナル処理テスト"""
 

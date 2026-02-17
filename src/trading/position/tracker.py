@@ -38,6 +38,10 @@ class PositionTracker:
         strategy_name: str = "unknown",
         tp_order_id: Optional[str] = None,
         sl_order_id: Optional[str] = None,
+        sl_placed_at: Optional[str] = None,
+        restored: bool = False,
+        adjusted_confidence: Optional[float] = None,
+        timestamp: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         ポジションを追加
@@ -52,6 +56,10 @@ class PositionTracker:
             strategy_name: 戦略名
             tp_order_id: TP注文ID
             sl_order_id: SL注文ID
+            sl_placed_at: SL配置時刻 (Phase 64.3)
+            restored: 復元フラグ (Phase 64.3)
+            adjusted_confidence: 調整済み信頼度 (Phase 64.3)
+            timestamp: タイムスタンプ (Phase 64.3, デフォルト: datetime.now())
 
         Returns:
             追加されたポジション情報
@@ -61,7 +69,7 @@ class PositionTracker:
             "side": side,
             "amount": amount,
             "price": price,
-            "timestamp": datetime.now(),
+            "timestamp": timestamp or datetime.now(),
             "take_profit": take_profit,
             "stop_loss": stop_loss,
             "strategy_name": strategy_name,
@@ -72,6 +80,14 @@ class PositionTracker:
             position["tp_order_id"] = tp_order_id
         if sl_order_id:
             position["sl_order_id"] = sl_order_id
+
+        # Phase 64.3: 追加フィールド（条件付き）
+        if sl_placed_at:
+            position["sl_placed_at"] = sl_placed_at
+        if restored:
+            position["restored"] = True
+        if adjusted_confidence is not None:
+            position["adjusted_confidence"] = adjusted_confidence
 
         self.virtual_positions.append(position)
 

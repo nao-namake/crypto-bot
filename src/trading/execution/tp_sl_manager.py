@@ -688,12 +688,13 @@ class TPSLManager:
             try:
                 exit_side = "sell" if entry_side == "buy" else "buy"
                 close_order = await asyncio.to_thread(
-                    bitbank_client.create_margin_order,
+                    bitbank_client.create_order,
                     symbol=symbol,
                     order_type="market",
                     side=exit_side,
                     amount=amount,
-                    position_side=position_side,
+                    is_closing_order=True,
+                    entry_position_side=position_side,
                 )
                 return {"order_id": f"market_close_{close_order.get('id', 'unknown')}"}
             except Exception as e:

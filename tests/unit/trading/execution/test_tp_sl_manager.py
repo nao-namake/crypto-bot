@@ -697,7 +697,7 @@ class TestPhase643SLBreachMarketClose:
         mock_client = MagicMock()
         # SL超過: avg_price=10,000,000, SL=9,930,000, 現在価格=9,900,000
         mock_client.fetch_ticker = MagicMock(return_value={"last": 9900000.0})
-        mock_client.create_margin_order = MagicMock(return_value={"id": "market_123"})
+        mock_client.create_order = MagicMock(return_value={"id": "market_123"})
 
         virtual_positions = []
         await tp_sl_manager._place_missing_tp_sl(
@@ -711,10 +711,12 @@ class TestPhase643SLBreachMarketClose:
         )
 
         # 成行決済が呼ばれた
-        mock_client.create_margin_order.assert_called_once()
-        call_kwargs = mock_client.create_margin_order.call_args
+        mock_client.create_order.assert_called_once()
+        call_kwargs = mock_client.create_order.call_args
         assert call_kwargs[1]["order_type"] == "market"
         assert call_kwargs[1]["side"] == "sell"
+        assert call_kwargs[1]["is_closing_order"] is True
+        assert call_kwargs[1]["entry_position_side"] == "long"
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_sl_not_breached_places_normal_sl(self, mock_threshold, tp_sl_manager):
@@ -753,5 +755,5 @@ class TestPhase643SLBreachMarketClose:
         )
 
         # 成行決済ではなくplace_stop_loss経由のcreate_stop_loss_orderが呼ばれた
-        mock_client.create_margin_order.assert_not_called()
+        mock_client.create_order.assert_not_called()
         mock_client.create_stop_loss_order.assert_called_once()

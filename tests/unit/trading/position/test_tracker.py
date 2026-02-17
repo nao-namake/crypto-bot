@@ -1321,3 +1321,124 @@ class TestMultipleOperationsIntegration:
         avg4 = tracker.update_average_on_exit(amount=0.001)
         assert avg4 == 0.0
         assert tracker._total_position_size == 0.0
+
+
+# ========================================
+# Phase 64.3: add_position() 新パラメータテスト
+# ========================================
+
+
+class TestAddPositionPhase643:
+    """Phase 64.3: add_position() 拡張パラメータのテスト"""
+
+    def test_add_position_with_sl_placed_at(self, tracker):
+        """sl_placed_at付きポジション追加"""
+        result = tracker.add_position(
+            order_id="order_sl_time",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+            sl_placed_at="2026-02-18T00:00:00",
+        )
+
+        assert result["sl_placed_at"] == "2026-02-18T00:00:00"
+
+    def test_add_position_with_restored_flag(self, tracker):
+        """restored=True付きポジション追加"""
+        result = tracker.add_position(
+            order_id="order_restored",
+            side="sell",
+            amount=0.002,
+            price=14500000.0,
+            restored=True,
+        )
+
+        assert result["restored"] is True
+
+    def test_add_position_restored_false_not_added(self, tracker):
+        """restored=False（デフォルト）の場合、restoredフィールドは追加されない"""
+        result = tracker.add_position(
+            order_id="order_normal",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+        )
+
+        assert "restored" not in result
+
+    def test_add_position_with_adjusted_confidence(self, tracker):
+        """adjusted_confidence付きポジション追加"""
+        result = tracker.add_position(
+            order_id="order_conf",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+            adjusted_confidence=0.75,
+        )
+
+        assert result["adjusted_confidence"] == 0.75
+
+    def test_add_position_adjusted_confidence_zero(self, tracker):
+        """adjusted_confidence=0.0もフィールドに追加される"""
+        result = tracker.add_position(
+            order_id="order_zero_conf",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+            adjusted_confidence=0.0,
+        )
+
+        assert result["adjusted_confidence"] == 0.0
+
+    def test_add_position_with_custom_timestamp(self, tracker):
+        """カスタムtimestamp付きポジション追加"""
+        custom_ts = datetime(2026, 1, 15, 12, 0, 0)
+        result = tracker.add_position(
+            order_id="order_ts",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+            timestamp=custom_ts,
+        )
+
+        assert result["timestamp"] == custom_ts
+
+    def test_add_position_default_timestamp(self, tracker):
+        """timestampなし（デフォルト: datetime.now()）"""
+        before = datetime.now()
+        result = tracker.add_position(
+            order_id="order_default_ts",
+            side="buy",
+            amount=0.001,
+            price=14000000.0,
+        )
+        after = datetime.now()
+
+        assert before <= result["timestamp"] <= after
+
+    def test_add_position_all_new_params(self, tracker):
+        """全新パラメータ同時指定"""
+        custom_ts = datetime(2026, 2, 18, 6, 0, 0)
+        result = tracker.add_position(
+            order_id="order_full",
+            side="sell",
+            amount=0.003,
+            price=14200000.0,
+            take_profit=14000000.0,
+            stop_loss=14400000.0,
+            strategy_name="BBReversal",
+            tp_order_id="tp_full",
+            sl_order_id="sl_full",
+            sl_placed_at="2026-02-18T06:00:00",
+            restored=True,
+            adjusted_confidence=0.82,
+            timestamp=custom_ts,
+        )
+
+        assert result["sl_placed_at"] == "2026-02-18T06:00:00"
+        assert result["restored"] is True
+        assert result["adjusted_confidence"] == 0.82
+        assert result["timestamp"] == custom_ts
+        assert result["tp_order_id"] == "tp_full"
+        assert result["sl_order_id"] == "sl_full"
+        assert len(tracker.virtual_positions) == 1

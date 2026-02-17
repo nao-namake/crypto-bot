@@ -1,7 +1,7 @@
 # Phase 64: TP/SLシンプル化 + システム全体整理
 
 **期間**: 2026年2月14日〜（進行中）
-**状態**: 🔄 Phase 64.1-64.2, 64.4-64.6完了、64.3待機
+**状態**: 🔄 Phase 64.1-64.6完了
 **目的**: TP/SLロジックの過度な複雑性を整理し、設置不具合の根本原因を解消する
 
 ---
@@ -12,7 +12,7 @@
 |-------|------|------|
 | **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
 | **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
-| **64.3** | virtual_positions二重管理解消 | ⏳ 待機 |
+| **64.3** | virtual_positions二重管理解消（property化・単一ソース化） | ✅ 完了 |
 | **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
 | **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
 | **64.6** | `src/ml/`フォルダ監査・クリーンアップ | ✅ 完了 |
@@ -114,7 +114,7 @@ flake8 / black / isort: 全PASS ✅
 | **例外スワロー** | `place_take_profit()`が例外catchして`None`返却→リトライ失敗と区別不能 | 64.2 | ✅ 解決 |
 | **リトライ無効** | `place_tp_with_retry()`がNoneをretryせず3回空回り | 64.2 | ✅ 解決 |
 | **ゾンビエントリ** | TP/SL配置失敗でもvirtual_positionsにNoneエントリ追加 | 64.2 | ✅ 解決 |
-| **virtual_positions二重管理** | executor.virtual_positionsとposition_trackerの乖離 | 64.3 | ⏳ 未着手 |
+| **virtual_positions二重管理** | executor.virtual_positionsとposition_trackerの乖離 | 64.3 | ✅ 解決 |
 
 ---
 
@@ -224,6 +224,203 @@ After:  配置失敗 → 例外 → continue → 追加しない → 30分後の
 ```
 全テスト: 2,065 passed, 1 skipped ✅
 カバレッジ: 72.54% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
+
+---
+
+## Phase 64.3: virtual_positions二重管理解消（✅完了）
+
+**実施日**: 2026年2月18日
+**方針**: `ExecutionService.virtual_positions`をPython propertyに変換し、`PositionTracker.virtual_positions`を単一ソースにする。全コンポーネントが同一listオブジェクトを操作する状態にする。
+
+### 背景
+
+`ExecutionService.virtual_positions`（プレーンlist）と`PositionTracker.virtual_positions`（ラッパー付きlist）が別々のlistオブジェクトとして存在。手動同期が必要だが、以下6箇所で同期漏れが発生していた：
+
+| 同期漏れ箇所 | ファイル | 操作 |
+|-------------|---------|------|
+| Container再起動復元 | position_restorer.py | `virtual_positions.append(...)` |
+| 孤児復旧(TP/SL既存) | position_restorer.py | `virtual_positions.append(...)` |
+| 孤児復旧(TP/SL配置) | position_restorer.py | `virtual_positions.append(...)` |
+| TP/SL復旧 | tp_sl_manager.py | `virtual_positions.append(...)` |
+| TP/SL注文ID更新 | executor.py | `live_position["tp_order_id"] = ...` |
+| 部分約定量更新 | executor.py | `vp["amount"] = partial_filled` |
+
+**影響**: PositionTrackerのクエリメソッド（`find_position`, `get_position_count`等）が実態と乖離。将来的なバグの温床。
+
+### 実施内容（5ステップ）
+
+| Step | 内容 | 変更ファイル |
+|------|------|------------|
+| 1 | `add_position()`パラメータ拡張（sl_placed_at, restored, adjusted_confidence, timestamp） | tracker.py |
+| 2 | `virtual_positions`をproperty化（PositionTracker単一ソース + fallback） | executor.py |
+| 3 | list再代入を`[:]=`に変更（3箇所） | executor.py |
+| 4 | 二重追加パターン統一（live/paper/backtest + 部分約定 + ロールバック） | executor.py |
+| 5 | テスト追加（tracker新パラメータ8件 + 単一ソース検証6件） | test_tracker.py, test_executor.py |
+
+### Step 1: PositionTracker.add_position()パラメータ拡張
+
+復元・復旧時に必要なフィールドを`add_position()`で受け付けるように拡張（全パラメータOptional、既存呼出に影響なし）：
+
+| パラメータ | 型 | 用途 |
+|-----------|-----|------|
+| `sl_placed_at` | `Optional[str]` | SL配置時刻（タイムアウトチェック用） |
+| `restored` | `bool` | 復元フラグ（Container再起動復元の識別） |
+| `adjusted_confidence` | `Optional[float]` | 調整済み信頼度（Phase 59.3） |
+| `timestamp` | `Optional[datetime]` | タイムスタンプ（バックテスト時刻対応） |
+
+### Step 2: virtual_positions property化
+
+```python
+# Before:
+self.virtual_positions = []  # executor独自のlist
+
+# After:
+self._virtual_positions_fallback = []  # tracker注入前の一時保管
+
+@property
+def virtual_positions(self):
+    if self.position_tracker is not None:
+        return self.position_tracker.virtual_positions  # 単一ソース
+    return self._virtual_positions_fallback
+
+@virtual_positions.setter
+def virtual_positions(self, value):
+    if self.position_tracker is not None:
+        self.position_tracker.virtual_positions[:] = value  # in-place更新
+    else:
+        self._virtual_positions_fallback = value
+```
+
+`inject_services()`でtracker注入時にfallbackデータを自動移行：
+
+```python
+if position_tracker:
+    if self._virtual_positions_fallback:
+        position_tracker.virtual_positions.extend(self._virtual_positions_fallback)
+        self._virtual_positions_fallback.clear()
+    self.position_tracker = position_tracker
+```
+
+### Step 3: list再代入を`[:]=`に変更
+
+意図を明確にするため、3箇所のlist再代入をin-place更新に変更：
+
+| 箇所 | Before | After |
+|------|--------|-------|
+| ロールバック削除 | `self.virtual_positions = [p for p in ...]` | `self.virtual_positions[:] = [...]` |
+| 整合性クリーンアップ | `self.virtual_positions = [v for v in ...]` | `self.virtual_positions[:] = [...]` |
+| 自動執行削除 | `self.virtual_positions = [p for p in ...]` | `self.virtual_positions[:] = [...]` |
+
+### Step 4: 二重追加パターン統一
+
+propertyにより同一listのため、「direct append + position_tracker.add_position()」の二重追加を解消：
+
+#### ライブエントリー
+
+```python
+# Before: 手動dict作成→append→後でtracker.add_position()（二重追加）
+live_position = {...}
+self.virtual_positions.append(live_position)
+# ... 後で:
+if self.position_tracker:
+    self.position_tracker.add_position(...)
+
+# After: tracker経由で一元追加
+if self.position_tracker:
+    live_position = self.position_tracker.add_position(
+        order_id=..., side=..., amount=..., price=...,
+        take_profit=..., stop_loss=...,
+    )
+else:
+    live_position = {...}
+    self.virtual_positions.append(live_position)
+```
+
+#### ペーパー・バックテストエントリー
+
+同様パターン。`position_tracker.add_position()`に`strategy_name`, `adjusted_confidence`, `timestamp`を渡すよう統一。try/exceptでエラー時のfallbackも確保。
+
+#### 部分約定更新
+
+```python
+# Before: 直接ループ更新 + tracker remove/add（二重操作）
+for vp in self.virtual_positions:
+    if vp.get("order_id") == result.order_id:
+        vp["amount"] = partial_filled
+if self.position_tracker:
+    self.position_tracker.remove_position(result.order_id)
+    self.position_tracker.add_position(...)
+
+# After: find_position + 直接更新（同一dictオブジェクト）
+if self.position_tracker:
+    pos = self.position_tracker.find_position(result.order_id)
+    if pos:
+        pos["amount"] = partial_filled
+```
+
+#### ロールバック削除
+
+```python
+# Before: listフィルタ + tracker.remove_position()（二重削除）
+self.virtual_positions[:] = [p for p in ... if ...]
+if self.position_tracker:
+    self.position_tracker.remove_position(...)
+
+# After: tracker経由で一元削除
+if self.position_tracker:
+    self.position_tracker.remove_position(result.order_id)
+else:
+    self.virtual_positions[:] = [p for p in ... if ...]
+```
+
+### Step 5: テスト追加
+
+#### tracker.py新パラメータテスト（8件）
+
+| テスト | 検証内容 |
+|--------|---------|
+| `test_add_position_with_sl_placed_at` | sl_placed_atフィールド追加 |
+| `test_add_position_with_restored_flag` | restored=True追加 |
+| `test_add_position_restored_false_not_added` | restored=False時フィールド不在 |
+| `test_add_position_with_adjusted_confidence` | adjusted_confidence追加 |
+| `test_add_position_adjusted_confidence_zero` | 0.0も正常にセット |
+| `test_add_position_with_custom_timestamp` | カスタムtimestamp使用 |
+| `test_add_position_default_timestamp` | デフォルトdatetime.now() |
+| `test_add_position_all_new_params` | 全新パラメータ同時指定 |
+
+#### executor.py単一ソース検証テスト（6件）
+
+| テスト | 検証内容 |
+|--------|---------|
+| `test_virtual_positions_property_returns_tracker_list` | `executor.virtual_positions is tracker.virtual_positions` |
+| `test_virtual_positions_fallback_without_tracker` | tracker未注入時のfallback動作 |
+| `test_change_propagation_tracker_to_executor` | tracker→executor方向の変更伝播 |
+| `test_change_propagation_executor_to_tracker` | executor→tracker方向の変更伝播 |
+| `test_fallback_migration_on_inject` | 注入前データの自動移行 |
+| `test_in_place_update_via_setter` | setterのin-place更新動作 |
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 | 行数変化 |
+|---------|---------|---------|
+| `src/trading/position/tracker.py` | add_position()パラメータ拡張 | +12行 |
+| `src/trading/execution/executor.py` | property化 + 二重パターン統一 | ±40行 |
+| `tests/unit/trading/position/test_tracker.py` | 新パラメータテスト8件 | +95行 |
+| `tests/unit/trading/execution/test_executor.py` | 単一ソース検証テスト6件 | +75行 |
+
+**変更不要（listが共有されるため自動的に動作）**:
+- `src/trading/execution/tp_sl_manager.py` — `virtual_positions.append()`は共有listに反映
+- `src/trading/execution/position_restorer.py` — 同上
+- `src/trading/execution/stop_manager.py` — 参照のみ
+- `src/core/execution/backtest_runner.py` — 参照のみ
+
+### 品質検証
+
+```
+全テスト: 1,966 passed, 1 skipped ✅
+カバレッジ: 72.40% ✅（基準62%+）
 flake8 / black / isort: 全PASS ✅
 ```
 
@@ -646,8 +843,7 @@ src/ml/
 
 1. **Phase 64.7**: `src/core/`フォルダ監査・クリーンアップ（10,237行）
 2. **Phase 64.8**: `src/data/` `src/features/` `src/backtest/`監査・クリーンアップ（6,728行）
-3. **Phase 64.3**: virtual_positions二重管理解消（待機）
 
 ---
 
-**最終更新**: 2026年2月17日 — Phase 64.6完了・src/ml/ 70%削減（2,712行→813行）
+**最終更新**: 2026年2月18日 — Phase 64.3完了・virtual_positions property化・単一ソース化

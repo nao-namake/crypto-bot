@@ -65,8 +65,8 @@ class ExecutionService:
             self.logger.warning(f"⚠️ TradeTracker初期化失敗: {e}")
             self.trade_tracker = None
 
-        # ペーパートレード用
-        self.virtual_positions = []
+        # Phase 64.3: PositionTracker注入前のfallback用
+        self._virtual_positions_fallback: List[Dict[str, Any]] = []
 
         # Phase 29.6: クールダウン管理
         self.last_order_time = None
@@ -116,6 +116,21 @@ class ExecutionService:
         self.position_restorer = PositionRestorer()
 
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
+
+    @property
+    def virtual_positions(self) -> List[Dict[str, Any]]:
+        """Phase 64.3: PositionTrackerのlistを返す（単一ソース化）"""
+        if self.position_tracker is not None:
+            return self.position_tracker.virtual_positions
+        return self._virtual_positions_fallback
+
+    @virtual_positions.setter
+    def virtual_positions(self, value: List[Dict[str, Any]]):
+        """Phase 64.3: list再代入をin-place更新に変換"""
+        if self.position_tracker is not None:
+            self.position_tracker.virtual_positions[:] = value
+        else:
+            self._virtual_positions_fallback = value
 
     async def restore_positions_from_api(self):
         """Phase 63.4: 実ポジションベースの復元（Phase 64: PositionRestorerに委譲）"""
@@ -484,19 +499,29 @@ class ExecutionService:
                 )
                 return result
 
-            # virtual_positionsに追加
-            live_position = {
-                "order_id": result.order_id,
-                "side": side,
-                "amount": actual_amount,
-                "price": actual_filled_price,
-                "timestamp": datetime.now(),
-                "take_profit": final_tp,
-                "stop_loss": final_sl,
-                "tp_order_id": None,  # Phase 50.3.1: TP注文ID追跡用
-                "sl_order_id": None,  # Phase 50.3.1: SL注文ID追跡用
-            }
-            self.virtual_positions.append(live_position)
+            # Phase 64.3: position_tracker経由で追加（単一ソース化）
+            if self.position_tracker:
+                live_position = self.position_tracker.add_position(
+                    order_id=result.order_id,
+                    side=side,
+                    amount=actual_amount,
+                    price=actual_filled_price,
+                    take_profit=final_tp,
+                    stop_loss=final_sl,
+                )
+            else:
+                live_position = {
+                    "order_id": result.order_id,
+                    "side": side,
+                    "amount": actual_amount,
+                    "price": actual_filled_price,
+                    "timestamp": datetime.now(),
+                    "take_profit": final_tp,
+                    "stop_loss": final_sl,
+                    "tp_order_id": None,
+                    "sl_order_id": None,
+                }
+                self.virtual_positions.append(live_position)
 
             # Phase 51.6: 古い注文クリーンアップ（bitbank 30件制限対策）
             if self.position_restorer:
@@ -538,14 +563,7 @@ class ExecutionService:
 
             # Phase 51.6: Atomic Entry Pattern（Entry/TP/SL一体化・全成功 or 全ロールバック）
             if self.stop_manager and final_tp and final_sl:
-                # PositionTrackerに追加（統合ID管理なし）
-                if self.position_tracker:
-                    self.position_tracker.add_position(
-                        order_id=result.order_id,
-                        side=side,
-                        amount=actual_amount,
-                        price=actual_filled_price,
-                    )
+                # Phase 64.3: position_tracker.add_position()はvirtual_positions追加時に実行済み
 
                 # Phase 51.6: Atomic Entry Pattern - TP/SL注文ID初期化
                 tp_order_id = None
@@ -668,24 +686,16 @@ class ExecutionService:
                             f"🚨 Phase 63.3: 部分約定検出 - {partial_filled} BTC残存。"
                             f"TP/SL再配置試行。order_id={result.order_id}"
                         )
-                        # virtual_positionsの量を約定分に更新
-                        for vp in self.virtual_positions:
-                            if vp.get("order_id") == result.order_id:
-                                vp["amount"] = partial_filled
-                                break
-
-                        # PositionTrackerも約定量で更新
+                        # Phase 64.3: virtual_positionsの量を約定分に更新（単一ソース）
                         if self.position_tracker:
-                            try:
-                                self.position_tracker.remove_position(result.order_id)
-                                self.position_tracker.add_position(
-                                    order_id=result.order_id,
-                                    side=side,
-                                    amount=partial_filled,
-                                    price=actual_filled_price,
-                                )
-                            except Exception:
-                                pass
+                            pos = self.position_tracker.find_position(result.order_id)
+                            if pos:
+                                pos["amount"] = partial_filled
+                        else:
+                            for vp in self.virtual_positions:
+                                if vp.get("order_id") == result.order_id:
+                                    vp["amount"] = partial_filled
+                                    break
 
                         # TP/SL再配置試行
                         try:
@@ -751,17 +761,15 @@ class ExecutionService:
                         )
 
                     # 約定なし → 通常のロールバック（従来動作）
-                    # virtual_positionsから削除（不完全なポジション削除）
-                    self.virtual_positions = [
-                        p for p in self.virtual_positions if p.get("order_id") != result.order_id
-                    ]
-
-                    # PositionTrackerからも削除
+                    # Phase 64.3: 単一ソースから削除（listは共有）
                     if self.position_tracker:
-                        try:
-                            self.position_tracker.remove_position(result.order_id)
-                        except Exception:
-                            pass  # 削除失敗は無視
+                        self.position_tracker.remove_position(result.order_id)
+                    else:
+                        self.virtual_positions[:] = [
+                            p
+                            for p in self.virtual_positions
+                            if p.get("order_id") != result.order_id
+                        ]
 
                     # エラー結果返却
                     return ExecutionResult(
@@ -839,7 +847,7 @@ class ExecutionService:
                 status=OrderStatus.FILLED,
             )
 
-            # 仮想ポジション記録（Phase 28: TP/SL価格追加）
+            # Phase 64.3: position_tracker経由で追加（単一ソース化）
             virtual_position = {
                 "order_id": virtual_order_id,
                 "side": side,
@@ -849,27 +857,25 @@ class ExecutionService:
                 "take_profit": getattr(evaluation, "take_profit", None),
                 "stop_loss": getattr(evaluation, "stop_loss", None),
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
-                "adjusted_confidence": getattr(
-                    evaluation, "adjusted_confidence", None
-                ),  # Phase 59.3
+                "adjusted_confidence": getattr(evaluation, "adjusted_confidence", None),
             }
-            self.virtual_positions.append(virtual_position)
-
-            # Phase 46: ペーパートレード - シンプルなポジション追加のみ（統合TP/SL削除）
             if self.position_tracker:
                 try:
-                    self.position_tracker.add_position(
+                    virtual_position = self.position_tracker.add_position(
                         order_id=virtual_order_id,
                         side=side,
                         amount=amount,
                         price=price,
-                    )
-                    self.logger.debug(
-                        f"📊 Phase 46: ペーパーポジション追加 - ID: {virtual_order_id}, "
-                        f"価格: {price:.0f}円, 数量: {amount:.6f} BTC"
+                        take_profit=getattr(evaluation, "take_profit", None),
+                        stop_loss=getattr(evaluation, "stop_loss", None),
+                        strategy_name=getattr(evaluation, "strategy_name", "unknown"),
+                        adjusted_confidence=getattr(evaluation, "adjusted_confidence", None),
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ ペーパーポジション追加エラー: {e}")
+                    self._virtual_positions_fallback.append(virtual_position)
+            else:
+                self.virtual_positions.append(virtual_position)
 
             # 統計更新
             self.executed_trades += 1
@@ -999,6 +1005,7 @@ class ExecutionService:
             # Phase 51.7: 仮想ポジション記録（TP/SL価格追加 - ライブモード一致化）
             # Phase 56.3: バックテスト時はcurrent_time使用
             trade_timestamp = self.current_time if self.current_time else datetime.now()
+            # Phase 64.3: position_tracker経由で追加（単一ソース化）
             virtual_position = {
                 "order_id": virtual_order_id,
                 "side": side,
@@ -1008,28 +1015,26 @@ class ExecutionService:
                 "take_profit": getattr(evaluation, "take_profit", None),
                 "stop_loss": getattr(evaluation, "stop_loss", None),
                 "strategy_name": getattr(evaluation, "strategy_name", "unknown"),
-                "adjusted_confidence": getattr(
-                    evaluation, "adjusted_confidence", None
-                ),  # Phase 59.3: バックテスト用
+                "adjusted_confidence": getattr(evaluation, "adjusted_confidence", None),
             }
-            self.virtual_positions.append(virtual_position)
-
-            # Phase 51.7: PositionTracker登録（ポジション管理統一）
             if self.position_tracker:
                 try:
-                    self.position_tracker.add_position(
+                    virtual_position = self.position_tracker.add_position(
                         order_id=virtual_order_id,
                         side=side,
                         amount=amount,
                         price=price,
-                    )
-                    self.logger.debug(
-                        f"📊 Phase 51.7: バックテストポジション追加 - ID: {virtual_order_id}, "
-                        f"価格: {price:.0f}円, TP: {virtual_position.get('take_profit'):.0f}円, "
-                        f"SL: {virtual_position.get('stop_loss'):.0f}円"
+                        take_profit=getattr(evaluation, "take_profit", None),
+                        stop_loss=getattr(evaluation, "stop_loss", None),
+                        strategy_name=getattr(evaluation, "strategy_name", "unknown"),
+                        adjusted_confidence=getattr(evaluation, "adjusted_confidence", None),
+                        timestamp=trade_timestamp,
                     )
                 except Exception as e:
                     self.logger.warning(f"⚠️ バックテストポジション追加エラー: {e}")
+                    self._virtual_positions_fallback.append(virtual_position)
+            else:
+                self.virtual_positions.append(virtual_position)
 
             # 統計更新
             self.executed_trades += 1
@@ -1134,6 +1139,10 @@ class ExecutionService:
         if balance_monitor:
             self.balance_monitor = balance_monitor
         if position_tracker:
+            # Phase 64.3: fallbackに蓄積された既存データをtrackerに移行
+            if self._virtual_positions_fallback:
+                position_tracker.virtual_positions.extend(self._virtual_positions_fallback)
+                self._virtual_positions_fallback.clear()
             self.position_tracker = position_tracker
         if data_service:
             self.data_service = data_service
@@ -1174,7 +1183,7 @@ class ExecutionService:
                             f"🧹 Phase 63: virtual_positions整合性クリーンアップ - "
                             f"{len(tp_sl_entries)}件の孤立エントリ削除"
                         )
-                        self.virtual_positions = [
+                        self.virtual_positions[:] = [
                             v
                             for v in self.virtual_positions
                             if not (v.get("tp_order_id") or v.get("sl_order_id"))
@@ -1204,7 +1213,7 @@ class ExecutionService:
 
                         if order_id:
                             # order_idでポジション削除
-                            self.virtual_positions = [
+                            self.virtual_positions[:] = [
                                 p for p in self.virtual_positions if p.get("order_id") != order_id
                             ]
                             self.logger.info(
