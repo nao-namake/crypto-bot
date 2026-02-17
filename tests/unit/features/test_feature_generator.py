@@ -30,14 +30,14 @@ import pytest
 from src.core.exceptions import DataProcessingError
 from src.features.feature_generator import OPTIMIZED_FEATURES, FeatureGenerator
 
-# Phase 50.3: 戦略シグナル・外部API特徴量を除外した基本特徴量（57個）
-# generate_features()はstrategy_signalsパラメータを渡さず、external_api_clientも渡さないと57特徴量のみ生成
+# 戦略シグナル特徴量（6戦略）
 STRATEGY_SIGNAL_FEATURES = [
     "strategy_signal_ATRBased",
-    "strategy_signal_MochipoyAlert",
-    "strategy_signal_MultiTimeframe",
+    "strategy_signal_BBReversal",
+    "strategy_signal_StochasticDivergence",
     "strategy_signal_DonchianChannel",
     "strategy_signal_ADXTrendStrength",
+    "strategy_signal_MACDEMACrossover",
 ]
 EXTERNAL_API_FEATURES = [
     "usd_jpy",
@@ -859,39 +859,6 @@ class TestConvertToDataFrameEdgeCases:
             generator._convert_to_dataframe(complex_dict)
 
 
-class TestNormalizeMethod:
-    """_normalize メソッドテスト"""
-
-    @pytest.fixture
-    def generator(self):
-        """FeatureGenerator インスタンス"""
-        return FeatureGenerator()
-
-    def test_normalize_basic(self, generator):
-        """基本正規化テスト"""
-        series = pd.Series([0, 50, 100, 150, 200])
-        result = generator._normalize(series)
-
-        # 0-1の範囲になるかチェック
-        assert all(0 <= v <= 1 for v in result)
-
-    def test_normalize_constant_values(self, generator):
-        """定数値の正規化テスト（分母がゼロになるケース）"""
-        series = pd.Series([100, 100, 100, 100, 100])
-        result = generator._normalize(series)
-
-        # 定数の場合は全てゼロになる
-        assert all(v == 0 for v in result)
-
-    def test_normalize_with_outliers(self, generator):
-        """外れ値を含むデータの正規化テスト"""
-        series = pd.Series([1, 2, 3, 4, 5, 1000])  # 1000は外れ値
-        result = generator._normalize(series)
-
-        # 外れ値がクリップされて0-1範囲になる
-        assert all(0 <= v <= 1 for v in result)
-
-
 class TestVolumeRatioEdgeCases:
     """_calculate_volume_ratio エッジケーステスト"""
 
@@ -1069,19 +1036,6 @@ class TestExceptionHandlingEdgeCases:
     def generator(self):
         """FeatureGenerator インスタンス"""
         return FeatureGenerator()
-
-    def test_normalize_exception_handling(self, generator):
-        """_normalizeの例外処理テスト"""
-        from unittest.mock import patch
-
-        # quantileメソッドで例外を発生させる
-        with patch.object(pd.Series, "quantile", side_effect=Exception("Quantile error")):
-            series = pd.Series([1, 2, 3, 4, 5])
-            result = generator._normalize(series)
-
-            # 例外発生時はゼロ系列が返される
-            assert len(result) == 5
-            assert all(v == 0 for v in result)
 
     def test_volume_ratio_exception_handling(self, generator):
         """_calculate_volume_ratioの例外処理テスト"""

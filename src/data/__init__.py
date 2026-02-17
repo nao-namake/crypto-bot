@@ -1,12 +1,7 @@
 """
-データ層 - Phase 49完了
+データ層
 
-AI自動取引システムのデータ層。
-主要コンポーネント:
-- Bitbank API接続・保証金維持率監視
-- マルチタイムフレーム対応
-- 高速キャッシング
-- データ品質保証・SSL証明書セキュリティ対応.
+Bitbank API接続・マルチタイムフレームデータパイプライン・階層化キャッシング。
 """
 
 from .bitbank_client import BitbankClient, create_margin_client, get_bitbank_client

@@ -1,9 +1,7 @@
 """
-Bitbank 信用取引専用APIクライアント - Phase 49完了
+Bitbank 信用取引専用APIクライアント
 
-信用取引（ロング・ショート）に特化したBitbank APIクライアント
-ccxtライブラリを使用してシンプルな実装に特化。
-Phase 35-49で機能追加完了（バックテストモード・stop_limit注文・GET/POST API対応・維持率80%遵守）
+ccxtライブラリ + 直接API実装によるBitbank信用取引クライアント。
 """
 
 import asyncio
@@ -411,17 +409,21 @@ class BitbankClient:
                 context={"symbol": symbol, "timeframe": timeframe},
             ) from last_exception
 
-    async def fetch_ohlcv_4h_direct(
+    async def _fetch_candlestick_direct(
         self,
-        symbol: str = "BTC/JPY",
-        year: int = 2025,
+        symbol: str,
+        period: str,
+        param: str,
+        label: str,
     ) -> List[List[Union[int, float]]]:
         """
-        4時間足データを直接API実装で取得（ccxt制約回避）
+        Bitbank candlestick API共通実装（リトライ・OHLCV変換）
 
         Args:
-            symbol: 通貨ペア
-            year: 取得年（YYYY形式）
+            symbol: 通貨ペア（例: "BTC/JPY"）
+            period: ローソク足種別（"4hour" or "15min"）
+            param: APIパスパラメータ（年 "2025" or 日付 "20251104"）
+            label: ログ用ラベル（"4時間足" or "15分足"）
 
         Returns:
             OHLCV データリスト [[timestamp, open, high, low, close, volume], ...]
@@ -429,54 +431,43 @@ class BitbankClient:
         Raises:
             DataFetchError: データ取得失敗時
         """
-        # Phase 51.5 Fix: リトライロジック追加（タイムアウト・ネットワークエラー対策）
+        import json
+        import ssl
+
         max_retries = 3
         last_exception = None
+        pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
+        url = f"https://public.bitbank.cc/{pair}/candlestick/{period}/{param}"
 
         for attempt in range(max_retries):
             try:
                 self.logger.debug(
-                    f"4時間足直接API取得開始: {symbol} {year} (試行 {attempt + 1}/{max_retries})"
+                    f"{label}直接API取得開始: {symbol} {param} (試行 {attempt + 1}/{max_retries})"
                 )
 
-                # Bitbank Public APIの正しい形式
-                pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
-                url = f"https://public.bitbank.cc/{pair}/candlestick/4hour/{year}"
-
-                # SSL証明書設定（セキュア設定）
-                import ssl
-
                 ssl_context = ssl.create_default_context()
-
                 connector = aiohttp.TCPConnector(ssl=ssl_context)
                 async with aiohttp.ClientSession(connector=connector) as session:
-                    # Phase 51.5 Fix: タイムアウト延長（10秒→30秒・大量データ対応）
-                    # データ量経時的増加対策: 2025年11月時点で約1,830件（約515KB）
                     timeout = aiohttp.ClientTimeout(
-                        total=30.0,  # 全体タイムアウト: 10秒→30秒
-                        connect=5.0,  # 接続タイムアウト: 5秒
-                        sock_read=25.0,  # 読み取りタイムアウト: 25秒
+                        total=30.0,
+                        connect=5.0,
+                        sock_read=25.0,
                     )
 
                     async with session.get(url, timeout=timeout) as response:
-                        # Phase 51.5 Fix: レスポンスサイズログ追加（デバッグ用）
                         content_length = response.headers.get("Content-Length")
                         if content_length:
                             self.logger.debug(
-                                f"📊 レスポンスサイズ: {int(content_length) / 1024:.1f}KB"
+                                f"📊 {label}レスポンスサイズ: {int(content_length) / 1024:.1f}KB"
                             )
 
-                        # JSONパース前にテキストサイズ確認（メモリ使用量診断）
                         text = await response.text()
-                        self.logger.debug(f"📊 テキストサイズ: {len(text) / 1024:.1f}KB")
-
-                        import json
+                        self.logger.debug(f"📊 {label}テキストサイズ: {len(text) / 1024:.1f}KB")
 
                         data = json.loads(text)
 
-                        # Phase 51.5 Fix: Raw Responseログ追加（デバッグ強化）
                         self.logger.debug(
-                            f"📊 API Response確認 - "
+                            f"📊 {label}API Response確認 - "
                             f"success={data.get('success')}, "
                             f"has_data={bool(data.get('data'))}, "
                             f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
@@ -487,23 +478,23 @@ class BitbankClient:
 
                             if not candlestick_data:
                                 raise DataFetchError(
-                                    f"4時間足データが空です: {symbol} {year}",
-                                    context={"symbol": symbol, "year": year},
+                                    f"{label}データが空です: {symbol} {param}",
+                                    context={"symbol": symbol, "param": param},
                                 )
 
-                            # Phase 51.5 Fix: データ変換前の件数ログ
-                            self.logger.debug(f"📊 Raw Candlestick件数: {len(candlestick_data)}件")
+                            self.logger.debug(
+                                f"📊 {label}Raw Candlestick件数: {len(candlestick_data)}件"
+                            )
 
-                            # データ形式をccxtと統一（timestampをミリ秒に変換）
+                            # Bitbank形式→ccxt形式変換
+                            # Bitbank: [open, high, low, close, volume, timestamp_ms]
+                            # ccxt:    [timestamp_ms, open, high, low, close, volume]
                             ohlcv_data = []
                             for item in candlestick_data:
-                                # Bitbank形式: [open, high, low, close, volume, timestamp_ms]
-                                # ccxt形式: [timestamp_ms, open, high, low, close, volume]
                                 if len(item) >= 6:
-                                    timestamp_ms = item[5]
                                     ohlcv_data.append(
                                         [
-                                            timestamp_ms,
+                                            item[5],  # timestamp_ms
                                             float(item[0]),  # open
                                             float(item[1]),  # high
                                             float(item[2]),  # low
@@ -512,17 +503,14 @@ class BitbankClient:
                                         ]
                                     )
 
-                            # Phase 51.5 Fix: 変換後のデータ件数ログ強化
                             self.logger.info(
-                                f"✅ 4時間足直接API取得成功: {len(ohlcv_data)}件 "
-                                f"(raw={len(candlestick_data)}件, "
-                                f"first_ts={ohlcv_data[0][0] if ohlcv_data else None}, "
-                                f"last_ts={ohlcv_data[-1][0] if ohlcv_data else None})",
+                                f"✅ {label}直接API取得成功: {len(ohlcv_data)}件 "
+                                f"(raw={len(candlestick_data)}件)",
                                 extra_data={
                                     "symbol": symbol,
-                                    "year": year,
+                                    "param": param,
                                     "count": len(ohlcv_data),
-                                    "method": "direct_api",
+                                    "method": f"direct_api_{period}",
                                     "attempt": attempt + 1,
                                 },
                             )
@@ -532,10 +520,10 @@ class BitbankClient:
                         else:
                             error_code = data.get("data", {}).get("code", "unknown")
                             raise DataFetchError(
-                                f"Bitbank API エラー: {error_code}",
+                                f"Bitbank API エラー（{label}）: {error_code}",
                                 context={
                                     "symbol": symbol,
-                                    "year": year,
+                                    "param": param,
                                     "error_code": error_code,
                                 },
                             )
@@ -545,192 +533,59 @@ class BitbankClient:
                 if attempt < max_retries - 1:
                     wait_time = 2**attempt  # Exponential backoff: 1秒, 2秒, 4秒
                     self.logger.warning(
-                        f"⚠️ 4時間足取得失敗（試行{attempt + 1}/{max_retries}）: {type(e).__name__}: {e} "
-                        f"- {wait_time}秒後にリトライ"
+                        f"⚠️ {label}取得失敗（試行{attempt + 1}/{max_retries}）: "
+                        f"{type(e).__name__}: {e} - {wait_time}秒後にリトライ"
                     )
                     await asyncio.sleep(wait_time)
                 else:
                     self.logger.error(
-                        f"❌ 4時間足取得失敗（全{max_retries}回試行失敗）: {type(e).__name__}: {e}"
+                        f"❌ {label}取得失敗（全{max_retries}回試行失敗）: "
+                        f"{type(e).__name__}: {e}"
                     )
                     raise DataFetchError(
-                        f"ネットワークエラー（4時間足・{max_retries}回リトライ失敗）: {e}",
-                        context={"symbol": symbol, "year": year, "attempts": max_retries},
+                        f"ネットワークエラー（{label}・{max_retries}回リトライ失敗）: {e}",
+                        context={
+                            "symbol": symbol,
+                            "param": param,
+                            "attempts": max_retries,
+                        },
                     )
             except Exception as e:
                 last_exception = e
-                self.logger.error(f"❌ 4時間足取得予期しないエラー: {type(e).__name__}: {e}")
+                self.logger.error(f"❌ {label}取得予期しないエラー: {type(e).__name__}: {e}")
                 raise DataFetchError(
-                    f"4時間足データ取得失敗: {e}",
-                    context={"symbol": symbol, "year": year, "attempt": attempt + 1},
+                    f"{label}データ取得失敗: {e}",
+                    context={
+                        "symbol": symbol,
+                        "param": param,
+                        "attempt": attempt + 1,
+                    },
                 )
 
-        # ここには到達しないはずだが、念のため
         raise DataFetchError(
-            f"4時間足データ取得失敗（全{max_retries}回試行完了・原因不明）",
-            context={"symbol": symbol, "year": year, "last_exception": str(last_exception)},
+            f"{label}データ取得失敗（全{max_retries}回試行完了・原因不明）",
+            context={
+                "symbol": symbol,
+                "param": param,
+                "last_exception": str(last_exception),
+            },
         )
+
+    async def fetch_ohlcv_4h_direct(
+        self,
+        symbol: str = "BTC/JPY",
+        year: int = 2025,
+    ) -> List[List[Union[int, float]]]:
+        """4時間足データを直接API実装で取得（ccxt制約回避）"""
+        return await self._fetch_candlestick_direct(symbol, "4hour", str(year), "4時間足")
 
     async def fetch_ohlcv_15m_direct(
         self,
         symbol: str = "BTC/JPY",
         date: str = "20251104",
     ) -> List[List[Union[int, float]]]:
-        """
-        15分足データを直接API実装で取得（ccxt制約回避）
-
-        Phase 51.5-C: since=None問題解決のため、4h足と同様の直接API実装を追加
-        bitbank APIは15m足に対してYYYYMMDD形式パラメータを要求（短期足仕様）
-
-        Args:
-            symbol: 通貨ペア
-            date: 取得日（YYYYMMDD形式、例: 20251104）
-
-        Returns:
-            OHLCV データリスト [[timestamp, open, high, low, close, volume], ...]
-
-        Raises:
-            DataFetchError: データ取得失敗時
-        """
-        # Phase 51.5-C: リトライロジック追加（4h足パターン準拠）
-        max_retries = 3
-        last_exception = None
-
-        for attempt in range(max_retries):
-            try:
-                self.logger.debug(
-                    f"15分足直接API取得開始: {symbol} {date} (試行 {attempt + 1}/{max_retries})"
-                )
-
-                # Bitbank Public APIの正しい形式（YYYYMMDD形式）
-                pair = symbol.lower().replace("/", "_")  # BTC/JPY -> btc_jpy
-                url = f"https://public.bitbank.cc/{pair}/candlestick/15min/{date}"
-
-                # SSL証明書設定（セキュア設定）
-                import ssl
-
-                ssl_context = ssl.create_default_context()
-
-                connector = aiohttp.TCPConnector(ssl=ssl_context)
-                async with aiohttp.ClientSession(connector=connector) as session:
-                    # Phase 51.5-C: タイムアウト設定（4h足と同様）
-                    timeout = aiohttp.ClientTimeout(
-                        total=30.0,  # 全体タイムアウト: 30秒
-                        connect=5.0,  # 接続タイムアウト: 5秒
-                        sock_read=25.0,  # 読み取りタイムアウト: 25秒
-                    )
-
-                    async with session.get(url, timeout=timeout) as response:
-                        # レスポンスサイズログ
-                        content_length = response.headers.get("Content-Length")
-                        if content_length:
-                            self.logger.debug(
-                                f"📊 15m足レスポンスサイズ: {int(content_length) / 1024:.1f}KB"
-                            )
-
-                        # JSONパース
-                        text = await response.text()
-                        self.logger.debug(f"📊 15m足テキストサイズ: {len(text) / 1024:.1f}KB")
-
-                        import json
-
-                        data = json.loads(text)
-
-                        # API Response確認
-                        self.logger.debug(
-                            f"📊 15m足API Response確認 - "
-                            f"success={data.get('success')}, "
-                            f"has_data={bool(data.get('data'))}, "
-                            f"has_candlestick={bool(data.get('data', {}).get('candlestick'))}"
-                        )
-
-                        if data.get("success") == 1:
-                            candlestick_data = data["data"]["candlestick"][0]["ohlcv"]
-
-                            if not candlestick_data:
-                                raise DataFetchError(
-                                    f"15分足データが空です: {symbol} {date}",
-                                    context={"symbol": symbol, "date": date},
-                                )
-
-                            # Raw Candlestick件数ログ
-                            self.logger.debug(
-                                f"📊 15m足Raw Candlestick件数: {len(candlestick_data)}件"
-                            )
-
-                            # データ形式をccxtと統一（timestampをミリ秒に変換）
-                            ohlcv_data = []
-                            for item in candlestick_data:
-                                # Bitbank形式: [open, high, low, close, volume, timestamp_ms]
-                                # ccxt形式: [timestamp_ms, open, high, low, close, volume]
-                                if len(item) >= 6:
-                                    timestamp_ms = item[5]
-                                    ohlcv_data.append(
-                                        [
-                                            timestamp_ms,
-                                            float(item[0]),  # open
-                                            float(item[1]),  # high
-                                            float(item[2]),  # low
-                                            float(item[3]),  # close
-                                            float(item[4]),  # volume
-                                        ]
-                                    )
-
-                            # 変換後のデータ件数ログ
-                            self.logger.info(
-                                f"✅ 15分足直接API取得成功: {len(ohlcv_data)}件 (date={date})",
-                                extra_data={
-                                    "symbol": symbol,
-                                    "date": date,
-                                    "count": len(ohlcv_data),
-                                    "method": "direct_api_15m",
-                                    "attempt": attempt + 1,
-                                },
-                            )
-
-                            return ohlcv_data
-
-                        else:
-                            error_code = data.get("data", {}).get("code", "unknown")
-                            raise DataFetchError(
-                                f"Bitbank API エラー（15m足）: {error_code}",
-                                context={
-                                    "symbol": symbol,
-                                    "date": date,
-                                    "error_code": error_code,
-                                },
-                            )
-
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                last_exception = e
-                if attempt < max_retries - 1:
-                    wait_time = 2**attempt  # Exponential backoff: 1秒, 2秒, 4秒
-                    self.logger.warning(
-                        f"⚠️ 15分足取得失敗（試行{attempt + 1}/{max_retries}）: {type(e).__name__}: {e} "
-                        f"- {wait_time}秒後にリトライ"
-                    )
-                    await asyncio.sleep(wait_time)
-                else:
-                    self.logger.error(
-                        f"❌ 15分足取得失敗（全{max_retries}回試行失敗）: {type(e).__name__}: {e}"
-                    )
-                    raise DataFetchError(
-                        f"ネットワークエラー（15分足・{max_retries}回リトライ失敗）: {e}",
-                        context={"symbol": symbol, "date": date, "attempts": max_retries},
-                    )
-            except Exception as e:
-                last_exception = e
-                self.logger.error(f"❌ 15分足取得予期しないエラー: {type(e).__name__}: {e}")
-                raise DataFetchError(
-                    f"15分足データ取得失敗: {e}",
-                    context={"symbol": symbol, "date": date, "attempt": attempt + 1},
-                )
-
-        # ここには到達しないはずだが、念のため
-        raise DataFetchError(
-            f"15分足データ取得失敗（全{max_retries}回試行完了・原因不明）",
-            context={"symbol": symbol, "date": date, "last_exception": str(last_exception)},
-        )
+        """15分足データを直接API実装で取得（ccxt制約回避）"""
+        return await self._fetch_candlestick_direct(symbol, "15min", date, "15分足")
 
     def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
@@ -1535,104 +1390,6 @@ class BitbankClient:
             raise ExchangeAPIError(
                 f"アクティブ注文取得に失敗しました: {e}",
                 context={"operation": "fetch_active_orders", "symbol": symbol},
-            )
-
-    def fetch_positions(self, symbol: str = "BTC/JPY") -> List[Dict[str, Any]]:
-        """
-        ポジション情報取得（信用取引）
-
-        Args:
-            symbol: 通貨ペア
-
-        Returns:
-            ポジション情報リスト
-
-        Raises:
-            ExchangeAPIError: 取得失敗時.
-        """
-        try:
-            if not self.api_key or not self.api_secret:
-                raise ExchangeAPIError(
-                    "ポジション確認には認証が必要です",
-                    context={"operation": "fetch_positions"},
-                )
-
-            positions = self.exchange.fetch_positions([symbol])
-
-            # 有効なポジションのみフィルタ
-            active_positions = [pos for pos in positions if pos["contracts"] > 0]
-
-            self.logger.debug(
-                f"ポジション情報取得成功: {len(active_positions)}件",
-                extra_data={
-                    "symbol": symbol,
-                    "active_positions": len(active_positions),
-                },
-            )
-
-            return active_positions
-
-        except ccxt.AuthenticationError as e:
-            raise ExchangeAPIError(
-                f"認証エラー: {e}",
-                context={"operation": "fetch_positions", "symbol": symbol},
-            )
-        except Exception as e:
-            raise ExchangeAPIError(
-                f"ポジション情報取得に失敗しました: {e}",
-                context={"operation": "fetch_positions", "symbol": symbol},
-            )
-
-    def set_leverage(self, symbol: str, leverage: float) -> Dict[str, Any]:
-        """
-        レバレッジ設定（信用取引）
-
-        Args:
-            symbol: 通貨ペア
-            leverage: レバレッジ倍率（1.0-2.0）
-
-        Returns:
-            設定結果
-
-        Raises:
-            ExchangeAPIError: 設定失敗時.
-        """
-        try:
-            if not (1.0 <= leverage <= 2.0):
-                raise ExchangeAPIError(
-                    f"Bitbankでは1.0-2.0倍のレバレッジのみサポートされています: {leverage}",
-                    context={"leverage": leverage},
-                )
-
-            if not self.api_key or not self.api_secret:
-                raise ExchangeAPIError(
-                    "レバレッジ設定には認証が必要です",
-                    context={"operation": "set_leverage"},
-                )
-
-            result = self.exchange.set_leverage(leverage, symbol)
-            self.leverage = leverage  # 内部状態更新
-
-            self.logger.info(
-                f"レバレッジ設定成功: {symbol} {leverage}x",
-                extra_data={"symbol": symbol, "leverage": leverage},
-            )
-
-            return result
-
-        except ccxt.AuthenticationError as e:
-            raise ExchangeAPIError(
-                f"認証エラー: {e}",
-                context={"operation": "set_leverage", "symbol": symbol},
-            )
-        except Exception as e:
-            raise ExchangeAPIError(
-                f"レバレッジ設定に失敗しました: {e}",
-                context={
-                    "operation": "set_leverage",
-                    "symbol": symbol,
-                    "leverage": leverage,
-                },
             )
 
     def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:

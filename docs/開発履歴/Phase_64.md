@@ -16,6 +16,8 @@
 | **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
 | **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
 | **64.6** | `src/ml/`フォルダ監査・クリーンアップ | ✅ 完了 |
+| **64.7** | `src/features/`フォルダ監査・クリーンアップ | ✅ 完了 |
+| **64.8** | `src/data/`フォルダ監査・クリーンアップ | ✅ 完了 |
 
 ---
 
@@ -839,11 +841,77 @@ src/ml/
 
 ---
 
-## 次のステップ
+## Phase 64.7: `src/features/`クリーンアップ（✅完了）
 
-1. **Phase 64.7**: `src/core/`フォルダ監査・クリーンアップ（10,237行）
-2. **Phase 64.8**: `src/data/` `src/features/` `src/backtest/`監査・クリーンアップ（6,728行）
+**実施日**: 2026年2月18日
+**方針**: デッドコード・コメントアウト削除、async/syncパイプライン共通化、ドキュメント修正。ロジック変更なし。
+
+### 実施内容
+
+| Step | 内容 | 変更ファイル |
+|------|------|------------|
+| 1 | デッドコード削除（`import os`・`_normalize()`メソッド） | feature_generator.py |
+| 2 | コメントアウト済コード7箇所削除（Phase 51.7削除特徴量） | feature_generator.py |
+| 3 | async/syncパイプライン共通化（`_run_feature_pipeline()`抽出） | feature_generator.py |
+| 4 | docstring修正（特徴量数"51"/"54"/"60"→55に統一） | feature_generator.py, __init__.py |
+| 5 | README.md全面書き直し（Phase 49→Phase 64.7） | README.md |
+| 6 | テスト修正（削除済戦略名→現行6戦略・`_normalize`テスト削除） | test_feature_generator.py |
+
+### ファイル行数変化
+
+| ファイル | Before | After | 変化 |
+|---------|--------|-------|------|
+| `feature_generator.py` | 960 | 778 | **-182 (-19%)** |
+| `__init__.py` | 41 | 34 | -7 |
+| `README.md` | 124 | 58 | -66（全面書き直し） |
+| `test_feature_generator.py` | 1,298 | 1,251 | -47 |
+
+### 品質検証
+
+```
+全テスト: 1,962 passed, 1 skipped ✅
+カバレッジ: 72.35% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
 
 ---
 
-**最終更新**: 2026年2月18日 — Phase 64.3完了・virtual_positions property化・単一ソース化
+## Phase 64.8: `src/data/`クリーンアップ（✅完了）
+
+**実施日**: 2026年2月18日
+**方針**: デッドメソッド削除、重複メソッド統合、ドキュメント修正。ロジック変更なし。
+
+### 実施内容
+
+| Step | 内容 | 変更ファイル |
+|------|------|------------|
+| 1 | デッドメソッド削除（`fetch_positions()`・`set_leverage()`） | bitbank_client.py |
+| 2 | 4h/15m直接APIメソッド重複統合（`_fetch_candlestick_direct()`抽出） | bitbank_client.py |
+| 3 | module docstring修正（"Phase 49完了"→簡潔な説明） | bitbank_client.py, data_pipeline.py |
+| 4 | README.md全面書き直し（Phase 49→Phase 64.8） | README.md |
+
+### ファイル行数変化
+
+| ファイル | Before | After | 変化 |
+|---------|--------|-------|------|
+| `bitbank_client.py` | 2,104 | 1,861 | **-243 (-12%)** |
+| `data_pipeline.py` | 566 | 559 | -7 |
+| `README.md` | 205 | 69 | -136（全面書き直し） |
+
+### 品質検証
+
+```
+全テスト: 1,962 passed, 1 skipped ✅
+カバレッジ: 72.80% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
+
+---
+
+## 次のステップ
+
+1. **Phase 64.9**: `src/core/`フォルダ監査・クリーンアップ
+
+---
+
+**最終更新**: 2026年2月18日 — Phase 64.8完了・`src/data/`クリーンアップ

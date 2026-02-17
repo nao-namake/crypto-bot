@@ -1,28 +1,10 @@
 """
-特徴量生成統合システム - Phase 51.7 Day 2完了
+特徴量生成統合システム - 55特徴量固定（49基本 + 6戦略シグナル）
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
-1つのクラスに統合し、重複コード削除と保守性向上を実現。
-
-Phase履歴:
-- Phase 38.4: 97特徴量から15特徴量への最適化システム実装（3戦略対応）
-- Phase 40.6: Feature Engineering拡張 - 15→50特徴量（Lag/Rolling/Interaction/Time追加）
-- Phase 41: Strategy-Aware ML - 50→55特徴量（戦略シグナル3個追加）
-- Phase 50.2: 時間的特徴量拡張 - 55→60特徴量（市場セッション3個+周期性4個追加・外部APIなし）
-- Phase 50.1: 確実な60特徴量生成実装（strategy_signals=None時も60特徴量・0埋め・後から追加しない）
-- Phase 50.9: 外部API完全削除・シンプル設計回帰（60特徴量固定・2段階Graceful Degradation）
-- Phase 51.7 Day 2: Feature Importance分析に基づく最適化 - 60→51特徴量（20削除・11追加）
-
-統合効果:
-- ファイル数削減: 3→1（67%削減）
-- コード行数削減: 461行→約250行（46%削除）
-- 重複コード削除: _handle_nan_values、logger初期化等
-- 管理簡素化: 特徴量処理の完全一元化
-
-Phase 51.7 Day 2完了 - 51特徴量固定・データドリブン最適化・6戦略対応
+1つのクラスに統合。6戦略対応・設定駆動型特徴量生成。
 """
 
-import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -44,41 +26,18 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - Phase 51.7 Day 2完了
+    統合特徴量生成クラス - 55特徴量固定（49基本 + 6戦略シグナル）
 
-    テクニカル指標、異常検知、特徴量サービス機能を
-    1つのクラスに統合し、51特徴量を確実に生成。
-
-    主要機能:
-    - 基本特徴量生成（2個）
-    - テクニカル指標生成（17個：RSI, MACD拡張, ATR, BB拡張, EMA, Donchian, ADX, Stochastic, volume_ema, atr_ratio）
-    - 異常検知指標生成（1個：Volume Ratio）
-    - ラグ特徴量生成（9個：Close/Volume/RSI/MACD lag）- Phase 40.6/51.7
-    - 移動統計量生成（5個：MA, Std）- Phase 40.6/51.7
-    - 交互作用特徴量生成（5個：RSI×ATR, MACD×Volume等）- Phase 40.6/51.7
-    - 時間ベース特徴量生成（7個：Hour, Day, 市場セッション, 周期性）- Phase 40.6/50.2/51.7
-    - 戦略シグナル特徴量生成（3個：戦略判断エンコード）- Phase 41/50.1
-    - 統合品質管理と特徴量確認（必ず51特徴量）
-
-    Phase 51.7 Day 2: Feature Importance分析に基づく最適化
-    - 51特徴量固定（60→51: 20削除・11追加）
-    - 削除特徴量: Importance ≤ 1.5の20特徴量（データドリブン判断）
-    - 追加特徴量: 6戦略対応（Stochastic, MACD拡張, BB拡張等）
-    - システム精度向上・6戦略対応強化
-
-    Phase 50.9: 外部API完全削除・シンプル設計回帰
-    - 60特徴量固定（70特徴量システム完全廃止）
-    - 外部API依存削除（USD/JPY・日経平均等8指標削除）
-    - システム安定性向上・保守性向上
-
-    Phase 50.1: 確実な特徴量生成実装
-    - 必ず固定数生成（strategy_signals=None時も3個を0.0で追加）
-    - 後から追加しない設計（信頼性向上）
-    - ML予測エラー防止（特徴量数不一致解消）
-
-    Phase 50.2: 時間的特徴量拡張（外部APIなし）
-    - 市場セッション特徴量（1個保持: 欧州セッション）
-    - 周期性エンコーディング（3個保持: hour_cos, day_sin/cos）
+    特徴量構成:
+    - 基本（2個）: close, volume
+    - テクニカル指標（17個）: RSI, MACD拡張, ATR, BB拡張, EMA, Donchian, ADX, Stochastic, volume_ema, atr_ratio
+    - 異常検知（1個）: volume_ratio
+    - ラグ（9個）: Close/Volume/RSI/MACD lag
+    - 移動統計量（5個）: MA, Std
+    - 交互作用（5個）: RSI×ATR, MACD×Volume等
+    - 時間（7個）: hour, day_of_week, is_market_open_hour, is_europe_session, hour_cos, day_sin, day_cos
+    - 戦略シグナル（6個）: 6戦略の判断エンコード（設定駆動型・strategies.yamlから動的取得）
+    - NaN時は0埋め、strategy_signals=None時も6個を0.0で生成
     """
 
     def __init__(self, lookback_period: Optional[int] = None) -> None:
@@ -94,77 +53,47 @@ class FeatureGenerator:
         )
         self.computed_features = set()
 
+    def _run_feature_pipeline(
+        self,
+        result_df: pd.DataFrame,
+        strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> pd.DataFrame:
+        """共通特徴量生成パイプライン（49基本 + 6戦略シグナル = 55特徴量）"""
+        self._validate_required_columns(result_df)
+        result_df = self._generate_basic_features(result_df)
+        result_df = self._generate_technical_indicators(result_df)
+        result_df = self._generate_anomaly_indicators(result_df)
+        result_df = self._generate_lag_features(result_df)
+        result_df = self._generate_rolling_statistics(result_df)
+        result_df = self._generate_interaction_features(result_df)
+        result_df = self._generate_time_features(result_df)
+        result_df = self._add_strategy_signal_features(result_df, strategy_signals)
+        result_df = self._handle_nan_values(result_df)
+        return result_df
+
     async def generate_features(
         self,
         market_data: Dict[str, Any],
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（Phase 51.7 Day 2: 51特徴量固定・データドリブン最適化）
+        統合特徴量生成処理（55特徴量固定: 49基本 + 6戦略シグナル）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
-            strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
+            strategy_signals: 戦略シグナル辞書（オプション、None時は0埋め）
 
         Returns:
-            特徴量を含むDataFrame（51特徴量固定）
+            特徴量を含むDataFrame（55特徴量固定）
 
         Raises:
             DataProcessingError: 特徴量生成エラー
-
-        Note:
-            - Phase 51.7 Day 2: Feature Importance分析に基づく最適化（60→51特徴量）
-            - Phase 50.9: 外部API完全削除・60特徴量固定システム
-            - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も3個を0埋め）
-            - Phase 41: Strategy-Aware ML実装
-            - Phase 50.2: 時間的特徴量拡張（外部APIなし）
-            - 信頼性向上: 後から追加せず、生成時に全特徴量確定
         """
         try:
-            # DataFrameに変換
             result_df = self._convert_to_dataframe(market_data)
-
-            # Phase 51.7 Day 7: 55特徴量固定システム（49基本+6戦略シグナル）
-            target_features = 55
-            self.logger.info(
-                f"特徴量生成開始 - Phase 51.7 Day 7: {target_features}特徴量固定システム"
-            )
             self.computed_features.clear()
-
-            # 必要列チェック
-            self._validate_required_columns(result_df)
-
-            # 🔹 基本特徴量を生成（2個）
-            result_df = self._generate_basic_features(result_df)
-
-            # 🔹 テクニカル指標を生成（12個）
-            result_df = self._generate_technical_indicators(result_df)
-
-            # 🔹 異常検知指標を生成（1個）
-            result_df = self._generate_anomaly_indicators(result_df)
-
-            # 🔹 ラグ特徴量を生成（10個）- Phase 40.6
-            result_df = self._generate_lag_features(result_df)
-
-            # 🔹 移動統計量を生成（12個）- Phase 40.6
-            result_df = self._generate_rolling_statistics(result_df)
-
-            # 🔹 交互作用特徴量を生成（6個）- Phase 40.6
-            result_df = self._generate_interaction_features(result_df)
-
-            # 🔹 時間ベース特徴量を生成（14個）- Phase 40.6/50.2
-            result_df = self._generate_time_features(result_df)
-
-            # 🔹 戦略シグナル特徴量を追加（5個）- Phase 50.1: 必ず追加（Noneの場合は0埋め）
-            result_df = self._add_strategy_signal_features(result_df, strategy_signals)
-
-            # 🔹 NaN値処理（統合版）
-            result_df = self._handle_nan_values(result_df)
-
-            # 🎯 特徴量完全確認・検証（60特徴量固定）
-            self._validate_feature_generation(result_df, expected_count=target_features)
-
-            # DataFrameをそのまま返す（戦略で使用するため）
+            result_df = self._run_feature_pipeline(result_df, strategy_signals)
+            self._validate_feature_generation(result_df, expected_count=55)
             return result_df
 
         except Exception as e:
@@ -177,54 +106,18 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（Phase 51.7 Day 2: 51特徴量固定・バックテスト事前計算用）
+        同期版特徴量生成（55特徴量固定・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
-            strategy_signals: 戦略シグナル辞書（Phase 41: オプション）
+            strategy_signals: 戦略シグナル辞書（オプション、None時は0埋め）
 
         Returns:
-            特徴量を含むDataFrame（必ず51特徴量）
-
-        Note:
-            - バックテストの事前計算で使用。asyncなしで全データに対して一括計算可能。
-            - Phase 51.7 Day 2: Feature Importance分析に基づく最適化（60→51特徴量）
-            - Phase 50.9: 外部API削除・60特徴量固定システム
-            - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も3個を0埋め）
+            特徴量を含むDataFrame（55特徴量固定）
         """
         try:
             result_df = df.copy()
-
-            # 必要列チェック
-            self._validate_required_columns(result_df)
-
-            # 基本特徴量を生成（2個）
-            result_df = self._generate_basic_features(result_df)
-
-            # テクニカル指標を生成（12個）
-            result_df = self._generate_technical_indicators(result_df)
-
-            # 異常検知指標を生成（1個）
-            result_df = self._generate_anomaly_indicators(result_df)
-
-            # ラグ特徴量を生成（9個）- Phase 40.6
-            result_df = self._generate_lag_features(result_df)
-
-            # 移動統計量を生成（5個）- Phase 40.6
-            result_df = self._generate_rolling_statistics(result_df)
-
-            # 交互作用特徴量を生成（5個）- Phase 40.6
-            result_df = self._generate_interaction_features(result_df)
-
-            # 時間ベース特徴量を生成（7個）- Phase 40.6/50.2
-            result_df = self._generate_time_features(result_df)
-
-            # 戦略シグナル特徴量を追加（6個）- Phase 51.7: 6戦略対応（Noneの場合は0埋め）
-            result_df = self._add_strategy_signal_features(result_df, strategy_signals)
-
-            # NaN値処理（統合版）
-            result_df = self._handle_nan_values(result_df)
-
+            result_df = self._run_feature_pipeline(result_df, strategy_signals)
             return result_df
 
         except Exception as e:
@@ -411,20 +304,6 @@ class FeatureGenerator:
             )
             self.computed_features.add(f"close_std_{window}")
 
-        # Max (削除: Importance=0/0/1と全て低い・Phase 51.7 Day 2）
-        # for window in [5, 10, 20]:
-        #     result_df[f"close_max_{window}"] = (
-        #         result_df["close"].rolling(window=window, min_periods=1).max()
-        #     )
-        #     self.computed_features.add(f"close_max_{window}")
-
-        # Min (削除: Importance=0/1/0と全て低い・Phase 51.7 Day 2）
-        # for window in [5, 10, 20]:
-        #     result_df[f"close_min_{window}"] = (
-        #         result_df["close"].rolling(window=window, min_periods=1).min()
-        #     )
-        #     self.computed_features.add(f"close_min_{window}")
-
         self.logger.debug("移動統計量生成完了: 5個")
         return result_df
 
@@ -448,16 +327,6 @@ class FeatureGenerator:
                 result_df["bb_position"] * result_df["volume_ratio"]
             )
             self.computed_features.add("bb_position_x_volume_ratio")
-
-        # EMA Spread × ADX（削除: ema_20削除によりema_spreadが計算不可・Importance=2と低い）
-        # if (
-        #     "ema_20" in result_df.columns
-        #     and "ema_50" in result_df.columns
-        #     and "adx_14" in result_df.columns
-        # ):
-        #     ema_spread = result_df["ema_20"] - result_df["ema_50"]
-        #     result_df["ema_spread_x_adx"] = ema_spread * result_df["adx_14"]
-        #     self.computed_features.add("ema_spread_x_adx")
 
         # Close × ATR
         if "close" in result_df.columns and "atr_14" in result_df.columns:
@@ -514,44 +383,19 @@ class FeatureGenerator:
         result_df["day_of_week"] = dt_index.dayofweek
         self.computed_features.add("day_of_week")
 
-        # Is weekend (削除: Importance=0・Phase 51.7 Day 2）
-        # result_df["is_weekend"] = (dt_index.dayofweek >= 5).astype(int)
-
         # Is market open hour (9-15時JST: 1, それ以外: 0)
         result_df["is_market_open_hour"] = ((dt_index.hour >= 9) & (dt_index.hour <= 15)).astype(
             int
         )
         self.computed_features.add("is_market_open_hour")
 
-        # Month (削除: Importance=1.0と低い・Phase 51.7 Day 2）
-        # result_df["month"] = dt_index.month
-
-        # Quarter (削除: Importance=0・Phase 51.7 Day 2）
-        # result_df["quarter"] = dt_index.quarter
-
-        # Is quarter end (削除: Importance=0・Phase 51.7 Day 2）
-        # result_df["is_quarter_end"] = dt_index.month.isin([3, 6, 9, 12]).astype(int)
-
-        # ========== Phase 50.2: 市場セッション特徴量（1個保持・2個削除）==========
-
-        # アジア市場セッション（削除: Importance=0・Phase 51.7 Day 2）
-        # result_df["is_asia_session"] = ((dt_index.hour >= 9) & (dt_index.hour < 17)).astype(int)
-
-        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理（保持: Importance=1）
+        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理
         result_df["is_europe_session"] = (
             ((dt_index.hour >= 16) & (dt_index.hour <= 23)) | (dt_index.hour < 1)
         ).astype(int)
         self.computed_features.add("is_europe_session")
 
-        # 米国市場セッション（削除: Importance=0・Phase 51.7 Day 2）
-        # result_df["is_us_session"] = (
-        #     ((dt_index.hour >= 22) & (dt_index.hour <= 23)) | (dt_index.hour < 6)
-        # ).astype(int)
-
-        # ========== 周期性エンコーディング（3個保持・1個削除）==========
-
-        # 時刻の周期性エンコーディング（hour_sin削除: Importance=0）
-        # result_df["hour_sin"] = np.sin(2 * np.pi * dt_index.hour / 24)
+        # 周期性エンコーディング
         result_df["hour_cos"] = np.cos(2 * np.pi * dt_index.hour / 24)
         self.computed_features.add("hour_cos")
 
@@ -717,26 +561,6 @@ class FeatureGenerator:
             self.logger.error(f"出来高比率計算エラー: {e}")
             return pd.Series(np.zeros(len(volume)), index=volume.index)
 
-    def _normalize(self, series: pd.Series) -> pd.Series:
-        """0-1範囲に正規化"""
-        try:
-            # 外れ値処理（設定ファイルから取得）
-            outlier_clip_quantile = get_anomaly_config("normalization.outlier_clip_quantile", 0.95)
-            upper_bound = series.quantile(outlier_clip_quantile)
-            clipped_series = np.clip(series, 0, upper_bound)
-
-            # 0-1正規化
-            min_val = clipped_series.min()
-            max_val = clipped_series.max()
-
-            if max_val - min_val == 0:
-                return pd.Series(np.zeros(len(series)), index=series.index)
-
-            return (clipped_series - min_val) / (max_val - min_val)
-
-        except Exception:
-            return pd.Series(np.zeros(len(series)), index=series.index)
-
     def _calculate_donchian_channel(self, df: pd.DataFrame, period: int = 20) -> tuple:
         """
         Donchian Channel計算
@@ -851,10 +675,7 @@ class FeatureGenerator:
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
 
-        # Phase 51.7 Day 2: Feature Importance分析に基づく最適化
         total_generated = len(generated_features)
-
-        # 🚨 統合ログ出力 - Phase 51.7 Day 2: 51特徴量固定
         self.logger.info(
             f"特徴量生成完了 - 総数: {total_generated}/{expected_count}個",
             extra_data={
@@ -909,19 +730,17 @@ class FeatureGenerator:
                 "generated_features": generated_features,
                 "missing_features": missing_features,
                 "total_expected": expected_count,
-                "success": total_generated >= expected_count,  # Phase 51.7 Day 2: 51特徴量完全一致
+                "success": total_generated >= expected_count,
             },
         )
 
-        # ⚠️ 不足特徴量の警告 - Phase 51.7 Day 2: 51特徴量固定
         if missing_features:
             self.logger.warning(
-                f"🚨 特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
+                f"特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
             )
 
-        # Phase 51.7 Day 2: 51特徴量完全生成確認
         if total_generated == expected_count:
-            self.logger.info("✅ Phase 51.7 Day 2: 51特徴量完全生成成功")
+            self.logger.info(f"55特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""
