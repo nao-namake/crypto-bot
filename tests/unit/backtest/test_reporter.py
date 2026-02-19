@@ -557,7 +557,7 @@ class TestBacktestReporterInit:
         reporter = BacktestReporter()
 
         assert reporter.output_dir.exists()
-        assert "logs" in str(reporter.output_dir)
+        assert "backtest" in str(reporter.output_dir)
 
     def test_init_custom_output_dir(self):
         """カスタム出力ディレクトリテスト"""

@@ -29,7 +29,7 @@ set -euo pipefail
 # =============================================================================
 
 # ログ保存ディレクトリ
-LOG_DIR="src/backtest/logs"
+LOG_DIR="logs/backtest"
 mkdir -p "$LOG_DIR"
 
 # デフォルト値
@@ -259,7 +259,7 @@ fi
 
 # Step 5: Markdownレポート生成
 echo "📝 Step 5: Markdownレポート生成..."
-LATEST_JSON=$(ls -t src/backtest/logs/backtest_*.json 2>/dev/null | head -1)
+LATEST_JSON=$(ls -t logs/backtest/backtest_*.json 2>/dev/null | head -1)
 if [ -n "$LATEST_JSON" ]; then
     python3 scripts/backtest/generate_markdown_report.py "$LATEST_JSON"
     LATEST_MD=$(ls -t docs/検証記録/backtest_*.md 2>/dev/null | head -1)

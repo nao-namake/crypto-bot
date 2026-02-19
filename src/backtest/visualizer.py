@@ -1,14 +1,7 @@
 """
-バックテスト可視化システム - Phase 49.4完了
+バックテスト可視化システム
 
-matplotlib使用してバックテスト結果をグラフ化。
-直感的なパフォーマンス理解と問題箇所の視覚的特定を実現。
-
-主要機能:
-- エクイティカーブ（時系列資産推移）
-- 損益分布ヒストグラム
-- 価格チャート + エントリー/エグジットマーカー
-- ドローダウンチャート
+matplotlibでエクイティカーブ・損益分布・ドローダウン・価格チャートを生成。
 """
 
 from datetime import datetime
@@ -37,12 +30,12 @@ class BacktestVisualizer:
         BacktestVisualizer初期化
 
         Args:
-            output_dir: 出力ディレクトリ（Noneの場合はsrc/backtest/logs/graphs/）
+            output_dir: 出力ディレクトリ（Noneの場合はlogs/backtest/graphs/）
         """
         self.logger = get_logger(__name__)
 
         if output_dir is None:
-            base_dir = Path(__file__).parent / "logs" / "graphs"
+            base_dir = Path(__file__).parent.parent.parent / "logs" / "backtest" / "graphs"
         else:
             base_dir = Path(output_dir)
 
@@ -99,11 +92,31 @@ class BacktestVisualizer:
                 )
 
             self.logger.info(f"✅ グラフ生成完了: {session_dir}")
+
+            # Phase 64.11: 古いグラフフォルダの自動クリーンアップ
+            self._cleanup_old_graphs()
+
             return session_dir
 
         except Exception as e:
             self.logger.error(f"❌ グラフ生成エラー: {e}")
             raise
+
+    def _cleanup_old_graphs(self, keep: int = 5):
+        """古いグラフフォルダを自動削除（最新keep件のみ保持）"""
+        graph_dirs = sorted(
+            [d for d in self.output_dir.iterdir() if d.is_dir() and d.name.startswith("backtest_")],
+            key=lambda d: d.stat().st_mtime,
+        )
+        if len(graph_dirs) > keep:
+            import shutil
+
+            for old_dir in graph_dirs[: len(graph_dirs) - keep]:
+                try:
+                    shutil.rmtree(old_dir)
+                    self.logger.debug(f"古いグラフフォルダ削除: {old_dir.name}")
+                except OSError:
+                    pass
 
     def plot_equity_curve(self, equity_curve: List[float], output_path: Path):
         """

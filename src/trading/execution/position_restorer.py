@@ -260,7 +260,7 @@ class PositionRestorer:
                     )
                     continue
 
-                # Phase 64.4: 共通ヘルパーで計算（デフォルト: tight_range = 最保守）
+                # Phase 64.9: 共通ヘルパーで計算（デフォルト: normal_range = 安全側）
                 tp_price, sl_price = tp_sl_manager.calculate_recovery_tp_sl_prices(
                     position_side=pos_side,
                     avg_price=avg_price,

@@ -613,15 +613,15 @@ class TPSLManager:
         self,
         position_side: str,
         avg_price: float,
-        regime: str = "tight_range",
+        regime: str = "normal_range",
     ) -> Tuple[float, float]:
         """
-        Phase 64.4: 復旧用TP/SL価格計算（デフォルト: tight_range = 最保守）
+        Phase 64.9: 復旧用TP/SL価格計算（デフォルト: normal_range = 安全側）
 
         Args:
             position_side: "long" or "short"
             avg_price: 平均取得価格
-            regime: レジーム（デフォルト: tight_range）
+            regime: レジーム（デフォルト: normal_range）
 
         Returns:
             Tuple[float, float]: (tp_price, sl_price)
@@ -745,7 +745,7 @@ class TPSLManager:
         """
         symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
 
-        # Phase 64.4: 共通ヘルパーで計算（デフォルト: tight_range = 最保守）
+        # Phase 64.9: 共通ヘルパーで計算（デフォルト: normal_range = 安全側）
         tp_price, sl_price = self.calculate_recovery_tp_sl_prices(
             position_side=position_side,
             avg_price=avg_price,

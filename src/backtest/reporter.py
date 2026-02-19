@@ -1,23 +1,8 @@
 """
-バックテストレポートシステム - Phase 49.3完了
+バックテストレポートシステム
 
-Phase 34-35完了実績:
-- バックテスト10倍高速化対応（6-8時間→45分実行）
-- 特徴量・ML予測バッチ化レポート対応
-- 15分足データ収集80倍改善レポート対応
-
-Phase 49.3新機能:
-- TradeTracker: 取引ペア追跡（エントリー/エグジットペアリング）
-- 損益計算（取引毎・合計）
-- パフォーマンス指標計算（勝率・プロフィットファクター・最大DD等）
-- 詳細テキストレポート生成
-
-主要機能:
-- JSON形式レポート生成（構造化・時系列対応）
-- 進捗レポート（時系列バックテスト用）
-- エラーレポート（デバッグ用）
-- 実行統計レポート（勝率・PnL・取引回数）
-- Phase 49: 完全な損益分析レポート
+TradeTracker（取引ペア追跡・損益計算）、MLAnalyzer（ML予測分析）、
+BacktestReporter（JSON/テキスト/グラフレポート生成）を提供。
 """
 
 import json
@@ -30,12 +15,10 @@ import numpy as np
 from ..core.config import get_threshold
 from ..core.logger import get_logger
 
-# Phase 49.4: BacktestVisualizer統合（遅延インポート）
-
 
 class TradeTracker:
     """
-    取引ペア追跡システム（Phase 49.3: 損益計算・レポート実装）
+    取引ペア追跡システム
 
     エントリー/エグジットをペアリングし、取引毎の損益を計算。
     パフォーマンス指標（勝率・プロフィットファクター・最大DD等）を提供。
@@ -266,10 +249,10 @@ class TradeTracker:
         backtest_runner.pyとreporter.pyの両方からこのメソッドを使用することで、
         手数料計算の二重化バグを防止。
 
-        Phase 62.11B: Maker戦略対応
-        - エントリー: Maker -0.02%（リベート）
-        - TP決済: Maker -0.02%（リベート）
-        - SL決済: Taker 0.12%
+        Maker戦略対応（2026年2月2日改定後）
+        - エントリー: Maker 0%
+        - TP決済: Maker 0%
+        - SL決済: Taker 0.1%
 
         Args:
             side: "buy" or "sell"
@@ -899,7 +882,7 @@ class TradeTracker:
 
 class MLAnalyzer:
     """
-    ML予測分析システム（Phase 54.8: バックテストML分析）
+    ML予測分析システム
 
     バックテストのML予測結果を分析し、レポートに追加。
 
@@ -1162,19 +1145,17 @@ class MLAnalyzer:
 
 class BacktestReporter:
     """
-    バックテストレポート生成システム（Phase 38.4完了）
+    バックテストレポート生成システム
 
-    本番同一ロジックバックテスト用のシンプルなレポート機能。
-    Phase 34-35高速化対応完了。
+    JSON/テキスト/グラフ形式のレポートを生成。TradeTracker統合。
     """
 
     def __init__(self, output_dir: Optional[str] = None):
         self.logger = get_logger(__name__)
 
-        # 出力ディレクトリ設定（Phase 29: バックテスト統合フォルダ）
+        # 出力ディレクトリ設定（Phase 64.11: logs/backtest/ に統一）
         if output_dir is None:
-            # src/backtest/logs/ 配下に保存（集約済み）
-            base_dir = Path(__file__).parent / "logs"
+            base_dir = Path(__file__).parent.parent.parent / "logs" / "backtest"
         else:
             base_dir = Path(output_dir)
         self.output_dir = base_dir
@@ -1183,7 +1164,27 @@ class BacktestReporter:
         # Phase 49.3: TradeTracker統合
         self.trade_tracker = TradeTracker()
 
+        # Phase 64.11: 古いファイルの自動クリーンアップ
+        self._cleanup_old_files()
+
         self.logger.info(f"BacktestReporter初期化完了: {self.output_dir}")
+
+    def _cleanup_old_files(self, keep: int = 5):
+        """
+        古いレポートファイルを自動削除（最新keep件のみ保持）
+
+        対象: backtest_*.json, backtest_*.txt, error_*.json
+        """
+        patterns = ["backtest_*.json", "backtest_*.txt", "error_*.json"]
+        for pattern in patterns:
+            files = sorted(self.output_dir.glob(pattern), key=lambda f: f.stat().st_mtime)
+            if len(files) > keep:
+                for old_file in files[: len(files) - keep]:
+                    try:
+                        old_file.unlink()
+                        self.logger.debug(f"古いファイル削除: {old_file.name}")
+                    except OSError:
+                        pass
 
     async def generate_backtest_report(
         self,
@@ -1396,7 +1397,7 @@ class BacktestReporter:
 
         report_lines = [
             "=" * 80,
-            "バックテストレポート - Phase 49.3完了版",
+            "バックテストレポート",
             "=" * 80,
             "",
             "【バックテスト期間】",
@@ -1478,7 +1479,7 @@ class BacktestReporter:
                 "error_message": error_message,
                 "context": context,
                 "timestamp": datetime.now().isoformat(),
-                "phase": "Phase_38.4_BacktestSystem",
+                "phase": "BacktestSystem",
             }
 
             with open(filepath, "w", encoding="utf-8") as f:

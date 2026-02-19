@@ -1146,7 +1146,7 @@ def main():
     parser.add_argument(
         "json_path",
         type=str,
-        help="JSONレポートファイルパス（例: src/backtest/logs/backtest_20251112_120000.json）",
+        help="JSONレポートファイルパス（例: logs/backtest/backtest_20251112_120000.json）",
     )
     parser.add_argument(
         "--output-dir",

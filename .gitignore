@@ -150,7 +150,7 @@ cache_data/
 # バックテスト関連データ（動的生成）
 src/backtest/data/*.csv           # 履歴データキャッシュ
 src/backtest/data/*.json          # 結果データ
-src/backtest/logs/*.log           # Phase 51.8-J4: バックテスト実行ログ
+src/backtest/logs/                # 旧出力先（Phase 64.11で logs/backtest/ に移行）
 backtest_results/
 historical_data/
 

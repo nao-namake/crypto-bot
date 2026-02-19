@@ -890,9 +890,22 @@ class StopManager:
                         f"bitbankトリガー待機継続（フォールバックスキップ）"
                     )
                     return None
+                else:
+                    # Phase 64.9: 不明ステータスでも安全側（フォールバックしない）
+                    self.logger.warning(
+                        f"⚠️ Phase 64.9: SL注文 {sl_order_id} 不明ステータス: '{order_status}' "
+                        f"- 安全側でフォールバックスキップ"
+                    )
+                    return None
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 63: SL注文確認エラー: {e} - フォールバックスキップ")
                 return None  # API一時エラー時は安全側（フォールバックしない）
+
+        # Phase 64.9: sl_order_id未設定の場合のみフォールバック実行
+        if not sl_order_id:
+            self.logger.warning(
+                f"⚠️ Phase 64.9: sl_order_idが未設定 - タイムアウトフォールバック実行"
+            )
 
         # タイムアウト発生 - フォールバック決済（SL注文が確認できない場合のみ）
         entry_side = position.get("side", "")

@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 """
-過去データCSV収集スクリプト - Phase 38.4完了
+過去データCSV収集スクリプト
 
-本番環境と同じBitbank APIから過去データを取得してCSV形式で保存。
-バックテストの高速化とAPI依存削減を実現。
-
-Phase 34完了実績:
-- 15分足データ収集80倍改善（216件→17,271件・99.95%成功率）
-- Bitbank Public API直接使用実装（4時間足・15分足）
-- 期間統一機能実装（--match-4hオプション）
-- 日別イテレーション実装（ccxt制限回避）
+Bitbank Public APIから4h/15mデータを取得しCSV保存。
 
 使用方法:
     python src/backtest/scripts/collect_historical_csv.py --days 180
