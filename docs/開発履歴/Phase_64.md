@@ -1,7 +1,7 @@
 # Phase 64: TP/SLシンプル化 + システム全体整理
 
 **期間**: 2026年2月14日〜（進行中）
-**状態**: 🔄 Phase 64.1-64.11完了
+**状態**: 🔄 Phase 64.1-64.12完了
 **目的**: TP/SLロジックの過度な複雑性を整理し、設置不具合の根本原因を解消する
 
 ---
@@ -21,6 +21,7 @@
 | **64.9** | stop_limitタイムアウト誤キャンセル + SL距離不足の修正 | ✅ 完了 |
 | **64.10** | `src/backtest/`フォルダ監査・クリーンアップ | ✅ 完了 |
 | **64.11** | バックテストログ出力先統合 + 蓄積防止 | ✅ 完了 |
+| **64.12** | SL安全網の根本修正（50062無限ループ・canceled放置・VP無限ループ・孤児SL） | ✅ 完了 |
 
 ---
 
@@ -1083,10 +1084,62 @@ flake8 / black / isort: 全PASS ✅
 
 ---
 
-## 次のステップ
+## Phase 64.12: SL安全網の根本修正（✅完了）
 
-1. **Phase 64.12**: `src/core/`フォルダ監査・クリーンアップ
+**実施日**: 2026年2月20日
+**背景**: GCPログ（2/19-2/20）で50062エラーの無限ループ・SL canceled放置・VP無限ループが発生
+
+### 修正内容（4バグ + 2安全網）
+
+| バグ | 内容 | 修正 |
+|------|------|------|
+| **バグ1** | 成行決済前に既存注文をキャンセルしない→50062無限ループ | `place_sl_or_market_close()`で既存注文全キャンセル後に成行決済 |
+| **バグ2** | SL注文"canceled"を"closed"と同一視→SL不在放置 | closed/canceled分離。canceled時にsl_order_idクリア→Bot側SLチェック復活 |
+| **バグ3** | TP/SL片方失敗でVP未追加→毎サイクル再検出無限ループ | SLのみ成功でもVP追加（TPは次回再試行） |
+| **バグ4** | SL復元マッチングが方向のみ（価格未検証）→孤児SL誤採用 | トリガー価格が取得価格から3%以内か検証 |
+| **安全網1** | stop_limit timeout分岐でSL超過未チェック | `_is_sl_price_breached()`追加。open/不明/API例外でも超過時はフォールバック |
+| **安全網2** | ensure_tp_slカバレッジ計算で孤児SLをカウント | SL価格が取得価格から3%超乖離する注文を除外 |
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/trading/execution/tp_sl_manager.py` | バグ1: 注文キャンセル→成行 / バグ3: SLのみでVP更新 / 安全網2: カバレッジ価格検証 |
+| `src/trading/execution/stop_manager.py` | バグ2: canceled/closed分離 / 安全網1: `_is_sl_price_breached`+timeout分岐 |
+| `src/trading/execution/position_restorer.py` | バグ4: SL価格妥当性検証（3%閾値） |
+| `tests/unit/trading/execution/test_stop_manager.py` | テスト8件追加（_is_sl_price_breached 5件 + timeout 3件） |
+| `tests/unit/trading/execution/test_tp_sl_manager.py` | テスト2件追加（注文キャンセル + 部分VP） |
+| `tests/unit/trading/execution/test_position_restorer.py` | テスト2件追加（孤児SL除外 + 正常SL許容） |
+| `tests/unit/trading/execution/test_executor.py` | 既存テストSL価格を3%以内に調整 |
+
+### 修正効果
+
+```
+Before:
+  SL超過検知 → 成行決済 → 50062（既存注文が邪魔）→ 失敗 → 毎サイクル繰り返し → 損失拡大
+  SL canceledでも「フォールバック不要」→ SL不在のまま放置
+  TP失敗でVP未追加 → 毎サイクル再検出 → 無限ループ
+
+After:
+  SL超過検知 → 既存注文全キャンセル → 成行決済 → 成功
+  SL canceled → sl_order_idクリア → Bot側SLチェック復活 → SL再配置
+  TP失敗でもSL成功ならVP追加 → 無限ループ解消
+```
+
+### 品質確認
+
+```
+全テスト: 1,974 passed, 1 skipped ✅
+カバレッジ: 73.08% ✅（基準62%+）
+flake8 / black / isort: 全PASS ✅
+```
 
 ---
 
-**最終更新**: 2026年2月19日 — Phase 64.11完了・バックテストログ出力先統合
+## 次のステップ
+
+1. **Phase 64.13**: `src/core/`フォルダ監査・クリーンアップ
+
+---
+
+**最終更新**: 2026年2月20日 — Phase 64.12完了・SL安全網の根本修正

@@ -448,8 +448,8 @@ class OrderStrategy:
             # スプレッド狭すぎ確認（Maker不利）
             min_spread = config.get("min_spread_for_maker", 0.001)
             if spread_ratio < min_spread:
-                self.logger.debug(
-                    f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.3f}% < {min_spread * 100:.1f}%"
+                self.logger.info(
+                    f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.4f}% < {min_spread * 100:.3f}%"
                 )
                 return {"maker_viable": False, "disable_reason": "spread_too_narrow"}
 

@@ -2806,3 +2806,141 @@ class TestPhase6210BitbankClientTPMaker:
             # create_orderがpost_only指定なし（または False）で呼ばれていることを確認
             call_args = client.create_order.call_args
             assert call_args[1].get("post_only", False) is False
+
+
+# ========================================
+# Phase 64.12: SL安全網テスト
+# ========================================
+
+
+class TestPhase6412SLSafetyNet:
+    """Phase 64.12: SL安全網の根本修正テスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        return StopManager()
+
+    def test_is_sl_price_breached_long_below_sl(self, stop_manager):
+        """Phase 64.12: ロング - 現在価格がSL以下→超過"""
+        position = {"side": "buy", "stop_loss": 10000000.0}
+        assert stop_manager._is_sl_price_breached(position, 9900000.0) is True
+
+    def test_is_sl_price_breached_long_above_sl(self, stop_manager):
+        """Phase 64.12: ロング - 現在価格がSL以上→未超過"""
+        position = {"side": "buy", "stop_loss": 10000000.0}
+        assert stop_manager._is_sl_price_breached(position, 10100000.0) is False
+
+    def test_is_sl_price_breached_short_above_sl(self, stop_manager):
+        """Phase 64.12: ショート - 現在価格がSL以上→超過"""
+        position = {"side": "sell", "stop_loss": 10000000.0}
+        assert stop_manager._is_sl_price_breached(position, 10100000.0) is True
+
+    def test_is_sl_price_breached_short_below_sl(self, stop_manager):
+        """Phase 64.12: ショート - 現在価格がSL以下→未超過"""
+        position = {"side": "sell", "stop_loss": 10000000.0}
+        assert stop_manager._is_sl_price_breached(position, 9900000.0) is False
+
+    def test_is_sl_price_breached_no_stop_loss(self, stop_manager):
+        """Phase 64.12: stop_lossなし→False"""
+        position = {"side": "buy"}
+        assert stop_manager._is_sl_price_breached(position, 10000000.0) is False
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_timeout_canceled_clears_order_id(self, mock_threshold, stop_manager):
+        """Phase 64.12: canceled時にsl_order_idがクリアされる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        position = {
+            "side": "buy",
+            "amount": 0.01,
+            "price": 10000000.0,
+            "stop_loss": 9900000.0,
+            "sl_order_id": "sl_123",
+            "sl_placed_at": "2026-02-19T00:00:00+00:00",
+        }
+
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"status": "canceled", "id": "sl_123"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=10050000.0,
+            sl_config={"stop_limit_timeout": 0},  # 即タイムアウト
+            mode="live",
+            bitbank_client=mock_client,
+        )
+
+        # canceledではフォールバック不要だがsl_order_idはクリア
+        assert result is None
+        assert position["sl_order_id"] is None
+        assert position["sl_placed_at"] is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_timeout_open_price_breached(self, mock_threshold, stop_manager):
+        """Phase 64.12: open+SL価格超過→フォールバック実行"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.emergency.enable": False,
+        }.get(key, default if default is not None else {})
+
+        position = {
+            "order_id": "order_123",
+            "side": "buy",
+            "amount": 0.01,
+            "price": 10000000.0,
+            "stop_loss": 9900000.0,
+            "sl_order_id": "sl_123",
+            "sl_placed_at": "2026-02-19T00:00:00+00:00",
+            "tp_order_id": None,
+        }
+
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"status": "open", "id": "sl_123"})
+        mock_client.cancel_order = MagicMock()
+        mock_client.create_order = MagicMock(return_value={"id": "close_001"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=9800000.0,  # SL以下
+            sl_config={"stop_limit_timeout": 0},
+            mode="live",
+            bitbank_client=mock_client,
+        )
+
+        # SL超過のためフォールバック実行される
+        assert result is not None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_timeout_open_not_breached(self, mock_threshold, stop_manager):
+        """Phase 64.12: open+未到達→待機継続"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        position = {
+            "side": "buy",
+            "amount": 0.01,
+            "price": 10000000.0,
+            "stop_loss": 9900000.0,
+            "sl_order_id": "sl_123",
+            "sl_placed_at": "2026-02-19T00:00:00+00:00",
+        }
+
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"status": "open", "id": "sl_123"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=10050000.0,  # SLより上
+            sl_config={"stop_limit_timeout": 0},
+            mode="live",
+            bitbank_client=mock_client,
+        )
+
+        # SL未到達のため待機継続
+        assert result is None

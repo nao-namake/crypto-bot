@@ -505,6 +505,26 @@ class TPSLManager:
                 float(p.get("amount", 0)) for p in margin_positions if p.get("side") == "short"
             )
 
+            # Phase 64.12: SL価格妥当性検証用の平均取得価格
+            long_avg_price = 0.0
+            short_avg_price = 0.0
+            for p in margin_positions:
+                if p.get("side") == "long" and float(p.get("amount", 0)) > 0:
+                    long_avg_price = float(p.get("average_price", 0))
+                elif p.get("side") == "short" and float(p.get("amount", 0)) > 0:
+                    short_avg_price = float(p.get("average_price", 0))
+
+            def _is_sl_price_valid(order: dict, ref_price: float) -> bool:
+                """Phase 64.12: SL注文の価格がポジション取得価格から3%以内か"""
+                if ref_price <= 0:
+                    return True  # 参照価格なしは許容
+                trigger = float(
+                    order.get("stopPrice", order.get("triggerPrice", order.get("price", 0)))
+                )
+                if trigger <= 0:
+                    return True
+                return abs(trigger - ref_price) / ref_price <= 0.03
+
             # exit側の注文合計
             tp_sell_total = sum(
                 float(o.get("amount", 0))
@@ -514,7 +534,9 @@ class TPSLManager:
             sl_sell_total = sum(
                 float(o.get("amount", 0))
                 for o in active_orders
-                if o.get("side") == "sell" and o.get("type") in ("stop", "stop_limit")
+                if o.get("side") == "sell"
+                and o.get("type") in ("stop", "stop_limit")
+                and _is_sl_price_valid(o, long_avg_price)
             )
             tp_buy_total = sum(
                 float(o.get("amount", 0))
@@ -524,7 +546,9 @@ class TPSLManager:
             sl_buy_total = sum(
                 float(o.get("amount", 0))
                 for o in active_orders
-                if o.get("side") == "buy" and o.get("type") in ("stop", "stop_limit")
+                if o.get("side") == "buy"
+                and o.get("type") in ("stop", "stop_limit")
+                and _is_sl_price_valid(o, short_avg_price)
             )
 
             # 95%カバレッジで判定（端数誤差許容）
@@ -679,12 +703,32 @@ class TPSLManager:
                 sl_breached = True
 
         if sl_breached:
-            # SL超過 → 成行決済
+            # SL超過 → 既存注文キャンセル → 成行決済
             self.logger.critical(
-                f"🚨 Phase 64.4: SLトリガー超過 - 成行決済実行 "
+                f"🚨 Phase 64.12: SLトリガー超過 - 既存注文キャンセル→成行決済 "
                 f"({position_side} {amount:.4f} BTC, "
                 f"SL={sl_price:.0f}円, 現在={current_price:.0f}円)"
             )
+
+            # Phase 64.12: 既存注文を全キャンセル（50062対策）
+            try:
+                active_orders = await asyncio.to_thread(
+                    bitbank_client.fetch_active_orders, symbol, 100
+                )
+                for order in active_orders or []:
+                    try:
+                        await asyncio.to_thread(
+                            bitbank_client.cancel_order,
+                            str(order.get("id", "")),
+                            symbol,
+                        )
+                        self.logger.info(f"✅ Phase 64.12: 注文キャンセル - ID: {order.get('id')}")
+                    except Exception:
+                        pass  # キャンセル失敗は無視して続行
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 64.12: 注文一括キャンセルエラー: {e}")
+
+            # キャンセル後に成行決済
             try:
                 exit_side = "sell" if entry_side == "buy" else "buy"
                 close_order = await asyncio.to_thread(
@@ -698,7 +742,9 @@ class TPSLManager:
                 )
                 return {"order_id": f"market_close_{close_order.get('id', 'unknown')}"}
             except Exception as e:
-                self.logger.critical(f"🚨 Phase 64.4: 成行決済失敗 - 手動介入必要: {e}")
+                self.logger.critical(
+                    f"🚨 Phase 64.12: 成行決済失敗（注文キャンセル後）- 手動介入必要: {e}"
+                )
                 return None
         else:
             # 通常SL配置
@@ -786,11 +832,11 @@ class TPSLManager:
                 bitbank_client=bitbank_client,
             )
 
-        # Phase 64.2: TP/SL両方成功した場合のみvirtual_positionsに追加
+        # Phase 64.12: SLが設置されていればVP追加（TPは次回再試行）
         tp_ok = has_tp or (tp_order and tp_order.get("order_id"))
         sl_ok = has_sl or (sl_order and sl_order.get("order_id"))
 
-        if tp_ok and sl_ok:
+        if sl_ok:
             recovered_position = {
                 "order_id": f"recovered_{position_side}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                 "side": entry_side,
@@ -805,14 +851,20 @@ class TPSLManager:
                 "sl_placed_at": sl_order.get("sl_placed_at") if sl_order else None,
             }
             virtual_positions.append(recovered_position)
-            self.logger.info(
-                f"✅ Phase 64.2: TP/SL復旧完了 - virtual_positions追加 "
-                f"({position_side} {amount:.4f} BTC)"
-            )
+            if tp_ok:
+                self.logger.info(
+                    f"✅ Phase 64.12: TP/SL復旧完了 - virtual_positions追加 "
+                    f"({position_side} {amount:.4f} BTC)"
+                )
+            else:
+                self.logger.warning(
+                    f"⚠️ Phase 64.12: TP未設置だがSL設置済み - VP追加（TPは次回再試行）"
+                    f" ({position_side} {amount:.4f} BTC)"
+                )
         else:
             self.logger.critical(
-                f"🚨 Phase 64.2: TP/SL配置不完全（virtual_positions未追加・次回チェックで再試行）"
-                f" - TP: {'OK' if tp_ok else 'NG'}, SL: {'OK' if sl_ok else 'NG'}"
+                f"🚨 Phase 64.12: SL未設置 - VP未追加・次回再試行"
+                f" - TP: {'OK' if tp_ok else 'NG'}, SL: NG"
                 f" ({position_side} {amount:.4f} BTC)"
             )
 

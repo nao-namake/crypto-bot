@@ -757,3 +757,88 @@ class TestPhase643SLBreachMarketClose:
         # 成行決済ではなくplace_stop_loss経由のcreate_stop_loss_orderが呼ばれた
         mock_client.create_order.assert_not_called()
         mock_client.create_stop_loss_order.assert_called_once()
+
+
+# ========================================
+# Phase 64.12: SL安全網テスト
+# ========================================
+
+
+class TestPhase6412SLSafetyNet:
+    """Phase 64.12: SL安全網の根本修正テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_place_sl_or_market_close_cancels_orders_first(
+        self, mock_threshold, tp_sl_manager
+    ):
+        """Phase 64.12: 成行決済前に既存注文をキャンセル"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        # SL超過: short position, 現在価格がSL以上
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 10500000.0})
+        # 既存注文が2件
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "order_1", "side": "sell", "type": "limit"},
+                {"id": "order_2", "side": "sell", "type": "stop_limit"},
+            ]
+        )
+        mock_client.cancel_order = MagicMock()
+        mock_client.create_order = MagicMock(return_value={"id": "market_close_001"})
+
+        result = await tp_sl_manager.place_sl_or_market_close(
+            entry_side="sell",
+            position_side="short",
+            amount=0.01,
+            avg_price=10000000.0,
+            sl_price=10400000.0,  # 現在価格10,500,000 >= SL 10,400,000
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+        )
+
+        # 既存注文がキャンセルされた
+        assert mock_client.cancel_order.call_count == 2
+        # 成行決済が実行された
+        mock_client.create_order.assert_called_once()
+        call_kwargs = mock_client.create_order.call_args[1]
+        assert call_kwargs["order_type"] == "market"
+        assert result is not None
+        assert "market_close" in result["order_id"]
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_place_missing_tp_sl_partial_success(self, mock_threshold, tp_sl_manager):
+        """Phase 64.12: SLのみ成功→VP追加（TPは次回再試行）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+            "position_management.take_profit.regime.normal_range.min_profit_ratio": 0.01,
+            "position_management.stop_loss.regime.normal_range.max_loss_ratio": 0.007,
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        # TP配置失敗
+        mock_client.create_take_profit_order = MagicMock(side_effect=Exception("50062 error"))
+        # SL配置成功
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 10500000.0})
+        mock_client.create_stop_loss_order = MagicMock(return_value={"id": "sl_999"})
+
+        virtual_positions = []
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=10000000.0,
+            has_tp=False,
+            has_sl=False,
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+        # SLのみ成功でもVPに追加される
+        assert len(virtual_positions) == 1
+        vp = virtual_positions[0]
+        assert vp["sl_order_id"] == "sl_999"
+        assert vp["tp_order_id"] is None  # TP失敗

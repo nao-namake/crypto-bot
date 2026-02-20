@@ -819,6 +819,28 @@ class StopManager:
         )
         return True
 
+    def _is_sl_price_breached(self, position: dict, current_price: float) -> bool:
+        """
+        Phase 64.12: 現在価格がSLトリガー価格を超過しているか判定
+
+        Args:
+            position: ポジション情報
+            current_price: 現在価格
+
+        Returns:
+            bool: SL価格を超過している場合True
+        """
+        stop_loss = position.get("stop_loss")
+        entry_side = position.get("side", "")
+        if not stop_loss or current_price <= 0:
+            return False
+        sl_price = float(stop_loss)
+        if entry_side.lower() == "buy" and current_price <= sl_price:
+            return True
+        elif entry_side.lower() == "sell" and current_price >= sl_price:
+            return True
+        return False
+
     async def _check_stop_limit_timeout(
         self,
         position: dict,
@@ -879,27 +901,65 @@ class StopManager:
                     bitbank_client.fetch_order, sl_order_id, symbol
                 )
                 order_status = sl_order_status.get("status", "")
-                if order_status in ("closed", "canceled", "cancelled"):
+                if order_status == "closed":
                     self.logger.info(
-                        f"📊 Phase 63: SL注文 {sl_order_id} は既に{order_status} - フォールバック不要"
+                        f"✅ Phase 64.12: SL注文 {sl_order_id} は約定済み - フォールバック不要"
                     )
+                    return None
+                elif order_status in ("canceled", "cancelled"):
+                    # Phase 64.12: canceledはSL消失 → sl_order_idクリアしBot側SLチェック復活
+                    self.logger.warning(
+                        f"⚠️ Phase 64.12: SL注文 {sl_order_id} はキャンセル済み - SL不在!"
+                    )
+                    position["sl_order_id"] = None
+                    position["sl_placed_at"] = None
                     return None
                 elif order_status == "open":
-                    self.logger.info(
-                        f"📊 Phase 63: SL注文 {sl_order_id} はまだアクティブ - "
-                        f"bitbankトリガー待機継続（フォールバックスキップ）"
-                    )
-                    return None
+                    # Phase 64.12: open時はSL超過チェック
+                    if self._is_sl_price_breached(position, current_price):
+                        self.logger.warning(
+                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} open但しSL価格超過 - "
+                            f"既存注文キャンセル→成行フォールバック実行"
+                        )
+                        # 既存注文キャンセル→成行フォールバック
+                        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
+                        try:
+                            await asyncio.to_thread(
+                                bitbank_client.cancel_order, sl_order_id, symbol
+                            )
+                        except Exception:
+                            pass
+                        # フォールバック決済へ進む（return Noneしない）
+                    else:
+                        self.logger.info(
+                            f"📊 Phase 64.12: SL注文 {sl_order_id} はまだアクティブ - "
+                            f"bitbankトリガー待機継続"
+                        )
+                        return None
                 else:
-                    # Phase 64.9: 不明ステータスでも安全側（フォールバックしない）
+                    # Phase 64.12: 不明ステータスもSL超過チェック
+                    if self._is_sl_price_breached(position, current_price):
+                        self.logger.warning(
+                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} 不明ステータス '{order_status}' "
+                            f"且つSL価格超過 - フォールバック実行"
+                        )
+                    else:
+                        self.logger.warning(
+                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} 不明ステータス: '{order_status}' "
+                            f"- 安全側でフォールバックスキップ"
+                        )
+                        return None
+            except Exception as e:
+                # Phase 64.12: APIエラー時もSL超過チェック
+                if self._is_sl_price_breached(position, current_price):
                     self.logger.warning(
-                        f"⚠️ Phase 64.9: SL注文 {sl_order_id} 不明ステータス: '{order_status}' "
-                        f"- 安全側でフォールバックスキップ"
+                        f"⚠️ Phase 64.12: SL注文確認エラー: {e} 且つSL価格超過 - フォールバック実行"
+                    )
+                else:
+                    self.logger.warning(
+                        f"⚠️ Phase 64.12: SL注文確認エラー: {e} - フォールバックスキップ"
                     )
                     return None
-            except Exception as e:
-                self.logger.warning(f"⚠️ Phase 63: SL注文確認エラー: {e} - フォールバックスキップ")
-                return None  # API一時エラー時は安全側（フォールバックしない）
 
         # Phase 64.9: sl_order_id未設定の場合のみフォールバック実行
         if not sl_order_id:

@@ -104,8 +104,8 @@ class PositionRestorer:
                             tp_order_id = str(order.get("id", ""))
                             tp_price = float(order.get("price", 0))
                         elif order_type in ("stop", "stop_limit") and not sl_order_id:
-                            sl_order_id = str(order.get("id", ""))
-                            sl_price = float(
+                            # Phase 64.12: トリガー価格の妥当性検証（3%以内）
+                            trigger_price = float(
                                 order.get(
                                     "stopPrice",
                                     order.get(
@@ -114,6 +114,18 @@ class PositionRestorer:
                                     ),
                                 )
                             )
+                            if avg_price > 0 and trigger_price > 0:
+                                distance_ratio = abs(trigger_price - avg_price) / avg_price
+                                if distance_ratio > 0.03:
+                                    self.logger.warning(
+                                        f"⚠️ Phase 64.12: SL注文スキップ（価格乖離 "
+                                        f"{distance_ratio * 100:.1f}%）"
+                                        f" - ID: {order.get('id')}, "
+                                        f"trigger={trigger_price:.0f}, avg={avg_price:.0f}"
+                                    )
+                                    continue
+                            sl_order_id = str(order.get("id", ""))
+                            sl_price = trigger_price
                             order_dt = order.get("datetime")
                             sl_placed_at = (
                                 order_dt if order_dt else datetime.now(timezone.utc).isoformat()

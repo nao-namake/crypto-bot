@@ -1566,7 +1566,7 @@ class TestRestorePositionsFromAPI:
                     "type": "stop",
                     "side": "sell",
                     "amount": 0.0001,
-                    "price": 13500000,
+                    "price": 13650000,
                 },
             ]
         )
@@ -1583,7 +1583,7 @@ class TestRestorePositionsFromAPI:
         assert vp["tp_order_id"] == "tp_123"
         assert vp["sl_order_id"] == "sl_123"
         assert vp["take_profit"] == 14500000.0
-        assert vp["stop_loss"] == 13500000.0
+        assert vp["stop_loss"] == 13650000.0
         assert vp["restored"] is True
         assert vp["sl_placed_at"] is not None
 

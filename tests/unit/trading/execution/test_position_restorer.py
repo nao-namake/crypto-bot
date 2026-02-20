@@ -526,3 +526,98 @@ class TestCleanupOrphanSLOrdersEdgeCases:
 
         assert result["cleaned"] == 0
         mock_bitbank_client.cancel_order.assert_not_called()
+
+
+# ========================================
+# Phase 64.12: SL安全網テスト
+# ========================================
+
+
+class TestPhase6412SLSafetyNet:
+    """Phase 64.12: SL復元マッチング価格検証テスト"""
+
+    @pytest.fixture
+    def restorer(self):
+        return PositionRestorer()
+
+    async def test_restore_skips_orphan_sl(self, restorer):
+        """Phase 64.12: 価格乖離3%超のSL注文を除外"""
+        from unittest.mock import AsyncMock
+
+        avg_price = 10000000.0
+
+        mock_client = MagicMock()
+        # fetch_margin_positions is awaited directly (not via asyncio.to_thread)
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": avg_price}]
+        )
+
+        # fetch_active_orders is called via asyncio.to_thread (sync)
+        orphan_sl_price = avg_price * 0.94  # 6%乖離 > 3%閾値
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_001",
+                    "side": "sell",
+                    "type": "limit",
+                    "price": avg_price * 1.01,
+                },
+                {
+                    "id": "orphan_sl_001",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "price": orphan_sl_price,
+                    "stopPrice": orphan_sl_price,
+                },
+            ]
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # 復元されたがSLは除外
+        assert len(virtual_positions) == 1
+        vp = virtual_positions[0]
+        assert vp["tp_order_id"] == "tp_001"
+        assert vp["sl_order_id"] is None  # 孤児SLは除外
+
+    async def test_restore_accepts_valid_sl(self, restorer):
+        """Phase 64.12: 価格乖離3%以内のSL注文は正常マッチング"""
+        from unittest.mock import AsyncMock
+
+        avg_price = 10000000.0
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": avg_price}]
+        )
+
+        # SL価格が1%乖離（正常範囲）
+        valid_sl_price = avg_price * 0.99
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "sl_valid",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "price": valid_sl_price,
+                    "stopPrice": valid_sl_price,
+                },
+            ]
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["sl_order_id"] == "sl_valid"
